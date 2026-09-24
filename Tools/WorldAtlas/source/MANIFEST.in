@@ -1,0 +1,6 @@
+include runtime/package.json
+include runtime/package-lock.json
+include examples/terrain-v38.json
+include examples/terrain-v38.acceptance.json
+include docs/extraction.json
+recursive-include tests *.py

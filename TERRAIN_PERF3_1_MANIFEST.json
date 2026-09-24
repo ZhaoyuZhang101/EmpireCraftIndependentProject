@@ -1,0 +1,148 @@
+{
+  "release": "TerrainPerf3.1_WaterClimate",
+  "baseline": {
+    "archive": "ORBIS_TerrainPerf3_2DWorld_Zone4x4_Full.zip",
+    "bytes": 7281448,
+    "sha256": "4f9f3ba6789a6df9b646006a87974df0edee6a936a775c0d3f4fd35bf453868c",
+    "files": 393,
+    "missing_baseline_files": [],
+    "changed_original_meta_files": [],
+    "changed_packages_or_project_settings": []
+  },
+  "modified_baseline_files": [
+    {
+      "path": "Assets/ORBIS/Resources/ORBIS/FlatWorld/FlatMap.shader",
+      "before_sha256": "24d681b0de70a5596360219cc186021240f5b3bf37bc1b4d16639f0d30e62749",
+      "after_sha256": "5046739e3a77e7f356b5b4ed433f7f683d2b4345f5afab2dc3b60daeb99c9327"
+    },
+    {
+      "path": "Assets/ORBIS/Resources/ORBIS/FlatWorld/FlatWorld.uss",
+      "before_sha256": "a3a548f39e7cc298cb8fb7f7c3590dc38513f450adcbbadf78910b88d8a95680",
+      "after_sha256": "ce428601cae60aee274feceb20c4dd32906dbff2fff5d92fd3f220943239193c"
+    },
+    {
+      "path": "Assets/ORBIS/Resources/ORBIS/FlatWorld/FlatWorld.uxml",
+      "before_sha256": "cd46d932c04bf68a95de9ebdae9bfc28878a867010efffadd2d0429aefc84385",
+      "after_sha256": "9ccc4fce57da01a1c4f5fb6fda30c0a934856069ec7979498a84b0f5a941c3c7"
+    },
+    {
+      "path": "Assets/ORBIS/Resources/ORBIS/OrbisWater.cginc",
+      "before_sha256": "2c0f3c525c3aebc23e0295f6dabd8bce30493db72c468c6ac257554dc7d8b924",
+      "after_sha256": "d27c133e1104b0ce1de87d70bfdff7b04cecaaf8988f284f047dc842ad49d839"
+    },
+    {
+      "path": "Assets/ORBIS/Resources/ORBIS/Surface.shader",
+      "before_sha256": "051e17d859c4fa1ab49567e3ff9306fc9e88535bd4d71259ecbd2199016048a9",
+      "after_sha256": "36e973c2425d8e20230b8469ae198ce93ac60194502333ebb565e4ccc86c919f"
+    },
+    {
+      "path": "Assets/ORBIS/Runtime/FlatWorld/Core/FlatGenerator.cs",
+      "before_sha256": "a7cbe55d019916b72e23c4997f705cf4f3c4a14ad96ac448df0a1564c2f03fe4",
+      "after_sha256": "f7cb1c5d1c28093bb5ba4342d4dd90d9992ad14591ce89274fc8f1f08857eae2"
+    },
+    {
+      "path": "Assets/ORBIS/Runtime/FlatWorld/Core/FlatHydrology.cs",
+      "before_sha256": "a109c44c9cf1a751987f4590323b60584d8daa5c5b885c50a00615edb0cc4552",
+      "after_sha256": "0661842ed06c2daec2bb577950c6c433102d5c3c9fcaf7a008f10331e666c6ee"
+    },
+    {
+      "path": "Assets/ORBIS/Runtime/FlatWorld/Core/FlatSave.cs",
+      "before_sha256": "2e2adbaee91f06f57fd24441c402829efebc2866069d2997cf02a61a7b093ed3",
+      "after_sha256": "58df9f08dfb7d0b75bfef48d39c89f023ae940b5e2b1cf99819ebe866e95869e"
+    },
+    {
+      "path": "Assets/ORBIS/Runtime/FlatWorld/Core/FlatSelfTests.cs",
+      "before_sha256": "4aa8dd5e5f26c75133b3e3f7a817a5d264378802400a0ecd71b41425cdc31031",
+      "after_sha256": "57eb715e08ae3c42c4b30e91ef890b2f1207af7b3c95b6b219b90e582443b7e9"
+    },
+    {
+      "path": "Assets/ORBIS/Runtime/FlatWorld/Core/FlatTypes.cs",
+      "before_sha256": "50ba191bba4afaada7444cc3dccbe8acb75378966c15186e94a185da809e07c8",
+      "after_sha256": "9552d3cc095aa4f4c2d57266079230e27c6c27ec6bbec79c9f4dad456e2d0169"
+    },
+    {
+      "path": "Assets/ORBIS/Runtime/FlatWorld/Presentation/FlatGlobePresenter.cs",
+      "before_sha256": "ae518c44001e64d1a523464c4e0847a1f9bb46cd0a391763e571a2463b3aff4c",
+      "after_sha256": "4671d512270587683eb2039a5366c5843c0a23840a46a4a381f3bc230ad9d48d"
+    },
+    {
+      "path": "Assets/ORBIS/Runtime/FlatWorld/Presentation/FlatMapRenderer.cs",
+      "before_sha256": "69f52e8794ed4ca62ac80e0970994659aa8851f15e5a638127e157438df73794",
+      "after_sha256": "037a8ef0ebb8ad056ab78a2bbf220e2f60dbf5e2bde00977e2745f19eb03a195"
+    },
+    {
+      "path": "Assets/ORBIS/Runtime/FlatWorld/Presentation/FlatPalette.cs",
+      "before_sha256": "77ee6d810935eac6d5a39a4bd570fe706f4d5d6a296b6731b38b855e77174998",
+      "after_sha256": "2fa0651c17f3f6ebcdf40114136ac4b6511dc006a2c8e6b508c4321cabb875d4"
+    },
+    {
+      "path": "Assets/ORBIS/Runtime/FlatWorld/Presentation/FlatWorldApp.cs",
+      "before_sha256": "df0df8266daf704e15a6e87251eb353512701f968f0379aa022343dd4709acf7",
+      "after_sha256": "f21c352fb7b40c4e91bc5a65af15f29abce202209efe5ad38b96dbab0ec2aa29"
+    },
+    {
+      "path": "PACKAGE_MANIFEST.json",
+      "before_sha256": "c9861004179731fa18cc899b3788344273d3e83cad90e63535de64f02adcb4de",
+      "after_sha256": "82bf6ddb38c71654014cc1892f1fe5cfb81e22699552aef12fcad3c47f764a3f"
+    },
+    {
+      "path": "README.md",
+      "before_sha256": "8f320bbc0bb02058bcc8b1a830595ba2809a41d55107a686c1211c5b480fb1f7",
+      "after_sha256": "5946feeb314ef8e9c17201ffd17b5bfb037b3a9540775fb7e28d2deb3b98a1dc"
+    },
+    {
+      "path": "Validation/FlatWorld/classifier-cpp-report.json",
+      "before_sha256": "efdb5e7950feda90131b2a5abbf5f6c3ce9455261f666725b5ac846829cf0c1d",
+      "after_sha256": "d9c886924bfe6df2c3d106425797d7555da6ba28777eade7c4953858ecc82ebe"
+    },
+    {
+      "path": "Validation/FlatWorld/static-report.json",
+      "before_sha256": "96b5a66c7c74bc84ea743c35f5afe7c6d0f6c4fa7a8ada500bdbe998b72dae42",
+      "after_sha256": "25cf69f9978dc9b3b80f61bec92eed429ff3265856653ff0163cfd350d3af809"
+    },
+    {
+      "path": "Validation/FlatWorld/static_check.py",
+      "before_sha256": "82030fdbd2455d98fe5269d2a68277f727d2fe04c31074674a3f68a7250adb47",
+      "after_sha256": "8501bcdefaa4afe8ce5c70a733a865a65712040d3b085e1f25465edbae65ce5b"
+    }
+  ],
+  "added_files": [
+    "Assets/ORBIS/Editor/FlatWaterClimateValidation.cs",
+    "Assets/ORBIS/Editor/FlatWaterClimateValidation.cs.meta",
+    "Assets/ORBIS/Resources/ORBIS/FlatWorld/Water.meta",
+    "Assets/ORBIS/Resources/ORBIS/FlatWorld/Water/FlatWater.cginc",
+    "Assets/ORBIS/Resources/ORBIS/FlatWorld/Water/FlatWater.cginc.meta",
+    "Assets/ORBIS/Resources/ORBIS/FlatWorld/Water/HPWaterOptics.cginc",
+    "Assets/ORBIS/Resources/ORBIS/FlatWorld/Water/HPWaterOptics.cginc.meta",
+    "Assets/ORBIS/Runtime/FlatWorld/Core/FlatShallowWater.cs",
+    "Assets/ORBIS/Runtime/FlatWorld/Core/FlatShallowWater.cs.meta",
+    "Assets/ORBIS/Runtime/FlatWorld/Core/FlatTerrainAnalysis.cs",
+    "Assets/ORBIS/Runtime/FlatWorld/Core/FlatTerrainAnalysis.cs.meta",
+    "Assets/ORBIS/Runtime/FlatWorld/Core/FlatWaterGeometry.cs",
+    "Assets/ORBIS/Runtime/FlatWorld/Core/FlatWaterGeometry.cs.meta",
+    "Assets/ORBIS/Runtime/FlatWorld/Core/FlatWaterSelfTests.cs",
+    "Assets/ORBIS/Runtime/FlatWorld/Core/FlatWaterSelfTests.cs.meta",
+    "Assets/ORBIS/Runtime/FlatWorld/Presentation/FlatLocalWater.cs",
+    "Assets/ORBIS/Runtime/FlatWorld/Presentation/FlatLocalWater.cs.meta",
+    "Documentation/TerrainPerf3_1/ACCEPTANCE.md",
+    "Documentation/TerrainPerf3_1/History/PACKAGE_MANIFEST.json",
+    "Documentation/TerrainPerf3_1/History/README.md",
+    "Documentation/TerrainPerf3_1/IMPLEMENTATION.md",
+    "Documentation/TerrainPerf3_1/Licenses/HPWater-MPL-2.0.txt",
+    "Documentation/TerrainPerf3_1/Licenses/Unity-SWE-MIT-NOTICE.txt",
+    "Documentation/TerrainPerf3_1/THIRD_PARTY_NOTICES.md",
+    "README_TerrainPerf3_1_先读.md",
+    "VERSION_TERRAIN_PERF3_1.txt",
+    "Validation/WaterClimate/RELEASE_VALIDATION.json",
+    "Validation/WaterClimate/drainage-cpp-report.json",
+    "Validation/WaterClimate/run_d3d11.ps1",
+    "Validation/WaterClimate/source-contracts-report.json",
+    "Validation/WaterClimate/source_contracts.py",
+    "Validation/WaterClimate/swe-cpp-report.json",
+    "Validation/WaterClimate/verify_drainage_cpp.py",
+    "Validation/WaterClimate/verify_swe_cpp.py"
+  ],
+  "removed_files": [],
+  "all_original_GUIDs_preserved": true,
+  "note": "Historical reports remain in the package and are not evidence of this release. Final complete-file SHA256 list is TERRAIN_PERF3_1_SHA256.txt."
+}

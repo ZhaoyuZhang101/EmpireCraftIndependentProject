@@ -1,0 +1,202 @@
+{
+  "scope": "Offline source contracts, fixtures, independent Python double-precision references. NOT execution of production C#/HLSL.",
+  "csharp_compilation": "NOT_RUN",
+  "shader_compilation": "NOT_RUN",
+  "unity_import": "NOT_RUN",
+  "play_mode": "NOT_RUN",
+  "gpu_profiling": "NOT_RUN",
+  "desktop_build": "NOT_RUN",
+  "visual_acceptance": "NOT_RUN",
+  "checks": {
+    "source_delimiters_and_limited_lint": {
+      "status": "PASS",
+      "seconds": 0.03,
+      "source_files": 60,
+      "qualification": "Delimiters/includes and limited var declaration lint only; not a language compiler"
+    },
+    "ui_xml_and_bindings": {
+      "status": "PASS",
+      "seconds": 0.001,
+      "unique_named_elements": 126,
+      "qualification": "XML / binding references only; Unity layout not run"
+    },
+    "resources_metadata_fonts": {
+      "status": "PASS",
+      "seconds": 0.007,
+      "required_resource_references": 22,
+      "optional_external_noise_references": 2,
+      "unique_guids": 78,
+      "font_binaries": 0
+    },
+    "v41_render_wiring": {
+      "status": "FAIL",
+      "error": "AssertionError()"
+    },
+    "v4_feature_contracts": {
+      "status": "PASS",
+      "seconds": 0.001,
+      "stable_logical_tiles": 3456,
+      "region_selection": "tile / zone / connected chunk",
+      "map_river_position_informs_regions": true
+    },
+    "unified_water_contracts": {
+      "status": "PASS",
+      "seconds": 0.0,
+      "one_optical_model": true,
+      "carve_water_plane_exclusion": true,
+      "mouth_alpha_transition": true,
+      "qualification": "Source contract checks; no GPU rendering"
+    },
+    "map_and_codec_fixtures": {
+      "status": "PASS",
+      "seconds": 0.005,
+      "exact_gray16_values": 128,
+      "filters_tested": [
+        0,
+        1,
+        2,
+        3,
+        4
+      ],
+      "indexed_bmp_png_equal": true,
+      "example_dimensions": [
+        1024,
+        512
+      ],
+      "example_height_bit_depth": 16,
+      "qualification": "Independent Pillow fixture validation, not production C# decoder execution"
+    },
+    "raster_river_reference": {
+      "status": "PASS",
+      "seconds": 0.073,
+      "nodes": 427,
+      "components": 1,
+      "junctions": 5,
+      "closed_components": 0,
+      "uplift_warnings": 0,
+      "flow_to_roots": 427,
+      "half_width_range_R": [
+        0.0008872941176470588,
+        0.009
+      ],
+      "maximum_water_height": 0.504013733119707,
+      "qualification": "Independent Python reproduction of raster drainage invariants; production C# tests are provided but not run"
+    },
+    "region_boundary_reference": {
+      "status": "PASS",
+      "seconds": 0.059,
+      "tiles": 3456,
+      "closed_sphere_edges": 6912,
+      "two_adjacent_quad_boundary_edges": 6,
+      "whole_planet_external_edges": 0
+    },
+    "raster_sphere_coordinates": {
+      "status": "PASS",
+      "seconds": 0.002,
+      "pixel_center_roundtrips": 10000,
+      "maximum_error": 3.389649672058681e-15,
+      "north_first": true,
+      "east_west_wrap": true
+    },
+    "thermal_relaxation_reference": {
+      "status": "PASS",
+      "seconds": 0.003,
+      "height_sum_error": 3.552713678800501e-15,
+      "iterations": 3,
+      "qualification": "Independent numerical thermal relaxation, not complete hydraulic erosion"
+    },
+    "inherited_weather_and_camera_references": {
+      "status": "PASS",
+      "seconds": 0.169,
+      "independent_v3_reference_groups": {
+        "bounded": {
+          "max_detail_age_seconds": 6.0,
+          "reset_continuity_error": 1.9999999826858325e-07,
+          "max_clock_seconds": 1000000000000.0
+        },
+        "segments": {
+          "random_rays_partitioned": 2675,
+          "max_partition_error": 2.220446049250313e-16,
+          "includes_camera_inside_clouds": true
+        },
+        "homogeneous": {
+          "homogeneous_media": 10000,
+          "max_quadrature_error": 6.73772149184515e-12,
+          "RGB_transmittance": true
+        },
+        "tangent": {
+          "tangent_frames": 5,
+          "footprints_per_frame": 5,
+          "inverse_error": 1.8041124150158794e-16,
+          "global_equal_squares_claim": false,
+          "note": "Uniform local plane coordinates; projected spherical cells are only approximately undistorted near the center."
+        },
+        "dither": {
+          "tested_pixels": 5817600,
+          "same_depth_color_rule": true
+        },
+        "camera_safety": {
+          "altitude_samples": 10000,
+          "inside_bounding_sphere_case_accepted": true,
+          "minimum_altitude_R": 0.003
+        }
+      }
+    },
+    "solar_transmittance_reference": {
+      "status": "PASS",
+      "seconds": 0.017,
+      "zenith_RGB_transmittance": [
+        0.9152403728996303,
+        0.8208323288173396,
+        0.6695744025466279
+      ],
+      "low_sun_RGB_transmittance": [
+        0.4870951557802087,
+        0.2346152528144576,
+        0.04943291232398155
+      ],
+      "night_direct_RGB": [
+        0.0,
+        0.0,
+        0.0
+      ],
+      "sampled_positions": 300,
+      "max_night_to_day_channel_ratio": 0.0007060285377869427
+    },
+    "layered_Beer_reference": {
+      "status": "PASS",
+      "seconds": 0.236,
+      "random_columns": 4000,
+      "depth_layers": 8,
+      "quadrature_nodes_shared_across_layers": true,
+      "optical_depth_monotone": true,
+      "transmittance_in_0_1": true
+    },
+    "atlas_radial_column_reference": {
+      "status": "PASS",
+      "seconds": 0.014,
+      "map_sphere_column_equivalences": 1000,
+      "max_shell_thickness_error_R": 2.220446049250313e-16,
+      "qualification": "Radial-column geometry, not 3D perspective in the unfolded atlas"
+    },
+    "tracer_sphere_reference": {
+      "status": "PASS",
+      "seconds": 0.243,
+      "RK2_rotation_steps": 5000,
+      "sphere_radius_error_bound": 1e-12,
+      "analytic_rotation_position_error": 1.25023495494081e-06,
+      "candidate_coast_check_wired": true,
+      "qualification": "Synthetic rotating field; not a CFD accuracy test"
+    },
+    "noise_import_source_contract": {
+      "status": "PASS",
+      "seconds": 0.0,
+      "supported_input": "8-bit RGB/RGBA PNG numbered slices only",
+      "external_asset_owned_by_project": true,
+      "runtime_fallback": true,
+      "qualification": "Source contract, no native Texture3D serialization test"
+    }
+  },
+  "passed": 16,
+  "failed": 1
+}

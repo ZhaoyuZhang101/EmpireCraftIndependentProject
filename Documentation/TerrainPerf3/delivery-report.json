@@ -1,0 +1,24 @@
+{
+  "utc": "2026-09-11T16:19:20.148225+00:00",
+  "project_type": "Complete source prototype branch, not a precompiled player",
+  "target_unity": "6000.0.47f1",
+  "render_pipeline": "Built-in",
+  "main_scene": "Assets/ORBIS/Scenes/Orbis2DWorld.unity",
+  "baseline_noncache_files_deleted": 0,
+  "omitted_generated_cache_files": 1,
+  "checks": {
+    "static_lexical_and_resource": "PASS",
+    "cpp_translated_classifier": "PASS",
+    "cpp_classifier_fixtures": 65,
+    "numpy_reference_model": "PASS",
+    "numpy_reference_worlds": 6,
+    "actual_CSharp_execution": "NOT_RUN",
+    "Unity_Editor_CSharp_compilation": "NOT_RUN",
+    "Unity_shader_backend_compilation": "NOT_RUN",
+    "Unity_Play_Mode": "NOT_RUN",
+    "Unity_visual_acceptance": "NOT_RUN",
+    "Unity_FPS": "NOT_MEASURED",
+    "native_executable_build": "NOT_RUN"
+  },
+  "limitations_document": "Documentation/TerrainPerf3/验收与已知限制.md"
+}

@@ -1,0 +1,99 @@
+<ui:UXML xmlns:ui="UnityEngine.UIElements">
+ <ui:Style src="Orbis.uss" />
+ <ui:VisualElement name="root" class="root">
+  <ui:VisualElement class="header">
+   <ui:Label text="ORBIS" class="brand" />
+   <ui:VisualElement class="header-info"><ui:Label text="V4.2 · 地形與性能 Perf1" class="kicker" /><ui:Label name="summary" /></ui:VisualElement>
+   <ui:Button name="save" text="保存世界" /><ui:Button name="load" text="載入" /><ui:Button name="zen" text="面板" /><ui:Button name="help" text="操作說明" />
+  </ui:VisualElement>
+  <ui:VisualElement name="nameLayer" class="name-layer" picking-mode="Ignore" />
+  <ui:VisualElement name="layout" class="layout">
+   <ui:ScrollView class="panel" horizontal-scroller-visibility="Hidden">
+    <ui:Label text="觀測圖層" class="section" />
+    <ui:VisualElement class="row"><ui:Button name="layer0" text="自然地貌" /><ui:Button name="layer1" text="文明版圖" /><ui:Button name="layer2" text="地表溫度" /><ui:Button name="layer3" text="降水分布" /><ui:Button name="layer4" text="構造板塊" /><ui:Button name="layer5" text="土地生產力" /><ui:Button name="layer6" text="河流流域" /><ui:Button name="layer7" text="地形高程" /><ui:Button name="layer8" text="自然區域" /><ui:Button name="layer9" text="地形區塊" /><ui:Button name="layer10" text="四邊形地塊" /><ui:Button name="layer11" text="風速風帶" /><ui:Button name="layer12" text="海溫洋流" /></ui:VisualElement>
+    <ui:VisualElement class="row"><ui:Button name="map" text="展開地圖" /><ui:Button name="localView" text="降落地表" /><ui:Button name="homeView" text="重設視角" /><ui:Button name="findRiver" text="尋找主河" /></ui:VisualElement>
+    <ui:Label text="V4.2 · 全球雲雨與雷暴" class="section" />
+    <ui:Label name="weatherStatus42" class="muted" />
+    <ui:VisualElement class="row"><ui:Button name="findRain42" text="尋找降雨" /><ui:Button name="findStorm42" text="尋找雷暴" /><ui:Button name="rainSurface42" text="雨中近景" /></ui:VisualElement>
+    <ui:VisualElement class="row"><ui:Button name="rainEffects42" text="雨滴與水花" /><ui:Button name="lightningEffects42" text="閃電" /><ui:Button name="weatherAudio42" text="雨聲與雷聲" /><ui:Button name="wetSurfaces42" text="濕潤材質" /></ui:VisualElement>
+    <ui:Button name="convectiveExperiment42" text="對流試驗：擾動選區溫濕條件" />
+    <ui:Label text="試驗會改變選區大氣；正常天氣不依靠此按鈕。遊戲尺度模型，並非氣象預報。" class="muted" />
+    <ui:Label text="V4.1.2 · 進出大氣" class="section" />
+    <ui:VisualElement class="row"><ui:Button name="enterAtmosphere" text="進入大氣" /><ui:Button name="exitAtmosphere" text="返回太空" /><ui:Button name="atmosphereFlight" text="穿越演示" /><ui:Button name="duskView" text="晨昏視角" /></ui:VisualElement>
+    <ui:Slider name="lookTilt" label="仰俯角" low-value="0" high-value="110" value="0" />
+    <ui:Label text="0° 俯視地面 · 90° 切線方向 · 大於 90° 仰望。太空／雲層／近地共用同一 GLSL 移植積分。" class="muted" />
+    <ui:Label name="v3Status" class="muted" />
+    <ui:VisualElement class="row"><ui:Button name="surfaceLOD" text="近地細分" /><ui:Button name="localGrid" text="4×4 地塊格線" /><ui:Button name="weatherLive" text="動態天氣" /><ui:Button name="multipleScattering" text="雲內散射" /><ui:Button name="enhancedWater" text="統一水體" /><ui:Button name="volumeReference" text="全解析度對照" /></ui:VisualElement>
+    <ui:DropdownField name="transportMode" label="輸運觀測" />
+    <ui:DropdownField name="cloudDebug" label="雲光照診斷" />
+    <ui:DropdownField name="surfaceDebug" label="地表光照診斷" />
+    <ui:VisualElement class="row"><ui:Button name="godRays" text="雲隙光" /><ui:Button name="mapClouds" text="展開圖雲層" /></ui:VisualElement>
+    <ui:Slider name="exposure" label="顯示曝光" low-value="0.35" high-value="2" value="1" />
+    <ui:Slider name="shadowStrength" label="雲影強度" low-value="0" high-value="1" value="0.8" />
+    <ui:Slider name="airDensity" label="大氣密度" low-value="0" high-value="2" value="1" />
+    <ui:Slider name="haze" label="氣溶膠霧度" low-value="0" high-value="3" value="1" />
+    <ui:Slider name="scatteringStrength" label="雲內漫射" low-value="0" high-value="1.5" value="0.65" />
+    <ui:Slider name="waveStrength" label="水面法線強度" low-value="0" high-value="1.5" value="0.65" />
+    <ui:Label text="4×4 地塊格線是正視規劃輔助；世界仍由 3,456 個模擬地塊驅動。全景地圖容許投影變形。" class="muted" />
+    <ui:Label text="4×4 Zone · 選擇與文明領土" class="section" />
+    <ui:DropdownField name="selectionMode" label="選取粒度" />
+    <ui:Label name="v4Status" class="muted" />
+    <ui:VisualElement class="row"><ui:Button name="foundNation" text="在所點 Zone 建國" /><ui:Button name="useNation" text="以此國家圈地" /><ui:Button name="claimRegion" text="擴展所點相鄰 Zone" /></ui:VisualElement>
+    <ui:VisualElement class="row"><ui:Button name="regionExpansion" text="逐 Zone 拓展" /><ui:Button name="spriteActors" text="2D 建築／居民" /></ui:VisualElement>
+    <ui:Label text="V4 · 高度圖＋河流圖" class="section" />
+    <ui:Label text="2:1 等經緯圖、北在上。高度圖為 8/16 位灰度 PNG；河圖以單像素藍色線定位。匯入將建立新世界並備份舊世界。" class="muted" />
+    <ui:TextField name="mapFolder" label="地圖資料夾" />
+    <ui:VisualElement class="row"><ui:Button name="mapFolderOpen" text="打開匯入資料夾" /><ui:Button name="importMaps" text="從目錄建圖" /><ui:Button name="exampleMap" text="載入雙圖範例" /><ui:Button name="exportMaps" text="匯出雙圖" /></ui:VisualElement>
+    <ui:Label text="地形工作台 · TerrainPerf1" class="section" />
+    <ui:Label text="點擊筆刷自動暫停模擬。球面與展開圖修改同一份地形；拖曳仍用於移動視角。" class="muted" />
+    <ui:DropdownField name="terrainQuality" label="近地網格（獨立）" />
+    <ui:Slider name="terrainBrushRadius" label="筆刷半徑 / R" low-value="0.02" high-value="0.35" value="0.12" />
+    <ui:Slider name="terrainBrushStrength" label="筆刷強度" low-value="0.01" high-value="0.25" value="0.12" />
+    <ui:Slider name="terrainFlattenHeight" label="整平目標高程" low-value="-0.5" high-value="1" value="0" />
+    <ui:VisualElement class="row"><ui:Button name="tool6" text="平滑地形" /><ui:Button name="tool7" text="整平地形" /><ui:Button name="terrainSampleHeight" text="取所選高度" /></ui:VisualElement>
+    <ui:VisualElement class="row"><ui:Button name="terrainUndo" text="撤銷地形" /><ui:Button name="terrainRedo" text="重做地形" /></ui:VisualElement>
+    <ui:Label text="高程 0 = 海平面；正值為陸地，負值為海底。最多保留 16 步；繼續模擬或更換世界後清空，存檔不含編輯歷史。" class="muted" />
+    <ui:Label name="terrainPerformance" class="muted" />
+    <ui:VisualElement class="row"><ui:Button name="performanceCapture" text="開始幀時間採樣" /><ui:Button name="performanceExport" text="停止並匯出採樣" /></ui:VisualElement>
+    <ui:Label text="採樣在遊戲每幀執行，滿 1,800 幀自動停止。報告記錄實際幀間隔，不能單獨區分 CPU / GPU 瓶頸。" class="muted" />
+    <ui:Label text="創造與干預" class="section" />
+    <ui:VisualElement class="row"><ui:Button name="tool0" text="觀察" /><ui:Button name="tool1" text="投放人類" /><ui:Button name="tool2" text="降雨" /><ui:Button name="tool3" text="隆起陸地" /><ui:Button name="tool4" text="沉降海洋" /><ui:Button name="tool5" text="移除聚落" /></ui:VisualElement>
+    <ui:Button name="seedCivs" text="播種四個文明" class="primary" />
+    <ui:VisualElement class="row"><ui:Button name="war" text="全面戰爭" /><ui:Button name="peace" text="停戰" /></ui:VisualElement>
+    <ui:VisualElement class="row"><ui:Button name="settlers" text="派出拓荒隊" /><ui:Button name="army" text="派出遠征軍" /><ui:Button name="autoExpeditions" text="自動派遣" /><ui:Button name="autoWar" text="邊境戰爭" /></ui:VisualElement>
+    <ui:Label text="大氣與行星" class="section" />
+    <ui:VisualElement class="row"><ui:Button name="clouds" text="雲層：開啟" /><ui:Button name="night" text="晝夜：開啟" /><ui:Button name="rotation" text="自轉：開啟" /><ui:Button name="rivers" text="河流：開啟" /></ui:VisualElement>
+    <ui:VisualElement class="row"><ui:Button name="showWind" text="風向" /><ui:Button name="showCurrents" text="洋流" /><ui:Button name="showBorders" text="國界" /><ui:Button name="showNames" text="地名" /><ui:Button name="autoOrbit" text="環繞觀察" /><ui:Button name="cloudShadows" text="雲影" /><ui:Button name="atmosphere" text="大氣" /><ui:Button name="followSurface" text="跟隨地表" /></ui:VisualElement>
+    <ui:Slider name="heat" label="太陽輻射" low-value="0.7" high-value="1.3" value="1" />
+    <ui:Slider name="greenhouse" label="溫室效應" low-value="0" high-value="2" value="1" />
+    <ui:Slider name="period" label="自轉週期" low-value="30" high-value="300" value="120" />
+    <ui:Slider name="wind" label="風場強度" low-value="0" high-value="2" value="1" />
+    <ui:Slider name="tilt" label="地軸傾角" low-value="0" high-value="45" value="23.4" />
+    <ui:Slider name="oceanPower" label="洋流輸熱" low-value="0" high-value="2" value="1" />
+    <ui:Slider name="monsoon" label="季風強度" low-value="0" high-value="2" value="1" />
+    <ui:Slider name="cloudCover" label="雲量係數" low-value="0.25" high-value="1.7" value="1" />
+    <ui:Slider name="cloudDensity" label="雲層密度" low-value="0.3" high-value="2" value="1" />
+    <ui:DropdownField name="cloudQuality" label="雲霧畫質" />
+    <ui:Slider name="waterRoughness" label="水面風浪" low-value="0.2" high-value="2" value="1" />
+    <ui:Slider name="surfaceDetail" label="地表細節" low-value="0" high-value="2" value="1" />
+    <ui:Label name="planetValues" class="muted" />
+    <ui:Button name="geo" text="手動板塊 + 兩千萬年" /><ui:Button name="rezone" text="重劃自然分區" />
+    <ui:Label text="世界種子" class="section" /><ui:TextField name="seed" max-length="32" /><ui:Button name="newWorld" text="生成世界" />
+   </ui:ScrollView>
+   <ui:VisualElement name="viewport" class="viewport" />
+   <ui:ScrollView class="panel panel-right" horizontal-scroller-visibility="Hidden">
+    <ui:Label text="太陽與季節" class="section" /><ui:Label name="seasons" class="muted" /><ui:Label text="地表觀測" class="section" /><ui:Label name="region" class="region" /><ui:Button name="focus" text="聚焦所選地區" />
+    <ui:Label name="mission" class="mission" />
+    <ui:Label text="文明概況" class="section" /><ui:Label name="civilizations" class="muted" />
+    <ui:Label text="世界紀事" class="section" /><ui:Label name="chronicle" class="muted" />
+    <ui:Label text="拖曳環繞或平移 · 滾輪縮放 · 點擊觀察或使用工具" class="muted" />
+    <ui:VisualElement class="row"><ui:Button name="shot" text="擷取畫面" /><ui:Button name="folder" text="存檔資料夾" /></ui:VisualElement>
+   </ui:ScrollView>
+  </ui:VisualElement>
+  <ui:VisualElement class="footer"><ui:Label name="clock" class="clock" /><ui:Button name="pause" text="暫停" /><ui:Button name="speed" text="1 倍速" /><ui:Label name="notice" class="notice" /></ui:VisualElement>
+  <ui:VisualElement name="helpPanel" class="modal hidden"><ui:Label text="ORBIS 操作說明" class="section" /><ui:Label text="滑鼠拖曳：環繞星球／平移地圖。滾輪：縮放。點擊：選取地塊或使用工具。&#10;&#10;滾輪可連續穿越大氣、雲層，抵達正視地表；「降落地表」可直接聚焦。&#10;G：4×4 地塊格線。M：星球／全景地圖切換。F：聚焦選取。H：收合面板。空白鍵：暫停／繼續。快捷鍵需先點一下地表。&#10;&#10;從有足夠人口的聚落派出拓荒隊或遠征軍。航海時代可跨海；遠征軍需要戰爭狀態。&#10;&#10;地理名稱、國界、風向與洋流均可獨立切換。畫面卡頓時可降低雲層畫質。" /><ui:Button name="closeHelp" text="知道了" /></ui:VisualElement>
+  <ui:VisualElement name="confirmImport" class="modal hidden"><ui:Label text="用高度圖與河流圖建立新世界？" class="section" /><ui:Label text="讀取指定目錄的 heightmap.png 和 rivers.png（亦支援 BMP）。先校驗圖像與河網；目前世界會另存備份，新地圖不繼承現有國家與人口。" /><ui:VisualElement class="row"><ui:Button name="cancelImport" text="取消" /><ui:Button name="confirmImportGo" text="校驗並建立" class="primary" /></ui:VisualElement></ui:VisualElement>
+  <ui:VisualElement name="confirmExample" class="modal hidden"><ui:Label text="載入河谷雙圖範例？" class="section" /><ui:Label text="示例展示彎曲幹流、支流、寬度變化和入海過渡。會備份並替換目前世界。" /><ui:VisualElement class="row"><ui:Button name="cancelExample" text="取消" /><ui:Button name="confirmExampleGo" text="建立範例" class="primary" /></ui:VisualElement></ui:VisualElement>
+  <ui:VisualElement name="confirmNew" class="modal hidden"><ui:Label text="生成新的星球？" class="section" /><ui:Label text="未保存的進度將被取代。如需保留，請先保存目前世界。" /><ui:VisualElement class="row"><ui:Button name="cancelNew" text="取消" /><ui:Button name="confirmGenerate" text="生成" class="primary" /></ui:VisualElement></ui:VisualElement>
+ </ui:VisualElement>
+</ui:UXML>

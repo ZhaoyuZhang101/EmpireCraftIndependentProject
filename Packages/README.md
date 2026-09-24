@@ -1,0 +1,1 @@
+This V4 project uses a minimal manifest of built-in Unity engine modules. It has no third-party UPM dependency and retains the Built-in Render Pipeline. Do not import URP/HDRP without a deliberate shader conversion. Import/build validation has not been run in the delivery environment.

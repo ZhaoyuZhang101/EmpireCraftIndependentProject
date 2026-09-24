@@ -1,0 +1,14 @@
+{
+  "name": "Orbis.Flat.Core",
+  "rootNamespace": "Orbis.Flat",
+  "references": [],
+  "includePlatforms": [],
+  "excludePlatforms": [],
+  "allowUnsafeCode": false,
+  "overrideReferences": false,
+  "precompiledReferences": [],
+  "autoReferenced": true,
+  "defineConstraints": [],
+  "versionDefines": [],
+  "noEngineReferences": true
+}

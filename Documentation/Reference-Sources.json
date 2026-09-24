@@ -1,0 +1,36 @@
+{
+  "checked_date": "2026-09-11",
+  "scope": "Technical references, not a project-wide license audit",
+  "references": [
+    {
+      "url": "https://github.com/Dimev/atmospheric-scattering-explained/blob/main/atmosphere.glsl",
+      "retrieval": "GitHub rendered code accessible; unpinned revision",
+      "use": "Conceptual model independently implemented in HLSL; MIT/copyright header visible",
+      "copyright": "Copyright (c) 2019 Dimas Leenman"
+    },
+    {
+      "url": "https://www.shadertoy.com/view/MdGBWG",
+      "retrieval": "Restricted, including robots denial / earlier HTTP 402",
+      "source_imported": false,
+      "license_verified": false
+    },
+    {
+      "url": "https://www.shadertoy.com/view/lslXDr",
+      "retrieval": "HTTP 402; no complete source retrieved",
+      "source_imported": false,
+      "license_verified": false
+    },
+    {
+      "url": "https://docs.unity3d.com/cn/6000.0/ScriptReference/Camera.OnRenderImage.html",
+      "use": "Built-in only; not SRP"
+    },
+    {
+      "url": "https://docs.unity3d.com/6000.0/Documentation/Manual/SL-CameraDepthTexture.html",
+      "use": "Opaque ShadowCaster depth participation"
+    },
+    {
+      "url": "https://developer.nvidia.com/gpugems/gpugems2/part-ii-shading-lighting-and-shadows/chapter-16-accurate-atmospheric-scattering",
+      "use": "Secondary independent technical cross-check from primary GPU Gems chapter"
+    }
+  ]
+}

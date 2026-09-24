@@ -1,0 +1,121 @@
+{
+  "extension": "V4.2 Repair IPCFix1 + NightLighting",
+  "status": "PASS",
+  "scope": "Listed source and CPU numerical tests ONLY",
+  "unity_shader_compilation_performed": false,
+  "hlsl_compilation_performed": false,
+  "csharp_compilation_performed": false,
+  "unity_visual_test_performed": false,
+  "fps_test_performed": false,
+  "checks": {
+    "source_contracts": {
+      "no_new_helper_loops": true,
+      "no_new_3d_density_fetches": true,
+      "no_solar_atlas_reused_for_moon": true,
+      "new_texture_sites_2d": 3,
+      "solar_independent_night_terms": true,
+      "existing_IPC_view_cap": 325,
+      "all_land_water_volume_consumers_wired": true,
+      "save_migration_source_present": true,
+      "live_CSharp_serialization_test": "NOT_RUN"
+    },
+    "phase_reference": {
+      "random_cases": 4000,
+      "polar_long_clock_cases": 9,
+      "new_full_quarters_cycle": "PASS",
+      "model": "CPU double reference, not executing C#"
+    },
+    "light_separation": {
+      "new_moon_and_planet_occlusion": "PASS",
+      "day_night_gates": "PASS",
+      "overcast_monotonic_nonzero_ambient": "PASS",
+      "airglow_off_without_atmosphere": "PASS",
+      "albedo_zero_stays_zero_before_other_reflection_emission": true,
+      "uniform_Beer_split_cases": 4000,
+      "uniform_Beer_max_abs_error": 2.7755575615628914e-16,
+      "limitation": "Analytic energy reference, not sampled production volume visual equivalence."
+    }
+  },
+  "reference_samples_not_screenshots": {
+    "moonless_clear": {
+      "linear_ambient_RGB": [
+        0.04245,
+        0.0613,
+        0.083675
+      ],
+      "linear_direct_moon_RGB": [
+        0,
+        0,
+        0
+      ],
+      "matte_20_percent_albedo_linear_RGB": [
+        0.008490000000000001,
+        0.01226,
+        0.016735
+      ]
+    },
+    "full_moon_clear": {
+      "linear_ambient_RGB": [
+        0.04245,
+        0.0613,
+        0.083675
+      ],
+      "linear_direct_moon_RGB": [
+        0.10099006550507905,
+        0.0995194665292372,
+        0.09842967492395722
+      ],
+      "matte_20_percent_albedo_linear_RGB": [
+        0.02868801310101581,
+        0.032163893305847444,
+        0.036420934984791445
+      ]
+    },
+    "full_moon_overcast": {
+      "linear_ambient_RGB": [
+        0.012252875257984859,
+        0.017693786886088855,
+        0.02415216342077463
+      ],
+      "linear_direct_moon_RGB": [
+        0.001849697571140638,
+        0.0018227626113489761,
+        0.0018028023818426944
+      ],
+      "matte_20_percent_albedo_linear_RGB": [
+        0.0028205145658250995,
+        0.0039033098994875667,
+        0.005190993160523466
+      ]
+    },
+    "moonless_overcast": {
+      "linear_ambient_RGB": [
+        0.012252875257984859,
+        0.017693786886088855,
+        0.02415216342077463
+      ],
+      "linear_direct_moon_RGB": [
+        0,
+        0,
+        0
+      ],
+      "matte_20_percent_albedo_linear_RGB": [
+        0.002450575051596972,
+        0.003538757377217771,
+        0.004830432684154926
+      ]
+    }
+  },
+  "source_sha256": {
+    "Assets/ORBIS/Editor/OrbisV42NightLightingValidation.cs": "c042e22012bcf582dfabb09009c4f612d21db65591487422d737cf77978f7c69",
+    "Assets/ORBIS/Editor/OrbisV42NightLightingValidation.cs.meta": "0fa63ae08ba220218fb0f89ada615c6daf57ed5e863264e1a2a06cefd9675691",
+    "Assets/ORBIS/Resources/ORBIS/OrbisAtmosphereCommon.cginc": "fa8a2983a3669447cb12ff7c50d9a1a968df5658f6c5077eff586373aff98220",
+    "Assets/ORBIS/Resources/ORBIS/OrbisNightLighting.cginc": "dd975d47c70174f653f41735e116510fb3d57172645505c51da4ac925f9b353e",
+    "Assets/ORBIS/Resources/ORBIS/OrbisNightLighting.cginc.meta": "3e22b8234084e4878c8bce526187ff8dda764c4dbf3e34e9cc09f832fee297b4",
+    "Assets/ORBIS/Resources/ORBIS/OrbisOptics.cginc": "f726c6634297b65cebd6e537e0b08607f000feb22ab369bec33621d4a837742e",
+    "Assets/ORBIS/Resources/ORBIS/OrbisWater.cginc": "7d2033aea47b00876233d4dba13d211b4f42afa4ecffd2c4728b247fe0d50da2",
+    "Assets/ORBIS/Resources/ORBIS/Surface.shader": "9b0d61505232000bf80a823b41bffe735ac6bf8ae840c509a47670a667e4adf7",
+    "Assets/ORBIS/Runtime/OrbisNightLighting.cs": "95ef13eb7d051fc3b05930b4ebd057626715b5b012597be2cd88197f29a77e5b",
+    "Assets/ORBIS/Runtime/OrbisNightLighting.cs.meta": "51fb6eba3e1c6032687f7fad4d72416bed1f489e5477c54ed769da1542ad373b"
+  }
+}

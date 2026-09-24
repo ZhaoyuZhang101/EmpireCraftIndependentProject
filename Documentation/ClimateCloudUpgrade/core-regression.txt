@@ -1,0 +1,1 @@
+PASS / 1302322 assertions / 1405 ms. This is core C#, not shader or visual acceptance.

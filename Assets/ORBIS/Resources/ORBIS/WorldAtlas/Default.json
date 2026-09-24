@@ -1,0 +1,365 @@
+{
+  "engine": "World Atlas 1.3.0",
+  "seed": "ORBIS-2D-2026",
+  "seedHash": 3663310244,
+  "width": 512,
+  "height": 256,
+  "southFirst": true,
+  "metersPerUnit": 1,
+  "sha256": "b68a953c36cf31b5d01edc4a522ec9741acec668816cb2a2546159e27d2f2a4c",
+  "hydrology": "ORBIS spherical drainage and spill lakes rebuilt from this physical bed",
+  "diagnostics": {
+    "seed": 3663310244,
+    "polarContinents": {
+      "north": false,
+      "south": false
+    },
+    "stageSeeds": {
+      "morphology": 1105057759,
+      "plates": 1193409641,
+      "crust": 4066349644,
+      "coast": 4113650577,
+      "orogeny": 2493492496,
+      "relief": 561949229
+    },
+    "plateCount": 14,
+    "effectivePlateCount": 14,
+    "continentCount": 8,
+    "seaLevelMeters": 643.3534851078357,
+    "mapSeam": {
+      "sourceColumn": 179,
+      "sourceLongitudeDegrees": -53.7890625,
+      "oceanCorridorWidthColumns": 50,
+      "longitudeRollColumns": -179
+    },
+    "landFraction": 0.34999225996753297,
+    "rasterCellLandFraction": 0.27198028564453125,
+    "continentAreas": {
+      "1": 7410,
+      "2": 4715,
+      "3": 5301,
+      "4": 3953,
+      "5": 1307,
+      "6": 5373,
+      "7": 3920,
+      "8": 3670
+    },
+    "continentBoundingFillMedian": 0.3985458217096223,
+    "coastlineScaleProfile": {
+      "1": 19.76596213893875,
+      "4": 15.534921707886271,
+      "8": 11.918289325148814
+    },
+    "tectonicUpliftRatio": 1.659421443939209,
+    "boundaryFractions": {
+      "convergent": 0.02646636962890625,
+      "divergent": 0.01721954345703125,
+      "transform": 0.00061798095703125
+    },
+    "referenceGrid": {
+      "height": 256,
+      "width": 512
+    },
+    "terrainSynthesisGrid": {
+      "height": 256,
+      "width": 512
+    },
+    "plateDiagnostics": {
+      "plate_count": 14,
+      "cell_count": 131072,
+      "anchor_ids": [
+        "plate-major-01",
+        "plate-major-02",
+        "plate-major-03",
+        "plate-major-04",
+        "plate-major-05",
+        "plate-major-06",
+        "plate-major-07",
+        "plate-major-08",
+        "plate-major-09",
+        "plate-major-10",
+        "plate-micro-01",
+        "plate-micro-02",
+        "plate-micro-03",
+        "plate-micro-04"
+      ],
+      "generated_ids": [],
+      "stage_seed": 1193409641,
+      "boundary_count": 3818,
+      "triple_junction_count": 24,
+      "rejected_junction_count": 0,
+      "orphan_merge_count": 5,
+      "corridor_count": 33,
+      "corridor_ids": [
+        "generated-corridor-001",
+        "generated-corridor-002",
+        "generated-corridor-003",
+        "generated-corridor-004",
+        "generated-corridor-005",
+        "generated-corridor-007",
+        "generated-corridor-008",
+        "generated-corridor-009",
+        "generated-corridor-010",
+        "generated-corridor-011",
+        "generated-corridor-012",
+        "generated-corridor-013",
+        "generated-corridor-014",
+        "generated-corridor-015",
+        "generated-corridor-016",
+        "generated-corridor-017",
+        "generated-corridor-018",
+        "generated-corridor-019",
+        "generated-corridor-020",
+        "generated-corridor-021",
+        "generated-corridor-022",
+        "generated-corridor-023",
+        "generated-corridor-024",
+        "generated-corridor-025",
+        "generated-corridor-026",
+        "generated-corridor-028",
+        "generated-corridor-029",
+        "generated-corridor-030",
+        "generated-corridor-031",
+        "generated-corridor-032",
+        "generated-corridor-033",
+        "generated-corridor-034",
+        "generated-corridor-035"
+      ]
+    },
+    "authoredBoundaryCorridorCount": 33,
+    "crustPotentialRange": [
+      -33.92469024658203,
+      3.12904691696167
+    ],
+    "crustStructureMetrics": {
+      "macroMarginFeatureCount": 32,
+      "coastalRiftCount": 14,
+      "coastalShelfField": {
+        "model": "distance-coupled-fault-block-shelf",
+        "supportWidthKm": 560.0,
+        "relayWidthKm": 265.0,
+        "strength": 0.3781471109659664
+      },
+      "crustTransport": {
+        "model": "spherical-euler-fragment-transport",
+        "durationMyr": 47.14059553523529,
+        "vacatedAreaFraction": 0.24454430366934762,
+        "overlapAreaFraction": 0.058518315031559166,
+        "coverageAreaRelativeError": 4.466416305146503e-06
+      }
+    },
+    "reliefDiagnostics": {
+      "boundaryChainCount": 36,
+      "tectonicPotential": {
+        "chain_count": 36,
+        "source_segment_count": 3818,
+        "influenced_cell_count": 34031,
+        "max_abs_raw_delta_m": 68401.77076426323,
+        "gaussian_cutoff_sigma": 3.25,
+        "overlap_normalization": "sum-over-sqrt-chain-count"
+      },
+      "shelfWidthKm": 129.41235296165746,
+      "boundaryWarpCells": {
+        "latitude": 7.2,
+        "longitude": 10.8
+      },
+      "paleoConvergentFractions": {
+        "33": 0.0236358642578125,
+        "68": 0.021453857421875,
+        "110": 0.02410125732421875,
+        "159": 0.0240325927734375,
+        "222": 0.0214996337890625
+      },
+      "continentalReliefProvinces": {
+        "count": 45,
+        "shieldCount": 11,
+        "plateauCount": 11,
+        "basinCount": 12,
+        "plainCount": 11,
+        "landformFamilyCount": 4,
+        "plateauHeightRangeMeters": 1824.9808140672062,
+        "basinDepthRangeMeters": 989.8318611619267,
+        "shapeModel": "warped-flat-top-escarpment-basin-plain-shield"
+      },
+      "ancientTerraneCount": 42,
+      "ancientSutureFraction": 0.0711822509765625,
+      "reactivatedSutureFraction": 0.00914764404296875,
+      "reactivatedSutures": {
+        "candidateChainCount": 55,
+        "selectedChainCount": 24,
+        "selectedArcLengthKm": 57714.080321076006,
+        "medianArcLengthKm": 2435.8194442395534,
+        "medianContinentalOverlap": 0.799043062200957,
+        "profileFamilyCount": 3,
+        "profileChainCounts": {
+          "young-fold": 8,
+          "mature-fold": 8,
+          "old-rounded": 8
+        },
+        "profileWidthsKm": {
+          "young-fold": 150.0,
+          "mature-fold": 295.0,
+          "old-rounded": 560.0
+        },
+        "profileWidthRangeKm": 410.0
+      },
+      "directionalOrogenicBelts": {
+        "active": {
+          "sourceCells": 1054,
+          "widthKm": 230.0,
+          "maximumAddedMeters": 2820.95118113284
+        },
+        "paleo-68Myr": {
+          "sourceCells": 923,
+          "widthKm": 425.33264818934117,
+          "maximumAddedMeters": 601.549271177211
+        },
+        "paleo-159Myr": {
+          "sourceCells": 812,
+          "widthKm": 524.5989722840118,
+          "maximumAddedMeters": 522.7997799119663
+        },
+        "paleo-222Myr": {
+          "sourceCells": 1138,
+          "widthKm": 594.4431883471256,
+          "maximumAddedMeters": 495.7561212349863
+        }
+      },
+      "shelfArchipelagos": {
+        "groupCount": 12,
+        "islandCount": 73,
+        "islandCellCount": 4027,
+        "workingGrid": {
+          "height": 180,
+          "width": 360
+        },
+        "largeIslandCellCount": 2448,
+        "shelfIslandCellCount": 771,
+        "islandArcCellCount": 808,
+        "hotspotIslandCellCount": 0,
+        "seamountCellCount": 0,
+        "shelfCellCount": 11810,
+        "model": "reference-grid-shelf-fragment-arc-hotspot-groups-v6"
+      },
+      "tectonicSaturationMeters": {
+        "uplift": 5973.0,
+        "subsidence": 6200.0
+      }
+    },
+    "fullResolutionRelief": {
+      "grid": {
+        "height": 256,
+        "width": 512
+      },
+      "scaleBandsKm": {
+        "subregional": [
+          560.0,
+          2360.0
+        ],
+        "regional": [
+          205.0,
+          1050.0
+        ],
+        "local": [
+          80.0,
+          355.0
+        ]
+      },
+      "maximumDetailMeters": 642.7223510742188,
+      "mountainSupportFraction": 0.2993126665731519,
+      "coastalSupportFraction": 0.05521392822265625,
+      "lowReliefFabricLandFraction": 0.2646373965493056
+    },
+    "coastalEvolution": {
+      "model": "full-resolution-finite-structural-margin-displacement",
+      "modifiedShoreSegments": 434,
+      "families": {
+        "rift": 43,
+        "active": 49,
+        "passive": 341,
+        "transform": 1,
+        "sedimentary": 40
+      },
+      "lengthBandsKm": {
+        "coastalSectorHalfLength": [
+          250,
+          750
+        ]
+      },
+      "slipRangeKm": [
+        3.682656902069139,
+        102.3618268220429
+      ],
+      "grid": {
+        "height": 256,
+        "width": 512
+      },
+      "maximumCoordinateDisplacementCells": 2.3964407444000244
+    },
+    "geomorphicEvolution": {
+      "model": "full-resolution-priority-flood-d8-mfd",
+      "drainageReachCount": 167,
+      "streamCellCount": 1729,
+      "carvedValleyLandFraction": 0.5364526354175433,
+      "maximumIncisionMeters": 871.2172467616581,
+      "minorValleyLandFraction": 0.4787231058374709
+    },
+    "hillslopeEvolution": {
+      "model": "paired-spherical-hillslope-flux",
+      "passes": 4,
+      "relativeMaterialBalanceError": 1.1911449144754237e-17,
+      "maximumLoweringMeters": 1158.8096930261895,
+      "maximumFootslopeAccretionMeters": 2167.790764807352
+    },
+    "morphologyAxes": {
+      "cycle_position": 0.6876816694532358,
+      "continental_aggregation": 0.18684273444474192,
+      "crust_fragmentation": 0.5407355548298319,
+      "microplate_share": 0.6040829681026418,
+      "island_arc_activity": 0.373028065544235,
+      "hotspot_activity": 0.31301324380739076,
+      "latitude_bias": -0.2684218388356578,
+      "hemisphere_asymmetry": 0.33323993024853593,
+      "ocean_basin_openness": 0.868041335342392
+    },
+    "classificationMetrics": {
+      "largest_landmass_share": 0.7218590228262913,
+      "second_landmass_share": 0.11043795082864546,
+      "land_component_count": 40.0,
+      "island_area_share": 0.06649480959005757,
+      "internal_divergent_fraction": 0.2512873326467559,
+      "internal_convergent_fraction": 0.7435633367662204,
+      "active_margin_fraction": 0.18060021436227225,
+      "enclosed_sea_fraction": 0.01810164400466799,
+      "shelf_fraction": 0.030474833111513996,
+      "mean_absolute_land_latitude": 0.2930146079834374
+    },
+    "terrainSystemMetrics": {
+      "uplandSystemCount": 14,
+      "highlandSystemCount": 8,
+      "alpineSystemCount": 12,
+      "uplandContinentCount": 8,
+      "uplandLandFraction": 0.36065527784790596,
+      "majorOrographicCentreCount": 28,
+      "orographicContinentCount": 8,
+      "orographicCentreMinimumSpacingKm": 700.0,
+      "orographicCentreElevationThreshold": 0.42
+    },
+    "oceanFloorMetrics": {
+      "visibleReliefModel": "thermal-age-ridge-swell-subduction-trench",
+      "ridgeSwellHalfWidthKm": 720.0,
+      "trenchHalfWidthKm": 115.0,
+      "trenchArcSupport": "convergent-oceanic-margin-near-exposed-crust",
+      "transformGradientRatio": 0.7997845623248554,
+      "divergentGradientRatio": 0.7322632934725422,
+      "convergentGradientRatio": 1.0906535718995578,
+      "abyssalPlainFraction": 0.8689212507843548,
+      "shelfTransitionCells": 6
+    },
+    "worldFamily": "聚合期·单一超大陆",
+    "landModel": "seeded-continental-crust-growth",
+    "reliefModel": "boundary-profile-plus-ocean-age",
+    "mountainLandFraction": 0.05074476142388286,
+    "method": "explicit-crust-kinematics-v15"
+  }
+}

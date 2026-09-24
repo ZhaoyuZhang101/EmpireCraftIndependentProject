@@ -1,0 +1,75 @@
+{
+  "scope": "lexical/source-contract checks only, NOT C#/HLSL compilation",
+  "checks": {
+    "balanced_source_delimiters": {
+      "status": "PASS",
+      "detail": {
+        "files": 66,
+        "qualification": "lexical only; no type checking"
+      }
+    },
+    "UI_XML_and_button_names": {
+      "status": "PASS",
+      "detail": {
+        "unique_names": 135,
+        "literal_button_bindings": 71
+      }
+    },
+    "shader_include_paths": {
+      "status": "PASS",
+      "detail": {
+        "local_includes": 18
+      }
+    },
+    "weather_pipeline_wiring": {
+      "status": "PASS",
+      "detail": "core → layered texture → common density; effect component is auto-created"
+    },
+    "vertical_layer_layout": {
+      "status": "PASS",
+      "detail": {
+        "centres_m": [
+          150.0,
+          550.0,
+          1150.0,
+          1750.0,
+          2500.0,
+          3500.0,
+          4500.0,
+          5500.0,
+          7000.0,
+          9000.0,
+          11000.0,
+          14000.0
+        ],
+        "gpu_volume": [
+          128,
+          64,
+          12
+        ]
+      }
+    },
+    "precipitation_and_thunder_wiring": {
+      "status": "PASS",
+      "detail": "rain follows hydrometeors; flashes are consumed simulation events; thunder is delayed"
+    },
+    "save_compatibility_contracts": {
+      "status": "PASS",
+      "detail": "snapshot flattened; old presentation defaults explicit; near-view altitude remains valid"
+    },
+    "numerical_report_integrity": {
+      "status": "PASS",
+      "detail": {
+        "source_sha256": "95b21debe96dedcb40b67b4bd34f82a7491dbdb41d740e8927cf4e905758c083",
+        "core_reports_match_final_source": true,
+        "old_air_regressions_passed": 11
+      }
+    },
+    "no_font_binaries": {
+      "status": "PASS",
+      "detail": "system fonts only; no font binaries in package"
+    }
+  },
+  "passed": 9,
+  "failed": 0
+}

@@ -1,0 +1,5 @@
+{
+  "status": "PASS",
+  "scope": "Compile source-derived cloud density/light and Markley column mapping in GLES; no Unity engine macros.",
+  "unity_executed": false
+}

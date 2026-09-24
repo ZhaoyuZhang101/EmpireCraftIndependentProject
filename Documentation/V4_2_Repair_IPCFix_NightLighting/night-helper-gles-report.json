@@ -1,0 +1,34 @@
+{
+  "status": "PASS",
+  "scope": "Mechanically translated NEW helper + original sphere/UV visibility, executed on software GLES; NOT Unity/HLSL/C# compile or scene screenshot",
+  "renderer": "llvmpipe (LLVM 19.1.7, 256 bits)",
+  "api": "OpenGL ES 3.2 Mesa 25.0.7-2",
+  "case_counts": {
+    "ambient": 244,
+    "airglow": 61,
+    "column": 61,
+    "moon_air_fallback": 185,
+    "moon_incident": 370,
+    "moon_air_lut": 185,
+    "night_gate": 181,
+    "atmosphere_off": 2
+  },
+  "total_cases": 1289,
+  "max_absolute_error_vs_CPU_double": {
+    "ambient": 6.550167078178681e-08,
+    "airglow": 5.897773968505104e-07,
+    "column": 1.5878677372960226e-06,
+    "moon_air_fallback": 9.0448502254592e-07,
+    "moon_incident": 7.422617900529338e-09,
+    "moon_air_lut": 1.3549757060804524e-07,
+    "night_gate": 1.2409804384105882e-07,
+    "atmosphere_off": 4.531578202959796e-10
+  },
+  "test_textures": "1x1 RGBA32F constant fixtures. Does not validate production LUT content or world texture sampling.",
+  "unity_compile": "NOT_RUN",
+  "hlsl_compile": "NOT_RUN",
+  "unity_visual_validation": "NOT_RUN",
+  "hardware_fps": "NOT_RUN",
+  "helper_sha256": "d09b32a5997d08bf7eece70c1198e905679f5a958b2e0b949daf8aba72d036e8",
+  "translated_fragment_sha256": "10e1e5f1d05a676693b5b74bbda1b2e237d745be465bdd060ad7011087843ff6"
+}

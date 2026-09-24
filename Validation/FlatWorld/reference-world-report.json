@@ -1,0 +1,185 @@
+{
+  "utc": "2026-09-11T16:17:10.438616+00:00",
+  "scope": "Independent NumPy float64 reference design check; not execution of Unity/C# source. Preview is a reference raster, not a Unity screenshot.",
+  "status": "PASS",
+  "worlds": [
+    {
+      "width": 256,
+      "height": 128,
+      "tiles": 32768,
+      "zones": 2048,
+      "water_counts": {
+        "0": 11431,
+        "1": 14404,
+        "2": 4435,
+        "3": 915,
+        "4": 1170,
+        "5": 413
+      },
+      "land_band_levels_present": 20,
+      "min_elevation": -4000,
+      "max_elevation": 4000,
+      "monthly_temperature_min_max": [
+        -62.40161016657059,
+        34.29284214480816
+      ],
+      "monthly_rain_min_max": [
+        1.9306669529966154,
+        211.11820750386397
+      ],
+      "drainage_dag": true,
+      "runoff_mass_error": -4.547473508864641e-13,
+      "height16_integer_roundtrip": true,
+      "csharp_executed": false,
+      "preset": 0
+    },
+    {
+      "width": 256,
+      "height": 128,
+      "tiles": 32768,
+      "zones": 2048,
+      "water_counts": {
+        "0": 10412,
+        "1": 14933,
+        "2": 5484,
+        "3": 1184,
+        "4": 592,
+        "5": 163
+      },
+      "land_band_levels_present": 20,
+      "min_elevation": -4000,
+      "max_elevation": 4000,
+      "monthly_temperature_min_max": [
+        -58.93898042908076,
+        32.803518378565386
+      ],
+      "monthly_rain_min_max": [
+        1.6970355458108224,
+        324.1063485751103
+      ],
+      "drainage_dag": true,
+      "runoff_mass_error": -4.547473508864641e-13,
+      "height16_integer_roundtrip": true,
+      "csharp_executed": false,
+      "preset": 1
+    },
+    {
+      "width": 256,
+      "height": 128,
+      "tiles": 32768,
+      "zones": 2048,
+      "water_counts": {
+        "0": 10538,
+        "1": 14525,
+        "2": 2575,
+        "3": 536,
+        "4": 4006,
+        "5": 588
+      },
+      "land_band_levels_present": 20,
+      "min_elevation": -3110,
+      "max_elevation": 4000,
+      "monthly_temperature_min_max": [
+        -65.26161016657059,
+        31.62128405886077
+      ],
+      "monthly_rain_min_max": [
+        1.4521724516787466,
+        190.28746714889388
+      ],
+      "drainage_dag": true,
+      "runoff_mass_error": 0.0,
+      "height16_integer_roundtrip": true,
+      "csharp_executed": false,
+      "preset": 2
+    },
+    {
+      "width": 256,
+      "height": 128,
+      "tiles": 32768,
+      "zones": 2048,
+      "water_counts": {
+        "0": 16591,
+        "1": 5607,
+        "2": 4066,
+        "3": 974,
+        "4": 4623,
+        "5": 907
+      },
+      "land_band_levels_present": 20,
+      "min_elevation": -2779,
+      "max_elevation": 4000,
+      "monthly_temperature_min_max": [
+        -68.3816101665706,
+        32.27128405886077
+      ],
+      "monthly_rain_min_max": [
+        1.2522533757034304,
+        190.29162216300517
+      ],
+      "drainage_dag": true,
+      "runoff_mass_error": 0.0,
+      "height16_integer_roundtrip": true,
+      "csharp_executed": false,
+      "preset": 3
+    },
+    {
+      "width": 64,
+      "height": 32,
+      "tiles": 2048,
+      "zones": 128,
+      "water_counts": {
+        "0": 1993,
+        "5": 55
+      },
+      "land_band_levels_present": 1,
+      "min_elevation": 100,
+      "max_elevation": 100,
+      "monthly_temperature_min_max": [
+        -41.18083268313427,
+        34.17932814645923
+      ],
+      "monthly_rain_min_max": [
+        2.567238629599986,
+        17.382031882566263
+      ],
+      "drainage_dag": true,
+      "runoff_mass_error": -2.842170943040401e-14,
+      "height16_integer_roundtrip": true,
+      "csharp_executed": false,
+      "preset": "all_land"
+    },
+    {
+      "width": 64,
+      "height": 32,
+      "tiles": 2048,
+      "zones": 128,
+      "water_counts": {
+        "3": 2048
+      },
+      "land_band_levels_present": 0,
+      "min_elevation": -80,
+      "max_elevation": -80,
+      "monthly_temperature_min_max": [
+        -23.347699344797448,
+        28.36347731237745
+      ],
+      "monthly_rain_min_max": [
+        5.525427155333066,
+        189.82216306249018
+      ],
+      "drainage_dag": true,
+      "runoff_mass_error": 0.0,
+      "height16_integer_roundtrip": true,
+      "csharp_executed": false,
+      "preset": "all_ocean"
+    }
+  ],
+  "source_sha256": {
+    "FlatHydrology.cs": "a109c44c9cf1a751987f4590323b60584d8daa5c5b885c50a00615edb0cc4552",
+    "FlatGenerator.cs": "a7cbe55d019916b72e23c4997f705cf4f3c4a14ad96ac448df0a1564c2f03fe4",
+    "FlatTypes.cs": "50ba191bba4afaada7444cc3dccbe8acb75378966c15186e94a185da809e07c8",
+    "FlatClimate.cs": "51f72b10dfa623376accf888d9a7dac278d24616701221c0371b129acffe826e"
+  },
+  "unity_editor_executed": false
+}

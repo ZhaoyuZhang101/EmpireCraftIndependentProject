@@ -1,0 +1,1 @@
+PASS GPU north/south ice caps, sea ice/land snow, temperate exclusion and finite color; samples=65536 invalid=0

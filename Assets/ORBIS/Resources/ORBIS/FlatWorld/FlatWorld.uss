@@ -1,0 +1,38 @@
+.app { position: absolute; left: 0; right: 0; top: 0; bottom: 0; color: rgb(222,231,229); font-size: 13px; }
+.viewport { position: absolute; left: 280px; right: 0; top: 90px; bottom: 64px; }
+.header { position: absolute; left: 0; right: 0; top: 0; height: 90px; background-color: rgba(14,25,30,0.97); padding: 12px 20px; border-bottom-width: 1px; border-bottom-color: rgb(53,70,71); }
+.title-row { flex-direction: row; align-items: center; height: 36px; }
+.brand { font-size: 28px; -unity-font-style: bold; color: rgb(238,228,198); margin-right: 18px; }
+.eyebrow { font-size: 12px; color: rgb(130,166,158); }
+.spacer { flex-grow: 1; }
+.stats { margin-top: 7px; color: rgb(173,193,183); font-size: 12px; }
+.sidebar { position: absolute; left: 0; top: 90px; bottom: 64px; width: 280px; padding: 0 13px 18px 16px; background-color: rgba(18,30,34,0.98); border-right-width: 1px; border-right-color: rgb(49,67,69); }
+.section { margin-top: 20px; margin-bottom: 9px; color: rgb(218,184,121); -unity-font-style: bold; font-size: 12px; }
+.row { flex-direction: row; margin-top: 5px; }
+.grow { flex-grow: 1; }
+Button { background-color: rgb(37,54,60); color: rgb(225,232,221); border-top-width: 1px; border-right-width: 1px; border-bottom-width: 1px; border-left-width: 1px; border-top-color: rgb(62,82,84); border-right-color: rgb(62,82,84); border-bottom-color: rgb(62,82,84); border-left-color: rgb(62,82,84); border-top-left-radius: 4px; border-top-right-radius: 4px; border-bottom-left-radius: 4px; border-bottom-right-radius: 4px; min-height: 28px; margin: 3px 3px 3px 0; padding: 4px 10px; }
+Button:hover { background-color: rgb(58,77,78); }
+Button.accent { background-color: rgb(66,101,86); border-top-color: rgb(99,139,111); border-right-color: rgb(99,139,111); border-bottom-color: rgb(99,139,111); border-left-color: rgb(99,139,111); }
+.unity-base-field { margin: 5px 0; }
+.unity-base-field__label { min-width: 88px; color: rgb(175,196,189); }
+.unity-base-field__input { background-color: rgb(28,42,47); color: rgb(228,235,226); min-height: 25px; }
+.unity-text-field__input { color: rgb(228,235,226); }
+.unity-popup-field__text { color: rgb(228,235,226); }
+.unity-toggle__input { background-color: rgba(0,0,0,0); }
+.muted { color: rgb(132,158,153); font-size: 11px; white-space: normal; margin-top: 7px; }
+.tile-info { background-color: rgb(24,40,43); padding: 12px; white-space: normal; color: rgb(218,229,213); }
+.nations { white-space: normal; color: rgb(199,215,203); }
+.footer { position: absolute; left: 0; right: 0; bottom: 0; height: 64px; background-color: rgba(13,24,29,0.97); padding: 9px 20px; border-top-width: 1px; border-top-color: rgb(50,71,73); }
+.notice { white-space: normal; font-size: 12px; color: rgb(220,211,180); }
+.hint { margin-top: 5px; color: rgb(124,154,151); font-size: 11px; }
+.tab-row { flex-direction: row; flex-shrink: 0; }
+.tab-button { flex-grow: 1; flex-basis: 0; padding-left: 3px; padding-right: 3px; min-height: 32px; }
+Button.active-tab { background-color: rgb(77,106,83); color: rgb(255,241,207); border-bottom-color: rgb(225,191,125); border-bottom-width: 2px; }
+.tab-scroll { flex-grow: 1; min-height: 0; }
+.tab-page { padding-bottom: 10px; }
+.is-hidden { display: none; }
+.unity-foldout { margin-top: 12px; margin-bottom: 4px; }
+.unity-foldout__toggle { color: rgb(212,209,180); }
+.unity-foldout__content { margin-left: 2px; }
+.inspector-foldout { border-top-width: 1px; border-top-color: rgb(62,80,76); padding-top: 8px; }
+.legend { font-size: 11px; white-space: normal; color: rgb(185,206,194); padding: 5px 2px; }

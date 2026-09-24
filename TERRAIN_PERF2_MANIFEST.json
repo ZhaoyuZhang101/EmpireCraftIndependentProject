@@ -1,0 +1,76 @@
+{
+  "package": "ORBIS Unity V4.2 GreenRingFix TerrainPerf2 Zone4x4 Civilization First",
+  "generated_utc": "2026-09-11T15:03:19Z",
+  "unity_target": "6000.0.47f1 Built-in Render Pipeline",
+  "tracked_files": [
+    {
+      "path": "Assets/ORBIS/Runtime/Weather/OrbisAtmosphereCore.cs",
+      "size": 39498,
+      "sha256": "0df5c55bc65edd3654301e7d4147ec70d50b13183e691fdc11c301be98d96257"
+    },
+    {
+      "path": "Assets/ORBIS/Runtime/OrbisWeather.cs",
+      "size": 7021,
+      "sha256": "d0b2440f01c10ab3b82a0345df10bff48d17cd2af9287f89db475c04d1797269"
+    },
+    {
+      "path": "Assets/ORBIS/Runtime/OrbisWorld.cs",
+      "size": 31280,
+      "sha256": "30659e7d8de8538e5047b3835d2988951cf44f8e324521efed031c7a094d47bd"
+    },
+    {
+      "path": "Assets/ORBIS/Runtime/V4/OrbisZoneLayout.cs",
+      "size": 2507,
+      "sha256": "0dbe0d6a3f4c345ba584ccb019124b70a08c773cc9930f5ecdf5ec3c2341510a"
+    },
+    {
+      "path": "Assets/ORBIS/Runtime/V4/OrbisSelectionView.cs",
+      "size": 8845,
+      "sha256": "37ee765e9b3e18b0be119aab5d59e234e4e1fa8f1083aa4d86403c2cfb943a0b"
+    },
+    {
+      "path": "Assets/ORBIS/Runtime/V4/OrbisTerritories.cs",
+      "size": 4194,
+      "sha256": "186e0ee4ce1faf02a8b85bfb741514ad1b9ef617048b5a055ebe327bb1bfe43f"
+    },
+    {
+      "path": "Assets/ORBIS/Resources/ORBIS/Surface.shader",
+      "size": 9294,
+      "sha256": "1f5b180d3d3821a5bc3f9d735e9d43bd7945cbab475c0b144ef802ee44cef01b"
+    },
+    {
+      "path": "Assets/ORBIS/Resources/ORBIS/OrbisWater.cginc",
+      "size": 8827,
+      "sha256": "2c0f3c525c3aebc23e0295f6dabd8bce30493db72c468c6ac257554dc7d8b924"
+    },
+    {
+      "path": "Assets/ORBIS/Resources/ORBIS/OrbisCloudCommon.cginc",
+      "size": 7054,
+      "sha256": "2e5466e22bb20250e35765e8977d919492389f7f90708da4f7a1830326732344"
+    },
+    {
+      "path": "Validation/validate_terrain_perf2_core.py",
+      "size": 10336,
+      "sha256": "a750ec42d9a792d163b0cef76d2e67c11e2d913be8cc8a9263090dc070677445"
+    },
+    {
+      "path": "Documentation/TerrainPerf2/core-r8-s1200.json",
+      "size": 12487,
+      "sha256": "e07b4de59ab56011b998c37910397f58b16c1384306669eaec18d15b8de526d0"
+    },
+    {
+      "path": "README_TerrainPerf2_先读.md",
+      "size": 3029,
+      "sha256": "cb9b83d6c81659fdc160ac47a025528d924c9d4c57217f1ecb3958e36b468981"
+    },
+    {
+      "path": "VERSION_TERRAIN_PERF2.txt",
+      "size": 93,
+      "sha256": "204463ba6fa7e675e240db43e479cc156a9a8d2daf82c03dc0da265d655e13c9"
+    }
+  ],
+  "validation": {
+    "terrain_perf2_core_r8_s1200": "passed",
+    "unity_editor": "not_run_in_this_environment"
+  }
+}

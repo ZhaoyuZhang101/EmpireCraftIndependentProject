@@ -1,0 +1,151 @@
+{
+  "extension": "V4.2 Repair IPCFix1 + NightLighting",
+  "baseline_zip": "ORBIS_Unity_V4_2_Repair_IPCFix1_Full.zip",
+  "baseline_zip_sha256": "5235b95dc7e195d50dad1ec2589be06b9bd533f74ef331051f2e5238668a0b74",
+  "project_root": "ORBIS_Unity_V4_2_Repair",
+  "unity_version": "6000.0.47f1",
+  "pipeline": "Built-in",
+  "baseline_sentinels": {
+    "ProjectSettings/ProjectVersion.txt": "6a291611d2569dca6a154d32ab2de808c1f8e8443df9268643946e03d557fac4",
+    "Packages/manifest.json": "3e5e7475773fe07024caf1633baffa29e092941efe926fa06fd286a971ab79da",
+    "Assets/ORBIS/Resources/ORBIS/Clouds.shader": "e834def3466d1ba5981cc2d366a2ca8a6e288a142d273965e9d0143cdd4fe6ea",
+    "Assets/ORBIS/Resources/ORBIS/OrbisCloudCommon.cginc": "31cd8894b930632050637fc98ae18340bf6926d13f8080e0d2ab450518cdbc0e",
+    "Assets/ORBIS/Resources/ORBIS/OrbisAtmosphereGLtracy.cginc": "fcf51e6a745c61245a699608cc5514a4fa1358daf918edc74b62727350c52c15",
+    "Assets/ORBIS/Editor/OrbisV42RepairIPCValidation.cs": "562b8d4511514d82b588449968e6138f8d86f9ade6653bd8fbdbe36b0de5be88"
+  },
+  "files": [
+    {
+      "path": "Assets/ORBIS/Editor/OrbisV42NightLightingValidation.cs",
+      "before_sha256": null,
+      "after_sha256": "c042e22012bcf582dfabb09009c4f612d21db65591487422d737cf77978f7c69",
+      "size_bytes": 15957
+    },
+    {
+      "path": "Assets/ORBIS/Editor/OrbisV42NightLightingValidation.cs.meta",
+      "before_sha256": null,
+      "after_sha256": "0fa63ae08ba220218fb0f89ada615c6daf57ed5e863264e1a2a06cefd9675691",
+      "size_bytes": 243
+    },
+    {
+      "path": "Assets/ORBIS/Resources/ORBIS/OrbisAtmosphereCommon.cginc",
+      "before_sha256": "a8611fd06e8dbb8e9f633a658ad39b2b5c1ad57f936e4e5bea004e646b9dfa1d",
+      "after_sha256": "fa8a2983a3669447cb12ff7c50d9a1a968df5658f6c5077eff586373aff98220",
+      "size_bytes": 11283
+    },
+    {
+      "path": "Assets/ORBIS/Resources/ORBIS/OrbisNightLighting.cginc",
+      "before_sha256": null,
+      "after_sha256": "d09b32a5997d08bf7eece70c1198e905679f5a958b2e0b949daf8aba72d036e8",
+      "size_bytes": 4490
+    },
+    {
+      "path": "Assets/ORBIS/Resources/ORBIS/OrbisNightLighting.cginc.meta",
+      "before_sha256": null,
+      "after_sha256": "3e22b8234084e4878c8bce526187ff8dda764c4dbf3e34e9cc09f832fee297b4",
+      "size_bytes": 161
+    },
+    {
+      "path": "Assets/ORBIS/Resources/ORBIS/OrbisOptics.cginc",
+      "before_sha256": "6069360c944256697a94f3f759ce4883d0ebfb5f165fd1c31f5cc2cdd0b838c0",
+      "after_sha256": "f726c6634297b65cebd6e537e0b08607f000feb22ab369bec33621d4a837742e",
+      "size_bytes": 1723
+    },
+    {
+      "path": "Assets/ORBIS/Resources/ORBIS/OrbisWater.cginc",
+      "before_sha256": "aaaccb3022a91409a832e5746cc06d9d574802c132110ed80d62142f5eb3271e",
+      "after_sha256": "7d2033aea47b00876233d4dba13d211b4f42afa4ecffd2c4728b247fe0d50da2",
+      "size_bytes": 7725
+    },
+    {
+      "path": "Assets/ORBIS/Resources/ORBIS/Surface.shader",
+      "before_sha256": "35ddc4a6a813e3a671af6b22de8ed63a08b34ef3fde9bcadd230be6fc21a151c",
+      "after_sha256": "9b0d61505232000bf80a823b41bffe735ac6bf8ae840c509a47670a667e4adf7",
+      "size_bytes": 7688
+    },
+    {
+      "path": "Assets/ORBIS/Runtime/OrbisDemo.cs",
+      "before_sha256": "df53c1eae2843bf242a102ef15ddc866b587703fbc93c0feff028c00ddf9c45d",
+      "after_sha256": "52b47cac734cdac3462f2cbc85f1b9c091aac4baa6154e2fc5af332af9d85ae4",
+      "size_bytes": 24086
+    },
+    {
+      "path": "Assets/ORBIS/Runtime/OrbisNightLighting.cs",
+      "before_sha256": null,
+      "after_sha256": "1f4ce6da161f6f5c0d57fe6aaf2e2e3133801e4f8df3133d340b7f8ba29ee6e5",
+      "size_bytes": 7060
+    },
+    {
+      "path": "Assets/ORBIS/Runtime/OrbisNightLighting.cs.meta",
+      "before_sha256": null,
+      "after_sha256": "51fb6eba3e1c6032687f7fad4d72416bed1f489e5477c54ed769da1542ad373b",
+      "size_bytes": 243
+    },
+    {
+      "path": "Assets/ORBIS/Runtime/OrbisPlanetView.cs",
+      "before_sha256": "2ffcca88c089d8df5c355dd445b6290dbcb1155459aa9cc1e966e6ba3c36b9fd",
+      "after_sha256": "0216873f1b916d506926cdeb7c73b626608c3fb3d6d481f23ce48b64637af350",
+      "size_bytes": 24065
+    },
+    {
+      "path": "Assets/ORBIS/Runtime/OrbisWorld.cs",
+      "before_sha256": "4aea73757bc81fd0d8c265ba929147a17588d3a52f22121e7cb75cb239fc05ba",
+      "after_sha256": "8150a1403f9f70c3a676e079e37719240438715950d70efb89b54982f34ca650",
+      "size_bytes": 29757
+    },
+    {
+      "path": "Documentation/V4_2_Repair_IPCFix_NightLighting/ipc-regression.json",
+      "before_sha256": null,
+      "after_sha256": "3ed1d1a11db91266d4017aa4f33a8cd3a32d03fd5f596449be8e90daa7cd7a4c",
+      "size_bytes": 2407
+    },
+    {
+      "path": "Documentation/V4_2_Repair_IPCFix_NightLighting/night-helper-gles-report.json",
+      "before_sha256": null,
+      "after_sha256": "9a153daed3a6078d58355b4402527bf600e07bdaa23d5575fce6f4804337c9a7",
+      "size_bytes": 1315
+    },
+    {
+      "path": "Documentation/V4_2_Repair_IPCFix_NightLighting/night-source-numerical-report.json",
+      "before_sha256": null,
+      "after_sha256": "8a26aabfe10e4126918fb3d332421d3eb2d82030515fe02989766a02d453a5e0",
+      "size_bytes": 4299
+    },
+    {
+      "path": "Documentation/V4_2_Repair_IPCFix_NightLighting/夜侧光照说明.md",
+      "before_sha256": null,
+      "after_sha256": "a0821b4e5bdf05a2a3264c4c45b8687b51d09bc691853de9dad795def727775b",
+      "size_bytes": 12249
+    },
+    {
+      "path": "README_NightLighting.md",
+      "before_sha256": null,
+      "after_sha256": "1ed56a50998136abd61b8b096245327ac3b9613b8336d0889e9441cbf4dbc246",
+      "size_bytes": 3507
+    },
+    {
+      "path": "Tools/apply_v42_ipc_night_patch.py",
+      "before_sha256": null,
+      "after_sha256": "bfb561c4cfb6873769c9016ebbc812043bdf1503c7559fd2ea466d65ff5c7294",
+      "size_bytes": 5403
+    },
+    {
+      "path": "Validation/execute_v42_night_gles.py",
+      "before_sha256": null,
+      "after_sha256": "19dae271de5c64ff884ecfa116b98d92f19897c0029333616ab4abfdb1c61000",
+      "size_bytes": 9435
+    },
+    {
+      "path": "Validation/validate_v42_night_lighting.py",
+      "before_sha256": null,
+      "after_sha256": "608f1f518c5c3d3a5dc1ee6c1161a485cae38160a6ffa9293ab1fb0189650cfb",
+      "size_bytes": 8743
+    }
+  ],
+  "unchanged_baseline_file_count": 277,
+  "preserved": [
+    "All original .meta GUIDs",
+    "All scenes, textures, noise, packages, project settings",
+    "IPCFix1 flattened view/shadow traversal and MRT layout"
+  ],
+  "validation_boundary": "No Unity/HLSL/C# compilation, Play visual comparison or hardware FPS in this environment."
+}

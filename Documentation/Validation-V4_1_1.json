@@ -1,0 +1,87 @@
+{
+  "version": "4.1.1",
+  "scope": "Source contracts and independent CPU references only",
+  "unity_import": "NOT_RUN",
+  "csharp_compilation": "NOT_RUN",
+  "hlsl_compilation": "NOT_RUN",
+  "gpu_rendering": "NOT_RUN",
+  "visual_acceptance": "NOT_RUN",
+  "cross_platform_build": "NOT_RUN",
+  "checks": {
+    "volume_loop_source_contracts": {
+      "status": "PASS",
+      "seconds": 0.0016,
+      "explicit_rolled_loops_in_shared_volume_call_graph": 8,
+      "implicit_derivative_texture_calls_in_shared_volume_includes": 0,
+      "dynamic_local_arrays_in_shared_volume_includes": 0
+    },
+    "five_comparator_sort_reference": {
+      "status": "PASS",
+      "seconds": 0.0663,
+      "distinct_permutations": 24,
+      "duplicate_cases": 81,
+      "random_float32_cases": 10000
+    },
+    "old_new_interval_equivalence": {
+      "status": "PASS",
+      "seconds": 0.3025,
+      "rays_compared": 10000,
+      "atmosphere_hits": 1972,
+      "nonempty_intervals": 4734,
+      "float32_old_new_boundaries_exact": true
+    },
+    "six_slot_light_storage_reference": {
+      "status": "PASS",
+      "seconds": 0.1037,
+      "cases": 6000,
+      "supported_light_counts": [
+        1,
+        2,
+        3,
+        4,
+        5,
+        6
+      ],
+      "storage_and_diffuse_reference_equivalent": true
+    },
+    "sample_count_bounds": {
+      "status": "PASS",
+      "seconds": 0.0001,
+      "bounded_light_shadow_view_counts": true,
+      "count_and_step_divisor_consistent": true,
+      "note": "A segment with nonpositive requested view steps is still skipped by the production early return."
+    },
+    "ground_space_boundary_reference": {
+      "status": "PASS",
+      "seconds": 0.0003,
+      "camera_heights_tested": 10,
+      "boundary_outward_empty_cases": 3,
+      "surface_depth_clipping_retained": true
+    },
+    "three_cloud_pass_source_wiring": {
+      "status": "PASS",
+      "seconds": 0.0013,
+      "cloud_pass_indices": [
+        0,
+        1,
+        2
+      ],
+      "shader_target": "3.5 unchanged",
+      "MRT_full_resolution_atlas_routes_retained": true
+    },
+    "native_validator_source_contract": {
+      "status": "PASS",
+      "seconds": 0.0001,
+      "force_synchronous_pass_compilation_requested_in_source": true,
+      "native_check_actually_executed_here": false
+    },
+    "resource_meta_and_no_fonts": {
+      "status": "PASS",
+      "seconds": 0.0046,
+      "unique_meta_guids": 73,
+      "font_binaries": 0
+    }
+  },
+  "passed": 9,
+  "failed": 0
+}

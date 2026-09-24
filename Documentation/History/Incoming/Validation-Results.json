@@ -1,0 +1,61 @@
+{
+  "csharp_syntax": {
+    "files": 16,
+    "errors": [],
+    "scope": "Tree-sitter syntax only; not C# type checking or Unity compilation."
+  },
+  "ui_bindings": {
+    "ids": 85,
+    "missing": 0,
+    "xml": "valid",
+    "layers": 13,
+    "tools": 6
+  },
+  "traditional_chinese_font": {
+    "file_bytes": 16435884,
+    "characters_checked": 503,
+    "missing": [],
+    "sha256": "dce08bd4fd91aa8aa76ed8fea4b694c2dfb8550f67871e326843212ddbeb88b4"
+  },
+  "resources": {
+    "direct_load_references": "resolved",
+    "terrain_atlas": [
+      1254,
+      1254
+    ],
+    "noise_bytes": 1048576
+  },
+  "topology_and_weld_reference": {
+    "tiles": 3456,
+    "neighbors": 4,
+    "shared_corners": 3458,
+    "connected": true,
+    "dual_triangles": 6908,
+    "render_triangles": 442112,
+    "stored_vertices": 310860,
+    "welded_positions": 221058,
+    "scope": "Python mathematical reference, not Unity mesh execution."
+  },
+  "solar_reference": {
+    "world_frame_max_error": 1.1102230328969627e-16,
+    "red_sunset_transmission_order": true,
+    "scope": "Numerical equations, not rendered pixels."
+  },
+  "shader_static": {
+    "includes": "resolved",
+    "delimiters": "balanced",
+    "compilation": "NOT RUN"
+  },
+  "metadata": {
+    "unique_guids": 34,
+    "missing": 0
+  },
+  "not_run": [
+    "Unity Editor import and C# compiler",
+    "Unity shader compiler, Play Mode and GPU rendering",
+    "Windows player build",
+    "Editor simulation/save/load/route tests",
+    "Performance/frame-time measurements"
+  ],
+  "date": "2026-09-10"
+}

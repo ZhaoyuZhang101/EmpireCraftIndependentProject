@@ -1,0 +1,7 @@
+PASS HP density, phi_fwd and full light segment coverage; invalid=0 cloud samples=2197
+PASS SW3 water kind=3 finite at depths 0.1..4000m; invalid=0
+PASS SW3 water kind=4 finite at depths 0.1..4000m; invalid=0
+PASS SW3 water kind=5 finite at depths 0.1..4000m; invalid=0
+PASS distinct ocean/lake/river results; differences=0.115820608127251, 0.138539164283429
+PASS all five SW3 artwork resources bound
+PASS actual seabed opposing slopes remain visible; contrast=0.3006224

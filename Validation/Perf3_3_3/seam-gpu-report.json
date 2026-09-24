@@ -1,0 +1,13 @@
+{
+  "status": "PASS",
+  "scope": "Source-derived GLES seam/patch probes on synthetic data; NOT Unity screenshots or D3D11 tests.",
+  "full_fragment_wrap_max_byte_errors": [
+    0,
+    0,
+    0
+  ],
+  "water_footprint_max_byte_variation": 0,
+  "SWE_rect_rebase_max_byte_error": 0,
+  "unity_executed": false,
+  "d3d11_executed": false
+}

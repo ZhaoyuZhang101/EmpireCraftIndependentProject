@@ -1,0 +1,798 @@
+--- V4.1.1/Assets/ORBIS/Editor/OrbisV412ShaderValidation.cs
++++ V4.1.2/Assets/ORBIS/Editor/OrbisV412ShaderValidation.cs
+@@ -0,0 +1,129 @@
++using System;
++using System.Collections.Generic;
++using System.IO;
++using UnityEditor;
++using UnityEngine;
++using UnityEngine.Rendering;
++
++namespace Orbis.Editor
++{
++    /// <summary>Explicitly compiles each default-material pass for the CURRENT Editor graphics API.
++    /// This is not a cross-platform build or visual/performance test.</summary>
++    public static class OrbisV412ShaderValidation
++    {
++        [Serializable] sealed class PassResult
++        {
++            public int index;
++            public string name;
++            public bool requested, compiled;
++            public string exception;
++        }
++        [Serializable] sealed class ShaderResult
++        {
++            public string name, path;
++            public bool loaded, supported, hasErrors, passed;
++            public int expectedPasses, actualPasses;
++            public string exception;
++            public string[] messages;
++            public PassResult[] passes;
++        }
++        [Serializable] sealed class Report
++        {
++            public string version="4.1.2", timeUtc, unityVersion, graphicsAPI, graphicsDevice, colorSpace;
++            public bool builtIn, graphicsAvailable, allRequestedPassesPassed;
++            public bool playModeTestPerformed=false, visualAcceptancePerformed=false, crossPlatformBuildPerformed=false;
++            public string scope="Synchronous compilation of default-material passes on the CURRENT Editor graphics API and color space only. Runtime uniform values are NOT separate shader variants. No scene or project settings are modified.";
++            public ShaderResult[] shaders;
++        }
++
++        [MenuItem("Tools/ORBIS/V4.1.2/強制編譯雲與大氣並輸出報告")]
++        public static void Validate() { Run(); }
++
++        // Example: Unity -batchmode -projectPath <project> -executeMethod
++        // Orbis.Editor.OrbisV412ShaderValidation.ValidateBatch -logFile <log>
++        // Do NOT pass -nographics: a real graphics backend is required by this check.
++        public static void ValidateBatch()
++        {
++            bool passed=Run();
++            if(Application.isBatchMode)EditorApplication.Exit(passed?0:1);
++        }
++
++        static bool Run()
++        {
++            var report=new Report
++            {
++                timeUtc=DateTime.UtcNow.ToString("O"), unityVersion=Application.unityVersion,
++                graphicsAPI=SystemInfo.graphicsDeviceType.ToString(), graphicsDevice=SystemInfo.graphicsDeviceName,
++                colorSpace=QualitySettings.activeColorSpace.ToString(),
++                builtIn=GraphicsSettings.currentRenderPipeline==null,
++                graphicsAvailable=SystemInfo.graphicsDeviceType!=GraphicsDeviceType.Null
++            };
++            string[] names={"Clouds","CloudShadowCache","AtmosphereComposite","Display","Surface","RiverWater"};
++            int[] counts={3,1,1,1,2,1};
++            var results=new List<ShaderResult>();
++            bool passed=report.builtIn&&report.graphicsAvailable;
++            bool oldAsync=ShaderUtil.allowAsyncCompilation;
++            try
++            {
++                ShaderUtil.allowAsyncCompilation=false;
++                for(int n=0;n<names.Length;n++)
++                {
++                    var item=new ShaderResult{name="ORBIS/"+names[n],
++                        path="Assets/ORBIS/Resources/ORBIS/"+names[n]+".shader",expectedPasses=counts[n]};
++                    var passes=new List<PassResult>();var messages=new List<string>();Material material=null;
++                    try
++                    {
++                        AssetDatabase.ImportAsset(item.path,ImportAssetOptions.ForceUpdate|ImportAssetOptions.ForceSynchronousImport);
++                        Shader shader=AssetDatabase.LoadAssetAtPath<Shader>(item.path);
++                        item.loaded=shader!=null;
++                        if(shader!=null)
++                        {
++                            item.actualPasses=shader.passCount;
++                            if(report.graphicsAvailable)
++                            {
++                                material=new Material(shader){hideFlags=HideFlags.HideAndDontSave};
++                                for(int i=0;i<material.passCount;i++)
++                                {
++                                    var pass=new PassResult{index=i,name=material.GetPassName(i)};
++                                    try
++                                    {
++                                        pass.requested=true;
++                                        ShaderUtil.CompilePass(material,i,true);
++                                        pass.compiled=ShaderUtil.IsPassCompiled(material,i);
++                                    }
++                                    catch(Exception e){pass.exception=e.ToString();}
++                                    passes.Add(pass);
++                                }
++                            }
++                            else messages.Add("SKIPPED: no graphics backend. This is NOT a successful shader compilation check.");
++                            item.hasErrors=ShaderUtil.ShaderHasError(shader);
++                            item.supported=report.graphicsAvailable&&shader.isSupported;
++                            foreach(var m in ShaderUtil.GetShaderMessages(shader))
++                                messages.Add(m.severity+": "+m.file+":"+m.line+" "+m.message);
++                        }
++                        else messages.Add("FAILED: shader asset could not be loaded.");
++                        bool everyPass=passes.Count>=item.expectedPasses;
++                        foreach(var p in passes)everyPass&=p.requested&&p.compiled&&string.IsNullOrEmpty(p.exception);
++                        item.passed=item.loaded&&item.supported&&!item.hasErrors&&everyPass;
++                    }
++                    catch(Exception e){item.exception=e.ToString();item.passed=false;}
++                    finally
++                    {
++                        if(material!=null)UnityEngine.Object.DestroyImmediate(material);
++                        item.messages=messages.ToArray();item.passes=passes.ToArray();results.Add(item);
++                        passed&=item.passed;
++                    }
++                }
++            }
++            finally { ShaderUtil.allowAsyncCompilation=oldAsync; }
++            report.shaders=results.ToArray();report.allRequestedPassesPassed=passed;
++            string directory=Path.GetFullPath(Path.Combine(Application.dataPath,"../Documentation"));
++            Directory.CreateDirectory(directory);
++            string path=Path.Combine(directory,"Unity-V4_1_2-shader-report.json");
++            File.WriteAllText(path,JsonUtility.ToJson(report,true));
++            if(passed)Debug.Log("ORBIS V4.1.2：当前图形 API 的指定 Shader Pass 编译通过；不是跨平台或画面验收。报告："+path);
++            else Debug.LogError("ORBIS V4.1.2：Shader 编译检查未通过或没有可用图形后端。报告："+path);
++            return passed;
++        }
++    }
++}
+--- V4.1.1/Assets/ORBIS/Resources/ORBIS/AtmosphereComposite.shader
++++ V4.1.2/Assets/ORBIS/Resources/ORBIS/AtmosphereComposite.shader
+@@ -8,6 +8,7 @@
+  #pragma vertex vert_img
+  #pragma fragment frag
+  #include "OrbisOptics.cginc"
++ #include "OrbisAtmosphereView.cginc"
+  sampler2D _MainTex,_RadianceTex,_TransmittanceTex;
+  float4 _MainTex_TexelSize,_VolumeTexelSize;
+  UNITY_DECLARE_DEPTH_TEXTURE(_CameraDepthTexture);
+@@ -17,7 +18,7 @@
+   #if UNITY_UV_STARTS_AT_TOP
+   if(_MainTex_TexelSize.y<0)duv.y=1-duv.y;
+   #endif
+-  float depth=min(100.0,LinearEyeDepth(SAMPLE_DEPTH_TEXTURE(_CameraDepthTexture,duv)));
++  float depth=LinearEyeDepth(SAMPLE_DEPTH_TEXTURE(_CameraDepthTexture,duv));
+   float2 grid=i.uv*_VolumeTexelSize.zw-.5,base=floor(grid),fracUV=frac(grid);
+   float3 L=0,T=0;float sum=0,best=1e20;float3 nearestL=0,nearestT=1;
+   [unroll] for(int y=0;y<2;y++)[unroll] for(int x=0;x<2;x++)
+@@ -30,7 +31,7 @@
+    float w=bilinear*exp(-error*100.0);L+=light.rgb*w;T+=trans.rgb*w;sum+=w;
+   }
+   if(sum<1e-5){L=nearestL;T=nearestT;}else {L/=sum;T/=sum;}
+-  return float4(OrbisDisplay(tex2D(_MainTex,i.uv).rgb*saturate(T)+L),1);
++  return float4(OrbisDisplay(OrbisBackgroundWithSun(tex2D(_MainTex,i.uv).rgb,i.uv,depth)*saturate(T)+L),1);
+  }
+  ENDCG }
+  }
+--- V4.1.1/Assets/ORBIS/Resources/ORBIS/Clouds.shader
++++ V4.1.2/Assets/ORBIS/Resources/ORBIS/Clouds.shader
+@@ -1,4 +1,4 @@
+-// V4.1.1: adaptive volume loops are rolled in the shared includes.
++// V4.1.2: active uploaded-GLSL atmosphere + cloud-aware integration; rolled loops retained.
+ Shader "ORBIS/Clouds"
+ {
+  Properties {_MainTex("Source",2D)="black"{}}
+@@ -27,7 +27,7 @@
+    #pragma fragment frag
+    #include "OrbisAtmosphereCommon.cginc"
+    float4 frag(v2f_img i):SV_Target
+-   {OrbisVolumeResult r=OrbisMarch(i.uv);return float4(OrbisTone(tex2D(_MainTex,i.uv).rgb*r.transmission+r.light),1);}
++   {OrbisVolumeResult r=OrbisMarch(i.uv);return float4(OrbisTone(OrbisBackgroundWithSun(tex2D(_MainTex,i.uv).rgb,i.uv,r.sceneDepth)*r.transmission+r.light),1);}
+    ENDCG
+   }
+   Pass
+--- V4.1.1/Assets/ORBIS/Resources/ORBIS/Orbis.uxml
++++ V4.1.2/Assets/ORBIS/Resources/ORBIS/Orbis.uxml
+@@ -3,7 +3,7 @@
+  <ui:VisualElement name="root" class="root">
+   <ui:VisualElement class="header">
+    <ui:Label text="ORBIS" class="brand" />
+-   <ui:VisualElement class="header-info"><ui:Label text="V4 · 河流、雙圖與領土" class="kicker" /><ui:Label name="summary" /></ui:VisualElement>
++   <ui:VisualElement class="header-info"><ui:Label text="V4.1.2 · 連續進出大氣" class="kicker" /><ui:Label name="summary" /></ui:VisualElement>
+    <ui:Button name="save" text="保存世界" /><ui:Button name="load" text="載入" /><ui:Button name="zen" text="面板" /><ui:Button name="help" text="操作說明" />
+   </ui:VisualElement>
+   <ui:VisualElement name="nameLayer" class="name-layer" picking-mode="Ignore" />
+@@ -12,7 +12,10 @@
+     <ui:Label text="觀測圖層" class="section" />
+     <ui:VisualElement class="row"><ui:Button name="layer0" text="自然地貌" /><ui:Button name="layer1" text="文明版圖" /><ui:Button name="layer2" text="地表溫度" /><ui:Button name="layer3" text="降水分布" /><ui:Button name="layer4" text="構造板塊" /><ui:Button name="layer5" text="土地生產力" /><ui:Button name="layer6" text="河流流域" /><ui:Button name="layer7" text="地形高程" /><ui:Button name="layer8" text="自然區域" /><ui:Button name="layer9" text="地形區塊" /><ui:Button name="layer10" text="四邊形地塊" /><ui:Button name="layer11" text="風速風帶" /><ui:Button name="layer12" text="海溫洋流" /></ui:VisualElement>
+     <ui:VisualElement class="row"><ui:Button name="map" text="展開地圖" /><ui:Button name="localView" text="降落地表" /><ui:Button name="homeView" text="重設視角" /><ui:Button name="findRiver" text="尋找主河" /></ui:VisualElement>
+-    <ui:Label text="V3 · 地外與地表" class="section" />
++    <ui:Label text="V4.1.2 · 進出大氣" class="section" />
++    <ui:VisualElement class="row"><ui:Button name="enterAtmosphere" text="進入大氣" /><ui:Button name="exitAtmosphere" text="返回太空" /><ui:Button name="atmosphereFlight" text="穿越演示" /><ui:Button name="duskView" text="晨昏視角" /></ui:VisualElement>
++    <ui:Slider name="lookTilt" label="仰俯角" low-value="0" high-value="110" value="0" />
++    <ui:Label text="0° 俯視地面 · 90° 切線方向 · 大於 90° 仰望。太空／雲層／近地共用同一 GLSL 移植積分。" class="muted" />
+     <ui:Label name="v3Status" class="muted" />
+     <ui:VisualElement class="row"><ui:Button name="surfaceLOD" text="近地細分" /><ui:Button name="localGrid" text="局部格線" /><ui:Button name="weatherLive" text="動態天氣" /><ui:Button name="multipleScattering" text="雲內散射" /><ui:Button name="enhancedWater" text="統一水體" /><ui:Button name="volumeReference" text="全解析度對照" /></ui:VisualElement>
+     <ui:DropdownField name="transportMode" label="輸運觀測" />
+--- V4.1.1/Assets/ORBIS/Resources/ORBIS/OrbisAtmosphereCommon.cginc
++++ V4.1.2/Assets/ORBIS/Resources/ORBIS/OrbisAtmosphereCommon.cginc
+@@ -5,7 +5,7 @@
+ sampler2D _MainTex;
+ UNITY_DECLARE_DEPTH_TEXTURE(_CameraDepthTexture);
+ float4 _MainTex_TexelSize;
+-float3 _CameraLocal,_RayBL,_RayBR,_RayTL,_RayTR,_Sun;
++#include "OrbisAtmosphereView.cginc"
+ int _CloudSteps,_AirSteps,_LightSteps,_CloudDebug;
+ float _CloudMS,_ScatteringStrength,_MapVolume;
+ sampler2D _GroundField;
+@@ -80,8 +80,7 @@
+  if(end<=begin||steps<=0)return;
+  int sampleCount=clamp(steps,1,64);
+  float ds=(end-begin)/sampleCount;float3 sun=normalize(_Sun);float mu=dot(rd,sun);
+- float phaseRay=3.0/(16.0*ORBIS_PI)*(1+mu*mu);
+- float phaseMie=(1-.7*.7)/(4*ORBIS_PI*pow(max(.02,1+.7*.7-2*.7*mu),1.5));
++ float2 phaseAir=OrbisGLSLPhase(mu);
+  float phaseCloud=min(4.0,.82*HG(mu,.62)+.18*HG(mu,-.22));
+  [loop] for(int j=0;j<64;j++)
+  {
+@@ -93,7 +92,7 @@
+   float3 sunT=AirSunTransmittance(p,sun);
+   // Sun visibility from CLOUD optical depth modulates the AIR source, not only the terrain.
+   float airShadow=_GodRays>.5?lerp(1.0,OrbisCloudShadow(p,sun),_ShadowStrength):1.0;
+-  float3 source=(rho.x*float3(3,7,16.5)*phaseRay+rho.y*(_Haze*2.5)*phaseMie)*sunT*airShadow*(8*max(.1,_SolarEnergy));
++  float3 source=OrbisGLSLSource(rho,phaseAir,sunT)*airShadow;
+   if(cloudDensity>.0005)
+   {
+    float2 fields=LightField(p,sun);
+@@ -111,9 +110,7 @@
+    if(_CloudDebug==5)radiance=float3(1-exp(-cloudDensity*3),cloudDensity*.3,.1);
+    source+=min(float3(5,5,5),radiance)*cloudDensity*ORBIS_EXTINCTION*max(.1,_SolarEnergy);
+   }
+-  float3 stepT=exp(-min(sigma*ds,40.0));
+-  result.light+=result.transmission*(source/max(sigma,1e-6))*(1-stepT);
+-  result.transmission*=stepT;
++  OrbisGLSLAccumulate(source,sigma,ds,result.light,result.transmission);
+  }
+ }
+ // The atmosphere entry/exit already bound the four cloud intersections.
+@@ -134,8 +131,8 @@
+ OrbisVolumeResult OrbisMarchRay(float3 ro,float3 rd,float endDistance,float sceneDepth)
+ {
+  OrbisVolumeResult result;result.light=0;result.transmission=1;result.sceneDepth=sceneDepth;
+- float2 outer=OrbisSphere(ro,rd,ORBIS_AIR_RADIUS);
+- float begin=max(0.0,outer.x),end=min(outer.y,endDistance);
++ float2 visibleRange=OrbisGLSLViewInterval(ro,rd,endDistance);
++ float begin=visibleRange.x,end=visibleRange.y;
+  if(end<=begin)return result;
+  float2 cloudOuter=OrbisSphere(ro,rd,ORBIS_CLOUD_TOP),cloudInner=OrbisSphere(ro,rd,ORBIS_CLOUD_BASE);
+  float4 cuts=OrbisSortCuts4(clamp(float4(cloudOuter,cloudInner),begin,end));
+@@ -157,7 +154,7 @@
+   bool cloud=middle>ORBIS_CLOUD_BASE&&middle<ORBIS_CLOUD_TOP&&_Clouds>.5;
+   if(!cloud&&_Atmosphere<.5)continue;
+   int budget=clamp(cloud?_CloudSteps:_AirSteps,1,64);float total=cloud?cloudLength:airLength;
+-  int steps=clamp((int)ceil(budget*len/max(total,1e-6)),1,64);
++  int steps=clamp((int)ceil(budget*len/max(total,1e-6)),cloud?1:6,64);
+   IntegrateSegment(ro,rd,interval.x,interval.y,steps,cloud,result);
+  }
+  return result;
+@@ -165,9 +162,9 @@
+ 
+ OrbisVolumeResult OrbisMarch(float2 uv)
+ {
+- float3 ray=lerp(lerp(_RayBL,_RayBR,uv.x),lerp(_RayTL,_RayTR,uv.x),uv.y);
++ float3 ray=OrbisViewRay(uv);
+  float depth=SAMPLE_DEPTH_TEXTURE(_CameraDepthTexture,OrbisDepthUV(uv));
+- float eye=min(100.0,LinearEyeDepth(depth)),distance=eye*length(ray);
++ float eye=LinearEyeDepth(depth),distance=eye*length(ray);
+  float3 ro=_CameraLocal,rd=normalize(ray);
+  float2 planet=OrbisSphere(ro,rd,1.0);
+  if(planet.x>0)distance=min(distance,planet.x);
+--- V4.1.1/Assets/ORBIS/Resources/ORBIS/OrbisAtmosphereGLSL.cginc
++++ V4.1.2/Assets/ORBIS/Resources/ORBIS/OrbisAtmosphereGLSL.cginc
+@@ -0,0 +1,130 @@
++/*
++MIT License
++
++Copyright (c) 2019 Dimas Leenman
++
++Permission is hereby granted, free of charge, to any person obtaining a copy
++of this software and associated documentation files (the "Software"), to deal
++in the Software without restriction, including without limitation the rights
++to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
++copies of the Software, and to permit persons to whom the Software is
++furnished to do so, subject to the following conditions:
++
++The above copyright notice and this permission notice shall be included in all
++copies or substantial portions of the Software.
++
++THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
++IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
++FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
++AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
++LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
++OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
++SOFTWARE.
++
++*/
++
++#ifndef ORBIS_ATMOSPHERE_GLSL_PORT
++#define ORBIS_ATMOSPHERE_GLSL_PORT
++// Active HLSL adaptation of the USER-UPLOADED Dimas Leenman atmosphere.glsl.
++// Original source + SHA256 and a function-by-function port map are in Documentation.
++// Coordinate units: planet-local R; coefficients below have already been converted
++// from the reference's metres by OrbisAtmosphereProfile.Bind. Do not mix units.
++// The Rayleigh / Cornette-Shanks Mie phase and rational ozone profile are from
++// calculate_scattering(). Cloud-aware, stable Beer integration is an adaptation.
++float _Atmosphere,_AirDensity,_Haze,_SolarEnergy;
++float4 _AtmoBetaRayleigh;   // xyz: scattering per R; w: Rayleigh scale height in R
++float4 _AtmoBetaMie;        // xyz: scattering per R; w: aerosol scale height in R
++float4 _AtmoBetaAbsorption; // xyz: absorption per R; w: ozone peak height in R
++float4 _AtmoParameters;    // ozone width (R), Mie g, solar radiance, light sample budget
++float2 _AtmoSunDisk;       // cos(angular radius), radiance
++#define ORBIS_AIR_RADIUS 1.20
++
++float3 OrbisGLSLDensity(float3 p)
++{
++    float h=length(p)-1.0;
++    if(h<0.0||h>=ORBIS_AIR_RADIUS-1.0)return 0;
++    float ray=exp(-h/max(1e-5,_AtmoBetaRayleigh.w));
++    float mie=exp(-h/max(1e-5,_AtmoBetaMie.w));
++    float denom=(_AtmoBetaAbsorption.w-h)/max(1e-5,_AtmoParameters.x);
++    float ozone=ray/(1.0+denom*denom);
++    // The reference's extended game-scale profile needs a smooth outer truncation.
++    // This same profile is used on both sides of the boundary (no inside/outside fade).
++    float top=1.0-smoothstep(.188,.20,h);
++    return float3(ray,mie,ozone)*top*max(0.0,_AirDensity)*saturate(_Atmosphere);
++}
++float3 OrbisGLSLExtinction(float3 rho)
++{
++    return rho.x*_AtmoBetaRayleigh.xyz+rho.y*_AtmoBetaMie.xyz*max(0.0,_Haze)
++          +rho.z*_AtmoBetaAbsorption.xyz;
++}
++float2 OrbisGLSLPhase(float cosine)
++{
++    float mu=clamp(cosine,-1.0,1.0),g=clamp(_AtmoParameters.y,-.95,.95);
++    float mu2=mu*mu,gg=g*g;
++    float ray=3.0/(16.0*ORBIS_PI)*(1.0+mu2);
++    // Matches the uploaded GLSL's 3/(8*pi) Cornette-Shanks expression.
++    // With rd camera->sample and sun sample->sun, POSITIVE g is forward scattering.
++    float mie=3.0/(8.0*ORBIS_PI)*(1.0-gg)*(1.0+mu2)
++             /((2.0+gg)*pow(max(1e-4,1.0+gg-2.0*g*mu),1.5));
++    return float2(ray,mie);
++}
++float2 OrbisGLSLViewInterval(float3 ro,float3 rd,float maxDistance)
++{
++    float2 outer=OrbisSphere(ro,rd,ORBIS_AIR_RADIUS);
++    float begin=max(0.0,outer.x),end=min(outer.y,maxDistance);
++    // Scene depth clips mountains/buildings; this analytic fallback clips the globe
++    // even where there is no depth-writing object. Never integrate inside the planet.
++    float2 ground=OrbisSphere(ro,rd,1.0);
++    if(ground.y>0.0&&ground.x>=0.0)end=min(end,ground.x);
++    if(dot(ro,ro)<.999998)return float2(1,0);
++    return float2(begin,end);
++}
++float3 OrbisGLSLSunTransmittance(float3 p,float3 sun)
++{
++    // The uploaded reference lacks an explicit solid-planet shadow in its light loop.
++    // Keep the v4.1.1 outward-bias fix; hidden sunlight must not illuminate the night side.
++    if(OrbisSunVisible(p,sun)<.5)return 0;
++    if(_Atmosphere<.5||_AirDensity<=0.0)return 1;
++    float2 outer=OrbisSphere(p,sun,ORBIS_AIR_RADIUS);
++    float begin=max(0.0,outer.x),end=outer.y;
++    if(end<=begin)return 1;
++    float closest=clamp(-dot(p,sun),begin,end),total=end-begin;
++    float3 tau=0;
++    int budget=clamp((int)_AtmoParameters.w,4,24);
++    // Split about closest approach and concentrate samples at the dense end.
++    // This resolves grazing sunset paths without a large unrolled nested body.
++    [loop] for(int side=0;side<2;side++)
++    {
++        float span=side==0?closest-begin:end-closest;
++        if(span<1e-7)continue;
++        int count=clamp((int)ceil(budget*span/max(total,1e-6)),4,24);
++        [loop] for(int j=0;j<24;j++)
++        {
++            if(j>=count)break;
++            float u0=(float)j/count,u1=(float)(j+1)/count;
++            float a=span*u0*u0,b=span*u1*u1;
++            float t=closest+(side==0?-1.0:1.0)*(.5*(a+b));
++            tau+=OrbisGLSLExtinction(OrbisGLSLDensity(p+sun*t))*(b-a);
++        }
++    }
++    return exp(-min(max(tau,0.0),60.0));
++}
++float3 OrbisGLSLSource(float3 rho,float2 phase,float3 sunT)
++{
++    return (rho.x*_AtmoBetaRayleigh.xyz*phase.x+
++            rho.y*_AtmoBetaMie.xyz*max(0.0,_Haze)*phase.y)
++            *sunT*max(0.0,_AtmoParameters.z)*max(0.0,_SolarEnergy);
++}
++void OrbisGLSLAccumulate(float3 source,float3 sigma,float ds,inout float3 light,inout float3 transmission)
++{
++    // Stable exact integral for constant coefficients in THIS segment. Unlike the
++    // reference's end-of-step optical-depth sum, the near half-step isn't over-attenuated.
++    // Air and cloud extinction are added BEFORE integration; no second blue overlay.
++    float3 tau=max(sigma,0.0)*max(ds,0.0);
++    float3 stepT=exp(-min(tau,60.0));
++    float3 small=tau*(1.0-tau*.5+tau*tau/6.0);
++    float3 removed=lerp(small,1.0-stepT,step(.001,tau));
++    light+=transmission*source*(removed/max(sigma,1e-8));
++    transmission*=stepT;
++}
++#endif
+--- V4.1.1/Assets/ORBIS/Resources/ORBIS/OrbisAtmosphereView.cginc
++++ V4.1.2/Assets/ORBIS/Resources/ORBIS/OrbisAtmosphereView.cginc
+@@ -0,0 +1,20 @@
++#ifndef ORBIS_ATMOSPHERE_VIEW
++#define ORBIS_ATMOSPHERE_VIEW
++float3 _CameraLocal,_RayBL,_RayBR,_RayTL,_RayTR,_Sun;
++float3 OrbisViewRay(float2 uv)
++{
++    return lerp(lerp(_RayBL,_RayBR,uv.x),lerp(_RayTL,_RayTR,uv.x),uv.y);
++}
++float3 OrbisBackgroundWithSun(float3 scene,float2 uv,float eyeDepth)
++{
++    // Derivatives are only used in this final full-screen operation, outside all loops.
++    // In-front geometry is decided by the actual depth buffer, not by turning Mie off.
++    float3 rd=normalize(OrbisViewRay(uv));
++    float mu=dot(rd,normalize(_Sun)),edge=max(fwidth(mu),1e-6);
++    if(eyeDepth<_ProjectionParams.z*.999)return scene;
++    float2 planet=OrbisSphere(_CameraLocal,rd,1.0);
++    if(planet.y>0.0&&planet.x>=0.0)return scene;
++    float disk=smoothstep(_AtmoSunDisk.x-edge,_AtmoSunDisk.x+edge,mu);
++    return scene+disk*max(0.0,_AtmoSunDisk.y)*max(0.0,_SolarEnergy);
++}
++#endif
+--- V4.1.1/Assets/ORBIS/Resources/ORBIS/OrbisOptics.cginc
++++ V4.1.2/Assets/ORBIS/Resources/ORBIS/OrbisOptics.cginc
+@@ -2,31 +2,15 @@
+ #define ORBIS_OPTICS
+ #include "UnityCG.cginc"
+ #include "OrbisCloudCommon.cginc"
+-float _Atmosphere,_AirDensity,_Haze,_SolarEnergy,_Night,_Exposure;
++#include "OrbisAtmosphereGLSL.cginc"
++float _Night,_Exposure;
+ float _GodRays,_ShadowStrength;
+ int _SurfaceDebug;
+-#define ORBIS_AIR_RADIUS 1.20
+-// Game-scale Rayleigh/Mie/ozone coefficients, not an Earth calibration.
+-float3 AirDensities(float3 p)
+-{
+-    float h=max(0.0,length(p)-1.0);
+-    float ray=exp(-h/.025),mie=exp(-h/.006);
+-    float ozone=exp(-pow((h-.055)/.022,2.0))*.12;
+-    return float3(ray,mie,ozone)*max(0.0,_AirDensity)*saturate(_Atmosphere);
+-}
+-float3 AirExtinction(float3 rho)
+-{
+-    return rho.x*float3(3.0,7.0,16.5)+rho.y*(max(0.0,_Haze)*2.5)+rho.z*float3(2.04,4.97,.195);
+-}
+-float3 AirSunTransmittance(float3 p,float3 sun)
+-{
+-    if(OrbisSunVisible(p,sun)<.5)return 0;
+-    float distance=max(0.0,OrbisSphere(p,sun,ORBIS_AIR_RADIUS).y);
+-    float ds=distance/8.0;float3 tau=0;
+-    // Shared by surfaces and the view marcher: do not replicate this body by unrolling.
+-    [loop] for(int k=0;k<8;k++)tau+=AirExtinction(AirDensities(p+sun*((k+.5)*ds)))*ds;
+-    return exp(-min(tau,40.0));
+-}
++// Legacy entry points now delegate to the ACTIVE uploaded-GLSL port. All surface,
++// water, cloud and atmospheric lighting therefore use the same optical profile.
++float3 AirDensities(float3 p){return OrbisGLSLDensity(p);}
++float3 AirExtinction(float3 rho){return OrbisGLSLExtinction(rho);}
++float3 AirSunTransmittance(float3 p,float3 sun){return OrbisGLSLSunTransmittance(p,sun);}
+ float3 OrbisSkyFill(float3 p,float3 sun)
+ {
+     // Indirect skylight is not multiplied by a hard direct-sun visibility bit.
+--- V4.1.1/Assets/ORBIS/Runtime/OrbisAtmosphereFlight.cs
++++ V4.1.2/Assets/ORBIS/Runtime/OrbisAtmosphereFlight.cs
+@@ -0,0 +1,92 @@
++using UnityEngine;
++namespace Orbis
++{
++    // This is the SAME camera and world, not a second scene or a video overlay.
++    public sealed partial class OrbisDemo
++    {
++        float lookTilt,smoothLookTilt,lookTiltVelocity;
++        float lookHeading,smoothLookHeading,lookHeadingVelocity;
++        float flightTime,flightStartAltitude,flightStartTilt;
++        bool atmosphereFlight;
++        public bool AtmosphereFlightActive=>atmosphereFlight;
++        public float LookTilt=>lookTilt;
++        public float CameraRadius=>View&&PlanetCamera?View.transform.InverseTransformPoint(PlanetCamera.transform.position).magnitude:1+smoothAltitude;
++        void ApplyAtmosphereLook(Quaternion orbit,Vector3 radial,float dt)
++        {
++            smoothLookTilt=Mathf.SmoothDamp(smoothLookTilt,lookTilt,ref lookTiltVelocity,.22f,Mathf.Infinity,dt);
++            smoothLookHeading=Mathf.SmoothDampAngle(smoothLookHeading,lookHeading,ref lookHeadingVelocity,.22f,Mathf.Infinity,dt);
++            float theta=smoothLookTilt*Mathf.Deg2Rad,heading=smoothLookHeading*Mathf.Deg2Rad;
++            Vector3 tangent=(orbit*Vector3.up)*Mathf.Cos(heading)+(orbit*Vector3.right)*Mathf.Sin(heading);
++            Vector3 forward=-radial*Mathf.Cos(theta)+tangent*Mathf.Sin(theta);
++            Vector3 up=tangent*Mathf.Cos(theta)+radial*Mathf.Sin(theta);
++            // Orthonormal even at 90 degrees; LookAt(center,worldUp) has a horizon singularity.
++            PlanetCamera.transform.rotation=Quaternion.LookRotation(forward,up);
++        }
++        public void SetAtmosphereLook(float degrees)
++        {
++            StopAtmosphereFlight();lookTilt=Mathf.Clamp(degrees,0,110);
++        }
++        public void StopAtmosphereFlight(){atmosphereFlight=false;}
++        void PrepareAtmosphereView()
++        {
++            if(MapMode)ToggleMap();
++            AutoOrbit=false;World.settings.atmosphere=true;World.settings.surfaceDebug=0;
++            View.layer=0;View.UpdateColors(true);
++            PlanetCamera.GetComponent<OrbisAtmosphereRenderer>().cloudDebug=0;
++            hud.SyncSettings();
++        }
++        public void EnterAtmosphere()
++        {
++            StopAtmosphereFlight();PrepareAtmosphereView();altitude=.006f;lookTilt=82;
++            Notice="進入低層大氣。滾輪可繼續進出；仰俯角 0° 看地面、90° 看切線方向。原世界與天氣保持不變。";hud.Refresh();
++        }
++        public void ExitAtmosphere()
++        {
++            StopAtmosphereFlight();PrepareAtmosphereView();altitude=2.65f;lookTilt=0;
++            Notice="返回太空。仍使用同一相機、同一散射積分，不切換天空貼圖。";hud.Refresh();
++        }
++        public void ToggleAtmosphereFlight()
++        {
++            if(atmosphereFlight){StopAtmosphereFlight();hud.Refresh();return;}
++            PrepareAtmosphereView();flightStartAltitude=Mathf.Clamp(smoothAltitude,.003f,5.5f);
++            flightStartTilt=smoothLookTilt;flightTime=0;atmosphereFlight=true;
++            Notice="穿越演示：下降 → 近地觀察 → 返回軌道。拖曳、滾輪、改仰俯角或切地圖可立即接管。";hud.Refresh();
++        }
++        void TickAtmosphereFlight(float dt)
++        {
++            if(!atmosphereFlight||MapMode)return;
++            flightTime+=dt;
++            if(flightTime<12)
++            {
++                float t=Mathf.SmoothStep(0,1,flightTime/12);
++                altitude=Mathf.Exp(Mathf.Lerp(Mathf.Log(flightStartAltitude),Mathf.Log(.006f),t));
++                lookTilt=Mathf.Lerp(flightStartTilt,82,t);
++            }
++            else if(flightTime<16){altitude=.006f;lookTilt=82;}
++            else if(flightTime<30)
++            {
++                float t=Mathf.SmoothStep(0,1,(flightTime-16)/14);
++                altitude=Mathf.Exp(Mathf.Lerp(Mathf.Log(.006f),Mathf.Log(2.65f),t));lookTilt=Mathf.Lerp(82,0,t);
++            }
++            else{altitude=2.65f;lookTilt=0;StopAtmosphereFlight();hud.Refresh();}
++        }
++        public void ObserveAtmosphereDusk()
++        {
++            StopAtmosphereFlight();PrepareAtmosphereView();
++            // Move ONLY the observer near the current terminator. No time, climate,
++            // rotation, civilizations or actual sunlight are edited for this preset.
++            Vector3 sun=VisualSun.normalized;
++            Vector3 current=View.transform.InverseTransformPoint(PlanetCamera.transform.position).normalized;
++            Vector3 side=Vector3.ProjectOnPlane(current,sun);
++            if(side.sqrMagnitude<.001f)side=Vector3.Cross(sun,Mathf.Abs(sun.y)>.9f?Vector3.right:Vector3.up);
++            Vector3 local=(side.normalized+sun*.012f).normalized;
++            Vector3 radial=View.transform.TransformDirection(local).normalized;
++            yaw=Mathf.Atan2(radial.x,radial.z)*Mathf.Rad2Deg;pitch=-Mathf.Asin(Mathf.Clamp(radial.y,-1,1))*Mathf.Rad2Deg;
++            Quaternion orbit=Quaternion.Euler(pitch,yaw,0);
++            Vector3 solarWorld=View.transform.TransformDirection(sun);
++            lookHeading=Mathf.Atan2(Vector3.Dot(solarWorld,orbit*Vector3.right),Vector3.Dot(solarWorld,orbit*Vector3.up))*Mathf.Rad2Deg;
++            altitude=.006f;lookTilt=88;
++            Notice="晨昏觀測：只移動相機到當前晨昏線附近並朝向太陽；不修改世界時間。";hud.Refresh();
++        }
++    }
++}
+--- V4.1.1/Assets/ORBIS/Runtime/OrbisAtmosphereProfile.cs
++++ V4.1.2/Assets/ORBIS/Runtime/OrbisAtmosphereProfile.cs
+@@ -0,0 +1,38 @@
++using System;
++using UnityEngine;
++namespace Orbis
++{
++    /// <summary>Optical constants from the uploaded atmosphere.glsl, converted from metres
++    /// to the existing ORBIS 1.0R planet / 1.20R atmosphere. This is an art-scaled atmosphere,
++    /// NOT a 6371 km Earth. The extended terrain/cloud geometry is deliberately retained.</summary>
++    [Serializable]
++    public sealed class OrbisAtmosphereProfile
++    {
++        public const float OuterRadius=1.20f;
++        public const float CloudBase=1.085f,CloudTop=1.132f;
++        public const string SourceSHA256="708ea4a9141a7653ea0085d7f26ae09ca09bb14c88e339d63da74e16439300bd";
++        [Tooltip("Reference 8 km Rayleigh height multiplier; 2 fits the exaggerated ORBIS terrain. Coefficients compensate to retain its vertical optical depth.")]
++        [Range(1,3)] public float rayleighHeightStretch=2f;
++        [Tooltip("Reference 1.2 km aerosol height multiplier; compensating beta preserves the reference vertical optical depth.")]
++        [Range(1,5)] public float mieHeightStretch=3.3333333f;
++        [Range(-.9f,.9f)] public float mieAnisotropy=.7f;
++        [Tooltip("Air-source radiance: reference demo uses 40; 12 balances the existing ORBIS surface lighting and ACES display.")]
++        [Range(1,60)] public float solarRadiance=12f;
++        [Range(0,2)] public float ozoneStrength=1f;
++        [Range(.1f,1.2f)] public float sunAngularRadiusDegrees=.53f;
++        static readonly int[] LightBudget={12,16,20,24};
++        public void Bind(Material material,int quality)
++        {
++            if(!material)return;
++            // 100 km reference column -> 0.20 R visual column. Beta has units 1/length.
++            const float metresPerR=100000f/.20f;
++            float r=Mathf.Clamp(rayleighHeightStretch,1,3),m=Mathf.Clamp(mieHeightStretch,1,5);
++            material.SetVector("_AtmoBetaRayleigh",new Vector4(5.5e-6f*metresPerR/r,13e-6f*metresPerR/r,22.4e-6f*metresPerR/r,8000f*r/metresPerR));
++            material.SetVector("_AtmoBetaMie",new Vector4(21e-6f*metresPerR/m,21e-6f*metresPerR/m,21e-6f*metresPerR/m,1200f*m/metresPerR));
++            float o=Mathf.Clamp(ozoneStrength,0,2);
++            material.SetVector("_AtmoBetaAbsorption",new Vector4(2.04e-5f*metresPerR*o,4.97e-5f*metresPerR*o,1.95e-6f*metresPerR*o,30000f/metresPerR));
++            material.SetVector("_AtmoParameters",new Vector4(4000f/metresPerR,Mathf.Clamp(mieAnisotropy,-.9f,.9f),Mathf.Clamp(solarRadiance,1,60),LightBudget[Mathf.Clamp(quality,0,3)]));
++            material.SetVector("_AtmoSunDisk",new Vector4(Mathf.Cos(Mathf.Clamp(sunAngularRadiusDegrees,.1f,1.2f)*Mathf.Deg2Rad),3f,0,0));
++        }
++    }
++}
+--- V4.1.1/Assets/ORBIS/Runtime/OrbisAtmosphereRenderer.cs
++++ V4.1.2/Assets/ORBIS/Runtime/OrbisAtmosphereRenderer.cs
+@@ -19,7 +19,7 @@
+         bool warned;
+         static readonly float[] Scale={.35f,.5f,.65f,1f};
+         static readonly int[] CloudSteps={20,32,48,64};
+-        static readonly int[] AirSteps={12,20,28,40};
++        static readonly int[] AirSteps={16,24,32,48};
+         static readonly int[] LightSteps={2,3,4,6};
+         void OnEnable()
+         {
+@@ -124,7 +124,7 @@
+                 RenderTexture.active=previous;GL.sRGBWrite=oldSRGB;
+                 composite.SetTexture("_RadianceTex",light);composite.SetTexture("_TransmittanceTex",transmission);
+                 composite.SetVector("_VolumeTexelSize",new Vector4(1f/width,1f/height,width,height));
+-                view.BindOpticalSettings(composite);Present(source,destination,composite);
++                view.BindOpticalSettings(composite);SetRays(composite);composite.SetVector("_Sun",m.GetVector("_Sun"));Present(source,destination,composite);
+             }
+             catch(System.Exception e)
+             {
+--- V4.1.1/Assets/ORBIS/Runtime/OrbisDemo.cs
++++ V4.1.2/Assets/ORBIS/Runtime/OrbisDemo.cs
+@@ -9,6 +9,7 @@
+     public sealed class DemoViewState
+     {
+         public float altitude,simulationRemainder;
++        public float lookTilt,lookHeading;
+         public double renderClock;
+         public float yaw, pitch, distance, mapX, mapY, mapZoom, speed;
+         public int selected, tool, layer;
+@@ -45,7 +46,7 @@
+         double visualClock;
+         float altitude=2.65f,smoothAltitude=2.65f,altitudeVelocity;
+         public float Altitude=>smoothAltitude;
+-        public string ViewBand=>MapMode?"全景地圖":smoothAltitude>.22f?"地外軌道":smoothAltitude>.075f?"大氣／雲層":"地表近景";
++        public string ViewBand=>MapMode?"全景地圖":CameraRadius>=OrbisAtmosphereProfile.OuterRadius?"地外軌道":CameraRadius>OrbisAtmosphereProfile.CloudTop?"高層大氣":CameraRadius>=OrbisAtmosphereProfile.CloudBase?"雲層高度帶":"低層大氣／近地";
+         int lastRevision;
+         OrbisHud hud;
+         PanelSettings panel;
+@@ -61,7 +62,7 @@
+             PlanetCamera = cameraObject.GetComponent<Camera>();
+             PlanetCamera.tag = "MainCamera";
+             PlanetCamera.clearFlags = CameraClearFlags.SolidColor;
+-            PlanetCamera.backgroundColor = new Color(.012f, .025f, .044f);
++            PlanetCamera.backgroundColor = Color.black; // Sky radiance now comes from the active GLSL atmosphere, not a blue clear color.
+             PlanetCamera.nearClipPlane = .005f;
+             PlanetCamera.farClipPlane = 100;
+             PlanetCamera.fieldOfView = 42;
+@@ -97,6 +98,7 @@
+                 while (simulationAccumulator >= .2f && steps++ < 2)
+                 { World.Step(.2f, .2f * Speed * 2); simulationAccumulator -= .2f; }
+             }
++            TickAtmosphereFlight(delta);
+             if (AutoOrbit && !MapMode) yaw += delta * 5;
+             visualAccumulator += delta; markerAge += delta;
+             if (visualAccumulator >= .3f)
+@@ -152,12 +154,13 @@
+                 distance=smoothDistance=ground+safeAltitude;
+                 PlanetCamera.nearClipPlane=Mathf.Clamp(smoothAltitude*.08f,.00008f,.01f);
+                 PlanetCamera.transform.position=planet.transform.position+radial*smoothDistance;
+-                PlanetCamera.transform.LookAt(Vector3.zero, orbit * Vector3.up);
++                ApplyAtmosphereLook(orbit,radial,dt);
+             }
+         }
+ 
+         public void Orbit(Vector2 delta)
+         {
++            StopAtmosphereFlight();
+             if (MapMode)
+             {
+                 mapPan.x += delta.x * mapZoom / 360;
+@@ -170,6 +173,7 @@
+         }
+         public void Zoom(float wheel)
+         {
++            StopAtmosphereFlight();
+             if (MapMode) mapZoom = Mathf.Clamp(mapZoom * Mathf.Exp(wheel * .025f), .09f, 3);
+             else {altitude = Mathf.Clamp(altitude * Mathf.Exp(wheel * .04f), .003f, 5.5f);if(altitude<.25f)AutoOrbit=false;}
+         }
+@@ -213,6 +217,7 @@
+         }
+         public void FocusSelected()
+         {
++            StopAtmosphereFlight();
+             if (Selected < 0) return;
+             if (MapMode) { Vector3 p = OrbisMapView.Project(World.grid.points[Selected]); mapPan = new Vector2(p.x, p.y); }
+             else
+@@ -224,6 +229,7 @@
+         }
+         public void ToggleMap()
+         {
++            StopAtmosphereFlight();
+             bool entering=!MapMode;
+             if(entering)
+             {
+@@ -246,10 +252,11 @@
+         }
+         public void LocalView()
+         {
++            StopAtmosphereFlight();lookTilt=0;lookHeading=0;
+             if(MapMode)ToggleMap();FocusSelected();altitude=.025f;AutoOrbit=false;
+             Notice="滾輪可連續穿越大氣與雲層；近景自動跟隨地表。局部格線是規劃輔助，不改變模擬地塊編號。";hud.Refresh();
+         }
+-        public void HomeView() { if (MapMode) { mapPan = Vector2.zero; mapZoom = 2.2f; } else { altitude = 2.65f; FocusSelected(); } }
++        public void HomeView() { StopAtmosphereFlight();lookTilt=0;lookHeading=0; if (MapMode) { mapPan = Vector2.zero; mapZoom = 2.2f; } else { altitude = 2.65f; FocusSelected(); } }
+         public void FindRiver() { int tile = World.MainRiver();float largest=0;foreach(var reach in View.Rivers.reaches)if(reach.qa>largest&&reach.ha>.015f){largest=reach.qa;tile=World.grid.Nearest(reach.a);} if (tile >= 0) { SelectTile(tile); FocusSelected(); Notice = "已定位主要河流：" + World.RiverName(tile); } else Notice = "目前沒有可觀測的陸地河流。"; hud.Refresh(); }
+         public void SetLayer(int value) { View.layer = value; View.UpdateColors(true); if (MapMode) Atlas.Refresh(); overlays.Tick(0, true); hud.Refresh(); }
+         public void SetTool(int value)
+@@ -272,7 +279,7 @@
+         public void ToggleNight() { World.settings.night = !World.settings.night; hud.Refresh(); }
+         public void ToggleRotation() { World.settings.rotation = !World.settings.rotation; hud.Refresh(); }
+         public void ToggleRivers() { View.showRivers = !View.showRivers; hud.Refresh(); }
+-        public void ToggleAutoOrbit() { AutoOrbit = !AutoOrbit; hud.Refresh(); }
++        public void ToggleAutoOrbit() { StopAtmosphereFlight(); AutoOrbit = !AutoOrbit; hud.Refresh(); }
+         public void JumpGeology() { World.geo += 20; World.Terrain(); World.Log("板塊時鐘推進了兩千萬年。"); hud.Refresh(); }
+         public void NewWorld(string seed)
+         {
+@@ -284,7 +291,7 @@
+             try
+             {
+                 WorldSave state = World.Save();
+-                state.view = new DemoViewState { yaw = yaw, pitch = pitch, distance = distance, altitude=altitude, simulationRemainder=simulationAccumulator,renderClock=visualClock, mapX = mapPan.x, mapY = mapPan.y, mapZoom = mapZoom, speed = Speed, selected = Selected, tool = Tool, layer = View.layer, activeNation=ActiveNation, map = MapMode, paused = Paused };
++                state.view = new DemoViewState { yaw = yaw, pitch = pitch, distance = distance, altitude=altitude, lookTilt=lookTilt, lookHeading=lookHeading, simulationRemainder=simulationAccumulator,renderClock=visualClock, mapX = mapPan.x, mapY = mapPan.y, mapZoom = mapZoom, speed = Speed, selected = Selected, tool = Tool, layer = View.layer, activeNation=ActiveNation, map = MapMode, paused = Paused };
+                 string json = JsonUtility.ToJson(state, true); Directory.CreateDirectory(Application.persistentDataPath);
+                 string temp = SavePath + ".tmp"; File.WriteAllText(temp, json);
+                 if (File.Exists(SavePath)) File.Replace(temp, SavePath, SavePath + ".bak"); else File.Move(temp, SavePath);
+@@ -316,6 +323,7 @@
+         void RestoreView(DemoViewState v)
+         {
+             simulationAccumulator=Mathf.Clamp(v.simulationRemainder,0,.19999f);visualClock=System.Math.Max(0,v.renderClock);
++            StopAtmosphereFlight();lookTilt=smoothLookTilt=Mathf.Clamp(v.lookTilt,0,110);lookHeading=smoothLookHeading=v.lookHeading;lookTiltVelocity=lookHeadingVelocity=0;
+             yaw=v.yaw;pitch=Mathf.Clamp(v.pitch,-89.8f,89.8f);altitude=Mathf.Clamp(v.altitude,.003f,5.5f);
+             smoothYaw=yaw;smoothPitch=pitch;smoothAltitude=altitude;yawVelocity=pitchVelocity=altitudeVelocity=0;
+             mapPan = new Vector2(Mathf.Clamp(v.mapX, -Mathf.PI, Mathf.PI), Mathf.Clamp(v.mapY, -Mathf.PI / 2, Mathf.PI / 2));
+--- V4.1.1/Assets/ORBIS/Runtime/OrbisHud.cs
++++ V4.1.2/Assets/ORBIS/Runtime/OrbisHud.cs
+@@ -107,6 +107,9 @@
+             Bind("weatherLive",()=>demo.World.settings.dynamicWeather=!demo.World.settings.dynamicWeather);
+             Bind("multipleScattering",()=>demo.World.settings.multipleScattering=!demo.World.settings.multipleScattering);
+             Bind("enhancedWater",()=>demo.World.settings.enhancedWater=!demo.World.settings.enhancedWater);
++            Bind("enterAtmosphere",demo.EnterAtmosphere);Bind("exitAtmosphere",demo.ExitAtmosphere);
++            Bind("atmosphereFlight",demo.ToggleAtmosphereFlight);Bind("duskView",demo.ObserveAtmosphereDusk);
++            root.Q<Slider>("lookTilt").RegisterValueChangedCallback(e=>demo.SetAtmosphereLook(e.newValue));
+             Bind("volumeReference",()=>{var v=demo.PlanetCamera.GetComponent<OrbisAtmosphereRenderer>();v.fullResolutionReference=!v.fullResolutionReference;});
+             root.Q<Slider>("airDensity").RegisterValueChangedCallback(e=>demo.World.settings.airDensity=e.newValue);
+             root.Q<Slider>("haze").RegisterValueChangedCallback(e=>demo.World.settings.haze=e.newValue);
+@@ -186,6 +189,8 @@
+             ToggleText("enhancedWater","統一水體",s.enhancedWater);
+             ToggleText("godRays","雲隙光",s.godRays);ToggleText("mapClouds","展開圖雲層",s.mapClouds);
+             ToggleText("volumeReference","全解析度對照",demo.PlanetCamera.GetComponent<OrbisAtmosphereRenderer>().fullResolutionReference);
++            root.Q<Slider>("lookTilt").SetValueWithoutNotify(demo.LookTilt);
++            root.Q<Button>("atmosphereFlight").text=demo.AtmosphereFlightActive?"停止穿越演示":"穿越演示";
+             root.Q<Label>("v3Status").text=demo.ViewBand+" · 目標離地 "+demo.Altitude.ToString("F4")+" R\n局部網格 "+demo.View.LocalSurface.VertexCount.ToString("N0")+" 頂點 · 邏輯地塊不變";
+             float seasonal = Mathf.Repeat(w.day - 80, 360);
+             string[] northSeasons = { "春季", "夏季", "秋季", "冬季" };
+--- V4.1.1/Assets/ORBIS/Runtime/OrbisPlanetView.cs
++++ V4.1.2/Assets/ORBIS/Runtime/OrbisPlanetView.cs
+@@ -9,6 +9,7 @@
+     {
+         public OrbisWorld world;public int layer;public bool showRivers=true;
+         public Camera viewCamera;
++        public OrbisAtmosphereProfile atmosphereProfile=new OrbisAtmosphereProfile();
+         Mesh terrainMesh,riverMesh,cloudMesh,tileMesh;Material surfaceMaterial,cloudMaterial,riverMaterial;
+         GameObject terrainObject,riverObject,cloudObject,tileObject,selection;
+         readonly List<GameObject> cities=new List<GameObject>();
+@@ -233,6 +234,8 @@
+         public void BindOpticalSettings(Material material)
+         {
+             var p=world.settings;
++            if(atmosphereProfile==null)atmosphereProfile=new OrbisAtmosphereProfile();
++            atmosphereProfile.Bind(material,p.cloudQuality);
+             material.SetFloat("_Atmosphere",p.atmosphere?1:0);material.SetFloat("_AirDensity",p.airDensity);
+             material.SetFloat("_Haze",p.haze);material.SetFloat("_SolarEnergy",p.heat);material.SetFloat("_Night",p.night?1:0);
+             material.SetFloat("_Exposure",p.exposure);material.SetFloat("_ShadowStrength",p.shadowStrength);
+--- V4.1.1/Assets/ORBIS/Runtime/OrbisSaveMigration.cs
++++ V4.1.2/Assets/ORBIS/Runtime/OrbisSaveMigration.cs
+@@ -43,6 +43,7 @@
+             if(!Has(json,"exposure"))s.settings.exposure=1;
+             if(!Has(json,"shadowStrength"))s.settings.shadowStrength=.8f;
+             if(!Has(json,"surfaceDebug"))s.settings.surfaceDebug=0;
++            if(s.view!=null){if(!Has(json,"lookTilt"))s.view.lookTilt=0;if(!Has(json,"lookHeading"))s.view.lookHeading=0;}
+             return s;
+         }
+         static bool Finite(double x)=>!double.IsNaN(x)&&!double.IsInfinity(x);
+@@ -61,6 +62,7 @@
+             if(s.weatherInitialized)foreach(var t in s.tiles)
+                 if(!Within(t.vapor,0,3)||!Within(t.cloudWater,0,2)||!Within(t.cloudRain,0,10)||!Within(t.convection,0,1))
+                     throw new ArgumentException("Invalid weather reservoir.");
++            if(s.view!=null&&(!Within(s.view.lookTilt,0,110)||!Within(s.view.lookHeading,-360,360)))throw new ArgumentException("Invalid atmosphere camera orientation.");
+             if(s.version>=3&&s.view!=null&&(!Within(s.view.altitude,.002f,5.6f)||!Within(s.view.simulationRemainder,0,.2f)||!Finite(s.view.renderClock)||s.view.renderClock<0||s.view.renderClock>1e12))throw new ArgumentException("Invalid camera altitude.");
+         }
+     }

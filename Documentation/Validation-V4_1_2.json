@@ -1,0 +1,107 @@
+{
+  "version": "4.1.2",
+  "scope": "Source contracts, independent CPU numerical references",
+  "unity_import": "NOT_RUN",
+  "hlsl_compilation": "NOT_RUN",
+  "csharp_compilation": "NOT_RUN",
+  "unity_visual_acceptance": "NOT_RUN",
+  "checks": {
+    "active_source_and_license": {
+      "status": "PASS",
+      "uploaded_source_sha256": "708ea4a9141a7653ea0085d7f26ae09ca09bb14c88e339d63da74e16439300bd",
+      "active_port_not_reference_only": true,
+      "MIT_retained": true,
+      "seconds": 0.0
+    },
+    "length_units_and_optical_depth": {
+      "status": "PASS",
+      "metres_per_game_R": 500000.0,
+      "rayleigh_vertical_optical_depth_reference": [
+        0.044,
+        0.104,
+        0.1792
+      ],
+      "game_geometry_not_true_Earth": true,
+      "seconds": 0.001
+    },
+    "phase_functions": {
+      "status": "PASS",
+      "normalization_max_error": 2.1171953079601735e-13,
+      "positive_g_forward_under_uploaded_convention": true,
+      "seconds": 0.017
+    },
+    "density_and_outer_boundary": {
+      "status": "PASS",
+      "heights": 1501,
+      "outer_density_goes_smoothly_to_zero": true,
+      "zero_density_identity": true,
+      "seconds": 0.001
+    },
+    "sunlight_and_quadrature": {
+      "status": "PASS",
+      "cases": 200,
+      "zenith_RGB": [
+        0.8964378119489507,
+        0.7957606808762065,
+        0.8144891878005064
+      ],
+      "low_sun_RGB": [
+        0.4549410293533656,
+        0.23593784374635948,
+        0.21475702771216282
+      ],
+      "night_RGB": [
+        0.0,
+        0.0,
+        0.0
+      ],
+      "16_budget_max_absolute_error_vs_1024_budget": 0.017366012366156952,
+      "seconds": 0.103
+    },
+    "inside_outside_geometry": {
+      "status": "PASS",
+      "rays": 4000,
+      "nonempty_segments": 557,
+      "planet_and_scene_depth_clipped": true,
+      "seconds": 0.079
+    },
+    "clear_air_boundary_continuity": {
+      "status": "PASS",
+      "clear_air_boundary_pairs": 15,
+      "radius_epsilon_R": 1e-06,
+      "max_radiance_or_transmittance_difference": 7.57743579575254e-05,
+      "qualification": "Independent clear-air CPU integration; not rendered Unity cloud continuity",
+      "seconds": 0.269
+    },
+    "stable_Beer_integration": {
+      "status": "PASS",
+      "homogeneous_media": 1000,
+      "max_absolute_radiance_error": 7.105427357601002e-14,
+      "seconds": 0.209
+    },
+    "loop_regression_contracts": {
+      "status": "PASS",
+      "bounded_rolled_volume_loops": 10,
+      "solar_disk_derivative_before_depth_branch": true,
+      "seconds": 0.001
+    },
+    "camera_UI_and_save_wiring": {
+      "status": "PASS",
+      "named_ui_elements": 135,
+      "camera_basis_angles_tested": 111,
+      "legacy_top_down_default": true,
+      "saved_orientation_with_legacy_defaults": true,
+      "seconds": 0.005
+    },
+    "shared_render_wiring": {
+      "status": "PASS",
+      "three_pass_indices_retained": true,
+      "air_source_still_uses_cloud_shadow": true,
+      "new_optics_used_by_surfaces_water_clouds_map": true,
+      "legacy_v41_inlined_sun_source_assertion_replaced": true,
+      "seconds": 0.0
+    }
+  },
+  "passed": 11,
+  "failed": 0
+}

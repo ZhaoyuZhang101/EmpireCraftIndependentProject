@@ -1,0 +1,37 @@
+{
+  "utc": "2026-09-11T18:42:32.960584+00:00",
+  "scope": "Source wiring/structural contracts only. NOT a C#/HLSL/Unity compiler.",
+  "status": "PASS",
+  "checks": 64,
+  "issues": [],
+  "sampler_source_inventory": {
+    "Surface_lit": [
+      "_FlatInfo",
+      "_FlatOwners",
+      "_FlatTerrain",
+      "_GeoTex",
+      "_HydroA",
+      "_HydroB",
+      "_SkyTex",
+      "_TerrainAtlas",
+      "_VisualTex"
+    ],
+    "FlatMap": [
+      "_GeoTex",
+      "_HydroA",
+      "_HydroB",
+      "_InfoTex",
+      "_MainTex",
+      "_OwnerTex",
+      "_SWEState",
+      "_SkyTex",
+      "_VisualTex"
+    ],
+    "FlatSkyBake": [
+      "_ClimateTex"
+    ]
+  },
+  "unity_editor_executed": false,
+  "native_csharp_executed": false,
+  "native_hlsl_executed": false
+}

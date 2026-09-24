@@ -1,0 +1,118 @@
+{
+  "scope": "Offline structural checks and independent Python mathematical reference; no C# execution or Unity rendering",
+  "unity_editor_run": false,
+  "csharp_compilation": false,
+  "shader_compilation": false,
+  "gpu_profiling": false,
+  "play_mode_screenshots": false,
+  "wall_clock_3h_soak": false,
+  "checks": {
+    "source_delimiters": {
+      "passed": true,
+      "files": 19,
+      "qualification": "No syntax/type/Unity import validation"
+    },
+    "uxml_xml_and_bindings": {
+      "passed": true,
+      "named_elements": 63
+    },
+    "local_shader_includes_and_resources": {
+      "passed": true
+    },
+    "runtime_wiring": {
+      "passed": true,
+      "cloud_effect_attached": true,
+      "water_data_on_rivers": true,
+      "water_function_called": true
+    },
+    "save_migration_and_state_gate_present": {
+      "passed": true,
+      "qualification": "Source-presence checks; Unity save test is supplied separately"
+    },
+    "meta_guid_uniqueness": {
+      "passed": true,
+      "guids": 30
+    },
+    "sphere_interpolation": {
+      "passed": true,
+      "production_cells": 3456,
+      "triangles": 6908,
+      "random_directions": 10000,
+      "greedy_hint_tests": 1000,
+      "max_direction_error": 3.8459253727671276e-16
+    },
+    "constant_field_and_monotonicity": {
+      "passed": true,
+      "minimum_weight": 3.972772605293502e-05
+    },
+    "pole_and_face_crossings": {
+      "passed": true,
+      "directions": 6
+    },
+    "reaction_budget": {
+      "passed": true,
+      "samples": 100000,
+      "max_error": 8.881784197001252e-16
+    },
+    "cloud_evaporation": {
+      "passed": true,
+      "final_cloud": 0.0,
+      "simulated_seconds": 200
+    },
+    "dual_flow_continuity": {
+      "passed": true,
+      "clocks": [
+        0.0,
+        6.0,
+        12.0,
+        120.0,
+        10800.0,
+        1000000.0,
+        1000000000.0
+      ],
+      "max_delta": 3.697188568851928e-06,
+      "max_local_wind_offset": 0.20159999999999997
+    },
+    "independent_water_phase_wrap": {
+      "passed": true,
+      "waves": 10,
+      "max_delta": 7.3538376457246e-06
+    },
+    "analytic_wave_warp_jacobian": {
+      "passed": true,
+      "samples": 100,
+      "max_finite_difference_error": 1.8967927228885628e-10,
+      "qualification": "Local directions held fixed, as in shader"
+    },
+    "sphere_shell_scene_clip": {
+      "passed": true,
+      "front_shell_length": 0.04699999999999971
+    },
+    "planetary_sun_occlusion": {
+      "passed": true,
+      "day_night_limb": true
+    },
+    "passive_cloud_marker_advection": {
+      "passed": true,
+      "reference_cells": 384,
+      "ticks": 600,
+      "seconds": 60,
+      "expected_rotation_radians": 1.2,
+      "centroid_error_radians": 0.01711549881677343,
+      "qualification": "Independent 384-cell reference, not production C# execution"
+    },
+    "supersaturation_creates_cloud": {
+      "passed": true,
+      "cloud_after_one_step": 0.06876330622460429
+    }
+  },
+  "elapsed_seconds": 1.507,
+  "not_executed": [
+    "Unity import and C# compiler",
+    "Shader compiler and render-platform variants",
+    "Play Mode visuals/UI input",
+    "Unity save continuation tests",
+    "Full production-grid weather soak",
+    "GPU performance/3-hour real runtime"
+  ]
+}

@@ -1,0 +1,141 @@
+{
+  "version": "3.3.2",
+  "base": "ORBIS_TerrainPerf3_3_1_Merged",
+  "date": "2026-09-12T14:28:23.633337+00:00",
+  "changes": [
+    {
+      "path": "Assets/ORBIS/Editor/FlatVisualRepairValidation.cs",
+      "action": "add",
+      "sha256": "73644beaa8a29679728120751eaf26bdcb2e5a29736340874d3a0b6c69ffd1f8"
+    },
+    {
+      "path": "Assets/ORBIS/Editor/FlatVisualRepairValidation.cs.meta",
+      "action": "add",
+      "sha256": "2c0f24168709f233382f7ac3e9de3bd5aaea56fc425d595dbe390f919b59c033"
+    },
+    {
+      "path": "Assets/ORBIS/Resources/ORBIS/AtmosphereComposite.shader",
+      "action": "modify",
+      "sha256": "2b15aa55aa401acbd3b88ef5abb249153674e132a8aa13650dce8523c7e77ea1"
+    },
+    {
+      "path": "Assets/ORBIS/Resources/ORBIS/Clouds.shader",
+      "action": "modify",
+      "sha256": "b3db52190c09227b6dd1b250047808d7ed859947400bbb3d042df56891ea4b9c"
+    },
+    {
+      "path": "Assets/ORBIS/Resources/ORBIS/FlatWorld/FlatMapFragment.cginc",
+      "action": "modify",
+      "sha256": "5bb7701f799e62bc17efbc99aac108542e80fac37458ba58ef11f13520203611"
+    },
+    {
+      "path": "Assets/ORBIS/Resources/ORBIS/FlatWorld/FlatPixelDetail.cginc",
+      "action": "modify",
+      "sha256": "c556b15e9466406e2771a3d1d47ef19bf8280ec94d04db81a90993cfbe908a7d"
+    },
+    {
+      "path": "Assets/ORBIS/Resources/ORBIS/FlatWorld/FlatSkyBake.shader",
+      "action": "modify",
+      "sha256": "fb59fd0d0d42e8e0919e3ee3887aa38f02b7f34f97cfd3af2dcab03573e818c1"
+    },
+    {
+      "path": "Assets/ORBIS/Resources/ORBIS/FlatWorld/FlatSkyComposite.cginc",
+      "action": "modify",
+      "sha256": "37975da203a1b59a9a5a17e16984170e1ec96100a8f14abaeee8c632000ede74"
+    },
+    {
+      "path": "Assets/ORBIS/Resources/ORBIS/FlatWorld/ScrollCloudSource.cginc",
+      "action": "add",
+      "sha256": "5a5da6cd22f2a2b7272b6594548178ed36d0b850eebe71f4ac1d33ba67051505"
+    },
+    {
+      "path": "Assets/ORBIS/Resources/ORBIS/FlatWorld/ScrollCloudSource.cginc.meta",
+      "action": "add",
+      "sha256": "a2bc03af49ef40c9ba9b9a7c5b2626db7aed41e22b6d1007244a739c542baa47"
+    },
+    {
+      "path": "Assets/ORBIS/Resources/ORBIS/FlatWorld/ScrollHeight.cginc",
+      "action": "add",
+      "sha256": "ac89e7201f3c00b62fa4159866d21ac76c2d1f1a17bf100b0e601a4d42e229ca"
+    },
+    {
+      "path": "Assets/ORBIS/Resources/ORBIS/FlatWorld/ScrollHeight.cginc.meta",
+      "action": "add",
+      "sha256": "dcd71a4e18ffa67e953a908802f5a18aa8e286e2e045fee6ee37327922d5bfb2"
+    },
+    {
+      "path": "Assets/ORBIS/Resources/ORBIS/FlatWorld/ScrollProjection.cginc",
+      "action": "modify",
+      "sha256": "077bb3fbf2f90f611b73783c8c98eb54d1abc072fc9cb694f578a38b5921c17e"
+    },
+    {
+      "path": "Assets/ORBIS/Resources/ORBIS/FlatWorld/Water/FlatWater.cginc",
+      "action": "modify",
+      "sha256": "3106942f6ff25b708994f3b1daaeb92f92b812bff08e0976b3c4e80a0be0c516"
+    },
+    {
+      "path": "Assets/ORBIS/Resources/ORBIS/OrbisAtmosphereCommon.cginc",
+      "action": "modify",
+      "sha256": "30db0edcc79630a0b5e62296579f8cee908e115ad890ccbe408bb18a3de18870"
+    },
+    {
+      "path": "Assets/ORBIS/Resources/ORBIS/OrbisCloudCommon.cginc",
+      "action": "modify",
+      "sha256": "730b35c683d9ed2cb2673237b8423cbdce79921cd8a3e1f5a24b616d8754a009"
+    },
+    {
+      "path": "Assets/ORBIS/Runtime/FlatWorld/Core/FlatWaterGeometry.cs",
+      "action": "modify",
+      "sha256": "9af6e25b87cd80d5f2418014b15c4963d03a4f37742c09b1374134a700cc574d"
+    },
+    {
+      "path": "Assets/ORBIS/Runtime/FlatWorld/Presentation/FlatGlobeGeometry.cs",
+      "action": "add",
+      "sha256": "6cc4e8733f75cc72923a51d951fc67d116d3bf01578d208e75dfce69fe38c874"
+    },
+    {
+      "path": "Assets/ORBIS/Runtime/FlatWorld/Presentation/FlatGlobeGeometry.cs.meta",
+      "action": "add",
+      "sha256": "d6fbbdc9cd8996b4adc8f3d8b4404f3302d3fe60cc5b2ce34fc5cf6863c7740f"
+    },
+    {
+      "path": "Assets/ORBIS/Runtime/FlatWorld/Presentation/FlatGlobePresenter.cs",
+      "action": "modify",
+      "sha256": "b4a71c79dca77a0226c78423e6f9053c56e579c645b9d41a62fd435309ce90ec"
+    },
+    {
+      "path": "Assets/ORBIS/Runtime/FlatWorld/Presentation/FlatScrollNavigator.cs",
+      "action": "modify",
+      "sha256": "cfc703fd5b0c658de612490037e869485e9acd0ede5cc6b08e216819e610a448"
+    },
+    {
+      "path": "Assets/ORBIS/Runtime/FlatWorld/Presentation/FlatSkyRenderer.cs",
+      "action": "modify",
+      "sha256": "95ccbe98fab8a16f1886be81c076c82007e7cba931c9ddb0457b9aa228bde284"
+    },
+    {
+      "path": "Assets/ORBIS/Runtime/FlatWorld/Presentation/FlatWorldApp.cs",
+      "action": "modify",
+      "sha256": "38cc0e3b3b99c7122276f2ee4e64d993fcacf173324fe3d29d7d657bec01982a"
+    },
+    {
+      "path": "Assets/ORBIS/Runtime/OrbisAtmosphereRenderer.cs",
+      "action": "modify",
+      "sha256": "3531f88f57a7adda9bd73e900c985871bb4630bb76fd31e5fc81d12b7265ebbb"
+    }
+  ],
+  "validation": {
+    "csharp_syntax_files": 89,
+    "native_csharp_compilation": false,
+    "unity_editor": false,
+    "play_mode": false,
+    "fps_measured": false,
+    "offline_reports": "Validation/Perf3_3_2"
+  },
+  "limitations": [
+    "No globally distortion-free rectangle/sphere projection",
+    "Cloud columns crossfade during unfolding",
+    "Climate-driven visual clouds, not new physical weather simulation",
+    "Procedural pixel props, not interactive streamed objects"
+  ]
+}

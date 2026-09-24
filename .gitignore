@@ -1,0 +1,27 @@
+[Ll]ibrary/
+[Tt]emp/
+[Oo]bj/
+[Ll]ogs/
+[Uu]ser[Ss]ettings/
+[Bb]uilds/
+[Bb]uild/
+.vs/
+*.csproj
+!Validation/**/*.csproj
+*.sln
+*.user
+.DS_Store
+
+# Local validation outputs (not Unity assets)
+ValidationOutput/
+__pycache__/
+**/bin/
+**/obj/
+**/.venv/
+*.unitypackage
+*.zip
+*.7z
+*.rar
+*.pdb
+*.log
+**/~UnityDirMonSyncFile~*

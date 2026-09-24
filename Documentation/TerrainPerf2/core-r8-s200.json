@@ -1,0 +1,129 @@
+{
+  "source_sha256": "0df5c55bc65edd3654301e7d4147ec70d50b13183e691fdc11c301be98d96257",
+  "translated_method_count": 23,
+  "scope": "Mechanically translated current equation bodies; C++ scaffold, NOT C#/Unity compilation. Idealized forcing, not actual Europe or ORBIS save.",
+  "topology": {
+    "cells": 384,
+    "edges": 768,
+    "area_sum": 12.566370614359174,
+    "area_error": 1.7763568394002505e-15
+  },
+  "steps": 200,
+  "elapsed_seconds_including_all_scenarios": 0.4553031769996778,
+  "data": {
+    "initial_bands": [
+      {
+        "band": 0,
+        "mean_cover": 0.01736219853572763,
+        "area_cloudy": 0.03967508397775271,
+        "mean_cloud_path_kg_m2": 0.01240636111009267,
+        "mean_abs_synoptic_m_s": 0
+      },
+      {
+        "band": 1,
+        "mean_cover": 0.03404495626989681,
+        "area_cloudy": 0.07444986769718297,
+        "mean_cloud_path_kg_m2": 0.02436226725100641,
+        "mean_abs_synoptic_m_s": 0
+      },
+      {
+        "band": 2,
+        "mean_cover": 0.0215981081412169,
+        "area_cloudy": 0.06353624137372277,
+        "mean_cloud_path_kg_m2": 0.01377585936453539,
+        "mean_abs_synoptic_m_s": 0
+      },
+      {
+        "band": 3,
+        "mean_cover": 0.001777992721864008,
+        "area_cloudy": 0,
+        "mean_cloud_path_kg_m2": 0.001000100488161763,
+        "mean_abs_synoptic_m_s": 0
+      }
+    ],
+    "history": [
+      {
+        "stats": {
+          "step": 200,
+          "budget_relative": -1.078264698831632e-14,
+          "min_water": 0,
+          "max_water": 10.2186159786146,
+          "min_T_K": 184.8401995849641,
+          "max_T_K": 298.9104198640929,
+          "max_rain_mm_h": 11.32538701228673,
+          "max_wetness": 0.9236278193287422,
+          "max_CAPE": 6500,
+          "max_updraft_m_s": 21.63967396951811,
+          "max_top_m": 16000,
+          "max_ice_path": 0.3840677227794473,
+          "max_graupel_path": 0.4455518379012704,
+          "max_charge": 0.7709591173525375,
+          "mature_cells": 16,
+          "cloudy_cells": 90,
+          "lightning_count": 0
+        },
+        "bands": [
+          {
+            "band": 0,
+            "mean_cover": 0.2125035188991833,
+            "area_cloudy": 0.3671610874267274,
+            "mean_cloud_path_kg_m2": 0.5035726202718505,
+            "mean_abs_synoptic_m_s": 0.263308588516023
+          },
+          {
+            "band": 1,
+            "mean_cover": 0.372651513057853,
+            "area_cloudy": 0.5299419994808907,
+            "mean_cloud_path_kg_m2": 0.859240468566289,
+            "mean_abs_synoptic_m_s": 0.5241613283029407
+          },
+          {
+            "band": 2,
+            "mean_cover": 0.05557170956951426,
+            "area_cloudy": 0.08421374253473399,
+            "mean_cloud_path_kg_m2": 0.08085806168149604,
+            "mean_abs_synoptic_m_s": 0.3603034886414489
+          },
+          {
+            "band": 3,
+            "mean_cover": 0,
+            "area_cloudy": 0,
+            "mean_cloud_path_kg_m2": 0,
+            "mean_abs_synoptic_m_s": 0.5
+          }
+        ]
+      }
+    ],
+    "births": 86,
+    "dissipations": 10,
+    "transport": {
+      "relative_error": 2.79596259633937e-15,
+      "low_displacement": 0.8895873963311057,
+      "high_displacement": 1.539053009402982
+    },
+    "controlled_synoptic": {
+      "lift_path": 3.39072484161113,
+      "control_path": 1.200290359409228,
+      "lift_updraft": 0,
+      "control_updraft": 0,
+      "lift_water_error": 0,
+      "control_water_error": 0
+    },
+    "night_evaporation": {
+      "calm_mm": 0.0001095951319136645,
+      "windy_mm": 0.0007388081251455958,
+      "water_error": 1.818989403545856e-12
+    }
+  },
+  "checks": {
+    "finite_numerics": true,
+    "transport_water_conservation": true,
+    "cloud_tracer_moves_and_shears": true,
+    "nonconvective_lifting_makes_more_condensate": true,
+    "synoptic_uses_existing_water": true,
+    "wind_driven_evaporation_in_darkness": true,
+    "night_evaporation_closed_water": true,
+    "midlatitude_condensate_not_permanently_zero": true
+  },
+  "all_passed": true
+}

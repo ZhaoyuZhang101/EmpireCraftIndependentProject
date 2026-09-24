@@ -1,0 +1,88 @@
+{
+  "base": "Perf3.3.2 VisualRepair",
+  "version": "Perf3.3.3 Hotfix + P0 coordinates",
+  "assets": [
+    {
+      "path": "Assets/ORBIS/Editor/FlatSeamValidation.cs",
+      "kind": "added",
+      "sha256": "08ed9072b84341c0d367e77a3b6e1028c3b90befebc0fc1f38c2e3caabb9d2d5"
+    },
+    {
+      "path": "Assets/ORBIS/Editor/FlatSeamValidation.cs.meta",
+      "kind": "added",
+      "sha256": "b2a716eb0a98dd9b592d3bb11440e10a3e7c37c8ce6f8ebdc3db74535903c85e"
+    },
+    {
+      "path": "Assets/ORBIS/Resources/ORBIS/FlatWorld/FlatMap.shader",
+      "kind": "modified",
+      "sha256": "b96930ef64da370e4a43e1fd54ab7e511eaeb143b5e017e55ce71b9046c806c1"
+    },
+    {
+      "path": "Assets/ORBIS/Resources/ORBIS/FlatWorld/FlatPixelDetail.cginc",
+      "kind": "modified",
+      "sha256": "22c99d04a639febf91e558b9b2863c2d480ed001163418fcea5e1c89c55ec855"
+    },
+    {
+      "path": "Assets/ORBIS/Resources/ORBIS/FlatWorld/PlanetCoordinates.cginc",
+      "kind": "added",
+      "sha256": "d7d36dbb52c4eccf2a90bc09e3cb750b4775350b5ea9c9e62c09c98f5c5410d2"
+    },
+    {
+      "path": "Assets/ORBIS/Resources/ORBIS/FlatWorld/PlanetCoordinates.cginc.meta",
+      "kind": "added",
+      "sha256": "0e26b01aa98cd081eceab5587ce3a143d9bb7e1f148a24590300d86f1a5784a9"
+    },
+    {
+      "path": "Assets/ORBIS/Resources/ORBIS/FlatWorld/ScrollProjection.cginc",
+      "kind": "modified",
+      "sha256": "eb1b79cee4434515e99537ca4d774c0cb5a52e9b8d08faa9d612ffe1a5b9913d"
+    },
+    {
+      "path": "Assets/ORBIS/Resources/ORBIS/FlatWorld/ScrollSurface.shader",
+      "kind": "modified",
+      "sha256": "a25fa5308482b218d6d66f6f7bc001e1f5e657b6d81b51457b059ab4b91ed408"
+    },
+    {
+      "path": "Assets/ORBIS/Resources/ORBIS/FlatWorld/Water/FlatWater.cginc",
+      "kind": "modified",
+      "sha256": "c150a72ebe2d433862d90bdddabe638fa4bfba7a7c358e22ffcf1cfe89844ddc"
+    },
+    {
+      "path": "Assets/ORBIS/Runtime/FlatWorld/Presentation/FlatLocalWater.cs",
+      "kind": "modified",
+      "sha256": "a43e926067d3f7dbc7c4539417d05a1a80df9dfc92d679ca1b499f59ef10cf2f"
+    },
+    {
+      "path": "Assets/ORBIS/Runtime/FlatWorld/Presentation/FlatScrollNavigator.cs",
+      "kind": "modified",
+      "sha256": "b4d49e2f273b4dcb4c5d94366cd2792af5e33ae1527f7f67d06a81561c451b97"
+    },
+    {
+      "path": "Assets/ORBIS/Runtime/OrbisAtmosphereRenderer.cs",
+      "kind": "modified",
+      "sha256": "b96890551bf6a0e98b3c334fba257fb1744df793e1941fa41cfa84fad845e1cc"
+    },
+    {
+      "path": "Assets/ORBIS/Runtime/Planet/Core/PlanetCoordinateSystem.cs",
+      "kind": "added",
+      "sha256": "ca0c8b135e9cb916ebcf30f87d08f5c117fb5057d7ffa0a5a38ffaad7aa03ab2"
+    },
+    {
+      "path": "Assets/ORBIS/Runtime/Planet/Core/PlanetCoordinateSystem.cs.meta",
+      "kind": "added",
+      "sha256": "5f5fcfc7dece96fd1bd69355ab61ec29a0652e16df19fd7d034ba1e3acb1b28a"
+    },
+    {
+      "path": "Assets/ORBIS/Runtime/Planet/Core.meta",
+      "kind": "added",
+      "sha256": "aa4f757e8b9cd557bbd9932b26ca09ae2e4a8ce7d5ba3d8a65dea855ff0747f8"
+    },
+    {
+      "path": "Assets/ORBIS/Runtime/Planet.meta",
+      "kind": "added",
+      "sha256": "9d6215337675b32ad36b0193e0d6dca7b4f601b2c4846bcafc5a4e25d040ea47"
+    }
+  ],
+  "validation": "Validation/Perf3_3_3",
+  "unity_executed": false
+}

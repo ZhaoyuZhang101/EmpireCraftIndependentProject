@@ -1,0 +1,2 @@
+PASS water budgets, drying, positivity, serial/parallel equality, temperature saturation and dateline; max rain=826.4218 dry/wet=0.0326503090930902 budget=2.764932838020695E-07
+PASS mountain windward rain=6.0459776 leeward=0.4586039

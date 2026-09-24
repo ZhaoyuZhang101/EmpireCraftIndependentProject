@@ -1,0 +1,4 @@
+ORBIS TerrainPerf3 2D-first World / Zone4x4
+Based on TerrainPerf2 Zone4x4 CivilizationFirst Full
+Unity target: 6000.0.47f1 Built-in
+Validation: offline only; Unity native acceptance pending

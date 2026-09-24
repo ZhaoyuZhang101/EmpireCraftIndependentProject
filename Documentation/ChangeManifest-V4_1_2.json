@@ -1,0 +1,310 @@
+{
+  "version": "4.1.2",
+  "baseline": "4.1.1",
+  "baseline_zip_sha256": "f3f18d485beeea2c8103734d0d2b24843d9e302ec11d2209d35c914bd0a515ee",
+  "scope": "Source integration; no Unity native compilation claimed",
+  "self_hash_excluded": "Documentation/ChangeManifest-V4_1_2.json",
+  "files": [
+    {
+      "path": ".gitignore",
+      "kind": "modified",
+      "before_sha256": "39b1a8b6c5de88997efc5cbe1050d54afdcff00ba6f750280f570d5ee1a6432e",
+      "after_sha256": "c3b2b4f3e50e22d106dc6d25e5f2e93441de4dfab677131b18758e71ab1338b4",
+      "size_bytes": 194
+    },
+    {
+      "path": "Assets/ORBIS/Editor/OrbisV412ShaderValidation.cs",
+      "kind": "added",
+      "before_sha256": null,
+      "after_sha256": "83c5f8a58c6ab359206ec2adee625432833c26f43ebddb4b55f448cad3527225",
+      "size_bytes": 6950
+    },
+    {
+      "path": "Assets/ORBIS/Editor/OrbisV412ShaderValidation.cs.meta",
+      "kind": "added",
+      "before_sha256": null,
+      "after_sha256": "75d9f42d7c5c19d68f768b3a39735e0d17ba563eb19f6736535de39054129c6f",
+      "size_bytes": 242
+    },
+    {
+      "path": "Assets/ORBIS/Resources/ORBIS/AtmosphereComposite.shader",
+      "kind": "modified",
+      "before_sha256": "18876873311ea2e5456d04608bc0e34934704b6f7045df95ad0cfca4b1f00dc9",
+      "after_sha256": "a06add17751959186c16164ffe25b7c121f79a7b43b60b34d4b711b0d8e605fc",
+      "size_bytes": 1529
+    },
+    {
+      "path": "Assets/ORBIS/Resources/ORBIS/Clouds.shader",
+      "kind": "modified",
+      "before_sha256": "5f4a9387b8ecd87579c17e0971c51ae47ad9b2dc0bef359bb2d7ae20fbd0c89b",
+      "after_sha256": "c6ddfce55e0595d67646ac6498a73b7a2d2b917949a4f3f142f51d693be8b5ad",
+      "size_bytes": 1355
+    },
+    {
+      "path": "Assets/ORBIS/Resources/ORBIS/Orbis.uxml",
+      "kind": "modified",
+      "before_sha256": "8b956b1bc5383294df826e4c2db643340876ffdd69c285a4812e35f9e3ec4c65",
+      "after_sha256": "9ff6e4f072d579cd7bdbd7b0ca38dc7f2b5a6a50aeb84e05d80c8193544ecc11",
+      "size_bytes": 11380
+    },
+    {
+      "path": "Assets/ORBIS/Resources/ORBIS/OrbisAtmosphereCommon.cginc",
+      "kind": "modified",
+      "before_sha256": "4ce3c7d75a404924215bb2a72cf06d15427ffe0e70749f971fd42b452ce5d514",
+      "after_sha256": "7c14e9d3666f0464b892b9a5c278ba6c49eada232b92deb679828eaae3aeb76f",
+      "size_bytes": 8328
+    },
+    {
+      "path": "Assets/ORBIS/Resources/ORBIS/OrbisAtmosphereGLSL.cginc",
+      "kind": "added",
+      "before_sha256": null,
+      "after_sha256": "da41ba485369b257468c8ee998c954cb08fa9125bc82ff9528432a3acad4a0a7",
+      "size_bytes": 6128
+    },
+    {
+      "path": "Assets/ORBIS/Resources/ORBIS/OrbisAtmosphereGLSL.cginc.meta",
+      "kind": "added",
+      "before_sha256": null,
+      "after_sha256": "42078c4729b3649fbedfcc59f919e8fd5dda1b9ab88e756fd8642aacc73dcc53",
+      "size_bytes": 160
+    },
+    {
+      "path": "Assets/ORBIS/Resources/ORBIS/OrbisAtmosphereView.cginc",
+      "kind": "added",
+      "before_sha256": null,
+      "after_sha256": "76db687791c7f96c511d1c6463dedc1de8c44208ae3b511cc06c2f15cebdf8f8",
+      "size_bytes": 882
+    },
+    {
+      "path": "Assets/ORBIS/Resources/ORBIS/OrbisAtmosphereView.cginc.meta",
+      "kind": "added",
+      "before_sha256": null,
+      "after_sha256": "d00742ec770c5f1b6f2dd1a2229be507fab18c145a75f66fd691969c3d438fa1",
+      "size_bytes": 160
+    },
+    {
+      "path": "Assets/ORBIS/Resources/ORBIS/OrbisOptics.cginc",
+      "kind": "modified",
+      "before_sha256": "1b5b0f2949c9f2c7d2149ce3e39f1e64bcc577847c988ee5c95062569d3ab913",
+      "after_sha256": "25717ca0106056ee5ec3cab6a1fa14e591c794ac9c44bda9e966cc7d051c5459",
+      "size_bytes": 1442
+    },
+    {
+      "path": "Assets/ORBIS/Runtime/OrbisAtmosphereFlight.cs",
+      "kind": "added",
+      "before_sha256": null,
+      "after_sha256": "51b66fc94c630e70b89f641b908cf6e51f2d249408884e5003229c2cfcfc574b",
+      "size_bytes": 5258
+    },
+    {
+      "path": "Assets/ORBIS/Runtime/OrbisAtmosphereFlight.cs.meta",
+      "kind": "added",
+      "before_sha256": null,
+      "after_sha256": "16586377f6c1ff01c3797032edfbe7ae3e8c019c716fde6f9e8ef1e3632f6151",
+      "size_bytes": 242
+    },
+    {
+      "path": "Assets/ORBIS/Runtime/OrbisAtmosphereProfile.cs",
+      "kind": "added",
+      "before_sha256": null,
+      "after_sha256": "f9131a75f082181340e440891677469e5decb1283f2f9a6ab9a74e34ff40278a",
+      "size_bytes": 2637
+    },
+    {
+      "path": "Assets/ORBIS/Runtime/OrbisAtmosphereProfile.cs.meta",
+      "kind": "added",
+      "before_sha256": null,
+      "after_sha256": "92d4a89c941a6a3d8bae6b501da780569600e1990b17cebc7ef160cbc4e54f13",
+      "size_bytes": 242
+    },
+    {
+      "path": "Assets/ORBIS/Runtime/OrbisAtmosphereRenderer.cs",
+      "kind": "modified",
+      "before_sha256": "f23d66efe46da6db2fb38ae53394d8b4b8fd867abaa4dbb3f1146008931661f5",
+      "after_sha256": "8846da61b6771050ecf5b0798c3b1d665dd4578679a7a3dcd3e13abe55a48bdf",
+      "size_bytes": 8368
+    },
+    {
+      "path": "Assets/ORBIS/Runtime/OrbisDemo.cs",
+      "kind": "modified",
+      "before_sha256": "ae53fa39a61541c6bb98f61a91da4cd66bdc3a867202744c91cf7bef0b8a07d6",
+      "after_sha256": "c784ff3b42c11114817dbc58c5b67924f363fc49d396e1cb3c239ff5f1550098",
+      "size_bytes": 22746
+    },
+    {
+      "path": "Assets/ORBIS/Runtime/OrbisHud.cs",
+      "kind": "modified",
+      "before_sha256": "1826a5cdaeb31ff6e5aa6e08d0f692b25173a4f14a5fc553b405eb171d926cd3",
+      "after_sha256": "e08fbd5a3c441c8dd4e487b535d1e7f7f22d7b5a216013a228ff102238eadf94",
+      "size_bytes": 23414
+    },
+    {
+      "path": "Assets/ORBIS/Runtime/OrbisPlanetView.cs",
+      "kind": "modified",
+      "before_sha256": "273b451b176c1c1c4b49a0e817d2cbd431969b16411c0abc2d3a7cc3ca0b61d4",
+      "after_sha256": "da86abf202806872668afdb3217e4699f50483d6bdf156f5af6155b056c95034",
+      "size_bytes": 23099
+    },
+    {
+      "path": "Assets/ORBIS/Runtime/OrbisSaveMigration.cs",
+      "kind": "modified",
+      "before_sha256": "c0bf6d77f7068db55071f44eed0ab8618735b2c37cf1dca9c3cd4c81552726d9",
+      "after_sha256": "2c97906eba548b2a2e9877b7cad25bd53bd7e7a45ac70679e2df23516c3479fc",
+      "size_bytes": 4555
+    },
+    {
+      "path": "Documentation/Diffs/V4_1_1-to-V4_1_2.diff",
+      "kind": "added",
+      "before_sha256": null,
+      "after_sha256": "32154a1ad28a357b6d4902485ec22d2469fbf2d8439294b0c7cd61d69cfcb60d",
+      "size_bytes": 46388
+    },
+    {
+      "path": "Documentation/GLES-Core-Execution-V4_1_2.json",
+      "kind": "added",
+      "before_sha256": null,
+      "after_sha256": "981133027d7ed0dbdf4d3081e1963d2f95a607156ead64c5728dec9f095ad51a",
+      "size_bytes": 655
+    },
+    {
+      "path": "Documentation/GLES-Preview-Render-V4_1_2.json",
+      "kind": "added",
+      "before_sha256": null,
+      "after_sha256": "d0c1fb5c820c15c428a1652671ca34fa8a7eecb5b429a8c26772af2d0965eeeb",
+      "size_bytes": 210
+    },
+    {
+      "path": "Documentation/GLSL-Port-V4_1_2.md",
+      "kind": "added",
+      "before_sha256": null,
+      "after_sha256": "f0eeb57c2691767933a33e1603251bf4c50605b45c3deb33a5021694e4f7308b",
+      "size_bytes": 8727
+    },
+    {
+      "path": "Documentation/Preservation-V4_1_2.json",
+      "kind": "added",
+      "before_sha256": null,
+      "after_sha256": "4b77dc623e892f0394e958510207fee621aafd577b6473b3342768bd4102849f",
+      "size_bytes": 4532
+    },
+    {
+      "path": "Documentation/Preview-Browser-V4_1_2.json",
+      "kind": "added",
+      "before_sha256": null,
+      "after_sha256": "64e6d09b6dcce9fda353369022aefc7a4cf169ae97aba7f8f197aff74ceb44a4",
+      "size_bytes": 810
+    },
+    {
+      "path": "Documentation/Reference-Audit-V4_1_2.json",
+      "kind": "added",
+      "before_sha256": null,
+      "after_sha256": "016e8f2f47126b6e82b258afed5d6bac3c8f648e014cba18364b13a91f1800e6",
+      "size_bytes": 543
+    },
+    {
+      "path": "Documentation/Rerun-Validation-V4_1-on-V4_1_2.json",
+      "kind": "added",
+      "before_sha256": null,
+      "after_sha256": "42031d300e80c6508e91713e93e26b2a6988d00a724bb601ea0cd20a6c1b0b7f",
+      "size_bytes": 6358
+    },
+    {
+      "path": "Documentation/Rerun-Validation-V4_1_1-on-V4_1_2.json",
+      "kind": "added",
+      "before_sha256": null,
+      "after_sha256": "0fb6b31ff260bb7ca5628dc6591bb5f03189808d036aad48d4fd9d7d7581530c",
+      "size_bytes": 2480
+    },
+    {
+      "path": "Documentation/ThirdPartyNotices.md",
+      "kind": "modified",
+      "before_sha256": "9820aa21250dcc90a9e4f97419791ed8e2f1f6093f3088e38672be10332ced8b",
+      "after_sha256": "b739b30ad6bbbc5668e89be6808db47141ba260f72b08c6b28c1aa92b14b9135",
+      "size_bytes": 10442
+    },
+    {
+      "path": "Documentation/Validation-V4_1_2.json",
+      "kind": "added",
+      "before_sha256": null,
+      "after_sha256": "683d53bac4543c8bc36ffe9c6097fa9c8c9f5e1726f2cb5e0286a0aa63296808",
+      "size_bytes": 3138
+    },
+    {
+      "path": "Preview/AtmosphereTransit.html",
+      "kind": "added",
+      "before_sha256": null,
+      "after_sha256": "4079472a9768b2b5bf9cba373519f534b286bb18716f87605c26a44f92e943e8",
+      "size_bytes": 100851
+    },
+    {
+      "path": "Preview/posters/dusk.webp",
+      "kind": "added",
+      "before_sha256": null,
+      "after_sha256": "c4c9a28f1b8bab3f1b36b8823ac6ee9107a158d5ad3dc98df11eeae90b4dddad",
+      "size_bytes": 6064
+    },
+    {
+      "path": "Preview/posters/ground.webp",
+      "kind": "added",
+      "before_sha256": null,
+      "after_sha256": "a5aa777b5103a90be796ec2d46bc5e0511281101b9902c443f0f8716ee195c97",
+      "size_bytes": 4582
+    },
+    {
+      "path": "Preview/posters/space.webp",
+      "kind": "added",
+      "before_sha256": null,
+      "after_sha256": "2d54c0ab43d1eae34a1249321379ee58d32141c364b01a920421400e6fd31477",
+      "size_bytes": 23172
+    },
+    {
+      "path": "README.md",
+      "kind": "modified",
+      "before_sha256": "3821b8c93c7285ade10e40fd292f262d308cf8b84c1720afc1733b06aecb058b",
+      "after_sha256": "828cb15475d2be9100ed113fadbdb5e8ef463fc2296708c9d1e7d009b079ebad",
+      "size_bytes": 11539
+    },
+    {
+      "path": "README_V4_1_2_先读.md",
+      "kind": "added",
+      "before_sha256": null,
+      "after_sha256": "95bd646d71e65847c66a8e3fd3beb01070a3e3c66681aac455979d0128c695d1",
+      "size_bytes": 6701
+    },
+    {
+      "path": "Validation/atmosphere_reference.py",
+      "kind": "added",
+      "before_sha256": null,
+      "after_sha256": "931acca530b85b8d2310d9eb495f5aa0546b5f69c701be743fa8aaf24902edb5",
+      "size_bytes": 2582
+    },
+    {
+      "path": "Validation/execute_gles_core.py",
+      "kind": "added",
+      "before_sha256": null,
+      "after_sha256": "064888506b6d7ef64caf45724fa05476230bd044769b82b04563588f89eed2f2",
+      "size_bytes": 3624
+    },
+    {
+      "path": "Validation/gles_preview_renderer.py",
+      "kind": "added",
+      "before_sha256": null,
+      "after_sha256": "42361f0e640a78bc789b19be29352216bf56da845b1ec32eb3efe6aada159c74",
+      "size_bytes": 4933
+    },
+    {
+      "path": "Validation/glsl_port_core.glsl",
+      "kind": "added",
+      "before_sha256": null,
+      "after_sha256": "ae1664ec62116e41a9d0f31dbbde985960373c93ad0fd06dc91d31bcecc9d118",
+      "size_bytes": 3762
+    },
+    {
+      "path": "Validation/validate_v412.py",
+      "kind": "added",
+      "before_sha256": null,
+      "after_sha256": "b5db70a3a91a3681546c6df7b5cb6a62f1d5722ea08b6ae080607bd0590d1ef0",
+      "size_bytes": 8911
+    }
+  ]
+}

@@ -1,0 +1,262 @@
+--- a/Assets/ORBIS/Resources/ORBIS/Clouds.shader
++++ b/Assets/ORBIS/Resources/ORBIS/Clouds.shader
+@@ -1,3 +1,4 @@
++// V4.1.1: adaptive volume loops are rolled in the shared includes.
+ Shader "ORBIS/Clouds"
+ {
+  Properties {_MainTex("Source",2D)="black"{}}
+@@ -6,6 +7,7 @@
+   Cull Off ZWrite Off ZTest Always
+   Pass
+   {
++   Name "MRT_VOLUME"
+    CGPROGRAM
+    #pragma target 3.5
+    #pragma vertex vert_img
+@@ -18,6 +20,7 @@
+   }
+   Pass
+   {
++   Name "FULL_RES_VOLUME"
+    CGPROGRAM
+    #pragma target 3.5
+    #pragma vertex vert_img
+@@ -29,6 +32,7 @@
+   }
+   Pass
+   {
++   Name "MAP_VOLUME"
+    CGPROGRAM
+    #pragma target 3.5
+    #pragma vertex vert_img
+--- a/Assets/ORBIS/Resources/ORBIS/CloudShadowCache.shader
++++ b/Assets/ORBIS/Resources/ORBIS/CloudShadowCache.shader
+@@ -20,11 +20,12 @@
+     float inner2=ORBIS_CLOUD_BASE*ORBIS_CLOUD_BASE;
+     float bottom=impact2<inner2?sqrt(max(0.0,inner2-impact2)):-top;
+     float z=lerp(top,bottom,slice/7.0);
+-    float ds=max(0.0,top-bottom)/max(1,_ShadowSteps),tau=0;
++    int shadowSteps=clamp(_ShadowSteps,1,32);
++    float ds=max(0.0,top-bottom)/shadowSteps,tau=0;
+     float3 basePoint=_OrbisShadowRight*xy.x+_OrbisShadowUp*xy.y;
+     [loop] for(int k=0;k<32;k++)
+     {
+-        if(k>=_ShadowSteps)break;
++        if(k>=shadowSteps)break;
+         // Every depth layer uses the SAME quadrature nodes. Partial last bins
+         // give monotone optical depth instead of unrelated noisy integrations.
+         float segmentTop=top-k*ds;
+--- a/Assets/ORBIS/Resources/ORBIS/OrbisAtmosphereCommon.cginc
++++ b/Assets/ORBIS/Resources/ORBIS/OrbisAtmosphereCommon.cginc
+@@ -14,41 +14,58 @@
+    {
+     return (1-g*g)/pow(max(.06,1+g*g-2*g*cosine),1.5);
+    }
+-   float2 LightField(float3 p,float3 sun)
+-   {
+-    if(OrbisSunVisible(p,sun)<.5)return float2(0,0);
+-    float lengthToExit=max(0.0,OrbisSphere(p,sun,ORBIS_CLOUD_TOP).y);
+-    float2 inner=OrbisSphere(p,sun,ORBIS_CLOUD_BASE);
+-    if(inner.x>0)lengthToExit=min(lengthToExit,inner.x);
+-    float ds=lengthToExit/max(1,_LightSteps);
+-    float localTau[6];float totalTau=0;
+-    [unroll] for(int j=0;j<6;j++)
+-    {
+-     float t=(j+.5)*ds;
+-     localTau[j]=j<_LightSteps?OrbisCloudDensity(p+sun*t)*ORBIS_EXTINCTION*ds:0;
+-     totalTau+=localTau[j];
+-    }
+-    float direct=exp(-min(totalTau,30.0));
+-    if(_CloudMS<.5)return float2(direct,0);
+-    // Reduced HP-inspired isotropic diffuse-source integral, NOT the author's full
+-    // HDRP phi_fwd implementation. Attribution/derivation and scope in documentation.
+-    // albedo=.999 -> sqrt(3*(1-albedo))=.05477 in isotropic optical-depth space.
+-    float diffuse=0,travelTau=0;
+-    [unroll] for(int k=0;k<6;k++)
+-    {
+-     if(k>=_LightSteps)break;
+-     float entryTau=max(0.0,totalTau-travelTau-localTau[k]*.5);
+-     float isotropization=1-exp(-.35*entryTau);
+-     float absorption=exp(-.001*entryTau);
+-     float kernel=exp(-.05477*(travelTau+localTau[k]*.5))/(1+(k+.5)*ds*22.0);
+-     diffuse+=kernel*absorption*isotropization*localTau[k];
+-     travelTau+=localTau[k];
+-    }
+-    float boundaryConfidence=saturate(lengthToExit/.015);
+-    float thinSuppression=1-exp(-totalTau*1.2);
+-    diffuse=min(1.4,diffuse*.28)*thinSuppression*boundaryConfidence;
+-    return float2(direct,diffuse);
+-   }
++// Six scalar slots stored in vectors avoid dynamically indexed temporary arrays.
++// Every select uses a literal component; the enclosing sampling loops remain rolled.
++float OrbisLightTau(int index,float4 first,float2 last)
++{
++ return index==0?first.x:index==1?first.y:index==2?first.z:index==3?first.w:index==4?last.x:last.y;
++}
++float2 LightField(float3 p,float3 sun)
++{
++ if(OrbisSunVisible(p,sun)<.5)return float2(0,0);
++ float lengthToExit=max(0.0,OrbisSphere(p,sun,ORBIS_CLOUD_TOP).y);
++ float2 inner=OrbisSphere(p,sun,ORBIS_CLOUD_BASE);
++ if(inner.x>0)lengthToExit=min(lengthToExit,inner.x);
++ if(lengthToExit<=0.0)return float2(1,0);
++ // The loop cap and quadrature divisor MUST use the same bounded count.
++ int lightSteps=clamp(_LightSteps,1,6);
++ float ds=lengthToExit/lightSteps;
++ float4 tauFirst=0;float2 tauLast=0;float totalTau=0;
++ [loop] for(int j=0;j<6;j++)
++ {
++  if(j>=lightSteps)break;
++  float t=(j+.5)*ds;
++  float sampleTau=OrbisCloudDensity(p+sun*t)*ORBIS_EXTINCTION*ds;
++  if(j==0)tauFirst.x=sampleTau;
++  else if(j==1)tauFirst.y=sampleTau;
++  else if(j==2)tauFirst.z=sampleTau;
++  else if(j==3)tauFirst.w=sampleTau;
++  else if(j==4)tauLast.x=sampleTau;
++  else tauLast.y=sampleTau;
++  totalTau+=sampleTau;
++ }
++ float direct=exp(-min(totalTau,30.0));
++ if(_CloudMS<.5)return float2(direct,0);
++ // Reduced HP-inspired isotropic diffuse-source integral, NOT the author's full
++ // HDRP phi_fwd implementation. Attribution/derivation and scope in documentation.
++ // albedo=.999 -> sqrt(3*(1-albedo))=.05477 in isotropic optical-depth space.
++ float diffuse=0,travelTau=0;
++ [loop] for(int k=0;k<6;k++)
++ {
++  if(k>=lightSteps)break;
++  float localTau=OrbisLightTau(k,tauFirst,tauLast);
++  float entryTau=max(0.0,totalTau-travelTau-localTau*.5);
++  float isotropization=1-exp(-.35*entryTau);
++  float absorption=exp(-.001*entryTau);
++  float kernel=exp(-.05477*(travelTau+localTau*.5))/(1+(k+.5)*ds*22.0);
++  diffuse+=kernel*absorption*isotropization*localTau;
++  travelTau+=localTau;
++ }
++ float boundaryConfidence=saturate(lengthToExit/.015);
++ float thinSuppression=1-exp(-totalTau*1.2);
++ diffuse=min(1.4,diffuse*.28)*thinSuppression*boundaryConfidence;
++ return float2(direct,diffuse);
++}
+ 
+ struct OrbisVolumeResult {float3 light;float3 transmission;float sceneDepth;};
+ float2 OrbisDepthUV(float2 uv)
+@@ -61,13 +78,14 @@
+ void IntegrateSegment(float3 ro,float3 rd,float begin,float end,int steps,bool hasCloud,inout OrbisVolumeResult result)
+ {
+  if(end<=begin||steps<=0)return;
+- float ds=(end-begin)/steps;float3 sun=normalize(_Sun);float mu=dot(rd,sun);
++ int sampleCount=clamp(steps,1,64);
++ float ds=(end-begin)/sampleCount;float3 sun=normalize(_Sun);float mu=dot(rd,sun);
+  float phaseRay=3.0/(16.0*ORBIS_PI)*(1+mu*mu);
+  float phaseMie=(1-.7*.7)/(4*ORBIS_PI*pow(max(.02,1+.7*.7-2*.7*mu),1.5));
+  float phaseCloud=min(4.0,.82*HG(mu,.62)+.18*HG(mu,-.22));
+  [loop] for(int j=0;j<64;j++)
+  {
+-  if(j>=steps||max(result.transmission.r,max(result.transmission.g,result.transmission.b))<.002)break;
++  if(j>=sampleCount||max(result.transmission.r,max(result.transmission.g,result.transmission.b))<.002)break;
+   float3 p=ro+rd*(begin+(j+.5)*ds),rho=AirDensities(p);
+   float cloudDensity=hasCloud?OrbisCloudDensity(p):0;
+   float3 sigma=AirExtinction(rho)+cloudDensity*ORBIS_EXTINCTION;
+@@ -98,6 +116,21 @@
+   result.transmission*=stepT;
+  }
+ }
++// The atmosphere entry/exit already bound the four cloud intersections.
++// Sort only those four values with a five-comparator network: no sorting loop,
++// no dependent loop initializer (b=a+1), no dynamically indexed cuts[] array.
++float4 OrbisSortCuts4(float4 v)
++{
++ float4 pairs=float4(min(v.x,v.y),max(v.x,v.y),min(v.z,v.w),max(v.z,v.w));
++ float4 crossed=float4(min(pairs.x,pairs.z),min(pairs.y,pairs.w),max(pairs.x,pairs.z),max(pairs.y,pairs.w));
++ return float4(crossed.x,min(crossed.y,crossed.z),max(crossed.y,crossed.z),crossed.w);
++}
++float2 OrbisInterval(int index,float begin,float end,float4 cuts)
++{
++ float a=index==0?begin:index==1?cuts.x:index==2?cuts.y:index==3?cuts.z:cuts.w;
++ float b=index==0?cuts.x:index==1?cuts.y:index==2?cuts.z:index==3?cuts.w:end;
++ return float2(a,b);
++}
+ OrbisVolumeResult OrbisMarchRay(float3 ro,float3 rd,float endDistance,float sceneDepth)
+ {
+  OrbisVolumeResult result;result.light=0;result.transmission=1;result.sceneDepth=sceneDepth;
+@@ -105,30 +138,31 @@
+  float begin=max(0.0,outer.x),end=min(outer.y,endDistance);
+  if(end<=begin)return result;
+  float2 cloudOuter=OrbisSphere(ro,rd,ORBIS_CLOUD_TOP),cloudInner=OrbisSphere(ro,rd,ORBIS_CLOUD_BASE);
+- float cuts[6];cuts[0]=begin;cuts[1]=end;
+- cuts[2]=clamp(cloudOuter.x,begin,end);cuts[3]=clamp(cloudOuter.y,begin,end);
+- cuts[4]=clamp(cloudInner.x,begin,end);cuts[5]=clamp(cloudInner.y,begin,end);
+- [unroll] for(int a=0;a<5;a++)[unroll] for(int b=a+1;b<6;b++)
+- {if(cuts[b]<cuts[a]){float tmp=cuts[a];cuts[a]=cuts[b];cuts[b]=tmp;}}
++ float4 cuts=OrbisSortCuts4(clamp(float4(cloudOuter,cloudInner),begin,end));
+  float cloudLength=0,airLength=0;
+- [unroll] for(int k=0;k<5;k++)
++ [loop] for(int k=0;k<5;k++)
+  {
+-  float middle=length(ro+rd*((cuts[k]+cuts[k+1])*.5));
++  float2 interval=OrbisInterval(k,begin,end,cuts);
++  float middle=length(ro+rd*((interval.x+interval.y)*.5));
+   bool cloud=middle>ORBIS_CLOUD_BASE&&middle<ORBIS_CLOUD_TOP&&_Clouds>.5;
+-  if(cloud)cloudLength+=cuts[k+1]-cuts[k];else airLength+=cuts[k+1]-cuts[k];
++  if(cloud)cloudLength+=interval.y-interval.x;else airLength+=interval.y-interval.x;
+  }
+- [unroll] for(int i=0;i<5;i++)
++ // CRITICAL: do not force-unroll a loop that contains the full adaptive marcher.
++ // This single rolled segment body serves globe, full-resolution and map passes.
++ [loop] for(int i=0;i<5;i++)
+  {
+-  float len=cuts[i+1]-cuts[i];if(len<1e-7)continue;
+-  float middle=length(ro+rd*((cuts[i]+cuts[i+1])*.5));
++  float2 interval=OrbisInterval(i,begin,end,cuts);
++  float len=interval.y-interval.x;if(len<1e-7)continue;
++  float middle=length(ro+rd*((interval.x+interval.y)*.5));
+   bool cloud=middle>ORBIS_CLOUD_BASE&&middle<ORBIS_CLOUD_TOP&&_Clouds>.5;
+   if(!cloud&&_Atmosphere<.5)continue;
+-  int budget=cloud?_CloudSteps:_AirSteps;float total=cloud?cloudLength:airLength;
++  int budget=clamp(cloud?_CloudSteps:_AirSteps,1,64);float total=cloud?cloudLength:airLength;
+   int steps=clamp((int)ceil(budget*len/max(total,1e-6)),1,64);
+-  IntegrateSegment(ro,rd,cuts[i],cuts[i+1],steps,cloud,result);
++  IntegrateSegment(ro,rd,interval.x,interval.y,steps,cloud,result);
+  }
+  return result;
+ }
++
+ OrbisVolumeResult OrbisMarch(float2 uv)
+ {
+  float3 ray=lerp(lerp(_RayBL,_RayBR,uv.x),lerp(_RayTL,_RayTR,uv.x),uv.y);
+--- a/Assets/ORBIS/Resources/ORBIS/OrbisCloudCommon.cginc
++++ b/Assets/ORBIS/Resources/ORBIS/OrbisCloudCommon.cginc
+@@ -63,14 +63,16 @@
+     float2 inner=OrbisSphere(p,sun,ORBIS_CLOUD_BASE);
+     float begin=max(0.0,outer.x),end=max(0.0,outer.y),tau=0.0;
+     if(end<=begin)return 1;
++    // V4.1.1: keep both shadow loops rolled; density contains multiple volume samples.
+     // Split at the empty inner sphere: quadrature never wastes its budget in the hollow core.
+     float4 ranges=float4(begin,min(end,max(begin,inner.x)),max(begin,inner.y),end);
+     if(inner.x>inner.y)ranges=float4(begin,end,end,end);
+-    [unroll] for(int segment=0;segment<2;segment++)
++    [loop] for(int segment=0;segment<2;segment++)
+     {
+         float a=segment==0?ranges.x:ranges.z,b=segment==0?ranges.y:ranges.w;
+-        float ds=max(0.0,b-a)/6.0;
+-        [unroll] for(int j=0;j<6;j++)tau+=OrbisCloudDensity(p+sun*(a+(j+.5)*ds))*ds*ORBIS_EXTINCTION;
++        if(b<=a)continue;
++        float ds=(b-a)/6.0;
++        [loop] for(int j=0;j<6;j++)tau+=OrbisCloudDensity(p+sun*(a+(j+.5)*ds))*ds*ORBIS_EXTINCTION;
+     }
+     return exp(-min(tau,16.0));
+ }
+--- a/Assets/ORBIS/Resources/ORBIS/OrbisOptics.cginc
++++ b/Assets/ORBIS/Resources/ORBIS/OrbisOptics.cginc
+@@ -23,7 +23,8 @@
+     if(OrbisSunVisible(p,sun)<.5)return 0;
+     float distance=max(0.0,OrbisSphere(p,sun,ORBIS_AIR_RADIUS).y);
+     float ds=distance/8.0;float3 tau=0;
+-    [unroll] for(int k=0;k<8;k++)tau+=AirExtinction(AirDensities(p+sun*((k+.5)*ds)))*ds;
++    // Shared by surfaces and the view marcher: do not replicate this body by unrolling.
++    [loop] for(int k=0;k<8;k++)tau+=AirExtinction(AirDensities(p+sun*((k+.5)*ds)))*ds;
+     return exp(-min(tau,40.0));
+ }
+ float3 OrbisSkyFill(float3 p,float3 sun)

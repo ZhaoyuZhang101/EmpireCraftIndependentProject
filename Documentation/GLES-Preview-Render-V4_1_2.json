@@ -1,0 +1,7 @@
+{
+  "renderer": "llvmpipe (LLVM 19.1.7, 256 bits)",
+  "api": "OpenGL ES 3.2 Mesa 25.0.7-2",
+  "glsl_translated_core": "COMPILED_AND_RENDERED",
+  "unity_compilation": "NOT_RUN",
+  "hlsl_compilation": "NOT_RUN"
+}

@@ -1,0 +1,228 @@
+{
+    "patch": "V4.2 Repair IPC Fix 1 + GreenRingFix + TerrainPerf1",
+    "timeUtc": "2026-09-13T16:28:04.1154402Z",
+    "updatedUtc": "2026-09-13T16:28:04.4430231Z",
+    "unityVersion": "6000.0.55f1",
+    "operatingSystem": "Windows 11  (10.0.26200) 64bit",
+    "graphicsAPI": "Direct3D11",
+    "graphicsDevice": "NVIDIA GeForce RTX 5070 Laptop GPU",
+    "colorSpace": "Gamma",
+    "editorLogPath": "C:/Users/24908/AppData/Local/Unity/Editor/Editor.log",
+    "state": "FAILED",
+    "currentOperation": "Finished current-API pass checks",
+    "exception": "",
+    "builtIn": true,
+    "graphicsAvailable": true,
+    "shaderOptimizationDisabled": false,
+    "success": false,
+    "compilerErrorObserved": false,
+    "playModeTestPerformed": false,
+    "visualAcceptancePerformed": false,
+    "crossPlatformBuildPerformed": false,
+    "scope": "Default-material passes on CURRENT Editor graphics API/color space only. Uniform values do not define variants. This is not an FPS, visual or cross-platform acceptance test.",
+    "shaders": [
+        {
+            "path": "Assets/ORBIS/Resources/ORBIS/Clouds.shader",
+            "shaderName": "ORBIS/Clouds",
+            "exception": "",
+            "loaded": true,
+            "supported": true,
+            "hasErrors": false,
+            "passed": true,
+            "expectedPassCount": 4,
+            "actualPassCount": 4,
+            "passes": [
+                {
+                    "index": 0,
+                    "name": "MRT_VOLUME",
+                    "exception": "",
+                    "requested": true,
+                    "compiled": true
+                },
+                {
+                    "index": 1,
+                    "name": "FULL_RES_VOLUME",
+                    "exception": "",
+                    "requested": true,
+                    "compiled": true
+                },
+                {
+                    "index": 2,
+                    "name": "MAP_VOLUME",
+                    "exception": "",
+                    "requested": true,
+                    "compiled": true
+                },
+                {
+                    "index": 3,
+                    "name": "MRT_MAP_VOLUME",
+                    "exception": "",
+                    "requested": true,
+                    "compiled": true
+                }
+            ],
+            "messages": []
+        },
+        {
+            "path": "Assets/ORBIS/Resources/ORBIS/CloudShadowCache.shader",
+            "shaderName": "ORBIS/CloudShadowCache",
+            "exception": "",
+            "loaded": true,
+            "supported": true,
+            "hasErrors": false,
+            "passed": true,
+            "expectedPassCount": 1,
+            "actualPassCount": 1,
+            "passes": [
+                {
+                    "index": 0,
+                    "name": "<Unnamed Pass 0>",
+                    "exception": "",
+                    "requested": true,
+                    "compiled": true
+                }
+            ],
+            "messages": []
+        },
+        {
+            "path": "Assets/ORBIS/Resources/ORBIS/Surface.shader",
+            "shaderName": "ORBIS/Surface",
+            "exception": "",
+            "loaded": true,
+            "supported": true,
+            "hasErrors": false,
+            "passed": false,
+            "expectedPassCount": 2,
+            "actualPassCount": 2,
+            "passes": [
+                {
+                    "index": 0,
+                    "name": "SURFACE_LIT_PERF32",
+                    "exception": "",
+                    "requested": true,
+                    "compiled": true
+                },
+                {
+                    "index": 1,
+                    "name": "SURFACE_DEPTH_PERF32",
+                    "exception": "",
+                    "requested": true,
+                    "compiled": false
+                }
+            ],
+            "messages": [
+                "Warning: Assets/ORBIS/Resources/ORBIS/FlatWorld/Water/FlatWater.cginc:38 use of potentially uninitialized variable (FlatRiverDistance)"
+            ]
+        },
+        {
+            "path": "Assets/ORBIS/Resources/ORBIS/RiverWater.shader",
+            "shaderName": "ORBIS/RiverWater",
+            "exception": "",
+            "loaded": true,
+            "supported": true,
+            "hasErrors": false,
+            "passed": true,
+            "expectedPassCount": 1,
+            "actualPassCount": 1,
+            "passes": [
+                {
+                    "index": 0,
+                    "name": "<Unnamed Pass 0>",
+                    "exception": "",
+                    "requested": true,
+                    "compiled": true
+                }
+            ],
+            "messages": []
+        },
+        {
+            "path": "Assets/ORBIS/Resources/ORBIS/AtmosphereComposite.shader",
+            "shaderName": "ORBIS/AtmosphereComposite",
+            "exception": "",
+            "loaded": true,
+            "supported": true,
+            "hasErrors": false,
+            "passed": true,
+            "expectedPassCount": 2,
+            "actualPassCount": 2,
+            "passes": [
+                {
+                    "index": 0,
+                    "name": "<Unnamed Pass 0>",
+                    "exception": "",
+                    "requested": true,
+                    "compiled": true
+                },
+                {
+                    "index": 1,
+                    "name": "MAP_COMPOSITE",
+                    "exception": "",
+                    "requested": true,
+                    "compiled": true
+                }
+            ],
+            "messages": []
+        },
+        {
+            "path": "Assets/ORBIS/Resources/ORBIS/Display.shader",
+            "shaderName": "ORBIS/Display",
+            "exception": "",
+            "loaded": true,
+            "supported": true,
+            "hasErrors": false,
+            "passed": true,
+            "expectedPassCount": 1,
+            "actualPassCount": 1,
+            "passes": [
+                {
+                    "index": 0,
+                    "name": "<Unnamed Pass 0>",
+                    "exception": "",
+                    "requested": true,
+                    "compiled": true
+                }
+            ],
+            "messages": []
+        },
+        {
+            "path": "Assets/ORBIS/Resources/ORBIS/WeatherParticles.shader",
+            "shaderName": "ORBIS/WeatherParticles",
+            "exception": "",
+            "loaded": true,
+            "supported": true,
+            "hasErrors": false,
+            "passed": true,
+            "expectedPassCount": 1,
+            "actualPassCount": 1,
+            "passes": [
+                {
+                    "index": 0,
+                    "name": "<Unnamed Pass 0>",
+                    "exception": "",
+                    "requested": true,
+                    "compiled": true
+                }
+            ],
+            "messages": []
+        }
+    ],
+    "sources": [
+        {
+            "path": "Assets/ORBIS/Resources/ORBIS/Clouds.shader",
+            "sha256": "0f902242fc88e258030a9fa76bf8e49ced6ced32cddd761d15c62f1052ba09ea"
+        },
+        {
+            "path": "Assets/ORBIS/Resources/ORBIS/OrbisAtmosphereCommon.cginc",
+            "sha256": "89847e65a90a262ae1e65ce2abd6f61f4e2b4d8c7065efe852a37604a9aa4c07"
+        },
+        {
+            "path": "Assets/ORBIS/Resources/ORBIS/OrbisCloudCommon.cginc",
+            "sha256": "730b35c683d9ed2cb2673237b8423cbdce79921cd8a3e1f5a24b616d8754a009"
+        },
+        {
+            "path": "Assets/ORBIS/Resources/ORBIS/OrbisAtmosphereGLtracy.cginc",
+            "sha256": "fcf51e6a745c61245a699608cc5514a4fa1358daf918edc74b62727350c52c15"
+        }
+    ],
+    "compilerLog": []
+}

@@ -1,0 +1,19 @@
+{
+  "scope": "Mechanically translated HLSL optical core -> GLSL ES float-target execution; not Unity or HLSL compilation",
+  "renderer": "llvmpipe (LLVM 19.1.7, 256 bits)",
+  "api": "OpenGL ES 3.2 Mesa 25.0.7-2",
+  "counts": {
+    "sun_transmission": 200,
+    "density": 100,
+    "phase": 101
+  },
+  "max_absolute_float32_vs_float64_error": {
+    "sun_transmission": 1.407759865124092e-06,
+    "density": 4.407305240317072e-06,
+    "phase": 1.1051693498131954e-06
+  },
+  "result": "PASS",
+  "core_sha256": "ae1664ec62116e41a9d0f31dbbde985960373c93ad0fd06dc91d31bcecc9d118",
+  "unity_compile": "NOT_RUN",
+  "webgl_browser_runtime": "UNAVAILABLE_CONTEXT"
+}

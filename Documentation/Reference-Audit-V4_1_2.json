@@ -1,0 +1,13 @@
+{
+  "version": "4.1.2",
+  "uploaded_source": "Reference/atmosphere.glsl",
+  "uploaded_sha256": "708ea4a9141a7653ea0085d7f26ae09ca09bb14c88e339d63da74e16439300bd",
+  "active_adaptation": "Assets/ORBIS/Resources/ORBIS/OrbisAtmosphereGLSL.cginc",
+  "included_by": "Assets/ORBIS/Resources/ORBIS/OrbisOptics.cginc",
+  "license": "MIT / Dimas Leenman 2019",
+  "formula_map": "Documentation/GLSL-Port-V4_1_2.md",
+  "exact_pixel_equivalence": false,
+  "nvidia_full_code_port": false,
+  "unity_native_compile": "NOT_RUN",
+  "built_in_pipeline": true
+}

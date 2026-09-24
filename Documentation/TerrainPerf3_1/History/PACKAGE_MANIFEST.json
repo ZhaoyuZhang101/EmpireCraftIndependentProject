@@ -1,0 +1,12 @@
+{
+  "version": "V4-2 original-only source repair / GLtracy + HP references",
+  "base_archive": "ORBIS_Unity_V4_2_DynamicWeather.zip",
+  "base_archive_sha256": "acceefa0ea4f08bfdfd326bef0b2597823053570e5ee3af7de1841df0db81ab6",
+  "base_archive_bytes": 5938279,
+  "unity_version": "6000.0.47f1",
+  "render_pipeline": "Built-in",
+  "scope": "Source/data repair with offline checks. Unity/C#/HLSL/play-mode/visual/FPS validation NOT RUN.",
+  "historical_manifest": "Documentation/V4_2_Repair/ORIGINAL_V4_2_PACKAGE_MANIFEST.json",
+  "current_tests": "Documentation/V4_2_Repair/",
+  "no_font_binaries": true
+}

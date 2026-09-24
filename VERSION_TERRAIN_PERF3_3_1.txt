@@ -1,0 +1,3 @@
+ORBIS Perf3.3.1 Merged / Globe → Atlas → Detail
+Unity 6000.0.47f1, Built-in Render Pipeline
+Offline integration/numeric/GLES checks passed. Native Unity/C#/D3D11/Play Mode not executed.

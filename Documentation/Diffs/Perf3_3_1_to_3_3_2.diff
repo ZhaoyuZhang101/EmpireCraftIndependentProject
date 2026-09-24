@@ -1,0 +1,856 @@
+--- 3.3.1/Assets/ORBIS/Editor/FlatVisualRepairValidation.cs
++++ 3.3.2/Assets/ORBIS/Editor/FlatVisualRepairValidation.cs
+@@ -0,0 +1,81 @@
++#if UNITY_EDITOR
++using System;
++using System.Collections.Generic;
++using System.IO;
++using System.Reflection;
++using UnityEditor;
++using UnityEngine;
++using UnityEngine.Rendering;
++using Orbis.Flat;
++namespace Orbis.EditorTools
++{
++    /// <summary>Run on the real Unity camera to validate focus after a spherical landing.</summary>
++    public static class FlatVisualRepairValidation
++    {
++        [Serializable] sealed class Report
++        {
++            public string status,unityVersion,device,scope;
++            public List<string> checks=new List<string>();
++            public bool visualQualityVerified=false;
++        }
++        static FlatWorldApp app; static FlatScrollNavigator nav; static Camera camera;
++        static FieldInfo pauseField; static bool savedPause;
++        static int phase,index,settled; static int[] targets;
++        static double deadline; static Report report;
++        [MenuItem("Tools/ORBIS/Perf3.3/4 Verify repaired globe focus in Play Mode")]
++        public static void Run()
++        {
++            if(!EditorApplication.isPlaying){Debug.LogWarning("Enter Play Mode in Orbis2DWorld.unity first.");return;}
++            app=UnityEngine.Object.FindFirstObjectByType<FlatWorldApp>();
++            if(!app||app.World==null||app.Busy||!app.Navigation){Debug.LogWarning("Wait for world generation to finish.");return;}
++            if(GraphicsSettings.currentRenderPipeline!=null){Debug.LogError("This project requires Built-in Render Pipeline.");return;}
++            EditorApplication.update-=Step;
++            nav=app.Navigation;camera=app.GetComponentInChildren<Camera>();
++            pauseField=typeof(FlatWorldApp).GetField("paused",BindingFlags.Instance|BindingFlags.NonPublic);
++            savedPause=(bool)pauseField.GetValue(app);pauseField.SetValue(app,true);
++            int w=app.World.Width,h=app.World.Height;
++            targets=new[]{h/5*w+w/3,(h*4/5)*w+w-1,(h-2)*w+1,2*w+w/2};
++            report=new Report{status="RUNNING",unityVersion=Application.unityVersion,device=SystemInfo.graphicsDeviceName,
++                scope="Real Unity Play Mode camera / tile identity checks. Screenshots and FPS require separate inspection."};
++            index=phase=settled=0;deadline=EditorApplication.timeSinceStartup+90;
++            nav.GoGlobe(app.CalendarDay);EditorApplication.update+=Step;
++        }
++        static void Require(bool value,string message){if(!value)throw new InvalidOperationException(message);}
++        static void Step()
++        {
++            try
++            {
++                Require(EditorApplication.isPlaying&&app&&nav,"World or Play Mode ended");
++                Require(EditorApplication.timeSinceStartup<deadline,"Focus test timed out");
++                int tile=targets[index],w=app.World.Width;
++                if(phase==0&&nav.IsGlobe){nav.Focus(tile,app.CalendarDay);phase=1;settled=0;}
++                else if(phase==1)
++                {
++                    Require(Mathf.Abs(nav.CenterTile.y-(tile/w+.5f))<.01f,"Latitude reset during landing");
++                    if(nav.IsFlat&&Mathf.Abs(nav.PixelsPerTile-48)<.01f&&++settled>4)
++                    {
++                        Require(camera.orthographic,"Detailed view must be orthographic");
++                        Require(nav.Pick(camera.pixelRect.center)==tile,"Focused tile missed the screen centre");
++                        nav.PanBy(new Vector2(w*3,0));
++                        Require(nav.Pick(camera.pixelRect.center)==tile,"Wrapped copy changed Tile ID");
++                        report.checks.Add("Focus + three wraps preserved Tile "+tile+" at latitude row "+tile/w);
++                        index++;
++                        if(index>=targets.Length){report.status="PASS";Finish();return;}
++                        nav.GoGlobe(app.CalendarDay);phase=0;
++                    }
++                }
++            }
++            catch(Exception e){report.status="FAIL";report.checks.Add(e.ToString());Finish();}
++        }
++        static void Finish()
++        {
++            EditorApplication.update-=Step;
++            if(app&&pauseField!=null)pauseField.SetValue(app,savedPause);
++            string dir=Path.Combine(Directory.GetParent(Application.dataPath).FullName,"Validation","Perf3_3_2");
++            Directory.CreateDirectory(dir);File.WriteAllText(Path.Combine(dir,"focus-unity-report.json"),JsonUtility.ToJson(report,true));
++            if(report.status=="PASS")Debug.Log("ORBIS repaired focus PASS; view remains at the last test location.");
++            else Debug.LogError("ORBIS repaired focus FAIL: "+string.Join("\n",report.checks));
++        }
++    }
++}
++#endif
+--- 3.3.1/Assets/ORBIS/Resources/ORBIS/AtmosphereComposite.shader
++++ 3.3.2/Assets/ORBIS/Resources/ORBIS/AtmosphereComposite.shader
+@@ -48,7 +48,7 @@
+  {
+   float3 at=lerp(lerp(_MapBL,_MapBR,i.uv.x),lerp(_MapTL,_MapTR,i.uv.x),i.uv.y);
+   float3 background=tex2D(_MainTex,i.uv).rgb;
+-  if(abs(at.x)>ORBIS_PI||abs(at.y)>ORBIS_PI*.5)return float4(OrbisDisplay(background),1);
++  if((_ScrollCloudSource<.5&&abs(at.x)>ORBIS_PI)||abs(at.y)>ORBIS_PI*.5)return float4(OrbisDisplay(background),1);
+   float2 grid=i.uv*_VolumeTexelSize.zw-.5,base=floor(grid),f=frac(grid);
+   float3 L=0,T=0;float sum=0;
+   [unroll] for(int y=0;y<2;y++)[unroll] for(int x=0;x<2;x++)
+--- 3.3.1/Assets/ORBIS/Resources/ORBIS/Clouds.shader
++++ 3.3.2/Assets/ORBIS/Resources/ORBIS/Clouds.shader
+@@ -14,6 +14,7 @@
+    #pragma target 3.5
+    #pragma vertex vert_img
+    #pragma fragment frag
++   #define ORBIS_SHARED_SCROLL_WEATHER 1
+    #include "OrbisAtmosphereCommon.cginc"
+    struct MRT {float4 light:SV_Target0;float4 transmission:SV_Target1;};
+    MRT frag(v2f_img i)
+@@ -27,6 +28,7 @@
+    #pragma target 3.5
+    #pragma vertex vert_img
+    #pragma fragment frag
++   #define ORBIS_SHARED_SCROLL_WEATHER 1
+    #include "OrbisAtmosphereCommon.cginc"
+    float4 frag(v2f_img i):SV_Target
+    {OrbisVolumeResult r=OrbisMarch(i.uv);return float4(OrbisTone(OrbisBackgroundWithSun(tex2D(_MainTex,i.uv).rgb,i.uv,r.sceneDepth)*r.transmission+r.light),1);}
+@@ -39,6 +41,7 @@
+    #pragma target 3.5
+    #pragma vertex vert_img
+    #pragma fragment frag
++   #define ORBIS_SHARED_SCROLL_WEATHER 1
+    #include "OrbisAtmosphereCommon.cginc"
+    float4 frag(v2f_img i):SV_Target
+    {OrbisVolumeResult r=OrbisMarchMap(i.uv);return float4(OrbisTone(tex2D(_MainTex,i.uv).rgb*r.transmission+r.light),1);}
+@@ -51,6 +54,7 @@
+    #pragma target 3.5
+    #pragma vertex vert_img
+    #pragma fragment frag
++   #define ORBIS_SHARED_SCROLL_WEATHER 1
+    #include "OrbisAtmosphereCommon.cginc"
+    struct MRT {float4 light:SV_Target0;float4 transmission:SV_Target1;};
+    MRT frag(v2f_img i)
+--- 3.3.1/Assets/ORBIS/Resources/ORBIS/FlatWorld/FlatMapFragment.cginc
++++ 3.3.2/Assets/ORBIS/Resources/ORBIS/FlatWorld/FlatMapFragment.cginc
+@@ -36,7 +36,7 @@
+     }
+     else col*=illumination;
+     float major;float contour=FlatContour(field.r,_ContourInterval,major);
+-    float contourStrength=_ShowContours*smoothstep(3,5,_PixelsPerTile)*(1-waterMask)*step(.01,field.r)*max(naturalView,_DrawHeight);
++    float contourStrength=(1-_DetailWeight)*_ShowContours*smoothstep(3,5,_PixelsPerTile)*(1-waterMask)*step(.01,field.r)*max(naturalView,_DrawHeight);
+     col=lerp(col,FlatColor(float3(.31,.30,.24))*illumination,contour*contourStrength*lerp(.23,.42,major));
+     if(_Political>.5)
+     {
+@@ -47,15 +47,7 @@
+      col=lerp(col,own.rgb*illumination,.34*step(.001,own.a)*(1-waterMask*.8));
+      col=lerp(col,FlatColor(float3(.87,.79,.57)),border*.70*step(.001,own.a));
+     }
+-    // Composite weather below navigation/selection marks. Data-only layers stay exact.
+-    if(naturalView>.5)
+-    {
+-     #ifdef ORBIS_SCROLL_SURFACE
+-     col=lerp(col,FlatSkyComposite(col,i.uv,cell,waterMask,_PixelsPerTile),smoothstep(.18,.82,_ScrollMorph));
+-     #else
+-     col=FlatSkyComposite(col,i.uv,cell,waterMask,_PixelsPerTile);
+-     #endif
+-    }
++
+     if(naturalView>.5)
+     {
+      float structure=floor(info.b+.5);
+@@ -72,6 +64,15 @@
+      float night=1-FlatDayWeight(FlatRadial(i.uv));
+      float town=1-step(.5,abs(structure-1));
+      col+=town*exp(-dot(f-.5,f-.5)*14)*night*_FlatNightLights*FlatColor(float3(.82,.42,.13))*.75;
++    }
++    // Composite weather below navigation/selection marks. Data-only layers stay exact.
++    if(naturalView>.5)
++    {
++     #ifdef ORBIS_SCROLL_SURFACE
++     col=lerp(col,FlatSkyComposite(col,i.uv,cell,waterMask,_PixelsPerTile),smoothstep(.08,.50,_ScrollMorph)*(1-smoothstep(.55,1,_ScrollMorph)));
++     #else
++     col=FlatSkyComposite(col,i.uv,cell,waterMask,_PixelsPerTile);
++     #endif
+     }
+     if(_Grid>.5&&_PixelsPerTile>=4)
+     {
+--- 3.3.1/Assets/ORBIS/Resources/ORBIS/FlatWorld/FlatPixelDetail.cginc
++++ 3.3.2/Assets/ORBIS/Resources/ORBIS/FlatWorld/FlatPixelDetail.cginc
+@@ -18,14 +18,18 @@
+  float green=step(.26,field.a)*step(0,field.r);
+  float blades=step(.88,grain)*step(1,fmod(q.y,5))*step(fmod(q.x,5),1);
+  col=PDPaint(col,float3(.35,.43,.19),blades*green*.4);
+- // A 2D ledge along a real height discontinuity. Geography and passability are untouched.
+- float4 south=tex2Dlod(_VisualTex,float4(uv-float2(0,_MapSize.w),0,0));
+- float4 west=tex2Dlod(_VisualTex,float4(uv-float2(_MapSize.z,0),0,0));
+- float front=step(85,field.r-south.r)*step(q.y,3)*step(.01,field.r);
+- float side=step(85,field.r-west.r)*step(q.x,1)*step(.01,field.r);
+- float bricks=step(1,fmod(q.x+floor(q.y/2)*3,7));
+- col=PDPaint(col,lerp(float3(.18,.15,.10),float3(.40,.32,.20),bricks),front*.9);
+- col=PDPaint(col,float3(.12,.17,.10),side*.65);
++ // Continuous height terraces: no cell-edge bars or needles. Only steep,
++ // south-facing slopes expose a rock face; water later cuts through the face.
++ float2 dx=float2(_MapSize.z,0),dy=float2(0,_MapSize.w),at=cell*_MapSize.zw;
++ float gx=(tex2Dlod(_VisualTex,float4(at+dx,0,0)).r-tex2Dlod(_VisualTex,float4(at-dx,0,0)).r)*.5;
++ float gy=(tex2Dlod(_VisualTex,float4(at+dy,0,0)).r-tex2Dlod(_VisualTex,float4(at-dy,0,0)).r)*.5;
++ float slope=length(float2(gx,gy));
++ float band=frac(max(0,field.r)/180);
++ float face=smoothstep(110,230,slope)*smoothstep(35,110,gy)*(1-smoothstep(.10,.27,band));
++ face*=step(.01,field.r)*(1-waterMask)*step(.20,-field.g);
++ float strata=step(.42,PDHash(floor(cell*float2(16,32))));
++ float3 rock=lerp(float3(.31,.29,.23),float3(.48,.44,.34),strata*.5+band);
++ col=PDPaint(col,rock,face*.85);
+  float shore=step(-.16,field.g)*(1-step(.22,field.g))*(1-waterMask);
+  col=PDPaint(col,lerp(float3(.47,.36,.21),float3(.66,.53,.30),step(.45,grain)),shore*.8);
+  return col;
+@@ -33,20 +37,52 @@
+ float3 PixelProps(float3 col,float2 cell,float4 field,float waterMask,float structure,float3 light)
+ {
+  float2 id=floor(cell),q=floor(frac(cell)*32);
+- float seed=PDHash(id),occupied=step(seed,saturate((field.a-.20)*1.25))*(1-waterMask);
+- if(structure<.5 && occupied>.5)
++ [loop] for(int row=0;row>=-1;row--)
+  {
+-  float2 crown=q-float2(15+floor(seed*5)-2,19+floor(PDHash(id+71)*3));
+-  float silhouette=max(abs(crown.x)*.65+abs(crown.y),max(abs(crown.x)*1.08,abs(crown.y)*1.12));
+-  float crownMask=step(silhouette,11+step(.6,seed));
+-  float shadow=PDBox(q,float2(8,4),float2(29,18));col*=1-shadow*.25;
+-  float trunk=PDBox(q,float2(14,5),float2(18,14));col=PDPaint(col,float3(.28,.19,.10)*light,trunk);
+-  float leaf=PDHash(id+floor(q/3)*.07),band=floor((crown.y-crown.x*.4+14)/5);
+-  float3 foliage=lerp(float3(.12,.22,.105),float3(.31,.40,.14),saturate(band/5));
+-  foliage*=.82+.25*step(.35,leaf);
+-  col=PDPaint(col,float3(.07,.13,.075)*light,crownMask);
+-  float inner=step(silhouette,9+step(.6,seed));
++  float2 treeId=id+float2(0,row),rootUV=(treeId+float2(.5,.25))*_MapSize.zw;
++  if(treeId.y<0||treeId.y>=_MapSize.y)continue;
++  float2 centreUV=(treeId+.5)*_MapSize.zw;
++  float4 rootField=tex2Dlod(_VisualTex,float4(rootUV,0,0));
++  float4 rootHydro=tex2Dlod(_HydroA,float4(centreUV,0,0));
++  float links=tex2Dlod(_HydroB,float4(centreUV,0,0)).a;
++  float4 rootInfo=tex2Dlod(_InfoTex,float4(centreUV,0,0))*255;
++  float rootStructure=rootInfo.b;
++  float seed=PDHash(treeId);
++  float2 rootFlow;
++  float rootRiver=FlatRiverDistance(float2(.5,.25),rootHydro,floor(links+.5),centreUV,rootFlow);
++  float occupied=step(seed,saturate((rootField.a-.20)*1.25))*step(.18,-rootField.g)*step(.15,rootRiver);
++  if(rootStructure>.5||occupied<.5||(rootInfo.g>.5&&rootInfo.g<4.5))continue;
++  float2 tq=floor((cell-treeId)*32);
++  float2 crown=tq-float2(13+floor(seed*7),20+floor(PDHash(treeId+71)*6));
++  float size=.86+.15*PDHash(treeId+float2(29,13));
++  float2 leafPoint=crown/size;
++  // Four overlapping leaf clusters give a scalloped outline at the 32px art grid.
++  float shape=min(length((leafPoint-float2(-4,-1))*float2(1,1.08))-7,
++                  length((leafPoint-float2(4,0))*float2(1,1.10))-7);
++  shape=min(shape,length((leafPoint-float2(-1,5))*float2(1.04,1))-7);
++  shape=min(shape,length((leafPoint-float2(0,-4))*float2(1,.9))-7);
++  float crownMask=1-step(.1,shape),inner=1-step(-1.2,shape);
++  float shadow=PDBox(tq,float2(8,4),float2(29,15));col*=1-shadow*.19;
++  float trunk=PDBox(tq,float2(14,5),float2(18,17));
++  col=PDPaint(col,float3(.23,.16,.105)*light,trunk);
++  col=PDPaint(col,float3(.44,.30,.16)*light,PDBox(tq,float2(15,6),float2(17,16)));
++  float cluster=PDHash(treeId+floor(tq/3)*.07);
++  float sunward=saturate(.48+dot(leafPoint,float2(-.035,.045)));
++  float3 dark=lerp(float3(.10,.20,.10),float3(.13,.23,.14),seed);
++  float3 bright=lerp(float3(.34,.45,.17),float3(.27,.43,.22),seed);
++  float3 foliage=lerp(dark,bright,floor(sunward*4)/4)*(.88+.20*step(.38,cluster));
++  // Continental cold climates use layered conifer silhouettes.
++  float conifer=step(16.5,rootInfo.a)*step(rootInfo.a,28.5);
++  if(conifer>.5)
++  {
++   float triangle=max(abs(leafPoint.x)-min(10.5,max(0,8-leafPoint.y*.35)),abs(leafPoint.y-1)-13);
++   crownMask=1-step(0,triangle);inner=1-step(-1,triangle);
++   float tier=frac((leafPoint.y+14)/7);
++   foliage=lerp(float3(.09,.19,.15),float3(.24,.37,.23),tier*.6+sunward*.4);
++  }
++  col=PDPaint(col,float3(.055,.115,.065)*light,crownMask);
+   col=PDPaint(col,foliage*light,inner);
++
+  }
+  if(structure>.5 && structure<1.5)
+  {
+--- 3.3.1/Assets/ORBIS/Resources/ORBIS/FlatWorld/FlatSkyBake.shader
++++ 3.3.2/Assets/ORBIS/Resources/ORBIS/FlatWorld/FlatSkyBake.shader
+@@ -13,7 +13,8 @@
+    #pragma target 3.0
+    #include "UnityCG.cginc"
+    sampler2D _ClimateTex;
+-   float _VisualTime,_MonthBlend;
++   float _VisualTime,_MonthBlend,_ClimateRows;
++   float4 _ClimatePoleSouth,_ClimatePoleNorth;
+    float Hash3(float3 p){p=frac(p*.1031);p+=dot(p,p.yzx+33.33);return frac((p.x+p.y)*p.z);}
+    float Noise3(float3 p)
+    {
+@@ -37,6 +38,7 @@
+    float4 frag(v2f_img i):SV_Target
+    {
+     float4 monthly=tex2D(_ClimateTex,i.uv);
++    if(_ClimateRows>0)monthly=lerp(lerp(_ClimatePoleSouth,_ClimatePoleNorth,step(.5,i.uv.y)),monthly,smoothstep(0,1,min(i.uv.y,1-i.uv.y)*_ClimateRows));
+     float wet=lerp(monthly.r,monthly.g,_MonthBlend),temperature=lerp(monthly.b,monthly.a,_MonthBlend);
+     float longitude=(i.uv.x-.5)*6.283185307,latitude=(i.uv.y-.5)*3.141592654;
+     float3 radial=float3(sin(longitude)*cos(latitude),sin(latitude),cos(longitude)*cos(latitude));
+--- 3.3.1/Assets/ORBIS/Resources/ORBIS/FlatWorld/FlatSkyComposite.cginc
++++ 3.3.2/Assets/ORBIS/Resources/ORBIS/FlatWorld/FlatSkyComposite.cginc
+@@ -9,7 +9,11 @@
+ float3 FlatDayLight(float3 radial,float2 uv)
+ {
+     float day=FlatDayWeight(radial);
+-    float2 shadowUV=uv-float2(_FlatSun.x,_FlatSun.y)*_MapSize.zw*1.4;
++    float lon=(uv.x-.5)*6.283185307,lat=(uv.y-.5)*3.141592654;
++    float3 east=float3(cos(lon),0,-sin(lon));
++    float3 north=float3(-sin(lat)*sin(lon),cos(lat),-sin(lat)*cos(lon));
++    float altitude=.018/max(.22,dot(radial,_FlatSun));
++    float2 shadowUV=uv+float2(dot(east,_FlatSun)/(6.283185307*max(.12,cos(lat))),dot(north,_FlatSun)/3.141592654)*altitude;
+     float4 cloud=tex2D(_SkyTex,shadowUV);
+     float shadow=1-saturate(cloud.r*.38+cloud.g*.16)*_FlatCloudShadows*_SkyReady;
+     // Desaturated sky + illustrative moon phase. Never absolute black on the night side.
+--- 3.3.1/Assets/ORBIS/Resources/ORBIS/FlatWorld/ScrollCloudSource.cginc
++++ 3.3.2/Assets/ORBIS/Resources/ORBIS/FlatWorld/ScrollCloudSource.cginc
+@@ -0,0 +1,33 @@
++#ifndef ORBIS_SCROLL_CLOUD_SOURCE
++#define ORBIS_SCROLL_CLOUD_SOURCE
++#include "ScrollHeight.cginc"
++sampler2D _ScrollWeatherTex, _ScrollHeightTex;
++float4 _ScrollSourceSize;
++float _ScrollWeatherTime;
++float ScrollCloudGround(float2 uv)
++{
++ return ScrollRadius(tex2Dlod(_ScrollHeightTex,float4(uv,0,0)),uv,_ScrollSourceSize.y);
++}
++// Uses the SAME spherical coordinates on the globe and every repeated 2D sheet.
++float ScrollClimateDensity(float3 p)
++{
++ float2 uv=OrbisWeatherUV(p);
++ float ground=ScrollCloudGround(uv);
++ float z=(length(p)-ground)/.000008;
++ if(z<400||z>13500)return 0;
++ float4 weather=tex2Dlod(_ScrollWeatherTex,float4(uv,0,0));
++ if(weather.r+weather.g<.015)return 0;
++ float3 up=normalize(p);
++ float angle=_ScrollWeatherTime*.005,s=sin(angle),c=cos(angle);
++ float3 advected=float3(c*up.x+s*up.z,up.y,-s*up.x+c*up.z);
++ float3 q=advected*float3(9,9,9)+float3(.13,.71,.37)+up*(z*.00028);
++ float shape=tex3Dlod(_CloudNoise,float4(q,0)).r;
++ float erosion=tex3Dlod(_CloudNoise,float4(q*2.73+float3(.2,.1,.7),0)).g;
++ float body=saturate((weather.r-.12)*1.7);
++ float profile=smoothstep(450,1150,z)*(1-smoothstep(2100+weather.r*2400,5300+weather.r*1300,z));
++ float sculpt=smoothstep(.30-body*.16,.64-body*.12,shape-(1-erosion)*.10);
++ float low=body*profile*sculpt*1.7;
++ float high=weather.g*exp(-pow((z-9000)/1900,2))*smoothstep(.25,.68,shape)*.42;
++ return (low+high)*_Density*max(0,_Cover);
++}
++#endif
+--- 3.3.1/Assets/ORBIS/Resources/ORBIS/FlatWorld/ScrollHeight.cginc
++++ 3.3.2/Assets/ORBIS/Resources/ORBIS/FlatWorld/ScrollHeight.cginc
+@@ -0,0 +1,12 @@
++#ifndef ORBIS_SCROLL_HEIGHT
++#define ORBIS_SCROLL_HEIGHT
++float2 _ScrollPoleHeights;
++float _ScrollHeightScale;
++float ScrollRadius(float4 field,float2 uv,float rows)
++{
++ float h=clamp(field.r+(field.g>0?field.b:0),0,4000);
++ float polar=lerp(_ScrollPoleHeights.x,_ScrollPoleHeights.y,step(.5,uv.y));
++ float blend=smoothstep(0,1,min(uv.y,1-uv.y)*rows);
++ return 1+lerp(polar,h,blend)*_ScrollHeightScale;
++}
++#endif
+--- 3.3.1/Assets/ORBIS/Resources/ORBIS/FlatWorld/ScrollProjection.cginc
++++ 3.3.2/Assets/ORBIS/Resources/ORBIS/FlatWorld/ScrollProjection.cginc
+@@ -1,6 +1,7 @@
+ // One immutable UV lattice, two continuous endpoint positions. No scene swap or screenshot morph.
+ #ifndef ORBIS_SCROLL_PROJECTION
+ #define ORBIS_SCROLL_PROJECTION
++#include "ScrollHeight.cginc"
+ float4 _ScrollAnchor, _ScrollPan;
+ float3 _ScrollRight, _ScrollUp, _ScrollNormal;
+ float _ScrollMorph, _ScrollSpin, _ScrollCopy;
+@@ -21,10 +22,9 @@
+  // Z reflection gives a north-up, east-right front face. The native volume uses the same transform.
+  float3 radial=float3(cos(lat)*sin(lon),sin(lat),-cos(lat)*cos(lon));
+  float2 heightUV=geo;
+- if(meshUV.y<.000001||meshUV.y>.999999)heightUV.x=.5;
++ // Every longitude converges to the same polar radius over the last source row.
+  float4 field=tex2Dlod(_VisualTex,float4(heightUV,0,0));
+- float height=field.r + (field.g>0 ? field.b : 0);
+- float radius=1+clamp(height,0,4000)*.00001875;
++ float radius=ScrollRadius(field,geo,_MapSize.y);
+  float3 sphere=ScrollRotate(radial)*(radius+shell*(1-_ScrollMorph));
+  return lerp(sphere,plane,_ScrollMorph);
+ }
+--- 3.3.1/Assets/ORBIS/Resources/ORBIS/FlatWorld/Water/FlatWater.cginc
++++ 3.3.2/Assets/ORBIS/Resources/ORBIS/FlatWorld/Water/FlatWater.cginc
+@@ -81,10 +81,39 @@
+     if(code<4.5)return FlatColor(float3(.54,.55,.54));
+     return FlatColor(float3(.87,.91,.88));
+ }
++float FlatMouthDistance(float2 cell,float2 uv,float4 field,out float2 flow)
++{
++ float result=8;flow=float2(0,0);
++ if(abs(field.g)>1.25)return result;
++ float4 centre=tex2Dlod(_VisualTex,float4(uv,0,0));
++ if(centre.g<=0||field.g>1.25)return result;
++ [loop] for(int d=0;d<4;d++)
++ {
++  float2 edge=FlatEdge(d),offset=(edge-.5)*2;
++  float2 nextUV=uv+offset*_MapSize.zw;
++  if(nextUV.y<0||nextUV.y>1)continue;
++  float4 h=tex2Dlod(_HydroA,float4(nextUV,0,0));
++  float connections=floor(tex2Dlod(_HydroB,float4(nextUV,0,0)).a+.5);
++  float opposite=d==0?2:d==1?1:d==2?8:4;
++  if(h.a<.01||fmod(floor(connections/opposite),2)<.5)continue;
++  float2 delta=float2(.5,.5)-edge;
++  float t=saturate(dot(frac(cell)-edge,delta)/max(.0001,dot(delta,delta)));
++  float radius=lerp(h.a,min(.46,h.a*1.45),t);
++  float distance=length(frac(cell)-edge-delta*t)-radius;
++  // Exact inlet section matches the river side of the shared face.
++  float face=d==0?frac(cell.x):d==1?1-frac(cell.x):d==2?frac(cell.y):1-frac(cell.y);
++  float across=abs((d<2?frac(cell.y):frac(cell.x))-.5);
++  if(face<.10&&across<.45)distance=lerp(across-h.a,distance,smoothstep(0,.10,face));
++  if(distance<result){result=distance;flow=-offset;}
++ }
++ return result;
++}
+ float FlatWaterMask(float2 cell,float2 uv,float4 hydro,float4 mixing,float4 field,float aa,
+                     out float signedDistance,out float2 riverFlow)
+ {
+     float riverDistance=FlatRiverDistance(frac(cell),hydro,floor(mixing.a+.5),uv,riverFlow);
++    float2 mouthFlow;float mouthDistance=FlatMouthDistance(cell,uv,field,mouthFlow);
++    if(mouthDistance<riverDistance){riverDistance=mouthDistance;riverFlow=mouthFlow;}
+     signedDistance=min(riverDistance,-field.g);
+     return 1-smoothstep(-aa,aa,signedDistance);
+ }
+--- 3.3.1/Assets/ORBIS/Resources/ORBIS/OrbisAtmosphereCommon.cginc
++++ 3.3.2/Assets/ORBIS/Resources/ORBIS/OrbisAtmosphereCommon.cginc
+@@ -8,6 +8,7 @@
+ #include "OrbisAtmosphereView.cginc"
+ int _CloudSteps,_AirSteps,_LightSteps,_CloudDebug;
+ float _CloudMS,_ScatteringStrength,_MapVolume;
++float _ScrollVolumeWeight;
+ 
+ float3 _MapBL,_MapBR,_MapTL,_MapTR;
+    float HG(float cosine,float g)
+@@ -21,6 +22,12 @@
+ {
+  return index==0?first.x:index==1?first.y:index==2?first.z:index==3?first.w:index==4?last.x:last.y;
+ }
++float2 OrbisLightSegment(float index,float count,float span)
++{
++ float a=index/count,b=(index+1)/count;
++ if(_ScrollCloudSource>.5){a*=a;b*=b;}
++ return float2(a,b)*span;
++}
+ float2 LightField(float3 p,float3 sun)
+ {
+  if(OrbisSunVisible(p,sun)<.5)return float2(0,0);
+@@ -35,8 +42,9 @@
+  [loop] [fastopt] for(int j=0;j<6;j++)
+  {
+   if(j>=lightSteps)break;
+-  float t=(j+.5)*ds;
+-  float sampleTau=OrbisCloudDensity(p+sun*t)*ORBIS_EXTINCTION*ds;
++  float2 segment=OrbisLightSegment(j,lightSteps,lengthToExit);
++  float t=(segment.x+segment.y)*.5;
++  float sampleTau=OrbisCloudDensity(p+sun*t)*ORBIS_EXTINCTION*(segment.y-segment.x);
+   if(j==0)tauFirst.x=sampleTau;
+   else if(j==1)tauFirst.y=sampleTau;
+   else if(j==2)tauFirst.z=sampleTau;
+@@ -58,7 +66,8 @@
+   float entryTau=max(0.0,totalTau-travelTau-localTau*.5);
+   float isotropization=1-exp(-.35*entryTau);
+   float absorption=exp(-.001*entryTau);
+-  float kernel=exp(-.05477*(travelTau+localTau*.5))/(1+(k+.5)*ds*22.0);
++  float2 segment=OrbisLightSegment(k,lightSteps,lengthToExit);
++  float kernel=exp(-.05477*(travelTau+localTau*.5))/(1+(segment.x+segment.y)*.5*22.0);
+   diffuse+=kernel*absorption*isotropization*localTau;
+   travelTau+=localTau;
+  }
+@@ -217,7 +226,8 @@
+   OrbisIntegrateSample(p,ds,segmentHasCloud,sun,phaseAir,phaseCloud,phaseMoon,phaseMoonCloud,light,transmission);
+   sampleIndex++;
+  }
+- result.light=light;result.transmission=transmission;
++ float volumeWeight=_ScrollCloudSource>.5?saturate(_ScrollVolumeWeight):1;
++ result.light=light*volumeWeight;result.transmission=lerp(float3(1,1,1),transmission,volumeWeight);
+  return result;
+ }
+ 
+@@ -237,10 +247,13 @@
+  // Not a flat plane shoved into the sphere-ray intersection equations.
+  float3 p=lerp(lerp(_MapBL,_MapBR,uv.x),lerp(_MapTL,_MapTR,uv.x),uv.y);
+  OrbisVolumeResult empty;empty.light=0;empty.transmission=1;empty.sceneDepth=100;
+- if(abs(p.x)>ORBIS_PI||abs(p.y)>ORBIS_PI*.5)return empty;
++ if((_ScrollCloudSource<.5&&abs(p.x)>ORBIS_PI)||abs(p.y)>ORBIS_PI*.5)return empty;
+  float lon=-p.x,lat=p.y;
+  float3 up=float3(sin(lon)*cos(lat),sin(lat),cos(lon)*cos(lat));
+  float ground=clamp(tex2Dlod(_GroundField,float4(OrbisWeatherUV(up),0,0)).r,1.0,1.085);
++ #ifdef ORBIS_SHARED_SCROLL_WEATHER
++ if(_ScrollCloudSource>.5)ground=ScrollCloudGround(OrbisWeatherUV(up));
++ #endif
+  return OrbisMarchRay(up*ORBIS_AIR_RADIUS,-up,ORBIS_AIR_RADIUS-ground,8);
+ }
+ float3 OrbisTone(float3 color){return OrbisDisplay(color);}
+--- 3.3.1/Assets/ORBIS/Resources/ORBIS/OrbisCloudCommon.cginc
++++ 3.3.2/Assets/ORBIS/Resources/ORBIS/OrbisCloudCommon.cginc
+@@ -71,9 +71,17 @@
+  flash+=OrbisLightningTerm(p,_OrbisLightning[3]);
+  return flash*float3(.60,.72,1.0);
+ }
++float _ScrollCloudSource;
++#ifdef ORBIS_SHARED_SCROLL_WEATHER
++#include "FlatWorld/ScrollCloudSource.cginc"
++#endif
+ float OrbisCloudDensity(float3 p)
+ {
+- if(_Clouds<.5||_LayeredWeather<.5)return 0;
++ if(_Clouds<.5)return 0;
++ #ifdef ORBIS_SHARED_SCROLL_WEATHER
++ if(_ScrollCloudSource>.5)return ScrollClimateDensity(p);
++ #endif
++ if(_LayeredWeather<.5)return 0;
+  float3 up=normalize(p);float2 uv=OrbisWeatherUV(up);
+  float ground=tex2Dlod(_GroundField,float4(uv,0,0)).r;
+  float z=(length(p)-max(1.0,ground))/max(1e-7,_CloudHeightScale);
+--- 3.3.1/Assets/ORBIS/Runtime/FlatWorld/Core/FlatWaterGeometry.cs
++++ 3.3.2/Assets/ORBIS/Runtime/FlatWorld/Core/FlatWaterGeometry.cs
+@@ -62,6 +62,25 @@
+             }
+             return result;
+         }
++        public static float MouthDistance(WorldData w,int i,float x,float y)
++        {
++            if(w.Facts.ShoreDistance[i]<=0)return 8;
++            float result=8;
++            for(int d=0;d<4;d++)
++            {
++                int n=w.Neighbor(i,d),opposite=d^1;
++                if(n<0||w.Facts.HalfWidth[n]<.01f||(w.Facts.Connections[n]&(1<<opposite))==0)continue;
++                float ax,ay;Edge(d,out ax,out ay);float dx=.5f-ax,dy=.5f-ay;
++                float t=FMath.Clamp(((x-ax)*dx+(y-ay)*dy)/(dx*dx+dy*dy),0,1);
++                float radius=FMath.Lerp(w.Facts.HalfWidth[n],Math.Min(.46f,w.Facts.HalfWidth[n]*1.45f),t);
++                float ex=x-ax-dx*t,ey=y-ay-dy*t;
++                float distance=(float)Math.Sqrt(ex*ex+ey*ey)-radius;
++                float face=d==0?x:d==1?1-x:d==2?y:1-y,cross=Math.Abs((d<2?y:x)-.5f);
++                if(face<.10f&&cross<.45f)distance=FMath.Lerp(cross-w.Facts.HalfWidth[n],distance,Smooth(0,.10f,face));
++                result=Math.Min(result,distance);
++            }
++            return result;
++        }
+         // Identical signed field, interpolation and Bezier chords to the rendering shader.
+         public static float Coverage(WorldData w,float x,float y,out float depth)
+         {
+@@ -69,7 +88,9 @@
+             int ix=(int)Math.Floor(x),iy=(int)Math.Floor(y),i=w.Index(ix,iy);if(i<0)return 0;
+             float sd=FlatSurfaceSampling.Sample(w.Facts.ShoreDistance,w.Width,w.Height,x,y);
+             float area=Smooth(-.025f,.025f,sd);
+-            float river=1-Smooth(-.025f,.025f,RiverDistance(w,i,x-ix,y-iy));
++            float distance=RiverDistance(w,i,x-ix,y-iy);
++            if(sd<=1.25f)distance=Math.Min(distance,MouthDistance(w,i,x-ix,y-iy));
++            float river=1-Smooth(-.025f,.025f,distance);
+             depth=river>area?w.Facts.Depth[i]:Math.Max(.15f,FlatSurfaceSampling.Sample(w.Facts.Depth,w.Width,w.Height,x,y));
+             if(area>.01f)depth*=FMath.Lerp(.05f,1,Smooth(0,1.5f,sd));
+             return Math.Max(area,river);
+--- 3.3.1/Assets/ORBIS/Runtime/FlatWorld/Presentation/FlatGlobeGeometry.cs
++++ 3.3.2/Assets/ORBIS/Runtime/FlatWorld/Presentation/FlatGlobeGeometry.cs
+@@ -0,0 +1,28 @@
++using UnityEngine;
++namespace Orbis.Flat
++{
++    public static class FlatGlobeGeometry
++    {
++        // One vertical scale for the presentation. Authoritative metres are unchanged.
++        public const float HeightScale = .000006f;
++        public const float MaximumHeight = 4000f;
++        public static Vector2 PolarHeights(WorldData world)
++        {
++            double south=0,north=0;
++            for(int x=0;x<world.Width;x++)
++            { south+=Height(world,x,0); north+=Height(world,x,world.Height-1); }
++            return new Vector2((float)(south/world.Width),(float)(north/world.Width));
++        }
++        static float Height(WorldData w,int x,int y)
++        {
++            int i=y*w.Width+x;
++            return Mathf.Clamp(w.Elevation[i]+(w.Facts.ShoreDistance[i]>0?w.Facts.Depth[i]:0),0,MaximumHeight);
++        }
++        public static float Radius(float height,float latitudeUV,int rows,Vector2 poles)
++        {
++            float polar=Mathf.Lerp(poles.x,poles.y,latitudeUV>=.5f?1:0);
++            float blend=Mathf.SmoothStep(0,1,Mathf.Clamp01(Mathf.Min(latitudeUV,1-latitudeUV)*rows));
++            return 1+Mathf.Lerp(polar,Mathf.Clamp(height,0,MaximumHeight),blend)*HeightScale;
++        }
++    }
++}
+--- 3.3.1/Assets/ORBIS/Runtime/FlatWorld/Presentation/FlatGlobePresenter.cs
++++ 3.3.2/Assets/ORBIS/Runtime/FlatWorld/Presentation/FlatGlobePresenter.cs
+@@ -8,7 +8,8 @@
+         public OrbisWorld Snapshot { get; private set; }
+         public float Yaw,Pitch=18,Distance=3.1f,SunAngle;
+         Camera camera;double clock;FlatMapRenderer maps;
+-        float baseAir,baseHaze,baseCloudDensity;bool scrollPrepared;int weatherMonth=-1;
++        float baseAir,baseHaze,baseCloudDensity;bool scrollPrepared;
++        OrbisAtmosphereRenderer scrollVolume;FlatScrollNavigator scrollNav;Vector2 poles;int poleRevision=-1;
+         public void Initialize(WorldData world,Camera target,FlatMapRenderer renderer,bool scrollPresentation=false)
+         {
+             camera=target;maps=renderer;
+@@ -48,18 +49,33 @@
+             PrepareScroll();clock=visualTime;Snapshot.day=(float)calendarDay;
+             transform.localScale=new Vector3(1,1,-1);
+             transform.localRotation=Quaternion.AngleAxis(spin*Mathf.Rad2Deg,Vector3.up);
+-            float weight=1-Mathf.SmoothStep(0,1,Mathf.InverseLerp(.08f,.60f,unfold));
+-            Snapshot.settings.airDensity=baseAir*weight;Snapshot.settings.haze=baseHaze*weight;
+-            Snapshot.settings.cloudDensity=baseCloudDensity*weight;
+-            Snapshot.settings.clouds=clouds&&natural&&weight>.0001f;
+-            Snapshot.settings.atmosphere=atmosphere&&natural&&weight>.0001f;
+-            Snapshot.settings.night=night;Snapshot.settings.cloudShadows=shadows&&natural&&weight>.0001f;
++            float sphereWeight=1-Mathf.SmoothStep(0,1,Mathf.InverseLerp(.08f,.50f,unfold));
++            float columnWeight=Mathf.SmoothStep(0,1,Mathf.InverseLerp(.55f,1,unfold));
++            bool column=unfold>=.5f;
++            float weight=column?columnWeight:sphereWeight;
++            Snapshot.settings.airDensity=baseAir*(column?.10f:1);
++            Snapshot.settings.haze=baseHaze;
++            Snapshot.settings.cloudDensity=baseCloudDensity;
++            Snapshot.settings.clouds=clouds&&natural;
++            Snapshot.settings.atmosphere=atmosphere&&natural;
++            Snapshot.settings.night=night;
++            // The old shadow atlas belongs to the other weather source. Use local light marching.
++            Snapshot.settings.cloudShadows=false;
+             View.layer=natural?0:2;
+-            if(weight>.0001f && natural && (clouds||shadows) && weatherMonth!=maps.World.Month)
+-            {
+-                Snapshot.RefreshFlatPresentation();View.UpdateWeather(true);weatherMonth=maps.World.Month;
+-            }
+-            if(weight>.0001f&&natural)View.SyncVolumeSettings(sun,visualTime,calendarDay);
++            View.SyncVolumeSettings(sun,visualTime,calendarDay);
++            var m=View.CloudMaterial;
++            m.SetFloat("_ScrollCloudSource",maps.Sky.Ready?1:0);
++            m.SetTexture("_ScrollWeatherTex",maps.Sky.Texture);
++            m.SetTexture("_ScrollHeightTex",maps.VisualTexture);
++            m.SetVector("_ScrollSourceSize",new Vector4(maps.World.Width,maps.World.Height,0,0));
++            if(poleRevision!=maps.World.TerrainRevision){poles=FlatGlobeGeometry.PolarHeights(maps.World);poleRevision=maps.World.TerrainRevision;}
++            m.SetVector("_ScrollPoleHeights",poles);
++            m.SetFloat("_ScrollHeightScale",FlatGlobeGeometry.HeightScale);
++            m.SetFloat("_ScrollWeatherTime",(float)maps.Sky.Clock);
++            m.SetFloat("_OrbisShadowReady",0);m.SetFloat("_GodRays",0);
++            if(!scrollVolume)foreach(var volume in camera.GetComponents<OrbisAtmosphereRenderer>())if(volume.view==View)scrollVolume=volume;
++            if(!scrollNav)scrollNav=maps.GetComponentInParent<FlatWorldApp>()?.Navigation;
++            if(scrollVolume){scrollVolume.scroll=scrollNav;scrollVolume.scrollVolumeWeight=weight*(column&&scrollNav?Mathf.Lerp(1,.65f,scrollNav.DetailWeight):1);}
+             // Intentionally NOT View.Sync(): it enables/culls the old meshes and starts local surface LOD.
+             // The camera image effect keeps its display transform at both endpoints; only volume density fades.
+         }
+--- 3.3.1/Assets/ORBIS/Runtime/FlatWorld/Presentation/FlatScrollNavigator.cs
++++ 3.3.2/Assets/ORBIS/Runtime/FlatWorld/Presentation/FlatScrollNavigator.cs
+@@ -35,6 +35,7 @@
+         Vector2 lastRoutePan = new Vector2(float.NaN, float.NaN);
+         Vector3 lastRouteNormal;
+         float lastRoutePixels = -1;
++        Vector2 polarHeights; int heightRevision=-1;
+         readonly List<Vector3> routeVertices = new List<Vector3>();
+         readonly List<Color> routeColors = new List<Color>();
+         readonly List<int> routeIndices = new List<int>();
+@@ -60,7 +61,7 @@
+             world = data; camera = target; maps = renderer;
+             surface = NewMaterial("ORBIS/FlatWorld/ScrollSurface");
+             // Large enough for smooth silhouette; scalar fields retain the original tile resolution.
+-            int columns = Mathf.Clamp(world.Width, 128, 512), rows = columns / 2;
++            int columns = Mathf.Clamp(world.Width, 128, 1024), rows = columns / 2;
+             var vertices = new Vector3[(columns + 1) * (rows + 1)];
+             var uv = new Vector2[vertices.Length];
+             var indices = new int[columns * rows * 6];
+@@ -144,8 +145,8 @@
+                 if (!TryGlobeUV(camera.pixelRect.center, out uv)) uv = anchor;
+             }
+             LockPlane(uv, day);
+-            endGap = camera.pixelHeight * TileScale / (2 * FitPixels() * Mathf.Tan(Fov * Mathf.Deg2Rad * .5f));
+-            pan.y=world.Height*.5f; overview = true;
++            endGap = camera.pixelHeight * TileScale / (2 * LandingPixels() * Mathf.Tan(Fov * Mathf.Deg2Rad * .5f));
++            overview = true;
+         }
+         void ReanchorForExit(double day)
+         {
+@@ -162,6 +163,7 @@
+         public void Tick(float dt, double day)
+         {
+             currentDay = day;
++            if(heightRevision!=world.TerrainRevision){polarHeights=FlatGlobeGeometry.PolarHeights(world);heightRevision=world.TerrainRevision;}
+             if(IsFlat && targetPixels>0)
+             {
+                 Vector2 before=Vector2.zero,after;bool hit=zoomAnchor&&TryFlatPoint(zoomScreen,out before);
+@@ -203,7 +205,7 @@
+                 else if (!camera.orthographic)
+                 {
+                     pixels = Mathf.Max(.25f, camera.pixelHeight * TileScale / (2 * endGap * Mathf.Tan(Fov * Mathf.Deg2Rad * .5f)));
+-                    entryPixels = FitPixels();
++                    entryPixels = LandingPixels();
+                 }
+                 NormalizePan();
+                 camera.orthographic = true; camera.orthographicSize = camera.pixelHeight * TileScale / (2 * Mathf.Max(.1f, pixels));
+@@ -248,12 +250,13 @@
+             UpdateSheets(); UpdateRoute();
+         }
+         float TileScale { get { return Tau / world.Width; } }
++        float LandingPixels() { return Mathf.Max(FitPixels(),8); }
+         float FitPixels() { return Mathf.Max(camera.pixelWidth / (world.Width * 3f), Mathf.Min(camera.pixelWidth / (float)world.Width, camera.pixelHeight / (float)world.Height) * .94f); }
+         void NormalizePan()
+         {
+             pan.x = (float)FlatScrollMath.Wrap(pan.x, world.Width);
+-            float halfHeight=camera.pixelHeight/(2*Mathf.Max(.1f,pixels));
+-            pan.y=halfHeight>=world.Height*.5f?world.Height*.5f:Mathf.Clamp(pan.y,halfHeight,world.Height-halfHeight);
++            // Keep the geographical focus even when the viewport extends beyond a pole.
++            pan.y=Mathf.Clamp(pan.y,.0001f,world.Height-.0001f);
+         }
+         Vector2 RenderPan
+         {
+@@ -294,6 +297,8 @@
+             m.SetFloat("_ScrollMorph", morph); m.SetFloat("_ScrollSpin", displaySpin);
+             m.SetFloat("_PixelsPerTile", pixels);
+             m.SetFloat("_DetailWeight", DetailWeight);
++            m.SetVector("_ScrollPoleHeights",polarHeights);
++            m.SetFloat("_ScrollHeightScale",FlatGlobeGeometry.HeightScale);
+         }
+         public void Drag(Vector2 screenDelta)
+         {
+@@ -344,7 +349,7 @@
+             exitPending=false;
+             if (IsFlat) { overview = true;targetPixels=FitPixels();zoomAnchor=false;focusZoom=false;pendingFocus=-1; Tick(0, day); return; }
+             if (!landingLocked) CaptureLanding(camera.pixelRect.center, day);
+-            atlasPending = true; pan.y=world.Height*.5f; targetDistance = EndDistance;
++            atlasPending = false; targetDistance = EndDistance;
+         }
+         public void Home(double day)
+         {
+@@ -359,14 +364,14 @@
+             else
+             {
+                 LockPlane(uv, day);
+-                pitch = Mathf.Asin(normal.y) * Mathf.Rad2Deg; yaw = Mathf.Atan2(-normal.x, -normal.z) * Mathf.Rad2Deg;
+-                endGap=camera.pixelHeight*TileScale/(2*FitPixels()*Mathf.Tan(Fov*Mathf.Deg2Rad*.5f));
+-                pan.y=world.Height*.5f;pendingFocus=tile;targetDistance=EndDistance;
++                // Preserve the orbit pose; Tick smoothly rotates toward the selected tangent frame.
++                endGap=camera.pixelHeight*TileScale/(2*LandingPixels()*Mathf.Tan(Fov*Mathf.Deg2Rad*.5f));
++                pendingFocus=tile;targetDistance=EndDistance;
+             }
+         }
+         public bool TryFlatPoint(Vector2 screen, out Vector2 tile)
+         {
+-            tile = Vector2.zero; if (!IsFlat) return false;
++            tile = Vector2.zero; if (morph < .5f) return false;
+             Ray ray = camera.ScreenPointToRay(screen); var plane = new Plane(normal, normal);
+             float t; if (!plane.Raycast(ray, out t)) return false;
+             Vector3 offset = ray.GetPoint(t) - normal;
+@@ -413,7 +418,7 @@
+             Vector3 a=HeightFields(x0,y0),b=HeightFields(x0+1,y0),c=HeightFields(x0,y0+1),d=HeightFields(x0+1,y0+1);
+             Vector3 fields=Vector3.Lerp(Vector3.Lerp(a,b,x-x0),Vector3.Lerp(c,d,x-x0),y-y0);
+             float h=fields.x+(fields.y>0?fields.z:0);
+-            return point.magnitude - (1 + Mathf.Clamp(h, 0, 4000) * .00001875f);
++            return point.magnitude - FlatGlobeGeometry.Radius(h,uv.y,world.Height,polarHeights);
+         }
+         Vector3 HeightFields(int x,int y)
+         {
+--- 3.3.1/Assets/ORBIS/Runtime/FlatWorld/Presentation/FlatSkyRenderer.cs
++++ 3.3.2/Assets/ORBIS/Runtime/FlatWorld/Presentation/FlatSkyRenderer.cs
+@@ -19,11 +19,11 @@
+             Shader shader=Resources.Load<Shader>("ORBIS/FlatWorld/FlatSkyBake");
+             if(!shader||!shader.isSupported){failed=true;Status="云层缓存 Shader 不支持：保留地表与晨昏，云层已降级关闭。";Debug.LogWarning(Status);return;}
+             bake=new Material(shader){name="Perf3.2 shared climate cloud cache"};
+-            try{Resize(256);}catch(Exception ex){failed=true;Status="云缓存不可用，地表继续运行："+ex.Message;Debug.LogException(ex);}
++            try{Resize(512);}catch(Exception ex){failed=true;Status="云缓存不可用，地表继续运行："+ex.Message;Debug.LogException(ex);}
+         }
+         void Resize(int width)
+         {
+-            width=width<=128?128:width>=512?512:256;
++            width=width<=256?256:width>=1024?1024:512;
+             if(Texture&&CacheWidth==width)return;
+             if(Texture){Texture.Release();Destroy(Texture);}if(climate)Destroy(climate);
+             CacheWidth=width;int height=width/2;
+@@ -49,6 +49,10 @@
+                 }
+                 monthly[y*w+x]=new Color(Mathf.Clamp01(rain/880),Mathf.Clamp01(rainNext/880),Mathf.Clamp01((temp*.25f+25)/65),Mathf.Clamp01((tempNext*.25f+25)/65));
+             }
++            Color south=Color.clear,north=Color.clear;
++            for(int x=0;x<w;x++){south+=(Color)monthly[x];north+=(Color)monthly[(h-1)*w+x];}
++            bake.SetVector("_ClimatePoleSouth",(Vector4)(south/w));bake.SetVector("_ClimatePoleNorth",(Vector4)(north/w));
++            bake.SetFloat("_ClimateRows",h);
+             climate.SetPixels32(monthly);climate.Apply(false,false);month=m;revision=world.TerrainRevision;
+         }
+         public void Tick(float delta,bool needed,bool animate,bool autoSun,int width)
+@@ -67,7 +71,7 @@
+                 bake.SetFloat("_VisualTime",(float)Clock);
+                 bake.SetFloat("_MonthBlend",(float)(world.Day%30)/30f);
+                 Graphics.Blit(Texture2D.blackTexture,Texture,bake,0);rendered=true;
+-                Status="二维云缓存 "+CacheWidth+"×"+(CacheWidth/2)+" · 最高 5 Hz · 月气候驱动的分层视觉（非第二套天气模拟）";
++                Status="二维云缓存 "+CacheWidth+"×"+(CacheWidth/2)+" · 最高 5 Hz · 共用体积云密度源";
+             }
+             catch(Exception ex){failed=true;rendered=false;Status="云缓存已安全关闭："+ex.Message;Debug.LogException(ex);}
+         }
+--- 3.3.1/Assets/ORBIS/Runtime/FlatWorld/Presentation/FlatWorldApp.cs
++++ 3.3.2/Assets/ORBIS/Runtime/FlatWorld/Presentation/FlatWorldApp.cs
+@@ -235,8 +235,8 @@
+             globeMode=!navigation.IsFlat;pixelsPerTile=navigation.PixelsPerTile;pan=navigation.CenterTile;
+             map.Configure(gridToggle.value,pixelsPerTile);
+             bool natural=map.Layer==MapLayer.Natural||map.Layer==MapLayer.Nations;
+-            bool skyNeeded=natural&&(cloudToggle.value||cloudToggle.value||false||false);
+-            map.Sky.Tick(dt,skyNeeded,animate,false,128<<Mathf.Clamp(cloudQuality.index,0,2));
++            bool skyNeeded=natural&&cloudToggle.value;
++            map.Sky.Tick(dt,skyNeeded,animate,false,256<<Mathf.Clamp(cloudQuality.index,0,2));
+             Vector3 sun=map.Sky.Sun(180f,CalendarDay,true);
+             bool waterView=natural||map.Layer==MapLayer.Water;
+             map.LocalWater.Tick(dt,pan.x,pan.y,navigation.IsFlat&&true&&true&&waterView&&pixelsPerTile>=8,animate);
+--- 3.3.1/Assets/ORBIS/Runtime/OrbisAtmosphereRenderer.cs
++++ 3.3.2/Assets/ORBIS/Runtime/OrbisAtmosphereRenderer.cs
+@@ -10,6 +10,8 @@
+     {
+         public OrbisPlanetView view;
+         public OrbisMapView atlas;
++        public Orbis.Flat.FlatScrollNavigator scroll;
++        public float scrollVolumeWeight=1;
+         [Tooltip("Bypass half-resolution buffers to compare thin silhouettes and UV orientation.")]
+         public bool fullResolutionReference;
+         [Range(0,5)]public int cloudDebug;
+@@ -20,7 +22,7 @@
+         static readonly string[] RayNames={"_RayBL","_RayTL","_RayTR","_RayBR"};
+         static readonly string[] MapNames={"_MapBL","_MapTL","_MapTR","_MapBR"};
+         static readonly Vector2[] MapUV={new Vector2(0,0),new Vector2(0,1),new Vector2(1,1),new Vector2(1,0)};
+-        static readonly float[] Scale={.35f,.5f,.65f,1f};
++        static readonly float[] Scale={.5f,.65f,.8f,1f};
+         static readonly int[] CloudSteps={32,48,64,64};
+         static readonly int[] AirSteps={16,24,32,48};
+         static readonly int[] LightSteps={2,3,4,6};
+@@ -42,6 +44,17 @@
+         }
+         bool SetAtlasRays(Material m)
+         {
++            if(scroll)
++            {
++                for(int i=0;i<4;i++)
++                {
++                    Vector2 screen=cameraComponent.pixelRect.min+Vector2.Scale(MapUV[i],cameraComponent.pixelRect.size);
++                    if(!scroll.TryFlatPoint(screen,out Vector2 tile))return false;
++                    var world=view.world.FlatSource;
++                    m.SetVector(MapNames[i],new Vector4(-(tile.x/world.Width-.5f)*Mathf.PI*2,(tile.y/world.Height-.5f)*Mathf.PI,0,0));
++                }
++                m.SetFloat("_ScrollCloudSource",1);return true;
++            }
+             if(!atlas)return false;
+             Plane plane=new Plane(atlas.transform.forward,atlas.transform.position);
+             Vector2[] uv=MapUV;
+@@ -79,18 +92,19 @@
+                 Graphics.Blit(source,destination);return;
+             }
+             var settings=view.world.settings;
+-            bool map=atlas&&atlas.isActiveAndEnabled&&cameraComponent.orthographic;
++            bool map=scroll?scroll.Morph>=.5f:atlas&&atlas.isActiveAndEnabled&&cameraComponent.orthographic;
+             bool natural=view.layer==0||view.layer==1;
+-            if(settings.surfaceDebug>0||!natural||(!view.VolumeVisible&&!map)||
+-                (!settings.atmosphere&&(!settings.clouds||(map&&!settings.mapClouds))))
++            if((scroll&&scrollVolumeWeight<=.0001f)||settings.surfaceDebug>0||!natural||(!view.VolumeVisible&&!map)||
++                (!settings.atmosphere&&(!settings.clouds||(map&&!scroll&&!settings.mapClouds))))
+             {DisplayOnly(source,destination);return;}
+             Material m=view.CloudMaterial;
+             if(!m||!m.shader.isSupported){DisplayOnly(source,destination);return;}
+             int q=Mathf.Clamp(settings.cloudQuality,0,3);
++            m.SetFloat("_ScrollVolumeWeight",scroll?scrollVolumeWeight:1);
+             m.SetInt("_CloudSteps",CloudSteps[q]);m.SetInt("_AirSteps",AirSteps[q]);m.SetInt("_LightSteps",LightSteps[q]);m.SetInt("_CloudDebug",cloudDebug);
+             if(map)
+             {
+-                m.SetFloat("_Clouds",settings.clouds&&settings.mapClouds?1:0);
++                m.SetFloat("_Clouds",settings.clouds&&(scroll||settings.mapClouds)?1:0);
+                 if(!SetAtlasRays(m)){DisplayOnly(source,destination);return;}
+             }
+             else

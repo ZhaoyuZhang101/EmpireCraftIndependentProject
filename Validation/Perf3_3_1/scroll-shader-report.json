@@ -1,0 +1,8 @@
+{
+  "status": "PASS",
+  "scope": "Compile source-derived scroll color and projection functions with Mesa GLES; not Unity HLSL.",
+  "compiled_color_variants": 2,
+  "compiled_projection_vertex": 1,
+  "unity_depth_macros_validated": false,
+  "unity_executed": false
+}

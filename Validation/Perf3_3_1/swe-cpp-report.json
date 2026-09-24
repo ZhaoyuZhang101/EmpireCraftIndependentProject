@@ -1,0 +1,17 @@
+{
+  "utc": "2026-09-12T08:28:08.374104+00:00",
+  "scope": "Mechanical C++17 translation of actual FlatShallowWater.cs numerical methods; no C# runtime or Unity/GPU execution.",
+  "source_sha256": "da80b530dd51195f46c113bb8a12fe43fc09b27f07c93bcd4e36aad40f8d17c9",
+  "csharp_executed": false,
+  "unity_editor_executed": false,
+  "compiler_warnings": "",
+  "result": {
+    "status": "PASS",
+    "assertions": 4919856,
+    "variants": 4,
+    "simulation_seconds_per_variant": 120,
+    "maximum_relative_volume_error": 2.6645352591003757e-15,
+    "maximum_lake_at_rest_error_m": 0,
+    "minimum_depth_m": 0
+  }
+}

@@ -1,0 +1,20 @@
+{
+  "utc": "2026-09-12T08:28:05.096046+00:00",
+  "scope": "Actual method bodies translated to C++17; array/world wrappers are test scaffolding. Not native C#, Unity or HLSL.",
+  "source_sha256": {
+    "FlatSurfaceSampling.cs": "f823f27661d3c63509afcf48387ff1a87e5425654d6cafaa1ebb6184866e1bf6",
+    "FlatWaterGeometry.cs": "6b7a24e659685161fc6b01caf2dc15b91742f58729cdb92562a20c638c48c000",
+    "FlatEcology.cs": "319b07aa4b0c9ac68f1325507b1caf7f1cd25d958ceb57334309264d099eb49b"
+  },
+  "csharp_executed": false,
+  "unity_editor_executed": false,
+  "result": {
+    "status": "PASS",
+    "assertions": 677030,
+    "random_cubic_cases": 10000,
+    "edt_cases": 8,
+    "maximum_edt_error": 0,
+    "river_boundary_distance_disagreement_tiles": 0,
+    "cover_mask": 16383
+  }
+}

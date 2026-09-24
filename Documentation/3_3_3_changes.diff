@@ -1,0 +1,710 @@
+--- 3.3.2/Assets/ORBIS/Editor/FlatSeamValidation.cs
++++ 3.3.3/Assets/ORBIS/Editor/FlatSeamValidation.cs
+@@ -0,0 +1,118 @@
++#if UNITY_EDITOR
++using System;
++using System.Collections.Generic;
++using System.IO;
++using System.Reflection;
++using UnityEditor;
++using UnityEngine;
++using Orbis.Flat;
++using Orbis.Planet;
++
++namespace Orbis.EditorTools
++{
++    // Real Editor regression for event-after-Update commits and the return threshold.
++    public static class FlatSeamValidation
++    {
++        [Serializable] sealed class Report
++        {
++            public string status,device,unityVersion;
++            public bool visualFlickerVerified=false;
++            public List<string> checks=new List<string>();
++        }
++        static Report report;
++        static FlatWorldApp app;static FlatScrollNavigator nav;static Camera camera;
++        static FieldInfo pauseField;static bool savedPause;
++        static int phase,target,settled;static double deadline;static float threshold;
++        [MenuItem("Tools/ORBIS/Perf3.3/5 Verify seam commit and return scale in Play Mode")]
++        public static void Run()
++        {
++            if(report!=null&&report.status=="RUNNING"){Debug.LogWarning("Seam validation is already running.");return;}
++            if(!EditorApplication.isPlaying){Debug.LogWarning("Enter Play Mode in Orbis2DWorld.unity first.");return;}
++            app=UnityEngine.Object.FindFirstObjectByType<FlatWorldApp>();
++            if(!app||app.World==null||app.Busy||!app.Navigation){Debug.LogWarning("Wait for world generation.");return;}
++            nav=app.Navigation;camera=app.GetComponentInChildren<Camera>();
++            pauseField=typeof(FlatWorldApp).GetField("paused",BindingFlags.Instance|BindingFlags.NonPublic);
++            savedPause=(bool)pauseField.GetValue(app);pauseField.SetValue(app,true);
++            report=new Report{status="RUNNING",device=SystemInfo.graphicsDeviceName,unityVersion=Application.unityVersion};
++            target=app.World.Height/2*app.World.Width+app.World.Width-1;
++            phase=settled=0;deadline=EditorApplication.timeSinceStartup+90;
++            nav.GoGlobe(app.CalendarDay);EditorApplication.update+=Step;
++        }
++        static void Require(bool value,string message) { if(!value)throw new InvalidOperationException(message); }
++        static void CheckCommit()
++        {
++            // Read immediately after PanBy, before another application Update/SyncMaterials.
++            Vector4 anchor=nav.SurfaceMaterial.GetVector("_ScrollAnchor"),bound=nav.SurfaceMaterial.GetVector("_ScrollPan");
++            double expected=anchor.x*app.World.Width+PlanetCoordinateSystem.NearestOffset(nav.CenterTile.x-anchor.x*app.World.Width,app.World.Width);
++            Require(Math.Abs(bound.x-expected)<.002&&Math.Abs(bound.y-nav.CenterTile.y)<.002,"PanBy published stale shader coordinates");
++            int visible=0;
++            float half=camera.pixelWidth/Mathf.Max(.1f,nav.PixelsPerTile)*.5f;
++            foreach(var renderer in nav.GetComponentsInChildren<MeshRenderer>())
++            {
++                if(!renderer.name.StartsWith("Shared terrain sheet ",StringComparison.Ordinal))continue;
++                var block=new MaterialPropertyBlock();renderer.GetPropertyBlock(block);float copy=block.GetFloat("_ScrollCopy");
++                float left=(anchor.x-.5f+copy)*app.World.Width,right=left+app.World.Width;
++                bool expectedVisible=right>=bound.x-half-1&&left<=bound.x+half+1;
++                Require(renderer.enabled==expectedVisible,"Copy visibility disagrees with bound projection");
++                if(renderer.enabled)visible++;
++            }
++            Require(visible==nav.ActiveSheets&&visible>0,"Missing visible terrain sheets");
++        }
++        static void Step()
++        {
++            try
++            {
++                Require(EditorApplication.isPlaying&&app&&nav,"Play Mode or world ended");
++                Require(EditorApplication.timeSinceStartup<deadline,"Seam/return regression timed out");
++                int w=app.World.Width;
++                if(phase==0&&nav.IsGlobe){nav.Focus(target,app.CalendarDay);phase=1;}
++                else if(phase==1&&nav.IsFlat&&Mathf.Abs(nav.PixelsPerTile-48)<.01f&&++settled>3)
++                {
++                    foreach(float move in new[]{.51f,-.02f,.02f,w*3f,-w*7f}){nav.PanBy(new Vector2(move,0));CheckCommit();}
++                    float cut=(nav.SurfaceMaterial.GetVector("_ScrollAnchor").x+.5f)*w;
++                    nav.PanBy(new Vector2((float)PlanetCoordinateSystem.NearestOffset(cut-nav.CenterTile.x,w)-.02f,0));CheckCommit();
++                    nav.PanBy(new Vector2(.04f,0));CheckCommit();
++                    report.checks.Add("Immediate material/copy agreement across longitude zero, moving sheet cut, and repeated laps");
++                    target=nav.Pick(camera.pixelRect.center);threshold=nav.ReturnPixelsPerTile;
++                    nav.Wheel(24,camera.pixelRect.center,app.CalendarDay);
++                    // A second notch can be needed for unusually small landing scales.
++                    nav.Wheel(24,camera.pixelRect.center,app.CalendarDay);phase=2;
++                }
++                else if(phase==2)
++                {
++                    if(nav.IsFlat)Require(nav.PixelsPerTile>=threshold*.999f,"Wheel zoomed below the landing threshold");
++                    if(nav.IsGlobe)
++                    {
++                        Require(nav.Pick(camera.pixelRect.center)==target,"Wheel return changed focused Tile ID");
++                        report.checks.Add("Wheel returned at landing scale and preserved current centre Tile "+target);
++                        nav.Focus(target,app.CalendarDay);phase=3;settled=0;
++                    }
++                }
++                else if(phase==3&&nav.IsFlat&&Mathf.Abs(nav.PixelsPerTile-48)<.01f&&++settled>3)
++                {
++                    float pixels=nav.PixelsPerTile,size=camera.orthographicSize;
++                    nav.GoGlobe(app.CalendarDay);
++                    Require(Mathf.Abs(nav.PixelsPerTile-pixels)<.001f&&Mathf.Abs(camera.orthographicSize-size)<.00001f,"Direct return changed the detailed-view scale");
++                    CheckCommit();phase=4;
++                }
++                else if(phase==4&&nav.IsGlobe)
++                {
++                    Require(nav.Pick(camera.pixelRect.center)==target,"Direct return changed focused Tile ID");
++                    report.checks.Add("Direct return folds from the detailed view without an atlas-fit step");
++                    report.status="PASS";Finish();
++                }
++            }
++            catch(Exception e){report.status="FAIL";report.checks.Add(e.ToString());Finish();}
++        }
++        static void Finish()
++        {
++            EditorApplication.update-=Step;
++            if(app&&pauseField!=null)pauseField.SetValue(app,savedPause);
++            string dir=Path.Combine(Directory.GetParent(Application.dataPath).FullName,"Validation","Perf3_3_3");
++            Directory.CreateDirectory(dir);File.WriteAllText(Path.Combine(dir,"seam-return-unity-report.json"),JsonUtility.ToJson(report,true));
++            if(report.status=="PASS")Debug.Log("ORBIS seam/return checks PASS. Inspect moving imagery separately; view remains at the test location.");
++            else Debug.LogError("ORBIS seam/return checks FAIL: "+string.Join("\n",report.checks));
++        }
++    }
++}
++#endif
+--- 3.3.2/Assets/ORBIS/Resources/ORBIS/FlatWorld/FlatMap.shader
++++ 3.3.3/Assets/ORBIS/Resources/ORBIS/FlatWorld/FlatMap.shader
+@@ -5,6 +5,8 @@
+   _MainTex("Map",2D)="white"{} _OwnerTex("Ownership",2D)="black"{} _InfoTex("Semantic data",2D)="black"{}
+   _HydroA("Depth flow channel width",2D)="black"{} _HydroB("Shore sediment freshwater links",2D)="black"{}
+   _GeoTex("Height material soil water",2D)="black"{} _SWEState("Local shallow water",2D)="gray"{}
++  [HideInInspector] _SWEPreviousState("Previous shallow water patch",2D)="gray"{}
++  [HideInInspector] _SWEBlend("Patch transition",Float)=1
+   _VisualTex("Continuous presentation fields",2D)="black"{} _SkyTex("Climate cloud layers",2D)="black"{}
+  }
+  SubShader
+--- 3.3.2/Assets/ORBIS/Resources/ORBIS/FlatWorld/FlatPixelDetail.cginc
++++ 3.3.3/Assets/ORBIS/Resources/ORBIS/FlatWorld/FlatPixelDetail.cginc
+@@ -75,8 +75,8 @@
+   float conifer=step(16.5,rootInfo.a)*step(rootInfo.a,28.5);
+   if(conifer>.5)
+   {
+-   float triangle=max(abs(leafPoint.x)-min(10.5,max(0,8-leafPoint.y*.35)),abs(leafPoint.y-1)-13);
+-   crownMask=1-step(0,triangle);inner=1-step(-1,triangle);
++   float coniferEdgeDistance=max(abs(leafPoint.x)-min(10.5,max(0,8-leafPoint.y*.35)),abs(leafPoint.y-1)-13);
++   crownMask=1-step(0,coniferEdgeDistance);inner=1-step(-1,coniferEdgeDistance);
+    float tier=frac((leafPoint.y+14)/7);
+    foliage=lerp(float3(.09,.19,.15),float3(.24,.37,.23),tier*.6+sunward*.4);
+   }
+--- 3.3.2/Assets/ORBIS/Resources/ORBIS/FlatWorld/PlanetCoordinates.cginc
++++ 3.3.3/Assets/ORBIS/Resources/ORBIS/FlatWorld/PlanetCoordinates.cginc
+@@ -0,0 +1,9 @@
++#ifndef ORBIS_PLANET_COORDINATES
++#define ORBIS_PLANET_COORDINATES
++// Same canonical axes as PlanetCoordinateSystem.cs. Reflection/spin belong to presentation.
++float3 PlanetSurfaceNormal(float2 geo)
++{
++ float lon=(geo.x-.5)*6.283185307179586,lat=(geo.y-.5)*3.141592653589793;
++ return float3(cos(lat)*sin(lon),sin(lat),cos(lat)*cos(lon));
++}
++#endif
+--- 3.3.2/Assets/ORBIS/Resources/ORBIS/FlatWorld/ScrollProjection.cginc
++++ 3.3.3/Assets/ORBIS/Resources/ORBIS/FlatWorld/ScrollProjection.cginc
+@@ -2,6 +2,7 @@
+ #ifndef ORBIS_SCROLL_PROJECTION
+ #define ORBIS_SCROLL_PROJECTION
+ #include "ScrollHeight.cginc"
++#include "PlanetCoordinates.cginc"
+ float4 _ScrollAnchor, _ScrollPan;
+ float3 _ScrollRight, _ScrollUp, _ScrollNormal;
+ float _ScrollMorph, _ScrollSpin, _ScrollCopy;
+@@ -18,9 +19,8 @@
+  float3 plane=_ScrollNormal+_ScrollRight*delta.x+_ScrollUp*delta.y;
+  plane+=_ScrollNormal*shell*.006;
+  if(_ScrollMorph>=1) return plane;
+- float lon=(geo.x-.5)*6.28318530718,lat=(geo.y-.5)*3.14159265359;
+- // Z reflection gives a north-up, east-right front face. The native volume uses the same transform.
+- float3 radial=float3(cos(lat)*sin(lon),sin(lat),-cos(lat)*cos(lon));
++ // Presentation reflection is shared by the CPU tangent frame and native cloud transform.
++ float3 radial=PlanetSurfaceNormal(geo);radial.z=-radial.z;
+  float2 heightUV=geo;
+  // Every longitude converges to the same polar radius over the last source row.
+  float4 field=tex2Dlod(_VisualTex,float4(heightUV,0,0));
+--- 3.3.2/Assets/ORBIS/Resources/ORBIS/FlatWorld/ScrollSurface.shader
++++ 3.3.3/Assets/ORBIS/Resources/ORBIS/FlatWorld/ScrollSurface.shader
+@@ -5,6 +5,8 @@
+   _MainTex("Map",2D)="white"{} _OwnerTex("Ownership",2D)="black"{} _InfoTex("Semantic data",2D)="black"{}
+   _HydroA("Depth flow channel width",2D)="black"{} _HydroB("Shore sediment freshwater links",2D)="black"{}
+   _GeoTex("Height material soil water",2D)="black"{} _SWEState("Local shallow water",2D)="gray"{}
++  [HideInInspector] _SWEPreviousState("Previous shallow water patch",2D)="gray"{}
++  [HideInInspector] _SWEBlend("Patch transition",Float)=1
+   _VisualTex("Continuous presentation fields",2D)="black"{} _SkyTex("Climate cloud layers",2D)="black"{}
+  }
+  SubShader
+--- 3.3.2/Assets/ORBIS/Resources/ORBIS/FlatWorld/Water/FlatWater.cginc
++++ 3.3.3/Assets/ORBIS/Resources/ORBIS/FlatWorld/Water/FlatWater.cginc
+@@ -4,9 +4,10 @@
+ #include "../FlatSurfaceField.cginc"
+ sampler2D _HydroA,_HydroB,_GeoTex;
+ #ifndef ORBIS_FLAT_NO_SWE
+-sampler2D _SWEState;
++sampler2D _SWEState,_SWEPreviousState;
+ #endif
+-float4 _SWERect;
++float4 _SWERect,_SWEPreviousRect;
++float _SWEPreviousReady,_SWEBlend;
+ float _SWEReady,_WaterClock,_ShowBanks,_ShowWater,_ShowPlumes,_WaveAmount;
+ float2 FlatEdge(int direction)
+ {
+@@ -56,16 +57,16 @@
+         float candidate=FlatBezierDistance(p,FlatEdge(d),b,float2(.5,.5),radii[d],rb,hydro.a,direction);
+         if(candidate<result){result=candidate;bestTangent=direction;}
+     }
+-    [loop] for(int d=0;d<4;d++)
++    [loop] for(int faceIndex=0;faceIndex<4;faceIndex++)
+     {
+-        if(links[d]<.5)continue;
+-        float face=d==0?p.x:d==1?1-p.x:d==2?p.y:1-p.y;
+-        float across=abs((d<2?p.y:p.x)-.5);
++        if(links[faceIndex]<.5)continue;
++        float face=faceIndex==0?p.x:faceIndex==1?1-p.x:faceIndex==2?p.y:1-p.y;
++        float across=abs((faceIndex<2?p.y:p.x)-.5);
+         if(face<.10&&across<.45)
+         {
+             float weight=smoothstep(0,.10,face);
+-            result=lerp(across-radii[d],result,weight);
+-            float2 direction=(FlatEdge(d)-.5)*2*(d==outlet?1:-1);
++            result=lerp(across-radii[faceIndex],result,weight);
++            float2 direction=(FlatEdge(faceIndex)-.5)*2*(faceIndex==outlet?1:-1);
+             bestTangent=normalize(lerp(direction,bestTangent,weight)+float2(1e-7,0));
+         }
+     }
+@@ -122,6 +123,18 @@
+     float periods=max(1,floor(_MapSize.x*desiredFrequency/6.2831853+.5));
+     return x*6.2831853*periods/max(1,_MapSize.x);
+ }
++#ifndef ORBIS_FLAT_NO_SWE
++float3 FlatPatchContribution(sampler2D patchTexture,float4 rect,float ready,float2 cell)
++{
++    float2 delta=cell-rect.xy;
++    delta.x-=floor(delta.x/max(1,_MapSize.x))*_MapSize.x;
++    float2 uv=delta/max(float2(1,1),rect.zw);
++    float inside=step(0,uv.x)*step(0,uv.y)*step(uv.x,1)*step(uv.y,1)*ready;
++    float fade=smoothstep(0,.12,min(min(uv.x,uv.y),min(1-uv.x,1-uv.y)));
++    float4 state=tex2D(patchTexture,saturate(uv));
++    return float3((state.rg*255-128)/127*.18*state.a,state.b*.35)*inside*fade;
++}
++#endif
+ float3 FlatWaterShade(float2 cell,float4 hydro,float4 mixing,float4 field,float3 bottom,float3 light,
+                      float3 localView,float3 localLight,float waveStrength)
+ {
+@@ -134,18 +147,17 @@
+     float2 slope1=float2(cos(p1.x)*sin(p1.y*.83),sin(p1.x)*cos(p1.y));
+     float2 slopes=lerp(slope0,slope1,blend)*.045;
+     slopes+=float2(sin(FlatPeriodicX(cell.x,2.1)+cell.y*1.3-_WaterClock*1.8),cos(FlatPeriodicX(cell.x,1.2)-cell.y*1.8-_WaterClock*1.6))*.025;
+-    float footprint=max(length(ddx(cell*6)),length(ddy(cell*6)));
++    float2 cellDx=ddx(cell),cellDy=ddy(cell);
++    cellDx.x-=floor(cellDx.x/_MapSize.x+.5)*_MapSize.x;
++    cellDy.x-=floor(cellDy.x/_MapSize.x+.5)*_MapSize.x;
++    float footprint=max(length(cellDx*6),length(cellDy*6));
+     slopes*=1-smoothstep(1,4,footprint);
+     float localFoam=0;
+ #ifndef ORBIS_FLAT_NO_SWE
+-    float2 patchDelta=cell-_SWERect.xy;
+-    patchDelta.x-=floor(patchDelta.x/max(1,_MapSize.x))*_MapSize.x;
+-    float2 patchUV=patchDelta/max(float2(1,1),_SWERect.zw);
+-    float inPatch=step(0,patchUV.x)*step(0,patchUV.y)*step(patchUV.x,1)*step(patchUV.y,1)*_SWEReady;
+-    float4 state=tex2D(_SWEState,saturate(patchUV));
+-    float fade=smoothstep(0,.12,min(min(patchUV.x,patchUV.y),min(1-patchUV.x,1-patchUV.y)));
+-    slopes+=(state.rg*255-128)/127*.18*inPatch*fade*state.a;
+-    localFoam=state.b*inPatch*fade*.35;
++    float3 localContribution=FlatPatchContribution(_SWEState,_SWERect,_SWEReady,cell);
++    if(_SWEBlend<1)
++        localContribution=lerp(FlatPatchContribution(_SWEPreviousState,_SWEPreviousRect,_SWEPreviousReady,cell),localContribution,smoothstep(0,1,_SWEBlend));
++    slopes+=localContribution.xy;localFoam=localContribution.z;
+ #endif
+     float3 normal=normalize(float3(-slopes*waveStrength,1));
+     float nv=saturate(dot(normal,localView)),nl=saturate(dot(normal,localLight));
+--- 3.3.2/Assets/ORBIS/Runtime/FlatWorld/Presentation/FlatLocalWater.cs
++++ 3.3.3/Assets/ORBIS/Runtime/FlatWorld/Presentation/FlatLocalWater.cs
+@@ -8,7 +8,8 @@
+     public sealed class FlatLocalWater : MonoBehaviour
+     {
+         const int Resolution=64,Span=16;
+-        WorldData world;Material material;Texture2D texture;
++        WorldData world;Material material;Texture2D texture,previousTexture;
++        float presentationBlend=1;bool published,hasPrevious;
+         FlatShallowWater solver;Task<Frame> pending;
+         int startX=-1000,startY=-1000;float age;bool stopped,ripple;
+         byte[] pixelBuffer=new byte[Resolution*Resolution*4];
+@@ -18,7 +19,9 @@
+         {
+             world=source;material=target;
+             texture=new Texture2D(Resolution,Resolution,TextureFormat.RGBA32,false,true){name="SWE local normals and foam",filterMode=FilterMode.Bilinear,wrapMode=TextureWrapMode.Clamp,anisoLevel=0};
+-            material.SetTexture("_SWEState",texture);material.SetFloat("_SWEReady",0);
++            previousTexture=new Texture2D(Resolution,Resolution,TextureFormat.RGBA32,false,true){name="SWE previous world patch",filterMode=FilterMode.Bilinear,wrapMode=TextureWrapMode.Clamp,anisoLevel=0};
++            material.SetTexture("_SWEState",texture);material.SetTexture("_SWEPreviousState",previousTexture);
++            material.SetFloat("_SWEReady",0);material.SetFloat("_SWEPreviousReady",0);material.SetFloat("_SWEBlend",1);
+         }
+         public void RequestRipple(){ripple=true;}
+         public void Tick(float dt,float focusX,float focusY,bool visible,bool animate)
+@@ -28,6 +31,7 @@
+             // Double presentation clock; no global simulation time or topology writes.
+             material.SetFloat("_WaterClock",(float)clock);
+             bool active=visible&&!stopped;
++            presentationBlend=Mathf.Min(1,presentationBlend+Mathf.Max(0,dt)/.22f);
+             int x=FMath.Wrap(Mathf.FloorToInt((focusX-Span*.5f)/4)*4,world.Width);
+             int y=Mathf.Clamp(Mathf.FloorToInt((focusY-Span*.5f)/4)*4,0,world.Height-Span);
+             if(pending!=null&&pending.IsCompleted)
+@@ -35,20 +39,33 @@
+                 var task=pending;pending=null;
+                 try
+                 {
+-                    Frame f=task.GetAwaiter().GetResult();solver=f.Solver;startX=f.X;startY=f.Y;
++                    Frame f=task.GetAwaiter().GetResult();
++                    bool moved=!published||f.X!=startX||f.Y!=startY;
++                    if(moved)
++                    {
++                        // Keep the old world-aligned patch visible while its replacement arrives.
++                        var swap=previousTexture;previousTexture=texture;texture=swap;
++                        hasPrevious=published;presentationBlend=0;
++                        material.SetTexture("_SWEState",texture);material.SetTexture("_SWEPreviousState",previousTexture);
++                        material.SetVector("_SWEPreviousRect",new Vector4(startX,startY,Span,Span));
++                    }
++                    solver=f.Solver;startX=f.X;startY=f.Y;published=true;
+                     texture.LoadRawTextureData(f.RGBA);texture.Apply(false,false);
+                     material.SetVector("_SWERect",new Vector4(startX,startY,Span,Span));
+                     Status="局部 SWE 64×64 / 10Hz；相对水量误差 "+f.MassError.ToString("E2")+"（可视波动，不改全球水量）";
+                 }
+                 catch(Exception e){stopped=true;active=false;Status="局部 SWE 已降级为流向波纹："+e.Message;Debug.LogWarning(Status);}
+             }
+-            material.SetFloat("_SWEReady",active&&solver!=null&&x==startX&&y==startY?1:0);
++            // A camera move does not invalidate data already published at these world coordinates.
++            material.SetFloat("_SWEReady",active&&published?1:0);
++            material.SetFloat("_SWEPreviousReady",active&&hasPrevious?1:0);
++            material.SetFloat("_SWEBlend",presentationBlend);
+             if(!active){if(!stopped)Status=visible?"局部 SWE 暂停":"局部 SWE：关闭或视图太远；使用低成本流向波纹";return;}
+-            if(pending!=null||!animate)return;
++            if(pending!=null||!animate||presentationBlend<1)return;
+             age+=dt;bool changed=x!=startX||y!=startY||solver==null;
+             if(age<.1f&&!changed&&!ripple)return;
+             float step=Mathf.Min(.12f,Mathf.Max(.025f,age));age=0;
+-            bool disturbance=ripple||changed;ripple=false;
++            bool disturbance=ripple;ripple=false;
+             var current=changed?null:solver;WorldData source=world;
+             pending=Task.Run(()=>Solve(source,current,x,y,step,disturbance,pixelBuffer));
+         }
+@@ -91,12 +108,12 @@
+             }
+             return new Frame{Solver=current,RGBA=bytes,X=x0,Y=y0,MassError=current.RelativeMassError()};
+         }
+-        void OnDisable(){if(material)material.SetFloat("_SWEReady",0);}
++        void OnDisable(){if(material){material.SetFloat("_SWEReady",0);material.SetFloat("_SWEPreviousReady",0);}}
+         void OnDestroy()
+         {
+             // Workers hold managed snapshots only. Observe late exceptions; never touch destroyed Unity objects.
+             if(pending!=null)pending.ContinueWith(t=>{if(t.IsFaulted){var observed=t.Exception;}},TaskScheduler.Default);
+-            if(texture)Destroy(texture);
++            if(texture)Destroy(texture);if(previousTexture)Destroy(previousTexture);
+         }
+     }
+ }
+--- 3.3.2/Assets/ORBIS/Runtime/FlatWorld/Presentation/FlatScrollNavigator.cs
++++ 3.3.3/Assets/ORBIS/Runtime/FlatWorld/Presentation/FlatScrollNavigator.cs
+@@ -2,6 +2,7 @@
+ using System.Collections.Generic;
+ using UnityEngine;
+ using UnityEngine.Rendering;
++using Orbis.Planet;
+ 
+ namespace Orbis.Flat
+ {
+@@ -24,12 +25,19 @@
+         readonly List<MeshRenderer> surfaces = new List<MeshRenderer>();
+         readonly List<MeshRenderer> routes = new List<MeshRenderer>();
+         readonly List<MaterialPropertyBlock> blocks = new List<MaterialPropertyBlock>();
+-        Vector2 anchor = new Vector2(.5f, .5f), pan;
++        Vector2 anchor = new Vector2(.5f, .5f);
++        PeriodicMapPosition mapPosition;
++        Vector2 pan
++        {
++            get { return new Vector2((float)mapPosition.X,(float)mapPosition.Y); }
++            set { mapPosition.Set(value.x,value.y,world.Width,world.Height); }
++        }
++        public PlanetTangentFrame LocalFrame { get; private set; }
+         Vector3 east = Vector3.right, north = Vector3.up, normal = Vector3.back;
+         float distance = 3.1f, targetDistance = 3.1f, yaw = 0, pitch = 18;
+-        float endGap = DefaultEndGap, pixels = 16, entryPixels = 16, morph, displaySpin;
++        float endGap = DefaultEndGap, pixels = 16, entryPixels = 16, entryViewportHeight = 1, morph, displaySpin;
+         double lockedDay, currentDay;
+-        bool landingLocked, atlasPending, overview, exitPending;
++        bool landingLocked, atlasPending, overview, exitPending, entryScaleRecorded;
+         int pendingFocus=-1; bool focusZoom;Vector2 focusCenter; float targetPixels=-1; Vector2 zoomScreen; bool zoomAnchor;
+         int[] route = new int[0];
+         Vector2 lastRoutePan = new Vector2(float.NaN, float.NaN);
+@@ -44,10 +52,11 @@
+         public bool IsTransitioning { get { return morph > 0 && morph < 1; } }
+         public bool Overview { get { return IsFlat && pixels < 24; } }
+         public bool IsDetailed { get { return IsFlat && pixels >= 24; } }
+-        public float DetailWeight { get { return IsFlat ? Mathf.SmoothStep(0,1,Mathf.InverseLerp(12,32,pixels)) : 0; } }
++        public float DetailWeight { get { return Mathf.SmoothStep(0,1,Mathf.InverseLerp(12,32,pixels))*Mathf.SmoothStep(0,1,Mathf.InverseLerp(.72f,1,morph)); } }
+         public float Morph { get { return morph; } }
+         public float DisplaySpin { get { return displaySpin; } }
+         public float PixelsPerTile { get { return pixels; } }
++        public float ReturnPixelsPerTile { get { return Mathf.Max(.25f,entryPixels*camera.pixelHeight/Mathf.Max(1,entryViewportHeight)); } }
+         public float Distance { get { return distance; } }
+         public Vector2 CenterTile { get { return pan; } }
+         public Material SurfaceMaterial { get { return surface; } }
+@@ -118,22 +127,18 @@
+         {
+             if (screenRect.width > 8 && screenRect.height > 8) camera.pixelRect = screenRect;
+         }
+-        static Vector3 SourceNormal(Vector2 uv)
+-        {
+-            float lon = (uv.x - .5f) * Tau, lat = (uv.y - .5f) * Mathf.PI;
+-            return new Vector3(Mathf.Cos(lat) * Mathf.Sin(lon), Mathf.Sin(lat), Mathf.Cos(lat) * Mathf.Cos(lon));
+-        }
++        static Vector3 ToVector3(PlanetVector p) { return new Vector3((float)p.X,(float)p.Y,(float)p.Z); }
+         static Vector3 Reflect(Vector3 p) { p.z = -p.z; return p; }
+         Quaternion Spin(float radians) { return Quaternion.AngleAxis(radians * Mathf.Rad2Deg, Vector3.up); }
+         void LockPlane(Vector2 uv, double day)
+         {
+             anchor = new Vector2((float)FlatScrollMath.Wrap(uv.x, 1), Mathf.Clamp(uv.y, .00001f, .99999f));
+             lockedDay = day; float a = (float)(FlatSolarClock.Phase(day) * Tau);
+-            float lon = (anchor.x - .5f) * Tau, lat = (anchor.y - .5f) * Mathf.PI;
++            LocalFrame=PlanetCoordinateSystem.LocalFrame(PlanetCoordinateSystem.FromMapUV(anchor.x,anchor.y),new PlanetVector(),1);
+             Quaternion spin = Spin(a);
+-            normal = spin * Reflect(SourceNormal(anchor));
+-            east = spin * new Vector3(Mathf.Cos(lon), 0, Mathf.Sin(lon));
+-            north = spin * new Vector3(-Mathf.Sin(lat) * Mathf.Sin(lon), Mathf.Cos(lat), Mathf.Sin(lat) * Mathf.Cos(lon));
++            normal = spin * Reflect(ToVector3(LocalFrame.Up));
++            east = spin * Reflect(ToVector3(LocalFrame.East));
++            north = spin * Reflect(ToVector3(LocalFrame.North));
+             pan = new Vector2(anchor.x * world.Width, anchor.y * world.Height);
+             landingLocked = true;
+         }
+@@ -144,7 +149,7 @@
+             {
+                 if (!TryGlobeUV(camera.pixelRect.center, out uv)) uv = anchor;
+             }
+-            LockPlane(uv, day);
++            entryScaleRecorded=false;LockPlane(uv, day);
+             endGap = camera.pixelHeight * TileScale / (2 * LandingPixels() * Mathf.Tan(Fov * Mathf.Deg2Rad * .5f));
+             overview = true;
+         }
+@@ -159,6 +164,7 @@
+             endGap = camera.orthographicSize / Mathf.Tan(Fov * Mathf.Deg2Rad * .5f);
+             distance = EndDistance; targetDistance = EndDistance;
+             atlasPending = false; overview = false;
++            Tick(0,day); // Rebind camera, terrain and cloud picking frame before the next render.
+         }
+         public void Tick(float dt, double day)
+         {
+@@ -172,13 +178,13 @@
+                 if(focusZoom)
+                 {
+                     float blend=1-Mathf.Exp(-14*dt);
+-                    pan.x+=(float)FlatScrollMath.Shortest(focusCenter.x-pan.x,world.Width)*blend;
+-                    pan.y=Mathf.Lerp(pan.y,focusCenter.y,blend);
++                    mapPosition.Move(PlanetCoordinateSystem.NearestOffset(focusCenter.x-mapPosition.X,world.Width)*blend,
++                        (focusCenter.y-mapPosition.Y)*blend,world.Width,world.Height);
+                 }
+                 if(Mathf.Abs(pixels-targetPixels)<.001f){pixels=targetPixels;targetPixels=-1;if(focusZoom)pan=focusCenter;focusZoom=false;}
+                 camera.orthographicSize=camera.pixelHeight*TileScale/(2*Mathf.Max(.1f,pixels));
+                 camera.ResetProjectionMatrix();
+-                if(hit&&TryFlatPoint(zoomScreen,out after))pan+=before-after;
++                if(hit&&TryFlatPoint(zoomScreen,out after))mapPosition.Move(before.x-after.x,before.y-after.y,world.Width,world.Height);
+             }
+             distance = (float)FlatScrollMath.ExpApproach(distance, targetDistance, 11, dt);
+             if (Mathf.Abs(distance - targetDistance) < .00002f) distance = targetDistance;
+@@ -205,7 +211,8 @@
+                 else if (!camera.orthographic)
+                 {
+                     pixels = Mathf.Max(.25f, camera.pixelHeight * TileScale / (2 * endGap * Mathf.Tan(Fov * Mathf.Deg2Rad * .5f)));
+-                    entryPixels = LandingPixels();
++                    // Record the actual landing scale; preserve world extent across viewport resizes.
++                    if(!entryScaleRecorded){entryPixels=pixels;entryViewportHeight=camera.pixelHeight;entryScaleRecorded=true;}
+                 }
+                 NormalizePan();
+                 camera.orthographic = true; camera.orthographicSize = camera.pixelHeight * TileScale / (2 * Mathf.Max(.1f, pixels));
+@@ -245,22 +252,27 @@
+             }
+             if(IsFlat&&exitPending&&targetPixels<0)
+             {
+-                exitPending=false;ReanchorForExit(day);targetDistance=3.1f;Tick(0,day);return;
+-            }
+-            UpdateSheets(); UpdateRoute();
++                exitPending=false;ReanchorForExit(day);targetDistance=3.1f;return;
++            }
++            CommitProjection();
+         }
+         float TileScale { get { return Tau / world.Width; } }
+         float LandingPixels() { return Mathf.Max(FitPixels(),8); }
+         float FitPixels() { return Mathf.Max(camera.pixelWidth / (world.Width * 3f), Mathf.Min(camera.pixelWidth / (float)world.Width, camera.pixelHeight / (float)world.Height) * .94f); }
+         void NormalizePan()
+         {
+-            pan.x = (float)FlatScrollMath.Wrap(pan.x, world.Width);
+-            // Keep the geographical focus even when the viewport extends beyond a pole.
+-            pan.y=Mathf.Clamp(pan.y,.0001f,world.Height-.0001f);
++            mapPosition.Normalize(world.Width,world.Height);
+         }
+         Vector2 RenderPan
+         {
+-            get { return new Vector2(anchor.x * world.Width + (float)FlatScrollMath.Shortest(pan.x - anchor.x * world.Width, world.Width), pan.y); }
++            get { return new Vector2((float)mapPosition.RenderX((double)anchor.x*world.Width,world.Width),(float)mapPosition.Y); }
++        }
++        void CommitProjection()
++        {
++            // Input callbacks can run AFTER FlatWorldApp.Update. Rebase the material and
++            // culling copies together; never expose new sheet visibility with yesterday's pan.
++            if(surface)ApplyProjection(surface);
++            UpdateSheets(); UpdateRoute();
+         }
+         void UpdateSheets()
+         {
+@@ -285,7 +297,7 @@
+         {
+             if (!maps || !surface) return;
+             surface.CopyPropertiesFromMaterial(maps.Material);
+-            ApplyProjection(surface);
++            CommitProjection();
+         }
+         void ApplyProjection(Material m)
+         {
+@@ -306,40 +318,49 @@
+             else if (IsGlobe)
+             { yaw += screenDelta.x * .25f; pitch = Mathf.Clamp(pitch - screenDelta.y * .2f, -89.5f, 89.5f); }
+         }
+-        public void PanBy(Vector2 tileDelta) { if (IsFlat) { pan += tileDelta; NormalizePan(); Tick(0, currentDay); } }
++        public void PanBy(Vector2 tileDelta) { if (IsFlat) { mapPosition.Move(tileDelta.x,tileDelta.y,world.Width,world.Height); Tick(0, currentDay); } }
+         public void Wheel(float wheel, Vector2 screen, double day)
+         {
+-            wheel = Mathf.Clamp(wheel, -24, 24);if(Mathf.Abs(wheel)<.00001f)return;exitPending=false;
++            wheel = Mathf.Clamp(wheel, -24, 24);if(Mathf.Abs(wheel)<.00001f)return;
++            if(exitPending&&wheel<0)targetPixels=pixels;
++            exitPending=false;
+             if (IsFlat)
+             {
+-                float minimum = FitPixels();
+-                float desired = pixels * Mathf.Exp(-wheel * .075f);
+-                if (wheel > 0 && pixels <= minimum * 1.01f && targetPixels < 0 && desired < minimum * .995f)
+-                {
+-                    ReanchorForExit(day); targetDistance = Mathf.Min(3.1f, EndDistance * Mathf.Exp(wheel * .055f)); return;
+-                }
+-                targetPixels=Mathf.Clamp((targetPixels>0?targetPixels:pixels)*Mathf.Exp(-wheel*.075f),minimum,64);
++                if(wheel<0)targetDistance=EndDistance;
++                float minimum = ReturnPixelsPerTile;
++                float currentTarget=targetPixels>0?targetPixels:pixels;
++                float desired=currentTarget*Mathf.Exp(-wheel*.075f);
++                if(wheel>0 && desired<=minimum)
++                {
++                    zoomAnchor=false;focusZoom=false;pendingFocus=-1;
++                    // Already at/beyond the landing scale: fold at THIS centre and zoom.
++                    if(pixels<=minimum*1.001f)
++                    { ReanchorForExit(day);targetDistance=3.1f;return; }
++                    // Cross the threshold without needing another wheel notch after easing settles.
++                    targetPixels=minimum;exitPending=true;return;
++                }
++                // Explicit atlas mode may be wider than the return threshold; zooming IN
++                // from there stays continuous instead of snapping back to the landing scale.
++                targetPixels=Mathf.Clamp(desired,Mathf.Min(minimum,pixels),Mathf.Max(64,minimum));
+                 zoomScreen=screen;zoomAnchor=true;focusZoom=false;
+             }
+             else
+             {
+-                float desired = Mathf.Clamp(targetDistance * Mathf.Exp(wheel * .035f), EndDistance, 6);
++                float from=((wheel<0&&targetDistance>distance)||(wheel>0&&targetDistance<distance))?distance:targetDistance;
++                float desired = Mathf.Clamp(from * Mathf.Exp(wheel * .035f), EndDistance, 6);
+                 if (desired < StartDistance && !landingLocked) CaptureLanding(screen, day);
+                 targetDistance = desired;
+             }
+         }
+         public void Toggle(double day)
+         {
+-            if(exitPending){exitPending=false;targetPixels=-1;return;}
+             if (IsFlat || (IsTransitioning && targetDistance < StartDistance)) GoGlobe(day);
+             else { if (!landingLocked) CaptureLanding(camera.pixelRect.center, day); targetDistance = EndDistance; atlasPending = false; }
+         }
+         public void GoGlobe(double day)
+         {
+-            if(IsFlat&&pixels>FitPixels()*1.01f)
+-            {
+-                exitPending=true;targetPixels=FitPixels();zoomAnchor=false;focusZoom=false;pendingFocus=-1;return;
+-            }
++            // M returns immediately from the current view. ReanchorForExit derives
++            // the perspective end gap from the actual orthographic size, preserving scale.
+             exitPending=false;
+             if (IsFlat) ReanchorForExit(day);
+             atlasPending = false; overview = false; targetPixels=-1;pendingFocus=-1;focusZoom=false;targetDistance = 3.1f;
+@@ -363,7 +384,7 @@
+             if (IsFlat) { focusCenter = new Vector2(uv.x * world.Width, uv.y * world.Height);focusZoom=true; targetPixels=48;zoomAnchor=false;NormalizePan();Tick(0, day); }
+             else
+             {
+-                LockPlane(uv, day);
++                entryScaleRecorded=false;LockPlane(uv, day);
+                 // Preserve the orbit pose; Tick smoothly rotates toward the selected tangent frame.
+                 endGap=camera.pixelHeight*TileScale/(2*LandingPixels()*Mathf.Tan(Fov*Mathf.Deg2Rad*.5f));
+                 pendingFocus=tile;targetDistance=EndDistance;
+@@ -408,7 +429,10 @@
+             return false;
+         }
+         static Vector2 UV(Vector3 source)
+-        { return new Vector2((float)FlatScrollMath.Wrap(Mathf.Atan2(source.x, source.z) / Tau + .5f, 1), Mathf.Asin(Mathf.Clamp(source.y, -1, 1)) / Mathf.PI + .5f); }
++        {
++            var location=PlanetCoordinateSystem.FromWorld(new PlanetVector(source.x,source.y,source.z),new PlanetVector(),1);
++            return new Vector2((float)PlanetCoordinateSystem.MapU(location),(float)PlanetCoordinateSystem.MapV(location));
++        }
+         float RadialError(Vector3 point, Quaternion inverse)
+         {
+             if (point.sqrMagnitude < .000001f) return -1;
+--- 3.3.2/Assets/ORBIS/Runtime/OrbisAtmosphereRenderer.cs
++++ 3.3.3/Assets/ORBIS/Runtime/OrbisAtmosphereRenderer.cs
+@@ -157,7 +157,9 @@
+             }
+             finally
+             {
+-                RenderTexture.active=previous;GL.sRGBWrite=oldSRGB;
++                // OnRenderImage must finish with its destination bound. Restoring the
++                // entry target after Present leaves the image-effect chain on the source.
++                RenderTexture.active=destination;GL.sRGBWrite=oldSRGB;
+                 if(light)RenderTexture.ReleaseTemporary(light);if(transmission)RenderTexture.ReleaseTemporary(transmission);
+             }
+         }
+--- 3.3.2/Assets/ORBIS/Runtime/Planet/Core/PlanetCoordinateSystem.cs
++++ 3.3.3/Assets/ORBIS/Runtime/Planet/Core/PlanetCoordinateSystem.cs
+@@ -0,0 +1,88 @@
++using System;
++
++namespace Orbis.Planet
++{
++    // Canonical planet axes: +Y north, +Z longitude zero, +X longitude +90 degrees.
++    // All distances use the caller's radius unit. Projection UV is an address, never a distance.
++    public struct PlanetVector
++    {
++        public double X, Y, Z;
++        public PlanetVector(double x, double y, double z) { X=x; Y=y; Z=z; }
++        public static PlanetVector operator +(PlanetVector a, PlanetVector b) { return new PlanetVector(a.X+b.X,a.Y+b.Y,a.Z+b.Z); }
++        public static PlanetVector operator -(PlanetVector a, PlanetVector b) { return new PlanetVector(a.X-b.X,a.Y-b.Y,a.Z-b.Z); }
++        public static PlanetVector operator *(PlanetVector a, double b) { return new PlanetVector(a.X*b,a.Y*b,a.Z*b); }
++        public static double Dot(PlanetVector a, PlanetVector b) { return a.X*b.X+a.Y*b.Y+a.Z*b.Z; }
++    }
++
++    public struct PlanetLocation
++    {
++        public double Longitude, Latitude, Altitude;
++        public PlanetLocation(double longitude, double latitude, double altitude=0)
++        { Longitude=longitude; Latitude=latitude; Altitude=altitude; }
++    }
++
++    public struct PlanetTangentFrame
++    {
++        public PlanetVector Origin, East, North, Up;
++        // Subtract the double origin BEFORE handing the local result to a float renderer.
++        public PlanetVector ToLocal(PlanetVector world)
++        { return DirectionToLocal(world-Origin); }
++        public PlanetVector ToWorld(PlanetVector local)
++        { return Origin+DirectionToWorld(local); }
++        public PlanetVector DirectionToLocal(PlanetVector direction)
++        { return new PlanetVector(PlanetVector.Dot(direction,East),PlanetVector.Dot(direction,North),PlanetVector.Dot(direction,Up)); }
++        public PlanetVector DirectionToWorld(PlanetVector local)
++        { return East*local.X+North*local.Y+Up*local.Z; }
++    }
++
++    public static class PlanetCoordinateSystem
++    {
++        public const double Tau = Math.PI*2;
++        public static double Wrap(double value, double period)
++        { return value-Math.Floor(value/period)*period; }
++        public static double NearestOffset(double delta, double period)
++        { return Wrap(delta+period*.5,period)-period*.5; }
++        public static PlanetLocation FromMapUV(double u, double v, double altitude=0)
++        { return new PlanetLocation((Wrap(u,1)-.5)*Tau,(Math.Max(0,Math.Min(1,v))-.5)*Math.PI,altitude); }
++        public static double MapU(PlanetLocation location) { return Wrap(location.Longitude/Tau+.5,1); }
++        public static double MapV(PlanetLocation location) { return location.Latitude/Math.PI+.5; }
++        public static PlanetVector SurfaceNormal(PlanetLocation location)
++        {
++            double c=Math.Cos(location.Latitude);
++            return new PlanetVector(c*Math.Sin(location.Longitude),Math.Sin(location.Latitude),c*Math.Cos(location.Longitude));
++        }
++        public static PlanetVector ToWorld(PlanetLocation location, PlanetVector center, double radius)
++        {
++            if(!(radius>0))throw new ArgumentOutOfRangeException(nameof(radius));
++            return center+SurfaceNormal(location)*(radius+location.Altitude);
++        }
++        public static PlanetLocation FromWorld(PlanetVector world, PlanetVector center, double radius)
++        {
++            if(!(radius>0))throw new ArgumentOutOfRangeException(nameof(radius));
++            PlanetVector p=world-center;
++            double horizontal=Math.Sqrt(p.X*p.X+p.Z*p.Z),length=Math.Sqrt(PlanetVector.Dot(p,p));
++            if(!(length>0))throw new ArgumentException("Planet centre has no surface coordinate.",nameof(world));
++            return new PlanetLocation(Math.Atan2(p.X,p.Z),Math.Atan2(p.Y,horizontal),length-radius);
++        }
++        public static PlanetTangentFrame LocalFrame(PlanetLocation location, PlanetVector center, double radius)
++        {
++            double s=Math.Sin(location.Longitude),c=Math.Cos(location.Longitude);
++            double sl=Math.Sin(location.Latitude),cl=Math.Cos(location.Latitude);
++            return new PlanetTangentFrame { Origin=ToWorld(location,center,radius),
++                Up=SurfaceNormal(location),East=new PlanetVector(c,0,-s),North=new PlanetVector(-sl*s,cl,-sl*c) };
++        }
++    }
++
++    // Periodic map adapter for existing saves. Rebase after each move in double precision;
++    // GPU coordinates stay bounded even after many laps. No world/chunk reload at longitude zero.
++    public struct PeriodicMapPosition
++    {
++        public double X, Y;
++        public void Set(double x, double y, int width, int height) { X=x;Y=y;Normalize(width,height); }
++        public void Move(double x, double y, int width, int height) { X+=x;Y+=y;Normalize(width,height); }
++        public void Normalize(int width, int height)
++        { X=PlanetCoordinateSystem.Wrap(X,width);Y=Math.Max(.0001,Math.Min(height-.0001,Y)); }
++        public double RenderX(double anchorX, int width)
++        { return anchorX+PlanetCoordinateSystem.NearestOffset(X-anchorX,width); }
++    }
++}

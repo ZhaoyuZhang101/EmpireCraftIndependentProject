@@ -1,0 +1,384 @@
+{
+  "source_sha256": "0df5c55bc65edd3654301e7d4147ec70d50b13183e691fdc11c301be98d96257",
+  "translated_method_count": 23,
+  "scope": "Mechanically translated current equation bodies; C++ scaffold, NOT C#/Unity compilation. Idealized forcing, not actual Europe or ORBIS save.",
+  "topology": {
+    "cells": 384,
+    "edges": 768,
+    "area_sum": 12.566370614359174,
+    "area_error": 1.7763568394002505e-15
+  },
+  "steps": 1200,
+  "elapsed_seconds_including_all_scenarios": 1.9816450559997065,
+  "data": {
+    "initial_bands": [
+      {
+        "band": 0,
+        "mean_cover": 0.01736219853572763,
+        "area_cloudy": 0.03967508397775271,
+        "mean_cloud_path_kg_m2": 0.01240636111009267,
+        "mean_abs_synoptic_m_s": 0
+      },
+      {
+        "band": 1,
+        "mean_cover": 0.03404495626989681,
+        "area_cloudy": 0.07444986769718297,
+        "mean_cloud_path_kg_m2": 0.02436226725100641,
+        "mean_abs_synoptic_m_s": 0
+      },
+      {
+        "band": 2,
+        "mean_cover": 0.0215981081412169,
+        "area_cloudy": 0.06353624137372277,
+        "mean_cloud_path_kg_m2": 0.01377585936453539,
+        "mean_abs_synoptic_m_s": 0
+      },
+      {
+        "band": 3,
+        "mean_cover": 0.001777992721864008,
+        "area_cloudy": 0,
+        "mean_cloud_path_kg_m2": 0.001000100488161763,
+        "mean_abs_synoptic_m_s": 0
+      }
+    ],
+    "history": [
+      {
+        "stats": {
+          "step": 200,
+          "budget_relative": -1.078264698831632e-14,
+          "min_water": 0,
+          "max_water": 10.2186159786146,
+          "min_T_K": 184.8401995849641,
+          "max_T_K": 298.9104198640929,
+          "max_rain_mm_h": 11.32538701228673,
+          "max_wetness": 0.9236278193287422,
+          "max_CAPE": 6500,
+          "max_updraft_m_s": 21.63967396951811,
+          "max_top_m": 16000,
+          "max_ice_path": 0.3840677227794473,
+          "max_graupel_path": 0.4455518379012704,
+          "max_charge": 0.7709591173525375,
+          "mature_cells": 16,
+          "cloudy_cells": 90,
+          "lightning_count": 0
+        },
+        "bands": [
+          {
+            "band": 0,
+            "mean_cover": 0.2125035188991833,
+            "area_cloudy": 0.3671610874267274,
+            "mean_cloud_path_kg_m2": 0.5035726202718505,
+            "mean_abs_synoptic_m_s": 0.263308588516023
+          },
+          {
+            "band": 1,
+            "mean_cover": 0.372651513057853,
+            "area_cloudy": 0.5299419994808907,
+            "mean_cloud_path_kg_m2": 0.859240468566289,
+            "mean_abs_synoptic_m_s": 0.5241613283029407
+          },
+          {
+            "band": 2,
+            "mean_cover": 0.05557170956951426,
+            "area_cloudy": 0.08421374253473399,
+            "mean_cloud_path_kg_m2": 0.08085806168149604,
+            "mean_abs_synoptic_m_s": 0.3603034886414489
+          },
+          {
+            "band": 3,
+            "mean_cover": 0,
+            "area_cloudy": 0,
+            "mean_cloud_path_kg_m2": 0,
+            "mean_abs_synoptic_m_s": 0.5
+          }
+        ]
+      },
+      {
+        "stats": {
+          "step": 400,
+          "budget_relative": 2.567296901980076e-15,
+          "min_water": 0,
+          "max_water": 10.06895749039231,
+          "min_T_K": 184.7895939322423,
+          "max_T_K": 298.8754261301051,
+          "max_rain_mm_h": 29.47672603716461,
+          "max_wetness": 0.999989119859778,
+          "max_CAPE": 6500,
+          "max_updraft_m_s": 24.41735539134,
+          "max_top_m": 16000,
+          "max_ice_path": 0.8084273058949346,
+          "max_graupel_path": 1.850016956552598,
+          "max_charge": 1.991407163626767,
+          "mature_cells": 40,
+          "cloudy_cells": 171,
+          "lightning_count": 0
+        },
+        "bands": [
+          {
+            "band": 0,
+            "mean_cover": 0.5751337602024211,
+            "area_cloudy": 0.8139029254898894,
+            "mean_cloud_path_kg_m2": 1.051901622132442,
+            "mean_abs_synoptic_m_s": 0.1907228513626973
+          },
+          {
+            "band": 1,
+            "mean_cover": 0.6489264827648783,
+            "area_cloudy": 0.8438216199174376,
+            "mean_cloud_path_kg_m2": 1.699690807749869,
+            "mean_abs_synoptic_m_s": 0.2473464322945934
+          },
+          {
+            "band": 2,
+            "mean_cover": 0.0464362887911188,
+            "area_cloudy": 0.06277352898136046,
+            "mean_cloud_path_kg_m2": 0.06551005158995052,
+            "mean_abs_synoptic_m_s": 0.2246545014188374
+          },
+          {
+            "band": 3,
+            "mean_cover": 0,
+            "area_cloudy": 0,
+            "mean_cloud_path_kg_m2": 0,
+            "mean_abs_synoptic_m_s": 0.2127195530860755
+          }
+        ]
+      },
+      {
+        "stats": {
+          "step": 600,
+          "budget_relative": 4.107675043168122e-15,
+          "min_water": 0,
+          "max_water": 10.26821248678485,
+          "min_T_K": 184.8269752130477,
+          "max_T_K": 298.5799244090459,
+          "max_rain_mm_h": 52.84354997145703,
+          "max_wetness": 0.999989119859778,
+          "max_CAPE": 6500,
+          "max_updraft_m_s": 22.20821364139114,
+          "max_top_m": 16000,
+          "max_ice_path": 0.8031081675376585,
+          "max_graupel_path": 2.689523715352352,
+          "max_charge": 2.88770429596347,
+          "mature_cells": 35,
+          "cloudy_cells": 184,
+          "lightning_count": 5
+        },
+        "bands": [
+          {
+            "band": 0,
+            "mean_cover": 0.706187303283265,
+            "area_cloudy": 0.9141277972871027,
+            "mean_cloud_path_kg_m2": 1.449462391175907,
+            "mean_abs_synoptic_m_s": 0.1152292756891133
+          },
+          {
+            "band": 1,
+            "mean_cover": 0.635586186185128,
+            "area_cloudy": 0.8186890149611435,
+            "mean_cloud_path_kg_m2": 1.618510102142506,
+            "mean_abs_synoptic_m_s": 0.2410013171059036
+          },
+          {
+            "band": 2,
+            "mean_cover": 0.02916972409529519,
+            "area_cloudy": 0.04935082874855049,
+            "mean_cloud_path_kg_m2": 0.03823443649063066,
+            "mean_abs_synoptic_m_s": 0.1172591976694942
+          },
+          {
+            "band": 3,
+            "mean_cover": 0,
+            "area_cloudy": 0,
+            "mean_cloud_path_kg_m2": 0,
+            "mean_abs_synoptic_m_s": 0.3032989176724233
+          }
+        ]
+      },
+      {
+        "stats": {
+          "step": 800,
+          "budget_relative": -1.523262828508179e-14,
+          "min_water": 0,
+          "max_water": 10.52825542196407,
+          "min_T_K": 184.842108327177,
+          "max_T_K": 298.2633387090945,
+          "max_rain_mm_h": 64.29675291400672,
+          "max_wetness": 0.999989119859778,
+          "max_CAPE": 6500,
+          "max_updraft_m_s": 21.42806508385573,
+          "max_top_m": 16000,
+          "max_ice_path": 0.664657265676167,
+          "max_graupel_path": 2.63515895316231,
+          "max_charge": 3.715827814091604,
+          "mature_cells": 40,
+          "cloudy_cells": 173,
+          "lightning_count": 9
+        },
+        "bands": [
+          {
+            "band": 0,
+            "mean_cover": 0.6989413848413506,
+            "area_cloudy": 0.9072310173830617,
+            "mean_cloud_path_kg_m2": 1.572847151768299,
+            "mean_abs_synoptic_m_s": 0.1061569159842372
+          },
+          {
+            "band": 1,
+            "mean_cover": 0.6035198129573239,
+            "area_cloudy": 0.7689029380001628,
+            "mean_cloud_path_kg_m2": 1.41877090956593,
+            "mean_abs_synoptic_m_s": 0.2771359731966282
+          },
+          {
+            "band": 2,
+            "mean_cover": 0.021537452125353,
+            "area_cloudy": 0.02791061519517696,
+            "mean_cloud_path_kg_m2": 0.02406662896110764,
+            "mean_abs_synoptic_m_s": 0.1187711850721319
+          },
+          {
+            "band": 3,
+            "mean_cover": 0,
+            "area_cloudy": 0,
+            "mean_cloud_path_kg_m2": 0,
+            "mean_abs_synoptic_m_s": 0.3522700544390894
+          }
+        ]
+      },
+      {
+        "stats": {
+          "step": 1000,
+          "budget_relative": -1.540378141188046e-15,
+          "min_water": 0,
+          "max_water": 10.23508976725956,
+          "min_T_K": 184.8567533501122,
+          "max_T_K": 298.2351113781397,
+          "max_rain_mm_h": 58.21798929916863,
+          "max_wetness": 0.999989119859778,
+          "max_CAPE": 6500,
+          "max_updraft_m_s": 18.52093449219578,
+          "max_top_m": 16000,
+          "max_ice_path": 0.5675924201799146,
+          "max_graupel_path": 2.037342701202055,
+          "max_charge": 4.228419829103574,
+          "mature_cells": 39,
+          "cloudy_cells": 164,
+          "lightning_count": 13
+        },
+        "bands": [
+          {
+            "band": 0,
+            "mean_cover": 0.705867249046215,
+            "area_cloudy": 0.945077838641686,
+            "mean_cloud_path_kg_m2": 1.663189083388317,
+            "mean_abs_synoptic_m_s": 0.1278168548441924
+          },
+          {
+            "band": 1,
+            "mean_cover": 0.5450699041905894,
+            "area_cloudy": 0.6680896324823128,
+            "mean_cloud_path_kg_m2": 1.130041656113088,
+            "mean_abs_synoptic_m_s": 0.2506821531103006
+          },
+          {
+            "band": 2,
+            "mean_cover": 0.01235131809095114,
+            "area_cloudy": 0.02082618326537009,
+            "mean_cloud_path_kg_m2": 0.00947025165282857,
+            "mean_abs_synoptic_m_s": 0.1139330881681195
+          },
+          {
+            "band": 3,
+            "mean_cover": 0,
+            "area_cloudy": 0,
+            "mean_cloud_path_kg_m2": 0,
+            "mean_abs_synoptic_m_s": 0.307022992369268
+          }
+        ]
+      },
+      {
+        "stats": {
+          "step": 1200,
+          "budget_relative": 1.711531267986718e-15,
+          "min_water": 0,
+          "max_water": 10.66188607281166,
+          "min_T_K": 184.8692061843245,
+          "max_T_K": 298.1876410281729,
+          "max_rain_mm_h": 54.83503963400833,
+          "max_wetness": 0.999989119859778,
+          "max_CAPE": 6500,
+          "max_updraft_m_s": 12.19214805460688,
+          "max_top_m": 16000,
+          "max_ice_path": 0.4778628025226008,
+          "max_graupel_path": 1.962098195037937,
+          "max_charge": 4.350327054812723,
+          "mature_cells": 35,
+          "cloudy_cells": 166,
+          "lightning_count": 16
+        },
+        "bands": [
+          {
+            "band": 0,
+            "mean_cover": 0.7269479958067134,
+            "area_cloudy": 0.9683287421242542,
+            "mean_cloud_path_kg_m2": 1.692457868381146,
+            "mean_abs_synoptic_m_s": 0.1206730377208058
+          },
+          {
+            "band": 1,
+            "mean_cover": 0.4753012249709777,
+            "area_cloudy": 0.6057671904683131,
+            "mean_cloud_path_kg_m2": 0.9229758680787478,
+            "mean_abs_synoptic_m_s": 0.243993678930169
+          },
+          {
+            "band": 2,
+            "mean_cover": 0.003483528011531242,
+            "area_cloudy": 0,
+            "mean_cloud_path_kg_m2": 0.002034226274494853,
+            "mean_abs_synoptic_m_s": 0.09622999571505704
+          },
+          {
+            "band": 3,
+            "mean_cover": 0,
+            "area_cloudy": 0,
+            "mean_cloud_path_kg_m2": 0,
+            "mean_abs_synoptic_m_s": 0.2992768731328702
+          }
+        ]
+      }
+    ],
+    "births": 184,
+    "dissipations": 15,
+    "transport": {
+      "relative_error": 2.79596259633937e-15,
+      "low_displacement": 0.8895873963311057,
+      "high_displacement": 1.539053009402982
+    },
+    "controlled_synoptic": {
+      "lift_path": 3.39072484161113,
+      "control_path": 1.200290359409228,
+      "lift_updraft": 0,
+      "control_updraft": 0,
+      "lift_water_error": 0,
+      "control_water_error": 0
+    },
+    "night_evaporation": {
+      "calm_mm": 0.0001095951319136645,
+      "windy_mm": 0.0007388081251455958,
+      "water_error": 1.818989403545856e-12
+    }
+  },
+  "checks": {
+    "finite_numerics": true,
+    "transport_water_conservation": true,
+    "cloud_tracer_moves_and_shears": true,
+    "nonconvective_lifting_makes_more_condensate": true,
+    "synoptic_uses_existing_water": true,
+    "wind_driven_evaporation_in_darkness": true,
+    "night_evaporation_closed_water": true,
+    "midlatitude_condensate_not_permanently_zero": true
+  },
+  "all_passed": true
+}

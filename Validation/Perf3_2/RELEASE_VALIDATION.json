@@ -1,0 +1,217 @@
+{
+  "release": "ORBIS TerrainPerf3.2 Continuous World",
+  "utc": "2026-09-11T18:44:17.937840+00:00",
+  "status": "OFFLINE_CHECKS_PASS_NATIVE_UNITY_PENDING",
+  "base_archive": "ORBIS_TerrainPerf3_1_WaterClimate_Full.zip",
+  "base_archive_sha256": "88c279265391a7d4b92340cc13621b3548b3f7b4e2ae60d2386479ae59ddc603",
+  "lineage": {
+    "original_files": 429,
+    "missing_original_files": [],
+    "original_asset_guids_preserved": 132,
+    "unchanged_core_contracts_sha256": {
+      "Assets/ORBIS/Runtime/FlatWorld/Core/FlatSave.cs": "58df9f08dfb7d0b75bfef48d39c89f023ae940b5e2b1cf99819ebe866e95869e",
+      "Assets/ORBIS/Runtime/FlatWorld/Core/FlatSimulation.cs": "5fd1e20af0f75392f5abe97b57bae11f5c7968275c51179588b67797b79fe99d",
+      "Assets/ORBIS/Runtime/FlatWorld/Core/FlatHydrology.cs": "0661842ed06c2daec2bb577950c6c433102d5c3c9fcaf7a008f10331e666c6ee",
+      "Assets/ORBIS/Runtime/FlatWorld/Core/FlatShallowWater.cs": "da80b530dd51195f46c113bb8a12fe43fc09b27f07c93bcd4e36aad40f8d17c9",
+      "Assets/ORBIS/Runtime/FlatWorld/Core/KoppenClassifier.cs": "e5f1e014814ed70f18fb7c4bfc77b6c3ad64a870365a5ec4963914d1caf8df3f",
+      "Assets/ORBIS/Runtime/FlatWorld/Core/FlatClimate.cs": "51f72b10dfa623376accf888d9a7dac278d24616701221c0371b129acffe826e",
+      "Assets/ORBIS/Runtime/FlatWorld/Core/FlatGenerator.cs": "f7cb1c5d1c28093bb5ba4342d4dd90d9992ad14591ce89274fc8f1f08857eae2",
+      "Packages/manifest.json": "3e5e7475773fe07024caf1633baffa29e092941efe926fa06fd286a971ab79da",
+      "ProjectSettings/ProjectVersion.txt": "6a291611d2569dca6a154d32ab2de808c1f8e8443df9268643946e03d557fac4",
+      "ProjectSettings/EditorBuildSettings.asset": "bcee801fc367ae896a5e821299126423b51b07c9d25dd7dfbf76160954e68540",
+      "Assets/ORBIS/Resources/ORBIS/FlatWorld/Water/HPWaterOptics.cginc": "154d13426b7bf02d032aba01426e83036350459ec96f07c4203f12470093fa2a"
+    }
+  },
+  "executed_reports": {
+    "static-report.json": {
+      "utc": "2026-09-11T18:42:32.345488+00:00",
+      "scope": "C#/shader lexical structure, XML parse, literal resource references, GUID/build-scene consistency. No C# semantic compilation, Unity import, shader backend, Play Mode, image or FPS test was run.",
+      "status": "PASS",
+      "counts": {
+        ".cs": 83,
+        ".shader": 15,
+        ".cginc": 13,
+        ".hlsl": 0,
+        ".uss": 2,
+        "ui_named_elements": 87,
+        "ui_bound_elements": 63,
+        "core_cs_files": 16,
+        "meta_guids": 141
+      },
+      "issues": [],
+      "warnings": [],
+      "unity_editor_executed": false
+    },
+    "source-contracts-report.json": {
+      "utc": "2026-09-11T18:42:32.960584+00:00",
+      "scope": "Source wiring/structural contracts only. NOT a C#/HLSL/Unity compiler.",
+      "status": "PASS",
+      "checks": 64,
+      "issues": [],
+      "sampler_source_inventory": {
+        "Surface_lit": [
+          "_FlatInfo",
+          "_FlatOwners",
+          "_FlatTerrain",
+          "_GeoTex",
+          "_HydroA",
+          "_HydroB",
+          "_SkyTex",
+          "_TerrainAtlas",
+          "_VisualTex"
+        ],
+        "FlatMap": [
+          "_GeoTex",
+          "_HydroA",
+          "_HydroB",
+          "_InfoTex",
+          "_MainTex",
+          "_OwnerTex",
+          "_SWEState",
+          "_SkyTex",
+          "_VisualTex"
+        ],
+        "FlatSkyBake": [
+          "_ClimateTex"
+        ]
+      },
+      "unity_editor_executed": false,
+      "native_csharp_executed": false,
+      "native_hlsl_executed": false
+    },
+    "surface-cpp-report.json": {
+      "utc": "2026-09-11T18:42:34.542146+00:00",
+      "scope": "Actual method bodies translated to C++17; array/world wrappers are test scaffolding. Not native C#, Unity or HLSL.",
+      "source_sha256": {
+        "FlatSurfaceSampling.cs": "f823f27661d3c63509afcf48387ff1a87e5425654d6cafaa1ebb6184866e1bf6",
+        "FlatWaterGeometry.cs": "6b7a24e659685161fc6b01caf2dc15b91742f58729cdb92562a20c638c48c000",
+        "FlatEcology.cs": "319b07aa4b0c9ac68f1325507b1caf7f1cd25d958ceb57334309264d099eb49b"
+      },
+      "csharp_executed": false,
+      "unity_editor_executed": false,
+      "result": {
+        "status": "PASS",
+        "assertions": 677030,
+        "random_cubic_cases": 10000,
+        "edt_cases": 8,
+        "maximum_edt_error": 0,
+        "river_boundary_distance_disagreement_tiles": 0,
+        "cover_mask": 16383
+      }
+    },
+    "drainage-cpp-report.json": {
+      "utc": "2026-09-11T18:42:35.926649+00:00",
+      "scope": "Actual C# FlatHydrology.Build and ClassifyForm/ClassifyBiome bodies mechanically translated to C++17. The heap/world wrappers are equivalent test harnesses; C#/Unity execution is NOT tested.",
+      "source_sha256": {
+        "FlatHydrology.cs": "0661842ed06c2daec2bb577950c6c433102d5c3c9fcaf7a008f10331e666c6ee",
+        "FlatTerrainAnalysis.cs": "71a204ea0e276741153fa616f4d63d8fd021ea188b4d7865e9bdf97158943c14"
+      },
+      "csharp_executed": false,
+      "unity_editor_executed": false,
+      "result": {
+        "status": "PASS",
+        "assertions": 82939,
+        "drainage_variants": 8,
+        "classification_cases": 10,
+        "river_cells_checked": 4900,
+        "lake_cells_checked": 963,
+        "maximum_relative_runoff_error": 1.55791e-07
+      }
+    },
+    "swe-cpp-report.json": {
+      "utc": "2026-09-11T18:42:37.726751+00:00",
+      "scope": "Mechanical C++17 translation of actual FlatShallowWater.cs numerical methods; no C# runtime or Unity/GPU execution.",
+      "source_sha256": "da80b530dd51195f46c113bb8a12fe43fc09b27f07c93bcd4e36aad40f8d17c9",
+      "csharp_executed": false,
+      "unity_editor_executed": false,
+      "compiler_warnings": "",
+      "result": {
+        "status": "PASS",
+        "assertions": 4919856,
+        "variants": 4,
+        "simulation_seconds_per_variant": 120,
+        "maximum_relative_volume_error": 2.6645352591003757e-15,
+        "maximum_lake_at_rest_error_m": 0,
+        "minimum_depth_m": 0
+      }
+    },
+    "classifier-cpp-report.json": {
+      "utc": "2026-09-11T18:42:38.876551+00:00",
+      "scope": "C++17 translation of the actual C# KoppenClassifier method; numeric cross-check only. Managed/runtime semantics and Unity are NOT tested.",
+      "source_sha256": "e5f1e014814ed70f18fb7c4bfc77b6c3ad64a870365a5ec4963914d1caf8df3f",
+      "fixtures": 65,
+      "status": "PASS",
+      "stdout": "PASS 65 classifier fixtures\n",
+      "stderr": "",
+      "csharp_executed": false,
+      "unity_editor_executed": false
+    },
+    "gles-fragment-report.json": {
+      "utc": "2026-09-11T18:42:41.362759+00:00",
+      "status": "PASS",
+      "api": "OpenGL ES 3.2 Mesa 25.0.7-2",
+      "renderer": "llvmpipe (LLVM 19.1.7, 256 bits)",
+      "scope": "Source-derived fragment programs compiled in Gamma and Linear GLSL ES and executed on synthetic data. Engine transforms and clipping are stubs. NOT Unity/HLSL/D3D compilation or game screenshots.",
+      "visual_colour_space": "Gamma; Linear fragment variants compile-only",
+      "compiled_fragment_variants": 6,
+      "rendered_cases": 10,
+      "cloud_change_t18_to_t78_mean_byte": 22.237289428710938,
+      "diagnostic_discrete_layer_max_byte_error": 0,
+      "bathymetry_switch_mean_byte_change": 5.030403137207031,
+      "contour_switch_mean_byte_change": 0.34418153762817383,
+      "cloud_switch_mean_byte_change": 9.594678401947021,
+      "unity_editor_executed": false,
+      "d3d11_executed": false,
+      "source_hlsl_sha256": {
+        "Assets/ORBIS/Resources/ORBIS/AtmosphereComposite.shader": "85e202729e8ed22d8f14b29ef9976429ae5b3bc236673b16865d8834f3684b4e",
+        "Assets/ORBIS/Resources/ORBIS/CloudShadowCache.shader": "b45fab95baf3ca99917307ab8d576cccaf3ab5f67cdcefea27c9b664087501ba",
+        "Assets/ORBIS/Resources/ORBIS/Clouds.shader": "4c9465e936dc1350b9f0a57bddf9bf64e83aaeacb59804a1b4a78877d90510d5",
+        "Assets/ORBIS/Resources/ORBIS/Display.shader": "f5ccaf9e692e710d22c1b7769c5358379036643408a68f2f4ccf8090b4e250b6",
+        "Assets/ORBIS/Resources/ORBIS/FlatWorld/FlatMap.shader": "72b66eb288f5256d310f061c33ba3d5732912c10c20e0c431e719eea06904b33",
+        "Assets/ORBIS/Resources/ORBIS/FlatWorld/FlatSkyBake.shader": "b044fbe6f6770fdd9e5386dfe9fa5ae569219519bc590b66f339acfa4a36970e",
+        "Assets/ORBIS/Resources/ORBIS/FlatWorld/FlatSkyComposite.cginc": "677f08caaba855b360d54bf90e62da8310303e4b2eeb663ae95dad9ba03960ad",
+        "Assets/ORBIS/Resources/ORBIS/FlatWorld/FlatSurfaceField.cginc": "69d9ba1fd6b08a6f8f74ec395d891233001739304683baa112b7a6eeb51ee5cf",
+        "Assets/ORBIS/Resources/ORBIS/FlatWorld/Route.shader": "118366403489af3e258e872ce0556b4df1fa7d94373d10a4ca67216a4233eaa0",
+        "Assets/ORBIS/Resources/ORBIS/FlatWorld/SurfaceFallback.shader": "af2e519f39ff92f3f7ccaff8849f1e0e6601a3c3b30036f48add17eeca064538",
+        "Assets/ORBIS/Resources/ORBIS/FlatWorld/Water/FlatWater.cginc": "f576c973e1de6e36715dbbe67c5deb702910ae00beb34773103a78a8bb11c692",
+        "Assets/ORBIS/Resources/ORBIS/FlatWorld/Water/HPWaterOptics.cginc": "154d13426b7bf02d032aba01426e83036350459ec96f07c4203f12470093fa2a",
+        "Assets/ORBIS/Resources/ORBIS/OrbisAtmosphereCommon.cginc": "fa8a2983a3669447cb12ff7c50d9a1a968df5658f6c5077eff586373aff98220",
+        "Assets/ORBIS/Resources/ORBIS/OrbisAtmosphereGLSL.cginc": "da41ba485369b257468c8ee998c954cb08fa9125bc82ff9528432a3acad4a0a7",
+        "Assets/ORBIS/Resources/ORBIS/OrbisAtmosphereGLtracy.cginc": "fcf51e6a745c61245a699608cc5514a4fa1358daf918edc74b62727350c52c15",
+        "Assets/ORBIS/Resources/ORBIS/OrbisAtmosphereView.cginc": "76db687791c7f96c511d1c6463dedc1de8c44208ae3b511cc06c2f15cebdf8f8",
+        "Assets/ORBIS/Resources/ORBIS/OrbisCloudCommon.cginc": "2e5466e22bb20250e35765e8977d919492389f7f90708da4f7a1830326732344",
+        "Assets/ORBIS/Resources/ORBIS/OrbisNightLighting.cginc": "dd975d47c70174f653f41735e116510fb3d57172645505c51da4ac925f9b353e",
+        "Assets/ORBIS/Resources/ORBIS/OrbisOptics.cginc": "f726c6634297b65cebd6e537e0b08607f000feb22ab369bec33621d4a837742e",
+        "Assets/ORBIS/Resources/ORBIS/OrbisPatch.cginc": "be8e92141bcb19cb2516ad724c6bf91c9464df534d6b59c3c56fa441b1c1cffb",
+        "Assets/ORBIS/Resources/ORBIS/OrbisWater.cginc": "d27c133e1104b0ce1de87d70bfdff7b04cecaaf8988f284f047dc842ad49d839",
+        "Assets/ORBIS/Resources/ORBIS/Overlay.shader": "fd6ddd48e7af60c818a9645c6cd2f074f2d5e4e022be60af849925801be900ba",
+        "Assets/ORBIS/Resources/ORBIS/RiverWater.shader": "dbbf103d9442b62964362dfd64fde8166368a801e8efb13af1f6e23cea519550",
+        "Assets/ORBIS/Resources/ORBIS/Selection.shader": "5e7c790f0ad210f1a76fdc06b082d2da0093e116b1b784e1756ca7ebea05f837",
+        "Assets/ORBIS/Resources/ORBIS/SpriteWorld.shader": "28966bb99c23465bc3187aeed0d0a87ff14719e7ed7d8f3cbd505dd16647a6d1",
+        "Assets/ORBIS/Resources/ORBIS/Surface.shader": "327ec4c659d12d26106ebf56186cfa47e8409a0cc1cf3933aa76b1230995899a",
+        "Assets/ORBIS/Resources/ORBIS/Transport.shader": "03804ae87d6ca2420415ac4d0184a2ea67d75da5d127952a6d2c6a26e17cd933",
+        "Assets/ORBIS/Resources/ORBIS/WeatherParticles.shader": "0a016a7611c7054e1716ac6d69e8b0bbc44d56bef20b0d6a4bc30204ac5b93ba"
+      },
+      "source_probe_sha256": {
+        "flat": "9b069420de4d764132ccfd89f629c7340616fd0ab95898cd29b4684745e179b7",
+        "sky": "5e5665be61a28392614d3f68cd57fa3ae79ad116ce2454c5b45a8a4249f70f36",
+        "surface": "ca2b0038a4fc45284fabb8fcffec979064a82a068272b418916630b6855d51bd"
+      }
+    }
+  },
+  "not_executed": {
+    "native_csharp": true,
+    "unity_editor_import": true,
+    "native_uxml_import": true,
+    "unity_shaderlab_hlsl_compilation": true,
+    "d3d11": true,
+    "unity_play_mode": true,
+    "actual_game_visual_acceptance": true,
+    "hardware_fps_and_gpu_frame_time": true,
+    "windows_build": true,
+    "long_duration_game_soak": true
+  },
+  "important_scope": "C++ translation tests exercise selected actual numerical method bodies, not managed semantics. GLES probes use source-derived fragments with Unity transforms/clip stubbed and synthetic data. Gamma rendering and Linear compile-only. No claim of reproduced/resolved native IPC, Unity screenshots, or measured performance.",
+  "local_native_test": "Validation/Perf3_2/run_d3d11.ps1",
+  "acceptance": "Documentation/TerrainPerf3_2/ACCEPTANCE.md"
+}

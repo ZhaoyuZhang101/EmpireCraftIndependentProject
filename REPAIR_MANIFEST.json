@@ -1,0 +1,363 @@
+{
+  "version": "V4-2 original-only source repair / GLtracy + HP references",
+  "base_archive": "ORBIS_Unity_V4_2_DynamicWeather.zip",
+  "base_archive_sha256": "acceefa0ea4f08bfdfd326bef0b2597823053570e5ee3af7de1841df0db81ab6",
+  "base_archive_bytes": 5938279,
+  "unity_version": "6000.0.47f1",
+  "render_pipeline": "Built-in",
+  "scope": "Source/data repair with offline checks. Unity/C#/HLSL/play-mode/visual/FPS validation NOT RUN.",
+  "historical_manifest": "Documentation/V4_2_Repair/ORIGINAL_V4_2_PACKAGE_MANIFEST.json",
+  "current_tests": "Documentation/V4_2_Repair/",
+  "no_font_binaries": true,
+  "original_file_count": 253,
+  "unchanged_original_files": 230,
+  "modified_original_files": 23,
+  "new_files_excluding_this_manifest": 21,
+  "deleted_original_files": 0,
+  "existing_GUIDs_preserved": true,
+  "source_baseline_guards": {
+    "ProjectSettings/ProjectVersion.txt": "6a291611d2569dca6a154d32ab2de808c1f8e8443df9268643946e03d557fac4",
+    "Packages/manifest.json": "3e5e7475773fe07024caf1633baffa29e092941efe926fa06fd286a971ab79da",
+    "Assets/ORBIS/Editor/OrbisV42ShaderValidation.cs": "4a63fc35e72c8122519b9ce03c723a16caf14b9271ea272887e1da199ff6ab99",
+    "Assets/ORBIS/Editor/OrbisV4Validation.cs": "925d411ee03e3f73d84392ba70edfc7c3269a4ad251429aedd11ef9e93ee74f9",
+    "Assets/ORBIS/Editor/OrbisGraphicsValidation.cs": "3ac6c1b1561ce80616bea990e1f81e3b9253fe7367dede3a8b5b872c69555c08",
+    "Assets/ORBIS/Editor/OrbisTextureImporter.cs": "e5827e8189997d9c44589374510fdcf7b0a58fd60e0b6431797d55dc99a7b165",
+    "Assets/ORBIS/Editor/OrbisV41Validation.cs": "a0874a83a5168b82ca69e80adf8657454455fe7cc230f8dfadf717197775718c",
+    "Assets/ORBIS/Editor/OrbisDemoEditor.cs": "8b948a305451ce02a4e8af065586bf113f8844db7766e1a59afc59139eca8b0e",
+    "Assets/ORBIS/Editor/OrbisV412ShaderValidation.cs": "83c5f8a58c6ab359206ec2adee625432833c26f43ebddb4b55f448cad3527225",
+    "Assets/ORBIS/Editor/OrbisV3Validation.cs": "5295b2a3628ad268eb97afd8bd927148b0e0ca5cea3071e967bea8b9e132b0c2",
+    "Assets/ORBIS/Editor/OrbisV411ShaderValidation.cs": "6931db7987bf1c0e06802dfacc6b0b598eed1b19337ac7e4aecf7c232887237f",
+    "Assets/ORBIS/Editor/OrbisV42WeatherValidation.cs": "463d93ea4b4dcdb22c8f892ea53258e1d86a37e15c2f3b4e59893b80c653b447",
+    "Assets/ORBIS/Editor/OrbisWorldMapWindow.cs": "00407c1277f9f958dcde54d70ef511322c0d731486c1eed6252d8a2fd90b948a",
+    "Assets/ORBIS/Editor/OrbisCloudNoiseImport.cs": "3d98b0fe64d23787f651b36555bfda774b854edaba1e69bb97ebff3112153675",
+    "Assets/ORBIS/Scenes/OrbisDemo.unity": "333bc6507debee56a2a61c2ef3fa407f1a9e17f422c8741b9dc45272d529c6ca",
+    "Assets/ORBIS/Runtime/OrbisSurfaceLOD.cs": "d8362e83ab1307260fdaf8e1116b16223fc39db5015af5406260fe5764cec33a",
+    "Assets/ORBIS/Runtime/OrbisAtmosphereRenderer.cs": "bd1d4efccd9f1864b8553707f7702917396607472b2c31a3f85b55509bad1b06",
+    "Assets/ORBIS/Runtime/OrbisGeography.cs": "34e34d8d8d7c4fa1ab622cb268de34598a6369fa76bd136bd56707c1f059b019",
+    "Assets/ORBIS/Runtime/OrbisSaveMigration.cs": "1251f869b90fffb572e1b7c9ca853752dfbdb82b8e08fd277de30550ea3b52da",
+    "Assets/ORBIS/Runtime/OrbisDemo.cs": "57d42649b6b23d89733ecebd88c076ad61ca2a087f24da06f222eb3bdb9aae0e",
+    "Assets/ORBIS/Runtime/OrbisSystemFont.cs": "75b187b8995be47971fdd9d8c216cbd827a2d2d06b5df400fcde442a184ab3bb",
+    "Assets/ORBIS/Runtime/OrbisCloudNoise.cs": "2e23b533b16287ea81893853d5c822da18f26bf72a4967100c652ea445215ec1",
+    "Assets/ORBIS/Runtime/OrbisOverlays.cs": "83d42eea15401790881f3138c611af22bb7e62e19be4708b429e975930c8cb11",
+    "Assets/ORBIS/Runtime/OrbisChunkView.cs": "ecbe7597264a6cf66c862edf90865cc26fd26ad6e4b92967a337b9f1d6ff726a",
+    "Assets/ORBIS/Runtime/OrbisMath.cs": "98b81449838476e7573bb41867e4531277ab67e6b9924ac19e15613f69c112c4",
+    "Assets/ORBIS/Runtime/OrbisHud.cs": "473a782d25ee93036e58948c8246af90ff1f5ec03985fd7111440d30cc5c8585",
+    "Assets/ORBIS/Runtime/OrbisPlanetView.cs": "7fa2b5c12c2b7fcb3dadb85df0c17ad55776432d2bd4588a88fadceb1a55b22c",
+    "Assets/ORBIS/Runtime/OrbisSphericalSampler.cs": "91f60856dad9bd8dc34c43bde666c44d10f6a3dd3578354c5e8e071d90e221b4",
+    "Assets/ORBIS/Runtime/OrbisTransportView.cs": "fe0d71febcc48d4a39fd8f294d133272343e2e29ec1e6ec198acd301d8eff4ed",
+    "Assets/ORBIS/Runtime/OrbisWeatherField.cs": "3c524bb478784e519135a7b21d78ae15b66019d99d6e12f37ac284a796f027af",
+    "Assets/ORBIS/Runtime/OrbisCloudShadowCache.cs": "089bca014b38c03e5ea55ba4e9165502b13abbd001893fb26a82b6869a8a6564",
+    "Assets/ORBIS/Runtime/OrbisWeather.cs": "d5fe8d077ceaa93887f76d2c8a6bcc0d7bd2962b1d33cba4612a370ccfaaab55",
+    "Assets/ORBIS/Runtime/OrbisWorld.cs": "30ca707ef4d1e6393239c1bcc193b1decae63418b3ca470cea3cb0fb17208201",
+    "Assets/ORBIS/Runtime/OrbisMapView.cs": "9282182348d71492b4dbc7c292236cbe8087ddebbc53979cae75a26d555dd4e5",
+    "Assets/ORBIS/Runtime/OrbisExpeditions.cs": "53455e717f3f4d31cd208b356fbb96fea467305a3722ffbc0ec8b74b985e9170",
+    "Assets/ORBIS/Runtime/OrbisAtmosphereFlight.cs": "51b66fc94c630e70b89f641b908cf6e51f2d249408884e5003229c2cfcfc574b",
+    "Assets/ORBIS/Runtime/OrbisAtmosphereModel.cs": "fc67f552f32bf69c6479f7b5bc65e9b3a78ca609fe999f64ce4d11f671286349",
+    "Assets/ORBIS/Runtime/OrbisNames.cs": "68acafff627c619e555fe4a754fc6ace15e3dda166f23ac10adad73d89f1e3cb",
+    "Assets/ORBIS/Runtime/OrbisAtmosphereProfile.cs": "da2c537de8c9ee1dcc8fce1ca80326c405141cc57337bf2853dbd3c62516ef27",
+    "Assets/ORBIS/Runtime/V4/OrbisMapIO.cs": "430b89f75692bed32a2a91c5cc897702c6ed62b1b077ba6bbe547f918dda8a16",
+    "Assets/ORBIS/Runtime/V4/OrbisTerritories.cs": "06c4fef04bd55ecbf109b373cdeac644446547b3525171404f2b837539357d6c",
+    "Assets/ORBIS/Runtime/V4/OrbisBillboardActors.cs": "88b4304ff14ff0029b4abbdf2964cae97a7542332d7abdce52f4d184d746cdc9",
+    "Assets/ORBIS/Runtime/V4/OrbisTerrainV4.cs": "01f85e07e2c37729bca299efa99f311fc0d10aedc365f74b30676a4742ad952d",
+    "Assets/ORBIS/Runtime/V4/OrbisWorldMap.cs": "85924cde6710fdc67bbedf34adec40f831206f2e665eec661f70be1a9f8d3c35",
+    "Assets/ORBIS/Runtime/V4/OrbisDemoV4.cs": "86eb9afafc2fe6693d19d5362d42fcfd17cb66c29506e278d6888f1119f34327",
+    "Assets/ORBIS/Runtime/V4/OrbisSelectionView.cs": "ca84ae61485f892abe18b0db9cd59bbf028c155682d0fa4dfcc5abd8cbf19193",
+    "Assets/ORBIS/Runtime/V4/OrbisRiverNetwork.cs": "cdf34d4d2f3a44042972ad9d9c054a0d9c98267e4c4f55b6955fe0eea64b5850",
+    "Assets/ORBIS/Runtime/V4/OrbisRasterCodec.cs": "0b5e7fec13a74fea3f38ff9b2a5072ad90882ce29c152158c7587b1a2446bc94",
+    "Assets/ORBIS/Runtime/Weather/OrbisWeatherEffects.cs": "8e6704a0199ec1abe27a7d1997f500b18e357fdf37335513bac373df210c7f42",
+    "Assets/ORBIS/Runtime/Weather/OrbisWeatherObservatory.cs": "52e461326699a484e225fa09e53e716812b2122790db86a10f2df480b8076eeb",
+    "Assets/ORBIS/Runtime/Weather/OrbisAtmosphereCore.cs": "95b21debe96dedcb40b67b4bd34f82a7491dbdb41d740e8927cf4e905758c083",
+    "Assets/ORBIS/Resources/ORBIS/OrbisAtmosphereView.cginc": "76db687791c7f96c511d1c6463dedc1de8c44208ae3b511cc06c2f15cebdf8f8",
+    "Assets/ORBIS/Resources/ORBIS/OrbisAtmosphereGLSL.cginc": "da41ba485369b257468c8ee998c954cb08fa9125bc82ff9528432a3acad4a0a7",
+    "Assets/ORBIS/Resources/ORBIS/OrbisOptics.cginc": "25717ca0106056ee5ec3cab6a1fa14e591c794ac9c44bda9e966cc7d051c5459",
+    "Assets/ORBIS/Resources/ORBIS/AtmosphereComposite.shader": "a06add17751959186c16164ffe25b7c121f79a7b43b60b34d4b711b0d8e605fc",
+    "Assets/ORBIS/Resources/ORBIS/Clouds.shader": "c6ddfce55e0595d67646ac6498a73b7a2d2b917949a4f3f142f51d693be8b5ad",
+    "Assets/ORBIS/Resources/ORBIS/Selection.shader": "5e7c790f0ad210f1a76fdc06b082d2da0093e116b1b784e1756ca7ebea05f837",
+    "Assets/ORBIS/Resources/ORBIS/OrbisAtmosphereCommon.cginc": "79c41d85bfd61a113a358bbcbd670a4aa32e016276dc2e7dfd321e8a3a9267ee",
+    "Assets/ORBIS/Resources/ORBIS/Surface.shader": "5bf0420f24925b33fb0bdfef947e1654ec9417a7cc762cfdfa6e72611753b1dc",
+    "Assets/ORBIS/Resources/ORBIS/OrbisWater.cginc": "95faad43083222bdcd3db9ae29f975761449a53e5d913ee3910046209d4c822e",
+    "Assets/ORBIS/Resources/ORBIS/WeatherParticles.shader": "0a016a7611c7054e1716ac6d69e8b0bbc44d56bef20b0d6a4bc30204ac5b93ba",
+    "Assets/ORBIS/Resources/ORBIS/OrbisCloudCommon.cginc": "9718e869356ec5fef176819e0c0b539104abf70b574e2d568a7512a713f6a063",
+    "Assets/ORBIS/Resources/ORBIS/Transport.shader": "03804ae87d6ca2420415ac4d0184a2ea67d75da5d127952a6d2c6a26e17cd933",
+    "Assets/ORBIS/Resources/ORBIS/Overlay.shader": "fd6ddd48e7af60c818a9645c6cd2f074f2d5e4e022be60af849925801be900ba",
+    "Assets/ORBIS/Resources/ORBIS/CloudShadowCache.shader": "b45fab95baf3ca99917307ab8d576cccaf3ab5f67cdcefea27c9b664087501ba",
+    "Assets/ORBIS/Resources/ORBIS/Display.shader": "f5ccaf9e692e710d22c1b7769c5358379036643408a68f2f4ccf8090b4e250b6",
+    "Assets/ORBIS/Resources/ORBIS/SpriteWorld.shader": "28966bb99c23465bc3187aeed0d0a87ff14719e7ed7d8f3cbd505dd16647a6d1",
+    "Assets/ORBIS/Resources/ORBIS/RiverWater.shader": "dbbf103d9442b62964362dfd64fde8166368a801e8efb13af1f6e23cea519550",
+    "Assets/ORBIS/Resources/ORBIS/OrbisPatch.cginc": "be8e92141bcb19cb2516ad724c6bf91c9464df534d6b59c3c56fa441b1c1cffb"
+  },
+  "files": [
+    {
+      "path": "Assets/ORBIS/Editor/OrbisCloudNoiseImport.cs",
+      "before_sha256": "3d98b0fe64d23787f651b36555bfda774b854edaba1e69bb97ebff3112153675",
+      "after_sha256": "196a1c8e0904d908a4f4459d8933e57a7a48d4dfc8e2c61d4fd515ce007af14f",
+      "bytes": 4698
+    },
+    {
+      "path": "Assets/ORBIS/Resources/ORBIS/AtmosphereOpticalDepthV42.bytes",
+      "before_sha256": null,
+      "after_sha256": "dc881c5c4662e9b07fb4182c2ae1630c123f1b1d9b499055c9cb8ac67a2efeff",
+      "bytes": 147472
+    },
+    {
+      "path": "Assets/ORBIS/Resources/ORBIS/AtmosphereOpticalDepthV42.bytes.meta",
+      "before_sha256": null,
+      "after_sha256": "99eb2e95286a78556823880b5910b481999bf62a9639b57fa4a9890042fc633b",
+      "bytes": 158
+    },
+    {
+      "path": "Assets/ORBIS/Resources/ORBIS/CloudNoiseV42.bytes",
+      "before_sha256": null,
+      "after_sha256": "6c3d88ad02af2e24f84ae54ad7d7cceba2101ebebed6cfb7bb2e44c801e566f8",
+      "bytes": 1048576
+    },
+    {
+      "path": "Assets/ORBIS/Resources/ORBIS/CloudNoiseV42.bytes.meta",
+      "before_sha256": null,
+      "after_sha256": "ae64a3b06aa5da76d8a0c2be74aa87175c4bd1168c3e0f75e82584ac179e2021",
+      "bytes": 158
+    },
+    {
+      "path": "Assets/ORBIS/Resources/ORBIS/OrbisAtmosphereCommon.cginc",
+      "before_sha256": "79c41d85bfd61a113a358bbcbd670a4aa32e016276dc2e7dfd321e8a3a9267ee",
+      "after_sha256": "0cbf3a6b652dcdaaf2e2c4709c8f7343ff4e3b9fb42061e7ddd9675009a5cc81",
+      "bytes": 9132
+    },
+    {
+      "path": "Assets/ORBIS/Resources/ORBIS/OrbisAtmosphereGLtracy.cginc",
+      "before_sha256": null,
+      "after_sha256": "4ddc5c223eedb8b0b8c223eeb91d4ebe8091e6153c12b3cdd1a5871d65afcd51",
+      "bytes": 3810
+    },
+    {
+      "path": "Assets/ORBIS/Resources/ORBIS/OrbisAtmosphereGLtracy.cginc.meta",
+      "before_sha256": null,
+      "after_sha256": "417ead8f6fd68857f5bebacbc765ff79d100eafac6348376d9ce68a551b0e798",
+      "bytes": 161
+    },
+    {
+      "path": "Assets/ORBIS/Resources/ORBIS/OrbisCloudCommon.cginc",
+      "before_sha256": "9718e869356ec5fef176819e0c0b539104abf70b574e2d568a7512a713f6a063",
+      "after_sha256": "44af09405cf550ff7ec4e879db21c7cadbcb9a1ed9adbb976fdc7c13b1c6896b",
+      "bytes": 6317
+    },
+    {
+      "path": "Assets/ORBIS/Resources/ORBIS/OrbisOptics.cginc",
+      "before_sha256": "25717ca0106056ee5ec3cab6a1fa14e591c794ac9c44bda9e966cc7d051c5459",
+      "after_sha256": "6069360c944256697a94f3f759ce4883d0ebfb5f165fd1c31f5cc2cdd0b838c0",
+      "bytes": 1445
+    },
+    {
+      "path": "Assets/ORBIS/Resources/ORBIS/OrbisWater.cginc",
+      "before_sha256": "95faad43083222bdcd3db9ae29f975761449a53e5d913ee3910046209d4c822e",
+      "after_sha256": "aaaccb3022a91409a832e5746cc06d9d574802c132110ed80d62142f5eb3271e",
+      "bytes": 6884
+    },
+    {
+      "path": "Assets/ORBIS/Resources/ORBIS/Surface.shader",
+      "before_sha256": "5bf0420f24925b33fb0bdfef947e1654ec9417a7cc762cfdfa6e72611753b1dc",
+      "after_sha256": "35ddc4a6a813e3a671af6b22de8ed63a08b34ef3fde9bcadd230be6fc21a151c",
+      "bytes": 7314
+    },
+    {
+      "path": "Assets/ORBIS/Runtime/OrbisAtmosphereLut.cs",
+      "before_sha256": null,
+      "after_sha256": "c648e94ed28962ec5f8f4271b97907172100991497a0664b44613e5c8aa837e9",
+      "bytes": 3821
+    },
+    {
+      "path": "Assets/ORBIS/Runtime/OrbisAtmosphereLut.cs.meta",
+      "before_sha256": null,
+      "after_sha256": "9b489d0641a1e5e2d1793025d2b86368d94406f9026bf56462964b9e806ef751",
+      "bytes": 243
+    },
+    {
+      "path": "Assets/ORBIS/Runtime/OrbisAtmosphereProfile.cs",
+      "before_sha256": "da2c537de8c9ee1dcc8fce1ca80326c405141cc57337bf2853dbd3c62516ef27",
+      "after_sha256": "a0310348488db040a8f3a070c5574d08d5b57e361cdd7ad51dbea4fbac99570a",
+      "bytes": 2279
+    },
+    {
+      "path": "Assets/ORBIS/Runtime/OrbisAtmosphereRenderer.cs",
+      "before_sha256": "bd1d4efccd9f1864b8553707f7702917396607472b2c31a3f85b55509bad1b06",
+      "after_sha256": "686747159de4c9295084845fe840b93a2981cb5f077b628ee95bde59d4cbd4cb",
+      "bytes": 8519
+    },
+    {
+      "path": "Assets/ORBIS/Runtime/OrbisCloudNoise.cs",
+      "before_sha256": "2e23b533b16287ea81893853d5c822da18f26bf72a4967100c652ea445215ec1",
+      "after_sha256": "86357919da0b4def699bb8129ab95af201f8ab664583192d795afd6fa73ea251",
+      "bytes": 3458
+    },
+    {
+      "path": "Assets/ORBIS/Runtime/OrbisCloudShadowCache.cs",
+      "before_sha256": "089bca014b38c03e5ea55ba4e9165502b13abbd001893fb26a82b6869a8a6564",
+      "after_sha256": "29210116b3c4c1f08b9f34bcf31ac0e49625fda5e1c90b16418abbe40f465f08",
+      "bytes": 4902
+    },
+    {
+      "path": "Assets/ORBIS/Runtime/OrbisDemo.cs",
+      "before_sha256": "57d42649b6b23d89733ecebd88c076ad61ca2a087f24da06f222eb3bdb9aae0e",
+      "after_sha256": "df53c1eae2843bf242a102ef15ddc866b587703fbc93c0feff028c00ddf9c45d",
+      "bytes": 24018
+    },
+    {
+      "path": "Assets/ORBIS/Runtime/OrbisPlanetView.cs",
+      "before_sha256": "7fa2b5c12c2b7fcb3dadb85df0c17ad55776432d2bd4588a88fadceb1a55b22c",
+      "after_sha256": "2ffcca88c089d8df5c355dd445b6290dbcb1155459aa9cc1e966e6ba3c36b9fd",
+      "bytes": 23887
+    },
+    {
+      "path": "Assets/ORBIS/Runtime/OrbisSaveMigration.cs",
+      "before_sha256": "1251f869b90fffb572e1b7c9ca853752dfbdb82b8e08fd277de30550ea3b52da",
+      "after_sha256": "e4a6edcd2c407b232c1c2ccbafa44e6d392a991e8e4019781a10a7d1c4d2af8e",
+      "bytes": 4921
+    },
+    {
+      "path": "Assets/ORBIS/Runtime/OrbisSurfaceLOD.cs",
+      "before_sha256": "d8362e83ab1307260fdaf8e1116b16223fc39db5015af5406260fe5764cec33a",
+      "after_sha256": "c07154a86b905cf99356a091d8c5bea4553a5c55c9c05cbf5bf98431dd8c7259",
+      "bytes": 6116
+    },
+    {
+      "path": "Assets/ORBIS/Runtime/OrbisWeather.cs",
+      "before_sha256": "d5fe8d077ceaa93887f76d2c8a6bcc0d7bd2962b1d33cba4612a370ccfaaab55",
+      "after_sha256": "89408001dc3a61473fb06dc9f4cf0a4c4a96d417b882978e66d441b1eb097952",
+      "bytes": 6916
+    },
+    {
+      "path": "Assets/ORBIS/Runtime/OrbisWeatherField.cs",
+      "before_sha256": "3c524bb478784e519135a7b21d78ae15b66019d99d6e12f37ac284a796f027af",
+      "after_sha256": "a8b13f578b545818965b77a3183962ec1b498c5a20455564153681bfc46d1fd4",
+      "bytes": 8112
+    },
+    {
+      "path": "Assets/ORBIS/Runtime/OrbisWorld.cs",
+      "before_sha256": "30ca707ef4d1e6393239c1bcc193b1decae63418b3ca470cea3cb0fb17208201",
+      "after_sha256": "4aea73757bc81fd0d8c265ba929147a17588d3a52f22121e7cb75cb239fc05ba",
+      "bytes": 29556
+    },
+    {
+      "path": "Assets/ORBIS/Runtime/V4/OrbisTerrainV4.cs",
+      "before_sha256": "01f85e07e2c37729bca299efa99f311fc0d10aedc365f74b30676a4742ad952d",
+      "after_sha256": "385903e1f075292fe63915ed925cdffb7e66d8cbb70fb49008eca9e23f445cc8",
+      "bytes": 4941
+    },
+    {
+      "path": "Assets/ORBIS/Runtime/Weather/OrbisAtmosphereCore.cs",
+      "before_sha256": "95b21debe96dedcb40b67b4bd34f82a7491dbdb41d740e8927cf4e905758c083",
+      "after_sha256": "2a6f6190d3feb12816424ebf2cb15c5dcc90e523705d8c150a9b849912387995",
+      "bytes": 32984
+    },
+    {
+      "path": "Assets/ORBIS/Runtime/Weather/OrbisWeatherEffects.cs",
+      "before_sha256": "8e6704a0199ec1abe27a7d1997f500b18e357fdf37335513bac373df210c7f42",
+      "after_sha256": "5d0a4ac61d6c7ac21840e1fdd1ba0f4e16af0bdd86cc6eae673737995bf04104",
+      "bytes": 19092
+    },
+    {
+      "path": "Documentation/ThirdPartyNotices.md",
+      "before_sha256": "b739b30ad6bbbc5668e89be6808db47141ba260f72b08c6b28c1aa92b14b9135",
+      "after_sha256": "e34c047afc10de307afb8f823358a1f39b44dd40f28252e50e8579730676ff4b",
+      "bytes": 11240
+    },
+    {
+      "path": "Documentation/V4_2_Repair.md",
+      "before_sha256": null,
+      "after_sha256": "625918a05cfcef98eafcd57165506ac1d4d07c7b27bb8d1fb7e5554dda54bf2e",
+      "bytes": 14549
+    },
+    {
+      "path": "Documentation/V4_2_Repair/ORIGINAL_V4_2_PACKAGE_MANIFEST.json",
+      "before_sha256": null,
+      "after_sha256": "edab807c68da60654e740b70016bca10f4edfa19e55e35f558e7b82e37cb3204",
+      "bytes": 54190
+    },
+    {
+      "path": "Documentation/V4_2_Repair/source_changes.diff",
+      "before_sha256": null,
+      "after_sha256": "db418f89e2709c07082edb9db023e6c554e36d880e113ba85542d555163c8e00",
+      "bytes": 72061
+    },
+    {
+      "path": "Documentation/V4_2_Repair/validation_core.json",
+      "before_sha256": null,
+      "after_sha256": "b9014170c64aa202d67e0d3b2add9569d183116dbefdcd8bc5f21f518be1e6f4",
+      "bytes": 12990
+    },
+    {
+      "path": "Documentation/V4_2_Repair/validation_core_3456_smoke.json",
+      "before_sha256": null,
+      "after_sha256": "face65bf4dbf8231e88938bc1a18050dad564c7c7c99ef05160dae18588859ee",
+      "bytes": 1279
+    },
+    {
+      "path": "Documentation/V4_2_Repair/validation_core_384cells.json",
+      "before_sha256": null,
+      "after_sha256": "b9014170c64aa202d67e0d3b2add9569d183116dbefdcd8bc5f21f518be1e6f4",
+      "bytes": 12990
+    },
+    {
+      "path": "Documentation/V4_2_Repair/validation_repair.json",
+      "before_sha256": null,
+      "after_sha256": "f35be795b125d2911ebb02a40e2fdcc709cfeaf1e73ce22b0268c297f105b372",
+      "bytes": 2883
+    },
+    {
+      "path": "PACKAGE_MANIFEST.json",
+      "before_sha256": "edab807c68da60654e740b70016bca10f4edfa19e55e35f558e7b82e37cb3204",
+      "after_sha256": "c9861004179731fa18cc899b3788344273d3e83cad90e63535de64f02adcb4de",
+      "bytes": 604
+    },
+    {
+      "path": "README.md",
+      "before_sha256": "3e7fbd3e6d604eed772759e1e7d952b1bc722a0ac8b97c40073af8b10132c6fc",
+      "after_sha256": "064b3cbe61b7453b307eda606a04f8c6303e2701a39005ae6dcdaf0ab81c46b9",
+      "bytes": 12590
+    },
+    {
+      "path": "README_V4_2_REPAIR_先读.md",
+      "before_sha256": null,
+      "after_sha256": "04ffa989a42b7c2ff2003a954516da70665a2661c74ec79a97b6dffc0e864eaf",
+      "bytes": 810
+    },
+    {
+      "path": "Reference/GLtracy_User_V4_2.glsl",
+      "before_sha256": null,
+      "after_sha256": "baa5c9136a8e37ff69f5a18f29a6254f2a63e81acb6dff577f30bfc0f40ad9ee",
+      "bytes": 2883
+    },
+    {
+      "path": "Tools/bake_v42_repair.py",
+      "before_sha256": null,
+      "after_sha256": "3b73899a9eebeac9efae46af93eaa1670909cb8c13bca97c94ac2da8e22ce4ac",
+      "bytes": 3742
+    },
+    {
+      "path": "Validation/smoke_v42_repair_core.py",
+      "before_sha256": null,
+      "after_sha256": "3f63b023e134dae831a643a5053d94e08e5ec2f23c6f79235ec5bf8d972c39ed",
+      "bytes": 2227
+    },
+    {
+      "path": "Validation/validate_v42_repair.py",
+      "before_sha256": null,
+      "after_sha256": "e78ae941c9e978068109b4072bf75af1560662f2f6f95bf6224d7197afc98c27",
+      "bytes": 8573
+    },
+    {
+      "path": "Validation/validate_v42_repair_core.py",
+      "before_sha256": null,
+      "after_sha256": "745b63cea65970bc04cbfb99aca9e4910239e9209e39fc4b13d62de530a31719",
+      "bytes": 1789
+    }
+  ],
+  "tests": {
+    "repair_groups_passed": 8,
+    "repair_groups_failed": 0,
+    "core_384cells_1800_ticks": "12 checks PASS",
+    "core_3456cells_32_ticks": "3 checks PASS",
+    "core_3456cells_1200_ticks": "TIMEOUT",
+    "Unity_CSharp_HLSL_playmode_FPS": "NOT_RUN"
+  }
+}

@@ -1,0 +1,32 @@
+{
+  "scope": "Chromium DOM/layout and explicit static fallback; WebGL context unavailable, not WebGL interactive success",
+  "result": "PASS",
+  "cases": [
+    {
+      "viewport": [
+        1440,
+        950
+      ],
+      "uncaught_js_errors": [],
+      "fallback_switches": "PASS",
+      "error": "Error: WebGL 2 context unavailable",
+      "posterVisible": true,
+      "posterLoaded": true,
+      "overflows": false,
+      "renderer": "静态预览 · WebGL 2 未启动"
+    },
+    {
+      "viewport": [
+        390,
+        844
+      ],
+      "uncaught_js_errors": [],
+      "fallback_switches": "PASS",
+      "error": "Error: WebGL 2 context unavailable",
+      "posterVisible": true,
+      "posterLoaded": true,
+      "overflows": false,
+      "renderer": "静态预览 · WebGL 2 未启动"
+    }
+  ]
+}

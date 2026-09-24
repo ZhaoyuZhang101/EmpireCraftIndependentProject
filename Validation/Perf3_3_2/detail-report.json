@@ -1,0 +1,6 @@
+{
+  "status": "PASS",
+  "scope": "Synthetic GLES shader illustration; NOT a screenshot from the Unity game.",
+  "mean_pixel_change": 10.324132537841797,
+  "unity_executed": false
+}

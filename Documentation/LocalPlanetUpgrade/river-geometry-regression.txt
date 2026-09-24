@@ -1,0 +1,1 @@
+PASS CPU/GPU meandering variable-width channel field, longitude wrap; samples=16384 maximumError=3.278255E-07 invalid=0 cell=63.03906,12.91406 GPU=0.3844909 CPU=0.3844913 width=0.135 expectedWidth=0.135

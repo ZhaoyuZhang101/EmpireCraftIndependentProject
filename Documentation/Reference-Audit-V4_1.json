@@ -1,0 +1,47 @@
+{
+  "checked_on": "2026-09-11",
+  "scope": "Public primary documentation; upstream revisions not pinned; no new third-party code downloaded.",
+  "sources": [
+    {
+      "url": "https://www.shadertoy.com/view/lslXDr",
+      "status": "complete_source_unavailable_NOT_PORTED"
+    },
+    {
+      "url": "https://www.shadertoy.com/view/wlBXWK",
+      "status": "complete_source_unavailable_NOT_PORTED"
+    },
+    {
+      "url": "https://www.shadertoy.com/view/MdGBWG",
+      "status": "complete_source_unavailable_NOT_PORTED"
+    },
+    {
+      "url": "https://zhuanlan.zhihu.com/p/2057055806038844943",
+      "status": "article_body_unavailable"
+    },
+    {
+      "url": "https://github.com/AshenOneArt/HPVolumeCloud/tree/main",
+      "status": "read_author_documentation",
+      "application": "independent reduced diffuse-source approximation, not full phi_fwd port"
+    },
+    {
+      "url": "https://github.com/AshenOneArt/3DTextureExportTools",
+      "status": "read_author_documentation",
+      "application": "independent PNG-slice importer; generator and generated assets not bundled"
+    },
+    {
+      "url": "https://github.com/Unity-Technologies/Graphics/blob/master/Packages/com.unity.render-pipelines.high-definition/Documentation~/HDRP-Features.md",
+      "status": "read_primary_documentation",
+      "application": "independent shared Beer optical-depth cache and air-source sampling"
+    },
+    {
+      "url": "https://docs.unity3d.com/6000.0/Documentation/ScriptReference/GL-sRGBWrite.html",
+      "status": "read_primary_documentation",
+      "application": "explicit final color transfer state"
+    },
+    {
+      "url": "https://docs.unity3d.com/6000.0/Documentation/ScriptReference/ShaderUtil.GetShaderMessages.html",
+      "status": "read_primary_documentation",
+      "application": "native validation command provided, not executed"
+    }
+  ]
+}

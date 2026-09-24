@@ -1,0 +1,8 @@
+{
+  "status": "PASS",
+  "scope": "Execute the production Wheel/GoGlobe decision bodies translated to C++ with camera hooks stubbed.",
+  "executed_decision_checks": 32,
+  "commit_wiring_checks": 4,
+  "unity_camera_executed": false,
+  "native_csharp_executed": false
+}

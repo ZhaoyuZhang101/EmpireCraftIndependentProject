@@ -1,0 +1,10 @@
+{
+  "status": "PASS",
+  "scope": "Execute the production Markley.cginc lookup in Mesa GLES, compare repeated cover images.\nRGBA8 direction encoding is used, not a Unity screenshot or performance benchmark.\n",
+  "max_rgba8_errors": {
+    "left_right": 0,
+    "north_south": 0,
+    "full_vertical": 0
+  },
+  "unity_executed": false
+}

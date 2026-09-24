@@ -1,0 +1,4 @@
+PASS new moon terrain readability=0.1090333
+PASS full moon brighter=0.1825217
+PASS Moon below horizon contributes zero=0.1090333
+PASS cloudy night stays readable=0.09569795

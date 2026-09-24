@@ -1,0 +1,7 @@
+PASS equal surface distance has equal artwork scale at latitude=0 ratio=1.00111412052231
+PASS equal surface distance has equal artwork scale at latitude=60 ratio=1.00601580887234
+PASS equal surface distance has equal artwork scale at latitude=-60 ratio=1.00555954277802
+PASS equal surface distance has equal artwork scale at latitude=80 ratio=0.999769329745721
+PASS equal surface distance has equal artwork scale at latitude=-80 ratio=0.999772070594304
+PASS equal surface distance has equal artwork scale at latitude=89 ratio=1.00001948107127
+PASS equal surface distance has equal artwork scale at latitude=-89 ratio=0.999618712440025

@@ -1,0 +1,40 @@
+{
+  "scope": "32 ticks / 3456 cells, current C# equation bodies translated to C++17. Not C#/Unity compilation; execution timing is not game FPS.",
+  "source_sha256": "2a6f6190d3feb12816424ebf2cb15c5dcc90e523705d8c150a9b849912387995",
+  "topology": {
+    "cells": 3456,
+    "edges": 6912,
+    "area_sum": 12.566370614359174,
+    "area_error": 1.7763568394002505e-15
+  },
+  "checks": {
+    "finite_bounded_temperature": true,
+    "water_nonnegative": true,
+    "water_budget": true
+  },
+  "data": {
+    "sample": {
+      "step": 32,
+      "budget_relative": -3.668634666382683e-14,
+      "min_water": 0,
+      "max_water": 13.05364318260205,
+      "min_T_K": 184.0726033764256,
+      "max_T_K": 300.929907023663,
+      "max_rain_mm_h": 0.4639153526771734,
+      "max_wetness": 0.03072654716236856,
+      "max_CAPE": 6500,
+      "max_updraft_m_s": 14.70902796153267,
+      "max_top_m": 12000,
+      "max_ice_path": 0.01845978290322559,
+      "max_graupel_path": 0.001243811082229798,
+      "max_charge": 1.890221276849193e-05,
+      "mature_cells": 10,
+      "cloudy_cells": 204,
+      "lightning_count": 0
+    },
+    "total_equation_execution_ms": 578.205263
+  },
+  "full_1200_step_run": "TIMEOUT_IN_THIS_ENVIRONMENT",
+  "unity_compilation": "NOT_RUN",
+  "device_fps": "NOT_RUN"
+}

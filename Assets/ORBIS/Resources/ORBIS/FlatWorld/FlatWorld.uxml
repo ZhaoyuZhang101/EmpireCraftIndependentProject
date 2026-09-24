@@ -1,0 +1,59 @@
+<ui:UXML xmlns:ui="UnityEngine.UIElements">
+ <ui:Style src="FlatWorld.uss" />
+ <ui:VisualElement name="app" class="app">
+  <ui:VisualElement name="viewport" class="viewport" />
+  <ui:VisualElement class="header">
+   <ui:VisualElement class="title-row">
+    <ui:Label text="ORBIS" class="brand"/><ui:Label text="WORLD / ATLAS / DETAIL" class="eyebrow"/>
+    <ui:VisualElement class="spacer"/><ui:Button name="pause" text="暂停"/><ui:Button name="speed" text="1×"/>
+    <ui:Button name="mode" text="M 展开总览" class="accent"/><ui:Button name="shot" text="截图"/>
+   </ui:VisualElement>
+   <ui:Label name="stats" text="正在生成世界…" class="stats"/>
+  </ui:VisualElement>
+  <ui:VisualElement class="sidebar">
+   <ui:DropdownField name="layer" label="地图"/><ui:DropdownField name="tool" label="操作"/>
+   <ui:VisualElement class="row"><ui:Button name="atlas" text="2D 总览" class="grow"/><ui:Button name="focus" text="F 详细图" class="grow"/></ui:VisualElement>
+   <ui:VisualElement class="tab-row"><ui:Button name="tabWorld" text="世界" class="tab-button"/><ui:Button name="tabTerrain" text="地形" class="tab-button"/><ui:Button name="tabCivs" text="文明" class="tab-button"/><ui:Button name="tabFiles" text="存档" class="tab-button"/></ui:VisualElement>
+   <ui:ScrollView class="tab-scroll" mode="Vertical">
+    <ui:VisualElement name="panelWorld" class="tab-page">
+     <ui:Label text="同一个世界，三个尺度" class="section"/>
+     <ui:Label text="滚轮：球体 → 2D 总览 → 2D 详细图。拖动平移，点击选择地块。向外缩放可沿原路返回。" class="muted"/>
+     <ui:DropdownField name="cloudQuality" label="画面质量"/><ui:Toggle name="clouds" label="云层与云影"/>
+     <ui:Button name="home" text="Home 重置视野"/>
+     <ui:Foldout text="生成新世界" value="false">
+      <ui:TextField name="seed" label="种子"/><ui:DropdownField name="size" label="地图大小"/><ui:DropdownField name="preset" label="地形"/>
+      <ui:Button name="generate" text="生成世界" class="accent"/>
+      <ui:Label text="生成将替换当前世界；请先保存。" class="muted"/>
+     </ui:Foldout>
+     <ui:Label name="skyStatus" text="" class="muted"/>
+    </ui:VisualElement>
+    <ui:VisualElement name="panelTerrain" class="tab-page is-hidden">
+     <ui:Label text="地图与编辑" class="section"/>
+     <ui:Toggle name="grid" label="G 地块网格"/><ui:Toggle name="contours" label="C 等高线"/>
+     <ui:Label text="在上方「操作」选择高度笔刷、道路、桥梁或路径；球体和展开途中仅支持查看。" class="muted"/>
+     <ui:DropdownField name="height" label="笔刷高度"/><ui:DropdownField name="brush" label="笔刷大小"/>
+     <ui:Button name="rebuild" text="重算河流与气候"/>
+     <ui:Foldout text="水面状态" value="false"><ui:Label name="waterStatus" text="" class="muted"/></ui:Foldout>
+    </ui:VisualElement>
+    <ui:VisualElement name="panelCivs" class="tab-page is-hidden">
+     <ui:Label text="文明" class="section"/><ui:Button name="seedCivs" text="播种文明" class="accent"/>
+     <ui:Label text="在「操作」选择建立文明、扩张、农田、道路或桥梁，再点击地块。三层视图共用人口、领土与日历。" class="muted"/>
+     <ui:Label name="nations" text="等待文明诞生。" class="nations"/>
+    </ui:VisualElement>
+    <ui:VisualElement name="panelFiles" class="tab-page is-hidden">
+     <ui:Label text="世界存档" class="section"/>
+     <ui:VisualElement class="row"><ui:Button name="save" text="保存" class="grow"/><ui:Button name="load" text="载入" class="grow"/></ui:VisualElement>
+     <ui:Button name="folder" text="打开存档文件夹"/>
+     <ui:Foldout text="高度图导入 / 导出" value="false">
+      <ui:TextField name="path" label="文件路径"/>
+      <ui:VisualElement class="row"><ui:Button name="export" text="导出" class="grow"/><ui:Button name="import" text="导入" class="grow"/></ui:VisualElement>
+      <ui:Label text="2:1 灰度高度图。导入会生成新世界，不包含文明。" class="muted"/>
+     </ui:Foldout>
+    </ui:VisualElement>
+    <ui:Foldout text="选中地块" value="true" class="inspector-foldout"><ui:Label name="tileInfo" text="点击地图选择地块。" class="tile-info"/></ui:Foldout>
+    <ui:Foldout text="图例" value="false"><ui:Label name="legend" text="" class="legend"/></ui:Foldout>
+   </ui:ScrollView>
+  </ui:VisualElement>
+  <ui:VisualElement class="footer"><ui:Label name="notice" text="准备世界数据…" class="notice"/><ui:Label text="滚轮切换尺度 · 拖动 / WASD 平移 · Space 暂停 · M 球体 / 总览 · F 详细图" class="hint"/></ui:VisualElement>
+ </ui:VisualElement>
+</ui:UXML>

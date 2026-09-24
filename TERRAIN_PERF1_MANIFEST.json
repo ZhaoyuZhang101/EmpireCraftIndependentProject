@@ -1,0 +1,217 @@
+{
+  "version": "V4.2 GreenRingFix TerrainPerf1",
+  "utc": "2026-09-11T12:43:36.173744+00:00",
+  "baseline_zip": "ORBIS_Unity_V4_2_Repair_IPCFix1_NightLighting_GreenRingFix_Full.zip",
+  "baseline_zip_sha256": "34f6fb467ae0843ddcfe1d8e4b2fc8c70a86eb69f88e8942618e6fed5634fc23",
+  "unity_version": "6000.0.47f1",
+  "render_pipeline": "Built-in",
+  "unity_compile_performed": false,
+  "runtime_fps_measured": false,
+  "required_baseline_anchors": {
+    "Assets/ORBIS/Runtime/OrbisNightLighting.cs": "95ef13eb7d051fc3b05930b4ebd057626715b5b012597be2cd88197f29a77e5b",
+    "Assets/ORBIS/Resources/ORBIS/OrbisNightLighting.cginc": "dd975d47c70174f653f41735e116510fb3d57172645505c51da4ac925f9b353e",
+    "Assets/ORBIS/Resources/ORBIS/OrbisAtmosphereCommon.cginc": "fa8a2983a3669447cb12ff7c50d9a1a968df5658f6c5077eff586373aff98220",
+    "ProjectSettings/ProjectVersion.txt": "6a291611d2569dca6a154d32ab2de808c1f8e8443df9268643946e03d557fac4",
+    "Packages/manifest.json": "3e5e7475773fe07024caf1633baffa29e092941efe926fa06fd286a971ab79da"
+  },
+  "files": [
+    {
+      "path": "Assets/ORBIS/Editor/OrbisTerrainPerfValidation.cs",
+      "change": "added",
+      "old_sha256": null,
+      "new_sha256": "a42dfb6da89bf912e0f81cbb47c75c664ac6f766347355bbce3950c576f29ef1",
+      "size_bytes": 8026
+    },
+    {
+      "path": "Assets/ORBIS/Editor/OrbisTerrainPerfValidation.cs.meta",
+      "change": "added",
+      "old_sha256": null,
+      "new_sha256": "03eb2c36b17502da7c06220785c8dc366c0c5ee9f425bca2ecf88a2c45b15fa4",
+      "size_bytes": 243
+    },
+    {
+      "path": "Assets/ORBIS/Editor/OrbisV42NightLightingValidation.cs",
+      "change": "modified",
+      "old_sha256": "c042e22012bcf582dfabb09009c4f612d21db65591487422d737cf77978f7c69",
+      "new_sha256": "b82f92cef6ea08223d664f8c42c340a843e54a9a1973e28766d2f45217ad8710",
+      "size_bytes": 15975
+    },
+    {
+      "path": "Assets/ORBIS/Editor/OrbisV42RepairIPCValidation.cs",
+      "change": "modified",
+      "old_sha256": "562b8d4511514d82b588449968e6138f8d86f9ade6653bd8fbdbe36b0de5be88",
+      "new_sha256": "ca04606a15b9f9e7c7882dcc8dfbb545ff9ddd3846f625124f3cd0b5684d30be",
+      "size_bytes": 12350
+    },
+    {
+      "path": "Assets/ORBIS/Resources/ORBIS/AtmosphereComposite.shader",
+      "change": "modified",
+      "old_sha256": "a06add17751959186c16164ffe25b7c121f79a7b43b60b34d4b711b0d8e605fc",
+      "new_sha256": "85e202729e8ed22d8f14b29ef9976429ae5b3bc236673b16865d8834f3684b4e",
+      "size_bytes": 2644
+    },
+    {
+      "path": "Assets/ORBIS/Resources/ORBIS/Clouds.shader",
+      "change": "modified",
+      "old_sha256": "e834def3466d1ba5981cc2d366a2ca8a6e288a142d273965e9d0143cdd4fe6ea",
+      "new_sha256": "4c9465e936dc1350b9f0a57bddf9bf64e83aaeacb59804a1b4a78877d90510d5",
+      "size_bytes": 1928
+    },
+    {
+      "path": "Assets/ORBIS/Resources/ORBIS/Orbis.uxml",
+      "change": "modified",
+      "old_sha256": "277cc2a5f5b952ed5fb5f28e56a6bf3a8b7b06383d4494a0cffe6c6614fa929f",
+      "new_sha256": "7753285124f8811cd23467a9fd8f5d72de93810f4d127582cc44d5596d3c34a4",
+      "size_bytes": 13829
+    },
+    {
+      "path": "Assets/ORBIS/Runtime/OrbisAtmosphereRenderer.cs",
+      "change": "modified",
+      "old_sha256": "686747159de4c9295084845fe840b93a2981cb5f077b628ee95bde59d4cbd4cb",
+      "new_sha256": "3eda5328e64539ed88b402b87e87a23061e319cd279f78a81e03b9c680207aef",
+      "size_bytes": 8711
+    },
+    {
+      "path": "Assets/ORBIS/Runtime/OrbisDemo.cs",
+      "change": "modified",
+      "old_sha256": "52b47cac734cdac3462f2cbc85f1b9c091aac4baa6154e2fc5af332af9d85ae4",
+      "new_sha256": "37751477d1b5cea396f8e7581c1b47d83e4dd1622c9f595c28c31d1992dd406d",
+      "size_bytes": 24494
+    },
+    {
+      "path": "Assets/ORBIS/Runtime/OrbisHud.cs",
+      "change": "modified",
+      "old_sha256": "473a782d25ee93036e58948c8246af90ff1f5ec03985fd7111440d30cc5c8585",
+      "new_sha256": "955b6dce8afa9e6173bad893402d84c5608ed52e6285c93a7d678e6b53a2ff83",
+      "size_bytes": 25947
+    },
+    {
+      "path": "Assets/ORBIS/Runtime/OrbisMapView.cs",
+      "change": "modified",
+      "old_sha256": "9282182348d71492b4dbc7c292236cbe8087ddebbc53979cae75a26d555dd4e5",
+      "new_sha256": "9a825726177052d5991b9c600630909a332be88ed7c8c1bd1d72b2b5c38cec05",
+      "size_bytes": 8011
+    },
+    {
+      "path": "Assets/ORBIS/Runtime/OrbisPlanetView.cs",
+      "change": "modified",
+      "old_sha256": "0216873f1b916d506926cdeb7c73b626608c3fb3d6d481f23ce48b64637af350",
+      "new_sha256": "187854222746350e107995246822918019838707b6bc891d2407e38afb56eef4",
+      "size_bytes": 26796
+    },
+    {
+      "path": "Assets/ORBIS/Runtime/OrbisSaveMigration.cs",
+      "change": "modified",
+      "old_sha256": "e4a6edcd2c407b232c1c2ccbafa44e6d392a991e8e4019781a10a7d1c4d2af8e",
+      "new_sha256": "34b18b3ee2cda20e7f70d7ad4177d857e1230dcf2eee23f4b9ef3501cebeff86",
+      "size_bytes": 5336
+    },
+    {
+      "path": "Assets/ORBIS/Runtime/OrbisSurfaceLOD.cs",
+      "change": "modified",
+      "old_sha256": "c07154a86b905cf99356a091d8c5bea4553a5c55c9c05cbf5bf98431dd8c7259",
+      "new_sha256": "f9c5c74c859c74c19aac4c906782e669f53db59d117ed2e9bee6e508bc1b47f7",
+      "size_bytes": 8803
+    },
+    {
+      "path": "Assets/ORBIS/Runtime/OrbisWeatherField.cs",
+      "change": "modified",
+      "old_sha256": "a8b13f578b545818965b77a3183962ec1b498c5a20455564153681bfc46d1fd4",
+      "new_sha256": "9a0b30ddbdfedddf9cd9489a777404008a277d48098272bbac9a915b5495b904",
+      "size_bytes": 8443
+    },
+    {
+      "path": "Assets/ORBIS/Runtime/OrbisWorld.cs",
+      "change": "modified",
+      "old_sha256": "8150a1403f9f70c3a676e079e37719240438715950d70efb89b54982f34ca650",
+      "new_sha256": "39ce2f6b3597924d5c1b68a78084005246c107c93b9cc5ac07ee007f4e5541b2",
+      "size_bytes": 31053
+    },
+    {
+      "path": "Assets/ORBIS/Runtime/V4/OrbisDemoV4.cs",
+      "change": "modified",
+      "old_sha256": "86eb9afafc2fe6693d19d5362d42fcfd17cb66c29506e278d6888f1119f34327",
+      "new_sha256": "af9d7c2dd6f7b53c1035a504995430b37cbf8ae4f28c809c748fb787bfd7c815",
+      "size_bytes": 4946
+    },
+    {
+      "path": "Assets/ORBIS/Runtime/V4/OrbisPerformanceCapture.cs",
+      "change": "added",
+      "old_sha256": null,
+      "new_sha256": "9ecc701f97343251ed23c5f4b69e583256ee6442d721377f4eb67e63a1c92782",
+      "size_bytes": 8841
+    },
+    {
+      "path": "Assets/ORBIS/Runtime/V4/OrbisPerformanceCapture.cs.meta",
+      "change": "added",
+      "old_sha256": null,
+      "new_sha256": "88faea16967bbd0458dc43fcee612a53a59e1735e30bad7520de4c79726b617b",
+      "size_bytes": 243
+    },
+    {
+      "path": "Assets/ORBIS/Runtime/V4/OrbisTerrainEditing.cs",
+      "change": "added",
+      "old_sha256": null,
+      "new_sha256": "c5671e6b27d3e61d3da6fe5b73492d405bdd888545f2d7167a87790f279741fc",
+      "size_bytes": 8658
+    },
+    {
+      "path": "Assets/ORBIS/Runtime/V4/OrbisTerrainEditing.cs.meta",
+      "change": "added",
+      "old_sha256": null,
+      "new_sha256": "6f418ac4a6e1d41142866cf1aac31770bf66073b6bdf2468f6764ed4df035f7b",
+      "size_bytes": 243
+    },
+    {
+      "path": "Assets/ORBIS/Runtime/V4/OrbisTerrainV4.cs",
+      "change": "modified",
+      "old_sha256": "385903e1f075292fe63915ed925cdffb7e66d8cbb70fb49008eca9e23f445cc8",
+      "new_sha256": "5b1d6192e04cbb08651fc7d7446f8bd41a3c5dc121d5d0a6e3fb635b1e53bb4c",
+      "size_bytes": 5052
+    },
+    {
+      "path": "Assets/ORBIS/Runtime/Weather/OrbisWeatherObservatory.cs",
+      "change": "modified",
+      "old_sha256": "52e461326699a484e225fa09e53e716812b2122790db86a10f2df480b8076eeb",
+      "new_sha256": "bc17d8199be0b08581693c198a2f98c9e85c0efdec29073039eea29245532f59",
+      "size_bytes": 3138
+    },
+    {
+      "path": "Documentation/TerrainPerf1/offline-validation.json",
+      "change": "added",
+      "old_sha256": null,
+      "new_sha256": "9c0502eb767338a282c15f16f8880e6ab2d4cbb2b76da39f53f01596cdc30e40",
+      "size_bytes": 4439
+    },
+    {
+      "path": "README.md",
+      "change": "modified",
+      "old_sha256": "064b3cbe61b7453b307eda606a04f8c6303e2701a39005ae6dcdaf0ab81c46b9",
+      "new_sha256": "65d1ddfcae8126cb8ad7893ed66bee9410221f09a012d2b456a32aed9cca3a12",
+      "size_bytes": 12879
+    },
+    {
+      "path": "README_TerrainPerf1_先读.md",
+      "change": "added",
+      "old_sha256": null,
+      "new_sha256": "8c33db47b2a9b59e21ffc93e9d88c07c9cb36567caf81a28d79dd54e2b4ecb19",
+      "size_bytes": 14242
+    },
+    {
+      "path": "VERSION_TERRAIN_PERF1.txt",
+      "change": "added",
+      "old_sha256": null,
+      "new_sha256": "a81aaa80f92f4fa95dd3e6f0d3c8bf91ded9746988393a85397870f5148631d9",
+      "size_bytes": 272
+    },
+    {
+      "path": "Validation/validate_terrain_perf1.py",
+      "change": "added",
+      "old_sha256": null,
+      "new_sha256": "6a33ec3906938dd0f40245d437caea2244e6cf9a4a05a3265d0c1984d78348e6",
+      "size_bytes": 12168
+    }
+  ],
+  "deleted_files": [],
+  "manifest_hash_note": "Manifest does not include its own hash. apply_patch.py is a patch-only utility, not a project source dependency."
+}

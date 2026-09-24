@@ -1,0 +1,10 @@
+{
+  "status": "PASS",
+  "scope": "Execute the shipped cloud density and water mask in Mesa GLES using synthetic inputs.\nThe shipped light quadrature is also executed; camera and final lighting are simplified; NOT Unity screenshots.\n",
+  "unity_executed": false,
+  "cloud_opaque_fraction": 0.469451904296875,
+  "clear_fraction": 0.394622802734375,
+  "wrap_max_byte_error": 1,
+  "cloud_disable_max_byte": 0,
+  "estuary_corridor_min_coverage_byte": 255
+}

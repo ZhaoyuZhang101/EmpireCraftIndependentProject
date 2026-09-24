@@ -1,0 +1,328 @@
+{
+  "version": "3.3.1",
+  "title": "ORBIS merged globe-atlas-detail project",
+  "status": "OFFLINE_VALIDATED_NATIVE_UNITY_UNVERIFIED",
+  "inputs": [
+    {
+      "filename": "ORBIS_TerrainPerf3_2_ContinuousWorld_Full.zip",
+      "sha256": "553148abb6ae5ead4aef51baeebe949dcba445f3a30cb0fc9b81bb6ac34c3450"
+    },
+    {
+      "filename": "ORBIS_Perf3_2_to_3_3_Scroll_Patch(1).zip",
+      "sha256": "809cc346bfaf9c527e1d9cb254ef6966d52f48a012e6085cb9d3fb7c306ba962"
+    }
+  ],
+  "merge_method": "Source adaptation to actual full-package APIs. Original guarded installer was refused on baseline mismatch and was not modified or forced.",
+  "patch_compatibility": [
+    {
+      "path": "Assets/ORBIS/Resources/ORBIS/FlatWorld/FlatMap.shader",
+      "patch_expected_baseline": "0f7176a181d22282c255edec4781f61b99a961bc8a5cf6ddb8c9ca2219a39602",
+      "actual_full_package": "72b66eb288f5256d310f061c33ba3d5732912c10c20e0c431e719eea06904b33",
+      "matches": false
+    },
+    {
+      "path": "Assets/ORBIS/Runtime/FlatWorld/Core/FlatTypes.cs",
+      "patch_expected_baseline": "25fcb2744f0805a9e05d05d145220044b94cf1a3548f74fd5db9e483b67d6dc0",
+      "actual_full_package": "845b307dc05f651f1b098aee8572bf5838605ffedaf6f9afe4949258ab62c719",
+      "matches": false
+    },
+    {
+      "path": "Assets/ORBIS/Editor/FlatScrollValidation.cs",
+      "patch_expected_baseline": null,
+      "actual_full_package": null,
+      "matches": true
+    },
+    {
+      "path": "Assets/ORBIS/Editor/FlatScrollValidation.cs.meta",
+      "patch_expected_baseline": null,
+      "actual_full_package": null,
+      "matches": true
+    },
+    {
+      "path": "Assets/ORBIS/Resources/ORBIS/FlatWorld/FlatVisual.cginc",
+      "patch_expected_baseline": "738955e4e32926983deee43ebaf9d4c414cf7bdf6a212274cff6e1a13e43a0d0",
+      "actual_full_package": null,
+      "matches": false
+    },
+    {
+      "path": "Assets/ORBIS/Resources/ORBIS/FlatWorld/FlatWorld.uxml",
+      "patch_expected_baseline": "938ec331d6a985cf39e26b5b00088472da7d3521641cf497ddae01f3d6b4357d",
+      "actual_full_package": "963d61ad0c0649ba962da619e4eba438b570cd9e429a2cc7883312f191567eab",
+      "matches": false
+    },
+    {
+      "path": "Assets/ORBIS/Resources/ORBIS/FlatWorld/ScrollProjection.cginc",
+      "patch_expected_baseline": null,
+      "actual_full_package": null,
+      "matches": true
+    },
+    {
+      "path": "Assets/ORBIS/Resources/ORBIS/FlatWorld/ScrollProjection.cginc.meta",
+      "patch_expected_baseline": null,
+      "actual_full_package": null,
+      "matches": true
+    },
+    {
+      "path": "Assets/ORBIS/Resources/ORBIS/FlatWorld/ScrollSurface.shader",
+      "patch_expected_baseline": null,
+      "actual_full_package": null,
+      "matches": true
+    },
+    {
+      "path": "Assets/ORBIS/Resources/ORBIS/FlatWorld/ScrollSurface.shader.meta",
+      "patch_expected_baseline": null,
+      "actual_full_package": null,
+      "matches": true
+    },
+    {
+      "path": "Assets/ORBIS/Resources/ORBIS/FlatWorld/ScrollWeather.shader",
+      "patch_expected_baseline": null,
+      "actual_full_package": null,
+      "matches": true
+    },
+    {
+      "path": "Assets/ORBIS/Resources/ORBIS/FlatWorld/ScrollWeather.shader.meta",
+      "patch_expected_baseline": null,
+      "actual_full_package": null,
+      "matches": true
+    },
+    {
+      "path": "Assets/ORBIS/Runtime/FlatWorld/Core/FlatSolarClock.cs",
+      "patch_expected_baseline": null,
+      "actual_full_package": null,
+      "matches": true
+    },
+    {
+      "path": "Assets/ORBIS/Runtime/FlatWorld/Core/FlatSolarClock.cs.meta",
+      "patch_expected_baseline": null,
+      "actual_full_package": null,
+      "matches": true
+    },
+    {
+      "path": "Assets/ORBIS/Runtime/FlatWorld/Presentation/FlatGlobePresenter.cs",
+      "patch_expected_baseline": "3cf1e77cee846d30ae470f7fd0b23879e97278662afc784e83e1797004f00238",
+      "actual_full_package": "4521fe19657ada80b2234b4e881ac57f78ba414f74a1d9c6bdf771468829ae82",
+      "matches": false
+    },
+    {
+      "path": "Assets/ORBIS/Runtime/FlatWorld/Presentation/FlatScrollNavigator.cs",
+      "patch_expected_baseline": null,
+      "actual_full_package": null,
+      "matches": true
+    },
+    {
+      "path": "Assets/ORBIS/Runtime/FlatWorld/Presentation/FlatScrollNavigator.cs.meta",
+      "patch_expected_baseline": null,
+      "actual_full_package": null,
+      "matches": true
+    },
+    {
+      "path": "Assets/ORBIS/Runtime/FlatWorld/Presentation/FlatWorldApp.cs",
+      "patch_expected_baseline": "f8e24abee205ca38b7fe114a85f2a566d853efe3a6224fd150352631af4298d5",
+      "actual_full_package": "4df34452548127b305729b7917bb5dba98cc696a4c3c670a578090d75641f8cc",
+      "matches": false
+    },
+    {
+      "path": "Assets/ORBIS/Runtime/OrbisPlanetView.cs",
+      "patch_expected_baseline": "901cab9248d6df88fd160561ec5ab061637d6118fc38800342089aa4a73d5a7d",
+      "actual_full_package": "4703981a95bc243ec77e3c314aabdfcf290c95288823276d68e00854d18d4700",
+      "matches": false
+    }
+  ],
+  "changed_assets": [
+    {
+      "path": "Assets/ORBIS/Editor/FlatRenderValidation.cs",
+      "action": "modify",
+      "before_sha256": "5a91baad8a9593f49acdb3e08af80f13f8ba235512e92686619d7241c727564b",
+      "after_sha256": "ea5399a80ba3a93b4fc25e98e68a021d89b26e81cf9ada63c53500f4357c7976"
+    },
+    {
+      "path": "Assets/ORBIS/Editor/FlatScrollValidation.cs",
+      "action": "add",
+      "before_sha256": null,
+      "after_sha256": "d956566f13f4b7934710766f59517a6c6951d9db17505db30228e6e956396376"
+    },
+    {
+      "path": "Assets/ORBIS/Editor/FlatScrollValidation.cs.meta",
+      "action": "add",
+      "before_sha256": null,
+      "after_sha256": "2afdeed8c18384d6a80fc25db53c35b5ad1b94ce9a5f32cf625bef5cd6ae76cd"
+    },
+    {
+      "path": "Assets/ORBIS/Resources/ORBIS/FlatWorld/FlatMap.shader",
+      "action": "modify",
+      "before_sha256": "72b66eb288f5256d310f061c33ba3d5732912c10c20e0c431e719eea06904b33",
+      "after_sha256": "61e7c2763a9cd48ef16c5d2cc7dcb076942c2a3c243f9c60e2a973e7084fc534"
+    },
+    {
+      "path": "Assets/ORBIS/Resources/ORBIS/FlatWorld/FlatMapFragment.cginc",
+      "action": "add",
+      "before_sha256": null,
+      "after_sha256": "9a7fe096d9e79ef35d67fcb1dc11a378b4966f99d5ab98787d961bcd90620e1b"
+    },
+    {
+      "path": "Assets/ORBIS/Resources/ORBIS/FlatWorld/FlatMapFragment.cginc.meta",
+      "action": "add",
+      "before_sha256": null,
+      "after_sha256": "70af097ebb63f894dba01a3f09496e29f0e168f7ddd87b654cdb516d454ded6c"
+    },
+    {
+      "path": "Assets/ORBIS/Resources/ORBIS/FlatWorld/FlatPixelDetail.cginc",
+      "action": "add",
+      "before_sha256": null,
+      "after_sha256": "c8d927acdfba5a4da5777932b3badb13f0474eb2d458917afabe43af12559750"
+    },
+    {
+      "path": "Assets/ORBIS/Resources/ORBIS/FlatWorld/FlatPixelDetail.cginc.meta",
+      "action": "add",
+      "before_sha256": null,
+      "after_sha256": "e947359e6b18bf66447f24c21b1da8c121dbf23959119bcd81b56ce79193f0de"
+    },
+    {
+      "path": "Assets/ORBIS/Resources/ORBIS/FlatWorld/FlatWorld.uss",
+      "action": "modify",
+      "before_sha256": "ce428601cae60aee274feceb20c4dd32906dbff2fff5d92fd3f220943239193c",
+      "after_sha256": "4118f0e9c98ec21b856b6e111cf2ab0036224330a413c6efefb642c730bab5da"
+    },
+    {
+      "path": "Assets/ORBIS/Resources/ORBIS/FlatWorld/FlatWorld.uxml",
+      "action": "modify",
+      "before_sha256": "963d61ad0c0649ba962da619e4eba438b570cd9e429a2cc7883312f191567eab",
+      "after_sha256": "5076b2be34effea7cdbae984af6dd79a5fd2071ab34b09d74e9b42d73d9c185b"
+    },
+    {
+      "path": "Assets/ORBIS/Resources/ORBIS/FlatWorld/ScrollProjection.cginc",
+      "action": "add",
+      "before_sha256": null,
+      "after_sha256": "f517dbe0905850602d4a599dfe3a3bb24a01b5ffdda9befe52b685f20d32957a"
+    },
+    {
+      "path": "Assets/ORBIS/Resources/ORBIS/FlatWorld/ScrollProjection.cginc.meta",
+      "action": "add",
+      "before_sha256": null,
+      "after_sha256": "95dac4bbdf59c7c36887a64f6802929fcb49b163e9bb3f996fbdf50b4dee1344"
+    },
+    {
+      "path": "Assets/ORBIS/Resources/ORBIS/FlatWorld/ScrollSurface.shader",
+      "action": "add",
+      "before_sha256": null,
+      "after_sha256": "8418a84f5063eb807d2302a5e5e6cea398d716c925eae7ec016f9bcb64bdebb8"
+    },
+    {
+      "path": "Assets/ORBIS/Resources/ORBIS/FlatWorld/ScrollSurface.shader.meta",
+      "action": "add",
+      "before_sha256": null,
+      "after_sha256": "a33913a01f06374504986f5fb13c8c24fca8ddbe6e5015ec798da803c6d866a4"
+    },
+    {
+      "path": "Assets/ORBIS/Resources/ORBIS/FlatWorld/Water/FlatWater.cginc",
+      "action": "modify",
+      "before_sha256": "f576c973e1de6e36715dbbe67c5deb702910ae00beb34773103a78a8bb11c692",
+      "after_sha256": "3feeda35a57572c11eddcc159cd3ac8b7964b3794f6603a74aefd8a999093eed"
+    },
+    {
+      "path": "Assets/ORBIS/Runtime/FlatWorld/Core/FlatMergeSelfTests.cs",
+      "action": "add",
+      "before_sha256": null,
+      "after_sha256": "7ea07a03849d8cdd0dd796510a0c295f5a9b62f5d760f331324675ef6b83085d"
+    },
+    {
+      "path": "Assets/ORBIS/Runtime/FlatWorld/Core/FlatMergeSelfTests.cs.meta",
+      "action": "add",
+      "before_sha256": null,
+      "after_sha256": "9f2307f195573ee0b8159715f448b64e06b7ee6f8c0731034cccfe02e9f1738d"
+    },
+    {
+      "path": "Assets/ORBIS/Runtime/FlatWorld/Core/FlatSelfTests.cs",
+      "action": "modify",
+      "before_sha256": "68439e372fba375db598de8f0cdaa370731175b6a998295bac622fafafe534df",
+      "after_sha256": "66257cfef2f042f4f8c964b4899875658f908017b1cd9d8ed98d8024fe15a226"
+    },
+    {
+      "path": "Assets/ORBIS/Runtime/FlatWorld/Core/FlatSimulation.cs",
+      "action": "modify",
+      "before_sha256": "5fd1e20af0f75392f5abe97b57bae11f5c7968275c51179588b67797b79fe99d",
+      "after_sha256": "845397f9f8f229074fef8e84840a9d985d09734f896942bd1ff12b1281d336f8"
+    },
+    {
+      "path": "Assets/ORBIS/Runtime/FlatWorld/Core/FlatSolarClock.cs",
+      "action": "add",
+      "before_sha256": null,
+      "after_sha256": "a1d79891b1b4d4ec8ba8117ced7298fc9a25ed155339eec30d0677f2579fb4d5"
+    },
+    {
+      "path": "Assets/ORBIS/Runtime/FlatWorld/Core/FlatSolarClock.cs.meta",
+      "action": "add",
+      "before_sha256": null,
+      "after_sha256": "8007f28b3f1c76ee1e4b36c2be2341f76093540e3a184726144692e3b5f1584a"
+    },
+    {
+      "path": "Assets/ORBIS/Runtime/FlatWorld/Presentation/FlatGlobePresenter.cs",
+      "action": "modify",
+      "before_sha256": "4521fe19657ada80b2234b4e881ac57f78ba414f74a1d9c6bdf771468829ae82",
+      "after_sha256": "00f24ed899b907cd8f1f41aa9e8de360283763a2e6bd0ecc285fc015a646354d"
+    },
+    {
+      "path": "Assets/ORBIS/Runtime/FlatWorld/Presentation/FlatLocalWater.cs",
+      "action": "modify",
+      "before_sha256": "87812d738a14661b6ce3aeab103f0e9b44454b582dacc776c70065ace2a4538a",
+      "after_sha256": "9e88001b7e582e6cc0a6c87ea188565b909bd841eff69d9cdeb703a83838215a"
+    },
+    {
+      "path": "Assets/ORBIS/Runtime/FlatWorld/Presentation/FlatMapRenderer.cs",
+      "action": "modify",
+      "before_sha256": "e1d71d94cf90a0ee211f444fceeca847765db2e84108c2398858d68025ebe4cd",
+      "after_sha256": "fc1b6099db0be2b78b7278a607a5e0675e89df93dce2c78f77df6f3a73b57c29"
+    },
+    {
+      "path": "Assets/ORBIS/Runtime/FlatWorld/Presentation/FlatScrollNavigator.cs",
+      "action": "add",
+      "before_sha256": null,
+      "after_sha256": "a326679a8e944e32626450ba47221bb363012335e381131a1ec3160f93e1eb17"
+    },
+    {
+      "path": "Assets/ORBIS/Runtime/FlatWorld/Presentation/FlatScrollNavigator.cs.meta",
+      "action": "add",
+      "before_sha256": null,
+      "after_sha256": "3efef39905d3bef110138a5fba36d8d92a2eb34058fc596503d03e2b7c33b000"
+    },
+    {
+      "path": "Assets/ORBIS/Runtime/FlatWorld/Presentation/FlatSkyRenderer.cs",
+      "action": "modify",
+      "before_sha256": "6c33027182cffe56f19c91617433c4a4ec40544561e2c19ed8e1e987dd1487bc",
+      "after_sha256": "d8a58272a74751274e3b749e6f5fdcb30a0978ea0f6ebaa6568c145d16761c4a"
+    },
+    {
+      "path": "Assets/ORBIS/Runtime/FlatWorld/Presentation/FlatWorldApp.cs",
+      "action": "modify",
+      "before_sha256": "4df34452548127b305729b7917bb5dba98cc696a4c3c670a578090d75641f8cc",
+      "after_sha256": "29c7c39bb123b21d9a1424589b7a08a72d142abd8d6a26af04194ce0a6580dab"
+    },
+    {
+      "path": "Assets/ORBIS/Runtime/OrbisPlanetView.cs",
+      "action": "modify",
+      "before_sha256": "4703981a95bc243ec77e3c314aabdfcf290c95288823276d68e00854d18d4700",
+      "after_sha256": "7a9b5240bad2737b77b983802350966386a1e038d02caf3a63c42f9d37a899d3"
+    }
+  ],
+  "validation": {
+    "integration": 3389,
+    "csharp_files_syntax_parsed": 87,
+    "numeric_cpp_translations": "PASS",
+    "gles_color_projection_and_detail": "PASS",
+    "unity_editor_compilation": false,
+    "native_csharp": false,
+    "native_hlsl_d3d11": false,
+    "play_mode": false,
+    "fps_measured": false
+  },
+  "features": [
+    "Single WorldData; Plate Carree 2:1 mapping",
+    "Globe -> 2D atlas -> pixel detail navigation",
+    "Planar endpoint quad; shared globe lattice",
+    "Chunk, route, SWE and economic buffer reuse",
+    "Indexed farm updates",
+    "Periodic local water window",
+    "Four-tab simplified UI"
+  ]
+}

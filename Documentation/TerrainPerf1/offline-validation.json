@@ -1,0 +1,92 @@
+{
+  "version": "V4.2 GreenRingFix TerrainPerf1",
+  "utc": "2026-09-11T12:41:37.226438+00:00",
+  "status": "PASS",
+  "qualification": "PASS applies to listed offline source/numerical checks only. Project has NOT been compiled or run in Unity here.",
+  "unity_editor_available": false,
+  "unity_csharp_compile_performed": false,
+  "native_hlsl_compile_performed": false,
+  "play_mode_tests_performed": false,
+  "runtime_fps_measured": false,
+  "unity_visual_acceptance_performed": false,
+  "checks": {
+    "source_contracts": {
+      "status": "PASS",
+      "detail": {
+        "lexically_balanced_sources": 75,
+        "unique_GUIDs": 96,
+        "new_UI_names": 18,
+        "cloud_passes": 4,
+        "composite_passes": 2,
+        "font_files": 0,
+        "scope": "Delimiter/dependency/source-contract checks only. XML well-formedness is NOT Unity UXML import validation."
+      }
+    },
+    "baseline_preservation": {
+      "status": "PASS",
+      "detail": {
+        "protected_night_surface_and_scattering_files_byte_identical": {
+          "Assets/ORBIS/Runtime/OrbisNightLighting.cs": "95ef13eb7d051fc3b05930b4ebd057626715b5b012597be2cd88197f29a77e5b",
+          "Assets/ORBIS/Resources/ORBIS/OrbisNightLighting.cginc": "dd975d47c70174f653f41735e116510fb3d57172645505c51da4ac925f9b353e",
+          "Assets/ORBIS/Resources/ORBIS/OrbisAtmosphereGLtracy.cginc": "fcf51e6a745c61245a699608cc5514a4fa1358daf918edc74b62727350c52c15",
+          "Assets/ORBIS/Resources/ORBIS/OrbisAtmosphereCommon.cginc": "fa8a2983a3669447cb12ff7c50d9a1a968df5658f6c5077eff586373aff98220",
+          "Assets/ORBIS/Resources/ORBIS/OrbisCloudCommon.cginc": "31cd8894b930632050637fc98ae18340bf6926d13f8080e0d2ab450518cdbc0e",
+          "Assets/ORBIS/Resources/ORBIS/OrbisOptics.cginc": "f726c6634297b65cebd6e537e0b08607f000feb22ab369bec33621d4a837742e",
+          "Assets/ORBIS/Resources/ORBIS/Surface.shader": "9b0d61505232000bf80a823b41bffe735ac6bf8ae840c509a47670a667e4adf7",
+          "Assets/ORBIS/Resources/ORBIS/OrbisWater.cginc": "7d2033aea47b00876233d4dba13d211b4f42afa4ecffd2c4728b247fe0d50da2",
+          "Assets/ORBIS/Resources/ORBIS/RiverWater.shader": "dbbf103d9442b62964362dfd64fde8166368a801e8efb13af1f6e23cea519550"
+        },
+        "original_cloud_passes_0_1_2_byte_identical": true,
+        "original_composite_pass_0_byte_identical": true,
+        "scene_project_settings_packages_byte_identical": true
+      }
+    },
+    "closed_shared_terrain_topology": {
+      "status": "PASS",
+      "detail": {
+        "model": "Independent Python topology/math reconstruction, double precision; NOT running C# or GPU",
+        "logical_tiles": 3456,
+        "coarse_triangles": 6908,
+        "old_source_vertices": 310860,
+        "new_shared_source_vertices": 221058,
+        "source_vertex_reduction_percent": 28.888245512449334,
+        "triangle_count_unchanged": 442112,
+        "unique_edges": 663168,
+        "all_edges_incident_to_two_faces": true,
+        "all_triangles_outward_nonzero_area": true,
+        "euler_characteristic": 2,
+        "max_shared_position_difference": 2.220446049250313e-16,
+        "max_shared_interpolated_field_difference": 4.440892098500626e-16,
+        "fixed_render_patches": 96,
+        "submitted_patch_vertices_including_boundaries": 232624
+      }
+    },
+    "brush_and_map_reference": {
+      "status": "PASS",
+      "detail": {
+        "model": "Independent brush falloff/flatten/projection math only; editor test covers actual hydrology and serialization",
+        "pole_seam_and_other_brush_samples": 17280,
+        "outside_footprint_no_changes": true,
+        "flatten_no_overshoot": true,
+        "globe_atlas_roundtrip_max_error": 9.445119307358273e-16,
+        "dateline_rows": 129
+      }
+    },
+    "configured_work_budgets": {
+      "status": "PASS",
+      "detail": {
+        "scope": "Configured operation counts, NOT measured FPS, render time or speedup.",
+        "atlas_volume_medium_pixels": 518400,
+        "previous_atlas_volume_pixels": 2073600,
+        "atlas_medium_volume_pixel_ratio": 0.25,
+        "terrain_source_resolution": "unchanged",
+        "appearance_snapshot_vertices": 33153,
+        "appearance_vertices_per_slice": 4096,
+        "appearance_slices_per_snapshot": 9,
+        "local_build_vertex_ceiling_per_slice": 768,
+        "local_build_soft_time_budget_ms": 1.5,
+        "local_mesh_normal_rebuild_and_publication_are_not_time_sliced": true
+      }
+    }
+  }
+}

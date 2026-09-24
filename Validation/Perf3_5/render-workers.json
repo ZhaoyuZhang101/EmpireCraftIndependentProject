@@ -1,0 +1,15 @@
+{
+    "status": "PASS",
+    "message": "",
+    "utc": "2026-09-23T04:32:17.2037336Z",
+    "assertions": 270639,
+    "workers": 8,
+    "tiles": 131072,
+    "dirtyCapturedTiles": 1296,
+    "maximumPaletteByteDifference": 1,
+    "serialMilliseconds": 84.22630000000001,
+    "fullSnapshotMilliseconds": 8.2446,
+    "fullObservedJobMilliseconds": 0.6798,
+    "dirtySnapshotMilliseconds": 0.169,
+    "scope": "Actual Job System output versus independent serial FlatPalette oracle; preparation only, not FPS or GPU upload benchmark. Burst compilation is asynchronous in Editor."
+}

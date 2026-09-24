@@ -1,0 +1,13 @@
+{
+  "completed": [
+    "384 columns, 1200 steps per natural/perturbed run",
+    "3456 columns, 200 steps per natural/perturbed run"
+  ],
+  "not_completed": [
+    {
+      "attempt": "3456 columns, 1200 steps per run",
+      "status": "execution time limit; not counted as a passed run"
+    }
+  ],
+  "unity_editor": "not connected / not run"
+}

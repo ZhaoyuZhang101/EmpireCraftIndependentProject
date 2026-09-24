@@ -1,0 +1,4 @@
+ORBIS V4.2 GreenRingFix TerrainPerf1
+Base: ORBIS_Unity_V4_2_Repair_IPCFix1_NightLighting_GreenRingFix_Full.zip
+SHA256: 34f6fb467ae0843ddcfe1d8e4b2fc8c70a86eb69f88e8942618e6fed5634fc23
+Unity 6000.0.47f1, Built-in RP, no Unity Editor runtime validation in this environment.

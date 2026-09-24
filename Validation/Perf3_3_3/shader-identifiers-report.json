@@ -1,0 +1,7 @@
+{
+  "status": "PASS",
+  "scope": "Targeted HLSL reserved-identifier guard, not a shader compiler.",
+  "files_checked": 35,
+  "d3d11_compiled": false,
+  "reference": "https://learn.microsoft.com/en-us/windows/win32/direct3dhlsl/dx-graphics-hlsl-appendix-keywords"
+}

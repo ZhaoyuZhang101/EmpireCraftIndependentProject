@@ -1,0 +1,1018 @@
+{
+  "release": "ORBIS Unity V3 MERGED",
+  "date": "2026-09-11",
+  "inputs": [
+    {
+      "role": "incoming",
+      "archive_name": "ORBIS_Unity_Demo(1).zip",
+      "bytes": 18811124,
+      "sha256": "c26145959605293c25ef64998f5d4fa27e6565eaebb13c9ecb4637b4d6ef5115"
+    },
+    {
+      "role": "cloud_water_v2",
+      "archive_name": "ORBIS_Unity_Demo_v2_CloudWater.zip",
+      "bytes": 3874650,
+      "sha256": "5ee84ebf60d010cc1282f5f98461319771f1b237ff2c6e103f374252665f730b"
+    }
+  ],
+  "classification_note": "Identical means exact same-path byte hash. Modified/merged is an inventory label, not automated proof of semantic equivalence. Manifest excludes itself.",
+  "engine_validation": "NOT_RUN",
+  "offline_validation": "13 groups PASS",
+  "counts": {
+    "unchanged_from_input": 50,
+    "modified_or_merged": 24,
+    "new_v3_implementation": 10,
+    "new_support_or_metadata": 19,
+    "archived_input_reference": 11
+  },
+  "files": [
+    {
+      "path": ".gitignore",
+      "bytes": 116,
+      "sha256": "39b1a8b6c5de88997efc5cbe1050d54afdcff00ba6f750280f570d5ee1a6432e",
+      "origin": "unchanged_from_input",
+      "identical_to": [
+        "incoming",
+        "cloud_water_v2"
+      ]
+    },
+    {
+      "path": "Assets/ORBIS/Editor/OrbisDemoEditor.cs",
+      "bytes": 8694,
+      "sha256": "8b948a305451ce02a4e8af065586bf113f8844db7766e1a59afc59139eca8b0e",
+      "origin": "modified_or_merged",
+      "identical_to": []
+    },
+    {
+      "path": "Assets/ORBIS/Editor/OrbisDemoEditor.cs.meta",
+      "bytes": 243,
+      "sha256": "af2681d4f04dae5e7b0b85058c77e205827072b82b5ec400d517af49161bbb18",
+      "origin": "unchanged_from_input",
+      "identical_to": [
+        "incoming",
+        "cloud_water_v2"
+      ]
+    },
+    {
+      "path": "Assets/ORBIS/Editor/OrbisGraphicsValidation.cs",
+      "bytes": 1888,
+      "sha256": "3ac6c1b1561ce80616bea990e1f81e3b9253fe7367dede3a8b5b872c69555c08",
+      "origin": "modified_or_merged",
+      "identical_to": []
+    },
+    {
+      "path": "Assets/ORBIS/Editor/OrbisGraphicsValidation.cs.meta",
+      "bytes": 243,
+      "sha256": "e00016072e814d3b15667116b08ff1d934f0f024fc0f2fb6ec0205347461e549",
+      "origin": "unchanged_from_input",
+      "identical_to": [
+        "incoming"
+      ]
+    },
+    {
+      "path": "Assets/ORBIS/Editor/OrbisTextureImporter.cs",
+      "bytes": 888,
+      "sha256": "e5827e8189997d9c44589374510fdcf7b0a58fd60e0b6431797d55dc99a7b165",
+      "origin": "unchanged_from_input",
+      "identical_to": [
+        "incoming",
+        "cloud_water_v2"
+      ]
+    },
+    {
+      "path": "Assets/ORBIS/Editor/OrbisTextureImporter.cs.meta",
+      "bytes": 243,
+      "sha256": "537ea6e9cef1965664cd273b753ed3d6a3da9ba772b420d6eaea398aa4869332",
+      "origin": "unchanged_from_input",
+      "identical_to": [
+        "incoming",
+        "cloud_water_v2"
+      ]
+    },
+    {
+      "path": "Assets/ORBIS/Editor/OrbisV3Validation.cs",
+      "bytes": 5407,
+      "sha256": "5295b2a3628ad268eb97afd8bd927148b0e0ca5cea3071e967bea8b9e132b0c2",
+      "origin": "new_v3_implementation",
+      "identical_to": []
+    },
+    {
+      "path": "Assets/ORBIS/Editor/OrbisV3Validation.cs.meta",
+      "bytes": 243,
+      "sha256": "14fa0a141c52ad0d72af5a9ed70978df1c42725a667d2b8e2581de0ad9de2356",
+      "origin": "new_support_or_metadata",
+      "identical_to": []
+    },
+    {
+      "path": "Assets/ORBIS/Editor.meta",
+      "bytes": 172,
+      "sha256": "21e835fce61ca4c1d5d0e423527eca99f5f7b788b91c7baf625af070b48eec90",
+      "origin": "unchanged_from_input",
+      "identical_to": [
+        "incoming",
+        "cloud_water_v2"
+      ]
+    },
+    {
+      "path": "Assets/ORBIS/Resources/ORBIS/AtmosphereComposite.shader",
+      "bytes": 1550,
+      "sha256": "6c050e3179835f96c57ea6cd2ad9f2e6b6ac29be60be1d8b289fa182f63e29ba",
+      "origin": "new_v3_implementation",
+      "identical_to": []
+    },
+    {
+      "path": "Assets/ORBIS/Resources/ORBIS/AtmosphereComposite.shader.meta",
+      "bytes": 204,
+      "sha256": "2967e08eb681eeaa484c5e9847066c3f0b7375ef75ab0654a23dd1572135034b",
+      "origin": "new_support_or_metadata",
+      "identical_to": []
+    },
+    {
+      "path": "Assets/ORBIS/Resources/ORBIS/CloudNoise.bytes",
+      "bytes": 1048576,
+      "sha256": "dc89539cac8333a261b24d7deb1b06bf8ee4724fc94c138e840230bd8273b53e",
+      "origin": "unchanged_from_input",
+      "identical_to": [
+        "incoming"
+      ]
+    },
+    {
+      "path": "Assets/ORBIS/Resources/ORBIS/CloudNoise.bytes.meta",
+      "bytes": 60,
+      "sha256": "b8a496ef029b8472168461f0d9218f6775a23124f14ac86aa729017d07568cf6",
+      "origin": "unchanged_from_input",
+      "identical_to": [
+        "incoming"
+      ]
+    },
+    {
+      "path": "Assets/ORBIS/Resources/ORBIS/Clouds.shader",
+      "bytes": 841,
+      "sha256": "b47041738373d1f9aed2f6a9c2f6512e6e5ff3a57f9b56acab33a0e6d0fb0b86",
+      "origin": "modified_or_merged",
+      "identical_to": []
+    },
+    {
+      "path": "Assets/ORBIS/Resources/ORBIS/Clouds.shader.meta",
+      "bytes": 60,
+      "sha256": "c086c605f8246cad4740cc8958e676b1881d34b9728bb6e8a27e9803a508169e",
+      "origin": "unchanged_from_input",
+      "identical_to": [
+        "incoming",
+        "cloud_water_v2"
+      ]
+    },
+    {
+      "path": "Assets/ORBIS/Resources/ORBIS/Orbis.uss",
+      "bytes": 3768,
+      "sha256": "7f6764250eb5a29fe89411d6882820eac7d8e2e6e1e063a896c8f19910161660",
+      "origin": "modified_or_merged",
+      "identical_to": []
+    },
+    {
+      "path": "Assets/ORBIS/Resources/ORBIS/Orbis.uss.meta",
+      "bytes": 60,
+      "sha256": "00e00298417edbdc9390c69db9850f558b3bd4e83a798e1c819e76986ec23eff",
+      "origin": "unchanged_from_input",
+      "identical_to": [
+        "incoming",
+        "cloud_water_v2"
+      ]
+    },
+    {
+      "path": "Assets/ORBIS/Resources/ORBIS/Orbis.uxml",
+      "bytes": 8321,
+      "sha256": "2466b9ed194fc2451c5140c50799490dd969525a563c765a9931540769ac2b34",
+      "origin": "modified_or_merged",
+      "identical_to": []
+    },
+    {
+      "path": "Assets/ORBIS/Resources/ORBIS/Orbis.uxml.meta",
+      "bytes": 60,
+      "sha256": "4dbb5fdaf6ccb248f0c269d3918cb030a1f01d9af826bf22e1fce4b0c0b53678",
+      "origin": "unchanged_from_input",
+      "identical_to": [
+        "incoming",
+        "cloud_water_v2"
+      ]
+    },
+    {
+      "path": "Assets/ORBIS/Resources/ORBIS/OrbisAtmosphereCommon.cginc",
+      "bytes": 6911,
+      "sha256": "f2acab4f4085c3a323ce1cbbf86102795393b2dbf423e573e6aecec9fc266e03",
+      "origin": "new_v3_implementation",
+      "identical_to": []
+    },
+    {
+      "path": "Assets/ORBIS/Resources/ORBIS/OrbisAtmosphereCommon.cginc.meta",
+      "bytes": 161,
+      "sha256": "5ba63f6632e331e9e949455c7b12ea76e1647c3692f8c195f7664b142fad242b",
+      "origin": "new_support_or_metadata",
+      "identical_to": []
+    },
+    {
+      "path": "Assets/ORBIS/Resources/ORBIS/OrbisCloudCommon.cginc",
+      "bytes": 2610,
+      "sha256": "1f37e61922921dbdcb1d254f0577a998601414305d815baa574642c6d2f08c63",
+      "origin": "modified_or_merged",
+      "identical_to": []
+    },
+    {
+      "path": "Assets/ORBIS/Resources/ORBIS/OrbisCloudCommon.cginc.meta",
+      "bytes": 161,
+      "sha256": "e5741b13276d388a51ebe12254e9e8316b0b2560d8cedd48a72a55085a50d7b6",
+      "origin": "modified_or_merged",
+      "identical_to": []
+    },
+    {
+      "path": "Assets/ORBIS/Resources/ORBIS/OrbisPatch.cginc",
+      "bytes": 1278,
+      "sha256": "be8e92141bcb19cb2516ad724c6bf91c9464df534d6b59c3c56fa441b1c1cffb",
+      "origin": "new_v3_implementation",
+      "identical_to": []
+    },
+    {
+      "path": "Assets/ORBIS/Resources/ORBIS/OrbisPatch.cginc.meta",
+      "bytes": 161,
+      "sha256": "58efbda2929f8dfc18b6e140279dbd7cfe038608db55ab585c686bcad0c44e48",
+      "origin": "new_support_or_metadata",
+      "identical_to": []
+    },
+    {
+      "path": "Assets/ORBIS/Resources/ORBIS/OrbisTheme.tss",
+      "bytes": 64,
+      "sha256": "493eae67803a5a1a3396607ff9daf787a21c4668f167748e2b0334fd2c63c3e4",
+      "origin": "unchanged_from_input",
+      "identical_to": [
+        "incoming",
+        "cloud_water_v2"
+      ]
+    },
+    {
+      "path": "Assets/ORBIS/Resources/ORBIS/OrbisTheme.tss.meta",
+      "bytes": 60,
+      "sha256": "90ebce2ad474500d8722732bceb383e11d57d8385b277c268bf4f378b590c1fd",
+      "origin": "unchanged_from_input",
+      "identical_to": [
+        "incoming",
+        "cloud_water_v2"
+      ]
+    },
+    {
+      "path": "Assets/ORBIS/Resources/ORBIS/OrbisWater.cginc",
+      "bytes": 4766,
+      "sha256": "16e84c7031449eb6e55edc0f5e30616c102e280a952805a15d2397e12f5d06a5",
+      "origin": "modified_or_merged",
+      "identical_to": []
+    },
+    {
+      "path": "Assets/ORBIS/Resources/ORBIS/OrbisWater.cginc.meta",
+      "bytes": 161,
+      "sha256": "b87ab50cdd4e7b232a6dca71b45af39a934a003726c799cac6065fda4db0331f",
+      "origin": "modified_or_merged",
+      "identical_to": []
+    },
+    {
+      "path": "Assets/ORBIS/Resources/ORBIS/Overlay.shader",
+      "bytes": 493,
+      "sha256": "4b88d89c8b818cfe892a022cff6db8d218df1bee283616c5dfbec7e9c543625d",
+      "origin": "unchanged_from_input",
+      "identical_to": [
+        "incoming"
+      ]
+    },
+    {
+      "path": "Assets/ORBIS/Resources/ORBIS/Overlay.shader.meta",
+      "bytes": 60,
+      "sha256": "162884d8c0650d6229e7b47f48c63b705dd27ae86241c56cb56d0fa9420d2787",
+      "origin": "unchanged_from_input",
+      "identical_to": [
+        "incoming"
+      ]
+    },
+    {
+      "path": "Assets/ORBIS/Resources/ORBIS/Surface.shader",
+      "bytes": 5645,
+      "sha256": "e6cd4c338ad0c91f8b86df011185525ecfd91ac5302f15b45b33791ce465a14e",
+      "origin": "modified_or_merged",
+      "identical_to": []
+    },
+    {
+      "path": "Assets/ORBIS/Resources/ORBIS/Surface.shader.meta",
+      "bytes": 60,
+      "sha256": "d595221869f565daa31158e0d91a809057229217c1533e489b91dfa6a6c700ca",
+      "origin": "unchanged_from_input",
+      "identical_to": [
+        "incoming",
+        "cloud_water_v2"
+      ]
+    },
+    {
+      "path": "Assets/ORBIS/Resources/ORBIS/TerrainAtlas.png",
+      "bytes": 3673837,
+      "sha256": "9c598d1af566b2fa9f8866ea3c3a0b644136d1a58095fa8e45f1bace2bb98e1e",
+      "origin": "unchanged_from_input",
+      "identical_to": [
+        "incoming",
+        "cloud_water_v2"
+      ]
+    },
+    {
+      "path": "Assets/ORBIS/Resources/ORBIS/TerrainAtlas.png.meta",
+      "bytes": 60,
+      "sha256": "fe30cb5f3a45b81743a537004f039bedc02191c598cee61ac41508e5b59174d2",
+      "origin": "unchanged_from_input",
+      "identical_to": [
+        "incoming",
+        "cloud_water_v2"
+      ]
+    },
+    {
+      "path": "Assets/ORBIS/Resources/ORBIS/Transport.shader",
+      "bytes": 507,
+      "sha256": "7fe7e5eecd7a5399495326e1f3111b355080056d7e8bec594769225ea0049afa",
+      "origin": "new_v3_implementation",
+      "identical_to": []
+    },
+    {
+      "path": "Assets/ORBIS/Resources/ORBIS/Transport.shader.meta",
+      "bytes": 204,
+      "sha256": "ad1cedcb54cb99de71e7024e6f497cb72dc0081f60c7c147919ada5a245e1799",
+      "origin": "new_support_or_metadata",
+      "identical_to": []
+    },
+    {
+      "path": "Assets/ORBIS/Resources/ORBIS.meta",
+      "bytes": 172,
+      "sha256": "492b3a517aa375536633b4b900356b8975de098e8a33d6243b829d105be284cd",
+      "origin": "unchanged_from_input",
+      "identical_to": [
+        "incoming",
+        "cloud_water_v2"
+      ]
+    },
+    {
+      "path": "Assets/ORBIS/Resources.meta",
+      "bytes": 172,
+      "sha256": "0521edda3476e3b56035de8da3a1fc88719a5a1373aa9f7455d849f1a62baeaa",
+      "origin": "unchanged_from_input",
+      "identical_to": [
+        "incoming",
+        "cloud_water_v2"
+      ]
+    },
+    {
+      "path": "Assets/ORBIS/Runtime/OrbisAtmosphereModel.cs",
+      "bytes": 5341,
+      "sha256": "3652a93549abefb849c616f8366e3c55f275c4c99998d5cfe8b2b727367db236",
+      "origin": "modified_or_merged",
+      "identical_to": []
+    },
+    {
+      "path": "Assets/ORBIS/Runtime/OrbisAtmosphereModel.cs.meta",
+      "bytes": 243,
+      "sha256": "f83f8645519bf97fb43c6bd9fc8063c729ea5bbb1181ec725761449a7b4ccb2c",
+      "origin": "unchanged_from_input",
+      "identical_to": [
+        "incoming"
+      ]
+    },
+    {
+      "path": "Assets/ORBIS/Runtime/OrbisAtmosphereRenderer.cs",
+      "bytes": 5744,
+      "sha256": "b75eae975da9c87977f46b01f21de0a10404179516e2bf10e17a92604902a81b",
+      "origin": "new_v3_implementation",
+      "identical_to": []
+    },
+    {
+      "path": "Assets/ORBIS/Runtime/OrbisAtmosphereRenderer.cs.meta",
+      "bytes": 243,
+      "sha256": "2c91c47f964c9aa8ba4b6799e10cf7f52f9611da623d05587fd9fef3f2af155f",
+      "origin": "new_support_or_metadata",
+      "identical_to": []
+    },
+    {
+      "path": "Assets/ORBIS/Runtime/OrbisChunkView.cs",
+      "bytes": 285,
+      "sha256": "ecbe7597264a6cf66c862edf90865cc26fd26ad6e4b92967a337b9f1d6ff726a",
+      "origin": "unchanged_from_input",
+      "identical_to": [
+        "incoming",
+        "cloud_water_v2"
+      ]
+    },
+    {
+      "path": "Assets/ORBIS/Runtime/OrbisChunkView.cs.meta",
+      "bytes": 243,
+      "sha256": "e1a624871dd39c363e79357967598f6109fc9aa91dbadfe5f3a99e2e0a423d66",
+      "origin": "unchanged_from_input",
+      "identical_to": [
+        "incoming",
+        "cloud_water_v2"
+      ]
+    },
+    {
+      "path": "Assets/ORBIS/Runtime/OrbisCloudNoise.cs",
+      "bytes": 2538,
+      "sha256": "2e23b533b16287ea81893853d5c822da18f26bf72a4967100c652ea445215ec1",
+      "origin": "unchanged_from_input",
+      "identical_to": [
+        "cloud_water_v2"
+      ]
+    },
+    {
+      "path": "Assets/ORBIS/Runtime/OrbisCloudNoise.cs.meta",
+      "bytes": 243,
+      "sha256": "471ee89488aa2a9b15d27dff1689d12ebf9a0c9d3717c823bd52b62130a1cb5e",
+      "origin": "modified_or_merged",
+      "identical_to": []
+    },
+    {
+      "path": "Assets/ORBIS/Runtime/OrbisDemo.cs",
+      "bytes": 20944,
+      "sha256": "2f197bed19b55ef9c136fd0ab3fbcb3b469342e2cefebd6eb30b7461799c0fca",
+      "origin": "modified_or_merged",
+      "identical_to": []
+    },
+    {
+      "path": "Assets/ORBIS/Runtime/OrbisDemo.cs.meta",
+      "bytes": 243,
+      "sha256": "e26107f3c45fa1bface940bec985941f27607c5ccec5b62520699f09e34efd27",
+      "origin": "unchanged_from_input",
+      "identical_to": [
+        "incoming",
+        "cloud_water_v2"
+      ]
+    },
+    {
+      "path": "Assets/ORBIS/Runtime/OrbisExpeditions.cs",
+      "bytes": 10326,
+      "sha256": "53455e717f3f4d31cd208b356fbb96fea467305a3722ffbc0ec8b74b985e9170",
+      "origin": "unchanged_from_input",
+      "identical_to": [
+        "incoming"
+      ]
+    },
+    {
+      "path": "Assets/ORBIS/Runtime/OrbisExpeditions.cs.meta",
+      "bytes": 243,
+      "sha256": "02c34e7626b4c13532b9a1439340c04b3a968df0718d0fec54df6d7295d83dbd",
+      "origin": "unchanged_from_input",
+      "identical_to": [
+        "incoming"
+      ]
+    },
+    {
+      "path": "Assets/ORBIS/Runtime/OrbisGeography.cs",
+      "bytes": 8884,
+      "sha256": "f30020ba43e04d3de3a4260f5ac9d60512a4a8adc173547bb28eb8260e34c5dc",
+      "origin": "unchanged_from_input",
+      "identical_to": [
+        "incoming"
+      ]
+    },
+    {
+      "path": "Assets/ORBIS/Runtime/OrbisGeography.cs.meta",
+      "bytes": 243,
+      "sha256": "2a84651c8d236e0432bb3a119be8ad023e829e1cd69bd31fa320dd6bfe02b3b9",
+      "origin": "unchanged_from_input",
+      "identical_to": [
+        "incoming",
+        "cloud_water_v2"
+      ]
+    },
+    {
+      "path": "Assets/ORBIS/Runtime/OrbisHud.cs",
+      "bytes": 19528,
+      "sha256": "0d470819c046dfcf4f97d2bc6dc1f1bd9781b6e4b7a42ea7bbcf4d76666175b4",
+      "origin": "modified_or_merged",
+      "identical_to": []
+    },
+    {
+      "path": "Assets/ORBIS/Runtime/OrbisHud.cs.meta",
+      "bytes": 243,
+      "sha256": "767040d086258b04a771a4f5bb2c7f20f40e71bfe48e324cffbd6f8543e003b2",
+      "origin": "unchanged_from_input",
+      "identical_to": [
+        "incoming",
+        "cloud_water_v2"
+      ]
+    },
+    {
+      "path": "Assets/ORBIS/Runtime/OrbisMapView.cs",
+      "bytes": 5661,
+      "sha256": "0ee881e546d461fb10ad86f8813587218252055515c93ca96588bf130a8e9af8",
+      "origin": "modified_or_merged",
+      "identical_to": []
+    },
+    {
+      "path": "Assets/ORBIS/Runtime/OrbisMapView.cs.meta",
+      "bytes": 243,
+      "sha256": "735c8cab77efd2656efccc450ce6308d137d56c172a8c5f1d26d690265a484c7",
+      "origin": "unchanged_from_input",
+      "identical_to": [
+        "incoming"
+      ]
+    },
+    {
+      "path": "Assets/ORBIS/Runtime/OrbisMath.cs",
+      "bytes": 8285,
+      "sha256": "98b81449838476e7573bb41867e4531277ab67e6b9924ac19e15613f69c112c4",
+      "origin": "unchanged_from_input",
+      "identical_to": [
+        "incoming",
+        "cloud_water_v2"
+      ]
+    },
+    {
+      "path": "Assets/ORBIS/Runtime/OrbisMath.cs.meta",
+      "bytes": 243,
+      "sha256": "f7ab9586ece93d0564bcf48bdd50a716c54da60387a39f0c803d5244be2252cc",
+      "origin": "unchanged_from_input",
+      "identical_to": [
+        "incoming",
+        "cloud_water_v2"
+      ]
+    },
+    {
+      "path": "Assets/ORBIS/Runtime/OrbisNames.cs",
+      "bytes": 3970,
+      "sha256": "e0f375017d931b4c97868b3e031ed5c1d636ef36d9dca7c297fad48dbd8245a9",
+      "origin": "unchanged_from_input",
+      "identical_to": [
+        "incoming"
+      ]
+    },
+    {
+      "path": "Assets/ORBIS/Runtime/OrbisNames.cs.meta",
+      "bytes": 243,
+      "sha256": "b236d60e5d89b420927311690d4932c240047bc615629fda2c36a39b2269a37c",
+      "origin": "unchanged_from_input",
+      "identical_to": [
+        "incoming"
+      ]
+    },
+    {
+      "path": "Assets/ORBIS/Runtime/OrbisOverlays.cs",
+      "bytes": 6830,
+      "sha256": "d57884ca398a251b3213797fe38d6db755238f4056726eb234025bced9dc781f",
+      "origin": "unchanged_from_input",
+      "identical_to": [
+        "incoming"
+      ]
+    },
+    {
+      "path": "Assets/ORBIS/Runtime/OrbisOverlays.cs.meta",
+      "bytes": 243,
+      "sha256": "35651f61dd81fba66b5260ecae8abb09ebc6aba215d905b23bfb354b877388eb",
+      "origin": "unchanged_from_input",
+      "identical_to": [
+        "incoming"
+      ]
+    },
+    {
+      "path": "Assets/ORBIS/Runtime/OrbisPlanetView.cs",
+      "bytes": 26100,
+      "sha256": "efc3a20dadc18da7104f386aa5ccbce0adbadc933aac82470d06e730709a968f",
+      "origin": "modified_or_merged",
+      "identical_to": []
+    },
+    {
+      "path": "Assets/ORBIS/Runtime/OrbisPlanetView.cs.meta",
+      "bytes": 243,
+      "sha256": "906d213f257d96e02165dc92ab6d63385cc33731ed3593b82fbb639394a8e295",
+      "origin": "unchanged_from_input",
+      "identical_to": [
+        "incoming",
+        "cloud_water_v2"
+      ]
+    },
+    {
+      "path": "Assets/ORBIS/Runtime/OrbisSaveMigration.cs",
+      "bytes": 3607,
+      "sha256": "30e285038250ad24e85b4cd536c8213abf07505809e4f5337a260e16bfc61935",
+      "origin": "new_v3_implementation",
+      "identical_to": []
+    },
+    {
+      "path": "Assets/ORBIS/Runtime/OrbisSaveMigration.cs.meta",
+      "bytes": 243,
+      "sha256": "84ade4f72133caa114278480105d995c0e5f920dce184cd816b205520c51a115",
+      "origin": "new_support_or_metadata",
+      "identical_to": []
+    },
+    {
+      "path": "Assets/ORBIS/Runtime/OrbisSphericalSampler.cs",
+      "bytes": 4118,
+      "sha256": "91f60856dad9bd8dc34c43bde666c44d10f6a3dd3578354c5e8e071d90e221b4",
+      "origin": "unchanged_from_input",
+      "identical_to": [
+        "cloud_water_v2"
+      ]
+    },
+    {
+      "path": "Assets/ORBIS/Runtime/OrbisSphericalSampler.cs.meta",
+      "bytes": 243,
+      "sha256": "fdef7acf3b6942b80003a73c6711628311825ed631b8c2cdb587bd570ec17c75",
+      "origin": "modified_or_merged",
+      "identical_to": []
+    },
+    {
+      "path": "Assets/ORBIS/Runtime/OrbisSurfaceLOD.cs",
+      "bytes": 5800,
+      "sha256": "6c067c61784229f2b059eb3e88d9997294fccf7ab7bc7808b638719aea7892be",
+      "origin": "new_v3_implementation",
+      "identical_to": []
+    },
+    {
+      "path": "Assets/ORBIS/Runtime/OrbisSurfaceLOD.cs.meta",
+      "bytes": 243,
+      "sha256": "b19e5911184b29448e3d84b929cf267361efd176d18c3016bda316694e50a1dd",
+      "origin": "new_support_or_metadata",
+      "identical_to": []
+    },
+    {
+      "path": "Assets/ORBIS/Runtime/OrbisSystemFont.cs",
+      "bytes": 677,
+      "sha256": "2289c7920fdde736eaaf0d83b91fa0227b1b140c7391a4e44488b5df5b19b1f7",
+      "origin": "new_v3_implementation",
+      "identical_to": []
+    },
+    {
+      "path": "Assets/ORBIS/Runtime/OrbisSystemFont.cs.meta",
+      "bytes": 243,
+      "sha256": "6e8033ba899d0f32514a998c9afa2966505bae796bc55acd9484c8a95da0c0f6",
+      "origin": "new_support_or_metadata",
+      "identical_to": []
+    },
+    {
+      "path": "Assets/ORBIS/Runtime/OrbisTransportView.cs",
+      "bytes": 5533,
+      "sha256": "110aaed148edd8b6472a4cfed9248fdb799662302ed3912c3ebd8052d567f274",
+      "origin": "new_v3_implementation",
+      "identical_to": []
+    },
+    {
+      "path": "Assets/ORBIS/Runtime/OrbisTransportView.cs.meta",
+      "bytes": 243,
+      "sha256": "a64a263839289f5200156670ddc589efb412d6781ae2cafb0251600fcdbf932a",
+      "origin": "new_support_or_metadata",
+      "identical_to": []
+    },
+    {
+      "path": "Assets/ORBIS/Runtime/OrbisWeather.cs",
+      "bytes": 6060,
+      "sha256": "b0dabad69a603981ea85da9d52b585c8807fe5e44dafcb73b6e491809b886e1b",
+      "origin": "modified_or_merged",
+      "identical_to": []
+    },
+    {
+      "path": "Assets/ORBIS/Runtime/OrbisWeather.cs.meta",
+      "bytes": 243,
+      "sha256": "035abb203531a658064f5891faaae09a3379fdfd15c139c48e300395bccebbbe",
+      "origin": "modified_or_merged",
+      "identical_to": []
+    },
+    {
+      "path": "Assets/ORBIS/Runtime/OrbisWeatherField.cs",
+      "bytes": 3228,
+      "sha256": "1dec8253eb132f162c0dcac79c8fd1f51dd039732ca95ba0de8f54b917c76999",
+      "origin": "modified_or_merged",
+      "identical_to": []
+    },
+    {
+      "path": "Assets/ORBIS/Runtime/OrbisWeatherField.cs.meta",
+      "bytes": 243,
+      "sha256": "8b6e03ac2abdac1561a92f0d05ff9d4df723feef758d95bc5ab34fc85b0638da",
+      "origin": "unchanged_from_input",
+      "identical_to": [
+        "incoming"
+      ]
+    },
+    {
+      "path": "Assets/ORBIS/Runtime/OrbisWorld.cs",
+      "bytes": 27592,
+      "sha256": "5cd3dee41669e81e4fa61d3c4a2bf923ee421585112779e7df153993321b7313",
+      "origin": "modified_or_merged",
+      "identical_to": []
+    },
+    {
+      "path": "Assets/ORBIS/Runtime/OrbisWorld.cs.meta",
+      "bytes": 243,
+      "sha256": "583be62344f8fd92c41b84ee547c7a496c99e803bfe048ef0fc8de2e0bd11733",
+      "origin": "unchanged_from_input",
+      "identical_to": [
+        "incoming",
+        "cloud_water_v2"
+      ]
+    },
+    {
+      "path": "Assets/ORBIS/Runtime.meta",
+      "bytes": 172,
+      "sha256": "ca679984eb198ccc8720220279b1cea6ccb232eeecc6cde828d38166f2bcc7ed",
+      "origin": "unchanged_from_input",
+      "identical_to": [
+        "incoming",
+        "cloud_water_v2"
+      ]
+    },
+    {
+      "path": "Assets/ORBIS/Scenes/OrbisDemo.unity",
+      "bytes": 1350,
+      "sha256": "333bc6507debee56a2a61c2ef3fa407f1a9e17f422c8741b9dc45272d529c6ca",
+      "origin": "unchanged_from_input",
+      "identical_to": [
+        "incoming",
+        "cloud_water_v2"
+      ]
+    },
+    {
+      "path": "Assets/ORBIS/Scenes/OrbisDemo.unity.meta",
+      "bytes": 60,
+      "sha256": "135b41d6d45950090f9c3f92f2728f724d0c95910f7e71d59a2ff36e7d96850d",
+      "origin": "unchanged_from_input",
+      "identical_to": [
+        "incoming",
+        "cloud_water_v2"
+      ]
+    },
+    {
+      "path": "Assets/ORBIS/Scenes.meta",
+      "bytes": 172,
+      "sha256": "701098671c124b8e9bc3a71dd7b7c5f14420c7c174d6a3f190dea2deab0d9766",
+      "origin": "unchanged_from_input",
+      "identical_to": [
+        "incoming",
+        "cloud_water_v2"
+      ]
+    },
+    {
+      "path": "Assets/ORBIS.meta",
+      "bytes": 172,
+      "sha256": "d7932c31e96a57fdf09b604804432db176b66efc1e40e833c85de097c1696277",
+      "origin": "unchanged_from_input",
+      "identical_to": [
+        "incoming",
+        "cloud_water_v2"
+      ]
+    },
+    {
+      "path": "Documentation/Diffs/CloudWaterV2-to-V3.diff",
+      "bytes": 239758,
+      "sha256": "46937a74ce896995ff1efef585db709891f8d7a0903a79bde4d5409cc56dd1e1",
+      "origin": "new_support_or_metadata",
+      "identical_to": []
+    },
+    {
+      "path": "Documentation/Diffs/Incoming-to-V3.diff",
+      "bytes": 164560,
+      "sha256": "52e44f44e6ec2781cf8a6f64a32dde5247da3bd6d07f11fb67d63e3efa9daff5",
+      "origin": "new_support_or_metadata",
+      "identical_to": []
+    },
+    {
+      "path": "Documentation/History/Incoming/Font-License.txt",
+      "bytes": 3859,
+      "sha256": "63d3ba759d12804c5b31a9d5940d855c1820d1f5999e6b0872eb1c7ff045fbc9",
+      "origin": "archived_input_reference",
+      "identical_to": []
+    },
+    {
+      "path": "Documentation/History/Incoming/Noto-License.txt",
+      "bytes": 4301,
+      "sha256": "6a73f9541c2de74158c0e7cf6b0a58ef774f5a780bf191f2d7ec9cc53efe2bf2",
+      "origin": "archived_input_reference",
+      "identical_to": []
+    },
+    {
+      "path": "Documentation/History/Incoming/README_繁體中文.md",
+      "bytes": 9351,
+      "sha256": "bec167cf3986a975faf600b96f37e980a7be4b3ed6d44e5bf3057315469b8f9f",
+      "origin": "archived_input_reference",
+      "identical_to": []
+    },
+    {
+      "path": "Documentation/History/Incoming/Shader-References.md",
+      "bytes": 3680,
+      "sha256": "0c2b4672a950409a5ec9924e89a39dc0a3090be22b74f413be87cc0216cf0d84",
+      "origin": "archived_input_reference",
+      "identical_to": []
+    },
+    {
+      "path": "Documentation/History/Incoming/Terrain-Texture-Prompt.txt",
+      "bytes": 1483,
+      "sha256": "16bbd679c5a0a699701212773eaa85f0ac86368a0859e98855fb06d9f2f65a8a",
+      "origin": "archived_input_reference",
+      "identical_to": []
+    },
+    {
+      "path": "Documentation/History/Incoming/Validation-Results.json",
+      "bytes": 1540,
+      "sha256": "7ef48939f6df911cf7d91527c5b5281ad98360bc019784da6a4d4d6317f14dad",
+      "origin": "archived_input_reference",
+      "identical_to": []
+    },
+    {
+      "path": "Documentation/History/Incoming/WeatherDensity.cginc.txt",
+      "bytes": 1643,
+      "sha256": "0dc05182fe1bc9046c314c14367b3bee84c88f9ac945037fefd05337135c2ec0",
+      "origin": "archived_input_reference",
+      "identical_to": []
+    },
+    {
+      "path": "Documentation/History/Incoming/validate_project.py.txt",
+      "bytes": 7121,
+      "sha256": "ea55a29897a27facd78057ea283451ace9e521c3943b9b39797fd4346b870aa9",
+      "origin": "archived_input_reference",
+      "identical_to": []
+    },
+    {
+      "path": "Documentation/History/Incoming/實機驗收.md",
+      "bytes": 2600,
+      "sha256": "8bddbec146eedcc47620f01862a2e87d71e1c2495084fcebc572c3be78f08d96",
+      "origin": "archived_input_reference",
+      "identical_to": []
+    },
+    {
+      "path": "Documentation/History/V2/ThirdPartyNotices.md",
+      "bytes": 4072,
+      "sha256": "f8e556267f6d543c04820538d561888f83864893e72b31e985e4fd65658a5386",
+      "origin": "archived_input_reference",
+      "identical_to": []
+    },
+    {
+      "path": "Documentation/History/V2/Validation-Results.json",
+      "bytes": 3259,
+      "sha256": "06b7a59b0740d049b00ffab3c950055d95ac6b0a40c13dff8cf9ffc15bc95df4",
+      "origin": "archived_input_reference",
+      "identical_to": []
+    },
+    {
+      "path": "Documentation/MERGE_REPORT.md",
+      "bytes": 4269,
+      "sha256": "d032424d8442225b5bd64ecc71ff760fde3788c0cd3f6b566b4902ada4433c81",
+      "origin": "new_support_or_metadata",
+      "identical_to": []
+    },
+    {
+      "path": "Documentation/Reference-Sources.json",
+      "bytes": 1415,
+      "sha256": "1df19281949796617d3a8d4c55a85f6e80a4d8851b8e5f9bec59e790d403a3c6",
+      "origin": "new_support_or_metadata",
+      "identical_to": []
+    },
+    {
+      "path": "Documentation/TEST_REPORT.md",
+      "bytes": 5238,
+      "sha256": "47d5f340c7a60b45e1e6cecfff4093f3b9415a58b44c301b3a68421154eb67e5",
+      "origin": "new_support_or_metadata",
+      "identical_to": []
+    },
+    {
+      "path": "Documentation/ThirdPartyNotices.md",
+      "bytes": 6357,
+      "sha256": "bcbaf67773cd8de623dad6da5a6e56ccad294f3bb96875d1bcfd217b8662bcc3",
+      "origin": "modified_or_merged",
+      "identical_to": []
+    },
+    {
+      "path": "Documentation/Validation-V3.json",
+      "bytes": 3091,
+      "sha256": "e1b41be2c244c7aeae3411b26877fd72ebe4edd80fea2f61e57b83e54338b436",
+      "origin": "new_support_or_metadata",
+      "identical_to": []
+    },
+    {
+      "path": "ORBIS_DEMO_PROJECT.txt",
+      "bytes": 146,
+      "sha256": "6e965e660b36bc43f8a3d225ba8897638e1ae0d00e88c5d04dd3b5c12c23c988",
+      "origin": "modified_or_merged",
+      "identical_to": []
+    },
+    {
+      "path": "Packages/README.md",
+      "bytes": 201,
+      "sha256": "cac0ed558de2eb17323758de4881b68fcde63c6e7443511e1290ea887d7a4915",
+      "origin": "unchanged_from_input",
+      "identical_to": [
+        "incoming",
+        "cloud_water_v2"
+      ]
+    },
+    {
+      "path": "ProjectSettings/ProjectVersion.txt",
+      "bytes": 29,
+      "sha256": "6a291611d2569dca6a154d32ab2de808c1f8e8443df9268643946e03d557fac4",
+      "origin": "unchanged_from_input",
+      "identical_to": [
+        "incoming",
+        "cloud_water_v2"
+      ]
+    },
+    {
+      "path": "README.md",
+      "bytes": 649,
+      "sha256": "322b020a0a4c554403efbfda515cb5e1b57d782dc5a2869ad64667c447967288",
+      "origin": "modified_or_merged",
+      "identical_to": []
+    },
+    {
+      "path": "README_V3_合并与操作.md",
+      "bytes": 12130,
+      "sha256": "5139eafbfed27ba20a503d1499bb7156dc9dd773c2059a1a2f2a4ae5353ab1b0",
+      "origin": "new_support_or_metadata",
+      "identical_to": []
+    },
+    {
+      "path": "Reference/ORBIS_VI_1.html",
+      "bytes": 228347,
+      "sha256": "f7bb6d257fee0f2e3a617eb764d52482eb1fc0ebfb6fd9de113bd260e461b553",
+      "origin": "unchanged_from_input",
+      "identical_to": [
+        "incoming",
+        "cloud_water_v2"
+      ]
+    },
+    {
+      "path": "Tools/generate_cloud_noise.py",
+      "bytes": 1690,
+      "sha256": "511267c7f31814f15ea1b09e4337feee50663301b5480eeda0c0a3d6cb8e8663",
+      "origin": "unchanged_from_input",
+      "identical_to": [
+        "incoming"
+      ]
+    },
+    {
+      "path": "Validation/reference_geometry.py",
+      "bytes": 3970,
+      "sha256": "fa80e4b6803aaffaf558a6bcf50eb632c7ac4d9783273f76d76c2c3664ed98e2",
+      "origin": "new_support_or_metadata",
+      "identical_to": []
+    },
+    {
+      "path": "Validation/validate_v3.py",
+      "bytes": 10764,
+      "sha256": "383fc34b0a517853338d3f01a3d257247b6c2b17112f5556735347637502a9d8",
+      "origin": "new_support_or_metadata",
+      "identical_to": []
+    }
+  ],
+  "incoming_paths_not_preserved": [
+    {
+      "input_path": "Assets/ORBIS/Resources/ORBIS/InterfaceFont.ttf",
+      "reason": "Font binary or font metadata/resource removed; system fonts used locally"
+    },
+    {
+      "input_path": "Assets/ORBIS/Resources/ORBIS/InterfaceFont.ttf.meta",
+      "reason": "Font binary or font metadata/resource removed; system fonts used locally"
+    },
+    {
+      "input_path": "Assets/ORBIS/Resources/ORBIS/NotoSansCJKtc-Regular.otf",
+      "reason": "Font binary or font metadata/resource removed; system fonts used locally"
+    },
+    {
+      "input_path": "Assets/ORBIS/Resources/ORBIS/NotoSansCJKtc-Regular.otf.meta",
+      "reason": "Omitted from active path; see History or merge report"
+    },
+    {
+      "input_path": "Assets/ORBIS/Resources/ORBIS/WeatherDensity.cginc",
+      "reason": "Omitted from active path; see History or merge report"
+    },
+    {
+      "input_path": "Assets/ORBIS/Resources/ORBIS/WeatherDensity.cginc.meta",
+      "reason": "Omitted from active path; see History or merge report"
+    },
+    {
+      "input_path": "Documentation/Font-License.txt",
+      "reason": "Font binary or font metadata/resource removed; system fonts used locally"
+    },
+    {
+      "input_path": "Documentation/Noto-License.txt",
+      "reason": "Omitted from active path; see History or merge report"
+    },
+    {
+      "input_path": "Documentation/Shader-References.md",
+      "reason": "Omitted from active path; see History or merge report"
+    },
+    {
+      "input_path": "Documentation/Terrain-Texture-Prompt.txt",
+      "reason": "Omitted from active path; see History or merge report"
+    },
+    {
+      "input_path": "Documentation/Validation-Results.json",
+      "reason": "Omitted from active path; see History or merge report"
+    },
+    {
+      "input_path": "Documentation/實機驗收.md",
+      "reason": "Omitted from active path; see History or merge report"
+    },
+    {
+      "input_path": "README_繁體中文.md",
+      "reason": "Omitted from active path; see History or merge report"
+    },
+    {
+      "input_path": "Tools/validate_project.py",
+      "reason": "Omitted from active path; see History or merge report"
+    }
+  ]
+}

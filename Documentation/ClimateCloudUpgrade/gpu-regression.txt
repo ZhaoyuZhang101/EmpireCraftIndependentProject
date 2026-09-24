@@ -1,0 +1,5 @@
+PASS dry column produces no cloud; wet column cloud sum=5904.32060904656
+PASS noise-carved cloud mass, occupied fraction=0.7735596
+PASS evolving cloud shape and continuous weather-era boundary; change=0.146400829786216 boundary=4.87975194118917E-06
+PASS spherical ecotone noise, continuous date-line, unchanged water coordinates; displacement=0.01988011 seam=5.132851E-07
+PASS independent 128^3 shape / 64^3 detail resources loaded

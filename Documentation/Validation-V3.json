@@ -1,0 +1,105 @@
+{
+  "scope": "Independent Python numerical reference and source-wiring checks only",
+  "unity_import": "NOT_RUN",
+  "csharp_compilation": "NOT_RUN",
+  "shader_compilation": "NOT_RUN",
+  "play_mode": "NOT_RUN",
+  "gpu_profiling": "NOT_RUN",
+  "desktop_build": "NOT_RUN",
+  "wall_clock_soak": "NOT_RUN",
+  "checks": {
+    "source_structure": {
+      "status": "PASS",
+      "seconds": 0.0116,
+      "files": 34,
+      "qualification": "Delimiter/include checks, NOT a C# or shader compiler"
+    },
+    "ui_bindings": {
+      "status": "PASS",
+      "seconds": 0.0009,
+      "named_elements": 98,
+      "qualification": "XML and binding names only; USS/layout need Unity import"
+    },
+    "resources_and_components": {
+      "status": "PASS",
+      "seconds": 0.0027,
+      "new_components_wired": [
+        "OrbisAtmosphereRenderer",
+        "OrbisTransportView",
+        "OrbisSurfaceLOD"
+      ]
+    },
+    "asset_metadata": {
+      "status": "PASS",
+      "seconds": 0.0018,
+      "unique_guids": 46,
+      "font_binaries": 0
+    },
+    "merge_architecture": {
+      "status": "PASS",
+      "seconds": 0.0003,
+      "simulation_tiles": 3456,
+      "terrain_depth_and_color_use_same_LOD_mask": true
+    },
+    "spherical_interpolation": {
+      "status": "PASS",
+      "seconds": 0.4073,
+      "directions": 12002,
+      "vertices": 3456,
+      "triangles": 6908,
+      "max_direction_error_float64": 3.8459253727671276e-16
+    },
+    "reaction_balance": {
+      "status": "PASS",
+      "seconds": 0.0027,
+      "samples": 100000,
+      "reservoir_balance_error": 1.7763568394002505e-15,
+      "qualification": "Only local reaction balance; advection is NOT globally mass-conservative"
+    },
+    "bounded_phases": {
+      "status": "PASS",
+      "seconds": 0.0002,
+      "max_detail_age_seconds": 6.0,
+      "reset_continuity_error": 1.9999999826858325e-07,
+      "max_clock_seconds": 1000000000000.0
+    },
+    "atmosphere_shell_partition": {
+      "status": "PASS",
+      "seconds": 0.1495,
+      "random_rays_partitioned": 2675,
+      "max_partition_error": 2.220446049250313e-16,
+      "includes_camera_inside_clouds": true
+    },
+    "RGB_volume_integration": {
+      "status": "PASS",
+      "seconds": 0.003,
+      "homogeneous_media": 10000,
+      "max_quadrature_error": 6.73772149184515e-12,
+      "RGB_transmittance": true
+    },
+    "local_tangent_grid": {
+      "status": "PASS",
+      "seconds": 0.0071,
+      "tangent_frames": 5,
+      "footprints_per_frame": 5,
+      "inverse_error": 1.8041124150158794e-16,
+      "global_equal_squares_claim": false,
+      "note": "Uniform local plane coordinates; projected spherical cells are only approximately undistorted near the center."
+    },
+    "LOD_complementarity": {
+      "status": "PASS",
+      "seconds": 0.0055,
+      "tested_pixels": 5817600,
+      "same_depth_color_rule": true
+    },
+    "camera_altitude": {
+      "status": "PASS",
+      "seconds": 0.0002,
+      "altitude_samples": 10000,
+      "inside_bounding_sphere_case_accepted": true,
+      "minimum_altitude_R": 0.003
+    }
+  },
+  "passed": 13,
+  "failed": 0
+}

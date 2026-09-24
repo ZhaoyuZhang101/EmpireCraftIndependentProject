@@ -1,0 +1,12 @@
+Grassland 3874 (11.7%)
+Woodland 2951 (8.9%)
+Rainforest 1383 (4.2%)
+Desert 9647 (29.1%)
+Steppe 6396 (19.3%)
+Taiga 490 (1.5%)
+Tundra 4157 (12.5%)
+Alpine 872 (2.6%)
+Snow 2289 (6.9%)
+Wetland 1126 (3.4%)
+Mean land rainfall=470.7; ocean clipped floor=0/94382
+PASS environment regressions

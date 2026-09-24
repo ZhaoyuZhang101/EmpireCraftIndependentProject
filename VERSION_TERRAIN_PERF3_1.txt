@@ -1,0 +1,5 @@
+ORBIS TerrainPerf3.1 WaterClimate
+Base: exact TerrainPerf3 2DWorld Zone4x4 full archive
+Unity 6000.0.47f1 / Built-in
+2026-09-12 Asia/Taipei
+Source candidate: Unity-native validation NOT RUN

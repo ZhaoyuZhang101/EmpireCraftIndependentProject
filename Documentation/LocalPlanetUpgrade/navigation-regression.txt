@@ -1,0 +1,20 @@
+PASS SW3 resource readiness survives map-to-local material copy
+PASS drag cancels pending zoom and moves geography without rescaling; pixels=26.6448 -> 26.6448; moved=2.199397
+PASS one outward wheel step stays close to surface, morph=0.9843909 distance=1.118469
+PASS reversing wheel re-enters local view
+PASS zero drag after unfolded return preserves orientation; degrees=0
+PASS small return drag stays incremental; degrees=0
+PASS unfolding uses viewport centre regardless of wheel cursor; degrees=0
+PASS unfolded chart puts geographic north at the top, alignment=1
+PASS final flat viewport remains centred on captured geography; degrees=0.00467977354982593
+PASS polar long pan keeps geographic north at the top, alignment=1
+PASS long polar pan return has independent viewport drag axes; wheel=False movement=0.249446 crossAxis=1.242454E-05 axesDot=1.389214E-05 undo=0
+PASS long polar pan return has independent viewport drag axes; wheel=True movement=0.249446 crossAxis=1.449242E-05 axesDot=1.60771E-05 undo=0
+PASS waiting unfolded across day wrap preserves returned geography; wheel=False degrees=3.68686109939158E-06
+PASS globe camera stops following rotation after return
+PASS waiting unfolded across day wrap preserves returned geography; wheel=True degrees=1.03466750117024E-05
+PASS globe camera stops following rotation after return
+PASS fast wheel burst carries zoom across unfolding; pixels=225.5285 entry=56.38214
+PASS pending layer keeps old texture semantics
+PASS completed layer publishes texture and shader semantics together
+PASS GPU water slope finite from 0.1m to 4000m; invalid=0

@@ -1,0 +1,24 @@
+{
+  "release": "TerrainPerf3.2_ContinuousWorld",
+  "date_local": "2026-09-12",
+  "timezone": "Asia/Taipei",
+  "unity": "6000.0.47f1",
+  "pipeline": "Built-in",
+  "base_archive": "ORBIS_TerrainPerf3_1_WaterClimate_Full.zip",
+  "source_candidate": true,
+  "native_unity_validation": "NOT_RUN",
+  "main_scene": "Assets/ORBIS/Scenes/Orbis2DWorld.unity",
+  "readme": "README_TerrainPerf3_2_先读.md",
+  "current_reports": "Validation/Perf3_2/RELEASE_VALIDATION.json",
+  "historical_reports": "Other release versions retain their own historical reports/README/Preview, not Perf3.2 acceptance.",
+  "semantic_contracts": {
+    "authoritative_world": "WorldData",
+    "zone_tiles": 16,
+    "positive_elevation_bands": 20,
+    "save_version": 1,
+    "persistent_biome_count": 12,
+    "derived_vegetation_cover_count": 14,
+    "second_world_simulation": false
+  },
+  "third_party_scope": "Preserves actual Perf3.1 HPWater optics and CPU Unity-SWE-route adapters; not an HDRP/SSR/RenderGraph transplant."
+}

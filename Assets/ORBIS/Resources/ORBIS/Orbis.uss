@@ -1,0 +1,45 @@
+.root { flex-grow: 1; color: rgb(217,230,231); font-size: 15px;  }
+.header { height: 78px; background-color: rgba(6,16,26,0.97); padding: 16px 26px; flex-direction: row; align-items: center; border-bottom-width: 1px; border-bottom-color: rgb(42,64,73); }
+.brand { font-size: 32px; -unity-font-style: bold; color: rgb(227,203,148); width: 180px; }
+.header-info { flex-grow: 1; }
+.kicker { font-size: 11px; color: rgb(126,164,176); margin-bottom: 6px; }
+.layout { flex-grow: 1; flex-direction: row; padding: 18px; }
+.panel { width: 270px; flex-shrink: 0; background-color: rgba(8,21,32,0.95); border-width: 1px; border-color: rgb(37,58,67); border-radius: 12px; padding: 16px; }
+.panel-right { width: 286px; }
+.viewport { flex-grow: 1; min-width: 100px; }
+.section { color: rgb(210,187,137); font-size: 12px; margin-top: 12px; margin-bottom: 8px; -unity-font-style: bold; }
+.row { flex-direction: row; flex-wrap: wrap; }
+Button { background-color: rgb(22,42,54); color: rgb(215,228,232); border-width: 1px; border-color: rgb(45,67,76); border-radius: 6px; padding: 7px 9px; margin: 3px; min-height: 32px; -unity-text-align: middle-center; }
+Button:hover { background-color: rgb(37,63,72); border-color: rgb(144,164,157); }
+Button:active { background-color: rgb(61,86,90); }
+.row > Button { width: 46%; flex-grow: 1; font-size: 12px; }
+Button.active { color: rgb(250,221,166); border-color: rgb(168,143,91); background-color: rgb(64,60,44); }
+Button.primary { background-color: rgb(76,84,65); color: rgb(252,231,181); border-color: rgb(159,141,96); }
+Label { white-space: normal; }
+.muted { color: rgb(137,163,174); font-size: 12px; margin: 6px 0; }
+.region { font-size: 15px; margin-top: 10px; margin-bottom: 12px; }
+.mission { color: rgb(207,214,184); background-color: rgb(21,40,44); padding: 12px; border-radius: 8px; font-size: 12px; }
+.footer { min-height: 62px; background-color: rgba(6,16,26,0.97); flex-direction: row; align-items: center; padding: 8px 22px; border-top-width: 1px; border-top-color: rgb(42,64,73); }
+.clock { width: 360px; color: rgb(220,201,158); font-size: 14px; }
+.notice { flex-grow: 1; color: rgb(147,178,184); font-size: 12px; margin: 0 15px; }
+TextField { margin: 4px 2px; min-height: 30px; }
+TextField > .unity-text-field__input { background-color: rgb(5,16,26); color: rgb(224,228,216); padding: 6px; border-width: 1px; border-color: rgb(55,77,83); }
+Slider { height: 39px; margin: 4px 0; }
+Slider > Label { width: 100px; min-width: 100px; font-size: 12px; color: rgb(155,181,189); }
+.unity-base-slider__input { flex-grow: 1; min-width: 30px; }
+.unity-base-slider__tracker { height: 3px; background-color: rgb(53,80,91); top: 50%; }
+.unity-base-slider__dragger { width: 12px; height: 12px; margin-top: -5px; border-radius: 6px; background-color: rgb(216,191,133); }
+.unity-scroller--vertical { width: 9px; }
+.unity-scroller--horizontal { height: 0; }
+.unity-scroller__low-button, .unity-scroller__high-button { display: none; }
+.unity-scroller .unity-slider__dragger { background-color: rgb(68,94,102); border-radius: 4px; }
+.zen > .panel { display: none; }
+.modal { position: absolute; left: 30%; right: 30%; top: 30%; padding: 28px; background-color: rgb(15,30,41); border-width: 1px; border-color: rgb(169,145,96); border-radius: 12px; }
+.hidden { display: none; }
+
+.name-layer { position: absolute; left: 0; right: 0; top: 0; bottom: 0; }
+.map-name { position: absolute; left: 0; top: 0; color: rgb(246,230,181); font-size: 13px; padding: 2px 5px; background-color: rgba(5,16,25,0.75); border-radius: 4px; }
+DropdownField { min-height: 34px; margin: 6px 0; }
+DropdownField > Label { min-width: 90px; font-size: 12px; }
+.unity-popup-field__input { background-color: rgb(17,34,45); color: rgb(226,231,217); }
+.unity-text-element {  }

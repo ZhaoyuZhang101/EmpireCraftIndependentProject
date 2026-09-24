@@ -1,0 +1,7 @@
+PASS equal surface distance has equal artwork scale at latitude=0 ratio=0.999625608386372
+FAIL equal surface distance has equal artwork scale at latitude=60 ratio=2.00169965352621
+FAIL equal surface distance has equal artwork scale at latitude=-60 ratio=2.000339330849
+FAIL equal surface distance has equal artwork scale at latitude=80 ratio=5.75627842919903
+FAIL equal surface distance has equal artwork scale at latitude=-80 ratio=5.75586306509832
+FAIL equal surface distance has equal artwork scale at latitude=89 ratio=42.4755515160872
+FAIL equal surface distance has equal artwork scale at latitude=-89 ratio=42.4935634274207

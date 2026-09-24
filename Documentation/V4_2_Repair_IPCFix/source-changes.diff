@@ -1,0 +1,328 @@
+--- a/Assets/ORBIS/Resources/ORBIS/Clouds.shader
++++ b/Assets/ORBIS/Resources/ORBIS/Clouds.shader
+@@ -1,4 +1,6 @@
+-// V4.1.2: active uploaded-GLSL atmosphere + cloud-aware integration; rolled loops retained.
++// V4.2 Repair IPC fix: flat view traversal + shared direct-shadow fallback.
++// Same target, pass indices, MRT layouts and active GLtracy atmosphere as V4.2 Repair.
++// UnityShaderCompiler/GPU acceptance must be run in the target Unity Editor.
+ Shader "ORBIS/Clouds"
+ {
+  Properties {_MainTex("Source",2D)="black"{}}
+--- a/Assets/ORBIS/Resources/ORBIS/OrbisAtmosphereCommon.cginc
++++ b/Assets/ORBIS/Resources/ORBIS/OrbisAtmosphereCommon.cginc
+@@ -16,6 +16,7 @@
+    }
+ // Six scalar slots stored in vectors avoid dynamically indexed temporary arrays.
+ // Every select uses a literal component; the enclosing sampling loops remain rolled.
++// fastopt prevents expensive loop-unroll analysis; it does not disable shader-wide optimization.
+ float OrbisLightTau(int index,float4 first,float2 last)
+ {
+  return index==0?first.x:index==1?first.y:index==2?first.z:index==3?first.w:index==4?last.x:last.y;
+@@ -31,7 +32,7 @@
+  int lightSteps=clamp(_LightSteps,1,6);
+  float ds=lengthToExit/lightSteps;
+  float4 tauFirst=0;float2 tauLast=0;float totalTau=0;
+- [loop] for(int j=0;j<6;j++)
++ [loop] [fastopt] for(int j=0;j<6;j++)
+  {
+   if(j>=lightSteps)break;
+   float t=(j+.5)*ds;
+@@ -50,7 +51,7 @@
+  // HDRP phi_fwd implementation. Attribution/derivation and scope in documentation.
+  // albedo=.999 -> sqrt(3*(1-albedo))=.05477 in isotropic optical-depth space.
+  float diffuse=0,travelTau=0;
+- [loop] for(int k=0;k<6;k++)
++ [loop] [fastopt] for(int k=0;k<6;k++)
+  {
+   if(k>=lightSteps)break;
+   float localTau=OrbisLightTau(k,tauFirst,tauLast);
+@@ -74,7 +75,7 @@
+ {
+  if(_CloudMS<.5)return 0;
+  float tau=clamp(opticalDepth,0,24),ds=tau/6,phi=0;
+- [loop] for(int i=0;i<6;i++)
++ [loop] [fastopt] for(int i=0;i<6;i++)
+  {
+   float travel=(i+.5)*ds,entry=max(0,tau-travel);
+   float kernel=exp(-.05477*travel)/(1+travel);
+@@ -92,49 +93,44 @@
+  #endif
+  return uv;
+ }
+-void IntegrateSegment(float3 ro,float3 rd,float begin,float end,int steps,bool hasCloud,inout OrbisVolumeResult result)
+-{
+- if(end<=begin||steps<=0)return;
+- int sampleCount=clamp(steps,1,64);
+- float ds=(end-begin)/sampleCount;float3 sun=normalize(_Sun);float mu=dot(rd,sun);
+- float2 phaseAir=OrbisGLSLPhase(mu);
+- float phaseCloud=min(4.0,.82*HG(mu,.62)+.18*HG(mu,-.22));
+- [loop] for(int j=0;j<64;j++)
+- {
+-  if(j>=sampleCount||max(result.transmission.r,max(result.transmission.g,result.transmission.b))<.002)break;
+-  float3 p=ro+rd*(begin+(j+.5)*ds),rho=AirDensities(p);
+-  float cloudDensity=hasCloud?OrbisCloudDensity(p):0;
+-  float3 sigma=AirExtinction(rho)+cloudDensity*ORBIS_EXTINCTION;
+-  if(max(sigma.r,max(sigma.g,sigma.b))<1e-6)continue;
+-  float3 sunT=AirSunTransmittance(p,sun);
+-  // Sun visibility from CLOUD optical depth modulates the AIR source, not only the terrain.
+-  float airShadow=_GodRays>.5?lerp(1.0,OrbisCloudShadow(p,sun),_ShadowStrength):1.0;
+-  float3 source=OrbisGLSLSource(rho,phaseAir,sunT)*airShadow;
+-  if(cloudDensity>.0005)
+-  {
+-   float2 fields;
+-   if(_OrbisShadowReady>.5)
+-   {
+-    float cachedT=OrbisCloudShadow(p,sun);
+-    fields=float2(cachedT,OrbisCachedPhi(-log(max(cachedT,1e-6)),cloudDensity));
+-   }
+-   else fields=LightField(p,sun);
+-   float directT=fields.x;
+-   float3 direct=directT*phaseCloud*.70*sunT;
+-   float3 multiple=fields.y*_CloudMS*_ScatteringStrength*sunT;
+-   float denseGate=smoothstep(.025,.18,cloudDensity);
+-   multiple*=denseGate; // diffuse approximation is suppressed at optically thin boundaries
+-   float3 radiance=direct+multiple+OrbisSkyFill(p,sun)*1.5+OrbisLightningLight(p)*3.5;
+-   if(_Night<.5)radiance=max(radiance,float3(.20,.23,.27));
+-   if(_CloudDebug==1)radiance=cloudDensity.xxx;
+-   if(_CloudDebug==2)radiance=direct;
+-   if(_CloudDebug==3)radiance=multiple;
+-   if(_CloudDebug==4)radiance=sunT;
+-   if(_CloudDebug==5)radiance=float3(1-exp(-cloudDensity*3),cloudDensity*.3,.1);
+-   source+=min(float3(5,5,5),radiance)*cloudDensity*ORBIS_EXTINCTION*max(.1,_SolarEnergy);
+-  }
+-  OrbisGLSLAccumulate(source,sigma,ds,result.light,result.transmission);
+- }
++// V4.2 Repair IPC fix: one sample only; no view loop and no inout result struct.
++// The caller owns the flat view traversal. Density/light quadratures stay rolled.
++void OrbisIntegrateSample(float3 p,float ds,bool hasCloud,float3 sun,float2 phaseAir,
++                          float phaseCloud,inout float3 light,inout float3 transmission)
++{
++ float3 rho=AirDensities(p);
++ float cloudDensity=hasCloud?OrbisCloudDensity(p):0;
++ float3 sigma=AirExtinction(rho)+cloudDensity*ORBIS_EXTINCTION;
++ if(max(sigma.r,max(sigma.g,sigma.b))<1e-6)return;
++ float3 sunT=AirSunTransmittance(p,sun);
++ // Both uses previously inlined the entire direct-shadow fallback independently.
++ // Evaluate the SAME shadow once, only when at least one consumer needs it.
++ float shadowT=1.0;
++ if(_GodRays>.5||(cloudDensity>.0005&&_OrbisShadowReady>.5))
++     shadowT=OrbisCloudShadow(p,sun);
++ float airShadow=_GodRays>.5?lerp(1.0,shadowT,_ShadowStrength):1.0;
++ float3 source=OrbisGLSLSource(rho,phaseAir,sunT)*airShadow;
++ if(cloudDensity>.0005)
++ {
++  float2 fields;
++  if(_OrbisShadowReady>.5)
++      fields=float2(shadowT,OrbisCachedPhi(-log(max(shadowT,1e-6)),cloudDensity));
++  else fields=LightField(p,sun);
++  float directT=fields.x;
++  float3 direct=directT*phaseCloud*.70*sunT;
++  float3 multiple=fields.y*_CloudMS*_ScatteringStrength*sunT;
++  float denseGate=smoothstep(.025,.18,cloudDensity);
++  multiple*=denseGate;
++  float3 radiance=direct+multiple+OrbisSkyFill(p,sun)*1.5+OrbisLightningLight(p)*3.5;
++  if(_Night<.5)radiance=max(radiance,float3(.20,.23,.27));
++  if(_CloudDebug==1)radiance=cloudDensity.xxx;
++  if(_CloudDebug==2)radiance=direct;
++  if(_CloudDebug==3)radiance=multiple;
++  if(_CloudDebug==4)radiance=sunT;
++  if(_CloudDebug==5)radiance=float3(1-exp(-cloudDensity*3),cloudDensity*.3,.1);
++  source+=min(float3(5,5,5),radiance)*cloudDensity*ORBIS_EXTINCTION*max(.1,_SolarEnergy);
++ }
++ OrbisGLSLAccumulate(source,sigma,ds,light,transmission);
+ }
+ // The atmosphere entry/exit already bound the four cloud intersections.
+ // Sort only those four values with a five-comparator network: no sorting loop,
+@@ -160,26 +156,50 @@
+  float2 cloudOuter=OrbisSphere(ro,rd,ORBIS_CLOUD_TOP),cloudInner=OrbisSphere(ro,rd,ORBIS_CLOUD_BASE);
+  float4 cuts=OrbisSortCuts4(clamp(float4(cloudOuter,cloudInner),begin,end));
+  float cloudLength=0,airLength=0;
+- [loop] for(int k=0;k<5;k++)
++ // This lightweight length prepass contains NO density or lighting evaluation.
++ [loop] [fastopt] for(int k=0;k<5;k++)
+  {
+   float2 interval=OrbisInterval(k,begin,end,cuts);
+   float middle=length(ro+rd*((interval.x+interval.y)*.5));
+   bool cloud=middle>ORBIS_CLOUD_BASE&&middle<ORBIS_CLOUD_TOP&&_Clouds>.5;
+   if(cloud)cloudLength+=interval.y-interval.x;else airLength+=interval.y-interval.x;
+  }
+- // CRITICAL: do not force-unroll a loop that contains the full adaptive marcher.
+- // This single rolled segment body serves globe, full-resolution and map passes.
+- [loop] for(int i=0;i<5;i++)
+- {
+-  float2 interval=OrbisInterval(i,begin,end,cuts);
+-  float len=interval.y-interval.x;if(len<1e-7)continue;
+-  float middle=length(ro+rd*((interval.x+interval.y)*.5));
+-  bool cloud=middle>ORBIS_CLOUD_BASE&&middle<ORBIS_CLOUD_TOP&&_Clouds>.5;
+-  if(!cloud&&_Atmosphere<.5)continue;
+-  int budget=clamp(cloud?_CloudSteps:_AirSteps,1,64);float total=cloud?cloudLength:airLength;
+-  int steps=clamp((int)ceil(budget*len/max(total,1e-6)),cloud?1:6,64);
+-  IntegrateSegment(ro,rd,interval.x,interval.y,steps,cloud,result);
+- }
++ float3 sun=normalize(_Sun);float mu=dot(rd,sun);
++ float2 phaseAir=OrbisGLSLPhase(mu);
++ float phaseCloud=min(4.0,.82*HG(mu,.62)+.18*HG(mu,-.22));
++ float3 light=0,transmission=1;
++ int nextInterval=0,sampleIndex=0,sampleCount=0;
++ float segmentBegin=0,ds=0;
++ bool segmentHasCloud=false;
++ // Five intervals x at most 64 samples + at most five skipped intervals.
++ // 325 is a SAFETY bound, not a new quality preset: original per-interval budgets,
++ // midpoint locations, extinction early-out and front-to-back order are retained.
++ // There is only ONE view loop around the heavy sample function now.
++ [loop] [fastopt] for(int traversal=0;traversal<325;traversal++)
++ {
++  if(max(transmission.r,max(transmission.g,transmission.b))<.002)break;
++  if(sampleIndex>=sampleCount)
++  {
++   if(nextInterval>=5)break;
++   float2 interval=OrbisInterval(nextInterval,begin,end,cuts);
++   nextInterval++;
++   float len=interval.y-interval.x;
++   if(len<1e-7)continue;
++   float middle=length(ro+rd*((interval.x+interval.y)*.5));
++   bool cloud=middle>ORBIS_CLOUD_BASE&&middle<ORBIS_CLOUD_TOP&&_Clouds>.5;
++   if(!cloud&&_Atmosphere<.5)continue;
++   int budget=clamp(cloud?_CloudSteps:_AirSteps,1,64);
++   float total=cloud?cloudLength:airLength;
++   sampleCount=clamp((int)ceil(budget*len/max(total,1e-6)),cloud?1:6,64);
++   sampleIndex=0;segmentBegin=interval.x;segmentHasCloud=cloud;
++   ds=len/sampleCount;
++  }
++  // Compute from the integer index, NOT by repeatedly adding ds (no drift).
++  float3 p=ro+rd*(segmentBegin+(sampleIndex+.5)*ds);
++  OrbisIntegrateSample(p,ds,segmentHasCloud,sun,phaseAir,phaseCloud,light,transmission);
++  sampleIndex++;
++ }
++ result.light=light;result.transmission=transmission;
+  return result;
+ }
+ 
+--- a/Assets/ORBIS/Resources/ORBIS/OrbisAtmosphereGLtracy.cginc
++++ b/Assets/ORBIS/Resources/ORBIS/OrbisAtmosphereGLtracy.cginc
+@@ -61,7 +61,7 @@
+         // Conservative non-nested fallback for editor material previews only.
+         float ds=max(0,OrbisSphere(p,sun,ORBIS_AIR_RADIUS).y)/8;
+         column=0;
+-        [loop] for(int i=0;i<8;i++)
++        [loop] [fastopt] for(int i=0;i<8;i++)
+         {
+             float h=max(0,length(p+sun*((i+.5)*ds))-1);
+             column+=exp(-h/max(float2(1e-5,1e-5),float2(_AtmoBetaRayleigh.w,_AtmoBetaMie.w)))*ds;
+--- a/Assets/ORBIS/Resources/ORBIS/OrbisCloudCommon.cginc
++++ b/Assets/ORBIS/Resources/ORBIS/OrbisCloudCommon.cginc
+@@ -57,14 +57,18 @@
+  if(z<11000)return 9+(z-9000)/2000;
+  return 10+saturate((z-11000)/3000);
+ }
++float OrbisLightningTerm(float3 p,float4 strike)
++{
++ float3 d=p-strike.xyz;
++ return strike.w*exp(-dot(d,d)/.00055);
++}
+ float3 OrbisLightningLight(float3 p)
+ {
+- float flash=0;
+- [loop] for(int i=0;i<4;i++)
+- {
+-  float3 d=p-_OrbisLightning[i].xyz;
+-  flash+=_OrbisLightning[i].w*exp(-dot(d,d)/.00055);
+- }
++ // Four fixed uniform slots: no dynamically indexed array or inner lightning loop.
++ float flash=OrbisLightningTerm(p,_OrbisLightning[0]);
++ flash+=OrbisLightningTerm(p,_OrbisLightning[1]);
++ flash+=OrbisLightningTerm(p,_OrbisLightning[2]);
++ flash+=OrbisLightningTerm(p,_OrbisLightning[3]);
+  return flash*float3(.60,.72,1.0);
+ }
+ float OrbisCloudDensity(float3 p)
+@@ -98,22 +102,24 @@
+ 
+ float OrbisCloudShadowDirect(float3 p,float3 sun)
+ {
+-    float2 outer=OrbisSphere(p,sun,ORBIS_CLOUD_TOP);
+-    float2 inner=OrbisSphere(p,sun,ORBIS_CLOUD_BASE);
+-    float begin=max(0.0,outer.x),end=max(0.0,outer.y),tau=0.0;
+-    if(end<=begin)return 1;
+-    // V4.1.1: keep both shadow loops rolled; density contains multiple volume samples.
+-    // Split at the empty inner sphere: quadrature never wastes its budget in the hollow core.
+-    float4 ranges=float4(begin,min(end,max(begin,inner.x)),max(begin,inner.y),end);
+-    if(inner.x>inner.y)ranges=float4(begin,end,end,end);
+-    [loop] for(int segment=0;segment<2;segment++)
+-    {
+-        float a=segment==0?ranges.x:ranges.z,b=segment==0?ranges.y:ranges.w;
+-        if(b<=a)continue;
+-        float ds=(b-a)/16.0;
+-        [loop] for(int j=0;j<16;j++)tau+=OrbisCloudDensity(p+sun*(a+(j+.5)*ds))*ds*ORBIS_EXTINCTION;
+-    }
+-    return exp(-min(tau,16.0));
++ float2 outer=OrbisSphere(p,sun,ORBIS_CLOUD_TOP);
++ float2 inner=OrbisSphere(p,sun,ORBIS_CLOUD_BASE);
++ float begin=max(0.0,outer.x),end=max(0.0,outer.y),tau=0.0;
++ if(end<=begin)return 1;
++ float4 ranges=float4(begin,min(end,max(begin,inner.x)),max(begin,inner.y),end);
++ if(inner.x>inner.y)ranges=float4(begin,end,end,end);
++ // Preserve both shell intervals and the original 16 midpoint samples per interval.
++ // Flatten 2 x 16 into one loop; do not remove the far-side or no-cache fallback.
++ [loop] [fastopt] for(int shadowIndex=0;shadowIndex<32;shadowIndex++)
++ {
++  bool first=shadowIndex<16;
++  float a=first?ranges.x:ranges.z,b=first?ranges.y:ranges.w;
++  if(b<=a)continue;
++  int j=first?shadowIndex:shadowIndex-16;
++  float ds=(b-a)/16.0;
++  tau+=OrbisCloudDensity(p+sun*(a+(j+.5)*ds))*ds*ORBIS_EXTINCTION;
++ }
++ return exp(-min(tau,16.0));
+ }
+ sampler2D _OrbisShadowAtlas;
+ float _OrbisShadowReady,_OrbisShadowResolution;
+@@ -126,24 +132,29 @@
+ }
+ float OrbisCloudShadow(float3 p,float3 sun)
+ {
+-    if(_Clouds<.5||OrbisSunVisible(p,sun)<.5)return 1.0;
+-    if(_OrbisShadowReady<.5)return OrbisCloudShadowDirect(p,sun);
+-    float2 xy=float2(dot(p,_OrbisShadowRight),dot(p,_OrbisShadowUp));
+-    float impact2=dot(xy,xy),outer2=ORBIS_CLOUD_TOP*ORBIS_CLOUD_TOP;
+-    if(impact2>=outer2)return 1.0;
+-    float top=sqrt(max(0.0,outer2-impact2));
+-    float inner2=ORBIS_CLOUD_BASE*ORBIS_CLOUD_BASE;
+-    float bottom=impact2<inner2?sqrt(max(0.0,inner2-impact2)):-top;
+-    float z=dot(p,_OrbisShadowSun);
+-    if(z>=top)return 1.0;
+-    // A lit far-side shell can have a second cloud interval. Trace it rather than
+-    // pretending the front-column atlas contains that interval.
+-    if(z<0.0&&impact2<inner2&&length(p)>ORBIS_CLOUD_BASE)
+-        return OrbisCloudShadowDirect(p,sun);
+-    float layer=saturate((top-z)/max(1e-5,top-bottom))*7.0;
+-    float lo=floor(layer),hi=min(7.0,lo+1.0);
+-    float2 uv=xy/(2.0*ORBIS_CLOUD_TOP)+.5;
+-    float tau=lerp(OrbisShadowSlice(uv,lo),OrbisShadowSlice(uv,hi),layer-lo);
+-    return exp(-min(max(0.0,tau),16.0));
++ if(_Clouds<.5||OrbisSunVisible(p,sun)<.5)return 1.0;
++ if(_OrbisShadowReady>=.5)
++ {
++  float2 xy=float2(dot(p,_OrbisShadowRight),dot(p,_OrbisShadowUp));
++  float impact2=dot(xy,xy),outer2=ORBIS_CLOUD_TOP*ORBIS_CLOUD_TOP;
++  if(impact2>=outer2)return 1.0;
++  float top=sqrt(max(0.0,outer2-impact2));
++  float inner2=ORBIS_CLOUD_BASE*ORBIS_CLOUD_BASE;
++  float bottom=impact2<inner2?sqrt(max(0.0,inner2-impact2)):-top;
++  float z=dot(p,_OrbisShadowSun);
++  if(z>=top)return 1.0;
++  bool farSide=z<0.0&&impact2<inner2&&length(p)>ORBIS_CLOUD_BASE;
++  if(!farSide)
++  {
++   float layer=saturate((top-z)/max(1e-5,top-bottom))*7.0;
++   float lo=floor(layer),hi=min(7.0,lo+1.0);
++   float2 uv=xy/(2.0*ORBIS_CLOUD_TOP)+.5;
++   float tau=lerp(OrbisShadowSlice(uv,lo),OrbisShadowSlice(uv,hi),layer-lo);
++   return exp(-min(max(0.0,tau),16.0));
++  }
++ }
++ // A SINGLE fallback call site serves both missing-atlas and exceptional far-side
++ // cases. Previously the compiler had two separate copies of this heavy body.
++ return OrbisCloudShadowDirect(p,sun);
+ }
+ #endif

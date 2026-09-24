@@ -1,0 +1,92 @@
+{
+  "patch": "V4.2 Repair IPC Fix 1",
+  "base_archive": "ORBIS_Unity_V4_2_Repair_GLtracy_HP.zip",
+  "base_archive_sha256": "081d7de7dbbc0f37e90eaa5be941c896f8fc418fa5bf72e83d8aba9afe651227",
+  "unity_version_file_unchanged": "6000.0.47f1",
+  "original_files_total": 275,
+  "original_files_unchanged": 271,
+  "original_files_deleted": 0,
+  "modified_existing_files": [
+    {
+      "path": "Assets/ORBIS/Resources/ORBIS/Clouds.shader",
+      "before_sha256": "c6ddfce55e0595d67646ac6498a73b7a2d2b917949a4f3f142f51d693be8b5ad",
+      "after_sha256": "e834def3466d1ba5981cc2d366a2ca8a6e288a142d273965e9d0143cdd4fe6ea"
+    },
+    {
+      "path": "Assets/ORBIS/Resources/ORBIS/OrbisAtmosphereCommon.cginc",
+      "before_sha256": "0cbf3a6b652dcdaaf2e2c4709c8f7343ff4e3b9fb42061e7ddd9675009a5cc81",
+      "after_sha256": "a8611fd06e8dbb8e9f633a658ad39b2b5c1ad57f936e4e5bea004e646b9dfa1d"
+    },
+    {
+      "path": "Assets/ORBIS/Resources/ORBIS/OrbisAtmosphereGLtracy.cginc",
+      "before_sha256": "4ddc5c223eedb8b0b8c223eeb91d4ebe8091e6153c12b3cdd1a5871d65afcd51",
+      "after_sha256": "fcf51e6a745c61245a699608cc5514a4fa1358daf918edc74b62727350c52c15"
+    },
+    {
+      "path": "Assets/ORBIS/Resources/ORBIS/OrbisCloudCommon.cginc",
+      "before_sha256": "44af09405cf550ff7ec4e879db21c7cadbcb9a1ed9adbb976fdc7c13b1c6896b",
+      "after_sha256": "31cd8894b930632050637fc98ae18340bf6926d13f8080e0d2ab450518cdbc0e"
+    }
+  ],
+  "added_files": [
+    "Assets/ORBIS/Editor/OrbisV42RepairIPCValidation.cs",
+    "Assets/ORBIS/Editor/OrbisV42RepairIPCValidation.cs.meta",
+    "Documentation/V4_2_Repair_IPCFix/rerun-repair-regressions.json",
+    "Documentation/V4_2_Repair_IPCFix/source-changes.diff",
+    "Documentation/V4_2_Repair_IPCFix/static-and-numerical-report.json",
+    "READ_ME_V4_2_Repair_IPCFix.md",
+    "Tools/apply_v42_repair_ipc_patch.py",
+    "Validation/validate_v42_repair_ipc.py"
+  ],
+  "unity_shader_compilation_performed": false,
+  "payload": [
+    {
+      "path": "Assets/ORBIS/Editor/OrbisV42RepairIPCValidation.cs",
+      "sha256": "562b8d4511514d82b588449968e6138f8d86f9ade6653bd8fbdbe36b0de5be88"
+    },
+    {
+      "path": "Assets/ORBIS/Editor/OrbisV42RepairIPCValidation.cs.meta",
+      "sha256": "350b4603fb9d282f9ab3b33f9c06ad8a6fd53b29bfc287904bdfcc7cb67a0b85"
+    },
+    {
+      "path": "Assets/ORBIS/Resources/ORBIS/Clouds.shader",
+      "sha256": "e834def3466d1ba5981cc2d366a2ca8a6e288a142d273965e9d0143cdd4fe6ea"
+    },
+    {
+      "path": "Assets/ORBIS/Resources/ORBIS/OrbisAtmosphereCommon.cginc",
+      "sha256": "a8611fd06e8dbb8e9f633a658ad39b2b5c1ad57f936e4e5bea004e646b9dfa1d"
+    },
+    {
+      "path": "Assets/ORBIS/Resources/ORBIS/OrbisAtmosphereGLtracy.cginc",
+      "sha256": "fcf51e6a745c61245a699608cc5514a4fa1358daf918edc74b62727350c52c15"
+    },
+    {
+      "path": "Assets/ORBIS/Resources/ORBIS/OrbisCloudCommon.cginc",
+      "sha256": "31cd8894b930632050637fc98ae18340bf6926d13f8080e0d2ab450518cdbc0e"
+    },
+    {
+      "path": "Documentation/V4_2_Repair_IPCFix/rerun-repair-regressions.json",
+      "sha256": "9df4856dd6bccdee9a8cb99f44f6af40d4b1f1a5eb40bbfacea75e30275ccb30"
+    },
+    {
+      "path": "Documentation/V4_2_Repair_IPCFix/source-changes.diff",
+      "sha256": "0b2467fb12941c9affcc70748591d7d64d0e049b21989ca6e0b2eb95771cf364"
+    },
+    {
+      "path": "Documentation/V4_2_Repair_IPCFix/static-and-numerical-report.json",
+      "sha256": "20234772f3e23f701f80f8bdf73a476416e08429499a6da2cf712a62ad2ccd5f"
+    },
+    {
+      "path": "READ_ME_V4_2_Repair_IPCFix.md",
+      "sha256": "c75f3bd2ea61fee10718e7b48975b5b153d74a89a681fb48975b4197a8458755"
+    },
+    {
+      "path": "Tools/apply_v42_repair_ipc_patch.py",
+      "sha256": "1b879bdaf0b0a275c35a5f3a460a76330696ab40628407b9637519c639ad0104"
+    },
+    {
+      "path": "Validation/validate_v42_repair_ipc.py",
+      "sha256": "784b451e937a2cf7b2d05fee35c61afc0bce86e5dc909707f6944750347c3b3b"
+    }
+  ]
+}

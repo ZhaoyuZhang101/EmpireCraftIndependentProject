@@ -1,0 +1,91 @@
+{
+  "scope": "Offline source contracts and numerical checks only. No Unity Editor, C# compiler, HLSL compiler, play mode, visual acceptance or device FPS tests.",
+  "checks": {
+    "source_contracts": {
+      "status": "PASS",
+      "detail": {
+        "balanced_code_files": 68,
+        "unique_meta_guids": 89,
+        "xml_control_names": 135,
+        "qualification": "Lexical contracts only; no C#/HLSL type checking"
+      }
+    },
+    "active_integration_contracts": {
+      "status": "PASS",
+      "detail": {
+        "active_GLtracy_reference_sha256": "baa5c9136a8e37ff69f5a18f29a6254f2a63e81acb6dff577f30bfc0f40ad9ee",
+        "cloud_gap_floor_removed": true,
+        "bounded_weather_budget": true,
+        "save_render_angle": true,
+        "snow_rate_units": true,
+        "geometry_cache_used": true
+      }
+    },
+    "optical_LUT_accuracy": {
+      "status": "PASS",
+      "detail": {
+        "sampled_rays": 2048,
+        "reference_quadrature_per_half": 1024,
+        "lut_format_tested": "float16 + bilinear",
+        "max_absolute_RGB_transmittance_error": 0.00037473145646754746,
+        "mean_absolute_RGB_transmittance_error": 4.4054348448234786e-05
+      }
+    },
+    "phase_normalization": {
+      "status": "PASS",
+      "detail": {
+        "rayleigh_solid_angle_integral": 1.0000000000125,
+        "Mie_solid_angle_integral": 1.0000000086971406,
+        "original_negative_g_negative_cosine_equivalence": true
+      }
+    },
+    "noise_periodicity_and_gaps": {
+      "status": "PASS",
+      "detail": {
+        "volume": [
+          64,
+          64,
+          64,
+          4
+        ],
+        "periodicity_samples_per_axis": 512,
+        "max_periodic_error": 3.885780586188048e-15,
+        "representative_clear_fraction": 0.18023681640625,
+        "representative_dense_fraction": 0.22077560424804688,
+        "not_a_Unity_visual_test": true
+      }
+    },
+    "water_Fresnel_Beer": {
+      "status": "PASS",
+      "detail": {
+        "view_angles": 10001,
+        "F0": 0.020373187841971414,
+        "grazing_F": 1.0,
+        "max_refracted_path_multiplier": 1.5123442632539348,
+        "Beer_bounds": [
+          1.5340839713918868e-17,
+          1.0
+        ]
+      }
+    },
+    "continuous_clock_equations": {
+      "status": "PASS",
+      "detail": {
+        "ten_second_rotation_error_degrees": 3.0730973321624333e-13,
+        "fixed_tick_weather_clock_continuity": true,
+        "qualification": "Equation test, not runtime frame pacing measurement"
+      }
+    },
+    "current_core_reports": {
+      "status": "PASS",
+      "detail": {
+        "source_sha256": "2a6f6190d3feb12816424ebf2cb15c5dcc90e523705d8c150a9b849912387995",
+        "384_cells_1800_ticks_each_natural_and_perturbed": "PASS",
+        "3456_cells_32_ticks": "PASS",
+        "3456_cells_1200_ticks": "TIMEOUT, NOT VALIDATED"
+      }
+    }
+  },
+  "passed": 8,
+  "failed": 0
+}

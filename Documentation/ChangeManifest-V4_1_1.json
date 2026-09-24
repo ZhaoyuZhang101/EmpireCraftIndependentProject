@@ -1,0 +1,109 @@
+{
+  "version": "4.1.1",
+  "base_archive": "ORBIS_Unity_V4_1_AtmosphereCloudFix.zip",
+  "base_archive_sha256": "b2f6e034a0e156260384ff345c3609d64c91bfc3fbfba1153b7e588a0d3f220f",
+  "target_unity": "6000.0.47f1",
+  "render_pipeline": "Built-in",
+  "scope": "Changed/new files relative to the provided V4.1 archive. This manifest excludes itself to avoid a recursive hash. No original files are deleted.",
+  "protected_original_files_verified_identical": 113,
+  "unchanged_original_files": 180,
+  "deleted_files": [],
+  "files": [
+    {
+      "path": "Assets/ORBIS/Editor/OrbisV411ShaderValidation.cs",
+      "before_sha256": null,
+      "after_sha256": "6931db7987bf1c0e06802dfacc6b0b598eed1b19337ac7e4aecf7c232887237f",
+      "kind": "added"
+    },
+    {
+      "path": "Assets/ORBIS/Editor/OrbisV411ShaderValidation.cs.meta",
+      "before_sha256": null,
+      "after_sha256": "8ee70dd6b394ccc84d46cabefd40762087a79df5c6b2a737a3846b518b77e367",
+      "kind": "added"
+    },
+    {
+      "path": "Assets/ORBIS/Resources/ORBIS/CloudShadowCache.shader",
+      "before_sha256": "4804b02dd568da38c11b477aa43a74503b5640331fe3ac26529982bff78ac4de",
+      "after_sha256": "b45fab95baf3ca99917307ab8d576cccaf3ab5f67cdcefea27c9b664087501ba",
+      "kind": "modified"
+    },
+    {
+      "path": "Assets/ORBIS/Resources/ORBIS/Clouds.shader",
+      "before_sha256": "c579dac47fb8d95c277a1a2a569f96bb7dbdad36beed5dca94daa1d1ed4369f1",
+      "after_sha256": "5f4a9387b8ecd87579c17e0971c51ae47ad9b2dc0bef359bb2d7ae20fbd0c89b",
+      "kind": "modified"
+    },
+    {
+      "path": "Assets/ORBIS/Resources/ORBIS/OrbisAtmosphereCommon.cginc",
+      "before_sha256": "328f74fcfbae0dcf0fba8d2923de5bdc8895da6e8bb565644769b95a465017db",
+      "after_sha256": "4ce3c7d75a404924215bb2a72cf06d15427ffe0e70749f971fd42b452ce5d514",
+      "kind": "modified"
+    },
+    {
+      "path": "Assets/ORBIS/Resources/ORBIS/OrbisCloudCommon.cginc",
+      "before_sha256": "3ae2dab49ac8eac1b6d4a9fa546f82c28d2f9badc3a1c0d24b7803c0304d3d24",
+      "after_sha256": "a7f48255f36aa965dea622468699113e3096b853c9f6a00f33d8e0552b935e58",
+      "kind": "modified"
+    },
+    {
+      "path": "Assets/ORBIS/Resources/ORBIS/OrbisOptics.cginc",
+      "before_sha256": "887482bf0eb0634b214cd43e2f17e0234f62479e681f4b2a8f3cc250093dd7a2",
+      "after_sha256": "1b5b0f2949c9f2c7d2149ce3e39f1e64bcc577847c988ee5c95062569d3ab913",
+      "kind": "modified"
+    },
+    {
+      "path": "Documentation/Diffs/V4_1-to-V4_1_1.diff",
+      "before_sha256": null,
+      "after_sha256": "d31bb850ba87903de679c1ece07be5e4aba4d67dff67b0c935fa633e220e9ba6",
+      "kind": "added"
+    },
+    {
+      "path": "Documentation/GPU-Gems-16-ORBIS-V4_1_1.md",
+      "before_sha256": null,
+      "after_sha256": "914ed8166cbbc0dc488f5d75800b888085cf544a53367f80bc529196c2b022b1",
+      "kind": "added"
+    },
+    {
+      "path": "Documentation/ThirdPartyNotices.md",
+      "before_sha256": "a912d55b5a21610a44926ed7e5808da37b39f75f21dbc7d2629543f9151cf5f2",
+      "after_sha256": "9820aa21250dcc90a9e4f97419791ed8e2f1f6093f3088e38672be10332ced8b",
+      "kind": "modified"
+    },
+    {
+      "path": "Documentation/V4_1-regression-on-V4_1_1.json",
+      "before_sha256": null,
+      "after_sha256": "86a295d4e471f4381a9be8bfabf152ad7045e8f02c8dfdb20f95a2eabce69ea9",
+      "kind": "added"
+    },
+    {
+      "path": "Documentation/Validation-V4_1_1.json",
+      "before_sha256": null,
+      "after_sha256": "5685830bef286a0aebff614c06b2e35a78175fb8580316375a0255a86cf91325",
+      "kind": "added"
+    },
+    {
+      "path": "README.md",
+      "before_sha256": "9c06fbcd1fa07a16da4e14c90ee5eec84eeda1e25028f85a4176e58ae5ede758",
+      "after_sha256": "3821b8c93c7285ade10e40fd292f262d308cf8b84c1720afc1733b06aecb058b",
+      "kind": "modified"
+    },
+    {
+      "path": "README_V4_1_1_先读.md",
+      "before_sha256": null,
+      "after_sha256": "6d82d55a3b22b06ad7119d227e4bb8eb3a1d0b1250584da128b58df1eb1d71d3",
+      "kind": "added"
+    },
+    {
+      "path": "Reference/atmosphere.glsl",
+      "before_sha256": null,
+      "after_sha256": "708ea4a9141a7653ea0085d7f26ae09ca09bb14c88e339d63da74e16439300bd",
+      "kind": "added"
+    },
+    {
+      "path": "Validation/validate_v411.py",
+      "before_sha256": null,
+      "after_sha256": "e70e6fd6303ca3c1b19ef2296a2a59d6ac66c5a02759741a32ecdb1019ab0809",
+      "kind": "added"
+    }
+  ]
+}

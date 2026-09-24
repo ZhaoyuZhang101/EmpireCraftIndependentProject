@@ -1,0 +1,142 @@
+{
+  "scope": "Source wiring, raster fixtures, and independent Python numerical references; not Unity execution",
+  "csharp_compilation": "NOT_RUN",
+  "shader_compilation": "NOT_RUN",
+  "unity_import": "NOT_RUN",
+  "play_mode": "NOT_RUN",
+  "gpu_profiling": "NOT_RUN",
+  "desktop_build": "NOT_RUN",
+  "checks": {
+    "source_structure": {
+      "status": "PASS",
+      "seconds": 0.0,
+      "source_files": 48,
+      "qualification": "Delimiters/includes and limited var declaration lint only; not a language compiler"
+    },
+    "ui_bindings": {
+      "status": "PASS",
+      "seconds": 0.0,
+      "unique_named_elements": 116,
+      "qualification": "XML / binding references only; Unity layout not run"
+    },
+    "resources_metadata_fonts": {
+      "status": "PASS",
+      "seconds": 0.0,
+      "resource_references": 20,
+      "unique_guids": 66,
+      "font_binaries": 0
+    },
+    "v4_wiring_and_compatibility": {
+      "status": "PASS",
+      "seconds": 0.0,
+      "stable_logical_tiles": 3456,
+      "region_selection": "tile / zone / connected chunk",
+      "map_river_position_informs_regions": true
+    },
+    "unified_water_and_carving": {
+      "status": "PASS",
+      "seconds": 0.0,
+      "one_optical_model": true,
+      "carve_water_plane_exclusion": true,
+      "mouth_alpha_transition": true,
+      "qualification": "Source contract checks; no GPU rendering"
+    },
+    "map_and_codec_fixtures": {
+      "status": "PASS",
+      "seconds": 0.0,
+      "exact_gray16_values": 128,
+      "filters_tested": [
+        0,
+        1,
+        2,
+        3,
+        4
+      ],
+      "indexed_bmp_png_equal": true,
+      "example_dimensions": [
+        1024,
+        512
+      ],
+      "example_height_bit_depth": 16,
+      "qualification": "Independent Pillow fixture validation, not production C# decoder execution"
+    },
+    "raster_river_reference": {
+      "status": "PASS",
+      "seconds": 0.0,
+      "nodes": 427,
+      "components": 1,
+      "junctions": 5,
+      "closed_components": 0,
+      "uplift_warnings": 0,
+      "flow_to_roots": 427,
+      "half_width_range_R": [
+        0.0008872941176470588,
+        0.009
+      ],
+      "maximum_water_height": 0.504013733119707,
+      "qualification": "Independent Python reproduction of raster drainage invariants; production C# tests are provided but not run"
+    },
+    "region_boundary_reference": {
+      "status": "PASS",
+      "seconds": 0.0,
+      "tiles": 3456,
+      "closed_sphere_edges": 6912,
+      "two_adjacent_quad_boundary_edges": 6,
+      "whole_planet_external_edges": 0
+    },
+    "raster_sphere_coordinates": {
+      "status": "PASS",
+      "seconds": 0.0,
+      "pixel_center_roundtrips": 10000,
+      "maximum_error": 3.389649672058681e-15,
+      "north_first": true,
+      "east_west_wrap": true
+    },
+    "thermal_relaxation": {
+      "status": "PASS",
+      "seconds": 0.0,
+      "height_sum_error": 3.552713678800501e-15,
+      "iterations": 3,
+      "qualification": "Independent numerical thermal relaxation, not complete hydraulic erosion"
+    },
+    "inherited_weather_atmosphere_camera_references": {
+      "status": "PASS",
+      "seconds": 0.0,
+      "independent_v3_reference_groups": {
+        "bounded": {
+          "max_detail_age_seconds": 6.0,
+          "reset_continuity_error": 1.9999999826858325e-07,
+          "max_clock_seconds": 1000000000000.0
+        },
+        "segments": {
+          "random_rays_partitioned": 2675,
+          "max_partition_error": 2.220446049250313e-16,
+          "includes_camera_inside_clouds": true
+        },
+        "homogeneous": {
+          "homogeneous_media": 10000,
+          "max_quadrature_error": 6.73772149184515e-12,
+          "RGB_transmittance": true
+        },
+        "tangent": {
+          "tangent_frames": 5,
+          "footprints_per_frame": 5,
+          "inverse_error": 1.8041124150158794e-16,
+          "global_equal_squares_claim": false,
+          "note": "Uniform local plane coordinates; projected spherical cells are only approximately undistorted near the center."
+        },
+        "dither": {
+          "tested_pixels": 5817600,
+          "same_depth_color_rule": true
+        },
+        "camera_safety": {
+          "altitude_samples": 10000,
+          "inside_bounding_sphere_case_accepted": true,
+          "minimum_altitude_R": 0.003
+        }
+      }
+    }
+  },
+  "passed": 11,
+  "failed": 0
+}

@@ -1,0 +1,61 @@
+{
+  "patch": "V4.2 Repair IPC Fix 1",
+  "status": "PASS",
+  "unity_shader_compilation_performed": false,
+  "hlsl_compilation_performed": false,
+  "csharp_compilation_performed": false,
+  "unity_visual_test_performed": false,
+  "fps_test_performed": false,
+  "qualification": "PASS applies ONLY to listed source/numerical checks. Does not establish that Unity IPC crash is resolved.",
+  "checks": {
+    "source_contracts": {
+      "status": "PASS",
+      "detail": {
+        "balanced_code_files": 72,
+        "unique_GUIDs": 93,
+        "pass_indices_and_MRT_layout_preserved": true,
+        "quality_budgets_preserved": true,
+        "shared_shadow_call_sites": 1,
+        "direct_fallback_call_sites": 1,
+        "qualification": "Lexical/source contracts, NOT HLSL or C# compilation."
+      }
+    },
+    "view_scheduler_equivalence": {
+      "status": "PASS",
+      "detail": {
+        "ray_cases": 11904,
+        "with_and_without_early_out_comparisons": 23808,
+        "compared_sample_records": 435617,
+        "max_ray_samples_in_cases": 133,
+        "max_traversal_iterations_in_cases": 136,
+        "synthetic_upper_bound_samples": 320,
+        "synthetic_upper_bound_iterations": 321,
+        "midpoint_order_ds_and_cloud_flags_match_exactly": true,
+        "numeric_model": "CPU double precision; synthetic extinction for early-out. NOT GPU floating-point/visual equivalence."
+      }
+    },
+    "direct_shadow_scheduler_equivalence": {
+      "status": "PASS",
+      "detail": {
+        "random_shadow_rays": 12000,
+        "compared_sample_records": 218016,
+        "rays_with_both_shells": 3372,
+        "original_16_plus_16_nodes_and_order_preserved": true
+      }
+    },
+    "shadow_reuse_thresholds": {
+      "status": "PASS",
+      "detail": {
+        "threshold_combinations": 500,
+        "air_and_cloud_shadow_consumers_unchanged": true
+      }
+    }
+  },
+  "source_sha256": {
+    "OrbisAtmosphereGLtracy.cginc": "fcf51e6a745c61245a699608cc5514a4fa1358daf918edc74b62727350c52c15",
+    "OrbisCloudCommon.cginc": "31cd8894b930632050637fc98ae18340bf6926d13f8080e0d2ab450518cdbc0e",
+    "OrbisAtmosphereCommon.cginc": "fa8a2983a3669447cb12ff7c50d9a1a968df5658f6c5077eff586373aff98220",
+    "Clouds.shader": "e834def3466d1ba5981cc2d366a2ca8a6e288a142d273965e9d0143cdd4fe6ea"
+  },
+  "run_context": "Re-run on IPCFix1 + NightLighting sources, 2026-09-11; not original IPCFix1 source hashes."
+}

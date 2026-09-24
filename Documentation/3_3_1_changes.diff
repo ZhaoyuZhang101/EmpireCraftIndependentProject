@@ -1,0 +1,1974 @@
+--- base/Assets/ORBIS/Editor/FlatRenderValidation.cs
++++ merged/Assets/ORBIS/Editor/FlatRenderValidation.cs
+@@ -26,15 +26,15 @@
+                 const string ui="Assets/ORBIS/Resources/ORBIS/FlatWorld/FlatWorld.uxml";
+                 AssetDatabase.ImportAsset(ui,ImportAssetOptions.ForceUpdate|ImportAssetOptions.ForceSynchronousImport);
+                 var tree=AssetDatabase.LoadAssetAtPath<VisualTreeAsset>(ui);if(!tree)throw new InvalidOperationException("UXML failed to import.");
+-                var root=tree.CloneTree();foreach(string name in new[]{"World","Terrain","Water","Climate","Civs","Files"})
++                var root=tree.CloneTree();foreach(string name in new[]{"World","Terrain","Civs","Files"})
+                 {if(root.Q<Button>("tab"+name)==null||root.Q("panel"+name)==null)throw new InvalidOperationException("Missing tab/panel "+name);}
+-                foreach(string name in new[]{"smoothTerrain","vegetation","bathymetry","relief","clouds","cloudShadows","atmosphere","dayNight","rainEffects","lightning","nightLights","autoSun"})
++                foreach(string name in new[]{"clouds","grid","contours"})
+                     if(root.Q<Toggle>(name)==null)throw new InvalidOperationException("Missing environment control "+name);
+-                if(root.Q<Slider>("cloudOpacity")==null||root.Q<DropdownField>("cloudQuality")==null)throw new InvalidOperationException("Missing cloud controls");
++                if(root.Q<DropdownField>("cloudQuality")==null)throw new InvalidOperationException("Missing cloud controls");
+                 report.uxmlImported=true;
+                 if(SystemInfo.graphicsDeviceType==GraphicsDeviceType.Null)throw new InvalidOperationException("No graphics API. Re-run WITHOUT -nographics; on Windows select D3D11.");
+                 ShaderUtil.allowAsyncCompilation=false;
+-                foreach(string path in new[]{"Assets/ORBIS/Resources/ORBIS/FlatWorld/FlatMap.shader","Assets/ORBIS/Resources/ORBIS/Surface.shader","Assets/ORBIS/Resources/ORBIS/FlatWorld/Route.shader","Assets/ORBIS/Resources/ORBIS/FlatWorld/FlatSkyBake.shader","Assets/ORBIS/Resources/ORBIS/FlatWorld/SurfaceFallback.shader"})
++                foreach(string path in new[]{"Assets/ORBIS/Resources/ORBIS/FlatWorld/ScrollSurface.shader","Assets/ORBIS/Resources/ORBIS/FlatWorld/FlatMap.shader","Assets/ORBIS/Resources/ORBIS/Surface.shader","Assets/ORBIS/Resources/ORBIS/FlatWorld/Route.shader","Assets/ORBIS/Resources/ORBIS/FlatWorld/FlatSkyBake.shader","Assets/ORBIS/Resources/ORBIS/FlatWorld/SurfaceFallback.shader"})
+                 {
+                     AssetDatabase.ImportAsset(path,ImportAssetOptions.ForceUpdate|ImportAssetOptions.ForceSynchronousImport);
+                     Shader shader=AssetDatabase.LoadAssetAtPath<Shader>(path);if(!shader)throw new InvalidOperationException("Missing shader "+path);
+--- base/Assets/ORBIS/Editor/FlatScrollValidation.cs
++++ merged/Assets/ORBIS/Editor/FlatScrollValidation.cs
+@@ -0,0 +1,149 @@
++#if UNITY_EDITOR
++using System;
++using System.Collections.Generic;
++using System.IO;
++using System.Reflection;
++using UnityEditor;
++using UnityEngine;
++using Orbis.Flat;
++
++namespace Orbis.EditorTools
++{
++    /// <summary>Explicit local verification. These checks were not run in the delivery environment.</summary>
++    public static class FlatScrollValidation
++    {
++        [Serializable] sealed class Report
++        {
++            public string utc, scope, unityVersion, graphicsDevice, status;
++            public string[] checks, failures;
++        }
++        static void Require(bool condition, string label)
++        { if (!condition) throw new InvalidOperationException(label); }
++        [MenuItem("Tools/ORBIS/Perf3.3/1 Run calendar and wrapping tests")]
++        public static void Numerical()
++        {
++            var checks = new List<string>(); var failures = new List<string>();
++            Action<string, Action> test = (name, action) => { try { action(); checks.Add(name); } catch (Exception e) { failures.Add(name + ": " + e.Message); } };
++            test("20x / 1x exactly proportional", () =>
++            {
++                double[] days = new double[2];
++                for (int mode = 0; mode < 2; mode++)
++                {
++                    int capture = mode; var clock = new FlatSolarClock();
++                    for (int frame = 0; frame < 600; frame++) clock.Advance(1.0 / 60, mode == 0 ? 1 : 20, 120, false, d => days[capture] += d);
++                    days[mode] = clock.RenderDay(days[mode]);
++                }
++                Require(Math.Abs(days[1] / days[0] - 20) < 1e-5, "speed ratio mismatch");
++            });
++            test("Pause freezes calendar; save flush preserves phase", () =>
++            {
++                double day = 19.99; var clock = new FlatSolarClock(); Action<float> step = d => day += d;
++                clock.Advance(.037, 20, 120, false, step); double before = clock.RenderDay(day);
++                clock.Advance(120, 20, 120, true, step); Require(Math.Abs(clock.RenderDay(day) - before) < 1e-10, "pause advanced time");
++                clock.Flush(step); Require(Math.Abs(day - before) < 1e-7, "flush lost fractional day");
++                double phase = FlatSolarClock.Phase(day); clock.Reset(); Require(Math.Abs(phase - FlatSolarClock.Phase(clock.RenderDay(day))) < 1e-8, "load changed phase");
++            });
++            test("Long frame retains calendar debt", () =>
++            {
++                double day = 0; var clock = new FlatSolarClock(); clock.Advance(7.25, 20, 30, false, d => day += d);
++                Require(Math.Abs(clock.RenderDay(day) - 7.25 * 20 / 30) < 1e-6, "dropped time");
++            });
++            test("Longitude wrap, poles and shortest route", () =>
++            {
++                foreach (int w in new[] { 256, 512, 1024 })
++                {
++                    int h = w / 2, row = h / 2;
++                    Require(FlatScrollMath.Tile(-.5, row + .5, w, h) == row * w + w - 1, "west seam");
++                    Require(FlatScrollMath.Tile(w + .5, row + .5, w, h) == row * w, "east seam");
++                    Require(FlatScrollMath.Tile(.5, -1, w, h) == -1 && FlatScrollMath.Tile(.5, h, w, h) == -1, "poles wrapped");
++                    Require(Math.Abs(FlatScrollMath.Shortest(.5 - (w - .5), w) - 1) < 1e-9, "route crosses entire atlas");
++                    for (int laps = -20; laps <= 20; laps++) Require(FlatScrollMath.Tile(13.5 + w * laps, row + .5, w, h) == row * w + 13, "lap changes ID");
++                }
++            });
++            Save("numeric-unity", "Executed C# calendar and wrapping checks; not GPU/visual validation.", checks, failures);
++        }
++        [MenuItem("Tools/ORBIS/Perf3.3/2 Report shader import messages")]
++        public static void ShaderMessages()
++        {
++            var checks = new List<string>(); var failures = new List<string>();
++            foreach (string path in new[] { "ORBIS/FlatWorld/ScrollSurface", "ORBIS/Surface", "ORBIS/Clouds" })
++            {
++                Shader shader = Resources.Load<Shader>(path);
++                if (!shader) { failures.Add(path + " missing"); continue; }
++                if (!shader.isSupported) failures.Add(path + " unsupported on active device");
++                foreach (var message in ShaderUtil.GetShaderMessages(shader))
++                {
++                    string text = path + " " + message.severity + " " + message.file + ":" + message.line + " " + message.message;
++                    if (message.severity.ToString() == "Error") failures.Add(text); else checks.Add(text);
++                }
++                checks.Add(path + " inspected (not every keyword/platform variant)");
++            }
++            Save("shader-import", "Current Unity shader import messages and isSupported only; not an all-variant compilation certificate.", checks, failures);
++        }
++        static FlatWorldApp app; static FlatScrollNavigator nav; static Camera camera;
++        static FieldInfo pausedField; static bool wasPaused;
++        static int stage, frames; static double deadline; static int center;
++        static List<string> playChecks, playFailures;
++        [MenuItem("Tools/ORBIS/Perf3.3/3 Run viewport smoke test in Play Mode")]
++        public static void PlaySmoke()
++        {
++            if (!EditorApplication.isPlaying) { Debug.LogWarning("Open Orbis2DWorld.unity and enter Play Mode first."); return; }
++            app = UnityEngine.Object.FindFirstObjectByType<FlatWorldApp>();
++            if (!app || app.World == null || app.Busy || !app.Navigation) { Debug.LogWarning("Wait until this world's generation/import has completed."); return; }
++            if (!EditorUtility.DisplayDialog("ORBIS viewport verification", "此检查会暂时暂停模拟并改变视角、平移位置和路径预览；建议在工程副本运行。不会修改地形、文明或存档。", "运行", "取消")) return;
++            EditorApplication.update -= Step;
++            nav = app.Navigation; camera = app.GetComponentInChildren<Camera>();
++            pausedField = typeof(FlatWorldApp).GetField("paused", BindingFlags.Instance | BindingFlags.NonPublic);
++            wasPaused = (bool)pausedField.GetValue(app); pausedField.SetValue(app, true);
++            playChecks = new List<string>(); playFailures = new List<string>(); stage = 0; frames = 0;
++            deadline = EditorApplication.timeSinceStartup + 20;
++            nav.GoGlobe(app.CalendarDay); EditorApplication.update += Step;
++        }
++        static void Step()
++        {
++            try
++            {
++                Require(EditorApplication.isPlaying && app && nav, "Play Mode ended or world replaced");
++                Require(EditorApplication.timeSinceStartup < deadline, "viewport state timed out");
++                if (stage == 0 && nav.IsGlobe)
++                { playChecks.Add("Globe endpoint reached"); nav.OpenAtlas(app.CalendarDay); stage = 1; }
++                else if (stage == 1 && nav.IsFlat)
++                {
++                    Require(camera.orthographic, "flat camera is not orthographic");
++                    center = nav.Pick(camera.pixelRect.center); Require(center >= 0, "center did not resolve to a tile");
++                    playChecks.Add("Atlas endpoint and geographical picking"); nav.PanBy(new Vector2(app.World.Width * 3, 0)); frames = 0; stage = 2;
++                }
++                else if (stage == 2 && ++frames >= 4)
++                {
++                    Require(nav.Pick(camera.pixelRect.center) == center, "three laps changed the authoritative tile");
++                    playChecks.Add("Three horizontal wraps preserve selected Tile ID");
++                    nav.PanBy(new Vector2(-app.World.Width * 7, 0)); frames = 0; stage = 3;
++                }
++                else if (stage == 3 && ++frames >= 4)
++                {
++                    Require(nav.Pick(camera.pixelRect.center) == center, "negative wraps changed the tile");
++                    playChecks.Add("Negative longitude wraps preserve Tile ID"); nav.GoGlobe(app.CalendarDay); stage = 4;
++                }
++                else if (stage == 4 && nav.Morph < .70f && nav.Morph > 0)
++                { nav.Toggle(app.CalendarDay); playChecks.Add("Reverse requested during mesh transition"); stage = 5; }
++                else if (stage == 5 && nav.IsFlat)
++                { Require(nav.Pick(camera.pixelRect.center) == center, "reverse did not preserve region"); playChecks.Add("Reverse returns to the same region"); Finish(); }
++            }
++            catch (Exception e) { playFailures.Add(e.ToString()); Finish(); }
++        }
++        static void Finish()
++        {
++            EditorApplication.update -= Step;
++            if (app && pausedField != null) pausedField.SetValue(app, wasPaused);
++            Save("viewport-playmode", "Automated navigation API smoke test; visual quality, real mouse input, frame rate and full-atmosphere alignment still require manual inspection.", playChecks, playFailures);
++        }
++        static void Save(string name, string scope, List<string> checks, List<string> failures)
++        {
++            string dir = Path.Combine(Directory.GetParent(Application.dataPath).FullName, "Validation", "Perf3_3"); Directory.CreateDirectory(dir);
++            var report = new Report { utc = DateTime.UtcNow.ToString("o"), scope = scope, unityVersion = Application.unityVersion, graphicsDevice = SystemInfo.graphicsDeviceName, status = failures.Count == 0 ? "PASS" : "FAIL", checks = checks.ToArray(), failures = failures.ToArray() };
++            string path = Path.Combine(dir, name + ".json"); File.WriteAllText(path, JsonUtility.ToJson(report, true));
++            if (failures.Count == 0) Debug.Log("ORBIS " + name + " PASS within stated scope: " + path); else Debug.LogError("ORBIS " + name + " FAIL: " + path);
++        }
++    }
++}
++#endif
+--- base/Assets/ORBIS/Resources/ORBIS/FlatWorld/FlatMap.shader
++++ merged/Assets/ORBIS/Resources/ORBIS/FlatWorld/FlatMap.shader
+@@ -27,88 +27,8 @@
+    struct appdata {float4 vertex:POSITION;float2 uv:TEXCOORD0;};
+    struct v2f {float4 pos:SV_POSITION;float2 uv:TEXCOORD0;};
+    v2f vert(appdata v){v2f o;o.pos=UnityObjectToClipPos(v.vertex);o.uv=v.uv;return o;}
+-   float4 frag(v2f i):SV_Target
+-   {
+-    float2 cell=i.uv*_MapSize.xy,id=floor(cell),f=frac(cell),uv=(id+.5)*_MapSize.zw;
+-    float naturalView=max(_Natural,_Political);
+-    float2 colorUV=lerp(uv,FlatBlendUV(cell),_SmoothTerrain*naturalView);
+-    float3 col=tex2D(_MainTex,colorUV).rgb;
+-    float4 own=tex2D(_OwnerTex,uv),info=tex2D(_InfoTex,uv)*255;
+-    float4 hydro=tex2Dlod(_HydroA,float4(uv,0,0)),mixing=tex2Dlod(_HydroB,float4(uv,0,0)),geo=tex2Dlod(_GeoTex,float4(uv,0,0));
+-    float4 field=FlatField(cell);
+-    float edgeDistance;float2 riverFlow;
+-    float aa=clamp(.65/max(1,_PixelsPerTile),.008,.28);
+-    float waterMask=FlatWaterMask(cell,uv,hydro,mixing,field,aa,edgeDistance,riverFlow);
+-    float3 illumination=lerp(float3(1,1,1),FlatDayLight(FlatRadial(i.uv),i.uv),naturalView);
+-    if(naturalView>.5)
+-    {
+-     col=FlatVegetation(col,cell,field.a,_PixelsPerTile);
+-     col*=FlatFieldRelief(cell,0,float3(-.45,.6,.75));
+-    }
+-    if(_WaterView>.5)
+-    {
+-     float4 smoothMix=tex2D(_HydroB,i.uv);mixing.gb=smoothMix.gb;
+-     if(hydro.a>.01)hydro.gb=riverFlow;else hydro.gb=tex2D(_HydroA,i.uv).gb;
+-     float bankWidth=hydro.a>.01?.075:.16;
+-     float bankMask=(1-waterMask)*(1-smoothstep(0,bankWidth+aa,edgeDistance))*_ShowBanks;
+-     float3 bankColor=FlatMaterialColor(floor(geo.g+.5));
+-     bankColor=lerp(bankColor,FlatColor(float3(.83,.75,.55)),step(-1.4,field.g)*step(geo.g,.5));
+-     col=lerp(col,bankColor,bankMask*.58);
+-     col*=illumination;
+-     float3 bottom=FlatMaterialColor(floor(geo.g+.5))*.72;
+-     float3 waterColor=FlatColor(float3(.20,.43,.55))*illumination;
+-     // The uniform switch skips optics without exposing padded land under water.
+-     if(_ShowWater>.5)waterColor=FlatWaterShade(cell,hydro,mixing,field,bottom,illumination,float3(0,0,1),normalize(float3(-.4,.5,.8)),_WaveAmount);
+-     col=lerp(col,waterColor,waterMask);
+-    }
+-    else col*=illumination;
+-    float major;float contour=FlatContour(field.r,_ContourInterval,major);
+-    float contourStrength=_ShowContours*smoothstep(3,5,_PixelsPerTile)*(1-waterMask)*step(.01,field.r)*max(naturalView,_DrawHeight);
+-    col=lerp(col,FlatColor(float3(.31,.30,.24))*illumination,contour*contourStrength*lerp(.23,.42,major));
+-    if(_Political>.5)
+-    {
+-     float4 east=tex2D(_OwnerTex,uv+float2(_MapSize.z,0)),north=tex2D(_OwnerTex,uv+float2(0,_MapSize.w));
+-     float eastEdge=step(.002,abs(own.a-east.a)),northEdge=step(.002,abs(own.a-north.a));
+-     float edgeWidth=min(.22,1/max(1,_PixelsPerTile));
+-     float border=max(eastEdge*step(1-edgeWidth,f.x),northEdge*step(1-edgeWidth,f.y));
+-     col=lerp(col,own.rgb*illumination,.34*step(.001,own.a)*(1-waterMask*.8));
+-     col=lerp(col,FlatColor(float3(.87,.79,.57)),border*.70*step(.001,own.a));
+-    }
+-    // Composite weather below navigation/selection marks. Data-only layers stay exact.
+-    if(naturalView>.5)col=FlatSkyComposite(col,i.uv,cell,waterMask,_PixelsPerTile);
+-    if(naturalView>.5)
+-    {
+-     float structure=floor(info.b+.5);
+-     if(structure>.5&&_PixelsPerTile>=4)
+-     {
+-      float2 q=abs(f-.5);float mark=0;
+-      if(structure<1.5)mark=(1-step(.22,q.x))*(1-step(.22,q.y));
+-      else if(structure<2.5)mark=(1-step(.34,q.x))*(1-step(.30,q.y))*step(.45,frac(f.y*5));
+-      else if(structure<3.5)mark=1-step(.075,q.x);
+-      else mark=(1-step(.16,q.x))*(1-step(.42,q.y));
+-      col=lerp(col,FlatColor(structure<1.5?float3(.96,.83,.53):float3(.73,.66,.46)),mark*.9);
+-     }
+-     float night=1-FlatDayWeight(FlatRadial(i.uv));
+-     float town=1-step(.5,abs(structure-1));
+-     col+=town*exp(-dot(f-.5,f-.5)*14)*night*_FlatNightLights*FlatColor(float3(.82,.42,.13))*.75;
+-    }
+-    if(_Grid>.5&&_PixelsPerTile>=4)
+-    {
+-     float2 z=frac(cell/4);float zoneWidth=min(.035,1/max(4,_PixelsPerTile*4));
+-     float zoneMask=max(1-step(zoneWidth,z.x),1-step(zoneWidth,z.y));
+-     col=lerp(col,FlatColor(float3(.20,.24,.21)),zoneMask*.24*(1-waterMask));
+-     if(_PixelsPerTile>=16){float tileMask=max(1-step(.5/_PixelsPerTile,f.x),1-step(.5/_PixelsPerTile,f.y));col*=1-tileMask*.10*(1-waterMask);}
+-    }
+-    float selected=1-step(.5,max(abs(id.x-_Selected.x),abs(id.y-_Selected.y)));
+-    float selectionWidth=min(.20,1.5/max(1,_PixelsPerTile));
+-    float rim=1-step(selectionWidth,min(min(f.x,f.y),min(1-f.x,1-f.y)));
+-    col=lerp(col,FlatColor(float3(1,.91,.61)),selected*rim*.95);
+-    float2 selectedZone=cell-_Selected.zw;
+-    float inZone=step(0,selectedZone.x)*step(0,selectedZone.y)*step(selectedZone.x,4)*step(selectedZone.y,4);
+-    float zoneRim=1-step(selectionWidth,min(min(selectedZone.x,selectedZone.y),min(4-selectedZone.x,4-selectedZone.y)));
+-    col=lerp(col,FlatColor(float3(.94,.84,.53)),inZone*zoneRim*.7);
+-    return float4(max(0,col),1);
+-   }
++   #include "FlatPixelDetail.cginc"
++   #include "FlatMapFragment.cginc"
+    ENDCG
+   }
+  }
+--- base/Assets/ORBIS/Resources/ORBIS/FlatWorld/FlatMapFragment.cginc
++++ merged/Assets/ORBIS/Resources/ORBIS/FlatWorld/FlatMapFragment.cginc
+@@ -0,0 +1,96 @@
++   float4 frag(v2f i):SV_Target
++   {
++    float2 cell=float2(frac(i.uv.x),clamp(i.uv.y,0,1-_MapSize.w*.0001))*_MapSize.xy,id=floor(cell),f=frac(cell),uv=(id+.5)*_MapSize.zw;
++    float2 detailCell=(floor(cell*32)+.5)/32;
++    float naturalView=max(_Natural,_Political);
++    float2 colorUV=lerp(uv,FlatBlendUV(cell),_SmoothTerrain*naturalView);
++    float3 col=tex2D(_MainTex,colorUV).rgb;
++    float4 own=tex2D(_OwnerTex,uv),info=tex2D(_InfoTex,uv)*255;
++    float4 hydro=tex2Dlod(_HydroA,float4(uv,0,0)),mixing=tex2Dlod(_HydroB,float4(uv,0,0)),geo=tex2Dlod(_GeoTex,float4(uv,0,0));
++    float4 field=FlatField(cell);
++    float edgeDistance;float2 riverFlow;
++    float aa=clamp(.65/max(1,_PixelsPerTile),.008,.28);
++    float waterMask=FlatWaterMask(cell,uv,hydro,mixing,field,aa,edgeDistance,riverFlow);
++    float3 illumination=lerp(float3(1,1,1),FlatDayLight(FlatRadial(i.uv),i.uv),naturalView);
++    if(naturalView>.5)
++    {
++     col=lerp(FlatVegetation(col,cell,field.a,_PixelsPerTile),col,_DetailWeight);
++     col*=FlatFieldRelief(cell,0,float3(-.45,.6,.75));
++     if(_DetailWeight>0)col=lerp(col,PixelGround(col,detailCell,field,waterMask),_DetailWeight);
++    }
++    if(_WaterView>.5)
++    {
++     float4 smoothMix=tex2D(_HydroB,i.uv);mixing.gb=smoothMix.gb;
++     if(hydro.a>.01)hydro.gb=riverFlow;else hydro.gb=tex2D(_HydroA,i.uv).gb;
++     float bankWidth=hydro.a>.01?.075:.16;
++     float bankMask=(1-waterMask)*(1-smoothstep(0,bankWidth+aa,edgeDistance))*_ShowBanks;
++     float3 bankColor=FlatMaterialColor(floor(geo.g+.5));
++     bankColor=lerp(bankColor,FlatColor(float3(.83,.75,.55)),step(-1.4,field.g)*step(geo.g,.5));
++     col=lerp(col,bankColor,bankMask*.58);
++     col*=illumination;
++     float3 bottom=FlatMaterialColor(floor(geo.g+.5))*.72;
++     float3 waterColor=FlatColor(float3(.20,.43,.55))*illumination;
++     // The uniform switch skips optics without exposing padded land under water.
++     if(_ShowWater>.5)waterColor=FlatWaterShade(cell,hydro,mixing,field,bottom,illumination,float3(0,0,1),normalize(float3(-.4,.5,.8)),_WaveAmount);
++     col=lerp(col,waterColor,waterMask);
++    }
++    else col*=illumination;
++    float major;float contour=FlatContour(field.r,_ContourInterval,major);
++    float contourStrength=_ShowContours*smoothstep(3,5,_PixelsPerTile)*(1-waterMask)*step(.01,field.r)*max(naturalView,_DrawHeight);
++    col=lerp(col,FlatColor(float3(.31,.30,.24))*illumination,contour*contourStrength*lerp(.23,.42,major));
++    if(_Political>.5)
++    {
++     float4 east=tex2D(_OwnerTex,uv+float2(_MapSize.z,0)),north=tex2D(_OwnerTex,uv+float2(0,_MapSize.w));
++     float eastEdge=step(.002,abs(own.a-east.a)),northEdge=step(.002,abs(own.a-north.a));
++     float edgeWidth=min(.22,1/max(1,_PixelsPerTile));
++     float border=max(eastEdge*step(1-edgeWidth,f.x),northEdge*step(1-edgeWidth,f.y));
++     col=lerp(col,own.rgb*illumination,.34*step(.001,own.a)*(1-waterMask*.8));
++     col=lerp(col,FlatColor(float3(.87,.79,.57)),border*.70*step(.001,own.a));
++    }
++    // Composite weather below navigation/selection marks. Data-only layers stay exact.
++    if(naturalView>.5)
++    {
++     #ifdef ORBIS_SCROLL_SURFACE
++     col=lerp(col,FlatSkyComposite(col,i.uv,cell,waterMask,_PixelsPerTile),smoothstep(.18,.82,_ScrollMorph));
++     #else
++     col=FlatSkyComposite(col,i.uv,cell,waterMask,_PixelsPerTile);
++     #endif
++    }
++    if(naturalView>.5)
++    {
++     float structure=floor(info.b+.5);
++     if(structure>.5&&_PixelsPerTile>=4)
++     {
++      float2 q=abs(f-.5);float mark=0;
++      if(structure<1.5)mark=(1-step(.22,q.x))*(1-step(.22,q.y));
++      else if(structure<2.5)mark=(1-step(.34,q.x))*(1-step(.30,q.y))*step(.45,frac(f.y*5));
++      else if(structure<3.5)mark=1-step(.075,q.x);
++      else mark=(1-step(.16,q.x))*(1-step(.42,q.y));
++      col=lerp(col,FlatColor(structure<1.5?float3(.96,.83,.53):float3(.73,.66,.46)),mark*.9*(1-_DetailWeight));
++     }
++     if(_DetailWeight>0)col=lerp(col,PixelProps(col,detailCell,field,waterMask,structure,illumination),_DetailWeight);
++     float night=1-FlatDayWeight(FlatRadial(i.uv));
++     float town=1-step(.5,abs(structure-1));
++     col+=town*exp(-dot(f-.5,f-.5)*14)*night*_FlatNightLights*FlatColor(float3(.82,.42,.13))*.75;
++    }
++    if(_Grid>.5&&_PixelsPerTile>=4)
++    {
++     float2 z=frac(cell/4);float zoneWidth=min(.035,1/max(4,_PixelsPerTile*4));
++     float zoneMask=max(1-step(zoneWidth,z.x),1-step(zoneWidth,z.y));
++     col=lerp(col,FlatColor(float3(.20,.24,.21)),zoneMask*.24*(1-waterMask));
++     if(_PixelsPerTile>=16){float tileMask=max(1-step(.5/_PixelsPerTile,f.x),1-step(.5/_PixelsPerTile,f.y));col*=1-tileMask*.10*(1-waterMask);}
++    }
++    float selected=1-step(.5,max(abs(id.x-_Selected.x),abs(id.y-_Selected.y)));
++    float selectionWidth=min(.20,1.5/max(1,_PixelsPerTile));
++    float rim=1-step(selectionWidth,min(min(f.x,f.y),min(1-f.x,1-f.y)));
++    col=lerp(col,FlatColor(float3(1,.91,.61)),selected*rim*.95);
++    float2 selectedZone=cell-_Selected.zw;
++    float inZone=step(0,selectedZone.x)*step(0,selectedZone.y)*step(selectedZone.x,4)*step(selectedZone.y,4);
++    float zoneRim=1-step(selectionWidth,min(min(selectedZone.x,selectedZone.y),min(4-selectedZone.x,4-selectedZone.y)));
++    col=lerp(col,FlatColor(float3(.94,.84,.53)),inZone*zoneRim*.7);
++    #if defined(ORBIS_SCROLL_SURFACE) && defined(UNITY_COLORSPACE_GAMMA)
++    // Native volume/display always consumes linear scene radiance, including its flat endpoint.
++    col=GammaToLinearSpace(max(0,col));
++    #endif
++    return float4(max(0,col),1);
++   }
+--- base/Assets/ORBIS/Resources/ORBIS/FlatWorld/FlatPixelDetail.cginc
++++ merged/Assets/ORBIS/Resources/ORBIS/FlatWorld/FlatPixelDetail.cginc
+@@ -0,0 +1,96 @@
++#ifndef ORBIS_FLAT_PIXEL_DETAIL
++#define ORBIS_FLAT_PIXEL_DETAIL
++// Presentation only: 32 artwork pixels per authoritative Tile. No new simulation cells.
++float _DetailWeight;
++float PDBox(float2 p,float2 lo,float2 hi)
++{return step(lo.x,p.x)*step(lo.y,p.y)*(1-step(hi.x,p.x))*(1-step(hi.y,p.y));}
++float PDHash(float2 p)
++{
++ p.x=p.x-floor(p.x/_MapSize.x)*_MapSize.x;
++ return frac(sin(dot(p,float2(12.9898,78.233)))*43758.5453);
++}
++float3 PDPaint(float3 col,float3 ink,float mask){return lerp(col,FlatColor(ink),saturate(mask));}
++float3 PixelGround(float3 baseColor,float2 cell,float4 field,float waterMask)
++{
++ float2 id=floor(cell),q=floor(frac(cell)*32),uv=(id+.5)*_MapSize.zw;
++ float rand=PDHash(id),grain=PDHash(id+floor(q/3)*.013);
++ float3 col=floor(baseColor*28+.5)/28*(.90+.17*grain);
++ float green=step(.26,field.a)*step(0,field.r);
++ float blades=step(.88,grain)*step(1,fmod(q.y,5))*step(fmod(q.x,5),1);
++ col=PDPaint(col,float3(.35,.43,.19),blades*green*.4);
++ // A 2D ledge along a real height discontinuity. Geography and passability are untouched.
++ float4 south=tex2Dlod(_VisualTex,float4(uv-float2(0,_MapSize.w),0,0));
++ float4 west=tex2Dlod(_VisualTex,float4(uv-float2(_MapSize.z,0),0,0));
++ float front=step(85,field.r-south.r)*step(q.y,3)*step(.01,field.r);
++ float side=step(85,field.r-west.r)*step(q.x,1)*step(.01,field.r);
++ float bricks=step(1,fmod(q.x+floor(q.y/2)*3,7));
++ col=PDPaint(col,lerp(float3(.18,.15,.10),float3(.40,.32,.20),bricks),front*.9);
++ col=PDPaint(col,float3(.12,.17,.10),side*.65);
++ float shore=step(-.16,field.g)*(1-step(.22,field.g))*(1-waterMask);
++ col=PDPaint(col,lerp(float3(.47,.36,.21),float3(.66,.53,.30),step(.45,grain)),shore*.8);
++ return col;
++}
++float3 PixelProps(float3 col,float2 cell,float4 field,float waterMask,float structure,float3 light)
++{
++ float2 id=floor(cell),q=floor(frac(cell)*32);
++ float seed=PDHash(id),occupied=step(seed,saturate((field.a-.20)*1.25))*(1-waterMask);
++ if(structure<.5 && occupied>.5)
++ {
++  float2 crown=q-float2(15+floor(seed*5)-2,19+floor(PDHash(id+71)*3));
++  float silhouette=max(abs(crown.x)*.65+abs(crown.y),max(abs(crown.x)*1.08,abs(crown.y)*1.12));
++  float crownMask=step(silhouette,11+step(.6,seed));
++  float shadow=PDBox(q,float2(8,4),float2(29,18));col*=1-shadow*.25;
++  float trunk=PDBox(q,float2(14,5),float2(18,14));col=PDPaint(col,float3(.28,.19,.10)*light,trunk);
++  float leaf=PDHash(id+floor(q/3)*.07),band=floor((crown.y-crown.x*.4+14)/5);
++  float3 foliage=lerp(float3(.12,.22,.105),float3(.31,.40,.14),saturate(band/5));
++  foliage*=.82+.25*step(.35,leaf);
++  col=PDPaint(col,float3(.07,.13,.075)*light,crownMask);
++  float inner=step(silhouette,9+step(.6,seed));
++  col=PDPaint(col,foliage*light,inner);
++ }
++ if(structure>.5 && structure<1.5)
++ {
++  float shadow=PDBox(q,float2(6,2),float2(30,27));col*=1-shadow*.3;
++  float wall=PDBox(q,float2(7,5),float2(26,16));
++  float board=step(1,fmod(q.y,4));col=PDPaint(col,lerp(float3(.30,.20,.12),float3(.59,.43,.25),board)*light,wall);
++  float2 roof=q-float2(16,21);float roofMask=step(abs(roof.x),13)*step(abs(roof.y),7);
++  col=PDPaint(col,float3(.19,.16,.10)*light,roofMask);
++  float interior=PDBox(q,float2(4,16),float2(28,27));
++  float shingle=step(1,fmod(q.y,3))*step(1,fmod(q.x+floor(q.y/3)*3,6));
++  col=PDPaint(col,lerp(float3(.42,.28,.12),float3(.69,.48,.21),shingle)*light,interior);
++  col=PDPaint(col,float3(.82,.65,.32)*light,PDBox(q,float2(4,26),float2(28,28)));
++  col=PDPaint(col,float3(.13,.12,.10)*light,PDBox(q,float2(14,5),float2(19,13)));
++  col=PDPaint(col,float3(.92,.73,.33)*light,PDBox(q,float2(9,9),float2(12,12))+PDBox(q,float2(22,9),float2(25,12)));
++ }
++ else if(structure>1.5 && structure<2.5)
++ {
++  float plot=PDBox(q,float2(2,2),float2(30,30));
++  col=PDPaint(col,lerp(float3(.28,.19,.105),float3(.43,.30,.16),step(1,fmod(q.y,5)))*light,plot);
++  float crop=step(1,fmod(q.x,6))*(1-step(4,fmod(q.x,6)))*step(2,fmod(q.y,5))*(1-step(4,fmod(q.y,5)));
++  col=PDPaint(col,float3(.36,.50,.16)*light,crop*plot);
++  float fence=(PDBox(q,float2(1,1),float2(31,2))+PDBox(q,float2(1,29),float2(31,30)));
++  float posts=(1-step(2,fmod(q.x,8)))*(PDBox(q,float2(0,0),float2(32,5))+PDBox(q,float2(0,27),float2(32,32)));
++  col=PDPaint(col,float3(.65,.50,.27)*light,saturate(fence+posts));
++ }
++ else if(structure>2.5)
++ {
++  float2 uv=(id+.5)*_MapSize.zw;
++  float left=tex2Dlod(_InfoTex,float4(uv-float2(_MapSize.z,0),0,0)).b*255;
++  float right=tex2Dlod(_InfoTex,float4(uv+float2(_MapSize.z,0),0,0)).b*255;
++  float up=tex2Dlod(_InfoTex,float4(uv+float2(0,_MapSize.w),0,0)).b*255;
++  float down=tex2Dlod(_InfoTex,float4(uv-float2(0,_MapSize.w),0,0)).b*255;
++  float west=step(2.5,left),east=step(2.5,right),north=step(2.5,up),south=step(2.5,down);
++  float horizontal=max(west,east),vertical=max(north,south);
++  float path=PDBox(q,float2(11,11),float2(21,21));
++  path=max(path,PDBox(q,float2(0,11),float2(16,21))*west);
++  path=max(path,PDBox(q,float2(16,11),float2(32,21))*east);
++  path=max(path,PDBox(q,float2(11,16),float2(21,32))*north);
++  path=max(path,PDBox(q,float2(11,0),float2(21,16))*south);
++  if(horizontal+vertical<.5)path=PDBox(q,float2(11,0),float2(21,32));
++  float plank=step(1,fmod(lerp(q.y,q.x,horizontal),4));
++  float3 road=structure>3.5?lerp(float3(.29,.20,.12),float3(.62,.46,.25),plank):float3(.65,.48,.28)*(.9+PDHash(id+q*.02)*.15);
++  col=PDPaint(col,road*light,path);
++ }
++ return col;
++}
++#endif
+--- base/Assets/ORBIS/Resources/ORBIS/FlatWorld/FlatWorld.uss
++++ merged/Assets/ORBIS/Resources/ORBIS/FlatWorld/FlatWorld.uss
+@@ -1,12 +1,12 @@
+ .app { position: absolute; left: 0; right: 0; top: 0; bottom: 0; color: rgb(222,231,229); font-size: 13px; }
+-.viewport { position: absolute; left: 316px; right: 0; top: 90px; bottom: 64px; }
++.viewport { position: absolute; left: 280px; right: 0; top: 90px; bottom: 64px; }
+ .header { position: absolute; left: 0; right: 0; top: 0; height: 90px; background-color: rgba(14,25,30,0.97); padding: 12px 20px; border-bottom-width: 1px; border-bottom-color: rgb(53,70,71); }
+ .title-row { flex-direction: row; align-items: center; height: 36px; }
+ .brand { font-size: 28px; -unity-font-style: bold; color: rgb(238,228,198); margin-right: 18px; }
+ .eyebrow { font-size: 12px; color: rgb(130,166,158); }
+ .spacer { flex-grow: 1; }
+ .stats { margin-top: 7px; color: rgb(173,193,183); font-size: 12px; }
+-.sidebar { position: absolute; left: 0; top: 90px; bottom: 64px; width: 316px; padding: 0 13px 18px 16px; background-color: rgba(18,30,34,0.98); border-right-width: 1px; border-right-color: rgb(49,67,69); }
++.sidebar { position: absolute; left: 0; top: 90px; bottom: 64px; width: 280px; padding: 0 13px 18px 16px; background-color: rgba(18,30,34,0.98); border-right-width: 1px; border-right-color: rgb(49,67,69); }
+ .section { margin-top: 20px; margin-bottom: 9px; color: rgb(218,184,121); -unity-font-style: bold; font-size: 12px; }
+ .row { flex-direction: row; margin-top: 5px; }
+ .grow { flex-grow: 1; }
+--- base/Assets/ORBIS/Resources/ORBIS/FlatWorld/FlatWorld.uxml
++++ merged/Assets/ORBIS/Resources/ORBIS/FlatWorld/FlatWorld.uxml
+@@ -3,62 +3,57 @@
+  <ui:VisualElement name="app" class="app">
+   <ui:VisualElement name="viewport" class="viewport" />
+   <ui:VisualElement class="header">
+-   <ui:VisualElement class="title-row"><ui:Label text="ORBIS" class="brand"/><ui:Label text="PERF 3.2 / CONTINUOUS WORLD" class="eyebrow"/><ui:VisualElement class="spacer"/><ui:Button name="pause" text="暂停"/><ui:Button name="speed" text="1×"/><ui:Button name="mode" text="M  星球摄影" class="accent"/><ui:Button name="shot" text="无 UI 截图"/></ui:VisualElement>
+-   <ui:Label name="stats" text="正在建立二维世界…" class="stats"/>
++   <ui:VisualElement class="title-row">
++    <ui:Label text="ORBIS" class="brand"/><ui:Label text="WORLD / ATLAS / DETAIL" class="eyebrow"/>
++    <ui:VisualElement class="spacer"/><ui:Button name="pause" text="暂停"/><ui:Button name="speed" text="1×"/>
++    <ui:Button name="mode" text="M 展开总览" class="accent"/><ui:Button name="shot" text="截图"/>
++   </ui:VisualElement>
++   <ui:Label name="stats" text="正在生成世界…" class="stats"/>
+   </ui:VisualElement>
+   <ui:VisualElement class="sidebar">
+-   <ui:DropdownField name="layer" label="地图图层"/>
+-   <ui:DropdownField name="tool" label="当前工具"/>
+-   <ui:VisualElement class="row"><ui:Button name="home" text="Home 全景" class="grow"/><ui:Button name="focus" text="F 聚焦选区" class="grow"/></ui:VisualElement>
+-   <ui:VisualElement class="tab-row"><ui:Button name="tabWorld" text="世界" class="tab-button"/><ui:Button name="tabTerrain" text="地形" class="tab-button"/><ui:Button name="tabWater" text="水文" class="tab-button"/></ui:VisualElement>
+-   <ui:VisualElement class="tab-row"><ui:Button name="tabClimate" text="气候" class="tab-button"/><ui:Button name="tabCivs" text="文明" class="tab-button"/><ui:Button name="tabFiles" text="文件 / 摄影" class="tab-button"/></ui:VisualElement>
++   <ui:DropdownField name="layer" label="地图"/><ui:DropdownField name="tool" label="操作"/>
++   <ui:VisualElement class="row"><ui:Button name="atlas" text="2D 总览" class="grow"/><ui:Button name="focus" text="F 详细图" class="grow"/></ui:VisualElement>
++   <ui:VisualElement class="tab-row"><ui:Button name="tabWorld" text="世界" class="tab-button"/><ui:Button name="tabTerrain" text="地形" class="tab-button"/><ui:Button name="tabCivs" text="文明" class="tab-button"/><ui:Button name="tabFiles" text="存档" class="tab-button"/></ui:VisualElement>
+    <ui:ScrollView class="tab-scroll" mode="Vertical">
+     <ui:VisualElement name="panelWorld" class="tab-page">
+-     <ui:Label text="世界生成" class="section"/>
+-     <ui:TextField name="seed" label="种子"/><ui:DropdownField name="size" label="尺寸"/><ui:DropdownField name="preset" label="地形预设"/>
+-     <ui:Button name="generate" text="生成新世界" class="accent"/>
+-     <ui:Label text="生成会替换当前世界，请先到「文件 / 摄影」保存。" class="muted"/>
+-     <ui:Foldout text="世界规则" value="true"><ui:Label text="1 Zone = 4×4 = 16 个独立 Tile。二维地图负责模拟；星球读取同一地形、水文、气候和归属。地形运动仅手动触发。" class="muted"/></ui:Foldout>
++     <ui:Label text="同一个世界，三个尺度" class="section"/>
++     <ui:Label text="滚轮：球体 → 2D 总览 → 2D 详细图。拖动平移，点击选择地块。向外缩放可沿原路返回。" class="muted"/>
++     <ui:DropdownField name="cloudQuality" label="画面质量"/><ui:Toggle name="clouds" label="云层与云影"/>
++     <ui:Button name="home" text="Home 重置视野"/>
++     <ui:Foldout text="生成新世界" value="false">
++      <ui:TextField name="seed" label="种子"/><ui:DropdownField name="size" label="地图大小"/><ui:DropdownField name="preset" label="地形"/>
++      <ui:Button name="generate" text="生成世界" class="accent"/>
++      <ui:Label text="生成将替换当前世界；请先保存。" class="muted"/>
++     </ui:Foldout>
++     <ui:Label name="skyStatus" text="" class="muted"/>
+     </ui:VisualElement>
+     <ui:VisualElement name="panelTerrain" class="tab-page is-hidden">
+-     <ui:Label text="高度与地貌" class="section"/>
+-     <ui:VisualElement class="row"><ui:Button name="heightLayer" text="高度图" class="grow"/><ui:Button name="landformLayer" text="地貌色码" class="grow"/><ui:Button name="materialLayer" text="沙 / 泥 / 岩" class="grow"/></ui:VisualElement>
+-     <ui:Foldout text="连续地表与植被" value="true"><ui:Toggle name="smoothTerrain" label="平滑地表颜色过渡"/><ui:Toggle name="relief" label="连续地形明暗"/><ui:Toggle name="vegetation" label="草粒 / 森林树冠细节"/><ui:Button name="vegetationLayer" text="14 类生态植被图"/><ui:Label text="岸线 / 高度采用单调三次重建；地块、Zone 与存档保持原值。" class="muted"/></ui:Foldout>
+-     <ui:Foldout text="等高线与网格" value="true"><ui:Toggle name="contours" label="等高线叠加"/><ui:DropdownField name="contourInterval" label="等高距"/><ui:Toggle name="grid" label="Zone / Tile 网格"/><ui:Label text="每五条加深；放大后显示，过密自动增大等高距。默认关闭以免遮挡地貌；不改排水。" class="muted"/></ui:Foldout>
+-     <ui:Foldout text="编辑预设高度" value="true"><ui:DropdownField name="height" label="高度档位"/><ui:DropdownField name="brush" label="笔刷范围"/><ui:Button name="paintTool" text="启用高度笔刷"/><ui:Button name="selectTool" text="返回地块选择"/><ui:Button name="rebuild" text="手动重算排水、气候和地貌" class="accent"/></ui:Foldout>
+-    </ui:VisualElement>
+-    <ui:VisualElement name="panelWater" class="tab-page is-hidden">
+-     <ui:Label text="河流 / 湖泊 / 河口" class="section"/>
+-     <ui:VisualElement class="row"><ui:Button name="waterLayer" text="水体图层" class="grow"/><ui:Button name="sedimentLayer" text="悬沙图层" class="grow"/></ui:VisualElement>
+-     <ui:Button name="nextMouth" text="定位下一个河流入海口" class="accent"/>
+-     <ui:Foldout text="水面、岸滩与混合色" value="true"><ui:Toggle name="waterShading" label="HPWater 适配水面着色"/><ui:Toggle name="bathymetry" label="水深 / 海底高差示意增强"/><ui:Toggle name="banks" label="河滩 / 海滩材料过渡"/><ui:Toggle name="plumes" label="河口悬沙渐变"/><ui:Slider name="wave" label="波纹强度" low-value="0" high-value="1.5" value="1"/></ui:Foldout>
+-     <ui:Foldout text="局部浅水方程" value="true"><ui:Toggle name="swe" label="Unity-SWE 路线局部适配"/><ui:Button name="ripple" text="在视区水面施加守恒波动"/><ui:Label name="waterStatus" text="放大到 8 px/Tile 后启用 64×64 局部网格。" class="muted"/><ui:Label text="局部 SWE 只提供水面扰动；全球河流方向来自高度和汇流。河口是连通水域内的混合近似，不是完整泥沙地形演化。" class="muted"/></ui:Foldout>
+-    </ui:VisualElement>
+-    <ui:VisualElement name="panelClimate" class="tab-page is-hidden">
+-     <ui:Label text="月温降水 → 柯本 → 群系" class="section"/>
+-     <ui:Button name="climateLayer" text="30 类 Köppen 气候色码" class="accent"/>
+-     <ui:VisualElement class="row"><ui:Button name="temperatureLayer" text="本月温度" class="grow"/><ui:Button name="rainLayer" text="本月降水" class="grow"/></ui:VisualElement>
+-     <ui:VisualElement class="row"><ui:Button name="wetnessLayer" text="土壤湿度" class="grow"/><ui:Button name="biomeLayer" text="自然群系" class="grow"/></ui:VisualElement>
+-     <ui:Foldout text="二维 / 星球环境开关" value="true"><ui:Toggle name="clouds" label="低云 / 高云"/><ui:Toggle name="cloudShadows" label="云层阴影"/><ui:Toggle name="atmosphere" label="大气 / 薄雾"/><ui:Slider name="cloudOpacity" label="二维云透明度" low-value="0" high-value="1" value="0.55"/><ui:DropdownField name="cloudQuality" label="二维云缓存质量"/><ui:Toggle name="dayNight" label="昼夜 / 晨昏线"/><ui:Toggle name="autoSun" label="自动转动光照 · 120 秒一圈"/><ui:Slider name="sun" label="太阳经度角" low-value="0" high-value="360" value="180"/><ui:Toggle name="nightLights" label="夜间聚落灯光"/><ui:Toggle name="rainEffects" label="二维示意雨幕"/><ui:Toggle name="lightning" label="二维稀疏局地闪电"/><ui:Label name="skyStatus" text="云层缓存等待生成。" class="muted"/><ui:Label text="二维采用低成本气候云缓存、薄雾和晨昏；星球保留体积大气。不是在平面再次运行全球气候模型。数据诊断图层不叠云。" class="muted"/></ui:Foldout>
+-     <ui:Foldout text="分类依据" value="true"><ui:Label text="雨林：Af/Am。沙漠：BW。草原：BS/Aw。寒带由 D/ET/EF 区分。沼泽还需低坡、近淡水、低排水高差及每年至少 8 个湿润月。丘陵、高原是地貌，不是柯本气候类别。" class="muted"/><ui:Label text="使用 12 个月合成气候，不是逐日天气预报或经过实测校准的全球气候模型。" class="muted"/></ui:Foldout>
++     <ui:Label text="地图与编辑" class="section"/>
++     <ui:Toggle name="grid" label="G 地块网格"/><ui:Toggle name="contours" label="C 等高线"/>
++     <ui:Label text="在上方「操作」选择高度笔刷、道路、桥梁或路径；球体和展开途中仅支持查看。" class="muted"/>
++     <ui:DropdownField name="height" label="笔刷高度"/><ui:DropdownField name="brush" label="笔刷大小"/>
++     <ui:Button name="rebuild" text="重算河流与气候"/>
++     <ui:Foldout text="水面状态" value="false"><ui:Label name="waterStatus" text="" class="muted"/></ui:Foldout>
+     </ui:VisualElement>
+     <ui:VisualElement name="panelCivs" class="tab-page is-hidden">
+-     <ui:Label text="文明与建设" class="section"/><ui:Button name="seedCivs" text="播种文明" class="accent"/>
+-     <ui:VisualElement class="row"><ui:Button name="foundTool" text="建立文明" class="grow"/><ui:Button name="annexTool" text="相邻扩张" class="grow"/></ui:VisualElement>
+-     <ui:VisualElement class="row"><ui:Button name="farmTool" text="农田" class="grow"/><ui:Button name="roadTool" text="道路" class="grow"/><ui:Button name="bridgeTool" text="桥梁" class="grow"/></ui:VisualElement>
+-     <ui:Button name="routeTool" text="从首都查看陆路路径"/>
++     <ui:Label text="文明" class="section"/><ui:Button name="seedCivs" text="播种文明" class="accent"/>
++     <ui:Label text="在「操作」选择建立文明、扩张、农田、道路或桥梁，再点击地块。三层视图共用人口、领土与日历。" class="muted"/>
+      <ui:Label name="nations" text="等待文明诞生。" class="nations"/>
+     </ui:VisualElement>
+     <ui:VisualElement name="panelFiles" class="tab-page is-hidden">
+-     <ui:Label text="存档与摄影" class="section"/>
+-     <ui:Foldout text="完整世界存档" value="true"><ui:VisualElement class="row"><ui:Button name="save" text="保存世界" class="grow"/><ui:Button name="load" text="载入世界" class="grow"/></ui:VisualElement><ui:Button name="folder" text="打开存档与截图文件夹"/><ui:Label text="兼容 Perf3 v1 存档；保留旧版 biome/肥力，手动重算后采用新规则。原 V4 球面存档不会被覆盖。" class="muted"/></ui:Foldout>
+-     <ui:Foldout text="高度图导入 / 导出" value="false"><ui:TextField name="path" label="高度图路径"/><ui:VisualElement class="row"><ui:Button name="export" text="导出 16-bit PNG" class="grow"/><ui:Button name="import" text="导入为新世界" class="grow"/></ui:VisualElement><ui:Label text="2:1 灰度图；黑 −4000m，白 4000m。导入是新世界，不包含文明存档。" class="muted"/></ui:Foldout>
+-     <ui:Foldout text="星球摄影设置" value="true"><ui:Label text="按顶栏 M 切换；星球只读，不运行第二套文明和气候。" class="muted"/></ui:Foldout>
++     <ui:Label text="世界存档" class="section"/>
++     <ui:VisualElement class="row"><ui:Button name="save" text="保存" class="grow"/><ui:Button name="load" text="载入" class="grow"/></ui:VisualElement>
++     <ui:Button name="folder" text="打开存档文件夹"/>
++     <ui:Foldout text="高度图导入 / 导出" value="false">
++      <ui:TextField name="path" label="文件路径"/>
++      <ui:VisualElement class="row"><ui:Button name="export" text="导出" class="grow"/><ui:Button name="import" text="导入" class="grow"/></ui:VisualElement>
++      <ui:Label text="2:1 灰度高度图。导入会生成新世界，不包含文明。" class="muted"/>
++     </ui:Foldout>
+     </ui:VisualElement>
+-    <ui:Foldout text="选中地块 · 数据与依据" value="true" class="inspector-foldout"><ui:Label name="tileInfo" text="点击地图选择地块。" class="tile-info"/></ui:Foldout>
+-    <ui:Foldout text="当前图层图例 / 颜色代码" value="false"><ui:Label name="legend" text="" class="legend"/></ui:Foldout>
++    <ui:Foldout text="选中地块" value="true" class="inspector-foldout"><ui:Label name="tileInfo" text="点击地图选择地块。" class="tile-info"/></ui:Foldout>
++    <ui:Foldout text="图例" value="false"><ui:Label name="legend" text="" class="legend"/></ui:Foldout>
+    </ui:ScrollView>
+   </ui:VisualElement>
+-  <ui:VisualElement class="footer"><ui:Label name="notice" text="准备世界数据…" class="notice"/><ui:Label text="拖动平移 · 滚轮缩放 · WASD 平移 · Space 暂停 · M 切换 · F 聚焦 · G 网格" class="hint"/></ui:VisualElement>
++  <ui:VisualElement class="footer"><ui:Label name="notice" text="准备世界数据…" class="notice"/><ui:Label text="滚轮切换尺度 · 拖动 / WASD 平移 · Space 暂停 · M 球体 / 总览 · F 详细图" class="hint"/></ui:VisualElement>
+  </ui:VisualElement>
+ </ui:UXML>
+--- base/Assets/ORBIS/Resources/ORBIS/FlatWorld/ScrollProjection.cginc
++++ merged/Assets/ORBIS/Resources/ORBIS/FlatWorld/ScrollProjection.cginc
+@@ -0,0 +1,31 @@
++// One immutable UV lattice, two continuous endpoint positions. No scene swap or screenshot morph.
++#ifndef ORBIS_SCROLL_PROJECTION
++#define ORBIS_SCROLL_PROJECTION
++float4 _ScrollAnchor, _ScrollPan;
++float3 _ScrollRight, _ScrollUp, _ScrollNormal;
++float _ScrollMorph, _ScrollSpin, _ScrollCopy;
++float3 ScrollRotate(float3 p)
++{
++ float s=sin(_ScrollSpin),c=cos(_ScrollSpin);
++ return float3(c*p.x+s*p.z,p.y,-s*p.x+c*p.z);
++}
++float3 ScrollPosition(float2 meshUV,float shell,out float2 geo)
++{
++ geo=float2(meshUV.x-.5+_ScrollAnchor.x+_ScrollCopy,meshUV.y);
++ float scale=6.28318530718/_MapSize.x;
++ float2 delta=(geo*_MapSize.xy-_ScrollPan.xy)*scale;
++ float3 plane=_ScrollNormal+_ScrollRight*delta.x+_ScrollUp*delta.y;
++ plane+=_ScrollNormal*shell*.006;
++ if(_ScrollMorph>=1) return plane;
++ float lon=(geo.x-.5)*6.28318530718,lat=(geo.y-.5)*3.14159265359;
++ // Z reflection gives a north-up, east-right front face. The native volume uses the same transform.
++ float3 radial=float3(cos(lat)*sin(lon),sin(lat),-cos(lat)*cos(lon));
++ float2 heightUV=geo;
++ if(meshUV.y<.000001||meshUV.y>.999999)heightUV.x=.5;
++ float4 field=tex2Dlod(_VisualTex,float4(heightUV,0,0));
++ float height=field.r + (field.g>0 ? field.b : 0);
++ float radius=1+clamp(height,0,4000)*.00001875;
++ float3 sphere=ScrollRotate(radial)*(radius+shell*(1-_ScrollMorph));
++ return lerp(sphere,plane,_ScrollMorph);
++}
++#endif
+--- base/Assets/ORBIS/Resources/ORBIS/FlatWorld/ScrollSurface.shader
++++ merged/Assets/ORBIS/Resources/ORBIS/FlatWorld/ScrollSurface.shader
+@@ -0,0 +1,64 @@
++Shader "ORBIS/FlatWorld/ScrollSurface"
++{
++ Properties
++ {
++  _MainTex("Map",2D)="white"{} _OwnerTex("Ownership",2D)="black"{} _InfoTex("Semantic data",2D)="black"{}
++  _HydroA("Depth flow channel width",2D)="black"{} _HydroB("Shore sediment freshwater links",2D)="black"{}
++  _GeoTex("Height material soil water",2D)="black"{} _SWEState("Local shallow water",2D)="gray"{}
++  _VisualTex("Continuous presentation fields",2D)="black"{} _SkyTex("Climate cloud layers",2D)="black"{}
++ }
++ SubShader
++ {
++  Tags { "RenderType"="Opaque" "Queue"="Geometry" }
++  Pass
++  {
++   Name "SCROLL_DEPTH"
++   Tags { "LightMode"="ShadowCaster" }
++   Cull Off ZWrite On ZTest LEqual
++   CGPROGRAM
++   #pragma vertex depthVert
++   #pragma fragment depthFrag
++   #pragma target 3.0
++   #pragma multi_compile_shadowcaster
++   #include "UnityCG.cginc"
++   sampler2D _VisualTex;
++   float4 _MapSize;
++   #include "ScrollProjection.cginc"
++   struct depthOut { V2F_SHADOW_CASTER; };
++   depthOut depthVert(appdata_full v)
++   {
++    depthOut o;float2 geo;
++    v.vertex=float4(ScrollPosition(v.texcoord.xy,0,geo),1);
++    v.normal=normalize(lerp(normalize(v.vertex.xyz),_ScrollNormal,_ScrollMorph));
++    TRANSFER_SHADOW_CASTER_NORMALOFFSET(o)
++    return o;
++   }
++   float4 depthFrag(depthOut i):SV_Target { SHADOW_CASTER_FRAGMENT(i) }
++   ENDCG
++  }
++  Pass
++  {
++   Name "SCROLL_SURFACE"
++   Cull Off ZWrite On ZTest LEqual
++   CGPROGRAM
++   #pragma vertex vert
++   #pragma fragment frag
++   #pragma target 3.0
++   #include "UnityCG.cginc"
++   #include "Water/FlatWater.cginc"
++   #include "FlatSkyComposite.cginc"
++   #define ORBIS_SCROLL_SURFACE 1
++   #include "ScrollProjection.cginc"
++   sampler2D _MainTex,_OwnerTex,_InfoTex;
++   float4 _Selected;
++   float _Grid,_PixelsPerTile,_Natural,_Political,_WaterView,_ShowContours,_ContourInterval,_DrawHeight;
++   struct appdata {float4 vertex:POSITION;float2 uv:TEXCOORD0;};
++   struct v2f {float4 pos:SV_POSITION;float2 uv:TEXCOORD0;};
++   v2f vert(appdata v){v2f o;float2 geo;float3 p=ScrollPosition(v.uv,0,geo);o.pos=UnityObjectToClipPos(float4(p,1));o.uv=geo;return o;}
++   #include "FlatPixelDetail.cginc"
++   #include "FlatMapFragment.cginc"
++   ENDCG
++  }
++ }
++ Fallback Off
++}
+--- base/Assets/ORBIS/Resources/ORBIS/FlatWorld/Water/FlatWater.cginc
++++ merged/Assets/ORBIS/Resources/ORBIS/FlatWorld/Water/FlatWater.cginc
+@@ -109,7 +109,9 @@
+     slopes*=1-smoothstep(1,4,footprint);
+     float localFoam=0;
+ #ifndef ORBIS_FLAT_NO_SWE
+-    float2 patchUV=(cell-_SWERect.xy)/max(float2(1,1),_SWERect.zw);
++    float2 patchDelta=cell-_SWERect.xy;
++    patchDelta.x-=floor(patchDelta.x/max(1,_MapSize.x))*_MapSize.x;
++    float2 patchUV=patchDelta/max(float2(1,1),_SWERect.zw);
+     float inPatch=step(0,patchUV.x)*step(0,patchUV.y)*step(patchUV.x,1)*step(patchUV.y,1)*_SWEReady;
+     float4 state=tex2D(_SWEState,saturate(patchUV));
+     float fade=smoothstep(0,.12,min(min(patchUV.x,patchUV.y),min(1-patchUV.x,1-patchUV.y)));
+--- base/Assets/ORBIS/Runtime/FlatWorld/Core/FlatMergeSelfTests.cs
++++ merged/Assets/ORBIS/Runtime/FlatWorld/Core/FlatMergeSelfTests.cs
+@@ -0,0 +1,47 @@
++using System;
++namespace Orbis.Flat
++{
++    public static class FlatMergeSelfTests
++    {
++        public static void Run(Action<bool,string> check)
++        {
++            double[] days=new double[2];
++            for(int mode=0;mode<2;mode++)
++            {
++                int index=mode;var clock=new FlatSolarClock();
++                for(int i=0;i<600;i++)clock.Advance(1.0/60,mode==0?1:20,120,false,d=>days[index]+=d);
++                days[mode]=clock.RenderDay(days[mode]);
++            }
++            check(Math.Abs(days[1]/days[0]-20)<1e-5,"Merged clock 20x ratio");
++            double day=0;var stalled=new FlatSolarClock();Action<float> commit=d=>day+=d;
++            stalled.Advance(7.25,20,30,false,commit);double before=stalled.RenderDay(day);
++            check(Math.Abs(before-7.25*20/30)<1e-6,"Calendar debt retained");
++            stalled.Advance(600,20,30,true,commit);check(stalled.RenderDay(day)==before,"Pause freezes calendar");
++            stalled.Flush(commit);check(Math.Abs(day-before)<1e-7,"Save flush retains phase");
++            foreach(int w in new[]{64,256,512,1024})
++            {
++                for(int lap=-20;lap<=20;lap++)check(FlatScrollMath.Tile(13.5+lap*w,12.5,w,w/2)==12*w+13,"Canonical tile across seam");
++                check(FlatScrollMath.Tile(.5,-.5,w,w/2)==-1&&FlatScrollMath.Tile(.5,w/2,w,w/2)==-1,"No polar wrapping");
++            }
++            bool threw=false;try{FlatScrollMath.Wrap(1,double.NaN);}catch(ArgumentOutOfRangeException){threw=true;}
++            check(threw,"Reject invalid wrap period");
++            var world=new WorldData(64,32,"farm-index",TerrainPreset.Continents);
++            for(int i=0;i<world.Count;i++)
++            {
++                world.Elevation[i]=100;world.Fertility[i]=.7f;
++                for(int m=0;m<12;m++)world.Temperature[i*12+m]=20;
++            }
++            var sim=new FlatSimulation(world);int owner=sim.Found(0);
++            check(owner>=0,"Farm fixture civilization");world.Nations[owner].Food=10000;
++            int farm=1;check(sim.Build(farm,Structure.Farm),"Build farm");
++            var clone=world.Clone();clone.Buildings[farm]=Structure.None;var without=new FlatSimulation(clone);
++            sim.Step(.25f);without.Step(.25f);
++            double expected=.7f*3*FMath.Clamp(23f/24,0,1)*.25f;
++            check(Math.Abs(world.Nations[owner].Food-clone.Nations[owner].Food-expected)<1e-6,"Farm index preserves production");
++            check(sim.Build(farm,Structure.Road),"Farm replaced by road");
++            clone=world.Clone();var reindexed=new FlatSimulation(clone);
++            sim.Step(.25f);reindexed.Step(.25f);
++            check(Math.Abs(world.Nations[owner].Food-clone.Nations[owner].Food)<1e-8,"Farm removal matches rebuild index");
++        }
++    }
++}
+--- base/Assets/ORBIS/Runtime/FlatWorld/Core/FlatSelfTests.cs
++++ merged/Assets/ORBIS/Runtime/FlatWorld/Core/FlatSelfTests.cs
+@@ -13,7 +13,7 @@
+         {Check(KoppenClassifier.Classify(t,p)==expected,"Koppen "+name+" expected "+expected+" got "+KoppenClassifier.Classify(t,p));}
+         public static string Run()
+         {
+-            Assertions=0;var watch=Stopwatch.StartNew();LastOperation="Height presets";
++            Assertions=0;FlatMergeSelfTests.Run(Check);var watch=Stopwatch.StartNew();LastOperation="Height presets";
+             Check(HeightBands.Upper.Length==20,"Exactly twenty land bands");
+             Check(HeightBands.Level(0)==0&&HeightBands.Level(-200)==0,"Water is not a land altitude band");
+             for(int level=1;level<=20;level++)
+--- base/Assets/ORBIS/Runtime/FlatWorld/Core/FlatSimulation.cs
++++ merged/Assets/ORBIS/Runtime/FlatWorld/Core/FlatSimulation.cs
+@@ -6,14 +6,16 @@
+     public sealed class FlatSimulation
+     {
+         public readonly WorldData World;
++        readonly List<int> farms=new List<int>();
++        readonly double[] production=new double[WorldData.MaxNations],need=new double[WorldData.MaxNations];
+         readonly List<int> populated=new List<int>();
+         readonly List<HashSet<int>> frontiers=new List<HashSet<int>>();
+         static readonly uint[] Colors={0xe9aa58,0x52bba6,0xad86da,0xdf7885,0x70a7e0,0xc6cf71,0xe994c4,0x85bd7b,0xcd8760,0x69c6d1,0xbdad8e,0xb07ad0};
+         public FlatSimulation(WorldData world) { World=world;Reindex(); }
+         public void Reindex()
+         {
+-            populated.Clear();frontiers.Clear();for(int c=0;c<World.Nations.Count;c++)frontiers.Add(new HashSet<int>());
+-            for(int i=0;i<World.Count;i++)if(World.Population[i]>0)populated.Add(i);
++            populated.Clear();farms.Clear();frontiers.Clear();for(int c=0;c<World.Nations.Count;c++)frontiers.Add(new HashSet<int>());
++            for(int i=0;i<World.Count;i++){if(World.Population[i]>0)populated.Add(i);if(World.Buildings[i]==Structure.Farm&&World.Owner[i]>=0)farms.Add(i);}
+             for(int z=0;z<World.ZoneCount;z++)if(World.ZoneOwner[z]>=0)AddFrontier(z,World.ZoneOwner[z]);
+         }
+         public int Found(int tile)
+@@ -88,13 +90,13 @@
+             else if(!World.Habitable(tile))return false;
+             if(World.Buildings[tile]==structure)return false;
+             var nation=World.Nations[World.Owner[tile]];double cost=structure==Structure.Bridge?40:15;
+-            if(nation.Food<cost)return false;nation.Food-=cost;World.Buildings[tile]=structure;World.Touch(tile);return true;
++            if(nation.Food<cost)return false;nation.Food-=cost;if(World.Buildings[tile]==Structure.Farm)farms.Remove(tile);if(structure==Structure.Farm)farms.Add(tile);World.Buildings[tile]=structure;World.Touch(tile);return true;
+         }
+         public void Step(float days)
+         {
+             if(!FMath.Finite(days)||days<=0||days>30)throw new ArgumentOutOfRangeException(nameof(days));
+             var w=World;w.Day+=days;
+-            var production=new double[w.Nations.Count];var need=new double[w.Nations.Count];
++            Array.Clear(production,0,w.Nations.Count);Array.Clear(need,0,w.Nations.Count);
+             foreach(int i in populated)
+             {
+                 int owner=w.Owner[i];if(owner<0||w.Population[i]<=0)continue;
+@@ -107,9 +109,10 @@
+                 need[owner]+=w.Population[i]*.016*days;
+             }
+             // Farm effects evaluated on owned zones, not per-frame GameObjects.
+-            for(int z=0;z<w.ZoneCount;z++)if(w.ZoneOwner[z]>=0)
++            foreach(int i in farms)
+             {
+-                int owner=w.ZoneOwner[z];for(int p=0;p<16;p++){int i=w.ZoneTile(z,p);if(w.Buildings[i]==Structure.Farm)production[owner]+=w.Fertility[i]*3*FMath.Clamp((w.Temperature[i*12+w.Month]+3)/24,0,1)*days;}
++                int owner=w.Owner[i];if(owner>=0&&w.Buildings[i]==Structure.Farm)
++                    production[owner]+=w.Fertility[i]*3*FMath.Clamp((w.Temperature[i*12+w.Month]+3)/24,0,1)*days;
+             }
+             for(int c=0;c<w.Nations.Count;c++)
+             {
+--- base/Assets/ORBIS/Runtime/FlatWorld/Core/FlatSolarClock.cs
++++ merged/Assets/ORBIS/Runtime/FlatWorld/Core/FlatSolarClock.cs
+@@ -0,0 +1,70 @@
++using System;
++
++namespace Orbis.Flat
++{
++    /// <summary>One calendar for simulation, sun, spin and HUD. No Unity or wall-clock dependency.</summary>
++    public sealed class FlatSolarClock
++    {
++        public double PendingDays { get; private set; }
++        double economySeconds;
++        public double RenderDay(double committedDay) { return committedDay + PendingDays; }
++        public void Reset() { PendingDays = 0; economySeconds = 0; }
++
++        public void Advance(double realSeconds, double speed, double secondsPerDay, bool halted, Action<float> step)
++        {
++            if (step == null) throw new ArgumentNullException(nameof(step));
++            if (!Finite(realSeconds) || realSeconds < 0 || !Finite(speed) || speed < 0 ||
++                !Finite(secondsPerDay) || secondsPerDay < 1) throw new ArgumentOutOfRangeException();
++            if (halted || speed == 0 || realSeconds == 0) return;
++            PendingDays += realSeconds * speed / secondsPerDay;
++            economySeconds += realSeconds;
++            // Six economic updates per real second, independent of the selected time multiplier.
++            // Uncommitted time remains in PendingDays: neither a stall nor a budget drops calendar time.
++            int budget = 3;
++            while (economySeconds >= 1.0 / 6.0 && PendingDays > 1e-12 && budget-- > 0)
++            {
++                Commit(step, .25);
++                economySeconds -= 1.0 / 6.0;
++            }
++            if (PendingDays <= 1e-12) economySeconds = Math.Min(economySeconds, 1.0 / 6.0);
++        }
++        void Commit(Action<float> step, double limit)
++        {
++            float amount = (float)Math.Min(limit, PendingDays);
++            if (amount <= 0) return;
++            step(amount);
++            PendingDays = Math.Max(0, PendingDays - amount);
++        }
++        public void Flush(Action<float> step)
++        {
++            int budget = 4096;
++            while (PendingDays > 1e-10 && budget-- > 0) Commit(step, .25);
++            if (PendingDays > 1e-8) throw new InvalidOperationException("Calendar backlog is too large to save in one frame.");
++            PendingDays = 0;
++            economySeconds = 0;
++        }
++        public static double Phase(double day) { return day - Math.Floor(day); }
++        public static double SolarLongitude(double day, double offsetDegrees)
++        { return Phase(day + offsetDegrees / 360.0) * Math.PI * 2.0; }
++        static bool Finite(double x) { return !double.IsNaN(x) && !double.IsInfinity(x); }
++    }
++
++    public static class FlatScrollMath
++    {
++        public static double Wrap(double x, double period)
++        {
++            if (period <= 0 || double.IsNaN(period) || double.IsInfinity(period) || double.IsNaN(x) || double.IsInfinity(x)) throw new ArgumentOutOfRangeException();
++            return x - Math.Floor(x / period) * period;
++        }
++        public static double Shortest(double delta, double period) { return Wrap(delta + period * .5, period) - period * .5; }
++        public static int Tile(double x, double y, int width, int height)
++        {
++            if (width <= 0 || height <= 0 || double.IsNaN(x) || double.IsInfinity(x) ||
++                double.IsNaN(y) || y < 0 || y >= height) return -1;
++            return (int)Math.Floor(y) * width + (int)Math.Floor(Wrap(x, width));
++        }
++        public static double Smooth(double t) { t = Math.Max(0, Math.Min(1, t)); return t * t * (3 - 2 * t); }
++        public static double ExpApproach(double current, double target, double rate, double dt)
++        { return target + (current - target) * Math.Exp(-rate * Math.Max(0, dt)); }
++    }
++}
+--- base/Assets/ORBIS/Runtime/FlatWorld/Presentation/FlatGlobePresenter.cs
++++ merged/Assets/ORBIS/Runtime/FlatWorld/Presentation/FlatGlobePresenter.cs
+@@ -8,11 +8,12 @@
+         public OrbisWorld Snapshot { get; private set; }
+         public float Yaw,Pitch=18,Distance=3.1f,SunAngle;
+         Camera camera;double clock;FlatMapRenderer maps;
+-        public void Initialize(WorldData world,Camera target,FlatMapRenderer renderer)
++        float baseAir,baseHaze,baseCloudDensity;bool scrollPrepared;int weatherMonth=-1;
++        public void Initialize(WorldData world,Camera target,FlatMapRenderer renderer,bool scrollPresentation=false)
+         {
+             camera=target;maps=renderer;
+             Snapshot=OrbisWorld.CreateFlatPresentation(world);
+-            View=gameObject.AddComponent<OrbisPlanetView>();View.Initialize(Snapshot,camera);View.showRivers=false;
++            View=gameObject.AddComponent<OrbisPlanetView>();View.Initialize(Snapshot,camera,null,null,scrollPresentation);View.showRivers=false;
+             View.SurfaceMaterial.SetFloat("_FlatWorldReady",1);View.SurfaceMaterial.SetTexture("_FlatTerrain",maps.TerrainTexture);View.SurfaceMaterial.SetTexture("_FlatOwners",maps.OwnerTexture);View.SurfaceMaterial.SetTexture("_FlatInfo",maps.InfoTexture);
+             View.SurfaceMaterial.SetTexture("_VisualTex",maps.VisualTexture);View.SurfaceMaterial.SetFloat("_FieldReady",1);
+             View.SurfaceMaterial.SetTexture("_HydroA",maps.HydroTexture);View.SurfaceMaterial.SetTexture("_HydroB",maps.MixingTexture);View.SurfaceMaterial.SetTexture("_GeoTex",maps.GeometryTexture);
+@@ -31,6 +32,37 @@
+             View.SurfaceMaterial.SetFloat("_FlatPolitical",political?1:0);
+             View.SyncVolumeSettings(sun,clock,Snapshot.day);View.Sync(clock,sun,0);
+         }
++        public void PrepareScroll()
++        {
++            if(scrollPrepared)return;scrollPrepared=true;
++            baseAir=Snapshot.settings.airDensity;baseHaze=Snapshot.settings.haze;baseCloudDensity=Snapshot.settings.cloudDensity;
++            Snapshot.settings.surfaceLOD=false;Snapshot.settings.spriteActors=false;
++            // Preserve the native atmosphere implementation, but never draw a second terrain world.
++            foreach(var renderer in GetComponentsInChildren<Renderer>(true))renderer.forceRenderingOff=true;
++            var actors=GetComponent<OrbisBillboardActors>();if(actors)actors.enabled=false;
++            if(View.LocalSurface)View.LocalSurface.enabled=false;
++        }
++        public void TickScroll(float dt,double visualTime,double calendarDay,float spin,float unfold,
++            bool clouds,bool atmosphere,bool night,bool shadows,Vector3 sun,bool natural)
++        {
++            PrepareScroll();clock=visualTime;Snapshot.day=(float)calendarDay;
++            transform.localScale=new Vector3(1,1,-1);
++            transform.localRotation=Quaternion.AngleAxis(spin*Mathf.Rad2Deg,Vector3.up);
++            float weight=1-Mathf.SmoothStep(0,1,Mathf.InverseLerp(.08f,.60f,unfold));
++            Snapshot.settings.airDensity=baseAir*weight;Snapshot.settings.haze=baseHaze*weight;
++            Snapshot.settings.cloudDensity=baseCloudDensity*weight;
++            Snapshot.settings.clouds=clouds&&natural&&weight>.0001f;
++            Snapshot.settings.atmosphere=atmosphere&&natural&&weight>.0001f;
++            Snapshot.settings.night=night;Snapshot.settings.cloudShadows=shadows&&natural&&weight>.0001f;
++            View.layer=natural?0:2;
++            if(weight>.0001f && natural && (clouds||shadows) && weatherMonth!=maps.World.Month)
++            {
++                Snapshot.RefreshFlatPresentation();View.UpdateWeather(true);weatherMonth=maps.World.Month;
++            }
++            if(weight>.0001f&&natural)View.SyncVolumeSettings(sun,visualTime,calendarDay);
++            // Intentionally NOT View.Sync(): it enables/culls the old meshes and starts local surface LOD.
++            // The camera image effect keeps its display transform at both endpoints; only volume density fades.
++        }
+         public void Orbit(Vector2 delta) { Yaw+=delta.x*.25f;Pitch=Mathf.Clamp(Pitch+delta.y*.2f,-84,84); }
+         public void Zoom(float wheel) { Distance=Mathf.Clamp(Distance*Mathf.Exp(wheel*.035f),1.09f,6); }
+     }
+--- base/Assets/ORBIS/Runtime/FlatWorld/Presentation/FlatLocalWater.cs
++++ merged/Assets/ORBIS/Runtime/FlatWorld/Presentation/FlatLocalWater.cs
+@@ -11,6 +11,7 @@
+         WorldData world;Material material;Texture2D texture;
+         FlatShallowWater solver;Task<Frame> pending;
+         int startX=-1000,startY=-1000;float age;bool stopped,ripple;
++        byte[] pixelBuffer=new byte[Resolution*Resolution*4];
+         double clock;public string Status { get; private set; }="局部 SWE：缩放至每 Tile ≥8 像素时启用";
+         sealed class Frame { public FlatShallowWater Solver;public byte[] RGBA;public int X,Y;public double MassError; }
+         public void Initialize(WorldData source,Material target)
+@@ -27,7 +28,7 @@
+             // Double presentation clock; no global simulation time or topology writes.
+             material.SetFloat("_WaterClock",(float)clock);
+             bool active=visible&&!stopped;
+-            int x=Mathf.Clamp(Mathf.FloorToInt((focusX-Span*.5f)/4)*4,0,world.Width-Span);
++            int x=FMath.Wrap(Mathf.FloorToInt((focusX-Span*.5f)/4)*4,world.Width);
+             int y=Mathf.Clamp(Mathf.FloorToInt((focusY-Span*.5f)/4)*4,0,world.Height-Span);
+             if(pending!=null&&pending.IsCompleted)
+             {
+@@ -49,9 +50,9 @@
+             float step=Mathf.Min(.12f,Mathf.Max(.025f,age));age=0;
+             bool disturbance=ripple||changed;ripple=false;
+             var current=changed?null:solver;WorldData source=world;
+-            pending=Task.Run(()=>Solve(source,current,x,y,step,disturbance));
++            pending=Task.Run(()=>Solve(source,current,x,y,step,disturbance,pixelBuffer));
+         }
+-        static Frame Solve(WorldData world,FlatShallowWater current,int x0,int y0,float dt,bool ripple)
++        static Frame Solve(WorldData world,FlatShallowWater current,int x0,int y0,float dt,bool ripple,byte[] bytes)
+         {
+             if(current==null)
+             {
+@@ -73,7 +74,7 @@
+                 if(nearest>=0)current.Ripple(nearest%Resolution,nearest/Resolution,.055);
+             }
+             current.Advance(dt);
+-            var bytes=new byte[Resolution*Resolution*4];
++
+             for(int y=0;y<Resolution;y++)for(int x=0;x<Resolution;x++)
+             {
+                 int i=y*Resolution+x,a=y*Resolution+Math.Max(0,x-1),b=y*Resolution+Math.Min(Resolution-1,x+1);
+--- base/Assets/ORBIS/Runtime/FlatWorld/Presentation/FlatMapRenderer.cs
++++ merged/Assets/ORBIS/Runtime/FlatWorld/Presentation/FlatMapRenderer.cs
+@@ -19,6 +19,19 @@
+         public Material Material { get; private set; }
+         public MapLayer Layer { get; private set; }
+         Mesh mesh;MeshRenderer meshRenderer;int dataRevision=-1;
++        sealed class ChunkBuffers
++        {
++            public readonly Color32[] Terrain,Display,Owners,Info;
++            public readonly Color[] Hydro,Mixing,Geometry,Visual;
++            public ChunkBuffers(int count)
++            {
++                Terrain=new Color32[count];Display=new Color32[count];Owners=new Color32[count];Info=new Color32[count];
++                Hydro=new Color[count];Mixing=new Color[count];Geometry=new Color[count];Visual=new Color[count];
++            }
++        }
++        readonly Dictionary<int,ChunkBuffers> buffers=new Dictionary<int,ChunkBuffers>();
++        ChunkBuffers GetBuffers(int count)
++        {ChunkBuffers b;if(!buffers.TryGetValue(count,out b)){b=new ChunkBuffers(count);buffers.Add(count,b);}return b;}
+         public int LastUploadedChunks { get; private set; }
+         static Texture2D Make(int w,int h,string label,bool linear=false)
+         {return new Texture2D(w,h,TextureFormat.RGBA32,false,linear){name=label,filterMode=FilterMode.Point,wrapModeU=TextureWrapMode.Repeat,wrapModeV=TextureWrapMode.Clamp,anisoLevel=0};}
+@@ -54,7 +67,7 @@
+             gameObject.AddComponent<MeshFilter>().sharedMesh=mesh;meshRenderer=gameObject.AddComponent<MeshRenderer>();meshRenderer.sharedMaterial=Material;meshRenderer.shadowCastingMode=UnityEngine.Rendering.ShadowCastingMode.Off;meshRenderer.receiveShadows=false;
+             Flush(true);Select(-1);
+         }
+-        public void SetLayer(MapLayer layer) { Layer=layer;World.MarkAllDirty();Flush(true); }
++        public void SetLayer(MapLayer layer) { if(Layer==layer)return;Layer=layer;World.MarkAllDirty();Flush(true); }
+         public void Select(int i)
+         {Material.SetVector("_Selected",i<0?new Vector4(-100,-100,-100,-100):new Vector4(i%World.Width,i/World.Width,(i%World.Width)/4*4,(i/World.Width)/4*4));}
+         public void Configure(bool grid,float pixelsPerTile)
+@@ -72,12 +85,12 @@
+             foreach(int c in World.DirtyChunks)
+             {
+                 int x0=c%World.ChunkWidth*32,y0=c/World.ChunkWidth*32,cw=Math.Min(32,World.Width-x0),ch=Math.Min(32,World.Height-y0);
+-                var terrain=new Color32[cw*ch];var display=new Color32[cw*ch];var owners=new Color32[cw*ch];var info=new Color32[cw*ch];
+-                var hydro=refreshData?new Color[cw*ch]:null;var mixing=refreshData?new Color[cw*ch]:null;var geometry=refreshData?new Color[cw*ch]:null;var visual=refreshData?new Color[cw*ch]:null;
++                var b=GetBuffers(cw*ch);var terrain=b.Terrain;var display=b.Display;var owners=b.Owners;var info=b.Info;
++                var hydro=b.Hydro;var mixing=b.Mixing;var geometry=b.Geometry;var visual=b.Visual;
+                 for(int y=0;y<ch;y++)for(int x=0;x<cw;x++)
+                 {
+                     int i=(y0+y)*World.Width+x0+x,j=y*cw+x;
+-                    terrain[j]=FlatPalette.Terrain(World,i);display[j]=FlatPalette.Display(World,i,Layer);
++                    terrain[j]=FlatPalette.Terrain(World,i);display[j]=Layer==MapLayer.Natural?terrain[j]:FlatPalette.Display(World,i,Layer);
+                     owners[j]=World.Owner[i]<0?new Color32(0,0,0,0):FlatPalette.RGB(World.Nations[World.Owner[i]].Color,(byte)(World.Owner[i]+1));
+                     if(refreshData)
+                     {
+--- base/Assets/ORBIS/Runtime/FlatWorld/Presentation/FlatScrollNavigator.cs
++++ merged/Assets/ORBIS/Runtime/FlatWorld/Presentation/FlatScrollNavigator.cs
+@@ -0,0 +1,467 @@
++using System;
++using System.Collections.Generic;
++using UnityEngine;
++using UnityEngine.Rendering;
++
++namespace Orbis.Flat
++{
++    /// <summary>
++    /// A single geographical UV lattice becomes a sphere or a north-up plane in the vertex shader.
++    /// Copies are render-only; tile IDs, editing, paths and saves always address WorldData once.
++    /// </summary>
++    public sealed class FlatScrollNavigator : MonoBehaviour
++    {
++        const float Tau = Mathf.PI * 2, StartDistance = 1.60f, EndDistance = 1.08f;
++        const float Fov = 42, DefaultEndGap = .42f;
++        const int CopyRadius = 2; // five visible sheets at most; no duplicated simulation
++        Camera camera;
++        WorldData world;
++        FlatMapRenderer maps;
++        Mesh lattice, flatMesh, routeMesh;
++        readonly List<MeshFilter> sheetFilters = new List<MeshFilter>();
++        bool flatGeometry;
++        Material surface, routeMaterial;
++        readonly List<MeshRenderer> surfaces = new List<MeshRenderer>();
++        readonly List<MeshRenderer> routes = new List<MeshRenderer>();
++        readonly List<MaterialPropertyBlock> blocks = new List<MaterialPropertyBlock>();
++        Vector2 anchor = new Vector2(.5f, .5f), pan;
++        Vector3 east = Vector3.right, north = Vector3.up, normal = Vector3.back;
++        float distance = 3.1f, targetDistance = 3.1f, yaw = 0, pitch = 18;
++        float endGap = DefaultEndGap, pixels = 16, entryPixels = 16, morph, displaySpin;
++        double lockedDay, currentDay;
++        bool landingLocked, atlasPending, overview, exitPending;
++        int pendingFocus=-1; bool focusZoom;Vector2 focusCenter; float targetPixels=-1; Vector2 zoomScreen; bool zoomAnchor;
++        int[] route = new int[0];
++        Vector2 lastRoutePan = new Vector2(float.NaN, float.NaN);
++        Vector3 lastRouteNormal;
++        float lastRoutePixels = -1;
++        readonly List<Vector3> routeVertices = new List<Vector3>();
++        readonly List<Color> routeColors = new List<Color>();
++        readonly List<int> routeIndices = new List<int>();
++        public bool IsFlat { get { return morph >= 1; } }
++        public bool IsGlobe { get { return morph <= 0; } }
++        public bool IsTransitioning { get { return morph > 0 && morph < 1; } }
++        public bool Overview { get { return IsFlat && pixels < 24; } }
++        public bool IsDetailed { get { return IsFlat && pixels >= 24; } }
++        public float DetailWeight { get { return IsFlat ? Mathf.SmoothStep(0,1,Mathf.InverseLerp(12,32,pixels)) : 0; } }
++        public float Morph { get { return morph; } }
++        public float DisplaySpin { get { return displaySpin; } }
++        public float PixelsPerTile { get { return pixels; } }
++        public float Distance { get { return distance; } }
++        public Vector2 CenterTile { get { return pan; } }
++        public Material SurfaceMaterial { get { return surface; } }
++        public int VertexCount { get { return lattice ? lattice.vertexCount : 0; } }
++        public int ActiveSheets { get; private set; }
++        public string ModeName { get { return IsFlat ? (IsDetailed ? "2D 详细图" : "2D 总览") : IsGlobe ? "星球" : "大气展开 " + Mathf.RoundToInt(morph * 100) + "%"; } }
++
++        public void Initialize(WorldData data, Camera target, FlatMapRenderer renderer)
++        {
++            if (data == null || !target || !renderer) throw new ArgumentNullException();
++            world = data; camera = target; maps = renderer;
++            surface = NewMaterial("ORBIS/FlatWorld/ScrollSurface");
++            // Large enough for smooth silhouette; scalar fields retain the original tile resolution.
++            int columns = Mathf.Clamp(world.Width, 128, 512), rows = columns / 2;
++            var vertices = new Vector3[(columns + 1) * (rows + 1)];
++            var uv = new Vector2[vertices.Length];
++            var indices = new int[columns * rows * 6];
++            for (int y = 0; y <= rows; y++) for (int x = 0; x <= columns; x++)
++            {
++                int i = y * (columns + 1) + x;
++                uv[i] = new Vector2((float)x / columns, (float)y / rows);
++                vertices[i] = new Vector3(uv[i].x, uv[i].y, 0);
++            }
++            int k = 0;
++            for (int y = 0; y < rows; y++) for (int x = 0; x < columns; x++)
++            {
++                int a = y * (columns + 1) + x, b = a + columns + 1;
++                indices[k++] = a; indices[k++] = b; indices[k++] = a + 1;
++                indices[k++] = a + 1; indices[k++] = b; indices[k++] = b + 1;
++            }
++            lattice = new Mesh { name = "ORBIS shared globe-to-scroll UV lattice", indexFormat = IndexFormat.UInt32 };
++            lattice.vertices = vertices; lattice.uv = uv; lattice.triangles = indices;
++            // Vertex displacement happens on the GPU; bounds must cover all five sheets and both endpoints.
++            lattice.bounds = new Bounds(Vector3.zero, Vector3.one * 80);
++            lattice.UploadMeshData(true);
++            flatMesh = new Mesh { name = "Exact flat endpoint quad" };
++            flatMesh.vertices = new[] { Vector3.zero, Vector3.right, Vector3.up, Vector3.one };
++            flatMesh.uv = new[] { Vector2.zero, Vector2.right, Vector2.up, Vector2.one };
++            flatMesh.triangles = new[] { 0, 2, 1, 1, 2, 3 };
++            flatMesh.bounds = lattice.bounds;
++            flatMesh.UploadMeshData(true);
++            for (int c = -CopyRadius; c <= CopyRadius; c++)
++            {
++                surfaces.Add(NewRenderer("Shared terrain sheet " + c, lattice, surface));
++                surfaces[surfaces.Count-1].shadowCastingMode = ShadowCastingMode.On;
++                sheetFilters.Add(surfaces[surfaces.Count-1].GetComponent<MeshFilter>());
++                var block = new MaterialPropertyBlock(); block.SetFloat("_ScrollCopy", c); blocks.Add(block);
++                surfaces[c + CopyRadius].SetPropertyBlock(block);
++            }
++            pan = new Vector2(world.Width * .5f, world.Height * .5f);
++            Tick(0, 0); SyncMaterials();
++        }
++        static Material NewMaterial(string path)
++        {
++            var shader = Resources.Load<Shader>(path);
++            if (!shader || !shader.isSupported) throw new InvalidOperationException("Missing/unsupported shader: " + path + ". See Console; no silent scene replacement.");
++            return new Material(shader) { name = path + " runtime" };
++        }
++        MeshRenderer NewRenderer(string name, Mesh mesh, Material material)
++        {
++            var go = new GameObject(name, typeof(MeshFilter), typeof(MeshRenderer)); go.transform.SetParent(transform, false);
++            go.GetComponent<MeshFilter>().sharedMesh = mesh;
++            var r = go.GetComponent<MeshRenderer>(); r.sharedMaterial = material;
++            r.shadowCastingMode = ShadowCastingMode.Off; r.receiveShadows = false;
++            return r;
++        }
++        public void SetViewport(Rect screenRect)
++        {
++            if (screenRect.width > 8 && screenRect.height > 8) camera.pixelRect = screenRect;
++        }
++        static Vector3 SourceNormal(Vector2 uv)
++        {
++            float lon = (uv.x - .5f) * Tau, lat = (uv.y - .5f) * Mathf.PI;
++            return new Vector3(Mathf.Cos(lat) * Mathf.Sin(lon), Mathf.Sin(lat), Mathf.Cos(lat) * Mathf.Cos(lon));
++        }
++        static Vector3 Reflect(Vector3 p) { p.z = -p.z; return p; }
++        Quaternion Spin(float radians) { return Quaternion.AngleAxis(radians * Mathf.Rad2Deg, Vector3.up); }
++        void LockPlane(Vector2 uv, double day)
++        {
++            anchor = new Vector2((float)FlatScrollMath.Wrap(uv.x, 1), Mathf.Clamp(uv.y, .00001f, .99999f));
++            lockedDay = day; float a = (float)(FlatSolarClock.Phase(day) * Tau);
++            float lon = (anchor.x - .5f) * Tau, lat = (anchor.y - .5f) * Mathf.PI;
++            Quaternion spin = Spin(a);
++            normal = spin * Reflect(SourceNormal(anchor));
++            east = spin * new Vector3(Mathf.Cos(lon), 0, Mathf.Sin(lon));
++            north = spin * new Vector3(-Mathf.Sin(lat) * Mathf.Sin(lon), Mathf.Cos(lat), Mathf.Sin(lat) * Mathf.Cos(lon));
++            pan = new Vector2(anchor.x * world.Width, anchor.y * world.Height);
++            landingLocked = true;
++        }
++        void CaptureLanding(Vector2 screen, double day)
++        {
++            Vector2 uv;
++            if (!TryGlobeUV(screen, out uv))
++            {
++                if (!TryGlobeUV(camera.pixelRect.center, out uv)) uv = anchor;
++            }
++            LockPlane(uv, day);
++            endGap = camera.pixelHeight * TileScale / (2 * FitPixels() * Mathf.Tan(Fov * Mathf.Deg2Rad * .5f));
++            pan.y=world.Height*.5f; overview = true;
++        }
++        void ReanchorForExit(double day)
++        {
++            // A rigid change of tangent frame at the EXACT flat endpoint leaves the screen image unchanged.
++            targetPixels=-1;pendingFocus=-1;focusZoom=false;
++            Vector2 center = pan;
++            LockPlane(new Vector2(center.x / world.Width, center.y / world.Height), day);
++            pitch = Mathf.Asin(Mathf.Clamp(normal.y, -1, 1)) * Mathf.Rad2Deg;
++            yaw = Mathf.Atan2(-normal.x, -normal.z) * Mathf.Rad2Deg;
++            endGap = camera.orthographicSize / Mathf.Tan(Fov * Mathf.Deg2Rad * .5f);
++            distance = EndDistance; targetDistance = EndDistance;
++            atlasPending = false; overview = false;
++        }
++        public void Tick(float dt, double day)
++        {
++            currentDay = day;
++            if(IsFlat && targetPixels>0)
++            {
++                Vector2 before=Vector2.zero,after;bool hit=zoomAnchor&&TryFlatPoint(zoomScreen,out before);
++                if(!hit)before=Vector2.zero;
++                pixels=(float)FlatScrollMath.ExpApproach(pixels,targetPixels,14,dt);
++                if(focusZoom)
++                {
++                    float blend=1-Mathf.Exp(-14*dt);
++                    pan.x+=(float)FlatScrollMath.Shortest(focusCenter.x-pan.x,world.Width)*blend;
++                    pan.y=Mathf.Lerp(pan.y,focusCenter.y,blend);
++                }
++                if(Mathf.Abs(pixels-targetPixels)<.001f){pixels=targetPixels;targetPixels=-1;if(focusZoom)pan=focusCenter;focusZoom=false;}
++                camera.orthographicSize=camera.pixelHeight*TileScale/(2*Mathf.Max(.1f,pixels));
++                camera.ResetProjectionMatrix();
++                if(hit&&TryFlatPoint(zoomScreen,out after))pan+=before-after;
++            }
++            distance = (float)FlatScrollMath.ExpApproach(distance, targetDistance, 11, dt);
++            if (Mathf.Abs(distance - targetDistance) < .00002f) distance = targetDistance;
++            float raw = Mathf.InverseLerp(StartDistance, EndDistance, distance);
++            morph = (float)FlatScrollMath.Smooth(raw);
++            if (distance <= EndDistance) morph = 1;
++            if (distance >= StartDistance) morph = 0;
++            if (morph > 0 && !landingLocked) CaptureLanding(camera.pixelRect.center, day);
++            // In space the sphere really rotates. During landing we converge to the fixed map frame.
++            double spinDay = landingLocked ? lockedDay + (day - lockedDay) * (1 - morph) * (1 - morph) : day;
++            displaySpin = (float)(FlatSolarClock.Phase(spinDay) * Tau);
++            camera.clearFlags = CameraClearFlags.SolidColor; camera.backgroundColor = IsFlat ? new Color(.045f, .075f, .09f) : Color.black;
++            camera.allowHDR = true; camera.allowMSAA = false;
++            camera.nearClipPlane = .002f; camera.farClipPlane = 80; camera.fieldOfView = Fov;
++            Quaternion orbit = Quaternion.Euler(pitch, yaw, 0);
++            if (IsFlat)
++            {
++                pixels=Mathf.Max(pixels,camera.pixelWidth/(world.Width*3f));
++                if (atlasPending)
++                {
++                    atlasPending = false; overview = true;
++                    pixels = FitPixels();
++                }
++                else if (!camera.orthographic)
++                {
++                    pixels = Mathf.Max(.25f, camera.pixelHeight * TileScale / (2 * endGap * Mathf.Tan(Fov * Mathf.Deg2Rad * .5f)));
++                    entryPixels = FitPixels();
++                }
++                NormalizePan();
++                camera.orthographic = true; camera.orthographicSize = camera.pixelHeight * TileScale / (2 * Mathf.Max(.1f, pixels));
++                camera.transform.SetPositionAndRotation(normal * (1 + endGap), Quaternion.LookRotation(-normal, north));
++                camera.ResetProjectionMatrix();
++            }
++            else
++            {
++                camera.orthographic = false;
++                float gap = Mathf.Lerp(StartDistance - 1, endGap, morph);
++                Vector3 planetPosition = orbit * new Vector3(0, 0, -Mathf.Max(StartDistance, distance));
++                camera.transform.SetPositionAndRotation(Vector3.Lerp(planetPosition, normal * (1 + gap), morph), Quaternion.Slerp(orbit, Quaternion.LookRotation(-normal, north), morph));
++                if (morph <= 0)
++                {
++                    camera.ResetProjectionMatrix();
++                    if (distance > StartDistance && targetDistance >= StartDistance) landingLocked = false;
++                    pixels = Mathf.Clamp(camera.pixelHeight * TileScale / (2 * Mathf.Max(.05f, distance - 1) * Mathf.Tan(Fov * Mathf.Deg2Rad * .5f)), .25f, 64);
++                }
++                else
++                {
++                    // Normalize perspective homogeneous w at the target plane before interpolation.
++                    // Both matrices give identical x/y scale at z=-gap; endpoint 1 is exact orthographic.
++                    float half = gap * Mathf.Tan(Fov * Mathf.Deg2Rad * .5f), aspect = camera.aspect;
++                    Matrix4x4 p = Matrix4x4.Perspective(Fov, aspect, camera.nearClipPlane, camera.farClipPlane);
++                    Matrix4x4 o = Matrix4x4.Ortho(-half * aspect, half * aspect, -half, half, camera.nearClipPlane, camera.farClipPlane);
++                    float projectionMix = Mathf.SmoothStep(0, 1, Mathf.InverseLerp(.62f, 1, morph));
++                    Matrix4x4 blend = new Matrix4x4();
++                    for (int r = 0; r < 4; r++) for (int c = 0; c < 4; c++) blend[r, c] = Mathf.Lerp(p[r, c] / gap, o[r, c], projectionMix);
++                    camera.projectionMatrix = blend;
++                    pixels = camera.pixelHeight * TileScale / (2 * half);
++                }
++            }
++            if(IsFlat&&pendingFocus>=0)
++            {
++                focusCenter=new Vector2(pendingFocus%world.Width+.5f,pendingFocus/world.Width+.5f);focusZoom=true;
++                pendingFocus=-1;targetPixels=48;zoomAnchor=false;NormalizePan();
++            }
++            if(IsFlat&&exitPending&&targetPixels<0)
++            {
++                exitPending=false;ReanchorForExit(day);targetDistance=3.1f;Tick(0,day);return;
++            }
++            UpdateSheets(); UpdateRoute();
++        }
++        float TileScale { get { return Tau / world.Width; } }
++        float FitPixels() { return Mathf.Max(camera.pixelWidth / (world.Width * 3f), Mathf.Min(camera.pixelWidth / (float)world.Width, camera.pixelHeight / (float)world.Height) * .94f); }
++        void NormalizePan()
++        {
++            pan.x = (float)FlatScrollMath.Wrap(pan.x, world.Width);
++            float halfHeight=camera.pixelHeight/(2*Mathf.Max(.1f,pixels));
++            pan.y=halfHeight>=world.Height*.5f?world.Height*.5f:Mathf.Clamp(pan.y,halfHeight,world.Height-halfHeight);
++        }
++        Vector2 RenderPan
++        {
++            get { return new Vector2(anchor.x * world.Width + (float)FlatScrollMath.Shortest(pan.x - anchor.x * world.Width, world.Width), pan.y); }
++        }
++        void UpdateSheets()
++        {
++            if (flatGeometry != IsFlat)
++            {
++                flatGeometry = IsFlat;
++                foreach (var filter in sheetFilters) filter.sharedMesh = flatGeometry ? flatMesh : lattice;
++            }
++            ActiveSheets = 0;
++            float halfTiles = camera.pixelWidth / Mathf.Max(.1f, pixels) * .5f;
++            Vector2 p = RenderPan;
++            for (int i = 0; i < surfaces.Count; i++)
++            {
++                int copy = i - CopyRadius;
++                float left = (anchor.x - .5f + copy) * world.Width, right = left + world.Width;
++                bool visible = IsFlat ? right >= p.x - halfTiles - 1 && left <= p.x + halfTiles + 1 : copy == 0;
++                surfaces[i].enabled = visible;
++                if (visible) ActiveSheets++;
++            }
++        }
++        public void SyncMaterials()
++        {
++            if (!maps || !surface) return;
++            surface.CopyPropertiesFromMaterial(maps.Material);
++            ApplyProjection(surface);
++        }
++        void ApplyProjection(Material m)
++        {
++            Vector2 p = RenderPan;
++            m.SetVector("_MapSize", new Vector4(world.Width, world.Height, 1f / world.Width, 1f / world.Height));
++            m.SetVector("_ScrollAnchor", new Vector4(anchor.x, anchor.y, 0, 0));
++            m.SetVector("_ScrollPan", new Vector4(p.x, p.y, 0, 0));
++            m.SetVector("_ScrollRight", east); m.SetVector("_ScrollUp", north); m.SetVector("_ScrollNormal", normal);
++            m.SetFloat("_ScrollMorph", morph); m.SetFloat("_ScrollSpin", displaySpin);
++            m.SetFloat("_PixelsPerTile", pixels);
++            m.SetFloat("_DetailWeight", DetailWeight);
++        }
++        public void Drag(Vector2 screenDelta)
++        {
++            if (IsFlat) PanBy(new Vector2(-screenDelta.x, -screenDelta.y) / Mathf.Max(.1f, pixels));
++            else if (IsGlobe)
++            { yaw += screenDelta.x * .25f; pitch = Mathf.Clamp(pitch - screenDelta.y * .2f, -89.5f, 89.5f); }
++        }
++        public void PanBy(Vector2 tileDelta) { if (IsFlat) { pan += tileDelta; NormalizePan(); Tick(0, currentDay); } }
++        public void Wheel(float wheel, Vector2 screen, double day)
++        {
++            wheel = Mathf.Clamp(wheel, -24, 24);if(Mathf.Abs(wheel)<.00001f)return;exitPending=false;
++            if (IsFlat)
++            {
++                float minimum = FitPixels();
++                float desired = pixels * Mathf.Exp(-wheel * .075f);
++                if (wheel > 0 && pixels <= minimum * 1.01f && targetPixels < 0 && desired < minimum * .995f)
++                {
++                    ReanchorForExit(day); targetDistance = Mathf.Min(3.1f, EndDistance * Mathf.Exp(wheel * .055f)); return;
++                }
++                targetPixels=Mathf.Clamp((targetPixels>0?targetPixels:pixels)*Mathf.Exp(-wheel*.075f),minimum,64);
++                zoomScreen=screen;zoomAnchor=true;focusZoom=false;
++            }
++            else
++            {
++                float desired = Mathf.Clamp(targetDistance * Mathf.Exp(wheel * .035f), EndDistance, 6);
++                if (desired < StartDistance && !landingLocked) CaptureLanding(screen, day);
++                targetDistance = desired;
++            }
++        }
++        public void Toggle(double day)
++        {
++            if(exitPending){exitPending=false;targetPixels=-1;return;}
++            if (IsFlat || (IsTransitioning && targetDistance < StartDistance)) GoGlobe(day);
++            else { if (!landingLocked) CaptureLanding(camera.pixelRect.center, day); targetDistance = EndDistance; atlasPending = false; }
++        }
++        public void GoGlobe(double day)
++        {
++            if(IsFlat&&pixels>FitPixels()*1.01f)
++            {
++                exitPending=true;targetPixels=FitPixels();zoomAnchor=false;focusZoom=false;pendingFocus=-1;return;
++            }
++            exitPending=false;
++            if (IsFlat) ReanchorForExit(day);
++            atlasPending = false; overview = false; targetPixels=-1;pendingFocus=-1;focusZoom=false;targetDistance = 3.1f;
++        }
++        public void OpenAtlas(double day)
++        {
++            exitPending=false;
++            if (IsFlat) { overview = true;targetPixels=FitPixels();zoomAnchor=false;focusZoom=false;pendingFocus=-1; Tick(0, day); return; }
++            if (!landingLocked) CaptureLanding(camera.pixelRect.center, day);
++            atlasPending = true; pan.y=world.Height*.5f; targetDistance = EndDistance;
++        }
++        public void Home(double day)
++        {
++            if (IsFlat) OpenAtlas(day);
++            else { targetDistance = 3.1f; yaw = 0; pitch = 18; atlasPending = false; }
++        }
++        public void Focus(int tile, double day)
++        {
++            if (tile < 0 || tile >= world.Count) return;exitPending=false;
++            Vector2 uv = new Vector2((tile % world.Width + .5f) / world.Width, (tile / world.Width + .5f) / world.Height);
++            if (IsFlat) { focusCenter = new Vector2(uv.x * world.Width, uv.y * world.Height);focusZoom=true; targetPixels=48;zoomAnchor=false;NormalizePan();Tick(0, day); }
++            else
++            {
++                LockPlane(uv, day);
++                pitch = Mathf.Asin(normal.y) * Mathf.Rad2Deg; yaw = Mathf.Atan2(-normal.x, -normal.z) * Mathf.Rad2Deg;
++                endGap=camera.pixelHeight*TileScale/(2*FitPixels()*Mathf.Tan(Fov*Mathf.Deg2Rad*.5f));
++                pan.y=world.Height*.5f;pendingFocus=tile;targetDistance=EndDistance;
++            }
++        }
++        public bool TryFlatPoint(Vector2 screen, out Vector2 tile)
++        {
++            tile = Vector2.zero; if (!IsFlat) return false;
++            Ray ray = camera.ScreenPointToRay(screen); var plane = new Plane(normal, normal);
++            float t; if (!plane.Raycast(ray, out t)) return false;
++            Vector3 offset = ray.GetPoint(t) - normal;
++            // Use canonical pan here, not RenderPan: caller's cursor delta is continuous under wrap.
++            tile = pan + new Vector2(Vector3.Dot(offset, east), Vector3.Dot(offset, north)) / TileScale;
++            return true;
++        }
++        public int Pick(Vector2 screen)
++        {
++            Vector2 tile;
++            if (IsFlat) return TryFlatPoint(screen, out tile) ? FlatScrollMath.Tile(tile.x, tile.y, world.Width, world.Height) : -1;
++            Vector2 uv; return IsGlobe && TryGlobeUV(screen, out uv) ? FlatScrollMath.Tile(uv.x * world.Width, Math.Min(world.Height - .0001, uv.y * world.Height), world.Width, world.Height) : -1;
++        }
++        bool TryGlobeUV(Vector2 screen, out Vector2 uv)
++        {
++            uv = Vector2.zero; Ray ray = camera.ScreenPointToRay(screen);
++            float b = Vector3.Dot(ray.origin, ray.direction), disc = b * b - ray.origin.sqrMagnitude + 1.09f * 1.09f;
++            if (disc < 0) return false;
++            float lo = Mathf.Max(0, -b - Mathf.Sqrt(disc)), end = -b + Mathf.Sqrt(disc);
++            if (end <= lo) return false;
++            Quaternion inverse = Quaternion.Inverse(Spin(displaySpin));
++            float previous = RadialError(ray.GetPoint(lo), inverse);
++            for (int j = 1; j <= 160; j++)
++            {
++                float hi = Mathf.Lerp(lo, end, 1f / (161 - j));
++                float value = RadialError(ray.GetPoint(hi), inverse);
++                if (previous >= 0 && value <= 0)
++                {
++                    for (int k = 0; k < 20; k++) { float mid = (lo + hi) * .5f; if (RadialError(ray.GetPoint(mid), inverse) > 0) lo = mid; else hi = mid; }
++                    uv = UV(Reflect(inverse * ray.GetPoint((lo + hi) * .5f)).normalized); return true;
++                }
++                lo = hi; previous = value;
++            }
++            return false;
++        }
++        static Vector2 UV(Vector3 source)
++        { return new Vector2((float)FlatScrollMath.Wrap(Mathf.Atan2(source.x, source.z) / Tau + .5f, 1), Mathf.Asin(Mathf.Clamp(source.y, -1, 1)) / Mathf.PI + .5f); }
++        float RadialError(Vector3 point, Quaternion inverse)
++        {
++            if (point.sqrMagnitude < .000001f) return -1;
++            Vector2 uv = UV(Reflect(inverse * point).normalized);
++            float x = uv.x * world.Width - .5f, y = uv.y * world.Height - .5f;
++            int x0 = Mathf.FloorToInt(x), y0 = Mathf.FloorToInt(y);
++            Vector3 a=HeightFields(x0,y0),b=HeightFields(x0+1,y0),c=HeightFields(x0,y0+1),d=HeightFields(x0+1,y0+1);
++            Vector3 fields=Vector3.Lerp(Vector3.Lerp(a,b,x-x0),Vector3.Lerp(c,d,x-x0),y-y0);
++            float h=fields.x+(fields.y>0?fields.z:0);
++            return point.magnitude - (1 + Mathf.Clamp(h, 0, 4000) * .00001875f);
++        }
++        Vector3 HeightFields(int x,int y)
++        {
++            int id=Mathf.Clamp(y,0,world.Height-1)*world.Width+FMath.Wrap(x,world.Width);
++            return new Vector3(world.Elevation[id],world.Facts.ShoreDistance[id],world.Facts.Depth[id]);
++        }
++        public void SetRoute(int[] ids)
++        {
++            route = ids ?? new int[0]; lastRoutePixels = -1;
++            if (route.Length < 2 && !routeMesh) return;
++            if (!routeMesh)
++            {
++                routeMaterial = NewMaterial("ORBIS/FlatWorld/Route"); routeMesh = new Mesh { name = "Wrapped path preview", indexFormat = IndexFormat.UInt32 }; routeMesh.MarkDynamic();
++                for (int c = -CopyRadius; c <= CopyRadius; c++) routes.Add(NewRenderer("Wrapped path " + c, routeMesh, routeMaterial));
++            }
++            UpdateRoute();
++        }
++        void UpdateRoute()
++        {
++            if (!routeMesh) return;
++            foreach (var r in routes) r.enabled = IsFlat && route.Length > 1;
++            if (!IsFlat || route.Length < 2) return;
++            if (pan == lastRoutePan && normal == lastRouteNormal && pixels == lastRoutePixels) return;
++            lastRoutePan = pan; lastRouteNormal = normal; lastRoutePixels = pixels;
++            var v = routeVertices; var cs = routeColors; var triangles = routeIndices;
++            v.Clear(); cs.Clear(); triangles.Clear();
++            float width = Mathf.Clamp(1.5f / Mathf.Max(1, pixels), .07f, .20f) * TileScale;
++            Vector3 lift = normal * .00006f;
++            for (int i = 1; i < route.Length; i++)
++            {
++                Vector2 a = new Vector2(route[i - 1] % world.Width + .5f, route[i - 1] / world.Width + .5f);
++                Vector2 b = new Vector2(route[i] % world.Width + .5f, route[i] / world.Width + .5f);
++                a.x = pan.x + (float)FlatScrollMath.Shortest(a.x - pan.x, world.Width);
++                b.x = a.x + (float)FlatScrollMath.Shortest(b.x - a.x, world.Width);
++                Vector3 pa = normal + east * ((a.x - pan.x) * TileScale) + north * ((a.y - pan.y) * TileScale) + lift;
++                Vector3 pb = normal + east * ((b.x - pan.x) * TileScale) + north * ((b.y - pan.y) * TileScale) + lift;
++                Vector3 side = Vector3.Cross((pb - pa).normalized, normal) * width;
++                int start = v.Count; v.Add(pa - side); v.Add(pa + side); v.Add(pb - side); v.Add(pb + side);
++                for (int c = 0; c < 4; c++) cs.Add(new Color(1, .85f, .45f));
++                triangles.Add(start); triangles.Add(start + 1); triangles.Add(start + 2); triangles.Add(start + 2); triangles.Add(start + 1); triangles.Add(start + 3);
++            }
++            routeMesh.Clear(); routeMesh.SetVertices(v); routeMesh.SetColors(cs); routeMesh.SetTriangles(triangles, 0); routeMesh.RecalculateBounds();
++            for (int i = 0; i < routes.Count; i++) routes[i].transform.localPosition = east * ((i - CopyRadius) * Tau);
++        }
++        void OnDestroy()
++        {
++            if (surface) Destroy(surface); if (flatMesh) Destroy(flatMesh); if (lattice) Destroy(lattice);
++            if (routeMesh) Destroy(routeMesh); if (routeMaterial) Destroy(routeMaterial);
++        }
++    }
++}
+--- base/Assets/ORBIS/Runtime/FlatWorld/Presentation/FlatSkyRenderer.cs
++++ merged/Assets/ORBIS/Runtime/FlatWorld/Presentation/FlatSkyRenderer.cs
+@@ -71,13 +71,14 @@
+             }
+             catch(Exception ex){failed=true;rendered=false;Status="云缓存已安全关闭："+ex.Message;Debug.LogException(ex);}
+         }
+-        public Vector3 Sun(float manualAngle)
++        public Vector3 Sun(float manualAngle,double calendarDay=double.NaN,bool automatic=false)
+         {
+-            float season=(float)((world.Day%360-80)*Math.PI*2/360);
++            double day=double.IsNaN(calendarDay)?world.Day:calendarDay;
++            float season=(float)((day%360-80)*Math.PI*2/360);
+             float declination=Mathf.Asin(Mathf.Sin(23.44f*Mathf.Deg2Rad)*Mathf.Sin(season));
+             // Gameplay advances days in large increments; never use that directly as
+             // solar rotation. Otherwise six days/second would cause a flashing map.
+-            float angle=(manualAngle+(float)(rotationSeconds%120)*3)*Mathf.Deg2Rad;
++            float angle=automatic?(float)FlatSolarClock.SolarLongitude(day,manualAngle):manualAngle*Mathf.Deg2Rad;
+             return new Vector3(-Mathf.Sin(angle)*Mathf.Cos(declination),Mathf.Sin(declination),Mathf.Cos(angle)*Mathf.Cos(declination));
+         }
+         public void Bind(Material target,Vector3 sun,bool clouds,bool shadows,bool atmosphere,bool dayNight,bool rain,bool lightning,bool nightLights,float opacity)
+--- base/Assets/ORBIS/Runtime/FlatWorld/Presentation/FlatWorldApp.cs
++++ merged/Assets/ORBIS/Runtime/FlatWorld/Presentation/FlatWorldApp.cs
+@@ -17,17 +17,22 @@
+         public int initialWidth=512;
+         public WorldData World { get; private set; }
+         public FlatSimulation Simulation { get; private set; }
++        FlatScrollNavigator navigation;
++        readonly FlatSolarClock solarClock = new FlatSolarClock();
++        Action<float> simulationStep;
++        bool screenshotMode; double visualClock;
++        public double CalendarDay { get { return World==null?0:solarClock.RenderDay(World.Day); } }
+         Camera viewCamera;FlatMapRenderer map;FlatGlobePresenter globe;UIDocument document;PanelSettings panel;Font font;
+         VisualElement root,viewport;Label info,stats,notice,nations;Button modeButton,pauseButton,speedButton;
+         TextField seedField,pathField;DropdownField sizeField,presetField,layerField,toolField,heightField,brushField;
+-        Toggle gridToggle,cloudToggle,contourToggle,waterToggle,bankToggle,plumeToggle,sweToggle;
+-        Toggle smoothToggle,vegetationToggle,depthToggle,reliefToggle,shadowToggle,atmosphereToggle,dayNightToggle,rainToggle,lightningToggle,nightLightsToggle,autoSunToggle;
+-        Slider sunSlider,waveSlider,cloudOpacity;DropdownField contourField,cloudQuality;Label legend,waterStatus,skyStatus;
+-        readonly string[] tabNames={"World","Terrain","Water","Climate","Civs","Files"};
++        Toggle gridToggle,cloudToggle,contourToggle;
++        DropdownField cloudQuality;Label legend,waterStatus,skyStatus;
++        readonly string[] tabNames={"World","Terrain","Civs","Files"};
+         Task<WorldData> pending;CancellationTokenSource cancellation;bool seedOnInstall,paused,globeMode,dragging,moved;
+-        int selected=-1,activeNation=-1,pointer=-1,lastMonth=-1;float pixelsPerTile=2,speed=1,tickDebt,hudAge;
+-        Vector2 pan,lastPointer,downPointer;string status="准备世界数据…";int[] route=new int[0];LineRenderer routeLine;Material routeMaterial;
++        int selected=-1,activeNation=-1,pointer=-1,lastMonth=-1;float pixelsPerTile=2,speed=1,hudAge;
++        Vector2 pan,lastPointer,downPointer;string status="准备世界数据…";int[] route=new int[0];
+         public bool Busy { get { return pending!=null; } }
++        public FlatScrollNavigator Navigation { get { return navigation; } }
+         public bool GlobeMode { get { return globeMode; } }
+         public string SavePath { get { return Path.Combine(Application.persistentDataPath,"orbis-flat-world-v1.orbis"); } }
+         string HeightPath { get { return string.IsNullOrWhiteSpace(pathField.value)?Path.Combine(Application.persistentDataPath,"orbis-height16.png"):pathField.value.Trim(); } }
+@@ -68,13 +73,13 @@
+             brushField=root.Q<DropdownField>("brush");brushField.choices=new List<string>{"1 Tile","1 Zone · 4×4","3×3 Tiles","9×9 Tiles"};brushField.index=0;
+             pathField=root.Q<TextField>("path");pathField.value=Path.Combine(Application.persistentDataPath,"orbis-height16.png");
+             gridToggle=root.Q<Toggle>("grid");gridToggle.value=false;cloudToggle=root.Q<Toggle>("clouds");cloudToggle.value=true;
+-            sunSlider=root.Q<Slider>("sun");sunSlider.value=180;sunSlider.RegisterValueChangedCallback(e=>{if(globe)globe.SunAngle=e.newValue;});
+             modeButton=root.Q<Button>("mode");pauseButton=root.Q<Button>("pause");speedButton=root.Q<Button>("speed");
+             Bind("generate",Generate);Bind("seedCivs",()=>{if(Ready()){int n=Simulation.SeedNations(4);map.Flush();SetStatus("新增 "+n+" 个文明。领地按 4×4 Zone 扩展。 ");}});
+-            Bind("pause",()=>{paused=!paused;UpdateHUD();});Bind("speed",()=>{speed=speed==1?4:speed==4?12:1;UpdateHUD();});
++            Bind("pause",()=>{paused=!paused;UpdateHUD();});Bind("speed",()=>{speed=speed==1?4:speed==4?12:speed==12?20:1;UpdateHUD();});
++            Bind("atlas",OpenAtlas);
+             Bind("mode",ToggleMode);Bind("home",Home);Bind("focus",Focus);Bind("save",Save);Bind("load",Load);
+             Bind("export",()=>{if(Ready()){FlatRasterIO.Export(World,HeightPath);SetStatus("已导出 16-bit 高度图、水体预览与元数据："+HeightPath);}});
+-            Bind("import",Import);Bind("rebuild",()=>{if(Ready()){var copy=World.Clone();Queue(c=>{FlatGenerator.Rebuild(copy,c);return copy;},"重新计算排水、月均气候与生物群系…");}});
++            Bind("import",Import);Bind("rebuild",()=>{if(Ready()){solarClock.Flush(simulationStep);var copy=World.Clone();Queue(c=>{FlatGenerator.Rebuild(copy,c);return copy;},"重新计算排水、月均气候与生物群系…");}});
+             Bind("shot",()=>{if(World!=null&&!Busy)StartCoroutine(Capture());});
+             Bind("folder",()=>Application.OpenURL(new Uri(Application.persistentDataPath+Path.DirectorySeparatorChar).AbsoluteUri));
+             BindGroupedUI();
+@@ -83,7 +88,7 @@
+             viewport.RegisterCallback<PointerMoveEvent>(e=>
+             {
+                 if(!dragging)return;Vector2 now=e.position;if(Vector2.Distance(now,downPointer)>4)moved=true;
+-                if(moved){Vector2 delta=now-lastPointer;if(globeMode&&globe)globe.Orbit(delta);else pan-=new Vector2(delta.x,-delta.y)*(Screen.height/Mathf.Max(1,root.resolvedStyle.height))/pixelsPerTile;}
++                if(moved){Vector2 delta=now-lastPointer;if(navigation)navigation.Drag(new Vector2(delta.x,-delta.y)*(Screen.height/Mathf.Max(1,root.resolvedStyle.height)));}
+                 lastPointer=now;
+             });
+             viewport.RegisterCallback<PointerUpEvent>(e=>
+@@ -98,48 +103,27 @@
+                 if(e.keyCode==KeyCode.Space){paused=!paused;UpdateHUD();}
+                 if(e.keyCode==KeyCode.M)ToggleMode();if(e.keyCode==KeyCode.F)Focus();if(e.keyCode==KeyCode.Home)Home();
+                 float move=48/pixelsPerTile;
+-                if(!globeMode){if(e.keyCode==KeyCode.A||e.keyCode==KeyCode.LeftArrow)pan.x-=move;if(e.keyCode==KeyCode.D||e.keyCode==KeyCode.RightArrow)pan.x+=move;if(e.keyCode==KeyCode.W||e.keyCode==KeyCode.UpArrow)pan.y+=move;if(e.keyCode==KeyCode.S||e.keyCode==KeyCode.DownArrow)pan.y-=move;}
++                if(navigation&&navigation.IsFlat)
++                {
++                    Vector2 delta=Vector2.zero;
++                    if(e.keyCode==KeyCode.A||e.keyCode==KeyCode.LeftArrow)delta.x-=move;
++                    if(e.keyCode==KeyCode.D||e.keyCode==KeyCode.RightArrow)delta.x+=move;
++                    if(e.keyCode==KeyCode.W||e.keyCode==KeyCode.UpArrow)delta.y+=move;
++                    if(e.keyCode==KeyCode.S||e.keyCode==KeyCode.DownArrow)delta.y-=move;
++                    navigation.PanBy(delta);
++                }
++                if(e.keyCode==KeyCode.C)contourToggle.value=!contourToggle.value;
+                 if(e.keyCode==KeyCode.G)gridToggle.value=!gridToggle.value;
+             });
+         }
+         void BindGroupedUI()
+         {
+-            legend=root.Q<Label>("legend");waterStatus=root.Q<Label>("waterStatus");
++            legend=root.Q<Label>("legend");waterStatus=root.Q<Label>("waterStatus");skyStatus=root.Q<Label>("skyStatus");
+             contourToggle=root.Q<Toggle>("contours");contourToggle.value=false;
+-            smoothToggle=InitToggle("smoothTerrain",true);vegetationToggle=InitToggle("vegetation",true);
+-            depthToggle=InitToggle("bathymetry",true);reliefToggle=InitToggle("relief",true);
+-            shadowToggle=InitToggle("cloudShadows",true);atmosphereToggle=InitToggle("atmosphere",true);
+-            dayNightToggle=InitToggle("dayNight",false);autoSunToggle=InitToggle("autoSun",false);
+-            rainToggle=InitToggle("rainEffects",false);lightningToggle=InitToggle("lightning",false);nightLightsToggle=InitToggle("nightLights",true);
+-            cloudOpacity=root.Q<Slider>("cloudOpacity");cloudOpacity.value=.55f;
+-            cloudQuality=root.Q<DropdownField>("cloudQuality");cloudQuality.choices=new List<string>{"低 · 128×64","均衡 · 256×128","高 · 512×256"};cloudQuality.index=1;
+-            skyStatus=root.Q<Label>("skyStatus");
+-            Bind("vegetationLayer",()=>ChooseLayer(MapLayer.Vegetation));
+-            contourField=root.Q<DropdownField>("contourInterval");contourField.choices=new List<string>{"100 m","200 m","500 m","1000 m"};contourField.index=0;
+-            waterToggle=root.Q<Toggle>("waterShading");waterToggle.value=true;
+-            bankToggle=root.Q<Toggle>("banks");bankToggle.value=true;
+-            plumeToggle=root.Q<Toggle>("plumes");plumeToggle.value=true;
+-            sweToggle=root.Q<Toggle>("swe");sweToggle.value=true;
+-            waveSlider=root.Q<Slider>("wave");waveSlider.value=1;
+-            foreach(string name in tabNames){string selectedTab=name;Bind("tab"+name,()=>ShowTab(selectedTab));}
+-            Bind("heightLayer",()=>ChooseLayer(MapLayer.Height));Bind("landformLayer",()=>ChooseLayer(MapLayer.Landforms));Bind("materialLayer",()=>ChooseLayer(MapLayer.Materials));
+-            Bind("waterLayer",()=>ChooseLayer(MapLayer.Water));Bind("sedimentLayer",()=>ChooseLayer(MapLayer.Sediment));
+-            Bind("climateLayer",()=>ChooseLayer(MapLayer.Climate));Bind("temperatureLayer",()=>ChooseLayer(MapLayer.Temperature));Bind("rainLayer",()=>ChooseLayer(MapLayer.Rain));
+-            Bind("wetnessLayer",()=>ChooseLayer(MapLayer.Wetness));Bind("biomeLayer",()=>ChooseLayer(MapLayer.Natural));
+-            Bind("paintTool",()=>{toolField.index=3;SetStatus("高度笔刷已启用；点击地图会应用当前预设高度。完成后返回选择工具。");});
+-            Bind("selectTool",()=>toolField.index=0);Bind("foundTool",()=>toolField.index=1);Bind("annexTool",()=>toolField.index=2);
+-            Bind("farmTool",()=>toolField.index=4);Bind("roadTool",()=>toolField.index=5);Bind("bridgeTool",()=>toolField.index=6);Bind("routeTool",()=>toolField.index=7);
+-            Bind("nextMouth",NextMouth);
+-            Bind("ripple",()=>
+-            {
+-                if(!Ready())return;if(selected>=0)Focus();else{pixelsPerTile=Mathf.Max(8,pixelsPerTile);UpdateMapCamera();}
+-                ChooseLayer(MapLayer.Natural);sweToggle.value=true;waterToggle.value=true;map.LocalWater.RequestRipple();
+-                SetStatus(paused?"波动已排队；继续模拟后执行。":"已请求局部守恒扰动；只影响水面波纹，不增减世界水量。");
+-            });
++            cloudQuality=root.Q<DropdownField>("cloudQuality");cloudQuality.choices=new List<string>{"性能","均衡","精细"};cloudQuality.index=1;
++            foreach(string name in tabNames){string tab=name;Bind("tab"+name,()=>ShowTab(tab));}
+             ShowTab("World");
+         }
+-        Toggle InitToggle(string name,bool value)
+-        {var toggle=root.Q<Toggle>(name);if(toggle==null)throw new InvalidOperationException("Missing UI toggle: "+name);toggle.value=value;return toggle;}
+         void ShowTab(string selectedTab)
+         {
+             foreach(string name in tabNames)
+@@ -152,18 +136,18 @@
+         void ApplyWaterSettings(Material target)
+         {
+             if(!target)return;
+-            target.SetFloat("_ShowWater",waterToggle.value?1:0);target.SetFloat("_ShowBanks",bankToggle.value?1:0);
+-            target.SetFloat("_ShowPlumes",plumeToggle.value?1:0);target.SetFloat("_WaveAmount",waveSlider.value);
+-            target.SetFloat("_SmoothTerrain",smoothToggle.value?1:0);target.SetFloat("_Vegetation",vegetationToggle.value?1:0);
+-            target.SetFloat("_Bathymetry",depthToggle.value?1:0);target.SetFloat("_Relief",reliefToggle.value?1:0);
++            target.SetFloat("_ShowWater",true?1:0);target.SetFloat("_ShowBanks",true?1:0);
++            target.SetFloat("_ShowPlumes",true?1:0);target.SetFloat("_WaveAmount",1f);
++            target.SetFloat("_SmoothTerrain",true?1:0);target.SetFloat("_Vegetation",true?1:0);
++            target.SetFloat("_Bathymetry",true?1:0);target.SetFloat("_Relief",true?1:0);
+             {
+                 target.SetFloat("_ShowContours",contourToggle.value?1:0);
+-                int interval=contourField.index==0?100:contourField.index==1?200:contourField.index==2?500:1000;
++                int interval=100;
+                 target.SetFloat("_ContourInterval",interval);
+             }
+         }
+         void BindSky(Material target,Vector3 sun)
+-        {map.Sky.Bind(target,sun,cloudToggle.value,shadowToggle.value,atmosphereToggle.value,dayNightToggle.value,rainToggle.value,lightningToggle.value,nightLightsToggle.value,cloudOpacity.value);}
++        {map.Sky.Bind(target,sun,cloudToggle.value,cloudToggle.value,true,true,false,false,true,.55f);}
+         void NextMouth()
+         {
+             if(!Ready())return;
+@@ -177,7 +161,7 @@
+             SetStatus("当前世界没有满足汇流阈值的入海河口；湖泊溢出口不计作海口。");
+         }
+         bool Ready()
+-        {if(World==null||Busy){SetStatus("世界数据正在生成或重建；完成后才能修改。 ");return false;}if(globeMode){SetStatus("球体是只读摄影视图；请回到 2D 地图操作文明和地形。 ");return false;}return true;}
++        {if(World==null||Busy){SetStatus("世界数据正在生成或重建；完成后才能修改。 ");return false;}if(!navigation||!navigation.IsFlat){SetStatus("请展开到二维地图后操作文明和地形。 ");return false;}return true;}
+         void SetStatus(string text) { status=text;if(notice!=null)notice.text=text; }
+         void CancelPending()
+         {
+@@ -189,7 +173,7 @@
+         void Queue(Func<CancellationToken,WorldData> operation,string text,bool seed=false)
+         {
+             CancelPending();cancellation=new CancellationTokenSource();var token=cancellation.Token;seedOnInstall=seed;
+-            pending=Task.Run(()=>{token.ThrowIfCancellationRequested();WorldData w=operation(token);token.ThrowIfCancellationRequested();FlatSave.Validate(w);return w;},token);SetStatus(text);
++            pending=Task.Run(()=>{token.ThrowIfCancellationRequested();WorldData w=operation(token);token.ThrowIfCancellationRequested();FlatSave.Validate(w);if(w.Facts==null)FlatTerrainAnalysis.Build(w,token,false);return w;},token);SetStatus(text);
+         }
+         void Generate()
+         {
+@@ -198,18 +182,42 @@
+         }
+         void Install(WorldData world)
+         {
+-            // Build the replacement completely before releasing the visible old world.
+-            // A missing shader, allocation failure or invalid data must not destroy the last good map.
+             var simulation=new FlatSimulation(world);if(seedOnInstall)simulation.SeedNations(4);
+-            var nextObject=new GameObject("Authoritative 2D map");nextObject.SetActive(false);nextObject.transform.SetParent(transform,false);
++            var nextObject=new GameObject("Authoritative 2D map / render-data provider");nextObject.SetActive(false);nextObject.transform.SetParent(transform,false);
+             var next=nextObject.AddComponent<FlatMapRenderer>();
+-            try{next.Initialize(world);next.SetLayer((MapLayer)Mathf.Clamp(layerField.index,0,(int)MapLayer.Vegetation));}
+-            catch{Destroy(nextObject);throw;}
+-            DestroyGlobe();if(map){map.gameObject.SetActive(false);Destroy(map.gameObject);}if(routeLine)Destroy(routeLine.gameObject);route=new int[0];
+-            World=world;Simulation=simulation;map=next;nextObject.SetActive(true);
+-            selected=-1;activeNation=world.Nations.Count>0?0:-1;globeMode=false;tickDebt=0;lastMonth=world.Month;
+-            seedField.SetValueWithoutNotify(world.Seed);presetField.SetValueWithoutNotify(presetField.choices[(int)world.Preset]);Home();UpdateHUD();
+-            SetStatus("世界就绪："+world.Count.ToString("N0")+" 个独立 Tile / "+world.ZoneCount.ToString("N0")+" 个 Zone。左键操作，拖动平移，滚轮缩放。");
++            var navObject=new GameObject("Shared globe-to-scroll presentation");navObject.SetActive(false);navObject.transform.SetParent(transform,false);
++            var nextNav=navObject.AddComponent<FlatScrollNavigator>();
++            var globeObject=new GameObject("Native atmosphere from the same 2D world");globeObject.SetActive(false);globeObject.transform.SetParent(transform,false);
++            var nextGlobe=globeObject.AddComponent<FlatGlobePresenter>();
++            bool wasFlat=navigation&&navigation.IsFlat;Vector2 previousCenter=navigation?navigation.CenterTile:Vector2.zero;
++            int previousWidth=World==null?world.Width:World.Width,previousHeight=World==null?world.Height:World.Height;
++            try
++            {
++                next.Initialize(world);next.SetLayer((MapLayer)Mathf.Clamp(layerField.index,0,(int)MapLayer.Vegetation));
++                nextNav.Initialize(world,viewCamera,next);
++                nextGlobe.Initialize(world,viewCamera,next,true);nextGlobe.PrepareScroll();
++            }
++            catch
++            {
++                foreach(var volume in viewCamera.GetComponents<OrbisAtmosphereRenderer>())if(volume.view==nextGlobe.View){volume.enabled=false;Destroy(volume);}
++                Destroy(nextObject);Destroy(navObject);Destroy(globeObject);
++                if(navigation)navigation.Tick(0,CalendarDay);
++                throw;
++            }
++            DestroyGlobe();if(navigation){navigation.gameObject.SetActive(false);Destroy(navigation.gameObject);}
++            if(map){map.gameObject.SetActive(false);Destroy(map.gameObject);}route=new int[0];
++            World=world;Simulation=simulation;simulationStep=simulation.Step;map=next;navigation=nextNav;globe=nextGlobe;solarClock.Reset();
++            // The old quad stays inactive. Only the new shared lattice is rendered, in ALL modes.
++            navObject.SetActive(true);globeObject.SetActive(true);
++            selected=-1;activeNation=world.Nations.Count>0?0:-1;globeMode=true;lastMonth=world.Month;
++            seedField.SetValueWithoutNotify(world.Seed);presetField.SetValueWithoutNotify(presetField.choices[(int)world.Preset]);
++            if(wasFlat)
++            {
++                int x=Mathf.Clamp((int)(previousCenter.x/previousWidth*world.Width),0,world.Width-1);
++                int y=Mathf.Clamp((int)(previousCenter.y/previousHeight*world.Height),0,world.Height-1);
++                navigation.Focus(y*world.Width+x,CalendarDay);
++            }
++            navigation.Tick(0,CalendarDay);UpdateHUD();SetStatus("世界就绪：默认星球。滚轮进入大气展开对应区域；左栏可直接打开完整 2D 卷轴。星球不再暂停文明时间。");
+         }
+         void Update()
+         {
+@@ -218,59 +226,54 @@
+                 var completed=pending;pending=null;var source=cancellation;cancellation=null;
+                 try{Install(completed.GetAwaiter().GetResult());}catch(OperationCanceledException){SetStatus("已取消，保留原世界。");}catch(Exception e){SetStatus("操作失败，保留原世界："+e.Message);Debug.LogException(e);}finally{source?.Dispose();}
+             }
+-            if(World==null)return;
+-            float dt=Mathf.Min(Time.unscaledDeltaTime,.10f);
+-            if(!paused&&!Busy&&!globeMode)
+-            {
+-                tickDebt+=dt*speed*6;int budget=3;
+-                while(tickDebt>=1&&budget-->0){Simulation.Step(1);tickDebt-=1;}
+-                // Bound CPU debt after a stalled frame; never replay minutes of backlog at once.
+-                tickDebt=Mathf.Min(tickDebt,6);
+-            }
+-            if(World.Month!=lastMonth)
+-            {
+-                lastMonth=World.Month;if(map.Layer==MapLayer.Temperature||map.Layer==MapLayer.Rain)World.MarkAllDirty();
+-            }
+-            map.Flush();
+-            bool skyNeeded=(cloudToggle.value||shadowToggle.value||rainToggle.value||lightningToggle.value)&&(globeMode||map.Layer==MapLayer.Natural||map.Layer==MapLayer.Nations);
+-            map.Sky.Tick(dt,skyNeeded,!paused&&!Busy,autoSunToggle.value,128<<Mathf.Clamp(cloudQuality.index,0,2));
+-            Vector3 visualSun=map.Sky.Sun(sunSlider.value);
+-            if(globeMode&&globe)globe.Tick((!paused&&!Busy)?dt:0,map.Layer==MapLayer.Nations,cloudToggle.value,shadowToggle.value,atmosphereToggle.value,dayNightToggle.value,visualSun);else UpdateMapCamera();
+-            BindSky(map.Material,visualSun);
+-            if(globeMode&&globe)BindSky(globe.View.SurfaceMaterial,visualSun);
+-            ApplyWaterSettings(map.Material);
+-            if(globeMode&&globe)ApplyWaterSettings(globe.View.SurfaceMaterial);
+-            else
+-            {
+-                Vector3 centre=viewCamera.ScreenToWorldPoint(ScreenPoint(viewport.worldBound.center));
+-                bool waterView=map.Layer==MapLayer.Natural||map.Layer==MapLayer.Nations||map.Layer==MapLayer.Water;
+-                map.LocalWater.Tick(dt,centre.x,centre.y,sweToggle.value&&waterToggle.value&&waterView&&pixelsPerTile>=8,!paused&&!Busy);
+-            }
++            if(World==null||!navigation)return;
++            float realDt=Mathf.Max(0,Time.unscaledDeltaTime),dt=Mathf.Min(realDt,.10f);bool animate=!paused&&!Busy;
++            solarClock.Advance(realDt,speed,120f,!animate,simulationStep);
++            if(World.Month!=lastMonth){lastMonth=World.Month;if(map.Layer==MapLayer.Temperature||map.Layer==MapLayer.Rain)World.MarkAllDirty();}
++            map.Flush();if(animate)visualClock+=dt;
++            UpdateViewportRect();navigation.Tick(dt,CalendarDay);
++            globeMode=!navigation.IsFlat;pixelsPerTile=navigation.PixelsPerTile;pan=navigation.CenterTile;
++            map.Configure(gridToggle.value,pixelsPerTile);
++            bool natural=map.Layer==MapLayer.Natural||map.Layer==MapLayer.Nations;
++            bool skyNeeded=natural&&(cloudToggle.value||cloudToggle.value||false||false);
++            map.Sky.Tick(dt,skyNeeded,animate,false,128<<Mathf.Clamp(cloudQuality.index,0,2));
++            Vector3 sun=map.Sky.Sun(180f,CalendarDay,true);
++            bool waterView=natural||map.Layer==MapLayer.Water;
++            map.LocalWater.Tick(dt,pan.x,pan.y,navigation.IsFlat&&true&&true&&waterView&&pixelsPerTile>=8,animate);
++            BindSky(map.Material,sun);ApplyWaterSettings(map.Material);navigation.SyncMaterials();
++            if(globe)globe.Snapshot.settings.cloudQuality=Mathf.Clamp(cloudQuality.index,0,2);
++            if(globe)globe.TickScroll(animate?dt:0,visualClock,CalendarDay,navigation.DisplaySpin,navigation.Morph,
++                cloudToggle.value,true,true,cloudToggle.value,sun,natural);
+             hudAge+=dt;if(hudAge>.25f){hudAge=0;UpdateHUD();}
+         }
++
+         void UpdateMapCamera()
+         {
+-            if(World==null||!map)return;
+-            viewCamera.backgroundColor=new Color(.045f,.075f,.09f);viewCamera.orthographic=true;viewCamera.allowHDR=false;viewCamera.allowMSAA=false;viewCamera.orthographicSize=Screen.height/(2*Mathf.Max(1,pixelsPerTile));viewCamera.nearClipPlane=.1f;viewCamera.farClipPlane=100;
+-            pan.x=Mathf.Clamp(pan.x,-World.Width*.5f,World.Width*1.5f);pan.y=Mathf.Clamp(pan.y,-World.Height*.5f,World.Height*1.5f);
+-            Vector2 snap=new Vector2(Mathf.Round(pan.x*pixelsPerTile)/pixelsPerTile,Mathf.Round(pan.y*pixelsPerTile)/pixelsPerTile);
+-            viewCamera.transform.SetPositionAndRotation(new Vector3(snap.x,snap.y,-10),Quaternion.identity);
++            if(World==null||!map||!navigation)return;
++            UpdateViewportRect();navigation.Tick(0,CalendarDay);pixelsPerTile=navigation.PixelsPerTile;pan=navigation.CenterTile;
+             map.Configure(gridToggle.value,pixelsPerTile);
++        }
++        void UpdateViewportRect()
++        {
++            if(screenshotMode){navigation.SetViewport(new Rect(0,0,Screen.width,Screen.height));return;}
++            Rect r=viewport.worldBound;Vector3 lower=ScreenPoint(new Vector2(r.xMin,r.yMax)),upper=ScreenPoint(new Vector2(r.xMax,r.yMin));
++            navigation.SetViewport(Rect.MinMaxRect(lower.x,lower.y,upper.x,upper.y));
++        }
++        void OpenAtlas()
++        {
++            if(World==null||Busy||!navigation)return;
++            navigation.OpenAtlas(CalendarDay);SetStatus("完整 2D 卷轴：东西环绕、南北止于极区；拖动、WASD、滚轮缩放。M 收拢回星球。");
+         }
+         Vector3 ScreenPoint(Vector2 panelPoint)
+         {Vector2 p=root.WorldToLocal(panelPoint);return new Vector3(p.x/Mathf.Max(1,root.resolvedStyle.width)*Screen.width,(1-p.y/Mathf.Max(1,root.resolvedStyle.height))*Screen.height,10);}
+         void Zoom(float wheel,Vector2 position)
+-        {
+-            if(World==null)return;if(globeMode){if(globe)globe.Zoom(wheel);return;}
+-            Vector3 pixel=ScreenPoint(position),before=viewCamera.ScreenToWorldPoint(pixel);
+-            pixelsPerTile=Mathf.Clamp(pixelsPerTile*(wheel>0?.5f:2),1,64);UpdateMapCamera();Vector3 after=viewCamera.ScreenToWorldPoint(pixel);pan+=new Vector2(before.x-after.x,before.y-after.y);UpdateMapCamera();
+-        }
++        {if(World==null||!navigation)return;navigation.Wheel(wheel,ScreenPoint(position),CalendarDay);}
+         void Pick(Vector2 position)
+         {
+-            if(World==null||Busy||globeMode)return;
+-            Vector3 p=viewCamera.ScreenToWorldPoint(ScreenPoint(position));int x=Mathf.FloorToInt(p.x),y=Mathf.FloorToInt(p.y);
+-            if(x<0||x>=World.Width||y<0||y>=World.Height)return;
+-            selected=y*World.Width+x;map.Select(selected);if(World.Owner[selected]>=0)activeNation=World.Owner[selected];
++            if(World==null||Busy||!navigation)return;
++            int hit=navigation.Pick(ScreenPoint(position));if(hit<0)return;
++            selected=hit;map.Select(selected);if(World.Owner[selected]>=0)activeNation=World.Owner[selected];
++            if(!navigation.IsFlat){UpdateHUD();return;}
+             try
+             {
+                 switch(toolField.index)
+@@ -289,7 +292,7 @@
+         }
+         void Paint()
+         {
+-            if(!Ready()||selected<0)return;var copy=World.Clone();int x=selected%World.Width,y=selected/World.Width,selection=heightField.index;
++            if(!Ready()||selected<0)return;solarClock.Flush(simulationStep);var copy=World.Clone();int x=selected%World.Width,y=selected/World.Width,selection=heightField.index;
+             short meters=selection==0?(short)-2200:selection==1?(short)-600:selection==2?(short)-80:HeightBands.Preset(selection-2);
+             if(brushField.index==1){int zone=copy.ZoneOf(selected);for(int p=0;p<16;p++)copy.Elevation[copy.ZoneTile(zone,p)]=meters;}
+             else{int radius=brushField.index==2?1:brushField.index==3?4:0;for(int dy=-radius;dy<=radius;dy++)for(int dx=-radius;dx<=radius;dx++){int i=copy.Index(x+dx,y+dy);if(i>=0)copy.Elevation[i]=meters;}}
+@@ -297,78 +300,51 @@
+         }
+         void ShowRoute()
+         {
+-            if(!Ready()||selected<0||activeNation<0)return;
++            if(!Ready()||selected<0||activeNation<0||!navigation)return;
+             int capital=World.Nations[activeNation].Capital;route=FlatPathfinder.Find(World,capital,selected);
+-            if(routeLine)Destroy(routeLine.gameObject);
+-            if(route.Length==0){SetStatus("未找到陆路；水域、地形或搜索预算阻断了路径。");return;}
+-            var go=new GameObject("Explicit route preview");go.transform.SetParent(transform,false);routeLine=go.AddComponent<LineRenderer>();
+-            if(!routeMaterial)routeMaterial=new Material(Resources.Load<Shader>("ORBIS/FlatWorld/Route"));routeLine.sharedMaterial=routeMaterial;routeLine.useWorldSpace=true;routeLine.widthMultiplier=.12f;routeLine.startColor=routeLine.endColor=new Color(1,.85f,.45f);routeLine.positionCount=route.Length;
+-            for(int k=0;k<route.Length;k++)routeLine.SetPosition(k,new Vector3(route[k]%World.Width+.5f,route[k]/World.Width+.5f,-.1f));
+-            // A seam-spanning route would draw a spurious line across the atlas. Hide that visual,
+-            // retain the correct logical route length and endpoints in the notice.
+-            for(int k=1;k<route.Length;k++)if(Math.Abs(route[k]%World.Width-route[k-1]%World.Width)>1){routeLine.enabled=false;break;}
+-            SetStatus("陆路路径："+route.Length+" 个 Tile；这是寻路预览，不会瞬移人口。跨经线接缝时仅显示长度。");
++            navigation.SetRoute(route);
++            SetStatus(route.Length==0?"未找到陆路；水域、地形或搜索预算阻断了路径。":"陆路路径："+route.Length+" 个 Tile。跨经线段按最短环绕方向显示；这仍是寻路预览。");
+         }
+         void ToggleMode()
+         {
+-            if(World==null||Busy)return;
+-            if(!globeMode)
+-            {
+-                map.Flush();
+-                if(!globe)
+-                {
+-                    var go=new GameObject("Read-only globe from 2D world");go.transform.SetParent(transform,false);globe=go.AddComponent<FlatGlobePresenter>();
+-                    try{globe.Initialize(World,viewCamera,map);}catch{Destroy(go);globe=null;var broken=viewCamera.GetComponent<OrbisAtmosphereRenderer>();if(broken){broken.enabled=false;Destroy(broken);}throw;}
+-                }
+-                else{globe.Snapshot.RefreshFlatPresentation();globe.View.UpdateColors(true);globe.View.UpdateWeather(true);}
+-                globeMode=true;globe.gameObject.SetActive(true);map.gameObject.SetActive(false);if(routeLine)routeLine.gameObject.SetActive(false);
+-                var volume=viewCamera.GetComponent<OrbisAtmosphereRenderer>();if(volume)volume.enabled=true;globe.SunAngle=sunSlider.value;
+-                SetStatus("只读摄影模式：文明时钟已暂停。拖动环绕、滚轮接近、滑块调整阳光；M 返回 2D。");
+-            }
+-            else
+-            {
+-                globeMode=false;globe.gameObject.SetActive(false);map.gameObject.SetActive(true);if(routeLine)routeLine.gameObject.SetActive(true);
+-                var volume=viewCamera.GetComponent<OrbisAtmosphereRenderer>();if(volume)volume.enabled=false;UpdateMapCamera();SetStatus("已返回 2D 权威模拟地图。");
+-            }
+-            UpdateHUD();
++            if(World==null||Busy||!navigation)return;
++            navigation.Toggle(CalendarDay);UpdateHUD();SetStatus("同一地表网格展开 / 收拢。过渡期间可反向滚轮；进入二维后才允许编辑。Space 独立暂停模拟。");
+         }
+         void DestroyGlobe()
+         {
+-            if(globe){globe.gameObject.SetActive(false);Destroy(globe.gameObject);globe=null;}
+-            if(viewCamera){var volume=viewCamera.GetComponent<OrbisAtmosphereRenderer>();if(volume){volume.enabled=false;Destroy(volume);}}
++            if(!globe)return;
++            var oldView=globe.View;
++            if(viewCamera)foreach(var volume in viewCamera.GetComponents<OrbisAtmosphereRenderer>())if(volume.view==oldView){volume.enabled=false;Destroy(volume);}
++            globe.gameObject.SetActive(false);Destroy(globe.gameObject);globe=null;
+         }
+         void Home()
+-        {
+-            if(World==null)return;
+-            if(globeMode&&globe){globe.Distance=3.1f;globe.Pitch=18;globe.Yaw=0;return;}
+-            float side=Screen.width*(316f/1440f),available=Mathf.Min((Screen.width-side-50)/World.Width,(Screen.height-150f*Screen.height/900)/World.Height);
+-            pixelsPerTile=1;while(pixelsPerTile*2<=available&&pixelsPerTile<64)pixelsPerTile*=2;
+-            pan=new Vector2(World.Width*.5f-side/(2*pixelsPerTile),World.Height*.5f);UpdateMapCamera();
+-        }
++        {if(World!=null&&navigation)navigation.Home(CalendarDay);}
+         void Focus()
+-        {
+-            if(World==null||selected<0)return;
+-            if(globeMode&&globe){float lon=((selected%World.Width+.5f)/World.Width-.5f)*360;globe.Yaw=lon+180;globe.Pitch=-World.Latitude(selected);globe.Distance=1.6f;}
+-            else{pixelsPerTile=16;pan=new Vector2(selected%World.Width+.5f-10,selected/World.Width+.5f);UpdateMapCamera();}
+-        }
++        {if(World!=null&&navigation&&selected>=0)navigation.Focus(selected,CalendarDay);}
+         void Save()
+-        {if(World==null||Busy)return;FlatSave.WriteAtomic(SavePath,World);SetStatus("已保存完整 2D 世界及 12 个月气候；前一份存档保留 .bak："+SavePath);}
++        {
++            if(World==null||Busy)return;solarClock.Flush(simulationStep);FlatSave.WriteAtomic(SavePath,World);
++            SetStatus("已保存世界与连续日历相位；前一份存档保留 .bak："+SavePath);
++        }
+         void Load() {string path=SavePath;Queue(c=>{c.ThrowIfCancellationRequested();return FlatSave.Read(path);},"校验并载入 2D 世界存档…");}
+         void Import()
+         {if(Busy)return;string path=HeightPath,seed=seedField.value.Trim();Queue(c=>FlatRasterIO.Import(path,seed,c),"从灰度高度图导入新世界（黑 −4000m / 白 4000m）…",true);}
+         IEnumerator Capture()
+         {
+             string path=Path.Combine(Application.persistentDataPath,"ORBIS_"+(globeMode?"globe":"2D")+"_"+DateTime.Now.ToString("yyyyMMdd_HHmmss")+".png");
+-            root.style.visibility=Visibility.Hidden;yield return null;yield return new WaitForEndOfFrame();
++            screenshotMode=true;root.style.visibility=Visibility.Hidden;yield return null;yield return new WaitForEndOfFrame();
+             string failure=null;try{ScreenCapture.CaptureScreenshot(path,1);}catch(Exception e){failure=e.Message;}
+-            yield return null;root.style.visibility=Visibility.Visible;SetStatus(failure==null?"截图请求已提交："+path:"截图失败："+failure);
+-        }
++            yield return null;screenshotMode=false;root.style.visibility=Visibility.Visible;UpdateMapCamera();SetStatus(failure==null?"截图请求已提交："+path:"截图失败："+failure);
++        }
++        readonly int[] zoneCounts=new int[WorldData.MaxNations];
++        readonly StringBuilder nationText=new StringBuilder(512);
+         void UpdateHUD()
+         {
+             if(World==null)return;
+-            stats.text="第 "+((int)(World.Day/360)+1)+" 年 / "+(World.Month+1)+" 月    "+World.Width+" × "+World.Height+" Tiles    "+World.ZoneCount.ToString("N0")+" Zones    人口 "+Simulation.TotalPopulation().ToString("N0")+(globeMode?"    摄影：模拟暂停":"    2D 权威模拟");
+-            modeButton.text=globeMode?"M  返回 2D 模拟":"M  星球摄影";pauseButton.text=paused?"继续":"暂停";speedButton.text=speed+"×";
+-            var text=new StringBuilder();for(int c=0;c<World.Nations.Count;c++){var n=World.Nations[c];int zones=0;for(int z=0;z<World.ZoneCount;z++)if(World.ZoneOwner[z]==c)zones++;text.Append(c==activeNation?"● ":"○ ").Append(n.Name).Append(" · ").Append(zones).Append("区 · 粮 ").Append(n.Food.ToString("N0")).Append('\n');}nations.text=text.ToString();
++            stats.text="第 "+((int)(CalendarDay/360)+1)+" 年 / "+(World.Month+1)+" 月 · "+((int)(FlatSolarClock.Phase(CalendarDay)*24)).ToString("00")+":"+((int)(FlatSolarClock.Phase(CalendarDay)*1440)%60).ToString("00")+"    "+World.Width+" × "+World.Height+" Tiles    "+World.ZoneCount.ToString("N0")+" Zones    人口 "+Simulation.TotalPopulation().ToString("N0")+("    "+navigation.ModeName+(paused?" · 已暂停":" · 同一世界时钟"));
++            modeButton.text=globeMode?"M  展开总览":"M  返回星球";pauseButton.text=paused?"继续":"暂停";speedButton.text=speed+"×";
++            Array.Clear(zoneCounts,0,zoneCounts.Length);for(int z=0;z<World.ZoneCount;z++){int ownerId=World.ZoneOwner[z];if(ownerId>=0)zoneCounts[ownerId]++;}
++            var text=nationText;text.Clear();for(int c=0;c<World.Nations.Count;c++){var n=World.Nations[c];int zones=zoneCounts[c];text.Append(c==activeNation?"● ":"○ ").Append(n.Name).Append(" · ").Append(zones).Append("区 · 粮 ").Append(n.Food.ToString("N0")).Append('\n');}nations.text=text.ToString();
+             skyStatus.text=map.Sky.Status+(globeMode&&globe.View.UsingSurfaceFallback?"\n警告：球体当前为简化 fallback，需检查 Shader。":"");
+             legend.text=FlatPalette.Legend(map.Layer);waterStatus.text=globeMode?"摄影模式不运行局部 SWE。":map.LocalWater.Status;
+             if(selected<0){info.text="点击地图选择一个 Tile。\n\n每个 Zone = 4×4 = 16 个真实 Tile。\n海拔、生物群系、水体、气候与归属分别存储。";return;}
+@@ -391,7 +367,7 @@
+         {switch(w){case WaterKind.DeepOcean:return "深海";case WaterKind.MiddleOcean:return "中海";case WaterKind.ShallowOcean:return "浅海";case WaterKind.Lake:return "淡水湖";case WaterKind.River:return "淡水河流";default:return "陆地";}}
+         void OnDestroy()
+         {
+-            CancelPending();if(font)Destroy(font);if(panel)Destroy(panel);if(routeMaterial)Destroy(routeMaterial);
++            CancelPending();if(font)Destroy(font);if(panel)Destroy(panel);
+         }
+     }
+ }
+--- base/Assets/ORBIS/Runtime/OrbisPlanetView.cs
++++ merged/Assets/ORBIS/Runtime/OrbisPlanetView.cs
+@@ -46,7 +46,7 @@
+         public OrbisRiverNetwork Rivers {get;private set;} = new OrbisRiverNetwork();
+         float[] vertexWet,vertexDepth,vertexHeight;
+         OrbisBillboardActors actors;
+-        public void Initialize(OrbisWorld w,Camera camera,Texture2D buildingSprite=null,Texture2D personSprite=null)
++        public void Initialize(OrbisWorld w,Camera camera,Texture2D buildingSprite=null,Texture2D personSprite=null,bool volumeOnly=false)
+         {
+             world=w;viewCamera=camera;SurfaceSampler=new OrbisSphericalSampler(w.grid);
+             SyncNightLighting(w.SunLocal,w.day);
+@@ -79,10 +79,13 @@
+             cloudMesh.vertices=cloudVertices;cloudMesh.triangles=sphere.triangles;cloudMesh.RecalculateBounds();
+             var exempt=new MaterialPropertyBlock();exempt.SetFloat("_PatchLayer",2);
+             riverObject.GetComponent<Renderer>().SetPropertyBlock(exempt);tileObject.GetComponent<Renderer>().SetPropertyBlock(exempt);
++            if(!volumeOnly)
++            {
+             actors=gameObject.AddComponent<OrbisBillboardActors>();actors.buildingTexture=buildingSprite;actors.personTexture=personSprite;actors.Initialize(this);
+             LocalSurface=gameObject.AddComponent<OrbisSurfaceLOD>();LocalSurface.Initialize(this);
++            }
+             var volume=camera.gameObject.AddComponent<OrbisAtmosphereRenderer>();volume.view=this;
+-            BuildSurfaceTopology();Weather=new OrbisWeatherField(world.grid);shadowCache=new OrbisCloudShadowCache();Weather.Bind(cloudMaterial);Weather.Bind(surfaceMaterial);RebuildGeometry();UpdateWeather();
++            if(!volumeOnly)BuildSurfaceTopology();Weather=new OrbisWeatherField(world.grid);shadowCache=new OrbisCloudShadowCache();Weather.Bind(cloudMaterial);Weather.Bind(surfaceMaterial);if(!volumeOnly)RebuildGeometry();UpdateWeather();
+         }
+         GameObject CreateMeshObject(string name,Material material,out Mesh mesh){var o=new GameObject(name,typeof(MeshFilter),typeof(MeshRenderer));o.transform.SetParent(transform,false);mesh=new Mesh{name="ORBIS "+name,indexFormat=IndexFormat.UInt32};mesh.MarkDynamic();o.GetComponent<MeshFilter>().sharedMesh=mesh;o.GetComponent<MeshRenderer>().sharedMaterial=material;o.GetComponent<MeshRenderer>().shadowCastingMode=ShadowCastingMode.On;return o;}
+         void BuildSurfaceTopology()

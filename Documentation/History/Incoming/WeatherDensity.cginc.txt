@@ -1,0 +1,37 @@
+#ifndef ORBIS_WEATHER_DENSITY
+#define ORBIS_WEATHER_DENSITY
+sampler2D _Weather,_WindField,_DriftField;
+sampler3D _NoiseVolume;
+float _Cover,_Density,_DriftTime,_Clouds;
+float2 WeatherUV(float3 p)
+{
+    p=normalize(p);
+    return float2(atan2(p.x,p.z)/6.283185307+.5,asin(clamp(p.y,-1,1))/3.141592654+.5);
+}
+float CloudDensity(float3 p)
+{
+    float radius=length(p);
+    if(_Clouds<.5||radius<1.083||radius>1.145)return 0;
+    float2 uv=WeatherUV(p);
+    float4 weather=tex2Dlod(_Weather,float4(uv,0,0));
+    float humidity=saturate(weather.g),temperature=weather.b*120-60;
+    float convection=smoothstep(4,30,temperature)*humidity;
+    float baseHeight=1.085+(1-humidity)*.008;
+    float thickness=lerp(.018,.052,saturate(convection*.7+weather.a*.6));
+    float height=(radius-baseHeight)/thickness;
+    if(height<=0||height>=1)return 0;
+    float profile=smoothstep(0,.18,height)*(1-smoothstep(.55,1,height));
+    float3 velocity=tex2Dlod(_WindField,float4(uv,0,0)).xyz;
+    float3 advect=tex2Dlod(_DriftField,float4(uv,0,0)).xyz+velocity*(_DriftTime*.011);
+    // Integrated local wind replaces an unrelated global scrolling direction.
+    float3 q=(p-advect)*7;
+    float4 shape=tex3Dlod(_NoiseVolume,float4(q,0));
+    float erosion=tex3Dlod(_NoiseVolume,float4(q*2.71+velocity*height*.015,0)).b;
+    float coverage=saturate(weather.r*_Cover);
+    float body=shape.r*.7+shape.g*.3;
+    float threshold=lerp(.84,.25,coverage);
+    float density=saturate((body-threshold)/max(.12,1-threshold));
+    density=saturate(density-(1-erosion)*lerp(.12,.32,height)*(1-density));
+    return density*profile*_Density*lerp(.75,1.3,weather.a);
+}
+#endif

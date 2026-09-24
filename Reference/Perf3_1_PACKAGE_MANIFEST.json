@@ -1,0 +1,14 @@
+{
+  "release": "TerrainPerf3.1_WaterClimate",
+  "date_local": "2026-09-12",
+  "timezone": "Asia/Taipei",
+  "unity": "6000.0.47f1",
+  "pipeline": "Built-in",
+  "base_archive": "ORBIS_TerrainPerf3_2DWorld_Zone4x4_Full.zip",
+  "source_candidate": true,
+  "native_unity_validation": "NOT_RUN",
+  "main_scene": "Assets/ORBIS/Scenes/Orbis2DWorld.unity",
+  "readme": "README_TerrainPerf3_1_先读.md",
+  "current_reports": "Validation/WaterClimate/RELEASE_VALIDATION.json",
+  "historical_reports": "All previous report names refer to their respective earlier versions, not this upgrade."
+}

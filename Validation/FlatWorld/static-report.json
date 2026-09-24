@@ -1,0 +1,19 @@
+{
+  "utc": "2026-09-11T18:42:32.345488+00:00",
+  "scope": "C#/shader lexical structure, XML parse, literal resource references, GUID/build-scene consistency. No C# semantic compilation, Unity import, shader backend, Play Mode, image or FPS test was run.",
+  "status": "PASS",
+  "counts": {
+    ".cs": 83,
+    ".shader": 15,
+    ".cginc": 13,
+    ".hlsl": 0,
+    ".uss": 2,
+    "ui_named_elements": 87,
+    "ui_bound_elements": 63,
+    "core_cs_files": 16,
+    "meta_guids": 141
+  },
+  "issues": [],
+  "warnings": [],
+  "unity_editor_executed": false
+}

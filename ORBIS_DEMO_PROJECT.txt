@@ -1,0 +1,3 @@
+ORBIS V3 MERGED — source integration build
+Unity 6000.0.47f1 / Built-in / desktop
+See README_V3_合併與操作.md for verification boundaries.

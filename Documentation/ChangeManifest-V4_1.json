@@ -1,0 +1,243 @@
+{
+  "schema": "ORBIS_V4_1_SOURCE_CHANGE_MANIFEST",
+  "baseline_zip": "ORBIS_Unity_V4_Rivers_Regions_SystemFonts.zip",
+  "baseline_sha256": "92c4d1a53a6e9c12a35244e8df8f0d507aa9fc619c54240c048a6b9c244e377c",
+  "original_files": 169,
+  "original_files_deleted": 0,
+  "original_meta_GUIDs_preserved": true,
+  "scene_and_primary_assets_unchanged": true,
+  "modified_existing_files": 21,
+  "added_files_excluding_this_manifest": 17,
+  "native_validation": "NOT_RUN",
+  "offline_validation": "17 groups passed, 0 failed; independent references and source lint only",
+  "files": [
+    {
+      "path": "Assets/ORBIS/Editor/OrbisCloudNoiseImport.cs",
+      "old_sha256": null,
+      "new_sha256": "3d98b0fe64d23787f651b36555bfda774b854edaba1e69bb97ebff3112153675",
+      "bytes": 4699
+    },
+    {
+      "path": "Assets/ORBIS/Editor/OrbisCloudNoiseImport.cs.meta",
+      "old_sha256": null,
+      "new_sha256": "6449e8d751fb90989986ad5a0abc3cffd6c340e4984b40971832613d32c1e7ca",
+      "bytes": 243
+    },
+    {
+      "path": "Assets/ORBIS/Editor/OrbisV41Validation.cs",
+      "old_sha256": null,
+      "new_sha256": "a0874a83a5168b82ca69e80adf8657454455fe7cc230f8dfadf717197775718c",
+      "bytes": 3636
+    },
+    {
+      "path": "Assets/ORBIS/Editor/OrbisV41Validation.cs.meta",
+      "old_sha256": null,
+      "new_sha256": "054edc85d63e91f984b389c11645749d377a454dfec95a3afe99403cc0e88ec1",
+      "bytes": 243
+    },
+    {
+      "path": "Assets/ORBIS/Resources/ORBIS/AtmosphereComposite.shader",
+      "old_sha256": "6c050e3179835f96c57ea6cd2ad9f2e6b6ac29be60be1d8b289fa182f63e29ba",
+      "new_sha256": "18876873311ea2e5456d04608bc0e34934704b6f7045df95ad0cfca4b1f00dc9",
+      "bytes": 1467
+    },
+    {
+      "path": "Assets/ORBIS/Resources/ORBIS/CloudShadowCache.shader",
+      "old_sha256": null,
+      "new_sha256": "4804b02dd568da38c11b477aa43a74503b5640331fe3ac26529982bff78ac4de",
+      "bytes": 1391
+    },
+    {
+      "path": "Assets/ORBIS/Resources/ORBIS/CloudShadowCache.shader.meta",
+      "old_sha256": null,
+      "new_sha256": "15f3f590262c337572814b1f748ec432de991b0b3b2c95489be8954f460475d0",
+      "bytes": 230
+    },
+    {
+      "path": "Assets/ORBIS/Resources/ORBIS/Clouds.shader",
+      "old_sha256": "b47041738373d1f9aed2f6a9c2f6512e6e5ff3a57f9b56acab33a0e6d0fb0b86",
+      "new_sha256": "c579dac47fb8d95c277a1a2a569f96bb7dbdad36beed5dca94daa1d1ed4369f1",
+      "bytes": 1152
+    },
+    {
+      "path": "Assets/ORBIS/Resources/ORBIS/Display.shader",
+      "old_sha256": null,
+      "new_sha256": "f5ccaf9e692e710d22c1b7769c5358379036643408a68f2f4ccf8090b4e250b6",
+      "bytes": 551
+    },
+    {
+      "path": "Assets/ORBIS/Resources/ORBIS/Display.shader.meta",
+      "old_sha256": null,
+      "new_sha256": "e5df53d77e348f7ea1298b7ddefef7f45c35774bd62c256fbbd89eea92f48eb8",
+      "bytes": 230
+    },
+    {
+      "path": "Assets/ORBIS/Resources/ORBIS/Orbis.uxml",
+      "old_sha256": "5851912863dda65a224cda2dd0a78a6cdb491554448a302bc0d5deefcec6c136",
+      "new_sha256": "8b956b1bc5383294df826e4c2db643340876ffdd69c285a4812e35f9e3ec4c65",
+      "bytes": 10859
+    },
+    {
+      "path": "Assets/ORBIS/Resources/ORBIS/OrbisAtmosphereCommon.cginc",
+      "old_sha256": "f2acab4f4085c3a323ce1cbbf86102795393b2dbf423e573e6aecec9fc266e03",
+      "new_sha256": "328f74fcfbae0dcf0fba8d2923de5bdc8895da6e8bb565644769b95a465017db",
+      "bytes": 7080
+    },
+    {
+      "path": "Assets/ORBIS/Resources/ORBIS/OrbisCloudCommon.cginc",
+      "old_sha256": "1f37e61922921dbdcb1d254f0577a998601414305d815baa574642c6d2f08c63",
+      "new_sha256": "3ae2dab49ac8eac1b6d4a9fa546f82c28d2f9badc3a1c0d24b7803c0304d3d24",
+      "bytes": 4616
+    },
+    {
+      "path": "Assets/ORBIS/Resources/ORBIS/OrbisOptics.cginc",
+      "old_sha256": null,
+      "new_sha256": "887482bf0eb0634b214cd43e2f17e0234f62479e681f4b2a8f3cc250093dd7a2",
+      "bytes": 1868
+    },
+    {
+      "path": "Assets/ORBIS/Resources/ORBIS/OrbisOptics.cginc.meta",
+      "old_sha256": null,
+      "new_sha256": "9517aa32fa071818b9d41e096b6acd3baab0fffcfe2c39e07aed76bc21e91e4b",
+      "bytes": 161
+    },
+    {
+      "path": "Assets/ORBIS/Resources/ORBIS/OrbisWater.cginc",
+      "old_sha256": "23f6a0de5511517a207ce5d8d90c6d9f6d34f533b5e7c2997165c26ffc2005e1",
+      "new_sha256": "95faad43083222bdcd3db9ae29f975761449a53e5d913ee3910046209d4c822e",
+      "bytes": 5648
+    },
+    {
+      "path": "Assets/ORBIS/Resources/ORBIS/Overlay.shader",
+      "old_sha256": "4b88d89c8b818cfe892a022cff6db8d218df1bee283616c5dfbec7e9c543625d",
+      "new_sha256": "fd6ddd48e7af60c818a9645c6cd2f074f2d5e4e022be60af849925801be900ba",
+      "bytes": 544
+    },
+    {
+      "path": "Assets/ORBIS/Resources/ORBIS/RiverWater.shader",
+      "old_sha256": "18cd4fda3d1f8b835b32465f280e0f63d20f1b2fbe1f08ee310c5987c98f0df0",
+      "new_sha256": "dbbf103d9442b62964362dfd64fde8166368a801e8efb13af1f6e23cea519550",
+      "bytes": 2052
+    },
+    {
+      "path": "Assets/ORBIS/Resources/ORBIS/Selection.shader",
+      "old_sha256": "cbc6ab7b65df88b17888d5776bc3227d5dda242e8c56b0a753440a34414ddac2",
+      "new_sha256": "5e7c790f0ad210f1a76fdc06b082d2da0093e116b1b784e1756ca7ebea05f837",
+      "bytes": 861
+    },
+    {
+      "path": "Assets/ORBIS/Resources/ORBIS/Surface.shader",
+      "old_sha256": "ee2afac70fd388231de55d8c49a3dc4d55a25a9b8340d890e30c910803f1c4c8",
+      "new_sha256": "8a44bc8d8a576fc101764546865696b76acc3d34a00e1e0195ece340f3554e14",
+      "bytes": 6324
+    },
+    {
+      "path": "Assets/ORBIS/Resources/ORBIS/Transport.shader",
+      "old_sha256": "7fe7e5eecd7a5399495326e1f3111b355080056d7e8bec594769225ea0049afa",
+      "new_sha256": "03804ae87d6ca2420415ac4d0184a2ea67d75da5d127952a6d2c6a26e17cd933",
+      "bytes": 558
+    },
+    {
+      "path": "Assets/ORBIS/Runtime/OrbisAtmosphereRenderer.cs",
+      "old_sha256": "b75eae975da9c87977f46b01f21de0a10404179516e2bf10e17a92604902a81b",
+      "new_sha256": "f23d66efe46da6db2fb38ae53394d8b4b8fd867abaa4dbb3f1146008931661f5",
+      "bytes": 8301
+    },
+    {
+      "path": "Assets/ORBIS/Runtime/OrbisCloudShadowCache.cs",
+      "old_sha256": null,
+      "new_sha256": "089bca014b38c03e5ea55ba4e9165502b13abbd001893fb26a82b6869a8a6564",
+      "bytes": 4906
+    },
+    {
+      "path": "Assets/ORBIS/Runtime/OrbisCloudShadowCache.cs.meta",
+      "old_sha256": null,
+      "new_sha256": "f72b56f647d26c9579ec6852ad588ccfe16f516d5c2e0f711a6aeccfaf5e5790",
+      "bytes": 243
+    },
+    {
+      "path": "Assets/ORBIS/Runtime/OrbisDemo.cs",
+      "old_sha256": "77477fd43694cac33eb8e24822b3f422a2b03e8a5679ed736f42192169406d1f",
+      "new_sha256": "ae53fa39a61541c6bb98f61a91da4cd66bdc3a867202744c91cf7bef0b8a07d6",
+      "bytes": 22006
+    },
+    {
+      "path": "Assets/ORBIS/Runtime/OrbisHud.cs",
+      "old_sha256": "c3ec02f750e039c5759aed1aa6b17385357af0dd78838f9c568a8b3af2e3deee",
+      "new_sha256": "1826a5cdaeb31ff6e5aa6e08d0f692b25173a4f14a5fc553b405eb171d926cd3",
+      "bytes": 22901
+    },
+    {
+      "path": "Assets/ORBIS/Runtime/OrbisMapView.cs",
+      "old_sha256": "22bf3ec7aa867c5e040fd03bcde09bd27f9bb5fcd53f8beaa50eb104a9e055bd",
+      "new_sha256": "9282182348d71492b4dbc7c292236cbe8087ddebbc53979cae75a26d555dd4e5",
+      "bytes": 5695
+    },
+    {
+      "path": "Assets/ORBIS/Runtime/OrbisPlanetView.cs",
+      "old_sha256": "5a68649cc353d2bed5b3ac91d83e3ec6f2a34a0cf1f133a7c109a16a201d1874",
+      "new_sha256": "273b451b176c1c1c4b49a0e817d2cbd431969b16411c0abc2d3a7cc3ca0b61d4",
+      "bytes": 22865
+    },
+    {
+      "path": "Assets/ORBIS/Runtime/OrbisSaveMigration.cs",
+      "old_sha256": "aa5b46c1159927fc93febe07dcbddc8d3c25cea680744b44836c9711510474d4",
+      "new_sha256": "c0bf6d77f7068db55071f44eed0ab8618735b2c37cf1dca9c3cd4c81552726d9",
+      "bytes": 4261
+    },
+    {
+      "path": "Assets/ORBIS/Runtime/OrbisTransportView.cs",
+      "old_sha256": "110aaed148edd8b6472a4cfed9248fdb799662302ed3912c3ebd8052d567f274",
+      "new_sha256": "fe0d71febcc48d4a39fd8f294d133272343e2e29ec1e6ec198acd301d8eff4ed",
+      "bytes": 8109
+    },
+    {
+      "path": "Assets/ORBIS/Runtime/OrbisWeatherField.cs",
+      "old_sha256": "1dec8253eb132f162c0dcac79c8fd1f51dd039732ca95ba0de8f54b917c76999",
+      "new_sha256": "8b0d5a77eb1293b80652b7a0b0e8b57106d37ffdadda608d49c53786a3a67100",
+      "bytes": 4428
+    },
+    {
+      "path": "Assets/ORBIS/Runtime/OrbisWorld.cs",
+      "old_sha256": "27fbb9643ed4ddc05c9315d23b175a6447eecc0d3fefdaf657fa1564366146cd",
+      "new_sha256": "7e857da4a170256a97e931cceb32bde27aa8b1edfaa99d1088ccecd589eaa721",
+      "bytes": 28917
+    },
+    {
+      "path": "Documentation/Diffs/V4-to-V4_1.diff",
+      "old_sha256": null,
+      "new_sha256": "eba2fd77f19ee101b198958eec822b36037a9644374dd49c82dcea96f36ee1b5",
+      "bytes": 67671
+    },
+    {
+      "path": "Documentation/Reference-Audit-V4_1.json",
+      "old_sha256": null,
+      "new_sha256": "fda3bf91a920171e228d9e3a731e2de68f9f9bb171f61ca91b76b7d0712c3fd9",
+      "bytes": 1869
+    },
+    {
+      "path": "Documentation/ThirdPartyNotices.md",
+      "old_sha256": "bcbaf67773cd8de623dad6da5a6e56ccad294f3bb96875d1bcfd217b8662bcc3",
+      "new_sha256": "a912d55b5a21610a44926ed7e5808da37b39f75f21dbc7d2629543f9151cf5f2",
+      "bytes": 8772
+    },
+    {
+      "path": "Documentation/Validation-V4_1.json",
+      "old_sha256": null,
+      "new_sha256": "92dfd91d269218eda6898404c689926a9c2f7fc2fd8e24556ed148bfc7b10fc3",
+      "bytes": 6514
+    },
+    {
+      "path": "README_V4_1_先读.md",
+      "old_sha256": null,
+      "new_sha256": "63c56d00bb57c07124127500682d88b82419899f84d1e67c204c114ec584ebf4",
+      "bytes": 11171
+    },
+    {
+      "path": "Validation/validate_v41.py",
+      "old_sha256": null,
+      "new_sha256": "b0fcd968dd1f98cb6d54380d9b92d32f380f275c4a043cef23a6289d40eb49ec",
+      "bytes": 9986
+    }
+  ]
+}

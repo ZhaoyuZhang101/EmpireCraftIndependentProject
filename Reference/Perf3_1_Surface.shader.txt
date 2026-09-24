@@ -1,0 +1,206 @@
+Shader "ORBIS/Surface"
+{
+ Properties { [HideInInspector] _FlatWorldReady("2D authoritative source",Float)=0 [HideInInspector] _FlatPolitical("2D political tint",Float)=0 _Tint("Tint",Color)=(1,1,1,1) _Weather("Weather",2D)="black"{} _TerrainAtlas("Generated biome albedo",2D)="white"{} }
+ SubShader
+ {
+  Tags { "RenderType"="Opaque" "Queue"="Geometry" }
+  Pass
+  {
+   Tags { "LightMode"="ShadowCaster" }
+   ZWrite On Cull Off
+   CGPROGRAM
+   #pragma vertex depthVert
+   #pragma fragment depthFrag
+   #pragma target 3.5
+   #pragma multi_compile_shadowcaster
+   #include "UnityCG.cginc"
+   #include "OrbisPatch.cginc"
+   struct depthOutput { V2F_SHADOW_CASTER; float3 local:TEXCOORD1; };
+   depthOutput depthVert(appdata_base v) { depthOutput o; TRANSFER_SHADOW_CASTER_NORMALOFFSET(o) o.local=mul(_WorldToPlanet,mul(unity_ObjectToWorld,v.vertex)).xyz;return o; }
+   float4 depthFrag(depthOutput i):SV_Target { OrbisPatchClip(i.local,i.pos.xy); SHADOW_CASTER_FRAGMENT(i) }
+   ENDCG
+  }
+  Pass
+  {
+   Tags { "LightMode"="ForwardBase" }
+   Cull Off
+   CGPROGRAM
+   #pragma vertex vert
+   #pragma fragment frag
+   #pragma target 3.5
+   #include "UnityCG.cginc"
+   #include "OrbisOptics.cginc"
+   #include "OrbisWater.cginc"
+   // Stay within D3D11 sampler limits: photography has no local SWE texture.
+   #define ORBIS_FLAT_NO_SWE
+   #include "FlatWorld/Water/FlatWater.cginc"
+   #include "OrbisPatch.cginc"
+   sampler2D _FlatTerrain,_FlatOwners,_FlatInfo;float _FlatWorldReady,_FlatPolitical;float4 _FlatSize;
+   sampler2D _TerrainAtlas;float4 _Tint;float3 _Sun;float _Clock,_CloudShadow,_Natural,_SurfaceDetail,_Settlement,_TerrainAtlasReady,_RainPhase;
+   struct appdata {float3 geo:TEXCOORD0;float4 vertex:POSITION;float3 normal:NORMAL;float4 color:COLOR;float4 climate:TEXCOORD1;float4 waterData:TEXCOORD2;float3 flow:TEXCOORD3;};
+   struct v2f {float4 pos:SV_POSITION;float3 local:TEXCOORD0;float3 normal:TEXCOORD1;float3 view:TEXCOORD2;float4 color:COLOR;float4 climate:TEXCOORD3;float4 waterData:TEXCOORD4;float3 flow:TEXCOORD5;};
+   v2f vert(appdata v)
+   {
+    v2f o;o.pos=UnityObjectToClipPos(v.vertex);
+    o.local=_Map>.5?v.geo:mul(_WorldToPlanet,mul(unity_ObjectToWorld,v.vertex)).xyz;
+    o.normal=_Map>.5?normalize(v.normal):normalize(mul((float3x3)_WorldToPlanet,UnityObjectToWorldNormal(v.normal)));
+    o.view=_Map>.5?normalize(v.geo):mul(_WorldToPlanet,float4(_WorldSpaceCameraPos,1)).xyz-o.local;
+    o.color=v.color;o.climate=v.climate;o.waterData=v.waterData;o.flow=v.flow;return o;
+   }
+   float hash(float3 p){return frac(sin(dot(p,float3(127.1,311.7,74.7)))*43758.5453);}
+   float2 atlasUV(float2 p,float2 quadrant)
+   {
+    // Mirrored repetition makes the generated swatch continuous at every wrap.
+    // A small inset avoids sampling the neighboring biome in the atlas.
+    float2 q=1-abs(frac(p*.5)*2-1);return quadrant*.5+.006+q*.488;
+   }
+   float3 atlasSample(float2 p,float2 quadrant,float2 dx,float2 dy)
+   {
+    float2 mirrorSign=1-2*step(.5,frac(p*.5));
+    return OrbisTextureAlbedo(tex2Dgrad(_TerrainAtlas,atlasUV(p,quadrant),dx*mirrorSign*.488,dy*mirrorSign*.488).rgb);
+   }
+   float3 triTexture(float3 p,float3 n,float2 quadrant,float3 dx,float3 dy)
+   {
+    float3 blend=pow(abs(n),4);blend/=max(.001,blend.x+blend.y+blend.z);
+    return atlasSample(p.yz,quadrant,dx.yz,dy.yz)*blend.x+atlasSample(p.xz,quadrant,dx.xz,dy.xz)*blend.y+atlasSample(p.xy,quadrant,dx.xy,dy.xy)*blend.z;
+   }
+   float4 frag(v2f i):SV_Target
+   {
+    OrbisPatchClip(i.local,i.pos.xy);
+    float3 radial=normalize(i.local),n=normalize(i.normal),sun=normalize(_Sun),v=normalize(i.view);
+    // Palette colors are authored in sRGB. A valid black is NOT a missing value.
+    float4 base=i.color;base.rgb=GammaToLinearSpace(max(0,base.rgb))*_Tint.rgb;
+    if(dot(n,radial)<0)n=-n;
+    float water=smoothstep(.45,.9,base.a);
+    float4 waterSurfaceData=i.waterData;
+    float4 flatOwner=0,flatInfo=0,flatHydro=0,flatMixing=0,flatGeo=0;float flatBorder=0;float2 flatUV=0;
+    if(_FlatWorldReady>.5)
+    {
+     float2 worldUV=float2(atan2(radial.x,radial.z)/6.2831853+.5,asin(clamp(radial.y,-1,1))/3.14159265+.5);
+     float4 source=tex2D(_FlatTerrain,worldUV);flatOwner=tex2D(_FlatOwners,worldUV);flatInfo=tex2D(_FlatInfo,worldUV)*255;
+     flatUV=worldUV;float2 tileUV=(floor(worldUV*_FlatSize.xy)+.5)*_FlatSize.zw;
+     flatHydro=tex2D(_HydroA,tileUV);flatMixing=tex2D(_HydroB,tileUV);flatGeo=tex2D(_GeoTex,tileUV);
+     float flatEdgeDistance;float flatAA=clamp(max(fwidth(worldUV.x*_FlatSize.x),fwidth(worldUV.y*_FlatSize.y))*.65,.022,.18);
+     water=FlatWaterMask(worldUV*_FlatSize.xy,tileUV,flatHydro,flatMixing,flatAA,flatEdgeDistance);
+     float4 smoothMix=tex2D(_HydroB,worldUV);flatMixing.gb=smoothMix.gb;
+     base.rgb=OrbisTextureAlbedo(source.rgb);base.a=water;
+     float flatBank=(1-water)*(1-smoothstep(0,.20+flatAA,flatEdgeDistance))*_ShowBanks;
+     float3 bankColor=FlatMaterialColor(flatGeo.g);
+     bankColor=lerp(bankColor,float3(.76,.66,.44),step(-1.6,smoothMix.r)*step(flatGeo.g,.5));
+     base.rgb=lerp(base.rgb,bankColor,flatBank*.78);
+     float level=flatInfo.r,kind=floor(flatInfo.g+.5),kg=floor(flatInfo.a+.5);
+     i.climate.x=(kg>=4&&kg<=7)?.12:.65;i.climate.y=kg==30?1:0;i.climate.z=saturate((level-12)/8);i.climate.w=1;
+     waterSurfaceData.z=kind>=4?1:0;if(kind>=4)waterSurfaceData.x=kind==5?.3:max(.3,waterSurfaceData.x);
+     float4 e=tex2D(_FlatOwners,worldUV+float2(_FlatSize.z,0)),nOwner=tex2D(_FlatOwners,worldUV+float2(0,_FlatSize.w));
+     float2 f=frac(worldUV*_FlatSize.xy);float2 edgeWidth=min(.25,max(.018,fwidth(worldUV*_FlatSize.xy)));
+     flatBorder=max(step(.002,abs(flatOwner.a-e.a))*step(1-edgeWidth.x,f.x),step(.002,abs(flatOwner.a-nOwner.a))*step(1-edgeWidth.y,f.y));
+    }
+    if(_FlatWorldReady<.5 && _Natural>.5 && i.climate.w>.5)
+    {
+     // Do not threshold interpolated binary wet vertex colors: that rounds off cells.
+     // .w carries continuous signed sea elevation; .z distinguishes elevated lakes.
+     float shoreAA=max(0.00002,fwidth(i.waterData.w)*.65);
+     float ocean=1-smoothstep(-shoreAA,shoreAA,i.waterData.w);
+     float lake=water*saturate(i.waterData.z*2);
+     water=max(ocean,lake);
+     if(i.waterData.z<.001)waterSurfaceData.x=max(.05,-i.waterData.w*160);
+    }
+    float3 dpdx=ddx(i.local),dpdy=ddy(i.local);
+    float3 opticalPosition=lerp(i.local,OrbisWaterOpticalPosition(i.local),water);
+    float shadow=1;
+    if(_CloudShadow>.5)shadow=lerp(1.0,OrbisCloudShadow(opticalPosition,sun),_ShadowStrength);
+    // Fully wet pixels formerly ran the complete land/puddle/night model AND water optics.
+    // Keep debug paths and blended shores; avoid duplicate atmosphere work on open water.
+    [branch] if(_FlatWorldReady<.5 && water>=.999 && _Natural>.5 && _SurfaceDebug==0)
+        return float4(OrbisShadeWater(opticalPosition,n,v,sun,waterSurfaceData,i.flow,shadow,1-_Night),1);
+    if(_SurfaceDebug==1)return float4(base.rgb,1);
+    if(_FlatWorldReady<.5 && _Natural>.5 && _TerrainAtlasReady>.5 && i.climate.w>.5 && water<.99)
+    {
+     float3 p=i.local*96,dx=dpdx*96,dy=dpdy*96;
+     float3 grass=triTexture(p,n,float2(0,1),dx,dy),sand=triTexture(p,n,float2(1,1),dx,dy);
+     float3 rock=triTexture(p,n,float2(0,0),dx,dy),snow=triTexture(p,n,float2(1,0),dx,dy);
+     float dry=1-smoothstep(.22,.6,i.climate.x);float steep=saturate((1-dot(n,radial))*3);float rocky=max(i.climate.z,steep);
+     float shoreH=max(0,i.waterData.w);
+     float beach=(1-smoothstep(.002,.022,shoreH))*(1-smoothstep(.12,.55,steep))*(1-i.climate.y);
+     // Beaches depend on sea elevation, slope and snow, not latitude or tile ownership.
+     float3 material=lerp(lerp(lerp(grass,sand,max(dry,beach)),rock,rocky*(1-beach)),snow,i.climate.y);
+     material*=lerp(1.0,.70,beach*(1-smoothstep(.001,.007,shoreH)));
+     // Preserve biome tint while retaining the generated texture's local grain.
+     float luminance=max(.08,dot(material,float3(.2126,.7152,.0722)));
+     float3 tinted=base.rgb*lerp(.72,1.35,saturate(luminance));
+     float3 micro=triTexture(p*4.0,n,float2(0,0),dx*4,dy*4);
+     float microLuma=dot(micro,float3(.2126,.7152,.0722));
+     float details=saturate(_SurfaceDetail*.5);
+     base.rgb=lerp(base.rgb,lerp(tinted,material,.62),1-water)*lerp(1.0,.78+microLuma*.55,details);
+     // Analytic, derivative-filtered micro-normal modulation in planet space, never tile UV space.
+     float3 q=i.local*1200.0;float footprint=max(length(ddx(q)),length(ddy(q)));
+     float filter=1-smoothstep(.8,2.7,footprint);
+     float3 microSlope=float3(cos(q.x)*sin(q.z),cos(q.y)*sin(q.x),cos(q.z)*sin(q.y));
+     microSlope-=radial*dot(microSlope,radial);n=normalize(n+microSlope*filter*details*.035);
+    }
+    float light=max(0,dot(n,sun));
+    float2 uv=float2(atan2(radial.x,radial.z)/6.2831853+.5,asin(radial.y)/3.14159265+.5);
+    float3 sunT=AirSunTransmittance(i.local+radial*.0002,sun);
+    float nightTau=OrbisNightWeight(i.local,sun)>1e-5?OrbisNightColumnTau(i.local):0;
+    float3 moonT=OrbisMoonIncident(i.local+radial*.0002,sun,nightTau);
+    float moonLight=max(0,dot(n,_OrbisMoon.xyz));
+    float3 indirect=OrbisSurfaceSkyFill(i.local,n,sun,nightTau);
+    float3 illumination=indirect+light*sunT*shadow*max(.1,_SolarEnergy)*1.65+moonT*moonLight;
+    if(_Night<.5)illumination=max(illumination,float3(.65,.65,.65));
+    if(_Natural<.5)illumination=lerp(float3(.55,.55,.55),illumination,.45);
+    if(_SurfaceDebug==2)return float4(saturate(dot(n,sun)).xxx,1);
+    if(_SurfaceDebug==3)return float4(sunT,1);
+    if(_SurfaceDebug==4)return float4(shadow.xxx,1);
+    if(_SurfaceDebug==5)return float4(saturate(i.climate.y).xxx,1);
+    float4 weatherFX=tex2Dlod(_WeatherEffects,float4(uv,0,0));
+    float wet=saturate(weatherFX.g)*_WetSurfaces*(1-water)*_Natural;
+    // Soil gets darker immediately; drying is owned by the water budget, not shader time.
+    base.rgb*=lerp(1.0,.60,wet);
+    illumination+=OrbisLightningLight(i.local)*2.0;
+    float3 color=base.rgb*illumination;
+    float3 halfVector=normalize(sun+v);
+    float wetFresnel=.025+.975*pow(1-saturate(dot(n,v)),5);
+    float wetSpec=pow(saturate(dot(n,halfVector)),lerp(35.0,180.0,wet));
+    float flatness=saturate((dot(n,radial)-.82)/.18);
+    float puddle=wet*wet*flatness;
+    float3 moonHalf=normalize(_OrbisMoon.xyz+v+radial*1e-6);
+    float moonWetSpec=pow(saturate(dot(n,moonHalf)),lerp(35.0,180.0,wet));
+    color+=wet*(wetSpec*sunT*light*shadow*1.8+moonWetSpec*moonT*moonLight*1.8+indirect*wetFresnel*.7);
+    // Small procedural puddle/ripple highlight; not a separate reservoir of water.
+    float2 rippleUV=i.local.xz*2400;
+    float2 cell=floor(rippleUV),ripplePoint=frac(rippleUV)-.5;
+    float age=frac(_RainPhase+hash(float3(cell,0)));
+    float ripple=exp(-abs(length(ripplePoint)-age*.65)*85)*(1-age);
+    color+=puddle*weatherFX.r*ripple*(sunT*light*shadow+moonT*moonLight+indirect)*.09;
+    float grain=hash(floor(i.local*3200));float grainFilter=1-smoothstep(.5,2.0,max(length(ddx(i.local*3200)),length(ddy(i.local*3200))));color*=lerp(1.0,lerp(.94,1.06,grain),grainFilter*(1-water));
+    float fresnel=pow(1-max(0,dot(n,v)),4);float spec=pow(max(0,dot(n,normalize(sun+v))),95);
+    color+=water*(spec*light*sunT*shadow*.7+indirect*fresnel);
+    if(water>.001 && _Natural>.5)
+    {
+     if(_FlatWorldReady>.5)
+     {
+      float3 eastTangent=normalize(float3(radial.z,0,-radial.x)+float3(1e-6,0,0));
+      float3 northTangent=normalize(cross(radial,eastTangent));
+      float3 localView=normalize(float3(dot(v,eastTangent),dot(v,northTangent),max(.02,dot(v,radial))));
+      float3 localLight=float3(dot(sun,eastTangent),dot(sun,northTangent),dot(sun,radial));
+      float3 flatWater=FlatWaterShade(flatUV*_FlatSize.xy,flatHydro,flatMixing,FlatMaterialColor(flatGeo.g)*.68,illumination,localView,localLight,_WaveAmount);
+      color=lerp(color,flatWater,water*_ShowWater);
+     }
+     else color=lerp(color,OrbisShadeWater(opticalPosition,normalize(i.normal),v,sun,waterSurfaceData,i.flow,shadow,1-_Night),water);
+    }
+    // Gameplay grid is stable Zone geometry, never patch-relative shader coordinates.
+    color+=_Settlement*_Night*(1-smoothstep(-.15,.1,dot(radial,sun)))*float3(.9,.38,.09);
+    if(_FlatWorldReady>.5)
+    {
+     float strength=(_FlatPolitical>.5?.68:.13)*step(.001,flatOwner.a);
+     float3 polity=OrbisTextureAlbedo(flatOwner.rgb)*max(illumination,float3(.12,.12,.12));
+     color=lerp(color,polity,strength);color=lerp(color,polity*1.2,flatBorder*step(.001,flatOwner.a)*.85*step(.5,_FlatPolitical));
+     float settlement=1-step(.5,abs(flatInfo.b-1));
+     color+=settlement*_Night*(1-smoothstep(-.15,.1,dot(radial,sun)))*float3(.75,.29,.07);
+    }
+    return float4(max(0,color),1);
+   }
+   ENDCG
+  }
+ }
+}

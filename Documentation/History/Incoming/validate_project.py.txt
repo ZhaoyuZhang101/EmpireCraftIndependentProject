@@ -1,0 +1,114 @@
+"""Offline structural/numerical checks. This does NOT replace Unity compilation or Play Mode."""
+from pathlib import Path
+import collections,hashlib,json,math,re,xml.etree.ElementTree as ET
+import numpy as np
+from fontTools.ttLib import TTFont
+from PIL import Image
+from tree_sitter import Language,Parser
+import tree_sitter_c_sharp
+ROOT=Path(__file__).resolve().parents[1]
+report={}
+files=list((ROOT/'Assets').rglob('*.cs'))
+parser=Parser(Language(tree_sitter_c_sharp.language()))
+errors=[str(p.relative_to(ROOT)) for p in files if parser.parse(p.read_bytes()).root_node.has_error]
+assert not errors,errors
+report['csharp_syntax']={'files':len(files),'errors':errors,'scope':'Tree-sitter syntax only; not C# type checking or Unity compilation.'}
+ux=ET.parse(ROOT/'Assets/ORBIS/Resources/ORBIS/Orbis.uxml')
+ids=[n.attrib['name'] for n in ux.iter() if 'name' in n.attrib]
+assert len(ids)==len(set(ids))
+hud=(ROOT/'Assets/ORBIS/Runtime/OrbisHud.cs').read_text()
+refs=set(re.findall(r'(?:Bind|Q(?:<[^>]+>)?)\("([^"+]+)"',hud))-{'layer','tool'}
+assert not refs-set(ids),refs-set(ids)
+for stem,count in [('layer',13),('tool',6)]:assert all(f'{stem}{i}' in ids for i in range(count))
+report['ui_bindings']={'ids':len(ids),'missing':0,'xml':'valid','layers':13,'tools':6}
+font_path=ROOT/'Assets/ORBIS/Resources/ORBIS/NotoSansCJKtc-Regular.otf'
+font=TTFont(font_path);coverage=set(font.getBestCmap());characters=set()
+for p in (ROOT/'Assets').rglob('*'):
+ if p.suffix in ('.cs','.uxml','.uss'):characters.update(c for c in p.read_text() if 0x2e80<=ord(c)<=0x9fff)
+missing=[c for c in characters if ord(c) not in coverage]
+assert not missing,missing
+report['traditional_chinese_font']={'file_bytes':font_path.stat().st_size,'characters_checked':len(characters),'missing':missing,'sha256':hashlib.sha256(font_path.read_bytes()).hexdigest()}
+assert 'SIL OPEN FONT LICENSE' in (ROOT/'Documentation/Noto-License.txt').read_text()
+resource_dir=ROOT/'Assets/ORBIS/Resources'
+for p in files:
+ for relative in re.findall(r'Resources.Load<[^>]+>\("([^"]+)"\)',p.read_text()):
+  assert list((resource_dir/relative).parent.glob((resource_dir/relative).name+'.*')),(p,relative)
+noise=resource_dir/'ORBIS/CloudNoise.bytes';assert noise.stat().st_size==64**3*4
+assert Image.open(resource_dir/'ORBIS/TerrainAtlas.png').size==(1254,1254)
+report['resources']={'direct_load_references':'resolved','terrain_atlas':[1254,1254],'noise_bytes':noise.stat().st_size}
+# Canonical cube corners / dual sphere / exact barycentric seam keys.
+N=24;points=[];corners=[];lookup={};corner_tiles=[];adj=[];edge_owner={}
+for normal in [(1,0,0),(-1,0,0),(0,1,0),(0,-1,0),(0,0,1),(0,0,-1)]:
+ normal=np.array(normal);u=np.array((0,1,0) if normal[0] else (1,0,0));v=np.cross(normal,u)
+ for y in range(N):
+  for x in range(N):
+   tile=len(points);ids4=[];adj.append(set())
+   for dx,dy in [(0,0),(1,0),(1,1),(0,1)]:
+    key=tuple(normal*N+u*(2*(x+dx)-N)+v*(2*(y+dy)-N))
+    if key not in lookup:
+     q=np.array(key,dtype=float)/N;xx,yy,zz=q*q
+     p=q*np.sqrt([1-yy/2-zz/2+yy*zz/3,1-zz/2-xx/2+zz*xx/3,1-xx/2-yy/2+xx*yy/3]);p/=np.linalg.norm(p)
+     lookup[key]=len(corners);corners.append(p);corner_tiles.append([])
+    c=lookup[key];ids4.append(c);corner_tiles[c].append(tile)
+   center=np.sum([corners[c] for c in ids4],axis=0);points.append(center/np.linalg.norm(center))
+   for a,b in zip(ids4,ids4[1:]+ids4[:1]):
+    edge=tuple(sorted((a,b)))
+    if edge in edge_owner:
+     j=edge_owner[edge];adj[tile].add(j);adj[j].add(tile)
+    else:edge_owner[edge]=tile
+assert len(points)==3456 and len(corners)==3458 and len(edge_owner)==6912
+assert all(len(a)==4 for a in adj)
+seen={0};queue=collections.deque([0])
+while queue:
+ for j in adj[queue.popleft()]-seen:seen.add(j);queue.append(j)
+assert len(seen)==3456
+triangles=[]
+for p,ts in zip(corners,corner_tiles):
+ east=np.cross((1,0,0) if abs(p[1])>.9 else (0,1,0),p);east/=np.linalg.norm(east);north=np.cross(p,east)
+ ts.sort(key=lambda t:math.atan2(np.dot(points[t],north),np.dot(points[t],east)))
+ for k in range(1,len(ts)-1):triangles.append((ts[0],ts[k],ts[k+1]))
+assert len(triangles)==6908
+keys=set();vertices=0;detail=8
+for a,b,c in triangles:
+ for i in range(detail+1):
+  for j in range(detail-i+1):
+   w=(detail-i-j,i,j);nonzero=[(t,weight) for t,weight in zip((a,b,c),w) if weight]
+   if len(nonzero)==1:key=(nonzero[0][0],nonzero[0][0],0)
+   elif len(nonzero)==2:
+    nonzero.sort();key=(nonzero[0][0],nonzero[1][0],nonzero[1][1])
+   else:key=(-1,vertices,0)
+   keys.add(key);vertices+=1
+assert len(keys)==221058
+report['topology_and_weld_reference']={'tiles':3456,'neighbors':4,'shared_corners':3458,'connected':True,'dual_triangles':6908,'render_triangles':len(triangles)*detail**2,'stored_vertices':vertices,'welded_positions':len(keys),'scope':'Python mathematical reference, not Unity mesh execution.'}
+# World-space sun remains fixed as the surface rotates; pole/seasons remain finite.
+max_error=0
+for day in [0,80,170,260,350,360,720]:
+ for angle in [0,.0001,math.pi,2*math.pi-.0001,2*math.pi]:
+  decl=math.asin(math.sin(math.radians(23.4))*math.sin(2*math.pi*(day%360-80)/360))
+  sun=np.array([math.sin(-angle)*math.cos(decl),math.sin(decl),math.cos(-angle)*math.cos(decl)])
+  rotated=np.array([sun[0]*math.cos(angle)+sun[2]*math.sin(angle),sun[1],-sun[0]*math.sin(angle)+sun[2]*math.cos(angle)])
+  max_error=max(max_error,float(np.linalg.norm(rotated-np.array([0,math.sin(decl),math.cos(decl)]))))
+assert max_error<1e-12
+# Wavelength-dependent sunlight attenuation becomes redder toward the horizon.
+beta=np.array([2.8,6.8,16.5])
+zenith=np.exp(-beta*.026/1.035);horizon=np.exp(-beta*.026/.035)
+assert horizon[0]>horizon[1]>horizon[2] and all(horizon<zenith)
+report['solar_reference']={'world_frame_max_error':max_error,'red_sunset_transmission_order':True,'scope':'Numerical equations, not rendered pixels.'}
+# Include and delimiter sanity only; full shader semantics are checked by the shipped Editor menu.
+for p in (ROOT/'Assets').rglob('*.shader'):
+ s=p.read_text();assert s.count('{')==s.count('}'),p
+ for include in re.findall(r'#include "([^"]+)"',s):
+  if include!='UnityCG.cginc':assert (p.parent/include).exists(),include
+report['shader_static']={'includes':'resolved','delimiters':'balanced','compilation':'NOT RUN'}
+guids={}
+for p in (ROOT/'Assets').rglob('*'):
+ if p.suffix=='.meta':continue
+ meta=Path(str(p)+'.meta');assert meta.exists(),f'Missing metadata: {p}'
+ guid=re.search(r'^guid: (\w+)',meta.read_text(),re.M).group(1)
+ assert guid not in guids,(p,guids.get(guid));guids[guid]=str(p)
+for guid in re.findall(r'guid: ([0-9a-f]{32})',(ROOT/'Assets/ORBIS/Scenes/OrbisDemo.unity').read_text()):assert guid in guids
+report['metadata']={'unique_guids':len(guids),'missing':0}
+report['not_run']=['Unity Editor import and C# compiler','Unity shader compiler, Play Mode and GPU rendering','Windows player build','Editor simulation/save/load/route tests','Performance/frame-time measurements']
+report['date']='2026-09-10'
+(ROOT/'Documentation/Validation-Results.json').write_text(json.dumps(report,ensure_ascii=False,indent=2)+'\n')
+print(json.dumps(report,ensure_ascii=False,indent=2))

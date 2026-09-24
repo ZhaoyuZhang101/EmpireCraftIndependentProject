@@ -1,0 +1,93 @@
+{
+  "method": "mechanically translated C# equation bodies executed as C++17; NOT Unity/C#/HLSL compilation",
+  "source_sha256": "95b21debe96dedcb40b67b4bd34f82a7491dbdb41d740e8927cf4e905758c083",
+  "resolution": 24,
+  "steps_per_run": 200,
+  "topology": {
+    "cells": 3456,
+    "edges": 6912,
+    "area_sum": 12.566370614359174,
+    "area_error": 1.7763568394002505e-15
+  },
+  "checks": {
+    "sphere_area_4pi": true,
+    "transport_conserves_water": true,
+    "macro_cloud_mass_moves": true,
+    "height_dependent_advection": true,
+    "water_budget_with_surface_and_runoff": true,
+    "water_positive": true,
+    "temperature_finite_bounded": true,
+    "natural_cloud_birth": true,
+    "natural_cloud_dissipation": true,
+    "natural_rain_and_wet_ground": true,
+    "microphysics_conserves_water": true,
+    "wet_film_drains_without_water_loss": true
+  },
+  "data": {
+    "tracer": {
+      "relative_error": -6.351655026588985e-14,
+      "low_displacement_rad": 0.8985146985479069,
+      "high_displacement_rad": 1.555829408859045
+    },
+    "natural": [
+      {
+        "step": 200,
+        "budget_relative": -1.01826197221147e-13,
+        "min_water": 0,
+        "max_water": 14.02384792440606,
+        "min_T_K": 180.672302757969,
+        "max_T_K": 301.7193659392768,
+        "max_rain_mm_h": 0.01934315661168908,
+        "max_wetness": 0.07755798582371454,
+        "max_CAPE": 6500,
+        "max_updraft_m_s": 7.838992808715735,
+        "max_top_m": 16000,
+        "max_ice_path": 0.1938636601233138,
+        "max_graupel_path": 0.09561112662223915,
+        "max_charge": 2.851761597966304,
+        "mature_cells": 0,
+        "cloudy_cells": 910,
+        "lightning_count": 0
+      }
+    ],
+    "natural_summary": {
+      "cloud_birth_cells": 904,
+      "cloud_dissipation_cells": 197,
+      "peak_rain_mm_h": 0.5523127119055734,
+      "peak_wetness": 0.1127074997671371
+    },
+    "perturbed": [
+      {
+        "step": 200,
+        "budget_relative": -1.021639292185637e-13,
+        "min_water": 0,
+        "max_water": 14.02384792440606,
+        "min_T_K": 180.6723027578942,
+        "max_T_K": 304.042623873876,
+        "max_rain_mm_h": 0.544561834848627,
+        "max_wetness": 0.07755798582352913,
+        "max_CAPE": 6500,
+        "max_updraft_m_s": 13.33244846472648,
+        "max_top_m": 16000,
+        "max_ice_path": 0.5268725688403367,
+        "max_graupel_path": 0.535937522457577,
+        "max_charge": 6.642103020416361,
+        "mature_cells": 26,
+        "cloudy_cells": 907,
+        "lightning_count": 26
+      }
+    ],
+    "microphysics": {
+      "relative_error": 0
+    },
+    "drying": {
+      "film_start_mm": 0.8,
+      "film_end_mm": 0.4476021657047178,
+      "relative_error": 1.68866589377152e-16
+    }
+  },
+  "unity_editor_import": "NOT_RUN",
+  "unity_shader_compilation": "NOT_RUN",
+  "visual_acceptance": "NOT_RUN",
+  "device_performance": "NOT_RUN"
+}

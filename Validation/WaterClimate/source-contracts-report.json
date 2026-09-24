@@ -1,0 +1,8 @@
+{
+  "utc": "2026-09-11T17:26:11.734206+00:00",
+  "scope": "Source contracts: reserved HLSL tokens, step arity, dynamic tabs, data/solver/optics wiring, baseline version. NOT C# or shader backend compilation.",
+  "checks": 193,
+  "status": "PASS",
+  "issues": [],
+  "unity_editor_executed": false
+}

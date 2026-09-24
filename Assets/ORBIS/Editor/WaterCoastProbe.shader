@@ -1,0 +1,24 @@
+Shader "Hidden/ORBIS/WaterCoastProbe"
+{
+ SubShader { Cull Off ZWrite Off ZTest Always Pass {
+ CGPROGRAM
+ #pragma target 3.0
+ #pragma vertex vert_img
+ #pragma fragment frag
+ #include "UnityCG.cginc"
+ #define ORBIS_FLAT_NO_SWE
+ #include "../Resources/ORBIS/FlatWorld/Water/FlatWater.cginc"
+ sampler2D _InfoTex;
+ float _ProbeMode;
+ float4 frag(v2f_img i):SV_Target
+ {
+  float2 cell=float2(i.uv.x<.5?182.9999:183.0001,150.7);
+  float kind=floor(tex2Dlod(_InfoTex,float4((floor(cell)+.5)*_MapSize.zw,0,0)).g*255+.5);
+  if(_ProbeMode>.5){float snow=FlatLandSnow(cell,_InfoTex);return float4(snow,snow,snow,1);}
+  kind=FlatAreaWaterKind(cell,_InfoTex,kind);
+  float3 c=FlatWaterShade(cell,float4(15,0,0,0),float4(0,0,0,0),float4(0,.18,15,0),float3(.3,.3,.2),float3(1,1,1),float3(0,0,1),normalize(float3(-.4,.5,.8)),1,kind);
+  return float4(c,1);
+ }
+ ENDCG
+ }}
+}

@@ -1,0 +1,8 @@
+{
+  "status": "PASS",
+  "assertions": 81181,
+  "scope": "Compile mechanically translated production coordinate bodies to C++; NOT a C# semantic build.",
+  "source_sha256": "ca0c8b135e9cb916ebcf30f87d08f5c117fb5057d7ffa0a5a38ffaad7aa03ab2",
+  "unity_executed": false,
+  "native_csharp_executed": false
+}

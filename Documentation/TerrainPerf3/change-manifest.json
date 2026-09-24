@@ -1,0 +1,189 @@
+{
+  "branch": "TerrainPerf3_2DWorld_Zone4x4",
+  "base_package": "ORBIS_Unity_V4_2_GreenRingFix_TerrainPerf2_Zone4x4_CivilizationFirst_Full.zip",
+  "base_zip_sha256": "def25be0208399bc7011cd935733867c0763d6ca6cf98f2991b5b7a85547e004",
+  "base_file_count": 320,
+  "unchanged_base_files": 299,
+  "modified": [
+    {
+      "path": "README.md",
+      "before": "65d1ddfcae8126cb8ad7893ed66bee9410221f09a012d2b456a32aed9cca3a12",
+      "after": "8f320bbc0bb02058bcc8b1a830595ba2809a41d55107a686c1211c5b480fb1f7"
+    },
+    {
+      "path": "Assets/ORBIS/Editor/OrbisDemoEditor.cs",
+      "before": "8b948a305451ce02a4e8af065586bf113f8844db7766e1a59afc59139eca8b0e",
+      "after": "efee46f74c5ff6e949b219d55461d1504d92947a942a1d374def12ec46875147"
+    },
+    {
+      "path": "Assets/ORBIS/Runtime/OrbisWorld.cs",
+      "before": "30659e7d8de8538e5047b3835d2988951cf44f8e324521efed031c7a094d47bd",
+      "after": "bc1cacd7e0b7b2bae8cff25b1fdcec6112850f8b5cf6e1133b0629d51cbddf50"
+    },
+    {
+      "path": "Assets/ORBIS/Runtime/V4/OrbisTerrainV4.cs",
+      "before": "9d70a1d957b01cf0e135d196231e1e94f12bf4a5efab8a1e778268d128247e35",
+      "after": "e70c7f7d5d02c570253d9bc4c95ef5c5308416af20a4a060c304120d0e71581d"
+    },
+    {
+      "path": "Assets/ORBIS/Resources/ORBIS/Surface.shader",
+      "before": "1f5b180d3d3821a5bc3f9d735e9d43bd7945cbab475c0b144ef802ee44cef01b",
+      "after": "051e17d859c4fa1ab49567e3ff9306fc9e88535bd4d71259ecbd2199016048a9"
+    }
+  ],
+  "deleted_noncache_files": [],
+  "renamed_identical_content": [
+    {
+      "from": "README_TerrainPerf1_σàêΦ»╗.md",
+      "to": "README_TerrainPerf1_先读.md",
+      "sha256": "8c33db47b2a9b59e21ffc93e9d88c07c9cb36567caf81a28d79dd54e2b4ecb19"
+    },
+    {
+      "from": "README_V4_1_1_╧â├á├¬╬ª┬╗Γòù.md",
+      "to": "README_V4_1_1_σàêΦ»╗.md",
+      "sha256": "6d82d55a3b22b06ad7119d227e4bb8eb3a1d0b1250584da128b58df1eb1d71d3"
+    },
+    {
+      "from": "README_V3_╧â├ë├¬╧âΓòúΓòó╬úΓòò├ä┬╡├┤├¼╬úΓò£┬ú.md",
+      "to": "README_V3_σÉêσ╣╢Σ╕ÄµôìΣ╜£.md",
+      "sha256": "5139eafbfed27ba20a503d1499bb7156dc9dd773c2059a1a2f2a4ae5353ab1b0"
+    },
+    {
+      "from": "README_V4_2_╧â├á├¬╬ª┬╗Γòù.md",
+      "to": "README_V4_2_σàêΦ»╗.md",
+      "sha256": "785239a6708f1f55054e4c3d296688acb9a8fdd8ba52f80b1b70cb38ad6b0907"
+    },
+    {
+      "from": "README_V4_2_REPAIR_╧â├á├¬╬ª┬╗Γòù.md",
+      "to": "README_V4_2_REPAIR_σàêΦ»╗.md",
+      "sha256": "04ffa989a42b7c2ff2003a954516da70665a2661c74ec79a97b6dffc0e864eaf"
+    },
+    {
+      "from": "README_V4_1_╧â├á├¬╬ª┬╗Γòù.md",
+      "to": "README_V4_1_σàêΦ»╗.md",
+      "sha256": "63c56d00bb57c07124127500682d88b82419899f84d1e67c204c114ec584ebf4"
+    },
+    {
+      "from": "README_V4_╬úΓò£ΓöÉ╧ä├╢┬┐╬úΓòò├ä╬ÿ┬¼├«┬╡├╢Γòó.md",
+      "to": "README_V4_Σ╜┐τö¿Σ╕ÄΘ¬îµö╢.md",
+      "sha256": "9c06fbcd1fa07a16da4e14c90ee5eec84eeda1e25028f85a4176e58ae5ede758"
+    },
+    {
+      "from": "README_V4_1_2_╧â├á├¬╬ª┬╗Γòù.md",
+      "to": "README_V4_1_2_σàêΦ»╗.md",
+      "sha256": "95bd646d71e65847c66a8e3fd3beb01070a3e3c66681aac455979d0128c695d1"
+    },
+    {
+      "from": "README_TerrainPerf2_σàêΦ»╗.md",
+      "to": "README_TerrainPerf2_先读.md",
+      "sha256": "cb9b83d6c81659fdc160ac47a025528d924c9d4c57217f1ecb3958e36b468981"
+    },
+    {
+      "from": "Preview/README_V4_2_┬╡├à├ë╧ä├▒Γòæ.md",
+      "to": "Preview/README_V4_2_µÅÉτñ║.md",
+      "sha256": "d54b1ac50da7279fd6ec402d25a1204446b3e557f3f0834ad61a9be0bfad1208"
+    },
+    {
+      "from": "Documentation/V4_2/╧ä├╢┬┐┬╡├¬Γòû┬╡├¿├ç┬╡┬ú┬╗╬ªΓòû┬╗╧äΓòæΓöÉ╧â├ä╞Æ┬╡├╗├º.md",
+      "to": "Documentation/V4_2/τö¿µê╖µèÇµ£»Φ╖»τ║┐σÄƒµûç.md",
+      "sha256": "ae436514faa66233408e655db04a8c3be2a174a18f4bbb9cafa175350ce2bf72"
+    },
+    {
+      "from": "Documentation/V4_2/╬ÿ┬¼├«┬╡├╢Γòó╬úΓòò├ä┬╡Γòí├»╬ª┬╗├▓┬╡├¿├æ╧â├ª├¿.md",
+      "to": "Documentation/V4_2/Θ¬îµö╢Σ╕Äµ╡ïΦ»òµèÑσæè.md",
+      "sha256": "e01c422aee56fbf99b74fa918ddd1b860449eb73732c0dacc16128393987bb9d"
+    },
+    {
+      "from": "Documentation/V4_2_Repair_IPCFix_NightLighting/╧â├▒┬ú╬úΓò¢┬║╧â├á├½╧ä├á┬║╬ª┬╗Γöñ┬╡├┐├ä.md",
+      "to": "Documentation/V4_2_Repair_IPCFix_NightLighting/σñ£Σ╛ºσàëτàºΦ»┤µÿÄ.md",
+      "sha256": "a0821b4e5bdf05a2a3264c4c45b8687b51d09bc691853de9dad795def727775b"
+    },
+    {
+      "from": "Documentation/History/Incoming/╧â┬╗┬¬┬╡ΓîÉ╞Æ╬ÿΓîÉ├╣┬╡├╢Γòó.md",
+      "to": "Documentation/History/Incoming/σ»ªµ⌐ƒΘ⌐ùµö╢.md",
+      "sha256": "8bddbec146eedcc47620f01862a2e87d71e1c2495084fcebc572c3be78f08d96"
+    },
+    {
+      "from": "Documentation/History/Incoming/README_╧äΓòú├╝╬ÿ┬╜├╢╬úΓòò┬í┬╡├╗├º.md",
+      "to": "Documentation/History/Incoming/README_τ╣üΘ½öΣ╕¡µûç.md",
+      "sha256": "bec167cf3986a975faf600b96f37e980a7be4b3ed6d44e5bf3057315469b8f9f"
+    }
+  ],
+  "omitted_generated_python_cache": [
+    "Validation/__pycache__/validate_v42.cpython-313.pyc"
+  ],
+  "new_files": [
+    "README_TerrainPerf3_先读.md",
+    "VERSION_TERRAIN_PERF3.txt",
+    "ProjectSettings/EditorBuildSettings.asset",
+    "Validation/FlatWorld/Program.cs",
+    "Validation/FlatWorld/classifier-cpp-report.json",
+    "Validation/FlatWorld/verify_classifier_cpp.py",
+    "Validation/FlatWorld/reference-world-report.json",
+    "Validation/FlatWorld/NuGet.Config",
+    "Validation/FlatWorld/koppen-fixtures.json",
+    "Validation/FlatWorld/static-report.json",
+    "Validation/FlatWorld/reference_world_check.py",
+    "Validation/FlatWorld/README.md",
+    "Validation/FlatWorld/FlatWorld.Core.Tests.csproj",
+    "Validation/FlatWorld/static_check.py",
+    "Assets/ORBIS/Editor/FlatWorldEditor.cs.meta",
+    "Assets/ORBIS/Editor/FlatWorldEditor.cs",
+    "Assets/ORBIS/Scenes/Orbis2DWorld.unity",
+    "Assets/ORBIS/Scenes/Orbis2DWorld.unity.meta",
+    "Assets/ORBIS/Runtime/FlatWorld.meta",
+    "Assets/ORBIS/Runtime/FlatWorld/Presentation.meta",
+    "Assets/ORBIS/Runtime/FlatWorld/Core.meta",
+    "Assets/ORBIS/Runtime/FlatWorld/Core/FlatGenerator.cs.meta",
+    "Assets/ORBIS/Runtime/FlatWorld/Core/FlatSave.cs",
+    "Assets/ORBIS/Runtime/FlatWorld/Core/FlatHydrology.cs",
+    "Assets/ORBIS/Runtime/FlatWorld/Core/FlatPathfinder.cs",
+    "Assets/ORBIS/Runtime/FlatWorld/Core/FlatSimulation.cs.meta",
+    "Assets/ORBIS/Runtime/FlatWorld/Core/FlatClimate.cs.meta",
+    "Assets/ORBIS/Runtime/FlatWorld/Core/FlatGenerator.cs",
+    "Assets/ORBIS/Runtime/FlatWorld/Core/FlatSelfTests.cs",
+    "Assets/ORBIS/Runtime/FlatWorld/Core/FlatTypes.cs.meta",
+    "Assets/ORBIS/Runtime/FlatWorld/Core/Orbis.Flat.Core.asmdef",
+    "Assets/ORBIS/Runtime/FlatWorld/Core/FlatTypes.cs",
+    "Assets/ORBIS/Runtime/FlatWorld/Core/FlatHydrology.cs.meta",
+    "Assets/ORBIS/Runtime/FlatWorld/Core/FlatPathfinder.cs.meta",
+    "Assets/ORBIS/Runtime/FlatWorld/Core/FlatClimate.cs",
+    "Assets/ORBIS/Runtime/FlatWorld/Core/FlatSelfTests.cs.meta",
+    "Assets/ORBIS/Runtime/FlatWorld/Core/KoppenClassifier.cs",
+    "Assets/ORBIS/Runtime/FlatWorld/Core/KoppenClassifier.cs.meta",
+    "Assets/ORBIS/Runtime/FlatWorld/Core/FlatSave.cs.meta",
+    "Assets/ORBIS/Runtime/FlatWorld/Core/Orbis.Flat.Core.asmdef.meta",
+    "Assets/ORBIS/Runtime/FlatWorld/Core/FlatSimulation.cs",
+    "Assets/ORBIS/Runtime/FlatWorld/Presentation/FlatGlobePresenter.cs",
+    "Assets/ORBIS/Runtime/FlatWorld/Presentation/FlatMapRenderer.cs",
+    "Assets/ORBIS/Runtime/FlatWorld/Presentation/OrbisFlatSnapshot.cs",
+    "Assets/ORBIS/Runtime/FlatWorld/Presentation/OrbisFlatSnapshot.cs.meta",
+    "Assets/ORBIS/Runtime/FlatWorld/Presentation/FlatPalette.cs.meta",
+    "Assets/ORBIS/Runtime/FlatWorld/Presentation/FlatRasterIO.cs",
+    "Assets/ORBIS/Runtime/FlatWorld/Presentation/FlatGlobePresenter.cs.meta",
+    "Assets/ORBIS/Runtime/FlatWorld/Presentation/FlatMapRenderer.cs.meta",
+    "Assets/ORBIS/Runtime/FlatWorld/Presentation/FlatRasterIO.cs.meta",
+    "Assets/ORBIS/Runtime/FlatWorld/Presentation/FlatWorldApp.cs",
+    "Assets/ORBIS/Runtime/FlatWorld/Presentation/FlatWorldApp.cs.meta",
+    "Assets/ORBIS/Runtime/FlatWorld/Presentation/FlatPalette.cs",
+    "Assets/ORBIS/Resources/ORBIS/FlatWorld.meta",
+    "Assets/ORBIS/Resources/ORBIS/FlatWorld/FlatMap.shader.meta",
+    "Assets/ORBIS/Resources/ORBIS/FlatWorld/Route.shader",
+    "Assets/ORBIS/Resources/ORBIS/FlatWorld/FlatWorld.uxml",
+    "Assets/ORBIS/Resources/ORBIS/FlatWorld/Route.shader.meta",
+    "Assets/ORBIS/Resources/ORBIS/FlatWorld/FlatWorld.uss.meta",
+    "Assets/ORBIS/Resources/ORBIS/FlatWorld/FlatWorld.uxml.meta",
+    "Assets/ORBIS/Resources/ORBIS/FlatWorld/FlatMap.shader",
+    "Assets/ORBIS/Resources/ORBIS/FlatWorld/FlatWorld.uss",
+    "Examples/FlatWorld/reference-continents-height16.png",
+    "Examples/FlatWorld/reference-water-terrain.png",
+    "Examples/FlatWorld/README.md",
+    "Documentation/TerrainPerf3/开源项目学习对照与来源.md",
+    "Documentation/TerrainPerf3/完整设计与实现.md",
+    "Documentation/TerrainPerf3/README_原基础包备份.md",
+    "Documentation/TerrainPerf3/baseline-files.json",
+    "Documentation/TerrainPerf3/源码审查与修复.md",
+    "Documentation/TerrainPerf3/验收与已知限制.md"
+  ],
+  "note": "File inventory generated before this manifest, delivery report, and checksums list themselves. No baseline non-cache content was deleted; legacy garbled document names were decoded during extraction, byte-identical renames are recorded; one obsolete Python cache is omitted. Historical reports do not validate this branch."
+}

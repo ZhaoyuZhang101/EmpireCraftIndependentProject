@@ -1,0 +1,1081 @@
+--- original-v4-2/Assets/ORBIS/Editor/OrbisCloudNoiseImport.cs
++++ repaired-v4-2/Assets/ORBIS/Editor/OrbisCloudNoiseImport.cs
+@@ -18,7 +18,7 @@
+             if(!match.Success||!int.TryParse(match.Value,out int n))throw new InvalidDataException("切片檔名需以編號排序："+path);
+             return n;
+         }
+-        [MenuItem("Tools/ORBIS/V4.1/匯入雲噪聲 PNG 切片")]
++        [MenuItem("Tools/ORBIS/V4.2/匯入雲噪聲 PNG 切片")]
+         public static void Import()
+         {
+             if(EditorApplication.isPlaying){EditorUtility.DisplayDialog("ORBIS","請先停止 Play，再匯入噪聲。","確定");return;}
+@@ -48,9 +48,9 @@
+                     Array.Copy(slice.GetPixels32(),0,voxels,z*width*height,width*height);
+                     UnityEngine.Object.DestroyImmediate(slice);slice=null;
+                 }
+-                volume=new Texture3D(width,height,files.Length,TextureFormat.RGBA32,false)
+-                    {name="CloudNoiseExternal",wrapMode=TextureWrapMode.Repeat,filterMode=FilterMode.Bilinear};
+-                volume.SetPixels32(voxels);volume.Apply(false,false);
++                volume=new Texture3D(width,height,files.Length,TextureFormat.RGBA32,true)
++                    {name="CloudNoiseExternal",wrapMode=TextureWrapMode.Repeat,filterMode=FilterMode.Trilinear};
++                volume.SetPixels32(voxels);volume.Apply(true,false);
+                 if(existing){EditorUtility.CopySerialized(volume,existing);EditorUtility.SetDirty(existing);UnityEngine.Object.DestroyImmediate(volume);volume=null;}
+                 else{AssetDatabase.CreateAsset(volume,AssetPath);volume=null;}
+                 AssetDatabase.SaveAssets();Selection.activeObject=AssetDatabase.LoadAssetAtPath<Texture3D>(AssetPath);
+--- original-v4-2/Assets/ORBIS/Resources/ORBIS/OrbisAtmosphereCommon.cginc
++++ repaired-v4-2/Assets/ORBIS/Resources/ORBIS/OrbisAtmosphereCommon.cginc
+@@ -67,6 +67,23 @@
+  return float2(direct,diffuse);
+ }
+ 
++// HPVolumeCloud-inspired reduced phi_fwd integral, not its HDRP implementation.
++// Reuse optical depth already traced in the shared shadow atlas. No density fetches
++// in this quadrature; direct scattering remains a separate directional term.
++float OrbisCachedPhi(float opticalDepth,float density)
++{
++ if(_CloudMS<.5)return 0;
++ float tau=clamp(opticalDepth,0,24),ds=tau/6,phi=0;
++ [loop] for(int i=0;i<6;i++)
++ {
++  float travel=(i+.5)*ds,entry=max(0,tau-travel);
++  float kernel=exp(-.05477*travel)/(1+travel);
++  phi+=kernel*exp(-.001*entry)*(1-exp(-.35*entry))*ds;
++ }
++ float thin=1-exp(-tau*1.2);
++ float boundary=smoothstep(.018,.16,density);
++ return min(.85,phi*.28)*thin*boundary;
++}
+ struct OrbisVolumeResult {float3 light;float3 transmission;float sceneDepth;};
+ float2 OrbisDepthUV(float2 uv)
+ {
+@@ -95,8 +112,14 @@
+   float3 source=OrbisGLSLSource(rho,phaseAir,sunT)*airShadow;
+   if(cloudDensity>.0005)
+   {
+-   float2 fields=LightField(p,sun);
+-   float directT=_OrbisShadowReady>.5?OrbisCloudShadow(p,sun):fields.x;
++   float2 fields;
++   if(_OrbisShadowReady>.5)
++   {
++    float cachedT=OrbisCloudShadow(p,sun);
++    fields=float2(cachedT,OrbisCachedPhi(-log(max(cachedT,1e-6)),cloudDensity));
++   }
++   else fields=LightField(p,sun);
++   float directT=fields.x;
+    float3 direct=directT*phaseCloud*.70*sunT;
+    float3 multiple=fields.y*_CloudMS*_ScatteringStrength*sunT;
+    float denseGate=smoothstep(.025,.18,cloudDensity);
+@@ -179,7 +202,7 @@
+  if(abs(p.x)>ORBIS_PI||abs(p.y)>ORBIS_PI*.5)return empty;
+  float lon=-p.x,lat=p.y;
+  float3 up=float3(sin(lon)*cos(lat),sin(lat),cos(lon)*cos(lat));
+- float ground=clamp(tex2Dlod(_GroundField,float4(OrbisWeatherUV(up),0,0)).r,1.0,ORBIS_CLOUD_BASE-.002);
++ float ground=clamp(tex2Dlod(_GroundField,float4(OrbisWeatherUV(up),0,0)).r,1.0,1.085);
+  return OrbisMarchRay(up*ORBIS_AIR_RADIUS,-up,ORBIS_AIR_RADIUS-ground,8);
+ }
+ float3 OrbisTone(float3 color){return OrbisDisplay(color);}
+--- original-v4-2/Assets/ORBIS/Resources/ORBIS/OrbisCloudCommon.cginc
++++ repaired-v4-2/Assets/ORBIS/Resources/ORBIS/OrbisCloudCommon.cginc
+@@ -36,10 +36,11 @@
+ }
+ float OrbisNoiseAtAge(float3 p,float3 velocity,float age)
+ {
+-    float3 q=(p-velocity*(age*.014))*3.0+float3(.13,.71,.37);
++    float3 back=normalize(p-velocity*(age*.014))*length(p);
++    float3 q=back*3.0+float3(.13,.71,.37);
+     float body=tex3Dlod(_CloudNoise,float4(q,0)).r;
+     float detail=tex3Dlod(_CloudNoise,float4(q*2.73,0)).g;
+-    return body-(1.0-detail)*.13;
++    return body-(1.0-detail)*.17;
+ }
+ // Non-uniform physical layer CENTRES, matching OrbisAtmosphereCore.Height.
+ float OrbisLayerIndex(float z)
+@@ -62,7 +63,7 @@
+  [loop] for(int i=0;i<4;i++)
+  {
+   float3 d=p-_OrbisLightning[i].xyz;
+-  flash+=_OrbisLightning[i].w*exp(-dot(d,d)/.0018);
++  flash+=_OrbisLightning[i].w*exp(-dot(d,d)/.00055);
+  }
+  return flash*float3(.60,.72,1.0);
+ }
+@@ -84,9 +85,15 @@
+  // Bounded two-phase detail flow: no ever-growing per-cell displacement or needles.
+  float shape=lerp(OrbisNoiseAtAge(p,wind,(pb-.5)*12.0),OrbisNoiseAtAge(p,wind,(pa-.5)*12.0),wa);
+  float wispy=saturate(state.g/max(.001,state.r+state.g));
+- float structure=smoothstep(.36-cover*.16,.67-cover*.23,shape);
++ // Lower-frequency advected structure interrupts continuous moist latitude bands.
++ float3 back=normalize(p-wind*((pa-.5)*12*.014))*length(p);
++ float3 backB=normalize(p-wind*((pb-.5)*12*.014))*length(p);
++ float macro=lerp(tex3Dlod(_CloudNoise,float4(backB*.72+float3(.7,.2,.4),0)).r,
++                  tex3Dlod(_CloudNoise,float4(back*.72+float3(.7,.2,.4),0)).r,wa);
++ float threshold=.50-cover*.15+(1-macro)*.10;
++ float structure=smoothstep(threshold,threshold+.19,shape);
+  float taper=smoothstep(0,150,z)*(1-smoothstep(14000,16000,z));
+- return physical*cover*lerp(.08,1.5,structure)*lerp(1,.62,wispy)*taper*_Density;
++ return physical*cover*structure*2.1*lerp(1,.62,wispy)*taper*_Density;
+ }
+ 
+ float OrbisCloudShadowDirect(float3 p,float3 sun)
+--- original-v4-2/Assets/ORBIS/Resources/ORBIS/OrbisOptics.cginc
++++ repaired-v4-2/Assets/ORBIS/Resources/ORBIS/OrbisOptics.cginc
+@@ -2,7 +2,7 @@
+ #define ORBIS_OPTICS
+ #include "UnityCG.cginc"
+ #include "OrbisCloudCommon.cginc"
+-#include "OrbisAtmosphereGLSL.cginc"
++#include "OrbisAtmosphereGLtracy.cginc"
+ float _Night,_Exposure;
+ float _GodRays,_ShadowStrength;
+ int _SurfaceDebug;
+@@ -17,7 +17,7 @@
+     // A very small night floor is for game readability, not a simulated moon.
+     float mu=dot(normalize(p),sun);
+     float day=smoothstep(-.12,.24,mu),dusk=exp(-pow((mu+.035)/.10,2.0));
+-    return float3(.0007,.0010,.0018)+day*float3(.038,.061,.095)+dusk*float3(.021,.008,.003);
++    return float3(.0007,.0010,.0018)+day*float3(.038,.061,.095)+dusk*float3(.009,.010,.014);
+ }
+ float3 OrbisTextureAlbedo(float3 c)
+ {
+--- original-v4-2/Assets/ORBIS/Resources/ORBIS/OrbisWater.cginc
++++ repaired-v4-2/Assets/ORBIS/Resources/ORBIS/OrbisWater.cginc
+@@ -36,64 +36,88 @@
+     gradient/=max(.001,weightSum);gradient-=up*dot(up,gradient);
+     return float4(gradient,sum/max(.001,weightSum));
+ }
++// HPWater reference principles (not HDRP GBuffer/RenderGraph code): separate
++// interface reflection, refracted path thickness and Beer absorption. This Built-in
++// variant uses the existing V4-2 bathymetry proxy, NOT screen-space ray-traced refraction.
+ float3 OrbisWaterSky(float3 direction,float3 up,float3 sun,float daylight)
+ {
+-    float horizon=pow(1-saturate(dot(direction,up)),3);
+-    float3 sky=lerp(float3(.08,.24,.43),float3(.47,.65,.75),horizon);
+-    float sunset=1-smoothstep(.02,.35,dot(up,sun));
+-    sky=lerp(sky,float3(.78,.31,.16),horizon*sunset*.6);
+-    float sunDisk=pow(saturate(dot(direction,sun)),650);
+-    // A broad reflected-cloud cue samples the SAME evolving coverage, not another noise.
++    float height=saturate(dot(direction,up));
++    float horizon=pow(1-height,3);
++    float3 sky=lerp(float3(.045,.16,.30),float3(.30,.43,.52),horizon);
+     float3 probe=normalize(up+direction*.20);
+     float cloud=saturate(tex2Dlod(_Weather,float4(OrbisWeatherUV(probe),0,0)).r*_Cover)*_Clouds;
+-    sky=lerp(sky,float3(.76,.80,.82),cloud*.4*saturate(dot(direction,up)));
+-    return sky*lerp(.015,1.0,daylight)+sunDisk*daylight*float3(1.8,1.45,.95);
++    sky=lerp(sky,float3(.50,.55,.60),cloud*.32*height);
++    float disk=pow(saturate(dot(direction,sun)),900);
++    float3 solar=AirSunTransmittance(up*1.001,sun);
++    // No hand-painted orange horizon; spectral attenuation owns sunset color.
++    return sky*lerp(.006,1,daylight)+disk*solar*1.5*daylight;
++}
++float OrbisWaterFresnel(float cosine)
++{
++    const float eta=1.333;
++    float ci=saturate(cosine),ct=sqrt(max(0,1-(1-ci*ci)/(eta*eta)));
++    float rs=(ci-eta*ct)/max(1e-5,ci+eta*ct);
++    float rp=(eta*ci-ct)/max(1e-5,eta*ci+ct);
++    return saturate(.5*(rs*rs+rp*rp));
+ }
+ float3 OrbisShadeWater(float3 p,float3 geometricNormal,float3 viewDir,float3 sun,
+                       float4 waterData,float3 flow,float shadow,float inspection)
+ {
+     float3 up=normalize(p);float river=saturate(waterData.y);
++    geometricNormal=normalize(geometricNormal+up*1e-7);
++    if(dot(geometricNormal,up)<0)geometricNormal=-geometricNormal;
++    float3 baseNormal=normalize(lerp(up,geometricNormal,river*.6));
+     float3 tangentFlow=flow-up*dot(up,flow);
+-    tangentFlow=dot(tangentFlow,tangentFlow)>1e-8?normalize(tangentFlow):float3(0,0,0);
++    tangentFlow*=rsqrt(max(1e-8,dot(tangentFlow,tangentFlow)));
+     float4 wave=_EnhancedWater>.5?OrbisWave(p,up,tangentFlow,river):float4(0,0,0,.5);
+-    // Two advected phases crossfade so long-running rivers never accumulate coordinates.
+-    float phase0=frac(_RiverPhase),phase1=frac(_RiverPhase+.5),blend=abs(phase0*2-1);
+-    float speed=max(.25,waterData.w),frequency=800.0;
+-    float3 q0=(p-tangentFlow*phase0*.08*speed)*frequency;
+-    float3 q1=(p-tangentFlow*phase1*.08*speed)*frequency;
++    float pa=frac(_RiverPhase),pb=frac(_RiverPhase+.5),blend=abs(pa*2-1);
++    float speed=max(.25,waterData.w),frequency=800;
++    float3 q0=(p-tangentFlow*pa*.08*speed)*frequency,q1=(p-tangentFlow*pb*.08*speed)*frequency;
+     float3 rip0=float3(cos(q0.x)*sin(q0.z),cos(q0.y)*sin(q0.x),cos(q0.z)*sin(q0.y));
+     float3 rip1=float3(cos(q1.x)*sin(q1.z),cos(q1.y)*sin(q1.x),cos(q1.z)*sin(q1.y));
+     float3 ripple=lerp(rip0,rip1,blend);ripple-=up*dot(up,ripple);
+-    float aa=1-smoothstep(.8,3.0,max(length(ddx(p*frequency)),length(ddy(p*frequency))));
+-    wave.xyz+=ripple*river*.45*aa*step(.5,_EnhancedWater);
+-    float3 normal=normalize(lerp(up,geometricNormal,river)-wave.xyz*_WaveStrength*lerp(.32,.14,river));
+-    float depth=max(.08,waterData.x);
+-    float nv=saturate(dot(normal,viewDir)),nl=saturate(dot(normal,sun));
+-    float daylight=smoothstep(-.08,.16,dot(up,sun));
+-    daylight=lerp(daylight,1.0,inspection*.65);
+-    float3 halfVector=normalize(sun+viewDir+float3(1e-6,0,0));
+-    float nh=saturate(dot(normal,halfVector)),vh=saturate(dot(viewDir,halfVector));
+-    float fresnel=.0204+.9796*pow(1-nv,5);
+-    float roughness=clamp(lerp(.24,.32,river)*_WaterRoughness,.09,.72),a2=pow(roughness,4);
+-    float distribution=a2/(ORBIS_PI*pow(max(.002,nh*nh*(a2-1)+1),2));
+-    float k=pow(roughness+1,2)*.125;
+-    float geometry=nv/(nv*(1-k)+k)*nl/(nl*(1-k)+k);
+-    float specF=.0204+.9796*pow(1-vh,5);
+-    float spec=distribution*geometry*specF/max(.025,4*nv*nl);
+-    float3 reflected=reflect(-viewDir,normal);
+-    float3 sky=OrbisWaterSky(reflected,up,sun,daylight);
+-    float3 deep=float3(.009,.062,.105),shallow=float3(.07,.42,.38);
+-    float3 transmission=exp(-depth*float3(.13,.055,.028));
+-    float3 waterColor=deep+(shallow-deep)*transmission;
+-    float3 solar=AirSunTransmittance(p+up*.0002,sun)*max(.1,_SolarEnergy);
+-    float3 lighting=OrbisSkyFill(p,sun)+solar*nl*shadow*1.4;
+-    lighting=lerp(lighting,max(lighting,float3(.45,.45,.45)),inspection);
+-    float3 color=waterColor*lighting*(1-fresnel)+sky*fresnel;
+-    color+=min(5.0,spec)*nl*shadow*solar*float3(1.0,.94,.85);
+-    float shore=(1-smoothstep(.12,2.2,depth))*(1-river);
++    float aa=1-smoothstep(.8,3,max(length(ddx(p*frequency)),length(ddy(p*frequency))));
++    wave.xyz+=ripple*river*.28*aa*step(.5,_EnhancedWater);
++    float3 slope=wave.xyz*clamp(_WaveStrength,0,2)*lerp(.19,.09,river);
++    slope-=baseNormal*dot(slope,baseNormal);
++    slope*=min(1,.45/max(1e-5,length(slope)));
++    // At grazing views, slopes may never invert the visible interface hemisphere.
++    float geometricNV=max(0,dot(baseNormal,viewDir));
++    slope*=smoothstep(.015,.28,geometricNV);
++    float3 n=normalize(baseNormal-slope);
++    float nv=max(.001,dot(n,viewDir)),nl=max(0,dot(n,sun));
++    float variance=dot(ddx(n),ddx(n))+dot(ddy(n),ddy(n));
++    float roughness=clamp(sqrt(pow(lerp(.20,.29,river)*_WaterRoughness,2)+min(.25,variance)*.35),.16,.72);
++    float a2=pow(roughness,4);
++    float3 h=normalize(sun+viewDir+up*1e-6);
++    float nh=saturate(dot(n,h)),vh=saturate(dot(viewDir,h));
++    float denominator=nh*nh*(a2-1)+1;
++    float distribution=a2/(ORBIS_PI*max(1e-6,denominator*denominator));
++    float ggxV=2*nv/(nv+sqrt(a2+(1-a2)*nv*nv));
++    float ggxL=2*nl/max(1e-5,nl+sqrt(a2+(1-a2)*nl*nl));
++    float F=OrbisWaterFresnel(nv),specF=OrbisWaterFresnel(vh);
++    float spec=distribution*ggxV*ggxL*specF/max(1e-4,4*nv*max(.001,nl));
++    float depth=max(0,waterData.x);
++    // Snell's law bounds optical path length even as the above-water view grazes.
++    float refractedCos=sqrt(max(.001,1-(1-geometricNV*geometricNV)/(1.333*1.333)));
++    float opticalLength=depth/refractedCos;
++    float3 transmission=exp(-min(60,opticalLength*float3(.16,.065,.032)));
++    float3 deep=float3(.006,.047,.079),bottom=lerp(float3(.12,.32,.27),float3(.105,.16,.115),river);
++    float3 waterColor=lerp(deep,bottom,transmission);
++    float3 solar=AirSunTransmittance(p+up*.0002,sun)*max(0,_SolarEnergy);
++    float daylight=smoothstep(-.06,.18,dot(up,sun));
++    daylight=lerp(daylight,1,inspection*.65);
++    float3 illumination=OrbisSkyFill(p,sun)+solar*max(0,dot(up,sun))*shadow*1.25;
++    illumination=lerp(illumination,max(illumination,float3(.40,.40,.40)),inspection);
++    float3 reflected=reflect(-viewDir,n);
++    // Prevent a shading-normal error from reflecting the lower hemisphere as sky.
++    reflected=normalize(reflected+up*max(0,.005-dot(reflected,up)));
++    float3 color=waterColor*illumination*(1-F)+OrbisWaterSky(reflected,up,sun,daylight)*F;
++    color+=spec*nl*shadow*solar;
++    float shore=(1-smoothstep(.06,1.6,depth))*(1-river);
+     float banks=river*pow(saturate(abs(waterData.z*2-1)),8);
+-    float foam=saturate((shore+banks*.7)*smoothstep(.38,.72,wave.w)*.65);
+-    color=lerp(color,float3(.68,.80,.77)*(OrbisSkyFill(p,sun)+solar*nl*shadow),foam);
+-    return max(0.0,color);
++    float foam=saturate((shore+banks*.5)*smoothstep(.42,.76,wave.w)*.5);
++    color=lerp(color,float3(.62,.70,.70)*(OrbisSkyFill(p,sun)+solar*nl*shadow),foam);
++    return max(0,color);
+ }
+ #endif
+--- original-v4-2/Assets/ORBIS/Resources/ORBIS/Surface.shader
++++ repaired-v4-2/Assets/ORBIS/Resources/ORBIS/Surface.shader
+@@ -32,7 +32,7 @@
+    #include "OrbisOptics.cginc"
+    #include "OrbisWater.cginc"
+    #include "OrbisPatch.cginc"
+-   sampler2D _TerrainAtlas;float4 _Tint;float3 _Sun;float _Clock,_CloudShadow,_Natural,_SurfaceDetail,_Settlement;
++   sampler2D _TerrainAtlas;float4 _Tint;float3 _Sun;float _Clock,_CloudShadow,_Natural,_SurfaceDetail,_Settlement,_TerrainAtlasReady,_RainPhase;
+    struct appdata {float3 geo:TEXCOORD0;float4 vertex:POSITION;float3 normal:NORMAL;float4 color:COLOR;float4 climate:TEXCOORD1;float4 waterData:TEXCOORD2;float3 flow:TEXCOORD3;};
+    struct v2f {float4 pos:SV_POSITION;float3 local:TEXCOORD0;float3 normal:TEXCOORD1;float3 view:TEXCOORD2;float4 color:COLOR;float4 climate:TEXCOORD3;float4 waterData:TEXCOORD4;float3 flow:TEXCOORD5;};
+    v2f vert(appdata v)
+@@ -64,7 +64,7 @@
+     if(dot(n,radial)<0)n=-n;
+     float water=smoothstep(.45,.9,base.a);
+     if(_SurfaceDebug==1)return float4(base.rgb,1);
+-    if(_Natural>.5 && i.climate.w>.5 && water<.99)
++    if(_Natural>.5 && _TerrainAtlasReady>.5 && i.climate.w>.5 && water<.99)
+     {
+      float3 p=i.local*38;float3 grass=triTexture(p,n,float2(0,1));float3 sand=triTexture(p,n,float2(1,1));float3 rock=triTexture(p,n,float2(0,0));float3 snow=triTexture(p,n,float2(1,0));
+      float dry=1-smoothstep(.22,.6,i.climate.x);float steep=saturate((1-dot(n,radial))*3);float rocky=max(i.climate.z,steep);
+@@ -81,8 +81,8 @@
+      float filter=1-smoothstep(.8,2.7,footprint);
+      float3 microSlope=float3(cos(q.x)*sin(q.z),cos(q.y)*sin(q.x),cos(q.z)*sin(q.y));
+      microSlope-=radial*dot(microSlope,radial);n=normalize(n+microSlope*filter*details*.035);
+-    }float wave=sin(i.local.x*230+_Clock*1.5)*sin(i.local.z*175-_Clock)*.045;
+-    n=normalize(n+float3(wave,0,wave*.7)*water);float light=max(0,dot(n,sun));
++    }
++    float light=max(0,dot(n,sun));
+     float2 uv=float2(atan2(radial.x,radial.z)/6.2831853+.5,asin(radial.y)/3.14159265+.5);
+     float shadow=1;
+     if(_CloudShadow>.5)shadow=lerp(1.0,OrbisCloudShadow(i.local,sun),_ShadowStrength);
+@@ -110,7 +110,7 @@
+     // Small procedural puddle/ripple highlight; not a separate reservoir of water.
+     float2 rippleUV=i.local.xz*2400;
+     float2 cell=floor(rippleUV),ripplePoint=frac(rippleUV)-.5;
+-    float age=frac(_Clock*.65+hash(float3(cell,0)));
++    float age=frac(_RainPhase+hash(float3(cell,0)));
+     float ripple=exp(-abs(length(ripplePoint)-age*.65)*85)*(1-age);
+     color+=puddle*weatherFX.r*ripple*(sunT*light*shadow+OrbisSkyFill(i.local,sun))*.09;
+     float grain=hash(floor(i.local*3200));float grainFilter=1-smoothstep(.5,2.0,max(length(ddx(i.local*3200)),length(ddy(i.local*3200))));color*=lerp(1.0,lerp(.94,1.06,grain),grainFilter*(1-water));
+--- original-v4-2/Assets/ORBIS/Runtime/OrbisAtmosphereProfile.cs
++++ repaired-v4-2/Assets/ORBIS/Runtime/OrbisAtmosphereProfile.cs
+@@ -2,37 +2,36 @@
+ using UnityEngine;
+ namespace Orbis
+ {
+-    /// <summary>Optical constants from the uploaded atmosphere.glsl, converted from metres
+-    /// to the existing ORBIS 1.0R planet / 1.20R atmosphere. This is an art-scaled atmosphere,
+-    /// NOT a 6371 km Earth. The extended terrain/cloud geometry is deliberately retained.</summary>
++    /// <summary>GLtracy density/phase model, art-scaled to the UNCHANGED V4-2 geometry.
++    /// Planet radius is 1; outer atmosphere is 1.20. Not a real-Earth SI calibration.</summary>
+     [Serializable]
+     public sealed class OrbisAtmosphereProfile
+     {
+-        public const float OuterRadius=1.20f;
+-        public const float CloudBase=1.0004f,CloudTop=1.190f;
+-        public const string SourceSHA256="708ea4a9141a7653ea0085d7f26ae09ca09bb14c88e339d63da74e16439300bd";
+-        [Tooltip("Reference 8 km Rayleigh height multiplier; 2 fits the exaggerated ORBIS terrain. Coefficients compensate to retain its vertical optical depth.")]
+-        [Range(1,3)] public float rayleighHeightStretch=2f;
+-        [Tooltip("Reference 1.2 km aerosol height multiplier; compensating beta preserves the reference vertical optical depth.")]
+-        [Range(1,5)] public float mieHeightStretch=3.3333333f;
+-        [Range(-.9f,.9f)] public float mieAnisotropy=.7f;
+-        [Tooltip("Air-source radiance: reference demo uses 40; 12 balances the existing ORBIS surface lighting and ACES display.")]
+-        [Range(1,60)] public float solarRadiance=12f;
+-        [Range(0,2)] public float ozoneStrength=1f;
+-        [Range(.1f,1.2f)] public float sunAngularRadiusDegrees=.53f;
+-        static readonly int[] LightBudget={12,16,20,24};
++        public const float OuterRadius=1.20f,CloudBase=1.0004f,CloudTop=1.190f;
++        public const string ActiveSource="USER_GLTRACY_V4_2_REPAIR";
++        public const string SourceSHA256="baa5c9136a8e37ff69f5a18f29a6254f2a63e81acb6dff577f30bfc0f40ad9ee";
++        [Range(1,3)]public float rayleighHeightStretch=2f;
++        [Range(1,5)]public float mieHeightStretch=3.3333333f;
++        [Range(-.9f,.9f)]public float mieAnisotropy=.78f;
++        [Range(1,60)]public float solarRadiance=10f;
++        [Tooltip("Legacy serialized field. The supplied GLtracy model has no ozone term.")]
++        [Range(0,2)]public float ozoneStrength=0;
++        [Range(.1f,1.2f)]public float sunAngularRadiusDegrees=.266f;
+         public void Bind(Material material,int quality)
+         {
+             if(!material)return;
+-            // 100 km reference column -> 0.20 R visual column. Beta has units 1/length.
+-            const float metresPerR=100000f/.20f;
+-            float r=Mathf.Clamp(rayleighHeightStretch,1,3),m=Mathf.Clamp(mieHeightStretch,1,5);
+-            material.SetVector("_AtmoBetaRayleigh",new Vector4(5.5e-6f*metresPerR/r,13e-6f*metresPerR/r,22.4e-6f*metresPerR/r,8000f*r/metresPerR));
+-            material.SetVector("_AtmoBetaMie",new Vector4(21e-6f*metresPerR/m,21e-6f*metresPerR/m,21e-6f*metresPerR/m,1200f*m/metresPerR));
+-            float o=Mathf.Clamp(ozoneStrength,0,2);
+-            material.SetVector("_AtmoBetaAbsorption",new Vector4(2.04e-5f*metresPerR*o,4.97e-5f*metresPerR*o,1.95e-6f*metresPerR*o,30000f/metresPerR));
+-            material.SetVector("_AtmoParameters",new Vector4(4000f/metresPerR,Mathf.Clamp(mieAnisotropy,-.9f,.9f),Mathf.Clamp(solarRadiance,1,60),LightBudget[Mathf.Clamp(quality,0,3)]));
+-            material.SetVector("_AtmoSunDisk",new Vector4(Mathf.Cos(Mathf.Clamp(sunAngularRadiusDegrees,.1f,1.2f)*Mathf.Deg2Rad),3f,0,0));
++            float r=Mathf.Clamp(rayleighHeightStretch,1,3)/2f;
++            float m=Mathf.Clamp(mieHeightStretch,1,5)/3.3333333f;
++            // Source spectral ratios 3.8:13.5:33.1 retained. Vertical optical depth is
++            // reduced from the thick demo shell; aerosol extinction separately uses 1.1.
++            material.SetVector("_AtmoBetaRayleigh",new Vector4(1.9f/r,6.75f/r,16.55f/r,.022f*r));
++            material.SetVector("_AtmoBetaMie",new Vector4(2.1f/m,2.1f/m,2.1f/m,.0064f*m));
++            material.SetVector("_AtmoBetaAbsorption",Vector4.zero);
++            material.SetVector("_AtmoParameters",new Vector4(0,Mathf.Clamp(mieAnisotropy,-.9f,.9f),Mathf.Clamp(solarRadiance,1,60),8));
++            material.SetVector("_AtmoSunDisk",new Vector4(Mathf.Cos(Mathf.Clamp(sunAngularRadiusDegrees,.1f,1.2f)*Mathf.Deg2Rad),3,0,0));
++            material.SetTexture("_AtmoOpticalDepth",OrbisAtmosphereLut.Get(.022f*r,.0064f*m));
++            material.SetVector("_AtmoLutSize",new Vector4(OrbisAtmosphereLut.Width,OrbisAtmosphereLut.Height,1f/OrbisAtmosphereLut.Width,1f/OrbisAtmosphereLut.Height));
++            material.SetFloat("_AtmoLutReady",1);
+         }
+     }
+ }
+--- original-v4-2/Assets/ORBIS/Runtime/OrbisAtmosphereRenderer.cs
++++ repaired-v4-2/Assets/ORBIS/Runtime/OrbisAtmosphereRenderer.cs
+@@ -17,6 +17,9 @@
+         readonly Vector3[] corners=new Vector3[4];
+         readonly RenderBuffer[] buffers=new RenderBuffer[2];
+         bool warned;
++        static readonly string[] RayNames={"_RayBL","_RayTL","_RayTR","_RayBR"};
++        static readonly string[] MapNames={"_MapBL","_MapTL","_MapTR","_MapBR"};
++        static readonly Vector2[] MapUV={new Vector2(0,0),new Vector2(0,1),new Vector2(1,1),new Vector2(1,0)};
+         static readonly float[] Scale={.35f,.5f,.65f,1f};
+         static readonly int[] CloudSteps={32,48,64,64};
+         static readonly int[] AirSteps={16,24,32,48};
+@@ -33,7 +36,7 @@
+         {
+             cameraComponent.CalculateFrustumCorners(new Rect(0,0,1,1),1,Camera.MonoOrStereoscopicEye.Mono,corners);
+             // Unity corners: bottom-left, top-left, top-right, bottom-right.
+-            string[] names={"_RayBL","_RayTL","_RayTR","_RayBR"};
++            string[] names=RayNames;
+             for(int i=0;i<4;i++)m.SetVector(names[i],view.transform.InverseTransformVector(cameraComponent.transform.TransformVector(corners[i])));
+             m.SetVector("_CameraLocal",view.transform.InverseTransformPoint(cameraComponent.transform.position));
+         }
+@@ -41,8 +44,8 @@
+         {
+             if(!atlas)return false;
+             Plane plane=new Plane(atlas.transform.forward,atlas.transform.position);
+-            Vector2[] uv={new Vector2(0,0),new Vector2(0,1),new Vector2(1,1),new Vector2(1,0)};
+-            string[] names={"_MapBL","_MapTL","_MapTR","_MapBR"};
++            Vector2[] uv=MapUV;
++            string[] names=MapNames;
+             for(int i=0;i<4;i++)
+             {
+                 Ray ray=cameraComponent.ViewportPointToRay(uv[i]);
+--- original-v4-2/Assets/ORBIS/Runtime/OrbisCloudNoise.cs
++++ repaired-v4-2/Assets/ORBIS/Runtime/OrbisCloudNoise.cs
+@@ -35,6 +35,20 @@
+         }
+         public static Texture3D Create()
+         {
++            TextAsset baked=Resources.Load<TextAsset>("ORBIS/CloudNoiseV42");
++            if(baked)
++            {
++                byte[] bytes=baked.bytes;const int bakedSize=64;
++                if(bytes.Length==bakedSize*bakedSize*bakedSize*4)
++                {
++                    var voxels=new Color32[bytes.Length/4];
++                    for(int i=0;i<voxels.Length;i++){int j=i*4;voxels[i]=new Color32(bytes[j],bytes[j+1],bytes[j+2],bytes[j+3]);}
++                    var result=new Texture3D(bakedSize,bakedSize,bakedSize,TextureFormat.RGBA32,true)
++                        {name="V4-2 periodic Perlin-Worley R / Worley G",wrapMode=TextureWrapMode.Repeat,filterMode=FilterMode.Trilinear};
++                    result.SetPixels32(voxels);result.Apply(true,true);return result;
++                }
++                Debug.LogWarning("ORBIS V4-2 cloud noise size invalid; falling back to procedural noise.");
++            }
+             const int size=32;var data=new Color32[size*size*size];int n=0;
+             for(int z=0;z<size;z++)for(int y=0;y<size;y++)for(int x=0;x<size;x++)
+             {
+--- original-v4-2/Assets/ORBIS/Runtime/OrbisCloudShadowCache.cs
++++ repaired-v4-2/Assets/ORBIS/Runtime/OrbisCloudShadowCache.cs
+@@ -45,7 +45,7 @@
+                 Release();allocationFailed=true;
+                 Debug.LogWarning("ORBIS cloud shadow atlas disabled for this session; direct trace fallback. "+error.Message);return;
+             }
+-            float phase=(float)((world.AtmosphereClock/OrbisWeather.FlowPeriod)%1.0);
++            float phase=(float)((field.VisualClock/OrbisWeather.FlowPeriod)%1.0);
+             bool changed=lastWorld!=world||lastPhase!=phase||lastCover!=settings.cloudCover||lastDensity!=settings.cloudDensity||
+                          lastWeather!=field.SampleClock||(sun-lastSun).sqrMagnitude>1e-9f;
+             if(!changed){Shader.SetGlobalFloat("_OrbisShadowReady",atlas&&atlas.IsCreated()?1:0);return;}
+--- original-v4-2/Assets/ORBIS/Runtime/OrbisDemo.cs
++++ repaired-v4-2/Assets/ORBIS/Runtime/OrbisDemo.cs
+@@ -15,6 +15,8 @@
+         public int selected, tool, layer;
+         public int activeNation=-1;
+         public bool map, paused;
++        public bool hasRenderRotation;
++        public double renderRotationDegrees;
+     }
+ 
+     [DefaultExecutionOrder(-100)]
+@@ -43,7 +45,8 @@
+         public float WeatherInterpolation => Paused ? 0 : simulationAccumulator;
+         public Vector3 VisualSun => World.SunAt(World.day+(Paused?0:simulationAccumulator*Speed*2), VisualRotation*Mathf.Deg2Rad);
+         float simulationAccumulator, visualAccumulator, markerAge;
+-        double visualClock;
++        double visualClock,visualRotationDegrees;
++        float paletteAge;
+         float altitude=2.65f,smoothAltitude=2.65f,altitudeVelocity;
+         public float Altitude=>smoothAltitude;
+         public string ViewBand=>MapMode?"全景地圖":CameraRadius>=OrbisAtmosphereProfile.OuterRadius?"地外軌道":CameraRadius>OrbisAtmosphereProfile.CloudTop?"高層大氣":CameraRadius>=OrbisAtmosphereProfile.CloudBase?"雲層高度帶":"低層大氣／近地";
+@@ -95,9 +98,16 @@
+             if (!Paused)
+             {
+                 visualClock += delta; simulationAccumulator += delta;
++                World.DeferWeatherUpdates=true;
+                 int steps = 0;
+                 while (simulationAccumulator >= .2f && steps++ < 2)
+                 { World.Step(.2f, .2f * Speed * 2); simulationAccumulator -= .2f; }
++            }
++            if(!Paused)
++            {
++                float rate=Mathf.Min(2.5f,Mathf.Sqrt(Mathf.Max(.05f,Speed)));
++                // At most one moist-atmosphere tick per rendered frame; overload is counted.
++                World.Weather.Advance(delta*rate,1);
+             }
+             TickAtmosphereFlight(delta);
+             if (AutoOrbit && !MapMode) yaw += delta * 5;
+@@ -105,10 +115,13 @@
+             if (visualAccumulator >= .3f)
+             {
+                 visualAccumulator = 0;
+-                View.UpdateColors(); View.UpdateWeather();
++                View.UpdateWeather();
+                 if (MapMode) Atlas.Refresh();
+                 hud.Refresh();
+             }
++            paletteAge+=delta;
++            // Stagger palette work away from the field upload frame.
++            if(paletteAge>=.65f&&visualAccumulator>.04f){paletteAge=0;View.UpdateColors();}
+             if (lastRevision != World.Revision)
+             {
+                 lastRevision = World.Revision; View.RebuildGeometry(); View.UpdateColors();
+@@ -116,14 +129,15 @@
+             }
+             else if (markerAge >= 2 && !Paused) { View.UpdateCities(); markerAge = 0; }
+             float previousRotation=VisualRotation;
+-            float predicted=World.rotationAngle*Mathf.Rad2Deg+(World.settings.rotation&&!Paused?simulationAccumulator*360/World.settings.rotationPeriod:0);
+-            VisualRotation=Mathf.Repeat(Mathf.SmoothDampAngle(VisualRotation,predicted,ref rotationVelocity,.055f,Mathf.Infinity,delta),360);
++            if(!Paused&&World.settings.rotation)
++                visualRotationDegrees=(visualRotationDegrees+delta*360.0/Mathf.Max(1f,World.settings.rotationPeriod))%360.0;
++            VisualRotation=(float)visualRotationDegrees;
+             if((World.settings.followSurface||smoothAltitude<.25f)&&!MapMode&&!AutoOrbit)
+             {float spin=Mathf.DeltaAngle(previousRotation,VisualRotation);yaw+=spin;smoothYaw+=spin;}
+             yaw=Mathf.Repeat(yaw+180,360)-180;smoothYaw=Mathf.Repeat(smoothYaw+180,360)-180;
+             planet.transform.localRotation=Quaternion.Euler(0,VisualRotation,0);
+             UpdateCamera();
+-            View.SyncVolumeSettings(VisualSun);
++            View.SyncVolumeSettings(VisualSun,World.Weather!=null?World.Weather.Clock+World.Weather.Accumulator:visualClock);
+             if (!MapMode) View.Sync(visualClock,VisualSun,WeatherInterpolation);
+             else Atlas.Sync(visualClock,VisualSun,WeatherInterpolation);
+             overlays.Tick(delta); hud.UpdateNamePositions();
+@@ -284,7 +298,7 @@
+         public void JumpGeology() { World.geo += 20; World.Terrain(); World.Log("板塊時鐘推進了兩千萬年。"); hud.Refresh(); }
+         public void NewWorld(string seed)
+         {
+-            World.Generate(seed);ActiveNation=-1;SelectionView.Hovered=-1;SelectionView.Invalidate();hasSuspendedFocus=false;mapEntrySelection=-2;visualClock=0;VisualRotation=0; rotationVelocity=0; Selected = -1; simulationAccumulator = 0; FocusBestLand();
++            World.Generate(seed);ActiveNation=-1;SelectionView.Hovered=-1;SelectionView.Invalidate();hasSuspendedFocus=false;mapEntrySelection=-2;visualClock=0;visualRotationDegrees=0;VisualRotation=0; rotationVelocity=0; Selected = -1; simulationAccumulator = 0; FocusBestLand();
+             Atlas.SetWorld(World); Notice = "新世界已生成，可以播下文明。"; hud.Refresh();
+         }
+         public void Save()
+@@ -292,7 +306,7 @@
+             try
+             {
+                 WorldSave state = World.Save();
+-                state.view = new DemoViewState { yaw = yaw, pitch = pitch, distance = distance, altitude=altitude, lookTilt=lookTilt, lookHeading=lookHeading, simulationRemainder=simulationAccumulator,renderClock=visualClock, mapX = mapPan.x, mapY = mapPan.y, mapZoom = mapZoom, speed = Speed, selected = Selected, tool = Tool, layer = View.layer, activeNation=ActiveNation, map = MapMode, paused = Paused };
++                state.view = new DemoViewState { yaw = yaw, pitch = pitch, distance = distance, altitude=altitude, lookTilt=lookTilt, lookHeading=lookHeading, simulationRemainder=simulationAccumulator,renderClock=visualClock,hasRenderRotation=true,renderRotationDegrees=visualRotationDegrees, mapX = mapPan.x, mapY = mapPan.y, mapZoom = mapZoom, speed = Speed, selected = Selected, tool = Tool, layer = View.layer, activeNation=ActiveNation, map = MapMode, paused = Paused };
+                 string json = JsonUtility.ToJson(state, true); Directory.CreateDirectory(Application.persistentDataPath);
+                 string temp = SavePath + ".tmp"; File.WriteAllText(temp, json);
+                 if (File.Exists(SavePath)) File.Replace(temp, SavePath, SavePath + ".bak"); else File.Move(temp, SavePath);
+@@ -312,7 +326,7 @@
+                 var info = new FileInfo(path); if (info.Length > 96 * 1024 * 1024) throw new InvalidDataException("存檔超過大小限制。");
+                 WorldSave state = OrbisSaveMigration.Read(File.ReadAllText(path));
+                 var next = OrbisWorld.Restore(state);
+-                World = next;ActiveNation=-1;SelectionView.Hovered=-1;SelectionView.Invalidate();hasSuspendedFocus=false;mapEntrySelection=-2;visualClock=World.VisualTime;VisualRotation=World.rotationAngle*Mathf.Rad2Deg; rotationVelocity=0; View.world = World; Atlas.SetWorld(World); simulationAccumulator = 0;
++                World = next;ActiveNation=-1;SelectionView.Hovered=-1;SelectionView.Invalidate();hasSuspendedFocus=false;mapEntrySelection=-2;visualClock=World.VisualTime;visualRotationDegrees=World.rotationAngle*Mathf.Rad2Deg;VisualRotation=(float)visualRotationDegrees; rotationVelocity=0; View.world = World; Atlas.SetWorld(World); simulationAccumulator = 0;
+                 View.RebuildGeometry(); View.UpdateColors(); View.UpdateWeather(); lastRevision = World.Revision;
+                 FocusBestLand();
+                 if (state.view != null) RestoreView(state.view);
+@@ -324,6 +338,10 @@
+         void RestoreView(DemoViewState v)
+         {
+             simulationAccumulator=Mathf.Clamp(v.simulationRemainder,0,.19999f);visualClock=System.Math.Max(0,v.renderClock);
++            visualRotationDegrees=v.hasRenderRotation&&OrbisAtmosphereCore.Finite(v.renderRotationDegrees)
++                ?((v.renderRotationDegrees%360)+360)%360
++                :(World.rotationAngle*Mathf.Rad2Deg+(World.settings.rotation?simulationAccumulator*360/Mathf.Max(1,World.settings.rotationPeriod):0))%360;
++            VisualRotation=(float)visualRotationDegrees;
+             StopAtmosphereFlight();lookTilt=smoothLookTilt=Mathf.Clamp(v.lookTilt,0,110);lookHeading=smoothLookHeading=v.lookHeading;lookTiltVelocity=lookHeadingVelocity=0;
+             yaw=v.yaw;pitch=Mathf.Clamp(v.pitch,-89.8f,89.8f);altitude=Mathf.Clamp(v.altitude,.003f,5.5f);
+             smoothYaw=yaw;smoothPitch=pitch;smoothAltitude=altitude;yawVelocity=pitchVelocity=altitudeVelocity=0;
+--- original-v4-2/Assets/ORBIS/Runtime/OrbisPlanetView.cs
++++ repaired-v4-2/Assets/ORBIS/Runtime/OrbisPlanetView.cs
+@@ -34,7 +34,10 @@
+         {
+             world=w;viewCamera=camera;SurfaceSampler=new OrbisSphericalSampler(w.grid);
+             surfaceMaterial=new Material(Resources.Load<Shader>("ORBIS/Surface"));
+-            surfaceMaterial.SetTexture("_TerrainAtlas",Resources.Load<Texture2D>("ORBIS/TerrainAtlas"));
++            var terrainAtlas=Resources.Load<Texture2D>("ORBIS/TerrainAtlas");
++            surfaceMaterial.SetTexture("_TerrainAtlas",terrainAtlas);
++            surfaceMaterial.SetFloat("_TerrainAtlasReady",terrainAtlas?1:0);
++            if(!terrainAtlas)Debug.LogWarning("ORBIS V4-2: biome atlas missing; retaining vertex biome albedo, not white fallback.");
+             cloudMaterial=new Material(Resources.Load<Shader>("ORBIS/Clouds"));
+             terrainObject=CreateMeshObject("Surface source mesh",surfaceMaterial,out terrainMesh);
+             terrainObject.GetComponent<MeshRenderer>().enabled=false;
+@@ -123,12 +126,18 @@
+                 case 7:col=c.h<0?Color.Lerp(new Color(.02f,.07f,.15f),new Color(.13f,.44f,.5f),1+c.h):Color.Lerp(new Color(.22f,.48f,.3f),new Color(.9f,.89f,.82f),c.h);break;
+                 default:
+                     if(water)col=c.h<0?Color.Lerp(new Color(.012f,.058f,.13f),new Color(.035f,.3f,.37f),Mathf.Pow(Mathf.Clamp01(1+c.h),4)):new Color(.05f,.25f,.29f);
+-                    else {col=c.Fertility<.28f?Color.Lerp(new Color(.67f,.49f,.26f),new Color(.35f,.43f,.19f),c.Fertility/.28f):Color.Lerp(new Color(.35f,.43f,.19f),new Color(.06f,.27f,.16f),(c.Fertility-.28f)/.72f);col=Color.Lerp(col,new Color(.4f,.39f,.36f),Mathf.InverseLerp(.45f,1,c.h));col=Color.Lerp(col,new Color(.88f,.93f,.95f),Mathf.Clamp01(c.snow/30));if(c.owner>=0)col=Color.Lerp(col,world.civs[c.owner].color,.13f);}
++                    else {col=c.Fertility<.28f?Color.Lerp(new Color(.67f,.49f,.26f),new Color(.35f,.43f,.19f),c.Fertility/.28f):Color.Lerp(new Color(.35f,.43f,.19f),new Color(.06f,.27f,.16f),(c.Fertility-.28f)/.72f);col=Color.Lerp(col,new Color(.4f,.39f,.36f),Mathf.InverseLerp(.45f,1,c.h));col=Color.Lerp(col,new Color(.88f,.93f,.95f),VisibleSnow(c));if(c.owner>=0)col=Color.Lerp(col,world.civs[c.owner].color,.13f);}
+                     break;
+             }
+             col.a=water&&layer==0?1:0;return col;
+         }
+-        public Vector4 TileClimate(int id){Tile t=world.tiles[id];return new Vector4(t.soil,Mathf.Clamp01(t.snow/30),Mathf.InverseLerp(.4f,.95f,t.h),1);}
++        public static float VisibleSnow(Tile t)
++        {
++            // Mean-temperature thaw mask avoids an old save's saturated snow proxy
++            // whitening warm biomes; diurnal thermal fluctuations do not flicker snow.
++            return Mathf.Clamp01(t.snow/30)*(1-Mathf.SmoothStep(0,1,Mathf.InverseLerp(0,7,t.temp)));
++        }
++        public Vector4 TileClimate(int id){Tile t=world.tiles[id];return new Vector4(t.soil,VisibleSnow(t),Mathf.InverseLerp(.4f,.95f,t.h),1);}
+         public Vector4 TileWater(int id){Tile t=world.tiles[id];return new Vector4(t.h<=0?Mathf.Max(.1f,-t.h*160):t.lake>.018f?Mathf.Max(.2f,t.lake*80):0,0,.5f,0);}
+         public float RadiusAt(Vector3 p,out OrbisSphericalSampler.Sample sample,int hint=0)
+         {
+@@ -225,9 +234,10 @@
+             material.SetFloat("_WaterRoughness",p.waterRoughness);material.SetFloat("_SurfaceDetail",p.surfaceDetail);
+             material.SetFloat("_RiverPhase",(float)(clock%64.0)/64f);
+             material.SetFloat("_Clock",(float)(clock%(Math.PI*4)));material.SetFloat("_SolarEnergy",p.heat);
+-            material.SetFloat("_FlowPhase",(float)((world.AtmosphereClock/OrbisWeather.FlowPeriod)%1));
++            material.SetFloat("_FlowPhase",(float)((Weather.VisualClock/OrbisWeather.FlowPeriod)%1));
+             material.SetFloat("_Clouds",p.clouds?1:0);material.SetFloat("_Cover",p.cloudCover);material.SetFloat("_Density",p.cloudDensity);
+             material.SetFloat("_CloudShadow",p.clouds&&p.cloudShadows&&layer==0?1:0);
++            material.SetFloat("_RainPhase",(float)((clock*.65)%1.0));
+             material.SetFloat("_EnhancedWater",p.enhancedWater?1:0);material.SetFloat("_WaveStrength",p.waveStrength);
+             for(int i=0;i<10;i++)wavePhases[i]=(float)((clock*2*Math.Pow(1.07,i))%(Math.PI*2));
+             material.SetFloatArray("_WavePhases",wavePhases);
+@@ -243,13 +253,14 @@
+             material.SetFloat("_GodRays",p.godRays&&p.clouds?1:0);material.SetInt("_SurfaceDebug",p.surfaceDebug);
+         }
+         // Also called while the planet GameObject is inactive in the unfolded atlas.
+-        public void SyncVolumeSettings(Vector3 visualSun)
+-        {
++        public void SyncVolumeSettings(Vector3 visualSun,double visualTime=-1)
++        {
++            if(visualTime>=0)Weather.VisualClock=visualTime;
+             shadowCache?.Update(world,Weather,visualSun);
+             BindOpticalSettings(cloudMaterial);
+             Weather.Bind(cloudMaterial);cloudMaterial.SetVector("_Sun",visualSun);
+             cloudMaterial.SetFloat("_Night",world.settings.night?1:0);
+-            cloudMaterial.SetFloat("_FlowPhase",(float)((world.AtmosphereClock/OrbisWeather.FlowPeriod)%1));
++            cloudMaterial.SetFloat("_FlowPhase",(float)((Weather.VisualClock/OrbisWeather.FlowPeriod)%1));
+             cloudMaterial.SetFloat("_Cover",world.settings.cloudCover);cloudMaterial.SetFloat("_Density",world.settings.cloudDensity);
+             cloudMaterial.SetFloat("_Clouds",world.settings.clouds?1:0);cloudMaterial.SetFloat("_SolarEnergy",world.settings.heat);
+             var p=world.settings;
+--- original-v4-2/Assets/ORBIS/Runtime/OrbisSaveMigration.cs
++++ repaired-v4-2/Assets/ORBIS/Runtime/OrbisSaveMigration.cs
+@@ -56,7 +56,7 @@
+         public static void ValidateV3(WorldSave s)
+         {
+             if(!Finite(s.weatherTime)||s.weatherTime<0||s.weatherTime>1e12||!Finite(s.visualTime)||s.visualTime<0||s.visualTime>1e12||
+-                !Finite(s.weatherRemainder)||s.weatherRemainder<0||s.weatherRemainder>.10001)
++                !Finite(s.weatherRemainder)||s.weatherRemainder<0||s.weatherRemainder>.80001)
+                 throw new ArgumentException("Invalid weather clock.");
+             var p=s.settings;
+             if(!Within(p.airDensity,0,3)||!Within(p.haze,0,4)||!Within(p.scatteringStrength,0,2)||
+--- original-v4-2/Assets/ORBIS/Runtime/OrbisSurfaceLOD.cs
++++ repaired-v4-2/Assets/ORBIS/Runtime/OrbisSurfaceLOD.cs
+@@ -15,7 +15,7 @@
+         int resolution,lastRevision=-1,lastQuality=-1;
+         OrbisWorld lastWorld;
+         OrbisSphericalSampler.Sample[] samples;
+-        Vector3[] directions;Color[] colors;List<Vector4> climates,waters;
++        Vector3[] directions,appearanceGeometry;Color[] colors;List<Vector4> climates,waters;
+         double nextRefresh;
+         bool invalid=true;
+         public int VertexCount=>mesh?mesh.vertexCount:0;
+@@ -45,13 +45,14 @@
+                 Build(focus,size,quality);invalid=false;lastWorld=view.world;lastRevision=view.world.Revision;lastQuality=quality;
+             }
+             view.BindSurfaceSettings(material,clock,sun);
+-            foreach(Material m in new[]{view.SurfaceMaterial,material})
++            for(int materialIndex=0;materialIndex<2;materialIndex++)
+             {
++                Material m=materialIndex==0?view.SurfaceMaterial:material;
+                 m.SetFloat("_PatchActive",1);m.SetVector("_PatchCenter",center);m.SetVector("_PatchRight",right);m.SetVector("_PatchUp",north);
+                 m.SetFloat("_PatchRadius",radius);m.SetFloat("_LocalGrid",view.world.settings.localGrid?1:0);m.SetFloat("_GridSpacing",.0025f);
+             }
+             view.SurfaceMaterial.SetFloat("_PatchLayer",0);material.SetFloat("_PatchLayer",1);display.enabled=true;
+-            if(clock>=nextRefresh){nextRefresh=clock+.3;RefreshColors();}
++            // Palette publication refreshes this patch once; never recompute terrain here.
+         }
+         void Build(Vector3 at,float size,int quality)
+         {
+@@ -62,14 +63,17 @@
+             right.Normalize();north=Vector3.Cross(center,right).normalized;
+             resolution=new[]{48,64,96,128}[quality];int row=resolution+1,count=row*row;
+             var vertices=new Vector3[count];var indices=new int[resolution*resolution*6];
+-            samples=new OrbisSphericalSampler.Sample[count];colors=new Color[count];
++            samples=new OrbisSphericalSampler.Sample[count];colors=new Color[count];appearanceGeometry=new Vector3[count];
+             climates=new List<Vector4>(new Vector4[count]);waters=new List<Vector4>(new Vector4[count]);
+             int hint=view.world.grid.Nearest(center);
+             for(int y=0;y<row;y++)for(int x=0;x<row;x++)
+             {
+                 int i=y*row+x;float u=(2f*x/resolution-1)*radius,v=(2f*y/resolution-1)*radius;
+                 Vector3 p=(center+right*u+north*v).normalized;
+-                float r=view.RadiusAt(p,out samples[i],hint);hint=samples[i].a;vertices[i]=p*r;
++                samples[i]=view.SurfaceSampler.Locate(p,hint);hint=samples[i].a;
++                float r=view.UncarvedRadius(p,samples[i],out float wet,out float depth,out float h);
++                appearanceGeometry[i]=new Vector3(wet,depth,h);
++                vertices[i]=p*(wet>.5f?r:view.Rivers.Carve(p,r));
+             }
+             int k=0;for(int y=0;y<resolution;y++)for(int x=0;x<resolution;x++)
+             {
+@@ -84,7 +88,7 @@
+             if(samples==null||view==null)return;
+             for(int i=0;i<samples.Length;i++)
+             {
+-                view.SampleAppearance(directions[i],samples[i],out colors[i],out var climate,out var water);
++                view.SampleAppearanceCached(samples[i],appearanceGeometry[i],out colors[i],out var climate,out var water);
+                 climates[i]=climate;waters[i]=water;
+             }
+             mesh.colors=colors;mesh.SetUVs(1,climates);mesh.SetUVs(2,waters);
+--- original-v4-2/Assets/ORBIS/Runtime/OrbisWeather.cs
++++ repaired-v4-2/Assets/ORBIS/Runtime/OrbisWeather.cs
+@@ -19,7 +19,7 @@
+         public OrbisWeather(OrbisWorld owner,bool initialize=true,double clock=0,double accumulator=0,OrbisAtmosphereState saved=null)
+         {
+             world=owner;sampler=new OrbisSphericalSampler(world.grid);
+-            Clock=Math.Max(0,clock);Accumulator=Math.Max(0,Math.Min(FixedStep,accumulator));
++            Clock=Math.Max(0,clock);Accumulator=Math.Max(0,Math.Min(.8,accumulator));
+             var grid=world.grid;int n=grid.points.Length;var p=new AtmosVector[n];var area=new double[n];
+             var links=new List<AtmosEdge>();var owners=new Dictionary<long,int>();
+             for(int i=0;i<n;i++)p[i]=ToAtmos(grid.points[i]);
+@@ -73,17 +73,29 @@
+                     t.h<=0||t.lake>.018f,ToAtmos(t.wind),t.pressure,Mathf.Max(0,t.h)*7000,0,t.boost);
+             }
+         }
+-        public void Advance(double seconds)
++        public void Advance(double seconds,int maxSteps=32)
+         {
+             if(!world.settings.dynamicWeather||seconds<=0)return;
+             if(double.IsNaN(seconds)||double.IsInfinity(seconds))throw new ArgumentException("Invalid weather timestep.");
+             double accepted=Math.Min(seconds,3.2);
+             DroppedSteps+=(int)Math.Min(int.MaxValue-DroppedSteps,Math.Max(0,(seconds-accepted)/FixedStep));
+-            Accumulator+=accepted;int budget=32;
++            Accumulator+=accepted;int budget=Math.Max(1,Math.Min(32,maxSteps)),executed=0;
+             while(Accumulator+1e-10>=FixedStep&&budget-->0)
+-            {Forcing();Atmosphere.Tick(FixedStep);Clock+=FixedStep;Steps++;Accumulator=Math.Max(0,Accumulator-FixedStep);}
+-            if(Accumulator>=FixedStep){DroppedSteps+=(int)(Accumulator/FixedStep);Accumulator%=FixedStep;}
+-            Publish();
++            {Forcing();Atmosphere.Tick(FixedStep);UpdateSnow(FixedStep);Clock+=FixedStep;Steps++;executed++;Accumulator=Math.Max(0,Accumulator-FixedStep);}
++            if(Accumulator>.8){int dropped=(int)((Accumulator-.8)/FixedStep)+1;DroppedSteps+=dropped;Accumulator-=dropped*FixedStep;}
++            if(executed>0)Publish();
++        }
++        void UpdateSnow(double dt)
++        {
++            // Tile snow is a visual snow-water-equivalent diagnostic. The physical water
++            // already entered SurfaceWater in Sedimentation; do NOT add it a second time.
++            double hours=dt*OrbisAtmosphereCore.PhysicalSecondsPerSecond/3600.0;
++            for(int i=0;i<world.tiles.Length;i++)
++            {
++                Tile t=world.tiles[i];if(t.h<=0)continue;
++                double melt=Math.Max(0,t.Temperature)*2.5*hours/24.0;
++                t.snow=(float)Math.Max(0,Math.Min(240,t.snow+Atmosphere.SnowRate[i]*hours-melt));
++            }
+         }
+         public void Publish()
+         {
+--- original-v4-2/Assets/ORBIS/Runtime/OrbisWeatherField.cs
++++ repaired-v4-2/Assets/ORBIS/Runtime/OrbisWeatherField.cs
+@@ -17,6 +17,7 @@
+         readonly Color[] layerPixels=new Color[LayerWidth*LayerHeight*OrbisAtmosphereCore.Layers],layerWindPixels=new Color[LayerWidth*LayerHeight*OrbisAtmosphereCore.Layers];
+         readonly OrbisSphericalSampler.Sample[] samples=new OrbisSphericalSampler.Sample[Width*Height],layerSamples=new OrbisSphericalSampler.Sample[LayerWidth*LayerHeight];
+         public float SampleClock {get;private set;}
++        public double VisualClock {get;set;}
+         static TextureFormat Format=>SystemInfo.SupportsTextureFormat(TextureFormat.RGBAHalf)?TextureFormat.RGBAHalf:TextureFormat.RGBA32;
+         static Texture2D Field(string label)=>new Texture2D(Width,Height,Format,false,true)
+             {name=label,wrapModeU=TextureWrapMode.Repeat,wrapModeV=TextureWrapMode.Clamp,filterMode=FilterMode.Bilinear};
+@@ -56,7 +57,7 @@
+                 }
+                 // Snow and wetness must update even when geometry Revision does not change.
+                 float wet=a.surfaceWetness*w.x+b.surfaceWetness*w.y+c.surfaceWetness*w.z;
+-                grounds[i].g=Mathf.Clamp01((a.snow*w.x+b.snow*w.y+c.snow*w.z)/30);grounds[i].a=wet;
++                grounds[i].g=OrbisPlanetView.VisibleSnow(a)*w.x+OrbisPlanetView.VisibleSnow(b)*w.y+OrbisPlanetView.VisibleSnow(c)*w.z;grounds[i].a=wet;
+                 float cloud=a.cloud*w.x+b.cloud*w.y+c.cloud*w.z;
+                 states[i]=new Color(cloud,a.moist*w.x+b.moist*w.y+c.moist*w.z,
+                     a.convection*w.x+b.convection*w.y+c.convection*w.z,Mathf.Clamp01((a.cloudWater*w.x+b.cloudWater*w.y+c.cloudWater*w.z)/2));
+--- original-v4-2/Assets/ORBIS/Runtime/OrbisWorld.cs
++++ repaired-v4-2/Assets/ORBIS/Runtime/OrbisWorld.cs
+@@ -64,6 +64,8 @@
+     }
+     public sealed partial class OrbisWorld
+     {
++        [NonSerialized] public bool DeferWeatherUpdates; // runtime scheduling only; never persisted
++
+         public const int TileResolution=24;
+         public const int TileCount=6*TileResolution*TileResolution;
+         public readonly SphereGrid grid=SphereGrid.CreateTiles(TileResolution);
+@@ -132,7 +134,7 @@
+             if(settings.rotation)rotationAngle=Mathf.Repeat(rotationAngle+realSeconds*2*Mathf.PI/settings.rotationPeriod,Mathf.PI*2);
+             Climate(calendarDays,realSeconds);
+             double weatherRate=Math.Min(2.5,Math.Sqrt(Math.Max(0,calendarDays/Math.Max(.0001f,realSeconds)/2.0)));
+-            Weather?.Advance(realSeconds*weatherRate);
++            if(!DeferWeatherUpdates)Weather?.Advance(realSeconds*weatherRate);
+             StepCivilizations(calendarDays);StepTerritories(calendarDays);StepExpeditions(calendarDays);UpdateDischarge();UpdateStats();
+             if(Population>=5000&&AliveCivilizations>=4&&MeanTemperature>5&&MeanTemperature<28&&!war&&!settings.autoWar)stability+=calendarDays;else stability=Mathf.Max(0,stability-calendarDays*.5f);
+         }
+@@ -192,7 +194,7 @@
+                 float heatSeconds=seconds*86400/settings.rotationPeriod;
+                 float anomaly=Mathf.Lerp(c.thermal,forcing/restoring,1-Mathf.Exp(-heatSeconds*restoring/capacity));
+                 nextThermal[i]=Mathf.Clamp(Mathf.Lerp(anomaly,thermalIn,1-Mathf.Exp(-heatSeconds/86400*.25f*settings.windPower)),-65,65);
+-                if(c.h>0){float evap=Mathf.Max(0,c.Temperature)*.07f;float soilTarget=Mathf.Clamp01(.18f+c.rain/210-evap*.03f+c.boost*.2f);c.soil=Mathf.Lerp(c.soil,soilTarget,1-Mathf.Exp(-days/40));c.snow=Mathf.Clamp(c.snow+(c.Temperature<0?c.rain/30:-c.Temperature*.4f)*days,0,240);}
++                if(c.h>0){float evap=Mathf.Max(0,c.Temperature)*.07f;float soilTarget=Mathf.Clamp01(.18f+c.rain/210-evap*.03f+c.boost*.2f);c.soil=Mathf.Lerp(c.soil,soilTarget,1-Mathf.Exp(-days/40));if(Weather==null)c.snow=Mathf.Clamp(c.snow+(c.Temperature<0?c.rain/30:-c.Temperature*.4f)*days,0,240);}
+                 c.boost=Mathf.Max(0,c.boost-days*.015f);
+             }
+             for(int i=0;i<tiles.Length;i++){tiles[i].moist=nextMoist[i];if(Weather==null)tiles[i].cloud=nextCloud[i];tiles[i].temp=nextTemp[i];tiles[i].thermal=nextThermal[i];}
+--- original-v4-2/Assets/ORBIS/Runtime/V4/OrbisTerrainV4.cs
++++ repaired-v4-2/Assets/ORBIS/Runtime/V4/OrbisTerrainV4.cs
+@@ -39,8 +39,8 @@
+         public float UncarvedRadius(Vector3 p,OrbisSphericalSampler.Sample s,out float wet,out float depth,out float h)
+         {
+             h=TerrainHeight(p,s);wet=0;depth=0;if(h<=0){wet=1;depth=Mathf.Max(.05f,-h*160);return 1;}
+-            Vector3 w=s.weights;int[] ids={s.a,s.b,s.c};float lakeWeight=0,lakeLevel=0;
+-            for(int j=0;j<3;j++){Tile t=world.tiles[ids[j]];if(t.lake>.018f&&t.h>0){float weight=w[j];lakeWeight+=weight;lakeLevel+=t.flood*weight;}}
++            Vector3 w=s.weights;float lakeWeight=0,lakeLevel=0;
++            for(int j=0;j<3;j++){Tile t=world.tiles[j==0?s.a:j==1?s.b:s.c];if(t.lake>.018f&&t.h>0){float weight=w[j];lakeWeight+=weight;lakeLevel+=t.flood*weight;}}
+             if(lakeWeight>.5f){lakeLevel/=lakeWeight;if(lakeLevel>h){wet=1;depth=(lakeLevel-h)*120;return 1+lakeLevel*.075f;}}
+             return 1+h*.075f;
+         }
+@@ -61,6 +61,19 @@
+             Vector3 w=s.weights;color=GetTileColor(s.a)*w.x+GetTileColor(s.b)*w.y+GetTileColor(s.c)*w.z;
+             climate=TileClimate(s.a)*w.x+TileClimate(s.b)*w.y+TileClimate(s.c)*w.z;water=TileWater(s.a)*w.x+TileWater(s.b)*w.y+TileWater(s.c)*w.z;
+             if(layer!=0)return;UncarvedRadius(p,s,out float wet,out float depth,out float h);
++            RefineLocalAppearance(ref color,ref water,climate,wet,depth,h);
++        }
++        public void SampleAppearanceCached(OrbisSphericalSampler.Sample s,Vector3 geometry,
++            out Color color,out Vector4 climate,out Vector4 water)
++        {
++            Vector3 w=s.weights;
++            color=tilePalette[s.a]*w.x+tilePalette[s.b]*w.y+tilePalette[s.c]*w.z;
++            climate=tileClimate[s.a]*w.x+tileClimate[s.b]*w.y+tileClimate[s.c]*w.z;
++            water=tileWater[s.a]*w.x+tileWater[s.b]*w.y+tileWater[s.c]*w.z;
++            if(layer==0)RefineLocalAppearance(ref color,ref water,climate,geometry.x,geometry.y,geometry.z);
++        }
++        static void RefineLocalAppearance(ref Color color,ref Vector4 water,Vector4 climate,float wet,float depth,float h)
++        {
+             if(wet<.5f&&color.a>.05f){color=Color.Lerp(new Color(.58f,.46f,.29f),new Color(.14f,.36f,.2f),Mathf.InverseLerp(.12f,.7f,climate.x));color=Color.Lerp(color,new Color(.4f,.39f,.36f),Mathf.InverseLerp(.45f,.95f,h));color=Color.Lerp(color,new Color(.88f,.93f,.95f),climate.y);}
+             color.a=wet;water=new Vector4(depth,0,.5f,0);
+         }
+--- original-v4-2/Assets/ORBIS/Runtime/Weather/OrbisAtmosphereCore.cs
++++ repaired-v4-2/Assets/ORBIS/Runtime/Weather/OrbisAtmosphereCore.cs
+@@ -32,7 +32,8 @@
+         public bool TransportEnabled=true, MicrophysicsEnabled=true, SurfaceExchangeEnabled=true;
+         readonly double[] surfaceT,solar,soil,boost,terrain,pressureForcing,liftForcing,cooldown,gustLift,orographicLift;
+         readonly bool[] sea;
+-        readonly AtmosVector[] baseWind;
++        readonly AtmosVector[] baseWind,pressureGradient,eastDirection;
++        readonly double[] jetStrength;
+         readonly double[] flux,outgoing,limit,delta,temporary,convergence,pressureNext;
+         uint random;
+         static OrbisAtmosphereCore()
+@@ -59,6 +60,12 @@
+             pressureForcing=new double[Count];liftForcing=new double[Count];cooldown=new double[Count];gustLift=new double[Count];orographicLift=new double[Count];
+             flux=new double[links.Length];outgoing=new double[Count];limit=new double[Count];delta=new double[n];temporary=new double[n];
+             convergence=new double[Count];pressureNext=new double[Count];
++            pressureGradient=new AtmosVector[Count];eastDirection=new AtmosVector[Count];jetStrength=new double[Count];
++            for(int i=0;i<Count;i++)
++            {
++                AtmosVector p=Position[i];eastDirection[i]=new AtmosVector(p.Z,0,-p.X).Normalized;
++                jetStrength[i]=Math.Exp(-Math.Pow((Math.Abs(p.Y)-.60)/.22,2));
++            }
+             for(int i=0;i<Count;i++)if(!(Area[i]>0))throw new ArgumentException("Cell area must be positive.");
+         }
+         public static double Clamp(double x,double lo,double hi){return Math.Max(lo,Math.Min(hi,x));}
+@@ -82,20 +89,43 @@
+         {
+             // Correlated INITIAL conditions only. No permanent geographic cloud/noise mask.
+             double phase=Rand()*6.28;
++            // Six INITIAL low-pressure perturbations; no latitude cloud mask and no
++            // continuously respawned cyclone texture. Subsequent evolution is prognostic.
++            var centers=new AtmosVector[6];var radii=new double[6];
++            for(int v=0;v<centers.Length;v++)
++            {
++                double y=(v%2==0?1:-1)*(.25+Rand()*.45),lon=Rand()*Math.PI*2;
++                double c=Math.Sqrt(1-y*y);centers[v]=new AtmosVector(Math.Sin(lon)*c,y,Math.Cos(lon)*c);
++                radii[v]=.13+Rand()*.10;
++            }
+             for(int i=0;i<Count;i++)
+             {
+                 AtmosVector p=Position[i];double pattern=Math.Sin(p.X*9+p.Z*5+phase)*Math.Cos(p.Y*7-p.X*4-phase);
+                 SurfaceWater[i]=sea[i]?1200:25+soil[i]*95;
+-                PressureAnomaly[i]=pattern*3;
++                double low=0;AtmosVector vortex=new AtmosVector();
++                for(int v=0;v<centers.Length;v++)
++                {
++                    double d2=Math.Max(0,2-2*AtmosVector.Dot(p,centers[v]));
++                    double envelope=Math.Exp(-d2/(2*radii[v]*radii[v]));
++                    low+=envelope;
++                    vortex+=AtmosVector.Cross(centers[v],p)*(Math.Sign(centers[v].Y)*.024*envelope/radii[v]);
++                }
++                PressureAnomaly[i]=Clamp(pattern*4-low*14,-22,12);
++                cooldown[i]=15+Rand()*40;
+                 for(int k=0;k<Layers;k++)
+                 {
+                     int j=k*Count+i;double z=Height[k];
+                     Temperature[j]=Clamp(surfaceT[i]-.0069*z+(k>8?(z-9000)*.002:0)+pattern*.65,185,330);
+-                    double rh=Clamp(.78-.022*k+pattern*.34+(sea[i]?.06:0)-Math.Max(0,pressureForcing[i]-1014)*.012,.20,1.12);
++                    double verticalPattern=Math.Sin(k*.55+p.X*4-p.Z*6+phase);
++                    double rh=Clamp(.72-.020*k+pattern*.31+verticalPattern*.08+Math.Min(1,low)*.33+(sea[i]?.04:0),.20,1.13);
+                     Water[0][j]=Saturation(Temperature[j],Pressure[k])*AirMass[k]*rh;
+-                    Wind[j]=baseWind[i]*(.014*(.65+k*.105));
+-                }
+-            }
++                    Wind[j]=(baseWind[i]*(.014*(.65+k*.105))+vortex*(1-k*.035)).Tangent(p).Limited(.065);
++                }
++            }
++            double pressureMean=0,totalArea=0;
++            for(int i=0;i<Count;i++){pressureMean+=PressureAnomaly[i]*Area[i];totalArea+=Area[i];}
++            pressureMean/=totalArea;
++            for(int i=0;i<Count;i++)PressureAnomaly[i]-=pressureMean;
+             InitialWater=TotalWater();
+             for(int i=0;i<Count;i++){SaturationAdjustment(i,1);Diagnose(i,0);}
+         }
+@@ -144,28 +174,28 @@
+                 pressureNext[link.A]+=mix;pressureNext[link.B]-=mix;
+             }
+             Array.Copy(pressureNext,PressureAnomaly,Count);
+-            for(int k=0;k<Layers;k++)for(int i=0;i<Count;i++)
+-            {
+-                int j=k*Count+i;AtmosVector p=Position[i];
+-                AtmosVector east=new AtmosVector(p.Z,0,-p.X).Normalized;
+-                // Height-dependent wind shear, Coriolis turn, relaxed large-scale forcing.
+-                double jet=Math.Exp(-Math.Pow((Math.Abs(p.Y)-.60)/.22,2));
+-                AtmosVector target=baseWind[i]*(.014*(.65+k*.105))+east*(jet*.009*k/11);
+-                Wind[j]=AtmosVector.Lerp(Wind[j],target,Relax(dt,5));
+-                Wind[j]=(Wind[j]+AtmosVector.Cross(p,Wind[j])*(dt*.018*p.Y)).Tangent(p).Limited(.065);
+-            }
+-            // A pressure gradient accelerates all layers; signs give flow toward low pressure.
++            Array.Clear(pressureGradient,0,Count);
+             for(int e=0;e<Links.Length;e++)
+             {
+                 AtmosEdge link=Links[e];
+                 double gradient=(PressureAnomaly[link.B]-PressureAnomaly[link.A])/Math.Max(.01,link.Distance);
+-                AtmosVector acceleration=link.Direction*(-gradient*.000012*dt);
+-                for(int k=0;k<Layers;k++)
+-                {
+-                    int a=k*Count+link.A,b=k*Count+link.B;
+-                    Wind[a]=(Wind[a]+acceleration).Tangent(Position[link.A]).Limited(.065);
+-                    Wind[b]=(Wind[b]+acceleration).Tangent(Position[link.B]).Limited(.065);
+-                }
++                AtmosVector g=link.Direction*(gradient*.5);
++                pressureGradient[link.A]+=g;pressureGradient[link.B]+=g;
++            }
++            double windRelax=Relax(dt,28);
++            for(int k=0;k<Layers;k++)for(int i=0;i<Count;i++)
++            {
++                int j=k*Count+i;AtmosVector p=Position[i];
++                AtmosVector east=eastDirection[i];
++                // Height-dependent wind shear, Coriolis turn, relaxed large-scale forcing.
++                double jet=jetStrength[i];
++                AtmosVector gradient=pressureGradient[i].Tangent(p);
++                AtmosVector balanced=AtmosVector.Cross(p,gradient)*(.00011*Math.Tanh(p.Y*5));
++                AtmosVector target=baseWind[i]*(.014*(.65+k*.105))+east*(jet*.009*k/11)+balanced;
++                Wind[j]=AtmosVector.Lerp(Wind[j],target,windRelax);
++                // In the rotating frame: -f k x velocity. Initial northern low pressure
++                // has counter-clockwise winds; southern lows have the opposite sign.
++                Wind[j]=(Wind[j]-gradient*(.000032*dt)-AtmosVector.Cross(p,Wind[j])*(dt*.09*p.Y)).Tangent(p).Limited(.065);
+             }
+         }
+         public void HorizontalTransport(double dt)
+@@ -222,7 +252,8 @@
+             }
+             CAPE[i]=Clamp(cape,0,6500);CIN[i]=Clamp(cin,0,1500);
+             double rh=q0/Saturation(Temperature[i],Pressure[0]);
+-            double trigger=Clamp(Math.Max(0,convergence[i])*22+solar[i]*.20+(liftForcing[i]+gustLift[i]+orographicLift[i])*.35,0,1);
++            double thermalLift=Math.Max(0,Temperature[i]-surfaceT[i])*.10*solar[i];
++            double trigger=Clamp(Math.Max(0,convergence[i]-.002)*18+thermalLift+(liftForcing[i]+gustLift[i]+orographicLift[i])*.35,0,1);
+             // Neighbor gradients are read from OLD cold pools; no random storm spawner.
+             double available=Clamp((rh-.48)/.4,0,1)*Math.Exp(-CIN[i]/180);
+             double target=Math.Sqrt(2*CAPE[i])*.24*trigger*available;
+@@ -274,16 +305,25 @@
+             Film[i]*=Math.Exp(-seconds/3600);Film[i]=Math.Min(Film[i],SurfaceWater[i]);
+             Wetness[i]=1-Math.Exp(-Film[i]/.35);
+         }
++        static double SaturationSlope(double t,double p,double q)
++        {
++            double c=Clamp(t-273.15,-85,55);
++            if(t-273.15<=-85||t-273.15>=55||q<=.000001||q>=.09)return 0;
++            double e=q*p/(.622+q),denom=p-e;
++            double derivativeLog=17.67*243.5/((c+243.5)*(c+243.5));
++            return denom>1000?q*derivativeLog*p/denom:q*derivativeLog;
++        }
+         void SaturationAdjustment(int i,double seconds)
+         {
++            double relaxation=Relax(seconds,10);
+             for(int k=0;k<Layers;k++)
+             {
+                 int j=k*Count+i;double mass=AirMass[k];
+                 for(int iteration=0;iteration<3;iteration++)
+                 {
+                     double sat=Saturation(Temperature[j],Pressure[k]);
+-                    double derivative=(Saturation(Temperature[j]+.1,Pressure[k])-sat)/.1;
+-                    double amount=(Water[0][j]-sat*mass)/(1+2490*derivative)*Relax(seconds,10);
++                    double derivative=SaturationSlope(Temperature[j],Pressure[k],sat);
++                    double amount=(Water[0][j]-sat*mass)/(1+2490*derivative)*relaxation;
+                     if(amount>=0){amount=Math.Min(amount,Water[0][j]);Water[0][j]-=amount;Water[1][j]+=amount;Temperature[j]+=2490*amount/mass;}
+                     else
+                     {
+@@ -358,13 +398,17 @@
+         }
+         void Diagnose(int i,double dt)
+         {
+-            double path=0,mixedIce=0,graupel=0;CloudBase[i]=16000;CloudTop[i]=0;
++            double path=0,mixedIce=0,graupel=0,collision=0;CloudBase[i]=16000;CloudTop[i]=0;
+             for(int k=0;k<Layers;k++)
+             {
+                 int j=k*Count+i;double cloud=Water[1][j]+Water[2][j];path+=cloud;
+                 if(cloud/(Edges[k+1]-Edges[k])>.000015)
+                 {CloudBase[i]=Math.Min(CloudBase[i],Edges[k]);CloudTop[i]=Edges[k+1];}
+-                if(Temperature[j]>235&&Temperature[j]<268){mixedIce+=Water[2][j];graupel+=Water[5][j];}
++                if(Temperature[j]>238&&Temperature[j]<268)
++                {
++                    mixedIce+=Water[2][j];graupel+=Water[5][j];
++                    collision+=Math.Min(Water[1][j],Water[2][j])*Water[5][j];
++                }
+             }
+             Coverage[i]=1-Math.Exp(-path*1.8);
+             int previous=Stage[i];
+@@ -373,11 +417,14 @@
+             StormAge[i]=previous==Stage[i]?StormAge[i]+dt:0;
+             cooldown[i]=Math.Max(0,cooldown[i]-dt);
+             // Charge is a gameplay mixed-phase proxy, not an electrification solver.
+-            double rate=Clamp(mixedIce*graupel*Updraft[i]*2.8,0,.6);
++            double rate=Clamp(collision*Math.Max(0,Updraft[i]-2)*.6,0,.075);
+             Charge[i]=Math.Max(0,Charge[i]*Math.Exp(-dt/100)+rate*dt);
+-            if(dt>0&&Stage[i]==3&&Charge[i]>=1&&cooldown[i]<=0&&mixedIce>.006&&graupel>.001)
+-            {
+-                Charge[i]*=.24;cooldown[i]=4+Rand()*7;LightningCount++;
++            double hazard=(.006+.006*Clamp(CAPE[i]/2500,0,1))*Clamp(Area[i]/.0035,.2,2);
++            if(dt>0&&Stage[i]==3&&StormAge[i]>3&&CAPE[i]>600&&Updraft[i]>3&&RainRate[i]>.5
++                &&Charge[i]>=1&&cooldown[i]<=0&&mixedIce>.018&&graupel>.005&&collision>.00005
++                &&Rand()<1-Math.Exp(-hazard*dt))
++            {
++                Charge[i]*=.18;cooldown[i]=22+Rand()*43;LightningCount++;
+                 var bolt=new AtmosphereLightning{Cell=i,Height=Math.Min(CloudTop[i]*.72,10500),Strength=Clamp(.6+rate*2,.6,1.8),CloudToGround=Rand()<.38,Sequence=LightningCount,Time=Time};
+                 // Drop oldest unconsumed visual events; physics cannot allocate unbounded queues.
+                 while(Lightning.Count>=64)Lightning.Dequeue();Lightning.Enqueue(bolt);
+--- original-v4-2/Assets/ORBIS/Runtime/Weather/OrbisWeatherEffects.cs
++++ repaired-v4-2/Assets/ORBIS/Runtime/Weather/OrbisWeatherEffects.cs
+@@ -25,7 +25,7 @@
+         Vector3[] rainVertices,splashVertices;Color[] rainColors,splashColors;
+         Material rainMaterial,splashMaterial,boltMaterial;AudioClip rainClip,thunderClip;AudioSource rainAudio;
+         OrbisWorld lastWorld;System.Random rng=new System.Random(42019);
+-        float emission;int dropCursor,splashCursor,boltCursor,thunderCursor;bool initialized;
++        float emission,flashCooldown,audioCooldown;int dropCursor,splashCursor,boltCursor,thunderCursor;bool initialized;
+         Vector3 cameraLocal,cameraRight;
+         float Random01(){return (float)rng.NextDouble();}
+         Vector3 RandomTangent(Vector3 up)
+@@ -106,12 +106,23 @@
+             cameraLocal=demo.View.transform.InverseTransformPoint(demo.PlanetCamera.transform.position);
+             cameraRight=demo.View.transform.InverseTransformDirection(demo.PlanetCamera.transform.right);
+             var core=demo.World.Weather.Atmosphere;
++            float realDt=Mathf.Min(Time.unscaledDeltaTime,.1f);
++            flashCooldown=Mathf.Max(0,flashCooldown-realDt);audioCooldown=Mathf.Max(0,audioCooldown-realDt);
++            bool chosen=false;AtmosphereLightning candidate=new AtmosphereLightning();float best=-1;
+             while(core.Lightning.Count>0)
+             {
+                 var strike=core.Lightning.Dequeue();
+-                if(settings.lightningEffects&&natural)StartLightning(strike,!map&&settings.weatherAudio);
+-            }
+-            UpdateBolts(dt,map||!natural||!settings.lightningEffects);
++                // Consume obsolete/off-screen events, never replay them in a catch-up burst.
++                if(!settings.lightningEffects||!natural||map||demo.Paused||flashCooldown>0)continue;
++                Vector3 up=demo.World.grid.points[strike.Cell];
++                float facing=Vector3.Dot(cameraLocal.normalized,up);
++                float horizon=1f/Mathf.Max(1.001f,cameraLocal.magnitude)-.20f;
++                if(facing<horizon)continue;
++                float score=facing+(float)strike.Strength*.05f;
++                if(score>best){best=score;candidate=strike;chosen=true;}
++            }
++            if(chosen){StartLightning(candidate,settings.weatherAudio);flashCooldown=.70f+Random01()*.65f;}
++            UpdateBolts(realDt,map||!natural||!settings.lightningEffects||demo.Paused);
+             if(map||!natural||!settings.rainEffects)
+             {
+                 LocalRainIntensity=0;rainRenderer.enabled=false;splashRenderer.enabled=false;
+@@ -214,10 +225,11 @@
+             ShapeBolt(bolt.main,origin,end,.004f);
+             ShapeBolt(bolt.branchA,Vector3.Lerp(origin,end,.38f),Vector3.Lerp(origin,end,.76f)+RandomTangent(up)*.012f,.002f);
+             ShapeBolt(bolt.branchB,Vector3.Lerp(origin,end,.58f),Vector3.Lerp(origin,end,.9f)+RandomTangent(up)*.008f,.0015f);
+-            if(!allowAudio)return;
++            if(!allowAudio||audioCooldown>0)return;
+             float distance=Vector3.Distance(cameraLocal,origin)/OrbisWeatherField.HeightScale;
+             float cameraAltitude=(cameraLocal.magnitude-demo.View.RadiusAt(cameraLocal.normalized,out var cs))/OrbisWeatherField.HeightScale;
+             if(distance>25000||cameraAltitude>5000)return;
++            audioCooldown=8+Random01()*6;
+             Thunder sound=thunder[thunderCursor++%ThunderCount];sound.source.Stop();sound.source.transform.localPosition=origin;
+             float speed=331.3f+.606f*demo.World.tiles[strike.Cell].Temperature;
+             sound.delay=distance/Mathf.Clamp(speed,290,365);sound.volume=Mathf.Lerp(.65f,.16f,distance/25000);
+@@ -235,7 +247,7 @@
+             {
+                 Bolt bolt=bolts[i];bolt.age+=dt;float t=bolt.age;
+                 float pulse=bolt.power*(Mathf.Exp(-t*24)+.58f*Mathf.Exp(-Mathf.Pow((t-.085f)*50,2))+.20f*Mathf.Exp(-Mathf.Pow((t-.19f)*38,2)));
+-                if(!demo.World.settings.lightningEffects||demo.View.layer>1)pulse=0;
++                if(hidden||!demo.World.settings.lightningEffects||demo.View.layer>1)pulse=0;
+                 flashData[i]=new Vector4(bolt.position.x,bolt.position.y,bolt.position.z,pulse);
+                 bool visible=!hidden&&t<.4f;bolt.main.enabled=bolt.branchA.enabled=bolt.branchB.enabled=visible;
+                 Color color=new Color(3.1f,3.8f,5.2f,Mathf.Clamp01(pulse));
+@@ -250,7 +262,7 @@
+             Array.Clear(drops,0,drops.Length);Array.Clear(splashes,0,splashes.Length);Array.Clear(flashData,0,flashData.Length);
+             for(int i=0;i<BoltCount;i++)if(bolts[i]!=null){bolts[i].age=10;bolts[i].main.enabled=bolts[i].branchA.enabled=bolts[i].branchB.enabled=false;}
+             if(rainRenderer)rainRenderer.enabled=false;if(splashRenderer)splashRenderer.enabled=false;
+-            Shader.SetGlobalVectorArray("_OrbisLightning",flashData);emission=0;LocalRainIntensity=0;ClearThunder();if(rainAudio)rainAudio.Stop();
++            Shader.SetGlobalVectorArray("_OrbisLightning",flashData);flashCooldown=2;audioCooldown=0;emission=0;LocalRainIntensity=0;ClearThunder();if(rainAudio)rainAudio.Stop();
+         }
+         void OnDisable(){if(initialized)ResetEffects();}
+         void OnDestroy()

@@ -1,0 +1,526 @@
+using System;
+using System.Collections.Generic;
+using UnityEngine;
+using UnityEngine.Rendering;
+using Orbis.Planet;
+
+namespace Orbis.Flat
+{
+    /// <summary>
+    /// A single Markley UV lattice becomes a sphere or a continuous plane in the vertex shader.
+    /// Copies are render-only; tile IDs, editing, paths and saves always address WorldData once.
+    /// </summary>
+    public sealed class FlatScrollNavigator : MonoBehaviour
+    {
+        const float Tau = Mathf.PI * 2, StartDistance = 1.60f, EndDistance = 1.08f;
+        const float Fov = 42, DefaultEndGap = .42f;
+        const int CopyRadius = 2; // bounded cover; no duplicated simulation
+        Camera camera;
+        WorldData world;
+        FlatMapRenderer maps;
+        Mesh lattice, flatMesh, routeMesh;
+        readonly List<MeshFilter> sheetFilters = new List<MeshFilter>();
+        bool flatGeometry;
+        Material surface, routeMaterial;
+        readonly List<MeshRenderer> surfaces = new List<MeshRenderer>();
+        readonly List<MeshRenderer> routes = new List<MeshRenderer>();
+        readonly List<MaterialPropertyBlock> blocks = new List<MaterialPropertyBlock>();
+        Vector2 anchor = new Vector2(.5f, .5f);
+        MarkleyMapPosition mapPosition;
+        readonly List<Vector2Int> sheetCopies=new List<Vector2Int>();
+        Vector2Int primaryCopy;
+        Vector2 pan
+        {
+            get { return new Vector2((float)mapPosition.X,(float)mapPosition.Y); }
+            set { mapPosition.Set(value.x,value.y,world.Width,world.Height); }
+        }
+        public PlanetTangentFrame LocalFrame { get; private set; }
+        Vector3 east = Vector3.right, north = Vector3.up, normal = Vector3.back;
+        float distance = 3.1f, targetDistance = 3.1f, yaw = 0, pitch = 18;
+        float endGap = DefaultEndGap, pixels = 16, entryPixels = 16, entryViewportHeight = 1, morph, displaySpin;
+        double lockedDay, currentDay;
+        bool landingLocked, atlasPending, overview, exitPending, entryScaleRecorded;
+        int focusTile=-1;int pendingFocus=-1; bool focusZoom;Vector2 focusCenter; float targetPixels=-1; Vector2 zoomScreen; bool zoomAnchor;
+        int[] route = new int[0];
+        Vector2 lastRoutePan = new Vector2(float.NaN, float.NaN);
+        Vector3 lastRouteNormal;
+        float lastRoutePixels = -1;
+        Vector2 polarHeights; int heightRevision=-1;
+        readonly List<Vector3> routeVertices = new List<Vector3>();
+        readonly List<Color> routeColors = new List<Color>();
+        readonly List<int> routeIndices = new List<int>();
+        public bool IsFlat { get { return morph >= 1; } }
+        public bool IsGlobe { get { return morph <= 0; } }
+        public bool IsTransitioning { get { return morph > 0 && morph < 1; } }
+        public bool Overview { get { return IsFlat && pixels < 24; } }
+        public bool IsDetailed { get { return IsFlat && pixels >= 24; } }
+        public float DetailWeight { get { return Mathf.SmoothStep(0,1,Mathf.InverseLerp(12,32,pixels))*Mathf.SmoothStep(0,1,Mathf.InverseLerp(.72f,1,morph)); } }
+        public float Morph { get { return morph; } }
+        public float DisplaySpin { get { return displaySpin; } }
+        public float PixelsPerTile { get { return pixels; } }
+        public float ReturnPixelsPerTile { get { return Mathf.Max(.25f,entryPixels*camera.pixelHeight/Mathf.Max(1,entryViewportHeight)); } }
+        public float Distance { get { return distance; } }
+        public float MapHeight {get{return (float)(world.Width/MarkleyProjection.Aspect);}}
+        public Vector2 ProjectionSize {get{return new Vector2(world.Width,MapHeight);}}
+        public Vector2 CenterTile {get{return Vector2.Scale(MarkleyProjection.GeoUV(pan.x/world.Width,pan.y/MapHeight),new Vector2(world.Width,world.Height));}}
+        public Material SurfaceMaterial { get { return surface; } }
+        public int VertexCount { get { return lattice ? lattice.vertexCount : 0; } }
+        public int ActiveSheets { get; private set; }
+        public string ModeName { get { return IsFlat ? (IsDetailed ? "2D 详细图" : "2D 总览") : IsGlobe ? "星球" : "大气展开 " + Mathf.RoundToInt(morph * 100) + "%"; } }
+
+        public void Initialize(WorldData data, Camera target, FlatMapRenderer renderer)
+        {
+            if (data == null || !target || !renderer) throw new ArgumentNullException();
+            world = data; camera = target; maps = renderer;
+            surface = NewMaterial("ORBIS/FlatWorld/ScrollSurface");
+            // Large enough for smooth silhouette; scalar fields retain the original tile resolution.
+            int columns=Mathf.Clamp(world.Width,256,768),rows=Mathf.CeilToInt((float)(columns/MarkleyProjection.Aspect));
+            var vertices = new Vector3[(columns + 1) * (rows + 1)];
+            var uv = new Vector2[vertices.Length];
+            var indices = new int[columns * rows * 6];
+            for (int y = 0; y <= rows; y++) for (int x = 0; x <= columns; x++)
+            {
+                int i = y * (columns + 1) + x;
+                uv[i] = new Vector2((float)x / columns, (float)y / rows);
+                vertices[i] = new Vector3(uv[i].x, uv[i].y, 0);
+            }
+            int k = 0;
+            for (int y = 0; y < rows; y++) for (int x = 0; x < columns; x++)
+            {
+                int a = y * (columns + 1) + x, b = a + columns + 1;
+                indices[k++] = a; indices[k++] = b; indices[k++] = a + 1;
+                indices[k++] = a + 1; indices[k++] = b; indices[k++] = b + 1;
+            }
+            lattice = new Mesh { name = "ORBIS shared globe-to-scroll UV lattice", indexFormat = IndexFormat.UInt32 };
+            lattice.vertices = vertices; lattice.uv = uv; lattice.triangles = indices;
+            // Vertex displacement happens on the GPU; bounds must cover all five sheets and both endpoints.
+            lattice.bounds = new Bounds(Vector3.zero, Vector3.one * 80);
+            lattice.UploadMeshData(true);
+            flatMesh = new Mesh { name = "Exact flat endpoint quad" };
+            flatMesh.vertices = new[] { Vector3.zero, Vector3.right, Vector3.up, Vector3.one };
+            flatMesh.uv = new[] { Vector2.zero, Vector2.right, Vector2.up, Vector2.one };
+            flatMesh.triangles = new[] { 0, 2, 1, 1, 2, 3 };
+            flatMesh.bounds = lattice.bounds;
+            flatMesh.UploadMeshData(true);
+            for(int row=-2;row<=3;row++)for(int col=-2;col<=2;col++)
+            {
+                sheetCopies.Add(new Vector2Int(col,row));var mr=NewRenderer("Markley terrain sheet "+col+","+row,lattice,surface);surfaces.Add(mr);
+                mr.shadowCastingMode=ShadowCastingMode.On;sheetFilters.Add(mr.GetComponent<MeshFilter>());
+                var block=new MaterialPropertyBlock();block.SetVector("_MarkleyCopy",new Vector4(col,row,0,0));blocks.Add(block);mr.SetPropertyBlock(block);
+            }
+            pan=new Vector2(world.Width*.5f,MapHeight*.5f);
+            Tick(0, 0); SyncMaterials();
+        }
+        static Material NewMaterial(string path)
+        {
+            var shader = Resources.Load<Shader>(path);
+            if (!shader || !shader.isSupported) throw new InvalidOperationException("Missing/unsupported shader: " + path + ". See Console; no silent scene replacement.");
+            return new Material(shader) { name = path + " runtime" };
+        }
+        MeshRenderer NewRenderer(string name, Mesh mesh, Material material)
+        {
+            var go = new GameObject(name, typeof(MeshFilter), typeof(MeshRenderer)); go.transform.SetParent(transform, false);
+            go.GetComponent<MeshFilter>().sharedMesh = mesh;
+            var r = go.GetComponent<MeshRenderer>(); r.sharedMaterial = material;
+            r.shadowCastingMode = ShadowCastingMode.Off; r.receiveShadows = false;
+            return r;
+        }
+        public void SetViewport(Rect screenRect)
+        {
+            if (screenRect.width > 8 && screenRect.height > 8) camera.pixelRect = screenRect;
+        }
+        static Vector3 ToVector3(PlanetVector p) { return new Vector3((float)p.X,(float)p.Y,(float)p.Z); }
+        static Vector3 Reflect(Vector3 p) { p.z = -p.z; return p; }
+        Quaternion Spin(float radians) { return Quaternion.AngleAxis(radians * Mathf.Rad2Deg, Vector3.up); }
+        void LockPlane(Vector2 uv,double day)
+        {
+            pan=Vector2.Scale(MarkleyProjection.Project(PlanetCoordinateSystem.FromMapUV(uv.x,uv.y)),ProjectionSize);
+            AlignFrame(day);landingLocked=true;
+        }
+        void AlignFrame(double day)
+        {
+            lockedDay=day;double u=pan.x/world.Width,v=pan.y/MapHeight;
+            var location=MarkleyProjection.Unproject(u,v);anchor=new Vector2((float)PlanetCoordinateSystem.MapU(location),(float)PlanetCoordinateSystem.MapV(location));
+            LocalFrame=PlanetCoordinateSystem.LocalFrame(location,new PlanetVector(),1);
+            Vector3 up=ToVector3(LocalFrame.Up),right=ToVector3(MarkleyProjection.Direction(u+1e-5,v)-MarkleyProjection.Direction(u-1e-5,v));
+            right=Vector3.ProjectOnPlane(right,up).normalized;if(right.sqrMagnitude<.1f)right=ToVector3(LocalFrame.East);
+            Vector3 vertical=Vector3.Cross(up,right).normalized;Quaternion spin=Spin((float)(FlatSolarClock.Phase(day)*Tau));
+            normal=spin*Reflect(up);east=spin*Reflect(right);north=spin*Reflect(vertical);
+            primaryCopy=new Vector2Int(Mathf.FloorToInt(pan.x/world.Width),Mathf.FloorToInt(pan.y/MapHeight));
+        }
+        void CaptureLanding(Vector2 screen, double day)
+        {
+            Vector2 uv;
+            if (!TryGlobeUV(screen, out uv))
+            {
+                if (!TryGlobeUV(camera.pixelRect.center, out uv)) uv = anchor;
+            }
+            entryScaleRecorded=false;LockPlane(uv, day);
+            endGap = camera.pixelHeight * TileScale / (2 * LandingPixels() * Mathf.Tan(Fov * Mathf.Deg2Rad * .5f));
+            overview = true;
+        }
+        void ReanchorForExit(double day)
+        {
+            // A rigid change of tangent frame at the EXACT flat endpoint leaves the screen image unchanged.
+            targetPixels=-1;pendingFocus=-1;focusZoom=false;
+            AlignFrame(day);landingLocked=true;
+            pitch = Mathf.Asin(Mathf.Clamp(normal.y, -1, 1)) * Mathf.Rad2Deg;
+            yaw = Mathf.Atan2(-normal.x, -normal.z) * Mathf.Rad2Deg;
+            endGap = camera.orthographicSize / Mathf.Tan(Fov * Mathf.Deg2Rad * .5f);
+            distance = EndDistance; targetDistance = EndDistance;
+            atlasPending = false; overview = false;
+            Tick(0,day); // Rebind camera, terrain and cloud picking frame before the next render.
+        }
+        public void Tick(float dt, double day)
+        {
+            currentDay = day;
+            if(heightRevision!=world.TerrainRevision){polarHeights=FlatGlobeGeometry.PolarHeights(world);heightRevision=world.TerrainRevision;}
+            if(IsFlat && targetPixels>0)
+            {
+                Vector2 before=Vector2.zero,after;bool hit=zoomAnchor&&TryProjectionPoint(zoomScreen,out before);
+                if(!hit)before=Vector2.zero;
+                pixels=(float)FlatScrollMath.ExpApproach(pixels,targetPixels,14,dt);
+                if(focusZoom)
+                {
+                    focusCenter=ProjectedTile(focusTile,pan);
+                    float blend=1-Mathf.Exp(-14*dt);
+                    mapPosition.Move(PlanetCoordinateSystem.NearestOffset(focusCenter.x-mapPosition.X,world.Width)*blend,
+                        (focusCenter.y-mapPosition.Y)*blend,world.Width,world.Height);
+                }
+                if(Mathf.Abs(pixels-targetPixels)<.001f){pixels=targetPixels;targetPixels=-1;if(focusZoom)pan=focusCenter;focusZoom=false;}
+                camera.orthographicSize=camera.pixelHeight*TileScale/(2*Mathf.Max(.1f,pixels));
+                camera.ResetProjectionMatrix();
+                if(hit&&TryProjectionPoint(zoomScreen,out after))mapPosition.Move(before.x-after.x,before.y-after.y,world.Width,world.Height);
+            }
+            distance = (float)FlatScrollMath.ExpApproach(distance, targetDistance, 11, dt);
+            if (Mathf.Abs(distance - targetDistance) < .00002f) distance = targetDistance;
+            float raw = Mathf.InverseLerp(StartDistance, EndDistance, distance);
+            morph = (float)FlatScrollMath.Smooth(raw);
+            if (distance <= EndDistance) morph = 1;
+            if (distance >= StartDistance) morph = 0;
+            if (morph > 0 && !landingLocked) CaptureLanding(camera.pixelRect.center, day);
+            // In space the sphere really rotates. During landing we converge to the fixed map frame.
+            double spinDay = landingLocked ? lockedDay + (day - lockedDay) * (1 - morph) * (1 - morph) : day;
+            displaySpin = (float)(FlatSolarClock.Phase(spinDay) * Tau);
+            camera.clearFlags = CameraClearFlags.SolidColor; camera.backgroundColor = IsFlat ? new Color(.045f, .075f, .09f) : Color.black;
+            Orbis.OrbisCelestialBackdrop.Apply(camera,morph<.5f);
+            camera.allowHDR = true; camera.allowMSAA = false;
+            camera.nearClipPlane = .002f; camera.farClipPlane = 80; camera.fieldOfView = Fov;
+            Quaternion orbit = Quaternion.Euler(pitch, yaw, 0);
+            if (IsFlat)
+            {
+                pixels=Mathf.Max(pixels,MinimumPixels());
+                if (atlasPending)
+                {
+                    atlasPending = false; overview = true;
+                    pixels = FitPixels();
+                }
+                else if (!camera.orthographic)
+                {
+                    pixels = Mathf.Max(.25f, camera.pixelHeight * TileScale / (2 * endGap * Mathf.Tan(Fov * Mathf.Deg2Rad * .5f)));
+                    // Record the actual landing scale; preserve world extent across viewport resizes.
+                    if(!entryScaleRecorded){entryPixels=pixels;entryViewportHeight=camera.pixelHeight;entryScaleRecorded=true;}
+                }
+                NormalizePan();
+                camera.orthographic = true; camera.orthographicSize = camera.pixelHeight * TileScale / (2 * Mathf.Max(.1f, pixels));
+                camera.transform.SetPositionAndRotation(normal * (1 + endGap), Quaternion.LookRotation(-normal, north));
+                camera.ResetProjectionMatrix();
+            }
+            else
+            {
+                camera.orthographic = false;
+                float gap = Mathf.Lerp(StartDistance - 1, endGap, morph);
+                Vector3 planetPosition = orbit * new Vector3(0, 0, -Mathf.Max(StartDistance, distance));
+                camera.transform.SetPositionAndRotation(Vector3.Lerp(planetPosition, normal * (1 + gap), morph), Quaternion.Slerp(orbit, Quaternion.LookRotation(-normal, north), morph));
+                if (morph <= 0)
+                {
+                    camera.ResetProjectionMatrix();
+                    if (distance > StartDistance && targetDistance >= StartDistance) landingLocked = false;
+                    pixels = Mathf.Clamp(camera.pixelHeight * TileScale / (2 * Mathf.Max(.05f, distance - 1) * Mathf.Tan(Fov * Mathf.Deg2Rad * .5f)), .25f, 64);
+                }
+                else
+                {
+                    // Normalize perspective homogeneous w at the target plane before interpolation.
+                    // Both matrices give identical x/y scale at z=-gap; endpoint 1 is exact orthographic.
+                    float half = gap * Mathf.Tan(Fov * Mathf.Deg2Rad * .5f), aspect = camera.aspect;
+                    Matrix4x4 p = Matrix4x4.Perspective(Fov, aspect, camera.nearClipPlane, camera.farClipPlane);
+                    Matrix4x4 o = Matrix4x4.Ortho(-half * aspect, half * aspect, -half, half, camera.nearClipPlane, camera.farClipPlane);
+                    float projectionMix = Mathf.SmoothStep(0, 1, Mathf.InverseLerp(.62f, 1, morph));
+                    Matrix4x4 blend = new Matrix4x4();
+                    for (int r = 0; r < 4; r++) for (int c = 0; c < 4; c++) blend[r, c] = Mathf.Lerp(p[r, c] / gap, o[r, c], projectionMix);
+                    camera.projectionMatrix = blend;
+                    pixels = camera.pixelHeight * TileScale / (2 * half);
+                }
+            }
+            if(IsFlat&&pendingFocus>=0)
+            {
+                focusTile=pendingFocus;focusCenter=ProjectedTile(pendingFocus,pan);focusZoom=true;
+                pendingFocus=-1;targetPixels=48;zoomAnchor=false;NormalizePan();
+            }
+            if(IsFlat&&exitPending&&targetPixels<0)
+            {
+                exitPending=false;ReanchorForExit(day);targetDistance=3.1f;return;
+            }
+            CommitProjection();
+        }
+        float TileScale { get { return Tau / world.Width; } }
+        float LandingPixels() { return Mathf.Max(FitPixels(),8); }
+        float MinimumPixels(){return Mathf.Max(camera.pixelWidth/(world.Width*3f),camera.pixelHeight/(MapHeight*4f));}
+        float FitPixels(){return Mathf.Max(MinimumPixels(),Mathf.Min(camera.pixelWidth/(float)world.Width,camera.pixelHeight/MapHeight)*.94f);}
+        void NormalizePan()
+        {
+            mapPosition.Normalize(world.Width,world.Height);
+        }
+        Vector2 RenderPan
+        {
+            get {return pan;}
+        }
+        void CommitProjection()
+        {
+            // Input callbacks can run AFTER FlatWorldApp.Update. Rebase the material and
+            // culling copies together; never expose new sheet visibility with yesterday's pan.
+            if(surface)ApplyProjection(surface);
+            UpdateSheets(); UpdateRoute();
+        }
+        void UpdateSheets()
+        {
+            if (flatGeometry != IsFlat)
+            {
+                flatGeometry = IsFlat;
+                foreach (var filter in sheetFilters) filter.sharedMesh = flatGeometry ? flatMesh : lattice;
+            }
+            ActiveSheets = 0;
+            float halfX=camera.pixelWidth/Mathf.Max(.1f,pixels)*.5f,halfY=camera.pixelHeight/Mathf.Max(.1f,pixels)*.5f;
+            for(int i=0;i<surfaces.Count;i++)
+            {
+                var copy=sheetCopies[i];float left=copy.x*world.Width,bottom=copy.y*MapHeight;
+                bool visible=IsGlobe?copy==primaryCopy:left+world.Width>=pan.x-halfX-2&&left<=pan.x+halfX+2&&bottom+MapHeight>=pan.y-halfY-2&&bottom<=pan.y+halfY+2;
+                if(IsTransitioning&&copy==primaryCopy)visible=true;surfaces[i].enabled=visible;if(visible)ActiveSheets++;
+            }
+        }
+
+        public void SyncMaterials()
+        {
+            if (!maps || !surface) return;
+            surface.CopyPropertiesFromMaterial(maps.Material);
+            CommitProjection();
+        }
+        void ApplyProjection(Material m)
+        {
+            Vector2 p = RenderPan;
+            MarkleyProjection.Bind(m);m.SetVector("_ProjectionSize",new Vector4(world.Width,MapHeight,1f/world.Width,1f/MapHeight));
+            m.SetVector("_MapSize", new Vector4(world.Width, world.Height, 1f / world.Width, 1f / world.Height));
+            m.SetVector("_ScrollAnchor", new Vector4(anchor.x, anchor.y, 0, 0));
+            m.SetVector("_ScrollPan", new Vector4(p.x, p.y, 0, 0));
+            m.SetVector("_ScrollRight", east); m.SetVector("_ScrollUp", north); m.SetVector("_ScrollNormal", normal);
+            m.SetFloat("_ScrollMorph", morph); m.SetFloat("_ScrollSpin", displaySpin);
+            m.SetFloat("_PixelsPerTile", pixels);
+            m.SetFloat("_DetailWeight", DetailWeight);
+            m.SetVector("_ScrollPoleHeights",polarHeights);
+            m.SetFloat("_ScrollHeightScale",FlatGlobeGeometry.HeightScale);
+        }
+        public void Drag(Vector2 screenDelta)
+        {
+            if(!IsGlobe)PanBy(-screenDelta/Mathf.Max(.1f,pixels));
+            else {yaw+=screenDelta.x*.25f;pitch=Mathf.Clamp(pitch-screenDelta.y*.2f,-89.5f,89.5f);Tick(0,currentDay);if(landingLocked&&targetDistance<StartDistance)CaptureLanding(camera.pixelRect.center,currentDay);}
+        }
+        public void PanBy(Vector2 tileDelta)
+        {
+            if(IsGlobe)return;focusZoom=false;zoomAnchor=false;
+            mapPosition.Move(tileDelta.x,tileDelta.y,world.Width,world.Height);
+            if(IsTransitioning){AlignFrame(currentDay);pitch=Mathf.Asin(Mathf.Clamp(normal.y,-1,1))*Mathf.Rad2Deg;yaw=Mathf.Atan2(-normal.x,-normal.z)*Mathf.Rad2Deg;}
+            Tick(0,currentDay);
+        }
+        Vector2 ProjectedTile(int tile,Vector2 near)
+        {
+            var location=PlanetCoordinateSystem.FromMapUV((tile%world.Width+.5)/world.Width,(tile/world.Width+.5)/world.Height);
+            var canonical=MarkleyProjection.Project(location);var anchorUV=new Vector2(near.x/world.Width,near.y/MapHeight);
+            return Vector2.Scale(MarkleyProjection.Nearest(canonical,anchorUV),ProjectionSize);
+        }
+        public void Wheel(float wheel, Vector2 screen, double day)
+        {
+            wheel = Mathf.Clamp(wheel, -24, 24);if(Mathf.Abs(wheel)<.00001f)return;
+            if(exitPending&&wheel<0)targetPixels=pixels;
+            exitPending=false;
+            if (IsFlat)
+            {
+                if(wheel<0)targetDistance=EndDistance;
+                float minimum = ReturnPixelsPerTile;
+                float currentTarget=targetPixels>0?targetPixels:pixels;
+                float desired=currentTarget*Mathf.Exp(-wheel*.075f);
+                if(wheel>0 && desired<=minimum)
+                {
+                    zoomAnchor=false;focusZoom=false;pendingFocus=-1;
+                    // Already at/beyond the landing scale: fold at THIS centre and zoom.
+                    if(pixels<=minimum*1.001f)
+                    { ReanchorForExit(day);targetDistance=3.1f;return; }
+                    // Cross the threshold without needing another wheel notch after easing settles.
+                    targetPixels=minimum;exitPending=true;return;
+                }
+                // Explicit atlas mode may be wider than the return threshold; zooming IN
+                // from there stays continuous instead of snapping back to the landing scale.
+                targetPixels=Mathf.Clamp(desired,Mathf.Min(minimum,pixels),Mathf.Max(64,minimum));
+                zoomScreen=screen;zoomAnchor=true;focusZoom=false;
+            }
+            else
+            {
+                float from=((wheel<0&&targetDistance>distance)||(wheel>0&&targetDistance<distance))?distance:targetDistance;
+                float desired = Mathf.Clamp(from * Mathf.Exp(wheel * .035f), EndDistance, 6);
+                if (desired < StartDistance && !landingLocked) CaptureLanding(screen, day);
+                targetDistance = desired;
+            }
+        }
+        public void Toggle(double day)
+        {
+            if (IsFlat || (IsTransitioning && targetDistance < StartDistance)) GoGlobe(day);
+            else { if (!landingLocked) CaptureLanding(camera.pixelRect.center, day); targetDistance = EndDistance; atlasPending = false; }
+        }
+        public void GoGlobe(double day)
+        {
+            // M returns immediately from the current view. ReanchorForExit derives
+            // the perspective end gap from the actual orthographic size, preserving scale.
+            exitPending=false;
+            if (IsFlat) ReanchorForExit(day);
+            atlasPending = false; overview = false; targetPixels=-1;pendingFocus=-1;focusZoom=false;targetDistance = 3.1f;
+        }
+        public void OpenAtlas(double day)
+        {
+            exitPending=false;
+            if (IsFlat) { overview = true;targetPixels=FitPixels();zoomAnchor=false;focusZoom=false;pendingFocus=-1; Tick(0, day); return; }
+            if (!landingLocked) CaptureLanding(camera.pixelRect.center, day);
+            atlasPending = false; targetDistance = EndDistance;
+        }
+        public void Home(double day)
+        {
+            if (IsFlat) OpenAtlas(day);
+            else { targetDistance = 3.1f; yaw = 0; pitch = 18; atlasPending = false; }
+        }
+        public void Focus(int tile, double day)
+        {
+            if (tile < 0 || tile >= world.Count) return;exitPending=false;
+            Vector2 uv = new Vector2((tile % world.Width + .5f) / world.Width, (tile / world.Width + .5f) / world.Height);
+            if (IsFlat) { focusTile=tile;focusCenter=ProjectedTile(tile,pan);focusZoom=true; targetPixels=48;zoomAnchor=false;NormalizePan();Tick(0, day); }
+            else
+            {
+                entryScaleRecorded=false;LockPlane(uv, day);
+                // Preserve the orbit pose; Tick smoothly rotates toward the selected tangent frame.
+                endGap=camera.pixelHeight*TileScale/(2*LandingPixels()*Mathf.Tan(Fov*Mathf.Deg2Rad*.5f));
+                pendingFocus=tile;targetDistance=EndDistance;
+            }
+        }
+        public bool TryProjectionPoint(Vector2 screen, out Vector2 tile)
+        {
+            tile = Vector2.zero; if (morph < .5f) return false;
+            Ray ray = camera.ScreenPointToRay(screen); var plane = new Plane(normal, normal);
+            float t; if (!plane.Raycast(ray, out t)) return false;
+            Vector3 offset = ray.GetPoint(t) - normal;
+            // Use canonical pan here, not RenderPan: caller's cursor delta is continuous under wrap.
+            tile = pan + new Vector2(Vector3.Dot(offset, east), Vector3.Dot(offset, north)) / TileScale;
+            return true;
+        }
+        public bool TryFlatPoint(Vector2 screen,out Vector2 tile)
+        {
+            if(!TryProjectionPoint(screen,out Vector2 projected)){tile=Vector2.zero;return false;}
+            tile=Vector2.Scale(MarkleyProjection.GeoUV(projected.x/world.Width,projected.y/MapHeight),new Vector2(world.Width,world.Height));return true;
+        }
+        public bool TryGetPlanetLocation(Vector2 screen,out PlanetLocation location)
+        {
+            location=new PlanetLocation();Vector2 uv;
+            if(IsFlat&&TryFlatPoint(screen,out uv)){location=PlanetCoordinateSystem.FromMapUV(uv.x/world.Width,uv.y/world.Height);return true;}
+            if(IsGlobe&&TryGlobeUV(screen,out uv)){location=PlanetCoordinateSystem.FromMapUV(uv.x,uv.y);return true;}return false;
+        }
+        public int Pick(Vector2 screen)
+        {
+            Vector2 tile;
+            if (IsFlat) return TryFlatPoint(screen, out tile) ? FlatScrollMath.Tile(tile.x, tile.y, world.Width, world.Height) : -1;
+            Vector2 uv; return IsGlobe && TryGlobeUV(screen, out uv) ? FlatScrollMath.Tile(uv.x * world.Width, Math.Min(world.Height - .0001, uv.y * world.Height), world.Width, world.Height) : -1;
+        }
+        bool TryGlobeUV(Vector2 screen, out Vector2 uv)
+        {
+            uv = Vector2.zero; Ray ray = camera.ScreenPointToRay(screen);
+            float b = Vector3.Dot(ray.origin, ray.direction), disc = b * b - ray.origin.sqrMagnitude + 1.09f * 1.09f;
+            if (disc < 0) return false;
+            float lo = Mathf.Max(0, -b - Mathf.Sqrt(disc)), end = -b + Mathf.Sqrt(disc);
+            if (end <= lo) return false;
+            Quaternion inverse = Quaternion.Inverse(Spin(displaySpin));
+            float previous = RadialError(ray.GetPoint(lo), inverse);
+            for (int j = 1; j <= 160; j++)
+            {
+                float hi = Mathf.Lerp(lo, end, 1f / (161 - j));
+                float value = RadialError(ray.GetPoint(hi), inverse);
+                if (previous >= 0 && value <= 0)
+                {
+                    for (int k = 0; k < 20; k++) { float mid = (lo + hi) * .5f; if (RadialError(ray.GetPoint(mid), inverse) > 0) lo = mid; else hi = mid; }
+                    uv = UV(Reflect(inverse * ray.GetPoint((lo + hi) * .5f)).normalized); return true;
+                }
+                lo = hi; previous = value;
+            }
+            return false;
+        }
+        static Vector2 UV(Vector3 source)
+        {
+            var location=PlanetCoordinateSystem.FromWorld(new PlanetVector(source.x,source.y,source.z),new PlanetVector(),1);
+            return new Vector2((float)PlanetCoordinateSystem.MapU(location),(float)PlanetCoordinateSystem.MapV(location));
+        }
+        float RadialError(Vector3 point, Quaternion inverse)
+        {
+            if (point.sqrMagnitude < .000001f) return -1;
+            Vector2 uv = UV(Reflect(inverse * point).normalized);
+            float x = uv.x * world.Width - .5f, y = uv.y * world.Height - .5f;
+            int x0 = Mathf.FloorToInt(x), y0 = Mathf.FloorToInt(y);
+            Vector3 a=HeightFields(x0,y0),b=HeightFields(x0+1,y0),c=HeightFields(x0,y0+1),d=HeightFields(x0+1,y0+1);
+            Vector3 fields=Vector3.Lerp(Vector3.Lerp(a,b,x-x0),Vector3.Lerp(c,d,x-x0),y-y0);
+            float h=fields.x+(fields.y>0?fields.z:0);
+            return point.magnitude - FlatGlobeGeometry.Radius(h,uv.y,world.Height,polarHeights);
+        }
+        Vector3 HeightFields(int x,int y)
+        {
+            int id=Mathf.Clamp(y,0,world.Height-1)*world.Width+FMath.Wrap(x,world.Width);
+            return new Vector3(world.Elevation[id],world.Facts.ShoreDistance[id],world.Facts.Depth[id]);
+        }
+        public void SetRoute(int[] ids)
+        {
+            route = ids ?? new int[0]; lastRoutePixels = -1;
+            if (route.Length < 2 && !routeMesh) return;
+            if (!routeMesh)
+            {
+                routeMaterial = NewMaterial("ORBIS/FlatWorld/Route"); routeMesh = new Mesh { name = "Wrapped path preview", indexFormat = IndexFormat.UInt32 }; routeMesh.MarkDynamic();
+                routes.Add(NewRenderer("Markley route",routeMesh,routeMaterial));
+            }
+            UpdateRoute();
+        }
+        void UpdateRoute()
+        {
+            if(!routeMesh)return;foreach(var renderer in routes)renderer.enabled=IsFlat&&route.Length>1;
+            if(!IsFlat||route.Length<2)return;
+            if(pan==lastRoutePan&&normal==lastRouteNormal&&pixels==lastRoutePixels)return;
+            lastRoutePan=pan;lastRouteNormal=normal;lastRoutePixels=pixels;
+            var v=routeVertices;var cs=routeColors;var triangles=routeIndices;v.Clear();cs.Clear();triangles.Clear();
+            float width=Mathf.Clamp(1.5f/Mathf.Max(1,pixels),.07f,.20f)*TileScale;
+            Vector3 lift=normal*.00006f;Vector2 near=new Vector2(pan.x/world.Width,pan.y/MapHeight);
+            float halfX=camera.pixelWidth/Mathf.Max(1,pixels)*.6f,halfY=camera.pixelHeight/Mathf.Max(1,pixels)*.6f;
+            for(int i=1;i<route.Length;i++)
+            {
+                var p0=MarkleyProjection.Project(PlanetCoordinateSystem.FromMapUV((route[i-1]%world.Width+.5)/world.Width,(route[i-1]/world.Width+.5)/world.Height));
+                var p1=MarkleyProjection.Project(PlanetCoordinateSystem.FromMapUV((route[i]%world.Width+.5)/world.Width,(route[i]/world.Width+.5)/world.Height));p1=MarkleyProjection.Nearest(p1,p0);
+                for(int row=-2;row<=3;row++)for(int col=-1;col<=1;col++){
+                    int k=(int)Math.Floor(row/2.0);bool odd=row-2*k==1;float sign=odd?-1:1;
+                    Vector2 a=new Vector2((float)(odd?.75-p0.x-k*.5:p0.x-k*.5),odd?row+1-p0.y:row+p0.y);
+                    a.x=near.x+(float)PlanetCoordinateSystem.NearestOffset(a.x-near.x,1)+col;
+                    Vector2 b=a+(p1-p0)*sign;a=Vector2.Scale(a,ProjectionSize)-pan;b=Vector2.Scale(b,ProjectionSize)-pan;
+                    if(Mathf.Min(a.x,b.x)>halfX||Mathf.Max(a.x,b.x)<-halfX||Mathf.Min(a.y,b.y)>halfY||Mathf.Max(a.y,b.y)<-halfY)continue;
+                    Vector3 pa=normal+(east*a.x+north*a.y)*TileScale+lift,pb=normal+(east*b.x+north*b.y)*TileScale+lift;
+                    Vector3 side=Vector3.Cross((pb-pa).normalized,normal)*width;int start=v.Count;
+                    v.Add(pa-side);v.Add(pa+side);v.Add(pb-side);v.Add(pb+side);for(int c=0;c<4;c++)cs.Add(new Color(1,.85f,.45f));
+                    triangles.Add(start);triangles.Add(start+1);triangles.Add(start+2);triangles.Add(start+2);triangles.Add(start+1);triangles.Add(start+3);
+                }
+            }
+            routeMesh.Clear();routeMesh.SetVertices(v);routeMesh.SetColors(cs);routeMesh.SetTriangles(triangles,0);routeMesh.RecalculateBounds();
+        }
+        void OnDestroy()
+        {
+            if (surface) Destroy(surface); if (flatMesh) Destroy(flatMesh); if (lattice) Destroy(lattice);
+            if (routeMesh) Destroy(routeMesh); if (routeMaterial) Destroy(routeMaterial);
+        }
+    }
+}

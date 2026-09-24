@@ -1,0 +1,11 @@
+{
+  "utc": "2026-09-11T18:42:38.876551+00:00",
+  "scope": "C++17 translation of the actual C# KoppenClassifier method; numeric cross-check only. Managed/runtime semantics and Unity are NOT tested.",
+  "source_sha256": "e5f1e014814ed70f18fb7c4bfc77b6c3ad64a870365a5ec4963914d1caf8df3f",
+  "fixtures": 65,
+  "status": "PASS",
+  "stdout": "PASS 65 classifier fixtures\n",
+  "stderr": "",
+  "csharp_executed": false,
+  "unity_editor_executed": false
+}

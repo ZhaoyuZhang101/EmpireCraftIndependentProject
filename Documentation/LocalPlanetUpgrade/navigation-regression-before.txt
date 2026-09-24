@@ -1,0 +1,4 @@
+FAIL drag cancels pending zoom and moves geography without rescaling
+FAIL one outward wheel step stays close to surface, morph=0 distance=3.1
+FAIL reversing wheel re-enters local view
+FAIL GPU water slope finite from 0.1m to 4000m; invalid=896
