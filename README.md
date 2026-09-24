@@ -11,7 +11,7 @@ Built-in 管线改编。来源阅读版与完整许可保存在
 ## 開啟
 
 1. 解壓後，在 Unity Hub 開啟 `ORBIS_TerrainPerf3_5_Markley`。
-2. 工程原版本為 Unity **6000.0.47f1 / Built-in Render Pipeline**。
+2. 請使用 Unity **6000.0.55f1 / Built-in Render Pipeline**（見 `ProjectSettings/ProjectVersion.txt`；工程最初建立於 6000.0.47f1）。
 3. 開啟 `Assets/ORBIS/Scenes/Orbis2DWorld.unity`，等待匯入後進入 Play Mode。
 4. 建議開啟新目錄，避免同時存在兩份 ORBIS 腳本。不要把 VendorSources 整個搬進 Assets。
 5. 執行 `ORBIS > Validation > Markley Projection and Shaders`。此入口使用真正的 C# 和 Unity 已匯入 Shader 檢查；本次環境未能執行它。
