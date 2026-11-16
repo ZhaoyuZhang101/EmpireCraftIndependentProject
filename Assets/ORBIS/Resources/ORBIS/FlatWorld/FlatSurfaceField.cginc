@@ -45,6 +45,13 @@ float3 FlatRadial(float2 uv)
     float lon=(uv.x-.5)*6.283185307,lat=(uv.y-.5)*3.141592654,c=cos(lat);
     return float3(sin(lon)*c,sin(lat),cos(lon)*c);
 }
+float3 FlatGeographicLight(float2 uv,float3 direction)
+{
+    float longitude=(uv.x-.5)*6.283185307,latitude=(uv.y-.5)*3.141592654;
+    float3 east=float3(cos(longitude),0,-sin(longitude));
+    float3 north=float3(-sin(latitude)*sin(longitude),cos(latitude),-sin(latitude)*cos(longitude));
+    return float3(dot(direction,east),dot(direction,north),dot(direction,FlatRadial(uv)));
+}
 // Geographic UVs address simulation cells. Artwork distances live on the sphere,
 // so one metre of detail has the same scale at the equator and near either pole.
 float3 FlatDetailPosition(float2 cell)

@@ -1,10 +1,8 @@
 using System;
-using System.Threading.Tasks;
 using UnityEngine;
 namespace Orbis.Flat
 {
-    /// <summary>A shared, presentation-only cloud cache driven by authoritative monthly
-    /// climate. Does not advance weather, drainage, populations or a second WorldData.</summary>
+    /// <summary>Low-frequency visual weather shared by globe and local map.</summary>
     public sealed class FlatSkyRenderer : MonoBehaviour
     {
         public RenderTexture Texture { get; private set; }
@@ -15,64 +13,56 @@ namespace Orbis.Flat
         public bool Ready { get { return Texture && ColumnTexture && bake && hpColumn && rendered && Texture.IsCreated() && ColumnTexture.IsCreated(); } }
         public string Status { get; private set; } = "云层缓存等待启用。";
         public int CacheWidth { get; private set; }
-        WorldData world;Texture2D climate,hpHigh,moisture,wind,liveCloud,liveWind,liveEffects;Texture3D hpNoise,hpDetail;Material bake,hpColumn;Color32[] monthly;
-        int month=-1,revision=-1;float debt;bool rendered,failed;double rotationSeconds;
-        FlatWeatherSimulation weather;Task<FlatWeatherFrame> weatherJob;double lastCalendarDay=double.NaN,weatherDebt;
-        readonly Vector4[] flashes=new Vector4[4];readonly float[] flashAge=new float[4];
-        Color[] cloudPixels,windPixels,effectPixels;
-        public Texture2D DynamicWind {get{return liveWind;}}
-        public bool DynamicReady {get{return liveCloud;}}
+        const int ClimateWidth=128,ClimateHeight=64;
+        WorldData world;Texture2D climate,hpHigh,wind,climateWind;Texture3D hpNoise,hpDetail;Material bake,hpColumn;
+        readonly Color32[] monthly=new Color32[ClimateWidth*ClimateHeight];
+        readonly Color[] windPixels=new Color[ClimateWidth*ClimateHeight],seasonalWindPixels=new Color[ClimateWidth*ClimateHeight];
+        int month=-1,revision=-1;float debt;bool rendered,failed;
+        double stagedClock;
+        readonly Vector4[] flashes=new Vector4[4];
+        public Texture2D DynamicWind {get{return wind;}}
+        public bool DynamicReady {get{return Ready;}}
+        public double RenderClock {get{return stagedClock;}}
         public Vector4[] LightningFlashes {get{return flashes;}}
         public void Initialize(WorldData data)
         {
             world=data;
             Shader shader=Resources.Load<Shader>("ORBIS/FlatWorld/FlatSkyBake");
-            if(!shader||!shader.isSupported){failed=true;Status="云层缓存 Shader 不支持：保留地表与晨昏，云层已降级关闭。";Debug.LogWarning(Status);return;}
+            Shader columnShader=Resources.Load<Shader>("ORBIS/FlatWorld/HPCloudColumn");
+            if(!shader||!shader.isSupported||!columnShader||!columnShader.isSupported)
+            {
+                failed=true;
+                Status="云层缓存 Shader 不支持：云层已降级关闭。";
+                Debug.LogWarning(Status);
+                return;
+            }
             bake=new Material(shader){name="Perf3.2 shared climate cloud cache"};
-            hpColumn=new Material(Resources.Load<Shader>("ORBIS/FlatWorld/HPCloudColumn")){name="HP radial cloud cache"};
+            hpColumn=new Material(columnShader){name="HP radial cloud cache"};
             hpNoise=OrbisCloudNoise.Create();hpDetail=OrbisCloudNoise.CreateDetail();hpHigh=OrbisCloudNoise.CreateHighDetail();
             hpColumn.SetTexture("_CloudNoise",hpNoise);hpColumn.SetTexture("_CloudDetailNoise",hpDetail);hpColumn.SetTexture("_HPHighDetail",hpHigh);
             hpColumn.SetTexture("_ScrollHeightTex",Texture2D.blackTexture);hpColumn.SetFloat("_ScrollHeightScale",0);
             hpColumn.SetVector("_ScrollSourceSize",new Vector4(512,256,0,0));hpColumn.SetFloat("_CloudHeightScale",OrbisWeatherField.HeightScale);
             hpColumn.SetFloat("_Density",1);hpColumn.SetFloat("_Cover",1);
-            weather=new FlatWeatherSimulation(world,Math.Min(4,FlatWorkerPolicy.Resolve()));
-            liveCloud=WeatherTexture("Prognostic HP cloud columns");liveWind=WeatherTexture("Prognostic cloud wind");liveEffects=WeatherTexture("Prognostic rain and snow");
-            bake.SetTexture("_LiveCloudTex",liveCloud);bake.SetTexture("_LiveWindTex",liveWind);bake.SetTexture("_LiveEffectTex",liveEffects);bake.SetFloat("_DynamicReady",0);
-            hpColumn.SetTexture("_ScrollCloudWindTex",liveWind);
-            hpColumn.SetTexture("_ScrollEffectsTex",liveEffects);
+            climate=new Texture2D(ClimateWidth,ClimateHeight,TextureFormat.RGBA32,false,true)
+                {name="Monthly visual weather",filterMode=FilterMode.Bilinear,wrapModeU=TextureWrapMode.Repeat,wrapModeV=TextureWrapMode.Clamp};
+            wind=WeatherTexture("Visual cloud drift");climateWind=WeatherTexture("Seasonal prevailing winds");
+            bake.SetTexture("_ClimateTex",climate);bake.SetTexture("_ClimateWindTex",climateWind);
+            hpColumn.SetTexture("_ScrollCloudWindTex",wind);hpColumn.SetTexture("_ClimateTex",climate);
             try{Resize(512);}catch(Exception ex){failed=true;Status="云缓存不可用，地表继续运行："+ex.Message;Debug.LogException(ex);}
         }
         static Texture2D WeatherTexture(string label)
-        {return new Texture2D(FlatWeatherSimulation.Width,FlatWeatherSimulation.Height,TextureFormat.RGBAHalf,false,true)
+        {return new Texture2D(ClimateWidth,ClimateHeight,TextureFormat.RGBAHalf,false,true)
             {name=label,filterMode=FilterMode.Bilinear,wrapModeU=TextureWrapMode.Repeat,wrapModeV=TextureWrapMode.Clamp};}
-        void PublishWeather(FlatWeatherFrame frame)
-        {
-            int count=frame.Width*frame.Height;
-            if(cloudPixels==null||cloudPixels.Length!=count){cloudPixels=new Color[count];windPixels=new Color[count];effectPixels=new Color[count];}
-            var c=cloudPixels;var v=windPixels;var e=effectPixels;
-            for(int i=0;i<count;i++){int j=i*4;c[i]=new Color(frame.Clouds[j],frame.Clouds[j+1],frame.Clouds[j+2],frame.Clouds[j+3]);
-                v[i]=new Color(frame.Wind[j],frame.Wind[j+1],frame.Wind[j+2],0);e[i]=new Color(frame.Effects[j],frame.Effects[j+1],frame.Effects[j+2],0);}
-            SealPole(c,frame.Width,frame.Height);SealPole(v,frame.Width,frame.Height);SealPole(e,frame.Width,frame.Height);
-            liveCloud.SetPixels(c);liveCloud.Apply(false,false);liveWind.SetPixels(v);liveWind.Apply(false,false);liveEffects.SetPixels(e);liveEffects.Apply(false,false);
-            bake.SetFloat("_DynamicReady",1);
-            foreach(var strike in frame.Lightning)
-            {
-                int slot=0;for(int j=1;j<4;j++)if(flashAge[j]<flashAge[slot])slot=j;
-                var p=weather.Model.Position[strike.Cell];flashes[slot]=new Vector4((float)p.X,(float)p.Y,(float)p.Z,Mathf.Clamp((float)strike.Strength,0,2));flashAge[slot]=.7f;
-            }
-        }
         static void SealPole(Color[] values,int w,int h)
         {for(int side=0;side<2;side++){int start=side==0?0:(h-1)*w;Color mean=Color.clear;for(int x=0;x<w;x++)mean+=values[start+x];mean/=w;for(int x=0;x<w;x++)values[start+x]=mean;}}
         void Resize(int width)
         {
             width=width>=1024?1024:512;
             if(Texture&&CacheWidth==width)return;
-            if(Texture){Texture.Release();Destroy(Texture);}if(climate)Destroy(climate);
+            if(Texture){Texture.Release();Destroy(Texture);}
             if(ColumnTexture){ColumnTexture.Release();Destroy(ColumnTexture);}
             ReleaseCache(weatherBack);ReleaseCache(columnBack);ReleaseCache(columnStrip);pendingStrip=-1;
             CacheWidth=width;int height=width/2;
-            climate=new Texture2D(width,height,TextureFormat.RGBA32,false,true){name="Monthly climate visual cache",filterMode=FilterMode.Bilinear,wrapModeU=TextureWrapMode.Repeat,wrapModeV=TextureWrapMode.Clamp};
-            monthly=new Color32[width*height];
             Texture=new RenderTexture(width,height,0,RenderTextureFormat.ARGB32,RenderTextureReadWrite.Linear){name="Perf3.2 low and high clouds",filterMode=FilterMode.Bilinear,wrapModeU=TextureWrapMode.Repeat,wrapModeV=TextureWrapMode.Clamp,useMipMap=false,autoGenerateMips=false};
             if(!Texture.Create())throw new InvalidOperationException("Cannot allocate 2D cloud render target.");
             ColumnTexture=new RenderTexture(Texture.descriptor){name="HP integrated low/high map clouds",filterMode=FilterMode.Bilinear,wrapModeU=TextureWrapMode.Repeat,wrapModeV=TextureWrapMode.Clamp};
@@ -97,12 +87,13 @@ namespace Orbis.Flat
             // Publish only a complete weather/optical-column pair. No visible stripes.
             var old=Texture;Texture=weatherBack;weatherBack=old;
             old=ColumnTexture;ColumnTexture=columnBack;columnBack=old;
+            stagedClock=hpColumn.GetFloat("_ScrollWeatherTime");
             pendingStrip=-1;rendered=true;
         }
         void UploadClimate()
         {
-            int w=CacheWidth,h=w/2,m=world.Month,next=(m+1)%12;
-            UploadMoisture(m);
+            int w=ClimateWidth,h=ClimateHeight,m=world.Month,next=(m+1)%12;
+            UploadWind(m);
             BindCyclone("_CycloneNorth",FlatCycloneSelection.Find(world,m,true));
             BindCyclone("_CycloneSouth",FlatCycloneSelection.Find(world,m,false));
             for(int y=0;y<h;y++)for(int x=0;x<w;x++)
@@ -124,24 +115,27 @@ namespace Orbis.Flat
             bake.SetFloat("_ClimateRows",h);
             climate.SetPixels32(monthly);climate.Apply(false,false);month=m;revision=world.TerrainRevision;
         }
-        void UploadMoisture(int month)
+        void UploadWind(int month)
         {
-            var state=world.Moisture;bake.SetFloat("_MoistureReady",state==null?0:1);
-            if(state==null)return;
-            if(!moisture)
+            var state=world.Moisture;int next=(month+1)%12;
+            for(int y=0;y<ClimateHeight;y++)for(int x=0;x<ClimateWidth;x++)
             {
-                moisture=new Texture2D(state.Width,state.Height,TextureFormat.RGBAHalf,false,true){name="Column humidity and condensation",filterMode=FilterMode.Bilinear,wrapModeU=TextureWrapMode.Repeat,wrapModeV=TextureWrapMode.Clamp};
-                wind=new Texture2D(state.Width,state.Height,TextureFormat.RGBAHalf,false,true){name="Seasonal moisture transport wind",filterMode=FilterMode.Bilinear,wrapModeU=TextureWrapMode.Repeat,wrapModeV=TextureWrapMode.Clamp};
-                bake.SetTexture("_MoistureTex",moisture);bake.SetTexture("_ClimateWindTex",wind);
+                float u=(x+.5f)/ClimateWidth,v=(y+.5f)/ClimateHeight;
+                float lon=(u-.5f)*Mathf.PI*2,lat=(v-.5f)*Mathf.PI;
+                float east=state==null?.4f:state.Sample(state.East,u,v,month);
+                float north=state==null?0:state.Sample(state.North,u,v,month);
+                float nextEast=state==null?east:state.Sample(state.East,u,v,next);
+                float nextNorth=state==null?north:state.Sample(state.North,u,v,next);
+                var eastDirection=new Vector3(Mathf.Cos(lon),0,-Mathf.Sin(lon));
+                var northDirection=new Vector3(-Mathf.Sin(lat)*Mathf.Sin(lon),Mathf.Cos(lat),-Mathf.Sin(lat)*Mathf.Cos(lon));
+                Vector3 velocity=Vector3.ClampMagnitude((eastDirection*east+northDirection*north)*.014f,.025f);
+                int i=y*ClimateWidth+x;
+                windPixels[i]=new Color(velocity.x,velocity.y,velocity.z,0);
+                seasonalWindPixels[i]=new Color(east,north,nextEast,nextNorth);
             }
-            int next=(month+1)%12;var water=new Color[state.Width*state.Height];var velocity=new Color[water.Length];
-            for(int i=0;i<water.Length;i++)
-            {
-                int a=i*12+month,b=i*12+next;
-                water[i]=new Color(state.Humidity[a],state.Humidity[b],state.Condensation[a]/6,state.Condensation[b]/6);
-                velocity[i]=new Color(state.East[a],state.North[a],state.East[b],state.North[b]);
-            }
-            moisture.SetPixels(water);moisture.Apply(false,false);wind.SetPixels(velocity);wind.Apply(false,false);
+            SealPole(windPixels,ClimateWidth,ClimateHeight);
+            wind.SetPixels(windPixels);wind.Apply(false,false);
+            climateWind.SetPixels(seasonalWindPixels);climateWind.Apply(false,false);
         }
         void BindCyclone(string property,FlatCyclone cyclone)
         {
@@ -154,38 +148,25 @@ namespace Orbis.Flat
         }
         public void Tick(float delta,bool needed,bool animate,bool autoSun,int width,double calendarDay)
         {
-            if(animate){Clock+=Math.Max(0,delta);if(autoSun)rotationSeconds+=Math.Max(0,delta);}
-            for(int j=0;j<4;j++){flashAge[j]=Mathf.Max(0,flashAge[j]-(animate?delta:0));flashes[j].w*=flashAge[j]>0?Mathf.Exp(-(animate?delta:0)*6):0;}
-            // Hold wind and precipitation constant while the four GPU slices
-            // are assembled, otherwise their boundaries could become visible.
-            if(weatherJob!=null&&weatherJob.IsCompleted&&pendingStrip<0)
-            {try{PublishWeather(weatherJob.GetAwaiter().GetResult());}catch(Exception ex){Debug.LogException(ex);bake.SetFloat("_DynamicReady",0);weather=null;}weatherJob=null;}
-            if(double.IsNaN(lastCalendarDay))lastCalendarDay=calendarDay;
-            double elapsed=animate?Math.Max(0,calendarDay-lastCalendarDay):0;lastCalendarDay=calendarDay;
-            weatherDebt=Math.Min(.8,weatherDebt+elapsed*120);
-            if(weather!=null&&weatherJob==null&&weatherDebt>=.1)
-            {
-                int steps=Math.Min(8,(int)(weatherDebt/.1));weatherDebt-=steps*.1;
-                double day=calendarDay-weatherDebt/120;
-                weatherJob=Task.Run(()=>{for(int j=0;j<steps;j++)weather.Step(.1,day-(steps-j-1)*.1/120);return weather.Capture();});
-            }
+            if(animate)Clock+=Math.Max(0,delta);
             if(!needed){Status="云缓存休眠；晨昏/大气开关独立。";return;}
             if(failed)return;
             try
             {
                 Resize(width);
+                if(pendingStrip>=0){RenderColumnStrip();return;}
                 bool climateChanged=month!=world.Month||revision!=world.TerrainRevision;
                 if(climateChanged)UploadClimate();
-                if(pendingStrip>=0){RenderColumnStrip();return;}
                 if(!animate&&rendered&&!climateChanged){Status="二维云缓存暂停；保留已渲染图像。";return;}
                 debt+=Mathf.Max(0,delta);
-                if(debt<.20f&&rendered)return;debt=0;
+                if(debt<.5f&&rendered)return;debt=0;
                 bake.SetFloat("_VisualTime",(float)Clock);
                 bake.SetFloat("_MonthBlend",(float)(world.Day%30)/30f);
+                hpColumn.SetFloat("_MonthBlend",(float)(world.Day%30)/30f);
                 Graphics.Blit(Texture2D.blackTexture,weatherBack,bake,0);
                 hpColumn.SetTexture("_ScrollWeatherTex",weatherBack);
                 hpColumn.SetFloat("_ScrollWeatherTime",(float)Clock);pendingStrip=0;RenderColumnStrip();
-                Status="HP 云层缓存 "+CacheWidth+"×"+(CacheWidth/2)+" · 分层水汽、风场、降水 · 最高 5 Hz";
+                Status="视觉云层 "+CacheWidth+"×"+(CacheWidth/2)+" · 月均天气、云影、局部雨雪 · 最高 2 Hz";
             }
             catch(Exception ex){failed=true;rendered=false;Status="云缓存已安全关闭："+ex.Message;Debug.LogException(ex);}
         }
@@ -211,6 +192,6 @@ namespace Orbis.Flat
             target.SetVectorArray("_FlatLightningEvents",flashes);
         }
         void OnDestroy()
-        {ReleaseCache(weatherBack);ReleaseCache(columnBack);ReleaseCache(columnStrip);if(Texture){Texture.Release();Destroy(Texture);}if(ColumnTexture){ColumnTexture.Release();Destroy(ColumnTexture);}if(climate)Destroy(climate);if(moisture)Destroy(moisture);if(wind)Destroy(wind);if(liveCloud)Destroy(liveCloud);if(liveWind)Destroy(liveWind);if(liveEffects)Destroy(liveEffects);if(bake)Destroy(bake);if(hpColumn)Destroy(hpColumn);if(hpNoise)Destroy(hpNoise);if(hpDetail)Destroy(hpDetail);if(hpHigh)Destroy(hpHigh);}
+        {ReleaseCache(weatherBack);ReleaseCache(columnBack);ReleaseCache(columnStrip);if(Texture){Texture.Release();Destroy(Texture);}if(ColumnTexture){ColumnTexture.Release();Destroy(ColumnTexture);}if(climate)Destroy(climate);if(wind)Destroy(wind);if(climateWind)Destroy(climateWind);if(bake)Destroy(bake);if(hpColumn)Destroy(hpColumn);if(hpNoise)Destroy(hpNoise);if(hpDetail)Destroy(hpDetail);if(hpHigh)Destroy(hpHigh);}
     }
 }

@@ -3,13 +3,7 @@ Shader "ORBIS/FlatWorld/SkyBake"
  Properties
  {
   _ClimateTex("Monthly precipitation and temperature",2D)="black"{}
-  _MoistureTex("Column moisture",2D)="black"{}
   _ClimateWindTex("Climate wind",2D)="black"{}
-  _LiveCloudTex("Evolving cloud mass",2D)="black"{}
-  _LiveWindTex("Evolving wind",2D)="black"{}
-  _LiveEffectTex("Precipitation",2D)="black"{}
-  _MoistureReady("Moisture ready",Float)=0
-  _DynamicReady("Weather ready",Float)=0
  }
  SubShader
  {
@@ -22,8 +16,7 @@ Shader "ORBIS/FlatWorld/SkyBake"
    #pragma fragment frag
    #pragma target 3.0
    #include "UnityCG.cginc"
-   sampler2D _ClimateTex,_MoistureTex,_ClimateWindTex,_LiveCloudTex,_LiveWindTex,_LiveEffectTex;
-   float _MoistureReady,_DynamicReady;
+   sampler2D _ClimateTex,_ClimateWindTex;
    float _VisualTime,_MonthBlend,_ClimateRows;
    float4 _CycloneNorth,_CycloneSouth;
    float4 _ClimatePoleSouth,_ClimatePoleNorth;
@@ -66,26 +59,23 @@ Shader "ORBIS/FlatWorld/SkyBake"
    {
     float4 monthly=tex2D(_ClimateTex,i.uv);
     if(_ClimateRows>0)monthly=lerp(lerp(_ClimatePoleSouth,_ClimatePoleNorth,step(.5,i.uv.y)),monthly,smoothstep(0,1,min(i.uv.y,1-i.uv.y)*_ClimateRows));
-    float wet=lerp(monthly.r,monthly.g,_MonthBlend),temperature=lerp(monthly.b,monthly.a,_MonthBlend);
+    float wet=lerp(monthly.r,monthly.g,_MonthBlend);
     float longitude=(i.uv.x-.5)*6.283185307,latitude=(i.uv.y-.5)*3.141592654;
     float3 radial=float3(sin(longitude)*cos(latitude),sin(latitude),cos(longitude)*cos(latitude));
     // Rotate a sphere instead of cumulatively advecting a UV texture. Longitude
     // remains periodic and clouds cannot stretch into needles over long sessions.
-    float4 moisture=tex2D(_MoistureTex,i.uv),wind=tex2D(_ClimateWindTex,i.uv);
-    float humidity=lerp(moisture.r,moisture.g,_MonthBlend);
-    float condensation=lerp(moisture.b,moisture.a,_MonthBlend);
+    float4 wind=tex2D(_ClimateWindTex,i.uv);
     float2 flow=lerp(wind.rg,wind.ba,_MonthBlend);
     float3 east=float3(cos(longitude),0,-sin(longitude));
     float3 north=float3(-sin(latitude)*sin(longitude),cos(latitude),-sin(latitude)*cos(longitude));
-    float3 velocity=east*flow.x+north*flow.y;
-    float3 liveVelocity=tex2D(_LiveWindTex,i.uv).xyz;
-    // Evolve two successive noise fields while backtracing through live wind.
-    // Blending the *coordinates* here cancels the displacement at mid-cycle;
-    // blend field values instead, with matching endpoints across eras.
+    float3 velocity=(east*flow.x+north*flow.y)*.014;
+    velocity*=min(1,.025/max(.0001,length(velocity)));
+    // Visual cloud evolution uses the existing seasonal wind and two smoothly
+    // changing spherical noise fields. It has no running water-vapour solver.
     float era=floor(_VisualTime*.0125),phase=frac(_VisualTime*.0125);
     float blend=phase*phase*(3-2*phase);
-    float3 p0=normalize(radial-liveVelocity*phase*7);
-    float3 p1=normalize(radial+liveVelocity*(1-phase)*7);
+    float3 p0=normalize(radial-velocity*phase*7);
+    float3 p1=normalize(radial+velocity*(1-phase)*7);
     float3 seed0=float3(Hash3(float3(era,4,7)),Hash3(float3(era,11,3)),Hash3(float3(era,5,19)))*13;
     float3 seed1=float3(Hash3(float3(era+1,4,7)),Hash3(float3(era+1,11,3)),Hash3(float3(era+1,5,19)))*13;
     float3 p=p0;
@@ -94,32 +84,20 @@ Shader "ORBIS/FlatWorld/SkyBake"
     float broad=lerp(Fbm(p0*5.5+distortion*2+wander+seed0),Fbm(p1*5.5+distortion*2+wander+seed1),blend);
     float warp=Noise3(p*2.7+float3(8,21,4));
     float cells=lerp(Noise3(p0*(23+warp*5)+wander*.7+seed0),Noise3(p1*(23+warp*5)+wander*.7+seed1),blend);
-    float available=lerp(saturate(wet*.85+.10),saturate((humidity-.42)*1.8+condensation*.40),_MoistureReady);
-    float threshold=lerp(.78,.40,available);
+    float available=saturate(.25+wet*.75);
+    float threshold=lerp(.67,.36,available);
     float low=smoothstep(threshold-.04,threshold+.10,broad*.62+cells*.38);
     float erosion=Noise3(p*72+wander);
     low=saturate(low*(.78+erosion*.28))*smoothstep(.04,.20,available);
-    // Climatological warm, wet ocean candidates come from ORBIS's monthly
-    // temperature/precipitation fields. Spherical bands have no date-line seam.
     float2 cycloneN=Cyclone(radial,_CycloneNorth,1);
     float2 cycloneS=Cyclone(radial,_CycloneSouth,-1);
-    float cyclone=max(cycloneN.x,cycloneS.x)*(1-_DynamicReady);
-    low=max(low*(1-max(cycloneN.y,cycloneS.y)*.88),cyclone*saturate((wet-.08)*4));
+    float cyclone=max(cycloneN.x,cycloneS.x);
+    low=max(low*(1-max(cycloneN.y,cycloneS.y)*.88),cyclone);
     float3 upper=RotateY(radial,-_VisualTime*.0035);
-    float highNoise=Fbm(upper*float3(25,10,25)+wander*.4+float3(13,7,2));
+    float highNoise=Fbm(upper*20+wander*.4+float3(13,7,2));
     float high=max(smoothstep(.58,.75,highNoise)*(.60*available),cyclone*.14);
-    float brightness=saturate(.5+cells*.45+erosion*.12-low*.22);
-    float storm=max(smoothstep(.12,.60,lerp(wet,condensation,_MoistureReady))*smoothstep(.62,.9,low)*smoothstep(.28,.65,temperature),cyclone*.85);
-    float cloudType=saturate(.28+condensation*.8+storm*.35);
-    float4 live=tex2D(_LiveCloudTex,i.uv);
-    float4 effects=tex2D(_LiveEffectTex,i.uv);
-    // Weather determines how much condensate exists; multi-scale shape noise
-    // carves holes and textured edges within that evolving cloud mass.
-    float ragged=smoothstep(.38,.60,broad*.62+cells*.38);
-    low=lerp(low,saturate(live.r*(.65+ragged*.35)*(.88+erosion*.12)),_DynamicReady);
-    high=lerp(high,saturate(live.g*(.45+.55*smoothstep(.48,.64,highNoise))),_DynamicReady);
-    cloudType=lerp(cloudType,live.b,_DynamicReady);
-    storm=lerp(storm,effects.r,_DynamicReady);
+    float storm=max(smoothstep(.10,.55,wet)*smoothstep(.62,.9,low),cyclone*.85);
+    float cloudType=saturate(.28+wet*.38+storm*.35);
     return float4(low,high,cloudType,storm);
    }
    ENDCG

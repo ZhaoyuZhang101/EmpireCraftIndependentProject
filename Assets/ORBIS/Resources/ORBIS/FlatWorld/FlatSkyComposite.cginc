@@ -104,10 +104,12 @@ float3 FlatSkyComposite(float3 col,float2 uv,float2 cell,float2 screenPixel,floa
     float snow=cloud.b*_FlatRain*_FlatClouds*_SkyReady*smoothstep(8,20,pixelsPerTile);
     float flakes=FlatSnowflakes(screenPixel,_SkyClock,snow);
     col=lerp(col,FlatColor(float3(.94,.97,1)),flakes*snow*.78);
-    // Only physical lightning events emitted by mature, charged rain clouds.
+    // Brief visual lightning is limited to dense precipitating columns.
     float flash=0;
     [unroll] for(int k=0;k<4;k++)
     {float3 d=radial-_FlatLightningEvents[k].xyz;flash+=_FlatLightningEvents[k].w*exp(-dot(d,d)/.00055);}
+    float pulse=saturate((sin(_SkyClock*2.6+dot(floor(radial*18),float3(7,13,17)))-.998)*500);
+    flash+=pulse*pulse*cloud.a*smoothstep(.78,.95,cloud.r)*.65;
     col+=flash*_FlatLightning*_SkyReady*float3(.32,.39,.51);
     return col;
 }

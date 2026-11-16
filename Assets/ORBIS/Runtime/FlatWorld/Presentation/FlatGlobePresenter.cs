@@ -75,7 +75,7 @@ namespace Orbis.Flat
             if(poleRevision!=maps.World.TerrainRevision){poles=FlatGlobeGeometry.PolarHeights(maps.World);poleRevision=maps.World.TerrainRevision;}
             m.SetVector("_ScrollPoleHeights",poles);
             m.SetFloat("_ScrollHeightScale",FlatGlobeGeometry.HeightScale);
-            m.SetFloat("_ScrollWeatherTime",(float)maps.Sky.Clock);
+            m.SetFloat("_ScrollWeatherTime",(float)maps.Sky.RenderClock);
             m.SetFloat("_OrbisShadowReady",0);m.SetFloat("_GodRays",0);
             if(!scrollVolume)foreach(var volume in viewCamera.GetComponents<OrbisAtmosphereRenderer>())if(volume.view==View)scrollVolume=volume;
             if(!scrollNav)scrollNav=maps.GetComponentInParent<FlatWorldApp>()?.Navigation;

@@ -19,14 +19,11 @@ namespace Orbis.Editor
     foreach(var m in new[]{cloud,ecotone}){ShaderUtil.CompilePass(m,0,true);foreach(var e in ShaderUtil.GetShaderMessages(m.shader))if(e.severity.ToString()=="Error")throw new Exception(e.message);}
     var read=new Texture2D(128,64,TextureFormat.RGBAFloat,false,true);owned.Add(read);
     Func<Material,Color[]> render=m=>{Graphics.Blit(Texture2D.blackTexture,rt,m);RenderTexture.active=rt;read.ReadPixels(new Rect(0,0,128,64),0,0);read.Apply();return read.GetPixels();};
-    cloud.SetTexture("_ClimateTex",Texture2D.blackTexture);cloud.SetTexture("_ClimateWindTex",Texture2D.blackTexture);cloud.SetFloat("_MoistureReady",1);
-    cloud.SetTexture("_MoistureTex",Texture2D.blackTexture);var dry=render(cloud);
-    cloud.SetTexture("_MoistureTex",Texture2D.whiteTexture);var wet=render(cloud);
+    cloud.SetTexture("_ClimateTex",Texture2D.blackTexture);cloud.SetTexture("_ClimateWindTex",Texture2D.blackTexture);var dry=render(cloud);
+    cloud.SetTexture("_ClimateTex",Texture2D.whiteTexture);var wet=render(cloud);
     double dryCloud=0,wetCloud=0;for(int i=0;i<wet.Length;i++){dryCloud+=dry[i].r+dry[i].g;wetCloud+=wet[i].r+wet[i].g;}
-    if(dryCloud>1e-5||wetCloud<100)throw new Exception("Moisture cloud gating dry="+dryCloud+" wet="+wetCloud);
-    report.Add("PASS dry column produces no cloud; wet column cloud sum="+wetCloud);
-    cloud.SetTexture("_LiveCloudTex",Texture2D.whiteTexture);cloud.SetTexture("_LiveWindTex",Texture2D.blackTexture);
-    cloud.SetTexture("_LiveEffectTex",Texture2D.blackTexture);cloud.SetFloat("_DynamicReady",1);
+    if(wetCloud<100||wetCloud<dryCloud*1.15)throw new Exception("Visual climate response dry="+dryCloud+" wet="+wetCloud);
+    report.Add("PASS monthly rainfall modulates visual clouds; dry/wet sum="+dryCloud+"/"+wetCloud);
     var evolving=render(cloud);int occupied=0;foreach(var pixel in evolving)if(pixel.r>.25f)occupied++;
     float fraction=occupied/(float)evolving.Length;
     float smallest=1,largest=0;foreach(var pixel in evolving){smallest=Mathf.Min(smallest,pixel.r);largest=Mathf.Max(largest,pixel.r);}
@@ -57,9 +54,9 @@ namespace Orbis.Editor
     column.SetFloat("_CloudHeightScale",OrbisWeatherField.HeightScale);column.SetFloat("_ScrollHeightScale",0);
     column.SetVector("_ScrollSourceSize",new Vector4(512,256,0,0));column.SetFloat("_Density",1);column.SetFloat("_Cover",1);
     var weather=new Texture2D(2,2,TextureFormat.RGBAFloat,false,true);owned.Add(weather);
-    var effects=new Texture2D(2,2,TextureFormat.RGBAFloat,false,true);owned.Add(effects);
-    Action<Color> setEffects=c=>{effects.SetPixels(new[]{c,c,c,c});effects.Apply();column.SetTexture("_ScrollEffectsTex",effects);};
-    setEffects(new Color(1,0,0,0));
+    var climate=new Texture2D(2,2,TextureFormat.RGBAFloat,false,true);owned.Add(climate);
+    Action<float> setTemperature=celsius=>{float value=(celsius+25)/65;var c=new Color(1,1,value,value);climate.SetPixels(new[]{c,c,c,c});climate.Apply();column.SetTexture("_ClimateTex",climate);};
+    setTemperature(15);
     Action<Color> setWeather=c=>{weather.SetPixels(new[]{c,c,c,c});weather.Apply();column.SetTexture("_ScrollWeatherTex",weather);};
     setWeather(new Color(0,0,1,1));var clearColumn=render(column);
     foreach(var p in clearColumn)if(p.r+p.g+p.a>1e-5f)throw new Exception("Rain or shadow exists outside cloud support");
@@ -70,12 +67,12 @@ namespace Orbis.Editor
     foreach(var p in stormColumn){shadowMean+=p.r;if(p.r>.65f)thick++;if(p.a>.05f)raining++;if(p.a>.001f&&p.r<.55f)throw new Exception("Rain escapes optically thick cloud");}
     if(thick<stormColumn.Length*.15f||raining<stormColumn.Length*.05f)throw new Exception("Cumulonimbus missing visible thickness/rain: "+thick+"/"+raining);
     report.Add("PASS clear/thin/dense cloud rain gating and shadow column; thick="+thick+" rain="+raining+" mean="+shadowMean/stormColumn.Length);
-    setEffects(new Color(0,1,0,0));var snowColumn=render(column);int snowing=0;
-    foreach(var p in snowColumn){if(p.a>1e-5f)throw new Exception("Physical snowfall rendered as rain");if(p.b>.05f)snowing++;}
-    if(snowing<snowColumn.Length*.05f)throw new Exception("Physical snowfall lost in cloud cache");
+    setTemperature(-12);var snowColumn=render(column);int snowing=0;
+    foreach(var p in snowColumn){if(p.a>1e-5f)throw new Exception("Cold precipitation rendered as rain");if(p.b>.05f)snowing++;}
+    if(snowing<snowColumn.Length*.05f)throw new Exception("Cold precipitation lost in cloud cache");
     setWeather(new Color(0,0,0,0));
     foreach(var p in render(column))if(p.b>1e-5f)throw new Exception("Snow escapes cloud support");
-    report.Add("PASS physical rain/snow phase and no snowfall outside clouds; snow pixels="+snowing);
+    report.Add("PASS temperature-dependent visual rain/snow and clear-sky exclusion; snow pixels="+snowing);
     setWeather(new Color(1,.5f,1,1));
     var fullColumn=render(column);
     var strip=new RenderTexture(128,16,0,RenderTextureFormat.ARGBFloat,RenderTextureReadWrite.Linear);strip.Create();owned.Add(strip);

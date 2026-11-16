@@ -70,8 +70,8 @@ Shader "ORBIS/FlatWorld/ScrollSurface"
    float4 _Selected;
    float _Grid,_PixelsPerTile,_Natural,_Political,_WaterView,_ShowContours,_ContourInterval,_DrawHeight;
    struct appdata {float4 vertex:POSITION;float2 uv:TEXCOORD0;};
-   struct v2f {float4 pos:SV_POSITION;float2 uv:TEXCOORD0;};
-   v2f vert(appdata v){v2f o;float2 geo;float3 p=ScrollPosition(v.uv,0,geo);o.pos=UnityObjectToClipPos(float4(p,1));o.uv=geo;return o;}
+   struct v2f {float4 pos:SV_POSITION;float2 uv:TEXCOORD0;float3 world:TEXCOORD1;};
+   v2f vert(appdata v){v2f o;float2 geo;float3 p=ScrollPosition(v.uv,0,geo);o.pos=UnityObjectToClipPos(float4(p,1));o.uv=geo;o.world=mul(unity_ObjectToWorld,float4(p,1)).xyz;return o;}
    #include "FlatPixelDetail.cginc"
    #include "FlatMapFragment.cginc"
    ENDCG

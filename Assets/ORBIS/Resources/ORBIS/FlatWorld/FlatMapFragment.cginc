@@ -44,7 +44,20 @@
      float3 waterColor=FlatColor(float3(.20,.43,.55))*illumination;
      // The uniform switch skips optics without exposing padded land under water.
      float waterKind=hydro.a>.01&&field.g<0?5:FlatAreaWaterKind(cell,_InfoTex,floor(info.g+.5));
-     if(_ShowWater>.5)waterColor=FlatWaterShade(cell,hydro,mixing,field,bottom,illumination,float3(0,0,1),normalize(float3(-.4,.5,.8)),_WaveAmount*(1-polarIce),waterKind);
+     float3 waterLight=FlatGeographicLight(i.uv,normalize(_FlatSun+float3(0,1e-7,0)));
+     float3 waterView=float3(0,0,1);
+     #ifdef ORBIS_SCROLL_SURFACE
+     // Transport the actual camera direction through the same sphere/plane
+     // rotation as the terrain. Grazing globe water must not use a zenith view.
+     float3 cameraRay=normalize(_WorldSpaceCameraPos-i.world);
+     float s=sin(_ScrollSpin),c=cos(_ScrollSpin);
+     float3 planetRay=float3(c*cameraRay.x-s*cameraRay.z,cameraRay.y,-s*cameraRay.x-c*cameraRay.z);
+     float3 sphereView=FlatGeographicLight(i.uv,planetRay);
+     float3 planeView=float3(dot(cameraRay,_ScrollRight),dot(cameraRay,_ScrollUp),dot(cameraRay,_ScrollNormal));
+     waterView=lerp(sphereView,planeView,_ScrollMorph);
+     waterView=normalize(float3(waterView.xy,max(.02,waterView.z)));
+     #endif
+     if(_ShowWater>.5)waterColor=FlatWaterShade(cell,hydro,mixing,field,bottom,illumination,waterView,waterLight,_WaveAmount*(1-polarIce),waterKind);
      col=lerp(col,waterColor,waterMask);
     }
     else col*=illumination;

@@ -208,8 +208,10 @@ float3 FlatWaterShade(float2 cell,float4 hydro,float4 mixing,float4 field,float3
     float3 sphere=float3(cos(lat)*sin(lon),sin(lat),cos(lat)*cos(lon));
     float3 artwork=FlatDetailPosition(cell),weights=FlatDetailWeights(sphere);
     float3 artDx=ddx(artwork),artDy=ddy(artwork);
-    float3 right=artDx*rsqrt(max(1e-12,dot(artDx,artDx)));
-    float3 up=-artDy+right*dot(artDy,right);up*=rsqrt(max(1e-12,dot(up,up)));
+    // The callers express view/light in east, north, up coordinates. A screen
+    // derivative basis rotates with the camera and gives incompatible normals.
+    float3 right=float3(cos(lon),0,-sin(lon));
+    float3 up=float3(-sin(lat)*sin(lon),cos(lat),-sin(lat)*cos(lon));
     float3 p0=(artwork-float3(flow,.12)*phase0*3)*6;
     float3 p1=(artwork-float3(flow,.12)*phase1*3)*6;
     float2 slopes=0;
@@ -256,6 +258,8 @@ float3 FlatWaterShade(float2 cell,float4 hydro,float4 mixing,float4 field,float3
         localContribution=lerp(FlatPatchContribution(_SWEPreviousState,_SWEPreviousRect,_SWEPreviousReady,cell),localContribution,smoothstep(0,1,_SWEBlend));
     if(_VendorWaterReady<.5){slopes+=localContribution.xy;localFoam=localContribution.z;}
 #endif
+    // Fade and ice suppress every animated surface contribution consistently.
+    waveStrength=max(0,waveStrength);
     float3 normal=normalize(float3(-slopes*waveStrength,1));
     float nv=saturate(dot(normal,localView)),nl=saturate(dot(normal,localLight));
     float sediment=mixing.g*_ShowPlumes,fresh=mixing.b;

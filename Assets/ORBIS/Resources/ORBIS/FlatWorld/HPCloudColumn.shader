@@ -5,7 +5,8 @@ Shader "Hidden/ORBIS/HPCloudColumn"
   _ScrollWeatherTex("Cloud mass, height and precipitation",2D)="black"{}
   _ScrollHeightTex("Ground height",2D)="black"{}
   _ScrollCloudWindTex("Cloud wind",2D)="black"{}
-  _ScrollEffectsTex("Physical rain and snow rates",2D)="black"{}
+  _ClimateTex("Monthly precipitation and temperature",2D)="black"{}
+  _MonthBlend("Seasonal blend",Float)=0
   _CloudNoise("Cloud shape",3D)="white"{}
   _CloudDetailNoise("Cloud erosion",3D)="white"{}
   _HPHighDetail("High clouds",2D)="black"{}
@@ -24,7 +25,8 @@ Shader "Hidden/ORBIS/HPCloudColumn"
  #include "UnityCG.cginc"
  #define ORBIS_SHARED_SCROLL_WEATHER
  #include "../OrbisCloudCommon.cginc"
- sampler2D _ScrollEffectsTex;
+ sampler2D _ClimateTex;
+ float _MonthBlend;
  float4 _ColumnUVTransform;
  float4 frag(v2f_img i):SV_Target
  {
@@ -42,11 +44,11 @@ Shader "Hidden/ORBIS/HPCloudColumn"
   float4 weather=tex2Dlod(_ScrollWeatherTex,float4(i.uv,0,0));
   // Precipitation is visible only under deep, optically thick cloud columns.
   // A nonzero coarse weather rate alone must not paint rain into clear gaps.
-  float2 precipitation=tex2Dlod(_ScrollEffectsTex,float4(i.uv,0,0)).rg;
-  float rain=precipitation.r*smoothstep(.50,.78,weather.b)*smoothstep(1.3,3.2,tau.x);
-  // Snow can fall from shallower ice-bearing clouds. Its physical phase comes
-  // from the temperature/melting model, not a latitude or visual colour mask.
-  float snow=precipitation.g*smoothstep(.7,2.0,tau.x+tau.y);
+  float4 climate=tex2Dlod(_ClimateTex,float4(i.uv,0,0));
+  float temperature=lerp(climate.b,climate.a,_MonthBlend)*65-25;
+  float frozen=1-smoothstep(-1,2,temperature);
+  float rain=weather.a*(1-frozen)*smoothstep(.50,.78,weather.b)*smoothstep(1.3,3.2,tau.x);
+  float snow=weather.a*frozen*smoothstep(.7,2.0,tau.x+tau.y);
   return float4(opacity,snow,rain);
  }
  ENDCG

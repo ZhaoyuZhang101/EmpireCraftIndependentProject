@@ -32,6 +32,15 @@ namespace Orbis.Editor
     double oceanLake=Difference(samples[0],samples[1]),riverLake=Difference(samples[2],samples[1]);
     report.Add((oceanLake>1e-4&&riverLake>1e-4?"PASS":"FAIL")+" distinct ocean/lake/river results; differences="+oceanLake+", "+riverLake);
     report.Add((m.GetFloat("_VendorWaterReady")>.5?"PASS":"FAIL")+" all five SW3 artwork resources bound");
+    m.SetFloat("_ProbeKind",3);m.SetFloat("_WaterKind",3);m.SetFloat("_ProbeFlip",0);var forward=sample();
+    m.SetFloat("_ProbeFlip",1);var mirrored=sample();double rotationError=0;
+    for(int y=0;y<64;y++)for(int x=0;x<128;x++)
+    {
+     var a=forward[y*128+x];var b=mirrored[y*128+127-x];
+     rotationError=Math.Max(rotationError,Math.Max(Math.Abs(a.r-b.r),Math.Max(Math.Abs(a.g-b.g),Math.Abs(a.b-b.b))));
+    }
+    report.Add((rotationError<.001?"PASS":"FAIL")+" geographic water normals remain stable under reversed screen direction; max error="+rotationError);
+    m.SetFloat("_ProbeFlip",0);
     var bed=new Texture2D(16,8,TextureFormat.RGBAFloat,false,true){filterMode=FilterMode.Bilinear,wrapMode=TextureWrapMode.Clamp};
     try
     {
@@ -42,6 +51,7 @@ namespace Orbis.Editor
     }
     finally{UnityEngine.Object.DestroyImmediate(bed);}
     Directory.CreateDirectory("Documentation/LocalPlanetUpgrade");File.WriteAllLines("Documentation/LocalPlanetUpgrade/water-cloud-regression.txt",report);
+    if(report.Exists(line=>line.StartsWith("FAIL")))throw new InvalidOperationException(string.Join("\n",report));
    }
    finally{ShaderUtil.allowAsyncCompilation=async;RenderTexture.active=previous;RenderTexture.ReleaseTemporary(rt);UnityEngine.Object.DestroyImmediate(m);UnityEngine.Object.DestroyImmediate(image);}
   }

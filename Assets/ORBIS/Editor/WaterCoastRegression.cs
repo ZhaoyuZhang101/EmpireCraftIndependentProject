@@ -32,6 +32,7 @@ namespace Orbis.Editor
     a=image.GetPixel(31,2);b=image.GetPixel(95,2);
     report+="\n"+(a.r>.99f&&b.r>.99f?"PASS":"FAIL")+" snow artwork extends into reconstructed dry part of coastal water cell; coverage="+a.r+","+b.r;
     File.WriteAllText("Documentation/LocalPlanetUpgrade/water-coast-regression.txt",report);
+    if(report.Contains("FAIL"))throw new InvalidOperationException(report);
    }
    finally {RenderTexture.active=old;ShaderUtil.allowAsyncCompilation=async;RenderTexture.ReleaseTemporary(rt);UnityEngine.Object.DestroyImmediate(m);UnityEngine.Object.DestroyImmediate(info);UnityEngine.Object.DestroyImmediate(geo);UnityEngine.Object.DestroyImmediate(image);}
   }
