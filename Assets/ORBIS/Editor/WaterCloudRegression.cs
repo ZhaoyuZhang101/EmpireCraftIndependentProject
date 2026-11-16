@@ -41,6 +41,15 @@ namespace Orbis.Editor
     }
     report.Add((rotationError<.001?"PASS":"FAIL")+" geographic water normals remain stable under reversed screen direction; max error="+rotationError);
     m.SetFloat("_ProbeFlip",0);
+    foreach(int kind in new[]{3,4,5})
+    {
+     float period=kind==4?1/.065f:5;
+     m.SetFloat("_WaterKind",kind);m.SetFloat("_WaterClock",period-.0001f);var before=sample();
+     m.SetFloat("_WaterClock",period+.0001f);var after=sample();
+     double boundary=Difference(before,after);
+     report.Add((boundary<.003?"PASS":"FAIL")+" continuous two-phase wave advection kind="+kind+" mean RGB difference="+boundary);
+    }
+    m.SetFloat("_WaterClock",3);
     var bed=new Texture2D(16,8,TextureFormat.RGBAFloat,false,true){filterMode=FilterMode.Bilinear,wrapMode=TextureWrapMode.Clamp};
     try
     {

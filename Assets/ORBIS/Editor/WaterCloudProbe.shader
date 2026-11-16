@@ -29,7 +29,8 @@ Shader "Hidden/ORBIS/WaterCloudProbe"
   float depth=.1+sampleUV.x*3999.9;
   float4 hydro=float4(depth,.7,.4,_WaterKind>4.5?.15:0);
   float4 mixing=float4(.2,.1,.8,0),field=float4(100,.2,depth,0);
-  float3 col=FlatWaterShade(sampleUV*4,hydro,mixing,field,float3(.3,.3,.2),float3(.8,.9,1),float3(0,0,1),normalize(float3(-.4,.5,.8)),.7,_WaterKind);
+  float waterEdge=_WaterKind>4.5?(abs(sampleUV.y-.5)*2-1)*hydro.a:-field.g;
+  float3 col=FlatWaterShade(sampleUV*4,hydro,mixing,field,float3(.3,.3,.2),float3(.8,.9,1),float3(0,0,1),normalize(float3(-.4,.5,.8)),.7,_WaterKind,waterEdge);
   return float4(col,1);
  }
  ENDCG

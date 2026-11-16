@@ -195,8 +195,16 @@ float3 FlatPatchContribution(sampler2D patchTexture,float4 rect,float ready,floa
     return float3((state.rg*255-128)/127*.18*state.a,state.b*.35)*inside*fade;
 }
 #endif
+float FlatCoastFoam(float shoreDistance,float clock,float variation)
+{
+    float band=smoothstep(-.025,.015,shoreDistance)*(1-smoothstep(.12,.50,shoreDistance));
+    // Increasing phase carries each crest toward the zero-distance shoreline.
+    float phase=frac(shoreDistance*2.4+clock*.18+variation*.10);
+    float crest=1-smoothstep(.045,.17,abs(phase-.5));
+    return band*crest;
+}
 float3 FlatWaterShade(float2 cell,float4 hydro,float4 mixing,float4 field,float3 bottom,float3 light,
-                     float3 localView,float3 localLight,float waveStrength,float waterKind)
+                     float3 localView,float3 localLight,float waveStrength,float waterKind,float waterEdge)
 {
     // WaterKind, not salinity: freshwater plumes in the sea are still ocean waves.
     float river=step(4.5,waterKind),lake=saturate(waterKind-3)*(1-river),ocean=1-river-lake;
@@ -212,8 +220,17 @@ float3 FlatWaterShade(float2 cell,float4 hydro,float4 mixing,float4 field,float3
     // derivative basis rotates with the camera and gives incompatible normals.
     float3 right=float3(cos(lon),0,-sin(lon));
     float3 up=float3(-sin(lat)*sin(lon),cos(lat),-sin(lat)*cos(lon));
-    float3 p0=(artwork-float3(flow,.12)*phase0*3)*6;
-    float3 p1=(artwork-float3(flow,.12)*phase1*3)*6;
+    float2 tangentFlow=float2(flow.x*lerp(1,max(.02,cos(lat)),river),flow.y);
+    float3 drift=right*tangentFlow.x+up*tangentFlow.y;
+    drift*=length(flow)/max(.0001,length(drift));
+    drift*=lerp(1,.60+.45*saturate(hydro.r/4),river);
+    float3 p0=(artwork-drift*phase0*3)*6;
+    float3 p1=(artwork-drift*phase1*3)*6;
+    float2 shoreGradient=FlatHeightGradient(field.g,cell);
+    shoreGradient.x/=max(.04,cos(lat));
+    float shoreDistance=field.g/max(.25,length(shoreGradient));
+    float shoreVariation=.5+.5*sin(dot(artwork,float3(1.7,2.3,.9)));
+    float shoreCrest=FlatCoastFoam(shoreDistance,_WaterClock,shoreVariation);
     float2 slopes=0;
     float footprint=max(length(artDx*6),length(artDy*6));
     if(_VendorWaterReady>.5&&footprint<4)
@@ -225,20 +242,20 @@ float3 FlatWaterShade(float2 cell,float4 hydro,float4 mixing,float4 field,float3
         if(river>.5)
         {
             float streamLOD=max(0,log2(max(.0001,footprint*max(_VendorStreamNormal_TexelSize.z,_VendorStreamNormal_TexelSize.w)/24)));
-            float2 stream0=FlatDetailNormal(_VendorStreamNormal,artwork*.25,weights,-flow*phase0*.35,streamLOD,right,up);
-            float2 stream1=FlatDetailNormal(_VendorStreamNormal,artwork*.25,weights,-flow*phase1*.35,streamLOD,right,up);
+            float2 stream0=FlatDetailNormal(_VendorStreamNormal,artwork*.25-drift*phase0*.35,weights,0,streamLOD,right,up);
+            float2 stream1=FlatDetailNormal(_VendorStreamNormal,artwork*.25-drift*phase1*.35,weights,0,streamLOD,right,up);
             vendorSlope=lerp(stream0,stream1,blend)*.16;
         }
         else if(lake>.5)
         {
-            float2 lake0=FlatDetailNormal(_VendorLakeNormal,baseUV*2,weights,-flow*phase0*.10,lod,right,up);
-            float2 lake1=FlatDetailNormal(_VendorLakeNormal,baseUV*2,weights,flow.yx*phase1*.08,lod,right,up);
+            float2 lake0=FlatDetailNormal(_VendorLakeNormal,baseUV*2-drift*phase0*.10,weights,0,lod,right,up);
+            float2 lake1=FlatDetailNormal(_VendorLakeNormal,baseUV*2-drift*phase1*.10,weights,0,lod,right,up);
             vendorSlope=lerp(lake0,lake1,blend)*.045;
         }
         else
         {
-            float2 ocean0=FlatDetailNormal(_VendorOceanNormal,baseUV,weights,-flow*phase0*.175,lod,right,up);
-            float2 ocean1=FlatDetailNormal(_VendorOceanNormal,baseUV,weights,-flow*phase1*.175,lod,right,up);
+            float2 ocean0=FlatDetailNormal(_VendorOceanNormal,baseUV-drift*phase0*.175,weights,0,lod,right,up);
+            float2 ocean1=FlatDetailNormal(_VendorOceanNormal,baseUV-drift*phase1*.175,weights,0,lod,right,up);
             vendorSlope=lerp(ocean0,ocean1,blend)*.12;
         }
         slopes=vendorSlope;
@@ -290,9 +307,7 @@ float3 FlatWaterShade(float2 cell,float4 hydro,float4 mixing,float4 field,float3
     float foam=localFoam*waveStrength;
     if(_VendorWaterReady<.5)
     {
-        float crestPhase=field.g*8-_WaterClock*2.1+sin(dot(artwork,float3(1.7,2.3,.9)));
-        float crest=smoothstep(.70,.98,.5+.5*sin(crestPhase));
-        foam=max(foam,(1-smoothstep(.05,.75,field.g))*step(0,field.g)*(1-step(.01,hydro.a))*crest*.20*waveStrength);
+        foam=max(foam,shoreCrest*(1-river)*lerp(.20,.04,lake)*waveStrength);
     }
     if(_VendorWaterReady>.5&&footprint<4)
     {
@@ -302,19 +317,19 @@ float3 FlatWaterShade(float2 cell,float4 hydro,float4 mixing,float4 field,float3
         float a,b;
         if(river>.5)
         {
-            a=FlatDetailTexture(_VendorRiverFoam,foamUV,weights,-flow*phase0*.35,foamLOD);
-            b=FlatDetailTexture(_VendorRiverFoam,foamUV,weights,-flow*phase1*.35,foamLOD);
+            a=FlatDetailTexture(_VendorRiverFoam,foamUV-drift*phase0*.35,weights,0,foamLOD);
+            b=FlatDetailTexture(_VendorRiverFoam,foamUV-drift*phase1*.35,weights,0,foamLOD);
         }
         else
         {
-            a=FlatDetailTexture(_VendorOceanFoam,foamUV,weights,-flow*phase0*.15,foamLOD);
-            b=FlatDetailTexture(_VendorOceanFoam,foamUV,weights,-flow*phase1*.15,foamLOD);
+            a=FlatDetailTexture(_VendorOceanFoam,foamUV-drift*phase0*.15,weights,0,foamLOD);
+            b=FlatDetailTexture(_VendorOceanFoam,foamUV-drift*phase1*.15,weights,0,foamLOD);
         }
         float pattern=smoothstep(.3,.8,lerp(a,b,blend));
-        float bank=1-smoothstep(.05,.65,field.g);
         float brokenCrest=saturate(length(slopes)*4-.15)*ocean;
-        float riverFoam=river*(.05+.18*saturate(length(flow)))/(1+depth*.25);
-        foam+=pattern*(bank*lerp(.30,.06,lake)*(1-river)+brokenCrest*.18+riverFoam)*waveStrength*(1-smoothstep(1,4,footprint));
+        float riverBank=1-smoothstep(max(.003,hydro.a*.12),max(.01,hydro.a*.70),-waterEdge);
+        float riverFoam=river*(.025+.12*riverBank)*saturate(length(flow))/(1+depth*.25);
+        foam+=pattern*(shoreCrest*lerp(.34,.045,lake)*(1-river)+brokenCrest*.18+riverFoam)*waveStrength*(1-smoothstep(1,4,footprint));
     }
     return lerp(result,light*FlatColor(float3(.82,.90,.86)),saturate(foam));
 }

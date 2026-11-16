@@ -57,7 +57,7 @@
      waterView=lerp(sphereView,planeView,_ScrollMorph);
      waterView=normalize(float3(waterView.xy,max(.02,waterView.z)));
      #endif
-     if(_ShowWater>.5)waterColor=FlatWaterShade(cell,hydro,mixing,field,bottom,illumination,waterView,waterLight,_WaveAmount*(1-polarIce),waterKind);
+     if(_ShowWater>.5)waterColor=FlatWaterShade(cell,hydro,mixing,field,bottom,illumination,waterView,waterLight,_WaveAmount*(1-polarIce),waterKind,edgeDistance);
      col=lerp(col,waterColor,waterMask);
     }
     else col*=illumination;

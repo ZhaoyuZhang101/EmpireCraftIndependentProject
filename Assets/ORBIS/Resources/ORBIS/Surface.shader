@@ -69,6 +69,7 @@ Shader "ORBIS/Surface"
     illumination=lerp(float3(.95,.97,1),illumination,_Night);
     float3 col=FlatColor(i.color.rgb)*_Tint.rgb;
     float water=smoothstep(.45,.9,i.color.a);
+    float waterEdge=-1;
     float4 field=float4(0,-8,max(.2,i.waterData.x),0),hydro=float4(max(.2,i.waterData.x),0,0,0),mixing=0,geo=0,own=0,info=0;
     if(_FlatWorldReady>.5)
     {
@@ -79,6 +80,7 @@ Shader "ORBIS/Surface"
      col=FlatEcotoneColor(col,cell,field.a,tex2Dlod(_GeoTex,float4(uv,0,0)).b);
      float aa=clamp(.65/max(1,pixelsPerTile),.008,.28),edgeDistance;float2 riverFlow;
      water=FlatWaterMask(cell,tileUV,hydro,mixing,field,aa,edgeDistance,riverFlow);
+     waterEdge=edgeDistance;
      if(hydro.a>.01)hydro.gb=riverFlow;else hydro.gb=tex2D(_HydroA,uv).gb;
      mixing.gb=tex2D(_HydroB,uv).gb;
      col=FlatVegetation(col,cell,field.a,pixelsPerTile);
@@ -105,7 +107,7 @@ Shader "ORBIS/Surface"
      float3 waterColor=FlatColor(float3(.20,.43,.55))*illumination;
      float waterKind=floor(info.g+.5);
      if(_FlatWorldReady>.5)waterKind=hydro.a>.01&&field.g<0?5:FlatAreaWaterKind(uv*_MapSize.xy,_FlatInfo,waterKind);
-     if(_ShowWater>.5)waterColor=FlatWaterShade(uv*_MapSize.xy,hydro,mixing,field,FlatMaterialColor(floor(geo.g+.5))*.72,illumination,localView,localLight,_WaveAmount*(1-polarIce),waterKind);
+     if(_ShowWater>.5)waterColor=FlatWaterShade(uv*_MapSize.xy,hydro,mixing,field,FlatMaterialColor(floor(geo.g+.5))*.72,illumination,localView,localLight,_WaveAmount*(1-polarIce),waterKind,waterEdge);
      col=lerp(col,waterColor,water);
     }
     if(max(polarIce,landSnow)>.001)col=lerp(col,FlatPolarIceColor(uv,water)*illumination,max(polarIce,landSnow));

@@ -25,6 +25,16 @@ namespace Orbis.Editor
     RenderTexture.active=rt;image.ReadPixels(new Rect(0,0,128,4),0,0);image.Apply();
     var a=image.GetPixel(31,2);var b=image.GetPixel(95,2);float gap=Mathf.Max(Mathf.Abs(a.r-b.r),Mathf.Abs(a.g-b.g),Mathf.Abs(a.b-b.b));
     string report=(gap<.003f?"PASS":"FAIL")+" smoothed lake shoreline across land semantic cell, colour jump="+gap;
+    m.SetFloat("_ProbeMode",2);m.SetFloat("_WaterClock",0);
+    Graphics.Blit(Texture2D.whiteTexture,rt,m);RenderTexture.active=rt;image.ReadPixels(new Rect(0,0,128,4),0,0);image.Apply();
+    int firstPeak=0;float firstValue=0,farFoam=image.GetPixel(0,2).r+image.GetPixel(127,2).r;
+    for(int x=0;x<58;x++)if(image.GetPixel(x,2).r>firstValue){firstValue=image.GetPixel(x,2).r;firstPeak=x;}
+    m.SetFloat("_WaterClock",1);
+    Graphics.Blit(Texture2D.whiteTexture,rt,m);RenderTexture.active=rt;image.ReadPixels(new Rect(0,0,128,4),0,0);image.Apply();
+    int laterPeak=0;float laterValue=0;
+    for(int x=0;x<58;x++)if(image.GetPixel(x,2).r>laterValue){laterValue=image.GetPixel(x,2).r;laterPeak=x;}
+    bool crestValid=farFoam<.0001f&&firstValue>.5f&&laterValue>.5f&&laterPeak<firstPeak-1;
+    report+="\n"+(crestValid?"PASS":"FAIL")+" crests advance toward shore and exclude inland/deep water; peak="+firstPeak+" -> "+laterPeak;
     var snow=new Color[pixels.Length];
     for(int y=0;y<256;y++)for(int x=0;x<512;x++){pixels[y*512+x]=new Color32(0,(byte)(x<183?0:3),0,0);snow[y*512+x]=new Color(0,x<183?5:0,0,0);}
     info.SetPixels32(pixels);info.Apply();geo.SetPixels(snow);geo.Apply();geo.filterMode=FilterMode.Point;

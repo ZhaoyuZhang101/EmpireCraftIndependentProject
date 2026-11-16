@@ -12,11 +12,16 @@ Shader "Hidden/ORBIS/WaterCoastProbe"
  float _ProbeMode;
  float4 frag(v2f_img i):SV_Target
  {
+  if(_ProbeMode>1.5)
+  {
+   float crest=FlatCoastFoam(-.2+i.uv.x*1.2,_WaterClock,.5);
+   return float4(crest,crest,crest,1);
+  }
   float2 cell=float2(i.uv.x<.5?182.9999:183.0001,150.7);
   float kind=floor(tex2Dlod(_InfoTex,float4((floor(cell)+.5)*_MapSize.zw,0,0)).g*255+.5);
   if(_ProbeMode>.5){float snow=FlatLandSnow(cell,_InfoTex);return float4(snow,snow,snow,1);}
   kind=FlatAreaWaterKind(cell,_InfoTex,kind);
-  float3 c=FlatWaterShade(cell,float4(15,0,0,0),float4(0,0,0,0),float4(0,.18,15,0),float3(.3,.3,.2),float3(1,1,1),float3(0,0,1),normalize(float3(-.4,.5,.8)),1,kind);
+  float3 c=FlatWaterShade(cell,float4(15,0,0,0),float4(0,0,0,0),float4(0,.18,15,0),float3(.3,.3,.2),float3(1,1,1),float3(0,0,1),normalize(float3(-.4,.5,.8)),1,kind,-.18);
   return float4(c,1);
  }
  ENDCG
