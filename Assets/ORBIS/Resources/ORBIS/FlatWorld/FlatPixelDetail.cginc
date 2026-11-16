@@ -89,8 +89,8 @@ float PixelPropShadow(float2 cell)
    float4 field=tex2Dlod(_VisualTex,float4((root+float2(.5,.25))*_MapSize.zw,0,0));
    if(seed>saturate((field.a-.20)*1.25)||field.g>-.18)continue;
    float4 hydro=tex2Dlod(_HydroA,float4(uv,0,0));
-   float links=tex2Dlod(_HydroB,float4(uv,0,0)).a;float2 flow;
-   if(FlatRiverDistance(float2(.5,.25),hydro,floor(links+.5),uv,flow)<.15)continue;
+   float4 river=tex2Dlod(_HydroB,float4(uv,0,0));float2 flow;
+   if(FlatRiverDistance(float2(.5,.25),hydro,floor(river.a+.5),river.r,uv,flow)<.15)continue;
    float conifer=step(16.5,info.a)*step(info.a,28.5);
    float shape=lerp(PDLeafSdf(silhouetteUV),PDConiferSdf(silhouetteUV),conifer);
    mask=(1-smoothstep(-.4,2.2,shape))*.30;
@@ -119,12 +119,12 @@ float3 PixelProps(float3 col,float2 cell,float4 field,float waterMask,float stru
   float2 centreUV=(treeId+.5)*_MapSize.zw;
   float4 rootField=tex2Dlod(_VisualTex,float4(rootUV,0,0));
   float4 rootHydro=tex2Dlod(_HydroA,float4(centreUV,0,0));
-  float links=tex2Dlod(_HydroB,float4(centreUV,0,0)).a;
+  float4 rootMixing=tex2Dlod(_HydroB,float4(centreUV,0,0));
   float4 rootInfo=tex2Dlod(_InfoTex,float4(centreUV,0,0))*255;
   float rootStructure=rootInfo.b;
   float seed=PDHash(treeId);
   float2 rootFlow;
-  float rootRiver=FlatRiverDistance(float2(.5,.25),rootHydro,floor(links+.5),centreUV,rootFlow);
+  float rootRiver=FlatRiverDistance(float2(.5,.25),rootHydro,floor(rootMixing.a+.5),rootMixing.r,centreUV,rootFlow);
   float occupied=step(seed,saturate((rootField.a-.20)*1.25))*step(.18,-rootField.g)*step(.15,rootRiver);
   if(rootStructure>.5||occupied<.5||(rootInfo.g>.5&&rootInfo.g<4.5))continue;
   float2 tq=floor((cell-treeId)*32);

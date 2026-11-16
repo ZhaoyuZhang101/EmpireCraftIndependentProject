@@ -12,7 +12,7 @@ namespace Orbis.Editor
    var world=new WorldData(64,32,"river-shape",TerrainPreset.Continents);world.Facts=new FlatTerrainFacts(world.Count);
    var a=new Color[world.Count];var b=new Color[world.Count];
    for(int i=0;i<world.Count;i++)
-   {world.Facts.HalfWidth[i]=.025f+(i%7)*.022f;world.Facts.Connections[i]=3;world.Facts.FlowX[i]=1;a[i]=new Color(1,1,0,world.Facts.HalfWidth[i]);b[i]=new Color(0,0,0,3);}
+   {world.Facts.HalfWidth[i]=.025f+(i%7)*.022f;world.Facts.Meander[i]=.06f*Mathf.Sin(i*.3f);world.Facts.Connections[i]=(byte)(i%3==0?2:3);world.Facts.FlowX[i]=1;a[i]=new Color(1,1,0,world.Facts.HalfWidth[i]);b[i]=new Color(world.Facts.Meander[i],0,0,world.Facts.Connections[i]);}
    var ta=new Texture2D(64,32,TextureFormat.RGBAFloat,false,true);var tb=new Texture2D(64,32,TextureFormat.RGBAFloat,false,true);
    ta.filterMode=tb.filterMode=FilterMode.Point;ta.wrapMode=tb.wrapMode=TextureWrapMode.Repeat;ta.SetPixels(a);tb.SetPixels(b);ta.Apply();tb.Apply();
    var shader=AssetDatabase.LoadAssetAtPath<Shader>("Assets/ORBIS/Editor/RiverGeometryProbe.shader");var m=new Material(shader);

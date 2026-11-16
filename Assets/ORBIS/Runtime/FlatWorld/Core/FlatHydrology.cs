@@ -101,7 +101,68 @@ namespace Orbis.Flat
                 if(best<0)throw new InvalidOperationException("Missing hydrology spill at "+i);
                 w.Downstream[i]=best;
             }
+            RouteLakeBasins(w,cancel);
             SelectStreams(w,cancel);
+        }
+        static void RouteLakeBasins(WorldData w,CancellationToken cancel)
+        {
+            var rank=new int[w.Count];var visited=new bool[w.Count];var queue=new int[w.Count];
+            for(int k=0;k<w.Count;k++)rank[w.DrainOrder[k]]=k;
+            for(int i=0;i<w.Count;i++)
+            {
+                if(FlatTerrainAnalysis.Ocean(w.Water[i]))continue;
+                w.Water[i]=w.Downstream[i]<0||w.WaterLevel[i]>w.Elevation[i]||w.Elevation[i]<=0?WaterKind.Lake:WaterKind.Land;
+            }
+            for(int start=0;start<w.Count;start++)
+            {
+                if((start&4095)==0)cancel.ThrowIfCancellationRequested();
+                if(visited[start]||w.Water[start]!=WaterKind.Lake)continue;
+                int head=0,tail=1,outlet=start;queue[0]=start;visited[start]=true;
+                while(head<tail)
+                {
+                    int cell=queue[head++];
+                    if(rank[cell]<rank[outlet])outlet=cell;
+                    for(int direction=0;direction<4;direction++)
+                    {
+                        int next=w.SphereNeighbor(cell,direction);
+                        if(visited[next]||w.Water[next]!=WaterKind.Lake||w.WaterLevel[next]!=w.WaterLevel[start])continue;
+                        visited[next]=true;queue[tail++]=next;
+                    }
+                }
+                // The earliest downstream node has an escape path outside this
+                // basin. Choosing it cannot reconnect the lake into its own inflow.
+                for(int i=0;i<tail;i++)visited[queue[i]]=false;
+                head=0;tail=1;queue[0]=outlet;visited[outlet]=true;
+                while(head<tail)
+                {
+                    int cell=queue[head++];
+                    for(int direction=0;direction<4;direction++)
+                    {
+                        int next=w.SphereNeighbor(cell,direction);
+                        if(visited[next]||w.Water[next]!=WaterKind.Lake||w.WaterLevel[next]!=w.WaterLevel[outlet])continue;
+                        visited[next]=true;w.Downstream[next]=cell;queue[tail++]=next;
+                    }
+                }
+            }
+            // Lake interiors now have a common outlet rather than independent
+            // flood parents. Rebuild the order used for discharge and sediment.
+            var firstChild=new int[w.Count];var nextChild=new int[w.Count];
+            for(int i=0;i<w.Count;i++)firstChild[i]=-1;
+            int rootCount=0;
+            for(int i=0;i<w.Count;i++)
+            {
+                int parent=w.Downstream[i];
+                if(parent<0)queue[rootCount++]=i;
+                else{nextChild[i]=firstChild[parent];firstChild[parent]=i;}
+            }
+            int cursor=0;
+            for(int head=0,tail=rootCount;head<tail;head++)
+            {
+                if((head&4095)==0)cancel.ThrowIfCancellationRequested();
+                int cell=queue[head];w.DrainOrder[cursor++]=cell;
+                for(int child=firstChild[cell];child>=0;child=nextChild[child])queue[tail++]=child;
+            }
+            if(cursor!=w.Count)throw new InvalidOperationException("Lake routing created a drainage cycle.");
         }
         static void SelectStreams(WorldData w,CancellationToken cancel)
         {
@@ -141,8 +202,6 @@ namespace Orbis.Flat
             for(int i=0;i<w.Count;i++)
             {
                 if(FlatTerrainAnalysis.Ocean(w.Water[i]))continue;
-                if(w.Downstream[i]<0||w.WaterLevel[i]>w.Elevation[i]||w.Elevation[i]<=0)w.Water[i]=WaterKind.Lake;
-                else w.Water[i]=WaterKind.Land;
                 if(w.Downstream[i]>=0&&w.Water[i]==WaterKind.Lake)lakeOutlet[w.Downstream[i]]=true;
                 streams[i]=supply[i]>=threshold&&(valleyReach[i]>0||supply[i]>=threshold*4);
             }

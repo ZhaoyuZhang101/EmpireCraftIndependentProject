@@ -15,7 +15,7 @@ namespace Orbis.Flat
         public readonly Landform[] Forms;
         public readonly GroundMaterial[] Materials;
         public readonly float[] Relief,Gradient,Hand,Wetness,AnnualRain,MeanTemperature;
-        public readonly float[] Sediment,Freshness,FlowX,FlowY,HalfWidth,Depth,ShoreDistance;
+        public readonly float[] Sediment,Freshness,FlowX,FlowY,HalfWidth,Depth,ShoreDistance,Meander;
         public readonly byte[] SaturatedMonths,Connections;
         public readonly VegetationCover[] Vegetation;public readonly float[] Canopy;
         public readonly ushort[] FreshDistance;
@@ -27,7 +27,7 @@ namespace Orbis.Flat
             Relief=new float[count];Gradient=new float[count];Hand=new float[count];Wetness=new float[count];
             AnnualRain=new float[count];MeanTemperature=new float[count];
             Sediment=new float[count];Freshness=new float[count];FlowX=new float[count];FlowY=new float[count];
-            HalfWidth=new float[count];Depth=new float[count];ShoreDistance=new float[count];
+            HalfWidth=new float[count];Depth=new float[count];ShoreDistance=new float[count];Meander=new float[count];
             SaturatedMonths=new byte[count];Connections=new byte[count];FreshDistance=new ushort[count];
         }
         public FlatTerrainFacts Clone()
@@ -35,8 +35,8 @@ namespace Orbis.Flat
             var f=new FlatTerrainFacts(Forms.Length){MouthCount=MouthCount};
             Array.Copy(Vegetation,f.Vegetation,Forms.Length);Array.Copy(Canopy,f.Canopy,Forms.Length);
             Array.Copy(Forms,f.Forms,Forms.Length);Array.Copy(Materials,f.Materials,Forms.Length);
-            float[][] a={Relief,Gradient,Hand,Wetness,AnnualRain,MeanTemperature,Sediment,Freshness,FlowX,FlowY,HalfWidth,Depth,ShoreDistance};
-            float[][] b={f.Relief,f.Gradient,f.Hand,f.Wetness,f.AnnualRain,f.MeanTemperature,f.Sediment,f.Freshness,f.FlowX,f.FlowY,f.HalfWidth,f.Depth,f.ShoreDistance};
+            float[][] a={Relief,Gradient,Hand,Wetness,AnnualRain,MeanTemperature,Sediment,Freshness,FlowX,FlowY,HalfWidth,Depth,ShoreDistance,Meander};
+            float[][] b={f.Relief,f.Gradient,f.Hand,f.Wetness,f.AnnualRain,f.MeanTemperature,f.Sediment,f.Freshness,f.FlowX,f.FlowY,f.HalfWidth,f.Depth,f.ShoreDistance,f.Meander};
             for(int i=0;i<a.Length;i++)Array.Copy(a[i],b[i],Forms.Length);
             Array.Copy(SaturatedMonths,f.SaturatedMonths,Forms.Length);Array.Copy(Connections,f.Connections,Forms.Length);
             Array.Copy(FreshDistance,f.FreshDistance,Forms.Length);return f;
@@ -54,6 +54,16 @@ namespace Orbis.Flat
         {
             float root=(float)Math.Sqrt(Math.Max(0,discharge));
             return .018f+.202f*(root/(root+8));
+        }
+        public static float RiverDepth(float discharge,float confinement)
+        {
+            float depth=.25f+.55f*(float)Math.Pow(Math.Max(0,discharge),.30);
+            return FMath.Clamp(depth*(.8f+.2f/(1+Math.Max(0,confinement)/180)),.25f,12);
+        }
+        public static float RiverMeander(float halfWidth,float confinement,float phase)
+        {
+            float mobility=(.025f+.06f*(float)Math.Sqrt(FMath.Clamp(halfWidth/.22f,0,1)))/(1+Math.Max(0,confinement)/100);
+            return mobility*(.7f*(float)Math.Sin(phase)+.3f*(float)Math.Sin(phase*.37f+1.7f));
         }
         public static int WrappedDX(int a,int b,int width)
         { int dx=a-b;if(dx>width/2)dx-=width;if(dx< -width/2)dx+=width;return dx; }
@@ -99,7 +109,8 @@ namespace Orbis.Flat
         }
         public static void Build(WorldData w,CancellationToken cancel,bool updateBiomes,int workers=0)
         {
-            var f=new FlatTerrainFacts(w.Count);float threshold=RiverThreshold(w);
+            var f=new FlatTerrainFacts(w.Count);
+            float meanderSeed=FMath.Unit(FMath.Seed(w.Seed))*6.2831853f;
             ushort[] fresh=Distance(w,i=>w.Water[i]==WaterKind.River||w.Water[i]==WaterKind.Lake,cancel);
             Array.Copy(fresh,f.FreshDistance,w.Count);
             // HAND-like elevation above the drainage receiver; lakes have horizontal spill surfaces.
@@ -168,9 +179,11 @@ namespace Orbis.Flat
                     f.Depth[i]=area?Math.Max(.25f,w.WaterLevel[i]-w.Elevation[i]):0;
                     if(w.Water[i]==WaterKind.River)
                     {
-                        float strength=(float)Math.Sqrt(Math.Max(1,w.Runoff[i]/threshold));
                         f.HalfWidth[i]=RiverHalfWidth(w.Runoff[i]);
-                        f.Depth[i]=FMath.Clamp(.35f+.45f*strength,.5f,12);
+                        f.Depth[i]=RiverDepth(w.Runoff[i],gradient);
+                        double longitude=((x+.5)/w.Width-.5)*Math.PI*2,latitude=((y+.5)/w.Height-.5)*Math.PI;
+                        float phase=(float)(Math.Sin(longitude)*Math.Cos(latitude)*21+Math.Cos(longitude)*Math.Cos(latitude)*9+Math.Sin(latitude)*17)+meanderSeed;
+                        f.Meander[i]=RiverMeander(f.HalfWidth[i],gradient,phase);
                         for(int d=0;d<4;d++)
                         {
                             int n=w.Neighbor(i,d);if(n<0)continue;
@@ -191,10 +204,14 @@ namespace Orbis.Flat
             for(int k=w.Count-1;k>=0;k--)
             {
                 int i=w.DrainOrder[k],parent=w.Downstream[i];
-                // Settling in a lake sharply reduces downstream load rather than every lake being brown.
-                if(w.Water[i]==WaterKind.Lake)sedimentLoad[i]*=.12f;
+                float concentration=sedimentLoad[i]/Math.Max(.01f,w.Runoff[i]);
+                if(w.Water[i]==WaterKind.Lake)
+                {
+                    f.Sediment[i]=FMath.Clamp(.015f+concentration*.35f,.015f,.40f);
+                    sedimentLoad[i]*=.20f+.45f*(float)Math.Exp(-f.Depth[i]/12);
+                }
+                else f.Sediment[i]=w.Water[i]==WaterKind.River?FMath.Clamp(.025f+concentration,.025f,.85f):0;
                 if(parent>=0)sedimentLoad[parent]+=sedimentLoad[i]*.99f;
-                f.Sediment[i]=w.Water[i]==WaterKind.River?FMath.Clamp(.025f+sedimentLoad[i]/Math.Max(.01f,w.Runoff[i]),.025f,.85f):w.Water[i]==WaterKind.Lake?.035f:0;
             }
             BuildPlumes(w,f,cancel);FlatSurfaceSampling.BuildShore(w,f,cancel);w.Facts=f;
         }
@@ -204,9 +221,11 @@ namespace Orbis.Flat
             for(int i=0;i<w.Count;i++)
             {
                 if((i&4095)==0)cancel.ThrowIfCancellationRequested();int mouth=w.Downstream[i];
-                if(w.Water[i]!=WaterKind.River||mouth<0||!Ocean(w.Water[mouth]))continue;
-                f.MouthCount++;stamp++;int head=0,tail=0;queue[tail++]=mouth;stamps[mouth]=stamp;
-                float dx=f.FlowX[i],dy=f.FlowY[i];float length=FMath.Clamp(4+(float)Math.Sqrt(w.Runoff[i]/RiverThreshold(w))*2,4,16);
+                if(w.Water[i]!=WaterKind.River||mouth<0||!AreaWater(w.Water[mouth]))continue;
+                bool ocean=Ocean(w.Water[mouth]);
+                if(ocean)f.MouthCount++;
+                stamp++;int head=0,tail=0;queue[tail++]=mouth;stamps[mouth]=stamp;
+                float dx=f.FlowX[i],dy=f.FlowY[i];float length=FMath.Clamp((ocean?4:2)+(float)Math.Sqrt(w.Runoff[i]/RiverThreshold(w))*(ocean?2:1.5f),2,ocean?16:8);
                 while(head<tail)
                 {
                     int n=queue[head++];float ox=WrappedDX(n%w.Width,i%w.Width,w.Width),oy=n/w.Width-i/w.Width;
@@ -216,8 +235,13 @@ namespace Orbis.Flat
                     float old=f.Freshness[n],value=FMath.Clamp(density,0,1);f.Freshness[n]=Math.Max(old,value);
                     f.Sediment[n]=Math.Max(f.Sediment[n],value*f.Sediment[i]);
                     if(value>old){f.FlowX[n]=dx;f.FlowY[n]=dy;}
-                    // Only grow through ocean cells INSIDE the connected fan. No tint across land.
-                    for(int d=0;d<4;d++){int next=w.Neighbor(n,d);if(next>=0&&Ocean(w.Water[next])&&stamps[next]!=stamp){stamps[next]=stamp;queue[tail++]=next;}}
+                    // Restrict a lake plume to the same horizontal basin surface.
+                    for(int d=0;d<4;d++)
+                    {
+                        int next=w.Neighbor(n,d);if(next<0||stamps[next]==stamp)continue;
+                        bool connected=ocean?Ocean(w.Water[next]):w.Water[next]==WaterKind.Lake&&w.WaterLevel[next]==w.WaterLevel[mouth];
+                        if(connected){stamps[next]=stamp;queue[tail++]=next;}
+                    }
                 }
             }
         }

@@ -10,7 +10,7 @@ Shader "ORBIS/FlatWorld/FlatMap"
  [HideInInspector] _VendorRiverFoam ("SW3 river foam", 2D) = "black" {}
 
   _MainTex("Map",2D)="white"{} _OwnerTex("Ownership",2D)="black"{} _InfoTex("Semantic data",2D)="black"{}
-  _HydroA("Depth flow channel width",2D)="black"{} _HydroB("Shore sediment freshwater links",2D)="black"{}
+  _HydroA("Depth flow channel width",2D)="black"{} _HydroB("Meander sediment freshwater links",2D)="black"{}
   _GeoTex("Height material soil water",2D)="black"{} _SWEState("Local shallow water",2D)="gray"{}
   [HideInInspector] _SWEPreviousState("Previous shallow water patch",2D)="gray"{}
   [HideInInspector] _SWEBlend("Patch transition",Float)=1

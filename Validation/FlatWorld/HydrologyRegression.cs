@@ -5,6 +5,29 @@ using Orbis.Flat;
 static class HydrologyRegression
 {
  static void Check(bool ok,string message){if(!ok)throw new Exception(message);}
+ static void ValidateLakeOutlets(WorldData world)
+ {
+  var visited=new bool[world.Count];var queue=new int[world.Count];int lakes=0,multiple=0;
+  for(int start=0;start<world.Count;start++)
+  {
+   if(visited[start]||world.Water[start]!=WaterKind.Lake)continue;
+   int head=0,tail=1,exits=0;queue[0]=start;visited[start]=true;lakes++;
+   while(head<tail)
+   {
+    int cell=queue[head++],parent=world.Downstream[cell];
+    if(parent>=0&&(world.Water[parent]!=WaterKind.Lake||world.WaterLevel[parent]!=world.WaterLevel[cell]))exits++;
+    for(int direction=0;direction<4;direction++)
+    {
+     int next=world.SphereNeighbor(cell,direction);
+     if(visited[next]||world.Water[next]!=WaterKind.Lake||world.WaterLevel[next]!=world.WaterLevel[start])continue;
+     visited[next]=true;queue[tail++]=next;
+    }
+   }
+   if(exits>1)multiple++;
+  }
+  Console.WriteLine($"Lake basins={lakes}, basins with multiple outlets={multiple}");
+  Check(multiple==0,"Connected lake surface must share one main spill outlet");
+ }
  static void Validate(WorldData w)
  {
   var rank=new int[w.Count];double input=0,output=0;
@@ -25,6 +48,10 @@ static class HydrologyRegression
   var atlas=FlatAtlasTerrain.Read(File.ReadAllBytes("Assets/ORBIS/Resources/ORBIS/WorldAtlas/Default.bytes"),"ORBIS-2D-2026",default);
   Validate(atlas);
   Console.WriteLine($"Atlas: rivers={atlas.Water.Count(x=>x==WaterKind.River)}, lakes={atlas.Water.Count(x=>x==WaterKind.Lake)}, mouths={atlas.Facts.MouthCount}, max runoff={atlas.Runoff.Max():F2}");
+  float leastSediment=1,mostSediment=0;
+  for(int i=0;i<atlas.Count;i++)if(atlas.Water[i]==WaterKind.Lake){leastSediment=Math.Min(leastSediment,atlas.Facts.Sediment[i]);mostSediment=Math.Max(mostSediment,atlas.Facts.Sediment[i]);}
+  Check(mostSediment-leastSediment>.02f,"Lake clarity should respond to incoming sediment instead of a uniform tint");
+  Console.WriteLine($"Lake sediment range={leastSediment:F3}..{mostSediment:F3}");
   // A level mesa with ocean on both sides: runoff must use the nearest real spill,
   // independent of heap cell ID. The old flood-parent routing crosses the mesa.
   var flat=new WorldData(64,32,"FLAT-SPILL",TerrainPreset.Continents);
@@ -37,7 +64,13 @@ static class HydrologyRegression
   Console.WriteLine("Flat spill excess steps="+longestExcess);
   Check(longestExcess==0,"Flat drainage must follow shortest spill distance, not heap insertion order");
   // All-land, all-water, dateline and polar parents remain acyclic and conservative.
-  foreach(TerrainPreset p in Enum.GetValues(typeof(TerrainPreset)))Validate(FlatGenerator.Generate(64,32,"ATLAS-ROUTING-REGRESSION",p,default));
+  foreach(TerrainPreset p in Enum.GetValues(typeof(TerrainPreset)))
+  {
+   var generated=FlatGenerator.Generate(64,32,"ATLAS-ROUTING-REGRESSION",p,default);
+   Validate(generated);ValidateLakeOutlets(generated);
+   var loaded=FlatSave.Decode(FlatSave.Encode(generated));
+   Check(generated.Downstream.SequenceEqual(loaded.Downstream),"Save changed lake drainage");
+  }
   foreach(bool ocean in new[]{false,true})
   {
    var edge=new WorldData(64,32,"NO-COAST",TerrainPreset.Continents);
@@ -46,6 +79,7 @@ static class HydrologyRegression
   }
   var repeat=FlatAtlasTerrain.Read(File.ReadAllBytes("Assets/ORBIS/Resources/ORBIS/WorldAtlas/Default.bytes"),"ORBIS-2D-2026",default);
   Check(atlas.Downstream.SequenceEqual(repeat.Downstream)&&atlas.Water.SequenceEqual(repeat.Water),"Nondeterministic hydrology");
+  ValidateLakeOutlets(atlas);
   Console.WriteLine("PASS nearest spill, connected river exits, conservation, drainage topology and repeatability");
  }
 }

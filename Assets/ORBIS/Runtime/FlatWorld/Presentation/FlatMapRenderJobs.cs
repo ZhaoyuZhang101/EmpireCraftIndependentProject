@@ -22,7 +22,7 @@ namespace Orbis.Flat
             public VegetationCover Vegetation;
             public Landform Form;
             public Color32 Owner;
-            public float Temperature,Rain,Fertility,Depth,FlowX,FlowY,HalfWidth,Shore,Sediment,Freshness,Wetness,Hand,Canopy;
+            public float Temperature,Rain,Fertility,Depth,FlowX,FlowY,HalfWidth,Shore,Sediment,Freshness,Wetness,Hand,Canopy,Meander;
             public byte Connections;
         }
         public struct Pixel
@@ -81,7 +81,7 @@ namespace Orbis.Flat
             return new Tile{Elevation=source.Elevation[i],Water=source.Water[i],Biome=source.Biomes[i],Climate=source.Climates[i],Building=source.Buildings[i],
                 Material=f.Materials[i],Vegetation=f.Vegetation[i],Form=f.Forms[i],Owner=owner<0?new Color32(0,0,0,0):FlatPalette.RGB(source.Nations[owner].Color,(byte)(owner+1)),
                 Temperature=source.Temperature[i*12+month],Rain=source.Precipitation[i*12+month],Fertility=source.Fertility[i],Depth=f.Depth[i],FlowX=f.FlowX[i],FlowY=f.FlowY[i],
-                HalfWidth=f.HalfWidth[i],Shore=f.ShoreDistance[i],Sediment=f.Sediment[i],Freshness=f.Freshness[i],Wetness=f.Wetness[i],Hand=f.Hand[i],Canopy=f.Canopy[i],Connections=f.Connections[i]};
+                HalfWidth=f.HalfWidth[i],Shore=f.ShoreDistance[i],Sediment=f.Sediment[i],Freshness=f.Freshness[i],Wetness=f.Wetness[i],Hand=f.Hand[i],Canopy=f.Canopy[i],Meander=f.Meander[i],Connections=f.Connections[i]};
         }
         public bool Schedule(MapLayer requestedLayer,bool refreshData)
         {
@@ -196,7 +196,7 @@ namespace Orbis.Flat
                 int level=0;if(t.Elevation>0){level=20;for(int b=0;b<Bands.Length;b++)if(t.Elevation<=Bands[b]){level=b+1;break;}}
                 Output[j]=new Pixel{Terrain=terrain,Display=Layer==MapLayer.Natural?terrain:(Color32)display,Owner=t.Owner,
                     Info=new Color32((byte)level,(byte)t.Water,(byte)t.Building,(byte)t.Climate),Hydro=new Color(t.Depth,t.FlowX,t.FlowY,t.HalfWidth),
-                    Mixing=new Color(t.Shore,t.Sediment,t.Freshness,t.Connections),Geometry=new Color(t.Elevation,(float)t.Material,t.Wetness,t.Hand),Visual=new Color(t.Elevation,t.Shore,t.Depth,t.Canopy)};
+                    Mixing=new Color(t.Meander,t.Sediment,t.Freshness,t.Connections),Geometry=new Color(t.Elevation,(float)t.Material,t.Wetness,t.Hand),Visual=new Color(t.Elevation,t.Shore,t.Depth,t.Canopy)};
             }
         }
     }

@@ -2,6 +2,10 @@ PASS HP density, phi_fwd and full light segment coverage; invalid=0 cloud sample
 PASS SW3 water kind=3 finite at depths 0.1..4000m; invalid=0
 PASS SW3 water kind=4 finite at depths 0.1..4000m; invalid=0
 PASS SW3 water kind=5 finite at depths 0.1..4000m; invalid=0
-PASS distinct ocean/lake/river results; differences=0.115820608127251, 0.138539164283429
+PASS distinct ocean/lake/river results; differences=0.0809559543158684, 0.0230866504443838
 PASS all five SW3 artwork resources bound
+PASS geographic water normals remain stable under reversed screen direction; max error=0
+PASS continuous two-phase wave advection kind=3 mean RGB difference=1.62386641022749E-07
+PASS continuous two-phase wave advection kind=4 mean RGB difference=2.94494384434074E-09
+PASS continuous two-phase wave advection kind=5 mean RGB difference=2.43195427174214E-06
 PASS actual seabed opposing slopes remain visible; contrast=0.3006224

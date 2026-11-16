@@ -1,9 +1,9 @@
-PASS dry column produces no cloud; wet column cloud sum=5904.32060904656
-PASS coherent weather mass with spatial structure; occupied fraction=1 range=0.422087
-PASS evolving cloud shape and continuous weather-era boundary; change=0.0776521242514718 boundary=2.56367638939992E-06
+PASS monthly rainfall modulates visual clouds; dry/wet sum=1031.59452874383/6690.27702668353
+PASS coherent weather mass with spatial structure; occupied fraction=0.881958 range=1
+PASS evolving cloud shape and continuous weather-era boundary; change=0.13403458157987 boundary=5.2177401325959E-06
 PASS spherical ecotone noise, continuous date-line, unchanged water coordinates; displacement=0.01988011 seam=5.132851E-07
 PASS independent 128^3 shape / 64^3 detail resources loaded
 PASS clear/thin/dense cloud rain gating and shadow column; thick=6557 rain=6364 mean=0.814003293402493
-PASS physical rain/snow phase and no snowfall outside clouds; snow pixels=6685
+PASS temperature-dependent visual rain/snow and clear-sky exclusion; snow pixels=6685
 PASS amortized four-slice cache matches complete GPU render; max error=0
 PASS same cloud clears as camera crosses below its base; transmission above/inside/below=0.00195229053497314/0.0539755821228027/1

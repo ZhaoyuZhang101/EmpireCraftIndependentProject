@@ -54,7 +54,9 @@ namespace Orbis.Flat
                     float floorRidge=polar*Smooth((FBM(u,v*.5f,9,s^0x09f25a3u,4)*.5f+.5f-.52f)/.23f);
                     float floorTrench=polar*Smooth((FBM(u,v*.5f,23,s^0x16ab992u,3)*.5f+.5f-.62f)/.27f);
                     float meters=continents>0?continents*3500+mountain*FMath.Clamp(continents*7,0,1):-OceanDepth(continents,floorRidge,floorTrench);
-                    w.Elevation[y*width+x]=HeightBands.Quantize(FMath.Clamp(meters,-4000,4000));
+                    // Drainage needs continuous slopes. Preset height bands are
+                    // reserved for the editing brush and map labels.
+                    w.Elevation[y*width+x]=(short)Math.Round(FMath.Clamp(meters,-4000,4000));
                 }
             }
             Rebuild(w,cancel);return w;

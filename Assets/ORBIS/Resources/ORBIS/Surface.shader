@@ -7,7 +7,7 @@ Shader "ORBIS/Surface"
   _Tint("Tint",Color)=(1,1,1,1)
   _TerrainAtlas("Biome albedo",2D)="white"{}
   _FlatTerrain("Shared 2D terrain",2D)="white"{} _FlatOwners("Shared owners",2D)="black"{} _FlatInfo("Shared semantics",2D)="black"{}
-  _HydroA("Depth flow width",2D)="black"{} _HydroB("Shore plume links",2D)="black"{} _GeoTex("Height materials",2D)="black"{}
+  _HydroA("Depth flow width",2D)="black"{} _HydroB("Meander sediment freshwater links",2D)="black"{} _GeoTex("Height materials",2D)="black"{}
   _VisualTex("Reconstructed field",2D)="black"{} _SkyTex("Climate cloud layers",2D)="black"{}
   [HideInInspector] _SkyReady("Sky cache ready",Float)=0
   [HideInInspector] _SkyClock("Sky time",Float)=0

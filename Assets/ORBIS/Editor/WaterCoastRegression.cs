@@ -35,6 +35,30 @@ namespace Orbis.Editor
     for(int x=0;x<58;x++)if(image.GetPixel(x,2).r>laterValue){laterValue=image.GetPixel(x,2).r;laterPeak=x;}
     bool crestValid=farFoam<.0001f&&firstValue>.5f&&laterValue>.5f&&laterPeak<firstPeak-1;
     report+="\n"+(crestValid?"PASS":"FAIL")+" crests advance toward shore and exclude inland/deep water; peak="+firstPeak+" -> "+laterPeak;
+    m.SetFloat("_ProbeMode",3);
+    Graphics.Blit(Texture2D.whiteTexture,rt,m);RenderTexture.active=rt;image.ReadPixels(new Rect(0,0,128,4),0,0);image.Apply();
+    float shoreError=0;
+    foreach(var point in image.GetPixels())
+    {
+     float expected=Orbis.Flat.FlatSurfaceSampling.ShoreDetail(point.g,point.b,512,256);
+     shoreError=Mathf.Max(shoreError,Mathf.Abs(expected-point.r));
+    }
+    report+="\n"+(shoreError<.0002f?"PASS":"FAIL")+" shared CPU/GPU continuous shoreline across longitude seam; max error="+shoreError;
+    var substrate=new Color[pixels.Length];
+    for(int i=0;i<substrate.Length;i++)substrate[i]=new Color(0,i%512<183?0:3,0,0);
+    geo.SetPixels(substrate);geo.Apply();m.SetTexture("_GeoTex",geo);m.SetFloat("_ProbeMode",4);
+    Graphics.Blit(Texture2D.whiteTexture,rt,m);RenderTexture.active=rt;image.ReadPixels(new Rect(0,0,128,4),0,0);image.Apply();
+    a=image.GetPixel(31,2);b=image.GetPixel(95,2);float bedJump=Mathf.Max(Mathf.Abs(a.r-b.r),Mathf.Abs(a.g-b.g),Mathf.Abs(a.b-b.b));
+    report+="\n"+(bedJump<.003f?"PASS":"FAIL")+" submerged substrate colour is continuous across material cells; jump="+bedJump;
+    m.SetFloat("_ProbeMode",5);m.SetFloat("_Bathymetry",1);
+    Graphics.Blit(Texture2D.whiteTexture,rt,m);RenderTexture.active=rt;image.ReadPixels(new Rect(0,0,128,4),0,0);image.Apply();
+    float mouthJump=0;
+    for(int y=0;y<4;y++)
+    {
+     a=image.GetPixel(31,y);b=image.GetPixel(95,y);
+     mouthJump=Mathf.Max(mouthJump,Mathf.Abs(a.r-b.r),Mathf.Abs(a.g-b.g),Mathf.Abs(a.b-b.b));
+    }
+    report+="\n"+(mouthJump<.0001f?"PASS":"FAIL")+" ocean/lake depth stays continuous across a channel semantic cell; jump="+mouthJump;
     var snow=new Color[pixels.Length];
     for(int y=0;y<256;y++)for(int x=0;x<512;x++){pixels[y*512+x]=new Color32(0,(byte)(x<183?0:3),0,0);snow[y*512+x]=new Color(0,x<183?5:0,0,0);}
     info.SetPixels32(pixels);info.Apply();geo.SetPixels(snow);geo.Apply();geo.filterMode=FilterMode.Point;

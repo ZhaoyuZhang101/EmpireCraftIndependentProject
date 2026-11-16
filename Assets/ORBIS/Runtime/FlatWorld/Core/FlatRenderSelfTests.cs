@@ -70,13 +70,34 @@ namespace Orbis.Flat
             for(int j=0;j<flows.Length;j++){w.Water[j]=WaterKind.River;w.Runoff[j]=flows[j];}
             FlatTerrainAnalysis.Build(w,CancellationToken.None,false);
             for(int j=1;j<flows.Length;j++)Check(w.Facts.HalfWidth[j]>w.Facts.HalfWidth[j-1],"Higher discharge widens the river even below the old extraction threshold");
+            for(int j=1;j<flows.Length;j++)Check(FlatTerrainAnalysis.RiverDepth(flows[j],20)>FlatTerrainAnalysis.RiverDepth(flows[j-1],20),"Larger discharge deepens the channel");
+            Check(Math.Abs(FlatTerrainAnalysis.RiverMeander(.1f,5,1))>Math.Abs(FlatTerrainAnalysis.RiverMeander(.1f,500,1))*3,"Confined steep rivers meander less than lowland rivers");
+            for(int j=0;j<100;j++)
+            {
+                float x=j*.17f,y=10+j*.05f;
+                Near(FlatSurfaceSampling.ShoreDetail(x,y,64,32),FlatSurfaceSampling.ShoreDetail(x+64,y,64,32),.0001f,"Shore detail repeats continuously around longitude");
+                Near(FlatSurfaceSampling.ShoreDetail(j%64+.5f,12.5f,64,32),0,.0001f,"Shore detail preserves authoritative tile centres");
+            }
             Check(w.Facts.HalfWidth[flows.Length-1]<=.24f,"Mouth full width stays below half a tile");
+            int spring=w.Index(30,16);w.Facts.HalfWidth[spring]=.12f;w.Facts.HalfWidth[w.Neighbor(spring,1)]=.12f;
+            w.Facts.Connections[spring]=2;w.Facts.FlowX[spring]=1;int sourceSpan=0,downstreamSpan=0;
+            for(int y=0;y<100;y++)
+            {
+                if(FlatWaterGeometry.RiverDistance(w,spring,.5f,y/100f)<0)sourceSpan++;
+                if(FlatWaterGeometry.RiverDistance(w,spring,.90f,y/100f)<0)downstreamSpan++;
+            }
+            Check(sourceSpan>0&&downstreamSpan>sourceSpan*2,"Headwater emerges narrow and widens into its first reach");
+            var shoreWorld=new WorldData(64,32,"physical-shore",TerrainPreset.Continents);
+            for(int i=0;i<shoreWorld.Count;i++){bool water=i%64<32;shoreWorld.Water[i]=water?WaterKind.Lake:WaterKind.Land;shoreWorld.Elevation[i]=(short)(water?-20:180);shoreWorld.WaterLevel[i]=(short)(water?0:180);}
+            shoreWorld.Facts=new FlatTerrainFacts(shoreWorld.Count);FlatSurfaceSampling.BuildShore(shoreWorld,shoreWorld.Facts,CancellationToken.None);
+            Check(shoreWorld.Facts.ShoreDistance[shoreWorld.Index(31,16)]<.2f,"Shallow water beside a steep bank intersects near the wet centre");
+            Check(FlatSurfaceSampling.SampleShore(shoreWorld,32,16.5f)<0,"Terrain-constrained shore is not forced to the tile midpoint");
             var sequential=w.Clone();var parallel=w.Clone();
             FlatTerrainAnalysis.Build(sequential,CancellationToken.None,true,1);
             FlatTerrainAnalysis.Build(parallel,CancellationToken.None,true,8);
             for(int j=0;j<w.Count;j++)
             {
-                Check(sequential.Facts.Relief[j]==parallel.Facts.Relief[j]&&sequential.Facts.Wetness[j]==parallel.Facts.Wetness[j]&&sequential.Facts.HalfWidth[j]==parallel.Facts.HalfWidth[j]&&sequential.Facts.Sediment[j]==parallel.Facts.Sediment[j],"Serial and parallel terrain diagnostics agree");
+                Check(sequential.Facts.Relief[j]==parallel.Facts.Relief[j]&&sequential.Facts.Wetness[j]==parallel.Facts.Wetness[j]&&sequential.Facts.HalfWidth[j]==parallel.Facts.HalfWidth[j]&&sequential.Facts.Meander[j]==parallel.Facts.Meander[j]&&sequential.Facts.Sediment[j]==parallel.Facts.Sediment[j],"Serial and parallel terrain diagnostics agree");
                 Check(sequential.Biomes[j]==parallel.Biomes[j]&&sequential.Fertility[j]==parallel.Fertility[j],"Serial and parallel biome updates agree");
             }
             w.Facts.Connections[left]=3;w.Facts.Connections[right]=9;w.Facts.FlowX[left]=1;w.Facts.FlowY[right]=1;

@@ -38,6 +38,7 @@ namespace Orbis.Editor
                 w.Climates[i]=(Koppen)(i%31);w.Buildings[i]=(Structure)(i%5);w.Owner[i]=i%3==0?0:-1;
                 w.Fertility[i]=(float)random.NextDouble();w.Facts.Materials[i]=(GroundMaterial)(i%6);w.Facts.Forms[i]=(Landform)(i%8);w.Facts.Vegetation[i]=(VegetationCover)(i%14);
                 w.Facts.Depth[i]=(float)random.NextDouble()*2000;w.Facts.ShoreDistance[i]=(i%9)-4;w.Facts.HalfWidth[i]=(float)random.NextDouble()*.4f;
+                w.Facts.Meander[i]=((i%17)-8)*.007f;
                 w.Facts.FlowX[i]=(float)random.NextDouble()*2-1;w.Facts.FlowY[i]=(float)random.NextDouble()*2-1;
                 w.Facts.Sediment[i]=(float)random.NextDouble();w.Facts.Freshness[i]=(float)random.NextDouble();w.Facts.Wetness[i]=(float)random.NextDouble();
                 w.Facts.Hand[i]=(float)random.NextDouble()*1000;w.Facts.Canopy[i]=(float)random.NextDouble();w.Facts.Connections[i]=(byte)(i%256);
@@ -58,7 +59,7 @@ namespace Orbis.Editor
             return new FlatMapRenderJobs.Pixel{Terrain=terrain,Display=layer==MapLayer.Natural?terrain:FlatPalette.Display(w,i,layer),
                 Owner=w.Owner[i]<0?new Color32(0,0,0,0):FlatPalette.RGB(w.Nations[w.Owner[i]].Color,(byte)(w.Owner[i]+1)),
                 Info=new Color32((byte)HeightBands.Level(w.Elevation[i]),(byte)w.Water[i],(byte)w.Buildings[i],(byte)w.Climates[i]),
-                Hydro=new Color(f.Depth[i],f.FlowX[i],f.FlowY[i],f.HalfWidth[i]),Mixing=new Color(f.ShoreDistance[i],f.Sediment[i],f.Freshness[i],f.Connections[i]),
+                Hydro=new Color(f.Depth[i],f.FlowX[i],f.FlowY[i],f.HalfWidth[i]),Mixing=new Color(f.Meander[i],f.Sediment[i],f.Freshness[i],f.Connections[i]),
                 Geometry=new Color(w.Elevation[i],(float)f.Materials[i],f.Wetness[i],f.Hand[i]),Visual=new Color(w.Elevation[i],f.ShoreDistance[i],f.Depth[i],f.Canopy[i])};
         }
         static void Equivalence()

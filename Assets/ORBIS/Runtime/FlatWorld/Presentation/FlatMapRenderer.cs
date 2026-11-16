@@ -58,7 +58,7 @@ namespace Orbis.Flat
             if(!shader.isSupported)throw new InvalidOperationException("FlatMap shader is unsupported or failed to compile. See the Unity shader Console report.");
             Material=new Material(shader);Material.SetTexture("_MainTex",DisplayTexture);Material.SetTexture("_OwnerTex",OwnerTexture);Material.SetTexture("_InfoTex",InfoTexture);Material.SetVector("_MapSize",new Vector4(world.Width,world.Height,1f/world.Width,1f/world.Height));
             HydroTexture=MakeData(world.Width,world.Height,"Depth / downhill flow / river width",true);
-            MixingTexture=MakeData(world.Width,world.Height,"Connected estuary / shore / river links",true);
+            MixingTexture=MakeData(world.Width,world.Height,"River meander / sediment / freshwater / links",true);
             GeometryTexture=MakeData(world.Width,world.Height,"Metres / sediment material / soil wetness",true);
             VisualTexture=MakeData(world.Width,world.Height,"Continuous elevation / Euclidean shore / depth / canopy",true);
             Material.SetTexture("_VisualTex",VisualTexture);Material.SetFloat("_FieldReady",1);

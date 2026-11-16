@@ -24,6 +24,21 @@ namespace Orbis.Flat
             float c=Row(values,width,height,bx,by+1,tx),d=Row(values,width,height,bx,by+2,tx);
             return Cubic(a,b,c,d,ty);
         }
+        public static float ShoreDetail(float x,float y,int width,int height)
+        {
+            float fx=x-(float)Math.Floor(x)-.5f,fy=y-(float)Math.Floor(y)-.5f;
+            float anchor=FMath.Clamp((fx*fx+fy*fy)/.08f,0,1);anchor=anchor*anchor*(3-2*anchor);
+            double longitude=(x/width-.5)*Math.PI*2,latitude=(y/height-.5)*Math.PI;
+            double px=Math.Sin(longitude)*Math.Cos(latitude),py=Math.Sin(latitude),pz=Math.Cos(longitude)*Math.Cos(latitude);
+            double detail=.65*Math.Sin(px*157+pz*93+Math.Sin(py*83))+.35*Math.Sin(px*311-pz*193+py*137);
+            return (float)detail*.045f*anchor;
+        }
+        public static float SampleShore(WorldData world,float x,float y)
+        {
+            float distance=Sample(world.Facts.ShoreDistance,world.Width,world.Height,x,y);
+            float fade=FMath.Clamp((Math.Abs(distance)-.2f)/.7f,0,1);fade=fade*fade*(3-2*fade);
+            return distance+ShoreDetail(x,y,world.Width,world.Height)*(1-fade);
+        }
         static float Row(float[] values,int w,int h,int x,int y,float t)
         {
             int row=FMath.Clamp(y,0,h-1)*w;
@@ -93,6 +108,24 @@ namespace Orbis.Flat
             // The resulting display field is no longer an exact metric distance.
             float[] filtered=SmoothShore(facts.ShoreDistance,wet,world.Width,world.Height);
             Array.Copy(filtered,facts.ShoreDistance,world.Count);
+            for(int i=0;i<world.Count;i++)
+            {
+                if((i&4095)==0)cancel.ThrowIfCancellationRequested();
+                float edge=1;bool boundary=false;
+                for(int direction=0;direction<4;direction++)
+                {
+                    int next=world.Neighbor(i,direction);
+                    if(next<0||wet[next]==wet[i])continue;
+                    int water=wet[i]?i:next,land=wet[i]?next:i;
+                    float depth=Math.Max(.25f,world.WaterLevel[water]-world.Elevation[water]);
+                    float bank=Math.Max(1,world.Elevation[land]-world.WaterLevel[water]);
+                    float crossing=FMath.Clamp(depth/(depth+bank),.10f,.90f);
+                    edge=Math.Min(edge,wet[i]?crossing:1-crossing);boundary=true;
+                }
+                // A horizontal water surface intersects the sloping bed, which
+                // need not be halfway between the wet and dry cell centres.
+                if(boundary)facts.ShoreDistance[i]=wet[i]?edge:-edge;
+            }
         }
         public static float[] SmoothShore(float[] raw,bool[] wet,int width,int height)
         {

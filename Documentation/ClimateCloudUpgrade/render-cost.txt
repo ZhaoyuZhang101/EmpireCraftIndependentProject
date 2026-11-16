@@ -1,1 +1,3 @@
 before lighting optimization | 进入地表 73% | NVIDIA GeForce RTX 5070 Laptop GPU | 1280x720 synchronous camera render median: volume=13.41 ms, no-volume=1.35 ms
+River/lake water 2026-11-17 | 局部地表 | NVIDIA GeForce RTX 5070 Laptop GPU | 1280x720 synchronous camera render median: volume=1.76 ms, original-integration=1.67 ms, no-volume=1.60 ms
+River/lake final mouth, clouds off 2026-11-17 | 局部地表 | NVIDIA GeForce RTX 5070 Laptop GPU | 1280x720 synchronous camera render median: volume=1.63 ms, original-integration=1.70 ms, no-volume=1.64 ms

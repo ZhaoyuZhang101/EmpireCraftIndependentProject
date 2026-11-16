@@ -13,8 +13,8 @@ Shader "Hidden/ORBIS/RiverGeometryProbe"
  {
   float2 cell=_ProbeOrigin+i.uv*2,uv=(floor(cell)+.5)*_MapSize.zw;
   float4 h=tex2Dlod(_HydroA,float4(uv,0,0));
-  float links=tex2Dlod(_HydroB,float4(uv,0,0)).a;
-  float2 tangent;float d=FlatRiverDistance(frac(cell),h,links,uv,tangent);
+  float4 mixing=tex2Dlod(_HydroB,float4(uv,0,0));
+  float2 tangent;float d=FlatRiverDistance(frac(cell),h,mixing.a,mixing.r,uv,tangent);
   return float4(d,i.uv,h.a);
  }
  ENDCG

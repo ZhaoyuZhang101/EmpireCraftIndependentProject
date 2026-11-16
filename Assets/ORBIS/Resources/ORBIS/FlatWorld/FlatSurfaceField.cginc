@@ -19,13 +19,24 @@ float4 FlatFieldRow(float2 centre,float t)
     return FlatCubic(tex2Dlod(_VisualTex,float4(centre-dx,0,0)),tex2Dlod(_VisualTex,float4(centre,0,0)),
                      tex2Dlod(_VisualTex,float4(centre+dx,0,0)),tex2Dlod(_VisualTex,float4(centre+dx*2,0,0)),t);
 }
+float FlatShoreDetail(float2 cell)
+{
+    float2 offset=frac(cell)-.5;
+    float anchor=smoothstep(0,.08,dot(offset,offset));
+    float lon=(cell.x*_MapSize.z-.5)*6.283185307,lat=(cell.y*_MapSize.w-.5)*3.141592654;
+    float3 p=float3(sin(lon)*cos(lat),sin(lat),cos(lon)*cos(lat));
+    float detail=.65*sin(p.x*157+p.z*93+sin(p.y*83))+.35*sin(p.x*311-p.z*193+p.y*137);
+    return detail*.045*anchor;
+}
 // R metres; G signed Euclidean shoreline (positive in area water); B metres depth;
 // A climate-derived canopy density. No biome/owner/material ID is interpolated.
 float4 FlatField(float2 cell)
 {
     float2 p=cell-.5,baseCell=floor(p),t=frac(p),centre=(baseCell+.5)*_MapSize.zw,dy=float2(0,_MapSize.w);
-    return FlatCubic(FlatFieldRow(centre-dy,t.x),FlatFieldRow(centre,t.x),
-                     FlatFieldRow(centre+dy,t.x),FlatFieldRow(centre+dy*2,t.x),t.y);
+    float4 field=FlatCubic(FlatFieldRow(centre-dy,t.x),FlatFieldRow(centre,t.x),
+                          FlatFieldRow(centre+dy,t.x),FlatFieldRow(centre+dy*2,t.x),t.y);
+    field.g+=FlatShoreDetail(cell)*(1-smoothstep(.2,.9,abs(field.g)));
+    return field;
 }
 float2 FlatBlendUV(float2 cell)
 {

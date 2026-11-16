@@ -57,9 +57,9 @@ namespace Orbis.Flat
             float r=f.HalfWidth[i];
             if(count==0)return (float)Math.Sqrt((x-.5f)*(x-.5f)+(y-.5f)*(y-.5f))-r;
             float bx,by;RiverEdge(w,i,outlet,out bx,out by);float rb=EdgeWidth(w,i,outlet);
-            int pattern=((i%w.Width)*13+(i/w.Width)*7)%17;
-            float bend=(.015f+.025f*pattern/16)*(pattern%2==0?1:-1);
-            float result=count==1?BezierDistance(x,y,.5f,.5f,bx,by,(.5f+bx)*.5f,(.5f+by)*.5f,r,rb,(r+rb)*.5f,bend*.35f):8;
+            float bend=f.Meander[i];
+            float sourceRadius=Math.Max(.003f,r*.18f);
+            float result=count==1?BezierDistance(x,y,.5f,.5f,bx,by,(.5f+bx)*.5f,(.5f+by)*.5f,sourceRadius,rb,(sourceRadius+rb)*.5f,bend*.35f):8;
             if(count>1)for(int d=0;d<4;d++)
             {
                 if(d==outlet||(mask&(1<<d))==0)continue;
@@ -102,7 +102,7 @@ namespace Orbis.Flat
         {
             depth=0;if(w.Facts==null||y<0||y>=w.Height)return 0;
             int ix=(int)Math.Floor(x),iy=(int)Math.Floor(y),i=w.Index(ix,iy);if(i<0)return 0;
-            float sd=FlatSurfaceSampling.Sample(w.Facts.ShoreDistance,w.Width,w.Height,x,y);
+            float sd=FlatSurfaceSampling.SampleShore(w,x,y);
             float area=Smooth(-.025f,.025f,sd);
             float distance=RiverDistance(w,i,x-ix,y-iy);
             if(sd<=1.25f)distance=Math.Min(distance,MouthDistance(w,i,x-ix,y-iy));
