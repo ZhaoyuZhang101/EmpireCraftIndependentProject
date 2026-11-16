@@ -29,8 +29,9 @@ namespace Orbis.Editor
     cloud.SetTexture("_LiveEffectTex",Texture2D.blackTexture);cloud.SetFloat("_DynamicReady",1);
     var evolving=render(cloud);int occupied=0;foreach(var pixel in evolving)if(pixel.r>.25f)occupied++;
     float fraction=occupied/(float)evolving.Length;
-    if(fraction<.12f||fraction>.85f)throw new Exception("Uniform cloud mass still renders as a blanket: "+fraction);
-    report.Add("PASS noise-carved cloud mass, occupied fraction="+fraction);
+    float smallest=1,largest=0;foreach(var pixel in evolving){smallest=Mathf.Min(smallest,pixel.r);largest=Mathf.Max(largest,pixel.r);}
+    if(fraction<.12f||largest-smallest<.12f)throw new Exception("Cloud mass lost spatial shape: "+fraction+" range="+(largest-smallest));
+    report.Add("PASS coherent weather mass with spatial structure; occupied fraction="+fraction+" range="+(largest-smallest));
     cloud.SetFloat("_VisualTime",40);var middle=render(cloud);double evolved=0;
     for(int i=0;i<evolving.Length;i++)evolved+=Math.Abs(evolving[i].r-middle[i].r);
     evolved/=evolving.Length;
@@ -49,6 +50,59 @@ namespace Orbis.Editor
     var shape=OrbisCloudNoise.Create();var detail=OrbisCloudNoise.CreateDetail();owned.Add(shape);owned.Add(detail);
     if(shape.width!=128||detail.width!=64)throw new Exception("Wrong cloud volume resolution");
     report.Add("PASS independent 128^3 shape / 64^3 detail resources loaded");
+    var column=new Material(Resources.Load<Shader>("ORBIS/FlatWorld/HPCloudColumn"));owned.Add(column);
+    ShaderUtil.CompilePass(column,0,true);
+    column.SetTexture("_CloudNoise",shape);column.SetTexture("_CloudDetailNoise",detail);
+    column.SetTexture("_ScrollHeightTex",Texture2D.blackTexture);column.SetTexture("_ScrollCloudWindTex",Texture2D.blackTexture);
+    column.SetFloat("_CloudHeightScale",OrbisWeatherField.HeightScale);column.SetFloat("_ScrollHeightScale",0);
+    column.SetVector("_ScrollSourceSize",new Vector4(512,256,0,0));column.SetFloat("_Density",1);column.SetFloat("_Cover",1);
+    var weather=new Texture2D(2,2,TextureFormat.RGBAFloat,false,true);owned.Add(weather);
+    var effects=new Texture2D(2,2,TextureFormat.RGBAFloat,false,true);owned.Add(effects);
+    Action<Color> setEffects=c=>{effects.SetPixels(new[]{c,c,c,c});effects.Apply();column.SetTexture("_ScrollEffectsTex",effects);};
+    setEffects(new Color(1,0,0,0));
+    Action<Color> setWeather=c=>{weather.SetPixels(new[]{c,c,c,c});weather.Apply();column.SetTexture("_ScrollWeatherTex",weather);};
+    setWeather(new Color(0,0,1,1));var clearColumn=render(column);
+    foreach(var p in clearColumn)if(p.r+p.g+p.a>1e-5f)throw new Exception("Rain or shadow exists outside cloud support");
+    setWeather(new Color(.12f,.08f,.15f,1));var thinColumn=render(column);
+    foreach(var p in thinColumn)if(p.a>1e-5f)throw new Exception("Thin cloud produces visible heavy rain");
+    setWeather(new Color(1,.5f,1,1));var stormColumn=render(column);
+    int thick=0,raining=0;double shadowMean=0;
+    foreach(var p in stormColumn){shadowMean+=p.r;if(p.r>.65f)thick++;if(p.a>.05f)raining++;if(p.a>.001f&&p.r<.55f)throw new Exception("Rain escapes optically thick cloud");}
+    if(thick<stormColumn.Length*.15f||raining<stormColumn.Length*.05f)throw new Exception("Cumulonimbus missing visible thickness/rain: "+thick+"/"+raining);
+    report.Add("PASS clear/thin/dense cloud rain gating and shadow column; thick="+thick+" rain="+raining+" mean="+shadowMean/stormColumn.Length);
+    setEffects(new Color(0,1,0,0));var snowColumn=render(column);int snowing=0;
+    foreach(var p in snowColumn){if(p.a>1e-5f)throw new Exception("Physical snowfall rendered as rain");if(p.b>.05f)snowing++;}
+    if(snowing<snowColumn.Length*.05f)throw new Exception("Physical snowfall lost in cloud cache");
+    setWeather(new Color(0,0,0,0));
+    foreach(var p in render(column))if(p.b>1e-5f)throw new Exception("Snow escapes cloud support");
+    report.Add("PASS physical rain/snow phase and no snowfall outside clouds; snow pixels="+snowing);
+    setWeather(new Color(1,.5f,1,1));
+    var fullColumn=render(column);
+    var strip=new RenderTexture(128,16,0,RenderTextureFormat.ARGBFloat,RenderTextureReadWrite.Linear);strip.Create();owned.Add(strip);
+    for(int band=0;band<4;band++)
+    {
+     column.SetVector("_ColumnUVTransform",new Vector4(0,band*.25f,1,.25f));
+     Graphics.Blit(Texture2D.blackTexture,strip,column);
+     Graphics.CopyTexture(strip,0,0,0,0,128,16,rt,0,0,0,band*16);
+    }
+    RenderTexture.active=rt;read.ReadPixels(new Rect(0,0,128,64),0,0);read.Apply();var sliced=read.GetPixels();float sliceError=0;
+    for(int i=0;i<sliced.Length;i++)sliceError=Mathf.Max(sliceError,Mathf.Abs(sliced[i].r-fullColumn[i].r),Mathf.Abs(sliced[i].b-fullColumn[i].b));
+    column.SetVector("_ColumnUVTransform",new Vector4(0,0,1,1));
+    if(sliceError>.0001f)throw new Exception("Cloud update slices do not match full render: "+sliceError);
+    report.Add("PASS amortized four-slice cache matches complete GPU render; max error="+sliceError);
+    var passage=new Material(AssetDatabase.LoadAssetAtPath<Shader>("Assets/ORBIS/Editor/CloudPassageProbe.shader"));owned.Add(passage);
+    ShaderUtil.CompilePass(passage,0,true);
+    passage.CopyPropertiesFromMaterial(column);passage.SetTexture("_ScrollWeatherTex",weather);
+    passage.SetFloat("_Clouds",1);passage.SetFloat("_ScrollCloudSource",1);passage.SetFloat("_ScrollVolumeWeight",1);
+    passage.SetFloat("_LocalCloudMap",1);passage.SetFloat("_Atmosphere",0);passage.SetFloat("_AirDensity",0);
+    passage.SetInt("_CloudSteps",64);passage.SetInt("_AirSteps",16);passage.SetInt("_LightSteps",4);
+    passage.SetFloat("_CloudRefinement",2);passage.SetFloat("_CloudLightSimple",1);
+    passage.SetVector("_CloudLocalUp",Vector3.forward);passage.SetVector("_CloudLocalEast",Vector3.right);passage.SetVector("_CloudLocalNorth",Vector3.up);
+    passage.SetVector("_Sun",Vector3.forward);new OrbisAtmosphereProfile().Bind(passage,1);
+    Func<float,double> transmission=height=>{passage.SetFloat("_CloudCameraHeight",height);var pixels=render(passage);double total=0;foreach(var pixel in pixels){if(float.IsNaN(pixel.r))throw new Exception("Invalid cloud passage ray");total+=pixel.r;}return total/pixels.Length;};
+    double above=transmission(14500),inside=transmission(2500),below=transmission(150);
+    if(above>=inside||inside>=below||below<.999)throw new Exception("Cloud passage must clear below cloud base: "+above+"/"+inside+"/"+below);
+    report.Add("PASS same cloud clears as camera crosses below its base; transmission above/inside/below="+above+"/"+inside+"/"+below);
    }
    catch(Exception e){report.Add("FAIL "+e.Message);throw;}
    finally

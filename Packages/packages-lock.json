@@ -1,7 +1,7 @@
 {
   "dependencies": {
     "com.arongranberg.astar": {
-      "version": "file:D:/ORBIS_TerrainPerf3_5_Markley/LocalPackages/com.arongranberg.astar",
+      "version": "file:../LocalPackages/com.arongranberg.astar",
       "depth": 0,
       "source": "local",
       "dependencies": {

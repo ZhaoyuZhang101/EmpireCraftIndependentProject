@@ -85,6 +85,20 @@ float3 FlatEcotoneColor(float3 baseColor,float2 cell,float canopy,float wetness)
     // Continuous understory prevents categorical palette rectangles within forests.
     return lerp(baseColor,lerp(grass,forest,cover),saturate(canopy*1.6)*.65);
 }
+float3 FlatTerrainFine(float3 col,float2 cell,float pixelsPerTile)
+{
+    // Continuous spherical detail fills the gap between the authoritative tile
+    // colors and 32-pixel close-up artwork. Derivative gates prevent aliasing.
+    float3 p=FlatDetailPosition(cell);
+    float3 coarse=p*3.1,fine=p*8.6;
+    float coarseFoot=max(length(ddx(coarse)),length(ddy(coarse)));
+    float fineFoot=max(length(ddx(fine)),length(ddy(fine)));
+    float coarseWeight=smoothstep(3,9,pixelsPerTile)*(1-smoothstep(.45,1.5,coarseFoot));
+    float fineWeight=smoothstep(10,23,pixelsPerTile)*(1-smoothstep(.45,1.5,fineFoot));
+    float detail=(FlatDetailNoise(coarse)-.5)*.20*coarseWeight+
+                 (FlatDetailNoise(fine+23)-.5)*.085*fineWeight;
+    return col*(1+detail);
+}
 float FlatDetailTexture(sampler2D artwork,float3 p,float3 weights,float2 offset,float lod)
 {
     return tex2Dlod(artwork,float4(p.yz+offset,0,lod)).r*weights.x+

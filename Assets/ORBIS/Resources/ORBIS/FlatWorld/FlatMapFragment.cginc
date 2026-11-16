@@ -26,6 +26,7 @@
      col=tex2D(_MainTex,FlatBlendUV(ecologyCell)).rgb;
      col=FlatEcotoneColor(col,cell,field.a,tex2Dlod(_GeoTex,float4(cell*_MapSize.zw,0,0)).b);
      col=lerp(FlatVegetation(col,cell,field.a,_PixelsPerTile),col,_DetailWeight);
+     col=FlatTerrainFine(col,cell,_PixelsPerTile);
      col*=FlatFieldRelief(cell,0,float3(-.45,.6,.75));
      if(_DetailWeight>0)col=lerp(col,PixelGround(col,cell,field,waterMask),_DetailWeight);
     }
@@ -82,9 +83,9 @@
     if(naturalView>.5)
     {
      #ifdef ORBIS_SCROLL_SURFACE
-     col=lerp(col,FlatSkyComposite(col,i.uv,cell,waterMask,_PixelsPerTile),smoothstep(.08,.50,_ScrollMorph));
+     col=lerp(col,FlatSkyComposite(col,i.uv,cell,i.pos.xy,waterMask,_PixelsPerTile),smoothstep(.08,.50,_ScrollMorph));
      #else
-     col=FlatSkyComposite(col,i.uv,cell,waterMask,_PixelsPerTile);
+     col=FlatSkyComposite(col,i.uv,cell,i.pos.xy,waterMask,_PixelsPerTile);
      #endif
     }
     if(_Grid>.5&&_PixelsPerTile>=4)

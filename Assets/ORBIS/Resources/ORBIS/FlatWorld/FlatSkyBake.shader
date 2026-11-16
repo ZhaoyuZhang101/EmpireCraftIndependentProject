@@ -1,6 +1,16 @@
 Shader "ORBIS/FlatWorld/SkyBake"
 {
- Properties { _ClimateTex("Current/next monthly precipitation and temperature",2D)="black"{} }
+ Properties
+ {
+  _ClimateTex("Monthly precipitation and temperature",2D)="black"{}
+  _MoistureTex("Column moisture",2D)="black"{}
+  _ClimateWindTex("Climate wind",2D)="black"{}
+  _LiveCloudTex("Evolving cloud mass",2D)="black"{}
+  _LiveWindTex("Evolving wind",2D)="black"{}
+  _LiveEffectTex("Precipitation",2D)="black"{}
+  _MoistureReady("Moisture ready",Float)=0
+  _DynamicReady("Weather ready",Float)=0
+ }
  SubShader
  {
   Cull Off ZWrite Off ZTest Always
@@ -106,8 +116,8 @@ Shader "ORBIS/FlatWorld/SkyBake"
     // Weather determines how much condensate exists; multi-scale shape noise
     // carves holes and textured edges within that evolving cloud mass.
     float ragged=smoothstep(.38,.60,broad*.62+cells*.38);
-    low=lerp(low,saturate(live.r*(.25+ragged*.75)*(.65+erosion*.35)),_DynamicReady);
-    high=lerp(high,saturate(live.g*(.22+.78*smoothstep(.48,.64,highNoise))),_DynamicReady);
+    low=lerp(low,saturate(live.r*(.65+ragged*.35)*(.88+erosion*.12)),_DynamicReady);
+    high=lerp(high,saturate(live.g*(.45+.55*smoothstep(.48,.64,highNoise))),_DynamicReady);
     cloudType=lerp(cloudType,live.b,_DynamicReady);
     storm=lerp(storm,effects.r,_DynamicReady);
     return float4(low,high,cloudType,storm);

@@ -90,21 +90,24 @@ float2 OrbisCloudDensities(float3 p,bool simpleMode)
  if(z<400||z>13500)return 0;
  float3 lookup=float3(uv,(OrbisLayerIndex(z)+.5)/12.0);
  float4 state=tex3Dlod(_AtmosLayers,float4(lookup,0));
- float4 column=tex2Dlod(_Weather,float4(uv,0,0));
  float3 wind=(tex3Dlod(_AtmosLayerWind,float4(lookup,0)).rgb-.5)*.13/.014;
  wind-=up*dot(up,wind);
  float pa=_FlowPhase,pb=frac(pa+.5),wa=.5-.5*cos(2*ORBIS_PI*pa);
  float3 a=normalize(p-wind*((pa-.5)*12*.014));
  float3 b=normalize(p-wind*((pb-.5)*12*.014));
- float3 qa=a*9+float3(.13,.71,.37)+up*(z*.00028);
- float3 qb=b*9+float3(.13,.71,.37)+up*(z*.00028);
- float shape=lerp(tex3Dlod(_CloudNoise,float4(qb,0)).r,tex3Dlod(_CloudNoise,float4(qa,0)).r,wa);
- float4 detail=0;
- if(!simpleMode)detail=1-lerp(tex3Dlod(_CloudDetailNoise,float4(qb*2.73,0)),tex3Dlod(_CloudDetailNoise,float4(qa*2.73,0)),wa);
- float4 cells=lerp(OrbisHPHighDetail(OrbisWeatherUV(b)),OrbisHPHighDetail(OrbisWeatherUV(a)),wa);
- float low=OrbisHPLowDensityDetailed(z,saturate(column.r),saturate(column.b),shape,detail,cells.r);
- float high=OrbisHPHighDensity(z,saturate(state.g+column.a*.35),saturate(column.b),cells.r,cells.g);
- return float2(low,high)*_Density*max(0,_Cover);
+ float shape=lerp(OrbisNoiseAtAge(a,wind,0),OrbisNoiseAtAge(b,wind,0),wa);
+ float macro=lerp(tex3Dlod(_CloudNoise,float4(a*.72+float3(.7,.2,.4),0)).r,
+                  tex3Dlod(_CloudNoise,float4(b*.72+float3(.7,.2,.4),0)).r,wa);
+ float physical=state.r+state.g*.8;
+ float cover=saturate(state.b*_Cover);
+ float threshold=.50-cover*.15+(1-macro)*.10;
+ float structure=smoothstep(threshold,threshold+.19,shape);
+ float taper=smoothstep(400,850,z)*(1-smoothstep(10500,13500,z));
+ float wispy=saturate(state.g/max(.001,physical));
+ float density=physical*cover*structure*1.25*lerp(1,.62,wispy)*taper*_Density;
+ // Keep the old broad silhouette while retaining separate ice-cloud lighting.
+ float highFraction=wispy*.6;
+ return density*float2(1-highFraction,highFraction);
 }
 float OrbisCloudDensity(float3 p) {float2 density=OrbisCloudDensities(p,false);return density.x+density.y;}
 float OrbisCloudShadowDirect(float3 p,float3 sun)

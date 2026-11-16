@@ -249,7 +249,7 @@ namespace Orbis.Flat
             map.Configure(gridToggle.value,pixelsPerTile);
             bool natural=map.VisibleLayer==MapLayer.Natural||map.VisibleLayer==MapLayer.Nations;
             bool skyNeeded=natural&&cloudToggle.value;
-            map.Sky.Tick(dt,skyNeeded,animate,false,256<<Mathf.Clamp(cloudQuality.index,0,2),CalendarDay);
+            map.Sky.Tick(dt,skyNeeded,animate,false,cloudQuality.index==0?512:1024,CalendarDay);
             Vector3 sun=map.Sky.Sun(180f,CalendarDay,true);
             bool waterView=natural||map.VisibleLayer==MapLayer.Water;
             // SW3 owns the visible normal and foam animation; skip the old CPU/GPU

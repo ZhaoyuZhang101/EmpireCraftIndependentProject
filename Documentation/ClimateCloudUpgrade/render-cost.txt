@@ -1,0 +1,1 @@
+before lighting optimization | 进入地表 73% | NVIDIA GeForce RTX 5070 Laptop GPU | 1280x720 synchronous camera render median: volume=13.41 ms, no-volume=1.35 ms

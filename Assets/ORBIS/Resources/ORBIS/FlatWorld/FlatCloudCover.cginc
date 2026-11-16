@@ -13,9 +13,8 @@ float4 FlatCloudColumn(float2 uv)
     float detail=FlatDetailNoise(radial*66+drift);
     // Detail may break up an existing cloud edge, but must never create
     // isolated specks in an otherwise clear HP column.
-    float support=smoothstep(.12,.42,column.r);
-    column.r=saturate((column.r-.22)*1.45+(detail-.5)*.38*support);
-    column.g=saturate(column.g*(.55+.45*detail));
+    column.r*=.92+.08*detail;
+    column.g*=.90+.10*detail;
     return column;
 }
 float FlatCloudShadowOpacity(float2 uv,float3 sun,float enabled)
@@ -30,6 +29,6 @@ float FlatCloudShadowOpacity(float2 uv,float3 sun,float enabled)
     float2 shadowUV=float2(frac(atan2(cloudDirection.x,cloudDirection.z)/6.283185307+.5),
                               asin(clamp(cloudDirection.y,-1,1))/3.141592654+.5);
     float4 cloud=FlatCloudColumn(shadowUV);
-    return smoothstep(.07,.72,saturate(cloud.r*.78+cloud.g*.18))*enabled*smoothstep(-.02,.12,mu);
+    return saturate(cloud.r*.82+cloud.g*.18)*enabled*smoothstep(-.02,.12,mu);
 }
 #endif

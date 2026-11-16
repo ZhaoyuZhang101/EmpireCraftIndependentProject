@@ -1,5 +1,5 @@
-PASS HP low/high cloud height source=0 low=51 high=48 maxRadius=1.017871 invalid=0
-PASS HP low/high cloud height source=1 low=33 high=41 maxRadius=1.016895 invalid=0
-PASS HP low/high cloud height source=2 low=33 high=41 maxRadius=1.040918 invalid=0
-PASS HP low/high cloud height source=3 low=51 high=48 maxRadius=1.096582 invalid=0
+PASS HP low/high cloud height source=0 low=101 high=101 maxRadius=1.020215 invalid=0
+PASS HP low/high cloud height source=1 low=52 high=62 maxRadius=1.020215 invalid=0
+PASS HP low/high cloud height source=2 low=52 high=61 maxRadius=1.044043 invalid=0
+PASS HP low/high cloud height source=3 low=101 high=101 maxRadius=1.098926 invalid=0
 PASS UniStorm resources excluded from Assets; HP shell top=1.060, atmosphere outer=1.200

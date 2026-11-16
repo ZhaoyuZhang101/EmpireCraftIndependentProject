@@ -36,9 +36,8 @@ namespace Orbis
         readonly bool[] sea;
         readonly AtmosVector[] baseWind,pressureGradient,eastDirection,thermalGradient;
         readonly double[] jetStrength,hemisphere;
-        readonly int[] edgeDonor,edgeReceiver;
-        readonly double[] edgeDonorWeight,edgeReceiverWeight;
-        readonly double[] flux,outgoing,limit,delta,temporary,convergence,pressureNext;
+        readonly double[] flux,delta,temporary,convergence,pressureNext;
+        readonly double[] horizontalAir,verticalAir,airOutgoing,projection,projectionResidual,projectionDirection,projectionProduct,projectionDiagonal;
         readonly double[] externalStep,runoffStep,lightningRate,mixedIceScratch,graupelScratch,collisionScratch;
         readonly ParallelOptions parallelOptions=new ParallelOptions();
         public bool ParallelColumnPhysics=true;
@@ -76,14 +75,17 @@ namespace Orbis
             CloudBase=new double[Count];CloudTop=new double[Count];Coverage=new double[Count];Charge=new double[Count];Updraft=new double[Count];Stage=new int[Count];StormAge=new double[Count];
             surfaceT=new double[Count];solar=new double[Count];soil=new double[Count];boost=new double[Count];terrain=new double[Count];sea=new bool[Count];baseWind=new AtmosVector[Count];
             pressureForcing=new double[Count];liftForcing=new double[Count];cooldown=new double[Count];gustLift=new double[Count];orographicLift=new double[Count];
-            flux=new double[links.Length];outgoing=new double[Count];limit=new double[Count];delta=new double[n];temporary=new double[n];
+            flux=new double[links.Length];delta=new double[n];temporary=new double[n];
             convergence=new double[Count];pressureNext=new double[Count];
             externalStep=new double[Count];runoffStep=new double[Count];
             lightningRate=new double[Count];mixedIceScratch=new double[Count];graupelScratch=new double[Count];collisionScratch=new double[Count];
             parallelOptions.MaxDegreeOfParallelism=Math.Max(1,Environment.ProcessorCount-2); // leave CPU headroom for civilization/gameplay
             pressureGradient=new AtmosVector[Count];eastDirection=new AtmosVector[Count];jetStrength=new double[Count];
             thermalGradient=new AtmosVector[Count];hemisphere=new double[Count];SynopticAscent=new double[Count];
-            edgeDonor=new int[links.Length];edgeReceiver=new int[links.Length];edgeDonorWeight=new double[links.Length];edgeReceiverWeight=new double[links.Length];
+            horizontalAir=new double[Layers*links.Length];verticalAir=new double[n];airOutgoing=new double[n];
+            projection=new double[Count];projectionResidual=new double[Count];projectionDirection=new double[Count];
+            projectionProduct=new double[Count];projectionDiagonal=new double[Count];
+            foreach(var link in links){double c=link.Length/Math.Max(.000001,link.Distance);projectionDiagonal[link.A]+=c;projectionDiagonal[link.B]+=c;}
             for(int i=0;i<Count;i++)
             {
                 AtmosVector p=Position[i];eastDirection[i]=new AtmosVector(p.Z,0,-p.X).Normalized;
@@ -143,7 +145,9 @@ namespace Orbis
                     double baseRH=initialHumidity==null?.72:initialHumidity[i];
                     double rh=Clamp(baseRH-.020*k+pattern*.31*baseRH+verticalPattern*.08*baseRH+Math.Min(1,low)*.33,0,1.13);
                     Water[0][j]=Saturation(Temperature[j],Pressure[k])*AirMass[k]*rh;
-                    Wind[j]=(baseWind[i]*(.014*(.65+k*.105))+vortex*(1-k*.035)).Tangent(p).Limited(.065);
+                    AtmosVector zonal=eastDirection[i]*AtmosVector.Dot(baseWind[i],eastDirection[i]);
+                    AtmosVector meridional=baseWind[i]-zonal;
+                    Wind[j]=(zonal*(.014*(.65+k*.105))+meridional*(.014*(.65-k*.105))+vortex*(1-k*.035)).Tangent(p).Limited(.065);
                 }
             }
             double pressureMean=0,totalArea=0;
@@ -269,7 +273,12 @@ namespace Orbis
                 AtmosVector balanced=AtmosVector.Cross(p,gradient)*(.00011*hemisphere[i]);
                 AtmosVector thermalShear=AtmosVector.Cross(p,thermalGradient[i])*(.000028*hemisphere[i]);
                 AtmosVector target0=baseWind[i]*(.014*.65)+balanced;
-                AtmosVector shear=baseWind[i]*(.014*.105)+(eastDirection[i]*(jetStrength[i]*.009)+thermalShear)/11;
+                // The supplied climate wind is a surface circulation. Its
+                // meridional branch returns aloft; extending it with increasing
+                // speed through every layer reverses the low-level overturning
+                // after column continuity is enforced.
+                AtmosVector zonal=eastDirection[i]*AtmosVector.Dot(baseWind[i],eastDirection[i]);
+                AtmosVector shear=(zonal-(baseWind[i]-zonal))*(.014*.105)+(eastDirection[i]*(jetStrength[i]*.009)+thermalShear)/11;
                 // Signed warm advection / convergence drives broad lifting even with CAPE=0.
                 double warmLift=Clamp(-AtmosVector.Dot(Wind[2*Count+i],thermalGradient[i])*.22,-.35,.45);
                 SynopticAscent[i]=Clamp(convergence[i]*60+warmLift+orographicLift[i]*.20,-.50,.80);
@@ -283,41 +292,96 @@ namespace Orbis
         }
         public void HorizontalTransport(double dt)
         {
+            // Fixed hydrostatic dry-air masses require a nondivergent 3-D mass flux.
+            // Previously only water followed divergent horizontal winds: uniform
+            // humidity emptied from some rows and accumulated at the poles.
+            // Project the vertically integrated flow, then close each layer's
+            // continuity equation with an inter-layer flux (impermeable top/bottom).
+            double totalAir=0;foreach(double mass in AirMass)totalAir+=mass;
+            Array.Clear(flux,0,flux.Length);Array.Clear(projectionResidual,0,Count);
             for(int k=0;k<Layers;k++)
             {
-                int offset=k*Count;Array.Clear(outgoing,0,Count);
+                int offset=k*Count;
                 for(int e=0;e<Links.Length;e++)
                 {
-                    AtmosEdge link=Links[e];double f=AtmosVector.Dot((Wind[offset+link.A]+Wind[offset+link.B])*.5,link.Direction)*link.Length*dt;
-                    flux[e]=f;outgoing[f>=0?link.A:link.B]+=Math.Abs(f);
+                    var link=Links[e];double f=AtmosVector.Dot((Wind[offset+link.A]+Wind[offset+link.B])*.5,link.Direction)*link.Length*dt;
+                    horizontalAir[k*Links.Length+e]=f*AirMass[k];flux[e]+=f*AirMass[k]/totalAir;
                 }
-                for(int i=0;i<Count;i++)limit[i]=Math.Min(1,.65*Area[i]/Math.Max(1e-20,outgoing[i]));
-                for(int e=0;e<Links.Length;e++)
-                {
-                    AtmosEdge link=Links[e];int donor=flux[e]>=0?link.A:link.B,receiver=flux[e]>=0?link.B:link.A;
-                    double transported=Math.Abs(flux[e])*limit[donor];edgeDonor[e]=donor;edgeReceiver[e]=receiver;
-                    edgeDonorWeight[e]=transported/Area[donor];edgeReceiverWeight[e]=transported/Area[receiver];
-                }
-                for(int s=0;s<Species;s++)
-                {
-                    double[] q=Water[s];Array.Clear(delta,offset,Count);
-                    for(int e=0;e<Links.Length;e++)
-                    {
-                        int donor=edgeDonor[e],receiver=edgeReceiver[e];double source=q[offset+donor];
-                        delta[offset+donor]-=source*edgeDonorWeight[e];delta[offset+receiver]+=source*edgeReceiverWeight[e];
-                    }
-                    for(int i=0;i<Count;i++)q[offset+i]=Math.Max(0,q[offset+i]+delta[offset+i]);
-                }
-                // Temperature is an intensive scalar: advect with bounded upstream mixing.
-                Array.Clear(delta,offset,Count);
-                for(int e=0;e<Links.Length;e++)
-                {
-                    int donor=edgeDonor[e],receiver=edgeReceiver[e];
-                    double factor=Math.Min(.2,edgeReceiverWeight[e]);
-                    delta[offset+receiver]+=(Temperature[offset+donor]-Temperature[offset+receiver])*factor;
-                }
-                for(int i=0;i<Count;i++)Temperature[offset+i]=Clamp(Temperature[offset+i]+delta[offset+i],180,345);
             }
+            for(int e=0;e<Links.Length;e++){var link=Links[e];projectionResidual[link.A]+=flux[e];projectionResidual[link.B]-=flux[e];}
+            ProjectColumnFlux();
+            Array.Clear(verticalAir,0,verticalAir.Length);Array.Clear(airOutgoing,0,airOutgoing.Length);
+            for(int k=0;k<Layers;k++)
+            {
+                int offset=k*Count;
+                for(int e=0;e<Links.Length;e++)
+                {
+                    var link=Links[e];double correction=link.Length/Math.Max(.000001,link.Distance)*(projection[link.A]-projection[link.B]);
+                    double f=horizontalAir[k*Links.Length+e]-correction*AirMass[k];horizontalAir[k*Links.Length+e]=f;
+                    verticalAir[offset+link.A]-=f;verticalAir[offset+link.B]+=f;
+                    airOutgoing[offset+(f>=0?link.A:link.B)]+=Math.Abs(f);
+                }
+                for(int i=0;i<Count;i++)
+                {
+                    if(k>0)verticalAir[offset+i]+=verticalAir[offset-Count+i];
+                    if(k<Layers-1){double f=verticalAir[offset+i];airOutgoing[offset+i+(f>=0?0:Count)]+=Math.Abs(f);}
+                }
+            }
+            // One common substep size preserves continuity; independent donor
+            // clipping would conserve water but break constant mixing ratios.
+            double courant=0;
+            for(int k=0;k<Layers;k++)for(int i=0;i<Count;i++)courant=Math.Max(courant,airOutgoing[k*Count+i]/(AirMass[k]*Area[i]));
+            int steps=Math.Max(1,(int)Math.Ceiling(courant/.65));
+            for(int step=0;step<steps;step++)
+            {
+                for(int s=0;s<Species;s++)TransportScalar(Water[s],1.0/steps);
+                // Potential temperature, unlike temperature, is conserved during
+                // dry vertical displacement. Use the same mass flux as the water.
+                for(int k=0;k<Layers;k++)for(int i=0;i<Count;i++)temporary[k*Count+i]=Temperature[k*Count+i]*AirMass[k]*Math.Pow(101325/Pressure[k],.286);
+                TransportScalar(temporary,1.0/steps);
+                for(int k=0;k<Layers;k++)for(int i=0;i<Count;i++)Temperature[k*Count+i]=Clamp(temporary[k*Count+i]/(AirMass[k]*Math.Pow(101325/Pressure[k],.286)),180,345);
+            }
+        }
+        void ProjectColumnFlux()
+        {
+            // Deterministic preconditioned conjugate gradients on the spherical
+            // graph Laplacian. Scratch is reset, so save/reload needs no solver state.
+            Array.Clear(projection,0,Count);double rz=0,initial=0;
+            for(int i=0;i<Count;i++){double r=projectionResidual[i];projectionDirection[i]=r/Math.Max(1e-20,projectionDiagonal[i]);rz+=r*projectionDirection[i];initial+=r*r;}
+            for(int iteration=0;iteration<256&&rz>1e-30;iteration++)
+            {
+                Array.Clear(projectionProduct,0,Count);
+                foreach(var link in Links){double f=(projectionDirection[link.A]-projectionDirection[link.B])*link.Length/Math.Max(.000001,link.Distance);projectionProduct[link.A]+=f;projectionProduct[link.B]-=f;}
+                double pap=0;for(int i=0;i<Count;i++)pap+=projectionDirection[i]*projectionProduct[i];
+                if(pap<=1e-30)break;
+                double alpha=rz/pap,next=0,norm=0;
+                for(int i=0;i<Count;i++){projection[i]+=alpha*projectionDirection[i];projectionResidual[i]-=alpha*projectionProduct[i];double r=projectionResidual[i];next+=r*r/Math.Max(1e-20,projectionDiagonal[i]);norm+=r*r;}
+                if(norm<=Math.Max(1e-28,initial*1e-20))break;
+                double beta=next/rz;for(int i=0;i<Count;i++)projectionDirection[i]=projectionResidual[i]/Math.Max(1e-20,projectionDiagonal[i])+beta*projectionDirection[i];rz=next;
+            }
+        }
+        void TransportScalar(double[] q,double fraction)
+        {
+            Array.Clear(delta,0,delta.Length);
+            for(int k=0;k<Layers;k++)
+            {
+                int offset=k*Count;
+                for(int e=0;e<Links.Length;e++)
+                {
+                    var link=Links[e];double f=horizontalAir[k*Links.Length+e]*fraction;
+                    int donor=f>=0?link.A:link.B,receiver=f>=0?link.B:link.A;
+                    double amount=Math.Abs(f)*q[offset+donor]/AirMass[k];
+                    delta[offset+donor]-=amount/Area[donor];delta[offset+receiver]+=amount/Area[receiver];
+                }
+                if(k>=Layers-1)continue;
+                for(int i=0;i<Count;i++)
+                {
+                    double f=verticalAir[offset+i]*fraction;int donor=f>=0?offset+i:offset+Count+i,receiver=f>=0?offset+Count+i:offset+i;
+                    double amount=Math.Abs(f)*q[donor]/(AirMass[f>=0?k:k+1]*Area[i]);
+                    delta[donor]-=amount;delta[receiver]+=amount;
+                }
+            }
+            for(int j=0;j<q.Length;j++)q[j]=Math.Max(0,q[j]+delta[j]);
         }
         void Parcel(int i,double dt)
         {
@@ -363,7 +427,9 @@ namespace Orbis
                 // Eulerian dry thermodynamic tendency: -w*(dT/dz + g/cp).
                 // Condensation/latent heating is handled by SaturationAdjustment below;
                 // do not inject qc or multiply a latitude cloud mask here.
-                double cooling=synoptic*Clamp(.0098+lapse,0,.015)*dt*PhysicalSecondsPerSecond;
+                // Resolved transport now carries potential temperature vertically;
+                // applying this diagnostic tendency too would count that cooling twice.
+                double cooling=TransportEnabled?0:synoptic*Clamp(.0098+lapse,0,.015)*dt*PhysicalSecondsPerSecond;
                 double targetT=Clamp(surfaceT[i]-.0069*z+(k>8?(z-9000)*.002:0),185,335);
                 Temperature[j]=Clamp(Lerp(Temperature[j],targetT,temperatureRelax)-Clamp(cooling,-.8,.8),185,335);
             }

@@ -56,6 +56,15 @@ namespace Orbis.Flat
         {links.Add(new AtmosEdge{A=a,B=b,Direction=(p[b]-p[a]).Normalized,Length=length,Distance=Math.Acos(OrbisAtmosphereCore.Clamp(AtmosVector.Dot(p[a],p[b]),-1,1))});}
         public static AtmosVector Direction(double u,double v)
         {double lon=(u-.5)*Math.PI*2,lat=(v-.5)*Math.PI,c=Math.Cos(lat);return new AtmosVector(Math.Sin(lon)*c,Math.Sin(lat),Math.Cos(lon)*c);}
+        public static double SynopticLift(double rainfall,double humidity,double celsius,bool water,double thermalGradient)
+        {
+            // Saturated marine boundary layers and horizontal thermal contrasts
+            // can form mixed-phase / frontal clouds without tropical convection.
+            double moist=FMath.Clamp((float)((humidity-.58)*2.5),0,1);
+            double marine=water?moist*(.10+FMath.Clamp((float)((14-celsius)/35),0,1)*.24):0;
+            double front=moist*Math.Min(.50,Math.Max(0,thermalGradient)*.10);
+            return Math.Min(.85,Math.Max(0,rainfall)/1000+marine+front);
+        }
         void Forcing(double day)
         {
             double season=((day%360)+360)%360;int m=(int)(season/30),next=(m+1)%12;float f=(float)(season/30-m);
@@ -75,9 +84,18 @@ namespace Orbis.Flat
                 double subtropical=regionalSea[i]>0.5?28:31;
                 double pressure=1013+7*Math.Exp(-Math.Pow((Math.Abs(lat)-subtropical)/12,2))
                     -6*Math.Exp(-Math.Pow((lat-itcz)/14,2))-Math.Max(-4,Math.Min(4,thermal))*.30;
+                int x=i%Width,y=i/Width,west=y*Width+(x+Width-1)%Width,eastCell=y*Width+(x+1)%Width;
+                int southCell=Math.Max(0,y-1)*Width+x,northCell=Math.Min(Height-1,y+1)*Width+x;
+                double westT=FMath.Lerp(temperature[west*12+m],temperature[west*12+next],f)+ground[west]*.0065;
+                double eastT=FMath.Lerp(temperature[eastCell*12+m],temperature[eastCell*12+next],f)+ground[eastCell]*.0065;
+                double southT=FMath.Lerp(temperature[southCell*12+m],temperature[southCell*12+next],f)+ground[southCell]*.0065;
+                double northT=FMath.Lerp(temperature[northCell*12+m],temperature[northCell*12+next],f)+ground[northCell]*.0065;
+                double gradient=Math.Sqrt(Math.Pow((eastT-westT)*.5,2)+Math.Pow((northT-southT)*.5,2));
+                double relativeHumidity=FMath.Lerp(humidity[a],humidity[b],f);
+                double lift=SynopticLift(rainfall,relativeHumidity,temp,water[i],gradient);
                 var velocity=tangentEast[i]*FMath.Lerp(east[a],east[b],f)+tangentNorth[i]*FMath.Lerp(north[a],north[b],f);
                 double daylight=Math.Max(0,Math.Cos((day%1)*Math.PI*2+(i%Width+.5)*Math.PI*2/Width));
-                Model.SetForcing(i,temp+273.15,daylight,soil[i],water[i],velocity,pressure,ground[i],Math.Min(.4,rainfall/1000),0);
+                Model.SetForcing(i,temp+273.15,daylight,soil[i],water[i],velocity,pressure,ground[i],lift,0);
             }
         }
         public void Step(double seconds,double calendarDay){Forcing(calendarDay);Model.TickParallel(seconds);}
@@ -87,7 +105,15 @@ namespace Orbis.Flat
             for(int i=0;i<Model.Count;i++)
             {
                 double low=0,high=0;for(int k=0;k<OrbisAtmosphereCore.Layers;k++){int j=k*Model.Count+i;double q=Model.Water[1][j]+Model.Water[2][j];if(k<8)low+=q;else high+=q;}
-                int o=i*4;frame.Clouds[o]=(float)(1-Math.Exp(-low*1.8));frame.Clouds[o+1]=(float)(1-Math.Exp(-high*1.8));
+                // Cold mixed-phase cloud paths hold less absolute water than
+                // tropical columns; use temperature-aware optical conversion.
+                double celsius=Model.Temperature[i]-273.15;
+                double optical=1.8+5*FMath.Clamp((float)((8-celsius)/38),0,1);
+                double saturation=OrbisAtmosphereCore.Saturation(Model.Temperature[i],OrbisAtmosphereCore.Pressure[0])*OrbisAtmosphereCore.AirMass[0];
+                double rh=Model.Water[0][i]/Math.Max(1e-8,saturation);
+                double subgrid=Math.Pow(FMath.Clamp((float)((rh-.74)/.24),0,1),1.5)*.38*
+                    FMath.Clamp((float)((22-celsius)/32),0,1);
+                int o=i*4;frame.Clouds[o]=(float)(1-(Math.Exp(-low*optical))*(1-subgrid));frame.Clouds[o+1]=(float)(1-Math.Exp(-high*optical));
                 frame.Clouds[o+2]=(float)OrbisAtmosphereCore.Clamp((Model.CloudTop[i]-1500)/10000,.12,1);frame.Clouds[o+3]=(float)OrbisAtmosphereCore.Clamp(Model.Updraft[i]/12,0,1);
                 var wind=Model.Wind[2*Model.Count+i];frame.Wind[o]=(float)wind.X;frame.Wind[o+1]=(float)wind.Y;frame.Wind[o+2]=(float)wind.Z;
                 frame.Effects[o]=(float)(1-Math.Exp(-Model.RainRate[i]/8));frame.Effects[o+1]=(float)(1-Math.Exp(-Model.SnowRate[i]/5));frame.Effects[o+2]=(float)Model.Wetness[i];

@@ -22,16 +22,31 @@ float2 ScrollClimateDensities(float3 p,bool simpleMode)
  float3 localWind=tex2Dlod(_ScrollCloudWindTex,float4(uv,0,0)).xyz;
  float phase=frac(_ScrollWeatherTime*.016);
  float3 a=normalize(up-localWind*phase*8),b=normalize(up+localWind*(1-phase)*8);
- float3 advected=normalize(lerp(a,b,phase));
- float3 q=advected*float3(9,9,9)+float3(.13,.71,.37)+up*(z*.00028);
- float shape=tex3Dlod(_CloudNoise,float4(q,0)).r;
- float4 detail=simpleMode?float4(0,0,0,0):1-tex3Dlod(_CloudDetailNoise,float4(q*2.73+float3(.2,.1,.7),0));
- float4 cells=OrbisHPHighDetail(OrbisWeatherUV(advected));
- // Preserve the HP profile's erosion range. Mapping the cached weather almost
- // directly to one produced broad, fully opaque white plates on the globe.
- float coverage=saturate((weather.r-.12)*.90);
- float low=OrbisHPLowDensityDetailed(z,coverage,saturate(weather.b),shape,detail,cells.r);
- float high=OrbisHPHighDensity(z,weather.g,saturate(weather.b),cells.r,cells.g);
- return float2(low,high)*_Density*max(0,_Cover);
+ // V4.2 Repair's broad cloud body and soft silhouette, driven by the current
+ // prognostic weather rather than its old static coverage map. Sample and blend
+ // both flow phases; blending their coordinates cancels advection halfway.
+ // Sample an isotropic spherical volume. Translating height along global Y
+ // tilted every cloud column toward the poles and stretched its silhouette.
+ float3 offset=float3(.13,.71,.37);
+ float3 q0=a*length(p)*3+offset,q1=b*length(p)*3+offset;
+ float shape0=tex3Dlod(_CloudNoise,float4(q0,0)).r-(1-tex3Dlod(_CloudNoise,float4(q0*2.73,0)).g)*.17;
+ float shape1=tex3Dlod(_CloudNoise,float4(q1,0)).r-(1-tex3Dlod(_CloudNoise,float4(q1*2.73,0)).g)*.17;
+ float shape=lerp(shape0,shape1,phase);
+ float macro=lerp(tex3Dlod(_CloudNoise,float4(a*.72+float3(.7,.2,.4),0)).r,
+                  tex3Dlod(_CloudNoise,float4(b*.72+float3(.7,.2,.4),0)).r,phase);
+ float coverage=saturate(weather.r);
+ float threshold=.42-coverage*.17+(1-macro)*.08;
+ float fine=.5;
+ if(!simpleMode)
+ {
+  float3 detail=lerp(tex3Dlod(_CloudDetailNoise,float4(q0*6.1,0)).rgb,
+                     tex3Dlod(_CloudDetailNoise,float4(q1*6.1,0)).rgb,phase);
+  fine=dot(detail,float3(.625,.25,.125));
+ }
+ float structure=smoothstep(threshold+.07*(.5-fine),threshold+.18,shape)*lerp(.78,1.06,fine);
+ float top=lerp(4200,11500,saturate(weather.b));
+ float lower=smoothstep(400,1050,z)*(1-smoothstep(top*.70,top,z));
+ float upper=smoothstep(5500,7600,z)*(1-smoothstep(10500,13500,z));
+ return float2(coverage*structure*lower*1.85,weather.g*structure*upper*.55)*_Density*max(0,_Cover);
 }
 #endif

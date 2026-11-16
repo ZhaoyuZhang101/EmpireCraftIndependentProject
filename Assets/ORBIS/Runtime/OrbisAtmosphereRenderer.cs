@@ -14,6 +14,8 @@ namespace Orbis
         public float scrollVolumeWeight=1;
         [Tooltip("Bypass half-resolution buffers to compare thin silhouettes and UV orientation.")]
         public bool fullResolutionReference;
+        [Tooltip("A/B verification of the original fourfold cloud integration cost.")]
+        public bool referenceCloudIntegration;
         [Range(0,5)]public int cloudDebug;
         Camera cameraComponent;Material composite,display;
         readonly Vector3[] corners=new Vector3[4];
@@ -46,7 +48,19 @@ namespace Orbis
         {
             if(scroll)
             {
-                if(m.HasProperty("_MarkleyDirections"))Orbis.Planet.MarkleyProjection.Bind(m);m.SetFloat("_MarkleyMap",1);
+                bool local=!scroll.IsAtlas;
+                if(m.HasProperty("_MarkleyDirections"))Orbis.Planet.MarkleyProjection.Bind(m);m.SetFloat("_MarkleyMap",local?0:1);
+                m.SetFloat("_LocalCloudMap",local?1:0);
+                if(local)
+                {
+                    var frame=scroll.LocalFrame;
+                    m.SetVector("_CloudLocalUp",new Vector4((float)frame.Up.X,(float)frame.Up.Y,(float)frame.Up.Z,0));
+                    m.SetVector("_CloudLocalEast",new Vector4((float)frame.East.X,(float)frame.East.Y,(float)frame.East.Z,0));
+                    m.SetVector("_CloudLocalNorth",new Vector4((float)frame.North.X,(float)frame.North.Y,(float)frame.North.Z,0));
+                    // The map camera follows a tangent chart; its corresponding atmospheric
+                    // altitude descends through the same 3D cloud, then below its base.
+                    m.SetFloat("_CloudCameraHeight",Mathf.Lerp(14500,150,Mathf.SmoothStep(0,1,Mathf.InverseLerp(.50f,.96f,scroll.Morph))));
+                }
                 for(int i=0;i<4;i++)
                 {
                     Vector2 screen=cameraComponent.pixelRect.min+Vector2.Scale(MapUV[i],cameraComponent.pixelRect.size);
@@ -56,7 +70,7 @@ namespace Orbis
                 }
                 m.SetFloat("_ScrollCloudSource",1);return true;
             }
-            m.SetFloat("_MarkleyMap",0);if(!atlas)return false;
+            m.SetFloat("_LocalCloudMap",0);m.SetFloat("_MarkleyMap",0);if(!atlas)return false;
             Plane plane=new Plane(atlas.transform.forward,atlas.transform.position);
             Vector2[] uv=MapUV;
             string[] names=MapNames;
@@ -94,7 +108,7 @@ namespace Orbis
                 Graphics.Blit(source,destination);return;
             }
             var settings=view.world.settings;
-            bool map=scroll?scroll.Morph>=.5f:atlas&&atlas.isActiveAndEnabled&&cameraComponent.orthographic;
+            bool map=scroll?scroll.IsAtlas:atlas&&atlas.isActiveAndEnabled&&cameraComponent.orthographic;
             bool natural=view.layer==0||view.layer==1;
             if((scroll&&scrollVolumeWeight<=.0001f)||settings.surfaceDebug>0||!natural||(!view.VolumeVisible&&!map)||
                 (!settings.atmosphere&&(!settings.clouds||(map&&!scroll&&!settings.mapClouds))))
@@ -104,9 +118,13 @@ namespace Orbis
             int q=Mathf.Clamp(settings.cloudQuality,0,3);
             // Crossing the globe/local threshold can otherwise issue a burst of
             // full-quality HP ray marches while the camera changes projection.
-            if(scroll&&scroll.IsTransitioning)q=0;
+            // Keep resolution stable while wheeling. Per-frame quality switches
+            // at the transition boundary caused allocation and rendering spikes.
             m.SetFloat("_ScrollVolumeWeight",scroll?scrollVolumeWeight:1);
+            m.SetFloat("_CloudViewBlend",0);m.SetFloat("_LocalCloudMap",0);
             m.SetInt("_CloudSteps",CloudSteps[q]);m.SetInt("_AirSteps",AirSteps[q]);m.SetInt("_LightSteps",LightSteps[q]);m.SetInt("_CloudDebug",cloudDebug);
+            m.SetFloat("_CloudRefinement",referenceCloudIntegration?4:Mathf.Min(4,q+1));
+            m.SetFloat("_CloudLightSimple",referenceCloudIntegration?0:1);
             if(map)
             {
                 m.SetFloat("_Clouds",settings.clouds&&(scroll||settings.mapClouds)?1:0);
@@ -114,8 +132,10 @@ namespace Orbis
             }
             else
             {
-                if(cameraComponent.orthographic){DisplayOnly(source,destination);return;}
+                if(cameraComponent.orthographic&&(!scroll||scroll.Morph>=1)){DisplayOnly(source,destination);return;}
                 SetRays(m);
+                if(scroll&&!scroll.IsAtlas&&scroll.Morph>.12f&&SetAtlasRays(m))
+                    m.SetFloat("_CloudViewBlend",Mathf.SmoothStep(0,1,Mathf.InverseLerp(.12f,.78f,scroll.Morph)));
             }
             bool mapMRT=map&&m.passCount>3&&composite&&composite.passCount>1;
             if(fullResolutionReference||q==3||SystemInfo.supportedRenderTargetCount<2||!composite||

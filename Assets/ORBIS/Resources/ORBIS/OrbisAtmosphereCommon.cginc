@@ -10,8 +10,11 @@ float4 _MainTex_TexelSize;
 #include "OrbisAtmosphereView.cginc"
 #include "OrbisHPVolumeCloud.cginc"
 int _CloudSteps,_AirSteps,_LightSteps,_CloudDebug;
+float _CloudRefinement,_CloudLightSimple;
 float _CloudMS,_ScatteringStrength,_MapVolume;
 float _ScrollVolumeWeight;
+float _LocalCloudMap,_CloudCameraHeight,_CloudViewBlend;
+float3 _CloudLocalUp,_CloudLocalEast,_CloudLocalNorth;
 
 float3 _MapBL,_MapBR,_MapTL,_MapTR;
    float HG(float cosine,float g)
@@ -45,7 +48,10 @@ float2 LightField(float3 p,float3 sun,float density)
   if(j>=lightSteps)break;
   float2 segment=OrbisLightSegment(j,lightSteps,lengthToExit);
   float t=(segment.x+segment.y)*.5;
-  float sampleTau=OrbisCloudDensity(p+sun*t)*ORBIS_EXTINCTION*(segment.y-segment.x);
+  // Fine erosion controls the visible silhouette. Lighting integrates the
+  // broader density field, avoiding two detail-volume reads per light sample.
+  float2 lightDensity=OrbisCloudDensities(p+sun*t,_CloudLightSimple>.5);
+  float sampleTau=(lightDensity.x+lightDensity.y)*ORBIS_EXTINCTION*(segment.y-segment.x);
   if(j==0)tauFirst.x=sampleTau;
   else if(j==1)tauFirst.y=sampleTau;
   else if(j==2)tauFirst.z=sampleTau;
@@ -136,17 +142,15 @@ void OrbisIntegrateSample(float3 p,float ds,float2 cloudLayers,float3 sun,float2
   float directT=fields.x;
   float highWeight=cloudLayers.y/max(cloudDensity,1e-6);
   float3 direct=directT*lerp(phaseCloud,phaseHigh,highWeight)*.70*sunT;
-  float3 multiple=fields.y*.70*_CloudMS*_ScatteringStrength*sunT;
+  float3 multiple=fields.y*_CloudMS*_ScatteringStrength*sunT;
   float denseGate=smoothstep(.025,.18,cloudDensity);
   multiple*=denseGate;
-  float3 moonScatter=moonT*phaseMoonCloud*.65*exp(-cloudDensity*1.4);
+  float3 moonScatter=moonT*phaseMoonCloud*.65*(.25+.75*exp(-cloudDensity*.75));
   // Self-occlusion proxy, not a second LightField/raymarch. Solar energy scales
   // ONLY the existing solar terms, not moonlight, night sky, airglow or lightning.
-  float3 nightDiffuse=nightAmbient*lerp(.65,1.35,exp(-cloudDensity*1.2));
-  // HanPi upward ambient occlusion, reusing light optical depth (no extra rays).
-  float lightDepth=-log(max(directT,1e-6));
-  float upwardAO=exp(-lightDepth*max(.05,dot(normalize(p),sun))*.8);
-  float3 radiance=(direct+multiple+OrbisDaySkyFill(p,sun)*lerp(.20,1.05,upwardAO))*max(.1,_SolarEnergy)+
+  float3 nightDiffuse=OrbisNightAmbient(p,sun,0)*(.45+.55*exp(-nightTau*.10))*
+      lerp(.70,1.30,exp(-cloudDensity*.75));
+  float3 radiance=(direct+multiple+OrbisDaySkyFill(p,sun)*1.5)*max(.1,_SolarEnergy)+
       nightDiffuse+moonScatter+OrbisLightningLight(p)*3.5;
   if(_Night<.5)radiance=max(radiance,float3(.20,.23,.27));
   if(_CloudDebug==1)radiance=cloudDensity.xxx;
@@ -220,7 +224,7 @@ OrbisVolumeResult OrbisMarchRay(float3 ro,float3 rd,float endDistance,float scen
    float total=cloud?cloudLength:airLength;
    sampleCount=clamp((int)ceil(budget*len/max(total,1e-6)),cloud?1:6,64);
    ds=len/sampleCount;
-   sampleCount=cloud?sampleCount*4:sampleCount;
+   sampleCount=cloud?sampleCount*(int)clamp(_CloudRefinement,1,4):sampleCount;
    sampleIndex=0;segmentBegin=interval.x;segmentEnd=interval.y;cursor=segmentBegin;segmentHasCloud=cloud;
   }
   float stepSize=min(ds,segmentEnd-cursor);float2 density=0;
@@ -232,7 +236,7 @@ OrbisVolumeResult OrbisMarchRay(float3 ro,float3 rd,float endDistance,float scen
    float cap=min(max(cursor/8,.00004),lerp(slab/16,slab/2,pow(saturate((cursor-segmentBegin)/.08),2)));
    float large=min(ds,cap);
    float2 probe=OrbisCloudDensities(ro+rd*(cursor+large*.5),true);
-   stepSize=large*((probe.x+probe.y)>.0005?.25:1);
+   stepSize=large*((probe.x+probe.y)>.0005?rcp(clamp(_CloudRefinement,1,4)):1);
    stepSize=max(stepSize,(segmentEnd-cursor)/max(1,sampleCount-sampleIndex));
    stepSize=min(stepSize,segmentEnd-cursor);
    density=OrbisCloudDensities(ro+rd*(cursor+stepSize*.5),false);
@@ -247,6 +251,13 @@ OrbisVolumeResult OrbisMarchRay(float3 ro,float3 rd,float endDistance,float scen
  return result;
 }
 
+float3 OrbisLocalCloudDirection(float2 uv)
+{
+ float2 map=lerp(lerp(_MapBL.xy,_MapBR.xy,uv.x),lerp(_MapTL.xy,_MapTR.xy,uv.x),uv.y);
+ float2 xy=map*float2(2*ORBIS_PI,ORBIS_PI);
+ float angle=length(xy),sinc=angle<1e-5?1:sin(angle)/angle;
+ return normalize(_CloudLocalUp*cos(angle)+(_CloudLocalEast*xy.x+_CloudLocalNorth*xy.y)*sinc);
+}
 OrbisVolumeResult OrbisMarch(float2 uv)
 {
  float3 ray=OrbisViewRay(uv);
@@ -255,6 +266,19 @@ OrbisVolumeResult OrbisMarch(float2 uv)
  float3 ro=_CameraLocal,rd=normalize(ray);
  float2 planet=OrbisSphere(ro,rd,1.0);
  if(planet.x>0)distance=min(distance,planet.x);
+ #ifdef ORBIS_SHARED_SCROLL_WEATHER
+ if(_LocalCloudMap>.5&&_CloudViewBlend>0)
+ {
+  // Continuously transport the existing view ray into the local geographic
+  // column. Never fade clouds out to expose their shadow, then enable a second
+  // cloud pass at a mode threshold: that produced the black flash at 46-50%.
+  float3 up=OrbisLocalCloudDirection(uv);
+  float ground=ScrollCloudGround(OrbisWeatherUV(up));
+  float3 end=lerp(ro+rd*distance,up*ground,_CloudViewBlend);
+  ro=lerp(ro,up*(ground+max(0,_CloudCameraHeight)*_CloudHeightScale),_CloudViewBlend);
+  float3 delta=end-ro;distance=length(delta);rd=delta/max(1e-7,distance);
+ }
+ #endif
  return OrbisMarchRay(ro,rd,distance,eye);
 }
 OrbisVolumeResult OrbisMarchMap(float2 uv)
@@ -263,14 +287,21 @@ OrbisVolumeResult OrbisMarchMap(float2 uv)
  // Not a flat plane shoved into the sphere-ray intersection equations.
  float3 p=lerp(lerp(_MapBL,_MapBR,uv.x),lerp(_MapTL,_MapTR,uv.x),uv.y);
  OrbisVolumeResult empty;empty.light=0;empty.transmission=1;empty.sceneDepth=100;
- if(_MarkleyMap<.5&&((_ScrollCloudSource<.5&&abs(p.x)>ORBIS_PI)||abs(p.y)>ORBIS_PI*.5))return empty;
+ if(_LocalCloudMap<.5&&_MarkleyMap<.5&&((_ScrollCloudSource<.5&&abs(p.x)>ORBIS_PI)||abs(p.y)>ORBIS_PI*.5))return empty;
  float lon=-p.x,lat=p.y;
  float3 up=float3(sin(lon)*cos(lat),sin(lat),cos(lon)*cos(lat));
  if(_MarkleyMap>.5)up=MarkleyDirection(p.xy);
+ if(_LocalCloudMap>.5)
+  up=OrbisLocalCloudDirection(uv);
  float ground=clamp(tex2Dlod(_GroundField,float4(OrbisWeatherUV(up),0,0)).r,1.0,1.085);
  #ifdef ORBIS_SHARED_SCROLL_WEATHER
  if(_ScrollCloudSource>.5)ground=ScrollCloudGround(OrbisWeatherUV(up));
  #endif
+ if(_LocalCloudMap>.5)
+ {
+  float altitude=max(0,_CloudCameraHeight)*_CloudHeightScale;
+  return OrbisMarchRay(up*(ground+altitude),-up,altitude,8);
+ }
  return OrbisMarchRay(up*ORBIS_AIR_RADIUS,-up,ORBIS_AIR_RADIUS-ground,8);
 }
 float3 OrbisTone(float3 color){return OrbisDisplay(color);}

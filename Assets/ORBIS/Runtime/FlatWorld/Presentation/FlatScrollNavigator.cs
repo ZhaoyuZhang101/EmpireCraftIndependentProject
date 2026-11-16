@@ -8,10 +8,13 @@ namespace Orbis.Flat
     public sealed class FlatScrollNavigator : MonoBehaviour
     {
         const float Fov=42,Start=1.6f,End=1.08f,Tau=Mathf.PI*2;
+        // One zoom coordinate spans globe, unfold and local chart: altitude=EndGap*exp(zoom*ZoomRate).
+        // A single critically damped spring drives it, so no hand-off stalls at the fold endpoints.
+        const float EndGap=.22f,ZoomRate=.075f,ZoomOmega=18,MaxAltitude=5,HomeAltitude=2.1f;
         Camera viewCamera;WorldData world;FlatMapRenderer maps;PlanetLocalProjection projection;
         Mesh mesh;Material surface;MeshRenderer terrain;LineRenderer routeLine;MarkleyAtlasNavigator atlas;bool atlasMode;
-        float distance=3.1f,targetDistance=3.1f,morph,pixels=16,targetPixels=16,endGap=.22f,entryPixels,spin;
-        float pendingExit=-1;Quaternion orbitRotation=Quaternion.Euler(18,0,0);
+        float distance=3.1f,morph,pixels=16,spin,zoom,targetZoom,zoomVelocity;
+        Vector2 zoomScreen;bool zoomAnchor;Quaternion orbitRotation=Quaternion.Euler(18,0,0);
         double currentDay,lockDay;bool locked;Vector3 normal,east,north;Vector2 poles;int revision=-1;int[] route=new int[0];
         const int Rings=128,Sectors=256;Vector2[] lattice;int[] triangles;
         public PlanetTangentFrame LocalFrame=>projection.Frame;
@@ -25,7 +28,7 @@ namespace Orbis.Flat
         public float DisplaySpin=>atlasMode?atlas.DisplaySpin:spin;
         public float Distance=>distance;
         public float PixelsPerTile=>atlasMode?atlas.PixelsPerTile:pixels;
-        public float ReturnPixelsPerTile=>entryPixels;
+        public float ReturnPixelsPerTile=>EntryPixels;
         public float DetailWeight=>Mathf.SmoothStep(0,1,Mathf.InverseLerp(12,32,PixelsPerTile))*Morph;
         public float MapHeight=>atlasMode?atlas.MapHeight:world.Height;
         public Vector2 ProjectionSize=>new Vector2(world.Width,MapHeight);
@@ -35,6 +38,14 @@ namespace Orbis.Flat
         public int ActiveSheets=>atlasMode?atlas.ActiveSheets:1;
         public string ModeName=>atlasMode?"全球战略图":IsGlobe?"星球":IsFlat?"局部地表":"进入地表 "+Mathf.RoundToInt(morph*100)+"%";
         float TileScale=>Tau/world.Width;
+        static float HalfTan=>Mathf.Tan(Fov*Mathf.Deg2Rad*.5f);
+        float EntryPixels=>viewCamera.pixelHeight*TileScale/(2*EndGap*HalfTan);
+        static float ZoomFor(float altitude)=>Mathf.Log(altitude/EndGap)/ZoomRate;
+        static float Altitude(float z)=>EndGap*Mathf.Exp(z*ZoomRate);
+        float ZoomForPixels(float p)=>ZoomFor(EndGap*EntryPixels/p);
+        static float FoldZoom=>ZoomFor(Start-1);
+        float MinZoom=>ZoomForPixels(Mathf.Max(96,EntryPixels*4));
+        static float MaxZoom=>ZoomFor(MaxAltitude);
         float Radius=>Mathf.Lerp(Mathf.PI-.0001f,Mathf.Min(1.4f,Mathf.Max(.04f,viewCamera.orthographicSize*Mathf.Sqrt(1+viewCamera.aspect*viewCamera.aspect)*1.3f)),morph);
         static Vector3 V(PlanetVector p)=>new Vector3((float)p.X,(float)p.Y,(float)p.Z);
         static Vector3 Reflect(Vector3 p){p.z=-p.z;return p;}
@@ -51,6 +62,7 @@ namespace Orbis.Flat
             mesh.vertices=vertices;mesh.uv=lattice;mesh.triangles=triangles;mesh.bounds=new Bounds(Vector3.zero,Vector3.one*20);
             var go=new GameObject("Local spherical terrain",typeof(MeshFilter),typeof(MeshRenderer));go.transform.SetParent(transform,false);
             go.GetComponent<MeshFilter>().sharedMesh=mesh;terrain=go.GetComponent<MeshRenderer>();terrain.sharedMaterial=surface;terrain.shadowCastingMode=ShadowCastingMode.On;
+            zoom=targetZoom=ZoomFor(HomeAltitude);
             Tick(0,0);SyncMaterials();
         }
         void Frame(){normal=Spin*Reflect(V(projection.Frame.Up));east=Spin*Reflect(V(projection.Frame.East));north=Spin*Reflect(V(projection.Frame.North));}
@@ -59,8 +71,12 @@ namespace Orbis.Flat
         {
             currentDay=day;if(atlasMode){atlas.Tick(dt,day);return;}
             if(revision!=world.TerrainRevision){poles=FlatGlobeGeometry.PolarHeights(world);revision=world.TerrainRevision;}
-            distance=(float)FlatScrollMath.ExpApproach(distance,targetDistance,11,dt);if(Mathf.Abs(distance-targetDistance)<.00002f)distance=targetDistance;
-            float nextMorph=Mathf.SmoothStep(0,1,Mathf.InverseLerp(Start,End,distance));
+            bool wasFlat=morph>=1;StepZoom(dt);
+            // Morph is linear in altitude, so the apparent scale keeps the same log rate
+            // through the fold as on the chart and the globe: no ease-out stall at either end.
+            float altitude=Altitude(zoom);
+            float nextMorph=altitude>=Start-1?0:altitude<=EndGap?1:(Start-1-altitude)/(Start-1-EndGap);
+            distance=altitude>=Start-1?1+altitude:Mathf.Lerp(Start,End,nextMorph);
             // Pick against the camera and geometry that were actually displayed last frame.
             if(nextMorph>0&&!locked)Capture(viewCamera.pixelRect.center,day);
             morph=nextMorph;
@@ -74,15 +90,19 @@ namespace Orbis.Flat
             OrbisCelestialBackdrop.Apply(viewCamera,morph<.95f);
             if(IsFlat)
             {
-                pixels=(float)FlatScrollMath.ExpApproach(pixels,targetPixels,14,dt);viewCamera.orthographicSize=viewCamera.pixelHeight*TileScale/(2*pixels);
-                viewCamera.transform.SetPositionAndRotation(normal*(1+endGap),Quaternion.LookRotation(-normal,north));viewCamera.ResetProjectionMatrix();
+                // Keep the geography under the wheel cursor fixed while the chart scales.
+                Vector2 before=Vector2.zero;bool anchored=zoomAnchor&&wasFlat&&TryProjectionPoint(zoomScreen,out before);
+                PlaceFlatCamera(altitude);
+                if(anchored&&TryProjectionPoint(zoomScreen,out var after)&&(before-after).sqrMagnitude>1e-10f){MoveCenter(before-after);PlaceFlatCamera(altitude);}
+                // Any later fold starts from the chart's own top-down pose.
+                orbitRotation=Quaternion.LookRotation(-normal,north);
             }
             else
             {
-                Quaternion orbit=orbitRotation;float gap=Mathf.Lerp(Start-1,endGap,morph);
+                Quaternion orbit=orbitRotation;float gap=Mathf.Min(altitude,Start-1);
                 viewCamera.transform.SetPositionAndRotation(Vector3.Lerp(orbit*new Vector3(0,0,-Mathf.Max(Start,distance)),normal*(1+gap),morph),Quaternion.Slerp(orbit,Quaternion.LookRotation(-normal,north),morph));
-                viewCamera.orthographicSize=gap*Mathf.Tan(Fov*Mathf.Deg2Rad*.5f);pixels=viewCamera.pixelHeight*TileScale/(2*viewCamera.orthographicSize);
-                if(morph==0){viewCamera.ResetProjectionMatrix();if(targetDistance>=Start)locked=false;}
+                viewCamera.orthographicSize=gap*HalfTan;pixels=viewCamera.pixelHeight*TileScale/(2*viewCamera.orthographicSize);
+                if(morph==0){viewCamera.ResetProjectionMatrix();if(targetZoom>=FoldZoom)locked=false;}
                 else
                 {
                     float h=viewCamera.orthographicSize;var p=Matrix4x4.Perspective(Fov,viewCamera.aspect,viewCamera.nearClipPlane,80);var o=Matrix4x4.Ortho(-h*viewCamera.aspect,h*viewCamera.aspect,-h,h,viewCamera.nearClipPlane,80);
@@ -90,8 +110,28 @@ namespace Orbis.Flat
                     for(int r=0;r<4;r++)for(int c=0;c<4;c++)mix[r,c]=Mathf.Lerp(p[r,c]/gap,o[r,c],t);viewCamera.projectionMatrix=mix;
                 }
             }
-            if(IsFlat&&pendingExit>0&&Mathf.Abs(pixels-entryPixels)<.005f){float desired=pendingExit;pendingExit=-1;BeginWheelExit(desired);}
             Bind();UpdateRoute();
+        }
+        void StepZoom(float dt)
+        {
+            if(dt<=0)return;
+            // Exact critically damped step: smooth start between wheel notches, no overshoot from rest, stable for any dt.
+            float delta=zoom-targetZoom,temp=(zoomVelocity+ZoomOmega*delta)*dt,decay=Mathf.Exp(-ZoomOmega*dt);
+            zoomVelocity=(zoomVelocity-ZoomOmega*temp)*decay;zoom=targetZoom+(delta+temp)*decay;
+            if(Mathf.Abs(zoom-targetZoom)<.002f&&Mathf.Abs(zoomVelocity)<.05f){zoom=targetZoom;zoomVelocity=0;}
+        }
+        void StopZoom(){targetZoom=zoom;zoomVelocity=0;zoomAnchor=false;}
+        void PlaceFlatCamera(float altitude)
+        {
+            viewCamera.orthographicSize=altitude*HalfTan;pixels=viewCamera.pixelHeight*TileScale/(2*viewCamera.orthographicSize);
+            viewCamera.transform.SetPositionAndRotation(normal*(1+EndGap),Quaternion.LookRotation(-normal,north));viewCamera.ResetProjectionMatrix();
+        }
+        void MoveCenter(Vector2 tiles)
+        {
+            projection.Move(tiles.x*TileScale,tiles.y*TileScale);
+            // Parallel transport is useful for the move itself, but its bearing
+            // drifts relative to geographic north over a long polar traverse.
+            projection=new PlanetLocalProjection(projection.Center);Frame();
         }
         void Bind()
         {
@@ -108,13 +148,12 @@ namespace Orbis.Flat
             if(TryGetPlanetLocation(screen,out var p))projection=new PlanetLocalProjection(p);
             // A geographic chart has true east/right and north/up. Inheriting the
             // orbit camera's roll made polar water and coastlines appear rotated.
-            lockDay=day;locked=true;Frame();endGap=.22f;
-            entryPixels=viewCamera.pixelHeight*TileScale/(2*endGap*Mathf.Tan(Fov*Mathf.Deg2Rad*.5f));targetPixels=entryPixels;
+            lockDay=day;locked=true;Frame();
         }
         public void Drag(Vector2 delta)
         {
             if(atlasMode){atlas.Drag(delta);return;}
-            targetDistance=distance;targetPixels=pixels;pendingExit=-1;
+            StopZoom();
             if(IsGlobe)
             {
                 // Continue from the returned pose, never reconstruct it from stale Euler angles.
@@ -128,14 +167,11 @@ namespace Orbis.Flat
         public void PanBy(Vector2 delta)
         {
             if(atlasMode){atlas.PanBy(delta);return;}if(IsGlobe)return;
-            targetDistance=distance;targetPixels=pixels;pendingExit=-1;
+            StopZoom();
             // Transport both ends of the camera interpolation by the same rigid rotation.
             // Otherwise dragging changes the distance to the tilted patch and looks like zooming.
             var oldBasis=Quaternion.LookRotation(normal,north);
-            projection.Move(delta.x*TileScale,delta.y*TileScale);
-            // Parallel transport is useful for the move itself, but its bearing
-            // drifts relative to geographic north over a long polar traverse.
-            projection=new PlanetLocalProjection(projection.Center);Frame();
+            MoveCenter(delta);
             orbitRotation=Quaternion.LookRotation(normal,north)*Quaternion.Inverse(oldBasis)*orbitRotation;
             Tick(0,currentDay);
         }
@@ -143,46 +179,19 @@ namespace Orbis.Flat
         {
             if(atlasMode){atlas.Wheel(wheel,screen,day);return;}
             wheel=Mathf.Clamp(wheel,-24,24);if(Mathf.Abs(wheel)<.00001f)return;
-            if(IsFlat)
-            {
-                if(pendingExit>0&&wheel>0){pendingExit=Mathf.Clamp(pendingExit*Mathf.Exp(wheel*.035f),End,6);return;}
-                if(pendingExit>0){pendingExit=-1;targetPixels=pixels;}
-                float from=((wheel>0&&targetPixels>pixels)||(wheel<0&&targetPixels<pixels))?pixels:targetPixels;
-                float desired=from*Mathf.Exp(-wheel*.075f);
-                if(desired<entryPixels)
-                {
-                    float exit=End*Mathf.Pow(entryPixels/desired,.035f/.075f);
-                    if(pixels>entryPixels*1.001f){targetPixels=entryPixels;pendingExit=exit;}
-                    else BeginWheelExit(exit);
-                    return;
-                }
-                targetPixels=Mathf.Clamp(desired,entryPixels,Mathf.Max(96,entryPixels*4));
-            }
-            else
-            {
-                float from=((wheel<0&&targetDistance>distance)||(wheel>0&&targetDistance<distance))?distance:targetDistance;
-                float unclamped=from*Mathf.Exp(wheel*.035f);
-                float desired=Mathf.Clamp(unclamped,End,6);
-                if(desired<Start&&!locked)Capture(viewCamera.pixelRect.center,day);targetDistance=desired;
-                // Wheel events can arrive faster than the transition animation. Preserve
-                // the portion past the surface endpoint as detail zoom instead of losing it.
-                if(wheel<0&&unclamped<End)
-                    targetPixels=Mathf.Clamp(Mathf.Max(entryPixels,targetPixels)*Mathf.Pow(End/unclamped,.075f/.035f),entryPixels,Mathf.Max(96,entryPixels*4));
-                else if(wheel>0)targetPixels=entryPixels;
-            }
+            // Globe, fold and chart share one coordinate, so a burst of notches flows across
+            // the fold without a pause. Reversing direction starts from the displayed zoom.
+            float from=((wheel>0&&targetZoom<zoom)||(wheel<0&&targetZoom>zoom))?zoom:targetZoom;
+            float desired=Mathf.Clamp(from+wheel,MinZoom,MaxZoom);
+            // Unfolding always captures the viewport centre, independent of the wheel cursor.
+            if(desired<FoldZoom&&!locked)Capture(viewCamera.pixelRect.center,day);
+            zoomAnchor=IsFlat;zoomScreen=screen;targetZoom=desired;
         }
-        void BeginWheelExit(float desired)
-        {
-            endGap=viewCamera.orthographicSize/Mathf.Tan(Fov*Mathf.Deg2Rad*.5f);
-            orbitRotation=Quaternion.LookRotation(-normal,north);
-            targetDistance=Mathf.Clamp(desired,End,6);targetPixels=pixels;
-        }
-        public void Toggle(double day){if(IsFlat||(IsTransitioning&&targetDistance<Start))GoGlobe(day);else{Capture(viewCamera.pixelRect.center,day);targetDistance=End;}}
+        public void Toggle(double day){if(IsFlat||(IsTransitioning&&targetZoom<FoldZoom))GoGlobe(day);else{Capture(viewCamera.pixelRect.center,day);zoomAnchor=false;targetZoom=0;}}
         public void GoGlobe(double day)
         {
-            if(atlasMode){var c=atlas.CenterTile;projection=new PlanetLocalProjection(PlanetCoordinateSystem.FromMapUV(c.x/world.Width,c.y/world.Height));atlasMode=false;atlas.gameObject.SetActive(false);terrain.enabled=true;locked=true;lockDay=day;spin=(float)(FlatSolarClock.Phase(day)*Tau);Frame();morph=1;distance=End;}
-            if(IsFlat)endGap=viewCamera.orthographicSize/Mathf.Tan(Fov*Mathf.Deg2Rad*.5f);
-            orbitRotation=Quaternion.LookRotation(-normal,north);pendingExit=-1;targetPixels=pixels;targetDistance=3.1f;Tick(0,day);
+            if(atlasMode){var c=atlas.CenterTile;projection=new PlanetLocalProjection(PlanetCoordinateSystem.FromMapUV(c.x/world.Width,c.y/world.Height));atlasMode=false;atlas.gameObject.SetActive(false);terrain.enabled=true;locked=true;lockDay=day;spin=(float)(FlatSolarClock.Phase(day)*Tau);Frame();morph=1;distance=End;zoom=0;zoomVelocity=0;}
+            orbitRotation=Quaternion.LookRotation(-normal,north);zoomAnchor=false;targetZoom=ZoomFor(HomeAltitude);Tick(0,day);
         }
         public void OpenAtlas(double day)
         {
@@ -193,8 +202,8 @@ namespace Orbis.Flat
         public void Focus(int tile,double day)
         {
             if(tile<0||tile>=world.Count)return;if(atlasMode){atlas.Focus(tile,day);return;}
-            projection=new PlanetLocalProjection(PlanetCoordinateSystem.FromMapUV((tile%world.Width+.5)/world.Width,(tile/world.Width+.5)/world.Height));lockDay=day;locked=true;Frame();endGap=.22f;
-            entryPixels=viewCamera.pixelHeight*TileScale/(2*endGap*Mathf.Tan(Fov*Mathf.Deg2Rad*.5f));targetPixels=Mathf.Max(48,entryPixels);targetDistance=End;
+            projection=new PlanetLocalProjection(PlanetCoordinateSystem.FromMapUV((tile%world.Width+.5)/world.Width,(tile/world.Width+.5)/world.Height));lockDay=day;locked=true;Frame();
+            zoomAnchor=false;targetZoom=ZoomForPixels(Mathf.Max(48,EntryPixels));
         }
         public bool TryProjectionPoint(Vector2 screen,out Vector2 point)
         {

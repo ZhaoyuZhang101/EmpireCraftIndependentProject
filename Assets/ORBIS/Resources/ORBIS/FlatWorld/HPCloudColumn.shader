@@ -1,5 +1,21 @@
 Shader "Hidden/ORBIS/HPCloudColumn"
 {
+ Properties
+ {
+  _ScrollWeatherTex("Cloud mass, height and precipitation",2D)="black"{}
+  _ScrollHeightTex("Ground height",2D)="black"{}
+  _ScrollCloudWindTex("Cloud wind",2D)="black"{}
+  _ScrollEffectsTex("Physical rain and snow rates",2D)="black"{}
+  _CloudNoise("Cloud shape",3D)="white"{}
+  _CloudDetailNoise("Cloud erosion",3D)="white"{}
+  _HPHighDetail("High clouds",2D)="black"{}
+  _Density("Density",Float)=1
+  _Cover("Coverage",Float)=1
+  _CloudHeightScale("Height scale",Float)=0.0000015
+  _ScrollHeightScale("Ground scale",Float)=0
+  _ScrollSourceSize("Source size",Vector)=(512,256,0,0)
+  _ColumnUVTransform("Slice offset and scale",Vector)=(0,0,1,1)
+ }
  SubShader { Cull Off ZWrite Off ZTest Always Pass {
  CGPROGRAM
  #pragma target 3.0
@@ -8,8 +24,11 @@ Shader "Hidden/ORBIS/HPCloudColumn"
  #include "UnityCG.cginc"
  #define ORBIS_SHARED_SCROLL_WEATHER
  #include "../OrbisCloudCommon.cginc"
+ sampler2D _ScrollEffectsTex;
+ float4 _ColumnUVTransform;
  float4 frag(v2f_img i):SV_Target
  {
+  i.uv=i.uv*_ColumnUVTransform.zw+_ColumnUVTransform.xy;
   float lon=(i.uv.x-.5)*6.283185307,lat=(i.uv.y-.5)*3.141592654;
   float3 up=float3(sin(lon)*cos(lat),sin(lat),cos(lon)*cos(lat));
   float2 tau=0;
@@ -20,8 +39,15 @@ Shader "Hidden/ORBIS/HPCloudColumn"
    tau+=ScrollClimateDensities(up*(1+metres*_CloudHeightScale),false)*1637.5*_CloudHeightScale*ORBIS_EXTINCTION;
   }
   float2 opacity=1-exp(-tau);
-  float rain=tex2Dlod(_ScrollWeatherTex,float4(i.uv,0,0)).a;
-  return float4(opacity,exp(-tau.x*.20),rain);
+  float4 weather=tex2Dlod(_ScrollWeatherTex,float4(i.uv,0,0));
+  // Precipitation is visible only under deep, optically thick cloud columns.
+  // A nonzero coarse weather rate alone must not paint rain into clear gaps.
+  float2 precipitation=tex2Dlod(_ScrollEffectsTex,float4(i.uv,0,0)).rg;
+  float rain=precipitation.r*smoothstep(.50,.78,weather.b)*smoothstep(1.3,3.2,tau.x);
+  // Snow can fall from shallower ice-bearing clouds. Its physical phase comes
+  // from the temperature/melting model, not a latitude or visual colour mask.
+  float snow=precipitation.g*smoothstep(.7,2.0,tau.x+tau.y);
+  return float4(opacity,snow,rain);
  }
  ENDCG
  }}

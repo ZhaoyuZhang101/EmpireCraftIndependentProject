@@ -43,12 +43,12 @@ Shader "ORBIS/AtmosphereComposite"
  #include "OrbisOptics.cginc"
  sampler2D _MainTex,_RadianceTex,_TransmittanceTex;
  float4 _VolumeTexelSize;
- float3 _MapBL,_MapTL,_MapTR,_MapBR;float _MarkleyMap;
+  float3 _MapBL,_MapTL,_MapTR,_MapBR;float _MarkleyMap,_LocalCloudMap;
  float4 frag(v2f_img i):SV_Target
  {
   float3 at=lerp(lerp(_MapBL,_MapBR,i.uv.x),lerp(_MapTL,_MapTR,i.uv.x),i.uv.y);
   float3 background=tex2D(_MainTex,i.uv).rgb;
-  if(_MarkleyMap<.5&&((_ScrollCloudSource<.5&&abs(at.x)>ORBIS_PI)||abs(at.y)>ORBIS_PI*.5))return float4(OrbisDisplay(background),1);
+  if(_LocalCloudMap<.5&&_MarkleyMap<.5&&((_ScrollCloudSource<.5&&abs(at.x)>ORBIS_PI)||abs(at.y)>ORBIS_PI*.5))return float4(OrbisDisplay(background),1);
   float2 grid=i.uv*_VolumeTexelSize.zw-.5,base=floor(grid),f=frac(grid);
   float3 L=0,T=0;float sum=0;
   [unroll] for(int y=0;y<2;y++)[unroll] for(int x=0;x<2;x++)

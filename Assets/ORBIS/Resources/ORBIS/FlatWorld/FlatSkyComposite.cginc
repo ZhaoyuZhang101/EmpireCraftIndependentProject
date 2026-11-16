@@ -31,7 +31,53 @@ float3 FlatDayLight(float3 radial,float2 uv)
     #endif
     return lerp(nightLight,float3(.94,.97,1),day);
 }
-float3 FlatSkyComposite(float3 col,float2 uv,float2 cell,float waterMask,float pixelsPerTile)
+float FlatRainHash(float2 p)
+{return frac(sin(dot(p,float2(127.1,311.7)))*43758.5453);}
+float FlatRainStreaks(float2 pixel,float clock,float2 wind,float rain)
+{
+    float2 q=pixel/float2(19,48);
+    q.y+=clock*7.5;q.x-=clock*wind.x*.18;
+    float2 id=floor(q),f=frac(q);
+    float seed=FlatRainHash(id),head=.15+.65*FlatRainHash(id+17.3);
+    float side=.12+.76*FlatRainHash(id+43.9);
+    float length=.15+.42*FlatRainHash(id+71.4);
+    float slant=(f.y-head)*wind.x*.22;
+    float stroke=1-smoothstep(.018,.050,abs(f.x-side-slant));
+    float section=smoothstep(head-.04,head,f.y)*(1-smoothstep(head+length-.04,head+length,f.y));
+    float first=stroke*section*step(1-rain*.58,seed);
+    float2 q2=pixel/float2(29,67);q2.y+=clock*5.1;q2.x-=clock*wind.x*.12;
+    float2 id2=floor(q2),f2=frac(q2);float seed2=FlatRainHash(id2+93.1);
+    float x2=.12+.76*FlatRainHash(id2+4.7),y2=.12+.67*FlatRainHash(id2+67.2);
+    float second=(1-smoothstep(.012,.038,abs(f2.x-x2-(f2.y-y2)*wind.x*.15)))*
+        smoothstep(y2-.04,y2,f2.y)*(1-smoothstep(y2+.25,y2+.29,f2.y))*step(1-rain*.45,seed2);
+    return saturate(first*.8+second*.55);
+}
+float FlatRainSplash(float2 cell,float clock,float rain)
+{
+    float2 q=cell*2,id=floor(q),f=frac(q);
+    float seed=FlatRainHash(id+18.7),phase=frac(clock*1.9+seed);
+    float2 centre=float2(.23+.54*FlatRainHash(id+5.1),.23+.54*FlatRainHash(id+8.4));
+    float radius=phase*.22,ring=1-smoothstep(.012,.047,abs(length(f-centre)-radius));
+    return ring*(1-phase)*step(1-rain*.65,seed);
+}
+float FlatSnowflakes(float2 pixel,float clock,float snow)
+{
+    float flakes=0;
+    [unroll] for(int layer=0;layer<2;layer++)
+    {
+        float scale=lerp(32,47,layer),speed=lerp(.65,.38,layer);
+        float2 q=pixel/scale+float2(clock*.13,clock*speed);
+        float2 id=floor(q),f=frac(q);
+        float seed=FlatRainHash(id+layer*81.7);
+        float2 centre=float2(.27+.46*FlatRainHash(id+14.3),.27+.46*FlatRainHash(id+41.9));
+        centre.x+=sin(clock*1.1+seed*6.283)*.13;
+        float radius=lerp(.025,.060,FlatRainHash(id+3.4));
+        float disc=1-smoothstep(radius*.35,radius,length(f-centre));
+        flakes+=disc*step(1-snow*.72,seed)*lerp(.85,.6,layer);
+    }
+    return saturate(flakes);
+}
+float3 FlatSkyComposite(float3 col,float2 uv,float2 cell,float2 screenPixel,float waterMask,float pixelsPerTile)
 {
     float3 radial=FlatRadial(uv);float day=FlatDayWeight(radial);
     float4 cloud=FlatCloudColumn(uv);
@@ -46,20 +92,18 @@ float3 FlatSkyComposite(float3 col,float2 uv,float2 cell,float waterMask,float p
     float low=cloud.r,high=cloud.g;
     float alpha=(1-(1-low*.82)*(1-high*.35))*_CloudOpacity*_FlatClouds*_SkyReady;
     alpha*=1-smoothstep(16,56,pixelsPerTile)*.86;
-    float3 cloudColor=lerp(FlatColor(float3(.22,.29,.41)),FlatColor(float3(.90,.94,.97)),day);
-    cloudColor*=lerp(.74,1,cloud.b);
+    float3 cloudColor=lerp(FlatColor(float3(.32,.39,.48)),FlatColor(float3(.90,.94,.97)),day);
+    cloudColor*=lerp(1,.74,low);
     col=lerp(col,cloudColor,saturate(alpha));
-    #ifdef ORBIS_SCROLL_SURFACE
-    // The camera crosses the HP cloud shell during globe-to-map unfolding.
-    // Fog follows local cloud column density and clears at both endpoints.
-    float passage=sin(3.141592654*saturate((_ScrollMorph-.28)/.64));
-    passage=passage*passage*saturate(low+high*.35)*_FlatClouds*_SkyReady;
-    col=lerp(col,FlatColor(float3(.75,.81,.84)),passage*.32);
-    #endif
-    float rain=cloud.a*_FlatRain*_SkyReady*smoothstep(3,8,pixelsPerTile);
-    float2 drop=cell*float2(17,4)+float2(_SkyClock*.45,_SkyClock*8);
-    float streak=(1-smoothstep(.035,.12,abs(frac(drop.x)-.5)))*smoothstep(.45,.95,frac(drop.y));
-    col=lerp(col,haze,streak*rain*.20);
+    float rain=cloud.a*smoothstep(.65,.90,low)*_FlatRain*_FlatClouds*_SkyReady*smoothstep(8,20,pixelsPerTile);
+    float2 wind=float2(.28*sin(cell.y*.025+_SkyClock*.11),0);
+    float streak=FlatRainStreaks(screenPixel,_SkyClock,wind,rain);
+    col=lerp(col,haze,rain*.045+streak*rain*.42);
+    float splash=FlatRainSplash(cell,_SkyClock,rain)*(1-waterMask);
+    col=lerp(col,FlatColor(float3(.72,.81,.87)),splash*rain*.20);
+    float snow=cloud.b*_FlatRain*_FlatClouds*_SkyReady*smoothstep(8,20,pixelsPerTile);
+    float flakes=FlatSnowflakes(screenPixel,_SkyClock,snow);
+    col=lerp(col,FlatColor(float3(.94,.97,1)),flakes*snow*.78);
     // Only physical lightning events emitted by mature, charged rain clouds.
     float flash=0;
     [unroll] for(int k=0;k<4;k++)

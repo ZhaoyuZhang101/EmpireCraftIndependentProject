@@ -50,11 +50,8 @@ namespace Orbis.Flat
             PrepareScroll();clock=visualTime;Snapshot.day=(float)calendarDay;
             transform.localScale=new Vector3(1,1,-1);
             transform.localRotation=Quaternion.AngleAxis(spin*Mathf.Rad2Deg,Vector3.up);
-            float sphereWeight=1-Mathf.SmoothStep(0,1,Mathf.InverseLerp(.15f,.48f,unfold));
-            float columnWeight=0;
-            bool column=unfold>=.5f;
-            float weight=column?columnWeight:sphereWeight;
-            Snapshot.settings.airDensity=baseAir*(column?.10f:1);
+            float weight=1-Mathf.SmoothStep(0,1,Mathf.InverseLerp(.96f,1,unfold));
+            Snapshot.settings.airDensity=baseAir*Mathf.Lerp(1,.10f,Mathf.SmoothStep(0,1,Mathf.InverseLerp(.3f,.85f,unfold)));
             Snapshot.settings.haze=baseHaze;
             Snapshot.settings.cloudDensity=baseCloudDensity;
             Snapshot.settings.clouds=clouds&&natural;
@@ -82,7 +79,7 @@ namespace Orbis.Flat
             m.SetFloat("_OrbisShadowReady",0);m.SetFloat("_GodRays",0);
             if(!scrollVolume)foreach(var volume in viewCamera.GetComponents<OrbisAtmosphereRenderer>())if(volume.view==View)scrollVolume=volume;
             if(!scrollNav)scrollNav=maps.GetComponentInParent<FlatWorldApp>()?.Navigation;
-            if(scrollVolume){scrollVolume.scroll=scrollNav;scrollVolume.scrollVolumeWeight=weight*(column&&scrollNav?Mathf.Lerp(.05f,.025f,scrollNav.DetailWeight):1);}
+            if(scrollVolume){scrollVolume.scroll=scrollNav;scrollVolume.scrollVolumeWeight=weight;}
             // Intentionally NOT View.Sync(): it enables/culls the old meshes and starts local surface LOD.
             // The viewCamera image effect keeps its display transform at both endpoints; only volume density fades.
         }

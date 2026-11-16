@@ -3,7 +3,15 @@
 // UnityShaderCompiler/GPU acceptance must be run in the target Unity Editor.
 Shader "ORBIS/Clouds"
 {
- Properties {[HideInInspector] _Sun("Sun direction",Vector)=(0,0,1,0) [HideInInspector] _MarkleyDirections("Markley directions",2D)="white"{} _MainTex("Source",2D)="black"{}}
+ Properties
+ {
+  [HideInInspector] _Sun("Sun direction",Vector)=(0,0,1,0)
+  [HideInInspector] _MarkleyDirections("Markley directions",2D)="white"{}
+  _MainTex("Source",2D)="black"{}
+  [HideInInspector] _CloudNoise("Cloud shape",3D)="white"{}
+  [HideInInspector] _CloudDetailNoise("Cloud erosion",3D)="white"{}
+  [HideInInspector] _HPHighDetail("High cloud detail",2D)="black"{}
+ }
  SubShader
  {
   Cull Off ZWrite Off ZTest Always
