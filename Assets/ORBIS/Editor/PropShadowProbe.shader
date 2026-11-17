@@ -11,9 +11,10 @@ Shader "Hidden/ORBIS/PropShadowProbe"
  #include "../Resources/ORBIS/FlatWorld/FlatSkyComposite.cginc"
  sampler2D _InfoTex;
  #include "../Resources/ORBIS/FlatWorld/FlatPixelDetail.cginc"
+ float2 _ProbeRoot;
  float4 frag(v2f_img i):SV_Target
  {
-  float shadow=PixelPropShadow(float2(3.5,1.5)+i.uv);
+  float shadow=PixelPropShadow(_ProbeRoot+.5+i.uv);
   return float4(shadow,shadow,shadow,1);
  }
  ENDCG

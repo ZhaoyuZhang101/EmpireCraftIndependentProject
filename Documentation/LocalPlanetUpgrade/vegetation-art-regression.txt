@@ -1,0 +1,38 @@
+PASS row=3 kind=0 retains vertical pixel detail; distinct scanlines=22
+PASS row=3 kind=0 crown remains legible with 1140 pixels
+PASS row=3 kind=0 overhead crown aspect=1
+PASS row=3 kind=0 short exposed trunk fraction=0.02061856
+PASS row=3 kind=0 crown follows sunlight; mean green response=0.117779234835976
+PASS row=3 kind=0 longitude wrap preserves the tree silhouette; changed pixels=0
+PASS row=3 kind=1 retains vertical pixel detail; distinct scanlines=20
+PASS row=3 kind=1 crown remains legible with 1132 pixels
+PASS row=3 kind=1 overhead crown aspect=1
+PASS row=3 kind=1 short exposed trunk fraction=0
+PASS row=3 kind=1 crown follows sunlight; mean green response=0.109415970347795
+PASS row=3 kind=1 longitude wrap preserves the tree silhouette; changed pixels=0
+PASS row=7 kind=0 retains vertical pixel detail; distinct scanlines=22
+PASS row=7 kind=0 crown remains legible with 1420 pixels
+PASS row=7 kind=0 overhead crown aspect=1.25
+PASS row=7 kind=0 short exposed trunk fraction=0.03269755
+PASS row=7 kind=0 crown follows sunlight; mean green response=0.114658049126746
+PASS row=7 kind=0 longitude wrap preserves the tree silhouette; changed pixels=0
+PASS row=7 kind=1 retains vertical pixel detail; distinct scanlines=23
+PASS row=7 kind=1 crown remains legible with 1480 pixels
+PASS row=7 kind=1 overhead crown aspect=0.9545454
+PASS row=7 kind=1 short exposed trunk fraction=0
+PASS row=7 kind=1 crown follows sunlight; mean green response=0.108686552619612
+PASS row=7 kind=1 longitude wrap preserves the tree silhouette; changed pixels=0
+PASS row=0 kind=0 retains vertical pixel detail; distinct scanlines=23
+PASS row=0 kind=0 crown remains legible with 1112 pixels
+PASS row=0 kind=0 overhead crown aspect=0.9047619
+PASS row=0 kind=0 short exposed trunk fraction=0.01766784
+PASS row=0 kind=0 crown follows sunlight; mean green response=0.116029189966565
+PASS row=0 kind=0 longitude wrap preserves the tree silhouette; changed pixels=0
+PASS row=0 kind=1 retains vertical pixel detail; distinct scanlines=20
+PASS row=0 kind=1 crown remains legible with 1052 pixels
+PASS row=0 kind=1 overhead crown aspect=1
+PASS row=0 kind=1 short exposed trunk fraction=0
+PASS row=0 kind=1 crown follows sunlight; mean green response=0.107505804119001
+PASS row=0 kind=1 longitude wrap preserves the tree silhouette; changed pixels=0
+PASS water clearance removes tree artwork; maximum=0
+PASS water clearance removes the matching tree shadow; maximum=0

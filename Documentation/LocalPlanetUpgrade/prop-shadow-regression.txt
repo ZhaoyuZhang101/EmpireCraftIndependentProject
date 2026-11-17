@@ -1,4 +1,4 @@
-PASS tree crosses east cell boundary; coverage=0.3 delta=0.02308658
-PASS tree crosses north cell boundary; coverage=0.3 delta=0.00230518
+PASS tree crosses east cell boundary; coverage=0.3 delta=0.03689632
+PASS tree crosses north cell boundary; coverage=0.3 delta=0.006829172
 PASS building crosses east cell boundary; coverage=0.27 delta=0
 PASS building crosses north cell boundary; coverage=0.27 delta=0

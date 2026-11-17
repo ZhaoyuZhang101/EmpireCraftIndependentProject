@@ -6,7 +6,6 @@
     i.uv=MarkleyGeoUV(i.uv);
 #endif
     float2 cell=float2(frac(i.uv.x),clamp(i.uv.y,0,1-_MapSize.w*.0001))*_MapSize.xy,id=floor(cell),f=frac(cell),uv=(id+.5)*_MapSize.zw;
-    float2 detailCell=(floor(cell*32)+.5)/32;
     float naturalView=max(_Natural,_Political);
     float2 colorUV=lerp(uv,FlatBlendUV(cell),_SmoothTerrain*naturalView);
     float3 col=tex2D(_MainTex,colorUV).rgb;
@@ -87,7 +86,9 @@
       else mark=(1-step(.16,q.x))*(1-step(.42,q.y));
       col=lerp(col,FlatColor(structure<1.5?float3(.96,.83,.53):float3(.73,.66,.46)),mark*.9*(1-_DetailWeight));
      }
-     if(_DetailWeight>0)col=lerp(col,PixelProps(col,detailCell,field,waterMask,structure,illumination),_DetailWeight*(1-frozen));
+     // Each prop quantizes in its latitude-corrected art frame. Quantizing the
+     // geographic receiver first discards most crown rows near the poles.
+     if(_DetailWeight>0)col=lerp(col,PixelProps(col,cell,field,waterMask,structure,illumination),_DetailWeight*(1-frozen));
      float night=1-FlatDayWeight(FlatRadial(i.uv));
      float town=1-step(.5,abs(structure-1));
      col+=town*exp(-dot(f-.5,f-.5)*14)*night*_FlatNightLights*FlatColor(float3(.82,.42,.13))*.75;

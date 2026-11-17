@@ -10,15 +10,109 @@ float PDHash(float2 p)
  return frac(sin(dot(p,float2(12.9898,78.233)))*43758.5453);
 }
 float3 PDPaint(float3 col,float3 ink,float mask){return lerp(col,FlatColor(ink),saturate(mask));}
-float PDLeafSdf(float2 p)
+// An orthographic 62-degree art view. Tree volumes are evaluated at pixel centres,
+// so the top faces, short trunk and cast shadow share one small 3D representation.
+static const float3 PDTreeView=float3(0,-.46947156,.88294759);
+static const float3 PDTreeUp=float3(0,.88294759,.46947156);
+float4 PDTreePlacement(float2 id)
 {
- float shape=min(length((p-float2(-4,-1))*float2(1,1.08))-7,
-                 length((p-float2(4,0))*float2(1,1.10))-7);
- shape=min(shape,length((p-float2(-1,5))*float2(1.04,1))-7);
- return min(shape,length((p-float2(0,-4))*float2(1,.9))-7);
+ float seed=PDHash(id);
+ float2 anchor=float2(16+(seed-.5)*16,13+(PDHash(id+71)-.5)*14);
+ return float4(floor(anchor)+.5,.78+.30*PDHash(id+float2(29,13)),seed);
 }
-float PDConiferSdf(float2 p)
-{return max(abs(p.x)-min(10.5,max(0,8-p.y*.35)),abs(p.y-1)-13);}
+float4 PDTreeLobe(int index,float conifer,float seed)
+{
+ float4 broadleaf=float4(0,0,15.5,6.8),pine=float4(0,0,7,10.3);
+ if(index==1){broadleaf=float4(-5,-1,12,6.3);pine=float4(0,0,13,8);}
+ if(index==2){broadleaf=float4(5,0,13.5,6.5);pine=float4(0,0,18,5.5);}
+ if(index==3){broadleaf=float4(-1,5,15.5,6.8);pine=float4(0,0,22,3.6);}
+ if(index==4){broadleaf=float4(1,-4.5,11,6.4);pine=float4(0,0,25,1.8);}
+ // Alternate crown width and lobe height without changing a tree across frames.
+ broadleaf.x*=.86+seed*.28;
+ broadleaf.z+=(seed-.5)*index*.8;
+ float angle=floor(seed*4)*1.570796327;
+ float sine=sin(angle),cosine=cos(angle);
+ broadleaf.xy=float2(cosine*broadleaf.x-sine*broadleaf.y,sine*broadleaf.x+cosine*broadleaf.y);
+ pine.x=(seed-.5)*index*.5;
+ float4 volume=lerp(broadleaf,pine,conifer);
+ volume.z+=12;
+ return volume;
+}
+bool PDTreeAvailable(float2 id,float4 placement,float4 info)
+{
+ if(info.b>.5||(info.g>.5&&info.g<4.5))return false;
+ float2 root=placement.xy/32,uv=(id+root)*_MapSize.zw;
+ float4 field=tex2Dlod(_VisualTex,float4(uv,0,0));
+ if(placement.w>saturate((field.a-.20)*1.25)||field.g>-.18)return false;
+ float2 centreUV=(id+.5)*_MapSize.zw,flow;
+ float4 hydro=tex2Dlod(_HydroA,float4(centreUV,0,0));
+ float4 river=tex2Dlod(_HydroB,float4(centreUV,0,0));
+ return FlatRiverDistance(root,hydro,floor(river.a+.5),river.r,centreUV,flow)>=.15;
+}
+float4 PDTreeCrown(float2 pixel,float conifer,float seed,out float2 edge)
+{
+ float3 origin=float3(pixel.x,0,0)+PDTreeUp*pixel.y;
+ float front=-100;float3 normal=0;edge=-100;
+ [unroll] for(int lobe=0;lobe<5;lobe++)
+ {
+  float4 volume=PDTreeLobe(lobe,conifer,seed);
+  float3 relative=origin-volume.xyz;
+  float depth=-dot(relative,PDTreeView);
+  float3 closest=relative+PDTreeView*depth;
+  float distanceSquared=dot(closest,closest);
+  float radiusSquared=volume.w*volume.w;
+  float lobeEdge=volume.w-sqrt(distanceSquared);
+  edge.x=max(edge.x,lobeEdge);
+  if(distanceSquared<radiusSquared)
+  {
+   float surface=sqrt(radiusSquared-distanceSquared);
+   float visibleDepth=depth+surface;
+   if(visibleDepth>front)
+   {
+    front=visibleDepth;
+    normal=(closest+PDTreeView*surface)/volume.w;
+    edge.y=lobeEdge;
+   }
+  }
+ }
+ return float4(normal,step(-99,front));
+}
+float PDTreeCastShadow(float2 pixel,float3 sun,float conifer,float seed)
+{
+ float3 origin=float3(pixel.x,pixel.y/PDTreeUp.y,0);
+ // Foreshorten cast heights for the art view and bound low-sun silhouettes inside
+ // the neighbouring cells. The actual crown lobes determine every shadow edge.
+ float3 ray=normalize(float3(sun.xy*.40,max(.55,sun.z)));
+ float mask=0;
+ [unroll] for(int lobe=0;lobe<5;lobe++)
+ {
+  float4 volume=PDTreeLobe(lobe,conifer,seed);
+  float3 relative=volume.xyz-origin;
+  float depth=dot(relative,ray);
+  float distanceToRay=length(relative-ray*max(0,depth));
+  mask=max(mask,1-smoothstep(volume.w-.7,volume.w+1.5,distanceToRay));
+ }
+ return mask;
+}
+float3 PDTreeFoliage(float3 normal,float2 pixel,float2 id,float conifer,float seed,float3 sun,float2 edge)
+{
+ float daylight=smoothstep(-.06,.15,sun.z);
+ float3 key=normalize(lerp(float3(-.3,.4,1),sun,daylight));
+ // Broad pixel clusters sit on the volume, with a limited stepped palette.
+ float cluster=PDHash(id+floor(pixel/2)*.071);
+ float3 facet=normalize(floor(normal*4+.5)/4+float3(0,0,.001));
+ float diffuse=saturate(dot(facet,key)*.70+facet.z*.10+.10);
+ float tone=floor(saturate(diffuse+(cluster-.5)*.08)*4+.15)/4;
+ float3 dark=lerp(float3(.115,.23,.13),float3(.10,.23,.20),conifer);
+ float3 middle=lerp(float3(.24,.39,.18),float3(.20,.36,.28),conifer);
+ float3 bright=lerp(float3(.43,.57,.26),float3(.38,.52,.36),conifer);
+ float3 foliage=lerp(lerp(dark,middle,saturate(tone*2)),bright,saturate(tone*2-1));
+ foliage*=lerp(float3(1.05,.99,.91),float3(.91,1.03,1.02),seed);
+ float crease=(1-smoothstep(.6,2.2,edge.y))*step(1.4,edge.x);
+ foliage*=1-crease*.19;
+ float rim=1-step(.65,edge.x);
+ return lerp(foliage,dark*.85,rim*.65);
+}
 float PDBuildingSdf(float2 p)
 {
  float2 roof=abs(p-float2(16,21))-float2(13,7);
@@ -64,14 +158,13 @@ float PixelPropShadow(float2 cell)
   float scale=max(.02,cos((uv.y-.5)*3.141592654));
   float2 q=(cell-root)*32;
   // Building and tree projections cannot reach beyond this conservative bound.
-  if(q.x< -23||q.x>55||q.y< -23||q.y>55)continue;
-  float lon=(uv.x-.5)*6.283185307,lat=(uv.y-.5)*3.141592654;
+  if(q.x< -31||q.x>63||q.y< -31||q.y>63)continue;
   float3 sun=normalize(_FlatSun+float3(0,1e-7,0));
-  float height=dot(FlatRadial(uv),sun);
+  float3 localSun=FlatGeographicLight(uv,sun);
+  float height=localSun.z;
   float daylight=smoothstep(-.04,.18,height);
   if(daylight<.001)continue;
-  float2 direction=-float2(dot(float3(cos(lon),0,-sin(lon)),sun),
-   dot(float3(-sin(lat)*sin(lon),cos(lat),-sin(lat)*cos(lon)),sun))/max(.25,height);
+  float2 direction=-localSun.xy/max(.25,height);
   float4 info=tex2Dlod(_InfoTex,float4(uv,0,0))*255;
   float mask=0;
   if(info.b>.5&&info.b<1.5)
@@ -81,19 +174,13 @@ float PixelPropShadow(float2 cell)
   }
   else if(info.b<.5&&!(info.g>.5&&info.g<4.5))
   {
-   float seed=PDHash(root),size=.86+.15*PDHash(root+float2(29,13));
-   q.y=8+(q.y-8)/scale;
-   float2 crown=q-float2(13+floor(seed*7),20+floor(PDHash(root+71)*6));
-   float2 silhouetteUV=(crown-direction*3.5)/size;
-   if(abs(silhouetteUV.x)>14||abs(silhouetteUV.y)>17)continue;
-   float4 field=tex2Dlod(_VisualTex,float4((root+float2(.5,.25))*_MapSize.zw,0,0));
-   if(seed>saturate((field.a-.20)*1.25)||field.g>-.18)continue;
-   float4 hydro=tex2Dlod(_HydroA,float4(uv,0,0));
-   float4 river=tex2Dlod(_HydroB,float4(uv,0,0));float2 flow;
-   if(FlatRiverDistance(float2(.5,.25),hydro,floor(river.a+.5),river.r,uv,flow)<.15)continue;
+   float4 placement=PDTreePlacement(root);
+   q.y=placement.y+(q.y-placement.y)/scale;
+   float2 ground=(q-placement.xy)/placement.z;
+   if(abs(ground.x)>37||abs(ground.y)>37)continue;
+   if(!PDTreeAvailable(root,placement,info))continue;
    float conifer=step(16.5,info.a)*step(info.a,28.5);
-   float shape=lerp(PDLeafSdf(silhouetteUV),PDConiferSdf(silhouetteUV),conifer);
-   mask=(1-smoothstep(-.4,2.2,shape))*.30;
+   mask=PDTreeCastShadow(ground,localSun,conifer,placement.w)*.30;
   }
   coverage=max(coverage,mask*daylight);
  }
@@ -107,54 +194,33 @@ float3 PixelProps(float3 col,float2 cell,float4 field,float waterMask,float stru
  // footprint instead of stretching its height while squeezing its width.
  float artworkScale=max(.02,cos(((id.y+.5)*_MapSize.w-.5)*3.141592654));
  q.y=floor(16+(frac(cell.y)-.5)*32/artworkScale);
+ float nearestRoot=1e10;
  [loop] [fastopt] for(int row=1;row>=-1;row--)
  [loop] [fastopt] for(int column=-1;column<=1;column++)
  {
-  float2 treeId=id+float2(column,row),rootUV=(treeId+float2(.5,.25))*_MapSize.zw;
+  float2 treeId=id+float2(column,row);
   if(treeId.y<0||treeId.y>=_MapSize.y)continue;
+  float4 placement=PDTreePlacement(treeId);
   float2 localPoint=(cell-treeId)*32;
   float localScale=max(.02,cos(((treeId.y+.5)*_MapSize.w-.5)*3.141592654));
-  localPoint.y=8+(localPoint.y-8)/localScale;
-  if(localPoint.x<0||localPoint.x>32||localPoint.y<4||localPoint.y>41)continue;
+  localPoint.y=placement.y+(localPoint.y-placement.y)/localScale;
+  float2 treePoint=floor(localPoint-placement.xy)/placement.z;
+  if(abs(treePoint.x)>14||treePoint.y< -3||treePoint.y>25)continue;
   float2 centreUV=(treeId+.5)*_MapSize.zw;
-  float4 rootField=tex2Dlod(_VisualTex,float4(rootUV,0,0));
-  float4 rootHydro=tex2Dlod(_HydroA,float4(centreUV,0,0));
-  float4 rootMixing=tex2Dlod(_HydroB,float4(centreUV,0,0));
   float4 rootInfo=tex2Dlod(_InfoTex,float4(centreUV,0,0))*255;
-  float rootStructure=rootInfo.b;
-  float seed=PDHash(treeId);
-  float2 rootFlow;
-  float rootRiver=FlatRiverDistance(float2(.5,.25),rootHydro,floor(rootMixing.a+.5),rootMixing.r,centreUV,rootFlow);
-  float occupied=step(seed,saturate((rootField.a-.20)*1.25))*step(.18,-rootField.g)*step(.15,rootRiver);
-  if(rootStructure>.5||occupied<.5||(rootInfo.g>.5&&rootInfo.g<4.5))continue;
-  float2 tq=floor((cell-treeId)*32);
-  float rootScale=max(.02,cos(((treeId.y+.5)*_MapSize.w-.5)*3.141592654));
-  tq.y=floor(8+((cell.y-treeId.y)*32-8)/rootScale);
-  float2 crown=tq-float2(13+floor(seed*7),20+floor(PDHash(treeId+71)*6));
-  float size=.86+.15*PDHash(treeId+float2(29,13));
-  float2 leafPoint=crown/size;
-  // The same silhouette drives both artwork and projected shadow.
+  if(!PDTreeAvailable(treeId,placement,rootInfo))continue;
   float conifer=step(16.5,rootInfo.a)*step(rootInfo.a,28.5);
-  float shape=lerp(PDLeafSdf(leafPoint),PDConiferSdf(leafPoint),conifer);
-  float crownMask=1-step(.1,shape),inner=1-step(-1.2,shape);
-  float trunk=PDBox(tq,float2(14,5),float2(18,17));
-  col=PDPaint(col,float3(.23,.16,.105)*light,trunk);
-  col=PDPaint(col,float3(.44,.30,.16)*light,PDBox(tq,float2(15,6),float2(17,16)));
-  float cluster=PDHash(treeId+floor(tq/3)*.07);
-  float sunward=saturate(.48+dot(leafPoint,float2(-.035,.045)));
-  float3 dark=lerp(float3(.10,.20,.10),float3(.13,.23,.14),seed);
-  float3 bright=lerp(float3(.34,.45,.17),float3(.27,.43,.22),seed);
-  float3 foliage=lerp(dark,bright,floor(sunward*4)/4)*(.88+.20*step(.38,cluster));
-  // Continental cold climates use layered conifer silhouettes.
-  if(conifer>.5)
-  {
-   float coniferEdgeDistance=PDConiferSdf(leafPoint);
-   crownMask=1-step(0,coniferEdgeDistance);inner=1-step(-1,coniferEdgeDistance);
-   float tier=frac((leafPoint.y+14)/7);
-   foliage=lerp(float3(.09,.19,.15),float3(.24,.37,.23),tier*.6+sunward*.4);
-  }
-  col=PDPaint(col,float3(.055,.115,.065)*light,crownMask);
-  col=PDPaint(col,foliage*light,inner);
+  float2 edge;
+  float4 crown=PDTreeCrown(treePoint,conifer,placement.w,edge);
+  float trunk=PDBox(treePoint,float2(-1.5,-1.5),float2(1.5,9));
+  float rootDepth=treeId.y*32+placement.y;
+  if(crown.a+trunk<.5||rootDepth>nearestRoot)continue;
+  nearestRoot=rootDepth;
+  float3 localSun=FlatGeographicLight(centreUV,normalize(_FlatSun+float3(0,1e-7,0)));
+  float3 foliage=PDTreeFoliage(crown.xyz,treePoint,treeId,conifer,placement.w,localSun,edge);
+  float3 bark=lerp(float3(.28,.22,.14),float3(.47,.35,.19),step(0,treePoint.x));
+  col=PDPaint(col,bark*light,trunk);
+  col=PDPaint(col,foliage*light,crown.a);
 
  }
  if(structure>.5 && structure<1.5)
