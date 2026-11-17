@@ -143,8 +143,39 @@ namespace Orbis.Flat
             }
             w.Facts.Connections[left]=3;w.Facts.Connections[right]=9;w.Facts.FlowX[left]=1;w.Facts.FlowY[right]=1;
             w.Facts.HalfWidth[left]=.025f;
+            Check(FlatWaterGeometry.RiverDistance(w,left,1,.5f)<0,"Zero channel bend keeps the crossing centred without a preset world-space wave");
+            w.Facts.Meander[left]=w.Facts.Meander[right]=w.Facts.Meander[w.Neighbor(left,0)]=.018f;
             Check(FlatWaterGeometry.RiverDistance(w,left,.25f,.62f)<0,"Straight drainage tile follows a gradual multi-tile meander");
             Check(FlatWaterGeometry.RiverDistance(w,left,.25f,.5f)>0,"Narrow channel is no longer ruler-straight");
+            float positiveCentre=0,negativeCentre=0,positiveDistance=float.MaxValue,negativeDistance=float.MaxValue;
+            w.Facts.Meander[left]=w.Facts.Meander[right]=.07f;
+            for(int j=0;j<=200;j++)
+            {
+                float y=j/200f,distance=FlatWaterGeometry.RiverDistance(w,left,1,y);
+                if(distance<positiveDistance){positiveDistance=distance;positiveCentre=y;}
+            }
+            w.Facts.Meander[left]=w.Facts.Meander[right]=-.07f;
+            for(int j=0;j<=200;j++)
+            {
+                float y=j/200f,distance=FlatWaterGeometry.RiverDistance(w,left,1,y);
+                if(distance<negativeDistance){negativeDistance=distance;negativeCentre=y;}
+            }
+            Check(positiveCentre-negativeCentre>.30f,"Coherent channel meander moves shared crossings instead of only bending inside each tile");
+            int wide=w.Index(16,5);
+            for(int axis=0;axis<2;axis++)for(int sign=-1;sign<=1;sign+=2)
+            {
+                w.Facts.Connections[wide]=(byte)(axis==0?12:3);
+                w.Facts.FlowX[wide]=axis;w.Facts.FlowY[wide]=1-axis;
+                w.Facts.HalfWidth[wide]=FlatTerrainAnalysis.RiverHalfWidth(1000000);
+                w.Facts.Meander[wide]=sign*.08f;
+                for(int d=0;d<4;d++)
+                {int n=w.Neighbor(wide,d);w.Facts.HalfWidth[n]=w.Facts.HalfWidth[wide];w.Facts.Meander[n]=w.Facts.Meander[wide];}
+                for(int edge=0;edge<2;edge++)for(int j=0;j<=100;j++)
+                {
+                    float distance=FlatWaterGeometry.RiverDistance(w,wide,axis==0?edge:j/100f,axis==0?j/100f:edge);
+                    Check(distance>=.05f,"Wide meandering river retains bank clearance at unconnected faces");
+                }
+            }
             for(int k=0;k<40;k++)
             {
                 w.Facts.HalfWidth[left]=.07f+(float)random.NextDouble()*.32f;w.Facts.HalfWidth[right]=.07f+(float)random.NextDouble()*.32f;

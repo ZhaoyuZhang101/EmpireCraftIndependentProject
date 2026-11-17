@@ -8,9 +8,77 @@ namespace Orbis.Flat
         public static int Assertions { get; private set; }
         static void Check(bool condition,string name)
         {Assertions++;if(!condition)throw new InvalidOperationException("Water/climate regression: "+name);}
+        static void TestFlatDrainageQuality()
+        {
+            var world=new WorldData(64,32,"FLAT-TIE-REGRESSION",TerrainPreset.Continents);
+            for(int i=0;i<world.Count;i++)
+            {
+                int x=i%world.Width,y=i/world.Width;
+                bool ocean=x<4&&y>=14&&y<=17;
+                world.Elevation[i]=(short)(ocean?-100:100);
+                world.Water[i]=ocean?WaterKind.ShallowOcean:WaterKind.Land;
+                for(int month=0;month<12;month++)world.Precipitation[i*12+month]=100;
+            }
+            FlatHydrology.Build(world,CancellationToken.None);
+            int meridional=0,samples=0;
+            for(int y=18;y<=24;y++)for(int x=6;x<=24;x++)
+            {
+                int cell=world.Index(x,y),steps=0,next=cell;
+                if(world.Downstream[cell]/world.Width<y)meridional++;
+                samples++;
+                while(!FlatTerrainAnalysis.Ocean(world.Water[next])&&steps<world.Count)
+                {next=world.Downstream[next];steps++;}
+                Check(steps==x-3+y-17,"Seeded flat routing retains the shortest spill path");
+            }
+            Check(meridional>samples/10&&meridional<samples*9/10,"Ambiguous flat drainage uses both valid face axes instead of a fixed compass bias");
+            var repeat=world.Clone();FlatHydrology.Build(repeat,CancellationToken.None);
+            for(int i=0;i<world.Count;i++)Check(world.Downstream[i]==repeat.Downstream[i],"Seeded flat routing is repeatable");
+            int target=world.Index(16,22),lower=world.Index(16,21);
+            world.Elevation[lower]=90;FlatHydrology.Build(world,CancellationToken.None);
+            Check(world.Downstream[target]==lower,"Lower actual terrain wins an otherwise equal flat route");
+        }
+        static void TestChannelMeanders()
+        {
+            const int width=256,height=128,x=175,first=78,last=102;
+            var world=new WorldData(width,height,"CHANNEL-PHASE-REGRESSION",TerrainPreset.Continents);
+            for(int i=0;i<world.Count;i++)
+            {
+                world.Elevation[i]=100;world.WaterLevel[i]=100;
+                world.DrainOrder[i]=world.Count-1-i;
+            }
+            for(int y=first;y<=last;y++)
+            {
+                int cell=world.Index(x,y);
+                world.Water[cell]=WaterKind.River;world.Runoff[cell]=24;
+                world.Downstream[cell]=world.Index(x,y+1);
+            }
+            int mouth=world.Index(x,last+1),tributary=world.Index(x-1,90);
+            world.Water[mouth]=WaterKind.Lake;world.Elevation[mouth]=99;
+            world.Water[tributary]=WaterKind.River;world.Runoff[tributary]=24;
+            world.Downstream[tributary]=world.Index(x,90);
+            FlatTerrainAnalysis.Build(world,CancellationToken.None,false,1);
+            int changes=0;float openBends=0;
+            for(int y=first;y<=last;y++)
+            {
+                int cell=world.Index(x,y);openBends+=Math.Abs(world.Facts.Meander[cell]);
+                if(y>first&&world.Facts.Meander[cell]*world.Facts.Meander[world.Index(x,y-1)]<0)changes++;
+            }
+            Check(changes>=3,"Lowland meander wavelength follows channel distance across a global-field stationary point");
+            Check(Math.Abs(world.Facts.Meander[tributary]-world.Facts.Meander[world.Index(x,89)])<.000001f,"Equal tributary approaches inherit the same downstream bend phase");
+            var confined=world.Clone();
+            for(int y=first;y<=last;y++)
+            {confined.Elevation[confined.Index(x-2,y)]=1200;confined.Elevation[confined.Index(x+2,y)]=1200;}
+            FlatTerrainAnalysis.Build(confined,CancellationToken.None,false,1);
+            float confinedBends=0;
+            for(int y=first;y<=last;y++)confinedBends+=Math.Abs(confined.Facts.Meander[confined.Index(x,y)]);
+            Check(confinedBends<openBends*.4f,"Nearby valley walls confine bends even with level immediate banks");
+            var parallel=world.Clone();FlatTerrainAnalysis.Build(parallel,CancellationToken.None,false,8);
+            for(int i=0;i<world.Count;i++)Check(world.Facts.Meander[i]==parallel.Facts.Meander[i],"Channel meanders agree across worker counts");
+        }
         public static int Run()
         {
             Assertions=0;
+            TestFlatDrainageQuality();TestChannelMeanders();
             Check(FlatTerrainAnalysis.ClassifyForm(1500,200,100,800,false,false,false)==Landform.Plateau,"High level ground is plateau");
             Check(FlatTerrainAnalysis.ClassifyForm(400,450,150,400,false,false,false)==Landform.Hills,"Local relief is hills");
             Check(FlatTerrainAnalysis.ClassifyForm(1800,1200,600,700,false,false,false)==Landform.Mountains,"Steep mountains");

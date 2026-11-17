@@ -119,20 +119,22 @@ float PDBuildingSdf(float2 p)
  float2 wall=abs(p-float2(16.5,10.5))-float2(9.5,5.5);
  return min(max(roof.x,roof.y),max(wall.x,wall.y));
 }
-float3 PixelGround(float3 baseColor,float2 cell,float4 field,float waterMask)
+float3 PixelGround(float3 baseColor,float2 cell,float4 field,float waterMask,float2 heightGradient)
 {
  float2 id=floor(cell),q=floor(frac(cell)*32),uv=(id+.5)*_MapSize.zw;
+ q.y=floor(16+(frac(cell.y)-.5)*32/max(.02,cos((uv.y-.5)*3.141592654)));
  float3 artwork=FlatDetailPosition(cell);
- float rand=PDHash(id),grain=FlatDetailNoise(artwork*(32.0/3));
- float3 col=floor(baseColor*28+.5)/28*(.90+.17*grain);
+ float grain=FlatDetailNoise(artwork*23);
+ float grainFoot=max(length(ddx(artwork*23)),length(ddy(artwork*23)));
+ float grainWeight=1-smoothstep(.45,1.4,grainFoot);
+ float3 col=floor(baseColor*64+.5)/64*(1+(grain-.5)*.055*grainWeight);
  float green=step(.26,field.a)*step(0,field.r);
- float blades=step(.88,grain)*step(1,fmod(q.y,5))*step(fmod(q.x,5),1);
- col=PDPaint(col,float3(.35,.43,.19),blades*green*.4);
+ float tuft=PDHash(id+floor(q/4)*.13);
+ float blades=step(.86,tuft)*step(1,frac(q.y*.25)*4)*step(frac((q.x+floor(q.y/4))*.25)*4,1);
+ col=PDPaint(col,lerp(float3(.28,.39,.16),float3(.46,.54,.26),grain),blades*green*.28*grainWeight);
  // Continuous height terraces: no cell-edge bars or needles. Only steep,
  // south-facing slopes expose a rock face; water later cuts through the face.
- float2 dx=float2(_MapSize.z,0),dy=float2(0,_MapSize.w),at=cell*_MapSize.zw;
- float gx=(tex2Dlod(_VisualTex,float4(at+dx,0,0)).r-tex2Dlod(_VisualTex,float4(at-dx,0,0)).r)*.5;
- float gy=(tex2Dlod(_VisualTex,float4(at+dy,0,0)).r-tex2Dlod(_VisualTex,float4(at-dy,0,0)).r)*.5;
+ float gx=heightGradient.x,gy=heightGradient.y;
  float slope=length(float2(gx,gy));
  float band=frac(max(0,field.r)/180);
  float face=smoothstep(110,230,slope)*smoothstep(35,110,gy)*(1-smoothstep(.10,.27,band));

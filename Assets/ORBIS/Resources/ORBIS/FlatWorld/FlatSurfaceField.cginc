@@ -69,14 +69,19 @@ float3 FlatDetailPosition(float2 cell)
 {return FlatRadial(cell*_MapSize.zw)*(_MapSize.x/6.283185307);}
 float FlatDetailHash(float3 p)
 {p=frac(p*.1031);p+=dot(p,p.yzx+33.33);return frac((p.x+p.y)*p.z);}
-float FlatDetailNoise(float3 p)
+float4 FlatDetailNoiseWithGradient(float3 p)
 {
-    float3 base=floor(p),f=frac(p);f=f*f*(3-2*f);
+    float3 base=floor(p),fraction=frac(p),f=fraction*fraction*(3-2*fraction);
+    float3 derivative=6*fraction*(1-fraction);
     float4 lower=float4(FlatDetailHash(base),FlatDetailHash(base+float3(1,0,0)),FlatDetailHash(base+float3(0,1,0)),FlatDetailHash(base+float3(1,1,0)));
     float4 upper=float4(FlatDetailHash(base+float3(0,0,1)),FlatDetailHash(base+float3(1,0,1)),FlatDetailHash(base+float3(0,1,1)),FlatDetailHash(base+1));
-    return lerp(lerp(lerp(lower.x,lower.y,f.x),lerp(lower.z,lower.w,f.x),f.y),
-                lerp(lerp(upper.x,upper.y,f.x),lerp(upper.z,upper.w,f.x),f.y),f.z);
+    float bottom=lerp(lerp(lower.x,lower.y,f.x),lerp(lower.z,lower.w,f.x),f.y);
+    float top=lerp(lerp(upper.x,upper.y,f.x),lerp(upper.z,upper.w,f.x),f.y);
+    float dx=lerp(lerp(lower.y-lower.x,lower.w-lower.z,f.y),lerp(upper.y-upper.x,upper.w-upper.z,f.y),f.z)*derivative.x;
+    float dy=lerp(lerp(lower.z-lower.x,lower.w-lower.y,f.x),lerp(upper.z-upper.x,upper.w-upper.y,f.x),f.z)*derivative.y;
+    return float4(lerp(bottom,top,f.z),dx,dy,(top-bottom)*derivative.z);
 }
+float FlatDetailNoise(float3 p){return FlatDetailNoiseWithGradient(p).x;}
 float3 FlatDetailWeights(float3 radial)
 {float3 w=pow(abs(radial),4);return w/max(1e-6,w.x+w.y+w.z);}
 // Fixed spherical noise moves the ecological blend ONLY. Coastlines, drainage,
@@ -102,20 +107,6 @@ float3 FlatEcotoneColor(float3 baseColor,float2 cell,float canopy,float wetness)
     float3 forest=FlatColor(float3(.14,.31,.20));
     // Continuous understory prevents categorical palette rectangles within forests.
     return lerp(baseColor,lerp(grass,forest,cover),saturate(canopy*1.6)*.65);
-}
-float3 FlatTerrainFine(float3 col,float2 cell,float pixelsPerTile)
-{
-    // Continuous spherical detail fills the gap between the authoritative tile
-    // colors and 32-pixel close-up artwork. Derivative gates prevent aliasing.
-    float3 p=FlatDetailPosition(cell);
-    float3 coarse=p*3.1,fine=p*8.6;
-    float coarseFoot=max(length(ddx(coarse)),length(ddy(coarse)));
-    float fineFoot=max(length(ddx(fine)),length(ddy(fine)));
-    float coarseWeight=smoothstep(3,9,pixelsPerTile)*(1-smoothstep(.45,1.5,coarseFoot));
-    float fineWeight=smoothstep(10,23,pixelsPerTile)*(1-smoothstep(.45,1.5,fineFoot));
-    float detail=(FlatDetailNoise(coarse)-.5)*.20*coarseWeight+
-                 (FlatDetailNoise(fine+23)-.5)*.085*fineWeight;
-    return col*(1+detail);
 }
 float FlatDetailTexture(sampler2D artwork,float3 p,float3 weights,float2 offset,float lod)
 {
@@ -145,6 +136,54 @@ float2 FlatHeightGradient(float h,float2 cell)
     float safeDet=(det<0?-1:1)*max(abs(det),1e-8);
     return clamp(float2(ddx(h)*dy.y-ddy(h)*dx.y,ddy(h)*dx.x-ddx(h)*dy.x)/safeDet,-4000,4000);
 }
+float2 FlatFieldGradient(float2 cell,float useDepth)
+{
+    float2 uv=cell*_MapSize.zw,dx=float2(_MapSize.z,0),dy=float2(0,_MapSize.w);
+    float4 west=tex2Dlod(_VisualTex,float4(uv-dx,0,0)),east=tex2Dlod(_VisualTex,float4(uv+dx,0,0));
+    float4 south=tex2Dlod(_VisualTex,float4(uv-dy,0,0)),north=tex2Dlod(_VisualTex,float4(uv+dy,0,0));
+    if(useDepth>.5)return float2(log2(1+max(0,east.b))-log2(1+max(0,west.b)),log2(1+max(0,north.b))-log2(1+max(0,south.b)))*680;
+    return float2(east.r-west.r,north.r-south.r)*.5;
+}
+float3 FlatTerrainFine(float3 col,float2 cell,float pixelsPerTile,float2 heightGradient)
+{
+    float3 position=FlatDetailPosition(cell);
+    float footprint=max(length(ddx(position)),length(ddy(position)));
+    float terrainWeight=smoothstep(4,24,pixelsPerTile)*(1-smoothstep(.20,.65,footprint));
+    float grainWeight=terrainWeight*(1-smoothstep(.40,1.35,footprint*25));
+    float fineWeight=terrainWeight*(1-smoothstep(.40,1.35,footprint*11));
+    float grain=FlatDetailNoise(position*25+53);
+    float4 brokenNoise=FlatDetailNoiseWithGradient(position*11+19);
+    float broken=brokenNoise.x;
+    float4 ridgeNoise=FlatDetailNoiseWithGradient(position*3.8+broken*.7);
+    float crag=1-abs(ridgeNoise.x*2-1);
+    // A fine soil grain replaces broad colour bubbles. It remains fixed on the
+    // sphere while the camera pans, turns or crosses the date line.
+    col*=1+(grain-.5)*.045*grainWeight+(broken-.5)*.045*fineWeight;
+    if(_FieldReady<.5)return col;
+    float4 field=tex2Dlod(_VisualTex,float4(cell*_MapSize.zw,0,0));
+    float latitude=(cell.y*_MapSize.w-.5)*3.141592654;
+    float2 gradient=heightGradient;
+    gradient.x/=max(.08,cos(latitude));
+    float slope=length(gradient);
+    float exposed=smoothstep(140,430,slope)*(1-smoothstep(.45,.85,field.a));
+    exposed*=smoothstep(.28,.72,crag*.65+broken*.35);
+    exposed=max(exposed,smoothstep(1900,3200,field.r)*.35);
+    float strata=.5+.5*sin(field.r*.065+broken*3);
+    float3 rock=FlatColor(lerp(float3(.28,.29,.24),float3(.47,.46,.38),crag*.7+strata*.3));
+    // Ridge breakup adds small face changes to the real elevation gradient.
+    // It never modifies elevation, drainage, ownership or movement data.
+    // Analytic geographic gradients keep the same rock face under camera
+    // rotation. Screen-quad derivatives select different sides of sharp ridges.
+    float3 ridgeDerivative=ridgeNoise.yzw*3.8+dot(ridgeNoise.yzw,float3(1,1,1))*brokenNoise.yzw*(11*.7);
+    ridgeDerivative*=-2*sign(ridgeNoise.x*2-1);
+    float longitude=(cell.x*_MapSize.z-.5)*6.283185307;
+    float3 east=float3(cos(longitude),0,-sin(longitude));
+    float3 north=float3(-sin(latitude)*sin(longitude),cos(latitude),-sin(latitude)*cos(longitude));
+    float2 ridgeGradient=float2(dot(ridgeDerivative,east),dot(ridgeDerivative,north));
+    float bevel=clamp(1+dot(ridgeGradient,float2(-.045,.055)),.78,1.16);
+    rock*=lerp(1,bevel,fineWeight)*(.90+.16*grain);
+    return lerp(col,rock,exposed*terrainWeight*.72);
+}
 float FlatRelief(float h,float2 cell,float3 localLight)
 {
     float2 g=FlatHeightGradient(h,cell);
@@ -154,16 +193,16 @@ float FlatRelief(float h,float2 cell,float3 localLight)
 }
 // Shading uses a wider reconstruction stencil than contour placement. This
 // avoids a checkerboard of derivative lobes on quantised 100m authoring terraces.
+float FlatGradientRelief(float2 gradient,float3 localLight)
+{
+    if(_FieldReady<.5||_Relief<.01)return 1;
+    float3 normal=normalize(float3(-gradient/450,1));
+    return lerp(1,clamp(.64+.48*saturate(dot(normal,normalize(localLight))),.55,1.12),_Relief);
+}
 float FlatFieldRelief(float2 cell,float useDepth,float3 localLight)
 {
     if(_FieldReady<.5||_Relief<.01)return 1;
-    float2 uv=cell*_MapSize.zw,dx=float2(_MapSize.z,0),dy=float2(0,_MapSize.w);
-    float4 west=tex2Dlod(_VisualTex,float4(uv-dx,0,0)),east=tex2Dlod(_VisualTex,float4(uv+dx,0,0));
-    float4 south=tex2Dlod(_VisualTex,float4(uv-dy,0,0)),north=tex2Dlod(_VisualTex,float4(uv+dy,0,0));
-    float2 gradient=float2(east.r-west.r,north.r-south.r)*.5;
-    if(useDepth>.5)gradient=float2(log2(1+max(0,east.b))-log2(1+max(0,west.b)),log2(1+max(0,north.b))-log2(1+max(0,south.b)))*680;
-    float3 normal=normalize(float3(-gradient/450,1));
-    return lerp(1,clamp(.64+.48*saturate(dot(normal,normalize(localLight))),.55,1.12),_Relief);
+    return FlatGradientRelief(FlatFieldGradient(cell,useDepth),localLight);
 }
 float3 FlatVegetation(float3 col,float2 cell,float canopy,float pixelsPerTile)
 {

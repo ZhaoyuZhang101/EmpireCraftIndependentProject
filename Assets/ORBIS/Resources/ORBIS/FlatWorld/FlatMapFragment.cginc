@@ -25,9 +25,10 @@
      col=tex2D(_MainTex,FlatBlendUV(ecologyCell)).rgb;
      col=FlatEcotoneColor(col,cell,field.a,tex2Dlod(_GeoTex,float4(cell*_MapSize.zw,0,0)).b);
      col=lerp(FlatVegetation(col,cell,field.a,_PixelsPerTile),col,_DetailWeight);
-     col=FlatTerrainFine(col,cell,_PixelsPerTile);
-     col*=FlatFieldRelief(cell,0,float3(-.45,.6,.75));
-     if(_DetailWeight>0)col=lerp(col,PixelGround(col,cell,field,waterMask),_DetailWeight);
+     float2 terrainGradient=FlatFieldGradient(cell,0);
+     col=FlatTerrainFine(col,cell,_PixelsPerTile,terrainGradient);
+     col*=FlatGradientRelief(terrainGradient,float3(-.45,.6,.75));
+     if(_DetailWeight>0)col=lerp(col,PixelGround(col,cell,field,waterMask,terrainGradient),_DetailWeight);
     }
     if(_WaterView>.5)
     {

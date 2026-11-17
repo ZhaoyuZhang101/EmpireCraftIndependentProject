@@ -10,10 +10,15 @@ namespace Orbis.Flat
         static void RiverEdge(WorldData w,int i,int direction,out float x,out float y)
         {
             Edge(direction,out x,out y);
-            int tx=i%w.Width,ty=i/w.Width,cycles=Math.Max(1,(int)Math.Floor(w.Width/12f+.5f));
-            float frequency=(float)(2*Math.PI)*cycles/w.Width;
-            float phase=direction<2?FMath.Wrap(tx+(direction==1?1:0),w.Width)*frequency+ty*.37f:(ty+(direction==3?1:0))*.52f+tx*frequency;
-            float cross=.5f+.13f*(float)Math.Sin(phase);
+            int neighbor=w.Neighbor(i,direction);
+            float meanMeander=(w.Facts.Meander[i]+w.Facts.Meander[neighbor>=0?neighbor:i])*.5f;
+            float maxWidth=Math.Max(w.Facts.HalfWidth[i],w.Facts.HalfWidth[neighbor>=0?neighbor:i]);
+            float maxBend=Math.Max(Math.Abs(w.Facts.Meander[i]),Math.Abs(w.Facts.Meander[neighbor>=0?neighbor:i]));
+            // The S-bend envelope is below .60; leave .055 for a filtered bank.
+            float limit=Math.Max(0,Math.Min(.24f,.5f-.055f-maxWidth-maxBend*.60f));
+            // Both sides use the same pair of channel offsets. The full reach
+            // follows the drainage phase instead of returning to a preset face.
+            float cross=.5f+FMath.Clamp(meanMeander*8,-limit,limit);
             if(direction<2)y=cross;else x=cross;
         }
         static float EdgeWidth(WorldData w,int i,int direction)

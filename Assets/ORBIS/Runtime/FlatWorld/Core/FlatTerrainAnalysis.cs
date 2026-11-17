@@ -115,11 +115,26 @@ namespace Orbis.Flat
             Array.Copy(fresh,f.FreshDistance,w.Count);
             // HAND-like elevation above the drainage receiver; lakes have horizontal spill surfaces.
             var receiver=new int[w.Count];
+            // Reuse the unpublished meander cache for phase until the independent
+            // row pass converts each cell to its final lateral offset.
+            var channelPhase=f.Meander;
+            uint phaseSeed=FMath.Seed(w.Seed)^0xc2b79d35u;
             for(int k=0;k<w.Count;k++)
             {
+                if((k&4095)==0)cancel.ThrowIfCancellationRequested();
                 int i=w.DrainOrder[k],p=w.Downstream[i];
                 receiver[i]=w.Water[i]!=WaterKind.Land?i:p<0?i:receiver[p];
                 f.Hand[i]=Math.Max(0,w.Elevation[i]-w.WaterLevel[receiver[i]]);
+                if(w.Water[i]==WaterKind.River)
+                {
+                    // Count along the actual channel, so a bend has the same tile
+                    // wavelength at every longitude and resolution. Tributaries
+                    // inherit the downstream phase before advancing one reach.
+                    float wavelength=7+36*RiverHalfWidth(w.Runoff[i]);
+                    channelPhase[i]=p>=0&&w.Water[p]==WaterKind.River
+                        ?channelPhase[p]+6.2831853f/wavelength
+                        :meanderSeed+FMath.Unit((uint)(p>=0?p:i)^phaseSeed)*6.2831853f;
+                }
             }
             // Independent rows read the finished drainage graph and write disjoint cells.
             // HAND and downstream sediment reductions remain ordered for reproducibility.
@@ -181,9 +196,10 @@ namespace Orbis.Flat
                     {
                         f.HalfWidth[i]=RiverHalfWidth(w.Runoff[i]);
                         f.Depth[i]=RiverDepth(w.Runoff[i],gradient);
-                        double longitude=((x+.5)/w.Width-.5)*Math.PI*2,latitude=((y+.5)/w.Height-.5)*Math.PI;
-                        float phase=(float)(Math.Sin(longitude)*Math.Cos(latitude)*21+Math.Cos(longitude)*Math.Cos(latitude)*9+Math.Sin(latitude)*17)+meanderSeed;
-                        f.Meander[i]=RiverMeander(f.HalfWidth[i],gradient,phase);
+                        // Walls beyond the immediate bank still constrain lateral
+                        // migration, even when the channel's own water head is level.
+                        float confinement=Math.Max(gradient,f.Relief[i]*.5f);
+                        f.Meander[i]=RiverMeander(f.HalfWidth[i],confinement,channelPhase[i]);
                         for(int d=0;d<4;d++)
                         {
                             int n=w.Neighbor(i,d);if(n<0)continue;

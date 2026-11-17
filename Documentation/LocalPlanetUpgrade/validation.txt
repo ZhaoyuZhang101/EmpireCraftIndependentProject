@@ -8,5 +8,5 @@ PASS shader AtmosphereComposite / 2 passes
 PASS shader FlatWorld/HPCloudColumn / 1 passes
 PASS shader FlatWorld/FlatSkyBake / 1 passes
 PASS solar lens visible=0.674198 hidden=0
-PASS World Atlas physical bed + drainage: 1444 river cells, 3505 lake cells; acyclic downhill spill graph
+PASS World Atlas physical bed + drainage: 1443 river cells, 3505 lake cells; acyclic downhill spill graph
 PASS save validation; 115 river mouths

@@ -22,6 +22,21 @@ namespace Orbis.Flat
     }
     public static class FlatHydrology
     {
+        static float DrainageCorner(int x,int y,int period,uint seed)
+        {
+            unchecked{return FMath.Unit((uint)FMath.Wrap(x,period)*73428767u^(uint)y*912931u^seed);}
+        }
+        static float FlatRoutePriority(WorldData w,int cell,uint seed)
+        {
+            // A periodic, eight-tile field groups ambiguous routes into drainage
+            // corridors. It only resolves exact ties in the physical spill gradient.
+            int x=cell%w.Width,y=cell/w.Width,gx=x/8,gy=y/8,period=w.Width/8;
+            float u=(x%8+.5f)/8,v=(y%8+.5f)/8;
+            u=u*u*(3-2*u);v=v*v*(3-2*v);
+            float south=FMath.Lerp(DrainageCorner(gx,gy,period,seed),DrainageCorner(gx+1,gy,period,seed),u);
+            float north=FMath.Lerp(DrainageCorner(gx,gy+1,period,seed),DrainageCorner(gx+1,gy+1,period,seed),u);
+            return FMath.Lerp(south,north,v);
+        }
         public static void Build(WorldData w,CancellationToken cancel)
         {
             var visited=new bool[w.Count];var heap=new FloodHeap();int cursor=0;
@@ -83,6 +98,7 @@ namespace Orbis.Flat
             });
             var eastWestLength=new double[w.Height];
             for(int y=0;y<w.Height;y++)eastWestLength[y]=Math.Max(.01,Math.Cos(((y+.5)/w.Height-.5)*Math.PI));
+            uint routeSeed=FMath.Seed(w.Seed)^0x56a9d731u;
             for(int i=0;i<w.Count;i++)
             {
                 if((i&4095)==0)cancel.ThrowIfCancellationRequested();
@@ -93,9 +109,11 @@ namespace Orbis.Flat
                     int n=w.SphereNeighbor(i,d),drop=w.WaterLevel[i]-w.WaterLevel[n];
                     if(drop<0||(drop==0&&spillDistance[n]>=spillDistance[i]))continue;
                     double slope=drop/(d<2?eastWestLength[i/w.Width]:1);
-                    // Among equally short flat routes follow lower actual terrain,
-                    // not the arbitrary row ID used by the priority queue.
-                    if(best<0||slope>bestSlope+1e-9||(Math.Abs(slope-bestSlope)<1e-9&&w.Elevation[n]<w.Elevation[best]))
+                    // Lower actual terrain still wins among equally short routes.
+                    // A coherent seeded field resolves the remaining compass ties.
+                    if(best<0||slope>bestSlope+1e-9||(Math.Abs(slope-bestSlope)<1e-9&&
+                        (w.Elevation[n]<w.Elevation[best]||(w.Elevation[n]==w.Elevation[best]&&
+                         FlatRoutePriority(w,n,routeSeed)<FlatRoutePriority(w,best,routeSeed)))))
                     {best=n;bestSlope=slope;}
                 }
                 if(best<0)throw new InvalidOperationException("Missing hydrology spill at "+i);

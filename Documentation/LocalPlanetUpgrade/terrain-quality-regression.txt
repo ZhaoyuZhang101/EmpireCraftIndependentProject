@@ -1,0 +1,4 @@
+PASS actual steep terrain exposes distinct rock and ridge detail; mean RGB change=0.0616539131988247
+PASS close terrain gains detail while distant detail filters out; contrast=0.0195134611743462,2.6193850981067E-07
+PASS geographic terrain detail remains stable under reversed view; maximum RGB error=0
+PASS terrain detail remains finite at polar and wrapped coordinates; invalid=0

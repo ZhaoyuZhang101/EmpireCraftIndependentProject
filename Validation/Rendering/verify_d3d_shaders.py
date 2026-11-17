@@ -67,6 +67,7 @@ SHADERS = [
     "Assets/ORBIS/Editor/CloudPassageProbe.shader",
     "Assets/ORBIS/Editor/VegetationArtProbe.shader",
     "Assets/ORBIS/Editor/PropShadowProbe.shader",
+    "Assets/ORBIS/Editor/TerrainQualityProbe.shader",
 ]
 
 

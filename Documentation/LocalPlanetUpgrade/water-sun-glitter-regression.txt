@@ -1,0 +1,9 @@
+PASS kind=3 localized sun glints; peak=1.208153 mean=0.0335103099819207 bright pixels=415
+PASS kind=3 glitter stays finite and nonnegative; invalid=0
+PASS kind=3 disabled or frozen waves suppress sun glitter; maximum change=0
+PASS kind=4 localized sun glints; peak=2.088591 mean=0.0504577784706726 bright pixels=1129
+PASS kind=4 glitter stays finite and nonnegative; invalid=0
+PASS kind=4 disabled or frozen waves suppress sun glitter; maximum change=0
+PASS kind=5 localized sun glints; peak=1.232634 mean=0.0425418657330283 bright pixels=1180
+PASS kind=5 glitter stays finite and nonnegative; invalid=0
+PASS kind=5 disabled or frozen waves suppress sun glitter; maximum change=0

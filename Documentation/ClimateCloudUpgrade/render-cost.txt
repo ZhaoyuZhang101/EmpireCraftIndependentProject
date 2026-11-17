@@ -6,3 +6,4 @@ Water-bottom final, warm lake clouds off 2026-11-17 | 局部地表 | NVIDIA GeFo
 vegetation-before | 局部地表 | NVIDIA GeForce RTX 5070 Laptop GPU | 1280x720 synchronous camera render median: volume=1.73 ms, original-integration=1.84 ms, no-volume=1.80 ms
 vegetation-final | 局部地表 | NVIDIA GeForce RTX 5070 Laptop GPU | 1280x720 synchronous camera render median: volume=1.97 ms, original-integration=2.02 ms, no-volume=1.90 ms
 vegetation-dense-forest | 局部地表 | NVIDIA GeForce RTX 5070 Laptop GPU | 1280x720 synchronous camera render median: volume=1.78 ms, original-integration=1.72 ms, no-volume=1.67 ms
+terrain-water-final-native | 局部地表 | NVIDIA GeForce RTX 5070 Laptop GPU | 1280x720 synchronous camera render median: volume=2.26 ms, original-integration=2.23 ms, no-volume=2.21 ms
