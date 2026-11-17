@@ -119,7 +119,7 @@ namespace Orbis.Flat
         void BindGroupedUI()
         {
             legend=root.Q<Label>("legend");waterStatus=root.Q<Label>("waterStatus");skyStatus=root.Q<Label>("skyStatus");
-            contourToggle=root.Q<Toggle>("contours");contourToggle.value=false;
+            contourToggle=root.Q<Toggle>("contours");contourToggle.value=true;
             cloudQuality=root.Q<DropdownField>("cloudQuality");cloudQuality.choices=new List<string>{"性能","均衡","精细"};cloudQuality.index=1;
             foreach(string name in tabNames){string tab=name;Bind("tab"+name,()=>ShowTab(tab));}
             ShowTab("World");

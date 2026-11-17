@@ -78,6 +78,15 @@ namespace Orbis.Editor
     Check(report,valley<plateau-.06&&ridge>plateau+.025,"relief distinguishes sheltered valleys, plateaus and convex ridges at equal elevation; shades="+valley+","+plateau+","+ridge);
     material.SetVector("_ProbeOrigin",new Vector4(23.49f,3.49f,0,0));
     Check(report,Math.Abs(Mean(sample())-ridge)<.001,"landform shading remains continuous across wrapped longitude");
+    material.SetVector("_ProbeOrigin",new Vector4(7.49f,3.49f,0,0));
+    var slopeShades=new List<double>();
+    foreach(float slope in new[]{100f,-100f})
+    {
+     for(int y=0;y<8;y++)for(int x=0;x<16;x++)
+      pixels[y*16+x]=new Color(1800+(x-7)*slope,-3,0,0);
+     field.SetPixels(pixels);field.Apply();slopeShades.Add(Mean(sample()));
+    }
+    Check(report,slopeShades[0]-slopeShades[1]>.20,"moderate real-height slopes retain clear light and shade; shades="+slopeShades[0]+","+slopeShades[1]);
     material.SetFloat("_Relief",0);
     Check(report,Math.Abs(Mean(sample())-1)<.000001,"relief control removes all terrain-form shading");
     material.SetFloat("_Relief",1);material.SetVector("_ProbeSpan",Vector4.zero);
@@ -104,6 +113,9 @@ namespace Orbis.Editor
     double levelSnow=Mean(sample());material.SetVector("_ProbeGradient",new Vector4(1000,0,0,0));
     double steepSnow=Mean(sample());
     Check(report,levelSnow>.999&&steepSnow>.1&&steepSnow<.35,"snow accumulates on level ground while steep rock faces remain exposed; coverage="+levelSnow+","+steepSnow);
+    material.SetVector("_ProbeGradient",new Vector4(300,0,0,0));
+    double slopeSnow=Mean(sample());
+    Check(report,slopeSnow>.35&&slopeSnow<.90,"moderate snowy slopes expose terrain structure; coverage="+slopeSnow);
     material.SetFloat("_ProbeCoverage",0);
     Check(report,Mean(sample())==0,"slope detail creates no snow outside the climate-derived snow cover");
     material.SetFloat("_ProbeCoverage",.5f);material.SetVector("_ProbeGradient",Vector4.zero);
@@ -125,6 +137,44 @@ namespace Orbis.Editor
     for(int i=0;i<pixels.Length;i++)pixels[i].r=-3200;
     field.SetPixels(pixels);field.Apply();double deep=Mean(sample());
     Check(report,shelf>deep+.08,"height view distinguishes continental shelf from deep seafloor");
+    material.SetFloat("_ProbeMode",4);material.SetFloat("_ProbePixels",48);
+    material.SetVector("_ProbeOrigin",new Vector4(5,3,0,0));
+    material.SetVector("_ProbeSpan",new Vector4(4,1,0,0));
+    for(int y=0;y<8;y++)for(int x=0;x<16;x++)pixels[y*16+x]=new Color(153+(x-5)*8,-3,0,0);
+    field.SetPixels(pixels);field.Apply();var gentleContours=sample();
+    double closeContours=Mean(gentleContours);
+    Check(report,closeContours>.005,"detail contours reveal gentle terrain with less than 100 metres of relief; coverage="+closeContours);
+    Check(report,closeContours<.011,"gentle terrain uses sparse auxiliary contours; coverage="+closeContours);
+    material.SetFloat("_ProbeMode",5);
+    Check(report,Mean(sample())>closeContours*.9,"auxiliary contour visibility retains gentle slopes");
+    for(int y=0;y<8;y++)for(int x=0;x<16;x++)pixels[y*16+x]=new Color(153+(x-5)*400,-3,0,0);
+    field.SetPixels(pixels);field.Apply();
+    Check(report,Mean(sample())<.000001,"auxiliary contours disappear from clearly defined steep terrain");
+    for(int y=0;y<8;y++)for(int x=0;x<16;x++)pixels[y*16+x]=new Color(153+(x-5)*8,-3,0,0);
+    field.SetPixels(pixels);field.Apply();material.SetFloat("_ProbeMode",4);
+    material.SetFloat("_ProbePixels",2);
+    Check(report,Mean(sample())<closeContours*.1,"minor contours fade from distant views without shifting elevation levels");
+    material.SetFloat("_ProbePixels",48);material.SetFloat("_ProbeFlip",1);
+    var reversedContours=sample();maximumError=0;
+    for(int y=0;y<64;y++)for(int x=0;x<128;x++)
+     maximumError=Math.Max(maximumError,Math.Abs(gentleContours[y*128+x].r-reversedContours[y*128+127-x].r));
+    Check(report,maximumError<.005,"contours remain attached to geographic heights when the view reverses; maximum error="+maximumError);
+    material.SetFloat("_ProbeFlip",0);material.SetVector("_ProbeOrigin",new Vector4(21,3,0,0));
+    Check(report,Difference(gentleContours,sample())<.002,"contours agree across wrapped longitude");
+    material.SetVector("_ProbeOrigin",new Vector4(5,3,0,0));
+    for(int y=0;y<8;y++)for(int x=0;x<16;x++)pixels[y*16+x]=new Color(-153-(x-5)*8,3,153+(x-5)*8,0);
+    field.SetPixels(pixels);field.Apply();
+    Check(report,Math.Abs(Mean(sample())-closeContours)<.002,"underwater depth isolines use the same spacing as land contours");
+    for(int i=0;i<pixels.Length;i++)pixels[i]=new Color(150,-3,0,0);
+    field.SetPixels(pixels);field.Apply();
+    Check(report,Mean(sample())<.000001,"level terrain remains clear even at an exact contour elevation");
+    var densityBoundary=new List<Color[]>();
+    foreach(float slope in new[]{66.665f,66.668f})
+    {
+     for(int y=0;y<8;y++)for(int x=0;x<16;x++)pixels[y*16+x]=new Color(153+(x-5)*slope,-3,0,0);
+     field.SetPixels(pixels);field.Apply();densityBoundary.Add(sample());
+    }
+    Check(report,Difference(densityBoundary[0],densityBoundary[1])<.01,"contour density blends continuously across screen-space spacing thresholds");
     if(report.Exists(line=>line.StartsWith("FAIL")))throw new Exception(string.Join("\n",report));
    }
    finally

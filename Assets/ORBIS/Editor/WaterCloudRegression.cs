@@ -96,7 +96,12 @@ namespace Orbis.Editor
       }
       report.Add((tintError<.00001?"PASS":"FAIL")+" clear water colour is independent of sediment metadata; kind="+kind+" bathymetry="+bathymetry+" depth="+depth+" max RGB change="+tintError);
      }
-     m.SetFloat("_WaterKind",4);m.SetFloat("_Bathymetry",0);m.SetFloat("_ProbeDepth",.7f);
+     m.SetFloat("_WaterKind",4);m.SetFloat("_Bathymetry",1);m.SetFloat("_ProbeSediment",0);
+     m.SetFloat("_ProbeDepth",80);var lakeShelf=sample();
+     m.SetFloat("_ProbeDepth",320);var lakeBasin=sample();
+     double basinContrast=Difference(lakeShelf,lakeBasin);
+     report.Add((basinContrast>.035&&lakeBasin[32*128+64].grayscale<lakeShelf[32*128+64].grayscale-.006f?"PASS":"FAIL")+" actual lake depths remain distinguishable in natural view; RGB contrast="+basinContrast);
+     m.SetFloat("_Bathymetry",0);m.SetFloat("_ProbeDepth",.7f);
      m.SetFloat("_ProbeSediment",0);m.SetFloat("_ProbeWaves",0);m.SetFloat("_WaterClock",3);var still=sample();
      m.SetFloat("_WaterClock",4);double stillChange=Difference(still,sample());
      report.Add((stillChange<.00001?"PASS":"FAIL")+" stationary water keeps the bed stable; mean change="+stillChange);
@@ -123,6 +128,19 @@ namespace Orbis.Editor
       foreach(var pixel in sample())if(!Finite(pixel)||Mathf.Sqrt(pixel.r*pixel.r+pixel.g*pixel.g)>pixel.b+.00001f)invalidOffsets++;
      }
      report.Add((invalidOffsets==0?"PASS":"FAIL")+" grazing refraction stays inside wet shore limits at poles and date line; invalid="+invalidOffsets);
+     m.SetFloat("_ProbeKind",6);m.SetVector("_ProbeView",new Vector4(0,-.6f,.8f,0));
+     m.SetVector("_ScrollRelief",new Vector4(1,0,.72f,0));
+     m.SetFloat("_ProbeDepth",2);var shallowOffset=sample();
+     m.SetFloat("_ProbeDepth",20);var deepOffset=sample();
+     double parallaxChange=Difference(shallowOffset,deepOffset);
+     report.Add((parallaxChange>.003?"PASS":"FAIL")+" flat water refracts the bed with depth-dependent view parallax; mean change="+parallaxChange);
+     m.SetFloat("_ProbeKind",7);m.SetFloat("_ScrollHeightScale",.000006f);
+     m.SetVector("_ProbeCell",new Vector4(200,130,0,0));
+     m.SetFloat("_ProbeDepth",80);var shelfOffset=sample();
+     m.SetFloat("_ProbeDepth",320);var basinOffset=sample();
+     double deepParallax=Difference(shelfOffset,basinOffset);
+     report.Add((deepParallax>.008?"PASS":"FAIL")+" bathymetric parallax distinguishes deep basin elevations; mean change="+deepParallax);
+     m.SetVector("_ScrollRelief",Vector4.zero);
     }
     finally{UnityEngine.Object.DestroyImmediate(substrate);}
     m.SetFloat("_ProbeKind",2);m.SetFloat("_WaterClock",3);
@@ -133,6 +151,7 @@ namespace Orbis.Editor
      bed.SetPixels(heights);bed.Apply();m.SetTexture("_VisualTex",bed);m.SetVector("_MapSize",new Vector4(16,8,1f/16,1f/8));m.SetFloat("_FieldReady",1);m.SetFloat("_Relief",1);m.SetFloat("_ProbeKind",2);
      var relief=sample();float left=relief[32*128+32].r,right=relief[32*128+96].r;
      report.Add((Mathf.Abs(left-right)>.12f?"PASS":"FAIL")+" actual seabed opposing slopes remain visible; contrast="+Mathf.Abs(left-right));
+     report.Add((right>left+.12f?"PASS":"FAIL")+" submerged basin slopes face the geographic light consistently with negative bed height; west="+left+" east="+right);
     }
     finally{UnityEngine.Object.DestroyImmediate(bed);}
     Directory.CreateDirectory("Documentation/LocalPlanetUpgrade");File.WriteAllLines("Documentation/LocalPlanetUpgrade/water-cloud-regression.txt",report);

@@ -1,6 +1,7 @@
 #ifndef ORBIS_FLAT_SURFACE_FIELD
 #define ORBIS_FLAT_SURFACE_FIELD
 #include "FlatVisualTexture.cginc"
+#include "FlatReliefProjection.cginc"
 #include "../GeographicCoordinates.cginc"
 float4 _MapSize;
 float _FieldReady,_SmoothTerrain,_Vegetation,_Bathymetry,_Relief;
@@ -141,7 +142,7 @@ float2 FlatFieldGradient(float2 cell,float useDepth)
     float2 uv=cell*_MapSize.zw,dx=float2(_MapSize.z,0),dy=float2(0,_MapSize.w);
     float4 west=FlatVisualSample(float4(uv-dx,0,0)),east=FlatVisualSample(float4(uv+dx,0,0));
     float4 south=FlatVisualSample(float4(uv-dy,0,0)),north=FlatVisualSample(float4(uv+dy,0,0));
-    if(useDepth>.5)return float2(log2(1+max(0,east.b))-log2(1+max(0,west.b)),log2(1+max(0,north.b))-log2(1+max(0,south.b)))*680;
+    if(useDepth>.5)return float2(log2(1+max(0,west.b))-log2(1+max(0,east.b)),log2(1+max(0,south.b))-log2(1+max(0,north.b)))*680;
     return float2(east.r-west.r,north.r-south.r)*.5;
 }
 float2 FlatTerrainMetricGradient(float2 cell,float2 gradient)
@@ -175,12 +176,16 @@ float FlatTerrainRelief(float2 cell,float height,float2 gradient,float3 localLig
     float stencilRows=4*_MapSize.y/_MapSize.x;
     float broadWeight=smoothstep(stencilRows+.5,stencilRows+1.5,polarDistance);
     float2 slope=lerp(FlatTerrainMetricGradient(cell,gradient),broadGradient,.38*broadWeight);
-    float3 normal=normalize(float3(-slope/320,1));
+    float3 normal=normalize(float3(-slope/180,1));
     float3 key=normalize(localLight),fill=normalize(float3(.52,-.40,.75));
-    float diffuse=.72*saturate(dot(normal,key))+.28*saturate(dot(normal,fill));
-    float flatDiffuse=.72*saturate(key.z)+.28*fill.z;
-    float form=(height-(westHeight+eastHeight+southHeight+northHeight)*.25)/260*broadWeight;
-    float shade=(1+(diffuse-flatDiffuse)*1.12)*(1-.22*saturate(-form))+.08*saturate(form);
+    float diffuse=.86*saturate(dot(normal,key))+.14*saturate(dot(normal,fill));
+    float flatDiffuse=.86*saturate(key.z)+.14*fill.z;
+    float4 neighbours=float4(westHeight,eastHeight,southHeight,northHeight);
+    float form=(height-dot(neighbours,float4(.25,.25,.25,.25)))/220*broadWeight;
+    // Surrounding higher ground reduces sky light in valleys and on lower faces.
+    // Reuse the geodesic stencil so the shadow follows the actual mountain mass.
+    float enclosure=dot(max(neighbours-height,0),float4(.25,.25,.25,.25))/400*broadWeight;
+    float shade=(1+(diffuse-flatDiffuse)*1.35)*(1-.28*saturate(enclosure))+.09*saturate(form);
     return lerp(1,clamp(shade,.58,1.24),saturate(_Relief));
 }
 float FlatTerrainSnow(float coverage,float2 cell,float2 gradient,float pixelsPerTile)
@@ -189,7 +194,7 @@ float FlatTerrainSnow(float coverage,float2 cell,float2 gradient,float pixelsPer
     float3 position=FlatDetailPosition(cell);
     float breakup=FlatDetailNoise(position*2.3+47)*.7+FlatDetailNoise(position*7.1+13)*.3;
     coverage=saturate(coverage+(breakup-.5)*1.6*coverage*(1-coverage)*smoothstep(3,14,pixelsPerTile));
-    float exposed=smoothstep(300,950,length(FlatTerrainMetricGradient(cell,gradient)));
+    float exposed=smoothstep(150,650,length(FlatTerrainMetricGradient(cell,gradient)));
     return coverage*(1-exposed*.78);
 }
 float3 FlatElevationColor(float metres)
@@ -258,7 +263,7 @@ float FlatFieldRelief(float2 cell,float useDepth,float3 localLight)
 {
     if(_FieldReady<.5||_Relief<.01)return 1;
     float2 gradient=FlatFieldGradient(cell,useDepth);
-    if(useDepth>.5)return FlatGradientRelief(gradient,localLight);
+    if(useDepth>.5)return FlatGradientRelief(FlatTerrainMetricGradient(cell,gradient),localLight);
     return FlatTerrainRelief(cell,FlatVisualSample(float4(cell*_MapSize.zw,0,0)).r,gradient,localLight);
 }
 float3 FlatVegetation(float3 col,float2 cell,float canopy,float pixelsPerTile)
@@ -282,14 +287,26 @@ float3 FlatVegetation(float3 col,float2 cell,float canopy,float pixelsPerTile)
     float grainFade=(1-smoothstep(.6,2.2,footprint))*_Vegetation;
     return col*lerp(1,.95+.10*grain,grainFade);
 }
-float FlatContour(float metres,float interval,out float major)
+float FlatGentleContourWeight(float2 cell,float2 gradient)
 {
-    float pixelHeight=fwidth(metres),baseInterval=max(25,interval);
-    float multiplier=exp2(ceil(log2(max(1,pixelHeight*5/baseInterval))));
-    float scaled=metres/(baseInterval*multiplier),aa=max(fwidth(scaled),1e-6);
-    float distanceToContour=abs(frac(scaled+.5)-.5);
-    float nearest=floor(scaled+.5);
-    major=1-step(.01,abs(frac(nearest*.2+.5)-.5));
-    return (1-smoothstep(aa*.25,aa*.85,distanceToContour))*smoothstep(.001,.02,pixelHeight);
+    return 1-smoothstep(50,160,length(FlatTerrainMetricGradient(cell,gradient)));
+}
+float FlatContour(float metres,float interval,float pixelsPerTile,out float major)
+{
+    // Nested elevation levels stay fixed while zoom fades the intermediate lines.
+    // Screen-space spacing also limits line density on steep or distant slopes.
+    float pixelHeight=fwidth(metres),baseInterval=max(10,interval*.5);
+    float zoomLevel=1-smoothstep(8,48,pixelsPerTile);
+    float densityLevel=log2(max(1,pixelHeight*24/baseInterval));
+    float level=max(zoomLevel,densityLevel),blend=smoothstep(0,1,frac(level));
+    float2 spacing=baseInterval*exp2(floor(level))*float2(1,2);
+    float2 scaled=metres/spacing,aa=max(pixelHeight/spacing,1e-6);
+    float2 nearest=floor(scaled+.5);
+    float2 indexLine=1-step(.01,abs(frac(nearest*.25+.5)-.5));
+    float2 distanceToContour=abs(frac(scaled+.5)-.5);
+    float2 lines=1-smoothstep(aa*.20,aa*lerp(.80,1.05,indexLine),distanceToContour);
+    float coverage=lerp(lines.x,lines.y,blend);
+    major=lerp(lines.x*indexLine.x,lines.y*indexLine.y,blend)/max(1e-6,coverage);
+    return coverage*smoothstep(.001,.02,pixelHeight);
 }
 #endif

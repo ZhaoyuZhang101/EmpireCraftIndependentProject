@@ -2,6 +2,7 @@ Shader "ORBIS/FlatWorld/ScrollSurface"
 {
  Properties
  {
+  [HideInInspector] _ScrollRelief("Terrain relief view",Vector)=(0,0,.72,0)
   [HideInInspector] _EcologyTex("Derived ecology traits",2D)="black"{}
   [HideInInspector] _EcologyReady("Ecology traits ready",Float)=0
   [HideInInspector] _RiverAtlas("Continuous river field",2D)="black"{}
@@ -76,8 +77,13 @@ Shader "ORBIS/FlatWorld/ScrollSurface"
    float4 _Selected;
    float _Grid,_PixelsPerTile,_Natural,_Political,_WaterView,_ShowContours,_ContourInterval,_DrawHeight;
    struct appdata {float4 vertex:POSITION;float2 uv:TEXCOORD0;};
-   struct v2f {float4 pos:SV_POSITION;float2 uv:TEXCOORD0;float3 world:TEXCOORD1;};
-   v2f vert(appdata v){v2f o;float2 geo;float3 p=ScrollPosition(v.uv,0,geo);o.pos=UnityObjectToClipPos(float4(p,1));o.uv=geo;o.world=mul(unity_ObjectToWorld,float4(p,1)).xyz;return o;}
+   struct v2f {float4 pos:SV_POSITION;float2 uv:TEXCOORD0;float4 world:TEXCOORD1;};
+   v2f vert(appdata v)
+   {
+    v2f o;float2 geo;float weight;float3 p=ScrollPosition(v.uv,0,geo,weight);
+    o.pos=UnityObjectToClipPos(float4(p,1))*weight;o.uv=geo;
+    o.world=float4(mul(unity_ObjectToWorld,float4(p,1)).xyz*weight,weight);return o;
+   }
    #include "FlatPixelDetail.cginc"
    #include "FlatMapFragment.cginc"
    ENDCG

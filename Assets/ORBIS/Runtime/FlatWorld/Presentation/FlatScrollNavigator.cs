@@ -17,6 +17,8 @@ namespace Orbis.Flat
         Vector2 zoomScreen;bool zoomAnchor;Quaternion orbitRotation=Quaternion.Euler(18,0,0);
         double currentDay,lockDay;bool locked;Vector3 normal,east,north;Vector2 poles;int revision=-1;int[] route=new int[0];
         const int Rings=128,Sectors=256;Vector2[] lattice;int[] triangles;
+        Vector4[] pickPositions;int[] pickVertexStamps,pickCellStamps;int pickGeneration;
+        Ray pickRay;Vector4 pickRelief;float pickRadius,pickNearest;Vector2 pickHit;
         public PlanetTangentFrame LocalFrame=>projection.Frame;
         public bool IsFlat=>atlasMode||morph>=1;
         public bool IsGlobe=>!atlasMode&&morph<=0;
@@ -46,7 +48,17 @@ namespace Orbis.Flat
         static float FoldZoom=>ZoomFor(Start-1);
         float MinZoom=>ZoomForPixels(Mathf.Max(96,EntryPixels*4));
         static float MaxZoom=>ZoomFor(MaxAltitude);
-        float Radius=>Mathf.Lerp(Mathf.PI-.0001f,Mathf.Min(1.4f,Mathf.Max(.04f,viewCamera.orthographicSize*Mathf.Sqrt(1+viewCamera.aspect*viewCamera.aspect)*1.3f)),morph);
+        float Radius=>Mathf.Lerp(Mathf.PI-.0001f,Mathf.Min(1.4f,Mathf.Max(.04f,viewCamera.orthographicSize*Mathf.Sqrt(1+viewCamera.aspect*viewCamera.aspect)*1.3f+FlatGlobeGeometry.MaximumHeight*FlatGlobeGeometry.HeightScale*FlatGlobeGeometry.ReliefTilt)),morph);
+        Vector4 ReliefParameters
+        {
+            get
+            {
+                var center=projection.Center;
+                var uv=new Vector2((float)PlanetCoordinateSystem.MapU(center),(float)PlanetCoordinateSystem.MapV(center));
+                float height=FlatGlobeGeometry.Radius(FlatGlobeGeometry.SurfaceHeight(world,uv),uv.y,world.Height,poles)-1;
+                return new Vector4(FlatGlobeGeometry.ReliefWeight(pixels,morph),height,FlatGlobeGeometry.ReliefTilt,0);
+            }
+        }
         static Vector3 V(PlanetVector p)=>new Vector3((float)p.X,(float)p.Y,(float)p.Z);
         static Vector3 Reflect(Vector3 p){p.z=-p.z;return p;}
         Quaternion Spin=>Quaternion.AngleAxis(spin*Mathf.Rad2Deg,Vector3.up);
@@ -60,6 +72,7 @@ namespace Orbis.Flat
             triangles=new int[Rings*Sectors*6];int k=0;
             for(int r=0;r<Rings;r++)for(int s=0;s<Sectors;s++){int a=r*(Sectors+1)+s,b=a+Sectors+1;triangles[k++]=a;triangles[k++]=b;triangles[k++]=a+1;triangles[k++]=a+1;triangles[k++]=b;triangles[k++]=b+1;}
             mesh.vertices=vertices;mesh.uv=lattice;mesh.triangles=triangles;mesh.bounds=new Bounds(Vector3.zero,Vector3.one*20);
+            pickPositions=new Vector4[lattice.Length];pickVertexStamps=new int[lattice.Length];pickCellStamps=new int[Rings*Sectors];
             var go=new GameObject("Local spherical terrain",typeof(MeshFilter),typeof(MeshRenderer));go.transform.SetParent(transform,false);
             go.GetComponent<MeshFilter>().sharedMesh=mesh;terrain=go.GetComponent<MeshRenderer>();terrain.sharedMaterial=surface;terrain.shadowCastingMode=ShadowCastingMode.On;
             zoom=targetZoom=ZoomFor(HomeAltitude);
@@ -96,11 +109,19 @@ namespace Orbis.Flat
                 PlanetLocation before=new PlanetLocation();
                 bool anchored=zoomAnchor&&wasFlat&&zoom!=previousZoom&&TryGetPlanetLocation(zoomScreen,out before);
                 PlaceFlatCamera(altitude);
-                if(anchored&&TryProjectionPoint(zoomScreen,out var after)&&
-                    projection.TryAnchorStereographicNorthUp(PlanetCoordinateSystem.SurfaceNormal(before),after.x*TileScale,after.y*TileScale))
+                if(anchored)
                 {
-                    Frame();
-                    PlaceFlatCamera(altitude);
+                    var anchor=PlanetCoordinateSystem.SurfaceNormal(before);
+                    for(int iteration=0;iteration<6;iteration++)
+                    {
+                        if(!TryReliefPoint(zoomScreen,out var after))break;
+                        var expected=projection.StereographicLog(anchor);
+                        double error=Math.Abs(expected.X-after.x*TileScale)+Math.Abs(expected.Y-after.y*TileScale);
+                        if(error<TileScale/Mathf.Max(1,pixels)*.005f)break;
+                        if(!projection.TryAnchorStereographicNorthUp(anchor,after.x*TileScale,after.y*TileScale))break;
+                        Frame();
+                        PlaceFlatCamera(altitude);
+                    }
                 }
                 // Any later fold starts from the chart's own top-down pose.
                 orbitRotation=Quaternion.LookRotation(-normal,north);
@@ -174,6 +195,7 @@ namespace Orbis.Flat
             surface.SetVector("_ScrollNormal",normal);surface.SetVector("_ScrollRight",east);surface.SetVector("_ScrollUp",north);
             surface.SetFloat("_ScrollMorph",morph);surface.SetFloat("_ScrollSpin",spin);surface.SetFloat("_LocalRadius",Radius);
             surface.SetFloat("_PixelsPerTile",pixels);surface.SetFloat("_DetailWeight",DetailWeight);surface.SetVector("_ScrollPoleHeights",poles);surface.SetFloat("_ScrollHeightScale",FlatGlobeGeometry.HeightScale);
+            surface.SetVector("_ScrollRelief",ReliefParameters);
             surface.SetVector("_MapSize",new Vector4(world.Width,world.Height,1f/world.Width,1f/world.Height));
         }
         public void SyncMaterials(){if(atlasMode){atlas.SyncMaterials();return;}surface.CopyPropertiesFromMaterial(maps.Material);Bind();}
@@ -196,6 +218,7 @@ namespace Orbis.Flat
                 orbitRotation=orbitRotation*Quaternion.Euler(-delta.y*.2f,delta.x*.25f,0);
                 Tick(0,currentDay);
             }
+            else if(IsFlat&&delta.sqrMagnitude>0&&TryReliefPoint(viewCamera.pixelRect.center-delta,out var point))PanBy(point);
             else PanBy(-delta/Mathf.Max(1,pixels));
         }
         public void PanBy(Vector2 delta)
@@ -241,8 +264,77 @@ namespace Orbis.Flat
         }
         public bool TryProjectionPoint(Vector2 screen,out Vector2 point)
         {
-            if(atlasMode)return atlas.TryProjectionPoint(screen,out point);point=Vector2.zero;var ray=viewCamera.ScreenPointToRay(screen);if(!new Plane(normal,normal).Raycast(ray,out float t))return false;
+            if(atlasMode)return atlas.TryProjectionPoint(screen,out point);point=Vector2.zero;var ray=FlatGlobeGeometry.ScreenRay(viewCamera,screen);if(!new Plane(normal,normal).Raycast(ray,out float t))return false;
             var offset=ray.GetPoint(t)-normal;point=new Vector2(Vector3.Dot(offset,east),Vector3.Dot(offset,north))/TileScale;return true;
+        }
+        public bool TryReliefPoint(Vector2 screen,out Vector2 point)
+        {
+            if(atlasMode)return atlas.TryReliefPoint(screen,out point);
+            if(!TryProjectionPoint(screen,out point))return false;
+            pickRelief=ReliefParameters;
+            if(!IsFlat||pickRelief.x<=0)return true;
+            pickRay=FlatGlobeGeometry.ScreenRay(viewCamera,screen);pickRadius=Radius;pickNearest=float.PositiveInfinity;
+            unchecked{pickGeneration++;}
+            if(pickGeneration==0){Array.Clear(pickVertexStamps,0,pickVertexStamps.Length);Array.Clear(pickCellStamps,0,pickCellStamps.Length);pickGeneration=1;}
+            var projected=point*TileScale;
+            var bounds=FlatGlobeGeometry.ReliefBounds(projected,pickRelief);
+            var closest=new Vector2(Mathf.Clamp(0,bounds.xMin,bounds.xMax),Mathf.Clamp(0,bounds.yMin,bounds.yMax));
+            float minimum=closest.magnitude;
+            float maximum=Mathf.Max(Mathf.Max(new Vector2(bounds.xMin,bounds.yMin).magnitude,new Vector2(bounds.xMax,bounds.yMin).magnitude),
+                                    Mathf.Max(new Vector2(bounds.xMin,bounds.yMax).magnitude,new Vector2(bounds.xMax,bounds.yMax).magnitude));
+            int first=Mathf.Max(0,Mathf.FloorToInt(minimum/pickRadius*Rings)-1);
+            int last=Mathf.Min(Rings-1,Mathf.FloorToInt(maximum/pickRadius*Rings)+1);
+            for(int ring=first;ring<=last;ring++)
+            {
+                float inner=Mathf.Max(1e-10f,pickRadius*ring/Rings);
+                float outer=pickRadius*(ring+1)/Rings;
+                if(bounds.xMin>outer+.000001f||bounds.xMax< -outer-.000001f)continue;
+                float c0=bounds.xMin/inner,c1=bounds.xMax/inner,c2=bounds.xMin/outer,c3=bounds.xMax/outer;
+                float a=Mathf.Acos(Mathf.Clamp(Mathf.Min(Mathf.Min(c0,c1),Mathf.Min(c2,c3)),-1,1));
+                float b=Mathf.Acos(Mathf.Clamp(Mathf.Max(Mathf.Max(c0,c1),Mathf.Max(c2,c3)),-1,1));
+                int low=Mathf.FloorToInt(Mathf.Min(a,b)/Tau*Sectors)-1;
+                int high=Mathf.CeilToInt(Mathf.Max(a,b)/Tau*Sectors)+1;
+                PickRingArc(ring,low,high,bounds);
+                PickRingArc(ring,Sectors-high,Sectors-low,bounds);
+            }
+            if(float.IsInfinity(pickNearest))return false;
+            point=pickHit/TileScale;
+            return true;
+        }
+        void PickRingArc(int ring,int first,int last,Rect bounds)
+        {
+            for(int sector=first;sector<=last;sector++)
+            {
+                int column=FMath.Wrap(sector,Sectors),cell=ring*Sectors+column;
+                if(pickCellStamps[cell]==pickGeneration)continue;
+                pickCellStamps[cell]=pickGeneration;
+                int a=ring*(Sectors+1)+column,b=a+Sectors+1;
+                Vector2 p0=lattice[a]*pickRadius,p1=lattice[a+1]*pickRadius,p2=lattice[b]*pickRadius,p3=lattice[b+1]*pickRadius;
+                float left=Mathf.Min(Mathf.Min(p0.x,p1.x),Mathf.Min(p2.x,p3.x));
+                float right=Mathf.Max(Mathf.Max(p0.x,p1.x),Mathf.Max(p2.x,p3.x));
+                float bottom=Mathf.Min(Mathf.Min(p0.y,p1.y),Mathf.Min(p2.y,p3.y));
+                float top=Mathf.Max(Mathf.Max(p0.y,p1.y),Mathf.Max(p2.y,p3.y));
+                if(bounds.xMax<left-1e-6f||bounds.xMin>right+1e-6f||bounds.yMin>top+1e-6f||bounds.yMax<bottom-1e-6f)continue;
+                PickTriangle(a,b,a+1);
+                PickTriangle(a+1,b,b+1);
+            }
+        }
+        Vector4 PickVertex(int index)
+        {
+            if(pickVertexStamps[index]!=pickGeneration)
+            {
+                pickVertexStamps[index]=pickGeneration;
+                pickPositions[index]=ProjectedVertex(lattice[index]*pickRadius,pickRelief);
+            }
+            return pickPositions[index];
+        }
+        void PickTriangle(int a,int b,int c)
+        {
+            var pa=PickVertex(a);var pb=PickVertex(b);var pc=PickVertex(c);
+            if(!FlatGlobeGeometry.IntersectTriangle(pickRay,pa,pb,pc,out var weights,out float distance)||distance>=pickNearest)return;
+            weights=FlatGlobeGeometry.PerspectiveWeights(weights,new Vector3(pa.w,pb.w,pc.w));
+            pickNearest=distance;
+            pickHit=(lattice[a]*weights.x+lattice[b]*weights.y+lattice[c]*weights.z)*pickRadius;
         }
         public bool TryFlatPoint(Vector2 screen,out Vector2 tile)
         {
@@ -251,7 +343,7 @@ namespace Orbis.Flat
         public bool TryGetPlanetLocation(Vector2 screen,out PlanetLocation location)
         {
             if(atlasMode)return atlas.TryGetPlanetLocation(screen,out location);location=new PlanetLocation();var ray=viewCamera.ScreenPointToRay(screen);
-            if(IsFlat){if(!TryProjectionPoint(screen,out var xy))return false;location=PlanetCoordinateSystem.FromWorld(LocalDirection(xy*TileScale),new PlanetVector(),1);return true;}
+            if(IsFlat){if(!TryReliefPoint(screen,out var xy))return false;location=PlanetCoordinateSystem.FromWorld(LocalDirection(xy*TileScale),new PlanetVector(),1);return true;}
             if(IsGlobe)
             {
                 // Avoid the inverse near/far projection's float cancellation after a long
@@ -265,23 +357,32 @@ namespace Orbis.Flat
                 location=PlanetCoordinateSystem.FromWorld(new PlanetVector(p.x,p.y,p.z),new PlanetVector(),1);return true;
             }
             // Picking follows the deformed vertices throughout the transition.
-            float nearest=float.PositiveInfinity;Vector2 hit=Vector2.zero;var vertices=new Vector3[lattice.Length];float radius=Radius;
-            for(int i=0;i<vertices.Length;i++)vertices[i]=Position(lattice[i]*radius);
+            float nearest=float.PositiveInfinity;Vector2 hit=Vector2.zero;var vertices=new Vector4[lattice.Length];float radius=Radius;
+            var relief=ReliefParameters;
+            for(int i=0;i<vertices.Length;i++)vertices[i]=ProjectedVertex(lattice[i]*radius,relief);
             for(int i=0;i<triangles.Length;i+=3)
             {
-                int a=triangles[i],b=triangles[i+1],c=triangles[i+2];var ab=vertices[b]-vertices[a];var ac=vertices[c]-vertices[a];var h=Vector3.Cross(ray.direction,ac);float det=Vector3.Dot(ab,h);if(Mathf.Abs(det)<1e-9f)continue;
-                var q=ray.origin-vertices[a];float u=Vector3.Dot(q,h)/det;if(u<0||u>1)continue;var cross=Vector3.Cross(q,ab);float v=Vector3.Dot(ray.direction,cross)/det;if(v<0||u+v>1)continue;
-                float t=Vector3.Dot(ac,cross)/det;if(t<0||t>=nearest)continue;nearest=t;hit=(lattice[a]*(1-u-v)+lattice[b]*u+lattice[c]*v)*radius;
+                int a=triangles[i],b=triangles[i+1],c=triangles[i+2];
+                if(!FlatGlobeGeometry.IntersectTriangle(ray,vertices[a],vertices[b],vertices[c],out var weights,out float distance)||distance>=nearest)continue;
+                weights=FlatGlobeGeometry.PerspectiveWeights(weights,new Vector3(vertices[a].w,vertices[b].w,vertices[c].w));
+                nearest=distance;hit=(lattice[a]*weights.x+lattice[b]*weights.y+lattice[c]*weights.z)*radius;
             }
             if(float.IsInfinity(nearest))return false;location=PlanetCoordinateSystem.FromWorld(LocalDirection(hit),new PlanetVector(),1);return true;
         }
         Vector3 Position(Vector2 xy)
         {
+            return ProjectedVertex(xy,ReliefParameters);
+        }
+        Vector4 ProjectedVertex(Vector2 xy,Vector4 reliefParameters)
+        {
             var p=LocalDirection(xy);
             var location=PlanetCoordinateSystem.FromWorld(p,new PlanetVector(),1);
             var uv=new Vector2((float)PlanetCoordinateSystem.MapU(location),(float)PlanetCoordinateSystem.MapV(location));
             float radius=FlatGlobeGeometry.Radius(FlatGlobeGeometry.SurfaceHeight(world,uv),uv.y,world.Height,poles);
-            return Vector3.Lerp(Spin*Reflect(V(p))*radius,normal+east*xy.x+north*xy.y,morph);
+            var relief=FlatGlobeGeometry.ReliefPosition(xy,radius-1,reliefParameters);
+            var plane=normal*(1+relief.z)+east*relief.x+north*relief.y;
+            Vector3 position=Vector3.Lerp(Spin*Reflect(V(p))*radius,plane,morph);
+            return new Vector4(position.x,position.y,position.z,FlatGlobeGeometry.ReliefClipWeight(radius-1,reliefParameters,morph));
         }
         public int Pick(Vector2 screen)=>TryFlatPoint(screen,out var tile)?FlatScrollMath.Tile(tile.x,Math.Min(world.Height-.0001,tile.y),world.Width,world.Height):-1;
         public void SetRoute(int[] ids){route=ids??new int[0];if(atlas)atlas.SetRoute(route);UpdateRoute();}
@@ -290,7 +391,8 @@ namespace Orbis.Flat
             if(route.Length<2){if(routeLine)routeLine.enabled=false;return;}
             if(!routeLine){var go=new GameObject("Spherical route");go.transform.SetParent(transform,false);routeLine=go.AddComponent<LineRenderer>();routeLine.sharedMaterial=new Material(Shader.Find("Sprites/Default"));routeLine.startColor=routeLine.endColor=new Color(1,.85f,.45f);}
             routeLine.enabled=!atlasMode;routeLine.widthMultiplier=.0015f;routeLine.positionCount=route.Length;
-            for(int i=0;i<route.Length;i++){var p=PlanetCoordinateSystem.SurfaceNormal(PlanetCoordinateSystem.FromMapUV((route[i]%world.Width+.5)/world.Width,(route[i]/world.Width+.5)/world.Height));routeLine.SetPosition(i,Position(LocalPoint(p))+normal*.0002f);}
+            var relief=ReliefParameters;
+            for(int i=0;i<route.Length;i++){var p=PlanetCoordinateSystem.SurfaceNormal(PlanetCoordinateSystem.FromMapUV((route[i]%world.Width+.5)/world.Width,(route[i]/world.Width+.5)/world.Height));routeLine.SetPosition(i,(Vector3)ProjectedVertex(LocalPoint(p),relief)+normal*.0002f);}
         }
         void OnDestroy(){if(mesh)Destroy(mesh);if(surface)Destroy(surface);if(routeLine&&routeLine.sharedMaterial)Destroy(routeLine.sharedMaterial);}
     }

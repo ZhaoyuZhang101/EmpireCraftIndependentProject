@@ -15,6 +15,14 @@ Shader "Hidden/ORBIS/TerrainQualityProbe"
   if(_ProbeFlip>.5)sampleUV.x=1-sampleUV.x;
   float2 span=_ProbeSpan.x>0?_ProbeSpan.xy:float2(2,1);
   float2 cell=_ProbeOrigin.xy+sampleUV*span;
+  if(_ProbeMode>3.5)
+  {
+   float major;
+   float contour=FlatContour(FlatField(cell).r,100,_ProbePixels,major);
+   if(_ProbeMode>4.5)
+    contour*=FlatGentleContourWeight(cell,FlatFieldGradient(cell,0));
+   return float4(contour,major,0,1);
+  }
   if(_ProbeMode>2.5)return float4(FlatElevationColor(FlatVisualSample(float4(cell*_MapSize.zw,0,0)).r),1);
   if(_ProbeMode>1.5)return float4(FlatTerrainSnow(_ProbeCoverage,cell,_ProbeGradient.xy,_ProbePixels).xxx,1);
   if(_ProbeMode>.5)return float4(FlatFieldRelief(cell,0,float3(-.45,.6,.75)).xxx,1);

@@ -1,9 +1,22 @@
    float4 frag(v2f i):SV_Target
    {
+#ifdef ORBIS_SCROLL_SURFACE
+    float2 chartCoordinate=i.uv;
+#endif
 #ifdef ORBIS_LOCAL_SURFACE
     i.uv=LocalGeoUV(i.uv);
 #elif defined(ORBIS_SCROLL_SURFACE)
     i.uv=MarkleyGeoUV(i.uv);
+#endif
+#ifdef ORBIS_SCROLL_SURFACE
+    float3 chartRadial=FlatRadial(i.uv);
+    float2 chartDx=ddx(chartCoordinate),chartDy=ddy(chartCoordinate);
+    float chartDeterminant=chartDx.x*chartDy.y-chartDx.y*chartDy.x;
+    float inverseChartDeterminant=(chartDeterminant<0?-1:1)/max(1e-20,abs(chartDeterminant));
+    float3 chartRight=(ddx(chartRadial)*chartDy.y-ddy(chartRadial)*chartDx.y)*inverseChartDeterminant;
+    chartRight-=chartRadial*dot(chartRight,chartRadial);
+    float2 chartRightGeographic=FlatGeographicLight(i.uv,chartRight).xy;
+    chartRightGeographic*=rsqrt(max(1e-20,dot(chartRightGeographic,chartRightGeographic)));
 #endif
     float2 cell=float2(frac(i.uv.x),clamp(i.uv.y,0,1-_MapSize.w*.0001))*_MapSize.xy,id=floor(cell),f=frac(cell),uv=(id+.5)*_MapSize.zw;
     float naturalView=max(_Natural,_Political);
@@ -77,11 +90,16 @@
      #ifdef ORBIS_SCROLL_SURFACE
      // Transport the actual camera direction through the same sphere/plane
      // rotation as the terrain. Grazing globe water must not use a zenith view.
-     float3 cameraRay=normalize(_WorldSpaceCameraPos-i.world);
+     float3 world=i.world.xyz/max(1e-6,i.world.w);
+     float3 cameraRay=normalize(_WorldSpaceCameraPos-world);
      float s=sin(_ScrollSpin),c=cos(_ScrollSpin);
      float3 planetRay=float3(c*cameraRay.x-s*cameraRay.z,cameraRay.y,-s*cameraRay.x-c*cameraRay.z);
      float3 sphereView=FlatGeographicLight(i.uv,planetRay);
      float3 planeView=float3(dot(cameraRay,_ScrollRight),dot(cameraRay,_ScrollUp),dot(cameraRay,_ScrollNormal));
+     float2 projected=float2(dot(world-_ScrollNormal,_ScrollRight),dot(world-_ScrollNormal,_ScrollUp));
+     float3 reliefView=normalize(float3(-projected/.18-float2(0,_ScrollRelief.z),1));
+     planeView=normalize(lerp(planeView,reliefView,_ScrollRelief.x));
+     planeView.xy=chartRightGeographic*planeView.x+float2(-chartRightGeographic.y,chartRightGeographic.x)*planeView.y;
      waterView=lerp(sphereView,planeView,_ScrollMorph);
      waterView=normalize(float3(waterView.xy,max(.02,waterView.z)));
      #endif
@@ -90,10 +108,15 @@
     }
     else col*=illumination;
     if(frozen>.001)col=lerp(col,FlatPolarIceColor(i.uv,waterMask)*illumination*lerp(terrainRelief,1,waterMask),frozen);
-    float major;float contour=FlatContour(field.r,_ContourInterval,major);
-    float contourGround=max((1-waterMask)*step(.01,field.r),_DrawHeight);
-    float contourStrength=lerp(1-_DetailWeight,1,_DrawHeight)*max(_ShowContours,_DrawHeight)*smoothstep(3,5,_PixelsPerTile)*contourGround*terrainView;
-    col=lerp(col,FlatColor(float3(.31,.30,.24))*illumination,contour*contourStrength*lerp(.23,.42,major));
+    float major;float contour=FlatContour(field.r,_ContourInterval,_PixelsPerTile,major);
+    float contourStrength=max(_ShowContours,_DrawHeight)*smoothstep(3,5,_PixelsPerTile)*terrainView;
+    float gentleSlope=FlatGentleContourWeight(cell,terrainGradient);
+    float landContour=contour*lerp(1-waterMask,1,_DrawHeight);
+    landContour*=lerp(gentleSlope*lerp(1,.72,_DetailWeight),1,_DrawHeight);
+    col=lerp(col,FlatColor(float3(.31,.30,.24))*illumination,landContour*contourStrength*lerp(.23,.42,major));
+    float depthMajor;float depthContour=FlatContour(-field.b,_ContourInterval,_PixelsPerTile,depthMajor);
+    float depthContourStrength=waterMask*step(.01,field.g)*(1-polarIce)*_Bathymetry*(1-_DrawHeight)*gentleSlope;
+    col=lerp(col,FlatColor(float3(.075,.27,.36))*illumination,depthContour*depthContourStrength*contourStrength*lerp(.12,.23,depthMajor));
     if(_Political>.5)
     {
      float4 east=tex2D(_OwnerTex,uv+float2(_MapSize.z,0)),north=tex2D(_OwnerTex,uv+float2(0,_MapSize.w));

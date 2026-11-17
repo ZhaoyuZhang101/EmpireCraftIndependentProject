@@ -1,5 +1,6 @@
 #ifndef ORBIS_LOCAL_PROJECTION
 #define ORBIS_LOCAL_PROJECTION
+#define ORBIS_TERRAIN_PROJECTION 1
 #include "ScrollHeight.cginc"
 #include "../GeographicCoordinates.cginc"
 float3 _LocalCenter,_LocalEast,_LocalNorth;
@@ -14,13 +15,19 @@ float2 LocalGeoUV(float2 xy)
  float3 p=LocalDirection(xy);
  return OrbisGeographicUV(p);
 }
-float3 ScrollPosition(float2 meshUV,float shell,out float2 xy)
+float3 ScrollPosition(float2 meshUV,float shell,out float2 xy,out float clipWeight)
 {
  xy=meshUV*_LocalRadius;float3 radial=LocalDirection(xy);float2 uv=LocalGeoUV(xy);
- float4 field=FlatVisualSample(float4(uv,0,0));float radius=ScrollRadius(field,uv,_MapSize.y);
+ float radius=ScrollTerrainRadius(uv,_MapSize);
+ clipWeight=FlatReliefClipWeight(radius-1,_ScrollMorph);
  radial.z=-radial.z;float s=sin(_ScrollSpin),c=cos(_ScrollSpin);
  float3 sphere=float3(c*radial.x+s*radial.z,radial.y,-s*radial.x+c*radial.z)*(radius+shell);
- float3 plane=_ScrollNormal+_ScrollRight*xy.x+_ScrollUp*xy.y;
+ float3 relief=FlatReliefPosition(xy,radius-1);
+ float3 plane=_ScrollNormal*(1+relief.z)+_ScrollRight*relief.x+_ScrollUp*relief.y;
  return lerp(sphere,plane,_ScrollMorph);
+}
+float3 ScrollPosition(float2 meshUV,float shell,out float2 xy)
+{
+ float clipWeight;return ScrollPosition(meshUV,shell,xy,clipWeight);
 }
 #endif

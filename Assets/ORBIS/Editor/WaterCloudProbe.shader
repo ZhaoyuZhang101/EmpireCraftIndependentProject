@@ -24,9 +24,10 @@ Shader "Hidden/ORBIS/WaterCloudProbe"
   if(_ProbeKind>4.5)
   {
    float2 cell=_ProbeCell.xy+i.uv*float2(2,1);float boundary=i.uv.x*.2;
-   float3 normal=normalize(float3(.3,-.2,1));
-   float2 offset=FlatBedRefraction(cell,normalize(_ProbeView.xyz),normal,_ProbeDepth,boundary);
-   return float4(offset,min(.08,boundary*.25),1);
+   float3 normal=_ProbeKind>5.5?float3(0,0,1):normalize(float3(.3,-.2,1));
+   float2 offset=_ProbeKind>6.5?FlatBedParallax(cell,normalize(_ProbeView.xyz),_ProbeDepth,boundary):FlatBedRefraction(cell,normalize(_ProbeView.xyz),normal,_ProbeDepth,boundary);
+   float limit=_ProbeKind>6.5?min(.35,boundary*.35):min(.08,boundary*.25);
+   return float4(offset,limit,1);
   }
   if(_ProbeKind>3.5)
   {

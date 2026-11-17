@@ -46,6 +46,7 @@ namespace Orbis.Flat
         Vector3 lastRouteNormal;
         float lastRoutePixels = -1;
         Vector2 polarHeights; int heightRevision=-1;
+        int meshColumns,meshRows,lastRouteRevision=-1;
         readonly List<Vector3> routeVertices = new List<Vector3>();
         readonly List<Color> routeColors = new List<Color>();
         readonly List<int> routeIndices = new List<int>();
@@ -67,6 +68,14 @@ namespace Orbis.Flat
         public int VertexCount { get { return lattice ? lattice.vertexCount : 0; } }
         public int ActiveSheets { get; private set; }
         public string ModeName { get { return IsFlat ? (IsDetailed ? "2D 详细图" : "2D 总览") : IsGlobe ? "星球" : "大气展开 " + Mathf.RoundToInt(morph * 100) + "%"; } }
+        Vector4 ReliefParameters
+        {
+            get
+            {
+                var uv=new Vector2(pan.x/world.Width,pan.y/MapHeight);
+                return new Vector4(FlatGlobeGeometry.ReliefWeight(pixels,morph),TerrainHeight(uv),FlatGlobeGeometry.ReliefTilt,0);
+            }
+        }
 
         public void Initialize(WorldData data, Camera target, FlatMapRenderer renderer)
         {
@@ -75,6 +84,7 @@ namespace Orbis.Flat
             surface = NewMaterial("ORBIS/FlatWorld/ScrollSurface");
             // Large enough for smooth silhouette; scalar fields retain the original tile resolution.
             int columns=Mathf.Clamp(world.Width,256,768),rows=Mathf.CeilToInt((float)(columns/MarkleyProjection.Aspect));
+            meshColumns=columns;meshRows=rows;
             var vertices = new Vector3[(columns + 1) * (rows + 1)];
             var uv = new Vector2[vertices.Length];
             var indices = new int[columns * rows * 6];
@@ -177,7 +187,7 @@ namespace Orbis.Flat
             if(heightRevision!=world.TerrainRevision){polarHeights=FlatGlobeGeometry.PolarHeights(world);heightRevision=world.TerrainRevision;}
             if(IsFlat && targetPixels>0)
             {
-                Vector2 before=Vector2.zero,after;bool hit=zoomAnchor&&TryProjectionPoint(zoomScreen,out before);
+                Vector2 before=Vector2.zero,after;bool hit=zoomAnchor&&TryReliefPoint(zoomScreen,out before);
                 if(!hit)before=Vector2.zero;
                 pixels=(float)FlatScrollMath.ExpApproach(pixels,targetPixels,14,dt);
                 if(focusZoom)
@@ -190,7 +200,16 @@ namespace Orbis.Flat
                 if(Mathf.Abs(pixels-targetPixels)<.001f){pixels=targetPixels;targetPixels=-1;if(focusZoom)pan=focusCenter;focusZoom=false;}
                 viewCamera.orthographicSize=viewCamera.pixelHeight*TileScale/(2*Mathf.Max(.1f,pixels));
                 viewCamera.ResetProjectionMatrix();
-                if(hit&&TryProjectionPoint(zoomScreen,out after))mapPosition.Move(before.x-after.x,before.y-after.y,world.Width,world.Height);
+                if(hit)
+                {
+                    for(int iteration=0;iteration<6;iteration++)
+                    {
+                        if(!TryReliefPoint(zoomScreen,out after))break;
+                        var delta=before-after;
+                        if(delta.sqrMagnitude<.000001f/Mathf.Max(1,pixels*pixels))break;
+                        mapPosition.Move(delta.x,delta.y,world.Width,world.Height);
+                    }
+                }
             }
             distance = (float)FlatScrollMath.ExpApproach(distance, targetDistance, 11, dt);
             if (Mathf.Abs(distance - targetDistance) < .00002f) distance = targetDistance;
@@ -284,17 +303,20 @@ namespace Orbis.Flat
         }
         void UpdateSheets()
         {
-            if (flatGeometry != IsFlat)
+            bool useQuad=IsFlat&&FlatGlobeGeometry.ReliefWeight(pixels,morph)<=0;
+            if (flatGeometry != useQuad)
             {
-                flatGeometry = IsFlat;
+                flatGeometry = useQuad;
                 foreach (var filter in sheetFilters) filter.sharedMesh = flatGeometry ? flatMesh : lattice;
             }
             ActiveSheets = 0;
             float halfX=viewCamera.pixelWidth/Mathf.Max(.1f,pixels)*.5f,halfY=viewCamera.pixelHeight/Mathf.Max(.1f,pixels)*.5f;
+            float maximumHeight=FlatGlobeGeometry.MaximumHeight*FlatGlobeGeometry.HeightScale;
+            float reliefPadding=FlatGlobeGeometry.ReliefWeight(pixels,morph)*maximumHeight*(FlatGlobeGeometry.ReliefTilt/TileScale+Mathf.Max(halfX,halfY)/FlatGlobeGeometry.ReliefCameraHeight);
             for(int i=0;i<surfaces.Count;i++)
             {
                 var copy=sheetCopies[i];float left=copy.x*world.Width,bottom=copy.y*MapHeight;
-                bool visible=IsGlobe?copy==primaryCopy:left+world.Width>=pan.x-halfX-2&&left<=pan.x+halfX+2&&bottom+MapHeight>=pan.y-halfY-2&&bottom<=pan.y+halfY+2;
+                bool visible=IsGlobe?copy==primaryCopy:left+world.Width>=pan.x-halfX-2-reliefPadding&&left<=pan.x+halfX+2+reliefPadding&&bottom+MapHeight>=pan.y-halfY-2-reliefPadding&&bottom<=pan.y+halfY+2+reliefPadding;
                 if(IsTransitioning&&copy==primaryCopy)visible=true;surfaces[i].enabled=visible;if(visible)ActiveSheets++;
             }
         }
@@ -318,10 +340,12 @@ namespace Orbis.Flat
             m.SetFloat("_DetailWeight", DetailWeight);
             m.SetVector("_ScrollPoleHeights",polarHeights);
             m.SetFloat("_ScrollHeightScale",FlatGlobeGeometry.HeightScale);
+            m.SetVector("_ScrollRelief",ReliefParameters);
         }
         public void Drag(Vector2 screenDelta)
         {
-            if(!IsGlobe)PanBy(-screenDelta/Mathf.Max(.1f,pixels));
+            if(IsFlat&&screenDelta.sqrMagnitude>0&&TryReliefPoint(viewCamera.pixelRect.center-screenDelta,out var point))PanBy(point-pan);
+            else if(!IsGlobe)PanBy(-screenDelta/Mathf.Max(.1f,pixels));
             else {yaw+=screenDelta.x*.25f;pitch=Mathf.Clamp(pitch-screenDelta.y*.2f,-89.5f,89.5f);Tick(0,currentDay);if(landingLocked&&targetDistance<StartDistance)CaptureLanding(viewCamera.pixelRect.center,currentDay);}
         }
         public void PanBy(Vector2 tileDelta)
@@ -411,7 +435,7 @@ namespace Orbis.Flat
         public bool TryProjectionPoint(Vector2 screen, out Vector2 tile)
         {
             tile = Vector2.zero; if (morph < .5f) return false;
-            Ray ray = viewCamera.ScreenPointToRay(screen); var plane = new Plane(normal, normal);
+            Ray ray = FlatGlobeGeometry.ScreenRay(viewCamera,screen); var plane = new Plane(normal, normal);
             float t; if (!plane.Raycast(ray, out t)) return false;
             Vector3 offset = ray.GetPoint(t) - normal;
             // Use canonical pan here, not RenderPan: caller's cursor delta is continuous under wrap.
@@ -420,8 +444,63 @@ namespace Orbis.Flat
         }
         public bool TryFlatPoint(Vector2 screen,out Vector2 tile)
         {
-            if(!TryProjectionPoint(screen,out Vector2 projected)){tile=Vector2.zero;return false;}
+            if(!TryReliefPoint(screen,out Vector2 projected)){tile=Vector2.zero;return false;}
             tile=Vector2.Scale(MarkleyProjection.GeoUV(projected.x/world.Width,projected.y/MapHeight),new Vector2(world.Width,world.Height));return true;
+        }
+        float VertexHeight(Vector2 uv)
+        {
+            var geographic=MarkleyProjection.GeoUV(uv.x,uv.y);
+            return FlatGlobeGeometry.Radius(FlatGlobeGeometry.SurfaceHeight(world,geographic),geographic.y,world.Height,polarHeights)-1;
+        }
+        float TerrainHeight(Vector2 uv)
+        {
+            float x=uv.x*meshColumns,y=uv.y*meshRows;
+            int column=Mathf.FloorToInt(x),row=Mathf.FloorToInt(y);
+            float tx=x-column,ty=y-row;
+            var a=new Vector2((float)column/meshColumns,(float)row/meshRows);
+            var dx=new Vector2(1f/meshColumns,0);var dy=new Vector2(0,1f/meshRows);
+            float b=VertexHeight(a+dy),c=VertexHeight(a+dx);
+            if(tx+ty<=1)return VertexHeight(a)*(1-tx-ty)+b*ty+c*tx;
+            return c*(1-ty)+b*(1-tx)+VertexHeight(a+dx+dy)*(tx+ty-1);
+        }
+        Vector3 FlatPosition(Vector2 uv,float height,Vector4 reliefParameters)
+        {
+            var point=(Vector2.Scale(uv,ProjectionSize)-pan)*TileScale;
+            var relief=FlatGlobeGeometry.ReliefPosition(point,height,reliefParameters);
+            return normal*(1+relief.z)+east*relief.x+north*relief.y;
+        }
+        public bool TryReliefPoint(Vector2 screen,out Vector2 point)
+        {
+            if(!TryProjectionPoint(screen,out point))return false;
+            var relief=ReliefParameters;
+            if(!IsFlat||relief.x<=0)return true;
+            var projected=(point-pan)*TileScale;
+            var bounds=FlatGlobeGeometry.ReliefBounds(projected,relief);
+            int firstColumn=Mathf.FloorToInt((pan.x+bounds.xMin/TileScale)/world.Width*meshColumns)-1;
+            int lastColumn=Mathf.FloorToInt((pan.x+bounds.xMax/TileScale)/world.Width*meshColumns)+1;
+            int first=Mathf.FloorToInt((pan.y+bounds.yMin/TileScale)/MapHeight*meshRows)-1;
+            int last=Mathf.FloorToInt((pan.y+bounds.yMax/TileScale)/MapHeight*meshRows)+1;
+            var ray=FlatGlobeGeometry.ScreenRay(viewCamera,screen);
+            float nearest=float.PositiveInfinity;Vector2 hit=Vector2.zero;
+            for(int row=first;row<=last;row++)for(int column=firstColumn;column<=lastColumn;column++)
+            {
+                var a=new Vector2((float)column/meshColumns,(float)row/meshRows);
+                var b=new Vector2((float)column/meshColumns,(float)(row+1)/meshRows);
+                var c=new Vector2((float)(column+1)/meshColumns,(float)row/meshRows);
+                var d=new Vector2((float)(column+1)/meshColumns,(float)(row+1)/meshRows);
+                float ha=VertexHeight(a),hb=VertexHeight(b),hc=VertexHeight(c),hd=VertexHeight(d);
+                Vector3 pa=FlatPosition(a,ha,relief),pb=FlatPosition(b,hb,relief);
+                Vector3 pc=FlatPosition(c,hc,relief),pd=FlatPosition(d,hd,relief);
+                float wa=FlatGlobeGeometry.ReliefClipWeight(ha,relief,morph),wb=FlatGlobeGeometry.ReliefClipWeight(hb,relief,morph);
+                float wc=FlatGlobeGeometry.ReliefClipWeight(hc,relief,morph),wd=FlatGlobeGeometry.ReliefClipWeight(hd,relief,morph);
+                if(FlatGlobeGeometry.IntersectTriangle(ray,pa,pb,pc,out var weights,out float distance)&&distance<nearest)
+                {nearest=distance;weights=FlatGlobeGeometry.PerspectiveWeights(weights,new Vector3(wa,wb,wc));hit=a*weights.x+b*weights.y+c*weights.z;}
+                if(FlatGlobeGeometry.IntersectTriangle(ray,pc,pb,pd,out weights,out distance)&&distance<nearest)
+                {nearest=distance;weights=FlatGlobeGeometry.PerspectiveWeights(weights,new Vector3(wc,wb,wd));hit=c*weights.x+b*weights.y+d*weights.z;}
+            }
+            if(float.IsInfinity(nearest))return false;
+            point=Vector2.Scale(hit,ProjectionSize);
+            return true;
         }
         public bool TryGetPlanetLocation(Vector2 screen,out PlanetLocation location)
         {
@@ -484,12 +563,15 @@ namespace Orbis.Flat
         {
             if(!routeMesh)return;foreach(var renderer in routes)renderer.enabled=IsFlat&&route.Length>1;
             if(!IsFlat||route.Length<2)return;
-            if(pan==lastRoutePan&&normal==lastRouteNormal&&pixels==lastRoutePixels)return;
+            if(pan==lastRoutePan&&normal==lastRouteNormal&&pixels==lastRoutePixels&&lastRouteRevision==world.TerrainRevision)return;
             lastRoutePan=pan;lastRouteNormal=normal;lastRoutePixels=pixels;
+            lastRouteRevision=world.TerrainRevision;
             var v=routeVertices;var cs=routeColors;var triangles=routeIndices;v.Clear();cs.Clear();triangles.Clear();
             float width=Mathf.Clamp(1.5f/Mathf.Max(1,pixels),.07f,.20f)*TileScale;
             Vector3 lift=normal*.00006f;Vector2 near=new Vector2(pan.x/world.Width,pan.y/MapHeight);
             float halfX=viewCamera.pixelWidth/Mathf.Max(1,pixels)*.6f,halfY=viewCamera.pixelHeight/Mathf.Max(1,pixels)*.6f;
+            halfY+=FlatGlobeGeometry.MaximumHeight*FlatGlobeGeometry.HeightScale*FlatGlobeGeometry.ReliefTilt/TileScale;
+            var relief=ReliefParameters;
             for(int i=1;i<route.Length;i++)
             {
                 var p0=MarkleyProjection.Project(PlanetCoordinateSystem.FromMapUV((route[i-1]%world.Width+.5)/world.Width,(route[i-1]/world.Width+.5)/world.Height));
@@ -500,7 +582,9 @@ namespace Orbis.Flat
                     a.x=near.x+(float)PlanetCoordinateSystem.NearestOffset(a.x-near.x,1)+col;
                     Vector2 b=a+(p1-p0)*sign;a=Vector2.Scale(a,ProjectionSize)-pan;b=Vector2.Scale(b,ProjectionSize)-pan;
                     if(Mathf.Min(a.x,b.x)>halfX||Mathf.Max(a.x,b.x)<-halfX||Mathf.Min(a.y,b.y)>halfY||Mathf.Max(a.y,b.y)<-halfY)continue;
-                    Vector3 pa=normal+(east*a.x+north*a.y)*TileScale+lift,pb=normal+(east*b.x+north*b.y)*TileScale+lift;
+                    var ua=Vector2.Scale(a+pan,new Vector2(1f/world.Width,1f/MapHeight));
+                    var ub=Vector2.Scale(b+pan,new Vector2(1f/world.Width,1f/MapHeight));
+                    Vector3 pa=FlatPosition(ua,TerrainHeight(ua),relief)+lift,pb=FlatPosition(ub,TerrainHeight(ub),relief)+lift;
                     Vector3 side=Vector3.Cross((pb-pa).normalized,normal)*width;int start=v.Count;
                     v.Add(pa-side);v.Add(pa+side);v.Add(pb-side);v.Add(pb+side);for(int c=0;c<4;c++)cs.Add(new Color(1,.85f,.45f));
                     triangles.Add(start);triangles.Add(start+1);triangles.Add(start+2);triangles.Add(start+2);triangles.Add(start+1);triangles.Add(start+3);

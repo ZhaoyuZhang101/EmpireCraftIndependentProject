@@ -36,5 +36,48 @@ Shader "Hidden/ORBIS/PolarDetailProbe"
   return float4(length(ddx(detail))*128000,length(ddy(detail))*128000,0,1);
  }
  ENDCG
- }}
+ }
+ Pass
+ {
+ ZWrite On ZTest LEqual
+ CGPROGRAM
+ #pragma target 3.0
+ #pragma vertex vert
+ #pragma fragment frag
+ #include "UnityCG.cginc"
+ #include "../Resources/ORBIS/FlatWorld/FlatVisualTexture.cginc"
+ float4 _MapSize;
+ #include "../Resources/ORBIS/FlatWorld/LocalProjection.cginc"
+ struct appdata {float4 vertex:POSITION;float2 uv:TEXCOORD0;};
+ struct v2f {float4 pos:SV_POSITION;float2 chart:TEXCOORD0;};
+ v2f vert(appdata v)
+ {
+  v2f o;float2 chart;float weight;float3 position=ScrollPosition(v.uv,0,chart,weight);
+  o.pos=UnityObjectToClipPos(float4(position,1))*weight;o.chart=chart;return o;
+ }
+ float4 frag(v2f i):SV_Target {return float4(LocalDirection(i.chart),1);}
+ ENDCG
+ }
+ Pass
+ {
+ ZWrite On ZTest LEqual
+ CGPROGRAM
+ #pragma target 3.0
+ #pragma vertex vert
+ #pragma fragment frag
+ #include "UnityCG.cginc"
+ #include "../Resources/ORBIS/FlatWorld/FlatVisualTexture.cginc"
+ float4 _MapSize;
+ #include "../Resources/ORBIS/FlatWorld/ScrollProjection.cginc"
+ struct appdata {float4 vertex:POSITION;float2 uv:TEXCOORD0;};
+ struct v2f {float4 pos:SV_POSITION;float2 chart:TEXCOORD0;};
+ v2f vert(appdata v)
+ {
+  v2f o;float2 chart;float weight;float3 position=ScrollPosition(v.uv,0,chart,weight);
+  o.pos=UnityObjectToClipPos(float4(position,1))*weight;o.chart=chart;return o;
+ }
+ float4 frag(v2f i):SV_Target {return float4(MarkleyDirection(i.chart),1);}
+ ENDCG
+ }
+ }
 }

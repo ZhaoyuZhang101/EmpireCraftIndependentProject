@@ -7,7 +7,12 @@ float4 _ScrollSourceSize;
 float _ScrollWeatherTime;
 float ScrollCloudGround(float2 uv)
 {
- return ScrollRadius(tex2Dlod(_ScrollHeightTex,float4(uv,0,0)),uv,_ScrollSourceSize.y);
+ if(_ScrollHeightScale<=0)return 1;
+ float2 pixel=uv*_ScrollSourceSize.xy-.5,base=floor(pixel),fraction=frac(pixel);
+ float2 texel=1/max(float2(1,1),_ScrollSourceSize.xy);
+ float2 centre=(base+.5)*texel,dx=float2(texel.x,0),dy=float2(0,texel.y);
+ return ScrollInterpolatedRadius(tex2Dlod(_ScrollHeightTex,float4(centre,0,0)),tex2Dlod(_ScrollHeightTex,float4(centre+dx,0,0)),
+                                 tex2Dlod(_ScrollHeightTex,float4(centre+dy,0,0)),tex2Dlod(_ScrollHeightTex,float4(centre+dx+dy,0,0)),fraction,uv,_ScrollSourceSize.y);
 }
 // Uses the SAME spherical coordinates on the globe and every repeated 2D sheet.
 float2 ScrollClimateDensities(float3 p,bool simpleMode)

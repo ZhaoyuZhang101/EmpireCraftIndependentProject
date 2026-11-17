@@ -208,12 +208,22 @@ float2 FlatBedRefraction(float2 cell,float3 view,float3 normal,float depth,float
     float3 flatRay=refract(-view,float3(0,0,1),airToWater);
     float3 bentRay=refract(-view,normal,airToWater);
     float2 offset=(bentRay.xy/max(.1,-bentRay.z)-flatRay.xy/max(.1,-flatRay.z))*min(depth,20)*.03;
+    offset+=flatRay.xy/max(.1,-flatRay.z)*min(depth,20)*.01*_ScrollRelief.x;
     float latitude=(cell.y*_MapSize.w-.5)*3.141592654;
     offset.x/=max(.04,cos(latitude));
     // Limit the optical displacement inside the local wet cross-section.
     float limit=min(.08,max(0,boundary)*.25);
     offset*=min(1,limit/max(1e-6,length(offset)));
     return offset;
+}
+float2 FlatBedParallax(float2 cell,float3 view,float depth,float boundary)
+{
+    float3 ray=refract(-view,float3(0,0,1),1/1.333);
+    float2 offset=ray.xy/max(.1,-ray.z)*min(depth,4000)*_ScrollHeightScale*_MapSize.x/6.283185307*_ScrollRelief.x;
+    float latitude=(cell.y*_MapSize.w-.5)*3.141592654;
+    offset.x/=max(.04,cos(latitude));
+    float limit=min(.35,max(0,boundary)*.35);
+    return offset*min(1,limit/max(1e-6,length(offset)));
 }
 float3 FlatBedArtwork(float3 position,float3 colour,float footprint)
 {
@@ -436,6 +446,8 @@ float3 FlatWaterShade(float2 cell,float4 hydro,float4 mixing,float4 field,float3
     float2 bedCell=cell;
     if(_FieldReady>.5)bedCell+=FlatBedRefraction(cell,localView,normal,depth,clearance);
     float3 bedPosition=FlatDetailPosition(bedCell);
+    float2 depthCell=cell+FlatBedParallax(cell,localView,depth,clearance);
+    float depthRelief=FlatFieldRelief(depthCell,1,float3(-.45,.6,.75));
     // Geographic wave patterns keep light bands attached to the submerged bed.
     float3 sunView=normalize(float3(localLight.xy,max(.1,localLight.z)));
     float2 sunOffset=FlatBedRefraction(cell,sunView,normal,depth,clearance);
@@ -447,7 +459,7 @@ float3 FlatWaterShade(float2 cell,float4 hydro,float4 mixing,float4 field,float3
     {
         bottom=FlatBedColor(bedCell,1-river)*.72;
         if(depth<35&&footprint<1.5)bottom=lerp(bottom,FlatBedArtwork(bedPosition,bottom,footprint),1-smoothstep(18,35,depth));
-        bottom*=1+caustic*.65;
+        bottom*=(1+caustic*.65)*depthRelief;
     }
     float refractedCos=sqrt(max(.1,1-(1-nv*nv)/(1.333*1.333)));
     float3 transmission;
@@ -457,12 +469,15 @@ float3 FlatWaterShade(float2 cell,float4 hydro,float4 mixing,float4 field,float3
     float3 result=(bottom*light*transmission+scatteringLight)*(1-fresnel)+sky*fresnel;
     // Physically, 80m and 2200m are both optically opaque. Optional cartographic
     // bathymetry makes the true data depth readable; it is NOT deep-water transparency.
-    float logDepth=log2(1+depth);
-    float3 depthColor=lerp(FlatColor(float3(.24,.61,.63)),FlatColor(float3(.08,.36,.55)),smoothstep(1,9.23,logDepth));
-    depthColor=lerp(depthColor,FlatColor(float3(.025,.13,.30)),smoothstep(9.23,11.97,logDepth));
-    depthColor=lerp(depthColor,FlatColor(float3(.26,.48,.47)),fresh*.22);
-    float depthRelief=FlatFieldRelief(cell,1,float3(-.45,.6,.75));
-    float chartDepth=lerp(.70,.12,saturate(lake+river));
+    float chartMetres=depth;
+    if(_FieldReady>.5&&_ScrollRelief.x>0&&river<.5)
+        chartMetres=lerp(depth,max(.15,FlatVisualSample(float4(depthCell*_MapSize.zw,0,0)).b),_ScrollRelief.x);
+    float logDepth=log2(1+chartMetres);
+    float3 depthColor=lerp(FlatColor(float3(.20,.65,.65)),FlatColor(float3(.045,.34,.54)),smoothstep(1,7.5,logDepth));
+    depthColor=lerp(depthColor,FlatColor(float3(.015,.10,.25)),smoothstep(7.5,11.97,logDepth));
+    depthColor=lerp(depthColor,FlatColor(float3(.19,.48,.48)),fresh*.12);
+    float lakeDepth=lerp(.30,.62,smoothstep(2,30,depth));
+    float chartDepth=lerp(lerp(.70,lakeDepth,lake),.18,river);
     result=lerp(result,depthColor*light*depthRelief,saturate(_Bathymetry)*chartDepth);
     float microFade=1-smoothstep(.8,2.8,footprint);
     float3 glitterNormal=normalize(float3(-(slopes+microSlopes*microFade)*waveStrength,1));
