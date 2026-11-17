@@ -17,7 +17,7 @@ namespace Orbis.Flat
         WorldData world;Texture2D climate,hpHigh,wind,climateWind;Texture3D hpNoise,hpDetail;Material bake,hpColumn;
         readonly Color32[] monthly=new Color32[ClimateWidth*ClimateHeight];
         readonly Color[] windPixels=new Color[ClimateWidth*ClimateHeight],seasonalWindPixels=new Color[ClimateWidth*ClimateHeight];
-        int month=-1,revision=-1;float debt;bool rendered,failed;
+        int month=-1,revision=-1,windMonth=-1,windRevision=-1;float debt;bool rendered,failed;
         double stagedClock;
         readonly Vector4[] flashes=new Vector4[4];
         FlatLightningVisuals lightning;
@@ -29,6 +29,8 @@ namespace Orbis.Flat
         {
             world=data;
             lightning=new FlatLightningVisuals(data);
+            wind=WeatherTexture("Visual cloud drift");climateWind=WeatherTexture("Seasonal prevailing winds");
+            UploadWind(world.Month);
             Shader shader=Resources.Load<Shader>("ORBIS/FlatWorld/FlatSkyBake");
             Shader columnShader=Resources.Load<Shader>("ORBIS/FlatWorld/HPCloudColumn");
             if(!shader||!shader.isSupported||!columnShader||!columnShader.isSupported)
@@ -47,7 +49,6 @@ namespace Orbis.Flat
             hpColumn.SetFloat("_Density",1);hpColumn.SetFloat("_Cover",1);
             climate=new Texture2D(ClimateWidth,ClimateHeight,TextureFormat.RGBA32,false,true)
                 {name="Monthly visual weather",filterMode=FilterMode.Bilinear,wrapModeU=TextureWrapMode.Repeat,wrapModeV=TextureWrapMode.Clamp};
-            wind=WeatherTexture("Visual cloud drift");climateWind=WeatherTexture("Seasonal prevailing winds");
             bake.SetTexture("_ClimateTex",climate);bake.SetTexture("_ClimateWindTex",climateWind);
             hpColumn.SetTexture("_ScrollCloudWindTex",wind);hpColumn.SetTexture("_ClimateTex",climate);
             try{Resize(512);}catch(Exception ex){failed=true;Status="云缓存不可用，地表继续运行："+ex.Message;Debug.LogException(ex);}
@@ -95,7 +96,8 @@ namespace Orbis.Flat
         void UploadClimate()
         {
             int w=ClimateWidth,h=ClimateHeight,m=world.Month,next=(m+1)%12;
-            UploadWind(m);
+            // Hold cloud drift constant until all strips of its climate snapshot finish.
+            wind.SetPixels(windPixels);wind.Apply(false,false);
             BindCyclone("_CycloneNorth",FlatCycloneSelection.Find(world,m,true));
             BindCyclone("_CycloneSouth",FlatCycloneSelection.Find(world,m,false));
             for(int y=0;y<h;y++)for(int x=0;x<w;x++)
@@ -136,8 +138,8 @@ namespace Orbis.Flat
                 seasonalWindPixels[i]=new Color(east,north,nextEast,nextNorth);
             }
             SealPole(windPixels,ClimateWidth,ClimateHeight);
-            wind.SetPixels(windPixels);wind.Apply(false,false);
             climateWind.SetPixels(seasonalWindPixels);climateWind.Apply(false,false);
+            windMonth=month;windRevision=world.TerrainRevision;
         }
         void BindCyclone(string property,FlatCyclone cyclone)
         {
@@ -154,6 +156,8 @@ namespace Orbis.Flat
             for(int i=0;i<flashes.Length;i++)
             {var flash=lightning.Flashes[i];flashes[i]=new Vector4(flash.X,flash.Y,flash.Z,flash.Strength);}
             if(animate)Clock+=Math.Max(0,delta);
+            // Vegetation shares prevailing winds even while cloud rendering sleeps.
+            if(windMonth!=world.Month||windRevision!=world.TerrainRevision)UploadWind(world.Month);
             if(!needed){Status="云缓存休眠；晨昏/大气开关独立。";return;}
             if(failed)return;
             try
@@ -191,6 +195,9 @@ namespace Orbis.Flat
             target.SetTexture("_SkyTex",Ready?(UnityEngine.Texture)ColumnTexture:Texture2D.blackTexture);
             target.SetFloat("_SkyReady",Ready?1:0);target.SetVector("_FlatSun",sun);
             target.SetFloat("_SkyClock",(float)Clock);target.SetFloat("_FlatClouds",clouds?1:0);
+            target.SetTexture("_VegetationWindTex",climateWind?climateWind:Texture2D.blackTexture);
+            target.SetFloat("_VegetationWindReady",climateWind?1:0);
+            target.SetFloat("_VegetationWindBlend",world==null?0:(float)(world.Day/30-Math.Floor(world.Day/30)));
             target.SetFloat("_FlatCloudShadows",shadows?1:0);target.SetFloat("_FlatAtmosphere",atmosphere?1:0);
             target.SetFloat("_FlatDayNight",dayNight?1:0);target.SetFloat("_FlatRain",rain?1:0);target.SetFloat("_FlatLightning",lightning?1:0);
             target.SetFloat("_FlatNightLights",nightLights?1:0);target.SetFloat("_CloudOpacity",Mathf.Clamp01(opacity));

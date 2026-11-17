@@ -29,7 +29,6 @@ float4 FlatWaterPropReflection(float2 cell,float waterHeight,float3 ray,float3 l
     float4 reflected=0;float nearest=1e10;
     if(abs(ray.y)<.03||ray.z<.12)return reflected;
     float2 id=floor(cell);
-    float3 direction=float3(ray.x,ray.y/PDTreeUp.y,ray.z);
     [loop] [fastopt] for(int row=0;row<=2;row++)
     [loop] [fastopt] for(int column=-2;column<=2;column++)
     {
@@ -45,14 +44,15 @@ float4 FlatWaterPropReflection(float2 cell,float waterHeight,float3 ray,float3 l
         ground.y/=scale;
         float fade=1-smoothstep(44,58,length(ground));
         if(fade<.001)continue;
-        float travel=-ground.y/(PDTreeUp.y*direction.y);
+        float travel=-ground.y/ray.y;
         if(travel<=0||travel*scale*placement.z>=nearest)continue;
         float2 rootUV=(source+placement.xy/32)*_MapSize.zw;
         float elevation=max(0,FlatVisualSample(float4(rootUV,0,0)).r);
         float heightScale=.000006*32/((6.283185307/_MapSize.x)*scale*placement.z);
-        float height=(waterHeight-elevation)*heightScale+direction.z*travel;
-        float2 pixel=float2(ground.x+direction.x*travel,height*PDTreeUp.z);
-        if(abs(pixel.x)>14||pixel.y<0||pixel.y>40)continue;
+        float height=(waterHeight-elevation)*heightScale+ray.z*travel;
+        float heightProjection=settlement?PDSettlementHeightProjection:PDTreeUp.z;
+        float2 pixel=float2(ground.x+ray.x*travel,height*heightProjection);
+        if(abs(pixel.x)>17||pixel.y<(settlement?0:-8)||pixel.y>40)continue;
         float4 art;
         if(settlement)art=PDSettlementArtwork(floor(pixel+float2(16,5)),light);
         else

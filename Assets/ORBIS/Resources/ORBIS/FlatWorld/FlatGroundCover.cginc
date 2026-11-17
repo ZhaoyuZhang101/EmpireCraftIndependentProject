@@ -1,11 +1,19 @@
 #ifndef ORBIS_FLAT_GROUND_COVER
 #define ORBIS_FLAT_GROUND_COVER
 
+float4 PDGroundPlantLayout(float variation,float growth,float cover)
+{
+ bool wetland=cover>9.5&&cover<10.5;
+ // Leave room for the entire bent silhouette inside an eight-pixel clump.
+ float2 anchor=float2(3+(wetland?0:floor(variation*2)),1+frac(variation*7)*.25);
+ return float4(anchor,1+floor((2+variation*2)*growth),2+floor((1+variation*3)*growth));
+}
+
 float3 PixelGround(float3 baseColor,float2 cell,float4 field,float waterMask,float2 heightGradient,float4 ecology)
 {
  float2 id=floor(cell),uv=(id+.5)*_MapSize.zw;
  id.x-=floor(id.x/_MapSize.x)*_MapSize.x;
- float latitudeScale=max(.02,cos((uv.y-.5)*3.141592654));
+ float latitudeScale=FlatArtworkLatitudeScale(uv.y);
  float2 q=floor(float2(frac(cell.x)*32,16+(frac(cell.y)-.5)*32/latitudeScale));
  float3 artwork=FlatDetailPosition(cell);
  float grain=FlatDetailNoise(artwork*23);
@@ -52,7 +60,14 @@ float3 PixelGround(float3 baseColor,float2 cell,float4 field,float waterMask,flo
  float variation=PDHash(id+cluster*.213+ecology.a*41+71);
  float2 anchor=float2(1+floor(variation*5),1+floor(frac(variation*7)*2));
  p-=anchor;
- float height=1+floor((2+variation*3)*growth);
+ float2 groundPoint=p;
+ float4 plant=PDGroundPlantLayout(variation,growth,cover);
+ float height=plant.z;
+ p+=anchor-plant.xy+.5;
+ float windHeight=cover>9.5&&cover<10.5?plant.w:height+1;
+ float bend=saturate(p.y/max(1,windHeight));
+ float2 wind=PDVegetationWind(id,variation);
+ p-=float2(wind.x*.8,wind.y*.35)*bend*bend;
  float stems=PDBox(p,float2(0,0),float2(1,height));
  stems=max(stems,PDBox(p,float2(-1,height-2),float2(0,height)));
  stems=max(stems,PDBox(p,float2(1,1),float2(2,height-1)));
@@ -81,7 +96,7 @@ float3 PixelGround(float3 baseColor,float2 cell,float4 field,float waterMask,flo
 
  if(cover>9.5&&cover<10.5)
  {
-  float reedHeight=2+floor((2+variation*3)*growth);
+  float reedHeight=plant.w;
   float reeds=PDBox(p,float2(0,0),float2(1,reedHeight));
   reeds=max(reeds,PDBox(p,float2(2,0),float2(3,reedHeight-1)));
   reeds=max(reeds,PDBox(p,float2(-1,1),float2(0,reedHeight-2)));
@@ -92,6 +107,7 @@ float3 PixelGround(float3 baseColor,float2 cell,float4 field,float waterMask,flo
   col=PDPaint(col,float3(.37,.29,.17),heads*step(seed,.80)*detail);
  }
 
+ p=groundPoint;
  float stone=PDBox(p,float2(-1,0),float2(2,1));
  float stoneSide=PDBox(p,float2(0,-1),float2(2,0));
  float pebbles=step(.92,seed)*(1-forest*.65)*detail;

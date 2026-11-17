@@ -2,6 +2,9 @@ Shader "ORBIS/FlatWorld/WildlifeActors"
 {
  Properties
  {
+  [HideInInspector] _VegetationWindTex("Seasonal vegetation wind",2D)="black"{}
+  [HideInInspector] _VegetationWindReady("Vegetation wind ready",Float)=0
+  [HideInInspector] _VegetationWindBlend("Vegetation wind month blend",Float)=0
   _SkyTex("Climate cloud shadows",2D)="black"{}
   _VisualTex("Terrain fields",2D)="black"{}
   _InfoTex("Terrain objects",2D)="black"{}

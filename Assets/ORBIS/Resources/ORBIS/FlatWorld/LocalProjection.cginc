@@ -12,9 +12,10 @@ float3 LocalDirection(float2 xy)
 }
 float2 LocalGeoUV(float2 xy)
 {
- if(_ScrollMorph>=1)return OrbisLocalGeographicUV(_LocalCenter,_LocalEast,xy);
- float3 p=LocalDirection(xy);
- return OrbisGeographicUV(p);
+ float2 uv=0;
+ if(_ScrollMorph>=1)uv=OrbisLocalGeographicUV(_LocalCenter,_LocalEast,xy);
+ else uv=OrbisGeographicUV(LocalDirection(xy));
+ return uv;
 }
 float3 ScrollPosition(float2 meshUV,float shell,out float2 xy,out float clipWeight)
 {

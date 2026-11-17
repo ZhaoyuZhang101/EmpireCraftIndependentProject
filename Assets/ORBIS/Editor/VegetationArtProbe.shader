@@ -13,8 +13,31 @@ Shader "Hidden/ORBIS/VegetationArtProbe"
  #include "../Resources/ORBIS/FlatWorld/FlatPixelDetail.cginc"
  float2 _ProbeRoot;
  float _ProbeMode;
+ float _ProbeSpecies,_ProbeSeed,_ProbeFoliage;
+ float3 _ProbeLight;
  float4 frag(v2f_img i):SV_Target
  {
+  if(_ProbeMode>2.5)
+  {
+   float2 pixel=floor((i.uv-float2(.5,.20))*48);
+   float2 wind=PDVegetationWind(_ProbeRoot,_ProbeSeed);
+   if(_ProbeMode>7.5)
+   {
+    float2 edge;
+    float4 crown=PDTreeCrown(pixel,_ProbeSpecies,_ProbeSeed,_ProbeFoliage,wind,edge);
+    return float4(crown.a,PDTreeCastShadow(pixel,_ProbeLight,_ProbeSpecies,_ProbeSeed,_ProbeFoliage,wind),0,1);
+   }
+   if(_ProbeMode>6.5)
+   {
+    float4 art=PDTreeArtwork(pixel,_ProbeRoot,_ProbeSpecies,_ProbeSeed,_ProbeFoliage,1,_ProbeLight);
+    float outside=abs(pixel.x)>17||pixel.y< -8||pixel.y>40;
+    return (art.a*outside).xxxx;
+   }
+   if(_ProbeMode>5.5)return float4(PDTreeView,PDTreeUp.y);
+   if(_ProbeMode>4.5)return PDTreeTrunk(pixel,_ProbeSpecies,_ProbeSeed,wind).xxxx;
+   if(_ProbeMode>3.5)return PDTreeCastShadow(pixel,_ProbeLight,_ProbeSpecies,_ProbeSeed,_ProbeFoliage,wind).xxxx;
+   return PDTreeArtwork(pixel,_ProbeRoot,_ProbeSpecies,_ProbeSeed,_ProbeFoliage,1,_ProbeLight);
+  }
   if(_ProbeMode>1.5)
   {
    float2 uv=(_ProbeRoot+.5)*_MapSize.zw;

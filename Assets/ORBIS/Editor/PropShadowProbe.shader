@@ -18,6 +18,28 @@ Shader "Hidden/ORBIS/PropShadowProbe"
  float2 _ProbeCaster;
  float4 frag(v2f_img i):SV_Target
  {
+  if(_ProbeMode>4.5)
+  {
+   float2 source=_ProbeCaster,uv=(source+.5)*_MapSize.zw;
+   float2 cell=source+float2(.5,-.35)+(i.uv-.5)*2;
+   float3 ray=normalize(_ProbeReflectionRay.xyz);
+   float4 actual=FlatWaterPropReflection(cell,0,ray,1);
+   float4 placement=PDTreePlacement(source);
+   float tree;
+   float4 info=tex2Dlod(_InfoTex,float4(uv,0,0))*255;
+   float4 ecology=FlatEcologyData(uv,info,tree);placement.w=ecology.a;
+   float scale=FlatArtworkLatitudeScale(uv.y);
+   float2 ground=((cell-source)*32-placement.xy)/placement.z;
+   ground.y/=scale;
+   float travel=-ground.y/ray.y;
+   float elevation=max(0,FlatVisualSample(float4((source+placement.xy/32)*_MapSize.zw,0,0)).r);
+   float height=-elevation*.000006*32/((6.283185307/_MapSize.x)*scale*placement.z)+ray.z*travel;
+   float2 pixel=float2(ground.x+ray.x*travel,height*PDTreeUp.z);
+   float4 expected=PDTreeArtwork(floor(pixel),source,tree,placement.w,1,1,float3(0,0,1));
+   expected.a*=step(0,travel)*(1-smoothstep(44,58,length(ground)))*smoothstep(.03,.12,abs(ray.y));
+   float negative=step(pixel.y,-.001)*step(-8,pixel.y)*step(abs(pixel.x),17);
+   return float4(actual.a*negative,expected.a*negative,0,1);
+  }
   if(_ProbeMode>3.5)
   {
    float scale=max(.02,cos(((_ProbeCaster.y+.5)*_MapSize.w-.5)*3.141592654));
@@ -32,7 +54,7 @@ Shader "Hidden/ORBIS/PropShadowProbe"
    q.y=16+(q.y-16)/scale;
    float3 ray=normalize(_ProbeReflectionRay.xyz);
    float travel=(5-q.y)/ray.y;
-   return travel>0?PDSettlementArtwork(floor(float2(q.x+ray.x*travel,5+ray.z*travel*PDTreeUp.z)),1):0;
+   return travel>0?PDSettlementArtwork(floor(float2(q.x+ray.x*travel,5+ray.z*travel*PDSettlementHeightProjection)),1):0;
   }
   if(_ProbeMode>1.5)
    return float4(FlatWaterSkyReflection(_ProbeRoot+i.uv,normalize(_ProbeReflectionRay.xyz),float3(0,.2,.98),1,1),1);

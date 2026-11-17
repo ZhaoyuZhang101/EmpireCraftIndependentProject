@@ -117,19 +117,21 @@ namespace Orbis.Editor
                         float variation=MaskDifference(firstPalm,secondPalm)/(float)Math.Max(1,MaskUnion(firstPalm,secondPalm));
                         Check(lines,variation>.12f,"palm fronds vary their fan orientation between seeds; silhouette change="+Number(variation));
                         material.SetFloat("_ProbeSeed",.9f);var trunk=Render(material,target,image,7);
+                        const float viewElevation=72*Mathf.Deg2Rad;
+                        float projectedTop=(31+.9f*1.5f)*Mathf.Cos(viewElevation)+Mathf.Sin(.9f*Mathf.PI*2)*.6f*Mathf.Sin(viewElevation);
                         double baseX=0,topX=0;int baseCount=0,topCount=0;
                         for(int y=0;y<Resolution;y++)for(int x=0;x<Resolution;x++)
                         {
                             if(trunk[y*Resolution+x].a<.5f)continue;
                             float height=(y+.5f)/Resolution*22-3;
-                            if(height>=0&&height<3){baseX+=x;baseCount++;}
-                            if(height>=10&&height<13){topX+=x;topCount++;}
+                            if(height>=0&&height<projectedTop*.2f){baseX+=x;baseCount++;}
+                            if(height>=projectedTop*.75f&&height<projectedTop*.98f){topX+=x;topCount++;}
                         }
                         float lean=(float)(topX/Math.Max(1,topCount)-baseX/Math.Max(1,baseCount));
                         Check(lines,baseCount>0&&topCount>0&&Mathf.Abs(lean)>4,"palm trunk bends continuously towards the crown; pixel lean="+Number(lean));
                         material.SetFloat("_ProbeSeed",.37f);
                         // The production shadow ray scales horizontal sunlight by .40.
-                        float alignedSunY=-.7f*(.46947156f/.88294759f)/.40f;
+                        float alignedSunY=-.7f*(Mathf.Cos(viewElevation)/Mathf.Sin(viewElevation))/.40f;
                         material.SetVector("_ProbeSun",new Vector3(0,alignedSunY,.7f));
                         var matchedShadow=Render(material,target,image,1);
                         var matchedCrown=Render(material,target,image,5);
@@ -137,7 +139,16 @@ namespace Orbis.Editor
                         for(int i=0;i<matchedShadow.Length;i++)if((matchedShadow[i].r>.5f)!=(matchedCrown[i].a>.5f))mismatches++;
                         Check(lines,mismatches<=4,"palm shadow matches its actual fronds when light and view align; changed pixels="+mismatches);
                         material.SetFloat("_ProbeSeed",0);
-                        material.SetVector("_ProbePoint",new Vector2(.697166f,19.017145f));
+                        // The first frond's interior joint is shared by both ribbons.
+                        float angle=.897597901f+(.73f-.5f)*.32f;
+                        var direction=new Vector3(Mathf.Cos(angle),Mathf.Sin(angle),0);
+                        var side=new Vector3(-direction.y,direction.x,0);
+                        var root=new Vector3(-1.8f,0,31);
+                        float frondLength=9.3f+.371f*2.1f;
+                        var bend=root+direction*(frondLength*.35f)+side*((.371f-.5f)*1.2f)+Vector3.forward*(8+.371f*2);
+                        var tip=root+direction*frondLength+side*((.371f-.5f)*.6f)-Vector3.forward*(4+.61f*2.7f);
+                        var jointPoint=root*.25f+bend*.5f+tip*.25f;
+                        material.SetVector("_ProbePoint",new Vector2(jointPoint.x,jointPoint.y*Mathf.Sin(viewElevation)+jointPoint.z*Mathf.Cos(viewElevation)));
                         Color joint=Render(material,target,image,8)[0];
                         Check(lines,joint.r>.99f&&joint.g>.99f&&joint.b>.7f,"palm frond interior remains solid through its curve joint; shadow="+Number(joint.g)+" edge="+Number(joint.b));
                         material.SetFloat("_ProbeSeed",.37f);

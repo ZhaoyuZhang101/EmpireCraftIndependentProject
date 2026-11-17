@@ -69,7 +69,7 @@ Shader "Hidden/ORBIS/VegetationDiversityProbe"
                 float4 crown=PDTreeCrown(pixel,_ProbeType,_ProbeSeed,edge);
                 if(_ProbeMode>5.5)
                 {
-                    float within=step(-14,pixel.x)*step(pixel.x,14)*step(-3,pixel.y)*step(pixel.y,40);
+                    float within=step(-17,pixel.x)*step(pixel.x,17)*step(-8,pixel.y)*step(pixel.y,40);
                     return (crown.a*(1-within)).xxxx;
                 }
                 if(_ProbeMode>4.5)return crown.aaaa;

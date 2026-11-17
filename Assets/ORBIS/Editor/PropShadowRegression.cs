@@ -50,6 +50,7 @@ namespace Orbis.Editor
     }
     BuildingSilhouette(lines,m,info,rt,read);
     WaterReflections(lines,m,field,info,rt,read);
+    TreeReflectionEdges(lines,m,rt,read);
    }
    finally
    {
@@ -123,6 +124,44 @@ namespace Orbis.Editor
     report.Add((pass?"PASS":"FAIL")+" building reflection shares latitude-corrected artwork anchor at row="+row+"; mismatch="+mismatch/Math.Max(1,coverage));
     if(!pass)throw new Exception(report[report.Count-1]);
     semantic[2+row*8]=new Color(0,0,2f/255,0);
+   }
+  }
+  static void TreeReflectionEdges(List<string> report,Material material,RenderTexture target,Texture2D image)
+  {
+   var field=new Texture2D(1,1,TextureFormat.RGBAFloat,false,true);
+   var info=new Texture2D(512,256,TextureFormat.RGBA32,false,true){filterMode=FilterMode.Point};
+   var ecology=new Texture2D(1,1,TextureFormat.RGBA32,false,true);
+   var wind=new Texture2D(1,1,TextureFormat.RGBAFloat,false,true);
+   try
+   {
+    var semantic=new Color32[512*256];
+    for(int i=0;i<semantic.Length;i++)semantic[i]=new Color32(0,0,2,0);
+    semantic[260+127*512]=new Color32(0,0,0,0);info.SetPixels32(semantic);info.Apply();
+    ecology.SetPixel(0,0,new Color32(6,18,190,110));ecology.Apply();
+    wind.SetPixel(0,0,new Color(1,.35f,1,.35f));wind.Apply();
+    material.SetTexture("_VisualTex",field);material.SetTexture("_InfoTex",info);
+    material.SetTexture("_EcologyTex",ecology);material.SetFloat("_EcologyReady",1);
+    material.SetTexture("_VegetationWindTex",wind);
+    material.SetVector("_MapSize",new Vector4(512,256,1f/512,1f/256));
+    material.SetVector("_ProbeCaster",new Vector4(260,127,0,0));
+    material.SetVector("_ProbeReflectionRay",new Vector4(0,.65f,.76f,0));
+    material.SetFloat("_ProbeMode",5);
+    foreach(int elevation in new[]{200,600})foreach(int windEnabled in new[]{0,1})
+    {
+     field.SetPixel(0,0,new Color(elevation,-3,0,1));field.Apply();
+     material.SetFloat("_VegetationWindReady",windEnabled);material.SetFloat("_SkyClock",1.7f);
+     Graphics.Blit(Texture2D.whiteTexture,target,material);RenderTexture.active=target;
+     image.ReadPixels(new Rect(0,0,128,128),0,0);image.Apply();
+     double mismatch=0,coverage=0;
+     foreach(var pixel in image.GetPixels()){mismatch+=Math.Abs(pixel.r-pixel.g);coverage+=pixel.g;}
+     bool pass=coverage>5&&mismatch/coverage<.01;
+     report.Add((pass?"PASS":"FAIL")+" reflected lower canopy remains complete on a raised bank; elevation="+elevation+" wind="+windEnabled+" coverage="+coverage+" mismatch="+mismatch/Math.Max(1,coverage));
+     if(!pass)throw new InvalidOperationException(report[report.Count-1]);
+    }
+   }
+   finally
+   {
+    foreach(var resource in new UnityEngine.Object[]{field,info,ecology,wind})UnityEngine.Object.DestroyImmediate(resource);
    }
   }
  }

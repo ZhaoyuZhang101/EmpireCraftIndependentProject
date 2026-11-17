@@ -17,6 +17,7 @@ namespace Orbis.Editor
             var ecology=new Texture2D(16,8,TextureFormat.RGBA32,false,true){filterMode=FilterMode.Point,wrapModeU=TextureWrapMode.Repeat,wrapModeV=TextureWrapMode.Clamp};
             var image=new Texture2D(width,height,TextureFormat.RGBAFloat,false,true);
             var field=new Texture2D(1,1,TextureFormat.RGBAFloat,false,true);
+            var wind=new Texture2D(1,1,TextureFormat.RGBAFloat,false,true);
             var target=RenderTexture.GetTemporary(width,height,0,RenderTextureFormat.ARGBFloat,RenderTextureReadWrite.Linear);
             var previous=RenderTexture.active;
             bool async=ShaderUtil.allowAsyncCompilation;
@@ -71,12 +72,40 @@ namespace Orbis.Editor
                     if(species==0)oak++;else if(species==6)shrub++;
                 }
                 Check(lines,oak>0&&shrub>0,"shrubland density preserves its occasional broadleaf trees");
+                material.SetFloat("_ProbeMode",0);material.SetFloat("_ProbeWater",0);
+                material.SetFloat("_VegetationWindReady",1);material.SetTexture("_VegetationWindTex",wind);
+                wind.SetPixel(0,0,new Color(1,.5f,1,.5f));wind.Apply();
+                foreach(int cover in new[]{1,10,11})
+                {
+                    material.SetFloat("_SkyClock",0);var calm=sample(cover);
+                    material.SetFloat("_SkyClock",1.7f);var swaying=sample(cover);
+                    Check(lines,Difference(calm,swaying)>.00005,"ground cover="+cover+" bends with prevailing wind");
+                    Check(lines,Difference(swaying,sample(cover))==0,"ground cover="+cover+" freezes with the visual clock");
+                }
+                wind.SetPixel(0,0,Color.clear);wind.Apply();
+                material.SetFloat("_SkyClock",0);var still=sample(1);
+                material.SetFloat("_SkyClock",3);
+                Check(lines,Difference(still,sample(1))==0,"calm wind leaves grass and flowers still");
+                material.SetFloat("_ProbeMode",2);
+                foreach(int cover in new[]{1,10,11})
+                {
+                    material.SetFloat("_ProbeCover",cover);
+                    bool inside=true;
+                    foreach(var layout in sample(cover))
+                    {
+                        float widthExtent=cover==10?3:2;
+                        float heightExtent=cover==10?layout.a+1:layout.b+2;
+                        inside&=layout.r-1-1.44f>=0&&layout.r+widthExtent+1.44f<8
+                            &&layout.g>=0&&layout.g+heightExtent+.63f<8;
+                    }
+                    Check(lines,inside,"ground cover="+cover+" keeps complete wind-bent leaves inside clump boundaries");
+                }
             }
             finally
             {
                 Directory.CreateDirectory("ValidationOutput/Ecology");File.WriteAllLines("ValidationOutput/Ecology/ground-cover.txt",lines);
                 RenderTexture.active=previous;ShaderUtil.allowAsyncCompilation=async;RenderTexture.ReleaseTemporary(target);
-                foreach(var resource in new UnityEngine.Object[]{material,ecology,image,field})UnityEngine.Object.DestroyImmediate(resource);
+                foreach(var resource in new UnityEngine.Object[]{material,ecology,image,field,wind})UnityEngine.Object.DestroyImmediate(resource);
             }
         }
 

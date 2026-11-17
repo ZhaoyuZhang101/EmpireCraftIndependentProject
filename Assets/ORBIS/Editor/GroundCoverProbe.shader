@@ -15,6 +15,7 @@ Shader "Hidden/ORBIS/GroundCoverProbe"
  float _ProbeWater,_ProbeMode,_ProbeCover;
  float4 frag(v2f_img i):SV_Target
  {
+  if(_ProbeMode>1.5)return PDGroundPlantLayout(i.uv.x,i.uv.y,_ProbeCover);
   if(_ProbeMode>.5)
   {
    float2 id=floor(i.uv*float2(16,8));

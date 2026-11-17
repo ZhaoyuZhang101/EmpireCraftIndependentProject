@@ -11,6 +11,7 @@ float PDHash(float2 p)
 }
 float3 PDPaint(float3 col,float3 ink,float mask){return lerp(col,FlatColor(ink),saturate(mask));}
 #include "FlatEcologyDetail.cginc"
+#include "FlatVegetationWind.cginc"
 #include "FlatVegetationArt.cginc"
 #include "FlatAmbientLife.cginc"
 bool PDTreeAvailable(float2 id,float4 placement,float4 info,float4 ecology)
@@ -28,6 +29,7 @@ bool PDTreeAvailable(float2 id,float4 placement,float4 info,float4 ecology)
  float4 river=tex2Dlod(_HydroB,float4(centreUV,0,0));
  return FlatRiverDistance(root,hydro,floor(river.a+.5),river.r,centreUV,flow)>=.15;
 }
+static const float PDSettlementHeightProjection=.46947156;
 float2 PDSettlementGeometry(float2 q)
 {
  float wall=PDBox(q,float2(7,5),float2(26,16));
@@ -91,7 +93,8 @@ float PixelPropShadow(float2 cell)
    float shore=1-smoothstep(.2,1.2,-FlatVisualSample(float4(uv,0,0)).g);
    float species=PDTreeSpecies(ecology,info,shore,tree);
    float foliage=FlatVegetationSeason(root+.5).y;
-   mask=PDTreeCastShadow(ground,localSun,species,placement.w,foliage)*.30;
+   float2 wind=PDVegetationWind(root,placement.w);
+   mask=PDTreeCastShadow(ground,localSun,species,placement.w,foliage,wind)*.30;
   }
   coverage=max(coverage,mask*daylight);
  }
@@ -99,11 +102,13 @@ float PixelPropShadow(float2 cell)
 }
 float4 PDTreeArtwork(float2 pixel,float2 id,float species,float seed,float leaf,float3 light,float3 localSun)
 {
- float2 edge;float4 crown=PDTreeCrown(pixel,species,seed,leaf,edge);
- float trunk=PDTreeTrunk(pixel,species,seed);
+ id.x-=floor(id.x/_MapSize.x)*_MapSize.x;
+ float2 wind=PDVegetationWind(id,seed);
+ float2 edge;float4 crown=PDTreeCrown(pixel,species,seed,leaf,wind,edge);
+ float trunk=PDTreeTrunk(pixel,species,seed,wind);
  float3 foliage=PDTreeFoliage(crown.xyz,pixel,id,species,seed,localSun,edge);
  foliage=lerp(foliage*float3(1.30,.78,.45),foliage,leaf);
- float3 col=PDPaint(0,PDTreeBark(pixel,species,seed)*light,trunk);
+ float3 col=PDPaint(0,PDTreeBark(pixel,species,seed,wind)*light,trunk);
  col=PDPaint(col,foliage*light,crown.a);
  return float4(col,saturate(crown.a+trunk));
 }
@@ -141,7 +146,7 @@ float3 PixelProps(float3 col,float2 cell,float4 field,float waterMask,float stru
   float localScale=FlatArtworkLatitudeScale((treeId.y+.5)*_MapSize.w);
   localPoint.y=placement.y+(localPoint.y-placement.y)/localScale;
   float2 treePoint=floor(localPoint-placement.xy)/placement.z;
-  if(abs(treePoint.x)>14||treePoint.y< -3||treePoint.y>40)continue;
+  if(abs(treePoint.x)>17||treePoint.y< -8||treePoint.y>40)continue;
   float2 centreUV=(treeId+.5)*_MapSize.zw;
   float4 rootInfo=tex2Dlod(_InfoTex,float4(centreUV,0,0))*255;
   float tree;
