@@ -28,11 +28,27 @@ bool PDTreeAvailable(float2 id,float4 placement,float4 info,float4 ecology)
  float4 river=tex2Dlod(_HydroB,float4(centreUV,0,0));
  return FlatRiverDistance(root,hydro,floor(river.a+.5),river.r,centreUV,flow)>=.15;
 }
-float PDBuildingSdf(float2 p)
+float2 PDSettlementGeometry(float2 q)
 {
- float2 roof=abs(p-float2(16,21))-float2(13,7);
- float2 wall=abs(p-float2(16.5,10.5))-float2(9.5,5.5);
- return min(max(roof.x,roof.y),max(wall.x,wall.y));
+ float wall=PDBox(q,float2(7,5),float2(26,16));
+ float2 roof=q-float2(16,21);
+ return float2(wall,step(abs(roof.x),13)*step(abs(roof.y),7));
+}
+float PDSettlementCastShadow(float2 ground,float2 direction)
+{
+ float coverage=0;
+ [unroll] for(int slice=0;slice<6;slice++)
+ {
+  float height=slice*1.5;
+  float2 samplePoint=ground-direction*height;
+  float2 geometry=PDSettlementGeometry(samplePoint+float2(.35,.35));
+  geometry+=PDSettlementGeometry(samplePoint+float2(-.35,.35));
+  geometry+=PDSettlementGeometry(samplePoint+float2(.35,-.35));
+  geometry+=PDSettlementGeometry(samplePoint-float2(.35,.35));
+  geometry*=.25;
+  coverage=max(coverage,max(geometry.x*step(height,4.5),geometry.y));
+ }
+ return coverage;
 }
 #include "FlatGroundCover.cginc"
 // Evaluate neighbouring casters before painting ANY artwork. The receiver cell
@@ -61,7 +77,7 @@ float PixelPropShadow(float2 cell)
   if(info.b>.5&&info.b<1.5)
   {
    q.y=16+(q.y-16)/scale;
-   mask=(1-smoothstep(-.5,2.5,PDBuildingSdf(q-direction*4.5)))*.27;
+   mask=PDSettlementCastShadow(q,direction)*.27;
   }
   else if(info.b<.5&&!(info.g>.5&&info.g<4.5))
   {
@@ -93,9 +109,10 @@ float4 PDTreeArtwork(float2 pixel,float2 id,float species,float seed,float leaf,
 float4 PDSettlementArtwork(float2 q,float3 light)
 {
  float3 col=0;
- float wall=PDBox(q,float2(7,5),float2(26,16));
+ float2 geometry=PDSettlementGeometry(q);
+ float wall=geometry.x;
  float board=step(1,fmod(q.y,4));col=PDPaint(col,lerp(float3(.30,.20,.12),float3(.59,.43,.25),board)*light,wall);
- float2 roof=q-float2(16,21);float roofMask=step(abs(roof.x),13)*step(abs(roof.y),7);
+ float roofMask=geometry.y;
  col=PDPaint(col,float3(.19,.16,.10)*light,roofMask);
  float interior=PDBox(q,float2(4,16),float2(28,27));
  float shingle=step(1,fmod(q.y,3))*step(1,fmod(q.x+floor(q.y/3)*3,6));

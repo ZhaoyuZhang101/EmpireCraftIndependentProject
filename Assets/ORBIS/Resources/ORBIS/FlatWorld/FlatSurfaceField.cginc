@@ -278,7 +278,6 @@ float3 FlatVegetation(float3 col,float2 cell,float canopy,float pixelsPerTile)
     float aa=max(fwidth(distanceToCrown),.015);
     float occupied=1-step(saturate((canopy-.24)*1.5),seed);
     float crown=(1-smoothstep(radius-aa,radius+aa,distanceToCrown))*occupied;
-    float shadow=(1-smoothstep(radius-aa,radius+aa,length((q-centre-float2(.075,-.09))*float2(1,1.14))))*occupied;
     float crownLight=lerp(.70,1.23,saturate(.55+dot(q-centre,float2(-1.4,1.8))));
     // Small canopy marks use crown shading; displaced shadows are handled by PixelProps.
     col=lerp(col,col*crownLight,crown*detailFade);

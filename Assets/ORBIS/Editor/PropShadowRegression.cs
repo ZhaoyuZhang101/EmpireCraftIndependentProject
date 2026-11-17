@@ -48,6 +48,7 @@ namespace Orbis.Editor
      lines.Add((pass?"PASS":"FAIL")+" "+(kind==0?"tree":"building")+" crosses "+(axis==0?"east":"north")+" cell boundary; coverage="+continuation+" delta="+difference);
      if(!pass)throw new Exception(lines[lines.Count-1]);
     }
+    BuildingSilhouette(lines,m,info,rt,read);
     WaterReflections(lines,m,field,info,rt,read);
    }
    finally
@@ -56,6 +57,25 @@ namespace Orbis.Editor
     ShaderUtil.allowAsyncCompilation=async;RenderTexture.active=old;RenderTexture.ReleaseTemporary(rt);
     UnityEngine.Object.DestroyImmediate(read);UnityEngine.Object.DestroyImmediate(field);UnityEngine.Object.DestroyImmediate(info);UnityEngine.Object.DestroyImmediate(m);
    }
+  }
+  static void BuildingSilhouette(List<string> report,Material material,Texture2D info,RenderTexture target,Texture2D image)
+  {
+   var semantic=new Color[32];
+   for(int i=0;i<semantic.Length;i++)semantic[i]=new Color(0,0,2f/255,0);
+   semantic[2+8]=new Color(0,0,1f/255,0);
+   info.SetPixels(semantic);info.Apply();
+   material.SetFloat("_ProbeMode",4);
+   material.SetVector("_ProbeCaster",new Vector4(2,1,0,0));
+   float longitude=(2.5f/8-.5f)*Mathf.PI*2;
+   float latitude=(1.5f/4-.5f)*Mathf.PI;
+   material.SetVector("_FlatSun",new Vector3(Mathf.Sin(longitude)*Mathf.Cos(latitude),Mathf.Sin(latitude),Mathf.Cos(longitude)*Mathf.Cos(latitude)));
+   Graphics.Blit(Texture2D.whiteTexture,target,material);RenderTexture.active=target;
+   image.ReadPixels(new Rect(0,0,128,128),0,0);image.Apply();
+   double mismatch=0,coverage=0;
+   foreach(var pixel in image.GetPixels()){mismatch+=Math.Abs(pixel.r-pixel.g);coverage+=pixel.g;}
+   bool pass=coverage>100&&mismatch/coverage<.06;
+   report.Add((pass?"PASS":"FAIL")+" building shader shadow follows its actual wall and roof silhouette; mismatch="+mismatch/Math.Max(1,coverage));
+   if(!pass)throw new Exception(report[report.Count-1]);
   }
   static void WaterReflections(List<string> report,Material material,Texture2D field,Texture2D info,RenderTexture target,Texture2D image)
   {

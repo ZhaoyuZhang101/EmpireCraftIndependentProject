@@ -18,6 +18,8 @@ Shader "Hidden/ORBIS/AmbientLifeProbe"
 
  float4 frag(v2f_img i):SV_Target
  {
+  if(_ProbeMode>6.5)
+   return PDAmbientParticles((i.uv-.5)*float2(36,18),float4(36,24,_ProbeSeed,1),_ProbeSpecies,_ProbeVariant);
   if(_ProbeMode>2.5&&_ProbeMode<3.5)
   {
    float cover=min(13,floor(i.uv.x*14));
@@ -30,7 +32,7 @@ Shader "Hidden/ORBIS/AmbientLifeProbe"
    return PDAmbientArt((i.uv-.5)*float2(36,18),_ProbeSpecies,pose,_ProbeVariant);
   }
   float2 cell=_ProbeCellRect.xy+i.uv*_ProbeCellRect.zw;
-  if(_ProbeMode>4.5)
+  if(_ProbeMode>4.5&&_ProbeMode<5.5)
   {
    float clear=PDAmbientHomeClear(PDAmbientHome(cell),true)?1:0;
    return clear.xxxx;
@@ -45,8 +47,19 @@ Shader "Hidden/ORBIS/AmbientLifeProbe"
   float4 info=floor(tex2Dlod(_InfoTex,float4(uv,0,0))*255+.5);
   float4 field=FlatField(cell);
   float waterMask=step(-.01,field.g);
-  float3 background=_ProbeMode>3.5?float3(.6,.6,.6):0;
+  float3 background=_ProbeMode>3.5&&_ProbeMode<5.5?float3(.6,.6,.6):0;
   float3 col=PixelAmbientLife(background,cell,field,waterMask,info,1);
+  if(_ProbeMode>5.5)
+  {
+   float4 home=PDAmbientHome(cell),pose=PDAmbientPose(home);
+   float2 delta=cell-pose.xy;
+   delta.x-=floor(delta.x/_MapSize.x+.5)*_MapSize.x;
+   float2 pixel=delta*float2(32,32/home.w);
+   float4 ecology=FlatEcologyData((floor(home.xy)+.5)*_MapSize.zw,info);
+   float species=PDAmbientSpecies(ecology,home.z);
+   col*=1-PDAmbientArt(pixel,species,pose,ecology.a).a;
+   return float4(col,step(.00001,max(col.r,max(col.g,col.b))));
+  }
   float alpha=_ProbeMode>3.5?1:step(.00001,max(col.r,max(col.g,col.b)));
   return float4(col,alpha);
  }

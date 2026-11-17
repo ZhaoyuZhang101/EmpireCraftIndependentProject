@@ -78,6 +78,19 @@ namespace Orbis.Editor
      "the same geographic pixels retain their species and pose across longitude wrap; changed pixels="+wrappedChanges);
     material.SetVector("_ProbeCellRect",view);
 
+    material.SetFloat("_ProbeMode",6);
+    var particles=sample();
+    int particleCoverage=CountMask(particles);
+    Check(report,particleCoverage>2&&particleCoverage<400,
+     "moving wildlife emits a small visible particle trail outside its body; pixels="+particleCoverage);
+    Check(report,Difference(particles,sample())<.000001,
+     "wildlife particles pause with their resident and the shared world clock");
+    material.SetFloat("_WaterClock",16.25f);
+    Check(report,ChangedPixels(particles,sample())>2,
+     "wildlife movement particles advance and expire as the clock changes");
+    material.SetFloat("_WaterClock",2.375f);
+    material.SetFloat("_ProbeMode",0);
+
     material.SetFloat("_ProbeMode",2);
     var homes=sample();
     material.SetVector("_ProbeCellRect",new Vector4(view.x-MapWidth,view.y,view.z,view.w));
@@ -123,7 +136,33 @@ namespace Orbis.Editor
       "species="+species+" artwork remains finite");
     }
 
+    material.SetFloat("_ProbeMode",7);
+    for(int species=1;species<=4;species++)
+    {
+     material.SetFloat("_ProbeSpecies",species);
+     material.SetFloat("_WaterClock",0);
+     double beforeEmission=ParticleOpacity(sample());
+     Check(report,beforeEmission==0,"species="+species+" has no movement particles before its first emission");
+     material.SetFloat("_WaterClock",2.375f);
+     var trail=sample();
+     double opacity=ParticleOpacity(trail);
+     Check(report,opacity>5&&opacity<Width*Height*.02&&InvalidPixels(trail)==0,
+      "species="+species+" produces bounded finite movement particles; opacity="+opacity);
+     Check(report,Difference(trail,sample())<.000001,
+      "species="+species+" particle positions and lifetime freeze on pause");
+    }
+    material.SetFloat("_ProbeSpecies",1);
+    material.SetFloat("_ProbeVariant",0);
+    double dryParticles=ParticleOpacity(sample());
+    material.SetFloat("_ProbeVariant",1);
+    Check(report,ParticleOpacity(sample())<dryParticles*.6,
+     "wet soil reduces the ground dust emitted by moving animals");
+    material.SetFloat("_ProbeVariant",.2f);
+
     material.SetFloat("_ProbeMode",0);
+    material.SetFloat("_DetailWeight",0);
+    Check(report,CountMask(sample())==0,"wildlife and its movement particles share the map detail visibility gate");
+    material.SetFloat("_DetailWeight",1);
     material.SetFloat("_WaterClock",2.375f);
     Fill(ecology,Ecology(13));
     Check(report,CountMask(sample())==0,"permanent ice rejects wildlife in the production compositing function");
@@ -229,6 +268,13 @@ namespace Orbis.Editor
    int count=0;
    foreach(var pixel in pixels)if(pixel.a>.5f)count++;
    return count;
+  }
+
+  static double ParticleOpacity(Color[] pixels)
+  {
+   double opacity=0;
+   foreach(var pixel in pixels)opacity+=pixel.a;
+   return opacity;
   }
 
   static int InvalidPixels(Color[] pixels)

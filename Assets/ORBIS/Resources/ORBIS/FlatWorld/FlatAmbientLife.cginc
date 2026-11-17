@@ -20,14 +20,54 @@ float4 PDAmbientHome(float2 cell)
 
 // XY is the moving geographic position. Z is the east/west art orientation,
 // and W is a stable local animation phase driven by the existing paused clock.
-float4 PDAmbientPose(float4 home)
+float4 PDAmbientPose(float4 home,float clock)
 {
  float phase=home.z*6.283185307;
- float eastPhase=_WaterClock*.17+phase;
- float northPhase=_WaterClock*.13+phase*1.7;
+ float eastPhase=clock*.17+phase;
+ float northPhase=clock*.13+phase*1.7;
  float2 wander=float2(sin(eastPhase)*.24,sin(northPhase)*.18*home.w);
  float facing=cos(eastPhase)<0?-1:1;
- return float4(home.xy+wander,facing,_WaterClock+phase);
+ return float4(home.xy+wander,facing,clock+phase);
+}
+float4 PDAmbientPose(float4 home)
+{
+ return PDAmbientPose(home,_WaterClock);
+}
+
+// Four live particles reconstruct their emission positions from the resident's
+// path. A shared paused clock keeps motion, emission and lifetime in step.
+float4 PDAmbientParticles(float2 pixel,float4 home,float species,float wetness)
+{
+ bool ground=species<2.5;
+ float interval=ground?.32:.24,lifetime=ground?1.25:.90;
+ float tick=floor(_WaterClock/interval+home.z);
+ float4 current=PDAmbientPose(home);
+ float opacity=0;
+ [unroll] for(int particle=0;particle<4;particle++)
+ {
+  float emission=(tick-particle-home.z)*interval;
+  float age=_WaterClock-emission;
+  if(emission<0||age>=lifetime)continue;
+  float phase=home.z*6.283185307;
+  float2 velocity=float2(.24*.17*cos(emission*.17+phase),.18*.13*cos(emission*.13+phase*1.7));
+  float moving=smoothstep(.006,.035,length(velocity));
+  float seed=PDHash(home.xy+float2((tick-particle)*.731,83+species*17));
+  float4 previous=PDAmbientPose(home,emission);
+  float2 centre=(previous.xy-current.xy)*float2(32,32/home.w);
+  float side=seed<.5?-1:1;
+  if(ground)centre+=float2(side*2+(seed-.5)*age*2,-4+age*2);
+  else centre+=float2(-previous.z*(3+age*1.8),side*(2+age));
+  float2 offset=floor(pixel)-floor(centre);
+  float radius=ground?.70+age*.75:.75;
+  float shape=1-step(radius,max(abs(offset.x),abs(offset.y)));
+  float life=age/lifetime;
+  float fade=smoothstep(0,.09,age)*(1-life)*(1-life);
+  float strength=ground?lerp(.45,.16,saturate(wetness)):.24;
+  opacity=max(opacity,shape*fade*moving*strength);
+ }
+ float3 color=ground?lerp(float3(.65,.58,.43),float3(.43,.43,.35),saturate(wetness)):float3(.69,.73,.72);
+ if(species>3.5)color=float3(.80,.74,.48);
+ return float4(color,opacity);
 }
 
 // Species IDs are rabbit, deer, bird and butterfly. The habitat remains a
@@ -188,7 +228,7 @@ float3 PixelAmbientLife(float3 col,float2 cell,float4 field,float waterMask,floa
  float along=saturate(dot(pixel,longestShadow)/max(.0001,dot(longestShadow,longestShadow)));
  // Cheap world-space bounds precede every semantic, ecology and field read.
  // The segment encloses the complete range of animal-specific cast heights.
- if(any(abs(pixel)>11)&&any(abs(pixel-longestShadow*along)>11))return col;
+ if(any(abs(pixel)>14)&&any(abs(pixel-longestShadow*along)>11))return col;
 
  float2 homeCentre=(floor(home.xy)+.5)*_MapSize.zw;
  float4 homeInfo=floor(tex2Dlod(_InfoTex,float4(homeCentre,0,0))*255+.5);
@@ -218,11 +258,13 @@ float3 PixelAmbientLife(float3 col,float2 cell,float4 field,float waterMask,floa
  float2 cast=shadowDirection*height;
  float4 art=PDAmbientArt(pixel,species,pose,ecology.a);
  float shadow=PDAmbientArt(pixel-cast,species,pose,ecology.a).a*daylight;
- if(art.a+shadow<.001)return col;
+ float4 particles=PDAmbientParticles(pixel,home,species,ecology.b);
+ if(art.a+shadow+particles.a<.001)return col;
  if(!PDAmbientHomeClear(home,ground))return col;
  // Black, translucent cast silhouettes follow the same animated art mask and
  // local geographic sun. Low flight leaves a compact shadow under flying art.
  col*=1-shadow*.25*visibility*lerp(1,.45,waterMask);
+ col=lerp(col,FlatColor(particles.rgb)*light,particles.a*visibility);
  return lerp(col,FlatColor(art.rgb)*light,art.a*visibility);
 }
 #endif

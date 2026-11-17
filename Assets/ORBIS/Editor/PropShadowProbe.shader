@@ -18,6 +18,13 @@ Shader "Hidden/ORBIS/PropShadowProbe"
  float2 _ProbeCaster;
  float4 frag(v2f_img i):SV_Target
  {
+  if(_ProbeMode>3.5)
+  {
+   float scale=max(.02,cos(((_ProbeCaster.y+.5)*_MapSize.w-.5)*3.141592654));
+   float2 q=floor((i.uv-.25)*64)+.5;
+   float2 cell=_ProbeCaster+float2(q.x,16+(q.y-16)*scale)/32;
+   return float4(PixelPropShadow(cell)/.27,PDSettlementArtwork(q,1).a,0,1);
+  }
   if(_ProbeMode>2.5)
   {
    float scale=max(.02,cos(((_ProbeCaster.y+.5)*_MapSize.w-.5)*3.141592654));
