@@ -5,6 +5,13 @@
 #include "../GeographicCoordinates.cginc"
 float4 _MapSize;
 float _FieldReady,_SmoothTerrain,_Vegetation,_Bathymetry,_Relief;
+float _FlatGeographicChart;
+// Pixel props follow the displayed cell metric through the local unfold.
+float FlatArtworkLatitudeScale(float latitudeUV)
+{
+    float physicalScale=max(.02,cos((latitudeUV-.5)*3.141592654));
+    return lerp(physicalScale,1,_FlatGeographicChart);
+}
 float4 FlatMinmod(float4 a,float4 b)
 {
     return .5*(sign(a)+sign(b))*min(abs(a),abs(b));
@@ -64,6 +71,19 @@ float3 FlatGeographicLight(float2 uv,float3 direction)
     float3 east=float3(cos(longitude),0,-sin(longitude));
     float3 north=float3(-sin(latitude)*sin(longitude),cos(latitude),-sin(latitude)*cos(longitude));
     return float3(dot(direction,east),dot(direction,north),dot(direction,FlatRadial(uv)));
+}
+void FlatChartGeographicBasis(float2 uv,float2 chart,out float2 right,out float2 up)
+{
+    float3 radial=FlatRadial(uv);
+    float2 dx=ddx(chart),dy=ddy(chart);
+    float determinant=dx.x*dy.y-dx.y*dy.x;
+    float inverse=(determinant<0?-1:1)/max(1e-20,abs(determinant));
+    float3 horizontal=(ddx(radial)*dy.y-ddy(radial)*dx.y)*inverse;
+    float3 vertical=(ddy(radial)*dx.x-ddx(radial)*dy.x)*inverse;
+    right=FlatGeographicLight(uv,horizontal).xy;
+    right*=rsqrt(max(1e-20,dot(right,right)));
+    up=FlatGeographicLight(uv,vertical).xy;
+    up*=rsqrt(max(1e-20,dot(up,up)));
 }
 // Geographic UVs address simulation cells. Artwork distances live on the sphere,
 // so one metre of detail has the same scale at the equator and near either pole.

@@ -39,7 +39,7 @@ float4 FlatWaterPropReflection(float2 cell,float waterHeight,float3 ray,float3 l
         float4 info=tex2Dlod(_InfoTex,float4(uv,0,0))*255;
         if((info.g>.5&&info.g<4.5)||info.b>1.5)continue;
         bool settlement=info.b>.5;
-        float scale=max(.02,cos((uv.y-.5)*3.141592654));
+        float scale=FlatArtworkLatitudeScale(uv.y);
         float4 placement=settlement?float4(16,16-11*scale,1,0):PDTreePlacement(source);
         float2 ground=((cell-source)*32-placement.xy)/placement.z;
         ground.y/=scale;

@@ -19,13 +19,26 @@ float2 OrbisGeographicUV(float3 direction)
     return float2(frac(OrbisGeographicAtan2(direction.x,direction.z)/6.283185307179586+.5),
                   OrbisGeographicAtan2(direction.y,length(direction.xz))/3.141592653589793+.5);
 }
+float2 OrbisLocalGeographicUV(float3 center,float3 east,float2 xy)
+{
+    float longitude=OrbisGeographicAtan2(-east.z,east.x)+xy.x;
+    float latitude=OrbisGeographicAtan2(center.y,length(center.xz))+xy.y;
+    latitude=frac(latitude/6.283185307179586+.5)*6.283185307179586-3.141592653589793;
+    if(abs(latitude)>1.570796326794897)
+    {
+        latitude=sign(latitude)*3.141592653589793-latitude;
+        longitude+=3.141592653589793;
+    }
+    return float2(frac(longitude/6.283185307179586+.5),latitude/3.141592653589793+.5);
+}
 float3 OrbisLocalDirection(float3 center,float3 east,float3 north,float2 xy,float blend)
 {
     float angle=length(xy);
     float3 tangent=east*xy.x+north*xy.y;
     float3 geodesic=center*cos(angle)+tangent*(angle<1e-5?1:sin(angle)/angle);
-    float squared=dot(xy,xy)*.25;
-    float3 conformal=(center*(1-squared)+tangent)/(1+squared);
-    return normalize(lerp(geodesic,conformal,blend));
+    float2 uv=OrbisLocalGeographicUV(center,east,xy);
+    float longitude=(uv.x-.5)*6.283185307179586,latitude=(uv.y-.5)*3.141592653589793;
+    float3 geographic=float3(sin(longitude)*cos(latitude),sin(latitude),cos(longitude)*cos(latitude));
+    return normalize(lerp(geodesic,geographic,blend));
 }
 #endif

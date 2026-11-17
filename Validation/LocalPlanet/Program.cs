@@ -46,6 +46,27 @@ class Program
    for(int i=0;i<3000;i++) {var e=p.Frame.East;p.Move(0,10);Require(PlanetVector.Dot(e,p.Frame.East)>.999,"pole heading jump");checks++;}
    Require(Math.Abs(PlanetVector.Dot(p.Frame.Up,p.Frame.East))<1e-12,"orthogonal frame");checks++;
   }
-  Console.WriteLine("PASS "+checks+" local projection checks (poles, date line, round trips, frame transport)");
+  foreach(double latitude in new[]{-90.0,-89.6484375,-80,-60,0,60,80,89.6484375,90})
+  foreach(double longitude in new[]{-180.0,-.01,0,179.99})
+  {
+   var chart=new PlanetLocalProjection(new PlanetLocation(longitude*Math.PI/180,latitude*Math.PI/180),6371);
+   for(int sample=0;sample<100;sample++)
+   {
+    double x=Math.Sin(sample*1.73)*1000,y=Math.Cos(sample*2.31)*1000;
+    var direction=chart.GeographicExp(x,y);var point=chart.GeographicLog(direction);
+    Require(PlanetLocalProjection.Distance(direction,chart.GeographicExp(point.X,point.Y),6371)<1e-7,"geographic address round trip across date line and polar copies");checks++;
+    var expected=new PlanetLocation(chart.Center.Longitude+x/6371,chart.Center.Latitude+y/6371);
+    Require(PlanetLocalProjection.Distance(direction,PlanetCoordinateSystem.SurfaceNormal(expected),6371)<1e-7,"equal display steps address equal angular cell steps");checks++;
+    foreach(double scale in new[]{.92,1.08})
+    {
+     var anchored=new PlanetLocalProjection(chart.Center,6371);
+     bool moved=anchored.TryAnchorGeographicNorthUp(direction,point.X*scale,point.Y*scale);
+     if(moved)Require(PlanetLocalProjection.Distance(direction,anchored.GeographicExp(point.X*scale,point.Y*scale),6371)<1e-7,"rectified wheel anchor stays at the same geography");
+     else Require(PlanetLocalProjection.Distance(chart.Frame.Up,anchored.Frame.Up,6371)<1e-9,"polar anchor boundary leaves the chart stable");
+     checks++;
+    }
+   }
+  }
+  Console.WriteLine("PASS "+checks+" local projection checks (square geographic grid, poles, date line, round trips, frame transport)");
  }
 }

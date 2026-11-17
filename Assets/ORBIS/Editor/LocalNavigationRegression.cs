@@ -22,6 +22,8 @@ namespace Orbis.Editor
     var map=root.AddComponent<FlatMapRenderer>();map.Initialize(data);var nav=root.AddComponent<FlatScrollNavigator>();nav.Initialize(data,camera,map);
     result.Add((map.Material.GetFloat("_VendorWaterReady")>.5f&&nav.SurfaceMaterial.GetFloat("_VendorWaterReady")>.5f?"PASS":"FAIL")+" SW3 resource readiness survives map-to-local material copy");
     result.Add((map.Material.GetFloat("_FieldReady")>.5f&&nav.SurfaceMaterial.GetFloat("_FieldReady")>.5f&&nav.SurfaceMaterial.GetTexture("_VisualTex")==map.VisualTexture?"PASS":"FAIL")+" water reflection terrain fields survive map-to-local material copy");
+    GeographicGrid(result,nav,data);
+    TransitionRoutes(result,nav,camera,data);
     nav.Toggle(0);nav.Tick(.17f,0);float before=nav.PixelsPerTile;var center=nav.CenterTile;
     nav.Drag(new Vector2(55,12));nav.Tick(.2f,0);
     result.Add((Mathf.Abs(nav.PixelsPerTile-before)<.01f&&Vector2.Distance(center,nav.CenterTile)>.01f?"PASS":"FAIL")+" drag cancels pending zoom and moves geography without rescaling; pixels="+before+" -> "+nav.PixelsPerTile+"; moved="+Vector2.Distance(center,nav.CenterTile));
@@ -96,11 +98,11 @@ namespace Orbis.Editor
      var chart=new Orbis.Planet.PlanetLocalProjection(Orbis.Planet.PlanetCoordinateSystem.FromWorld(frame.Up,new Orbis.Planet.PlanetVector(),1));
      var screen=camera.pixelRect.min+Vector2.Scale(new Vector2(.85f,.75f),camera.pixelRect.size);
      nav.TryReliefPoint(screen,out var point);nav.TryGetPlanetLocation(screen,out var picked);
-     var expectedDirection=chart.StereographicExp(point.x*Math.PI*2/data.Width,point.y*Math.PI*2/data.Width);
+     var expectedDirection=chart.GeographicExp(point.x*Math.PI*2/data.Width,point.y*Math.PI*2/data.Width);
      double error=Orbis.Planet.PlanetLocalProjection.Distance(expectedDirection,Orbis.Planet.PlanetCoordinateSystem.SurfaceNormal(picked),1);
-     result.Add((error<.000001?"PASS":"FAIL")+" detailed picking follows camera-centred conformal chart; row="+row+" radians="+error);
+     result.Add((error<.000001?"PASS":"FAIL")+" detailed picking follows camera-centred geographic chart; row="+row+" radians="+error);
      var move=new Vector2(2.3f,1.2f);
-     expectedDirection=chart.StereographicExp(move.x*Math.PI*2/data.Width,move.y*Math.PI*2/data.Width);
+     expectedDirection=chart.GeographicExp(move.x*Math.PI*2/data.Width,move.y*Math.PI*2/data.Width);
      nav.PanBy(move);
      error=Orbis.Planet.PlanetLocalProjection.Distance(expectedDirection,nav.LocalFrame.Up,1);
      result.Add((error<.000001?"PASS":"FAIL")+" dragging dynamically recentres the displayed chart; row="+row+" radians="+error);
@@ -177,6 +179,68 @@ namespace Orbis.Editor
    finally{RenderTexture.active=previous;RenderTexture.ReleaseTemporary(rt);UnityEngine.Object.DestroyImmediate(material);UnityEngine.Object.DestroyImmediate(image);}
    Directory.CreateDirectory("Documentation/LocalPlanetUpgrade");File.WriteAllLines("Documentation/LocalPlanetUpgrade/navigation-regression.txt",result);
    if(result.Exists(line=>line.StartsWith("FAIL",StringComparison.Ordinal)))throw new Exception(string.Join("\n",result));
+  }
+  static void TransitionRoutes(List<string> report,FlatScrollNavigator nav,Camera camera,WorldData data)
+  {
+   var flags=System.Reflection.BindingFlags.Instance|System.Reflection.BindingFlags.NonPublic;
+   var projection=typeof(FlatScrollNavigator).GetField("projection",flags);
+   var localPoint=typeof(FlatScrollNavigator).GetMethod("LocalPoint",flags);
+   var direction=typeof(FlatScrollNavigator).GetMethod("LocalDirection",flags);
+   foreach(double latitude in new[]{-89.0,-80,80,89})foreach(float morph in new[]{.75f,.9f,.95f,.98f,.995f})
+   {
+    nav.Focus(16*data.Width+17,3);nav.Tick(3,3);
+    projection.SetValue(nav,new PlanetLocalProjection(new PlanetLocation(.7,latitude*Math.PI/180)));
+    nav.Tick(0,3);
+    float altitude=.22f+(.6f-.22f)*(1-morph);
+    nav.Wheel(Mathf.Log(altitude/.22f)/.075f,camera.pixelRect.center,3);nav.Tick(3,3);
+    double maximum=0;
+    foreach(var chart in new[]{new Vector2(.13617012f,.07036180f),new Vector2(-.13617012f,-.07036180f),new Vector2(.08f,.03f),new Vector2(-.08f,-.03f)})
+    {
+     var expected=(PlanetVector)direction.Invoke(nav,new object[]{chart});
+     var point=(Vector2)localPoint.Invoke(nav,new object[]{expected});
+     var actual=(PlanetVector)direction.Invoke(nav,new object[]{point});
+     maximum=Math.Max(maximum,PlanetLocalProjection.Distance(expected,actual,1));
+    }
+    report.Add((maximum<.000001?"PASS":"FAIL")+" route inverse follows blended polar projection; latitude="+latitude+" morph="+morph+" radians="+maximum);
+   }
+   int centre=16*data.Width+17;
+   nav.Focus(centre,3);nav.Tick(3,3);
+   nav.Wheel(Mathf.Log(.239f/.22f)/.075f,camera.pixelRect.center,3);nav.Tick(3,3);
+   nav.SetRoute(new[]{centre-1,centre,centre+data.Width/2,centre,centre+1});
+   Mesh routeMesh=null;
+   foreach(var filter in nav.GetComponentsInChildren<MeshFilter>())if(filter.sharedMesh.name=="Clipped local route")routeMesh=filter.sharedMesh;
+   report.Add((routeMesh&&routeMesh.vertexCount==8&&routeMesh.triangles.Length==12?"PASS":"FAIL")+" off-patch route endpoint cuts adjacent segments while retaining both visible sections");
+   nav.SetRoute(new int[0]);
+   nav.Home(0);nav.Tick(3,0);
+  }
+  static void GeographicGrid(List<string> report,FlatScrollNavigator nav,WorldData data)
+  {
+   var localPoint=typeof(FlatScrollNavigator).GetMethod("LocalPoint",System.Reflection.BindingFlags.Instance|System.Reflection.BindingFlags.NonPublic);
+   foreach(int row in new[]{0,2,5,16,26,29,31})foreach(int column in new[]{0,17,63})
+   {
+    nav.Focus(row*data.Width+column,3);nav.Tick(3,3);
+    var centre=PlanetCoordinateSystem.FromWorld(nav.LocalFrame.Up,new PlanetVector(),1);
+    foreach(int size in new[]{1,4})
+    {
+     // Real 512x256 addresses reproduce the user's Tile and four-cell Zone.
+     double span=Math.PI*2/512*size;
+     double south=Math.Max(-Math.PI*.5+.000001,centre.Latitude-span*.5);
+     double north=Math.Min(Math.PI*.5-.000001,centre.Latitude+span*.5);
+     var corners=new Vector2[4];
+     for(int i=0;i<4;i++)
+     {
+      var location=new PlanetLocation(centre.Longitude+((i&1)==0?-.5:.5)*span,i<2?south:north);
+      corners[i]=(Vector2)localPoint.Invoke(nav,new object[]{PlanetCoordinateSystem.SurfaceNormal(location)});
+     }
+     float width=((corners[1]-corners[0]).magnitude+(corners[3]-corners[2]).magnitude)*.5f;
+     float height=((corners[2]-corners[0]).magnitude+(corners[3]-corners[1]).magnitude)*.5f;
+     double ratio=width/height;
+     double expected=span/(north-south);
+     float shear=Mathf.Max(Mathf.Abs(corners[0].y-corners[1].y),Mathf.Abs(corners[0].x-corners[2].x));
+     report.Add((Math.Abs(ratio/expected-1)<.0001&&shear<span*.0001?"PASS":"FAIL")+" geographic Tile/Zone stays rectangular after dynamic recenter; row="+row+" column="+column+" size="+size+" ratio="+ratio+" shear="+shear);
+    }
+   }
+   nav.Home(0);nav.Tick(3,0);
   }
   static void RenderedPicking(List<string> report,FlatScrollNavigator nav,Camera camera,WorldData data,int[] sites)
   {

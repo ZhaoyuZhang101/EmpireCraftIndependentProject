@@ -33,7 +33,9 @@ namespace Orbis.Editor
      {
       float span=corner?.02f:.001f;
       m.SetVector("_ProbeSpan",new Vector4(span,span,0,0));
-      m.SetVector("_ProbeOrigin",corner?new Vector4(.4f,.2f,0,0):Vector4.zero);
+      // Keep the finite-difference stencil on one side of the geographic pole.
+      var origin=corner?new Vector4(.4f,.2f,0,0):new Vector4(0,Math.Abs(lat)>89.9f?.002f:0,0,0);
+      m.SetVector("_ProbeOrigin",origin);
       Graphics.Blit(Texture2D.whiteTexture,rt,m);RenderTexture.active=rt;image.ReadPixels(new Rect(0,0,128,128),0,0);image.Apply();
       double stretch=0,shear=0,maximumError=0;bool finite=true;
       foreach(var pixel in image.GetPixels())
@@ -43,8 +45,20 @@ namespace Orbis.Editor
       }
       stretch/=128*128;shear/=128*128;
       bool pass=finite&&stretch<.001&&shear<.001&&maximumError<.2;
-      lines.Add((pass?"PASS":"FAIL")+" camera-local projection preserves shape and geographic precision; latitude="+lat+" corner="+corner+" stretch="+stretch+" shear="+shear+" pixelError="+maximumError);
+      lines.Add((pass?"PASS":"FAIL")+" camera-local geographic grid preserves square cells and address precision; latitude="+lat+" corner="+corner+" stretch="+stretch+" shear="+shear+" pixelError="+maximumError);
      }
+    }
+    m.SetFloat("_ProjectionProbe",4);m.SetVector("_ProbeSpan",new Vector4(.02f,.02f,0,0));
+    foreach(float lat in new[]{-89f,89f})foreach(float offset in new[]{-.04f,.04f})
+    {
+     var frame=PlanetCoordinateSystem.LocalFrame(new PlanetLocation(.7,lat*Math.PI/180),new PlanetVector(),1);
+     m.SetVector("_LocalCenter",Vector(frame.Up));m.SetVector("_LocalEast",Vector(frame.East));m.SetVector("_LocalNorth",Vector(frame.North));
+     m.SetVector("_ProbeOrigin",new Vector4(0,offset,0,0));
+     Graphics.Blit(Texture2D.whiteTexture,rt,m);RenderTexture.active=rt;image.ReadPixels(new Rect(0,0,128,128),0,0);image.Apply();
+     float expectedUp=Math.Abs(lat*Math.PI/180+offset)>Math.PI*.5?-1:1;
+     float maximum=0;
+     foreach(var pixel in image.GetPixels())maximum=Mathf.Max(maximum,Mathf.Abs(pixel.r-1),Mathf.Abs(pixel.g),Mathf.Abs(pixel.b),Mathf.Abs(pixel.a-expectedUp));
+     lines.Add((maximum<.015f?"PASS":"FAIL")+" water view basis follows reflected polar geography; latitude="+lat+" offset="+offset+" expectedUp="+expectedUp+" error="+maximum);
     }
     File.WriteAllLines("Documentation/LocalPlanetUpgrade/polar-detail-regression.txt",lines);
     if(lines.Exists(line=>line.StartsWith("FAIL",StringComparison.Ordinal)))throw new Exception(string.Join("\n",lines));

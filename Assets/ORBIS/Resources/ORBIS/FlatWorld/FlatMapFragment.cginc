@@ -9,14 +9,8 @@
     i.uv=MarkleyGeoUV(i.uv);
 #endif
 #ifdef ORBIS_SCROLL_SURFACE
-    float3 chartRadial=FlatRadial(i.uv);
-    float2 chartDx=ddx(chartCoordinate),chartDy=ddy(chartCoordinate);
-    float chartDeterminant=chartDx.x*chartDy.y-chartDx.y*chartDy.x;
-    float inverseChartDeterminant=(chartDeterminant<0?-1:1)/max(1e-20,abs(chartDeterminant));
-    float3 chartRight=(ddx(chartRadial)*chartDy.y-ddy(chartRadial)*chartDx.y)*inverseChartDeterminant;
-    chartRight-=chartRadial*dot(chartRight,chartRadial);
-    float2 chartRightGeographic=FlatGeographicLight(i.uv,chartRight).xy;
-    chartRightGeographic*=rsqrt(max(1e-20,dot(chartRightGeographic,chartRightGeographic)));
+    float2 chartRightGeographic,chartUpGeographic;
+    FlatChartGeographicBasis(i.uv,chartCoordinate,chartRightGeographic,chartUpGeographic);
 #endif
     float2 cell=float2(frac(i.uv.x),clamp(i.uv.y,0,1-_MapSize.w*.0001))*_MapSize.xy,id=floor(cell),f=frac(cell),uv=(id+.5)*_MapSize.zw;
     float naturalView=max(_Natural,_Political);
@@ -100,7 +94,7 @@
      float2 projected=float2(dot(world-_ScrollNormal,_ScrollRight),dot(world-_ScrollNormal,_ScrollUp));
      float3 reliefView=normalize(float3(-projected/.18-float2(0,_ScrollRelief.z),1));
      planeView=normalize(lerp(planeView,reliefView,_ScrollRelief.x));
-     planeView.xy=chartRightGeographic*planeView.x+float2(-chartRightGeographic.y,chartRightGeographic.x)*planeView.y;
+     planeView.xy=chartRightGeographic*planeView.x+chartUpGeographic*planeView.y;
      waterView=lerp(sphereView,planeView,_ScrollMorph);
      waterView=normalize(float3(waterView.xy,max(.02,waterView.z)));
      #endif

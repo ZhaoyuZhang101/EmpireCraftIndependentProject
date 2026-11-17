@@ -62,7 +62,7 @@ float PixelPropShadow(float2 cell)
   float2 root=id+float2(column,row);
   if(root.y<0||root.y>=_MapSize.y)continue;
   float2 uv=(root+.5)*_MapSize.zw;
-  float scale=max(.02,cos((uv.y-.5)*3.141592654));
+  float scale=FlatArtworkLatitudeScale(uv.y);
   float2 q=(cell-root)*32;
   // Building and tree projections cannot reach beyond this conservative bound.
   if(q.x< -31||q.x>63||q.y< -31||q.y>63)continue;
@@ -127,9 +127,8 @@ float3 PixelProps(float3 col,float2 cell,float4 field,float waterMask,float stru
 {
  col*=1-PixelPropShadow(cell);
  float2 id=floor(cell),q=floor(frac(cell)*32);
- // A longitude tile narrows with latitude. Fit artwork isotropically into that
- // footprint instead of stretching its height while squeezing its width.
- float artworkScale=max(.02,cos(((id.y+.5)*_MapSize.w-.5)*3.141592654));
+ // Keep artwork and its shader shadow in the same displayed cell metric.
+ float artworkScale=FlatArtworkLatitudeScale((id.y+.5)*_MapSize.w);
  q.y=floor(16+(frac(cell.y)-.5)*32/artworkScale);
  float nearestRoot=1e10;
  [loop] [fastopt] for(int row=1;row>=-1;row--)
@@ -139,7 +138,7 @@ float3 PixelProps(float3 col,float2 cell,float4 field,float waterMask,float stru
   if(treeId.y<0||treeId.y>=_MapSize.y)continue;
   float4 placement=PDTreePlacement(treeId);
   float2 localPoint=(cell-treeId)*32;
-  float localScale=max(.02,cos(((treeId.y+.5)*_MapSize.w-.5)*3.141592654));
+  float localScale=FlatArtworkLatitudeScale((treeId.y+.5)*_MapSize.w);
   localPoint.y=placement.y+(localPoint.y-placement.y)/localScale;
   float2 treePoint=floor(localPoint-placement.xy)/placement.z;
   if(abs(treePoint.x)>14||treePoint.y< -3||treePoint.y>40)continue;

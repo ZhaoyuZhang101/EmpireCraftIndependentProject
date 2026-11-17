@@ -14,6 +14,12 @@ Shader "Hidden/ORBIS/PolarDetailProbe"
  {
   if(_ProjectionProbe>.5)
   {
+   if(_ProjectionProbe>3.5)
+   {
+    float2 chart=_ProbeOrigin.xy+(i.uv-.5)*_ProbeSpan.xy;
+    float2 right,up;FlatChartGeographicBasis(LocalGeoUV(chart),chart,right,up);
+    return float4(right,up);
+   }
    if(_ProjectionProbe>2.5)
    {
     float2 chart;
@@ -22,11 +28,13 @@ Shader "Hidden/ORBIS/PolarDetailProbe"
    float2 xy=_ProbeOrigin.xy+(i.uv-.5)*_ProbeSpan.xy;
    float3 direction=LocalDirection(xy);
    float3 recovered=FlatRadial(LocalGeoUV(xy));
-   float3 east=LocalDirection(xy+float2(.0005,0))-LocalDirection(xy-float2(.0005,0));
-   float3 north=LocalDirection(xy+float2(0,.0005))-LocalDirection(xy-float2(0,.0005));
+   float2 east=LocalGeoUV(xy+float2(.0005,0))-LocalGeoUV(xy-float2(.0005,0));
+   float2 north=LocalGeoUV(xy+float2(0,.0005))-LocalGeoUV(xy-float2(0,.0005));
+   east.x-=round(east.x);north.x-=round(north.x);
+   east*=_MapSize.xy;north*=_MapSize.xy;
    float ratio=length(east)/max(1e-12,length(north));
    float shear=abs(dot(east,north))/max(1e-16,length(east)*length(north));
-   float pixelError=length(recovered-direction)/max(1e-12,length(ddx(direction)));
+   float pixelError=length(recovered-direction)/max(1e-12,max(length(ddx(direction)),length(ddy(direction))));
    return float4(ratio,shear,pixelError,1);
   }
   float lat=_Latitude*.01745329252;float2 xy=(i.uv-.5)*.001;

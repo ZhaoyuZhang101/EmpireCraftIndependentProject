@@ -12,6 +12,7 @@ float3 LocalDirection(float2 xy)
 }
 float2 LocalGeoUV(float2 xy)
 {
+ if(_ScrollMorph>=1)return OrbisLocalGeographicUV(_LocalCenter,_LocalEast,xy);
  float3 p=LocalDirection(xy);
  return OrbisGeographicUV(p);
 }

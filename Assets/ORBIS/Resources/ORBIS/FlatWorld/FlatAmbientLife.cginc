@@ -14,7 +14,7 @@ float4 PDAmbientHome(float2 cell)
  float seed=PDHash(origin+float2(311,127));
  float2 jitter=float2(PDHash(origin+float2(53,211)),PDHash(origin+float2(197,41)));
  float2 home=origin+span*(.35+jitter*.30);
- float latitudeScale=max(.02,cos((home.y*_MapSize.w-.5)*3.141592654));
+ float latitudeScale=FlatArtworkLatitudeScale(home.y*_MapSize.w);
  return float4(home,seed,latitudeScale);
 }
 

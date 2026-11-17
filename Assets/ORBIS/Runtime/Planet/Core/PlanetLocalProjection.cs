@@ -2,7 +2,7 @@ using System;
 
 namespace Orbis.Planet
 {
-    /// <summary>Double precision geodesic and stereographic maps. Radius units belong to the caller.</summary>
+    /// <summary>Double precision local maps. Radius units belong to the caller.</summary>
     public sealed class PlanetLocalProjection
     {
         public PlanetTangentFrame Frame { get; private set; }
@@ -54,6 +54,41 @@ namespace Orbis.Planet
             double angle=Math.Min(Math.PI-1e-6,distance/Radius);
             double factor=2*Radius*Math.Tan(angle*.5)/distance;
             return new PlanetVector(point.X*factor,point.Y*factor,0);
+        }
+        // The detailed chart uses equal angular cell steps in both axes. Recentring
+        // this address chart keeps latitude-grid Tiles square throughout a pan.
+        public PlanetVector GeographicExp(double x,double y)
+        {
+            var center=Center;
+            return PlanetCoordinateSystem.SurfaceNormal(new PlanetLocation(center.Longitude+x/Radius,center.Latitude+y/Radius));
+        }
+        public PlanetVector GeographicLog(PlanetVector direction)
+        {
+            var center=Center;
+            var target=PlanetCoordinateSystem.FromWorld(direction,new PlanetVector(),1);
+            double x=PlanetCoordinateSystem.NearestOffset(target.Longitude-center.Longitude,PlanetCoordinateSystem.Tau);
+            double y=target.Latitude-center.Latitude;
+            var point=new PlanetVector(x*Radius,y*Radius,0);
+            // The nearest reflected copy keeps routes and anchors continuous over a pole.
+            double reflectedX=PlanetCoordinateSystem.NearestOffset(x+Math.PI,PlanetCoordinateSystem.Tau);
+            for(int copy=0;copy<2;copy++)
+            {
+                double latitude=(copy==0?Math.PI:-Math.PI)-target.Latitude;
+                var candidate=new PlanetVector(reflectedX*Radius,(latitude-center.Latitude)*Radius,0);
+                if(PlanetVector.Dot(candidate,candidate)<PlanetVector.Dot(point,point))point=candidate;
+            }
+            return point;
+        }
+        public bool TryAnchorGeographicNorthUp(PlanetVector anchor,double x,double y)
+        {
+            var center=Center;
+            var before=GeographicLog(anchor);
+            double latitude=center.Latitude+(before.Y-y)/Radius;
+            if(Math.Abs(latitude)>Math.PI*.5+1e-12)return false;
+            latitude=Math.Max(-Math.PI*.5,Math.Min(Math.PI*.5,latitude));
+            var location=new PlanetLocation(center.Longitude+(before.X-x)/Radius,latitude);
+            Frame=PlanetCoordinateSystem.LocalFrame(location,new PlanetVector(),Radius);
+            return true;
         }
         // Recenter the connected north-up solution for a geographic screen anchor.
         public bool TryAnchorStereographicNorthUp(PlanetVector anchor,double x,double y)

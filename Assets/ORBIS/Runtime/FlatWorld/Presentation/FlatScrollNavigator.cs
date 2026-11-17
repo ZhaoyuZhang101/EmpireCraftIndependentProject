@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.Rendering;
 using Orbis.Planet;
@@ -12,7 +13,9 @@ namespace Orbis.Flat
         // A single critically damped spring drives it, so no hand-off stalls at the fold endpoints.
         const float EndGap=.22f,ZoomRate=.075f,ZoomOmega=18,MaxAltitude=5,HomeAltitude=2.1f;
         Camera viewCamera;WorldData world;FlatMapRenderer maps;PlanetLocalProjection projection;
-        Mesh mesh;Material surface;MeshRenderer terrain;LineRenderer routeLine;MarkleyAtlasNavigator atlas;bool atlasMode;
+        Mesh mesh,routeMesh;Material surface,routeMaterial;MeshRenderer terrain,routeRenderer;MarkleyAtlasNavigator atlas;bool atlasMode;
+        readonly List<Vector3> routeVertices=new List<Vector3>();
+        readonly List<int> routeIndices=new List<int>();
         float distance=3.1f,morph,pixels=16,spin,zoom,targetZoom,zoomVelocity;
         Vector2 zoomScreen;bool zoomAnchor;Quaternion orbitRotation=Quaternion.Euler(18,0,0);
         double currentDay,lockDay;bool locked;Vector3 normal,east,north;Vector2 poles;int revision=-1;int[] route=new int[0];
@@ -115,10 +118,10 @@ namespace Orbis.Flat
                     for(int iteration=0;iteration<6;iteration++)
                     {
                         if(!TryReliefPoint(zoomScreen,out var after))break;
-                        var expected=projection.StereographicLog(anchor);
+                        var expected=projection.GeographicLog(anchor);
                         double error=Math.Abs(expected.X-after.x*TileScale)+Math.Abs(expected.Y-after.y*TileScale);
                         if(error<TileScale/Mathf.Max(1,pixels)*.005f)break;
-                        if(!projection.TryAnchorStereographicNorthUp(anchor,after.x*TileScale,after.y*TileScale))break;
+                        if(!projection.TryAnchorGeographicNorthUp(anchor,after.x*TileScale,after.y*TileScale))break;
                         Frame();
                         PlaceFlatCamera(altitude);
                     }
@@ -164,29 +167,83 @@ namespace Orbis.Flat
         PlanetVector LocalDirection(Vector2 xy)
         {
             if(morph<=0)return projection.Exp(xy.x,xy.y);
-            var conformal=projection.StereographicExp(xy.x,xy.y);
-            if(morph>=1)return conformal;
-            var direction=projection.Exp(xy.x,xy.y)*(1-morph)+conformal*morph;
+            var geographic=projection.GeographicExp(xy.x,xy.y);
+            if(morph>=1)return geographic;
+            var direction=projection.Exp(xy.x,xy.y)*(1-morph)+geographic*morph;
             return direction*(1/Math.Sqrt(PlanetVector.Dot(direction,direction)));
         }
         Vector2 LocalPoint(PlanetVector direction)
         {
             var geodesic=projection.Log(direction);
             if(morph<=0)return new Vector2((float)geodesic.X,(float)geodesic.Y);
-            var conformal=projection.StereographicLog(direction);
-            if(morph>=1)return new Vector2((float)conformal.X,(float)conformal.Y);
-            double angle=Math.Sqrt(geodesic.X*geodesic.X+geodesic.Y*geodesic.Y);
-            if(angle<1e-12)return Vector2.zero;
-            // Both endpoint projections are radial. Invert their blend on the same ray.
-            double low=angle,high=Math.Min(Math.PI,Math.Sqrt(conformal.X*conformal.X+conformal.Y*conformal.Y));
-            for(int iteration=0;iteration<18;iteration++)
+            var geographic=projection.GeographicLog(direction);
+            var geodesicPoint=new Vector2((float)geodesic.X,(float)geodesic.Y);
+            var geographicPoint=new Vector2((float)geographic.X,(float)geographic.Y);
+            if(morph>=1)return geographicPoint;
+            var point=RefineLocalPoint(Vector2.Lerp(geodesicPoint,geographicPoint,morph),geodesic,out double error);
+            // Polar folds can have several inverse branches. Retry bounded seeds
+            // only when the ordinary inverse did not reach the requested geography.
+            for(int seed=0;seed<6&&error>1e-8;seed++)
             {
-                double radius=(low+high)*.5;
-                double mapped=PlanetLocalProjection.Distance(projection.Frame.Up,LocalDirection(new Vector2((float)radius,0)),1);
-                if(mapped<angle)low=radius;else high=radius;
+                Vector2 start;
+                if(seed==0)start=geodesicPoint;
+                else if(seed==1)start=geographicPoint;
+                else start=new Vector2((seed%2==0?1:-1)*Radius*(seed<4?.5f:.9f),geographicPoint.y);
+                var candidate=RefineLocalPoint(start,geodesic,out double candidateError);
+                if(candidateError<error){point=candidate;error=candidateError;}
             }
-            double scale=(low+high)*.5/angle;
-            return new Vector2((float)(geodesic.X*scale),(float)(geodesic.Y*scale));
+            return point;
+        }
+        Vector2 RefineLocalPoint(Vector2 point,PlanetVector target,out double error)
+        {
+            float radius=Radius;
+            point=Vector2.ClampMagnitude(point,radius);
+            // Invert the same two-dimensional blend used by the terrain vertices.
+            // Latitude correction is anisotropic, so a radial inverse loses routes.
+            const float step=.0001f;
+            error=double.PositiveInfinity;
+            for(int iteration=0;iteration<24;iteration++)
+            {
+                var mapped=projection.Log(LocalDirection(point));
+                double errorX=mapped.X-target.X,errorY=mapped.Y-target.Y;
+                error=Math.Abs(errorX)+Math.Abs(errorY);
+                if(error<1e-8)break;
+                var dx=projection.Log(LocalDirection(point+new Vector2(step,0)));
+                var dy=projection.Log(LocalDirection(point+new Vector2(0,step)));
+                double xx=(dx.X-mapped.X)/step,xy=(dy.X-mapped.X)/step;
+                double yx=(dx.Y-mapped.Y)/step,yy=(dy.Y-mapped.Y)/step;
+                double determinant=xx*yy-xy*yx;
+                if(Math.Abs(determinant)<1e-10)break;
+                var correction=new Vector2((float)((yy*errorX-xy*errorY)/determinant),(float)((xx*errorY-yx*errorX)/determinant));
+                correction=Vector2.ClampMagnitude(correction,.25f);
+                bool improved=false;
+                for(int backtrack=0;backtrack<9;backtrack++)
+                {
+                    var candidate=Vector2.ClampMagnitude(point-correction,radius);
+                    var value=projection.Log(LocalDirection(candidate));
+                    double next=Math.Abs(value.X-target.X)+Math.Abs(value.Y-target.Y);
+                    if(next<error){point=candidate;error=next;improved=true;break;}
+                    correction*=.5f;
+                }
+                if(!improved)break;
+            }
+            return point;
+        }
+        bool TryRoutePoint(PlanetVector direction,Vector2 previous,bool connected,out Vector2 point)
+        {
+            var target=projection.Log(direction);
+            float radius=Radius;
+            // Both endpoints lie in this convex spherical cap. A distant route
+            // node cannot have a visible inverse and needs no iterative search.
+            if(radius<Mathf.PI*.5f&&PlanetVector.Dot(target,target)>radius*radius)
+            {point=Vector2.zero;return false;}
+            if(connected&&morph>0&&morph<1)
+            {
+                point=RefineLocalPoint(previous,target,out double error);
+                if(error<1e-8&&PlanetLocalProjection.Distance(direction,LocalDirection(point),1)<1e-6)return true;
+            }
+            point=LocalPoint(direction);
+            return point.sqrMagnitude<=radius*radius+1e-6f&&PlanetLocalProjection.Distance(direction,LocalDirection(point),1)<1e-6;
         }
         void Bind()
         {
@@ -194,6 +251,7 @@ namespace Orbis.Flat
             surface.SetVector("_LocalCenter",V(projection.Frame.Up));surface.SetVector("_LocalEast",V(projection.Frame.East));surface.SetVector("_LocalNorth",V(projection.Frame.North));
             surface.SetVector("_ScrollNormal",normal);surface.SetVector("_ScrollRight",east);surface.SetVector("_ScrollUp",north);
             surface.SetFloat("_ScrollMorph",morph);surface.SetFloat("_ScrollSpin",spin);surface.SetFloat("_LocalRadius",Radius);
+            surface.SetFloat("_FlatGeographicChart",morph);
             surface.SetFloat("_PixelsPerTile",pixels);surface.SetFloat("_DetailWeight",DetailWeight);surface.SetVector("_ScrollPoleHeights",poles);surface.SetFloat("_ScrollHeightScale",FlatGlobeGeometry.HeightScale);
             surface.SetVector("_ScrollRelief",ReliefParameters);
             surface.SetVector("_MapSize",new Vector4(world.Width,world.Height,1f/world.Width,1f/world.Height));
@@ -253,7 +311,7 @@ namespace Orbis.Flat
         public void OpenAtlas(double day)
         {
             if(!atlas){var go=new GameObject("Global strategic atlas");go.transform.SetParent(transform,false);atlas=go.AddComponent<MarkleyAtlasNavigator>();atlas.Initialize(world,viewCamera,maps);}
-            atlas.gameObject.SetActive(true);atlas.OpenAtlas(day);atlas.Tick(3,day);atlas.OpenAtlas(day);atlas.Tick(3,day);atlasMode=true;terrain.enabled=false;if(routeLine)routeLine.enabled=false;
+            atlas.gameObject.SetActive(true);atlas.OpenAtlas(day);atlas.Tick(3,day);atlas.OpenAtlas(day);atlas.Tick(3,day);atlasMode=true;terrain.enabled=false;if(routeRenderer)routeRenderer.enabled=false;
         }
         public void Home(double day){if(atlasMode){atlas.Home(day);return;}GoGlobe(day);orbitRotation=Quaternion.Euler(18,0,0);}
         public void Focus(int tile,double day)
@@ -388,12 +446,39 @@ namespace Orbis.Flat
         public void SetRoute(int[] ids){route=ids??new int[0];if(atlas)atlas.SetRoute(route);UpdateRoute();}
         void UpdateRoute()
         {
-            if(route.Length<2){if(routeLine)routeLine.enabled=false;return;}
-            if(!routeLine){var go=new GameObject("Spherical route");go.transform.SetParent(transform,false);routeLine=go.AddComponent<LineRenderer>();routeLine.sharedMaterial=new Material(Shader.Find("Sprites/Default"));routeLine.startColor=routeLine.endColor=new Color(1,.85f,.45f);}
-            routeLine.enabled=!atlasMode;routeLine.widthMultiplier=.0015f;routeLine.positionCount=route.Length;
+            if(route.Length<2){if(routeRenderer)routeRenderer.enabled=false;return;}
+            if(!routeRenderer)
+            {
+                var go=new GameObject("Spherical route",typeof(MeshFilter),typeof(MeshRenderer));go.transform.SetParent(transform,false);
+                routeMesh=new Mesh{name="Clipped local route",indexFormat=IndexFormat.UInt32};routeMesh.MarkDynamic();
+                routeMaterial=new Material(Shader.Find("Sprites/Default")){color=new Color(1,.85f,.45f)};
+                go.GetComponent<MeshFilter>().sharedMesh=routeMesh;routeRenderer=go.GetComponent<MeshRenderer>();routeRenderer.sharedMaterial=routeMaterial;
+                routeRenderer.shadowCastingMode=ShadowCastingMode.Off;
+            }
+            routeRenderer.enabled=!atlasMode;routeVertices.Clear();routeIndices.Clear();
             var relief=ReliefParameters;
-            for(int i=0;i<route.Length;i++){var p=PlanetCoordinateSystem.SurfaceNormal(PlanetCoordinateSystem.FromMapUV((route[i]%world.Width+.5)/world.Width,(route[i]/world.Width+.5)/world.Height));routeLine.SetPosition(i,(Vector3)ProjectedVertex(LocalPoint(p),relief)+normal*.0002f);}
+            Vector2 previousPoint=Vector2.zero;Vector3 previousPosition=Vector3.zero;bool connected=false;
+            for(int i=0;i<route.Length;i++)
+            {
+                var p=PlanetCoordinateSystem.SurfaceNormal(PlanetCoordinateSystem.FromMapUV((route[i]%world.Width+.5)/world.Width,(route[i]/world.Width+.5)/world.Height));
+                bool valid=TryRoutePoint(p,previousPoint,connected,out var point);
+                if(valid)
+                {
+                    var position=(Vector3)ProjectedVertex(point,relief)+normal*.0002f;
+                    if(connected)
+                    {
+                        var side=Vector3.Cross(position-previousPosition,viewCamera.transform.forward).normalized*.00075f;
+                        int start=routeVertices.Count;
+                        routeVertices.Add(previousPosition-side);routeVertices.Add(previousPosition+side);routeVertices.Add(position-side);routeVertices.Add(position+side);
+                        routeIndices.Add(start);routeIndices.Add(start+1);routeIndices.Add(start+2);routeIndices.Add(start+2);routeIndices.Add(start+1);routeIndices.Add(start+3);
+                    }
+                    previousPoint=point;previousPosition=position;
+                }
+                // An off-patch or unsolved endpoint ends only its adjacent segments.
+                connected=valid;
+            }
+            routeMesh.Clear();routeMesh.SetVertices(routeVertices);routeMesh.SetTriangles(routeIndices,0);routeMesh.RecalculateBounds();
         }
-        void OnDestroy(){if(mesh)Destroy(mesh);if(surface)Destroy(surface);if(routeLine&&routeLine.sharedMaterial)Destroy(routeLine.sharedMaterial);}
+        void OnDestroy(){if(mesh)Destroy(mesh);if(surface)Destroy(surface);if(routeMesh)Destroy(routeMesh);if(routeMaterial)Destroy(routeMaterial);}
     }
 }
