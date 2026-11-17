@@ -100,6 +100,7 @@ namespace Orbis.Editor
     double above=transmission(14500),inside=transmission(2500),below=transmission(150);
     if(above>=inside||inside>=below||below<.999)throw new Exception("Cloud passage must clear below cloud base: "+above+"/"+inside+"/"+below);
     report.Add("PASS same cloud clears as camera crosses below its base; transmission above/inside/below="+above+"/"+inside+"/"+below);
+    ValidateRenderState(report);
    }
    catch(Exception e){report.Add("FAIL "+e.Message);throw;}
    finally
@@ -107,6 +108,60 @@ namespace Orbis.Editor
     Directory.CreateDirectory("Documentation/ClimateCloudUpgrade");File.WriteAllLines("Documentation/ClimateCloudUpgrade/gpu-regression.txt",report);
     ShaderUtil.allowAsyncCompilation=async;RenderTexture.active=previous;RenderTexture.ReleaseTemporary(rt);foreach(var o in owned)UnityEngine.Object.DestroyImmediate(o);
    }
+  }
+
+  static void ValidateRenderState(List<string> report)
+  {
+   if(!Application.isPlaying)return;
+   var map=UnityEngine.Object.FindFirstObjectByType<Flat.FlatMapRenderer>();
+   if(!map||map.World==null)return;
+   var sky=map.Sky;
+   var previous=RenderTexture.active;bool previousSRGB=GL.sRGBWrite;int previousWidth=sky.CacheWidth;
+   var receiver=RenderTexture.GetTemporary(16,16,0,RenderTextureFormat.ARGB32,RenderTextureReadWrite.Linear);
+   var releaseWarnings=new List<string>();
+   Application.LogCallback capture=(message,stack,type)=>
+   {
+    if(message.IndexOf("Releasing render texture",StringComparison.OrdinalIgnoreCase)>=0)releaseWarnings.Add(message);
+   };
+   Application.logMessageReceived+=capture;
+   try
+   {
+    foreach(bool srgb in new[]{false,true})
+    {
+     RenderTexture.active=receiver;GL.sRGBWrite=srgb;
+     for(int frame=0;frame<8;frame++)
+     {
+      sky.Tick(.6f,true,true,false,sky.CacheWidth,map.World.Day);
+      CheckRenderState(report,RenderTexture.active==receiver&&GL.sRGBWrite==srgb,
+       "cloud bake preserves caller render target and sRGB state, frame="+frame+" sRGB="+srgb);
+     }
+    }
+    for(int kind=0;kind<3;kind++)
+    {
+     var owned=kind==0?sky.Texture:kind==1?sky.ColumnTexture:
+      (RenderTexture)typeof(Flat.FlatSkyRenderer).GetField("columnStrip",System.Reflection.BindingFlags.Instance|System.Reflection.BindingFlags.NonPublic).GetValue(sky);
+     RenderTexture.active=owned;
+     int nextWidth=sky.CacheWidth==512?1024:512;
+     sky.Tick(.6f,true,true,false,nextWidth,map.World.Day);
+     CheckRenderState(report,RenderTexture.active==null&&!owned.IsCreated()&&sky.CacheWidth==nextWidth,
+      "cloud quality change detaches an active owned texture before release, target="+kind);
+    }
+    CheckRenderState(report,releaseWarnings.Count==0,"cloud quality changes release active caches without warnings");
+   }
+   finally
+   {
+    Application.logMessageReceived-=capture;
+    RenderTexture.active=receiver;GL.sRGBWrite=false;
+    sky.Tick(0,true,false,false,previousWidth,map.World.Day);
+    for(int frame=0;frame<4;frame++)sky.Tick(0,true,false,false,previousWidth,map.World.Day);
+    RenderTexture.active=previous;GL.sRGBWrite=previousSRGB;RenderTexture.ReleaseTemporary(receiver);
+   }
+  }
+
+  static void CheckRenderState(List<string> report,bool passed,string message)
+  {
+   report.Add((passed?"PASS ":"FAIL ")+message);
+   if(!passed)throw new InvalidOperationException(message);
   }
  }
 }

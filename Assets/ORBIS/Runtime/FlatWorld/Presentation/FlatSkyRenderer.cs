@@ -62,8 +62,7 @@ namespace Orbis.Flat
         {
             width=width>=1024?1024:512;
             if(Texture&&CacheWidth==width)return;
-            if(Texture){Texture.Release();Destroy(Texture);}
-            if(ColumnTexture){ColumnTexture.Release();Destroy(ColumnTexture);}
+            ReleaseCache(Texture);ReleaseCache(ColumnTexture);
             ReleaseCache(weatherBack);ReleaseCache(columnBack);ReleaseCache(columnStrip);pendingStrip=-1;
             CacheWidth=width;int height=width/2;
             Texture=new RenderTexture(width,height,0,RenderTextureFormat.ARGB32,RenderTextureReadWrite.Linear){name="Perf3.2 low and high clouds",filterMode=FilterMode.Bilinear,wrapModeU=TextureWrapMode.Repeat,wrapModeV=TextureWrapMode.Clamp,useMipMap=false,autoGenerateMips=false};
@@ -78,13 +77,33 @@ namespace Orbis.Flat
         static RenderTexture NewCache(RenderTextureDescriptor descriptor,string label)
         {
             var result=new RenderTexture(descriptor){name=label,filterMode=FilterMode.Bilinear,wrapModeU=TextureWrapMode.Repeat,wrapModeV=TextureWrapMode.Clamp};
-            if(!result.Create())throw new InvalidOperationException("Cannot allocate "+label);return result;
+            if(!result.Create())
+            {
+                Destroy(result);
+                throw new InvalidOperationException("Cannot allocate "+label);
+            }
+            return result;
         }
-        void ReleaseCache(RenderTexture target){if(target){target.Release();Destroy(target);}}
+        void ReleaseCache(RenderTexture target)
+        {
+            if(!target)return;
+            if(RenderTexture.active==target)RenderTexture.active=null;
+            target.Release();Destroy(target);
+        }
+        static void RenderCache(RenderTexture target,Material material)
+        {
+            RenderTexture previous=RenderTexture.active;bool previousSRGB=GL.sRGBWrite;
+            try
+            {
+                GL.sRGBWrite=false;
+                Graphics.Blit(Texture2D.blackTexture,target,material,0);
+            }
+            finally{RenderTexture.active=previous;GL.sRGBWrite=previousSRGB;}
+        }
         void RenderColumnStrip()
         {
             hpColumn.SetVector("_ColumnUVTransform",new Vector4(0,pendingStrip/(float)ColumnStrips,1,1f/ColumnStrips));
-            Graphics.Blit(Texture2D.blackTexture,columnStrip,hpColumn,0);
+            RenderCache(columnStrip,hpColumn);
             Graphics.CopyTexture(columnStrip,0,0,0,0,columnStrip.width,columnStrip.height,columnBack,0,0,0,pendingStrip*columnStrip.height);
             if(++pendingStrip<ColumnStrips)return;
             // Publish only a complete weather/optical-column pair. No visible stripes.
@@ -172,7 +191,7 @@ namespace Orbis.Flat
                 bake.SetFloat("_VisualTime",(float)Clock);
                 bake.SetFloat("_MonthBlend",(float)(world.Day%30)/30f);
                 hpColumn.SetFloat("_MonthBlend",(float)(world.Day%30)/30f);
-                Graphics.Blit(Texture2D.blackTexture,weatherBack,bake,0);
+                RenderCache(weatherBack,bake);
                 hpColumn.SetTexture("_ScrollWeatherTex",weatherBack);
                 hpColumn.SetFloat("_ScrollWeatherTime",(float)Clock);pendingStrip=0;RenderColumnStrip();
                 Status="视觉云层 "+CacheWidth+"×"+(CacheWidth/2)+" · 月均天气、云影、局部雨雪 · 最高 2 Hz";
@@ -204,6 +223,6 @@ namespace Orbis.Flat
             target.SetVectorArray("_OrbisLightning",flashes);
         }
         void OnDestroy()
-        {ReleaseCache(weatherBack);ReleaseCache(columnBack);ReleaseCache(columnStrip);if(Texture){Texture.Release();Destroy(Texture);}if(ColumnTexture){ColumnTexture.Release();Destroy(ColumnTexture);}if(climate)Destroy(climate);if(wind)Destroy(wind);if(climateWind)Destroy(climateWind);if(bake)Destroy(bake);if(hpColumn)Destroy(hpColumn);if(hpNoise)Destroy(hpNoise);if(hpDetail)Destroy(hpDetail);if(hpHigh)Destroy(hpHigh);}
+        {ReleaseCache(weatherBack);ReleaseCache(columnBack);ReleaseCache(columnStrip);ReleaseCache(Texture);ReleaseCache(ColumnTexture);if(climate)Destroy(climate);if(wind)Destroy(wind);if(climateWind)Destroy(climateWind);if(bake)Destroy(bake);if(hpColumn)Destroy(hpColumn);if(hpNoise)Destroy(hpNoise);if(hpDetail)Destroy(hpDetail);if(hpHigh)Destroy(hpHigh);}
     }
 }

@@ -68,15 +68,19 @@ float _ScrollCloudSource;
 float3 OrbisLightningLight(float3 p)
 {
  float flash=OrbisLightningAmount(p)*_Clouds;
- [branch] if(flash<=0)return 0;
- #ifdef ORBIS_SHARED_SCROLL_WEATHER
- if(_ScrollCloudSource>.5)
+ float3 light=0;
+ [branch] if(flash>0)
  {
-  float4 storm=tex2Dlod(_ScrollWeatherTex,float4(OrbisWeatherUV(p),0,0));
-  flash*=storm.a*smoothstep(.65,.92,storm.r);
+  #ifdef ORBIS_SHARED_SCROLL_WEATHER
+  if(_ScrollCloudSource>.5)
+  {
+   float4 storm=tex2Dlod(_ScrollWeatherTex,float4(OrbisWeatherUV(p),0,0));
+   flash*=storm.a*smoothstep(.65,.92,storm.r);
+  }
+  #endif
+  light=flash*float3(.60,.72,1.0);
  }
- #endif
- return flash*float3(.60,.72,1.0);
+ return light;
 }
 float2 OrbisCloudDensities(float3 p,bool simpleMode)
 {
