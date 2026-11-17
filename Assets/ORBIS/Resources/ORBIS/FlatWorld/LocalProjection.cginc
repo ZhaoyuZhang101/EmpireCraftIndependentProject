@@ -1,18 +1,18 @@
 #ifndef ORBIS_LOCAL_PROJECTION
 #define ORBIS_LOCAL_PROJECTION
 #include "ScrollHeight.cginc"
+#include "../GeographicCoordinates.cginc"
 float3 _LocalCenter,_LocalEast,_LocalNorth;
 float3 _ScrollNormal,_ScrollRight,_ScrollUp;
 float _LocalRadius,_ScrollMorph,_ScrollSpin;
 float3 LocalDirection(float2 xy)
 {
- float a=length(xy);
- return normalize(_LocalCenter*cos(a)+(_LocalEast*xy.x+_LocalNorth*xy.y)*(a<1e-5?1:sin(a)/a));
+ return OrbisLocalDirection(_LocalCenter,_LocalEast,_LocalNorth,xy,_ScrollMorph);
 }
 float2 LocalGeoUV(float2 xy)
 {
  float3 p=LocalDirection(xy);
- return float2(frac(atan2(p.x,p.z)/6.28318530718+.5),asin(clamp(p.y,-1,1))/3.14159265359+.5);
+ return OrbisGeographicUV(p);
 }
 float3 ScrollPosition(float2 meshUV,float shell,out float2 xy)
 {

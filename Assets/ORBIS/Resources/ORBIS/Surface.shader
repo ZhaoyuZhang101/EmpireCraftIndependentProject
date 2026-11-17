@@ -64,7 +64,7 @@ Shader "ORBIS/Surface"
     OrbisPatchClip(i.local,i.pos.xy);
     float3 radial=normalize(i.local),normal=normalize(i.normal),sun=normalize(_Sun+float3(0,1e-7,0)),view=normalize(i.view);
     if(dot(normal,radial)<0)normal=-normal;
-    float2 uv=float2(atan2(radial.x,radial.z)/6.283185307+.5,asin(clamp(radial.y,-1,1))/3.141592654+.5);
+    float2 uv=OrbisGeographicUV(radial);
     float3 east=normalize(float3(radial.z,0,-radial.x)+float3(1e-6,0,0)),north=normalize(cross(radial,east));
     float3 localLight=float3(dot(sun,east),dot(sun,north),dot(sun,radial));
     float3 localView=normalize(float3(dot(view,east),dot(view,north),max(.02,dot(view,radial))));

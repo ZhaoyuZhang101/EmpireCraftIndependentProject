@@ -26,8 +26,7 @@ float FlatCloudShadowOpacity(float2 uv,float3 sun,float enabled)
     float mu=dot(radial,sun),height=.006;
     float travel=-mu+sqrt(mu*mu+height*(2+height));
     float3 cloudDirection=normalize(radial+sun*travel);
-    float2 shadowUV=float2(frac(atan2(cloudDirection.x,cloudDirection.z)/6.283185307+.5),
-                              asin(clamp(cloudDirection.y,-1,1))/3.141592654+.5);
+    float2 shadowUV=OrbisGeographicUV(cloudDirection);
     float4 cloud=FlatCloudColumn(shadowUV);
     return saturate(cloud.r*.82+cloud.g*.18)*enabled*smoothstep(-.02,.12,mu);
 }

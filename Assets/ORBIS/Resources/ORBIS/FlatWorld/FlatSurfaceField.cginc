@@ -1,6 +1,7 @@
 #ifndef ORBIS_FLAT_SURFACE_FIELD
 #define ORBIS_FLAT_SURFACE_FIELD
 #include "FlatVisualTexture.cginc"
+#include "../GeographicCoordinates.cginc"
 float4 _MapSize;
 float _FieldReady,_SmoothTerrain,_Vegetation,_Bathymetry,_Relief;
 float4 FlatMinmod(float4 a,float4 b)
@@ -95,8 +96,7 @@ float2 FlatEcotoneCell(float2 cell,float shore)
     float grain=FlatDetailNoise(radial*123)-.5;
     float inland=smoothstep(.05,2.0,-shore);
     float3 warped=normalize(radial+tangent*(.025+grain*.014)*inland);
-    return float2(frac(atan2(warped.x,warped.z)/6.283185307+.5),
-                  asin(clamp(warped.y,-1,1))/3.141592654+.5)*_MapSize.xy;
+    return OrbisGeographicUV(warped)*_MapSize.xy;
 }
 float3 FlatEcotoneColor(float3 baseColor,float2 cell,float canopy,float wetness)
 {
@@ -151,8 +151,7 @@ float2 FlatTerrainMetricGradient(float2 cell,float2 gradient)
 }
 float FlatTerrainHeight(float3 direction)
 {
-    float2 uv=float2(atan2(direction.x,direction.z)/6.283185307+.5,
-                     asin(clamp(direction.y,-1,1))/3.141592654+.5);
+    float2 uv=OrbisGeographicUV(direction);
     return FlatVisualSample(float4(uv,0,0)).r;
 }
 // A second, geodesic stencil describes the mountain mass around each slope.

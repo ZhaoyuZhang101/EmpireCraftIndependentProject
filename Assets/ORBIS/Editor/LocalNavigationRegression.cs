@@ -84,6 +84,61 @@ namespace Orbis.Editor
     for(int j=0;j<35;j++)nav.Wheel(-3,camera.pixelRect.center,3);
     nav.Tick(3,3);nav.Tick(3,3);
     result.Add((nav.IsDetailed&&nav.PixelsPerTile>nav.ReturnPixelsPerTile*1.5f?"PASS":"FAIL")+" fast wheel burst carries zoom across unfolding; pixels="+nav.PixelsPerTile+" entry="+nav.ReturnPixelsPerTile);
+    nav.SetViewport(new Rect(0,0,3840,720));
+    foreach(int row in new[]{2,16,29})
+    {
+     nav.Focus(row*data.Width+17,3);nav.Tick(3,3);
+     var frame=nav.LocalFrame;
+     var chart=new Orbis.Planet.PlanetLocalProjection(Orbis.Planet.PlanetCoordinateSystem.FromWorld(frame.Up,new Orbis.Planet.PlanetVector(),1));
+     var screen=camera.pixelRect.min+Vector2.Scale(new Vector2(.85f,.75f),camera.pixelRect.size);
+     nav.TryProjectionPoint(screen,out var point);nav.TryGetPlanetLocation(screen,out var picked);
+     var expectedDirection=chart.StereographicExp(point.x*Math.PI*2/data.Width,point.y*Math.PI*2/data.Width);
+     double error=Orbis.Planet.PlanetLocalProjection.Distance(expectedDirection,Orbis.Planet.PlanetCoordinateSystem.SurfaceNormal(picked),1);
+     result.Add((error<.000001?"PASS":"FAIL")+" detailed picking follows camera-centred conformal chart; row="+row+" radians="+error);
+     var move=new Vector2(2.3f,1.2f);
+     expectedDirection=chart.StereographicExp(move.x*Math.PI*2/data.Width,move.y*Math.PI*2/data.Width);
+     nav.PanBy(move);
+     error=Orbis.Planet.PlanetLocalProjection.Distance(expectedDirection,nav.LocalFrame.Up,1);
+     result.Add((error<.000001?"PASS":"FAIL")+" dragging dynamically recentres the displayed chart; row="+row+" radians="+error);
+     nav.Focus(row*data.Width+17,3);nav.Tick(3,3);
+     nav.TryGetPlanetLocation(screen,out var anchorBefore);
+     nav.Wheel(-1,screen,3);nav.Tick(3,3);nav.TryGetPlanetLocation(screen,out var anchorAfter);
+     double drift=Orbis.Planet.PlanetLocalProjection.Distance(Orbis.Planet.PlanetCoordinateSystem.SurfaceNormal(anchorBefore),Orbis.Planet.PlanetCoordinateSystem.SurfaceNormal(anchorAfter),1);
+     drift=drift/(Math.PI*2/data.Width)*nav.PixelsPerTile;
+     result.Add((drift<.05?"PASS":"FAIL")+" off-centre wheel zoom preserves its geographic anchor; row="+row+" pixels="+drift);
+     nav.TryGetPlanetLocation(screen,out anchorBefore);
+     nav.Wheel(1,screen,3);nav.Tick(3,3);nav.TryGetPlanetLocation(screen,out anchorAfter);
+     drift=Orbis.Planet.PlanetLocalProjection.Distance(Orbis.Planet.PlanetCoordinateSystem.SurfaceNormal(anchorBefore),Orbis.Planet.PlanetCoordinateSystem.SurfaceNormal(anchorAfter),1);
+     drift=drift/(Math.PI*2/data.Width)*nav.PixelsPerTile;
+     result.Add((drift<.05?"PASS":"FAIL")+" off-centre outward wheel zoom preserves its geographic anchor; row="+row+" pixels="+drift);
+    }
+    nav.SetViewport(new Rect(0,0,1280,720));nav.Tick(0,3);
+    var geometry=new Material(AssetDatabase.LoadAssetAtPath<Shader>("Assets/ORBIS/Editor/PolarDetailProbe.shader"));
+    var geometryTarget=RenderTexture.GetTemporary(1,1,0,RenderTextureFormat.ARGBFloat,RenderTextureReadWrite.Linear);
+    var geometryRead=new Texture2D(1,1,TextureFormat.RGBAFloat,false,true);
+    var geometryActive=RenderTexture.active;bool geometryAsync=ShaderUtil.allowAsyncCompilation;
+    try
+    {
+     ShaderUtil.allowAsyncCompilation=false;ShaderUtil.CompilePass(geometry,0,true);
+     var position=typeof(FlatScrollNavigator).GetMethod("Position",System.Reflection.BindingFlags.Instance|System.Reflection.BindingFlags.NonPublic);
+     nav.Focus(16*data.Width+17,3);nav.Tick(3,3);
+     foreach(float wheel in new[]{0f,4f,6f,12f})
+     {
+      nav.Wheel(wheel,camera.pixelRect.center,3);nav.Tick(3,3);
+      geometry.CopyPropertiesFromMaterial(nav.SurfaceMaterial);geometry.SetFloat("_ProjectionProbe",3);
+      var chartPoint=new Vector2(.03f,-.02f);geometry.SetVector("_ProbeOrigin",chartPoint);
+      Graphics.Blit(Texture2D.whiteTexture,geometryTarget,geometry);RenderTexture.active=geometryTarget;
+      geometryRead.ReadPixels(new Rect(0,0,1,1),0,0);geometryRead.Apply();
+      Color gpu=geometryRead.GetPixel(0,0);var cpu=(Vector3)position.Invoke(nav,new object[]{chartPoint});
+      float error=Vector3.Distance(cpu,new Vector3(gpu.r,gpu.g,gpu.b));
+      result.Add((error<.00005f?"PASS":"FAIL")+" CPU selection and GPU geometry share unfolding projection and water height; morph="+nav.Morph+" error="+error);
+     }
+    }
+    finally
+    {
+     RenderTexture.active=geometryActive;ShaderUtil.allowAsyncCompilation=geometryAsync;RenderTexture.ReleaseTemporary(geometryTarget);
+     UnityEngine.Object.DestroyImmediate(geometry);UnityEngine.Object.DestroyImmediate(geometryRead);
+    }
     map.SetLayer(MapLayer.Temperature);map.Configure(false,32);
     result.Add((map.VisibleLayer==MapLayer.Natural&&map.Material.GetFloat("_Natural")>.5f?"PASS":"FAIL")+" pending layer keeps old texture semantics");
     var timeout=System.Diagnostics.Stopwatch.StartNew();while(map.VisibleLayer!=MapLayer.Temperature&&timeout.Elapsed.TotalSeconds<10)map.Flush();
@@ -100,6 +155,7 @@ namespace Orbis.Editor
    }
    finally{RenderTexture.active=previous;RenderTexture.ReleaseTemporary(rt);UnityEngine.Object.DestroyImmediate(material);UnityEngine.Object.DestroyImmediate(image);}
    Directory.CreateDirectory("Documentation/LocalPlanetUpgrade");File.WriteAllLines("Documentation/LocalPlanetUpgrade/navigation-regression.txt",result);
+   if(result.Exists(line=>line.StartsWith("FAIL",StringComparison.Ordinal)))throw new Exception(string.Join("\n",result));
   }
  }
 }

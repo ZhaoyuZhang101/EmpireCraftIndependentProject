@@ -71,7 +71,9 @@ namespace Orbis.Flat
         {
             currentDay=day;if(atlasMode){atlas.Tick(dt,day);return;}
             if(revision!=world.TerrainRevision){poles=FlatGlobeGeometry.PolarHeights(world);revision=world.TerrainRevision;}
-            bool wasFlat=morph>=1;StepZoom(dt);
+            bool wasFlat=morph>=1;
+            float previousZoom=zoom;
+            StepZoom(dt);
             // Morph is linear in altitude, so the apparent scale keeps the same log rate
             // through the fold as on the chart and the globe: no ease-out stall at either end.
             float altitude=Altitude(zoom);
@@ -91,9 +93,15 @@ namespace Orbis.Flat
             if(IsFlat)
             {
                 // Keep the geography under the wheel cursor fixed while the chart scales.
-                Vector2 before=Vector2.zero;bool anchored=zoomAnchor&&wasFlat&&TryProjectionPoint(zoomScreen,out before);
+                PlanetLocation before=new PlanetLocation();
+                bool anchored=zoomAnchor&&wasFlat&&zoom!=previousZoom&&TryGetPlanetLocation(zoomScreen,out before);
                 PlaceFlatCamera(altitude);
-                if(anchored&&TryProjectionPoint(zoomScreen,out var after)&&(before-after).sqrMagnitude>1e-10f){MoveCenter(before-after);PlaceFlatCamera(altitude);}
+                if(anchored&&TryProjectionPoint(zoomScreen,out var after)&&
+                    projection.TryAnchorStereographicNorthUp(PlanetCoordinateSystem.SurfaceNormal(before),after.x*TileScale,after.y*TileScale))
+                {
+                    Frame();
+                    PlaceFlatCamera(altitude);
+                }
                 // Any later fold starts from the chart's own top-down pose.
                 orbitRotation=Quaternion.LookRotation(-normal,north);
             }
@@ -128,10 +136,36 @@ namespace Orbis.Flat
         }
         void MoveCenter(Vector2 tiles)
         {
-            projection.Move(tiles.x*TileScale,tiles.y*TileScale);
-            // Parallel transport is useful for the move itself, but its bearing
-            // drifts relative to geographic north over a long polar traverse.
-            projection=new PlanetLocalProjection(projection.Center);Frame();
+            var direction=LocalDirection(tiles*TileScale);
+            projection=new PlanetLocalProjection(PlanetCoordinateSystem.FromWorld(direction,new PlanetVector(),1));
+            Frame();
+        }
+        PlanetVector LocalDirection(Vector2 xy)
+        {
+            if(morph<=0)return projection.Exp(xy.x,xy.y);
+            var conformal=projection.StereographicExp(xy.x,xy.y);
+            if(morph>=1)return conformal;
+            var direction=projection.Exp(xy.x,xy.y)*(1-morph)+conformal*morph;
+            return direction*(1/Math.Sqrt(PlanetVector.Dot(direction,direction)));
+        }
+        Vector2 LocalPoint(PlanetVector direction)
+        {
+            var geodesic=projection.Log(direction);
+            if(morph<=0)return new Vector2((float)geodesic.X,(float)geodesic.Y);
+            var conformal=projection.StereographicLog(direction);
+            if(morph>=1)return new Vector2((float)conformal.X,(float)conformal.Y);
+            double angle=Math.Sqrt(geodesic.X*geodesic.X+geodesic.Y*geodesic.Y);
+            if(angle<1e-12)return Vector2.zero;
+            // Both endpoint projections are radial. Invert their blend on the same ray.
+            double low=angle,high=Math.Min(Math.PI,Math.Sqrt(conformal.X*conformal.X+conformal.Y*conformal.Y));
+            for(int iteration=0;iteration<18;iteration++)
+            {
+                double radius=(low+high)*.5;
+                double mapped=PlanetLocalProjection.Distance(projection.Frame.Up,LocalDirection(new Vector2((float)radius,0)),1);
+                if(mapped<angle)low=radius;else high=radius;
+            }
+            double scale=(low+high)*.5/angle;
+            return new Vector2((float)(geodesic.X*scale),(float)(geodesic.Y*scale));
         }
         void Bind()
         {
@@ -217,7 +251,7 @@ namespace Orbis.Flat
         public bool TryGetPlanetLocation(Vector2 screen,out PlanetLocation location)
         {
             if(atlasMode)return atlas.TryGetPlanetLocation(screen,out location);location=new PlanetLocation();var ray=viewCamera.ScreenPointToRay(screen);
-            if(IsFlat){if(!TryProjectionPoint(screen,out var xy))return false;location=PlanetCoordinateSystem.FromWorld(projection.Exp(xy.x*TileScale,xy.y*TileScale),new PlanetVector(),1);return true;}
+            if(IsFlat){if(!TryProjectionPoint(screen,out var xy))return false;location=PlanetCoordinateSystem.FromWorld(LocalDirection(xy*TileScale),new PlanetVector(),1);return true;}
             if(IsGlobe)
             {
                 // Avoid the inverse near/far projection's float cancellation after a long
@@ -239,13 +273,14 @@ namespace Orbis.Flat
                 var q=ray.origin-vertices[a];float u=Vector3.Dot(q,h)/det;if(u<0||u>1)continue;var cross=Vector3.Cross(q,ab);float v=Vector3.Dot(ray.direction,cross)/det;if(v<0||u+v>1)continue;
                 float t=Vector3.Dot(ac,cross)/det;if(t<0||t>=nearest)continue;nearest=t;hit=(lattice[a]*(1-u-v)+lattice[b]*u+lattice[c]*v)*radius;
             }
-            if(float.IsInfinity(nearest))return false;location=PlanetCoordinateSystem.FromWorld(projection.Exp(hit.x,hit.y),new PlanetVector(),1);return true;
+            if(float.IsInfinity(nearest))return false;location=PlanetCoordinateSystem.FromWorld(LocalDirection(hit),new PlanetVector(),1);return true;
         }
         Vector3 Position(Vector2 xy)
         {
-            var p=projection.Exp(xy.x,xy.y);var location=PlanetCoordinateSystem.FromWorld(p,new PlanetVector(),1);
-            int x=FMath.Wrap((int)(PlanetCoordinateSystem.MapU(location)*world.Width),world.Width),y=Mathf.Clamp((int)(PlanetCoordinateSystem.MapV(location)*world.Height),0,world.Height-1);
-            float radius=FlatGlobeGeometry.Radius(Mathf.Max(0,world.Elevation[y*world.Width+x]),(float)PlanetCoordinateSystem.MapV(location),world.Height,poles);
+            var p=LocalDirection(xy);
+            var location=PlanetCoordinateSystem.FromWorld(p,new PlanetVector(),1);
+            var uv=new Vector2((float)PlanetCoordinateSystem.MapU(location),(float)PlanetCoordinateSystem.MapV(location));
+            float radius=FlatGlobeGeometry.Radius(FlatGlobeGeometry.SurfaceHeight(world,uv),uv.y,world.Height,poles);
             return Vector3.Lerp(Spin*Reflect(V(p))*radius,normal+east*xy.x+north*xy.y,morph);
         }
         public int Pick(Vector2 screen)=>TryFlatPoint(screen,out var tile)?FlatScrollMath.Tile(tile.x,Math.Min(world.Height-.0001,tile.y),world.Width,world.Height):-1;
@@ -255,7 +290,7 @@ namespace Orbis.Flat
             if(route.Length<2){if(routeLine)routeLine.enabled=false;return;}
             if(!routeLine){var go=new GameObject("Spherical route");go.transform.SetParent(transform,false);routeLine=go.AddComponent<LineRenderer>();routeLine.sharedMaterial=new Material(Shader.Find("Sprites/Default"));routeLine.startColor=routeLine.endColor=new Color(1,.85f,.45f);}
             routeLine.enabled=!atlasMode;routeLine.widthMultiplier=.0015f;routeLine.positionCount=route.Length;
-            for(int i=0;i<route.Length;i++){var p=PlanetCoordinateSystem.SurfaceNormal(PlanetCoordinateSystem.FromMapUV((route[i]%world.Width+.5)/world.Width,(route[i]/world.Width+.5)/world.Height));var xy=projection.Log(p);routeLine.SetPosition(i,Position(new Vector2((float)xy.X,(float)xy.Y))+normal*.0002f);}
+            for(int i=0;i<route.Length;i++){var p=PlanetCoordinateSystem.SurfaceNormal(PlanetCoordinateSystem.FromMapUV((route[i]%world.Width+.5)/world.Width,(route[i]/world.Width+.5)/world.Height));routeLine.SetPosition(i,Position(LocalPoint(p))+normal*.0002f);}
         }
         void OnDestroy(){if(mesh)Destroy(mesh);if(surface)Destroy(surface);if(routeLine&&routeLine.sharedMaterial)Destroy(routeLine.sharedMaterial);}
     }

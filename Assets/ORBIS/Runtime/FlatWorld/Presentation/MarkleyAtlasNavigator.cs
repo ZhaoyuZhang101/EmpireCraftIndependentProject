@@ -466,17 +466,8 @@ namespace Orbis.Flat
         {
             if (point.sqrMagnitude < .000001f) return -1;
             Vector2 uv = UV(Reflect(inverse * point).normalized);
-            float x = uv.x * world.Width - .5f, y = uv.y * world.Height - .5f;
-            int x0 = Mathf.FloorToInt(x), y0 = Mathf.FloorToInt(y);
-            Vector3 a=HeightFields(x0,y0),b=HeightFields(x0+1,y0),c=HeightFields(x0,y0+1),d=HeightFields(x0+1,y0+1);
-            Vector3 fields=Vector3.Lerp(Vector3.Lerp(a,b,x-x0),Vector3.Lerp(c,d,x-x0),y-y0);
-            float h=fields.x+(fields.y>0?fields.z:0);
+            float h=FlatGlobeGeometry.SurfaceHeight(world,uv);
             return point.magnitude - FlatGlobeGeometry.Radius(h,uv.y,world.Height,polarHeights);
-        }
-        Vector3 HeightFields(int x,int y)
-        {
-            int id=Mathf.Clamp(y,0,world.Height-1)*world.Width+FMath.Wrap(x,world.Width);
-            return new Vector3(world.Elevation[id],world.Facts.ShoreDistance[id],world.Facts.Depth[id]);
         }
         public void SetRoute(int[] ids)
         {

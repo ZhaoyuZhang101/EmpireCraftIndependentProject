@@ -2,7 +2,7 @@ using System;
 
 namespace Orbis.Planet
 {
-    /// <summary>Double precision geodesic log/exp map. Radius units belong to the caller.</summary>
+    /// <summary>Double precision geodesic and stereographic maps. Radius units belong to the caller.</summary>
     public sealed class PlanetLocalProjection
     {
         public PlanetTangentFrame Frame { get; private set; }
@@ -37,6 +37,62 @@ namespace Orbis.Planet
             double r=Math.Sqrt(x*x+y*y),a=r/Radius;
             if(r<1e-14)return Frame.Up;
             return Unit(Frame.Up*Math.Cos(a)+(Frame.East*x+Frame.North*y)*(Math.Sin(a)/r));
+        }
+        public PlanetVector StereographicExp(double x,double y)
+        {
+            x/=Radius;
+            y/=Radius;
+            double squared=(x*x+y*y)*.25;
+            return Unit((Frame.Up*(1-squared)+Frame.East*x+Frame.North*y)*(1/(1+squared)));
+        }
+        public PlanetVector StereographicLog(PlanetVector direction)
+        {
+            var point=Log(direction);
+            double distance=Math.Sqrt(point.X*point.X+point.Y*point.Y);
+            if(distance<1e-14)return new PlanetVector();
+            // Bound the antipodal singularity to finite renderer coordinates.
+            double angle=Math.Min(Math.PI-1e-6,distance/Radius);
+            double factor=2*Radius*Math.Tan(angle*.5)/distance;
+            return new PlanetVector(point.X*factor,point.Y*factor,0);
+        }
+        // Recenter the connected north-up solution for a geographic screen anchor.
+        public bool TryAnchorStereographicNorthUp(PlanetVector anchor,double x,double y)
+        {
+            anchor=Unit(anchor);
+            x/=Radius;
+            y/=Radius;
+            var reference=Center;
+            double squared=(x*x+y*y)*.25;
+            double radial=1-squared,denominator=1+squared;
+            double meridian=Math.Sqrt(radial*radial+y*y);
+            double latitude=reference.Latitude;
+            if(meridian<1e-12)
+            {
+                if(Math.Abs(anchor.Y)>1e-12)return false;
+            }
+            else
+            {
+                double argument=denominator*anchor.Y/meridian;
+                if(Math.Abs(argument)>1+1e-12)return false;
+                double angle=Math.Asin(Math.Max(-1,Math.Min(1,argument)));
+                var before=StereographicLog(anchor);
+                double beforeX=before.X/Radius,beforeY=before.Y/Radius;
+                // The meridian derivative identifies the continuous latitude branch.
+                double branch=(1-(beforeX*beforeX+beforeY*beforeY)*.25)*Math.Cos(reference.Latitude)
+                    -beforeY*Math.Sin(reference.Latitude);
+                if(branch<0)angle=Math.PI-angle;
+                latitude=PlanetCoordinateSystem.NearestOffset(angle-Math.Atan2(y,radial),PlanetCoordinateSystem.Tau);
+                if(Math.Abs(latitude)>Math.PI*.5+1e-10)return false;
+                latitude=Math.Max(-Math.PI*.5,Math.Min(Math.PI*.5,latitude));
+            }
+            double longitude=reference.Longitude;
+            if(anchor.X*anchor.X+anchor.Z*anchor.Z>1e-24)
+            {
+                double horizontal=radial*Math.Cos(latitude)-y*Math.Sin(latitude);
+                longitude=Math.Atan2(anchor.X,anchor.Z)-Math.Atan2(x,horizontal);
+            }
+            Frame=PlanetCoordinateSystem.LocalFrame(new PlanetLocation(longitude,latitude),new PlanetVector(),Radius);
+            return true;
         }
         // Parallel transport avoids a longitude-based frame flip when traversing a pole.
         public void Move(double east,double north)

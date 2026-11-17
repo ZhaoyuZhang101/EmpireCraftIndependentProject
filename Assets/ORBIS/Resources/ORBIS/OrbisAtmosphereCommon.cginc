@@ -13,7 +13,7 @@ int _CloudSteps,_AirSteps,_LightSteps,_CloudDebug;
 float _CloudRefinement,_CloudLightSimple;
 float _CloudMS,_ScatteringStrength,_MapVolume;
 float _ScrollVolumeWeight;
-float _LocalCloudMap,_CloudCameraHeight,_CloudViewBlend;
+float _LocalCloudMap,_CloudCameraHeight,_CloudViewBlend,_CloudProjectionBlend;
 float3 _CloudLocalUp,_CloudLocalEast,_CloudLocalNorth;
 
 float3 _MapBL,_MapBR,_MapTL,_MapTR;
@@ -255,8 +255,7 @@ float3 OrbisLocalCloudDirection(float2 uv)
 {
  float2 map=lerp(lerp(_MapBL.xy,_MapBR.xy,uv.x),lerp(_MapTL.xy,_MapTR.xy,uv.x),uv.y);
  float2 xy=map*float2(2*ORBIS_PI,ORBIS_PI);
- float angle=length(xy),sinc=angle<1e-5?1:sin(angle)/angle;
- return normalize(_CloudLocalUp*cos(angle)+(_CloudLocalEast*xy.x+_CloudLocalNorth*xy.y)*sinc);
+ return OrbisLocalDirection(_CloudLocalUp,_CloudLocalEast,_CloudLocalNorth,xy,_CloudProjectionBlend);
 }
 OrbisVolumeResult OrbisMarch(float2 uv)
 {

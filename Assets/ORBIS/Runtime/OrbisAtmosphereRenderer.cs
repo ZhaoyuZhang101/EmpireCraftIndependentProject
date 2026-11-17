@@ -54,6 +54,7 @@ namespace Orbis
                 if(local)
                 {
                     var frame=scroll.LocalFrame;
+                    m.SetFloat("_CloudProjectionBlend",scroll.Morph);
                     m.SetVector("_CloudLocalUp",new Vector4((float)frame.Up.X,(float)frame.Up.Y,(float)frame.Up.Z,0));
                     m.SetVector("_CloudLocalEast",new Vector4((float)frame.East.X,(float)frame.East.Y,(float)frame.East.Z,0));
                     m.SetVector("_CloudLocalNorth",new Vector4((float)frame.North.X,(float)frame.North.Y,(float)frame.North.Z,0));

@@ -1,5 +1,6 @@
 #ifndef ORBIS_CLOUD_COMMON
 #define ORBIS_CLOUD_COMMON
+#include "GeographicCoordinates.cginc"
 // Shared by view-ray clouds AND projected terrain/water shadows.
 // CloudState controls existence; immutable volume noise only controls small-scale shape.
 sampler2D _Weather, _CloudWind, _GroundField, _WeatherEffects;
@@ -17,8 +18,9 @@ float _FlowPhase,_Cover,_Density,_Clouds;
 float2 OrbisWeatherUV(float3 p)
 {
     p=normalize(p);
-    float longitude=abs(p.x)+abs(p.z)<1e-7?0.0:atan2(p.x,p.z);
-    return float2(longitude/(2.0*ORBIS_PI)+.5,asin(clamp(p.y,-1.0,1.0))/ORBIS_PI+.5);
+    float2 uv=OrbisGeographicUV(p);
+    if(abs(p.x)+abs(p.z)<1e-7)uv.x=.5;
+    return uv;
 }
 float2 OrbisSphere(float3 origin,float3 direction,float radius)
 {
