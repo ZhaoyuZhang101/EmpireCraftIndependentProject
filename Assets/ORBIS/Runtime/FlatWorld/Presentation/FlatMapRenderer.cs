@@ -21,7 +21,10 @@ namespace Orbis.Flat
         public MapLayer VisibleLayer { get; private set; }
         Mesh mesh;MeshRenderer meshRenderer;int dataRevision=-1;
         FlatMapRenderJobs renderJobs;
-        public bool PreparationPending {get{return renderJobs!=null&&renderJobs.Pending;}}
+        FlatRiverAtlas riverAtlas;
+        public bool RiverAtlasReady {get{return riverAtlas!=null&&riverAtlas.Ready;}}
+        public Texture2D RiverAtlasTexture {get{return riverAtlas==null?null:riverAtlas.Texture;}}
+        public bool PreparationPending {get{return renderJobs!=null&&renderJobs.Pending||riverAtlas!=null&&riverAtlas.Pending;}}
         public int RejectedPreparationBatches {get{return renderJobs==null?0:renderJobs.RejectedBatches;}}
         public int LastPreparedTiles {get{return renderJobs==null?0:renderJobs.ScheduledTiles;}}
         public double LastSnapshotMilliseconds {get{return renderJobs==null?0:renderJobs.LastSnapshotMilliseconds;}}
@@ -64,6 +67,7 @@ namespace Orbis.Flat
             Material.SetTexture("_VisualTex",VisualTexture);Material.SetFloat("_FieldReady",1);
             Material.SetFloat("_SmoothTerrain",1);Material.SetFloat("_Vegetation",1);Material.SetFloat("_Bathymetry",1);Material.SetFloat("_Relief",1);
             Material.SetTexture("_HydroA",HydroTexture);Material.SetTexture("_HydroB",MixingTexture);Material.SetTexture("_GeoTex",GeometryTexture);
+            riverAtlas=new FlatRiverAtlas(Material);
             Material.SetTexture("_SWEState",Texture2D.grayTexture);Material.SetFloat("_SWEReady",0);
             Material.SetFloat("_ShowWater",1);Material.SetFloat("_ShowBanks",1);Material.SetFloat("_ShowPlumes",1);Material.SetFloat("_WaveAmount",1);
             Material.SetFloat("_ShowContours",0);Material.SetFloat("_ContourInterval",100);Material.SetFloat("_WaterView",1);Material.SetFloat("_Natural",1);
@@ -98,9 +102,11 @@ namespace Orbis.Flat
             if(renderJobs.Pending)
             {
                 bool accepted;
-                if(!renderJobs.TryComplete(World,Layer,out accepted))return;
+                if(!renderJobs.TryComplete(World,Layer,out accepted))
+                {riverAtlas.Tick(World.Facts.RiverCurves,World.TerrainRevision,dataRevision);return;}
                 if(accepted)PublishCompleted();
             }
+            riverAtlas.Tick(World.Facts.RiverCurves,World.TerrainRevision,dataRevision);
             bool refreshData=dataRevision!=World.TerrainRevision;
             if(refreshData)World.MarkAllDirty();
             renderJobs.Schedule(Layer,refreshData);
@@ -132,7 +138,7 @@ namespace Orbis.Flat
             LastUploadMilliseconds=(System.Diagnostics.Stopwatch.GetTimestamp()-start)*1000.0/System.Diagnostics.Stopwatch.Frequency;
         }
         void OnDestroy()
-        {if(renderJobs!=null){renderJobs.Dispose();renderJobs=null;}if(mesh)Destroy(mesh);if(Material)Destroy(Material);foreach(var t in new[]{TerrainTexture,DisplayTexture,OwnerTexture,InfoTexture,HydroTexture,MixingTexture,GeometryTexture,VisualTexture})if(t)Destroy(t);}
+        {if(riverAtlas!=null){riverAtlas.Dispose();riverAtlas=null;}if(renderJobs!=null){renderJobs.Dispose();renderJobs=null;}if(mesh)Destroy(mesh);if(Material)Destroy(Material);foreach(var t in new[]{TerrainTexture,DisplayTexture,OwnerTexture,InfoTexture,HydroTexture,MixingTexture,GeometryTexture,VisualTexture})if(t)Destroy(t);}
     }
 }
 

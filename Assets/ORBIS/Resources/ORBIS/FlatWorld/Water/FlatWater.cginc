@@ -2,6 +2,7 @@
 #define ORBIS_FLAT_WATER_INCLUDED
 #include "HPWaterOptics.cginc"
 #include "../FlatSurfaceField.cginc"
+#include "FlatRiverAtlas.cginc"
 #include "../FlatPolarIce.cginc"
 sampler2D _HydroA,_HydroB,_GeoTex;
 sampler2D _VendorStreamNormal,_VendorOceanNormal;float _VendorWaterReady;
@@ -45,6 +46,27 @@ float FlatAreaWaterKind(float2 cell,sampler2D semantic,float originalKind)
     float lake=dot(weights,1-step(.5,abs(kinds-4)))/max(1e-6,wet);
     return wet>1e-6?3+lake:originalKind;
 }
+float4 FlatAreaWaterOptics(float2 cell,sampler2D semantic,float4 fallback)
+{
+    float2 p=cell-.5,b=floor(p),t=frac(p);t=t*t*(3-2*t);
+    float4 weights=float4((1-t.x)*(1-t.y),t.x*(1-t.y),(1-t.x)*t.y,t.x*t.y);
+    float4 optics=0;float wet=0;
+    [unroll] for(int k=0;k<4;k++)
+    {
+        float2 uv=(b+float2(k==1||k==3?1.5:.5,k>=2?1.5:.5))*_MapSize.zw;
+        float kind=floor(tex2Dlod(semantic,float4(uv,0,0)).g*255+.5);
+        float weight=weights[k]*step(.5,kind)*step(kind,4.5);
+        float depth=tex2Dlod(_HydroA,float4(uv,0,0)).r;
+        float4 mixing=tex2Dlod(_HydroB,float4(uv,0,0));
+        optics+=float4(max(.15,depth),saturate(mixing.g),saturate(mixing.b),step(3.5,kind))*weight;
+        wet+=weight;
+    }
+    // A reconstructed shoreline extends wet metadata across its dry semantic
+    // cells. Normalization keeps land zeros and river depths out of basin optics.
+    if(wet<=1e-6)return fallback;
+    optics/=wet;optics.a+=3;
+    return optics;
+}
 float2 FlatEdge(int direction)
 {
     return direction==0?float2(0,.5):direction==1?float2(1,.5):direction==2?float2(.5,0):float2(.5,1);
@@ -80,6 +102,12 @@ float FlatBezierDistance(float2 p,float2 a,float2 b,float2 c,float ra,float rb,f
 float FlatRiverDistance(float2 p,float4 hydro,float connections,float meander,float2 uv,out float2 tangent)
 {
     tangent=hydro.gb;
+    [branch] if(_RiverAtlasReady>.5)
+    {
+        float4 river=FlatRiverAtlasSample(floor(uv*_MapSize.xy)+p);
+        tangent=river.ba/max(1e-6,length(river.ba));
+        return river.r;
+    }
     [branch] if(hydro.a<.01)return 8;
     float4 links=fmod(floor(connections/float4(1,2,4,8)),2);
     float count=dot(links,float4(1,1,1,1));
@@ -141,7 +169,7 @@ float3 FlatMaterialColor(float code)
     if(code<4.5)return FlatColor(float3(.54,.55,.54));
     return FlatColor(float3(.87,.91,.88));
 }
-float3 FlatBedColor(float2 cell)
+float3 FlatBedColor(float2 cell,float areaWater)
 {
     float2 base=floor(cell-.5),t=frac(cell-.5);t=t*t*(3-2*t);
     float2 uv=(base+.5)*_MapSize.zw,dx=float2(_MapSize.z,0),dy=float2(0,_MapSize.w);
@@ -150,7 +178,22 @@ float3 FlatBedColor(float2 cell)
     float3 b=FlatMaterialColor(floor(tex2Dlod(_GeoTex,float4(uv+dx,0,0)).g+.5));
     float3 c=FlatMaterialColor(floor(tex2Dlod(_GeoTex,float4(uv+dy,0,0)).g+.5));
     float3 d=FlatMaterialColor(floor(tex2Dlod(_GeoTex,float4(uv+dx+dy,0,0)).g+.5));
-    return lerp(lerp(a,b,t.x),lerp(c,d,t.x),t.y);
+    float4 weights=float4((1-t.x)*(1-t.y),t.x*(1-t.y),(1-t.x)*t.y,t.x*t.y);
+    if(areaWater>.5)
+    {
+        float4 h0=tex2Dlod(_HydroA,float4(uv,0,0)),h1=tex2Dlod(_HydroA,float4(uv+dx,0,0));
+        float4 h2=tex2Dlod(_HydroA,float4(uv+dy,0,0)),h3=tex2Dlod(_HydroA,float4(uv+dx+dy,0,0));
+        float4 wet=step(.001,float4(h0.r,h1.r,h2.r,h3.r))*(1-step(.01,float4(h0.a,h1.a,h2.a,h3.a)));
+        float4 wetWeights=weights*wet;
+        float coverage=dot(wetWeights,float4(1,1,1,1));
+        // Legacy probes without basin metadata retain their smooth colour blend.
+        if(coverage>1e-6)weights=wetWeights/coverage;
+    }
+    return a*weights.x+b*weights.y+c*weights.z+d*weights.w;
+}
+float3 FlatBedColor(float2 cell)
+{
+    return FlatBedColor(cell,0);
 }
 float2 FlatBedRefraction(float2 cell,float3 view,float3 normal,float depth,float boundary)
 {
@@ -186,8 +229,9 @@ float FlatBedCaustic(float3 position)
 float FlatMouthDistance(float2 cell,float2 uv,float4 field,out float2 flow)
 {
  float result=8;flow=float2(0,0);
+ if(_RiverAtlasReady>.5)return result;
  if(abs(field.g)>1.25)return result;
- float4 centre=tex2Dlod(_VisualTex,float4(uv,0,0));
+ float4 centre=FlatVisualSample(float4(uv,0,0));
  if(centre.g<=0||field.g>1.25)return result;
  float centreMeander=tex2Dlod(_HydroB,float4(uv,0,0)).r;
  [loop] for(int d=0;d<4;d++)
@@ -310,24 +354,32 @@ float3 FlatWaterShade(float2 cell,float4 hydro,float4 mixing,float4 field,float3
             float2 fine1=FlatDetailNormal(_VendorStreamNormal,artwork*.5-drift*phase1*.70,weights,0,streamLOD+1,right,up);
             microSlopes=lerp(fine0,fine1,blend)*.28;
         }
-        else if(lake>.5)
-        {
-            float2 lake0=FlatDetailNormal(_VendorLakeNormal,baseUV*2-drift*phase0*.10,weights,0,lod,right,up);
-            float2 lake1=FlatDetailNormal(_VendorLakeNormal,baseUV*2-drift*phase1*.10,weights,0,lod,right,up);
-            float fetch=smoothstep(.02,1.8,shoreDistance);
-            vendorSlope=lerp(lake0,lake1,blend)*lerp(.055,.10,fetch);
-            float2 fine0=FlatDetailNormal(_VendorLakeNormal,baseUV*4-drift*phase0*.20,weights,0,lod+1,right,up);
-            float2 fine1=FlatDetailNormal(_VendorLakeNormal,baseUV*4-drift*phase1*.20,weights,0,lod+1,right,up);
-            microSlopes=lerp(fine0,fine1,blend)*.24;
-        }
         else
         {
-            float2 ocean0=FlatDetailNormal(_VendorOceanNormal,baseUV-drift*phase0*.175,weights,0,lod,right,up);
-            float2 ocean1=FlatDetailNormal(_VendorOceanNormal,baseUV-drift*phase1*.175,weights,0,lod,right,up);
-            vendorSlope=lerp(ocean0,ocean1,blend)*.12;
-            float2 fine0=FlatDetailNormal(_VendorOceanNormal,baseUV*2-drift*phase0*.35,weights,0,lod+1,right,up);
-            float2 fine1=FlatDetailNormal(_VendorOceanNormal,baseUV*2-drift*phase1*.35,weights,0,lod+1,right,up);
-            microSlopes=lerp(fine0,fine1,blend)*.32;
+            float2 oceanSlope=0,lakeSlope=0,oceanMicro=0,lakeMicro=0;
+            // Water classifications are wet-weighted fractions at a basin edge.
+            // Blend decoded slopes so the original SW3 artwork changes smoothly.
+            if(lake<1)
+            {
+                float2 ocean0=FlatDetailNormal(_VendorOceanNormal,baseUV-drift*phase0*.175,weights,0,lod,right,up);
+                float2 ocean1=FlatDetailNormal(_VendorOceanNormal,baseUV-drift*phase1*.175,weights,0,lod,right,up);
+                oceanSlope=lerp(ocean0,ocean1,blend)*.12;
+                float2 fine0=FlatDetailNormal(_VendorOceanNormal,baseUV*2-drift*phase0*.35,weights,0,lod+1,right,up);
+                float2 fine1=FlatDetailNormal(_VendorOceanNormal,baseUV*2-drift*phase1*.35,weights,0,lod+1,right,up);
+                oceanMicro=lerp(fine0,fine1,blend)*.32;
+            }
+            if(lake>0)
+            {
+                float2 lake0=FlatDetailNormal(_VendorLakeNormal,baseUV*2-drift*phase0*.10,weights,0,lod,right,up);
+                float2 lake1=FlatDetailNormal(_VendorLakeNormal,baseUV*2-drift*phase1*.10,weights,0,lod,right,up);
+                float fetch=smoothstep(.02,1.8,shoreDistance);
+                lakeSlope=lerp(lake0,lake1,blend)*lerp(.055,.10,fetch);
+                float2 fine0=FlatDetailNormal(_VendorLakeNormal,baseUV*4-drift*phase0*.20,weights,0,lod+1,right,up);
+                float2 fine1=FlatDetailNormal(_VendorLakeNormal,baseUV*4-drift*phase1*.20,weights,0,lod+1,right,up);
+                lakeMicro=lerp(fine0,fine1,blend)*.24;
+            }
+            vendorSlope=lerp(oceanSlope,lakeSlope,lake);
+            microSlopes=lerp(oceanMicro,lakeMicro,lake);
         }
         slopes=vendorSlope;
     }
@@ -367,6 +419,16 @@ float3 FlatWaterShade(float2 cell,float4 hydro,float4 mixing,float4 field,float3
         float section=saturate(-waterEdge/max(.01,hydro.a));
         depth=max(.12,depth*section*(2-section));
     }
+    [branch] if(_RiverAtlasReady>.5&&river<.5&&field.g<.30)
+    {
+        // Inlets and spillways retain a submerged channel through the basin's
+        // shallow shoreline apron, then blend back to its own bathymetry.
+        float4 channel=FlatRiverAtlasSample(cell);
+        float radius=length(channel.ba);
+        float section=saturate(-channel.r/max(.0001,radius));
+        float channelDepth=channel.g*section*(2-section);
+        depth=max(depth,channelDepth*(1-smoothstep(0,.30,field.g)));
+    }
     float clearance=lerp(max(0,shoreDistance),max(0,-waterEdge),river);
     float2 bedCell=cell;
     if(_FieldReady>.5)bedCell+=FlatBedRefraction(cell,localView,normal,depth,clearance);
@@ -380,7 +442,7 @@ float3 FlatWaterShade(float2 cell,float4 hydro,float4 mixing,float4 field,float3
     caustic*=exp(-depth*.12)*(1-exp(-depth*.7))*smoothstep(.03,.18,clearance)*(1-smoothstep(.2,1,footprint));
     if(_FieldReady>.5)
     {
-        bottom=FlatBedColor(bedCell)*.72;
+        bottom=FlatBedColor(bedCell,1-river)*.72;
         if(depth<35&&footprint<1.5)bottom=lerp(bottom,FlatBedArtwork(bedPosition,bottom,footprint),1-smoothstep(18,35,depth));
         bottom*=1+caustic*.65;
     }

@@ -42,8 +42,9 @@ bool PDTreeAvailable(float2 id,float4 placement,float4 info)
 {
  if(info.b>.5||(info.g>.5&&info.g<4.5))return false;
  float2 root=placement.xy/32,uv=(id+root)*_MapSize.zw;
- float4 field=tex2Dlod(_VisualTex,float4(uv,0,0));
+ float4 field=FlatVisualSample(float4(uv,0,0));
  if(placement.w>saturate((field.a-.20)*1.25)||field.g>-.18)return false;
+ if(_RiverAtlasReady>.5)return FlatRiverAtlasSample(id+root).r>=.15;
  float2 centreUV=(id+.5)*_MapSize.zw,flow;
  float4 hydro=tex2Dlod(_HydroA,float4(centreUV,0,0));
  float4 river=tex2Dlod(_HydroB,float4(centreUV,0,0));

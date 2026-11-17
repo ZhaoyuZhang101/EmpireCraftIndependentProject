@@ -24,7 +24,7 @@ float3 ScrollPosition(float2 meshUV,float shell,out float2 geo)
  float3 radial=MarkleyDirection(geo);radial.z=-radial.z;
  float2 heightUV=MarkleyGeoUV(geo);
  // Every longitude converges to the same polar radius over the last source row.
- float4 field=tex2Dlod(_VisualTex,float4(heightUV,0,0));
+ float4 field=FlatVisualSample(float4(heightUV,0,0));
  float radius=ScrollRadius(field,heightUV,_MapSize.y);
  float3 sphere=ScrollRotate(radial)*(radius+shell*(1-_ScrollMorph));
  return lerp(sphere,plane,_ScrollMorph);

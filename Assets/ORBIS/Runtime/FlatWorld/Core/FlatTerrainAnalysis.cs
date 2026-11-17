@@ -19,6 +19,7 @@ namespace Orbis.Flat
         public readonly byte[] SaturatedMonths,Connections;
         public readonly VegetationCover[] Vegetation;public readonly float[] Canopy;
         public readonly ushort[] FreshDistance;
+        public FlatRiverCurves RiverCurves { get; internal set; }
         public int MouthCount;
         public FlatTerrainFacts(int count)
         {
@@ -32,7 +33,7 @@ namespace Orbis.Flat
         }
         public FlatTerrainFacts Clone()
         {
-            var f=new FlatTerrainFacts(Forms.Length){MouthCount=MouthCount};
+            var f=new FlatTerrainFacts(Forms.Length){MouthCount=MouthCount,RiverCurves=RiverCurves};
             Array.Copy(Vegetation,f.Vegetation,Forms.Length);Array.Copy(Canopy,f.Canopy,Forms.Length);
             Array.Copy(Forms,f.Forms,Forms.Length);Array.Copy(Materials,f.Materials,Forms.Length);
             float[][] a={Relief,Gradient,Hand,Wetness,AnnualRain,MeanTemperature,Sediment,Freshness,FlowX,FlowY,HalfWidth,Depth,ShoreDistance,Meander};
@@ -229,7 +230,8 @@ namespace Orbis.Flat
                 else f.Sediment[i]=w.Water[i]==WaterKind.River?FMath.Clamp(.025f+concentration,.025f,.85f):0;
                 if(parent>=0)sedimentLoad[parent]+=sedimentLoad[i]*.99f;
             }
-            BuildPlumes(w,f,cancel);FlatSurfaceSampling.BuildShore(w,f,cancel);w.Facts=f;
+            BuildPlumes(w,f,cancel);FlatSurfaceSampling.BuildShore(w,f,cancel);
+            f.RiverCurves=FlatRiverCurves.Build(w,f,cancel);w.Facts=f;
         }
         static void BuildPlumes(WorldData w,FlatTerrainFacts f,CancellationToken cancel)
         {

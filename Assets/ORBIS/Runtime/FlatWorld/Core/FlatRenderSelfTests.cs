@@ -52,7 +52,7 @@ namespace Orbis.Flat
         }
         public static int Run()
         {
-            Assertions=0;TestLightning();var random=new Random(320912);
+            Assertions=0;TestLightning();Assertions+=FlatRiverCurveSelfTests.Run();var random=new Random(320912);
             for(int k=0;k<2000;k++)
             {
                 float a=random.Next(-4000,4001),b=random.Next(-4000,4001),c=random.Next(-4000,4001),d=random.Next(-4000,4001);
@@ -120,6 +120,7 @@ namespace Orbis.Flat
                 Near(FlatSurfaceSampling.ShoreDetail(j%64+.5f,12.5f,64,32),0,.0001f,"Shore detail preserves authoritative tile centres");
             }
             Check(w.Facts.HalfWidth[flows.Length-1]<=.24f,"Mouth full width stays below half a tile");
+            w.Facts.RiverCurves=null;
             int spring=w.Index(30,16);w.Facts.HalfWidth[spring]=.12f;w.Facts.HalfWidth[w.Neighbor(spring,1)]=.12f;
             w.Facts.Connections[spring]=2;w.Facts.FlowX[spring]=1;int sourceSpan=0,downstreamSpan=0;
             for(int y=0;y<100;y++)

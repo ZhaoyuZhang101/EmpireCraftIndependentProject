@@ -2,6 +2,10 @@ Shader "ORBIS/FlatWorld/ScrollSurface"
 {
  Properties
  {
+  [HideInInspector] _RiverAtlas("Continuous river field",2D)="black"{}
+  [HideInInspector] _RiverAtlasReady("River field ready",Float)=0
+  [HideInInspector] _RiverAtlasLayout("River field layout",Vector)=(0,0,0,0)
+
  [HideInInspector] _VendorWaterReady ("SW3 resources ready", Float) = 0
  [HideInInspector] _VendorStreamNormal ("Vendor stream waves", 2D) = "gray" {}
  [HideInInspector] _VendorOceanNormal ("Vendor ocean waves", 2D) = "gray" {}
@@ -38,7 +42,7 @@ Shader "ORBIS/FlatWorld/ScrollSurface"
    #pragma target 3.0
    #pragma multi_compile_shadowcaster
    #include "UnityCG.cginc"
-   sampler2D _VisualTex;
+   #include "FlatVisualTexture.cginc"
    float4 _MapSize;
    #include "ScrollProjection.cginc"
    struct depthOut { V2F_SHADOW_CASTER; };

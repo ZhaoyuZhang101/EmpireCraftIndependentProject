@@ -32,9 +32,26 @@
     }
     if(_WaterView>.5)
     {
-     float4 smoothMix=tex2D(_HydroB,i.uv);mixing.gb=smoothMix.gb;
-     if(hydro.a>.01)hydro.gb=riverFlow;else hydro.gb=tex2D(_HydroA,i.uv).gb;
-     float bankWidth=hydro.a>.01?.075:.16;
+     float4 areaOptics=FlatAreaWaterOptics(cell,_InfoTex,float4(field.b,mixing.g,mixing.b,floor(info.g+.5)));
+     float waterKind=areaOptics.a;
+     field.b=areaOptics.r;mixing.gb=areaOptics.gb;
+     if(_RiverAtlasReady>.5)
+     {
+      float4 river=FlatRiverAtlasSample(cell);
+      float halfWidth=length(river.ba);
+      hydro.gb=tex2D(_HydroA,i.uv).gb;hydro.a=0;
+      if(field.g<0&&river.r< -field.g&&halfWidth>.0001)
+      {
+       hydro=float4(river.g,river.ba/max(.0001,halfWidth),halfWidth);
+       mixing.g=FlatRiverAtlasSediment(cell);mixing.b=1;waterKind=5;
+      }
+     }
+     else
+     {
+      if(hydro.a>.01)hydro.gb=riverFlow;else hydro.gb=tex2D(_HydroA,i.uv).gb;
+      if(hydro.a>.01&&field.g<0)waterKind=5;
+     }
+     float bankWidth=hydro.a>.0001?clamp(hydro.a*.40,.02,.075):.16;
      float bankMask=(1-waterMask)*(1-smoothstep(0,bankWidth+aa,edgeDistance))*_ShowBanks;
      float3 bankColor=FlatMaterialColor(floor(geo.g+.5));
      bankColor=lerp(bankColor,FlatColor(float3(.83,.75,.55)),step(-1.4,field.g)*step(geo.g,.5));
@@ -43,7 +60,6 @@
      float3 bottom=FlatMaterialColor(floor(geo.g+.5))*.72;
      float3 waterColor=FlatColor(float3(.20,.43,.55))*illumination;
      // The uniform switch skips optics without exposing padded land under water.
-     float waterKind=hydro.a>.01&&field.g<0?5:FlatAreaWaterKind(cell,_InfoTex,floor(info.g+.5));
      float3 waterLight=FlatGeographicLight(i.uv,normalize(_FlatSun+float3(0,1e-7,0)));
      float3 waterView=float3(0,0,1);
      #ifdef ORBIS_SCROLL_SURFACE

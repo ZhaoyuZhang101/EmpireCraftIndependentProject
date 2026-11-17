@@ -51,7 +51,10 @@ namespace Orbis.Flat
         }
         public static float RiverDistance(WorldData w,int i,float x,float y)
         {
-            var f=w.Facts;if(f==null||f.HalfWidth[i]<.01f)return 8;
+            var f=w.Facts;if(f==null)return 8;
+            if(f.RiverCurves!=null&&f.RiverCurves.SegmentCount>0)
+                return f.RiverCurves.Sample(i%w.Width+x,i/w.Width+y).Distance;
+            if(f.HalfWidth[i]<.01f)return 8;
             int mask=f.Connections[i],count=0,outlet=-1;float best=-2;
             for(int d=0;d<4;d++)
             {
@@ -85,6 +88,8 @@ namespace Orbis.Flat
         }
         public static float MouthDistance(WorldData w,int i,float x,float y)
         {
+            if(w.Facts.RiverCurves!=null&&w.Facts.RiverCurves.SegmentCount>0)
+                return w.Facts.RiverCurves.Sample(i%w.Width+x,i/w.Width+y).Distance;
             if(w.Facts.ShoreDistance[i]<=0)return 8;
             float result=8;
             for(int d=0;d<4;d++)
@@ -109,10 +114,13 @@ namespace Orbis.Flat
             int ix=(int)Math.Floor(x),iy=(int)Math.Floor(y),i=w.Index(ix,iy);if(i<0)return 0;
             float sd=FlatSurfaceSampling.SampleShore(w,x,y);
             float area=Smooth(-.025f,.025f,sd);
-            float distance=RiverDistance(w,i,x-ix,y-iy);
-            if(sd<=1.25f)distance=Math.Min(distance,MouthDistance(w,i,x-ix,y-iy));
+            var curves=w.Facts.RiverCurves;
+            bool cached=curves!=null&&curves.SegmentCount>0;
+            var sample=cached?curves.Sample(x,y):default;
+            float distance=cached?sample.Distance:RiverDistance(w,i,x-ix,y-iy);
+            if(!cached&&sd<=1.25f)distance=Math.Min(distance,MouthDistance(w,i,x-ix,y-iy));
             float river=1-Smooth(-.025f,.025f,distance);
-            depth=river>area?w.Facts.Depth[i]:Math.Max(.15f,FlatSurfaceSampling.Sample(w.Facts.Depth,w.Width,w.Height,x,y));
+            depth=river>area?(cached?sample.Depth:w.Facts.Depth[i]):Math.Max(.15f,FlatSurfaceSampling.Sample(w.Facts.Depth,w.Width,w.Height,x,y));
             if(area>.01f)depth*=FMath.Lerp(.05f,1,Smooth(0,1.5f,sd));
             return Math.Max(area,river);
         }

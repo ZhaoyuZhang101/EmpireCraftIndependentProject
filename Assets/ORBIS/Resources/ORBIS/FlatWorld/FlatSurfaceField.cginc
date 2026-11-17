@@ -1,6 +1,6 @@
 #ifndef ORBIS_FLAT_SURFACE_FIELD
 #define ORBIS_FLAT_SURFACE_FIELD
-sampler2D _VisualTex;
+#include "FlatVisualTexture.cginc"
 float4 _MapSize;
 float _FieldReady,_SmoothTerrain,_Vegetation,_Bathymetry,_Relief;
 float4 FlatMinmod(float4 a,float4 b)
@@ -16,8 +16,8 @@ float4 FlatCubic(float4 p0,float4 p1,float4 p2,float4 p3,float t)
 float4 FlatFieldRow(float2 centre,float t)
 {
     float2 dx=float2(_MapSize.z,0);
-    return FlatCubic(tex2Dlod(_VisualTex,float4(centre-dx,0,0)),tex2Dlod(_VisualTex,float4(centre,0,0)),
-                     tex2Dlod(_VisualTex,float4(centre+dx,0,0)),tex2Dlod(_VisualTex,float4(centre+dx*2,0,0)),t);
+    return FlatCubic(FlatVisualSample(float4(centre-dx,0,0)),FlatVisualSample(float4(centre,0,0)),
+                     FlatVisualSample(float4(centre+dx,0,0)),FlatVisualSample(float4(centre+dx*2,0,0)),t);
 }
 float FlatShoreDetail(float2 cell)
 {
@@ -139,8 +139,8 @@ float2 FlatHeightGradient(float h,float2 cell)
 float2 FlatFieldGradient(float2 cell,float useDepth)
 {
     float2 uv=cell*_MapSize.zw,dx=float2(_MapSize.z,0),dy=float2(0,_MapSize.w);
-    float4 west=tex2Dlod(_VisualTex,float4(uv-dx,0,0)),east=tex2Dlod(_VisualTex,float4(uv+dx,0,0));
-    float4 south=tex2Dlod(_VisualTex,float4(uv-dy,0,0)),north=tex2Dlod(_VisualTex,float4(uv+dy,0,0));
+    float4 west=FlatVisualSample(float4(uv-dx,0,0)),east=FlatVisualSample(float4(uv+dx,0,0));
+    float4 south=FlatVisualSample(float4(uv-dy,0,0)),north=FlatVisualSample(float4(uv+dy,0,0));
     if(useDepth>.5)return float2(log2(1+max(0,east.b))-log2(1+max(0,west.b)),log2(1+max(0,north.b))-log2(1+max(0,south.b)))*680;
     return float2(east.r-west.r,north.r-south.r)*.5;
 }
@@ -160,7 +160,7 @@ float3 FlatTerrainFine(float3 col,float2 cell,float pixelsPerTile,float2 heightG
     // sphere while the camera pans, turns or crosses the date line.
     col*=1+(grain-.5)*.045*grainWeight+(broken-.5)*.045*fineWeight;
     if(_FieldReady<.5)return col;
-    float4 field=tex2Dlod(_VisualTex,float4(cell*_MapSize.zw,0,0));
+    float4 field=FlatVisualSample(float4(cell*_MapSize.zw,0,0));
     float latitude=(cell.y*_MapSize.w-.5)*3.141592654;
     float2 gradient=heightGradient;
     gradient.x/=max(.08,cos(latitude));
