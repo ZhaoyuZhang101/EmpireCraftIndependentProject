@@ -151,6 +151,37 @@ float3 FlatBedColor(float2 cell)
     float3 d=FlatMaterialColor(floor(tex2Dlod(_GeoTex,float4(uv+dx+dy,0,0)).g+.5));
     return lerp(lerp(a,b,t.x),lerp(c,d,t.x),t.y);
 }
+float2 FlatBedRefraction(float2 cell,float3 view,float3 normal,float depth,float boundary)
+{
+    const float airToWater=1/1.333;
+    float3 flatRay=refract(-view,float3(0,0,1),airToWater);
+    float3 bentRay=refract(-view,normal,airToWater);
+    float2 offset=(bentRay.xy/max(.1,-bentRay.z)-flatRay.xy/max(.1,-flatRay.z))*min(depth,20)*.03;
+    float latitude=(cell.y*_MapSize.w-.5)*3.141592654;
+    offset.x/=max(.04,cos(latitude));
+    // Limit the optical displacement inside the local wet cross-section.
+    float limit=min(.08,max(0,boundary)*.25);
+    offset*=min(1,limit/max(1e-6,length(offset)));
+    return offset;
+}
+float3 FlatBedArtwork(float3 position,float3 colour,float footprint)
+{
+    float sand=FlatDetailNoise(position*3.5);
+    float gravel=FlatDetailNoise(position*8.5+17);
+    float pebble=smoothstep(.54,.72,gravel);
+    float bevel=.72+.28*gravel;
+    float3 sandColour=colour*(.70+.55*sand+.04*sin(dot(position,float3(13,5,8))+sand*4));
+    float3 stoneColour=lerp(colour,FlatColor(float3(.48,.47,.40)),.45)*bevel;
+    float stones=1-smoothstep(.2,.7,footprint);
+    float3 bed=lerp(sandColour,stoneColour,pebble*stones*.85);
+    return lerp(colour,bed,1-smoothstep(.45,1.5,footprint));
+}
+float FlatBedCaustic(float3 position)
+{
+    float3 waves=sin(position+sin(position.yzx*.83+position.zxy*.31)*1.8);
+    float bandDistance=min(abs(waves.x+waves.y),min(abs(waves.y+waves.z),abs(waves.z+waves.x)));
+    return pow(saturate(1-bandDistance*1.6),8);
+}
 float FlatMouthDistance(float2 cell,float2 uv,float4 field,out float2 flow)
 {
  float result=8;flow=float2(0,0);
@@ -294,6 +325,8 @@ float3 FlatWaterShade(float2 cell,float4 hydro,float4 mixing,float4 field,float3
     float3 scattering=lerp(float3(.005,.025,.038),float3(.004,.019,.022),fresh);
     absorption=lerp(absorption,float3(.18,.29,.46),sediment);
     scattering=lerp(scattering,float3(.45,.34,.17),sediment);
+    absorption+=sediment*sediment*float3(.45,.55,.65);
+    scattering+=sediment*sediment*float3(.65,.50,.28);
     // Reconstructed area water may overlap a river tile at a mouth or lake bank.
     // Its depth follows the basin bed rather than the tile's narrow channel.
     float depth=max(.15,lerp(field.b,hydro.r,river));
@@ -303,9 +336,23 @@ float3 FlatWaterShade(float2 cell,float4 hydro,float4 mixing,float4 field,float3
         float section=saturate(-waterEdge/max(.01,hydro.a));
         depth=max(.12,depth*section*(2-section));
     }
-    if(_FieldReady>.5)bottom=FlatBedColor(cell)*.72;
-    // Stable bed grain remains visible through shallow clear water.
-    bottom*=.94+.06*sin(dot(artwork,float3(7.1,4.3,5.7)))*sin(dot(artwork,float3(-3.9,8.1,2.3)));
+    float clearance=lerp(max(0,shoreDistance),max(0,-waterEdge),river);
+    float2 bedCell=cell;
+    if(_FieldReady>.5)bedCell+=FlatBedRefraction(cell,localView,normal,depth,clearance);
+    float3 bedPosition=FlatDetailPosition(bedCell);
+    // Geographic wave patterns keep light bands attached to the submerged bed.
+    float3 sunView=normalize(float3(localLight.xy,max(.1,localLight.z)));
+    float2 sunOffset=FlatBedRefraction(cell,sunView,normal,depth,clearance);
+    float3 sunWarp=(right*sunOffset.x*max(.04,cos(lat))+up*sunOffset.y)*12;
+    float focus=lerp(FlatBedCaustic(p0*.6+sunWarp),FlatBedCaustic(p1*.6+sunWarp),blend);
+    float caustic=focus*saturate(localLight.z)*(1-sediment)*(1-sediment)*waveStrength;
+    caustic*=exp(-depth*.12)*(1-exp(-depth*.7))*smoothstep(.03,.18,clearance)*(1-smoothstep(.2,1,footprint));
+    if(_FieldReady>.5)
+    {
+        bottom=FlatBedColor(bedCell)*.72;
+        if(depth<35&&footprint<1.5)bottom=lerp(bottom,FlatBedArtwork(bedPosition,bottom,footprint),1-smoothstep(18,35,depth));
+        bottom*=1+caustic*.65;
+    }
     float refractedCos=sqrt(max(.1,1-(1-nv*nv)/(1.333*1.333)));
     float3 transmission;
     float3 scatteringLight=OrbisHPScatter(light,absorption,scattering,depth/refractedCos,transmission);

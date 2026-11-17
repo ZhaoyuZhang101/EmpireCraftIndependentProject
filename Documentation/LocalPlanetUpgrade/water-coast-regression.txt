@@ -1,4 +1,4 @@
-PASS smoothed lake shoreline across land semantic cell, colour jump=2.032518E-05
+PASS smoothed lake shoreline across land semantic cell, colour jump=3.874302E-07
 PASS crests advance toward shore and exclude inland/deep water; peak=39 -> 31
 PASS shared CPU/GPU continuous shoreline across longitude seam; max error=7.228926E-06
 PASS submerged substrate colour is continuous across material cells; jump=6.729364E-05

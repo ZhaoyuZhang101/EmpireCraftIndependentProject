@@ -50,6 +50,52 @@ namespace Orbis.Editor
      report.Add((boundary<.003?"PASS":"FAIL")+" continuous two-phase wave advection kind="+kind+" mean RGB difference="+boundary);
     }
     m.SetFloat("_WaterClock",3);
+    var substrate=new Texture2D(16,8,TextureFormat.RGBAFloat,false,true){filterMode=FilterMode.Point,wrapMode=TextureWrapMode.Repeat};
+    try
+    {
+     var materials=new Color[128];for(int i=0;i<materials.Length;i++)materials[i]=new Color(0,1,0,0);
+     substrate.SetPixels(materials);substrate.Apply();m.SetTexture("_GeoTex",substrate);
+     m.SetFloat("_FieldReady",1);m.SetFloat("_Bathymetry",0);m.SetFloat("_ProbeKind",4);m.SetFloat("_WaterKind",4);
+     m.SetFloat("_ProbeDepth",.7f);m.SetFloat("_ProbeSediment",0);m.SetFloat("_ProbeWaves",1);
+     m.SetVector("_ProbeView",new Vector4(0,0,1,0));m.SetVector("_ProbeCell",new Vector4(200,130,0,0));
+     m.SetVector("_ProbeSun",new Vector4(-.8f,.5f,.3f,0));
+     var clearBed=sample();double shallowContrast=Contrast(clearBed);
+     report.Add((shallowContrast>.02?"PASS":"FAIL")+" shallow clear water resolves bed artwork; contrast="+shallowContrast);
+     m.SetFloat("_ProbeDepth",3);var refractedBed=sample();
+     m.SetFloat("_WaterClock",10);var movingBed=sample();double movement=Difference(refractedBed,movingBed);
+     report.Add((movement>.00005?"PASS":"FAIL")+" calm SW3 waves animate the refracted bed over seven seconds; mean change="+movement);
+     m.SetFloat("_ProbeDepth",40);double deepContrast=Contrast(sample());
+     m.SetFloat("_ProbeDepth",.7f);m.SetFloat("_ProbeSediment",.8f);double muddyContrast=Contrast(sample());
+     report.Add((deepContrast<shallowContrast*.2&&muddyContrast<shallowContrast*.65?"PASS":"FAIL")+" depth and suspended sediment hide the bed; contrast="+deepContrast+","+muddyContrast);
+     m.SetFloat("_ProbeSediment",0);m.SetFloat("_ProbeWaves",0);m.SetFloat("_WaterClock",3);var still=sample();
+     m.SetFloat("_WaterClock",4);double stillChange=Difference(still,sample());
+     report.Add((stillChange<.00001?"PASS":"FAIL")+" stationary water keeps the bed stable; mean change="+stillChange);
+     m.SetFloat("_ProbeDepth",3);m.SetFloat("_ProbeWaves",1);m.SetFloat("_WaterClock",3);
+     m.SetVector("_ProbeCell",new Vector4(511.3f,130,0,0));var seamBed=sample();
+     m.SetFloat("_ProbeFlip",1);double bedRotationError=MaximumDifference(seamBed,Mirror(sample(),128,64));
+     report.Add((bedRotationError<.001?"PASS":"FAIL")+" refracted bed and geographic caustics stay stable under reversed screen direction; max error="+bedRotationError);
+     m.SetFloat("_ProbeFlip",0);m.SetFloat("_ProbeWrap",1);double wrappedError=MaximumDifference(seamBed,sample());m.SetFloat("_ProbeWrap",0);
+     report.Add((wrappedError<.001?"PASS":"FAIL")+" actual wrapped water coordinates preserve bed light bands at longitude zero; max error="+wrappedError);
+     m.SetVector("_ProbeSun",new Vector4(-.8f,.5f,-.3f,0));var nightBed=sample();
+     m.SetFloat("_ProbeFlip",1);double nightRotation=MaximumDifference(nightBed,Mirror(sample(),128,64));
+     report.Add((nightRotation<.001?"PASS":"FAIL")+" bed refraction stays stable with the sun below the horizon; max error="+nightRotation);
+     m.SetVector("_ProbeSun",new Vector4(-.8f,.5f,.3f,0));
+     m.SetFloat("_ProbeFlip",0);m.SetVector("_ProbeCell",new Vector4(-.7f,130,0,0));double bedSeamError=Difference(seamBed,sample());
+     report.Add((bedSeamError<.001?"PASS":"FAIL")+" water-bottom artwork wraps at the date line; mean error="+bedSeamError);
+     float period=1/.065f;m.SetFloat("_WaterClock",period-.0001f);var phaseBed=sample();
+     m.SetFloat("_WaterClock",period+.0001f);double bedPhaseError=Difference(phaseBed,sample());
+     report.Add((bedPhaseError<.0005?"PASS":"FAIL")+" refracted bed and light focusing remain continuous at wave phase wrap; mean error="+bedPhaseError);
+     m.SetFloat("_ProbeKind",5);m.SetFloat("_ProbeDepth",40);m.SetVector("_ProbeView",new Vector4(.8f,0,.6f,0));
+     int invalidOffsets=0;
+     foreach(float latitudeCell in new[]{1f,130f,254f})
+     {
+      m.SetVector("_ProbeCell",new Vector4(511.3f,latitudeCell,0,0));
+      foreach(var pixel in sample())if(!Finite(pixel)||Mathf.Sqrt(pixel.r*pixel.r+pixel.g*pixel.g)>pixel.b+.00001f)invalidOffsets++;
+     }
+     report.Add((invalidOffsets==0?"PASS":"FAIL")+" grazing refraction stays inside wet shore limits at poles and date line; invalid="+invalidOffsets);
+    }
+    finally{UnityEngine.Object.DestroyImmediate(substrate);}
+    m.SetFloat("_ProbeKind",2);m.SetFloat("_WaterClock",3);
     var bed=new Texture2D(16,8,TextureFormat.RGBAFloat,false,true){filterMode=FilterMode.Bilinear,wrapMode=TextureWrapMode.Clamp};
     try
     {
@@ -65,6 +111,24 @@ namespace Orbis.Editor
    finally{ShaderUtil.allowAsyncCompilation=async;RenderTexture.active=previous;RenderTexture.ReleaseTemporary(rt);UnityEngine.Object.DestroyImmediate(m);UnityEngine.Object.DestroyImmediate(image);}
   }
   static bool Finite(Color c)=>!float.IsNaN(c.r+c.g+c.b)&&!float.IsInfinity(c.r+c.g+c.b);
+  static double Contrast(Color[] pixels)
+  {
+   double sum=0,squares=0;
+   foreach(var pixel in pixels){double value=pixel.r*.2126+pixel.g*.7152+pixel.b*.0722;sum+=value;squares+=value*value;}
+   return Math.Sqrt(Math.Max(0,squares/pixels.Length-sum*sum/(pixels.Length*pixels.Length)));
+  }
+  static Color[] Mirror(Color[] pixels,int width,int height)
+  {
+   var mirrored=new Color[pixels.Length];
+   for(int y=0;y<height;y++)for(int x=0;x<width;x++)mirrored[y*width+x]=pixels[y*width+width-1-x];
+   return mirrored;
+  }
+  static double MaximumDifference(Color[] a,Color[] b)
+  {
+   double error=0;
+   for(int i=0;i<a.Length;i++)error=Math.Max(error,Math.Max(Math.Abs(a[i].r-b[i].r),Math.Max(Math.Abs(a[i].g-b[i].g),Math.Abs(a[i].b-b[i].b))));
+   return error;
+  }
   static double Difference(Color[] a,Color[] b){double sum=0;for(int i=0;i<a.Length;i++)sum+=Math.Abs(a[i].r-b[i].r)+Math.Abs(a[i].g-b[i].g)+Math.Abs(a[i].b-b[i].b);return sum/a.Length;}
  }
 }

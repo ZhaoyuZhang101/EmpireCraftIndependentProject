@@ -2,10 +2,20 @@ PASS HP density, phi_fwd and full light segment coverage; invalid=0 cloud sample
 PASS SW3 water kind=3 finite at depths 0.1..4000m; invalid=0
 PASS SW3 water kind=4 finite at depths 0.1..4000m; invalid=0
 PASS SW3 water kind=5 finite at depths 0.1..4000m; invalid=0
-PASS distinct ocean/lake/river results; differences=0.0809559543158684, 0.0230866504443838
+PASS distinct ocean/lake/river results; differences=0.0863293021866411, 0.0212219747572817
 PASS all five SW3 artwork resources bound
 PASS geographic water normals remain stable under reversed screen direction; max error=0
-PASS continuous two-phase wave advection kind=3 mean RGB difference=1.62386641022749E-07
-PASS continuous two-phase wave advection kind=4 mean RGB difference=2.94494384434074E-09
-PASS continuous two-phase wave advection kind=5 mean RGB difference=2.43195427174214E-06
+PASS continuous two-phase wave advection kind=3 mean RGB difference=1.61973730428144E-07
+PASS continuous two-phase wave advection kind=4 mean RGB difference=2.93766788672656E-09
+PASS continuous two-phase wave advection kind=5 mean RGB difference=2.42206078837626E-06
+PASS shallow clear water resolves bed artwork; contrast=0.0447348692798767
+PASS calm SW3 waves animate the refracted bed over seven seconds; mean change=0.0150205388090399
+PASS depth and suspended sediment hide the bed; contrast=1.73154534671588E-05,0.0196955614972994
+PASS stationary water keeps the bed stable; mean change=0
+PASS refracted bed and geographic caustics stay stable under reversed screen direction; max error=0
+PASS actual wrapped water coordinates preserve bed light bands at longitude zero; max error=0.000261187553405762
+PASS bed refraction stays stable with the sun below the horizon; max error=0
+PASS water-bottom artwork wraps at the date line; mean error=3.31052651745267E-05
+PASS refracted bed and light focusing remain continuous at wave phase wrap; mean error=7.73445935919881E-06
+PASS grazing refraction stays inside wet shore limits at poles and date line; invalid=0
 PASS actual seabed opposing slopes remain visible; contrast=0.3006224
