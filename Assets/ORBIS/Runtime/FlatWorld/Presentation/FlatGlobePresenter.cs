@@ -19,7 +19,7 @@ namespace Orbis.Flat
             View.SurfaceMaterial.SetTexture("_VisualTex",maps.VisualTexture);View.SurfaceMaterial.SetFloat("_FieldReady",1);
             View.SurfaceMaterial.SetTexture("_HydroA",maps.HydroTexture);View.SurfaceMaterial.SetTexture("_HydroB",maps.MixingTexture);View.SurfaceMaterial.SetTexture("_GeoTex",maps.GeometryTexture);
             View.SurfaceMaterial.SetVector("_MapSize",new Vector4(world.Width,world.Height,1f/world.Width,1f/world.Height));
-            View.SurfaceMaterial.SetFloat("_ShowPlumes",1);View.SurfaceMaterial.SetFloat("_ShowWater",1);View.SurfaceMaterial.SetFloat("_ShowBanks",1);View.SurfaceMaterial.SetFloat("_WaveAmount",1);View.SurfaceMaterial.SetFloat("_SWEReady",0);
+            View.SurfaceMaterial.SetFloat("_ShowWater",1);View.SurfaceMaterial.SetFloat("_ShowBanks",1);View.SurfaceMaterial.SetFloat("_WaveAmount",1);View.SurfaceMaterial.SetFloat("_SWEReady",0);
             View.SurfaceMaterial.SetVector("_FlatSize",new Vector4(world.Width,world.Height,1f/world.Width,1f/world.Height));
             Orbis.Planet.OrbisAssetVisuals.BindWater(View.SurfaceMaterial);
         }

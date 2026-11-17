@@ -13,7 +13,7 @@ sampler2D _SWEState,_SWEPreviousState;
 #endif
 float4 _SWERect,_SWEPreviousRect;
 float _SWEPreviousReady,_SWEBlend;
-float _SWEReady,_WaterClock,_ShowBanks,_ShowWater,_ShowPlumes,_WaveAmount;
+float _SWEReady,_WaterClock,_ShowBanks,_ShowWater,_WaveAmount;
 float FlatLandSnow(float2 cell,sampler2D semantic)
 {
     float2 p=cell-.5,b=floor(p),t=frac(p);t=t*t*(3-2*t);
@@ -410,13 +410,9 @@ float3 FlatWaterShade(float2 cell,float4 hydro,float4 mixing,float4 field,float3
     waveStrength=max(0,waveStrength);
     float3 normal=normalize(float3(-slopes*waveStrength,1));
     float nv=saturate(dot(normal,localView));
-    float sediment=mixing.g*_ShowPlumes,fresh=mixing.b;
+    float fresh=mixing.b;
     float3 absorption=lerp(float3(.24,.07,.035),float3(.09,.035,.018),fresh);
     float3 scattering=lerp(float3(.005,.025,.038),float3(.004,.019,.022),fresh);
-    absorption=lerp(absorption,float3(.18,.29,.46),sediment);
-    scattering=lerp(scattering,float3(.45,.34,.17),sediment);
-    absorption+=sediment*sediment*float3(.45,.55,.65);
-    scattering+=sediment*sediment*float3(.65,.50,.28);
     // Reconstructed area water may overlap a river tile at a mouth or lake bank.
     // Its depth follows the basin bed rather than the tile's narrow channel.
     float depth=max(.15,lerp(field.b,hydro.r,river));
@@ -445,7 +441,7 @@ float3 FlatWaterShade(float2 cell,float4 hydro,float4 mixing,float4 field,float3
     float2 sunOffset=FlatBedRefraction(cell,sunView,normal,depth,clearance);
     float3 sunWarp=(right*sunOffset.x*max(.04,cos(lat))+up*sunOffset.y)*12;
     float focus=lerp(FlatBedCaustic(p0*.6+sunWarp),FlatBedCaustic(p1*.6+sunWarp),blend);
-    float caustic=focus*saturate(localLight.z)*(1-sediment)*(1-sediment)*waveStrength;
+    float caustic=focus*saturate(localLight.z)*waveStrength;
     caustic*=exp(-depth*.12)*(1-exp(-depth*.7))*smoothstep(.03,.18,clearance)*(1-smoothstep(.2,1,footprint));
     if(_FieldReady>.5)
     {
@@ -465,7 +461,6 @@ float3 FlatWaterShade(float2 cell,float4 hydro,float4 mixing,float4 field,float3
     float3 depthColor=lerp(FlatColor(float3(.24,.61,.63)),FlatColor(float3(.08,.36,.55)),smoothstep(1,9.23,logDepth));
     depthColor=lerp(depthColor,FlatColor(float3(.025,.13,.30)),smoothstep(9.23,11.97,logDepth));
     depthColor=lerp(depthColor,FlatColor(float3(.26,.48,.47)),fresh*.22);
-    depthColor=lerp(depthColor,FlatColor(float3(.53,.47,.30)),sediment*.70);
     float depthRelief=FlatFieldRelief(cell,1,float3(-.45,.6,.75));
     float chartDepth=lerp(.70,.12,saturate(lake+river));
     result=lerp(result,depthColor*light*depthRelief,saturate(_Bathymetry)*chartDepth);

@@ -73,7 +73,7 @@ namespace Orbis.Flat
             Material.SetTexture("_HydroA",HydroTexture);Material.SetTexture("_HydroB",MixingTexture);Material.SetTexture("_GeoTex",GeometryTexture);
             riverAtlas=new FlatRiverAtlas(Material);
             Material.SetTexture("_SWEState",Texture2D.grayTexture);Material.SetFloat("_SWEReady",0);
-            Material.SetFloat("_ShowWater",1);Material.SetFloat("_ShowBanks",1);Material.SetFloat("_ShowPlumes",1);Material.SetFloat("_WaveAmount",1);
+            Material.SetFloat("_ShowWater",1);Material.SetFloat("_ShowBanks",1);Material.SetFloat("_WaveAmount",1);
             Material.SetFloat("_ShowContours",0);Material.SetFloat("_ContourInterval",100);Material.SetFloat("_WaterView",1);Material.SetFloat("_Natural",1);
             Orbis.Planet.OrbisAssetVisuals.BindWater(Material);
             Sky=gameObject.AddComponent<FlatSkyRenderer>();Sky.Initialize(world);

@@ -138,7 +138,7 @@ namespace Orbis.Flat
             if(!target)return;
             Orbis.Planet.OrbisAssetVisuals.BindWater(target);
             target.SetFloat("_ShowWater",true?1:0);target.SetFloat("_ShowBanks",true?1:0);
-            target.SetFloat("_ShowPlumes",true?1:0);target.SetFloat("_WaveAmount",1f);
+            target.SetFloat("_WaveAmount",1f);
             target.SetFloat("_SmoothTerrain",true?1:0);target.SetFloat("_Vegetation",true?1:0);
             target.SetFloat("_Bathymetry",true?1:0);target.SetFloat("_Relief",true?1:0);
             {

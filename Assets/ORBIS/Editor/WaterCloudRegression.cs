@@ -17,7 +17,7 @@ namespace Orbis.Editor
    try
    {
     ShaderUtil.CompilePass(m,0,true);Orbis.Planet.OrbisAssetVisuals.BindWater(m);
-    m.SetVector("_MapSize",new Vector4(512,256,1f/512,1f/256));m.SetFloat("_WaterClock",3);m.SetFloat("_ShowPlumes",1);m.SetFloat("_Bathymetry",.5f);
+    m.SetVector("_MapSize",new Vector4(512,256,1f/512,1f/256));m.SetFloat("_WaterClock",3);m.SetFloat("_Bathymetry",.5f);
     Func<Color[]> sample=()=>{Graphics.Blit(Texture2D.whiteTexture,rt,m,0);RenderTexture.active=rt;image.ReadPixels(new Rect(0,0,128,64),0,0);image.Apply();return image.GetPixels();};
     m.SetFloat("_ProbeKind",0);var cloud=sample();int bad=0,nonempty=0;
     foreach(var c in cloud){if(!Finite(c)||c.r<0||c.g<0||Mathf.Abs(c.b-1)>.0001f)bad++;if(c.r>.01f)nonempty++;}
@@ -78,8 +78,25 @@ namespace Orbis.Editor
      m.SetFloat("_WaterClock",10);var movingBed=sample();double movement=Difference(refractedBed,movingBed);
      report.Add((movement>.00005?"PASS":"FAIL")+" calm SW3 waves animate the refracted bed over seven seconds; mean change="+movement);
      m.SetFloat("_ProbeDepth",40);double deepContrast=Contrast(sample());
-     m.SetFloat("_ProbeDepth",.7f);m.SetFloat("_ProbeSediment",.8f);double muddyContrast=Contrast(sample());
-     report.Add((deepContrast<shallowContrast*.2&&muddyContrast<shallowContrast*.65?"PASS":"FAIL")+" depth and suspended sediment hide the bed; contrast="+deepContrast+","+muddyContrast);
+     report.Add((deepContrast<shallowContrast*.2?"PASS":"FAIL")+" optical depth hides the bed; contrast="+deepContrast);
+     foreach(int kind in new[]{3,4,5})
+     foreach(float bathymetry in new[]{0f,1f})
+     foreach(float depth in new[]{.7f,12f})
+     {
+      m.SetFloat("_WaterKind",kind);
+      m.SetFloat("_Bathymetry",bathymetry);
+      m.SetFloat("_ProbeDepth",depth);
+      m.SetFloat("_ProbeSediment",0);
+      var clearWater=sample();
+      double tintError=0;
+      foreach(float sediment in new[]{.8f,1f})
+      {
+       m.SetFloat("_ProbeSediment",sediment);
+       tintError=Math.Max(tintError,MaximumDifference(clearWater,sample()));
+      }
+      report.Add((tintError<.00001?"PASS":"FAIL")+" clear water colour is independent of sediment metadata; kind="+kind+" bathymetry="+bathymetry+" depth="+depth+" max RGB change="+tintError);
+     }
+     m.SetFloat("_WaterKind",4);m.SetFloat("_Bathymetry",0);m.SetFloat("_ProbeDepth",.7f);
      m.SetFloat("_ProbeSediment",0);m.SetFloat("_ProbeWaves",0);m.SetFloat("_WaterClock",3);var still=sample();
      m.SetFloat("_WaterClock",4);double stillChange=Difference(still,sample());
      report.Add((stillChange<.00001?"PASS":"FAIL")+" stationary water keeps the bed stable; mean change="+stillChange);

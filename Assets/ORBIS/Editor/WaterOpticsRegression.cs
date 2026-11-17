@@ -37,7 +37,7 @@ namespace Orbis.Editor
     material.SetTexture("_VendorStreamNormal",ocean);
     material.SetTexture("_VendorOceanFoam",Texture2D.blackTexture);material.SetTexture("_VendorRiverFoam",Texture2D.blackTexture);
     material.SetFloat("_VendorWaterReady",1);material.SetFloat("_FieldReady",1);material.SetFloat("_WaterClock",3);
-    material.SetFloat("_Bathymetry",0);material.SetFloat("_Relief",0);material.SetFloat("_ShowPlumes",1);
+    material.SetFloat("_Bathymetry",0);material.SetFloat("_Relief",0);
     var water=new Color[MapWidth*MapHeight];
     var waterMixing=new Color[water.Length];
     var semantics=new Color32[water.Length];
