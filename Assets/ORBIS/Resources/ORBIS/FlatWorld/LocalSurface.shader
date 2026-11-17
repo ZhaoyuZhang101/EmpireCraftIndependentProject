@@ -2,6 +2,8 @@ Shader "ORBIS/FlatWorld/LocalSurface"
 {
  Properties
  {
+  [HideInInspector] _EcologyTex("Derived ecology traits",2D)="black"{}
+  [HideInInspector] _EcologyReady("Ecology traits ready",Float)=0
   [HideInInspector] _RiverAtlas("Continuous river field",2D)="black"{}
   [HideInInspector] _RiverAtlasReady("River field ready",Float)=0
   [HideInInspector] _RiverAtlasLayout("River field layout",Vector)=(0,0,0,0)

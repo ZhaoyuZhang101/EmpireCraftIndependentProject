@@ -70,6 +70,9 @@ SHADERS = [
     "Assets/ORBIS/Editor/VegetationArtProbe.shader",
     "Assets/ORBIS/Editor/PropShadowProbe.shader",
     "Assets/ORBIS/Editor/TerrainQualityProbe.shader",
+    "Assets/ORBIS/Editor/GroundCoverProbe.shader",
+    "Assets/ORBIS/Editor/VegetationDiversityProbe.shader",
+    "Assets/ORBIS/Editor/AmbientLifeProbe.shader",
 ]
 
 

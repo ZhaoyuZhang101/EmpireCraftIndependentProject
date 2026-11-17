@@ -188,7 +188,9 @@ namespace Orbis.Flat
         void Generate()
         {
             int width=256<<Mathf.Clamp(sizeField.index,0,2);string seed=seedField.value.Trim();var preset=(TerrainPreset)Mathf.Clamp(presetField.index,0,3);
-            var atlasData=Resources.Load<TextAsset>("ORBIS/WorldAtlas/Default");byte[] baked=atlasData?atlasData.bytes:null;
+            var atlasData=Array.Find(Resources.LoadAll<TextAsset>("ORBIS/WorldAtlas"),
+                asset=>asset.name=="Default"&&FlatAtlasTerrain.HasSignature(asset.bytes));
+            byte[] baked=atlasData?atlasData.bytes:null;
             string project=Path.GetDirectoryName(Application.dataPath);
             Queue(c=>preset==TerrainPreset.Continents?FlatAtlasGenerator.Generate(project,width,seed,baked,c):FlatGenerator.Generate(width,width/2,seed,preset,c),"生成板块地形、海岸、溢流湖泊、河网和气候；首次生成新种子需要几分钟…",true);
         }

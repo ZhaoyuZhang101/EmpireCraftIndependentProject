@@ -14,6 +14,7 @@ namespace Orbis.Flat
         public Texture2D MixingTexture { get; private set; }
         public Texture2D GeometryTexture { get; private set; }
         public Texture2D VisualTexture { get; private set; }
+        public Texture2D EcologyTexture { get; private set; }
         public FlatSkyRenderer Sky { get; private set; }
         public FlatLocalWater LocalWater { get; private set; }
         public Material Material { get; private set; }
@@ -32,11 +33,12 @@ namespace Orbis.Flat
         public double LastUploadMilliseconds {get;private set;}
         sealed class ChunkBuffers
         {
-            public readonly Color32[] Terrain,Display,Owners,Info;
+            public readonly Color32[] Terrain,Display,Owners,Info,Ecology;
             public readonly Color[] Hydro,Mixing,Geometry,Visual;
             public ChunkBuffers(int count)
             {
                 Terrain=new Color32[count];Display=new Color32[count];Owners=new Color32[count];Info=new Color32[count];
+                Ecology=new Color32[count];
                 Hydro=new Color[count];Mixing=new Color[count];Geometry=new Color[count];Visual=new Color[count];
             }
         }
@@ -64,6 +66,8 @@ namespace Orbis.Flat
             MixingTexture=MakeData(world.Width,world.Height,"River meander / sediment / freshwater / links",true);
             GeometryTexture=MakeData(world.Width,world.Height,"Metres / sediment material / soil wetness",true);
             VisualTexture=MakeData(world.Width,world.Height,"Continuous elevation / Euclidean shore / depth / canopy",true);
+            EcologyTexture=Make(world.Width,world.Height,"Vegetation cover / biome / wetness / seeded variation",true);
+            Material.SetTexture("_EcologyTex",EcologyTexture);Material.SetFloat("_EcologyReady",1);
             Material.SetTexture("_VisualTex",VisualTexture);Material.SetFloat("_FieldReady",1);
             Material.SetFloat("_SmoothTerrain",1);Material.SetFloat("_Vegetation",1);Material.SetFloat("_Bathymetry",1);Material.SetFloat("_Relief",1);
             Material.SetTexture("_HydroA",HydroTexture);Material.SetTexture("_HydroB",MixingTexture);Material.SetTexture("_GeoTex",GeometryTexture);
@@ -121,24 +125,24 @@ namespace Orbis.Flat
                 {
                     var pixel=renderJobs.GetPixel(c.Offset+j);
                     b.Terrain[j]=pixel.Terrain;b.Display[j]=pixel.Display;b.Owners[j]=pixel.Owner;b.Info[j]=pixel.Info;
-                    if(refreshData){b.Hydro[j]=pixel.Hydro;b.Mixing[j]=pixel.Mixing;b.Geometry[j]=pixel.Geometry;b.Visual[j]=pixel.Visual;}
+                    if(refreshData){b.Hydro[j]=pixel.Hydro;b.Mixing[j]=pixel.Mixing;b.Geometry[j]=pixel.Geometry;b.Visual[j]=pixel.Visual;b.Ecology[j]=pixel.Ecology;}
                 }
                 TerrainTexture.SetPixels32(c.X,c.Y,c.Width,c.Height,b.Terrain);DisplayTexture.SetPixels32(c.X,c.Y,c.Width,c.Height,b.Display);
                 OwnerTexture.SetPixels32(c.X,c.Y,c.Width,c.Height,b.Owners);InfoTexture.SetPixels32(c.X,c.Y,c.Width,c.Height,b.Info);
-                if(refreshData){HydroTexture.SetPixels(c.X,c.Y,c.Width,c.Height,b.Hydro);MixingTexture.SetPixels(c.X,c.Y,c.Width,c.Height,b.Mixing);GeometryTexture.SetPixels(c.X,c.Y,c.Width,c.Height,b.Geometry);VisualTexture.SetPixels(c.X,c.Y,c.Width,c.Height,b.Visual);}
+                if(refreshData){HydroTexture.SetPixels(c.X,c.Y,c.Width,c.Height,b.Hydro);MixingTexture.SetPixels(c.X,c.Y,c.Width,c.Height,b.Mixing);GeometryTexture.SetPixels(c.X,c.Y,c.Width,c.Height,b.Geometry);VisualTexture.SetPixels(c.X,c.Y,c.Width,c.Height,b.Visual);EcologyTexture.SetPixels32(c.X,c.Y,c.Width,c.Height,b.Ecology);}
                 LastUploadedChunks++;
             }
             if(LastUploadedChunks>0)
             {
                 TerrainTexture.Apply(false,false);DisplayTexture.Apply(false,false);OwnerTexture.Apply(false,false);InfoTexture.Apply(false,false);
-                if(refreshData){HydroTexture.Apply(false,false);MixingTexture.Apply(false,false);GeometryTexture.Apply(false,false);VisualTexture.Apply(false,false);dataRevision=renderJobs.CapturedTerrainRevision;}
+                if(refreshData){HydroTexture.Apply(false,false);MixingTexture.Apply(false,false);GeometryTexture.Apply(false,false);VisualTexture.Apply(false,false);EcologyTexture.Apply(false,false);dataRevision=renderJobs.CapturedTerrainRevision;}
             }
             // New dirties belong to the next snapshot; publication never clears them.
             VisibleLayer=renderJobs.CapturedLayer;ConfigureLayer();
             LastUploadMilliseconds=(System.Diagnostics.Stopwatch.GetTimestamp()-start)*1000.0/System.Diagnostics.Stopwatch.Frequency;
         }
         void OnDestroy()
-        {if(riverAtlas!=null){riverAtlas.Dispose();riverAtlas=null;}if(renderJobs!=null){renderJobs.Dispose();renderJobs=null;}if(mesh)Destroy(mesh);if(Material)Destroy(Material);foreach(var t in new[]{TerrainTexture,DisplayTexture,OwnerTexture,InfoTexture,HydroTexture,MixingTexture,GeometryTexture,VisualTexture})if(t)Destroy(t);}
+        {if(riverAtlas!=null){riverAtlas.Dispose();riverAtlas=null;}if(renderJobs!=null){renderJobs.Dispose();renderJobs=null;}if(mesh)Destroy(mesh);if(Material)Destroy(Material);foreach(var t in new[]{TerrainTexture,DisplayTexture,OwnerTexture,InfoTexture,HydroTexture,MixingTexture,GeometryTexture,VisualTexture,EcologyTexture})if(t)Destroy(t);}
     }
 }
 

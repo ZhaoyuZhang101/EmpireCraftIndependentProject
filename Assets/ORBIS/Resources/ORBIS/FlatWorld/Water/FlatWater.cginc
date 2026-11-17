@@ -102,62 +102,69 @@ float FlatBezierDistance(float2 p,float2 a,float2 b,float2 c,float ra,float rb,f
 float FlatRiverDistance(float2 p,float4 hydro,float connections,float meander,float2 uv,out float2 tangent)
 {
     tangent=hydro.gb;
+    float result=8;
     [branch] if(_RiverAtlasReady>.5)
     {
         float4 river=FlatRiverAtlasSample(floor(uv*_MapSize.xy)+p);
         tangent=river.ba/max(1e-6,length(river.ba));
-        return river.r;
+        result=river.r;
     }
-    [branch] if(hydro.a<.01)return 8;
-    float4 links=fmod(floor(connections/float4(1,2,4,8)),2);
-    float count=dot(links,float4(1,1,1,1));
-    if(count<.5)return length(p-.5)-hydro.a;
-    int outlet=0;float best=-2;
-    if(links.x>.5){best=-hydro.g;outlet=0;}
-    if(links.y>.5&&hydro.g>best){best=hydro.g;outlet=1;}
-    if(links.z>.5&&-hydro.b>best){best=-hydro.b;outlet=2;}
-    if(links.w>.5&&hydro.b>best){best=hydro.b;outlet=3;}
-    float4 neighborWidths=float4(tex2Dlod(_HydroA,float4(uv-float2(_MapSize.z,0),0,0)).a,
-        tex2Dlod(_HydroA,float4(uv+float2(_MapSize.z,0),0,0)).a,
-        tex2Dlod(_HydroA,float4(uv-float2(0,_MapSize.w),0,0)).a,
-        tex2Dlod(_HydroA,float4(uv+float2(0,_MapSize.w),0,0)).a);
-    float4 radii=lerp(hydro.aaaa,(neighborWidths+hydro.a)*.5,step(.01,neighborWidths));
-    float4 neighborMeanders=float4(tex2Dlod(_HydroB,float4(uv-float2(_MapSize.z,0),0,0)).r,
-        tex2Dlod(_HydroB,float4(uv+float2(_MapSize.z,0),0,0)).r,
-        tex2Dlod(_HydroB,float4(uv-float2(0,_MapSize.w),0,0)).r,
-        tex2Dlod(_HydroB,float4(uv+float2(0,_MapSize.w),0,0)).r);
-    float2 b=FlatRiverEdge(outlet,meander,neighborMeanders[outlet],max(hydro.a,neighborWidths[outlet]));float rb=radii[outlet];
-    float bend=meander;
-    float result=8;float2 bestTangent=tangent;
-    float sourceRadius=max(.003,hydro.a*.18);
-    if(count<1.5)result=FlatBezierDistance(p,float2(.5,.5),b,(float2(.5,.5)+b)*.5,sourceRadius,rb,(sourceRadius+rb)*.5,bend*.35,bestTangent);
-    [loop] [fastopt] for(int d=0;d<4;d++)
+    else if(hydro.a>=.01)
     {
-        if(count<1.5||d==outlet||links[d]<.5)continue;
-        float2 direction=float2(1,0);
-        float2 a=FlatRiverEdge(d,meander,neighborMeanders[d],max(hydro.a,neighborWidths[d]));bool straight=(d<2&&outlet<2)||(d>=2&&outlet>=2);
-        float candidate=FlatBezierDistance(p,a,b,straight?(a+b)*.5:float2(.5,.5),radii[d],rb,hydro.a,bend*(straight?1:.35),direction);
-        if(candidate<result){result=candidate;bestTangent=direction;}
-    }
-    float closest=.10,section=0;float2 faceDirection=bestTangent;
-    [loop] [fastopt] for(int faceIndex=0;faceIndex<4;faceIndex++)
-    {
-        if(links[faceIndex]<.5)continue;
-        float face=faceIndex==0?p.x:faceIndex==1?1-p.x:faceIndex==2?p.y:1-p.y;
-        float2 edge=FlatRiverEdge(faceIndex,meander,neighborMeanders[faceIndex],max(hydro.a,neighborWidths[faceIndex]));
-        float across=abs((faceIndex<2?p.y:p.x)-(faceIndex<2?edge.y:edge.x));
-        if(face<closest)
+        float4 links=fmod(floor(connections/float4(1,2,4,8)),2);
+        float count=dot(links,float4(1,1,1,1));
+        if(count<.5)result=length(p-.5)-hydro.a;
+        else
         {
-            closest=face;section=across-radii[faceIndex];
-            faceDirection=(FlatEdge(faceIndex)-.5)*2*(faceIndex==outlet?1:-1);
+            int outlet=0;float best=-2;
+            if(links.x>.5){best=-hydro.g;outlet=0;}
+            if(links.y>.5&&hydro.g>best){best=hydro.g;outlet=1;}
+            if(links.z>.5&&-hydro.b>best){best=-hydro.b;outlet=2;}
+            if(links.w>.5&&hydro.b>best){best=hydro.b;outlet=3;}
+            float4 neighborWidths=float4(tex2Dlod(_HydroA,float4(uv-float2(_MapSize.z,0),0,0)).a,
+                tex2Dlod(_HydroA,float4(uv+float2(_MapSize.z,0),0,0)).a,
+                tex2Dlod(_HydroA,float4(uv-float2(0,_MapSize.w),0,0)).a,
+                tex2Dlod(_HydroA,float4(uv+float2(0,_MapSize.w),0,0)).a);
+            float4 radii=lerp(hydro.aaaa,(neighborWidths+hydro.a)*.5,step(.01,neighborWidths));
+            float4 neighborMeanders=float4(tex2Dlod(_HydroB,float4(uv-float2(_MapSize.z,0),0,0)).r,
+                tex2Dlod(_HydroB,float4(uv+float2(_MapSize.z,0),0,0)).r,
+                tex2Dlod(_HydroB,float4(uv-float2(0,_MapSize.w),0,0)).r,
+                tex2Dlod(_HydroB,float4(uv+float2(0,_MapSize.w),0,0)).r);
+            float2 b=FlatRiverEdge(outlet,meander,neighborMeanders[outlet],max(hydro.a,neighborWidths[outlet]));float rb=radii[outlet];
+            float bend=meander;
+            float2 bestTangent=tangent;
+            float sourceRadius=max(.003,hydro.a*.18);
+            if(count<1.5)result=FlatBezierDistance(p,float2(.5,.5),b,(float2(.5,.5)+b)*.5,sourceRadius,rb,(sourceRadius+rb)*.5,bend*.35,bestTangent);
+            [loop] [fastopt] for(int d=0;d<4;d++)
+            {
+                if(count<1.5||d==outlet||links[d]<.5)continue;
+                float2 direction=float2(1,0);
+                float2 a=FlatRiverEdge(d,meander,neighborMeanders[d],max(hydro.a,neighborWidths[d]));bool straight=(d<2&&outlet<2)||(d>=2&&outlet>=2);
+                float candidate=FlatBezierDistance(p,a,b,straight?(a+b)*.5:float2(.5,.5),radii[d],rb,hydro.a,bend*(straight?1:.35),direction);
+                if(candidate<result){result=candidate;bestTangent=direction;}
+            }
+            float closest=.10,section=0;float2 faceDirection=bestTangent;
+            [loop] [fastopt] for(int faceIndex=0;faceIndex<4;faceIndex++)
+            {
+                if(links[faceIndex]<.5)continue;
+                float face=faceIndex==0?p.x:faceIndex==1?1-p.x:faceIndex==2?p.y:1-p.y;
+                float2 edge=FlatRiverEdge(faceIndex,meander,neighborMeanders[faceIndex],max(hydro.a,neighborWidths[faceIndex]));
+                float across=abs((faceIndex<2?p.y:p.x)-(faceIndex<2?edge.y:edge.x));
+                if(face<closest)
+                {
+                    closest=face;section=across-radii[faceIndex];
+                    faceDirection=(FlatEdge(faceIndex)-.5)*2*(faceIndex==outlet?1:-1);
+                }
+            }
+            if(closest<.10)
+            {
+                float weight=smoothstep(0,.10,closest);result=lerp(section,result,weight);
+                bestTangent=normalize(lerp(faceDirection,bestTangent,weight)+float2(1e-7,0));
+            }
+            tangent=bestTangent;
         }
     }
-    if(closest<.10)
-    {
-        float weight=smoothstep(0,.10,closest);result=lerp(section,result,weight);
-        bestTangent=normalize(lerp(faceDirection,bestTangent,weight)+float2(1e-7,0));
-    }
-    tangent=bestTangent;return result;
+    return result;
 }
 float3 FlatMaterialColor(float code)
 {

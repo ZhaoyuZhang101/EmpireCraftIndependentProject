@@ -42,7 +42,9 @@ namespace Orbis.Editor
      lines.Add("PASS solar lens visible="+lit+" hidden="+hidden);
     }
     finally{RenderTexture.active=active;RenderTexture.ReleaseTemporary(source);RenderTexture.ReleaseTemporary(target);UnityEngine.Object.DestroyImmediate(readback);UnityEngine.Object.DestroyImmediate(lens);}
-    var data=Resources.Load<TextAsset>("ORBIS/WorldAtlas/Default");var w=FlatAtlasTerrain.Read(data.bytes,"ORBIS-2D-2026",default);FlatSave.Validate(w);
+    var data=Array.Find(Resources.LoadAll<TextAsset>("ORBIS/WorldAtlas"),asset=>asset.name=="Default"&&FlatAtlasTerrain.HasSignature(asset.bytes));
+    if(!data)throw new Exception("Missing binary World Atlas terrain");
+    var w=FlatAtlasTerrain.Read(data.bytes,"ORBIS-2D-2026",default);FlatSave.Validate(w);
     int rivers=0,lakes=0;var rank=new int[w.Count];for(int k=0;k<w.Count;k++)rank[w.DrainOrder[k]]=k;
     for(int i=0;i<w.Count;i++)
     {

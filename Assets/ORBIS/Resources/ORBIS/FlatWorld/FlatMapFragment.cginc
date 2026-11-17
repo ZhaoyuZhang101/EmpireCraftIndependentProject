@@ -28,7 +28,7 @@
      float2 terrainGradient=FlatFieldGradient(cell,0);
      col=FlatTerrainFine(col,cell,_PixelsPerTile,terrainGradient);
      col*=FlatGradientRelief(terrainGradient,float3(-.45,.6,.75));
-     if(_DetailWeight>0)col=lerp(col,PixelGround(col,cell,field,waterMask,terrainGradient),_DetailWeight);
+     if(_DetailWeight>0)col=lerp(col,PixelGround(col,cell,field,waterMask,terrainGradient,FlatEcologyData(uv,info)),_DetailWeight);
     }
     if(_WaterView>.5)
     {
@@ -105,7 +105,11 @@
      }
      // Each prop quantizes in its latitude-corrected art frame. Quantizing the
      // geographic receiver first discards most crown rows near the poles.
-     if(_DetailWeight>0)col=lerp(col,PixelProps(col,cell,field,waterMask,structure,illumination),_DetailWeight*(1-frozen));
+     if(_DetailWeight>0)
+     {
+      col=lerp(col,PixelAmbientLife(col,cell,field,waterMask,info,illumination),_DetailWeight*(1-frozen));
+      col=lerp(col,PixelProps(col,cell,field,waterMask,structure,illumination),_DetailWeight*(1-frozen));
+     }
      float night=1-FlatDayWeight(FlatRadial(i.uv));
      float town=1-step(.5,abs(structure-1));
      col+=town*exp(-dot(f-.5,f-.5)*14)*night*_FlatNightLights*FlatColor(float3(.82,.42,.13))*.75;

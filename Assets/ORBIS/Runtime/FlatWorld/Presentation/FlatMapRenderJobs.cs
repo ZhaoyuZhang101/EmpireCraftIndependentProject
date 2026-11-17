@@ -27,7 +27,7 @@ namespace Orbis.Flat
         }
         public struct Pixel
         {
-            public Color32 Terrain,Display,Owner,Info;
+            public Color32 Terrain,Display,Owner,Info,Ecology;
             public Color Hydro,Mixing,Geometry,Visual;
         }
         public struct Chunk
@@ -36,6 +36,7 @@ namespace Orbis.Flat
             public int Count {get{return Width*Height;}}
         }
         readonly WorldData source;
+        readonly uint worldSeed;
         NativeArray<Tile> tiles;
         NativeArray<int> indices,bands;
         NativeArray<uint> palette;
@@ -66,6 +67,7 @@ namespace Orbis.Flat
         public FlatMapRenderJobs(WorldData world)
         {
             source=world??throw new ArgumentNullException(nameof(world));
+            worldSeed=FMath.Seed(world.Seed);
             tiles=new NativeArray<Tile>(world.Count,Allocator.Persistent);
             indices=new NativeArray<int>(world.Count,Allocator.Persistent);
             output=new NativeArray<Pixel>(world.Count,Allocator.Persistent);
@@ -112,7 +114,7 @@ namespace Orbis.Flat
                 {int i=source.Index(x,y);tiles[i]=Capture(i);CapturedTiles++;}
             }
             ScheduledTiles=offset;Version++;
-            handle=new PackJob{Tiles=tiles,Indices=indices,Palette=palette,Bands=bands,Output=output,Width=source.Width,Height=source.Height,Layer=layer}.Schedule(offset,128);
+            handle=new PackJob{Tiles=tiles,Indices=indices,Palette=palette,Bands=bands,Output=output,Width=source.Width,Height=source.Height,Seed=worldSeed,Layer=layer}.Schedule(offset,128);
             Pending=true;started=Stopwatch.GetTimestamp();
             // Ownership transfers only after successful scheduling. Subsequent main-thread dirties remain in this set.
             source.DirtyChunks.Clear();
@@ -151,6 +153,7 @@ namespace Orbis.Flat
             [ReadOnly] public NativeArray<uint> Palette;
             [WriteOnly] public NativeArray<Pixel> Output;
             public int Width,Height;
+            public uint Seed;
             public MapLayer Layer;
             static Color32 RGB(uint value) {return new Color32((byte)(value>>16),(byte)(value>>8),(byte)value,255);}
             static bool Area(WaterKind w) {return w>=WaterKind.DeepOcean&&w<=WaterKind.Lake;}
@@ -195,6 +198,7 @@ namespace Orbis.Flat
                 display.a=1;
                 int level=0;if(t.Elevation>0){level=20;for(int b=0;b<Bands.Length;b++)if(t.Elevation<=Bands[b]){level=b+1;break;}}
                 Output[j]=new Pixel{Terrain=terrain,Display=Layer==MapLayer.Natural?terrain:(Color32)display,Owner=t.Owner,
+                    Ecology=new Color32((byte)t.Vegetation,(byte)t.Biome,(byte)Mathf.RoundToInt(Mathf.Clamp01(t.Wetness)*255),(byte)(FMath.Hash((uint)i^Seed)&255)),
                     Info=new Color32((byte)level,(byte)t.Water,(byte)t.Building,(byte)t.Climate),Hydro=new Color(t.Depth,t.FlowX,t.FlowY,t.HalfWidth),
                     Mixing=new Color(t.Meander,t.Sediment,t.Freshness,t.Connections),Geometry=new Color(t.Elevation,(float)t.Material,t.Wetness,t.Hand),Visual=new Color(t.Elevation,t.Shore,t.Depth,t.Canopy)};
             }

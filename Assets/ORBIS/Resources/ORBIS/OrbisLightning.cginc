@@ -11,8 +11,10 @@ float OrbisLightningTerm(float3 position,float4 strike)
 float OrbisLightningAmount(float3 position)
 {
     float activity=max(0,_OrbisLightning[0].w)+max(0,_OrbisLightning[1].w)+max(0,_OrbisLightning[2].w)+max(0,_OrbisLightning[3].w);
-    [branch] if(activity<=0)return 0;
-    return OrbisLightningTerm(position,_OrbisLightning[0])+OrbisLightningTerm(position,_OrbisLightning[1])+
-           OrbisLightningTerm(position,_OrbisLightning[2])+OrbisLightningTerm(position,_OrbisLightning[3]);
+    float amount=0;
+    [branch] if(activity>0)
+        amount=OrbisLightningTerm(position,_OrbisLightning[0])+OrbisLightningTerm(position,_OrbisLightning[1])+
+               OrbisLightningTerm(position,_OrbisLightning[2])+OrbisLightningTerm(position,_OrbisLightning[3]);
+    return amount;
 }
 #endif
