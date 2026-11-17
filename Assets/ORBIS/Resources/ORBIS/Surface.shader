@@ -2,6 +2,9 @@ Shader "ORBIS/Surface"
 {
  Properties
  {
+  [HideInInspector] _VegetationSeasonTex("Climate vegetation seasons",2D)="white"{}
+  [HideInInspector] _VegetationSeasonReady("Vegetation seasons ready",Float)=0
+  [HideInInspector] _VegetationSeason("Current month next month blend",Vector)=(0,1,0,0)
   [HideInInspector] _RiverAtlas("Continuous river field",2D)="black"{}
   [HideInInspector] _RiverAtlasReady("River field ready",Float)=0
   [HideInInspector] _RiverAtlasLayout("River field layout",Vector)=(0,0,0,0)
@@ -89,6 +92,7 @@ Shader "ORBIS/Surface"
      own=tex2D(_FlatOwners,tileUV);info=tex2D(_FlatInfo,tileUV)*255;
      col=tex2D(_FlatTerrain,lerp(tileUV,FlatBlendUV(FlatEcotoneCell(cell,field.g)),_SmoothTerrain)).rgb;
      col=FlatEcotoneColor(col,cell,field.a,tex2Dlod(_GeoTex,float4(uv,0,0)).b);
+     col=lerp(col,FlatSeasonGround(col,cell,field.a),1-water);
      float aa=clamp(.65/max(1,pixelsPerTile),.008,.28),edgeDistance;float2 riverFlow;
      water=FlatWaterMask(cell,tileUV,hydro,mixing,field,aa,edgeDistance,riverFlow);
      waterEdge=edgeDistance;

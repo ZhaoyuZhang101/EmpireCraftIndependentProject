@@ -73,7 +73,8 @@ float PixelPropShadow(float2 cell)
    if(!PDTreeAvailable(root,placement,info,ecology))continue;
    float shore=1-smoothstep(.2,1.2,-FlatVisualSample(float4(uv,0,0)).g);
    float species=PDTreeSpecies(ecology,info,shore);
-   mask=PDTreeCastShadow(ground,localSun,species,placement.w)*.30;
+   float foliage=FlatVegetationSeason(root+.5).y;
+   mask=PDTreeCastShadow(ground,localSun,species,placement.w,foliage)*.30;
   }
   coverage=max(coverage,mask*daylight);
  }
@@ -105,14 +106,16 @@ float3 PixelProps(float3 col,float2 cell,float4 field,float waterMask,float stru
   if(!PDTreeAvailable(treeId,placement,rootInfo,ecology))continue;
   float shore=1-smoothstep(.2,1.2,-FlatVisualSample(float4(centreUV,0,0)).g);
   float species=PDTreeSpecies(ecology,rootInfo,shore);
+  float leaf=FlatVegetationSeason(treeId+.5).y;
   float2 edge;
-  float4 crown=PDTreeCrown(treePoint,species,placement.w,edge);
+  float4 crown=PDTreeCrown(treePoint,species,placement.w,leaf,edge);
   float trunk=PDTreeTrunk(treePoint,species,placement.w);
   float rootDepth=treeId.y*32+placement.y;
   if(crown.a+trunk<.5||rootDepth>nearestRoot)continue;
   nearestRoot=rootDepth;
   float3 localSun=FlatGeographicLight(centreUV,normalize(_FlatSun+float3(0,1e-7,0)));
   float3 foliage=PDTreeFoliage(crown.xyz,treePoint,treeId,species,placement.w,localSun,edge);
+  foliage=lerp(foliage*float3(1.30,.78,.45),foliage,leaf);
   float3 bark=PDTreeBark(treePoint,species,placement.w);
   col=PDPaint(col,bark*light,trunk);
   col=PDPaint(col,foliage*light,crown.a);

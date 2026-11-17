@@ -49,6 +49,7 @@
      float2 ecologyCell=FlatEcotoneCell(cell,field.g);
      col=tex2D(_MainTex,FlatBlendUV(ecologyCell)).rgb;
      col=FlatEcotoneColor(col,cell,field.a,tex2Dlod(_GeoTex,float4(cell*_MapSize.zw,0,0)).b);
+     col=lerp(col,FlatSeasonGround(col,cell,field.a),1-waterMask);
      col=lerp(FlatVegetation(col,cell,field.a,_PixelsPerTile),col,_DetailWeight);
      col=FlatTerrainFine(col,cell,_PixelsPerTile,terrainGradient);
      if(_DetailWeight>0)col=lerp(col,PixelGround(col,cell,field,waterMask,terrainGradient,FlatEcologyData(uv,info)),_DetailWeight);

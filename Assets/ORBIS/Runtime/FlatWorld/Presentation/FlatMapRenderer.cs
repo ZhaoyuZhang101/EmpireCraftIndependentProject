@@ -15,12 +15,14 @@ namespace Orbis.Flat
         public Texture2D GeometryTexture { get; private set; }
         public Texture2D VisualTexture { get; private set; }
         public Texture2D EcologyTexture { get; private set; }
+        public Texture2D VegetationTexture { get; private set; }
         public FlatSkyRenderer Sky { get; private set; }
         public FlatLocalWater LocalWater { get; private set; }
         public Material Material { get; private set; }
         public MapLayer Layer { get; private set; }
         public MapLayer VisibleLayer { get; private set; }
         Mesh mesh;MeshRenderer meshRenderer;int dataRevision=-1;
+        FlatTerrainFacts vegetationSource;
         FlatMapRenderJobs renderJobs;
         FlatRiverAtlas riverAtlas;
         public bool RiverAtlasReady {get{return riverAtlas!=null&&riverAtlas.Ready;}}
@@ -69,6 +71,7 @@ namespace Orbis.Flat
             EcologyTexture=Make(world.Width,world.Height,"Vegetation cover / biome / wetness / seeded variation",true);
             Material.SetTexture("_EcologyTex",EcologyTexture);Material.SetFloat("_EcologyReady",1);
             Material.SetTexture("_VisualTex",VisualTexture);Material.SetFloat("_FieldReady",1);
+            RefreshVegetationSeasons();SetVegetationDay(world.Day);
             Material.SetFloat("_SmoothTerrain",1);Material.SetFloat("_Vegetation",1);Material.SetFloat("_Bathymetry",1);Material.SetFloat("_Relief",1);
             Material.SetTexture("_HydroA",HydroTexture);Material.SetTexture("_HydroB",MixingTexture);Material.SetTexture("_GeoTex",GeometryTexture);
             riverAtlas=new FlatRiverAtlas(Material);
@@ -90,7 +93,28 @@ namespace Orbis.Flat
         public void Configure(bool grid,float pixelsPerTile)
         {
             Material.SetFloat("_Grid",grid?1:0);Material.SetFloat("_PixelsPerTile",pixelsPerTile);
+            SetVegetationDay(World.Day);
             ConfigureLayer();
+        }
+        void RefreshVegetationSeasons()
+        {
+            var facts=World.Facts;
+            if(ReferenceEquals(vegetationSource,facts))return;
+            if(!facts.VegetationSeasonsReady){vegetationSource=null;return;}
+            int width=(World.Width+2)*3,height=(World.Height+2)*4;
+            if(!VegetationTexture)
+                VegetationTexture=new Texture2D(width,height,TextureFormat.RG16,false,true)
+                {name="Climate vegetation growth and foliage / twelve cached months",filterMode=FilterMode.Bilinear,wrapMode=TextureWrapMode.Clamp,anisoLevel=0};
+            VegetationTexture.LoadRawTextureData(facts.VegetationSeasons);VegetationTexture.Apply(false,false);
+            vegetationSource=facts;
+        }
+        public void SetVegetationDay(double day,Material target=null)
+        {
+            if(!target)target=Material;
+            double period=day/30,whole=Math.Floor(period);int month=(int)((whole%12+12)%12);
+            target.SetTexture("_VegetationSeasonTex",VegetationTexture?VegetationTexture:Texture2D.whiteTexture);
+            target.SetFloat("_VegetationSeasonReady",vegetationSource!=null?1:0);
+            target.SetVector("_VegetationSeason",new Vector4(month,(month+1)%12,(float)(period-whole),0));
         }
         void ConfigureLayer()
         {
@@ -135,14 +159,18 @@ namespace Orbis.Flat
             if(LastUploadedChunks>0)
             {
                 TerrainTexture.Apply(false,false);DisplayTexture.Apply(false,false);OwnerTexture.Apply(false,false);InfoTexture.Apply(false,false);
-                if(refreshData){HydroTexture.Apply(false,false);MixingTexture.Apply(false,false);GeometryTexture.Apply(false,false);VisualTexture.Apply(false,false);EcologyTexture.Apply(false,false);dataRevision=renderJobs.CapturedTerrainRevision;}
+                if(refreshData)
+                {
+                    HydroTexture.Apply(false,false);MixingTexture.Apply(false,false);GeometryTexture.Apply(false,false);VisualTexture.Apply(false,false);EcologyTexture.Apply(false,false);
+                    dataRevision=renderJobs.CapturedTerrainRevision;RefreshVegetationSeasons();SetVegetationDay(World.Day);
+                }
             }
             // New dirties belong to the next snapshot; publication never clears them.
             VisibleLayer=renderJobs.CapturedLayer;ConfigureLayer();
             LastUploadMilliseconds=(System.Diagnostics.Stopwatch.GetTimestamp()-start)*1000.0/System.Diagnostics.Stopwatch.Frequency;
         }
         void OnDestroy()
-        {if(riverAtlas!=null){riverAtlas.Dispose();riverAtlas=null;}if(renderJobs!=null){renderJobs.Dispose();renderJobs=null;}if(mesh)Destroy(mesh);if(Material)Destroy(Material);foreach(var t in new[]{TerrainTexture,DisplayTexture,OwnerTexture,InfoTexture,HydroTexture,MixingTexture,GeometryTexture,VisualTexture,EcologyTexture})if(t)Destroy(t);}
+        {if(riverAtlas!=null){riverAtlas.Dispose();riverAtlas=null;}if(renderJobs!=null){renderJobs.Dispose();renderJobs=null;}if(mesh)Destroy(mesh);if(Material)Destroy(Material);foreach(var t in new[]{TerrainTexture,DisplayTexture,OwnerTexture,InfoTexture,HydroTexture,MixingTexture,GeometryTexture,VisualTexture,EcologyTexture,VegetationTexture})if(t)Destroy(t);}
     }
 }
 

@@ -2,6 +2,9 @@ Shader "ORBIS/FlatWorld/ScrollSurface"
 {
  Properties
  {
+  [HideInInspector] _VegetationSeasonTex("Climate vegetation seasons",2D)="white"{}
+  [HideInInspector] _VegetationSeasonReady("Vegetation seasons ready",Float)=0
+  [HideInInspector] _VegetationSeason("Current month next month blend",Vector)=(0,1,0,0)
   [HideInInspector] _ScrollRelief("Terrain relief view",Vector)=(0,0,.72,0)
   [HideInInspector] _EcologyTex("Derived ecology traits",2D)="black"{}
   [HideInInspector] _EcologyReady("Ecology traits ready",Float)=0

@@ -198,7 +198,7 @@ float3 PDTreeLobeScale(int index,float type,float seed)
     return axes;
 }
 
-float4 PDTreeCrown(float2 pixel,float type,float seed,out float2 edge)
+float4 PDTreeCrown(float2 pixel,float type,float seed,float foliage,out float2 edge)
 {
     float4 crown=0;
     edge=-100;
@@ -211,6 +211,7 @@ float4 PDTreeCrown(float2 pixel,float type,float seed,out float2 edge)
         [unroll] for(int lobe=0;lobe<5;lobe++)
         {
             float4 volume=PDTreeLobe(lobe,type,seed);
+            volume.w*=lerp(.48,1,saturate(foliage));
             float3 axes=volume.w*PDTreeLobeScale(lobe,type,seed);
             float3 relative=(origin-volume.xyz)/axes;
             float3 ray=PDTreeView/axes;
@@ -235,8 +236,12 @@ float4 PDTreeCrown(float2 pixel,float type,float seed,out float2 edge)
     }
     return crown;
 }
+float4 PDTreeCrown(float2 pixel,float type,float seed,out float2 edge)
+{
+    return PDTreeCrown(pixel,type,seed,1,edge);
+}
 
-float PDTreeCastShadow(float2 pixel,float3 sun,float type,float seed)
+float PDTreeCastShadow(float2 pixel,float3 sun,float type,float seed,float foliage)
 {
     float3 origin=float3(pixel.x,pixel.y/PDTreeUp.y,0);
     float3 lightRay=normalize(float3(sun.xy*.40,max(.55,sun.z)));
@@ -252,6 +257,7 @@ float PDTreeCastShadow(float2 pixel,float3 sun,float type,float seed)
         [unroll] for(int lobe=0;lobe<5;lobe++)
         {
             float4 volume=PDTreeLobe(lobe,type,seed);
+            volume.w*=lerp(.48,1,saturate(foliage));
             float3 axes=volume.w*PDTreeLobeScale(lobe,type,seed);
             float3 relative=(volume.xyz-origin)/axes;
             float3 ray=lightRay/axes;
@@ -261,6 +267,10 @@ float PDTreeCastShadow(float2 pixel,float3 sun,float type,float seed)
         }
     }
     return mask;
+}
+float PDTreeCastShadow(float2 pixel,float3 sun,float type,float seed)
+{
+    return PDTreeCastShadow(pixel,sun,type,seed,1);
 }
 
 float PDTreeTrunk(float2 pixel,float type,float seed)

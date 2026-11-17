@@ -18,6 +18,8 @@ namespace Orbis.Flat
         public readonly float[] Sediment,Freshness,FlowX,FlowY,HalfWidth,Depth,ShoreDistance,Meander;
         public readonly byte[] SaturatedMonths,Connections;
         public readonly VegetationCover[] Vegetation;public readonly float[] Canopy;
+        public byte[] VegetationSeasons {get;internal set;}
+        public bool VegetationSeasonsReady {get;internal set;}
         public readonly ushort[] FreshDistance;
         public FlatRiverCurves RiverCurves { get; internal set; }
         public int MouthCount;
@@ -33,7 +35,8 @@ namespace Orbis.Flat
         }
         public FlatTerrainFacts Clone()
         {
-            var f=new FlatTerrainFacts(Forms.Length){MouthCount=MouthCount,RiverCurves=RiverCurves};
+            var f=new FlatTerrainFacts(Forms.Length){MouthCount=MouthCount,RiverCurves=RiverCurves,
+                VegetationSeasons=VegetationSeasons==null?null:(byte[])VegetationSeasons.Clone(),VegetationSeasonsReady=VegetationSeasonsReady};
             Array.Copy(Vegetation,f.Vegetation,Forms.Length);Array.Copy(Canopy,f.Canopy,Forms.Length);
             Array.Copy(Forms,f.Forms,Forms.Length);Array.Copy(Materials,f.Materials,Forms.Length);
             float[][] a={Relief,Gradient,Hand,Wetness,AnnualRain,MeanTemperature,Sediment,Freshness,FlowX,FlowY,HalfWidth,Depth,ShoreDistance,Meander};
@@ -110,7 +113,7 @@ namespace Orbis.Flat
         }
         public static void Build(WorldData w,CancellationToken cancel,bool updateBiomes,int workers=0)
         {
-            var f=new FlatTerrainFacts(w.Count);
+            var f=new FlatTerrainFacts(w.Count){VegetationSeasons=new byte[(w.Width+2)*(w.Height+2)*24]};
             float meanderSeed=FMath.Unit(FMath.Seed(w.Seed))*6.2831853f;
             ushort[] fresh=Distance(w,i=>w.Water[i]==WaterKind.River||w.Water[i]==WaterKind.Lake,cancel);
             Array.Copy(fresh,f.FreshDistance,w.Count);
@@ -169,7 +172,14 @@ namespace Orbis.Flat
                     {
                         float pet=Math.Max(0,w.Temperature[i*12+m%12]+5)*3f;
                         storage=FMath.Clamp(storage+w.Precipitation[i*12+m%12]+riparian*170-pet,0,150);
-                        if(m>=24){mean+=storage/1800f;if(storage>=120)saturated++;}
+                        // Low banks retain access to perennial groundwater. The
+                        // same distance and bank-height falloff excludes ridges.
+                        storage=Math.Max(storage,riparian*150);
+                        if(m>=24)
+                        {
+                            mean+=storage/1800f;if(storage>=120)saturated++;
+                            f.VegetationSeasons[FlatEcology.SeasonOffset(w,i,m%12)]=(byte)(storage/150*255+.5f);
+                        }
                     }
                     f.Wetness[i]=mean;f.SaturatedMonths[i]=(byte)saturated;
                     bool area=AreaWater(w.Water[i]);
@@ -191,6 +201,7 @@ namespace Orbis.Flat
                     f.Materials[i]=material;
                     f.Vegetation[i]=FlatEcology.Classify(biome,w.Climates[i],temp,rain,gradient);
                     f.Canopy[i]=FlatEcology.ContinuousCanopy(biome,temp,rain,mean,gradient);
+                    FlatEcology.BuildSeasons(w,f,i);
                     f.Freshness[i]=w.Water[i]==WaterKind.River||w.Water[i]==WaterKind.Lake?1:0;
                     f.Depth[i]=area?Math.Max(.25f,w.WaterLevel[i]-w.Elevation[i]):0;
                     if(w.Water[i]==WaterKind.River)
@@ -230,6 +241,7 @@ namespace Orbis.Flat
                 else f.Sediment[i]=w.Water[i]==WaterKind.River?FMath.Clamp(.025f+concentration,.025f,.85f):0;
                 if(parent>=0)sedimentLoad[parent]+=sedimentLoad[i]*.99f;
             }
+            FlatEcology.CompleteSeasonAtlas(w,f);
             BuildPlumes(w,f,cancel);FlatSurfaceSampling.BuildShore(w,f,cancel);
             f.RiverCurves=FlatRiverCurves.Build(w,f,cancel);w.Facts=f;
         }

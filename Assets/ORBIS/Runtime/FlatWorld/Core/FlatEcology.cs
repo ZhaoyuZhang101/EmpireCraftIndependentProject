@@ -51,5 +51,87 @@ namespace Orbis.Flat
                 case VegetationCover.AlpineMeadow:return .18f;case VegetationCover.Tundra:return .08f;default:return 0;
             }
         }
+        static float Ramp(float value,float minimum,float maximum)
+        {
+            float t=FMath.Clamp((value-minimum)/(maximum-minimum),0,1);
+            return t*t*(3-2*t);
+        }
+        public static float GrowthTarget(VegetationCover cover,float temperature,float soilWater)
+        {
+            if(cover==VegetationCover.Bare||cover==VegetationCover.Ice)return 0;
+            bool coldAdapted=cover==VegetationCover.BorealForest||cover==VegetationCover.AlpineMeadow||cover==VegetationCover.Tundra;
+            float minimum=coldAdapted?-2:cover==VegetationCover.TropicalRainforest?10:2;
+            float warmth=Ramp(temperature,minimum,minimum+10)*(1-Ramp(temperature,32,48));
+            bool droughtAdapted=cover==VegetationCover.DrySteppe||cover==VegetationCover.Savanna||cover==VegetationCover.Shrubland;
+            float moisture=droughtAdapted?Ramp(soilWater,.02f,.45f):Ramp(soilWater,.08f,.65f);
+            return warmth*moisture;
+        }
+        static float FoliageTarget(VegetationCover cover,float temperature,float soilWater,float growth)
+        {
+            if(cover==VegetationCover.Bare||cover==VegetationCover.Ice)return 0;
+            if(cover==VegetationCover.BorealForest||cover==VegetationCover.TemperateRainforest)
+                return .8f+.2f*Ramp(soilWater,.02f,.55f);
+            if(cover==VegetationCover.TropicalRainforest)
+                return Ramp(temperature,0,14)*(.65f+.35f*Ramp(soilWater,.02f,.55f));
+            if(cover==VegetationCover.DeciduousForest||cover==VegetationCover.SeasonalForest)
+                return Ramp(temperature,0,12)*Ramp(soilWater,.03f,.55f);
+            if(cover==VegetationCover.Savanna||cover==VegetationCover.Shrubland)return .18f+.82f*growth;
+            return growth;
+        }
+        // Twelve padded monthly RG tiles form a 3x4 atlas. Padding is periodic
+        // in longitude and clamped at the poles, matching the geographic fields.
+        public static int SeasonOffset(WorldData world,int tile,int month)
+        {
+            int x=month%3*(world.Width+2)+1+tile%world.Width;
+            int y=month/3*(world.Height+2)+1+tile/world.Width;
+            return (y*(world.Width+2)*3+x)*2;
+        }
+        internal static void BuildSeasons(WorldData world,FlatTerrainFacts facts,int tile)
+        {
+            float growth=0,foliage=.5f;var cover=facts.Vegetation[tile];
+            // The soil bucket has written twelve water samples into R. Spin up
+            // perennial responses before replacing those samples with growth.
+            for(int step=0;step<36;step++)
+            {
+                int month=step%12,offset=SeasonOffset(world,tile,month);
+                float soil=facts.VegetationSeasons[offset]/255f,temperature=world.Temperature[tile*12+month];
+                float target=GrowthTarget(cover,temperature,soil);
+                growth+=(target-growth)*.65f;
+                float leaf=FoliageTarget(cover,temperature,soil,target);
+                foliage+=(leaf-foliage)*(leaf<foliage?.75f:.60f);
+                if(step<24)continue;
+                facts.VegetationSeasons[offset]=(byte)(FMath.Clamp(growth,0,1)*255+.5f);
+                facts.VegetationSeasons[offset+1]=(byte)(FMath.Clamp(foliage,0,1)*255+.5f);
+            }
+        }
+        internal static void CompleteSeasonAtlas(WorldData world,FlatTerrainFacts facts)
+        {
+            int width=world.Width+2,height=world.Height+2,stride=width*3*2;
+            var data=facts.VegetationSeasons;
+            for(int month=0;month<12;month++)
+            {
+                int start=(month/3*height*width*3+month%3*width)*2;
+                for(int row=1;row<=world.Height;row++)
+                {
+                    int left=start+row*stride,right=left+(width-1)*2;
+                    data[left]=data[right-2];data[left+1]=data[right-1];
+                    data[right]=data[left+2];data[right+1]=data[left+3];
+                }
+                Buffer.BlockCopy(data,start+stride,data,start,width*2);
+                Buffer.BlockCopy(data,start+world.Height*stride,data,start+(height-1)*stride,width*2);
+            }
+            facts.VegetationSeasonsReady=true;
+        }
+        public static void SampleSeason(WorldData world,int tile,double day,out float growth,out float foliage)
+        {
+            growth=foliage=1;
+            if(world.Facts==null||!world.Facts.VegetationSeasonsReady)return;
+            double period=day/30,whole=Math.Floor(period);int month=(int)((whole%12+12)%12);
+            float blend=(float)(period-whole);
+            int first=SeasonOffset(world,tile,month),next=SeasonOffset(world,tile,(month+1)%12);
+            var data=world.Facts.VegetationSeasons;
+            growth=FMath.Lerp(data[first],data[next],blend)/255f;
+            foliage=FMath.Lerp(data[first+1],data[next+1],blend)/255f;
+        }
     }
 }

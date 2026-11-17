@@ -30,12 +30,21 @@ Shader "Hidden/ORBIS/VegetationDiversityProbe"
             float _ProbeSeed;
             float _ProbeLatitude;
             float _ProbeShore;
+            float _ProbeFoliage;
             float3 _ProbeSun;
             float4 _ProbeEcology;
             float4 _ProbeInfo;
 
             float4 frag(v2f_img input):SV_Target
             {
+                if(_ProbeMode>8.5)
+                {
+                    float2 pixel=floor((input.uv-.5)*64);
+                    float2 edge;
+                    float4 crown=PDTreeCrown(pixel,_ProbeType,_ProbeSeed,_ProbeFoliage,edge);
+                    float shadow=PDTreeCastShadow(pixel,_ProbeSun,_ProbeType,_ProbeSeed,_ProbeFoliage);
+                    return float4(crown.a,shadow,0,1);
+                }
                 if(_ProbeMode>7.5)
                 {
                     float2 edge;

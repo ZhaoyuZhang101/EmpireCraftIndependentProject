@@ -266,6 +266,7 @@ float FlatFieldRelief(float2 cell,float useDepth,float3 localLight)
     if(useDepth>.5)return FlatGradientRelief(FlatTerrainMetricGradient(cell,gradient),localLight);
     return FlatTerrainRelief(cell,FlatVisualSample(float4(cell*_MapSize.zw,0,0)).r,gradient,localLight);
 }
+#include "FlatVegetationSeason.cginc"
 float3 FlatVegetation(float3 col,float2 cell,float canopy,float pixelsPerTile)
 {
     if(_Vegetation<.5)return col; // Uniform branch: no divergent derivative lanes.

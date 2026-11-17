@@ -249,6 +249,7 @@ namespace Orbis.Flat
             UpdateViewportRect();navigation.Tick(dt,CalendarDay);
             globeMode=!navigation.IsFlat;pixelsPerTile=navigation.PixelsPerTile;pan=navigation.CenterTile;
             map.Configure(gridToggle.value,pixelsPerTile);
+            map.SetVegetationDay(CalendarDay);
             bool natural=map.VisibleLayer==MapLayer.Natural||map.VisibleLayer==MapLayer.Nations;
             bool skyNeeded=natural&&cloudToggle.value;
             map.Sky.Tick(dt,skyNeeded,animate,false,cloudQuality.index==0?512:1024,CalendarDay,pan,navigation.Morph>.5f);
@@ -369,6 +370,8 @@ namespace Orbis.Flat
             int i=selected,zone=World.ZoneOf(i),level=HeightBands.Level(World.Elevation[i]);string owner=World.Owner[i]<0?"无主":World.Nations[World.Owner[i]].Name;
             info.text="TILE "+i+"   ["+(i%World.Width)+", "+(i/World.Width)+"]\nZONE "+zone+" · 内部格 "+(i%World.Width%4)+","+(i/World.Width%4)+"\n\n"+World.Elevation[i]+" m · "+(level>0?"L"+level.ToString("00"):"海平面以下")+"\n水体："+WaterName(World.Water[i])+"\n地表："+BiomeName(World.Biomes[i])+"\n柯本："+World.Climates[i]+"\n本月温度："+World.Temperature[i*12+World.Month].ToString("F1")+" °C\n本月降水："+World.Precipitation[i*12+World.Month].ToString("F0")+" mm\n肥力："+(World.Fertility[i]*100).ToString("F0")+"%\n归属："+owner+"\n人口："+World.Population[i].ToString("F0")+"\n设施："+StructureName(World.Buildings[i])+"\n下游 Tile："+World.Downstream[i];
             var facts=World.Facts;
+            FlatEcology.SampleSeason(World,i,CalendarDay,out float vegetationGrowth,out float foliage);
+            info.text+="\n当前生长活性："+(vegetationGrowth*100).ToString("F0")+"% · 叶量："+(foliage*100).ToString("F0")+"%";
             info.text+="\n植被："+FlatPalette.VegetationNames[(int)facts.Vegetation[i]]+"\n河宽（显示估计）："+(facts.HalfWidth[i]*2).ToString("F2")+" Tile"+"\n\n地貌："+FlatPalette.LandformNames[(int)facts.Forms[i]]+"\n材料："+FlatPalette.MaterialNames[(int)facts.Materials[i]]+
                 "\n5×5 起伏："+facts.Relief[i].ToString("F0")+" m\n相邻最大高差："+facts.Gradient[i].ToString("F0")+" m/Tile"+
                 "\n排水高差："+facts.Hand[i].ToString("F0")+" m\n湿润月份："+facts.SaturatedMonths[i]+" / 12"+

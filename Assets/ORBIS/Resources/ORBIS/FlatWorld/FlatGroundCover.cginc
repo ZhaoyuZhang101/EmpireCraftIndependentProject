@@ -36,6 +36,7 @@ float3 PixelGround(float3 baseColor,float2 cell,float4 field,float waterMask,flo
  float detail=1-smoothstep(.65,1.8,max(length(artDx),length(artDy)));
  detail*=(1-waterMask)*(1-face*.8)*smoothstep(.12,.45,-field.g);
  if(detail<.001)return col;
+ float growth=FlatVegetationSeason(cell).x;
 
  float patch=FlatDetailNoise(artwork*3.7+91);
  float forest=step(4.5,cover)*step(cover,9.5);
@@ -51,7 +52,7 @@ float3 PixelGround(float3 baseColor,float2 cell,float4 field,float waterMask,flo
  float variation=PDHash(id+cluster*.213+ecology.a*41+71);
  float2 anchor=float2(1+floor(variation*5),1+floor(frac(variation*7)*2));
  p-=anchor;
- float height=3+floor(variation*3);
+ float height=1+floor((2+variation*3)*growth);
  float stems=PDBox(p,float2(0,0),float2(1,height));
  stems=max(stems,PDBox(p,float2(-1,height-2),float2(0,height)));
  stems=max(stems,PDBox(p,float2(1,1),float2(2,height-1)));
@@ -60,16 +61,18 @@ float3 PixelGround(float3 baseColor,float2 cell,float4 field,float waterMask,flo
  else if(cover>1.5&&cover<4.5)density=.28;
  else if(cover>10.5)density=.28;
  density*=lerp(.35,1,smoothstep(.25,.68,patch));
+ density*=lerp(.18,1,growth);
  float3 grass=lerp(float3(.35,.43,.20),float3(.24,.41,.23),wetness);
  if(cover<.5)grass=float3(.47,.43,.28);
  if(cover>1.5&&cover<4.5)grass=lerp(float3(.46,.43,.23),float3(.52,.51,.28),variation);
  if(cover>10.5)grass=lerp(float3(.41,.47,.31),float3(.55,.55,.38),variation);
+ grass=lerp(float3(.48,.40,.24),grass,growth);
  col=PDPaint(col,grass*.90,stems*step(seed,density)*detail*.58);
  col=PDPaint(col,grass*1.13,PDBox(p,float2(0,height-1),float2(1,height))*step(seed,density)*detail);
 
  float meadow=(1-step(.5,abs(cover-1)))+(1-step(.5,abs(cover-11)));
  float flowerChoice=PDHash(id+cluster*.329+ecology.a*29+101);
- float flowers=meadow*step(flowerChoice,.13)*step(seed,density)*smoothstep(.22,.60,wetness);
+ float flowers=meadow*step(flowerChoice,.13)*step(seed,density)*smoothstep(.22,.60,wetness)*growth*growth;
  float blossom=PDBox(p,float2(-1,height),float2(2,height+1));
  blossom=max(blossom,PDBox(p,float2(0,height-1),float2(1,height+2)));
  float3 petal=lerp(float3(.84,.79,.59),float3(.81,.65,.22),step(.33,variation));
@@ -78,11 +81,12 @@ float3 PixelGround(float3 baseColor,float2 cell,float4 field,float waterMask,flo
 
  if(cover>9.5&&cover<10.5)
  {
-  float reedHeight=4+floor(variation*3);
+  float reedHeight=2+floor((2+variation*3)*growth);
   float reeds=PDBox(p,float2(0,0),float2(1,reedHeight));
   reeds=max(reeds,PDBox(p,float2(2,0),float2(3,reedHeight-1)));
   reeds=max(reeds,PDBox(p,float2(-1,1),float2(0,reedHeight-2)));
-  col=PDPaint(col,lerp(float3(.24,.35,.20),float3(.43,.48,.23),variation),reeds*step(seed,.80)*detail);
+  float3 reedColor=lerp(float3(.47,.40,.25),lerp(float3(.24,.35,.20),float3(.43,.48,.23),variation),growth);
+  col=PDPaint(col,reedColor,reeds*step(seed,.80)*detail);
   float heads=PDBox(p,float2(0,reedHeight-1),float2(1,reedHeight+1));
   heads=max(heads,PDBox(p,float2(2,reedHeight-2),float2(3,reedHeight)));
   col=PDPaint(col,float3(.37,.29,.17),heads*step(seed,.80)*detail);

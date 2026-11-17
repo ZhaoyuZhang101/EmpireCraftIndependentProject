@@ -22,6 +22,7 @@ namespace Orbis.Flat
             View.SurfaceMaterial.SetFloat("_ShowWater",1);View.SurfaceMaterial.SetFloat("_ShowBanks",1);View.SurfaceMaterial.SetFloat("_WaveAmount",1);View.SurfaceMaterial.SetFloat("_SWEReady",0);
             View.SurfaceMaterial.SetVector("_FlatSize",new Vector4(world.Width,world.Height,1f/world.Width,1f/world.Height));
             Orbis.Planet.OrbisAssetVisuals.BindWater(View.SurfaceMaterial);
+            maps.SetVegetationDay(world.Day,View.SurfaceMaterial);
         }
         public void Tick(float dt,bool political,bool clouds,bool shadows,bool atmosphere,bool dayNight,Vector3 sun)
         {
@@ -30,6 +31,7 @@ namespace Orbis.Flat
             viewCamera.orthographic=false;viewCamera.allowHDR=true;viewCamera.allowMSAA=false;viewCamera.nearClipPlane=.002f;viewCamera.farClipPlane=100;viewCamera.fieldOfView=42;
             Quaternion q=Quaternion.Euler(Pitch,Yaw,0);viewCamera.transform.position=q*new Vector3(0,0,-Distance);viewCamera.transform.LookAt(Vector3.zero);
             Snapshot.day=(float)maps.World.Day; // Read-only calendar mirror, no second simulation.
+            maps.SetVegetationDay(maps.World.Day,View.SurfaceMaterial);
 
             View.SurfaceMaterial.SetFloat("_FlatPolitical",political?1:0);
             View.SyncVolumeSettings(sun,clock,Snapshot.day);View.Sync(clock,sun,0);
@@ -48,6 +50,7 @@ namespace Orbis.Flat
             bool clouds,bool atmosphere,bool night,bool shadows,Vector3 sun,bool natural)
         {
             PrepareScroll();clock=visualTime;Snapshot.day=(float)calendarDay;
+            maps.SetVegetationDay(calendarDay,View.SurfaceMaterial);
             transform.localScale=new Vector3(1,1,-1);
             transform.localRotation=Quaternion.AngleAxis(spin*Mathf.Rad2Deg,Vector3.up);
             float weight=1-Mathf.SmoothStep(0,1,Mathf.InverseLerp(.96f,1,unfold));

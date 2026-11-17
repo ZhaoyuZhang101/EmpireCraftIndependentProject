@@ -15,6 +15,7 @@ Shader "Hidden/ORBIS/TerrainQualityProbe"
   if(_ProbeFlip>.5)sampleUV.x=1-sampleUV.x;
   float2 span=_ProbeSpan.x>0?_ProbeSpan.xy:float2(2,1);
   float2 cell=_ProbeOrigin.xy+sampleUV*span;
+  if(_ProbeMode>5.5)return float4(FlatVegetationSeason(cell),0,1);
   if(_ProbeMode>3.5)
   {
    float major;

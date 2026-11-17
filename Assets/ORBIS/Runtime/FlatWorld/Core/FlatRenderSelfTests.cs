@@ -52,7 +52,7 @@ namespace Orbis.Flat
         }
         public static int Run()
         {
-            Assertions=0;TestLightning();Assertions+=FlatRiverCurveSelfTests.Run();var random=new Random(320912);
+            Assertions=0;TestLightning();TestVegetationSeasons();Assertions+=FlatRiverCurveSelfTests.Run();var random=new Random(320912);
             for(int k=0;k<2000;k++)
             {
                 float a=random.Next(-4000,4001),b=random.Next(-4000,4001),c=random.Next(-4000,4001),d=random.Next(-4000,4001);
@@ -193,6 +193,65 @@ namespace Orbis.Flat
             Near(copy.Canopy[0],.72f,.0001f,"Canopy cloned");Check(copy.Vegetation[0]==VegetationCover.BorealForest,"Cover cloned");
             copy.Canopy[0]=0;Near(w.Facts.Canopy[0],.72f,.0001f,"No shared mutable canopy array");
             return Assertions;
+        }
+        static void TestVegetationSeasons()
+        {
+            Check(FlatEcology.GrowthTarget(VegetationCover.Grassland,22,1)>.95f,"Warm wet ground supports active growth");
+            Near(FlatEcology.GrowthTarget(VegetationCover.DeciduousForest,-12,1),0,0,"Frozen ground stops vegetation growth");
+            Check(FlatEcology.GrowthTarget(VegetationCover.Grassland,25,.01f)<.05f,"Heat without soil water cannot support green growth");
+            Check(FlatEcology.GrowthTarget(VegetationCover.Tundra,5,.8f)>.2f,"Cold-adapted vegetation uses the short thaw season");
+            Near(FlatEcology.GrowthTarget(VegetationCover.Ice,24,1),0,0,"Ice has no vegetation growth");
+            Near(FlatEcology.GrowthTarget(VegetationCover.Bare,24,1),0,0,"Bare habitat does not create vegetation");
+            var world=new WorldData(64,32,"vegetation-seasons",TerrainPreset.Continents);
+            for(int i=0;i<world.Count;i++)
+            {
+                world.Elevation[i]=world.WaterLevel[i]=400;world.Biomes[i]=Biome.Woodland;
+                world.Climates[i]=Koppen.Cfb;world.DrainOrder[i]=i;
+                for(int m=0;m<12;m++)
+                {
+                    world.Temperature[i*12+m]=8-14*(float)Math.Cos(m*Math.PI*2/12);
+                    world.Precipitation[i*12+m]=100;
+                }
+            }
+            int north=world.Index(12,16),south=world.Index(13,16),evergreen=world.Index(20,16);
+            world.Biomes[evergreen]=Biome.Taiga;world.Climates[evergreen]=Koppen.Dfc;
+            for(int m=0;m<12;m++)world.Temperature[south*12+m]=world.Temperature[north*12+(m+6)%12];
+            int dry=world.Index(20,10),bank=world.Index(23,10),lake=world.Index(24,10);
+            foreach(int i in new[]{dry,bank,lake})for(int m=0;m<12;m++)
+            {world.Temperature[i*12+m]=25;world.Precipitation[i*12+m]=0;}
+            world.Biomes[dry]=world.Biomes[bank]=Biome.Grassland;
+            world.Water[lake]=WaterKind.Lake;world.WaterLevel[lake]=410;world.Biomes[lake]=Biome.Water;
+            FlatTerrainAnalysis.Build(world,default,false,1);
+            Check(world.Facts.VegetationSeasonsReady,"Terrain analysis publishes the complete seasonal vegetation cache");
+            FlatEcology.SampleSeason(world,north,0,out float northWinter,out float winterLeaf);
+            FlatEcology.SampleSeason(world,north,180,out float northSummer,out float summerLeaf);
+            FlatEcology.SampleSeason(world,south,0,out float southSummer,out _);
+            FlatEcology.SampleSeason(world,south,180,out float southWinter,out _);
+            Check(northSummer>northWinter+.6f&&summerLeaf>winterLeaf+.6f,"Temperate vegetation grows leaves during the warm season");
+            Check(southSummer>southWinter+.6f,"Season timing follows local climate across hemispheres");
+            FlatEcology.SampleSeason(world,evergreen,0,out float winterGrowth,out float evergreenLeaf);
+            Check(winterGrowth<.1f&&evergreenLeaf>.7f,"Evergreen canopy survives winter while growth is dormant");
+            FlatEcology.SampleSeason(world,dry,180,out float dryGrowth,out _);
+            FlatEcology.SampleSeason(world,bank,180,out float bankGrowth,out _);
+            Check(bankGrowth>dryGrowth+.5f,"Low freshwater banks retain growth during a regional dry season");
+            FlatEcology.SampleSeason(world,lake,180,out float waterGrowth,out float waterLeaf);
+            Check(waterGrowth==0&&waterLeaf==0,"Open water has no terrestrial seasonal vegetation");
+            for(int m=0;m<12;m++)
+            {
+                FlatEcology.SampleSeason(world,north,m*30-.0001,out float before,out float leafBefore);
+                FlatEcology.SampleSeason(world,north,m*30+.0001,out float after,out float leafAfter);
+                Check(Math.Abs(before-after)<.00002f&&Math.Abs(leafBefore-leafAfter)<.00002f,"Vegetation blends across month and year boundaries");
+            }
+            var first=world.Facts;
+            var clone=first.Clone();clone.VegetationSeasons[0]^=255;
+            Check(clone.VegetationSeasonsReady&&clone.VegetationSeasons[0]!=first.VegetationSeasons[0],"Vegetation cache clones retain state with independent storage");
+            FlatTerrainAnalysis.Build(world,default,false,4);
+            for(int i=0;i<first.VegetationSeasons.Length;i++)
+                Check(first.VegetationSeasons[i]==world.Facts.VegetationSeasons[i],"Seasonal vegetation is independent of worker ordering");
+            var loaded=FlatSave.Decode(FlatSave.Encode(world));
+            Check(loaded.Facts.VegetationSeasonsReady,"Existing saves rebuild climate-driven vegetation on load");
+            for(int i=0;i<first.VegetationSeasons.Length;i++)
+                Check(first.VegetationSeasons[i]==loaded.Facts.VegetationSeasons[i],"Saving and loading reproduces seasonal vegetation");
         }
     }
 }
