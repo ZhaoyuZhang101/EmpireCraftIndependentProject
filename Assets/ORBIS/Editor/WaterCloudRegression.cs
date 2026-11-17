@@ -32,6 +32,19 @@ namespace Orbis.Editor
     double oceanLake=Difference(samples[0],samples[1]),riverLake=Difference(samples[2],samples[1]);
     report.Add((oceanLake>1e-4&&riverLake>1e-4?"PASS":"FAIL")+" distinct ocean/lake/river results; differences="+oceanLake+", "+riverLake);
     report.Add((m.GetFloat("_VendorWaterReady")>.5?"PASS":"FAIL")+" all five SW3 artwork resources bound");
+    string[] waterSlots={"_VendorStreamNormal","_VendorLakeNormal","_VendorOceanNormal","_VendorOceanFoam","_VendorRiverFoam"};
+    foreach(string resource in new[]{"ORBIS/Surface","ORBIS/FlatWorld/FlatMap","ORBIS/FlatWorld/LocalSurface","ORBIS/FlatWorld/ScrollSurface"})
+    {
+     var surface=new Material(Resources.Load<Shader>(resource));Material copy=null;
+     try
+     {
+      Orbis.Planet.OrbisAssetVisuals.BindWater(surface);copy=new Material(surface);bool valid=true;
+      foreach(string slot in waterSlots)valid&=surface.HasProperty(slot)&&copy.HasProperty(slot)&&surface.GetTexture(slot)!=null&&copy.GetTexture(slot)==surface.GetTexture(slot);
+      if(resource=="ORBIS/Surface")valid&=surface.HasProperty("_Natural");
+      report.Add((valid?"PASS":"FAIL")+" declared SW3 texture properties survive material cloning on "+resource);
+     }
+     finally{if(copy)UnityEngine.Object.DestroyImmediate(copy);UnityEngine.Object.DestroyImmediate(surface);}
+    }
     m.SetFloat("_ProbeKind",3);m.SetFloat("_WaterKind",3);m.SetFloat("_ProbeFlip",0);var forward=sample();
     m.SetFloat("_ProbeFlip",1);var mirrored=sample();double rotationError=0;
     for(int y=0;y<64;y++)for(int x=0;x<128;x++)

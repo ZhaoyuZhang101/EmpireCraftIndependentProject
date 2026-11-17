@@ -9,9 +9,50 @@ namespace Orbis.Flat
         {Assertions++;if(!value)throw new InvalidOperationException("Perf3.2 surface regression: "+message);}
         static void Near(float a,float b,float tolerance,string message)
         {Check(Math.Abs(a-b)<=tolerance,message+" / "+a+" vs "+b);}
+        static void TestLightning()
+        {
+            Near(FlatLightningVisuals.Envelope(-1),0,0,"Lightning cannot precede its event");
+            Near(FlatLightningVisuals.Envelope(.035f),1,.00001f,"Lightning has a brief primary pulse");
+            Near(FlatLightningVisuals.Envelope(.085f),0,.00001f,"Lightning has a dark interval between pulses");
+            Near(FlatLightningVisuals.Envelope(.14f),.55f,.00001f,"Lightning has a weaker secondary pulse");
+            Near(FlatLightningVisuals.Envelope(.3f),0,0,"Lightning expires instead of holding the map bright");
+            var world=new WorldData(64,32,"lightning-regression",TerrainPreset.Continents);
+            for(int i=0;i<world.Count*12;i++){world.Precipitation[i]=240;world.Temperature[i]=24;}
+            var first=new FlatLightningVisuals(world);var second=new FlatLightningVisuals(world);bool observed=false;
+            double day=world.Day;
+            for(int frame=0;frame<900;frame++)
+            {
+                first.Tick(.016f,true,63.8f,31.9f,true);second.Tick(.016f,true,63.8f,31.9f,true);
+                for(int i=0;i<4;i++)
+                {
+                    var a=first.Flashes[i];var b=second.Flashes[i];
+                    Check(a.X==b.X&&a.Y==b.Y&&a.Z==b.Z&&a.Strength==b.Strength,"Visual lightning is repeatable for the same seed/ticks");
+                    Check(!float.IsNaN(a.Strength)&&a.Strength>=0&&a.Strength<=1,"Lightning strength remains finite and bounded");
+                    if(a.Strength>0){observed=true;Near(a.X*a.X+a.Y*a.Y+a.Z*a.Z,1,.00001f,"Polar lightning has a valid spherical direction");}
+                }
+            }
+            Check(observed&&first.Flashes.Length==4,"Wet warm climate produces bounded visual events");
+            first.Tick(.016f,false,0,0,false);
+            foreach(var flash in first.Flashes)Near(flash.Strength,0,0,"Pause/cloud disable clears active flashes");
+            Array.Clear(world.Precipitation,0,world.Precipitation.Length);var dry=new FlatLightningVisuals(world);
+            for(int frame=0;frame<500;frame++)
+            {
+                dry.Tick(.05f,true,0,0,false);
+                foreach(var flash in dry.Flashes)Near(flash.Strength,0,0,"Dry climate produces no visual lightning");
+            }
+            Check(world.Day==day,"Visual lightning never advances the world calendar");
+            for(int i=0;i<world.Precipitation.Length;i++)world.Precipitation[i]=240;
+            var slow=new FlatLightningVisuals(world);float slowPeak=0;
+            for(int frame=0;frame<300;frame++)
+            {
+                slow.Tick(.1f,true,32,16,true);
+                foreach(var flash in slow.Flashes)slowPeak=Math.Max(slowPeak,flash.Strength);
+            }
+            Check(slowPeak>.8f,"Coarse render steps retain the brief primary flash");
+        }
         public static int Run()
         {
-            Assertions=0;var random=new Random(320912);
+            Assertions=0;TestLightning();var random=new Random(320912);
             for(int k=0;k<2000;k++)
             {
                 float a=random.Next(-4000,4001),b=random.Next(-4000,4001),c=random.Next(-4000,4001),d=random.Next(-4000,4001);

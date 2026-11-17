@@ -1,10 +1,10 @@
 #ifndef ORBIS_FLAT_SKY_COMPOSITE
 #define ORBIS_FLAT_SKY_COMPOSITE
 #include "FlatCloudCover.cginc"
+#include "../OrbisLightning.cginc"
 float3 _FlatSun;
 float _SkyReady,_FlatClouds,_FlatCloudShadows,_FlatAtmosphere,_FlatDayNight,_CloudOpacity,_FlatRain,_FlatLightning,_FlatNightLights;
 float _FlatNightAdaptation;
-float4 _FlatLightningEvents[4];
 // Same moon ephemeris and linear light colors as the spherical view.
 float4 _OrbisNightParams,_OrbisMoon,_OrbisMoonColor,_OrbisNightSkyColor,_OrbisAirglowColor;
 float FlatDayWeight(float3 radial)
@@ -105,12 +105,8 @@ float3 FlatSkyComposite(float3 col,float2 uv,float2 cell,float2 screenPixel,floa
     float flakes=FlatSnowflakes(screenPixel,_SkyClock,snow);
     col=lerp(col,FlatColor(float3(.94,.97,1)),flakes*snow*.78);
     // Brief visual lightning is limited to dense precipitating columns.
-    float flash=0;
-    [unroll] for(int k=0;k<4;k++)
-    {float3 d=radial-_FlatLightningEvents[k].xyz;flash+=_FlatLightningEvents[k].w*exp(-dot(d,d)/.00055);}
-    float pulse=saturate((sin(_SkyClock*2.6+dot(floor(radial*18),float3(7,13,17)))-.998)*500);
-    flash+=pulse*pulse*cloud.a*smoothstep(.78,.95,cloud.r)*.65;
-    col+=flash*_FlatLightning*_SkyReady*float3(.32,.39,.51);
+    float flash=OrbisLightningAmount(radial)*cloud.a*smoothstep(.65,.92,cloud.r);
+    col+=flash*_FlatLightning*_FlatClouds*_SkyReady*float3(.32,.39,.51);
     return col;
 }
 #endif

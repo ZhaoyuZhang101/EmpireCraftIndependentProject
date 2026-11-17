@@ -2,6 +2,13 @@ Shader "ORBIS/Surface"
 {
  Properties
  {
+  [HideInInspector] _Natural("Natural surface",Float)=1
+  [HideInInspector] _VendorWaterReady("SW3 resources ready",Float)=0
+  [HideInInspector] _VendorStreamNormal("SW3 stream waves",2D)="gray"{}
+  [HideInInspector] _VendorOceanNormal("SW3 ocean waves",2D)="gray"{}
+  [HideInInspector] _VendorLakeNormal("SW3 lake ripples",2D)="bump"{}
+  [HideInInspector] _VendorOceanFoam("SW3 ocean foam",2D)="black"{}
+  [HideInInspector] _VendorRiverFoam("SW3 river foam",2D)="black"{}
   [HideInInspector] _FlatWorldReady("2D authoritative source",Float)=0
   [HideInInspector] _FlatPolitical("2D political tint",Float)=0
   _Tint("Tint",Color)=(1,1,1,1)

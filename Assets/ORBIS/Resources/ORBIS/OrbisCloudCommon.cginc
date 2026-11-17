@@ -5,7 +5,7 @@
 sampler2D _Weather, _CloudWind, _GroundField, _WeatherEffects;
 sampler3D _AtmosLayers, _AtmosLayerWind;
 float _LayeredWeather,_CloudHeightScale,_WetSurfaces,_CloudShellTop;
-float4 _OrbisLightning[4];
+#include "OrbisLightning.cginc"
 sampler3D _CloudNoise,_CloudDetailNoise;
 float _FlowPhase,_Cover,_Density,_Clouds;
 #define ORBIS_PI 3.14159265359
@@ -59,24 +59,23 @@ float OrbisLayerIndex(float z)
  if(z<11000)return 9+(z-9000)/2000;
  return 10+saturate((z-11000)/3000);
 }
-float OrbisLightningTerm(float3 p,float4 strike)
-{
- float3 d=p-strike.xyz;
- return strike.w*exp(-dot(d,d)/.00055);
-}
-float3 OrbisLightningLight(float3 p)
-{
- // Four fixed uniform slots: no dynamically indexed array or inner lightning loop.
- float flash=OrbisLightningTerm(p,_OrbisLightning[0]);
- flash+=OrbisLightningTerm(p,_OrbisLightning[1]);
- flash+=OrbisLightningTerm(p,_OrbisLightning[2]);
- flash+=OrbisLightningTerm(p,_OrbisLightning[3]);
- return flash*float3(.60,.72,1.0);
-}
 float _ScrollCloudSource;
 #ifdef ORBIS_SHARED_SCROLL_WEATHER
 #include "FlatWorld/ScrollCloudSource.cginc"
 #endif
+float3 OrbisLightningLight(float3 p)
+{
+ float flash=OrbisLightningAmount(p)*_Clouds;
+ [branch] if(flash<=0)return 0;
+ #ifdef ORBIS_SHARED_SCROLL_WEATHER
+ if(_ScrollCloudSource>.5)
+ {
+  float4 storm=tex2Dlod(_ScrollWeatherTex,float4(OrbisWeatherUV(p),0,0));
+  flash*=storm.a*smoothstep(.65,.92,storm.r);
+ }
+ #endif
+ return flash*float3(.60,.72,1.0);
+}
 float2 OrbisCloudDensities(float3 p,bool simpleMode)
 {
  if(_Clouds<.5||length(p)<ORBIS_CLOUD_BASE||length(p)>ORBIS_CLOUD_TOP)return 0;

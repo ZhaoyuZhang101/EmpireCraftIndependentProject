@@ -47,7 +47,7 @@ namespace Orbis.Flat
             viewCamera.allowMSAA=false;viewCamera.allowDynamicResolution=false;viewCamera.depthTextureMode=DepthTextureMode.Depth;
             QualitySettings.antiAliasing=0;
             var ui=new GameObject("2D World HUD",typeof(UIDocument));ui.transform.SetParent(transform,false);document=ui.GetComponent<UIDocument>();
-            panel=ScriptableObject.CreateInstance<PanelSettings>();panel.scaleMode=PanelScaleMode.ScaleWithScreenSize;panel.referenceResolution=new Vector2Int(1440,900);panel.match=.5f;
+            panel=Instantiate(Resources.Load<PanelSettings>("ORBIS/OrbisPanel"));panel.scaleMode=PanelScaleMode.ScaleWithScreenSize;panel.referenceResolution=new Vector2Int(1440,900);panel.match=.5f;
             panel.themeStyleSheet=Resources.Load<ThemeStyleSheet>("ORBIS/OrbisTheme");document.panelSettings=panel;
             var tree=Resources.Load<VisualTreeAsset>("ORBIS/FlatWorld/FlatWorld");if(!tree)throw new InvalidOperationException("FlatWorld.uxml is missing.");
             root=document.rootVisualElement;tree.CloneTree(root);
@@ -249,7 +249,7 @@ namespace Orbis.Flat
             map.Configure(gridToggle.value,pixelsPerTile);
             bool natural=map.VisibleLayer==MapLayer.Natural||map.VisibleLayer==MapLayer.Nations;
             bool skyNeeded=natural&&cloudToggle.value;
-            map.Sky.Tick(dt,skyNeeded,animate,false,cloudQuality.index==0?512:1024,CalendarDay);
+            map.Sky.Tick(dt,skyNeeded,animate,false,cloudQuality.index==0?512:1024,CalendarDay,pan,navigation.Morph>.5f);
             Vector3 sun=map.Sky.Sun(180f,CalendarDay,true);
             bool waterView=natural||map.VisibleLayer==MapLayer.Water;
             // SW3 owns the visible normal and foam animation; skip the old CPU/GPU

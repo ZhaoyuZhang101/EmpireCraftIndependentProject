@@ -1,0 +1,5 @@
+PASS clear columns exclude lightning; maximum=0
+PASS thin cloud columns exclude lightning; maximum=0
+PASS storm flash stays local; maximum=0.04565871 lit pixels=4
+PASS disabling clouds clears visible lightning; maximum=0
+PASS no events produces no spontaneous grid flashes; maximum=0

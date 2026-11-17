@@ -68,7 +68,7 @@ namespace Orbis
             var terrainAtlas=Resources.Load<Texture2D>("ORBIS/TerrainAtlas");
             surfaceMaterial.SetTexture("_TerrainAtlas",terrainAtlas);
             surfaceMaterial.SetFloat("_TerrainAtlasReady",terrainAtlas?1:0);
-            if(!terrainAtlas)Debug.LogWarning("ORBIS V4-2: biome atlas missing; retaining vertex biome albedo, not white fallback.");
+            if(!terrainAtlas&&!volumeOnly)Debug.LogWarning("ORBIS V4-2: biome atlas missing; retaining vertex biome albedo, not white fallback.");
             cloudMaterial=new Material(Resources.Load<Shader>("ORBIS/Clouds"));
             terrainObject=CreateMeshObject("Surface source mesh",surfaceMaterial,out terrainMesh);
             terrainObject.GetComponent<MeshRenderer>().enabled=false;

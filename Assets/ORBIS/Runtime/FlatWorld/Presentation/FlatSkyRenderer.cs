@@ -20,6 +20,7 @@ namespace Orbis.Flat
         int month=-1,revision=-1;float debt;bool rendered,failed;
         double stagedClock;
         readonly Vector4[] flashes=new Vector4[4];
+        FlatLightningVisuals lightning;
         public Texture2D DynamicWind {get{return wind;}}
         public bool DynamicReady {get{return Ready;}}
         public double RenderClock {get{return stagedClock;}}
@@ -27,6 +28,7 @@ namespace Orbis.Flat
         public void Initialize(WorldData data)
         {
             world=data;
+            lightning=new FlatLightningVisuals(data);
             Shader shader=Resources.Load<Shader>("ORBIS/FlatWorld/FlatSkyBake");
             Shader columnShader=Resources.Load<Shader>("ORBIS/FlatWorld/HPCloudColumn");
             if(!shader||!shader.isSupported||!columnShader||!columnShader.isSupported)
@@ -146,8 +148,11 @@ namespace Orbis.Flat
             bake.SetVector(property,new Vector4(Mathf.Sin(longitude)*cosine,Mathf.Sin(latitude),
                                                 Mathf.Cos(longitude)*cosine,cyclone.Strength));
         }
-        public void Tick(float delta,bool needed,bool animate,bool autoSun,int width,double calendarDay)
+        public void Tick(float delta,bool needed,bool animate,bool autoSun,int width,double calendarDay,Vector2 focus=default,bool local=false)
         {
+            lightning.Tick(delta,needed&&animate&&!failed,focus.x,focus.y,local);
+            for(int i=0;i<flashes.Length;i++)
+            {var flash=lightning.Flashes[i];flashes[i]=new Vector4(flash.X,flash.Y,flash.Z,flash.Strength);}
             if(animate)Clock+=Math.Max(0,delta);
             if(!needed){Status="云缓存休眠；晨昏/大气开关独立。";return;}
             if(failed)return;
@@ -189,7 +194,7 @@ namespace Orbis.Flat
             target.SetFloat("_FlatCloudShadows",shadows?1:0);target.SetFloat("_FlatAtmosphere",atmosphere?1:0);
             target.SetFloat("_FlatDayNight",dayNight?1:0);target.SetFloat("_FlatRain",rain?1:0);target.SetFloat("_FlatLightning",lightning?1:0);
             target.SetFloat("_FlatNightLights",nightLights?1:0);target.SetFloat("_CloudOpacity",Mathf.Clamp01(opacity));
-            target.SetVectorArray("_FlatLightningEvents",flashes);
+            target.SetVectorArray("_OrbisLightning",flashes);
         }
         void OnDestroy()
         {ReleaseCache(weatherBack);ReleaseCache(columnBack);ReleaseCache(columnStrip);if(Texture){Texture.Release();Destroy(Texture);}if(ColumnTexture){ColumnTexture.Release();Destroy(ColumnTexture);}if(climate)Destroy(climate);if(wind)Destroy(wind);if(climateWind)Destroy(climateWind);if(bake)Destroy(bake);if(hpColumn)Destroy(hpColumn);if(hpNoise)Destroy(hpNoise);if(hpDetail)Destroy(hpDetail);if(hpHigh)Destroy(hpHigh);}

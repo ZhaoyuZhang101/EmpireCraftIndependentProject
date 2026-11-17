@@ -4,6 +4,10 @@ PASS SW3 water kind=4 finite at depths 0.1..4000m; invalid=0
 PASS SW3 water kind=5 finite at depths 0.1..4000m; invalid=0
 PASS distinct ocean/lake/river results; differences=0.0863293021866411, 0.0212219747572817
 PASS all five SW3 artwork resources bound
+PASS declared SW3 texture properties survive material cloning on ORBIS/Surface
+PASS declared SW3 texture properties survive material cloning on ORBIS/FlatWorld/FlatMap
+PASS declared SW3 texture properties survive material cloning on ORBIS/FlatWorld/LocalSurface
+PASS declared SW3 texture properties survive material cloning on ORBIS/FlatWorld/ScrollSurface
 PASS geographic water normals remain stable under reversed screen direction; max error=0
 PASS continuous two-phase wave advection kind=3 mean RGB difference=1.61973730428144E-07
 PASS continuous two-phase wave advection kind=4 mean RGB difference=2.93766788672656E-09

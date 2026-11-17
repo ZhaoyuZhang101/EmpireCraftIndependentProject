@@ -85,7 +85,7 @@ namespace Orbis
             SelectionView=selectionObject.AddComponent<OrbisSelectionView>();SelectionView.demo=this;
             var ui = new GameObject("ORBIS 中文介面"); ui.transform.SetParent(transform, false); ui.SetActive(false);
             var document = ui.AddComponent<UIDocument>();
-            panel = ScriptableObject.CreateInstance<PanelSettings>();
+            panel = Instantiate(Resources.Load<PanelSettings>("ORBIS/OrbisPanel"));
             panel.scaleMode = PanelScaleMode.ScaleWithScreenSize;
             panel.referenceResolution = new Vector2Int(1600, 900); panel.match = .5f;
             panel.themeStyleSheet = Resources.Load<ThemeStyleSheet>("ORBIS/OrbisTheme");
