@@ -46,6 +46,7 @@ Shader "ORBIS/Surface"
    #define ORBIS_FLAT_NO_SWE
    #include "FlatWorld/Water/FlatWater.cginc"
    #include "FlatWorld/FlatCloudCover.cginc"
+   #include "FlatWorld/Water/FlatWaterReflection.cginc"
    sampler2D _FlatTerrain,_FlatOwners,_FlatInfo,_TerrainAtlas;
    float _FlatWorldReady,_FlatPolitical,_Natural,_Night,_SolarEnergy,_CloudShadow,_ShadowStrength;
    float _TerrainAtlasReady,_SurfaceDetail,_Settlement,_Clouds,_SurfaceDebug;
@@ -122,7 +123,13 @@ Shader "ORBIS/Surface"
      float3 waterColor=FlatColor(float3(.20,.43,.55))*illumination;
      float waterKind=floor(info.g+.5);
      if(_FlatWorldReady>.5)waterKind=hydro.a>.01&&field.g<0?5:FlatAreaWaterKind(uv*_MapSize.xy,_FlatInfo,waterKind);
-     if(_ShowWater>.5)waterColor=FlatWaterShade(uv*_MapSize.xy,hydro,mixing,field,FlatMaterialColor(floor(geo.g+.5))*.72,illumination,localView,localLight,_WaveAmount*(1-polarIce),waterKind,waterEdge);
+     if(_ShowWater>.5)
+     {
+      FlatWaterSurfaceData waterSurface;
+      waterColor=FlatWaterShade(uv*_MapSize.xy,hydro,mixing,field,FlatMaterialColor(floor(geo.g+.5))*.72,illumination,localView,localLight,_WaveAmount*(1-polarIce),waterKind,waterEdge,waterSurface);
+      [branch] if(water>.001)
+       waterColor=FlatReflectWater(waterColor,uv*_MapSize.xy,field,max(0,field.r+field.b),localView,localLight,illumination,waterSurface,_Clouds*_SkyReady,0);
+     }
      col=lerp(col,waterColor,water);
     }
     if(max(polarIce,landSnow)>.001)col=lerp(col,FlatPolarIceColor(uv,water)*illumination,max(polarIce,landSnow));

@@ -104,7 +104,23 @@
      waterView=lerp(sphereView,planeView,_ScrollMorph);
      waterView=normalize(float3(waterView.xy,max(.02,waterView.z)));
      #endif
-     if(_ShowWater>.5)waterColor=FlatWaterShade(cell,hydro,mixing,field,bottom,illumination,waterView,waterLight,_WaveAmount*(1-polarIce),waterKind,edgeDistance);
+     if(_ShowWater>.5)
+     {
+      FlatWaterSurfaceData waterSurface;
+      waterColor=FlatWaterShade(cell,hydro,mixing,field,bottom,illumination,waterView,waterLight,_WaveAmount*(1-polarIce),waterKind,edgeDistance,waterSurface);
+      // Keep the normal derivatives above uniform across shorelines. Only the
+      // reflection lookup can be skipped for completely dry receivers.
+      [branch] if(waterMask>.001)
+      {
+       float waterHeight=max(0,field.r+field.b);
+       #ifdef ORBIS_SCROLL_SURFACE
+       if(_ScrollMorph>.999&&_ScrollRelief.x>.05)
+        waterHeight=max(0,dot(world-_ScrollNormal,_ScrollNormal)/max(1e-7,_ScrollHeightScale*_ScrollRelief.x));
+       #endif
+       float reflectionDetail=_DetailWeight*naturalView*(1-polarIce)*waterMask;
+       waterColor=FlatReflectWater(waterColor,cell,field,waterHeight,waterView,waterLight,illumination,waterSurface,_FlatClouds*_SkyReady,reflectionDetail);
+      }
+     }
      col=lerp(col,waterColor,waterMask);
     }
     else col*=illumination;

@@ -7,7 +7,7 @@
 sampler2D _HydroA,_HydroB,_GeoTex;
 sampler2D _VendorStreamNormal,_VendorOceanNormal;float _VendorWaterReady;
 sampler2D _VendorLakeNormal,_VendorOceanFoam,_VendorRiverFoam;
-float4 _VendorStreamNormal_TexelSize,_VendorOceanNormal_TexelSize;
+float4 _VendorStreamNormal_TexelSize,_VendorOceanNormal_TexelSize,_VendorLakeNormal_TexelSize;
 #ifndef ORBIS_FLAT_NO_SWE
 sampler2D _SWEState,_SWEPreviousState;
 #endif
@@ -311,22 +311,27 @@ float FlatCoastFoam(float shoreDistance,float clock,float variation)
 float FlatWaterSunSpecular(float3 normal,float3 view,float3 sun,float roughness)
 {
     float3 halfDirection=normalize(view+sun+float3(0,0,1e-5));
-    float nv=max(.04,dot(normal,view)),nl=saturate(dot(normal,sun));
+    float nl=saturate(dot(normal,sun));
     float nh=saturate(dot(normal,halfDirection));
     float3 normalDx=ddx(normal),normalDy=ddy(normal);
-    // Unresolved normal variation broadens the lobe instead of producing a
-    // flickering one-pixel highlight while scrolling or zooming.
+    // A normalized Blinn-Phong profile gives resolved crests a defined edge.
+    // Filter its angular footprint to keep small moving highlights stable.
     float variance=max(dot(normalDx,normalDx),dot(normalDy,normalDy));
-    float alphaSquared=roughness*roughness+min(.025,variance*.18);
-    float denominator=nh*nh*(alphaSquared-1)+1;
-    float distribution=alphaSquared/max(1e-7,3.141592654*denominator*denominator);
-    float k=sqrt(alphaSquared)*.5;
-    float geometryV=nv/(nv*(1-k)+k),geometryL=nl/max(1e-5,nl*(1-k)+k);
+    float baseWidth=max(.0001,roughness*roughness);
+    float filteredWidth=baseWidth+min(.003,variance*.035);
+    float exponent=max(16,12/filteredWidth-2);
+    float profile=pow(nh,exponent)*sqrt(baseWidth/filteredWidth);
     float fresnel=OrbisHPSchlick(saturate(dot(view,halfDirection)));
-    return distribution*fresnel*geometryV*geometryL/max(.16,4*nv);
+    return profile*nl*lerp(2.4,3.8,fresnel);
 }
+struct FlatWaterSurfaceData
+{
+    float3 normal;
+    float skyWeight;
+    float visible;
+};
 float3 FlatWaterShade(float2 cell,float4 hydro,float4 mixing,float4 field,float3 bottom,float3 light,
-                     float3 localView,float3 localLight,float waveStrength,float waterKind,float waterEdge)
+                     float3 localView,float3 localLight,float waveStrength,float waterKind,float waterEdge,out FlatWaterSurfaceData surface)
 {
     // WaterKind, not salinity: freshwater plumes in the sea are still ocean waves.
     float river=step(4.5,waterKind),lake=saturate(waterKind-3)*(1-river),ocean=1-river-lake;
@@ -359,7 +364,9 @@ float3 FlatWaterShade(float2 cell,float4 hydro,float4 mixing,float4 field,float3
     {
         float frequency=max(1,floor(_MapSize.x*.125))/_MapSize.x;
         float3 baseUV=artwork*frequency;
-        float lod=max(0,log2(max(.0001,footprint*max(_VendorOceanNormal_TexelSize.z*frequency,_VendorOceanNormal_TexelSize.w*.125)/6)));
+        float oceanFootprint=footprint*max(_VendorOceanNormal_TexelSize.z,_VendorOceanNormal_TexelSize.w)*frequency/6;
+        float lod=max(0,log2(max(.0001,oceanFootprint)));
+        float oceanFineLOD=max(0,log2(max(.0001,oceanFootprint*2)));
         float2 vendorSlope;
         if(river>.5)
         {
@@ -367,8 +374,9 @@ float3 FlatWaterShade(float2 cell,float4 hydro,float4 mixing,float4 field,float3
             float2 stream0=FlatDetailNormal(_VendorStreamNormal,artwork*.25-drift*phase0*.35,weights,0,streamLOD,right,up);
             float2 stream1=FlatDetailNormal(_VendorStreamNormal,artwork*.25-drift*phase1*.35,weights,0,streamLOD,right,up);
             vendorSlope=lerp(stream0,stream1,blend)*.16;
-            float2 fine0=FlatDetailNormal(_VendorStreamNormal,artwork*.5-drift*phase0*.70,weights,0,streamLOD+1,right,up);
-            float2 fine1=FlatDetailNormal(_VendorStreamNormal,artwork*.5-drift*phase1*.70,weights,0,streamLOD+1,right,up);
+            float sharpLOD=max(0,log2(max(.0001,footprint*max(_VendorLakeNormal_TexelSize.z,_VendorLakeNormal_TexelSize.w)/12)));
+            float2 fine0=FlatDetailNormal(_VendorLakeNormal,artwork*.5-drift*phase0*.70,weights,0,sharpLOD,right,up);
+            float2 fine1=FlatDetailNormal(_VendorLakeNormal,artwork*.5-drift*phase1*.70,weights,0,sharpLOD,right,up);
             microSlopes=lerp(fine0,fine1,blend)*.28;
         }
         else
@@ -381,18 +389,21 @@ float3 FlatWaterShade(float2 cell,float4 hydro,float4 mixing,float4 field,float3
                 float2 ocean0=FlatDetailNormal(_VendorOceanNormal,baseUV-drift*phase0*.175,weights,0,lod,right,up);
                 float2 ocean1=FlatDetailNormal(_VendorOceanNormal,baseUV-drift*phase1*.175,weights,0,lod,right,up);
                 oceanSlope=lerp(ocean0,ocean1,blend)*.12;
-                float2 fine0=FlatDetailNormal(_VendorOceanNormal,baseUV*2-drift*phase0*.35,weights,0,lod+1,right,up);
-                float2 fine1=FlatDetailNormal(_VendorOceanNormal,baseUV*2-drift*phase1*.35,weights,0,lod+1,right,up);
+                float2 fine0=FlatDetailNormal(_VendorOceanNormal,baseUV*2-drift*phase0*.35,weights,0,oceanFineLOD,right,up);
+                float2 fine1=FlatDetailNormal(_VendorOceanNormal,baseUV*2-drift*phase1*.35,weights,0,oceanFineLOD,right,up);
                 oceanMicro=lerp(fine0,fine1,blend)*.32;
             }
             if(lake>0)
             {
-                float2 lake0=FlatDetailNormal(_VendorLakeNormal,baseUV*2-drift*phase0*.10,weights,0,lod,right,up);
-                float2 lake1=FlatDetailNormal(_VendorLakeNormal,baseUV*2-drift*phase1*.10,weights,0,lod,right,up);
+                float lakeFootprint=footprint*max(_VendorLakeNormal_TexelSize.z,_VendorLakeNormal_TexelSize.w)*frequency/3;
+                float lakeLOD=max(0,log2(max(.0001,lakeFootprint)));
+                float lakeFineLOD=max(0,log2(max(.0001,lakeFootprint*2)));
+                float2 lake0=FlatDetailNormal(_VendorLakeNormal,baseUV*2-drift*phase0*.10,weights,0,lakeLOD,right,up);
+                float2 lake1=FlatDetailNormal(_VendorLakeNormal,baseUV*2-drift*phase1*.10,weights,0,lakeLOD,right,up);
                 float fetch=smoothstep(.02,1.8,shoreDistance);
                 lakeSlope=lerp(lake0,lake1,blend)*lerp(.055,.10,fetch);
-                float2 fine0=FlatDetailNormal(_VendorLakeNormal,baseUV*4-drift*phase0*.20,weights,0,lod+1,right,up);
-                float2 fine1=FlatDetailNormal(_VendorLakeNormal,baseUV*4-drift*phase1*.20,weights,0,lod+1,right,up);
+                float2 fine0=FlatDetailNormal(_VendorLakeNormal,baseUV*4-drift*phase0*.20,weights,0,lakeFineLOD,right,up);
+                float2 fine1=FlatDetailNormal(_VendorLakeNormal,baseUV*4-drift*phase1*.20,weights,0,lakeFineLOD,right,up);
                 lakeMicro=lerp(fine0,fine1,blend)*.24;
             }
             vendorSlope=lerp(oceanSlope,lakeSlope,lake);
@@ -481,10 +492,10 @@ float3 FlatWaterShade(float2 cell,float4 hydro,float4 mixing,float4 field,float3
     result=lerp(result,depthColor*light*depthRelief,saturate(_Bathymetry)*chartDepth);
     float microFade=1-smoothstep(.8,2.8,footprint);
     float3 glitterNormal=normalize(float3(-(slopes+microSlopes*microFade)*waveStrength,1));
-    float glint=FlatWaterSunSpecular(glitterNormal,localView,localLight,lerp(.026,.020,lake));
+    float glint=FlatWaterSunSpecular(glitterNormal,localView,localLight,lerp(.026,.020,max(lake,river)));
     float sheen=FlatWaterSunSpecular(normal,localView,localLight,.13);
     float sunVisibility=smoothstep(0,.12,localLight.z);
-    float sparkle=min(3.5,glint*.65+sheen*.08)*sunVisibility*saturate(waveStrength);
+    float sparkle=(glint*.78+sheen*.025)*sunVisibility*saturate(waveStrength);
     result+=light*FlatColor(float3(1,.98,.91))*sparkle;
     float foam=localFoam*waveStrength;
     if(_VendorWaterReady<.5)
@@ -513,6 +524,15 @@ float3 FlatWaterShade(float2 cell,float4 hydro,float4 mixing,float4 field,float3
         float riverFoam=river*(.025+.12*riverBank)*saturate(length(flow))/(1+depth*.25);
         foam+=pattern*(shoreCrest*lerp(.34,.045,lake)*(1-river)+brokenCrest*.18+riverFoam)*waveStrength*(1-smoothstep(1,4,footprint));
     }
+    surface.normal=normal;
+    surface.visible=1-saturate(foam);
+    surface.skyWeight=fresnel*(1-saturate(_Bathymetry)*chartDepth)*surface.visible;
     return lerp(result,light*FlatColor(float3(.82,.90,.86)),saturate(foam));
+}
+float3 FlatWaterShade(float2 cell,float4 hydro,float4 mixing,float4 field,float3 bottom,float3 light,
+                     float3 localView,float3 localLight,float waveStrength,float waterKind,float waterEdge)
+{
+    FlatWaterSurfaceData surface;
+    return FlatWaterShade(cell,hydro,mixing,field,bottom,light,localView,localLight,waveStrength,waterKind,waterEdge,surface);
 }
 #endif

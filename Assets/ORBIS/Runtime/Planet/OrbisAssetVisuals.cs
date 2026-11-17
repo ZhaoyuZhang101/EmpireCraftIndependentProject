@@ -8,7 +8,9 @@ namespace Orbis.Planet
         static bool celestialLoaded;static Texture2D sunArt,moonArt;
         static void Load(){if(loaded&&stream&&ocean&&lake&&oceanFoam&&riverFoam)return;loaded=true;
             stream=Resources.Load<Texture2D>("ORBISVendor/SW3/StreamWaves");ocean=Resources.Load<Texture2D>("ORBISVendor/SW3/OceanWaves");
-            lake=Resources.Load<Texture2D>("ORBISVendor/SW3/SmoothWaves");oceanFoam=Resources.Load<Texture2D>("ORBISVendor/SW3/OceanFoam");riverFoam=Resources.Load<Texture2D>("ORBISVendor/SW3/DirectionalFoam");
+            lake=Resources.Load<Texture2D>("ORBISVendor/SW3/SharpWaves");
+            if(!lake)lake=Resources.Load<Texture2D>("ORBISVendor/SW3/SmoothWaves");
+            oceanFoam=Resources.Load<Texture2D>("ORBISVendor/SW3/OceanFoam");riverFoam=Resources.Load<Texture2D>("ORBISVendor/SW3/DirectionalFoam");
         }
         public static void BindWater(Material m)
         {

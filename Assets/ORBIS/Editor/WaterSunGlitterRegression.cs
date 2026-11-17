@@ -45,6 +45,7 @@ namespace Orbis.Editor
      }
      mean/=day.Length;
      Check(report,peak>.3f&&peak<5&&mean<.20&&bright>0&&bright<day.Length*.4,"kind="+kind+" localized sun glints; peak="+peak+" mean="+mean+" bright pixels="+bright);
+     Check(report,peak/Math.Max(.000001,mean)>60,"kind="+kind+" clear wave-crest highlights retain contrast against unlit water; peak/mean="+peak/Math.Max(.000001,mean));
      Check(report,invalid==0,"kind="+kind+" glitter stays finite and nonnegative; invalid="+invalid);
      material.SetFloat("_ProbeWaves",0);var stillNight=sample();
      material.SetVector("_ProbeSun",new Vector4(.12f,.08f,1,0));var stillDay=sample();

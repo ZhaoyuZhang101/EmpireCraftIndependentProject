@@ -21,6 +21,7 @@ namespace Orbis.Editor
     var data=FlatGenerator.Generate(64,32,"NAVIGATION-REGRESSION",TerrainPreset.Continents,default);
     var map=root.AddComponent<FlatMapRenderer>();map.Initialize(data);var nav=root.AddComponent<FlatScrollNavigator>();nav.Initialize(data,camera,map);
     result.Add((map.Material.GetFloat("_VendorWaterReady")>.5f&&nav.SurfaceMaterial.GetFloat("_VendorWaterReady")>.5f?"PASS":"FAIL")+" SW3 resource readiness survives map-to-local material copy");
+    result.Add((map.Material.GetFloat("_FieldReady")>.5f&&nav.SurfaceMaterial.GetFloat("_FieldReady")>.5f&&nav.SurfaceMaterial.GetTexture("_VisualTex")==map.VisualTexture?"PASS":"FAIL")+" water reflection terrain fields survive map-to-local material copy");
     nav.Toggle(0);nav.Tick(.17f,0);float before=nav.PixelsPerTile;var center=nav.CenterTile;
     nav.Drag(new Vector2(55,12));nav.Tick(.2f,0);
     result.Add((Mathf.Abs(nav.PixelsPerTile-before)<.01f&&Vector2.Distance(center,nav.CenterTile)>.01f?"PASS":"FAIL")+" drag cancels pending zoom and moves geography without rescaling; pixels="+before+" -> "+nav.PixelsPerTile+"; moved="+Vector2.Distance(center,nav.CenterTile));

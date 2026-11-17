@@ -89,6 +89,7 @@ Shader "ORBIS/FlatWorld/LocalSurface"
     o.world=float4(mul(unity_ObjectToWorld,float4(p,1)).xyz*weight,weight);return o;
    }
    #include "FlatPixelDetail.cginc"
+   #include "Water/FlatWaterReflection.cginc"
    #include "FlatMapFragment.cginc"
    ENDCG
   }

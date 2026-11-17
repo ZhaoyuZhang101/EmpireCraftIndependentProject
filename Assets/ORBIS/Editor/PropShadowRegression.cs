@@ -48,12 +48,61 @@ namespace Orbis.Editor
      lines.Add((pass?"PASS":"FAIL")+" "+(kind==0?"tree":"building")+" crosses "+(axis==0?"east":"north")+" cell boundary; coverage="+continuation+" delta="+difference);
      if(!pass)throw new Exception(lines[lines.Count-1]);
     }
+    WaterReflections(lines,m,field,info,rt,read);
    }
    finally
    {
     Directory.CreateDirectory("Documentation/LocalPlanetUpgrade");File.WriteAllLines("Documentation/LocalPlanetUpgrade/prop-shadow-regression.txt",lines);
     ShaderUtil.allowAsyncCompilation=async;RenderTexture.active=old;RenderTexture.ReleaseTemporary(rt);
     UnityEngine.Object.DestroyImmediate(read);UnityEngine.Object.DestroyImmediate(field);UnityEngine.Object.DestroyImmediate(info);UnityEngine.Object.DestroyImmediate(m);
+   }
+  }
+  static void WaterReflections(List<string> report,Material material,Texture2D field,Texture2D info,RenderTexture target,Texture2D image)
+  {
+   var semantic=new Color[32];for(int i=0;i<semantic.Length;i++)semantic[i]=new Color(0,0,2f/255,0);
+   material.SetFloat("_ProbeMode",1);material.SetVector("_ProbeRoot",new Vector4(1.5f,-.25f,0,0));
+   material.SetVector("_ProbeReflectionRay",new Vector4(0,.65f,.76f,0));
+   Func<Color[]> sample=()=>
+   {
+    Graphics.Blit(Texture2D.whiteTexture,target,material);RenderTexture.active=target;
+    image.ReadPixels(new Rect(0,0,128,128),0,0);image.Apply();return image.GetPixels();
+   };
+   foreach(int kind in new[]{0,1})
+   {
+    semantic[2+8]=new Color(0,0,kind/255f,0);info.SetPixels(semantic);info.Apply();
+    var reflected=sample();double coverage=0;int invalid=0;
+    foreach(var pixel in reflected){coverage+=pixel.a;if(float.IsNaN(pixel.r+pixel.g+pixel.b+pixel.a)||float.IsInfinity(pixel.r+pixel.g+pixel.b+pixel.a))invalid++;}
+    bool pass=coverage>20&&invalid==0;
+    report.Add((pass?"PASS":"FAIL")+" "+(kind==0?"tree":"building")+" artwork appears in near-shore reflection; coverage="+coverage+" invalid="+invalid);
+    if(!pass)throw new Exception(report[report.Count-1]);
+    material.SetVector("_ProbeReflectionRay",new Vector4(.2f,.65f,.76f,0));var warped=sample();double difference=0;
+    for(int i=0;i<reflected.Length;i++)difference+=Math.Abs(reflected[i].a-warped[i].a);
+    pass=difference>20;report.Add((pass?"PASS":"FAIL")+" reflected artwork follows the wave reflection direction; delta="+difference);
+    if(!pass)throw new Exception(report[report.Count-1]);
+    material.SetVector("_ProbeReflectionRay",new Vector4(0,.65f,.76f,0));
+   }
+   semantic[2+8]=new Color(0,0,2f/255,0);info.SetPixels(semantic);info.Apply();double empty=0;
+   foreach(var pixel in sample())empty+=pixel.a;
+   report.Add((empty==0?"PASS":"FAIL")+" absent casters leave no reflected silhouettes");
+   if(empty!=0)throw new Exception(report[report.Count-1]);
+   material.SetFloat("_ProbeMode",2);material.SetTexture("_SkyTex",Texture2D.blackTexture);var clear=sample();
+   material.SetTexture("_SkyTex",Texture2D.whiteTexture);var cloudy=sample();double skyChange=0;
+   for(int i=0;i<clear.Length;i++)skyChange+=Math.Abs(clear[i].r-cloudy[i].r)+Math.Abs(clear[i].g-cloudy[i].g)+Math.Abs(clear[i].b-cloudy[i].b);
+   skyChange/=clear.Length;report.Add((skyChange>.1?"PASS":"FAIL")+" sky reflections use the shared HP cloud coverage; RGB change="+skyChange);
+   if(skyChange<=.1)throw new Exception(report[report.Count-1]);
+   var terrain=new Color[32];for(int i=0;i<terrain.Length;i++)terrain[i]=new Color(0,-3,0,1);field.SetPixels(terrain);field.Apply();
+   foreach(int row in new[]{0,3})
+   {
+    semantic[2+row*8]=new Color(0,0,1f/255,0);info.SetPixels(semantic);info.Apply();
+    material.SetVector("_ProbeCaster",new Vector4(2,row,0,0));
+    material.SetVector("_ProbeRoot",new Vector4(1.5f,row-1.25f,0,0));
+    material.SetFloat("_ProbeMode",1);var actual=sample();
+    material.SetFloat("_ProbeMode",3);var expected=sample();double mismatch=0,coverage=0;
+    for(int i=0;i<actual.Length;i++){mismatch+=Math.Abs(actual[i].a-expected[i].a);coverage+=expected[i].a;}
+    bool pass=coverage>20&&mismatch/coverage<.02;
+    report.Add((pass?"PASS":"FAIL")+" building reflection shares latitude-corrected artwork anchor at row="+row+"; mismatch="+mismatch/Math.Max(1,coverage));
+    if(!pass)throw new Exception(report[report.Count-1]);
+    semantic[2+row*8]=new Color(0,0,2f/255,0);
    }
   }
  }

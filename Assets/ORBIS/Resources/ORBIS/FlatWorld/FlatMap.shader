@@ -52,6 +52,7 @@ Shader "ORBIS/FlatWorld/FlatMap"
    struct v2f {float4 pos:SV_POSITION;float2 uv:TEXCOORD0;};
    v2f vert(appdata v){v2f o;o.pos=UnityObjectToClipPos(v.vertex);o.uv=v.uv;return o;}
    #include "FlatPixelDetail.cginc"
+   #include "Water/FlatWaterReflection.cginc"
    #include "FlatMapFragment.cginc"
    ENDCG
   }

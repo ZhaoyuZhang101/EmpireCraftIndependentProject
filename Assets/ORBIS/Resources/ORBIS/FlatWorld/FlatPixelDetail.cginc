@@ -80,6 +80,31 @@ float PixelPropShadow(float2 cell)
  }
  return coverage;
 }
+float4 PDTreeArtwork(float2 pixel,float2 id,float species,float seed,float leaf,float3 light,float3 localSun)
+{
+ float2 edge;float4 crown=PDTreeCrown(pixel,species,seed,leaf,edge);
+ float trunk=PDTreeTrunk(pixel,species,seed);
+ float3 foliage=PDTreeFoliage(crown.xyz,pixel,id,species,seed,localSun,edge);
+ foliage=lerp(foliage*float3(1.30,.78,.45),foliage,leaf);
+ float3 col=PDPaint(0,PDTreeBark(pixel,species,seed)*light,trunk);
+ col=PDPaint(col,foliage*light,crown.a);
+ return float4(col,saturate(crown.a+trunk));
+}
+float4 PDSettlementArtwork(float2 q,float3 light)
+{
+ float3 col=0;
+ float wall=PDBox(q,float2(7,5),float2(26,16));
+ float board=step(1,fmod(q.y,4));col=PDPaint(col,lerp(float3(.30,.20,.12),float3(.59,.43,.25),board)*light,wall);
+ float2 roof=q-float2(16,21);float roofMask=step(abs(roof.x),13)*step(abs(roof.y),7);
+ col=PDPaint(col,float3(.19,.16,.10)*light,roofMask);
+ float interior=PDBox(q,float2(4,16),float2(28,27));
+ float shingle=step(1,fmod(q.y,3))*step(1,fmod(q.x+floor(q.y/3)*3,6));
+ col=PDPaint(col,lerp(float3(.42,.28,.12),float3(.69,.48,.21),shingle)*light,interior);
+ col=PDPaint(col,float3(.82,.65,.32)*light,PDBox(q,float2(4,26),float2(28,28)));
+ col=PDPaint(col,float3(.13,.12,.10)*light,PDBox(q,float2(14,5),float2(19,13)));
+ col=PDPaint(col,float3(.92,.73,.33)*light,PDBox(q,float2(9,9),float2(12,12))+PDBox(q,float2(22,9),float2(25,12)));
+ return float4(col,max(wall,roofMask));
+}
 float3 PixelProps(float3 col,float2 cell,float4 field,float waterMask,float structure,float3 light)
 {
  col*=1-PixelPropShadow(cell);
@@ -107,32 +132,16 @@ float3 PixelProps(float3 col,float2 cell,float4 field,float waterMask,float stru
   float shore=1-smoothstep(.2,1.2,-FlatVisualSample(float4(centreUV,0,0)).g);
   float species=PDTreeSpecies(ecology,rootInfo,shore);
   float leaf=FlatVegetationSeason(treeId+.5).y;
-  float2 edge;
-  float4 crown=PDTreeCrown(treePoint,species,placement.w,leaf,edge);
-  float trunk=PDTreeTrunk(treePoint,species,placement.w);
   float rootDepth=treeId.y*32+placement.y;
-  if(crown.a+trunk<.5||rootDepth>nearestRoot)continue;
-  nearestRoot=rootDepth;
+  if(rootDepth>nearestRoot)continue;
   float3 localSun=FlatGeographicLight(centreUV,normalize(_FlatSun+float3(0,1e-7,0)));
-  float3 foliage=PDTreeFoliage(crown.xyz,treePoint,treeId,species,placement.w,localSun,edge);
-  foliage=lerp(foliage*float3(1.30,.78,.45),foliage,leaf);
-  float3 bark=PDTreeBark(treePoint,species,placement.w);
-  col=PDPaint(col,bark*light,trunk);
-  col=PDPaint(col,foliage*light,crown.a);
-
+  float4 art=PDTreeArtwork(treePoint,treeId,species,placement.w,leaf,light,localSun);
+  if(art.a<.5)continue;
+  nearestRoot=rootDepth;col=lerp(col,art.rgb,art.a);
  }
  if(structure>.5 && structure<1.5)
  {
-  float wall=PDBox(q,float2(7,5),float2(26,16));
-  float board=step(1,fmod(q.y,4));col=PDPaint(col,lerp(float3(.30,.20,.12),float3(.59,.43,.25),board)*light,wall);
-  float2 roof=q-float2(16,21);float roofMask=step(abs(roof.x),13)*step(abs(roof.y),7);
-  col=PDPaint(col,float3(.19,.16,.10)*light,roofMask);
-  float interior=PDBox(q,float2(4,16),float2(28,27));
-  float shingle=step(1,fmod(q.y,3))*step(1,fmod(q.x+floor(q.y/3)*3,6));
-  col=PDPaint(col,lerp(float3(.42,.28,.12),float3(.69,.48,.21),shingle)*light,interior);
-  col=PDPaint(col,float3(.82,.65,.32)*light,PDBox(q,float2(4,26),float2(28,28)));
-  col=PDPaint(col,float3(.13,.12,.10)*light,PDBox(q,float2(14,5),float2(19,13)));
-  col=PDPaint(col,float3(.92,.73,.33)*light,PDBox(q,float2(9,9),float2(12,12))+PDBox(q,float2(22,9),float2(25,12)));
+  float4 art=PDSettlementArtwork(q,light);col=lerp(col,art.rgb,art.a);
  }
  else if(structure>1.5 && structure<2.5)
  {
