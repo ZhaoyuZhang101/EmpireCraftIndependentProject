@@ -15,14 +15,14 @@ float3 PixelGround(float3 baseColor,float2 cell,float4 field,float waterMask,flo
 
  // Existing relief follows the actual elevation gradient and remains continuous
  // across tile edges. Ground artwork adds no elevation or simulation cells.
- float slope=length(heightGradient);
- float band=frac(max(0,field.r)/180);
- float face=smoothstep(110,230,slope)*smoothstep(35,110,heightGradient.y)*(1-smoothstep(.10,.27,band));
+ float slope=length(FlatTerrainMetricGradient(cell,heightGradient));
+ float weathered=FlatDetailNoise(artwork*3.2+29);
+ float face=smoothstep(180,650,slope)*smoothstep(.30,.70,weathered)*(1-smoothstep(.4,.85,field.a));
  face*=step(.01,field.r)*(1-waterMask)*step(.20,-field.g);
  float strata=step(.42,FlatDetailNoise(artwork*24));
- float3 rock=lerp(float3(.31,.29,.23),float3(.48,.44,.34),strata*.5+band);
+ float3 rock=lerp(float3(.36,.35,.29),float3(.53,.50,.41),strata*.35+weathered*.65);
  float weathering=lerp(.5,.15+.85*smoothstep(.22,.75,grain),grainWeight);
- col=PDPaint(col,rock,face*weathering*.50);
+ col=PDPaint(col,rock,face*weathering*.30);
  float shore=step(-.16,field.g)*(1-step(.22,field.g))*(1-waterMask);
  col=PDPaint(col,lerp(float3(.47,.36,.21),float3(.66,.53,.30),step(.45,grain)),shore*.8);
  if(waterMask>.99)return col;

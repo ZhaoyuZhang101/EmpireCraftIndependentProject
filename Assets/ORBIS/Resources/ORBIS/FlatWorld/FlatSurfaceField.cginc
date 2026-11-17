@@ -144,6 +144,64 @@ float2 FlatFieldGradient(float2 cell,float useDepth)
     if(useDepth>.5)return float2(log2(1+max(0,east.b))-log2(1+max(0,west.b)),log2(1+max(0,north.b))-log2(1+max(0,south.b)))*680;
     return float2(east.r-west.r,north.r-south.r)*.5;
 }
+float2 FlatTerrainMetricGradient(float2 cell,float2 gradient)
+{
+    float latitude=(cell.y*_MapSize.w-.5)*3.141592654;
+    return gradient*float2(1/max(.08,cos(latitude)),2*_MapSize.y/_MapSize.x);
+}
+float FlatTerrainHeight(float3 direction)
+{
+    float2 uv=float2(atan2(direction.x,direction.z)/6.283185307+.5,
+                     asin(clamp(direction.y,-1,1))/3.141592654+.5);
+    return FlatVisualSample(float4(uv,0,0)).r;
+}
+// A second, geodesic stencil describes the mountain mass around each slope.
+// Its distances cross poles and longitude seams on the sphere, independent of
+// projection, camera bearing and zoom. Only existing presentation heights are read.
+float FlatTerrainRelief(float2 cell,float height,float2 gradient,float3 localLight)
+{
+    if(_FieldReady<.5||_Relief<.01)return 1;
+    float2 uv=cell*_MapSize.zw;
+    float longitude=(uv.x-.5)*6.283185307,latitude=(uv.y-.5)*3.141592654;
+    float3 radial=FlatRadial(uv);
+    float3 east=float3(cos(longitude),0,-sin(longitude));
+    float3 north=float3(-sin(latitude)*sin(longitude),cos(latitude),-sin(latitude)*cos(longitude));
+    float angle=12.566370614/_MapSize.x,s=sin(angle),c=cos(angle);
+    float westHeight=FlatTerrainHeight(radial*c-east*s),eastHeight=FlatTerrainHeight(radial*c+east*s);
+    float southHeight=FlatTerrainHeight(radial*c-north*s),northHeight=FlatTerrainHeight(radial*c+north*s);
+    float2 broadGradient=float2(eastHeight-westHeight,northHeight-southHeight)*.25;
+    // Final source rows have distinct longitude samples. Fade this wider stencil
+    // before a sample enters that unresolved cap or crosses the pole.
+    float polarDistance=min(uv.y,1-uv.y)*_MapSize.y;
+    float stencilRows=4*_MapSize.y/_MapSize.x;
+    float broadWeight=smoothstep(stencilRows+.5,stencilRows+1.5,polarDistance);
+    float2 slope=lerp(FlatTerrainMetricGradient(cell,gradient),broadGradient,.38*broadWeight);
+    float3 normal=normalize(float3(-slope/320,1));
+    float3 key=normalize(localLight),fill=normalize(float3(.52,-.40,.75));
+    float diffuse=.72*saturate(dot(normal,key))+.28*saturate(dot(normal,fill));
+    float flatDiffuse=.72*saturate(key.z)+.28*fill.z;
+    float form=(height-(westHeight+eastHeight+southHeight+northHeight)*.25)/260*broadWeight;
+    float shade=(1+(diffuse-flatDiffuse)*1.12)*(1-.22*saturate(-form))+.08*saturate(form);
+    return lerp(1,clamp(shade,.58,1.24),saturate(_Relief));
+}
+float FlatTerrainSnow(float coverage,float2 cell,float2 gradient,float pixelsPerTile)
+{
+    if(coverage<=0)return 0;
+    float3 position=FlatDetailPosition(cell);
+    float breakup=FlatDetailNoise(position*2.3+47)*.7+FlatDetailNoise(position*7.1+13)*.3;
+    coverage=saturate(coverage+(breakup-.5)*1.6*coverage*(1-coverage)*smoothstep(3,14,pixelsPerTile));
+    float exposed=smoothstep(300,950,length(FlatTerrainMetricGradient(cell,gradient)));
+    return coverage*(1-exposed*.78);
+}
+float3 FlatElevationColor(float metres)
+{
+    float3 land=lerp(float3(.35,.50,.34),float3(.59,.60,.39),smoothstep(0,700,metres));
+    land=lerp(land,float3(.66,.56,.43),smoothstep(700,1800,metres));
+    land=lerp(land,float3(.65,.66,.65),smoothstep(1800,2900,metres));
+    land=lerp(land,float3(.91,.92,.89),smoothstep(2900,4200,metres));
+    float3 seabed=lerp(float3(.25,.53,.60),float3(.07,.18,.29),smoothstep(0,3600,-metres));
+    return FlatColor(lerp(seabed,land,smoothstep(-30,30,metres)));
+}
 float3 FlatTerrainFine(float3 col,float2 cell,float pixelsPerTile,float2 heightGradient)
 {
     float3 position=FlatDetailPosition(cell);
@@ -154,33 +212,31 @@ float3 FlatTerrainFine(float3 col,float2 cell,float pixelsPerTile,float2 heightG
     float grain=FlatDetailNoise(position*25+53);
     float4 brokenNoise=FlatDetailNoiseWithGradient(position*11+19);
     float broken=brokenNoise.x;
-    float4 ridgeNoise=FlatDetailNoiseWithGradient(position*3.8+broken*.7);
-    float crag=1-abs(ridgeNoise.x*2-1);
+    float4 ridgeNoise=FlatDetailNoiseWithGradient(position*1.6+19);
+    float crag=ridgeNoise.x;
     // A fine soil grain replaces broad colour bubbles. It remains fixed on the
     // sphere while the camera pans, turns or crosses the date line.
     col*=1+(grain-.5)*.045*grainWeight+(broken-.5)*.045*fineWeight;
     if(_FieldReady<.5)return col;
     float4 field=FlatVisualSample(float4(cell*_MapSize.zw,0,0));
     float latitude=(cell.y*_MapSize.w-.5)*3.141592654;
-    float2 gradient=heightGradient;
-    gradient.x/=max(.08,cos(latitude));
+    float2 gradient=FlatTerrainMetricGradient(cell,heightGradient);
     float slope=length(gradient);
     float exposed=smoothstep(140,430,slope)*(1-smoothstep(.45,.85,field.a));
-    exposed*=smoothstep(.28,.72,crag*.65+broken*.35);
+    exposed*=smoothstep(.25,.70,crag*.65+broken*.35);
     exposed=max(exposed,smoothstep(1900,3200,field.r)*.35);
-    float strata=.5+.5*sin(field.r*.065+broken*3);
-    float3 rock=FlatColor(lerp(float3(.28,.29,.24),float3(.47,.46,.38),crag*.7+strata*.3));
+    float strata=.5+.5*sin(field.r*.025+broken*3);
+    float3 rock=FlatColor(lerp(float3(.34,.34,.29),float3(.55,.53,.45),crag*.7+strata*.3));
     // Ridge breakup adds small face changes to the real elevation gradient.
     // It never modifies elevation, drainage, ownership or movement data.
     // Analytic geographic gradients keep the same rock face under camera
     // rotation. Screen-quad derivatives select different sides of sharp ridges.
-    float3 ridgeDerivative=ridgeNoise.yzw*3.8+dot(ridgeNoise.yzw,float3(1,1,1))*brokenNoise.yzw*(11*.7);
-    ridgeDerivative*=-2*sign(ridgeNoise.x*2-1);
+    float3 ridgeDerivative=ridgeNoise.yzw*1.6+brokenNoise.yzw*.55;
     float longitude=(cell.x*_MapSize.z-.5)*6.283185307;
     float3 east=float3(cos(longitude),0,-sin(longitude));
     float3 north=float3(-sin(latitude)*sin(longitude),cos(latitude),-sin(latitude)*cos(longitude));
     float2 ridgeGradient=float2(dot(ridgeDerivative,east),dot(ridgeDerivative,north));
-    float bevel=clamp(1+dot(ridgeGradient,float2(-.045,.055)),.78,1.16);
+    float bevel=clamp(1+dot(ridgeGradient,float2(-.10,.13)),.80,1.16);
     rock*=lerp(1,bevel,fineWeight)*(.90+.16*grain);
     return lerp(col,rock,exposed*terrainWeight*.72);
 }
@@ -202,7 +258,9 @@ float FlatGradientRelief(float2 gradient,float3 localLight)
 float FlatFieldRelief(float2 cell,float useDepth,float3 localLight)
 {
     if(_FieldReady<.5||_Relief<.01)return 1;
-    return FlatGradientRelief(FlatFieldGradient(cell,useDepth),localLight);
+    float2 gradient=FlatFieldGradient(cell,useDepth);
+    if(useDepth>.5)return FlatGradientRelief(gradient,localLight);
+    return FlatTerrainRelief(cell,FlatVisualSample(float4(cell*_MapSize.zw,0,0)).r,gradient,localLight);
 }
 float3 FlatVegetation(float3 col,float2 cell,float canopy,float pixelsPerTile)
 {

@@ -7,7 +7,8 @@
 #endif
     float2 cell=float2(frac(i.uv.x),clamp(i.uv.y,0,1-_MapSize.w*.0001))*_MapSize.xy,id=floor(cell),f=frac(cell),uv=(id+.5)*_MapSize.zw;
     float naturalView=max(_Natural,_Political);
-    float2 colorUV=lerp(uv,FlatBlendUV(cell),_SmoothTerrain*naturalView);
+    float terrainView=max(naturalView,_DrawHeight);
+    float2 colorUV=lerp(uv,FlatBlendUV(cell),_SmoothTerrain*terrainView);
     float3 col=tex2D(_MainTex,colorUV).rgb;
     float4 own=tex2D(_OwnerTex,uv),info=tex2D(_InfoTex,uv)*255;
     float4 hydro=tex2Dlod(_HydroA,float4(uv,0,0)),mixing=tex2Dlod(_HydroB,float4(uv,0,0)),geo=tex2Dlod(_GeoTex,float4(uv,0,0));
@@ -17,19 +18,30 @@
     float waterMask=FlatWaterMask(cell,uv,hydro,mixing,field,aa,edgeDistance,riverFlow);
     float polarIce=FlatPolarIceMask(i.uv,waterMask,0)*naturalView;
     float landSnow=FlatLandSnow(cell,_InfoTex)*(1-waterMask)*naturalView;
-    float frozen=max(polarIce,landSnow);
+    float terrainRelief=1;
     float3 illumination=lerp(float3(1,1,1),FlatDayLight(FlatRadial(i.uv),i.uv),naturalView);
+    float2 terrainGradient=0;
+    if(terrainView>.5)
+    {
+     terrainGradient=FlatFieldGradient(cell,0);
+     float3 localSun=FlatGeographicLight(i.uv,normalize(_FlatSun+float3(0,1e-7,0)));
+     // A soft north-west sky fill keeps an overhead map readable at solar noon.
+     float3 terrainLight=float3(-.45,.6,.75)+localSun*.30*smoothstep(0,.3,localSun.z);
+     if(waterMask<.999||_DrawHeight>.5)terrainRelief=FlatTerrainRelief(cell,field.r,terrainGradient,terrainLight);
+     landSnow=FlatTerrainSnow(landSnow,cell,terrainGradient,_PixelsPerTile);
+    }
+    float frozen=max(polarIce,landSnow);
     if(naturalView>.5)
     {
      float2 ecologyCell=FlatEcotoneCell(cell,field.g);
      col=tex2D(_MainTex,FlatBlendUV(ecologyCell)).rgb;
      col=FlatEcotoneColor(col,cell,field.a,tex2Dlod(_GeoTex,float4(cell*_MapSize.zw,0,0)).b);
      col=lerp(FlatVegetation(col,cell,field.a,_PixelsPerTile),col,_DetailWeight);
-     float2 terrainGradient=FlatFieldGradient(cell,0);
      col=FlatTerrainFine(col,cell,_PixelsPerTile,terrainGradient);
-     col*=FlatGradientRelief(terrainGradient,float3(-.45,.6,.75));
      if(_DetailWeight>0)col=lerp(col,PixelGround(col,cell,field,waterMask,terrainGradient,FlatEcologyData(uv,info)),_DetailWeight);
     }
+    if(_DrawHeight>.5)col=FlatElevationColor(field.r);
+    col*=terrainRelief;
     if(_WaterView>.5)
     {
      float4 areaOptics=FlatAreaWaterOptics(cell,_InfoTex,float4(field.b,mixing.g,mixing.b,floor(info.g+.5)));
@@ -77,9 +89,10 @@
      col=lerp(col,waterColor,waterMask);
     }
     else col*=illumination;
-    if(frozen>.001)col=lerp(col,FlatPolarIceColor(i.uv,waterMask)*illumination*FlatFieldRelief(cell,0,float3(-.45,.6,.75)),frozen);
+    if(frozen>.001)col=lerp(col,FlatPolarIceColor(i.uv,waterMask)*illumination*lerp(terrainRelief,1,waterMask),frozen);
     float major;float contour=FlatContour(field.r,_ContourInterval,major);
-    float contourStrength=(1-_DetailWeight)*_ShowContours*smoothstep(3,5,_PixelsPerTile)*(1-waterMask)*step(.01,field.r)*max(naturalView,_DrawHeight);
+    float contourGround=max((1-waterMask)*step(.01,field.r),_DrawHeight);
+    float contourStrength=lerp(1-_DetailWeight,1,_DrawHeight)*max(_ShowContours,_DrawHeight)*smoothstep(3,5,_PixelsPerTile)*contourGround*terrainView;
     col=lerp(col,FlatColor(float3(.31,.30,.24))*illumination,contour*contourStrength*lerp(.23,.42,major));
     if(_Political>.5)
     {
