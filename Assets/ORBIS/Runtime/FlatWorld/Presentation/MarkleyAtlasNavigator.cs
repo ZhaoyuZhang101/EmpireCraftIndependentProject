@@ -514,6 +514,25 @@ namespace Orbis.Flat
             if (IsFlat) return TryFlatPoint(screen, out tile) ? FlatScrollMath.Tile(tile.x, tile.y, world.Width, world.Height) : -1;
             Vector2 uv; return IsGlobe && TryGlobeUV(screen, out uv) ? FlatScrollMath.Tile(uv.x * world.Width, Math.Min(world.Height - .0001, uv.y * world.Height), world.Width, world.Height) : -1;
         }
+        public bool TryActorSurface(PlanetLocation location,out Vector3 position,out Vector2 geographicEast,out Vector2 geographicNorth,out Vector4 cellAxes)
+        {
+            position=Vector3.zero;geographicEast=Vector2.right;geographicNorth=Vector2.up;
+            cellAxes=Vector4.zero;
+            if(!IsFlat)return false;
+            var reference=new Vector2(pan.x/world.Width,pan.y/MapHeight);var relief=ReliefParameters;
+            position=ActorSurface(location,reference,relief)+normal*.00015f;
+            double step=Math.PI*2/world.Width*.01;
+            var dx=(ActorSurface(new PlanetLocation(location.Longitude+step,location.Latitude),reference,relief)-
+                    ActorSurface(new PlanetLocation(location.Longitude-step,location.Latitude),reference,relief))/.02f;
+            var dy=(ActorSurface(new PlanetLocation(location.Longitude,location.Latitude+step),reference,relief)-
+                    ActorSurface(new PlanetLocation(location.Longitude,location.Latitude-step),reference,relief))/.02f;
+            return FlatGlobeGeometry.TryActorFrame(viewCamera,dx,dy,TileScale/32,out geographicEast,out geographicNorth,out cellAxes);
+        }
+        Vector3 ActorSurface(PlanetLocation location,Vector2 reference,Vector4 relief)
+        {
+            var uv=MarkleyProjection.Nearest(MarkleyProjection.Project(location),reference);
+            return FlatPosition(uv,TerrainHeight(uv),relief);
+        }
         bool TryGlobeUV(Vector2 screen, out Vector2 uv)
         {
             uv = Vector2.zero; Ray ray = viewCamera.ScreenPointToRay(screen);

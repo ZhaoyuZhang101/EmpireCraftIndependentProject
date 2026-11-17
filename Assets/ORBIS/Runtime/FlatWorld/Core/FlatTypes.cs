@@ -67,6 +67,8 @@ namespace Orbis.Flat
         public float[] Fertility,Runoff,Population,Temperature,Precipitation;
         public ushort[] CoastDistance;
         public List<Nation> Nations=new List<Nation>();
+        public readonly List<WildlifeActor> Wildlife=new List<WildlifeActor>();
+        public bool WildlifeInitialized;
         public double Day, ExpansionRemainder;
         public int Revision, TerrainRevision;
         public readonly HashSet<int> DirtyChunks=new HashSet<int>();
@@ -114,13 +116,14 @@ namespace Orbis.Flat
         { for(int y=0;y<(Height+31)/32;y++)for(int x=0;x<ChunkWidth;x++)DirtyChunks.Add(y*ChunkWidth+x);Revision++; }
         public WorldData Clone()
         {
-            var w=new WorldData(Width,Height,Seed,Preset){Day=Day,ExpansionRemainder=ExpansionRemainder,Revision=Revision,TerrainRevision=TerrainRevision};
+            var w=new WorldData(Width,Height,Seed,Preset){Day=Day,ExpansionRemainder=ExpansionRemainder,Revision=Revision,TerrainRevision=TerrainRevision,WildlifeInitialized=WildlifeInitialized};
             Array.Copy(Elevation,w.Elevation,Count);Array.Copy(WaterLevel,w.WaterLevel,Count);Array.Copy(Water,w.Water,Count);Array.Copy(Biomes,w.Biomes,Count);Array.Copy(Climates,w.Climates,Count);Array.Copy(Buildings,w.Buildings,Count);
             Array.Copy(Owner,w.Owner,Count);Array.Copy(ZoneOwner,w.ZoneOwner,ZoneCount);Array.Copy(Downstream,w.Downstream,Count);Array.Copy(DrainOrder,w.DrainOrder,Count);
             Array.Copy(Fertility,w.Fertility,Count);Array.Copy(Runoff,w.Runoff,Count);Array.Copy(Population,w.Population,Count);Array.Copy(CoastDistance,w.CoastDistance,Count);
             Array.Copy(Temperature,w.Temperature,Count*12);Array.Copy(Precipitation,w.Precipitation,Count*12);
             w.Facts=Facts==null?null:Facts.Clone();
             w.Moisture=Moisture==null?null:Moisture.Clone();
+            foreach(var actor in Wildlife)w.Wildlife.Add(actor.Clone());
             foreach(var n in Nations)w.Nations.Add(n.Clone());return w;
         }
     }

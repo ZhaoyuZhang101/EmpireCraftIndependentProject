@@ -10,11 +10,20 @@ namespace Orbis.Flat
     {
         AstarPath engine;PointGraph graph;WorldData source;int revision=-1;
         PointNode[] nodes;readonly Dictionary<GraphNode,int> ids=new Dictionary<GraphNode,int>();
+        public static AstarPath SharedEngine(Transform owner)
+        {
+            if(AstarPath.active)return AstarPath.active;
+            var go=new GameObject("ORBIS spherical AStar workers");go.SetActive(false);go.transform.SetParent(owner.root,false);
+            var engine=go.AddComponent<AstarPath>();engine.scanOnStartup=false;engine.showNavGraphs=false;
+            engine.threadCount=ThreadCount.AutomaticLowLoad;
+            engine.logPathResults=PathLog.None;
+            go.SetActive(true);return engine;
+        }
         static PlanetVector Direction(WorldData w,int i)=>PlanetCoordinateSystem.SurfaceNormal(PlanetCoordinateSystem.FromMapUV((i%w.Width+.5)/w.Width,(i/w.Width+.5)/w.Height));
         public int[] Find(WorldData world,int start,int goal)
         {
             if(!world.Walkable(start)||!world.Walkable(goal))return new int[0];
-            if(!engine){var go=new GameObject("ORBIS spherical AStar graph");go.transform.SetParent(transform,false);engine=go.AddComponent<AstarPath>();engine.scanOnStartup=false;engine.showNavGraphs=false;}
+            if(!engine)engine=SharedEngine(transform);
             if(source!=world||revision!=world.Revision)
             {
                 engine.AddWorkItem(()=>
@@ -40,9 +49,15 @@ namespace Orbis.Flat
                 engine.FlushWorkItems();source=world;revision=world.Revision;
             }
             var path=ABPath.Construct((Vector3)nodes[start].position,(Vector3)nodes[goal].position);
+            path.nnConstraint.graphMask=GraphMask.FromGraph(graph);
             path.heuristic=Heuristic.None; // Roads may cost less than chord distance: no overestimating heuristic.
             AstarPath.StartPath(path);path.BlockUntilCalculated();
             if(path.error)return new int[0];var result=new int[path.path.Count];for(int i=0;i<result.Length;i++)result[i]=ids[path.path[i]];return result;
+        }
+        void OnDestroy()
+        {
+            var removed=graph;graph=null;
+            if(engine&&engine==AstarPath.active&&removed!=null)engine.AddWorkItem(()=>engine.data.RemoveGraph(removed));
         }
     }
 }

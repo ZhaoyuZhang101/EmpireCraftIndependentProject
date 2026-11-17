@@ -2,12 +2,13 @@ using System;
 using System.IO;
 using System.Text;
 using System.Security.Cryptography;
+using System.Collections.Generic;
 namespace Orbis.Flat
 {
     // Bounded binary payload + SHA-256. Separate path/schema from legacy V4 JSON.
     public static class FlatSave
     {
-        public const int Version=1,MaxFileBytes=96*1024*1024;
+        public const int Version=2,MaxFileBytes=96*1024*1024;
         const string Magic="ORBIS-FLAT-01";
         static void StringWrite(BinaryWriter b,string s,int max)
         {byte[] a=Encoding.UTF8.GetBytes(s??"");if(a.Length>max)throw new InvalidDataException("String too long.");b.Write(a.Length);b.Write(a);}
@@ -30,7 +31,14 @@ namespace Orbis.Flat
                     b.Write(w.Owner[i]);b.Write(w.Downstream[i]);b.Write(w.DrainOrder[i]);b.Write(w.Fertility[i]);b.Write(w.Runoff[i]);b.Write(w.Population[i]);b.Write(w.CoastDistance[i]);
                     for(int j=0;j<12;j++){b.Write(w.Temperature[i*12+j]);b.Write(w.Precipitation[i*12+j]);}
                 }
-                foreach(int owner in w.ZoneOwner)b.Write(owner);b.Flush();body=m.ToArray();
+                foreach(int owner in w.ZoneOwner)b.Write(owner);
+                b.Write(w.WildlifeInitialized);b.Write(w.Wildlife.Count);
+                foreach(var a in w.Wildlife)
+                {
+                    b.Write(a.Id);b.Write(a.HomeTile);b.Write(a.GoalTile);b.Write((byte)a.Species);b.Write((byte)a.State);
+                    b.Write(a.X);b.Write(a.Y);b.Write(a.Hunger);b.Write(a.Fatigue);b.Write(a.Facing);b.Write(a.AnimationTime);b.Write(a.MoveSpeed);b.Write(a.RandomState);
+                }
+                b.Flush();body=m.ToArray();
             }
             byte[] digest;using(var sha=SHA256.Create())digest=sha.ComputeHash(body);
             using(var m=new MemoryStream())using(var b=new BinaryWriter(m))
@@ -48,7 +56,7 @@ namespace Orbis.Flat
                 int difference=0;for(int i=0;i<32;i++)difference|=expected[i]^actual[i];Check(difference==0,"Save checksum mismatch.");
                 using(var m=new MemoryStream(body))using(var b=new BinaryReader(m))
                 {
-                    Check(b.ReadInt32()==Version,"Unsupported save version.");int width=b.ReadInt32(),height=b.ReadInt32();string seed=StringRead(b,512);var preset=(TerrainPreset)b.ReadByte();
+                    int version=b.ReadInt32();Check(version>=1&&version<=Version,"Unsupported save version.");int width=b.ReadInt32(),height=b.ReadInt32();string seed=StringRead(b,512);var preset=(TerrainPreset)b.ReadByte();
                     var w=new WorldData(width,height,seed,preset){Day=b.ReadDouble(),ExpansionRemainder=b.ReadDouble()};
                     int nations=b.ReadInt32();Check(nations>=0&&nations<=WorldData.MaxNations,"Invalid nation count.");
                     for(int i=0;i<nations;i++)w.Nations.Add(new Nation{Name=StringRead(b,256),Capital=b.ReadInt32(),Color=b.ReadUInt32(),Food=b.ReadDouble(),Refuges=b.ReadDouble(),ExpansionClock=b.ReadDouble()});
@@ -58,7 +66,18 @@ namespace Orbis.Flat
                         w.Owner[i]=b.ReadInt32();w.Downstream[i]=b.ReadInt32();w.DrainOrder[i]=b.ReadInt32();w.Fertility[i]=b.ReadSingle();w.Runoff[i]=b.ReadSingle();w.Population[i]=b.ReadSingle();w.CoastDistance[i]=b.ReadUInt16();
                         for(int j=0;j<12;j++){w.Temperature[i*12+j]=b.ReadSingle();w.Precipitation[i*12+j]=b.ReadSingle();}
                     }
-                    for(int i=0;i<w.ZoneCount;i++)w.ZoneOwner[i]=b.ReadInt32();Check(m.Position==m.Length,"Trailing data is not permitted.");Validate(w);
+                    for(int i=0;i<w.ZoneCount;i++)w.ZoneOwner[i]=b.ReadInt32();
+                    if(version>=2)
+                    {
+                        byte initialized=b.ReadByte();Check(initialized<=1,"Invalid wildlife initialization flag.");w.WildlifeInitialized=initialized==1;
+                        int count=b.ReadInt32();Check(count>=0&&count<=FlatWildlifeSimulation.MaxActors,"Invalid wildlife count.");
+                        for(int i=0;i<count;i++)w.Wildlife.Add(new WildlifeActor
+                        {
+                            Id=b.ReadInt32(),HomeTile=b.ReadInt32(),GoalTile=b.ReadInt32(),Species=(WildlifeSpecies)b.ReadByte(),State=(WildlifeState)b.ReadByte(),
+                            X=b.ReadDouble(),Y=b.ReadDouble(),Hunger=b.ReadSingle(),Fatigue=b.ReadSingle(),Facing=b.ReadSingle(),AnimationTime=b.ReadSingle(),MoveSpeed=b.ReadSingle(),RandomState=b.ReadUInt32()
+                        });
+                    }
+                    Check(m.Position==m.Length,"Trailing data is not permitted.");Validate(w);
                     w.Moisture=FlatMoisture.Build(w,System.Threading.CancellationToken.None);
                     FlatTerrainAnalysis.Build(w,System.Threading.CancellationToken.None,false);return w;
                 }
@@ -91,6 +110,18 @@ namespace Orbis.Flat
                 var n=w.Nations[c];Check(n!=null&&n.Name!=null&&n.Name.Length<=128,"Invalid civilization name.");
                 Check(n.Capital==-1||(n.Capital>=0&&n.Capital<w.Count&&w.Owner[n.Capital]==c&&w.Habitable(n.Capital)),"Invalid capital.");
                 Check(Finite(n.Food)&&n.Food>=0&&n.Food<=1e6&&Finite(n.Refuges)&&n.Refuges>=0&&n.Refuges<=1e9&&Finite(n.ExpansionClock)&&n.ExpansionClock>=0&&n.ExpansionClock<30,"Invalid civilization state.");
+            }
+            Check(w.Wildlife.Count<=FlatWildlifeSimulation.MaxActors&&(w.WildlifeInitialized||w.Wildlife.Count==0),"Invalid wildlife population.");
+            var actorIds=new HashSet<int>();
+            foreach(var a in w.Wildlife)
+            {
+                Check(a!=null&&a.Id>0&&actorIds.Add(a.Id),"Invalid or duplicate wildlife identity.");
+                Check(a.Species>=WildlifeSpecies.Rabbit&&a.Species<=WildlifeSpecies.Butterfly&&a.State<=WildlifeState.Sleeping,"Invalid wildlife classification.");
+                Check(a.HomeTile>=0&&a.HomeTile<w.Count&&a.GoalTile>=0&&a.GoalTile<w.Count,"Invalid wildlife habitat or destination.");
+                Check(Finite(a.X)&&a.X>=0&&a.X<w.Width&&Finite(a.Y)&&a.Y>=0&&a.Y<w.Height,"Invalid wildlife position.");
+                Check(FMath.Finite(a.Hunger)&&a.Hunger>=0&&a.Hunger<=1&&FMath.Finite(a.Fatigue)&&a.Fatigue>=0&&a.Fatigue<=1,"Invalid wildlife needs.");
+                Check((a.Facing==1||a.Facing==-1)&&FMath.Finite(a.AnimationTime)&&a.AnimationTime>=0&&a.AnimationTime<1e9f&&
+                    FMath.Finite(a.MoveSpeed)&&a.MoveSpeed>=0&&a.MoveSpeed<=8&&a.RandomState!=0,"Invalid wildlife animation or randomness.");
             }
         }
         public static void WriteAtomic(string path,WorldData world)

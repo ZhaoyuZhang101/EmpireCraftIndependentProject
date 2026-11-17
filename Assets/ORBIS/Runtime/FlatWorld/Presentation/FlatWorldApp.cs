@@ -23,6 +23,7 @@ namespace Orbis.Flat
         bool screenshotMode; double visualClock;
         public double CalendarDay { get { return World==null?0:solarClock.RenderDay(World.Day); } }
         Camera viewCamera;FlatMapRenderer map;FlatGlobePresenter globe;UIDocument document;PanelSettings panel;Font font;
+        FlatWildlifePresenter wildlife;
         VisualElement root,viewport;Label info,stats,notice,nations;Button modeButton,pauseButton,speedButton;
         TextField seedField,pathField;DropdownField sizeField,presetField,layerField,toolField,heightField,brushField;
         Toggle gridToggle,cloudToggle,contourToggle;
@@ -197,19 +198,22 @@ namespace Orbis.Flat
         void Install(WorldData world)
         {
             var simulation=new FlatSimulation(world);if(seedOnInstall)simulation.SeedNations(4);
-            var nextObject=new GameObject("Authoritative 2D map / render-data provider");nextObject.SetActive(false);nextObject.transform.SetParent(transform,false);
+            var nextObject=new GameObject("Authoritative 2D map / render-data provider");nextObject.transform.SetParent(transform,false);
             var next=nextObject.AddComponent<FlatMapRenderer>();
             var navObject=new GameObject("Shared globe-to-scroll presentation");navObject.SetActive(false);navObject.transform.SetParent(transform,false);
             var nextNav=navObject.AddComponent<FlatScrollNavigator>();
+            var nextWildlife=navObject.AddComponent<FlatWildlifePresenter>();
             var globeObject=new GameObject("Native atmosphere from the same 2D world");globeObject.SetActive(false);globeObject.transform.SetParent(transform,false);
             var nextGlobe=globeObject.AddComponent<FlatGlobePresenter>();
             bool wasFlat=navigation&&navigation.IsFlat;Vector2 previousCenter=navigation?navigation.CenterTile:Vector2.zero;
             int previousWidth=World==null?world.Width:World.Width,previousHeight=World==null?world.Height:World.Height;
             try
             {
-                next.Initialize(world);next.SetLayer((MapLayer)Mathf.Clamp(layerField.index,0,(int)MapLayer.Vegetation));
+                next.Initialize(world);next.GetComponent<MeshRenderer>().enabled=false;
+                next.SetLayer((MapLayer)Mathf.Clamp(layerField.index,0,(int)MapLayer.Vegetation));
                 nextNav.Initialize(world,viewCamera,next);
                 nextGlobe.Initialize(world,viewCamera,next,true);nextGlobe.PrepareScroll();
+                nextWildlife.Initialize(world,nextNav,next,viewCamera);
                 var lens=viewCamera.GetComponent<OrbisCelestialLens>();if(!lens)lens=viewCamera.gameObject.AddComponent<OrbisCelestialLens>();lens.view=nextGlobe.View;lens.navigation=nextNav;
             }
             catch
@@ -221,8 +225,9 @@ namespace Orbis.Flat
             }
             DestroyGlobe();if(navigation){navigation.gameObject.SetActive(false);Destroy(navigation.gameObject);}
             if(map){map.gameObject.SetActive(false);Destroy(map.gameObject);}route=new int[0];
-            World=world;Simulation=simulation;simulationStep=simulation.Step;map=next;navigation=nextNav;globe=nextGlobe;solarClock.Reset();
-            // The old quad stays inactive. Only the new shared lattice is rendered, in ALL modes.
+            World=world;Simulation=simulation;simulationStep=simulation.Step;map=next;navigation=nextNav;globe=nextGlobe;wildlife=nextWildlife;solarClock.Reset();
+            // Keep the provider active so Unity releases its native/GPU caches on destruction.
+            // The shared lattice owns the visible terrain, and the provider's quad stays hidden.
             navObject.SetActive(true);globeObject.SetActive(true);
             selected=-1;activeNation=world.Nations.Count>0?0:-1;globeMode=true;lastMonth=world.Month;
             seedField.SetValueWithoutNotify(world.Seed);presetField.SetValueWithoutNotify(presetField.choices[(int)world.Preset]);
@@ -260,6 +265,7 @@ namespace Orbis.Flat
             bool sw3=map.Material.GetFloat("_VendorWaterReady")>.5f;
             map.LocalWater.Tick(dt,pan.x,pan.y,!sw3&&navigation.IsFlat&&waterView&&pixelsPerTile>=8,animate);
             BindSky(map.Material,sun);ApplyWaterSettings(map.Material);navigation.SyncMaterials();
+            wildlife.Tick(animate?dt*speed:0,CalendarDay,sun,natural,animate?realDt:0);
             if(globe)globe.Snapshot.settings.cloudQuality=Mathf.Clamp(cloudQuality.index,0,2);
             if(globe)globe.TickScroll(animate?dt:0,visualClock,CalendarDay,navigation.DisplaySpin,navigation.Morph,
                 cloudToggle.value,true,true,cloudToggle.value,sun,natural);
@@ -379,6 +385,7 @@ namespace Orbis.Flat
                 "\n汇流量（相对）："+World.Runoff[i].ToString("F1")+"\n水面高程："+World.WaterLevel[i]+" m"+
                 "\n水深"+(World.Water[i]==WaterKind.River?"（河槽估计）":"")+"："+facts.Depth[i].ToString("F1")+" m"+
                 "\n悬沙 / 淡水比例："+facts.Sediment[i].ToString("F2")+" / "+facts.Freshness[i].ToString("F2");
+            info.text+=wildlife.DescribeTile(i);
         }
         static string BiomeName(Biome b)
         {return FlatPalette.BiomeNames[(int)b];}

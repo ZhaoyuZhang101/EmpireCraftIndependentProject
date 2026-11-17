@@ -443,6 +443,25 @@ namespace Orbis.Flat
             return new Vector4(position.x,position.y,position.z,FlatGlobeGeometry.ReliefClipWeight(radius-1,reliefParameters,morph));
         }
         public int Pick(Vector2 screen)=>TryFlatPoint(screen,out var tile)?FlatScrollMath.Tile(tile.x,Math.Min(world.Height-.0001,tile.y),world.Width,world.Height):-1;
+        public bool TryActorSurface(PlanetLocation location,out Vector3 position,out Vector2 geographicEast,out Vector2 geographicNorth,out Vector4 cellAxes)
+        {
+            if(atlasMode)return atlas.TryActorSurface(location,out position,out geographicEast,out geographicNorth,out cellAxes);
+            position=Vector3.zero;geographicEast=Vector2.right;geographicNorth=Vector2.up;
+            cellAxes=new Vector4(1f/32,0,0,1f/32);
+            if(!IsFlat)return false;
+            var direction=PlanetCoordinateSystem.SurfaceNormal(location);
+            var point=LocalPoint(direction);
+            if(point.sqrMagnitude>Radius*Radius)return false;
+            var relief=ReliefParameters;
+            position=(Vector3)ProjectedVertex(point,relief)+normal*.00015f;
+            float step=TileScale*.01f;
+            var dx=((Vector3)ProjectedVertex(point+new Vector2(step,0),relief)-(Vector3)ProjectedVertex(point-new Vector2(step,0),relief))/.02f;
+            var dy=((Vector3)ProjectedVertex(point+new Vector2(0,step),relief)-(Vector3)ProjectedVertex(point-new Vector2(0,step),relief))/.02f;
+            // Differentiate the final relief geometry, including its perspective,
+            // oblique height shift, slope and reflected geographic north.
+            if(Math.Cos(projection.Center.Latitude+point.y)<0)dy=-dy;
+            return FlatGlobeGeometry.TryActorFrame(viewCamera,dx,dy,TileScale/32,out geographicEast,out geographicNorth,out cellAxes);
+        }
         public void SetRoute(int[] ids){route=ids??new int[0];if(atlas)atlas.SetRoute(route);UpdateRoute();}
         void UpdateRoute()
         {

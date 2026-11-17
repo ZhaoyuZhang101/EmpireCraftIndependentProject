@@ -55,6 +55,7 @@ def release(blob):
 SHADERS = [
     "Assets/ORBIS/Resources/ORBIS/FlatWorld/FlatMap.shader",
     "Assets/ORBIS/Resources/ORBIS/FlatWorld/LocalSurface.shader",
+    "Assets/ORBIS/Resources/ORBIS/FlatWorld/WildlifeActors.shader",
     "Assets/ORBIS/Resources/ORBIS/FlatWorld/ScrollSurface.shader",
     "Assets/ORBIS/Resources/ORBIS/Surface.shader",
     "Assets/ORBIS/Resources/ORBIS/FlatWorld/FlatSkyBake.shader",

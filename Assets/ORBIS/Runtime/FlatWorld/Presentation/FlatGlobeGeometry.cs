@@ -8,6 +8,18 @@ namespace Orbis.Flat
         public const float MaximumHeight = 4000f;
         public const float ReliefTilt = .72f;
         public const float ReliefCameraHeight = .18f;
+        public static bool TryActorFrame(Camera camera,Vector3 eastDerivative,Vector3 northDerivative,float pixelScale,
+            out Vector2 east,out Vector2 north,out Vector4 cellAxes)
+        {
+            var right=camera.transform.right;var up=camera.transform.up;
+            var dx=new Vector2(Vector3.Dot(eastDerivative,right),Vector3.Dot(eastDerivative,up));
+            var dy=new Vector2(Vector3.Dot(northDerivative,right),Vector3.Dot(northDerivative,up));
+            east=dx.normalized;north=dy.normalized;cellAxes=Vector4.zero;
+            float determinant=dx.x*dy.y-dx.y*dy.x;
+            if(Mathf.Abs(determinant)<1e-14f)return false;
+            cellAxes=new Vector4(dy.y,-dx.y,-dy.x,dx.x)*(pixelScale/determinant);
+            return true;
+        }
         public static Ray ScreenRay(Camera camera,Vector2 screen)
         {
             if(!camera.orthographic)return camera.ScreenPointToRay(screen);
