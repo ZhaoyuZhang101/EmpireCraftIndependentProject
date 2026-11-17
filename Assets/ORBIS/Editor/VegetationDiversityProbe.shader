@@ -24,6 +24,7 @@ Shader "Hidden/ORBIS/VegetationDiversityProbe"
             #include "../Resources/ORBIS/FlatWorld/FlatVegetationArt.cginc"
 
             float2 _ProbeRoot;
+            float2 _ProbePoint;
             float _ProbeMode;
             float _ProbeType;
             float _ProbeSeed;
@@ -35,6 +36,14 @@ Shader "Hidden/ORBIS/VegetationDiversityProbe"
 
             float4 frag(v2f_img input):SV_Target
             {
+                if(_ProbeMode>7.5)
+                {
+                    float2 edge;
+                    float4 crown=PDTreeCrown(_ProbePoint,_ProbeType,_ProbeSeed,edge);
+                    return float4(crown.a,PDTreeCastShadow(_ProbePoint,_ProbeSun,_ProbeType,_ProbeSeed),edge);
+                }
+                if(_ProbeMode>6.5&&_ProbeMode<7.5)
+                    return PDTreeTrunk(input.uv*float2(12,22)-float2(6,3),_ProbeType,_ProbeSeed).xxxx;
                 if(_ProbeMode>3.5&&_ProbeMode<4.5)return PDTreePlacement(_ProbeRoot);
                 if(_ProbeMode>2.5&&_ProbeMode<3.5)
                     return PDTreeSpecies(_ProbeEcology,_ProbeInfo,_ProbeShore).xxxx;

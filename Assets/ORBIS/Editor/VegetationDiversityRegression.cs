@@ -25,6 +25,10 @@ namespace Orbis.Editor
             const string outputDirectory="ValidationOutput/Ecology";
             try
             {
+                const string includePath="Assets/ORBIS/Resources/ORBIS/FlatWorld/FlatVegetationArt.cginc";
+                string metadataGuid=Array.Find(File.ReadAllLines(includePath+".meta"),line=>line.StartsWith("guid:",StringComparison.Ordinal));
+                metadataGuid=metadataGuid==null?"":metadataGuid.Substring(5).Trim();
+                Check(lines,Guid.TryParseExact(metadataGuid,"N",out _)&&metadataGuid==AssetDatabase.AssetPathToGUID(includePath),"vegetation geometry include has a valid imported GUID");
                 Shader shader=AssetDatabase.LoadAssetAtPath<Shader>("Assets/ORBIS/Editor/VegetationDiversityProbe.shader");
                 if(shader==null)throw new Exception("Vegetation diversity probe shader is missing.");
                 material=new Material(shader);
@@ -34,7 +38,8 @@ namespace Orbis.Editor
                 ShaderUtil.allowAsyncCompilation=false;
                 ShaderUtil.CompilePass(material,0,true);
                 foreach(var message in ShaderUtil.GetShaderMessages(shader))
-                    if(message.severity.ToString()=="Error")throw new Exception(message.message);
+                    if(message.severity.ToString()=="Error"||message.message.IndexOf("uninitialized",StringComparison.OrdinalIgnoreCase)>=0)
+                        throw new Exception(message.message);
 
                 material.SetVector("_MapSize",new Vector4(16,8,1f/16,1f/8));
                 material.SetVector("_ProbeRoot",new Vector2(7,3));
@@ -105,6 +110,39 @@ namespace Orbis.Editor
                         Check(lines,outside==0,Names[kind]+" fits the renderer silhouette bounds at seed="+seed+"; outside pixels="+outside);
                     }
                     material.SetFloat("_ProbeSeed",.37f);
+                    if(kind==3)
+                    {
+                        material.SetFloat("_ProbeSeed",.34f);var firstPalm=Render(material,target,image,5);
+                        material.SetFloat("_ProbeSeed",.44f);var secondPalm=Render(material,target,image,5);
+                        float variation=MaskDifference(firstPalm,secondPalm)/(float)Math.Max(1,MaskUnion(firstPalm,secondPalm));
+                        Check(lines,variation>.12f,"palm fronds vary their fan orientation between seeds; silhouette change="+Number(variation));
+                        material.SetFloat("_ProbeSeed",.9f);var trunk=Render(material,target,image,7);
+                        double baseX=0,topX=0;int baseCount=0,topCount=0;
+                        for(int y=0;y<Resolution;y++)for(int x=0;x<Resolution;x++)
+                        {
+                            if(trunk[y*Resolution+x].a<.5f)continue;
+                            float height=(y+.5f)/Resolution*22-3;
+                            if(height>=0&&height<3){baseX+=x;baseCount++;}
+                            if(height>=10&&height<13){topX+=x;topCount++;}
+                        }
+                        float lean=(float)(topX/Math.Max(1,topCount)-baseX/Math.Max(1,baseCount));
+                        Check(lines,baseCount>0&&topCount>0&&Mathf.Abs(lean)>4,"palm trunk bends continuously towards the crown; pixel lean="+Number(lean));
+                        material.SetFloat("_ProbeSeed",.37f);
+                        // The production shadow ray scales horizontal sunlight by .40.
+                        float alignedSunY=-.7f*(.46947156f/.88294759f)/.40f;
+                        material.SetVector("_ProbeSun",new Vector3(0,alignedSunY,.7f));
+                        var matchedShadow=Render(material,target,image,1);
+                        var matchedCrown=Render(material,target,image,5);
+                        int mismatches=0;
+                        for(int i=0;i<matchedShadow.Length;i++)if((matchedShadow[i].r>.5f)!=(matchedCrown[i].a>.5f))mismatches++;
+                        Check(lines,mismatches<=4,"palm shadow matches its actual fronds when light and view align; changed pixels="+mismatches);
+                        material.SetFloat("_ProbeSeed",0);
+                        material.SetVector("_ProbePoint",new Vector2(.697166f,19.017145f));
+                        Color joint=Render(material,target,image,8)[0];
+                        Check(lines,joint.r>.99f&&joint.g>.99f&&joint.b>.7f,"palm frond interior remains solid through its curve joint; shadow="+Number(joint.g)+" edge="+Number(joint.b));
+                        material.SetFloat("_ProbeSeed",.37f);
+                        material.SetVector("_ProbeSun",westSun);
+                    }
                     var spritePreview=new Color[artwork.Length];
                     var shadowPreview=new Color[artwork.Length];
                     var ground=new Color(.36f,.35f,.30f,1);
@@ -118,6 +156,11 @@ namespace Orbis.Editor
                     atlas.SetPixels(kind*Resolution,Resolution,Resolution,Resolution,spritePreview);
                     atlas.SetPixels(kind*Resolution,0,Resolution,Resolution,shadowPreview);
                 }
+
+                material.SetFloat("_ProbeType",2.5f);
+                Check(lines,MaskDifference(crowns[3],Render(material,target,image,5))==0,"palm geometry uses the same rounded species ID as trunk and foliage");
+                material.SetFloat("_ProbeType",3.5f);
+                Check(lines,MaskDifference(crowns[4],Render(material,target,image,5))==0,"upper palm boundary retains the next species silhouette");
 
                 for(int first=0;first<Names.Length;first++)
                 for(int second=first+1;second<Names.Length;second++)
@@ -259,6 +302,7 @@ namespace Orbis.Editor
         {
             return number.ToString("0.000000",CultureInfo.InvariantCulture);
         }
+
 
         static void Check(List<string> lines,bool pass,string message)
         {

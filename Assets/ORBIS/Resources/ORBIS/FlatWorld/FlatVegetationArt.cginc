@@ -1,11 +1,74 @@
 #ifndef ORBIS_FLAT_VEGETATION_ART
 #define ORBIS_FLAT_VEGETATION_ART
 
-// Presentation only. Species reuse the same five ellipsoids for visible crowns
-// and ground shadows in the orthographic 62-degree pixel-art view.
+// Presentation only. Crowns and shadows share their geometry in the orthographic
+// 62-degree pixel-art view. Palms use bowed ribbons, other species use ellipsoids.
 // 0 broadleaf, 1 pine, 2 birch, 3 palm, 4 acacia, 5 willow, 6 shrub, 7 tropical.
 static const float3 PDTreeView=float3(0,-.46947156,.88294759);
 static const float3 PDTreeUp=float3(0,.88294759,.46947156);
+
+float3 PDPalmRoot(float seed)
+{
+    return float3((seed-.5)*3.6,sin(seed*6.283185307)*.6,31+seed*1.5);
+}
+
+// Seven tapered fronds share their 3D control points, feathered silhouette and
+// surface normals between camera and sunlight projection. Two ribbon segments
+// per frond keep the geometry bounded at every zoom level.
+float4 PDPalmCrown(float2 pixel,float seed,float3 projectionX,float3 projectionY,out float2 edge)
+{
+    float3 root=PDPalmRoot(seed),normal=0;
+    float front=-100;
+    edge=-100;
+    [loop] [fastopt] for(int frond=0;frond<7;frond++)
+    {
+        float variation=frac(seed*13+frond*.371);
+        float angle=seed*6.283185307+frond*.897597901+(frac(seed*17+frond*.73)-.5)*.32;
+        float3 direction=float3(cos(angle),sin(angle),0);
+        float3 side=float3(-direction.y,direction.x,0);
+        float frondLength=9.3+variation*2.1;
+        float3 bend=root+direction*(frondLength*.35)+side*((variation-.5)*1.2)+float3(0,0,8+variation*2);
+        float3 tip=root+direction*frondLength+side*((variation-.5)*.6)-float3(0,0,4+frac(seed*7+frond*.61)*2.7);
+        float3 middle=root*.25+bend*.5+tip*.25;
+        float2 across=float2(dot(side,projectionX),dot(side,projectionY));
+        [unroll] for(int segment=0;segment<2;segment++)
+        {
+            float3 start=lerp(root,middle,segment),end=lerp(middle,tip,segment);
+            float2 start2=float2(dot(start,projectionX),dot(start,projectionY));
+            float2 delta=float2(dot(end-start,projectionX),dot(end-start,projectionY));
+            float determinant=delta.x*across.y-delta.y*across.x;
+            if(abs(determinant)<.0001)continue;
+            float2 offset=pixel-start2;
+            float along=(offset.x*across.y-offset.y*across.x)/determinant;
+            float lateral=(delta.x*offset.y-delta.y*offset.x)/determinant;
+            float t=(segment+saturate(along))*.5;
+            float feather=abs(frac(t*6.5+step(0,lateral)*.38)-.5)*2;
+            float width=.55*(1-t)+(1.7+variation*.35)*4*t*(1-t)*(.35+.65*feather);
+            float projectedLength=max(.001,length(delta));
+            float sideEdge=(width-abs(lateral))*abs(determinant)/projectedLength;
+            float frondEdge=min(sideEdge,min(along,1-along)*projectedLength);
+            // Root and tip form the outer end caps of the continuous frond.
+            float outerEnd=lerp(along,1-along,segment)*projectedLength;
+            float withinSegment=step(0,along)*step(along,1);
+            float outlineEdge=lerp(frondEdge,min(sideEdge,outerEnd),withinSegment);
+            edge.x=max(edge.x,outlineEdge);
+            if(frondEdge>=0)
+            {
+                float3 leafPoint=lerp(start,end,along)+side*lateral;
+                float depth=dot(leafPoint,PDTreeView);
+                if(depth>front)
+                {
+                    front=depth;
+                    float3 tangent=lerp(bend-root,tip-bend,t);
+                    normal=normalize(cross(tangent,side)+side*(lateral/max(.55,width))*.8);
+                    normal*=dot(normal,PDTreeView)<0?-1:1;
+                    edge.y=outlineEdge;
+                }
+            }
+        }
+    }
+    return float4(normal,step(-99,front));
+}
 
 float4 PDTreePlacement(float2 id)
 {
@@ -78,14 +141,6 @@ float4 PDTreeLobe(int index,float type,float seed)
         if(index==3)volume=float4(0,3.5,29,4.4);
         if(index==4)volume=float4(0,-3.4,23,4.5);
     }
-    else if(kind<3.5)
-    {
-        volume=float4(0,0,33,4.2);
-        if(index==1)volume=float4(-6,0,32,6);
-        if(index==2)volume=float4(6,.5,33,6);
-        if(index==3)volume=float4(0,6,33.5,6);
-        if(index==4)volume=float4(0,-6,31,6);
-    }
     else if(kind<4.5)
     {
         volume=float4(0,0,25,7);
@@ -132,17 +187,11 @@ float3 PDTreeLobeScale(int index,float type,float seed)
     float kind=floor(type+.5);
     float3 axes=1;
     if(kind>1.5&&kind<2.5)axes=float3(.62,.83,1.4);
-    else if(kind>2.5&&kind<3.5)
-    {
-        axes=float3(1,1,.52);
-        if(index==1||index==2)axes=float3(1.05,.34,.30);
-        if(index==3||index==4)axes=float3(.34,1.05,.30);
-    }
     else if(kind>3.5&&kind<4.5)axes=float3(1.15,.72,.32);
     else if(kind>4.5&&kind<5.5)axes=index==0?float3(1,.9,.8):float3(.95,.85,1.25);
     else if(kind>5.5&&kind<6.5)axes=float3(1,.9,.8);
     else if(kind>6.5)axes=float3(1.02,1.02,.88);
-    // The quarter-turn also rotates anisotropic fronds and narrow crowns.
+    // Quarter turns also rotate anisotropic crowns.
     float turns=kind>3.5&&kind<4.5?floor(seed*2)*2:floor(seed*4);
     float swapAxes=frac(turns*.5)*2;
     axes.xy=lerp(axes.xy,axes.yx,swapAxes);
@@ -151,34 +200,40 @@ float3 PDTreeLobeScale(int index,float type,float seed)
 
 float4 PDTreeCrown(float2 pixel,float type,float seed,out float2 edge)
 {
-    float3 origin=float3(pixel.x,0,0)+PDTreeUp*pixel.y;
-    float front=-100;
-    float3 normal=0;
+    float4 crown=0;
     edge=-100;
-    [unroll] for(int lobe=0;lobe<5;lobe++)
+    if(floor(type+.5)==3)crown=PDPalmCrown(pixel,seed,float3(1,0,0),PDTreeUp,edge);
+    else
     {
-        float4 volume=PDTreeLobe(lobe,type,seed);
-        float3 axes=volume.w*PDTreeLobeScale(lobe,type,seed);
-        float3 relative=(origin-volume.xyz)/axes;
-        float3 ray=PDTreeView/axes;
-        float rayLengthSquared=dot(ray,ray);
-        float depth=-dot(relative,ray)/rayLengthSquared;
-        float3 closest=relative+ray*depth;
-        float distanceSquared=dot(closest,closest);
-        float lobeEdge=volume.w*(1-sqrt(distanceSquared));
-        edge.x=max(edge.x,lobeEdge);
-        if(distanceSquared<1)
+        float3 origin=float3(pixel.x,0,0)+PDTreeUp*pixel.y;
+        float front=-100;
+        float3 normal=0;
+        [unroll] for(int lobe=0;lobe<5;lobe++)
         {
-            float visibleDepth=depth+sqrt((1-distanceSquared)/rayLengthSquared);
-            if(visibleDepth>front)
+            float4 volume=PDTreeLobe(lobe,type,seed);
+            float3 axes=volume.w*PDTreeLobeScale(lobe,type,seed);
+            float3 relative=(origin-volume.xyz)/axes;
+            float3 ray=PDTreeView/axes;
+            float rayLengthSquared=dot(ray,ray);
+            float depth=-dot(relative,ray)/rayLengthSquared;
+            float3 closest=relative+ray*depth;
+            float distanceSquared=dot(closest,closest);
+            float lobeEdge=volume.w*(1-sqrt(distanceSquared));
+            edge.x=max(edge.x,lobeEdge);
+            if(distanceSquared<1)
             {
-                front=visibleDepth;
-                normal=normalize((relative+ray*visibleDepth)/axes);
-                edge.y=lobeEdge;
+                float visibleDepth=depth+sqrt((1-distanceSquared)/rayLengthSquared);
+                if(visibleDepth>front)
+                {
+                    front=visibleDepth;
+                    normal=normalize((relative+ray*visibleDepth)/axes);
+                    edge.y=lobeEdge;
+                }
             }
         }
+        crown=float4(normal,step(-99,front));
     }
-    return float4(normal,step(-99,front));
+    return crown;
 }
 
 float PDTreeCastShadow(float2 pixel,float3 sun,float type,float seed)
@@ -186,15 +241,24 @@ float PDTreeCastShadow(float2 pixel,float3 sun,float type,float seed)
     float3 origin=float3(pixel.x,pixel.y/PDTreeUp.y,0);
     float3 lightRay=normalize(float3(sun.xy*.40,max(.55,sun.z)));
     float mask=0;
-    [unroll] for(int lobe=0;lobe<5;lobe++)
+    if(floor(type+.5)==3)
     {
-        float4 volume=PDTreeLobe(lobe,type,seed);
-        float3 axes=volume.w*PDTreeLobeScale(lobe,type,seed);
-        float3 relative=(volume.xyz-origin)/axes;
-        float3 ray=lightRay/axes;
-        float depth=max(0,dot(relative,ray)/dot(ray,ray));
-        float distanceToRay=length(relative-ray*depth);
-        mask=max(mask,1-smoothstep(1-.7/volume.w,1+1.5/volume.w,distanceToRay));
+        float2 edge=-100;
+        PDPalmCrown(origin.xy,seed,float3(1,0,-lightRay.x/lightRay.z),float3(0,1,-lightRay.y/lightRay.z),edge);
+        mask=smoothstep(-.55,.55,edge.x);
+    }
+    else
+    {
+        [unroll] for(int lobe=0;lobe<5;lobe++)
+        {
+            float4 volume=PDTreeLobe(lobe,type,seed);
+            float3 axes=volume.w*PDTreeLobeScale(lobe,type,seed);
+            float3 relative=(volume.xyz-origin)/axes;
+            float3 ray=lightRay/axes;
+            float depth=max(0,dot(relative,ray)/dot(ray,ray));
+            float distanceToRay=length(relative-ray*depth);
+            mask=max(mask,1-smoothstep(1-.7/volume.w,1+1.5/volume.w,distanceToRay));
+        }
     }
     return mask;
 }
@@ -204,7 +268,13 @@ float PDTreeTrunk(float2 pixel,float type,float seed)
     float kind=floor(type+.5);
     float width=1.5,height=9;
     if(kind>1.5&&kind<2.5){width=.9;height=12;}
-    if(kind>2.5&&kind<3.5){width=.85;height=17;}
+    if(kind>2.5&&kind<3.5)
+    {
+        float3 root=PDPalmRoot(seed);
+        float top=dot(root,PDTreeUp),t=saturate(pixel.y/top);
+        float centre=root.x*t*t;
+        return step(-1.5,pixel.y)*step(pixel.y,top+.5)*step(abs(pixel.x-centre),lerp(1.05,.65,t));
+    }
     if(kind>3.5&&kind<4.5){width=1.1;height=14;}
     if(kind>5.5&&kind<6.5){width=.8;height=3;}
     return PDBox(pixel,float2(-width,-1.5),float2(width,height));
@@ -221,7 +291,13 @@ float3 PDTreeBark(float2 pixel,float type,float seed)
         bark=lerp(float3(.71,.72,.60),float3(.24,.27,.24),knot);
     }
     if(kind>2.5&&kind<3.5)
-        bark=lerp(float3(.40,.32,.19),float3(.61,.50,.29),step(.28,frac(pixel.y*.4+seed)));
+    {
+        float3 root=PDPalmRoot(seed);
+        float t=saturate(pixel.y/dot(root,PDTreeUp));
+        float lit=step(root.x*t*t,pixel.x);
+        bark=lerp(float3(.37,.28,.16),float3(.60,.48,.29),lit);
+        bark*=lerp(1,.82,step(.76,frac(pixel.y*.45+seed)));
+    }
     return bark;
 }
 
