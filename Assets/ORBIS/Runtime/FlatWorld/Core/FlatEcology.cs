@@ -6,29 +6,41 @@ namespace Orbis.Flat
     { Bare, Grassland, DrySteppe, Savanna, Shrubland, SeasonalForest, DeciduousForest,
       TemperateRainforest, BorealForest, TropicalRainforest, Marsh, AlpineMeadow, Tundra, Ice }
 
+    // Matches the existing tree artwork IDs. Derived on terrain rebuild and load.
+    public enum TreeSpecies : byte { Broadleaf, Pine, Birch, Palm, Acacia, Willow, Shrub, Tropical }
+
     public static class FlatEcology
     {
-        public static float ContinuousCanopy(Biome biome,float temperature,float annualRain,float soil,float gradient)
+        public static float ContinuousCanopy(Biome biome,float temperature,float annualRain,float soil,float gradient,float warmest=float.NaN)
         {
             if(biome==Biome.Water||biome==Biome.Snow||biome==Biome.Beach)return 0;
             float demand=Math.Max(240,(temperature+5)*36);
             float available=FMath.Clamp(soil*.55f+annualRain/demand*.45f,0,1);
-            float warmth=FMath.Clamp((temperature+8)/18,0,1),slope=1-FMath.Clamp((gradient-200)/1100,0,.85f);
+            // Growing-season warmth allows Siberian-type forests to retain a
+            // canopy through long winters. Legacy callers retain the annual proxy.
+            float warmth=FMath.Finite(warmest)?Ramp(warmest,8,14):FMath.Clamp((temperature+8)/18,0,1);
+            float slope=1-FMath.Clamp((gradient-200)/1100,0,.85f);
             float t=FMath.Clamp((available-.12f)/.78f,0,1);t=t*t*(3-2*t);
             float canopy=(.04f+.90f*t)*warmth*slope;
-            if(biome==Biome.Tundra||biome==Biome.Alpine)canopy=Math.Min(.16f,canopy);
+            if(biome==Biome.Tundra||biome==Biome.Alpine&&(!FMath.Finite(warmest)||warmest<=10))canopy=Math.Min(.16f,canopy);
             if(biome==Biome.Wetland)canopy=Math.Min(.42f,canopy);
             return canopy;
         }
-        public static VegetationCover Classify(Biome biome,Koppen climate,float temperature,float rain,float gradient)
+        public static VegetationCover Classify(Biome biome,Koppen climate,float temperature,float rain,float gradient,float warmest=float.NaN)
         {
             if(biome==Biome.Water||biome==Biome.Beach||biome==Biome.Desert)return VegetationCover.Bare;
-            if(biome==Biome.Snow)return VegetationCover.Ice;
-            if(biome==Biome.Tundra)return VegetationCover.Tundra;
-            if(biome==Biome.Alpine)return temperature>1&&rain>=450&&gradient<=200?VegetationCover.AlpineMeadow:VegetationCover.Bare;
+            if(climate==Koppen.EF||biome==Biome.Snow)return VegetationCover.Ice;
+            if(climate==Koppen.ET||biome==Biome.Tundra)return VegetationCover.Tundra;
+            if(biome==Biome.Alpine)
+            {
+                // Monthly warmth supports forests on humid tropical highlands.
+                if(FMath.Finite(warmest)&&warmest>10&&rain>=650)biome=Biome.Woodland;
+                else return temperature>1&&rain>=450&&gradient<=200?VegetationCover.AlpineMeadow:VegetationCover.Bare;
+            }
             if(biome==Biome.Wetland)return VegetationCover.Marsh;
             if(biome==Biome.Steppe)return VegetationCover.DrySteppe;
             if(biome==Biome.Taiga)return VegetationCover.BorealForest;
+            if(Subarctic(climate)&&biome==Biome.Woodland)return VegetationCover.BorealForest;
             if(climate==Koppen.Aw)return VegetationCover.Savanna;
             if(climate==Koppen.Csa||climate==Koppen.Csb||climate==Koppen.Csc)return VegetationCover.Shrubland;
             if(biome==Biome.Rainforest)return climate==Koppen.Am?VegetationCover.SeasonalForest:VegetationCover.TropicalRainforest;
@@ -38,6 +50,75 @@ namespace Orbis.Flat
                 return temperature<18&&rain>=1400?VegetationCover.TemperateRainforest:VegetationCover.DeciduousForest;
             }
             return VegetationCover.Grassland;
+        }
+        static bool Subarctic(Koppen climate)
+        {
+            if(climate==Koppen.Csc||climate==Koppen.Cwc||climate==Koppen.Cfc)return true;
+            return climate>=Koppen.Dsa&&climate<=Koppen.Dfd&&((int)climate-(int)Koppen.Dsa)%4>=2;
+        }
+        static bool Mediterranean(Koppen climate)
+        {
+            return climate>=Koppen.Csa&&climate<=Koppen.Csc;
+        }
+        // Beck et al. 2018 supplies the climate classes. Monthly temperature and
+        // local water supply constrain the representative tree mix within them.
+        // Palm winter limit uses the common 5 C cold-month proxy discussed by
+        // Reichgelt et al. 2018, https://doi.org/10.1038/s41598-018-23147-2.
+        public static TreeSpecies SelectTree(VegetationCover cover,Koppen climate,float coldest,float warmest,
+                                             float soilWater,bool freshBank,bool coast,float seed)
+        {
+            if(cover==VegetationCover.Bare||cover>=VegetationCover.AlpineMeadow||climate>=Koppen.ET||warmest<=10)
+                return TreeSpecies.Shrub;
+            bool palm=coldest>=5&&warmest>=20&&soilWater>=.25f;
+            bool tropical=climate>=Koppen.Af&&climate<=Koppen.Aw&&coldest>=15;
+            if(climate>=Koppen.BWh&&climate<=Koppen.BSk)
+            {
+                if(freshBank&&soilWater>=.55f)
+                {
+                    if(palm&&seed<.45f)return TreeSpecies.Palm;
+                    if(coldest<5)return seed<.70f?TreeSpecies.Willow:TreeSpecies.Birch;
+                    return TreeSpecies.Acacia;
+                }
+                if(coldest>=10&&soilWater>.18f&&climate!=Koppen.BSk&&seed<.72f)return TreeSpecies.Acacia;
+                return TreeSpecies.Shrub;
+            }
+            if(cover==VegetationCover.Marsh)
+            {
+                if(palm&&(freshBank||coast)&&seed<.25f)return TreeSpecies.Palm;
+                if(tropical)return TreeSpecies.Tropical;
+                if(Subarctic(climate))
+                {
+                    if(seed<.25f)return TreeSpecies.Pine;
+                    return seed<.5f?TreeSpecies.Birch:TreeSpecies.Shrub;
+                }
+                return seed<.80f?TreeSpecies.Willow:TreeSpecies.Shrub;
+            }
+            if(cover==VegetationCover.DrySteppe)return TreeSpecies.Shrub;
+            if(cover==VegetationCover.Savanna)
+                return coldest>=10&&seed<.85f?TreeSpecies.Acacia:TreeSpecies.Shrub;
+            if(Subarctic(climate))return seed<.86f?TreeSpecies.Pine:TreeSpecies.Birch;
+            if(climate>=Koppen.Dsa&&climate<=Koppen.Dfd)
+            {
+                if(freshBank&&soilWater>.65f&&seed<.12f)return TreeSpecies.Willow;
+                float pine=((int)climate-(int)Koppen.Dsa)%4==0?.18f:.50f;
+                if(seed<pine)return TreeSpecies.Pine;
+                return seed<pine+.22f?TreeSpecies.Birch:TreeSpecies.Broadleaf;
+            }
+            if(Mediterranean(climate))
+            {
+                if(seed<.35f&&soilWater>.25f)return TreeSpecies.Pine;
+                return seed<.60f?TreeSpecies.Broadleaf:TreeSpecies.Shrub;
+            }
+            if(tropical)
+                return palm&&seed<(coast?.45f:.15f)?TreeSpecies.Palm:TreeSpecies.Tropical;
+            if(cover==VegetationCover.Shrubland)return TreeSpecies.Shrub;
+            if(palm&&(climate==Koppen.Cfa||climate==Koppen.Cwa)&&(coast||freshBank)&&seed<.18f)
+                return TreeSpecies.Palm;
+            if(freshBank&&soilWater>.65f&&seed<.30f)return TreeSpecies.Willow;
+            if(cover==VegetationCover.TemperateRainforest)
+                return seed<.60f?TreeSpecies.Pine:TreeSpecies.Broadleaf;
+            if(climate==Koppen.Cwb&&warmest<22&&seed<.45f)return TreeSpecies.Pine;
+            return seed<.25f?TreeSpecies.Birch:TreeSpecies.Broadleaf;
         }
         public static float Density(VegetationCover cover)
         {
@@ -66,9 +147,12 @@ namespace Orbis.Flat
             float moisture=droughtAdapted?Ramp(soilWater,.02f,.45f):Ramp(soilWater,.08f,.65f);
             return warmth*moisture;
         }
-        static float FoliageTarget(VegetationCover cover,float temperature,float soilWater,float growth)
+        static float FoliageTarget(VegetationCover cover,TreeSpecies tree,bool evergreen,float temperature,float soilWater,float growth)
         {
             if(cover==VegetationCover.Bare||cover==VegetationCover.Ice)return 0;
+            if(evergreen)return .8f+.2f*Ramp(soilWater,.02f,.55f);
+            if(tree==TreeSpecies.Birch||tree==TreeSpecies.Willow||tree==TreeSpecies.Broadleaf)
+                return Ramp(temperature,0,12)*Ramp(soilWater,.03f,.55f);
             if(cover==VegetationCover.BorealForest||cover==VegetationCover.TemperateRainforest)
                 return .8f+.2f*Ramp(soilWater,.02f,.55f);
             if(cover==VegetationCover.TropicalRainforest)
@@ -86,9 +170,16 @@ namespace Orbis.Flat
             int y=month/3*(world.Height+2)+1+tile/world.Width;
             return (y*(world.Width+2)*3+x)*2;
         }
-        internal static void BuildSeasons(WorldData world,FlatTerrainFacts facts,int tile)
+        internal static void BuildSeasons(WorldData world,FlatTerrainFacts facts,int tile,float coldest)
         {
             float growth=0,foliage=.5f;var cover=facts.Vegetation[tile];
+            var tree=facts.Trees[tile];var climate=world.Climates[tile];
+            bool evergreenBroadleaf=tree==TreeSpecies.Broadleaf&&
+                (cover==VegetationCover.TemperateRainforest||Mediterranean(climate)||
+                    coldest>=5&&(climate==Koppen.Cfa||climate==Koppen.Cwa));
+            bool evergreen=tree==TreeSpecies.Pine||tree==TreeSpecies.Palm||evergreenBroadleaf||
+                tree==TreeSpecies.Tropical&&climate==Koppen.Af||
+                tree==TreeSpecies.Shrub&&Mediterranean(climate);
             // The soil bucket has written twelve water samples into R. Spin up
             // perennial responses before replacing those samples with growth.
             for(int step=0;step<36;step++)
@@ -97,7 +188,7 @@ namespace Orbis.Flat
                 float soil=facts.VegetationSeasons[offset]/255f,temperature=world.Temperature[tile*12+month];
                 float target=GrowthTarget(cover,temperature,soil);
                 growth+=(target-growth)*.65f;
-                float leaf=FoliageTarget(cover,temperature,soil,target);
+                float leaf=FoliageTarget(cover,tree,evergreen,temperature,soil,target);
                 foliage+=(leaf-foliage)*(leaf<foliage?.75f:.60f);
                 if(step<24)continue;
                 facts.VegetationSeasons[offset]=(byte)(FMath.Clamp(growth,0,1)*255+.5f);

@@ -82,13 +82,14 @@ float PixelPropShadow(float2 cell)
   else if(info.b<.5&&!(info.g>.5&&info.g<4.5))
   {
    float4 placement=PDTreePlacement(root);
-   float4 ecology=FlatEcologyData(uv,info);placement.w=ecology.a;
+   float tree;
+   float4 ecology=FlatEcologyData(uv,info,tree);placement.w=ecology.a;
    q.y=placement.y+(q.y-placement.y)/scale;
    float2 ground=(q-placement.xy)/placement.z;
    if(abs(ground.x)>37||abs(ground.y)>37)continue;
    if(!PDTreeAvailable(root,placement,info,ecology))continue;
    float shore=1-smoothstep(.2,1.2,-FlatVisualSample(float4(uv,0,0)).g);
-   float species=PDTreeSpecies(ecology,info,shore);
+   float species=PDTreeSpecies(ecology,info,shore,tree);
    float foliage=FlatVegetationSeason(root+.5).y;
    mask=PDTreeCastShadow(ground,localSun,species,placement.w,foliage)*.30;
   }
@@ -144,10 +145,11 @@ float3 PixelProps(float3 col,float2 cell,float4 field,float waterMask,float stru
   if(abs(treePoint.x)>14||treePoint.y< -3||treePoint.y>40)continue;
   float2 centreUV=(treeId+.5)*_MapSize.zw;
   float4 rootInfo=tex2Dlod(_InfoTex,float4(centreUV,0,0))*255;
-  float4 ecology=FlatEcologyData(centreUV,rootInfo);placement.w=ecology.a;
+  float tree;
+  float4 ecology=FlatEcologyData(centreUV,rootInfo,tree);placement.w=ecology.a;
   if(!PDTreeAvailable(treeId,placement,rootInfo,ecology))continue;
   float shore=1-smoothstep(.2,1.2,-FlatVisualSample(float4(centreUV,0,0)).g);
-  float species=PDTreeSpecies(ecology,rootInfo,shore);
+  float species=PDTreeSpecies(ecology,rootInfo,shore,tree);
   float leaf=FlatVegetationSeason(treeId+.5).y;
   float rootDepth=treeId.y*32+placement.y;
   if(rootDepth>nearestRoot)continue;

@@ -176,6 +176,8 @@ namespace Orbis.Editor
                 }
 
                 CheckSpecies(lines,material,target,image,3,3,.5f,.2f,0,4,"savanna selects acacia");
+                CheckSpecies(lines,material,target,image,9,27,.8f,.2f,1,1,"subarctic climate rejects palms in legacy rainforest metadata");
+                CheckSpecies(lines,material,target,image,5,16,.8f,.7f,0,1,"cold maritime summers select conifers in legacy seasonal woodland metadata");
                 CheckSpecies(lines,material,target,image,4,8,.4f,.2f,0,6,"shrubland selects low shrubs");
                 CheckSpecies(lines,material,target,image,5,2,.7f,.5f,0,7,"tropical seasonal forest selects tropical crowns");
                 CheckSpecies(lines,material,target,image,6,14,.3f,.1f,0,2,"deciduous forest includes birch");

@@ -18,6 +18,7 @@ namespace Orbis.Flat
         public readonly float[] Sediment,Freshness,FlowX,FlowY,HalfWidth,Depth,ShoreDistance,Meander;
         public readonly byte[] SaturatedMonths,Connections;
         public readonly VegetationCover[] Vegetation;public readonly float[] Canopy;
+        public readonly TreeSpecies[] Trees;
         public byte[] VegetationSeasons {get;internal set;}
         public bool VegetationSeasonsReady {get;internal set;}
         public readonly ushort[] FreshDistance;
@@ -27,6 +28,7 @@ namespace Orbis.Flat
         {
             Forms=new Landform[count];Materials=new GroundMaterial[count];
             Vegetation=new VegetationCover[count];Canopy=new float[count];
+            Trees=new TreeSpecies[count];
             Relief=new float[count];Gradient=new float[count];Hand=new float[count];Wetness=new float[count];
             AnnualRain=new float[count];MeanTemperature=new float[count];
             Sediment=new float[count];Freshness=new float[count];FlowX=new float[count];FlowY=new float[count];
@@ -38,6 +40,7 @@ namespace Orbis.Flat
             var f=new FlatTerrainFacts(Forms.Length){MouthCount=MouthCount,RiverCurves=RiverCurves,
                 VegetationSeasons=VegetationSeasons==null?null:(byte[])VegetationSeasons.Clone(),VegetationSeasonsReady=VegetationSeasonsReady};
             Array.Copy(Vegetation,f.Vegetation,Forms.Length);Array.Copy(Canopy,f.Canopy,Forms.Length);
+            Array.Copy(Trees,f.Trees,Forms.Length);
             Array.Copy(Forms,f.Forms,Forms.Length);Array.Copy(Materials,f.Materials,Forms.Length);
             float[][] a={Relief,Gradient,Hand,Wetness,AnnualRain,MeanTemperature,Sediment,Freshness,FlowX,FlowY,HalfWidth,Depth,ShoreDistance,Meander};
             float[][] b={f.Relief,f.Gradient,f.Hand,f.Wetness,f.AnnualRain,f.MeanTemperature,f.Sediment,f.Freshness,f.FlowX,f.FlowY,f.HalfWidth,f.Depth,f.ShoreDistance,f.Meander};
@@ -95,12 +98,12 @@ namespace Orbis.Flat
             return Landform.Plain;
         }
         public static Biome ClassifyBiome(Koppen k,float elevation,float temperature,float annualRain,
-                                          byte wetMonths,float gradient,float hand,bool nearFresh,bool water)
+                                          byte wetMonths,float gradient,float hand,bool nearFresh,bool water,float warmest=float.NaN)
         {
             if(water)return Biome.Water;
             if(k==Koppen.EF)return Biome.Snow;
             if(k==Koppen.ET)return Biome.Tundra;
-            if(elevation>=2680)return temperature<0?Biome.Snow:Biome.Alpine;
+            if(elevation>=2680&&(!FMath.Finite(warmest)||warmest<=10))return temperature<0?Biome.Snow:Biome.Alpine;
             // Local perennial water can sustain vegetation inside a regional dry climate.
             if(nearFresh&&wetMonths>=8&&gradient<=100&&hand<=100&&temperature>0)return Biome.Wetland;
             if(nearFresh&&wetMonths>=4&&hand<=100&&temperature>0&&DryClimate(k))return gradient<300?Biome.Woodland:Biome.Grassland;
@@ -123,6 +126,7 @@ namespace Orbis.Flat
             // row pass converts each cell to its final lateral offset.
             var channelPhase=f.Meander;
             uint phaseSeed=FMath.Seed(w.Seed)^0xc2b79d35u;
+            uint treeSeed=FMath.Seed(w.Seed)^0x5d2a9b71u;
             for(int k=0;k<w.Count;k++)
             {
                 if((k&4095)==0)cancel.ThrowIfCancellationRequested();
@@ -153,7 +157,13 @@ namespace Orbis.Flat
                     {int n=w.Index(x+ox,y+oy);if(n>=0){lo=Math.Min(lo,w.Elevation[n]);hi=Math.Max(hi,w.Elevation[n]);}}
                     for(int d=0;d<4;d++){int n=w.Neighbor(i,d);if(n>=0)gradient=Math.Max(gradient,Math.Abs(w.Elevation[n]-w.Elevation[i]));}
                     f.Relief[i]=hi-lo;f.Gradient[i]=gradient;
-                    float rain=0,temp=0;for(int m=0;m<12;m++){rain+=w.Precipitation[i*12+m];temp+=w.Temperature[i*12+m]/12f;}
+                    float rain=0,temp=0,coldest=1000,warmest=-1000;
+                    for(int m=0;m<12;m++)
+                    {
+                        float monthly=w.Temperature[i*12+m];
+                        rain+=w.Precipitation[i*12+m];temp+=monthly/12f;
+                        coldest=Math.Min(coldest,monthly);warmest=Math.Max(warmest,monthly);
+                    }
                     f.AnnualRain[i]=rain;f.MeanTemperature[i]=temp;
                     float storage=75,mean=0;int saturated=0;
                     float riparian=0,waterHand=f.Hand[i];
@@ -184,7 +194,7 @@ namespace Orbis.Flat
                     f.Wetness[i]=mean;f.SaturatedMonths[i]=(byte)saturated;
                     bool area=AreaWater(w.Water[i]);
                     f.Forms[i]=ClassifyForm(w.Elevation[i],f.Relief[i],gradient,f.Hand[i],fresh[i]<=1,area,w.WaterLevel[i]>w.Elevation[i]);
-                    Biome biome=ClassifyBiome(w.Climates[i],w.Elevation[i],temp,rain,(byte)saturated,gradient,waterHand,riparian>.18f,area);
+                    Biome biome=ClassifyBiome(w.Climates[i],w.Elevation[i],temp,rain,(byte)saturated,gradient,waterHand,riparian>.18f,area,warmest);
                     if(updateBiomes)
                     {
                         w.Biomes[i]=biome;
@@ -192,16 +202,22 @@ namespace Orbis.Flat
                         w.Fertility[i]=area?0:FMath.Clamp((1-Math.Abs(temp-19)/42)*FMath.Clamp(rain/1100,0,1)*(1-Math.Max(0,w.Elevation[i]-600)/4200f)+bonus,.01f,1);
                     }
                     // Loading v1 keeps the serialized biome/fertility exact until explicit rebuild.
-                    biome=w.Biomes[i];GroundMaterial material=GroundMaterial.Soil;
+                    // Correct the derived surface of old highland snow labels
+                    // using the same growing-season climate as new terrain.
+                    bool legacyHighlandSnow=w.Biomes[i]==Biome.Snow&&w.Elevation[i]>=2680&&warmest>10&&biome!=Biome.Snow;
+                    if(!legacyHighlandSnow)biome=w.Biomes[i];
+                    GroundMaterial material=GroundMaterial.Soil;
                     if(biome==Biome.Snow)material=GroundMaterial.Snow;
                     else if(gradient>=500||biome==Biome.Alpine)material=GroundMaterial.Rock;
                     else if(fresh[i]<=1&&f.Hand[i]<=100)material=gradient<=100&&mean>.65f?GroundMaterial.Silt:GroundMaterial.Gravel;
                     else if(w.CoastDistance[i]==1&&w.Elevation[i]<=100&&gradient<=200)material=GroundMaterial.Sand;
                     else if(biome==Biome.Desert||biome==Biome.Beach)material=GroundMaterial.Sand;
                     f.Materials[i]=material;
-                    f.Vegetation[i]=FlatEcology.Classify(biome,w.Climates[i],temp,rain,gradient);
-                    f.Canopy[i]=FlatEcology.ContinuousCanopy(biome,temp,rain,mean,gradient);
-                    FlatEcology.BuildSeasons(w,f,i);
+                    f.Vegetation[i]=FlatEcology.Classify(biome,w.Climates[i],temp,rain,gradient,warmest);
+                    f.Canopy[i]=FlatEcology.ContinuousCanopy(biome,temp,rain,mean,gradient,warmest);
+                    bool freshBank=fresh[i]<=2&&waterHand<=100;
+                    f.Trees[i]=FlatEcology.SelectTree(f.Vegetation[i],w.Climates[i],coldest,warmest,mean,freshBank,w.CoastDistance[i]<=2,FMath.Unit((uint)i^treeSeed));
+                    FlatEcology.BuildSeasons(w,f,i,coldest);
                     f.Freshness[i]=w.Water[i]==WaterKind.River||w.Water[i]==WaterKind.Lake?1:0;
                     f.Depth[i]=area?Math.Max(.25f,w.WaterLevel[i]-w.Elevation[i]):0;
                     if(w.Water[i]==WaterKind.River)

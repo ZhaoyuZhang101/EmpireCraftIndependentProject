@@ -68,7 +68,7 @@ namespace Orbis.Flat
             MixingTexture=MakeData(world.Width,world.Height,"River meander / sediment / freshwater / links",true);
             GeometryTexture=MakeData(world.Width,world.Height,"Metres / sediment material / soil wetness",true);
             VisualTexture=MakeData(world.Width,world.Height,"Continuous elevation / Euclidean shore / depth / canopy",true);
-            EcologyTexture=Make(world.Width,world.Height,"Vegetation cover / biome / wetness / seeded variation",true);
+            EcologyTexture=Make(world.Width,world.Height,"Vegetation cover / biome and tree / wetness / seeded variation",true);
             Material.SetTexture("_EcologyTex",EcologyTexture);Material.SetFloat("_EcologyReady",1);
             Material.SetTexture("_VisualTex",VisualTexture);Material.SetFloat("_FieldReady",1);
             RefreshVegetationSeasons();SetVegetationDay(world.Day);

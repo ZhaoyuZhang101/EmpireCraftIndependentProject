@@ -52,7 +52,7 @@ namespace Orbis.Flat
         }
         public static int Run()
         {
-            Assertions=0;TestLightning();TestVegetationSeasons();Assertions+=FlatRiverCurveSelfTests.Run();var random=new Random(320912);
+            Assertions=0;TestKoppenVegetation();TestLightning();TestVegetationSeasons();Assertions+=FlatRiverCurveSelfTests.Run();var random=new Random(320912);
             for(int k=0;k<2000;k++)
             {
                 float a=random.Next(-4000,4001),b=random.Next(-4000,4001),c=random.Next(-4000,4001),d=random.Next(-4000,4001);
@@ -194,6 +194,45 @@ namespace Orbis.Flat
             copy.Canopy[0]=0;Near(w.Facts.Canopy[0],.72f,.0001f,"No shared mutable canopy array");
             return Assertions;
         }
+        static void TestKoppenVegetation()
+        {
+            Check(FlatEcology.Classify(Biome.Woodland,Koppen.Dfc,4,1100,60)==VegetationCover.BorealForest,"Subarctic Koppen climate constrains a legacy woodland cover");
+            Check(FlatEcology.Classify(Biome.Woodland,Koppen.EF,-15,200,60)==VegetationCover.Ice,"Ice-cap climate overrides a legacy wooded biome");
+            Check(FlatEcology.Classify(Biome.Woodland,Koppen.ET,0,400,60)==VegetationCover.Tundra,"Tundra climate excludes a legacy forest cover");
+            Check(FlatEcology.SelectTree(VegetationCover.TropicalRainforest,Koppen.Af,24,28,.8f,false,true,.1f)==TreeSpecies.Palm,"Warm wet tropical coasts support palms");
+            Check(FlatEcology.SelectTree(VegetationCover.TropicalRainforest,Koppen.Af,24,28,.8f,false,false,.8f)==TreeSpecies.Tropical,"Inland rainforest retains tropical broadleaf trees");
+            Check(FlatEcology.SelectTree(VegetationCover.DeciduousForest,Koppen.Cfa,1,28,.8f,false,true,.1f)!=TreeSpecies.Palm,"Cold-winter humid subtropics exclude palms");
+            Check(FlatEcology.SelectTree(VegetationCover.DeciduousForest,Koppen.Cfa,8,28,.8f,false,true,.1f)==TreeSpecies.Palm,"Mild-winter humid subtropical coasts can support palms");
+            Check(FlatEcology.SelectTree(VegetationCover.BorealForest,Koppen.Dfc,-25,16,.7f,false,false,.5f)==TreeSpecies.Pine,"Subarctic forests favour conifers");
+            Check(FlatEcology.SelectTree(VegetationCover.BorealForest,Koppen.Dfc,-25,16,.7f,false,false,.95f)==TreeSpecies.Birch,"Boreal forests retain a cold-tolerant deciduous minority");
+            Check(FlatEcology.SelectTree(VegetationCover.DeciduousForest,Koppen.Dfa,-5,24,.8f,false,false,.8f)==TreeSpecies.Broadleaf,"Long warm continental summers support deciduous forest");
+            Check(FlatEcology.SelectTree(VegetationCover.Shrubland,Koppen.Csa,7,27,.4f,false,false,.1f)==TreeSpecies.Pine,"Mediterranean woodland includes drought-adapted pine");
+            Check(FlatEcology.SelectTree(VegetationCover.Savanna,Koppen.Aw,20,30,.35f,false,false,.2f)==TreeSpecies.Acacia,"Seasonally dry tropical savanna supports acacia");
+            Check(FlatEcology.SelectTree(VegetationCover.Marsh,Koppen.BWh,12,32,.9f,true,false,.1f)==TreeSpecies.Palm,"Perennial freshwater supports palms in a warm desert oasis");
+            Check(FlatEcology.SelectTree(VegetationCover.DrySteppe,Koppen.BSk,-5,27,.1f,false,false,.1f)==TreeSpecies.Shrub,"Cold dry steppe retains low shrubs");
+            Check(FlatEcology.SelectTree(VegetationCover.Marsh,Koppen.BSk,-5,27,.9f,true,false,.1f)==TreeSpecies.Willow,"Freshwater sustains cold-tolerant riverbank woodland");
+            for(int climate=1;climate<=30;climate++)for(int variant=0;variant<32;variant++)
+            {
+                var tree=FlatEcology.SelectTree(VegetationCover.TropicalRainforest,(Koppen)climate,-8,25,.8f,true,true,variant/31f);
+                Check(tree!=TreeSpecies.Palm,"Monthly winter temperature excludes frost-sensitive palms in every climate label");
+                Check(FlatEcology.SelectTree(VegetationCover.DeciduousForest,(Koppen)climate,-8,8,.8f,true,true,variant/31f)==TreeSpecies.Shrub,"Thermal treeline excludes tall trees with cold summers");
+            }
+            var highland=new WorldData(64,32,"cold-highland-forest",TerrainPreset.Continents);
+            for(int i=0;i<highland.Count;i++)
+            {
+                highland.Elevation[i]=highland.WaterLevel[i]=2800;highland.Biomes[i]=Biome.Snow;
+                highland.Climates[i]=Koppen.Dfc;highland.DrainOrder[i]=i;
+                for(int month=0;month<12;month++)
+                {highland.Temperature[i*12+month]=-8-22*(float)Math.Cos(month*Math.PI*2/12);highland.Precipitation[i*12+month]=100;}
+            }
+            FlatTerrainAnalysis.Build(highland,default,true,1);
+            Check(highland.Biomes[0]==Biome.Taiga&&highland.Facts.Canopy[0]>.5f,
+                "Cold highland generation uses summer warmth when assigning snow and forest");
+            for(int i=0;i<highland.Count;i++)highland.Biomes[i]=Biome.Snow;
+            var legacy=FlatSave.Decode(FlatSave.Encode(highland));
+            Check(legacy.Biomes[0]==Biome.Snow&&legacy.Facts.Vegetation[0]==VegetationCover.BorealForest&&legacy.Facts.Canopy[0]>.5f,
+                "Legacy highland snow labels rebuild climate-suitable forest presentation");
+        }
         static void TestVegetationSeasons()
         {
             Check(FlatEcology.GrowthTarget(VegetationCover.Grassland,22,1)>.95f,"Warm wet ground supports active growth");
@@ -215,6 +254,18 @@ namespace Orbis.Flat
             }
             int north=world.Index(12,16),south=world.Index(13,16),evergreen=world.Index(20,16);
             world.Biomes[evergreen]=Biome.Taiga;world.Climates[evergreen]=Koppen.Dfc;
+            for(int x=20;x<36;x++)
+            {
+                int tile=world.Index(x,16);world.Biomes[tile]=Biome.Taiga;world.Climates[tile]=Koppen.Dfc;
+                for(int month=0;month<12;month++)world.Temperature[tile*12+month]=-8-22*(float)Math.Cos(month*Math.PI*2/12);
+            }
+            for(int y=18;y<=24;y++)for(int x=38;x<=44;x++)
+            {
+                int tile=world.Index(x,y);world.Elevation[tile]=world.WaterLevel[tile]=2800;
+                world.Biomes[tile]=Biome.Alpine;world.Climates[tile]=Koppen.Cfb;
+                for(int month=0;month<12;month++)
+                {world.Temperature[tile*12+month]=12-4*(float)Math.Cos(month*Math.PI*2/12);world.Precipitation[tile*12+month]=160;}
+            }
             for(int m=0;m<12;m++)world.Temperature[south*12+m]=world.Temperature[north*12+(m+6)%12];
             int dry=world.Index(20,10),bank=world.Index(23,10),lake=world.Index(24,10);
             foreach(int i in new[]{dry,bank,lake})for(int m=0;m<12;m++)
@@ -223,6 +274,10 @@ namespace Orbis.Flat
             world.Water[lake]=WaterKind.Lake;world.WaterLevel[lake]=410;world.Biomes[lake]=Biome.Water;
             FlatTerrainAnalysis.Build(world,default,false,1);
             Check(world.Facts.VegetationSeasonsReady,"Terrain analysis publishes the complete seasonal vegetation cache");
+            Check(world.Facts.Canopy[evergreen]>.5f,"Warm short summers sustain boreal forest despite a subzero annual mean");
+            int highland=world.Index(41,21);
+            Check(world.Facts.Vegetation[highland]==VegetationCover.TemperateRainforest&&world.Facts.Canopy[highland]>.5f,
+                "Humid warm highlands retain forest below their thermal treeline");
             FlatEcology.SampleSeason(world,north,0,out float northWinter,out float winterLeaf);
             FlatEcology.SampleSeason(world,north,180,out float northSummer,out float summerLeaf);
             FlatEcology.SampleSeason(world,south,0,out float southSummer,out _);
@@ -231,6 +286,12 @@ namespace Orbis.Flat
             Check(southSummer>southWinter+.6f,"Season timing follows local climate across hemispheres");
             FlatEcology.SampleSeason(world,evergreen,0,out float winterGrowth,out float evergreenLeaf);
             Check(winterGrowth<.1f&&evergreenLeaf>.7f,"Evergreen canopy survives winter while growth is dormant");
+            int birch=-1;
+            for(int x=20;x<36;x++)if(world.Facts.Trees[world.Index(x,16)]==TreeSpecies.Birch)birch=world.Index(x,16);
+            Check(birch>=0,"Boreal woodland fixture contains a deciduous birch");
+            FlatEcology.SampleSeason(world,birch,0,out _,out float birchWinter);
+            FlatEcology.SampleSeason(world,birch,180,out _,out float birchSummer);
+            Check(birchWinter<.2f&&birchSummer>.8f,"Birch loses winter leaves within the same Koppen forest as evergreen conifers");
             FlatEcology.SampleSeason(world,dry,180,out float dryGrowth,out _);
             FlatEcology.SampleSeason(world,bank,180,out float bankGrowth,out _);
             Check(bankGrowth>dryGrowth+.5f,"Low freshwater banks retain growth during a regional dry season");
@@ -244,12 +305,16 @@ namespace Orbis.Flat
             }
             var first=world.Facts;
             var clone=first.Clone();clone.VegetationSeasons[0]^=255;
+            clone.Trees[0]=clone.Trees[0]==TreeSpecies.Pine?TreeSpecies.Birch:TreeSpecies.Pine;
+            Check(clone.Trees[0]!=first.Trees[0],"Derived tree composition clones use independent storage");
             Check(clone.VegetationSeasonsReady&&clone.VegetationSeasons[0]!=first.VegetationSeasons[0],"Vegetation cache clones retain state with independent storage");
             FlatTerrainAnalysis.Build(world,default,false,4);
+            for(int i=0;i<world.Count;i++)Check(first.Trees[i]==world.Facts.Trees[i],"Koppen tree composition is independent of worker ordering");
             for(int i=0;i<first.VegetationSeasons.Length;i++)
                 Check(first.VegetationSeasons[i]==world.Facts.VegetationSeasons[i],"Seasonal vegetation is independent of worker ordering");
             var loaded=FlatSave.Decode(FlatSave.Encode(world));
             Check(loaded.Facts.VegetationSeasonsReady,"Existing saves rebuild climate-driven vegetation on load");
+            for(int i=0;i<world.Count;i++)Check(first.Trees[i]==loaded.Facts.Trees[i],"Legacy saves rebuild identical Koppen tree composition");
             for(int i=0;i<first.VegetationSeasons.Length;i++)
                 Check(first.VegetationSeasons[i]==loaded.Facts.VegetationSeasons[i],"Saving and loading reproduces seasonal vegetation");
         }

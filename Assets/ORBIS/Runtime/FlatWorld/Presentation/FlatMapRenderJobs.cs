@@ -20,6 +20,7 @@ namespace Orbis.Flat
             public Structure Building;
             public GroundMaterial Material;
             public VegetationCover Vegetation;
+            public TreeSpecies Tree;
             public Landform Form;
             public Color32 Owner;
             public float Temperature,Rain,Fertility,Depth,FlowX,FlowY,HalfWidth,Shore,Sediment,Freshness,Wetness,Hand,Canopy,Meander;
@@ -81,7 +82,7 @@ namespace Orbis.Flat
         {
             var f=source.Facts;int owner=source.Owner[i];
             return new Tile{Elevation=source.Elevation[i],Water=source.Water[i],Biome=source.Biomes[i],Climate=source.Climates[i],Building=source.Buildings[i],
-                Material=f.Materials[i],Vegetation=f.Vegetation[i],Form=f.Forms[i],Owner=owner<0?new Color32(0,0,0,0):FlatPalette.RGB(source.Nations[owner].Color,(byte)(owner+1)),
+                Material=f.Materials[i],Vegetation=f.Vegetation[i],Tree=f.Trees[i],Form=f.Forms[i],Owner=owner<0?new Color32(0,0,0,0):FlatPalette.RGB(source.Nations[owner].Color,(byte)(owner+1)),
                 Temperature=source.Temperature[i*12+month],Rain=source.Precipitation[i*12+month],Fertility=source.Fertility[i],Depth=f.Depth[i],FlowX=f.FlowX[i],FlowY=f.FlowY[i],
                 HalfWidth=f.HalfWidth[i],Shore=f.ShoreDistance[i],Sediment=f.Sediment[i],Freshness=f.Freshness[i],Wetness=f.Wetness[i],Hand=f.Hand[i],Canopy=f.Canopy[i],Meander=f.Meander[i],Connections=f.Connections[i]};
         }
@@ -198,7 +199,7 @@ namespace Orbis.Flat
                 display.a=1;
                 int level=0;if(t.Elevation>0){level=20;for(int b=0;b<Bands.Length;b++)if(t.Elevation<=Bands[b]){level=b+1;break;}}
                 Output[j]=new Pixel{Terrain=terrain,Display=Layer==MapLayer.Natural?terrain:(Color32)display,Owner=t.Owner,
-                    Ecology=new Color32((byte)t.Vegetation,(byte)t.Biome,(byte)Mathf.RoundToInt(Mathf.Clamp01(t.Wetness)*255),(byte)(FMath.Hash((uint)i^Seed)&255)),
+                    Ecology=new Color32((byte)t.Vegetation,(byte)(((int)t.Tree+1)*16+(int)t.Biome),(byte)Mathf.RoundToInt(Mathf.Clamp01(t.Wetness)*255),(byte)(FMath.Hash((uint)i^Seed)&255)),
                     Info=new Color32((byte)level,(byte)t.Water,(byte)t.Building,(byte)t.Climate),Hydro=new Color(t.Depth,t.FlowX,t.FlowY,t.HalfWidth),
                     Mixing=new Color(t.Meander,t.Sediment,t.Freshness,t.Connections),Geometry=new Color(t.Elevation,(float)t.Material,t.Wetness,t.Hand),Visual=new Color(t.Elevation,t.Shore,t.Depth,t.Canopy)};
             }

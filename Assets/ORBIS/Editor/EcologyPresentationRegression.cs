@@ -40,17 +40,19 @@ namespace Orbis.Editor
                         {
                             int tile=(chunk.Y+y)*world.Width+chunk.X+x;
                             var packed=(Color32)ecologyField.GetValue(jobs.GetPixel(chunk.Offset+y*chunk.Width+x));
-                            correct&=packed.r==(byte)world.Facts.Vegetation[tile]&&packed.g==(byte)world.Biomes[tile];
+                            correct&=packed.r==(byte)world.Facts.Vegetation[tile]&&(packed.g&15)==(byte)world.Biomes[tile];
+                            correct&=(packed.g>>4)-1==(int)world.Facts.Trees[tile];
                             correct&=Math.Abs(packed.b/255f-world.Facts.Wetness[tile])<=1f/255;
                             correct&=packed.a==(byte)(FMath.Hash((uint)tile^seed)&255);
                             if(pass==0)first[tile]=packed;
                             else stable&=packed.Equals(first[tile]);
                         }
-                        Check(report,correct,"cover, biome, wetness and seed match authoritative source values, pass="+pass);
+                        Check(report,correct,"cover, biome, climate-suitable tree, wetness and seed match source values, pass="+pass);
                         if(pass>0)Check(report,stable,"visual traits stay stable across overlay and publication changes");
                     }
                 }
                 CheckVegetationSeasons(world,report);
+                CheckTreeMetadata(world,report);
                 byte[] after=FlatSave.Encode(world);
                 bool unchanged=before.Length==after.Length;
                 for(int i=0;unchanged&&i<before.Length;i++)unchanged=before[i]==after[i];
@@ -63,6 +65,40 @@ namespace Orbis.Editor
             }
         }
 
+        static void CheckTreeMetadata(WorldData world,List<string> report)
+        {
+            var root=new GameObject("Koppen tree metadata regression");
+            var material=new Material(AssetDatabase.LoadAssetAtPath<Shader>("Assets/ORBIS/Editor/VegetationArtProbe.shader"));
+            var image=new Texture2D(1,1,TextureFormat.RGBAFloat,false,true);
+            var target=RenderTexture.GetTemporary(1,1,0,RenderTextureFormat.ARGBFloat,RenderTextureReadWrite.Linear);
+            var previous=RenderTexture.active;
+            try
+            {
+                var map=root.AddComponent<FlatMapRenderer>();map.Initialize(world);
+                material.SetTexture("_EcologyTex",map.EcologyTexture);material.SetTexture("_InfoTex",map.InfoTexture);
+                material.SetVector("_MapSize",new Vector4(world.Width,world.Height,1f/world.Width,1f/world.Height));
+                material.SetFloat("_EcologyReady",1);material.SetFloat("_ProbeMode",2);
+                ShaderUtil.CompilePass(material,0,true);
+                foreach(int tile in new[]{0,17,world.Width-1,world.Count/2,world.Count-1})
+                {
+                    material.SetVector("_ProbeRoot",new Vector4(tile%world.Width,tile/world.Width,0,0));
+                    Graphics.Blit(Texture2D.whiteTexture,target,material);RenderTexture.active=target;
+                    image.ReadPixels(new Rect(0,0,1,1),0,0);image.Apply();var value=image.GetPixel(0,0);
+                    Check(report,Mathf.Abs(value.r-(int)world.Facts.Trees[tile])<.001f&&
+                        Mathf.Abs(value.b-value.r)<.001f&&Mathf.Abs(value.g-(int)world.Biomes[tile])<.001f,
+                        "rendered tree selection decodes Koppen-derived type and original biome, tile="+tile);
+                }
+                material.SetFloat("_EcologyReady",0);
+                Graphics.Blit(Texture2D.whiteTexture,target,material);RenderTexture.active=target;
+                image.ReadPixels(new Rect(0,0,1,1),0,0);image.Apply();
+                Check(report,image.GetPixel(0,0).b<0,"older rendering data keeps the climate-based fallback path");
+            }
+            finally
+            {
+                RenderTexture.active=previous;RenderTexture.ReleaseTemporary(target);
+                UnityEngine.Object.DestroyImmediate(image);UnityEngine.Object.DestroyImmediate(material);UnityEngine.Object.DestroyImmediate(root);
+            }
+        }
         static void CheckVegetationSeasons(WorldData world,List<string> report)
         {
             var root=new GameObject("Climate vegetation cache regression");

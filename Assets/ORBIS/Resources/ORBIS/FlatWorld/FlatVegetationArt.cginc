@@ -86,6 +86,11 @@ float PDTreeSpecies(float4 ecology,float4 info,float shore)
     bool tropical=info.a>.5&&info.a<3.5;
     bool wetEdge=ecology.b>.68&&shore>.2;
     if(cover<.5||cover>10.5)return 6;
+    float climate=floor(info.a+.5);
+    bool subarctic=climate==10||climate==13||climate==16||
+        (climate>=17&&climate<=28&&fmod(climate-17,4)>=2);
+    if(subarctic&&cover>4.5&&cover<9.5)return seed<.14?2:1;
+    if(climate>=29)return 6;
     if(cover<1.5)return seed<.52?6:(seed<.76?2:0);
     if(cover<2.5)return 6;
     if(cover<3.5)return seed<.82?4:6;
@@ -106,9 +111,18 @@ float PDTreeSpecies(float4 ecology,float4 info,float shore)
         return seed>.60?1:0;
     }
     if(cover<8.5)return seed<.14?2:1;
-    if(cover<9.5)return seed<(shore>.4?.48:.18)?3:7;
+    if(cover<9.5)
+    {
+        if(!tropical)return seed>.6?1:0;
+        return seed<(shore>.4?.48:.18)?3:7;
+    }
     if(tropical&&seed<.28)return 3;
     return seed<.75?5:6;
+}
+float PDTreeSpecies(float4 ecology,float4 info,float shore,float derivedTree)
+{
+    if(derivedTree>=0)return derivedTree;
+    return PDTreeSpecies(ecology,info,shore);
 }
 
 float4 PDTreeLobe(int index,float type,float seed)

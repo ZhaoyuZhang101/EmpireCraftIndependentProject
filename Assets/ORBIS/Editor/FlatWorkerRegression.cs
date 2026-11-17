@@ -37,6 +37,7 @@ namespace Orbis.Editor
                 w.Elevation[i]=(short)random.Next(-4000,4500);w.Water[i]=(WaterKind)(i%6);w.Biomes[i]=(Biome)(i%12);
                 w.Climates[i]=(Koppen)(i%31);w.Buildings[i]=(Structure)(i%5);w.Owner[i]=i%3==0?0:-1;
                 w.Fertility[i]=(float)random.NextDouble();w.Facts.Materials[i]=(GroundMaterial)(i%6);w.Facts.Forms[i]=(Landform)(i%8);w.Facts.Vegetation[i]=(VegetationCover)(i%14);
+                w.Facts.Trees[i]=(TreeSpecies)(i%8);
                 w.Facts.Depth[i]=(float)random.NextDouble()*2000;w.Facts.ShoreDistance[i]=(i%9)-4;w.Facts.HalfWidth[i]=(float)random.NextDouble()*.4f;
                 w.Facts.Meander[i]=((i%17)-8)*.007f;
                 w.Facts.FlowX[i]=(float)random.NextDouble()*2-1;w.Facts.FlowY[i]=(float)random.NextDouble()*2-1;
@@ -58,6 +59,7 @@ namespace Orbis.Editor
             var f=w.Facts;var terrain=FlatPalette.Terrain(w,i);
             return new FlatMapRenderJobs.Pixel{Terrain=terrain,Display=layer==MapLayer.Natural?terrain:FlatPalette.Display(w,i,layer),
                 Owner=w.Owner[i]<0?new Color32(0,0,0,0):FlatPalette.RGB(w.Nations[w.Owner[i]].Color,(byte)(w.Owner[i]+1)),
+                Ecology=new Color32((byte)f.Vegetation[i],(byte)(((int)f.Trees[i]+1)*16+(int)w.Biomes[i]),(byte)Mathf.RoundToInt(Mathf.Clamp01(f.Wetness[i])*255),(byte)(FMath.Hash((uint)i^FMath.Seed(w.Seed))&255)),
                 Info=new Color32((byte)HeightBands.Level(w.Elevation[i]),(byte)w.Water[i],(byte)w.Buildings[i],(byte)w.Climates[i]),
                 Hydro=new Color(f.Depth[i],f.FlowX[i],f.FlowY[i],f.HalfWidth[i]),Mixing=new Color(f.Meander[i],f.Sediment[i],f.Freshness[i],f.Connections[i]),
                 Geometry=new Color(w.Elevation[i],(float)f.Materials[i],f.Wetness[i],f.Hand[i]),Visual=new Color(w.Elevation[i],f.ShoreDistance[i],f.Depth[i],f.Canopy[i])};
@@ -75,7 +77,7 @@ namespace Orbis.Editor
                     {
                         int i=(c.Y+y)*w.Width+c.X+x;var actual=jobs.GetPixel(c.Offset+y*c.Width+x);var expected=Serial(w,i,layer);
                         Same(actual.Terrain,expected.Terrain,"Terrain "+layer+" "+i);SameDisplay(actual.Display,expected.Display,"Display "+layer+" "+i);
-                        Same(actual.Owner,expected.Owner,"Owner");Same(actual.Info,expected.Info,"Info");Same(actual.Hydro,expected.Hydro,"Hydro");
+                        Same(actual.Owner,expected.Owner,"Owner");Same(actual.Info,expected.Info,"Info");Same(actual.Ecology,expected.Ecology,"Ecology and tree");Same(actual.Hydro,expected.Hydro,"Hydro");
                         Same(actual.Mixing,expected.Mixing,"Mixing");Same(actual.Geometry,expected.Geometry,"Geometry");Same(actual.Visual,expected.Visual,"Visual");
                     }
                 }
