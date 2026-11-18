@@ -10,6 +10,8 @@ Shader "ORBIS/FlatWorld/WildlifeActors"
   _InfoTex("Terrain objects",2D)="black"{}
   _EcologyTex("Vegetation species",2D)="black"{}
   _VegetationSeasonTex("Seasonal foliage",2D)="white"{}
+  [HideInInspector] _ClimateYearHeat("Regional temperature anomaly",Vector)=(0,0,0,0)
+  [HideInInspector] _ClimateYearRain("Regional rainfall anomaly",Vector)=(0,0,0,0)
  }
  SubShader
  {

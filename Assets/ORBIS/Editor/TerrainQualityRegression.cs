@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.IO;
+using Orbis.Flat;
 using UnityEditor;
 using UnityEngine;
 
@@ -175,6 +176,8 @@ namespace Orbis.Editor
      field.SetPixels(pixels);field.Apply();densityBoundary.Add(sample());
     }
     Check(report,Difference(densityBoundary[0],densityBoundary[1])<.01,"contour density blends continuously across screen-space spacing thresholds");
+    CheckNaturalPalette(report);
+    CheckLandLighting(report,material,field,pixels,sample);
     if(report.Exists(line=>line.StartsWith("FAIL")))throw new Exception(string.Join("\n",report));
    }
    finally
@@ -184,6 +187,90 @@ namespace Orbis.Editor
     RenderTexture.active=previous;ShaderUtil.allowAsyncCompilation=async;RenderTexture.ReleaseTemporary(target);
     UnityEngine.Object.DestroyImmediate(material);UnityEngine.Object.DestroyImmediate(field);UnityEngine.Object.DestroyImmediate(image);
    }
+  }
+
+  static void CheckNaturalPalette(List<string> report)
+  {
+   var world=new WorldData(64,32,"natural land palette",TerrainPreset.Continents);
+   world.Facts=new FlatTerrainFacts(world.Count);
+   Color32 Land(Biome biome,VegetationCover cover,GroundMaterial material,float wetness)
+   {
+    world.Biomes[0]=biome;world.Facts.Vegetation[0]=cover;world.Facts.Materials[0]=material;world.Facts.Wetness[0]=wetness;
+    return FlatPalette.Terrain(world,0);
+   }
+   var sand=Land(Biome.Desert,VegetationCover.Bare,GroundMaterial.Sand,.12f);
+   var steppe=Land(Biome.Steppe,VegetationCover.DrySteppe,GroundMaterial.Soil,.21f);
+   var grass=Land(Biome.Grassland,VegetationCover.Grassland,GroundMaterial.Soil,.64f);
+   Check(report,sand.r-sand.g>=17&&steppe.g>=steppe.r&&grass.g-grass.r>=14,
+         "sand, dry steppe and moist grassland have distinct natural hues: "+sand+", "+steppe+", "+grass);
+   var soil=Land(Biome.Grassland,VegetationCover.Bare,GroundMaterial.Soil,.12f);
+   var damp=Land(Biome.Grassland,VegetationCover.Bare,GroundMaterial.Soil,.8f);
+   var silt=Land(Biome.Grassland,VegetationCover.Bare,GroundMaterial.Silt,.85f);
+   var rock=Land(Biome.Grassland,VegetationCover.Bare,GroundMaterial.Rock,.25f);
+   var marsh=Land(Biome.Wetland,VegetationCover.Marsh,GroundMaterial.Silt,.86f);
+   Check(report,soil.r>=damp.r+10&&soil.g>=damp.g+5,"soil darkens with its measured wetness");
+   Check(report,Math.Abs(rock.r-rock.b)<15&&soil.r>rock.r+8&&silt.r-silt.b>12&&marsh.g>marsh.r+12&&marsh.b>silt.b+8,
+         "bare stone, silt, soil and marsh carry different reflectance at the same elevation");
+   var snow=Land(Biome.Snow,VegetationCover.Ice,GroundMaterial.Snow,.3f);
+   Check(report,snow.r==221&&snow.g==228&&snow.b==220,"permanent snow retains its source palette");
+  }
+
+  static void CheckLandLighting(List<string> report,Material material,Texture2D field,Color[] pixels,Func<Color[]> sample)
+  {
+   material.SetFloat("_ProbeMode",7);material.SetFloat("_ProbePixels",48);
+   material.SetVector("_ProbeOrigin",new Vector4(7.49f,3.49f,0,0));
+   material.SetVector("_ProbeSpan",new Vector4(.02f,.02f,0,0));
+   material.SetVector("_ProbeView",new Vector4(0,0,1,0));
+   material.SetVector("_ProbeGround",new Vector4(0,.20f,.1f,1));
+   var east=new Vector4(.8660254f,0,.5f,0);
+   var west=new Vector4(-east.x,0,east.z,0);
+   void Plane(float slope)
+   {
+    for(int y=0;y<8;y++)for(int x=0;x<16;x++)pixels[y*16+x]=new Color(1200+(x-7)*slope,-3,0,.1f);
+    field.SetPixels(pixels);field.Apply();
+   }
+   double FaceDifference(Vector4 sun,Vector4 moon)
+   {
+    material.SetVector("_ProbeSun",sun);material.SetVector("_ProbeMoon",moon);
+    Plane(120);double risingEast=Mean(sample());
+    Plane(-120);return Mean(sample())-risingEast;
+   }
+   double eastSun=FaceDifference(east,Vector4.zero),westSun=FaceDifference(west,Vector4.zero);
+   Check(report,eastSun>.15&&westSun<-.15,"opposite slopes exchange sunlight as solar bearing reverses; "+eastSun+", "+westSun);
+   var night=new Vector4(0,0,-1,0);var moon=east;moon.w=.12f;
+   double full=FaceDifference(night,moon);moon.w=0;double dark=FaceDifference(night,moon);
+   Check(report,full>.035&&Math.Abs(dark)<.012,"moon phase controls directional terrain light; "+full+", "+dark);
+   material.SetVector("_ProbeGround",new Vector4(0,.20f,.1f,0));
+   Check(report,Math.Abs(FaceDifference(east,Vector4.zero)-FaceDifference(west,Vector4.zero))<.002,
+         "cartographic relief remains stable with the day-night cycle switched off");
+   Plane(0);
+   material.SetVector("_ProbeGround",new Vector4(2,.92f,.05f,1));
+   material.SetVector("_ProbeSun",new Vector4(.5f,0,.8660254f,0));
+   material.SetVector("_ProbeView",new Vector4(-.5f,0,.8660254f,0));
+   float wetSheen=sample()[0].a;
+   material.SetVector("_ProbeView",east);float offAxis=sample()[0].a;
+   material.SetVector("_ProbeGround",new Vector4(2,.12f,.05f,1));
+   Check(report,wetSheen>.015f&&wetSheen<=.0381f&&offAxis<wetSheen*.2f&&sample()[0].a==0,
+         "wet silt has a bounded reflection that fades off axis and on dry ground; "+wetSheen+", "+offAxis);
+   material.SetFloat("_ProbeMode",9);material.SetVector("_ProbeSpan",new Vector4(2,1,0,0));
+   material.SetVector("_ProbeGround",new Vector4(1,.12f,.10f,1));var sand=sample();
+   material.SetVector("_ProbeGround",new Vector4(0,.12f,.10f,1));var earth=sample();
+   Check(report,Difference(sand,earth)>.002,"fine sand carries different microstructure from bare soil at close range");
+   material.SetFloat("_ProbePixels",2);earth=sample();
+   material.SetVector("_ProbeGround",new Vector4(1,.12f,.10f,1));
+   Check(report,Difference(earth,sample())<.00001,"subpixel sand ripples filter out at map distance");
+   // Adjacent sand and rock have very different IDs. Neither side should
+   // paint an entire square or create the intervening gravel category.
+   for(int y=0;y<8;y++)for(int x=0;x<16;x++)
+    pixels[y*16+x]=new Color(400,x<8?1:4,x<8?.2f:.8f,0);
+   field.SetPixels(pixels);field.Apply();
+   material.SetTexture("_ProbeGeo",field);material.SetFloat("_ProbeMode",10);material.SetFloat("_ProbePixels",48);
+   material.SetVector("_ProbeSpan",new Vector4(.00001f,.00001f,0,0));
+   material.SetVector("_ProbeOrigin",new Vector4(7.9998f,3.49f,0,0));var westEdge=sample();
+   material.SetVector("_ProbeOrigin",new Vector4(8.0002f,3.49f,0,0));var eastEdge=sample();
+   Check(report,Difference(westEdge,eastEdge)<.002&&Mathf.Abs(westEdge[0].r-.5f)<.001f&&westEdge[0].g==0
+         &&Mathf.Abs(eastEdge[0].a-.5f)<.001f,
+         "sand grain, wetness and retention meet continuously across a sand-rock cell boundary without false gravel");
   }
 
   static void Check(List<string> report,bool pass,string message){report.Add((pass?"PASS ":"FAIL ")+message);}

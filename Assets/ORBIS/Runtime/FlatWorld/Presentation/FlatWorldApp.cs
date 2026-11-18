@@ -27,10 +27,10 @@ namespace Orbis.Flat
         VisualElement root,viewport;Label info,stats,notice,nations;Button modeButton,pauseButton,speedButton;
         TextField seedField,pathField;DropdownField sizeField,presetField,layerField,toolField,heightField,brushField;
         Toggle gridToggle,cloudToggle,contourToggle;
-        DropdownField cloudQuality;Label legend,waterStatus,skyStatus;
+        DropdownField cloudQuality,climateYearField;Label legend,waterStatus,skyStatus;
         readonly string[] tabNames={"World","Terrain","Civs","Files"};
         Task<WorldData> pending;CancellationTokenSource cancellation;bool seedOnInstall,paused,globeMode,dragging,moved;
-        int selected=-1,activeNation=-1,pointer=-1,lastMonth=-1;float pixelsPerTile=2,speed=1,hudAge;
+        int selected=-1,activeNation=-1,pointer=-1,lastClimatePeriod=-1;float pixelsPerTile=2,speed=1,hudAge;
         Vector2 pan,lastPointer,downPointer;string status="准备世界数据…";int[] route=new int[0];
         public bool Busy { get { return pending!=null; } }
         public FlatScrollNavigator Navigation { get { return navigation; } }
@@ -67,7 +67,13 @@ namespace Orbis.Flat
             sizeField=root.Q<DropdownField>("size");sizeField.choices=new List<string>{"256 × 128","512 × 256","1024 × 512"};sizeField.index=initialWidth>=1024?2:initialWidth>=512?1:0;
             presetField=root.Q<DropdownField>("preset");presetField.choices=new List<string>{"大陆与群山","群岛","超级大陆","内海世界"};presetField.index=0;
             layerField=root.Q<DropdownField>("layer");layerField.choices=new List<string>{"自然地表","文明版图","20 档高度","Köppen 柯本气候","本月温度","本月降水","海水与淡水","土地肥力","地貌 / 丘陵高原","地表材料 / 沙泥砾岩","土壤桶湿度","河流 / 河口悬沙","生态植被 / 14 类"};layerField.index=0;
-            layerField.RegisterValueChangedCallback(e=>{if(map){map.SetLayer((MapLayer)layerField.index);UpdateHUD();}});
+            climateYearField=root.Q<DropdownField>("climateYear");climateYearField.choices=new List<string>{"今年","明年","后年"};climateYearField.index=0;
+            climateYearField.RegisterValueChangedCallback(e=>{if(map){map.SetClimateYearOffset(climateYearField.index);UpdateHUD();}});
+            layerField.RegisterValueChangedCallback(e=>{
+                var layer=(MapLayer)layerField.index;
+                climateYearField.EnableInClassList("is-hidden",layer!=MapLayer.Temperature&&layer!=MapLayer.Rain);
+                if(map){map.SetLayer(layer);UpdateHUD();}
+            });
             toolField=root.Q<DropdownField>("tool");toolField.choices=new List<string>{"选择 Tile / Zone","建立文明","相邻 Zone 扩张","预设高度笔刷","修建农田","修建道路","修建桥梁","路径查看（首都出发）"};toolField.index=0;
             heightField=root.Q<DropdownField>("height");heightField.choices=new List<string>{"深海床 −2200 m","中海床 −600 m","浅海床 −80 m"};
             for(int i=1;i<=20;i++)heightField.choices.Add("L"+i.ToString("00")+" · "+HeightBands.Preset(i)+" m");heightField.index=3;
@@ -211,6 +217,7 @@ namespace Orbis.Flat
             {
                 next.Initialize(world);next.GetComponent<MeshRenderer>().enabled=false;
                 next.SetLayer((MapLayer)Mathf.Clamp(layerField.index,0,(int)MapLayer.Vegetation));
+                next.SetClimateYearOffset(climateYearField.index);
                 nextNav.Initialize(world,viewCamera,next);
                 nextGlobe.Initialize(world,viewCamera,next,true);nextGlobe.PrepareScroll();
                 nextWildlife.Initialize(world,nextNav,next,viewCamera);
@@ -229,7 +236,7 @@ namespace Orbis.Flat
             // Keep the provider active so Unity releases its native/GPU caches on destruction.
             // The shared lattice owns the visible terrain, and the provider's quad stays hidden.
             navObject.SetActive(true);globeObject.SetActive(true);
-            selected=-1;activeNation=world.Nations.Count>0?0:-1;globeMode=true;lastMonth=world.Month;
+            selected=-1;activeNation=world.Nations.Count>0?0:-1;globeMode=true;lastClimatePeriod=(int)Math.Floor(world.Day/30);
             seedField.SetValueWithoutNotify(world.Seed);presetField.SetValueWithoutNotify(presetField.choices[(int)world.Preset]);
             if(wasFlat)
             {
@@ -249,7 +256,8 @@ namespace Orbis.Flat
             if(World==null||!navigation)return;
             float realDt=Mathf.Max(0,Time.unscaledDeltaTime),dt=Mathf.Min(realDt,.10f);bool animate=!paused&&!Busy;
             solarClock.Advance(realDt,speed,120f,!animate,simulationStep);
-            if(World.Month!=lastMonth){lastMonth=World.Month;if(map.Layer==MapLayer.Temperature||map.Layer==MapLayer.Rain)World.MarkAllDirty();}
+            int period=(int)Math.Floor(World.Day/30);
+            if(period!=lastClimatePeriod){lastClimatePeriod=period;if(map.Layer==MapLayer.Temperature||map.Layer==MapLayer.Rain)World.MarkAllDirty();}
             map.Flush();if(animate)visualClock+=dt;
             UpdateViewportRect();navigation.Tick(dt,CalendarDay);
             globeMode=!navigation.IsFlat;pixelsPerTile=navigation.PixelsPerTile;pan=navigation.CenterTile;
@@ -374,10 +382,19 @@ namespace Orbis.Flat
             legend.text=FlatPalette.Legend(map.Layer);waterStatus.text=globeMode?"摄影模式不运行局部 SWE。":map.LocalWater.Status;
             if(selected<0){info.text="点击地图选择一个 Tile。\n\n每个 Zone = 4×4 = 16 个真实 Tile。\n海拔、生物群系、水体、气候与归属分别存储。";return;}
             int i=selected,zone=World.ZoneOf(i),level=HeightBands.Level(World.Elevation[i]);string owner=World.Owner[i]<0?"无主":World.Nations[World.Owner[i]].Name;
-            info.text="TILE "+i+"   ["+(i%World.Width)+", "+(i/World.Width)+"]\nZONE "+zone+" · 内部格 "+(i%World.Width%4)+","+(i/World.Width%4)+"\n\n"+World.Elevation[i]+" m · "+(level>0?"L"+level.ToString("00"):"海平面以下")+"\n水体："+WaterName(World.Water[i])+"\n地表："+BiomeName(World.Biomes[i])+"\n柯本："+World.Climates[i]+"\n本月温度："+World.Temperature[i*12+World.Month].ToString("F1")+" °C\n本月降水："+World.Precipitation[i*12+World.Month].ToString("F0")+" mm\n肥力："+(World.Fertility[i]*100).ToString("F0")+"%\n归属："+owner+"\n人口："+World.Population[i].ToString("F0")+"\n设施："+StructureName(World.Buildings[i])+"\n下游 Tile："+World.Downstream[i];
+            int forecast=map.Layer==MapLayer.Temperature||map.Layer==MapLayer.Rain?map.ClimateYearOffset:0;
+            double monthStart=Math.Floor(World.Day/30)*30+360*forecast;
+            var climate=FlatClimateYear.At(FMath.Seed(World.Seed),monthStart);
+            climate.AtTile(i,World.Width,World.Height,out float temperatureOffset,out float rainOffset);
+            float currentTemperature=World.Temperature[i*12+World.Month]+temperatureOffset;
+            float currentRain=World.Precipitation[i*12+World.Month]*(1+rainOffset);
+            string climateDate=forecast==0?"本月":("第 "+((int)(monthStart/360)+1)+" 年同月");
+            info.text="TILE "+i+"   ["+(i%World.Width)+", "+(i/World.Width)+"]\nZONE "+zone+" · 内部格 "+(i%World.Width%4)+","+(i/World.Width%4)+"\n\n"+World.Elevation[i]+" m · "+(level>0?"L"+level.ToString("00"):"海平面以下")+"\n水体："+WaterName(World.Water[i])+"\n地表："+BiomeName(World.Biomes[i])+"\n柯本："+World.Climates[i]+"\n"+climateDate+"温度："+currentTemperature.ToString("F1")+" °C\n"+climateDate+"降水："+currentRain.ToString("F0")+" mm\n较常年同月："+temperatureOffset.ToString("+0.0;-0.0;0.0")+" °C · 降水 "+(100*rainOffset).ToString("+0;-0;0")+"%\n肥力："+(World.Fertility[i]*100).ToString("F0")+"%\n归属："+owner+"\n人口："+World.Population[i].ToString("F0")+"\n设施："+StructureName(World.Buildings[i])+"\n下游 Tile："+World.Downstream[i];
             var facts=World.Facts;
-            FlatEcology.SampleSeason(World,i,CalendarDay,out float vegetationGrowth,out float foliage);
+            FlatEcology.SampleSurfaceSeason(World,i,CalendarDay,out float vegetationGrowth,out float foliage,out float seasonalSnow,out float soilMoisture);
             info.text+="\n当前生长活性："+(vegetationGrowth*100).ToString("F0")+"% · 叶量："+(foliage*100).ToString("F0")+"%";
+            if(!FlatTerrainAnalysis.AreaWater(World.Water[i]))
+                info.text+="\n当前土壤水分："+soilMoisture.ToString("P0")+" · 季节积雪："+seasonalSnow.ToString("P0");
             if(facts.Canopy[i]>.20f&&facts.Vegetation[i]!=VegetationCover.Bare&&!FlatTerrainAnalysis.AreaWater(World.Water[i]))
                 info.text+="\n当地适生木本："+FlatPalette.TreeNames[(int)facts.Trees[i]];
             info.text+="\n植被："+FlatPalette.VegetationNames[(int)facts.Vegetation[i]]+"\n河宽（显示估计）："+(facts.HalfWidth[i]*2).ToString("F2")+" Tile"+"\n\n地貌："+FlatPalette.LandformNames[(int)facts.Forms[i]]+"\n材料："+FlatPalette.MaterialNames[(int)facts.Materials[i]]+

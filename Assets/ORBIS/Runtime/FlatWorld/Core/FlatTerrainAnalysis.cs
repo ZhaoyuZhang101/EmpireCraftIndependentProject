@@ -116,7 +116,7 @@ namespace Orbis.Flat
         }
         public static void Build(WorldData w,CancellationToken cancel,bool updateBiomes,int workers=0)
         {
-            var f=new FlatTerrainFacts(w.Count){VegetationSeasons=new byte[(w.Width+2)*(w.Height+2)*24]};
+            var f=new FlatTerrainFacts(w.Count){VegetationSeasons=new byte[(w.Width+2)*(w.Height+2)*12*4]};
             float meanderSeed=FMath.Unit(FMath.Seed(w.Seed))*6.2831853f;
             ushort[] fresh=Distance(w,i=>w.Water[i]==WaterKind.River||w.Water[i]==WaterKind.Lake,cancel);
             Array.Copy(fresh,f.FreshDistance,w.Count);
@@ -190,7 +190,7 @@ namespace Orbis.Flat
                             mean+=storage/1800f;if(storage>=120)saturated++;
                             float warmth=Math.Max(0,w.Temperature[i*12+m%12]-5);
                             growingSoil+=storage/150*warmth;growingWeight+=warmth;
-                            f.VegetationSeasons[FlatEcology.SeasonOffset(w,i,m%12)]=(byte)(storage/150*255+.5f);
+                            f.VegetationSeasons[FlatEcology.SeasonOffset(w,i,m%12)+3]=(byte)(storage/150*255+.5f);
                         }
                     }
                     f.Wetness[i]=mean;f.SaturatedMonths[i]=(byte)saturated;

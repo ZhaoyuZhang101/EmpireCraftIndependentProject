@@ -10,8 +10,32 @@ Shader "Hidden/ORBIS/WaterCoastProbe"
  #include "../Resources/ORBIS/FlatWorld/Water/FlatWater.cginc"
  sampler2D _InfoTex;
  float _ProbeMode;
+ float4 _CoastBasin,_CoastCondition,_CoastOrigin,_BedSun;
  float4 frag(v2f_img i):SV_Target
  {
+  if(_ProbeMode>5.5)
+  {
+   float2 cell=_CoastOrigin.xy+float2(i.uv.x*1.4,(i.uv.y-.5)*.70);
+   if(_ProbeMode>7.5&&_ProbeMode<8.5)
+   {
+    float metres;
+    float relief=FlatSampleSeabed(cell,normalize(_BedSun.xyz),metres);
+    return float4(relief,metres,0,1);
+   }
+   float shore=cell.y-128;
+   float4 field=float4(-shore*_CoastCondition.x,shore,_CoastBasin.r,0);
+   FlatCoastalSediment coast=FlatCoastAt(cell,field,_CoastBasin,_CoastCondition.w,-shore+_CoastCondition.z,
+                                        _CoastCondition.y,_WaterClock);
+   if(_ProbeMode>8.5)
+   {
+    FlatWaterSurfaceData surface;
+    float3 colour=FlatWaterShade(cell,float4(_CoastBasin.r,0,0,0),float4(0,0,0,0),field,float3(.3,.3,.2),
+     float3(1,1,1),float3(0,0,1),normalize(float3(-.4,.45,.8)),0,_CoastBasin.a,-shore,coast,surface);
+    return float4(colour,coast.coverage);
+   }
+   if(_ProbeMode>6.5)return float4(coast.coverage,coast.mud,coast.bar,coast.shore);
+   return float4(coast.albedo,coast.coverage);
+  }
   if(_ProbeMode>4.5)
   {
    float channel=i.uv.x<.5?0:.12;

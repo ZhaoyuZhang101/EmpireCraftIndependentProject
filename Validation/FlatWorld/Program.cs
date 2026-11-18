@@ -6,7 +6,15 @@ public static class Program {
   catch(Exception e) { Console.Error.WriteLine(FlatSelfTests.LastOperation+"\n"+e); return 1; }
  }
  static void EnvironmentRegression() {
+  ClimatologyRegression.MaritimeRainfall();
+  ClimatologyRegression.FreshwaterBasin();
+  ClimatologyRegression.FullGridCoverage();
+  ClimatologyRegression.GridScale();
+  ClimatologyRegression.EquatorialWinds();
+  ClimatologyRegression.WeatherYears();
+  ClimatologyRegression.RainShadow();
   var w=FlatAtlasTerrain.Read(System.IO.File.ReadAllBytes("Assets/ORBIS/Resources/ORBIS/WorldAtlas/Default.bytes"),"ORBIS-2D-2026",default);
+  ClimatologyRegression.TerrainPresets(w);
   var counts=new int[256];int land=0;double rain=0;int ocean=0,deepFloor=0;
   for(int i=0;i<w.Count;i++){if(!FlatTerrainAnalysis.AreaWater(w.Water[i])){counts[(int)w.Biomes[i]]++;land++;rain+=w.Facts.AnnualRain[i];}else if(FlatTerrainAnalysis.Ocean(w.Water[i])){ocean++;if(w.Elevation[i]<=-3999)deepFloor++;}}
   foreach(Biome b in Enum.GetValues(typeof(Biome)))if(counts[(int)b]>0)Console.WriteLine(b+" "+counts[(int)b]+" ("+(100.0*counts[(int)b]/land).ToString("F1")+"%)");

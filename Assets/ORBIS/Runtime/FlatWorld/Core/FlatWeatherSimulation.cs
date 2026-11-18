@@ -13,19 +13,24 @@ namespace Orbis.Flat
     {
         public const int Width=64,Height=32;
         public readonly OrbisAtmosphereCore Model;
-        readonly float[] temperature,rain,humidity,east,north,ground,soil,regionalSea;
+        readonly float[] temperature,rain,humidity,east,north,ground,soil,regionalLand;
+        readonly float[] currentRain;
+        readonly double[] seaLevelTemperature,zonalTemperature=new double[Height];
+        readonly uint climateSeed;
         readonly bool[] water;readonly AtmosVector[] tangentEast,tangentNorth;
         public FlatWeatherSimulation(WorldData world,int workers=0)
         {
             int count=Width*Height;var p=new AtmosVector[count];var area=new double[count];var links=new List<AtmosEdge>();
+            climateSeed=FMath.Seed(world.Seed);currentRain=new float[count];seaLevelTemperature=new double[count];
             temperature=new float[count*12];rain=new float[count*12];humidity=new float[count*12];east=new float[count*12];north=new float[count*12];
-            ground=new float[count];soil=new float[count];regionalSea=new float[count];water=new bool[count];tangentEast=new AtmosVector[count];tangentNorth=new AtmosVector[count];
+            ground=new float[count];soil=new float[count];var land=new float[count];water=new bool[count];tangentEast=new AtmosVector[count];tangentNorth=new AtmosVector[count];
             for(int y=0;y<Height;y++)for(int x=0;x<Width;x++)
             {
                 int i=y*Width+x;double u=(x+.5)/Width,v=(y+.5)/Height,lon=(u-.5)*Math.PI*2,lat=(v-.5)*Math.PI;
                 p[i]=Direction(u,v);area[i]=Math.PI*2/Width*(Math.Sin((v-.5+.5/Height)*Math.PI)-Math.Sin((v-.5-.5/Height)*Math.PI));
                 tangentEast[i]=new AtmosVector(Math.Cos(lon),0,-Math.Sin(lon));tangentNorth[i]=AtmosVector.Cross(p[i],tangentEast[i]);
-                int cell=world.Index((int)(u*world.Width),(int)(v*world.Height));ground[i]=Math.Max(0,(int)world.Elevation[cell]);water[i]=FlatTerrainAnalysis.AreaWater(world.Water[cell]);
+                int cell=world.Index((int)(u*world.Width),(int)(v*world.Height));ground[i]=FlatClimate.SurfaceHeight(world,cell);water[i]=FlatTerrainAnalysis.AreaWater(world.Water[cell]);
+                land[i]=water[i]?0:FlatMoisture.Continentality(world.CoastDistance[cell],world.Width);
                 soil[i]=world.Facts==null?.5f:FMath.Clamp(world.Facts.Wetness[cell],0,1);
                 for(int m=0;m<12;m++)
                 {
@@ -34,12 +39,7 @@ namespace Orbis.Flat
                     east[j]=s==null?0:s.Sample(s.East,(float)u,(float)v,m);north[j]=s==null?0:s.Sample(s.North,(float)u,(float)v,m);
                 }
             }
-            for(int y=0;y<Height;y++)for(int x=0;x<Width;x++)
-            {
-                int i=y*Width+x;float nearby=0;
-                for(int dy=-2;dy<=2;dy++)for(int dx=-2;dx<=2;dx++)nearby+=water[Math.Max(0,Math.Min(Height-1,y+dy))*Width+(x+dx+Width)%Width]?1:0;
-                regionalSea[i]=FMath.Lerp(water[i]?1:0,nearby/25,.55f);
-            }
+            regionalLand=FlatMoisture.RegionalContinentality(land,Width,Height);
             for(int y=0;y<Height;y++)for(int x=0;x<Width;x++)
             {
                 int a=y*Width+x,b=y*Width+(x+1)%Width;
@@ -68,31 +68,35 @@ namespace Orbis.Flat
         void Forcing(double day)
         {
             double season=((day%360)+360)%360;int m=(int)(season/30),next=(m+1)%12;float f=(float)(season/30-m);
-            var zonalTemp=new double[Height];
-            for(int y=0;y<Height;y++)for(int x=0;x<Width;x++)
+            var year=FlatClimateYear.At(climateSeed,day);
+            for(int y=0;y<Height;y++)
             {
-                int i=y*Width+x,a=i*12+m,b=i*12+next;
-                zonalTemp[y]+=FMath.Lerp(temperature[a],temperature[b],f)+ground[i]*.0065;
+                double row=0;
+                for(int x=0;x<Width;x++)
+                {
+                    int i=y*Width+x,a=i*12+m,b=i*12+next;var p=Model.Position[i];
+                    year.Offsets((float)p.X,(float)p.Y,(float)p.Z,out float degrees,out float rainFraction);
+                    currentRain[i]=FMath.Lerp(rain[a],rain[b],f)*(1+rainFraction);
+                    seaLevelTemperature[i]=FMath.Lerp(temperature[a],temperature[b],f)+degrees+ground[i]*.0065;
+                    row+=seaLevelTemperature[i];
+                }
+                zonalTemperature[y]=row/Width;
             }
-            for(int y=0;y<Height;y++)zonalTemp[y]/=Width;
             for(int i=0;i<Model.Count;i++)
             {
-                int a=i*12+m,b=i*12+next;double temp=FMath.Lerp(temperature[a],temperature[b],f),rainfall=FMath.Lerp(rain[a],rain[b],f);
+                int a=i*12+m,b=i*12+next;double temp=seaLevelTemperature[i]-ground[i]*.0065;
                 double lat=Math.Asin(Model.Position[i].Y)*180/Math.PI;
-                double thermal=temp+ground[i]*.0065-zonalTemp[i/Width];
-                double itcz=FlatMoisture.ConvergenceLatitude((float)(season/30),regionalSea[i],(float)thermal);
-                double subtropical=regionalSea[i]>0.5?28:31;
+                double thermal=seaLevelTemperature[i]-zonalTemperature[i/Width];
+                double itcz=FlatMoisture.ConvergenceLatitude((float)(season/30),1-regionalLand[i],(float)thermal);
+                double subtropical=28+3*regionalLand[i];
                 double pressure=1013+7*Math.Exp(-Math.Pow((Math.Abs(lat)-subtropical)/12,2))
                     -6*Math.Exp(-Math.Pow((lat-itcz)/14,2))-Math.Max(-4,Math.Min(4,thermal))*.30;
                 int x=i%Width,y=i/Width,west=y*Width+(x+Width-1)%Width,eastCell=y*Width+(x+1)%Width;
                 int southCell=Math.Max(0,y-1)*Width+x,northCell=Math.Min(Height-1,y+1)*Width+x;
-                double westT=FMath.Lerp(temperature[west*12+m],temperature[west*12+next],f)+ground[west]*.0065;
-                double eastT=FMath.Lerp(temperature[eastCell*12+m],temperature[eastCell*12+next],f)+ground[eastCell]*.0065;
-                double southT=FMath.Lerp(temperature[southCell*12+m],temperature[southCell*12+next],f)+ground[southCell]*.0065;
-                double northT=FMath.Lerp(temperature[northCell*12+m],temperature[northCell*12+next],f)+ground[northCell]*.0065;
-                double gradient=Math.Sqrt(Math.Pow((eastT-westT)*.5,2)+Math.Pow((northT-southT)*.5,2));
+                double gradient=Math.Sqrt(Math.Pow((seaLevelTemperature[eastCell]-seaLevelTemperature[west])*.5,2)
+                    +Math.Pow((seaLevelTemperature[northCell]-seaLevelTemperature[southCell])*.5,2));
                 double relativeHumidity=FMath.Lerp(humidity[a],humidity[b],f);
-                double lift=SynopticLift(rainfall,relativeHumidity,temp,water[i],gradient);
+                double lift=SynopticLift(currentRain[i],relativeHumidity,temp,water[i],gradient);
                 var velocity=tangentEast[i]*FMath.Lerp(east[a],east[b],f)+tangentNorth[i]*FMath.Lerp(north[a],north[b],f);
                 double daylight=Math.Max(0,Math.Cos((day%1)*Math.PI*2+(i%Width+.5)*Math.PI*2/Width));
                 Model.SetForcing(i,temp+273.15,daylight,soil[i],water[i],velocity,pressure,ground[i],lift,0);

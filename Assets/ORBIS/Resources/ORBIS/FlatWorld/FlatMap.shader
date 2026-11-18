@@ -8,6 +8,8 @@ Shader "ORBIS/FlatWorld/FlatMap"
   [HideInInspector] _VegetationSeasonTex("Climate vegetation seasons",2D)="white"{}
   [HideInInspector] _VegetationSeasonReady("Vegetation seasons ready",Float)=0
   [HideInInspector] _VegetationSeason("Current month next month blend",Vector)=(0,1,0,0)
+  [HideInInspector] _ClimateYearHeat("Regional temperature anomaly",Vector)=(0,0,0,0)
+  [HideInInspector] _ClimateYearRain("Regional rainfall anomaly",Vector)=(0,0,0,0)
   [HideInInspector] _EcologyTex("Derived ecology traits",2D)="black"{}
   [HideInInspector] _EcologyReady("Ecology traits ready",Float)=0
   [HideInInspector] _RiverAtlas("Continuous river field",2D)="black"{}

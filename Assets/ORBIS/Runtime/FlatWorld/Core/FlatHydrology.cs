@@ -39,14 +39,17 @@ namespace Orbis.Flat
         }
         public static void Build(WorldData w,CancellationToken cancel)
         {
+            BuildDrainage(w,cancel);
+            RouteRainfall(w,cancel);
+        }
+        internal static void BuildDrainage(WorldData w,CancellationToken cancel)
+        {
             var visited=new bool[w.Count];var heap=new FloodHeap();int cursor=0;
             for(int i=0;i<w.Count;i++)
             {
                 w.Downstream[i]=-1;w.WaterLevel[i]=w.Elevation[i];
                 if(w.Water[i]>=WaterKind.DeepOcean&&w.Water[i]<=WaterKind.ShallowOcean)
                 {visited[i]=true;w.WaterLevel[i]=0;heap.Push(i,0);}
-                float rain=0;for(int m=0;m<12;m++)rain+=w.Precipitation[i*12+m];
-                w.Runoff[i]=w.Water[i]>=WaterKind.DeepOcean&&w.Water[i]<=WaterKind.ShallowOcean?0:rain/1200f;
             }
             if(heap.Count==0)
             {
@@ -120,7 +123,6 @@ namespace Orbis.Flat
                 w.Downstream[i]=best;
             }
             RouteLakeBasins(w,cancel);
-            SelectStreams(w,cancel);
         }
         static void RouteLakeBasins(WorldData w,CancellationToken cancel)
         {
@@ -182,8 +184,13 @@ namespace Orbis.Flat
             }
             if(cursor!=w.Count)throw new InvalidOperationException("Lake routing created a drainage cycle.");
         }
-        static void SelectStreams(WorldData w,CancellationToken cancel)
+        internal static void RouteRainfall(WorldData w,CancellationToken cancel)
         {
+            for(int i=0;i<w.Count;i++)
+            {
+                float rain=0;for(int m=0;m<12;m++)rain+=w.Precipitation[i*12+m];
+                w.Runoff[i]=FlatTerrainAnalysis.Ocean(w.Water[i])?0:rain/1200f;
+            }
             // World Atlas normalizes climate/upland source yield before extracting
             // streams. Keep selection weights separate from conserved rainfall runoff.
             int landCount=0;double sourceTotal=0;var supply=new float[w.Count];

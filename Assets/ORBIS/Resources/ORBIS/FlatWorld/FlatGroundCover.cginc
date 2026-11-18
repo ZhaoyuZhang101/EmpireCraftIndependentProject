@@ -31,8 +31,6 @@ float3 PixelGround(float3 baseColor,float2 cell,float4 field,float waterMask,flo
  float3 rock=lerp(float3(.36,.35,.29),float3(.53,.50,.41),strata*.35+weathered*.65);
  float weathering=lerp(.5,.15+.85*smoothstep(.22,.75,grain),grainWeight);
  col=PDPaint(col,rock,face*weathering*.30);
- float shore=step(-.16,field.g)*(1-step(.22,field.g))*(1-waterMask);
- col=PDPaint(col,lerp(float3(.47,.36,.21),float3(.66,.53,.30),step(.45,grain)),shore*.8);
  if(waterMask>.99)return col;
 
  float cover=floor(ecology.r+.5);

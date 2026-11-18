@@ -44,7 +44,7 @@ namespace Orbis.Flat
         NativeArray<Pixel> output;
         readonly List<Chunk> chunks=new List<Chunk>();
         JobHandle handle;
-        int terrainRevision,month;
+        int terrainRevision,month,climatePeriod;
         MapLayer layer;
         long started;
         bool disposed;
@@ -86,13 +86,14 @@ namespace Orbis.Flat
                 Temperature=source.Temperature[i*12+month],Rain=source.Precipitation[i*12+month],Fertility=source.Fertility[i],Depth=f.Depth[i],FlowX=f.FlowX[i],FlowY=f.FlowY[i],
                 HalfWidth=f.HalfWidth[i],Shore=f.ShoreDistance[i],Sediment=f.Sediment[i],Freshness=f.Freshness[i],Wetness=f.Wetness[i],Hand=f.Hand[i],Canopy=f.Canopy[i],Meander=f.Meander[i],Connections=f.Connections[i]};
         }
-        public bool Schedule(MapLayer requestedLayer,bool refreshData)
+        public bool Schedule(MapLayer requestedLayer,bool refreshData,int climateYearOffset=0)
         {
             if(disposed)throw new ObjectDisposedException(nameof(FlatMapRenderJobs));
             if(Pending)throw new InvalidOperationException("Only one render batch may be in flight.");
             if(source.DirtyChunks.Count==0)return false;
             long start=Stopwatch.GetTimestamp();
             chunks.Clear();layer=requestedLayer;month=source.Month;terrainRevision=source.TerrainRevision;RefreshData=refreshData;
+            climatePeriod=ClimatePeriod(source.Day,requestedLayer,climateYearOffset);
             int offset=0;CapturedTiles=0;
             foreach(int id in source.DirtyChunks)
             {
@@ -115,7 +116,8 @@ namespace Orbis.Flat
                 {int i=source.Index(x,y);tiles[i]=Capture(i);CapturedTiles++;}
             }
             ScheduledTiles=offset;Version++;
-            handle=new PackJob{Tiles=tiles,Indices=indices,Palette=palette,Bands=bands,Output=output,Width=source.Width,Height=source.Height,Seed=worldSeed,Layer=layer}.Schedule(offset,128);
+            handle=new PackJob{Tiles=tiles,Indices=indices,Palette=palette,Bands=bands,Output=output,Width=source.Width,Height=source.Height,Seed=worldSeed,Layer=layer,
+                ClimateYear=FlatClimateYear.At(worldSeed,climatePeriod*30.0)}.Schedule(offset,128);
             Pending=true;started=Stopwatch.GetTimestamp();
             // Ownership transfers only after successful scheduling. Subsequent main-thread dirties remain in this set.
             source.DirtyChunks.Clear();
@@ -123,7 +125,11 @@ namespace Orbis.Flat
             JobHandle.ScheduleBatchedJobs();
             return true;
         }
-        public bool TryComplete(WorldData current,MapLayer currentLayer,out bool accepted)
+        static int ClimatePeriod(double day,MapLayer layer,int yearOffset)
+        {
+            return (int)Math.Floor(day/30)+(layer==MapLayer.Temperature||layer==MapLayer.Rain?12*yearOffset:0);
+        }
+        public bool TryComplete(WorldData current,MapLayer currentLayer,out bool accepted,int climateYearOffset=0)
         {
             accepted=false;
             if(!Pending||!handle.IsCompleted)return false;
@@ -131,7 +137,7 @@ namespace Orbis.Flat
             LastLatencyMilliseconds=(Stopwatch.GetTimestamp()-started)*1000.0/Stopwatch.Frequency;
             // Ordinary simulation edits remain dirty for the next batch. Rejecting every
             // revision would starve publication when a simulation tick occurs every frame.
-            accepted=ReferenceEquals(source,current)&&terrainRevision==current.TerrainRevision&&month==current.Month&&layer==currentLayer;
+            accepted=ReferenceEquals(source,current)&&terrainRevision==current.TerrainRevision&&climatePeriod==ClimatePeriod(current.Day,currentLayer,climateYearOffset)&&layer==currentLayer;
             if(!accepted){RejectedBatches++;RestoreDirty();}
             return true;
         }
@@ -156,6 +162,7 @@ namespace Orbis.Flat
             public int Width,Height;
             public uint Seed;
             public MapLayer Layer;
+            public FlatClimateYear ClimateYear;
             static Color32 RGB(uint value) {return new Color32((byte)(value>>16),(byte)(value>>8),(byte)value,255);}
             static bool Area(WaterKind w) {return w>=WaterKind.DeepOcean&&w<=WaterKind.Lake;}
             static Color32 Water(WaterKind w)
@@ -163,7 +170,7 @@ namespace Orbis.Flat
                 switch(w){case WaterKind.DeepOcean:return RGB(0x183950);case WaterKind.MiddleOcean:return RGB(0x245c78);case WaterKind.ShallowOcean:return RGB(0x449295);case WaterKind.Lake:return RGB(0x599ba7);case WaterKind.River:return RGB(0x74b0bd);default:return RGB(0x867c64);}
             }
             Color32 Land(Tile t)
-            {return RGB(t.Material==GroundMaterial.Snow?Palette[65+5]:t.Vegetation!=VegetationCover.Bare?Palette[12+(int)t.Vegetation]:Palette[(int)t.Biome]);}
+            {return FlatPalette.NaturalLand(t.Vegetation,t.Material,t.Wetness,Palette[12+(int)t.Vegetation],Palette[65+(int)t.Material]);}
             public void Execute(int j)
             {
                 int i=Indices[j];Tile t=Tiles[i];bool area=Area(t.Water);
@@ -182,6 +189,11 @@ namespace Orbis.Flat
                 }
                 terrain.a=t.Water==WaterKind.Land?(byte)0:(byte)255;
                 Color display=terrain;display.a=1;
+                if(Layer==MapLayer.Temperature||Layer==MapLayer.Rain)
+                {
+                    ClimateYear.AtTile(i,Width,Height,out float degrees,out float rainFraction);
+                    t.Temperature+=degrees;t.Rain*=1+rainFraction;
+                }
                 switch(Layer)
                 {
                     case MapLayer.Height:display=t.Elevation<=0?Water(t.Water):Color.Lerp(RGB(0x597b62),RGB(0xe4e1d2),t.Elevation/4000f);break;

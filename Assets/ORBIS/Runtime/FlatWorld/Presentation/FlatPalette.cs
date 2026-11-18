@@ -17,8 +17,8 @@ namespace Orbis.Flat
         {
             var text=new System.Text.StringBuilder();
             uint[] colors=layer==MapLayer.Vegetation?VegetationColors:layer==MapLayer.Landforms?LandformColors:layer==MapLayer.Materials?MaterialColors:layer==MapLayer.Climate?ClimateColors:BiomeColors;
-            if(layer==MapLayer.Temperature)return "冷蓝 → 暖橙：−25…35 °C；当前月份。";
-            if(layer==MapLayer.Rain)return "干沙 → 湿蓝：0…240 mm/月（显示范围）。";
+            if(layer==MapLayer.Temperature)return "冷蓝 → 暖橙　−25…35 °C，显示所选年份的同月温度。";
+            if(layer==MapLayer.Rain)return "干沙 → 湿蓝　0…240 mm/月，显示所选年份的同月降水。";
             if(layer==MapLayer.Wetness)return "棕 → 湿绿：0…100% 土壤桶湿度；不是地下水实测值。";
             if(layer==MapLayer.Sediment)return "蓝 → 沙褐：0…1 相对悬沙；陆地灰色。";
             if(layer==MapLayer.Height)return "低绿 → 高白：0…4000m；等高线使用真实预设海拔插值。";
@@ -37,21 +37,45 @@ namespace Orbis.Flat
         {
             switch(kind){case WaterKind.DeepOcean:return RGB(0x183950);case WaterKind.MiddleOcean:return RGB(0x245c78);case WaterKind.ShallowOcean:return RGB(0x449295);case WaterKind.Lake:return RGB(0x599ba7);case WaterKind.River:return RGB(0x74b0bd);default:return RGB(0x867c64);}
         }
-        static Color LandColor(WorldData w,int i)
+        // A weight of 256 is full coverage. Byte arithmetic gives identical
+        // albedo in the Burst texture job, the serial exporter and coast padding.
+        static Color32 MixAlbedo(Color32 from,Color32 to,int weight)
         {
-            Color c=RGB(BiomeColors[(int)w.Biomes[i]]);
-            if(w.Facts!=null)
-            {
-                var cover=w.Facts.Vegetation[i];
-                if(cover!=VegetationCover.Bare)c=RGB(VegetationColors[(int)cover]);
-                if(w.Facts.Materials[i]==GroundMaterial.Snow)c=RGB(MaterialColors[5]);
-            }
-            return c;
+            int remaining=256-weight;
+            return new Color32((byte)((from.r*remaining+to.r*weight+128)>>8),
+                               (byte)((from.g*remaining+to.g*weight+128)>>8),
+                               (byte)((from.b*remaining+to.b*weight+128)>>8),255);
+        }
+        internal static Color32 NaturalLand(VegetationCover cover,GroundMaterial material,float wetness,uint coverColor,uint materialColor)
+        {
+            var substrate=RGB(materialColor);
+            if(material==GroundMaterial.Snow)return substrate;
+            if(cover==VegetationCover.Ice)return RGB(coverColor);
+            int moisture=(int)(Mathf.Clamp01(wetness)*256);
+            // Moist fine earth absorbs more diffuse light than stone or gravel.
+            int absorption=material==GroundMaterial.Rock||material==GroundMaterial.Gravel?26:54;
+            int darkening=(moisture*absorption+128)>>8;
+            substrate.r=(byte)((substrate.r*(256-darkening)+128)>>8);
+            substrate.g=(byte)((substrate.g*(256-darkening*7/8)+128)>>8);
+            substrate.b=(byte)((substrate.b*(256-darkening*3/4)+128)>>8);
+            if(cover==VegetationCover.Bare)return substrate;
+
+            var plants=RGB(coverColor);
+            if(cover==VegetationCover.DrySteppe)plants=MixAlbedo(RGB(0x9e9f72),RGB(0x82945f),moisture);
+            else if(cover==VegetationCover.Grassland)plants=MixAlbedo(RGB(0x9aa171),RGB(0x70995e),moisture);
+            return MixAlbedo(substrate,plants,material==GroundMaterial.Rock?189:236);
+        }
+        static Color32 LandColor(WorldData w,int i)
+        {
+            if(w.Facts==null)return RGB(BiomeColors[(int)w.Biomes[i]]);
+            var cover=w.Facts.Vegetation[i];
+            var material=w.Facts.Materials[i];
+            return NaturalLand(cover,material,w.Facts.Wetness[i],VegetationColors[(int)cover],MaterialColors[(int)material]);
         }
         public static Color32 Terrain(WorldData w,int i)
         {
             bool area=FlatTerrainAnalysis.AreaWater(w.Water[i]);
-            Color c=area?(Color)Water(w.Water[i]):LandColor(w,i);
+            Color32 c=area?Water(w.Water[i]):LandColor(w,i);
             // Dilate land albedo only under the sub-tile shore reconstruction. Water
             // is composited afterwards. This prevents bilinear blue halos on beaches.
             if(area&&w.Facts!=null&&w.Facts.ShoreDistance[i]<=2)
@@ -64,7 +88,7 @@ namespace Orbis.Flat
                 }
                 if(best>=0)c=LandColor(w,best);
             }
-            c.a=w.Water[i]==WaterKind.Land?0:1;return c;
+            c.a=w.Water[i]==WaterKind.Land?(byte)0:(byte)255;return c;
         }
         public static Color32 Display(WorldData w,int i,MapLayer layer)
         {
@@ -74,8 +98,12 @@ namespace Orbis.Flat
                 case MapLayer.Nations:break; // Exactly one political tint, in the shader.
                 case MapLayer.Height: c=w.Elevation[i]<=0?Water(w.Water[i]):Color.Lerp(RGB(0x597b62),RGB(0xe4e1d2),w.Elevation[i]/4000f);break;
                 case MapLayer.Climate:c=w.Water[i]>=WaterKind.DeepOcean&&w.Water[i]<=WaterKind.ShallowOcean?Water(w.Water[i]):RGB(ClimateColors[(int)w.Climates[i]]);break;
-                case MapLayer.Temperature:c=Color.Lerp(RGB(0x4169ab),RGB(0xe9aa6a),Mathf.InverseLerp(-25,35,w.Temperature[i*12+w.Month]));break;
-                case MapLayer.Rain:c=Color.Lerp(RGB(0xd1bb93),RGB(0x2c869b),Mathf.Clamp01(w.Precipitation[i*12+w.Month]/240));break;
+                case MapLayer.Temperature:
+                case MapLayer.Rain:
+                    var year=FlatClimateYear.At(FMath.Seed(w.Seed),System.Math.Floor(w.Day/30)*30);
+                    year.Weather(w,i,w.Month,out float temperature,out float rain);
+                    c=layer==MapLayer.Temperature?Color.Lerp(RGB(0x4169ab),RGB(0xe9aa6a),Mathf.InverseLerp(-25,35,temperature)):
+                        Color.Lerp(RGB(0xd1bb93),RGB(0x2c869b),Mathf.Clamp01(rain/240));break;
                 case MapLayer.Water:c=w.Water[i]==WaterKind.Land?RGB(0x767b71):Water(w.Water[i]);break;
                 case MapLayer.Landforms:c=RGB(LandformColors[(int)w.Facts.Forms[i]]);break;
                 case MapLayer.Materials:c=FlatTerrainAnalysis.AreaWater(w.Water[i])?Water(w.Water[i]):RGB(MaterialColors[(int)w.Facts.Materials[i]]);break;

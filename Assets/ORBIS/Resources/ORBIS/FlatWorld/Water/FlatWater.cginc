@@ -14,6 +14,7 @@ sampler2D _SWEState,_SWEPreviousState;
 float4 _SWERect,_SWEPreviousRect;
 float _SWEPreviousReady,_SWEBlend;
 float _SWEReady,_WaterClock,_ShowBanks,_ShowWater,_WaveAmount;
+#include "FlatCoastalSediment.cginc"
 float FlatLandSnow(float2 cell,sampler2D semantic)
 {
     float2 p=cell-.5,b=floor(p),t=frac(p);t=t*t*(3-2*t);
@@ -46,7 +47,7 @@ float FlatAreaWaterKind(float2 cell,sampler2D semantic,float originalKind)
     float lake=dot(weights,1-step(.5,abs(kinds-4)))/max(1e-6,wet);
     return wet>1e-6?3+lake:originalKind;
 }
-float4 FlatAreaWaterOptics(float2 cell,sampler2D semantic,float4 fallback)
+float4 FlatAreaWaterOptics(float2 cell,sampler2D semantic,float4 fallback,out float wetSupport)
 {
     float2 p=cell-.5,b=floor(p),t=frac(p);t=t*t*(3-2*t);
     float4 weights=float4((1-t.x)*(1-t.y),t.x*(1-t.y),(1-t.x)*t.y,t.x*t.y);
@@ -63,9 +64,15 @@ float4 FlatAreaWaterOptics(float2 cell,sampler2D semantic,float4 fallback)
     }
     // A reconstructed shoreline extends wet metadata across its dry semantic
     // cells. Normalization keeps land zeros and river depths out of basin optics.
+    wetSupport=wet;
     if(wet<=1e-6)return fallback;
     optics/=wet;optics.a+=3;
     return optics;
+}
+float4 FlatAreaWaterOptics(float2 cell,sampler2D semantic,float4 fallback)
+{
+    float wetSupport;
+    return FlatAreaWaterOptics(cell,semantic,fallback,wetSupport);
 }
 float2 FlatEdge(int direction)
 {
@@ -331,7 +338,8 @@ struct FlatWaterSurfaceData
     float visible;
 };
 float3 FlatWaterShade(float2 cell,float4 hydro,float4 mixing,float4 field,float3 bottom,float3 light,
-                     float3 localView,float3 localLight,float waveStrength,float waterKind,float waterEdge,out FlatWaterSurfaceData surface)
+                     float3 localView,float3 localLight,float waveStrength,float waterKind,float waterEdge,
+                     FlatCoastalSediment coast,out FlatWaterSurfaceData surface)
 {
     // WaterKind, not salinity: freshwater plumes in the sea are still ocean waves.
     float river=step(4.5,waterKind),lake=saturate(waterKind-3)*(1-river),ocean=1-river-lake;
@@ -353,11 +361,9 @@ float3 FlatWaterShade(float2 cell,float4 hydro,float4 mixing,float4 field,float3
     drift*=lerp(1,.60+.45*saturate(hydro.r/4),river);
     float3 p0=(artwork-drift*phase0*3)*6;
     float3 p1=(artwork-drift*phase1*3)*6;
-    float2 shoreGradient=FlatHeightGradient(field.g,cell);
-    shoreGradient.x/=max(.04,cos(lat));
-    float shoreDistance=field.g/max(.25,length(shoreGradient));
+    float shoreDistance=coast.shore;
     float shoreVariation=.5+.5*sin(dot(artwork,float3(1.7,2.3,.9)));
-    float shoreCrest=FlatCoastFoam(shoreDistance,_WaterClock,shoreVariation);
+    float shoreCrest=FlatCoastFoam(shoreDistance,_WaterClock,shoreVariation)*(1-.62*coast.coverage*coast.mud);
     float2 slopes=0,microSlopes=0;
     float footprint=max(length(artDx*6),length(artDy*6));
     if(_VendorWaterReady>.5&&footprint<4)
@@ -443,6 +449,10 @@ float3 FlatWaterShade(float2 cell,float4 hydro,float4 mixing,float4 field,float3
         float section=saturate(-waterEdge/max(.01,hydro.a));
         depth=max(.12,depth*section*(2-section));
     }
+    // A small depositional bar modulates only the optical path through the
+    // very shallow sandy apron. Inlet depths and the shoreline mask stay exact.
+    float shoal=coast.bar*coast.coverage*ocean*(1-smoothstep(4,15,depth));
+    depth-=min(depth*.26,1.15)*shoal;
     [branch] if(_RiverAtlasReady>.5&&river<.5&&field.g<.30)
     {
         // Inlets and spillways retain a submerged channel through the basin's
@@ -458,7 +468,12 @@ float3 FlatWaterShade(float2 cell,float4 hydro,float4 mixing,float4 field,float3
     if(_FieldReady>.5)bedCell+=FlatBedRefraction(cell,localView,normal,depth,clearance);
     float3 bedPosition=FlatDetailPosition(bedCell);
     float2 depthCell=cell+FlatBedParallax(cell,localView,depth,clearance);
-    float depthRelief=FlatFieldRelief(depthCell,1,float3(-.45,.6,.75));
+    float measuredDepth=depth,depthRelief=1;
+    if(_FieldReady>.5)
+    {
+        if(river>.5)depthRelief=FlatFieldRelief(depthCell,1,float3(-.45,.6,.75));
+        else depthRelief=FlatSampleSeabed(depthCell,localLight,measuredDepth);
+    }
     // Geographic wave patterns keep light bands attached to the submerged bed.
     float3 sunView=normalize(float3(localLight.xy,max(.1,localLight.z)));
     float2 sunOffset=FlatBedRefraction(cell,sunView,normal,depth,clearance);
@@ -470,6 +485,15 @@ float3 FlatWaterShade(float2 cell,float4 hydro,float4 mixing,float4 field,float3
     {
         bottom=FlatBedColor(bedCell,1-river)*.72;
         if(depth<35&&footprint<1.5)bottom=lerp(bottom,FlatBedArtwork(bedPosition,bottom,footprint),1-smoothstep(18,35,depth));
+        float3 sediment=coast.albedo;
+        if(coast.coverage*ocean>.001&&depth<32)
+        {
+            // Evaluate the same shore material at the refracted bed point. Its
+            // local tangent extends the measured shoreline over the short ray.
+            float bedShore=coast.shore+dot(bedPosition-artwork,coast.seaward);
+            sediment=FlatCoastArtwork(bedPosition,coast.seaward,bedShore,0,coast.mud,footprint/6,_WaterClock).albedo;
+        }
+        bottom=lerp(bottom,sediment*(1+.13*shoal),coast.coverage*ocean);
         bottom*=(1+caustic*.65)*depthRelief;
     }
     float refractedCos=sqrt(max(.1,1-(1-nv*nv)/(1.333*1.333)));
@@ -482,13 +506,20 @@ float3 FlatWaterShade(float2 cell,float4 hydro,float4 mixing,float4 field,float3
     // bathymetry makes the true data depth readable; it is NOT deep-water transparency.
     float chartMetres=depth;
     if(_FieldReady>.5&&_ScrollRelief.x>0&&river<.5)
-        chartMetres=lerp(depth,max(.15,FlatVisualSample(float4(depthCell*_MapSize.zw,0,0)).b),_ScrollRelief.x);
+        chartMetres=lerp(depth,max(.15,measuredDepth),_ScrollRelief.x*smoothstep(.10,.70,field.g));
     float logDepth=log2(1+chartMetres);
     float3 depthColor=lerp(FlatColor(float3(.20,.65,.65)),FlatColor(float3(.045,.34,.54)),smoothstep(1,7.5,logDepth));
     depthColor=lerp(depthColor,FlatColor(float3(.015,.10,.25)),smoothstep(7.5,11.97,logDepth));
     depthColor=lerp(depthColor,FlatColor(float3(.19,.48,.48)),fresh*.12);
+    // Wider shelf and continental-slope colour intervals make submerged banks,
+    // ridges and depressions legible after the natural optical signal is lost.
+    float3 marineChart=lerp(FlatColor(float3(.28,.64,.64)),FlatColor(float3(.12,.52,.61)),smoothstep(1.6,7.4,logDepth));
+    marineChart=lerp(marineChart,FlatColor(float3(.06,.33,.52)),smoothstep(7.1,10.35,logDepth));
+    marineChart=lerp(marineChart,FlatColor(float3(.025,.15,.32)),smoothstep(10.15,11.97,logDepth));
+    depthColor=lerp(depthColor,marineChart,ocean*saturate(_FieldReady));
     float lakeDepth=lerp(.30,.62,smoothstep(2,30,depth));
     float chartDepth=lerp(lerp(.70,lakeDepth,lake),.18,river);
+    chartDepth*=1-.91*coast.coverage*ocean*(1-smoothstep(.5,24,depth));
     result=lerp(result,depthColor*light*depthRelief,saturate(_Bathymetry)*chartDepth);
     float microFade=1-smoothstep(.8,2.8,footprint);
     float3 glitterNormal=normalize(float3(-(slopes+microSlopes*microFade)*waveStrength,1));
@@ -528,6 +559,14 @@ float3 FlatWaterShade(float2 cell,float4 hydro,float4 mixing,float4 field,float3
     surface.visible=1-saturate(foam);
     surface.skyWeight=fresnel*(1-saturate(_Bathymetry)*chartDepth)*surface.visible;
     return lerp(result,light*FlatColor(float3(.82,.90,.86)),saturate(foam));
+}
+float3 FlatWaterShade(float2 cell,float4 hydro,float4 mixing,float4 field,float3 bottom,float3 light,
+                     float3 localView,float3 localLight,float waveStrength,float waterKind,float waterEdge,out FlatWaterSurfaceData surface)
+{
+    FlatCoastalSediment coast=(FlatCoastalSediment)0;
+    float2 seaward;
+    coast.shore=FlatMetricShore(cell,field.g,seaward);
+    return FlatWaterShade(cell,hydro,mixing,field,bottom,light,localView,localLight,waveStrength,waterKind,waterEdge,coast,surface);
 }
 float3 FlatWaterShade(float2 cell,float4 hydro,float4 mixing,float4 field,float3 bottom,float3 light,
                      float3 localView,float3 localLight,float waveStrength,float waterKind,float waterEdge)

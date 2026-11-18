@@ -64,8 +64,11 @@ namespace Orbis.Flat
         public static void Rebuild(WorldData w,CancellationToken cancel)
         {
             DetectWater(w,cancel);
+            // Spill lakes supply evaporation during initial climate generation
+            // and on reload. River discharge then follows the resulting rainfall.
+            FlatHydrology.BuildDrainage(w,cancel);
             FlatClimate.Build(w,cancel);
-            FlatHydrology.Build(w,cancel);
+            FlatHydrology.RouteRainfall(w,cancel);
             FlatTerrainAnalysis.Build(w,cancel,true);
             ReconcileSettlements(w);
             w.TerrainRevision++;w.MarkAllDirty();

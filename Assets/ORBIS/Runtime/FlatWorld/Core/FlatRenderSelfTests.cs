@@ -303,6 +303,29 @@ namespace Orbis.Flat
             Check(bankGrowth>dryGrowth+.5f,"Low freshwater banks retain growth during a regional dry season");
             FlatEcology.SampleSeason(world,lake,180,out float waterGrowth,out float waterLeaf);
             Check(waterGrowth==0&&waterLeaf==0,"Open water has no terrestrial seasonal vegetation");
+            FlatEcology.SampleSurfaceSeason(world,north,0,out _,out _,out float northernSnow,out _);
+            FlatEcology.SampleSurfaceSeason(world,north,180,out _,out _,out float northernThaw,out _);
+            FlatEcology.SampleSurfaceSeason(world,south,180,out _,out _,out float southernSnow,out _);
+            FlatEcology.SampleSurfaceSeason(world,south,0,out _,out _,out float southernThaw,out _);
+            Check(Math.Min(northernSnow,southernSnow)>.55f&&Math.Max(northernThaw,southernThaw)<.08f,
+                "Monthly precipitation builds a snowpack in each local winter and melts through summer");
+            FlatEcology.SampleSurfaceSeason(world,dry,180,out _,out _,out _,out float drySoil);
+            FlatEcology.SampleSurfaceSeason(world,bank,180,out _,out _,out _,out float bankSoil);
+            FlatEcology.SampleSurfaceSeason(world,lake,0,out _,out _,out float lakeSnow,out _);
+            Check(bankSoil>drySoil+.45f&&lakeSnow==0,"Soil moisture retains freshwater support and terrestrial snow excludes water");
+            uint climateSeed=FMath.Seed(world.Seed);float coldestYear=100,warmestYear=-100,driestYear=10,wettestYear=0;
+            for(int year=0;year<12;year++)
+            {
+                var climate=FlatClimateYear.At(climateSeed,year*360+90);
+                climate.Weather(world,north,3,out float heat,out float rain);
+                coldestYear=Math.Min(coldestYear,heat);warmestYear=Math.Max(warmestYear,heat);
+                float ratio=rain/world.Precipitation[north*12+3];driestYear=Math.Min(driestYear,ratio);wettestYear=Math.Max(wettestYear,ratio);
+                climate.Offsets(1,0,0,out _,out float west);climate.Offsets(-1,0,0,out _,out float east);
+                Near(west+east,0,.00001f,"Wet and dry regional anomalies balance across opposite longitudes");
+                climate.Weather(world,dry,0,out _,out float dryRain);
+                Check(dryRain==0&&ratio>.55f&&ratio<1.45f,"A climate anomaly cannot manufacture rain without a moisture supply");
+            }
+            Check(warmestYear-coldestYear>1&&wettestYear-driestYear>.16f,"The same month has distinguishable warm, cool, wet and dry years");
             for(int m=0;m<12;m++)
             {
                 FlatEcology.SampleSeason(world,north,m*30-.0001,out float before,out float leafBefore);

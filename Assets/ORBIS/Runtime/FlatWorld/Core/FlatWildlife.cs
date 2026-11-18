@@ -286,7 +286,9 @@ namespace Orbis.Flat
         {
             double position = day / 30, whole = Math.Floor(position);
             int month = (int)((whole % 12 + 12) % 12);
-            return FMath.Lerp(world.Temperature[tile * 12 + month], world.Temperature[tile * 12 + (month + 1) % 12], (float)(position - whole));
+            var climate = FlatClimateYear.At(FMath.Seed(world.Seed), day);
+            climate.AtTile(tile, world.Width, world.Height, out float degrees, out _);
+            return degrees + FMath.Lerp(world.Temperature[tile * 12 + month], world.Temperature[tile * 12 + (month + 1) % 12], (float)(position - whole));
         }
 
         public static float SeasonalActivity(WorldData world, WildlifeActor actor, double day)

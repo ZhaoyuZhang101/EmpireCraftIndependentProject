@@ -25,34 +25,66 @@
     float waterMask=FlatWaterMask(cell,uv,hydro,mixing,field,aa,edgeDistance,riverFlow);
     float polarIce=FlatPolarIceMask(i.uv,waterMask,0)*naturalView;
     float landSnow=FlatLandSnow(cell,_InfoTex)*(1-waterMask)*naturalView;
-    float terrainRelief=1;
+    float4 season=float4(1,1,0,.5);
+    if(naturalView>.5)season=FlatSurfaceSeason(cell,FlatRadial(i.uv));
+    float snowCover=max(landSnow,season.b*(1-waterMask));
+    float snowSurface=snowCover;
+    float3 localSun=FlatGeographicLight(i.uv,normalize(_FlatSun+float3(0,1e-7,0)));
+    float3 surfaceView=float3(0,0,1);
+    #ifdef ORBIS_SCROLL_SURFACE
+    // Transport the eye through the same sphere/plane rotation as the terrain.
+    float3 world=i.world.xyz/max(1e-6,i.world.w);
+    float3 cameraRay=normalize(_WorldSpaceCameraPos-world);
+    float s=sin(_ScrollSpin),c=cos(_ScrollSpin);
+    float3 planetRay=float3(c*cameraRay.x-s*cameraRay.z,cameraRay.y,-s*cameraRay.x-c*cameraRay.z);
+    float3 sphereView=FlatGeographicLight(i.uv,planetRay);
+    float3 planeView=float3(dot(cameraRay,_ScrollRight),dot(cameraRay,_ScrollUp),dot(cameraRay,_ScrollNormal));
+    float2 projected=float2(dot(world-_ScrollNormal,_ScrollRight),dot(world-_ScrollNormal,_ScrollUp));
+    float3 reliefView=normalize(float3(-projected/.18-float2(0,_ScrollRelief.z),1));
+    planeView=normalize(lerp(planeView,reliefView,_ScrollRelief.x));
+    planeView.xy=chartRightGeographic*planeView.x+chartUpGeographic*planeView.y;
+    surfaceView=lerp(sphereView,planeView,_ScrollMorph);
+    surfaceView=normalize(float3(surfaceView.xy,max(.02,surfaceView.z)));
+    #endif
+    float4 substrate=float4(0,0,0,geo.b);
+    if(naturalView>.5)substrate=FlatNaturalGround(_GeoTex,cell,geo,_PixelsPerTile,waterMask);
+    float surfaceWetness=lerp(substrate.a,season.a,saturate(_VegetationSeasonReady));
+    float4 terrainLight=0,terrainRelief=float4(1,1,1,0);
     float3 illumination=lerp(float3(1,1,1),FlatDayLight(FlatRadial(i.uv),i.uv),naturalView);
     float2 terrainGradient=0;
     if(terrainView>.5)
     {
      terrainGradient=FlatFieldGradient(cell,0);
-     float3 localSun=FlatGeographicLight(i.uv,normalize(_FlatSun+float3(0,1e-7,0)));
-     // A soft north-west sky fill keeps an overhead map readable at solar noon.
-     float3 terrainLight=float3(-.45,.6,.75)+localSun*.30*smoothstep(0,.3,localSun.z);
-     if(waterMask<.999||_DrawHeight>.5)terrainRelief=FlatTerrainRelief(cell,field.r,terrainGradient,terrainLight);
-     landSnow=FlatTerrainSnow(landSnow,cell,terrainGradient,_PixelsPerTile);
+     float4 localMoon=float4(FlatGeographicLight(i.uv,_OrbisMoon.xyz),_OrbisMoon.w*_OrbisNightParams.x);
+     terrainLight=FlatTerrainLight(localSun,localMoon,_FlatDayNight*naturalView);
+     if(waterMask<.999||_DrawHeight>.5)
+      terrainRelief=FlatTerrainRelief(cell,field.r,terrainGradient,terrainLight,surfaceView,FlatWetMineral(substrate.z,surfaceWetness,field.a));
+     snowSurface=FlatTerrainSnow(snowCover,cell,terrainGradient,_PixelsPerTile);
     }
-    float frozen=max(polarIce,landSnow);
+    float frozen=max(polarIce,snowSurface);
+    // A seasonal snowpack covers the ground under trees and buildings.
+    float permanentIce=max(polarIce,landSnow*snowSurface/max(.00001,snowCover));
     if(naturalView>.5)
     {
      float2 ecologyCell=FlatEcotoneCell(cell,field.g);
      col=tex2D(_MainTex,FlatBlendUV(ecologyCell)).rgb;
-     col=FlatEcotoneColor(col,cell,field.a,tex2Dlod(_GeoTex,float4(cell*_MapSize.zw,0,0)).b);
-     col=lerp(col,FlatSeasonGround(col,cell,field.a),1-waterMask);
+     col=FlatEcotoneColor(col,cell,field.a,substrate.a);
+     col=lerp(col,FlatSeasonGround(col,field.a,season),1-waterMask);
      col=lerp(FlatVegetation(col,cell,field.a,_PixelsPerTile),col,_DetailWeight);
-     col=FlatTerrainFine(col,cell,_PixelsPerTile,terrainGradient);
+     col=FlatTerrainFine(col,cell,_PixelsPerTile*(1-step(.999,waterMask)),terrainGradient,field,substrate.xy,surfaceWetness,terrainLight);
      if(_DetailWeight>0)col=lerp(col,PixelGround(col,cell,field,waterMask,terrainGradient,FlatEcologyData(uv,info)),_DetailWeight);
     }
-    if(_DrawHeight>.5)col=FlatElevationColor(field.r);
-    col*=terrainRelief;
+    if(_DrawHeight>.5)
+    {
+     col=FlatElevationColor(field.r);
+     terrainRelief.rgb=dot(terrainRelief.rgb,float3(.2126,.7152,.0722));
+    }
+    col=lerp(col*terrainRelief.rgb,FlatColor(float3(.84,.87,.90)),terrainRelief.a);
     if(_WaterView>.5)
     {
-     float4 areaOptics=FlatAreaWaterOptics(cell,_InfoTex,float4(field.b,mixing.g,mixing.b,floor(info.g+.5)));
+     float wetSupport;
+     float4 areaOptics=FlatAreaWaterOptics(cell,_InfoTex,float4(field.b,mixing.g,mixing.b,floor(info.g+.5)),wetSupport);
+     FlatCoastalSediment coast=FlatCoastAt(cell,field,areaOptics,wetSupport,edgeDistance,frozen,_WaterClock);
      float waterKind=areaOptics.a;
      field.b=areaOptics.r;mixing.gb=areaOptics.gb;
      if(_RiverAtlasReady>.5)
@@ -73,35 +105,17 @@
      }
      float bankWidth=hydro.a>.0001?clamp(hydro.a*.40,.02,.075):.16;
      float bankMask=(1-waterMask)*(1-smoothstep(0,bankWidth+aa,edgeDistance))*_ShowBanks;
-     float3 bankColor=FlatMaterialColor(floor(geo.g+.5));
-     bankColor=lerp(bankColor,FlatColor(float3(.83,.75,.55)),step(-1.4,field.g)*step(geo.g,.5));
-     col=lerp(col,bankColor,bankMask*.58);
+     if(bankMask>.001)col=lerp(col,FlatBedColor(cell)*terrainRelief.rgb,bankMask*.58);
+     col=lerp(col,coast.albedo*terrainRelief.rgb,coast.coverage*_ShowBanks*naturalView);
      col*=illumination;
      float3 bottom=FlatMaterialColor(floor(geo.g+.5))*.72;
      float3 waterColor=FlatColor(float3(.20,.43,.55))*illumination;
      // The uniform switch skips optics without exposing padded land under water.
-     float3 waterLight=FlatGeographicLight(i.uv,normalize(_FlatSun+float3(0,1e-7,0)));
-     float3 waterView=float3(0,0,1);
-     #ifdef ORBIS_SCROLL_SURFACE
-     // Transport the actual camera direction through the same sphere/plane
-     // rotation as the terrain. Grazing globe water must not use a zenith view.
-     float3 world=i.world.xyz/max(1e-6,i.world.w);
-     float3 cameraRay=normalize(_WorldSpaceCameraPos-world);
-     float s=sin(_ScrollSpin),c=cos(_ScrollSpin);
-     float3 planetRay=float3(c*cameraRay.x-s*cameraRay.z,cameraRay.y,-s*cameraRay.x-c*cameraRay.z);
-     float3 sphereView=FlatGeographicLight(i.uv,planetRay);
-     float3 planeView=float3(dot(cameraRay,_ScrollRight),dot(cameraRay,_ScrollUp),dot(cameraRay,_ScrollNormal));
-     float2 projected=float2(dot(world-_ScrollNormal,_ScrollRight),dot(world-_ScrollNormal,_ScrollUp));
-     float3 reliefView=normalize(float3(-projected/.18-float2(0,_ScrollRelief.z),1));
-     planeView=normalize(lerp(planeView,reliefView,_ScrollRelief.x));
-     planeView.xy=chartRightGeographic*planeView.x+chartUpGeographic*planeView.y;
-     waterView=lerp(sphereView,planeView,_ScrollMorph);
-     waterView=normalize(float3(waterView.xy,max(.02,waterView.z)));
-     #endif
+     float3 waterLight=localSun,waterView=surfaceView;
      if(_ShowWater>.5)
      {
       FlatWaterSurfaceData waterSurface;
-      waterColor=FlatWaterShade(cell,hydro,mixing,field,bottom,illumination,waterView,waterLight,_WaveAmount*(1-polarIce),waterKind,edgeDistance,waterSurface);
+      waterColor=FlatWaterShade(cell,hydro,mixing,field,bottom,illumination,waterView,waterLight,_WaveAmount*(1-polarIce),waterKind,edgeDistance,coast,waterSurface);
       // Keep the normal derivatives above uniform across shorelines. Only the
       // reflection lookup can be skipped for completely dry receivers.
       [branch] if(waterMask>.001)
@@ -118,7 +132,7 @@
      col=lerp(col,waterColor,waterMask);
     }
     else col*=illumination;
-    if(frozen>.001)col=lerp(col,FlatPolarIceColor(i.uv,waterMask)*illumination*lerp(terrainRelief,1,waterMask),frozen);
+    if(frozen>.001)col=lerp(col,FlatPolarIceColor(i.uv,waterMask)*illumination*lerp(terrainRelief.rgb,1,waterMask),frozen);
     float major;float contour=FlatContour(field.r,_ContourInterval,_PixelsPerTile,major);
     float contourStrength=max(_ShowContours,_DrawHeight)*smoothstep(3,5,_PixelsPerTile)*terrainView;
     float gentleSlope=FlatGentleContourWeight(cell,terrainGradient);
@@ -161,8 +175,8 @@
      // geographic receiver first discards most crown rows near the poles.
      if(_DetailWeight>0)
      {
-      col=lerp(col,PixelAmbientLife(col,cell,field,waterMask,info,illumination),_DetailWeight*(1-frozen));
-      col=lerp(col,PixelProps(col,cell,field,waterMask,structure,illumination),_DetailWeight*(1-frozen));
+      col=lerp(col,PixelAmbientLife(col,cell,field,waterMask,info,illumination),_DetailWeight*(1-permanentIce));
+      col=lerp(col,PixelProps(col,cell,field,waterMask,structure,illumination),_DetailWeight*(1-permanentIce));
      }
      float night=1-FlatDayWeight(FlatRadial(i.uv));
      float town=1-step(.5,abs(structure-1));

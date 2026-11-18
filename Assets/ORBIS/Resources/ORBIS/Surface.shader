@@ -5,6 +5,8 @@ Shader "ORBIS/Surface"
   [HideInInspector] _VegetationSeasonTex("Climate vegetation seasons",2D)="white"{}
   [HideInInspector] _VegetationSeasonReady("Vegetation seasons ready",Float)=0
   [HideInInspector] _VegetationSeason("Current month next month blend",Vector)=(0,1,0,0)
+  [HideInInspector] _ClimateYearHeat("Regional temperature anomaly",Vector)=(0,0,0,0)
+  [HideInInspector] _ClimateYearRain("Regional rainfall anomaly",Vector)=(0,0,0,0)
   [HideInInspector] _RiverAtlas("Continuous river field",2D)="black"{}
   [HideInInspector] _RiverAtlasReady("River field ready",Float)=0
   [HideInInspector] _RiverAtlasLayout("River field layout",Vector)=(0,0,0,0)
@@ -84,7 +86,11 @@ Shader "ORBIS/Surface"
     illumination=lerp(float3(.95,.97,1),illumination,_Night);
     float3 col=FlatColor(i.color.rgb)*_Tint.rgb;
     float water=smoothstep(.45,.9,i.color.a);
-    float waterEdge=-1;
+    float2 terrainGradient=0;
+    float4 terrainRelief=float4(1,1,1,0);
+    float waterEdge=-1,waterKind=0;
+    FlatCoastalSediment coast=(FlatCoastalSediment)0;coast.shore=-8;
+    float4 season=float4(1,1,0,.5);
     float4 field=float4(0,-8,max(.2,i.waterData.x),0),hydro=float4(max(.2,i.waterData.x),0,0,0),mixing=0,geo=0,own=0,info=0;
     if(_FlatWorldReady>.5)
     {
@@ -92,17 +98,32 @@ Shader "ORBIS/Surface"
      field=FlatField(cell);hydro=tex2Dlod(_HydroA,float4(tileUV,0,0));mixing=tex2Dlod(_HydroB,float4(tileUV,0,0));geo=tex2Dlod(_GeoTex,float4(tileUV,0,0));
      own=tex2D(_FlatOwners,tileUV);info=tex2D(_FlatInfo,tileUV)*255;
      col=tex2D(_FlatTerrain,lerp(tileUV,FlatBlendUV(FlatEcotoneCell(cell,field.g)),_SmoothTerrain)).rgb;
-     col=FlatEcotoneColor(col,cell,field.a,tex2Dlod(_GeoTex,float4(uv,0,0)).b);
-     col=lerp(col,FlatSeasonGround(col,cell,field.a),1-water);
+     season=FlatSurfaceSeason(cell,radial);
      float aa=clamp(.65/max(1,pixelsPerTile),.008,.28),edgeDistance;float2 riverFlow;
      water=FlatWaterMask(cell,tileUV,hydro,mixing,field,aa,edgeDistance,riverFlow);
+     float4 substrate=FlatNaturalGround(_GeoTex,cell,geo,pixelsPerTile,water);
+     float surfaceWetness=lerp(substrate.a,season.a,saturate(_VegetationSeasonReady));
+     col=FlatEcotoneColor(col,cell,field.a,substrate.a);
+     col=lerp(col,FlatSeasonGround(col,field.a,season),1-water);
      waterEdge=edgeDistance;
      if(hydro.a>.01)hydro.gb=riverFlow;else hydro.gb=tex2D(_HydroA,uv).gb;
-     mixing.gb=tex2D(_HydroB,uv).gb;
+     float wetSupport;
+     float4 basin=FlatAreaWaterOptics(cell,_FlatInfo,float4(field.b,mixing.g,mixing.b,floor(info.g+.5)),wetSupport);
+     coast=FlatCoastAt(cell,field,basin,wetSupport,edgeDistance,0,_WaterClock);
+     waterKind=basin.a;
+     if(hydro.a>.01&&field.g<0){waterKind=5;mixing.gb=tex2D(_HydroB,uv).gb;}
+     else {field.b=basin.r;mixing.gb=basin.gb;}
      col=FlatVegetation(col,cell,field.a,pixelsPerTile);
-     col*=FlatFieldRelief(cell,0,float3(-.45,.6,.75));
+     terrainGradient=FlatFieldGradient(cell,0);
+     float4 localMoon=float4(FlatGeographicLight(uv,_OrbisMoon.xyz),_OrbisMoon.w*_OrbisNightParams.x);
+     float4 terrainLight=FlatTerrainLight(localLight,localMoon,_Night);
+     col=FlatTerrainFine(col,cell,pixelsPerTile*(1-step(.999,water)),terrainGradient,field,substrate.xy,surfaceWetness,terrainLight);
+     if(water<.999)
+      terrainRelief=FlatTerrainRelief(cell,field.r,terrainGradient,terrainLight,localView,FlatWetMineral(substrate.z,surfaceWetness,field.a));
+     col=lerp(col*terrainRelief.rgb,FlatColor(float3(.84,.87,.90)),terrainRelief.a);
      float bank=(1-water)*(1-smoothstep(0,(hydro.a>.01?.075:.16)+aa,edgeDistance))*_ShowBanks;
-     col=lerp(col,FlatMaterialColor(floor(geo.g+.5)),bank*.58);
+     if(bank>.001)col=lerp(col,FlatBedColor(cell)*terrainRelief.rgb,bank*.58);
+     col=lerp(col,coast.albedo*terrainRelief.rgb,coast.coverage*_ShowBanks);
     }
     else if(_Natural>.5&&_TerrainAtlasReady>.5)
     {
@@ -117,27 +138,27 @@ Shader "ORBIS/Surface"
     col*=illumination;
     float polarIce=FlatPolarIceMask(uv,water,0)*step(.5,_Natural);
     float landSnow=0;
-    if(_FlatWorldReady>.5)landSnow=FlatLandSnow(uv*_MapSize.xy,_FlatInfo)*(1-water)*step(.5,_Natural);
+    if(_FlatWorldReady>.5&&_Natural>.5)
+      landSnow=FlatTerrainSnow(max(FlatLandSnow(uv*_MapSize.xy,_FlatInfo),season.b)*(1-water),
+          uv*_MapSize.xy,terrainGradient,pixelsPerTile);
     if(_Natural>.5)
     {
      float3 waterColor=FlatColor(float3(.20,.43,.55))*illumination;
-     float waterKind=floor(info.g+.5);
-     if(_FlatWorldReady>.5)waterKind=hydro.a>.01&&field.g<0?5:FlatAreaWaterKind(uv*_MapSize.xy,_FlatInfo,waterKind);
      if(_ShowWater>.5)
      {
       FlatWaterSurfaceData waterSurface;
-      waterColor=FlatWaterShade(uv*_MapSize.xy,hydro,mixing,field,FlatMaterialColor(floor(geo.g+.5))*.72,illumination,localView,localLight,_WaveAmount*(1-polarIce),waterKind,waterEdge,waterSurface);
+      waterColor=FlatWaterShade(uv*_MapSize.xy,hydro,mixing,field,FlatMaterialColor(floor(geo.g+.5))*.72,illumination,localView,localLight,_WaveAmount*(1-polarIce),waterKind,waterEdge,coast,waterSurface);
       [branch] if(water>.001)
        waterColor=FlatReflectWater(waterColor,uv*_MapSize.xy,field,max(0,field.r+field.b),localView,localLight,illumination,waterSurface,_Clouds*_SkyReady,0);
      }
      col=lerp(col,waterColor,water);
     }
-    if(max(polarIce,landSnow)>.001)col=lerp(col,FlatPolarIceColor(uv,water)*illumination,max(polarIce,landSnow));
+    if(max(polarIce,landSnow)>.001)col=lerp(col,FlatPolarIceColor(uv,water)*illumination*lerp(terrainRelief.rgb,1,water),max(polarIce,landSnow));
     if(_FlatWorldReady>.5)
     {
      float major;float contour=FlatContour(field.r,_ContourInterval,pixelsPerTile,major);
      float strength=_ShowContours*smoothstep(3,5,pixelsPerTile)*(1-water)*step(.01,field.r);
-     strength*=FlatGentleContourWeight(uv*_MapSize.xy,FlatFieldGradient(uv*_MapSize.xy,0));
+     strength*=FlatGentleContourWeight(uv*_MapSize.xy,terrainGradient);
      col=lerp(col,FlatColor(float3(.31,.30,.24))*illumination,contour*strength*lerp(.23,.42,major));
      float2 f=frac(uv*_MapSize.xy),tileUV=(floor(uv*_MapSize.xy)+.5)*_MapSize.zw;
      float4 adjacentE=tex2D(_FlatOwners,tileUV+float2(_MapSize.z,0)),adjacentN=tex2D(_FlatOwners,tileUV+float2(0,_MapSize.w));

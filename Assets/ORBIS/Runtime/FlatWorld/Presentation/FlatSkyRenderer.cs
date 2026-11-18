@@ -17,7 +17,7 @@ namespace Orbis.Flat
         WorldData world;Texture2D climate,hpHigh,wind,climateWind;Texture3D hpNoise,hpDetail;Material bake,hpColumn;
         readonly Color32[] monthly=new Color32[ClimateWidth*ClimateHeight];
         readonly Color[] windPixels=new Color[ClimateWidth*ClimateHeight],seasonalWindPixels=new Color[ClimateWidth*ClimateHeight];
-        int month=-1,revision=-1,windMonth=-1,windRevision=-1;float debt;bool rendered,failed;
+        int climatePeriod=-1,revision=-1,windMonth=-1,windRevision=-1;float debt;bool rendered,failed;
         double stagedClock;
         readonly Vector4[] flashes=new Vector4[4];
         FlatLightningVisuals lightning;
@@ -72,7 +72,7 @@ namespace Orbis.Flat
             weatherBack=NewCache(Texture.descriptor,"Weather staging");
             columnBack=NewCache(ColumnTexture.descriptor,"Cloud column staging");
             var strip=ColumnTexture.descriptor;strip.height=height/ColumnStrips;columnStrip=NewCache(strip,"Cloud column update strip");
-            bake.SetTexture("_ClimateTex",climate);month=revision=-1;rendered=false;debt=1;
+            bake.SetTexture("_ClimateTex",climate);climatePeriod=revision=-1;rendered=false;debt=1;
         }
         static RenderTexture NewCache(RenderTextureDescriptor descriptor,string label)
         {
@@ -115,6 +115,10 @@ namespace Orbis.Flat
         void UploadClimate()
         {
             int w=ClimateWidth,h=ClimateHeight,m=world.Month,next=(m+1)%12;
+            int period=(int)Math.Floor(world.Day/30);
+            uint seed=FMath.Seed(world.Seed);
+            var currentYear=FlatClimateYear.At(seed,period*30.0);
+            var followingYear=FlatClimateYear.At(seed,(period+1)*30.0);
             // Hold cloud drift constant until all strips of its climate snapshot finish.
             wind.SetPixels(windPixels);wind.Apply(false,false);
             BindCyclone("_CycloneNorth",FlatCycloneSelection.Find(world,m,true));
@@ -130,13 +134,17 @@ namespace Orbis.Flat
                     rain+=world.Precipitation[i*12+m];rainNext+=world.Precipitation[i*12+next];
                     temp+=world.Temperature[i*12+m];tempNext+=world.Temperature[i*12+next];
                 }
-                monthly[y*w+x]=new Color(Mathf.Clamp01(rain/880),Mathf.Clamp01(rainNext/880),Mathf.Clamp01((temp*.25f+25)/65),Mathf.Clamp01((tempNext*.25f+25)/65));
+                var p=FlatWeatherSimulation.Direction((x+.5)/w,(y+.5)/h);
+                currentYear.Offsets((float)p.X,(float)p.Y,(float)p.Z,out float degrees,out float rainDelta);
+                followingYear.Offsets((float)p.X,(float)p.Y,(float)p.Z,out float nextDegrees,out float nextRainDelta);
+                monthly[y*w+x]=new Color(Mathf.Clamp01(rain*(1+rainDelta)/880),Mathf.Clamp01(rainNext*(1+nextRainDelta)/880),
+                    Mathf.Clamp01((temp*.25f+degrees+25)/65),Mathf.Clamp01((tempNext*.25f+nextDegrees+25)/65));
             }
             Color south=Color.clear,north=Color.clear;
             for(int x=0;x<w;x++){south+=(Color)monthly[x];north+=(Color)monthly[(h-1)*w+x];}
             bake.SetVector("_ClimatePoleSouth",(Vector4)(south/w));bake.SetVector("_ClimatePoleNorth",(Vector4)(north/w));
             bake.SetFloat("_ClimateRows",h);
-            climate.SetPixels32(monthly);climate.Apply(false,false);month=m;revision=world.TerrainRevision;
+            climate.SetPixels32(monthly);climate.Apply(false,false);climatePeriod=period;revision=world.TerrainRevision;
         }
         void UploadWind(int month)
         {
@@ -183,11 +191,11 @@ namespace Orbis.Flat
             {
                 Resize(width);
                 if(pendingStrip>=0){RenderColumnStrip();return;}
-                bool climateChanged=month!=world.Month||revision!=world.TerrainRevision;
+                bool climateChanged=climatePeriod!=(int)Math.Floor(world.Day/30)||revision!=world.TerrainRevision;
                 if(climateChanged)UploadClimate();
                 if(!animate&&rendered&&!climateChanged){Status="二维云缓存暂停；保留已渲染图像。";return;}
                 debt+=Mathf.Max(0,delta);
-                if(debt<.5f&&rendered)return;debt=0;
+                if(debt<.5f&&rendered&&!climateChanged)return;debt=0;
                 bake.SetFloat("_VisualTime",(float)Clock);
                 bake.SetFloat("_MonthBlend",(float)(world.Day%30)/30f);
                 hpColumn.SetFloat("_MonthBlend",(float)(world.Day%30)/30f);

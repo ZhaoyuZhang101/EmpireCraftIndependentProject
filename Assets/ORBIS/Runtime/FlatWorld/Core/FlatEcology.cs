@@ -205,13 +205,14 @@ namespace Orbis.Flat
             if(cover==VegetationCover.Savanna||cover==VegetationCover.Shrubland)return .18f+.82f*growth;
             return growth;
         }
-        // Twelve padded monthly RG tiles form a 3x4 atlas. Padding is periodic
+        // Growth, leaf cover, snow cover and soil water in twelve padded tiles.
+        // The 3x4 atlas padding is periodic
         // in longitude and clamped at the poles, matching the geographic fields.
         public static int SeasonOffset(WorldData world,int tile,int month)
         {
             int x=month%3*(world.Width+2)+1+tile%world.Width;
             int y=month/3*(world.Height+2)+1+tile/world.Width;
-            return (y*(world.Width+2)*3+x)*2;
+            return (y*(world.Width+2)*3+x)*4;
         }
         internal static void BuildSeasons(WorldData world,FlatTerrainFacts facts,int tile,float coldest)
         {
@@ -223,12 +224,17 @@ namespace Orbis.Flat
             bool evergreen=tree==TreeSpecies.Pine||tree==TreeSpecies.Palm||evergreenBroadleaf||
                 tree==TreeSpecies.Tropical&&climate==Koppen.Af||
                 tree==TreeSpecies.Shrub&&Mediterranean(climate);
-            // The soil bucket has written twelve water samples into R. Spin up
-            // perennial responses before replacing those samples with growth.
+            bool land=!FlatTerrainAnalysis.AreaWater(world.Water[tile]);
+            float snowWater=0;
+            // Spin up both phenology and the snow reservoir over repeated normals.
+            // The snow budget is in mm water equivalent per 30-day month.
             for(int step=0;step<36;step++)
             {
                 int month=step%12,offset=SeasonOffset(world,tile,month);
-                float soil=facts.VegetationSeasons[offset]/255f,temperature=world.Temperature[tile*12+month];
+                float soil=facts.VegetationSeasons[offset+3]/255f,temperature=world.Temperature[tile*12+month];
+                float snowfall=world.Precipitation[tile*12+month]*(1-Ramp(temperature,-2,3));
+                float melt=Math.Max(0,temperature+.5f)*60;
+                snowWater=land?FMath.Clamp(snowWater*.94f+snowfall-melt,0,220):0;
                 float target=GrowthTarget(cover,temperature,soil);
                 growth+=(target-growth)*.65f;
                 float leaf=FoliageTarget(cover,tree,evergreen,temperature,soil,target);
@@ -236,29 +242,34 @@ namespace Orbis.Flat
                 if(step<24)continue;
                 facts.VegetationSeasons[offset]=(byte)(FMath.Clamp(growth,0,1)*255+.5f);
                 facts.VegetationSeasons[offset+1]=(byte)(FMath.Clamp(foliage,0,1)*255+.5f);
+                facts.VegetationSeasons[offset+2]=(byte)(255*snowWater/(snowWater+18)+.5f);
             }
         }
         internal static void CompleteSeasonAtlas(WorldData world,FlatTerrainFacts facts)
         {
-            int width=world.Width+2,height=world.Height+2,stride=width*3*2;
+            int width=world.Width+2,height=world.Height+2,stride=width*3*4;
             var data=facts.VegetationSeasons;
             for(int month=0;month<12;month++)
             {
-                int start=(month/3*height*width*3+month%3*width)*2;
+                int start=(month/3*height*width*3+month%3*width)*4;
                 for(int row=1;row<=world.Height;row++)
                 {
-                    int left=start+row*stride,right=left+(width-1)*2;
-                    data[left]=data[right-2];data[left+1]=data[right-1];
-                    data[right]=data[left+2];data[right+1]=data[left+3];
+                    int left=start+row*stride,right=left+(width-1)*4;
+                    Buffer.BlockCopy(data,right-4,data,left,4);
+                    Buffer.BlockCopy(data,left+4,data,right,4);
                 }
-                Buffer.BlockCopy(data,start+stride,data,start,width*2);
-                Buffer.BlockCopy(data,start+world.Height*stride,data,start+(height-1)*stride,width*2);
+                Buffer.BlockCopy(data,start+stride,data,start,width*4);
+                Buffer.BlockCopy(data,start+world.Height*stride,data,start+(height-1)*stride,width*4);
             }
             facts.VegetationSeasonsReady=true;
         }
         public static void SampleSeason(WorldData world,int tile,double day,out float growth,out float foliage)
         {
-            growth=foliage=1;
+            SampleSurfaceSeason(world,tile,day,out growth,out foliage,out _,out _);
+        }
+        public static void SampleSurfaceSeason(WorldData world,int tile,double day,out float growth,out float foliage,out float snow,out float soil)
+        {
+            growth=foliage=1;snow=0;soil=.5f;
             if(world.Facts==null||!world.Facts.VegetationSeasonsReady)return;
             double period=day/30,whole=Math.Floor(period);int month=(int)((whole%12+12)%12);
             float blend=(float)(period-whole);
@@ -266,6 +277,17 @@ namespace Orbis.Flat
             var data=world.Facts.VegetationSeasons;
             growth=FMath.Lerp(data[first],data[next],blend)/255f;
             foliage=FMath.Lerp(data[first+1],data[next+1],blend)/255f;
+            snow=FMath.Lerp(data[first+2],data[next+2],blend)/255f;
+            soil=FMath.Lerp(data[first+3],data[next+3],blend)/255f;
+            var year=FlatClimateYear.At(FMath.Seed(world.Seed),day);
+            year.AtTile(tile,world.Width,world.Height,out float heat,out float rain);
+            // Wet soil buffers a dry spell. Fully dormant and evergreen end states
+            // are stable, while the margins of the growing season respond sooner.
+            float waterBalance=.8f*rain-.035f*heat;
+            soil=FMath.Clamp(soil+waterBalance*soil*(1-.55f*soil),0,1);
+            growth=FMath.Clamp(growth+1.7f*waterBalance*growth*(1-growth),0,1);
+            foliage=FMath.Clamp(foliage+waterBalance*foliage*(1-foliage),0,1);
+            snow=FMath.Clamp(snow+(rain-.19f*heat)*snow*(1-snow)*1.8f,0,1);
         }
     }
 }

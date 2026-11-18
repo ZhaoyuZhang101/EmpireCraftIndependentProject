@@ -11,7 +11,9 @@
    <ui:Label name="stats" text="正在生成世界…" class="stats"/>
   </ui:VisualElement>
   <ui:VisualElement class="sidebar">
-   <ui:DropdownField name="layer" label="地图"/><ui:DropdownField name="tool" label="操作"/>
+   <ui:DropdownField name="layer" label="地图"/>
+   <ui:DropdownField name="climateYear" label="同月对比" class="is-hidden"/>
+   <ui:DropdownField name="tool" label="操作"/>
    <ui:VisualElement class="row"><ui:Button name="atlas" text="2D 总览" class="grow"/><ui:Button name="focus" text="F 详细图" class="grow"/></ui:VisualElement>
    <ui:VisualElement class="tab-row"><ui:Button name="tabWorld" text="世界" class="tab-button"/><ui:Button name="tabTerrain" text="地形" class="tab-button"/><ui:Button name="tabCivs" text="文明" class="tab-button"/><ui:Button name="tabFiles" text="存档" class="tab-button"/></ui:VisualElement>
    <ui:ScrollView class="tab-scroll" mode="Vertical">

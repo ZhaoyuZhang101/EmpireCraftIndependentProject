@@ -21,6 +21,7 @@ namespace Orbis.Flat
         public Material Material { get; private set; }
         public MapLayer Layer { get; private set; }
         public MapLayer VisibleLayer { get; private set; }
+        public int ClimateYearOffset { get; private set; }
         Mesh mesh;MeshRenderer meshRenderer;int dataRevision=-1;
         FlatTerrainFacts vegetationSource;
         FlatMapRenderJobs renderJobs;
@@ -88,6 +89,12 @@ namespace Orbis.Flat
             renderJobs=new FlatMapRenderJobs(world);Flush(true);renderJobs.CompleteInitialWarmup();Flush();Select(-1);
         }
         public void SetLayer(MapLayer layer) { if(Layer==layer)return;Layer=layer;Flush(true); }
+        public void SetClimateYearOffset(int offset)
+        {
+            if(offset==ClimateYearOffset)return;
+            ClimateYearOffset=offset;
+            if(Layer==MapLayer.Temperature||Layer==MapLayer.Rain)Flush(true);
+        }
         public void Select(int i)
         {Material.SetVector("_Selected",i<0?new Vector4(-100,-100,-100,-100):new Vector4(i%World.Width,i/World.Width,(i%World.Width)/4*4,(i/World.Width)/4*4));}
         public void Configure(bool grid,float pixelsPerTile)
@@ -103,8 +110,8 @@ namespace Orbis.Flat
             if(!facts.VegetationSeasonsReady){vegetationSource=null;return;}
             int width=(World.Width+2)*3,height=(World.Height+2)*4;
             if(!VegetationTexture)
-                VegetationTexture=new Texture2D(width,height,TextureFormat.RG16,false,true)
-                {name="Climate vegetation growth and foliage / twelve cached months",filterMode=FilterMode.Bilinear,wrapMode=TextureWrapMode.Clamp,anisoLevel=0};
+                VegetationTexture=new Texture2D(width,height,TextureFormat.RGBA32,false,true)
+                {name="Monthly growth, foliage, snow and soil moisture",filterMode=FilterMode.Bilinear,wrapMode=TextureWrapMode.Clamp,anisoLevel=0};
             VegetationTexture.LoadRawTextureData(facts.VegetationSeasons);VegetationTexture.Apply(false,false);
             vegetationSource=facts;
         }
@@ -115,6 +122,9 @@ namespace Orbis.Flat
             target.SetTexture("_VegetationSeasonTex",VegetationTexture?VegetationTexture:Texture2D.whiteTexture);
             target.SetFloat("_VegetationSeasonReady",vegetationSource!=null?1:0);
             target.SetVector("_VegetationSeason",new Vector4(month,(month+1)%12,(float)(period-whole),0));
+            var year=FlatClimateYear.At(FMath.Seed(World.Seed),day);
+            target.SetVector("_ClimateYearHeat",new Vector4(year.HeatX,year.HeatY,year.HeatZ,year.MeanHeat));
+            target.SetVector("_ClimateYearRain",new Vector4(year.RainX,year.RainY,year.RainZ,0));
         }
         void ConfigureLayer()
         {
@@ -130,14 +140,14 @@ namespace Orbis.Flat
             if(renderJobs.Pending)
             {
                 bool accepted;
-                if(!renderJobs.TryComplete(World,Layer,out accepted))
+                if(!renderJobs.TryComplete(World,Layer,out accepted,ClimateYearOffset))
                 {riverAtlas.Tick(World.Facts.RiverCurves,World.TerrainRevision,dataRevision);return;}
                 if(accepted)PublishCompleted();
             }
             riverAtlas.Tick(World.Facts.RiverCurves,World.TerrainRevision,dataRevision);
             bool refreshData=dataRevision!=World.TerrainRevision;
             if(refreshData)World.MarkAllDirty();
-            renderJobs.Schedule(Layer,refreshData);
+            renderJobs.Schedule(Layer,refreshData,ClimateYearOffset);
         }
         void PublishCompleted()
         {

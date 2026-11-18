@@ -50,6 +50,7 @@ namespace Orbis.Editor
                         Check(report,correct,"cover, biome, climate-suitable tree, wetness and seed match source values, pass="+pass);
                         if(pass>0)Check(report,stable,"visual traits stay stable across overlay and publication changes");
                     }
+                    CheckClimateLayers(world,jobs,report);
                 }
                 CheckVegetationSeasons(world,report);
                 CheckTreeMetadata(world,report);
@@ -99,6 +100,26 @@ namespace Orbis.Editor
                 UnityEngine.Object.DestroyImmediate(image);UnityEngine.Object.DestroyImmediate(material);UnityEngine.Object.DestroyImmediate(root);
             }
         }
+        static void CheckClimateLayers(WorldData world,FlatMapRenderJobs jobs,List<string> report)
+        {
+            foreach(var layer in new[]{MapLayer.Temperature,MapLayer.Rain})
+            {
+                var current=new Color32[world.Count];int changed=0;
+                for(int year=0;year<=2;year+=2)
+                {
+                    world.MarkAllDirty();jobs.Schedule(layer,false,year);jobs.CompleteInitialWarmup();
+                    Check(report,jobs.TryComplete(world,layer,out bool valid,year)&&valid,"climate map publishes the requested year "+year);
+                    for(int i=0;i<world.Count;i++)
+                    {
+                        var color=jobs.GetPixel(i).Display;
+                        if(year==0)current[i]=color;else if(!color.Equals(current[i]))changed++;
+                    }
+                }
+                Check(report,changed>world.Count/4,layer+" shows regional changes in the same month two years later");
+                world.MarkAllDirty();jobs.Schedule(layer,false,2);jobs.CompleteInitialWarmup();
+                Check(report,jobs.TryComplete(world,layer,out bool stale,0)&&!stale,"an old preview cannot replace the requested current climate");
+            }
+        }
         static void CheckVegetationSeasons(WorldData world,List<string> report)
         {
             var root=new GameObject("Climate vegetation cache regression");
@@ -117,16 +138,17 @@ namespace Orbis.Editor
                 foreach(int tile in new[]{0,world.Width-1,world.Count/2+17,world.Count-1})
                 for(int month=0;month<12;month++)foreach(double fraction in new[]{.001,.5,.999})
                 {
-                    double day=(month+fraction)*30;
+                    double day=(month+fraction)*30+(month%3)*360;
                     map.SetVegetationDay(day);probe.CopyPropertiesFromMaterial(map.Material);
-                    probe.SetFloat("_ProbeMode",6);probe.SetVector("_ProbeOrigin",new Vector4(tile%world.Width+.5f,tile/world.Width+.5f,0,0));
+                    probe.SetFloat("_ProbeMode",20);probe.SetVector("_ProbeOrigin",new Vector4(tile%world.Width+.5f,tile/world.Width+.5f,0,0));
                     probe.SetVector("_ProbeSpan",new Vector4(.000001f,.000001f,0,0));
                     Graphics.Blit(Texture2D.whiteTexture,target,probe);RenderTexture.active=target;
                     image.ReadPixels(new Rect(0,0,64,64),0,0);image.Apply();Color sample=image.GetPixel(32,32);
-                    FlatEcology.SampleSeason(world,tile,day,out float growth,out float foliage);
+                    FlatEcology.SampleSurfaceSeason(world,tile,day,out float growth,out float foliage,out float snow,out float soil);
                     maximumError=Math.Max(maximumError,Math.Max(Math.Abs(sample.r-growth),Math.Abs(sample.g-foliage)));
+                    maximumError=Math.Max(maximumError,Math.Max(Math.Abs(sample.b-snow),Math.Abs(sample.a-soil)));
                 }
-                Check(report,maximumError<.002,"GPU growth and foliage match local climate through every month and year wrap; maximum error="+maximumError);
+                Check(report,maximumError<.002,"GPU growth, foliage, snow and soil match local climate through every month and year wrap; maximum error="+maximumError);
                 Check(report,texture.GetInstanceID()==identity&&texture.updateCount==updates,"calendar changes reuse vegetation texture data without uploads");
                 map.SetVegetationDay(0);probe.CopyPropertiesFromMaterial(map.Material);probe.SetFloat("_ProbeMode",6);
                 probe.SetVector("_ProbeSpan",new Vector4(.000001f,.000001f,0,0));
@@ -171,7 +193,8 @@ namespace Orbis.Editor
                     probe.SetVector("_ProbeSpan",new Vector4(.000001f,.000001f,0,0));
                     Graphics.Blit(Texture2D.whiteTexture,target,probe);RenderTexture.active=target;
                     image.ReadPixels(new Rect(0,0,64,64),0,0);image.Apply();
-                    Check(report,Math.Abs(image.GetPixel(32,32).r-replacement.VegetationSeasons[offset]/255f)<.002,"published seasonal revisions reach the rendered GPU data");
+                    FlatEcology.SampleSeason(world,17,0,out float publishedGrowth,out _);
+                    Check(report,Math.Abs(image.GetPixel(32,32).r-publishedGrowth)<.002,"published seasonal revisions reach the rendered GPU data");
                 }
                 finally{world.Facts=originalFacts;world.TerrainRevision=revision;}
             }
