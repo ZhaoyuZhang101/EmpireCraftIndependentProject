@@ -165,7 +165,7 @@ namespace Orbis.Flat
                         coldest=Math.Min(coldest,monthly);warmest=Math.Max(warmest,monthly);
                     }
                     f.AnnualRain[i]=rain;f.MeanTemperature[i]=temp;
-                    float storage=75,mean=0;int saturated=0;
+                    float storage=75,mean=0,growingSoil=0,growingWeight=0;int saturated=0;
                     float riparian=0,waterHand=f.Hand[i];
                     // Neighbouring freshwater supports low banks, but not elevated ridges.
                     for(int oy=-2;oy<=2;oy++)for(int ox=-2;ox<=2;ox++)
@@ -188,6 +188,8 @@ namespace Orbis.Flat
                         if(m>=24)
                         {
                             mean+=storage/1800f;if(storage>=120)saturated++;
+                            float warmth=Math.Max(0,w.Temperature[i*12+m%12]-5);
+                            growingSoil+=storage/150*warmth;growingWeight+=warmth;
                             f.VegetationSeasons[FlatEcology.SeasonOffset(w,i,m%12)]=(byte)(storage/150*255+.5f);
                         }
                     }
@@ -195,6 +197,7 @@ namespace Orbis.Flat
                     bool area=AreaWater(w.Water[i]);
                     f.Forms[i]=ClassifyForm(w.Elevation[i],f.Relief[i],gradient,f.Hand[i],fresh[i]<=1,area,w.WaterLevel[i]>w.Elevation[i]);
                     Biome biome=ClassifyBiome(w.Climates[i],w.Elevation[i],temp,rain,(byte)saturated,gradient,waterHand,riparian>.18f,area,warmest);
+                    Biome ecologyBiome=biome;
                     if(updateBiomes)
                     {
                         w.Biomes[i]=biome;
@@ -213,10 +216,15 @@ namespace Orbis.Flat
                     else if(w.CoastDistance[i]==1&&w.Elevation[i]<=100&&gradient<=200)material=GroundMaterial.Sand;
                     else if(biome==Biome.Desert||biome==Biome.Beach)material=GroundMaterial.Sand;
                     f.Materials[i]=material;
-                    f.Vegetation[i]=FlatEcology.Classify(biome,w.Climates[i],temp,rain,gradient,warmest);
-                    f.Canopy[i]=FlatEcology.ContinuousCanopy(biome,temp,rain,mean,gradient,warmest);
+                    // Persistent biome labels remain authoritative for saves and
+                    // civilization. Reconstructed ecology follows the actual climate.
+                    f.Vegetation[i]=FlatEcology.Classify(ecologyBiome,w.Climates[i],temp,rain,gradient,warmest);
+                    float seasonalSoil=growingWeight>0?growingSoil/growingWeight:0;
+                    float canopy=FlatEcology.ContinuousCanopy(ecologyBiome,temp,rain,seasonalSoil,gradient,warmest);
+                    float stand=FlatEcology.StandVariation(w,x,y,treeSeed,out float clearing);
+                    f.Canopy[i]=FlatEcology.StandCanopy(f.Vegetation[i],canopy,seasonalSoil,warmest,riparian,clearing);
                     bool freshBank=fresh[i]<=2&&waterHand<=100;
-                    f.Trees[i]=FlatEcology.SelectTree(f.Vegetation[i],w.Climates[i],coldest,warmest,mean,freshBank,w.CoastDistance[i]<=2,FMath.Unit((uint)i^treeSeed));
+                    f.Trees[i]=FlatEcology.SelectTree(f.Vegetation[i],w.Climates[i],coldest,warmest,seasonalSoil,freshBank,w.CoastDistance[i]<=2,stand);
                     FlatEcology.BuildSeasons(w,f,i,coldest);
                     f.Freshness[i]=w.Water[i]==WaterKind.River||w.Water[i]==WaterKind.Lake?1:0;
                     f.Depth[i]=area?Math.Max(.25f,w.WaterLevel[i]-w.Elevation[i]):0;

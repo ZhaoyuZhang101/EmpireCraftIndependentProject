@@ -89,4 +89,155 @@ float4 PDAmbientArt(float2 pixel,float species,float4 pose,float variant)
  return float4(saturate(ink),saturate(mask));
 }
 
+float PDWildlifeEllipse(float2 p,float2 centre,float2 radius)
+{
+ float2 q=(p-centre)/radius;
+ return 1-step(1,dot(q,q));
+}
+
+float PDWildlifeHeight(float4 actor,float4 state)
+{
+ bool asleep=state.x>4.5;
+ float moving=step(.001,state.y);
+ if(actor.x<1.5)return asleep?.8:1.3+moving*max(0,sin(actor.z*7.2+actor.w*6));
+ if(actor.x<2.5)return asleep?1.2:2.5;
+ if(actor.x<3.5)return asleep?1.0:lerp(1.5,4.5,moving);
+ return asleep?.45:lerp(.8,3.0,moving);
+}
+
+// Explicit actor poses keep gait, feeding, sleep and local-season colour on the
+// persistent actor clock. The shadow samples this exact function and alpha mask.
+float4 PDWildlifeActorArt(float2 pixel,float4 actor,float4 state,float2 environment)
+{
+ float2 p=floor(pixel)+.5;
+ p.x*=actor.y;
+ float clock=actor.z,variant=actor.w;
+ float moving=step(.001,state.y);
+ float eating=step(2.5,state.x)*(1-step(3.5,state.x));
+ float asleep=step(4.5,state.x);
+ float cold=saturate((4-environment.y)/14);
+ float breath=sin(clock*1.3+variant*4);
+ float mask=0;
+ float3 ink=0;
+ if(actor.x<1.5)
+ {
+  float gait=clock*7.2+variant*6;
+  float lift=moving*floor(max(0,sin(gait))*3.5);
+  p.y-=lift;
+  float body=PDWildlifeEllipse(p,float2(-1,-asleep*.6),lerp(float2(4.3,2.8),float2(4.4,2.0+.4*step(0,breath)),asleep));
+  float belly=PDWildlifeEllipse(p,float2(-.5,-1),float2(3.4,1.6))*body;
+  float2 headPoint=p+float2(0,eating*(2+floor((.5+.5*sin(clock*4))*2)));
+  float head=PDBox(headPoint,float2(2,-1),float2(5,3));
+  float earTilt=step(.1,sin(clock*1.2+variant*4));
+  float ears=max(PDBox(headPoint,float2(1,2),float2(2,6+earTilt)),PDBox(headPoint,float2(3,2),float2(4,7-earTilt)));
+  if(asleep>.5)
+  {
+   head=PDWildlifeEllipse(p,float2(2,-.5),float2(2.5,1.8));
+   ears=PDBox(p,float2(-1,1),float2(3,2));
+  }
+  float extension=moving*floor(sin(gait)*1.8);
+  float feet=max(PDBox(p,float2(-4+extension,-4+asleep),float2(-1+extension,-2)),
+                 PDBox(p,float2(2-extension,-4+asleep),float2(4-extension,-2)));
+  float tail=PDWildlifeEllipse(p,float2(-5,-.3),float2(1.5,1.3));
+  float nose=PDBox(headPoint,float2(5,0),float2(6,1))*(1-asleep);
+  float leaf=PDBox(p,float2(5,-4),float2(7,-3))*eating*step(0,sin(clock*4));
+  mask=max(max(body,head),max(max(ears,tail),max(max(feet,nose),leaf)));
+  float3 fur=lerp(float3(.47,.39,.29),float3(.73,.70,.58),variant);
+  fur=lerp(fur,float3(.82,.82,.73),cold*.65);
+  ink=fur*lerp(.64,1.13,saturate((p.y+3)/6));
+  ink=lerp(ink,fur*.55,body*(1-PDWildlifeEllipse(p,float2(-1,-asleep*.6),float2(3.5,1.8))));
+  ink=lerp(ink,fur*1.12,belly*.45);
+  ink=lerp(ink,float3(.85,.81,.68),max(tail,feet*.65));
+  ink=lerp(ink,float3(.46,.27,.23),PDBox(headPoint,float2(3,3),float2(4,6-earTilt))*(1-asleep));
+  float eye=PDBox(headPoint,float2(4,1),float2(5,2))*(1-asleep)+PDBox(p,float2(2,-1),float2(4,0))*asleep;
+  ink=lerp(ink,float3(.085,.075,.06),saturate(eye+nose));
+  ink=lerp(ink,float3(.38,.50,.17),leaf);
+ }
+ else if(actor.x<2.5)
+ {
+  float gait=clock*6.4+variant*6;
+  p.y-=moving*floor(abs(sin(gait))*1.4);
+  float body=PDWildlifeEllipse(p,float2(-1,0),lerp(float2(5.3,3.1),float2(5,2.1+.55*step(0,breath)),asleep));
+  float2 headPoint=p+float2(-eating,eating*(3+floor(sin(clock*4))));
+  float neck=PDBox(headPoint,float2(3,0),float2(6,4));
+  float head=PDBox(headPoint,float2(5,2),float2(8,5));
+  float ears=max(PDBox(headPoint,float2(4,4),float2(5,7)),PDBox(headPoint,float2(7,4),float2(8,6+step(0,sin(clock*.8)))));
+  if(asleep>.5)
+  {
+   neck=0;head=PDWildlifeEllipse(p,float2(3.5,0),float2(2.8,1.9));
+   ears=PDBox(p,float2(3,1),float2(6,2));
+  }
+  float swing=moving*floor(sin(gait)*1.8);
+  float farLegs=max(PDBox(p,float2(-4-swing,-5),float2(-3-swing,-1)),PDBox(p,float2(1+swing,-5),float2(2+swing,-1)));
+  float legs=max(PDBox(p,float2(-2+swing,-5),float2(-1+swing,-1)),PDBox(p,float2(3-swing,-5),float2(4-swing,-1)));
+  if(asleep>.5){farLegs=0;legs=PDBox(p,float2(-4,-3),float2(3,-2));}
+  float tail=PDBox(p,float2(-7,0),float2(-5,2));
+  mask=max(max(body,neck),max(max(head,ears),max(max(legs,farLegs),tail)));
+  float3 coat=lerp(float3(.45,.27,.13),float3(.65,.44,.23),variant);
+  coat=lerp(coat,float3(.48,.43,.34),cold*.35);
+  ink=coat*lerp(.65,1.15,saturate((p.y+3)/6));
+  ink=lerp(ink,coat*.55,body*(1-PDWildlifeEllipse(p,float2(-1,0),float2(4.5,2.2))));
+  ink=lerp(ink,float3(.25,.18,.12),farLegs);
+  ink=lerp(ink,float3(.34,.23,.14),legs);
+  ink=lerp(ink,float3(.13,.11,.09),max(legs,farLegs)*(1-step(-4,p.y)));
+  ink=lerp(ink,float3(.83,.73,.52),max(tail,PDBox(p,float2(-3,-2),float2(3,-1))*body*.6));
+  float spots=PDBox(p,float2(-3,1),float2(-2,2))+PDBox(p,float2(0,0),float2(1,1))+PDBox(p,float2(2,1),float2(3,2));
+  ink=lerp(ink,float3(.83,.68,.43),saturate(spots)*step(.4,variant)*body);
+  float eye=PDBox(headPoint,float2(7,3),float2(8,4))*(1-asleep)+PDBox(p,float2(4,0),float2(6,1))*asleep;
+  ink=lerp(ink,float3(.09,.075,.055),eye);
+ }
+ else if(actor.x<3.5)
+ {
+  p.y-=moving*2;
+  float wingClock=clock*9.5+variant*6;
+  float reach=2+floor((.5+.5*sin(wingClock))*5);
+  float wings=PDWildlifeEllipse(p,float2(-1,0),float2(3.3,reach))*moving;
+  float body=PDWildlifeEllipse(p,float2(0,-.2),lerp(float2(4,2.3),float2(3.6,2.2+.8*step(0,breath)),asleep));
+  float2 headPoint=p+float2(-eating,eating*(2+floor(sin(clock*5)*1.3))+floor(sin(clock*.7+variant)*.7)*(1-moving)*(1-asleep));
+  float head=PDBox(headPoint,float2(3,0),float2(5,3))*(1-asleep);
+  float tail=PDBox(p,float2(-6,-1),float2(-3,1));
+  float beak=PDBox(headPoint,float2(5,1),float2(7,2))*(1-asleep);
+  float feet=max(PDBox(p,float2(-1,-4),float2(0,-2)),PDBox(p,float2(2,-4),float2(3,-2)))*(1-moving)*(1-asleep);
+  mask=max(max(body,wings),max(max(head,tail),max(beak,feet)));
+  float3 feather=lerp(float3(.23,.34,.42),float3(.37,.43,.24),variant);
+  ink=feather*lerp(.65,1.17,saturate((p.y+3)/7));
+  float tips=wings*(1-PDWildlifeEllipse(p,float2(-1,0),float2(2.5,max(1,reach-1))));
+  float primaries=wings*(PDBox(p,float2(-3,-7),float2(-2,8))+PDBox(p,float2(-1,-7),float2(0,8)))*.5;
+  ink=lerp(ink,float3(.12,.17,.21),max(tail,saturate(tips+primaries)));
+  ink=lerp(ink,float3(.73,.72,.57),PDWildlifeEllipse(p,float2(1,-.5),float2(2.8,1.4))*body);
+  ink=lerp(ink,float3(.26,.32,.30),PDBox(p,float2(-3,0),float2(1,1))*body);
+  ink=lerp(ink,feather*.75,PDWildlifeEllipse(p,float2(-1,.2),float2(2.8,1.7))*asleep);
+  ink=lerp(ink,float3(.79,.58,.21),beak);
+  float eye=PDBox(headPoint,float2(4,1),float2(5,2))*(1-asleep)+PDBox(p,float2(2,0),float2(4,1))*asleep;
+  ink=lerp(ink,float3(.055,.07,.065),max(eye,feet));
+ }
+ else
+ {
+  float wingClock=clock*11*lerp(.6,1.15,saturate(environment.x))+variant*6;
+  float span=lerp(2+step(0,sin(clock*1.1+variant*6)),2+floor((.5+.5*sin(wingClock))*4),moving);
+  span=lerp(span,2,eating);
+  float2 mirrored=float2(abs(p.x),p.y);
+  float2 upperPoint=(mirrored-float2(1+span*.46,1.8))/float2(span*.65,2.2);
+  float2 lowerPoint=(mirrored-float2(1+span*.38,-1.4))/float2(span*.55,1.7);
+  float upper=(1-step(1,dot(upperPoint,upperPoint)))*step(1,mirrored.x);
+  float lower=(1-step(1,dot(lowerPoint,lowerPoint)))*step(1,mirrored.x);
+  float wings=max(upper,lower);
+  if(asleep>.5)wings=PDWildlifeEllipse(p,float2(-1,0),float2(2.1,3.5+.25*step(0,breath)));
+  float body=PDBox(p,float2(-.5,-3),float2(.6,4));
+  float antenna=PDBox(mirrored,float2(1,3),float2(2,5))*(1-asleep);
+  float nectar=PDBox(p,float2(0,3),float2(1,5+step(0,sin(clock*4))))*eating;
+  mask=max(wings,max(max(body,antenna),nectar));
+  float3 wing=lerp(float3(.85,.54,.17),float3(.25,.53,.72),step(.58,variant));
+  ink=wing*lerp(.65,1.15,saturate((p.y+3)/7));
+  float edge=max(upper*step(.52,dot(upperPoint,upperPoint)),lower*step(.48,dot(lowerPoint,lowerPoint)));
+  if(asleep>.5)edge=wings-PDWildlifeEllipse(p,float2(-1,0),float2(1.3,2.6));
+  ink=lerp(ink,float3(.16,.16,.14),max(max(body,antenna),edge*wings));
+  float spots=PDWildlifeEllipse(mirrored,float2(1+span*.48,1.8),float2(.75,.75))*wings*(1-asleep);
+  ink=lerp(ink,float3(.93,.85,.55),spots);
+  ink=lerp(ink,float3(.42,.31,.15),nectar);
+ }
+ ink*=1+breath*lerp(.012,.025,asleep);
+ return float4(saturate(ink),saturate(mask));
+}
+
 #endif

@@ -58,6 +58,16 @@ float PDSettlementCastShadow(float2 ground,float2 direction)
 float PixelPropShadow(float2 cell)
 {
  float coverage=0;float2 id=floor(cell);
+ float3 sun=normalize(_FlatSun+float3(0,1e-7,0));
+ float2 nearEdge=abs(frac(cell)-.5);
+ if(max(nearEdge.x,nearEdge.y)>.36)
+ {
+  // Only low-angle shadows can arrive from two tiles away. Shift the same
+  // nine-source window towards the sun at a receiving tile's outer edge.
+  float2 uv=(id+.5)*_MapSize.zw;
+  float3 receiverSun=FlatGeographicLight(uv,sun);
+  id=floor(cell+.14*receiverSun.xy*float2(1,FlatArtworkLatitudeScale(uv.y)));
+ }
  [loop] [fastopt] for(int row=1;row>=-1;row--)
  [loop] [fastopt] for(int column=-1;column<=1;column++)
  {
@@ -66,9 +76,6 @@ float PixelPropShadow(float2 cell)
   float2 uv=(root+.5)*_MapSize.zw;
   float scale=FlatArtworkLatitudeScale(uv.y);
   float2 q=(cell-root)*32;
-  // Building and tree projections cannot reach beyond this conservative bound.
-  if(q.x< -31||q.x>63||q.y< -31||q.y>63)continue;
-  float3 sun=normalize(_FlatSun+float3(0,1e-7,0));
   float3 localSun=FlatGeographicLight(uv,sun);
   float height=localSun.z;
   float daylight=smoothstep(-.04,.18,height);
@@ -88,7 +95,7 @@ float PixelPropShadow(float2 cell)
    float4 ecology=FlatEcologyData(uv,info,tree);placement.w=ecology.a;
    q.y=placement.y+(q.y-placement.y)/scale;
    float2 ground=(q-placement.xy)/placement.z;
-   if(abs(ground.x)>37||abs(ground.y)>37)continue;
+   if(abs(ground.x)>42||abs(ground.y)>42)continue;
    if(!PDTreeAvailable(root,placement,info,ecology))continue;
    float shore=1-smoothstep(.2,1.2,-FlatVisualSample(float4(uv,0,0)).g);
    float species=PDTreeSpecies(ecology,info,shore,tree);
@@ -104,9 +111,10 @@ float4 PDTreeArtwork(float2 pixel,float2 id,float species,float seed,float leaf,
 {
  id.x-=floor(id.x/_MapSize.x)*_MapSize.x;
  float2 wind=PDVegetationWind(id,seed);
- float2 edge;float4 crown=PDTreeCrown(pixel,species,seed,leaf,wind,edge);
+ float2 edge;float3 surface;
+ float4 crown=PDTreeCrown(pixel,species,seed,leaf,wind,edge,surface);
  float trunk=PDTreeTrunk(pixel,species,seed,wind);
- float3 foliage=PDTreeFoliage(crown.xyz,pixel,id,species,seed,localSun,edge);
+ float3 foliage=PDTreeFoliage(crown.xyz,surface,species,seed,localSun,edge);
  foliage=lerp(foliage*float3(1.30,.78,.45),foliage,leaf);
  float3 col=PDPaint(0,PDTreeBark(pixel,species,seed,wind)*light,trunk);
  col=PDPaint(col,foliage*light,crown.a);
@@ -146,7 +154,7 @@ float3 PixelProps(float3 col,float2 cell,float4 field,float waterMask,float stru
   float localScale=FlatArtworkLatitudeScale((treeId.y+.5)*_MapSize.w);
   localPoint.y=placement.y+(localPoint.y-placement.y)/localScale;
   float2 treePoint=floor(localPoint-placement.xy)/placement.z;
-  if(abs(treePoint.x)>17||treePoint.y< -8||treePoint.y>40)continue;
+  if(!PDTreeInDrawBounds(treePoint))continue;
   float2 centreUV=(treeId+.5)*_MapSize.zw;
   float4 rootInfo=tex2Dlod(_InfoTex,float4(centreUV,0,0))*255;
   float tree;

@@ -73,6 +73,7 @@ namespace Orbis.Editor
     setWeather(new Color(0,0,0,0));
     foreach(var p in render(column))if(p.b>1e-5f)throw new Exception("Snow escapes cloud support");
     report.Add("PASS temperature-dependent visual rain/snow and clear-sky exclusion; snow pixels="+snowing);
+    ValidateSurfacePrecipitation(report,render);
     setWeather(new Color(1,.5f,1,1));
     var fullColumn=render(column);
     var strip=new RenderTexture(128,16,0,RenderTextureFormat.ARGBFloat,RenderTextureReadWrite.Linear);strip.Create();owned.Add(strip);
@@ -108,6 +109,61 @@ namespace Orbis.Editor
     Directory.CreateDirectory("Documentation/ClimateCloudUpgrade");File.WriteAllLines("Documentation/ClimateCloudUpgrade/gpu-regression.txt",report);
     ShaderUtil.allowAsyncCompilation=async;RenderTexture.active=previous;RenderTexture.ReleaseTemporary(rt);foreach(var o in owned)UnityEngine.Object.DestroyImmediate(o);
    }
+  }
+
+  static void ValidateSurfacePrecipitation(List<string> report,Func<Material,Color[]> render)
+  {
+   var probe=new Material(AssetDatabase.LoadAssetAtPath<Shader>("Assets/ORBIS/Editor/FlatNightProbe.shader"));
+   var cloud=new Texture2D(2,1,TextureFormat.RGBAFloat,false,true){filterMode=FilterMode.Point,wrapMode=TextureWrapMode.Repeat};
+   var wind=new Texture2D(1,1,TextureFormat.RGBAFloat,false,true);
+   try
+   {
+    ShaderUtil.CompilePass(probe,0,true);
+    probe.SetTexture("_SkyTex",cloud);probe.SetTexture("_VegetationWindTex",wind);
+    probe.SetFloat("_FlatClouds",1);probe.SetFloat("_SkyReady",1);probe.SetFloat("_FlatRain",1);
+    probe.SetFloat("_VegetationWindReady",1);probe.SetFloat("_FlatGeographicChart",1);
+    probe.SetFloat("_ProbePrecipitation",2);probe.SetFloat("_SkyClock",3.7f);
+    probe.SetVector("_FlatSun",Vector3.forward);
+    probe.SetVector("_MapSize",new Vector4(64,32,1f/64,1f/32));
+    var area=new Vector4(30,14,4,2);probe.SetVector("_ProbeArea",area);
+    var storm=new Color(1,.35f,0,1);var snow=new Color(1,.35f,1,0);
+    Action<Color,Color> sky=(a,b)=>{cloud.SetPixels(new[]{a,b});cloud.Apply();};
+    Action<float> breeze=x=>{wind.SetPixel(0,0,new Color(x,.25f,x,.25f));wind.Apply();};
+    Func<Color[],int,float> sum=(pixels,c)=>{float value=0;foreach(var p in pixels)value+=Mathf.Abs(p[c]);return value;};
+    Func<Color[],Color[],int,float> difference=(a,b,c)=>{float value=0;for(int i=0;i<a.Length;i++)value+=Mathf.Abs(a[i][c]-b[i][c]);return value;};
+    breeze(1.3f);sky(storm,storm);var first=render(probe);var repeat=render(probe);
+    CheckRenderState(report,sum(first,0)>1&&sum(first,1)>.1f&&sum(first,2)>1&&sum(first,3)==0,
+     "warm storm produces falling drops, spray and water rings");
+    CheckRenderState(report,difference(first,repeat,0)+difference(first,repeat,2)==0,"paused storm is stationary");
+    probe.SetVector("_ProbeArea",area+new Vector4(1,0,0,0));var panned=render(probe);float panError=0;
+    for(int y=0;y<64;y++)for(int x=0;x<96;x++){
+     var d=first[y*128+x+32]-panned[y*128+x];panError+=Mathf.Abs(d.r)+Mathf.Abs(d.b);
+    }
+    CheckRenderState(report,panError/(96*64)<.0001f,"drops and impacts stay on the same terrain when panning");
+    probe.SetVector("_ProbeArea",area+new Vector4(64,0,0,0));var wrapped=render(probe);
+    CheckRenderState(report,(difference(first,wrapped,0)+difference(first,wrapped,2))/first.Length<.0001f,
+     "rain particles and landing sites wrap at the date line");
+    probe.SetVector("_ProbeArea",area);breeze(-1.3f);var reversed=render(probe);
+    CheckRenderState(report,difference(first,reversed,0)>1&&difference(first,reversed,2)<.001f,
+     "seasonal wind redirects incoming drops while their impact centres stay fixed");
+    probe.SetFloat("_SkyClock",3.84f);var later=render(probe);
+    CheckRenderState(report,difference(first,later,2)>1,"surface impacts expand and fade over time");
+    sky(new Color(.12f,.1f,0,1),storm);var boundary=render(probe);int hits=0;
+    for(int y=0;y<64;y++)for(int x=0;x<128;x++){
+     var v=boundary[y*128+x];if(x<64&&v.maxColorComponent>0)throw new Exception("rain crosses the clear side of the cloud boundary");
+     if(x>=64&&v.maxColorComponent>.05f)hits++;
+    }
+    CheckRenderState(report,hits>8,"rain is local to thick cloud on one side of a storm front");
+    sky(snow,snow);var flakes=render(probe);
+    CheckRenderState(report,sum(flakes,0)+sum(flakes,1)+sum(flakes,2)==0&&sum(flakes,3)>1,
+     "cold storm draws drifting flakes without liquid streaks or surface ripples");
+    sky(storm,storm);probe.SetFloat("_ProbePrecipitation",1);probe.SetFloat("_ProbeWater",1);
+    var lake=render(probe);probe.SetFloat("_ProbeIce",1);var ice=render(probe);
+    probe.SetFloat("_ProbeWater",0);var frozenSoil=render(probe);probe.SetFloat("_ProbeIce",0);var soil=render(probe);
+    CheckRenderState(report,difference(lake,ice,0)>.2f&&difference(soil,frozenSoil,0)>.2f&&difference(ice,frozenSoil,0)==0,
+     "liquid water ripples, soil wets and splashes, ice receives only airborne drops");
+   }
+   finally{UnityEngine.Object.DestroyImmediate(probe);UnityEngine.Object.DestroyImmediate(cloud);UnityEngine.Object.DestroyImmediate(wind);}
   }
 
   static void ValidateRenderState(List<string> report)

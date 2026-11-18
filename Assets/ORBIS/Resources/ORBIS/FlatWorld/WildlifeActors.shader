@@ -48,32 +48,19 @@ Shader "ORBIS/FlatWorld/WildlifeActors"
     v2f o;o.pos=UnityObjectToClipPos(v.vertex);o.pixel=v.pixel;
     o.actor=v.actor;o.state=v.state;o.geographic=v.geographic;o.motion=v.motion;o.cellAxes=v.cellAxes;return o;
    }
-   float4 AnimalArt(float2 pixel,float4 actor,float4 state)
+   float4 AnimalArt(float2 pixel,float4 actor,float4 state,float2 environment)
    {
-    bool asleep=state.x>4.5;
-    bool eating=state.x>2.5&&state.x<3.5;
-    float2 samplePoint=pixel;
-    if(asleep)samplePoint.y=(samplePoint.y+2)*1.6;
-    if(eating&&pixel.x*actor.y>2)samplePoint.y+=1+floor(sin(actor.z*3)*1.2);
-    float clock=state.y>.001||eating?actor.z:actor.w*6;
-    float4 art=PDAmbientArt(samplePoint,actor.x,float4(0,0,actor.y,clock),actor.w);
-    if(asleep)
-    {
-     float2 eye=float2(pixel.x*actor.y,pixel.y);
-     art.rgb=lerp(art.rgb,float3(.15,.12,.10),PDBox(eye,float2(3,-1),float2(5,0))*art.a);
-    }
-    return art;
+    return PDWildlifeActorArt(pixel,actor,state,environment);
    }
    float4 frag(v2f i):SV_Target
    {
     float3 radial=FlatRadial(i.geographic.xy);
     float3 sun=FlatGeographicLight(i.geographic.xy,normalize(_FlatSun+float3(0,1e-7,0)));
     float daylight=smoothstep(-.04,.18,sun.z);
-    float height=i.actor.x<1.5?1.5:i.actor.x<2.5?2.5:4;
-    if(i.state.x>4.5)height*=.5;
+    float height=PDWildlifeHeight(i.actor,i.state);
     float2 cast=clamp(-i.geographic.zw/max(.35,sun.z),-2.6,2.6)*height;
-    float4 art=AnimalArt(i.pixel,i.actor,i.state);
-    float shadow=AnimalArt(i.pixel-cast,i.actor,i.state).a*daylight*.25;
+    float4 art=AnimalArt(i.pixel,i.actor,i.state,i.motion.zw);
+    float shadow=AnimalArt(i.pixel-cast,i.actor,i.state,i.motion.zw).a*daylight*.25;
     float3 light=FlatDayLight(radial,i.geographic.xy);
     float3 ink=FlatColor(art.rgb)*light;
     float particle=0;
@@ -90,7 +77,9 @@ Shader "ORBIS/FlatWorld/WildlifeActors"
      }
     }
     float opacity=art.a+(1-art.a)*(particle+(1-particle)*shadow);
-    float3 colour=ink*art.a+FlatColor(float3(.64,.59,.47))*light*particle*(1-art.a);
+    float3 trailColour=lerp(float3(.65,.58,.43),float3(.37,.35,.27),i.state.w);
+    if(i.actor.x>2.5)trailColour=i.actor.x>3.5?float3(.81,.73,.45):float3(.71,.74,.69);
+    float3 colour=ink*art.a+FlatColor(trailColour)*light*particle*(1-art.a);
     opacity*=i.state.z;
     clip(opacity-.001);
     if(_WildlifeOcclusionReady>.5)

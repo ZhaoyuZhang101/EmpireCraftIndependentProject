@@ -254,9 +254,9 @@ namespace Orbis.Flat
             }
             int north=world.Index(12,16),south=world.Index(13,16),evergreen=world.Index(20,16);
             world.Biomes[evergreen]=Biome.Taiga;world.Climates[evergreen]=Koppen.Dfc;
-            for(int x=20;x<36;x++)
+            for(int y=16;y<world.Height;y++)for(int x=20;x<36;x++)
             {
-                int tile=world.Index(x,16);world.Biomes[tile]=Biome.Taiga;world.Climates[tile]=Koppen.Dfc;
+                int tile=world.Index(x,y);world.Biomes[tile]=Biome.Taiga;world.Climates[tile]=Koppen.Dfc;
                 for(int month=0;month<12;month++)world.Temperature[tile*12+month]=-8-22*(float)Math.Cos(month*Math.PI*2/12);
             }
             for(int y=18;y<=24;y++)for(int x=38;x<=44;x++)
@@ -274,6 +274,14 @@ namespace Orbis.Flat
             world.Water[lake]=WaterKind.Lake;world.WaterLevel[lake]=410;world.Biomes[lake]=Biome.Water;
             FlatTerrainAnalysis.Build(world,default,false,1);
             Check(world.Facts.VegetationSeasonsReady,"Terrain analysis publishes the complete seasonal vegetation cache");
+            evergreen=-1;int birch=-1;
+            for(int y=16;y<world.Height;y++)for(int x=20;x<36;x++)
+            {
+                int tile=world.Index(x,y);if(world.Facts.Canopy[tile]<=.5f)continue;
+                if(world.Facts.Trees[tile]==TreeSpecies.Pine)evergreen=tile;
+                if(world.Facts.Trees[tile]==TreeSpecies.Birch)birch=tile;
+            }
+            Check(evergreen>=0&&birch>=0,"Boreal forest stands contain evergreen conifers and a deciduous birch stand");
             Check(world.Facts.Canopy[evergreen]>.5f,"Warm short summers sustain boreal forest despite a subzero annual mean");
             int highland=world.Index(41,21);
             Check(world.Facts.Vegetation[highland]==VegetationCover.TemperateRainforest&&world.Facts.Canopy[highland]>.5f,
@@ -286,8 +294,6 @@ namespace Orbis.Flat
             Check(southSummer>southWinter+.6f,"Season timing follows local climate across hemispheres");
             FlatEcology.SampleSeason(world,evergreen,0,out float winterGrowth,out float evergreenLeaf);
             Check(winterGrowth<.1f&&evergreenLeaf>.7f,"Evergreen canopy survives winter while growth is dormant");
-            int birch=-1;
-            for(int x=20;x<36;x++)if(world.Facts.Trees[world.Index(x,16)]==TreeSpecies.Birch)birch=world.Index(x,16);
             Check(birch>=0,"Boreal woodland fixture contains a deciduous birch");
             FlatEcology.SampleSeason(world,birch,0,out _,out float birchWinter);
             FlatEcology.SampleSeason(world,birch,180,out _,out float birchSummer);

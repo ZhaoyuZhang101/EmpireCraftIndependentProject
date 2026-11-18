@@ -25,8 +25,7 @@ namespace Orbis.Flat
             public bool CanTraverse(Pathfinding.Path path,GraphNode node)=>DefaultITraversalProvider.CanTraverse(path,node);
             public bool CanTraverse(Pathfinding.Path path,GraphNode from,GraphNode to)
             {
-                if(!CanTraverse(path,to))return false;
-                int a=ids[from],b=ids[to];
+                if(!CanTraverse(path,to)||!ids.TryGetValue(from,out int a)||!ids.TryGetValue(to,out int b))return false;
                 for(int edge=0;edge<4;edge++)if(neighbours[a*4+edge]==b)return (edges[a]&(1<<edge))!=0;
                 return false;
             }
@@ -73,23 +72,20 @@ namespace Orbis.Flat
         void Rebuild()
         {
             generation++;
-            var previous=graph;
-            engine.AddWorkItem(()=>
+            var nextNodes=new PointNode[world.Count];
+            var nextIds=new Dictionary<GraphNode,int>(world.Count);
+            var neighbours=new int[world.Count*4];var edges=new byte[world.Count];
+            graph=FlatPlanetPathfinder.ReplacePointGraph(engine,graph,next=>
             {
-                if(previous!=null)engine.data.RemoveGraph(previous);
-                graph=engine.data.AddGraph(typeof(PointGraph)) as PointGraph;
-                graph.name="ORBIS wildlife sphere";
-                nodes=new PointNode[world.Count];
-                ids=new Dictionary<GraphNode,int>(world.Count);
-                var neighbours=new int[world.Count*4];var edges=new byte[world.Count];
+                next.name="ORBIS wildlife sphere";
                 var directions=new PlanetVector[world.Count];
                 for(int i=0;i<world.Count;i++)
                 {
                     var location=PlanetCoordinateSystem.FromMapUV((i%world.Width+.5)/world.Width,(i/world.Width+.5)/world.Height);
                     var d=PlanetCoordinateSystem.SurfaceNormal(location);directions[i]=d;
-                    nodes[i]=graph.AddNode((Int3)new Vector3((float)d.X*1000,(float)d.Y*1000,(float)d.Z*1000));
-                    nodes[i].Tag=FlatWildlifeSimulation.IsGroundTile(world,i)?0u:1u;
-                    ids.Add(nodes[i],i);
+                    nextNodes[i]=next.AddNode((Int3)new Vector3((float)d.X*1000,(float)d.Y*1000,(float)d.Z*1000));
+                    nextNodes[i].Tag=FlatWildlifeSimulation.IsGroundTile(world,i)?0u:1u;
+                    nextIds.Add(nextNodes[i],i);
                 }
                 for(int i=0;i<world.Count;i++)for(int edge=0;edge<4;edge++)
                 {
@@ -97,11 +93,10 @@ namespace Orbis.Flat
                     if(FlatWildlifeSimulation.CanStep(world,i,adjacent,false))edges[i]|=(byte)(1<<edge);
                     if(adjacent<=i)continue;
                     double arc=PlanetLocalProjection.Distance(directions[i],directions[adjacent],1000);
-                    GraphNode.Connect(nodes[i],nodes[adjacent],(uint)Math.Max(1,Math.Round(arc*1000)));
+                    GraphNode.Connect(nextNodes[i],nextNodes[adjacent],(uint)Math.Max(1,Math.Round(arc*1000)));
                 }
-                graph.RebuildNodeLookup();traversal=new Traversal(ids,neighbours,edges);
             });
-            engine.FlushWorkItems();
+            nodes=nextNodes;ids=nextIds;traversal=new Traversal(ids,neighbours,edges);
             structures=(Structure[])world.Buildings.Clone();facts=world.Facts;
             terrainRevision=world.TerrainRevision;revision=world.Revision;
         }
@@ -141,8 +136,7 @@ namespace Orbis.Flat
         {
             disposed=true;generation++;
             while(requests.Count>0)requests.Dequeue().Complete(Array.Empty<int>());
-            var removed=graph;graph=null;
-            if(engine&&engine==AstarPath.active&&removed!=null)engine.AddWorkItem(()=>engine.data.RemoveGraph(removed));
+            FlatPlanetPathfinder.ReleasePointGraph(engine,graph);graph=null;
         }
     }
 }

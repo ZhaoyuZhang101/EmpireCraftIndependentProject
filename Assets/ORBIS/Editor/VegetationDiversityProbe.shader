@@ -65,18 +65,18 @@ Shader "Hidden/ORBIS/VegetationDiversityProbe"
                 if(_ProbeMode>.5&&_ProbeMode<1.5)
                     return PDTreeCastShadow(pixel,_ProbeSun,_ProbeType,_ProbeSeed).xxxx;
 
-                float2 edge;
-                float4 crown=PDTreeCrown(pixel,_ProbeType,_ProbeSeed,edge);
+                float2 edge;float3 surface;
+                float4 crown=PDTreeCrown(pixel,_ProbeType,_ProbeSeed,1,0,edge,surface);
                 if(_ProbeMode>5.5)
                 {
-                    float within=step(-17,pixel.x)*step(pixel.x,17)*step(-8,pixel.y)*step(pixel.y,40);
+                    float within=PDTreeInDrawBounds(pixel);
                     return (crown.a*(1-within)).xxxx;
                 }
                 if(_ProbeMode>4.5)return crown.aaaa;
                 if(_ProbeMode>1.5)return crown;
                 float trunk=PDTreeTrunk(pixel,_ProbeType,_ProbeSeed);
                 float3 color=PDTreeBark(pixel,_ProbeType,_ProbeSeed)*trunk;
-                float3 foliage=PDTreeFoliage(crown.xyz,pixel,_ProbeRoot,_ProbeType,_ProbeSeed,_ProbeSun,edge);
+                float3 foliage=PDTreeFoliage(crown.xyz,surface,_ProbeType,_ProbeSeed,_ProbeSun,edge);
                 color=lerp(color,foliage,crown.a);
                 return float4(color,saturate(crown.a+trunk));
             }

@@ -29,6 +29,9 @@ public static class WildlifeRegression
             world.Facts.Vegetation[i] = VegetationCover.Grassland;
             world.Facts.ShoreDistance[i] = -8;
             world.Facts.MeanTemperature[i] = 15;
+            world.Facts.Wetness[i] = .55f;
+            world.Facts.AnnualRain[i] = 960;
+            world.Facts.Canopy[i] = .25f;
             for (int m = 0; m < 12; m++)
             {
                 world.Temperature[i * 12 + m] = 15;
@@ -327,6 +330,119 @@ public static class WildlifeRegression
             Check(ice.WildlifeInitialized && ice.Wildlife.Count == 0, "ice has no unsuitable spawns");
     }
 
+    static void ClimateAndSeason()
+    {
+        var world = Habitat();
+        int tile = world.Index(32, 16);
+        world.Climates[tile] = Koppen.BWh;
+        world.Facts.MeanTemperature[tile] = 42;
+        world.Facts.Wetness[tile] = .01f;
+        world.Facts.AnnualRain[tile] = 30;
+        foreach (WildlifeSpecies species in Enum.GetValues(typeof(WildlifeSpecies)))
+            Check(FlatWildlifeSimulation.HabitatSuitability(world, tile, species) == 0,
+                "extreme hot arid climate cannot gain random animals from a stale green cover");
+
+        world.Climates[tile] = Koppen.BSk;
+        world.Facts.MeanTemperature[tile] = 10;
+        world.Facts.Wetness[tile] = .08f;
+        world.Facts.AnnualRain[tile] = 180;
+        world.Facts.Vegetation[tile] = VegetationCover.DrySteppe;
+        Check(FlatWildlifeSimulation.HabitatSuitability(world, tile, WildlifeSpecies.Rabbit) > 0,
+            "dry open steppe supports adapted rabbits");
+        Check(FlatWildlifeSimulation.HabitatSuitability(world, tile, WildlifeSpecies.Deer) == 0 &&
+            FlatWildlifeSimulation.HabitatSuitability(world, tile, WildlifeSpecies.Butterfly) == 0,
+            "arid steppe excludes moisture-dependent deer and butterflies");
+
+        world.Climates[tile] = Koppen.Cfb;
+        world.Facts.MeanTemperature[tile] = 15;
+        world.Facts.Wetness[tile] = .65f;
+        world.Facts.AnnualRain[tile] = 1000;
+        world.Facts.Vegetation[tile] = VegetationCover.DeciduousForest;
+        Check(FlatWildlifeSimulation.HabitatSuitability(world, tile, WildlifeSpecies.Deer) >
+            FlatWildlifeSimulation.HabitatSuitability(world, tile, WildlifeSpecies.Rabbit), "deer prefer moist forest to rabbit habitat");
+        world.Facts.Vegetation[tile] = VegetationCover.Marsh;
+        Check(FlatWildlifeSimulation.HabitatSuitability(world, tile, WildlifeSpecies.Bird) > 0 &&
+            FlatWildlifeSimulation.HabitatSuitability(world, tile, WildlifeSpecies.Rabbit) == 0,
+            "wetland birds and rabbits use distinct vegetation habitats");
+
+        var hot = Habitat();
+        for (int i = 0; i < hot.Count; i++)
+        {
+            hot.Climates[i] = Koppen.BWh;
+            hot.Facts.MeanTemperature[i] = 42;
+            hot.Facts.Wetness[i] = .01f;
+            hot.Facts.AnnualRain[i] = 30;
+        }
+        using (var simulation = new FlatWildlifeSimulation(hot, new Paths(hot)))
+            Check(hot.Wildlife.Count == 0, "unsuitable hot arid world remains empty despite stale green cover");
+
+        var tropical = Habitat();
+        for (int i = 0; i < tropical.Count; i++)
+        {
+            tropical.Climates[i] = Koppen.Af;
+            tropical.Facts.MeanTemperature[i] = 26;
+            tropical.Facts.Wetness[i] = .8f;
+            tropical.Facts.AnnualRain[i] = 2100;
+            tropical.Facts.Vegetation[i] = VegetationCover.TropicalRainforest;
+        }
+        using (var simulation = new FlatWildlifeSimulation(tropical, new Paths(tropical)))
+        {
+            Check(tropical.Wildlife.Count == 16, "humid tropical forest retains suitable wildlife");
+            foreach (var resident in tropical.Wildlife)
+                Check(resident.Species != WildlifeSpecies.Rabbit && FlatWildlifeSimulation.HabitatSuitability(tropical,
+                    FlatWildlifeSimulation.Tile(tropical, resident), resident.Species) > 0, "weighted tropical population uses suitable species");
+        }
+
+        var seasonal = Habitat();
+        float[] temperatures = { -4, -3, 4, 11, 18, 23, 24, 22, 16, 9, 2, -3 };
+        for (int i = 0; i < seasonal.Count; i++)
+        {
+            seasonal.Facts.MeanTemperature[i] = 119f / 12;
+            for (int month = 0; month < 12; month++) seasonal.Temperature[i * 12 + month] = temperatures[month];
+        }
+        var butterfly = Actor(seasonal, seasonal.Index(32, 16));
+        butterfly.Species = WildlifeSpecies.Butterfly;
+        butterfly.Hunger = .2f;
+        int identity = butterfly.Id;
+        Check(FlatWildlifeSimulation.SeasonalActivity(seasonal, butterfly, 15.5) == 0 &&
+            FlatWildlifeSimulation.SeasonalActivity(seasonal, butterfly, 195.5) > .7f,
+            "local monthly temperature drives cold-season butterfly activity");
+        var paths = new Paths(seasonal);
+        using (var simulation = new FlatWildlifeSimulation(seasonal, paths))
+        {
+            for (int i = 0; i < 80; i++) simulation.Tick(.25f, 15.5);
+            Check(butterfly.State == WildlifeState.Sleeping && butterfly.MoveSpeed == 0 && paths.Requests == 0,
+                "cold-season butterfly rests with folded wings without churning paths");
+            Check(butterfly.Hunger < .21f, "cold-season torpor slows butterfly food demand");
+            byte[] paused = FlatSave.Encode(seasonal);
+            simulation.Tick(0, 195.5);
+            Check(Convert.ToBase64String(paused) == Convert.ToBase64String(FlatSave.Encode(seasonal)),
+                "paused season change leaves animal state and animation frozen");
+            for (int i = 0; i < 80; i++) simulation.Tick(.25f, 195.5);
+            Check(paths.Requests > 0 && butterfly.State != WildlifeState.Sleeping &&
+                (butterfly.X != 32.5 || butterfly.Y != 16.5), "warm season wakes butterfly and resumes actual path movement");
+            Check(butterfly.Id == identity && butterfly.Species == WildlifeSpecies.Butterfly && seasonal.Wildlife.Count == 1,
+                "season changes preserve existing animal identities and species");
+        }
+
+        var flyingWorld = Habitat();
+        int water = flyingWorld.Index(31, 16);
+        flyingWorld.Water[water] = WaterKind.Lake;
+        flyingWorld.Facts.ShoreDistance[water] = .5f;
+        for (int i = 0; i < flyingWorld.Count; i++) flyingWorld.Temperature[i * 12] = flyingWorld.Temperature[i * 12 + 1] = -4;
+        var airborne = Actor(flyingWorld, water, WildlifeState.Wandering);
+        airborne.Species = WildlifeSpecies.Butterfly;
+        airborne.GoalTile = flyingWorld.Index(35, 16);
+        var returnPaths = new Paths(flyingWorld);
+        using (var simulation = new FlatWildlifeSimulation(flyingWorld, returnPaths))
+        {
+            for (int i = 0; i < 200; i++) simulation.Tick(.25f, 15.5);
+            Check(returnPaths.Requests > 0 && airborne.State == WildlifeState.Sleeping &&
+                FlatWildlifeSimulation.IsGroundTile(flyingWorld, FlatWildlifeSimulation.Tile(flyingWorld, airborne)),
+                "cold airborne butterfly requests a local feasible landing before resting");
+        }
+    }
+
     static void AtlasPopulation()
     {
         var world = FlatAtlasTerrain.Read(File.ReadAllBytes("Assets/ORBIS/Resources/ORBIS/WorldAtlas/Default.bytes"), "ORBIS-2D-2026", default);
@@ -339,6 +455,7 @@ public static class WildlifeRegression
                 int tile = FlatWildlifeSimulation.Tile(world, actor);
                 species[(int)actor.Species]++;
                 Check(FlatWildlifeSimulation.IsGroundTile(world, tile), "default atlas spawns on dry walkable ground");
+                Check(FlatWildlifeSimulation.HabitatSuitability(world, tile, actor.Species) > 0, "default atlas species matches actual climate and moisture");
                 Check(world.Facts.Vegetation[tile] != VegetationCover.Bare && world.Facts.Vegetation[tile] != VegetationCover.Ice,
                     "default atlas spawns match vegetation");
                 if (actor.Species == WildlifeSpecies.Butterfly) Check(world.Facts.MeanTemperature[tile] >= 8, "default atlas butterfly climate");
@@ -689,6 +806,7 @@ public static class WildlifeRegression
     public static void Run()
     {
         SeedAndClone();
+        ClimateAndSeason();
         CapacityAndColdHabitat();
         OnlyFoodGoalRecovers();
         RealPathWaiting();

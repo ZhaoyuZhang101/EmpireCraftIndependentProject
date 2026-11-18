@@ -19,8 +19,15 @@ Shader "Hidden/ORBIS/VegetationArtProbe"
  {
   if(_ProbeMode>2.5)
   {
-   float2 pixel=floor((i.uv-float2(.5,.20))*48);
+   float2 pixel=floor((i.uv-float2(.5,.30))*48);
    float2 wind=PDVegetationWind(_ProbeRoot,_ProbeSeed);
+   if(_ProbeMode>8.5)
+   {
+    // Hold the trunk deflection fixed to isolate the movement of individual branches.
+    float2 bend=float2(1.4,.25),edge;
+    float4 crown=PDTreeCrown(pixel,_ProbeSpecies,_ProbeSeed,_ProbeFoliage,bend,edge);
+    return float4(crown.a,PDTreeCastShadow(pixel,_ProbeLight,_ProbeSpecies,_ProbeSeed,_ProbeFoliage,bend),0,1);
+   }
    if(_ProbeMode>7.5)
    {
     float2 edge;
@@ -29,8 +36,9 @@ Shader "Hidden/ORBIS/VegetationArtProbe"
    }
    if(_ProbeMode>6.5)
    {
-    float4 art=PDTreeArtwork(pixel,_ProbeRoot,_ProbeSpecies,_ProbeSeed,_ProbeFoliage,1,_ProbeLight);
-    float outside=abs(pixel.x)>17||pixel.y< -8||pixel.y>40;
+    float2 boundsPixel=floor((i.uv-float2(.5,.32))*64);
+    float4 art=PDTreeArtwork(boundsPixel,_ProbeRoot,_ProbeSpecies,_ProbeSeed,_ProbeFoliage,1,_ProbeLight);
+    float outside=!PDTreeInDrawBounds(boundsPixel);
     return (art.a*outside).xxxx;
    }
    if(_ProbeMode>5.5)return float4(PDTreeView,PDTreeUp.y);

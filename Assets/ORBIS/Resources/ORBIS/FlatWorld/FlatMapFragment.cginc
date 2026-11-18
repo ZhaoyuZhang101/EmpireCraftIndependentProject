@@ -140,6 +140,13 @@
 
     if(naturalView>.5)
     {
+     float skyWeight=1;
+     #ifdef ORBIS_SCROLL_SURFACE
+     skyWeight=smoothstep(.08,.50,_ScrollMorph);
+     #endif
+     float4 cloud=FlatCloudColumn(i.uv);
+     FlatPrecipitation weather=FlatSamplePrecipitation(i.uv,cell,cloud,_PixelsPerTile,skyWeight);
+     col=lerp(col,FlatRainOnSurface(col,weather,waterMask,frozen,illumination),skyWeight);
      float structure=floor(info.b+.5);
      if(structure>.5&&_PixelsPerTile>=4)
      {
@@ -160,15 +167,7 @@
      float night=1-FlatDayWeight(FlatRadial(i.uv));
      float town=1-step(.5,abs(structure-1));
      col+=town*exp(-dot(f-.5,f-.5)*14)*night*_FlatNightLights*FlatColor(float3(.82,.42,.13))*.75;
-    }
-    // Composite weather below navigation/selection marks. Data-only layers stay exact.
-    if(naturalView>.5)
-    {
-     #ifdef ORBIS_SCROLL_SURFACE
-     col=lerp(col,FlatSkyComposite(col,i.uv,cell,i.pos.xy,waterMask,_PixelsPerTile),smoothstep(.08,.50,_ScrollMorph));
-     #else
-     col=FlatSkyComposite(col,i.uv,cell,i.pos.xy,waterMask,_PixelsPerTile);
-     #endif
+     col=lerp(col,FlatSkyComposite(col,i.uv,cloud,_PixelsPerTile,weather,illumination),skyWeight);
     }
     if(_Grid>.5&&_PixelsPerTile>=4)
     {

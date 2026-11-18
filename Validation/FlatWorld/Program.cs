@@ -2,7 +2,7 @@ using System;
 using Orbis.Flat;
 public static class Program {
  public static int Main(string[] args) {
-  try { if(args.Length>0&&args[0]=="--wildlife")WildlifeRegression.Run();else if(args.Length>0&&args[0]=="--bathymetry")BathymetryRegression.Run();else if(args.Length>0&&args[0]=="--weather")WeatherIntegrationRegression.Run();else if(args.Length>0&&args[0]=="--moisture")MoistureRegression();else if(args.Length>0&&args[0]=="--environment")EnvironmentRegression();else if(args.Length>0&&args[0]=="--hydrology")HydrologyRegression.Run();else if(args.Length>0&&args[0]=="--cyclone")CycloneRegression.Run();else Console.WriteLine(FlatSelfTests.Run()); return 0; }
+  try { if(args.Length>0&&args[0]=="--forest-stands")ForestStandRegression.Run();else if(args.Length>0&&args[0]=="--wildlife")WildlifeRegression.Run();else if(args.Length>0&&args[0]=="--bathymetry")BathymetryRegression.Run();else if(args.Length>0&&args[0]=="--weather")WeatherIntegrationRegression.Run();else if(args.Length>0&&args[0]=="--moisture")MoistureRegression();else if(args.Length>0&&args[0]=="--environment")EnvironmentRegression();else if(args.Length>0&&args[0]=="--hydrology")HydrologyRegression.Run();else if(args.Length>0&&args[0]=="--cyclone")CycloneRegression.Run();else Console.WriteLine(FlatSelfTests.Run()); return 0; }
   catch(Exception e) { Console.Error.WriteLine(FlatSelfTests.LastOperation+"\n"+e); return 1; }
  }
  static void EnvironmentRegression() {

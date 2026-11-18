@@ -48,17 +48,23 @@ namespace Orbis.Editor
                 {
                     SetData(mesh,species,0,0,.5f);
                     var idle=Sample(mesh,material,camera,target,image,commands);
-                    SetData(mesh,species,0,0,15);
+                    SetData(mesh,species,0,0,.5f);
                     var paused=Sample(mesh,material,camera,target,image,commands);
-                    Require(report,Difference(idle,paused)<.000001f,"idle art retains its pose while its state is stationary; species="+species);
+                    Require(report,Difference(idle,paused)<.000001f,"paused actor clock produces identical pixels; species="+species);
+                    SetData(mesh,species,0,0,2.2f);
+                    var idleLater=Sample(mesh,material,camera,target,image,commands);
+                    Require(report,Difference(idle,idleLater)>.000001f,"idle animal retains breathing and small living motions; species="+species);
                     SetData(mesh,species,1,.2f,.5f);
                     var walking=Sample(mesh,material,camera,target,image,commands);
-                    SetData(mesh,species,1,.2f,1.4f);
+                    SetData(mesh,species,1,.2f,.8f);
                     var later=Sample(mesh,material,camera,target,image,commands);
                     Require(report,Difference(walking,later)>.00001f,"walking art and particles follow the actor animation clock; species="+species);
                     SetData(mesh,species,5,0,.5f);
                     var sleeping=Sample(mesh,material,camera,target,image,commands);
                     Require(report,Difference(idle,sleeping)>.00001f,"sleeping art has a compact resting silhouette; species="+species);
+                    SetData(mesh,species,5,0,2.2f);
+                    var breathing=Sample(mesh,material,camera,target,image,commands);
+                    Require(report,Difference(sleeping,breathing)>.000001f,"sleeping animal breathes on its pause-controlled clock; species="+species);
                     SetData(mesh,species,3,0,.5f);
                     var eating=Sample(mesh,material,camera,target,image,commands);
                     Require(report,Difference(idle,eating)>.000001f,"feeding art lowers or moves the head; species="+species);
@@ -92,13 +98,45 @@ namespace Orbis.Editor
                 commands.Release();RenderTexture.ReleaseTemporary(target);
                 UnityEngine.Object.DestroyImmediate(image);UnityEngine.Object.DestroyImmediate(material);UnityEngine.Object.DestroyImmediate(mesh);UnityEngine.Object.DestroyImmediate(cameraObject);
             }
+            if(Application.isPlaying&&AstarPath.active)CheckGraphReplacement(report);
             Directory.CreateDirectory("ValidationOutput/wildlife-actors");File.WriteAllLines("ValidationOutput/wildlife-actors/artwork-regression.txt",report);
             if(report.Exists(line=>line.StartsWith("FAIL",StringComparison.Ordinal)))throw new Exception(string.Join("\n",report));
+        }
+        static void CheckGraphReplacement(List<string> report)
+        {
+            var engine=AstarPath.active;
+            Func<int> graphCount=()=>Array.FindAll(engine.data.graphs,g=>g!=null).Length;
+            int before=graphCount();
+            var world=new Flat.WorldData(64,32,"graph-lifecycle",Flat.TerrainPreset.Continents);
+            world.Facts=new Flat.FlatTerrainFacts(world.Count);
+            for(int i=0;i<world.Count;i++)
+            {
+                world.Elevation[i]=100;world.Biomes[i]=Flat.Biome.Grassland;world.Facts.ShoreDistance[i]=-8;
+            }
+            var holder=new GameObject("ORBIS graph replacement regression");
+            try
+            {
+                var actors=holder.AddComponent<Flat.FlatWildlifePathfinder>();actors.Initialize(world);
+                var routes=holder.AddComponent<Flat.FlatPlanetPathfinder>();
+                int from=world.Index(30,16),to=world.Index(34,16);
+                bool routesWork=true,countsMatch=true;
+                for(int edit=0;edit<3;edit++)
+                {
+                    world.Buildings[from]=edit==1?Flat.Structure.Road:Flat.Structure.None;world.Touch(from);
+                    actors.SendMessage("Update");
+                    var route=routes.Find(world,from,to);
+                    routesWork&=route.Length>0&&route[0]==from&&route[route.Length-1]==to;
+                    countsMatch&=graphCount()==before+2;
+                }
+                Require(report,routesWork&&countsMatch,"editing terrain replaces both owned Astar graphs and preserves working routes");
+            }
+            finally{UnityEngine.Object.DestroyImmediate(holder);engine.FlushWorkItems();}
+            Require(report,graphCount()==before,"unloading a map releases its two Astar graphs without touching other graphs");
         }
         static void SetData(Mesh mesh,int species,int state,float speed,float clock)
         {
             var actor=new Vector4(species,1,clock,.31f);var behaviour=new Vector4(state,speed,1,.4f);
-            var geographic=new Vector4(.5f,.5f,.3f,.2f);var travel=new Vector4(1,0,0,0);
+            var geographic=new Vector4(.5f,.5f,.3f,.2f);var travel=new Vector4(1,0,1,15);
             mesh.SetUVs(1,new List<Vector4>{actor,actor,actor,actor});
             mesh.SetUVs(2,new List<Vector4>{behaviour,behaviour,behaviour,behaviour});
             mesh.SetUVs(3,new List<Vector4>{geographic,geographic,geographic,geographic});

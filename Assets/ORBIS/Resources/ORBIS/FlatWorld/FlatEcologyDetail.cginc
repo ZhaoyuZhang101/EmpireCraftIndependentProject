@@ -31,7 +31,7 @@ float FlatTreeDensity(float cover)
  if(cover<3.5)return .55;
  if(cover<4.5)return .72;
  if(cover<9.5)return 1;
- if(cover<10.5)return .58;
+ if(cover<10.5)return 1;
  return .15;
 }
 #endif

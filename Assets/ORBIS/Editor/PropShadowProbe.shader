@@ -37,7 +37,7 @@ Shader "Hidden/ORBIS/PropShadowProbe"
    float2 pixel=float2(ground.x+ray.x*travel,height*PDTreeUp.z);
    float4 expected=PDTreeArtwork(floor(pixel),source,tree,placement.w,1,1,float3(0,0,1));
    expected.a*=step(0,travel)*(1-smoothstep(44,58,length(ground)))*smoothstep(.03,.12,abs(ray.y));
-   float negative=step(pixel.y,-.001)*step(-8,pixel.y)*step(abs(pixel.x),17);
+   float negative=pixel.y<-.001&&PDTreeInDrawBounds(pixel);
    return float4(actual.a*negative,expected.a*negative,0,1);
   }
   if(_ProbeMode>3.5)

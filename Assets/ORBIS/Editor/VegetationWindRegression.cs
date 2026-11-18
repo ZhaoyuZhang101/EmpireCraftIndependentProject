@@ -43,10 +43,43 @@ namespace Orbis.Editor
                 Check(lines, basis.b > .94f && basis.a > .94f,
                     "all species use an overhead view of at least 70 degrees");
 
+                material.SetFloat("_VegetationWindReady", 0);
+                material.SetFloat("_ProbeMode", 8);
+                foreach (int species in new[] { 0, 7 })
+                {
+                    material.SetFloat("_ProbeSpecies", species);
+                    material.SetFloat("_ProbeSeed", .4f);
+                    var leftTree = Sample(material, target, image);
+                    material.SetFloat("_ProbeSeed", .8f);
+                    var rightTree = Sample(material, target, image);
+                    // Adjacent 32-pixel cells can place their roots 24 pixels apart.
+                    int separation = Resolution / 2, overlap = 0;
+                    for (int y = 0; y < Resolution; y++)
+                    for (int x = separation; x < Resolution; x++)
+                        if (leftTree[y * Resolution + x].r > .5f && rightTree[y * Resolution + x - separation].r > .5f) overlap++;
+                    Check(lines, overlap >= 4, "species=" + species + " mature neighbouring crowns join; overlap pixels=" + overlap);
+                }
+                material.SetFloat("_ProbeSeed", .43f);
+                material.SetFloat("_VegetationWindReady", 1);
+
                 for (int species = 0; species < 8; species++)
                 {
                     string label = "species=" + species;
                     material.SetFloat("_ProbeSpecies", species);
+                    material.SetFloat("_ProbeMode", 9);
+                    material.SetFloat("_SkyClock", 0);
+                    var steadyBend = Sample(material, target, image);
+                    material.SetFloat("_SkyClock", 1.7f);
+                    var laterBend = Sample(material, target, image);
+                    int branchPixels = 0, shadowPixels = 0;
+                    for (int i = 0; i < steadyBend.Length; i++)
+                    {
+                        if (Mathf.Abs(steadyBend[i].r - laterBend[i].r) > .5f) branchPixels++;
+                        if (Mathf.Abs(steadyBend[i].g - laterBend[i].g) > .12f) shadowPixels++;
+                    }
+                    Check(lines, branchPixels >= 3 && shadowPixels >= 3,
+                        label + " branches flex at a fixed trunk bend; displaced canopy/shadow pixels=" + branchPixels + "/" + shadowPixels);
+
                     material.SetFloat("_ProbeMode", 3);
                     material.SetFloat("_SkyClock", 0);
                     var first = Sample(material, target, image);
@@ -89,7 +122,7 @@ namespace Orbis.Editor
                     double rootChange = 0;
                     for (int y = 0; y < Resolution; y++)
                     {
-                        float pixelY = Mathf.Floor(((y + .5f) / Resolution - .20f) * 48);
+                        float pixelY = Mathf.Floor(((y + .5f) / Resolution - .30f) * 48);
                         if (pixelY > 0) continue;
                         for (int x = 0; x < Resolution; x++)
                             rootChange += Math.Abs(trunk[y * Resolution + x].a - movingTrunk[y * Resolution + x].a);

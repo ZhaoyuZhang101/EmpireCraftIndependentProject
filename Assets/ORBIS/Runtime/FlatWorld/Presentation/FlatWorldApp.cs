@@ -378,6 +378,8 @@ namespace Orbis.Flat
             var facts=World.Facts;
             FlatEcology.SampleSeason(World,i,CalendarDay,out float vegetationGrowth,out float foliage);
             info.text+="\n当前生长活性："+(vegetationGrowth*100).ToString("F0")+"% · 叶量："+(foliage*100).ToString("F0")+"%";
+            if(facts.Canopy[i]>.20f&&facts.Vegetation[i]!=VegetationCover.Bare&&!FlatTerrainAnalysis.AreaWater(World.Water[i]))
+                info.text+="\n当地适生木本："+FlatPalette.TreeNames[(int)facts.Trees[i]];
             info.text+="\n植被："+FlatPalette.VegetationNames[(int)facts.Vegetation[i]]+"\n河宽（显示估计）："+(facts.HalfWidth[i]*2).ToString("F2")+" Tile"+"\n\n地貌："+FlatPalette.LandformNames[(int)facts.Forms[i]]+"\n材料："+FlatPalette.MaterialNames[(int)facts.Materials[i]]+
                 "\n5×5 起伏："+facts.Relief[i].ToString("F0")+" m\n相邻最大高差："+facts.Gradient[i].ToString("F0")+" m/Tile"+
                 "\n排水高差："+facts.Hand[i].ToString("F0")+" m\n湿润月份："+facts.SaturatedMonths[i]+" / 12"+

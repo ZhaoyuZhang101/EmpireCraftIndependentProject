@@ -98,7 +98,7 @@ namespace Orbis.Flat
                 var actorData=new Vector4((float)actor.Species,screenFacing[i],actor.AnimationTime,variant);
                 var stateData=new Vector4((float)actor.State,actor.MoveSpeed,navigation.DetailWeight,world.Facts.Wetness[tile]);
                 var geoData=new Vector4((float)(actor.X/world.Width),(float)(actor.Y/world.Height),sunChart.x,sunChart.y);
-                var motionData=new Vector4(travel.x,travel.y,0,0);
+                var motionData=new Vector4(travel.x,travel.y,actor.Activity,actor.LocalTemperature);
                 int start=vertices.Count;
                 AddVertex(ground,right,up,new Vector2(-24,-24),actorData,stateData,geoData,motionData,cellAxes);
                 AddVertex(ground,right,up,new Vector2(24,-24),actorData,stateData,geoData,motionData,cellAxes);

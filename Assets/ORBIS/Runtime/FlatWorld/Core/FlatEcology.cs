@@ -47,6 +47,7 @@ namespace Orbis.Flat
             if(biome==Biome.Woodland)
             {
                 if(climate==Koppen.Cwa||climate==Koppen.Cwb||climate==Koppen.Cwc)return VegetationCover.SeasonalForest;
+                if(climate>=Koppen.Dsa&&climate<=Koppen.Dfd)return VegetationCover.DeciduousForest;
                 return temperature<18&&rain>=1400?VegetationCover.TemperateRainforest:VegetationCover.DeciduousForest;
             }
             return VegetationCover.Grassland;
@@ -136,6 +137,48 @@ namespace Orbis.Flat
         {
             float t=FMath.Clamp((value-minimum)/(maximum-minimum),0,1);
             return t*t*(3-2*t);
+        }
+        static float StandCell(int x,int y,int z,uint seed)
+        {
+            unchecked{return FMath.Unit((uint)x*73428767u^(uint)y*912931u^(uint)z*19349663u^seed);}
+        }
+        static float StandNoise(float x,float y,float z,uint seed)
+        {
+            int ix=(int)Math.Floor(x),iy=(int)Math.Floor(y),iz=(int)Math.Floor(z);
+            float u=Ramp(x-ix,0,1),v=Ramp(y-iy,0,1),w=Ramp(z-iz,0,1);
+            float southLow=FMath.Lerp(StandCell(ix,iy,iz,seed),StandCell(ix+1,iy,iz,seed),u);
+            float northLow=FMath.Lerp(StandCell(ix,iy+1,iz,seed),StandCell(ix+1,iy+1,iz,seed),u);
+            float southHigh=FMath.Lerp(StandCell(ix,iy,iz+1,seed),StandCell(ix+1,iy,iz+1,seed),u);
+            float northHigh=FMath.Lerp(StandCell(ix,iy+1,iz+1,seed),StandCell(ix+1,iy+1,iz+1,seed),u);
+            return FMath.Lerp(FMath.Lerp(southLow,northLow,v),FMath.Lerp(southHigh,northHigh,v),w);
+        }
+        internal static float StandVariation(WorldData world,int x,int y,uint seed,out float clearing)
+        {
+            // Stands span several authoritative tiles. Spherical coordinates
+            // avoid longitude seams and polar stretching in either map view.
+            double longitude=(FMath.Wrap(x,world.Width)+.5)/world.Width*Math.PI*2;
+            double latitude=((y+.5)/world.Height-.5)*Math.PI;
+            float frequency=world.Width/48f,cosine=(float)Math.Cos(latitude);
+            float nx=(float)Math.Sin(longitude)*cosine*frequency;
+            float ny=(float)Math.Sin(latitude)*frequency;
+            float nz=(float)Math.Cos(longitude)*cosine*frequency;
+            clearing=StandNoise(nx*.65f+7.1f,ny*.65f-3.7f,nz*.65f+11.3f,seed^0x2c9277b5u);
+            return FMath.Clamp(.5f+(StandNoise(nx,ny,nz,seed)-.5f)*2,0,1);
+        }
+        internal static float StandCanopy(VegetationCover cover,float canopy,float growingSoil,float warmest,float riparian,float clearing)
+        {
+            if(cover>=VegetationCover.SeasonalForest&&cover<=VegetationCover.TropicalRainforest)
+            {
+                float moisture=Ramp(growingSoil,.03f,.55f);
+                float woodland=FMath.Clamp(canopy*1.18f,0,1)*moisture;
+                return woodland*FMath.Lerp(.10f,1,Ramp(clearing,.20f,.42f));
+            }
+            if(cover==VegetationCover.Marsh)
+            {
+                float bank=Ramp(riparian,.18f,.55f)*Ramp(growingSoil,.30f,.85f)*Ramp(warmest,10,16);
+                return Math.Max(canopy,.92f*bank)*FMath.Lerp(.65f,1,Ramp(clearing,.20f,.42f));
+            }
+            return canopy;
         }
         public static float GrowthTarget(VegetationCover cover,float temperature,float soilWater)
         {

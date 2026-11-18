@@ -9,7 +9,7 @@ namespace Orbis.Flat
     public sealed class FlatPlanetPathfinder : MonoBehaviour
     {
         AstarPath engine;PointGraph graph;WorldData source;int revision=-1;
-        PointNode[] nodes;readonly Dictionary<GraphNode,int> ids=new Dictionary<GraphNode,int>();
+        PointNode[] nodes;Dictionary<GraphNode,int> ids;
         public static AstarPath SharedEngine(Transform owner)
         {
             if(AstarPath.active)return AstarPath.active;
@@ -19,6 +19,29 @@ namespace Orbis.Flat
             engine.logPathResults=PathLog.None;
             go.SetActive(true);return engine;
         }
+        internal static PointGraph ReplacePointGraph(AstarPath engine,PointGraph previous,Action<PointGraph> populate)
+        {
+            PointGraph next=null;
+            try
+            {
+                engine.AddWorkItem(()=>
+                {
+                    next=(PointGraph)engine.data.AddGraph(typeof(PointGraph));
+                    populate(next);
+                    next.RebuildNodeLookup();
+                });
+                engine.FlushWorkItems();
+                // Astar 5 allows adding a graph in a work item. Removing one
+                // takes its own pathfinding lock and must run outside that item.
+                ReleasePointGraph(engine,previous);
+                return next;
+            }
+            catch{ReleasePointGraph(engine,next);throw;}
+        }
+        internal static void ReleasePointGraph(AstarPath engine,PointGraph graph)
+        {
+            if(engine&&engine==AstarPath.active&&graph!=null&&graph.active==engine)engine.data.RemoveGraph(graph);
+        }
         static PlanetVector Direction(WorldData w,int i)=>PlanetCoordinateSystem.SurfaceNormal(PlanetCoordinateSystem.FromMapUV((i%w.Width+.5)/w.Width,(i/w.Width+.5)/w.Height));
         public int[] Find(WorldData world,int start,int goal)
         {
@@ -26,27 +49,25 @@ namespace Orbis.Flat
             if(!engine)engine=SharedEngine(transform);
             if(source!=world||revision!=world.Revision)
             {
-                engine.AddWorkItem(()=>
+                var nextNodes=new PointNode[world.Count];var nextIds=new Dictionary<GraphNode,int>();
+                graph=ReplacePointGraph(engine,graph,next=>
                 {
-                    if(graph!=null)engine.data.RemoveGraph(graph);graph=engine.data.AddGraph(typeof(PointGraph)) as PointGraph;
-                    nodes=new PointNode[world.Count];ids.Clear();
                     for(int i=0;i<world.Count;i++)
                     {
                         if(!world.Walkable(i))continue;var d=Direction(world,i);
-                        nodes[i]=graph.AddNode((Int3)new Vector3((float)d.X*1000,(float)d.Y*1000,(float)d.Z*1000));ids[nodes[i]]=i;
+                        nextNodes[i]=next.AddNode((Int3)new Vector3((float)d.X*1000,(float)d.Y*1000,(float)d.Z*1000));nextIds[nextNodes[i]]=i;
                     }
-                    for(int i=0;i<world.Count;i++)if(nodes[i]!=null)for(int edge=0;edge<4;edge++)
+                    for(int i=0;i<world.Count;i++)if(nextNodes[i]!=null)for(int edge=0;edge<4;edge++)
                     {
-                        int j=world.SphereNeighbor(i,edge);if(j<=i||nodes[j]==null)continue;
+                        int j=world.SphereNeighbor(i,edge);if(j<=i||nextNodes[j]==null)continue;
                         double arc=PlanetLocalProjection.Distance(Direction(world,i),Direction(world,j),1000);
                         double weight=1+Math.Abs(world.Elevation[i]-world.Elevation[j])/600.0;
                         if(world.Water[i]==WaterKind.River||world.Water[j]==WaterKind.River)weight+=2.5;
                         if((world.Buildings[i]==Structure.Road||world.Buildings[i]==Structure.Bridge)&&(world.Buildings[j]==Structure.Road||world.Buildings[j]==Structure.Bridge))weight=.5;
-                        GraphNode.Connect(nodes[i],nodes[j],(uint)Math.Max(1,Math.Round(arc*weight*1000)));
+                        GraphNode.Connect(nextNodes[i],nextNodes[j],(uint)Math.Max(1,Math.Round(arc*weight*1000)));
                     }
-                    graph.RebuildNodeLookup();
                 });
-                engine.FlushWorkItems();source=world;revision=world.Revision;
+                nodes=nextNodes;ids=nextIds;source=world;revision=world.Revision;
             }
             var path=ABPath.Construct((Vector3)nodes[start].position,(Vector3)nodes[goal].position);
             path.nnConstraint.graphMask=GraphMask.FromGraph(graph);
@@ -56,8 +77,7 @@ namespace Orbis.Flat
         }
         void OnDestroy()
         {
-            var removed=graph;graph=null;
-            if(engine&&engine==AstarPath.active&&removed!=null)engine.AddWorkItem(()=>engine.data.RemoveGraph(removed));
+            ReleasePointGraph(engine,graph);graph=null;
         }
     }
 }

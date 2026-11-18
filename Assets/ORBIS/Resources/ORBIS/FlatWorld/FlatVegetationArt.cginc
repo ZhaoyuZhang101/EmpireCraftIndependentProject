@@ -7,6 +7,11 @@
 static const float3 PDTreeView=float3(0,-.30901699,.95105652);
 static const float3 PDTreeUp=float3(0,.95105652,.30901699);
 
+bool PDTreeInDrawBounds(float2 pixel)
+{
+    return abs(pixel.x)<=21&&pixel.y>=-14&&pixel.y<=40;
+}
+
 float3 PDTreeWindPoint(float3 position,float2 wind,float type)
 {
     float kind=floor(type+.5);
@@ -17,8 +22,27 @@ float3 PDTreeWindPoint(float3 position,float2 wind,float type)
     float height=saturate(position.z/(kind==6?14:36));
     float weight=height*height*flexibility;
     position.xy+=wind*weight;
-    position.z-=dot(wind,wind)*.06*weight;
+    // A flexible palm stem also lowers its fan in a strong gust.
+    position.z-=dot(wind,wind)*(kind==3?.86:.06)*weight;
     return position;
+}
+
+float2 PDTreeBranchCycle(float seed)
+{
+    #ifdef ORBIS_FLAT_VEGETATION_WIND
+    float2 cycle;
+    sincos(_SkyClock*2.18+seed*6.283185307,cycle.y,cycle.x);
+    return cycle;
+    #else
+    return 0;
+    #endif
+}
+
+float3 PDTreeBranchBend(float2 wind,float2 cycle,float2 axis)
+{
+    float swing=dot(cycle,axis),twist=dot(cycle,float2(-axis.y,axis.x));
+    return float3(wind*(.66*swing)+float2(-wind.y,wind.x)*(.31*twist),
+                  dot(wind,axis)*(.37*twist));
 }
 
 float3 PDPalmRoot(float seed)
@@ -29,11 +53,13 @@ float3 PDPalmRoot(float seed)
 // Seven tapered fronds share their 3D control points, feathered silhouette and
 // surface normals between camera and sunlight projection. Two ribbon segments
 // per frond keep the geometry bounded at every zoom level.
-float4 PDPalmCrown(float2 pixel,float seed,float3 projectionX,float3 projectionY,float2 wind,out float2 edge)
+float4 PDPalmCrown(float2 pixel,float seed,float3 projectionX,float3 projectionY,float2 wind,out float2 edge,out float3 surface)
 {
-    float3 root=PDPalmRoot(seed),normal=0;
+    float3 root=PDPalmRoot(seed),movingRoot=PDTreeWindPoint(root,wind,3),normal=0;
+    float2 cycle=PDTreeBranchCycle(seed);
     float front=-100;
     edge=-100;
+    surface=0;
     [loop] [fastopt] for(int frond=0;frond<7;frond++)
     {
         float variation=frac(seed*13+frond*.371);
@@ -43,10 +69,10 @@ float4 PDPalmCrown(float2 pixel,float seed,float3 projectionX,float3 projectionY
         float frondLength=9.3+variation*2.1;
         float3 bend=root+direction*(frondLength*.35)+side*((variation-.5)*1.2)+float3(0,0,8+variation*2);
         float3 tip=root+direction*frondLength+side*((variation-.5)*.6)-float3(0,0,4+frac(seed*7+frond*.61)*2.7);
-        float3 movingRoot=PDTreeWindPoint(root,wind,3);
-        bend=PDTreeWindPoint(bend,wind,3);
-        tip=PDTreeWindPoint(tip,wind,3);
-        tip.xy+=wind*(.35+variation*.25);
+        float3 flutter=PDTreeBranchBend(wind,cycle,direction.xy);
+        bend=PDTreeWindPoint(bend,wind,3)+flutter*.35;
+        tip=PDTreeWindPoint(tip,wind,3)+flutter*.95;
+        tip.xy+=wind*(.26+variation*.16);
         tip.z+=dot(wind,direction.xy)*.25;
         float3 middle=movingRoot*.25+bend*.5+tip*.25;
         float2 across=float2(dot(side,projectionX),dot(side,projectionY));
@@ -79,8 +105,10 @@ float4 PDPalmCrown(float2 pixel,float seed,float3 projectionX,float3 projectionY
                 {
                     front=depth;
                     float3 tangent=lerp(bend-movingRoot,tip-bend,t);
-                    normal=normalize(cross(tangent,side)+side*(lateral/max(.55,width))*.8);
+                    float fold=lateral/max(.55,width);
+                    normal=normalize(normalize(cross(tangent,side))+side*(fold*.48));
                     normal*=dot(normal,PDTreeView)<0?-1:1;
+                    surface=float3(t,fold,0);
                     edge.y=outlineEdge;
                 }
             }
@@ -144,26 +172,36 @@ float PDTreeSpecies(float4 ecology,float4 info,float shore,float derivedTree)
     return PDTreeSpecies(ecology,info,shore);
 }
 
-float4 PDTreeLobe(int index,float type,float seed)
+float2 PDTreeQuarterTurn(float2 offset,float turns)
 {
-    float kind=floor(type+.5);
+    float2 rotated=lerp(offset,float2(-offset.y,offset.x),frac(turns*.5)*2);
+    return frac(turns*.25)>=.5?-rotated:rotated;
+}
+
+float4 PDTreeLobe(int index,float kind,float seed)
+{
     float4 volume;
-    if(kind<1.5)
+    if(kind==0)
     {
-        // These two sphere sets retain the original broadleaf and pine artwork.
-        float4 broadleaf=float4(0,0,15.5,6.8),pine=float4(0,0,7,10.3);
-        if(index==1){broadleaf=float4(-5,-1,12,6.3);pine=float4(0,0,13,8);}
-        if(index==2){broadleaf=float4(5,0,13.5,6.5);pine=float4(0,0,18,5.5);}
-        if(index==3){broadleaf=float4(-1,5,15.5,6.8);pine=float4(0,0,22,3.6);}
-        if(index==4){broadleaf=float4(1,-4.5,11,6.4);pine=float4(0,0,25,1.8);}
-        broadleaf.x*=.86+seed*.28;
-        broadleaf.z+=(seed-.5)*index*.8;
-        float angle=floor(seed*4)*1.570796327;
-        float sine=sin(angle),cosine=cos(angle);
-        broadleaf.xy=float2(cosine*broadleaf.x-sine*broadleaf.y,sine*broadleaf.x+cosine*broadleaf.y);
-        pine.x=(seed-.5)*index*.5;
-        volume=lerp(broadleaf,pine,saturate(kind));
-        volume.z+=12;
+        volume=float4(0,0,29,6.1);
+        if(index==1)volume=float4(-5.4,-1.5,24.5,5.6);
+        if(index==2)volume=float4(5.5,0,25.5,5.8);
+        if(index==3)volume=float4(-1.3,5.5,27.5,5.8);
+        if(index==4)volume=float4(1.5,-5,23,5.6);
+        volume.x*=.86+seed*.28;
+        volume.z+=(seed-.5)*index*.8;
+        volume.xy=PDTreeQuarterTurn(volume.xy,floor(seed*4));
+        return volume;
+    }
+    if(kind==1)
+    {
+        // Crossing sprays at different heights narrow to a raised central leader.
+        volume=float4(0,0,19,10.3);
+        if(index==1)volume=float4(.3,-.2,21,9.7);
+        if(index==2)volume=float4(-.3,.3,24,8.7);
+        if(index==3)volume=float4(.4,.1,28,6.6);
+        if(index==4)volume=float4(0,.2,33,3.7);
+        volume.x+=(seed-.5)*index*.38;
         return volume;
     }
     if(kind<2.5)
@@ -203,22 +241,20 @@ float4 PDTreeLobe(int index,float type,float seed)
         volume=float4(0,0,29,8.2);
         if(index==1)volume=float4(-5,-1.3,24,6.6);
         if(index==2)volume=float4(5,0,27,6.7);
-        if(index==3)volume=float4(-1,5,29,7);
+        if(index==3)volume=float4(-1,5,26,7);
         if(index==4)volume=float4(1,-5,23,6.4);
     }
     float turns=kind>3.5&&kind<4.5?floor(seed*2)*2:floor(seed*4);
-    float angle=turns*1.570796327;
-    float sine=sin(angle),cosine=cos(angle);
-    volume.xy=float2(cosine*volume.x-sine*volume.y,sine*volume.x+cosine*volume.y);
+    volume.xy=PDTreeQuarterTurn(volume.xy,turns);
     volume.z+=(seed-.5)*index*.6;
     volume.w*=.94+seed*.12;
     return volume;
 }
 
-float3 PDTreeLobeScale(int index,float type,float seed)
+float3 PDTreeLobeScale(int index,float kind,float seed)
 {
-    float kind=floor(type+.5);
     float3 axes=1;
+    if(kind==1)return index==4?float3(.82,.61,1.08):float3(1,.46,.42);
     if(kind>1.5&&kind<2.5)axes=float3(.62,.83,1.4);
     else if(kind>3.5&&kind<4.5)axes=float3(1.15,.72,.32);
     else if(kind>4.5&&kind<5.5)axes=index==0?float3(1,.9,.8):float3(.95,.85,1.25);
@@ -231,24 +267,63 @@ float3 PDTreeLobeScale(int index,float type,float seed)
     return axes;
 }
 
-float4 PDTreeCrown(float2 pixel,float type,float seed,float foliage,float2 wind,out float2 edge)
+float2 PDPineHeading(float kind,float seed)
+{
+    float2 heading=float2(1,0);
+    if(kind==1)sincos(seed*3.141592654,heading.y,heading.x);
+    return heading;
+}
+
+float4 PDTreeMovingLobe(int lobe,float kind,float seed,float foliage,float2 wind,float2 cycle,float2 pineHeading,out float2 axis,out float3 axes)
+{
+    float4 volume=PDTreeLobe(lobe,kind,seed);
+    // Mature broadleaf trees spread sideways into neighbouring crowns. Their
+    // lower masses gain width without raising the shadow-casting height.
+    float spread=1;
+    if(kind==0)spread=1.26+.12*seed;
+    if(kind==7)spread=1.33+.10*seed;
+    volume.xy*=spread;
+    if(lobe!=0)volume.z-=(spread-1)*19;
+    float2 branch=float2(cos(lobe*2.39996323),sin(lobe*2.39996323));
+    float flexibility=kind==1||kind==4?.64:(kind==5?1.16:.92);
+    volume.xyz=PDTreeWindPoint(volume.xyz,wind,kind)+PDTreeBranchBend(wind,cycle,branch)*(lobe==0?.32:flexibility);
+    volume.w*=lerp(.48,1,saturate(foliage));
+    axes=volume.w*PDTreeLobeScale(lobe,kind,seed);
+    // The raised central foliage stays compact above the spreading outer limbs.
+    axes.xy*=lobe==0?1:spread;
+    axis=float2(1,0);
+    if(kind==1)
+    {
+        float2 turn=float2(cos(lobe*1.17),sin(lobe*1.17));
+        axis=pineHeading*turn.x+float2(-pineHeading.y,pineHeading.x)*turn.y;
+    }
+    return volume;
+}
+
+float3 PDTreeToLobe(float3 offset,float2 axis)
+{
+    return float3(dot(offset.xy,axis),dot(offset.xy,float2(-axis.y,axis.x)),offset.z);
+}
+
+float4 PDTreeCrown(float2 pixel,float type,float seed,float foliage,float2 wind,out float2 edge,out float3 surface)
 {
     float4 crown=0;
     edge=-100;
-    if(floor(type+.5)==3)crown=PDPalmCrown(pixel,seed,float3(1,0,0),PDTreeUp,wind,edge);
+    surface=0;
+    float kind=floor(type+.5);
+    if(kind==3)crown=PDPalmCrown(pixel,seed,float3(1,0,0),PDTreeUp,wind,edge,surface);
     else
     {
         float3 origin=float3(pixel.x,0,0)+PDTreeUp*pixel.y;
+        float2 cycle=PDTreeBranchCycle(seed),pineHeading=PDPineHeading(kind,seed);
         float front=-100;
         float3 normal=0;
         [unroll] for(int lobe=0;lobe<5;lobe++)
         {
-            float4 volume=PDTreeLobe(lobe,type,seed);
-            volume.xyz=PDTreeWindPoint(volume.xyz,wind,type);
-            volume.w*=lerp(.48,1,saturate(foliage));
-            float3 axes=volume.w*PDTreeLobeScale(lobe,type,seed);
-            float3 relative=(origin-volume.xyz)/axes;
-            float3 ray=PDTreeView/axes;
+            float2 axis;float3 axes;
+            float4 volume=PDTreeMovingLobe(lobe,kind,seed,foliage,wind,cycle,pineHeading,axis,axes);
+            float3 relative=PDTreeToLobe(origin-volume.xyz,axis)/axes;
+            float3 ray=PDTreeToLobe(PDTreeView,axis)/axes;
             float rayLengthSquared=dot(ray,ray);
             float depth=-dot(relative,ray)/rayLengthSquared;
             float3 closest=relative+ray*depth;
@@ -261,7 +336,12 @@ float4 PDTreeCrown(float2 pixel,float type,float seed,float foliage,float2 wind,
                 if(visibleDepth>front)
                 {
                     front=visibleDepth;
-                    normal=normalize((relative+ray*visibleDepth)/axes);
+                    float3 hit=relative+ray*visibleDepth;
+                    normal=normalize(PDTreeToLobe(hit/axes,float2(axis.x,-axis.y)));
+                    float3 offset=hit*axes;
+                    surface.xy=kind==1?offset.xy:offset.xy+offset.z*float2(.24,.31)+lobe*float2(2,1.7);
+                    // Wide deciduous and tropical crowns shelter their low boughs.
+                    surface.z=kind==0||kind==7?clamp((volume.z-25)*.009,-.10,.04)*saturate(foliage):0;
                     edge.y=lobeEdge;
                 }
             }
@@ -269,6 +349,11 @@ float4 PDTreeCrown(float2 pixel,float type,float seed,float foliage,float2 wind,
         crown=float4(normal,step(-99,front));
     }
     return crown;
+}
+float4 PDTreeCrown(float2 pixel,float type,float seed,float foliage,float2 wind,out float2 edge)
+{
+    float3 surface;
+    return PDTreeCrown(pixel,type,seed,foliage,wind,edge,surface);
 }
 float4 PDTreeCrown(float2 pixel,float type,float seed,float foliage,out float2 edge)
 {
@@ -284,22 +369,22 @@ float PDTreeCastShadow(float2 pixel,float3 sun,float type,float seed,float folia
     float3 origin=float3(pixel.x,pixel.y/PDTreeUp.y,0);
     float3 lightRay=normalize(float3(sun.xy*.40,max(.55,sun.z)));
     float mask=0;
-    if(floor(type+.5)==3)
+    float kind=floor(type+.5);
+    if(kind==3)
     {
-        float2 edge=-100;
-        PDPalmCrown(origin.xy,seed,float3(1,0,-lightRay.x/lightRay.z),float3(0,1,-lightRay.y/lightRay.z),wind,edge);
+        float2 edge;float3 surface;
+        PDPalmCrown(origin.xy,seed,float3(1,0,-lightRay.x/lightRay.z),float3(0,1,-lightRay.y/lightRay.z),wind,edge,surface);
         mask=smoothstep(-.55,.55,edge.x);
     }
     else
     {
+        float2 cycle=PDTreeBranchCycle(seed),pineHeading=PDPineHeading(kind,seed);
         [unroll] for(int lobe=0;lobe<5;lobe++)
         {
-            float4 volume=PDTreeLobe(lobe,type,seed);
-            volume.xyz=PDTreeWindPoint(volume.xyz,wind,type);
-            volume.w*=lerp(.48,1,saturate(foliage));
-            float3 axes=volume.w*PDTreeLobeScale(lobe,type,seed);
-            float3 relative=(volume.xyz-origin)/axes;
-            float3 ray=lightRay/axes;
+            float2 axis;float3 axes;
+            float4 volume=PDTreeMovingLobe(lobe,kind,seed,foliage,wind,cycle,pineHeading,axis,axes);
+            float3 relative=PDTreeToLobe(volume.xyz-origin,axis)/axes;
+            float3 ray=PDTreeToLobe(lightRay,axis)/axes;
             float depth=max(0,dot(relative,ray)/dot(ray,ray));
             float distanceToRay=length(relative-ray*depth);
             mask=max(mask,1-smoothstep(1-.7/volume.w,1+1.5/volume.w,distanceToRay));
@@ -371,15 +456,46 @@ float3 PDTreeBark(float2 pixel,float type,float seed)
     return PDTreeBark(pixel,type,seed,0);
 }
 
-float3 PDTreeFoliage(float3 normal,float2 pixel,float2 id,float type,float seed,float3 sun,float2 edge)
+// Material coordinates belong to the visible branch. A moving leaf carries its
+// highlight and its fold across the logical pixel grid with it.
+float PDTreeLeafRelief(float2 surface,float kind,float seed)
+{
+    if(kind==1)
+    {
+        // Oblique needles leave a central spine along each tier.
+        float rib=frac((abs(surface.x)+abs(surface.y)*1.55)*.275+seed);
+        return (smoothstep(.48,.81,rib)-.42)*.19+(1-smoothstep(.22,1.05,abs(surface.y)))*.08;
+    }
+    if(kind==3)
+    {
+        float leaflet=frac(surface.x*6.5-abs(surface.y)*.55+step(0,surface.y)*.38);
+        float midrib=1-smoothstep(.07,.31,abs(surface.y));
+        return midrib*.19+(smoothstep(.50,.82,leaflet)-.5)*.15;
+    }
+    if(kind==5)
+    {
+        // Long hanging sprays are carried by their own branch.
+        float strand=frac(surface.x*.34+surface.y*.13+seed*2);
+        return (smoothstep(.44,.82,strand)-.5)*.20;
+    }
+    float2 scale=kind==2?float2(.39,.52):float2(.29,.40);
+    if(kind==4)scale=float2(.25,.53);
+    if(kind==7)scale=float2(.23,.32);
+    float2 tile=surface*scale+seed*float2(2.7,4.1);
+    tile.x+=floor(tile.y)*.5;
+    float2 leaf=frac(tile)-.5;
+    float arch=abs(leaf.x)*1.15+abs(leaf.y+.10)*.83;
+    return (.48-smoothstep(.25,.62,arch))*.23;
+}
+
+float3 PDTreeFoliage(float3 normal,float3 surface,float type,float seed,float3 sun,float2 edge)
 {
     float kind=floor(type+.5);
     float daylight=smoothstep(-.06,.15,sun.z);
     float3 key=normalize(lerp(float3(-.3,.4,1),sun,daylight));
-    float cluster=PDHash(id+floor(pixel/2)*.071);
     float3 facet=normalize(floor(normal*4+.5)/4+float3(0,0,.001));
-    float diffuse=saturate(dot(facet,key)*.70+facet.z*.10+.10);
-    float tone=floor(saturate(diffuse+(cluster-.5)*.08)*4+.15)/4;
+    float diffuse=dot(facet,key)*.72+facet.z*.10+.12;
+    float tone=floor(saturate(diffuse+surface.z+PDTreeLeafRelief(surface.xy,kind,seed))*5+.18)/5;
     float3 dark=float3(.115,.23,.13),middle=float3(.24,.39,.18),bright=float3(.43,.57,.26);
     if(kind>.5&&kind<1.5){dark=float3(.10,.23,.20);middle=float3(.20,.36,.28);bright=float3(.38,.52,.36);}
     if(kind>1.5&&kind<2.5){dark=float3(.19,.29,.11);middle=float3(.40,.52,.20);bright=float3(.65,.72,.33);}
@@ -391,7 +507,7 @@ float3 PDTreeFoliage(float3 normal,float2 pixel,float2 id,float type,float seed,
     float3 foliage=lerp(lerp(dark,middle,saturate(tone*2)),bright,saturate(tone*2-1));
     foliage*=lerp(float3(1.05,.99,.91),float3(.91,1.03,1.02),seed);
     float crease=(1-smoothstep(.6,2.2,edge.y))*step(1.4,edge.x);
-    foliage*=1-crease*.19;
+    foliage*=1-crease*.24;
     float rim=1-step(.65,edge.x);
     return lerp(foliage,dark*.85,rim*.65);
 }

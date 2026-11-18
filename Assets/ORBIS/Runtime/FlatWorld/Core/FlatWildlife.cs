@@ -16,11 +16,14 @@ namespace Orbis.Flat
         // Needs increase towards one. MoveSpeed is the current equatorial tile distance per second.
         public float Hunger, Fatigue, Facing = 1, AnimationTime, MoveSpeed;
         public uint RandomState = 1;
+        // Local climate is derived at a staggered cadence and does not extend the save schema.
+        public float Activity { get; internal set; } = 1;
+        public float LocalTemperature { get; internal set; } = 15;
 
         internal int[] Path;
-        internal int PathIndex, RequestToken, FailedGoal = -1;
+        internal int PathIndex, RequestToken, FailedGoal = -1, ClimateTile = -1;
         internal bool PathPending, ResumeTravel, SegmentActive;
-        internal float DecisionDelay, RequestAge;
+        internal float DecisionDelay, RequestAge, ClimateDelay;
         internal double SegmentX, SegmentY, SegmentDX, SegmentDY, SegmentLength, SegmentProgress;
 
         public WildlifeActor Clone()
@@ -29,7 +32,8 @@ namespace Orbis.Flat
             {
                 Id = Id, HomeTile = HomeTile, GoalTile = GoalTile, Species = Species, State = State,
                 X = X, Y = Y, Hunger = Hunger, Fatigue = Fatigue, Facing = Facing,
-                AnimationTime = AnimationTime, MoveSpeed = MoveSpeed, RandomState = RandomState
+                AnimationTime = AnimationTime, MoveSpeed = MoveSpeed, RandomState = RandomState,
+                Activity = Activity, LocalTemperature = LocalTemperature
             };
         }
     }
@@ -68,7 +72,7 @@ namespace Orbis.Flat
             this.pathfinder = pathfinder ?? throw new ArgumentNullException(nameof(pathfinder));
             visited = new int[world.Count];
             Initialize();
-            foreach (var actor in world.Wildlife) ResetRuntime(actor);
+            foreach (var actor in world.Wildlife) { ResetRuntime(actor); RefreshClimate(actor, world.Day); }
         }
 
         static bool Flying(WildlifeActor actor)
@@ -85,6 +89,8 @@ namespace Orbis.Flat
             actor.RequestToken++;
             actor.RequestAge = 0;
             actor.MoveSpeed = 0;
+            actor.ClimateTile = -1;
+            actor.ClimateDelay = 0;
             actor.ResumeTravel = Travelling(actor.State);
             actor.DecisionDelay = actor.ResumeTravel ? 0 : .2f + actor.Id % 13 * .11f;
         }
@@ -121,10 +127,17 @@ namespace Orbis.Flat
                 int tile = sites[i];
                 uint random = FMath.Hash(seed ^ (uint)tile ^ (uint)(i * 43));
                 var species = WildlifeSpecies.Bird;
-                for (int choice = 0; choice < 4; choice++)
+                float total = 0;
+                for (int choice = 1; choice <= 4; choice++) total += SpeciesSuitability(world, tile, (WildlifeSpecies)choice);
+                float selection = FMath.Unit(random ^ 0x97b3d42fu) * total;
+                for (int choice = 1; choice <= 4; choice++)
                 {
-                    var candidate = (WildlifeSpecies)(1 + ((random % 4 + (uint)choice) % 4));
-                    if (SpeciesHabitat(tile, candidate)) { species = candidate; break; }
+                    var candidate = (WildlifeSpecies)choice;
+                    float weight = SpeciesSuitability(world, tile, candidate);
+                    if (weight <= 0) continue;
+                    species = candidate;
+                    if (selection < weight) break;
+                    selection -= weight;
                 }
                 var actor = new WildlifeActor
                 {
@@ -214,17 +227,93 @@ namespace Orbis.Flat
         }
 
         bool SpeciesHabitat(int tile, WildlifeSpecies species)
+        { return SpeciesSuitability(world, tile, species) > 0; }
+
+        public static float HabitatSuitability(WorldData world, int tile, WildlifeSpecies species)
+        { return IsGroundTile(world, tile) ? SpeciesSuitability(world, tile, species) : 0; }
+
+        static float SpeciesSuitability(WorldData world, int tile, WildlifeSpecies species)
         {
             var cover = world.Facts.Vegetation[tile];
-            if (cover == VegetationCover.Bare || cover == VegetationCover.Ice) return false;
-            if (species == WildlifeSpecies.Butterfly)
-                return world.Facts.MeanTemperature[tile] >= 8 && cover != VegetationCover.BorealForest && cover != VegetationCover.Tundra;
-            if (species == WildlifeSpecies.Rabbit)
-                return cover != VegetationCover.TropicalRainforest && cover != VegetationCover.Marsh && cover != VegetationCover.Tundra;
-            if (species == WildlifeSpecies.Deer)
-                return cover != VegetationCover.Marsh && cover != VegetationCover.Tundra;
-            return world.Facts.MeanTemperature[tile] >= -12;
+            if (cover == VegetationCover.Bare || cover == VegetationCover.Ice) return 0;
+            float temperature = world.Facts.MeanTemperature[tile], weight, moistureMinimum;
+            switch (species)
+            {
+                case WildlifeSpecies.Rabbit:
+                    if (temperature < -24 || temperature > 31 || cover == VegetationCover.TropicalRainforest ||
+                        cover == VegetationCover.Marsh || cover == VegetationCover.Tundra) return 0;
+                    weight = cover == VegetationCover.Grassland || cover == VegetationCover.Shrubland ? 1 :
+                        cover == VegetationCover.DrySteppe || cover == VegetationCover.AlpineMeadow ? .75f : .5f;
+                    moistureMinimum = cover == VegetationCover.DrySteppe ? .035f : .10f;
+                    break;
+                case WildlifeSpecies.Deer:
+                    if (temperature < -25 || temperature > 32 || cover == VegetationCover.Marsh || cover == VegetationCover.Tundra) return 0;
+                    weight = cover >= VegetationCover.SeasonalForest && cover <= VegetationCover.BorealForest ? 1 : .6f;
+                    moistureMinimum = .14f;
+                    break;
+                case WildlifeSpecies.Bird:
+                    if (temperature < -12 || temperature > 35) return 0;
+                    weight = cover == VegetationCover.Marsh ? 1 : cover >= VegetationCover.SeasonalForest &&
+                        cover <= VegetationCover.TropicalRainforest ? .85f : .6f;
+                    moistureMinimum = .035f;
+                    break;
+                case WildlifeSpecies.Butterfly:
+                    if (temperature < 8 || temperature > 32 || cover == VegetationCover.BorealForest || cover == VegetationCover.Tundra) return 0;
+                    weight = cover == VegetationCover.Grassland ? 1 : cover == VegetationCover.Shrubland ? .8f : .55f;
+                    moistureMinimum = .16f;
+                    break;
+                default: return 0;
+            }
+            var climate = world.Climates[tile];
+            bool arid = climate >= Koppen.BWh && climate <= Koppen.BSk;
+            if (arid && !(species == WildlifeSpecies.Rabbit && cover == VegetationCover.DrySteppe))
+                moistureMinimum = Math.Max(moistureMinimum, .18f);
+            float moisture = Math.Max(world.Facts.Wetness[tile], Math.Max(world.Facts.Freshness[tile] * .65f,
+                FMath.Clamp(world.Facts.AnnualRain[tile] / 3000, 0, .45f)));
+            if (moisture < moistureMinimum) return 0;
+            float water = FMath.Clamp((moisture - moistureMinimum) / Math.Max(.1f, .65f - moistureMinimum), 0, 1);
+            float heat = 1 - FMath.Clamp((temperature - 24) / 16, 0, .65f);
+            return weight * (.45f + .55f * water) * heat;
         }
+
+        static float Ramp(float value, float minimum, float maximum)
+        {
+            float t = FMath.Clamp((value - minimum) / (maximum - minimum), 0, 1);
+            return t * t * (3 - 2 * t);
+        }
+
+        static float MonthlyTemperature(WorldData world, int tile, double day)
+        {
+            double position = day / 30, whole = Math.Floor(position);
+            int month = (int)((whole % 12 + 12) % 12);
+            return FMath.Lerp(world.Temperature[tile * 12 + month], world.Temperature[tile * 12 + (month + 1) % 12], (float)(position - whole));
+        }
+
+        public static float SeasonalActivity(WorldData world, WildlifeActor actor, double day)
+        {
+            int tile = Tile(world, actor);
+            if (tile < 0 || world.Facts == null) return 0;
+            float temperature = MonthlyTemperature(world, tile, day);
+            if (actor.Species == WildlifeSpecies.Butterfly)
+            {
+                FlatEcology.SampleSeason(world, tile, day, out float growth, out _);
+                return Ramp(temperature, 6, 16) * (1 - Ramp(temperature, 31, 40)) * (.25f + .75f * growth);
+            }
+            float cold = actor.Species == WildlifeSpecies.Bird ? -10 : -18;
+            return (.45f + .55f * Ramp(temperature, cold, 8)) * (1 - .5f * Ramp(temperature, 29, 40));
+        }
+
+        void RefreshClimate(WildlifeActor actor, double day)
+        {
+            actor.ClimateTile = Tile(world, actor);
+            if (actor.ClimateTile < 0) return;
+            actor.LocalTemperature = MonthlyTemperature(world, actor.ClimateTile, day);
+            actor.Activity = SeasonalActivity(world, actor, day);
+            actor.ClimateDelay = 1.5f + actor.Id % 7 * .1f;
+        }
+
+        static bool ColdRest(WildlifeActor actor)
+        { return actor.Species == WildlifeSpecies.Butterfly && actor.Activity < .12f; }
 
         public void Tick(float seconds, double calendarDay)
         { Tick(seconds, calendarDay, seconds); }
@@ -264,6 +353,26 @@ namespace Orbis.Flat
                 var actor = world.Wildlife[index];
                 actor.MoveSpeed = 0;
                 actor.AnimationTime = (actor.AnimationTime + seconds) % 3600;
+                actor.ClimateDelay -= seconds;
+                if (actor.ClimateDelay <= 0 || actor.ClimateTile != Tile(world, actor)) RefreshClimate(actor, calendarDay);
+                if (ColdRest(actor))
+                {
+                    int tile = Tile(world, actor);
+                    if (Habitat(tile, actor.Species) && GroundPoint(world, actor.X, actor.Y))
+                    {
+                        if (actor.State != WildlifeState.Sleeping) CancelPath(actor);
+                        actor.ResumeTravel = false;
+                        actor.State = WildlifeState.Sleeping;
+                        actor.GoalTile = tile;
+                    }
+                    else if (actor.State != WildlifeState.SeekingRest)
+                    {
+                        CancelPath(actor);
+                        actor.ResumeTravel = false;
+                        actor.State = WildlifeState.SeekingRest;
+                        actor.DecisionDelay = 0;
+                    }
+                }
                 bool resting = actor.State == WildlifeState.Eating || actor.State == WildlifeState.Sleeping;
                 if (resting && !Habitat(Tile(world, actor), actor.Species)) Idle(actor, 1);
                 UpdateNeeds(actor, seconds);
@@ -285,7 +394,7 @@ namespace Orbis.Flat
                 }
                 if (actor.State == WildlifeState.Sleeping)
                 {
-                    if (actor.Fatigue <= .05f && !Night(actor, calendarDay))
+                    if (actor.Fatigue <= .05f && !Night(actor, calendarDay) && !ColdRest(actor))
                         Idle(actor, 1 + Random(actor) * 3);
                     continue;
                 }
@@ -312,6 +421,7 @@ namespace Orbis.Flat
         {
             float hunger = actor.State == WildlifeState.Eating ? -.075f : actor.State == WildlifeState.Sleeping ? .0005f : .0016f;
             float fatigue = actor.State == WildlifeState.Sleeping ? -.04f : Travelling(actor.State) ? .0018f : .0011f;
+            if (ColdRest(actor)) hunger = .00003f;
             actor.Hunger = FMath.Clamp(actor.Hunger + hunger * seconds, 0, 1);
             actor.Fatigue = FMath.Clamp(actor.Fatigue + fatigue * seconds, 0, 1);
         }
@@ -341,7 +451,8 @@ namespace Orbis.Flat
                 actor.ResumeTravel = false;
             }
             WildlifeState state;
-            if (actor.Hunger >= .65f) state = WildlifeState.SeekingFood;
+            if (ColdRest(actor)) state = WildlifeState.SeekingRest;
+            else if (actor.Hunger >= .65f) state = WildlifeState.SeekingFood;
             else if (actor.Fatigue >= .78f || Night(actor, calendarDay) && actor.Fatigue >= .18f) state = WildlifeState.SeekingRest;
             else state = WildlifeState.Wandering;
             if (state != WildlifeState.Wandering && Habitat(tile, actor.Species))
@@ -378,7 +489,8 @@ namespace Orbis.Flat
                 int tile = searchTiles[head], depth = searchDepth[head++];
                 if (tile != start && tile != actor.FailedGoal && Habitat(tile, actor.Species))
                 {
-                    float score = Random(actor) * 3 - depth * .15f;
+                    float distanceWeight = ColdRest(actor) ? .7f : .15f;
+                    float score = Random(actor) * 3 + SpeciesSuitability(world, tile, actor.Species) * 2 - depth * distanceWeight;
                     if (state == WildlifeState.SeekingRest && tile == actor.HomeTile) score += 4;
                     if (state == WildlifeState.Wandering) score += Math.Min(depth, 4) * .4f;
                     if (score > best) { best = score; goal = tile; }
@@ -498,7 +610,7 @@ namespace Orbis.Flat
                 case WildlifeSpecies.Butterfly: speed = .085f; break;
                 default: speed = .13f; break;
             }
-            return speed * (.9f + FMath.Unit((uint)actor.Id) * .2f);
+            return speed * (.9f + FMath.Unit((uint)actor.Id) * .2f) * (.5f + .5f * actor.Activity);
         }
 
         void BeginSegment(WildlifeActor actor, int from, int to)
