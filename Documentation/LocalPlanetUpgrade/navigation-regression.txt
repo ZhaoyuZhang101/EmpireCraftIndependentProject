@@ -1,20 +1,105 @@
 PASS SW3 resource readiness survives map-to-local material copy
-PASS drag cancels pending zoom and moves geography without rescaling; pixels=187.6434 -> 187.6434; moved=0.3144195
+PASS water reflection terrain fields survive map-to-local material copy
+PASS geodesic circles across central 70% of flat camera; latitude=-90 dateLine=true worstAxes=1.00000003850349 minimumRadiusPx=40.000660195871
+PASS geodesic circles across central 70% of flat camera; latitude=-89.99 dateLine=true worstAxes=1.00000006011748 minimumRadiusPx=40.000660195871
+PASS geodesic circles across central 70% of flat camera; latitude=-85 dateLine=true worstAxes=1.0000000460871 minimumRadiusPx=40.000660195871
+PASS geodesic circles across central 70% of flat camera; latitude=-80 dateLine=true worstAxes=1.00000010848744 minimumRadiusPx=40.000660195871
+PASS geodesic circles across central 70% of flat camera; latitude=-60 dateLine=true worstAxes=1.00000006996644 minimumRadiusPx=40.000660195871
+PASS geodesic circles across central 70% of flat camera; latitude=0 dateLine=true worstAxes=1.00000003850349 minimumRadiusPx=40.000660195871
+PASS geodesic circles across central 70% of flat camera; latitude=60 dateLine=true worstAxes=1.00000006996644 minimumRadiusPx=40.000660195871
+PASS geodesic circles across central 70% of flat camera; latitude=80 dateLine=true worstAxes=1.00000010848744 minimumRadiusPx=40.000660195871
+PASS geodesic circles across central 70% of flat camera; latitude=85 dateLine=true worstAxes=1.0000000460871 minimumRadiusPx=40.000660195871
+PASS geodesic circles across central 70% of flat camera; latitude=89.99 dateLine=true worstAxes=1.00000006011748 minimumRadiusPx=40.000660195871
+PASS geodesic circles across central 70% of flat camera; latitude=90 dateLine=true worstAxes=1.00000003850349 minimumRadiusPx=40.000660195871
+PASS route inverse follows blended polar projection; latitude=-89 morph=0.75 radians=0
+PASS route inverse follows blended polar projection; latitude=-89 morph=0.9 radians=0
+PASS route inverse follows blended polar projection; latitude=-89 morph=0.95 radians=0
+PASS route inverse follows blended polar projection; latitude=-89 morph=0.98 radians=0
+PASS route inverse follows blended polar projection; latitude=-89 morph=0.995 radians=0
+PASS route inverse follows blended polar projection; latitude=-80 morph=0.75 radians=0
+PASS route inverse follows blended polar projection; latitude=-80 morph=0.9 radians=0
+PASS route inverse follows blended polar projection; latitude=-80 morph=0.95 radians=0
+PASS route inverse follows blended polar projection; latitude=-80 morph=0.98 radians=0
+PASS route inverse follows blended polar projection; latitude=-80 morph=0.995 radians=0
+PASS route inverse follows blended polar projection; latitude=80 morph=0.75 radians=0
+PASS route inverse follows blended polar projection; latitude=80 morph=0.9 radians=0
+PASS route inverse follows blended polar projection; latitude=80 morph=0.95 radians=0
+PASS route inverse follows blended polar projection; latitude=80 morph=0.98 radians=0
+PASS route inverse follows blended polar projection; latitude=80 morph=0.995 radians=0
+PASS route inverse follows blended polar projection; latitude=89 morph=0.75 radians=0
+PASS route inverse follows blended polar projection; latitude=89 morph=0.9 radians=0
+PASS route inverse follows blended polar projection; latitude=89 morph=0.95 radians=0
+PASS route inverse follows blended polar projection; latitude=89 morph=0.98 radians=0
+PASS route inverse follows blended polar projection; latitude=89 morph=0.995 radians=0
+PASS off-patch route endpoint cuts adjacent segments while retaining both visible sections
+PASS drag cancels pending zoom and moves geography without rescaling; pixels=181.5904 -> 181.5904; moved=0.3248699
 PASS one outward wheel step stays close to surface, morph=0.9549091 distance=1.103447
 PASS reversing wheel re-enters local view
 PASS zero drag after unfolded return preserves orientation; degrees=0
 PASS small return drag stays incremental; degrees=0
 PASS unfolding uses viewport centre regardless of wheel cursor; degrees=0
 PASS unfolded chart puts geographic north at the top, alignment=1
-PASS final flat viewport remains centred on captured geography; degrees=0.00116021054426272
-PASS polar long pan keeps geographic north at the top, alignment=1
-PASS long polar pan return has independent viewport drag axes; wheel=False movement=0.249446 crossAxis=1.242454E-05 axesDot=1.389214E-05 undo=0
-PASS long polar pan return has independent viewport drag axes; wheel=True movement=0.249446 crossAxis=1.449242E-05 axesDot=1.384966E-05 undo=0
-PASS waiting unfolded across day wrap preserves returned geography; wheel=False degrees=1.05040453199853E-05
+PASS final flat viewport remains centred on captured geography; degrees=2.54538689550521E-06
+PASS drag crosses pole with continuous heading then restores geographic north; hemisphere=-1 largestTurnDegrees=3.39695630599263E-19 northAlignment=1
+PASS drag crosses pole with continuous heading then restores geographic north; hemisphere=1 largestTurnDegrees=3.39695630599263E-19 northAlignment=1
+PASS long polar pan return has independent viewport drag axes; wheel=False movement=0.249446 crossAxis=4.407794E-06 axesDot=1.167634E-05 undo=0
+PASS long polar pan return has independent viewport drag axes; wheel=True movement=0.249446 crossAxis=4.407794E-06 axesDot=1.170074E-05 undo=0
+PASS waiting unfolded across day wrap preserves returned geography; wheel=False degrees=1.1150328700742E-05
 PASS globe camera stops following rotation after return
-PASS waiting unfolded across day wrap preserves returned geography; wheel=True degrees=2.12832483262535E-05
+PASS waiting unfolded across day wrap preserves returned geography; wheel=True degrees=3.23446245376718E-06
 PASS globe camera stops following rotation after return
-PASS fast wheel burst carries zoom across unfolding; pixels=1153.218 entry=288.3045
+PASS fast wheel burst carries zoom across unfolding; pixels=1116.018 entry=279.0044
+PASS detailed picking follows camera-centred stereographic chart; row=2 radians=9.07615157851999E-10
+PASS dragging dynamically recentres the displayed chart; row=2 radians=6.97422500742341E-09
+PASS off-centre wheel zoom preserves its geographic anchor; row=2 pixels=9.73325694255217E-05
+PASS off-centre outward wheel zoom preserves its geographic anchor; row=2 pixels=6.68242399631512E-05
+PASS detailed picking follows camera-centred stereographic chart; row=16 radians=1.56070705508892E-09
+PASS dragging dynamically recentres the displayed chart; row=16 radians=6.97422511398985E-09
+PASS off-centre wheel zoom preserves its geographic anchor; row=16 pixels=0.000715071882710845
+PASS off-centre outward wheel zoom preserves its geographic anchor; row=16 pixels=0.000668251933022892
+PASS detailed picking follows camera-centred stereographic chart; row=29 radians=4.73130657949291E-09
+PASS dragging dynamically recentres the displayed chart; row=29 radians=6.97422503744222E-09
+PASS off-centre wheel zoom preserves its geographic anchor; row=29 pixels=0.000674818393917751
+PASS off-centre outward wheel zoom preserves its geographic anchor; row=29 pixels=0.000292235057932851
+PASS continuous inward and reversed wheel keep the same displaced terrain point; latitude=-89.99 worstPixels=0.000306043860588322
+PASS continuous inward and reversed wheel keep the same displaced terrain point; latitude=-80 worstPixels=0.000369714765359672
+PASS continuous inward and reversed wheel keep the same displaced terrain point; latitude=80 worstPixels=0.000473303322940192
+PASS continuous inward and reversed wheel keep the same displaced terrain point; latitude=89.99 worstPixels=0.000326036982408185
+PASS bounded relief picking retains the centre fan through world-space float rounding
+PASS detailed terrain has actual height and oblique parallax; lift=0.01911606 shift=0.0153989
+PASS CPU selection and GPU geometry share unfolding projection and water height; morph=1 error=5.587935E-09
+PASS CPU selection and GPU geometry share unfolding projection and water height; morph=0.7974501 error=6.169265E-08
+PASS CPU selection and GPU geometry share unfolding projection and water height; morph=0.3533158 error=5.701642E-08
+PASS CPU selection and GPU geometry share unfolding projection and water height; morph=0 error=1.199202E-07
+PASS view keeps the requested geography centred; path=local site=145 pixels=6.82805148461124E-05
+PASS picking matches the rendered displaced triangles; path=local site=145 missed=0 pixels=0.00690117843972313
+PASS view keeps the requested geography centred; path=local site=1041 pixels=7.4913664687617E-05
+PASS picking matches the rendered displaced triangles; path=local site=1041 missed=0 pixels=0.00680453521864096
+PASS view keeps the requested geography centred; path=local site=1873 pixels=7.45994635803859E-05
+PASS picking matches the rendered displaced triangles; path=local site=1873 missed=0 pixels=0.0118325249009258
+PASS globe return preserves the visible relief centre; path=local degrees=9.39184448206655E-06
+PASS view keeps the requested geography centred; path=atlas focus site=145 pixels=0.00010515154422398
+PASS picking matches the rendered displaced triangles; path=atlas focus site=145 missed=0 pixels=0.0095678451311427
+PASS view keeps the requested geography centred; path=atlas focus site=1041 pixels=0.000115366941983258
+PASS picking matches the rendered displaced triangles; path=atlas focus site=1041 missed=0 pixels=0.00997950073939847
+PASS view keeps the requested geography centred; path=atlas focus site=1873 pixels=0.000114883873894397
+PASS picking matches the rendered displaced triangles; path=atlas focus site=1873 missed=0 pixels=0.00855825268092337
+PASS globe return preserves the visible relief centre; path=atlas focus degrees=9.39184696814843E-06
+PASS view keeps the requested geography centred; path=Markley overview site=145 pixels=2.91347491877078E-05
+PASS picking matches the rendered displaced triangles; path=Markley overview site=145 missed=0 pixels=0.00956561831690151
+PASS view keeps the requested geography centred; path=Markley overview site=1041 pixels=1.79074800521307E-05
+PASS picking matches the rendered displaced triangles; path=Markley overview site=1041 missed=0 pixels=0.00971183575933585
+PASS view keeps the requested geography centred; path=Markley overview site=1873 pixels=5.00041712853056E-05
+PASS picking matches the rendered displaced triangles; path=Markley overview site=1873 missed=0 pixels=0.0102079492568696
+PASS globe return preserves the visible relief centre; path=Markley overview degrees=4.24323250111416E-06
+PASS minimap jump retains scale and camera centre; mode=0 radians=7.03949391545116E-08
+PASS minimap footprint agrees with visible terrain within one map pixel; mode=0 radians=3.75309861585754E-07
+PASS minimap jump retains scale and camera centre; mode=1 radians=7.03949391545116E-08
+PASS minimap footprint agrees with visible terrain within one map pixel; mode=1 radians=0.00110544736202352
+PASS minimap jump retains scale and camera centre; mode=2 radians=7.03949391545116E-08
+PASS minimap footprint agrees with visible terrain within one map pixel; mode=2 radians=7.28214514718522E-08
+PASS minimap jump retains scale and camera centre; mode=3 radians=1.74627798257461E-07
+PASS minimap footprint agrees with visible terrain within one map pixel; mode=3 radians=4.16792936410363E-07
 PASS pending layer keeps old texture semantics
 PASS completed layer publishes texture and shader semantics together
 PASS GPU water slope finite from 0.1m to 4000m; invalid=0

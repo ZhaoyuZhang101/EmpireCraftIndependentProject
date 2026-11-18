@@ -24,7 +24,18 @@ namespace Orbis.Flat
             var h=new float[n];var fixedCell=new bool[n];var surface=new float[n];
             for(int i=0;i<n;i++)h[i]=w.Elevation[i];
             var rowScale=new float[w.Height];
-            for(int y=0;y<w.Height;y++)rowScale[y]=Math.Max(.05f,(float)Math.Cos(((y+.5)/w.Height-.5)*Math.PI));
+            var eastStride=new int[w.Height];var eastWeight=new float[w.Height];
+            double tileAngle=Math.PI/w.Height;
+            for(int y=0;y<w.Height;y++)
+            {
+                rowScale[y]=(float)Math.Cos(((y+.5)/w.Height-.5)*Math.PI);
+                // A fixed physical diffusion radius in both tangent directions.
+                // The arc between two centres on a parallel is a great-circle distance.
+                double offset=2*Math.Asin(Math.Min(1,Math.Sin(tileAngle*.5)/rowScale[y]))/tileAngle;
+                int dx=eastStride[y]=Math.Max(1,(int)Math.Round(offset));
+                double lengthEW=2*Math.Asin(rowScale[y]*Math.Sin(dx*tileAngle*.5))/tileAngle;
+                eastWeight[y]=(float)(1/(lengthEW*lengthEW));
+            }
             // The ocean is the largest connected sub-sea-level region, as in water detection.
             var seen=new bool[n];var queue=new Queue<int>();var ocean=new List<int>();
             for(int i=0;i<n;i++)
@@ -69,8 +80,12 @@ namespace Orbis.Flat
             uint seed=FMath.Seed(w.Seed)^0x5e0d1a7bu;var strength=new float[n];
             for(int i=0;i<n;i++)
             {
-                strength[i]=(float)Math.Exp(Hardness*Fbm(w,i,16,seed));
-                if(!fixedCell[i])h[i]=Math.Max(1,h[i]+Jitter*Fbm(w,i,4,seed^0x9e3779b9u));
+                if(fixedCell[i])continue;
+                double lat=((i/width+.5)/w.Height-.5)*Math.PI,lon=((i%width+.5)/width-.5)*2*Math.PI;
+                float radius=(float)(width/(2*Math.PI));
+                float x=(float)Math.Cos(lon)*rowScale[i/width]*radius,y=(float)Math.Sin(lon)*rowScale[i/width]*radius,z=(float)Math.Sin(lat)*radius;
+                strength[i]=(float)Math.Exp(Hardness*FlatTectonics.Fbm(x/16+.31f,y/16+.43f,z/16+.21f,seed,4));
+                h[i]=Math.Max(1,h[i]+Jitter*FlatTectonics.Fbm(x/4+.37f,y/4+.19f,z/4+.53f,seed^0x9e3779b9u,4));
             }
             var receiver=new int[n];var length=new float[n];var area2=new float[n];var order=new int[n];
             var donors=new int[n];var donorStart=new int[n+1];var donorCount=new int[n];var smooth=new float[n];
@@ -118,9 +133,11 @@ namespace Orbis.Flat
                 for(int i=0;i<n;i++)
                 {
                     if(fixedCell[i])continue;
-                    float sum=0;int neighbors=0;
-                    for(int d=0;d<4;d++){int m=w.SphereNeighbor(i,d);if(m<0)continue;sum+=smooth[m];neighbors++;}
-                    h[i]=Math.Max(1,smooth[i]+Diffusion*(sum/neighbors-smooth[i]));
+                    int row=i/width,x=i%width,dx=eastStride[row];float ew=eastWeight[row];
+                    float horizontal=smooth[w.Index(x-dx,row)]+smooth[w.Index(x+dx,row)];
+                    float vertical=smooth[w.SphereNeighbor(i,2)]+smooth[w.SphereNeighbor(i,3)];
+                    float average=(horizontal*ew+vertical)/(2*(1+ew));
+                    h[i]=Math.Max(1,smooth[i]+Diffusion*(average-smooth[i]));
                 }
             }
             // Remap onto the source hypsometry by rank. Lakes ride the same monotone
@@ -153,29 +170,6 @@ namespace Orbis.Flat
             int x=i%w.Width,y=i/w.Width,ny=y+(direction<6?-1:1);
             if(ny<0||ny>=w.Height)return -1;
             return ny*w.Width+FMath.Wrap(x+((direction&1)==0?-1:1),w.Width);
-        }
-
-        static float Value(float x,float y,int period,uint seed)
-        {
-            int x0=(int)Math.Floor(x),y0=(int)Math.Floor(y);float fx=x-x0,fy=y-y0;
-            fx=fx*fx*(3-2*fx);fy=fy*fy*(3-2*fy);
-            return FMath.Lerp(FMath.Lerp(Corner(x0,y0,period,seed),Corner(x0+1,y0,period,seed),fx),
-                FMath.Lerp(Corner(x0,y0+1,period,seed),Corner(x0+1,y0+1,period,seed),fx),fy);
-        }
-        static float Corner(int x,int y,int period,uint seed)
-        { unchecked{return FMath.Unit((uint)FMath.Wrap(x,period)*73856093u^(uint)y*19349663u^seed)*2-1;} }
-
-        // Longitude-periodic value noise in -1..1 with cell size in tiles.
-        static float Fbm(WorldData w,int i,int cells,uint seed)
-        {
-            float x=i%w.Width+.5f,y=i/w.Width+.5f,sum=0,amplitude=1,norm=0;
-            for(int octave=0;octave<4;octave++)
-            {
-                int period=Math.Max(1,w.Width/cells);
-                sum+=amplitude*Value(x/cells,y/cells,period,seed+(uint)octave*7919u);
-                norm+=amplitude;amplitude*=.5f;cells=Math.Max(1,cells/2);
-            }
-            return sum/norm;
         }
 
         // Priority flood from fixed water surfaces. eps>0 leaves a draining gradient.

@@ -6,6 +6,9 @@ class Program
  static void Main()
  {
   int checks=0;
+  checks+=DisplayedGroundMetrics();
+  checks+=UnfoldRoundTrips();
+  checks+=TransportedAnchors();
   foreach(double lat in new[]{-Math.PI/2,-1.0,0,1.0,Math.PI/2})
   foreach(double lon in new[]{-Math.PI,0,Math.PI-.00001})
   {
@@ -67,6 +70,98 @@ class Program
     }
    }
   }
-  Console.WriteLine("PASS "+checks+" local projection checks (square geographic grid, poles, date line, round trips, frame transport)");
+  Console.WriteLine("PASS "+checks+" local projection checks (ground shape, polar navigation, date line, round trips, geographic addresses)");
+ }
+
+ static int DisplayedGroundMetrics()
+ {
+  int checks=0;
+  foreach(double latitude in new[]{-90d,-89.99,-85,-80,-60,0,45,60,80,85,89.99,90})
+  foreach(double longitude in new[]{-180d,-100,15,179.999})
+  {
+   var chart=new PlanetLocalProjection(new PlanetLocation(longitude*Math.PI/180,latitude*Math.PI/180));
+   foreach(double x in new[]{-.4,0,.4})foreach(double y in new[]{-.2,0,.2})
+   {
+    const double step=.00005;
+    var east=chart.LocalExp(x+step,y,1)-chart.LocalExp(x-step,y,1);
+    var north=chart.LocalExp(x,y+step,1)-chart.LocalExp(x,y-step,1);
+    double xx=PlanetVector.Dot(east,east),yy=PlanetVector.Dot(north,north),xy=PlanetVector.Dot(east,north);
+    double spread=Math.Sqrt((xx-yy)*(xx-yy)+4*xy*xy),trace=xx+yy;
+    double axes=Math.Sqrt((trace+spread)/(trace-spread));
+    Require(axes<=1.00001,"equal ground distances in the displayed local map at latitude "+latitude+" have axis ratio "+axes);
+    double expectedScale=1/(1+(x*x+y*y)*.25);
+    Require(Math.Abs(Math.Sqrt(xx)/(2*step)-expectedScale)<1e-8,"stereographic ground scale away from the map centre");
+    checks+=2;
+   }
+  }
+  return checks;
+ }
+
+ static int UnfoldRoundTrips()
+ {
+  int checks=0;
+  foreach(double latitude in new[]{-90d,-85,-60,0,60,85,90})
+  foreach(double longitude in new[]{-180d,0,179.999})
+  {
+   const double radius=6371;
+   var chart=new PlanetLocalProjection(new PlanetLocation(longitude*Math.PI/180,latitude*Math.PI/180),radius);
+   chart.AlignEast(chart.Frame.East*.6+chart.Frame.North*.8);
+   foreach(double blend in new[]{0d,.00001,.2,.5,.9,.99999,1})
+   foreach(double bearing in new[]{0d,.5,1.8,3.1,4.5,5.9})
+   {
+    double previous=-1;
+    for(int i=0;i<=32;i++)
+    {
+     double s=(Math.PI-.0001)*i/32,x=radius*s*Math.Cos(bearing),y=radius*s*Math.Sin(bearing);
+     var geographic=chart.LocalExp(x,y,blend);
+     var point=chart.LocalLog(geographic,blend);
+     double angle=PlanetLocalProjection.Distance(chart.Frame.Up,geographic,1);
+     Require(angle>previous,"displayed radius is strictly monotone during the unfold");
+     Require(Math.Abs(angle-((1-blend)*s+2*blend*Math.Atan(s*.5)))<1e-12,"displayed radius follows the blended central angle");
+     Require(Math.Abs(x-point.X)<1e-6&&Math.Abs(y-point.Y)<1e-6,"one radial inverse recovers route and pick positions throughout the unfold");
+     previous=angle;checks+=3;
+    }
+   }
+  }
+  return checks;
+ }
+
+ static int TransportedAnchors()
+ {
+  int checks=0;
+  foreach(double latitude in new[]{-90d,-89.99,-85,-80,0,80,85,89.99,90})
+  foreach(double longitude in new[]{-180d,.1,179.999})
+  foreach(double heading in new[]{0d,.7,2.8})
+  foreach(double scale in new[]{.92,1.08})
+  {
+   var chart=new PlanetLocalProjection(new PlanetLocation(longitude*Math.PI/180,latitude*Math.PI/180));
+   chart.AlignEast(chart.Frame.East*Math.Cos(heading)+chart.Frame.North*Math.Sin(heading));
+   foreach(double x in new[]{-.4,0,.4})foreach(double y in new[]{-.25,.25})
+   {
+    var anchor=chart.LocalExp(x,y,1);
+    var previousEast=chart.Frame.East;
+    chart.AnchorStereographic(anchor,x*scale,y*scale);
+    Require(PlanetLocalProjection.Distance(anchor,chart.LocalExp(x*scale,y*scale,1),1)<1e-10,"wheel anchor retained with transported and north-up headings");
+    Require(PlanetVector.Dot(previousEast,chart.Frame.East)>.94,"off-centre wheel never flips heading at the polar branch");checks+=2;
+   }
+  }
+  foreach(double sign in new[]{-1d,1})
+  {
+   var chart=new PlanetLocalProjection(new PlanetLocation(Math.PI-.001,sign*89*Math.PI/180));
+   for(int step=0;step<12;step++)
+   {
+    var previous=chart.Frame.East;
+    var expected=chart.LocalExp(0,sign*.003,1);
+    chart.MoveChart(0,sign*.003,1);
+    Require(PlanetLocalProjection.Distance(expected,chart.Frame.Up,1)<1e-12,"drag recentres on the displayed ground");
+    Require(PlanetVector.Dot(previous,chart.Frame.East)>.999,"continuous heading while dragging across the pole");checks+=2;
+   }
+   Require(Math.Abs(PlanetCoordinateSystem.NearestOffset(chart.Center.Longitude-(Math.PI-.001),2*Math.PI))>3,"drag crosses the physical pole");checks++;
+   chart.MoveChart(0,sign*.35,1);
+   for(int i=0;i<120;i++)chart.AlignNorth(Math.PI/120);
+   var north=PlanetCoordinateSystem.LocalFrame(chart.Center,new PlanetVector(),1).North;
+   Require(PlanetVector.Dot(north,chart.Frame.North)>1-1e-10,"geographic north restored after leaving the polar cap");checks++;
+  }
+  return checks;
  }
 }

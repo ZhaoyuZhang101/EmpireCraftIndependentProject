@@ -113,9 +113,9 @@ FlatCoastalSediment FlatCoastAt(float2 cell,float4 field,float4 basin,float wetS
 
 // Use the neighbouring measured depths for the bed normal and relative crest
 // height. A small sky fill preserves orientation at noon and in deep chart water.
-float FlatSeabedLight(float2 cell,float depth,float4 neighbours,float3 sun)
+float FlatSeabedLight(float depth,float4 neighbours,float3 sun)
 {
-    float2 slope=FlatTerrainMetricGradient(cell,.5*float2(neighbours.y-neighbours.x,neighbours.w-neighbours.z));
+    float2 slope=.5*float2(neighbours.y-neighbours.x,neighbours.w-neighbours.z);
     slope*=(_MapSize.x/512)/(40+depth*.14);
     float3 normal=normalize(float3(slope,1));
     float3 sky=normalize(float3(-.48,.44,.80));
@@ -127,11 +127,10 @@ float FlatSeabedLight(float2 cell,float depth,float4 neighbours,float3 sun)
 
 float FlatSampleSeabed(float2 cell,float3 sun,out float bedDepth)
 {
-    float2 uv=cell*_MapSize.zw,dx=float2(_MapSize.z,0),dy=float2(0,_MapSize.w);
+    float2 uv=cell*_MapSize.zw;
     bedDepth=max(0,FlatVisualSample(float4(uv,0,0)).b);
     if(_Relief<.01)return 1;
-    float4 neighbours=float4(FlatVisualSample(float4(uv-dx,0,0)).b,FlatVisualSample(float4(uv+dx,0,0)).b,
-                             FlatVisualSample(float4(uv-dy,0,0)).b,FlatVisualSample(float4(uv+dy,0,0)).b);
-    return FlatSeabedLight(cell,bedDepth,max(0,neighbours),sun);
+    float4 west,east,south,north;FlatGroundSamples(uv,1,west,east,south,north);
+    return FlatSeabedLight(bedDepth,max(0,float4(west.b,east.b,south.b,north.b)),sun);
 }
 #endif

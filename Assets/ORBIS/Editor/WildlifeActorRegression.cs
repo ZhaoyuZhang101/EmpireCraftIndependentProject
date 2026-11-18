@@ -39,6 +39,17 @@ namespace Orbis.Editor
                     Require(report,valid&&Mathf.Abs(mapping.x-expected)<.00001f&&Mathf.Abs(mapping.w-expected)<.00001f,
                         "actor occlusion uses final relief perspective at height="+height+" cellPerPixel="+mapping.x);
                 }
+                foreach(float latitude in new[]{0f,60f,-80f,85f,89.65f})foreach(float roll in new[]{0f,37f,121f})
+                {
+                    float scale=Mathf.Cos(latitude*Mathf.Deg2Rad);
+                    var rotation=Quaternion.AngleAxis(roll,Vector3.forward);
+                    var dx=rotation*Vector3.right*(tileScale*scale);var dy=rotation*Vector3.up*tileScale;
+                    bool valid=Orbis.Flat.FlatGlobeGeometry.TryActorFrame(camera,dx,dy,tileScale/32,out _,out _,out var mapping);
+                    Orbis.Flat.FlatGlobeGeometry.LocalArtworkAxes(mapping,scale,out var east,out var north);
+                    Require(report,valid&&(east-(Vector2)(rotation*Vector3.right)*scale).magnitude<.00001f
+                        &&(north-(Vector2)(rotation*Vector3.up)*scale).magnitude<.00001f,
+                        $"equal ground-length actor pixels follow geographic axes at latitude={latitude}, roll={roll}");
+                }
                 material.SetVector("_FlatSun",Vector3.forward);material.SetFloat("_FlatDayNight",1);
                 material.SetTexture("_SkyTex",Texture2D.blackTexture);material.SetFloat("_SkyReady",0);
                 mesh.vertices=new[]{new Vector3(-24,-24,0),new Vector3(24,-24,0),new Vector3(-24,24,0),new Vector3(24,24,0)};
@@ -86,7 +97,7 @@ namespace Orbis.Editor
                     var pixels=new Color[64*32];for(int i=0;i<pixels.Length;i++)pixels[i]=new Color(0,0,1f/255,0);
                     objects.SetPixels(pixels);objects.Apply();material.SetTexture("_InfoTex",objects);
                     material.SetVector("_MapSize",new Vector4(64,32,1f/64,1f/32));
-                    material.SetFloat("_WildlifeOcclusionReady",1);material.SetFloat("_DetailWeight",1);material.SetFloat("_FlatGeographicChart",1);
+                    material.SetFloat("_WildlifeOcclusionReady",1);material.SetFloat("_DetailWeight",1);material.SetFloat("_LocalPhysicalArtwork",1);
                     var occluded=Sample(mesh,material,camera,target,image,commands);
                     Require(report,Difference(unobstructed,occluded)>.0001f,"foreground objects occlude actor pixels using their actual painted silhouettes");
                 }

@@ -23,7 +23,7 @@ float3 PixelGround(float3 baseColor,float2 cell,float4 field,float waterMask,flo
 
  // Existing relief follows the actual elevation gradient and remains continuous
  // across tile edges. Ground artwork adds no elevation or simulation cells.
- float slope=length(FlatTerrainMetricGradient(cell,heightGradient));
+ float slope=length(heightGradient);
  float weathered=FlatDetailNoise(artwork*3.2+29);
  float face=smoothstep(180,650,slope)*smoothstep(.30,.70,weathered)*(1-smoothstep(.4,.85,field.a));
  face*=step(.01,field.r)*(1-waterMask)*step(.20,-field.g);
@@ -37,8 +37,8 @@ float3 PixelGround(float3 baseColor,float2 cell,float4 field,float waterMask,flo
  if(cover<-.5)cover=field.a>.5?6:1;
  if(cover>12.5)return col;
  float wetness=saturate(ecology.b);
- float2 artDx=ddx(cell)*float2(32,32/latitudeScale);
- float2 artDy=ddy(cell)*float2(32,32/latitudeScale);
+ float2 artDx,artDy;FlatCellScreenDerivatives(cell,artDx,artDy);
+ artDx*=float2(32,32/latitudeScale);artDy*=float2(32,32/latitudeScale);
  float detail=1-smoothstep(.65,1.8,max(length(artDx),length(artDy)));
  detail*=(1-waterMask)*(1-face*.8)*smoothstep(.12,.45,-field.g);
  if(detail<.001)return col;

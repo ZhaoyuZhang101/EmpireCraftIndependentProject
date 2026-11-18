@@ -167,7 +167,7 @@ Shader "ORBIS/Surface"
     {
      float major;float contour=FlatContour(field.r,_ContourInterval,pixelsPerTile,major);
      float strength=_ShowContours*smoothstep(3,5,pixelsPerTile)*(1-water)*step(.01,field.r);
-     strength*=FlatGentleContourWeight(uv*_MapSize.xy,terrainGradient);
+     strength*=FlatGentleContourWeight(terrainGradient);
      col=lerp(col,FlatColor(float3(.31,.30,.24))*illumination,contour*strength*lerp(.23,.42,major));
      float2 f=frac(uv*_MapSize.xy),tileUV=(floor(uv*_MapSize.xy)+.5)*_MapSize.zw;
      float4 adjacentE=tex2D(_FlatOwners,tileUV+float2(_MapSize.z,0)),adjacentN=tex2D(_FlatOwners,tileUV+float2(0,_MapSize.w));

@@ -73,9 +73,10 @@ namespace Orbis.Flat
             material.CopyPropertiesFromMaterial(navigation.SurfaceMaterial);
             material.renderQueue=(int)RenderQueue.Transparent-10;
             material.SetFloat("_WildlifeOcclusionReady",1);
+            material.SetFloat("_LocalPhysicalArtwork",navigation.IsAtlas?0:1);
             vertices.Clear();pixels.Clear();actors.Clear();states.Clear();geography.Clear();motion.Clear();cellMappings.Clear();indices.Clear();
             float pixelScale=(float)(Math.PI*2/world.Width/32);
-            Vector3 right=viewCamera.transform.right*pixelScale,up=viewCamera.transform.up*pixelScale;
+            Vector3 screenRight=viewCamera.transform.right*pixelScale,screenUp=viewCamera.transform.up*pixelScale;
             for(int i=0;i<world.Wildlife.Count;i++)
             {
                 var actor=world.Wildlife[i];
@@ -93,9 +94,26 @@ namespace Orbis.Flat
                 float sunEast=(float)PlanetVector.Dot(frame.East,light),sunNorth=(float)PlanetVector.Dot(frame.North,light);
                 var sunChart=east*sunEast+north*sunNorth;
                 var travel=east*directions[i].x+north*directions[i].y;
-                if(actor.MoveSpeed>.001f&&Math.Abs(travel.x)>.01f)screenFacing[i]=travel.x<0?-1:1;
+                var right=screenRight;var up=screenUp;
+                float facing=actor.Facing;
+                if(navigation.IsAtlas)
+                {
+                    if(actor.MoveSpeed>.001f&&Math.Abs(travel.x)>.01f)screenFacing[i]=travel.x<0?-1:1;
+                    facing=screenFacing[i];
+                }
+                else
+                {
+                    float latitudeScale=Mathf.Max(.000001f,(float)Math.Cos(location.Latitude));
+                    FlatGlobeGeometry.LocalArtworkAxes(cellAxes,latitudeScale,out var eastPixel,out var northPixel);
+                    right=screenRight*eastPixel.x+screenUp*eastPixel.y;
+                    up=screenRight*northPixel.x+screenUp*northPixel.y;
+                    // Artwork, shadows, travel and the occluder's geographic lookup share these axes.
+                    sunChart=new Vector2(sunEast,sunNorth);
+                    travel=new Vector2(directions[i].x*latitudeScale,directions[i].y).normalized;
+                    cellAxes=new Vector4(1f/32,0,0,latitudeScale/32);
+                }
                 float variant=FMath.Unit((uint)actor.Id^FMath.Seed(world.Seed));
-                var actorData=new Vector4((float)actor.Species,screenFacing[i],actor.AnimationTime,variant);
+                var actorData=new Vector4((float)actor.Species,facing,actor.AnimationTime,variant);
                 var stateData=new Vector4((float)actor.State,actor.MoveSpeed,navigation.DetailWeight,world.Facts.Wetness[tile]);
                 var geoData=new Vector4((float)(actor.X/world.Width),(float)(actor.Y/world.Height),sunChart.x,sunChart.y);
                 var motionData=new Vector4(travel.x,travel.y,actor.Activity,actor.LocalTemperature);

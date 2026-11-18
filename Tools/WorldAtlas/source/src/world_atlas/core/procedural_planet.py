@@ -18,6 +18,7 @@ from typing import Mapping, Sequence
 
 import numpy as np
 from PIL import Image
+from world_atlas.core import spherical_relief as sphere
 from world_atlas.core.geomorphology import relax_hillslopes
 from world_atlas.core.coastal_margins import margin_motion
 
@@ -297,6 +298,8 @@ def _full_resolution_relief_detail(
     low_relief_support: np.ndarray,
     seed: int,
     coastline_detail: float,
+    *,
+    smooth=_smooth_field,
 ) -> tuple[np.ndarray, Mapping[str, object]]:
     """Sculpt 60--900 km landforms on the final synthesis grid.
 
@@ -369,7 +372,7 @@ def _full_resolution_relief_detail(
     )
     upland_support = np.clip(positive_relief / 1250.0, 0.0, 1.0)
     interior_support = land.astype(np.float32) * (0.40 + 0.60 * upland_support)
-    regional_floor = _smooth_field(
+    regional_floor = smooth(
         relative, radius=max(2, int(round(width / 180.0))), passes=2,
     )
     # Sedimentary plains and plateau interiors keep their low-relief fabric.
@@ -409,7 +412,7 @@ def _full_resolution_relief_detail(
         (135.0 + 140.0 * coastline_detail) * regional
         + (82.0 + 98.0 * coastline_detail) * local
     )
-    detail = _smooth_field(detail.astype(np.float32), radius=2, passes=1)
+    detail = smooth(detail.astype(np.float32), radius=2, passes=1)
     # Preserve one final shoreline-only scale band after the general terrain
     # smoothing pass.  Because its support follows the provisional zero
     # contour, it cuts coves and capes into existing margins rather than
@@ -440,6 +443,8 @@ def _visible_ocean_bathymetry(
     distance_to_convergence_km: np.ndarray,
     boundary_class: np.ndarray,
     seed: int,
+    *,
+    spherical_relief: bool = False,
 ) -> tuple[np.ndarray, Mapping[str, object]]:
     """Render a geologically legible ocean floor without exposing plate cells.
 
@@ -459,6 +464,7 @@ def _visible_ocean_bathymetry(
     convergence_distance = np.asarray(distance_to_convergence_km, dtype=np.float32)
     classes = np.asarray(boundary_class, dtype=np.int8)
     shape = land.shape
+    smooth = sphere.smooth_field if spherical_relief else _smooth_field
     if any(
         value.shape != shape
         for value in (
@@ -480,6 +486,17 @@ def _visible_ocean_bathymetry(
         1.0,
     ).astype(np.float32)
     age_fraction = np.clip(np.nan_to_num(age, nan=0.0) / 190.0, 0.0, 1.0)
+    if spherical_relief:
+        # Finite thermal footprint before the square root: a rasterized ridge
+        # cannot imprint individual zero-age cells as sharp points. Normalize
+        # by oceanic crust coverage so continental cells contribute no age.
+        thermal_radius = max(1, int(round(shape[1] / 256.0)))
+        oceanic = (kind == CRUST_OCEANIC) & np.isfinite(age)
+        support = smooth(oceanic.astype(np.float32), thermal_radius, passes=2)
+        age_fraction = np.divide(
+            smooth(np.where(oceanic, age_fraction, 0.0), thermal_radius, passes=2),
+            support, out=np.zeros_like(age_fraction), where=oceanic & (support > 1.0e-6),
+        )
     thermal_depth = np.sqrt(age_fraction).astype(np.float32)
     # The extra swell is broad (hundreds of kilometres) and subordinate to
     # thermal subsidence.  It prevents the youngest crust from becoming a
@@ -515,7 +532,7 @@ def _visible_ocean_bathymetry(
         -0.5 * np.square(convergence_distance / 115.0)
     ).astype(np.float32)
     trench_segmentation = _normalise(
-        _smooth_field(
+        smooth(
             _spherical_fbm(
                 shape[0],
                 shape[1],
@@ -528,7 +545,7 @@ def _visible_ocean_bathymetry(
     )
     trench_strength = 0.055 + 0.080 * np.power(trench_segmentation, 1.6)
     arc_support = np.clip(
-        _smooth_field(
+        smooth(
             land.astype(np.float32),
             radius=max(2, int(round(shape[1] / 70.0))),
             passes=2,
@@ -541,23 +558,34 @@ def _visible_ocean_bathymetry(
     # Build a continuous shelf around the *actual* shoreline, including
     # volcanic islands.  This avoids a categorical ring at the edge of the
     # continental-crust mask.
-    shelf_steps = max(6, int(round(shape[1] / 105.0)))
-    distance_cells = np.full(shape, shelf_steps + 1, dtype=np.int16)
-    reached = land.copy()
-    distance_cells[land] = 0
-    for step in range(1, shelf_steps + 1):
-        expanded = _dilate(reached, 1)
-        frontier = expanded & ~reached
-        distance_cells[frontier] = step
-        reached = expanded
-    shelf_progress = np.clip(
-        (distance_cells.astype(np.float32) - 0.5) / max(shelf_steps - 1.0, 1.0),
-        0.0,
-        1.0,
-    )
+    if spherical_relief:
+        # The former five equatorial cell intervals on the 512-wide bake.
+        shelf_width_km = 5 * math.tau * _PLANET_RADIUS_KM / 512
+        shelf_progress = np.clip(sphere.shoreline_distance_km(land, _PLANET_RADIUS_KM) / shelf_width_km, 0, 1)
+        shelf_metrics = {
+            "shelfTransitionKm": shelf_width_km,
+            "distanceModel": "great-circle-to-shore-interfaces-and-oceanic-boundary-sources",
+            "thermalAgeFilter": "area-weighted-spherical-cap",
+        }
+    else:
+        shelf_steps = max(6, int(round(shape[1] / 105.0)))
+        distance_cells = np.full(shape, shelf_steps + 1, dtype=np.int16)
+        reached = land.copy()
+        distance_cells[land] = 0
+        for step in range(1, shelf_steps + 1):
+            expanded = _dilate(reached, 1)
+            frontier = expanded & ~reached
+            distance_cells[frontier] = step
+            reached = expanded
+        shelf_progress = np.clip(
+            (distance_cells.astype(np.float32) - 0.5) / max(shelf_steps - 1.0, 1.0),
+            0.0,
+            1.0,
+        )
+        shelf_metrics = {"shelfTransitionCells": shelf_steps}
     shelf_progress = shelf_progress * shelf_progress * (3.0 - 2.0 * shelf_progress)
     shelf_depth = 0.018 + 0.33 * raw_relative_depth
-    oceanic_support = _smooth_field(
+    oceanic_support = smooth(
         np.where(kind == CRUST_OCEANIC, 1.0, 0.30).astype(np.float32),
         radius=max(2, int(round(shape[1] / 360.0))),
         passes=2,
@@ -571,7 +599,7 @@ def _visible_ocean_bathymetry(
 
     # One light pass removes colour-scale pinholes without discarding the
     # multi-scale abyssal fabric added above.
-    smoothed = _smooth_field(
+    smoothed = smooth(
         bathymetry,
         radius=max(1, int(round(shape[1] / 1080.0))),
         passes=1,
@@ -602,7 +630,7 @@ def _visible_ocean_bathymetry(
 
     residual = np.abs(
         bathymetry
-        - _smooth_field(bathymetry, radius=2, passes=2)
+        - smooth(bathymetry, radius=2, passes=2)
     )
     deep_ocean = ocean & (kind == CRUST_OCEANIC) & ~boundary_corridor
     abyssal_plain_fraction = (
@@ -619,7 +647,7 @@ def _visible_ocean_bathymetry(
         "divergentGradientRatio": gradient_ratio(BOUNDARY_DIVERGENT),
         "convergentGradientRatio": gradient_ratio(BOUNDARY_CONVERGENT),
         "abyssalPlainFraction": abyssal_plain_fraction,
-        "shelfTransitionCells": shelf_steps,
+        **shelf_metrics,
     }
 
 
@@ -720,6 +748,8 @@ def _fluvial_dissection(
     land_mask: np.ndarray,
     latitude_degrees: np.ndarray,
     low_relief_support: np.ndarray,
+    *,
+    smooth=_smooth_field,
 ) -> tuple[np.ndarray, Mapping[str, object]]:
     """Incise a full-resolution drainage graph into the generated relief."""
 
@@ -772,7 +802,7 @@ def _fluvial_dissection(
     valley_corridor = np.maximum(
         channel_strength,
         0.68
-        * _smooth_field(
+        * smooth(
             channel_strength,
             radius=corridor_radius,
             passes=1,
@@ -781,7 +811,7 @@ def _fluvial_dissection(
     # The map's displayed streams are only major rivers.  Minor tributaries
     # also dissect foothills and uplands, so erosion uses the complete MFD
     # accumulation instead of restricting every valley to the display mask.
-    local_floor = _smooth_field(
+    local_floor = smooth(
         np.maximum(relative, 0.0),
         radius=max(2, int(round(relative.shape[1] / 360.0))),
         passes=2,
@@ -1906,6 +1936,10 @@ def _distance_from_sources(mask: np.ndarray, grid: LatLonGrid) -> np.ndarray:
     return distance.reshape(grid.shape)
 
 
+def _half_spreading_rate(morphology: WorldMorphology) -> float:
+    return 1.8 + 2.9 * morphology.ocean_basin_openness
+
+
 def _build_crust_fields(
     grid: LatLonGrid,
     plate_fields: PlateFields,
@@ -1928,8 +1962,7 @@ def _build_crust_fields(
     if not np.any(ridge):
         ridge = oceanic.copy()
     distance_to_ridge = _distance_from_sources(ridge, grid)
-    half_spreading_rate = 1.8 + 2.9 * morphology.ocean_basin_openness
-    age = compute_ocean_age_myr(distance_to_ridge, half_spreading_rate, oceanic)
+    age = compute_ocean_age_myr(distance_to_ridge, _half_spreading_rate(morphology), oceanic)
     age[oceanic] = np.minimum(age[oceanic], 190.0)
     return CrustFields(kind, age), distance_to_continent, distance_to_ridge, shelf_width
 
@@ -3440,12 +3473,13 @@ def _terrain_system_metrics(
     }
 
 
-def generate_planet_surface(recipe: PlanetRecipe) -> ProceduralSurface:
+def generate_planet_surface(recipe: PlanetRecipe, *, spherical_relief: bool = False) -> ProceduralSurface:
     """Generate one reproducible physical planet from explicit causal fields."""
 
     stage_seeds = {
         stage: _derive_seed(recipe.seed, stage) for stage in _STAGE_SALTS
     }
+    smooth = sphere.smooth_field if spherical_relief else _smooth_field
     morphology = sample_world_morphology(stage_seeds["morphology"])
     reference_height = min(_REFERENCE_HEIGHT, recipe.height)
     reference_width = min(_REFERENCE_WIDTH, recipe.width)
@@ -3557,17 +3591,6 @@ def generate_planet_surface(recipe: PlanetRecipe) -> ProceduralSurface:
         (reference_boundary == BOUNDARY_CONVERGENT)
         & (crust.kind == CRUST_OCEANIC)
     )
-    if np.any(convergence_source):
-        distance_to_oceanic_convergence = _distance_from_sources(
-            convergence_source,
-            reference_grid,
-        )
-    else:
-        distance_to_oceanic_convergence = np.full(
-            reference_grid.shape,
-            1.0e6,
-            dtype=np.float64,
-        )
     reference_signed, reference_low_relief, relief_diagnostics = _reference_relief(
         reference_grid,
         plate_fields,
@@ -3668,6 +3691,7 @@ def generate_planet_surface(recipe: PlanetRecipe) -> ProceduralSurface:
         low_relief_support,
         stage_seeds["relief"],
         recipe.coastline_detail,
+        smooth=smooth,
     )
     signed_m += full_resolution_detail
     coast_reference_level = _weighted_level(signed_m, latitude_weight, recipe.land_fraction)
@@ -3696,6 +3720,7 @@ def generate_planet_surface(recipe: PlanetRecipe) -> ProceduralSurface:
         land,
         np.degrees(latitude[:, 0]),
         low_relief_support,
+        smooth=smooth,
     )
 
     # Pole-spanning land necessarily touches every longitude in Plate Carree;
@@ -3747,35 +3772,34 @@ def generate_planet_surface(recipe: PlanetRecipe) -> ProceduralSurface:
     )
     boundary_class = _resize_nearest(reference_boundary, recipe.height, recipe.width).astype(np.int8)
     crust_kind = _resize_nearest(crust.kind, recipe.height, recipe.width).astype(np.uint8)
-    age_source = _warp_periodic_field(
-        _smooth_field(
-            np.nan_to_num(crust.ocean_age_myr, nan=0.0).astype(np.float32),
-            radius=2,
-            passes=2,
-        ),
-        terrain_warp_rows,
-        terrain_warp_columns,
-    )
-    ocean_age = _resize_periodic_float(age_source, recipe.height, recipe.width)
-    ridge_distance = _resize_periodic_float(
-        _warp_periodic_field(
-            distance_to_ridge.astype(np.float32),
-            terrain_warp_rows,
-            terrain_warp_columns,
-        ),
-        recipe.height,
-        recipe.width,
-    )
-    convergence_distance = _resize_periodic_float(
-        _warp_periodic_field(
-            distance_to_oceanic_convergence.astype(np.float32),
-            terrain_warp_rows,
-            terrain_warp_columns,
-        ),
-        recipe.height,
-        recipe.width,
-    )
-    ocean_age[crust_kind != CRUST_OCEANIC] = np.nan
+    if spherical_relief:
+        # The atlas publishes the actual, unwarped plate boundaries. Measure the
+        # thermal age, ridge swell and trenches from those same physical sources.
+        # Warping a completed raster distance field no longer gives a distance.
+        queries = sphere.grid_vectors(land.shape)
+        sources = reference_grid.unit_vectors
+        ridge_distance = sphere.distance_to_sources_km(
+            queries, sources[distance_to_ridge == 0], _PLANET_RADIUS_KM,
+        )
+        convergence_distance = sphere.distance_to_sources_km(
+            queries, sources[convergence_source], _PLANET_RADIUS_KM,
+        )
+        ocean_age = np.minimum(compute_ocean_age_myr(
+            ridge_distance, _half_spreading_rate(morphology), crust_kind == CRUST_OCEANIC,
+        ), 190.0).astype(np.float32)
+    else:
+        def warp_to_output(field):
+            warped = _warp_periodic_field(field.astype(np.float32), terrain_warp_rows, terrain_warp_columns)
+            return _resize_periodic_float(warped, recipe.height, recipe.width)
+
+        age = np.nan_to_num(crust.ocean_age_myr, nan=0.0).astype(np.float32)
+        ocean_age = warp_to_output(_smooth_field(age, radius=2, passes=2))
+        ridge_distance = warp_to_output(distance_to_ridge)
+        if np.any(convergence_source):
+            convergence_distance = warp_to_output(_distance_from_sources(convergence_source, reference_grid))
+        else:
+            convergence_distance = np.full(land.shape, 1.0e6, dtype=np.float32)
+        ocean_age[crust_kind != CRUST_OCEANIC] = np.nan
     plate_id = np.roll(plate_id, longitude_roll, axis=1)
     velocity_east = np.roll(velocity_east, longitude_roll, axis=1)
     velocity_north = np.roll(velocity_north, longitude_roll, axis=1)
@@ -3803,6 +3827,7 @@ def generate_planet_surface(recipe: PlanetRecipe) -> ProceduralSurface:
         convergence_distance,
         boundary_class,
         stage_seeds["relief"],
+        spherical_relief=spherical_relief,
     )
     signed_height = np.where(land, elevation, -bathymetry).astype(np.float32)
     continent_id = _continent_owners(

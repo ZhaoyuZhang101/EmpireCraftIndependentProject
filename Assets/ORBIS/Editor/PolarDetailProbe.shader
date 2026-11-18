@@ -18,7 +18,13 @@ Shader "Hidden/ORBIS/PolarDetailProbe"
    {
     float2 chart=_ProbeOrigin.xy+(i.uv-.5)*_ProbeSpan.xy;
     float2 right,up;FlatChartGeographicBasis(LocalGeoUV(chart),chart,right,up);
-    return float4(right,up);
+    // Exact stereographic tangents expressed in the geographic frame at this hit.
+    float3 direction=LocalDirection(chart);
+    float3 geographicEast=normalize(float3(direction.z,0,-direction.x));
+    float3 geographicNorth=cross(direction,geographicEast);
+    float3 dx=normalize(_LocalEast-.5*chart.x*(_LocalCenter+direction));
+    float3 dy=normalize(_LocalNorth-.5*chart.y*(_LocalCenter+direction));
+    return float4(right,up)-float4(dot(dx,geographicEast),dot(dx,geographicNorth),dot(dy,geographicEast),dot(dy,geographicNorth));
    }
    if(_ProjectionProbe>2.5)
    {
@@ -28,12 +34,12 @@ Shader "Hidden/ORBIS/PolarDetailProbe"
    float2 xy=_ProbeOrigin.xy+(i.uv-.5)*_ProbeSpan.xy;
    float3 direction=LocalDirection(xy);
    float3 recovered=FlatRadial(LocalGeoUV(xy));
-   float2 east=LocalGeoUV(xy+float2(.0005,0))-LocalGeoUV(xy-float2(.0005,0));
-   float2 north=LocalGeoUV(xy+float2(0,.0005))-LocalGeoUV(xy-float2(0,.0005));
-   east.x-=round(east.x);north.x-=round(north.x);
-   east*=_MapSize.xy;north*=_MapSize.xy;
-   float ratio=length(east)/max(1e-12,length(north));
-   float shear=abs(dot(east,north))/max(1e-16,length(east)*length(north));
+   float3 east=LocalDirection(xy+float2(.0005,0))-LocalDirection(xy-float2(.0005,0));
+   float3 north=LocalDirection(xy+float2(0,.0005))-LocalDirection(xy-float2(0,.0005));
+   float xx=dot(east,east),yy=dot(north,north),xyDot=dot(east,north);
+   float trace=xx+yy,spread=length(float2(xx-yy,2*xyDot));
+   float ratio=sqrt((trace+spread)/max(1e-16,trace-spread));
+   float shear=abs(xyDot)/max(1e-16,sqrt(xx*yy));
    float pixelError=length(recovered-direction)/max(1e-12,max(length(ddx(direction)),length(ddy(direction))));
    return float4(ratio,shear,pixelError,1);
   }

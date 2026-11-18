@@ -178,6 +178,7 @@ namespace Orbis.Editor
     Check(report,Difference(densityBoundary[0],densityBoundary[1])<.01,"contour density blends continuously across screen-space spacing thresholds");
     CheckNaturalPalette(report);
     CheckLandLighting(report,material,field,pixels,sample);
+    CheckPolarSlopes(report);
     if(report.Exists(line=>line.StartsWith("FAIL")))throw new Exception(string.Join("\n",report));
    }
    finally
@@ -213,6 +214,50 @@ namespace Orbis.Editor
          "bare stone, silt, soil and marsh carry different reflectance at the same elevation");
    var snow=Land(Biome.Snow,VegetationCover.Ice,GroundMaterial.Snow,.3f);
    Check(report,snow.r==221&&snow.g==228&&snow.b==220,"permanent snow retains its source palette");
+  }
+
+  static void CheckPolarSlopes(List<string> report)
+  {
+   const int width=512,height=256,column=511;
+   var shader=AssetDatabase.LoadAssetAtPath<Shader>("Assets/ORBIS/Editor/WaterCoastProbe.shader");
+   var material=new Material(shader);
+   var field=new Texture2D(width,height,TextureFormat.RGBAFloat,false,true){filterMode=FilterMode.Bilinear,wrapModeU=TextureWrapMode.Repeat,wrapModeV=TextureWrapMode.Clamp};
+   var target=RenderTexture.GetTemporary(1,1,0,RenderTextureFormat.ARGBFloat,RenderTextureReadWrite.Linear);
+   var image=new Texture2D(1,1,TextureFormat.RGBAFloat,false,true);
+   var previous=RenderTexture.active;
+   try
+   {
+    ShaderUtil.CompilePass(material,0,true);
+    material.SetTexture("_VisualTex",field);material.SetFloat("_FieldReady",1);material.SetFloat("_Relief",1);
+    material.SetVector("_MapSize",new Vector4(width,height,1f/width,1f/height));material.SetFloat("_ProbeMode",11);
+    var cells=new Color[width*height];
+    foreach(int row in new[]{127,14,241,7,248,3,252})
+    {
+     double angle=2*Math.PI/width,lon=(column+.5)*angle-Math.PI,lat=(row+.5)*angle-Math.PI/2;
+     for(int y=0;y<height;y++)
+     {
+      double phi=(y+.5)*angle-Math.PI/2,cosPhi=Math.Cos(phi);
+      for(int x=0;x<width;x++)
+      {
+       double dl=(x+.5)*angle-Math.PI-lon;
+       // Identical waves measured along the true east and north tangents of the site.
+       double east=cosPhi*Math.Sin(dl),north=Math.Sin(phi)*Math.Cos(lat)-cosPhi*Math.Cos(dl)*Math.Sin(lat);
+       float wave=(float)(Math.Sin(1.4*east/angle)+Math.Sin(1.4*north/angle));
+       cells[y*width+x]=new Color(1000+120*wave,-3,350+55*wave,0);
+      }
+     }
+     field.SetPixels(cells);field.Apply();material.SetVector("_CoastOrigin",new Vector4(column+.5f,row+.5f,0,0));
+     Graphics.Blit(Texture2D.whiteTexture,target,material);RenderTexture.active=target;image.ReadPixels(new Rect(0,0,1,1),0,0);image.Apply();
+     var response=image.GetPixel(0,0);float land=response.r/response.g,bed=response.b/response.a;
+     Check(report,land>.88&&land<1.12&&bed>.88&&bed<1.12&&response.r>.05&&response.b>.05,
+      $"equal ground waves have equal directional hillshade on land and seabed; latitude={lat*180/Math.PI:F2} land={land:F4} bed={bed:F4}");
+    }
+   }
+   finally
+   {
+    RenderTexture.active=previous;RenderTexture.ReleaseTemporary(target);
+    UnityEngine.Object.DestroyImmediate(material);UnityEngine.Object.DestroyImmediate(field);UnityEngine.Object.DestroyImmediate(image);
+   }
   }
 
   static void CheckLandLighting(List<string> report,Material material,Texture2D field,Color[] pixels,Func<Color[]> sample)

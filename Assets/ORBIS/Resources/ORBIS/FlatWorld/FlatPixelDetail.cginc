@@ -92,6 +92,7 @@ float PixelPropShadow(float2 cell)
   else if(info.b<.5&&!(info.g>.5&&info.g<4.5))
   {
    float4 placement=PDTreePlacement(root);
+   scale=FlatTreeLatitudeScale(root,placement.y);
    float tree;
    float4 ecology=FlatEcologyData(uv,info,tree);placement.w=ecology.a;
    q.y=placement.y+(q.y-placement.y)/scale;
@@ -141,7 +142,7 @@ float3 PixelProps(float3 col,float2 cell,float4 field,float waterMask,float stru
 {
  col*=1-PixelPropShadow(cell);
  float2 id=floor(cell),q=floor(frac(cell)*32);
- // Keep artwork and its shader shadow in the same displayed cell metric.
+ // A source is anchored in geographic cells. Its two art axes have equal ground units.
  float artworkScale=FlatArtworkLatitudeScale((id.y+.5)*_MapSize.w);
  q.y=floor(16+(frac(cell.y)-.5)*32/artworkScale);
  float nearestRoot=1e10;
@@ -152,7 +153,7 @@ float3 PixelProps(float3 col,float2 cell,float4 field,float waterMask,float stru
   if(treeId.y<0||treeId.y>=_MapSize.y)continue;
   float4 placement=PDTreePlacement(treeId);
   float2 localPoint=(cell-treeId)*32;
-  float localScale=FlatArtworkLatitudeScale((treeId.y+.5)*_MapSize.w);
+  float localScale=FlatTreeLatitudeScale(treeId,placement.y);
   localPoint.y=placement.y+(localPoint.y-placement.y)/localScale;
   float2 treePoint=floor(localPoint-placement.xy)/placement.z;
   if(!PDTreeInDrawBounds(treePoint))continue;
@@ -194,12 +195,15 @@ float3 PixelProps(float3 col,float2 cell,float4 field,float waterMask,float stru
   float down=tex2Dlod(_InfoTex,float4(uv-float2(0,_MapSize.w),0,0)).b*255;
   float west=step(2.5,left),east=step(2.5,right),north=step(2.5,up),south=step(2.5,down);
   float horizontal=max(west,east),vertical=max(north,south);
+  // Linear roads and bridges reach the geographic edge of the adjacent tile.
+  // Their cross-section and planks still use the physical artwork metric.
+  float roadY=lerp(q.y,floor(frac(cell.y)*32),_LocalPhysicalArtwork);
   float path=PDBox(q,float2(11,11),float2(21,21));
   path=max(path,PDBox(q,float2(0,11),float2(16,21))*west);
   path=max(path,PDBox(q,float2(16,11),float2(32,21))*east);
-  path=max(path,PDBox(q,float2(11,16),float2(21,32))*north);
-  path=max(path,PDBox(q,float2(11,0),float2(21,16))*south);
-  if(horizontal+vertical<.5)path=PDBox(q,float2(11,0),float2(21,32));
+  path=max(path,PDBox(float2(q.x,roadY),float2(11,16),float2(21,32))*north);
+  path=max(path,PDBox(float2(q.x,roadY),float2(11,0),float2(21,16))*south);
+  if(horizontal+vertical<.5)path=PDBox(float2(q.x,roadY),float2(11,0),float2(21,32));
   float plank=step(1,fmod(lerp(q.y,q.x,horizontal),4));
   float3 road=structure>3.5?lerp(float3(.29,.20,.12),float3(.62,.46,.25),plank):float3(.65,.48,.28)*(.9+PDHash(id+q*.02)*.15);
   col=PDPaint(col,road*light,path);

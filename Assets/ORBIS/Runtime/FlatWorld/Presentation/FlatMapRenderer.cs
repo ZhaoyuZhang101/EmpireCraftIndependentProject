@@ -25,6 +25,8 @@ namespace Orbis.Flat
         public MapLayer Layer { get; private set; }
         public MapLayer VisibleLayer { get; private set; }
         public int ClimateYearOffset { get; private set; }
+        internal int LocalFocusTile { get; private set; } = -1;
+        internal RectInt LocalEditFootprint { get; private set; }
         Mesh mesh;MeshRenderer meshRenderer;int dataRevision=-1;
         FlatTerrainFacts vegetationSource;
         FlatMapRenderJobs renderJobs;
@@ -101,7 +103,15 @@ namespace Orbis.Flat
             if(Layer==MapLayer.Temperature||Layer==MapLayer.Rain)Flush(true);
         }
         public void Select(int i)
-        {Material.SetVector("_Selected",i<0?new Vector4(-100,-100,-100,-100):new Vector4(i%World.Width,i/World.Width,(i%World.Width)/4*4,(i/World.Width)/4*4));}
+        {
+            Material.SetVector("_Selected",i<0?new Vector4(-100,-100,-100,-100):new Vector4(i%World.Width,i/World.Width,(i%World.Width)/4*4,(i/World.Width)/4*4));
+            SetLocalTarget(i,default);
+        }
+        public void SetLocalTarget(int tile,RectInt footprint)
+        {
+            LocalFocusTile=tile;
+            LocalEditFootprint=footprint;
+        }
         public void Configure(bool grid,float pixelsPerTile)
         {
             Material.SetFloat("_Grid",grid?1:0);Material.SetFloat("_PixelsPerTile",pixelsPerTile);

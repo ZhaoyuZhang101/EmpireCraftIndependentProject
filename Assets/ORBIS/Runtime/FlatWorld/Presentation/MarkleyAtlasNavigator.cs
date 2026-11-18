@@ -41,6 +41,8 @@ namespace Orbis.Flat
         double lockedDay, currentDay;
         bool landingLocked, atlasPending, exitPending, entryScaleRecorded;
         int focusTile=-1;int pendingFocus=-1; bool focusZoom;Vector2 focusCenter; float targetPixels=-1; Vector2 zoomScreen; bool zoomAnchor;
+        Vector2 strategicZoomPoint;
+        bool hasStrategicZoomPoint;
         int[] route = new int[0];
         Vector2 lastRoutePan = new Vector2(float.NaN, float.NaN);
         Vector3 lastRouteNormal;
@@ -64,6 +66,10 @@ namespace Orbis.Flat
         public float MapHeight {get{return (float)(world.Width/MarkleyProjection.Aspect);}}
         public Vector2 ProjectionSize {get{return new Vector2(world.Width,MapHeight);}}
         internal Vector2 ChartCenter=>new Vector2(pan.x/world.Width,pan.y/MapHeight);
+        internal float RequestedPixels => targetPixels > 0 ? targetPixels : pixels;
+        internal bool AtOverviewLimit => pixels <= FitPixels() * 1.001f && RequestedPixels <= FitPixels() * 1.001f;
+        internal bool IsZooming => targetPixels > 0;
+        internal bool IsFocusing => focusZoom;
         public Vector2 CenterTile {get{return Vector2.Scale(MarkleyProjection.GeoUV(pan.x/world.Width,pan.y/MapHeight),new Vector2(world.Width,world.Height));}}
         public Material SurfaceMaterial { get { return surface; } }
         public int VertexCount { get { return lattice ? lattice.vertexCount : 0; } }
@@ -188,7 +194,7 @@ namespace Orbis.Flat
             if(heightRevision!=world.TerrainRevision){polarHeights=FlatGlobeGeometry.PolarHeights(world);heightRevision=world.TerrainRevision;}
             if(IsFlat && targetPixels>0)
             {
-                Vector2 before=Vector2.zero,after;bool hit=zoomAnchor&&TryReliefPoint(zoomScreen,out before);
+                Vector2 before=strategicZoomPoint;bool hit=zoomAnchor&&(hasStrategicZoomPoint||TryReliefPoint(zoomScreen,out before));
                 if(!hit)before=Vector2.zero;
                 pixels=(float)FlatScrollMath.ExpApproach(pixels,targetPixels,14,dt);
                 if(focusZoom)
@@ -201,16 +207,7 @@ namespace Orbis.Flat
                 if(Mathf.Abs(pixels-targetPixels)<.001f){pixels=targetPixels;targetPixels=-1;if(focusZoom)pan=focusCenter;focusZoom=false;}
                 viewCamera.orthographicSize=viewCamera.pixelHeight*TileScale/(2*Mathf.Max(.1f,pixels));
                 viewCamera.ResetProjectionMatrix();
-                if(hit)
-                {
-                    for(int iteration=0;iteration<6;iteration++)
-                    {
-                        if(!TryReliefPoint(zoomScreen,out after))break;
-                        var delta=before-after;
-                        if(delta.sqrMagnitude<.000001f/Mathf.Max(1,pixels*pixels))break;
-                        mapPosition.Move(delta.x,delta.y,world.Width,world.Height);
-                    }
-                }
+                if(hit)strategicZoomPoint=AnchorSheet(before,zoomScreen);
             }
             distance = (float)FlatScrollMath.ExpApproach(distance, targetDistance, 11, dt);
             if (Mathf.Abs(distance - targetDistance) < .00002f) distance = targetDistance;
@@ -287,6 +284,83 @@ namespace Orbis.Flat
         float LandingPixels() { return Mathf.Max(FitPixels(),8); }
         float MinimumPixels(){return Mathf.Max(viewCamera.pixelWidth/(world.Width*3f),viewCamera.pixelHeight/(MapHeight*4f));}
         float FitPixels(){return Mathf.Max(MinimumPixels(),Mathf.Min(viewCamera.pixelWidth/(float)world.Width,viewCamera.pixelHeight/MapHeight)*.94f);}
+
+        // The strategic view is always the flat Markley chart. Its owner controls entry
+        // into and return from the local surface, including a shared geographic anchor.
+        internal void ShowStrategic(PlanetLocation location, float chartPixels, double day)
+        {
+            pan = NearestChartPoint(location);
+            AlignFrame(day);
+            landingLocked = true;
+            distance = targetDistance = EndDistance;
+            morph = 1;
+            viewCamera.orthographic = true;
+            pixels = chartPixels > 0 ? Mathf.Max(MinimumPixels(), chartPixels) : FitPixels();
+            endGap = DefaultEndGap;
+            pendingFocus = -1;
+            targetPixels = -1;
+            atlasPending = exitPending = focusZoom = zoomAnchor = hasStrategicZoomPoint = false;
+            Tick(0, day);
+        }
+
+        internal void ZoomStrategic(float requested, Vector2 screen)
+        {
+            if (!zoomAnchor || screen != zoomScreen || !hasStrategicZoomPoint)
+                hasStrategicZoomPoint = TryReliefPoint(screen, out strategicZoomPoint);
+            targetPixels = Mathf.Max(FitPixels(), requested);
+            zoomScreen = screen;
+            zoomAnchor = true;
+            focusZoom = false;
+        }
+
+        internal void FocusStrategic(int tile, float chartPixels)
+        {
+            focusTile = tile;
+            focusZoom = true;
+            zoomAnchor = false;
+            targetPixels = Mathf.Max(FitPixels(), chartPixels);
+        }
+
+        internal Vector2 NearestChartPoint(PlanetLocation location)
+        {
+            var uv = MarkleyProjection.Nearest(MarkleyProjection.Project(location), ChartCenter);
+            return Vector2.Scale(uv, ProjectionSize);
+        }
+
+        // The inverse table is also sampled by the visible shader. Measure the local
+        // ground angle per equal-length chart step on the specific copy under the cursor.
+        internal void DetailMetric(Vector2 point, out PlanetLocation location, out PlanetVector right, out float magnification)
+        {
+            const double step = .00015;
+            double u = point.x / world.Width, v = point.y / MapHeight;
+            var center = MarkleyProjection.Direction(u, v);
+            var left = MarkleyProjection.Direction(u - step, v);
+            var eastward = MarkleyProjection.Direction(u + step, v);
+            var bottom = MarkleyProjection.Direction(u, v - step * MarkleyProjection.Aspect);
+            var top = MarkleyProjection.Direction(u, v + step * MarkleyProjection.Aspect);
+            location = PlanetCoordinateSystem.FromWorld(center, default, 1);
+            right = eastward - left;
+            if (PlanetVector.Dot(right, right) < 1e-16) right = eastward - center;
+            double angle = PlanetLocalProjection.Distance(left, center, 1) + PlanetLocalProjection.Distance(center, eastward, 1)
+                + PlanetLocalProjection.Distance(bottom, center, 1) + PlanetLocalProjection.Distance(center, top, 1);
+            magnification = (float)(4 * step * PlanetCoordinateSystem.Tau / Math.Max(1e-12, angle));
+        }
+
+        internal Vector2 AnchorSheet(Vector2 point, Vector2 screen)
+        {
+            for (int i = 0; i < 8; i++)
+            {
+                if (!TryReliefPoint(screen, out var hit)) break;
+                var delta = point - hit;
+                if (delta.sqrMagnitude * pixels * pixels < .000009f) break;
+                var oldPan = pan;
+                mapPosition.Move(delta.x, delta.y, world.Width, world.Height);
+                // Move keeps the centre within two chart rows. Rebase the selected
+                // sheet by the exact same deck translation, including its half-width shift.
+                point += (pan - oldPan) - delta;
+            }
+            return point;
+        }
         void NormalizePan()
         {
             mapPosition.Normalize(world.Width,world.Height);
@@ -351,7 +425,7 @@ namespace Orbis.Flat
         }
         public void PanBy(Vector2 tileDelta)
         {
-            if(IsGlobe)return;focusZoom=false;zoomAnchor=false;
+            if(IsGlobe)return;focusZoom=false;zoomAnchor=false;targetPixels=-1;
             mapPosition.Move(tileDelta.x,tileDelta.y,world.Width,world.Height);
             if(IsTransitioning){AlignFrame(currentDay);pitch=Mathf.Asin(Mathf.Clamp(normal.y,-1,1))*Mathf.Rad2Deg;yaw=Mathf.Atan2(-normal.x,-normal.z)*Mathf.Rad2Deg;}
             Tick(0,currentDay);
@@ -365,6 +439,7 @@ namespace Orbis.Flat
         public void Wheel(float wheel, Vector2 screen, double day)
         {
             wheel = Mathf.Clamp(wheel, -24, 24);if(Mathf.Abs(wheel)<.00001f)return;
+            hasStrategicZoomPoint=false;
             if(exitPending&&wheel<0)targetPixels=pixels;
             exitPending=false;
             if (IsFlat)

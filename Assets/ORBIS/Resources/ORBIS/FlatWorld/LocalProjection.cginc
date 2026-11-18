@@ -12,14 +12,11 @@ float3 LocalDirection(float2 xy)
 }
 float2 LocalGeoUV(float2 xy)
 {
- float2 uv=0;
- if(_ScrollMorph>=1)uv=OrbisLocalGeographicUV(_LocalCenter,_LocalEast,xy);
- else uv=OrbisGeographicUV(LocalDirection(xy));
- return uv;
+ return OrbisGeographicUV(LocalDirection(xy));
 }
 float3 ScrollPosition(float2 meshUV,float shell,out float2 xy,out float clipWeight)
 {
- xy=meshUV*_LocalRadius;float3 radial=LocalDirection(xy);float2 uv=LocalGeoUV(xy);
+ xy=meshUV*_LocalRadius;float3 radial=LocalDirection(xy);float2 uv=OrbisGeographicUV(radial);
  float radius=ScrollTerrainRadius(uv,_MapSize);
  clipWeight=FlatReliefClipWeight(radius-1,_ScrollMorph);
  radial.z=-radial.z;float s=sin(_ScrollSpin),c=cos(_ScrollSpin);

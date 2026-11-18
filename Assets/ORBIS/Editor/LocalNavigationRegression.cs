@@ -22,7 +22,7 @@ namespace Orbis.Editor
     var map=root.AddComponent<FlatMapRenderer>();map.Initialize(data);var nav=root.AddComponent<FlatScrollNavigator>();nav.Initialize(data,camera,map);
     result.Add((map.Material.GetFloat("_VendorWaterReady")>.5f&&nav.SurfaceMaterial.GetFloat("_VendorWaterReady")>.5f?"PASS":"FAIL")+" SW3 resource readiness survives map-to-local material copy");
     result.Add((map.Material.GetFloat("_FieldReady")>.5f&&nav.SurfaceMaterial.GetFloat("_FieldReady")>.5f&&nav.SurfaceMaterial.GetTexture("_VisualTex")==map.VisualTexture?"PASS":"FAIL")+" water reflection terrain fields survive map-to-local material copy");
-    GeographicGrid(result,nav,data);
+    DisplayedGroundShape(result,nav,camera,data);
     TransitionRoutes(result,nav,camera,data);
     nav.Toggle(0);nav.Tick(.17f,0);float before=nav.PixelsPerTile;var center=nav.CenterTile;
     nav.Drag(new Vector2(55,12));nav.Tick(.2f,0);
@@ -53,11 +53,7 @@ namespace Orbis.Editor
     nav.TryGetPlanetLocation(camera.pixelRect.center,out var flatCenter);
     centerError=Orbis.Planet.PlanetLocalProjection.Distance(expected,Orbis.Planet.PlanetCoordinateSystem.SurfaceNormal(flatCenter),1)*180/Math.PI;
     result.Add((centerError<.05?"PASS":"FAIL")+" final flat viewport remains centred on captured geography; degrees="+centerError);
-    nav.Focus(30*data.Width+14,0);nav.Tick(3,0);
-    for(int j=0;j<40;j++)nav.PanBy(new Vector2(1.3f,.7f));
-    geographic=Orbis.Planet.PlanetCoordinateSystem.LocalFrame(Orbis.Planet.PlanetCoordinateSystem.FromWorld(nav.LocalFrame.Up,new Orbis.Planet.PlanetVector(),1),new Orbis.Planet.PlanetVector(),1);
-    northAlignment=Orbis.Planet.PlanetVector.Dot(nav.LocalFrame.North,geographic.North);
-    result.Add((northAlignment>.99999?"PASS":"FAIL")+" polar long pan keeps geographic north at the top, alignment="+northAlignment);
+    PolarDrag(result,nav,data);
     foreach(bool wheelExit in new[]{false,true})
     {
      nav.Focus(30*data.Width+14,0);nav.Tick(3,0);
@@ -97,12 +93,13 @@ namespace Orbis.Editor
      var frame=nav.LocalFrame;
      var chart=new Orbis.Planet.PlanetLocalProjection(Orbis.Planet.PlanetCoordinateSystem.FromWorld(frame.Up,new Orbis.Planet.PlanetVector(),1));
      var screen=camera.pixelRect.min+Vector2.Scale(new Vector2(.85f,.75f),camera.pixelRect.size);
-     nav.TryReliefPoint(screen,out var point);nav.TryGetPlanetLocation(screen,out var picked);
-     var expectedDirection=chart.GeographicExp(point.x*Math.PI*2/data.Width,point.y*Math.PI*2/data.Width);
+     bool hit=nav.TryReliefPoint(screen,out var point)&&nav.Pick(screen)>=0;
+     hit&=nav.TryGetPlanetLocation(screen,out var picked);
+     var expectedDirection=chart.StereographicExp(point.x*Math.PI*2/data.Width,point.y*Math.PI*2/data.Width);
      double error=Orbis.Planet.PlanetLocalProjection.Distance(expectedDirection,Orbis.Planet.PlanetCoordinateSystem.SurfaceNormal(picked),1);
-     result.Add((error<.000001?"PASS":"FAIL")+" detailed picking follows camera-centred geographic chart; row="+row+" radians="+error);
+     result.Add((hit&&error<.000001?"PASS":"FAIL")+" detailed picking follows camera-centred stereographic chart; row="+row+" radians="+error);
      var move=new Vector2(2.3f,1.2f);
-     expectedDirection=chart.GeographicExp(move.x*Math.PI*2/data.Width,move.y*Math.PI*2/data.Width);
+     expectedDirection=chart.StereographicExp(move.x*Math.PI*2/data.Width,move.y*Math.PI*2/data.Width);
      nav.PanBy(move);
      error=Orbis.Planet.PlanetLocalProjection.Distance(expectedDirection,nav.LocalFrame.Up,1);
      result.Add((error<.000001?"PASS":"FAIL")+" dragging dynamically recentres the displayed chart; row="+row+" radians="+error);
@@ -119,6 +116,7 @@ namespace Orbis.Editor
      result.Add((drift<.05?"PASS":"FAIL")+" off-centre outward wheel zoom preserves its geographic anchor; row="+row+" pixels="+drift);
     }
     nav.SetViewport(new Rect(0,0,1280,720));nav.Tick(0,3);
+    PolarWheelGestures(result,nav,camera,data);
     var centreBounds=FlatGlobeGeometry.ReliefBounds(new Vector2(4e-8f,0),new Vector4(1,.000702f,.72f,0));
     result.Add((centreBounds.Contains(Vector2.zero)?"PASS":"FAIL")+" bounded relief picking retains the centre fan through world-space float rounding");
     var geometry=new Material(AssetDatabase.LoadAssetAtPath<Shader>("Assets/ORBIS/Editor/PolarDetailProbe.shader"));
@@ -191,7 +189,7 @@ namespace Orbis.Editor
    for(int mode=0;mode<4;mode++)
    {
     if(mode==1||mode==2){nav.Wheel(-24,camera.pixelRect.center,3);nav.Tick(3,3);}
-    if(mode==3){nav.OpenAtlas(3);nav.Wheel(-24,camera.pixelRect.center,3);nav.Tick(3,3);}
+    if(mode==3){nav.OpenAtlas(3);nav.Wheel(-2,camera.pixelRect.center,3);nav.Tick(3,3);}
     float zoom=nav.PixelsPerTile,distance=nav.Distance,morph=nav.Morph;
     nav.Recenter(highLatitude,3);
     var footprint=getProjection.Invoke(nav,null);
@@ -222,14 +220,12 @@ namespace Orbis.Editor
   static void TransitionRoutes(List<string> report,FlatScrollNavigator nav,Camera camera,WorldData data)
   {
    var flags=System.Reflection.BindingFlags.Instance|System.Reflection.BindingFlags.NonPublic;
-   var projection=typeof(FlatScrollNavigator).GetField("projection",flags);
    var localPoint=typeof(FlatScrollNavigator).GetMethod("LocalPoint",flags);
    var direction=typeof(FlatScrollNavigator).GetMethod("LocalDirection",flags);
    foreach(double latitude in new[]{-89.0,-80,80,89})foreach(float morph in new[]{.75f,.9f,.95f,.98f,.995f})
    {
     nav.Focus(16*data.Width+17,3);nav.Tick(3,3);
-    projection.SetValue(nav,new PlanetLocalProjection(new PlanetLocation(.7,latitude*Math.PI/180)));
-    nav.Tick(0,3);
+    nav.Recenter(new PlanetLocation(Math.PI-.01,latitude*Math.PI/180),3);
     float altitude=.22f+(.6f-.22f)*(1-morph);
     nav.Wheel(Mathf.Log(altitude/.22f)/.075f,camera.pixelRect.center,3);nav.Tick(3,3);
     double maximum=0;
@@ -252,34 +248,87 @@ namespace Orbis.Editor
    nav.SetRoute(new int[0]);
    nav.Home(0);nav.Tick(3,0);
   }
-  static void GeographicGrid(List<string> report,FlatScrollNavigator nav,WorldData data)
+  static void DisplayedGroundShape(List<string> report,FlatScrollNavigator nav,Camera camera,WorldData data)
   {
-   var localPoint=typeof(FlatScrollNavigator).GetMethod("LocalPoint",System.Reflection.BindingFlags.Instance|System.Reflection.BindingFlags.NonPublic);
-   foreach(int row in new[]{0,2,5,16,26,29,31})foreach(int column in new[]{0,17,63})
+   var flags=System.Reflection.BindingFlags.Instance|System.Reflection.BindingFlags.NonPublic;
+   var localPoint=typeof(FlatScrollNavigator).GetMethod("LocalPoint",flags);
+   var localDirection=typeof(FlatScrollNavigator).GetMethod("LocalDirection",flags);
+   nav.Focus(16*data.Width+17,3);nav.Tick(3,3);
+   foreach(double latitude in new[]{-90d,-89.99,-85,-80,-60,0,60,80,85,89.99,90})
    {
-    nav.Focus(row*data.Width+column,3);nav.Tick(3,3);
-    var centre=PlanetCoordinateSystem.FromWorld(nav.LocalFrame.Up,new PlanetVector(),1);
-    foreach(int size in new[]{1,4})
+    nav.Recenter(new PlanetLocation(Math.PI-.0001,latitude*Math.PI/180),3);
+    double pixelsPerRadian=camera.pixelHeight/(2*camera.orthographicSize);
+    double radius=40/pixelsPerRadian,worstAxes=1,smallestRadius=double.PositiveInfinity;
+    foreach(float u in new[]{-.7f,0,.7f})foreach(float v in new[]{-.7f,0,.7f})
     {
-     // Real 512x256 addresses reproduce the user's Tile and four-cell Zone.
-     double span=Math.PI*2/512*size;
-     double south=Math.Max(-Math.PI*.5+.000001,centre.Latitude-span*.5);
-     double north=Math.Min(Math.PI*.5-.000001,centre.Latitude+span*.5);
-     var corners=new Vector2[4];
-     for(int i=0;i<4;i++)
+     // Flatten relief for this optical calibration; keep the actual chart and camera scale.
+     var offset=new Vector2(u*camera.aspect,v)*camera.orthographicSize;
+     var direction=(PlanetVector)localDirection.Invoke(nav,new object[]{offset});
+     var site=new PlanetLocalProjection(PlanetCoordinateSystem.FromWorld(direction,new PlanetVector(),1));
+     double sx=0,sy=0,xx=0,yy=0,xy=0;
+     const int samples=64;
+     for(int i=0;i<samples;i++)
      {
-      var location=new PlanetLocation(centre.Longitude+((i&1)==0?-.5:.5)*span,i<2?south:north);
-      corners[i]=(Vector2)localPoint.Invoke(nav,new object[]{PlanetCoordinateSystem.SurfaceNormal(location)});
+      double angle=2*Math.PI*i/samples;
+      var ground=site.Exp(radius*Math.Cos(angle),radius*Math.Sin(angle));
+      var point=(Vector2)localPoint.Invoke(nav,new object[]{ground});
+      double x=(point.x-offset.x)*pixelsPerRadian,y=(point.y-offset.y)*pixelsPerRadian;
+      sx+=x;sy+=y;xx+=x*x;yy+=y*y;xy+=x*y;
      }
-     float width=((corners[1]-corners[0]).magnitude+(corners[3]-corners[2]).magnitude)*.5f;
-     float height=((corners[2]-corners[0]).magnitude+(corners[3]-corners[1]).magnitude)*.5f;
-     double ratio=width/height;
-     double expected=span/(north-south);
-     float shear=Mathf.Max(Mathf.Abs(corners[0].y-corners[1].y),Mathf.Abs(corners[0].x-corners[2].x));
-     report.Add((Math.Abs(ratio/expected-1)<.0001&&shear<span*.0001?"PASS":"FAIL")+" geographic Tile/Zone stays rectangular after dynamic recenter; row="+row+" column="+column+" size="+size+" ratio="+ratio+" shear="+shear);
+     xx-=sx*sx/samples;yy-=sy*sy/samples;xy-=sx*sy/samples;
+     double trace=xx+yy,spread=Math.Sqrt((xx-yy)*(xx-yy)+4*xy*xy);
+     worstAxes=Math.Max(worstAxes,Math.Sqrt((trace+spread)/(trace-spread)));
+     smallestRadius=Math.Min(smallestRadius,Math.Sqrt((trace-spread)/samples));
     }
+    report.Add((worstAxes<=1.03&&smallestRadius>=32?"PASS":"FAIL")+" geodesic circles across central 70% of flat camera; latitude="+latitude+" dateLine=true worstAxes="+worstAxes+" minimumRadiusPx="+smallestRadius);
    }
    nav.Home(0);nav.Tick(3,0);
+  }
+  static void PolarDrag(List<string> report,FlatScrollNavigator nav,WorldData data)
+  {
+   double tile=2*Math.PI/data.Width;
+   foreach(double sign in new[]{-1d,1})
+   {
+    nav.Recenter(new PlanetLocation(Math.PI-.001,sign*89*Math.PI/180),0);
+    double maximumTurn=0;
+    for(int step=0;step<12;step++)
+    {
+     var before=nav.LocalFrame.East;
+     nav.PanBy(new Vector2(0,(float)(sign*.003/tile)));
+     maximumTurn=Math.Max(maximumTurn,PlanetLocalProjection.Distance(before,nav.LocalFrame.East,1)*180/Math.PI);
+    }
+    var crossed=PlanetCoordinateSystem.FromWorld(nav.LocalFrame.Up,new PlanetVector(),1);
+    double longitudeChange=Math.Abs(PlanetCoordinateSystem.NearestOffset(crossed.Longitude-(Math.PI-.001),2*Math.PI));
+    nav.PanBy(new Vector2(0,(float)(sign*.35/tile)));
+    for(int i=0;i<200;i++)nav.Tick(1/60f,0);
+    var north=PlanetCoordinateSystem.LocalFrame(PlanetCoordinateSystem.FromWorld(nav.LocalFrame.Up,new PlanetVector(),1),new PlanetVector(),1).North;
+    double alignment=PlanetVector.Dot(north,nav.LocalFrame.North);
+    report.Add((longitudeChange>3&&maximumTurn<1&&alignment>.99999?"PASS":"FAIL")+" drag crosses pole with continuous heading then restores geographic north; hemisphere="+sign+" largestTurnDegrees="+maximumTurn+" northAlignment="+alignment);
+   }
+  }
+  static void PolarWheelGestures(List<string> report,FlatScrollNavigator nav,Camera camera,WorldData data)
+  {
+   foreach(double latitude in new[]{-89.99,-80,80,89.99})
+   {
+    var center=camera.pixelRect.center;
+    var screen=center+Vector2.Scale(camera.pixelRect.size,new Vector2(.31f,.23f));
+    nav.Focus(16*data.Width+17,3);nav.Tick(3,3);
+    nav.Wheel(-6,center,3);nav.Tick(3,3);
+    nav.Recenter(new PlanetLocation(Math.PI-.0001,latitude*Math.PI/180),3);
+    bool hit=nav.TryGetPlanetLocation(screen,out var ground);
+    var anchor=PlanetCoordinateSystem.SurfaceNormal(ground);
+    double maximum=0;
+    nav.Wheel(-2,screen,3);
+    for(int step=0;step<75;step++)
+    {
+     if(step==10)nav.Wheel(2,screen,3);
+     nav.Tick(1/60f,3);
+     hit&=nav.IsFlat&&nav.TryGetPlanetLocation(screen,out ground);
+     var direction=PlanetCoordinateSystem.SurfaceNormal(ground);
+     maximum=Math.Max(maximum,PlanetLocalProjection.Distance(anchor,direction,1)*nav.PixelsPerTile*data.Width/(2*Math.PI));
+    }
+    report.Add((hit&&maximum<.05?"PASS":"FAIL")+" continuous inward and reversed wheel keep the same displaced terrain point; latitude="+latitude+" worstPixels="+maximum);
+   }
   }
   static void RenderedPicking(List<string> report,FlatScrollNavigator nav,Camera camera,WorldData data,int[] sites)
   {
@@ -292,19 +341,21 @@ namespace Orbis.Editor
    try
    {
     nav.SetViewport(new Rect(0,0,1280,720));
-    foreach(bool atlas in new[]{false,true})
+    foreach(string origin in new[]{"local","atlas focus","Markley overview"})
     {
-     if(atlas)nav.OpenAtlas(3);
      foreach(int site in sites)
      {
-      nav.Focus(site,3);nav.Tick(3,3);nav.Tick(3,3);nav.SyncMaterials();
       var expected=PlanetCoordinateSystem.FromMapUV((site%data.Width+.5)/data.Width,(site/data.Width+.5)/data.Height);
+      if(origin!="local")nav.OpenAtlas(3);
+      if(origin=="Markley overview")nav.Recenter(expected,3);
+      else nav.Focus(site,3);
+      nav.Tick(3,3);nav.Tick(3,3);nav.SyncMaterials();
       bool centered=nav.TryGetPlanetLocation(camera.pixelRect.center,out var actual);
       double centerError=PlanetLocalProjection.Distance(PlanetCoordinateSystem.SurfaceNormal(expected),PlanetCoordinateSystem.SurfaceNormal(actual),1);
       centerError*=nav.PixelsPerTile*data.Width/(Math.PI*2);
-      report.Add((centered&&centerError<.20?"PASS":"FAIL")+" relief focus keeps the requested geography centred; atlas="+atlas+" site="+site+" pixels="+centerError);
+      report.Add((centered&&centerError<.20&&nav.IsAtlas==(origin=="Markley overview")?"PASS":"FAIL")+" view keeps the requested geography centred; path="+origin+" site="+site+" pixels="+centerError);
       material.CopyPropertiesFromMaterial(nav.SurfaceMaterial);
-      int pass=atlas?2:1;ShaderUtil.CompilePass(material,pass,true);
+      int pass=nav.IsAtlas?2:1;ShaderUtil.CompilePass(material,pass,true);
       commands.Clear();commands.SetRenderTarget(target);commands.SetViewport(new Rect(0,0,width,height));
       commands.ClearRenderTarget(true,true,Color.clear);
       commands.SetViewProjectionMatrices(camera.worldToCameraMatrix,GL.GetGPUProjectionMatrix(camera.projectionMatrix,false));
@@ -327,12 +378,12 @@ namespace Orbis.Editor
        error*=nav.PixelsPerTile*nav.ProjectionSize.x/(Math.PI*2);
        maximumError=Math.Max(maximumError,error);
       }
-      report.Add((missed==0&&maximumError<.20?"PASS":"FAIL")+" picking matches the rendered displaced triangles; atlas="+atlas+" site="+site+" missed="+missed+" pixels="+maximumError);
+      report.Add((missed==0&&maximumError<.20?"PASS":"FAIL")+" picking matches the rendered displaced triangles; path="+origin+" site="+site+" missed="+missed+" pixels="+maximumError);
      }
      nav.TryGetPlanetLocation(camera.pixelRect.center,out var beforeReturn);
      nav.GoGlobe(3);nav.Tick(3,3);nav.TryGetPlanetLocation(camera.pixelRect.center,out var returned);
      double returnError=PlanetLocalProjection.Distance(PlanetCoordinateSystem.SurfaceNormal(beforeReturn),PlanetCoordinateSystem.SurfaceNormal(returned),1)*180/Math.PI;
-     report.Add((nav.IsGlobe&&returnError<.01?"PASS":"FAIL")+" globe return preserves the visible relief centre; atlas="+atlas+" degrees="+returnError);
+     report.Add((nav.IsGlobe&&returnError<.01?"PASS":"FAIL")+" globe return preserves the visible relief centre; path="+origin+" degrees="+returnError);
     }
    }
    finally

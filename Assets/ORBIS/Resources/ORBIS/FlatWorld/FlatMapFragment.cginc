@@ -1,6 +1,31 @@
    // Map readability (globals, 0 = off): minimum on-screen width of main
    // channels when zoomed out, and a clear-water tint for river channels.
    float _RiverMinPixels,_RiverTint;
+#ifdef ORBIS_LOCAL_SURFACE
+   float4 _LocalFocus,_LocalEditFootprint;
+   float FlatFocusCorners(float2 pixels,float radius)
+   {
+    float2 p=abs(pixels);
+    float arm=clamp(radius*.5,3,9);
+    float end=saturate(min(p.x,p.y)-(radius-arm)+.5);
+    return end*saturate(1.4-abs(max(p.x,p.y)-radius));
+   }
+   float FlatGridLine(float2 cell,float2 cellPerPixel,float spacing)
+   {
+    float2 distance=abs(frac(cell/spacing+.5)-.5)*spacing/cellPerPixel;
+    float2 ink=saturate(1-distance)*smoothstep(3,7,spacing/cellPerPixel);
+    return max(ink.x,ink.y);
+   }
+   float FlatFootprintInk(float2 cell,float2 cellPerPixel,float4 area)
+   {
+    float2 offset=cell-(area.xy+.5*area.zw);
+    offset.x-=round(offset.x/_MapSize.x)*_MapSize.x;
+    float2 inside=.5*area.zw-abs(offset);
+    if(min(area.z,area.w)<=0||min(inside.x,inside.y)<0)return 0;
+    float2 ink=saturate(1.35-inside/cellPerPixel)*smoothstep(.6,3,area.zw/cellPerPixel);
+    return .12+.60*max(ink.x,ink.y);
+   }
+#endif
    float4 frag(v2f i):SV_Target
    {
 #ifdef ORBIS_SCROLL_SURFACE
@@ -16,6 +41,10 @@
     FlatChartGeographicBasis(i.uv,chartCoordinate,chartRightGeographic,chartUpGeographic);
 #endif
     float2 cell=float2(frac(i.uv.x),clamp(i.uv.y,0,1-_MapSize.w*.0001))*_MapSize.xy,id=floor(cell),f=frac(cell),uv=(id+.5)*_MapSize.zw;
+#ifdef ORBIS_LOCAL_SURFACE
+    float2 cellDx,cellDy;FlatCellScreenDerivatives(cell,cellDx,cellDy);
+    float2 cellPerPixel=max(1e-5,sqrt(cellDx*cellDx+cellDy*cellDy));
+#endif
     float naturalView=max(_Natural,_Political);
     float terrainView=max(naturalView,_DrawHeight);
     float2 colorUV=lerp(uv,FlatBlendUV(cell),_SmoothTerrain*terrainView);
@@ -133,7 +162,7 @@
     if(frozen>.001)col=lerp(col,FlatPolarIceColor(i.uv,waterMask)*illumination*lerp(terrainRelief.rgb,1,waterMask),frozen);
     float major;float contour=FlatContour(field.r,_ContourInterval,_PixelsPerTile,major);
     float contourStrength=max(_ShowContours,_DrawHeight)*smoothstep(3,5,_PixelsPerTile)*terrainView;
-    float gentleSlope=FlatGentleContourWeight(cell,terrainGradient);
+    float gentleSlope=FlatGentleContourWeight(terrainGradient);
     float landContour=contour*lerp(1-waterMask,1,_DrawHeight);
     landContour*=lerp(gentleSlope*lerp(1,.72,_DetailWeight),1,_DrawHeight);
     col=lerp(col,FlatColor(float3(.31,.30,.24))*illumination,landContour*contourStrength*lerp(.23,.42,major));
@@ -160,11 +189,16 @@
      FlatPrecipitation weather=FlatSamplePrecipitation(i.uv,cell,cloud,_PixelsPerTile,skyWeight);
      col=lerp(col,FlatRainOnSurface(col,weather,waterMask,frozen,illumination),skyWeight);
      float structure=floor(info.b+.5);
+     float2 structureOffset=f-.5;
+     #ifdef ORBIS_LOCAL_SURFACE
+     if(structure>.5&&structure<2.5)
+      structureOffset.y/=lerp(1,FlatArtworkLatitudeScale(uv.y),_LocalPhysicalArtwork);
+     #endif
      if(structure>.5&&_PixelsPerTile>=4)
      {
-      float2 q=abs(f-.5);float mark=0;
+      float2 q=abs(structureOffset);float mark=0;
       if(structure<1.5)mark=(1-step(.22,q.x))*(1-step(.22,q.y));
-      else if(structure<2.5)mark=(1-step(.34,q.x))*(1-step(.30,q.y))*step(.45,frac(f.y*5));
+      else if(structure<2.5)mark=(1-step(.34,q.x))*(1-step(.30,q.y))*step(.45,frac((structureOffset.y+.5)*5));
       else if(structure<3.5)mark=1-step(.075,q.x);
       else mark=(1-step(.16,q.x))*(1-step(.42,q.y));
       col=lerp(col,FlatColor(structure<1.5?float3(.96,.83,.53):float3(.73,.66,.46)),mark*.9*(1-_DetailWeight));
@@ -178,9 +212,30 @@
      }
      float night=1-FlatDayWeight(FlatRadial(i.uv));
      float town=1-step(.5,abs(structure-1));
-     col+=town*exp(-dot(f-.5,f-.5)*14)*night*_FlatNightLights*FlatColor(float3(.82,.42,.13))*.75;
+     col+=town*exp(-dot(structureOffset,structureOffset)*14)*night*_FlatNightLights*FlatColor(float3(.82,.42,.13))*.75;
      col=lerp(col,FlatSkyComposite(col,i.uv,cloud,_PixelsPerTile,weather,illumination),skyWeight);
     }
+#ifdef ORBIS_LOCAL_SURFACE
+    if(_ScrollMorph>=1)
+    {
+     if(_Grid>.5)
+     {
+      col=lerp(col,FlatColor(float3(.20,.24,.21)),FlatGridLine(cell,cellPerPixel,4)*.24*(1-waterMask));
+      col*=1-FlatGridLine(cell,cellPerPixel,1)*.10*(1-waterMask);
+     }
+     col=lerp(col,FlatColor(float3(.94,.84,.53)),FlatFootprintInk(cell,cellPerPixel,_LocalEditFootprint));
+     if(_LocalFocus.w>0)
+     {
+      // Projected world coordinates are affine in screen pixels at the local endpoint,
+      // even on a raised triangle or across a date-line/pole UV discontinuity.
+      float2 delta=(projected-_LocalFocus.xy)*_LocalFocus.z;
+      float corners=FlatFocusCorners(delta,_LocalFocus.w);
+      col=lerp(col,FlatColor(float3(1,.91,.61)),corners*.98);
+     }
+    }
+    else
+#endif
+    {
     if(_Grid>.5&&_PixelsPerTile>=4)
     {
      float2 z=frac(cell/4);float zoneWidth=min(.035,1/max(4,_PixelsPerTile*4));
@@ -196,6 +251,7 @@
     float inZone=step(0,selectedZone.x)*step(0,selectedZone.y)*step(selectedZone.x,4)*step(selectedZone.y,4);
     float zoneRim=1-step(selectionWidth,min(min(selectedZone.x,selectedZone.y),min(4-selectedZone.x,4-selectedZone.y)));
     col=lerp(col,FlatColor(float3(.94,.84,.53)),inZone*zoneRim*.7);
+    }
     #if defined(ORBIS_SCROLL_SURFACE) && defined(UNITY_COLORSPACE_GAMMA)
     // Native volume/display always consumes linear scene radiance, including its flat endpoint.
     col=GammaToLinearSpace(max(0,col));

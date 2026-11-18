@@ -14,6 +14,7 @@ public static class Program {
     case "--forest-stands": ForestStandRegression.Run(); break;
     case "--wildlife": WildlifeRegression.Run(); break;
     case "--bathymetry": BathymetryRegression.Run(); break;
+    case "--polar-terrain": PolarTerrainRegression.Run(); break;
     case "--weather": WeatherIntegrationRegression.Run(); break;
     case "--moisture": MoistureRegression(); break;
     case "--environment": EnvironmentRegression(); break;
@@ -40,9 +41,18 @@ public static class Program {
   foreach(Biome b in Enum.GetValues(typeof(Biome)))if(counts[(int)b]>0)Console.WriteLine(b+" "+counts[(int)b]+" ("+(100.0*counts[(int)b]/land).ToString("F1")+"%)");
   double bedMean=0,bedSq=0;int bedMin=0,bedMax=0;for(int i=0;i<w.Count;i++)if(FlatTerrainAnalysis.Ocean(w.Water[i])){int d=-w.Elevation[i];bedMean+=d;bedSq+=(double)d*d;bedMin=Math.Min(bedMin,w.Elevation[i]);bedMax=Math.Max(bedMax,w.Elevation[i]);}bedMean/=ocean;
   Console.WriteLine("Mean land rainfall="+(rain/land).ToString("F1")+"; ocean clipped floor="+deepFloor+"/"+ocean+"; bed range="+bedMin+".."+bedMax+" variance="+(bedSq/ocean-bedMean*bedMean).ToString("F0"));
-  int activeCycloneMonths=0;for(int m=0;m<12;m++){var n=FlatCycloneSelection.Find(w,m,true);var s=FlatCycloneSelection.Find(w,m,false);if(n.Active||s.Active)activeCycloneMonths++;}
-  if(activeCycloneMonths==0){double maxT=-100,maxR=0,maxProduct=0;for(int i=0;i<w.Count;i++){double lat=((i/w.Width+.5)/w.Height-.5)*180;if(Math.Abs(lat)<8||Math.Abs(lat)>38||!FlatTerrainAnalysis.Ocean(w.Water[i]))continue;double t=w.Facts.MeanTemperature[i],r=w.Facts.AnnualRain[i]/12;maxT=Math.Max(maxT,t);maxR=Math.Max(maxR,r);maxProduct=Math.Max(maxProduct,Math.Max(0,t-23)*Math.Max(0,r-105));}throw new Exception("Default world has no climate-eligible cyclone month; max annual T/R/product="+maxT+"/"+maxR+"/"+maxProduct);}
-  Console.WriteLine("Climate-eligible cyclone months="+activeCycloneMonths+" current="+FlatCycloneSelection.Find(w,w.Month,true).Strength.ToString("F2")+"/"+FlatCycloneSelection.Find(w,w.Month,false).Strength.ToString("F2"));
+  // The main scene creates this seed with the plate generator. The baked atlas
+  // above is a separate import fixture with a different ocean and climate.
+  var defaultWorld=FlatGenerator.Generate(512,256,"ORBIS-2D-2026",TerrainPreset.Continents,default);
+  int activeCycloneMonths=0;
+  for(int month=0;month<12;month++)
+  {
+   var north=FlatCycloneSelection.Find(defaultWorld,month,true);
+   var south=FlatCycloneSelection.Find(defaultWorld,month,false);
+   if(north.Active||south.Active)activeCycloneMonths++;
+  }
+  if(activeCycloneMonths==0)throw new Exception("The main scene's default world has no climate-eligible cyclone month.");
+  Console.WriteLine("Main scene climate-eligible cyclone months="+activeCycloneMonths);
   if(FlatTerrainAnalysis.ClassifyBiome(Koppen.BWh,30,24,100,10,25,10,true,false)!=Biome.Wetland)throw new Exception("Perennial saturated river margin must override regional desert");
   if(FlatTerrainAnalysis.ClassifyBiome(Koppen.BWh,30,24,100,0,25,10,false,false)!=Biome.Desert)throw new Exception("Dry land away from rivers must remain desert");
   if(FlatTerrainAnalysis.ClassifyBiome(Koppen.EF,30,-20,100,12,25,10,true,false)!=Biome.Snow)throw new Exception("Freshwater must not turn polar ice into wetland");

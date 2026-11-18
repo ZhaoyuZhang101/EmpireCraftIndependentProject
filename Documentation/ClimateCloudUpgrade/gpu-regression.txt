@@ -1,9 +1,55 @@
-PASS monthly rainfall modulates visual clouds; dry/wet sum=1031.59452874383/6690.27702668353
-PASS coherent weather mass with spatial structure; occupied fraction=0.881958 range=1
-PASS evolving cloud shape and continuous weather-era boundary; change=0.13403458157987 boundary=5.2177401325959E-06
-PASS spherical ecotone noise, continuous date-line, unchanged water coordinates; displacement=0.01988011 seam=5.132851E-07
+PASS monthly rainfall modulates visual clouds; dry/wet sum=2237.06843556398/7101.43763063443
+PASS coherent weather mass with spatial structure; occupied fraction=0.8132324 range=1
+PASS evolving cloud shape and continuous weather-era boundary; change=0.322726944246241 boundary=4.14877998297855E-05
+PASS regional statistics modulate low-cloud mass at fixed winds, climate and time; mean moist/neutral/dry differences 0.2365/0.1992
+PASS a statistical outlier cannot start rain without physical precipitation support
+PASS incipient disturbance has no painted eye, hemisphere=1
+PASS mature eye, eyewall and broken outer bands, hemisphere=1 eye/wall=0.11/0.90
+PASS rainbands wrap inward in the hemispheric circulation, error=49.0/85.5
+PASS cloud bands follow the signed simulated rotation, error=7.1/32.1
+PASS incipient disturbance has no painted eye, hemisphere=-1
+PASS mature eye, eyewall and broken outer bands, hemisphere=-1 eye/wall=0.09/0.89
+PASS rainbands wrap inward in the hemispheric circulation, error=47.4/90.6
+PASS cloud bands follow the signed simulated rotation, error=9.1/30.4
+PASS spherical ecotone noise, continuous date-line, unchanged water coordinates; displacement=0.01990021 seam=4.595433E-07
 PASS independent 128^3 shape / 64^3 detail resources loaded
-PASS clear/thin/dense cloud rain gating and shadow column; thick=6557 rain=6364 mean=0.814003293402493
-PASS temperature-dependent visual rain/snow and clear-sky exclusion; snow pixels=6685
+PASS translucent high cloud above clear lower air; pixels=8192
+PASS clear/thin/dense cloud rain gating and shadow column; thick=8192 rain=8192 mean=0.999999992505764
+PASS temperature-dependent visual rain/snow and clear-sky exclusion; snow pixels=8192
+PASS warm storm produces falling drops, spray and water rings
+PASS paused storm is stationary
+PASS drops and impacts stay on the same terrain when panning
+PASS rain particles and landing sites wrap at the date line
+PASS seasonal wind redirects incoming drops while their impact centres stay fixed
+PASS simulated cyclone wind redirects local rain without moving ground impacts
+PASS surface impacts expand and fade over time
+PASS rain is local to thick cloud on one side of a storm front
+PASS cold storm draws drifting flakes without liquid streaks or surface ripples
+PASS liquid water ripples, soil wets and splashes, ice receives only airborne drops
 PASS amortized four-slice cache matches complete GPU render; max error=0
-PASS same cloud clears as camera crosses below its base; transmission above/inside/below=0.00195229053497314/0.0539755821228027/1
+PASS same cloud clears as camera crosses below its base; transmission above/inside/below=0.00165480375289917/0.0407801270484924/1
+PASS cloud bake preserves caller render target and sRGB state, frame=0 sRGB=False
+PASS cloud bake preserves caller render target and sRGB state, frame=1 sRGB=False
+PASS cloud bake preserves caller render target and sRGB state, frame=2 sRGB=False
+PASS cloud bake preserves caller render target and sRGB state, frame=3 sRGB=False
+PASS cloud bake preserves caller render target and sRGB state, frame=4 sRGB=False
+PASS cloud bake preserves caller render target and sRGB state, frame=5 sRGB=False
+PASS cloud bake preserves caller render target and sRGB state, frame=6 sRGB=False
+PASS cloud bake preserves caller render target and sRGB state, frame=7 sRGB=False
+PASS cloud bake preserves caller render target and sRGB state, frame=0 sRGB=True
+PASS cloud bake preserves caller render target and sRGB state, frame=1 sRGB=True
+PASS cloud bake preserves caller render target and sRGB state, frame=2 sRGB=True
+PASS cloud bake preserves caller render target and sRGB state, frame=3 sRGB=True
+PASS cloud bake preserves caller render target and sRGB state, frame=4 sRGB=True
+PASS cloud bake preserves caller render target and sRGB state, frame=5 sRGB=True
+PASS cloud bake preserves caller render target and sRGB state, frame=6 sRGB=True
+PASS cloud bake preserves caller render target and sRGB state, frame=7 sRGB=True
+PASS cloud quality change detaches an active owned texture before release, target=0
+PASS higher-resolution cloud cover shares the same spherical extent as the shadow columns, width=512
+PASS cloud quality change detaches an active owned texture before release, target=1
+PASS higher-resolution cloud cover shares the same spherical extent as the shadow columns, width=1024
+PASS cloud quality change detaches an active owned texture before release, target=2
+PASS higher-resolution cloud cover shares the same spherical extent as the shadow columns, width=512
+PASS cloud quality changes release active caches without warnings
+PASS hidden clouds retain the last complete field
+PASS paused resume and rewind discard stale regional work and publish complete weather/column pairs

@@ -20,6 +20,7 @@ namespace Orbis.Flat
         const int RegionSide = 4;
         enum Group { LandAir, MarineAir, LakeAir, Soil, River, Lake, Outlet, Count }
         readonly WorldData world;
+        readonly bool atmosphereOnly;
         readonly FlatBiomeStatistics suppliedBiomes;
         readonly ClimateFeatureSet[] profiles;
         readonly ClimateScoreWorkspace work = new ClimateScoreWorkspace();
@@ -46,9 +47,11 @@ namespace Orbis.Flat
 
         public FlatClimateStatistics(WorldData world, CancellationToken cancel = default, int width = 64,
             FlatBiomeStatistics biomes = null, ClimateFeatureSet weather = null, ClimateFeatureSet landWater = null,
-            ClimateFeatureSet riverWater = null, ClimateFeatureSet lakeWater = null, ClimateFeatureSet lakeOutlet = null)
+            ClimateFeatureSet riverWater = null, ClimateFeatureSet lakeWater = null, ClimateFeatureSet lakeOutlet = null,
+            bool atmosphereOnly = false)
         {
             this.world = world ?? throw new ArgumentNullException(nameof(world));
+            this.atmosphereOnly = atmosphereOnly;
             if (width < 8 || width > Math.Min(128, world.Width) || width % 8 != 0)
                 throw new ArgumentOutOfRangeException(nameof(width), "Use a multiple of eight within the source grid, up to 128.");
             Width = width;
@@ -66,8 +69,9 @@ namespace Orbis.Flat
             lakeGauges = new int[Cells.Length];
             biomeCells = new FlatBiomeEstimate[Cells.Length];
             weights = new double[Height];
-            partitions = new ClimateReference[RegionCount, (int)Group.Count];
-            references = new ClimateReference[RegionCount, (int)Group.Count];
+            int groups = atmosphereOnly ? (int)Group.Soil : (int)Group.Count;
+            partitions = new ClimateReference[RegionCount, groups];
+            references = new ClimateReference[RegionCount, groups];
             dirtyPartitions = new bool[RegionCount];
             dirtyFits = new bool[RegionCount];
             neighbors = new int[RegionCount][];
@@ -113,8 +117,8 @@ namespace Orbis.Flat
         void RebuildTerrain(CancellationToken cancel)
         {
             // TerrainRevision is distinct from the frequently changing economy revision.
-            samples = new FlatClimateSamples(world);
-            biomes = suppliedBiomes ?? FlatBiomeStatistics.Calibrate(world, cancel);
+            samples = new FlatClimateSamples(world, includeWaterBudget: !atmosphereOnly);
+            if (!atmosphereOnly) biomes = suppliedBiomes ?? FlatBiomeStatistics.Calibrate(world, cancel);
             Array.Fill(riverGauges, -1);
             Array.Fill(lakeGauges, -1);
             var gauge = world.Facts?.RiverDischarge;
@@ -132,6 +136,7 @@ namespace Orbis.Flat
                         if (!gauge.HasStation(tile)) continue;
                         int cell = CellOf(tile);
                         bool lake = world.Water[tile] == WaterKind.Lake;
+                        if (atmosphereOnly && !lake) continue;
                         var stations = lake ? lakeGauges : riverGauges;
                         var distances = lake ? lakeDistance : riverDistance;
                         double dx = ((x+.5)/world.Width - (cell%Width+.5)/Width)*2*cos;
@@ -143,7 +148,7 @@ namespace Orbis.Flat
                     }
                 }
             }
-            for (int i = 0; i < tiles.Length; i++)
+            for (int i = 0; biomes != null && i < tiles.Length; i++)
             {
                 if (i % Width == 0) cancel.ThrowIfCancellationRequested();
                 biomeCells[i] = biomes.Estimate(world, tiles[i], biomeWork);
@@ -185,7 +190,7 @@ namespace Orbis.Flat
 
         void BuildPartition(int region, int airMonth, int budgetMonth)
         {
-            for (int group = 0; group < (int)Group.Count; group++) partitions[region,group] = null;
+            for (int group = 0; group < partitions.GetLength(1); group++) partitions[region,group] = null;
             int y0 = region / regionsX * RegionSide, x0 = region % regionsX * RegionSide;
             for (int y = y0; y < y0+RegionSide; y++)
             for (int x = x0; x < x0+RegionSide; x++)
@@ -195,28 +200,29 @@ namespace Orbis.Flat
                 var air = samples.Normal(tile, airMonth);
                 Group surface = Surface(world.Water[tile]);
                 Train(region, surface, air, weight);
+                int outlet = lakeGauges[cell];
+                // Lake outlets also contribute air observations on coasts whose grid centre is dry.
+                if (surface != Group.LakeAir && outlet >= 0)
+                    Train(region, Group.LakeAir, samples.Normal(outlet, airMonth), weight);
+                if (atmosphereOnly) continue;
                 if (surface != Group.MarineAir)
                 {
                     var budget = airMonth == budgetMonth ? air : samples.Normal(tile, budgetMonth);
                     Train(region, surface == Group.LakeAir ? Group.Lake : Group.Soil, budget, weight);
                 }
                 if (riverGauges[cell] >= 0) Train(region, Group.River, samples.Normal(riverGauges[cell], budgetMonth), weight);
-                int outlet = lakeGauges[cell];
                 if (outlet < 0) continue;
                 var lake = samples.Normal(outlet, budgetMonth);
                 Train(region, Group.Outlet, lake, weight);
                 // At most one lake site per coarse cell, including cells whose centre is dry.
                 if (surface != Group.LakeAir)
-                {
                     Train(region, Group.Lake, lake, weight);
-                    Train(region, Group.LakeAir, budgetMonth == airMonth ? lake : samples.Normal(outlet, airMonth), weight);
-                }
             }
         }
 
         void FitRegion(int region)
         {
-            for (int g = 0; g < (int)Group.Count; g++)
+            for (int g = 0; g < references.GetLength(1); g++)
             {
                 var own = partitions[region,g];
                 var fit = NewReference((Group)g);
@@ -257,7 +263,7 @@ namespace Orbis.Flat
             double tickDay = tick * .25;
             int budgetMonth = FMath.Wrap((int)(Math.Floor(tickDay/30) % 12), 12);
             int airMonth = FMath.Wrap((int)(Math.Floor((tickDay+15)/30) % 12), 12);
-            if (airMonth != weatherMonth || budgetMonth != waterMonth) InvalidateAll();
+            if (airMonth != weatherMonth || (!atmosphereOnly && budgetMonth != waterMonth)) InvalidateAll();
             try
             {
                 if (dirty)
@@ -306,7 +312,7 @@ namespace Orbis.Flat
                 return new ClimateTileDiagnostics {Tile=tile, Region=-1, Observation=FlatClimateObservation.Missing,
                     Biome=new FlatBiomeEstimate(FlatBiomeStatus.Unavailable)};
             int region = RegionOfCell(CellOf(tile));
-            return Diagnose(tile, region, day, captured, biomes.Estimate(world, tile, biomeWork));
+            return Diagnose(tile, region, day, captured, biomes?.Estimate(world, tile, biomeWork) ?? default);
         }
 
         ClimateTileDiagnostics Diagnose(int tile, int region, double day, FlatCycloneWeather captured, FlatBiomeEstimate biome)
@@ -315,7 +321,7 @@ namespace Orbis.Flat
             Group surface = Surface(world.Water[tile]);
             var air = references[region, (int)surface];
             ClimateReference water = null;
-            if (surface != Group.MarineAir)
+            if (!atmosphereOnly && surface != Group.MarineAir)
             {
                 bool gauged = !double.IsNaN(observation.Discharge);
                 Group type = surface == Group.LakeAir ? (gauged ? Group.Outlet : Group.Lake) : (gauged ? Group.River : Group.Soil);

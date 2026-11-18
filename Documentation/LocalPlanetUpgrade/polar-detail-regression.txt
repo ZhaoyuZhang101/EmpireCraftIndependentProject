@@ -5,3 +5,29 @@ PASS equal surface distance has equal artwork scale at latitude=80 ratio=0.99976
 PASS equal surface distance has equal artwork scale at latitude=-80 ratio=0.999772070594304
 PASS equal surface distance has equal artwork scale at latitude=89 ratio=1.00001948107127
 PASS equal surface distance has equal artwork scale at latitude=-89 ratio=0.999618712440025
+PASS rendered equal-ground axes preserve shape and geographic addresses; latitude=0 corner=False meanAxisStretch=4.52288368251175E-05 meanShear=2.83733887701515E-05 worstAddressPixels=0.0671117976307869
+PASS rendered equal-ground axes preserve shape and geographic addresses; latitude=0 corner=True meanAxisStretch=3.42648199875839E-05 meanShear=2.11044235561017E-05 worstAddressPixels=0.0035975631326437
+PASS rendered equal-ground axes preserve shape and geographic addresses; latitude=60 corner=False meanAxisStretch=3.47747991327196E-05 meanShear=2.20334505678784E-05 worstAddressPixels=0.045015562325716
+PASS rendered equal-ground axes preserve shape and geographic addresses; latitude=60 corner=True meanAxisStretch=3.87313193641603E-05 meanShear=2.47190008408382E-05 worstAddressPixels=0.00271179131232202
+PASS rendered equal-ground axes preserve shape and geographic addresses; latitude=-60 corner=False meanAxisStretch=3.47747991327196E-05 meanShear=2.20334505678784E-05 worstAddressPixels=0.045015562325716
+PASS rendered equal-ground axes preserve shape and geographic addresses; latitude=-60 corner=True meanAxisStretch=5.01225949847139E-05 meanShear=3.15801176850903E-05 worstAddressPixels=0.00318326707929373
+PASS rendered equal-ground axes preserve shape and geographic addresses; latitude=80 corner=False meanAxisStretch=1.04115752037615E-05 meanShear=6.43557520608952E-06 worstAddressPixels=0.0403536669909954
+PASS rendered equal-ground axes preserve shape and geographic addresses; latitude=80 corner=True meanAxisStretch=4.02055229642428E-05 meanShear=2.56400256539701E-05 worstAddressPixels=0.00301053584553301
+PASS rendered equal-ground axes preserve shape and geographic addresses; latitude=-80 corner=False meanAxisStretch=1.04115752037615E-05 meanShear=6.43557520608952E-06 worstAddressPixels=0.0403536669909954
+PASS rendered equal-ground axes preserve shape and geographic addresses; latitude=-80 corner=True meanAxisStretch=4.91428800160065E-05 meanShear=3.16897835154217E-05 worstAddressPixels=0.00278406892903149
+PASS rendered equal-ground axes preserve shape and geographic addresses; latitude=85 corner=False meanAxisStretch=4.97580185765401E-06 meanShear=2.92628817461792E-06 worstAddressPixels=0.0309529956430197
+PASS rendered equal-ground axes preserve shape and geographic addresses; latitude=85 corner=True meanAxisStretch=3.47660388797522E-05 meanShear=2.26456606867195E-05 worstAddressPixels=0.00284059415571392
+PASS rendered equal-ground axes preserve shape and geographic addresses; latitude=-85 corner=False meanAxisStretch=4.97580185765401E-06 meanShear=2.92628817461792E-06 worstAddressPixels=0.0309529956430197
+PASS rendered equal-ground axes preserve shape and geographic addresses; latitude=-85 corner=True meanAxisStretch=3.53455543518066E-05 meanShear=2.3036895957266E-05 worstAddressPixels=0.00295039569027722
+PASS rendered equal-ground axes preserve shape and geographic addresses; latitude=89.99 corner=False meanAxisStretch=1.08746462501585E-07 meanShear=5.21264339350002E-08 worstAddressPixels=0.0339534878730774
+PASS rendered equal-ground axes preserve shape and geographic addresses; latitude=89.99 corner=True meanAxisStretch=3.40633996529505E-05 meanShear=2.22333532300181E-05 worstAddressPixels=0.00292572588659823
+PASS rendered equal-ground axes preserve shape and geographic addresses; latitude=-89.99 corner=False meanAxisStretch=1.08746462501585E-07 meanShear=5.21264339350002E-08 worstAddressPixels=0.0339555032551289
+PASS rendered equal-ground axes preserve shape and geographic addresses; latitude=-89.99 corner=True meanAxisStretch=3.29464819515124E-05 meanShear=2.19896095720868E-05 worstAddressPixels=0.00283213541842997
+PASS rendered equal-ground axes preserve shape and geographic addresses; latitude=90 corner=False meanAxisStretch=9.5518771559E-08 meanShear=3.84269087853055E-08 worstAddressPixels=0.0303946156054735
+PASS rendered equal-ground axes preserve shape and geographic addresses; latitude=90 corner=True meanAxisStretch=2.94610217679292E-05 meanShear=1.83826628757882E-05 worstAddressPixels=0.00300176348537207
+PASS rendered equal-ground axes preserve shape and geographic addresses; latitude=-90 corner=False meanAxisStretch=9.5518771559E-08 meanShear=3.84269087853055E-08 worstAddressPixels=0.0303946156054735
+PASS rendered equal-ground axes preserve shape and geographic addresses; latitude=-90 corner=True meanAxisStretch=2.82967084785923E-05 meanShear=1.77142525335285E-05 worstAddressPixels=0.002878985600546
+PASS water view basis follows geographic tangents across both sides of the pole; latitude=-89 offset=-0.04 worstComponentError=0.002410048
+PASS water view basis follows geographic tangents across both sides of the pole; latitude=-89 offset=0.04 worstComponentError=0.00180763
+PASS water view basis follows geographic tangents across both sides of the pole; latitude=89 offset=-0.04 worstComponentError=0.001810514
+PASS water view basis follows geographic tangents across both sides of the pole; latitude=89 offset=0.04 worstComponentError=0.002047671

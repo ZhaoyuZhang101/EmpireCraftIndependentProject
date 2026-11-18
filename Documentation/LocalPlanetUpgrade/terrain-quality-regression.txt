@@ -1,4 +1,47 @@
-PASS actual steep terrain exposes distinct rock and ridge detail; mean RGB change=0.0616539131988247
-PASS close terrain gains detail while distant detail filters out; contrast=0.0195134611743462,2.6193850981067E-07
+PASS actual steep terrain exposes distinct rock and ridge detail; mean RGB change=0.0864925524165301
+PASS close terrain gains detail while distant detail filters out; contrast=0.0250664665452865,2.6193850981067E-07
 PASS geographic terrain detail remains stable under reversed view; maximum RGB error=0
 PASS terrain detail remains finite at polar and wrapped coordinates; invalid=0
+PASS relief distinguishes sheltered valleys, plateaus and convex ridges at equal elevation; shades=0.812045082893746,1,1.07797456653498
+PASS landform shading remains continuous across wrapped longitude
+PASS moderate real-height slopes retain clear light and shade; shades=1.04203809610044,0.735110571702535
+PASS relief control removes all terrain-form shading
+PASS multiscale relief stays bounded through poles and longitude seam; invalid=0
+PASS geodesic relief crosses the polar stencil boundary without a ring; row=2 difference=0
+PASS geodesic relief crosses the polar stencil boundary without a ring; row=6 difference=0
+PASS snow accumulates on level ground while steep rock faces remain exposed; coverage=1,0.220000028610229
+PASS moderate snowy slopes expose terrain structure; coverage=0.831519961357117
+PASS slope detail creates no snow outside the climate-derived snow cover
+PASS snowline has continuous geographic breakup
+PASS subpixel snowline detail filters out in distant views
+PASS snowline detail agrees across wrapped longitude
+PASS elevation palette blends continuously between adjacent metres
+PASS height view distinguishes continental shelf from deep seafloor
+PASS detail contours reveal gentle terrain with less than 100 metres of relief; coverage=0.0078129842877388
+PASS gentle terrain uses sparse auxiliary contours; coverage=0.0078129842877388
+PASS auxiliary contour visibility retains gentle slopes
+PASS auxiliary contours disappear from clearly defined steep terrain
+PASS minor contours fade from distant views without shifting elevation levels
+PASS contours remain attached to geographic heights when the view reverses; maximum error=0
+PASS contours agree across wrapped longitude
+PASS underwater depth isolines use the same spacing as land contours
+PASS level terrain remains clear even at an exact contour elevation
+PASS contour density blends continuously across screen-space spacing thresholds
+PASS sand, dry steppe and moist grassland have distinct natural hues: RGBA(211, 190, 136, 0), RGBA(152, 154, 108, 0), RGBA(128, 153, 100, 0)
+PASS soil darkens with its measured wetness
+PASS bare stone, silt, soil and marsh carry different reflectance at the same elevation
+PASS permanent snow retains its source palette
+PASS opposite slopes exchange sunlight as solar bearing reverses; 0.516757225523179, -0.516746407964092
+PASS moon phase controls directional terrain light; 0.320023290150857, 5.62081550015137E-06
+PASS cartographic relief remains stable with the day-night cycle switched off
+PASS wet silt has a bounded reflection that fades off axis and on dry ground; 0.03290896, 8.034431E-06
+PASS fine sand carries different microstructure from bare soil at close range
+PASS subpixel sand ripples filter out at map distance
+PASS sand grain, wetness and retention meet continuously across a sand-rock cell boundary without false gravel
+PASS equal ground waves have equal directional hillshade on land and seabed; latitude=-0.35 land=1.0000 bed=1.0000
+PASS equal ground waves have equal directional hillshade on land and seabed; latitude=-79.80 land=0.9953 bed=0.9962
+PASS equal ground waves have equal directional hillshade on land and seabed; latitude=79.80 land=0.9953 bed=0.9962
+PASS equal ground waves have equal directional hillshade on land and seabed; latitude=-84.73 land=0.9979 bed=0.9988
+PASS equal ground waves have equal directional hillshade on land and seabed; latitude=84.73 land=0.9979 bed=0.9988
+PASS equal ground waves have equal directional hillshade on land and seabed; latitude=-87.54 land=0.9905 bed=0.9950
+PASS equal ground waves have equal directional hillshade on land and seabed; latitude=87.54 land=0.9905 bed=0.9950

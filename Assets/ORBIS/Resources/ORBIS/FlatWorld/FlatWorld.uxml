@@ -23,7 +23,7 @@
    <ui:ScrollView class="tab-scroll" mode="Vertical">
     <ui:VisualElement name="panelWorld" class="tab-page">
      <ui:Label text="同一个世界，三个尺度" class="section"/>
-     <ui:Label text="滚轮：球体 → 2D 总览 → 2D 详细图。拖动平移，点击选择地块。向外缩放可沿原路返回。" class="muted"/>
+     <ui:Label text="滚轮从星球进入局部地表。M 打开全球总览，再按 M 返回原视图。在总览中按 F 可细看选区，Home 返回星球。" class="muted"/>
      <ui:DropdownField name="cloudQuality" label="画面质量"/><ui:Toggle name="clouds" label="云层与云影"/>
      <ui:Button name="home" text="Home 重置视野"/>
      <ui:Foldout text="生成新世界" value="false">
@@ -62,7 +62,7 @@
     <ui:Foldout text="图例" value="false"><ui:Label name="legend" text="" class="legend"/></ui:Foldout>
    </ui:ScrollView>
   </ui:VisualElement>
-  <ui:VisualElement class="footer"><ui:Label name="notice" text="准备世界数据…" class="notice"/><ui:Label text="滚轮切换尺度 · 拖动 / WASD 平移 · Space 暂停 · M 球体 / 总览 · F 详细图" class="hint"/></ui:VisualElement>
+  <ui:VisualElement class="footer"><ui:Label name="notice" text="准备世界数据…" class="notice"/><ui:Label text="滚轮缩放 · 拖动 / WASD 平移 · Space 暂停 · M 总览 / 返回 · F 详细图 · Home 星球" class="hint"/></ui:VisualElement>
   <ui:VisualElement name="climateStatsWindow" class="climate-modal is-hidden">
    <ui:VisualElement name="climateStatsCard" class="climate-card">
     <ui:VisualElement class="climate-heading">

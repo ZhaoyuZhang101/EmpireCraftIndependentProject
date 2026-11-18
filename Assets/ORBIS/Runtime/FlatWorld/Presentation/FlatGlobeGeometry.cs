@@ -20,6 +20,14 @@ namespace Orbis.Flat
             cellAxes=new Vector4(dy.y,-dx.y,-dy.x,dx.x)*(pixelScale/determinant);
             return true;
         }
+        public static void LocalArtworkAxes(Vector4 cellAxes,float latitudeScale,out Vector2 eastPixel,out Vector2 northPixel)
+        {
+            // cellAxes maps screen-aligned art pixels to geographic cells. Invert it to
+            // place one geographic art pixel using the same relief, scale and rotation.
+            float inverse=1/(32*(cellAxes.x*cellAxes.w-cellAxes.y*cellAxes.z));
+            eastPixel=new Vector2(cellAxes.w,-cellAxes.y)*inverse;
+            northPixel=new Vector2(-cellAxes.z,cellAxes.x)*(inverse*latitudeScale);
+        }
         public static Ray ScreenRay(Camera camera,Vector2 screen)
         {
             if(!camera.orthographic)return camera.ScreenPointToRay(screen);
@@ -51,6 +59,37 @@ namespace Orbis.Flat
             var corrected=new Vector3(weights.x/clipWeights.x,weights.y/clipWeights.y,weights.z/clipWeights.z);
             return corrected/(corrected.x+corrected.y+corrected.z);
         }
+        // Locate the same triangle and diagonal as the radial surface mesh. Fractional ring
+        // follows the straight chord between sector vertices, including the outer boundary.
+        public static bool TryLatticeTriangle(Vector2 point,float radius,Vector2[] lattice,int rings,int sectors,
+            out Vector3Int vertices,out Vector3 weights)
+        {
+            vertices=default;weights=default;
+            if(point.sqrMagnitude>radius*radius)return false;
+            int sector=FMath.Wrap(Mathf.FloorToInt(Mathf.Atan2(point.y,point.x)*sectors/(2*Mathf.PI)),sectors);
+            int stride=sectors+1;
+            var right=lattice[rings*stride+sector];var left=lattice[rings*stride+sector+1];
+            var scaled=point*(rings/radius);
+            float determinant=right.x*left.y-right.y*left.x;
+            float u=Mathf.Max(0,(scaled.x*left.y-scaled.y*left.x)/determinant);
+            float v=Mathf.Max(0,(right.x*scaled.y-right.y*scaled.x)/determinant);
+            float ringPoint=u+v;
+            if(ringPoint>rings+1e-4f)return false;
+            int ring=Mathf.Min(rings-1,Mathf.FloorToInt(ringPoint));
+            float outer=Mathf.Clamp01(ringPoint-ring);
+            int a=ring*stride+sector,b=a+stride;
+            if(ring>0&&v<=ring*(1-outer))
+            {
+                float innerLeft=v/ring;
+                vertices=new Vector3Int(a,b,a+1);weights=new Vector3(1-outer-innerLeft,outer,innerLeft);
+            }
+            else
+            {
+                float outerRight=u/(ring+1);
+                vertices=new Vector3Int(a+1,b,b+1);weights=new Vector3(1-outer,outerRight,outer-outerRight);
+            }
+            return true;
+        }
         public static Rect ReliefBounds(Vector2 projected,Vector4 relief)
         {
             float minimum=-relief.y*relief.x;
@@ -66,18 +105,29 @@ namespace Orbis.Flat
         public static bool IntersectTriangle(Ray ray,Vector3 a,Vector3 b,Vector3 c,out Vector3 weights,out float distance)
         {
             weights=Vector3.zero;distance=0;
-            Vector3 ab=b-a,ac=c-a,h=Vector3.Cross(ray.direction,ac);
-            float determinant=Vector3.Dot(ab,h);
-            if(Mathf.Abs(determinant)<1e-10f)return false;
-            var q=ray.origin-a;
-            float u=Vector3.Dot(q,h)/determinant;
+            // The rendered vertices are floats, but the ray's barycentric signs must
+            // agree on a shared edge. In the narrow polar fan float dot/cross products
+            // can reject both neighbours even at the exact viewport centre.
+            double abx=(double)b.x-a.x,aby=(double)b.y-a.y,abz=(double)b.z-a.z;
+            double acx=(double)c.x-a.x,acy=(double)c.y-a.y,acz=(double)c.z-a.z;
+            var direction=ray.direction;
+            double hx=direction.y*acz-direction.z*acy;
+            double hy=direction.z*acx-direction.x*acz;
+            double hz=direction.x*acy-direction.y*acx;
+            double determinant=abx*hx+aby*hy+abz*hz;
+            if(System.Math.Abs(determinant)<1e-10)return false;
+            var origin=ray.origin;
+            double qx=(double)origin.x-a.x,qy=(double)origin.y-a.y,qz=(double)origin.z-a.z;
+            double u=(qx*hx+qy*hy+qz*hz)/determinant;
             if(u<0||u>1)return false;
-            var cross=Vector3.Cross(q,ab);
-            float v=Vector3.Dot(ray.direction,cross)/determinant;
+            double cx=qy*abz-qz*aby,cy=qz*abx-qx*abz,cz=qx*aby-qy*abx;
+            double v=(direction.x*cx+direction.y*cy+direction.z*cz)/determinant;
             if(v<0||u+v>1)return false;
-            distance=Vector3.Dot(ac,cross)/determinant;
-            weights=new Vector3(1-u-v,u,v);
-            return distance>=0;
+            double t=(acx*cx+acy*cy+acz*cz)/determinant;
+            if(t<0)return false;
+            distance=(float)t;
+            weights=new Vector3((float)(1-u-v),(float)u,(float)v);
+            return true;
         }
         public static Vector2 PolarHeights(WorldData world)
         {

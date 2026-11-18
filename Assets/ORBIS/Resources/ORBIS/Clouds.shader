@@ -11,6 +11,10 @@ Shader "ORBIS/Clouds"
   [HideInInspector] _CloudNoise("Cloud shape",3D)="white"{}
   [HideInInspector] _CloudDetailNoise("Cloud erosion",3D)="white"{}
   [HideInInspector] _HPHighDetail("High cloud detail",2D)="black"{}
+  [HideInInspector] _ScrollWeatherTex("Published regional weather",2D)="black"{}
+  [HideInInspector] _ScrollCloudWindTex("Regional wind",2D)="black"{}
+  [HideInInspector] _ScrollHeightTex("Regional ground height",2D)="black"{}
+  [HideInInspector] _ScrollCloudSource("Use regional weather",Float)=0
  }
  SubShader
  {

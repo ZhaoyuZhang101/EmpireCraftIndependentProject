@@ -5,12 +5,19 @@
 #include "../GeographicCoordinates.cginc"
 float4 _MapSize;
 float _FieldReady,_SmoothTerrain,_Vegetation,_Bathymetry,_Relief;
-float _FlatGeographicChart;
-// Pixel props follow the displayed cell metric through the local unfold.
+float _LocalPhysicalArtwork;
+// One longitude cell sets the prop width. Match its ground length north/south
+// around the fixed root. The local chart resolves the narrowest polar rows.
 float FlatArtworkLatitudeScale(float latitudeUV)
 {
-    float physicalScale=max(.02,cos((latitudeUV-.5)*3.141592654));
-    return lerp(physicalScale,1,_FlatGeographicChart);
+    return max(lerp(.02,.000001,_LocalPhysicalArtwork),cos((latitudeUV-.5)*3.141592654));
+}
+float FlatTreeLatitudeScale(float2 tile,float rootY)
+{return FlatArtworkLatitudeScale((tile.y+lerp(.5,rootY/32,_LocalPhysicalArtwork))*_MapSize.w);}
+void FlatCellScreenDerivatives(float2 cell,out float2 dx,out float2 dy)
+{
+    dx=ddx(cell);dy=ddy(cell);
+    dx.x-=round(dx.x/_MapSize.x)*_MapSize.x;dy.x-=round(dy.x/_MapSize.x)*_MapSize.x;
 }
 float4 FlatMinmod(float4 a,float4 b)
 {
@@ -157,11 +164,31 @@ float2 FlatHeightGradient(float h,float2 cell)
     float safeDet=(det<0?-1:1)*max(abs(det),1e-8);
     return clamp(float2(ddx(h)*dy.y-ddy(h)*dx.y,ddy(h)*dx.x-ddx(h)*dy.x)/safeDet,-4000,4000);
 }
+float2 FlatMeridianSample(float2 uv)
+{
+    if(uv.y<0)return float2(uv.x+.5,-uv.y);
+    if(uv.y>1)return float2(uv.x+.5,2-uv.y);
+    return uv;
+}
+// Four equal great-circle steps in the site's tangent frame. The two east/west
+// endpoints have the same latitude, including when the footprint straddles a pole.
+void FlatGroundSamples(float2 uv,float steps,out float4 west,out float4 east,out float4 south,out float4 north)
+{
+    float latitude=(uv.y-.5)*3.141592654;
+    float angle=steps*6.283185307*_MapSize.z;
+    float sl,cl,s,c;sincos(latitude,sl,cl);sincos(angle,s,c);
+    float longitudeStep=OrbisGeographicAtan2(s,cl*c)/6.283185307;
+    float sideV=.5+OrbisGeographicAtan2(sl*c,length(float2(cl*c,s)))/3.141592654;
+    west=FlatVisualSample(float4(uv.x-longitudeStep,sideV,0,0));
+    east=FlatVisualSample(float4(uv.x+longitudeStep,sideV,0,0));
+    float2 dy=float2(0,angle/3.141592654);
+    south=FlatVisualSample(float4(FlatMeridianSample(uv-dy),0,0));
+    north=FlatVisualSample(float4(FlatMeridianSample(uv+dy),0,0));
+}
+// Height difference per equatorial tile of ground distance, along east and north.
 float2 FlatFieldGradient(float2 cell,float useDepth)
 {
-    float2 uv=cell*_MapSize.zw,dx=float2(_MapSize.z,0),dy=float2(0,_MapSize.w);
-    float4 west=FlatVisualSample(float4(uv-dx,0,0)),east=FlatVisualSample(float4(uv+dx,0,0));
-    float4 south=FlatVisualSample(float4(uv-dy,0,0)),north=FlatVisualSample(float4(uv+dy,0,0));
+    float4 west,east,south,north;FlatGroundSamples(cell*_MapSize.zw,1,west,east,south,north);
     if(useDepth>.5)return float2(log2(1+max(0,west.b))-log2(1+max(0,east.b)),log2(1+max(0,south.b))-log2(1+max(0,north.b)))*680;
     return float2(east.r-west.r,north.r-south.r)*.5;
 }
@@ -169,11 +196,6 @@ float2 FlatTerrainMetricGradient(float2 cell,float2 gradient)
 {
     float latitude=(cell.y*_MapSize.w-.5)*3.141592654;
     return gradient*float2(1/max(.08,cos(latitude)),2*_MapSize.y/_MapSize.x);
-}
-float FlatTerrainHeight(float3 direction)
-{
-    float2 uv=OrbisGeographicUV(direction);
-    return FlatVisualSample(float4(uv,0,0)).r;
 }
 // XYZ is the geographic direction to the light. W fades direct relief at the
 // horizon and with lunar phase. A fixed cartographic key serves the unlit map.
@@ -222,24 +244,18 @@ float4 FlatTerrainRelief(float2 cell,float height,float2 gradient,float4 light,f
 {
     if(_FieldReady<.5||_Relief<.01)return float4(1,1,1,0);
     float2 uv=cell*_MapSize.zw;
-    float longitude=(uv.x-.5)*6.283185307,latitude=(uv.y-.5)*3.141592654;
-    float3 radial=FlatRadial(uv);
-    float3 east=float3(cos(longitude),0,-sin(longitude));
-    float3 north=float3(-sin(latitude)*sin(longitude),cos(latitude),-sin(latitude)*cos(longitude));
-    float angle=12.566370614/_MapSize.x,s=sin(angle),c=cos(angle);
-    float westHeight=FlatTerrainHeight(radial*c-east*s),eastHeight=FlatTerrainHeight(radial*c+east*s);
-    float southHeight=FlatTerrainHeight(radial*c-north*s),northHeight=FlatTerrainHeight(radial*c+north*s);
-    float2 broadGradient=float2(eastHeight-westHeight,northHeight-southHeight)*.25;
+    float4 west,east,south,north;FlatGroundSamples(uv,2,west,east,south,north);
+    float2 broadGradient=float2(east.r-west.r,north.r-south.r)*.25;
     // Final source rows have distinct longitude samples. Fade this wider stencil
     // before a sample enters that unresolved cap or crosses the pole.
     float polarDistance=min(uv.y,1-uv.y)*_MapSize.y;
     float stencilRows=4*_MapSize.y/_MapSize.x;
     float broadWeight=smoothstep(stencilRows+.5,stencilRows+1.5,polarDistance);
-    float2 slope=lerp(FlatTerrainMetricGradient(cell,gradient),broadGradient,.38*broadWeight);
+    float2 slope=lerp(gradient,broadGradient,.38*broadWeight);
     float3 normal=normalize(float3(-slope/180,1));
     float direct=saturate(dot(normal,light.xyz));
     float face=(direct-saturate(light.z))*light.w;
-    float4 neighbours=float4(westHeight,eastHeight,southHeight,northHeight);
+    float4 neighbours=float4(west.r,east.r,south.r,north.r);
     float form=(height-dot(neighbours,float4(.25,.25,.25,.25)))/220*broadWeight;
     // Surrounding higher ground reduces sky light in valleys and on lower faces.
     // Reuse the geodesic stencil so the shadow follows the actual mountain mass.
@@ -264,7 +280,7 @@ float FlatTerrainSnow(float coverage,float2 cell,float2 gradient,float pixelsPer
     float3 position=FlatDetailPosition(cell);
     float breakup=FlatDetailNoise(position*2.3+47)*.7+FlatDetailNoise(position*7.1+13)*.3;
     coverage=saturate(coverage+(breakup-.5)*1.6*coverage*(1-coverage)*smoothstep(3,14,pixelsPerTile));
-    float exposed=smoothstep(150,650,length(FlatTerrainMetricGradient(cell,gradient)));
+    float exposed=smoothstep(150,650,length(gradient));
     return coverage*(1-exposed*.78);
 }
 float3 FlatElevationColor(float metres)
@@ -303,8 +319,7 @@ float3 FlatTerrainFine(float3 col,float2 cell,float pixelsPerTile,float2 heightG
         if(_FieldReady>=.5)
         {
             float latitude=(cell.y*_MapSize.w-.5)*3.141592654;
-            float2 gradient=FlatTerrainMetricGradient(cell,heightGradient);
-            float slope=length(gradient);
+            float slope=length(heightGradient);
             float exposed=smoothstep(140,430,slope)*(1-smoothstep(.45,.85,field.a));
             exposed*=smoothstep(.25,.70,crag*.65+broken*.35);
             exposed=max(exposed,smoothstep(1900,3200,field.r)*.35);
@@ -346,7 +361,7 @@ float FlatFieldRelief(float2 cell,float useDepth,float3 localLight)
 {
     if(_FieldReady<.5||_Relief<.01)return 1;
     float2 gradient=FlatFieldGradient(cell,useDepth);
-    if(useDepth>.5)return FlatGradientRelief(FlatTerrainMetricGradient(cell,gradient),localLight);
+    if(useDepth>.5)return FlatGradientRelief(gradient,localLight);
     float4 relief=FlatTerrainRelief(cell,FlatVisualSample(float4(cell*_MapSize.zw,0,0)).r,gradient,
                                     float4(normalize(localLight),1),float3(0,0,1),0);
     return dot(relief.rgb,float3(.2126,.7152,.0722));
@@ -359,11 +374,14 @@ float3 FlatVegetation(float3 col,float2 cell,float canopy,float pixelsPerTile)
     float2 p=cell*2,unitId=floor(p),q=frac(p)-.5;
     float seed=FlatHash(unitId),seed2=FlatHash(unitId+float2(71,19));
     float2 centre=(float2(seed,seed2)-.5)*.45;
-    float radius=lerp(.12,.27,seed2),distanceToCrown=length((q-centre)*float2(1,1.14));
+    float2 fromRoot=q-centre;
+    float latitude=(unitId.y+.5+centre.y)*.5*_MapSize.w;
+    fromRoot.y/=lerp(1,FlatArtworkLatitudeScale(latitude),_LocalPhysicalArtwork);
+    float radius=lerp(.12,.27,seed2),distanceToCrown=length(fromRoot*float2(1,1.14));
     float aa=max(fwidth(distanceToCrown),.015);
     float occupied=1-step(saturate((canopy-.24)*1.5),seed);
     float crown=(1-smoothstep(radius-aa,radius+aa,distanceToCrown))*occupied;
-    float crownLight=lerp(.70,1.23,saturate(.55+dot(q-centre,float2(-1.4,1.8))));
+    float crownLight=lerp(.70,1.23,saturate(.55+dot(fromRoot,float2(-1.4,1.8))));
     // Small canopy marks use crown shading; displaced shadows are handled by PixelProps.
     col=lerp(col,col*crownLight,crown*detailFade);
     float3 radial=FlatRadial(cell*_MapSize.zw);
@@ -372,9 +390,9 @@ float3 FlatVegetation(float3 col,float2 cell,float canopy,float pixelsPerTile)
     float grainFade=(1-smoothstep(.6,2.2,footprint))*_Vegetation;
     return col*lerp(1,.95+.10*grain,grainFade);
 }
-float FlatGentleContourWeight(float2 cell,float2 gradient)
+float FlatGentleContourWeight(float2 gradient)
 {
-    return 1-smoothstep(50,160,length(FlatTerrainMetricGradient(cell,gradient)));
+    return 1-smoothstep(50,160,length(gradient));
 }
 float FlatContour(float metres,float interval,float pixelsPerTile,out float major)
 {

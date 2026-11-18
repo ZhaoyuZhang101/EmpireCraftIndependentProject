@@ -58,6 +58,14 @@ namespace Orbis.Flat
         public double Correlation(int i, int j) => moments.Correlation(i,j);
         public double Mean(int i) => moments.Mean(i);
 
+        // Direction in the same transformed coordinates used for the joint weather score.
+        internal double Standardized(ClimateFeature feature, in FlatClimateObservation row)
+        {
+            int i = Features.IndexOf(feature);
+            if (model == null || i < 0 || deviation[i] <= 0) return 0;
+            return (Features[i].Encode(Value(row, feature)) - model.Mean(i)) / deviation[i];
+        }
+
         public ClimateReference(ClimateFeatureSet features, bool waterBudget = false, double stepWindowDays = 0)
         {
             Features = features ?? throw new ArgumentNullException(nameof(features));

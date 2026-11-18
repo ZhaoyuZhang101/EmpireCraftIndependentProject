@@ -20,6 +20,10 @@ namespace Orbis.Flat
         int climatePeriod=-1,revision=-1,windMonth=-1,windRevision=-1;float debt;bool rendered,failed;
         double stagedClock;
         Vector4 pendingNorth,pendingSouth,visibleNorth,visibleSouth;
+        FlatRegionalCloudField regionalClimate;
+        long? stagingClimateStep;
+        int stagingRevision;
+        public long? RegionalClimateStep { get; private set; }
         bool weatherWasHidden;
         readonly Vector4[] flashes=new Vector4[4];
         FlatLightningVisuals lightning;
@@ -78,6 +82,7 @@ namespace Orbis.Flat
             columnBack=NewCache(ColumnTexture.descriptor,"Cloud column staging");
             var strip=ColumnTexture.descriptor;strip.height=height/ColumnStrips;columnStrip=NewCache(strip,"Cloud column update strip");
             bake.SetTexture("_ClimateTex",climate);climatePeriod=revision=-1;rendered=false;debt=1;
+            RegionalClimateStep=null;
         }
         static RenderTexture NewCache(RenderTextureDescriptor descriptor,string label)
         {
@@ -116,7 +121,10 @@ namespace Orbis.Flat
             old=ColumnTexture;ColumnTexture=columnBack;columnBack=old;
             stagedClock=hpColumn.GetFloat("_ScrollWeatherTime");
             visibleNorth=pendingNorth;visibleSouth=pendingSouth;
+            RegionalClimateStep=stagingClimateStep;
             pendingStrip=-1;rendered=true;
+            Status="云层 "+Texture.width+"×"+Texture.height+" · 云影和雨雪 "+CacheWidth+"×"+(CacheWidth/2)+
+                (RegionalClimateStep.HasValue?" · 区域气候统计":" · 月气候");
         }
         void UploadClimate()
         {
@@ -203,12 +211,24 @@ namespace Orbis.Flat
                 // A sleeping cache may contain half of an old storm. Resume at today's track.
                 bool resumed=weatherWasHidden;
                 if(resumed){pendingStrip=-1;weatherWasHidden=false;}
+                if(pendingStrip>=0 && (stagingRevision!=world.TerrainRevision ||
+                    (stagingClimateStep.HasValue && stagingClimateStep.Value!=(long)Math.Floor(world.Day*4))))
+                    pendingStrip=-1;
                 if(pendingStrip>=0){RenderColumnStrip();return;}
                 bool climateChanged=climatePeriod!=(int)Math.Floor(world.Day/30)||revision!=world.TerrainRevision;
                 if(climateChanged)UploadClimate();
-                if(!animate&&rendered&&!climateChanged&&!resumed){Status="二维云缓存暂停；保留已渲染图像。";return;}
+                if(regionalClimate==null)regionalClimate=new FlatRegionalCloudField(world);
+                bool fieldReady=regionalClimate.Prepare(world.Day,out bool changed);
+                // Keep the last complete pair on screen while the next six-hour field is computed.
+                // A newly ready field also wakes a paused sky after the first neutral bake.
+                if(!fieldReady&&rendered)return;
+                bool regionalChanged=changed||RegionalClimateStep!=regionalClimate.Step;
+                if(!animate&&rendered&&!climateChanged&&!resumed&&!regionalChanged)
+                {Status=RegionalClimateStep.HasValue?"云缓存暂停 · 区域气候统计":"云缓存暂停 · 月气候";return;}
                 debt+=Mathf.Max(0,delta);
-                if(debt<.5f&&rendered&&!climateChanged&&!resumed)return;debt=0;
+                if(debt<.5f&&rendered&&!climateChanged&&!resumed&&!regionalChanged)return;debt=0;
+                regionalClimate.Bind(bake);
+                stagingClimateStep=regionalClimate.Step;stagingRevision=world.TerrainRevision;
                 StageCyclones(calendarDay);
                 bake.SetFloat("_VisualTime",(float)Clock);
                 bake.SetFloat("_MonthBlend",(float)(world.Day%30)/30f);
@@ -216,7 +236,6 @@ namespace Orbis.Flat
                 RenderCache(weatherBack,bake);
                 hpColumn.SetTexture("_ScrollWeatherTex",weatherBack);
                 hpColumn.SetFloat("_ScrollWeatherTime",(float)Clock);pendingStrip=0;RenderColumnStrip();
-                Status="云层 "+Texture.width+"×"+Texture.height+" · 云影和雨雪 "+CacheWidth+"×"+(CacheWidth/2)+" · 最高 2 Hz";
             }
             catch(Exception ex){failed=true;rendered=false;Status="云缓存已安全关闭："+ex.Message;Debug.LogException(ex);}
         }
@@ -246,6 +265,6 @@ namespace Orbis.Flat
             target.SetVectorArray("_OrbisLightning",flashes);
         }
         void OnDestroy()
-        {ReleaseCache(weatherBack);ReleaseCache(columnBack);ReleaseCache(columnStrip);ReleaseCache(Texture);ReleaseCache(ColumnTexture);if(climate)Destroy(climate);if(wind)Destroy(wind);if(climateWind)Destroy(climateWind);if(bake)Destroy(bake);if(hpColumn)Destroy(hpColumn);if(hpNoise)Destroy(hpNoise);if(hpDetail)Destroy(hpDetail);if(hpHigh)Destroy(hpHigh);}
+        {regionalClimate?.Dispose();ReleaseCache(weatherBack);ReleaseCache(columnBack);ReleaseCache(columnStrip);ReleaseCache(Texture);ReleaseCache(ColumnTexture);if(climate)Destroy(climate);if(wind)Destroy(wind);if(climateWind)Destroy(climateWind);if(bake)Destroy(bake);if(hpColumn)Destroy(hpColumn);if(hpNoise)Destroy(hpNoise);if(hpDetail)Destroy(hpDetail);if(hpHigh)Destroy(hpHigh);}
     }
 }

@@ -40,6 +40,7 @@ float4 FlatWaterPropReflection(float2 cell,float waterHeight,float3 ray,float3 l
         bool settlement=info.b>.5;
         float scale=FlatArtworkLatitudeScale(uv.y);
         float4 placement=settlement?float4(16,16-11*scale,1,0):PDTreePlacement(source);
+        if(!settlement)scale=FlatTreeLatitudeScale(source,placement.y);
         float2 ground=((cell-source)*32-placement.xy)/placement.z;
         ground.y/=scale;
         float fade=1-smoothstep(44,58,length(ground));

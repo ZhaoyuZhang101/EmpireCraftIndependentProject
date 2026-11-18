@@ -47,6 +47,13 @@ namespace Orbis.Planet
         }
         public PlanetVector StereographicLog(PlanetVector direction)
         {
+            var unit=Unit(direction);
+            double denominator=1+PlanetVector.Dot(unit,Frame.Up);
+            if(denominator>1e-8)
+            {
+                double scale=2*Radius/denominator;
+                return new PlanetVector(PlanetVector.Dot(unit,Frame.East)*scale,PlanetVector.Dot(unit,Frame.North)*scale,0);
+            }
             var point=Log(direction);
             double distance=Math.Sqrt(point.X*point.X+point.Y*point.Y);
             if(distance<1e-14)return new PlanetVector();
@@ -55,8 +62,45 @@ namespace Orbis.Planet
             double factor=2*Radius*Math.Tan(angle*.5)/distance;
             return new PlanetVector(point.X*factor,point.Y*factor,0);
         }
-        // The detailed chart uses equal angular cell steps in both axes. Recentring
-        // this address chart keeps latitude-grid Tiles square throughout a pan.
+        // Screen radius s (in planet radii) has one angular distance throughout the unfold.
+        // Its derivative (1-t)+t/(1+s²/4) is positive on the entire visible disk.
+        static double CentralAngle(double s,double blend)
+        {return (1-blend)*s+blend*2*Math.Atan(s*.5);}
+
+        public PlanetVector LocalExp(double x,double y,double blend)
+        {
+            if(blend<=0)return Exp(x,y);
+            if(blend>=1)return StereographicExp(x,y);
+            double distance=Math.Sqrt(x*x+y*y);
+            if(distance<1e-14)return Frame.Up;
+            double angle=CentralAngle(distance/Radius,blend);
+            return Unit(Frame.Up*Math.Cos(angle)+(Frame.East*x+Frame.North*y)*(Math.Sin(angle)/distance));
+        }
+
+        public PlanetVector LocalLog(PlanetVector direction,double blend)
+        {
+            if(blend>=1)return StereographicLog(direction);
+            var point=Log(direction);
+            if(blend<=0)return point;
+            double distance=Math.Sqrt(point.X*point.X+point.Y*point.Y);
+            if(distance<1e-14)return point;
+            double angle=distance/Radius;
+            // The equidistant and stereographic radii bracket the unique inverse.
+            // The linear term also bounds the radius for a point at the antipode.
+            double lower=angle,upper=Math.Min(2*Math.Tan(Math.Min(angle,Math.PI)*.5),angle/(1-blend));
+            double s=lower;
+            for(int i=0;i<40;i++)
+            {
+                double error=CentralAngle(s,blend)-angle;
+                if(Math.Abs(error)<2e-14)break;
+                if(error<0)lower=s;else upper=s;
+                double next=s-error/(1-blend+blend/(1+s*s*.25));
+                s=next>lower&&next<upper?next:(lower+upper)*.5;
+            }
+            return point*(s/angle);
+        }
+
+        // Equal-angular geographic address chart; its coordinates describe stored cells.
         public PlanetVector GeographicExp(double x,double y)
         {
             var center=Center;
@@ -129,14 +173,87 @@ namespace Orbis.Planet
             Frame=PlanetCoordinateSystem.LocalFrame(new PlanetLocation(longitude,latitude),new PlanetVector(),Radius);
             return true;
         }
-        // Parallel transport avoids a longitude-based frame flip when traversing a pole.
-        public void Move(double east,double north)
+
+        // Preserve the whole tangent frame under the shortest rotation from one direction to another.
+        static PlanetVector Rotate(PlanetVector point,PlanetVector axis,double cosine)
         {
-            var old=Frame;var up=Exp(east,north);double c=PlanetVector.Dot(old.Up,up);
-            var axis=Cross(old.Up,up);
-            var right=old.East+Cross(axis,old.East)+Cross(axis,Cross(axis,old.East))*(1/Math.Max(1e-12,1+c));
+            var cross=Cross(axis,point);
+            return point+cross+Cross(axis,cross)*(1/(1+cosine));
+        }
+        void Transport(PlanetVector from,PlanetVector to)
+        {
+            var axis=Cross(from,to);
+            double cosine=PlanetVector.Dot(from,to);
+            PlanetVector up,right;
+            if(cosine<-.999999)
+            {
+                // Two well-conditioned rotations also define an exact half-turn.
+                var middle=Cross(axis,from);
+                if(PlanetVector.Dot(middle,middle)<1e-24)
+                    middle=Math.Abs(from.Y)<.9?Cross(from,new PlanetVector(0,1,0)):Cross(from,new PlanetVector(1,0,0));
+                middle=Unit(middle);
+                var first=Cross(from,middle);var second=Cross(middle,to);
+                double remaining=PlanetVector.Dot(middle,to);
+                up=Rotate(Rotate(Frame.Up,first,0),second,remaining);
+                right=Rotate(Rotate(Frame.East,first,0),second,remaining);
+            }
+            else
+            {
+                up=Rotate(Frame.Up,axis,cosine);
+                right=Rotate(Frame.East,axis,cosine);
+            }
+            up=Unit(up);
             right=Unit(right-up*PlanetVector.Dot(right,up));
             Frame=new PlanetTangentFrame{Up=up,East=right,North=Unit(Cross(up,right)),Origin=up*Radius};
+        }
+        // The immediate polar cap has no preferred meridian. From 2° to 8° away
+        // from either pole, progressively allow the camera to turn toward geographic north.
+        public double NorthAlignmentWeight
+        {
+            get
+            {
+                double horizontal=Math.Sqrt(Frame.Up.X*Frame.Up.X+Frame.Up.Z*Frame.Up.Z);
+                double t=Math.Max(0,Math.Min(1,(horizontal-.0348994967)/(.139173101-.0348994967)));
+                return t*t*(3-2*t);
+            }
+        }
+        double NorthTurn()
+        {
+            var east=new PlanetVector(Frame.Up.Z,0,-Frame.Up.X);
+            double sine=PlanetVector.Dot(east,Frame.North),cosine=PlanetVector.Dot(east,Frame.East);
+            return Math.Abs(sine)<1e-14&&cosine<0?Math.PI:Math.Atan2(sine,cosine);
+        }
+        public bool AlignNorth(double maximumTurn)
+        {
+            double limit=maximumTurn*NorthAlignmentWeight;
+            if(limit<=0)return false;
+            double turn=Math.Max(-limit,Math.Min(limit,NorthTurn()));
+            if(Math.Abs(turn)<1e-12)return false;
+            AlignEast(Frame.East*Math.Cos(turn)+Frame.North*Math.Sin(turn));
+            return true;
+        }
+        public void AnchorStereographic(PlanetVector anchor,double x,double y,bool preserveHeading=false)
+        {
+            anchor=Unit(anchor);
+            // Most latitudes have an exact north-up solution connected to the current
+            // one. At the polar branch boundary, rotate the frame and anchor together.
+            if(!preserveHeading&&NorthAlignmentWeight>=1&&Math.Abs(NorthTurn())<1e-8)
+            {
+                var before=Frame;
+                if(TryAnchorStereographicNorthUp(anchor,x,y)&&NorthAlignmentWeight>=1&&
+                    PlanetVector.Dot(before.East,Frame.East)>.95)return;
+                Frame=before;
+            }
+            Transport(StereographicExp(x,y),anchor);
+        }
+        // Pure parallel transport remains available to callers following a geodesic.
+        public void Move(double east,double north){Transport(Frame.Up,Exp(east,north));}
+        public void MoveChart(double x,double y,double blend)
+        {
+            var direction=LocalExp(x,y,blend);
+            double arc=Distance(Frame.Up,direction,1);
+            Transport(Frame.Up,direction);
+            AlignNorth(Math.Min(Math.PI/12,12*arc));
         }
         public PlanetLocation Center {get{return PlanetCoordinateSystem.FromWorld(Frame.Up,new PlanetVector(),1);}}
         public static double Distance(PlanetVector a,PlanetVector b,double radius)

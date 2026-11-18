@@ -4,4 +4,5 @@
   <ItemGroup><Compile Include="ClimatologyRegression.cs"/><Compile Include="RiverDischargeRegression.cs"/></ItemGroup>
   <ItemGroup><Compile Include="ClimateMathRegression.cs"/><Compile Include="BiomeStatisticsRegression.cs"/><Compile Include="ClimateObservationRegression.cs"/></ItemGroup>
   <ItemGroup><Compile Include="RegionalStatisticsRegression.cs"/><Compile Include="TectonicsRegression.cs"/></ItemGroup>
+  <ItemGroup><Compile Include="PolarTerrainRegression.cs"/></ItemGroup>
 </Project>

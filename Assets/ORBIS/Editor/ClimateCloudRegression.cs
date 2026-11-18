@@ -7,6 +7,54 @@ namespace Orbis.Editor
 {
  public static class ClimateCloudRegression
  {
+  // Run once the default natural view has published a sky. Re-bake the same
+  // shader at fixed time with/without its actual regional field; leave the live
+  // cache, camera, calendar, materials and world untouched.
+  [MenuItem("Tools/ORBIS/Climate/Validate published regional atmosphere")]
+  public static void RegionalPublication()
+  {
+   var app=UnityEngine.Object.FindFirstObjectByType<Flat.FlatWorldApp>();
+   var map=app?app.GetComponentInChildren<Flat.FlatMapRenderer>():null;
+   var globe=app?app.GetComponentInChildren<Flat.FlatGlobePresenter>():null;
+   if(!map||!globe||!map.Sky.Ready||map.Sky.RegionalClimateStep!=(long)Math.Floor(map.World.Day*4))
+    throw new InvalidOperationException("Wait for the natural map to publish the current regional sky.");
+   var sky=map.Sky;
+   if(globe.View.CloudMaterial.GetTexture("_ScrollWeatherTex")!=sky.Texture)
+    throw new InvalidOperationException("The planet's HP cloud material is not bound to the published regional weather.");
+   if(app.Navigation.SurfaceMaterial.GetTexture("_SkyTex")!=sky.ColumnTexture)
+    throw new InvalidOperationException("The local terrain is not bound to the published HP cloud columns.");
+   var field=typeof(Flat.FlatSkyRenderer).GetField("bake",System.Reflection.BindingFlags.NonPublic|System.Reflection.BindingFlags.Instance);
+   var material=new Material((Material)field.GetValue(sky));
+   var previous=RenderTexture.active;bool originalSRGB=GL.sRGBWrite;
+   var rt=RenderTexture.GetTemporary(256,128,0,RenderTextureFormat.ARGB32,RenderTextureReadWrite.Linear);
+   var read=new Texture2D(rt.width,rt.height,TextureFormat.RGBA32,false,true);
+   try
+   {
+    var regional=material.GetTexture("_RegionalCloudResponse");
+    if(!regional||regional.width!=64||regional.height!=32)throw new Exception("Missing published regional air grid");
+    Color32[] Bake(){
+     GL.sRGBWrite=false;Graphics.Blit(Texture2D.blackTexture,rt,material);
+     RenderTexture.active=rt;read.ReadPixels(new Rect(0,0,rt.width,rt.height),0,0);read.Apply();return read.GetPixels32();
+    }
+    var active=Bake();
+    material.SetTexture("_RegionalCloudResponse",Texture2D.blackTexture);material.SetVector("_RegionalCloudPoles",Vector4.zero);
+    var neutral=Bake();int changed=0,thicker=0,thinner=0;
+    for(int i=0;i<active.Length;i++){
+     int d=active[i].r-neutral[i].r;
+     if(Math.Abs(d)>1)changed++;if(d>1)thicker++;if(d< -1)thinner++;
+    }
+    if(thicker==0||thinner==0)throw new Exception("The naturally generated regional field made no bidirectional difference to the rendered sky.");
+    Directory.CreateDirectory("ValidationOutput/regional-atmosphere");
+    File.WriteAllText("ValidationOutput/regional-atmosphere/publication.txt",
+     $"PASS {Application.unityVersion} {SystemInfo.graphicsDeviceName}, weather step {sky.RegionalClimateStep}, region {regional.width}x{regional.height}, fixed-time low-cloud change >1/255: {changed}/{active.Length}, thicker={thicker}, thinner={thinner}. Both HP and local terrain bindings verified.");
+   }
+   finally
+   {
+    RenderTexture.active=previous;GL.sRGBWrite=originalSRGB;RenderTexture.ReleaseTemporary(rt);
+    UnityEngine.Object.DestroyImmediate(read);UnityEngine.Object.DestroyImmediate(material);
+   }
+  }
+
   public static void Run()
   {
    var report=new List<string>();var owned=new List<UnityEngine.Object>();var previous=RenderTexture.active;
@@ -39,6 +87,7 @@ namespace Orbis.Editor
     seamTime/=beforeWrap.Length;
     if(seamTime>.005)throw new Exception("Cloud mask pops at weather era boundary: "+seamTime);
     report.Add("PASS evolving cloud shape and continuous weather-era boundary; change="+evolved+" boundary="+seamTime);
+    ValidateRegionalAtmosphere(cloud,render,report);
     ValidateCycloneClouds(cloud,report);
     ecotone.SetVector("_MapSize",new Vector4(512,256,1f/512,1f/256));ecotone.SetFloat("_ProbeShore",1);var water=render(ecotone);
     ecotone.SetFloat("_ProbeShore",-4);var land=render(ecotone);float warp=0,seam=0,waterMotion=0;
@@ -111,12 +160,82 @@ namespace Orbis.Editor
     if(above>=inside||inside>=below||below<.999)throw new Exception("Cloud passage must clear below cloud base: "+above+"/"+inside+"/"+below);
     report.Add("PASS same cloud clears as camera crosses below its base; transmission above/inside/below="+above+"/"+inside+"/"+below);
     ValidateRenderState(report);
+    ValidateRegionalCadence(report);
    }
    catch(Exception e){report.Add("FAIL "+e.Message);throw;}
    finally
    {
     Directory.CreateDirectory("Documentation/ClimateCloudUpgrade");File.WriteAllLines("Documentation/ClimateCloudUpgrade/gpu-regression.txt",report);
     ShaderUtil.allowAsyncCompilation=async;RenderTexture.active=previous;RenderTexture.ReleaseTemporary(rt);foreach(var o in owned)UnityEngine.Object.DestroyImmediate(o);
+   }
+  }
+
+  static void ValidateRegionalCadence(List<string> report)
+  {
+   if(!Application.isPlaying)return;
+   var root=new GameObject("Regional cloud cache regression");
+   try
+   {
+    var world=Flat.FlatGenerator.Generate(64,32,"CLOUD-CACHE-CADENCE",Flat.TerrainPreset.Continents,default);
+    var sim=new Flat.FlatSimulation(world);
+    var sky=root.AddComponent<Flat.FlatSkyRenderer>();sky.Initialize(world);
+    void Publish(){
+     long step=(long)Math.Floor(world.Day*4);
+     var timer=System.Diagnostics.Stopwatch.StartNew();
+     while(sky.RegionalClimateStep!=step && timer.Elapsed.TotalSeconds<10){
+      var weather=sky.Texture;var column=sky.ColumnTexture;
+      sky.Tick(0,true,false,false,512,world.Day);
+      if((sky.Texture!=weather)!=(sky.ColumnTexture!=column))throw new Exception("Regional weather and HP column switched in different frames");
+      System.Threading.Thread.Sleep(1);
+     }
+     if(sky.RegionalClimateStep!=step)throw new Exception("Paused sky did not publish the requested climate step "+step);
+    }
+    Publish();var previous=sky.Texture;var previousStep=sky.RegionalClimateStep;
+    var savedDay=world.Day;var savedStorms=world.Cyclones?.Clone();
+    sim.Step(.25f);
+    for(int i=0;i<8;i++)sky.Tick(.1f,false,true,false,512,world.Day);
+    CheckRenderState(report,previous==sky.Texture && previousStep==sky.RegionalClimateStep,"hidden clouds retain the last complete field");
+    Publish();
+    sim.Step(.25f);sky.Tick(.6f,true,true,false,512,world.Day);
+    world.Day=savedDay;world.Cyclones=savedStorms;world.TerrainRevision++;
+    Publish();
+    CheckRenderState(report,sky.Ready,"paused resume and rewind discard stale regional work and publish complete weather/column pairs");
+   }
+   finally {UnityEngine.Object.DestroyImmediate(root);}
+  }
+
+  static void ValidateRegionalAtmosphere(Material cloud,Func<Material,Color[]> render,List<string> report)
+  {
+   if(!cloud.HasProperty("_RegionalCloudResponse"))throw new Exception("Cloud bake has no regional weather input");
+   var forcing=new Texture2D(1,1,TextureFormat.RGBA32,false,true);
+   var regional=new Texture2D(1,1,TextureFormat.RGBA32,false,true);
+   var original=cloud.GetTexture("_ClimateTex");
+   try
+   {
+    forcing.SetPixel(0,0,new Color(.5f,.5f,.6f,.6f));forcing.Apply();
+    cloud.SetTexture("_ClimateTex",forcing);
+    Func<Color,Color[]> withField=color=>{
+     regional.SetPixel(0,0,color);regional.Apply();
+     cloud.SetTexture("_RegionalCloudResponse",regional);
+     cloud.SetVector("_RegionalCloudPoles",new Vector4(color.r-color.g,color.b,color.r-color.g,color.b));
+     return render(cloud);
+    };
+    var neutral=withField(Color.black);
+    var moist=withField(new Color(1,0,1,1));
+    var dry=withField(Color.green);
+    double more=0,less=0;
+    for(int i=0;i<neutral.Length;i++){more+=moist[i].r-neutral[i].r;less+=neutral[i].r-dry[i].r;}
+    CheckRenderState(report,more/neutral.Length>.04&&less/neutral.Length>.04,
+     $"regional statistics modulate low-cloud mass at fixed winds, climate and time; mean moist/neutral/dry differences {more/neutral.Length:F4}/{less/neutral.Length:F4}");
+    forcing.SetPixel(0,0,Color.black);forcing.Apply();
+    foreach(var p in withField(new Color(1,0,1,1)))if(p.a!=0)throw new Exception("Regional forcing made a rain event in dry air");
+    report.Add("PASS a statistical outlier cannot start rain without physical precipitation support");
+   }
+   finally
+   {
+    cloud.SetTexture("_ClimateTex",original);cloud.SetTexture("_RegionalCloudResponse",Texture2D.blackTexture);
+    cloud.SetVector("_RegionalCloudPoles",Vector4.zero);
+    UnityEngine.Object.DestroyImmediate(regional);UnityEngine.Object.DestroyImmediate(forcing);
    }
   }
 
@@ -196,7 +315,7 @@ namespace Orbis.Editor
     ShaderUtil.CompilePass(probe,0,true);
     probe.SetTexture("_SkyTex",cloud);probe.SetTexture("_VegetationWindTex",wind);
     probe.SetFloat("_FlatClouds",1);probe.SetFloat("_SkyReady",1);probe.SetFloat("_FlatRain",1);
-    probe.SetFloat("_VegetationWindReady",1);probe.SetFloat("_FlatGeographicChart",1);
+    probe.SetFloat("_VegetationWindReady",1);probe.SetFloat("_LocalPhysicalArtwork",1);
     probe.SetFloat("_ProbePrecipitation",2);probe.SetFloat("_SkyClock",3.7f);
     probe.SetVector("_FlatSun",Vector3.forward);
     probe.SetVector("_MapSize",new Vector4(64,32,1f/64,1f/32));

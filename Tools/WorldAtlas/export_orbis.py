@@ -4,6 +4,8 @@ import argparse, hashlib, json, struct, zipfile
 import numpy as np
 from world_atlas.core.procedural_planet import PlanetRecipe, generate_planet_surface
 
+TERRAIN_REVISION = "spherical-relief-2"
+
 def seed_hash(text):
     value=2166136261
     for c in text:
@@ -12,14 +14,14 @@ def seed_hash(text):
 
 def export(seed, width, output):
     recipe=PlanetRecipe(seed_hash(seed),width,width//2,14,8,.35,.34,.82,.28,False,False)
-    surface=generate_planet_surface(recipe)
+    surface=generate_planet_surface(recipe, spherical_relief=True)
     # Source surface is north-first. ORBIS's authoritative array is south-first.
     bed=np.where(surface.land_mask,np.maximum(1,surface.elevation*4000),-np.maximum(1,surface.bathymetry*4000))
     bed=np.rint(np.clip(bed,-4000,4000)).astype('<i2')[::-1].copy()
     target=Path(output);target.parent.mkdir(parents=True,exist_ok=True)
     content=struct.pack('<4sIII',b'OAT1',width,width//2,seed_hash(seed))+bed.tobytes()
     temporary=target.with_suffix('.tmp');temporary.write_bytes(content);temporary.replace(target)
-    target.with_suffix('.json').write_text(json.dumps({'engine':'World Atlas 1.3.0','seed':seed,'seedHash':seed_hash(seed),'width':width,'height':width//2,'southFirst':True,'metersPerUnit':1,'sha256':hashlib.sha256(content).hexdigest(),'hydrology':'ORBIS spherical drainage and spill lakes rebuilt from this physical bed','diagnostics':dict(surface.diagnostics)},ensure_ascii=False,indent=2),encoding='utf-8')
+    target.with_suffix('.json').write_text(json.dumps({'engine':'World Atlas 1.3.0','terrainRevision':TERRAIN_REVISION,'seed':seed,'seedHash':seed_hash(seed),'width':width,'height':width//2,'southFirst':True,'metersPerUnit':1,'sha256':hashlib.sha256(content).hexdigest(),'hydrology':'ORBIS spherical drainage and spill lakes rebuilt from this physical bed','diagnostics':dict(surface.diagnostics)},ensure_ascii=False,indent=2),encoding='utf-8')
     print(json.dumps({'output':str(target),'landFraction':float(surface.land_mask.mean()),'minMeters':int(bed.min()),'maxMeters':int(bed.max())}),flush=True)
 
 if __name__=='__main__':

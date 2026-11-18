@@ -18,6 +18,21 @@ Shader "Hidden/ORBIS/PropShadowProbe"
  float2 _ProbeCaster;
  float4 frag(v2f_img i):SV_Target
  {
+  if(_ProbeMode>5.5)
+  {
+   float2 uv=(_ProbeCaster+.5)*_MapSize.zw;
+   float3 radial=FlatRadial(uv);
+   float longitude=(uv.x-.5)*6.283185307;
+   float3 east=float3(cos(longitude),0,-sin(longitude)),north=cross(radial,east);
+   float2 pixel=(i.uv-.5)*40;
+   // One source art pixel on the actual tangent ground, independent of the shader's UV compensation.
+   float stepAngle=6.283185307*_MapSize.z*length(radial.xz)/32;
+   float2 cell=OrbisGeographicUV(normalize(radial+(east*pixel.x+north*pixel.y)*stepAngle))*_MapSize.xy;
+   float source=all(floor(cell)==_ProbeCaster)?1:0;
+   float3 painted=PixelProps(0,cell,0,0,source,1);
+   float expected=PDSettlementArtwork(floor(pixel+16),1).a;
+   return float4(step(.001,max(max(painted.r,painted.g),painted.b)),expected,0,1);
+  }
   if(_ProbeMode>4.5)
   {
    float2 source=_ProbeCaster,uv=(source+.5)*_MapSize.zw;

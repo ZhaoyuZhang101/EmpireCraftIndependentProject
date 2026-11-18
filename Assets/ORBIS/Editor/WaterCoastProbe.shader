@@ -13,6 +13,21 @@ Shader "Hidden/ORBIS/WaterCoastProbe"
  float4 _CoastBasin,_CoastCondition,_CoastOrigin,_BedSun;
  float4 frag(v2f_img i):SV_Target
  {
+  if(_ProbeMode>10.5)
+  {
+   float2 cell=_CoastOrigin.xy;
+   float2 gradient=FlatFieldGradient(cell,0);
+   float height=FlatVisualSample(float4(cell*_MapSize.zw,0,0)).r;
+   float3 e=float3(.8,0,.6),n=e.yxz;
+   float3 view=float3(0,0,1);
+   float a=FlatTerrainRelief(cell,height,gradient,float4(e,1),view,0).r;
+   float b=FlatTerrainRelief(cell,height,gradient,float4(n,1),view,0).r;
+   float c=FlatTerrainRelief(cell,height,gradient,float4(-e.xy,e.z,1),view,0).r;
+   float d=FlatTerrainRelief(cell,height,gradient,float4(-n.xy,n.z,1),view,0).r;
+   float depth;
+   return float4(c-a,d-b,FlatSampleSeabed(cell,e,depth)-FlatSampleSeabed(cell,float3(-e.xy,e.z),depth),
+                         FlatSampleSeabed(cell,n,depth)-FlatSampleSeabed(cell,float3(-n.xy,n.z),depth));
+  }
   if(_ProbeMode>5.5)
   {
    float2 cell=_CoastOrigin.xy+float2(i.uv.x*1.4,(i.uv.y-.5)*.70);

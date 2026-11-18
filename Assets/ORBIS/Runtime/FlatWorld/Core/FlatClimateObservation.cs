@@ -63,7 +63,7 @@ namespace Orbis.Flat
         int nextSlot;
         double previousDay = double.NaN;
         FlatClimateYear currentYear;
-        public int CachedWaterStations { get { return slots.Count; } }
+        public int CachedWaterStations => slots?.Count ?? 0;
 
         struct Station
         {
@@ -74,13 +74,12 @@ namespace Orbis.Flat
             internal FlatRiverDischarge.WaterMonth Current;
         }
 
-        public FlatClimateSamples(WorldData world)
+        public FlatClimateSamples(WorldData world, bool includeWaterBudget = true)
         {
             this.world = world ?? throw new ArgumentNullException(nameof(world));
             seed = FMath.Seed(world.Seed);
             sinLon = new double[world.Width]; cosLon = new double[world.Width];
             sinLat = new double[world.Height]; cosLat = new double[world.Height];
-            pet = new double[world.Height * Months];
             for (int x = 0; x < world.Width; x++)
             {
                 double lon = ((x + .5) / world.Width - .5) * Turn;
@@ -90,13 +89,19 @@ namespace Orbis.Flat
             {
                 double lat = ((y + .5) / world.Height - .5) * Math.PI;
                 sinLat[y] = Math.Sin(lat); cosLat[y] = Math.Cos(lat);
+            }
+            pressure = new PressureField(world);
+            if (!includeWaterBudget) return;
+            pet = new double[world.Height * Months];
+            for (int y = 0; y < world.Height; y++)
+            {
+                double lat = ((y + .5) / world.Height - .5) * Math.PI;
                 for (int m = 0; m < Months; m++) pet[y * Months + m] = FlatRiverDischarge.PetPerDegree(lat, m);
             }
             int capacity = Math.Min(StationCapacity, world.Count);
             slots = new Dictionary<int, int>(capacity);
             stations = new Station[capacity];
             normals = new FlatRiverDischarge.WaterMonth[capacity * Months];
-            pressure = new PressureField(world);
         }
 
         public FlatClimateObservation Normal(int tile, int month)
@@ -119,6 +124,7 @@ namespace Orbis.Flat
                 double north = air.Sample(air.North, u, v, month) * FlatCycloneWeather.ClimateWindMetresPerSecond;
                 value.WindSpeed = Math.Sqrt(east * east + north * north);
             }
+            if (slots == null) return value;
             var gauge = world.Facts?.RiverDischarge;
             if (gauge != null && gauge.HasStation(tile)) value.Discharge = value.WaterBudgetDischarge = gauge.Monthly(tile, month);
             if (!FlatTerrainAnalysis.Ocean(world.Water[tile]))
@@ -178,6 +184,7 @@ namespace Orbis.Flat
                 east += stormEast; north += stormNorth;
             }
             value.WindSpeed = Math.Sqrt(east * east + north * north);
+            if (slots == null) return value;
             var gauge = world.Facts?.RiverDischarge;
             if (gauge != null && gauge.HasStation(tile))
             {

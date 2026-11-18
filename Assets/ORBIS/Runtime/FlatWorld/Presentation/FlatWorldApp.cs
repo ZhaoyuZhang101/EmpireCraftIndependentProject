@@ -34,6 +34,12 @@ namespace Orbis.Flat
         Task<WorldData> pending;CancellationTokenSource cancellation;bool seedOnInstall,paused,globeMode,dragging,moved;
         int selected=-1,activeNation=-1,pointer=-1,lastClimatePeriod=-1;float pixelsPerTile=2,speed=1,hudAge;
         Vector2 pan,lastPointer,downPointer;string status="准备世界数据…";int[] route=new int[0];
+        Vector2 editPointer,lastEditScreen;
+        Matrix4x4 lastEditView;
+        Rect lastEditViewport;
+        bool pointerOnTerrain,editPickValid;
+        bool mapKeyHeld;
+        int editHit,editRevision;
         public bool Busy { get { return pending!=null; } }
         public FlatScrollNavigator Navigation { get { return navigation; } }
         public bool GlobeMode { get { return globeMode; } }
@@ -98,6 +104,9 @@ namespace Orbis.Flat
                 if(navigation&&!Busy)navigation.Recenter(location,CalendarDay);
             });
             viewport.focusable=true;
+            // Trickle-down sees the minimap and other overlays before they consume pointer events.
+            root.RegisterCallback<PointerMoveEvent>(e=>{editPointer=e.position;pointerOnTerrain=e.target==viewport;},TrickleDown.TrickleDown);
+            viewport.RegisterCallback<PointerOutEvent>(e=>{if(e.target==viewport)pointerOnTerrain=false;});
             viewport.RegisterCallback<PointerDownEvent>(e=>{dragging=true;moved=false;pointer=e.pointerId;lastPointer=downPointer=e.position;viewport.CapturePointer(pointer);viewport.Focus();e.StopPropagation();});
             viewport.RegisterCallback<PointerMoveEvent>(e=>
             {
@@ -112,10 +121,12 @@ namespace Orbis.Flat
             });
             viewport.RegisterCallback<PointerCaptureOutEvent>(e=>{dragging=false;pointer=-1;});
             viewport.RegisterCallback<WheelEvent>(e=>{Zoom(e.delta.y,e.mousePosition);e.StopPropagation();});
+            root.RegisterCallback<KeyDownEvent>(MapShortcut,TrickleDown.TrickleDown);
+            root.RegisterCallback<KeyUpEvent>(e=>{if(e.keyCode==KeyCode.M)mapKeyHeld=false;},TrickleDown.TrickleDown);
             viewport.RegisterCallback<KeyDownEvent>(e=>
             {
                 if(e.keyCode==KeyCode.Space){paused=!paused;UpdateHUD();}
-                if(e.keyCode==KeyCode.M)ToggleMode();if(e.keyCode==KeyCode.F)Focus();if(e.keyCode==KeyCode.Home)Home();
+                if(e.keyCode==KeyCode.F)Focus();
                 float move=48/pixelsPerTile;
                 if(navigation&&(navigation.IsFlat||navigation.IsTransitioning))
                 {
@@ -124,12 +135,22 @@ namespace Orbis.Flat
                     if(e.keyCode==KeyCode.D||e.keyCode==KeyCode.RightArrow)delta.x+=move;
                     if(e.keyCode==KeyCode.W||e.keyCode==KeyCode.UpArrow)delta.y+=move;
                     if(e.keyCode==KeyCode.S||e.keyCode==KeyCode.DownArrow)delta.y-=move;
-                    navigation.PanBy(delta);
+                    if(delta!=Vector2.zero)navigation.PanBy(delta);
                 }
                 if(e.keyCode==KeyCode.C)contourToggle.value=!contourToggle.value;
                 if(e.keyCode==KeyCode.G)gridToggle.value=!gridToggle.value;
             });
         }
+        void MapShortcut(KeyDownEvent e)
+        {
+            if((e.keyCode!=KeyCode.M&&e.keyCode!=KeyCode.Home)||e.ctrlKey||e.commandKey||e.altKey)return;
+            var target=e.target as VisualElement;
+            if(target is TextField||target?.GetFirstAncestorOfType<TextField>()!=null||ClimateStatisticsPanel?.IsOpen==true)return;
+            if(e.keyCode==KeyCode.Home)Home();
+            else if(!mapKeyHeld){mapKeyHeld=true;ToggleMode();}
+            e.StopPropagation();
+        }
+        void OnApplicationFocus(bool focused){if(!focused)mapKeyHeld=false;}
         void BindGroupedUI()
         {
             legend=root.Q<Label>("legend");waterStatus=root.Q<Label>("waterStatus");skyStatus=root.Q<Label>("skyStatus");
@@ -257,7 +278,7 @@ namespace Orbis.Flat
             // Keep the provider active so Unity releases its native/GPU caches on destruction.
             // The shared lattice owns the visible terrain, and the provider's quad stays hidden.
             navObject.SetActive(true);globeObject.SetActive(true);
-            selected=-1;activeNation=world.Nations.Count>0?0:-1;globeMode=true;lastClimatePeriod=(int)Math.Floor(world.Day/30);
+            selected=-1;editPickValid=false;activeNation=world.Nations.Count>0?0:-1;globeMode=true;lastClimatePeriod=(int)Math.Floor(world.Day/30);
             seedField.SetValueWithoutNotify(world.Seed);presetField.SetValueWithoutNotify(presetField.choices[(int)world.Preset]);
             if(wasFlat)
             {
@@ -267,6 +288,7 @@ namespace Orbis.Flat
             }
             navigation.Tick(0,CalendarDay);
             minimap.Bind(navigation,map);
+            if(root.focusController?.focusedElement==null)viewport.Focus();
             UpdateHUD();SetStatus("世界就绪：默认星球。滚轮进入局部地表，拖动可连续穿过日期线和极区；全球总览独立打开。");
         }
         void Update()
@@ -284,6 +306,7 @@ namespace Orbis.Flat
             if(period!=lastClimatePeriod){lastClimatePeriod=period;if(map.Layer==MapLayer.Temperature||map.Layer==MapLayer.Rain)World.MarkAllDirty();}
             map.Flush();if(animate)visualClock+=dt;
             UpdateViewportRect();navigation.Tick(dt,CalendarDay);
+            UpdateLocalEditTarget();
             if(!screenshotMode)minimap.Tick(viewCamera);
             globeMode=!navigation.IsFlat;pixelsPerTile=navigation.PixelsPerTile;pan=navigation.CenterTile;
             map.Configure(gridToggle.value,pixelsPerTile);
@@ -320,7 +343,7 @@ namespace Orbis.Flat
         void OpenAtlas()
         {
             if(World==null||Busy||!navigation)return;
-            navigation.OpenAtlas(CalendarDay);SetStatus("全球战略总览：拖动、WASD、滚轮缩放；M 返回星球。主地图使用球面局部展开。");
+            navigation.OpenAtlas(CalendarDay);viewport.Focus();UpdateHUD();SetStatus("在全球战略图上滚轮放大可进入局部地表，F 聚焦选中地块，M 返回进入总览前的视图。");
         }
         public void ShowClimateStatistics(FlatBiomeStatistics biomeReferences=null)
         {
@@ -332,6 +355,42 @@ namespace Orbis.Flat
         {Vector2 p=root.WorldToLocal(panelPoint);return new Vector3(p.x/Mathf.Max(1,root.resolvedStyle.width)*Screen.width,(1-p.y/Mathf.Max(1,root.resolvedStyle.height))*Screen.height,10);}
         void Zoom(float wheel,Vector2 position)
         {if(World==null||!navigation)return;navigation.Wheel(wheel,ScreenPoint(position),CalendarDay);}
+        void UpdateLocalEditTarget()
+        {
+            int tool=toolField.index;
+            if(tool<1||tool>6||!navigation.IsFlat||navigation.IsAtlas)
+            {
+                map.SetLocalTarget(selected,default);editPickValid=false;return;
+            }
+            if(!pointerOnTerrain||dragging||Busy||screenshotMode||ClimateStatisticsPanel!=null&&ClimateStatisticsPanel.IsOpen||
+               root.panel.Pick(editPointer)!=viewport)
+            {
+                map.SetLocalTarget(-1,default);editPickValid=false;return;
+            }
+            Vector2 screen=ScreenPoint(editPointer);
+            var view=viewCamera.projectionMatrix*viewCamera.worldToCameraMatrix;
+            var rect=viewCamera.pixelRect;
+            if(!editPickValid||screen!=lastEditScreen||!view.Equals(lastEditView)||rect!=lastEditViewport||World.TerrainRevision!=editRevision)
+            {
+                editHit=navigation.Pick(screen);lastEditScreen=screen;lastEditView=view;lastEditViewport=rect;
+                editRevision=World.TerrainRevision;editPickValid=true;
+            }
+            map.SetLocalTarget(editHit,EditFootprint(World,editHit,tool,brushField.index));
+        }
+        public static RectInt EditFootprint(WorldData world,int tile,int tool,int brush)
+        {
+            if(tile<0||tile>=world.Count||tool<1||tool>6)return default;
+            int x=tile%world.Width,y=tile/world.Width;
+            if(tool==1||tool==2||(tool==3&&brush==1))
+            {
+                int first=world.ZoneTile(world.ZoneOf(tile),0);
+                return new RectInt(first%world.Width,first/world.Width,4,4);
+            }
+            int radius=tool==3?(brush==2?1:brush==3?4:0):0;
+            int low=Math.Max(0,y-radius),high=Math.Min(world.Height,y+radius+1);
+            // X stays unwrapped for a continuous footprint across the date line. World.Index wraps on write.
+            return new RectInt(x-radius,low,2*radius+1,high-low);
+        }
         void Pick(Vector2 position)
         {
             if(World==null||Busy||!navigation)return;
@@ -356,10 +415,11 @@ namespace Orbis.Flat
         }
         void Paint()
         {
-            if(!Ready()||selected<0)return;solarClock.Flush(simulationStep);var copy=World.Clone();int x=selected%World.Width,y=selected/World.Width,selection=heightField.index;
+            if(!Ready()||selected<0)return;solarClock.Flush(simulationStep);var copy=World.Clone();int selection=heightField.index;
             short meters=selection==0?(short)-2200:selection==1?(short)-600:selection==2?(short)-80:HeightBands.Preset(selection-2);
-            if(brushField.index==1){int zone=copy.ZoneOf(selected);for(int p=0;p<16;p++)copy.Elevation[copy.ZoneTile(zone,p)]=meters;}
-            else{int radius=brushField.index==2?1:brushField.index==3?4:0;for(int dy=-radius;dy<=radius;dy++)for(int dx=-radius;dx<=radius;dx++){int i=copy.Index(x+dx,y+dy);if(i>=0)copy.Elevation[i]=meters;}}
+            var footprint=EditFootprint(copy,selected,3,brushField.index);
+            for(int y=footprint.yMin;y<footprint.yMax;y++)for(int x=footprint.xMin;x<footprint.xMax;x++)
+                copy.Elevation[copy.Index(x,y)]=meters;
             Queue(c=>{FlatGenerator.Rebuild(copy,c);return copy;},"应用预设高度并重算排水/气候；未完成的数据不会进入正在显示的世界…");
         }
         void ShowRoute()
@@ -371,8 +431,9 @@ namespace Orbis.Flat
         }
         void ToggleMode()
         {
-            if(World==null||Busy||!navigation)return;
-            navigation.Toggle(CalendarDay);UpdateHUD();SetStatus("同一地表网格展开 / 收拢。过渡期间可反向滚轮；进入二维后才允许编辑。Space 独立暂停模拟。");
+            if(World==null||!navigation)return;
+            navigation.ToggleStrategic(CalendarDay);viewport.Focus();UpdateHUD();
+            SetStatus(navigation.IsAtlas?"在全球战略图上滚轮放大可进入局部地表，F 聚焦地块，M 返回原视图。":"已返回进入总览时的位置和比例。");
         }
         void DestroyGlobe()
         {
@@ -384,7 +445,11 @@ namespace Orbis.Flat
         void Home()
         {if(World!=null&&navigation)navigation.Home(CalendarDay);}
         void Focus()
-        {if(World!=null&&navigation&&selected>=0)navigation.Focus(selected,CalendarDay);}
+        {
+            if(World==null||!navigation)return;
+            int tile=selected>=0?selected:navigation.Pick(viewCamera.pixelRect.center);
+            if(tile>=0){navigation.Focus(tile,CalendarDay);viewport.Focus();}
+        }
         void Save()
         {
             if(World==null||Busy)return;solarClock.Flush(simulationStep);FlatSave.WriteAtomic(SavePath,World);
@@ -406,7 +471,7 @@ namespace Orbis.Flat
         {
             if(World==null)return;
             stats.text="第 "+((int)(CalendarDay/360)+1)+" 年 / "+(World.Month+1)+" 月 · "+((int)(FlatSolarClock.Phase(CalendarDay)*24)).ToString("00")+":"+((int)(FlatSolarClock.Phase(CalendarDay)*1440)%60).ToString("00")+"    "+World.Width+" × "+World.Height+" Tiles    "+World.ZoneCount.ToString("N0")+" Zones    人口 "+Simulation.TotalPopulation().ToString("N0")+("    "+navigation.ModeName+(paused?" · 已暂停":" · 同一世界时钟"));
-            modeButton.text=globeMode?"M  展开总览":"M  返回星球";pauseButton.text=paused?"继续":"暂停";speedButton.text=speed+"×";
+            modeButton.text=navigation.HasStrategicReturn?"M  返回原视图":"M  全球总览";pauseButton.text=paused?"继续":"暂停";speedButton.text=speed+"×";
             Array.Clear(zoneCounts,0,zoneCounts.Length);for(int z=0;z<World.ZoneCount;z++){int ownerId=World.ZoneOwner[z];if(ownerId>=0)zoneCounts[ownerId]++;}
             var text=nationText;text.Clear();for(int c=0;c<World.Nations.Count;c++){var n=World.Nations[c];int zones=zoneCounts[c];text.Append(c==activeNation?"● ":"○ ").Append(n.Name).Append(" · ").Append(zones).Append("区 · 粮 ").Append(n.Food.ToString("N0")).Append('\n');}nations.text=text.ToString();
             skyStatus.text=map.Sky.Status+(globeMode&&globe.View.UsingSurfaceFallback?"\n警告：球体当前为简化 fallback，需检查 Shader。":"");

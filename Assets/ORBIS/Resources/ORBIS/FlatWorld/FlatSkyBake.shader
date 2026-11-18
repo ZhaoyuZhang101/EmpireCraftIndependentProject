@@ -4,6 +4,8 @@ Shader "ORBIS/FlatWorld/SkyBake"
  {
   _ClimateTex("Monthly precipitation and temperature",2D)="black"{}
   _ClimateWindTex("Climate wind",2D)="black"{}
+  _RegionalCloudResponse("Regional moist, dry and convective response",2D)="black"{}
+  [HideInInspector] _RegionalCloudPoles("South and north cloud responses",Vector)=(0,0,0,0)
   [HideInInspector] _CycloneNorth("Northern pressure centre and wind strength",Vector)=(0,0,0,0)
   [HideInInspector] _CycloneSouth("Southern pressure centre and wind strength",Vector)=(0,0,0,0)
   [HideInInspector] _CyclonePhase("Simulated circulation phase in radians",Vector)=(0,0,0,0)
@@ -20,7 +22,8 @@ Shader "ORBIS/FlatWorld/SkyBake"
    #pragma target 3.0
    #include "UnityCG.cginc"
    #include "FlatCycloneWind.cginc"
-   sampler2D _ClimateTex,_ClimateWindTex;
+   sampler2D _ClimateTex,_ClimateWindTex,_RegionalCloudResponse;
+   float4 _RegionalCloudResponse_TexelSize,_RegionalCloudPoles;
    float _VisualTime,_MonthBlend,_ClimateRows;
    float4 _CyclonePhase;
    float4 _ClimatePoleSouth,_ClimatePoleNorth;
@@ -127,9 +130,13 @@ Shader "ORBIS/FlatWorld/SkyBake"
     float3 distortion=float3(Noise3(radial*3.4+wander+17),Noise3(radial*3.4+wander+43),Noise3(radial*3.4+wander+71))-.5;
     float broad=lerp(Fbm(p0*4.6+distortion*1.55+wander+seed0),Fbm(p1*4.6+distortion*1.55+wander+seed1),blend);
     float cells=lerp(Noise3(Turn(p0)*15.5+distortion+wander+seed0),Noise3(Turn(p1)*15.5+distortion+wander+seed1),blend);
-    float threshold=lerp(.56,.35,wet);
+    float3 regional=tex2D(_RegionalCloudResponse,i.uv).rgb;
+    float2 pole=lerp(_RegionalCloudPoles.xy,_RegionalCloudPoles.zw,step(.5,i.uv.y));
+    float2 response=lerp(pole,float2(regional.r-regional.g,regional.b),
+       smoothstep(0,.5,min(i.uv.y,1-i.uv.y)*_RegionalCloudResponse_TexelSize.w));
+    float threshold=lerp(.56,.35,wet)-.085*response.x;
     float low=smoothstep(threshold-.06,threshold+.25,broad*.76+cells*.24);
-    float storm=smoothstep(.27,.78,wet)*smoothstep(.62,.96,low);
+    float storm=saturate(smoothstep(.27,.78,wet)*smoothstep(.62,.96,low)*(1+.35*response.y));
     // Upper-level flow carries long ice filaments even above gaps in the low deck.
     float3 upper=RotateY(radial,-_VisualTime*.0018);
     float envelope=smoothstep(.33,.67,Fbm(upper*4.3+wander*.5+float3(12,2,8)));

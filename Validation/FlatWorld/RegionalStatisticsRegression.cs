@@ -29,6 +29,7 @@ public static class RegionalStatisticsRegression
             if (cell.Water.Valid) budgets++;
         }
         Check(valid > atlas.Cells.Length * .8 && budgets > 50, "physical weather and terrestrial water coverage");
+        AtmosphereField(world, atlas, "imported World Atlas");
         int built = atlas.RegionFits;
         timer.Restart();
         long startBytes = GC.GetAllocatedBytesForCurrentThread();
@@ -103,6 +104,52 @@ public static class RegionalStatisticsRegression
         AnomalyCases();
         WindowAndWaterCases();
         LayeredHistory(world);
+        var native = FlatGenerator.Generate(512, 256, "ORBIS-2D-2026", TerrainPreset.Continents, default);
+        var nativeAtlas = new FlatClimateStatistics(native);
+        nativeAtlas.Refresh(native.Day, native.Cyclones);
+        AtmosphereField(native, nativeAtlas, "main scene default");
+    }
+
+    static void AtmosphereField(WorldData world, FlatClimateStatistics atlas, string source)
+    {
+        var timer = Stopwatch.StartNew();
+        var air = new FlatClimateStatistics(world, atmosphereOnly:true);
+        air.Refresh(world.Day, world.Cyclones);
+        double cold = timer.Elapsed.TotalMilliseconds;
+        int moister = 0, drier = 0;
+        for (int i = 0; i < air.Cells.Length; i++)
+        {
+            var cell = air.Cells[i];
+            Check(cell.Tile == atlas.Cells[i].Tile && cell.Weather.Valid == atlas.Cells[i].Weather.Valid &&
+                  cell.Weather.SquaredDistance.Equals(atlas.Cells[i].Weather.SquaredDistance) &&
+                  cell.Weather.Reliability.Equals(atlas.Cells[i].Weather.Reliability), "sky must use the atlas weather model at the same geographic site");
+            Check(cell.WaterReference == null && double.IsNaN(cell.Observation.SoilWater), "sky incurred a water budget");
+            var response = RegionalCloudResponse.From(cell);
+            Check(Math.Abs(response.Cover) <= 1 && response.Convection >= 0 && response.Convection <= 1, "unbounded cloud response");
+            if (response.Cover > .02) moister++;
+            if (response.Cover < -.02) drier++;
+        }
+        Check(moister > 20 && drier > 20, "real-world regional scores must produce both thicker and thinner cloud");
+        var unsupported = RegionalCloudResponse.From(default);
+        Check(unsupported.Cover == 0 && unsupported.Convection == 0, "missing evidence must preserve neutral weather");
+        var dry = air.Cells[0];
+        dry.Observation.Humidity = 0;
+        dry.Observation.Precipitation = 0;
+        dry.Observation.Pressure = 920;
+        dry.Weather = dry.WeatherReference.Score(dry.Observation, new ClimateScoreWorkspace());
+        var responseDry = RegionalCloudResponse.From(dry);
+        Check(responseDry.Cover <= 0 && responseDry.Convection == 0, "dry low-pressure outliers must not increase cloud or convection");
+        timer.Restart();
+        long bytes = GC.GetAllocatedBytesForCurrentThread();
+        for (int tick = 1; tick <= 32; tick++)
+        {
+            air.Refresh(tick * .25, null);
+            for (int i = 0; i < air.Cells.Length; i++) RegionalCloudResponse.From(air.Cells[i]);
+        }
+        bytes = GC.GetAllocatedBytesForCurrentThread() - bytes;
+        Check(bytes == 0, "regional sky extraction allocates between seasonal fits");
+        Console.WriteLine($"PASS regional air ({source}): {moister} positive and {drier} negative responses, " +
+            $"cold {cold:F2} ms, six-hour update plus cloud response {timer.Elapsed.TotalMilliseconds/32:F2} ms, {bytes} hot bytes");
     }
 
     static void AnomalyCases()

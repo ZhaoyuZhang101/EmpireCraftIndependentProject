@@ -48,14 +48,25 @@ namespace Orbis.Flat
             int n=w.Count,width=w.Width,height=w.Height;
             uint seed=FMath.Seed(w.Seed)^0x7ec70a1cu;var preset=w.Preset;
             float scale=width/512f;
-            var px=new float[n];var py=new float[n];var pz=new float[n];var rowScale=new float[height];
+            var px=new float[n];var py=new float[n];var pz=new float[n];var rowScale=new float[height];var capDistance=new float[n];
+            // The polar ocean prior covers the same spherical area for every
+            // seed. Offset its geological axis within the polar region so its
+            // coastlines and relief need not follow exact lines of latitude.
+            // Use half the original ocean-prior transition width as the tilt.
+            // This is a generator prior, independent of the plate motion model.
+            const double polarCore=.02,polarEdge=.14;
+            const double capTilt=(polarEdge-polarCore)*Math.PI*.5;
+            double azimuth=2*Math.PI*FMath.Unit(seed^0x36b52b1fu);
+            float capX=(float)(Math.Sin(capTilt)*Math.Cos(azimuth)),capY=(float)(Math.Sin(capTilt)*Math.Sin(azimuth)),capZ=(float)Math.Cos(capTilt);
             for(int y=0;y<height;y++)
             {
-                double lat=((y+.5)/height-.5)*Math.PI;rowScale[y]=Math.Max(.05f,(float)Math.Cos(lat));
+                double lat=((y+.5)/height-.5)*Math.PI;rowScale[y]=(float)Math.Cos(lat);
                 for(int x=0;x<width;x++)
                 {
                     double lon=(x+.5)/width*2*Math.PI-Math.PI;int i=y*width+x;
                     px[i]=(float)(Math.Cos(lat)*Math.Cos(lon));py[i]=(float)(Math.Cos(lat)*Math.Sin(lon));pz[i]=(float)Math.Sin(lat);
+                    float dot=px[i]*capX+py[i]*capY+pz[i]*capZ;
+                    capDistance[i]=(float)(Math.Acos(Math.Min(1,Math.Abs(dot)))/Math.PI);
                 }
             }
             // Plates: warped spherical Voronoi gives irregular, interlocking margins.
@@ -102,8 +113,7 @@ namespace Orbis.Flat
                 if(preset==TerrainPreset.Archipelago)c=Fbm(x*3.2f,y*3.2f,z*3.2f,seed^0x46u,5)*.6f+plateBias[plate[i]];
                 // Inland sea: a ring of land around an enclosed ocean centred on lon 0, lat 0.
                 if(preset==TerrainPreset.InlandSea){float r=x+.42f*Fbm(x*2.2f,y*2.2f,z*2.2f,seed^0x47u,4);c+=r<.45f?.22f:-.65f*(r-.45f)/.55f;}
-                float polar=1-Smooth(.02f,.14f,Math.Min((i/width+.5f)/height,1-(i/width+.5f)/height));
-                crust[i]=c-.55f*polar;
+                crust[i]=c-.55f*(1-Smooth((float)polarCore,(float)polarEdge,capDistance[i]));
             }
             float target=preset==TerrainPreset.Archipelago?.12f:preset==TerrainPreset.GreatContinent?.33f:preset==TerrainPreset.InlandSea?.40f:.29f;
             float threshold=WeightedQuantile(crust,rowScale,width,1-target);
@@ -271,9 +281,12 @@ namespace Orbis.Flat
             OpenStraits(w,elevation,rowScale,scale*scale*25,cancel);
             for(int i=0;i<n;i++)
             {
-                // Polar rows span little area but a full map width: keep them sea or ice-free shelf.
-                float v=(i/width+.5f)/height,pole=1-Smooth(0,.05f,Math.Min(v,1-v));
-                float h=elevation[i]-1600*pole;
+                // Preserve the polar land/sea decision. A deep bed has little
+                // headroom before the storage floor; taper the extra depression
+                // monotonically underwater so it cannot flatten the abyssal relief.
+                float pole=1-Smooth(0,.05f,capDistance[i]);
+                float bed=elevation[i],headroom=FMath.Clamp((bed+4000)/4000,0,1);
+                float h=bed-1600*pole*headroom*headroom;
                 if(h>3000)h=3000+1000*(float)Math.Tanh((h-3000)/1000);
                 w.Elevation[i]=(short)Math.Round(FMath.Clamp(h,-4000,4000));
             }
@@ -336,33 +349,49 @@ namespace Orbis.Flat
             int ty=FMath.Clamp((int)Math.Floor((lat/Math.PI+.5)*w.Height),0,w.Height-1);
             return ty*w.Width+tx;
         }
+        // A disk measured in equatorial tile widths on the sphere. A polar
+        // disk can include every longitude in a row, including its opposite
+        // meridian. Each covered tile is visited once across the date line.
+        static IEnumerable<(int Tile,float Distance)> SurfaceDisk(WorldData w,int tile,float radius)
+        {
+            int x=tile%w.Width,y=tile/w.Width,rows=(int)Math.Ceiling(radius);
+            double angle=2*Math.PI/w.Width,latitude=(y+.5-w.Height*.5)*angle;
+            double cosCenter=Math.Cos(latitude),sinRadius=Math.Sin(radius*angle*.5);
+            double limit=sinRadius*sinRadius;
+            for(int row=Math.Max(0,y-rows);row<=Math.Min(w.Height-1,y+rows);row++)
+            {
+                double north=Math.Sin((row-y)*angle*.5),north2=north*north;
+                if(north2>limit)continue;
+                double lonFactor=cosCenter*Math.Cos((row+.5-w.Height*.5)*angle);
+                double span=2*Math.Asin(Math.Sqrt(Math.Min(1,(limit-north2)/lonFactor)))/angle;
+                int dxMax=Math.Min(w.Width/2,(int)Math.Floor(span+1e-8));
+                for(int dx=-dxMax;dx<=Math.Min(dxMax,(w.Width-1)/2);dx++)
+                {
+                    double east=Math.Sin(dx*angle*.5);
+                    float distance=(float)(2*Math.Asin(Math.Sqrt(Math.Min(1,north2+lonFactor*east*east)))/angle);
+                    yield return (w.Index(x+dx,row),distance);
+                }
+            }
+        }
         static bool LocalHashMaximum(WorldData w,int tile,uint seed,int radius)
         {
-            float own=FMath.Unit((uint)tile^seed);int x=tile%w.Width,y=tile/w.Width;
-            for(int dy=-radius;dy<=radius;dy++)for(int dx=-radius;dx<=radius;dx++)
-            {
-                if(dx==0&&dy==0)continue;int m=w.Index(x+dx,y+dy);
-                if(m>=0&&FMath.Unit((uint)m^seed)>=own)return false;
-            }
+            float own=FMath.Unit((uint)tile^seed);
+            foreach(var p in SurfaceDisk(w,tile,radius))
+                if(p.Tile!=tile&&FMath.Unit((uint)p.Tile^seed)>=own)return false;
             return true;
         }
-        static void Cone(WorldData w,float[] h,int tile,float height,float scale)
+        internal static void Cone(WorldData w,float[] h,int tile,float height,float scale)
         {
-            int x=tile%w.Width,y=tile/w.Width,r=Math.Max(1,(int)Math.Ceiling(1.2f*scale));
-            for(int dy=-r;dy<=r;dy++)for(int dx=-r;dx<=r;dx++)
+            foreach(var p in SurfaceDisk(w,tile,2*scale))
             {
-                int m=w.Index(x+dx,y+dy);if(m<0)continue;
-                float d=(float)Math.Sqrt(dx*dx+dy*dy)/scale;h[m]+=height*(float)Math.Exp(-d*d*1.8f);
+                float d=p.Distance/scale;
+                h[p.Tile]+=height*(float)Math.Exp(-d*d*1.8f);
             }
         }
         static void Plateau(WorldData w,float[] h,int tile,float height,float radius)
         {
-            int x=tile%w.Width,y=tile/w.Width,r=(int)Math.Ceiling(radius*1.6f);
-            for(int dy=-r;dy<=r;dy++)for(int dx=-r;dx<=r;dx++)
-            {
-                int m=w.Index(x+dx,y+dy);if(m<0)continue;
-                float d=(float)Math.Sqrt(dx*dx+dy*dy);h[m]+=height*(1-Smooth(radius*.6f,radius*1.5f,d));
-            }
+            foreach(var p in SurfaceDisk(w,tile,1.5f*radius))
+                h[p.Tile]+=height*(1-Smooth(radius*.6f,radius*1.5f,p.Distance));
         }
         static float WeightedQuantile(float[] values,float[] rowScale,int width,float q)
         {
@@ -378,13 +407,16 @@ namespace Orbis.Flat
         { unchecked{return FMath.Unit((uint)x*73856093u^(uint)y*19349663u^(uint)z*83492791u^seed)*2-1;} }
         static float Value(float x,float y,float z,uint seed)
         {
+            // Off-grid phases keep the smooth lattice's zero derivative from
+            // following the date line or equator through every noise octave.
+            x+=.31f;y+=.37f;z+=.23f;
             int x0=(int)Math.Floor(x),y0=(int)Math.Floor(y),z0=(int)Math.Floor(z);
             float fx=x-x0,fy=y-y0,fz=z-z0;fx=fx*fx*(3-2*fx);fy=fy*fy*(3-2*fy);fz=fz*fz*(3-2*fz);
             float a=FMath.Lerp(Lattice(x0,y0,z0,seed),Lattice(x0+1,y0,z0,seed),fx),b=FMath.Lerp(Lattice(x0,y0+1,z0,seed),Lattice(x0+1,y0+1,z0,seed),fx);
             float c=FMath.Lerp(Lattice(x0,y0,z0+1,seed),Lattice(x0+1,y0,z0+1,seed),fx),d=FMath.Lerp(Lattice(x0,y0+1,z0+1,seed),Lattice(x0+1,y0+1,z0+1,seed),fx);
             return FMath.Lerp(FMath.Lerp(a,b,fy),FMath.Lerp(c,d,fy),fz);
         }
-        static float Fbm(float x,float y,float z,uint seed,int octaves)
+        internal static float Fbm(float x,float y,float z,uint seed,int octaves)
         {
             float sum=0,amplitude=1,norm=0;
             for(int o=0;o<octaves;o++){sum+=amplitude*Value(x,y,z,seed+(uint)o*1013u);norm+=amplitude;amplitude*=.5f;x*=2.03f;y*=2.03f;z*=2.03f;}
