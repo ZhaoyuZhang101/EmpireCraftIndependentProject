@@ -7,6 +7,7 @@ namespace Orbis.Flat
     {
         public WorldData World { get; private set; }
         public Texture2D TerrainTexture { get; private set; }
+        internal int PublishedTerrainRevision => dataRevision;
         public Texture2D DisplayTexture { get; private set; }
         public Texture2D OwnerTexture { get; private set; }
         public Texture2D InfoTexture { get; private set; }

@@ -31,6 +31,8 @@ namespace Orbis.Flat
         public bool IsAtlas=>atlasMode;
         public float Morph=>atlasMode?1:morph;
         public float DisplaySpin=>atlasMode?atlas.DisplaySpin:spin;
+        internal float MinimapMorph=>atlasMode?atlas.Morph:morph;
+        internal Vector2 MinimapOrigin=>atlasMode?atlas.ChartCenter:CenterTile;
         public float Distance=>distance;
         public float PixelsPerTile=>atlasMode?atlas.PixelsPerTile:pixels;
         public float ReturnPixelsPerTile=>EntryPixels;
@@ -164,7 +166,7 @@ namespace Orbis.Flat
             projection=new PlanetLocalProjection(PlanetCoordinateSystem.FromWorld(direction,new PlanetVector(),1));
             Frame();
         }
-        PlanetVector LocalDirection(Vector2 xy)
+        internal PlanetVector LocalDirection(Vector2 xy)
         {
             if(morph<=0)return projection.Exp(xy.x,xy.y);
             var geographic=projection.GeographicExp(xy.x,xy.y);
@@ -314,6 +316,23 @@ namespace Orbis.Flat
             atlas.gameObject.SetActive(true);atlas.OpenAtlas(day);atlas.Tick(3,day);atlas.OpenAtlas(day);atlas.Tick(3,day);atlasMode=true;terrain.enabled=false;if(routeRenderer)routeRenderer.enabled=false;
         }
         public void Home(double day){if(atlasMode){atlas.Home(day);return;}GoGlobe(day);orbitRotation=Quaternion.Euler(18,0,0);}
+        public void Recenter(PlanetLocation location,double day)
+        {
+            if(atlasMode){atlas.Recenter(location,day);return;}
+            StopZoom();
+            projection=new PlanetLocalProjection(location);
+            lockDay=day;locked=!IsGlobe;
+            spin=(float)(FlatSolarClock.Phase(day)*Tau);
+            Frame();
+            orbitRotation=Quaternion.LookRotation(-normal,north);
+            Tick(0,day);
+        }
+        internal FlatMinimapProjection MinimapProjection()
+        {
+            if(atlasMode)return atlas.MinimapProjection();
+            return new FlatMinimapProjection(viewCamera,world,this,Vector2.zero,spin,morph,
+                normal,east,north,poles,ReliefParameters,Radius);
+        }
         public void Focus(int tile,double day)
         {
             if(tile<0||tile>=world.Count)return;if(atlasMode){atlas.Focus(tile,day);return;}

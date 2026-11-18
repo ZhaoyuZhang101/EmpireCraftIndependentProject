@@ -1,7 +1,11 @@
 <ui:UXML xmlns:ui="UnityEngine.UIElements">
  <ui:Style src="FlatWorld.uss" />
  <ui:VisualElement name="app" class="app">
-  <ui:VisualElement name="viewport" class="viewport" />
+  <ui:VisualElement name="viewport" class="viewport">
+   <ui:VisualElement name="minimapFrame" class="minimap-frame" tooltip="点击小地图定位，保留当前缩放">
+    <ui:VisualElement name="minimap" class="minimap"/>
+   </ui:VisualElement>
+  </ui:VisualElement>
   <ui:VisualElement class="header">
    <ui:VisualElement class="title-row">
     <ui:Label text="ORBIS" class="brand"/><ui:Label text="WORLD / ATLAS / DETAIL" class="eyebrow"/>

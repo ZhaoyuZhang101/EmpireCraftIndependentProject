@@ -63,6 +63,7 @@ namespace Orbis.Flat
         public float Distance { get { return distance; } }
         public float MapHeight {get{return (float)(world.Width/MarkleyProjection.Aspect);}}
         public Vector2 ProjectionSize {get{return new Vector2(world.Width,MapHeight);}}
+        internal Vector2 ChartCenter=>new Vector2(pan.x/world.Width,pan.y/MapHeight);
         public Vector2 CenterTile {get{return Vector2.Scale(MarkleyProjection.GeoUV(pan.x/world.Width,pan.y/MapHeight),new Vector2(world.Width,world.Height));}}
         public Material SurfaceMaterial { get { return surface; } }
         public int VertexCount { get { return lattice ? lattice.vertexCount : 0; } }
@@ -431,6 +432,21 @@ namespace Orbis.Flat
                 endGap=viewCamera.pixelHeight*TileScale/(2*LandingPixels()*Mathf.Tan(Fov*Mathf.Deg2Rad*.5f));
                 pendingFocus=tile;targetDistance=EndDistance;
             }
+        }
+        public void Recenter(PlanetLocation location,double day)
+        {
+            zoomAnchor=false;focusZoom=false;exitPending=false;atlasPending=false;
+            pendingFocus=-1;targetPixels=-1;targetDistance=distance;
+            pan=Vector2.Scale(MarkleyProjection.Nearest(MarkleyProjection.Project(location),ChartCenter),ProjectionSize);
+            AlignFrame(day);landingLocked=!IsGlobe;
+            pitch=Mathf.Asin(Mathf.Clamp(normal.y,-1,1))*Mathf.Rad2Deg;
+            yaw=Mathf.Atan2(-normal.x,-normal.z)*Mathf.Rad2Deg;
+            Tick(0,day);
+        }
+        internal FlatMinimapProjection MinimapProjection()
+        {
+            return new FlatMinimapProjection(viewCamera,world,null,ChartCenter,displaySpin,morph,
+                normal,east,north,polarHeights,ReliefParameters,float.PositiveInfinity);
         }
         public bool TryProjectionPoint(Vector2 screen, out Vector2 tile)
         {

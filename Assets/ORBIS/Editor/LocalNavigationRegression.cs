@@ -162,6 +162,7 @@ namespace Orbis.Editor
      UnityEngine.Object.DestroyImmediate(geometry);UnityEngine.Object.DestroyImmediate(geometryRead);
     }
     RenderedPicking(result,nav,camera,data,new[]{2*data.Width+17,16*data.Width+17,29*data.Width+17});
+    MinimapNavigation(result,nav,camera);
     map.SetLayer(MapLayer.Temperature);map.Configure(false,32);
     result.Add((map.VisibleLayer==MapLayer.Natural&&map.Material.GetFloat("_Natural")>.5f?"PASS":"FAIL")+" pending layer keeps old texture semantics");
     var timeout=System.Diagnostics.Stopwatch.StartNew();while(map.VisibleLayer!=MapLayer.Temperature&&timeout.Elapsed.TotalSeconds<10)map.Flush();
@@ -179,6 +180,44 @@ namespace Orbis.Editor
    finally{RenderTexture.active=previous;RenderTexture.ReleaseTemporary(rt);UnityEngine.Object.DestroyImmediate(material);UnityEngine.Object.DestroyImmediate(image);}
    Directory.CreateDirectory("Documentation/LocalPlanetUpgrade");File.WriteAllLines("Documentation/LocalPlanetUpgrade/navigation-regression.txt",result);
    if(result.Exists(line=>line.StartsWith("FAIL",StringComparison.Ordinal)))throw new Exception(string.Join("\n",result));
+  }
+  static void MinimapNavigation(List<string> report,FlatScrollNavigator nav,Camera camera)
+  {
+   var flags=System.Reflection.BindingFlags.Instance|System.Reflection.BindingFlags.NonPublic;
+   var getProjection=typeof(FlatScrollNavigator).GetMethod("MinimapProjection",flags);
+   var sample=getProjection.ReturnType.GetMethod("Sample",flags);
+   var highLatitude=PlanetCoordinateSystem.FromMapUV(.998,.96);
+   nav.Home(3);nav.Tick(3,3);
+   for(int mode=0;mode<4;mode++)
+   {
+    if(mode==1||mode==2){nav.Wheel(-24,camera.pixelRect.center,3);nav.Tick(3,3);}
+    if(mode==3){nav.OpenAtlas(3);nav.Wheel(-24,camera.pixelRect.center,3);nav.Tick(3,3);}
+    float zoom=nav.PixelsPerTile,distance=nav.Distance,morph=nav.Morph;
+    nav.Recenter(highLatitude,3);
+    var footprint=getProjection.Invoke(nav,null);
+    var marker=(Vector2)sample.Invoke(footprint,new object[]{Vector2.zero});
+    var indicated=PlanetCoordinateSystem.FromMapUV(marker.x,marker.y);
+    double error=PlanetLocalProjection.Distance(PlanetCoordinateSystem.SurfaceNormal(indicated),PlanetCoordinateSystem.SurfaceNormal(highLatitude),1);
+    bool scale=Mathf.Abs(nav.PixelsPerTile-zoom)<.001f&&Mathf.Abs(nav.Distance-distance)<.00001f&&Mathf.Abs(nav.Morph-morph)<.00001f;
+    bool expected=mode==0?nav.IsGlobe:mode==1?nav.IsTransitioning:mode==2?nav.IsFlat&&!nav.IsAtlas:nav.IsAtlas;
+    report.Add((expected&&scale&&error<.002?"PASS":"FAIL")+" minimap jump retains scale and camera centre; mode="+mode+" radians="+error);
+    double worst=0;
+    foreach(var ndc in new[]{Vector2.zero,new Vector2(.15f,.25f),new Vector2(.40f,-.55f),new Vector2(-.5f,.40f)})
+    {
+     var screen=camera.pixelRect.center+Vector2.Scale(camera.pixelRect.size,ndc)*.5f;
+     var uv=(Vector2)sample.Invoke(footprint,new object[]{ndc});
+     var predicted=PlanetCoordinateSystem.SurfaceNormal(PlanetCoordinateSystem.FromMapUV(uv.x,uv.y));
+     if(nav.TryGetPlanetLocation(screen,out var picked))
+      worst=Math.Max(worst,PlanetLocalProjection.Distance(predicted,PlanetCoordinateSystem.SurfaceNormal(picked),1));
+     else if(nav.IsGlobe)
+     {
+      double arc=PlanetLocalProjection.Distance(predicted,PlanetCoordinateSystem.SurfaceNormal(indicated),1);
+      worst=Math.Max(worst,Math.Abs(arc-Math.Acos(1/camera.transform.position.magnitude)));
+     }
+     else {worst=double.PositiveInfinity;break;}
+    }
+    report.Add((worst<.014?"PASS":"FAIL")+" minimap footprint agrees with visible terrain within one map pixel; mode="+mode+" radians="+worst);
+   }
   }
   static void TransitionRoutes(List<string> report,FlatScrollNavigator nav,Camera camera,WorldData data)
   {

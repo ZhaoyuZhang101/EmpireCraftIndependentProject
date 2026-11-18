@@ -24,6 +24,7 @@ namespace Orbis.Flat
         public double CalendarDay { get { return World==null?0:solarClock.RenderDay(World.Day); } }
         Camera viewCamera;FlatMapRenderer map;FlatGlobePresenter globe;UIDocument document;PanelSettings panel;Font font;
         FlatWildlifePresenter wildlife;
+        FlatWorldMinimap minimap;
         VisualElement root,viewport;Label info,stats,notice,nations;Button modeButton,pauseButton,speedButton;
         TextField seedField,pathField;DropdownField sizeField,presetField,layerField,toolField,heightField,brushField;
         Toggle gridToggle,cloudToggle,contourToggle;
@@ -91,6 +92,9 @@ namespace Orbis.Flat
             Bind("shot",()=>{if(World!=null&&!Busy)StartCoroutine(Capture());});
             Bind("folder",()=>Application.OpenURL(new Uri(Application.persistentDataPath+Path.DirectorySeparatorChar).AbsoluteUri));
             BindGroupedUI();
+            minimap=new FlatWorldMinimap(viewport,location=>{
+                if(navigation&&!Busy)navigation.Recenter(location,CalendarDay);
+            });
             viewport.focusable=true;
             viewport.RegisterCallback<PointerDownEvent>(e=>{dragging=true;moved=false;pointer=e.pointerId;lastPointer=downPointer=e.position;viewport.CapturePointer(pointer);viewport.Focus();e.StopPropagation();});
             viewport.RegisterCallback<PointerMoveEvent>(e=>
@@ -263,7 +267,9 @@ namespace Orbis.Flat
                 int y=Mathf.Clamp((int)(previousCenter.y/previousHeight*world.Height),0,world.Height-1);
                 navigation.Focus(y*world.Width+x,CalendarDay);
             }
-            navigation.Tick(0,CalendarDay);UpdateHUD();SetStatus("世界就绪：默认星球。滚轮进入局部地表，拖动可连续穿过日期线和极区；全球总览独立打开。");
+            navigation.Tick(0,CalendarDay);
+            minimap.Bind(navigation,map);
+            UpdateHUD();SetStatus("世界就绪：默认星球。滚轮进入局部地表，拖动可连续穿过日期线和极区；全球总览独立打开。");
         }
         void Update()
         {
@@ -279,6 +285,7 @@ namespace Orbis.Flat
             if(period!=lastClimatePeriod){lastClimatePeriod=period;if(map.Layer==MapLayer.Temperature||map.Layer==MapLayer.Rain)World.MarkAllDirty();}
             map.Flush();if(animate)visualClock+=dt;
             UpdateViewportRect();navigation.Tick(dt,CalendarDay);
+            if(!screenshotMode)minimap.Tick(viewCamera);
             globeMode=!navigation.IsFlat;pixelsPerTile=navigation.PixelsPerTile;pan=navigation.CenterTile;
             map.Configure(gridToggle.value,pixelsPerTile);
             map.SetVegetationDay(CalendarDay);
@@ -449,7 +456,7 @@ namespace Orbis.Flat
         {switch(w){case WaterKind.DeepOcean:return "深海";case WaterKind.MiddleOcean:return "中海";case WaterKind.ShallowOcean:return "浅海";case WaterKind.Lake:return "淡水湖";case WaterKind.River:return "淡水河流";default:return "陆地";}}
         void OnDestroy()
         {
-            CancelPending();if(font)Destroy(font);if(panel)Destroy(panel);
+            CancelPending();minimap?.Dispose();if(font)Destroy(font);if(panel)Destroy(panel);
         }
     }
 }
