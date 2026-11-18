@@ -87,7 +87,12 @@ namespace Orbis
             LocalSurface=gameObject.AddComponent<OrbisSurfaceLOD>();LocalSurface.Initialize(this);
             }
             var volume=camera.gameObject.AddComponent<OrbisAtmosphereRenderer>();volume.view=this;
-            if(!volumeOnly)BuildSurfaceTopology();Weather=new OrbisWeatherField(world.grid);shadowCache=new OrbisCloudShadowCache();Weather.Bind(cloudMaterial);Weather.Bind(surfaceMaterial);if(!volumeOnly)RebuildGeometry();UpdateWeather();
+            if(!volumeOnly)
+            {
+                BuildSurfaceTopology();
+                shadowCache=new OrbisCloudShadowCache();
+            }
+            Weather=new OrbisWeatherField(world.grid);Weather.Bind(cloudMaterial);Weather.Bind(surfaceMaterial);if(!volumeOnly)RebuildGeometry();UpdateWeather();
         }
         GameObject CreateMeshObject(string name,Material material,out Mesh mesh){var o=new GameObject(name,typeof(MeshFilter),typeof(MeshRenderer));o.transform.SetParent(transform,false);mesh=new Mesh{name="ORBIS "+name,indexFormat=IndexFormat.UInt32};mesh.MarkDynamic();o.GetComponent<MeshFilter>().sharedMesh=mesh;o.GetComponent<MeshRenderer>().sharedMaterial=material;o.GetComponent<MeshRenderer>().shadowCastingMode=ShadowCastingMode.On;return o;}
         void BuildSurfaceTopology()

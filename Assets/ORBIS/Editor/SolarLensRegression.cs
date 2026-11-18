@@ -75,6 +75,8 @@ namespace Orbis.Editor
                 BindWorld();
                 results.Add(Application.unityVersion + " " + SystemInfo.graphicsDeviceType + " " + SystemInfo.graphicsDeviceName);
                 results.Add("seed=" + app.World.Seed + " weatherDay=" + app.World.Day + " size=" + app.World.Width + "x" + app.World.Height);
+                if (Array.IndexOf(Environment.GetCommandLineArgs(), "-orbisVolumeLight") >= 0)
+                    VolumeLightRegression.Capture(camera, globe, nav, map, atmosphere, lens, output);
                 CheckCamera();
                 // World replacement reuses the lens but installs a new atmosphere on the same camera.
                 nav.Home(Day); nav.Tick(3, Day);

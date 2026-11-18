@@ -1,0 +1,94 @@
+Orbis2DWorld / Unity 6000.0.55f1 / Direct3D 11 / NVIDIA RTX 5070 Laptop GPU
+Weather seed ORBIS-2D-2026, 512 x 256 world, 960 x 540 capture, fixed exposure.
+Volume-light checks use the published regional HP weather and disable the lens.
+
+PASS published cloud opacity has five levels, count=5
+orbit-regional solar viewport (0.683, 0.812, 0.945): max RGB difference 94, pixels >1 DN 13732, mean max-channel delta 0.2572
+PASS orbit-regional
+orbit-clear solar viewport (0.683, 0.812, 0.945): max RGB difference 0, pixels >1 DN 0, mean max-channel delta 0.0000
+PASS orbit-clear
+orbit-no-air solar viewport (0.683, 0.812, 0.945): max RGB difference 0, pixels >1 DN 0, mean max-channel delta 0.0000
+PASS orbit-no-air
+orbit-midnight solar viewport (0.500, 0.500, 1.000): max RGB difference 37, pixels >1 DN 25517, mean max-channel delta 0.2523
+PASS deep night ground max change 0
+orbit-sun-rotated solar viewport (0.114, 0.706, 0.876): max RGB difference 80, pixels >1 DN 16785, mean max-channel delta 0.3893
+PASS orbit-sun-rotated
+Player scroll view: 进入地表 15%, morph 0.146
+wheel-coast solar viewport (-9.100, -6.977, -0.070): max RGB difference 42, pixels >1 DN 372370, mean max-channel delta 3.3980
+PASS wheel-coast
+wheel-sun-moved solar viewport (242.918, -457.408, 0.002): max RGB difference 49, pixels >1 DN 352430, mean max-channel delta 3.3906
+PASS wheel-sun-moved
+PASS scattering pattern moves with Sun, correlation 0.342
+cloud-gap solar viewport (-0.887, 0.708, 0.466): max RGB difference 52, pixels >1 DN 518400, mean max-channel delta 16.8747
+PASS cloud-gap
+cloud-gap-sun-moved solar viewport (0.325, 0.794, 0.950): max RGB difference 76, pixels >1 DN 516956, mean max-channel delta 25.0499
+PASS cloud-gap-sun-moved
+PASS mountain surface under grazing light: median lift 21.01/255, retained contrast 0.772
+PASS scattering pattern moves with Sun, correlation -0.479
+cloud-gap-full solar viewport (-0.887, 0.708, 0.466): max RGB difference 53, pixels >1 DN 518400, mean max-channel delta 16.8788
+PASS cloud-gap-full
+sea-level-cloud-window solar viewport (0.171, 0.766, 0.897): max RGB difference 69, pixels >1 DN 499250, mean max-channel delta 13.3014
+PASS sea-level-cloud-window
+PASS both illuminated and shadowed air through the real opening: 136537/220970 pixels (4/255 threshold)
+
+Solar lens checks
+6000.0.55f1 Direct3D11 NVIDIA GeForce RTX 5070 Laptop GPU
+seed=ORBIS-2D-2026 weatherDay=0 size=512x256
+scaled-sky mean absolute lens difference=0.2851463
+scaled-hidden mean absolute lens difference=0.0000000
+scaled-limb mean absolute lens difference=0.0972582
+scaled-clear mean absolute lens difference=0.1382975
+scaled-cloud mean absolute lens difference=0.0644557
+scaled-clear-column mean absolute lens difference=0.0971480
+scaled-under-deck mean absolute lens difference=0.0000000
+PASS scaled off-axis sun produces glare  0.28515
+PASS scaled planet fully occludes glare  0
+PASS scaled grazing sun partially attenuated  0.097258
+PASS scaled partly clouded limb / clear limb  0.46607
+PASS scaled opaque HP deck / clear column  0
+full-sky mean absolute lens difference=0.2853375
+full-hidden mean absolute lens difference=0.0000000
+full-limb mean absolute lens difference=0.0972797
+full-clear mean absolute lens difference=0.1383142
+full-cloud mean absolute lens difference=0.0645715
+full-clear-column mean absolute lens difference=0.0971198
+full-under-deck mean absolute lens difference=0.0000000
+PASS full off-axis sun produces glare  0.28534
+PASS full planet fully occludes glare  0
+PASS full grazing sun partially attenuated  0.09728
+PASS full partly clouded limb / clear limb  0.46685
+PASS full opaque HP deck / clear column  0
+behind-camera mean absolute lens difference=0.0000000
+PASS behind-camera  0
+outside mean absolute lens difference=0.0000000
+PASS outside  0
+thematic mean absolute lens difference=0.0000000
+PASS thematic  0
+foreground-occluder mean absolute lens difference=0.0000000
+PASS foreground-occluder  0
+portrait mean absolute lens difference=0.3052601
+PASS portrait viewport  0.30526
+atlas mean absolute lens difference=0.0000000
+PASS atlas  0
+local mean absolute lens difference=0.0000000
+PASS unfolded local map  1
+original-clear-sky mean absolute lens difference=0.3214228
+rebuilt-clear-sky mean absolute lens difference=0.3211853
+PASS regenerated clear sky preserves lens response  0.99926
+Completed
+
+GPU optical-depth checks (controlled column and aperture)
+PASS vertical full column, Tlow x Thigh = 0.12499 expected 0.125
+PASS above lower stratus, below upper ice = 0.50000 expected 0.5
+PASS halfway inside high deck = 0.70711 expected 0.7071068
+PASS above both decks looking outward = 1.00000 expected 1
+PASS clear grazing column = 1.00000 expected 1
+PASS sun through opening, observer below same edge = 1.00000 expected 1
+PASS reversed sun through bank, observer fixed = 0.00000 expected 0
+PASS narrow overhead opening admits the direct solar ray = 1.00000 expected 1
+PASS surrounding bank transmits less sunlight at the same crossing = 0.164587
+PASS same vertical transmission above 2 km mountain, no sea-level offset = 0.12499 expected 0.125
+
+Editor timing: alternating Camera.Render and one-pixel synchronous readback; milliseconds per capture.
+Render + synchronous 1px GPU read, 13 pairs, wheel-coast, off/on median ms 11.20/12.87, p90 14.56/14.07, off/on p10 10.66/11.99
+Render + synchronous 1px GPU read, 13 pairs, sea-level-cloud-window, off/on median ms 6.60/7.66, p90 6.75/8.24, off/on p10 6.32/7.36

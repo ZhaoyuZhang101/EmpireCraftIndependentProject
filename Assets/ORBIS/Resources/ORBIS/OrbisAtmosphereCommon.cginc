@@ -17,6 +17,92 @@ float _LocalCloudMap,_CloudCameraHeight,_CloudViewBlend,_CloudProjectionBlend;
 float3 _CloudLocalUp,_CloudLocalEast,_CloudLocalNorth;
 
 float3 _MapBL,_MapBR,_MapTL,_MapTR;
+#ifdef ORBIS_SHARED_SCROLL_WEATHER
+// This equirectangular cache and the terrain height use the same bilinear
+// longitude-wrap / latitude-clamp addressing. Retain the full pass's sampler budget.
+UNITY_DECLARE_TEX2D_NOSAMPLER(_ScrollCloudColumn);
+float4 _ScrollCloudColumn_TexelSize;
+
+// The published HP cache stores 1-exp(-tau) vertically through each cloud deck.
+// Reproject each segment of the sunlight path, including the distant half of
+// a grazing chord. The observer can lie anywhere along this path.
+float2 ScrollColumnTau(float3 p,int deck,float broadLod)
+{
+ float2 uv=OrbisWeatherUV(p);
+ #ifdef UNITY_SEPARATE_TEXTURE_SAMPLER
+ float2 opacity=UNITY_SAMPLE_TEX2D_SAMPLER_LOD(_ScrollCloudColumn,_ScrollHeightTex,uv,0).rg;
+ float2 nearby=UNITY_SAMPLE_TEX2D_SAMPLER_LOD(_ScrollCloudColumn,_ScrollHeightTex,uv,broadLod).rg;
+ #else
+ float2 opacity=tex2Dlod(_ScrollCloudColumn,float4(uv,0,0)).rg;
+ float2 nearby=tex2Dlod(_ScrollCloudColumn,float4(uv,0,broadLod)).rg;
+ #endif
+ return -log(max(1.0/255.0,1.0-(deck==0?float2(opacity.r,nearby.r):float2(opacity.g,nearby.g))));
+}
+float2 ScrollCloudSunTransmission(float3 p,float3 sun)
+{
+ float z=dot(p,sun);
+ float3 axis=p-z*sun;
+ float impact2=dot(axis,axis);
+ float outer=1+4000*max(0,_ScrollHeightScale)+13500*_CloudHeightScale;
+ if(impact2+max(z,0)*max(z,0)>=outer*outer)return 1;
+ float reference=1+6000*_CloudHeightScale;
+ float halfChord=sqrt(max(0,reference*reference-impact2));
+ // The second column averages a fixed angular neighbourhood of the same cloud
+ // intersection. A small opening in a bank has greater direct transmission
+ // than this neighbourhood, while uniformly clear or cloudy regions do not.
+ float broadLod=clamp(log2(max(1,_ScrollCloudColumn_TexelSize.z/80)),0,4);
+ float2 tau=0;
+ [loop] for(int side=z<0?-1:1;side<=1;side+=2)
+ {
+  float sampleZ=max(z,side*halfChord);
+  float2 columnUV=OrbisWeatherUV(axis+sampleZ*sun);
+  float base=ScrollCloudGround(columnUV);
+  float4 weather=tex2Dlod(_ScrollWeatherTex,float4(columnUV,0,0));
+  // A shallow stratus deck and a rising cumulus tower should not project the
+  // same footprint. Match the changing heights in ScrollClimateDensities.
+  float convection=smoothstep(.26,.87,weather.b);
+  float iceCover=pow(.24+.63*saturate(weather.g),.65);
+  float4 layerHeights=float4(450,lerp(1900,8100,convection),
+                             7600-1600*iceCover,7600+4000*iceCover);
+  float4 radii=base+layerHeights*_CloudHeightScale;
+  float4 chord=side*sqrt(max(0,radii*radii-impact2));
+  [unroll] for(int deck=0;deck<2;deck++)
+  {
+   float2 ends=deck==0?chord.xy:chord.zw;
+   float start=max(z,min(ends.x,ends.y)),span=max(ends.x,ends.y)-start;
+   [branch] if(span>0)
+   {
+    float3 mid=axis+(start+.5*span)*sun;
+    float2 column;
+    // Long low-sun paths can cross several cloud banks. Two-point Gaussian
+    // quadrature samples these on the sphere instead of stretching one texel.
+    [branch] if(span>.035)
+    {
+     float3 offset=(.288675*span)*sun;
+     column=.5*(ScrollColumnTau(mid-offset,deck,broadLod)+ScrollColumnTau(mid+offset,deck,broadLod));
+    }
+    else column=ScrollColumnTau(mid,deck,broadLod);
+    float thickness=deck==0?layerHeights.y-layerHeights.x:layerHeights.w-layerHeights.z;
+    tau+=column*span/max(1e-6,thickness*_CloudHeightScale);
+   }
+  }
+ }
+ return exp(-min(16,tau*max(0,_Density*_Cover)));
+}
+// Moist boundary-layer air scatters more sunlight near a bank. Enforce its
+// altitude falloff and exclude dense HP cloud, which has its own lighting.
+float ScrollMoistAerosol(float3 p,float cloudDensity,float litOpening)
+{
+ float2 uv=OrbisWeatherUV(p);
+ float ground=ScrollRadius(ScrollSurfaceHeight(ScrollHeightAt(uv)),uv,_ScrollSourceSize.y);
+ float height=max(0,length(p)-ground);
+ // Regional moisture remains present between the fine HP cloud shapes:
+ // droplets there let an unblocked sunlight path show up inside a cloud gap.
+ float4 weather=tex2Dlod(_ScrollWeatherTex,float4(uv,0,0));
+ float moisture=smoothstep(.10,.64,weather.r)*(.5+.5*weather.b);
+ return max(moisture,litOpening)*exp2(-height/max(1e-6,4200*_CloudHeightScale))*(1-smoothstep(.005,.14,cloudDensity));
+}
+#endif
    float HG(float cosine,float g)
    {
     return (1-g*g)/pow(max(.06,1+g*g-2*g*cosine),1.5);
@@ -108,7 +194,7 @@ float2 OrbisDepthUV(float2 uv)
 }
 // V4.2 Repair IPC fix: one sample only; no view loop and no inout result struct.
 // The caller owns the flat view traversal. Density/light quadratures stay rolled.
-void OrbisIntegrateSample(float3 p,float ds,float2 cloudLayers,float3 sun,float2 phaseAir,
+void OrbisIntegrateSample(float3 p,float ds,float2 cloudLayers,float3 sun,float2 phaseAir,float moistPhase,
                           float phaseCloud,float phaseHigh,float2 phaseMoon,float phaseMoonCloud,
                           inout float3 light,inout float3 transmission)
 {
@@ -120,10 +206,34 @@ void OrbisIntegrateSample(float3 p,float ds,float2 cloudLayers,float3 sun,float2
  // Both uses previously inlined the entire direct-shadow fallback independently.
  // Evaluate the SAME shadow once, only when at least one consumer needs it.
  float shadowT=1.0;
- if(_GodRays>.5||(cloudDensity>.0005&&_OrbisShadowReady>.5))
-     shadowT=OrbisCloudShadow(p,sun);
+ float3 moistScatter=0;
+ #ifdef ORBIS_SHARED_SCROLL_WEATHER
+ if(_ScrollCloudSource>.5)
+ {
+  [branch] if(_GodRays>.5&&_Clouds>.5&&any(sunT>1e-5))
+  {
+   float2 paths=ScrollCloudSunTransmission(p,sun);
+   shadowT=paths.x;
+   float opening=smoothstep(.025,.57,paths.x-paths.y)*paths.x;
+   // The same droplets scatter and extinguish the view ray, so light in a
+   // gap has a finite brightness even when the camera travels along the beam.
+   [branch] if(dot(p,p)<1.05*1.05)
+    moistScatter=ScrollMoistAerosol(p,cloudDensity,opening)*_AtmoBetaMie.rgb*
+                ((.30+10*opening)*max(0,_Haze)*_AirDensity*saturate(_Atmosphere)*saturate(_ShadowStrength)*
+                 smoothstep(.001,.08,max(sunT.r,max(sunT.g,sunT.b))));
+  }
+ }
+ else
+ #endif
+ if(_GodRays>.5||(cloudDensity>.0005&&_OrbisShadowReady>.5))shadowT=OrbisCloudShadow(p,sun);
  float airShadow=_GodRays>.5?lerp(1.0,shadowT,_ShadowStrength):1.0;
  float3 source=OrbisGLSLSource(rho,phaseAir,sunT)*airShadow;
+ sigma+=moistScatter*1.05;
+ float3 moistLight=moistPhase*sunT*(shadowT*max(0,_AtmoParameters.z)*max(0,_SolarEnergy));
+ // Only the additional cloud-gap light rolls off: looking along a shaft
+ // should reveal its shape without replacing the coastline with white glare.
+ float moistPeak=max(moistLight.r,max(moistLight.g,moistLight.b));
+ source+=moistScatter*moistLight/(1+.20*moistPeak);
  float nightTau=OrbisNightWeight(p,sun)>1e-5?OrbisNightColumnTau(p):0;
  float3 nightAmbient=OrbisNightAmbient(p,sun,nightTau);
  float3 moonT=OrbisMoonIncident(p,sun,nightTau);
@@ -140,6 +250,13 @@ void OrbisIntegrateSample(float3 p,float ds,float2 cloudLayers,float3 sun,float2
       fields=float2(shadowT,OrbisCachedPhi(-log(max(shadowT,1e-6)),cloudDensity));
   else fields=LightField(p,sun,cloudDensity);
   float directT=fields.x;
+  #ifdef ORBIS_SHARED_SCROLL_WEATHER
+  // An upstream bank can shadow a thin cloud as well as the air around it.
+  // The local HP light integral already includes self-shadowing. Use the more
+  // occluded estimate of the same direct path so overlapping depth is counted once.
+  if(_ScrollCloudSource>.5&&_GodRays>.5)
+   directT=lerp(directT,min(directT,shadowT),saturate(_ShadowStrength));
+  #endif
   float highWeight=cloudLayers.y/max(cloudDensity,1e-6);
   float3 direct=directT*lerp(phaseCloud,phaseHigh,highWeight)*.70*sunT;
   float3 multiple=fields.y*_CloudMS*_ScatteringStrength*sunT;
@@ -196,6 +313,9 @@ OrbisVolumeResult OrbisMarchRay(float3 ro,float3 rd,float endDistance,float scen
  }
  float3 sun=normalize(_Sun);float mu=dot(rd,sun);
  float2 phaseAir=OrbisGLSLPhase(mu);
+ // A broader aerosol lobe keeps side-lit paths visible as the camera turns
+ // through a shaft. Both phase functions integrate to one over a sphere.
+ float moistPhase=lerp(phaseAir.y,HG(mu,.55)/(4*ORBIS_PI),.60);
  float phaseCloud=min(4.0,.83*HG(mu,.72)+.17*HG(mu,-.33));
  float phaseHigh=min(3.0,.85*HG(mu,.48)+.15*HG(mu,-.12));
  float moonMu=dot(rd,_OrbisMoon.xyz);
@@ -242,7 +362,7 @@ OrbisVolumeResult OrbisMarchRay(float3 ro,float3 rd,float endDistance,float scen
    density=OrbisCloudDensities(ro+rd*(cursor+stepSize*.5),false);
   }
   float3 p=ro+rd*(cursor+stepSize*.5);
-  OrbisIntegrateSample(p,stepSize,density,sun,phaseAir,phaseCloud,phaseHigh,phaseMoon,phaseMoonCloud,light,transmission);
+  OrbisIntegrateSample(p,stepSize,density,sun,phaseAir,moistPhase,phaseCloud,phaseHigh,phaseMoon,phaseMoonCloud,light,transmission);
   cursor=min(segmentEnd,cursor+stepSize);
   sampleIndex++;
  }

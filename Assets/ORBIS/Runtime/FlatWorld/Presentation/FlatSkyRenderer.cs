@@ -76,11 +76,14 @@ namespace Orbis.Flat
             Texture=new RenderTexture(width*2,height*2,0,RenderTextureFormat.ARGB32,RenderTextureReadWrite.Linear){name="Low and high cloud cover",filterMode=FilterMode.Bilinear,wrapModeU=TextureWrapMode.Repeat,wrapModeV=TextureWrapMode.Clamp,useMipMap=false,autoGenerateMips=false};
             if(!Texture.Create())throw new InvalidOperationException("Cannot allocate 2D cloud render target.");
             var columnDescriptor=Texture.descriptor;columnDescriptor.width=width;columnDescriptor.height=height;
+            // Keep nearby cloud coverage for local light shafts alongside the exact radial column.
+            columnDescriptor.useMipMap=true;columnDescriptor.autoGenerateMips=false;columnDescriptor.mipCount=5;
             ColumnTexture=new RenderTexture(columnDescriptor){name="HP integrated low/high map clouds",filterMode=FilterMode.Bilinear,wrapModeU=TextureWrapMode.Repeat,wrapModeV=TextureWrapMode.Clamp};
             if(!ColumnTexture.Create())throw new InvalidOperationException("Cannot allocate HP cloud column cache.");
             weatherBack=NewCache(Texture.descriptor,"Weather staging");
             columnBack=NewCache(ColumnTexture.descriptor,"Cloud column staging");
-            var strip=ColumnTexture.descriptor;strip.height=height/ColumnStrips;columnStrip=NewCache(strip,"Cloud column update strip");
+            var strip=ColumnTexture.descriptor;strip.height=height/ColumnStrips;strip.useMipMap=false;strip.mipCount=1;
+            columnStrip=NewCache(strip,"Cloud column update strip");
             bake.SetTexture("_ClimateTex",climate);climatePeriod=revision=-1;rendered=false;debt=1;
             RegionalClimateStep=null;
         }
@@ -116,6 +119,7 @@ namespace Orbis.Flat
             RenderCache(columnStrip,hpColumn);
             Graphics.CopyTexture(columnStrip,0,0,0,0,columnStrip.width,columnStrip.height,columnBack,0,0,0,pendingStrip*columnStrip.height);
             if(++pendingStrip<ColumnStrips)return;
+            columnBack.GenerateMips();
             // Publish only a complete weather/optical-column pair. No visible stripes.
             var old=Texture;Texture=weatherBack;weatherBack=old;
             old=ColumnTexture;ColumnTexture=columnBack;columnBack=old;

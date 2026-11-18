@@ -60,7 +60,7 @@ namespace Orbis.Flat
             Snapshot.settings.clouds=clouds&&natural;
             Snapshot.settings.atmosphere=atmosphere&&natural;
             Snapshot.settings.night=night;
-            // The old shadow atlas belongs to the other weather source. Use local light marching.
+            // The old shadow atlas belongs to the other weather source.
             Snapshot.settings.cloudShadows=false;
             View.layer=natural?0:2;
             View.SyncVolumeSettings(sun,visualTime,calendarDay);
@@ -68,7 +68,8 @@ namespace Orbis.Flat
             // shadow source. The retired native shadow atlas must remain disabled.
             maps.Sky.Bind(View.SurfaceMaterial,sun,clouds,shadows,atmosphere,night,false,false,true,0);
             var m=View.CloudMaterial;
-            m.SetFloat("_ScrollCloudSource",maps.Sky.Ready?1:0);
+            bool weatherReady=maps.Sky.Ready;
+            m.SetFloat("_ScrollCloudSource",weatherReady?1:0);
             m.SetFloat("_CloudShellTop",OrbisAtmosphereProfile.CloudTop);
             m.SetTexture("_ScrollWeatherTex",maps.Sky.Texture);
             m.SetTexture("_ScrollCloudWindTex",maps.Sky.DynamicWind?maps.Sky.DynamicWind:Texture2D.blackTexture);
@@ -79,7 +80,10 @@ namespace Orbis.Flat
             m.SetVector("_ScrollPoleHeights",poles);
             m.SetFloat("_ScrollHeightScale",FlatGlobeGeometry.HeightScale);
             m.SetFloat("_ScrollWeatherTime",(float)maps.Sky.RenderClock);
-            m.SetFloat("_OrbisShadowReady",0);m.SetFloat("_GodRays",0);
+            m.SetTexture("_ScrollCloudColumn",weatherReady?(Texture)maps.Sky.ColumnTexture:Texture2D.blackTexture);
+            m.SetFloat("_OrbisShadowReady",0);
+            bool volumeLight=weatherReady&&Snapshot.settings.clouds&&Snapshot.settings.atmosphere&&Snapshot.settings.godRays;
+            m.SetFloat("_GodRays",volumeLight?1:0);
             if(!scrollVolume)foreach(var volume in viewCamera.GetComponents<OrbisAtmosphereRenderer>())if(volume.view==View)scrollVolume=volume;
             if(!scrollNav)scrollNav=maps.GetComponentInParent<FlatWorldApp>()?.Navigation;
             if(scrollVolume){scrollVolume.scroll=scrollNav;scrollVolume.scrollVolumeWeight=weight;}

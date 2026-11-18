@@ -2,17 +2,26 @@
 #define ORBIS_SCROLL_CLOUD_SOURCE
 #include "ScrollHeight.cginc"
 #include "../OrbisHPVolumeCloud.cginc"
-sampler2D _ScrollWeatherTex, _ScrollHeightTex, _ScrollCloudWindTex;
+sampler2D _ScrollWeatherTex, _ScrollCloudWindTex;
+UNITY_DECLARE_TEX2D(_ScrollHeightTex);
 float4 _ScrollSourceSize;
 float _ScrollWeatherTime;
+float4 ScrollHeightAt(float2 uv)
+{
+ #ifdef UNITY_SEPARATE_TEXTURE_SAMPLER
+ return UNITY_SAMPLE_TEX2D_LOD(_ScrollHeightTex,uv,0);
+ #else
+ return tex2Dlod(_ScrollHeightTex,float4(uv,0,0));
+ #endif
+}
 float ScrollCloudGround(float2 uv)
 {
  if(_ScrollHeightScale<=0)return 1;
  float2 pixel=uv*_ScrollSourceSize.xy-.5,base=floor(pixel),fraction=frac(pixel);
  float2 texel=1/max(float2(1,1),_ScrollSourceSize.xy);
  float2 centre=(base+.5)*texel,dx=float2(texel.x,0),dy=float2(0,texel.y);
- return ScrollInterpolatedRadius(tex2Dlod(_ScrollHeightTex,float4(centre,0,0)),tex2Dlod(_ScrollHeightTex,float4(centre+dx,0,0)),
-                                 tex2Dlod(_ScrollHeightTex,float4(centre+dy,0,0)),tex2Dlod(_ScrollHeightTex,float4(centre+dx+dy,0,0)),fraction,uv,_ScrollSourceSize.y);
+ return ScrollInterpolatedRadius(ScrollHeightAt(centre),ScrollHeightAt(centre+dx),
+                                 ScrollHeightAt(centre+dy),ScrollHeightAt(centre+dx+dy),fraction,uv,_ScrollSourceSize.y);
 }
 // Uses the SAME spherical coordinates on the globe and every repeated 2D sheet.
 float2 ScrollClimateDensities(float3 p,bool simpleMode)

@@ -7,7 +7,9 @@ float _SkyClock;
 // their ground shadows, so zoom never exposes square cache pixels.
 float4 FlatCloudColumn(float2 uv)
 {
-    float4 column=tex2D(_SkyTex,uv);
+    // The new coarse levels are for the surrounding sky seen by the volume.
+    // Surface weather, shadows and precipitation read their original column.
+    float4 column=tex2Dlod(_SkyTex,float4(uv,0,0));
     float3 radial=FlatRadial(uv);
     float3 drift=float3(_SkyClock*.002,0,_SkyClock*.001);
     float detail=FlatDetailNoise(radial*66+drift);
