@@ -1,0 +1,51 @@
+Unity 6000.0.55f1 / Direct3D 11 / NVIDIA GeForce RTX 5070 Laptop GPU / Built-in / Gamma
+Orbis2DWorld, seed ORBIS-2D-2026, day 0, 512 x 256 world, 512 x 288 captures.
+Replay with a separate Editor: -batchmode -force-d3d11 -executeMethod Orbis.Editor.SolarLensRegression.Run -orbisCloudCrossing -orbisLensOutput <output-directory>
+Four routes, 144 frames each at 30 simulated steps per second. Each frame pairs clouds on/off with the same weather, light, camera and terrain shadows.
+Full-route maximum successive change in mean luminance of the central 75% x 75% of the image (display range 0-255).
+route           entering: 56fb87e -> fixed      exiting: 56fb87e -> fixed
+coast           51.14 -> 15.15                 63.89 -> 19.62
+ocean           75.98 -> 12.15                 94.27 -> 13.75
+coast-full      51.11 -> 15.15                 63.84 -> 19.64
+
+PASS mixed projection at 0.6268: 21 GPU rays, max relative depth error 8.85E-06, max viewport error 3.93E-05
+PASS mixed projection at 0.7594: 21 GPU rays, max relative depth error 3.61E-06, max viewport error 4.79E-07
+PASS coast inward retains a cloudy mid-fold — mid 41.05, approach 38.14 /255
+PASS coast inward continuous exposure — largest frame mean change 15.15 /255
+PASS coast inward exits cloud base gradually — largest cloud-base frame mean change 10.51 /255
+PASS coast outward retains a cloudy mid-fold — mid 40.41, approach 37.61 /255
+PASS coast outward continuous exposure — largest frame mean change 19.62 /255
+PASS coast outward exits cloud base gradually — largest cloud-base frame mean change 12.14 /255
+PASS coast exits below cloud — overhead cloud difference 0.00, ground shadow difference 12.31 /255
+PASS ocean inward retains a cloudy mid-fold — mid 67.49, approach 62.96 /255
+PASS ocean inward continuous exposure — largest frame mean change 12.15 /255
+PASS ocean inward exits cloud base gradually — largest cloud-base frame mean change 10.27 /255
+PASS ocean outward retains a cloudy mid-fold — mid 66.50, approach 62.13 /255
+PASS ocean outward continuous exposure — largest frame mean change 13.75 /255
+PASS ocean outward exits cloud base gradually — largest cloud-base frame mean change 10.36 /255
+PASS ocean exits below cloud — overhead cloud difference 0.00, ground shadow difference 13.64 /255
+PASS clearing inward center of real cloud gap stays visible — maximum center cloud contribution 0.02 /255
+PASS clearing inward continuous exposure — largest frame mean change 0.38 /255
+PASS clearing inward exits cloud base gradually — largest cloud-base frame mean change 1.35 /255
+PASS clearing outward center of real cloud gap stays visible — maximum center cloud contribution 0.01 /255
+PASS clearing outward continuous exposure — largest frame mean change 0.38 /255
+PASS clearing outward exits cloud base gradually — largest cloud-base frame mean change 1.39 /255
+PASS clearing exits below cloud — overhead cloud difference 0.00, ground shadow difference 0.83 /255
+PASS coast-full inward retains a cloudy mid-fold — mid 41.00, approach 38.09 /255
+PASS coast-full inward continuous exposure — largest frame mean change 15.15 /255
+PASS coast-full inward exits cloud base gradually — largest cloud-base frame mean change 10.50 /255
+PASS coast-full outward retains a cloudy mid-fold — mid 40.36, approach 37.56 /255
+PASS coast-full outward continuous exposure — largest frame mean change 19.64 /255
+PASS coast-full outward exits cloud base gradually — largest cloud-base frame mean change 12.13 /255
+PASS coast-full exits below cloud — overhead cloud difference 0.00, ground shadow difference 12.31 /255
+
+Warm 960 x 540: separate 60 Hz wheel replay with the same already-generated world, weather ready, Camera.Render and synchronous single-pixel readback.
+Balanced quality, 166 transition samples: median 10.62 -> 10.08 ms, P95 19.59 -> 19.17 ms.
+Final quality presets, warm median / P95, milliseconds: Performance 4.76 / 6.32, Balanced 10.08 / 19.17, Fine 22.52 / 57.46.
+All 1680 measured frames had a ready weather cache and all four projection corners. Only a fully unfolded chart bypassed the 3D volume pass.
+Whole-game frame time, startup and first shader compilation are outside this timing run.
+
+Companion regressions on this revision:
+ClimateCloudRegression.Run: 32 passed, including above/inside/below transmission 0.00165 / 0.04078 / 1.0.
+LocalNavigationRegression.Run: 105 passed.
+SolarLensRegression.Run -orbisVolumeLight: 16 volumetric light checks and 18 solar lens checks passed.

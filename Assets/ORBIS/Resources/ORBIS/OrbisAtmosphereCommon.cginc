@@ -381,8 +381,8 @@ OrbisVolumeResult OrbisMarch(float2 uv)
 {
  float3 ray=OrbisViewRay(uv);
  float depth=SAMPLE_DEPTH_TEXTURE(_CameraDepthTexture,OrbisDepthUV(uv));
- float eye=LinearEyeDepth(depth),distance=eye*length(ray);
- float3 ro=_CameraLocal,rd=normalize(ray);
+ float eye=OrbisEyeDepth(depth),distance=eye*length(ray);
+ float3 ro=OrbisViewOrigin(uv),rd=normalize(ray);
  float2 planet=OrbisSphere(ro,rd,1.0);
  if(planet.x>0)distance=min(distance,planet.x);
  #ifdef ORBIS_SHARED_SCROLL_WEATHER

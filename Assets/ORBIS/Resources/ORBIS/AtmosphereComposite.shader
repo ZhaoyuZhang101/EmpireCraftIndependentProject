@@ -19,7 +19,7 @@ Shader "ORBIS/AtmosphereComposite"
   #if UNITY_UV_STARTS_AT_TOP
   if(_MainTex_TexelSize.y<0)duv.y=1-duv.y;
   #endif
-  float depth=LinearEyeDepth(SAMPLE_DEPTH_TEXTURE(_CameraDepthTexture,duv));
+  float depth=OrbisEyeDepth(SAMPLE_DEPTH_TEXTURE(_CameraDepthTexture,duv));
   float2 grid=i.uv*_VolumeTexelSize.zw-.5,base=floor(grid),fracUV=frac(grid);
   float3 L=0,T=0;float sum=0,best=1e20;float3 nearestL=0,nearestT=1;
   [unroll] for(int y=0;y<2;y++)[unroll] for(int x=0;x<2;x++)

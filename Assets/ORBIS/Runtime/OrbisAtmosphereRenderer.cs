@@ -41,7 +41,26 @@ namespace Orbis
         }
         void SetRays(Material m)
         {
-            cameraComponent.CalculateFrustumCorners(new Rect(0,0,1,1),1,Camera.MonoOrStereoscopicEye.Mono,corners);
+            var projection=cameraComponent.projectionMatrix;
+            Vector3 originRight=Vector3.zero,originUp=Vector3.zero;
+            Vector4 depthProjection=Vector4.zero;
+            if(scroll&&scroll.IsTransitioning&&projection.m33>0)
+            {
+                // The unfold interpolates projection matrices. Each viewport ray then has
+                // an offset at eye depth zero and a slope determined by clip W(z).
+                float offset=projection.m33,slope=-projection.m32;
+                float near=cameraComponent.nearClipPlane,far=cameraComponent.farClipPlane;
+                float k=(offset+slope*near)/(far-near);
+                depthProjection=new Vector4(far*k,offset,k,slope);
+                originRight=view.transform.InverseTransformVector(cameraComponent.transform.right)*(offset/projection.m00);
+                originUp=view.transform.InverseTransformVector(cameraComponent.transform.up)*(offset/projection.m11);
+                for(int i=0;i<4;i++)
+                    corners[i]=new Vector3((2*MapUV[i].x-1)*slope/projection.m00,
+                                           (2*MapUV[i].y-1)*slope/projection.m11,1);
+            }
+            else cameraComponent.CalculateFrustumCorners(new Rect(0,0,1,1),1,Camera.MonoOrStereoscopicEye.Mono,corners);
+            m.SetVector("_OrbisDepthProjection",depthProjection);
+            m.SetVector("_OrbisRayOriginRight",originRight);m.SetVector("_OrbisRayOriginUp",originUp);
             // Unity corners: bottom-left, top-left, top-right, bottom-right.
             string[] names=RayNames;
             for(int i=0;i<4;i++)m.SetVector(names[i],view.transform.InverseTransformVector(cameraComponent.transform.TransformVector(corners[i])));
@@ -61,9 +80,13 @@ namespace Orbis
                     m.SetVector("_CloudLocalUp",new Vector4((float)frame.Up.X,(float)frame.Up.Y,(float)frame.Up.Z,0));
                     m.SetVector("_CloudLocalEast",new Vector4((float)frame.East.X,(float)frame.East.Y,(float)frame.East.Z,0));
                     m.SetVector("_CloudLocalNorth",new Vector4((float)frame.North.X,(float)frame.North.Y,(float)frame.North.Z,0));
-                    // The map camera follows a tangent chart; its corresponding atmospheric
-                    // altitude descends through the same 3D cloud, then below its base.
-                    m.SetFloat("_CloudCameraHeight",Mathf.Lerp(14500,150,Mathf.SmoothStep(0,1,Mathf.InverseLerp(.50f,.96f,scroll.Morph))));
+                    // A deep deck stays opaque until only its lowest kilometre is ahead.
+                    // Give this last stretch its own wheel travel in both directions.
+                    float upper=Mathf.SmoothStep(0,1,Mathf.InverseLerp(.50f,.78f,scroll.Morph));
+                    float lower=Mathf.SmoothStep(0,1,Mathf.InverseLerp(.67f,1,scroll.Morph));
+                    const float aboveClouds=14500,lowerDeck=1600,belowClouds=150;
+                    float height=belowClouds+(lowerDeck-belowClouds)*(1-lower)+(aboveClouds-lowerDeck)*(1-upper);
+                    m.SetFloat("_CloudCameraHeight",height);
                 }
                 for(int i=0;i<4;i++)
                 {

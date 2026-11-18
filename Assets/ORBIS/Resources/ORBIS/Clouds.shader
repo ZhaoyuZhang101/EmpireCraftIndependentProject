@@ -96,9 +96,9 @@ Shader "ORBIS/Clouds"
     float s,c;sincos(angle,s,c);
     float2 uv=_LensSun.xy+sqrt(i.uv.y)*(_LensDiskAxes.xy*c+_LensDiskAxes.zw*s);
     if(any(uv<0)||any(uv>1))return 0;
-    float eye=LinearEyeDepth(SAMPLE_DEPTH_TEXTURE(_CameraDepthTexture,OrbisDepthUV(uv)));
+    float eye=OrbisEyeDepth(SAMPLE_DEPTH_TEXTURE(_CameraDepthTexture,OrbisDepthUV(uv)));
     float3 rd=normalize(OrbisViewRay(uv));
-    if(!OrbisSkyVisible(rd,eye))return 0;
+    if(!OrbisSkyVisible(OrbisViewOrigin(uv),rd,eye))return 0;
     if(_OrbisCelestialReady>.5 && dot(rd,_OrbisMoon.xyz)>0 && length(cross(rd,_OrbisMoon.xyz))<ORBIS_MOON_SIN_RADIUS)return 0;
     if(_Clouds<.5 && _Atmosphere<.5)return 1;
     return float4(OrbisMarch(uv).transmission,1);

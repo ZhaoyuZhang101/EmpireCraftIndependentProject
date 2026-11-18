@@ -28,7 +28,7 @@ Shader "ORBIS/CelestialLens"
     #if UNITY_UV_STARTS_AT_TOP
     if(_MainTex_TexelSize.y<0)depthUV.y=1-depthUV.y;
     #endif
-    float depth=LinearEyeDepth(SAMPLE_DEPTH_TEXTURE(_CameraDepthTexture,depthUV));
+    float depth=OrbisEyeDepth(SAMPLE_DEPTH_TEXTURE(_CameraDepthTexture,depthUV));
     float3 scene=OrbisBackgroundWithSun(tex2D(_MainTex,i.uv).rgb,i.uv,depth);
     return float4(OrbisDisplay(scene+OrbisLensRadiance(i)),1);
    }

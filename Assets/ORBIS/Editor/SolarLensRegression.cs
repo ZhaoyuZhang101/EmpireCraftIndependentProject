@@ -11,6 +11,7 @@ namespace Orbis.Editor
 {
     // Run in a separate Editor with -batchmode -force-d3d11 -executeMethod Orbis.Editor.SolarLensRegression.Run
     // and optionally -orbisLensOutput <directory>. The driver exits after the generated world is ready.
+    // -orbisCloudCrossing selects the real-weather wheel replay and its paired render checks.
     [InitializeOnLoad]
     public static class SolarLensRegression
     {
@@ -75,6 +76,12 @@ namespace Orbis.Editor
                 BindWorld();
                 results.Add(Application.unityVersion + " " + SystemInfo.graphicsDeviceType + " " + SystemInfo.graphicsDeviceName);
                 results.Add("seed=" + app.World.Seed + " weatherDay=" + app.World.Day + " size=" + app.World.Width + "x" + app.World.Height);
+                if (Array.IndexOf(Environment.GetCommandLineArgs(), "-orbisCloudCrossing") >= 0)
+                {
+                    CloudCrossingRegression.Capture(camera, globe, nav, map, atmosphere, lens, output);
+                    Finish("Cloud crossing completed", 0);
+                    return;
+                }
                 if (Array.IndexOf(Environment.GetCommandLineArgs(), "-orbisVolumeLight") >= 0)
                     VolumeLightRegression.Capture(camera, globe, nav, map, atmosphere, lens, output);
                 CheckCamera();

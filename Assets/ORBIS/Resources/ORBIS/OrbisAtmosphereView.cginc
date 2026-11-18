@@ -1,6 +1,8 @@
 #ifndef ORBIS_ATMOSPHERE_VIEW
 #define ORBIS_ATMOSPHERE_VIEW
 float3 _CameraLocal,_RayBL,_RayBR,_RayTL,_RayTR,_Sun;
+float3 _OrbisRayOriginRight,_OrbisRayOriginUp;
+float4 _OrbisDepthProjection;
 sampler2D _OrbisSunTex,_OrbisMoonTex;
 float _OrbisCelestialReady;
 static const float ORBIS_MOON_SIN_RADIUS=.00465;
@@ -8,9 +10,24 @@ float3 OrbisViewRay(float2 uv)
 {
     return lerp(lerp(_RayBL,_RayBR,uv.x),lerp(_RayTL,_RayTR,uv.x),uv.y);
 }
-bool OrbisSkyVisible(float3 ray,float eyeDepth)
+float3 OrbisViewOrigin(float2 uv)
 {
-    float2 planet=OrbisSphere(_CameraLocal,ray,1.0);
+    return _CameraLocal+(2*uv.x-1)*_OrbisRayOriginRight+(2*uv.y-1)*_OrbisRayOriginUp;
+}
+float OrbisEyeDepth(float rawDepth)
+{
+    if(_OrbisDepthProjection.z<=0)return LinearEyeDepth(rawDepth);
+    // With clip W = offset + slope*z, the near-to-far depth mapping is
+    // fractional linear even when neither a pinhole nor an orthographic lens fits.
+    #if !defined(UNITY_REVERSED_Z)
+    rawDepth=1-rawDepth;
+    #endif
+    return (_OrbisDepthProjection.x-rawDepth*_OrbisDepthProjection.y)/
+           (_OrbisDepthProjection.z+rawDepth*_OrbisDepthProjection.w);
+}
+bool OrbisSkyVisible(float3 origin,float3 ray,float eyeDepth)
+{
+    float2 planet=OrbisSphere(origin,ray,1.0);
     return eyeDepth>=_ProjectionParams.z*.999 && !(planet.y>0 && planet.x>=0);
 }
 float3 OrbisBackgroundWithSun(float3 scene,float2 uv,float eyeDepth)
@@ -19,7 +36,7 @@ float3 OrbisBackgroundWithSun(float3 scene,float2 uv,float eyeDepth)
     // In-front geometry is decided by the actual depth buffer, not by turning Mie off.
     float3 rd=normalize(OrbisViewRay(uv));
     float mu=dot(rd,normalize(_Sun)),edge=max(fwidth(mu),1e-6);
-    if(!OrbisSkyVisible(rd,eyeDepth))return scene;
+    if(!OrbisSkyVisible(OrbisViewOrigin(uv),rd,eyeDepth))return scene;
     float disk=smoothstep(_AtmoSunDisk.x-edge,_AtmoSunDisk.x+edge,mu);
     if(_OrbisCelestialReady<.5)
         return scene+disk*max(0.0,_AtmoSunDisk.y)*max(0.0,_SolarEnergy);
