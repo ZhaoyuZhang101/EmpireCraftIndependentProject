@@ -1,3 +1,6 @@
+   // Map readability (globals, 0 = off): minimum on-screen width of main
+   // channels when zoomed out, and a clear-water tint for river channels.
+   float _RiverMinPixels,_RiverTint;
    float4 frag(v2f i):SV_Target
    {
 #ifdef ORBIS_SCROLL_SURFACE
@@ -23,6 +26,15 @@
     float edgeDistance;
     float aa=clamp(.65/max(1,_PixelsPerTile),.008,.28);
     float4 river=FlatRiverReceiver(cell,uv,hydro,mixing,field);
+    float riverRadius=length(river.ba);
+    [branch] if(_RiverMinPixels>0&&river.r<1&&riverRadius>.0001)
+    {
+     // Larger discharge (wider channel) earns more of the minimum. The atlas
+     // field reaches ~0.3 tile beyond a reach, so the widened edge stays inside it.
+     float wanted=min(.28,_RiverMinPixels*.5/max(1,_PixelsPerTile))*smoothstep(.03,.10,riverRadius);
+     float grow=max(0,wanted-riverRadius);
+     river.r-=grow;river.ba*=(riverRadius+grow)/riverRadius;
+    }
     float waterMask=FlatWaterMask(river.r,field.g,aa,edgeDistance);
     float polarIce=FlatPolarIceMask(i.uv,waterMask,0)*naturalView;
     float landSnow=FlatLandSnow(cell,_InfoTex)*(1-waterMask)*naturalView;
@@ -101,6 +113,7 @@
      {
       FlatWaterSurfaceData waterSurface;
       waterColor=FlatWaterShade(cell,mixing,field,bottom,illumination,waterView,waterLight,_WaveAmount*(1-polarIce),areaOptics.a,coast,channel,waterSurface);
+      waterColor=lerp(waterColor,FlatColor(float3(.17,.43,.62))*illumination,_RiverTint*channel.influence*step(river.r,0));
       // Keep the normal derivatives above uniform across shorelines. Only the
       // reflection lookup can be skipped for completely dry receivers.
       [branch] if(waterMask>.001)

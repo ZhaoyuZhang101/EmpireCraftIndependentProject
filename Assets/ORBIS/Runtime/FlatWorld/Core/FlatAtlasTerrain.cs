@@ -19,6 +19,7 @@ namespace Orbis.Flat
                 if(width<32||width>1024||height!=width/2||bytes.Length!=16+width*height*2||hash!=FMath.Seed(seed))throw new InvalidDataException("World Atlas dimensions or seed mismatch");
                 var world=new WorldData(width,height,seed,TerrainPreset.Continents);
                 for(int i=0;i<world.Count;i++){short h=reader.ReadInt16();if(h < -4000||h>4000)throw new InvalidDataException("Elevation out of range");world.Elevation[i]=h;}
+                FlatErosion.Apply(world,cancel);
                 FlatGenerator.Rebuild(world,cancel);return world;
             }
         }

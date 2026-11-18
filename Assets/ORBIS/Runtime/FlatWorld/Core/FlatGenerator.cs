@@ -4,7 +4,7 @@ using System.Threading;
 using System.Threading.Tasks;
 namespace Orbis.Flat
 {
-    // Hand-authored shape rules + periodic coherent noise. No third-party generator code.
+    // Plate-tectonic bed (FlatTectonics), fluvial erosion (FlatErosion), then water, climate and facts.
     public static class FlatGenerator
     {
         static float Smooth(float x){x=FMath.Clamp(x,0,1);return x*x*(3-2*x);}
@@ -18,47 +18,11 @@ namespace Orbis.Flat
             float deep=Smooth((offshore-.04f)/.13f);
             return FMath.Clamp(shelf+basin-650*deep*FMath.Clamp(ridge,0,1)+620*deep*FMath.Clamp(trench,0,1),15,3900);
         }
-        static float Noise(float x,float y,int period,uint seed)
-        {
-            int ix=(int)Math.Floor(x),iy=(int)Math.Floor(y);float u=x-ix,v=y-iy;
-            u=u*u*(3-2*u);v=v*v*(3-2*v);
-            return FMath.Lerp(FMath.Lerp(Cell(ix,iy,period,seed),Cell(ix+1,iy,period,seed),u),FMath.Lerp(Cell(ix,iy+1,period,seed),Cell(ix+1,iy+1,period,seed),u),v);
-        }
-        static float Cell(int x,int y,int period,uint s)
-        { unchecked{return FMath.Unit((uint)FMath.Wrap(x,period)*73428767u^(uint)y*912931u^s)*2-1;} }
-        static float FBM(float u,float v,int frequency,uint seed,int octaves=5)
-        {
-            float result=0,weight=1,sum=0;
-            for(int o=0;o<octaves;o++){result+=Noise(u*frequency,v*frequency,frequency,seed+(uint)o*971u)*weight;sum+=weight;weight*=.5f;frequency*=2;}
-            return result/sum;
-        }
         public static WorldData Generate(int width,int height,string seed,TerrainPreset preset,CancellationToken cancel)
         {
-            var w=new WorldData(width,height,seed,preset);uint s=FMath.Seed(seed);
-            for(int y=0;y<height;y++)
-            {
-                cancel.ThrowIfCancellationRequested();float v=(y+.5f)/height;
-                for(int x=0;x<width;x++)
-                {
-                    float u=(x+.5f)/width;
-                    float broad=FBM(u,v*.5f,4,s,5),detail=FBM(u,v*.5f,18,s^19287u,4);
-                    float continents=broad*.80f+detail*.12f+.015f;
-                    if(preset==TerrainPreset.Archipelago)continents=FBM(u,v*.5f,12,s,4)*.65f-.045f;
-                    if(preset==TerrainPreset.GreatContinent)continents=broad*.30f+(float)Math.Cos((u-.5f)*Math.PI*2)*.25f+.02f;
-                    if(preset==TerrainPreset.InlandSea)
-                    {float dx=(u-.5f)*2,dy=(v-.5f)*2;continents=broad*.24f+(float)Math.Sqrt(dx*dx+dy*dy)*.44f-.25f;}
-                    // Polar land remains seed-dependent; do not connect north and south rows.
-                    float ridge=1-Math.Abs(FBM(u,v*.5f,10,s^91231u,4));
-                    float mountain=(float)Math.Pow(FMath.Clamp((ridge-.55f)/.45f,0,1),3)*2700;
-                    float polar=Smooth(Math.Min(v,1-v)/.06f);
-                    float floorRidge=polar*Smooth((FBM(u,v*.5f,9,s^0x09f25a3u,4)*.5f+.5f-.52f)/.23f);
-                    float floorTrench=polar*Smooth((FBM(u,v*.5f,23,s^0x16ab992u,3)*.5f+.5f-.62f)/.27f);
-                    float meters=continents>0?continents*3500+mountain*FMath.Clamp(continents*7,0,1):-OceanDepth(continents,floorRidge,floorTrench);
-                    // Drainage needs continuous slopes. Preset height bands are
-                    // reserved for the editing brush and map labels.
-                    w.Elevation[y*width+x]=(short)Math.Round(FMath.Clamp(meters,-4000,4000));
-                }
-            }
+            var w=new WorldData(width,height,seed,preset);
+            w.Tectonics=FlatTectonics.Build(w,cancel);
+            FlatErosion.Apply(w,cancel);
             Rebuild(w,cancel);return w;
         }
         public static void Rebuild(WorldData w,CancellationToken cancel)

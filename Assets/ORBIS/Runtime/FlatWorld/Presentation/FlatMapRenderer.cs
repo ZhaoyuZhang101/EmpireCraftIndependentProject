@@ -67,6 +67,8 @@ namespace Orbis.Flat
             TerrainTexture.filterMode=DisplayTexture.filterMode=FilterMode.Bilinear;
             Shader shader=Resources.Load<Shader>("ORBIS/FlatWorld/FlatMap");if(!shader)throw new InvalidOperationException("Missing ORBIS/FlatWorld/FlatMap shader.");
             if(!shader.isSupported)throw new InvalidOperationException("FlatMap shader is unsupported or failed to compile. See the Unity shader Console report.");
+            // Map readability globals read by FlatMapFragment (0 disables either).
+            Shader.SetGlobalFloat("_RiverMinPixels",2.4f);Shader.SetGlobalFloat("_RiverTint",.38f);
             Material=new Material(shader);Material.SetTexture("_MainTex",DisplayTexture);Material.SetTexture("_OwnerTex",OwnerTexture);Material.SetTexture("_InfoTex",InfoTexture);Material.SetVector("_MapSize",new Vector4(world.Width,world.Height,1f/world.Width,1f/world.Height));
             HydroTexture=MakeData(world.Width,world.Height,"Depth / downhill flow / river width",true);
             MixingTexture=MakeData(world.Width,world.Height,"River meander / sediment / freshwater / links",true);

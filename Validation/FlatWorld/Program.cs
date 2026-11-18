@@ -9,6 +9,7 @@ public static class Program {
     case "--climate-observations": ClimateObservationRegression.Run(); break;
     case "--climate-regions": RegionalStatisticsRegression.Run(); break;
     case "--climate-saves": RegionalStatisticsRegression.CheckSaves(args); break;
+    case "--tectonics": TectonicsRegression.Run(); break;
     case "--river-discharge": RiverDischargeRegression.Run(); break;
     case "--forest-stands": ForestStandRegression.Run(); break;
     case "--wildlife": WildlifeRegression.Run(); break;
