@@ -2,9 +2,9 @@
 
 ## 星球视角的太阳镜头光晕（2026-11-18）
 
-镜片反射沿太阳和画面中心的连线移动。靠近日面的暖光、细衍射光束和带轻微色散的光斑，与 ORBIS 的日面在同一次曝光中合成。太阳圆盘的 64 个采样点共用场景深度、行星遮挡和 HP 云层的 RGB 透射率。展开地图时，光晕随进入地表的过程淡出。[Lens Flare 光学参考](https://www.shadertoy.com/view/4sX3Rs) · [Planet Shadertoy 作者源码](https://github.com/reindernijhoff/shadertoy/blob/master/planet-shadertoy/Image.glsl)
+星球视角以 mu6k 的《Lens Flare》为外观参考。白热核心向外过渡到暖金色光晕，放射光芒的宽度和长度随方向变化。太阳偏离画面中心时，镜头上出现三枚大小不同的暖色光斑。主世界和旧版 `OrbisDemo` 共用这套着色器。太阳仍按实际角半径取 64 个样本，用场景深度、行星遮挡和 HP 云层的 RGB 透射率决定镜头收到的光量。展开地图时光晕逐渐淡出。[Lens Flare 光学参考](https://www.shadertoy.com/view/4sX3Rs)
 
-Unity 6000.0.55f1 的 Direct3D 11 实测固定了世界、日期、机位与曝光。云层遮住部分日面时，开启光晕产生的画面变化约为同机位晴空的 34%。在完全遮住日面的厚云下，两档画质均测得 0。批处理入口为 `Orbis.Editor.SolarLensRegression.Run`。[实景对照](solar-lens-comparison.png) · [18 项运行验证记录](solar-lens-regression.txt)
+Unity 6000.0.55f1、Direct3D 11、RTX 5070 Laptop GPU。在 1156×593 的同构图下，按 RGB 三通道均达到 245 的面积折算，参考图与新版的白芯半径均为 57.6 像素，旧版为 3.8 像素。实景测试中，部分云遮挡下的光晕响应约为同机位晴空的 47%，厚云或行星完全遮挡时为零。可用 `Orbis.Editor.SolarLensRegression.Run` 复测实景，使用 `Orbis.Editor.LocalPlanetValidation.Validate` 复测白芯、辐射光束、反光和遮挡。[实景对照](solar-lens-comparison.png) · [18 项实景检查](solar-lens-regression.txt) · [着色器与外观检查](validation.txt)
 
 ## 主地图
 

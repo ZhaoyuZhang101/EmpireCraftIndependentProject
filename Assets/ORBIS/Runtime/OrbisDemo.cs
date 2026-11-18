@@ -75,6 +75,7 @@ namespace Orbis
             PlanetCamera.depthTextureMode = DepthTextureMode.Depth;PlanetCamera.allowHDR=true;PlanetCamera.allowMSAA=false;
             planet = new GameObject("ORBIS 星球"); planet.transform.SetParent(transform, false);
             View = planet.AddComponent<OrbisPlanetView>(); View.Initialize(World, PlanetCamera,buildingSprite,personSprite);
+            cameraObject.AddComponent<OrbisCelestialLens>().view = View;
             var mapObject = new GameObject("ORBIS 世界地圖"); mapObject.transform.SetParent(transform, false);
             Atlas = mapObject.AddComponent<OrbisMapView>(); Atlas.Initialize(World, View); PlanetCamera.GetComponent<OrbisAtmosphereRenderer>().atlas=Atlas; mapObject.SetActive(false);
             var overlayObject = new GameObject("ORBIS 地理與文明觀測"); overlayObject.transform.SetParent(transform, false);
