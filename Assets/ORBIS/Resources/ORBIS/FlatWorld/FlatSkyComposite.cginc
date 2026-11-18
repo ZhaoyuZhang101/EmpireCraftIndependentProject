@@ -18,8 +18,9 @@ float3 FlatDayLight(float3 radial,float2 uv)
     float moonTransmission=exp(-cover*max(0,_OrbisNightParams.w)*2/max(.20,moonAltitude));
     // Gradual dark adaptation while unfolding; ambient light retains map readability
     // at new moon. Direct moonlight still vanishes below the local horizon.
-    float3 sky=FlatAdaptedNightSky(_OrbisNightSkyColor.rgb*_OrbisNightParams.y,
-               _OrbisAirglowColor.rgb*_OrbisNightParams.z,_FlatNightAdaptation)*(1-cover*.25);
+    float adaptation=lerp(1,2.5,saturate(_FlatNightAdaptation));
+    float3 sky=(_OrbisNightSkyColor.rgb*_OrbisNightParams.y*adaptation+
+                _OrbisAirglowColor.rgb*_OrbisNightParams.z*.15)*(1-cover*.25);
     float3 moon=_OrbisMoonColor.rgb*_OrbisMoon.w*moonAltitude*moonTransmission;
     float3 nightLight=(sky+moon)*saturate(_OrbisNightParams.x);
     #ifdef UNITY_COLORSPACE_GAMMA

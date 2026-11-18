@@ -85,12 +85,8 @@ Shader "ORBIS/Surface"
     float3 localView=normalize(float3(dot(view,east),dot(view,north),max(.02,dot(view,radial))));
     float pixelsPerTile=1/max(1e-5,max(length(ddx(uv*_MapSize.xy)),length(ddy(uv*_MapSize.xy))));
     float night=1-smoothstep(-.12,.16,dot(radial,sun));
-    float3 skySource=_OrbisNightSkyColor.rgb*_OrbisNightParams.y;
-    float3 airglow=_OrbisAirglowColor.rgb*_OrbisNightParams.z;
-    float skyView=.70+.30*saturate(dot(normal,radial));
-    float3 sky=lerp(skySource+airglow,FlatAdaptedNightSky(skySource,airglow,0)*skyView,night);
-    float lunarHorizon=smoothstep(0,.04,dot(radial,_OrbisMoon.xyz));
-    float moon=max(0,dot(normal,_OrbisMoon.xyz))*_OrbisMoon.w*lunarHorizon*_OrbisNightParams.x;
+    float3 sky=_OrbisNightSkyColor.rgb*_OrbisNightParams.y+_OrbisAirglowColor.rgb*_OrbisNightParams.z;
+    float moon=max(0,dot(normal,_OrbisMoon.xyz))*_OrbisMoon.w;
     float3 illumination=lerp(float3(.055,.073,.10),sky,_OrbisNightParams.x)+moon*_OrbisMoonColor.rgb;
     float cloudShade=1;
     if(_FlatWorldReady>.5&&_SkyReady>.5)

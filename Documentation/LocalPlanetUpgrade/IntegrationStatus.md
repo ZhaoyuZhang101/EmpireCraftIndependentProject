@@ -1,21 +1,5 @@
 # 当前接入与验证范围
 
-## 轨道逆光与夜间地形（2026-11-18）
-
-太阳移到星球后方时，向阳的地平线显出一条暖色亮弧。大气沿视线累积散射，日照取决于行星和云层遮挡。轨道逆光时，着色器把可见的太阳散射集中到低空，并加强气溶胶的前向散射。这个用于画面表现的高度调整随着观测高度和太阳角度平滑过渡，复用现有体积采样。太阳重新露出后，原有镜头光晕继续按可见日面和云层透光量显现。[画面参考](https://www.shadertoy.com/view/4tjGRh) · [作者的原作](https://github.com/reindernijhoff/shadertoy/blob/master/planet-shadertoy/Image.glsl)
-
-夜间地表借助天光和气辉保留陆海颜色，地形开敞程度决定峡谷与山脊的亮度差。月光仍随月相、当地地平线和云量变化。从球体放大到局部地图时，夜间地表的间接光逐步增强。在旧版 `OrbisDemo` 中也验证了新月、满月与白昼的表现。
-
-| 同一机位的显示亮度中位数（0–255） | 修正前 | 修正后 |
-| --- | ---: | ---: |
-| 球体午夜 · 陆地（357 个样点） | 13.53 | 27.62 |
-| 球体午夜 · 海洋（1,813 个样点） | 6.10 | 10.68 |
-| 球体正午 · 陆地／海洋 | 154.74／135.68 | 154.74／135.68 |
-
-实景取自 Unity 6000.0.55f1 的 `Orbis2DWorld`，固定世界、机位和曝光，960×600、Direct3D 11、RTX 5070 Laptop GPU。两档大气分辨率下，太阳完全被挡或离开画面时，开关镜头光晕的逐像素差均为零。局部夜间河口的陆地和海洋亮度中位数分别为 48.37、12.91。新月、满月、厚云与展开过渡的单独色样测试在 Gamma 和 Linear 均通过。实景报告记录显示亮度和像素差。此次没有测量帧时间。[同机位对照](orbital-backlight-comparison.png) · [太阳露出时的大气、云和光晕](orbital-backlight-sun.png) · [逆光实景回归](orbital-backlight-regression.txt) · [夜间地表 GPU 测试](night-regression.txt)
-
-独立 Unity 编辑器以 `-batchmode -force-d3d11 -executeMethod Orbis.Editor.SolarLensRegression.Run -orbisBacklight` 重跑逆光与镜头实景检查。主编辑器的 **Tools → ORBIS → Local Planet → Validate flat moonlight** 可重跑夜间地表测试。
-
 ## 星球视角的太阳镜头光晕（2026-11-18）
 
 星球视角以 mu6k 的《Lens Flare》为外观参考。白热核心向外过渡到暖金色光晕，放射光芒的宽度和长度随方向变化。太阳偏离画面中心时，镜头上出现三枚大小不同的暖色光斑。主世界和旧版 `OrbisDemo` 共用这套着色器。太阳仍按实际角半径取 64 个样本，用场景深度、行星遮挡和 HP 云层的 RGB 透射率决定镜头收到的光量。展开地图时光晕逐渐淡出。[Lens Flare 光学参考](https://www.shadertoy.com/view/4sX3Rs)

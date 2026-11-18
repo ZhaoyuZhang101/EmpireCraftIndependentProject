@@ -67,13 +67,6 @@ float3 FlatColor(float3 srgb)
     return GammaToLinearSpace(srgb);
 #endif
 }
-// Low-light adaptation of reflected skylight, in scene-linear irradiance.
-// Both views use the same orbital endpoint. Materials, moonlight, city lamps
-// and the camera exposure keep their own responses.
-float3 FlatAdaptedNightSky(float3 sky,float3 airglow,float localBlend)
-{
-    return sky*lerp(2.65,3.35,saturate(localBlend))+.15*airglow;
-}
 float3 FlatRadial(float2 uv)
 {
     float lon=(uv.x-.5)*6.283185307,lat=(uv.y-.5)*3.141592654,c=cos(lat);
@@ -267,14 +260,11 @@ float4 FlatTerrainRelief(float2 cell,float height,float2 gradient,float4 light,f
     // Surrounding higher ground reduces sky light in valleys and on lower faces.
     // Reuse the geodesic stencil so the shadow follows the actual mountain mass.
     float enclosure=dot(max(neighbours-height,0),float4(.25,.25,.25,.25))/400*broadWeight;
-    // In diffuse night light the visible sky matters more: valleys receive
-    // less of it than open slopes. These terms stay tied to the local landform.
-    float skyOnly=1-saturate(light.w);
-    float sky=1-(.26+.13*skyOnly)*saturate(enclosure)-(.12+.14*skyOnly)*(1-normal.z);
+    float sky=1-.26*saturate(enclosure)-.12*(1-normal.z);
     // Diffuse sky softens the shadow side. A broader highlight roll-off keeps
     // differently inclined sunward slopes distinguishable under a grazing sun.
     float faceResponse=face/(1+2.8*max(face,0)+1.35*max(-face,0));
-    float shade=(1+faceResponse*1.06)*sky+(.078+.055*skyOnly)*saturate(form);
+    float shade=(1+faceResponse*1.06)*sky+.078*saturate(form);
     float3 tint=max(face,0)*float3(.035,.008,-.018)+max(-face,0)*float3(-.035,0,.045);
     // Broad dielectric reflection from exposed damp earth. Reuse the landform
     // normal and the same geographic eye direction used for water reflections.

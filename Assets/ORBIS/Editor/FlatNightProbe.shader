@@ -1,6 +1,5 @@
 Shader "Hidden/ORBIS/FlatNightProbe"
 {
- Properties { _ProbeAlbedo("Test swatch, sRGB",Vector)=(.45,.40,.30,1) }
  SubShader { Cull Off ZWrite Off ZTest Always Pass {
  CGPROGRAM
  #pragma target 3.0
@@ -11,7 +10,7 @@ Shader "Hidden/ORBIS/FlatNightProbe"
  #include "../Resources/ORBIS/FlatWorld/FlatSkyComposite.cginc"
  float _ProbeLightning;
  float _ProbePrecipitation,_ProbeWater,_ProbeIce;
- float4 _ProbeArea,_ProbeAlbedo;
+ float4 _ProbeArea;
  float4 frag(v2f_img i):SV_Target
  {
   if(_ProbePrecipitation>.5)
@@ -26,7 +25,7 @@ Shader "Hidden/ORBIS/FlatNightProbe"
    return float4(FlatSkyComposite(ground,uv,cloud,48,weather,1),1);
   }
   if(_ProbeLightning>.5)return float4(FlatSkyComposite(0,i.uv,FlatCloudColumn(i.uv),48,(FlatPrecipitation)0,1),1);
-  float3 color=FlatColor(_ProbeAlbedo.rgb)*FlatDayLight(float3(0,0,1),float2(.5,.5));
+  float3 color=FlatColor(float3(.45,.40,.30))*FlatDayLight(float3(0,0,1),float2(.5,.5));
   #ifdef UNITY_COLORSPACE_GAMMA
   color=GammaToLinearSpace(color);
   #endif
