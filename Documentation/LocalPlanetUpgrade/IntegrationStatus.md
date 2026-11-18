@@ -1,5 +1,11 @@
 # 当前接入与验证范围
 
+## 星球视角的太阳镜头光晕（2026-11-18）
+
+镜片反射沿太阳和画面中心的连线移动。靠近日面的暖光、细衍射光束和带轻微色散的光斑，与 ORBIS 的日面在同一次曝光中合成。太阳圆盘的 64 个采样点共用场景深度、行星遮挡和 HP 云层的 RGB 透射率。展开地图时，光晕随进入地表的过程淡出。[Lens Flare 光学参考](https://www.shadertoy.com/view/4sX3Rs) · [Planet Shadertoy 作者源码](https://github.com/reindernijhoff/shadertoy/blob/master/planet-shadertoy/Image.glsl)
+
+Unity 6000.0.55f1 的 Direct3D 11 实测固定了世界、日期、机位与曝光。云层遮住部分日面时，开启光晕产生的画面变化约为同机位晴空的 34%。在完全遮住日面的厚云下，两档画质均测得 0。批处理入口为 `Orbis.Editor.SolarLensRegression.Run`。[实景对照](solar-lens-comparison.png) · [18 项运行验证记录](solar-lens-regression.txt)
+
 ## 主地图
 
 主地图使用双精度球面 Log/Exp 投影；主网格在球面与局部地表间连续变形，拖动通过切向基平行运输跨越日期线和极点。Markley 独立用于全球战略总览。当前局部网格采用固定拓扑并在 GPU 重投影，尚不是技术路线中的完整多级地形 Patch 流送系统。

@@ -55,13 +55,13 @@ def source():
     assert 'Time.unscaledDeltaTime*1000' in performance
     assert 'clock' not in re.sub(r'//[^\n]*','',(R/'OrbisSurfaceLOD.cs').read_text().split('void BuildSlice()')[1].split('void Publish()')[0])
     editor=(P/'Assets/ORBIS/Editor/OrbisV42RepairIPCValidation.cs').read_text()
-    assert 'int[] passCounts = { 4, 1, 2, 1, 2, 1, 1 }' in editor
-    assert len(blocks((S/'Clouds.shader').read_text()))==4
+    assert 'int[] passCounts = { 5, 1, 2, 1, 2, 1, 1 }' in editor
+    assert len(blocks((S/'Clouds.shader').read_text()))==5
     assert len(blocks((S/'AtmosphereComposite.shader').read_text()))==2
     assert 'v.tool>7' in (R/'OrbisWorld.cs').read_text()
     assert 'if(!Has(json,"terrainQuality"))s.settings.terrainQuality=1;' in (R/'OrbisSaveMigration.cs').read_text()
     return {'lexically_balanced_sources':len(files),'unique_GUIDs':len(guids),'new_UI_names':len(new),
-        'cloud_passes':4,'composite_passes':2,'font_files':0,
+        'cloud_passes':5,'composite_passes':2,'font_files':0,
         'scope':'Delimiter/dependency/source-contract checks only. XML well-formedness is NOT Unity UXML import validation.'}
 
 def baseline():

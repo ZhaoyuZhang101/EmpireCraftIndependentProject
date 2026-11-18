@@ -63,12 +63,12 @@ namespace Orbis.Editor
             var previous = RenderTexture.active;
             try
             {
-                if (volume.passCount != 4) throw new InvalidOperationException("Volume cloud shader requires four rendering passes");
+                if (volume.passCount != 5 || volume.FindPass("SOLAR_APERTURE") != 4) throw new InvalidOperationException("Missing cloud rendering or solar transmission pass");
                 for (int pass = 0; pass < volume.passCount; pass++) ShaderUtil.CompilePass(volume, pass, true);
                 foreach (var message in ShaderUtil.GetShaderMessages(volume.shader))
                     if (message.severity.ToString() == "Error" || message.message.IndexOf("uninitialized", StringComparison.OrdinalIgnoreCase) >= 0)
                         throw new InvalidOperationException("Volume cloud pass " + message.severity + " " + message.message);
-                report.Add("PASS all four volume cloud passes compile without errors or uninitialized values");
+                report.Add("PASS cloud rendering and solar transmission passes compile without errors or uninitialized values");
                 ShaderUtil.CompilePass(probe, 0, true);
                 probe.SetFloat("_ProbeLightning", 1);
                 probe.SetFloat("_Clouds", 1);

@@ -5,14 +5,15 @@ Shader "ORBIS/AtmosphereComposite"
  Pass {
  CGPROGRAM
  #pragma target 3.5
- #pragma vertex vert_img
+ #pragma vertex OrbisLensVertex
  #pragma fragment frag
  #include "OrbisOptics.cginc"
  #include "OrbisAtmosphereView.cginc"
+ #include "OrbisCelestialLens.cginc"
  sampler2D _MainTex,_RadianceTex,_TransmittanceTex;
  float4 _MainTex_TexelSize,_VolumeTexelSize;
  UNITY_DECLARE_DEPTH_TEXTURE(_CameraDepthTexture);
- float4 frag(v2f_img i):SV_Target
+ float4 frag(OrbisLensVaryings i):SV_Target
  {
   float2 duv=i.uv;
   #if UNITY_UV_STARTS_AT_TOP
@@ -31,7 +32,8 @@ Shader "ORBIS/AtmosphereComposite"
    float w=bilinear*exp(-error*100.0);L+=light.rgb*w;T+=trans.rgb*w;sum+=w;
   }
   if(sum<1e-5){L=nearestL;T=nearestT;}else {L/=sum;T/=sum;}
-  return float4(OrbisDisplay(OrbisBackgroundWithSun(tex2D(_MainTex,i.uv).rgb,i.uv,depth)*saturate(T)+L),1);
+  float3 background=OrbisBackgroundWithSun(tex2D(_MainTex,i.uv).rgb,i.uv,depth);
+  return float4(OrbisDisplay(background*saturate(T)+L+OrbisLensRadiance(i)),1);
  }
  ENDCG }
  Pass {

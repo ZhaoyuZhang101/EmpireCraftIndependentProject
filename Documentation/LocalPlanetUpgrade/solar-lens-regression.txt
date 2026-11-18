@@ -1,0 +1,44 @@
+6000.0.55f1 Direct3D11 NVIDIA GeForce RTX 5070 Laptop GPU
+seed=ORBIS-2D-2026 weatherDay=0 size=512x256
+scaled-sky mean absolute lens difference=0.0126634
+scaled-hidden mean absolute lens difference=0.0000000
+scaled-limb mean absolute lens difference=0.0029631
+scaled-clear mean absolute lens difference=0.0047348
+scaled-cloud mean absolute lens difference=0.0016305
+scaled-clear-column mean absolute lens difference=0.0024156
+scaled-under-deck mean absolute lens difference=0.0000000
+PASS scaled off-axis sun produces glare  0.012663
+PASS scaled planet fully occludes glare  0
+PASS scaled grazing sun partially attenuated  0.0029631
+PASS scaled partly clouded limb / clear limb  0.34438
+PASS scaled opaque HP deck / clear column  0
+full-sky mean absolute lens difference=0.0126729
+full-hidden mean absolute lens difference=0.0000000
+full-limb mean absolute lens difference=0.0029696
+full-clear mean absolute lens difference=0.0047426
+full-cloud mean absolute lens difference=0.0016296
+full-clear-column mean absolute lens difference=0.0024140
+full-under-deck mean absolute lens difference=0.0000000
+PASS full off-axis sun produces glare  0.012673
+PASS full planet fully occludes glare  0
+PASS full grazing sun partially attenuated  0.0029696
+PASS full partly clouded limb / clear limb  0.3436
+PASS full opaque HP deck / clear column  0
+behind-camera mean absolute lens difference=0.0000000
+PASS behind-camera  0
+outside mean absolute lens difference=0.0000000
+PASS outside  0
+thematic mean absolute lens difference=0.0000000
+PASS thematic  0
+foreground-occluder mean absolute lens difference=0.0000000
+PASS foreground-occluder  0
+portrait mean absolute lens difference=0.0161495
+PASS portrait viewport  0.016149
+atlas mean absolute lens difference=0.0000000
+PASS atlas  0
+local mean absolute lens difference=0.0000000
+PASS unfolded local map  1
+original-clear-sky mean absolute lens difference=0.0128794
+rebuilt-clear-sky mean absolute lens difference=0.0128616
+PASS regenerated clear sky preserves lens response  0.99862
+Completed

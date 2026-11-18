@@ -194,8 +194,8 @@ namespace Orbis.Editor
                 ShaderUtil.allowAsyncCompilation = false;
                 string[] names = { "Clouds", "CloudShadowCache", "Surface", "RiverWater",
                     "AtmosphereComposite", "Display", "WeatherParticles" };
-                int[] passCounts = { 4, 1, 2, 1, 2, 1, 1 };
-                string[] cloudPasses = { "MRT_VOLUME", "FULL_RES_VOLUME", "MAP_VOLUME", "MRT_MAP_VOLUME" };
+                int[] passCounts = { 5, 1, 2, 1, 2, 1, 1 };
+                string[] cloudPasses = { "MRT_VOLUME", "FULL_RES_VOLUME", "MAP_VOLUME", "MRT_MAP_VOLUME", "SOLAR_APERTURE" };
                 var items = new List<ShaderResult>();
                 bool allPassed = !report.shaderOptimizationDisabled && report.nightSettingsTestsPassed;
                 for (int n = 0; n < names.Length; n++)
@@ -230,6 +230,8 @@ namespace Orbis.Editor
                             Checkpoint(report, output);
                             try
                             {
+                                // Built-in uses a named shadow variant for camera depth.
+                                if (pass.name == "SURFACE_DEPTH_PERF32") material.EnableKeyword("SHADOWS_DEPTH");
                                 ShaderUtil.CompilePass(material, i, true);
                                 pass.compiled = ShaderUtil.IsPassCompiled(material, i);
                             }
@@ -271,7 +273,7 @@ namespace Orbis.Editor
                 try { Checkpoint(report, output); }
                 catch (Exception e) { report.success = false; Debug.LogError("ORBIS 无法写入编译报告：" + e.Message); }
             }
-            if (report.success) Debug.Log("ORBIS 当前 API 的 10 个默认 Pass 编译检查通过；不代表跨平台或画面验收。报告：" + output);
+            if (report.success) Debug.Log("ORBIS 已通过当前图形 API 的着色器编译检查。报告保存在 " + output);
             else Debug.LogError("ORBIS 编译检查未通过。报告：" + output + "；Editor.log：" + report.editorLogPath);
             return report.success;
         }

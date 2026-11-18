@@ -3,9 +3,15 @@
 float3 _CameraLocal,_RayBL,_RayBR,_RayTL,_RayTR,_Sun;
 sampler2D _OrbisSunTex,_OrbisMoonTex;
 float _OrbisCelestialReady;
+static const float ORBIS_MOON_SIN_RADIUS=.00465;
 float3 OrbisViewRay(float2 uv)
 {
     return lerp(lerp(_RayBL,_RayBR,uv.x),lerp(_RayTL,_RayTR,uv.x),uv.y);
+}
+bool OrbisSkyVisible(float3 ray,float eyeDepth)
+{
+    float2 planet=OrbisSphere(_CameraLocal,ray,1.0);
+    return eyeDepth>=_ProjectionParams.z*.999 && !(planet.y>0 && planet.x>=0);
 }
 float3 OrbisBackgroundWithSun(float3 scene,float2 uv,float eyeDepth)
 {
@@ -13,9 +19,7 @@ float3 OrbisBackgroundWithSun(float3 scene,float2 uv,float eyeDepth)
     // In-front geometry is decided by the actual depth buffer, not by turning Mie off.
     float3 rd=normalize(OrbisViewRay(uv));
     float mu=dot(rd,normalize(_Sun)),edge=max(fwidth(mu),1e-6);
-    if(eyeDepth<_ProjectionParams.z*.999)return scene;
-    float2 planet=OrbisSphere(_CameraLocal,rd,1.0);
-    if(planet.y>0.0&&planet.x>=0.0)return scene;
+    if(!OrbisSkyVisible(rd,eyeDepth))return scene;
     float disk=smoothstep(_AtmoSunDisk.x-edge,_AtmoSunDisk.x+edge,mu);
     if(_OrbisCelestialReady<.5)
         return scene+disk*max(0.0,_AtmoSunDisk.y)*max(0.0,_SolarEnergy);
@@ -42,7 +46,7 @@ float3 OrbisBackgroundWithSun(float3 scene,float2 uv,float eyeDepth)
     float3 moon=normalize(_OrbisMoon.xyz);
     float3 moonRight=normalize(cross(abs(moon.y)>.98?float3(1,0,0):float3(0,1,0),moon));
     float3 moonUp=cross(moon,moonRight);
-    float2 moonXY=float2(dot(rd,moonRight),dot(rd,moonUp))/.00465;
+    float2 moonXY=float2(dot(rd,moonRight),dot(rd,moonUp))/ORBIS_MOON_SIN_RADIUS;
     float moonR2=dot(moonXY,moonXY);
     float moonEdge=max(fwidth(moonR2),.0001);
     float moonDisk=(1-smoothstep(1-moonEdge,1+moonEdge,moonR2))*step(0,dot(rd,moon));

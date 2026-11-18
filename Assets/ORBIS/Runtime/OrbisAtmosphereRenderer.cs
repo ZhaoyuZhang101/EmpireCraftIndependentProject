@@ -17,7 +17,8 @@ namespace Orbis
         [Tooltip("A/B verification of the original fourfold cloud integration cost.")]
         public bool referenceCloudIntegration;
         [Range(0,5)]public int cloudDebug;
-        Camera cameraComponent;Material composite,display;
+        Camera cameraComponent;Material composite,display,clearSky;
+        OrbisCelestialLens lens;
         readonly Vector3[] corners=new Vector3[4];
         readonly RenderBuffer[] buffers=new RenderBuffer[2];
         bool warned;
@@ -35,6 +36,8 @@ namespace Orbis
             if(shader&&shader.isSupported)composite=new Material(shader){hideFlags=HideFlags.HideAndDontSave};
             Shader finalShader=Resources.Load<Shader>("ORBIS/Display");
             if(finalShader&&finalShader.isSupported)display=new Material(finalShader){hideFlags=HideFlags.HideAndDontSave};
+            Shader skyShader=Resources.Load<Shader>("ORBIS/CelestialLens");
+            if(skyShader&&skyShader.isSupported)clearSky=new Material(skyShader){hideFlags=HideFlags.HideAndDontSave};
         }
         void SetRays(Material m)
         {
@@ -111,8 +114,9 @@ namespace Orbis
             var settings=view.world.settings;
             bool map=scroll?scroll.IsAtlas:atlas&&atlas.isActiveAndEnabled&&cameraComponent.orthographic;
             bool natural=view.layer==0||view.layer==1;
+            bool clear=!settings.atmosphere&&(!settings.clouds||(map&&!scroll&&!settings.mapClouds));
             if((scroll&&scrollVolumeWeight<=.0001f)||settings.surfaceDebug>0||!natural||(!view.VolumeVisible&&!map)||
-                (!settings.atmosphere&&(!settings.clouds||(map&&!scroll&&!settings.mapClouds))))
+                (clear&&(map||cameraComponent.orthographic||!clearSky)))
             {DisplayOnly(source,destination);return;}
             Material m=view.CloudMaterial;
             if(!m||!m.shader.isSupported){DisplayOnly(source,destination);return;}
@@ -137,6 +141,21 @@ namespace Orbis
                 SetRays(m);
                 if(scroll&&!scroll.IsAtlas&&scroll.Morph>.12f&&SetAtlasRays(m))
                     m.SetFloat("_CloudViewBlend",Mathf.SmoothStep(0,1,Mathf.InverseLerp(.12f,.78f,scroll.Morph)));
+            }
+            Vector4 lensSun=Vector4.zero;
+            if(!map)
+            {
+                if(!lens)TryGetComponent(out lens);
+                if(lens&&lens.isActiveAndEnabled&&lens.view==view&&cloudDebug==0)
+                    lensSun=lens.Sample(cameraComponent,source,m);
+                OrbisCelestialLens.Bind(m,lens,lensSun);
+                if(clear)
+                {
+                    SetRays(clearSky);view.BindOpticalSettings(clearSky);
+                    clearSky.SetVector("_Sun",view.VisualSunLocal);
+                    OrbisCelestialLens.Bind(clearSky,lens,lensSun);
+                    Present(source,destination,clearSky);return;
+                }
             }
             bool mapMRT=map&&m.passCount>3&&composite&&composite.passCount>1;
             if(fullResolutionReference||q==3||SystemInfo.supportedRenderTargetCount<2||!composite||
@@ -171,7 +190,8 @@ namespace Orbis
                 composite.SetTexture("_RadianceTex",light);composite.SetTexture("_TransmittanceTex",transmission);
                 composite.SetVector("_VolumeTexelSize",new Vector4(1f/width,1f/height,width,height));
                 view.BindOpticalSettings(composite);
-                if(map)SetAtlasRays(composite);else SetRays(composite);
+                if(map)SetAtlasRays(composite);
+                else {SetRays(composite);OrbisCelestialLens.Bind(composite,lens,lensSun);}
                 composite.SetVector("_Sun",view.VisualSunLocal);Present(source,destination,composite,map?1:0);
             }
             catch(System.Exception e)
@@ -189,6 +209,6 @@ namespace Orbis
                 if(light)RenderTexture.ReleaseTemporary(light);if(transmission)RenderTexture.ReleaseTemporary(transmission);
             }
         }
-        void OnDisable(){if(composite)Destroy(composite);if(display)Destroy(display);composite=null;display=null;}
+        void OnDisable(){if(composite)Destroy(composite);if(display)Destroy(display);if(clearSky)Destroy(clearSky);composite=null;display=null;clearSky=null;}
     }
 }
