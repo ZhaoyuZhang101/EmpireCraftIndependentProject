@@ -80,6 +80,12 @@ namespace Orbis.Flat
                     {
                         int dx=(d&1)==0?-1:1,dy=d<6?-1:1;
                         n=w.Index(ix+dx,iy+dy);bx=.5f+dx*.5f;by=.5f+dy*.5f;
+                        if(n>=0&&FlatTerrainAnalysis.AreaWater(w.Water[n]))
+                        {
+                            float reach=SegmentDistance(x,y,.5f,.5f,.5f+dx,.5f+dy,radius,radius,out _);
+                            if(reach<result){result=reach;depth=f.Depth[i];}
+                            continue;
+                        }
                     }
                     bool connected=n>=0&&f.HalfWidth[n]>=.01f;
                     float rb=connected?(radius+f.HalfWidth[n])*.5f:radius;
@@ -103,12 +109,17 @@ namespace Orbis.Flat
             if(radius<.01f&&(mask&(1<<FlatTerrainAnalysis.DiagonalDirection(sx,sy)))==0)return result;
             if(Math.Abs(x-(sx+1)*.5f)+Math.Abs(y-(sy+1)*.5f)>.68f)return result;
             int a=w.Index(ix+sx,iy),b=w.Index(ix,iy+sy);
+            if(b<0)return result;
             int link=FlatTerrainAnalysis.DiagonalDirection(-sx,sy);
-            if(b<0||f.HalfWidth[a]<.01f||f.HalfWidth[b]<.01f||(f.Connections[a]&(1<<link))==0)return result;
+            bool aRiver=f.HalfWidth[a]>=.01f,bRiver=f.HalfWidth[b]>=.01f;
+            if(!aRiver&&!bRiver)return result;
+            int linkedRiver=aRiver?a:b;
+            if((f.Connections[linkedRiver]&(1<<(aRiver?link:FlatTerrainAnalysis.DiagonalDirection(sx,-sy))))==0)return result;
+            if(!aRiver&&!FlatTerrainAnalysis.AreaWater(w.Water[a])||!bRiver&&!FlatTerrainAnalysis.AreaWater(w.Water[b]))return result;
             // Either bank cell samples the same centre-to-centre ribbon as
             // both river cells. The shared corner therefore has four wet sides.
-            float bank=SegmentDistance(x,y,.5f+sx,.5f,.5f,.5f+sy,f.HalfWidth[a],f.HalfWidth[b],out float along);
-            if(bank<result){result=bank;depth=FMath.Lerp(f.Depth[a],f.Depth[b],along);}
+            float bank=SegmentDistance(x,y,.5f+sx,.5f,.5f,.5f+sy,aRiver?f.HalfWidth[a]:f.HalfWidth[b],bRiver?f.HalfWidth[b]:f.HalfWidth[a],out float along);
+            if(bank<result){result=bank;depth=aRiver&&bRiver?FMath.Lerp(f.Depth[a],f.Depth[b],along):f.Depth[linkedRiver];}
             return result;
         }
         static float FaceRiverDistance(WorldData w,int i,float x,float y)
@@ -152,6 +163,14 @@ namespace Orbis.Flat
                 return w.Facts.RiverCurves.SampleAtDay(i%w.Width+x,i/w.Width+y,w.Day).Distance;
             if(w.Facts.ShoreDistance[i]<=0)return 8;
             float result=8;
+            for(int dy=-1;dy<=1;dy+=2)for(int dx=-1;dx<=1;dx+=2)
+            {
+                int n=w.Index(i%w.Width+dx,i/w.Width+dy);
+                int opposite=FlatTerrainAnalysis.DiagonalDirection(-dx,-dy);
+                if(n<0||w.Facts.HalfWidth[n]<.01f||(w.Facts.Connections[n]&(1<<opposite))==0)continue;
+                float r=w.Facts.HalfWidth[n];
+                result=Math.Min(result,SegmentDistance(x,y,.5f+dx,.5f+dy,.5f,.5f,r,r,out _));
+            }
             for(int d=0;d<4;d++)
             {
                 int n=w.Neighbor(i,d),opposite=d^1;

@@ -294,6 +294,20 @@ namespace Orbis.Flat
             var source=CrossSection(curves,5.5f,16.5f,0,1);
             Check(source.HalfWidth>world.Facts.HalfWidth[first]*.65f,"Lake discharge retains channel width instead of a spring taper");
             Check(Math.Abs(curves.Sample(4.5f,16.5f).Depth-world.Facts.Depth[lake])<.0001f,"Source lake depth is preserved at the outlet anchor");
+            var deep=world.Clone();
+            deep.Elevation[lake]=-250;
+            deep.Elevation[deep.Index(4,15)]=deep.Elevation[deep.Index(4,17)]=2500;
+            FlatTerrainAnalysis.Build(deep,CancellationToken.None,false);
+            int outsideBasin=0;
+            for(int k=1;k<96;k++)
+            {
+                float x=4.5f+k*.01f,centre=Centre(deep,x,out _);
+                if(FlatSurfaceSampling.SampleShore(deep,x,centre)>-.025f)continue;
+                float depth=deep.Facts.RiverCurves.Sample(x,centre).Depth;
+                Check(depth<=deep.Facts.Depth[first]*1.25f,"Deep lake floor ends at its shore; outlet depth="+depth+" channel depth="+deep.Facts.Depth[first]);
+                outsideBasin++;
+            }
+            Check(outsideBasin>0,"Deep outlet fixture samples the independent river reach");
             float y=Centre(world,5.5f,out float radius);
             SameSample(curves.Sample(5.4999f,y),curves.Sample(5.5001f,y),.001f,"Lake-fed width, depth and sediment join the first river node continuously");
             byte[] before=FlatSave.Encode(world);

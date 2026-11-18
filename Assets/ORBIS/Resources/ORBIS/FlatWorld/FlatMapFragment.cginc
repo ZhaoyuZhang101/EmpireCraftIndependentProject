@@ -142,7 +142,12 @@
      {
       FlatWaterSurfaceData waterSurface;
       waterColor=FlatWaterShade(cell,mixing,field,bottom,illumination,waterView,waterLight,_WaveAmount*(1-polarIce),areaOptics.a,coast,channel,waterSurface);
-      waterColor=lerp(waterColor,FlatColor(float3(.17,.43,.62))*illumination,_RiverTint*channel.influence*step(river.r,0));
+      // Emphasize channels only while their physical width is unresolved.
+      // The optical weight also fades across the submerged bank at a mouth.
+      float riverPixels=2*riverRadius*_PixelsPerTile;
+      float exposedReach=1-smoothstep(-max(.04,aa),0,field.g);
+      float tint=saturate(_RiverTint)*channel.influence*exposedReach*(1-smoothstep(1.5,5,riverPixels));
+      waterColor=lerp(waterColor,FlatColor(float3(.17,.43,.62))*illumination,tint);
       // Keep the normal derivatives above uniform across shorelines. Only the
       // reflection lookup can be skipped for completely dry receivers.
       [branch] if(waterMask>.001)

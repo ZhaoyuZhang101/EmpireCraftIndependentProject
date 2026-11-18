@@ -50,8 +50,64 @@ namespace Orbis.Editor
      report.Add(result);
      if(maximum>=.0001f||invalid>0)throw new Exception(result);
     }
+    CheckDiagonalMouth(m,ta,tb,rt,image,report);
    }
    finally{File.WriteAllLines("Documentation/LocalPlanetUpgrade/river-geometry-regression.txt",report);ShaderUtil.allowAsyncCompilation=async;RenderTexture.active=previous;RenderTexture.ReleaseTemporary(rt);UnityEngine.Object.DestroyImmediate(ta);UnityEngine.Object.DestroyImmediate(tb);UnityEngine.Object.DestroyImmediate(m);UnityEngine.Object.DestroyImmediate(image);}
+  }
+
+  static void CheckDiagonalMouth(Material material,Texture2D hydro,Texture2D mixing,RenderTexture target,Texture2D image,List<string> report)
+  {
+   var world=new WorldData(64,32,"DIAGONAL-BASIN",TerrainPreset.Continents);
+   int river=world.Index(20,14),basin=world.Index(21,15);
+   for(int i=0;i<world.Count;i++){world.Elevation[i]=100;world.WaterLevel[i]=100;world.DrainOrder[i]=i;}
+   world.Water[river]=WaterKind.River;world.Runoff[river]=64;
+   world.Water[basin]=WaterKind.Lake;world.Elevation[basin]=98;
+   var visual=new Texture2D(64,32,TextureFormat.RGBAFloat,false,true){filterMode=FilterMode.Bilinear};
+   try
+   {
+    material.SetTexture("_VisualTex",visual);material.SetFloat("_ProbeMouth",1);
+    material.SetVector("_ProbeOrigin",new Vector4(20,14,0,0));
+    for(int scenario=0;scenario<3;scenario++)
+    {
+     bool inlet=scenario==0,outlet=scenario==1;
+     world.Downstream[river]=inlet?basin:-1;world.Downstream[basin]=outlet?river:-1;
+     FlatTerrainAnalysis.Build(world,default,false,1);
+     var facts=world.Facts;
+     // Exercise the same derived inputs with the optional curve cache absent.
+     var preview=new FlatTerrainFacts(world.Count);
+     Array.Copy(facts.Depth,preview.Depth,world.Count);Array.Copy(facts.HalfWidth,preview.HalfWidth,world.Count);
+     Array.Copy(facts.Connections,preview.Connections,world.Count);Array.Copy(facts.ShoreDistance,preview.ShoreDistance,world.Count);
+     Array.Copy(facts.FlowX,preview.FlowX,world.Count);Array.Copy(facts.FlowY,preview.FlowY,world.Count);
+     Array.Copy(facts.Meander,preview.Meander,world.Count);world.Facts=preview;
+     var a=new Color[world.Count];var b=new Color[world.Count];var field=new Color[world.Count];
+     for(int i=0;i<world.Count;i++)
+     {
+      a[i]=new Color(facts.Depth[i],facts.FlowX[i],facts.FlowY[i],facts.HalfWidth[i]);
+      b[i]=new Color(facts.Meander[i],0,0,facts.Connections[i]);
+      field[i]=new Color(world.Elevation[i],facts.ShoreDistance[i],facts.Depth[i],0);
+     }
+     hydro.SetPixels(a);hydro.Apply();mixing.SetPixels(b);mixing.Apply();visual.SetPixels(field);visual.Apply();
+     Graphics.Blit(Texture2D.whiteTexture,target,material);RenderTexture.active=target;
+     image.ReadPixels(new Rect(0,0,128,128),0,0);image.Apply();
+     int centre=0,flanks=0,invalid=0;float maxDistanceError=0;
+     foreach(var p in image.GetPixels())
+     {
+      float tx=p.g*2,ty=p.b*2;
+      if(Mathf.Abs(tx-ty)>.065f||tx<.60f||tx>1.45f)continue;
+      if(!inlet&&!outlet&&(tx<.85f||tx>1.15f))continue;
+      int ix=Mathf.FloorToInt(tx),iy=Mathf.FloorToInt(ty),tile=world.Index(20+ix,14+iy);
+      float cpu=Mathf.Min(FlatWaterGeometry.RiverDistance(world,tile,tx-ix,ty-iy),FlatWaterGeometry.MouthDistance(world,tile,tx-ix,ty-iy));
+      maxDistanceError=Mathf.Max(maxDistanceError,Mathf.Abs(p.r-cpu));
+      if(inlet||outlet){if(p.r>=0||cpu>=0||(outlet?p.a>=0:p.a<=0))invalid++;}
+      else if(p.r<=0||cpu<=0)invalid++;
+      if(ix==iy)centre++;else flanks++;
+     }
+     bool ok=invalid==0&&centre>0&&flanks>0&&maxDistanceError<.001f;
+     string kind=inlet?"lake inlet":outlet?"lake outlet":"unconnected neighbours";
+     string result=(ok?"PASS ":"FAIL ")+"diagonal "+kind+" before atlas, centre/side samples="+centre+"/"+flanks+", invalid="+invalid+", CPU/GPU distance error="+maxDistanceError;
+     report.Add(result);if(!ok)throw new InvalidOperationException(result);
+    }
+   }finally{UnityEngine.Object.DestroyImmediate(visual);}
   }
  }
 }

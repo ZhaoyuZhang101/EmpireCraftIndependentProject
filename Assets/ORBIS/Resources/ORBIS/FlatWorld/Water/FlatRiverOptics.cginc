@@ -57,7 +57,12 @@ FlatRiverSection FlatRiverSectionAt(float2 cell,float4 channel,float4 field)
     float drop=-dot(float2(ddx(field.r),ddy(field.r)),along);
     r.grade=smoothstep(8,115,drop*(_MapSize.x/512));
     float bank=1-smoothstep(.001,.045+r.width*.85,r.edge);
-    r.influence=step(.0001,r.width)*bank*(1-smoothstep(-.11,.48,field.g));
+    // The basin field is compressed around small lakes. Measure the blend
+    // across the shoreline in ground units, in proportion to this reach.
+    float2 seaward;
+    float shore=FlatMetricShore(cell,field.g,seaward);
+    float mouthSpan=clamp(.12+1.35*r.width,.14,.42);
+    r.influence=step(.0001,r.width)*bank*(1-smoothstep(-mouthSpan,.65*mouthSpan,shore));
     return r;
 }
 

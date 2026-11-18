@@ -34,8 +34,10 @@ namespace Orbis.Flat
             return (float)detail*.045f*anchor;
         }
         public static float SampleShore(WorldData world,float x,float y)
+        { return SampleShore(world,world.Facts,x,y); }
+        internal static float SampleShore(WorldData world,FlatTerrainFacts facts,float x,float y)
         {
-            float distance=Sample(world.Facts.ShoreDistance,world.Width,world.Height,x,y);
+            float distance=Sample(facts.ShoreDistance,world.Width,world.Height,x,y);
             float fade=FMath.Clamp((Math.Abs(distance)-.2f)/.7f,0,1);fade=fade*fade*(3-2*fade);
             return distance+ShoreDetail(x,y,world.Width,world.Height)*(1-fade);
         }

@@ -85,6 +85,7 @@ namespace Orbis.Editor
     var mouth=Sample(material,target,image);
     float mouthJump=MaximumChannelDifference(mouth[ImageWidth*4+31],mouth[ImageWidth*4+95]);
     Check(report,mouthJump<.002f,"lake inlet and outlet retain channel depth across the shoreline, RGB jump="+mouthJump);
+    CheckMouthReadability(report,target,image,atlas);
     if(report.Exists(line=>line.StartsWith("FAIL")))throw new InvalidOperationException(string.Join("\n",report));
    }
    finally
@@ -94,6 +95,37 @@ namespace Orbis.Editor
     RenderTexture.active=previous;ShaderUtil.allowAsyncCompilation=async;RenderTexture.ReleaseTemporary(target);
     foreach(var resource in new UnityEngine.Object[]{material,image,hydro,geo,mixing,info,ocean,lake,atlas})UnityEngine.Object.DestroyImmediate(resource);
    }
+  }
+
+  // Exercise the final map pass too: the cartographic river colour is applied after water optics.
+  static void CheckMouthReadability(List<string> report,RenderTexture target,Texture2D image,Texture2D atlas)
+  {
+   var map=new Material(Resources.Load<Shader>("ORBIS/FlatWorld/FlatMap"));
+   var visual=SolidTexture(new Color(0,.12f,12,0));
+   try
+   {
+    var field=new Color[atlas.width*atlas.height];field[0]=new Color(1,0,0,0);
+    for(int y=8;y<43;y++)for(int x=0;x<35;x++)
+        field[y*atlas.width+x]=new Color(Mathf.Abs((x-17)/32f)-.06f,2,0,.06f);
+    atlas.SetPixels(field);atlas.Apply();
+    map.SetTexture("_VisualTex",visual);map.SetTexture("_RiverAtlas",atlas);map.SetFloat("_RiverAtlasReady",1);
+    map.SetVector("_MapSize",Vector4.one);map.SetVector("_RiverAtlasLayout",new Vector4(64,48,35,8));
+    map.SetVector("_Selected",new Vector4(-20,-20,-20,-20));map.SetVector("_FlatSun",new Vector4(-.4f,.4f,1,0));
+    map.SetFloat("_WaterView",1);map.SetFloat("_ShowWater",1);map.SetFloat("_WaveAmount",0);
+    ShaderUtil.CompilePass(map,0,true);
+    float TintDifference(float pixels)
+    {
+     map.SetFloat("_PixelsPerTile",pixels);map.SetFloat("_RiverTint",0);var plain=Sample(map,target,image);
+     map.SetFloat("_RiverTint",.38f);return MaximumDifference(plain,Sample(map,target,image));
+    }
+    float inLake=TintDifference(4);
+    var inland=new Color(0,-1,0,0);
+    visual.SetPixels(new[]{inland,inland,inland,inland});visual.Apply();
+    float near=TintDifference(96),far=TintDifference(4);
+    Check(report,inLake<.002f&&near<.002f&&far>.009f,
+      "map tint dissolves in the receiving basin and on resolved channels; basin="+inLake+", close="+near+", distant="+far);
+   }
+   finally{UnityEngine.Object.DestroyImmediate(map);UnityEngine.Object.DestroyImmediate(visual);}
   }
 
   static Texture2D DataTexture(int width,int height)

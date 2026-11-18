@@ -183,6 +183,14 @@ float4 FlatLegacySegment(float2 p,float2 a,float2 b,float2 widths,float2 depths,
     return float4(length(p-a-t*delta)-width,lerp(depths.x,depths.y,t),
                   delta*(rsqrt(lengthSquared)*width*signFlow));
 }
+// All four tiles at a diagonal basin crossing sample the same reach. The river's
+// recorded downstream neighbour disambiguates an inlet from a lake spill.
+float4 FlatLegacyBasinDiagonal(float2 p,float2 riverCentre,float2 toBasin,float4 hydro)
+{
+    float2 difference=toBasin-hydro.gb;
+    return FlatLegacySegment(p,riverCentre,riverCentre+toBasin,hydro.aa,hydro.rr,
+                             dot(difference,difference)<.1?1:-1);
+}
 // Only used until a curve atlas is ready. Cardinal-only channels retain their
 // individual meanders. Mixed junctions join their full D8 branches at the centre.
 float4 FlatLegacyRiverSample(float2 p,float4 hydro,float connections,float meander,float2 uv)
@@ -196,6 +204,12 @@ float4 FlatLegacyRiverSample(float2 p,float4 hydro,float connections,float meand
             float2 offset=d<4?(FlatEdge(d)-.5)*2:float2(fmod((float)d,2)*2-1,d<6?-1:1);
             float2 neighborUV=uv+offset*_MapSize.zw;
             float4 neighbor=tex2Dlod(_HydroA,float4(neighborUV,0,0));
+            if(d>=4&&neighbor.a<.01&&FlatVisualSample(float4(neighborUV,0,0)).g>0)
+            {
+                float4 mouth=FlatLegacyBasinDiagonal(p,float2(.5,.5),offset,hydro);
+                if(mouth.r<result.r)result=mouth;
+                continue;
+            }
             float2 edge=.5+offset*.5;
             if(d<4)edge=FlatRiverEdge(d,meander,tex2Dlod(_HydroB,float4(neighborUV,0,0)).r,max(hydro.a,neighbor.a));
             float rb=neighbor.a>=.01?(hydro.a+neighbor.a)*.5:hydro.a;
@@ -225,10 +239,18 @@ float4 FlatLegacyRiverSample(float2 p,float4 hydro,float connections,float meand
     float2 auv=uv+float2(side.x*_MapSize.z,0),buv=uv+float2(0,side.y*_MapSize.w);
     if(buv.y<0||buv.y>1)return result;
     float2 direction=float2(-side.x,side.y);
-    float links=floor(tex2Dlod(_HydroB,float4(auv,0,0)).a+.5);
-    if(FlatLegacyLink(links,FlatDiagonalDirection(direction))<.5)return result;
     float4 a=tex2Dlod(_HydroA,float4(auv,0,0)),b=tex2Dlod(_HydroA,float4(buv,0,0));
-    if(min(a.a,b.a)<.01)return result;
+    if(max(a.a,b.a)<.01)return result;
+    bool aRiver=a.a>=.01;
+    float links=floor(tex2Dlod(_HydroB,float4(aRiver?auv:buv,0,0)).a+.5);
+    if(FlatLegacyLink(links,FlatDiagonalDirection(aRiver?direction:-direction))<.5)return result;
+    if(min(a.a,b.a)<.01)
+    {
+        if(FlatVisualSample(float4(aRiver?buv:auv,0,0)).g<=0)return result;
+        float2 origin=.5+(aRiver?float2(side.x,0):float2(0,side.y));
+        float4 mouth=FlatLegacyBasinDiagonal(p,origin,aRiver?direction:-direction,aRiver?a:b);
+        return mouth.r<result.r?mouth:result;
+    }
     float2 difference=direction-a.gb;
     float4 bank=FlatLegacySegment(p,.5+float2(side.x,0),.5+float2(0,side.y),
         float2(a.a,b.a),float2(a.r,b.r),dot(difference,difference)<.1?1:-1);
@@ -324,16 +346,22 @@ float4 FlatLegacyMouth(float2 cell,float2 uv,float4 field)
  float4 centre=FlatVisualSample(float4(uv,0,0));
  if(centre.g<=0||field.g>1.25)return result;
  float centreMeander=tex2Dlod(_HydroB,float4(uv,0,0)).r;
- [loop] for(int d=0;d<4;d++)
+ [loop] for(int d=0;d<8;d++)
  {
-  float2 offset=(FlatEdge(d)-.5)*2;
+  float2 offset=d<4?(FlatEdge(d)-.5)*2:float2(fmod((float)d,2)*2-1,d<6?-1:1);
   float2 nextUV=uv+offset*_MapSize.zw;
   if(nextUV.y<0||nextUV.y>1)continue;
   float4 h=tex2Dlod(_HydroA,float4(nextUV,0,0));
   float4 riverData=tex2Dlod(_HydroB,float4(nextUV,0,0));
   float connections=floor(riverData.a+.5);
-  float opposite=d==0?2:d==1?1:d==2?8:4;
-  if(h.a<.01||fmod(floor(connections/opposite),2)<.5)continue;
+  int opposite=d==0?1:d==1?0:d==2?3:d==3?2:FlatDiagonalDirection(-offset);
+  if(h.a<.01||FlatLegacyLink(connections,opposite)<.5)continue;
+  if(d>=4)
+  {
+   float4 reach=FlatLegacyBasinDiagonal(frac(cell),.5+offset,-offset,h);
+   if(reach.r<result.r)result=reach;
+   continue;
+  }
   float2 edge=FlatRiverEdge(d,centreMeander,riverData.r,h.a);
   float2 delta=float2(.5,.5)-edge;
   float t=saturate(dot(frac(cell)-edge,delta)/max(.0001,dot(delta,delta)));
@@ -343,7 +371,8 @@ float4 FlatLegacyMouth(float2 cell,float2 uv,float4 field)
   float face=d==0?frac(cell.x):d==1?1-frac(cell.x):d==2?frac(cell.y):1-frac(cell.y);
   float across=abs((d<2?frac(cell.y):frac(cell.x))-(d<2?edge.y:edge.x));
   if(face<.10)distance=lerp(across-h.a,distance,smoothstep(0,.10,face));
-  if(distance<result.r)result=float4(distance,h.r,-offset*radius);
+  float2 diff=-offset-h.gb;
+  if(distance<result.r)result=float4(distance,h.r,offset*(dot(diff,diff)<.1?-radius:radius));
  }
  return result;
 }
@@ -486,8 +515,13 @@ float3 FlatWaterShade(float2 cell,float4 mixing,float4 field,float3 bottom,float
     float3 p0=(artwork-drift*phase0*3)*6;
     float3 p1=(artwork-drift*phase1*3)*6;
     float shoreDistance=coast.shore;
+    // The basin's zero contour crosses the river under open water. Breakers
+    // and beach material belong on the two banks, not across the thalweg.
+    float opening=smoothstep(0,.75,-channel.edge/max(.0001,channel.width))*
+                  (1-smoothstep(.12,.42,shoreDistance));
+    coast.coverage*=1-opening;
     float shoreVariation=.5+.5*sin(dot(artwork,float3(1.7,2.3,.9)));
-    float shoreCrest=FlatCoastFoam(shoreDistance,_WaterClock,shoreVariation)*(1-.62*coast.coverage*coast.mud);
+    float shoreCrest=FlatCoastFoam(shoreDistance,_WaterClock,shoreVariation)*(1-opening)*(1-.62*coast.coverage*coast.mud);
     float2 slopes=0,microSlopes=0;
     float footprint=max(length(artDx*6),length(artDy*6));
     if(_VendorWaterReady>.5&&footprint<4)
@@ -573,6 +607,8 @@ float3 FlatWaterShade(float2 cell,float4 mixing,float4 field,float3 bottom,float
     float basinDepth=lerp(.15,max(.15,field.b),smoothstep(0,1.5,field.g));
     float channelDepth=max(.12,channel.depth*FlatRiverDepthProfile(channel)*(1-.23*riffle));
     float depth=lerp(basinDepth,channelDepth,river);
+    float sill=opening*(1-smoothstep(0,.12,shoreDistance));
+    depth=max(depth,channelDepth*sill);
     // A small depositional bar modulates only the optical path through the
     // very shallow sandy apron. Inlet depths and the shoreline mask stay exact.
     float shoal=coast.bar*coast.coverage*ocean*(1-smoothstep(4,15,depth));

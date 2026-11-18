@@ -256,7 +256,9 @@ namespace Orbis.Flat
                     {
                         int a=channel?i:w.Index(x+dx,y);
                         int b=channel?w.Index(x+dx,y+dy):w.Index(x,y+dy);
-                        if(b<0||w.Water[a]!=WaterKind.River||w.Water[b]!=WaterKind.River)continue;
+                        if(b<0)continue;
+                        var wa=w.Water[a];var wb=w.Water[b];
+                        if(wa==WaterKind.Land||wb==WaterKind.Land||(wa!=WaterKind.River&&wb!=WaterKind.River))continue;
                         if(w.Downstream[a]==b||w.Downstream[b]==a)f.Connections[i]|=(byte)(1<<DiagonalDirection(dx,dy));
                     }
                 }

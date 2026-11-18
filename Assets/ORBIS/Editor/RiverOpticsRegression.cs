@@ -106,6 +106,17 @@ namespace Orbis.Editor
                 Check(Mathf.Abs(inlet[centre].grayscale-outlet[centre].grayscale)<.002f&&
                     Mathf.Abs(outlet[centre].grayscale-sea[centre].grayscale)>.008f,
                     "freshwater and offshore optics meet continuously at the sea shore");
+                material.SetFloat("_VendorWaterReady",0);
+                material.SetFloat("_TestShore",.08f);material.SetFloat("_TestWaves",1);
+                material.SetFloat("_WaterClock",1.5f);
+                var surf=Draw();
+                float inChannel=0,onBeach=0;
+                for(int x=2;x<Side-2;x++)
+                {
+                    inChannel=Mathf.Max(inChannel,1-surf[(Side/2)*Side+x].a);
+                    onBeach=Mathf.Max(onBeach,1-surf[4*Side+x].a);
+                }
+                Check(inChannel<.001f&&onBeach>.04f,"shore breakers stop at the open channel and continue on its banks. Foam "+inChannel+", "+onBeach);
             }
             finally
             {

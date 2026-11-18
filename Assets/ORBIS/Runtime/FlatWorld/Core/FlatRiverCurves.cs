@@ -403,6 +403,7 @@ namespace Orbis.Flat
             float baseAX=i%world.Width+.5f,baseAY=i/world.Width+.5f;
             float baseBX=baseAX+FlatTerrainAnalysis.WrappedDX(next%world.Width,i%world.Width,world.Width);
             float baseBY=next/world.Width+.5f;
+            bool outlet=FlatTerrainAnalysis.AreaWater(world.Water[i]);
             Vertex previousVertex=default;
             for(int k=0;k<=SamplesPerReach;k++)
             {
@@ -413,6 +414,15 @@ namespace Orbis.Flat
                 float fy=3*s*s*(c1y-ay)+6*s*t*(c2y-c1y)+3*t*t*(by-c2y);
                 Normalize(ref fx,ref fy);
                 float radius=FlatSurfaceSampling.Cubic(beforeRadius,radii[i],endRadius,afterRadius,t);
+                float smooth=t*t*(3-2*t),depth=FMath.Lerp(depths[i],endDepth,smooth);
+                if(outlet||!continuing)
+                {
+                    // Only a drainage edge that actually joins a basin opens its banks.
+                    float shore=FlatSurfaceSampling.SampleShore(world,facts,x,y);
+                    float approach=outlet?1-smooth:smooth;
+                    radius=MouthRadius(radius,shore,approach);
+                    if(outlet)depth=OutletDepth(endDepth,depths[i],shore,facts.ShoreDistance[i],approach);
+                }
                 if(k>0&&k<SamplesPerReach)
                 {
                     float head=FMath.Lerp(world.WaterLevel[i],world.WaterLevel[next],t);
@@ -422,8 +432,7 @@ namespace Orbis.Flat
                         head,tolerance,radius,nx,ny,ref x,ref y);
                     radius=FitRadius(world,x,y,head,tolerance,nx,ny,radius);
                 }
-                float smooth=t*t*(3-2*t);
-                var vertex=new Vertex(x,y,radius,FMath.Lerp(depths[i],endDepth,smooth),fx,fy,
+                var vertex=new Vertex(x,y,radius,depth,fx,fy,
                     FMath.Lerp(facts.Sediment[i],endSediment,smooth));
                 if(k>0)
                 {
@@ -434,19 +443,35 @@ namespace Orbis.Flat
             }
         }
 
+        static float MouthRadius(float radius,float shore,float approach)
+        {
+            float t=FMath.Clamp((shore+.24f)/.34f,0,1);
+            return Math.Min(.22f,radius+Math.Min(.10f,.032f+.82f*radius)*approach*t*t*(3-2*t));
+        }
+
+        static float OutletDepth(float channel,float basin,float shore,float basinShore,float approach)
+        {
+            // A spill sill takes the depth of the outgoing channel. Keep the measured
+            // lake floor at the wet anchor, and confine its slope to the submerged side.
+            float t=FMath.Clamp((shore/Math.Max(.001f,basinShore)-.25f)/.75f,0,1);
+            return FMath.Lerp(channel,basin,Math.Min(approach,t*t*(3-2*t)));
+        }
+
         static void AddPolar(WorldData world,FlatTerrainFacts facts,int i,int next,bool[] river,float[] radii,float[] depths,
             float[] nodeX,float[] nodeY,float[] tangentX,float[] tangentY,List<Segment> built)
         {
             float boundary=i/world.Width==0?0:world.Height,flow=boundary==0?-1:1;
             float endRadius=river[next]?radii[next]:radii[i];
             float radius=(radii[i]+endRadius)*.5f;
+            bool outlet=!river[i];
+            float seamDepth=outlet?depths[next]:depths[i];
             var a=new Vertex(nodeX[i],nodeY[i],radii[i],depths[i],0,flow,facts.Sediment[i]);
             // Both meridians meet at the same pole. Fix the two chart endpoints
             // at their drainage meridians while the interior channel can meander.
-            var edgeA=new Vertex(i%world.Width+.5f,boundary,radius,depths[i],0,flow,facts.Sediment[i]);
+            var edgeA=new Vertex(i%world.Width+.5f,boundary,radius,seamDepth,0,flow,facts.Sediment[i]);
             float targetX=river[next]?nodeX[next]:next%world.Width+.5f;
             float targetY=river[next]?nodeY[next]:next/world.Width+.5f;
-            var edgeB=new Vertex(next%world.Width+.5f,boundary,radius,depths[i],0,-flow,facts.Sediment[i]);
+            var edgeB=new Vertex(next%world.Width+.5f,boundary,radius,seamDepth,0,-flow,facts.Sediment[i]);
             var b=new Vertex(targetX,targetY,endRadius,river[next]?depths[next]:depths[i],
                 river[next]?tangentX[next]:0,river[next]?tangentY[next]:-flow,river[next]?facts.Sediment[next]:facts.Sediment[i]);
             built.Add(new Segment(a,edgeA,river[i]?i:next));built.Add(new Segment(edgeB,b,river[next]?next:i));
