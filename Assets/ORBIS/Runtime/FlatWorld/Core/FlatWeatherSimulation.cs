@@ -47,10 +47,10 @@ namespace Orbis.Flat
                 if(y+1<Height)AddLink(links,p,a,a+Width,Math.PI*2/Width*Math.Cos(((y+1.0)/Height-.5)*Math.PI));
             }
             Model=new OrbisAtmosphereCore(p,area,links.ToArray(),FMath.Seed(world.Seed+"|flat-weather"));Model.SetParallelism(FlatWorkerPolicy.Resolve(workers));
-            var disturbances=new List<AtmosVector>();
-            foreach(bool isNorth in new[]{true,false}){var c=FlatCycloneSelection.Find(world,world.Month,isNorth);if(c.Active)disturbances.Add(Direction((c.X+.5)/world.Width,(c.Y+.5)/world.Height));}
             var rh=new double[count];for(int i=0;i<count;i++)rh[i]=humidity[i*12+world.Month];
-            Model.SetInitialClimate(disturbances.ToArray(),rh);Forcing(world.Day);Model.Initialize();
+            // This independent layered solver already evolves pressure and convergence
+            // from its wind and thermal forcing. Start it without artificial lows.
+            Model.SetInitialClimate(Array.Empty<AtmosVector>(),rh);Forcing(world.Day);Model.Initialize();
         }
         static void AddLink(List<AtmosEdge> links,AtmosVector[] p,int a,int b,double length)
         {links.Add(new AtmosEdge{A=a,B=b,Direction=(p[b]-p[a]).Normalized,Length=length,Distance=Math.Acos(OrbisAtmosphereCore.Clamp(AtmosVector.Dot(p[a],p[b]),-1,1))});}

@@ -747,7 +747,8 @@ public static class WildlifeRegression
         byte[] encoded = FlatSave.Encode(world);
         var loaded = FlatSave.Decode(encoded);
         var other = loaded.Wildlife[0];
-        Check(FlatSave.Version == 2 && loaded.WildlifeInitialized && loaded.Wildlife.Count == 1, "v2 wildlife payload");
+        Check(FlatSave.Version == 3 && loaded.WildlifeInitialized && loaded.Wildlife.Count == 1 && loaded.Cyclones == null,
+            "v3 saves preserve wildlife and leave uninitialized weather ready for spin-up");
         Check(other.Id == actor.Id && other.Species == actor.Species && other.State == actor.State && other.HomeTile == actor.HomeTile && other.GoalTile == actor.GoalTile,
             "persistent identity, species, state and destination");
         Check(other.X == actor.X && other.Y == actor.Y && other.Hunger == actor.Hunger && other.Fatigue == actor.Fatigue && other.RandomState == actor.RandomState &&
@@ -761,11 +762,28 @@ public static class WildlifeRegression
         }
 
         const int header = 13 + 4 + 32, actorBytes = 54;
+        var version2Body = encoded.AsSpan(header).ToArray();
+        version2Body[0] = 2;
+        byte[] version2File = Repack(version2Body);
+        // Captured from the v2 writer with the fixture above.
+        Check(Convert.ToHexString(SHA256.HashData(version2File)) == "84D939FE5C88A7DBF22811B0C1A966D63F071AD1C12CDC34889B1EB420BDF1FB",
+            "historical v2 fixture retains its original bytes");
+        var version2 = FlatSave.Decode(version2File);
+        Check(version2.Cyclones == null && encoded.AsSpan().SequenceEqual(FlatSave.Encode(version2)),
+            "v2 load preserves every field and awaits cyclone initialization");
+        new FlatSimulation(version2);
+        Check(version2.Cyclones != null && version2.Wildlife.Count == 1, "v2 world starts cyclone simulation with the saved wildlife");
+        var calm = FlatSave.Decode(FlatSave.Encode(version2)).Cyclones;
+        Check(calm != null && !calm.North.Tracked && !calm.South.Tracked && calm.StepIndex == version2.Cyclones.StepIndex,
+            "a calm initialized world retains its cyclone clock across saves");
         var legacyBody = new byte[encoded.Length - header - 5 - actorBytes];
         Array.Copy(encoded, header, legacyBody, 0, legacyBody.Length);
         Array.Copy(BitConverter.GetBytes(1), 0, legacyBody, 0, 4);
         var legacy = FlatSave.Decode(Repack(legacyBody));
-        Check(!legacy.WildlifeInitialized && legacy.Wildlife.Count == 0, "v1 loads with wildlife ready for initialization");
+        Check(!legacy.WildlifeInitialized && legacy.Wildlife.Count == 0 && legacy.Cyclones == null,
+            "v1 loads with wildlife and cyclones ready for initialization");
+        new FlatSimulation(legacy);
+        Check(legacy.Cyclones != null, "v1 world starts cyclone simulation");
         using (var simulation = new FlatWildlifeSimulation(legacy, new Paths(legacy)))
             Check(legacy.Wildlife.Count > 0, "v1 world receives compatible wildlife initialization");
 
@@ -803,6 +821,78 @@ public static class WildlifeRegression
         Invalid(() => FlatSave.Encode(world), "unbounded actor population rejected");
     }
 
+    static void CyclonePersistence()
+    {
+        // Start with the same derived climate and moisture fields as a newly loaded world.
+        var world = FlatSave.Decode(FlatSave.Encode(Habitat()));
+        world.Day = 37.625;
+        byte[] empty = FlatSave.Encode(world);
+        var north = new FlatCycloneTrack
+        {
+            Tracked = true, U = .0025, V = .625, PressureDeficit = 26, WindSpeed = 31.5,
+            Phase = 8.0625, AgeDays = 3, OceanCooling = .75
+        };
+        var previousNorth = north;
+        previousNorth.U = .9975;
+        previousNorth.Phase -= .5;
+        previousNorth.AgeDays -= .25;
+        var south = new FlatCycloneTrack
+        {
+            Tracked = true, U = .83, V = .39, PressureDeficit = 12, WindSpeed = 21.5,
+            Phase = -2.75, AgeDays = 1.25, OceanCooling = .18
+        };
+        world.Cyclones = new FlatCycloneWeather
+        {
+            StepIndex = 150, North = north, PreviousNorth = previousNorth, South = south, PreviousSouth = default
+        };
+        byte[] saved = FlatSave.Encode(world);
+        var loaded = FlatSave.Decode(saved);
+        var copy = loaded.Cyclones;
+        Check(copy != null && copy.StepIndex == 150 && copy.North.Equals(north) && copy.PreviousNorth.Equals(previousNorth)
+            && copy.South.Equals(south) && copy.PreviousSouth.Equals(default(FlatCycloneTrack)),
+            "v3 restores both hemisphere tracks and both previous interpolation endpoints");
+        Check(saved.AsSpan().SequenceEqual(FlatSave.Encode(loaded)), "cyclone save round-trip is bit-for-bit identical");
+
+        var continuous = new FlatSimulation(world);
+        var resumed = new FlatSimulation(loaded);
+        Check(saved.AsSpan().SequenceEqual(FlatSave.Encode(loaded)), "loading the simulation retains fractional-day track history");
+        foreach (float days in new[] { .0625f, .1875f, 1.25f })
+        {
+            continuous.Step(days);
+            resumed.Step(days);
+            Check(FlatSave.Encode(world).AsSpan().SequenceEqual(FlatSave.Encode(loaded)),
+                "saved cyclone evolution matches uninterrupted simulation through fixed-step boundaries");
+        }
+
+        const int header = 13 + 4 + 32, trackBytes = 1 + 7 * sizeof(double);
+        int tail = empty.Length - header;
+        var body = saved.AsSpan(header).ToArray();
+        Check(body.Length - tail == sizeof(long) + 4 * trackBytes, "v3 appends only a fixed-size initialized cyclone state");
+        void Damaged(int offset, byte[] replacement, string message)
+        {
+            var changed = (byte[])body.Clone();
+            replacement.CopyTo(changed, offset);
+            Invalid(() => FlatSave.Decode(Repack(changed)), message);
+        }
+        int firstTrack = tail + sizeof(long);
+        Damaged(0, BitConverter.GetBytes(2), "v2 rejects an unexpected cyclone tail");
+        Damaged(tail, BitConverter.GetBytes(149L), "cyclone tick must agree with the saved calendar");
+        Damaged(firstTrack, new byte[] { 2 }, "noncanonical cyclone tracking flag rejected");
+        Damaged(firstTrack + 1, BitConverter.GetBytes(1.0), "unwrapped cyclone longitude rejected");
+        Damaged(firstTrack + 9, BitConverter.GetBytes(-.01), "out-of-range cyclone latitude rejected");
+        Damaged(firstTrack + 17, BitConverter.GetBytes(999.0), "impossible cyclone pressure deficit rejected");
+        Damaged(firstTrack + 25, BitConverter.GetBytes(double.PositiveInfinity), "nonfinite cyclone wind rejected");
+        Damaged(firstTrack + 33, BitConverter.GetBytes(double.MaxValue), "unbounded cyclone phase rejected");
+        Damaged(firstTrack + 41, BitConverter.GetBytes(-.1), "negative cyclone age rejected");
+        Damaged(firstTrack + 3 * trackBytes + 49, BitConverter.GetBytes(double.NaN), "invalid cooling in inactive history rejected");
+        Invalid(() => FlatSave.Decode(Repack(body.AsSpan(0, body.Length - 1).ToArray())), "truncated cyclone history rejected");
+        var extra = new byte[body.Length + 1];
+        body.CopyTo(extra, 0);
+        Invalid(() => FlatSave.Decode(Repack(extra)), "oversized cyclone history rejected");
+        world.Cyclones.PreviousNorth.OceanCooling = -1;
+        Invalid(() => FlatSave.Encode(world), "save validation rejects invalid historical cyclone state before writing");
+    }
+
     public static void Run()
     {
         SeedAndClone();
@@ -821,6 +911,7 @@ public static class WildlifeRegression
         FlyingAndPhysicalSpeed();
         TopologyAndTerrainChanges();
         Persistence();
-        Console.WriteLine("PASS wildlife actor AI, habitat paths, pause, topology, terrain changes, clone and v1/v2 saves (" + checks + " checks)");
+        CyclonePersistence();
+        Console.WriteLine("PASS wildlife actor AI, habitat paths, pause, topology, terrain changes, clone, v1/v2/v3 saves and cyclone resume (" + checks + " checks)");
     }
 }

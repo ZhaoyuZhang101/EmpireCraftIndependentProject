@@ -2,6 +2,7 @@
 #define ORBIS_FLAT_PRECIPITATION
 
 #include "FlatVegetationWind.cginc"
+#include "FlatCycloneWind.cginc"
 
 struct FlatPrecipitation
 {
@@ -87,6 +88,13 @@ FlatPrecipitation FlatSamplePrecipitation(float2 uv,float2 cell,float4 cloud,flo
     [branch] if(visible>.0001 && max(rain,snow)>.001)
     {
         float2 wind=FlatSeasonalWind(uv);
+        if(_CycloneNorth.w+_CycloneSouth.w>.025)
+        {
+            float3 up=FlatRadial(uv);
+            float3 circulation=FlatCycloneSurfaceWind(up,_CycloneNorth,1)+FlatCycloneSurfaceWind(up,_CycloneSouth,-1);
+            wind+=FlatGeographicLight(uv,circulation).xy;
+            wind*=min(1,1.8/max(.001,length(wind)));
+        }
         float latitudeScale=FlatArtworkLatitudeScale(uv.y);
         float close=smoothstep(9,27,pixelsPerTile);
         if(rain>.001)

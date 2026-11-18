@@ -187,20 +187,24 @@ internal static class RiverDischargeRegression
         Console.WriteLine($"Junction/lake Q peak {inletPeak:F3}/{outletPeak:F3}, minimum {inletLow:F3}/{outletLow:F3}, annual {flow.Annual(outlet):F3}");
     }
 
-    static byte[] WithoutWildlifeSection(byte[] version2)
+    const int SavePayloadOffset = 13 + sizeof(int) + 32;
+
+    static byte[] HistoricalSave(byte[] current, int version)
     {
-        const int magic = 13, digestBytes = 32, header = magic + 4 + digestBytes;
-        // Empty v2 wildlife section is a bool and an Int32 count.
-        var version1 = new byte[version2.Length - 5];
-        Array.Copy(version2, version1, version1.Length);
-        Array.Copy(BitConverter.GetBytes(version1.Length - header), 0, version1, magic, 4);
-        Array.Copy(BitConverter.GetBytes(1), 0, version1, header, 4);
+        const int magic = 13, digestBytes = 32;
+        // This river fixture has an empty wildlife section and no initialized cyclone state.
+        int omit = version == 1 ? sizeof(byte) + sizeof(int) : 0;
+        var historical = new byte[current.Length - omit];
+        Array.Copy(current, historical, historical.Length);
+        int payloadLength = historical.Length - SavePayloadOffset;
+        Array.Copy(BitConverter.GetBytes(payloadLength), 0, historical, magic, sizeof(int));
+        Array.Copy(BitConverter.GetBytes(version), 0, historical, SavePayloadOffset, sizeof(int));
         using (var sha = SHA256.Create())
         {
-            var digest = sha.ComputeHash(version1, header, version1.Length - header);
-            Array.Copy(digest, 0, version1, magic + 4, digestBytes);
+            var digest = sha.ComputeHash(historical, SavePayloadOffset, payloadLength);
+            Array.Copy(digest, 0, historical, magic + sizeof(int), digestBytes);
         }
-        return version1;
+        return historical;
     }
 
     static void RoutingAndSaves()
@@ -225,11 +229,14 @@ internal static class RiverDischargeRegression
         for (int i = 0; i < world.Count; i++)
             for (int m = 0; m < 12; m++) world.Runoff[i] += world.Precipitation[i * 12 + m] / 1200;
         AccumulateAnnual(world);
-        byte[] v2 = FlatSave.Encode(world);
-        foreach (byte[] file in new[] { WithoutWildlifeSection(v2), v2 })
+        byte[] currentFile = FlatSave.Encode(world);
+        var files = new[] { HistoricalSave(currentFile, 1), HistoricalSave(currentFile, 2), currentFile };
+        Check(files.Select(file => BitConverter.ToInt32(file, SavePayloadOffset)).SequenceEqual(new[] { 1, 2, 3 }),
+            "River save fixtures must exercise each of the three on-disk formats.");
+        foreach (byte[] file in files)
         {
             var loaded = FlatSave.Decode(file);
-            Check(FlatSave.Encode(loaded).SequenceEqual(v2), "Loading either historical save version preserves every authoritative field.");
+            Check(FlatSave.Encode(loaded).SequenceEqual(currentFile), "Each river save version preserves every authoritative field.");
             Check(loaded.Facts.RiverDischarge.Annual(outlet) == world.Runoff[outlet], "Legacy reach volume remains authoritative.");
             CheckHydrograph(loaded.Facts.RiverDischarge, snow, rain, junction, outlet, below);
         }
@@ -313,6 +320,6 @@ internal static class RiverDischargeRegression
         RoutingAndSaves();
         FirstFrameDiagonals();
         DefaultAtlas();
-        Console.WriteLine("PASS seasonal water balance, spherical area, snowmelt, aquifer recession, tributaries, lake storage and v1/v2 saves");
+        Console.WriteLine("PASS seasonal water balance, spherical area, snowmelt, aquifer recession, tributaries, lake storage and v1/v2/v3 saves");
     }
 }

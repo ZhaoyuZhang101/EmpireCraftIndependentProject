@@ -2,9 +2,8 @@ using System;
 
 namespace Orbis.Flat
 {
-    // Visual centres selected from the existing monthly climatology. ORBIS has
-    // no daily pressure/vorticity solver, so these are climatological cyclone
-    // candidates rather than a second or invented weather simulation.
+    // Monthly suitability diagnostic. Actual cyclone positions and intensities
+    // come from the persistent tracks in FlatCycloneWeather.
     public struct FlatCyclone
     {
         public int X,Y;

@@ -39,17 +39,19 @@ namespace Orbis.Editor
     seamTime/=beforeWrap.Length;
     if(seamTime>.005)throw new Exception("Cloud mask pops at weather era boundary: "+seamTime);
     report.Add("PASS evolving cloud shape and continuous weather-era boundary; change="+evolved+" boundary="+seamTime);
+    ValidateCycloneClouds(cloud,report);
     ecotone.SetVector("_MapSize",new Vector4(512,256,1f/512,1f/256));ecotone.SetFloat("_ProbeShore",1);var water=render(ecotone);
     ecotone.SetFloat("_ProbeShore",-4);var land=render(ecotone);float warp=0,seam=0,waterMotion=0;
     for(int i=0;i<land.Length;i++){warp=Mathf.Max(warp,land[i].r);seam=Mathf.Max(seam,land[i].g);waterMotion=Mathf.Max(waterMotion,water[i].r);}
     if(warp<.001f||waterMotion>1e-5f||seam>1e-5f)throw new Exception("Ecotone warp/seam/water "+warp+" "+seam+" "+waterMotion);
     report.Add("PASS spherical ecotone noise, continuous date-line, unchanged water coordinates; displacement="+warp+" seam="+seam);
-    var shape=OrbisCloudNoise.Create();var detail=OrbisCloudNoise.CreateDetail();owned.Add(shape);owned.Add(detail);
+    var shape=OrbisCloudNoise.Create();var detail=OrbisCloudNoise.CreateDetail();var ice=OrbisCloudNoise.CreateHighDetail();
+    owned.Add(shape);owned.Add(detail);owned.Add(ice);
     if(shape.width!=128||detail.width!=64)throw new Exception("Wrong cloud volume resolution");
     report.Add("PASS independent 128^3 shape / 64^3 detail resources loaded");
     var column=new Material(Resources.Load<Shader>("ORBIS/FlatWorld/HPCloudColumn"));owned.Add(column);
     ShaderUtil.CompilePass(column,0,true);
-    column.SetTexture("_CloudNoise",shape);column.SetTexture("_CloudDetailNoise",detail);
+    column.SetTexture("_CloudNoise",shape);column.SetTexture("_CloudDetailNoise",detail);column.SetTexture("_HPHighDetail",ice);
     column.SetTexture("_ScrollHeightTex",Texture2D.blackTexture);column.SetTexture("_ScrollCloudWindTex",Texture2D.blackTexture);
     column.SetFloat("_CloudHeightScale",OrbisWeatherField.HeightScale);column.SetFloat("_ScrollHeightScale",0);
     column.SetVector("_ScrollSourceSize",new Vector4(512,256,0,0));column.SetFloat("_Density",1);column.SetFloat("_Cover",1);
@@ -62,6 +64,13 @@ namespace Orbis.Editor
     foreach(var p in clearColumn)if(p.r+p.g+p.a>1e-5f)throw new Exception("Rain or shadow exists outside cloud support");
     setWeather(new Color(.12f,.08f,.15f,1));var thinColumn=render(column);
     foreach(var p in thinColumn)if(p.a>1e-5f)throw new Exception("Thin cloud produces visible heavy rain");
+    setWeather(new Color(0,.34f,.18f,0));var iceOnly=render(column);int translucent=0;
+    foreach(var p in iceOnly)
+    {
+     if(p.r+p.b+p.a>.0001f)throw new Exception("Isolated cirrus adds low cloud or precipitation");
+     if(p.g>.02f&&p.g<.90f)translucent++;
+    }
+    CheckRenderState(report,translucent>iceOnly.Length*.70f,"translucent high cloud above clear lower air; pixels="+translucent);
     setWeather(new Color(1,.5f,1,1));var stormColumn=render(column);
     int thick=0,raining=0;double shadowMean=0;
     foreach(var p in stormColumn){shadowMean+=p.r;if(p.r>.65f)thick++;if(p.a>.05f)raining++;if(p.a>.001f&&p.r<.55f)throw new Exception("Rain escapes optically thick cloud");}
@@ -111,6 +120,72 @@ namespace Orbis.Editor
    }
   }
 
+  static void ValidateCycloneClouds(Material cloud,List<string> report)
+  {
+   const int width=1024,height=512,samples=96;
+   var target=RenderTexture.GetTemporary(width,height,0,RenderTextureFormat.ARGB32,RenderTextureReadWrite.Linear);
+   var previous=RenderTexture.active;
+   var read=new Texture2D(width,height,TextureFormat.RGBA32,false,true){wrapModeU=TextureWrapMode.Repeat,wrapModeV=TextureWrapMode.Clamp};
+   try
+   {
+    void Bake()
+    {
+     Graphics.Blit(Texture2D.blackTexture,target,cloud);RenderTexture.active=target;
+     read.ReadPixels(new Rect(0,0,width,height),0,0);read.Apply();
+    }
+    foreach(int spin in new[]{1,-1})
+    {
+     float latitude=spin*.34f;
+     var axis=new Vector3(0,Mathf.Sin(latitude),Mathf.Cos(latitude));
+     var north=Vector3.Cross(axis,Vector3.right);
+     string property=spin==1?"_CycloneNorth":"_CycloneSouth";
+     float Density(float radius,float bearing)
+     {
+      var local=Vector3.right*Mathf.Cos(bearing)+north*Mathf.Sin(bearing);
+      var direction=axis*Mathf.Cos(radius)+local*Mathf.Sin(radius);
+      return read.GetPixelBilinear(.5f+Mathf.Atan2(direction.x,direction.z)/(2*Mathf.PI),.5f+Mathf.Asin(direction.y)/Mathf.PI).r;
+     }
+     cloud.SetVector("_CyclonePhase",Vector4.zero);Bake();
+     float calm=Density(0,0);
+     cloud.SetVector(property,new Vector4(axis.x,axis.y,axis.z,.03f));Bake();
+     CheckRenderState(report,Mathf.Abs(calm-Density(0,0))<.02f,"incipient disturbance has no painted eye, hemisphere="+spin);
+     cloud.SetVector(property,new Vector4(axis.x,axis.y,axis.z,.94f));Bake();
+     float eye=Density(0,0),wall=0,min=1,max=0;
+     var band=new float[samples];double inward=0,outward=0;
+     for(int i=0;i<samples;i++)
+     {
+      float a=i*2*Mathf.PI/samples;
+      wall+=Density(.027f,a)/samples;band[i]=Density(.097f,a);
+      min=Mathf.Min(min,band[i]);max=Mathf.Max(max,band[i]);
+      for(int j=0;j<3;j++)
+      {
+       float radius=.067f+j*.024f,inner=Density(radius,a);
+       inward+=Mathf.Abs(inner-Density(radius+.024f,a-spin*.44f));
+       outward+=Mathf.Abs(inner-Density(radius+.024f,a+spin*.44f));
+      }
+     }
+     CheckRenderState(report,wall-eye>.22f&&max-min>.35f,
+      "mature eye, eyewall and broken outer bands, hemisphere="+spin+" eye/wall="+eye.ToString("F2")+"/"+wall.ToString("F2"));
+     CheckRenderState(report,inward<outward*.91,"rainbands wrap inward in the hemispheric circulation, error="+inward.ToString("F1")+"/"+outward.ToString("F1"));
+     float turn=spin*Mathf.PI/3;
+     cloud.SetVector("_CyclonePhase",spin==1?new Vector4(turn,0,0,0):new Vector4(0,turn,0,0));Bake();
+     double same=0,rotated=0;
+     for(int i=0;i<samples;i++)
+     {
+      float a=i*2*Mathf.PI/samples;
+      same+=Mathf.Abs(band[i]-Density(.097f,a));rotated+=Mathf.Abs(band[i]-Density(.097f,a+turn));
+     }
+     CheckRenderState(report,same>samples*.07&&rotated<same*.75,"cloud bands follow the signed simulated rotation, error="+rotated.ToString("F1")+"/"+same.ToString("F1"));
+     cloud.SetVector(property,Vector4.zero);
+    }
+   }
+   finally
+   {
+    cloud.SetVector("_CyclonePhase",Vector4.zero);
+    RenderTexture.active=previous;RenderTexture.ReleaseTemporary(target);UnityEngine.Object.DestroyImmediate(read);
+   }
+  }
+
   static void ValidateSurfacePrecipitation(List<string> report,Func<Material,Color[]> render)
   {
    var probe=new Material(AssetDatabase.LoadAssetAtPath<Shader>("Assets/ORBIS/Editor/FlatNightProbe.shader"));
@@ -146,6 +221,12 @@ namespace Orbis.Editor
     probe.SetVector("_ProbeArea",area);breeze(-1.3f);var reversed=render(probe);
     CheckRenderState(report,difference(first,reversed,0)>1&&difference(first,reversed,2)<.001f,
      "seasonal wind redirects incoming drops while their impact centres stay fixed");
+    var centre=Flat.FlatWeatherSimulation.Direction(.480,.477);
+    probe.SetVector("_CycloneSouth",new Vector4((float)centre.X,(float)centre.Y,(float)centre.Z,.9f));
+    var rotatingRain=render(probe);
+    CheckRenderState(report,difference(reversed,rotatingRain,0)>1&&difference(reversed,rotatingRain,2)<.001f,
+     "simulated cyclone wind redirects local rain without moving ground impacts");
+    probe.SetVector("_CycloneSouth",Vector4.zero);
     probe.SetFloat("_SkyClock",3.84f);var later=render(probe);
     CheckRenderState(report,difference(first,later,2)>1,"surface impacts expand and fade over time");
     sky(new Color(.12f,.1f,0,1),storm);var boundary=render(probe);int hits=0;
@@ -201,6 +282,8 @@ namespace Orbis.Editor
      sky.Tick(.6f,true,true,false,nextWidth,map.World.Day);
      CheckRenderState(report,RenderTexture.active==null&&!owned.IsCreated()&&sky.CacheWidth==nextWidth,
       "cloud quality change detaches an active owned texture before release, target="+kind);
+     CheckRenderState(report,sky.Texture.width==2*nextWidth&&sky.ColumnTexture.width==nextWidth,
+      "higher-resolution cloud cover shares the same spherical extent as the shadow columns, width="+nextWidth);
     }
     CheckRenderState(report,releaseWarnings.Count==0,"cloud quality changes release active caches without warnings");
    }

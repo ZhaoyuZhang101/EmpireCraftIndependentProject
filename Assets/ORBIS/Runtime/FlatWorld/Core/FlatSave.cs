@@ -8,14 +8,51 @@ namespace Orbis.Flat
     // Bounded binary payload + SHA-256. Separate path/schema from legacy V4 JSON.
     public static class FlatSave
     {
-        public const int Version=2,MaxFileBytes=96*1024*1024;
+        public const int Version=3,MaxFileBytes=96*1024*1024;
         const string Magic="ORBIS-FLAT-01";
+        const int CycloneStateBytes = sizeof(long) + 4 * (sizeof(byte) + 7 * sizeof(double));
         static void StringWrite(BinaryWriter b,string s,int max)
         {byte[] a=Encoding.UTF8.GetBytes(s??"");if(a.Length>max)throw new InvalidDataException("String too long.");b.Write(a.Length);b.Write(a);}
         static string StringRead(BinaryReader b,int max)
         {int n=b.ReadInt32();if(n<0||n>max)throw new InvalidDataException("Invalid string size.");byte[] a=b.ReadBytes(n);if(a.Length!=n)throw new EndOfStreamException();return Encoding.UTF8.GetString(a);}
         static void Check(bool ok,string message) { if(!ok)throw new InvalidDataException(message); }
         static bool Finite(double d) { return !double.IsNaN(d)&&!double.IsInfinity(d); }
+
+        static void WriteCycloneTrack(BinaryWriter writer, FlatCycloneTrack track)
+        {
+            writer.Write(track.Tracked);
+            writer.Write(track.U);
+            writer.Write(track.V);
+            writer.Write(track.PressureDeficit);
+            writer.Write(track.WindSpeed);
+            writer.Write(track.Phase);
+            writer.Write(track.AgeDays);
+            writer.Write(track.OceanCooling);
+        }
+
+        static FlatCycloneTrack ReadCycloneTrack(BinaryReader reader)
+        {
+            byte tracked = reader.ReadByte();
+            Check(tracked <= 1, "Invalid cyclone tracking flag.");
+            return new FlatCycloneTrack
+            {
+                Tracked = tracked == 1, U = reader.ReadDouble(), V = reader.ReadDouble(),
+                PressureDeficit = reader.ReadDouble(), WindSpeed = reader.ReadDouble(),
+                Phase = reader.ReadDouble(), AgeDays = reader.ReadDouble(), OceanCooling = reader.ReadDouble()
+            };
+        }
+
+        static void ValidateCycloneTrack(FlatCycloneTrack track, double day)
+        {
+            Check(track.U >= 0 && track.U < 1 && track.V >= 0 && track.V <= 1, "Invalid cyclone coordinates.");
+            Check(track.PressureDeficit >= 0 && track.PressureDeficit <= 200 && track.WindSpeed >= 0 && track.WindSpeed <= 150,
+                "Invalid cyclone pressure or wind.");
+            Check(track.OceanCooling >= 0 && track.OceanCooling <= 30, "Invalid cyclone ocean cooling.");
+            // Allow spin-up before day zero and unwrapped rotation over the storm's lifetime.
+            Check(track.AgeDays >= 0 && track.AgeDays <= day + 32 && Math.Abs(track.Phase) <= (day + 32) * 32,
+                "Invalid cyclone age or rotation.");
+        }
+
         public static byte[] Encode(WorldData w)
         {
             Validate(w);
@@ -37,6 +74,15 @@ namespace Orbis.Flat
                 {
                     b.Write(a.Id);b.Write(a.HomeTile);b.Write(a.GoalTile);b.Write((byte)a.Species);b.Write((byte)a.State);
                     b.Write(a.X);b.Write(a.Y);b.Write(a.Hunger);b.Write(a.Fatigue);b.Write(a.Facing);b.Write(a.AnimationTime);b.Write(a.MoveSpeed);b.Write(a.RandomState);
+                }
+                var cyclones = w.Cyclones;
+                if (cyclones != null)
+                {
+                    b.Write(cyclones.StepIndex);
+                    WriteCycloneTrack(b, cyclones.North);
+                    WriteCycloneTrack(b, cyclones.South);
+                    WriteCycloneTrack(b, cyclones.PreviousNorth);
+                    WriteCycloneTrack(b, cyclones.PreviousSouth);
                 }
                 b.Flush();body=m.ToArray();
             }
@@ -77,6 +123,17 @@ namespace Orbis.Flat
                             X=b.ReadDouble(),Y=b.ReadDouble(),Hunger=b.ReadSingle(),Fatigue=b.ReadSingle(),Facing=b.ReadSingle(),AnimationTime=b.ReadSingle(),MoveSpeed=b.ReadSingle(),RandomState=b.ReadUInt32()
                         });
                     }
+                    // V3 appends one fixed-size state once the world simulation has initialized it.
+                    // A zero-length tail also distinguishes an untouched world from four inactive tracks.
+                    if (version >= 3 && m.Position < m.Length)
+                    {
+                        Check(m.Length - m.Position == CycloneStateBytes, "Invalid cyclone state length.");
+                        w.Cyclones = new FlatCycloneWeather
+                        {
+                            StepIndex = b.ReadInt64(), North = ReadCycloneTrack(b), South = ReadCycloneTrack(b),
+                            PreviousNorth = ReadCycloneTrack(b), PreviousSouth = ReadCycloneTrack(b)
+                        };
+                    }
                     Check(m.Position==m.Length,"Trailing data is not permitted.");Validate(w);
                     w.Moisture=FlatMoisture.Build(w,System.Threading.CancellationToken.None);
                     FlatTerrainAnalysis.Build(w,System.Threading.CancellationToken.None,false);return w;
@@ -87,6 +144,15 @@ namespace Orbis.Flat
         {
             Check(w.Nations.Count<=WorldData.MaxNations&&w.Preset<=TerrainPreset.InlandSea,"Invalid settings.");
             Check(Finite(w.Day)&&w.Day>=0&&w.Day<1e9&&Finite(w.ExpansionRemainder)&&w.ExpansionRemainder>=0&&w.ExpansionRemainder<1e6,"Invalid time.");
+            var cyclones = w.Cyclones;
+            if (cyclones != null)
+            {
+                Check(cyclones.StepIndex == FlatCycloneWeather.StepAt(w.Day), "Cyclone clock disagrees with the saved world day.");
+                ValidateCycloneTrack(cyclones.North, w.Day);
+                ValidateCycloneTrack(cyclones.South, w.Day);
+                ValidateCycloneTrack(cyclones.PreviousNorth, w.Day);
+                ValidateCycloneTrack(cyclones.PreviousSouth, w.Day);
+            }
             var rank=new int[w.Count];var seen=new bool[w.Count];
             for(int j=0;j<w.Count;j++){int i=w.DrainOrder[j];Check(i>=0&&i<w.Count&&!seen[i],"Drain order is not a permutation.");seen[i]=true;rank[i]=j;}
             for(int i=0;i<w.Count;i++)

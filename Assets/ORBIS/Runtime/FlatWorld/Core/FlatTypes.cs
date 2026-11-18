@@ -58,6 +58,7 @@ namespace Orbis.Flat
         // Deterministic derived cache. Not a second authoritative simulation or save payload.
         public FlatTerrainFacts Facts;
         public FlatMoistureState Moisture;
+        public FlatCycloneWeather Cyclones;
         public short[] Elevation,WaterLevel;
         public WaterKind[] Water;
         public Biome[] Biomes;
@@ -123,6 +124,7 @@ namespace Orbis.Flat
             Array.Copy(Temperature,w.Temperature,Count*12);Array.Copy(Precipitation,w.Precipitation,Count*12);
             w.Facts=Facts==null?null:Facts.Clone();
             w.Moisture=Moisture==null?null:Moisture.Clone();
+            w.Cyclones=Cyclones==null?null:Cyclones.Clone();
             foreach(var actor in Wildlife)w.Wildlife.Add(actor.Clone());
             foreach(var n in Nations)w.Nations.Add(n.Clone());return w;
         }

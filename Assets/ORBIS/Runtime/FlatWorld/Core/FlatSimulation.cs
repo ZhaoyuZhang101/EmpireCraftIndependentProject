@@ -11,7 +11,12 @@ namespace Orbis.Flat
         readonly List<int> populated=new List<int>();
         readonly List<HashSet<int>> frontiers=new List<HashSet<int>>();
         static readonly uint[] Colors={0xe9aa58,0x52bba6,0xad86da,0xdf7885,0x70a7e0,0xc6cf71,0xe994c4,0x85bd7b,0xcd8760,0x69c6d1,0xbdad8e,0xb07ad0};
-        public FlatSimulation(WorldData world) { World=world;Reindex(); }
+        public FlatSimulation(WorldData world)
+        {
+            World=world;
+            if(world.Cyclones==null)world.Cyclones=FlatCycloneWeather.SpinUp(world);
+            Reindex();
+        }
         public void Reindex()
         {
             populated.Clear();farms.Clear();frontiers.Clear();for(int c=0;c<World.Nations.Count;c++)frontiers.Add(new HashSet<int>());
@@ -96,6 +101,7 @@ namespace Orbis.Flat
         {
             if(!FMath.Finite(days)||days<=0||days>30)throw new ArgumentOutOfRangeException(nameof(days));
             var w=World;w.Day+=days;
+            w.Cyclones.AdvanceTo(w,w.Day);
             Array.Clear(production,0,w.Nations.Count);Array.Clear(need,0,w.Nations.Count);
             foreach(int i in populated)
             {

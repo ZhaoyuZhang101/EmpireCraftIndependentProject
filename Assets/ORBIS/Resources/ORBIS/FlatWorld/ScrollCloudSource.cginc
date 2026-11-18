@@ -22,36 +22,49 @@ float2 ScrollClimateDensities(float3 p,bool simpleMode)
  float z=(length(p)-ground)/max(1e-7,_CloudHeightScale);
  if(z<400||z>13500)return 0;
  float4 weather=tex2Dlod(_ScrollWeatherTex,float4(uv,0,0));
- if(weather.r+weather.g<.015)return 0;
+ if(weather.r+weather.g<.006)return 0;
  float3 up=normalize(p);
  float3 localWind=tex2Dlod(_ScrollCloudWindTex,float4(uv,0,0)).xyz;
  float phase=frac(_ScrollWeatherTime*.016);
  float3 a=normalize(up-localWind*phase*8),b=normalize(up+localWind*(1-phase)*8);
- // V4.2 Repair's broad cloud body and soft silhouette, driven by the current
- // prognostic weather rather than its old static coverage map. Sample and blend
- // both flow phases; blending their coordinates cancels advection halfway.
- // Sample an isotropic spherical volume. Translating height along global Y
- // tilted every cloud column toward the poles and stretched its silhouette.
- float3 offset=float3(.13,.71,.37);
- float3 q0=a*length(p)*3+offset,q1=b*length(p)*3+offset;
- float shape0=tex3Dlod(_CloudNoise,float4(q0,0)).r-(1-tex3Dlod(_CloudNoise,float4(q0*2.73,0)).g)*.17;
- float shape1=tex3Dlod(_CloudNoise,float4(q1,0)).r-(1-tex3Dlod(_CloudNoise,float4(q1*2.73,0)).g)*.17;
- float shape=lerp(shape0,shape1,phase);
- float macro=lerp(tex3Dlod(_CloudNoise,float4(a*.72+float3(.7,.2,.4),0)).r,
-                  tex3Dlod(_CloudNoise,float4(b*.72+float3(.7,.2,.4),0)).r,phase);
- float coverage=saturate(weather.r);
- float threshold=.42-coverage*.17+(1-macro)*.08;
- float fine=.5;
- if(!simpleMode)
+ float coverage=weather.r,convection=weather.b;
+ float low=0,high=0;
+ if(coverage>.004&&z<11500)
  {
-  float3 detail=lerp(tex3Dlod(_CloudDetailNoise,float4(q0*6.1,0)).rgb,
-                     tex3Dlod(_CloudDetailNoise,float4(q1*6.1,0)).rgb,phase);
-  fine=dot(detail,float3(.625,.25,.125));
+  // Sample successive radial slices through the HP body. Low decks have shallow
+  // tops while moist convective towers build well above them.
+  float altitude=z/7000;
+  float scale=3.1+altitude*.18;
+  // Rotate the HP lattice off the map axes before sampling the cloud body.
+  const float3x3 frame=float3x3(.36,.48,-.80,-.80,.60,0,.48,.64,.60);
+  float3 offset=float3(.13,.71,.37)+mul(frame,localWind)*altitude*.8;
+  float3 q0=mul(frame,a)*scale+offset,q1=mul(frame,b)*scale+offset;
+  float4 body=lerp(tex3Dlod(_CloudNoise,float4(q0,0)),tex3Dlod(_CloudNoise,float4(q1,0)),phase);
+  float shape=saturate(body.r*.82+body.g*.24+coverage*.09);
+  float4 erosion=.48;
+  if(!simpleMode)
+  {
+   float3 curl=(body.gba-.5)*.74;
+   erosion=lerp(tex3Dlod(_CloudDetailNoise,float4(q0*5.7+curl,0)),tex3Dlod(_CloudDetailNoise,float4(q1*5.7+curl,0)),phase);
+   coverage=saturate(coverage+(erosion.r*.66+erosion.g*.34-.48)*.46*smoothstep(.02,.19,coverage));
+  }
+  float tower=smoothstep(.32,.95,convection);
+  float height=450+(z-450)/lerp(.88,1.33,tower);
+  low=OrbisHPLowDensityDetailed(height,.26+.74*coverage,convection,shape,erosion,.58+.42*body.g);
+  low*=coverage*lerp(.48,1.15,tower);
  }
- float structure=smoothstep(threshold+.07*(.5-fine),threshold+.18,shape)*lerp(.78,1.06,fine);
- float top=lerp(4200,11500,saturate(weather.b));
- float lower=smoothstep(400,1050,z)*(1-smoothstep(top*.70,top,z));
- float upper=smoothstep(5500,7600,z)*(1-smoothstep(10500,13500,z));
- return float2(coverage*structure*lower*1.85,weather.g*structure*upper*.55)*_Density*max(0,_Cover);
+ if(weather.g>.004&&z>5750)
+ {
+  // Ice clouds have a separate silhouette and optical depth. They can persist
+  // over clear ocean without borrowing any of the cumulus body samples.
+  float4 ice=tex2Dlod(_HPHighDetail,float4(uv,0,0));
+  float s,c;sincos(_ScrollWeatherTime*.0018,s,c);
+  float3 upper=float3(c*up.x-s*up.z,up.y,s*up.x+c*up.z);
+  float3 filament=float3(dot(upper,float3(.84,.25,.48))*3.1,dot(upper,float3(-.50,.05,.86))*11,upper.y*9.7);
+  float fine=tex3Dlod(_CloudDetailNoise,float4(filament+(ice.b-.5)*.37,0)).g;
+  float highCover=weather.g*(.68+.57*fine);
+  high=OrbisHPHighDensity(z,.24+.63*highCover,.36,.66+.34*ice.r,ice.g)*highCover*.85;
+ }
+ return float2(low,high)*_Density*max(0,_Cover);
 }
 #endif

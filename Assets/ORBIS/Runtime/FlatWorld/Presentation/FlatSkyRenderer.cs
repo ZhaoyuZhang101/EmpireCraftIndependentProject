@@ -19,6 +19,8 @@ namespace Orbis.Flat
         readonly Color[] windPixels=new Color[ClimateWidth*ClimateHeight],seasonalWindPixels=new Color[ClimateWidth*ClimateHeight];
         int climatePeriod=-1,revision=-1,windMonth=-1,windRevision=-1;float debt;bool rendered,failed;
         double stagedClock;
+        Vector4 pendingNorth,pendingSouth,visibleNorth,visibleSouth;
+        bool weatherWasHidden;
         readonly Vector4[] flashes=new Vector4[4];
         FlatLightningVisuals lightning;
         public Texture2D DynamicWind {get{return wind;}}
@@ -65,9 +67,12 @@ namespace Orbis.Flat
             ReleaseCache(Texture);ReleaseCache(ColumnTexture);
             ReleaseCache(weatherBack);ReleaseCache(columnBack);ReleaseCache(columnStrip);pendingStrip=-1;
             CacheWidth=width;int height=width/2;
-            Texture=new RenderTexture(width,height,0,RenderTextureFormat.ARGB32,RenderTextureReadWrite.Linear){name="Perf3.2 low and high clouds",filterMode=FilterMode.Bilinear,wrapModeU=TextureWrapMode.Repeat,wrapModeV=TextureWrapMode.Clamp,useMipMap=false,autoGenerateMips=false};
+            // The cheap weather pass resolves thin feeder bands at twice the
+            // linear resolution of the ray-integrated shadow/precipitation map.
+            Texture=new RenderTexture(width*2,height*2,0,RenderTextureFormat.ARGB32,RenderTextureReadWrite.Linear){name="Low and high cloud cover",filterMode=FilterMode.Bilinear,wrapModeU=TextureWrapMode.Repeat,wrapModeV=TextureWrapMode.Clamp,useMipMap=false,autoGenerateMips=false};
             if(!Texture.Create())throw new InvalidOperationException("Cannot allocate 2D cloud render target.");
-            ColumnTexture=new RenderTexture(Texture.descriptor){name="HP integrated low/high map clouds",filterMode=FilterMode.Bilinear,wrapModeU=TextureWrapMode.Repeat,wrapModeV=TextureWrapMode.Clamp};
+            var columnDescriptor=Texture.descriptor;columnDescriptor.width=width;columnDescriptor.height=height;
+            ColumnTexture=new RenderTexture(columnDescriptor){name="HP integrated low/high map clouds",filterMode=FilterMode.Bilinear,wrapModeU=TextureWrapMode.Repeat,wrapModeV=TextureWrapMode.Clamp};
             if(!ColumnTexture.Create())throw new InvalidOperationException("Cannot allocate HP cloud column cache.");
             weatherBack=NewCache(Texture.descriptor,"Weather staging");
             columnBack=NewCache(ColumnTexture.descriptor,"Cloud column staging");
@@ -110,6 +115,7 @@ namespace Orbis.Flat
             var old=Texture;Texture=weatherBack;weatherBack=old;
             old=ColumnTexture;ColumnTexture=columnBack;columnBack=old;
             stagedClock=hpColumn.GetFloat("_ScrollWeatherTime");
+            visibleNorth=pendingNorth;visibleSouth=pendingSouth;
             pendingStrip=-1;rendered=true;
         }
         void UploadClimate()
@@ -121,8 +127,6 @@ namespace Orbis.Flat
             var followingYear=FlatClimateYear.At(seed,(period+1)*30.0);
             // Hold cloud drift constant until all strips of its climate snapshot finish.
             wind.SetPixels(windPixels);wind.Apply(false,false);
-            BindCyclone("_CycloneNorth",FlatCycloneSelection.Find(world,m,true));
-            BindCyclone("_CycloneSouth",FlatCycloneSelection.Find(world,m,false));
             for(int y=0;y<h;y++)for(int x=0;x<w;x++)
             {
                 // Neighbour-averaged downsample avoids missing an entire wet coastal tile.
@@ -168,14 +172,20 @@ namespace Orbis.Flat
             climateWind.SetPixels(seasonalWindPixels);climateWind.Apply(false,false);
             windMonth=month;windRevision=world.TerrainRevision;
         }
-        void BindCyclone(string property,FlatCyclone cyclone)
+        static Vector4 StormVector(FlatCycloneTrack track)
         {
-            if(!cyclone.Active){bake.SetVector(property,Vector4.zero);return;}
-            float longitude=((cyclone.X+.5f)/world.Width-.5f)*Mathf.PI*2;
-            float latitude=((cyclone.Y+.5f)/world.Height-.5f)*Mathf.PI;
-            float cosine=Mathf.Cos(latitude);
-            bake.SetVector(property,new Vector4(Mathf.Sin(longitude)*cosine,Mathf.Sin(latitude),
-                                                Mathf.Cos(longitude)*cosine,cyclone.Strength));
+            if(!track.Tracked||track.Strength<=0)return Vector4.zero;
+            var p=FlatWeatherSimulation.Direction(track.U,track.V);
+            return new Vector4((float)p.X,(float)p.Y,(float)p.Z,(float)track.Strength);
+        }
+        void StageCyclones(double calendarDay)
+        {
+            var state=world.Cyclones;
+            var north=state==null?default:state.Sample(true,calendarDay);
+            var south=state==null?default:state.Sample(false,calendarDay);
+            pendingNorth=StormVector(north);pendingSouth=StormVector(south);
+            bake.SetVector("_CycloneNorth",pendingNorth);bake.SetVector("_CycloneSouth",pendingSouth);
+            bake.SetVector("_CyclonePhase",new Vector4((float)(north.Phase%(2*Math.PI)),(float)(south.Phase%(2*Math.PI)),0,0));
         }
         public void Tick(float delta,bool needed,bool animate,bool autoSun,int width,double calendarDay,Vector2 focus=default,bool local=false)
         {
@@ -185,24 +195,28 @@ namespace Orbis.Flat
             if(animate)Clock+=Math.Max(0,delta);
             // Vegetation shares prevailing winds even while cloud rendering sleeps.
             if(windMonth!=world.Month||windRevision!=world.TerrainRevision)UploadWind(world.Month);
-            if(!needed){Status="云缓存休眠；晨昏/大气开关独立。";return;}
+            if(!needed){weatherWasHidden=true;Status="云缓存休眠；晨昏/大气开关独立。";return;}
             if(failed)return;
             try
             {
                 Resize(width);
+                // A sleeping cache may contain half of an old storm. Resume at today's track.
+                bool resumed=weatherWasHidden;
+                if(resumed){pendingStrip=-1;weatherWasHidden=false;}
                 if(pendingStrip>=0){RenderColumnStrip();return;}
                 bool climateChanged=climatePeriod!=(int)Math.Floor(world.Day/30)||revision!=world.TerrainRevision;
                 if(climateChanged)UploadClimate();
-                if(!animate&&rendered&&!climateChanged){Status="二维云缓存暂停；保留已渲染图像。";return;}
+                if(!animate&&rendered&&!climateChanged&&!resumed){Status="二维云缓存暂停；保留已渲染图像。";return;}
                 debt+=Mathf.Max(0,delta);
-                if(debt<.5f&&rendered&&!climateChanged)return;debt=0;
+                if(debt<.5f&&rendered&&!climateChanged&&!resumed)return;debt=0;
+                StageCyclones(calendarDay);
                 bake.SetFloat("_VisualTime",(float)Clock);
                 bake.SetFloat("_MonthBlend",(float)(world.Day%30)/30f);
                 hpColumn.SetFloat("_MonthBlend",(float)(world.Day%30)/30f);
                 RenderCache(weatherBack,bake);
                 hpColumn.SetTexture("_ScrollWeatherTex",weatherBack);
                 hpColumn.SetFloat("_ScrollWeatherTime",(float)Clock);pendingStrip=0;RenderColumnStrip();
-                Status="视觉云层 "+CacheWidth+"×"+(CacheWidth/2)+" · 月均天气、云影、局部雨雪 · 最高 2 Hz";
+                Status="云层 "+Texture.width+"×"+Texture.height+" · 云影和雨雪 "+CacheWidth+"×"+(CacheWidth/2)+" · 最高 2 Hz";
             }
             catch(Exception ex){failed=true;rendered=false;Status="云缓存已安全关闭："+ex.Message;Debug.LogException(ex);}
         }
@@ -225,6 +239,7 @@ namespace Orbis.Flat
             target.SetTexture("_VegetationWindTex",climateWind?climateWind:Texture2D.blackTexture);
             target.SetFloat("_VegetationWindReady",climateWind?1:0);
             target.SetFloat("_VegetationWindBlend",world==null?0:(float)(world.Day/30-Math.Floor(world.Day/30)));
+            target.SetVector("_CycloneNorth",visibleNorth);target.SetVector("_CycloneSouth",visibleSouth);
             target.SetFloat("_FlatCloudShadows",shadows?1:0);target.SetFloat("_FlatAtmosphere",atmosphere?1:0);
             target.SetFloat("_FlatDayNight",dayNight?1:0);target.SetFloat("_FlatRain",rain?1:0);target.SetFloat("_FlatLightning",lightning?1:0);
             target.SetFloat("_FlatNightLights",nightLights?1:0);target.SetFloat("_CloudOpacity",Mathf.Clamp01(opacity));
