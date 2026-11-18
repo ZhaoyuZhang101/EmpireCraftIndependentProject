@@ -19,7 +19,9 @@ namespace Orbis.Flat
     [Serializable]
     public sealed class FlatCycloneWeather
     {
-        const double StepDays = .25, SecondsPerDay = 86400, EarthRadius = 6371000;
+        const double StepDays = .25, SecondsPerDay = 86400;
+        internal const double EarthRadius = 6371000, CoreRadiusMetres = 65000;
+        internal const float ClimateWindMetresPerSecond = 9;
         const double Turn = 2 * Math.PI;
         const int SpinUpSteps = 32, SearchBudget = 64;
         public long StepIndex;
@@ -118,7 +120,7 @@ namespace Orbis.Flat
             track.PressureDeficit = Math.Min(110, FlatScrollMath.ExpApproach(track.PressureDeficit, heating / filling, filling, StepDays));
             // Gradient-wind balance at the core radius, with boundary-layer spin-up
             // and stronger surface drag over land. Pressure is in hPa.
-            double halfCoriolisRadius = arrival.PlanetaryVorticity * 65000 / (2 * SecondsPerDay);
+            double halfCoriolisRadius = arrival.PlanetaryVorticity * CoreRadiusMetres / (2 * SecondsPerDay);
             double balanced = Math.Sqrt(halfCoriolisRadius * halfCoriolisRadius + 58 * track.PressureDeficit) - halfCoriolisRadius;
             double drag = 1 + 1.8 * (1 - sea);
             track.WindSpeed = Math.Min(90, FlatScrollMath.ExpApproach(wind, balanced / drag, 1.4 * drag, StepDays));
@@ -263,8 +265,8 @@ namespace Orbis.Flat
             {
                 // Saved column wind components are normalized. One unit represents
                 // 9 m/s of the broad, near-surface circulation.
-                east = 9 * Column(World.Moisture.East, u, v);
-                north = 9 * Column(World.Moisture.North, u, v);
+                east = ClimateWindMetresPerSecond * Column(World.Moisture.East, u, v);
+                north = ClimateWindMetresPerSecond * Column(World.Moisture.North, u, v);
             }
         }
 

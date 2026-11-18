@@ -12,6 +12,7 @@ namespace Orbis
     {
         public const int Layers=12, Species=6;
         public const double PhysicalSecondsPerSecond=45;
+        public const double SeaLevelReferenceHPa=1013;
         public static readonly double[] Edges={0,300,800,1500,2000,3000,4000,5000,6000,8000,10000,12000,16000};
         public static readonly double[] Height=new double[Layers], AirMass=new double[Layers], Pressure=new double[Layers];
         public readonly int Count;
@@ -27,6 +28,9 @@ namespace Orbis
         public readonly int[] Stage; // 0 clear,1 shallow,2 developing,3 mature,4 dissipating
         public readonly Queue<AtmosphereLightning> Lightning=new Queue<AtmosphereLightning>();
         public double Time {get;private set;}
+        // Distinguishes a restore/reinitialization at the same simulation clock.
+        // This in-memory observation marker is independent of the save format.
+        public long StateEpoch {get;private set;}
         public double ExternalWater {get;private set;}
         public double RunoffWater {get;private set;}
         public double InitialWater {get;private set;}
@@ -94,6 +98,9 @@ namespace Orbis
             for(int i=0;i<Count;i++)if(!(Area[i]>0))throw new ArgumentException("Cell area must be positive.");
         }
         public static double Clamp(double x,double lo,double hi){return Math.Max(lo,Math.Min(hi,x));}
+        // Conversion and cap used for near-surface bulk aerodynamic exchange.
+        public static double SurfaceWindMetresPerSecond(double scaledSpeed){return Clamp(scaledSpeed/.014*10,0,35);}
+        public double SeaLevelForcingHPa(int cell){return pressureForcing[cell];}
         static double Relax(double dt,double tau){return 1-Math.Exp(-dt/tau);}
         static double Lerp(double a,double b,double t){return a+(b-a)*t;}
         double Rand(){random^=random<<13;random^=random>>17;random^=random<<5;return random/(double)uint.MaxValue;}
@@ -156,6 +163,7 @@ namespace Orbis
             for(int i=0;i<Count;i++)PressureAnomaly[i]-=pressureMean;
             InitialWater=TotalWater();
             for(int i=0;i<Count;i++){SaturationAdjustment(i,1);Diagnose(i,0);ProcessLightning(i,0);}
+            StateEpoch++;
         }
         public void SetParallelism(int maxWorkers)
         {
@@ -240,7 +248,7 @@ namespace Orbis
                 double forcing=-(Temperature[i]-surfaceT[i])*.016+ColdPool[i]*.12;
                 // Follow the geography-dependent seasonal sea-level pressure
                 // slowly; prognostic storms and gust fronts can still depart from it.
-                double target=pressureForcing[i]-1013;
+                double target=pressureForcing[i]-SeaLevelReferenceHPa;
                 pressureNext[i]=Clamp(PressureAnomaly[i]+dt*(convergence[i]*12+forcing+(target-PressureAnomaly[i])*.065-PressureAnomaly[i]/100),-22,22);
             }
             for(int e=0;e<Links.Length;e++)
@@ -461,7 +469,7 @@ namespace Orbis
             double added=boost[i]*.00035*seconds;SurfaceWater[i]+=added;externalStep[i]=added*Area[i];
             // Bulk aerodynamic exchange: wind/gustiness and humidity deficit, not sun-only gating.
             // Winds are game-scaled; this documented mapping is not a forecast calibration.
-            double windMeters=Clamp(Wind[i].Length/.014*10,0,35);
+            double windMeters=SurfaceWindMetresPerSecond(Wind[i].Length);
             double speed=Math.Sqrt(windMeters*windMeters+9);
             double availability=sea[i]?1:Clamp(SurfaceWater[i]/40,0,1);
             double transfer=1.2*(sea[i]?.0018:.0011)*speed;
@@ -648,6 +656,7 @@ namespace Orbis
             Copy(state.rain,RainRate);Copy(state.snow,SnowRate);Copy(state.vertical,VerticalVelocity);Copy(state.gust,gustLift);Copy(state.cape,CAPE);Copy(state.cin,CIN);Copy(state.lcl,LCL);
             Time=state.time;random=state.random;InitialWater=state.initial;ExternalWater=state.external;RunoffWater=state.runoff;LightningCount=state.lightningCount;
             Lightning.Clear();for(int i=0;i<Count;i++){Wetness[i]=1-Math.Exp(-Film[i]/.35);Diagnose(i,0);}
+            StateEpoch++;
         }
         static void Copy(double[] a,double[] b){Array.Copy(a,b,b.Length);}
         public static void Validate(OrbisAtmosphereState s,int n)

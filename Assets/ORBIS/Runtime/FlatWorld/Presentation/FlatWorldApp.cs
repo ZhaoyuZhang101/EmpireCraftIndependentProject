@@ -25,6 +25,7 @@ namespace Orbis.Flat
         Camera viewCamera;FlatMapRenderer map;FlatGlobePresenter globe;UIDocument document;PanelSettings panel;Font font;
         FlatWildlifePresenter wildlife;
         FlatWorldMinimap minimap;
+        internal FlatClimateStatisticsPanel ClimateStatisticsPanel { get; private set; }
         VisualElement root,viewport;Label info,stats,notice,nations;Button modeButton,pauseButton,speedButton;
         TextField seedField,pathField;DropdownField sizeField,presetField,layerField,toolField,heightField,brushField;
         Toggle gridToggle,cloudToggle,contourToggle;
@@ -85,6 +86,7 @@ namespace Orbis.Flat
             Bind("generate",Generate);Bind("seedCivs",()=>{if(Ready()){int n=Simulation.SeedNations(4);map.Flush();SetStatus("新增 "+n+" 个文明。领地按 4×4 Zone 扩展。 ");}});
             Bind("pause",()=>{paused=!paused;UpdateHUD();});Bind("speed",()=>{speed=speed==1?4:speed==4?12:speed==12?20:1;UpdateHUD();});
             Bind("atlas",OpenAtlas);
+            Bind("climateStatistics",()=>ShowClimateStatistics());
             Bind("confluence",()=>FocusRiver(true));Bind("mouth",()=>FocusRiver(false));
             Bind("mode",ToggleMode);Bind("home",Home);Bind("focus",Focus);Bind("save",Save);Bind("load",Load);
             Bind("export",()=>{if(Ready()){FlatRasterIO.Export(World,HeightPath);SetStatus("已导出 16-bit 高度图、水体预览与元数据："+HeightPath);}});
@@ -279,6 +281,7 @@ namespace Orbis.Flat
                 try{Install(completed.GetAwaiter().GetResult());}catch(OperationCanceledException){SetStatus("已取消，保留原世界。");}catch(Exception e){SetStatus("操作失败，保留原世界："+e.Message);Debug.LogException(e);}finally{source?.Dispose();}
             }
             if(World==null||!navigation)return;
+            if(ClimateStatisticsPanel!=null && ClimateStatisticsPanel.IsOpen) ClimateStatisticsPanel.Tick(World,World.Day);
             float realDt=Mathf.Max(0,Time.unscaledDeltaTime),dt=Mathf.Min(realDt,.10f);bool animate=!paused&&!Busy;
             solarClock.Advance(realDt,speed,120f,!animate,simulationStep);
             int period=(int)Math.Floor(World.Day/30);
@@ -322,6 +325,12 @@ namespace Orbis.Flat
         {
             if(World==null||Busy||!navigation)return;
             navigation.OpenAtlas(CalendarDay);SetStatus("全球战略总览：拖动、WASD、滚轮缩放；M 返回星球。主地图使用球面局部展开。");
+        }
+        public void ShowClimateStatistics(FlatBiomeStatistics biomeReferences=null)
+        {
+            if(World==null||Busy){SetStatus("世界就绪后可以打开气候统计图集。");return;}
+            if(ClimateStatisticsPanel==null)ClimateStatisticsPanel=new FlatClimateStatisticsPanel(root);
+            ClimateStatisticsPanel.Open(World,World.Day,selected,biomeReferences);
         }
         Vector3 ScreenPoint(Vector2 panelPoint)
         {Vector2 p=root.WorldToLocal(panelPoint);return new Vector3(p.x/Mathf.Max(1,root.resolvedStyle.width)*Screen.width,(1-p.y/Mathf.Max(1,root.resolvedStyle.height))*Screen.height,10);}
@@ -456,7 +465,7 @@ namespace Orbis.Flat
         {switch(w){case WaterKind.DeepOcean:return "深海";case WaterKind.MiddleOcean:return "中海";case WaterKind.ShallowOcean:return "浅海";case WaterKind.Lake:return "淡水湖";case WaterKind.River:return "淡水河流";default:return "陆地";}}
         void OnDestroy()
         {
-            CancelPending();minimap?.Dispose();if(font)Destroy(font);if(panel)Destroy(panel);
+            CancelPending();ClimateStatisticsPanel?.Dispose();minimap?.Dispose();if(font)Destroy(font);if(panel)Destroy(panel);
         }
     }
 }

@@ -35,6 +35,7 @@
     </ui:VisualElement>
     <ui:VisualElement name="panelTerrain" class="tab-page is-hidden">
      <ui:Label text="地图与编辑" class="section"/>
+     <ui:Button name="climateStatistics" text="气候统计图集" class="accent"/>
      <ui:Toggle name="grid" label="G 地块网格"/><ui:Toggle name="contours" label="C 等高线"/>
      <ui:Label text="在上方「操作」选择高度笔刷、道路、桥梁或路径；球体和展开途中仅支持查看。" class="muted"/>
      <ui:DropdownField name="height" label="笔刷高度"/><ui:DropdownField name="brush" label="笔刷大小"/>
@@ -62,5 +63,42 @@
    </ui:ScrollView>
   </ui:VisualElement>
   <ui:VisualElement class="footer"><ui:Label name="notice" text="准备世界数据…" class="notice"/><ui:Label text="滚轮切换尺度 · 拖动 / WASD 平移 · Space 暂停 · M 球体 / 总览 · F 详细图" class="hint"/></ui:VisualElement>
+  <ui:VisualElement name="climateStatsWindow" class="climate-modal is-hidden">
+   <ui:VisualElement name="climateStatsCard" class="climate-card">
+    <ui:VisualElement class="climate-heading">
+     <ui:Label text="气候统计图集" class="climate-title"/><ui:VisualElement class="spacer"/>
+     <ui:Button name="climateStatsRefresh" text="刷新快照"/><ui:Button name="climateStatsClose" text="关闭"/>
+    </ui:VisualElement>
+    <ui:Label name="climateStatsStatus" class="climate-status"/>
+    <ui:ScrollView name="climateStatsScroll" class="climate-scroll" mode="Vertical">
+     <ui:VisualElement name="climateStatsBody" class="climate-body">
+      <ui:VisualElement class="climate-map-column">
+       <ui:VisualElement class="climate-controls">
+        <ui:DropdownField name="climateStatsLayer" label="图层" class="climate-control"/>
+        <ui:DropdownField name="climateStatsFeature" label="变量" class="climate-control"/>
+       </ui:VisualElement>
+       <ui:Label name="climateStatsCaption" class="climate-caption"/>
+       <ui:VisualElement name="climateStatsMapHost" class="climate-map-host">
+        <ui:Image name="climateStatsMap" class="climate-map"/>
+        <ui:VisualElement name="climateStatsMarker" class="climate-marker is-hidden" picking-mode="Ignore"/>
+       </ui:VisualElement>
+       <ui:VisualElement name="climateStatsLegend" class="climate-legend"/>
+       <ui:Label text="北向上 · 点击地图查看原始分辨率地块" class="climate-note"/>
+       <ui:Label text="区域协方差" class="climate-section"/>
+       <ui:DropdownField name="climateStatsMatrixKind" label="参考样本" class="climate-control"/>
+       <ui:Label name="climateStatsMatrixLabel" class="climate-note"/>
+       <ui:ScrollView name="climateStatsMatrixScroll" class="climate-table-scroll" mode="Horizontal">
+        <ui:VisualElement name="climateStatsMatrix" class="climate-table"/>
+       </ui:ScrollView>
+      </ui:VisualElement>
+      <ui:VisualElement class="climate-inspector">
+       <ui:Label text="选中地块" class="climate-section"/>
+       <ui:Label name="climateStatsSelection" class="climate-selection"/>
+       <ui:Label name="climateStatsDetails" class="climate-details"/>
+      </ui:VisualElement>
+     </ui:VisualElement>
+    </ui:ScrollView>
+   </ui:VisualElement>
+  </ui:VisualElement>
  </ui:VisualElement>
 </ui:UXML>

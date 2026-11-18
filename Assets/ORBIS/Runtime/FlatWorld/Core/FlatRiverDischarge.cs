@@ -26,6 +26,9 @@ namespace Orbis.Flat
             return (uint)tile < (uint)slotByTile.Length ? slotByTile[tile] - 1 : -1;
         }
 
+        // An ungauged tile and a measured zero flow have different meanings.
+        public bool HasStation(int tile) { return Slot(tile) >= 0; }
+
         public float Annual(int tile)
         {
             int slot = Slot(tile);
@@ -68,7 +71,7 @@ namespace Orbis.Flat
 
         // Oudin temperature/radiation PET using the mean extraterrestrial solar
         // radiation of the local latitude at the middle of a model month.
-        static double PetPerDegree(double latitude, int month)
+        internal static double PetPerDegree(double latitude, int month)
         {
             double declination = .4091 * Math.Cos((month - 5.2) * Math.PI / 6);
             double sunset = Math.Acos(Math.Max(-1, Math.Min(1, -Math.Tan(latitude) * Math.Tan(declination))));
@@ -97,6 +100,7 @@ namespace Orbis.Flat
             readonly bool lake;
             readonly double steepness, soilCapacity, aquiferCapacity;
             internal double Snow, Soil, Aquifer;
+            internal double SoilCapacity { get { return lake ? double.NaN : soilCapacity; } }
 
             internal WaterColumn(bool isLake, double slope)
             {
@@ -140,6 +144,59 @@ namespace Orbis.Flat
             }
         }
 
+        internal static WaterColumn ColumnAt(WorldData world, int tile)
+        {
+            int parent = world.Downstream[tile];
+            double drop = parent < 0 ? 0 : Math.Max(0, world.Elevation[tile] - world.WaterLevel[parent]);
+            return new WaterColumn(world.Water[tile] == WaterKind.Lake, drop / (drop + 250));
+        }
+
+        internal readonly struct WaterMonth
+        {
+            internal readonly double Snow, Soil, Aquifer, Evaporation, Yield, Precipitation, StorageChange;
+            internal WaterMonth(WaterColumn column, ClimateMonth climate, double previousStorage, double evaporation, double yield)
+            {
+                Snow = column.Snow; Soil = column.Soil; Aquifer = column.Aquifer;
+                Evaporation = evaporation; Yield = yield;
+                Precipitation = climate.Rain + climate.Snow;
+                StorageChange = Snow + Soil + Aquifer - previousStorage;
+            }
+        }
+
+        // Routing and diagnostic stations share the identical forcing, convergence
+        // and snow/soil/aquifer model. Only the selected output is written.
+        internal static double NormalYear(WaterColumn column, ClimateMonth[] climate, int start,
+            float[] sources, double areaScale, WaterMonth[] budgets)
+        {
+            double sum = 0;
+            for (int year = 0; year < 12; year++)
+            {
+                double soil = column.Soil, aquifer = column.Aquifer;
+                sum = 0;
+                if (sources != null)
+                {
+                    for (int m = 0; m < Months; m++)
+                    {
+                        sources[start + m] = (float)(column.Advance(climate[m], out _) * areaScale);
+                        sum += sources[start + m];
+                    }
+                }
+                else
+                {
+                    for (int m = 0; m < Months; m++)
+                    {
+                        double storage = column.Snow + column.Soil + column.Aquifer;
+                        double yield = column.Advance(climate[m], out double evaporation);
+                        budgets[start + m] = new WaterMonth(column, climate[m], storage, evaporation, yield);
+                    }
+                }
+                // Snowmelt is periodic by year two; positive snow balance
+                // remains in perennial ice, as in the saved drainage model.
+                if (year >= 1 && Math.Abs(column.Soil - soil) < .0001 && Math.Abs(column.Aquifer - aquifer) < .0001) break;
+            }
+            return sum;
+        }
+
         // Generation requests local annual yields in addition to the monthly
         // sources. Loading uses the identical normals without writing Runoff.
         internal static float[] BuildSources(WorldData world, CancellationToken cancel, float[] annualSources = null, int workers = 0)
@@ -167,24 +224,7 @@ namespace Orbis.Flat
                     }
                     if (precipitation == 0) continue;
 
-                    int parent = world.Downstream[tile];
-                    double drop = parent < 0 ? 0 : Math.Max(0, world.Elevation[tile] - world.WaterLevel[parent]);
-                    var column = new WaterColumn(world.Water[tile] == WaterKind.Lake, drop / (drop + 250));
-                    // Repeat the saved normals until January soil and aquifer
-                    // return to their starting levels. Snowmelt is periodic by
-                    // year two; positive snow balance stays in perennial ice.
-                    double sum = 0;
-                    for (int year = 0; year < 12; year++)
-                    {
-                        double soil = column.Soil, aquifer = column.Aquifer;
-                        sum = 0;
-                        for (int m = 0; m < Months; m++)
-                        {
-                            sources[start + m] = (float)(column.Advance(climate[m], out _) * areaScale);
-                            sum += sources[start + m];
-                        }
-                        if (year >= 1 && Math.Abs(column.Soil - soil) < .0001 && Math.Abs(column.Aquifer - aquifer) < .0001) break;
-                    }
+                    double sum = NormalYear(ColumnAt(world, tile), climate, start, sources, areaScale, null);
                     if (annualSources != null) annualSources[tile] = (float)(sum / Months);
                 }
             });

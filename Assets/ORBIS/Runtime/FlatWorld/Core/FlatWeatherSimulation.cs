@@ -18,6 +18,13 @@ namespace Orbis.Flat
         readonly double[] seaLevelTemperature,zonalTemperature=new double[Height];
         readonly uint climateSeed;
         readonly bool[] water;readonly AtmosVector[] tangentEast,tangentNorth;
+        double observedModelTime=double.NaN,precipitationWindowDays=double.NaN;
+        long observedEpoch;
+        public double LastCalendarDay { get; private set; } = double.NaN;
+        internal bool IsWaterSurface(int cell) { return water[cell]; }
+        // Called on the solver's owner thread after a complete step. A consumer
+        // can copy immutable station observations without reading a worker mid-tick.
+        public event Action<FlatWeatherSimulation,double> Stepped;
         public FlatWeatherSimulation(WorldData world,int workers=0)
         {
             int count=Width*Height;var p=new AtmosVector[count];var area=new double[count];var links=new List<AtmosEdge>();
@@ -65,6 +72,14 @@ namespace Orbis.Flat
             double front=moist*Math.Min(.50,Math.Max(0,thermalGradient)*.10);
             return Math.Min(.85,Math.Max(0,rainfall)/1000+marine+front);
         }
+
+        internal static double SeaLevelPressure(double latitudeDegrees,float seasonalMonth,float regionalLand,double thermal)
+        {
+            double itcz=FlatMoisture.ConvergenceLatitude(seasonalMonth,1-regionalLand,(float)thermal);
+            double subtropical=28+3*regionalLand;
+            return OrbisAtmosphereCore.SeaLevelReferenceHPa+7*Math.Exp(-Math.Pow((Math.Abs(latitudeDegrees)-subtropical)/12,2))
+                -6*Math.Exp(-Math.Pow((latitudeDegrees-itcz)/14,2))-Math.Max(-4,Math.Min(4,thermal))*.30;
+        }
         void Forcing(double day)
         {
             double season=((day%360)+360)%360;int m=(int)(season/30),next=(m+1)%12;float f=(float)(season/30-m);
@@ -87,10 +102,7 @@ namespace Orbis.Flat
                 int a=i*12+m,b=i*12+next;double temp=seaLevelTemperature[i]-ground[i]*.0065;
                 double lat=Math.Asin(Model.Position[i].Y)*180/Math.PI;
                 double thermal=seaLevelTemperature[i]-zonalTemperature[i/Width];
-                double itcz=FlatMoisture.ConvergenceLatitude((float)(season/30),1-regionalLand[i],(float)thermal);
-                double subtropical=28+3*regionalLand[i];
-                double pressure=1013+7*Math.Exp(-Math.Pow((Math.Abs(lat)-subtropical)/12,2))
-                    -6*Math.Exp(-Math.Pow((lat-itcz)/14,2))-Math.Max(-4,Math.Min(4,thermal))*.30;
+                double pressure=SeaLevelPressure(lat,(float)(season/30),regionalLand[i],thermal);
                 int x=i%Width,y=i/Width,west=y*Width+(x+Width-1)%Width,eastCell=y*Width+(x+1)%Width;
                 int southCell=Math.Max(0,y-1)*Width+x,northCell=Math.Min(Height-1,y+1)*Width+x;
                 double gradient=Math.Sqrt(Math.Pow((seaLevelTemperature[eastCell]-seaLevelTemperature[west])*.5,2)
@@ -102,7 +114,38 @@ namespace Orbis.Flat
                 Model.SetForcing(i,temp+273.15,daylight,soil[i],water[i],velocity,pressure,ground[i],lift,0);
             }
         }
-        public void Step(double seconds,double calendarDay){Forcing(calendarDay);Model.TickParallel(seconds);}
+        public void Step(double seconds,double calendarDay)
+        {
+            Forcing(calendarDay);
+            Model.TickParallel(seconds);
+            LastCalendarDay=calendarDay;
+            observedModelTime=Model.Time;
+            observedEpoch=Model.StateEpoch;
+            precipitationWindowDays=Model.MicrophysicsEnabled?seconds*OrbisAtmosphereCore.PhysicalSecondsPerSecond/86400:double.NaN;
+            Stepped?.Invoke(this,calendarDay);
+        }
+
+        // Lowest prognostic layer (0–300 m, midpoint 150 m). Pressure is
+        // referenced to sea level; precipitation is a short-step flux at the
+        // underlying surface. Called by the solver owner after Step.
+        public FlatClimateObservation Instantaneous(int cell)
+        {
+            var result=FlatClimateObservation.Missing;
+            if((uint)cell>=(uint)Model.Count || Model.Time!=observedModelTime || Model.StateEpoch!=observedEpoch)return result;
+            result.Source=FlatClimateObservationSource.LayeredStep;
+            result.Temperature=Model.Temperature[cell]-273.15;
+            double saturation=OrbisAtmosphereCore.Saturation(Model.Temperature[cell],OrbisAtmosphereCore.Pressure[0])
+                *OrbisAtmosphereCore.AirMass[0];
+            result.Humidity=OrbisAtmosphereCore.Clamp(Model.Water[0][cell]/saturation,0,1);
+            result.Pressure=OrbisAtmosphereCore.SeaLevelReferenceHPa+Model.PressureAnomaly[cell];
+            result.WindSpeed=OrbisAtmosphereCore.SurfaceWindMetresPerSecond(Model.Wind[cell].Length);
+            if(!double.IsNaN(precipitationWindowDays))
+            {
+                result.Precipitation=(Model.RainRate[cell]+Model.SnowRate[cell])*24;
+                result.PrecipitationWindowDays=precipitationWindowDays;
+            }
+            return result;
+        }
         public FlatWeatherFrame Capture()
         {
             var frame=new FlatWeatherFrame{Width=Width,Height=Height,Time=Model.Time,BudgetError=Model.WaterBudgetError(),Clouds=new float[Model.Count*4],Wind=new float[Model.Count*4],Effects=new float[Model.Count*4]};

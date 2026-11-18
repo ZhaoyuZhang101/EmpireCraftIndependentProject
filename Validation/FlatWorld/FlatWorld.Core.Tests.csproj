@@ -2,4 +2,6 @@
   <PropertyGroup><OutputType>Exe</OutputType><TargetFramework>net8.0</TargetFramework><LangVersion>9.0</LangVersion><EnableDefaultCompileItems>false</EnableDefaultCompileItems><Nullable>disable</Nullable></PropertyGroup>
   <ItemGroup><Compile Include="../../Assets/ORBIS/Runtime/FlatWorld/Core/*.cs"/><Compile Include="Program.cs"/><Compile Include="HydrologyRegression.cs"/><Compile Include="CycloneRegression.cs"/><Compile Include="WeatherIntegrationRegression.cs"/><Compile Include="BathymetryRegression.cs"/><Compile Include="WildlifeRegression.cs"/><Compile Include="ForestStandRegression.cs"/></ItemGroup>
   <ItemGroup><Compile Include="ClimatologyRegression.cs"/><Compile Include="RiverDischargeRegression.cs"/></ItemGroup>
+  <ItemGroup><Compile Include="ClimateMathRegression.cs"/><Compile Include="BiomeStatisticsRegression.cs"/><Compile Include="ClimateObservationRegression.cs"/></ItemGroup>
+  <ItemGroup><Compile Include="RegionalStatisticsRegression.cs"/></ItemGroup>
 </Project>

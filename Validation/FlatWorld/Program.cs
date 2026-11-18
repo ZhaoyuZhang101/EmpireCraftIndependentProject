@@ -2,7 +2,26 @@ using System;
 using Orbis.Flat;
 public static class Program {
  public static int Main(string[] args) {
-  try { if(args.Length>0&&args[0]=="--river-discharge")RiverDischargeRegression.Run();else if(args.Length>0&&args[0]=="--forest-stands")ForestStandRegression.Run();else if(args.Length>0&&args[0]=="--wildlife")WildlifeRegression.Run();else if(args.Length>0&&args[0]=="--bathymetry")BathymetryRegression.Run();else if(args.Length>0&&args[0]=="--weather")WeatherIntegrationRegression.Run();else if(args.Length>0&&args[0]=="--moisture")MoistureRegression();else if(args.Length>0&&args[0]=="--environment")EnvironmentRegression();else if(args.Length>0&&args[0]=="--hydrology")HydrologyRegression.Run();else if(args.Length>0&&args[0]=="--cyclone")CycloneRegression.Run();else Console.WriteLine(FlatSelfTests.Run()); return 0; }
+  try {
+   switch(args.Length == 0 ? "" : args[0]) {
+    case "--climate-math": ClimateMathRegression.Run(); break;
+    case "--climate-biomes": BiomeStatisticsRegression.Run(); break;
+    case "--climate-observations": ClimateObservationRegression.Run(); break;
+    case "--climate-regions": RegionalStatisticsRegression.Run(); break;
+    case "--climate-saves": RegionalStatisticsRegression.CheckSaves(args); break;
+    case "--river-discharge": RiverDischargeRegression.Run(); break;
+    case "--forest-stands": ForestStandRegression.Run(); break;
+    case "--wildlife": WildlifeRegression.Run(); break;
+    case "--bathymetry": BathymetryRegression.Run(); break;
+    case "--weather": WeatherIntegrationRegression.Run(); break;
+    case "--moisture": MoistureRegression(); break;
+    case "--environment": EnvironmentRegression(); break;
+    case "--hydrology": HydrologyRegression.Run(); break;
+    case "--cyclone": CycloneRegression.Run(); break;
+    default: Console.WriteLine(FlatSelfTests.Run()); break;
+   }
+   return 0;
+  }
   catch(Exception e) { Console.Error.WriteLine(FlatSelfTests.LastOperation+"\n"+e); return 1; }
  }
  static void EnvironmentRegression() {
