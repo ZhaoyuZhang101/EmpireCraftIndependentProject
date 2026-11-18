@@ -16,6 +16,8 @@ namespace Orbis.Flat
         public Texture2D VisualTexture { get; private set; }
         public Texture2D EcologyTexture { get; private set; }
         public Texture2D VegetationTexture { get; private set; }
+        public Texture2D RiverSeasonTexture { get; private set; }
+        FlatRiverStageField riverSeasons;
         public FlatSkyRenderer Sky { get; private set; }
         public FlatLocalWater LocalWater { get; private set; }
         public Material Material { get; private set; }
@@ -119,9 +121,26 @@ namespace Orbis.Flat
         {
             if(!target)target=Material;
             double period=day/30,whole=Math.Floor(period);int month=(int)((whole%12+12)%12);
+            var stages=World.Facts.RiverCurves?.Seasons;
+            if(!ReferenceEquals(stages,riverSeasons))
+            {
+                if(stages!=null)
+                {
+                    if(!RiverSeasonTexture)
+                        RiverSeasonTexture=new Texture2D(World.Width,World.Height*3,TextureFormat.RGBA32,false,true)
+                        {name="Monthly river discharge ratios",filterMode=FilterMode.Bilinear,wrapModeU=TextureWrapMode.Repeat,wrapModeV=TextureWrapMode.Clamp};
+                    RiverSeasonTexture.LoadRawTextureData(stages.Packed);RiverSeasonTexture.Apply(false,false);
+                }
+                riverSeasons=stages;
+            }
+            target.SetTexture("_RiverSeasonTex",RiverSeasonTexture?RiverSeasonTexture:Texture2D.blackTexture);
+            target.SetFloat("_RiverSeasonReady",riverSeasons!=null?1:0);
+            var months=new Vector4(month,(month+1)%12,(float)(period-whole),0);
+            target.SetVector("_RiverSeason",months);
+            if(target!=Material&&riverAtlas!=null)riverAtlas.Bind(target);
             target.SetTexture("_VegetationSeasonTex",VegetationTexture?VegetationTexture:Texture2D.whiteTexture);
             target.SetFloat("_VegetationSeasonReady",vegetationSource!=null?1:0);
-            target.SetVector("_VegetationSeason",new Vector4(month,(month+1)%12,(float)(period-whole),0));
+            target.SetVector("_VegetationSeason",months);
             var year=FlatClimateYear.At(FMath.Seed(World.Seed),day);
             target.SetVector("_ClimateYearHeat",new Vector4(year.HeatX,year.HeatY,year.HeatZ,year.MeanHeat));
             target.SetVector("_ClimateYearRain",new Vector4(year.RainX,year.RainY,year.RainZ,0));
@@ -180,7 +199,7 @@ namespace Orbis.Flat
             LastUploadMilliseconds=(System.Diagnostics.Stopwatch.GetTimestamp()-start)*1000.0/System.Diagnostics.Stopwatch.Frequency;
         }
         void OnDestroy()
-        {if(riverAtlas!=null){riverAtlas.Dispose();riverAtlas=null;}if(renderJobs!=null){renderJobs.Dispose();renderJobs=null;}if(mesh)Destroy(mesh);if(Material)Destroy(Material);foreach(var t in new[]{TerrainTexture,DisplayTexture,OwnerTexture,InfoTexture,HydroTexture,MixingTexture,GeometryTexture,VisualTexture,EcologyTexture,VegetationTexture})if(t)Destroy(t);}
+        {if(riverAtlas!=null){riverAtlas.Dispose();riverAtlas=null;}if(renderJobs!=null){renderJobs.Dispose();renderJobs=null;}if(mesh)Destroy(mesh);if(Material)Destroy(Material);foreach(var t in new[]{TerrainTexture,DisplayTexture,OwnerTexture,InfoTexture,HydroTexture,MixingTexture,GeometryTexture,VisualTexture,EcologyTexture,VegetationTexture,RiverSeasonTexture})if(t)Destroy(t);}
     }
 }
 

@@ -11,7 +11,8 @@ namespace Orbis.Flat
     {
         const int MaximumSlots=65534;
         const int MaximumTexels=20*1024*1024;
-        const int IntervalsPerTile=32;
+        const int DetailIntervals=32;
+        const int PreviewIntervals=8;
         const int UploadRows=8;
         const int UploadPixelsPerTick=131072;
         const double UploadMillisecondsPerTick=2;
@@ -22,7 +23,7 @@ namespace Orbis.Flat
         Texture2D staging;
         FlatRiverCurves requestedCurves,publishedCurves;
         int requestedRevision=-1,publishedRevision=-1;
-        bool stagingApplied,legacyFallback,disposed;
+        bool stagingApplied,publishedPreview,exhausted,previewReady,disposed;
 
         public Texture2D Texture {get;private set;}
         public Vector4 Layout {get;private set;}
@@ -33,7 +34,7 @@ namespace Orbis.Flat
             {
                 if(disposed||requestedCurves==null)return false;
                 if(operation!=null)return true;
-                if(legacyFallback)return false;
+                if(exhausted)return false;
                 return !PublishedMatchesRequest()||!Ready;
             }
         }
@@ -44,9 +45,15 @@ namespace Orbis.Flat
             format=SystemInfo.SupportsTextureFormat(TextureFormat.RGBAHalf)?TextureFormat.RGBAHalf:TextureFormat.RGBAFloat;
             if(!SystemInfo.SupportsTextureFormat(format))throw new NotSupportedException("River fields require RGBAHalf or RGBAFloat textures.");
             maximumTextureSize=SystemInfo.maxTextureSize;
-            material.SetTexture("_RiverAtlas",Texture2D.blackTexture);
-            material.SetFloat("_RiverAtlasReady",0);
-            material.SetVector("_RiverAtlasLayout",Vector4.zero);
+            Bind(material);
+        }
+
+        public void Bind(Material target)
+        {
+            target.SetTexture("_RiverAtlas",Texture?Texture:Texture2D.blackTexture);
+            target.SetVector("_RiverAtlasLayout",Layout);
+            target.SetFloat("_RiverAtlasReady",Ready?1:0);
+            target.SetFloat("_RiverPreviewReady",previewReady?1:0);
         }
 
         public void Tick(FlatRiverCurves curves,int terrainRevision,int uploadedTerrainRevision)
@@ -54,12 +61,14 @@ namespace Orbis.Flat
             if(disposed)return;
             if(!ReferenceEquals(requestedCurves,curves)||requestedRevision!=terrainRevision)
             {
-                requestedCurves=curves;requestedRevision=terrainRevision;legacyFallback=false;
+                requestedCurves=curves;requestedRevision=terrainRevision;exhausted=false;
                 if(operation!=null)operation.Cancel();
                 ReleaseStaging();
             }
-            SetReady(curves!=null&&Texture!=null&&publishedRevision==uploadedTerrainRevision&&
-                (uploadedTerrainRevision!=terrainRevision||ReferenceEquals(publishedCurves,curves)));
+            bool matches=PublishedMatchesRequest();
+            bool visible=curves!=null&&Texture!=null&&publishedRevision==uploadedTerrainRevision&&
+                (uploadedTerrainRevision!=terrainRevision||matches);
+            SetReady(visible&&(!publishedPreview||exhausted&&matches),visible&&publishedPreview);
 
             if(operation!=null&&operation.Cancelled)
             {
@@ -68,22 +77,23 @@ namespace Orbis.Flat
             }
             if(operation==null)
             {
-                if(curves==null||PublishedMatchesRequest()||legacyFallback)return;
-                operation=new BuildOperation(curves,terrainRevision,maximumTextureSize);
+                if(curves==null||matches&&!publishedPreview||exhausted)return;
+                operation=new BuildOperation(curves,terrainRevision,maximumTextureSize,preview:!matches);
             }
             PumpUploads();
             if(operation==null||!operation.Completed)return;
             if(operation.Error!=null)
             {
-                legacyFallback=true;
+                exhausted=true;
                 Exception error=operation.Error;
                 operation.DisposeCompleted();operation=null;ReleaseStaging();
                 Debug.LogException(error);return;
             }
             if(operation.Plan==null)
             {
-                // Capacity is an expected legacy-analytic fallback for this exact graph/revision.
-                legacyFallback=true;
+                // Keep the completed coarse field if no finer layout fits the device.
+                exhausted=true;
+                if(matches&&visible)SetReady(true,false);
                 operation.DisposeCompleted();operation=null;return;
             }
             if(!operation.UploadsEmpty)return;
@@ -95,20 +105,21 @@ namespace Orbis.Flat
             if(uploadedTerrainRevision!=operation.Revision)return;
             Texture2D previous=Texture;Texture=staging;staging=null;stagingApplied=false;
             Layout=operation.Plan.Layout;
-            publishedCurves=requestedCurves;publishedRevision=operation.Revision;
-            material.SetTexture("_RiverAtlas",Texture);material.SetVector("_RiverAtlasLayout",Layout);
+            publishedCurves=requestedCurves;publishedRevision=operation.Revision;publishedPreview=operation.Preview;
             operation.DisposeCompleted();operation=null;
-            SetReady(true);
+            SetReady(!publishedPreview,publishedPreview);Bind(material);
             if(previous!=null)UnityEngine.Object.Destroy(previous);
         }
 
         bool PublishedMatchesRequest()
         {return Texture!=null&&publishedRevision==requestedRevision&&ReferenceEquals(publishedCurves,requestedCurves);}
 
-        void SetReady(bool ready)
+        void SetReady(bool ready,bool preview)
         {
-            if(Ready==ready)return;
-            Ready=ready;material.SetFloat("_RiverAtlasReady",ready?1:0);
+            if(Ready==ready&&previewReady==preview)return;
+            Ready=ready;previewReady=preview;
+            material.SetFloat("_RiverAtlasReady",ready?1:0);
+            material.SetFloat("_RiverPreviewReady",preview?1:0);
         }
 
         void PumpUploads()
@@ -142,7 +153,7 @@ namespace Orbis.Flat
         public void Dispose()
         {
             if(disposed)return;
-            disposed=true;SetReady(false);ReleaseStaging();
+            disposed=true;SetReady(false,false);ReleaseStaging();
             if(Texture!=null)UnityEngine.Object.Destroy(Texture);
             Texture=null;
             if(operation!=null){operation.CancelAndDisposeWhenComplete();operation=null;}
@@ -163,15 +174,16 @@ namespace Orbis.Flat
             readonly BlockingCollection<UploadBlock> uploads=new BlockingCollection<UploadBlock>(3);
             readonly Task worker;
             public readonly int Revision;
+            public readonly bool Preview;
             public BuildPlan Plan {get;private set;}
             public bool Cancelled {get{return cancellation.IsCancellationRequested;}}
             public bool Completed {get{return worker.IsCompleted;}}
             public bool UploadsEmpty {get{return uploads.Count==0;}}
             public Exception Error {get{return worker.IsFaulted?worker.Exception.GetBaseException():null;}}
 
-            public BuildOperation(FlatRiverCurves curves,int revision,int maximumTextureSize)
+            public BuildOperation(FlatRiverCurves curves,int revision,int maximumTextureSize,bool preview)
             {
-                Revision=revision;
+                Revision=revision;Preview=preview;
                 // Workers capture only the immutable graph and managed output buffers.
                 worker=Task.Run(()=>Bake(curves,maximumTextureSize,cancellation.Token));
             }
@@ -180,7 +192,9 @@ namespace Orbis.Flat
             {
                 try
                 {
-                    Plan=BuildPlan.Create(curves,maximumTextureSize,cancel);
+                    int minimum=Preview?2:PreviewIntervals*2;
+                    for(int intervals=Preview?PreviewIntervals:DetailIntervals;intervals>=minimum&&Plan==null;intervals/=2)
+                        Plan=BuildPlan.Create(curves,maximumTextureSize,intervals,cancel);
                     if(Plan==null)return;
                     var options=new ParallelOptions{CancellationToken=cancel,
                         MaxDegreeOfParallelism=Math.Max(1,Math.Min(4,Environment.ProcessorCount-2))};
@@ -229,10 +243,10 @@ namespace Orbis.Flat
                 Layout=new Vector4(width,height,pitch,headerRows);
             }
 
-            public static BuildPlan Create(FlatRiverCurves curves,int maximumTextureSize,CancellationToken cancel)
+            public static BuildPlan Create(FlatRiverCurves curves,int maximumTextureSize,int intervalsPerTile,CancellationToken cancel)
             {
                 int count=checked(curves.Width*curves.Height);
-                // Shared blocks retain at least 32 intervals per world tile.
+                // Adjacent active tiles may share header slots on dense networks.
                 for(int span=1;span<=32;span*=2)
                 {
                     cancel.ThrowIfCancellationRequested();
@@ -246,7 +260,7 @@ namespace Orbis.Flat
                         if(groups[group]==0)groups[group]=++slots;
                     }
                     if(slots>MaximumSlots)continue;
-                    int width,height,headerRows,intervals=IntervalsPerTile*span,pitch=intervals+3;
+                    int width,height,headerRows,intervals=intervalsPerTile*span,pitch=intervals+3;
                     if(!TryLayout(count,slots,pitch,maximumTextureSize,out width,out height,out headerRows))continue;
                     var slotsByTile=new int[count];var origins=new int[slots];
                     for(int j=0;j<curves.ActiveTileCount;j++)

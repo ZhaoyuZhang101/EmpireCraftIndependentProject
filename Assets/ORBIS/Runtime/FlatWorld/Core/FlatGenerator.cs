@@ -68,8 +68,8 @@ namespace Orbis.Flat
             // and on reload. River discharge then follows the resulting rainfall.
             FlatHydrology.BuildDrainage(w,cancel);
             FlatClimate.Build(w,cancel);
-            FlatHydrology.RouteRainfall(w,cancel);
-            FlatTerrainAnalysis.Build(w,cancel,true);
+            var discharge=FlatHydrology.RouteRainfall(w,cancel);
+            FlatTerrainAnalysis.Build(w,cancel,true,riverDischarge:discharge);
             ReconcileSettlements(w);
             w.TerrainRevision++;w.MarkAllDirty();
         }

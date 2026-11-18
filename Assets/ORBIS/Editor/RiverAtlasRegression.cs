@@ -79,6 +79,34 @@ namespace Orbis.Editor
                 report.Add((distanceError<.006f&&relativeDepthError<.0007f&&flowWidthError<.001f&&invalid==0&&wetSamples>0?"PASS ":"FAIL ")+
                     "GPU uploaded field matches global CPU geometry, samples="+positions.Count+", wet="+wetSamples+", active land receivers="+shiftedLand+
                     ", distanceError="+distanceError+", depthError="+depthError+", relativeDepthError="+relativeDepthError+", tangentWidthError="+flowWidthError+", invalid="+invalid+depthDetail);
+                if(curves.Seasons!=null)
+                {
+                    material.SetTexture("_RiverSeasonTex",map.RiverSeasonTexture);
+                    material.SetFloat("_RiverSeasonReady",1);
+                    int seasonalSamples=0,changed=0;float bankError=0,depthFraction=0,widthError=0;
+                    // Include interpolation between December and January.
+                    foreach(double day in new[]{30.0,136.5,345.0})
+                    {
+                        double phase=day/30;int month=(int)phase;
+                        material.SetVector("_RiverSeason",new Vector4(month,(month+1)%12,(float)(phase-month),0));
+                        Graphics.Blit(Texture2D.whiteTexture,target,material);RenderTexture.active=target;
+                        image.ReadPixels(new Rect(0,0,width,height),0,0);image.Apply();var seasonalPixels=image.GetPixels();
+                        for(int k=0;k<positions.Count;k++)
+                        {
+                            var point=positions[k];
+                            if(point.y<.01f||point.y>curves.Height-.01f||pixels[k].r>.18f||pixels[k].g<=0)continue;
+                            var cpu=curves.SampleAtDay(point.x,point.y,day);var gpu=seasonalPixels[k];
+                            bankError=Mathf.Max(bankError,Mathf.Abs(gpu.r-cpu.Distance));
+                            depthFraction=Mathf.Max(depthFraction,Mathf.Abs(gpu.g-cpu.Depth)/Mathf.Max(1,cpu.Depth));
+                            widthError=Mathf.Max(widthError,Mathf.Abs(new Vector2(gpu.b,gpu.a).magnitude-cpu.HalfWidth));
+                            if(Mathf.Abs(gpu.r-pixels[k].r)>.003f)changed++;
+                            seasonalSamples++;
+                        }
+                    }
+                    report.Add((seasonalSamples>0&&changed>0&&bankError<.006f&&depthFraction<.002f&&widthError<.001f?"PASS ":"FAIL ")+
+                        "seasonal GPU water matches CPU banks, widths and depths, samples="+seasonalSamples+", changed="+changed+
+                        ", bankError="+bankError+", widthError="+widthError+", relativeDepthError="+depthFraction);
+                }
                 int clones=0;
                 foreach(var candidate in Resources.FindObjectsOfTypeAll<Material>())
                 {

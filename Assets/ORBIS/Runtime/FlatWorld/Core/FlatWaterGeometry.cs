@@ -53,7 +53,67 @@ namespace Orbis.Flat
         {
             var f=w.Facts;if(f==null)return 8;
             if(f.RiverCurves!=null&&f.RiverCurves.SegmentCount>0)
-                return f.RiverCurves.Sample(i%w.Width+x,i/w.Width+y).Distance;
+                return f.RiverCurves.SampleAtDay(i%w.Width+x,i/w.Width+y,w.Day).Distance;
+            return LegacyRiver(w,i,x,y,out _);
+        }
+        static float SegmentDistance(float x,float y,float ax,float ay,float bx,float by,float ra,float rb,out float t)
+        {
+            float dx=bx-ax,dy=by-ay;
+            t=FMath.Clamp(((x-ax)*dx+(y-ay)*dy)/Math.Max(.000001f,dx*dx+dy*dy),0,1);
+            float ex=x-ax-dx*t,ey=y-ay-dy*t;
+            return (float)Math.Sqrt(ex*ex+ey*ey)-FMath.Lerp(ra,rb,t);
+        }
+        static float LegacyRiver(WorldData w,int i,float x,float y,out float depth)
+        {
+            var f=w.Facts;int mask=f.Connections[i],ix=i%w.Width,iy=i/w.Width;
+            float radius=f.HalfWidth[i],result=8;depth=f.Depth[i];
+            if(radius>=.01f&&mask>=16)
+            {
+                // A mixed junction joins every incoming half-reach to the
+                // same centre, including branches arriving through a corner.
+                for(int d=0;d<8;d++)
+                {
+                    if((mask&(1<<d))==0)continue;
+                    int n;float bx,by;
+                    if(d<4){n=w.Neighbor(i,d);RiverEdge(w,i,d,out bx,out by);}
+                    else
+                    {
+                        int dx=(d&1)==0?-1:1,dy=d<6?-1:1;
+                        n=w.Index(ix+dx,iy+dy);bx=.5f+dx*.5f;by=.5f+dy*.5f;
+                    }
+                    bool connected=n>=0&&f.HalfWidth[n]>=.01f;
+                    float rb=connected?(radius+f.HalfWidth[n])*.5f:radius;
+                    float distance=SegmentDistance(x,y,.5f,.5f,bx,by,radius,rb,out float t);
+                    if(d<4)
+                    {
+                        float face=d==0?x:d==1?1-x:d==2?y:1-y;
+                        float cross=d<2?Math.Abs(y-by):Math.Abs(x-bx);
+                        distance=FMath.Lerp(cross-rb,distance,Smooth(0,.10f,face));
+                    }
+                    if(distance<result)
+                    {
+                        result=distance;
+                        depth=connected?FMath.Lerp(f.Depth[i],(f.Depth[i]+f.Depth[n])*.5f,t):f.Depth[i];
+                    }
+                }
+            }
+            else if(radius>=.01f)result=FaceRiverDistance(w,i,x,y);
+
+            int sx=x>=.5f?1:-1,sy=y>=.5f?1:-1;
+            if(radius<.01f&&(mask&(1<<FlatTerrainAnalysis.DiagonalDirection(sx,sy)))==0)return result;
+            if(Math.Abs(x-(sx+1)*.5f)+Math.Abs(y-(sy+1)*.5f)>.68f)return result;
+            int a=w.Index(ix+sx,iy),b=w.Index(ix,iy+sy);
+            int link=FlatTerrainAnalysis.DiagonalDirection(-sx,sy);
+            if(b<0||f.HalfWidth[a]<.01f||f.HalfWidth[b]<.01f||(f.Connections[a]&(1<<link))==0)return result;
+            // Either bank cell samples the same centre-to-centre ribbon as
+            // both river cells. The shared corner therefore has four wet sides.
+            float bank=SegmentDistance(x,y,.5f+sx,.5f,.5f,.5f+sy,f.HalfWidth[a],f.HalfWidth[b],out float along);
+            if(bank<result){result=bank;depth=FMath.Lerp(f.Depth[a],f.Depth[b],along);}
+            return result;
+        }
+        static float FaceRiverDistance(WorldData w,int i,float x,float y)
+        {
+            var f=w.Facts;
             if(f.HalfWidth[i]<.01f)return 8;
             int mask=f.Connections[i],count=0,outlet=-1;float best=-2;
             for(int d=0;d<4;d++)
@@ -89,7 +149,7 @@ namespace Orbis.Flat
         public static float MouthDistance(WorldData w,int i,float x,float y)
         {
             if(w.Facts.RiverCurves!=null&&w.Facts.RiverCurves.SegmentCount>0)
-                return w.Facts.RiverCurves.Sample(i%w.Width+x,i/w.Width+y).Distance;
+                return w.Facts.RiverCurves.SampleAtDay(i%w.Width+x,i/w.Width+y,w.Day).Distance;
             if(w.Facts.ShoreDistance[i]<=0)return 8;
             float result=8;
             for(int d=0;d<4;d++)
@@ -116,11 +176,12 @@ namespace Orbis.Flat
             float area=Smooth(-.025f,.025f,sd);
             var curves=w.Facts.RiverCurves;
             bool cached=curves!=null&&curves.SegmentCount>0;
-            var sample=cached?curves.Sample(x,y):default;
-            float distance=cached?sample.Distance:RiverDistance(w,i,x-ix,y-iy);
+            var sample=cached?curves.SampleAtDay(x,y,w.Day):default;
+            float legacyDepth=0;
+            float distance=cached?sample.Distance:LegacyRiver(w,i,x-ix,y-iy,out legacyDepth);
             if(!cached&&sd<=1.25f)distance=Math.Min(distance,MouthDistance(w,i,x-ix,y-iy));
             float river=1-Smooth(-.025f,.025f,distance);
-            depth=river>area?(cached?sample.Depth:w.Facts.Depth[i]):Math.Max(.15f,FlatSurfaceSampling.Sample(w.Facts.Depth,w.Width,w.Height,x,y));
+            depth=river>area?(cached?sample.Depth:legacyDepth):Math.Max(.15f,FlatSurfaceSampling.Sample(w.Facts.Depth,w.Width,w.Height,x,y));
             if(area>.01f)depth*=FMath.Lerp(.05f,1,Smooth(0,1.5f,sd));
             return Math.Max(area,river);
         }

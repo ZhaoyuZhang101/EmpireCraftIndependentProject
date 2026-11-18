@@ -117,7 +117,7 @@ bool PDAmbientHomeClear(float4 home,bool ground)
   // These are the same reconstructed field and river atlas as the visible
   // surface, including sub-cell shores and rivers passing through land cells.
   float4 field=FlatField(home.xy);
-  clear=field.r>=0&&field.g<=-.82&&FlatRiverAtlasSample(home.xy).r>=.82;
+  clear=field.r>=0&&field.g<=-.82&&FlatRiverAtlasClear(home.xy,.82);
  }
  return clear;
 }

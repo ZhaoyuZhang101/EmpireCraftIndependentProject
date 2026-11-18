@@ -20,9 +20,10 @@
     float4 own=tex2D(_OwnerTex,uv),info=tex2D(_InfoTex,uv)*255;
     float4 hydro=tex2Dlod(_HydroA,float4(uv,0,0)),mixing=tex2Dlod(_HydroB,float4(uv,0,0)),geo=tex2Dlod(_GeoTex,float4(uv,0,0));
     float4 field=FlatField(cell);
-    float edgeDistance;float2 riverFlow;
+    float edgeDistance;
     float aa=clamp(.65/max(1,_PixelsPerTile),.008,.28);
-    float waterMask=FlatWaterMask(cell,uv,hydro,mixing,field,aa,edgeDistance,riverFlow);
+    float4 river=FlatRiverReceiver(cell,uv,hydro,mixing,field);
+    float waterMask=FlatWaterMask(river.r,field.g,aa,edgeDistance);
     float polarIce=FlatPolarIceMask(i.uv,waterMask,0)*naturalView;
     float landSnow=FlatLandSnow(cell,_InfoTex)*(1-waterMask)*naturalView;
     float4 season=float4(1,1,0,.5);
@@ -85,27 +86,11 @@
      float wetSupport;
      float4 areaOptics=FlatAreaWaterOptics(cell,_InfoTex,float4(field.b,mixing.g,mixing.b,floor(info.g+.5)),wetSupport);
      FlatCoastalSediment coast=FlatCoastAt(cell,field,areaOptics,wetSupport,edgeDistance,frozen,_WaterClock);
-     float waterKind=areaOptics.a;
+     FlatRiverSection channel=FlatRiverSectionAt(cell,river,field);
+     float sediment=FlatReachSediment(cell,channel,field.g,mixing.g);
      field.b=areaOptics.r;mixing.gb=areaOptics.gb;
-     if(_RiverAtlasReady>.5)
-     {
-      float4 river=FlatRiverAtlasSample(cell);
-      float halfWidth=length(river.ba);
-      hydro.gb=tex2D(_HydroA,i.uv).gb;hydro.a=0;
-      if(field.g<0&&river.r< -field.g&&halfWidth>.0001)
-      {
-       hydro=float4(river.g,river.ba/max(.0001,halfWidth),halfWidth);
-       mixing.g=FlatRiverAtlasSediment(cell);mixing.b=1;waterKind=5;
-      }
-     }
-     else
-     {
-      if(hydro.a>.01)hydro.gb=riverFlow;else hydro.gb=tex2D(_HydroA,i.uv).gb;
-      if(hydro.a>.01&&field.g<0)waterKind=5;
-     }
-     float bankWidth=hydro.a>.0001?clamp(hydro.a*.40,.02,.075):.16;
-     float bankMask=(1-waterMask)*(1-smoothstep(0,bankWidth+aa,edgeDistance))*_ShowBanks;
-     if(bankMask>.001)col=lerp(col,FlatBedColor(cell)*terrainRelief.rgb,bankMask*.58);
+     mixing.g=lerp(mixing.g,sediment,channel.influence);
+     col=FlatWaterBanks(cell,col,terrainRelief.rgb,channel,sediment,field.g,(1-waterMask)*_ShowBanks,aa,1/max(1,_PixelsPerTile));
      col=lerp(col,coast.albedo*terrainRelief.rgb,coast.coverage*_ShowBanks*naturalView);
      col*=illumination;
      float3 bottom=FlatMaterialColor(floor(geo.g+.5))*.72;
@@ -115,7 +100,7 @@
      if(_ShowWater>.5)
      {
       FlatWaterSurfaceData waterSurface;
-      waterColor=FlatWaterShade(cell,hydro,mixing,field,bottom,illumination,waterView,waterLight,_WaveAmount*(1-polarIce),waterKind,edgeDistance,coast,waterSurface);
+      waterColor=FlatWaterShade(cell,mixing,field,bottom,illumination,waterView,waterLight,_WaveAmount*(1-polarIce),areaOptics.a,coast,channel,waterSurface);
       // Keep the normal derivatives above uniform across shorelines. Only the
       // reflection lookup can be skipped for completely dry receivers.
       [branch] if(waterMask>.001)

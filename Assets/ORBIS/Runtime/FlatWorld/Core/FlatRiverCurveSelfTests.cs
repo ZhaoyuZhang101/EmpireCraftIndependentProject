@@ -213,6 +213,30 @@ namespace Orbis.Flat
             Check(springWorld.Facts.RiverCurves.SegmentCount==1&&springWorld.Facts.RiverCurves.Sample(10.5f,10.5f).Distance<0,"Isolated legacy headwaters retain a finite spring");
         }
 
+        static void TestDiagonalAndLatitude()
+        {
+            var world=new WorldData(64,32,"OBLIQUE-VALLEY",TerrainPreset.Continents);
+            for(int i=0;i<world.Count;i++){world.Elevation[i]=100;world.WaterLevel[i]=100;}
+            for(int k=0;k<=12;k++)
+            {
+                int tile=world.Index(58+k,8+k);
+                world.Water[tile]=k==12?WaterKind.Lake:WaterKind.River;
+                world.Runoff[tile]=20+k*4;
+                if(k<12)world.Downstream[tile]=world.Index(59+k,9+k);
+            }
+            FlatTerrainAnalysis.Build(world,CancellationToken.None,false);
+            Check(world.Facts.RiverCurves.SegmentCount==12*16,"Every diagonal reach crossing the date line has a continuous ribbon");
+            var spring=new WorldData(64,32,"SPRING-METRIC",TerrainPreset.Continents);
+            int cell=spring.Index(20,28);
+            spring.Water[cell]=WaterKind.River;spring.Runoff[cell]=64;
+            FlatTerrainAnalysis.Build(spring,CancellationToken.None,false);
+            var curves=spring.Facts.RiverCurves;
+            const float x=20.5f,y=28.5f;
+            float latitudeScale=(float)Math.Cos((y/32-.5)*Math.PI);
+            float east=curves.Sample(x+.12f/latitudeScale,y).Distance,north=curves.Sample(x,y+.12f).Distance;
+            Check(Math.Abs(east-north)<.001f,"Equal physical offsets from a high-latitude spring reach the same bank distance");
+        }
+
         static void TestTributary()
         {
             var world=Reach();
@@ -340,7 +364,7 @@ namespace Orbis.Flat
             }
             Check(largest>smallest*1.6f,"Discharge widens the continuous ribbon meaningfully");
             TestValleyFollowing();
-            TestCacheAndAttributes(open);TestWrappedAndPolarReaches();TestTributary();TestLakeOutlet();
+            TestCacheAndAttributes(open);TestWrappedAndPolarReaches();TestDiagonalAndLatitude();TestTributary();TestLakeOutlet();
             return Assertions;
         }
     }

@@ -23,6 +23,8 @@ namespace Orbis.Flat
         const float FieldMargin=.30f;
         readonly Segment[] segments;
         readonly int[] tileOffsets,tileSegments,activeTiles;
+        readonly float[] longitudeScale;
+        public FlatRiverStageField Seasons { get; private set; }
 
         readonly struct Vertex
         {
@@ -37,7 +39,8 @@ namespace Orbis.Flat
         readonly struct Segment
         {
             public readonly Vertex A,B;
-            public Segment(Vertex a,Vertex b){A=a;B=b;}
+            public readonly int Reach;
+            public Segment(Vertex a,Vertex b,int reach){A=a;B=b;Reach=reach;}
         }
 
         public int Width { get; }
@@ -50,33 +53,52 @@ namespace Orbis.Flat
         {
             Width=width;Height=height;this.segments=segments;
             tileOffsets=offsets;tileSegments=candidates;activeTiles=active;
+            longitudeScale=new float[height+1];
+            for(int y=0;y<=height;y++)longitudeScale[y]=Metric(y,height);
         }
 
         public FlatRiverSample Sample(float worldX,float worldY)
         {
+            return Sample(worldX,worldY,out _);
+        }
+
+        internal FlatRiverSample Sample(float worldX,float worldY,out int reach)
+        {
+            reach=-1;
             if(!FMath.Finite(worldX)||!FMath.Finite(worldY)||segments.Length==0)
                 return new FlatRiverSample(8,0,0,0,0,0);
             worldX%=Width;if(worldX<0)worldX+=Width;
             worldY=FMath.Clamp(worldY,0,Height);
-            int tile=Math.Min(Height-1,(int)worldY)*Width+(int)worldX;
+            int row=Math.Min(Height-1,(int)worldY),tile=row*Width+(int)worldX;
+            float metric=FMath.Lerp(longitudeScale[row],longitudeScale[row+1],worldY-row);
             float best=8,radius=0,depth=0,flowX=0,flowY=0,sediment=0;
             for(int k=tileOffsets[tile];k<tileOffsets[tile+1];k++)
             {
                 Segment segment=segments[tileSegments[k]];
                 Vertex a=segment.A,b=segment.B;
-                float px=a.X+Wrapped(worldX-a.X,Width),py=worldY;
-                float dx=b.X-a.X,dy=b.Y-a.Y,lengthSquared=dx*dx+dy*dy;
-                float t=lengthSquared>1e-12f?FMath.Clamp(((px-a.X)*dx+(py-a.Y)*dy)/lengthSquared,0,1):0;
-                float ex=px-a.X-dx*t,ey=py-a.Y-dy*t;
+                float px=Wrapped(worldX-a.X,Width)*metric,py=worldY-a.Y;
+                float dx=(b.X-a.X)*metric,dy=b.Y-a.Y,lengthSquared=dx*dx+dy*dy;
+                float t=lengthSquared>1e-12f?FMath.Clamp((px*dx+py*dy)/lengthSquared,0,1):0;
+                float ex=px-dx*t,ey=py-dy*t;
                 float r=FMath.Lerp(a.Radius,b.Radius,t);
                 float distance=(float)Math.Sqrt(ex*ex+ey*ey)-r;
                 if(distance>=best)continue;
-                best=distance;radius=r;depth=FMath.Lerp(a.Depth,b.Depth,t);
+                best=distance;radius=r;depth=FMath.Lerp(a.Depth,b.Depth,t);reach=segment.Reach;
                 flowX=FMath.Lerp(a.FlowX,b.FlowX,t);flowY=FMath.Lerp(a.FlowY,b.FlowY,t);
                 sediment=FMath.Lerp(a.Sediment,b.Sediment,t);
             }
             Normalize(ref flowX,ref flowY);
             return new FlatRiverSample(best,radius,depth,flowX,flowY,sediment);
+        }
+
+        public FlatRiverSample SampleAtDay(float x,float y,double day)
+        {
+            var sample=Sample(x,y);
+            if(Seasons==null||sample.HalfWidth<=0)return sample;
+            float stage=Seasons.Ratio(x,y,day);
+            float radius=Math.Min(.24f,sample.HalfWidth*FlatRiverStageField.WidthScale(stage));
+            return new FlatRiverSample(sample.Distance+sample.HalfWidth-radius,radius,
+                sample.Depth*FlatRiverStageField.DepthScale(stage),sample.FlowX,sample.FlowY,sample.Sediment);
         }
 
         public static FlatRiverCurves Build(WorldData world,FlatTerrainFacts facts,CancellationToken cancel)
@@ -129,7 +151,14 @@ namespace Orbis.Flat
             for(int k=tail-1;k>=0;k--)
             {
                 int i=order[k],next=world.Downstream[i];
-                float advance=6.2831853f/(8+24*facts.HalfWidth[i]);
+                float reachLength=1;
+                if(next>=0&&next<count&&ReachEdge(world,i,next))
+                {
+                    EdgeDirection(world,i,next,out float dx,out float dy);
+                    dx*=Metric(i/world.Width+.5f,world.Height);
+                    reachLength=(float)Math.Sqrt(dx*dx+dy*dy);
+                }
+                float advance=6.2831853f*reachLength/(8+24*facts.HalfWidth[i]);
                 phase[i]=next>=0&&next<count&&river[next]&&indegree[i]==0
                     ?phase[next]+advance:FMath.Unit((uint)(next>=0?next:i)^seed)*6.2831853f;
             }
@@ -148,13 +177,26 @@ namespace Orbis.Flat
                 float radius=FMath.Clamp(facts.HalfWidth[i]*(.89f+.16f*(float)Math.Sin(phase[i]*1.71f+.7f))
                     *(.76f+.24f/(1+confinement/300)),.006f,.22f);
                 if(spring)radius=Math.Max(.006f,radius*.24f);
-                radius=FitRadius(world,i%world.Width+.5f,i/world.Width+.5f,world.WaterLevel[i],
-                    Tolerance(facts.Relief[i]),-ty,tx,radius);
+                float cx=i%world.Width+.5f,cy=i/world.Width+.5f;
+                BankNormal(tx,ty,Metric(cy,world.Height),out float nx,out float ny);
+                radius=FitRadius(world,cx,cy,world.WaterLevel[i],Tolerance(facts.Relief[i]),nx,ny,radius);
                 radii[i]=radius;
                 depths[i]=Math.Max(.15f,facts.Depth[i]*(.92f+.10f*(float)Math.Sin(phase[i]*1.71f+.7f)));
-                float offset=ValleyOffset(world,facts,i,-ty,tx,desired,amplitude,radius);
-                nodeX[i]=i%world.Width+.5f-ty*offset;
-                nodeY[i]=FMath.Clamp(i/world.Width+.5f+tx*offset,0,world.Height);
+                float offset=ValleyOffset(world,facts,i,nx,ny,desired,amplitude,radius);
+                float x=cx+nx*offset,y=FMath.Clamp(cy+ny*offset,0,world.Height);
+                int upstream=dominant[i];
+                // A raster cell is a drainage catchment, not a compulsory bend
+                // vertex. Cut the inside of a grid elbow only on admissible ground.
+                if(upstream>=0&&next>=0&&next<count&&river[next]&&
+                   !PolarEdge(world,upstream,i)&&!PolarEdge(world,i,next))
+                {
+                    EdgeDirection(world,upstream,i,out float inX,out float inY);
+                    EdgeDirection(world,i,next,out float outX,out float outY);
+                    float rounding=.32f/(1+confinement/450);
+                    x+=(outX-inX)*rounding;y+=(outY-inY)*rounding;
+                    Constrain(world,cx,cy,world.WaterLevel[i],Tolerance(facts.Relief[i]),radius,nx,ny,ref x,ref y);
+                }
+                nodeX[i]=x;nodeY[i]=y;
             }
             var built=new List<Segment>(Math.Max(4,riverCount*SamplesPerReach));
             for(int k=0;k<tail;k++)
@@ -166,7 +208,7 @@ namespace Orbis.Flat
                     if(dominant[i]<0&&areaSource[i]<0)
                     {
                         var spring=new Vertex(nodeX[i],nodeY[i],Math.Max(.012f,radii[i]),depths[i],tangentX[i],tangentY[i],facts.Sediment[i]);
-                        built.Add(new Segment(spring,spring));
+                        built.Add(new Segment(spring,spring,i));
                     }
                     continue;
                 }
@@ -194,7 +236,9 @@ namespace Orbis.Flat
                     AddPolar(world,facts,i,next,river,radii,depths,nodeX,nodeY,tangentX,tangentY,built);
                 else AddReach(world,facts,i,next,river,dominant,radii,depths,nodeX,nodeY,tangentX,tangentY,built);
             }
-            return Index(world.Width,world.Height,built.ToArray(),cancel);
+            var curves=Index(world.Width,world.Height,built.ToArray(),cancel);
+            if(facts.RiverDischarge!=null&&built.Count>0)curves.Seasons=new FlatRiverStageField(curves,facts.RiverDischarge,cancel);
+            return curves;
         }
 
         static float Wrapped(float difference,int width)
@@ -219,8 +263,17 @@ namespace Orbis.Flat
 
         static bool ReachEdge(WorldData world,int a,int b)
         {
-            return PolarEdge(world,a,b)||Math.Abs(FlatTerrainAnalysis.WrappedDX(b%world.Width,a%world.Width,world.Width))+
-                Math.Abs(b/world.Width-a/world.Width)==1;
+            return FlatHydrology.IsDrainageNeighbor(world,a,b);
+        }
+
+        static float Metric(float y,int height)
+        { return Math.Max(.08f,(float)Math.Cos((y/height-.5)*Math.PI)); }
+
+        static void BankNormal(float tx,float ty,float metric,out float nx,out float ny)
+        {
+            float east=tx*metric,north=ty;
+            Normalize(ref east,ref north);
+            nx=-north/metric;ny=east;
         }
 
         static void EdgeDirection(WorldData world,int a,int b,out float x,out float y)
@@ -310,7 +363,7 @@ namespace Orbis.Flat
             }
             float chosenX=cx+nx*bestOffset,chosenY=cy+ny*bestOffset;
             Constrain(world,cx,cy,head,tolerance,radius,nx,ny,ref chosenX,ref chosenY);
-            return (chosenX-cx)*nx+(chosenY-cy)*ny;
+            return ((chosenX-cx)*nx+(chosenY-cy)*ny)/Math.Max(1e-8f,nx*nx+ny*ny);
         }
 
         static void Constrain(WorldData world,float bx,float by,float head,float tolerance,float radius,float nx,float ny,ref float x,ref float y)
@@ -364,14 +417,19 @@ namespace Orbis.Flat
                 {
                     float head=FMath.Lerp(world.WaterLevel[i],world.WaterLevel[next],t);
                     float tolerance=Tolerance(FMath.Lerp(facts.Relief[i],facts.Relief[next],t));
+                    BankNormal(fx,fy,Metric(y,world.Height),out float nx,out float ny);
                     Constrain(world,FMath.Lerp(baseAX,baseBX,t),FMath.Lerp(baseAY,baseBY,t),
-                        head,tolerance,radius,-fy,fx,ref x,ref y);
-                    radius=FitRadius(world,x,y,head,tolerance,-fy,fx,radius);
+                        head,tolerance,radius,nx,ny,ref x,ref y);
+                    radius=FitRadius(world,x,y,head,tolerance,nx,ny,radius);
                 }
                 float smooth=t*t*(3-2*t);
                 var vertex=new Vertex(x,y,radius,FMath.Lerp(depths[i],endDepth,smooth),fx,fy,
                     FMath.Lerp(facts.Sediment[i],endSediment,smooth));
-                if(k>0)built.Add(new Segment(previousVertex,vertex));
+                if(k>0)
+                {
+                    bool useReceiver=continuing&&(FlatTerrainAnalysis.AreaWater(world.Water[i])||main&&t>=.5f);
+                    built.Add(new Segment(previousVertex,vertex,useReceiver?next:i));
+                }
                 previousVertex=vertex;
             }
         }
@@ -383,20 +441,24 @@ namespace Orbis.Flat
             float endRadius=river[next]?radii[next]:radii[i];
             float radius=(radii[i]+endRadius)*.5f;
             var a=new Vertex(nodeX[i],nodeY[i],radii[i],depths[i],0,flow,facts.Sediment[i]);
-            var edgeA=new Vertex(nodeX[i],boundary,radius,depths[i],0,flow,facts.Sediment[i]);
+            // Both meridians meet at the same pole. Fix the two chart endpoints
+            // at their drainage meridians while the interior channel can meander.
+            var edgeA=new Vertex(i%world.Width+.5f,boundary,radius,depths[i],0,flow,facts.Sediment[i]);
             float targetX=river[next]?nodeX[next]:next%world.Width+.5f;
             float targetY=river[next]?nodeY[next]:next/world.Width+.5f;
-            var edgeB=new Vertex(targetX,boundary,radius,depths[i],0,-flow,facts.Sediment[i]);
+            var edgeB=new Vertex(next%world.Width+.5f,boundary,radius,depths[i],0,-flow,facts.Sediment[i]);
             var b=new Vertex(targetX,targetY,endRadius,river[next]?depths[next]:depths[i],
                 river[next]?tangentX[next]:0,river[next]?tangentY[next]:-flow,river[next]?facts.Sediment[next]:facts.Sediment[i]);
-            built.Add(new Segment(a,edgeA));built.Add(new Segment(edgeB,b));
+            built.Add(new Segment(a,edgeA,river[i]?i:next));built.Add(new Segment(edgeB,b,river[next]?next:i));
         }
 
         static void Bounds(Segment segment,int height,out int minX,out int maxX,out int minY,out int maxY)
         {
             float padding=Math.Max(segment.A.Radius,segment.B.Radius)+FieldMargin;
-            minX=(int)Math.Floor(Math.Min(segment.A.X,segment.B.X)-padding);
-            maxX=(int)Math.Floor(Math.Max(segment.A.X,segment.B.X)+padding);
+            float latitude=Math.Max(Math.Abs(segment.A.Y-height*.5f),Math.Abs(segment.B.Y-height*.5f));
+            float paddingX=padding/Metric(Math.Min(height,height*.5f+latitude+padding),height);
+            minX=(int)Math.Floor(Math.Min(segment.A.X,segment.B.X)-paddingX);
+            maxX=(int)Math.Floor(Math.Max(segment.A.X,segment.B.X)+paddingX);
             minY=FMath.Clamp((int)Math.Floor(Math.Min(segment.A.Y,segment.B.Y)-padding),0,height-1);
             maxY=FMath.Clamp((int)Math.Floor(Math.Max(segment.A.Y,segment.B.Y)+padding),0,height-1);
         }

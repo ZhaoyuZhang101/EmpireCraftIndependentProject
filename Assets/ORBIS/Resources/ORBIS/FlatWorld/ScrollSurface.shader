@@ -13,7 +13,13 @@ Shader "ORBIS/FlatWorld/ScrollSurface"
   [HideInInspector] _ScrollRelief("Terrain relief view",Vector)=(0,0,.72,0)
   [HideInInspector] _EcologyTex("Derived ecology traits",2D)="black"{}
   [HideInInspector] _EcologyReady("Ecology traits ready",Float)=0
+  [HideInInspector] _MapSize("World dimensions and inverse dimensions",Vector)=(1,1,1,1)
+  [HideInInspector] _FieldReady("Terrain and bed fields ready",Float)=0
   [HideInInspector] _RiverAtlas("Continuous river field",2D)="black"{}
+  [HideInInspector] _RiverPreviewReady("Initial river field ready",Float)=0
+  [HideInInspector] _RiverSeasonTex("Seasonal river discharge",2D)="black"{}
+  [HideInInspector] _RiverSeasonReady("River seasons ready",Float)=0
+  [HideInInspector] _RiverSeason("Current and next discharge month",Vector)=(0,1,0,0)
   [HideInInspector] _RiverAtlasReady("River field ready",Float)=0
   [HideInInspector] _RiverAtlasLayout("River field layout",Vector)=(0,0,0,0)
 

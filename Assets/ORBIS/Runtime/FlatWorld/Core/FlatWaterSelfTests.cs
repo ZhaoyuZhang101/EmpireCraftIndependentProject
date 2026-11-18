@@ -20,22 +20,48 @@ namespace Orbis.Flat
                 for(int month=0;month<12;month++)world.Precipitation[i*12+month]=100;
             }
             FlatHydrology.Build(world,CancellationToken.None);
-            int meridional=0,samples=0;
+            double GroundDistance(int from,int to)
+            {
+                double interval=Math.PI/world.Height;
+                double south=(from/world.Width+.5)*interval-Math.PI*.5;
+                double north=(to/world.Width+.5)*interval-Math.PI*.5;
+                int dx=FlatTerrainAnalysis.WrappedDX(to%world.Width,from%world.Width,world.Width);
+                double lat=Math.Sin((north-south)*.5),lon=Math.Sin(dx*interval*.5);
+                return 2*Math.Asin(Math.Sqrt(lat*lat+Math.Cos(south)*Math.Cos(north)*lon*lon))/interval;
+            }
+            int diagonal=0;
             for(int y=18;y<=24;y++)for(int x=6;x<=24;x++)
             {
-                int cell=world.Index(x,y),steps=0,next=cell;
-                if(world.Downstream[cell]/world.Width<y)meridional++;
-                samples++;
-                while(!FlatTerrainAnalysis.Ocean(world.Water[next])&&steps<world.Count)
-                {next=world.Downstream[next];steps++;}
-                Check(steps==x-3+y-17,"Seeded flat routing retains the shortest spill path");
+                int at=world.Index(x,y),next=world.Downstream[at],steps=0;
+                if(at/world.Width!=next/world.Width&&at%world.Width!=next%world.Width)diagonal++;
+                double actual=0,available=0;
+                while(!FlatTerrainAnalysis.Ocean(world.Water[next])&&steps++<world.Count)
+                {actual+=GroundDistance(at,next);at=next;next=world.Downstream[at];}
+                // Construct a feasible route to a known spill face. A shortest
+                // spherical path may approach a closer face at another latitude.
+                int xx=x,yy=y;
+                while(xx>4||yy>17)
+                {
+                    at=world.Index(xx,yy);
+                    if(xx>4)xx--;
+                    if(yy>17)yy--;
+                    available+=GroundDistance(at,world.Index(xx,yy));
+                }
+                Check(steps<world.Count&&actual<=available+.0001,"Level routing reaches an outlet within the available ground-distance budget");
             }
-            Check(meridional>samples/10&&meridional<samples*9/10,"Ambiguous flat drainage uses both valid face axes instead of a fixed compass bias");
+            Check(diagonal>0,"An oblique flat valley can drain across local diagonals");
             var repeat=world.Clone();FlatHydrology.Build(repeat,CancellationToken.None);
             for(int i=0;i<world.Count;i++)Check(world.Downstream[i]==repeat.Downstream[i],"Seeded flat routing is repeatable");
-            int target=world.Index(16,22),lower=world.Index(16,21);
-            world.Elevation[lower]=90;FlatHydrology.Build(world,CancellationToken.None);
-            Check(world.Downstream[target]==lower,"Lower actual terrain wins an otherwise equal flat route");
+            var symmetric=new WorldData(64,32,"EQUAL-SPILLS",TerrainPreset.Continents);
+            for(int i=0;i<symmetric.Count;i++)
+            {
+                int x=i%symmetric.Width;bool coast=x==8||x==24;
+                symmetric.Elevation[i]=(short)(coast?-100:100);
+                symmetric.Water[i]=coast?WaterKind.ShallowOcean:WaterKind.Land;
+            }
+            int target=symmetric.Index(16,16),lower=symmetric.Index(15,16);
+            symmetric.Elevation[lower]=90;FlatHydrology.Build(symmetric,CancellationToken.None);
+            Check(symmetric.Downstream[target]==lower,"Lower actual terrain wins equally long routes to symmetric coasts");
         }
         static void TestChannelMeanders()
         {

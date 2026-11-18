@@ -99,7 +99,11 @@ namespace Orbis.Flat
                 Check(w.Water[i]<=WaterKind.River&&w.Biomes[i]<=Biome.Wetland&&w.Climates[i]>=Koppen.Af&&w.Climates[i]<=Koppen.EF&&w.Buildings[i]<=Structure.Bridge,"Invalid classification.");
                 Check(w.Owner[i]>=-1&&w.Owner[i]<w.Nations.Count&&w.Owner[i]==w.ZoneOwner[w.ZoneOf(i)],"Tile/Zone owner mismatch.");
                 int parent=w.Downstream[i];Check(parent>=-1&&parent<w.Count&&parent!=i,"Invalid downstream index.");
-                if(parent>=0){bool adjacent=false;for(int d=0;d<4;d++)if(w.SphereNeighbor(i,d)==parent)adjacent=true;Check(adjacent&&rank[parent]<rank[i],"Drainage cycle or disconnected edge.");Check(w.WaterLevel[parent]<=w.WaterLevel[i],"Drainage routes uphill in spill height.");}
+                if(parent>=0)
+                {
+                    Check(FlatHydrology.IsDrainageNeighbor(w,i,parent)&&rank[parent]<rank[i],"Drainage cycle or disconnected edge.");
+                    Check(w.WaterLevel[parent]<=w.WaterLevel[i],"Drainage routes uphill in spill height.");
+                }
                 Check(FMath.Finite(w.Fertility[i])&&w.Fertility[i]>=0&&w.Fertility[i]<=1&&FMath.Finite(w.Runoff[i])&&w.Runoff[i]>=0&&w.Runoff[i]<1e10f&&FMath.Finite(w.Population[i])&&w.Population[i]>=0&&w.Population[i]<=1e8f,"Invalid simulation value.");
                 Check(w.Population[i]==0||(w.Owner[i]>=0&&w.Habitable(i)),"Population on uninhabitable/unowned tile.");
                 for(int m=0;m<12;m++){float t=w.Temperature[i*12+m],p=w.Precipitation[i*12+m];Check(FMath.Finite(t)&&t>=-100&&t<=100&&FMath.Finite(p)&&p>=0&&p<=10000,"Invalid monthly climate.");}

@@ -67,6 +67,7 @@ SHADERS = [
     "Assets/ORBIS/Editor/WaterOpticsProbe.shader",
     "Assets/ORBIS/Editor/RiverAtlasProbe.shader",
     "Assets/ORBIS/Editor/RiverGeometryProbe.shader",
+    "Assets/ORBIS/Editor/RiverOpticsProbe.shader",
     "Assets/ORBIS/Editor/CloudPassageProbe.shader",
     "Assets/ORBIS/Editor/VegetationArtProbe.shader",
     "Assets/ORBIS/Editor/PropShadowProbe.shader",

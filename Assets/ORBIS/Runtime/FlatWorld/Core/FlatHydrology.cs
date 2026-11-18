@@ -5,23 +5,124 @@ namespace Orbis.Flat
 {
     internal sealed class FloodHeap
     {
-        struct Entry { public int Id,Height; }
+        struct Entry { public int Id; public long Priority; }
         readonly List<Entry> heap=new List<Entry>();
         public int Count { get { return heap.Count; } }
-        static bool Less(Entry a,Entry b) { return a.Height<b.Height||(a.Height==b.Height&&a.Id<b.Id); }
-        public void Push(int id,int height)
+        static bool Less(Entry a,Entry b) { return a.Priority<b.Priority||(a.Priority==b.Priority&&a.Id<b.Id); }
+        public void Push(int id,long priority)
         {
-            var e=new Entry{Id=id,Height=height};int i=heap.Count;heap.Add(e);
+            var e=new Entry{Id=id,Priority=priority};int i=heap.Count;heap.Add(e);
             while(i>0){int p=(i-1)/2;if(!Less(e,heap[p]))break;heap[i]=heap[p];i=p;}heap[i]=e;
         }
-        public int Pop()
+        public int Pop() { return Pop(out _); }
+        public int Pop(out long priority)
         {
-            int result=heap[0].Id,last=heap.Count-1;var e=heap[last];heap.RemoveAt(last);if(last==0)return result;
+            int result=heap[0].Id,last=heap.Count-1;priority=heap[0].Priority;var e=heap[last];heap.RemoveAt(last);if(last==0)return result;
             int i=0;while(i*2+1<last){int j=i*2+1;if(j+1<last&&Less(heap[j+1],heap[j]))j++;if(!Less(heap[j],e))break;heap[i]=heap[j];i=j;}heap[i]=e;return result;
         }
     }
     public static class FlatHydrology
     {
+        // Unit lengths are one meridional grid interval. Fixed-point spherical
+        // distances make equal-cost plateau paths independent of heap insertion order.
+        const int DistanceUnit=1000000;
+
+        public static bool IsDrainageNeighbor(WorldData world,int from,int to)
+        {
+            if(from<0||to<0||from>=world.Count||to>=world.Count||from==to)return false;
+            int row=from/world.Width,dy=Math.Abs(to/world.Width-row);
+            int dx=Math.Abs(FlatTerrainAnalysis.WrappedDX(to%world.Width,from%world.Width,world.Width));
+            return (dx<=1&&dy<=1)||(dy==0&&dx==world.Width/2&&(row==0||row==world.Height-1));
+        }
+
+        static int[] GroundLengths(WorldData world)
+        {
+            var lengths=new int[world.Height*8];
+            double angle=Math.PI/world.Height,halfStep=Math.Sin(angle*.5);
+            for(int y=0;y<world.Height;y++)
+            {
+                double latitude=(y+.5)*angle-Math.PI*.5;
+                double cosine=Math.Cos(latitude);
+                int start=y*8;
+                lengths[start]=lengths[start+1]=(int)Math.Round(2*Math.Asin(cosine*halfStep)/angle*DistanceUnit);
+                lengths[start+2]=lengths[start+3]=DistanceUnit;
+                // A diagonal spanning these two latitude rings has the same
+                // great-circle length from either end, including across longitude zero.
+                if(y+1==world.Height)continue;
+                double haversine=halfStep*halfStep*(1+cosine*Math.Cos(latitude+angle));
+                int diagonal=(int)Math.Round(2*Math.Asin(Math.Sqrt(haversine))/angle*DistanceUnit);
+                lengths[start+6]=lengths[start+7]=lengths[start+8+4]=lengths[start+8+5]=diagonal;
+            }
+            return lengths;
+        }
+
+        static int RoutingNeighbor(WorldData world,int cell,int direction)
+        {
+            if(direction<4)return world.SphereNeighbor(cell,direction);
+            if(world.Water[cell]!=WaterKind.Land)return -1;
+            int x=cell%world.Width,y=cell/world.Width;
+            int nx=FMath.Wrap(x+((direction&1)==0?-1:1),world.Width);
+            int ny=y+(direction<6?-1:1);
+            if(ny<0||ny>=world.Height)return -1;
+            int next=ny*world.Width+nx,across=y*world.Width+nx,along=ny*world.Width+x;
+            // A lake or coastline receives flow across a shared face. A diagonal
+            // between dry cells cannot bypass a shoreline in either side cell.
+            if(world.Water[next]!=WaterKind.Land||world.Water[across]!=WaterKind.Land||
+                world.Water[along]!=WaterKind.Land)return -1;
+            // On the bilinear surface the endpoint grades along a diagonal have
+            // the signs of (sideMean - start) and (end - sideMean). Require both
+            // to descend. This excludes both a hidden ridge and a skipped trough.
+            int sideSum=world.Elevation[across]+world.Elevation[along];
+            int a=world.Elevation[cell],b=world.Elevation[next];
+            return sideSum>=2*Math.Min(a,b)&&sideSum<=2*Math.Max(a,b)?next:-1;
+        }
+
+        static long[] SpillDistances(WorldData w,int[] lengths,CancellationToken cancel)
+        {
+            var distance=new long[w.Count];var flatCells=new List<int>();
+            for(int i=0;i<w.Count;i++)
+            {
+                if((i&4095)==0)cancel.ThrowIfCancellationRequested();
+                if(w.Downstream[i]<0)continue;
+                bool spill=false;
+                for(int d=0;d<8&&!spill;d++)
+                {
+                    int n=RoutingNeighbor(w,i,d);
+                    spill=n>=0&&w.WaterLevel[n]<w.WaterLevel[i];
+                }
+                if(!spill){distance[i]=long.MaxValue;flatCells.Add(i);}
+            }
+            // Seed only the inner fringe of each level area. Oceans and sloped
+            // terrain resolve immediately and never enter this second heap.
+            var heap=new FloodHeap();
+            foreach(int i in flatCells)
+            {
+                int row=i/w.Width;
+                for(int d=0;d<8;d++)
+                {
+                    int n=RoutingNeighbor(w,i,d);
+                    if(n>=0&&distance[n]==0&&w.WaterLevel[n]==w.WaterLevel[i])
+                        distance[i]=Math.Min(distance[i],lengths[row*8+d]);
+                }
+                if(distance[i]!=long.MaxValue)heap.Push(i,distance[i]);
+            }
+            int popped=0;
+            while(heap.Count>0)
+            {
+                if((popped++&4095)==0)cancel.ThrowIfCancellationRequested();
+                int i=heap.Pop(out long cost);
+                if(cost!=distance[i])continue;
+                for(int d=0;d<8;d++)
+                {
+                    int n=RoutingNeighbor(w,i,d);
+                    if(n<0||w.WaterLevel[n]!=w.WaterLevel[i])continue;
+                    long candidate=cost+lengths[(i/w.Width)*8+d];
+                    if(candidate>=distance[n])continue;
+                    distance[n]=candidate;heap.Push(n,candidate);
+                }
+            }
+            return distance;
+        }
         static float DrainageCorner(int x,int y,int period,uint seed)
         {
             unchecked{return FMath.Unit((uint)FMath.Wrap(x,period)*73428767u^(uint)y*912931u^seed);}
@@ -59,7 +160,7 @@ namespace Orbis.Flat
             while(heap.Count>0)
             {
                 if((cursor&4095)==0)cancel.ThrowIfCancellationRequested();
-                int i=heap.Pop();w.DrainOrder[cursor++]=i;
+                int i=heap.Pop();cursor++;
                 for(int d=0;d<4;d++)
                 {
                     int n=w.SphereNeighbor(i,d);if(n<0||visited[n])continue;
@@ -69,70 +170,45 @@ namespace Orbis.Flat
                     w.WaterLevel[n]=(short)Math.Max(w.Elevation[n],w.WaterLevel[i]);heap.Push(n,w.WaterLevel[n]);
                 }
             }
-            // World Atlas hydrology._flat_routing_distance: flood parents are NOT
-            // physical flow directions. Build a separate distance-to-spill gradient.
-            // Adapted to ORBIS's four shared tile faces and spherical adjacency.
-            var spillDistance=new int[w.Count];var queue=new int[w.Count];int head=0,tail=0;
-            for(int i=0;i<w.Count;i++)
-            {
-                if((i&4095)==0)cancel.ThrowIfCancellationRequested();
-                spillDistance[i]=-1;bool spill=w.Downstream[i]<0;
-                for(int d=0;d<4;d++)
-                    if(w.WaterLevel[w.SphereNeighbor(i,d)]<w.WaterLevel[i])spill=true;
-                if(spill){spillDistance[i]=0;queue[tail++]=i;}
-            }
-            while(head<tail)
-            {
-                if((head&4095)==0)cancel.ThrowIfCancellationRequested();int i=queue[head++];
-                for(int d=0;d<4;d++)
-                {
-                    int n=w.SphereNeighbor(i,d);
-                    if(spillDistance[n]>=0||w.WaterLevel[n]!=w.WaterLevel[i])continue;
-                    spillDistance[n]=spillDistance[i]+1;queue[tail++]=n;
-                }
-            }
-            // Lower head, then shorter spill distance: this strict potential is acyclic.
-            // Rebuild the downstream-first order; flood heap order is no longer valid.
-            Array.Sort(w.DrainOrder,(a,b)=>
-            {
-                int c=w.WaterLevel[a].CompareTo(w.WaterLevel[b]);
-                if(c==0)c=spillDistance[a].CompareTo(spillDistance[b]);
-                return c==0?a.CompareTo(b):c;
-            });
-            var eastWestLength=new double[w.Height];
-            for(int y=0;y<w.Height;y++)eastWestLength[y]=Math.Max(.01,Math.Cos(((y+.5)/w.Height-.5)*Math.PI));
-            uint routeSeed=FMath.Seed(w.Seed)^0x56a9d731u;
-            for(int i=0;i<w.Count;i++)
-            {
-                if((i&4095)==0)cancel.ThrowIfCancellationRequested();
-                if(w.Downstream[i]<0)continue;
-                int best=-1;double bestSlope=-1;
-                for(int d=0;d<4;d++)
-                {
-                    int n=w.SphereNeighbor(i,d),drop=w.WaterLevel[i]-w.WaterLevel[n];
-                    if(drop<0||(drop==0&&spillDistance[n]>=spillDistance[i]))continue;
-                    double slope=drop/(d<2?eastWestLength[i/w.Width]:1);
-                    // Lower actual terrain still wins among equally short routes.
-                    // A coherent seeded field resolves the remaining compass ties.
-                    if(best<0||slope>bestSlope+1e-9||(Math.Abs(slope-bestSlope)<1e-9&&
-                        (w.Elevation[n]<w.Elevation[best]||(w.Elevation[n]==w.Elevation[best]&&
-                         FlatRoutePriority(w,n,routeSeed)<FlatRoutePriority(w,best,routeSeed)))))
-                    {best=n;bestSlope=slope;}
-                }
-                if(best<0)throw new InvalidOperationException("Missing hydrology spill at "+i);
-                w.Downstream[i]=best;
-            }
-            RouteLakeBasins(w,cancel);
-        }
-        static void RouteLakeBasins(WorldData w,CancellationToken cancel)
-        {
-            var rank=new int[w.Count];var visited=new bool[w.Count];var queue=new int[w.Count];
-            for(int k=0;k<w.Count;k++)rank[w.DrainOrder[k]]=k;
+            // The fill and the connected lake surface use shared faces. A dry
+            // diagonal with a monotone saddle has a face path over the same or
+            // lower spill head, so adding it later cannot drain a closed basin.
             for(int i=0;i<w.Count;i++)
             {
                 if(FlatTerrainAnalysis.Ocean(w.Water[i]))continue;
                 w.Water[i]=w.Downstream[i]<0||w.WaterLevel[i]>w.Elevation[i]||w.Elevation[i]<=0?WaterKind.Lake:WaterKind.Land;
             }
+            var lengths=GroundLengths(w);
+            var spillDistance=SpillDistances(w,lengths,cancel);
+            uint routeSeed=FMath.Seed(w.Seed)^0x56a9d731u;
+            for(int i=0;i<w.Count;i++)
+            {
+                if((i&4095)==0)cancel.ThrowIfCancellationRequested();
+                if(w.Downstream[i]<0)continue;
+                int best=-1,bestDrop=0,bestLength=1,row=i/w.Width;
+                for(int d=0;d<8;d++)
+                {
+                    int n=RoutingNeighbor(w,i,d);
+                    if(n<0)continue;
+                    int drop=w.WaterLevel[i]-w.WaterLevel[n],length=lengths[row*8+d];
+                    if(drop<0||(drop==0&&spillDistance[i]-length!=spillDistance[n]))continue;
+                    // Compare grades as exact ratios. On flat water the receiver
+                    // is one full edge closer to the spill in ground distance.
+                    long grade=(long)drop*bestLength-(long)bestDrop*length;
+                    if(best<0||grade>0||(grade==0&&
+                        (w.Elevation[n]<w.Elevation[best]||(w.Elevation[n]==w.Elevation[best]&&
+                         FlatRoutePriority(w,n,routeSeed)<FlatRoutePriority(w,best,routeSeed)))))
+                    {best=n;bestDrop=drop;bestLength=length;}
+                }
+                if(best<0)throw new InvalidOperationException("Missing hydrology spill at "+i);
+                w.Downstream[i]=best;
+            }
+            RouteLakeBasins(w,spillDistance,cancel);
+        }
+        static void RouteLakeBasins(WorldData w,long[] spillDistance,CancellationToken cancel)
+        {
+            var visited=new bool[w.Count];var queue=new int[w.Count];
+            var shallowOutlets=new List<int>();
             for(int start=0;start<w.Count;start++)
             {
                 if((start&4095)==0)cancel.ThrowIfCancellationRequested();
@@ -141,13 +217,27 @@ namespace Orbis.Flat
                 while(head<tail)
                 {
                     int cell=queue[head++];
-                    if(rank[cell]<rank[outlet])outlet=cell;
+                    if(spillDistance[cell]<spillDistance[outlet]||
+                        (spillDistance[cell]==spillDistance[outlet]&&cell<outlet))outlet=cell;
                     for(int direction=0;direction<4;direction++)
                     {
                         int next=w.SphereNeighbor(cell,direction);
                         if(visited[next]||w.Water[next]!=WaterKind.Lake||w.WaterLevel[next]!=w.WaterLevel[start])continue;
                         visited[next]=true;queue[tail++]=next;
                     }
+                }
+                // A one- or two-cell positive-elevation pocket may be unresolved
+                // channel relief. Deeper lakes, mapped basins and terminal sinks
+                // always retain their standing surface.
+                if(tail<=2&&w.Downstream[outlet]>=0)
+                {
+                    bool shallow=true;
+                    for(int j=0;j<tail;j++)
+                    {
+                        int i=queue[j];
+                        if(w.Elevation[i]<=0||w.WaterLevel[i]-w.Elevation[i]>12)shallow=false;
+                    }
+                    if(shallow)shallowOutlets.Add(outlet);
                 }
                 // The earliest downstream node has an escape path outside this
                 // basin. Choosing it cannot reconnect the lake into its own inflow.
@@ -183,14 +273,53 @@ namespace Orbis.Flat
                 for(int child=firstChild[cell];child>=0;child=nextChild[child])queue[tail++]=child;
             }
             if(cursor!=w.Count)throw new InvalidOperationException("Lake routing created a drainage cycle.");
+            ResolveShallowPockets(w,shallowOutlets,cancel);
         }
-        internal static void RouteRainfall(WorldData w,CancellationToken cancel)
+        static void ResolveShallowPockets(WorldData w,List<int> outlets,CancellationToken cancel)
         {
-            for(int i=0;i<w.Count;i++)
+            if(outlets.Count==0)return;
+            var areaByRow=new double[w.Height];
+            for(int y=0;y<w.Height;y++)areaByRow[y]=FlatRiverDischarge.RelativeArea(y,w.Height);
+            var catchment=new double[w.Count];
+            for(int k=w.Count-1;k>=0;k--)
             {
-                float rain=0;for(int m=0;m<12;m++)rain+=w.Precipitation[i*12+m];
-                w.Runoff[i]=FlatTerrainAnalysis.Ocean(w.Water[i])?0:rain/1200f;
+                if((k&4095)==0)cancel.ThrowIfCancellationRequested();
+                int i=w.DrainOrder[k],next=w.Downstream[i];
+                catchment[i]+=areaByRow[i/w.Width];
+                if(next>=0)catchment[next]+=catchment[i];
             }
+            foreach(int outlet in outlets)
+            {
+                int other=-1;
+                for(int d=0;d<4;d++)
+                {
+                    int n=w.SphereNeighbor(outlet,d);
+                    if(w.Water[n]==WaterKind.Lake&&w.WaterLevel[n]==w.WaterLevel[outlet])other=n;
+                }
+                double area=areaByRow[outlet/w.Width],storage=area*(w.WaterLevel[outlet]-w.Elevation[outlet]);
+                if(other>=0)
+                {
+                    double secondArea=areaByRow[other/w.Width];
+                    area+=secondArea;storage+=secondArea*(w.WaterLevel[other]-w.Elevation[other]);
+                }
+                // If 100 mm of catchment runoff can fill the entire shallow
+                // pocket, use its spill surface as a channel bed or an unfilled
+                // depression. Actual climate yield still has to produce a stream.
+                if(storage>.1*(catchment[outlet]-area))continue;
+                w.Water[outlet]=WaterKind.Land;
+                if(other>=0)w.Water[other]=WaterKind.Land;
+            }
+        }
+        static bool HasRaisedBanks(WorldData w,int x,int y,int dx,int dy,float bankLevel)
+        {
+            int left=w.Index(x-dx,y-dy),right=w.Index(x+dx,y+dy);
+            return left>=0&&right>=0&&!FlatTerrainAnalysis.AreaWater(w.Water[left])&&
+                !FlatTerrainAnalysis.AreaWater(w.Water[right])&&
+                w.Elevation[left]>=bankLevel&&w.Elevation[right]>=bankLevel;
+        }
+        internal static FlatRiverDischarge RouteRainfall(WorldData w,CancellationToken cancel)
+        {
+            float[] sources=FlatRiverDischarge.BuildSources(w,cancel,w.Runoff);
             // World Atlas normalizes climate/upland source yield before extracting
             // streams. Keep selection weights separate from conserved rainfall runoff.
             int landCount=0;double sourceTotal=0;var supply=new float[w.Count];
@@ -211,24 +340,38 @@ namespace Orbis.Flat
                     int n=w.Index(x+dx,y+dy);if(n<0||FlatTerrainAnalysis.Ocean(w.Water[n]))continue;
                     float h=w.Elevation[n];sum+=h;count++;min=Math.Min(min,h);max=Math.Max(max,h);
                 }
-                if(count>0&&(sum/count-w.Elevation[i])/Math.Max(1,max-min)>.12f)valleyReach[i]=3;
+                float relief=Math.Max(1,max-min);
+                float bankLevel=w.Elevation[i]+Math.Max(1,relief*.06f);
+                if((count>0&&sum/count-w.Elevation[i]>.12f*relief)||
+                    HasRaisedBanks(w,x,y,2,0,bankLevel)||HasRaisedBanks(w,x,y,0,2,bankLevel)||
+                    HasRaisedBanks(w,x,y,2,2,bankLevel)||HasRaisedBanks(w,x,y,2,-2,bankLevel))
+                    valleyReach[i]=3;
             }
             if(sourceTotal>0)for(int i=0;i<w.Count;i++)supply[i]*=(float)(landCount/sourceTotal);
+            // A resolved convergent valley can initiate a smaller headwater
+            // than a broad open slope. Use catchment and map span so this
+            // distinction survives changes in terrain resolution.
+            float span=(float)Math.Sqrt(landCount);
+            float headwater=Math.Max(4,Math.Max(landCount*.00065f,span*.14f));
+            float mainstem=4*Math.Max(6,Math.Max(landCount*.0015f,span*.20f));
+            var branches=new byte[w.Count];
             for(int k=w.Count-1;k>=0;k--)
             {
                 int i=w.DrainOrder[k],n=w.Downstream[i];if(n<0)continue;
-                supply[n]+=supply[i];valleyReach[n]=Math.Max(valleyReach[n],valleyReach[i]-1);
+                supply[n]+=supply[i];w.Runoff[n]+=w.Runoff[i];
+                if(branches[i]>=2)branches[n]=2;
+                else if(supply[i]>=headwater*.5f&&branches[n]<2)branches[n]++;
             }
-            for(int k=w.Count-1;k>=0;k--){int i=w.DrainOrder[k],n=w.Downstream[i];if(n>=0)w.Runoff[n]+=w.Runoff[i];}
-            // Atlas area-fraction / minimum-span rule; a smaller area fraction is
-            // appropriate to the coarse strategic tile grid (not a DEM pixel grid).
-            float threshold=Math.Max(6,Math.Max(landCount*.0015f,(float)Math.Sqrt(landCount)*.20f));
             var streams=new bool[w.Count];var lakeOutlet=new bool[w.Count];var outletRoute=new bool[w.Count];
-            for(int i=0;i<w.Count;i++)
+            for(int k=0;k<w.Count;k++)
             {
+                int i=w.DrainOrder[k],n=w.Downstream[i];
                 if(FlatTerrainAnalysis.Ocean(w.Water[i]))continue;
-                if(w.Downstream[i]>=0&&w.Water[i]==WaterKind.Lake)lakeOutlet[w.Downstream[i]]=true;
-                streams[i]=supply[i]>=threshold&&(valleyReach[i]>0||supply[i]>=threshold*4);
+                if(n>=0&&w.Water[i]==WaterKind.Lake)lakeOutlet[n]=true;
+                // Give a hillside tributary the local valley it actually drains
+                // into. Uniform parallel paths down a planar slope are sheet flow.
+                if(n>=0)valleyReach[i]=Math.Max(valleyReach[i],valleyReach[n]-1);
+                streams[i]=(valleyReach[i]>0&&supply[i]>=headwater)||(branches[i]>=2&&supply[i]>=mainstem);
             }
             // Every filled lake has a spill route. Follow it through any short
             // dry-looking saddle, including low-discharge outlets, so the rendered
@@ -255,13 +398,15 @@ namespace Orbis.Flat
                 {
                     if(!streams[i]||incoming[i]>0||outletRoute[i])continue;
                     int n=i,length=0;
-                    do{length++;n=w.Downstream[n];}while(n>=0&&streams[n]&&incoming[n]==1&&length<minimumLength);
+                    do{length++;n=w.Downstream[n];}
+                    while(n>=0&&streams[n]&&incoming[n]==1&&!outletRoute[n]&&length<minimumLength);
                     if(length>=minimumLength)continue;
                     n=i;for(int j=0;j<length;j++){remove.Add(n);n=w.Downstream[n];}
                 }
                 foreach(int i in remove){streams[i]=false;changed=true;}
             }while(changed);
             for(int i=0;i<w.Count;i++)if(streams[i])w.Water[i]=WaterKind.River;
+            return FlatRiverDischarge.Route(w,sources,cancel);
         }
     }
 }

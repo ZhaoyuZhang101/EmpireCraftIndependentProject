@@ -23,11 +23,12 @@ bool PDTreeAvailable(float2 id,float4 placement,float4 info,float4 ecology)
  float2 canonical=id;canonical.x-=floor(canonical.x/_MapSize.x)*_MapSize.x;
  float occupancy=ecology.r<-.5?placement.w:PDHash(canonical+float2(39.17+ecology.a*17,87.23));
  if(occupancy>density||density<=0||field.g>-.18)return false;
- if(_RiverAtlasReady>.5)return FlatRiverAtlasSample(id+root).r>=.15;
- float2 centreUV=(id+.5)*_MapSize.zw,flow;
+ if(FlatRiverFieldReady())return FlatRiverAtlasClear(id+root,.15);
+ float2 centreUV=(id+.5)*_MapSize.zw;
  float4 hydro=tex2Dlod(_HydroA,float4(centreUV,0,0));
  float4 river=tex2Dlod(_HydroB,float4(centreUV,0,0));
- return FlatRiverDistance(root,hydro,floor(river.a+.5),river.r,centreUV,flow)>=.15;
+ float4 reach=FlatLegacyRiverSample(root,hydro,floor(river.a+.5),river.r,centreUV);
+ return reach.r>=.15+FlatLegacyRiverWidthDelta(length(reach.ba),FlatRiverStage(id+root));
 }
 static const float PDSettlementHeightProjection=.46947156;
 float2 PDSettlementGeometry(float2 q)

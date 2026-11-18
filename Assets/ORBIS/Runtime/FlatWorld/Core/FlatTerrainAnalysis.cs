@@ -23,6 +23,7 @@ namespace Orbis.Flat
         public bool VegetationSeasonsReady {get;internal set;}
         public readonly ushort[] FreshDistance;
         public FlatRiverCurves RiverCurves { get; internal set; }
+        public FlatRiverDischarge RiverDischarge { get; internal set; }
         public int MouthCount;
         public FlatTerrainFacts(int count)
         {
@@ -37,7 +38,7 @@ namespace Orbis.Flat
         }
         public FlatTerrainFacts Clone()
         {
-            var f=new FlatTerrainFacts(Forms.Length){MouthCount=MouthCount,RiverCurves=RiverCurves,
+            var f=new FlatTerrainFacts(Forms.Length){MouthCount=MouthCount,RiverCurves=RiverCurves,RiverDischarge=RiverDischarge,
                 VegetationSeasons=VegetationSeasons==null?null:(byte[])VegetationSeasons.Clone(),VegetationSeasonsReady=VegetationSeasonsReady};
             Array.Copy(Vegetation,f.Vegetation,Forms.Length);Array.Copy(Canopy,f.Canopy,Forms.Length);
             Array.Copy(Trees,f.Trees,Forms.Length);
@@ -74,6 +75,8 @@ namespace Orbis.Flat
         }
         public static int WrappedDX(int a,int b,int width)
         { int dx=a-b;if(dx>width/2)dx-=width;if(dx< -width/2)dx+=width;return dx; }
+        internal static int DiagonalDirection(int dx,int dy)
+        { return 4+(dx>0?1:0)+(dy>0?2:0); }
 
         static ushort[] Distance(WorldData w,Func<int,bool> source,CancellationToken cancel)
         {
@@ -114,9 +117,10 @@ namespace Orbis.Flat
             if(k>=Koppen.Dsa&&k<=Koppen.Dfd&&temperature<8)return Biome.Taiga;
             return annualRain>=650?Biome.Woodland:Biome.Grassland;
         }
-        public static void Build(WorldData w,CancellationToken cancel,bool updateBiomes,int workers=0)
+        public static void Build(WorldData w,CancellationToken cancel,bool updateBiomes,int workers=0,FlatRiverDischarge riverDischarge=null)
         {
-            var f=new FlatTerrainFacts(w.Count){VegetationSeasons=new byte[(w.Width+2)*(w.Height+2)*12*4]};
+            var f=new FlatTerrainFacts(w.Count){VegetationSeasons=new byte[(w.Width+2)*(w.Height+2)*12*4],
+                RiverDischarge=riverDischarge??FlatRiverDischarge.Route(w,null,cancel,workers)};
             float meanderSeed=FMath.Unit(FMath.Seed(w.Seed))*6.2831853f;
             ushort[] fresh=Distance(w,i=>w.Water[i]==WaterKind.River||w.Water[i]==WaterKind.Lake,cancel);
             Array.Copy(fresh,f.FreshDistance,w.Count);
@@ -243,6 +247,17 @@ namespace Orbis.Flat
                         }
                         int parent=w.Downstream[i];
                         if(parent>=0){f.FlowX[i]=WrappedDX(parent%w.Width,x,w.Width);f.FlowY[i]=parent/w.Width-y;}
+                    }
+                    // High bits are SW, SE, NW, NE. On a river they identify its
+                    // own branches. On a dry side tile they flag the corner
+                    // wetted by a diagonal between its two face neighbours.
+                    bool channel=w.Water[i]==WaterKind.River;
+                    for(int dy=-1;dy<=1;dy+=2)for(int dx=-1;dx<=1;dx+=2)
+                    {
+                        int a=channel?i:w.Index(x+dx,y);
+                        int b=channel?w.Index(x+dx,y+dy):w.Index(x,y+dy);
+                        if(b<0||w.Water[a]!=WaterKind.River||w.Water[b]!=WaterKind.River)continue;
+                        if(w.Downstream[a]==b||w.Downstream[b]==a)f.Connections[i]|=(byte)(1<<DiagonalDirection(dx,dy));
                     }
                 }
             });

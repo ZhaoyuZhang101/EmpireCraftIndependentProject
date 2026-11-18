@@ -106,13 +106,15 @@ namespace Orbis.Flat
                 var b=FlatGenerator.Generate(64,32,"VALIDATE-2D",preset,CancellationToken.None);
                 FlatSave.Validate(a);FlatSave.Validate(b);int[] rank=new int[a.Count];
                 for(int j=0;j<a.Count;j++)rank[a.DrainOrder[j]]=j;
+                var localYields=new float[a.Count];
+                FlatRiverDischarge.BuildSources(a,CancellationToken.None,localYields);
                 double input=0,output=0;
                 for(int i=0;i<a.Count;i++)
                 {
                     Check(a.Elevation[i]==b.Elevation[i]&&a.Climates[i]==b.Climates[i],"Same seed has same terrain and climate");
                     for(int m=0;m<12;m++)Check(a.Temperature[i*12+m]==b.Temperature[i*12+m]&&a.Precipitation[i*12+m]==b.Precipitation[i*12+m],"Parallel generation deterministic within this runtime");
                     int parent=a.Downstream[i];if(parent>=0){Check(rank[parent]<rank[i],"Acyclic parent rank");Check(a.WaterLevel[parent]<=a.WaterLevel[i],"Non-uphill spill routing");}else output+=a.Runoff[i];
-                    if(!(a.Water[i]>=WaterKind.DeepOcean&&a.Water[i]<=WaterKind.ShallowOcean)){float p=0;for(int m=0;m<12;m++)p+=a.Precipitation[i*12+m];input+=p/1200f;}
+                    input+=localYields[i];
                 }
                 Check(Math.Abs(input-output)<Math.Max(.001,input*.0001),"Drainage conserves runoff accumulation");
                 var sim=new FlatSimulation(a);sim.SeedNations(3);

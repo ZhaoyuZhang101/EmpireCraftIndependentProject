@@ -35,6 +35,7 @@
      <ui:Label text="在上方「操作」选择高度笔刷、道路、桥梁或路径；球体和展开途中仅支持查看。" class="muted"/>
      <ui:DropdownField name="height" label="笔刷高度"/><ui:DropdownField name="brush" label="笔刷大小"/>
      <ui:Button name="rebuild" text="重算河流与气候"/>
+     <ui:VisualElement class="row"><ui:Button name="confluence" text="下一处汇流" class="grow"/><ui:Button name="mouth" text="下一处河口" class="grow"/></ui:VisualElement>
      <ui:Foldout text="水面状态" value="false"><ui:Label name="waterStatus" text="" class="muted"/></ui:Foldout>
     </ui:VisualElement>
     <ui:VisualElement name="panelCivs" class="tab-page is-hidden">

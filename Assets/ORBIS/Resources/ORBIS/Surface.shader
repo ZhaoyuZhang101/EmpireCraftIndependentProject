@@ -7,7 +7,16 @@ Shader "ORBIS/Surface"
   [HideInInspector] _VegetationSeason("Current month next month blend",Vector)=(0,1,0,0)
   [HideInInspector] _ClimateYearHeat("Regional temperature anomaly",Vector)=(0,0,0,0)
   [HideInInspector] _ClimateYearRain("Regional rainfall anomaly",Vector)=(0,0,0,0)
+  [HideInInspector] _MapSize("World dimensions and inverse dimensions",Vector)=(1,1,1,1)
+  [HideInInspector] _FieldReady("Terrain and bed fields ready",Float)=0
+  [HideInInspector] _ShowWater("Render water",Float)=1
+  [HideInInspector] _ShowBanks("Render banks",Float)=1
+  [HideInInspector] _WaveAmount("Water wave strength",Float)=1
   [HideInInspector] _RiverAtlas("Continuous river field",2D)="black"{}
+  [HideInInspector] _RiverPreviewReady("Initial river field ready",Float)=0
+  [HideInInspector] _RiverSeasonTex("Seasonal river discharge",2D)="black"{}
+  [HideInInspector] _RiverSeasonReady("River seasons ready",Float)=0
+  [HideInInspector] _RiverSeason("Current and next discharge month",Vector)=(0,1,0,0)
   [HideInInspector] _RiverAtlasReady("River field ready",Float)=0
   [HideInInspector] _RiverAtlasLayout("River field layout",Vector)=(0,0,0,0)
 
@@ -88,7 +97,8 @@ Shader "ORBIS/Surface"
     float water=smoothstep(.45,.9,i.color.a);
     float2 terrainGradient=0;
     float4 terrainRelief=float4(1,1,1,0);
-    float waterEdge=-1,waterKind=0;
+    float waterKind=0;
+    FlatRiverSection channel=(FlatRiverSection)0;channel.edge=8;
     FlatCoastalSediment coast=(FlatCoastalSediment)0;coast.shore=-8;
     float4 season=float4(1,1,0,.5);
     float4 field=float4(0,-8,max(.2,i.waterData.x),0),hydro=float4(max(.2,i.waterData.x),0,0,0),mixing=0,geo=0,own=0,info=0;
@@ -99,20 +109,20 @@ Shader "ORBIS/Surface"
      own=tex2D(_FlatOwners,tileUV);info=tex2D(_FlatInfo,tileUV)*255;
      col=tex2D(_FlatTerrain,lerp(tileUV,FlatBlendUV(FlatEcotoneCell(cell,field.g)),_SmoothTerrain)).rgb;
      season=FlatSurfaceSeason(cell,radial);
-     float aa=clamp(.65/max(1,pixelsPerTile),.008,.28),edgeDistance;float2 riverFlow;
-     water=FlatWaterMask(cell,tileUV,hydro,mixing,field,aa,edgeDistance,riverFlow);
+     float aa=clamp(.65/max(1,pixelsPerTile),.008,.28),edgeDistance;
+     float4 river=FlatRiverReceiver(cell,tileUV,hydro,mixing,field);
+     channel=FlatRiverSectionAt(cell,river,field);
+     water=FlatWaterMask(channel.edge,field.g,aa,edgeDistance);
      float4 substrate=FlatNaturalGround(_GeoTex,cell,geo,pixelsPerTile,water);
      float surfaceWetness=lerp(substrate.a,season.a,saturate(_VegetationSeasonReady));
      col=FlatEcotoneColor(col,cell,field.a,substrate.a);
      col=lerp(col,FlatSeasonGround(col,field.a,season),1-water);
-     waterEdge=edgeDistance;
-     if(hydro.a>.01)hydro.gb=riverFlow;else hydro.gb=tex2D(_HydroA,uv).gb;
      float wetSupport;
      float4 basin=FlatAreaWaterOptics(cell,_FlatInfo,float4(field.b,mixing.g,mixing.b,floor(info.g+.5)),wetSupport);
      coast=FlatCoastAt(cell,field,basin,wetSupport,edgeDistance,0,_WaterClock);
-     waterKind=basin.a;
-     if(hydro.a>.01&&field.g<0){waterKind=5;mixing.gb=tex2D(_HydroB,uv).gb;}
-     else {field.b=basin.r;mixing.gb=basin.gb;}
+     float sediment=FlatReachSediment(cell,channel,field.g,mixing.g);
+     waterKind=basin.a;field.b=basin.r;mixing.gb=basin.gb;
+     mixing.g=lerp(mixing.g,sediment,channel.influence);
      col=FlatVegetation(col,cell,field.a,pixelsPerTile);
      terrainGradient=FlatFieldGradient(cell,0);
      float4 localMoon=float4(FlatGeographicLight(uv,_OrbisMoon.xyz),_OrbisMoon.w*_OrbisNightParams.x);
@@ -121,8 +131,7 @@ Shader "ORBIS/Surface"
      if(water<.999)
       terrainRelief=FlatTerrainRelief(cell,field.r,terrainGradient,terrainLight,localView,FlatWetMineral(substrate.z,surfaceWetness,field.a));
      col=lerp(col*terrainRelief.rgb,FlatColor(float3(.84,.87,.90)),terrainRelief.a);
-     float bank=(1-water)*(1-smoothstep(0,(hydro.a>.01?.075:.16)+aa,edgeDistance))*_ShowBanks;
-     if(bank>.001)col=lerp(col,FlatBedColor(cell)*terrainRelief.rgb,bank*.58);
+     col=FlatWaterBanks(cell,col,terrainRelief.rgb,channel,sediment,field.g,(1-water)*_ShowBanks,aa,1/max(1,pixelsPerTile));
      col=lerp(col,coast.albedo*terrainRelief.rgb,coast.coverage*_ShowBanks);
     }
     else if(_Natural>.5&&_TerrainAtlasReady>.5)
@@ -147,7 +156,7 @@ Shader "ORBIS/Surface"
      if(_ShowWater>.5)
      {
       FlatWaterSurfaceData waterSurface;
-      waterColor=FlatWaterShade(uv*_MapSize.xy,hydro,mixing,field,FlatMaterialColor(floor(geo.g+.5))*.72,illumination,localView,localLight,_WaveAmount*(1-polarIce),waterKind,waterEdge,coast,waterSurface);
+      waterColor=FlatWaterShade(uv*_MapSize.xy,mixing,field,FlatMaterialColor(floor(geo.g+.5))*.72,illumination,localView,localLight,_WaveAmount*(1-polarIce),waterKind,coast,channel,waterSurface);
       [branch] if(water>.001)
        waterColor=FlatReflectWater(waterColor,uv*_MapSize.xy,field,max(0,field.r+field.b),localView,localLight,illumination,waterSurface,_Clouds*_SkyReady,0);
      }

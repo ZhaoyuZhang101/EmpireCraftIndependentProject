@@ -84,6 +84,7 @@ namespace Orbis.Flat
             Bind("generate",Generate);Bind("seedCivs",()=>{if(Ready()){int n=Simulation.SeedNations(4);map.Flush();SetStatus("新增 "+n+" 个文明。领地按 4×4 Zone 扩展。 ");}});
             Bind("pause",()=>{paused=!paused;UpdateHUD();});Bind("speed",()=>{speed=speed==1?4:speed==4?12:speed==12?20:1;UpdateHUD();});
             Bind("atlas",OpenAtlas);
+            Bind("confluence",()=>FocusRiver(true));Bind("mouth",()=>FocusRiver(false));
             Bind("mode",ToggleMode);Bind("home",Home);Bind("focus",Focus);Bind("save",Save);Bind("load",Load);
             Bind("export",()=>{if(Ready()){FlatRasterIO.Export(World,HeightPath);SetStatus("已导出 16-bit 高度图、水体预览与元数据："+HeightPath);}});
             Bind("import",Import);Bind("rebuild",()=>{if(Ready()){solarClock.Flush(simulationStep);var copy=World.Clone();Queue(c=>{FlatGenerator.Rebuild(copy,c);return copy;},"重新计算排水、月均气候与生物群系…");}});
@@ -165,17 +166,35 @@ namespace Orbis.Flat
             target.SetFloat("_FlatNightAdaptation",navigation?Mathf.SmoothStep(0,1,navigation.Morph):1);
             target.SetFloat("_FlatCloudShadows",cloudToggle.value?1:0);
         }
-        void NextMouth()
+        void FocusRiver(bool confluence)
         {
-            if(!Ready())return;
+            if(World==null||Busy||!navigation)return;
             for(int offset=1;offset<=World.Count;offset++)
             {
                 int i=(Math.Max(-1,selected)+offset)%World.Count,parent=World.Downstream[i];
-                if(World.Water[i]!=WaterKind.River||parent<0||!FlatTerrainAnalysis.Ocean(World.Water[parent]))continue;
+                if(World.Water[i]!=WaterKind.River)continue;
+                int inlets=0;
+                if(confluence)
+                {
+                    int x=i%World.Width,y=i/World.Width;
+                    for(int row=Math.Max(0,y-1);row<=Math.Min(World.Height-1,y+1);row++)
+                    for(int dx=-1;dx<=1;dx++)
+                    {
+                        int n=World.Index(x+dx,row);
+                        if(World.Downstream[n]==i&&World.Water[n]==WaterKind.River)inlets++;
+                    }
+                    if(y==0||y==World.Height-1)
+                    {
+                        int n=World.Index(x+World.Width/2,y);
+                        if(World.Downstream[n]==i&&World.Water[n]==WaterKind.River)inlets++;
+                    }
+                    if(inlets<2)continue;
+                }
+                else if(parent<0||!FlatTerrainAnalysis.Ocean(World.Water[parent]))continue;
                 selected=i;toolField.index=0;map.Select(i);ChooseLayer(MapLayer.Natural);Focus();UpdateHUD();
-                SetStatus("河口 Tile "+i+" → 海水 Tile "+parent+"；全图 "+World.Facts.MouthCount+" 个入海口。悬沙区由上游汇流和海水连通性生成。");return;
+                SetStatus(confluence?inlets+" 条河道在此汇合。":"河水在此入海。全图共有 "+World.Facts.MouthCount+" 处入海口。");return;
             }
-            SetStatus("当前世界没有满足汇流阈值的入海河口；湖泊溢出口不计作海口。");
+            SetStatus(confluence?"当前世界没有两条河道相汇的地点。":"当前世界没有河流入海口。");
         }
         bool Ready()
         {if(World==null||Busy){SetStatus("世界数据正在生成或重建；完成后才能修改。 ");return false;}if(!navigation||!navigation.IsFlat){SetStatus("请展开到二维地图后操作文明和地形。 ");return false;}return true;}
@@ -397,13 +416,29 @@ namespace Orbis.Flat
                 info.text+="\n当前土壤水分："+soilMoisture.ToString("P0")+" · 季节积雪："+seasonalSnow.ToString("P0");
             if(facts.Canopy[i]>.20f&&facts.Vegetation[i]!=VegetationCover.Bare&&!FlatTerrainAnalysis.AreaWater(World.Water[i]))
                 info.text+="\n当地适生木本："+FlatPalette.TreeNames[(int)facts.Trees[i]];
-            info.text+="\n植被："+FlatPalette.VegetationNames[(int)facts.Vegetation[i]]+"\n河宽（显示估计）："+(facts.HalfWidth[i]*2).ToString("F2")+" Tile"+"\n\n地貌："+FlatPalette.LandformNames[(int)facts.Forms[i]]+"\n材料："+FlatPalette.MaterialNames[(int)facts.Materials[i]]+
+            info.text+="\n植被："+FlatPalette.VegetationNames[(int)facts.Vegetation[i]]+"\n\n地貌："+FlatPalette.LandformNames[(int)facts.Forms[i]]+"\n材料："+FlatPalette.MaterialNames[(int)facts.Materials[i]]+
                 "\n5×5 起伏："+facts.Relief[i].ToString("F0")+" m\n相邻最大高差："+facts.Gradient[i].ToString("F0")+" m/Tile"+
                 "\n排水高差："+facts.Hand[i].ToString("F0")+" m\n湿润月份："+facts.SaturatedMonths[i]+" / 12"+
                 "\n年降水："+facts.AnnualRain[i].ToString("F0")+" mm\n年均温："+facts.MeanTemperature[i].ToString("F1")+" °C"+
-                "\n汇流量（相对）："+World.Runoff[i].ToString("F1")+"\n水面高程："+World.WaterLevel[i]+" m"+
-                "\n水深"+(World.Water[i]==WaterKind.River?"（河槽估计）":"")+"："+facts.Depth[i].ToString("F1")+" m"+
+                "\n年均汇流量（相对）："+World.Runoff[i].ToString("F1")+"\n水面高程："+World.WaterLevel[i]+" m"+
                 "\n悬沙 / 淡水比例："+facts.Sediment[i].ToString("F2")+" / "+facts.Freshness[i].ToString("F2");
+            if(World.Water[i]==WaterKind.River&&facts.RiverDischarge!=null)
+            {
+                var discharge=facts.RiverDischarge;int peak=0,low=0;
+                for(int month=1;month<12;month++)
+                {
+                    if(discharge.Monthly(i,month)>discharge.Monthly(i,peak))peak=month;
+                    if(discharge.Monthly(i,month)<discharge.Monthly(i,low))low=month;
+                }
+                float stage=discharge.StageRatio(i,CalendarDay);
+                float width=2*Math.Min(.24f,facts.HalfWidth[i]*FlatRiverStageField.WidthScale(stage));
+                float depth=facts.Depth[i]*FlatRiverStageField.DepthScale(stage);
+                info.text+="\n当前流量（相对）："+discharge.Sample(i,CalendarDay).ToString("F1")+" · 常年的 "+stage.ToString("P0")+
+                    "\n河段估计宽 "+width.ToString("F2")+" 格 · 槽深 "+depth.ToString("F1")+" m";
+                if(discharge.Monthly(i,peak)>discharge.Monthly(i,low)*1.01f)
+                    info.text+="\n常年丰水峰值 "+(peak+1)+" 月 · 枯水低值 "+(low+1)+" 月";
+            }
+            else if(FlatTerrainAnalysis.AreaWater(World.Water[i]))info.text+="\n水深："+facts.Depth[i].ToString("F1")+" m";
             info.text+=wildlife.DescribeTile(i);
         }
         static string BiomeName(Biome b)
