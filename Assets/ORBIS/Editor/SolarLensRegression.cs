@@ -10,7 +10,8 @@ using UnityEngine;
 namespace Orbis.Editor
 {
     // Run in a separate Editor with -batchmode -force-d3d11 -executeMethod Orbis.Editor.SolarLensRegression.Run
-    // and optionally -orbisLensOutput <directory>. The driver exits after the generated world is ready.
+    // Use -orbisLensOutput <directory> to choose the output and -orbisBacklight for additional
+    // orbital atmosphere and night terrain measurements. The driver exits after the checks finish.
     [InitializeOnLoad]
     public static class SolarLensRegression
     {
@@ -75,6 +76,8 @@ namespace Orbis.Editor
                 BindWorld();
                 results.Add(Application.unityVersion + " " + SystemInfo.graphicsDeviceType + " " + SystemInfo.graphicsDeviceName);
                 results.Add("seed=" + app.World.Seed + " weatherDay=" + app.World.Day + " size=" + app.World.Width + "x" + app.World.Height);
+                if (Array.IndexOf(Environment.GetCommandLineArgs(), "-orbisBacklight") >= 0)
+                    OrbitalBacklightRegression.Capture(camera, nav, globe, map, atmosphere, lens, output);
                 CheckCamera();
                 // World replacement reuses the lens but installs a new atmosphere on the same camera.
                 nav.Home(Day); nav.Tick(3, Day);

@@ -108,7 +108,7 @@ float2 OrbisDepthUV(float2 uv)
 }
 // V4.2 Repair IPC fix: one sample only; no view loop and no inout result struct.
 // The caller owns the flat view traversal. Density/light quadratures stay rolled.
-void OrbisIntegrateSample(float3 p,float ds,float2 cloudLayers,float3 sun,float2 phaseAir,
+void OrbisIntegrateSample(float3 p,float ds,float2 cloudLayers,float3 sun,float2 phaseAir,float coarseMieDelta,float3 limbProfile,
                           float phaseCloud,float phaseHigh,float2 phaseMoon,float phaseMoonCloud,
                           inout float3 light,inout float3 transmission)
 {
@@ -123,7 +123,19 @@ void OrbisIntegrateSample(float3 p,float ds,float2 cloudLayers,float3 sun,float2
  if(_GodRays>.5||(cloudDensity>.0005&&_OrbisShadowReady>.5))
      shadowT=OrbisCloudShadow(p,sun);
  float airShadow=_GodRays>.5?lerp(1.0,shadowT,_ShadowStrength):1.0;
- float3 source=OrbisGLSLSource(rho,phaseAir,sunT)*airShadow;
+ // Coarse aerosols settle in the boundary layer. Their share falls with the
+ // local aerosol density, so the extra forward lobe is thin on a grazing ray.
+ // Both populations scatter the same sunlight through the same shadow and extinction.
+ phaseAir.y+=coarseMieDelta*rho.y;
+ // Orbital backlighting reveals the exaggerated scale height of our game world.
+ // Concentrate the visible air source in the lower shell along the actual ray.
+ // Each exponential retains its vertical column integral. Physical extinction,
+ // solar visibility, cloud lighting and independent airglow keep their own profiles.
+ float3 solarDensity=rho;
+ float relativeDensity=saturate(rho.x/max(1e-5,_AirDensity*saturate(_Atmosphere)));
+ float density2=relativeDensity*relativeDensity;
+ solarDensity.xy*=lerp(float2(1,1),limbProfile.xy*(density2*density2),limbProfile.z);
+ float3 source=OrbisGLSLSource(solarDensity,phaseAir,sunT)*airShadow;
  float nightTau=OrbisNightWeight(p,sun)>1e-5?OrbisNightColumnTau(p):0;
  float3 nightAmbient=OrbisNightAmbient(p,sun,nightTau);
  float3 moonT=OrbisMoonIncident(p,sun,nightTau);
@@ -196,6 +208,20 @@ OrbisVolumeResult OrbisMarchRay(float3 ro,float3 rd,float endDistance,float scen
  }
  float3 sun=normalize(_Sun);float mu=dot(rd,sun);
  float2 phaseAir=OrbisGLSLPhase(mu);
+ // A unit-integral spherical Gaussian represents the coarse-particle forward
+ // lobe (kappa = 42). Redistribute a fraction of the existing Mie scattering;
+ // its extinction and the optical-depth lookup remain valid. Evaluate once per ray.
+ float coarseMie=(42.0/(2.0*ORBIS_PI))*exp(42.0*(min(1.0,mu)-1.0));
+ // Multiplication by exp(-4h/Hray) reduces the apparent Rayleigh scale height
+ // fivefold. An exponential with scale Hi needs (1 + 4 Hi/Hray) to retain its
+ // vertical integral. Fade this orbital presentation continuously by solar phase
+ // and eye altitude; ground observers and map-column rays use the normal profile.
+ float eyeRadius=length(ro);
+ float backlight=smoothstep(.66,.86,-dot(ro,sun)/max(eyeRadius,1e-5));
+ float3 limbProfile=float3(5,1+4*_AtmoBetaMie.w/max(1e-5,_AtmoBetaRayleigh.w),
+                           backlight*smoothstep(ORBIS_AIR_RADIUS,1.65,eyeRadius));
+ float coarseMieDelta=(coarseMie-phaseAir.y)*min(.90,max(0,_AtmoParameters.y)*1.15)
+                     *limbProfile.z/max(1e-5,_AirDensity*saturate(_Atmosphere));
  float phaseCloud=min(4.0,.83*HG(mu,.72)+.17*HG(mu,-.33));
  float phaseHigh=min(3.0,.85*HG(mu,.48)+.15*HG(mu,-.12));
  float moonMu=dot(rd,_OrbisMoon.xyz);
@@ -242,7 +268,7 @@ OrbisVolumeResult OrbisMarchRay(float3 ro,float3 rd,float endDistance,float scen
    density=OrbisCloudDensities(ro+rd*(cursor+stepSize*.5),false);
   }
   float3 p=ro+rd*(cursor+stepSize*.5);
-  OrbisIntegrateSample(p,stepSize,density,sun,phaseAir,phaseCloud,phaseHigh,phaseMoon,phaseMoonCloud,light,transmission);
+  OrbisIntegrateSample(p,stepSize,density,sun,phaseAir,coarseMieDelta,limbProfile,phaseCloud,phaseHigh,phaseMoon,phaseMoonCloud,light,transmission);
   cursor=min(segmentEnd,cursor+stepSize);
   sampleIndex++;
  }

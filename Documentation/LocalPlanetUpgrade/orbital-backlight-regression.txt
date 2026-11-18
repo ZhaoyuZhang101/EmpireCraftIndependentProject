@@ -1,0 +1,103 @@
+Unity 6000.0.55f1 / Direct3D 11 / NVIDIA GeForce RTX 5070 Laptop GPU
+Orbis2DWorld, ORBIS-2D-2026 (512x256), 960x600, fixed display exposure
+Brightness and RGB differences measured in display-code units (0-255).
+Backlight and terrain assertions
+
+balanced land samples=357 noon median=154.74 midnight median=27.62 night P90-P10=36.90
+PASS balanced land dark-side brightness and contrast
+balanced ocean samples=1813 noon median=135.68 midnight median=10.68 night P90-P10=11.52
+PASS balanced ocean dark-side brightness and contrast
+PASS balanced night coast remains distinct
+PASS balanced rim solar lens changed pixels=0
+balanced rim at 1.008R sunward RGB=(228.55, 190.48, 64.69) opposite RGB=(7.59, 22.28, 37.00)
+PASS balanced rim warm sunward arc
+balanced rim at 1.020R sunward RGB=(55.24, 52.24, 36.97) opposite RGB=(1.93, 14.86, 31.10)
+balanced rim at 1.050R sunward RGB=(0.00, 0.31, 7.83) opposite RGB=(0.03, 4.62, 18.97)
+PASS balanced rim scattering tapers above the surface
+balanced rim at 1.100R sunward RGB=(0.00, 0.14, 0.00) opposite RGB=(0.48, 1.17, 2.97)
+balanced rim at 1.250R sunward RGB=(0.00, 0.00, 0.00) opposite RGB=(0.00, 0.00, 0.00)
+PASS balanced rim exterior sky remains clear
+PASS balanced sun-outside solar lens changed pixels=0
+balanced sun-outside at 1.008R sunward RGB=(219.66, 202.76, 129.93) opposite RGB=(7.83, 22.45, 37.00)
+PASS balanced sun-outside warm sunward arc
+balanced sun-outside at 1.020R sunward RGB=(43.48, 56.14, 44.83) opposite RGB=(2.41, 15.21, 31.24)
+balanced sun-outside at 1.050R sunward RGB=(0.00, -0.03, 0.00) opposite RGB=(0.07, 5.52, 19.59)
+PASS balanced sun-outside scattering tapers above the surface
+balanced sun-outside at 1.100R sunward RGB=(0.00, 0.10, 0.00) opposite RGB=(0.59, 1.28, 3.52)
+balanced sun-outside at 1.250R sunward RGB=(0.00, 0.00, 0.00) opposite RGB=(0.00, 0.00, 0.00)
+PASS balanced sun-outside exterior sky remains clear
+full land samples=357 noon median=155.09 midnight median=27.62 night P90-P10=36.90
+PASS full land dark-side brightness and contrast
+full ocean samples=1813 noon median=135.75 midnight median=10.68 night P90-P10=11.52
+PASS full ocean dark-side brightness and contrast
+PASS full night coast remains distinct
+PASS full rim solar lens changed pixels=0
+full rim at 1.008R sunward RGB=(220.97, 182.97, 65.45) opposite RGB=(7.48, 22.38, 37.00)
+PASS full rim warm sunward arc
+full rim at 1.020R sunward RGB=(45.34, 47.34, 36.48) opposite RGB=(1.86, 14.86, 31.21)
+full rim at 1.050R sunward RGB=(0.00, 0.31, 7.69) opposite RGB=(0.03, 4.52, 18.93)
+PASS full rim scattering tapers above the surface
+full rim at 1.100R sunward RGB=(0.00, 0.14, 0.00) opposite RGB=(0.48, 1.17, 2.97)
+full rim at 1.250R sunward RGB=(0.00, 0.00, 0.00) opposite RGB=(0.00, 0.00, 0.00)
+PASS full rim exterior sky remains clear
+PASS full sun-outside solar lens changed pixels=0
+full sun-outside at 1.008R sunward RGB=(209.14, 195.03, 127.86) opposite RGB=(7.72, 22.55, 37.00)
+PASS full sun-outside warm sunward arc
+full sun-outside at 1.020R sunward RGB=(35.86, 49.93, 42.31) opposite RGB=(2.41, 15.21, 31.31)
+full sun-outside at 1.050R sunward RGB=(0.00, -0.03, 0.00) opposite RGB=(0.07, 5.52, 19.59)
+PASS full sun-outside scattering tapers above the surface
+full sun-outside at 1.100R sunward RGB=(0.00, 0.10, 0.00) opposite RGB=(0.59, 1.28, 3.48)
+full sun-outside at 1.250R sunward RGB=(0.00, 0.00, 0.00) opposite RGB=(0.00, 0.00, 0.00)
+PASS full sun-outside exterior sky remains clear
+local land samples=473 noon median=153.90 midnight median=48.37 night P90-P10=20.77
+PASS local land dark-side brightness and contrast
+local ocean samples=431 noon median=47.36 midnight median=12.91 night P90-P10=12.45
+PASS local ocean dark-side brightness and contrast
+PASS local night coast remains distinct
+
+Solar lens regression in the same session
+
+6000.0.55f1 Direct3D11 NVIDIA GeForce RTX 5070 Laptop GPU
+seed=ORBIS-2D-2026 weatherDay=0 size=512x256
+scaled-sky mean absolute lens difference=0.2926768
+scaled-hidden mean absolute lens difference=0.0000000
+scaled-limb mean absolute lens difference=0.1019615
+scaled-clear mean absolute lens difference=0.1411067
+scaled-cloud mean absolute lens difference=0.0664769
+scaled-clear-column mean absolute lens difference=0.0971220
+scaled-under-deck mean absolute lens difference=0.0000000
+PASS scaled off-axis sun produces glare  0.29268
+PASS scaled planet fully occludes glare  0
+PASS scaled grazing sun partially attenuated  0.10196
+PASS scaled partly clouded limb / clear limb  0.47111
+PASS scaled opaque HP deck / clear column  0
+full-sky mean absolute lens difference=0.2928963
+full-hidden mean absolute lens difference=0.0000000
+full-limb mean absolute lens difference=0.1020134
+full-clear mean absolute lens difference=0.1411590
+full-cloud mean absolute lens difference=0.0665600
+full-clear-column mean absolute lens difference=0.0970936
+full-under-deck mean absolute lens difference=0.0000000
+PASS full off-axis sun produces glare  0.2929
+PASS full planet fully occludes glare  0
+PASS full grazing sun partially attenuated  0.10201
+PASS full partly clouded limb / clear limb  0.47152
+PASS full opaque HP deck / clear column  0
+behind-camera mean absolute lens difference=0.0000000
+PASS behind-camera  0
+outside mean absolute lens difference=0.0000000
+PASS outside  0
+thematic mean absolute lens difference=0.0000000
+PASS thematic  0
+foreground-occluder mean absolute lens difference=0.0000000
+PASS foreground-occluder  0
+portrait mean absolute lens difference=0.3137381
+PASS portrait viewport  0.31374
+atlas mean absolute lens difference=0.0000000
+PASS atlas  0
+local mean absolute lens difference=0.0000000
+PASS unfolded local map  1
+original-clear-sky mean absolute lens difference=0.3214228
+rebuilt-clear-sky mean absolute lens difference=0.3211853
+PASS regenerated clear sky preserves lens response  0.99926
+Completed

@@ -1,4 +1,19 @@
-PASS new moon terrain readability=0.1090333
-PASS full moon brighter=0.1825217
-PASS Moon below horizon contributes zero=0.1090333
-PASS cloudy night stays readable=0.09534713
+Display luma (0-255), Gamma, Direct3D11
+Orbital grass, new moon = 37.42
+Orbital forest, new moon = 17.09
+Orbital deep-water swatch, new moon = 7.51
+Orbital grass, full moon = 59.40
+Grass halfway through unfolding, new moon = 41.43
+Local grass, new moon = 45.26
+Local grass, full moon = 65.66
+Local grass, full moon below horizon = 45.26
+Local grass, overcast full moon = 39.01
+Orbital grass, noon = 134.34
+Local grass, noon = 134.34
+Night with all illumination off = 0.00
+PASS Moonless grass, forest and sea retain distinct tones
+PASS Moonlight follows phase and local horizon
+PASS Overcast dims full moon while preserving local readout
+PASS Night adaptation is gradual through unfolding
+PASS Noon stays consistent and distinct from night
+PASS Zero incident light stays black
