@@ -10,6 +10,7 @@ namespace Orbis.Flat
         Camera viewCamera;double clock;FlatMapRenderer maps;
         float baseAir,baseHaze,baseCloudDensity;bool scrollPrepared;
         OrbisAtmosphereRenderer scrollVolume;FlatScrollNavigator scrollNav;Vector2 poles;int poleRevision=-1;
+        int materialTerrainRevision=-1;
         public void Initialize(WorldData world,Camera target,FlatMapRenderer renderer,bool scrollPresentation=false)
         {
             viewCamera=target;maps=renderer;
@@ -17,6 +18,8 @@ namespace Orbis.Flat
             View=gameObject.AddComponent<OrbisPlanetView>();View.Initialize(Snapshot,viewCamera,null,null,scrollPresentation);View.showRivers=false;
             View.SurfaceMaterial.SetFloat("_FlatWorldReady",1);View.SurfaceMaterial.SetTexture("_FlatTerrain",maps.TerrainTexture);View.SurfaceMaterial.SetTexture("_FlatOwners",maps.OwnerTexture);View.SurfaceMaterial.SetTexture("_FlatInfo",maps.InfoTexture);
             View.SurfaceMaterial.SetTexture("_VisualTex",maps.VisualTexture);View.SurfaceMaterial.SetFloat("_FieldReady",1);
+            maps.BindPolarTerrain(View.SurfaceMaterial);
+            materialTerrainRevision=maps.PublishedTerrainRevision;
             View.SurfaceMaterial.SetTexture("_HydroA",maps.HydroTexture);View.SurfaceMaterial.SetTexture("_HydroB",maps.MixingTexture);View.SurfaceMaterial.SetTexture("_GeoTex",maps.GeometryTexture);
             View.SurfaceMaterial.SetVector("_MapSize",new Vector4(world.Width,world.Height,1f/world.Width,1f/world.Height));
             View.SurfaceMaterial.SetFloat("_ShowWater",1);View.SurfaceMaterial.SetFloat("_ShowBanks",1);View.SurfaceMaterial.SetFloat("_WaveAmount",1);View.SurfaceMaterial.SetFloat("_SWEReady",0);
@@ -32,6 +35,11 @@ namespace Orbis.Flat
             Quaternion q=Quaternion.Euler(Pitch,Yaw,0);viewCamera.transform.position=q*new Vector3(0,0,-Distance);viewCamera.transform.LookAt(Vector3.zero);
             Snapshot.day=(float)maps.World.Day; // Read-only calendar mirror, no second simulation.
             maps.SetVegetationDay(maps.World.Day,View.SurfaceMaterial);
+            if(materialTerrainRevision!=maps.PublishedTerrainRevision)
+            {
+                maps.BindPolarTerrain(View.SurfaceMaterial);
+                materialTerrainRevision=maps.PublishedTerrainRevision;
+            }
 
             View.SurfaceMaterial.SetFloat("_FlatPolitical",political?1:0);
             View.SyncVolumeSettings(sun,clock,Snapshot.day);View.Sync(clock,sun,0);

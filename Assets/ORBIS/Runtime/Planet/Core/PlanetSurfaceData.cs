@@ -59,7 +59,7 @@ namespace Orbis.Planet
             float x=(float)(u*World.Width),y=(float)Math.Min(World.Height-.0001,v*World.Height);
             int tile=World.Index((int)Math.Floor(x),(int)Math.Floor(y));
             double height=FlatSurfaceSampling.Sample(heights,World.Width,World.Height,x,y);
-            double polar=Math.Max(0,Math.Min(1,Math.Min(v,1-v)*World.Height));polar=polar*polar*(3-2*polar);
+            double polar=FlatSurfaceSampling.PolarRingWeight(v,World.Height);
             height=(v<.5?southHeight:northHeight)*(1-polar)+height*polar;
             float depth;double coverage=FlatWaterGeometry.Coverage(World,x,y,out depth);
             bool area=FlatTerrainAnalysis.AreaWater(World.Water[tile]);

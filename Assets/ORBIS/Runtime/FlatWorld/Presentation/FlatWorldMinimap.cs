@@ -24,6 +24,8 @@ namespace Orbis.Flat
         FlatScrollNavigator navigation;
         FlatMapRenderer terrain;
         Texture2D basemap;
+        int[] basemapTiles;
+        int sourceWidth;
         Matrix4x4 previousMatrix;
         Vector2 previousOrigin, center;
         float previousSpin, previousMorph, nextRefresh;
@@ -60,10 +62,9 @@ namespace Orbis.Flat
                     pointer = -1;
                     var point = map.WorldToLocal(e.position);
                     var bounds = map.contentRect;
-                    if (bounds.Contains(point))
+                    if (bounds.Contains(point) && TryMapLocation(point, bounds, out var location))
                     {
-                        recenter(PlanetCoordinateSystem.FromMapUV((point.x - bounds.x) / bounds.width,
-                            1 - (point.y - bounds.y) / bounds.height));
+                        recenter(location);
                         nextRefresh = 0;
                     }
                 }
@@ -118,13 +119,31 @@ namespace Orbis.Flat
         void RefreshBasemap()
         {
             var world = terrain.World;
-            if (!basemap || basemap.width != world.Width || basemap.height != world.Height)
+            if (!basemap || sourceWidth != world.Width)
             {
                 if (basemap) UnityEngine.Object.Destroy(basemap);
-                basemap = new Texture2D(world.Width, world.Height, TextureFormat.RGBA32, true)
+                // The HUD is at most 240 pixels wide. Cache a supersampled inverse
+                // lookup per map size, reused on terrain edits and while navigating.
+                int width = Mathf.Clamp(world.Width, 480, 960);
+                int height = width / 2;
+                basemap = new Texture2D(width, height, TextureFormat.RGBA32, true)
                 {
                     name = "Minimap terrain", filterMode = FilterMode.Trilinear, wrapMode = TextureWrapMode.Clamp
                 };
+                basemapTiles = new int[width * height];
+                sourceWidth = world.Width;
+                for (int y = 0; y < height; y++)
+                for (int x = 0; x < width; x++)
+                {
+                    int tile = -1;
+                    if (HammerProjection.TryUnproject((x + .5) / width, (y + .5) / height, out var location))
+                    {
+                        int column = (int)(PlanetCoordinateSystem.MapU(location) * world.Width);
+                        int row = Math.Min(world.Height - 1, (int)(PlanetCoordinateSystem.MapV(location) * world.Height));
+                        tile = world.Index(column, row);
+                    }
+                    basemapTiles[y * width + x] = tile;
+                }
                 map.style.backgroundImage = new StyleBackground(basemap);
             }
             // The terrain shader stores water flags in alpha and extends land colour into
@@ -133,10 +152,12 @@ namespace Orbis.Flat
             var target = basemap.GetPixelData<Color32>(0);
             for (int i = 0; i < target.Length; i++)
             {
-                var kind = world.Water[i];
-                var color = source[i];
+                int tile = basemapTiles[i];
+                if (tile < 0) { target[i] = default; continue; }
+                var kind = world.Water[tile];
+                var color = source[tile];
                 if (kind == WaterKind.River)
-                    color = Color32.Lerp(color, FlatPalette.Water(kind), 2 * world.Facts.HalfWidth[i]);
+                    color = Color32.Lerp(color, FlatPalette.Water(kind), 2 * world.Facts.HalfWidth[tile]);
                 else if (kind != WaterKind.Land) color = FlatPalette.Water(kind);
                 color.a = 255;
                 target[i] = color;
@@ -223,7 +244,14 @@ namespace Orbis.Flat
 
         static Vector2 Pixel(Vector2 uv, Rect rect)
         {
-            return new Vector2(rect.x + uv.x * rect.width, rect.y + (1 - uv.y) * rect.height);
+            HammerProjection.Project(uv.x, uv.y, out double x, out double y);
+            return new Vector2(rect.x + (float)x * rect.width, rect.y + (float)(1 - y) * rect.height);
+        }
+
+        static bool TryMapLocation(Vector2 point, Rect rect, out PlanetLocation location)
+        {
+            return HammerProjection.TryUnproject((point.x - rect.x) / (double)rect.width,
+                1 - (point.y - rect.y) / (double)rect.height, out location);
         }
 
         void Draw(MeshGenerationContext context)
@@ -236,11 +264,13 @@ namespace Orbis.Flat
             pen.BeginPath();
             if (wholeAtlas)
             {
-                const float pad = 1.6f;
-                pen.MoveTo(new Vector2(rect.xMin + pad, rect.yMin + pad));
-                pen.LineTo(new Vector2(rect.xMax - pad, rect.yMin + pad));
-                pen.LineTo(new Vector2(rect.xMax - pad, rect.yMax - pad));
-                pen.LineTo(new Vector2(rect.xMin + pad, rect.yMax - pad));
+                var radius = rect.size * .5f - Vector2.one * 1.6f;
+                for (int i = 0; i < 64; i++)
+                {
+                    float angle = i * (2 * Mathf.PI / 64);
+                    var p = rect.center + Vector2.Scale(radius, new Vector2(Mathf.Cos(angle), Mathf.Sin(angle)));
+                    if (i == 0) pen.MoveTo(p); else pen.LineTo(p);
+                }
                 pen.ClosePath();
             }
             else
@@ -256,8 +286,11 @@ namespace Orbis.Flat
             var c = Pixel(center, rect);
             pen.BeginPath();
             Reticle(pen, c);
-            if (c.x - rect.xMin < 7) Reticle(pen, c + Vector2.right * rect.width);
-            if (rect.xMax - c.x < 7) Reticle(pen, c - Vector2.right * rect.width);
+            float edge = center.x < .5f ? 0 : 1;
+            var seam = Pixel(new Vector2(edge, center.y), rect);
+            var other = Pixel(new Vector2(1 - edge, center.y), rect);
+            if ((c - seam).sqrMagnitude < 49 && (other - seam).sqrMagnitude > 196)
+                Reticle(pen, other + (c - seam));
             Stroke(pen, 3.5f, Ink);
             Stroke(pen, 1.7f, Gold);
         }

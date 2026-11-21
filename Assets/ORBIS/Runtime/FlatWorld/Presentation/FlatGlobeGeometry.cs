@@ -157,7 +157,7 @@ namespace Orbis.Flat
         public static float Radius(float height,float latitudeUV,int rows,Vector2 poles)
         {
             float polar=Mathf.Lerp(poles.x,poles.y,latitudeUV>=.5f?1:0);
-            float blend=Mathf.SmoothStep(0,1,Mathf.Clamp01(Mathf.Min(latitudeUV,1-latitudeUV)*rows));
+            float blend=(float)FlatSurfaceSampling.PolarRingWeight(latitudeUV,rows);
             return 1+Mathf.Lerp(polar,Mathf.Clamp(height,HeightBands.MinimumBed,MaximumHeight),blend)*HeightScale;
         }
     }

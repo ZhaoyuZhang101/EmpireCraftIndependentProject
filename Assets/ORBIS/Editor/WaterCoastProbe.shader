@@ -13,6 +13,13 @@ Shader "Hidden/ORBIS/WaterCoastProbe"
  float4 _CoastBasin,_CoastCondition,_CoastOrigin,_BedSun;
  float4 frag(v2f_img i):SV_Target
  {
+  if(_ProbeMode>11.5)
+  {
+   float2 uv=_CoastOrigin.xy*_MapSize.zw;
+   float4 grid=FlatPolarField(FlatVisualSample(float4(uv,0,0)),uv.y);
+   float depth,shade=FlatSampleSeabed(_CoastOrigin.xy,normalize(_BedSun.xyz),depth);
+   return float4(depth,grid.r+grid.b,shade,1);
+  }
   if(_ProbeMode>10.5)
   {
    float2 cell=_CoastOrigin.xy;

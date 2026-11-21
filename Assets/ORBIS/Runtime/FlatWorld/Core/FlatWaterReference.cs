@@ -23,6 +23,12 @@ namespace Orbis.Flat
 
         int Source(int i) { return (width / 2 - 1 - i / width) * width + i % width; }
         internal short At(int tile) { return survey[Source(tile)]; }
+        public bool MatchesOriginalBed(int tile, short bed) => OriginalBed(tile) == bed;
+        public bool ContainsMarineShoreOrSea(int tile)
+        {
+            short kind = At(tile);
+            return kind == Marine || kind == Passage;
+        }
         internal short OriginalBed(int tile)
         {
             int p = Source(tile) * 2;

@@ -52,6 +52,15 @@
     float4 own=tex2D(_OwnerTex,uv),info=tex2D(_InfoTex,uv)*255;
     float4 hydro=tex2Dlod(_HydroA,float4(uv,0,0)),mixing=tex2Dlod(_HydroB,float4(uv,0,0)),geo=tex2Dlod(_GeoTex,float4(uv,0,0));
     float4 field=FlatField(cell);
+    float gridBed=field.r;
+    float2 terrainGradient=0,surveyCoast=0;
+    float surveyWeight=0;
+    if(terrainView>.5||_WaterView>.5)
+    {
+     if(terrainView>.5)terrainGradient=FlatFieldGradient(cell,0);
+     surveyWeight=FlatEarthRelief(i.uv,field.r,terrainGradient,surveyCoast);
+     FlatApplyEarthShore(info.g,field.g,surveyCoast);
+    }
     float edgeDistance;
     float aa=clamp(.65/max(1,_PixelsPerTile),.008,.28);
     float4 river=FlatRiverReceiver(cell,uv,hydro,mixing,field);
@@ -93,14 +102,12 @@
     float surfaceWetness=lerp(substrate.a,season.a,saturate(_VegetationSeasonReady));
     float4 terrainLight=0,terrainRelief=float4(1,1,1,0);
     float3 illumination=lerp(float3(1,1,1),FlatDayLight(FlatRadial(i.uv),i.uv),naturalView);
-    float2 terrainGradient=0;
     if(terrainView>.5)
     {
-     terrainGradient=FlatFieldGradient(cell,0);
      float4 localMoon=float4(FlatGeographicLight(i.uv,_OrbisMoon.xyz),_OrbisMoon.w*_OrbisNightParams.x);
      terrainLight=FlatTerrainLight(localSun,localMoon,_FlatDayNight*naturalView);
      if(waterMask<.999||_DrawHeight>.5)
-      terrainRelief=FlatTerrainRelief(cell,field.r,terrainGradient,terrainLight,surfaceView,FlatWetMineral(substrate.z,surfaceWetness,field.a));
+      terrainRelief=FlatTerrainRelief(cell,gridBed,terrainGradient,terrainLight,surfaceView,FlatWetMineral(substrate.z,surfaceWetness,field.a),surveyWeight);
      snowSurface=FlatTerrainSnow(snowCover,cell,terrainGradient,_PixelsPerTile);
     }
     float frozen=max(polarIce,snowSurface);
@@ -126,6 +133,8 @@
     {
      float wetSupport;
      float4 areaOptics=FlatAreaWaterOptics(cell,_InfoTex,float4(field.b,mixing.g,mixing.b,floor(info.g+.5)),wetSupport);
+     if(surveyWeight>0&&wetSupport>0)areaOptics.r=max(.15,areaOptics.r+(gridBed-field.r));
+     FlatEarthMarineOptics(surveyCoast,field.r,areaOptics,wetSupport);
      FlatCoastalSediment coast=FlatCoastAt(cell,field,areaOptics,wetSupport,edgeDistance,frozen,_WaterClock);
      FlatRiverSection channel=FlatRiverSectionAt(cell,river,field);
      float sediment=FlatReachSediment(cell,channel,field.g,mixing.g);

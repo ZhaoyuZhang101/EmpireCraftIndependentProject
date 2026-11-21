@@ -15,6 +15,12 @@ Shader "ORBIS/FlatWorld/ScrollSurface"
   [HideInInspector] _EcologyReady("Ecology traits ready",Float)=0
   [HideInInspector] _MapSize("World dimensions and inverse dimensions",Vector)=(1,1,1,1)
   [HideInInspector] _FieldReady("Terrain and bed fields ready",Float)=0
+  [HideInInspector] _PoleBedDepth("Polar bed and depth, south then north",Vector)=(0,0,0,0)
+  [HideInInspector] _EarthPolarBed("Surveyed polar bed",2D)="black"{}
+  [HideInInspector] _EarthPolarCoast("Surveyed marine shoreline",2D)="black"{}
+  [HideInInspector] _EarthSurveyMask("Unedited Earth terrain",2D)="white"{}
+  [HideInInspector] _EarthSurveyAtPoles("Unedited south and north poles",Vector)=(1,1,0,0)
+  [HideInInspector] _EarthPolarReady("Earth polar survey ready",Float)=0
   [HideInInspector] _RiverAtlas("Continuous river field",2D)="black"{}
   [HideInInspector] _RiverPreviewReady("Initial river field ready",Float)=0
   [HideInInspector] _RiverSeasonTex("Seasonal river discharge",2D)="black"{}

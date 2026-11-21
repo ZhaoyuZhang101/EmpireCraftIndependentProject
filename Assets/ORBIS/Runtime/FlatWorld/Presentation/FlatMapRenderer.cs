@@ -15,6 +15,7 @@ namespace Orbis.Flat
         public Texture2D MixingTexture { get; private set; }
         public Texture2D GeometryTexture { get; private set; }
         public Texture2D VisualTexture { get; private set; }
+        Vector4 poleBedDepth;
         public Texture2D EcologyTexture { get; private set; }
         public Texture2D VegetationTexture { get; private set; }
         public Texture2D RiverSeasonTexture { get; private set; }
@@ -31,6 +32,7 @@ namespace Orbis.Flat
         FlatTerrainFacts vegetationSource;
         FlatMapRenderJobs renderJobs;
         FlatRiverAtlas riverAtlas;
+        FlatEarthPolarRelief earthRelief;
         public bool RiverAtlasReady {get{return riverAtlas!=null&&riverAtlas.Ready;}}
         public Texture2D RiverAtlasTexture {get{return riverAtlas==null?null:riverAtlas.Texture;}}
         public bool PreparationPending {get{return renderJobs!=null&&renderJobs.Pending||riverAtlas!=null&&riverAtlas.Pending;}}
@@ -76,6 +78,7 @@ namespace Orbis.Flat
             MixingTexture=MakeData(world.Width,world.Height,"River meander / sediment / freshwater / links",true);
             GeometryTexture=MakeData(world.Width,world.Height,"Metres / sediment material / soil wetness",true);
             VisualTexture=MakeData(world.Width,world.Height,"Continuous elevation / Euclidean shore / depth / canopy",true);
+            earthRelief=FlatEarthPolarRelief.Create(world);
             EcologyTexture=Make(world.Width,world.Height,"Vegetation cover / biome and tree / wetness / seeded variation",true);
             Material.SetTexture("_EcologyTex",EcologyTexture);Material.SetFloat("_EcologyReady",1);
             Material.SetTexture("_VisualTex",VisualTexture);Material.SetFloat("_FieldReady",1);
@@ -203,6 +206,17 @@ namespace Orbis.Flat
                 TerrainTexture.Apply(false,false);DisplayTexture.Apply(false,false);OwnerTexture.Apply(false,false);InfoTexture.Apply(false,false);
                 if(refreshData)
                 {
+                    double southBed=0,southDepth=0,northBed=0,northDepth=0;
+                    for(int x=0;x<World.Width;x++)
+                    {
+                        int n=World.Count-World.Width+x;
+                        southBed+=World.Elevation[x];northBed+=World.Elevation[n];
+                        southDepth+=World.Facts.Depth[x];northDepth+=World.Facts.Depth[n];
+                    }
+                    poleBedDepth=new Vector4((float)(southBed/World.Width),(float)(southDepth/World.Width),
+                        (float)(northBed/World.Width),(float)(northDepth/World.Width));
+                    earthRelief?.UpdateCoverage(World);
+                    BindPolarTerrain(Material);
                     HydroTexture.Apply(false,false);MixingTexture.Apply(false,false);GeometryTexture.Apply(false,false);VisualTexture.Apply(false,false);EcologyTexture.Apply(false,false);
                     dataRevision=renderJobs.CapturedTerrainRevision;RefreshVegetationSeasons();SetVegetationDay(World.Day);
                 }
@@ -211,8 +225,22 @@ namespace Orbis.Flat
             VisibleLayer=renderJobs.CapturedLayer;ConfigureLayer();
             LastUploadMilliseconds=(System.Diagnostics.Stopwatch.GetTimestamp()-start)*1000.0/System.Diagnostics.Stopwatch.Frequency;
         }
+        internal void BindPolarTerrain(Material target)
+        {
+            target.SetVector("_PoleBedDepth",poleBedDepth);
+            if(earthRelief!=null)earthRelief.Bind(target);
+            else target.SetFloat("_EarthPolarReady",0);
+        }
         void OnDestroy()
-        {if(riverAtlas!=null){riverAtlas.Dispose();riverAtlas=null;}if(renderJobs!=null){renderJobs.Dispose();renderJobs=null;}if(mesh)Destroy(mesh);if(Material)Destroy(Material);foreach(var t in new[]{TerrainTexture,DisplayTexture,OwnerTexture,InfoTexture,HydroTexture,MixingTexture,GeometryTexture,VisualTexture,EcologyTexture,VegetationTexture,RiverSeasonTexture})if(t)Destroy(t);}
+        {
+            earthRelief?.Dispose();
+            riverAtlas?.Dispose();
+            renderJobs?.Dispose();
+            if(mesh)Destroy(mesh);
+            if(Material)Destroy(Material);
+            foreach(var texture in new[]{TerrainTexture,DisplayTexture,OwnerTexture,InfoTexture,HydroTexture,MixingTexture,GeometryTexture,VisualTexture,EcologyTexture,VegetationTexture,RiverSeasonTexture})
+                if(texture)Destroy(texture);
+        }
     }
 }
 

@@ -6,6 +6,10 @@ namespace Orbis.Flat
     /// <summary>Presentation-only reconstruction. Never writes authoring heights or drainage.</summary>
     public static class FlatSurfaceSampling
     {
+        // The last DEM sample is at the middle of its latitude cell.
+        public static double PolarRingWeight(double latitudeUV,int rows)
+        { return Math.Max(0,Math.Min(1,2*rows*Math.Min(latitudeUV,1-latitudeUV))); }
+
         static float Minmod(float a,float b)
         { return a*b<=0?0:Math.Sign(a)*Math.Min(Math.Abs(a),Math.Abs(b)); }
 

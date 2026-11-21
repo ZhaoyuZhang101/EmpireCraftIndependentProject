@@ -1,5 +1,9 @@
 #ifndef ORBIS_GEOGRAPHIC_COORDINATES
 #define ORBIS_GEOGRAPHIC_COORDINATES
+float OrbisPolarRingWeight(float latitudeUV,float rows)
+{
+    return saturate(2*rows*min(latitudeUV,1-latitudeUV));
+}
 // Range reduction keeps the atan series within tan(pi/8). Geographic addresses
 // retain subpixel precision at close zoom and at the poles on native GPUs.
 float OrbisGeographicAtan2(float y,float x)

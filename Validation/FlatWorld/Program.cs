@@ -18,6 +18,7 @@ public static class Program {
     case "--wildlife": WildlifeRegression.Run(); break;
     case "--bathymetry": BathymetryRegression.Run(); break;
     case "--polar-terrain": PolarTerrainRegression.Run(); break;
+    case "--spherical-relief": SphericalRelief(); break;
     case "--weather": WeatherIntegrationRegression.Run(); break;
     case "--moisture": MoistureRegression(); break;
     case "--environment": EnvironmentRegression(); break;
@@ -29,6 +30,33 @@ public static class Program {
    return 0;
   }
   catch(Exception e) { Console.Error.WriteLine(FlatSelfTests.LastOperation+"\n"+e); return 1; }
+ }
+ static void SphericalRelief() {
+  const int width=256, height=128;
+  double step=2*Math.PI/width, worstSlope=0, worstRelief=0;
+  foreach(int row in new[]{0,6,21,64,106,121,127}) {
+   int column=row%2==0?width-1:0;
+   double latitude=(row+.5)*step-Math.PI/2, longitude=(column+.5)*step-Math.PI;
+   foreach(bool east in new[]{true,false}) {
+    var world=new WorldData(width,height,"SPHERICAL-SLOPE",TerrainPreset.Earth);
+    for(int y=0;y<height;y++)for(int x=0;x<width;x++) {
+     double lat=(y+.5)*step-Math.PI/2, delta=(x+.5)*step-Math.PI-longitude;
+     // A plane in 3D tangent coordinates, rotated about the site normal.
+     double dot=east?Math.Cos(lat)*Math.Sin(delta):
+       Math.Sin(lat)*Math.Cos(latitude)-Math.Cos(lat)*Math.Sin(latitude)*Math.Cos(delta);
+     world.Elevation[y*width+x]=(short)Math.Round(8000*dot);
+     world.DrainOrder[y*width+x]=y*width+x;
+    }
+    FlatTerrainAnalysis.Build(world,default,false);
+    int i=row*width+column;
+    double slope=Math.Abs(world.Facts.Gradient[i]/(8000*Math.Sin(step))-1);
+    double relief=Math.Abs(world.Facts.Relief[i]/(16000*Math.Sin(2*step))-1);
+    worstSlope=Math.Max(worstSlope,slope);worstRelief=Math.Max(worstRelief,relief);
+    Console.WriteLine($"lat {latitude*180/Math.PI,7:F2} {(east?"EW":"NS")} slope {world.Facts.Gradient[i],6:F1} m, relief {world.Facts.Relief[i],6:F1} m");
+   }
+  }
+  if(worstSlope>.012||worstRelief>.012)throw new Exception($"Equal ground slopes differ by {worstSlope:P2}, relief by {worstRelief:P2}.");
+  Console.WriteLine($"PASS spherical terrain diagnostics, maximum slope/relief errors {worstSlope:P2}/{worstRelief:P2}");
  }
  static void LargeProceduralPresets() {
   void Check(int width,TerrainPreset preset) {

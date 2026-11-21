@@ -9,6 +9,7 @@ class Program
   checks+=DisplayedGroundMetrics();
   checks+=UnfoldRoundTrips();
   checks+=TransportedAnchors();
+  checks+=MinimapProjection();
   foreach(double lat in new[]{-Math.PI/2,-1.0,0,1.0,Math.PI/2})
   foreach(double lon in new[]{-Math.PI,0,Math.PI-.00001})
   {
@@ -71,6 +72,27 @@ class Program
    }
   }
   Console.WriteLine("PASS "+checks+" local projection checks (ground shape, polar navigation, date line, round trips, geographic addresses)");
+ }
+
+ static int MinimapProjection()
+ {
+  int checks=0;
+  foreach(double lon in new[]{-180d,-179.999,-78,0,121.5,179.999,180})
+  foreach(double lat in new[]{-90d,-89.99,-80,-23,0,60,80,89.99,90})
+  {
+   double u=lon/360+.5,v=lat/180+.5;
+   HammerProjection.Project(u,v,out double x,out double y);
+   Require(HammerProjection.TryUnproject(x,y,out var location),"minimap must accept its projected footprint");
+   var target=PlanetCoordinateSystem.SurfaceNormal(PlanetCoordinateSystem.FromMapUV(u,v));
+   Require(PlanetLocalProjection.Distance(target,PlanetCoordinateSystem.SurfaceNormal(location),1)<3e-8,"click and displayed geography disagree");
+   checks+=2;
+  }
+  Require(!HammerProjection.TryUnproject(.01,.99,out _)&&!HammerProjection.TryUnproject(1,0,out _),"outside ellipse is empty");
+  Require(!HammerProjection.TryUnproject(double.NaN,.5,out _)&&!HammerProjection.TryUnproject(.5,double.PositiveInfinity,out _),"nonfinite minimap hits are rejected");
+  HammerProjection.Project(0,.5,out var west,out _);
+  HammerProjection.Project(1,.5,out var east,out _);
+  Require(west==0&&east==1,"date line has endpoints on both edges");
+  return checks+3;
  }
 
  static int DisplayedGroundMetrics()

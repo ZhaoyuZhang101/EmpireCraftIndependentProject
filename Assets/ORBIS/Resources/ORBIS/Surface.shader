@@ -34,6 +34,12 @@ Shader "ORBIS/Surface"
   _FlatTerrain("Shared 2D terrain",2D)="white"{} _FlatOwners("Shared owners",2D)="black"{} _FlatInfo("Shared semantics",2D)="black"{}
   _HydroA("Depth flow width",2D)="black"{} _HydroB("Meander sediment freshwater links",2D)="black"{} _GeoTex("Height materials",2D)="black"{}
   _VisualTex("Reconstructed field",2D)="black"{} _SkyTex("Climate cloud layers",2D)="black"{}
+  [HideInInspector] _PoleBedDepth("Polar bed and depth, south then north",Vector)=(0,0,0,0)
+  [HideInInspector] _EarthPolarBed("Surveyed polar bed",2D)="black"{}
+  [HideInInspector] _EarthPolarCoast("Surveyed marine shoreline",2D)="black"{}
+  [HideInInspector] _EarthSurveyMask("Unedited Earth terrain",2D)="white"{}
+  [HideInInspector] _EarthSurveyAtPoles("Unedited south and north poles",Vector)=(1,1,0,0)
+  [HideInInspector] _EarthPolarReady("Earth polar survey ready",Float)=0
   [HideInInspector] _SkyReady("Sky cache ready",Float)=0
   [HideInInspector] _SkyClock("Sky time",Float)=0
   [HideInInspector] _FlatCloudShadows("Cloud shadows enabled",Float)=1
@@ -107,6 +113,11 @@ Shader "ORBIS/Surface"
      float2 cell=uv*_MapSize.xy,tileUV=(floor(cell)+.5)*_MapSize.zw;
      field=FlatField(cell);hydro=tex2Dlod(_HydroA,float4(tileUV,0,0));mixing=tex2Dlod(_HydroB,float4(tileUV,0,0));geo=tex2Dlod(_GeoTex,float4(tileUV,0,0));
      own=tex2D(_FlatOwners,tileUV);info=tex2D(_FlatInfo,tileUV)*255;
+     float gridBed=field.r;
+     terrainGradient=FlatFieldGradient(cell,0);
+     float2 surveyCoast;
+     float surveyWeight=FlatEarthRelief(uv,field.r,terrainGradient,surveyCoast);
+     FlatApplyEarthShore(info.g,field.g,surveyCoast);
      col=tex2D(_FlatTerrain,lerp(tileUV,FlatBlendUV(FlatEcotoneCell(cell,field.g)),_SmoothTerrain)).rgb;
      season=FlatSurfaceSeason(cell,radial);
      float aa=clamp(.65/max(1,pixelsPerTile),.008,.28),edgeDistance;
@@ -119,17 +130,18 @@ Shader "ORBIS/Surface"
      col=lerp(col,FlatSeasonGround(col,field.a,season),1-water);
      float wetSupport;
      float4 basin=FlatAreaWaterOptics(cell,_FlatInfo,float4(field.b,mixing.g,mixing.b,floor(info.g+.5)),wetSupport);
+     if(surveyWeight>0&&wetSupport>0)basin.r=max(.15,basin.r+(gridBed-field.r));
+     FlatEarthMarineOptics(surveyCoast,field.r,basin,wetSupport);
      coast=FlatCoastAt(cell,field,basin,wetSupport,edgeDistance,0,_WaterClock);
      float sediment=FlatReachSediment(cell,channel,field.g,mixing.g);
      waterKind=basin.a;field.b=basin.r;mixing.gb=basin.gb;
      mixing.g=lerp(mixing.g,sediment,channel.influence);
      col=FlatVegetation(col,cell,field.a,pixelsPerTile);
-     terrainGradient=FlatFieldGradient(cell,0);
      float4 localMoon=float4(FlatGeographicLight(uv,_OrbisMoon.xyz),_OrbisMoon.w*_OrbisNightParams.x);
      float4 terrainLight=FlatTerrainLight(localLight,localMoon,_Night);
      col=FlatTerrainFine(col,cell,pixelsPerTile*(1-step(.999,water)),terrainGradient,field,substrate.xy,surfaceWetness,terrainLight);
      if(water<.999)
-      terrainRelief=FlatTerrainRelief(cell,field.r,terrainGradient,terrainLight,localView,FlatWetMineral(substrate.z,surfaceWetness,field.a));
+      terrainRelief=FlatTerrainRelief(cell,gridBed,terrainGradient,terrainLight,localView,FlatWetMineral(substrate.z,surfaceWetness,field.a),surveyWeight);
      col=lerp(col*terrainRelief.rgb,FlatColor(float3(.84,.87,.90)),terrainRelief.a);
      col=FlatWaterBanks(cell,col,terrainRelief.rgb,channel,sediment,field.g,(1-water)*_ShowBanks,aa,1/max(1,pixelsPerTile));
      col=lerp(col,coast.albedo*terrainRelief.rgb,coast.coverage*_ShowBanks);

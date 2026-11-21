@@ -150,17 +150,18 @@ namespace Orbis.Flat
             }
             // Independent rows read the finished drainage graph and write disjoint cells.
             // HAND and downstream sediment reductions remain ordered for reproducibility.
+            double southBed=0,northBed=0;
+            for(int x=0;x<w.Width;x++){southBed+=w.Elevation[x];northBed+=w.Elevation[w.Count-w.Width+x];}
+            southBed/=w.Width;northBed/=w.Width;
             Parallel.For(0,w.Height,FlatWorkerPolicy.Options(cancel,workers),y=>
             {
                 cancel.ThrowIfCancellationRequested();
+                var footprint=new FlatTerrainFootprint(w,y,southBed,northBed);
                 for(int x=0;x<w.Width;x++)
                 {
-                    int i=y*w.Width+x;float lo=w.Elevation[i],hi=lo,gradient=0;
-                    // Explicit 5x5 neighbourhood in TILE units. No invented slope degrees.
-                    for(int oy=-2;oy<=2;oy++)for(int ox=-2;ox<=2;ox++)
-                    {int n=w.Index(x+ox,y+oy);if(n>=0){lo=Math.Min(lo,w.Elevation[n]);hi=Math.Max(hi,w.Elevation[n]);}}
-                    for(int d=0;d<4;d++){int n=w.Neighbor(i,d);if(n>=0)gradient=Math.Max(gradient,Math.Abs(w.Elevation[n]-w.Elevation[i]));}
-                    f.Relief[i]=hi-lo;f.Gradient[i]=gradient;
+                    int i=y*w.Width+x;
+                    footprint.Measure(w.Elevation,x,w.Elevation[i],out f.Relief[i],out float gradient);
+                    f.Gradient[i]=gradient;
                     float rain=0,temp=0,coldest=1000,warmest=-1000;
                     for(int m=0;m<12;m++)
                     {

@@ -2,7 +2,7 @@
 .viewport { position: absolute; left: 280px; right: 0; top: 90px; bottom: 64px; }
 .minimap-frame { position: absolute; right: 12px; bottom: 12px; padding: 3px; background-color: rgb(21,32,35); border-width: 1px; border-color: rgb(164,145,101); }
 .minimap-frame:hover { border-color: rgb(231,202,140); }
-.minimap { flex-grow: 1; overflow: hidden; background-color: rgb(31,61,72); }
+.minimap { flex-grow: 1; overflow: hidden; background-color: rgb(21,32,35); }
 .header { position: absolute; left: 0; right: 0; top: 0; height: 90px; background-color: rgba(14,25,30,0.97); padding: 12px 20px; border-bottom-width: 1px; border-bottom-color: rgb(53,70,71); }
 .title-row { flex-direction: row; align-items: center; height: 36px; }
 .brand { font-size: 28px; -unity-font-style: bold; color: rgb(238,228,198); margin-right: 18px; }

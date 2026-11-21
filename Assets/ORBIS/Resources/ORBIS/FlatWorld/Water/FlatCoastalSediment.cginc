@@ -113,24 +113,31 @@ FlatCoastalSediment FlatCoastAt(float2 cell,float4 field,float4 basin,float wetS
 
 // Use the neighbouring measured depths for the bed normal and relative crest
 // height. A small sky fill preserves orientation at noon and in deep chart water.
-float FlatSeabedLight(float depth,float4 neighbours,float3 sun)
+float FlatSeabedLight(float depth,float2 slope,float crest,float3 sun)
 {
-    float2 slope=.5*float2(neighbours.y-neighbours.x,neighbours.w-neighbours.z);
     slope*=(_MapSize.x/512)/(40+depth*.14);
     float3 normal=normalize(float3(slope,1));
     float3 sky=normalize(float3(-.48,.44,.80));
     float daylight=smoothstep(.02,.42,sun.z);
     float light=(dot(normal,sky)-sky.z)*.30+(dot(normal,sun)-sun.z)*(.59*daylight);
-    float form=clamp((dot(neighbours,float4(.25,.25,.25,.25))-depth)/(70+depth*.23),-1,1);
+    float form=clamp(crest/(70+depth*.23),-1,1);
     return 1+saturate(_Relief)*clamp(light+form*.10,-.34,.27);
 }
 
 float FlatSampleSeabed(float2 cell,float3 sun,out float bedDepth)
 {
     float2 uv=cell*_MapSize.zw;
-    bedDepth=max(0,FlatVisualSample(float4(uv,0,0)).b);
+    float4 grid=FlatPolarField(FlatVisualSample(float4(uv,0,0)),uv.y);
+    float bed=grid.r;
+    float2 surveySlope=0;
+    float surveyWeight=FlatEarthRelief(uv,bed,surveySlope);
+    bedDepth=max(0,grid.b+(grid.r-bed));
     if(_Relief<.01)return 1;
     float4 west,east,south,north;FlatGroundSamples(uv,1,west,east,south,north);
-    return FlatSeabedLight(bedDepth,max(0,float4(west.b,east.b,south.b,north.b)),sun);
+    float4 neighbours=max(0,float4(west.b,east.b,south.b,north.b));
+    float2 gridSlope=.5*float2(neighbours.y-neighbours.x,neighbours.w-neighbours.z);
+    float crest=dot(neighbours,float4(.25,.25,.25,.25))-max(0,grid.b);
+    // Water depth increases in the opposite direction to bed elevation.
+    return FlatSeabedLight(bedDepth,gridSlope*(1-surveyWeight)-surveySlope,crest*(1-surveyWeight),sun);
 }
 #endif

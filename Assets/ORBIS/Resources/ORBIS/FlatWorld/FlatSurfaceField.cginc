@@ -4,6 +4,15 @@
 #include "FlatReliefProjection.cginc"
 #include "../GeographicCoordinates.cginc"
 float4 _MapSize;
+#include "FlatEarthRelief.cginc"
+float4 _PoleBedDepth;
+// All meridians meet at one bed and depth. Preserve the measured terminal ring.
+float4 FlatPolarField(float4 field,float latitudeUV)
+{
+    float2 pole=latitudeUV<.5?_PoleBedDepth.xy:_PoleBedDepth.zw;
+    field.rb=lerp(pole,field.rb,OrbisPolarRingWeight(latitudeUV,_MapSize.y));
+    return field;
+}
 float _FieldReady,_SmoothTerrain,_Vegetation,_Bathymetry,_Relief;
 float _LocalPhysicalArtwork;
 // One longitude cell sets the prop width. Match its ground length north/south
@@ -52,7 +61,7 @@ float4 FlatField(float2 cell)
     float4 field=FlatCubic(FlatFieldRow(centre-dy,t.x),FlatFieldRow(centre,t.x),
                           FlatFieldRow(centre+dy,t.x),FlatFieldRow(centre+dy*2,t.x),t.y);
     field.g+=FlatShoreDetail(cell)*(1-smoothstep(.2,.9,abs(field.g)));
-    return field;
+    return FlatPolarField(field,cell.y*_MapSize.w);
 }
 float2 FlatBlendUV(float2 cell)
 {
@@ -179,11 +188,12 @@ void FlatGroundSamples(float2 uv,float steps,out float4 west,out float4 east,out
     float sl,cl,s,c;sincos(latitude,sl,cl);sincos(angle,s,c);
     float longitudeStep=OrbisGeographicAtan2(s,cl*c)/6.283185307;
     float sideV=.5+OrbisGeographicAtan2(sl*c,length(float2(cl*c,s)))/3.141592654;
-    west=FlatVisualSample(float4(uv.x-longitudeStep,sideV,0,0));
-    east=FlatVisualSample(float4(uv.x+longitudeStep,sideV,0,0));
+    west=FlatPolarField(FlatVisualSample(float4(uv.x-longitudeStep,sideV,0,0)),sideV);
+    east=FlatPolarField(FlatVisualSample(float4(uv.x+longitudeStep,sideV,0,0)),sideV);
     float2 dy=float2(0,angle/3.141592654);
-    south=FlatVisualSample(float4(FlatMeridianSample(uv-dy),0,0));
-    north=FlatVisualSample(float4(FlatMeridianSample(uv+dy),0,0));
+    float2 southUV=FlatMeridianSample(uv-dy),northUV=FlatMeridianSample(uv+dy);
+    south=FlatPolarField(FlatVisualSample(float4(southUV,0,0)),southUV.y);
+    north=FlatPolarField(FlatVisualSample(float4(northUV,0,0)),northUV.y);
 }
 // Height difference per equatorial tile of ground distance, along east and north.
 float2 FlatFieldGradient(float2 cell,float useDepth)
@@ -240,7 +250,7 @@ float FlatWetMineral(float retention,float wetness,float canopy)
 // A second, geodesic stencil describes the mountain mass around each slope.
 // Its distances cross poles and longitude seams on the sphere, independent of
 // projection, camera bearing and zoom. Only existing presentation heights are read.
-float4 FlatTerrainRelief(float2 cell,float height,float2 gradient,float4 light,float3 view,float wetMineral)
+float4 FlatTerrainRelief(float2 cell,float height,float2 gradient,float4 light,float3 view,float wetMineral,float surveyWeight)
 {
     if(_FieldReady<.5||_Relief<.01)return float4(1,1,1,0);
     float2 uv=cell*_MapSize.zw;
@@ -250,7 +260,7 @@ float4 FlatTerrainRelief(float2 cell,float height,float2 gradient,float4 light,f
     // before a sample enters that unresolved cap or crosses the pole.
     float polarDistance=min(uv.y,1-uv.y)*_MapSize.y;
     float stencilRows=4*_MapSize.y/_MapSize.x;
-    float broadWeight=smoothstep(stencilRows+.5,stencilRows+1.5,polarDistance);
+    float broadWeight=smoothstep(stencilRows+.5,stencilRows+1.5,polarDistance)*(1-surveyWeight);
     float2 slope=lerp(gradient,broadGradient,.38*broadWeight);
     float3 normal=normalize(float3(-slope/180,1));
     float direct=saturate(dot(normal,light.xyz));
@@ -273,6 +283,10 @@ float4 FlatTerrainRelief(float2 cell,float height,float2 gradient,float4 light,f
     float sheen=pow(saturate(dot(normal,halfVector)),24)*direct*light.w*wetMineral*.038;
     float strength=saturate(_Relief);
     return float4(lerp(1,clamp(shade+tint,.58,1.24),strength),sheen*strength);
+}
+float4 FlatTerrainRelief(float2 cell,float height,float2 gradient,float4 light,float3 view,float wetMineral)
+{
+    return FlatTerrainRelief(cell,height,gradient,light,view,wetMineral,0);
 }
 float FlatTerrainSnow(float coverage,float2 cell,float2 gradient,float pixelsPerTile)
 {

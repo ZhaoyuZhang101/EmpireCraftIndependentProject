@@ -8,12 +8,26 @@ Shader "Hidden/ORBIS/PolarDetailProbe"
  #include "UnityCG.cginc"
  #include "../Resources/ORBIS/FlatWorld/FlatSurfaceField.cginc"
  #include "../Resources/ORBIS/FlatWorld/LocalProjection.cginc"
- float _Latitude,_ProjectionProbe;
+ float _Latitude,_ProjectionProbe,_ProbeWaterKind;
  float4 _ProbeOrigin,_ProbeSpan;
  float4 frag(v2f_img i):SV_Target
  {
   if(_ProjectionProbe>.5)
   {
+   if(_ProjectionProbe>4.5)
+   {
+    float4 field=FlatField(_ProbeOrigin.xy*_MapSize.xy);
+    float2 gradient=0;
+    if(_ProjectionProbe>6.5)
+    {
+     float2 coast;float before=field.g;
+     FlatEarthRelief(_ProbeOrigin.xy,field.r,gradient,coast);
+     FlatApplyEarthShore(_ProbeWaterKind,field.g,coast);
+     return float4(field.g,before,coast.y,1);
+    }
+    if(_ProjectionProbe>5.5)FlatEarthRelief(_ProbeOrigin.xy,field.r,gradient);
+    return float4(field.r,field.b,gradient);
+   }
    if(_ProjectionProbe>3.5)
    {
     float2 chart=_ProbeOrigin.xy+(i.uv-.5)*_ProbeSpan.xy;

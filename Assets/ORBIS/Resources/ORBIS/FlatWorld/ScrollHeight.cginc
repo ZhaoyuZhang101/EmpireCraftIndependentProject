@@ -1,6 +1,7 @@
 #ifndef ORBIS_SCROLL_HEIGHT
 #define ORBIS_SCROLL_HEIGHT
 #include "FlatReliefProjection.cginc"
+#include "../GeographicCoordinates.cginc"
 float2 _ScrollPoleHeights;
 float ScrollSurfaceHeight(float4 field)
 {
@@ -9,7 +10,7 @@ float ScrollSurfaceHeight(float4 field)
 float ScrollRadius(float height,float2 uv,float rows)
 {
  float polar=lerp(_ScrollPoleHeights.x,_ScrollPoleHeights.y,step(.5,uv.y));
- float blend=smoothstep(0,1,min(uv.y,1-uv.y)*rows);
+ float blend=OrbisPolarRingWeight(uv.y,rows);
  return 1+lerp(polar,height,blend)*_ScrollHeightScale;
 }
 float ScrollInterpolatedRadius(float4 a,float4 b,float4 c,float4 d,float2 fraction,float2 uv,float rows)
