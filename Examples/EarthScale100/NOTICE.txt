@@ -38,31 +38,76 @@ bed of -1 metre encodes unresolved water depth. V5 Earth saves use these strait
 beds. V4 saves retain their lake-aware baseline and V1–V3 retain the raw DEM.
 Raw geometry downloads are cached under ValidationOutput/BasinWater.
 
-EarthStraitShore.bytes uses both banks and enclosed islands of the same
-Natural Earth ocean polygon. The regional shoreline blends into the gameplay
-coast outside each passage. Its fine pages sample at 512 pixels per degree
-(217 m north to south); source accuracy is limited by the 1:10m cartography.
-python Tools/EarthScale100/bake_strait_shore.py --check verifies the atlas.
+EarthStraitShore.bytes uses both banks and enclosed islands of the Natural
+Earth v5.1.2 1:10 million Ocean polygon (public domain). It covers 18 straits
+and their approaches, coastal river endpoints, and 14 wider river-mouth or
+estuary regions. These include the Nile delta, Pearl delta, Yangtze estuary,
+Hangzhou Bay, Meghna estuary and Amazon mouth. Regions blend into the gameplay
+coast at their margins. The strait shore samples are 217 m apart north to south.
+Estuary samples are 434 m apart. Source accuracy is limited by the original
+cartography. New Earth maps and V5 saves use this regional coast. Older saves
+retain their own shoreline baseline.
+https://github.com/nvkelso/natural-earth-vector/blob/v5.1.2/geojson/ne_10m_ocean.geojson
+https://www.naturalearthdata.com/about/terms-of-use/
+python Tools/EarthScale100/bake_strait_shore.py --check reconstructs the atlas.
 
-EarthRivers.bytes uses the Natural Earth v5.1.2 Rivers + Lake Centerlines
-layer at 1:10 million, also in the public domain. It contains 634 drawable
-line parts from 273 nonempty source features, plus one Yangtze estuary reach.
+FlatNileCropland uses the ESA WorldCover 10 m 2021 v200 map by Zanaga et al.
+(2022), licensed under Creative Commons Attribution 4.0 International.
+© ESA WorldCover project 2021 / Contains modified Copernicus Sentinel data
+(2021) processed by ESA WorldCover consortium.
+ORBIS clips the native cropland class to the public-domain Natural Earth
+v5.1.2 Nile Delta landform. It aggregates crop area on a 0.05-degree grid
+and quantizes fractions in fifteenths. Ground cover and root-zone moisture
+are ecological representations of these fields. The game keeps its own
+precipitation, water levels, water budgets and stored climate classifications.
+https://doi.org/10.5281/zenodo.7254221
+https://creativecommons.org/licenses/by/4.0/
+https://github.com/nvkelso/natural-earth-vector/blob/v5.1.2/geojson/ne_10m_geography_regions_polys.geojson
+python Tools/EarthScale100/bake_nile_cropland.py --check reproduces the table.
+
+EarthRivers.bytes uses the public-domain Natural Earth v5.1.2 Rivers + Lake
+Centerlines at 1:10 million. The player atlas includes 704 drawable parts.
 The Yangtze changes from a river line into the Ocean polygon at Zhenjiang. Its
 chart centreline follows connected water pixels between the mapped banks and
 islands to the mouth identified by the 1:110 million Chang river endpoint.
-Selection uses scale rank up to 5 and
-minimum zoom up to 4.7, with named connecting reaches in the bake script.
-The bake preserves multipart boundaries and shared confluences, simplifies
-bends at about 0.8 km tolerance in a local latitude-adjusted metric, and
-stores 16-bit geographic coordinates. The original scale rank controls line
-weight. Water depth and animation are illustrative. ETOPO endpoint elevations
-orient the optical current where the source line was digitized upstream.
+Selection uses scale rank up to 5 and minimum zoom up to 4.7, with named
+regional rivers and connecting reaches listed in the bake script. The bake
+preserves multipart boundaries and shared confluences. Generalized courses
+are simplified at about 145 m tolerance in a local ground metric before
+registration to the available transects. ORV2 encodes normalized
+24-bit coordinates and full width in metres at 76,957 vertices. Encoding
+precision does not increase the positional accuracy of the source cartography.
+Water depth and animation are illustrative. ETOPO endpoint elevations orient
+the optical current where the source line was digitized upstream. Charted
+tidal extensions run from the upstream survey toward their marine receiver.
+At player zoom, turns resolvable on screen are rounded within the surveyed
+channel. The original station remains inside both banks. Confluences and
+terminal positions are fixed. Land, river-map ink and the vegetation test
+use the same channel geometry.
 Rainfall, runoff and gameplay drainage continue to use the simulated catchments.
 https://github.com/nvkelso/natural-earth-vector/blob/v5.1.2/geojson/ne_10m_rivers_lake_centerlines.geojson
 https://github.com/nvkelso/natural-earth-vector/blob/v5.1.2/geojson/ne_110m_rivers_lake_centerlines.geojson
 
-python Tools/EarthScale100/bake_player_rivers.py --check verifies the offline
-river resource from its pinned SHA-256 sources. It uses NumPy, Pillow, SciPy and Shapely 2.
+Allen, G. H. and Pavelsky, T. M. Global River Widths from Landsat (GRWL),
+summary statistics V01.02 and vector V01.01, CC BY 4.0. ORBIS matches the
+surveyed courses to nearby parallel Landsat reaches. In 13 tiles covering the
+Nile delta and selected Chinese and Indian rivers, it uses local medians of
+13 adjacent 30 m transects. In other regions it uses the observed reach median
+where available. Short gaps interpolate along the same river. In long gaps
+the width tends toward the typical matched width for the same map prominence.
+Widths are optical estimates near the satellite product's reference discharge.
+They are not measurements of river flow. Within continuous, identifiable
+GRWL reaches the baked centreline follows ordered Landsat transects. Shared
+junctions and mapped outlets are pinned. Ambiguous arms and observation gaps
+retain the Natural Earth course. Player attribution is in EarthWaterCredits.txt.
+https://zenodo.org/records/18624542
+https://doi.org/10.1126/science.aat0636
+https://creativecommons.org/licenses/by/4.0/
+
+python Tools/EarthScale100/bake_player_rivers.py --check reconstructs the
+player river resource from checksum-verified source geometry and width data.
+The optional full GRWL_vector_V01.01.zip in the bake cache can supply the 13
+attribute tables offline. Otherwise the baker requests only those byte ranges.
 
 EarthMajorLakes.bytes uses the Natural Earth lakes, the enclosed Caspian
 polygon and four HydroLAKES shorelines. The 8192 by 4096 atlas encodes signed great-circle distances from

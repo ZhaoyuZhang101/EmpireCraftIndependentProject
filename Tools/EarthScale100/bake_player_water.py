@@ -22,6 +22,8 @@ LAYERS = {
     "ocean": "f9696a1337c746a0f6c8c13bc60d0f230d2ef8d105198d5657726c8f8e763fc2",
     "lakes": "2d036f53dedec578001c5c30c2959ee7d4eebc1306900fa4367c49929ec8f2d9",
     "rivers_lake_centerlines": "bb854a900ecbd3b408df46d5e16e3e0f974ba55993f9d8b5c26e855273c0905a",
+    "rivers_lake_centerlines_scale_rank": "65dca1bd1729a347dda0837f41b5d152252e33abd2d7ff3370a0539c33bdf89b",
+    "geography_regions_polys": "b7b26e50ea917d3696aec87f932def2bf5f890f5770e441d59c162c6f4c92a77",
 }
 DRY, MARINE, PASSAGE = -32768, -32767, -32766
 

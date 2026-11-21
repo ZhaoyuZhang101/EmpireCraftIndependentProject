@@ -71,6 +71,8 @@ Shader "ORBIS/Surface"
    // Surface never includes OrbisOptics/OrbisWater/CloudCommon. Atmospheric volume
    // stays in its camera pass. Nine samplers; no ray-march or nested atmosphere paths.
    #define ORBIS_FLAT_NO_SWE
+   #pragma multi_compile_local_fragment __ ORBIS_RIVER_RASTER ORBIS_RIVER_VECTORS
+   #define ORBIS_SURFACE_RIVER_VARIANTS 1
    #include "FlatWorld/Water/FlatWater.cginc"
    #include "FlatWorld/FlatCloudCover.cginc"
    #include "FlatWorld/Water/FlatWaterReflection.cginc"
@@ -131,15 +133,17 @@ Shader "ORBIS/Surface"
      float surveyWeight=FlatEarthRelief(uv,field.r,terrainGradient,surveyCoast);
      float surveyStrait=FlatSurveyBasinShore(uv,cell,_FlatInfo,info.g,field.g,surveyCoast);
      float surveyLake=FlatEarthLake(uv,info.g,surveyStrait,field.g);
-     col=tex2D(_FlatTerrain,lerp(tileUV,FlatBlendUV(FlatEcotoneCell(cell,field.g)),_SmoothTerrain)).rgb;
+     col=FlatEcotoneAlbedo(_FlatTerrain,cell,field.g,_SmoothTerrain);
      season=FlatSurfaceSeason(cell,radial);
      float aa=FlatEarthShoreAA(uv,clamp(.65/max(1,pixelsPerTile),.008,.28),surveyStrait),edgeDistance;
-     float4 river=FlatRiverReceiver(cell,tileUV,hydro,mixing,field);
+     float2 riverBank;
+     float4 river=FlatRiverReceiver(cell,tileUV,hydro,mixing,field,riverBank);
      float closeRiver,riverInk=FlatRiverMapInk(cell,river,closeRiver);
      if(_RiverMap>.5)riverMapColor=FlatRiverMapColor(cell,_FlatInfo,info.g,field,aa,riverInk,surveyLake);
      riverOverviewInk=riverInk*(1-closeRiver)*(1-smoothstep(-.04,.08,field.g));
-     channel=FlatRiverSectionAt(cell,river,field);
-     water=FlatWaterMask(channel.edge,field.g,aa,edgeDistance);
+     river=FlatRiverDisplaySample(river,pixelsPerTile);
+     channel=FlatRiverSectionAt(cell,river,field,riverBank);
+     water=FlatDisplayedWaterMask(channel.edge,field.g,aa,pixelsPerTile,edgeDistance);
      float4 substrate=FlatNaturalGround(_GeoTex,cell,geo,pixelsPerTile,water);
      float surfaceWetness=lerp(substrate.a,season.a,saturate(_VegetationSeasonReady));
      col=FlatEcotoneColor(col,cell,field.a,substrate.a);

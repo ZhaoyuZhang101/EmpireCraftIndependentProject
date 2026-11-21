@@ -20,7 +20,8 @@ float3 FlatVegetation(float3 col,float2 cell,float canopy,float pixelsPerTile,PD
  float4 plant=FlatCanopyPlacement(cell);
  float scale=lerp(1,FlatArtworkLatitudeScale(plant.y*_MapSize.w),_LocalPhysicalArtwork);
  float2 offset=PDPlantPixel(view,cell,plant.xy,scale)/16;
- return FlatCanopyColor(col,cell,canopy,pixelsPerTile,plant.zw,offset);
+ float edge=FlatPlantRiverEdge(plant.xy,pixelsPerTile);
+ return FlatCanopyColor(col,cell,canopy,pixelsPerTile,plant.zw,offset,edge);
 }
 #include "FlatAmbientLife.cginc"
 float PDTreeSize(float2 id,float4 placement,float4 info,float4 ecology)
@@ -47,12 +48,12 @@ float PDTreeSize(float2 id,float4 placement,float4 info,float4 ecology)
   float coastalSize=(1.5-shore*cellKm)/(length(float2(21,40))*pixelKm);
   size=lerp(size,min(size,coastalSize),strait.y);
  }
- if(FlatRiverFieldReady())return FlatRiverAtlasClear(id+root,.15)?size:0;
- float2 centreUV=(id+.5)*_MapSize.zw;
- float4 hydro=tex2Dlod(_HydroA,float4(centreUV,0,0));
- float4 river=tex2Dlod(_HydroB,float4(centreUV,0,0));
- float4 reach=FlatLegacyRiverSample(root,hydro,floor(river.a+.5),river.r,centreUV);
- return reach.r>=.15+FlatLegacyRiverWidthDelta(length(reach.ba),FlatRiverStage(id+root))?size:0;
+ float bank=FlatPlantRiverEdge(id+root,_PixelsPerTile);
+ if(bank<.15)return 0;
+ // Cap the whole map symbol at the geographic bank. The same sized tree
+ // supplies its upright artwork, cast shadow and reflection.
+ float extent=length(float2(21,40))*FlatTreeLatitudeScale(id,placement.y)/32;
+ return min(size,bank/max(.0001,extent));
 }
 bool PDTreeAvailable(float2 id,float4 placement,float4 info,float4 ecology)
 {return PDTreeSize(id,placement,info,ecology)>0;}

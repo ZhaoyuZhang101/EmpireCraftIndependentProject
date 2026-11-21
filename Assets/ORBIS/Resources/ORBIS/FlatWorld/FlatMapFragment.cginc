@@ -1,6 +1,6 @@
    // Map readability (globals, 0 = off): minimum on-screen width of main
    // channels when zoomed out, and a clear-water tint for river channels.
-   float _RiverMinPixels,_RiverTint;
+   float _RiverTint;
 #ifdef ORBIS_LOCAL_SURFACE
    float4 _LocalFocus,_LocalEditFootprint;
    float FlatFocusCorners(float2 pixels,float radius)
@@ -64,19 +64,13 @@
     }
     float edgeDistance;
     float aa=FlatEarthShoreAA(i.uv,clamp(.65/max(1,_PixelsPerTile),.008,.28),surveyStrait);
-    float4 river=FlatRiverReceiver(cell,uv,hydro,mixing,field);
+    float2 riverBank;
+    float4 river=FlatRiverReceiver(cell,uv,hydro,mixing,field,riverBank);
     float overviewInk=0,closeRiver=0;
     if(_WaterView>.5||_RiverMap>.5)overviewInk=FlatRiverMapInk(cell,river,closeRiver);
     float riverRadius=length(river.ba);
-    [branch] if(_RiverMinPixels>0&&river.r<1&&riverRadius>.0001)
-    {
-     // Larger discharge (wider channel) earns more of the minimum. The atlas
-     // field reaches ~0.3 tile beyond a reach, so the widened edge stays inside it.
-     float wanted=min(.28,_RiverMinPixels*.5/max(1,_PixelsPerTile))*smoothstep(.03,.10,riverRadius);
-     float grow=max(0,wanted-riverRadius);
-     river.r-=grow;river.ba*=(riverRadius+grow)/riverRadius;
-    }
-    float waterMask=FlatWaterMask(river.r,field.g,aa,edgeDistance);
+    river=FlatRiverDisplaySample(river,_PixelsPerTile);
+    float waterMask=FlatDisplayedWaterMask(river.r,field.g,aa,_PixelsPerTile,edgeDistance);
     float polarIce=FlatPolarIceMask(i.uv,waterMask,0)*naturalView;
     float landSnow=FlatLandSnow(cell,_InfoTex)*(1-waterMask)*naturalView;
     float4 season=float4(1,1,0,.5);
@@ -124,8 +118,7 @@
     float permanentIce=max(polarIce,landSnow*snowSurface/max(.00001,snowCover));
     if(naturalView>.5)
     {
-     float2 ecologyCell=FlatEcotoneCell(cell,field.g);
-     col=tex2D(_MainTex,FlatBlendUV(ecologyCell)).rgb;
+     col=FlatEcotoneAlbedo(_MainTex,cell,field.g,1);
      col=FlatEcotoneColor(col,cell,field.a,substrate.a);
      col=lerp(col,FlatSeasonGround(col,field.a,season),1-waterMask);
      if(_DetailWeight<1)col=lerp(FlatVegetation(col,cell,field.a,_PixelsPerTile,plantView),col,_DetailWeight);
@@ -147,7 +140,7 @@
      FlatEarthLakeOptics(surveyLake,field.g,areaOptics,wetSupport);
      float beachScale=FlatEarthBeachScale(surveyStrait*(1-surveyLake));
      FlatCoastalSediment coast=FlatCoastAt(cell,field,areaOptics,wetSupport,edgeDistance,frozen,_WaterClock,beachScale);
-     FlatRiverSection channel=FlatRiverSectionAt(cell,river,field);
+     FlatRiverSection channel=FlatRiverSectionAt(cell,river,field,riverBank);
      float sediment=FlatReachSediment(cell,channel,field.g,mixing.g);
      field.b=areaOptics.r;mixing.gb=areaOptics.gb;
      mixing.g=lerp(mixing.g,sediment,channel.influence);

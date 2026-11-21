@@ -193,12 +193,16 @@ namespace Orbis.Flat
                 float subtropics=(float)Math.Exp(-Math.Pow((degrees-24)/13,2));
                 float equatorial = (float)Math.Exp(-Math.Pow(degrees / 11, 2));
                 float tropical = (float)Math.Exp(-Math.Pow((degrees - 16) / 14, 2));
+                float premonsoonBelt = (float)Math.Exp(-Math.Pow((degrees-17)/15,2));
+                double coldLatitude = Math.Sqrt(s);
                 float hemisphere = (float)Math.Tanh(6 * sine);
                 float seaLevel = (float)(27 - 46 * Math.Pow(s, 2.8));
                 float latitudeDegrees = (float)(latitude * 180 / Math.PI);
                 var solar = SolarResidual(latitude);
                 double stormBearing = -125 * Math.PI / 180;
                 var storm = new AirPath(latitude, Math.Atan2(Math.Sin(stormBearing), Math.Cos(stormBearing) * hemisphere), width, height);
+                double coldBearing = -Math.PI / 6;
+                var coldWind = new AirPath(latitude, Math.Atan2(Math.Sin(coldBearing), Math.Cos(coldBearing) * hemisphere), width, height);
                 var upwind = new AirPath(latitude, -Math.PI / 2, width, height);
                 var north = new AirPath(latitude, 0, width, height);
                 var south = new AirPath(latitude, Math.PI, width, height);
@@ -227,19 +231,28 @@ namespace Orbis.Flat
                     // ridge limits that inflow. A poleward range shelters the winter lowlands.
                     float barrier = Math.Max(0, storm.Read(relief, x, width) - z);
                     float marineAir = (float)Math.Exp(-barrier / 1.2f) * storm.Read(nearbySea, x, width);
-                    float winterHeat = 5.4534f*snow*marineAir + 3.4057f*s*FMath.Clamp(poleward-z, -3, 3);
-                    annual += coupling * (-.6786f*equatorial + 2.0840f*subtropics*land - 3.5277f*subtropics*coastContrast[i]
-                        - 2.6988f*s*FMath.Clamp(upwind.Read(relief, x, width)-z, -3, 3) + .5f*winterHeat);
-                    amplitude += coupling * (1.4348f*sine*(marine-nearbySea[i]) - .5f*hemisphere*winterHeat);
-                    lag -= coupling * .6811f*tropical*hemisphere;
+                    float westRelief = upwind.Read(relief, x, width)-z;
+                    float coldBarrier = Math.Max(0, coldWind.Read(relief, x, width)-z);
+                    float coldSource = (1-coldWind.Read(nearbySea, x, width))*(east[x]+Math.Max(0,westRelief))
+                        *(float)(coldLatitude*Math.Exp(-coldBarrier/1.2f));
+                    float winterHeat = 5.8070f*snow*marineAir + 2.5175f*s*FMath.Clamp(poleward-z, -3, 3) - 1.3023f*coldSource;
+                    // Dry ground heats ahead of summer maritime inflow. On a
+                    // high plateau the warm-season free-air lapse is steeper.
+                    float seaContrast = hemisphere*(south.Read(nearbySea, x, width)-north.Read(nearbySea, x, width));
+                    float premonsoon = Math.Max(0,seaContrast)*(1+Math.Max(0,poleward-z))*premonsoonBelt;
+                    float summerLapse = -.6556f*source[i];
+                    annual += coupling * (-.6123f*equatorial + 2.7301f*subtropics*land - 3.5319f*subtropics*coastContrast[i]
+                        - 2.2503f*s*FMath.Clamp(westRelief, -3, 3) + .5f*(winterHeat+summerLapse));
+                    amplitude += coupling * (2.1601f*sine*(marine-nearbySea[i]) + .5f*hemisphere*(summerLapse-winterHeat));
+                    lag -= coupling * hemisphere*(.4912f*tropical+.5713f*premonsoon);
                     float excursion = 5 + 23*land + 4*Math.Min(2, poleward)*land;
                     for (int m = 0; m < 12; m++)
                     {
                         float c = Summer[m], q = Lag[m];
                         float fromConvergence = (latitudeDegrees - excursion*c) / 13;
-                        float radiative = 1.2153f*solar[m] + 2.8301f*land*solar[(m+11)%12];
-                        float snowShape = s2*land*(-1.6596f*(2*c*c-1) + 1.0035f*(2*c*q));
-                        float cloudCooling = .9578f*(float)Math.Exp(-fromConvergence*fromConvergence);
+                        float radiative = 1.2139f*solar[m] + 2.8346f*land*solar[(m+11)%12];
+                        float snowShape = s2*land*(-1.6792f*(2*c*c-1) + 1.0032f*(2*c*q));
+                        float cloudCooling = .7768f*(float)Math.Exp(-fromConvergence*fromConvergence);
                         w.Temperature[off+m] = FMath.Clamp(annual + amplitude*c + lag*q
                             + coupling*(radiative + snowShape - cloudCooling), -85, 55);
                     }

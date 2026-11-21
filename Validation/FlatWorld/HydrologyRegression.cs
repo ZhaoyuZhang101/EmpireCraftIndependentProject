@@ -227,6 +227,52 @@ static class HydrologyRegression
   for(int i=0;i<w.Count;i++)
    Check(Math.Abs(w.Runoff[i]-incoming[i]-local[i])<.00001*Math.Max(1,w.Runoff[i]),"A junction lost or duplicated annual discharge");
  }
+ static void ValidateProceduralMouths(WorldData world)
+ {
+  var terminal=new WaterKind[world.Count];
+  int sea=0,lake=0,inland=0,overlap=0;
+  foreach(int i in world.DrainOrder)
+  {
+   if(world.Water[i]!=WaterKind.River)continue;
+   int next=world.Downstream[i];
+   if(next<0)
+   {
+    for(int d=0;d<4;d++) Check(world.WaterLevel[world.SphereNeighbor(i,d)]>=world.WaterLevel[i],
+     "An internal river terminal must be a local minimum");
+    terminal[i]=WaterKind.River;
+   }
+   else if(FlatTerrainAnalysis.AreaWater(world.Water[next]))
+   {
+    terminal[i]=world.Water[next];
+    if(world.Facts.HalfWidth[i]>=.01f)
+    {
+     float x=next%world.Width+.5f,y=next/world.Width+.5f;
+     var curves=world.Facts.RiverCurves;
+     bool joins=false;
+     for(int s=0;s<curves.TileSegmentCount(next);s++)
+     {
+      var segment=curves.TileSegment(next,s);
+      float dx=segment.B.X-x;
+      dx-=world.Width*(float)Math.Round(dx/world.Width);
+      if(segment.Reach==i && Math.Abs(dx)<.0001f && Math.Abs(segment.B.Y-y)<.0001f)
+      { joins=true; break; }
+     }
+     Check(joins && curves.Sample(x,y).Distance<0, $"River {i} misses receiving water {next} in {world.Seed}");
+     overlap++;
+    }
+   }
+   else
+   {
+    Check(world.Water[next]==WaterKind.River && terminal[next]!=WaterKind.Land,"River stops on land or cycles");
+    terminal[i]=terminal[next];
+   }
+   if(FlatTerrainAnalysis.Ocean(terminal[i]))sea++;
+   else if(terminal[i]==WaterKind.Lake)lake++;
+   else inland++;
+  }
+  Console.WriteLine($"{world.Preset} {world.Seed}: {sea} river cells reach sea, {lake} reach a lake, {inland} internal, {overlap} rendered mouth overlaps");
+ }
+
  public static void Run()
  {
   var atlas=FlatAtlasTerrain.Read(File.ReadAllBytes("Assets/ORBIS/Resources/ORBIS/WorldAtlas/Default.bytes"),"ORBIS-2D-2026",default);
@@ -234,6 +280,7 @@ static class HydrologyRegression
   ReportNetwork(atlas,"Default atlas");
   var seeded=FlatGenerator.Generate(256,128,"ATLAS-ROUTING-REGRESSION",TerrainPreset.Continents,default);
   ReportNetwork(seeded,"Seeded continents");
+  ValidateProceduralMouths(seeded);
   DiagonalValley();LatitudeAndPole();ShallowPassThroughs();TributaryValleys();
   Console.WriteLine($"Atlas: rivers={atlas.Water.Count(x=>x==WaterKind.River)}, lakes={atlas.Water.Count(x=>x==WaterKind.Lake)}, mouths={atlas.Facts.MouthCount}, max runoff={atlas.Runoff.Max():F2}");
   float leastSediment=1,mostSediment=0;
@@ -256,6 +303,8 @@ static class HydrologyRegression
   {
    var generated=FlatGenerator.Generate(64,32,"ATLAS-ROUTING-REGRESSION",p,default);
    Validate(generated);ValidateLakeOutlets(generated);
+   ValidateProceduralMouths(generated);
+   ValidateProceduralMouths(FlatGenerator.Generate(128,64,"MOUTH-SECOND-SEED",p,default));
    var loaded=FlatSave.Decode(FlatSave.Encode(generated));
    Check(generated.Downstream.SequenceEqual(loaded.Downstream),"Save changed lake drainage");
   }

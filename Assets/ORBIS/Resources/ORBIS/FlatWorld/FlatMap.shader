@@ -70,11 +70,13 @@ Shader "ORBIS/FlatWorld/FlatMap"
    #pragma fragment frag
    #pragma target 3.0
    #include "UnityCG.cginc"
+   #pragma multi_compile_local_fragment __ ORBIS_RIVER_RASTER ORBIS_RIVER_VECTORS
+   #define ORBIS_SURFACE_RIVER_VARIANTS 1
    #include "Water/FlatWater.cginc"
    #include "FlatSkyComposite.cginc"
    sampler2D _MainTex,_OwnerTex,_InfoTex;
    float4 _Selected;
-   float _Grid,_PixelsPerTile,_Natural,_Political,_WaterView,_ShowContours,_ContourInterval,_DrawHeight;
+   float _Grid,_Natural,_Political,_WaterView,_ShowContours,_ContourInterval,_DrawHeight;
    struct appdata {float4 vertex:POSITION;float2 uv:TEXCOORD0;};
    struct v2f {float4 pos:SV_POSITION;float2 uv:TEXCOORD0;};
    v2f vert(appdata v){v2f o;o.pos=UnityObjectToClipPos(v.vertex);o.uv=v.uv;return o;}

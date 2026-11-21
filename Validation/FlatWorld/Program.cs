@@ -17,6 +17,8 @@ public static class Program {
     case "--large-raster": LargeRasterRegression(); break;
     case "--river-discharge": RiverDischargeRegression.Run(); break;
     case "--river-map": RiverMapRegression.Run(); break;
+    case "--river-widths": RiverMapRegression.CheckWidthFormat(); break;
+    case "--river-survey-mouths": RiverMapRegression.RunMouths(args.Length>1?int.Parse(args[1]):512); break;
     case "--forest-stands": ForestStandRegression.Run(); break;
     case "--wildlife": WildlifeRegression.Run(); break;
     case "--bathymetry": BathymetryRegression.Run(); break;

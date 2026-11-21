@@ -96,6 +96,30 @@ namespace Orbis.Editor
     bool pass=coverage>20&&invalid==0;
     report.Add((pass?"PASS":"FAIL")+" "+(kind==0?"tree":"building")+" artwork appears in near-shore reflection; coverage="+coverage+" invalid="+invalid);
     if(!pass)throw new Exception(report[report.Count-1]);
+    if(kind==0)
+    {
+     var bank=RiverAtlasRegression.BindUniformBank(material,8,4,.16f);
+     try
+     {
+      material.SetFloat("_PixelsPerTile",4);material.SetFloat("_RiverMinPixels",2.4f);
+      material.SetFloat("_RiverAtlasReady",1);
+      int reflections=Array.FindAll(sample(),p=>p.a>.001f).Length;
+      material.SetFloat("_ProbeMode",0);material.SetVector("_ProbeRoot",new Vector4(1.5f,.5f,0,0));
+      int wetShadows=Array.FindAll(sample(),p=>p.r>.001f).Length;
+      material.SetFloat("_RiverAtlasReady",0);
+      int dryShadows=Array.FindAll(sample(),p=>p.r>.001f).Length;
+      bool cleared=reflections==0&&wetShadows==0&&dryShadows>0;
+      report.Add((cleared?"PASS ":"FAIL ")+"tree on a widened river loses its reflection and cast shadow: "+
+       reflections+" reflected pixels, "+wetShadows+" shadow pixels, "+dryShadows+" dry control pixels");
+      if(!cleared)throw new Exception(report[report.Count-1]);
+     }
+     finally
+     {
+      material.SetFloat("_RiverAtlasReady",0);material.SetFloat("_RiverMinPixels",0);
+      material.SetFloat("_ProbeMode",1);material.SetVector("_ProbeRoot",new Vector4(1.5f,-.25f,0,0));
+      UnityEngine.Object.DestroyImmediate(bank);
+     }
+    }
     material.SetVector("_ProbeReflectionRay",new Vector4(.2f,.65f,.76f,0));var warped=sample();double difference=0;
     for(int i=0;i<reflected.Length;i++)difference+=Math.Abs(reflected[i].a-warped[i].a);
     pass=difference>20;report.Add((pass?"PASS":"FAIL")+" reflected artwork follows the wave reflection direction; delta="+difference);

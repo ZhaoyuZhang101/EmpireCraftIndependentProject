@@ -11,6 +11,83 @@ namespace Orbis.Flat
 
     public static class FlatEcology
     {
+        // Area-average the observed crop fraction over the actual player tile.
+        // Partial desert/coast cells at low resolution keep their full footprint.
+        static float NileCropFraction(int x,int y,int width)
+        {
+            var rows=FlatNileCropland.Rows;
+            double scale=FlatNileCropland.SamplesPerDegree,span=360*scale/width;
+            double west=x*span-180*scale-FlatNileCropland.West;
+            double south=y*span-90*scale-FlatNileCropland.South;
+            double radians=Math.PI/(180*scale);
+            double AreaLatitude(double yIndex) => Math.Sin((FlatNileCropland.South+yIndex)*radians);
+            double sum=0;
+            for(int row=Math.Max(0,(int)Math.Floor(south));row<Math.Min(rows.Length,Math.Ceiling(south+span));row++)
+            {
+                double dy=AreaLatitude(Math.Min(row+1,south+span))-AreaLatitude(Math.Max(row,south));
+                for(int col=Math.Max(0,(int)Math.Floor(west));col<Math.Min(rows[row].Length,Math.Ceiling(west+span));col++)
+                {
+                    char digit=rows[row][col];
+                    int crop=digit<='9'?digit-'0':digit-'a'+10;
+                    double dx=Math.Min(col+1,west+span)-Math.Max(col,west);
+                    sum+=dx*dy*crop;
+                }
+            }
+            return (float)(sum/(15*span*(AreaLatitude(south+span)-AreaLatitude(south))));
+        }
+
+        internal static void ApplyNileCropland(WorldData w,FlatTerrainFacts facts,System.Threading.CancellationToken cancel)
+        {
+            if(w.Preset!=TerrainPreset.Earth||w.WaterReference==null||w.RiverReference==null)return;
+            var rows=FlatNileCropland.Rows;
+            double scale=FlatNileCropland.SamplesPerDegree,tiles=w.Width/360.0;
+            int x0=(int)Math.Floor((180+FlatNileCropland.West/scale)*tiles);
+            int x1=(int)Math.Ceiling((180+(FlatNileCropland.West+rows[0].Length)/scale)*tiles);
+            int y0=(int)Math.Floor((90+FlatNileCropland.South/scale)*tiles);
+            int y1=(int)Math.Ceiling((90+(FlatNileCropland.South+rows.Length)/scale)*tiles);
+            for(int y=y0;y<y1;y++)
+            {
+                cancel.ThrowIfCancellationRequested();
+                for(int x=x0;x<x1;x++)
+                {
+                    int i=w.Index(x,y);
+                    if(FlatTerrainAnalysis.AreaWater(w.Water[i]))continue;
+                    float share=NileCropFraction(x,y,w.Width);
+                    if(share<=0)continue;
+                    bool original=true;
+                    for(int dy=-1;dy<=1&&original;dy++)for(int dx=-1;dx<=1;dx++)
+                    {
+                        int n=w.Index(x+dx,y+dy);
+                        if(!w.WaterReference.MatchesOriginalBed(n,w.Elevation[n])){original=false;break;}
+                    }
+                    if(!original)continue;
+                    // Irrigated herbs remain active between the two main branches.
+                    // This root-zone floor is an ecological proxy; the catchment,
+                    // monthly precipitation and runoff budgets are independent.
+                    float soilFloor=.74f*share;
+                    if(share>=.5f)
+                    {
+                        facts.Forms[i]=Landform.Floodplain;
+                        facts.Materials[i]=GroundMaterial.Silt;
+                        facts.Vegetation[i]=VegetationCover.Grassland;
+                        facts.Canopy[i]=Math.Min(facts.Canopy[i],.16f*(1-share));
+                        facts.Trees[i]=TreeSpecies.Shrub;
+                    }
+                    facts.Wetness[i]=Math.Max(facts.Wetness[i],soilFloor);
+                    if(facts.VegetationSeasons==null)continue;
+                    float coldest=float.MaxValue;
+                    byte floor=(byte)(255*soilFloor+.5f);
+                    for(int m=0;m<12;m++)
+                    {
+                        int at=SeasonOffset(w,i,m)+3;
+                        facts.VegetationSeasons[at]=Math.Max(facts.VegetationSeasons[at],floor);
+                        coldest=Math.Min(coldest,w.Temperature[12*i+m]);
+                    }
+                    BuildSeasons(w,facts,i,coldest);
+                }
+            }
+        }
+
         public static float ContinuousCanopy(Biome biome,float temperature,float annualRain,float soil,float gradient,float warmest=float.NaN)
         {
             if(biome==Biome.Water||biome==Biome.Snow||biome==Biome.Beach)return 0;

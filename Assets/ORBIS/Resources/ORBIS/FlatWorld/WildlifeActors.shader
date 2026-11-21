@@ -43,6 +43,8 @@ Shader "ORBIS/FlatWorld/WildlifeActors"
    #pragma fragment frag
    #include "UnityCG.cginc"
    #define ORBIS_FLAT_NO_SWE
+   #pragma multi_compile_local_fragment __ ORBIS_RIVER_RASTER ORBIS_RIVER_VECTORS
+   #define ORBIS_SURFACE_RIVER_VARIANTS 1
    #include "Water/FlatWater.cginc"
    #ifdef ORBIS_ATLAS_PLANTS
    #include "ScrollProjection.cginc"

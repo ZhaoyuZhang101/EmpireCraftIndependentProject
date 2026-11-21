@@ -9,8 +9,22 @@ Shader "Hidden/ORBIS/RiverOpticsProbe"
  #define ORBIS_FLAT_NO_SWE
  #include "../Resources/ORBIS/FlatWorld/Water/FlatWater.cginc"
  float _TestBend,_TestGrade,_TestWaves,_TestSediment,_TestShore,_TestOutput;
+ float _TestHeading,_TestWorldOffset;
  float4 frag(v2f_img i):SV_Target
  {
+  if(_TestOutput==6)
+  {
+   float2 cell=float2((112.632+180)/360.0,(29.751+90)/180.0)*_MapSize.xy+(i.uv-.5)*1.35;
+   cell.x+=_TestWorldOffset*_MapSize.x;
+   FlatRiverSection section=(FlatRiverSection)0;
+   section.flow=normalize(float2(_TestHeading,1));section.depth=4;section.width=.05;
+   section.edge=-section.width;section.influence=1;
+   FlatCoastalSediment coast=(FlatCoastalSediment)0;coast.shore=-2;
+   FlatWaterSurfaceData surface;
+   float3 water=FlatWaterShade(cell,0,float4(80,-2,4,0),FlatColor(float3(.50,.48,.41)),1,float3(0,0,1),
+       normalize(float3(-.46,.29,.85)),_TestWaves,3,coast,section,surface);
+   return float4(water,1);
+  }
   // Two banks of one curved watercourse at equal distances from the centre.
   float2 p=(i.uv-.5)*float2(.9,.6);
   float2 flow=normalize(float2(1,_TestBend*p.x));

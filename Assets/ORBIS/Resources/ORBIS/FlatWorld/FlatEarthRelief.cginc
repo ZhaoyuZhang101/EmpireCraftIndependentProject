@@ -164,14 +164,29 @@ float2 FlatEarthStrait(float2 uv,float footprintKm)
     float weight=data.g*FlatPresentationSample(_EarthSurveyMask,uv,0).r;
     [branch] if(weight<=0)return 0;
     float detail=smoothstep(.975,.999,data.g)*(1-smoothstep(2,6,abs(km)))*(1-smoothstep(1.2,4,footprintKm));
-    [branch] if(detail>0 && _EarthStraitDetail_TexelSize.z>=4096)
+    [branch] if(detail>0)
     {
         float fine=FlatEarthStraitPage(origin);
-        if(fine>=0)
+        if(fine>=0 && _EarthStraitDetail_TexelSize.z>=4096)
         {
             float2 page=FlatEarthStraitSlot(fine,31)*130;
             float code=FlatPresentationSample(_EarthStraitDetail,(page+1+phase*128)*_EarthStraitDetail_TexelSize.xy,0).r;
             km=lerp(km,(255*code-128)/16,detail);
+        }
+        else if(fine<0)
+        {
+            // River mouths use 64 samples per quarter degree. Two pages
+            // share the regional texture's RG channels, packed from its last row.
+            float medium=FlatEarthStraitPage(origin+float2(1,0));
+            if(medium>=0)
+            {
+                float2 page=FlatEarthStraitSlot(floor(medium*.5),31)*66;
+                page.y=_EarthStraitShore_TexelSize.w-page.y-66;
+                float2 uv2=(page+1+phase*64)*_EarthStraitShore_TexelSize.xy;
+                float2 codes=FlatPresentationSample(_EarthStraitShore,uv2,0).rg;
+                float code=lerp(codes.r,codes.g,fmod(medium,2));
+                km=lerp(km,(255*code-128)/16,detail);
+            }
         }
     }
     return float2(km*_MapSize.x/40030.2,weight);

@@ -94,6 +94,22 @@ namespace Orbis.Editor
                 float rapidFoam=Foam(Draw());
                 Check(material.GetFloat("_VendorWaterReady")>.5f&&flatFoam<.001f&&rapidFoam>flatFoam+.005f,
                     "SW3 foam appears in broken water and clears from the level reach. Peak coverage "+flatFoam+", "+rapidFoam);
+                material.SetFloat("_TestOutput",6);material.SetFloat("_TestHeading",0);
+                material.SetFloat("_RiverSurvey",1);material.SetVector("_MapSize",new Vector4(4096,2048,1f/4096,1f/2048));
+                material.SetFloat("_WaterClock",0);var still=Draw();
+                material.SetFloat("_WaterClock",.1f);var next=Draw();
+                material.SetFloat("_WaterClock",1.5f);var flowing=Draw();
+                float shortChange=Difference(still,next,.99f),travel=Difference(still,flowing,.90f);
+                Check(travel>.003f&&shortChange<.12f,$"resolved 1 km pool at Jingjiang scale, 1.5s P90 RGB change {travel:G4}, 0.1s P99 {shortChange:G4}");
+                material.SetFloat("_TestHeading",-.0001f);var west=Draw();
+                material.SetFloat("_TestHeading",.0001f);var east=Draw();
+                float heading=Difference(west,east,.99f);
+                material.SetFloat("_TestWorldOffset",1);float seam=Difference(east,Draw(),.99f);
+                material.SetFloat("_TestWorldOffset",0);material.SetFloat("_WaterClock",4.9999f);var beforeReset=Draw();
+                material.SetFloat("_WaterClock",5.0001f);float wrap=Difference(beforeReset,Draw(),.99f);
+                Check(heading<.004f&&seam<.005f&&wrap<.004f,$"SW3 material continuity P99 at northward turn {heading:G4}, longitude wrap {seam:G4}, phase reset {wrap:G4}");
+                material.SetFloat("_RiverSurvey",0);material.SetFloat("_TestOutput",4);
+                material.SetFloat("_WaterClock",0);material.SetVector("_MapSize",new Vector4(512,256,1f/512,1f/256));
                 material.SetFloat("_TestWaves",0);
                 material.SetFloat("_TestGrade",0);
                 material.SetFloat("_TestShore",-.0002f);
@@ -136,6 +152,14 @@ namespace Orbis.Editor
             float foam=0;
             for(int y=30;y<Side-30;y++)for(int x=0;x<Side;x++)foam=Mathf.Max(foam,1-pixels[y*Side+x].a);
             return foam;
+        }
+
+        static float Difference(Color[] a,Color[] b,float quantile)
+        {
+            var differences=new float[a.Length];
+            for(int i=0;i<a.Length;i++)
+                differences[i]=Mathf.Max(Mathf.Abs(a[i].r-b[i].r),Mathf.Max(Mathf.Abs(a[i].g-b[i].g),Mathf.Abs(a[i].b-b[i].b)));
+            Array.Sort(differences);return differences[(int)((differences.Length-1)*quantile)];
         }
     }
 }

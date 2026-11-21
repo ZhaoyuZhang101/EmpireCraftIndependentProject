@@ -94,6 +94,7 @@ namespace Orbis.Editor
     for(int i=0;i<land.Length;i++){warp=Mathf.Max(warp,land[i].r);seam=Mathf.Max(seam,land[i].g);waterMotion=Mathf.Max(waterMotion,water[i].r);}
     if(warp<.001f||waterMotion>1e-5f||seam>1e-5f)throw new Exception("Ecotone warp/seam/water "+warp+" "+seam+" "+waterMotion);
     report.Add("PASS spherical ecotone noise, continuous date-line, unchanged water coordinates; displacement="+warp+" seam="+seam);
+    CheckCoastalEcotone(ecotone,render,owned,report);
     var shape=OrbisCloudNoise.Create();var detail=OrbisCloudNoise.CreateDetail();var ice=OrbisCloudNoise.CreateHighDetail();
     owned.Add(shape);owned.Add(detail);owned.Add(ice);
     if(shape.width!=128||detail.width!=64)throw new Exception("Wrong cloud volume resolution");
@@ -170,6 +171,39 @@ namespace Orbis.Editor
    }
   }
 
+  static void CheckCoastalEcotone(Material probe,Func<Material,Color[]> render,List<UnityEngine.Object> owned,List<string> report)
+  {
+   // A north coast in a 4096-column world. At this dry delta site the
+   // production spherical warp crosses several cells before sampling colour.
+   const int rows=2048,coastRow=1381;
+   var terrain=new Texture2D(1,rows,TextureFormat.RGBA32,false,true){filterMode=FilterMode.Bilinear,wrapMode=TextureWrapMode.Clamp};
+   var visual=new Texture2D(1,rows,TextureFormat.RGBAFloat,false,true){filterMode=FilterMode.Bilinear,wrapMode=TextureWrapMode.Clamp};
+   owned.Add(terrain);owned.Add(visual);
+   var albedo=new Color[rows];var field=new Color[rows];
+   for(int y=0;y<rows;y++)
+   {
+    albedo[y]=y>=coastRow+2?Color.blue:Color.green;
+    field[y]=new Color(0,Mathf.Clamp(y-coastRow+.5f,-8,8),0,0);
+   }
+   terrain.SetPixels(albedo);terrain.Apply();visual.SetPixels(field);visual.Apply();
+   probe.SetTexture("_ProbeTerrain",terrain);probe.SetTexture("_VisualTex",visual);
+   probe.SetVector("_MapSize",new Vector4(4096,rows,1f/4096,1f/rows));
+   probe.SetVector("_ProbeCell",new Vector4((30.85f/360+.5f)*4096,(31.16f/180+.5f)*rows,1,0));
+   probe.SetFloat("_ProbeShore",-2);
+   var dry=render(probe)[0];
+   CheckRenderState(report,dry.g>.99f && dry.b<.01f,"delta land retains its terrestrial albedo when the ecotone reaches offshore");
+   probe.SetVector("_ProbeCell",new Vector4(2400.5f,1385.5f,1,0));probe.SetFloat("_ProbeShore",4);
+   var sea=render(probe)[0];
+   CheckRenderState(report,sea.b>.99f && sea.g<.01f,"a wet receiver retains its water-albedo coordinate");
+   // Land reclaimed at the destination must immediately participate in the
+   // ecological blend. Keep a distinct terrestrial colour there to detect it.
+   for(int y=0;y<rows;y++){field[y].g=-8;if(y>=coastRow+2)albedo[y]=Color.red;}
+   visual.SetPixels(field);visual.Apply();terrain.SetPixels(albedo);terrain.Apply();
+   probe.SetVector("_ProbeCell",new Vector4((30.85f/360+.5f)*4096,(31.16f/180+.5f)*rows,1,0));
+   probe.SetFloat("_ProbeShore",-8);
+   var inland=render(probe)[0];
+   CheckRenderState(report,inland.r>.99f && inland.g<.01f,"edited inland terrain retains its warped land-to-land blend");
+  }
   static void ValidateRegionalCadence(List<string> report)
   {
    if(!Application.isPlaying)return;

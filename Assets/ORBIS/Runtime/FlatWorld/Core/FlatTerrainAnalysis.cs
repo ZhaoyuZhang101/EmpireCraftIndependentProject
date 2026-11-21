@@ -284,6 +284,7 @@ namespace Orbis.Flat
                 else f.Sediment[i]=w.Water[i]==WaterKind.River?FMath.Clamp(.025f+concentration,.025f,.85f):0;
                 if(parent>=0)sedimentLoad[parent]+=sedimentLoad[i]*.99f;
             }
+            FlatEcology.ApplyNileCropland(w,f,cancel);
             FlatEcology.CompleteSeasonAtlas(w,f);
             BuildPlumes(w,f,cancel);FlatSurfaceSampling.BuildShore(w,f,cancel);
             f.RiverCurves=FlatRiverCurves.Build(w,f,cancel);w.Facts=f;

@@ -9,6 +9,145 @@ namespace Orbis.Editor
 {
     public static class RiverAtlasRegression
     {
+        // Every root sees the same signed river-bank distance. The screen
+        // receiver can be dry, including when relief has moved its foliage.
+        internal static Texture2D BindUniformBank(Material material,int width,int height,float edge)
+        {
+            var texture=new Texture2D(width,height+4,TextureFormat.RGBAFloat,false,true);
+            var header=new Color[width*height];
+            for(int i=0;i<header.Length;i++)header[i]=new Color(1,0,0,0);
+            texture.SetPixels(0,0,width,height,header);
+            WriteUniformBank(texture,edge);
+            material.SetTexture("_RiverAtlas",texture);
+            material.SetVector("_RiverAtlasLayout",new Vector4(width,height+4,4,height));
+            return texture;
+        }
+        internal static void WriteUniformBank(Texture2D texture,float edge)
+        {
+            var bank=new Color[16];
+            for(int i=0;i<bank.Length;i++)bank[i]=new Color(edge,1,.1f,0);
+            texture.SetPixels(0,texture.height-4,4,4,bank);texture.Apply();
+        }
+
+        // The old sampling checks run at the atlas lattice nodes. These points
+        // lie between nodes on real Chinese rivers, including their confluences.
+        public static void CheckSurveyFootprint(FlatMapRenderer map)
+        {
+            var curves=map.World.Facts.RiverCurves;
+            if(!map.RiverAtlasReady||!curves.HasSurvey)throw new InvalidOperationException("Expected a published Earth river field.");
+            var positions=new List<Vector2>();var expected=new List<FlatRiverSample>();
+            var joins=new List<Vector2>();
+            int measuredSections=0;
+            void AddControl(Vector2 p)
+            {
+                var sample=curves.Sample(p.x,p.y);
+                if(sample.HalfWidth<=0||Mathf.Abs(sample.Distance)>1.5f*sample.HalfWidth)return;
+                // Two equally distant branches can pick different flow/depth
+                // at their medial boundary after finite-precision upload.
+                float step=Mathf.Min(.002f,sample.HalfWidth*.15f);
+                var a=curves.Sample(p.x-step,p.y+step);var b=curves.Sample(p.x+step,p.y-step);
+                if(Mathf.Abs(a.HalfWidth-b.HalfWidth)>.001f||a.FlowX*b.FlowX+a.FlowY*b.FlowY<.94f)return;
+                positions.Add(p);expected.Add(sample);
+            }
+            for(int index=0;index<curves.ActiveTileCount;index++)
+            {
+                int tile=curves.GetActiveTile(index),x=tile%curves.Width,y=tile/curves.Width;
+                double lon=(x+.5)/curves.Width*360-180,lat=(y+.5)/curves.Height*180-90;
+                if(lon<100||lon>123||lat<20||lat>41)continue;
+                for(int j=0;j<5;j++)for(int i=0;i<5;i++)
+                    AddControl(new Vector2(x+(i+.37f)/5,y+(j+.63f)/5));
+                // GRWL reaches can be narrower than the off-lattice grid.
+                // Probe both banks at each actual Chinese segment's midpoint.
+                for(int j=0;j<curves.TileSegmentCount(tile);j++)
+                {
+                    var edge=curves.TileSegment(tile,j);
+                    var mid=new Vector2((edge.A.X+edge.B.X)*.5f,(edge.A.Y+edge.B.Y)*.5f);
+                    if((int)mid.x!=x||(int)mid.y!=y)continue;
+                    int id=curves.TileSegmentIndex(tile,j);
+                    if(id>0)
+                    {
+                        var previousSegment=curves.SegmentAt(id-1);
+                        var station=new Vector2(edge.A.X,edge.A.Y);
+                        var previousEnd=new Vector2(previousSegment.B.X,previousSegment.B.Y);
+                        if(previousSegment.Reach==edge.Reach&&(station-previousEnd).sqrMagnitude<1e-8f&&
+                            edge.A.FlowX*previousSegment.B.FlowX+edge.A.FlowY*previousSegment.B.FlowY>.995f)
+                        {
+                            float epsilon=Mathf.Clamp(edge.A.Radius*.005f,.0003f,.002f);
+                            joins.Add(Vector2.MoveTowards(station,new Vector2(previousSegment.A.X,previousSegment.A.Y),epsilon));
+                            joins.Add(Vector2.MoveTowards(station,new Vector2(edge.B.X,edge.B.Y),epsilon));
+                        }
+                    }
+                    float metric=Mathf.Max(.08f,Mathf.Cos((mid.y/curves.Height-.5f)*Mathf.PI));
+                    var perpendicular=new Vector2(edge.A.Y-edge.B.Y,(edge.B.X-edge.A.X)*metric).normalized;
+                    perpendicular.x/=metric;
+                    perpendicular*=(edge.A.Radius+edge.B.Radius)*.5f;
+                    AddControl(mid);AddControl(mid+perpendicular*.8f);AddControl(mid-perpendicular*.8f);
+                    AddControl(mid+perpendicular*1.2f);AddControl(mid-perpendicular*1.2f);
+                    measuredSections++;
+                }
+            }
+            if(measuredSections<100||positions.Count<12)throw new Exception("Insufficient sub-cell Chinese river controls.");
+            const int width=256;int height=(positions.Count+width-1)/width;
+            var points=new Texture2D(width,height,TextureFormat.RGBAFloat,false,true){filterMode=FilterMode.Point};
+            var pixels=new Texture2D(width,height,TextureFormat.RGBAFloat,false,true);
+            var material=new Material(AssetDatabase.LoadAssetAtPath<Shader>("Assets/ORBIS/Editor/RiverAtlasProbe.shader"));
+            var target=RenderTexture.GetTemporary(width,height,0,RenderTextureFormat.ARGBFloat,RenderTextureReadWrite.Linear);
+            var previous=RenderTexture.active;
+            try
+            {
+                var input=new Color[width*height];
+                for(int i=0;i<positions.Count;i++)input[i]=new Color(positions[i].x,positions[i].y,0,0);
+                points.SetPixels(input);points.Apply();
+                material.SetTexture("_ProbeCells",points);material.SetFloat("_ProbePoints",1);
+                material.SetTexture("_RiverAtlas",map.RiverAtlasTexture);
+                material.SetVector("_RiverAtlasLayout",map.Material.GetVector("_RiverAtlasLayout"));
+                material.SetFloat("_RiverAtlasReady",1);
+                material.SetVector("_MapSize",new Vector4(curves.Width,curves.Height,1f/curves.Width,1f/curves.Height));
+                ShaderUtil.CompilePass(material,0,true);
+                Graphics.Blit(Texture2D.whiteTexture,target,material);RenderTexture.active=target;
+                pixels.ReadPixels(new Rect(0,0,width,height),0,0);pixels.Apply();
+                var output=pixels.GetPixels();float edgeError=0,widthError=0;int lost=0;
+                for(int i=0;i<positions.Count;i++)
+                {
+                    Color value=output[i];var sample=expected[i];
+                    float radius=new Vector2(value.b,value.a).magnitude;
+                    edgeError=Mathf.Max(edgeError,Mathf.Abs(value.r-sample.Distance));
+                    widthError=Mathf.Max(widthError,Mathf.Abs(radius-sample.HalfWidth));
+                    if(sample.Distance<-Mathf.Max(.00004f,sample.HalfWidth*.05f)&&value.r>=0)lost++;
+                }
+                string result=$"China off-lattice river sections, grid {curves.Width}, segments {measuredSections}, points {positions.Count}, lost wet sites {lost}, max bank error {edgeError:G5}, half-width error {widthError:G5}";
+                if(!(edgeError<.003f&&widthError<.003f&&lost==0))throw new Exception(result);
+                Debug.Log("PASS "+result);
+                int pairs=Math.Min(joins.Count,input.Length)/2;
+                for(int i=0;i<2*pairs;i++)input[i]=new Color(joins[i].x,joins[i].y,0,0);
+                points.SetPixels(input);points.Apply();material.SetFloat("_ProbeBankProfile",1);
+                Graphics.Blit(Texture2D.whiteTexture,target,material);RenderTexture.active=target;
+                pixels.ReadPixels(new Rect(0,0,width,height),0,0);pixels.Apply();
+                var banks=pixels.GetPixels();var differences=new List<float>();int turning=0;
+                for(int i=0;i<pairs;i++)
+                {
+                    var a=banks[2*i];var b=banks[2*i+1];
+                    // Adjacent centreline sites can belong to different channels
+                    // at a confluence. Require comparable widths at this join.
+                    if(a.a<=0||b.a<=0||Mathf.Abs(a.a-b.a)>.03f*Math.Max(a.a,b.a)||
+                        Mathf.Abs(a.b+a.a)>.04f*a.a||Mathf.Abs(b.b+b.a)>.04f*b.a)continue;
+                    if(!(Mathf.Abs(a.g)<=1.001f&&Mathf.Abs(b.g)<=1.001f))throw new Exception("Invalid station curvature");
+                    if(Mathf.Abs(a.g)>.05f)turning++;
+                    differences.Add(Mathf.Abs(a.g-b.g));
+                }
+                differences.Sort();
+                if(differences.Count<100||turning<20)throw new Exception("Insufficient curved survey station controls");
+                float p99=differences[(int)(differences.Count*.99f)];
+                string continuity=$"China point bars across {differences.Count} station joins, {turning} curved, p99 signed bend jump {p99:G5}";
+                if(p99>.065f)throw new Exception(continuity);
+                Debug.Log("PASS "+continuity);
+            }
+            finally
+            {
+                RenderTexture.active=previous;RenderTexture.ReleaseTemporary(target);
+                foreach(var obj in new UnityEngine.Object[]{points,pixels,material})UnityEngine.Object.DestroyImmediate(obj);
+            }
+        }
         public static void CheckPagedSeasons()
         {
             const int width=128,height=64;

@@ -1,0 +1,67 @@
+{
+  "NE44": {
+    "offset": 422966699,
+    "compressed_size": 4296043,
+    "sha256": "174775ed5d32b1c42b878039dd85e5316d9489e82579a53fbc4f56456ec9ecde"
+  },
+  "NE45": {
+    "offset": 432654821,
+    "compressed_size": 367926,
+    "sha256": "9dfbd35623fea14e0e2a5055847d01290673f5065d26dd845e5f3dd46cb1961b"
+  },
+  "NF43": {
+    "offset": 477486573,
+    "compressed_size": 5178435,
+    "sha256": "8140bd33de714f8f49a401daa3949665d6c4f98a45426dc39a947c78326f1bb5"
+  },
+  "NF45": {
+    "offset": 504497499,
+    "compressed_size": 7437595,
+    "sha256": "cdd68e736376fe7cd1da44cb10f76f5a94052973a2992d5ac573e689e0551113"
+  },
+  "NF46": {
+    "offset": 521289506,
+    "compressed_size": 5923318,
+    "sha256": "eff6880468e89853646281b05499f71a9472b262aacaf82809ffe6615b9a9f1a"
+  },
+  "NF49": {
+    "offset": 558830597,
+    "compressed_size": 5236354,
+    "sha256": "8d5aa2dfbf3e91287a7b77b8bc062a3451b4ba447dda25c499518296a97b41d5"
+  },
+  "NF50": {
+    "offset": 570956372,
+    "compressed_size": 1086747,
+    "sha256": "42ec2b91953301277eb227f7258dfbebedc7a3d8ebb03e433a92c7e84dc944c2"
+  },
+  "NH36": {
+    "offset": 704310748,
+    "compressed_size": 904874,
+    "sha256": "90f7db75347b89b25a6424107d5e4a0f2de2e0e154e1ce86814005c4b8ce9eb3"
+  },
+  "NH48": {
+    "offset": 754592526,
+    "compressed_size": 7980614,
+    "sha256": "812bbf6d26ae91e83d7cc62afac45fad64c8d47c32a3208074f8b3f9f2065dfd"
+  },
+  "NH49": {
+    "offset": 773206933,
+    "compressed_size": 6353829,
+    "sha256": "b3d2a120a9da5a31e41fb72c6313d71875fe3f01bc7a75d3359c04bad4b2f457"
+  },
+  "NH50": {
+    "offset": 787926714,
+    "compressed_size": 5276571,
+    "sha256": "8e40c9b1d0682bc7ac916cfd6faf16581c7649963819ed736af5b7cea4055263"
+  },
+  "NH51": {
+    "offset": 800038230,
+    "compressed_size": 1155947,
+    "sha256": "6c696f005241204caabe281fc6c22bcf4198955deaa1808cb399b9d2d44a7074"
+  },
+  "NJ50": {
+    "offset": 996286866,
+    "compressed_size": 1695302,
+    "sha256": "a0db447218d227cbe4e50daad3fc3996d1bbb067ea8679c1357c493cd1e85658"
+  }
+}

@@ -6,6 +6,7 @@ internal static class SeasonalRainfallRegression
     public static void Run()
     {
         CheckWaterSources();
+        CheckPeninsulaMonsoon();
         // Rotate seasons through the same terrain in the two hemispheres. Flat
         // topography isolates the influence of the adjacent ocean and storms.
         var world = new WorldData(128, 64, "SEASONAL-MARGINS", TerrainPreset.Continents);
@@ -25,6 +26,50 @@ internal static class SeasonalRainfallRegression
             Console.WriteLine($"{hemisphere * 36} degrees, west and east coast summer/winter mm: {ws:F1}/{ww:F1}, {es:F1}/{ew:F1}");
             if (!(ws < 40 && ws < ww / 3 && es > 2 * ew))
                 throw new Exception("The two continental margins should have opposite rainy seasons.");
+        }
+    }
+
+    private static void CheckPeninsulaMonsoon()
+    {
+        // Two mirrored peninsulas point towards the equator beneath a large
+        // continent. A ridge runs along each western shoreline, with a high
+        // range inland to the poleward side of each summer heat low.
+        var world = new WorldData(128, 64, "MONSOON-PENINSULAS", TerrainPreset.Continents);
+        for (int y = 0; y < world.Height; y++)
+        {
+            double lat = Math.Abs((y + .5) / world.Height * 180 - 90);
+            int center = y >= world.Height / 2 ? 32 : 96;
+            for (int x = 0; x < world.Width; x++)
+            {
+                int dx = FMath.Wrap(x - center + 64, 128) - 64;
+                bool peninsula = lat >= 8 && dx >= -3 && dx <= 4;
+                bool continent = lat >= 24 && dx >= -15 && dx <= 20;
+                short elevation = -800;
+                if (peninsula || continent) elevation = 150;
+                if (peninsula && dx == -3 && lat < 24) elevation = 950;
+                if (continent && lat >= 29 && lat < 39 && dx >= -8 && dx <= 14) elevation = 3400;
+                world.Elevation[world.Index(x, y)] = elevation;
+            }
+        }
+        FlatGenerator.Rebuild(world, default);
+        var air = world.Moisture;
+        foreach (int hemisphere in new[] {-1, 1})
+        {
+            int row = (int)((hemisphere * 15 + 90) / 180.0 * world.Height);
+            int center = hemisphere > 0 ? 32 : 96;
+            int summer = hemisphere > 0 ? 6 : 0, winter = (summer + 6) % 12;
+            int sea = world.Index(center - 5, row) * 12;
+            int crest = world.Index(center - 3, row) * 12, lee = world.Index(center, row) * 12;
+            Console.WriteLine($"Peninsula {hemisphere * 15}: summer marine wind ({air.East[sea+summer]:F2}, {air.North[sea+summer]:F2}), winter east {air.East[sea+winter]:F2}, windward/leeward summer rain {air.Rain[crest+summer]:F0}/{air.Rain[lee+summer]:F0} mm.");
+            if (!(air.East[sea+summer] > 0 && air.North[sea+summer]*hemisphere > 0 && air.East[sea+winter] < 0))
+                throw new Exception("Trades did not reverse into a poleward, eastward summer marine inflow.");
+            if (!(air.Rain[crest+summer] > air.Rain[lee+summer]))
+                throw new Exception("A peninsula's windward coastal ridge should intercept more summer rain than the lee plain.");
+            int foothillRow = (int)((hemisphere * 26 + 90) / 180.0 * world.Height);
+            int easternBay = world.Index(center+6, foothillRow)*12;
+            Console.WriteLine($"Eastern bay, {hemisphere * 26}: along-range summer wind {air.East[easternBay+summer]:F2}.");
+            if (!(air.East[easternBay+summer] < 0))
+                throw new Exception("A poleward-facing bay should feed the lowlands westward along their blocking range.");
         }
     }
 

@@ -1,4 +1,5 @@
 using System;
+using System.IO;
 using Orbis.Flat;
 
 internal static class SeasonalTemperatureRegression
@@ -31,6 +32,7 @@ internal static class SeasonalTemperatureRegression
 
     public static void Run()
     {
+        CheckPremonsoonHeat();
         foreach (int width in new[] {64, 128})
         {
             var land = Uniform(width, false, 200);
@@ -58,5 +60,29 @@ internal static class SeasonalTemperatureRegression
             }
         }
         Console.WriteLine("PASS equatorial semiannual heating, hemispheric seasons, marine thermal storage and plateau lapse at 64/128 columns.");
+    }
+
+    private static void CheckPremonsoonHeat()
+    {
+        const string path = "Assets/ORBIS/Resources/ORBIS/FlatWorld/";
+        var world = FlatGenerator.Generate(256, 128, "ORBIS-2D-2026", TerrainPreset.Earth, default,
+            File.ReadAllBytes(path + "Earth256.bytes"), File.ReadAllBytes(path + "EarthWater256.bytes"),
+            File.ReadAllBytes(path + "EarthRivers.bytes"));
+        // The development-area CRU normals put the hot season ahead of the
+        // rains over the Deccan. Compare the premonsoon and established monsoon.
+        double may = 0, july = 0, area = 0;
+        for (int i = 0; i < world.Count; i++)
+        {
+            double lon = ((i % world.Width + .5) / world.Width - .5) * 360;
+            double lat = ((i / world.Width + .5) / world.Height - .5) * 180;
+            if (lon < 76 || lon >= 80 || lat < 13 || lat >= 18 || FlatTerrainAnalysis.AreaWater(world.Water[i])) continue;
+            double weight = Math.Cos(lat * Math.PI / 180);
+            may += weight * world.Temperature[i*12+4];
+            july += weight * world.Temperature[i*12+6];
+            area += weight;
+        }
+        Console.WriteLine($"Deccan May/July temperatures: {may/area:F1}/{july/area:F1} C.");
+        if (!(area > 0 && may > july))
+            throw new Exception("The dry premonsoon must be warmer than the established wet monsoon on the Deccan.");
     }
 }

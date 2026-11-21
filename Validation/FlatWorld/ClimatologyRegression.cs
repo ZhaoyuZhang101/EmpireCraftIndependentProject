@@ -55,6 +55,37 @@ internal static class ClimatologyRegression
         Region("South China", 108, 117, 22, 26, 1150, 2300, .32, .72);
         Region("Sichuan Basin", 103, 108, 28, 32, 710, 1520, .42, .82);
         Region("Tarim Basin", 78, 87, 38, 41, 0, 250, 0, 1, dry: true);
+        // CRU-CL's development cells resolve early rains in the south, then
+        // the midsummer front in the northeast. Both orderings reverse if the
+        // eastern rain belt simply follows a late oceanic temperature peak.
+        CheckRainyMonths(world, "South China spring/autumn", 108, 117, 22, 26, 2, 8, 3);
+        CheckRainyMonths(world, "Northeast China July/September", 122, 128, 43, 48, 6, 8, 1);
+    }
+
+    static void CheckRainyMonths(WorldData world, string name, int west, int east, int south, int north,
+        int wetterStart, int drierStart, int months)
+    {
+        double wetter=0,drier=0,area=0;
+        for(int y=0;y<world.Height;y++)
+        {
+            double lat=((y+.5)/world.Height-.5)*180;
+            if(lat<south || lat>=north) continue;
+            double weight=Math.Cos(lat*Math.PI/180);
+            for(int x=0;x<world.Width;x++)
+            {
+                int i=y*world.Width+x;
+                double lon=((x+.5)/world.Width-.5)*360;
+                if(lon<west || lon>=east || FlatTerrainAnalysis.AreaWater(world.Water[i])) continue;
+                area+=weight;
+                for(int m=0;m<months;m++)
+                {
+                    wetter+=weight*world.Precipitation[i*12+wetterStart+m];
+                    drier+=weight*world.Precipitation[i*12+drierStart+m];
+                }
+            }
+        }
+        Console.WriteLine($"{world.Width} {name}: {wetter/area:F0}/{drier/area:F0} mm.");
+        if(!(area>0 && wetter>drier)) throw new Exception($"The seasonal rain ordering is reversed in {name}.");
     }
 
     public static void EasternCoastCirculation()

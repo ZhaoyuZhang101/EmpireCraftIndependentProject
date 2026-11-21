@@ -28,7 +28,7 @@ namespace Orbis.Flat
         public bool HasSurvey { get; }
         public FlatRiverStageField Seasons { get; private set; }
 
-        readonly struct Vertex
+        public readonly struct Vertex
         {
             public readonly float X,Y,Radius,Depth,FlowX,FlowY,Sediment;
             public Vertex(float x,float y,float radius,float depth,float flowX,float flowY,float sediment)
@@ -38,7 +38,7 @@ namespace Orbis.Flat
             }
         }
 
-        readonly struct Segment
+        public readonly struct Segment
         {
             public readonly Vertex A,B;
             public readonly int Reach;
@@ -50,6 +50,10 @@ namespace Orbis.Flat
         public int SegmentCount { get { return segments.Length; } }
         public int ActiveTileCount { get { return activeTiles.Length; } }
         public int GetActiveTile(int index) { return activeTiles[index]; }
+        public int TileSegmentCount(int tile) => tileOffsets[tile+1]-tileOffsets[tile];
+        public int TileSegmentIndex(int tile,int index) => tileSegments[tileOffsets[tile]+index];
+        public Segment SegmentAt(int index) => segments[index];
+        public Segment TileSegment(int tile,int index) => segments[TileSegmentIndex(tile,index)];
 
         FlatRiverCurves(int width,int height,Segment[] segments,int[] offsets,int[] candidates,int[] active,
             bool hasSurvey,bool[] editedTiles)
@@ -100,7 +104,9 @@ namespace Orbis.Flat
             var sample=Sample(x,y);
             if(Seasons==null||sample.HalfWidth<=0)return sample;
             float stage=Seasons.Ratio(x,y,day);
-            float radius=Math.Min(.24f,sample.HalfWidth*FlatRiverStageField.WidthScale(stage));
+            // A mixed edited Earth also contains ungauged, surveyed estuaries
+            // wider than the procedural flood-stage limit at their mean stage.
+            float radius=Math.Min(Math.Max(.24f,sample.HalfWidth),sample.HalfWidth*FlatRiverStageField.WidthScale(stage));
             return new FlatRiverSample(sample.Distance+sample.HalfWidth-radius,radius,
                 sample.Depth*FlatRiverStageField.DepthScale(stage),sample.FlowX,sample.FlowY,sample.Sediment);
         }

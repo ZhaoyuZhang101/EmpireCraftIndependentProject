@@ -42,7 +42,16 @@ dotnet run --project Validation/EarthClimate/Export.csproj -c Release -- --compa
 dotnet run --project Validation/EarthClimate/Export.csproj -c Release -- --compare-koppen ValidationOutput/EarthClimate/current.bin --json ValidationOutput/EarthClimate/koppen-current.json
 ```
 
-温度系数复算使用 256 档地形、海陆几何和 57 个开发区地理块。五折交叉验证在每个训练折分别拟合背景项及 13 个热力系数。脚本还可根据模拟地形独立重建逐月温度，并与 C# 导出逐格核对。ECL1 没有保存湖面高程，这项数值核对会明确列出有足够输入的非湖泊单元数。
+印度、中国季风修正的直接对照为 `1bee7ae`。下列命令均在仓库根目录运行。地球宽度支持 256、512、1024、1536、2048 和 4096。将最后两条评分命令中的输入路径换为对照文件，可复现同一批地理单元的修正前指标。区域报表的 `--split all` 同时列出两组数据中的所有样区，柯本验收则始终使用固定留出集。
+
+```powershell
+python Validation/EarthClimate/export_baseline.py --before-monsoon --width 256 --output ValidationOutput/EarthClimate/before-monsoon.bin
+dotnet run --project Validation/EarthClimate/Export.csproj -c Release -- ValidationOutput/EarthClimate/monsoon.bin 256
+python Validation/EarthClimate/score.py ValidationOutput/EarthClimate/monsoon.bin --split all --json ValidationOutput/EarthClimate/monsoon-regions.json
+dotnet run --project Validation/EarthClimate/Export.csproj -c Release -- --compare-koppen ValidationOutput/EarthClimate/monsoon.bin --json ValidationOutput/EarthClimate/monsoon-koppen.json
+```
+
+温度系数复算使用 256 档地形、海陆几何和 57 个开发区地理块。五折交叉验证在每个训练折分别拟合背景项及 16 个热力系数。脚本还可根据模拟地形独立重建逐月温度，并与 C# 导出逐格核对。ECL1 没有保存湖面高程，这项数值核对会明确列出有足够输入的非湖泊单元数。
 
 ```powershell
 python Validation/EarthClimate/fit_temperature.py ValidationOutput/EarthClimate/before-seasons.bin --check-runtime ValidationOutput/EarthClimate/current.bin
@@ -87,7 +96,7 @@ python Validation/EarthClimate/prepare.py
 
 `blocks` 记录每个有评分单元的 22.5° 地理块的月误差，便于检查总体变化是否集中在少数地区。开发集覆盖 57 个有效块，空间留出集覆盖 17 个。
 
-区域表按 `score.py` 中的地理矩形统计，包括华北平原、长江中下游、华南、四川盆地和塔里木盆地。主指标覆盖整个对应分区。区域表给出年雨量、6–9 月降水占比，以及 6–8 月平均气温减去 12–2 月平均气温。一个分区中没有观测单元的区域不会出现在该分区的表中。
+区域表按 `score.py` 中的地理矩形统计，包括印度季风带、西高止山脉与德干、塔尔、恒河下游、阿萨姆，以及中国东部平原、四川、青藏高原、东北和塔里木盆地。主指标覆盖整个对应分区。区域表给出逐月气温与雨量、年雨量、6–9 月降水占比，以及 6–8 月平均气温减去 12–2 月平均气温。一个分区中没有观测单元的区域不会出现在该分区的表中。
 
 在仓库根目录运行下列命令，可用玩家菜单相同的高程、河湖资料和种子复现东亚的地表分类。
 

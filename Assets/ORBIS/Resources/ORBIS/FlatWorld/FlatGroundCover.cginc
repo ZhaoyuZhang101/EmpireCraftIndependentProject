@@ -26,6 +26,7 @@ float3 PDGroundPlant(float3 col,PDPlantView view,float2 cell,float2 source,float
  float2 root=source+anchor;
  float2 p=floor(PDPlantPixel(view,cell,root,scale)+plant.xy)-plant.xy+.5;
  if(p.x< -3||p.x>4.5||p.y< -1||p.y>8)return col;
+ if(FlatPlantRiverEdge(root,_PixelsPerTile)<=0)return col;
  if(view.weight>0)
  {
   growth=FlatVegetationSeason(root).x;

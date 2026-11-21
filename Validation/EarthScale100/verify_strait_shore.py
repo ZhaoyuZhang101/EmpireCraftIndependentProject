@@ -12,7 +12,7 @@ from pathlib import Path
 import numpy as np
 from PIL import Image, ImageDraw
 from scipy.ndimage import label
-from shapely import contains_xy, prepare
+from shapely import contains_xy, get_coordinates, prepare
 from shapely.geometry import LineString, Polygon, box
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -47,6 +47,14 @@ class Atlas:
             fy, fx = divmod(fine_slot-1, 4096//130)
             fine = self.fine[fy*130:(fy+1)*130, fx*130:(fx+1)*130]
             assert fine.shape == (130, 130)
+        else:
+            lo, hi = self.coarse[y, x+1].astype(int)
+            medium = lo + 256*hi - 1
+            if medium >= 0:
+                row, col = divmod(medium//2, 2048//66)
+                head = self.coarse.shape[0] - (row+1)*66
+                fine = self.coarse[head:head+66, col*66:(col+1)*66, medium%2]
+                assert fine.shape == (66, 66)
         return self.coarse[y+1:y+19, x:x+18], fine
 
     def sample(self, lon, lat):
@@ -101,7 +109,7 @@ def verify_seams(atlas):
             adjacent, other = atlas.pages(slot)
             second = adjacent[:2, :] if dy else adjacent[:, :2]
             assert np.array_equal(first, second), f"Coarse seam at {i}, {j}"
-            if detail is not None and other is not None:
+            if detail is not None and other is not None and detail.shape == other.shape:
                 first = detail[-2:, :] if dy else detail[:, -2:]
                 second = other[:2, :] if dy else other[:, :2]
                 assert np.array_equal(first, second), f"Fine seam at {i}, {j}"
@@ -156,6 +164,39 @@ def verify_transects(atlas, ocean):
         assert np.max(miss) < .25, (name, miss)
         errors.extend(miss)
     return max(errors)
+
+
+def verify_estuary_banks(atlas, ocean):
+    # Independent WGS84 sections across both narrow channels and delta islands.
+    # Compare every water/land crossing with the original vector boundary.
+    sections = [
+        ("Rosetta", (30.36,31.455), (30.40,31.455), 2),
+        ("Damietta", (31.81,31.51), (31.875,31.545), 1),
+        ("Yellow", (119.02,37.69), (119.31,37.79), 3),
+        ("Yangtze and Chongming", (121.61,31.26), (121.61,31.79), 6),
+        ("Hengmen", (113.56,22.59), (113.62,22.59), 1),
+        ("West River", (113.14,22.535), (113.22,22.535), 2),
+        ("Qiantang", (120.20,30.19), (120.20,30.26), 2),
+        ("Meghna", (90.54,22.55), (90.90,22.55), 3),
+        ("Bassac", (106.11,9.56), (106.11,9.74), 2),
+    ]
+    errors = []
+    for name, begin, end, count in sections:
+        a, b = np.asarray(begin), np.asarray(end)
+        reference = get_coordinates(ocean.boundary.intersection(LineString([a, b])))
+        t = np.linspace(0, 1, 2001)
+        p = a + t[:,None]*(b-a)
+        km, weight = atlas.sample(*p.T)
+        edges = np.flatnonzero(np.diff(km > 0))
+        assert weight.min() > .99 and len(edges) == len(reference) == count, name
+        at = t[edges] + (t[1]-t[0])*(-km[edges])/(km[edges+1]-km[edges])
+        # Order vector and raster crossings by distance along the section.
+        order = np.argsort(np.sum((reference-a)*(b-a), axis=1))
+        offset = a + at[:,None]*(b-a) - reference[order]
+        miss = 111.2*np.linalg.norm(offset*[np.cos(np.deg2rad((a[1]+b[1])*.5)),1], axis=1)
+        assert miss.max() < .20, (name, miss)
+        errors.extend(miss)
+    return len(errors), max(errors)
 
 
 def verify_sites(atlas, ocean):
@@ -259,14 +300,16 @@ def main():
     prepare(ocean)
     sites = verify_sites(atlas, ocean)
     error = verify_transects(atlas, ocean)
+    estuary_count, estuary_error = verify_estuary_banks(atlas, ocean)
     pairs = verify_seams(atlas)
     routes = verify_passages(atlas)
     if args.artifacts:
         geographic_panels(atlas, ocean, args.artifacts)
     if args.navigation is not None:
         verify_navigation(ocean, args.navigation, args.artifacts)
-    print(f"{routes} connected rendered straits, {sites} wet/dry sites, 14 banks within {error*1000:.0f} m "
-          f"of source, {pairs} matching fine page seams.")
+    print(f"{routes} connected rendered straits, {sites} wet/dry sites, 14 strait banks within "
+          f"{error*1000:.0f} m and {estuary_count} estuary banks within {estuary_error*1000:.0f} m "
+          f"of source, {pairs} matching detail page seams.")
 
 
 if __name__ == "__main__":

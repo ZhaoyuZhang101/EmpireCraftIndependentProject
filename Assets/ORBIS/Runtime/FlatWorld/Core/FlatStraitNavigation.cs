@@ -36,6 +36,7 @@ namespace Orbis.Flat
             regions = new int[slots + 1];
             fullSurvey = new bool[slots + 1];
             var used = new bool[slots + 1];
+            int lastSlot = 0, lastEstuary = 0;
             for (int i = 0; i < Columns * Rows; i++)
             {
                 int s = Index(i);
@@ -44,9 +45,13 @@ namespace Orbis.Flat
                 if (s > slots || used[s])
                     throw new InvalidDataException("Invalid regional shoreline directory.");
                 used[s] = true;
+                lastSlot = Math.Max(lastSlot, s);
                 int p = Regional(s), f = coarse[p] | coarse[p + 1] << 8;
+                int m = coarse[p + 2] | coarse[p + 3] << 8;
                 if (f > fine.Length / FineWidth / 130 * 31)
                     throw new InvalidDataException("Invalid fine shoreline page.");
+                if (f != 0 && m != 0) throw new InvalidDataException("Ambiguous shoreline detail.");
+                lastEstuary = Math.Max(lastEstuary, m);
                 bool full = true;
                 for (int y = 1; y <= 18 && full; y++)
                     for (int x = 0; x < 18; x++)
@@ -57,6 +62,9 @@ namespace Orbis.Flat
                         }
                 fullSurvey[s] = full;
             }
+            int rows = coarse.Length/(2*CoarseWidth);
+            if (507 + ((lastSlot+112)/113)*19 + ((lastEstuary+61)/62)*66 > rows)
+                throw new InvalidDataException("Overlapping regional shoreline pages.");
             var pending = new Queue<int>();
             int next = 0;
             for (int i = 0; i < Columns * Rows; i++)
@@ -153,9 +161,21 @@ namespace Orbis.Flat
             strength = fullSurvey[s] ? 1 : Lookup(coarse, basePixel + 1, CoarseWidth, 2, .5 + x * 16, .5 + y * 16) / 255;
             double km = (Lookup(coarse, basePixel, CoarseWidth, 2, .5 + x * 16, .5 + y * 16) - 128) * .5;
             int f = coarse[header] | coarse[header + 1] << 8;
-            if (f == 0 || strength <= .975 || Math.Abs(km) >= 6)
+            if (strength <= .975 || Math.Abs(km) >= 6)
                 return km;
-            double detailed = (Lookup(fine, Fine(f), FineWidth, 1, .5 + x * 128, .5 + y * 128) - 128) / 16;
+            double code;
+            if (f != 0)
+                code = Lookup(fine, Fine(f), FineWidth, 1, .5 + x * 128, .5 + y * 128);
+            else
+            {
+                int m = (coarse[header+2] | coarse[header+3] << 8) - 1;
+                if (m < 0) return km;
+                int row = coarse.Length/(2*CoarseWidth) - (m/62+1)*66;
+                int column = m/2 % 31 * 66;
+                int origin = 2*(row*CoarseWidth+column) + m%2;
+                code = Lookup(coarse, origin, CoarseWidth, 2, .5+x*64, .5+y*64);
+            }
+            double detailed = (code - 128) / 16;
             return Blend(km, detailed, Smooth(.975, .999, strength) * (1 - Smooth(2, 6, Math.Abs(km))));
         }
 

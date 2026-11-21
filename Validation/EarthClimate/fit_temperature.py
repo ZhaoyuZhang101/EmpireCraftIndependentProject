@@ -14,7 +14,8 @@ LABELS = ("equatorial convection", "subtropical sensible heat", "coastal upwelli
           "westerly relief", "winter marine heat", "winter poleward barrier",
           "nearby heat storage", "tropical seasonal lag", "solar harmonics",
           "delayed solar harmonics", "continental winter shape", "continental winter lag",
-          "seasonal convergence")
+          "seasonal convergence", "winter continental outflow", "premonsoon sensible heat",
+          "summer free-air lapse")
 
 
 def periodic(source, step, length, centered=True):
@@ -123,6 +124,17 @@ def geometry(fields):
     excursion = 5 + 23*regional_land + 4*np.minimum(2, poleward)*regional_land
     convective = np.exp(-((np.rad2deg(lat)[..., None] - excursion[..., None]*COS)/13)**2)
     constant = np.ones(12)
+    # A continental winter high supplies cold air towards a warmer downwind
+    # sea. A high intervening divide shelters the lowlands from that flow.
+    cold_source = (1-air_source(sea_near, lat, -30)) * (east + np.maximum(0, upstream-height))
+    cold_source *= np.exp(-np.maximum(0, air_source(height, lat, -30)-height)/1.2)
+    cold_source *= np.sin(abs(lat))**.5
+    # Equatorward marine access and a warmer poleward continental source
+    # favor sensible heating before the wet monsoon reaches tropical land.
+    south_minus_north = sum(weight * (sector(sea_near, lat, 180, km)-sector(sea_near, lat, 0, km))
+                            for km, weight in ((700, .25), (1700, .4), (3100, .35)))
+    moist_coast = np.maximum(0, hemisphere*south_minus_north)*np.exp(-((d-17)/15)**2)*(1 + np.maximum(0, poleward-height))
+    summer = .5 * (1 + hemisphere[...,None] * COS)
     pairs = (
         (np.exp(-(d/11)**2), constant), (subtropical*regional_land, constant),
         (subtropical*(far_w-far_e), constant), (s*np.clip(upstream-height, -3, 3), constant),
@@ -130,7 +142,8 @@ def geometry(fields):
         (sine*(marine-sea_near), COS), (np.exp(-((d-16)/14)**2)*hemisphere, SIN),
         (ones, higher/55), (regional_land, np.roll(higher, 1, axis=-1)/55),
         (s*s*regional_land, np.cos(2*PHASE)), (s*s*regional_land, np.sin(2*PHASE)),
-        (ones, convective))
+        (ones, convective), (cold_source, winter), (moist_coast*hemisphere, SIN),
+        (relief, summer))
     return (np.stack(np.broadcast_arrays(*mean), axis=-1).reshape(h*w, -1),
             np.stack(np.broadcast_arrays(*annual), axis=-1).reshape(h*w, -1),
             [(g * coupling, months) for g, months in pairs])

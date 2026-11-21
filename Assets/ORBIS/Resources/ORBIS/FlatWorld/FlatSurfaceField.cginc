@@ -135,6 +135,27 @@ float2 FlatEcotoneCell(float2 cell,float shore)
     float3 warped=normalize(radial+tangent*(.025+grain*.014)*inland);
     return OrbisGeographicUV(warped)*_MapSize.xy;
 }
+float3 FlatEcotoneAlbedo(sampler2D terrain,float2 cell,float shore,float smoothing)
+{
+    float2 tileUV=(floor(cell)+.5)*_MapSize.zw;
+    float2 localUV=lerp(tileUV,FlatBlendUV(cell),smoothing);
+    float2 sourceUV=localUV;
+    float inland=0;
+    if(shore<-.05&&smoothing>0)
+    {
+        float2 warpedUV=lerp(tileUV,FlatBlendUV(FlatEcotoneCell(cell,shore)),smoothing);
+        // The terrain palette carries open-water colours beyond its coastal padding.
+        // Test the same bilinear footprint against the grid shore that produced it.
+        inland=smoothstep(0,1,-FlatVisualSample(float4(warpedUV,0,0)).g);
+        if(inland>0)sourceUV=warpedUV;
+    }
+    float3 albedo=tex2Dlod(terrain,float4(sourceUV,0,0)).rgb;
+    // Blend colours on the land side. Interpolating the coordinates here could
+    // put the intermediate sample back in the water between two dry banks.
+    [branch] if(inland>0&&inland<1)
+        albedo=lerp(tex2Dlod(terrain,float4(localUV,0,0)).rgb,albedo,inland);
+    return albedo;
+}
 float3 FlatEcotoneColor(float3 baseColor,float2 cell,float canopy,float wetness)
 {
     float3 p=FlatDetailPosition(cell);
@@ -388,12 +409,13 @@ float4 FlatCanopyPlacement(float2 cell)
     float2 seeds=float2(FlatHash(id),FlatHash(id+float2(71,19)));
     return float4((id+.5+(seeds-.5)*.45)*.5,seeds);
 }
-float3 FlatCanopyColor(float3 col,float2 cell,float canopy,float pixelsPerTile,float2 seeds,float2 fromRoot)
+float3 FlatCanopyColor(float3 col,float2 cell,float canopy,float pixelsPerTile,float2 seeds,float2 fromRoot,float bankDistance)
 {
     float detailFade=smoothstep(3,9,pixelsPerTile)*_Vegetation;
-    float radius=lerp(.12,.27,seeds.y),distanceToCrown=length(fromRoot*float2(1,1.14));
+    float radius=min(lerp(.12,.27,seeds.y),2*max(0,bankDistance)/max(.08,FlatArtworkLatitudeScale(cell.y*_MapSize.w)));
+    float distanceToCrown=length(fromRoot*float2(1,1.14));
     float aa=max(fwidth(distanceToCrown),.015);
-    float occupied=1-step(saturate((canopy-.24)*1.5),seeds.x);
+    float occupied=(1-step(saturate((canopy-.24)*1.5),seeds.x))*step(.0001,radius);
     float crown=(1-smoothstep(radius-aa,radius+aa,distanceToCrown))*occupied;
     float crownLight=lerp(.70,1.23,saturate(.55+dot(fromRoot,float2(-1.4,1.8))));
     // Small canopy marks use crown shading; displaced shadows are handled by PixelProps.
@@ -403,14 +425,6 @@ float3 FlatCanopyColor(float3 col,float2 cell,float canopy,float pixelsPerTile,f
     float footprint=max(length(ddx(radial*1170)),length(ddy(radial*1170)));
     float grainFade=(1-smoothstep(.6,2.2,footprint))*_Vegetation;
     return col*lerp(1,.95+.10*grain,grainFade);
-}
-float3 FlatVegetation(float3 col,float2 cell,float canopy,float pixelsPerTile)
-{
-    if(_Vegetation<.5)return col;
-    float4 plant=FlatCanopyPlacement(cell);
-    float2 offset=(cell-plant.xy)*2;
-    offset.y/=lerp(1,FlatArtworkLatitudeScale(plant.y*_MapSize.w),_LocalPhysicalArtwork);
-    return FlatCanopyColor(col,cell,canopy,pixelsPerTile,plant.zw,offset);
 }
 float FlatGentleContourWeight(float2 gradient)
 {
