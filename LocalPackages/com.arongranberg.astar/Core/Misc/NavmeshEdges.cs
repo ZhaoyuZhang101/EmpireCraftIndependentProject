@@ -33,7 +33,7 @@ namespace Pathfinding {
 
 		void Init () {
 			obstacleData.Init(Allocator.Persistent);
-			allocationLock = new NativeReference<SpinLock>(Allocator.Persistent);
+			if (!allocationLock.IsCreated) allocationLock = new NativeReference<SpinLock>(Allocator.Persistent);
 		}
 
 		public JobHandle RecalculateObstacles (NativeList<int> dirtyHierarchicalNodes, NativeReference<int> numHierarchicalNodes, JobHandle dependency) {
