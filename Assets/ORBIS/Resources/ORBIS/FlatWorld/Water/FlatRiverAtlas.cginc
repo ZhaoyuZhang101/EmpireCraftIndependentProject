@@ -2,11 +2,38 @@
 #define ORBIS_FLAT_RIVER_ATLAS
 UNITY_DECLARE_TEX2D_NOSAMPLER(_RiverAtlas);
 UNITY_DECLARE_TEX2D_NOSAMPLER(_RiverSeasonTex);
+UNITY_DECLARE_TEX2D_NOSAMPLER(_RiverOverview);
+float4 _RiverOverview_TexelSize;
+float _RiverOverviewReady,_RiverSurvey,_RiverMap;
 float4 _RiverAtlasLayout;
 float _RiverAtlasReady,_RiverPreviewReady,_RiverSeasonReady;
 float4 _RiverSeason;
 
 bool FlatRiverFieldReady() { return max(_RiverAtlasReady,_RiverPreviewReady)>.5; }
+
+// Use the same geographic linework at both scales. The filtered overview spans
+// more than one catchment per pixel; the sparse distance field resolves local banks.
+float FlatRiverMapInk(float2 cell,float4 channel,out float closeView)
+{
+    float2 dx=ddx(cell),dy=ddy(cell);
+    dx.x-=round(dx.x/_MapSize.x)*_MapSize.x;
+    dy.x-=round(dy.x/_MapSize.x)*_MapSize.x;
+    float2 metric=float2(max(.08,cos((cell.y*_MapSize.w-.5)*3.14159265)),1);
+    float ground=max(.0001,max(length(dx*metric),length(dy*metric)));
+    float radius=length(channel.ba);
+    float importance=_RiverSurvey>.5?sqrt(saturate((radius*(40075*_MapSize.z)-.65)/4.4)):
+        saturate((radius-.012)/.14);
+    float halfWidth=max(radius,min(.27,ground*lerp(.46,1.28,importance)));
+    float aa=clamp(ground*.58,.003,.18);
+    float fine=(1-smoothstep(-aa,aa,channel.r+radius-halfWidth))*step(.0001,radius)*lerp(.58,1,importance);
+    closeView=(FlatRiverFieldReady()?1:0)*(1-smoothstep(.08,.38,ground));
+    if(_RiverOverviewReady<.5)return fine;
+    float texels=max(length(dx),length(dy))*_RiverOverview_TexelSize.z*_MapSize.z;
+    float lod=log2(max(1,texels));
+    float overview=FlatPresentationSample(_RiverOverview,cell*_MapSize.zw,lod).r;
+    overview=saturate(overview*clamp(sqrt(max(1,ground*_RiverOverview_TexelSize.z*_MapSize.z)),1,2.4));
+    return lerp(overview,fine,closeView);
+}
 
 // Three panels, each containing four monthly discharge ratios. A value of 60
 // in the byte atlas denotes the mean flow. The sampler interpolates in space.
@@ -32,8 +59,14 @@ float4 FlatRiverAtlasHeader(float2 tile)
     tile.y=clamp(tile.y,0,_MapSize.y-1);
     float index=tile.y*_MapSize.x+tile.x;
     float row=floor(index/_RiverAtlasLayout.x);
-    float2 pixel=float2(index-row*_RiverAtlasLayout.x,row)+.5;
-    return FlatPresentationSample(_RiverAtlas,pixel/_RiverAtlasLayout.xy,0);
+    float2 pixel=float2(index-row*_RiverAtlasLayout.x,row);
+    // Page IDs are discrete bytes. On a 4096 x 4830 atlas even a nominal
+    // texel-centre bilinear lookup can turn 209 into 208.375 and select a neighbour.
+    #ifdef UNITY_SEPARATE_TEXTURE_SAMPLER
+    return _RiverAtlas.Load(int3((int2)pixel,0));
+    #else
+    return FlatPresentationSample(_RiverAtlas,(pixel+.5)/_RiverAtlasLayout.xy,0);
+    #endif
 }
 
 float4 FlatRiverBaseSample(float2 cell)

@@ -9,7 +9,7 @@ namespace Orbis.Flat
     public enum TerrainPreset : byte { Continents, Archipelago, GreatContinent, InlandSea, Earth }
     public enum Koppen : byte { Unknown, Af, Am, Aw, BWh, BWk, BSh, BSk, Csa, Csb, Csc, Cwa, Cwb, Cwc, Cfa, Cfb, Cfc, Dsa, Dsb, Dsc, Dsd, Dwa, Dwb, Dwc, Dwd, Dfa, Dfb, Dfc, Dfd, ET, EF }
     public enum Structure : byte { None, Settlement, Farm, Road, Bridge }
-    public enum MapLayer : byte { Natural, Nations, Height, Climate, Temperature, Rain, Water, Fertility, Landforms, Materials, Wetness, Sediment, Vegetation }
+    public enum MapLayer : byte { Natural, Nations, Height, Climate, Temperature, Rain, Water, Fertility, Landforms, Materials, Wetness, Sediment, Vegetation, Rivers }
 
     // The core deliberately has no Unity references. Arrays use SOUTH-first rows.
     public static class FMath
@@ -64,6 +64,9 @@ namespace Orbis.Flat
         // Plate/volcano record of a generated bed (null for imported heightmaps).
         public FlatTectonicFacts Tectonics;
         public FlatWaterReference WaterReference;
+        // The original coarse DEM and the lake-aware Earth preset have distinct edit baselines.
+        public bool UsesSurveyedLakeBeds { get; internal set; }
+        public FlatEarthRiverReference RiverReference;
         public FlatCycloneWeather Cyclones;
         public short[] Elevation,WaterLevel;
         public WaterKind[] Water;
@@ -135,6 +138,8 @@ namespace Orbis.Flat
             w.Moisture=Moisture==null?null:Moisture.Clone();
             w.Tectonics=Tectonics;
             w.WaterReference=WaterReference;
+            w.UsesSurveyedLakeBeds=UsesSurveyedLakeBeds;
+            w.RiverReference=RiverReference;
             w.Cyclones=Cyclones==null?null:Cyclones.Clone();
             foreach(var actor in Wildlife)w.Wildlife.Add(actor.Clone());
             foreach(var n in Nations)w.Nations.Add(n.Clone());return w;

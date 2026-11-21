@@ -165,6 +165,7 @@ namespace Orbis.Flat
         {
             Material.SetFloat("_Natural",VisibleLayer==MapLayer.Natural?1:0);Material.SetFloat("_Political",VisibleLayer==MapLayer.Nations?1:0);
             Material.SetFloat("_DrawHeight",VisibleLayer==MapLayer.Height?1:0);
+            Material.SetFloat("_RiverMap",VisibleLayer==MapLayer.Rivers?1:0);
             Material.SetFloat("_WaterView",VisibleLayer==MapLayer.Natural||VisibleLayer==MapLayer.Nations||VisibleLayer==MapLayer.Water?1:0);
         }
         public void Flush(bool force=false)
@@ -229,7 +230,7 @@ namespace Orbis.Flat
         {
             target.SetVector("_PoleBedDepth",poleBedDepth);
             if(earthRelief!=null)earthRelief.Bind(target);
-            else target.SetFloat("_EarthPolarReady",0);
+            else {target.SetFloat("_EarthPolarReady",0);target.SetFloat("_EarthLakeReady",0);}
         }
         void OnDestroy()
         {

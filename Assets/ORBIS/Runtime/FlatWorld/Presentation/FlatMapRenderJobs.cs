@@ -84,7 +84,10 @@ namespace Orbis.Flat
             return new Tile{Elevation=source.Elevation[i],Water=source.Water[i],Biome=source.Biomes[i],Climate=source.Climates[i],Building=source.Buildings[i],
                 Material=f.Materials[i],Vegetation=f.Vegetation[i],Tree=f.Trees[i],Form=f.Forms[i],Owner=owner<0?new Color32(0,0,0,0):FlatPalette.RGB(source.Nations[owner].Color,(byte)(owner+1)),
                 Temperature=source.Temperature[i*12+month],Rain=source.Precipitation[i*12+month],Fertility=source.Fertility[i],Depth=f.Depth[i],FlowX=f.FlowX[i],FlowY=f.FlowY[i],
-                HalfWidth=f.HalfWidth[i],Shore=f.ShoreDistance[i],Sediment=f.Sediment[i],Freshness=f.Freshness[i],Wetness=f.Wetness[i],Hand=f.Hand[i],Canopy=f.Canopy[i],Meander=f.Meander[i],Connections=f.Connections[i]};
+                // Earth streams its mapped overview first. Suppress the legacy tile
+                // channels while waiting for the matching detailed distance field.
+                HalfWidth=f.RiverCurves!=null&&f.RiverCurves.HasSurvey?0:f.HalfWidth[i],
+                Shore=f.ShoreDistance[i],Sediment=f.Sediment[i],Freshness=f.Freshness[i],Wetness=f.Wetness[i],Hand=f.Hand[i],Canopy=f.Canopy[i],Meander=f.Meander[i],Connections=f.Connections[i]};
         }
         public bool Schedule(MapLayer requestedLayer,bool refreshData,int climateYearOffset=0)
         {
@@ -200,7 +203,8 @@ namespace Orbis.Flat
                     case MapLayer.Climate:display=t.Water>=WaterKind.DeepOcean&&t.Water<=WaterKind.ShallowOcean?Water(t.Water):RGB(Palette[26+(int)t.Climate]);break;
                     case MapLayer.Temperature:display=Color.Lerp(RGB(0x4169ab),RGB(0xe9aa6a),Mathf.InverseLerp(-25,35,t.Temperature));break;
                     case MapLayer.Rain:display=Color.Lerp(RGB(0xd1bb93),RGB(0x2c869b),Mathf.Clamp01(t.Rain/240));break;
-                    case MapLayer.Water:display=t.Water==WaterKind.Land?RGB(0x767b71):Water(t.Water);break;
+                    case MapLayer.Water:display=area?Water(t.Water):RGB(0x767b71);break;
+                    case MapLayer.Rivers:display=FlatPalette.RiverMapBase(t.Water);break;
                     case MapLayer.Landforms:display=RGB(Palette[57+(int)t.Form]);break;
                     case MapLayer.Materials:display=area?Water(t.Water):RGB(Palette[65+(int)t.Material]);break;
                     case MapLayer.Wetness:display=Color.Lerp(RGB(0xad8862),RGB(0x326c56),t.Wetness);break;

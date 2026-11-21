@@ -80,7 +80,7 @@ namespace Orbis.Flat
             sizeField.choices=new List<string>(Array.ConvertAll(playerWidths,width=>$"{width} × {width/2}"));
             sizeField.index=Math.Max(0,Array.FindLastIndex(playerWidths,width=>width<=initialWidth));
             presetField=root.Q<DropdownField>("preset");presetField.choices=new List<string>{"大陆与群山","群岛","超级大陆","内海世界","地球（真实地形）"};presetField.index=0;
-            layerField=root.Q<DropdownField>("layer");layerField.choices=new List<string>{"自然地表","文明版图","20 档高度","Köppen 柯本气候","本月温度","本月降水","海水与淡水","土地肥力","地貌 / 丘陵高原","地表材料 / 沙泥砾岩","土壤桶湿度","河流 / 河口悬沙","生态植被 / 14 类"};layerField.index=0;
+            layerField=root.Q<DropdownField>("layer");layerField.choices=new List<string>{"自然地表","文明版图","20 档高度","Köppen 柯本气候","本月温度","本月降水","海水与淡水","土地肥力","地貌 / 丘陵高原","地表材料 / 沙泥砾岩","土壤桶湿度","河流 / 河口悬沙","生态植被 / 14 类","河网"};layerField.index=0;
             climateYearField=root.Q<DropdownField>("climateYear");climateYearField.choices=new List<string>{"今年","明年","后年"};climateYearField.index=0;
             climateYearField.RegisterValueChangedCallback(e=>{if(map){map.SetClimateYearOffset(climateYearField.index);UpdateHUD();}});
             layerField.RegisterValueChangedCallback(e=>{
@@ -101,7 +101,7 @@ namespace Orbis.Flat
             Bind("climateStatistics",()=>ShowClimateStatistics());
             Bind("confluence",()=>FocusRiver(true));Bind("mouth",()=>FocusRiver(false));
             Bind("mode",ToggleMode);Bind("home",Home);Bind("focus",Focus);Bind("save",Save);Bind("load",Load);
-            Bind("export",()=>{if(Ready()){FlatRasterIO.Export(World,HeightPath);SetStatus("已导出 16-bit 高度图、水体预览与元数据："+HeightPath);}});
+            Bind("export",()=>{if(Ready()){FlatRasterIO.Export(World,HeightPath);SetStatus("已导出高度、水体预览和透明河网图："+Path.ChangeExtension(HeightPath,"rivers.png"));}});
             Bind("import",Import);Bind("rebuild",()=>{if(Ready()){solarClock.Flush(simulationStep);var copy=World.Clone();Queue(c=>{FlatGenerator.Rebuild(copy,c);return copy;},"重新计算排水、月均气候与生物群系…");}});
             Bind("shot",()=>{if(World!=null&&!Busy)StartCoroutine(Capture());});
             Bind("folder",()=>Application.OpenURL(new Uri(Application.persistentDataPath+Path.DirectorySeparatorChar).AbsoluteUri));
@@ -264,19 +264,21 @@ namespace Orbis.Flat
             int width=playerWidths[sizeField.index];
             string seed=seedField.value.Trim();
             var preset=(TerrainPreset)presetField.index;
-            byte[] earthHeights=null, geographicWater=null;
+            byte[] earthHeights=null, geographicWater=null, geographicRivers=null;
             string statusText="生成板块地形、火山、侵蚀河谷、湖泊、河网和气候…";
             if(preset==TerrainPreset.Earth)
             {
                 // Access Unity resources here. The worker receives only immutable sample bytes.
                 var asset=Resources.Load<TextAsset>("ORBIS/FlatWorld/Earth"+width);
                 var water=Resources.Load<TextAsset>("ORBIS/FlatWorld/EarthWater"+width);
-                if(!asset || !water){SetStatus("无法加载 "+width+" × "+width/2+" 的内置地球高程和海湖资料。");return;}
+                var rivers=Resources.Load<TextAsset>("ORBIS/FlatWorld/EarthRivers");
+                if(!asset || !water || !rivers){SetStatus("无法加载 "+width+" × "+width/2+" 的内置地球高程、海湖和河道资料。");return;}
                 earthHeights=asset.bytes;
                 geographicWater=water.bytes;
+                geographicRivers=rivers.bytes;
                 statusText="载入地球陆地和海床高程，生成河湖、气候与初始文明…";
             }
-            Queue(c=>FlatGenerator.Generate(width,width/2,seed,preset,c,earthHeights,geographicWater),statusText,true);
+            Queue(c=>FlatGenerator.Generate(width,width/2,seed,preset,c,earthHeights,geographicWater,geographicRivers),statusText,true);
         }
         void Install(WorldData world)
         {
@@ -286,7 +288,15 @@ namespace Orbis.Flat
             {
                 var dem=Resources.Load<TextAsset>("ORBIS/FlatWorld/Earth"+world.Width);
                 var water=Resources.Load<TextAsset>("ORBIS/FlatWorld/EarthWater"+world.Width);
-                if(dem && water)world.WaterReference=FlatWaterReference.Read(world.Width,dem.bytes,water.bytes);
+                var rivers=Resources.Load<TextAsset>("ORBIS/FlatWorld/EarthRivers");
+                if(dem && water && rivers)
+                {
+                    byte[] heights=dem.bytes,basins=water.bytes,lines=rivers.bytes;
+                    Queue(c=>{FlatEarthRiverReference.Restore(world,heights,basins,lines,c);return world;},
+                        "恢复地球存档的河道与海湖资料…",seedOnInstall);
+                    return;
+                }
+                if(dem && water)world.WaterReference=FlatWaterReference.Read(world.Width,dem.bytes,water.bytes,world.UsesSurveyedLakeBeds);
             }
             var simulation=new FlatSimulation(world);if(seedOnInstall)simulation.SeedNations(4);
             var nextObject=new GameObject("Authoritative 2D map / render-data provider");nextObject.transform.SetParent(transform,false);
@@ -301,7 +311,7 @@ namespace Orbis.Flat
             try
             {
                 next.Initialize(world);next.GetComponent<MeshRenderer>().enabled=false;
-                next.SetLayer((MapLayer)Mathf.Clamp(layerField.index,0,(int)MapLayer.Vegetation));
+                next.SetLayer((MapLayer)Mathf.Clamp(layerField.index,0,(int)MapLayer.Rivers));
                 next.SetClimateYearOffset(climateYearField.index);
                 nextNav.Initialize(world,viewCamera,next);
                 nextGlobe.Initialize(world,viewCamera,next,true);nextGlobe.PrepareScroll();

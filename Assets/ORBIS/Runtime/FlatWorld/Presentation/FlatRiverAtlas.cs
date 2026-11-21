@@ -21,6 +21,10 @@ namespace Orbis.Flat
         readonly int maximumTextureSize;
         BuildOperation operation;
         Texture2D staging;
+        Texture2D overview;
+        FlatRiverCurves overviewCurves;
+        int overviewRevision=-1;
+        bool overviewVisible,surveyVisible;
         FlatRiverCurves requestedCurves,publishedCurves;
         int requestedRevision=-1,publishedRevision=-1;
         bool stagingApplied,publishedPreview,exhausted,previewReady,disposed;
@@ -50,6 +54,12 @@ namespace Orbis.Flat
 
         public void Bind(Material target)
         {
+            if(target.HasProperty("_RiverOverview"))
+            {
+                target.SetTexture("_RiverOverview",overview?overview:Texture2D.blackTexture);
+                target.SetFloat("_RiverOverviewReady",overviewVisible?1:0);
+                target.SetFloat("_RiverSurvey",surveyVisible?1:0);
+            }
             target.SetTexture("_RiverAtlas",Texture?Texture:Texture2D.blackTexture);
             target.SetVector("_RiverAtlasLayout",Layout);
             target.SetFloat("_RiverAtlasReady",Ready?1:0);
@@ -66,6 +76,11 @@ namespace Orbis.Flat
                 ReleaseStaging();
             }
             bool matches=PublishedMatchesRequest();
+            bool showOverview=overview && overviewRevision==uploadedTerrainRevision &&
+                (uploadedTerrainRevision!=terrainRevision || ReferenceEquals(overviewCurves,curves));
+            bool showSurvey=uploadedTerrainRevision==terrainRevision?curves!=null&&curves.HasSurvey:surveyVisible;
+            if(overviewVisible!=showOverview||surveyVisible!=showSurvey)
+            {overviewVisible=showOverview;surveyVisible=showSurvey;Bind(material);}
             bool visible=curves!=null&&Texture!=null&&publishedRevision==uploadedTerrainRevision&&
                 (uploadedTerrainRevision!=terrainRevision||matches);
             SetReady(visible&&(!publishedPreview||exhausted&&matches),visible&&publishedPreview);
@@ -80,6 +95,24 @@ namespace Orbis.Flat
                 if(curves==null||matches&&!publishedPreview||exhausted)return;
                 operation=new BuildOperation(curves,terrainRevision,maximumTextureSize,preview:!matches);
             }
+            if(uploadedTerrainRevision==operation.Revision && operation.Preview)
+            {
+                var ink=operation.TakeOverview();
+                if(ink!=null && SystemInfo.SupportsTextureFormat(TextureFormat.R8))
+                {
+                    int width=curves.OverviewWidth;
+                    if(!overview || overview.width!=width)
+                    {
+                        if(overview)UnityEngine.Object.Destroy(overview);
+                        overview=new Texture2D(width,width/2,TextureFormat.R8,true,true) {
+                            name="River network overview",filterMode=FilterMode.Trilinear,
+                            wrapModeU=TextureWrapMode.Repeat,wrapModeV=TextureWrapMode.Clamp
+                        };
+                    }
+                    overview.SetPixelData(ink,0);overview.Apply(true,false);
+                    overviewCurves=curves;overviewRevision=operation.Revision;overviewVisible=true;Bind(material);
+                }
+            }
             PumpUploads();
             if(operation==null||!operation.Completed)return;
             if(operation.Error!=null)
@@ -92,6 +125,7 @@ namespace Orbis.Flat
             if(operation.Plan==null)
             {
                 // Keep the completed coarse field if no finer layout fits the device.
+                if(operation.Preview && uploadedTerrainRevision!=operation.Revision)return;
                 exhausted=true;
                 if(matches&&visible)SetReady(true,false);
                 operation.DisposeCompleted();operation=null;return;
@@ -155,6 +189,7 @@ namespace Orbis.Flat
             if(disposed)return;
             disposed=true;SetReady(false,false);ReleaseStaging();
             if(Texture!=null)UnityEngine.Object.Destroy(Texture);
+            if(overview)UnityEngine.Object.Destroy(overview);
             Texture=null;
             if(operation!=null){operation.CancelAndDisposeWhenComplete();operation=null;}
         }
@@ -173,6 +208,8 @@ namespace Orbis.Flat
             readonly CancellationTokenSource cancellation=new CancellationTokenSource();
             readonly BlockingCollection<UploadBlock> uploads=new BlockingCollection<UploadBlock>(3);
             readonly Task worker;
+            byte[] overviewInk;
+            internal byte[] TakeOverview()=>Interlocked.Exchange(ref overviewInk,null);
             public readonly int Revision;
             public readonly bool Preview;
             public BuildPlan Plan {get;private set;}
@@ -192,6 +229,7 @@ namespace Orbis.Flat
             {
                 try
                 {
+                    if(Preview)Interlocked.Exchange(ref overviewInk,curves.DrawOverview(cancel));
                     int minimum=Preview?2:PreviewIntervals*2;
                     for(int intervals=Preview?PreviewIntervals:DetailIntervals;intervals>=minimum&&Plan==null;intervals/=2)
                         Plan=BuildPlan.Create(curves,maximumTextureSize,intervals,cancel);

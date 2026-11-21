@@ -13,6 +13,10 @@ Shader "ORBIS/Surface"
   [HideInInspector] _ShowBanks("Render banks",Float)=1
   [HideInInspector] _WaveAmount("Water wave strength",Float)=1
   [HideInInspector] _RiverAtlas("Continuous river field",2D)="black"{}
+  [HideInInspector] _RiverOverview("River network overview",2D)="black"{}
+  [HideInInspector] _RiverOverviewReady("River overview ready",Float)=0
+  [HideInInspector] _RiverSurvey("Surveyed river courses",Float)=0
+  [HideInInspector] _RiverMap("River network map",Float)=0
   [HideInInspector] _RiverPreviewReady("Initial river field ready",Float)=0
   [HideInInspector] _RiverSeasonTex("Seasonal river discharge",2D)="black"{}
   [HideInInspector] _RiverSeasonReady("River seasons ready",Float)=0
@@ -40,6 +44,9 @@ Shader "ORBIS/Surface"
   [HideInInspector] _EarthSurveyMask("Unedited Earth terrain",2D)="white"{}
   [HideInInspector] _EarthSurveyAtPoles("Unedited south and north poles",Vector)=(1,1,0,0)
   [HideInInspector] _EarthPolarReady("Earth polar survey ready",Float)=0
+  [HideInInspector] _EarthLakeShore("Surveyed inland shorelines",2D)="black"{}
+  [HideInInspector] _EarthLakeDetail("Near lake shorelines",2D)="black"{}
+  [HideInInspector] _EarthLakeReady("Inland shoreline survey ready",Float)=0
   [HideInInspector] _SkyReady("Sky cache ready",Float)=0
   [HideInInspector] _SkyClock("Sky time",Float)=0
   [HideInInspector] _FlatCloudShadows("Cloud shadows enabled",Float)=1
@@ -104,6 +111,8 @@ Shader "ORBIS/Surface"
     float2 terrainGradient=0;
     float4 terrainRelief=float4(1,1,1,0);
     float waterKind=0;
+    float riverOverviewInk=0;
+    float3 riverMapColor=0;
     FlatRiverSection channel=(FlatRiverSection)0;channel.edge=8;
     FlatCoastalSediment coast=(FlatCoastalSediment)0;coast.shore=-8;
     float4 season=float4(1,1,0,.5);
@@ -118,10 +127,14 @@ Shader "ORBIS/Surface"
      float2 surveyCoast;
      float surveyWeight=FlatEarthRelief(uv,field.r,terrainGradient,surveyCoast);
      FlatApplyEarthShore(info.g,field.g,surveyCoast);
+     float surveyLake=FlatEarthLake(uv,info.g,field.g);
      col=tex2D(_FlatTerrain,lerp(tileUV,FlatBlendUV(FlatEcotoneCell(cell,field.g)),_SmoothTerrain)).rgb;
      season=FlatSurfaceSeason(cell,radial);
      float aa=clamp(.65/max(1,pixelsPerTile),.008,.28),edgeDistance;
      float4 river=FlatRiverReceiver(cell,tileUV,hydro,mixing,field);
+     float closeRiver,riverInk=FlatRiverMapInk(cell,river,closeRiver);
+     if(_RiverMap>.5)riverMapColor=FlatRiverMapColor(cell,_FlatInfo,info.g,field,aa,riverInk,surveyLake);
+     riverOverviewInk=riverInk*(1-closeRiver)*(1-smoothstep(-.04,.08,field.g));
      channel=FlatRiverSectionAt(cell,river,field);
      water=FlatWaterMask(channel.edge,field.g,aa,edgeDistance);
      float4 substrate=FlatNaturalGround(_GeoTex,cell,geo,pixelsPerTile,water);
@@ -132,6 +145,7 @@ Shader "ORBIS/Surface"
      float4 basin=FlatAreaWaterOptics(cell,_FlatInfo,float4(field.b,mixing.g,mixing.b,floor(info.g+.5)),wetSupport);
      if(surveyWeight>0&&wetSupport>0)basin.r=max(.15,basin.r+(gridBed-field.r));
      FlatEarthMarineOptics(surveyCoast,field.r,basin,wetSupport);
+     FlatEarthLakeOptics(surveyLake,field.g,basin,wetSupport);
      coast=FlatCoastAt(cell,field,basin,wetSupport,edgeDistance,0,_WaterClock);
      float sediment=FlatReachSediment(cell,channel,field.g,mixing.g);
      waterKind=basin.a;field.b=basin.r;mixing.gb=basin.gb;
@@ -173,6 +187,7 @@ Shader "ORBIS/Surface"
        waterColor=FlatReflectWater(waterColor,uv*_MapSize.xy,field,field.r+field.b,localView,localLight,illumination,waterSurface,_Clouds*_SkyReady,0);
      }
      col=lerp(col,waterColor,water);
+     col=lerp(col,FlatColor(float3(.15,.40,.56))*illumination,riverOverviewInk*(1-polarIce)*.79);
     }
     if(max(polarIce,landSnow)>.001)col=lerp(col,FlatPolarIceColor(uv,water)*illumination*lerp(terrainRelief.rgb,1,water),max(polarIce,landSnow));
     if(_FlatWorldReady>.5)
@@ -192,6 +207,7 @@ Shader "ORBIS/Surface"
     }
     else col+=_Settlement*_Night*night*float3(.9,.38,.09);
     col*=lerp(1,cloudShade,smoothstep(-.05,.18,dot(radial,sun)));
+    if(_RiverMap>.5&&_FlatWorldReady>.5)col=riverMapColor;
     return float4(max(0,col),1);
    }
    ENDCG

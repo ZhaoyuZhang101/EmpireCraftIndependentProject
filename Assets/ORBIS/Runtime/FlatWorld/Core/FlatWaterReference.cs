@@ -13,6 +13,7 @@ namespace Orbis.Flat
         readonly int width;
         readonly byte[] northFirstBed;
         readonly short[] survey;
+        internal bool UsesSurveyedLakeBeds { get; private set; }
 
         FlatWaterReference(int width, byte[] originalBed)
         {
@@ -34,13 +35,19 @@ namespace Orbis.Flat
             int p = Source(tile) * 2;
             return unchecked((short)(northFirstBed[p] | northFirstBed[p + 1] << 8));
         }
+        void SetSourceBed(int cell, short bed)
+        {
+            northFirstBed[2 * cell] = (byte)bed;
+            northFirstBed[2 * cell + 1] = (byte)(bed >> 8);
+        }
         internal bool HasSeaway(int tile, short bed)
         {
             short source = At(tile);
             return (source == Marine || source == Passage) && OriginalBed(tile) == bed;
         }
 
-        public static FlatWaterReference Read(int width, byte[] originalNorthFirstHeights, byte[] bytes)
+        public static FlatWaterReference Read(int width, byte[] originalNorthFirstHeights, byte[] bytes,
+            bool useSurveyedLakeBeds = true)
         {
             if (width < 64 || width > WorldData.MaxWidth || width % 8 != 0 ||
                 originalNorthFirstHeights == null || originalNorthFirstHeights.Length != (long)width * width ||
@@ -49,10 +56,14 @@ namespace Orbis.Flat
             var result = new FlatWaterReference(width, originalNorthFirstHeights);
             using (var reader = new BinaryReader(new MemoryStream(bytes, false)))
             {
-                if (reader.ReadUInt32() != 0x3152574f || reader.ReadInt32() != width)
+                uint format = reader.ReadUInt32();
+                bool hasNewShores = format == 0x3352574f; // OWR3 also has surveyed levels for formerly dry cells.
+                bool hasLakeBeds = hasNewShores || format == 0x3252574f;
+                if ((!hasLakeBeds && format != 0x3152574f) || reader.ReadInt32() != width)
                     throw new InvalidDataException("Geographic water reference signature or width mismatch.");
                 int runs = reader.ReadInt32(), p = 0;
-                if (runs <= 0 || 12L + 6L * runs != bytes.Length)
+                long spanEnd = 12L + 6L * runs;
+                if (runs <= 0 || (hasLakeBeds ? spanEnd + 4 > bytes.Length : spanEnd != bytes.Length))
                     throw new InvalidDataException("Invalid geographic water span count.");
                 for (int r = 0; r < runs; r++)
                 {
@@ -64,6 +75,48 @@ namespace Orbis.Flat
                     for (int end = p + length; p < end; p++) result.survey[p] = value;
                 }
                 if (p != result.survey.Length) throw new InvalidDataException("Incomplete geographic water reference.");
+                if (hasLakeBeds)
+                {
+                    int count = reader.ReadInt32(), last = -1;
+                    long bedsEnd = spanEnd + 4L + 4L * count;
+                    if (count < 0 || count > p || (hasNewShores ? bedsEnd + 4 > bytes.Length : bedsEnd != bytes.Length))
+                        throw new InvalidDataException("Invalid surveyed lake-bed index count.");
+                    for (int n = 0; n < count; n++)
+                    {
+                        int cell = reader.ReadInt32();
+                        if (cell <= last || cell >= p) throw new InvalidDataException("Invalid surveyed lake-bed index.");
+                        last = cell;
+                        short stage = result.survey[cell];
+                        int offset = cell * 2;
+                        short mean = unchecked((short)(originalNorthFirstHeights[offset] | originalNorthFirstHeights[offset + 1] << 8));
+                        if (stage < HeightBands.MinimumBed || stage == mean || stage > mean + 2)
+                            throw new InvalidDataException("Invalid representative lake bed.");
+                        if (useSurveyedLakeBeds)
+                            result.SetSourceBed(cell, stage);
+                    }
+                    if (hasNewShores)
+                    {
+                        int extra = reader.ReadInt32();
+                        if (extra <= 0 || extra > p || bedsEnd + 4L + 6L * extra != bytes.Length)
+                            throw new InvalidDataException("Invalid supplemental lake cell count.");
+                        last = -1;
+                        for (int n = 0; n < extra; n++)
+                        {
+                            int cell = reader.ReadInt32();
+                            short stage = reader.ReadInt16();
+                            if (cell <= last || cell >= p || result.survey[cell] != Dry ||
+                                stage < HeightBands.MinimumBed || stage > HeightBands.MaximumBed)
+                                throw new InvalidDataException("Invalid supplemental lake cell.");
+                            last = cell;
+                            if (!useSurveyedLakeBeds) continue;
+                            result.survey[cell] = stage;
+                            int offset = 2 * cell;
+                            short bed = unchecked((short)(originalNorthFirstHeights[offset] | originalNorthFirstHeights[offset + 1] << 8));
+                            if (bed > stage) result.SetSourceBed(cell, stage);
+                        }
+                    }
+                    result.UsesSurveyedLakeBeds = useSurveyedLakeBeds && (count != 0 || hasNewShores);
+                }
             }
             return result;
         }

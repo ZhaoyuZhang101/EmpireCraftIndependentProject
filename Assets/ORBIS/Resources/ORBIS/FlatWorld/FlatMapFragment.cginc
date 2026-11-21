@@ -54,16 +54,19 @@
     float4 field=FlatField(cell);
     float gridBed=field.r;
     float2 terrainGradient=0,surveyCoast=0;
-    float surveyWeight=0;
-    if(terrainView>.5||_WaterView>.5)
+    float surveyWeight=0,surveyLake=0;
+    if(terrainView>.5||_WaterView>.5||_RiverMap>.5)
     {
      if(terrainView>.5)terrainGradient=FlatFieldGradient(cell,0);
      surveyWeight=FlatEarthRelief(i.uv,field.r,terrainGradient,surveyCoast);
      FlatApplyEarthShore(info.g,field.g,surveyCoast);
+     surveyLake=FlatEarthLake(i.uv,info.g,field.g);
     }
     float edgeDistance;
     float aa=clamp(.65/max(1,_PixelsPerTile),.008,.28);
     float4 river=FlatRiverReceiver(cell,uv,hydro,mixing,field);
+    float overviewInk=0,closeRiver=0;
+    if(_WaterView>.5||_RiverMap>.5)overviewInk=FlatRiverMapInk(cell,river,closeRiver);
     float riverRadius=length(river.ba);
     [branch] if(_RiverMinPixels>0&&river.r<1&&riverRadius>.0001)
     {
@@ -135,6 +138,7 @@
      float4 areaOptics=FlatAreaWaterOptics(cell,_InfoTex,float4(field.b,mixing.g,mixing.b,floor(info.g+.5)),wetSupport);
      if(surveyWeight>0&&wetSupport>0)areaOptics.r=max(.15,areaOptics.r+(gridBed-field.r));
      FlatEarthMarineOptics(surveyCoast,field.r,areaOptics,wetSupport);
+     FlatEarthLakeOptics(surveyLake,field.g,areaOptics,wetSupport);
      FlatCoastalSediment coast=FlatCoastAt(cell,field,areaOptics,wetSupport,edgeDistance,frozen,_WaterClock);
      FlatRiverSection channel=FlatRiverSectionAt(cell,river,field);
      float sediment=FlatReachSediment(cell,channel,field.g,mixing.g);
@@ -171,8 +175,12 @@
       }
      }
      col=lerp(col,waterColor,waterMask);
+     // Keep unresolved channels visible through the same daylight and cloud pass.
+     float exposed=(1-smoothstep(-.04,.08,field.g))*(1-polarIce);
+     col=lerp(col,FlatColor(float3(.15,.40,.56))*illumination,overviewInk*(1-closeRiver)*exposed*.79);
     }
     else col*=illumination;
+    if(_RiverMap>.5)col=FlatRiverMapColor(cell,_InfoTex,info.g,field,aa,overviewInk,surveyLake);
     if(frozen>.001)col=lerp(col,FlatPolarIceColor(i.uv,waterMask)*illumination*lerp(terrainRelief.rgb,1,waterMask),frozen);
     float major;float contour=FlatContour(field.r,_ContourInterval,_PixelsPerTile,major);
     float contourStrength=max(_ShowContours,_DrawHeight)*smoothstep(3,5,_PixelsPerTile)*terrainView;

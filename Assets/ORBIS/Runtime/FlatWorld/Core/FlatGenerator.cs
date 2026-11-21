@@ -27,7 +27,7 @@ namespace Orbis.Flat
         public static WorldData Generate(int width,int height,string seed,TerrainPreset preset,CancellationToken cancel,byte[] earthHeights)
             => Generate(width,height,seed,preset,cancel,earthHeights,null);
 
-        public static WorldData Generate(int width,int height,string seed,TerrainPreset preset,CancellationToken cancel,byte[] earthHeights,byte[] geographicWater)
+        public static WorldData Generate(int width,int height,string seed,TerrainPreset preset,CancellationToken cancel,byte[] earthHeights,byte[] geographicWater,byte[] geographicRivers=null)
         {
             cancel.ThrowIfCancellationRequested();
             if(preset == TerrainPreset.Earth && (earthHeights == null || earthHeights.LongLength != (long)width*height*sizeof(short)))
@@ -35,7 +35,12 @@ namespace Orbis.Flat
             var w=new WorldData(width,height,seed,preset);
             if(preset == TerrainPreset.Earth)
             {
-                if(geographicWater!=null)w.WaterReference=FlatWaterReference.Read(width,earthHeights,geographicWater);
+                if(geographicWater!=null)
+                {
+                    w.WaterReference=FlatWaterReference.Read(width,earthHeights,geographicWater);
+                    w.UsesSurveyedLakeBeds=w.WaterReference.UsesSurveyedLakeBeds;
+                }
+                if(geographicRivers!=null)w.RiverReference=FlatEarthRiverReference.Read(geographicRivers);
                 for(int y=0;y<height;y++)
                 {
                     cancel.ThrowIfCancellationRequested();
@@ -45,7 +50,8 @@ namespace Orbis.Flat
                         short metres=unchecked((short)(earthHeights[source] | earthHeights[source+1]<<8));
                         if(metres < HeightBands.MinimumBed || metres > HeightBands.MaximumBed)
                             throw new ArgumentException("地球高程超过游戏支持的范围。", nameof(earthHeights));
-                        w.Elevation[y*width+x]=metres;
+                        int tile=y*width+x;
+                        w.Elevation[tile]=w.UsesSurveyedLakeBeds?w.WaterReference.OriginalBed(tile):metres;
                     }
                 }
             }

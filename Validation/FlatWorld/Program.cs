@@ -14,6 +14,7 @@ public static class Program {
     case "--world-sizes": WorldSizeRegression(); break;
     case "--large-presets": LargeProceduralPresets(); break;
     case "--river-discharge": RiverDischargeRegression.Run(); break;
+    case "--river-map": RiverMapRegression.Run(); break;
     case "--forest-stands": ForestStandRegression.Run(); break;
     case "--wildlife": WildlifeRegression.Run(); break;
     case "--bathymetry": BathymetryRegression.Run(); break;
@@ -107,17 +108,30 @@ public static class Program {
  }
  static void EarthPresetRegression() {
   const int width=256,height=128;
-  var raw=System.IO.File.ReadAllBytes("Assets/ORBIS/Resources/ORBIS/FlatWorld/Earth256.bytes");
-  var world=FlatGenerator.Generate(width,height,"EARTH-REGRESSION",TerrainPreset.Earth,default,raw);
+  const string folder="Assets/ORBIS/Resources/ORBIS/FlatWorld/";
+  var raw=System.IO.File.ReadAllBytes(folder+"Earth256.bytes");
+  var water=System.IO.File.ReadAllBytes(folder+"EarthWater256.bytes");
+  var rawOnly=FlatGenerator.Generate(width,height,"EARTH-REGRESSION",TerrainPreset.Earth,default,raw);
+  var world=FlatGenerator.Generate(width,height,"EARTH-REGRESSION",TerrainPreset.Earth,default,raw,water);
   FlatSave.Validate(world);
   var saved=FlatSave.Decode(FlatSave.Encode(world));
   if(saved.Preset!=TerrainPreset.Earth || world.Tectonics!=null)throw new Exception("Earth source was lost or procedurally regenerated.");
+  int changed=0,largestCut=0,largestRise=0;
   for(int i=0;i<world.Count;i++) {
    int p=2*((height-1-i/width)*width+i%width);
    short expected=unchecked((short)(raw[p] | raw[p+1]<<8));
-   if(world.Elevation[i]!=expected || saved.Elevation[i]!=expected || saved.Water[i]!=world.Water[i])
+   if(rawOnly.Elevation[i]!=expected || saved.Elevation[i]!=world.Elevation[i] ||
+      saved.WaterLevel[i]!=world.WaterLevel[i] || saved.Water[i]!=world.Water[i] ||
+      !world.WaterReference.MatchesOriginalBed(i,world.Elevation[i]))
     throw new Exception($"Earth elevation, water or orientation changed at {i}.");
+   if(world.Elevation[i]==expected)continue;
+   int delta=world.Elevation[i]-expected;
+   if(world.Water[i]!=WaterKind.Lake || world.Elevation[i]!=world.WaterReference.At(i) ||
+      world.WaterLevel[i]!=world.Elevation[i] || delta>2)
+    throw new Exception($"Invalid representative lake bed at {i}: change {delta} metres.");
+   changed++;largestCut=Math.Max(largestCut,-delta);largestRise=Math.Max(largestRise,delta);
   }
+  if(changed==0)throw new Exception("The preset did not apply its surveyed majority-lake beds.");
   void ExpectBadRaster(byte[] bytes) {
    try { FlatGenerator.Generate(width,height,"INVALID-DEM",TerrainPreset.Earth,default,bytes); }
    catch(ArgumentException) { return; }
@@ -127,7 +141,8 @@ public static class Program {
   ExpectBadRaster(new byte[16]);
   raw[0]=0xff;raw[1]=0x7f;
   ExpectBadRaster(raw);
-  Console.WriteLine("PASS Earth resources, all cell elevations and water after save/load, missing/truncated/out-of-range DEM");
+  Console.WriteLine($"PASS raw Earth DEM, all {world.Count} preset cells and saved levels; {changed} surveyed lake beds, " +
+   $"largest cut {largestCut} m, largest rise {largestRise} m; missing/truncated/out-of-range DEM rejected");
  }
  static void EnvironmentRegression() {
   ClimatologyRegression.RotatedContinent();

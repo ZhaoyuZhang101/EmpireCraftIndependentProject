@@ -23,6 +23,7 @@ namespace Orbis.Flat
             if(layer==MapLayer.Sediment)return "蓝 → 沙褐：0…1 相对悬沙；陆地灰色。";
             if(layer==MapLayer.Height)return "低绿 → 高白：0…4000m；等高线使用真实预设海拔插值。";
             if(layer==MapLayer.Water)return "深海 / 中海 / 浅海 / 淡水湖 / 细河道；混合区随汇流量展开。";
+            if(layer==MapLayer.Rivers)return "深蓝粗线为主河道，细线为支流。地球按已测绘河道显示，随机世界按本地汇流显示。";
             if(layer==MapLayer.Fertility)return "棕 → 绿：0…100% 文明用地肥力。";
             if(layer==MapLayer.Nations)return "国家色代表 Zone 归属，不决定河岸或地貌。";
             for(int i=layer==MapLayer.Climate?1:0;i<colors.Length;i++)
@@ -33,6 +34,11 @@ namespace Orbis.Flat
             return text.ToString();
         }
         public static Color32 RGB(uint h,byte a=255) { return new Color32((byte)(h>>16),(byte)(h>>8),(byte)h,a); }
+        public static Color32 RiverMapBase(WaterKind water)
+        {
+            if(water==WaterKind.Lake)return RGB(0x94c4cf);
+            return water>=WaterKind.DeepOcean&&water<=WaterKind.ShallowOcean?RGB(0x9fb5c2):RGB(0xe5e1cc);
+        }
         public static Color32 Water(WaterKind kind)
         {
             switch(kind){case WaterKind.DeepOcean:return RGB(0x183950);case WaterKind.MiddleOcean:return RGB(0x245c78);case WaterKind.ShallowOcean:return RGB(0x449295);case WaterKind.Lake:return RGB(0x599ba7);case WaterKind.River:return RGB(0x74b0bd);default:return RGB(0x867c64);}
@@ -104,7 +110,8 @@ namespace Orbis.Flat
                     year.Weather(w,i,w.Month,out float temperature,out float rain);
                     c=layer==MapLayer.Temperature?Color.Lerp(RGB(0x4169ab),RGB(0xe9aa6a),Mathf.InverseLerp(-25,35,temperature)):
                         Color.Lerp(RGB(0xd1bb93),RGB(0x2c869b),Mathf.Clamp01(rain/240));break;
-                case MapLayer.Water:c=w.Water[i]==WaterKind.Land?RGB(0x767b71):Water(w.Water[i]);break;
+                case MapLayer.Water:c=FlatTerrainAnalysis.AreaWater(w.Water[i])?Water(w.Water[i]):RGB(0x767b71);break;
+                case MapLayer.Rivers:c=RiverMapBase(w.Water[i]);break;
                 case MapLayer.Landforms:c=RGB(LandformColors[(int)w.Facts.Forms[i]]);break;
                 case MapLayer.Materials:c=FlatTerrainAnalysis.AreaWater(w.Water[i])?Water(w.Water[i]):RGB(MaterialColors[(int)w.Facts.Materials[i]]);break;
                 case MapLayer.Wetness:c=Color.Lerp(RGB(0xad8862),RGB(0x326c56),w.Facts.Wetness[i]);break;

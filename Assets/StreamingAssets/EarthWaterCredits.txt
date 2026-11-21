@@ -1,0 +1,17 @@
+ORBIS Earth preset water data
+
+Lake Dianchi, Lake Erhai, Lake Fuxian and Lake Sayram use HydroLAKES v1.0.
+Messager, M. L., Lehner, B., Grill, G., Nedeva, I. and Schmitt, O. (2016).
+Estimating the volume and age of water stored in global lakes using a
+geo-statistical approach. Nature Communications 7, 13603.
+https://doi.org/10.1038/ncomms13603
+https://www.hydrosheds.org/products/hydrolakes
+
+HydroLAKES is licensed under Creative Commons Attribution 4.0 International.
+ORBIS selects four polygons, rounds their geographic coordinates, rasterizes
+their shores, and uses the source reference elevations on the simulation grid.
+https://creativecommons.org/licenses/by/4.0/
+
+Other geographic river and lake outlines and ocean shores use Natural Earth
+v5.1.2, public domain. The Yangtze estuary chart line is derived from its banks.
+https://www.naturalearthdata.com/

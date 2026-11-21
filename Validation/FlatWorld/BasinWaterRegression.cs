@@ -122,12 +122,107 @@ internal static class BasinWaterRegression
         return w.Index((int)((lon + 180) / 360 * w.Width), (int)((lat + 90) / 180 * w.Height));
     }
 
+    static void MajorLakes(WorldData w)
+    {
+        // Interior points of the Natural Earth 1:10m polygons. The narrow lakes
+        // in the second group first have majority-water cells on the 512 grid.
+        void Lake(string name, double lon, double lat, int level)
+        {
+            int i = Tile(w, lon, lat);
+            Check(w.Water[i] == WaterKind.Lake && w.WaterLevel[i] == level &&
+                w.Elevation[i] <= w.WaterLevel[i],
+                $"Earth {w.Width} {name} ({lon}, {lat}) has {w.Water[i]} at {w.WaterLevel[i]} m on a {w.Elevation[i]} m bed.");
+        }
+        Lake("Superior", -86.5, 47.2, 193);
+        Lake("Michigan", -86.9, 43, 180);
+        Lake("Huron", -82.6, 44.65, 179);
+        Lake("Baikal", 108.63, 53.79, 464);
+        Lake("Great Bear", w.Width == 256 ? -121.64 : -121.29, w.Width == 256 ? 65.39 : 66.445, 156);
+        Lake("Great Slave", w.Width == 256 ? -114.60 : -114.26, w.Width == 256 ? 61.17 : 61.50, 156);
+        Lake("Victoria", 33, -1, 1135);
+        foreach (var site in new[] { ("Erie", -81.9, 41.85, 175), ("Ontario", -77.7, 43.9, 86),
+            ("Tanganyika", 29.88, -6.68, 771), ("Malawi", 34.8, -11.6, 475),
+            ("Titicaca", -69.26, -15.82, 3809), ("Qinghai", 100.19, 36.91, 3197) })
+        {
+            if (w.Width >= 512) Lake(site.Item1, site.Item2, site.Item3, site.Item4);
+            else
+            {
+                int i = Tile(w, site.Item2, site.Item3);
+                Check(!FlatTerrainAnalysis.AreaWater(w.Water[i]) && w.WaterLevel[i] == w.Elevation[i],
+                    $"Earth {w.Width} promoted the minority lake area at {site.Item1} to a full water tile.");
+            }
+        }
+        foreach (var site in new[] { ("Minnesota", -93.5, 45.9), ("Ontario uplands", -79.8, 45.2),
+            ("East African uplands", 36.6, -2.3), ("west of Baikal", 105.4, 54.3),
+            ("between Great Bear and Slave", -115.45, 63.8), ("south of Qinghai", 100.9, 35.8),
+            ("Altiplano", -68.1, -17.5), ("exposed Aral bed", 60.1, 45.5) })
+        {
+            int i = Tile(w, site.Item2, site.Item3);
+            Check(!FlatTerrainAnalysis.AreaWater(w.Water[i]) && w.WaterLevel[i] == w.Elevation[i],
+                $"Earth {w.Width} flooded {site.Item1}.");
+        }
+    }
+
+    static void SaveBaselines(WorldData current, byte[] bed, byte[] water, byte[] rivers)
+    {
+        // OWR2 retains the original OWR1 classification spans before its sparse bed list.
+        int spansEnd = 12 + 6 * BitConverter.ToInt32(water, 8);
+        byte[] oldSurvey = water.AsSpan(0, spansEnd).ToArray();
+        oldSurvey[3] = (byte)'1';
+        void Reject(byte[] data)
+        {
+            try { FlatWaterReference.Read(current.Width, bed, data); }
+            catch (InvalidDataException) { return; }
+            throw new InvalidOperationException("Accepted corrupt surveyed lake-bed indices.");
+        }
+        Reject(water.AsSpan(0, water.Length - 1).ToArray());
+        var duplicate = (byte[])water.Clone();
+        Array.Copy(duplicate, spansEnd + 4, duplicate, spansEnd + 8, 4);
+        Reject(duplicate);
+        var outsideGrid = (byte[])water.Clone();
+        BitConverter.GetBytes(current.Count).CopyTo(outsideGrid, spansEnd + 4);
+        Reject(outsideGrid);
+        var legacy = FlatGenerator.Generate(current.Width, current.Height, current.Seed, TerrainPreset.Earth,
+            default, bed, oldSurvey);
+        int bear = Tile(current, -121.64, 65.39);
+        Check(legacy.Elevation[bear] == 212 && !FlatTerrainAnalysis.AreaWater(legacy.Water[bear]) &&
+            current.Elevation[bear] == 156 && current.Water[bear] == WaterKind.Lake,
+            "Legacy and lake-aware Earth maps must retain distinct terrain at Great Bear Lake.");
+        const int versionOffset = 13 + sizeof(int) + 32;
+        var legacyFile = FlatSave.Encode(legacy);
+        var loadedOld = FlatSave.Decode(legacyFile);
+        FlatEarthRiverReference.Restore(loadedOld, bed, water, rivers, default);
+        Check(BitConverter.ToInt32(legacyFile, versionOffset) == 3 && !loadedOld.UsesSurveyedLakeBeds &&
+            loadedOld.WaterReference.MatchesOriginalBed(bear, 212) && !loadedOld.WaterReference.MatchesOriginalBed(bear, 156) &&
+            legacyFile.SequenceEqual(FlatSave.Encode(loadedOld)), "A pre-update Earth save lost its original bed baseline.");
+        FlatGenerator.Rebuild(loadedOld, default);
+        Check(loadedOld.Elevation.SequenceEqual(legacy.Elevation) && loadedOld.Water.SequenceEqual(legacy.Water) &&
+            loadedOld.WaterLevel.SequenceEqual(legacy.WaterLevel) && loadedOld.Downstream.SequenceEqual(legacy.Downstream),
+            "Rebuilding an unedited old Earth save changed its water or drainage.");
+
+        // A player can raise the new bed to exactly the height of the previous DEM.
+        var edited = current.Clone();
+        edited.Elevation[bear] = 212;
+        FlatGenerator.Rebuild(edited, default);
+        var editedFile = FlatSave.Encode(edited);
+        var loadedNew = FlatSave.Decode(editedFile);
+        FlatEarthRiverReference.Restore(loadedNew, bed, water, rivers, default);
+        Check(BitConverter.ToInt32(editedFile, versionOffset) == 4 && loadedNew.UsesSurveyedLakeBeds &&
+            loadedNew.WaterReference.MatchesOriginalBed(bear, 156) && !loadedNew.WaterReference.MatchesOriginalBed(bear, 212) &&
+            editedFile.SequenceEqual(FlatSave.Encode(loadedNew)), "The alternate unedited baseline disguised a real terrain edit.");
+        FlatGenerator.Rebuild(loadedNew, default);
+        Check(loadedNew.Elevation[bear] == 212 && !FlatTerrainAnalysis.AreaWater(loadedNew.Water[bear]) &&
+            edited.Water.SequenceEqual(loadedNew.Water) && edited.WaterLevel.SequenceEqual(loadedNew.WaterLevel),
+            "Restoring the surveyed source reflooded the player's raised bed.");
+    }
+
     static void EarthSurfaces(int width)
     {
         const string folder = "Assets/ORBIS/Resources/ORBIS/FlatWorld/";
         byte[] bed = File.ReadAllBytes(folder + "Earth" + width + ".bytes");
         byte[] water = File.ReadAllBytes(folder + "EarthWater" + width + ".bytes");
         var w = FlatGenerator.Generate(width, width / 2, "EARTH-REGRESSION", TerrainPreset.Earth, default, bed, water);
+        MajorLakes(w);
         foreach (var site in new[] { ("Tarim", 82.5, 39.0), ("Qaidam", 94.0, 36.7) })
         {
             int i = Tile(w, site.Item2, site.Item3);
@@ -149,14 +244,18 @@ internal static class BasinWaterRegression
         double inputs = local.Sum(v => (double)v), outputs = 0;
         for (int i = 0; i < w.Count; i++) if (w.Downstream[i] < 0) outputs += w.Runoff[i];
         Check(Math.Abs(inputs - outputs) < 1e-5 * Math.Max(1, inputs), "Runoff lost at a closed or marine outlet.");
-        Console.WriteLine($"Earth {width}: Tarim/Qaidam dry; Caspian {w.WaterLevel[caspian]} m; " +
-            $"Mediterranean, Black and Baltic marine; annual runoff residual {Math.Abs(inputs-outputs):G4}/{inputs:F2}.");
+        Console.WriteLine($"Earth {width}: {(width == 256 ? 8 : 14)} major lakes including Caspian {w.WaterLevel[caspian]} m, " +
+            $"10 dry controls, Mediterranean, Black and Baltic marine; annual runoff residual {Math.Abs(inputs-outputs):G4}/{inputs:F2}.");
         if (width == 256)
         {
-            var loaded = FlatSave.Decode(FlatSave.Encode(w));
+            byte[] original = FlatSave.Encode(w);
+            var loaded = FlatSave.Decode(original);
             Check(loaded.Water.SequenceEqual(w.Water) && loaded.WaterLevel.SequenceEqual(w.WaterLevel) &&
                 loaded.Downstream.SequenceEqual(w.Downstream), "Saving changed the authoritative basin state.");
-            loaded.WaterReference = FlatWaterReference.Read(width, bed, water);
+            byte[] rivers = File.ReadAllBytes(folder + "EarthRivers.bytes");
+            SaveBaselines(w, bed, water, rivers);
+            FlatEarthRiverReference.Restore(loaded, bed, water, rivers, default);
+            Check(original.SequenceEqual(FlatSave.Encode(loaded)), "Restoring an unedited lake-aware Earth save changed its bytes.");
             FlatGenerator.Rebuild(loaded, default);
             Check(loaded.Water.SequenceEqual(w.Water) && loaded.Downstream.SequenceEqual(w.Downstream),
                 "Restoring the source and rebuilding changed the unedited water map.");
@@ -169,12 +268,60 @@ internal static class BasinWaterRegression
         }
     }
 
+    static void ChineseLakeCells()
+    {
+        const string folder = "Assets/ORBIS/Resources/ORBIS/FlatWorld/";
+        foreach (int width in new[] { 1024, 1536, 2048 })
+        {
+            byte[] bed = File.ReadAllBytes(folder + "Earth" + width + ".bytes");
+            byte[] water = File.ReadAllBytes(folder + "EarthWater" + width + ".bytes");
+            var current = FlatWaterReference.Read(width, bed, water);
+            var legacy = FlatWaterReference.Read(width, bed, water, false);
+            void Site(string name, double lon, double lat, int stage, bool majority)
+            {
+                int i = (int)((lat + 90) * width / 360) * width + (int)((lon + 180) * width / 360);
+                Check(legacy.At(i) == FlatWaterReference.Dry, "Changed pre-survey lake coverage at " + name);
+                Check(current.At(i) == (majority ? stage : FlatWaterReference.Dry), $"Earth {width} {name} surface");
+                int sample = ((width / 2 - 1 - i / width) * width + i % width) * 2;
+                short original = BitConverter.ToInt16(bed, sample);
+                Check(legacy.OriginalBed(i) == original &&
+                    current.OriginalBed(i) == (majority ? Math.Min((int)original, stage) : original),
+                    $"Earth {width} {name} bed or legacy baseline");
+            }
+            Site("Sayram", 81.123, 44.5605, 2072, width >= 1536);
+            Site("Dianchi", 102.744, 24.873, 1886, width == 2048);
+            Site("Erhai", 100.182, 25.783, 1962, false);
+            Site("Fuxian", 102.887, 24.494, 1721, false);
+            Site("ridge between Dianchi and Fuxian", 102.823, 24.662, 0, false);
+            if (width == 2048)
+            {
+                Site("east Sayram", 81.2988, 44.5605, 2072, true);
+                void RejectExtra(byte[] damaged)
+                {
+                    try { FlatWaterReference.Read(width, bed, damaged); }
+                    catch (InvalidDataException) { return; }
+                    throw new InvalidOperationException("Accepted a corrupt supplemental lake record.");
+                }
+                RejectExtra(water.AsSpan(0, water.Length - 1).ToArray());
+                var duplicate = (byte[])water.Clone();
+                Array.Copy(duplicate, duplicate.Length - 12, duplicate, duplicate.Length - 6, sizeof(int));
+                RejectExtra(duplicate);
+                var badLevel = (byte[])water.Clone();
+                BitConverter.GetBytes(FlatWaterReference.Dry).CopyTo(badLevel, badLevel.Length - 2);
+                RejectExtra(badLevel);
+            }
+        }
+        Console.WriteLine("PASS Chinese lake coverage by cell area, source reference stages and legacy beds");
+    }
+
     public static void Run()
     {
         DryAndWet();
         SurveyedPassage();
         EarthSurfaces(256);
         EarthSurfaces(512);
+        EarthSurfaces(1024);
+        ChineseLakeCells();
         Console.WriteLine("PASS dry internal sinks, wet spill lakes, ocean-only planet, one-cell strait and dam across the longitude seam");
     }
 }

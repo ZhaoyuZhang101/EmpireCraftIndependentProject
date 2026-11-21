@@ -17,13 +17,15 @@ namespace Orbis.Flat
 
     // Immutable presentation geometry reconstructed from the conserved drainage graph.
     // All queries use the same global ribbon, including banks outside river-owned tiles.
-    public sealed class FlatRiverCurves
+    public sealed partial class FlatRiverCurves
     {
         const int SamplesPerReach=16;
         const float FieldMargin=.30f;
         readonly Segment[] segments;
         readonly int[] tileOffsets,tileSegments,activeTiles;
         readonly float[] longitudeScale;
+        readonly bool[] editedRiverTiles;
+        public bool HasSurvey { get; }
         public FlatRiverStageField Seasons { get; private set; }
 
         readonly struct Vertex
@@ -49,9 +51,11 @@ namespace Orbis.Flat
         public int ActiveTileCount { get { return activeTiles.Length; } }
         public int GetActiveTile(int index) { return activeTiles[index]; }
 
-        FlatRiverCurves(int width,int height,Segment[] segments,int[] offsets,int[] candidates,int[] active)
+        FlatRiverCurves(int width,int height,Segment[] segments,int[] offsets,int[] candidates,int[] active,
+            bool hasSurvey,bool[] editedTiles)
         {
             Width=width;Height=height;this.segments=segments;
+            HasSurvey=hasSurvey;editedRiverTiles=editedTiles;
             tileOffsets=offsets;tileSegments=candidates;activeTiles=active;
             longitudeScale=new float[height+1];
             for(int y=0;y<=height;y++)longitudeScale[y]=Metric(y,height);
@@ -106,6 +110,18 @@ namespace Orbis.Flat
             if(world==null||facts==null||facts.Forms.Length!=world.Count)
                 throw new ArgumentException("River curves require matching terrain facts.");
             cancel.ThrowIfCancellationRequested();
+            bool surveyed=world.Preset==TerrainPreset.Earth && world.RiverReference!=null && world.WaterReference!=null;
+            var edited=surveyed?FindEditedTiles(world,cancel):null;
+            var built=surveyed && edited==null ? new List<Segment>() : BuildDrainageCurves(world,facts,cancel);
+            if(surveyed)AddSurvey(world,built,cancel);
+            var curves=Index(world.Width,world.Height,built.ToArray(),cancel,surveyed,edited);
+            if(facts.RiverDischarge!=null && built.Count>0 && (!surveyed || edited!=null))
+                curves.Seasons=new FlatRiverStageField(curves,facts.RiverDischarge,cancel);
+            return curves;
+        }
+
+        static List<Segment> BuildDrainageCurves(WorldData world,FlatTerrainFacts facts,CancellationToken cancel)
+        {
             int count=world.Count;
             var river=new bool[count];var dominant=new int[count];var areaSource=new int[count];var indegree=new int[count];
             var order=new int[count];var phase=new float[count];
@@ -236,9 +252,7 @@ namespace Orbis.Flat
                     AddPolar(world,facts,i,next,river,radii,depths,nodeX,nodeY,tangentX,tangentY,built);
                 else AddReach(world,facts,i,next,river,dominant,radii,depths,nodeX,nodeY,tangentX,tangentY,built);
             }
-            var curves=Index(world.Width,world.Height,built.ToArray(),cancel);
-            if(facts.RiverDischarge!=null&&built.Count>0)curves.Seasons=new FlatRiverStageField(curves,facts.RiverDischarge,cancel);
-            return curves;
+            return built;
         }
 
         static float Wrapped(float difference,int width)
@@ -488,14 +502,19 @@ namespace Orbis.Flat
             maxY=FMath.Clamp((int)Math.Floor(Math.Max(segment.A.Y,segment.B.Y)+padding),0,height-1);
         }
 
-        static FlatRiverCurves Index(int width,int height,Segment[] segments,CancellationToken cancel)
+        static FlatRiverCurves Index(int width,int height,Segment[] segments,CancellationToken cancel,
+            bool surveyed,bool[] edited)
         {
             var offsets=new int[width*height+1];
             for(int k=0;k<segments.Length;k++)
             {
                 if((k&4095)==0)cancel.ThrowIfCancellationRequested();
                 Bounds(segments[k],height,out int minX,out int maxX,out int minY,out int maxY);
-                for(int y=minY;y<=maxY;y++)for(int x=minX;x<=maxX;x++)offsets[y*width+FMath.Wrap(x,width)+1]++;
+                for(int y=minY;y<=maxY;y++)for(int x=minX;x<=maxX;x++)
+                {
+                    int tile=y*width+FMath.Wrap(x,width);
+                    if(edited==null||edited[tile]==(segments[k].Reach>=0))offsets[tile+1]++;
+                }
             }
             int activeCount=0;
             for(int i=0;i<width*height;i++)
@@ -511,10 +530,13 @@ namespace Orbis.Flat
                 if((k&4095)==0)cancel.ThrowIfCancellationRequested();
                 Bounds(segments[k],height,out int minX,out int maxX,out int minY,out int maxY);
                 for(int y=minY;y<=maxY;y++)for(int x=minX;x<=maxX;x++)
-                {int tile=y*width+FMath.Wrap(x,width);candidates[cursors[tile]++]=k;}
+                {
+                    int tile=y*width+FMath.Wrap(x,width);
+                    if(edited==null||edited[tile]==(segments[k].Reach>=0))candidates[cursors[tile]++]=k;
+                }
             }
             cancel.ThrowIfCancellationRequested();
-            return new FlatRiverCurves(width,height,segments,offsets,candidates,active);
+            return new FlatRiverCurves(width,height,segments,offsets,candidates,active,surveyed,edited);
         }
     }
 }

@@ -42,6 +42,7 @@ namespace Orbis.Flat
             }
 
             View.SurfaceMaterial.SetFloat("_FlatPolitical",political?1:0);
+            View.SurfaceMaterial.SetFloat("_RiverMap",maps.VisibleLayer==MapLayer.Rivers?1:0);
             View.SyncVolumeSettings(sun,clock,Snapshot.day);View.Sync(clock,sun,0);
         }
         public void PrepareScroll()

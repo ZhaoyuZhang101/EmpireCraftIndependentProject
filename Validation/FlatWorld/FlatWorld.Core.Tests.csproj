@@ -5,5 +5,5 @@
   <ItemGroup><Compile Include="ClimateMathRegression.cs"/><Compile Include="BiomeStatisticsRegression.cs"/><Compile Include="ClimateObservationRegression.cs"/></ItemGroup>
   <ItemGroup><Compile Include="RegionalStatisticsRegression.cs"/><Compile Include="TectonicsRegression.cs"/></ItemGroup>
   <ItemGroup><Compile Include="PolarTerrainRegression.cs"/></ItemGroup>
-  <ItemGroup><Compile Include="BasinWaterRegression.cs"/></ItemGroup>
+  <ItemGroup><Compile Include="BasinWaterRegression.cs"/><Compile Include="RiverMapRegression.cs"/></ItemGroup>
 </Project>

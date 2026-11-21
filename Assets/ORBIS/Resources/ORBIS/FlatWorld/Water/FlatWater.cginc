@@ -48,6 +48,14 @@ float FlatAreaWaterKind(float2 cell,sampler2D semantic,float originalKind)
     float lake=dot(weights,1-step(.5,abs(kinds-4)))/max(1e-6,wet);
     return wet>1e-6?3+lake:originalKind;
 }
+float3 FlatRiverMapColor(float2 cell,sampler2D semantic,float kind,float4 field,float aa,float ink,float surveyLake)
+{
+    float sea=smoothstep(-aa,aa,field.g);
+    float lake=max(surveyLake,saturate(FlatAreaWaterKind(cell,semantic,kind)-3));
+    float3 land=lerp(FlatColor(float3(.91,.90,.83)),FlatColor(float3(.75,.72,.62)),saturate(field.r/4000));
+    float3 basin=lerp(FlatColor(float3(.63,.72,.77)),FlatColor(float3(.51,.73,.79)),lake);
+    return lerp(lerp(land,basin,sea),FlatColor(float3(.055,.31,.49)),ink*(1-sea));
+}
 float4 FlatAreaWaterOptics(float2 cell,sampler2D semantic,float4 fallback,out float wetSupport)
 {
     float2 p=cell-.5,b=floor(p),t=frac(p);t=t*t*(3-2*t);

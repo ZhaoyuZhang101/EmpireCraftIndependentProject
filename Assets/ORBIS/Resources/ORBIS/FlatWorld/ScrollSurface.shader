@@ -21,7 +21,14 @@ Shader "ORBIS/FlatWorld/ScrollSurface"
   [HideInInspector] _EarthSurveyMask("Unedited Earth terrain",2D)="white"{}
   [HideInInspector] _EarthSurveyAtPoles("Unedited south and north poles",Vector)=(1,1,0,0)
   [HideInInspector] _EarthPolarReady("Earth polar survey ready",Float)=0
+  [HideInInspector] _EarthLakeShore("Surveyed inland shorelines",2D)="black"{}
+  [HideInInspector] _EarthLakeDetail("Near lake shorelines",2D)="black"{}
+  [HideInInspector] _EarthLakeReady("Inland shoreline survey ready",Float)=0
   [HideInInspector] _RiverAtlas("Continuous river field",2D)="black"{}
+  [HideInInspector] _RiverOverview("River network overview",2D)="black"{}
+  [HideInInspector] _RiverOverviewReady("River overview ready",Float)=0
+  [HideInInspector] _RiverSurvey("Surveyed river courses",Float)=0
+  [HideInInspector] _RiverMap("River network map",Float)=0
   [HideInInspector] _RiverPreviewReady("Initial river field ready",Float)=0
   [HideInInspector] _RiverSeasonTex("Seasonal river discharge",2D)="black"{}
   [HideInInspector] _RiverSeasonReady("River seasons ready",Float)=0

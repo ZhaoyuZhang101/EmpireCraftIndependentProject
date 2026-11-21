@@ -19,6 +19,20 @@ namespace Orbis.Flat
             Directory.CreateDirectory(Path.GetDirectoryName(Path.GetFullPath(path)));
             File.WriteAllBytes(path,OrbisRasterCodec.Gray16(world.Width,world.Height,h));
             File.WriteAllBytes(Path.ChangeExtension(path,"water.png"),OrbisRasterCodec.RGBA8(world.Width,world.Height,water));
+            var rivers=world.Facts?.RiverCurves;
+            if(rivers!=null)
+            {
+                int width=rivers.OverviewWidth,height=width/2;
+                var ink=rivers.DrawOverview(CancellationToken.None);
+                var rgba=new byte[width*height*4];
+                for(int y=0;y<height;y++)for(int x=0;x<width;x++)
+                {
+                    int p=(y*width+x)*4;
+                    rgba[p]=14;rgba[p+1]=79;rgba[p+2]=125;
+                    rgba[p+3]=ink[(height-1-y)*width+x];
+                }
+                File.WriteAllBytes(Path.ChangeExtension(path,"rivers.png"),OrbisRasterCodec.RGBA8(width,height,rgba));
+            }
             File.WriteAllText(Path.ChangeExtension(path,"metadata.json"),"{\"format\":\"ORBIS_FLAT_HEIGHT_1\",\"northFirst\":true,\"minMeters\":-4000,\"maxMeters\":4000,\"seaMeters\":0,\"heightIsBedNotLakeSurface\":true,\"waterImageIsPreviewOnly\":true}");
         }
         public static WorldData Import(string path,string seed,CancellationToken cancel)
