@@ -8,6 +8,9 @@ Shader "ORBIS/FlatWorld/WildlifeActors"
   _SkyTex("Climate cloud shadows",2D)="black"{}
   _VisualTex("Terrain fields",2D)="black"{}
   _InfoTex("Terrain objects",2D)="black"{}
+  [HideInInspector] _PlantHeightTex("Local terrain vertex heights",2D)="black"{}
+  [HideInInspector] _PlantLattice("Local height lattice",Vector)=(0,0,0,0)
+  [HideInInspector] _ScrollRelief("Terrain relief view",Vector)=(0,0,.72,0)
   [HideInInspector] _MapSize("World dimensions and inverse dimensions",Vector)=(1,1,1,1)
   [HideInInspector] _FieldReady("Terrain and bed fields ready",Float)=0
   [HideInInspector] _RiverAtlas("Continuous river field",2D)="black"{}
@@ -31,11 +34,18 @@ Shader "ORBIS/FlatWorld/WildlifeActors"
    Blend SrcAlpha OneMinusSrcAlpha
    CGPROGRAM
    #pragma target 3.0
+   #pragma multi_compile_local __ ORBIS_ATLAS_PLANTS
    #pragma vertex vert
    #pragma fragment frag
    #include "UnityCG.cginc"
    #define ORBIS_FLAT_NO_SWE
    #include "Water/FlatWater.cginc"
+   #ifdef ORBIS_ATLAS_PLANTS
+   #include "ScrollProjection.cginc"
+   #else
+   #define ORBIS_LOCAL_PLANTS 1
+   #include "LocalProjection.cginc"
+   #endif
    #include "FlatSkyComposite.cginc"
    sampler2D _InfoTex;
    #include "FlatPixelDetail.cginc"
@@ -53,10 +63,21 @@ Shader "ORBIS/FlatWorld/WildlifeActors"
     float4 actor:TEXCOORD1;float4 state:TEXCOORD2;
     float4 geographic:TEXCOORD3;float4 motion:TEXCOORD4;
     float4 cellAxes:TEXCOORD5;
+    float2 projected:TEXCOORD6;
+    #ifdef ORBIS_ATLAS_PLANTS
+    float2 atlasUV:TEXCOORD7;
+    #endif
    };
    v2f vert(appdata v)
    {
     v2f o;o.pos=UnityObjectToClipPos(v.vertex);o.pixel=v.pixel;
+    float3 offset=mul(unity_ObjectToWorld,v.vertex).xyz-_ScrollNormal;
+    o.projected=float2(dot(offset,_ScrollRight),dot(offset,_ScrollUp));
+    #ifdef ORBIS_ATLAS_PLANTS
+    float relative=dot(offset,_ScrollNormal)-_ScrollRelief.y*_ScrollRelief.w;
+    float2 plane=o.projected*(1-relative/.18)-float2(0,relative*_ScrollRelief.z);
+    o.atlasUV=(plane/(6.283185307*_MapSize.z)+_ScrollPan.xy)/_ProjectionSize.xy;
+    #endif
     o.actor=v.actor;o.state=v.state;o.geographic=v.geographic;o.motion=v.motion;o.cellAxes=v.cellAxes;return o;
    }
    float4 AnimalArt(float2 pixel,float4 actor,float4 state,float2 environment)
@@ -101,8 +122,13 @@ Shader "ORBIS/FlatWorld/WildlifeActors"
      float4 field=FlatField(cell);
      // The difference cancels painted colour and preserves the exact alpha of
      // existing tree/building artwork, including seasonal crowns and silhouettes.
-     float3 covered=PixelProps(0,cell,field,0,floor(info.b+.5),1);
-     float3 open=PixelProps(1,cell,field,0,floor(info.b+.5),1)-covered;
+     #ifdef ORBIS_ATLAS_PLANTS
+     PDPlantView plantView=PDAtlasPlantView(i.projected,i.atlasUV);
+     #else
+     PDPlantView plantView=PDLocalPlantView(i.projected,0);
+     #endif
+     float3 covered=PixelProps(0,cell,field,0,floor(info.b+.5),1,plantView);
+     float3 open=PixelProps(1,cell,field,0,floor(info.b+.5),1,plantView)-covered;
      float visible=step(.1,max(open.r,max(open.g,open.b)));
      opacity*=lerp(1,visible,saturate(_DetailWeight));
      clip(opacity-.001);

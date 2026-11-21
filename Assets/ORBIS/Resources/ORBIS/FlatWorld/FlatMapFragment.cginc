@@ -101,6 +101,12 @@
     surfaceView=normalize(float3(surfaceView.xy,max(.02,surfaceView.z)));
     #endif
     float4 substrate=float4(0,0,0,geo.b);
+    PDPlantView plantView=PDGroundView();
+    #ifdef ORBIS_LOCAL_PLANTS
+    if(naturalView>.5&&_DetailWeight>0)plantView=PDLocalPlantView(projected,chartCoordinate);
+    #elif defined(ORBIS_ATLAS_PLANTS)
+    if(naturalView>.5&&_DetailWeight>0)plantView=PDAtlasPlantView(projected,chartCoordinate);
+    #endif
     if(naturalView>.5)substrate=FlatNaturalGround(_GeoTex,cell,geo,_PixelsPerTile,waterMask);
     float surfaceWetness=lerp(substrate.a,season.a,saturate(_VegetationSeasonReady));
     float4 terrainLight=0,terrainRelief=float4(1,1,1,0);
@@ -122,9 +128,9 @@
      col=tex2D(_MainTex,FlatBlendUV(ecologyCell)).rgb;
      col=FlatEcotoneColor(col,cell,field.a,substrate.a);
      col=lerp(col,FlatSeasonGround(col,field.a,season),1-waterMask);
-     col=lerp(FlatVegetation(col,cell,field.a,_PixelsPerTile),col,_DetailWeight);
+     if(_DetailWeight<1)col=lerp(FlatVegetation(col,cell,field.a,_PixelsPerTile,plantView),col,_DetailWeight);
      col=FlatTerrainFine(col,cell,_PixelsPerTile*(1-step(.999,waterMask)),terrainGradient,field,substrate.xy,surfaceWetness,terrainLight);
-     if(_DetailWeight>0)col=lerp(col,PixelGround(col,cell,field,waterMask,terrainGradient,FlatEcologyData(uv,info)),_DetailWeight);
+     if(_DetailWeight>0)col=lerp(col,PixelGround(col,cell,field,waterMask,terrainGradient,FlatEcologyData(uv,info),plantView),_DetailWeight);
     }
     if(_DrawHeight>.5)
     {
@@ -230,7 +236,7 @@
      if(_DetailWeight>0)
      {
       col=lerp(col,PixelAmbientLife(col,cell,field,waterMask,info,illumination),_DetailWeight*(1-permanentIce));
-      col=lerp(col,PixelProps(col,cell,field,waterMask,structure,illumination),_DetailWeight*(1-permanentIce));
+      col=lerp(col,PixelProps(col,cell,field,waterMask,structure,illumination,plantView),_DetailWeight*(1-permanentIce));
      }
      float night=1-FlatDayWeight(FlatRadial(i.uv));
      float town=1-step(.5,abs(structure-1));

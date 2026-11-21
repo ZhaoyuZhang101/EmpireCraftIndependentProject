@@ -11,6 +11,8 @@ Shader "ORBIS/FlatWorld/ScrollSurface"
   [HideInInspector] _ClimateYearHeat("Regional temperature anomaly",Vector)=(0,0,0,0)
   [HideInInspector] _ClimateYearRain("Regional rainfall anomaly",Vector)=(0,0,0,0)
   [HideInInspector] _ScrollRelief("Terrain relief view",Vector)=(0,0,.72,0)
+  [HideInInspector] _PlantHeightTex("Atlas terrain vertex heights",2D)="black"{}
+  [HideInInspector] _PlantLattice("Atlas height lattice",Vector)=(0,0,0,0)
   [HideInInspector] _EcologyTex("Derived ecology traits",2D)="black"{}
   [HideInInspector] _EcologyReady("Ecology traits ready",Float)=0
   [HideInInspector] _MapSize("World dimensions and inverse dimensions",Vector)=(1,1,1,1)
@@ -98,6 +100,7 @@ Shader "ORBIS/FlatWorld/ScrollSurface"
    #include "UnityCG.cginc"
    #include "Water/FlatWater.cginc"
    #define ORBIS_SCROLL_SURFACE 1
+   #define ORBIS_ATLAS_PLANTS 1
    #include "ScrollProjection.cginc"
    #include "FlatSkyComposite.cginc"
    sampler2D _MainTex,_OwnerTex,_InfoTex;

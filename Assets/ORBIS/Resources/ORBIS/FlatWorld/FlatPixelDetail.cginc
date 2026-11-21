@@ -13,6 +13,15 @@ float3 PDPaint(float3 col,float3 ink,float mask){return lerp(col,FlatColor(ink),
 #include "FlatEcologyDetail.cginc"
 #include "FlatVegetationWind.cginc"
 #include "FlatVegetationArt.cginc"
+#include "FlatPlantProjection.cginc"
+float3 FlatVegetation(float3 col,float2 cell,float canopy,float pixelsPerTile,PDPlantView view)
+{
+ if(_Vegetation<.5)return col;
+ float4 plant=FlatCanopyPlacement(cell);
+ float scale=lerp(1,FlatArtworkLatitudeScale(plant.y*_MapSize.w),_LocalPhysicalArtwork);
+ float2 offset=PDPlantPixel(view,cell,plant.xy,scale)/16;
+ return FlatCanopyColor(col,cell,canopy,pixelsPerTile,plant.zw,offset);
+}
 #include "FlatAmbientLife.cginc"
 bool PDTreeAvailable(float2 id,float4 placement,float4 info,float4 ecology)
 {
@@ -138,7 +147,7 @@ float4 PDSettlementArtwork(float2 q,float3 light)
  col=PDPaint(col,float3(.92,.73,.33)*light,PDBox(q,float2(9,9),float2(12,12))+PDBox(q,float2(22,9),float2(25,12)));
  return float4(col,max(wall,roofMask));
 }
-float3 PixelProps(float3 col,float2 cell,float4 field,float waterMask,float structure,float3 light)
+float3 PixelProps(float3 col,float2 cell,float4 field,float waterMask,float structure,float3 light,PDPlantView plantView)
 {
  col*=1-PixelPropShadow(cell);
  float2 id=floor(cell),q=floor(frac(cell)*32);
@@ -146,16 +155,24 @@ float3 PixelProps(float3 col,float2 cell,float4 field,float waterMask,float stru
  float artworkScale=FlatArtworkLatitudeScale((id.y+.5)*_MapSize.w);
  q.y=floor(16+(frac(cell.y)-.5)*32/artworkScale);
  float nearestRoot=1e10;
- [loop] [fastopt] for(int row=1;row>=-1;row--)
- [loop] [fastopt] for(int column=-1;column<=1;column++)
+ float2 first=id-1,last=id+1;
+ if(plantView.weight>0)
  {
-  float2 treeId=id+float2(column,row);
+  float2 dx,dy;FlatCellScreenDerivatives(cell,dx,dy);
+  float extent=48*PDPlantArtSize(plantView,artworkScale)/plantView.chartPerPixel;
+  float2 reach=min(3,sqrt(dx*dx+dy*dy)*extent);
+  // PDTreePlacement keeps the foot between these fractions of its owning tile.
+  first=min(first,ceil(cell-reach-float2(.75,.64)));
+  last=max(last,floor(cell+reach-float2(.25,.18)));
+ }
+ [loop] [fastopt] for(int row=(int)last.y;row>=(int)first.y;row--)
+ [loop] [fastopt] for(int column=(int)first.x;column<=(int)last.x;column++)
+ {
+  float2 treeId=float2(column,row);
   if(treeId.y<0||treeId.y>=_MapSize.y)continue;
   float4 placement=PDTreePlacement(treeId);
-  float2 localPoint=(cell-treeId)*32;
   float localScale=FlatTreeLatitudeScale(treeId,placement.y);
-  localPoint.y=placement.y+(localPoint.y-placement.y)/localScale;
-  float2 treePoint=floor(localPoint-placement.xy)/placement.z;
+  float2 treePoint=floor(PDPlantPixel(plantView,cell,treeId+placement.xy/32,localScale))/placement.z;
   if(!PDTreeInDrawBounds(treePoint))continue;
   float2 centreUV=(treeId+.5)*_MapSize.zw;
   float4 rootInfo=tex2Dlod(_InfoTex,float4(centreUV,0,0))*255;
@@ -210,4 +227,6 @@ float3 PixelProps(float3 col,float2 cell,float4 field,float waterMask,float stru
  }
  return col;
 }
+float3 PixelProps(float3 col,float2 cell,float4 field,float waterMask,float structure,float3 light)
+{return PixelProps(col,cell,field,waterMask,structure,light,PDGroundView());}
 #endif

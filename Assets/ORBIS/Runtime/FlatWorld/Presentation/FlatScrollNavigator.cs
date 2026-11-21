@@ -21,6 +21,7 @@ namespace Orbis.Flat
         PlanetVector zoomGroundAnchor;
         double currentDay,lockDay;bool locked;Vector3 normal,east,north;Vector2 poles;int revision=-1;int[] route=new int[0];
         const int Rings=128,Sectors=256;Vector2[] lattice;int[] triangles;
+        readonly FlatPlantHeightCache plantHeights=new FlatPlantHeightCache();
         Vector4[] pickPositions;int[] pickVertexStamps,pickCellStamps;int pickGeneration;
         Ray pickRay;Vector4 pickRelief;float pickRadius,pickNearest;Vector2 pickHit;
         public PlanetTangentFrame LocalFrame=>projection.Frame;
@@ -193,6 +194,7 @@ namespace Orbis.Flat
             surface.SetFloat("_PixelsPerTile",pixels);surface.SetFloat("_DetailWeight",DetailWeight);surface.SetVector("_ScrollPoleHeights",poles);surface.SetFloat("_ScrollHeightScale",FlatGlobeGeometry.HeightScale);
             surface.SetVector("_ScrollRelief",ReliefParameters);
             surface.SetVector("_MapSize",new Vector4(world.Width,world.Height,1f/world.Width,1f/world.Height));
+            plantHeights.Bind(surface,maps.VisualTexture,Sectors,Rings);
             BindSelectionFocus();
         }
         public void SyncMaterials(){if(atlasMode){atlas.SyncMaterials();return;}surface.CopyPropertiesFromMaterial(maps.Material);Bind();}
@@ -519,6 +521,6 @@ namespace Orbis.Flat
             }
             routeMesh.Clear();routeMesh.SetVertices(routeVertices);routeMesh.SetTriangles(routeIndices,0);routeMesh.RecalculateBounds();
         }
-        void OnDestroy(){if(mesh)Destroy(mesh);if(surface)Destroy(surface);if(routeMesh)Destroy(routeMesh);if(routeMaterial)Destroy(routeMaterial);}
+        void OnDestroy(){plantHeights.Dispose();if(mesh)Destroy(mesh);if(surface)Destroy(surface);if(routeMesh)Destroy(routeMesh);if(routeMaterial)Destroy(routeMaterial);}
     }
 }

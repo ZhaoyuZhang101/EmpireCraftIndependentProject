@@ -19,6 +19,7 @@ namespace Orbis.Flat
         WorldData world;
         FlatMapRenderer maps;
         Mesh lattice, flatMesh, routeMesh;
+        readonly FlatPlantHeightCache plantHeights=new FlatPlantHeightCache();
         readonly List<MeshFilter> sheetFilters = new List<MeshFilter>();
         bool flatGeometry;
         Material surface, routeMaterial;
@@ -415,6 +416,7 @@ namespace Orbis.Flat
             m.SetVector("_ScrollPoleHeights",polarHeights);
             m.SetFloat("_ScrollHeightScale",FlatGlobeGeometry.HeightScale);
             m.SetVector("_ScrollRelief",ReliefParameters);
+            plantHeights.Bind(m,maps.VisualTexture,meshColumns,meshRows,true);
         }
         public void Drag(Vector2 screenDelta)
         {
@@ -703,6 +705,7 @@ namespace Orbis.Flat
         }
         void OnDestroy()
         {
+            plantHeights.Dispose();
             if (surface) Destroy(surface); if (flatMesh) Destroy(flatMesh); if (lattice) Destroy(lattice);
             if (routeMesh) Destroy(routeMesh); if (routeMaterial) Destroy(routeMaterial);
         }

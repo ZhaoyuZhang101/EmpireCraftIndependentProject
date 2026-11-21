@@ -382,19 +382,18 @@ float FlatFieldRelief(float2 cell,float useDepth,float3 localLight)
     return dot(relief.rgb,float3(.2126,.7152,.0722));
 }
 #include "FlatVegetationSeason.cginc"
-float3 FlatVegetation(float3 col,float2 cell,float canopy,float pixelsPerTile)
+float4 FlatCanopyPlacement(float2 cell)
 {
-    if(_Vegetation<.5)return col; // Uniform branch: no divergent derivative lanes.
+    float2 id=floor(cell*2);
+    float2 seeds=float2(FlatHash(id),FlatHash(id+float2(71,19)));
+    return float4((id+.5+(seeds-.5)*.45)*.5,seeds);
+}
+float3 FlatCanopyColor(float3 col,float2 cell,float canopy,float pixelsPerTile,float2 seeds,float2 fromRoot)
+{
     float detailFade=smoothstep(3,9,pixelsPerTile)*_Vegetation;
-    float2 p=cell*2,unitId=floor(p),q=frac(p)-.5;
-    float seed=FlatHash(unitId),seed2=FlatHash(unitId+float2(71,19));
-    float2 centre=(float2(seed,seed2)-.5)*.45;
-    float2 fromRoot=q-centre;
-    float latitude=(unitId.y+.5+centre.y)*.5*_MapSize.w;
-    fromRoot.y/=lerp(1,FlatArtworkLatitudeScale(latitude),_LocalPhysicalArtwork);
-    float radius=lerp(.12,.27,seed2),distanceToCrown=length(fromRoot*float2(1,1.14));
+    float radius=lerp(.12,.27,seeds.y),distanceToCrown=length(fromRoot*float2(1,1.14));
     float aa=max(fwidth(distanceToCrown),.015);
-    float occupied=1-step(saturate((canopy-.24)*1.5),seed);
+    float occupied=1-step(saturate((canopy-.24)*1.5),seeds.x);
     float crown=(1-smoothstep(radius-aa,radius+aa,distanceToCrown))*occupied;
     float crownLight=lerp(.70,1.23,saturate(.55+dot(fromRoot,float2(-1.4,1.8))));
     // Small canopy marks use crown shading; displaced shadows are handled by PixelProps.
@@ -404,6 +403,14 @@ float3 FlatVegetation(float3 col,float2 cell,float canopy,float pixelsPerTile)
     float footprint=max(length(ddx(radial*1170)),length(ddy(radial*1170)));
     float grainFade=(1-smoothstep(.6,2.2,footprint))*_Vegetation;
     return col*lerp(1,.95+.10*grain,grainFade);
+}
+float3 FlatVegetation(float3 col,float2 cell,float canopy,float pixelsPerTile)
+{
+    if(_Vegetation<.5)return col;
+    float4 plant=FlatCanopyPlacement(cell);
+    float2 offset=(cell-plant.xy)*2;
+    offset.y/=lerp(1,FlatArtworkLatitudeScale(plant.y*_MapSize.w),_LocalPhysicalArtwork);
+    return FlatCanopyColor(col,cell,canopy,pixelsPerTile,plant.zw,offset);
 }
 float FlatGentleContourWeight(float2 gradient)
 {

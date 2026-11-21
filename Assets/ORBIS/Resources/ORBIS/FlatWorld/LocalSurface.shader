@@ -11,6 +11,8 @@ Shader "ORBIS/FlatWorld/LocalSurface"
   [HideInInspector] _ClimateYearHeat("Regional temperature anomaly",Vector)=(0,0,0,0)
   [HideInInspector] _ClimateYearRain("Regional rainfall anomaly",Vector)=(0,0,0,0)
   [HideInInspector] _ScrollRelief("Terrain relief view",Vector)=(0,0,.72,0)
+  [HideInInspector] _PlantHeightTex("Local terrain vertex heights",2D)="black"{}
+  [HideInInspector] _PlantLattice("Local height lattice",Vector)=(0,0,0,0)
   [HideInInspector] _EcologyTex("Derived ecology traits",2D)="black"{}
   [HideInInspector] _EcologyReady("Ecology traits ready",Float)=0
   [HideInInspector] _MapSize("World dimensions and inverse dimensions",Vector)=(1,1,1,1)
@@ -99,6 +101,7 @@ Shader "ORBIS/FlatWorld/LocalSurface"
    #include "Water/FlatWater.cginc"
    #define ORBIS_SCROLL_SURFACE 1
    #define ORBIS_LOCAL_SURFACE 1
+   #define ORBIS_LOCAL_PLANTS 1
    #include "LocalProjection.cginc"
    #include "FlatSkyComposite.cginc"
    sampler2D _MainTex,_OwnerTex,_InfoTex;

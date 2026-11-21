@@ -74,6 +74,8 @@ namespace Orbis.Flat
             material.renderQueue=(int)RenderQueue.Transparent-10;
             material.SetFloat("_WildlifeOcclusionReady",1);
             material.SetFloat("_LocalPhysicalArtwork",navigation.IsAtlas?0:1);
+            if(navigation.IsAtlas)material.EnableKeyword("ORBIS_ATLAS_PLANTS");
+            else material.DisableKeyword("ORBIS_ATLAS_PLANTS");
             vertices.Clear();pixels.Clear();actors.Clear();states.Clear();geography.Clear();motion.Clear();cellMappings.Clear();indices.Clear();
             float pixelScale=(float)(Math.PI*2/world.Width/32);
             Vector3 screenRight=viewCamera.transform.right*pixelScale,screenUp=viewCamera.transform.up*pixelScale;
