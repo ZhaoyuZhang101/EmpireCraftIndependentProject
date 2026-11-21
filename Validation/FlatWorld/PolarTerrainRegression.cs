@@ -130,7 +130,7 @@ internal static class PolarTerrainRegression
         var failures = new List<string>();
         var coasts = new Dictionary<TerrainPreset, double>();
         VolcanoFootprints(failures);
-        foreach (TerrainPreset preset in Enum.GetValues(typeof(TerrainPreset)))
+        foreach (TerrainPreset preset in FlatGenerator.ProceduralPresets)
         {
             var sample = new Sample();
             foreach (string seed in Seeds)

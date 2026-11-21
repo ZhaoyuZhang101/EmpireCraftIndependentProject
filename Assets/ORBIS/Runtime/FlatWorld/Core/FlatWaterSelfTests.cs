@@ -128,7 +128,7 @@ namespace Orbis.Flat
                 if(x>15)Check(Math.Abs(lake.Depth[i]-depth[i])<1e-10,"No flux across dry wall");
             }
             lake.Advance(100,3);Check(lake.LastSubsteps<=3,"Bounded work budget");
-            foreach(TerrainPreset preset in Enum.GetValues(typeof(TerrainPreset)))
+            foreach(TerrainPreset preset in FlatGenerator.ProceduralPresets)
             {
                 var w=FlatGenerator.Generate(64,32,"WATER-CLIMATE-REGRESSION",preset,CancellationToken.None);
                 var f=w.Facts;Check(f!=null,"Derived facts exist");var rank=new int[w.Count];

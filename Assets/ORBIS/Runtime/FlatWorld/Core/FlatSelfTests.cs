@@ -100,7 +100,7 @@ namespace Orbis.Flat
             Check(grid.Neighbor(0,0)==63&&grid.Neighbor(63,1)==0,"Longitude wrap");
             Check(grid.Neighbor(0,2)==-1&&grid.Neighbor(grid.Count-1,3)==-1,"No north/south teleport");
             LastOperation="Seeded generation / hydrology / save roundtrip";
-            foreach(TerrainPreset preset in Enum.GetValues(typeof(TerrainPreset)))
+            foreach(TerrainPreset preset in FlatGenerator.ProceduralPresets)
             {
                 var a=FlatGenerator.Generate(64,32,"VALIDATE-2D",preset,CancellationToken.None);
                 var b=FlatGenerator.Generate(64,32,"VALIDATE-2D",preset,CancellationToken.None);

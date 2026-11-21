@@ -73,7 +73,7 @@ namespace Orbis.Flat
             viewport=root.Q("viewport");info=root.Q<Label>("tileInfo");stats=root.Q<Label>("stats");notice=root.Q<Label>("notice");nations=root.Q<Label>("nations");
             seedField=root.Q<TextField>("seed");seedField.value=initialSeed;seedField.maxLength=128;
             sizeField=root.Q<DropdownField>("size");sizeField.choices=new List<string>{"256 × 128","512 × 256","1024 × 512"};sizeField.index=initialWidth>=1024?2:initialWidth>=512?1:0;
-            presetField=root.Q<DropdownField>("preset");presetField.choices=new List<string>{"大陆与群山","群岛","超级大陆","内海世界"};presetField.index=0;
+            presetField=root.Q<DropdownField>("preset");presetField.choices=new List<string>{"大陆与群山","群岛","超级大陆","内海世界","地球（真实地形）"};presetField.index=0;
             layerField=root.Q<DropdownField>("layer");layerField.choices=new List<string>{"自然地表","文明版图","20 档高度","Köppen 柯本气候","本月温度","本月降水","海水与淡水","土地肥力","地貌 / 丘陵高原","地表材料 / 沙泥砾岩","土壤桶湿度","河流 / 河口悬沙","生态植被 / 14 类"};layerField.index=0;
             climateYearField=root.Q<DropdownField>("climateYear");climateYearField.choices=new List<string>{"今年","明年","后年"};climateYearField.index=0;
             climateYearField.RegisterValueChangedCallback(e=>{if(map){map.SetClimateYearOffset(climateYearField.index);UpdateHUD();}});
@@ -240,8 +240,20 @@ namespace Orbis.Flat
         }
         void Generate()
         {
-            int width=256<<Mathf.Clamp(sizeField.index,0,2);string seed=seedField.value.Trim();var preset=(TerrainPreset)Mathf.Clamp(presetField.index,0,3);
-            Queue(c=>FlatGenerator.Generate(width,width/2,seed,preset,c),"生成板块地形、火山、侵蚀河谷、湖泊、河网和气候…",true);
+            int width=256<<Mathf.Clamp(sizeField.index,0,2);
+            string seed=seedField.value.Trim();
+            var preset=(TerrainPreset)presetField.index;
+            byte[] earthHeights=null;
+            string statusText="生成板块地形、火山、侵蚀河谷、湖泊、河网和气候…";
+            if(preset==TerrainPreset.Earth)
+            {
+                // Access Unity resources here. The worker receives only immutable sample bytes.
+                var asset=Resources.Load<TextAsset>("ORBIS/FlatWorld/Earth"+width);
+                if(!asset)throw new InvalidDataException("无法加载 "+width+" × "+width/2+" 的内置地球高程。");
+                earthHeights=asset.bytes;
+                statusText="载入地球陆地和海床高程，生成河湖、气候与初始文明…";
+            }
+            Queue(c=>FlatGenerator.Generate(width,width/2,seed,preset,c,earthHeights),statusText,true);
         }
         void Install(WorldData world)
         {
@@ -280,6 +292,8 @@ namespace Orbis.Flat
             navObject.SetActive(true);globeObject.SetActive(true);
             selected=-1;editPickValid=false;activeNation=world.Nations.Count>0?0:-1;globeMode=true;lastClimatePeriod=(int)Math.Floor(world.Day/30);
             seedField.SetValueWithoutNotify(world.Seed);presetField.SetValueWithoutNotify(presetField.choices[(int)world.Preset]);
+            if(world.Width==256 || world.Width==512 || world.Width==1024)
+                sizeField.SetValueWithoutNotify(sizeField.choices[world.Width==256?0:world.Width==512?1:2]);
             if(wasFlat)
             {
                 int x=Mathf.Clamp((int)(previousCenter.x/previousWidth*world.Width),0,world.Width-1);

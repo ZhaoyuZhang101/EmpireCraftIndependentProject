@@ -11,7 +11,7 @@ public static class TectonicsRegression
  static double LandShare(WorldData w){double land=0,all=0;for(int i=0;i<w.Count;i++){double a=Math.Cos(((i/w.Width+.5)/w.Height-.5)*Math.PI);all+=a;if(!FlatTerrainAnalysis.AreaWater(w.Water[i])||w.Water[i]==WaterKind.Lake)land+=a;}return land/all;}
  public static void Run()
  {
-  foreach(TerrainPreset preset in Enum.GetValues(typeof(TerrainPreset)))
+  foreach(TerrainPreset preset in FlatGenerator.ProceduralPresets)
   {
    var clock=Stopwatch.StartNew();
    var w=FlatGenerator.Generate(256,128,"TECTONICS-REGRESSION",preset,default);long ms=clock.ElapsedMilliseconds;

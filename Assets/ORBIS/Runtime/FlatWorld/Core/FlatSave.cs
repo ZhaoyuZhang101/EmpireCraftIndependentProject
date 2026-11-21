@@ -142,7 +142,7 @@ namespace Orbis.Flat
         }
         public static void Validate(WorldData w)
         {
-            Check(w.Nations.Count<=WorldData.MaxNations&&w.Preset<=TerrainPreset.InlandSea,"Invalid settings.");
+            Check(w.Nations.Count<=WorldData.MaxNations&&w.Preset<=TerrainPreset.Earth,"Invalid settings.");
             Check(Finite(w.Day)&&w.Day>=0&&w.Day<1e9&&Finite(w.ExpansionRemainder)&&w.ExpansionRemainder>=0&&w.ExpansionRemainder<1e6,"Invalid time.");
             var cyclones = w.Cyclones;
             if (cyclones != null)

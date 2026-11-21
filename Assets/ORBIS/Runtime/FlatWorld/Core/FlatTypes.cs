@@ -5,7 +5,8 @@ namespace Orbis.Flat
 {
     public enum WaterKind : byte { Land, DeepOcean, MiddleOcean, ShallowOcean, Lake, River }
     public enum Biome : byte { Water, Beach, Grassland, Woodland, Rainforest, Desert, Steppe, Taiga, Tundra, Alpine, Snow, Wetland }
-    public enum TerrainPreset : byte { Continents, Archipelago, GreatContinent, InlandSea }
+    // Values are stored as one byte in existing world saves.
+    public enum TerrainPreset : byte { Continents, Archipelago, GreatContinent, InlandSea, Earth }
     public enum Koppen : byte { Unknown, Af, Am, Aw, BWh, BWk, BSh, BSk, Csa, Csb, Csc, Cwa, Cwb, Cwc, Cfa, Cfb, Cfc, Dsa, Dsb, Dsc, Dsd, Dwa, Dwb, Dwc, Dwd, Dfa, Dfb, Dfc, Dfd, ET, EF }
     public enum Structure : byte { None, Settlement, Farm, Road, Bridge }
     public enum MapLayer : byte { Natural, Nations, Height, Climate, Temperature, Rain, Water, Fertility, Landforms, Materials, Wetness, Sediment, Vegetation }

@@ -247,7 +247,7 @@ static class HydrologyRegression
   Console.WriteLine("Flat spill excess steps="+longestExcess);
   Check(longestExcess==0,"Flat drainage must follow shortest spill distance, not heap insertion order");
   // All-land, all-water, dateline and polar parents remain acyclic and conservative.
-  foreach(TerrainPreset p in Enum.GetValues(typeof(TerrainPreset)))
+  foreach(TerrainPreset p in FlatGenerator.ProceduralPresets)
   {
    var generated=FlatGenerator.Generate(64,32,"ATLAS-ROUTING-REGRESSION",p,default);
    Validate(generated);ValidateLakeOutlets(generated);

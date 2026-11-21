@@ -7,6 +7,9 @@ namespace Orbis.Flat
     // Plate-tectonic bed (FlatTectonics), fluvial erosion (FlatErosion), then water, climate and facts.
     public static class FlatGenerator
     {
+        public static IReadOnlyList<TerrainPreset> ProceduralPresets { get; } = Array.AsReadOnly(new[] {
+            TerrainPreset.Continents, TerrainPreset.Archipelago, TerrainPreset.GreatContinent, TerrainPreset.InlandSea
+        });
         static float Smooth(float x){x=FMath.Clamp(x,0,1);return x*x*(3-2*x);}
         // Depth is a genuine sea-bed elevation source. Continental shelves slope
         // into basins; independent coherent ridge/trench fields add local relief.
@@ -19,10 +22,34 @@ namespace Orbis.Flat
             return FMath.Clamp(shelf+basin-650*deep*FMath.Clamp(ridge,0,1)+620*deep*FMath.Clamp(trench,0,1),15,3900);
         }
         public static WorldData Generate(int width,int height,string seed,TerrainPreset preset,CancellationToken cancel)
+            => Generate(width,height,seed,preset,cancel,null);
+
+        public static WorldData Generate(int width,int height,string seed,TerrainPreset preset,CancellationToken cancel,byte[] earthHeights)
         {
+            cancel.ThrowIfCancellationRequested();
+            if(preset == TerrainPreset.Earth && (earthHeights == null || earthHeights.LongLength != (long)width*height*sizeof(short)))
+                throw new ArgumentException("地球高程数据缺失或与地图大小不符。", nameof(earthHeights));
             var w=new WorldData(width,height,seed,preset);
-            w.Tectonics=FlatTectonics.Build(w,cancel);
-            FlatErosion.Apply(w,cancel);
+            if(preset == TerrainPreset.Earth)
+            {
+                for(int y=0;y<height;y++)
+                {
+                    cancel.ThrowIfCancellationRequested();
+                    int source=(height-1-y)*width*2;
+                    for(int x=0;x<width;x++,source+=2)
+                    {
+                        short metres=unchecked((short)(earthHeights[source] | earthHeights[source+1]<<8));
+                        if(metres < -4000 || metres > 4000)
+                            throw new ArgumentException("地球高程超过游戏支持的范围。", nameof(earthHeights));
+                        w.Elevation[y*width+x]=metres;
+                    }
+                }
+            }
+            else
+            {
+                w.Tectonics=FlatTectonics.Build(w,cancel);
+                FlatErosion.Apply(w,cancel);
+            }
             Rebuild(w,cancel);return w;
         }
         public static void Rebuild(WorldData w,CancellationToken cancel)
