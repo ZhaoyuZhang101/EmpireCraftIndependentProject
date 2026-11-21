@@ -12,7 +12,8 @@ namespace Orbis.Flat
             for(int y=0;y<world.Height;y++)for(int x=0;x<world.Width;x++)
             {
                 int i=y*world.Width+x,j=(world.Height-1-y)*world.Width+x;
-                h[j]=(ushort)Math.Round((world.Elevation[i]+4000)/8000.0*65535);
+                int metres=FMath.Clamp(world.Elevation[i],-4000,4000);
+                h[j]=(ushort)Math.Round((metres+4000)/8000.0*65535);
                 var c=FlatPalette.Water(world.Water[i]);water[j*4]=c.r;water[j*4+1]=c.g;water[j*4+2]=c.b;water[j*4+3]=255;
             }
             Directory.CreateDirectory(Path.GetDirectoryName(Path.GetFullPath(path)));

@@ -152,10 +152,10 @@
       // reflection lookup can be skipped for completely dry receivers.
       [branch] if(waterMask>.001)
       {
-       float waterHeight=max(0,field.r+field.b);
+       float waterHeight=field.r+field.b;
        #ifdef ORBIS_SCROLL_SURFACE
        if(_ScrollMorph>.999&&_ScrollRelief.x>.05)
-        waterHeight=max(0,dot(world-_ScrollNormal,_ScrollNormal)/max(1e-7,_ScrollHeightScale*_ScrollRelief.x));
+        waterHeight=dot(world-_ScrollNormal,_ScrollNormal)/max(1e-7,_ScrollHeightScale*_ScrollRelief.x);
        #endif
        float reflectionDetail=_DetailWeight*naturalView*(1-polarIce)*waterMask;
        waterColor=FlatReflectWater(waterColor,cell,field,waterHeight,waterView,waterLight,illumination,waterSurface,_FlatClouds*_SkyReady,reflectionDetail);

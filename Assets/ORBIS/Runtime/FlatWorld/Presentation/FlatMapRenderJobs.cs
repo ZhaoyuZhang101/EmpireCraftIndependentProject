@@ -196,7 +196,7 @@ namespace Orbis.Flat
                 }
                 switch(Layer)
                 {
-                    case MapLayer.Height:display=t.Elevation<=0?Water(t.Water):Color.Lerp(RGB(0x597b62),RGB(0xe4e1d2),t.Elevation/4000f);break;
+                    case MapLayer.Height:display=area?Water(t.Water):Color.Lerp(RGB(0x597b62),RGB(0xe4e1d2),t.Elevation/4000f);break;
                     case MapLayer.Climate:display=t.Water>=WaterKind.DeepOcean&&t.Water<=WaterKind.ShallowOcean?Water(t.Water):RGB(Palette[26+(int)t.Climate]);break;
                     case MapLayer.Temperature:display=Color.Lerp(RGB(0x4169ab),RGB(0xe9aa6a),Mathf.InverseLerp(-25,35,t.Temperature));break;
                     case MapLayer.Rain:display=Color.Lerp(RGB(0xd1bb93),RGB(0x2c869b),Mathf.Clamp01(t.Rain/240));break;

@@ -30,9 +30,10 @@ public static class TectonicsRegression
    {
     if(w.Water[i]==WaterKind.Lake)lakeTiles++;
     if(w.Water[i]!=WaterKind.Land&&w.Water[i]!=WaterKind.River)continue;land++;if(w.Elevation[i]>=2000)high++;
-    int n=i,guard=0;while(n>=0&&FlatTerrainAnalysis.AreaWater(w.Water[n])==false&&guard++<w.Count)n=w.Downstream[n];
-    Check(n>=0,preset+": dry tile without an outlet");
-    if(FlatTerrainAnalysis.Ocean(w.Water[n]))toSea++;
+    int n=i,guard=0,terminal=i;while(n>=0&&!FlatTerrainAnalysis.AreaWater(w.Water[n])&&guard++<w.Count){terminal=n;n=w.Downstream[n];}
+    Check(guard<=w.Count,preset+": drainage cycle");
+    if(n<0)for(int d=0;d<4;d++)Check(w.WaterLevel[w.SphereNeighbor(terminal,d)]>=w.WaterLevel[terminal],preset+": inland sink has a lower exit");
+    if(n>=0&&FlatTerrainAnalysis.Ocean(w.Water[n]))toSea++;
    }
    Check(toSea>land/2,preset+": most land must drain to the sea, got "+toSea+"/"+land);
    Check(lakeTiles<land/6,preset+": lakes cover too much land "+lakeTiles+"/"+land);

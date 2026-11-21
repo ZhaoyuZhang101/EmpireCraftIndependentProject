@@ -84,8 +84,8 @@ namespace Orbis.Flat
         // World-only smoothing widths in the six native units. A flat quantized plateau or a nearly
         // constant tropical summer still has a finite resolvable local habitat width.
         static readonly double[] Smoothing = { 1, 60, 1, .05, 1, 100 };
-        static readonly double[] PhysicalMinimum = { -100, 0, 0, 0, 0, -4000 };
-        static readonly double[] PhysicalMaximum = { 100, 120000, 200, Math.Sqrt(11), 90, 4000 };
+        static readonly double[] PhysicalMinimum = { -100, 0, 0, 0, 0, HeightBands.MinimumBed };
+        static readonly double[] PhysicalMaximum = { 100, 120000, 200, Math.Sqrt(11), 90, HeightBands.MaximumBed };
         readonly Entry[] entries = new Entry[ClassCount];
         public int AvailableClasses { get; private set; }
 
@@ -294,7 +294,7 @@ namespace Orbis.Flat
             cold = double.PositiveInfinity;
             hot = double.NegativeInfinity;
             if (w.Climates[tile] < Koppen.Af || w.Climates[tile] > Koppen.EF ||
-                w.Elevation[tile] < -4000 || w.Elevation[tile] > 4000) return false;
+                w.Elevation[tile] < HeightBands.MinimumBed || w.Elevation[tile] > HeightBands.MaximumBed) return false;
             double temp = 0, rain = 0, rainSquares = 0;
             for (int m = tile * 12; m < (tile + 1) * 12; m++)
             {

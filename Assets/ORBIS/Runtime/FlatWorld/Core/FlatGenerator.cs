@@ -25,6 +25,9 @@ namespace Orbis.Flat
             => Generate(width,height,seed,preset,cancel,null);
 
         public static WorldData Generate(int width,int height,string seed,TerrainPreset preset,CancellationToken cancel,byte[] earthHeights)
+            => Generate(width,height,seed,preset,cancel,earthHeights,null);
+
+        public static WorldData Generate(int width,int height,string seed,TerrainPreset preset,CancellationToken cancel,byte[] earthHeights,byte[] geographicWater)
         {
             cancel.ThrowIfCancellationRequested();
             if(preset == TerrainPreset.Earth && (earthHeights == null || earthHeights.LongLength != (long)width*height*sizeof(short)))
@@ -32,6 +35,7 @@ namespace Orbis.Flat
             var w=new WorldData(width,height,seed,preset);
             if(preset == TerrainPreset.Earth)
             {
+                if(geographicWater!=null)w.WaterReference=FlatWaterReference.Read(width,earthHeights,geographicWater);
                 for(int y=0;y<height;y++)
                 {
                     cancel.ThrowIfCancellationRequested();
@@ -39,7 +43,7 @@ namespace Orbis.Flat
                     for(int x=0;x<width;x++,source+=2)
                     {
                         short metres=unchecked((short)(earthHeights[source] | earthHeights[source+1]<<8));
-                        if(metres < -4000 || metres > 4000)
+                        if(metres < HeightBands.MinimumBed || metres > HeightBands.MaximumBed)
                             throw new ArgumentException("地球高程超过游戏支持的范围。", nameof(earthHeights));
                         w.Elevation[y*width+x]=metres;
                     }
@@ -55,10 +59,10 @@ namespace Orbis.Flat
         public static void Rebuild(WorldData w,CancellationToken cancel)
         {
             DetectWater(w,cancel);
-            // Spill lakes supply evaporation during initial climate generation
-            // and on reload. River discharge then follows the resulting rainfall.
-            FlatHydrology.BuildDrainage(w,cancel);
             FlatClimate.Build(w,cancel);
+            // Estimate lake supply from the climate without provisional flooding.
+            // Recompute the fluxes if a modelled lake changes the evaporating area.
+            if(FlatHydrology.BuildDrainage(w,cancel))FlatClimate.Build(w,cancel);
             var discharge=FlatHydrology.RouteRainfall(w,cancel);
             FlatTerrainAnalysis.Build(w,cancel,true,riverDischarge:discharge);
             ReconcileSettlements(w);
@@ -66,19 +70,18 @@ namespace Orbis.Flat
         }
         static void DetectWater(WorldData w,CancellationToken cancel)
         {
-            var seen=new bool[w.Count];var q=new Queue<int>();var best=new List<int>();
+            var ocean=FlatOcean.Find(w,cancel);var q=new Queue<int>();
             for(int i=0;i<w.Count;i++)
             {
                 if((i&4095)==0)cancel.ThrowIfCancellationRequested();
                 w.Water[i]=WaterKind.Land;w.WaterLevel[i]=w.Elevation[i];w.CoastDistance[i]=ushort.MaxValue;
-                if(w.Elevation[i]>0||seen[i])continue;
-                var part=new List<int>();seen[i]=true;q.Enqueue(i);
-                while(q.Count>0){int t=q.Dequeue();part.Add(t);for(int d=0;d<4;d++){int n=w.SphereNeighbor(t,d);if(n>=0&&!seen[n]&&w.Elevation[n]<=0){seen[n]=true;q.Enqueue(n);}}}
-                if(part.Count>best.Count)best=part;
+                if(ocean[i]){w.Water[i]=HeightBands.Ocean(w.Elevation[i]);w.WaterLevel[i]=0;w.CoastDistance[i]=0;q.Enqueue(i);}
+                else if(w.WaterReference!=null)
+                {
+                    short stage=w.WaterReference.At(i);
+                    if(stage>=w.Elevation[i]){w.Water[i]=WaterKind.Lake;w.WaterLevel[i]=stage;}
+                }
             }
-            foreach(int i in best){w.Water[i]=HeightBands.Ocean(w.Elevation[i]);w.WaterLevel[i]=0;w.CoastDistance[i]=0;q.Enqueue(i);}
-            // Non-ocean depressions are freshwater, not inland salt oceans.
-            for(int i=0;i<w.Count;i++)if(w.Elevation[i]<=0&&w.Water[i]==WaterKind.Land){w.Water[i]=WaterKind.Lake;w.WaterLevel[i]=0;}
             while(q.Count>0)
             {
                 int i=q.Dequeue();int dist=Math.Min(65534,w.CoastDistance[i]+1);

@@ -10,7 +10,7 @@ import numpy as np
 ROOT = Path(__file__).resolve().parents[2]
 SOURCE = ROOT / "Examples/EarthScale100/global"
 RESOURCES = ROOT / "Assets/ORBIS/Resources/ORBIS/FlatWorld"
-WIDTHS = (256, 512, 1024)
+WIDTHS = tuple(map(int, (RESOURCES / "PlayerWidths.txt").read_text().split()))
 
 
 def weighted_sums(rows, count):
@@ -31,9 +31,8 @@ def bake(source, width):
         block = slice(start, start + 64)
         horizontal[block] = weighted_sums(source[block], width)
     sums = weighted_sums(horizontal.T, height).T
-    # Round once to the nearest metre after both axes have been integrated,
-    # then apply the limits supported by ORBIS world saves.
-    return np.clip(np.rint(sums / source.size), -4000, 4000).astype("<i2")
+    # The mean of int16 source samples remains in range. Round only once, in metres.
+    return np.rint(sums / source.size).astype("<i2")
 
 
 def main():

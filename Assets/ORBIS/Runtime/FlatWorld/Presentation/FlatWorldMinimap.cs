@@ -16,6 +16,9 @@ namespace Orbis.Flat
         static readonly Color Gold = new Color(1, .76f, .34f);
         static readonly Vector2[] Axes = { Vector2.right, Vector2.up, Vector2.left, Vector2.down };
         readonly VisualElement viewport, frame, map;
+        readonly VisualElement scale, scaleLine;
+        readonly Label scaleDistance;
+        int lastScaleMetres = -1;
         readonly Action<PlanetLocation> recenter;
         readonly List<Vector2> segments = new List<Vector2>(440);
         FlatScrollNavigator navigation;
@@ -33,6 +36,10 @@ namespace Orbis.Flat
             this.recenter = recenter;
             frame = viewport.Q("minimapFrame");
             map = frame.Q("minimap");
+            scale = viewport.Q("mapScale");
+            scaleLine = scale.Q("mapScaleLine");
+            scaleDistance = scale.Q<Label>("mapScaleDistance");
+            scale.style.display = DisplayStyle.None;
             frame.style.display = DisplayStyle.None;
             viewport.RegisterCallback<GeometryChangedEvent>(e => Resize(e.newRect.size));
             map.generateVisualContent += Draw;
@@ -72,6 +79,29 @@ namespace Orbis.Flat
             frame.style.width = width;
             frame.style.height = (width - 8) * .5f + 8;
             nextRefresh = 0;
+            valid = false;
+        }
+
+        // Two symmetric screen samples measure the ground distance at the view centre,
+        // including local projection, atlas distortion, date-line wrapping and zoom.
+        void UpdateScale(FlatMinimapProjection projection)
+        {
+            float panelWidth = viewport.contentRect.width;
+            if (panelWidth < 60) { scale.style.display = DisplayStyle.None; return; }
+            float lineWidth = Mathf.Min(96, panelWidth * .16f);
+            var offset = new Vector2(lineWidth / panelWidth, 0);
+            var left = projection.Sample(-offset);
+            var right = projection.Sample(offset);
+            var a = PlanetCoordinateSystem.SurfaceNormal(PlanetCoordinateSystem.FromMapUV(left.x, left.y));
+            var b = PlanetCoordinateSystem.SurfaceNormal(PlanetCoordinateSystem.FromMapUV(right.x, right.y));
+            double metres = PlanetLocalProjection.Distance(a, b, 6371008.8);
+            if (!(metres > 0)) { scale.style.display = DisplayStyle.None; return; }
+            scale.style.display = DisplayStyle.Flex;
+            scaleLine.style.width = lineWidth;
+            int rounded = metres >= 1000 ? (int)Math.Round(metres / 1000) * 1000 : (int)Math.Round(metres);
+            if (rounded == lastScaleMetres) return;
+            lastScaleMetres = rounded;
+            scaleDistance.text = rounded >= 1000 ? $"{rounded / 1000:N0} 公里" : $"{rounded} 米";
         }
 
         internal void Bind(FlatScrollNavigator navigator, FlatMapRenderer renderer)
@@ -142,6 +172,7 @@ namespace Orbis.Flat
             valid = true;
 
             var projection = navigation.MinimapProjection();
+            UpdateScale(projection);
             center = projection.Sample(Vector2.zero);
             segments.Clear();
             int steps = projection.IsFlatAtlas ? 32 : morph <= 0 ? 20 : 8;

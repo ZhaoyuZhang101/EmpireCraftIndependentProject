@@ -36,24 +36,14 @@ namespace Orbis.Flat
                 double lengthEW=2*Math.Asin(rowScale[y]*Math.Sin(dx*tileAngle*.5))/tileAngle;
                 eastWeight[y]=(float)(1/(lengthEW*lengthEW));
             }
-            // The ocean is the largest connected sub-sea-level region, as in water detection.
-            var seen=new bool[n];var queue=new Queue<int>();var ocean=new List<int>();
-            for(int i=0;i<n;i++)
-            {
-                if(seen[i]||h[i]>0)continue;
-                var part=new List<int>();seen[i]=true;queue.Enqueue(i);
-                while(queue.Count>0)
-                {
-                    int c=queue.Dequeue();part.Add(c);
-                    for(int d=0;d<4;d++){int m=w.SphereNeighbor(c,d);if(m>=0&&!seen[m]&&h[m]<=0){seen[m]=true;queue.Enqueue(m);}}
-                }
-                if(part.Count>ocean.Count)ocean=part;
-            }
-            if(ocean.Count==0||ocean.Count==n)return;
-            var isOcean=new bool[n];
-            foreach(int i in ocean){isOcean[i]=fixedCell[i]=true;surface[i]=0;}
-            // Inland seas and large deep basins stay at their spill surface. Every
-            // other closed land basin is treated as sediment-filled.
+            // Use the same sea-level connection and spherical area as final hydrology.
+            var isOcean=FlatOcean.Find(w,cancel);int oceanCount=0;
+            for(int i=0;i<n;i++)if(isOcean[i]){fixedCell[i]=true;surface[i]=0;oceanCount++;}
+            if(oceanCount==0||oceanCount==n)return;
+            var seen=new bool[n];var queue=new Queue<int>();
+            // Preserve surveyed sub-datum and substantial enclosed bed relief.
+            // The spill surface is a boundary for incision. Standing water is
+            // determined later from climate, runoff and lake evidence.
             float areaScale=(width/512f)*(width/512f);
             var fill=Flood(w,h,fixedCell,surface,0);Array.Clear(seen,0,n);var basin=new List<int>();
             for(int i=0;i<n;i++)
@@ -159,8 +149,8 @@ namespace Orbis.Flat
             Descend(w,level,fixedCell);
             for(int i=0;i<n;i++)
             {
-                if(!fixedCell[i])w.Elevation[i]=(short)FMath.Clamp(level[i],1,4000);
-                else if(shift[i]!=0)w.Elevation[i]=(short)FMath.Clamp(w.Elevation[i]+shift[i],-4000,4000);
+                if(!fixedCell[i])w.Elevation[i]=(short)FMath.Clamp(level[i],1,HeightBands.MaximumBed);
+                else if(shift[i]!=0)w.Elevation[i]=(short)FMath.Clamp(w.Elevation[i]+shift[i],HeightBands.MinimumBed,HeightBands.MaximumBed);
             }
         }
 

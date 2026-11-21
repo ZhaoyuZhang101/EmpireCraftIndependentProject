@@ -2,6 +2,10 @@
  <ui:Style src="FlatWorld.uss" />
  <ui:VisualElement name="app" class="app">
   <ui:VisualElement name="viewport" class="viewport">
+   <ui:VisualElement name="mapScale" class="map-scale" picking-mode="Ignore">
+    <ui:Label name="mapScaleDistance" picking-mode="Ignore"/>
+    <ui:VisualElement name="mapScaleLine" class="map-scale-line" picking-mode="Ignore"/>
+   </ui:VisualElement>
    <ui:VisualElement name="minimapFrame" class="minimap-frame" tooltip="点击小地图定位，保留当前缩放">
     <ui:VisualElement name="minimap" class="minimap"/>
    </ui:VisualElement>

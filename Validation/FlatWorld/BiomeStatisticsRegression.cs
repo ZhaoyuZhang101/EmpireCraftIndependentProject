@@ -294,7 +294,12 @@ internal static class BiomeStatisticsRegression
         Check(model.Estimate(world, tile, work).Status == FlatBiomeStatus.Unavailable, "A negative rain normal must be rejected.");
         Cell(world, tile, FlatBiomeClass.TemperateGrassland);
         world.Elevation[tile] = 7000;
+        Check(model.Estimate(world, tile, work).Status == FlatBiomeStatus.OutsideReference,
+              "Real high terrain is valid input but lies outside this lowland reference.");
+        world.Elevation[tile] = HeightBands.MaximumBed + 1;
         Check(model.Estimate(world, tile, work).Status == FlatBiomeStatus.Unavailable, "Out-of-domain terrain input must be rejected.");
+        world.Elevation[tile] = HeightBands.MinimumBed - 1;
+        Check(model.Estimate(world, tile, work).Status == FlatBiomeStatus.Unavailable, "Invalid seabed depth must be rejected.");
     }
 
     static void CheckProtected(FlatBiomeStatistics model, WorldData world, int tile, FlatBiomeScratch work)

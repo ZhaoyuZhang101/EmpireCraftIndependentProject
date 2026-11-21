@@ -158,7 +158,7 @@ Shader "ORBIS/Surface"
       FlatWaterSurfaceData waterSurface;
       waterColor=FlatWaterShade(uv*_MapSize.xy,mixing,field,FlatMaterialColor(floor(geo.g+.5))*.72,illumination,localView,localLight,_WaveAmount*(1-polarIce),waterKind,coast,channel,waterSurface);
       [branch] if(water>.001)
-       waterColor=FlatReflectWater(waterColor,uv*_MapSize.xy,field,max(0,field.r+field.b),localView,localLight,illumination,waterSurface,_Clouds*_SkyReady,0);
+       waterColor=FlatReflectWater(waterColor,uv*_MapSize.xy,field,field.r+field.b,localView,localLight,illumination,waterSurface,_Clouds*_SkyReady,0);
      }
      col=lerp(col,waterColor,water);
     }

@@ -70,3 +70,6 @@ Button.active-tab { background-color: rgb(77,106,83); color: rgb(255,241,207); b
 .climate-table-row { flex-direction: row; }
 .climate-table-cell { width: 77px; height: 32px; margin: 1px; padding: 1px 2px; -unity-text-align: middle-center; white-space: normal; font-size: 12px; }
 .climate-table-axis { background-color: rgb(42,58,62); color: rgb(223,230,216); }
+.map-scale { position: absolute; bottom: 12px; left: 12px; align-items: center; background-color: rgba(17,27,30,.84); padding: 2px 6px 5px 6px; border-radius: 2px; }
+.map-scale Label { font-size: 12px; color: rgb(240,236,215); -unity-text-align: middle-center; }
+.map-scale-line { height: 5px; border-bottom-width: 2px; border-left-width: 1px; border-right-width: 1px; border-color: rgb(240,236,215); }

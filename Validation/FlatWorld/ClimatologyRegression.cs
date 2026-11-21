@@ -3,6 +3,38 @@ using Orbis.Flat;
 
 internal static class ClimatologyRegression
 {
+    // Move the entire coastline through the date line and change the preset
+    // label. Its climate should follow the bed, even on a fictional continent.
+    public static void RotatedContinent()
+    {
+        const int width=128, height=64, shift=39;
+        var original=FlatGenerator.Generate(width,height,"MERIDIAN-CLIMATE",TerrainPreset.GreatContinent,default);
+        var moved=new WorldData(width,height,"ANOTHER-SEED",TerrainPreset.Continents);
+        for(int i=0;i<original.Count;i++)
+        {
+            int j=moved.Index(i%width+shift,i/width);
+            moved.Water[j]=original.Water[i];
+            moved.WaterLevel[j]=original.WaterLevel[i];
+            moved.Elevation[j]=original.Elevation[i];
+            moved.CoastDistance[j]=original.CoastDistance[i];
+        }
+        FlatClimate.Build(original,default,1);
+        FlatClimate.Build(moved,default,4);
+        double maxTemperature=0,maxRain=0;
+        for(int i=0;i<original.Count;i++)
+        {
+            int j=moved.Index(i%width+shift,i/width);
+            for(int m=0;m<12;m++)
+            {
+                maxTemperature=Math.Max(maxTemperature,Math.Abs(original.Temperature[i*12+m]-moved.Temperature[j*12+m]));
+                maxRain=Math.Max(maxRain,Math.Abs(original.Precipitation[i*12+m]-moved.Precipitation[j*12+m]));
+            }
+        }
+        if(!(maxTemperature<=.001 && maxRain<=.05))
+            throw new Exception($"Longitude-dependent normals: differences {maxTemperature} °C, {maxRain} mm/month.");
+        Console.WriteLine($"Rotated continent, 1 vs 4 workers: max difference {maxTemperature:G3} °C, {maxRain:G3} mm/month.");
+    }
+
     public static void LandStatistics(WorldData world, string label)
     {
         double area=0, rain=0, desert=0, steppe=0, surfaceDesert=0, wetness=0, wetBanks=0;
@@ -152,15 +184,30 @@ internal static class ClimatologyRegression
         for (int y = 0; y < world.Height; y++)
         for (int x = 0; x < world.Width; x++)
         {
-            int h = x < 16 ? -500 : 180;
-            if (x >= 24 && x < 40 && y >= 11 && y < 23) h = 40;
+            // A small equatorial lake receives a converging upland catchment
+            // on its eastern bank. A surveyed 180 m sill opens to the western sea.
+            int h = x < 16 ? -500 : 180 + 12 * (Math.Max(0, x - 24) + Math.Max(0, Math.Abs(y - 16) - 1));
+            if (x >= 20 && x <= 24 && y >= 15 && y <= 17) h = 40;
+            if (x >= 16 && x < 20 && y == 16) h = 120 + 20 * (x - 16);
             world.Elevation[world.Index(x, y)] = (short)h;
         }
         FlatGenerator.Rebuild(world, default);
-        int basin = world.Index(32, 16);
+        int basin = world.Index(22, 16);
         if (world.Water[basin] != WaterKind.Lake || world.WaterLevel[basin] != 180)
             throw new Exception("Expected a permanent freshwater basin above sea level.");
+        int outlet = basin;
+        while (world.Downstream[outlet] >= 0) outlet = world.Downstream[outlet];
+        if (!FlatTerrainAnalysis.Ocean(world.Water[outlet]) || world.Runoff[outlet] <= 0)
+            throw new Exception("The supplied equatorial lake must overflow through its sill to the ocean.");
+        var dry = world.Clone();
+        Array.Clear(dry.Precipitation, 0, dry.Precipitation.Length);
+        FlatHydrology.Build(dry, default);
+        if (dry.Water[basin] != WaterKind.Land || dry.WaterLevel[basin] != 40 || dry.Runoff[basin] != 0)
+            throw new Exception("The same empty depression flooded or carried flow without precipitation.");
+        world.Day = 97.25;
         var loaded = FlatSave.Decode(FlatSave.Encode(world));
+        if (loaded.Day != world.Day || loaded.Month != world.Month)
+            throw new Exception("Loading the lake changed the climate calendar.");
         for (int j = 0; j < world.Moisture.Rain.Length; j++)
             if (world.Moisture.Rain[j] != loaded.Moisture.Rain[j] ||
                 world.Moisture.Humidity[j] != loaded.Moisture.Humidity[j])

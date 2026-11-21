@@ -8,8 +8,16 @@ namespace Orbis.Flat
     // Bounded binary payload + SHA-256. Separate path/schema from legacy V4 JSON.
     public static class FlatSave
     {
-        public const int Version=3,MaxFileBytes=96*1024*1024;
+        public const int Version=3;
+        const int TileRecordBytes=34+12*2*sizeof(float);
+        const int MaxTiles=WorldData.MaxWidth*(WorldData.MaxWidth/2);
+        // Grid data plus bounded header, nation names, wildlife and cyclone records.
+        public const int MaxFileBytes=MaxTiles*TileRecordBytes+MaxTiles/WorldData.TilesPerZone*sizeof(int)+64*1024;
         const string Magic="ORBIS-FLAT-01";
+        const int DigestBytes=32;
+        const int WorldHeaderBytes=5*sizeof(int)+sizeof(byte)+2*sizeof(double);
+        const int NationRecordBytes=3*sizeof(int)+3*sizeof(double);
+        const int WildlifeRecordBytes=4*sizeof(int)+2*sizeof(byte)+2*sizeof(double)+5*sizeof(float);
         const int CycloneStateBytes = sizeof(long) + 4 * (sizeof(byte) + 7 * sizeof(double));
         static void StringWrite(BinaryWriter b,string s,int max)
         {byte[] a=Encoding.UTF8.GetBytes(s??"");if(a.Length>max)throw new InvalidDataException("String too long.");b.Write(a.Length);b.Write(a);}
@@ -56,8 +64,20 @@ namespace Orbis.Flat
         public static byte[] Encode(WorldData w)
         {
             Validate(w);
-            byte[] body;
-            using(var m=new MemoryStream())using(var b=new BinaryWriter(m,Encoding.UTF8,true))
+            int size=Magic.Length+sizeof(int)+DigestBytes+WorldHeaderBytes+Encoding.UTF8.GetByteCount(w.Seed)
+                +w.Count*TileRecordBytes+w.ZoneCount*sizeof(int)+sizeof(byte)+sizeof(int)+w.Wildlife.Count*WildlifeRecordBytes;
+            foreach(var n in w.Nations)size+=NationRecordBytes+Encoding.UTF8.GetByteCount(n.Name);
+            if(w.Cyclones!=null)size+=CycloneStateBytes;
+            var file=new byte[size];
+            using(var stream=new MemoryStream(file,true))Write(stream,w);
+            return file;
+        }
+        static void Write(Stream stream,WorldData w)
+        {
+            // Keep the v1-v3 envelope. Reserve its header and hash the completed payload in place.
+            int payloadOffset=Magic.Length+sizeof(int)+DigestBytes;
+            stream.Position=payloadOffset;
+            using(var b=new BinaryWriter(stream,Encoding.UTF8,true))
             {
                 b.Write(Version);b.Write(w.Width);b.Write(w.Height);StringWrite(b,w.Seed,512);b.Write((byte)w.Preset);b.Write(w.Day);b.Write(w.ExpansionRemainder);
                 b.Write(w.Nations.Count);
@@ -84,61 +104,76 @@ namespace Orbis.Flat
                     WriteCycloneTrack(b, cyclones.PreviousNorth);
                     WriteCycloneTrack(b, cyclones.PreviousSouth);
                 }
-                b.Flush();body=m.ToArray();
+                b.Flush();
+                int payloadSize=checked((int)stream.Position-payloadOffset);
+                Check(stream.Position==stream.Length&&stream.Length<=MaxFileBytes,"Unexpected save length.");
+                stream.Position=payloadOffset;
+                byte[] digest;using(var sha=SHA256.Create())digest=sha.ComputeHash(stream);
+                stream.Position=0;
+                b.Write(Encoding.ASCII.GetBytes(Magic));b.Write(payloadSize);b.Write(digest);
             }
-            byte[] digest;using(var sha=SHA256.Create())digest=sha.ComputeHash(body);
-            using(var m=new MemoryStream())using(var b=new BinaryWriter(m))
-            {b.Write(Encoding.ASCII.GetBytes(Magic));b.Write(body.Length);b.Write(digest);b.Write(body);return m.ToArray();}
         }
         public static WorldData Decode(byte[] file)
         {
-            Check(file!=null&&file.Length>=64&&file.Length<=MaxFileBytes,"Save length invalid.");
-            using(var stream=new MemoryStream(file))using(var r=new BinaryReader(stream))
+            Check(file!=null,"Save length invalid.");
+            using(var stream=new MemoryStream(file,false))return Read(stream);
+        }
+        static WorldData Read(Stream stream)
+        {
+            Check(stream.Length>=64&&stream.Length<=MaxFileBytes,"Save length invalid.");
+            using(var r=new BinaryReader(stream,Encoding.UTF8,true))
             {
                 Check(Encoding.ASCII.GetString(r.ReadBytes(Magic.Length))==Magic,"This is not an ORBIS 2D save (legacy V4 is separate).");
                 int size=r.ReadInt32();byte[] expected=r.ReadBytes(32);
                 Check(size>=0&&size==stream.Length-stream.Position,"Save payload length mismatch.");
-                byte[] body=r.ReadBytes(size);byte[] actual;using(var sha=SHA256.Create())actual=sha.ComputeHash(body);
+                long payloadOffset=stream.Position;
+                byte[] actual;using(var sha=SHA256.Create())actual=sha.ComputeHash(stream);
                 int difference=0;for(int i=0;i<32;i++)difference|=expected[i]^actual[i];Check(difference==0,"Save checksum mismatch.");
-                using(var m=new MemoryStream(body))using(var b=new BinaryReader(m))
-                {
-                    int version=b.ReadInt32();Check(version>=1&&version<=Version,"Unsupported save version.");int width=b.ReadInt32(),height=b.ReadInt32();string seed=StringRead(b,512);var preset=(TerrainPreset)b.ReadByte();
-                    var w=new WorldData(width,height,seed,preset){Day=b.ReadDouble(),ExpansionRemainder=b.ReadDouble()};
-                    int nations=b.ReadInt32();Check(nations>=0&&nations<=WorldData.MaxNations,"Invalid nation count.");
-                    for(int i=0;i<nations;i++)w.Nations.Add(new Nation{Name=StringRead(b,256),Capital=b.ReadInt32(),Color=b.ReadUInt32(),Food=b.ReadDouble(),Refuges=b.ReadDouble(),ExpansionClock=b.ReadDouble()});
-                    for(int i=0;i<w.Count;i++)
-                    {
-                        w.Elevation[i]=b.ReadInt16();w.WaterLevel[i]=b.ReadInt16();w.Water[i]=(WaterKind)b.ReadByte();w.Biomes[i]=(Biome)b.ReadByte();w.Climates[i]=(Koppen)b.ReadByte();w.Buildings[i]=(Structure)b.ReadByte();
-                        w.Owner[i]=b.ReadInt32();w.Downstream[i]=b.ReadInt32();w.DrainOrder[i]=b.ReadInt32();w.Fertility[i]=b.ReadSingle();w.Runoff[i]=b.ReadSingle();w.Population[i]=b.ReadSingle();w.CoastDistance[i]=b.ReadUInt16();
-                        for(int j=0;j<12;j++){w.Temperature[i*12+j]=b.ReadSingle();w.Precipitation[i*12+j]=b.ReadSingle();}
-                    }
-                    for(int i=0;i<w.ZoneCount;i++)w.ZoneOwner[i]=b.ReadInt32();
-                    if(version>=2)
-                    {
-                        byte initialized=b.ReadByte();Check(initialized<=1,"Invalid wildlife initialization flag.");w.WildlifeInitialized=initialized==1;
-                        int count=b.ReadInt32();Check(count>=0&&count<=FlatWildlifeSimulation.MaxActors,"Invalid wildlife count.");
-                        for(int i=0;i<count;i++)w.Wildlife.Add(new WildlifeActor
-                        {
-                            Id=b.ReadInt32(),HomeTile=b.ReadInt32(),GoalTile=b.ReadInt32(),Species=(WildlifeSpecies)b.ReadByte(),State=(WildlifeState)b.ReadByte(),
-                            X=b.ReadDouble(),Y=b.ReadDouble(),Hunger=b.ReadSingle(),Fatigue=b.ReadSingle(),Facing=b.ReadSingle(),AnimationTime=b.ReadSingle(),MoveSpeed=b.ReadSingle(),RandomState=b.ReadUInt32()
-                        });
-                    }
-                    // V3 appends one fixed-size state once the world simulation has initialized it.
-                    // A zero-length tail also distinguishes an untouched world from four inactive tracks.
-                    if (version >= 3 && m.Position < m.Length)
-                    {
-                        Check(m.Length - m.Position == CycloneStateBytes, "Invalid cyclone state length.");
-                        w.Cyclones = new FlatCycloneWeather
-                        {
-                            StepIndex = b.ReadInt64(), North = ReadCycloneTrack(b), South = ReadCycloneTrack(b),
-                            PreviousNorth = ReadCycloneTrack(b), PreviousSouth = ReadCycloneTrack(b)
-                        };
-                    }
-                    Check(m.Position==m.Length,"Trailing data is not permitted.");Validate(w);
-                    w.Moisture=FlatMoisture.Build(w,System.Threading.CancellationToken.None);
-                    FlatTerrainAnalysis.Build(w,System.Threading.CancellationToken.None,false);return w;
-                }
+                stream.Position=payloadOffset;
+                return ReadPayload(r);
             }
+        }
+        static WorldData ReadPayload(BinaryReader b)
+        {
+            int version=b.ReadInt32();Check(version>=1&&version<=Version,"Unsupported save version.");int width=b.ReadInt32(),height=b.ReadInt32();string seed=StringRead(b,512);var preset=(TerrainPreset)b.ReadByte();
+            Check(WorldData.SupportsDimensions(width,height),"Invalid world dimensions.");
+            int countTiles=width*height;
+            long minimumBytes=(long)countTiles*TileRecordBytes+countTiles/WorldData.TilesPerZone*sizeof(int)+2*sizeof(double)+sizeof(int);
+            Check(b.BaseStream.Length-b.BaseStream.Position>=minimumBytes,"Truncated tile payload.");
+            var w=new WorldData(width,height,seed,preset){Day=b.ReadDouble(),ExpansionRemainder=b.ReadDouble()};
+            int nations=b.ReadInt32();Check(nations>=0&&nations<=WorldData.MaxNations,"Invalid nation count.");
+            for(int i=0;i<nations;i++)w.Nations.Add(new Nation{Name=StringRead(b,256),Capital=b.ReadInt32(),Color=b.ReadUInt32(),Food=b.ReadDouble(),Refuges=b.ReadDouble(),ExpansionClock=b.ReadDouble()});
+            for(int i=0;i<w.Count;i++)
+            {
+                w.Elevation[i]=b.ReadInt16();w.WaterLevel[i]=b.ReadInt16();w.Water[i]=(WaterKind)b.ReadByte();w.Biomes[i]=(Biome)b.ReadByte();w.Climates[i]=(Koppen)b.ReadByte();w.Buildings[i]=(Structure)b.ReadByte();
+                w.Owner[i]=b.ReadInt32();w.Downstream[i]=b.ReadInt32();w.DrainOrder[i]=b.ReadInt32();w.Fertility[i]=b.ReadSingle();w.Runoff[i]=b.ReadSingle();w.Population[i]=b.ReadSingle();w.CoastDistance[i]=b.ReadUInt16();
+                for(int j=0;j<12;j++){w.Temperature[i*12+j]=b.ReadSingle();w.Precipitation[i*12+j]=b.ReadSingle();}
+            }
+            for(int i=0;i<w.ZoneCount;i++)w.ZoneOwner[i]=b.ReadInt32();
+            if(version>=2)
+            {
+                byte initialized=b.ReadByte();Check(initialized<=1,"Invalid wildlife initialization flag.");w.WildlifeInitialized=initialized==1;
+                int count=b.ReadInt32();Check(count>=0&&count<=FlatWildlifeSimulation.MaxActors,"Invalid wildlife count.");
+                for(int i=0;i<count;i++)w.Wildlife.Add(new WildlifeActor
+                {
+                    Id=b.ReadInt32(),HomeTile=b.ReadInt32(),GoalTile=b.ReadInt32(),Species=(WildlifeSpecies)b.ReadByte(),State=(WildlifeState)b.ReadByte(),
+                    X=b.ReadDouble(),Y=b.ReadDouble(),Hunger=b.ReadSingle(),Fatigue=b.ReadSingle(),Facing=b.ReadSingle(),AnimationTime=b.ReadSingle(),MoveSpeed=b.ReadSingle(),RandomState=b.ReadUInt32()
+                });
+            }
+            // V3 appends one fixed-size state once the world simulation has initialized it.
+            // A zero-length tail also distinguishes an untouched world from four inactive tracks.
+            if (version >= 3 && b.BaseStream.Position < b.BaseStream.Length)
+            {
+                Check(b.BaseStream.Length - b.BaseStream.Position == CycloneStateBytes, "Invalid cyclone state length.");
+                w.Cyclones = new FlatCycloneWeather
+                {
+                    StepIndex = b.ReadInt64(), North = ReadCycloneTrack(b), South = ReadCycloneTrack(b),
+                    PreviousNorth = ReadCycloneTrack(b), PreviousSouth = ReadCycloneTrack(b)
+                };
+            }
+            Check(b.BaseStream.Position==b.BaseStream.Length,"Trailing data is not permitted.");Validate(w);
+            w.Moisture=FlatMoisture.Build(w,System.Threading.CancellationToken.None);
+            FlatTerrainAnalysis.Build(w,System.Threading.CancellationToken.None,false);return w;
         }
         public static void Validate(WorldData w)
         {
@@ -157,7 +192,7 @@ namespace Orbis.Flat
             for(int j=0;j<w.Count;j++){int i=w.DrainOrder[j];Check(i>=0&&i<w.Count&&!seen[i],"Drain order is not a permutation.");seen[i]=true;rank[i]=j;}
             for(int i=0;i<w.Count;i++)
             {
-                Check(w.Elevation[i]>=-4000&&w.Elevation[i]<=4000&&w.WaterLevel[i]>=-4000&&w.WaterLevel[i]<=4000,"Elevation out of range.");
+                Check(w.Elevation[i]>=HeightBands.MinimumBed&&w.Elevation[i]<=HeightBands.MaximumBed&&w.WaterLevel[i]>=HeightBands.MinimumBed&&w.WaterLevel[i]<=HeightBands.MaximumBed,"Elevation out of range.");
                 // Imported physical terrain retains metre precision; only the editing brush uses preset bands.
                 Check(w.WaterLevel[i]>=w.Elevation[i],"Filled water level below its bed.");
                 bool ocean=w.Water[i]>=WaterKind.DeepOcean&&w.Water[i]<=WaterKind.ShallowOcean;
@@ -196,18 +231,27 @@ namespace Orbis.Flat
         }
         public static void WriteAtomic(string path,WorldData world)
         {
-            byte[] bytes=Encode(world);string temp=path+".tmp",backup=path+".bak";
-            Directory.CreateDirectory(Path.GetDirectoryName(Path.GetFullPath(path)));File.WriteAllBytes(temp,bytes);
-            // Backup is retained even on platforms without File.Replace.
-            if(File.Exists(path))
+            Validate(world);
+            string temp=path+"."+Guid.NewGuid().ToString("N")+".tmp",backup=path+".bak";
+            Directory.CreateDirectory(Path.GetDirectoryName(Path.GetFullPath(path)));
+            try
             {
-                try{File.Replace(temp,path,backup);return;}
-                catch(PlatformNotSupportedException){}catch(IOException){}
-                File.Copy(path,backup,true);File.Delete(path);
+                using(var stream=new FileStream(temp,FileMode.CreateNew,FileAccess.ReadWrite,FileShare.None,128*1024))
+                    Write(stream,world);
+                if(File.Exists(path))
+                {
+                    try{File.Replace(temp,path,backup);return;}
+                    catch(PlatformNotSupportedException){File.Copy(path,backup,true);File.Copy(temp,path,true);return;}
+                }
+                File.Move(temp,path);
             }
-            File.Move(temp,path);
+            finally{if(File.Exists(temp))File.Delete(temp);}
         }
         public static WorldData Read(string path)
-        {var f=new FileInfo(path);Check(f.Exists&&f.Length<=MaxFileBytes,"Save missing or oversized.");return Decode(File.ReadAllBytes(path));}
+        {
+            Check(File.Exists(path),"Save missing.");
+            using(var stream=new FileStream(path,FileMode.Open,FileAccess.Read,FileShare.Read,128*1024))
+                return Read(stream);
+        }
     }
 }

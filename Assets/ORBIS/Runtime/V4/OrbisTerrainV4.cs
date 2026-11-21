@@ -42,10 +42,14 @@ namespace Orbis
             if(world.IsPresentationOnly)
             {
                 var source=world.FlatSource;int id=world.FlatTile(p);var kind=source.Water[id];
-                h=source.Elevation[id]/7000f;wet=kind==Orbis.Flat.WaterKind.Land?0:1;
-                depth=kind>=Orbis.Flat.WaterKind.DeepOcean&&kind<=Orbis.Flat.WaterKind.ShallowOcean?Mathf.Max(.05f,-h*160):Mathf.Max(.25f,(source.WaterLevel[id]-source.Elevation[id])/7000f*120);
-                float surface=world.MapSource.Sample(p);
-                return kind>=Orbis.Flat.WaterKind.DeepOcean&&kind<=Orbis.Flat.WaterKind.ShallowOcean?1:1+Mathf.Max(0,surface)*.075f;
+                bool area=Orbis.Flat.FlatTerrainAnalysis.AreaWater(kind);
+                h=source.Elevation[id]/7000f;wet=area?1:0;
+                depth=area?Mathf.Max(.05f,(source.WaterLevel[id]-source.Elevation[id])/7000f*120):0;
+                if(area)return 1+source.WaterLevel[id]/7000f*.075f;
+                world.MapSource.Pixel(p,out float x,out float y);
+                var uv=new Vector2((x+.5f)/source.Width,1-(y+.5f)/source.Height);
+                float metres=source.Facts==null?source.Elevation[id]:Orbis.Flat.FlatGlobeGeometry.SurfaceHeight(source,uv);
+                return 1+metres/7000f*.075f;
             }
             h=TerrainHeight(p,s);wet=0;depth=0;if(h<=0){wet=1;depth=Mathf.Max(.05f,-h*160);return 1;}
             Vector3 w=s.weights;float lakeWeight=0,lakeLevel=0;

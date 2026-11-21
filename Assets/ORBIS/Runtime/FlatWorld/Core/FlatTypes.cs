@@ -25,6 +25,8 @@ namespace Orbis.Flat
     }
     public static class HeightBands
     {
+        // Physical DEM bounds in metres. Authoring brushes and the legacy PNG have their own range.
+        public const short MinimumBed = -12000, MaximumBed = 9000;
         // (previous upper bound, current upper bound]. Sea level is 0, not land band 1.
         public static readonly int[] Upper={100,200,300,400,500,600,700,800,900,1000,1120,1280,1480,1720,2000,2320,2680,3080,3520,4000};
         public static int Level(float meters)
@@ -52,7 +54,7 @@ namespace Orbis.Flat
     }
     public sealed class WorldData
     {
-        public const int ZoneSide=4, TilesPerZone=16, MaxWidth=1024, MaxNations=12;
+        public const int ZoneSide=4, TilesPerZone=16, MaxWidth=2048, MaxNations=12;
         public readonly int Width,Height,Count,ZoneWidth,ZoneHeight;
         public string Seed;
         public TerrainPreset Preset;
@@ -61,6 +63,7 @@ namespace Orbis.Flat
         public FlatMoistureState Moisture;
         // Plate/volcano record of a generated bed (null for imported heightmaps).
         public FlatTectonicFacts Tectonics;
+        public FlatWaterReference WaterReference;
         public FlatCycloneWeather Cyclones;
         public short[] Elevation,WaterLevel;
         public WaterKind[] Water;
@@ -75,15 +78,18 @@ namespace Orbis.Flat
         public bool WildlifeInitialized;
         public double Day, ExpansionRemainder;
         public int Revision, TerrainRevision;
+        public int TileRevision { get; private set; }
         public readonly HashSet<int> DirtyChunks=new HashSet<int>();
         public const int ChunkSide=32;
         public int ChunkWidth { get { return (Width+ChunkSide-1)/ChunkSide; } }
         public int Month { get { return ((int)(Day/30)%12+12)%12; } }
         public int ZoneCount { get { return ZoneWidth*ZoneHeight; } }
+        public static bool SupportsDimensions(int width,int height)
+        { return width>=64 && width<=MaxWidth && height==width/2 && width%ZoneSide==0 && height%ZoneSide==0; }
         public WorldData(int width,int height,string seed,TerrainPreset preset)
         {
-            if(width<64||width>MaxWidth||height<32||width!=height*2||width%4!=0||height%4!=0)
-                throw new ArgumentException("Map must be 2:1, 64..1024 tiles wide, dimensions divisible by 4.");
+            if(!SupportsDimensions(width,height))
+                throw new ArgumentException($"Map must be 2:1, 64..{MaxWidth} tiles wide, dimensions divisible by {ZoneSide}.");
             if(string.IsNullOrWhiteSpace(seed)||seed.Length>128)throw new ArgumentException("Seed must contain 1..128 characters.");
             Width=width;Height=height;Count=width*height;ZoneWidth=width/4;ZoneHeight=height/4;Seed=seed;Preset=preset;
             Elevation=new short[Count];WaterLevel=new short[Count];Water=new WaterKind[Count];Biomes=new Biome[Count];Climates=new Koppen[Count];Buildings=new Structure[Count];
@@ -115,12 +121,12 @@ namespace Orbis.Flat
         public bool Walkable(int id)
         { return id>=0&&id<Count&&(Water[id]==WaterKind.Land||Water[id]==WaterKind.River||Buildings[id]==Structure.Bridge); }
         public void Touch(int id)
-        { DirtyChunks.Add((id/Width/ChunkSide)*ChunkWidth+(id%Width/ChunkSide));Revision++; }
+        { DirtyChunks.Add((id/Width/ChunkSide)*ChunkWidth+(id%Width/ChunkSide));TileRevision++;Revision++; }
         public void MarkAllDirty()
         { for(int y=0;y<(Height+31)/32;y++)for(int x=0;x<ChunkWidth;x++)DirtyChunks.Add(y*ChunkWidth+x);Revision++; }
         public WorldData Clone()
         {
-            var w=new WorldData(Width,Height,Seed,Preset){Day=Day,ExpansionRemainder=ExpansionRemainder,Revision=Revision,TerrainRevision=TerrainRevision,WildlifeInitialized=WildlifeInitialized};
+            var w=new WorldData(Width,Height,Seed,Preset){Day=Day,ExpansionRemainder=ExpansionRemainder,Revision=Revision,TerrainRevision=TerrainRevision,TileRevision=TileRevision,WildlifeInitialized=WildlifeInitialized};
             Array.Copy(Elevation,w.Elevation,Count);Array.Copy(WaterLevel,w.WaterLevel,Count);Array.Copy(Water,w.Water,Count);Array.Copy(Biomes,w.Biomes,Count);Array.Copy(Climates,w.Climates,Count);Array.Copy(Buildings,w.Buildings,Count);
             Array.Copy(Owner,w.Owner,Count);Array.Copy(ZoneOwner,w.ZoneOwner,ZoneCount);Array.Copy(Downstream,w.Downstream,Count);Array.Copy(DrainOrder,w.DrainOrder,Count);
             Array.Copy(Fertility,w.Fertility,Count);Array.Copy(Runoff,w.Runoff,Count);Array.Copy(Population,w.Population,Count);Array.Copy(CoastDistance,w.CoastDistance,Count);
@@ -128,6 +134,7 @@ namespace Orbis.Flat
             w.Facts=Facts==null?null:Facts.Clone();
             w.Moisture=Moisture==null?null:Moisture.Clone();
             w.Tectonics=Tectonics;
+            w.WaterReference=WaterReference;
             w.Cyclones=Cyclones==null?null:Cyclones.Clone();
             foreach(var actor in Wildlife)w.Wildlife.Add(actor.Clone());
             foreach(var n in Nations)w.Nations.Add(n.Clone());return w;

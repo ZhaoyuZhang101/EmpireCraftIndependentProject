@@ -27,5 +27,6 @@ def export(seed, width, output):
 if __name__=='__main__':
     p=argparse.ArgumentParser();p.add_argument('--seed',default='ORBIS-2D-2026');p.add_argument('--seed-file');p.add_argument('--width',type=int,default=512);p.add_argument('--output',required=True)
     a=p.parse_args()
-    if a.width not in (256,512,1024):p.error('width must be 256, 512 or 1024')
+    widths=list(map(int,(Path(__file__).resolve().parents[2]/'Assets/ORBIS/Resources/ORBIS/FlatWorld/PlayerWidths.txt').read_text().split()))
+    if a.width not in widths:p.error(f'width must be one of {widths}')
     export(Path(a.seed_file).read_text(encoding="utf-8-sig") if a.seed_file else a.seed,a.width,a.output)

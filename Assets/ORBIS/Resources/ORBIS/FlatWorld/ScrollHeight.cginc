@@ -4,7 +4,7 @@
 float2 _ScrollPoleHeights;
 float ScrollSurfaceHeight(float4 field)
 {
- return clamp(field.r+(field.g>0?field.b:0),0,4000);
+ return clamp(field.r+(field.g>0?field.b:0),-12000,9000);
 }
 float ScrollRadius(float height,float2 uv,float rows)
 {

@@ -199,7 +199,8 @@ namespace Orbis.Flat
                     }
                     f.Wetness[i]=mean;f.SaturatedMonths[i]=(byte)saturated;
                     bool area=AreaWater(w.Water[i]);
-                    f.Forms[i]=ClassifyForm(w.Elevation[i],f.Relief[i],gradient,f.Hand[i],fresh[i]<=1,area,w.WaterLevel[i]>w.Elevation[i]);
+                    f.Forms[i]=ClassifyForm(w.Elevation[i],f.Relief[i],gradient,f.Hand[i],fresh[i]<=1,area,
+                        w.WaterLevel[i]>w.Elevation[i]||w.Downstream[i]<0);
                     Biome biome=ClassifyBiome(w.Climates[i],w.Elevation[i],temp,rain,(byte)saturated,gradient,waterHand,riparian>.18f,area,warmest);
                     Biome ecologyBiome=biome;
                     if(updateBiomes)
@@ -243,7 +244,7 @@ namespace Orbis.Flat
                         for(int d=0;d<4;d++)
                         {
                             int n=w.Neighbor(i,d);if(n<0)continue;
-                            if(w.Downstream[i]==n||(w.Downstream[n]==i&&w.Water[n]!=WaterKind.Land))f.Connections[i]|=(byte)(1<<d);
+                            if(n>=0&&(w.Downstream[i]==n||(w.Downstream[n]==i&&w.Water[n]!=WaterKind.Land)))f.Connections[i]|=(byte)(1<<d);
                         }
                         int parent=w.Downstream[i];
                         if(parent>=0){f.FlowX[i]=WrappedDX(parent%w.Width,x,w.Width);f.FlowY[i]=parent/w.Width-y;}

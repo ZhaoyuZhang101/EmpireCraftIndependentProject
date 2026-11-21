@@ -48,6 +48,7 @@ namespace Orbis.Flat
     public sealed class FlatWildlifeSimulation : IDisposable
     {
         public const int MaxActors = 512;
+        public const int GoalSearchRadius = 8;
         const int SearchLimit = 128;
         const float StepSeconds = .1f;
         readonly WorldData world;
@@ -497,7 +498,7 @@ namespace Orbis.Flat
                     if (state == WildlifeState.Wandering) score += Math.Min(depth, 4) * .4f;
                     if (score > best) { best = score; goal = tile; }
                 }
-                if (depth >= 8 || tail >= SearchLimit) continue;
+                if (depth >= GoalSearchRadius || tail >= SearchLimit) continue;
                 int firstDirection = (int)(Random(actor) * 4);
                 for (int choice = 0; choice < 4 && tail < SearchLimit; choice++)
                 {

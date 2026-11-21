@@ -48,7 +48,7 @@ float4 FlatWaterPropReflection(float2 cell,float waterHeight,float3 ray,float3 l
         float travel=-ground.y/ray.y;
         if(travel<=0||travel*scale*placement.z>=nearest)continue;
         float2 rootUV=(source+placement.xy/32)*_MapSize.zw;
-        float elevation=max(0,FlatVisualSample(float4(rootUV,0,0)).r);
+        float elevation=FlatVisualSample(float4(rootUV,0,0)).r;
         float heightScale=.000006*32/((6.283185307/_MapSize.x)*scale*placement.z);
         float height=(waterHeight-elevation)*heightScale+ray.z*travel;
         float heightProjection=settlement?PDSettlementHeightProjection:PDTreeUp.z;

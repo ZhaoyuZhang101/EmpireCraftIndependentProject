@@ -187,8 +187,8 @@ namespace Orbis.Flat
                 float h;
                 if(s>0)
                 {
-                    float interior=Smooth(0,.30f,s);
-                    h=60+900*interior*(.65f+.35f*Fbm(x*3,y*3,z*3,seed^0x55u,4));
+                    float interior=Smooth(0,.24f,s);
+                    h=40+1550*(float)Math.Pow(interior,.78)*(.68f+.32f*Fbm(x*3,y*3,z*3,seed^0x55u,4));
                     // Intracratonic sags and old eroded orogens give interiors variety.
                     float sag=Smooth(.15f,.55f,Fbm(x*2.4f,y*2.4f,z*2.4f,seed^0x56u,3));
                     h-=380*sag*interior;
@@ -197,7 +197,11 @@ namespace Orbis.Flat
                 }
                 else
                 {
-                    float floor=-2500-1500*(float)Math.Sqrt(FMath.Clamp((age[i]==float.MaxValue?60*scale:age[i])/(45*scale),0,1));
+                    // Thermal subsidence away from a spreading ridge. At 2048 columns
+                    // the ETOPO marine depth median is 4.1 km and its 99th percentile 6.0 km.
+                    float cooled=FMath.Clamp((age[i]==float.MaxValue?60*scale:age[i])/(48*scale),0,1);
+                    float floor=-2500-3400*(float)Math.Sqrt(cooled);
+                    floor+=320*cooled*Fbm(x*5,y*5,z*5,seed^0x69u,3);
                     float shelf=-s;
                     h=shelf<.035f?-30-170*shelf/.035f:shelf<.11f?FMath.Lerp(-200,floor,Smooth(.035f,.11f,shelf)):floor;
                     h+=70*Fbm(x*3,y*3,z*3,seed^0x59u,3);
@@ -278,55 +282,15 @@ namespace Orbis.Flat
                     hx-=vx*stepLength;hy-=vy*stepLength;hz-=vz*stepLength;Normalize(ref hx,ref hy,ref hz);
                 }
             }
-            OpenStraits(w,elevation,rowScale,scale*scale*25,cancel);
             for(int i=0;i<n;i++)
             {
-                // Preserve the polar land/sea decision. A deep bed has little
-                // headroom before the storage floor; taper the extra depression
-                // monotonically underwater so it cannot flatten the abyssal relief.
+                // Confine the polar depression to shelves and shallower crust.
                 float pole=1-Smooth(0,.05f,capDistance[i]);
                 float bed=elevation[i],headroom=FMath.Clamp((bed+4000)/4000,0,1);
                 float h=bed-1600*pole*headroom*headroom;
-                if(h>3000)h=3000+1000*(float)Math.Tanh((h-3000)/1000);
-                w.Elevation[i]=(short)Math.Round(FMath.Clamp(h,-4000,4000));
+                w.Elevation[i]=(short)Math.Round(FMath.Clamp(h,HeightBands.MinimumBed,HeightBands.MaximumBed));
             }
             return new FlatTectonicFacts(plates,plate,setting,seismic,volcanoes.ToArray());
-        }
-
-        // Large enclosed sub-sea basins get a strait to the ocean along the lowest
-        // land path, so they behave as marginal seas instead of vast freshwater lakes.
-        static void OpenStraits(WorldData w,float[] h,float[] rowScale,float minimumArea,CancellationToken cancel)
-        {
-            int n=w.Count;var component=new int[n];for(int i=0;i<n;i++)component[i]=-1;
-            var areas=new List<double>();var queue=new Queue<int>();
-            for(int i=0;i<n;i++)
-            {
-                if(component[i]>=0||h[i]>0)continue;int id=areas.Count;double area=0;component[i]=id;queue.Enqueue(i);
-                while(queue.Count>0){int c=queue.Dequeue();area+=rowScale[c/w.Width];for(int d=0;d<4;d++){int m=w.SphereNeighbor(c,d);if(m>=0&&component[m]<0&&h[m]<=0){component[m]=id;queue.Enqueue(m);}}}
-                areas.Add(area);
-            }
-            int ocean=-1;for(int k=0;k<areas.Count;k++)if(ocean<0||areas[k]>areas[ocean])ocean=k;
-            for(int k=0;k<areas.Count;k++)
-            {
-                if(k==ocean||areas[k]<minimumArea)continue;
-                cancel.ThrowIfCancellationRequested();
-                var cost=new float[n];var parent=new int[n];for(int i=0;i<n;i++){cost[i]=float.MaxValue;parent[i]=-1;}
-                var heap=new FloodHeap();
-                for(int i=0;i<n;i++)if(component[i]==k){cost[i]=0;heap.Push(i,0);}
-                int reached=-1;
-                while(heap.Count>0)
-                {
-                    int c=heap.Pop(out long key);if(key/1000f>cost[c])continue;
-                    if(component[c]==ocean){reached=c;break;}
-                    for(int d=0;d<4;d++)
-                    {
-                        int m=w.SphereNeighbor(c,d);if(m<0)continue;
-                        float next=cost[c]+(h[m]>0?1+h[m]/200:0);
-                        if(next>=cost[m])continue;cost[m]=next;parent[m]=c;heap.Push(m,(long)(next*1000));
-                    }
-                }
-                for(int c=reached;c>=0&&component[c]!=k;c=parent[c])if(h[c]>-140)h[c]=-140;
-            }
         }
 
         static float Bell(float d,float centre,float width){float t=(d-centre)/width;return (float)Math.Exp(-t*t);}

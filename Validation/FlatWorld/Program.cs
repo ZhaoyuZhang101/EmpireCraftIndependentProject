@@ -11,6 +11,8 @@ public static class Program {
     case "--climate-saves": RegionalStatisticsRegression.CheckSaves(args); break;
     case "--tectonics": TectonicsRegression.Run(); break;
     case "--earth": EarthPresetRegression(); break;
+    case "--world-sizes": WorldSizeRegression(); break;
+    case "--large-presets": LargeProceduralPresets(); break;
     case "--river-discharge": RiverDischargeRegression.Run(); break;
     case "--forest-stands": ForestStandRegression.Run(); break;
     case "--wildlife": WildlifeRegression.Run(); break;
@@ -20,12 +22,60 @@ public static class Program {
     case "--moisture": MoistureRegression(); break;
     case "--environment": EnvironmentRegression(); break;
     case "--hydrology": HydrologyRegression.Run(); break;
+    case "--basin-water": BasinWaterRegression.Run(); break;
     case "--cyclone": CycloneRegression.Run(); break;
     default: Console.WriteLine(FlatSelfTests.Run()); break;
    }
    return 0;
   }
   catch(Exception e) { Console.Error.WriteLine(FlatSelfTests.LastOperation+"\n"+e); return 1; }
+ }
+ static void LargeProceduralPresets() {
+  void Check(int width,TerrainPreset preset) {
+   var timer=System.Diagnostics.Stopwatch.StartNew();
+   var world=FlatGenerator.Generate(width,width/2,"SCALE-QA-"+width,preset,default);
+   FlatSave.Validate(world);
+   int habitable=0,marine=0;
+   for(int i=0;i<world.Count;i++) {
+    if(world.Habitable(i))habitable++;
+    if(world.Water[i]>=WaterKind.DeepOcean&&world.Water[i]<=WaterKind.ShallowOcean)marine++;
+   }
+   if(world.Tectonics==null||world.Facts==null||world.Moisture==null||habitable<=0||marine<=0||
+      world.Count!=(long)width*width/2||world.Temperature.Length!=world.Count*12)
+    throw new Exception("Incomplete generated world: "+width+" "+preset);
+   Console.WriteLine($"PASS {preset} {width}x{world.Height}: {world.Count:N0} validated tiles, {habitable:N0} habitable, {marine:N0} marine, {timer.Elapsed.TotalSeconds:F1}s");
+  }
+  foreach(int width in new[]{1536,2048})foreach(var preset in FlatGenerator.ProceduralPresets) {
+   Check(width,preset);
+   GC.Collect();
+  }
+ }
+ static void WorldSizeRegression() {
+  const string resources="Assets/ORBIS/Resources/ORBIS/FlatWorld/";
+  var widths=Array.ConvertAll(System.IO.File.ReadAllLines(resources+"PlayerWidths.txt"),int.Parse);
+  if(string.Join(",",widths)!="256,512,1024,1536,2048")throw new Exception("Unexpected playable widths.");
+  foreach(int width in widths) {
+   if(!WorldData.SupportsDimensions(width,width/2))throw new Exception("Menu size rejected by world constructor.");
+   if(new System.IO.FileInfo(resources+"Earth"+width+".bytes").Length!=(long)width*width)
+    throw new Exception("Earth resource dimensions disagree with playable width "+width);
+  }
+  int max=WorldData.MaxWidth;
+  if(WorldData.SupportsDimensions(max,unchecked(int.MinValue+max/2))||WorldData.SupportsDimensions(max+8,max/2+4))
+   throw new Exception("Accepted overflowing or unsupported world dimensions.");
+  if(max!=2048 || FlatSave.MaxFileBytes < (long)max*(max/2)*130 + (long)max*(max/2)/16*4)
+   throw new Exception("The largest playable world exceeds the save envelope.");
+  // A valid checksum on a short payload must not allocate arrays for the advertised large world.
+  var fixture=FlatGenerator.Generate(64,32,"SAVE-SIZE",TerrainPreset.Continents,default);
+  byte[] file=FlatSave.Encode(fixture);
+  int header="ORBIS-FLAT-01".Length+4+32;
+  BitConverter.GetBytes(max).CopyTo(file,header+4);
+  BitConverter.GetBytes(max/2).CopyTo(file,header+8);
+  using(var sha=System.Security.Cryptography.SHA256.Create())sha.ComputeHash(file,header,file.Length-header).CopyTo(file,header-32);
+  try {FlatSave.Decode(file);}
+  catch(System.IO.InvalidDataException e) when(e.Message.Contains("tile payload")) {
+   Console.WriteLine("PASS five player elevation grids, large save capacity and rejection before world allocation");return;
+  }
+  throw new Exception("Decoder did not reject an undersized grid before allocating the world.");
  }
  static void EarthPresetRegression() {
   const int width=256,height=128;
@@ -52,6 +102,7 @@ public static class Program {
   Console.WriteLine("PASS Earth resources, all cell elevations and water after save/load, missing/truncated/out-of-range DEM");
  }
  static void EnvironmentRegression() {
+  ClimatologyRegression.RotatedContinent();
   ClimatologyRegression.MaritimeRainfall();
   ClimatologyRegression.FreshwaterBasin();
   ClimatologyRegression.FullGridCoverage();

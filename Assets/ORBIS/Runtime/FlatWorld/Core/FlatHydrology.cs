@@ -143,41 +143,52 @@ namespace Orbis.Flat
             BuildDrainage(w,cancel);
             RouteRainfall(w,cancel);
         }
-        internal static void BuildDrainage(WorldData w,CancellationToken cancel)
+        internal static bool BuildDrainage(WorldData w,CancellationToken cancel)
         {
+            var spill=(short[])w.Elevation.Clone();
             var visited=new bool[w.Count];var heap=new FloodHeap();int cursor=0;
             for(int i=0;i<w.Count;i++)
             {
-                w.Downstream[i]=-1;w.WaterLevel[i]=w.Elevation[i];
-                if(w.Water[i]>=WaterKind.DeepOcean&&w.Water[i]<=WaterKind.ShallowOcean)
-                {visited[i]=true;w.WaterLevel[i]=0;heap.Push(i,0);}
+                w.Downstream[i]=-1;
+                if(FlatTerrainAnalysis.Ocean(w.Water[i])){visited[i]=true;spill[i]=0;heap.Push(i,0);}
             }
+            int terminal=-1;
             if(heap.Count==0)
             {
-                int lowest=0;for(int i=1;i<w.Count;i++)if(w.Elevation[i]<w.Elevation[lowest])lowest=i;
-                visited[lowest]=true;heap.Push(lowest,w.Elevation[lowest]);
+                terminal=0;for(int i=1;i<w.Count;i++)if(w.Elevation[i]<w.Elevation[terminal])terminal=i;
+                visited[terminal]=true;heap.Push(terminal,spill[terminal]);
             }
             while(heap.Count>0)
             {
                 if((cursor&4095)==0)cancel.ThrowIfCancellationRequested();
-                int i=heap.Pop();cursor++;
+                int i=heap.Pop();w.DrainOrder[cursor++]=i;
                 for(int d=0;d<4;d++)
                 {
-                    int n=w.SphereNeighbor(i,d);if(n<0||visited[n])continue;
+                    int n=w.SphereNeighbor(i,d);if(visited[n])continue;
                     visited[n]=true;w.Downstream[n]=i;
-                    // A parent is popped BEFORE its child, including perfectly flat plateaus.
-                    // No epsilon slope leaks meters into the author's 20 elevation presets.
-                    w.WaterLevel[n]=(short)Math.Max(w.Elevation[n],w.WaterLevel[i]);heap.Push(n,w.WaterLevel[n]);
+                    spill[n]=Math.Max(w.Elevation[n],spill[i]);heap.Push(n,spill[n]);
                 }
             }
-            // The fill and the connected lake surface use shared faces. A dry
-            // diagonal with a monotone saddle has a face path over the same or
-            // lower spill head, so adding it later cannot drain a closed basin.
-            for(int i=0;i<w.Count;i++)
+            // A closed planet has no external spill level at its lowest point.
+            // Its lowest connected floor can pool up to the first adjoining bank.
+            if(terminal>=0)
             {
-                if(FlatTerrainAnalysis.Ocean(w.Water[i]))continue;
-                w.Water[i]=w.Downstream[i]<0||w.WaterLevel[i]>w.Elevation[i]||w.Elevation[i]<=0?WaterKind.Lake:WaterKind.Land;
+                Array.Clear(visited,0,w.Count);var floor=new List<int>{terminal};visited[terminal]=true;
+                short bank=short.MaxValue;
+                for(int k=0;k<floor.Count;k++)
+                {
+                    int i=floor[k];
+                    for(int d=0;d<4;d++)
+                    {
+                        int n=w.SphereNeighbor(i,d);if(visited[n])continue;
+                        if(w.Elevation[n]==w.Elevation[terminal]){visited[n]=true;floor.Add(n);}
+                        else bank=Math.Min(bank,w.Elevation[n]);
+                    }
+                }
+                if(bank<short.MaxValue)foreach(int i in floor)spill[i]=bank;
             }
+            bool changed=FlatBasinStorage.Resolve(w,spill,cancel);
+            SeedSurfaceOutlets(w,visited,cancel);
             var lengths=GroundLengths(w);
             var spillDistance=SpillDistances(w,lengths,cancel);
             uint routeSeed=FMath.Seed(w.Seed)^0x56a9d731u;
@@ -204,6 +215,39 @@ namespace Orbis.Flat
                 w.Downstream[i]=best;
             }
             RouteLakeBasins(w,spillDistance,cancel);
+            return changed;
+        }
+
+        static void SeedSurfaceOutlets(WorldData w,bool[] visited,CancellationToken cancel)
+        {
+            Array.Clear(visited,0,w.Count);
+            var queue=new int[w.Count];
+            // Every level surface drains by a lower face, or contains exactly
+            // one internal sink. A dry lake bed cannot route across a high rim.
+            for(int i=0;i<w.Count;i++)
+            {
+                w.Downstream[i]=FlatTerrainAnalysis.Ocean(w.Water[i])?-1:0;
+                visited[i]=w.Downstream[i]<0;
+            }
+            for(int start=0;start<w.Count;start++)
+            {
+                if((start&4095)==0)cancel.ThrowIfCancellationRequested();
+                if(visited[start])continue;
+                int root=start,tail=1;queue[0]=start;visited[start]=true;bool exits=false;
+                for(int head=0;head<tail;head++)
+                {
+                    int i=queue[head];
+                    if(w.Water[i]==WaterKind.Lake&&(w.Water[root]!=WaterKind.Lake||w.Elevation[i]<w.Elevation[root]))root=i;
+                    for(int d=0;d<4;d++)
+                    {
+                        int n=w.SphereNeighbor(i,d);
+                        if(w.WaterLevel[n]<w.WaterLevel[i]||(w.WaterLevel[n]==w.WaterLevel[i]&&FlatTerrainAnalysis.Ocean(w.Water[n])))exits=true;
+                        if(visited[n]||w.WaterLevel[n]!=w.WaterLevel[i])continue;
+                        visited[n]=true;queue[tail++]=n;
+                    }
+                }
+                if(!exits)w.Downstream[root]=-1;
+            }
         }
         static void RouteLakeBasins(WorldData w,long[] spillDistance,CancellationToken cancel)
         {
@@ -235,7 +279,8 @@ namespace Orbis.Flat
                     for(int j=0;j<tail;j++)
                     {
                         int i=queue[j];
-                        if(w.Elevation[i]<=0||w.WaterLevel[i]-w.Elevation[i]>12)shallow=false;
+                        if(w.Elevation[i]<=0||w.WaterLevel[i]-w.Elevation[i]>12||
+                            (w.WaterReference!=null&&w.WaterReference.At(i)>=w.Elevation[i]))shallow=false;
                     }
                     if(shallow)shallowOutlets.Add(outlet);
                 }
@@ -367,7 +412,7 @@ namespace Orbis.Flat
             {
                 int i=w.DrainOrder[k],n=w.Downstream[i];
                 if(FlatTerrainAnalysis.Ocean(w.Water[i]))continue;
-                if(n>=0&&w.Water[i]==WaterKind.Lake)lakeOutlet[n]=true;
+                if(n>=0&&w.Water[i]==WaterKind.Lake&&w.Runoff[i]>0)lakeOutlet[n]=true;
                 // Give a hillside tributary the local valley it actually drains
                 // into. Uniform parallel paths down a planar slope are sheet flow.
                 if(n>=0)valleyReach[i]=Math.Max(valleyReach[i],valleyReach[n]-1);
@@ -384,7 +429,7 @@ namespace Orbis.Flat
                 if(streams[i]&&n>=0)streams[n]=true;
                 if(outletRoute[i]&&n>=0)outletRoute[n]=true;
             }
-            for(int i=0;i<w.Count;i++)streams[i]&=w.Water[i]==WaterKind.Land&&w.Downstream[i]>=0;
+            for(int i=0;i<w.Count;i++)streams[i]&=w.Water[i]==WaterKind.Land;
             // Atlas minimum-headwater pruning, including short reaches into lakes.
             // Preserve lake-fed outlet reaches so pruning cannot sever a lake chain.
             int minimumLength=Math.Max(3,(int)Math.Ceiling(Math.Sqrt(landCount)*.012));
@@ -392,7 +437,11 @@ namespace Orbis.Flat
             do
             {
                 cancel.ThrowIfCancellationRequested();Array.Clear(incoming,0,w.Count);
-                for(int i=0;i<w.Count;i++)if(streams[i]&&streams[w.Downstream[i]])incoming[w.Downstream[i]]++;
+                for(int i=0;i<w.Count;i++)
+                {
+                    int parent=w.Downstream[i];
+                    if(streams[i]&&parent>=0&&streams[parent])incoming[parent]++;
+                }
                 changed=false;var remove=new List<int>();
                 for(int i=0;i<w.Count;i++)
                 {

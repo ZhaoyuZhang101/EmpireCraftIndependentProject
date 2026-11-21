@@ -215,8 +215,13 @@ static class HydrologyRegression
      Check(sideSum>=2*w.Elevation[p]&&sideSum<=2*w.Elevation[i],"Diagonal route cuts across a ridge or trough");
     }
    }
-   if(w.Water[i]==WaterKind.River)Check(p>=0&&w.Water[p]!=WaterKind.Land,"Disconnected river end");
-   if(w.Water[i]==WaterKind.Lake&&p>=0)Check(w.Water[p]!=WaterKind.Land,"Disconnected lake outlet");
+   if(w.Water[i]==WaterKind.River)
+   {
+    if(p>=0)Check(w.Water[p]!=WaterKind.Land,"Disconnected river end");
+    else for(int d=0;d<4;d++)Check(w.WaterLevel[w.SphereNeighbor(i,d)]>=w.WaterLevel[i],
+     "A terminal inland river stopped above a lower exit");
+   }
+   if(w.Water[i]==WaterKind.Lake&&p>=0&&w.Runoff[i]>0)Check(w.Water[p]!=WaterKind.Land,"Disconnected lake outlet");
   }
   Check(Math.Abs(input-output)<Math.Max(0.01,input*1e-5),"Runoff not conserved");
   for(int i=0;i<w.Count;i++)

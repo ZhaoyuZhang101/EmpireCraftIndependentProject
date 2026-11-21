@@ -96,7 +96,7 @@ namespace Orbis.Flat
             switch(layer)
             {
                 case MapLayer.Nations:break; // Exactly one political tint, in the shader.
-                case MapLayer.Height: c=w.Elevation[i]<=0?Water(w.Water[i]):Color.Lerp(RGB(0x597b62),RGB(0xe4e1d2),w.Elevation[i]/4000f);break;
+                case MapLayer.Height: c=FlatTerrainAnalysis.AreaWater(w.Water[i])?Water(w.Water[i]):Color.Lerp(RGB(0x597b62),RGB(0xe4e1d2),w.Elevation[i]/4000f);break;
                 case MapLayer.Climate:c=w.Water[i]>=WaterKind.DeepOcean&&w.Water[i]<=WaterKind.ShallowOcean?Water(w.Water[i]):RGB(ClimateColors[(int)w.Climates[i]]);break;
                 case MapLayer.Temperature:
                 case MapLayer.Rain:

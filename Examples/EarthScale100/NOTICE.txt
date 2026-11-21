@@ -10,4 +10,18 @@ Public AWS distribution: https://copernicus-dem-30m.s3.amazonaws.com/readme.html
 NOAA National Centers for Environmental Information. 2022. ETOPO 2022 15 Arc-Second Global Relief Model. NOAA National Centers for Environmental Information. https://doi.org/10.25921/fd45-gt74. Accessed 2026-11-21.
 https://www.ncei.noaa.gov/products/etopo-global-relief-model
 
+The player Earth's geographic water reference uses the Ocean and Lakes polygons
+from Natural Earth v5.1.2 at 1:10 million scale, in the public domain. The global
+marine polygon supplies tidal-water connectivity. The disconnected inland
+polygon and mapped lakes supply lake outlines. Reference levels are estimated
+from shoreline elevations on the project's ETOPO overview. Narrow straits may
+provide connectivity beneath exposed coarse cells. The generator represents
+area-averaged terrain and cannot resolve every coastline or seasonal lake.
+https://www.naturalearthdata.com/about/terms-of-use/
+https://github.com/nvkelso/natural-earth-vector/tree/v5.1.2/geojson
+
+python Tools/EarthScale100/bake_player_water.py --check reconstructs the five
+EarthWater resources from SHA-256-verified source geometry using NumPy and
+Pillow. Raw geometry downloads are cached under ValidationOutput/BasinWater.
+
 The 100 m grid is derived from the 1 arc-second GLO-30 digital surface model and the 15 arc-second ETOPO surface elevation and seafloor grid. Heights are rounded to whole real metres relative to EGM2008. The metadata lists the exact input files and SHA-256 checksums. Cropping, interpolation, projection and combination were performed by the ORBIS test-map generator.

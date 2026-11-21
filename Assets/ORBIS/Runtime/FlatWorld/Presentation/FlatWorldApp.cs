@@ -28,9 +28,11 @@ namespace Orbis.Flat
         internal FlatClimateStatisticsPanel ClimateStatisticsPanel { get; private set; }
         VisualElement root,viewport;Label info,stats,notice,nations;Button modeButton,pauseButton,speedButton;
         TextField seedField,pathField;DropdownField sizeField,presetField,layerField,toolField,heightField,brushField;
+        int[] playerWidths;
         Toggle gridToggle,cloudToggle,contourToggle;
         DropdownField cloudQuality,climateYearField;Label legend,waterStatus,skyStatus;
         readonly string[] tabNames={"World","Terrain","Civs","Files"};
+        readonly SemaphoreSlim worldWorker=new SemaphoreSlim(1,1);
         Task<WorldData> pending;CancellationTokenSource cancellation;bool seedOnInstall,paused,globeMode,dragging,moved;
         int selected=-1,activeNation=-1,pointer=-1,lastClimatePeriod=-1;float pixelsPerTile=2,speed=1,hudAge;
         Vector2 pan,lastPointer,downPointer;string status="准备世界数据…";int[] route=new int[0];
@@ -72,7 +74,11 @@ namespace Orbis.Flat
         {
             viewport=root.Q("viewport");info=root.Q<Label>("tileInfo");stats=root.Q<Label>("stats");notice=root.Q<Label>("notice");nations=root.Q<Label>("nations");
             seedField=root.Q<TextField>("seed");seedField.value=initialSeed;seedField.maxLength=128;
-            sizeField=root.Q<DropdownField>("size");sizeField.choices=new List<string>{"256 × 128","512 × 256","1024 × 512"};sizeField.index=initialWidth>=1024?2:initialWidth>=512?1:0;
+            var sizes=Resources.Load<TextAsset>("ORBIS/FlatWorld/PlayerWidths");
+            playerWidths=Array.ConvertAll(sizes.text.Split((char[])null,StringSplitOptions.RemoveEmptyEntries),int.Parse);
+            sizeField=root.Q<DropdownField>("size");
+            sizeField.choices=new List<string>(Array.ConvertAll(playerWidths,width=>$"{width} × {width/2}"));
+            sizeField.index=Math.Max(0,Array.FindLastIndex(playerWidths,width=>width<=initialWidth));
             presetField=root.Q<DropdownField>("preset");presetField.choices=new List<string>{"大陆与群山","群岛","超级大陆","内海世界","地球（真实地形）"};presetField.index=0;
             layerField=root.Q<DropdownField>("layer");layerField.choices=new List<string>{"自然地表","文明版图","20 档高度","Köppen 柯本气候","本月温度","本月降水","海水与淡水","土地肥力","地貌 / 丘陵高原","地表材料 / 沙泥砾岩","土壤桶湿度","河流 / 河口悬沙","生态植被 / 14 类"};layerField.index=0;
             climateYearField=root.Q<DropdownField>("climateYear");climateYearField.choices=new List<string>{"今年","明年","后年"};climateYearField.index=0;
@@ -236,27 +242,52 @@ namespace Orbis.Flat
         void Queue(Func<CancellationToken,WorldData> operation,string text,bool seed=false)
         {
             CancelPending();cancellation=new CancellationTokenSource();var token=cancellation.Token;seedOnInstall=seed;
-            pending=Task.Run(()=>{token.ThrowIfCancellationRequested();WorldData w=operation(token);token.ThrowIfCancellationRequested();FlatSave.Validate(w);if(w.Facts==null)FlatTerrainAnalysis.Build(w,token,false);return w;},token);SetStatus(text);
+            pending=Task.Run(async ()=>
+            {
+                // A cancelled large build may still be unwinding a terrain or I/O pass.
+                await worldWorker.WaitAsync(token).ConfigureAwait(false);
+                try
+                {
+                    token.ThrowIfCancellationRequested();
+                    WorldData w=operation(token);
+                    token.ThrowIfCancellationRequested();
+                    FlatSave.Validate(w);
+                    if(w.Facts==null)FlatTerrainAnalysis.Build(w,token,false);
+                    return w;
+                }
+                finally{worldWorker.Release();}
+            },token);
+            SetStatus(text);
         }
         void Generate()
         {
-            int width=256<<Mathf.Clamp(sizeField.index,0,2);
+            int width=playerWidths[sizeField.index];
             string seed=seedField.value.Trim();
             var preset=(TerrainPreset)presetField.index;
-            byte[] earthHeights=null;
+            byte[] earthHeights=null, geographicWater=null;
             string statusText="生成板块地形、火山、侵蚀河谷、湖泊、河网和气候…";
             if(preset==TerrainPreset.Earth)
             {
                 // Access Unity resources here. The worker receives only immutable sample bytes.
                 var asset=Resources.Load<TextAsset>("ORBIS/FlatWorld/Earth"+width);
-                if(!asset)throw new InvalidDataException("无法加载 "+width+" × "+width/2+" 的内置地球高程。");
+                var water=Resources.Load<TextAsset>("ORBIS/FlatWorld/EarthWater"+width);
+                if(!asset || !water){SetStatus("无法加载 "+width+" × "+width/2+" 的内置地球高程和海湖资料。");return;}
                 earthHeights=asset.bytes;
+                geographicWater=water.bytes;
                 statusText="载入地球陆地和海床高程，生成河湖、气候与初始文明…";
             }
-            Queue(c=>FlatGenerator.Generate(width,width/2,seed,preset,c,earthHeights),statusText,true);
+            Queue(c=>FlatGenerator.Generate(width,width/2,seed,preset,c,earthHeights,geographicWater),statusText,true);
         }
         void Install(WorldData world)
         {
+            // Save files own their terrain and monthly normals. Attach the survey for
+            // subsequent edits/rebuilds, including for Earth worlds saved by older players.
+            if(world.Preset==TerrainPreset.Earth && world.WaterReference==null)
+            {
+                var dem=Resources.Load<TextAsset>("ORBIS/FlatWorld/Earth"+world.Width);
+                var water=Resources.Load<TextAsset>("ORBIS/FlatWorld/EarthWater"+world.Width);
+                if(dem && water)world.WaterReference=FlatWaterReference.Read(world.Width,dem.bytes,water.bytes);
+            }
             var simulation=new FlatSimulation(world);if(seedOnInstall)simulation.SeedNations(4);
             var nextObject=new GameObject("Authoritative 2D map / render-data provider");nextObject.transform.SetParent(transform,false);
             var next=nextObject.AddComponent<FlatMapRenderer>();
@@ -292,8 +323,8 @@ namespace Orbis.Flat
             navObject.SetActive(true);globeObject.SetActive(true);
             selected=-1;editPickValid=false;activeNation=world.Nations.Count>0?0:-1;globeMode=true;lastClimatePeriod=(int)Math.Floor(world.Day/30);
             seedField.SetValueWithoutNotify(world.Seed);presetField.SetValueWithoutNotify(presetField.choices[(int)world.Preset]);
-            if(world.Width==256 || world.Width==512 || world.Width==1024)
-                sizeField.SetValueWithoutNotify(sizeField.choices[world.Width==256?0:world.Width==512?1:2]);
+            int sizeIndex=Array.IndexOf(playerWidths,world.Width);
+            if(sizeIndex>=0)sizeField.SetValueWithoutNotify(sizeField.choices[sizeIndex]);
             if(wasFlat)
             {
                 int x=Mathf.Clamp((int)(previousCenter.x/previousWidth*world.Width),0,world.Width-1);
@@ -439,7 +470,10 @@ namespace Orbis.Flat
         void ShowRoute()
         {
             if(!Ready()||selected<0||activeNation<0||!navigation)return;
-            int capital=World.Nations[activeNation].Capital;var pathfinder=GetComponent<FlatPlanetPathfinder>();if(!pathfinder)pathfinder=gameObject.AddComponent<FlatPlanetPathfinder>();route=pathfinder.Find(World,capital,selected);
+            int capital=World.Nations[activeNation].Capital;
+            var pathfinder=navigation.GetComponent<FlatPlanetPathfinder>();
+            if(!pathfinder)pathfinder=navigation.gameObject.AddComponent<FlatPlanetPathfinder>();
+            route=pathfinder.Find(World,capital,selected);
             navigation.SetRoute(route);
             SetStatus(route.Length==0?"未找到陆路；水域、地形或搜索预算阻断了路径。":"陆路路径："+route.Length+" 个 Tile。跨经线段按最短环绕方向显示；这仍是寻路预览。");
         }
@@ -516,7 +550,8 @@ namespace Orbis.Flat
                 "\n5×5 起伏："+facts.Relief[i].ToString("F0")+" m\n相邻最大高差："+facts.Gradient[i].ToString("F0")+" m/Tile"+
                 "\n排水高差："+facts.Hand[i].ToString("F0")+" m\n湿润月份："+facts.SaturatedMonths[i]+" / 12"+
                 "\n年降水："+facts.AnnualRain[i].ToString("F0")+" mm\n年均温："+facts.MeanTemperature[i].ToString("F1")+" °C"+
-                "\n年均汇流量（相对）："+World.Runoff[i].ToString("F1")+"\n水面高程："+World.WaterLevel[i]+" m"+
+                "\n年均汇流量（相对）："+World.Runoff[i].ToString("F1")+
+                (World.Water[i]==WaterKind.Land?"\n无地表水":"\n水面高程："+World.WaterLevel[i]+" m")+
                 "\n悬沙 / 淡水比例："+facts.Sediment[i].ToString("F2")+" / "+facts.Freshness[i].ToString("F2");
             if(World.Water[i]==WaterKind.River&&facts.RiverDischarge!=null)
             {
