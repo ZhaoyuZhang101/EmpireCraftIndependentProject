@@ -1,0 +1,64 @@
+{
+  "dataset": "NOAA NCEI ETOPO 2022 60 Arc-Second Global Relief Model, ice surface; includes ocean bathymetry",
+  "dataset_doi": "https://doi.org/10.25921/fd45-gt74",
+  "download_url": "https://www.ngdc.noaa.gov/mgg/global/relief/ETOPO2022/data/60s/60s_surface_elev_gtif/ETOPO_2022_v1_60s_N90W180_surface.tif",
+  "dataset_page": "https://www.ncei.noaa.gov/products/etopo-global-relief-model",
+  "license": "CC0-1.0 per NOAA dataset use constraints",
+  "license_metadata": "https://www.ncei.noaa.gov/metadata/geoportal/rest/metadata/item/gov.noaa.ngdc.mgg.dem:etopo_2022/xml",
+  "source_sha256": "9d27d4b8ea8e76977e2988bca667d7c8fa68b927355feffcddd6b4875a7fd08e",
+  "source_dimensions": [
+    21600,
+    10800
+  ],
+  "horizontal_crs": "WGS84 geographic longitude/latitude",
+  "vertical_datum": "EGM2008 orthometric height (metres)",
+  "bounds_wsen": [
+    -180,
+    -90,
+    180,
+    90
+  ],
+  "row_order": "north to south",
+  "column_order": "west to east",
+  "pixel_coordinates": "lon=-180+(x+0.5)*360/width, lat=90-(y+0.5)*180/height",
+  "overview": {
+    "file": "earth-global.i16",
+    "dtype": "signed int16, little endian, no header",
+    "physical_units": "real metres",
+    "dimensions": [
+      4320,
+      2160
+    ],
+    "pixel_step_degrees": 0.08333333333333333,
+    "meters_per_pixel_at_equator": 9276.62,
+    "no_data_cells": 0,
+    "minimum_m": -10470,
+    "maximum_m": 6560,
+    "sha256": "7c90d9888e3e102b223f9ed3c3c004c72c29214d0cbfee4a2e18c51774f4bded",
+    "probes_m": {
+      "Tibetan plateau, 32N 86E": 4959,
+      "Central Pacific, 0N 150W": -3924,
+      "North Atlantic, 38N 40W": -4385,
+      "Greenland ice surface, 72N 42W": 2970,
+      "Dead Sea, 31.5N 35.5E": -389
+    }
+  },
+  "legacy_import": {
+    "file": "earth-legacy-1024.png",
+    "format": "16-bit unsigned grayscale PNG, non-interlaced",
+    "dimensions": [
+      1024,
+      512
+    ],
+    "linear_endpoints_real_metres": [
+      -4000,
+      4000
+    ],
+    "height_clamped_below_minus_4000_cells": 162776,
+    "height_clamped_above_plus_4000_cells": 2075,
+    "sha256": "9aa4b8506297107c898313f0c6352529d3459e9a9bef12dd29573a5392462243",
+    "engine_behavior": "The default game import quantizes positive heights to the authoring bands. Selecting metre precision preserves integer elevations within the PNG range of -4000 to +4000 metres."
+  },
+  "resampling": "GDAL 3.13.0 average resampling of source float32 pixel-area elevation directly to each target, rounded once to nearest signed metre. Cell averages in the native latitude-longitude raster.",
+  "display_scale": "Use 0.01 game metres per real metre for lengths, radii and relief. The global levels of detail use angular samples much coarser than 100 m."
+}

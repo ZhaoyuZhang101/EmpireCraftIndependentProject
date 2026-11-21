@@ -1,0 +1,15 @@
+{
+  "realMetresPerGameMetre": 100,
+  "earthMeanRadiusMetres": 6371008.8,
+  "heightStorage": "int16-le-metres",
+  "globalWidth": 4320,
+  "globalHeight": 2160,
+  "globalFile": "global/earth-global.i16",
+  "localName": "台湾中央山脉至花莲外海",
+  "localWidth": 1025,
+  "localHeight": 513,
+  "localSpacingMeters": 100,
+  "localCenterLongitude": 121.5360545072164,
+  "localCenterLatitude": 24.095716849595306,
+  "localFile": "local/taiwan-100m.i16"
+}

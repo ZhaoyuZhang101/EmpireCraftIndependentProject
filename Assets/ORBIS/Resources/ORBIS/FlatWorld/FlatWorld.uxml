@@ -54,8 +54,9 @@
      <ui:Button name="folder" text="打开存档文件夹"/>
      <ui:Foldout text="高度图导入 / 导出" value="false">
       <ui:TextField name="path" label="文件路径"/>
+      <ui:Toggle name="preserveElevation" text="按米保留原图高程" tooltip="保留 −4000 至 +4000 米范围内的整数高程。" value="false"/>
       <ui:VisualElement class="row"><ui:Button name="export" text="导出" class="grow"/><ui:Button name="import" text="导入" class="grow"/></ui:VisualElement>
-      <ui:Label text="2:1 灰度高度图。导入会生成新世界，不包含文明。" class="muted"/>
+      <ui:Label text="2:1 灰度高度图。导入后会基于新地形播种初始文明。" class="muted"/>
      </ui:Foldout>
     </ui:VisualElement>
     <ui:Foldout text="选中地块" value="true" class="inspector-foldout"><ui:Label name="tileInfo" text="点击地图选择地块。" class="tile-info"/></ui:Foldout>

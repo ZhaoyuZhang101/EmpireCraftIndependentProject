@@ -457,7 +457,12 @@ namespace Orbis.Flat
         }
         void Load() {string path=SavePath;Queue(c=>{c.ThrowIfCancellationRequested();return FlatSave.Read(path);},"校验并载入 2D 世界存档…");}
         void Import()
-        {if(Busy)return;string path=HeightPath,seed=seedField.value.Trim();Queue(c=>FlatRasterIO.Import(path,seed,c),"从灰度高度图导入新世界（黑 −4000m / 白 4000m）…",true);}
+        {
+            if(Busy)return;
+            string path=HeightPath,seed=seedField.value.Trim();
+            bool preserveMetres=root.Q<Toggle>("preserveElevation").value;
+            Queue(c=>FlatRasterIO.Import(path,seed,c,preserveMetres),"从灰度高度图导入新世界（黑 −4000m / 白 4000m）…",true);
+        }
         IEnumerator Capture()
         {
             string path=Path.Combine(Application.persistentDataPath,"ORBIS_"+(globeMode?"globe":"2D")+"_"+DateTime.Now.ToString("yyyyMMdd_HHmmss")+".png");

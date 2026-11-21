@@ -1,0 +1,116 @@
+{
+  "format": "ORBIS_EARTH_PATCH_1",
+  "file": "taiwan-100m.i16",
+  "width": 1025,
+  "height": 513,
+  "dtype": "int16 little-endian",
+  "layout": "row-major; north to south, west to east; boundary-inclusive vertex samples",
+  "projection": "EPSG:32651",
+  "epsg": 32651,
+  "wkt": "PROJCRS[\"WGS 84 / UTM zone 51N\",BASEGEOGCRS[\"WGS 84\",ENSEMBLE[\"World Geodetic System 1984 ensemble\",MEMBER[\"World Geodetic System 1984 (Transit)\"],MEMBER[\"World Geodetic System 1984 (G730)\"],MEMBER[\"World Geodetic System 1984 (G873)\"],MEMBER[\"World Geodetic System 1984 (G1150)\"],MEMBER[\"World Geodetic System 1984 (G1674)\"],MEMBER[\"World Geodetic System 1984 (G1762)\"],MEMBER[\"World Geodetic System 1984 (G2139)\"],MEMBER[\"World Geodetic System 1984 (G2296)\"],ELLIPSOID[\"WGS 84\",6378137,298.257223563,LENGTHUNIT[\"metre\",1]],ENSEMBLEACCURACY[2.0]],PRIMEM[\"Greenwich\",0,ANGLEUNIT[\"degree\",0.0174532925199433]],ID[\"EPSG\",4326]],CONVERSION[\"UTM zone 51N\",METHOD[\"Transverse Mercator\",ID[\"EPSG\",9807]],PARAMETER[\"Latitude of natural origin\",0,ANGLEUNIT[\"degree\",0.0174532925199433],ID[\"EPSG\",8801]],PARAMETER[\"Longitude of natural origin\",123,ANGLEUNIT[\"degree\",0.0174532925199433],ID[\"EPSG\",8802]],PARAMETER[\"Scale factor at natural origin\",0.9996,SCALEUNIT[\"unity\",1],ID[\"EPSG\",8805]],PARAMETER[\"False easting\",500000,LENGTHUNIT[\"metre\",1],ID[\"EPSG\",8806]],PARAMETER[\"False northing\",0,LENGTHUNIT[\"metre\",1],ID[\"EPSG\",8807]]],CS[Cartesian,2],AXIS[\"(E)\",east,ORDER[1],LENGTHUNIT[\"metre\",1]],AXIS[\"(N)\",north,ORDER[2],LENGTHUNIT[\"metre\",1]],USAGE[SCOPE[\"Navigation and medium accuracy spatial referencing.\"],AREA[\"Between 120°E and 126°E, northern hemisphere between equator and 84°N, onshore and offshore. China. Indonesia. Japan. Democratic People's Republic of Korea (North Korea). Republic of Korea (South Korea). Philippines. Russian Federation. Taiwan.\"],BBOX[0,120,84,126]],ID[\"EPSG\",32651]]",
+  "boundsProjectedMeters": {
+    "west": 300000.0,
+    "east": 402400.0,
+    "south": 2640000.0,
+    "north": 2691200.0
+  },
+  "centerLonLat": [
+    121.5360545072164,
+    24.095716849595306
+  ],
+  "cornersLonLat": {
+    "nw": [
+      121.02898171308287,
+      24.321147889684873
+    ],
+    "ne": [
+      122.03797329903175,
+      24.330898409428638
+    ],
+    "sw": [
+      121.03604091772765,
+      23.85897408634644
+    ],
+    "se": [
+      122.0414208595296,
+      23.868516545003764
+    ]
+  },
+  "spacingProjectedMeters": 100.0,
+  "centerScaleFactorsMeridianParallel": [
+    0.9998734822160975,
+    0.9998734821421268
+  ],
+  "cornerScaleFactorsMeridianParallel": {
+    "nw": [
+      1.0000940625556811,
+      1.000094062482138
+    ],
+    "ne": [
+      0.9997176505146548,
+      0.999717650438922
+    ],
+    "sw": [
+      1.000094102418132,
+      1.0000941023428123
+    ],
+    "se": [
+      0.9997176600009532,
+      0.9997176599293408
+    ]
+  },
+  "realMetersPerGameMeter": 100,
+  "verticalDatum": "metres relative to EGM2008; nearest whole metre",
+  "minElevationM": -4131,
+  "maxElevationM": 3644,
+  "sha256": "b9346c4f8ca55dd2abb8ed1e668372832cb67f49692a7bce15d85c297d6cf3b3",
+  "sourceMask": {
+    "file": "taiwan-100m.source.u8",
+    "sha256": "fef0ce8974d70dca71fee8b5a2995525e12349e730f0692180386be32ee4c87b",
+    "dtype": "uint8",
+    "counts": {
+      "1": 327319,
+      "2": 192214,
+      "3": 6158,
+      "4": 134
+    },
+    "legend": {
+      "1": "GLO-30 surface",
+      "2": "ETOPO bathymetry over zero GLO-30",
+      "3": "ETOPO available without GLO-30 or selected alone",
+      "4": "blend at coast or tile availability boundary"
+    }
+  },
+  "retrievedUTC": "2026-11-21",
+  "sources": [
+    {
+      "url": "https://copernicus-dem-30m.s3.amazonaws.com/Copernicus_DSM_COG_10_N23_00_E121_00_DEM/Copernicus_DSM_COG_10_N23_00_E121_00_DEM.tif",
+      "sha256": "454946c477803dc171e708b63ea816ab56ef7767e374bb4f1ab69fc3c9f2392f",
+      "bytes": 23013833
+    },
+    {
+      "url": "https://copernicus-dem-30m.s3.amazonaws.com/Copernicus_DSM_COG_10_N23_00_E122_00_DEM/Copernicus_DSM_COG_10_N23_00_E122_00_DEM.tif",
+      "status": "not published (HTTP 404)"
+    },
+    {
+      "url": "https://copernicus-dem-30m.s3.amazonaws.com/Copernicus_DSM_COG_10_N24_00_E121_00_DEM/Copernicus_DSM_COG_10_N24_00_E121_00_DEM.tif",
+      "sha256": "cdd4e1dc60a0da87a556e07e20f7c20b5dad21eca69e80aadff498743ea3f82f",
+      "bytes": 36927113
+    },
+    {
+      "url": "https://copernicus-dem-30m.s3.amazonaws.com/Copernicus_DSM_COG_10_N24_00_E122_00_DEM/Copernicus_DSM_COG_10_N24_00_E122_00_DEM.tif",
+      "sha256": "ca8e579bbb4d1169c30e4d6a92828bfce991a15b50fba4ed86cf8e30d84ade2b",
+      "bytes": 188406
+    },
+    {
+      "url": "https://www.ngdc.noaa.gov/mgg/global/relief/ETOPO2022/data/15s/15s_surface_elev_gtif/ETOPO_2022_v1_15s_N30E120_surface.tif",
+      "sha256": "5b46d290694fb0b5019b800334c6eb42157fe4fea0bc0b253c54424db924bb70",
+      "bytes": 15629033
+    }
+  ],
+  "copernicusAttribution": "produced using Copernicus WorldDEM-30 © DLR e.V. 2010-2014 and © Airbus Defence and Space GmbH 2014-2018 provided under COPERNICUS by the European Union and ESA; all rights reserved.",
+  "copernicusLiability": "The organisations in charge of the Copernicus programme by law or by delegation do not incur any liability for any use of the Copernicus WorldDEM-30.",
+  "copernicusLicence": "https://dataspace.copernicus.eu/sites/default/files/media/files/2025-06/copernicus_contributing_mission_data_access_v2_cop_dem_licenses.pdf",
+  "etopoCitation": "NOAA National Centers for Environmental Information. 2022. ETOPO 2022 15 Arc-Second Global Relief Model. https://doi.org/10.25921/fd45-gt74",
+  "sampling": "Bilinear at fixed projected vertex coordinates. GLO-30 is a surface model (near Taiwan 1 arc-second); ETOPO is 15 arc-seconds, about 420 × 460 m at Taiwan. 100 m is the projected grid spacing, not a seabed survey resolution."
+}

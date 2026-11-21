@@ -21,6 +21,9 @@ namespace Orbis.Flat
             File.WriteAllText(Path.ChangeExtension(path,"metadata.json"),"{\"format\":\"ORBIS_FLAT_HEIGHT_1\",\"northFirst\":true,\"minMeters\":-4000,\"maxMeters\":4000,\"seaMeters\":0,\"heightIsBedNotLakeSurface\":true,\"waterImageIsPreviewOnly\":true}");
         }
         public static WorldData Import(string path,string seed,CancellationToken cancel)
+            => Import(path,seed,cancel,false);
+
+        public static WorldData Import(string path,string seed,CancellationToken cancel,bool preserveMetres)
         {
             var f=new FileInfo(path);if(!f.Exists||f.Length>OrbisRasterCodec.MaxBytes)throw new InvalidDataException("Height image missing or larger than 32 MiB.");
             var raster=OrbisRasterCodec.Read(File.ReadAllBytes(path));
@@ -29,10 +32,8 @@ namespace Orbis.Flat
             {
                 int j=(w.Height-1-y)*w.Width+x,p=j*4;
                 if(Math.Abs(raster.rgba[p]-raster.rgba[p+1])>1||Math.Abs(raster.rgba[p+1]-raster.rgba[p+2])>1)throw new InvalidDataException("Height map must be grayscale, not a colored satellite/map image.");
-                // Quantize positive heights onto the same authoring presets. Round-trip precision
-                // is stabilized before band selection so 100m does not accidentally become 200m.
-                float meters=(float)Math.Round(raster.gray[j]/65535.0*8000-4000);
-                w.Elevation[y*w.Width+x]=HeightBands.Quantize(meters);
+                short meters=(short)Math.Round(raster.gray[j]/65535.0*8000-4000);
+                w.Elevation[y*w.Width+x]=preserveMetres?meters:HeightBands.Quantize(meters);
             }
             FlatGenerator.Rebuild(w,cancel);return w;
         }
