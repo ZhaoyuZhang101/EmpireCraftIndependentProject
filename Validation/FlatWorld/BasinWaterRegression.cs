@@ -122,6 +122,96 @@ internal static class BasinWaterRegression
         return w.Index((int)((lon + 180) / 360 * w.Width), (int)((lat + 90) / 180 * w.Height));
     }
 
+    // Both mouths must join across shared tile faces INSIDE the strait. A
+    // circumnavigation or an invisible passability hint cannot satisfy this.
+    static bool LocalSeaRoute(WorldData w, bool[] ocean, double x0, double y0, double x1, double y1, double pad)
+    {
+        int start = Tile(w, x0, y0), end = Tile(w, x1, y1);
+        if (!ocean[start] || !ocean[end]) return false;
+        int lo = Tile(w, Math.Min(x0, x1)-pad, Math.Min(y0, y1)-pad);
+        int hi = Tile(w, Math.Max(x0, x1)+pad, Math.Max(y0, y1)+pad);
+        var seen = new System.Collections.Generic.HashSet<int> {start};
+        var queue = new System.Collections.Generic.Queue<int>();
+        queue.Enqueue(start);
+        while (queue.Count > 0)
+        {
+            int i = queue.Dequeue();
+            if (i == end) return true;
+            for (int d = 0; d < 4; d++)
+            {
+                int n = w.SphereNeighbor(i, d), x = n % w.Width, y = n / w.Width;
+                if (x >= lo % w.Width && x <= hi % w.Width && y >= lo / w.Width && y <= hi / w.Width
+                    && ocean[n] && seen.Add(n)) queue.Enqueue(n);
+            }
+        }
+        return false;
+    }
+
+    // Flood the water players can actually use. The generation flood also
+    // traverses survey hints on dry coastal cells, so it is not this check.
+    static bool[] AtlanticConnected(WorldData w, bool[] ocean)
+    {
+        var reachable = new bool[w.Count];
+        var queue = new int[w.Count];
+        int first = Tile(w,-25,-25), tail = 1;
+        Check(ocean[first], "Missing South Atlantic control.");
+        queue[0] = first;
+        reachable[first] = true;
+        for (int head = 0; head < tail; head++)
+        {
+            for (int d = 0; d < 4; d++)
+            {
+                int n = w.SphereNeighbor(queue[head],d);
+                if (!ocean[n] || reachable[n]) continue;
+                reachable[n] = true;
+                queue[tail++] = n;
+            }
+        }
+        return reachable;
+    }
+
+    public static void EarthStraits()
+    {
+        const string folder = "Assets/ORBIS/Resources/ORBIS/FlatWorld/";
+        var gaps = new System.Collections.Generic.List<string>();
+        var widths = Array.ConvertAll(File.ReadAllLines(folder + "PlayerWidths.txt"), int.Parse);
+        foreach (int width in widths)
+        {
+            var w = new WorldData(width, width / 2, "ORBIS-2D-2026", TerrainPreset.Earth);
+            var bed = File.ReadAllBytes(folder + $"Earth{width}.bytes");
+            var water = File.ReadAllBytes(folder + $"EarthWater{width}.bytes");
+            w.WaterReference = FlatWaterReference.Read(width, bed, water);
+            for (int i = 0; i < w.Count; i++) w.Elevation[i] = w.WaterReference.OriginalBed(i);
+            var ocean = FlatOcean.Find(w, default);
+            var connected = AtlanticConnected(w,ocean);
+            foreach (var s in new (string name, double x0, double y0, double x1, double y1, double pad)[] {
+                ("Bosporus",28.40,40.81,29.48,41.64,.20), ("Dardanelles",25.65,40.00,28.40,40.81,.22),
+                ("Kerch",36.50,44.85,36.70,45.80,.27), ("Gibraltar",-6.18,35.93,-4.80,35.95,.28),
+                ("Dover",-.03,50.62,2,51.40,.26), ("Messina",15.455,38.56,15.65,37.77,.24),
+                ("Oresund",12.45,56.35,12.88,55.44,.24), ("Great Belt",10.85,55.91,10.99,54.71,.30),
+                ("Qiongzhou",109.225,20.06,111.10,20.15,.26), ("Taiwan",119.15,23.37,120.80,25.35,.40),
+                ("Tsugaru",139.83,41.25,141.60,41.54,.28), ("Bab el Mandeb",42.88,12.93,43.76,12.37,.27),
+                ("Hormuz",55.70,26.69,56.99,26.02,.34), ("Singapore",103.37,1.17,104.55,1.38,.23),
+                ("Sunda",105.13,-6.52,106.22,-5.58,.31), ("Lombok",115.70,-8.02,115.73,-9.06,.28),
+                ("Cook",174.53,-40.84,174.71,-41.82,.44), ("Tiran",34.63,28.31,34.36,27.67,.20)
+            })
+                if (!LocalSeaRoute(w, connected, s.x0, s.y0, s.x1, s.y1, s.pad)) gaps.Add($"{width} {s.name}");
+            foreach (var p in new[] {("Sinai",33.5,30.3),("Central America",-81.4,8.3),("Kra",99.05,10.45),
+                                     ("Caspian",51.0,38.0),("Qattara",27.2,29.7)})
+                Check(!ocean[Tile(w,p.Item2,p.Item3)], $"{width} flooded {p.Item1}");
+            if (width == 2048 && w.WaterReference.UsesSurveyedStraits)
+            {
+                int choke = Tile(w,29.09,41.22);
+                Check(ocean[choke] && w.Elevation[choke] == -1, "Missing unresolved Bosporus bed.");
+                w.Elevation[choke] = 29; // Restore the exact bank-averaged elevation (build a dam).
+                Check(!LocalSeaRoute(w, FlatOcean.Find(w,default), 28.4,40.81,29.48,41.64,.20),
+                    "A raised Bosporus bed still formed a playable marine route.");
+            }
+        }
+        Check(gaps.Count == 0, "Unconnected sea routes: " + string.Join(", ", gaps));
+        Console.WriteLine($"PASS 18 local marine routes and five dry/inland controls on each of {widths.Length} Earth grids; Bosporus dam.");
+    }
+
     static void MajorLakes(WorldData w)
     {
         // Interior points of the Natural Earth 1:10m polygons. The narrow lakes
@@ -200,18 +290,40 @@ internal static class BasinWaterRegression
             loadedOld.WaterLevel.SequenceEqual(legacy.WaterLevel) && loadedOld.Downstream.SequenceEqual(legacy.Downstream),
             "Rebuilding an unedited old Earth save changed its water or drainage.");
 
+        // Reconstruct the previous, lake-aware OWR2 resource from its unchanged
+        // prefix at 256. A saved V4 game must reproduce its own coast on rebuild.
+        int bedsEnd = spansEnd + 4 + 4 * BitConverter.ToInt32(water, spansEnd);
+        byte[] lakeSurvey = water.AsSpan(0, bedsEnd).ToArray();
+        lakeSurvey[3] = (byte)'2';
+        var lakeWorld = FlatGenerator.Generate(current.Width, current.Height, current.Seed, TerrainPreset.Earth,
+            default, bed, lakeSurvey);
+        var lakeFile = FlatSave.Encode(lakeWorld);
+        var loadedLakes = FlatSave.Decode(lakeFile);
+        FlatEarthRiverReference.Restore(loadedLakes, bed, water, rivers, default);
+        int strait = Tile(current, 27.42, 40.08);
+        Check(BitConverter.ToInt32(lakeFile, versionOffset) == 4 && loadedLakes.UsesSurveyedLakeBeds &&
+            !loadedLakes.UsesSurveyedStraits && loadedLakes.WaterReference.MatchesOriginalBed(strait,197) &&
+            lakeFile.SequenceEqual(FlatSave.Encode(loadedLakes)), "The pre-strait Earth save acquired a new coastline.");
+        FlatGenerator.Rebuild(loadedLakes, default);
+        Check(lakeWorld.Water.SequenceEqual(loadedLakes.Water) && lakeWorld.Downstream.SequenceEqual(loadedLakes.Downstream),
+            "Rebuilding a V4 lake-aware Earth save changed its former coast or drainage.");
+
         // A player can raise the new bed to exactly the height of the previous DEM.
         var edited = current.Clone();
         edited.Elevation[bear] = 212;
+        Check(edited.Elevation[strait] == -1 && FlatTerrainAnalysis.Ocean(edited.Water[strait]), "Missing strait before dam edit.");
+        edited.Elevation[strait] = 197;
         FlatGenerator.Rebuild(edited, default);
         var editedFile = FlatSave.Encode(edited);
         var loadedNew = FlatSave.Decode(editedFile);
         FlatEarthRiverReference.Restore(loadedNew, bed, water, rivers, default);
-        Check(BitConverter.ToInt32(editedFile, versionOffset) == 4 && loadedNew.UsesSurveyedLakeBeds &&
+        Check(BitConverter.ToInt32(editedFile, versionOffset) == 5 && loadedNew.UsesSurveyedLakeBeds &&
+            loadedNew.UsesSurveyedStraits && loadedNew.WaterReference.MatchesOriginalBed(strait,-1) &&
             loadedNew.WaterReference.MatchesOriginalBed(bear, 156) && !loadedNew.WaterReference.MatchesOriginalBed(bear, 212) &&
             editedFile.SequenceEqual(FlatSave.Encode(loadedNew)), "The alternate unedited baseline disguised a real terrain edit.");
         FlatGenerator.Rebuild(loadedNew, default);
         Check(loadedNew.Elevation[bear] == 212 && !FlatTerrainAnalysis.AreaWater(loadedNew.Water[bear]) &&
+            loadedNew.Elevation[strait] == 197 && !FlatTerrainAnalysis.AreaWater(loadedNew.Water[strait]) &&
             edited.Water.SequenceEqual(loadedNew.Water) && edited.WaterLevel.SequenceEqual(loadedNew.WaterLevel),
             "Restoring the surveyed source reflooded the player's raised bed.");
     }
@@ -271,7 +383,7 @@ internal static class BasinWaterRegression
     static void ChineseLakeCells()
     {
         const string folder = "Assets/ORBIS/Resources/ORBIS/FlatWorld/";
-        foreach (int width in new[] { 1024, 1536, 2048 })
+        foreach (int width in new[] { 1024, 1536, 2048, 4096 })
         {
             byte[] bed = File.ReadAllBytes(folder + "Earth" + width + ".bytes");
             byte[] water = File.ReadAllBytes(folder + "EarthWater" + width + ".bytes");
@@ -288,10 +400,13 @@ internal static class BasinWaterRegression
                     current.OriginalBed(i) == (majority ? Math.Min((int)original, stage) : original),
                     $"Earth {width} {name} bed or legacy baseline");
             }
-            Site("Sayram", 81.123, 44.5605, 2072, width >= 1536);
-            Site("Dianchi", 102.744, 24.873, 1886, width == 2048);
-            Site("Erhai", 100.182, 25.783, 1962, false);
-            Site("Fuxian", 102.887, 24.494, 1721, false);
+            // The finer grid splits the old Sayram shore cell; the southwest
+            // sample now falls in 26.8% lake, while the interior cell is all lake.
+            Site("Sayram shore", 81.123, 44.5605, 2072, width == 1536 || width == 2048);
+            if (width == 4096) Site("Sayram interior", 81.18, 44.61, 2072, true);
+            Site("Dianchi", 102.744, 24.873, 1886, width >= 2048);
+            Site("Erhai", 100.182, 25.783, 1962, width == 4096);
+            Site("Fuxian", 102.887, 24.494, 1721, width == 4096);
             Site("ridge between Dianchi and Fuxian", 102.823, 24.662, 0, false);
             if (width == 2048)
             {
@@ -303,12 +418,25 @@ internal static class BasinWaterRegression
                     throw new InvalidOperationException("Accepted a corrupt supplemental lake record.");
                 }
                 RejectExtra(water.AsSpan(0, water.Length - 1).ToArray());
+                int spansEnd = 12 + 6 * BitConverter.ToInt32(water, 8);
+                int bedsEnd = spansEnd + 4 + 4 * BitConverter.ToInt32(water, spansEnd);
+                int extraEnd = bedsEnd + 4 + 6 * BitConverter.ToInt32(water, bedsEnd);
                 var duplicate = (byte[])water.Clone();
-                Array.Copy(duplicate, duplicate.Length - 12, duplicate, duplicate.Length - 6, sizeof(int));
+                Array.Copy(duplicate, extraEnd - 12, duplicate, extraEnd - 6, sizeof(int));
                 RejectExtra(duplicate);
                 var badLevel = (byte[])water.Clone();
-                BitConverter.GetBytes(FlatWaterReference.Dry).CopyTo(badLevel, badLevel.Length - 2);
+                BitConverter.GetBytes(FlatWaterReference.Dry).CopyTo(badLevel, extraEnd - 2);
                 RejectExtra(badLevel);
+                var old = water.AsSpan(0,extraEnd).ToArray();
+                old[3] = (byte)'3';
+                var lakesOnly = FlatWaterReference.Read(width,bed,old);
+                Check(lakesOnly.UsesSurveyedLakeBeds && !lakesOnly.UsesSurveyedStraits, "Original OWR3 resource lost compatibility.");
+                var repeatedStrait = (byte[])water.Clone();
+                Array.Copy(repeatedStrait, extraEnd + 4, repeatedStrait, extraEnd + 8, sizeof(int));
+                RejectExtra(repeatedStrait);
+                var inland = (byte[])water.Clone();
+                BitConverter.GetBytes(width * width / 2).CopyTo(inland, inland.Length - 4);
+                RejectExtra(inland);
             }
         }
         Console.WriteLine("PASS Chinese lake coverage by cell area, source reference stages and legacy beds");

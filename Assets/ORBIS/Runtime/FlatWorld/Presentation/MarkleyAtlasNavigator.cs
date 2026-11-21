@@ -44,7 +44,8 @@ namespace Orbis.Flat
         int focusTile=-1;int pendingFocus=-1; bool focusZoom;Vector2 focusCenter; float targetPixels=-1; Vector2 zoomScreen; bool zoomAnchor;
         Vector2 strategicZoomPoint;
         bool hasStrategicZoomPoint;
-        int[] route = new int[0];
+        PlanetLocation[] route = Array.Empty<PlanetLocation>();
+        bool seaRoute;
         Vector2 lastRoutePan = new Vector2(float.NaN, float.NaN);
         Vector3 lastRouteNormal;
         float lastRoutePixels = -1;
@@ -659,9 +660,10 @@ namespace Orbis.Flat
             float h=FlatGlobeGeometry.SurfaceHeight(world,uv);
             return point.magnitude - FlatGlobeGeometry.Radius(h,uv.y,world.Height,polarHeights);
         }
-        public void SetRoute(int[] ids)
+        public void SetRoute(int[] ids)=>SetGeographicRoute(FlatScrollNavigator.TileLocations(world,ids),false);
+        internal void SetGeographicRoute(PlanetLocation[] points,bool marine)
         {
-            route = ids ?? new int[0]; lastRoutePixels = -1;
+            route = points; seaRoute = marine; lastRoutePixels = -1;
             if (route.Length < 2 && !routeMesh) return;
             if (!routeMesh)
             {
@@ -678,15 +680,15 @@ namespace Orbis.Flat
             lastRoutePan=pan;lastRouteNormal=normal;lastRoutePixels=pixels;
             lastRouteRevision=world.TerrainRevision;
             var v=routeVertices;var cs=routeColors;var triangles=routeIndices;v.Clear();cs.Clear();triangles.Clear();
-            float width=Mathf.Clamp(1.5f/Mathf.Max(1,pixels),.07f,.20f)*TileScale;
+            float width=(seaRoute?1.05f/Mathf.Max(.25f,pixels):Mathf.Clamp(1.5f/Mathf.Max(1,pixels),.07f,.20f))*TileScale;
             Vector3 lift=normal*.00006f;Vector2 near=new Vector2(pan.x/world.Width,pan.y/MapHeight);
             float halfX=viewCamera.pixelWidth/Mathf.Max(1,pixels)*.6f,halfY=viewCamera.pixelHeight/Mathf.Max(1,pixels)*.6f;
             halfY+=FlatGlobeGeometry.LocalHeightSpan*FlatGlobeGeometry.ReliefTilt/TileScale;
             var relief=ReliefParameters;
             for(int i=1;i<route.Length;i++)
             {
-                var p0=MarkleyProjection.Project(PlanetCoordinateSystem.FromMapUV((route[i-1]%world.Width+.5)/world.Width,(route[i-1]/world.Width+.5)/world.Height));
-                var p1=MarkleyProjection.Project(PlanetCoordinateSystem.FromMapUV((route[i]%world.Width+.5)/world.Width,(route[i]/world.Width+.5)/world.Height));p1=MarkleyProjection.Nearest(p1,p0);
+                var p0=MarkleyProjection.Project(route[i-1]);
+                var p1=MarkleyProjection.Project(route[i]);p1=MarkleyProjection.Nearest(p1,p0);
                 for(int row=-2;row<=3;row++)for(int col=-1;col<=1;col++){
                     int k=(int)Math.Floor(row/2.0);bool odd=row-2*k==1;float sign=odd?-1:1;
                     Vector2 a=new Vector2((float)(odd?.75-p0.x-k*.5:p0.x-k*.5),odd?row+1-p0.y:row+p0.y);

@@ -11,7 +11,7 @@ using UnityEngine.UIElements;
 namespace Orbis.Flat
 {
     [DefaultExecutionOrder(-100)]
-    public sealed class FlatWorldApp : MonoBehaviour
+    public sealed partial class FlatWorldApp : MonoBehaviour
     {
         public string initialSeed="ORBIS-2D-2026";
         public int initialWidth=512;
@@ -88,7 +88,12 @@ namespace Orbis.Flat
                 climateYearField.EnableInClassList("is-hidden",layer!=MapLayer.Temperature&&layer!=MapLayer.Rain);
                 if(map){map.SetLayer(layer);UpdateHUD();}
             });
-            toolField=root.Q<DropdownField>("tool");toolField.choices=new List<string>{"选择 Tile / Zone","建立文明","相邻 Zone 扩张","预设高度笔刷","修建农田","修建道路","修建桥梁","路径查看（首都出发）"};toolField.index=0;
+            toolField=root.Q<DropdownField>("tool");toolField.choices=new List<string>{"选择 Tile / Zone","建立文明","相邻 Zone 扩张","预设高度笔刷","修建农田","修建道路","修建桥梁","路径查看（首都出发）",SeaRouteToolName};toolField.index=0;
+            toolField.RegisterValueChangedCallback(e=>
+            {
+                if(e.previousValue==SeaRouteToolName||e.newValue==SeaRouteToolName)ResetSeaRoute();
+                if(e.newValue==SeaRouteToolName)SetStatus("点击出发海面，再点击目的海面查看航线。");
+            });
             heightField=root.Q<DropdownField>("height");heightField.choices=new List<string>{"深海床 −2200 m","中海床 −600 m","浅海床 −80 m"};
             for(int i=1;i<=20;i++)heightField.choices.Add("L"+i.ToString("00")+" · "+HeightBands.Preset(i)+" m");heightField.index=3;
             brushField=root.Q<DropdownField>("brush");brushField.choices=new List<string>{"1 Tile","1 Zone · 4×4","3×3 Tiles","9×9 Tiles"};brushField.index=0;
@@ -102,7 +107,7 @@ namespace Orbis.Flat
             Bind("confluence",()=>FocusRiver(true));Bind("mouth",()=>FocusRiver(false));
             Bind("mode",ToggleMode);Bind("home",Home);Bind("focus",Focus);Bind("save",Save);Bind("load",Load);
             Bind("export",()=>{if(Ready()){FlatRasterIO.Export(World,HeightPath);SetStatus("已导出高度、水体预览和透明河网图："+Path.ChangeExtension(HeightPath,"rivers.png"));}});
-            Bind("import",Import);Bind("rebuild",()=>{if(Ready()){solarClock.Flush(simulationStep);var copy=World.Clone();Queue(c=>{FlatGenerator.Rebuild(copy,c);return copy;},"重新计算排水、月均气候与生物群系…");}});
+            Bind("import",Import);Bind("rebuild",()=>{if(Ready()){solarClock.Flush(simulationStep);var copy=World.CloneForTerrainRebuild();Queue(c=>{FlatGenerator.Rebuild(copy,c);return copy;},"重新计算排水、月均气候与生物群系…");}});
             Bind("shot",()=>{if(World!=null&&!Busy)StartCoroutine(Capture());});
             Bind("folder",()=>Application.OpenURL(new Uri(Application.persistentDataPath+Path.DirectorySeparatorChar).AbsoluteUri));
             BindGroupedUI();
@@ -123,7 +128,11 @@ namespace Orbis.Flat
             viewport.RegisterCallback<PointerUpEvent>(e=>
             {
                 if(!dragging||e.pointerId!=pointer)return;dragging=false;viewport.ReleasePointer(pointer);pointer=-1;
-                if(!moved&&e.button==0)Pick(e.position);else if(!moved&&e.button==1)ShowRoute();
+                if(!moved&&e.button==0)Pick(e.position);else if(!moved&&e.button==1)
+                {
+                    if(toolField.value==SeaRouteToolName){ResetSeaRoute();SetStatus("点击海面选择新的出发点。");}
+                    else ShowRoute();
+                }
             });
             viewport.RegisterCallback<PointerCaptureOutEvent>(e=>{dragging=false;pointer=-1;});
             viewport.RegisterCallback<WheelEvent>(e=>{Zoom(e.delta.y,e.mousePosition);e.StopPropagation();});
@@ -241,6 +250,7 @@ namespace Orbis.Flat
         }
         void Queue(Func<CancellationToken,WorldData> operation,string text,bool seed=false)
         {
+            if(toolField?.value==SeaRouteToolName)ResetSeaRoute();
             CancelPending();cancellation=new CancellationTokenSource();var token=cancellation.Token;seedOnInstall=seed;
             pending=Task.Run(async ()=>
             {
@@ -296,7 +306,7 @@ namespace Orbis.Flat
                         "恢复地球存档的河道与海湖资料…",seedOnInstall);
                     return;
                 }
-                if(dem && water)world.WaterReference=FlatWaterReference.Read(world.Width,dem.bytes,water.bytes,world.UsesSurveyedLakeBeds);
+                if(dem && water)world.WaterReference=FlatWaterReference.Read(world.Width,dem.bytes,water.bytes,world.UsesSurveyedLakeBeds,world.UsesSurveyedStraits);
             }
             var simulation=new FlatSimulation(world);if(seedOnInstall)simulation.SeedNations(4);
             var nextObject=new GameObject("Authoritative 2D map / render-data provider");nextObject.transform.SetParent(transform,false);
@@ -354,6 +364,7 @@ namespace Orbis.Flat
                 try{Install(completed.GetAwaiter().GetResult());}catch(OperationCanceledException){SetStatus("已取消，保留原世界。");}catch(Exception e){SetStatus("操作失败，保留原世界："+e.Message);Debug.LogException(e);}finally{source?.Dispose();}
             }
             if(World==null||!navigation)return;
+            PublishSeaRoute();
             if(ClimateStatisticsPanel!=null && ClimateStatisticsPanel.IsOpen) ClimateStatisticsPanel.Tick(World,World.Day);
             float realDt=Mathf.Max(0,Time.unscaledDeltaTime),dt=Mathf.Min(realDt,.10f);bool animate=!paused&&!Busy;
             solarClock.Advance(realDt,speed,120f,!animate,simulationStep);
@@ -449,6 +460,11 @@ namespace Orbis.Flat
         void Pick(Vector2 position)
         {
             if(World==null||Busy||!navigation)return;
+            if(toolField.value==SeaRouteToolName)
+            {
+                if(navigation.TryGetPlanetLocation(ScreenPoint(position),out var location))PickSeaPoint(location);
+                return;
+            }
             int hit=navigation.Pick(ScreenPoint(position));if(hit<0)return;
             selected=hit;map.Select(selected);if(World.Owner[selected]>=0)activeNation=World.Owner[selected];
             if(!navigation.IsFlat){UpdateHUD();return;}
@@ -470,7 +486,7 @@ namespace Orbis.Flat
         }
         void Paint()
         {
-            if(!Ready()||selected<0)return;solarClock.Flush(simulationStep);var copy=World.Clone();int selection=heightField.index;
+            if(!Ready()||selected<0)return;solarClock.Flush(simulationStep);var copy=World.CloneForTerrainRebuild();int selection=heightField.index;
             short meters=selection==0?(short)-2200:selection==1?(short)-600:selection==2?(short)-80:HeightBands.Preset(selection-2);
             var footprint=EditFootprint(copy,selected,3,brushField.index);
             for(int y=footprint.yMin;y<footprint.yMax;y++)for(int x=footprint.xMin;x<footprint.xMax;x++)
@@ -590,7 +606,7 @@ namespace Orbis.Flat
         {switch(w){case WaterKind.DeepOcean:return "深海";case WaterKind.MiddleOcean:return "中海";case WaterKind.ShallowOcean:return "浅海";case WaterKind.Lake:return "淡水湖";case WaterKind.River:return "淡水河流";default:return "陆地";}}
         void OnDestroy()
         {
-            CancelPending();ClimateStatisticsPanel?.Dispose();minimap?.Dispose();if(font)Destroy(font);if(panel)Destroy(panel);
+            CancelSeaRequest();CancelPending();ClimateStatisticsPanel?.Dispose();minimap?.Dispose();if(font)Destroy(font);if(panel)Destroy(panel);
         }
     }
 }

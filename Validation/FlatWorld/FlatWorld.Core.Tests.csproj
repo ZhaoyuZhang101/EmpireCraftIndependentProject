@@ -6,5 +6,8 @@
   <ItemGroup><Compile Include="RegionalStatisticsRegression.cs"/><Compile Include="TectonicsRegression.cs"/></ItemGroup>
   <ItemGroup><Compile Include="PolarTerrainRegression.cs"/></ItemGroup>
   <ItemGroup><Compile Include="BasinWaterRegression.cs"/><Compile Include="RiverMapRegression.cs"/></ItemGroup>
+  <ItemGroup><Compile Include="SeaRouteRegression.cs"/></ItemGroup>
   <ItemGroup><Compile Include="SeasonalRainfallRegression.cs"/><Compile Include="SeasonalTemperatureRegression.cs"/></ItemGroup>
+  <ItemGroup><Compile Include="../../Assets/ORBIS/Runtime/V4/OrbisRasterCodec.cs"/></ItemGroup>
+  <ItemGroup><Compile Include="../../Assets/ORBIS/Runtime/Planet/Core/PlanetCoordinateSystem.cs"/><Compile Include="../../Assets/ORBIS/Runtime/Planet/Core/PlanetSurfaceData.cs"/></ItemGroup>
 </Project>

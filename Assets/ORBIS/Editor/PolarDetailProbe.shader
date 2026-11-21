@@ -22,7 +22,7 @@ Shader "Hidden/ORBIS/PolarDetailProbe"
     {
      float2 coast;float before=field.g;
      FlatEarthRelief(_ProbeOrigin.xy,field.r,gradient,coast);
-     FlatApplyEarthShore(_ProbeWaterKind,field.g,coast);
+     FlatApplyEarthShore(_ProbeOrigin.xy,_ProbeWaterKind,field.g,coast);
      return float4(field.g,before,coast.y,1);
     }
     if(_ProjectionProbe>5.5)FlatEarthRelief(_ProbeOrigin.xy,field.r,gradient);

@@ -23,6 +23,9 @@ Shader "ORBIS/FlatWorld/FlatMap"
   [HideInInspector] _EarthLakeShore("Surveyed inland shorelines",2D)="black"{}
   [HideInInspector] _EarthLakeDetail("Near lake shorelines",2D)="black"{}
   [HideInInspector] _EarthLakeReady("Inland shoreline survey ready",Float)=0
+  [HideInInspector] _EarthStraitShore("Regional marine shorelines",2D)="black"{}
+  [HideInInspector] _EarthStraitDetail("Surveyed strait banks",2D)="black"{}
+  [HideInInspector] _EarthStraitReady("Strait shoreline survey ready",Float)=0
   [HideInInspector] _RiverAtlas("Continuous river field",2D)="black"{}
   [HideInInspector] _RiverOverview("River network overview",2D)="black"{}
   [HideInInspector] _RiverOverviewReady("River overview ready",Float)=0

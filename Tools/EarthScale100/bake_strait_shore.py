@@ -1,0 +1,145 @@
+"""Bake the Natural Earth v5.1.2 marine banks around the player straits.
+
+OSH1 stores a raw-Deflate RG8 regional atlas followed by an R8 detail atlas.
+The 0.25-degree geographic index occupies the first 507 rows of the RG atlas.
+Each nonzero RG pair is a one-based little-endian page number. Its 18 x 19
+page stores a detail-page number in the first row, then 16 x 16 signed
+distances (0.5 km per code) and regional weights, with a one-sample gutter.
+The 130 x 130 detail pages hold 128 x 128 samples (1/16 km per code) plus
+gutters. Both atlases are south-first, matching Unity geographic UVs.
+"""
+import argparse
+import hashlib
+import struct
+import zlib
+from pathlib import Path
+
+import numpy as np
+import shapely
+from scipy.spatial import cKDTree
+from shapely.geometry import Polygon, box
+
+from bake_major_lakes import unit_vectors
+from bake_player_presets import RESOURCES, ROOT
+from bake_player_water import features, polygons
+from bake_straits import APPROACHES, GATES, polygon_parts
+
+TILE = .25
+FADE = 1.5  # Degrees outside the surveyed route's window.
+INDEX_WIDTH = 1440
+COARSE_WIDTH, FINE_WIDTH = 2048, 4096
+HEADER_ROWS = (INDEX_WIDTH**2//2 + COARSE_WIDTH-1)//COARSE_WIDTH
+EARTH_KM = 6371.0088
+
+
+def coordinates(tile, size, offset):
+    # Same integer geographic sample centres in adjoining page gutters.
+    return (tile*size + np.arange(-1, size+1) + .5)*(TILE/size) - offset
+
+
+def distances(ocean, tree, lon, lat, codes_per_km):
+    inside = shapely.contains_xy(ocean, lon, lat[:, None])
+    max_chord = 2*np.sin(127/(codes_per_km*2*EARTH_KM))
+    chord, _ = tree.query(unit_vectors(lon, lat[:, None]), distance_upper_bound=max_chord)
+    km = (2*EARTH_KM)*np.arcsin(np.minimum(chord, max_chord)/2)
+    return np.rint(128 + np.where(inside, km, -km)*codes_per_km).clip(1, 255).astype(np.uint8)
+
+
+def coverage(rectangles, lon, lat):
+    # Smoothly feather the union outside the complete route windows. The
+    # rounded outer border is independent of the packing and geographic grid.
+    nearest = np.full((lat.size, lon.size), FADE)
+    for west, south, east, north in rectangles:
+        dx = np.maximum(0, np.maximum(west-lon, lon-east))
+        dy = np.maximum(0, np.maximum(south-lat, lat-north))
+        nearest = np.minimum(nearest, np.hypot(dx, dy[:, None]))
+    t = np.minimum(1, nearest/FADE)
+    return np.rint(255*(1-t*t*(3-2*t))).astype(np.uint8)
+
+
+def regional_pages(ocean, rectangles, bounds, coarse, detail):
+    west, south, east, north = bounds
+    # 2 degrees cover more than the saturated 63.5 km field even at Oresund.
+    clip = box(west-2, south-2, east+2, north+2)
+    local_ocean = ocean.intersection(clip)
+    shapely.prepare(local_ocean)
+    # Intersect the original boundary: edges introduced by clipping the ocean
+    # would put fictitious beaches along rectangular page or region borders.
+    lines = ocean.boundary.intersection(clip)
+    vertices = shapely.get_coordinates(shapely.segmentize(lines, .0008))
+    tree = cKDTree(unit_vectors(vertices[:, 0], vertices[:, 1]))
+    for y in range(int(np.floor((south+90)/TILE)), int(np.ceil((north+90)/TILE))):
+        lat = coordinates(y, 16, 90)
+        for x in range(int(np.floor((west+180)/TILE)), int(np.ceil((east+180)/TILE))):
+            lon = coordinates(x, 16, 180)
+            weight = coverage(rectangles, lon, lat)
+            if not np.any(weight):
+                continue
+            key = y*INDEX_WIDTH + x
+            field = distances(local_ocean, tree, lon, lat, 2)
+            coarse[key] = np.stack((field, weight), axis=-1)
+            # At most one 1.74-km coarse sample separates a fragment from a
+            # neighbour used in its bilinear read. Include both sides of a seam.
+            near = np.abs(field.astype(int)-128) < 14
+            if np.any(near & (weight >= 247)):
+                detail[key] = distances(local_ocean, tree, coordinates(x, 128, 180),
+                                        coordinates(y, 128, 90), 16)
+
+
+def pack(coarse, detail):
+    coarse_per_row, fine_per_row = COARSE_WIDTH//18, FINE_WIDTH//130
+    ch = HEADER_ROWS + ((len(coarse)+coarse_per_row-1)//coarse_per_row)*19
+    fh = ((len(detail)+fine_per_row-1)//fine_per_row)*130
+    if max(ch, fh) > 4096 or max(len(coarse), len(detail)) >= 65536:
+        raise ValueError("Regional coastline exceeds the runtime atlas limits")
+    index = np.zeros((ch, COARSE_WIDTH, 2), np.uint8)
+    fine = np.zeros((fh, FINE_WIDTH), np.uint8)
+    fine_slots = {key: slot for slot, key in enumerate(sorted(detail), 1)}
+    for slot, key in enumerate(sorted(coarse), 1):
+        index.reshape(-1, 2)[key] = slot % 256, slot//256
+        row, col = divmod(slot-1, coarse_per_row)
+        y, x = HEADER_ROWS+row*19, col*18
+        index[y+1:y+19, x:x+18] = coarse[key]
+        if key in fine_slots:
+            f = fine_slots[key]
+            index[y, x] = f % 256, f//256
+            row, col = divmod(f-1, fine_per_row)
+            fine[row*130:(row+1)*130, col*130:(col+1)*130] = detail[key]
+    compressor = zlib.compressobj(level=6, wbits=-15)
+    payload = compressor.compress(index) + compressor.compress(fine) + compressor.flush()
+    return struct.pack("<4s4i", b"OSH1", COARSE_WIDTH, ch, FINE_WIDTH, fh) + payload
+
+
+def bake(cache):
+    parts = [p for feature in features("ocean", cache) for p in polygons(feature)]
+    shell, *holes = max(parts, key=lambda p: np.ptp(np.array(p[0])[:, 0]))
+    ocean = Polygon(shell, holes)
+    windows = [box(min(a[0], b[0])-p, min(a[1], b[1])-p, max(a[0], b[0])+p, max(a[1], b[1])+p)
+               for _, a, b, p in GATES+APPROACHES]
+    groups = shapely.union_all([region.buffer(FADE+TILE, quad_segs=1, join_style="mitre") for region in windows])
+    coarse, detail = {}, {}
+    for group in polygon_parts(groups):
+        rectangles = [region.bounds for region in windows if group.covers(region)]
+        regional_pages(ocean, rectangles, group.bounds, coarse, detail)
+    return pack(coarse, detail), len(coarse), len(detail)
+
+
+def main():
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--cache", type=Path, default=ROOT/"ValidationOutput/BasinWater")
+    parser.add_argument("--check", action="store_true", help="compare the rebake byte for byte")
+    args = parser.parse_args()
+    args.cache.mkdir(exist_ok=True, parents=True)
+    payload, coarse, fine = bake(args.cache)
+    path = RESOURCES/"EarthStraitShore.bytes"
+    if args.check:
+        if path.read_bytes() != payload:
+            raise ValueError("Strait shoreline differs from the pinned geographic reference")
+    else:
+        path.write_bytes(payload)
+    print(f"{coarse} regional pages, {fine} high-resolution coastal pages, {len(payload)} bytes, "
+          f"sha256 {hashlib.sha256(payload).hexdigest()}")
+
+
+if __name__ == "__main__":
+    main()

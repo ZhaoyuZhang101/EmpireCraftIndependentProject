@@ -65,7 +65,13 @@ float4 FlatWaterPropReflection(float2 cell,float waterHeight,float3 ray,float3 l
         {
             float tree;
             float4 ecology=FlatEcologyData(uv,info,tree);placement.w=ecology.a;
-            if(!PDTreeAvailable(source,placement,info,ecology))continue;
+            float size=PDTreeSize(source,placement,info,ecology);
+            if(size<=0)continue;
+            float ratio=placement.z/size;
+            pixel*=ratio;
+            if(!PDTreeInDrawBounds(pixel))continue;
+            fade=1-smoothstep(44,58,length(ground)*ratio);
+            if(fade<.001)continue;
             float shore=1-smoothstep(.2,1.2,-FlatVisualSample(float4(uv,0,0)).g);
             float species=PDTreeSpecies(ecology,info,shore,tree);
             float leaf=FlatVegetationSeason(source+.5).y;

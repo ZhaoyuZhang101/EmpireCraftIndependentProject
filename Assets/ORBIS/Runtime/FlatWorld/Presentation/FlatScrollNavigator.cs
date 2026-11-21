@@ -19,7 +19,9 @@ namespace Orbis.Flat
         float distance=3.1f,morph,pixels=16,spin,zoom,targetZoom,zoomVelocity;
         Vector2 zoomScreen;bool zoomAnchor;Quaternion orbitRotation=Quaternion.Euler(18,0,0);
         PlanetVector zoomGroundAnchor;
-        double currentDay,lockDay;bool locked;Vector3 normal,east,north;Vector2 poles;int revision=-1;int[] route=new int[0];
+        double currentDay,lockDay;bool locked;Vector3 normal,east,north;Vector2 poles;int revision=-1;
+        PlanetLocation[] route=Array.Empty<PlanetLocation>();bool seaRoute;
+        public IReadOnlyList<PlanetLocation> RoutePoints => route;
         const int Rings=128,Sectors=256;Vector2[] lattice;int[] triangles;
         readonly FlatPlantHeightCache plantHeights=new FlatPlantHeightCache();
         Vector4[] pickPositions;int[] pickVertexStamps,pickCellStamps;int pickGeneration;
@@ -485,7 +487,21 @@ namespace Orbis.Flat
             var dx=axisX*ex.x+axisY*ex.y;var dy=axisX*ny.x+axisY*ny.y;
             return FlatGlobeGeometry.TryActorFrame(viewCamera,dx,dy,TileScale/32,out geographicEast,out geographicNorth,out cellAxes);
         }
-        public void SetRoute(int[] ids){route=ids??new int[0];if(atlas)atlas.SetRoute(route);UpdateRoute();}
+        internal static PlanetLocation[] TileLocations(WorldData data,int[] ids)
+        {
+            if(ids==null||ids.Length==0)return Array.Empty<PlanetLocation>();
+            var locations=new PlanetLocation[ids.Length];
+            for(int i=0;i<ids.Length;i++)locations[i]=PlanetCoordinateSystem.FromMapUV(
+                (ids[i]%data.Width+.5)/data.Width,(ids[i]/data.Width+.5)/data.Height);
+            return locations;
+        }
+        public void SetRoute(int[] ids)=>SetGeographicRoute(TileLocations(world,ids),false);
+        internal void SetGeographicRoute(PlanetLocation[] points,bool marine)
+        {
+            route=points;seaRoute=marine;
+            if(atlas)atlas.SetGeographicRoute(points,marine);
+            UpdateRoute();
+        }
         void UpdateRoute()
         {
             if(route.Length<2){if(routeRenderer)routeRenderer.enabled=false;return;}
@@ -499,17 +515,18 @@ namespace Orbis.Flat
             }
             routeRenderer.enabled=!atlasMode;routeVertices.Clear();routeIndices.Clear();
             var relief=ReliefParameters;
+            float halfWidth=seaRoute?1.05f*TileScale/Mathf.Max(.25f,pixels):.00075f;
             Vector3 previousPosition=Vector3.zero;bool connected=false;
             for(int i=0;i<route.Length;i++)
             {
-                var p=PlanetCoordinateSystem.SurfaceNormal(PlanetCoordinateSystem.FromMapUV((route[i]%world.Width+.5)/world.Width,(route[i]/world.Width+.5)/world.Height));
+                var p=PlanetCoordinateSystem.SurfaceNormal(route[i]);
                 bool valid=TryRenderedSurface(LocalPoint(p),relief,false,out var position,out _,out _);
                 if(valid)
                 {
                     position+=normal*.0002f;
                     if(connected)
                     {
-                        var side=Vector3.Cross(position-previousPosition,viewCamera.transform.forward).normalized*.00075f;
+                        var side=Vector3.Cross(position-previousPosition,viewCamera.transform.forward).normalized*halfWidth;
                         int start=routeVertices.Count;
                         routeVertices.Add(previousPosition-side);routeVertices.Add(previousPosition+side);routeVertices.Add(position-side);routeVertices.Add(position+side);
                         routeIndices.Add(start);routeIndices.Add(start+1);routeIndices.Add(start+2);routeIndices.Add(start+2);routeIndices.Add(start+1);routeIndices.Add(start+3);

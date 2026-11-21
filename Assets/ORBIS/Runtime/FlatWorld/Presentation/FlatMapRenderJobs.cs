@@ -31,6 +31,10 @@ namespace Orbis.Flat
             public Color32 Terrain,Display,Owner,Info,Ecology;
             public Color Hydro,Mixing,Geometry,Visual;
         }
+        struct PackedColors
+        {
+            public Color32 Terrain,Display,Info,Ecology;
+        }
         public struct Chunk
         {
             public int Id,X,Y,Width,Height,Offset;
@@ -41,7 +45,7 @@ namespace Orbis.Flat
         NativeArray<Tile> tiles;
         NativeArray<int> indices,bands;
         NativeArray<uint> palette;
-        NativeArray<Pixel> output;
+        NativeArray<PackedColors> output;
         readonly List<Chunk> chunks=new List<Chunk>();
         JobHandle handle;
         int terrainRevision,month,climatePeriod;
@@ -63,7 +67,13 @@ namespace Orbis.Flat
         {
             if(disposed)throw new ObjectDisposedException(nameof(FlatMapRenderJobs));
             if(Pending)throw new InvalidOperationException("Complete the batch before reading its output.");
-            return output[index];
+            var color=output[index];
+            var t=tiles[indices[index]];
+            // The frozen tile already owns these float channels. Keeping a second native
+            // copy until upload would cost another 512 MiB on a 4096 x 2048 map.
+            return new Pixel{Terrain=color.Terrain,Display=color.Display,Owner=t.Owner,Info=color.Info,Ecology=color.Ecology,
+                Hydro=new Color(t.Depth,t.FlowX,t.FlowY,t.HalfWidth),Mixing=new Color(t.Meander,t.Sediment,t.Freshness,t.Connections),
+                Geometry=new Color(t.Elevation,(float)t.Material,t.Wetness,t.Hand),Visual=new Color(t.Elevation,t.Shore,t.Depth,t.Canopy)};
         }
         public FlatMapRenderJobs(WorldData world)
         {
@@ -71,7 +81,7 @@ namespace Orbis.Flat
             worldSeed=FMath.Seed(world.Seed);
             tiles=new NativeArray<Tile>(world.Count,Allocator.Persistent);
             indices=new NativeArray<int>(world.Count,Allocator.Persistent);
-            output=new NativeArray<Pixel>(world.Count,Allocator.Persistent);
+            output=new NativeArray<PackedColors>(world.Count,Allocator.Persistent);
             bands=new NativeArray<int>(HeightBands.Upper,Allocator.Persistent);
             // Read mutable managed palette tables once, never from a job.
             var colors=new List<uint>();colors.AddRange(FlatPalette.BiomeColors);colors.AddRange(FlatPalette.VegetationColors);
@@ -161,7 +171,7 @@ namespace Orbis.Flat
             [ReadOnly] public NativeArray<Tile> Tiles;
             [ReadOnly] public NativeArray<int> Indices,Bands;
             [ReadOnly] public NativeArray<uint> Palette;
-            [WriteOnly] public NativeArray<Pixel> Output;
+            [WriteOnly] public NativeArray<PackedColors> Output;
             public int Width,Height;
             public uint Seed;
             public MapLayer Layer;
@@ -214,10 +224,9 @@ namespace Orbis.Flat
                 }
                 display.a=1;
                 int level=0;if(t.Elevation>0){level=20;for(int b=0;b<Bands.Length;b++)if(t.Elevation<=Bands[b]){level=b+1;break;}}
-                Output[j]=new Pixel{Terrain=terrain,Display=Layer==MapLayer.Natural?terrain:(Color32)display,Owner=t.Owner,
+                Output[j]=new PackedColors{Terrain=terrain,Display=Layer==MapLayer.Natural?terrain:(Color32)display,
                     Ecology=new Color32((byte)t.Vegetation,(byte)(((int)t.Tree+1)*16+(int)t.Biome),(byte)Mathf.RoundToInt(Mathf.Clamp01(t.Wetness)*255),(byte)(FMath.Hash((uint)i^Seed)&255)),
-                    Info=new Color32((byte)level,(byte)t.Water,(byte)t.Building,(byte)t.Climate),Hydro=new Color(t.Depth,t.FlowX,t.FlowY,t.HalfWidth),
-                    Mixing=new Color(t.Meander,t.Sediment,t.Freshness,t.Connections),Geometry=new Color(t.Elevation,(float)t.Material,t.Wetness,t.Hand),Visual=new Color(t.Elevation,t.Shore,t.Depth,t.Canopy)};
+                    Info=new Color32((byte)level,(byte)t.Water,(byte)t.Building,(byte)t.Climate)};
             }
         }
     }

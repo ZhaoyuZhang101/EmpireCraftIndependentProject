@@ -39,6 +39,7 @@ namespace Orbis.Flat
                 {
                     w.WaterReference=FlatWaterReference.Read(width,earthHeights,geographicWater);
                     w.UsesSurveyedLakeBeds=w.WaterReference.UsesSurveyedLakeBeds;
+                    w.UsesSurveyedStraits=w.WaterReference.UsesSurveyedStraits;
                 }
                 if(geographicRivers!=null)w.RiverReference=FlatEarthRiverReference.Read(geographicRivers);
                 for(int y=0;y<height;y++)

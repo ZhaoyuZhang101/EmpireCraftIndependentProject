@@ -48,6 +48,19 @@ float FlatAreaWaterKind(float2 cell,sampler2D semantic,float originalKind)
     float lake=dot(weights,1-step(.5,abs(kinds-4)))/max(1e-6,wet);
     return wet>1e-6?3+lake:originalKind;
 }
+float FlatSurveyBasinShore(float2 uv,float2 cell,sampler2D semantic,float kind,inout float shore,inout float2 coast)
+{
+    float original=shore;
+    float strait=FlatApplyEarthShore(uv,kind,shore,coast);
+    // Small simulated lakes can reach across their last semantic tile onto a
+    // dry receiver. Preserve that bank where the marine survey finds dry land.
+    if(strait>0 && shore<0 && original>max(shore,-.28) && (kind<.5||kind>4.5))
+    {
+        float neighbour=FlatAreaWaterKind(cell,semantic,kind);
+        if(abs(neighbour-4)<.5){shore=original;coast.y=0;return 0;}
+    }
+    return strait;
+}
 float3 FlatRiverMapColor(float2 cell,sampler2D semantic,float kind,float4 field,float aa,float ink,float surveyLake)
 {
     float sea=smoothstep(-aa,aa,field.g);
@@ -433,9 +446,9 @@ float FlatReachSediment(float2 cell,FlatRiverSection channel,float shore,float f
     return sediment;
 }
 float3 FlatWaterBanks(float2 cell,float3 land,float3 relief,FlatRiverSection channel,
-                      float sediment,float shore,float dry,float aa,float footprint)
+                      float sediment,float shore,float dry,float aa,float footprint,float beachScale)
 {
-    float basinBank=dry*(1-smoothstep(0,.16+aa,-shore));
+    float basinBank=dry*(1-smoothstep(0,.16/beachScale+aa,-shore));
     [branch] if(dry>.001&&(basinBank>.001||(channel.width>.0001&&channel.edge<.20+aa&&shore<.12)))
     {
         float3 bed=FlatBedColor(cell);
@@ -523,6 +536,7 @@ float3 FlatWaterShade(float2 cell,float4 mixing,float4 field,float3 bottom,float
     float3 p0=(artwork-drift*phase0*3)*6;
     float3 p1=(artwork-drift*phase1*3)*6;
     float shoreDistance=coast.shore;
+    float beachScale=max(1,coast.beachScale);
     // The basin's zero contour crosses the river under open water. Breakers
     // and beach material belong on the two banks, not across the thalweg.
     float opening=smoothstep(0,.75,-channel.edge/max(.0001,channel.width))*
@@ -612,7 +626,8 @@ float3 FlatWaterShade(float2 cell,float4 mixing,float4 field,float3 bottom,float
     float3 scattering=lerp(float3(.005,.025,.038),float3(.004,.019,.022),fresh);
     absorption=lerp(absorption,float3(.22,.076,.047),river);
     scattering=lerp(scattering,float3(.014,.041,.038),river);
-    float basinDepth=lerp(.15,max(.15,field.b),smoothstep(0,1.5,field.g));
+    float opticalShore=field.g*beachScale;
+    float basinDepth=lerp(.15,max(.15,field.b),smoothstep(0,1.5,opticalShore));
     float channelDepth=max(.12,channel.depth*FlatRiverDepthProfile(channel)*(1-.23*riffle));
     float depth=lerp(basinDepth,channelDepth,river);
     float sill=opening*(1-smoothstep(0,.12,shoreDistance));
@@ -621,7 +636,7 @@ float3 FlatWaterShade(float2 cell,float4 mixing,float4 field,float3 bottom,float
     // very shallow sandy apron. Inlet depths and the shoreline mask stay exact.
     float shoal=coast.bar*coast.coverage*ocean*(1-smoothstep(4,15,depth));
     depth-=min(depth*.26,1.15)*shoal;
-    float clearance=lerp(max(0,shoreDistance),max(0,-channel.edge),river);
+    float clearance=lerp(max(0,shoreDistance)/beachScale,max(0,-channel.edge),river);
     float2 bedCell=cell;
     if(_FieldReady>.5)bedCell+=FlatBedRefraction(cell,localView,normal,depth,clearance);
     float3 bedPosition=FlatDetailPosition(bedCell);
@@ -652,7 +667,7 @@ float3 FlatWaterShade(float2 cell,float4 mixing,float4 field,float3 bottom,float
         {
             // Evaluate the same shore material at the refracted bed point. Its
             // local tangent extends the measured shoreline over the short ray.
-            float bedShore=coast.shore+dot(bedPosition-artwork,coast.seaward);
+            float bedShore=coast.shore+dot(bedPosition-artwork,coast.seaward)*beachScale;
             sediment=FlatCoastArtwork(bedPosition,coast.seaward,bedShore,0,coast.mud,footprint/6,_WaterClock).albedo;
         }
         bottom=lerp(bottom,sediment*(1+.13*shoal),coast.coverage*ocean);

@@ -54,7 +54,7 @@ namespace Orbis.Flat
     }
     public sealed class WorldData
     {
-        public const int ZoneSide=4, TilesPerZone=16, MaxWidth=2048, MaxNations=12;
+        public const int ZoneSide=4, TilesPerZone=16, MaxWidth=4096, MaxNations=12;
         public readonly int Width,Height,Count,ZoneWidth,ZoneHeight;
         public string Seed;
         public TerrainPreset Preset;
@@ -66,6 +66,7 @@ namespace Orbis.Flat
         public FlatWaterReference WaterReference;
         // The original coarse DEM and the lake-aware Earth preset have distinct edit baselines.
         public bool UsesSurveyedLakeBeds { get; internal set; }
+        public bool UsesSurveyedStraits { get; internal set; }
         public FlatEarthRiverReference RiverReference;
         public FlatCycloneWeather Cyclones;
         public short[] Elevation,WaterLevel;
@@ -127,18 +128,25 @@ namespace Orbis.Flat
         { DirtyChunks.Add((id/Width/ChunkSide)*ChunkWidth+(id%Width/ChunkSide));TileRevision++;Revision++; }
         public void MarkAllDirty()
         { for(int y=0;y<(Height+31)/32;y++)for(int x=0;x<ChunkWidth;x++)DirtyChunks.Add(y*ChunkWidth+x);Revision++; }
-        public WorldData Clone()
+        public WorldData Clone() => Clone(true);
+        // Rebuild publishes new terrain facts and moisture before the worker exposes this copy.
+        public WorldData CloneForTerrainRebuild() => Clone(false);
+        WorldData Clone(bool copyDerivedCaches)
         {
             var w=new WorldData(Width,Height,Seed,Preset){Day=Day,ExpansionRemainder=ExpansionRemainder,Revision=Revision,TerrainRevision=TerrainRevision,TileRevision=TileRevision,WildlifeInitialized=WildlifeInitialized};
             Array.Copy(Elevation,w.Elevation,Count);Array.Copy(WaterLevel,w.WaterLevel,Count);Array.Copy(Water,w.Water,Count);Array.Copy(Biomes,w.Biomes,Count);Array.Copy(Climates,w.Climates,Count);Array.Copy(Buildings,w.Buildings,Count);
             Array.Copy(Owner,w.Owner,Count);Array.Copy(ZoneOwner,w.ZoneOwner,ZoneCount);Array.Copy(Downstream,w.Downstream,Count);Array.Copy(DrainOrder,w.DrainOrder,Count);
             Array.Copy(Fertility,w.Fertility,Count);Array.Copy(Runoff,w.Runoff,Count);Array.Copy(Population,w.Population,Count);Array.Copy(CoastDistance,w.CoastDistance,Count);
             Array.Copy(Temperature,w.Temperature,Count*12);Array.Copy(Precipitation,w.Precipitation,Count*12);
-            w.Facts=Facts==null?null:Facts.Clone();
-            w.Moisture=Moisture==null?null:Moisture.Clone();
+            if(copyDerivedCaches)
+            {
+                w.Facts=Facts?.Clone();
+                w.Moisture=Moisture?.Clone();
+            }
             w.Tectonics=Tectonics;
             w.WaterReference=WaterReference;
             w.UsesSurveyedLakeBeds=UsesSurveyedLakeBeds;
+            w.UsesSurveyedStraits=UsesSurveyedStraits;
             w.RiverReference=RiverReference;
             w.Cyclones=Cyclones==null?null:Cyclones.Clone();
             foreach(var actor in Wildlife)w.Wildlife.Add(actor.Clone());

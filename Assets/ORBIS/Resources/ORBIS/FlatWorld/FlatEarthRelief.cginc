@@ -5,9 +5,12 @@ UNITY_DECLARE_TEX2D_NOSAMPLER(_EarthPolarCoast);
 UNITY_DECLARE_TEX2D_NOSAMPLER(_EarthSurveyMask);
 UNITY_DECLARE_TEX2D_NOSAMPLER(_EarthLakeShore);
 UNITY_DECLARE_TEX2D_NOSAMPLER(_EarthLakeDetail);
+UNITY_DECLARE_TEX2D_NOSAMPLER(_EarthStraitShore);
+UNITY_DECLARE_TEX2D_NOSAMPLER(_EarthStraitDetail);
 float4 _EarthPolarBed_TexelSize,_EarthSurveyAtPoles;
 float4 _EarthLakeShore_TexelSize,_EarthLakeDetail_TexelSize;
-float _EarthPolarReady,_EarthLakeReady;
+float4 _EarthStraitShore_TexelSize,_EarthStraitDetail_TexelSize;
+float _EarthPolarReady,_EarthLakeReady,_EarthStraitReady;
 
 // Two R8 texels at exact texel centres encode each one-based detail page.
 // Bilinear reads on a page use the identical geographic samples in its gutter.
@@ -33,7 +36,7 @@ float FlatEarthLakeDetail(float2 uv,float coarse,float footprint)
 // Distance is measured along the ground, in equatorial survey texels. Only
 // the lookup uses longitude/latitude. A bank therefore keeps its physical
 // width on a rotated local chart at high latitude.
-float FlatEarthLake(float2 uv,float kind,inout float shore)
+float FlatEarthLake(float2 uv,float kind,float strait,inout float shore)
 {
     if(_EarthLakeReady<.5)return 0;
     float2 dx=ddx(uv),dy=ddy(uv);
@@ -46,7 +49,8 @@ float FlatEarthLake(float2 uv,float kind,inout float shore)
     distance=FlatEarthLakeDetail(uv,distance,max(length(dx*groundMetric),length(dy*groundMetric)));
     float2 mask=FlatPresentationSample(_EarthSurveyMask,uv,0).rg;
     // Keep an adjacent marine coastline on its own surveyed or modelled field.
-    float marine=max(mask.g,step(.5,kind)*step(kind,3.5));
+    float straitSea=strait*smoothstep(-.5,0,shore*40030.2*_MapSize.z);
+    float marine=max(straitSea,max(mask.g,step(.5,kind)*step(kind,3.5)));
     float weight=mask.r*smoothstep(-31,-20,distance)*lerp(1,smoothstep(-1,.25,distance),marine);
     float cells=distance*_MapSize.x*_EarthLakeShore_TexelSize.x;
     shore=lerp(shore,cells,weight);
@@ -116,18 +120,111 @@ float FlatEarthRelief(float2 uv,inout float bed,inout float2 gradient)
     return FlatEarthRelief(uv,bed,gradient,coast);
 }
 
-void FlatEarthMarineOptics(float2 coast,float bed,inout float4 optics,inout float wetSupport)
+// Ground footprint as a fraction of the equatorial circumference. This also
+// handles a local stereographic chart whose screen axes turn across longitude.
+float FlatEarthGroundFootprint(float2 uv)
 {
-    float wet=coast.y*smoothstep(-.02,.10,coast.x);
+    float2 dx=ddx(uv),dy=ddy(uv);
+    dx.x-=round(dx.x);dy.x-=round(dy.x);
+    float2 metric=float2(cos((uv.y-.5)*3.14159265),.5);
+    return max(length(dx*metric),length(dy*metric));
+}
+
+float2 FlatEarthStraitSlot(float slot,float columns)
+{
+    // All results are integer texel coordinates. frac(slot/columns)*columns
+    // can drift far enough on D3D11 to interpolate a neighbouring page ID.
+    float row=floor((slot+.5)/columns);
+    return float2(slot-row*columns,row);
+}
+
+float FlatEarthStraitPage(float2 pixel)
+{
+    #ifdef UNITY_SEPARATE_TEXTURE_SAMPLER
+    float2 bytes=round(255*_EarthStraitShore.Load(int3((int2)pixel,0)).rg);
+    #else
+    float2 bytes=round(255*FlatPresentationSample(_EarthStraitShore,(pixel+.5)*_EarthStraitShore_TexelSize.xy,0).rg);
+    #endif
+    return dot(bytes,float2(1,256))-1;
+}
+
+float2 FlatEarthStrait(float2 uv,float footprintKm)
+{
+    [branch] if(_EarthStraitReady<.5)return 0;
+    float2 location=float2(frac(uv.x)*1440,min(saturate(uv.y)*720,719.9999));
+    float2 tile=floor(location),phase=frac(location);
+    float index=tile.y*1440+tile.x;
+    float slot=FlatEarthStraitPage(FlatEarthStraitSlot(index,2048));
+    [branch] if(slot<0)return 0;
+    float2 origin=FlatEarthStraitSlot(slot,113)*float2(18,19)+float2(0,507);
+    float2 data=FlatPresentationSample(_EarthStraitShore,(origin+float2(1,2)+phase*16)*_EarthStraitShore_TexelSize.xy,0).rg;
+    float km=(data.r*255-128)*.5;
+    // A terrain edit excludes the whole brush cell and its neighbours from
+    // the survey. A coarse dry semantic cell may legitimately contain a strait.
+    float weight=data.g*FlatPresentationSample(_EarthSurveyMask,uv,0).r;
+    [branch] if(weight<=0)return 0;
+    float detail=smoothstep(.975,.999,data.g)*(1-smoothstep(2,6,abs(km)))*(1-smoothstep(1.2,4,footprintKm));
+    [branch] if(detail>0 && _EarthStraitDetail_TexelSize.z>=4096)
+    {
+        float fine=FlatEarthStraitPage(origin);
+        if(fine>=0)
+        {
+            float2 page=FlatEarthStraitSlot(fine,31)*130;
+            float code=FlatPresentationSample(_EarthStraitDetail,(page+1+phase*128)*_EarthStraitDetail_TexelSize.xy,0).r;
+            km=lerp(km,(255*code-128)/16,detail);
+        }
+    }
+    return float2(km*_MapSize.x/40030.2,weight);
+}
+
+float FlatEarthShoreAA(float2 uv,float aa,float strait)
+{
+    if(strait<=0)return aa;
+    // A 0.008-cell floor would blur over a kilometre on a 256-wide map.
+    float surveyed=clamp(.65*FlatEarthGroundFootprint(uv)*_MapSize.x,.0001,.28);
+    return lerp(aa,surveyed,strait);
+}
+
+float FlatEarthBeachScale(float strait)
+{
+    // The surveyed distance is in equatorial cells. Limit a unit of beach /
+    // breaking-wave artwork to 400 metres along these high-resolution banks.
+    return lerp(1,max(1,(40030.2/.4)*_MapSize.z),strait);
+}
+
+void FlatEarthMarineOptics(float2 coast,float bed,float strait,inout float4 optics,inout float wetSupport)
+{
+    float wet=max(0,coast.y-strait)*smoothstep(-.02,.10,coast.x);
+    if(wet>0)
+    {
+        if(wetSupport<=1e-6)optics=float4(optics.r,0,0,3);
+        optics.r=lerp(optics.r,max(.15,-bed),wet);
+        wetSupport=max(wetSupport,wet);
+    }
+    if(strait<=0)return;
+    float km=coast.x*40030.2*_MapSize.z;
+    wet=strait*smoothstep(-.08,.16,km);
     if(wet<=0)return;
-    if(wetSupport<=1e-6)optics=float4(optics.r,0,0,3);
-    optics.r=lerp(optics.r,max(.15,-bed),wet);
+    // Retain available simulated marine depth/sediment. Over a dry grid
+    // sample, supply a shallow optical bed for the surveyed saltwater receiver.
+    float depth=bed<0?max(.35,-bed):clamp(.5+max(0,km)*5,.5,18);
+    float marine=saturate(wetSupport*4)*saturate(4-optics.a);
+    if(wetSupport<=1e-6)optics=float4(depth,0,0,3);
+    optics.rgb=lerp(optics.rgb,float3(depth,0,0),wet*(1-marine));
+    optics.a=lerp(optics.a,3,wet);
     wetSupport=max(wetSupport,wet);
 }
 
-void FlatApplyEarthShore(float waterKind,inout float shore,inout float2 coast)
+float FlatApplyEarthShore(float2 uv,float waterKind,inout float shore,inout float2 coast)
 {
-    if(abs(waterKind-4)<.5)coast.y=0; // Simulated lake level and extent take precedence.
+    if(abs(waterKind-4)<.5){coast.y=0;return 0;} // Preserve simulated inland lake levels and extents.
     shore=lerp(shore,coast.x,coast.y);
+    float2 strait=FlatEarthStrait(uv,FlatEarthGroundFootprint(uv)*40030.2);
+    if(strait.y>0)
+    {
+        shore=lerp(shore,strait.x,strait.y);
+        coast=float2(shore,lerp(coast.y,1,strait.y));
+    }
+    return strait.y;
 }
 #endif

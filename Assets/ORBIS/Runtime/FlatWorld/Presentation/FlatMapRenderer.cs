@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using Unity.Collections;
 using UnityEngine;
 namespace Orbis.Flat
 {
@@ -30,6 +31,8 @@ namespace Orbis.Flat
         internal RectInt LocalEditFootprint { get; private set; }
         Mesh mesh;MeshRenderer meshRenderer;int dataRevision=-1;
         FlatTerrainFacts vegetationSource;
+        bool vegetationMonthPair,riverPanelPair;
+        int uploadedVegetationMonth=-1,uploadedRiverPanel=-1;
         FlatMapRenderJobs renderJobs;
         FlatRiverAtlas riverAtlas;
         FlatEarthPolarRelief earthRelief;
@@ -64,10 +67,18 @@ namespace Orbis.Flat
             if(!SystemInfo.SupportsTextureFormat(format))throw new NotSupportedException("Water data requires RGBAHalf or RGBAFloat textures.");
             return new Texture2D(width,height,format,false,true){name=label,filterMode=smooth?FilterMode.Bilinear:FilterMode.Point,wrapModeU=TextureWrapMode.Repeat,wrapModeV=TextureWrapMode.Clamp,anisoLevel=0};
         }
+        void BindWorld(WorldData world,int maximumTextureSize)
+        {
+            World=world;
+            // Keep large worlds' two interpolated months at full tile resolution.
+            vegetationMonthPair=world.Width>2048||Math.Max((world.Width+2)*3,(world.Height+2)*4)>maximumTextureSize;
+            riverPanelPair=world.Height*3>maximumTextureSize;
+        }
         public void Initialize(WorldData world)
         {
             if(world.Facts==null)FlatTerrainAnalysis.Build(world,System.Threading.CancellationToken.None,false);
-            World=world;TerrainTexture=Make(world.Width,world.Height,"Flat world terrain / water");DisplayTexture=Make(world.Width,world.Height,"Flat world active overlay");OwnerTexture=Make(world.Width,world.Height,"Authoritative nation colors");InfoTexture=Make(world.Width,world.Height,"Flat world semantic data",true);
+            BindWorld(world,SystemInfo.maxTextureSize);
+            TerrainTexture=Make(world.Width,world.Height,"Flat world terrain / water");DisplayTexture=Make(world.Width,world.Height,"Flat world active overlay");OwnerTexture=Make(world.Width,world.Height,"Authoritative nation colors");InfoTexture=Make(world.Width,world.Height,"Flat world semantic data",true);
             TerrainTexture.filterMode=DisplayTexture.filterMode=FilterMode.Bilinear;
             Shader shader=Resources.Load<Shader>("ORBIS/FlatWorld/FlatMap");if(!shader)throw new InvalidOperationException("Missing ORBIS/FlatWorld/FlatMap shader.");
             if(!shader.isSupported)throw new InvalidOperationException("FlatMap shader is unsupported or failed to compile. See the Unity shader Console report.");
@@ -126,12 +137,32 @@ namespace Orbis.Flat
             var facts=World.Facts;
             if(ReferenceEquals(vegetationSource,facts))return;
             if(!facts.VegetationSeasonsReady){vegetationSource=null;return;}
-            int width=(World.Width+2)*3,height=(World.Height+2)*4;
+            int atlasWidth=(World.Width+2)*3,atlasHeight=(World.Height+2)*4;
             if(!VegetationTexture)
-                VegetationTexture=new Texture2D(width,height,TextureFormat.RGBA32,false,true)
-                {name="Monthly growth, foliage, snow and soil moisture",filterMode=FilterMode.Bilinear,wrapMode=TextureWrapMode.Clamp,anisoLevel=0};
-            VegetationTexture.LoadRawTextureData(facts.VegetationSeasons);VegetationTexture.Apply(false,false);
+                VegetationTexture=new Texture2D(vegetationMonthPair?World.Width:atlasWidth,vegetationMonthPair?World.Height*2:atlasHeight,TextureFormat.RGBA32,false,true)
+                {name="Monthly growth, foliage, snow and soil moisture",filterMode=FilterMode.Bilinear,
+                 wrapModeU=vegetationMonthPair?TextureWrapMode.Repeat:TextureWrapMode.Clamp,wrapModeV=TextureWrapMode.Clamp,anisoLevel=0};
+            if(!vegetationMonthPair){VegetationTexture.LoadRawTextureData(facts.VegetationSeasons);VegetationTexture.Apply(false,false);}
+            uploadedVegetationMonth=-1;
             vegetationSource=facts;
+        }
+        void UploadVegetationMonths(int month)
+        {
+            if(vegetationSource==null||!vegetationMonthPair||uploadedVegetationMonth==month)return;
+            var pixels=VegetationTexture.GetPixelData<byte>(0);
+            int rowBytes=World.Width*4;
+            for(int offset=0;offset<2;offset++)
+            {
+                int panelMonth=(month+offset)%12;
+                if(uploadedVegetationMonth>=0&&(panelMonth==uploadedVegetationMonth||panelMonth==(uploadedVegetationMonth+1)%12))continue;
+                int destination=(panelMonth%2)*World.Height*rowBytes;
+                for(int row=0;row<World.Height;row++)
+                {
+                    int source=FlatEcology.SeasonOffset(World,row*World.Width,panelMonth);
+                    NativeArray<byte>.Copy(vegetationSource.VegetationSeasons,source,pixels,destination+row*rowBytes,rowBytes);
+                }
+            }
+            VegetationTexture.Apply(false,false);uploadedVegetationMonth=month;
         }
         public void SetVegetationDay(double day,Material target=null)
         {
@@ -143,19 +174,29 @@ namespace Orbis.Flat
                 if(stages!=null)
                 {
                     if(!RiverSeasonTexture)
-                        RiverSeasonTexture=new Texture2D(World.Width,World.Height*3,TextureFormat.RGBA32,false,true)
+                        RiverSeasonTexture=new Texture2D(World.Width,World.Height*(riverPanelPair?2:3),TextureFormat.RGBA32,false,true)
                         {name="Monthly river discharge ratios",filterMode=FilterMode.Bilinear,wrapModeU=TextureWrapMode.Repeat,wrapModeV=TextureWrapMode.Clamp};
-                    RiverSeasonTexture.LoadRawTextureData(stages.Packed);RiverSeasonTexture.Apply(false,false);
+                    if(!riverPanelPair){RiverSeasonTexture.LoadRawTextureData(stages.Packed);RiverSeasonTexture.Apply(false,false);}
+                    uploadedRiverPanel=-1;
                 }
                 riverSeasons=stages;
             }
             target.SetTexture("_RiverSeasonTex",RiverSeasonTexture?RiverSeasonTexture:Texture2D.blackTexture);
             target.SetFloat("_RiverSeasonReady",riverSeasons!=null?1:0);
             var months=new Vector4(month,(month+1)%12,(float)(period-whole),0);
-            target.SetVector("_RiverSeason",months);
+            if(riverPanelPair&&stages!=null&&uploadedRiverPanel!=month/4)
+            {
+                int panel=month/4,bytes=World.Count*4;
+                var pixels=RiverSeasonTexture.GetPixelData<byte>(0);
+                NativeArray<byte>.Copy(stages.Packed,panel*bytes,pixels,0,bytes);
+                NativeArray<byte>.Copy(stages.Packed,((panel+1)%3)*bytes,pixels,bytes,bytes);
+                RiverSeasonTexture.Apply(false,false);uploadedRiverPanel=panel;
+            }
+            target.SetVector("_RiverSeason",riverPanelPair?new Vector4(month%4,month%4+1,months.z,1):months);
             if(target!=Material&&riverAtlas!=null)riverAtlas.Bind(target);
             target.SetTexture("_VegetationSeasonTex",VegetationTexture?VegetationTexture:Texture2D.whiteTexture);
             target.SetFloat("_VegetationSeasonReady",vegetationSource!=null?1:0);
+            UploadVegetationMonths(month);months.w=vegetationMonthPair?1:0;
             target.SetVector("_VegetationSeason",months);
             var year=FlatClimateYear.At(FMath.Seed(World.Seed),day);
             target.SetVector("_ClimateYearHeat",new Vector4(year.HeatX,year.HeatY,year.HeatZ,year.MeanHeat));
@@ -230,7 +271,7 @@ namespace Orbis.Flat
         {
             target.SetVector("_PoleBedDepth",poleBedDepth);
             if(earthRelief!=null)earthRelief.Bind(target);
-            else {target.SetFloat("_EarthPolarReady",0);target.SetFloat("_EarthLakeReady",0);}
+            else {target.SetFloat("_EarthPolarReady",0);target.SetFloat("_EarthLakeReady",0);target.SetFloat("_EarthStraitReady",0);}
         }
         void OnDestroy()
         {

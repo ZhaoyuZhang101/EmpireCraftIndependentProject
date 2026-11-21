@@ -54,16 +54,16 @@
     float4 field=FlatField(cell);
     float gridBed=field.r;
     float2 terrainGradient=0,surveyCoast=0;
-    float surveyWeight=0,surveyLake=0;
+    float surveyWeight=0,surveyLake=0,surveyStrait=0;
     if(terrainView>.5||_WaterView>.5||_RiverMap>.5)
     {
      if(terrainView>.5)terrainGradient=FlatFieldGradient(cell,0);
      surveyWeight=FlatEarthRelief(i.uv,field.r,terrainGradient,surveyCoast);
-     FlatApplyEarthShore(info.g,field.g,surveyCoast);
-     surveyLake=FlatEarthLake(i.uv,info.g,field.g);
+     surveyStrait=FlatSurveyBasinShore(i.uv,cell,_InfoTex,info.g,field.g,surveyCoast);
+     surveyLake=FlatEarthLake(i.uv,info.g,surveyStrait,field.g);
     }
     float edgeDistance;
-    float aa=clamp(.65/max(1,_PixelsPerTile),.008,.28);
+    float aa=FlatEarthShoreAA(i.uv,clamp(.65/max(1,_PixelsPerTile),.008,.28),surveyStrait);
     float4 river=FlatRiverReceiver(cell,uv,hydro,mixing,field);
     float overviewInk=0,closeRiver=0;
     if(_WaterView>.5||_RiverMap>.5)overviewInk=FlatRiverMapInk(cell,river,closeRiver);
@@ -143,14 +143,18 @@
      float wetSupport;
      float4 areaOptics=FlatAreaWaterOptics(cell,_InfoTex,float4(field.b,mixing.g,mixing.b,floor(info.g+.5)),wetSupport);
      if(surveyWeight>0&&wetSupport>0)areaOptics.r=max(.15,areaOptics.r+(gridBed-field.r));
-     FlatEarthMarineOptics(surveyCoast,field.r,areaOptics,wetSupport);
+     FlatEarthMarineOptics(surveyCoast,field.r,surveyStrait,areaOptics,wetSupport);
      FlatEarthLakeOptics(surveyLake,field.g,areaOptics,wetSupport);
-     FlatCoastalSediment coast=FlatCoastAt(cell,field,areaOptics,wetSupport,edgeDistance,frozen,_WaterClock);
+     float beachScale=FlatEarthBeachScale(surveyStrait*(1-surveyLake));
+     FlatCoastalSediment coast=FlatCoastAt(cell,field,areaOptics,wetSupport,edgeDistance,frozen,_WaterClock,beachScale);
      FlatRiverSection channel=FlatRiverSectionAt(cell,river,field);
      float sediment=FlatReachSediment(cell,channel,field.g,mixing.g);
      field.b=areaOptics.r;mixing.gb=areaOptics.gb;
      mixing.g=lerp(mixing.g,sediment,channel.influence);
-     col=FlatWaterBanks(cell,col,terrainRelief.rgb,channel,sediment,field.g,(1-waterMask)*_ShowBanks,aa,1/max(1,_PixelsPerTile));
+     // The Water overlay has a solid dry legend colour. Restore it where a
+     // surveyed bank lies inside a blue simulation cell, before shading water.
+     col=lerp(col,FlatColor(float3(118,123,113)/255),surveyStrait*(1-naturalView)*(1-waterMask));
+     col=FlatWaterBanks(cell,col,terrainRelief.rgb,channel,sediment,field.g,(1-waterMask)*_ShowBanks,aa,1/max(1,_PixelsPerTile),beachScale);
      col=lerp(col,coast.albedo*terrainRelief.rgb,coast.coverage*_ShowBanks*naturalView);
      col*=illumination;
      float3 bottom=FlatMaterialColor(floor(geo.g+.5))*.72;

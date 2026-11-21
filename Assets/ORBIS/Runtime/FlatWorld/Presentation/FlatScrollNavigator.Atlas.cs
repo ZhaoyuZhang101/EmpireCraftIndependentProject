@@ -68,7 +68,7 @@ namespace Orbis.Flat
                 go.transform.SetParent(transform, false);
                 atlas = go.AddComponent<MarkleyAtlasNavigator>();
                 atlas.Initialize(world, viewCamera, maps);
-                atlas.SetRoute(route);
+                atlas.SetGeographicRoute(route,seaRoute);
             }
             atlasEnterPending = atlasExitPending = atlasAligning = false;
             SetStrategicSurface(true);
@@ -81,7 +81,7 @@ namespace Orbis.Flat
             atlasMode = strategic;
             atlas.gameObject.SetActive(strategic);
             terrain.enabled = !strategic;
-            if (routeRenderer) routeRenderer.enabled = !strategic;
+            if (routeRenderer) routeRenderer.enabled = !strategic && route.Length > 1;
         }
 
         PlanetLocation TileLocation(int tile) => PlanetCoordinateSystem.FromMapUV(

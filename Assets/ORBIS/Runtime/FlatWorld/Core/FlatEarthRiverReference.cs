@@ -28,7 +28,7 @@ namespace Orbis.Flat
         {
             if(world.Preset!=TerrainPreset.Earth)return;
             cancel.ThrowIfCancellationRequested();
-            world.WaterReference=FlatWaterReference.Read(world.Width,bed,water,world.UsesSurveyedLakeBeds);
+            world.WaterReference=FlatWaterReference.Read(world.Width,bed,water,world.UsesSurveyedLakeBeds,world.UsesSurveyedStraits);
             world.RiverReference=Read(rivers);
             world.Facts.RiverCurves=FlatRiverCurves.Build(world,world.Facts,cancel);
         }

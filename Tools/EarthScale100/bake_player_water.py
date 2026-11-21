@@ -145,18 +145,17 @@ def supplemental_stages(lakes, survey):
     return sorted(result)
 
 
-def encode(grid, corrected, extra):
+def encode(grid, corrected, extra, channels):
     # North-first signed metre/classification spans. Runs may cross rows.
     values = grid.ravel()
     edges = np.r_[0, np.flatnonzero(np.diff(values) != 0) + 1, values.size]
     runs = np.empty(len(edges) - 1, dtype=[("value", "<i2"), ("count", "<i4")])
     runs["value"] = values[edges[:-1]]
     runs["count"] = np.diff(edges)
-    data = (struct.pack("<4sii", b"OWR3" if extra else b"OWR2", grid.shape[1], len(runs)) + runs.tobytes()
+    data = (struct.pack("<4sii", b"OWR4", grid.shape[1], len(runs)) + runs.tobytes()
             + struct.pack("<i", len(corrected)) + corrected.tobytes())
-    if extra:
-        data += struct.pack("<i", len(extra)) + b"".join(struct.pack("<ih", cell, stage) for cell, stage in extra)
-    return data
+    data += struct.pack("<i", len(extra)) + b"".join(struct.pack("<ih", cell, stage) for cell, stage in extra)
+    return data + struct.pack("<i", len(channels)) + np.asarray(channels, dtype="<i4").tobytes()
 
 
 def main():
@@ -174,6 +173,9 @@ def main():
     # The world-ocean polygon spans all longitudes. Disconnected polygons in
     # the same source layer are enclosed inland water, including the Caspian.
     global_sea = max(ocean, key=lambda p: np.ptp(np.array(p[0])[:, 0]))
+    from shapely.geometry import Polygon
+    from bake_straits import passages, representative_channels
+    straits = list(passages(Polygon(global_sea[0], global_sea[1:])))
     inland = [p for p in ocean if p is not global_sea]
     inland += [p for f in features("lakes", args.cache) for p in polygons(f)]
     marine = Image.new("L", (terrain.shape[1], terrain.shape[0]))
@@ -200,14 +202,16 @@ def main():
         bed = np.fromfile(RESOURCES / f"Earth{width}.bytes", "<i2").reshape(size[::-1])
         corrected = representative_beds(sources, survey, bed)
         extra = supplemental_stages(extra_lakes, survey)
-        payload = encode(survey, corrected, extra)
+        channels = representative_channels(straits, bed, survey, MARINE, PASSAGE)
+        payload = encode(survey, corrected, extra, channels)
         path = RESOURCES / f"EarthWater{width}.bytes"
         if args.check:
             if path.read_bytes() != payload:
                 raise ValueError(f"{path.name} differs from the reference")
         else:
             path.write_bytes(payload)
-        print(f"{path.name}: {len(corrected)} majority-lake beds, {len(extra)} supplemental cells, {len(payload)} bytes, "
+        print(f"{path.name}: {len(corrected)} majority-lake beds, {len(extra)} supplemental lake cells, "
+              f"{len(channels)} strait cells, {len(payload)} bytes, "
               f"sha256 {hashlib.sha256(payload).hexdigest()}")
 
 

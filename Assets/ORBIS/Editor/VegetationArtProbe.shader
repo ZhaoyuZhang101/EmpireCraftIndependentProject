@@ -12,11 +12,28 @@ Shader "Hidden/ORBIS/VegetationArtProbe"
  sampler2D _InfoTex;
  #include "../Resources/ORBIS/FlatWorld/FlatPixelDetail.cginc"
  float2 _ProbeRoot;
+ float2 _ProbeGrid;
  float _ProbeMode;
  float _ProbeSpecies,_ProbeSeed,_ProbeFoliage;
  float3 _ProbeLight;
  float4 frag(v2f_img i):SV_Target
  {
+  if(_ProbeMode>9.5)
+  {
+   float2 id=_ProbeRoot+floor(i.uv*_ProbeGrid);
+   float4 placement=PDTreePlacement(id);
+   float2 uv=(id+placement.xy/32)*_MapSize.zw;
+   float2 root=FlatEarthStrait(uv,0);
+   if(_ProbeMode>10.5)
+   {
+    float2 centreUV=(id+.5)*_MapSize.zw;
+    float4 info=tex2Dlod(_InfoTex,float4(centreUV,0,0))*255;
+    float4 ecology=FlatEcologyData(centreUV,info);placement.w=ecology.a;
+    return float4((uv-.5)*float2(360,180),root.x*40030.2*_MapSize.z,PDTreeAvailable(id,placement,info,ecology));
+   }
+   float centre=FlatEarthStrait((id+.5)*_MapSize.zw,0).x;
+   return float4(PDTreeSize(id,placement,0,float4(-1,0,0,0)),root,centre);
+  }
   if(_ProbeMode>2.5)
   {
    float2 pixel=floor((i.uv-float2(.5,.30))*48);

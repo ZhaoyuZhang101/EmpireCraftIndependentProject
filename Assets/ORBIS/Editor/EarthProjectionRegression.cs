@@ -41,6 +41,7 @@ namespace Orbis.Editor
                 probe.CopyPropertiesFromMaterial(renderer.Material);
                 probe.SetFloat("_ProjectionProbe", 5);
                 ShaderUtil.allowAsyncCompilation = false;
+                VegetationArtRegression.CheckSurveyedTreeRoots(renderer.Material);
                 ShaderUtil.CompilePass(probe, 0, true);
                 var poles = FlatGlobeGeometry.PolarHeights(world);
                 double poleError = 0, centreError = 0, shapeError = 0, depthError = 0;

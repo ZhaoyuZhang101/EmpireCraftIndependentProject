@@ -12,7 +12,9 @@ public static class Program {
     case "--tectonics": TectonicsRegression.Run(); break;
     case "--earth": EarthPresetRegression(); break;
     case "--world-sizes": WorldSizeRegression(); break;
-    case "--large-presets": LargeProceduralPresets(); break;
+    case "--rebuild-snapshot": RebuildSnapshotRegression(); break;
+    case "--large-presets": LargeProceduralPresets(args); break;
+    case "--large-raster": LargeRasterRegression(); break;
     case "--river-discharge": RiverDischargeRegression.Run(); break;
     case "--river-map": RiverMapRegression.Run(); break;
     case "--forest-stands": ForestStandRegression.Run(); break;
@@ -28,6 +30,8 @@ public static class Program {
     case "--environment": EnvironmentRegression(); break;
     case "--hydrology": HydrologyRegression.Run(); break;
     case "--basin-water": BasinWaterRegression.Run(); break;
+    case "--earth-straits": BasinWaterRegression.EarthStraits(); break;
+    case "--sea-routes": SeaRouteRegression.Run(args); break;
     case "--cyclone": CycloneRegression.Run(); break;
     default: Console.WriteLine(FlatSelfTests.Run()); break;
    }
@@ -62,7 +66,7 @@ public static class Program {
   if(worstSlope>.012||worstRelief>.012)throw new Exception($"Equal ground slopes differ by {worstSlope:P2}, relief by {worstRelief:P2}.");
   Console.WriteLine($"PASS spherical terrain diagnostics, maximum slope/relief errors {worstSlope:P2}/{worstRelief:P2}");
  }
- static void LargeProceduralPresets() {
+ static void LargeProceduralPresets(string[] args) {
   void Check(int width,TerrainPreset preset) {
    var timer=System.Diagnostics.Stopwatch.StartNew();
    var world=FlatGenerator.Generate(width,width/2,"SCALE-QA-"+width,preset,default);
@@ -75,29 +79,100 @@ public static class Program {
    if(world.Tectonics==null||world.Facts==null||world.Moisture==null||habitable<=0||marine<=0||
       world.Count!=(long)width*width/2||world.Temperature.Length!=world.Count*12)
     throw new Exception("Incomplete generated world: "+width+" "+preset);
-   Console.WriteLine($"PASS {preset} {width}x{world.Height}: {world.Count:N0} validated tiles, {habitable:N0} habitable, {marine:N0} marine, {timer.Elapsed.TotalSeconds:F1}s");
+   if(world.ZoneTile(world.ZoneCount-1,15)!=world.Count-1 || world.Index(width,world.Height-1)!=world.Count-width)
+    throw new Exception("Last zone or longitude seam addresses the wrong tile.");
+   using var process=System.Diagnostics.Process.GetCurrentProcess();
+   Console.WriteLine($"PASS {preset} {width}x{world.Height}: {world.Count:N0} validated tiles, {habitable:N0} habitable, {marine:N0} marine, {timer.Elapsed.TotalSeconds:F1}s, process peak {process.PeakWorkingSet64/1048576:N0} MiB");
   }
-  foreach(int width in new[]{1536,2048})foreach(var preset in FlatGenerator.ProceduralPresets) {
+  var widths=args.Length>1?new[]{int.Parse(args[1])}:new[]{1536,2048,4096};
+  var presets=FlatGenerator.ProceduralPresets;
+  if(args.Length>2) {
+   var selected=Enum.Parse<TerrainPreset>(args[2],true);
+   if(!System.Linq.Enumerable.Contains(presets,selected))throw new ArgumentException("Expected a procedural terrain preset.");
+   presets=new[]{selected};
+  }
+  foreach(int width in widths)foreach(var preset in presets) {
    Check(width,preset);
    GC.Collect();
   }
  }
+ static void RebuildSnapshotRegression() {
+  const string resources="Assets/ORBIS/Resources/ORBIS/FlatWorld/";
+  const int width=256;
+  var bed=System.IO.File.ReadAllBytes(resources+"Earth256.bytes");
+  var water=System.IO.File.ReadAllBytes(resources+"EarthWater256.bytes");
+  var rivers=FlatEarthRiverReference.Read(System.IO.File.ReadAllBytes(resources+"EarthRivers.bytes"));
+  foreach(int version in new[]{3,4,5}) {
+   var reference=FlatWaterReference.Read(width,bed,water,version>=4,version>=5);
+   var original=new WorldData(width,width/2,"REBUILD-SNAPSHOT",TerrainPreset.Earth) {
+    WaterReference=reference,RiverReference=rivers,UsesSurveyedLakeBeds=version>=4,UsesSurveyedStraits=version>=5
+   };
+   for(int i=0;i<original.Count;i++)original.Elevation[i]=reference.OriginalBed(i);
+   FlatGenerator.Rebuild(original,default);
+   if(new FlatSimulation(original).SeedNations(2)!=2)throw new Exception("Missing civilization fixture.");
+   var initial=FlatSave.Encode(original);
+   var full=original.Clone();
+   var snapshot=original.CloneForTerrainRebuild();
+   if(snapshot.Facts!=null||snapshot.Moisture!=null||full.Facts==null||ReferenceEquals(full.Facts,original.Facts))
+    throw new Exception("The rebuild snapshot copied superseded derived caches, or the full clone lost them.");
+   int capital=original.Nations[0].Capital,sea=Array.FindIndex(original.Water,FlatTerrainAnalysis.Ocean);
+   foreach(var candidate in new[]{full,snapshot}) {
+    candidate.Elevation[capital]=-2200;candidate.Elevation[sea]=900;
+    FlatGenerator.Rebuild(candidate,default);
+   }
+   if(snapshot.WaterReference!=reference||snapshot.RiverReference!=rivers||snapshot.Elevation[sea]!=900||
+      FlatTerrainAnalysis.Ocean(snapshot.Water[sea])||snapshot.UsesSurveyedLakeBeds!=(version>=4)||snapshot.UsesSurveyedStraits!=(version>=5)||
+      !FlatSave.Encode(snapshot).AsSpan().SequenceEqual(FlatSave.Encode(full))||
+      !snapshot.Facts.VegetationSeasons.AsSpan().SequenceEqual(full.Facts.VegetationSeasons)||
+      !snapshot.Moisture.Rain.AsSpan().SequenceEqual(full.Moisture.Rain)||!FlatSave.Encode(original).AsSpan().SequenceEqual(initial))
+    throw new Exception("Rebuilding the terrain snapshot changed its source, derived state or saved simulation at version "+version);
+   Console.WriteLine($"PASS V{version} Earth rebuild snapshot: byte-identical edited world, seasonal vegetation and rainfall; original world retained");
+  }
+ }
+ static void LargeRasterRegression() {
+  const int width=4096,height=2048;
+  var samples=new ushort[width*height];
+  samples[0]=1234;samples[width-1]=45678;samples[^width]=52109;samples[^1]=65535;
+  var decoded=Orbis.OrbisRasterCodec.Read(Orbis.OrbisRasterCodec.Gray16(width,height,samples));
+  if(decoded.width!=width||decoded.height!=height||!samples.AsSpan().SequenceEqual(decoded.gray))
+   throw new Exception("Largest height PNG changed its dimensions, orientation or 16-bit samples.");
+  var water=new byte[width*height*4];new Random(4096).NextBytes(water);
+  byte[] waterPng=Orbis.OrbisRasterCodec.RGBA8(width,height,water);
+  if(waterPng.Length<=32*1024*1024)throw new Exception("Expected a valid full-resolution RGBA file above the old byte limit.");
+  var preview=Orbis.OrbisRasterCodec.Read(waterPng);
+  if(preview.width!=width||preview.height!=height||!water.AsSpan().SequenceEqual(preview.rgba))
+   throw new Exception("Largest water PNG changed its RGBA samples.");
+  try { Orbis.OrbisRasterCodec.Gray16(width,height+1,null); }
+  catch(System.IO.InvalidDataException) {
+   Console.WriteLine("PASS 4096 x 2048 height and water PNG round trips, oversized raster rejected");return;
+  }
+  throw new Exception("Raster codec accepted a map larger than the playable grid.");
+ }
  static void WorldSizeRegression() {
   const string resources="Assets/ORBIS/Resources/ORBIS/FlatWorld/";
   var widths=Array.ConvertAll(System.IO.File.ReadAllLines(resources+"PlayerWidths.txt"),int.Parse);
-  if(string.Join(",",widths)!="256,512,1024,1536,2048")throw new Exception("Unexpected playable widths.");
+  if(string.Join(",",widths)!="256,512,1024,1536,2048,4096")throw new Exception("Expected 4096 x 2048 alongside existing player sizes.");
   foreach(int width in widths) {
    if(!WorldData.SupportsDimensions(width,width/2))throw new Exception("Menu size rejected by world constructor.");
    if(new System.IO.FileInfo(resources+"Earth"+width+".bytes").Length!=(long)width*width)
     throw new Exception("Earth resource dimensions disagree with playable width "+width);
   }
+  // Independent footprint averages from the 4320 x 2160 source, in north-first order.
+  using(var dem=new System.IO.BinaryReader(System.IO.File.OpenRead(resources+"Earth4096.bytes"))) {
+   foreach(var site in new[]{(3037,705,6295),(3424,756,2497),(17,1575,-4883),(3987,1520,1414)}) {
+    dem.BaseStream.Position=((long)site.Item2*4096+site.Item1)*sizeof(short);
+    if(dem.ReadInt16()!=site.Item3)throw new Exception("4096 Earth elevation did not match the ETOPO cell average at "+site);
+   }
+  }
   int max=WorldData.MaxWidth;
   if(WorldData.SupportsDimensions(max,unchecked(int.MinValue+max/2))||WorldData.SupportsDimensions(max+8,max/2+4))
    throw new Exception("Accepted overflowing or unsupported world dimensions.");
-  if(max!=2048 || FlatSave.MaxFileBytes < (long)max*(max/2)*130 + (long)max*(max/2)/16*4)
+  if(max!=4096 || FlatSave.MaxFileBytes < (long)max*(max/2)*130 + (long)max*(max/2)/16*4)
    throw new Exception("The largest playable world exceeds the save envelope.");
   // A valid checksum on a short payload must not allocate arrays for the advertised large world.
   var fixture=FlatGenerator.Generate(64,32,"SAVE-SIZE",TerrainPreset.Continents,default);
+  // Grid resolution must not change the physical radii accepted by the planet adapter.
+  _=new Orbis.Planet.PlanetSurfaceData(fixture,3000,default);
   byte[] file=FlatSave.Encode(fixture);
   int header="ORBIS-FLAT-01".Length+4+32;
   BitConverter.GetBytes(max).CopyTo(file,header+4);
@@ -105,7 +180,7 @@ public static class Program {
   using(var sha=System.Security.Cryptography.SHA256.Create())sha.ComputeHash(file,header,file.Length-header).CopyTo(file,header-32);
   try {FlatSave.Decode(file);}
   catch(System.IO.InvalidDataException e) when(e.Message.Contains("tile payload")) {
-   Console.WriteLine("PASS five player elevation grids, large save capacity and rejection before world allocation");return;
+   Console.WriteLine($"PASS {widths.Length} player elevation grids, {FlatSave.MaxFileBytes:N0}-byte save capacity and rejection before world allocation");return;
   }
   throw new Exception("Decoder did not reject an undersized grid before allocating the world.");
  }
@@ -119,7 +194,8 @@ public static class Program {
   FlatSave.Validate(world);
   var saved=FlatSave.Decode(FlatSave.Encode(world));
   if(saved.Preset!=TerrainPreset.Earth || world.Tectonics!=null)throw new Exception("Earth source was lost or procedurally regenerated.");
-  int changed=0,largestCut=0,largestRise=0;
+  var previousCoast=FlatWaterReference.Read(width,raw,water,true,false);
+  int changed=0,straits=0,largestCut=0,largestRise=0;
   for(int i=0;i<world.Count;i++) {
    int p=2*((height-1-i/width)*width+i%width);
    short expected=unchecked((short)(raw[p] | raw[p+1]<<8));
@@ -127,6 +203,12 @@ public static class Program {
       saved.WaterLevel[i]!=world.WaterLevel[i] || saved.Water[i]!=world.Water[i] ||
       !world.WaterReference.MatchesOriginalBed(i,world.Elevation[i]))
     throw new Exception($"Earth elevation, water or orientation changed at {i}.");
+   if(world.Elevation[i]!=previousCoast.OriginalBed(i) || world.WaterReference.At(i)!=previousCoast.At(i)) {
+    if(!previousCoast.ContainsMarineShoreOrSea(i) || world.WaterReference.At(i)!=FlatWaterReference.Marine ||
+       world.Elevation[i]!=Math.Min(-1,(int)expected) || world.WaterLevel[i]!=0 || !FlatTerrainAnalysis.Ocean(world.Water[i]))
+     throw new Exception($"Invalid representative strait bed at {i}.");
+    straits++;continue;
+   }
    if(world.Elevation[i]==expected)continue;
    int delta=world.Elevation[i]-expected;
    if(world.Water[i]!=WaterKind.Lake || world.Elevation[i]!=world.WaterReference.At(i) ||
@@ -135,6 +217,7 @@ public static class Program {
    changed++;largestCut=Math.Max(largestCut,-delta);largestRise=Math.Max(largestRise,delta);
   }
   if(changed==0)throw new Exception("The preset did not apply its surveyed majority-lake beds.");
+  if(straits==0)throw new Exception("The preset did not apply its surveyed marine channels.");
   void ExpectBadRaster(byte[] bytes) {
    try { FlatGenerator.Generate(width,height,"INVALID-DEM",TerrainPreset.Earth,default,bytes); }
    catch(ArgumentException) { return; }
@@ -144,7 +227,7 @@ public static class Program {
   ExpectBadRaster(new byte[16]);
   raw[0]=0xff;raw[1]=0x7f;
   ExpectBadRaster(raw);
-  Console.WriteLine($"PASS raw Earth DEM, all {world.Count} preset cells and saved levels; {changed} surveyed lake beds, " +
+  Console.WriteLine($"PASS raw Earth DEM, all {world.Count} preset cells and saved levels; {straits} strait cells, {changed} surveyed lake beds, " +
    $"largest cut {largestCut} m, largest rise {largestRise} m; missing/truncated/out-of-range DEM rejected");
  }
  static void EnvironmentRegression() {

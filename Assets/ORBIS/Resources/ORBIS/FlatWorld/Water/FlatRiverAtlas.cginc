@@ -40,7 +40,8 @@ float FlatRiverMapInk(float2 cell,float4 channel,out float closeView)
 float FlatRiverMonthRatio(float2 uv,float month)
 {
     float panel=floor(month*.25);
-    float4 q=FlatPresentationSample(_RiverSeasonTex,float2(uv.x,(uv.y+panel)/3),0);
+    float panels=_RiverSeason.w>.5?2:3;
+    float4 q=FlatPresentationSample(_RiverSeasonTex,float2(uv.x,(uv.y+panel)/panels),0);
     int component=(int)(month-panel*4);
     return q[component]*4.25;
 }

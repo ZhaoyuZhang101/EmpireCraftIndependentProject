@@ -10,7 +10,9 @@ namespace Orbis
     /// BMP: uncompressed 8-bit indexed, 24/32-bit. Deliberately rejects RLE/interlaced input.</summary>
     public static class OrbisRasterCodec
     {
-        public const int MaxPixels = 2097152, MaxBytes = 32 * 1024 * 1024;
+        public const int MaxPixels = 4096 * 2048;
+        // A full-size 16-bit RGBA PNG can contain eight bytes per pixel, plus filters and PNG framing.
+        public const int MaxBytes = MaxPixels * 8 + 1024 * 1024;
         public sealed class Raster
         {
             public int width, height;
@@ -22,10 +24,10 @@ namespace Orbis
         static void PutBE(Stream s,uint v){s.WriteByte((byte)(v>>24));s.WriteByte((byte)(v>>16));s.WriteByte((byte)(v>>8));s.WriteByte((byte)v);}
         static uint CRC(byte[] b,int start,int count){uint c=0xffffffff;for(int i=start;i<start+count;i++){c^=b[i];for(int k=0;k<8;k++)c=(c>>1)^((c&1)!=0?0xedb88320u:0);}return c^0xffffffff;}
         static uint Adler(byte[] bytes){uint a=1,b=0;foreach(byte v in bytes){a=(a+v)%65521;b=(b+a)%65521;}return(b<<16)|a;}
-        static void Size(int w,int h){if(w<2||h<2||w>8192||h>4096||(long)w*h>MaxPixels)throw new InvalidDataException("地图尺寸无效：至少 2×2，最多 2,097,152 像素。");}
+        static void Size(int w,int h){if(w<2||h<2||w>8192||h>4096||(long)w*h>MaxPixels)throw new InvalidDataException($"地图尺寸无效：至少 2×2，最多 {MaxPixels:N0} 像素。");}
         public static Raster Read(byte[] bytes)
         {
-            if(bytes==null||bytes.Length<32||bytes.Length>MaxBytes)throw new InvalidDataException("地图文件为空、损坏或超过 32 MiB。");
+            if(bytes==null||bytes.Length<32||bytes.Length>MaxBytes)throw new InvalidDataException($"地图文件为空、损坏或超过 {MaxBytes / 1048576} MiB。");
             if(bytes[0]=='B'&&bytes[1]=='M')return ReadBMP(bytes);
             for(int i=0;i<8;i++)if(bytes[i]!=Signature[i])throw new InvalidDataException("只支持 PNG 或未压缩 BMP；请勿使用 JPEG 高度图。");
             int w=0,h=0,depth=0,type=-1;byte[] palette=null,alpha=null;bool ended=false;

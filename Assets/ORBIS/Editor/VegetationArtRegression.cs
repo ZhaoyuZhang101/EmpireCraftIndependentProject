@@ -127,6 +127,94 @@ namespace Orbis.Editor
    }
   }
 
+  // Geographic longitude, latitude, signed marine distance in km, and live tree eligibility.
+  public static Color[] ReadGeographicTreeRoots(Material surface,RectInt cells)
+  {
+   var probe=new Material(AssetDatabase.LoadAssetAtPath<Shader>("Assets/ORBIS/Editor/VegetationArtProbe.shader"));
+   var target=RenderTexture.GetTemporary(cells.width,cells.height,0,RenderTextureFormat.ARGBFloat,RenderTextureReadWrite.Linear);
+   var pixels=new Texture2D(cells.width,cells.height,TextureFormat.RGBAFloat,false,true);
+   var previous=RenderTexture.active;
+   try
+   {
+    probe.CopyPropertiesFromMaterial(surface);
+    probe.SetFloat("_ProbeMode",11);probe.SetVector("_ProbeRoot",new Vector4(cells.x,cells.y,0,0));
+    probe.SetVector("_ProbeGrid",new Vector4(cells.width,cells.height,0,0));
+    ShaderUtil.CompilePass(probe,0,true);
+    Graphics.Blit(Texture2D.whiteTexture,target,probe);RenderTexture.active=target;
+    pixels.ReadPixels(new Rect(0,0,cells.width,cells.height),0,0);
+    return pixels.GetPixels();
+   }
+   finally
+   {
+    RenderTexture.active=previous;RenderTexture.ReleaseTemporary(target);
+    UnityEngine.Object.DestroyImmediate(pixels);UnityEngine.Object.DestroyImmediate(probe);
+   }
+  }
+
+  internal static void CheckSurveyedTreeRoots(Material earth)
+  {
+   if(earth.GetFloat("_EarthStraitReady")<.5f)throw new InvalidOperationException("Expected the surveyed Earth strait atlas.");
+   const int columns=20,rows=16;
+   var probe=new Material(AssetDatabase.LoadAssetAtPath<Shader>("Assets/ORBIS/Editor/VegetationArtProbe.shader"));
+   var field=new Texture2D(1,1,TextureFormat.RGBAFloat,false,true);
+   var hydro=new Texture2D(1,1,TextureFormat.RGBA32,false,true);
+   var target=RenderTexture.GetTemporary(columns,rows,0,RenderTextureFormat.ARGBFloat,RenderTextureReadWrite.Linear);
+   var pixels=new Texture2D(columns,rows,TextureFormat.RGBAFloat,false,true);
+   var previous=RenderTexture.active;
+   Color[] Sample()
+   {
+    Graphics.Blit(Texture2D.whiteTexture,target,probe);RenderTexture.active=target;
+    pixels.ReadPixels(new Rect(0,0,columns,rows),0,0);
+    return pixels.GetPixels();
+   }
+   try
+   {
+    probe.CopyPropertiesFromMaterial(earth);
+    // Every source tile would support a tree without the regional shoreline.
+    // The real tree anchors may fall on the other side of the bank from their tile centres.
+    field.SetPixel(0,0,new Color(10,-3,0,1));field.Apply();
+    hydro.SetPixel(0,0,Color.clear);hydro.Apply();
+    probe.SetTexture("_VisualTex",field);probe.SetTexture("_HydroA",hydro);probe.SetTexture("_HydroB",hydro);
+    probe.SetFloat("_RiverAtlasReady",0);probe.SetFloat("_RiverPreviewReady",0);probe.SetFloat("_RiverSeasonReady",0);
+    probe.SetVector("_MapSize",new Vector4(4096,2048,1f/4096,1f/2048));
+    probe.SetFloat("_ProbeMode",10);probe.SetVector("_ProbeRoot",new Vector4(2371,1481,0,0));
+    probe.SetVector("_ProbeGrid",new Vector4(columns,rows,0,0));
+    ShaderUtil.CompilePass(probe,0,true);
+    var surveyed=Sample();
+    probe.SetTexture("_EarthSurveyMask",hydro);
+    var edited=Sample();
+    probe.SetTexture("_EarthSurveyMask",earth.GetTexture("_EarthSurveyMask"));probe.SetFloat("_EarthStraitReady",0);
+    var legacy=Sample();
+    int wet=0,dry=0,split=0,smaller=0,inland=0;
+    for(int i=0;i<surveyed.Length;i++)
+    {
+     Color s=surveyed[i];
+     bool expected=Mathf.Lerp(-3,s.g,s.b)<0;
+     float originalSize=legacy[i].r;
+     if((s.r>0)!=expected || originalSize<=0 || s.r>originalSize+.00001f ||
+        edited[i].r!=originalSize || edited[i].b!=0 || legacy[i].b!=0)
+      throw new InvalidOperationException($"Surveyed tree root {i} differs: survey={s}, edit={edited[i]}, old save={legacy[i]}");
+     if(s.b<.99999f)continue;
+     if(expected)
+     {
+      dry++;
+      if(s.r<originalSize-.0001f)smaller++;else inland++;
+     }
+     else wet++;
+     if((s.g<0)!=(s.a<0))split++;
+    }
+    if(wet==0||dry==0||split==0||smaller==0||inland==0)
+     throw new InvalidOperationException($"Missing tree-root controls: sea={wet}, land={dry}, opposite centres={split}, reduced coast={smaller}, unchanged inland={inland}");
+    Debug.Log($"Surveyed tree roots PASS: {surveyed.Length} Bosporus / Izmit candidates, {wet} sea roots removed, {dry} dry roots retained, {split} roots across shore from tile centres, {smaller} coastal symbols reduced, {inland} inland sizes unchanged; edits and old saves retain all original sizes.");
+   }
+   finally
+   {
+    RenderTexture.active=previous;RenderTexture.ReleaseTemporary(target);
+    UnityEngine.Object.DestroyImmediate(pixels);UnityEngine.Object.DestroyImmediate(field);
+    UnityEngine.Object.DestroyImmediate(hydro);UnityEngine.Object.DestroyImmediate(probe);
+   }
+  }
+
   static void Check(List<string> lines,bool pass,string message)
   {lines.Add((pass?"PASS ":"FAIL ")+message);}
  }

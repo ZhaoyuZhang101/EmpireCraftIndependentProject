@@ -8,6 +8,10 @@ Shader "ORBIS/FlatWorld/WildlifeActors"
   _SkyTex("Climate cloud shadows",2D)="black"{}
   _VisualTex("Terrain fields",2D)="black"{}
   _InfoTex("Terrain objects",2D)="black"{}
+  [HideInInspector] _EarthSurveyMask("Unedited Earth terrain",2D)="white"{}
+  [HideInInspector] _EarthStraitShore("Regional marine shorelines",2D)="black"{}
+  [HideInInspector] _EarthStraitDetail("Surveyed strait banks",2D)="black"{}
+  [HideInInspector] _EarthStraitReady("Strait shoreline survey ready",Float)=0
   [HideInInspector] _PlantHeightTex("Local terrain vertex heights",2D)="black"{}
   [HideInInspector] _PlantLattice("Local height lattice",Vector)=(0,0,0,0)
   [HideInInspector] _ScrollRelief("Terrain relief view",Vector)=(0,0,.72,0)
