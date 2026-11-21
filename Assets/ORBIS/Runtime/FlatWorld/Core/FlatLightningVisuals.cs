@@ -49,16 +49,16 @@ namespace Orbis.Flat
             }
             cooldown-=delta;if(cooldown>0)return;
             cooldown=1.8f+(float)random.NextDouble()*3.6f;
-            int month=world.Month,next=(month+1)%12,chosen=-1;float best=0;
-            float blend=FMath.Clamp((float)(world.Day%30)/30,0,1);
+            int chosen=-1;float best=0;
+            var season=new FlatMonthlyForcing(world.Day);
             var climate=FlatClimateYear.At(FMath.Seed(world.Seed),world.Day);
             for(int attempt=0;attempt<32;attempt++)
             {
                 int x=local?FMath.Wrap((int)Math.Floor(focusX)+random.Next(-6,7),world.Width):random.Next(world.Width);
                 int y=local?FMath.Clamp((int)Math.Floor(focusY)+random.Next(-6,7),0,world.Height-1):random.Next(world.Height);
                 int cell=y*world.Width+x;
-                float rain=FMath.Lerp(world.Precipitation[cell*12+month],world.Precipitation[cell*12+next],blend);
-                float temperature=FMath.Lerp(world.Temperature[cell*12+month],world.Temperature[cell*12+next],blend);
+                float rain=season.Sample(world.Precipitation,cell*12,ClimateRange.Nonnegative);
+                float temperature=season.Sample(world.Temperature,cell*12);
                 climate.AtTile(cell,world.Width,world.Height,out float degrees,out float regionalRain);
                 rain*=1+regionalRain;temperature+=degrees;
                 if(rain<90||temperature<2)continue;

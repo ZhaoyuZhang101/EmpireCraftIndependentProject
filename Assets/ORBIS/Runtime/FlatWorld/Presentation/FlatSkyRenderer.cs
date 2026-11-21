@@ -14,10 +14,14 @@ namespace Orbis.Flat
         public string Status { get; private set; } = "云层缓存等待启用。";
         public int CacheWidth { get; private set; }
         const int ClimateWidth=128,ClimateHeight=64;
-        WorldData world;Texture2D climate,hpHigh,wind,climateWind;Texture3D hpNoise,hpDetail;Material bake,hpColumn;
+        WorldData world;Texture2D climate,hpHigh,wind,windBack,climateWind;Texture3D hpNoise,hpDetail;Material bake,hpColumn;
         readonly Color32[] monthly=new Color32[ClimateWidth*ClimateHeight];
         readonly Color[] windPixels=new Color[ClimateWidth*ClimateHeight],seasonalWindPixels=new Color[ClimateWidth*ClimateHeight];
-        int climatePeriod=-1,revision=-1,windMonth=-1,windRevision=-1;float debt;bool rendered,failed;
+        readonly Vector2[] longitudeBasis=new Vector2[ClimateWidth],latitudeBasis=new Vector2[ClimateHeight];
+        double climateStartDay=double.NaN,windStartDay=double.NaN;
+        double visibleWindDay=double.NaN,stagingWindDay;
+        int visibleWindRevision=-1;bool stagingWind;
+        int revision=-1,windRevision=-1;float debt,windBlend;bool rendered,failed;
         double stagedClock;
         Vector4 pendingNorth,pendingSouth,visibleNorth,visibleSouth;
         FlatRegionalCloudField regionalClimate;
@@ -35,8 +39,18 @@ namespace Orbis.Flat
         {
             world=data;
             lightning=new FlatLightningVisuals(data);
-            wind=WeatherTexture("Visual cloud drift");climateWind=WeatherTexture("Seasonal prevailing winds");
-            UploadWind(world.Month);
+            wind=WeatherTexture("Visual cloud drift");windBack=WeatherTexture("Cloud drift staging");climateWind=WeatherTexture("Seasonal prevailing winds");
+            for(int x=0;x<ClimateWidth;x++)
+            {
+                float lon=((x+.5f)/ClimateWidth-.5f)*2*Mathf.PI;
+                longitudeBasis[x]=new Vector2(Mathf.Sin(lon),Mathf.Cos(lon));
+            }
+            for(int y=0;y<ClimateHeight;y++)
+            {
+                float lat=((y+.5f)/ClimateHeight-.5f)*Mathf.PI;
+                latitudeBasis[y]=new Vector2(Mathf.Sin(lat),Mathf.Cos(lat));
+            }
+            var season=new FlatMonthlyForcing(world.Day);windBlend=season.SegmentBlend;UploadWind(season);
             Shader shader=Resources.Load<Shader>("ORBIS/FlatWorld/FlatSkyBake");
             Shader columnShader=Resources.Load<Shader>("ORBIS/FlatWorld/HPCloudColumn");
             if(!shader||!shader.isSupported||!columnShader||!columnShader.isSupported)
@@ -84,7 +98,7 @@ namespace Orbis.Flat
             columnBack=NewCache(ColumnTexture.descriptor,"Cloud column staging");
             var strip=ColumnTexture.descriptor;strip.height=height/ColumnStrips;strip.useMipMap=false;strip.mipCount=1;
             columnStrip=NewCache(strip,"Cloud column update strip");
-            bake.SetTexture("_ClimateTex",climate);climatePeriod=revision=-1;rendered=false;debt=1;
+            bake.SetTexture("_ClimateTex",climate);climateStartDay=double.NaN;revision=-1;rendered=false;debt=1;
             RegionalClimateStep=null;
         }
         static RenderTexture NewCache(RenderTextureDescriptor descriptor,string label)
@@ -123,6 +137,11 @@ namespace Orbis.Flat
             // Publish only a complete weather/optical-column pair. No visible stripes.
             var old=Texture;Texture=weatherBack;weatherBack=old;
             old=ColumnTexture;ColumnTexture=columnBack;columnBack=old;
+            if(stagingWind)
+            {
+                var oldWind=wind;wind=windBack;windBack=oldWind;
+                visibleWindDay=stagingWindDay;visibleWindRevision=stagingRevision;
+            }
             stagedClock=hpColumn.GetFloat("_ScrollWeatherTime");
             visibleNorth=pendingNorth;visibleSouth=pendingSouth;
             RegionalClimateStep=stagingClimateStep;
@@ -130,15 +149,15 @@ namespace Orbis.Flat
             Status="云层 "+Texture.width+"×"+Texture.height+" · 云影和雨雪 "+CacheWidth+"×"+(CacheWidth/2)+
                 (RegionalClimateStep.HasValue?" · 区域气候统计":" · 月气候");
         }
-        void UploadClimate()
+        void UploadClimate(FlatMonthlyForcing season)
         {
-            int w=ClimateWidth,h=ClimateHeight,m=world.Month,next=(m+1)%12;
-            int period=(int)Math.Floor(world.Day/30);
+            int w=ClimateWidth,h=ClimateHeight;
+            var start=new FlatMonthlyForcing(season.SegmentStartDay);
+            double endDay=season.SegmentStartDay+FlatMonthlyForcing.HalfMonthDays;
+            var end=new FlatMonthlyForcing(endDay);
             uint seed=FMath.Seed(world.Seed);
-            var currentYear=FlatClimateYear.At(seed,period*30.0);
-            var followingYear=FlatClimateYear.At(seed,(period+1)*30.0);
-            // Hold cloud drift constant until all strips of its climate snapshot finish.
-            wind.SetPixels(windPixels);wind.Apply(false,false);
+            var currentYear=FlatClimateYear.At(seed,season.SegmentStartDay);
+            var followingYear=FlatClimateYear.At(seed,endDay);
             for(int y=0;y<h;y++)for(int x=0;x<w;x++)
             {
                 // Neighbour-averaged downsample avoids missing an entire wet coastal tile.
@@ -146,9 +165,10 @@ namespace Orbis.Flat
                 float rain=0,rainNext=0,temp=0,tempNext=0;
                 for(int dy=0;dy<2;dy++)for(int dx=0;dx<2;dx++)
                 {
-                    int i=world.Index(sx+dx,Mathf.Clamp(sy+dy,0,world.Height-1));
-                    rain+=world.Precipitation[i*12+m];rainNext+=world.Precipitation[i*12+next];
-                    temp+=world.Temperature[i*12+m];tempNext+=world.Temperature[i*12+next];
+                    int offset=world.Index(sx+dx,Mathf.Clamp(sy+dy,0,world.Height-1))*12;
+                    rain+=start.Sample(world.Precipitation,offset,ClimateRange.Nonnegative);
+                    rainNext+=end.Sample(world.Precipitation,offset,ClimateRange.Nonnegative);
+                    temp+=start.Sample(world.Temperature,offset);tempNext+=end.Sample(world.Temperature,offset);
                 }
                 var p=FlatWeatherSimulation.Direction((x+.5)/w,(y+.5)/h);
                 currentYear.Offsets((float)p.X,(float)p.Y,(float)p.Z,out float degrees,out float rainDelta);
@@ -160,29 +180,44 @@ namespace Orbis.Flat
             for(int x=0;x<w;x++){south+=(Color)monthly[x];north+=(Color)monthly[(h-1)*w+x];}
             bake.SetVector("_ClimatePoleSouth",(Vector4)(south/w));bake.SetVector("_ClimatePoleNorth",(Vector4)(north/w));
             bake.SetFloat("_ClimateRows",h);
-            climate.SetPixels32(monthly);climate.Apply(false,false);climatePeriod=period;revision=world.TerrainRevision;
+            climate.SetPixels32(monthly);climate.Apply(false,false);climateStartDay=season.SegmentStartDay;revision=world.TerrainRevision;
         }
-        void UploadWind(int month)
+        void UploadWind(FlatMonthlyForcing season)
         {
-            var state=world.Moisture;int next=(month+1)%12;
+            var state=world.Moisture;
+            var start=new FlatMonthlyForcing(season.SegmentStartDay);
+            var end=new FlatMonthlyForcing(season.SegmentStartDay+FlatMonthlyForcing.HalfMonthDays);
             for(int y=0;y<ClimateHeight;y++)for(int x=0;x<ClimateWidth;x++)
             {
                 float u=(x+.5f)/ClimateWidth,v=(y+.5f)/ClimateHeight;
-                float lon=(u-.5f)*Mathf.PI*2,lat=(v-.5f)*Mathf.PI;
-                float east=state==null?.4f:state.Sample(state.East,u,v,month);
-                float north=state==null?0:state.Sample(state.North,u,v,month);
-                float nextEast=state==null?east:state.Sample(state.East,u,v,next);
-                float nextNorth=state==null?north:state.Sample(state.North,u,v,next);
-                var eastDirection=new Vector3(Mathf.Cos(lon),0,-Mathf.Sin(lon));
-                var northDirection=new Vector3(-Mathf.Sin(lat)*Mathf.Sin(lon),Mathf.Cos(lat),-Mathf.Sin(lat)*Mathf.Cos(lon));
-                Vector3 velocity=Vector3.ClampMagnitude((eastDirection*east+northDirection*north)*.014f,.025f);
-                int i=y*ClimateWidth+x;
-                windPixels[i]=new Color(velocity.x,velocity.y,velocity.z,0);
-                seasonalWindPixels[i]=new Color(east,north,nextEast,nextNorth);
+                float east=state==null?.4f:start.Sample(state,state.East,u,v);
+                float north=state==null?0:start.Sample(state,state.North,u,v);
+                float nextEast=state==null?east:end.Sample(state,state.East,u,v);
+                float nextNorth=state==null?north:end.Sample(state,state.North,u,v);
+                seasonalWindPixels[y*ClimateWidth+x]=new Color(east,north,nextEast,nextNorth);
             }
-            SealPole(windPixels,ClimateWidth,ClimateHeight);
             climateWind.SetPixels(seasonalWindPixels);climateWind.Apply(false,false);
-            windMonth=month;windRevision=world.TerrainRevision;
+            windStartDay=season.SegmentStartDay;windRevision=world.TerrainRevision;
+        }
+        void StageCloudWind()
+        {
+            stagingWindDay=world.Day;
+            stagingWind=stagingWindDay!=visibleWindDay||stagingRevision!=visibleWindRevision;
+            if(stagingWind)
+            {
+                for(int y=0;y<ClimateHeight;y++)for(int x=0;x<ClimateWidth;x++)
+                {
+                    int i=y*ClimateWidth+x;Color ends=seasonalWindPixels[i];
+                    float east=Mathf.Lerp(ends.r,ends.b,windBlend),north=Mathf.Lerp(ends.g,ends.a,windBlend);
+                    var lon=longitudeBasis[x];var lat=latitudeBasis[y];
+                    var velocity=Vector3.ClampMagnitude(new Vector3(east*lon.y-north*lat.x*lon.x,
+                        north*lat.y,-east*lon.x-north*lat.x*lon.y)*.014f,.025f);
+                    windPixels[i]=new Color(velocity.x,velocity.y,velocity.z,0);
+                }
+                SealPole(windPixels,ClimateWidth,ClimateHeight);
+                windBack.SetPixels(windPixels);windBack.Apply(false,false);
+            }
+            hpColumn.SetTexture("_ScrollCloudWindTex",stagingWind?windBack:wind);
         }
         static Vector4 StormVector(FlatCycloneTrack track)
         {
@@ -206,7 +241,8 @@ namespace Orbis.Flat
             {var flash=lightning.Flashes[i];flashes[i]=new Vector4(flash.X,flash.Y,flash.Z,flash.Strength);}
             if(animate)Clock+=Math.Max(0,delta);
             // Vegetation shares prevailing winds even while cloud rendering sleeps.
-            if(windMonth!=world.Month||windRevision!=world.TerrainRevision)UploadWind(world.Month);
+            var season=new FlatMonthlyForcing(world.Day);windBlend=season.SegmentBlend;
+            if(windStartDay!=season.SegmentStartDay||windRevision!=world.TerrainRevision)UploadWind(season);
             if(!needed){weatherWasHidden=true;Status="云缓存休眠；晨昏/大气开关独立。";return;}
             if(failed)return;
             try
@@ -215,12 +251,11 @@ namespace Orbis.Flat
                 // A sleeping cache may contain half of an old storm. Resume at today's track.
                 bool resumed=weatherWasHidden;
                 if(resumed){pendingStrip=-1;weatherWasHidden=false;}
-                if(pendingStrip>=0 && (stagingRevision!=world.TerrainRevision ||
+                if(pendingStrip>=0 && (stagingRevision!=world.TerrainRevision || climateStartDay!=season.SegmentStartDay ||
                     (stagingClimateStep.HasValue && stagingClimateStep.Value!=(long)Math.Floor(world.Day*4))))
                     pendingStrip=-1;
                 if(pendingStrip>=0){RenderColumnStrip();return;}
-                bool climateChanged=climatePeriod!=(int)Math.Floor(world.Day/30)||revision!=world.TerrainRevision;
-                if(climateChanged)UploadClimate();
+                bool climateChanged=climateStartDay!=season.SegmentStartDay||revision!=world.TerrainRevision;
                 if(regionalClimate==null)regionalClimate=new FlatRegionalCloudField(world);
                 bool fieldReady=regionalClimate.Prepare(world.Day,out bool changed);
                 // Keep the last complete pair on screen while the next six-hour field is computed.
@@ -231,12 +266,14 @@ namespace Orbis.Flat
                 {Status=RegionalClimateStep.HasValue?"云缓存暂停 · 区域气候统计":"云缓存暂停 · 月气候";return;}
                 debt+=Mathf.Max(0,delta);
                 if(debt<.5f&&rendered&&!climateChanged&&!resumed&&!regionalChanged)return;debt=0;
+                if(climateChanged)UploadClimate(season);
                 regionalClimate.Bind(bake);
                 stagingClimateStep=regionalClimate.Step;stagingRevision=world.TerrainRevision;
+                StageCloudWind();
                 StageCyclones(calendarDay);
                 bake.SetFloat("_VisualTime",(float)Clock);
-                bake.SetFloat("_MonthBlend",(float)(world.Day%30)/30f);
-                hpColumn.SetFloat("_MonthBlend",(float)(world.Day%30)/30f);
+                bake.SetFloat("_MonthBlend",season.SegmentBlend);
+                hpColumn.SetFloat("_MonthBlend",season.SegmentBlend);
                 RenderCache(weatherBack,bake);
                 hpColumn.SetTexture("_ScrollWeatherTex",weatherBack);
                 hpColumn.SetFloat("_ScrollWeatherTime",(float)Clock);pendingStrip=0;RenderColumnStrip();
@@ -261,7 +298,7 @@ namespace Orbis.Flat
             target.SetFloat("_SkyClock",(float)Clock);target.SetFloat("_FlatClouds",clouds?1:0);
             target.SetTexture("_VegetationWindTex",climateWind?climateWind:Texture2D.blackTexture);
             target.SetFloat("_VegetationWindReady",climateWind?1:0);
-            target.SetFloat("_VegetationWindBlend",world==null?0:(float)(world.Day/30-Math.Floor(world.Day/30)));
+            target.SetFloat("_VegetationWindBlend",windBlend);
             target.SetVector("_CycloneNorth",visibleNorth);target.SetVector("_CycloneSouth",visibleSouth);
             target.SetFloat("_FlatCloudShadows",shadows?1:0);target.SetFloat("_FlatAtmosphere",atmosphere?1:0);
             target.SetFloat("_FlatDayNight",dayNight?1:0);target.SetFloat("_FlatRain",rain?1:0);target.SetFloat("_FlatLightning",lightning?1:0);
@@ -269,6 +306,6 @@ namespace Orbis.Flat
             target.SetVectorArray("_OrbisLightning",flashes);
         }
         void OnDestroy()
-        {regionalClimate?.Dispose();ReleaseCache(weatherBack);ReleaseCache(columnBack);ReleaseCache(columnStrip);ReleaseCache(Texture);ReleaseCache(ColumnTexture);if(climate)Destroy(climate);if(wind)Destroy(wind);if(climateWind)Destroy(climateWind);if(bake)Destroy(bake);if(hpColumn)Destroy(hpColumn);if(hpNoise)Destroy(hpNoise);if(hpDetail)Destroy(hpDetail);if(hpHigh)Destroy(hpHigh);}
+        {regionalClimate?.Dispose();ReleaseCache(weatherBack);ReleaseCache(columnBack);ReleaseCache(columnStrip);ReleaseCache(Texture);ReleaseCache(ColumnTexture);if(climate)Destroy(climate);if(wind)Destroy(wind);if(windBack)Destroy(windBack);if(climateWind)Destroy(climateWind);if(bake)Destroy(bake);if(hpColumn)Destroy(hpColumn);if(hpNoise)Destroy(hpNoise);if(hpDetail)Destroy(hpDetail);if(hpHigh)Destroy(hpHigh);}
     }
 }

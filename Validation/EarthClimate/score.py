@@ -6,6 +6,7 @@ import hashlib
 import json
 import os
 import struct
+import sys
 from pathlib import Path
 
 import numpy as np
@@ -254,9 +255,16 @@ if __name__ == "__main__":
     parser.add_argument("export", type=Path)
     parser.add_argument("--split", choices=("calibration", "holdout", "all"), default="calibration")
     parser.add_argument("--json", type=Path, help="Write full monthly, seasonal and regional results.")
+    parser.add_argument("--emit-koppen-normals", action="store_true",
+                        help="Stream the two collocated float32 monthly fields for the C# Köppen scorer.")
     parser.add_argument("--check-improvement", action="store_true",
                         help="Require finite monthly MAE and RMSE below the pinned 256/512 holdout baselines.")
     args = parser.parse_args()
+    if args.emit_koppen_normals:
+        _, temperature, precipitation = collocate(args.export)
+        for field in (temperature, precipitation):
+            sys.stdout.buffer.write(np.asarray(field, dtype="<f4").tobytes(order="C"))
+        sys.exit(0)
     report = score(args.export, args.split)
     print_report(report)
     if args.json:

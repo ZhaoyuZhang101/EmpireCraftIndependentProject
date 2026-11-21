@@ -32,6 +32,59 @@ internal static class ClimateObservationRegression
         return world;
     }
 
+    static void SeasonalCalendar()
+    {
+        var world = Fixture();
+        float[] temperature = { -16,-11,-3,6,14,20,24,21,14,7,-3,-12 };
+        float[] rain = { 0,6,30,90,150,300,440,320,150,60,0,30 };
+        for (int tile = 0; tile < world.Count; tile++)
+        for (int month = 0; month < 12; month++)
+        {
+            int i = tile * 12 + month;
+            int season = tile / world.Width < world.Height / 2 ? (month + 6) % 12 : month;
+            world.Temperature[i] = temperature[season];
+            world.Precipitation[i] = rain[season];
+            world.Moisture.Humidity[i] = .25f + .65f * rain[season] / 440;
+            world.Moisture.East[i] = .7f + .01f * temperature[season];
+            world.Moisture.North[i] = 0;
+        }
+
+        var samples = new FlatClimateSamples(world, false);
+        uint seed = FMath.Seed(world.Seed);
+        foreach (int tile in new[] { world.Index(22, 7), world.Index(22, 24) })
+        {
+            for (int month = 0; month < 12; month++)
+            {
+                var normal = samples.Normal(tile, month);
+                double sumT = 0, totalRain = 0, sumRH = 0, sumWind = 0;
+                for (int d = 0; d < 30; d++)
+                {
+                    // Each sample represents the centre of one model day.
+                    double day = month * 30 + d + .5;
+                    var current = samples.Current(tile, day, null);
+                    FlatClimateYear.At(seed, day).AtTile(tile, world.Width, world.Height, out float heat, out float wet);
+                    sumT += current.Temperature - heat;
+                    totalRain += current.Precipitation / (1 + wet);
+                    sumRH += current.Humidity;
+                    sumWind += current.WindSpeed;
+                    Check(current.Precipitation >= 0 && current.Humidity >= 0 && current.Humidity <= 1,
+                        "physical rain and humidity throughout the month");
+                }
+                Near(sumT / 30, normal.Temperature, 2e-6, $"daily forcing preserves month {month + 1} temperature at tile {tile}");
+                Near(totalRain, world.Precipitation[tile * 12 + month], 2e-5, "daily rain recovers the saved monthly total");
+                Near(sumRH / 30, normal.Humidity, 2e-7, "daily mean column humidity");
+                Near(sumWind / 30, normal.WindSpeed, 2e-6, "daily mean prevailing wind in a fixed direction");
+            }
+            foreach (double boundary in new[] { 0.0, 30.0, 180.0, 360.0 })
+            {
+                var before = samples.Current(tile, boundary - .00001, null);
+                var after = samples.Current(tile, boundary + .00001, null);
+                Near(after.Temperature, before.Temperature, .00004, "continuous temperature at month and year boundaries");
+                Near(after.Precipitation, before.Precipitation, .00004, "continuous rain at month and year boundaries");
+            }
+        }
+    }
+
     static void SavedAndCurrent()
     {
         var world = Fixture();
@@ -50,8 +103,9 @@ internal static class ClimateObservationRegression
         var current = samples.Current(tile, day, null);
         var climate = FlatClimateYear.At(FMath.Seed(world.Seed), day);
         climate.AtTile(tile, world.Width, world.Height, out float heat, out float fraction);
-        Near(current.Temperature, FMath.Lerp(19, 20, .375f) + heat, 1e-6, "regional interannual heat");
-        Near(current.Precipitation, FMath.Lerp(114, 126, .375f) * (1 + fraction) / 30.0, 1e-6, "regional interannual precipitation");
+        // A locally linear series of monthly means crosses the saved mean on day 15.
+        Near(current.Temperature, 19 - .125 + heat, 1e-6, "regional interannual heat");
+        Near(current.Precipitation, (114 - .125 * 12) * (1 + fraction) / 30.0, 1e-6, "regional interannual precipitation");
         Check(current.WaterBudgetDays == 30 && current.PrecipitationWindowDays == 30, "temporal support is explicit");
         var atMonthStart = FlatClimateYear.At(FMath.Seed(world.Seed), 7 * 30);
         atMonthStart.Weather(world, tile, 7, out _, out float monthlyInput);
@@ -118,6 +172,33 @@ internal static class ClimateObservationRegression
             "distinguish dry stations from absent stations");
     }
 
+    static void LightningSeason()
+    {
+        var world = Fixture();
+        for (int i = 0; i < world.Count; i++)
+        {
+            for (int m = 0; m < 12; m++)
+            {
+                world.Temperature[i * 12 + m] = 27;
+                world.Precipitation[i * 12 + m] = m == 1 ? 450 : 0;
+            }
+        }
+        var lightning = new FlatLightningVisuals(world);
+        bool FlashesOn(double day)
+        {
+            world.Day = day;
+            bool struck = false;
+            for (int tick = 0; tick < 160; tick++)
+            {
+                lightning.Tick(.1f, true, 0, 0, false);
+                foreach (var flash in lightning.Flashes) struck |= flash.Strength > 0;
+            }
+            return struck;
+        }
+        Check(!FlashesOn(29.5), "a dry January does not spawn lightning from February rain");
+        Check(FlashesOn(45), "lightning remains active during the wet month");
+    }
+
     static void Tracks()
     {
         var world = Fixture();
@@ -156,6 +237,8 @@ internal static class ClimateObservationRegression
         Check(double.IsNaN(sim.Instantaneous(cell).Precipitation), "no fictitious timestep before the solver runs");
         int events = 0;
         sim.Stepped += (sender, day) => { if (sender == sim && day == 2.25) events++; };
+        // Supply a subfreezing lowest layer so both injected hydrometeors reach the surface.
+        sim.Model.Temperature[cell] = 268.15;
         sim.Model.Water[3][cell] += .4;
         sim.Model.Water[4][cell] += .4;
         sim.Step(.1, 2.25);
@@ -205,6 +288,8 @@ internal static class ClimateObservationRegression
 
     public static void Run()
     {
+        SeasonalCalendar();
+        LightningSeason();
         SavedAndCurrent();
         WaterBudget();
         Tracks();

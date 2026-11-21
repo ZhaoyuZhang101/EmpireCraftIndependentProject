@@ -193,16 +193,12 @@ namespace Orbis.Flat
         readonly struct Climate
         {
             public readonly WorldData World;
-            readonly int month, next;
-            readonly float blend;
+            readonly FlatMonthlyForcing season;
             readonly FlatClimateYear year;
             public Climate(WorldData world, uint seed, double day)
             {
                 World = world;
-                double seasonalMonth = FlatScrollMath.Wrap(day, 360) / 30;
-                month = (int)seasonalMonth;
-                next = (month + 1) % 12;
-                blend = (float)(seasonalMonth - month);
+                season = new FlatMonthlyForcing(day);
                 year = FlatClimateYear.At(seed, day);
             }
 
@@ -216,14 +212,14 @@ namespace Orbis.Flat
                 var air = new Air();
                 var columns = World.Moisture;
                 if (columns == null) return air;
-                int tile = Tile(u, v), a = tile * 12 + month, b = tile * 12 + next;
+                int tile = Tile(u, v), start = tile * 12;
                 double lat = (v - .5) * Math.PI, lon = (u - .5) * Turn;
                 double sinLat = Math.Sin(lat), cosLat = Math.Max(.05, Math.Cos(lat));
                 year.Offsets((float)(Math.Sin(lon) * cosLat), (float)sinLat, (float)(Math.Cos(lon) * cosLat), out float degrees, out float rainAnomaly);
-                air.Temperature = FMath.Lerp(World.Temperature[a], World.Temperature[b], blend) + degrees;
-                double rain = FMath.Lerp(World.Precipitation[a], World.Precipitation[b], blend) * (1 + rainAnomaly);
+                air.Temperature = season.Sample(World.Temperature, start) + degrees;
+                double rain = season.Sample(World.Precipitation, start, ClimateRange.Nonnegative) * (1 + rainAnomaly);
                 air.RainFactor = Unit((rain - 45) / 95);
-                air.HumidityFactor = Unit((Column(columns.Humidity, u, v) - .53) / .32);
+                air.HumidityFactor = Unit((season.Sample(columns, columns.Humidity, (float)u, (float)v, ClimateRange.Fraction) - .53) / .32);
                 if (FlatTerrainAnalysis.Ocean(World.Water[tile]))
                 {
                     // Surface exchange over a finite core (~100 km from centre).
@@ -256,17 +252,13 @@ namespace Orbis.Flat
             }
 
             int Ocean(double u, double v) { return FlatTerrainAnalysis.Ocean(World.Water[Tile(u, v)]) ? 1 : 0; }
-            float Column(float[] field, double u, double v)
-            {
-                var columns = World.Moisture;
-                return FMath.Lerp(columns.Sample(field, (float)u, (float)v, month), columns.Sample(field, (float)u, (float)v, next), blend);
-            }
             void Wind(double u, double v, out double east, out double north)
             {
                 // Saved column wind components are normalized. One unit represents
                 // 9 m/s of the broad, near-surface circulation.
-                east = ClimateWindMetresPerSecond * Column(World.Moisture.East, u, v);
-                north = ClimateWindMetresPerSecond * Column(World.Moisture.North, u, v);
+                var columns = World.Moisture;
+                east = ClimateWindMetresPerSecond * season.Sample(columns, columns.East, (float)u, (float)v);
+                north = ClimateWindMetresPerSecond * season.Sample(columns, columns.North, (float)u, (float)v);
             }
         }
 

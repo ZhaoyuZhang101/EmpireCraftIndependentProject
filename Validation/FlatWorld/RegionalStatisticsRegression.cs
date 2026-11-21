@@ -77,9 +77,11 @@ public static class RegionalStatisticsRegression
         var invalid = atlas.Inspect(-1, double.NaN, null);
         Check(!invalid.Weather.Valid && invalid.Region < 0 && double.IsNaN(invalid.Observation.Temperature) &&
             !atlas.Refresh(double.PositiveInfinity,null), "malformed diagnostics do not disrupt a valid world");
-        Check(atlas.RegionFits == warmFits + atlas.RegionCount, "nearest weather climatology switches at mid month");
+        Check(atlas.RegionFits == warmFits, "weather uses its containing month's reference through mid-month");
         atlas.Refresh(30-1e-10,null);
-        Check(atlas.RegionFits == warmFits + atlas.RegionCount, "roundoff cannot move a budget into the next month");
+        Check(atlas.RegionFits == warmFits, "roundoff cannot move either reference into the next month");
+        atlas.Refresh(30,null);
+        Check(atlas.RegionFits == warmFits + atlas.RegionCount, "weather and water references switch together on the calendar boundary");
         int river = Array.FindIndex(world.Water, w => w == WaterKind.River);
         var gauged = atlas.Inspect(river,16,null);
         Check(gauged.WaterReference != null && gauged.WaterReference.Features.IndexOf(ClimateFeature.Discharge)>=0,
@@ -89,9 +91,10 @@ public static class RegionalStatisticsRegression
         while (!gauged.Water.Valid && ++river < world.Count)
             if (world.Water[river] == WaterKind.River) gauged = atlas.Inspect(river,16,null);
         Check(gauged.Water.Valid && !double.IsNaN(gauged.Observation.WaterBudgetDischarge), "supported native river station");
+        int beforeTerrain = atlas.RegionFits;
         world.TerrainRevision++;
         atlas.Refresh(16,null);
-        Check(atlas.RegionFits == warmFits+2*atlas.RegionCount, "new terrain epoch replaces reference and biome caches");
+        Check(atlas.RegionFits == beforeTerrain+atlas.RegionCount, "new terrain epoch replaces reference and biome caches");
         atlas.InvalidateRegion(0);
         bool canceled=false;
         try {atlas.Refresh(16,null,new CancellationToken(true));} catch (OperationCanceledException) {canceled=true;}

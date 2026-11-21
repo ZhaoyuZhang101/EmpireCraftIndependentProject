@@ -5,14 +5,11 @@ using Orbis.Flat;
 
 internal static class Export
 {
-    private static void Main(string[] args)
+    private static int Main(string[] args)
     {
 #if !LEGACY_EARTH_DEM
-        if (args.Length == 2 && args[0] == "--compare-koppen")
-        {
-            CompareKoppen.Run(args[1]);
-            return;
-        }
+        if (args.Length > 0 && args[0] == "--compare-koppen")
+            return CompareKoppen.Command(args);
 #endif
         if (args.Length < 1 || args.Length > 3)
             throw new ArgumentException("Usage from repository root: Export output.bin [width] [seed]");
@@ -25,7 +22,8 @@ internal static class Export
         var world = FlatGenerator.Generate(width, width / 2, seed, TerrainPreset.Earth, default, elevation);
 #else
         var water = File.ReadAllBytes(Path.Combine(assets, $"EarthWater{width}.bytes"));
-        var world = FlatGenerator.Generate(width, width / 2, seed, TerrainPreset.Earth, default, elevation, water);
+        var rivers = File.ReadAllBytes(Path.Combine(assets, "EarthRivers.bytes"));
+        var world = FlatGenerator.Generate(width, width / 2, seed, TerrainPreset.Earth, default, elevation, water, rivers);
 #endif
         string path = Path.GetFullPath(args[0]);
         string directory = Path.GetDirectoryName(path);
@@ -52,5 +50,6 @@ internal static class Export
             if (File.Exists(temporary)) File.Delete(temporary);
         }
         Console.WriteLine($"{world.Width}x{world.Height}, 12 monthly normals, seed {seed}: {path}");
+        return 0;
     }
 }

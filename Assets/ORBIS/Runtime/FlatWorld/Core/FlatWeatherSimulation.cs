@@ -54,7 +54,8 @@ namespace Orbis.Flat
                 if(y+1<Height)AddLink(links,p,a,a+Width,Math.PI*2/Width*Math.Cos(((y+1.0)/Height-.5)*Math.PI));
             }
             Model=new OrbisAtmosphereCore(p,area,links.ToArray(),FMath.Seed(world.Seed+"|flat-weather"));Model.SetParallelism(FlatWorkerPolicy.Resolve(workers));
-            var rh=new double[count];for(int i=0;i<count;i++)rh[i]=humidity[i*12+world.Month];
+            var season=new FlatMonthlyForcing(world.Day);
+            var rh=new double[count];for(int i=0;i<count;i++)rh[i]=season.Sample(humidity,i*12,ClimateRange.Fraction);
             // This independent layered solver already evolves pressure and convergence
             // from its wind and thermal forcing. Start it without artificial lows.
             Model.SetInitialClimate(Array.Empty<AtmosVector>(),rh);Forcing(world.Day);Model.Initialize();
@@ -82,34 +83,34 @@ namespace Orbis.Flat
         }
         void Forcing(double day)
         {
-            double season=((day%360)+360)%360;int m=(int)(season/30),next=(m+1)%12;float f=(float)(season/30-m);
+            var season=new FlatMonthlyForcing(day);
             var year=FlatClimateYear.At(climateSeed,day);
             for(int y=0;y<Height;y++)
             {
                 double row=0;
                 for(int x=0;x<Width;x++)
                 {
-                    int i=y*Width+x,a=i*12+m,b=i*12+next;var p=Model.Position[i];
+                    int i=y*Width+x,start=i*12;var p=Model.Position[i];
                     year.Offsets((float)p.X,(float)p.Y,(float)p.Z,out float degrees,out float rainFraction);
-                    currentRain[i]=FMath.Lerp(rain[a],rain[b],f)*(1+rainFraction);
-                    seaLevelTemperature[i]=FMath.Lerp(temperature[a],temperature[b],f)+degrees+ground[i]*.0065;
+                    currentRain[i]=season.Sample(rain,start,ClimateRange.Nonnegative)*(1+rainFraction);
+                    seaLevelTemperature[i]=season.Sample(temperature,start)+degrees+ground[i]*.0065;
                     row+=seaLevelTemperature[i];
                 }
                 zonalTemperature[y]=row/Width;
             }
             for(int i=0;i<Model.Count;i++)
             {
-                int a=i*12+m,b=i*12+next;double temp=seaLevelTemperature[i]-ground[i]*.0065;
+                int start=i*12;double temp=seaLevelTemperature[i]-ground[i]*.0065;
                 double lat=Math.Asin(Model.Position[i].Y)*180/Math.PI;
                 double thermal=seaLevelTemperature[i]-zonalTemperature[i/Width];
-                double pressure=SeaLevelPressure(lat,(float)(season/30),regionalLand[i],thermal);
+                double pressure=SeaLevelPressure(lat,season.SeasonalMonth,regionalLand[i],thermal);
                 int x=i%Width,y=i/Width,west=y*Width+(x+Width-1)%Width,eastCell=y*Width+(x+1)%Width;
                 int southCell=Math.Max(0,y-1)*Width+x,northCell=Math.Min(Height-1,y+1)*Width+x;
                 double gradient=Math.Sqrt(Math.Pow((seaLevelTemperature[eastCell]-seaLevelTemperature[west])*.5,2)
                     +Math.Pow((seaLevelTemperature[northCell]-seaLevelTemperature[southCell])*.5,2));
-                double relativeHumidity=FMath.Lerp(humidity[a],humidity[b],f);
+                double relativeHumidity=season.Sample(humidity,start,ClimateRange.Fraction);
                 double lift=SynopticLift(currentRain[i],relativeHumidity,temp,water[i],gradient);
-                var velocity=tangentEast[i]*FMath.Lerp(east[a],east[b],f)+tangentNorth[i]*FMath.Lerp(north[a],north[b],f);
+                var velocity=tangentEast[i]*season.Sample(east,start)+tangentNorth[i]*season.Sample(north,start);
                 double daylight=Math.Max(0,Math.Cos((day%1)*Math.PI*2+(i%Width+.5)*Math.PI*2/Width));
                 Model.SetForcing(i,temp+273.15,daylight,soil[i],water[i],velocity,pressure,ground[i],lift,0);
             }

@@ -6,4 +6,5 @@
   <ItemGroup><Compile Include="RegionalStatisticsRegression.cs"/><Compile Include="TectonicsRegression.cs"/></ItemGroup>
   <ItemGroup><Compile Include="PolarTerrainRegression.cs"/></ItemGroup>
   <ItemGroup><Compile Include="BasinWaterRegression.cs"/><Compile Include="RiverMapRegression.cs"/></ItemGroup>
+  <ItemGroup><Compile Include="SeasonalRainfallRegression.cs"/><Compile Include="SeasonalTemperatureRegression.cs"/></ItemGroup>
 </Project>
