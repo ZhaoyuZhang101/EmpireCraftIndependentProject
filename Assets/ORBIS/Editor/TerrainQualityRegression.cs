@@ -52,6 +52,12 @@ namespace Orbis.Editor
     }
     Check(report,maximumError<.005,"geographic terrain detail remains stable under reversed view; maximum RGB error="+maximumError+errorDetail);
     material.SetFloat("_ProbeFlip",0);
+    // The same rock face lifted within the same low-elevation material zone
+    // previously switched from dark to light at regular altitude intervals.
+    for(int i=0;i<pixels.Length;i++)pixels[i].r+=125;
+    field.SetPixels(pixels);field.Apply();
+    double altitudeStripe=Difference(rock,sample());
+    Check(report,altitudeStripe<.005,"rock colour on a uniform slope is stable across elevation datums; mean RGB change="+altitudeStripe);
     int invalid=0;
     foreach(var origin in new[]{new Vector4(15.3f,.1f,0,0),new Vector4(-.7f,7,0,0)})
     {

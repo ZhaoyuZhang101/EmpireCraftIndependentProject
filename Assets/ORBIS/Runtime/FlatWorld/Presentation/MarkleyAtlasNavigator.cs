@@ -80,7 +80,7 @@ namespace Orbis.Flat
             get
             {
                 var uv=new Vector2(pan.x/world.Width,pan.y/MapHeight);
-                return new Vector4(FlatGlobeGeometry.ReliefWeight(pixels,morph),TerrainHeight(uv),FlatGlobeGeometry.ReliefTilt,0);
+                return FlatGlobeGeometry.ReliefParameters(pixels,morph,TerrainHeight(uv));
             }
         }
 
@@ -386,8 +386,7 @@ namespace Orbis.Flat
             }
             ActiveSheets = 0;
             float halfX=viewCamera.pixelWidth/Mathf.Max(.1f,pixels)*.5f,halfY=viewCamera.pixelHeight/Mathf.Max(.1f,pixels)*.5f;
-            float maximumHeight=FlatGlobeGeometry.MaximumHeight*FlatGlobeGeometry.HeightScale;
-            float reliefPadding=FlatGlobeGeometry.ReliefWeight(pixels,morph)*maximumHeight*(FlatGlobeGeometry.ReliefTilt/TileScale+Mathf.Max(halfX,halfY)/FlatGlobeGeometry.ReliefCameraHeight);
+            float reliefPadding=FlatGlobeGeometry.ReliefWeight(pixels,morph)*FlatGlobeGeometry.LocalHeightSpan*(FlatGlobeGeometry.ReliefTilt/TileScale+Mathf.Max(halfX,halfY)/FlatGlobeGeometry.ReliefCameraHeight);
             for(int i=0;i<surfaces.Count;i++)
             {
                 var copy=sheetCopies[i];float left=copy.x*world.Width,bottom=copy.y*MapHeight;
@@ -680,7 +679,7 @@ namespace Orbis.Flat
             float width=Mathf.Clamp(1.5f/Mathf.Max(1,pixels),.07f,.20f)*TileScale;
             Vector3 lift=normal*.00006f;Vector2 near=new Vector2(pan.x/world.Width,pan.y/MapHeight);
             float halfX=viewCamera.pixelWidth/Mathf.Max(1,pixels)*.6f,halfY=viewCamera.pixelHeight/Mathf.Max(1,pixels)*.6f;
-            halfY+=FlatGlobeGeometry.MaximumHeight*FlatGlobeGeometry.HeightScale*FlatGlobeGeometry.ReliefTilt/TileScale;
+            halfY+=FlatGlobeGeometry.LocalHeightSpan*FlatGlobeGeometry.ReliefTilt/TileScale;
             var relief=ReliefParameters;
             for(int i=1;i<route.Length;i++)
             {

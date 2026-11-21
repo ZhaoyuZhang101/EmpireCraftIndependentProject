@@ -31,11 +31,11 @@ namespace Orbis.Editor
                 float tileScale=(float)(Math.PI*2/512),probeStep=tileScale*.01f;
                 foreach(float height in new[]{0f,.018f})
                 {
-                    var relief=new Vector4(1,0,.72f,0);
+                    var relief=Orbis.Flat.FlatGlobeGeometry.ReliefParameters(96,1,0);
                     var dx=(Orbis.Flat.FlatGlobeGeometry.ReliefPosition(new Vector2(probeStep,0),height,relief)-Orbis.Flat.FlatGlobeGeometry.ReliefPosition(new Vector2(-probeStep,0),height,relief))/.02f;
                     var dy=(Orbis.Flat.FlatGlobeGeometry.ReliefPosition(new Vector2(0,probeStep),height,relief)-Orbis.Flat.FlatGlobeGeometry.ReliefPosition(new Vector2(0,-probeStep),height,relief))/.02f;
                     bool valid=Orbis.Flat.FlatGlobeGeometry.TryActorFrame(camera,dx,dy,tileScale/32,out var east,out var north,out var mapping);
-                    float expected=(.18f-height)/(.18f*32);
+                    float expected=(.18f-height*relief.w)/(.18f*32);
                     Require(report,valid&&Mathf.Abs(mapping.x-expected)<.00001f&&Mathf.Abs(mapping.w-expected)<.00001f,
                         "actor occlusion uses final relief perspective at height="+height+" cellPerPixel="+mapping.x);
                 }

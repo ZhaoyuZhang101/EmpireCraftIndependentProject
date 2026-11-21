@@ -95,7 +95,7 @@ namespace Orbis.Flat
             var right = projection.Sample(offset);
             var a = PlanetCoordinateSystem.SurfaceNormal(PlanetCoordinateSystem.FromMapUV(left.x, left.y));
             var b = PlanetCoordinateSystem.SurfaceNormal(PlanetCoordinateSystem.FromMapUV(right.x, right.y));
-            double metres = PlanetLocalProjection.Distance(a, b, 6371008.8);
+            double metres = PlanetLocalProjection.Distance(a, b, FlatGlobeGeometry.GroundRadiusMetres);
             if (!(metres > 0)) { scale.style.display = DisplayStyle.None; return; }
             scale.style.display = DisplayStyle.Flex;
             scaleLine.style.width = lineWidth;

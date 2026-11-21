@@ -337,9 +337,10 @@ float3 FlatTerrainFine(float3 col,float2 cell,float pixelsPerTile,float2 heightG
             float exposed=smoothstep(140,430,slope)*(1-smoothstep(.45,.85,field.a));
             exposed*=smoothstep(.25,.70,crag*.65+broken*.35);
             exposed=max(exposed,smoothstep(1900,3200,field.r)*.35);
-            float strata=.5+.5*sin(field.r*.025+broken*3);
-            float band=smoothstep(.19,.81,crag*.70+strata*.30);
-            float3 rock=FlatColor(lerp(float3(.26,.28,.30),float3(.60,.59,.55),band));
+            // Exposure follows altitude and slope. Rock albedo varies over the
+            // outcrop, so an entire mountainside cannot stripe at a fixed height.
+            float rockTone=smoothstep(.19,.81,crag*.70+broken*.30);
+            float3 rock=FlatColor(lerp(float3(.26,.28,.30),float3(.60,.59,.55),rockTone));
             // Ridge breakup adds small face changes to the real elevation gradient.
             // It never modifies elevation, drainage, ownership or movement data.
             // Analytic geographic gradients keep the same rock face under camera

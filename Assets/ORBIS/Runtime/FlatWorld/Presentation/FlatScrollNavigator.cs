@@ -54,7 +54,7 @@ namespace Orbis.Flat
         static float FoldZoom=>ZoomFor(Start-1);
         float MinZoom=>ZoomForPixels(Mathf.Max(96,EntryPixels*4));
         static float MaxZoom=>ZoomFor(MaxAltitude);
-        float Radius=>Mathf.Lerp(Mathf.PI-.0001f,Mathf.Min(1.4f,Mathf.Max(.04f,viewCamera.orthographicSize*Mathf.Sqrt(1+viewCamera.aspect*viewCamera.aspect)*1.3f+FlatGlobeGeometry.MaximumHeight*FlatGlobeGeometry.HeightScale*FlatGlobeGeometry.ReliefTilt)),morph);
+        float Radius=>Mathf.Lerp(Mathf.PI-.0001f,Mathf.Min(1.4f,Mathf.Max(.04f,viewCamera.orthographicSize*Mathf.Sqrt(1+viewCamera.aspect*viewCamera.aspect)*1.3f+FlatGlobeGeometry.LocalHeightSpan*FlatGlobeGeometry.ReliefTilt)),morph);
         Vector4 ReliefParameters
         {
             get
@@ -62,7 +62,7 @@ namespace Orbis.Flat
                 var center=projection.Center;
                 var uv=new Vector2((float)PlanetCoordinateSystem.MapU(center),(float)PlanetCoordinateSystem.MapV(center));
                 float height=FlatGlobeGeometry.Radius(FlatGlobeGeometry.SurfaceHeight(world,uv),uv.y,world.Height,poles)-1;
-                return new Vector4(FlatGlobeGeometry.ReliefWeight(pixels,morph),height,FlatGlobeGeometry.ReliefTilt,0);
+                return FlatGlobeGeometry.ReliefParameters(pixels,morph,height);
             }
         }
         static Vector3 V(PlanetVector p)=>new Vector3((float)p.X,(float)p.Y,(float)p.Z);

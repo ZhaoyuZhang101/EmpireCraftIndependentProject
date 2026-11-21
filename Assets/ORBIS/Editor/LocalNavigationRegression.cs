@@ -117,7 +117,7 @@ namespace Orbis.Editor
     }
     nav.SetViewport(new Rect(0,0,1280,720));nav.Tick(0,3);
     PolarWheelGestures(result,nav,camera,data);
-    var centreBounds=FlatGlobeGeometry.ReliefBounds(new Vector2(4e-8f,0),new Vector4(1,.000702f,.72f,0));
+    var centreBounds=FlatGlobeGeometry.ReliefBounds(new Vector2(4e-8f,0),FlatGlobeGeometry.ReliefParameters(96,1,.000702f));
     result.Add((centreBounds.Contains(Vector2.zero)?"PASS":"FAIL")+" bounded relief picking retains the centre fan through world-space float rounding");
     var geometry=new Material(AssetDatabase.LoadAssetAtPath<Shader>("Assets/ORBIS/Editor/PolarDetailProbe.shader"));
     var geometryTarget=RenderTexture.GetTemporary(1,1,0,RenderTextureFormat.ARGBFloat,RenderTextureReadWrite.Linear);
@@ -132,7 +132,10 @@ namespace Orbis.Editor
      nav.Focus(peak,3);nav.Tick(3,3);
      geometry.CopyPropertiesFromMaterial(nav.SurfaceMaterial);geometry.SetFloat("_ProjectionProbe",3);
      geometry.SetVector("_ProbeOrigin",Vector4.zero);
-     geometry.SetVector("_ScrollRelief",new Vector4(1,0,.72f,0));
+     var seaLevelView=nav.SurfaceMaterial.GetVector("_ScrollRelief");
+     seaLevelView.y=0;
+     geometry.SetVector("_ScrollRelief",seaLevelView);
+     CoastalMountainRelief(result,seaLevelView);
      Graphics.Blit(Texture2D.whiteTexture,geometryTarget,geometry);RenderTexture.active=geometryTarget;
      geometryRead.ReadPixels(new Rect(0,0,1,1),0,0);geometryRead.Apply();
      Color raised=geometryRead.GetPixel(0,0);
@@ -140,7 +143,9 @@ namespace Orbis.Editor
      Vector3 surfaceNormal=nav.SurfaceMaterial.GetVector("_ScrollNormal"),surfaceUp=nav.SurfaceMaterial.GetVector("_ScrollUp");
      float lift=Vector3.Dot(raisedPoint-surfaceNormal,surfaceNormal),shift=Vector3.Dot(raisedPoint-surfaceNormal,surfaceUp);
      float expectedShift=lift*.72f*.18f/(.18f-lift);
-     result.Add((lift>.001f&&Mathf.Abs(shift-expectedShift)<.00005f?"PASS":"FAIL")+" detailed terrain has actual height and oblique parallax; lift="+lift+" shift="+shift);
+     float metresShiftPerMetre=shift*6371008.8f/data.Elevation[peak];
+     result.Add((lift>0&&Mathf.Abs(shift-expectedShift)<.000005f&&metresShiftPerMetre>.5f&&metresShiftPerMetre<3?"PASS":"FAIL")
+      +" detailed GPU terrain retains visible parallax within three ground metres per metre of peak elevation; shift ratio="+metresShiftPerMetre);
      nav.Focus(16*data.Width+17,3);nav.Tick(3,3);
      foreach(float wheel in new[]{0f,4f,6f,12f})
      {
@@ -178,6 +183,39 @@ namespace Orbis.Editor
    finally{RenderTexture.active=previous;RenderTexture.ReleaseTemporary(rt);UnityEngine.Object.DestroyImmediate(material);UnityEngine.Object.DestroyImmediate(image);}
    Directory.CreateDirectory("Documentation/LocalPlanetUpgrade");File.WriteAllLines("Documentation/LocalPlanetUpgrade/navigation-regression.txt",result);
    if(result.Exists(line=>line.StartsWith("FAIL",StringComparison.Ordinal)))throw new Exception(string.Join("\n",result));
+  }
+  static void CoastalMountainRelief(List<string> report,Vector4 relief)
+  {
+   // The steep northern flank of Hawai'i folded over the coast in the 2048 Earth preset.
+   const int width=2048,height=1024;
+   var dem=Resources.Load<TextAsset>("ORBIS/FlatWorld/Earth2048").GetData<short>();
+   var chart=new PlanetLocalProjection(new PlanetLocation(-155.57*Math.PI/180,19.76*Math.PI/180));
+   Vector2 Sample(int x,int y,out Vector2 displaced)
+   {
+    var location=PlanetCoordinateSystem.FromMapUV((x+.5)/width,(y+.5)/height);
+    var chartPoint=chart.StereographicLog(PlanetCoordinateSystem.SurfaceNormal(location));
+    var point=new Vector2((float)chartPoint.X,(float)chartPoint.Y);
+    int metres=Math.Max(0,(int)dem[(height-1-y)*width+x]);
+    displaced=FlatGlobeGeometry.ReliefPosition(point,metres*FlatGlobeGeometry.HeightScale,relief);
+    return point;
+   }
+   float Area(Vector2 a,Vector2 b,Vector2 c)=>(b.x-a.x)*(c.y-a.y)-(b.y-a.y)*(c.x-a.x);
+   float smallest=float.PositiveInfinity,largest=0;
+   for(int y=619;y<628;y++)for(int x=135;x<143;x++)
+   {
+    var a=Sample(x,y,out var pa);
+    var b=Sample(x+1,y,out var pb);
+    var c=Sample(x,y+1,out var pc);
+    var d=Sample(x+1,y+1,out var pd);
+    float lower=Area(pa,pb,pc)/Area(a,b,c);
+    float upper=Area(pc,pb,pd)/Area(c,b,d);
+    smallest=Mathf.Min(smallest,Mathf.Min(lower,upper));largest=Mathf.Max(largest,Mathf.Max(lower,upper));
+   }
+   report.Add((smallest>.5f&&largest<2?"PASS":"FAIL")+" Hawaii coast and mountain faces retain winding and area; min="+smallest+" max="+largest);
+   var basinPoint=new Vector2(.004f,-.003f);
+   Vector2 basinScreen=FlatGlobeGeometry.ReliefPosition(basinPoint,-430*FlatGlobeGeometry.HeightScale,relief);
+   report.Add((FlatGlobeGeometry.ReliefBounds(basinScreen,relief).Contains(basinPoint)?"PASS":"FAIL")
+    +" picking bounds include exposed terrain below sea level");
   }
   static void MinimapNavigation(List<string> report,FlatScrollNavigator nav,Camera camera)
   {

@@ -86,7 +86,7 @@ namespace Orbis.Flat
             // the detailed map. The footprint only needs sub-minimap-pixel accuracy.
             for (int i = 0; relief.x > 0 && i < 3; i++)
             {
-                float height = (Height(GeographicUV(Direction(point))) - relief.y) * relief.x;
+                float height = (Height(GeographicUV(Direction(point))) - relief.y) * relief.w;
                 Vector2 next = projected * (1 - height / FlatGlobeGeometry.ReliefCameraHeight) - Vector2.up * (height * relief.z);
                 if ((next - point).sqrMagnitude < 1e-12f) break;
                 point = next;

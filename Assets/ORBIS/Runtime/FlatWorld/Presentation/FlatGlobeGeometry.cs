@@ -3,9 +3,13 @@ namespace Orbis.Flat
 {
     public static class FlatGlobeGeometry
     {
-        // One vertical scale for the presentation. Authoritative metres are unchanged.
+        // The orbit silhouette and its cloud ground use this radius per metre.
         public const float HeightScale = .000006f;
+        public const double GroundRadiusMetres = 6371008.8;
+        // A metre viewed on the local chart is 2.5 times taller than true scale.
+        const float LocalHeightScale = (float)(2.5 / GroundRadiusMetres);
         public const float MaximumHeight = HeightBands.MaximumBed;
+        internal const float LocalHeightSpan = (MaximumHeight - HeightBands.MinimumBed) * LocalHeightScale;
         public const float ReliefTilt = .72f;
         public const float ReliefCameraHeight = .18f;
         public static bool TryActorFrame(Camera camera,Vector3 eastDerivative,Vector3 northDerivative,float pixelScale,
@@ -44,15 +48,22 @@ namespace Orbis.Flat
             return Mathf.SmoothStep(0,1,Mathf.InverseLerp(16,48,pixels))
                 *Mathf.SmoothStep(0,1,Mathf.InverseLerp(.75f,1,morph));
         }
+        public static Vector4 ReliefParameters(float pixels,float morph,float centerHeight)
+        {
+            float weight=ReliefWeight(pixels,morph);
+            // Heights arrive in globe radii. Keep the optical viewing angle independent
+            // of the vertical exaggeration used to project terrain and attached objects.
+            return new Vector4(weight,centerHeight,ReliefTilt,weight*(LocalHeightScale/HeightScale));
+        }
         public static Vector3 ReliefPosition(Vector2 point,float height,Vector4 relief)
         {
-            float relative=(height-relief.y)*relief.x;
+            float relative=(height-relief.y)*relief.w;
             float perspective=ReliefCameraHeight/(ReliefCameraHeight-relative);
-            return new Vector3(point.x*perspective,(point.y+relative*relief.z)*perspective,height*relief.x);
+            return new Vector3(point.x*perspective,(point.y+relative*relief.z)*perspective,height*relief.w);
         }
         public static float ReliefClipWeight(float height,Vector4 relief,float morph)
         {
-            return 1-(height-relief.y)*relief.x*morph/ReliefCameraHeight;
+            return 1-(height-relief.y)*relief.w*morph/ReliefCameraHeight;
         }
         public static Vector3 PerspectiveWeights(Vector3 weights,Vector3 clipWeights)
         {
@@ -92,8 +103,8 @@ namespace Orbis.Flat
         }
         public static Rect ReliefBounds(Vector2 projected,Vector4 relief)
         {
-            float minimum=-relief.y*relief.x;
-            float maximum=(MaximumHeight*HeightScale-relief.y)*relief.x;
+            float minimum=(HeightBands.MinimumBed*HeightScale-relief.y)*relief.w;
+            float maximum=(MaximumHeight*HeightScale-relief.y)*relief.w;
             var near=projected*(1-maximum/ReliefCameraHeight)-Vector2.up*(maximum*relief.z);
             var far=projected*(1-minimum/ReliefCameraHeight)-Vector2.up*(minimum*relief.z);
             // World-space float rounding can straddle the centre fan's sector
