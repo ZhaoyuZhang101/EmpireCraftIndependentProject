@@ -69,13 +69,14 @@ namespace Orbis.Flat
                 FMath.Lerp(field[next*width+west],field[next*width+east],x-x0),y-y0);
         }
 
-        // Thermal contrast along an equator-to-pole section. Broad sectors keep
-        // individual islands from creating a continental-scale monsoon. Distances
-        // are in km so the same continental margin works on every grid.
-        static float[] MonsoonAccess(float[] ocean,int width,int height,out float[] tradeOcean)
+        // Sample marine source regions and the opposing continent over broad sectors.
+        // Distances are in km so the same coast works at every terrain resolution.
+        static float[] MonsoonAccess(float[] ocean,float[] elevation,int width,int height,
+            out float[] tradeOcean,out float[] easternMargin)
         {
             var access=new float[ocean.Length];
             tradeOcean=new float[ocean.Length];
+            easternMargin=new float[ocean.Length];
             for(int y=0;y<height;y++)
             {
                 double latitude=((y+.5)/height-.5)*Math.PI;
@@ -84,12 +85,16 @@ namespace Orbis.Flat
                 float hemisphere=FMath.Clamp((float)Math.Sin(latitude)*8,-1,1);
                 for(int x=0;x<width;x++)
                 {
-                    float upstream=0,polewardLand=0,trades=0;
-                    for(int band=1;band<=4;band++)
+                    int i=y*width+x;
+                    float upstream=0,polewardLand=0,trades=0,marineFetch=0,inlandFetch=0,outerOcean=0;
+                    for(int side=-1;side<=1;side++)
                     {
-                        float distance=band*500, dy=hemisphere*distance/kmPerRow;
-                        for(int side=-1;side<=1;side++)
+                        float ridge=elevation[i];
+                        float eastStep=700/kmPerColumn;
+                        float southStep=(.45f+side*.5f)*hemisphere*500/kmPerRow;
+                        for(int band=1;band<=4;band++)
                         {
+                            float distance=band*500, dy=hemisphere*distance/kmPerRow;
                             float sx=x+side*distance*.65f/kmPerColumn;
                             upstream+=FractionAt(ocean,width,height,sx,y-dy);
                             polewardLand+=1-FractionAt(ocean,width,height,sx,y+dy*.65f);
@@ -97,10 +102,25 @@ namespace Orbis.Flat
                             // upstream sector is independent of the prime meridian.
                             trades+=FractionAt(ocean,width,height,x+distance*1.5f/kmPerColumn,
                                 y+side*distance*.45f/kmPerRow);
+
+                            // Western flank of an oceanic subtropical high: marine air
+                            // approaches the continent from the east/equatorward side.
+                            // An intervening ridge screens a low basin from that source.
+                            float dx=band*eastStep, sy=band*southStep;
+                            ridge=Math.Max(ridge,FractionAt(elevation,width,height,x+dx-eastStep*.5f,y-sy+southStep*.5f));
+                            ridge=Math.Max(ridge,FractionAt(elevation,width,height,x+dx,y-sy));
+                            float shelter=1+(ridge-elevation[i])/900;
+                            float sea=FractionAt(ocean,width,height,x+dx,y-sy);
+                            marineFetch+=(5-band)*sea/shelter;
+                            if(band>=3)outerOcean+=sea;
+                            inlandFetch+=1-FractionAt(ocean,width,height,x-dx,y+sy);
                         }
                     }
-                    access[y*width+x]=upstream*polewardLand/144;
-                    tradeOcean[y*width+x]=trades/12;
+                    access[i]=upstream*polewardLand/144;
+                    tradeOcean[i]=trades/12;
+                    // The offshore sector must open onto a basin large enough to
+                    // support the high. A narrow inland sea still evaporates normally.
+                    easternMargin[i]=(marineFetch/30)*(inlandFetch/12)*(outerOcean/6);
                 }
             }
             return access;
@@ -142,7 +162,7 @@ namespace Orbis.Flat
                 water[i]=FMath.Clamp(water[i],0,1);
             }
             var regionalLand=RegionalContinentality(continentality,width,height);
-            var marineAccess=MonsoonAccess(ocean,width,height,out float[] tradeOcean);
+            var marineAccess=MonsoonAccess(ocean,elevation,width,height,out float[] tradeOcean,out float[] easternMargin);
             // Transpiration falls as the root zone dries. The soil reservoir is
             // stored per whole cell, so scale its stress threshold by land area.
             var inverseFieldWater=new float[count];
@@ -184,51 +204,58 @@ namespace Orbis.Flat
                     pressure[i]=1.7f*(float)Math.Exp(-Math.Pow((Math.Abs(lat)-subtropical)/12,2))
                         -1.2f*(float)Math.Exp(-Math.Pow((lat-itcz)/15,2))-seasonalHeat*.8f-thermal*.055f;
                 }
-                for(int y=0;y<height;y++)for(int x=0;x<width;x++)
+                for(int y=0;y<height;y++)
                 {
-                    int i=y*width+x;float lat=((y+.5f)/height-.5f)*180,ab=Math.Abs(lat);
-                    float gx=(pressure[eastCell[i]]-pressure[westCell[i]])*.5f*gridScale;
-                    float gy=(pressure[northCell[i]]-pressure[southCell[i]])*.5f*gridScale;
+                    float lat=((y+.5f)/height-.5f)*180,ab=Math.Abs(lat);
                     float coriolis=(float)Math.Sin(lat*Math.PI/180),belt=(float)Math.Tanh((ab-30)/8)*(float)Math.Tanh((68-ab)/8);
                     float hemi=FMath.Clamp(coriolis*8,-1,1);
-                    float monsoon=marineAccess[i]*(float)Math.Exp(-Math.Pow((ab-20)/17,2));
                     float summer=solstice*hemi;
-                    float east=belt*.24f-gy*coriolis*.08f+monsoon*summer*.27f;
-                    float north=gx*coriolis*.08f+monsoon*solstice*.20f;
-                    float surfaceEast=FMath.Clamp(east-gx*.12f,-.32f,.32f);
-                    float surfaceNorth=y==0||y==height-1?0:FMath.Clamp(north-gy*.20f,-.14f,.14f);
-                    state.East[i*12+month]=surfaceEast/.32f;state.North[i*12+month]=surfaceNorth/.32f;
-                    // Only the boundary-layer share flows directly across isobars.
-                    // Driving the full column with the surface inflow evacuates
-                    // subtropical highs and piles their water into narrow rain belts.
-                    const float boundaryShare=.45f;
-                    u[i]=FMath.Clamp(east-gx*.12f*boundaryShare,-.32f,.32f)*gridScale;
-                    v[i]=y==0||y==height-1?0:FMath.Clamp(north-gy*.20f*boundaryShare,-.14f,.14f)*gridScale;
-                    int upstream=u[i]>=0?westCell[i]:eastCell[i];
-                    float rise=Math.Max(0,elevation[i]-elevation[upstream])*Math.Abs(u[i]);
-                    upstream=v[i]>=0?southCell[i]:northCell[i];rise+=Math.Max(0,elevation[i]-elevation[upstream])*Math.Abs(v[i]);
+                    // The poleward limit of the maritime flow advances in summer.
+                    // Cool-season fronts can still lift marine air where the sea-level
+                    // temperature decreases poleward. The gradient spans two grid rows.
+                    float polewardLimit=34+3.5f*summer;
+                    float onshoreBelt=(float)((.5+.5*Math.Tanh((ab-23)/4))*(.5-.5*Math.Tanh((ab-polewardLimit)/3)))*(.9f+.1f*summer);
+                    float gradient=hemi*(zonalTemp[Math.Max(0,y-1)]-zonalTemp[Math.Min(height-1,y+1)])*gridScale;
+                    float coastalAscent=.5f+.7f*(1-summer)*FMath.Clamp(gradient/6,0,1);
+                    float monsoonBelt=(float)Math.Exp(-Math.Pow((ab-20)/17,2));
                     float equatorial=(float)Math.Exp(-Math.Pow(ab/13,2));
                     float descent=(float)Math.Exp(-Math.Pow((ab-24)/14,2));
-                    float wetSeason=monsoon*Math.Max(0,summer);
                     float tropicalFlank=(float)Math.Exp(-Math.Pow((ab-19)/9,2));
-                    float continentalAir=tropicalFlank*(1-tradeOcean[i])*(1-water[i]);
-                    float convection=.12f*(float)Math.Exp(-Math.Pow((lat-convergenceLatitude[i])/13,2))+.11f*equatorial+.43f*wetSeason;
                     float fronts=.043f*(float)Math.Exp(-Math.Pow((ab-48-8*summer)/14,2));
-                    // Subtropical subsidence suppresses deep convection; rainfall
-                    // can resume when moist onshore flow develops in summer.
-                    float drySeason=FMath.Clamp(Math.Abs(lat-convergenceLatitude[i])/22,0,1);
-                    rainEfficiency[i]=FMath.Clamp(1-descent*(1-water[i])*(1.05f+.48f*drySeason)+3*wetSeason
-                        +tropicalFlank*tradeOcean[i]*.8f-.65f*continentalAir,.08f,2.6f);
-                    lift[i]=rainEfficiency[i]*convection+(.4f+.6f*rainEfficiency[i])*(fronts+Math.Min(.30f,rise/1400));
-                    float warmCanopy=FMath.Clamp((monthlyTemperature[i*12+month]-8)/16,0,1);
-                    transpiration[i]=.85f+warmCanopy*(.98f*equatorial+.35f*wetSeason);
-                    // Only a fraction of the moist boundary layer crosses a rising
-                    // mountain face. The untransported water stays in the windward
-                    // column, where it can condense or move along the barrier.
-                    float climbEast=Math.Max(0,elevation[u[i]>=0?eastCell[i]:westCell[i]]-elevation[i]);
-                    float climbNorth=Math.Max(0,elevation[v[i]>=0?northCell[i]:southCell[i]]-elevation[i]);
-                    u[i]/=1+climbEast*gridScale/850;
-                    v[i]/=1+climbNorth*gridScale/850;
+                    for(int x=0;x<width;x++)
+                    {
+                        int i=y*width+x;
+                        float gx=(pressure[eastCell[i]]-pressure[westCell[i]])*.5f*gridScale;
+                        float gy=(pressure[northCell[i]]-pressure[southCell[i]])*.5f*gridScale;
+                        float monsoon=marineAccess[i]*monsoonBelt, onshore=easternMargin[i]*onshoreBelt;
+                        float east=belt*.24f-gy*coriolis*.08f+monsoon*summer*.27f-.5f*onshore;
+                        float north=gx*coriolis*.08f+monsoon*solstice*.20f+.14f*onshore*hemi*summer;
+                        float surfaceEast=FMath.Clamp(east-gx*.12f,-.32f,.32f);
+                        float surfaceNorth=y==0||y==height-1?0:FMath.Clamp(north-gy*.20f,-.14f,.14f);
+                        state.East[i*12+month]=surfaceEast/.32f;state.North[i*12+month]=surfaceNorth/.32f;
+                        // Only the boundary-layer share flows directly across isobars.
+                        const float boundaryShare=.45f;
+                        u[i]=FMath.Clamp(east-gx*.12f*boundaryShare,-.32f,.32f)*gridScale;
+                        v[i]=y==0||y==height-1?0:FMath.Clamp(north-gy*.20f*boundaryShare,-.14f,.14f)*gridScale;
+                        int upstream=u[i]>=0?westCell[i]:eastCell[i];
+                        float rise=Math.Max(0,elevation[i]-elevation[upstream])*Math.Abs(u[i]);
+                        upstream=v[i]>=0?southCell[i]:northCell[i];rise+=Math.Max(0,elevation[i]-elevation[upstream])*Math.Abs(v[i]);
+                        float wetSeason=monsoon*Math.Max(0,summer);
+                        float moistLift=wetSeason+onshore*coastalAscent;
+                        float continentalAir=tropicalFlank*(1-tradeOcean[i])*(1-water[i]);
+                        float convection=.12f*(float)Math.Exp(-Math.Pow((lat-convergenceLatitude[i])/13,2))+.11f*equatorial+.43f*moistLift;
+                        float drySeason=FMath.Clamp(Math.Abs(lat-convergenceLatitude[i])/22,0,1);
+                        rainEfficiency[i]=FMath.Clamp(1-descent*(1-water[i])*(1.05f+.48f*drySeason)+3*moistLift
+                            +tropicalFlank*tradeOcean[i]*.8f-.65f*continentalAir,.08f,2.6f);
+                        lift[i]=rainEfficiency[i]*convection+(.4f+.6f*rainEfficiency[i])*(fronts+Math.Min(.30f,rise/1400));
+                        float warmCanopy=FMath.Clamp((monthlyTemperature[i*12+month]-8)/16,0,1);
+                        transpiration[i]=.85f+warmCanopy*(.98f*equatorial+.35f*wetSeason);
+                        // Moisture blocked by a rising face stays in the windward column.
+                        float climbEast=Math.Max(0,elevation[u[i]>=0?eastCell[i]:westCell[i]]-elevation[i]);
+                        float climbNorth=Math.Max(0,elevation[v[i]>=0?northCell[i]:southCell[i]]-elevation[i]);
+                        u[i]/=1+climbEast*gridScale/850;
+                        v[i]/=1+climbNorth*gridScale/850;
+                    }
                 }
                 double initial=0,external=0,export=0;
                 // Cache advection and transient exchange at each face once per

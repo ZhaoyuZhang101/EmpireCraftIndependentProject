@@ -22,6 +22,7 @@ public static class Program {
     case "--spherical-relief": SphericalRelief(); break;
     case "--weather": WeatherIntegrationRegression.Run(); break;
     case "--moisture": MoistureRegression(); break;
+    case "--east-asia-climate": ClimatologyRegression.EastAsia(args.Length>1?int.Parse(args[1]):256); break;
     case "--environment": EnvironmentRegression(); break;
     case "--hydrology": HydrologyRegression.Run(); break;
     case "--basin-water": BasinWaterRegression.Run(); break;
@@ -146,6 +147,7 @@ public static class Program {
  }
  static void EnvironmentRegression() {
   ClimatologyRegression.RotatedContinent();
+  ClimatologyRegression.EasternCoastCirculation();
   ClimatologyRegression.MaritimeRainfall();
   ClimatologyRegression.FreshwaterBasin();
   ClimatologyRegression.FullGridCoverage();

@@ -1,8 +1,84 @@
 using System;
+using System.IO;
 using Orbis.Flat;
 
 internal static class ClimatologyRegression
 {
+    public static void EastAsia(int width)
+    {
+        const string assets = "Assets/ORBIS/Resources/ORBIS/FlatWorld/";
+        var world = FlatGenerator.Generate(width, width / 2, "ORBIS-2D-2025", TerrainPreset.Earth, default,
+            File.ReadAllBytes(assets + $"Earth{width}.bytes"), File.ReadAllBytes(assets + $"EarthWater{width}.bytes"),
+            File.ReadAllBytes(assets + "EarthRivers.bytes"));
+
+        // CRU-CL regional normals are ~661, 1358, 1722 and 1097 mm/yr for the
+        // four humid boxes (see EarthClimate/score.py). Use broad tolerances for
+        // coarse coastlines; the interior control must still sustain a desert.
+        double Region(string name, int west, int east, int south, int north, double minRain, double maxRain,
+            double minSummer, double maxSummer, bool dry = false)
+        {
+            double area = 0, rain = 0, summer = 0, desertBiome = 0, desertClimate = 0;
+            for (int y = 0; y < world.Height; y++)
+            {
+                double lat = ((y + .5) / world.Height - .5) * 180;
+                if (lat < south || lat >= north) continue;
+                double weight = Math.Cos(lat * Math.PI / 180);
+                for (int x = 0; x < width; x++)
+                {
+                    double lon = ((x + .5) / width - .5) * 360;
+                    int i = y * width + x;
+                    if (lon < west || lon >= east || FlatTerrainAnalysis.AreaWater(world.Water[i])) continue;
+                    area += weight;
+                    rain += weight * world.Facts.AnnualRain[i];
+                    for (int m = 5; m <= 8; m++) summer += weight * world.Precipitation[i * 12 + m];
+                    if (world.Biomes[i] == Biome.Desert) desertBiome += weight;
+                    if (world.Climates[i] == Koppen.BWk || world.Climates[i] == Koppen.BWh) desertClimate += weight;
+                }
+            }
+            double annual = rain / area, share = summer / rain;
+            Console.WriteLine($"{width} {name}: {annual:F0} mm/year, Jun-Sep {share:P0}, " +
+                $"BW climate {desertClimate / area:P1}, desert biome {desertBiome / area:P1}.");
+            if (!(area > 0 && annual >= minRain && annual <= maxRain && share >= minSummer && share <= maxSummer))
+                throw new Exception($"Incorrect seasonal precipitation in {name}.");
+            // The climate control uses all land. On coarse grids a single cell
+            // can span both a perennial river corridor and the adjacent desert.
+            if (dry ? desertClimate < .6 * area : Math.Max(desertClimate, desertBiome) > .05 * area)
+                throw new Exception($"Incorrect desert extent in {name}.");
+            if (dry && width == 2048 && desertBiome < .5 * area)
+                throw new Exception("The desert surface disappeared from the 2048-wide player repro.");
+            return share;
+        }
+        double northSummer = Region("North China Plain", 114, 119, 34, 40, 460, 930, .53, .87);
+        double yangtzeSummer = Region("Middle/lower Yangtze", 110, 121, 28, 33, 900, 1830, .32, .72);
+        if (northSummer <= yangtzeSummer + .05)
+            throw new Exception("North China should have the more concentrated summer rainy season.");
+        Region("South China", 108, 117, 22, 26, 1150, 2300, .32, .72);
+        Region("Sichuan Basin", 103, 108, 28, 32, 710, 1520, .42, .82);
+        Region("Tarim Basin", 78, 87, 38, 41, 0, 250, 0, 1, dry: true);
+    }
+
+    public static void EasternCoastCirculation()
+    {
+        var world = new WorldData(128, 64, "EASTERN-SEABOARD", TerrainPreset.Continents);
+        for (int i = 0; i < world.Count; i++)
+        {
+            int x = i % world.Width;
+            world.Elevation[i] = (short)(x >= 28 && x < 81 ? 60 : -700);
+        }
+        FlatGenerator.Rebuild(world, default);
+        var air = world.Moisture;
+        foreach (int hemisphere in new[] { -1, 1 })
+        {
+            int row = (int)((hemisphere * 36 / 180.0 + .5) * world.Height);
+            int coast = world.Index(78, row) * 12, interior = world.Index(56, row) * 12;
+            int summer = hemisphere > 0 ? 6 : 0, winter = (summer + 6) % 12;
+            if (!(air.East[coast + summer] < 0 && air.North[coast + summer] * hemisphere > 0 &&
+                air.East[coast + winter] > 0 && air.Rain[coast + summer] > 2 * air.Rain[coast + winter] &&
+                air.Rain[coast + summer] > 2 * air.Rain[interior + summer]))
+                throw new Exception($"Missing seasonal onshore transport on the synthetic coast at {hemisphere * 36} degrees.");
+        }
+    }
+
     // Move the entire coastline through the date line and change the preset
     // label. Its climate should follow the bed, even on a fictional continent.
     public static void RotatedContinent()
