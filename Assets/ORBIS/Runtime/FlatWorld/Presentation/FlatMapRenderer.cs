@@ -19,6 +19,7 @@ namespace Orbis.Flat
         Vector4 poleBedDepth;
         public Texture2D EcologyTexture { get; private set; }
         public Texture2D VegetationTexture { get; private set; }
+        Texture2D lakeIceTexture;
         public Texture2D RiverSeasonTexture { get; private set; }
         FlatRiverStageField riverSeasons;
         public FlatSkyRenderer Sky { get; private set; }
@@ -138,6 +139,15 @@ namespace Orbis.Flat
             var facts=World.Facts;
             if(ReferenceEquals(vegetationSource,facts))return;
             if(!facts.VegetationSeasonsReady){vegetationSource=null;return;}
+            ReleaseTexture(lakeIceTexture);
+            var ice=facts.LakeIce;
+            if(ice!=null)
+            {
+                lakeIceTexture=new Texture2D(ice.Width,ice.Height*3,TextureFormat.RGBA32,false,true)
+                {name="Monthly lake surface cooling",filterMode=FilterMode.Bilinear,wrapModeU=TextureWrapMode.Repeat,wrapModeV=TextureWrapMode.Clamp};
+                lakeIceTexture.LoadRawTextureData(ice.Packed);
+                lakeIceTexture.Apply(false,true);
+            }
             int atlasWidth=(World.Width+2)*3,atlasHeight=(World.Height+2)*4;
             if(!VegetationTexture)
                 VegetationTexture=new Texture2D(vegetationMonthPair?World.Width:atlasWidth,vegetationMonthPair?World.Height*2:atlasHeight,TextureFormat.RGBA32,false,true)
@@ -185,6 +195,9 @@ namespace Orbis.Flat
             target.SetTexture("_RiverSeasonTex",RiverSeasonTexture?RiverSeasonTexture:Texture2D.blackTexture);
             target.SetFloat("_RiverSeasonReady",riverSeasons!=null?1:0);
             var months=new Vector4(month,(month+1)%12,(float)(period-whole),0);
+            bool iceReady=vegetationSource?.LakeIce!=null&&lakeIceTexture;
+            target.SetTexture("_LakeIceTex",iceReady?lakeIceTexture:Texture2D.whiteTexture);
+            target.SetVector("_LakeIceSeason",new Vector4(month,months.y,FlatLakeIceField.MonthBlend(months.z),iceReady?1:0));
             if(riverPanelPair&&stages!=null&&uploadedRiverPanel!=month/4)
             {
                 int panel=month/4,bytes=World.Count*4;
@@ -274,6 +287,12 @@ namespace Orbis.Flat
             if(earthRelief!=null)earthRelief.Bind(target);
             else {target.SetFloat("_EarthPolarReady",0);target.SetFloat("_EarthLakeReady",0);target.SetFloat("_EarthStraitReady",0);}
         }
+        internal static void ReleaseTexture(Texture2D texture)
+        {
+            if(!texture)return;
+            if(Application.isPlaying)Destroy(texture);
+            else DestroyImmediate(texture);
+        }
         void OnDestroy()
         {
             earthRelief?.Dispose();
@@ -281,8 +300,8 @@ namespace Orbis.Flat
             renderJobs?.Dispose();
             if(mesh)Destroy(mesh);
             if(Material)Destroy(Material);
-            foreach(var texture in new[]{TerrainTexture,DisplayTexture,OwnerTexture,InfoTexture,HydroTexture,MixingTexture,GeometryTexture,VisualTexture,EcologyTexture,VegetationTexture,RiverSeasonTexture})
-                if(texture)Destroy(texture);
+            foreach(var texture in new[]{TerrainTexture,DisplayTexture,OwnerTexture,InfoTexture,HydroTexture,MixingTexture,GeometryTexture,VisualTexture,EcologyTexture,VegetationTexture,RiverSeasonTexture,lakeIceTexture})
+                ReleaseTexture(texture);
         }
     }
 }

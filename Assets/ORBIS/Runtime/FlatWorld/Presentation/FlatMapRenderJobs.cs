@@ -91,13 +91,29 @@ namespace Orbis.Flat
         Tile Capture(int i)
         {
             var f=source.Facts;int owner=source.Owner[i];
+            float canopy=f.Canopy[i];
+            if(source.Water[i]==WaterKind.Lake && f.ShoreDistance[i]<=2 && source.WaterReference!=null)
+            {
+                // A surveyed bank may expose land inside a coarse lake cell. Extend
+                // the canopy like the land albedo under that bank; water masks it.
+                float total=0,weight=0;
+                for(int dy=-2;dy<=2;dy++)for(int dx=-2;dx<=2;dx++)
+                {
+                    int d=dx*dx+dy*dy;
+                    if(d==0||d>4)continue;
+                    int n=source.Index(i%source.Width+dx,i/source.Width+dy);
+                    if(n<0||FlatTerrainAnalysis.AreaWater(source.Water[n]))continue;
+                    total+=f.Canopy[n]/d;weight+=1f/d;
+                }
+                if(weight>0)canopy=total/weight;
+            }
             return new Tile{Elevation=source.Elevation[i],Water=source.Water[i],Biome=source.Biomes[i],Climate=source.Climates[i],Building=source.Buildings[i],
                 Material=f.Materials[i],Vegetation=f.Vegetation[i],Tree=f.Trees[i],Form=f.Forms[i],Owner=owner<0?new Color32(0,0,0,0):FlatPalette.RGB(source.Nations[owner].Color,(byte)(owner+1)),
                 Temperature=source.Temperature[i*12+month],Rain=source.Precipitation[i*12+month],Fertility=source.Fertility[i],Depth=f.Depth[i],FlowX=f.FlowX[i],FlowY=f.FlowY[i],
                 // Earth streams its mapped overview first. Suppress the legacy tile
                 // channels while waiting for the matching detailed distance field.
                 HalfWidth=f.RiverCurves!=null&&f.RiverCurves.HasSurvey?0:f.HalfWidth[i],
-                Shore=f.ShoreDistance[i],Sediment=f.Sediment[i],Freshness=f.Freshness[i],Wetness=f.Wetness[i],Hand=f.Hand[i],Canopy=f.Canopy[i],Meander=f.Meander[i],Connections=f.Connections[i]};
+                Shore=f.ShoreDistance[i],Sediment=f.Sediment[i],Freshness=f.Freshness[i],Wetness=f.Wetness[i],Hand=f.Hand[i],Canopy=canopy,Meander=f.Meander[i],Connections=f.Connections[i]};
         }
         public bool Schedule(MapLayer requestedLayer,bool refreshData,int climateYearOffset=0)
         {

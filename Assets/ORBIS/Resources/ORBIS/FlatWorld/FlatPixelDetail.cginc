@@ -37,16 +37,19 @@ float PDTreeSize(float2 id,float4 placement,float4 info,float4 ecology)
  // crown, shadow or reflection crosses pixels with different screen footprints.
  float2 strait=FlatEarthStrait(uv,0);
  float shore=lerp(field.g,strait.x,strait.y);
+ float lakeWeight;
+ FlatEarthLakeAt(uv,info.g,strait.y,0,0,shore,lakeWeight);
  if(shore>=0)return 0;
  float size=placement.z;
- if(strait.y>0)
+ float surveyed=max(strait.y,lakeWeight);
+ if(surveyed>0)
  {
   // The 32-pixel tree is a map symbol. Allow 1.5 km of coastal overhang,
   // then scale its full 21 x 40-pixel outer extent about the geographic foot.
   float cellKm=40030.2*_MapSize.z;
   float pixelKm=cellKm*FlatTreeLatitudeScale(id,placement.y)/32;
   float coastalSize=(1.5-shore*cellKm)/(length(float2(21,40))*pixelKm);
-  size=lerp(size,min(size,coastalSize),strait.y);
+  size=lerp(size,min(size,coastalSize),surveyed);
  }
  float bank=FlatPlantRiverEdge(id+root,_PixelsPerTile);
  if(bank<.15)return 0;

@@ -18,6 +18,14 @@ Shader "Hidden/ORBIS/VegetationArtProbe"
  float3 _ProbeLight;
  float4 frag(v2f_img i):SV_Target
  {
+  if(_ProbeMode>11.5)
+  {
+   float2 cell=_ProbeRoot*_MapSize.xy;
+   float4 placement=float4(frac(cell)*32,.65,0);
+   float shore=-3;
+   float lake=FlatEarthLake(_ProbeRoot,0,0,shore);
+   return float4(shore,lake,PDTreeSize(floor(cell),placement,0,float4(-1,0,0,0)),1);
+  }
   if(_ProbeMode>9.5)
   {
    float2 id=_ProbeRoot+floor(i.uv*_ProbeGrid);

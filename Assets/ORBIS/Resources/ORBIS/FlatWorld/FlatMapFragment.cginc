@@ -54,6 +54,7 @@
     return float4(colour,1);
    }
 #else
+   #include "FlatLakeIce.cginc"
    float4 frag(v2f i):SV_Target
    {
 #ifdef ORBIS_SCROLL_SURFACE
@@ -99,6 +100,8 @@
     float riverRadius=length(river.ba);
     river=FlatRiverDisplaySample(river,_PixelsPerTile);
     float waterMask=FlatDisplayedWaterMask(river.r,field.g,aa,_PixelsPerTile,edgeDistance);
+    float landBed=field.r,landSurvey=0;
+    if(terrainView>.5)landSurvey=FlatEarthLandRelief(i.uv,1-waterMask,landBed,terrainGradient);
     float polarIce=FlatPolarIceMask(i.uv,waterMask,0)*naturalView;
     float landSnow=FlatLandSnow(cell,_InfoTex)*(1-waterMask)*naturalView;
     float4 season=float4(1,1,0,.5);
@@ -138,24 +141,24 @@
      float4 localMoon=float4(FlatGeographicLight(i.uv,_OrbisMoon.xyz),_OrbisMoon.w*_OrbisNightParams.x);
      terrainLight=FlatTerrainLight(localSun,localMoon,_FlatDayNight*naturalView);
      if(waterMask<.999||_DrawHeight>.5)
-      terrainRelief=FlatTerrainRelief(cell,gridBed,terrainGradient,terrainLight,surfaceView,FlatWetMineral(substrate.z,surfaceWetness,field.a),surveyWeight);
+      terrainRelief=FlatTerrainRelief(cell,gridBed,terrainGradient,terrainLight,surfaceView,FlatWetMineral(substrate.z,surfaceWetness,field.a),max(surveyWeight,landSurvey));
      snowSurface=FlatTerrainSnow(snowCover,cell,terrainGradient,_PixelsPerTile);
     }
-    float frozen=max(polarIce,snowSurface);
-    // A seasonal snowpack covers the ground under trees and buildings.
-    float permanentIce=max(polarIce,landSnow*snowSurface/max(.00001,snowCover));
+    float lakeIce=0,waterIce=polarIce,lakePixelKm=40030.2*FlatEarthGroundFootprint(i.uv);
+    float frozen=max(waterIce,snowSurface);
     if(naturalView>.5)
     {
      col=FlatEcotoneAlbedo(_MainTex,cell,field.g,1);
      col=FlatEcotoneColor(col,cell,field.a,substrate.a);
      col=lerp(col,FlatSeasonGround(col,field.a,season),1-waterMask);
      if(_DetailWeight<1)col=lerp(FlatVegetation(col,cell,field.a,_PixelsPerTile,plantView),col,_DetailWeight);
-     col=FlatTerrainFine(col,cell,_PixelsPerTile*(1-step(.999,waterMask)),terrainGradient,field,substrate.xy,surfaceWetness,terrainLight);
-     if(_DetailWeight>0)col=lerp(col,PixelGround(col,cell,field,waterMask,terrainGradient,FlatEcologyData(uv,info),plantView),_DetailWeight);
+     float4 landField=field;landField.r=landBed;
+     col=FlatTerrainFine(col,cell,_PixelsPerTile*(1-step(.999,waterMask)),terrainGradient,landField,substrate.xy,surfaceWetness,terrainLight);
+     if(_DetailWeight>0)col=lerp(col,PixelGround(col,cell,landField,waterMask,terrainGradient,FlatEcologyData(uv,info),plantView),_DetailWeight);
     }
     if(_DrawHeight>.5)
     {
-     col=FlatElevationColor(field.r);
+     col=FlatElevationColor(landBed);
      terrainRelief.rgb=dot(terrainRelief.rgb,float3(.2126,.7152,.0722));
     }
     col=lerp(col*terrainRelief.rgb,FlatColor(float3(.84,.87,.90)),terrainRelief.a);
@@ -165,7 +168,14 @@
      float4 areaOptics=FlatAreaWaterOptics(cell,_InfoTex,float4(field.b,mixing.g,mixing.b,floor(info.g+.5)),wetSupport);
      if(surveyWeight>0&&wetSupport>0)areaOptics.r=max(.15,areaOptics.r+(gridBed-field.r));
      float surveyDepth=FlatEarthMarineOptics(i.uv,surveyCoast,field.r,surveyStrait,areaOptics,wetSupport);
+     float lakeReceiver=naturalView*FlatLakeIceReceiver(areaOptics.a,wetSupport,surveyLake,field.g,aa);
      FlatEarthLakeOptics(surveyLake,field.g,areaOptics,wetSupport);
+     [branch] if(lakeReceiver>.0001)
+     {
+      polarIce*=1-lakeReceiver;
+      lakeIce=lakeReceiver*FlatLakeIceCover(i.uv,FlatRadial(i.uv),areaOptics.r,field.g,lakePixelKm);
+      waterIce=max(polarIce,lakeIce);frozen=max(waterIce,snowSurface);
+     }
      float marineSupport=wetSupport*saturate(4-areaOptics.a);
      float beachScale=FlatEarthBeachScale(surveyStrait*(1-surveyLake));
      FlatCoastalSediment coast=FlatCoastAt(cell,field,areaOptics,wetSupport,edgeDistance,frozen,_WaterClock,beachScale);
@@ -187,7 +197,7 @@
      if(_ShowWater>.5)
      {
       FlatWaterSurfaceData waterSurface;
-      waterColor=FlatWaterShade(cell,mixing,field,bottom,illumination,waterView,waterLight,_WaveAmount*(1-polarIce),areaOptics.a,coast,channel,waterSurface);
+      waterColor=FlatWaterShade(cell,mixing,field,bottom,illumination,waterView,waterLight,_WaveAmount*(1-waterIce),areaOptics.a,coast,channel,waterSurface);
       // Emphasize channels only while their physical width is unresolved.
       // The optical weight also fades across the submerged bank at a mouth.
       float riverPixels=2*riverRadius*_PixelsPerTile;
@@ -196,7 +206,7 @@
       waterColor=lerp(waterColor,FlatColor(float3(.17,.43,.62))*illumination,tint);
       // Keep the normal derivatives above uniform across shorelines. Only the
       // reflection lookup can be skipped for completely dry receivers.
-      [branch] if(waterMask>.001)
+      [branch] if(waterMask>.001&&lakeIce<.999)
       {
        // An optical bed below the coarse terrain still reflects at sea level.
        float waterHeight=lerp(field.r+field.b,0,coast.surveyDepthWeight);
@@ -204,26 +214,28 @@
        if(_ScrollMorph>.999&&_ScrollRelief.x>.05)
         waterHeight=dot(world-_ScrollNormal,_ScrollNormal)/max(1e-9,_ScrollHeightScale*_ScrollRelief.w);
        #endif
-       float reflectionDetail=_DetailWeight*naturalView*(1-polarIce)*waterMask;
+       float reflectionDetail=_DetailWeight*naturalView*(1-waterIce)*waterMask;
        waterColor=FlatReflectWater(waterColor,cell,field,waterHeight,waterView,waterLight,illumination,waterSurface,_FlatClouds*_SkyReady,reflectionDetail);
       }
      }
      col=lerp(col,waterColor,waterMask);
      // Keep unresolved channels visible through the same daylight and cloud pass.
-     float exposed=max(1-smoothstep(-.04,.08,field.g),channel.influence*marineSupport)*(1-polarIce);
+     float exposed=max(1-smoothstep(-.04,.08,field.g),channel.influence*marineSupport)*(1-waterIce);
      col=lerp(col,FlatColor(float3(.15,.40,.56))*illumination,overviewInk*(1-closeRiver)*exposed*.79);
     }
     else col*=illumination;
     if(_RiverMap>.5)col=FlatRiverMapColor(cell,_InfoTex,info.g,field,aa,overviewInk,surveyLake);
-    if(frozen>.001)col=lerp(col,FlatPolarIceColor(i.uv,waterMask)*illumination*lerp(terrainRelief.rgb,1,waterMask),frozen);
-    float major;float contour=FlatContour(field.r,_ContourInterval,_PixelsPerTile,major);
+    float snowAndCap=max(polarIce,snowSurface);
+    if(snowAndCap>.001)col=lerp(col,FlatPolarIceColor(i.uv,waterMask)*illumination*lerp(terrainRelief.rgb,1,waterMask),snowAndCap);
+    if(lakeIce>.001)col=lerp(col,FlatLakeIceColor(FlatRadial(i.uv),lakePixelKm)*illumination,lakeIce);
+    float major;float contour=FlatContour(landBed,_ContourInterval,_PixelsPerTile,major);
     float contourStrength=max(_ShowContours,_DrawHeight)*smoothstep(3,5,_PixelsPerTile)*terrainView;
     float gentleSlope=FlatGentleContourWeight(terrainGradient);
     float landContour=contour*lerp(1-waterMask,1,_DrawHeight);
     landContour*=lerp(gentleSlope*lerp(1,.72,_DetailWeight),1,_DrawHeight);
     col=lerp(col,FlatColor(float3(.31,.30,.24))*illumination,landContour*contourStrength*lerp(.23,.42,major));
     float depthMajor;float depthContour=FlatContour(-field.b,_ContourInterval,_PixelsPerTile,depthMajor);
-    float depthContourStrength=waterMask*step(.01,field.g)*(1-polarIce)*_Bathymetry*(1-_DrawHeight)*gentleSlope;
+    float depthContourStrength=waterMask*step(.01,field.g)*(1-waterIce)*_Bathymetry*(1-_DrawHeight)*gentleSlope;
     col=lerp(col,FlatColor(float3(.075,.27,.36))*illumination,depthContour*depthContourStrength*contourStrength*lerp(.12,.23,depthMajor));
     if(_Political>.5)
     {
@@ -263,7 +275,9 @@
      // geographic receiver first discards most crown rows near the poles.
      if(_DetailWeight>0)
      {
-      col=lerp(col,PixelAmbientLife(col,cell,field,waterMask,info,illumination),_DetailWeight*(1-permanentIce));
+      // Snow lies under branches and buildings. Frozen water hides aquatic life.
+      float permanentIce=max(polarIce,landSnow*snowSurface/max(.00001,snowCover));
+      col=lerp(col,PixelAmbientLife(col,cell,field,waterMask,info,illumination),_DetailWeight*(1-max(permanentIce,lakeIce)));
       col=lerp(col,PixelProps(col,cell,field,waterMask,structure,illumination,plantView),_DetailWeight*(1-permanentIce));
      }
      float night=1-FlatDayWeight(FlatRadial(i.uv));

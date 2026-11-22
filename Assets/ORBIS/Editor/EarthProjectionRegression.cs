@@ -144,6 +144,27 @@ namespace Orbis.Editor
                 }
                 CheckGrid(19, 0, "Equator");
                 CheckGrid(-140, -44, "Outside survey coverage");
+                // NOAA native pixel centres. The first two heights share one
+                // Earth512 simulation cell on the southern flank of the Dabie range.
+                const float landLon=115.525f, landLat=31.075f;
+                if (SystemInfo.maxTextureSize >= 8192)
+                {
+                    var sites = new[] {new Vector3(landLon,landLat,304.90f), new Vector3(115.508333f,31.058333f,213.44f),
+                        new Vector3(118.358333f,32.158333f,22.87f), new Vector3(7.858333f,46.491667f,2668.90f),
+                        new Vector3(-71.875f,-13.358333f,3967.79f), new Vector3(35.441667f,31.041667f,-391.20f)};
+                    foreach (var site in sites)
+                    {
+                        var terrain=Sample(8,site.x,site.y);
+                        if (terrain.g < .999f || Mathf.Abs(terrain.r-site.z)>18)
+                            failures.Add($"Native land at {site.x},{site.y}: {terrain.r:F1} m, expected {site.z:F1} m, weight {terrain.g:F3}");
+                    }
+                    var slope=Sample(8,landLon,landLat);
+                    // True centred source gradients, in metres per 5 km on the surface.
+                    if (Mathf.Abs(slope.b-223.8f)>20 || Mathf.Abs(slope.a-276.9f)>20)
+                        failures.Add($"Measured east/north slope at Dabie: {slope.b:F1}, {slope.a:F1}");
+                }
+                if (Sample(9,landLon,landLat).g!=0 || Sample(8,15,79).g!=0)
+                    failures.Add("Land survey covered a wet receiver or the existing polar chart");
                 // Natural Earth polygon membership at interior points misrepresented
                 // by the 512-grid coastline in Svalbard and the Antarctic Peninsula.
                 foreach (var site in new[] { new Vector3(18.35312f,80.15885f,-1), new Vector3(11.27188f,78.51615f,-1),
@@ -197,6 +218,7 @@ namespace Orbis.Editor
                 int editRow = (int)((73.44/180+.5)*world.Height);
                 world.Elevation[world.Index(width-1,editRow)] = 2800;
                 world.Elevation[world.Index(0,world.Height-1)] = 1600;
+                world.Elevation[world.Index((int)((landLon/360+.5f)*width),(int)((landLat/180+.5f)*world.Height))] = 2200;
                 FlatGenerator.Rebuild(world, default);
                 renderer.Flush(true);
                 var wait = System.Diagnostics.Stopwatch.StartNew();
@@ -208,6 +230,9 @@ namespace Orbis.Editor
                 if (renderer.VisualTexture.GetPixel(width-1,editRow).r != 2800)
                     failures.Add("Edited survey mask was not published");
                 probe.CopyPropertiesFromMaterial(renderer.Material);
+                var editedLand=Sample(8,landLon,landLat);
+                if (editedLand.g!=0 || Mathf.Abs(editedLand.r-Sample(5,landLon,landLat).r)>.01f)
+                    failures.Add("Measured land covered a player terrain edit");
                 CheckGrid(179.72f,73.44f,"Edited date-line cell");
                 CheckGrid(-179.91f,73.44f,"Across date line from edit");
                 probe.SetFloat("_ProbeWaterKind",(int)WaterKind.Land);
@@ -224,6 +249,7 @@ namespace Orbis.Editor
                 probe.CopyPropertiesFromMaterial(procedural.Material);
                 if (procedural.Material.GetFloat("_EarthPolarReady") != 0) failures.Add("Survey enabled on a procedural world");
                 CheckGrid(45,83,"Procedural Arctic");
+                if (Sample(8,landLon,landLat).g!=0) failures.Add("Earth land relief enabled on a procedural world");
                 if (failures.Count > 0) throw new InvalidOperationException(string.Join("\n", failures));
                 Debug.Log("Earth projection PASS: polar ground, survey slopes, map edits, date line, procedural fallback and equal-area HUD.");
             }

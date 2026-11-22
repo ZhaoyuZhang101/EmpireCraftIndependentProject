@@ -117,7 +117,7 @@ namespace Orbis.Flat
                     int width=curves.OverviewWidth;
                     if(!overview || overview.width!=width)
                     {
-                        if(overview)UnityEngine.Object.Destroy(overview);
+                        FlatMapRenderer.ReleaseTexture(overview);
                         overview=new Texture2D(width,width/2,TextureFormat.R8,true,true) {
                             name="River network overview",filterMode=FilterMode.Trilinear,
                             wrapModeU=TextureWrapMode.Repeat,wrapModeV=TextureWrapMode.Clamp
@@ -157,7 +157,7 @@ namespace Orbis.Flat
             publishedPreview=operation.Preview&&!operation.Plan.IsGeometry;
             operation.DisposeCompleted();operation=null;
             SetReady(!publishedPreview,publishedPreview);Bind(material);
-            if(previous!=null)UnityEngine.Object.Destroy(previous);
+            FlatMapRenderer.ReleaseTexture(previous);
         }
 
         bool PublishedMatchesRequest()
@@ -197,7 +197,7 @@ namespace Orbis.Flat
 
         void ReleaseStaging()
         {
-            if(staging!=null)UnityEngine.Object.Destroy(staging);
+            FlatMapRenderer.ReleaseTexture(staging);
             staging=null;stagingApplied=false;
         }
 
@@ -205,8 +205,8 @@ namespace Orbis.Flat
         {
             if(disposed)return;
             disposed=true;SetReady(false,false);ReleaseStaging();
-            if(Texture!=null)UnityEngine.Object.Destroy(Texture);
-            if(overview)UnityEngine.Object.Destroy(overview);
+            FlatMapRenderer.ReleaseTexture(Texture);
+            FlatMapRenderer.ReleaseTexture(overview);
             Texture=null;
             if(operation!=null){operation.CancelAndDisposeWhenComplete();operation=null;}
         }

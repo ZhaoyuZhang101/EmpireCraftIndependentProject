@@ -13,6 +13,30 @@ Shader "Hidden/ORBIS/WaterOpticsProbe"
  float4 _ProbeCell;
  float4 frag(v2f_img i):SV_Target
  {
+  if(_ProbeMode>5.5)
+  {
+   // Both sides are under one surveyed shore. Change only the coarse
+   // support beneath it: a dry tile, a river channel or a measured basin.
+   float4 basin=i.uv.x<.5 ? float4(0,0,0,0) : float4(12,.7,0,_ProbeCell.y);
+   float support=i.uv.x<.5 ? 0 : _ProbeCell.z;
+   FlatEarthLakeOptics(_ProbeCell.x,.008,basin,support);
+   return basin;
+  }
+  if(_ProbeMode>4.5)
+  {
+   float shoreKm=i.uv.x<.5?.2:8;
+   float support=_ProbeCell.w;
+   float4 basin=float4(_ProbeCell.z,0,1,4);
+   FlatEarthLakeOptics(1,shoreKm*_MapSize.x/40030.2,basin,support);
+   return basin;
+  }
+  if(_ProbeMode>3.5)
+  {
+   float2 cell=float2(8,6)+i.uv*float2(4,2);
+   return float4(FlatWaterShade(cell,float4(3,0,0,0),float4(0,0,1,0),
+    float4(-3,2,3,0),float3(.4,.35,.3),float3(1,1,1),float3(0,0,1),
+    normalize(float3(-.8,.5,.3)),0,4,-2),1);
+  }
   if(_ProbeMode>2.5)
   {
    float shore=i.uv.x<.5?-.0001:.0001;

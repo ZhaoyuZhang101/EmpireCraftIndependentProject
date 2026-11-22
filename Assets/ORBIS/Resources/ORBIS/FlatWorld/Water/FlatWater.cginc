@@ -6,10 +6,13 @@
 #include "../FlatPolarIce.cginc"
 sampler2D _HydroA,_HydroB,_GeoTex;
 sampler2D _VendorStreamNormal,_VendorOceanNormal;float _VendorWaterReady;
-sampler2D _VendorLakeNormal,_VendorOceanFoam,_VendorRiverFoam;
+sampler2D _VendorLakeNormal,_VendorLakeSmoothNormal,_VendorOceanFoam,_VendorRiverFoam;
 float4 _VendorStreamNormal_TexelSize,_VendorOceanNormal_TexelSize,_VendorLakeNormal_TexelSize,_VendorRiverFoam_TexelSize;
+float4 _VendorLakeSmoothNormal_TexelSize;
 #ifndef ORBIS_FLAT_NO_SWE
-sampler2D _SWEState,_SWEPreviousState;
+// Both simulation patches have the same bilinear/clamp sampling state.
+UNITY_DECLARE_TEX2D(_SWEState);
+UNITY_DECLARE_TEX2D_NOSAMPLER(_SWEPreviousState);
 #endif
 float4 _SWERect,_SWEPreviousRect;
 float _SWEPreviousReady,_SWEBlend;
@@ -364,6 +367,21 @@ float FlatBedCaustic(float3 position)
     float bandDistance=min(abs(waves.x+waves.y),min(abs(waves.y+waves.z),abs(waves.z+waves.x)));
     return pow(saturate(1-bandDistance*1.6),8);
 }
+
+float3 FlatLakeWaterColumn(float path,float3 bedPosition,float groundPixel,float kilometresPerCell)
+{
+    // Continuous shallow-to-deep coloration for still freshwater. The land
+    // substrate IDs under a surveyed lake describe the coarse simulation grid.
+    float3 shallow=FlatColor(float3(.32,.60,.62));
+    float3 deep=FlatColor(float3(.067,.31,.44));
+    float3 water=lerp(deep,shallow,exp(-path*float3(.52,.29,.17)));
+    // Silt is visible through very shallow water. Filter its ground footprint
+    // before evaluating detail so a distant lake cannot acquire giant pebbles.
+    float frequency=lerp(16,kilometresPerCell/.12,saturate(_EarthLakeReady));
+    float visible=(1-smoothstep(.45,2.3,path))*(1-smoothstep(.18,.62,groundPixel*frequency));
+    if(visible>.001)water*=1+(FlatDetailNoise(bedPosition*frequency+17)-.5)*.48*visible;
+    return water;
+}
 float4 FlatLegacyMouth(float2 cell,float2 uv,float4 field)
 {
  float4 result=float4(8,0,0,0);
@@ -510,14 +528,14 @@ float FlatPeriodicX(float x,float desiredFrequency)
     return x*6.2831853*periods/max(1,_MapSize.x);
 }
 #ifndef ORBIS_FLAT_NO_SWE
-float3 FlatPatchContribution(sampler2D patchTexture,float4 rect,float ready,float2 cell)
+float3 FlatPatchContribution(UNITY_DECLARE_TEX2D_NOSAMPLER(patchTexture),float4 rect,float ready,float2 cell)
 {
     float2 delta=cell-rect.xy;
     delta.x-=floor(delta.x/max(1,_MapSize.x))*_MapSize.x;
     float2 uv=delta/max(float2(1,1),rect.zw);
     float inside=step(0,uv.x)*step(0,uv.y)*step(uv.x,1)*step(uv.y,1)*ready;
     float fade=smoothstep(0,.12,min(min(uv.x,uv.y),min(1-uv.x,1-uv.y)));
-    float4 state=tex2D(patchTexture,saturate(uv));
+    float4 state=UNITY_SAMPLE_TEX2D_SAMPLER(patchTexture,_SWEState,saturate(uv));
     return float3((state.rg*255-128)/127*.18*state.a,state.b*.35)*inside*fade;
 }
 #endif
@@ -550,6 +568,7 @@ struct FlatWaterSurfaceData
     float3 normal;
     float skyWeight;
     float visible;
+    float lake;
 };
 float3 FlatWaterShade(float2 cell,float4 mixing,float4 field,float3 bottom,float3 light,
                      float3 localView,float3 localLight,float waveStrength,float basinKind,
@@ -565,6 +584,7 @@ float3 FlatWaterShade(float2 cell,float4 mixing,float4 field,float3 bottom,float
     float3 sphere=float3(cos(lat)*sin(lon),sin(lat),cos(lat)*cos(lon));
     float3 artwork=FlatDetailPosition(cell),weights=FlatDetailWeights(sphere);
     float3 artDx=ddx(artwork),artDy=ddy(artwork);
+    float kilometresPerCell=40030.2/max(1,_MapSize.x);
     float riffle=FlatRiverRiffle(channel,artwork);
     float travel=.21+.20*saturate(channel.depth/4)+riffle*.36;
     // The callers express view/light in east, north, up coordinates. A screen
@@ -627,16 +647,20 @@ float3 FlatWaterShade(float2 cell,float4 mixing,float4 field,float3 bottom,float
             }
             if(basinLake>0)
             {
-                float lakeFootprint=footprint*max(_VendorLakeNormal_TexelSize.z,_VendorLakeNormal_TexelSize.w)*frequency/3;
-                float lakeLOD=max(0,log2(max(.0001,lakeFootprint)));
-                float lakeFineLOD=max(0,log2(max(.0001,lakeFootprint*2)));
-                float2 lake0=FlatDetailNormal(_VendorLakeNormal,baseUV*2-drift*phase0*.10,weights,0,lakeLOD,right,up);
-                float2 lake1=FlatDetailNormal(_VendorLakeNormal,baseUV*2-drift*phase1*.10,weights,0,lakeLOD,right,up);
-                float fetch=smoothstep(.02,1.8,shoreDistance);
-                lakeSlope=lerp(lake0,lake1,blend)*lerp(.055,.10,fetch);
-                float2 fine0=FlatDetailNormal(_VendorLakeNormal,baseUV*4-drift*phase0*.20,weights,0,lakeFineLOD,right,up);
-                float2 fine1=FlatDetailNormal(_VendorLakeNormal,baseUV*4-drift*phase1*.20,weights,0,lakeFineLOD,right,up);
-                lakeMicro=lerp(fine0,fine1,blend)*.24;
+                // SW3 Clear uses SmoothWaves twice: the second layer is half
+                // the tiling and travels at -0.8 of the primary layer's speed.
+                // A repeat spans 3 km on Earth, independent of simulation width.
+                float lakeFrequency=lerp(.9,kilometresPerCell/3,saturate(_EarthLakeReady));
+                float3 lakeUV=artwork*lakeFrequency;
+                float lakePixel=footprint/6*lakeFrequency*max(_VendorLakeSmoothNormal_TexelSize.z,_VendorLakeSmoothNormal_TexelSize.w);
+                float lakeLOD=log2(max(1,lakePixel));
+                float2 main0=FlatDetailNormal(_VendorLakeSmoothNormal,lakeUV-drift*phase0*.34,weights,0,lakeLOD,right,up);
+                float2 main1=FlatDetailNormal(_VendorLakeSmoothNormal,lakeUV-drift*phase1*.34,weights,0,lakeLOD,right,up);
+                float2 broad0=FlatDetailNormal(_VendorLakeSmoothNormal,lakeUV*.5+drift*phase0*.272,weights,0,max(0,lakeLOD-1),right,up);
+                float2 broad1=FlatDetailNormal(_VendorLakeSmoothNormal,lakeUV*.5+drift*phase1*.272,weights,0,max(0,lakeLOD-1),right,up);
+                float2 mainWave=lerp(main0,main1,blend),broadWave=lerp(broad0,broad1,blend);
+                lakeSlope=(mainWave*.7+broadWave*.3)*.223;
+                lakeMicro=mainWave*.22;
             }
             vendorSlope+=lerp(oceanSlope,lakeSlope,basinLake)*(1-river);
             microSlopes+=lerp(oceanMicro,lakeMicro,basinLake)*(1-river);
@@ -673,7 +697,11 @@ float3 FlatWaterShade(float2 cell,float4 mixing,float4 field,float3 bottom,float
     // The bank shoals to the waterline. In the opening, start the shelf profile
     // at the submerged channel bed and carry it into the receiving basin.
     float entranceDepth=lerp(.15,channelDepth,opening);
-    float basinDepth=lerp(entranceDepth,max(.15,field.b),smoothstep(0,1.5,opticalShore));
+    // On a low-resolution Earth, an entire lake can fit in the ocean shelf's
+    // 1.5-cell shore fade. Keep its littoral band tied to ground distance.
+    float lakeShore=field.g*lerp(1,kilometresPerCell,saturate(_EarthLakeReady));
+    float bankProfile=lerp(smoothstep(0,1.5,opticalShore),smoothstep(0,.65,lakeShore),basinLake);
+    float basinDepth=lerp(entranceDepth,max(.15,field.b),bankProfile);
     float depth=lerp(basinDepth,channelDepth,river);
     // A small depositional bar modulates only the optical path through the
     // very shallow sandy apron. Inlet depths and the shoreline mask stay exact.
@@ -685,18 +713,18 @@ float3 FlatWaterShade(float2 cell,float4 mixing,float4 field,float3 bottom,float
     float3 bedPosition=FlatDetailPosition(bedCell);
     float2 depthCell=cell+FlatBedParallax(cell,localView,depth,clearance);
     float measuredDepth=depth,depthRelief=1;
-    float gridBedWeight=(1-river)*(1-coast.surveyDepthWeight);
+    float gridBedWeight=ocean*(1-coast.surveyDepthWeight);
     if(_FieldReady>.5&&gridBedWeight>.001)
         depthRelief=lerp(1,FlatSampleSeabed(depthCell,localLight,measuredDepth),gridBedWeight);
-    // Geographic wave patterns keep light bands attached to the submerged bed.
-    float3 sunView=normalize(float3(localLight.xy,max(.1,localLight.z)));
-    float2 sunOffset=FlatBedRefraction(cell,sunView,normal,depth,clearance);
-    float3 sunWarp=(right*sunOffset.x*max(.04,cos(lat))+up*sunOffset.y)*12;
-    float focus=lerp(FlatBedCaustic(p0*.6+sunWarp),FlatBedCaustic(p1*.6+sunWarp),blend);
-    float caustic=focus*saturate(localLight.z)*waveStrength;
-    caustic*=exp(-depth*.12)*(1-exp(-depth*.7))*smoothstep(.03,.18,clearance)*(1-smoothstep(.2,1,footprint));
-    if(_FieldReady>.5)
+    if(_FieldReady>.5&&lake<1)
     {
+        // Focused light follows the submerged river or coastal bed.
+        float3 sunView=normalize(float3(localLight.xy,max(.1,localLight.z)));
+        float2 sunOffset=FlatBedRefraction(cell,sunView,normal,depth,clearance);
+        float3 sunWarp=(right*sunOffset.x*max(.04,cos(lat))+up*sunOffset.y)*12;
+        float focus=lerp(FlatBedCaustic(p0*.6+sunWarp),FlatBedCaustic(p1*.6+sunWarp),blend);
+        float caustic=focus*saturate(localLight.z)*waveStrength;
+        caustic*=exp(-depth*.12)*(1-exp(-depth*.7))*smoothstep(.03,.18,clearance)*(1-smoothstep(.2,1,footprint));
         bottom=FlatBedColor(bedCell,1-river)*lerp(.72,.85,river);
         if(depth<35&&footprint<1.5)bottom=lerp(bottom,FlatBedArtwork(bedPosition,bottom,footprint),1-smoothstep(18,35,depth));
         if(river>.001&&(abs(channel.bend)>.06||channel.grade>.001))
@@ -719,8 +747,13 @@ float3 FlatWaterShade(float2 cell,float4 mixing,float4 field,float3 bottom,float
     float3 transmission;
     float3 scatteringLight=OrbisHPScatter(light,absorption,scattering,depth/refractedCos,transmission);
     float fresnel=OrbisHPSchlick(nv);
+    // The Clear preset uses a fourth-power reflection response. Retain the
+    // air/water reflectance at normal incidence on the Built-in sky path.
+    fresnel=lerp(fresnel,.02037+.97963*pow(1-nv,4),lake);
     float3 sky=light*float3(.34,.48,.58);
-    float3 result=(bottom*light*transmission+scatteringLight)*(1-fresnel)+sky*fresnel;
+    float3 body=bottom*light*transmission+scatteringLight;
+    if(lake>0)body=lerp(body,light*FlatLakeWaterColumn(depth/refractedCos,bedPosition,footprint/6,kilometresPerCell),lake);
+    float3 result=body*(1-fresnel)+sky*fresnel;
     // Physically, 80m and 2200m are both optically opaque. Optional cartographic
     // bathymetry makes the true data depth readable; it is NOT deep-water transparency.
     float chartMetres=depth;
@@ -744,7 +777,8 @@ float3 FlatWaterShade(float2 cell,float4 mixing,float4 field,float3 bottom,float
     // the camera. Ripple-facing and shadowed facets still redistribute the
     // diffuse light on the resolved channel, especially over shallow beds.
     float rippleLight=clamp(-2.8*dot(slopes,localLight.xy),-.13,.13);
-    result*=1+rippleLight*river*channelUV.resolved*saturate(waveStrength)*smoothstep(0,.20,localLight.z);
+    float facets=rippleLight*(river*channelUV.resolved+lake*.24);
+    result*=1+facets*saturate(waveStrength)*smoothstep(0,.20,localLight.z);
     float microFade=1-smoothstep(.8,2.8,footprint);
     float3 glitterNormal=normalize(float3(-(slopes+microSlopes*microFade)*waveStrength,1));
     float glint=FlatWaterSunSpecular(glitterNormal,localView,localLight,lerp(.026,.020,max(lake,river)));
@@ -784,6 +818,7 @@ float3 FlatWaterShade(float2 cell,float4 mixing,float4 field,float3 bottom,float
         foam+=(basinFoam+riverFoam)*waveStrength*(1-smoothstep(1,4,footprint));
     }
     surface.normal=normal;
+    surface.lake=lake;
     surface.visible=1-saturate(foam);
     surface.skyWeight=fresnel*(1-saturate(_Bathymetry)*chartDepth)*surface.visible;
     return lerp(result,light*FlatColor(float3(.82,.90,.86)),saturate(foam));

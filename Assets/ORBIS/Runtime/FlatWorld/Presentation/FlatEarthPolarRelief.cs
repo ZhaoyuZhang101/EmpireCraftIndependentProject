@@ -11,6 +11,7 @@ namespace Orbis.Flat
     {
         readonly Texture2D bed, coast, coverage, lakes, lakeDetail, straits, straitDetail, marineDepth;
         static Texture2D sharedLakes, sharedLakeDetail, sharedMarineDepth;
+        static FlatEarthLandRelief sharedLand;
         // A loaded V5 map and a newly generated map may coexist during handover.
         static readonly Texture2D[] sharedStraits = new Texture2D[2], sharedStraitDetail = new Texture2D[2];
         static readonly int[] straitUsers = new int[2];
@@ -43,6 +44,7 @@ namespace Orbis.Flat
             coast = Atlas("Natural Earth polar shoreline", TextureFormat.R8, shore, size);
             if (lakeUsers == 0)
             {
+                sharedLand = new FlatEarthLandRelief();
                 sharedLakes = LoadLakeShore(false);
                 if (sharedLakes) sharedLakeDetail = LoadLakeShore(true);
             }
@@ -82,7 +84,8 @@ namespace Orbis.Flat
                 if (data.Length < 15 || reader.ReadUInt32() != (detail ? 0x31444c4fu : 0x314b4c4fu))
                     throw new InvalidDataException("Invalid shoreline header.");
                 int width = reader.ReadInt32(), height = reader.ReadInt32();
-                if (detail ? width != 4096 || height <= 256 || height > 8192 || (height-256)%66 != 0
+                int indexRows = width == 8192 ? 128 : 256;
+                if (detail ? (width != 4096 && width != 8192) || height <= indexRows || height > 8192 || (height-indexRows)%66 != 0
                            : width != 8192 || height != 4096 || (data.Length-12)%3 != 0)
                     throw new InvalidDataException("Invalid shoreline dimensions.");
                 if (Math.Max(width, height) > SystemInfo.maxTextureSize) return null;
@@ -113,7 +116,7 @@ namespace Orbis.Flat
                 }
                 if (offset != pixels.Length) throw new InvalidDataException("Incomplete shoreline texture.");
                 var map = new Texture2D(width, height, TextureFormat.R8, !detail, true) {
-                    name = name, filterMode = detail ? FilterMode.Bilinear : FilterMode.Trilinear,
+                    name = name, filterMode = detail ? FilterMode.Point : FilterMode.Trilinear,
                     wrapModeU = detail ? TextureWrapMode.Clamp : TextureWrapMode.Repeat, wrapModeV = TextureWrapMode.Clamp
                 };
                 map.SetPixelData(pixels, 0);
@@ -276,6 +279,7 @@ namespace Orbis.Flat
 
         internal void Bind(Material material)
         {
+            sharedLand?.Bind(material);
             material.SetTexture("_EarthPolarBed", bed);
             material.SetTexture("_EarthPolarCoast", coast);
             material.SetTexture("_EarthSurveyMask", coverage);
@@ -304,6 +308,8 @@ namespace Orbis.Flat
             }
             if (--lakeUsers == 0)
             {
+                sharedLand?.Dispose();
+                sharedLand = null;
                 UnityEngine.Object.Destroy(sharedLakes);
                 UnityEngine.Object.Destroy(sharedLakeDetail);
                 UnityEngine.Object.Destroy(sharedMarineDepth);

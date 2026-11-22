@@ -21,6 +21,7 @@ namespace Orbis.Flat
         public readonly TreeSpecies[] Trees;
         public byte[] VegetationSeasons {get;internal set;}
         public bool VegetationSeasonsReady {get;internal set;}
+        public FlatLakeIceField LakeIce {get;internal set;}
         public readonly ushort[] FreshDistance;
         public FlatRiverCurves RiverCurves { get; internal set; }
         public FlatRiverDischarge RiverDischarge { get; internal set; }
@@ -38,7 +39,7 @@ namespace Orbis.Flat
         }
         public FlatTerrainFacts Clone()
         {
-            var f=new FlatTerrainFacts(Forms.Length){MouthCount=MouthCount,RiverCurves=RiverCurves,RiverDischarge=RiverDischarge,
+            var f=new FlatTerrainFacts(Forms.Length){MouthCount=MouthCount,RiverCurves=RiverCurves,RiverDischarge=RiverDischarge,LakeIce=LakeIce,
                 VegetationSeasons=VegetationSeasons==null?null:(byte[])VegetationSeasons.Clone(),VegetationSeasonsReady=VegetationSeasonsReady};
             Array.Copy(Vegetation,f.Vegetation,Forms.Length);Array.Copy(Canopy,f.Canopy,Forms.Length);
             Array.Copy(Trees,f.Trees,Forms.Length);
@@ -245,6 +246,19 @@ namespace Orbis.Flat
                     float canopy=FlatEcology.ContinuousCanopy(ecologyBiome,temp,rain,seasonalSoil,gradient,warmest);
                     float stand=FlatEcology.StandVariation(w,x,y,treeSeed,out float clearing);
                     f.Canopy[i]=FlatEcology.StandCanopy(f.Vegetation[i],canopy,seasonalSoil,warmest,riparian,clearing);
+                    if(ecologyBiome==Biome.Wetland && riparian<.65f)
+                    {
+                        // The wetland label is discrete. Fade the visual canopy into the
+                        // local climatic stand as freshwater supply reaches its outer edge.
+                        Biome background=ClassifyBiome(w.Climates[i],w.Elevation[i],temp,rain,(byte)saturated,
+                            gradient,waterHand,false,false,warmest,dryStress,sheltered);
+                        var cover=FlatEcology.Classify(background,w.Climates[i],temp,rain,gradient,warmest);
+                        float potential=FlatEcology.ContinuousCanopy(background,temp,rain,seasonalSoil,gradient,warmest);
+                        float standCover=cover==VegetationCover.Bare?0:
+                            FlatEcology.StandCanopy(cover,potential,seasonalSoil,warmest,0,clearing);
+                        float wet=FMath.Clamp((riparian-.18f)/(.65f-.18f),0,1);
+                        f.Canopy[i]=FMath.Lerp(standCover,f.Canopy[i],wet*wet*(3-2*wet));
+                    }
                     bool freshBank=fresh[i]<=2&&waterHand<=100;
                     f.Trees[i]=FlatEcology.SelectTree(f.Vegetation[i],w.Climates[i],coldest,warmest,seasonalSoil,freshBank,w.CoastDistance[i]<=2,stand);
                     FlatEcology.BuildSeasons(w,f,i,coldest);
@@ -302,6 +316,7 @@ namespace Orbis.Flat
             }
             FlatEcology.ApplyNileCropland(w,f,cancel);
             FlatEcology.CompleteSeasonAtlas(w,f);
+            f.LakeIce=new FlatLakeIceField(w,cancel,workers);
             BuildPlumes(w,f,cancel);FlatSurfaceSampling.BuildShore(w,f,cancel);
             f.RiverCurves=FlatRiverCurves.Build(w,f,cancel);w.Facts=f;
         }

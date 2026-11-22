@@ -13,24 +13,57 @@ float4 _EarthLakeShore_TexelSize,_EarthLakeDetail_TexelSize;
 float4 _EarthStraitShore_TexelSize,_EarthStraitDetail_TexelSize;
 float4 _EarthMarineDepth_TexelSize;
 float _EarthPolarReady,_EarthLakeReady,_EarthStraitReady;
+UNITY_DECLARE_TEX2D_NOSAMPLER(_EarthLandOverview);
+UNITY_DECLARE_TEX2D_NOSAMPLER(_EarthLandDirectory);
+UNITY_DECLARE_TEX2D_NOSAMPLER(_EarthLandPages);
+float4 _EarthLandOverview_TexelSize,_EarthLandPages_TexelSize;
 
-// Two R8 texels at exact texel centres encode each one-based detail page.
-// Bilinear reads on a page use the identical geographic samples in its gutter.
+// Page IDs are two separate bytes. Filtering either byte can redirect a whole
+// geographic tile (including half of Taihu) to its neighbour's shoreline.
+float FlatEarthLakePage(float2 pixel)
+{
+    #ifdef UNITY_SEPARATE_TEXTURE_SAMPLER
+    int2 p=(int2)pixel;
+    float2 bytes=float2(_EarthLakeDetail.Load(int3(p,0)).r,_EarthLakeDetail.Load(int3(p+int2(1,0),0)).r);
+    #else
+    float2 texel=_EarthLakeDetail_TexelSize.xy;
+    float2 bytes=float2(tex2Dlod(_EarthLakeDetail,float4((pixel+.5)*texel,0,0)).r,
+                        tex2Dlod(_EarthLakeDetail,float4((pixel+float2(1.5,.5))*texel,0,0)).r);
+    #endif
+    return dot(round(bytes*255),float2(1,256))-1;
+}
+
+float FlatEarthLakeCode(float2 address)
+{
+    float2 texel=_EarthLakeDetail_TexelSize.xy;
+    #ifdef UNITY_SEPARATE_TEXTURE_SAMPLER
+    return FlatPresentationSample(_EarthLakeDetail,address*texel,0).r;
+    #else
+    // Combined-sampler backends bind this packed texture with point filtering.
+    // Interpolate only the geographic distance, including the shared page gutter.
+    float2 pixel=floor(address-.5)+.5,t=frac(address-.5);
+    float a=tex2Dlod(_EarthLakeDetail,float4(pixel*texel,0,0)).r;
+    float b=tex2Dlod(_EarthLakeDetail,float4((pixel+float2(1,0))*texel,0,0)).r;
+    float c=tex2Dlod(_EarthLakeDetail,float4((pixel+float2(0,1))*texel,0,0)).r;
+    float d=tex2Dlod(_EarthLakeDetail,float4((pixel+1)*texel,0,0)).r;
+    return lerp(lerp(a,b,t.x),lerp(c,d,t.x),t.y);
+    #endif
+}
+
 float FlatEarthLakeDetail(float2 uv,float coarse,float footprint)
 {
     [branch] if(_EarthLakeDetail_TexelSize.z<4096 || footprint>=1 || abs(coarse)>=3.75) return coarse;
     float2 location=float2(frac(uv.x)*1024,min(saturate(uv.y)*512,511.99997));
     float2 tile=floor(location);
     float index=2*(tile.y*1024+tile.x);
-    float2 header=float2(fmod(index,4096),floor(index/4096))+.5;
-    float2 texel=_EarthLakeDetail_TexelSize.xy;
-    float lo=round(FlatPresentationSample(_EarthLakeDetail,header*texel,0).r*255);
-    float hi=round(FlatPresentationSample(_EarthLakeDetail,(header+float2(1,0))*texel,0).r*255);
-    float slot=lo+256*hi-1;
+    float width=_EarthLakeDetail_TexelSize.z;
+    float row=floor(index/width);
+    float slot=FlatEarthLakePage(float2(index-row*width,row));
     [branch] if(slot<0)return coarse;
-    float2 origin=float2(fmod(slot,62)*66,256+floor(slot/62)*66);
-    float2 address=(origin+1+frac(location)*64)*texel;
-    float fine=(FlatPresentationSample(_EarthLakeDetail,address,0).r*255-128)/32;
+    float columns=floor(width/66);
+    row=floor((slot+.5)/columns);
+    float2 origin=float2((slot-row*columns)*66,1048576/width+row*66);
+    float fine=(FlatEarthLakeCode(origin+1+frac(location)*64)*255-128)/32;
     float weight=(1-smoothstep(.22,1,footprint))*(1-smoothstep(2.5,3.75,abs(coarse)));
     return lerp(coarse,fine,weight);
 }
@@ -38,22 +71,18 @@ float FlatEarthLakeDetail(float2 uv,float coarse,float footprint)
 // Distance is measured along the ground, in equatorial survey texels. Only
 // the lookup uses longitude/latitude. A bank therefore keeps its physical
 // width on a rotated local chart at high latitude.
-float FlatEarthLake(float2 uv,float kind,float strait,inout float shore)
+float FlatEarthLakeAt(float2 uv,float kind,float strait,float lod,float footprint,inout float shore,out float weight)
 {
+    weight=0;
     if(_EarthLakeReady<.5)return 0;
-    float2 dx=ddx(uv),dy=ddy(uv);
-    dx.x-=round(dx.x);dy.x-=round(dy.x);
-    float texels=max(length(dx*_EarthLakeShore_TexelSize.zw),length(dy*_EarthLakeShore_TexelSize.zw));
-    float lod=clamp(log2(max(1,texels))-.45,0,4);
     float distance=(FlatPresentationSample(_EarthLakeShore,uv,lod).r*255-128)*.25;
     if(distance<=-31)return 0;
-    float2 groundMetric=float2(max(.01,cos((uv.y-.5)*3.14159265)),.5)*8192;
-    distance=FlatEarthLakeDetail(uv,distance,max(length(dx*groundMetric),length(dy*groundMetric)));
+    distance=FlatEarthLakeDetail(uv,distance,footprint);
     float2 mask=FlatPresentationSample(_EarthSurveyMask,uv,0).rg;
     // Keep an adjacent marine coastline on its own surveyed or modelled field.
     float straitSea=strait*smoothstep(-.5,0,shore*40030.2*_MapSize.z);
     float marine=max(straitSea,max(mask.g,step(.5,kind)*step(kind,3.5)));
-    float weight=mask.r*smoothstep(-31,-20,distance)*lerp(1,smoothstep(-1,.25,distance),marine);
+    weight=mask.r*smoothstep(-31,-20,distance)*lerp(1,smoothstep(-1,.25,distance),marine);
     float cells=distance*_MapSize.x*_EarthLakeShore_TexelSize.x;
     // Between a lake and a surveyed marine bank, preserve the nearer shore
     // on dry ground. Replacing the marine distance with a faraway lake's
@@ -63,15 +92,34 @@ float FlatEarthLake(float2 uv,float kind,float strait,inout float shore)
     return weight*smoothstep(-.5,.5,distance);
 }
 
+float FlatEarthLake(float2 uv,float kind,float strait,inout float shore)
+{
+    if(_EarthLakeReady<.5)return 0;
+    float2 dx=ddx(uv),dy=ddy(uv);
+    dx.x-=round(dx.x);dy.x-=round(dy.x);
+    float texels=max(length(dx*_EarthLakeShore_TexelSize.zw),length(dy*_EarthLakeShore_TexelSize.zw));
+    float lod=clamp(log2(max(1,texels))-.45,0,4);
+    float2 metric=float2(max(.01,cos((uv.y-.5)*3.14159265)),.5)*8192;
+    float weight;
+    return FlatEarthLakeAt(uv,kind,strait,lod,max(length(dx*metric),length(dy*metric)),shore,weight);
+}
+
 void FlatEarthLakeOptics(float lake,float shore,inout float4 basin,inout float wetSupport)
 {
     if(lake<=0)return;
-    // Thin or sub-cell parts of a real lake may have no simulated water-depth
-    // sample. Give only those pixels a shallow optical bed below the receiver.
-    float surveyedOnly=1-saturate(wetSupport*4)*saturate(basin.a-3);
-    basin.r=lerp(basin.r,clamp(.4+max(0,shore)*18,.4,18),lake*surveyedOnly);
-    basin.gb=lerp(basin.gb,float2(0,1),lake*surveyedOnly);
-    basin.a=lerp(basin.a,4,lake);
+    // Normalize over water that exists at this receiver. A land or river grid
+    // tile contributes no basin optics, even where the surveyed lake is narrow.
+    float lakeMix=lake/(lake+(1-lake)*saturate(wetSupport));
+    float support=saturate(wetSupport*4)*saturate(basin.a-3);
+    // A lake surface in an elevation survey often has exactly the same height
+    // as its water level. FlatTerrainAnalysis gives those wet cells a 0.25 m
+    // floor. Join them to unsampled lake areas with one optical shore profile.
+    float shoreKm=max(0,shore)*40030.2/max(1,_MapSize.x);
+    float opticalDepth=.35+2.1*(1-exp(-.28*shoreKm))+.10*min(110,shoreKm);
+    float depthSupport=support*smoothstep(.25,.50,basin.r);
+    basin.r=lerp(basin.r,opticalDepth,lakeMix*(1-depthSupport));
+    basin.gb=lerp(basin.gb,float2(0,1),lakeMix*(1-support));
+    basin.a=lerp(basin.a,4,lakeMix);
     wetSupport=max(wetSupport,lake);
 }
 
@@ -124,6 +172,74 @@ float FlatEarthRelief(float2 uv,inout float bed,inout float2 gradient)
 {
     float2 coast;
     return FlatEarthRelief(uv,bed,gradient,coast);
+}
+
+float FlatEarthOverviewHeight(float2 uv,float lod)
+{
+    return max(-512,FlatPresentationSample(_EarthLandOverview,uv,lod).r*65535-32768);
+}
+
+// x is height in metres. yz are geographic height differences across the
+// selected sampling interval. Address the centres of all textures explicitly.
+float3 FlatEarthOverviewLand(float2 uv,float lod)
+{
+    float2 offset=.5*exp2(lod)*_EarthLandOverview_TexelSize.xy;
+    float east=FlatEarthOverviewHeight(uv+float2(offset.x,0),lod)-FlatEarthOverviewHeight(uv-float2(offset.x,0),lod);
+    float north=FlatEarthOverviewHeight(uv+float2(0,offset.y),lod)-FlatEarthOverviewHeight(uv-float2(0,offset.y),lod);
+    float perKm=_EarthLandOverview_TexelSize.z/(40030.2*exp2(lod));
+    return float3(FlatEarthOverviewHeight(uv,lod),float2(east,north)*perKm);
+}
+
+float3 FlatEarthNativeLand(float2 uv,inout float weight)
+{
+    float2 region=float2(frac(uv.x)*360,clamp(uv.y*180-30,0,119.99999));
+    float2 tile=floor(region);
+    float4 entry=round(FlatPresentationSample(_EarthLandDirectory,(tile+.5)/float2(360,120),0)*255);
+    float slot=entry.r+256*entry.g-1;
+    if(slot<0){weight=0;return 0;}
+    float word=entry.b+256*entry.a,exponent=floor(word/8192);
+    float base=word-exponent*8192-1024,scale=exp2(exponent)*255;
+    // A degree contains 60 original samples plus one duplicate from each
+    // neighbour. Both pages encode each duplicate at exactly the same height.
+    float columns=floor(_EarthLandPages_TexelSize.z/62);
+    float row=floor((slot+.5)/columns);
+    float2 texel=_EarthLandPages_TexelSize.xy;
+    float2 address=(float2(slot-row*columns,row)*62+1+frac(region)*60)*texel;
+    float east=FlatPresentationSample(_EarthLandPages,address+float2(.5*texel.x,0),0).r-
+               FlatPresentationSample(_EarthLandPages,address-float2(.5*texel.x,0),0).r;
+    float north=FlatPresentationSample(_EarthLandPages,address+float2(0,.5*texel.y),0).r-
+                FlatPresentationSample(_EarthLandPages,address-float2(0,.5*texel.y),0).r;
+    return float3(base+scale*FlatPresentationSample(_EarthLandPages,address,0).r,
+        float2(east,north)*(scale*21600/40030.2));
+}
+
+// The water receiver is classified first. Only the rendered land height and
+// lighting change; water optics and the physical field retain their own bed.
+float FlatEarthLandRelief(float2 uv,float dry,inout float height,inout float2 gradient)
+{
+    if(_EarthPolarReady<.5 || _EarthLandOverview_TexelSize.z<3600)return 0;
+    float2 dx=ddx(uv),dy=ddy(uv);
+    dx.x-=round(dx.x);dy.x-=round(dy.x);
+    float footprint=max(length(dx*float2(21600,10800)),length(dy*float2(21600,10800)));
+    float latitude=(uv.y-.5)*180;
+    float weight=saturate(dry)*(1-smoothstep(50,60,abs(latitude)));
+    if(weight<=0)return 0;
+    weight*=FlatPresentationSample(_EarthSurveyMask,uv,0).r;
+    if(weight<=0)return 0;
+    float fine=_EarthLandPages_TexelSize.z>=8192 ? 1-smoothstep(.8,3,footprint) : 0;
+    float3 measurement=0;
+    [branch] if(fine>0)measurement=FlatEarthNativeLand(uv,fine);
+    [branch] if(fine<1)
+    {
+        float lod=clamp(log2(max(1,footprint/6)),0,10);
+        measurement=lerp(FlatEarthOverviewLand(uv,lod),measurement,fine);
+    }
+    // The cartographic relief and exposure controls consume metre differences.
+    // Use the same five kilometres of ground for every simulation resolution.
+    float2 slope=measurement.yz*float2(5/cos(latitude*.01745329252),5);
+    height=lerp(height,measurement.x,weight);
+    gradient=lerp(gradient,slope,weight);
+    return weight;
 }
 
 // Ground footprint as a fraction of the equatorial circumference. This also

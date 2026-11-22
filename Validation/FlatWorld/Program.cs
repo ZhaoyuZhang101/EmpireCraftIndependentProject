@@ -39,6 +39,7 @@ public static class Program {
     case "--environment": EnvironmentRegression(); break;
     case "--hydrology": HydrologyRegression.Run(); break;
     case "--basin-water": BasinWaterRegression.Run(); break;
+    case "--lake-ice": LakeIceRegression.Run(args); break;
     case "--earth-straits": BasinWaterRegression.EarthStraits(); break;
     case "--sea-routes": SeaRouteRegression.Run(args); break;
     case "--cyclone": CycloneRegression.Run(); break;

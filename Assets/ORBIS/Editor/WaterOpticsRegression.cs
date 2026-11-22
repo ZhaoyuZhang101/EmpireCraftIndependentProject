@@ -34,6 +34,7 @@ namespace Orbis.Editor
     material.SetTexture("_HydroA",hydro);material.SetTexture("_GeoTex",geo);
     material.SetTexture("_HydroB",mixing);material.SetTexture("_InfoTex",info);
     material.SetTexture("_VendorOceanNormal",ocean);material.SetTexture("_VendorLakeNormal",lake);
+    material.SetTexture("_VendorLakeSmoothNormal",lake);
     material.SetTexture("_VendorStreamNormal",ocean);
     material.SetTexture("_VendorOceanFoam",Texture2D.blackTexture);material.SetTexture("_VendorRiverFoam",Texture2D.blackTexture);
     material.SetFloat("_VendorWaterReady",1);material.SetFloat("_FieldReady",1);material.SetFloat("_WaterClock",3);
@@ -64,6 +65,43 @@ namespace Orbis.Editor
     float dryBankError=MaximumDifference(rockBank,snowBank);
     Check(report,dryBankError<.0001f,"dry-bank material does not tint reconstructed area-water bed, RGB change="+dryBankError);
     Check(report,Finite(transition)&&Finite(rockBank)&&Finite(snowBank),"continuous optics produce finite nonnegative radiance");
+
+    // A surveyed lake can span several unrelated simulation substrate IDs.
+    // At equal depth those IDs must not colour patches of the open surface.
+    material.SetFloat("_ProbeMode",4);
+    SetSubstrate(geo,1,1);var sandyLake=Sample(material,target,image);
+    SetSubstrate(geo,5,5);var snowyLake=Sample(material,target,image);
+    float lakeTileTint=MaximumDifference(sandyLake,snowyLake);
+    Check(report,lakeTileTint<.012f,"changing a lake tile from sand to snow leaves open water continuous, maximum RGB change="+lakeTileTint);
+
+    material.SetFloat("_ProbeMode",5);
+    foreach(int width in new[]{512,4096})
+    {
+     material.SetVector("_MapSize",new Vector4(width,width/2,1f/width,2f/width));
+     material.SetVector("_ProbeCell",new Vector4(0,0,.25f,1));var floor=Sample(material,target,image);
+     material.SetVector("_ProbeCell",new Vector4(0,0,0,0));var missing=Sample(material,target,image);
+     material.SetVector("_ProbeCell",new Vector4(0,0,24,1));var measured=Sample(material,target,image);
+     float near=floor[ImageWidth/4].r,far=floor[ImageWidth*3/4].r;
+     Check(report,near<1&&far>near+1&&far<6&&MaximumDifference(floor,missing)<.002f,
+      "surveyed lake shallows join depth-floor and missing tiles at "+width+" columns, depths="+near+", "+far);
+     Check(report,Mathf.Abs(measured[ImageWidth/4].r-24)<.001f&&Mathf.Abs(measured[ImageWidth*3/4].r-24)<.001f,
+      "surveyed lake retains the supplied 24 m depth at "+width+" columns");
+    }
+    material.SetVector("_MapSize",new Vector4(MapWidth,MapHeight,1f/MapWidth,1f/MapHeight));
+
+    material.SetFloat("_ProbeMode",6);
+    foreach(float lakeWeight in new[]{.15f,.55f,.85f})
+    {
+     material.SetVector("_ProbeCell",new Vector4(lakeWeight,5,0,0));
+     var banks=Sample(material,target,image);
+     Color land=banks[ImageWidth/4],overRiver=banks[3*ImageWidth/4];
+     Check(report,Mathf.Abs(land.a-4)<.001f && land.b>.999f && MaximumChannelDifference(land,overRiver)<.001f && Mathf.Abs(overRiver.a-4)<.001f,
+      "partial surveyed lake has the same freshwater shallows over dry and river tiles at coverage "+lakeWeight);
+     material.SetVector("_ProbeCell",new Vector4(lakeWeight,3,1,0));
+     Color marine=Sample(material,target,image)[3*ImageWidth/4];
+     Check(report,Mathf.Abs(marine.a-(3+lakeWeight))<.001f && marine.r>land.r,
+      "surveyed lake preserves the measured marine transition at coverage "+lakeWeight);
+    }
 
     material.SetFloat("_ProbeMode",2);
     foreach(var position in new[]{new Vector2(16,8),new Vector2(0,.001f),new Vector2(MapWidth,MapHeight-.001f)})

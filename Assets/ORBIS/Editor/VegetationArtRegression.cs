@@ -175,6 +175,7 @@ namespace Orbis.Editor
     field.SetPixel(0,0,new Color(10,-3,0,1));field.Apply();
     hydro.SetPixel(0,0,Color.clear);hydro.Apply();
     probe.SetTexture("_VisualTex",field);probe.SetTexture("_HydroA",hydro);probe.SetTexture("_HydroB",hydro);
+    probe.SetFloat("_EarthLakeReady",0); // Isolate marine coverage for the Bosporus controls.
     probe.SetFloat("_RiverAtlasReady",0);probe.SetFloat("_RiverPreviewReady",0);probe.SetFloat("_RiverSeasonReady",0);
     probe.SetVector("_MapSize",new Vector4(4096,2048,1f/4096,1f/2048));
     probe.SetFloat("_ProbeMode",10);probe.SetVector("_ProbeRoot",new Vector4(2371,1481,0,0));
@@ -206,6 +207,23 @@ namespace Orbis.Editor
     if(wet==0||dry==0||split==0||smaller==0||inland==0)
      throw new InvalidOperationException($"Missing tree-root controls: sea={wet}, land={dry}, opposite centres={split}, reduced coast={smaller}, unchanged inland={inland}");
     Debug.Log($"Surveyed tree roots PASS: {surveyed.Length} Bosporus / Izmit candidates, {wet} sea roots removed, {dry} dry roots retained, {split} roots across shore from tile centres, {smaller} coastal symbols reduced, {inland} inland sizes unchanged; edits and old saves retain all original sizes.");
+    // Natural Earth Taihu shore, both sides of the 31.2890625 N page boundary,
+    // the east bank and open water. All control sites would grow a tree on the grid.
+    probe.SetFloat("_EarthLakeReady",earth.GetFloat("_EarthLakeReady"));
+    probe.SetFloat("_ProbeMode",12);
+    foreach(var site in new[] { new Vector3(120.025f,31.285f,1), new Vector3(120.025f,31.294f,1),
+     new Vector3(120.028f,31.204f,1),new Vector3(120.16f,31.18f,1),new Vector3(120.636f,31.22f,0),
+     new Vector3(119.8f,31.16f,0) })
+    {
+     probe.SetVector("_ProbeRoot",new Vector4(site.x/360+.5f,site.y/180+.5f,0,0));
+     var actual=Sample()[0];bool isWater=site.z>0;
+     if((actual.r>0)!=isWater || (actual.g>.5f)!=isWater || (actual.b>0)==isWater)
+      throw new InvalidOperationException($"Lake shore / tree root at {site.x:F4}, {site.y:F4}: shore={actual.r}, lake={actual.g}, tree size={actual.b}");
+    }
+    probe.SetTexture("_EarthSurveyMask",hydro);
+    probe.SetVector("_ProbeRoot",new Vector4(120.028f/360+.5f,31.204f/180+.5f,0,0));
+    var edit=Sample()[0];
+    if(edit.r!=-3 || edit.g!=0 || edit.b<=0)throw new InvalidOperationException("Lake survey covered a player-edited dry tree root.");
    }
    finally
    {

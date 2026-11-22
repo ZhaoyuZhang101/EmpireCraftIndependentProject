@@ -6,6 +6,8 @@ Shader "ORBIS/FlatWorld/ScrollSurface"
   [HideInInspector] _VegetationWindReady("Vegetation wind ready",Float)=0
   [HideInInspector] _VegetationWindBlend("Vegetation wind month blend",Float)=0
   [HideInInspector] _VegetationSeasonTex("Climate vegetation seasons",2D)="white"{}
+  [HideInInspector] _LakeIceTex("Lake temperature history",2D)="white"{}
+  [HideInInspector] _LakeIceSeason("Lake cooling months, blend and availability",Vector)=(0,1,0,0)
   [HideInInspector] _VegetationSeasonReady("Vegetation seasons ready",Float)=0
   [HideInInspector] _VegetationSeason("Current month next month blend",Vector)=(0,1,0,0)
   [HideInInspector] _ClimateYearHeat("Regional temperature anomaly",Vector)=(0,0,0,0)
@@ -19,6 +21,9 @@ Shader "ORBIS/FlatWorld/ScrollSurface"
   [HideInInspector] _FieldReady("Terrain and bed fields ready",Float)=0
   [HideInInspector] _PoleBedDepth("Polar bed and depth, south then north",Vector)=(0,0,0,0)
   [HideInInspector] _EarthPolarBed("Surveyed polar bed",2D)="black"{}
+  [HideInInspector] _EarthLandOverview("Filtered Earth elevations",2D)="black"{}
+  [HideInInspector] _EarthLandDirectory("Native Earth land directory",2D)="black"{}
+  [HideInInspector] _EarthLandPages("Native Earth land elevations",2D)="black"{}
   [HideInInspector] _EarthPolarCoast("Surveyed marine shoreline",2D)="black"{}
   [HideInInspector] _EarthSurveyMask("Unedited Earth terrain",2D)="white"{}
   [HideInInspector] _EarthSurveyAtPoles("Unedited south and north poles",Vector)=(1,1,0,0)
@@ -46,6 +51,7 @@ Shader "ORBIS/FlatWorld/ScrollSurface"
  [HideInInspector] _VendorStreamNormal ("Vendor stream waves", 2D) = "gray" {}
  [HideInInspector] _VendorOceanNormal ("Vendor ocean waves", 2D) = "gray" {}
  [HideInInspector] _VendorLakeNormal ("SW3 lake ripples", 2D) = "bump" {}
+ [HideInInspector] _VendorLakeSmoothNormal ("SW3 calm lake ripples", 2D) = "bump" {}
  [HideInInspector] _VendorOceanFoam ("SW3 ocean foam", 2D) = "black" {}
  [HideInInspector] _VendorRiverFoam ("SW3 river foam", 2D) = "black" {}
 
