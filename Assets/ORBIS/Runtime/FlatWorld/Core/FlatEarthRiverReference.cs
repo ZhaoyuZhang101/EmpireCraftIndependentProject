@@ -12,7 +12,9 @@ namespace Orbis.Flat
         {
             internal readonly byte Rank;
             internal readonly int First, Count;
-            internal Part(byte rank,int first,int count) { Rank=rank;First=first;Count=count; }
+            internal readonly bool ShoreDefinesBanks;
+            internal Part(byte rank,int first,int count,bool shoreDefinesBanks)
+            { Rank=rank;First=first;Count=count;ShoreDefinesBanks=shoreDefinesBanks; }
         }
 
         internal readonly Part[] Parts;
@@ -36,7 +38,7 @@ namespace Orbis.Flat
         {
             if(world.Preset!=TerrainPreset.Earth)return;
             cancel.ThrowIfCancellationRequested();
-            world.WaterReference=FlatWaterReference.Read(world.Width,bed,water,world.UsesSurveyedLakeBeds,world.UsesSurveyedStraits);
+            world.WaterReference=FlatWaterReference.Read(world.Width,bed,water,world.UsesSurveyedLakeBeds,world.UsesSurveyedStraits,world.UsesGlobalStraits);
             world.RiverReference=Read(rivers);
             FlatEcology.ApplyNileCropland(world,world.Facts,cancel);
             world.Facts.RiverCurves=FlatRiverCurves.Build(world,world.Facts,cancel);
@@ -48,7 +50,8 @@ namespace Orbis.Flat
             using(var reader=new BinaryReader(new MemoryStream(data,false)))
             {
                 uint signature=reader.ReadUInt32();
-                bool hasWidths=signature==0x3256524f;
+                bool hasShoreFlags=signature==0x3356524f;
+                bool hasWidths=hasShoreFlags||signature==0x3256524f;
                 if(!hasWidths && signature!=0x3156524f)throw new InvalidDataException("Invalid Earth river signature.");
                 int stride=hasWidths ? 10 : 4;
                 int count=reader.ReadInt32();
@@ -63,8 +66,10 @@ namespace Orbis.Flat
                 for(int p=0;p<count;p++)
                 {
                     byte rank=reader.ReadByte();int n=reader.ReadUInt16();
+                    bool shoreDefinesBanks=hasShoreFlags && (rank&0x80)!=0;
+                    if(shoreDefinesBanks)rank&=0x7f;
                     if(rank>10||n<2||n>points-cursor)throw new InvalidDataException("Invalid Earth river part.");
-                    parts[p]=new Part(rank,cursor,n);
+                    parts[p]=new Part(rank,cursor,n,shoreDefinesBanks);
                     for(int i=cursor;i<cursor+n;i++)
                     {
                         if(hasWidths)
@@ -123,6 +128,9 @@ namespace Orbis.Flat
                 float depth=1.2f+6*importance;
                 int last=part.First+part.Count-1;
                 int reach=~part.Rank;
+                // The tidal centreline remains a measured hydrological reach. When
+                // its source polygon is available, that polygon draws both banks.
+                bool shoreDefinesBanks=part.ShoreDefinesBanks && world.WaterReference.UsesSurveyedStraits;
                 float x=data.X(part.First,world.Width), y=data.Y(part.First,world.Height);
                 float dx=Wrapped(data.X(part.First+1,world.Width)-x,world.Width), dy=data.Y(part.First+1,world.Height)-y;
                 var previous=SurveyVertex(x,y,data.Radius(part.First,world.Width,legacyRadius),depth,dx,dy);
@@ -132,7 +140,7 @@ namespace Orbis.Flat
                     float radius=data.Radius(i,world.Width,legacyRadius);
                     if(i==last)
                     {
-                        AppendSurvey(built,ref previous,SurveyVertex(x,y,radius,depth,dx,dy),world.Width,reach);
+                        AppendSurvey(built,ref previous,SurveyVertex(x,y,radius,depth,dx,dy),world.Width,reach,shoreDefinesBanks);
                         break;
                     }
                     float sx=Wrapped(data.X(i+1,world.Width)-x,world.Width), sy=data.Y(i+1,world.Height)-y;
@@ -156,7 +164,7 @@ namespace Orbis.Flat
                     {
                         float tx=inX+outX,ty=inY+outY;
                         if(cosine<-.99999f){tx=outX;ty=outY;}
-                        AppendSurvey(built,ref previous,SurveyVertex(x,y,radius,depth,tx,ty),world.Width,reach);
+                        AppendSurvey(built,ref previous,SurveyVertex(x,y,radius,depth,tx,ty),world.Width,reach,shoreDefinesBanks);
                     }
                     else
                     {
@@ -167,7 +175,7 @@ namespace Orbis.Flat
                             float t=(float)j/steps,s=1-t;
                             float px=x+cut*(t*t*outX-s*s*inX), py=y+cut*(t*t*outY-s*s*inY);
                             float r=t<.5f?FMath.Lerp(r0,radius,2*t):FMath.Lerp(radius,r1,2*t-1);
-                            AppendSurvey(built,ref previous,SurveyVertex(px,py,r,depth,s*inX+t*outX,s*inY+t*outY),world.Width,reach);
+                            AppendSurvey(built,ref previous,SurveyVertex(px,py,r,depth,s*inX+t*outX,s*inY+t*outY),world.Width,reach,shoreDefinesBanks);
                         }
                     }
                     dx=sx;dy=sy;
@@ -181,10 +189,10 @@ namespace Orbis.Flat
             return new Vertex(x,y,radius,depth,dx,dy,0);
         }
 
-        static void AppendSurvey(List<Segment> built,ref Vertex previous,Vertex next,int width,int reach)
+        static void AppendSurvey(List<Segment> built,ref Vertex previous,Vertex next,int width,int reach,bool shoreDefinesBanks)
         {
             var end=new Vertex(previous.X+Wrapped(next.X-previous.X,width),next.Y,next.Radius,next.Depth,next.FlowX,next.FlowY,0);
-            built.Add(new Segment(previous,end,reach));
+            built.Add(new Segment(previous,end,reach,shoreDefinesBanks));
             previous=next;
         }
     }

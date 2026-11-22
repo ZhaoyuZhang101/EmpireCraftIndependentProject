@@ -32,6 +32,7 @@ internal static class SeasonalTemperatureRegression
 
     public static void Run()
     {
+        CheckSeasonalSnowEnergy();
         CheckPremonsoonHeat();
         foreach (int width in new[] {64, 128})
         {
@@ -60,6 +61,33 @@ internal static class SeasonalTemperatureRegression
             }
         }
         Console.WriteLine("PASS equatorial semiannual heating, hemispheric seasons, marine thermal storage and plateau lapse at 64/128 columns.");
+    }
+
+    static void CheckSeasonalSnowEnergy()
+    {
+        float[] air = {-18,-16,-11,-3,2,8,13,11,4,-2,-9,-14};
+        float[] sun = {.1f,.25f,.45f,.65f,1,1.12f,1.08f,.8f,.59f,.4f,.2f,.1f};
+        float[] Scenario(int rotation, float coldRain, float warmRain)
+        {
+            var snow = new FlatSeasonalSnow(); var temperature = new float[12]; var solar = new float[12];
+            for (int m = 0; m < 12; m++)
+            {
+                int j = (m+rotation)%12;
+                temperature[j]=air[m]; solar[j]=sun[m]; snow.Cloud[j]=.6f;
+                snow.Rain[j]=air[m]<0 ? coldRain : warmRain;
+            }
+            snow.Apply(temperature,0,solar);
+            var change = new float[12]; double total=0;
+            for (int m=0;m<12;m++) { change[m]=temperature[(m+rotation)%12]-air[m]; total+=change[m]; }
+            if (Math.Abs(total/12)>1e-5) throw new Exception("Seasonal snow changed the annual temperature background.");
+            return change;
+        }
+        var light = Scenario(0,5,25); var heavy = Scenario(0,100,25); var rotated = Scenario(6,100,25);
+        if (!(heavy[5] < light[5]-.05f)) throw new Exception("Deep winter snow must delay warming in the same spring weather.");
+        var uniform=Scenario(0,45,45); var dry=Scenario(0,0,0);
+        for (int m=0;m<12;m++)
+            if (Math.Abs(heavy[m]-rotated[m])>1e-5 || Math.Abs(uniform[m])>1e-5 || Math.Abs(dry[m])>1e-5)
+                throw new Exception("Snow timing must rotate through December and preserve uniform or absent precipitation.");
     }
 
     private static void CheckPremonsoonHeat()
@@ -120,7 +148,7 @@ internal static class SeasonalTemperatureRegression
             File.ReadAllBytes(path + "EarthRivers.bytes"));
     }
 
-    internal static void ExportCloud(string[] args, bool calibrationControl = false)
+    internal static void ExportCloud(string[] args, bool calibrationControl = false, bool surfaceRain = false)
     {
         if (args.Length < 2 || args.Length > 4)
             throw new ArgumentException("--surface-cloud output.orc [width] [fold-background.f32]");
@@ -141,9 +169,10 @@ internal static class SeasonalTemperatureRegression
         string path = Path.GetFullPath(args[1]);
         Directory.CreateDirectory(Path.GetDirectoryName(path));
         using var output = new BinaryWriter(File.Create(path));
-        output.Write(System.Text.Encoding.ASCII.GetBytes("ORC1"));
+        output.Write(System.Text.Encoding.ASCII.GetBytes(surfaceRain ? "ORP1" : "ORC1"));
         output.Write(cloud.Width); output.Write(cloud.Height);
-        foreach (float rain in cloud.Rain) output.Write(rain);
-        Console.WriteLine($"{cloud.Width} x {cloud.Height} monthly cloud-predictor rain, {path}");
+        if (surfaceRain) foreach (float rain in cloud.Rain) output.Write(rain);
+        else foreach (float dailyCondensation in cloud.Condensation) output.Write(30*dailyCondensation);
+        Console.WriteLine($"{cloud.Width} x {cloud.Height} monthly {(surfaceRain ? "surface precipitation" : "gross condensation")}, {path}");
     }
 }

@@ -18,17 +18,17 @@ from shapely.geometry import LineString, Polygon, box
 ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT / "Tools/EarthScale100"))
 from bake_player_water import features, polygons
-from bake_straits import GATES
+from bake_straits import GATES, GLOBAL_GATES
 
 ASSET = ROOT / "Assets/ORBIS/Resources/ORBIS/FlatWorld/EarthStraitShore.bytes"
 
 
 class Atlas:
-    def __init__(self):
-        assert ASSET.is_file(), "Missing player strait shoreline survey"
-        data = ASSET.read_bytes()
+    def __init__(self, path=ASSET):
+        data = path.read_bytes()
         tag, cw, ch, fw, fh = struct.unpack_from("<4s4i", data)
-        assert tag == b"OSH1" and cw == 2048 and fw == 4096 and max(ch, fh) <= 4096
+        assert tag in (b"OSH1",b"OSH2") and max(cw,ch,fw,fh) <= (4096 if tag==b"OSH1" else 8192)
+        self.header = (1440*720+cw-1)//cw
         raw = np.frombuffer(zlib.decompress(data[20:], -15), dtype=np.uint8)
         assert raw.size == 2*cw*ch + fw*fh
         self.coarse = raw[:2*cw*ch].reshape(ch, cw, 2)
@@ -38,20 +38,21 @@ class Atlas:
         assert np.array_equal(np.sort(slots), np.arange(1, len(slots)+1))
 
     def pages(self, slot):
-        y, x = divmod(int(slot)-1, 2048//18)
-        y, x = 507+y*19, x*18
+        width = self.coarse.shape[1]
+        y, x = divmod(int(slot)-1, width//18)
+        y, x = self.header+y*19, x*18
         lo, hi = self.coarse[y, x].astype(int)
         fine_slot = lo + 256*hi
         fine = None
         if fine_slot:
-            fy, fx = divmod(fine_slot-1, 4096//130)
+            fy, fx = divmod(fine_slot-1, self.fine.shape[1]//130)
             fine = self.fine[fy*130:(fy+1)*130, fx*130:(fx+1)*130]
             assert fine.shape == (130, 130)
         else:
             lo, hi = self.coarse[y, x+1].astype(int)
             medium = lo + 256*hi - 1
             if medium >= 0:
-                row, col = divmod(medium//2, 2048//66)
+                row, col = divmod(medium//2, width//66)
                 head = self.coarse.shape[0] - (row+1)*66
                 fine = self.coarse[head:head+66, col*66:(col+1)*66, medium%2]
                 assert fine.shape == (66, 66)
@@ -59,8 +60,8 @@ class Atlas:
 
     def sample(self, lon, lat):
         lon, lat = np.broadcast_arrays(np.asarray(lon), np.asarray(lat))
-        x = (lon+180)*4
-        y = (lat+90)*4
+        x = ((lon+180)%360)*4
+        y = np.clip((lat+90)*4,0,720-1e-8)
         i, j = np.floor(x).astype(int), np.floor(y).astype(int)
         slot = self.index[j, i]
         shore, weight = np.zeros(lon.shape), np.zeros(lon.shape)
@@ -101,7 +102,9 @@ def verify_seams(atlas):
             required = (np.abs(page[..., 0].astype(int)-128) < 12) & (page[..., 1] > 249)
             assert not required.any(), f"Missing fine bank near {i}, {j}"
         for dy, dx in ((0, 1), (1, 0)):
-            slot = atlas.index[j+dy, i+dx]
+            if j+dy >= atlas.index.shape[0]:
+                continue
+            slot = atlas.index[j+dy, (i+dx)%atlas.index.shape[1]]
             first = page[-2:, :] if dy else page[:, -2:]
             if not slot:
                 assert not first[..., 1].any(), "Region terminates with a hard atlas border"
@@ -122,8 +125,8 @@ def verify_seams(atlas):
     return pairs
 
 
-def verify_passages(atlas):
-    for name, a, b, pad in GATES:
+def verify_passages(atlas, gates=GATES):
+    for name, a, b, pad in gates:
         # Four-neighbour water paths through the *displayed* signed shore at
         # native sample spacing, restricted to the selected strait and its mouths.
         low = np.floor((np.minimum(a, b)-pad)*512).astype(int)
@@ -135,7 +138,7 @@ def verify_passages(atlas):
         first, last = (np.floor(np.array(p)*512).astype(int)-low for p in (a, b))
         basin = connected[first[1], first[0]]
         assert basin and connected[last[1], last[0]] == basin, f"Disconnected rendered passage: {name}"
-    return len(GATES)
+    return len(gates)
 
 
 def verify_transects(atlas, ocean):
@@ -224,12 +227,22 @@ def verify_sites(atlas, ocean):
 
 def verify_navigation(ocean, widths, artifacts):
     """Test the exact player route segments against the original vector ocean."""
-    mouths = {name: (a, b) for name, a, b, _ in GATES}
+    # These independent locations have no named bake gate. At 256 a real
+    # water pick can lie on the marine side of a predominantly dry cell.
+    holdouts = (
+        ("Rion", (21.67,38.30), (21.90,38.34), .13),
+        ("Cebu Strait", (123.77,9.87), (124.11,10.07), .14),
+        ("Bonifacio", (8.99,41.32), (9.38,41.36), .20),
+    )
+    gates = GATES + GLOBAL_GATES + holdouts
+    mouths = {name: (a, b) for name, a, b, _ in gates}
     windows = {name: box(min(a[0], b[0])-pad, min(a[1], b[1])-pad,
                          max(a[0], b[0])+pad, max(a[1], b[1])+pad)
-               for name, a, b, pad in GATES}
+               for name, a, b, pad in gates}
     black_sea = mouths["Bosporus"][1]
     mouths["Turkish straits"] = (mouths["Dardanelles"][0], black_sea)
+    mouths["Seto Inland Sea"] = (mouths["Kanmon"][0],mouths["Akashi"][1])
+    windows["Seto Inland Sea"] = box(130.5,33.4,135.5,34.8)
     mouths["Istanbul nearshore pick"] = ((29.0529, 41.083), black_sea)
     mouths["Marmara sub-cell pick"] = ((28.11, 40.79), black_sea)
     if not widths:
@@ -263,7 +276,7 @@ def verify_navigation(ocean, widths, artifacts):
                         assert path.crosses(LineString([(west, lat), (east, lat)])), (width, name, "missed a narrows")
                 legs += len(points)-1
             print(f"Earth {width}: source ocean covers {legs} complete sailing legs across {len(tracks)} routes "
-                  "(18 local straits, the Turkish straits together and two exact water picks).", flush=True)
+                  f"({len(gates)} local straits, the Turkish and Seto through routes, and two exact water picks).", flush=True)
 
 
 def geographic_panels(atlas, ocean, directory):

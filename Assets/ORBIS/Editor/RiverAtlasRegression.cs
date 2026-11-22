@@ -40,12 +40,12 @@ namespace Orbis.Editor
             int measuredSections=0;
             void AddControl(Vector2 p)
             {
-                var sample=curves.Sample(p.x,p.y);
+                var sample=curves.SampleMap(p.x,p.y);
                 if(sample.HalfWidth<=0||Mathf.Abs(sample.Distance)>1.5f*sample.HalfWidth)return;
                 // Two equally distant branches can pick different flow/depth
                 // at their medial boundary after finite-precision upload.
                 float step=Mathf.Min(.002f,sample.HalfWidth*.15f);
-                var a=curves.Sample(p.x-step,p.y+step);var b=curves.Sample(p.x+step,p.y-step);
+                var a=curves.SampleMap(p.x-step,p.y+step);var b=curves.SampleMap(p.x+step,p.y-step);
                 if(Mathf.Abs(a.HalfWidth-b.HalfWidth)>.001f||a.FlowX*b.FlowX+a.FlowY*b.FlowY<.94f)return;
                 positions.Add(p);expected.Add(sample);
             }
@@ -80,7 +80,7 @@ namespace Orbis.Editor
                     float metric=Mathf.Max(.08f,Mathf.Cos((mid.y/curves.Height-.5f)*Mathf.PI));
                     var perpendicular=new Vector2(edge.A.Y-edge.B.Y,(edge.B.X-edge.A.X)*metric).normalized;
                     perpendicular.x/=metric;
-                    perpendicular*=(edge.A.Radius+edge.B.Radius)*.5f;
+                    perpendicular*=(edge.A.Radius+edge.B.Radius)*.5f*curves.MapWidthScale;
                     AddControl(mid);AddControl(mid+perpendicular*.8f);AddControl(mid-perpendicular*.8f);
                     AddControl(mid+perpendicular*1.2f);AddControl(mid-perpendicular*1.2f);
                     measuredSections++;

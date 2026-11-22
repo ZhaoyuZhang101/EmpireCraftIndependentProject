@@ -12,6 +12,7 @@ namespace Orbis.Flat
         const string SeaRouteToolName = "海上航线（选择两处海面）";
         FlatSeaPoint? seaOrigin;
         Task<FlatStraitNavigation> seaSurvey;
+        bool seaSurveyIsGlobal;
         Task<SeaPreview> seaRequest;
         CancellationTokenSource seaCancellation;
 
@@ -27,11 +28,13 @@ namespace Orbis.Flat
         Task<FlatStraitNavigation> SurveyFor(WorldData world)
         {
             if (!world.UsesSurveyedStraits) return Task.FromResult<FlatStraitNavigation>(null);
-            if (seaSurvey == null || seaSurvey.IsFaulted)
+            if (seaSurvey == null || seaSurvey.IsFaulted || seaSurveyIsGlobal != world.UsesGlobalStraits)
             {
-                var asset = Resources.Load<TextAsset>("ORBIS/FlatWorld/EarthStraitShore");
+                string key = world.UsesGlobalStraits ? "EarthGlobalStraitShore" : "EarthStraitShore";
+                var asset = Resources.Load<TextAsset>("ORBIS/FlatWorld/" + key);
                 if (!asset) throw new InvalidOperationException("缺少地球海峡岸线资料。");
                 var bytes = asset.bytes;
+                seaSurveyIsGlobal = world.UsesGlobalStraits;
                 seaSurvey = Task.Run(() => FlatStraitNavigation.Read(bytes));
             }
             return seaSurvey;

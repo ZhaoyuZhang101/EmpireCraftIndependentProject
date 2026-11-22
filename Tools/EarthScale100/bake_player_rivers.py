@@ -100,7 +100,7 @@ def join_surveyed_reaches(parts, ids):
 
 def quantize(lon, lat):
     # This coarse key registers common stations from separate legacy surveys.
-    # The final ORV2 coordinates use an independent 24-bit quantizer.
+    # The stored stations use an independent 24-bit quantizer.
     uv = np.column_stack((((lon + 180) % 360) / 360, (lat + 90) / 180))
     return np.rint(uv * 65535).clip(0, 65535).astype("<u2")
 
@@ -289,11 +289,13 @@ def stored_coordinates(points):
     return np.rint(uv * 16777215).clip(0, 16777215).astype("<u4")
 
 
-def pack_part(xy, rank, widths):
+def pack_part(xy, rank, widths, shore_defines_banks=False):
     stations = np.empty(len(xy), dtype=[("xy", "<u4", 2), ("width", "<u2")])
     stations["xy"] = xy
     stations["width"] = widths
-    return struct.pack("<BH", rank, len(xy)) + stations.tobytes()
+    # ORV3 retains ORV2 station widths. Bit 7 of the part's prominence byte
+    # records a centreline derived entirely from a charted area-water polygon.
+    return struct.pack("<BH", rank | (0x80 if shore_defines_banks else 0), len(xy)) + stations.tobytes()
 
 
 def main():
@@ -309,7 +311,8 @@ def main():
     terrain = np.frombuffer(raw, "<i2").reshape(overview["dimensions"][::-1])
     selected, feature_count = source_parts(args.cache)
     downstream_survey = finish_mapped_outlets(selected, args.cache)
-    downstream_survey.add(len(selected))
+    tidal_part = len(selected)
+    downstream_survey.add(tidal_part)
     selected.append((1, yangtze_estuary(args.cache)))
     endpoints = np.asarray([pt for _, points in selected for pt in (points[0], points[-1])])
     endpoint_keys = set(map(tuple, quantize(endpoints[:, 0], endpoints[:, 1])))
@@ -327,20 +330,20 @@ def main():
             supported = np.isfinite(local)
             measured[supported] = local[supported]
             cross_sections += supported.sum()
-            courses.append((xy, rank, points, measured))
+            courses.append((xy, rank, points, measured, index_in_survey == tidal_part))
     # A course with no Landsat evidence uses a cartographic estimate from
     # observed stations of similar map prominence in this same data release.
-    ranks = sorted({rank for _, rank, _, _ in courses})
+    ranks = sorted({rank for _, rank, _, _, _ in courses})
     typical = {}
     for rank in ranks:
-        pool = np.concatenate([w[np.isfinite(w)] for _, k, _, w in courses if k == rank])
+        pool = np.concatenate([w[np.isfinite(w)] for _, k, _, w, _ in courses if k == rank])
         if len(pool):
             typical[rank] = float(np.median(pool))
     parts = []
     direct = total = 0
-    for xy, rank, points, measured in courses:
+    for xy, rank, points, measured, shore_defines_banks in courses:
         fallback = typical[min(typical, key=lambda k: abs(k-rank))]
-        parts.append(pack_part(xy, rank, complete_widths(points, measured, fallback)))
+        parts.append(pack_part(xy, rank, complete_widths(points, measured, fallback), shore_defines_banks))
         direct += np.isfinite(measured).sum()
         total += len(xy)
     # This regional addition has its own surveys and does not contribute to
@@ -348,7 +351,7 @@ def main():
     huangpu, widths = huangpu_course(args.cache)
     parts.append(pack_part(stored_coordinates(huangpu), 7, widths))
     total += len(huangpu)
-    data = struct.pack("<4sI", b"ORV2", len(parts)) + b"".join(parts)
+    data = struct.pack("<4sI", b"ORV3", len(parts)) + b"".join(parts)
     path = RESOURCES / "EarthRivers.bytes"
     if args.check:
         if path.read_bytes() != data:

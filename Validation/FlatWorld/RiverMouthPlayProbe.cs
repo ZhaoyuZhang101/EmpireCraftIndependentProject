@@ -293,7 +293,8 @@ public static class RiverMouthPlayProbe
     static void CheckMarineDepth(Material player)
     {
         var depth = player.GetTexture("_EarthMarineDepth");
-        if (!depth || depth.width != 2048 || player.GetFloat("_EarthStraitReady") < .5f)
+        // Both the native layout and its 4096-device repack contain the same NOAA samples.
+        if (!(depth is Texture2D chart) || chart.format != TextureFormat.RG16 || player.GetFloat("_EarthStraitReady") < .5f)
             throw new InvalidOperationException("Missing Earth coastal depth atlas on the player material");
         var probe = new Material(AssetDatabase.LoadAssetAtPath<Shader>("Assets/ORBIS/Editor/RiverOpticsProbe.shader"));
         var target = RenderTexture.GetTemporary(1,1,0,RenderTextureFormat.ARGBFloat,RenderTextureReadWrite.Linear);
@@ -410,7 +411,7 @@ public static class RiverMouthPlayProbe
         {
             var cursor=new Vector2(x+.5f,y+.5f);
             if(!nav.TryGetPlanetLocation(cursor,out var loc))continue;
-            var sample=curves.Sample((float)PlanetCoordinateSystem.MapU(loc)*Width,
+            var sample=curves.SampleMap((float)PlanetCoordinateSystem.MapU(loc)*Width,
                 (float)PlanetCoordinateSystem.MapV(loc)*app.World.Height);
             float clearance=Mathf.Max(.17f*sample.HalfWidth,1.4f/initialZoom);
             if(sample.HalfWidth<=0||Mathf.Abs(sample.Distance)<clearance||

@@ -149,7 +149,9 @@ float3 FlatRiverBank(float3 land,float3 bed,float3 relief,float3 position,FlatRi
 {
     float bar=FlatRiverPointBar(r,r.across);
     float variation=FlatDetailNoise(position*3.1+21);
-    float width=min(.19,r.width*lerp(.21,.87,bar))*lerp(.82,1.15,variation);
+    float viewScale=1-_RiverGlobeNarrowing;
+    float width=min(.19*viewScale,r.width*lerp(.21,.87,bar))*lerp(.82,1.15,variation);
+    aa*=viewScale;
     float coverage=(1-smoothstep(0,width+aa,r.edge))*dry*(1-smoothstep(-.15,.12,basinShore));
     float3 material=FlatRiverSubstrate(bed,position,r,r.across,sediment,footprint);
     float damp=1-smoothstep(0,width*.76+aa*.25,r.edge);

@@ -7,6 +7,7 @@ internal static class SeasonalRainfallRegression
     {
         CheckThermalInflow();
         CheckWaterSources();
+        CheckWarmIslandTrades();
         CheckPeninsulaMonsoon();
         // Rotate seasons through the same terrain in the two hemispheres. Flat
         // topography isolates the influence of the adjacent ocean and storms.
@@ -41,8 +42,50 @@ internal static class SeasonalRainfallRegression
         }
     }
 
+    private static void CheckWarmIslandTrades()
+    {
+        var world = new WorldData(128, 64, "WARM-TRADE-ISLANDS", TerrainPreset.Archipelago);
+        for (int y = 0; y < world.Height; y++)
+        for (int x = 0; x < world.Width; x++)
+        {
+            int i = world.Index(x, y);
+            int tropicalRow = Math.Max(y, world.Height - 1 - y);
+            bool narrow = x == 24, broad = x >= 72 && x <= 83;
+            bool land = (narrow || broad) && tropicalRow >= 34 && tropicalRow <= 41;
+            world.Water[i] = land ? WaterKind.Land : WaterKind.DeepOcean;
+            world.Elevation[i] = land ? (short)450 : (short)-1000;
+            world.WaterLevel[i] = land ? (short)450 : (short)0;
+            if (land)
+            {
+                int shore = narrow ? 1 : Math.Min(x - 71, 84 - x);
+                world.CoastDistance[i] = (ushort)Math.Min(shore, Math.Min(tropicalRow - 33, 42 - tropicalRow));
+            }
+            for (int m = 0; m < 12; m++) world.Temperature[i * 12 + m] = land ? 24 : 26;
+        }
+        var air = FlatMoisture.BuildWithCirculation(world, default, 2, true, null, true);
+        foreach (int hemisphere in new[] { -1, 1 })
+        {
+            int row = hemisphere > 0 ? 37 : world.Height - 1 - 37;
+            int winter = hemisphere > 0 ? 0 : 6, summer = (winter + 6) % 12;
+            int island = world.Index(24, row) * 12, continentalShore = world.Index(83, row) * 12;
+            float islandWinter = air.Rain[island + winter], coastWinter = air.Rain[continentalShore + winter];
+            Console.WriteLine($"Winter trade rain northern sign {hemisphere}, narrow island and continental coast {islandWinter:F1}/{coastWinter:F1} mm.");
+            if (!(islandWinter > 3 * coastWinter && islandWinter > .1f * air.Rain[island + summer] &&
+                coastWinter < .1f * air.Rain[continentalShore + summer]))
+                throw new Exception("Warm islands exposed to marine trades from both shores should retain more winter rain than the wide landmass.");
+        }
+    }
+
     private static void CheckThermalInflow()
     {
+        const float dt=.25f, capacity=40;
+        float light=FlatMoisture.SubcloudEvaporation(.20f,16,capacity,dt,.05f,1);
+        float heavy=FlatMoisture.SubcloudEvaporation(2f,16,capacity,dt,.05f,1);
+        float humid=FlatMoisture.SubcloudEvaporation(.20f,36,capacity,dt,.75f,1);
+        if (!(light>humid && light<=.20f && heavy/2 < light/.20f &&
+            FlatMoisture.SubcloudEvaporation(.20f,40,capacity,dt,.05f,1)==0 &&
+            FlatMoisture.SubcloudEvaporation(0,16,capacity,dt,.05f,1)==0))
+            throw new Exception("Light precipitation should evaporate preferentially in dry subcloud air.");
         const int width=128, height=64;
         var water=new float[width*height];
         var temperature=new float[width*height*12];

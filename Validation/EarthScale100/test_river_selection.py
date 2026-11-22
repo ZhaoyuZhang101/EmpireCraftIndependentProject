@@ -24,16 +24,20 @@ class RiverSelectionTest(unittest.TestCase):
     def setUpClass(cls):
         data = ASSET.read_bytes()
         magic, count = struct.unpack_from("<4sI", data)
-        if magic not in (b"ORV1", b"ORV2"):
+        if magic not in (b"ORV1", b"ORV2", b"ORV3"):
             raise ValueError("Invalid river signature")
-        fmt, scale = ("<IIH", 16777215) if magic == b"ORV2" else ("<HH", 65535)
+        fmt, scale = ("<HH", 65535) if magic == b"ORV1" else ("<IIH", 16777215)
         cls.coordinate_scale = scale
         cls.junctions = Counter()
         cls.lines = []
+        cls.shore_defined = []
         cls.widths = []
         offset = 8
         for _ in range(count):
             rank, size = struct.unpack_from("<BH", data, offset)
+            cls.shore_defined.append(magic == b"ORV3" and bool(rank & 0x80))
+            if magic == b"ORV3":
+                rank &= 0x7f
             if rank > 10 or size < 2:
                 raise ValueError("Invalid river part")
             start = offset + 3
@@ -42,7 +46,7 @@ class RiverSelectionTest(unittest.TestCase):
             xy = [(s[0], s[1]) for s in stations]
             if any(max(p) > scale for p in xy):
                 raise ValueError("Invalid river coordinate")
-            cls.widths.append(np.array([s[2] for s in stations]) if magic == b"ORV2" else None)
+            cls.widths.append(np.array([s[2] for s in stations]) if magic != b"ORV1" else None)
             cls.junctions.update(set(xy))
             cls.lines.append(LineString([(x / scale * 360 - 180, y / scale * 180 - 90)
                                          for x, y in xy]))
@@ -248,13 +252,13 @@ class RiverSelectionTest(unittest.TestCase):
                 hi = np.ceil((bounds.max(axis=0)+.19)/step).astype(int)
                 lon, lat = (np.arange(lo[k], hi[k])*step for k in range(2))
                 lines = self.tree.query(box(lon[0], lat[0], lon[-1], lat[-1]))
-                rivers = shapely.buffer(shapely.union_all([self.lines[i] for i in lines]), .006)
+                rivers = shapely.buffer(shapely.union_all([self.lines[i] for i in lines if not self.shore_defined[i]]), .006)
                 river_water = shapely.contains_xy(rivers, lon, lat[:, None])
                 km, weight = atlas.sample(lon, lat[:, None])
                 marine = (weight > .99) & (km > 0)
                 def cell(point):
                     return tuple((np.rint(np.array(point)/step).astype(int)-lo)[::-1])
-                self.assertTrue(river_water[cell(start)], "Missing mapped upstream reach")
+                self.assertTrue((river_water | marine)[cell(start)], "Missing mapped upstream reach")
                 self.assertTrue(marine[cell(sea)], "Missing mapped marine receiver")
                 water, _ = label(river_water | marine, np.ones((3,3)))
                 self.assertEqual(water[cell(start)], water[cell(sea)], "Lower watercourse breaks before the open sea")

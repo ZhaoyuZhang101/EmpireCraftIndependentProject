@@ -43,6 +43,46 @@ APPROACHES = (
     ("Gulf of Oman approach", (56.99, 26.02), (57.09, 25.29), .25),
 )
 
+# Regression mouths supplement the worldwide island contact search. In enclosed
+# seas its shoreline may run for several grid cells before an open-water seed
+# is available. All positions below must share a *single* clipped ocean polygon.
+GLOBAL_GATES = (
+    ("Kanmon", (130.77,33.96), (131.16,33.92), .16),
+    ("Bungo", (131.97,32.97), (132.02,33.52), .17),
+    ("Kurushima", (132.82,34.061), (133.09,34.053), .12),
+    ("Bisan Seto", (133.50,34.36), (134.18,34.38), .14),
+    ("Akashi", (134.86,34.59), (135.13,34.63), .12),
+    ("Naruto", (134.60,34.32), (134.70,34.18), .09),
+    ("Kitan", (134.99,34.39), (134.99,34.20), .12),
+    ("Geiyo", (132.69,34.13), (133.01,34.31), .11),
+    ("Little Belt", (9.73,55.55), (9.72,55.36), .11),
+    ("Nevelskoy", (141.57,52.52), (141.64,51.98), .18),
+    ("Belle Isle", (-56.79,51.51), (-56.28,51.77), .19),
+    ("Magellan", (-70.95,-53.45), (-71.42,-53.86), .18),
+    ("Pemba", (39.48,-5.40), (39.51,-4.91), .22),
+    ("Johnstone", (-126.57,50.51), (-126.02,50.44), .14),
+    ("San Bernardino", (124.11,12.63), (124.37,12.56), .17),
+    ("Torres", (141.90,-10.52), (142.60,-10.49), .25),
+    ("Foveaux", (167.72,-46.65), (168.79,-46.70), .25),
+    ("Chacao", (-73.99,-41.84), (-73.43,-41.81), .11),
+)
+
+# Local exits connect to open sea rather than ending in isolated wet cells
+# in the 256 and 512 Earth presets. The large Seto basin is split at bends.
+GLOBAL_APPROACHES = (
+    ("Little Belt northern approach", (9.73,55.55), (10.12,55.68), .18),
+    ("Little Belt to Kattegat", (10.12,55.68), (10.85,55.91), .16),
+    ("Hibiki-nada", (130.58,34.16), (130.77,33.96), .15),
+    ("Suo-nada", (131.16,33.92), (132.02,33.52), .20),
+    ("Iyo-nada", (132.02,33.52), (132.82,34.061), .22),
+    ("Hiuchi-nada", (133.09,34.053), (133.50,34.36), .18),
+    ("Harima-nada", (134.18,34.38), (134.86,34.59), .18),
+    ("Harima to Naruto", (134.18,34.38), (134.60,34.32), .14),
+    ("Osaka Bay", (135.13,34.63), (134.99,34.39), .18),
+    ("Kii Channel", (134.70,34.18), (134.88,33.75), .18),
+    ("Kitan to Kii", (134.99,34.20), (134.88,33.75), .16),
+    ("Bungo Pacific approach", (131.97,32.97), (132.37,32.59), .20),
+)
 
 def polygon_parts(geometry):
     if geometry.geom_type == "Polygon":
@@ -53,8 +93,8 @@ def polygon_parts(geometry):
             yield from polygon_parts(part)
 
 
-def passages(ocean):
-    for name, start, end, pad in GATES + APPROACHES:
+def passages(ocean, gates=GATES + APPROACHES):
+    for name, start, end, pad in gates:
         a, b = Point(start), Point(end)
         bounds = (min(a.x,b.x)-pad, min(a.y,b.y)-pad, max(a.x,b.x)+pad, max(a.y,b.y)+pad)
         clipped = ocean.intersection(box(*bounds))
@@ -74,10 +114,10 @@ def water_path(region, width, wet, eligible):
     x0, y0 = tile(west, north)
     x1, y1 = tile(east, south)
     nodes, shapes, cells = {}, [], []
-    for y in range(y0, y1+1):
+    for y in range(max(0,y0), min(width//2-1,y1)+1):
         top = 90-y*step
         for x in range(x0, x1+1):
-            if not eligible[y,x]:
+            if not eligible[y,x % width]:
                 continue
             left = x*step-180
             for part in polygon_parts(channel.intersection(box(left, top-step, left+step, top))):
@@ -110,7 +150,7 @@ def water_path(region, width, wet, eligible):
             for other in nodes.get((col,row), ()):
                 # Cost ties favour a short route through the wider water cells.
                 length = cos(radians(90-(y+.5)*step)) if y == row else 1.
-                cost = edits+int(not wet[row,col]), distance+length*(2-shapes[other].area/step**2)
+                cost = edits+int(not wet[row,col % width]), distance+length*(2-shapes[other].area/step**2)
                 if other in costs and costs[other] <= cost:
                     continue
                 if shapes[node].intersection(shapes[other]).length <= 1e-10:

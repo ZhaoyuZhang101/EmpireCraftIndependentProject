@@ -193,12 +193,36 @@ internal static class BasinWaterRegression
                 ("Tsugaru",139.83,41.25,141.60,41.54,.28), ("Bab el Mandeb",42.88,12.93,43.76,12.37,.27),
                 ("Hormuz",55.70,26.69,56.99,26.02,.34), ("Singapore",103.37,1.17,104.55,1.38,.23),
                 ("Sunda",105.13,-6.52,106.22,-5.58,.31), ("Lombok",115.70,-8.02,115.73,-9.06,.28),
-                ("Cook",174.53,-40.84,174.71,-41.82,.44), ("Tiran",34.63,28.31,34.36,27.67,.20)
+                ("Cook",174.53,-40.84,174.71,-41.82,.44), ("Tiran",34.63,28.31,34.36,27.67,.20),
+                ("Kanmon",130.77,33.96,131.16,33.92,.16), ("Bungo",131.97,32.97,132.02,33.52,.17),
+                ("Kurushima",132.82,34.061,133.09,34.053,.12), ("Bisan Seto",133.50,34.36,134.18,34.38,.14),
+                ("Akashi",134.86,34.59,135.13,34.63,.12), ("Naruto",134.60,34.32,134.70,34.18,.09),
+                ("Kitan",134.99,34.39,134.99,34.20,.12), ("Geiyo",132.69,34.13,133.01,34.31,.11),
+                ("Little Belt",9.73,55.55,9.72,55.36,.11), ("Nevelskoy",141.57,52.52,141.64,51.98,.18),
+                ("Belle Isle",-56.79,51.51,-56.28,51.77,.19), ("Magellan",-70.95,-53.45,-71.42,-53.86,.18),
+                ("Pemba",39.48,-5.40,39.51,-4.91,.22), ("Johnstone",-126.57,50.51,-126.02,50.44,.14),
+                ("San Bernardino",124.11,12.63,124.37,12.56,.17), ("Torres",141.90,-10.52,142.60,-10.49,.25),
+                ("Foveaux",167.72,-46.65,168.79,-46.70,.25), ("Chacao",-73.99,-41.84,-73.43,-41.81,.11)
             })
                 if (!LocalSeaRoute(w, connected, s.x0, s.y0, s.x1, s.y1, s.pad)) gaps.Add($"{width} {s.name}");
             foreach (var p in new[] {("Sinai",33.5,30.3),("Central America",-81.4,8.3),("Kra",99.05,10.45),
                                      ("Caspian",51.0,38.0),("Qattara",27.2,29.7)})
                 Check(!ocean[Tile(w,p.Item2,p.Item3)], $"{width} flooded {p.Item1}");
+            if (width >= 1536)
+                foreach (var h in new[] {("Bonifacio",8.99,41.32,9.38,41.36,.2),
+                                         ("Surigao",125.37,10.13,125.52,9.84,.18),
+                                         ("Long Island Sound",-72.17,41.18,-71.99,41.19,.13)})
+                    Check(LocalSeaRoute(w,connected,h.Item2,h.Item3,h.Item4,h.Item5,h.Item6),
+                        $"{width} failed the independent shoreline-contact test at {h.Item1}.");
+            foreach (var p in new[] {("Panama",-79.55,8.15,-79.95,9.90,.36),
+                                     ("Suez",32.34,31.85,34.00,27.40,.25),
+                                     ("Kra",97.60,10.48,100.10,10.60,.40)})
+            {
+                Check(connected[Tile(w,p.Item2,p.Item3)] && connected[Tile(w,p.Item4,p.Item5)],
+                    $"{width} missing open sea on one side of {p.Item1}.");
+                Check(!LocalSeaRoute(w,connected,p.Item2,p.Item3,p.Item4,p.Item5,p.Item6),
+                    $"{width} cut a shipping lane across {p.Item1}.");
+            }
             if (width == 2048 && w.WaterReference.UsesSurveyedStraits)
             {
                 int choke = Tile(w,29.09,41.22);
@@ -209,7 +233,7 @@ internal static class BasinWaterRegression
             }
         }
         Check(gaps.Count == 0, "Unconnected sea routes: " + string.Join(", ", gaps));
-        Console.WriteLine($"PASS 18 local marine routes and five dry/inland controls on each of {widths.Length} Earth grids; Bosporus dam.");
+        Console.WriteLine($"PASS 36 local sea routes, three intact isthmuses and five dry/inland controls on each of {widths.Length} Earth grids; three independent island routes at 1536/2048/4096 and the Bosporus dam.");
     }
 
     static void MajorLakes(WorldData w)
@@ -308,22 +332,42 @@ internal static class BasinWaterRegression
         Check(lakeWorld.Water.SequenceEqual(loadedLakes.Water) && lakeWorld.Downstream.SequenceEqual(loadedLakes.Downstream),
             "Rebuilding a V4 lake-aware Earth save changed its former coast or drainage.");
 
+        int extraEnd = bedsEnd + 4 + 6*BitConverter.ToInt32(water,bedsEnd);
+        int legacyEnd = extraEnd + 4 + 4*BitConverter.ToInt32(water,extraEnd);
+        byte[] previousSurvey = water.AsSpan(0,legacyEnd).ToArray();
+        previousSurvey[3] = (byte)'4';
+        var v5 = FlatGenerator.Generate(current.Width,current.Height,current.Seed,TerrainPreset.Earth,default,bed,previousSurvey);
+        var fileV5 = FlatSave.Encode(v5);
+        var loadedV5 = FlatSave.Decode(fileV5);
+        FlatEarthRiverReference.Restore(loadedV5,bed,water,rivers,default);
+        int newStrait = Enumerable.Range(0,current.Count).First(i =>
+            v5.Elevation[i] > 0 && current.Elevation[i] == -1 && FlatTerrainAnalysis.Ocean(current.Water[i]));
+        Check(BitConverter.ToInt32(fileV5,versionOffset) == 5 && loadedV5.UsesSurveyedStraits &&
+            !loadedV5.UsesGlobalStraits && loadedV5.WaterReference.MatchesOriginalBed(newStrait,v5.Elevation[newStrait]) &&
+            fileV5.SequenceEqual(FlatSave.Encode(loadedV5)), "A V5 save acquired V6 coastline edits.");
+        FlatGenerator.Rebuild(loadedV5,default);
+        Check(loadedV5.Elevation.SequenceEqual(v5.Elevation) && loadedV5.Water.SequenceEqual(v5.Water) &&
+            loadedV5.Downstream.SequenceEqual(v5.Downstream), "Rebuilding a V5 save changed its old coastline.");
+
         // A player can raise the new bed to exactly the height of the previous DEM.
         var edited = current.Clone();
         edited.Elevation[bear] = 212;
         Check(edited.Elevation[strait] == -1 && FlatTerrainAnalysis.Ocean(edited.Water[strait]), "Missing strait before dam edit.");
         edited.Elevation[strait] = 197;
+        edited.Elevation[newStrait] = v5.Elevation[newStrait];
         FlatGenerator.Rebuild(edited, default);
         var editedFile = FlatSave.Encode(edited);
         var loadedNew = FlatSave.Decode(editedFile);
         FlatEarthRiverReference.Restore(loadedNew, bed, water, rivers, default);
-        Check(BitConverter.ToInt32(editedFile, versionOffset) == 5 && loadedNew.UsesSurveyedLakeBeds &&
+        Check(BitConverter.ToInt32(editedFile, versionOffset) == 6 && loadedNew.UsesSurveyedLakeBeds && loadedNew.UsesGlobalStraits &&
             loadedNew.UsesSurveyedStraits && loadedNew.WaterReference.MatchesOriginalBed(strait,-1) &&
+            loadedNew.WaterReference.MatchesOriginalBed(newStrait,-1) &&
             loadedNew.WaterReference.MatchesOriginalBed(bear, 156) && !loadedNew.WaterReference.MatchesOriginalBed(bear, 212) &&
             editedFile.SequenceEqual(FlatSave.Encode(loadedNew)), "The alternate unedited baseline disguised a real terrain edit.");
         FlatGenerator.Rebuild(loadedNew, default);
         Check(loadedNew.Elevation[bear] == 212 && !FlatTerrainAnalysis.AreaWater(loadedNew.Water[bear]) &&
             loadedNew.Elevation[strait] == 197 && !FlatTerrainAnalysis.AreaWater(loadedNew.Water[strait]) &&
+            loadedNew.Elevation[newStrait] == v5.Elevation[newStrait] && !FlatTerrainAnalysis.Ocean(loadedNew.Water[newStrait]) &&
             edited.Water.SequenceEqual(loadedNew.Water) && edited.WaterLevel.SequenceEqual(loadedNew.WaterLevel),
             "Restoring the surveyed source reflooded the player's raised bed.");
     }

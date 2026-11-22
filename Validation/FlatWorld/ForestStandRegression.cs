@@ -34,6 +34,84 @@ public static class ForestStandRegression
     static bool Forest(VegetationCover cover)
     { return cover >= VegetationCover.SeasonalForest && cover <= VegetationCover.TropicalRainforest; }
 
+    static void TropicalDrySeason()
+    {
+        var world = new WorldData(64, 32, "TROPICAL-DRY-SEASON", TerrainPreset.Continents);
+        for (int tile = 0; tile < world.Count; tile++)
+        {
+            world.Elevation[tile] = world.WaterLevel[tile] = 100;
+            world.DrainOrder[tile] = tile;
+            int wetMonths = tile % world.Width < world.Width / 2 ? 7 : 4;
+            float wetRain = (1600 - 5 * (12 - wetMonths)) / (float)wetMonths;
+            for (int month = 0; month < 12; month++)
+            {
+                int index = tile * 12 + month;
+                world.Temperature[index] = 26;
+                world.Precipitation[index] = month < wetMonths ? wetRain : 5;
+            }
+            world.Climates[tile] = KoppenClassifier.Classify(world.Temperature, world.Precipitation, tile * 12);
+        }
+
+        FlatTerrainAnalysis.Build(world, default, true, 1);
+        int woodland = world.Index(1, 10), savanna = world.Index(world.Width / 2 + 1, 10);
+        Check(world.Climates[woodland] == Koppen.Aw && world.Climates[savanna] == Koppen.Aw,
+              "Both 1600 mm tropical climates have a dry season.");
+        Check(world.Biomes[woodland] == Biome.Woodland && world.Facts.Vegetation[woodland] == VegetationCover.SeasonalForest,
+              "Seven months of root-zone recharge support tropical seasonal woodland.");
+        Check(world.Biomes[savanna] == Biome.Grassland && world.Facts.Vegetation[savanna] == VegetationCover.Savanna,
+              "Four wet months and a long dry season retain savanna.");
+        var references = FlatBiomeStatistics.Calibrate(world).ExportReferences();
+        Check(references.Length == 1 && references[0].Type == FlatBiomeClass.TropicalSavanna,
+              "Dry tropical woodland must not supply a temperate or rainforest training label.");
+
+        world.Biomes[woodland] = Biome.Grassland;
+        FlatTerrainAnalysis.Build(world, default, false, 1);
+        Check(world.Biomes[woodland] == Biome.Grassland && world.Facts.Vegetation[woodland] == VegetationCover.SeasonalForest,
+              "The saved biome and the reconstructed seasonal cover retain their respective authorities.");
+    }
+
+    static void TropicalHillsides()
+    {
+        var world = new WorldData(256, 128, "TROPICAL-HILLSIDES", TerrainPreset.Continents);
+        var air = world.Moisture = new FlatMoistureState(128, 64);
+        for (int tile = 0; tile < air.Width * air.Height; tile++)
+        {
+            float humidity = tile % air.Width < 96 ? .65f : .05f;
+            for (int month = 0; month < 12; month++) air.Humidity[tile * 12 + month] = humidity;
+        }
+        for (int tile = 0; tile < world.Count; tile++)
+        {
+            int x = tile % world.Width;
+            // A mountain stands at x=41. At x=97 the nearest hill rises only 500 m above the coast.
+            short height = x switch { 41 => 3500, 96 => -3500, 98 => 600, _ => 100 };
+            world.Elevation[tile] = height;
+            world.WaterLevel[tile] = height < 0 ? (short)0 : height;
+            world.Water[tile] = height < 0 ? WaterKind.DeepOcean : WaterKind.Land;
+            world.DrainOrder[tile] = tile;
+            int wetMonths = x < world.Width / 2 ? 5 : 6;
+            for (int month = 0; month < 12; month++)
+            {
+                int index = tile * 12 + month;
+                world.Temperature[index] = 26;
+                world.Precipitation[index] = month < wetMonths ? (1600f - 5 * (12 - wetMonths)) / wetMonths : 5;
+            }
+            world.Climates[tile] = KoppenClassifier.Classify(world.Temperature, world.Precipitation, tile * 12);
+        }
+
+        FlatTerrainAnalysis.Build(world, default, true, 1);
+        var cover = world.Facts.Vegetation;
+        int slope = world.Index(40, 64), plain = world.Index(85, 64), coast = world.Index(97, 64);
+        int humid = world.Index(165, 64), dry = world.Index(225, 64);
+        Check(world.Facts.SaturatedMonths[slope] == 5 && world.Facts.SaturatedMonths[plain] == 5 &&
+              world.Facts.SaturatedMonths[humid] == 6 && world.Facts.SaturatedMonths[dry] == 6,
+              "The 1600-mm tropical sites differ in recharge season while sharing annual rainfall.");
+        Check(cover[slope] == VegetationCover.SeasonalForest && cover[plain] == VegetationCover.Savanna,
+              "With five wet months and surplus rain, a sheltered hillside supports forest beside an open savanna.");
+        Check(cover[coast] == VegetationCover.Savanna, "Deep offshore bathymetry must not supply onshore shelter.");
+        Check(cover[humid] == VegetationCover.SeasonalForest && cover[dry] == VegetationCover.Savanna,
+              "During six-month recharge cycles, dry roots coinciding with dry air can retain an open savanna.");
+    }
+
     // CPU measurement of the production shader's one-root-per-tile admission.
     // Its sine hash has platform-dependent final bits, so only regional statistics are asserted.
     static float ShaderHash(float x, float y, int width)
@@ -330,6 +408,8 @@ public static class ForestStandRegression
     public static void Run()
     {
         assertions = 0;
+        TropicalDrySeason();
+        TropicalHillsides();
         var uniform = TemperateForest(false);
         var uniformMetrics = Measure(uniform, "uniform Cfb forest");
         var legacy = TemperateForest(true);

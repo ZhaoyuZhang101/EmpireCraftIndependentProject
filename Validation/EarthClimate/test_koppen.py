@@ -21,6 +21,25 @@ TEMPERATURE = [4, 6, 9, 13, 18, 21, 24, 23, 19, 14, 9, 5]
 RAIN = [140, 120, 90, 65, 35, 15, 5, 10, 25, 60, 90, 150]  # Mediterranean
 
 
+class WarmestMonthBoundary(unittest.TestCase):
+    def test_threshold_directions_and_observed_footprint(self):
+        from score import warmest_month_boundary
+        # Exactly 10°C is on the cold side in the game classifier. A warm
+        # tropical mountain sits outside this latitude-specific diagnostic.
+        observed = np.array([11, 10, 12, 2, 9], dtype=float)[:, None]
+        modeled = np.array([10, 12, 11, 5, 18], dtype=float)[:, None]
+        region = warmest_month_boundary(modeled, observed, np.array([55, -60, 65, 80, 0]),
+                                        np.array([2, 3, 5, 20, 70]))
+        self.assertEqual(region["high_latitude"]["cells"], 4)
+        near = region["observed_7_to_13_c"]
+        self.assertEqual((near["cells"], near["area_km2"]), (3, 10))
+        self.assertEqual((near["false_cold_area_share"], near["false_warm_area_share"]), (.2, .3))
+        self.assertAlmostEqual(near["temperature_c"]["mae"], 1.3)
+        empty = warmest_month_boundary(modeled, observed, np.zeros(5), np.ones(5))
+        self.assertIsNone(empty["high_latitude"])
+        self.assertIsNone(empty["observed_7_to_13_c"])
+
+
 class KoppenScorer(unittest.TestCase):
     @classmethod
     def setUpClass(cls):

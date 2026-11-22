@@ -25,16 +25,16 @@ PAGE = SAMPLES + 2
 HEADER_ROWS = (COLS * ROWS + WIDTH - 1) // WIDTH
 
 
-def regional_keys():
-    shore = (RESOURCES / "EarthStraitShore.bytes").read_bytes()
-    if struct.unpack_from("<4sI", shore) != (b"OSH1", WIDTH):
+def regional_keys(path):
+    shore = path.read_bytes()
+    if shore[:4] not in (b"OSH1",b"OSH2"):
         raise ValueError("Unrecognised regional shoreline directory")
     count = ROWS * COLS
     directory = zlib.decompressobj(-15).decompress(shore[20:], count * 2)
     return np.flatnonzero(np.frombuffer(directory, dtype="<u2", count=count))
 
 
-def bake(source):
+def bake(source, shore):
     metadata = json.loads((SOURCE / "metadata.json").read_text(encoding="utf8"))
     digest = hashlib.sha256()
     with source.open("rb") as stream:
@@ -43,7 +43,7 @@ def bake(source):
     if digest.hexdigest() != metadata["source_sha256"]:
         raise ValueError("Expected the NOAA ETOPO 2022 60s surface GeoTIFF from global/metadata.json")
 
-    keys = regional_keys()
+    keys = regional_keys(shore)
     per_row = WIDTH // PAGE
     height = HEADER_ROWS + (len(keys) + per_row - 1) // per_row * PAGE
     if not 0 < len(keys) < 65536 or height > 8192:
@@ -85,10 +85,12 @@ def bake(source):
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--source", type=Path, default=ROOT / "ValidationOutput/EarthScale100/global/ETOPO2022-60s.tif")
+    parser.add_argument("--shore", type=Path, default=RESOURCES / "EarthGlobalStraitShore.bytes")
+    parser.add_argument("--output", type=Path, default=RESOURCES / "EarthMarineDepth.bytes")
     parser.add_argument("--check", action="store_true", help="compare a fresh bake with the installed asset")
     args = parser.parse_args()
-    payload = bake(args.source)
-    path = RESOURCES / "EarthMarineDepth.bytes"
+    payload = bake(args.source,args.shore)
+    path = args.output
     if args.check:
         if path.read_bytes() != payload:
             raise ValueError("Installed marine depths differ from the NOAA source bake")

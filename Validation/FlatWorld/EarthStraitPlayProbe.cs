@@ -1,7 +1,7 @@
 // Copy to Assets/ORBIS/Editor in a disposable ORBIS-Straits-QA-* product. Use
 // Unity -batchmode -force-d3d11 -projectPath <copy> -executeMethod EarthStraitPlayProbe.Run
 // -straitWidth 2048 -straitOutput <directory> -logFile <log>. Do not pass -quit.
-// Add -straitRoute to test the player maritime tool, including both camera overlays.
+// Add -straitRoute (Turkey) or -straitSetoRoute (Kanmon) to test the maritime tool.
 using System;
 using System.Collections.Generic;
 using System.Globalization;
@@ -30,7 +30,10 @@ public static class EarthStraitPlayProbe
     static readonly double[] intervals = new double[30];
     static string Output => SessionState.GetString(Key + ".out", "");
     static int WorldWidth => SessionState.GetInt(Key + ".width", 0);
-    static bool TestRoute => Array.IndexOf(Environment.GetCommandLineArgs(), "-straitRoute") >= 0;
+    static bool SetoRoute => Array.IndexOf(Environment.GetCommandLineArgs(), "-straitSetoRoute") >= 0;
+    static bool TestRoute => SetoRoute || Array.IndexOf(Environment.GetCommandLineArgs(), "-straitRoute") >= 0;
+    static Vector2 Departure => SetoRoute ? Sites[2].seaA : Sites[1].seaA;
+    static Vector2 Destination => SetoRoute ? Sites[2].seaB : Sites[0].seaB;
     static double Now => EditorApplication.timeSinceStartup;
 
     // Independent WGS84 control points on the Natural Earth 1:10m ocean polygon.
@@ -50,7 +53,19 @@ public static class EarthStraitPlayProbe
         new Strait { name="dardanelles", center=new Vector2(26.43f,40.22f),
             mouthA=new Vector2(26.130f,39.990f), mouthB=new Vector2(26.760f,40.440f),
             throat=new Vector2(26.384f,40.160f), bankA=new Vector2(26.330f,40.160f), bankB=new Vector2(26.430f,40.160f),
-            seaA=new Vector2(25.65f,40.00f), seaB=new Vector2(28.40f,40.81f) }
+            seaA=new Vector2(25.65f,40.00f), seaB=new Vector2(28.40f,40.81f) },
+        new Strait { name="kanmon", center=new Vector2(130.96f,33.955f),
+            mouthA=new Vector2(130.938f,33.937f), mouthB=new Vector2(131.046f,33.979f),
+            throat=new Vector2(130.950f,33.949f), bankA=new Vector2(130.930f,33.949f), bankB=new Vector2(130.978f,33.949f),
+            seaA=new Vector2(130.77f,33.96f), seaB=new Vector2(131.16f,33.92f) },
+        new Strait { name="naruto", center=new Vector2(134.653f,34.239f),
+            mouthA=new Vector2(134.634f,34.277f), mouthB=new Vector2(134.687f,34.204f),
+            throat=new Vector2(134.651f,34.239f), bankA=new Vector2(134.629f,34.224f), bankB=new Vector2(134.679f,34.261f),
+            seaA=new Vector2(134.60f,34.32f), seaB=new Vector2(134.70f,34.18f) },
+        new Strait { name="akashi", center=new Vector2(135.02f,34.62f),
+            mouthA=new Vector2(134.965f,34.629f), mouthB=new Vector2(135.072f,34.602f),
+            throat=new Vector2(135.021f,34.620f), bankA=new Vector2(135.021f,34.583f), bankB=new Vector2(135.021f,34.655f),
+            seaA=new Vector2(134.86f,34.59f), seaB=new Vector2(135.13f,34.63f) }
     };
 
     static EarthStraitPlayProbe()
@@ -174,6 +189,8 @@ public static class EarthStraitPlayProbe
                     break;
                 case 2:
                     if (map.PreparationPending || !map.RiverAtlasReady || map.VisibleLayer != MapLayer.Natural) return;
+                    CheckCompactMarineDepth(map);
+                    CheckGlobalShoreSamples(map);
                     if (WorldWidth == 4096)
                     {
                         // Keep the same probe source runnable against pre-4096 revisions.
@@ -183,6 +200,8 @@ public static class EarthStraitPlayProbe
                         Record("PASS 4096 seasonal texture geometry, month uploads and geographic GPU samples");
                     }
                     Capture(app, map, camera, "marmara-natural", new Vector2(27.85f,40.72f), 42, null, true);
+                    Capture(app, map, camera, "seto-natural", new Vector2(132.70f,34.10f), 40, null, true);
+                    Capture(app, map, camera, "seto-regional", new Vector2(131.90f,34.05f), 16.3f, null, true);
                     foreach (var site in Sites) Capture(app, map, camera, site.name + "-natural", site.center, 96, site, true);
                     ResourcesAt("Natural camera readbacks");
                     ui.Q<DropdownField>("layer").index = (int)MapLayer.Rivers;
@@ -214,17 +233,17 @@ public static class EarthStraitPlayProbe
                     int seaTool = tool.choices.FindIndex(s => s.Contains("海上航线"));
                     Require(seaTool >= 0, "No maritime route in the player tools");
                     tool.index = seaTool;
-                    ClickSea(app,camera,ui,Sites[1].seaA);
+                    ClickSea(app,camera,ui,Departure);
                     routeRequested=Now;
                     Record("Maritime departure click: " + ui.Q<Label>("notice").text);
                     break;
                 case 6:
                     if (!ui.Q<Label>("notice").text.Contains("已选出发点"))
                     {
-                        Require(Now-routeRequested<30,"Player did not accept the Aegean departure. "+ui.Q<Label>("notice").text);
+                        Require(Now-routeRequested<30,"Player did not accept the marine departure. "+ui.Q<Label>("notice").text);
                         return;
                     }
-                    ClickSea(app,camera,ui,Sites[0].seaB);
+                    ClickSea(app,camera,ui,Destination);
                     routeRequested=Now;
                     Record("Maritime destination click: " + ui.Q<Label>("notice").text);
                     break;
@@ -238,9 +257,14 @@ public static class EarthStraitPlayProbe
                     Record("Maritime route status: " + ui.Q<Label>("notice").text);
                     Expect(ui.Q<Label>("notice").text.Contains("已显示海上航线"),"player confirmed the maritime overlay");
                     SaveRoute(points);
-                    Capture(app,map,camera,"marmara-sea-route",new Vector2(27.85f,40.72f),42,null,true,true,atlasRoundTrip:true);
-                    foreach (var site in Sites)
-                        Capture(app,map,camera,site.name+"-sea-route",site.center,96,null,true,true);
+                    if (SetoRoute)
+                        Capture(app,map,camera,"kanmon-sea-route",Sites[2].center,96,null,true,true);
+                    else
+                    {
+                        Capture(app,map,camera,"marmara-sea-route",new Vector2(27.85f,40.72f),42,null,true,true,atlasRoundTrip:true);
+                        foreach (var site in new[] { Sites[0], Sites[1] })
+                            Capture(app,map,camera,site.name+"-sea-route",site.center,96,null,true,true);
+                    }
                     ResourcesAt("Player sea route");
                     Result();
                     return;
@@ -285,11 +309,11 @@ public static class EarthStraitPlayProbe
         var text=new StringBuilder("longitude,latitude\n");
         foreach(var p in points)
             text.AppendFormat(CultureInfo.InvariantCulture,"{0:R},{1:R}\n",p.Longitude*180/Math.PI,p.Latitude*180/Math.PI);
-        File.WriteAllText(Path.Combine(Output,"maritime-route.csv"),text.ToString());
+        File.WriteAllText(Path.Combine(Output,SetoRoute?"kanmon-route.csv":"maritime-route.csv"),text.ToString());
         double Distance(PlanetLocation p,Vector2 q) => Math.Abs(p.Longitude*180/Math.PI-q.x)+Math.Abs(p.Latitude*180/Math.PI-q.y);
         double tolerance=720.0/WorldWidth;
-        Expect(Distance(points[0],Sites[1].seaA)<tolerance && Distance(points[points.Count-1],Sites[0].seaB)<tolerance,
-            $"maritime polyline has {points.Count} points and joins the clicked Aegean and Black Sea locations");
+        Expect(Distance(points[0],Departure)<tolerance && Distance(points[points.Count-1],Destination)<tolerance,
+            $"maritime polyline has {points.Count} points and joins the two clicked sea locations");
     }
     static IReadOnlyList<PlanetLocation> RoutePoints(FlatScrollNavigator nav)
     {
@@ -378,6 +402,7 @@ public static class EarthStraitPlayProbe
             Record($"{name}: {Width}x{Height}, {nav.PixelsPerTile:F2} px/tile, center {location.x:F4}E {location.y:F4}N, day {app.CalendarDay:F6}, clear sky, fixed sun 3E/33N, water clock 2");
             var visible = Render(camera,target,pixels);
             File.WriteAllBytes(Path.Combine(Output,name + ".png"),pixels.EncodeToPNG());
+            if (name=="seto-regional") CheckSetoViews(app,map,camera,target,pixels,location);
             if (route) CheckRouteOverlay(nav,camera,target,pixels,visible,name);
             if (atlasRoundTrip) CheckRouteViews(app,camera,target,pixels);
             if (site == null) return;
@@ -419,6 +444,121 @@ public static class EarthStraitPlayProbe
             RenderTexture.active=oldActive;
             Object.DestroyImmediate(pixels);
             RenderTexture.ReleaseTemporary(target);
+        }
+    }
+    static void CheckSetoViews(FlatWorldApp app, FlatMapRenderer map, Camera camera,
+        RenderTexture target, Texture2D pixels, Vector2 location)
+    {
+        var nav=app.Navigation;
+        var ui=app.GetComponentInChildren<UIDocument>().rootVisualElement;
+        var local=nav.SurfaceMaterial;
+        var shore=local.GetTexture("_EarthStraitShore");
+        var detail=local.GetTexture("_EarthStraitDetail");
+        Require(shore && detail && local.GetFloat("_EarthStraitReady")>.5f,"Missing local marine survey");
+        void Readback(string name)
+        {
+            map.Configure(false,nav.PixelsPerTile);
+            nav.SyncMaterials();
+            var material=nav.SurfaceMaterial;
+            Expect(material.shader.isSupported && material.GetFloat("_EarthStraitReady")>.5f &&
+                material.GetTexture("_EarthStraitShore")==shore && material.GetTexture("_EarthStraitDetail")==detail,
+                $"{name}: {material.shader.name} uses the same native {shore.width}x{shore.height} marine map and {detail.width}x{detail.height} surveyed banks");
+            Render(camera,target,pixels);
+            File.WriteAllBytes(Path.Combine(Output,name+".png"),pixels.EncodeToPNG());
+        }
+        double day=app.CalendarDay;
+        Press(ui,"atlas");nav.Tick(3,day);
+        Require(nav.IsAtlas,"Failed to reach the strategic atlas");
+        Readback("seto-atlas");
+        Press(ui,"mode");nav.Tick(3,day);
+        Require(nav.IsFlat && !nav.IsAtlas,"Failed to return to the local chart");
+        nav.GoGlobe(day);nav.Tick(3,day);
+        nav.Recenter(Location(location),day);
+        Require(nav.IsGlobe,"Failed to reach the globe camera");
+        Readback("seto-globe");
+    }
+    static void CheckCompactMarineDepth(FlatMapRenderer map)
+    {
+        var native=map.Material.GetTexture("_EarthMarineDepth");
+        if (!native || native.height<=4096) return;
+        var loader=typeof(FlatMapRenderer).Assembly.GetType("Orbis.Flat.FlatEarthPolarRelief").GetMethod("LoadMarineDepth",
+            System.Reflection.BindingFlags.Static | System.Reflection.BindingFlags.NonPublic);
+        var compact=(Texture2D)loader.Invoke(null,new object[]{4096});
+        Require(compact && compact.width==4096 && compact.height<=4096,"Marine depths exceed the requested 4096 texture limit");
+        var probe=new Material(AssetDatabase.LoadAssetAtPath<Shader>("Assets/ORBIS/Editor/RiverOpticsProbe.shader"));
+        var target=RenderTexture.GetTemporary(1,1,0,RenderTextureFormat.ARGBFloat,RenderTextureReadWrite.Linear);
+        var read=new Texture2D(1,1,TextureFormat.RGBAFloat,false,true);
+        var previous=RenderTexture.active;
+        try
+        {
+            probe.SetVector("_MapSize",map.Material.GetVector("_MapSize"));
+            probe.SetFloat("_TestShore",1);probe.SetFloat("_TestCoastKm",2);
+            Color Sample(Texture texture)
+            {
+                probe.SetTexture("_EarthMarineDepth",texture);
+                Graphics.Blit(null,target,probe);RenderTexture.active=target;
+                read.ReadPixels(new Rect(0,0,1,1),0,0,false);return read.GetPixel(0,0);
+            }
+            ShaderUtil.CompilePass(probe,0,true);
+            foreach(var p in new[]{Sites[2].throat,Sites[3].throat,Sites[4].throat,
+                new Vector2(-73.60f,-41.80f),new Vector2(174.60f,-41.60f),new Vector2(36.62f,45.35f)})
+            {
+                probe.SetVector("_TestSite",new Vector4(p.x/360+.5f,p.y/180+.5f,0,0));
+                probe.SetFloat("_TestOutput",10);
+                var original=Sample(native);var packed=Sample(compact);
+                Expect(original.g>.5f && Math.Abs(original.r-packed.r)<.04f && Math.Abs(original.g-packed.g)<.01f,
+                    $"{p}: full and 4096-limit marine map GPU depths {original.r:F2} m / {packed.r:F2} m, optical weights {original.g:F2} / {packed.g:F2}");
+                probe.SetFloat("_TestOutput",11);
+                var raw=Sample(native);var compactRaw=Sample(compact);
+                Expect(raw.r>0 && raw.g>0 && Math.Abs(raw.r-compactRaw.r)<.001f && Math.Abs(raw.g-compactRaw.g)<.00001f,
+                    $"{p}: ETOPO source depth {raw.r:F4} / {compactRaw.r:F4} m, wet-data support {raw.g:F5} / {compactRaw.g:F5}");
+            }
+        }
+        finally
+        {
+            RenderTexture.active=previous;RenderTexture.ReleaseTemporary(target);
+            Object.DestroyImmediate(read);Object.DestroyImmediate(probe);Object.DestroyImmediate(compact);
+        }
+    }
+    static void CheckGlobalShoreSamples(FlatMapRenderer map)
+    {
+        var source=map.Material;
+        var shader=AssetDatabase.LoadAssetAtPath<Shader>("Assets/ORBIS/Editor/PolarDetailProbe.shader");
+        var probe=new Material(shader);
+        var target=RenderTexture.GetTemporary(1,1,0,RenderTextureFormat.ARGBFloat,RenderTextureReadWrite.Linear);
+        var pixels=new Texture2D(1,1,TextureFormat.RGBAFloat,false,true);
+        var previous=RenderTexture.active;
+        try
+        {
+            foreach(var key in new[]{"_EarthStraitShore","_EarthStraitDetail","_EarthSurveyMask","_VisualTex"})
+                probe.SetTexture(key,source.GetTexture(key));
+            probe.SetVector("_MapSize",source.GetVector("_MapSize"));
+            probe.SetFloat("_EarthStraitReady",source.GetFloat("_EarthStraitReady"));
+            probe.SetFloat("_EarthPolarReady",0);probe.SetFloat("_ProjectionProbe",7);
+            ShaderUtil.CompilePass(probe,0,true);
+            Color Sample(float lon,float lat)
+            {
+                probe.SetVector("_ProbeOrigin",new Vector4(lon/360+.5f,lat/180+.5f,0,0));
+                Graphics.Blit(null,target,probe,0);RenderTexture.active=target;
+                pixels.ReadPixels(new Rect(0,0,1,1),0,0,false);return pixels.GetPixel(0,0);
+            }
+            // Each pair was classified independently by the pinned vector ocean.
+            foreach(var s in new[]{
+                ("Little Belt",9.70f,55.43f,9.78f,55.49f), ("Nevelskoy",141.61f,52.25f,141.69f,52.23f),
+                ("Belle Isle",-56.53f,51.64f,-56.60f,51.68f), ("Magellan",-70.95f,-53.69f,-71.19f,-53.65f),
+                ("Pemba",39.50f,-5.15f,39.72f,-5.11f), ("San Bernardino",124.24f,12.60f,124.31f,12.54f),
+                ("Torres",142.25f,-10.50f,142.28f,-10.61f), ("Foveaux",168.26f,-46.67f,168.41f,-46.52f),
+                ("Chacao",-73.73f,-41.80f,-73.70f,-41.85f)})
+            {
+                var wet=Sample(s.Item2,s.Item3);var dry=Sample(s.Item4,s.Item5);
+                Expect(wet.b>.99f && dry.b>.99f && wet.r>0 && dry.r<0,
+                    $"{s.Item1} native marine/dry bank pair, signed distances {wet.r:F4} / {dry.r:F4} tiles, weights {wet.b:F3} / {dry.b:F3}");
+            }
+        }
+        finally
+        {
+            RenderTexture.active=previous;RenderTexture.ReleaseTemporary(target);
+            Object.DestroyImmediate(pixels);Object.DestroyImmediate(probe);
         }
     }
     static void CaptureIzmitTreeSource(FlatWorldApp app, FlatMapRenderer map, Camera camera, RenderTexture target,
@@ -548,10 +688,20 @@ public static class EarthStraitPlayProbe
         var channel = Pixel(site.throat); var west = Pixel(site.bankA); var east = Pixel(site.bankB);
         var bounds = Bounds(a,b,32,Width,Height);
         Record($"{name} sampled pixels bottom-up: mouth A {Sample(a)}, mouth B {Sample(b)}, throat {Sample(channel)}, bank A {Sample(west)}, bank B {Sample(east)}");
-        int left = channel.x, right = channel.x;
-        while (left >= 0 && wet(left,channel.y)) left--;
-        while (right < Width && wet(right,channel.y)) right++;
-        Record($"{name} east-west contiguous throat width at {site.throat.y:F3}N: {Math.Max(0,right-left-1)} px");
+        var across=((Vector2)(east-west)).normalized;
+        int WetSteps(int sign)
+        {
+            int step=0;
+            while (step<Width)
+            {
+                var p=Vector2Int.RoundToInt((Vector2)channel+sign*(step+1)*across);
+                if (p.x<0 || p.y<0 || p.x>=Width || p.y>=Height || !wet(p.x,p.y)) break;
+                step++;
+            }
+            return step;
+        }
+        int span=wet(channel.x,channel.y)?1+WetSteps(-1)+WetSteps(1):0;
+        Record($"{name} contiguous wet transect along the two bank controls at {site.throat.x:F3}E/{site.throat.y:F3}N: {span} px");
         Expect(Connected(bounds,a,b,wet), $"{name} local four-neighbor screen-water path between mouths");
         Expect(wet(channel.x,channel.y), $"{name} surveyed throat is visibly wet");
         Expect(!wet(west.x,west.y) && !wet(east.x,east.y), $"{name} both sampled banks visibly dry");

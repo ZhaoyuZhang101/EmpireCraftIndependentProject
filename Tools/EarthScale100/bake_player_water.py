@@ -147,25 +147,30 @@ def supplemental_stages(lakes, survey):
     return sorted(result)
 
 
-def encode(grid, corrected, extra, channels):
+def encode(grid, corrected, extra, channels, global_channels):
     # North-first signed metre/classification spans. Runs may cross rows.
     values = grid.ravel()
     edges = np.r_[0, np.flatnonzero(np.diff(values) != 0) + 1, values.size]
     runs = np.empty(len(edges) - 1, dtype=[("value", "<i2"), ("count", "<i4")])
     runs["value"] = values[edges[:-1]]
     runs["count"] = np.diff(edges)
-    data = (struct.pack("<4sii", b"OWR4", grid.shape[1], len(runs)) + runs.tobytes()
+    data = (struct.pack("<4sii", b"OWR5", grid.shape[1], len(runs)) + runs.tobytes()
             + struct.pack("<i", len(corrected)) + corrected.tobytes())
     data += struct.pack("<i", len(extra)) + b"".join(struct.pack("<ih", cell, stage) for cell, stage in extra)
-    return data + struct.pack("<i", len(channels)) + np.asarray(channels, dtype="<i4").tobytes()
+    for section in (channels, global_channels):
+        data += struct.pack("<i", len(section)) + np.asarray(section, dtype="<i4").tobytes()
+    return data
 
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--check", action="store_true")
     parser.add_argument("--cache", type=Path, default=ROOT / "ValidationOutput/BasinWater")
+    parser.add_argument("--output", type=Path, default=RESOURCES)
+    parser.add_argument("--width", type=int, nargs="+", choices=WIDTHS, default=WIDTHS)
     args = parser.parse_args()
     args.cache.mkdir(parents=True, exist_ok=True)
+    args.output.mkdir(parents=True, exist_ok=True)
     overview = json.loads((SOURCE / "metadata.json").read_text(encoding="utf8"))["overview"]
     raw = (SOURCE / overview["file"]).read_bytes()
     if hashlib.sha256(raw).hexdigest() != overview["sha256"]:
@@ -176,8 +181,11 @@ def main():
     # the same source layer are enclosed inland water, including the Caspian.
     global_sea = max(ocean, key=lambda p: np.ptp(np.array(p[0])[:, 0]))
     from shapely.geometry import Polygon
-    from bake_straits import passages, representative_channels
-    straits = list(passages(Polygon(global_sea[0], global_sea[1:])))
+    from bake_straits import GLOBAL_APPROACHES, GLOBAL_GATES, passages, representative_channels, water_path
+    from global_seaways import Coast, automatic_channels
+    coast_source = Coast(Polygon(global_sea[0], global_sea[1:]))
+    straits = list(passages(coast_source.ocean))
+    global_gates = list(passages(coast_source.ocean, GLOBAL_GATES + GLOBAL_APPROACHES))
     inland = [p for p in ocean if p is not global_sea]
     inland += [p for f in features("lakes", args.cache) for p in polygons(f)]
     marine = Image.new("L", (terrain.shape[1], terrain.shape[0]))
@@ -189,7 +197,7 @@ def main():
     footprints, _ = load_footprints(args.cache)
     sources = lake_sources(footprints, terrain)
     extra_lakes = supplemental_lakes()
-    for width in WIDTHS:
+    for width in args.width:
         size = (width, width // 2)
         water = np.asarray(marine.resize(size, Image.Resampling.BOX))
         survey = np.array(lakes.resize(size, Image.Resampling.NEAREST), dtype="<i2")
@@ -205,15 +213,27 @@ def main():
         corrected = representative_beds(sources, survey, bed)
         extra = supplemental_stages(extra_lakes, survey)
         channels = representative_channels(straits, bed, survey, MARINE, PASSAGE)
-        payload = encode(survey, corrected, extra, channels)
-        path = RESOURCES / f"EarthWater{width}.bytes"
+        wet = (survey == MARINE) & (bed <= 0)
+        wet.ravel()[channels] = True
+        original_wet = wet.copy()
+        eligible = survey <= PASSAGE
+        if extra:
+            eligible.ravel()[[i for i,_ in extra]] = False
+        for region in global_gates:
+            for x,y in water_path(region,width,wet,eligible):
+                wet[y,x % width] = True
+        auto = automatic_channels(coast_source, wet, eligible)
+        global_channels = np.flatnonzero(wet & ~original_wet)
+        payload = encode(survey, corrected, extra, channels, global_channels)
+        path = args.output / f"EarthWater{width}.bytes"
         if args.check:
             if path.read_bytes() != payload:
                 raise ValueError(f"{path.name} differs from the reference")
         else:
             path.write_bytes(payload)
         print(f"{path.name}: {len(corrected)} majority-lake beds, {len(extra)} supplemental lake cells, "
-              f"{len(channels)} strait cells, {len(payload)} bytes, "
+              f"{len(channels)} legacy and {len(global_channels)} global strait cells "
+              f"({len(auto)} from worldwide coast contacts), {len(payload)} bytes, "
               f"sha256 {hashlib.sha256(payload).hexdigest()}")
 
 

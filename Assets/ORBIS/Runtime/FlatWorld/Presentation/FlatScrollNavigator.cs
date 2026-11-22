@@ -24,6 +24,9 @@ namespace Orbis.Flat
         public IReadOnlyList<PlanetLocation> RoutePoints => route;
         const int Rings=128,Sectors=256;Vector2[] lattice;int[] triangles;
         readonly FlatPlantHeightCache plantHeights=new FlatPlantHeightCache();
+#if UNITY_EDITOR
+        readonly FlatShaderPreview editorPreview = new FlatShaderPreview();
+#endif
         Vector4[] pickPositions;int[] pickVertexStamps,pickCellStamps;int pickGeneration;
         Ray pickRay;Vector4 pickRelief;float pickRadius,pickNearest;Vector2 pickHit;
         public PlanetTangentFrame LocalFrame=>projection.Frame;
@@ -193,13 +196,22 @@ namespace Orbis.Flat
             surface.SetVector("_LocalCenter",V(projection.Frame.Up));surface.SetVector("_LocalEast",V(projection.Frame.East));surface.SetVector("_LocalNorth",V(projection.Frame.North));
             surface.SetVector("_ScrollNormal",normal);surface.SetVector("_ScrollRight",east);surface.SetVector("_ScrollUp",north);
             surface.SetFloat("_ScrollMorph",morph);surface.SetFloat("_ScrollSpin",spin);surface.SetFloat("_LocalRadius",Radius);
+            surface.SetFloat("_RiverGlobeNarrowing",FlatRiverCurves.GlobeWidthReduction(world.Preset,morph));
             surface.SetFloat("_PixelsPerTile",pixels);surface.SetFloat("_DetailWeight",DetailWeight);surface.SetVector("_ScrollPoleHeights",poles);surface.SetFloat("_ScrollHeightScale",FlatGlobeGeometry.HeightScale);
             surface.SetVector("_ScrollRelief",ReliefParameters);
             surface.SetVector("_MapSize",new Vector4(world.Width,world.Height,1f/world.Width,1f/world.Height));
             plantHeights.Bind(surface,maps.VisualTexture,Sectors,Rings);
             BindSelectionFocus();
         }
-        public void SyncMaterials(){if(atlasMode){atlas.SyncMaterials();return;}surface.CopyPropertiesFromMaterial(maps.Material);Bind();}
+        public void SyncMaterials()
+        {
+            if(atlasMode){atlas.SyncMaterials();return;}
+            surface.CopyPropertiesFromMaterial(maps.Material);Bind();
+#if UNITY_EDITOR
+            var draw = editorPreview.ForDraw(surface, surface.FindPass("SCROLL_SURFACE"));
+            if (terrain.sharedMaterial != draw) terrain.sharedMaterial = draw;
+#endif
+        }
         void Capture(Vector2 screen,double day)
         {
             if(TryGetPlanetLocation(screen,out var p))
@@ -538,6 +550,12 @@ namespace Orbis.Flat
             }
             routeMesh.Clear();routeMesh.SetVertices(routeVertices);routeMesh.SetTriangles(routeIndices,0);routeMesh.RecalculateBounds();
         }
-        void OnDestroy(){plantHeights.Dispose();if(mesh)Destroy(mesh);if(surface)Destroy(surface);if(routeMesh)Destroy(routeMesh);if(routeMaterial)Destroy(routeMaterial);}
+        void OnDestroy()
+        {
+#if UNITY_EDITOR
+            editorPreview.Dispose();
+#endif
+            plantHeights.Dispose();if(mesh)Destroy(mesh);if(surface)Destroy(surface);if(routeMesh)Destroy(routeMesh);if(routeMaterial)Destroy(routeMaterial);
+        }
     }
 }

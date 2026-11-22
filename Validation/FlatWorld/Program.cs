@@ -27,11 +27,13 @@ public static class Program {
     case "--weather": WeatherIntegrationRegression.Run(); break;
     case "--moisture": MoistureRegression(); break;
     case "--wind-belts": WindBeltRegression.Run(args.Length>1 ? args[1] : null); break;
+    case "--moisture-flux": MoistureFluxRegression.Run(args); break;
     case "--ocean-circulation": OceanCirculationRegression.Run(); break;
     case "--seasonal-rainfall": SeasonalRainfallRegression.Run(); break;
     case "--orographic-rainfall": OrographicRainfallRegression.Run(); break;
     case "--seasonal-temperature": SeasonalTemperatureRegression.Run(); break;
     case "--surface-cloud": SeasonalTemperatureRegression.ExportCloud(args); break;
+    case "--surface-snow-rain": SeasonalTemperatureRegression.ExportCloud(args, false, true); break;
     case "--surface-fit-cloud": SeasonalTemperatureRegression.ExportCloud(args, true); break;
     case "--east-asia-climate": ClimatologyRegression.EastAsia(args.Length>1?int.Parse(args[1]):256); break;
     case "--environment": EnvironmentRegression(); break;
@@ -109,10 +111,10 @@ public static class Program {
   var bed=System.IO.File.ReadAllBytes(resources+"Earth256.bytes");
   var water=System.IO.File.ReadAllBytes(resources+"EarthWater256.bytes");
   var rivers=FlatEarthRiverReference.Read(System.IO.File.ReadAllBytes(resources+"EarthRivers.bytes"));
-  foreach(int version in new[]{3,4,5}) {
-   var reference=FlatWaterReference.Read(width,bed,water,version>=4,version>=5);
+  foreach(int version in new[]{3,4,5,6}) {
+   var reference=FlatWaterReference.Read(width,bed,water,version>=4,version>=5,version>=6);
    var original=new WorldData(width,width/2,"REBUILD-SNAPSHOT",TerrainPreset.Earth) {
-    WaterReference=reference,RiverReference=rivers,UsesSurveyedLakeBeds=version>=4,UsesSurveyedStraits=version>=5
+    WaterReference=reference,RiverReference=rivers,UsesSurveyedLakeBeds=version>=4,UsesSurveyedStraits=version>=5,UsesGlobalStraits=version>=6
    };
    for(int i=0;i<original.Count;i++)original.Elevation[i]=reference.OriginalBed(i);
    FlatGenerator.Rebuild(original,default);
@@ -128,7 +130,7 @@ public static class Program {
     FlatGenerator.Rebuild(candidate,default);
    }
    if(snapshot.WaterReference!=reference||snapshot.RiverReference!=rivers||snapshot.Elevation[sea]!=900||
-      FlatTerrainAnalysis.Ocean(snapshot.Water[sea])||snapshot.UsesSurveyedLakeBeds!=(version>=4)||snapshot.UsesSurveyedStraits!=(version>=5)||
+      FlatTerrainAnalysis.Ocean(snapshot.Water[sea])||snapshot.UsesSurveyedLakeBeds!=(version>=4)||snapshot.UsesSurveyedStraits!=(version>=5)||snapshot.UsesGlobalStraits!=(version>=6)||
       !FlatSave.Encode(snapshot).AsSpan().SequenceEqual(FlatSave.Encode(full))||
       !snapshot.Facts.VegetationSeasons.AsSpan().SequenceEqual(full.Facts.VegetationSeasons)||
       !snapshot.Moisture.Rain.AsSpan().SequenceEqual(full.Moisture.Rain)||!FlatSave.Encode(original).AsSpan().SequenceEqual(initial))

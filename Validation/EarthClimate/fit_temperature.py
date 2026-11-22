@@ -229,14 +229,14 @@ def fit_plateau(path, ids, obs, area, fold):
     return round(all_land, 4)
 
 
-def read_cloud(path, shape, columns):
-    """Read the simulated cloud predictor and interpolate its rain to land-cell centres."""
+def read_monthly_predictor(path, shape, columns, magic):
+    """Interpolate gross condensation or surface-reaching precipitation to land-cell centres."""
     data = Path(path).read_bytes()
     if len(data) < 12:
         raise ValueError("Truncated ORC1 header")
     code, w, h = struct.unpack_from('<4sii', data)
     height, width = shape
-    if code != b'ORC1' or w != min(columns,width) or h != w//2 or len(data) != 12+48*w*h:
+    if code != magic or w != min(columns,width) or h != w//2 or len(data) != 12+48*w*h:
         raise ValueError("Invalid cloud forecast grid")
     rain = np.frombuffer(data, '<f4', offset=12).reshape(h, w, 12)
     if not np.isfinite(rain).all() or rain.min() < 0:
@@ -247,7 +247,11 @@ def read_cloud(path, shape, columns):
     u, v = (x-i)[None, :, None], (y-j)[:, None, None]
     rows = (1-u)*rain[:, i%w] + u*rain[:, (i+1)%w]
     rain = (1-v)*rows[j] + v*rows[np.minimum(h-1, j+1)]
-    return -np.expm1(-rain/45).reshape(-1,12)
+    return rain.reshape(-1,12)
+
+
+def read_cloud(path, shape, columns):
+    return -np.expm1(-read_monthly_predictor(path, shape, columns, b'ORC1')/45)
 
 
 def surface_weights(temperature, ids, shape):
@@ -342,7 +346,8 @@ def check_surface_folds(directory, model, plateau_model, fits, ids, area, obs, f
 
 
 def fit(path, check_runtime, ocean_air=None, plateau_baseline=None, surface_control=None,
-        surface_cloud=None, check_cloud=None, cloud_folds=None):
+        surface_cloud=None, check_cloud=None, cloud_folds=None, snow_control=None,
+        snow_fit_cloud=None, snow_fit_rain=None, check_snow_rain=None):
     fields = read_model(path)
     if fields[0].shape != (HEIGHT, WIDTH):
         raise ValueError("Fit at the common observational resolution (256 x 128).")
@@ -390,6 +395,21 @@ def fit(path, check_runtime, ocean_air=None, plateau_baseline=None, surface_cont
         print('Land cloud radiation: solar/cold reference fractions and sensitivities', surface_params)
         if cloud_folds:
             check_surface_folds(cloud_folds.resolve(),control,read_model(plateau_baseline),fits,ids,area,obs,fold,ocean_air)
+    snow_gain = None
+    if snow_control:
+        from snow_energy import snow_response
+        control = read_model(snow_control)
+        shape = control[0].shape
+        if shape != (HEIGHT, WIDTH):
+            raise ValueError('Fit the seasonal snow response at 256 x 128.')
+        land = np.isin(control[2].ravel()[ids], [0,5])
+        base = control[3].reshape(-1,12)[ids]
+        cloud = read_cloud(snow_fit_cloud, shape, 128)[ids]
+        rain = read_monthly_predictor(snow_fit_rain, shape, 128, b'ORP1')[ids]
+        exposure = snow_response(base,rain,cloud,surface_weights(base,ids,shape)[0])[land]
+        weights = area[land,None]
+        snow_gain = round(np.sum(weights*exposure*(obs-base)[land])/np.sum(weights*exposure**2),5)
+        print(f'Seasonal snow energy sensitivity: {snow_gain:.5f} K/(W/m2)')
     if check_runtime:
         # ECL1 stores lake beds, while the runtime applies the local lapse rate at lake stage.
         # All other cells have a directly reconstructible temperature, including ocean and ice.
@@ -398,6 +418,7 @@ def fit(path, check_runtime, ocean_air=None, plateau_baseline=None, surface_cont
             mean, annual, pairs, plateau = geometry(fields)
         adjustment = marine_adjustment(ocean_air, *fields[0].shape) if ocean_air else None
         cloud = read_cloud(check_cloud, fields[0].shape, 128) if check_cloud else None
+        snow_rain = read_monthly_predictor(check_snow_rain, fields[0].shape, 128, b'ORP1') if check_snow_rain else None
         sample = np.flatnonzero(fields[2].ravel() != 4)
         error = 0
         for start in range(0, len(sample), 8192):
@@ -414,6 +435,10 @@ def fit(path, check_runtime, ocean_air=None, plateau_baseline=None, surface_cont
                 predicted = np.clip(predicted,-85,55)
                 change = surface_change(predicted,cloud[cells],cells,fields[0].shape,surface_params)
                 predicted += change*np.isin(fields[2].ravel()[cells],[0,5])[:,None]
+            if snow_rain is not None:
+                predicted = np.clip(predicted,-85,55)
+                forcing = snow_response(predicted,snow_rain[cells],cloud[cells],surface_weights(predicted,cells,fields[0].shape)[0])
+                predicted += snow_gain*forcing*np.isin(fields[2].ravel()[cells],[0,5])[:,None]
             error = max(error, abs(np.clip(predicted, -85, 55) - fields[3].reshape(-1, 12)[cells]).max())
         print(f"{len(sample)} non-lake cells, maximum runtime discrepancy {error:.6f} C")
         if error > .003:
@@ -433,6 +458,10 @@ if __name__ == "__main__":
     parser.add_argument('--surface-cloud',type=Path,metavar='ORC1',help='frozen 64-column fit predictor from --surface-fit-cloud in the core test executable')
     parser.add_argument('--check-cloud',type=Path,metavar='ORC1',help='runtime predictor from --surface-cloud on the same geometry as --check-runtime')
     parser.add_argument('--cloud-folds',type=Path,metavar='DIR',help='refit the background and generate independent cloud forecasts for five entire spatial folds')
+    parser.add_argument('--snow-control',type=Path,metavar='ECL1',help='pre-snow player temperatures for the seasonal-snow coefficient')
+    parser.add_argument('--snow-fit-cloud',type=Path,metavar='ORC1',help='128-column gross condensation on the pre-snow calibration background')
+    parser.add_argument('--snow-fit-rain',type=Path,metavar='ORP1',help='128-column surface-reaching precipitation for fitting')
+    parser.add_argument('--check-snow-rain',type=Path,metavar='ORP1',help='surface-reaching precipitation on the generation being verified')
     args = parser.parse_args()
     if args.ocean_air and not (args.check_runtime or args.cloud_folds):
         parser.error("--ocean-air requires --check-runtime or --cloud-folds")
@@ -444,5 +473,9 @@ if __name__ == "__main__":
         parser.error('--check-cloud requires --surface-cloud and --check-runtime')
     if args.surface_cloud and args.check_runtime and not args.check_cloud:
         parser.error('Surface radiation runtime verification needs the 128-column predictor from --check-cloud')
+    if any((args.snow_control,args.snow_fit_cloud,args.snow_fit_rain)) and not all((args.snow_control,args.snow_fit_cloud,args.snow_fit_rain)):
+        parser.error('--snow-control, --snow-fit-cloud and --snow-fit-rain are fitted together')
+    if bool(args.snow_control and args.check_runtime) != bool(args.check_snow_rain) or (args.check_snow_rain and not args.check_cloud):
+        parser.error('Checking seasonal snow requires the snow fit and both runtime ORC1/ORP1 predictor fields')
     fit(args.earth_export,args.check_runtime,args.ocean_air,args.plateau_baseline,args.surface_control,
-        args.surface_cloud,args.check_cloud,args.cloud_folds)
+        args.surface_cloud,args.check_cloud,args.cloud_folds,args.snow_control,args.snow_fit_cloud,args.snow_fit_rain,args.check_snow_rain)

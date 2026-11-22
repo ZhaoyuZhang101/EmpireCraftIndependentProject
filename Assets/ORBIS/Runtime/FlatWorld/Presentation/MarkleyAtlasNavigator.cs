@@ -20,6 +20,9 @@ namespace Orbis.Flat
         FlatMapRenderer maps;
         Mesh lattice, flatMesh, routeMesh;
         readonly FlatPlantHeightCache plantHeights=new FlatPlantHeightCache();
+#if UNITY_EDITOR
+        readonly FlatShaderPreview editorPreview = new FlatShaderPreview();
+#endif
         readonly List<MeshFilter> sheetFilters = new List<MeshFilter>();
         bool flatGeometry;
         Material surface, routeMaterial;
@@ -402,6 +405,11 @@ namespace Orbis.Flat
             if (!maps || !surface) return;
             surface.CopyPropertiesFromMaterial(maps.Material);
             CommitProjection();
+#if UNITY_EDITOR
+            var draw = editorPreview.ForDraw(surface, surface.FindPass("SCROLL_SURFACE"));
+            if (surfaces[0].sharedMaterial != draw)
+                foreach (var sheet in surfaces) sheet.sharedMaterial = draw;
+#endif
         }
         void ApplyProjection(Material m)
         {
@@ -412,6 +420,7 @@ namespace Orbis.Flat
             m.SetVector("_ScrollPan", new Vector4(p.x, p.y, 0, 0));
             m.SetVector("_ScrollRight", east); m.SetVector("_ScrollUp", north); m.SetVector("_ScrollNormal", normal);
             m.SetFloat("_ScrollMorph", morph); m.SetFloat("_ScrollSpin", displaySpin);
+            m.SetFloat("_RiverGlobeNarrowing",FlatRiverCurves.GlobeWidthReduction(world.Preset,morph));
             m.SetFloat("_PixelsPerTile", pixels);
             m.SetFloat("_DetailWeight", DetailWeight);
             m.SetVector("_ScrollPoleHeights",polarHeights);
@@ -707,6 +716,9 @@ namespace Orbis.Flat
         }
         void OnDestroy()
         {
+#if UNITY_EDITOR
+            editorPreview.Dispose();
+#endif
             plantHeights.Dispose();
             if (surface) Destroy(surface); if (flatMesh) Destroy(flatMesh); if (lattice) Destroy(lattice);
             if (routeMesh) Destroy(routeMesh); if (routeMaterial) Destroy(routeMaterial);

@@ -481,6 +481,7 @@ float FlatDisplayedWaterMask(float channelEdge,float shore,float aa,float pixels
 {
     edge=min(channelEdge,-shore);
     float channelAA=_RiverSurvey>.5?clamp(.65/max(1,pixelsPerTile),.00002,.28):aa;
+    channelAA*=1-_RiverGlobeNarrowing;
     return max(1-smoothstep(-channelAA,channelAA,channelEdge),smoothstep(-aa,aa,shore));
 }
 float FlatReachSediment(float2 cell,FlatRiverSection channel,float shore,float fallback)

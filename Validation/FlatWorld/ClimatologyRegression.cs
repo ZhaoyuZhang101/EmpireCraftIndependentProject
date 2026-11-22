@@ -55,6 +55,9 @@ internal static class ClimatologyRegression
         Region("South China", 108, 117, 22, 26, 1150, 2300, .32, .72);
         Region("Sichuan Basin", 103, 108, 28, 32, 710, 1520, .42, .82);
         Region("Tarim Basin", 78, 87, 38, 41, 0, 250, 0, 1, dry: true);
+        // The interior monsoon belt is separated from the Thar by its western
+        // boundary here. Most rain arrives in June–September, beyond the Ghats.
+        Region("Central Indian monsoon", 75, 85, 18, 26, 800, 1600, .65, .97);
         // CRU-CL's development cells resolve early rains in the south, then
         // the midsummer front in the northeast. Both orderings reverse if the
         // eastern rain belt simply follows a late oceanic temperature peak.

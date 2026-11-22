@@ -43,7 +43,7 @@ Shader "ORBIS/FlatWorld/WildlifeActors"
    #pragma fragment frag
    #include "UnityCG.cginc"
    #define ORBIS_FLAT_NO_SWE
-   #pragma multi_compile_local_fragment __ ORBIS_RIVER_RASTER ORBIS_RIVER_VECTORS
+   #pragma multi_compile_local_fragment __ ORBIS_RIVER_RASTER ORBIS_RIVER_VECTORS ORBIS_PREVIEW
    #define ORBIS_SURFACE_RIVER_VARIANTS 1
    #include "Water/FlatWater.cginc"
    #ifdef ORBIS_ATLAS_PLANTS
@@ -120,6 +120,7 @@ Shader "ORBIS/FlatWorld/WildlifeActors"
     float3 colour=ink*art.a+FlatColor(trailColour)*light*particle*(1-art.a);
     opacity*=i.state.z;
     clip(opacity-.001);
+    #ifndef ORBIS_PREVIEW
     if(_WildlifeOcclusionReady>.5)
     {
      float2 cell=i.geographic.xy*_MapSize.xy+i.cellAxes.xy*i.pixel.x+i.cellAxes.zw*i.pixel.y;
@@ -139,6 +140,7 @@ Shader "ORBIS/FlatWorld/WildlifeActors"
      opacity*=lerp(1,visible,saturate(_DetailWeight));
      clip(opacity-.001);
     }
+    #endif
     colour/=max(.001,art.a+(1-art.a)*(particle+(1-particle)*shadow));
     #ifdef UNITY_COLORSPACE_GAMMA
     colour=GammaToLinearSpace(max(0,colour));

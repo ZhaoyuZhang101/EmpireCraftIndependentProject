@@ -290,18 +290,20 @@ namespace Orbis.Flat
                 float v = (y + .5f) / w.Height;
                 var sunlight = new float[12];
                 for (int m = 0; m < 12; m++) sunlight[m] = (float)(SolarFlux((v - .5) * Math.PI, m) / 300);
+                var snow = new FlatSeasonalSnow();
                 for (int x = 0; x < w.Width; x++)
                 {
                     int i = y*w.Width + x;
                     if (FlatTerrainAnalysis.AreaWater(w.Water[i])) continue;
                     float u = (x + .5f) / w.Width;
+                    bool freezes = false;
                     for (int m = 0; m < 12; m++)
                     {
                         // Use the frequency of precipitating cloud as a proxy for cloud
                         // exposure. The two reference fractions are the calibration-land
                         // means weighted by incident sunlight and freezing respectively.
-                        float rain = predictor.Sample(predictor.Rain, u, v, m);
-                        float cloud = (float)(1 - Math.Exp(-rain / 45f));
+                        float condensation = 30*predictor.Sample(predictor.Condensation, u, v, m);
+                        float cloud = snow.Cloud[m] = (float)(1 - Math.Exp(-condensation / 45f));
                         int j = i*12 + m;
                         float air = w.Temperature[j], cold = FMath.Clamp((4 - air) / 18, 0, 1);
                         float stable = cold*cold*(3 - 2*cold);
@@ -310,7 +312,11 @@ namespace Orbis.Flat
                         float shortwave = .9384f * (.6461f - cloud) * sunlight[m];
                         float longwave = 8.7247f * (cloud - .3500f) * stable;
                         w.Temperature[j] = FMath.Clamp(air + shortwave + longwave, -85, 55);
+                        freezes |= w.Temperature[j] < 0;
                     }
+                    if (!freezes) continue;
+                    for (int m = 0; m < 12; m++) snow.Rain[m] = predictor.Sample(predictor.Rain,u,v,m);
+                    snow.Apply(w.Temperature,i*12,sunlight);
                 }
             });
         }

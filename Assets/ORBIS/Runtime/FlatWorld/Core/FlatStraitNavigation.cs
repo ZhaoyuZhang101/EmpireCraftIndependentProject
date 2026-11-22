@@ -17,10 +17,11 @@ namespace Orbis.Flat
         }
     }
 
-    /// <summary>The same OSH1 geographic shoreline used by the surface shaders. Safe to share between route queries.</summary>
+    /// <summary>The geographic shoreline used by the surface shaders. Safe to share between route queries.</summary>
     public sealed class FlatStraitNavigation
     {
-        const int Columns = 1440, Rows = 720, Page = 128, Resolution = 512, CoarseWidth = 2048, FineWidth = 4096;
+        const int Columns = 1440, Rows = 720, Page = 128, Resolution = 512;
+        readonly int CoarseWidth, FineWidth, headerRows, regionalColumns, fineColumns, estuaryColumns;
         readonly byte[] coarse, fine;
         readonly int[] regions;
         readonly bool[] fullSurvey;
@@ -28,11 +29,14 @@ namespace Orbis.Flat
         // Half the equatorial diagonal of a native texel plus its distance-code rounding.
         const double SailingClearanceKm = .20;
 
-        FlatStraitNavigation(byte[] coarse, byte[] fine)
+        FlatStraitNavigation(byte[] coarse, byte[] fine, int cw, int fw)
         {
             this.coarse = coarse;
             this.fine = fine;
-            int slots = (coarse.Length / (2 * CoarseWidth) - 507) / 19 * 113;
+            CoarseWidth = cw; FineWidth = fw;
+            headerRows = (Columns * Rows + cw - 1) / cw;
+            regionalColumns = cw / 18; fineColumns = fw / 130; estuaryColumns = cw / 66;
+            int slots = Math.Min(65535,(coarse.Length / (2 * cw) - headerRows) / 19 * regionalColumns);
             regions = new int[slots + 1];
             fullSurvey = new bool[slots + 1];
             var used = new bool[slots + 1];
@@ -48,7 +52,7 @@ namespace Orbis.Flat
                 lastSlot = Math.Max(lastSlot, s);
                 int p = Regional(s), f = coarse[p] | coarse[p + 1] << 8;
                 int m = coarse[p + 2] | coarse[p + 3] << 8;
-                if (f > fine.Length / FineWidth / 130 * 31)
+                if (f > fine.Length / FineWidth / 130 * fineColumns)
                     throw new InvalidDataException("Invalid fine shoreline page.");
                 if (f != 0 && m != 0) throw new InvalidDataException("Ambiguous shoreline detail.");
                 lastEstuary = Math.Max(lastEstuary, m);
@@ -63,7 +67,8 @@ namespace Orbis.Flat
                 fullSurvey[s] = full;
             }
             int rows = coarse.Length/(2*CoarseWidth);
-            if (507 + ((lastSlot+112)/113)*19 + ((lastEstuary+61)/62)*66 > rows)
+            if (headerRows + ((lastSlot+regionalColumns-1)/regionalColumns)*19 +
+                ((lastEstuary+2*estuaryColumns-1)/(2*estuaryColumns))*66 > rows)
                 throw new InvalidDataException("Overlapping regional shoreline pages.");
             var pending = new Queue<int>();
             int next = 0;
@@ -98,14 +103,19 @@ namespace Orbis.Flat
         public static FlatStraitNavigation Read(byte[] bytes)
         {
             if (bytes == null || bytes.Length <= 20)
-                throw new InvalidDataException("Missing OSH1 strait shoreline.");
+                throw new InvalidDataException("Missing strait shoreline.");
             using var stream = new MemoryStream(bytes, false);
             using var reader = new BinaryReader(stream);
-            if (reader.ReadUInt32() != 0x3148534fu || reader.ReadInt32() != CoarseWidth)
-                throw new InvalidDataException("Invalid OSH1 header.");
+            uint format = reader.ReadUInt32();
+            int cw = reader.ReadInt32();
             int h = reader.ReadInt32(), fw = reader.ReadInt32(), fh = reader.ReadInt32();
-            if (h <= 507 || h > 4096 || (h - 507) % 19 != 0 || fw != FineWidth || fh < 130 || fh > 4096 || fh % 130 != 0)
-                throw new InvalidDataException("Invalid OSH1 dimensions.");
+            bool legacy = format == 0x3148534fu;
+            if (legacy ? cw != 2048 || fw != 4096 :
+                format != 0x3248534fu || (cw != 2048 && cw != 4096 && cw != 8192) || (fw != 4096 && fw != 8192))
+                throw new InvalidDataException("Invalid strait atlas format or width.");
+            int maxSize = legacy ? 4096 : 8192, header = (Columns*Rows+cw-1)/cw;
+            if (h <= header || h > maxSize || (h-header)%19 != 0 || fh < 130 || fh > maxSize || fh%130 != 0)
+                throw new InvalidDataException("Invalid strait atlas dimensions.");
             using var inflater = new DeflateStream(stream, CompressionMode.Decompress);
             byte[] ReadPageBytes(int length)
             {
@@ -119,18 +129,18 @@ namespace Orbis.Flat
                 }
                 return data;
             }
-            var regional = ReadPageBytes(2 * CoarseWidth * h);
+            var regional = ReadPageBytes(2 * cw * h);
             var detail = ReadPageBytes(fw * fh);
             if (inflater.ReadByte() != -1)
                 throw new InvalidDataException("Trailing OSH1 shoreline pixels.");
-            return new FlatStraitNavigation(regional, detail);
+            return new FlatStraitNavigation(regional, detail, cw, fw);
         }
 
         static bool Valid(FlatSeaPoint p) => p.Longitude >= -180 && p.Longitude <= 180 && p.Latitude >= -90 && p.Latitude <= 90;
         static double Wrap(double lon) => lon - 360 * Math.Floor((lon + 180) / 360);
         int Index(int tile) => coarse[2 * tile] | coarse[2 * tile + 1] << 8;
-        static int Regional(int s) => 2 * ((507 + (s - 1) / 113 * 19) * CoarseWidth + (s - 1) % 113 * 18);
-        static int Fine(int s) => (s - 1) / 31 * 130 * FineWidth + (s - 1) % 31 * 130;
+        int Regional(int s) => 2 * ((headerRows + (s - 1) / regionalColumns * 19) * CoarseWidth + (s - 1) % regionalColumns * 18);
+        int Fine(int s) => (s - 1) / fineColumns * 130 * FineWidth + (s - 1) % fineColumns * 130;
         static double Blend(double a, double b, double t) => a + (b - a) * t;
         static double Smooth(double a, double b, double v)
         {
@@ -170,8 +180,8 @@ namespace Orbis.Flat
             {
                 int m = (coarse[header+2] | coarse[header+3] << 8) - 1;
                 if (m < 0) return km;
-                int row = coarse.Length/(2*CoarseWidth) - (m/62+1)*66;
-                int column = m/2 % 31 * 66;
+                int row = coarse.Length/(2*CoarseWidth) - (m/(2*estuaryColumns)+1)*66;
+                int column = m/2 % estuaryColumns * 66;
                 int origin = 2*(row*CoarseWidth+column) + m%2;
                 code = Lookup(coarse, origin, CoarseWidth, 2, .5+x*64, .5+y*64);
             }
@@ -393,21 +403,25 @@ namespace Orbis.Flat
             static int Y(FlatSeaPoint p) => (int)Math.Floor((p.Latitude + 90) * Resolution);
             static double Distance(FlatSeaPoint a, FlatSeaPoint b)
             {
-                double x = (a.Longitude - b.Longitude) * Math.Cos((a.Latitude + b.Latitude) * Math.PI / 360), y = a.Latitude - b.Latitude;
+                double x = Wrap(a.Longitude - b.Longitude) * Math.Cos((a.Latitude + b.Latitude) * Math.PI / 360), y = a.Latitude - b.Latitude;
                 return Math.Sqrt(x * x + y * y) * KmPerDegree;
             }
             bool Wet(FlatSeaPoint p) => data.Water(world, p, flags, out _, SailingClearanceKm);
             bool Clear(FlatSeaPoint a, FlatSeaPoint b) => data.Segment(world, a, b, flags);
             int Leaf(int x, int y)
             {
-                if (x < 0 || x >= Columns * Page || y < 0 || y >= Rows * Page)
+                if (y < 0 || y >= Rows * Page)
                     return 0;
+                x = (x % (Columns * Page) + Columns * Page) % (Columns * Page);
                 int px = x / Page, py = y / Page, key = py * Columns + px;
                 if (!pages.TryGetValue(key, out var map))
                 {
                     int slot = data.Index(key);
-                    bool By(FlatSeaPoint p) => data.RegionAt(p) == 0 && Math.Abs(px - X(p) / Page) <= 1 + (int)Math.Ceiling(1440.0 / world.Width) &&
-                        Math.Abs(py - Y(p) / Page) <= 1 + (int)Math.Ceiling(1440.0 / world.Width);
+                    bool By(FlatSeaPoint p)
+                    {
+                        int dx = Math.Abs(px - X(p)/Page), limit = 1 + (int)Math.Ceiling(1440.0/world.Width);
+                        return data.RegionAt(p) == 0 && Math.Min(dx,Columns-dx) <= limit && Math.Abs(py-Y(p)/Page) <= limit;
+                    }
                     map = Empty;
                     if (data.regions[slot] == region || (slot == 0 && (By(start) || By(end))))
                     {

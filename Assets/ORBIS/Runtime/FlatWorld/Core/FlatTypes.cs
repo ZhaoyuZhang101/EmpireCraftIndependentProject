@@ -67,6 +67,7 @@ namespace Orbis.Flat
         // The original coarse DEM and the lake-aware Earth preset have distinct edit baselines.
         public bool UsesSurveyedLakeBeds { get; internal set; }
         public bool UsesSurveyedStraits { get; internal set; }
+        public bool UsesGlobalStraits { get; internal set; }
         public FlatEarthRiverReference RiverReference;
         public FlatCycloneWeather Cyclones;
         public short[] Elevation,WaterLevel;
@@ -147,6 +148,7 @@ namespace Orbis.Flat
             w.WaterReference=WaterReference;
             w.UsesSurveyedLakeBeds=UsesSurveyedLakeBeds;
             w.UsesSurveyedStraits=UsesSurveyedStraits;
+            w.UsesGlobalStraits=UsesGlobalStraits;
             w.RiverReference=RiverReference;
             w.Cyclones=Cyclones==null?null:Cyclones.Clone();
             foreach(var actor in Wildlife)w.Wildlife.Add(actor.Clone());

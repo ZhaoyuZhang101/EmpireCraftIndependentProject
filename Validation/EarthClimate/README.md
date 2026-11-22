@@ -4,6 +4,29 @@
 
 [本次模型与历史版本的对照结果](RESULTS.md)
 
+## 季风与全球留出验收
+
+以下命令从玩家生成入口导出当前 2048 地球，并从 Git 版本 `8d311ab` 导出当时的地形、水系及模拟作为对照。将宽度依次换成 256、512、1024、1536、2048、4096 可复现六档成绩。Python 评分依赖 NumPy。[验证结果](RESULTS.md#印度夏季风群岛冬雨与全球留出验证)
+
+```powershell
+$out = "ValidationOutput/EarthMonsoonCheck"
+$width = 2048
+$export = "Validation/EarthClimate/Export.csproj"
+python Validation/EarthClimate/export_baseline.py --before-subcloud --width $width --output "$out/before-$width.bin"
+dotnet run --project $export -c Release -- "$out/after-$width.bin" $width ORBIS-2D-2026
+foreach ($stage in "before","after") {
+    $map = "$out/$stage-$width.bin"
+    dotnet run --project $export -c Release -- --compare-koppen $map --split holdout --json "$out/$stage-$width-holdout.json"
+    if ($LASTEXITCODE -gt 1) { throw "Invalid comparison for $map" }
+    python Validation/EarthClimate/score.py $map --split calibration --json "$out/$stage-$width-regions.json"
+    python Validation/EarthClimate/score.py $map --split holdout --json "$out/$stage-$width-fields.json"
+}
+dotnet run --project Validation/FlatWorld/FlatWorld.Core.Tests.csproj -c Release -- --moisture-flux "$out/transport.omf" 256
+python Validation/EarthClimate/check_monsoon_flux.py "$out/transport.omf" --cache "$out/noaa" --json "$out/transport.json"
+```
+
+水汽通量取每六小时步进的网格面通量，含季风低压与环境输送，单位为 kg/(m·s)。离岸对照用 NCEP/NCAR R1 的 1991–2020 年逐月湿度和风场，积分范围为 1000–300 hPa。逐月平均量的乘积没有包含瞬变涡动的协方差，因此此项属于输送方向和量级的诊断。[NOAA 再分析](https://psl.noaa.gov/data/gridded/data.ncep.reanalysis.derived.html)
+
 ## 全球水汽输送、地形降水与陆面云辐射
 
 对照版本为 `4aa93fc340c6028f934ae78d43ec38176a379d57`。用相同的地球高程、水系、种子和玩家生成入口导出两版逐月场。柯本评分采用原有 17 个留出块的 1,806 个陆地参考格，按观测面积加权。六档分别评分。开发区有 57 个块，适合检查具体地区和调试机制。[结果](RESULTS.md#全球水汽输送地形降水与陆面云辐射)

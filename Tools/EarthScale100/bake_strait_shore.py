@@ -133,24 +133,25 @@ def regional_pages(ocean, straits, mouths, bounds, coarse, detail, estuary):
                                          coordinates(y, 64, 90), 16)
 
 
-def pack(coarse, detail, estuary):
-    coarse_per_row, fine_per_row = COARSE_WIDTH//18, FINE_WIDTH//130
+def pack(coarse, detail, estuary, cw=COARSE_WIDTH, fw=FINE_WIDTH, global_atlas=False):
+    coarse_per_row, fine_per_row = cw//18, fw//130
     # Two R8 66x66 pages share the R and G channels of a regional tile.
     # Pack upwards from the last row so old OSH1 page addresses still work.
-    middle_per_row = 2*(COARSE_WIDTH//66)
+    middle_per_row = 2*(cw//66)
     middle_rows = ((len(estuary)+middle_per_row-1)//middle_per_row)*66
-    ch = HEADER_ROWS + (((len(coarse)+coarse_per_row-1)//coarse_per_row) + (middle_rows+18)//19)*19
+    header_rows = (INDEX_WIDTH**2//2 + cw-1)//cw
+    ch = header_rows + (((len(coarse)+coarse_per_row-1)//coarse_per_row) + (middle_rows+18)//19)*19
     fh = ((len(detail)+fine_per_row-1)//fine_per_row)*130
-    if max(ch, fh) > 4096 or max(len(coarse), len(detail)) >= 65536:
+    if max(ch, fh) > (8192 if global_atlas else 4096) or max(len(coarse),len(detail),len(estuary)) >= 65536:
         raise ValueError("Regional coastline exceeds the runtime atlas limits")
-    index = np.zeros((ch, COARSE_WIDTH, 2), np.uint8)
-    fine = np.zeros((fh, FINE_WIDTH), np.uint8)
+    index = np.zeros((ch, cw, 2), np.uint8)
+    fine = np.zeros((fh, fw), np.uint8)
     fine_slots = {key: slot for slot, key in enumerate(sorted(detail), 1)}
     middle_slots = {key: slot for slot, key in enumerate(sorted(estuary), 1)}
     for slot, key in enumerate(sorted(coarse), 1):
         index.reshape(-1, 2)[key] = slot % 256, slot//256
         row, col = divmod(slot-1, coarse_per_row)
-        y, x = HEADER_ROWS+row*19, col*18
+        y, x = header_rows+row*19, col*18
         index[y+1:y+19, x:x+18] = coarse[key]
         if key in fine_slots:
             f = fine_slots[key]
@@ -160,12 +161,12 @@ def pack(coarse, detail, estuary):
         elif key in middle_slots:
             m = middle_slots[key]
             index[y, x+1] = m % 256, m//256
-            row, col = divmod((m-1)//2, COARSE_WIDTH//66)
+            row, col = divmod((m-1)//2, cw//66)
             bottom = ch-(row+1)*66
             index[bottom:bottom+66, col*66:(col+1)*66, (m-1)%2] = estuary[key]
     compressor = zlib.compressobj(level=6, wbits=-15)
     payload = compressor.compress(index) + compressor.compress(fine) + compressor.flush()
-    return struct.pack("<4s4i", b"OSH1", COARSE_WIDTH, ch, FINE_WIDTH, fh) + payload
+    return struct.pack("<4s4i", b"OSH2" if global_atlas else b"OSH1", cw, ch, fw, fh) + payload
 
 
 def bake(cache):

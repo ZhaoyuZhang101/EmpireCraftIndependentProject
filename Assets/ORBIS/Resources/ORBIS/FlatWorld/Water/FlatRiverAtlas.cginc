@@ -8,7 +8,7 @@ float _RiverOverviewReady,_RiverSurvey,_RiverMap;
 float4 _RiverAtlasLayout;
 float _RiverAtlasReady,_RiverPreviewReady,_RiverSeasonReady;
 float4 _RiverSeason;
-float _RiverMinPixels,_RiverWidthGain;
+float _RiverMinPixels,_RiverWidthGain,_RiverDisplayScale,_RiverGlobeNarrowing;
 
 #if defined(ORBIS_RIVER_VECTORS)
 #define FLAT_VECTOR_FIELD true
@@ -22,9 +22,13 @@ bool FlatRiverFieldReady() { return max(_RiverAtlasReady,_RiverPreviewReady)>.5;
 
 float FlatRiverStrokeRadius(float radius,float minimumRadius,float cellsPerPixel)
 {
-    float stroke=max(radius,minimumRadius);
-    // Add at most one screen pixel per bank and stay within the atlas search margin.
-    return min(stroke+min(stroke*_RiverWidthGain,cellsPerPixel),radius+.28);
+    // Atlas radii already include the map scale. Apply it to the pixel
+    // minimum and the search margin as well so subpixel streams widen too.
+    float scale=max(1,_RiverDisplayScale);
+    float stroke=max(radius,minimumRadius*scale);
+    // Reduce the finished local stroke, including the subpixel minimum and
+    // gain, by the same fraction as the globe overview drawn from these curves.
+    return min(stroke+min(stroke*_RiverWidthGain,cellsPerPixel*scale),radius+.28*scale)*(1-_RiverGlobeNarrowing);
 }
 
 // Use the same geographic linework at both scales. The filtered overview spans
@@ -37,10 +41,11 @@ float FlatRiverMapInk(float2 cell,float4 channel,out float closeView)
     float2 metric=float2(max(.08,cos((cell.y*_MapSize.w-.5)*3.14159265)),1);
     float ground=max(.0001,max(length(dx*metric),length(dy*metric)));
     float radius=length(channel.ba);
-    float importance=_RiverSurvey>.5?smoothstep(.08,2.2,radius*(40075*_MapSize.z)):
-        saturate((radius-.012)/.14);
+    float physicalRadius=radius/max(1,_RiverDisplayScale);
+    float importance=_RiverSurvey>.5?smoothstep(.08,2.2,physicalRadius*(40075*_MapSize.z)):
+        saturate((physicalRadius-.012)/.14);
     float halfWidth=FlatRiverStrokeRadius(radius,min(.27,ground*lerp(.46,1.28,importance)),ground);
-    float aa=clamp(ground*.58,.003,.18);
+    float aa=clamp(ground*.58,.003,.18)*(1-_RiverGlobeNarrowing);
     float fine=(1-smoothstep(-aa,aa,channel.r+radius-halfWidth))*step(.0001,radius)*lerp(.58,1,importance);
     closeView=FlatRiverFieldReady()?1-smoothstep(.08,.38,ground):0;
     if(_RiverOverviewReady<.5)return fine;
@@ -184,7 +189,7 @@ float4 FlatRiverBaseSample(float2 cell)
 
 float FlatRiverDisplayRadius(float radius,float pixelsPerTile)
 {
-    float weight=lerp(smoothstep(.03,.10,radius),.62,_RiverSurvey);
+    float weight=lerp(smoothstep(.03,.10,radius/max(1,_RiverDisplayScale)),.62,_RiverSurvey);
     float cellsPerPixel=1/max(1,pixelsPerTile);
     float wanted=min(.28,_RiverMinPixels*.5*cellsPerPixel)*weight*step(.000001,radius);
     return FlatRiverStrokeRadius(radius,wanted,cellsPerPixel);
@@ -197,7 +202,7 @@ float4 FlatRiverDisplaySample(float4 river,float pixelsPerTile)
 }
 
 float FlatRiverActiveRadius(float radius,float stage)
-{return lerp(radius,min(max(.24,radius),radius*FlatRiverWidthScale(stage)),_RiverSeasonReady);}
+{return lerp(radius,min(max(.24*max(1,_RiverDisplayScale),radius),radius*FlatRiverWidthScale(stage)),_RiverSeasonReady);}
 
 float4 FlatRiverAtlasSample(float2 cell,out float2 bank)
 {

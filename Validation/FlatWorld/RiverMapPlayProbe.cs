@@ -276,8 +276,8 @@ public static class RiverMapPlayProbe
             for(int y=0;y<side;y++)for(int x=0;x<side;x++)
             {
                 float cx=origin.x+(x+.5f)*8/side,cy=origin.y+(y+.5f)*8/side;
-                var sample=map.World.Facts.RiverCurves.Sample(cx,cy);
-                // Test the inner half of measured cross-sections at every
+                var sample=map.World.Facts.RiverCurves.SampleMap(cx,cy);
+                // Test the inner half of mapped cross-sections at every
                 // width. A fixed 0.045-cell threshold omits real channels.
                 if(sample.HalfWidth<=0||sample.Distance>-.5f*sample.HalfWidth)continue;
                 wet++;

@@ -53,7 +53,7 @@ namespace Orbis.Flat
         {
             var f=w.Facts;if(f==null)return 8;
             if(f.RiverCurves!=null&&f.RiverCurves.SegmentCount>0)
-                return f.RiverCurves.SampleAtDay(i%w.Width+x,i/w.Width+y,w.Day).Distance;
+                return f.RiverCurves.SampleMapAtDay(i%w.Width+x,i/w.Width+y,w.Day).Distance;
             return LegacyRiver(w,i,x,y,out _);
         }
         static float SegmentDistance(float x,float y,float ax,float ay,float bx,float by,float ra,float rb,out float t)
@@ -160,7 +160,7 @@ namespace Orbis.Flat
         public static float MouthDistance(WorldData w,int i,float x,float y)
         {
             if(w.Facts.RiverCurves!=null&&w.Facts.RiverCurves.SegmentCount>0)
-                return w.Facts.RiverCurves.SampleAtDay(i%w.Width+x,i/w.Width+y,w.Day).Distance;
+                return w.Facts.RiverCurves.SampleMapAtDay(i%w.Width+x,i/w.Width+y,w.Day).Distance;
             if(w.Facts.ShoreDistance[i]<=0)return 8;
             float result=8;
             for(int dy=-1;dy<=1;dy+=2)for(int dx=-1;dx<=1;dx+=2)
@@ -195,7 +195,7 @@ namespace Orbis.Flat
             float area=Smooth(-.025f,.025f,sd);
             var curves=w.Facts.RiverCurves;
             bool cached=curves!=null&&curves.SegmentCount>0;
-            var sample=cached?curves.SampleAtDay(x,y,w.Day):default;
+            var sample=cached?curves.SampleMapAtDay(x,y,w.Day):default;
             float legacyDepth=0;
             float distance=cached?sample.Distance:LegacyRiver(w,i,x-ix,y-iy,out legacyDepth);
             if(!cached&&sd<=1.25f)distance=Math.Min(distance,MouthDistance(w,i,x-ix,y-iy));

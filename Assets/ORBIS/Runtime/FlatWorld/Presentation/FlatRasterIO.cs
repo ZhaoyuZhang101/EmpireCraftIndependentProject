@@ -23,7 +23,7 @@ namespace Orbis.Flat
             if(rivers!=null)
             {
                 int width=rivers.OverviewWidth,height=width/2;
-                var ink=rivers.DrawOverview(CancellationToken.None);
+                var ink=rivers.DrawExportOverview(CancellationToken.None);
                 var rgba=new byte[width*height*4];
                 for(int y=0;y<height;y++)for(int x=0;x<width;x++)
                 {

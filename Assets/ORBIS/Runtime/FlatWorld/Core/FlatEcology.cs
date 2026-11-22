@@ -88,10 +88,30 @@ namespace Orbis.Flat
             }
         }
 
+        internal static float AnnualWaterDemand(float temperature) => Math.Max(240,(temperature+5)*36);
+
+        // Monthly drying pressure on a partially empty root zone. Column humidity
+        // and saturation vapour pressure (FAO-56, kPa) give a proxy for air demand.
+        internal static float TropicalDryStress(float temperature,float soilFraction,float columnHumidity)
+        {
+            float saturation=.6108f*(float)Math.Exp(17.27f*temperature/(temperature+237.3f));
+            return (1-soilFraction)*(1-columnHumidity)*saturation;
+        }
+
+        internal static bool TropicalWoodland(float temperature,float rain,int wetMonths,float dryStress,bool sheltered)
+        {
+            float demand=AnnualWaterDemand(temperature);
+            if(rain<demand)return false;
+            // Four dry months at 3 kPa give 12 kPa-months. Sheltered terrain
+            // can sustain woodland through a shorter recharge season with surplus rain.
+            if(wetMonths>=6)return sheltered||dryStress<=12;
+            return sheltered&&wetMonths>=4&&rain>=1.2f*demand&&dryStress<=12;
+        }
+
         public static float ContinuousCanopy(Biome biome,float temperature,float annualRain,float soil,float gradient,float warmest=float.NaN)
         {
             if(biome==Biome.Water||biome==Biome.Snow||biome==Biome.Beach)return 0;
-            float demand=Math.Max(240,(temperature+5)*36);
+            float demand=AnnualWaterDemand(temperature);
             float available=FMath.Clamp(soil*.55f+annualRain/demand*.45f,0,1);
             // Growing-season warmth allows Siberian-type forests to retain a
             // canopy through long winters. Legacy callers retain the annual proxy.
@@ -118,7 +138,7 @@ namespace Orbis.Flat
             if(biome==Biome.Steppe)return VegetationCover.DrySteppe;
             if(biome==Biome.Taiga)return VegetationCover.BorealForest;
             if(Subarctic(climate)&&biome==Biome.Woodland)return VegetationCover.BorealForest;
-            if(climate==Koppen.Aw)return VegetationCover.Savanna;
+            if(climate==Koppen.Aw)return biome==Biome.Woodland?VegetationCover.SeasonalForest:VegetationCover.Savanna;
             if(climate==Koppen.Csa||climate==Koppen.Csb||climate==Koppen.Csc)return VegetationCover.Shrubland;
             if(biome==Biome.Rainforest)return climate==Koppen.Am?VegetationCover.SeasonalForest:VegetationCover.TropicalRainforest;
             if(biome==Biome.Woodland)

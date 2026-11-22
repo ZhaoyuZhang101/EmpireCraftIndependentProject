@@ -306,7 +306,7 @@ namespace Orbis.Flat
                         "恢复地球存档的河道与海湖资料…",seedOnInstall);
                     return;
                 }
-                if(dem && water)world.WaterReference=FlatWaterReference.Read(world.Width,dem.bytes,water.bytes,world.UsesSurveyedLakeBeds,world.UsesSurveyedStraits);
+                if(dem && water)world.WaterReference=FlatWaterReference.Read(world.Width,dem.bytes,water.bytes,world.UsesSurveyedLakeBeds,world.UsesSurveyedStraits,world.UsesGlobalStraits);
             }
             var simulation=new FlatSimulation(world);if(seedOnInstall)simulation.SeedNations(4);
             var nextObject=new GameObject("Authoritative 2D map / render-data provider");nextObject.transform.SetParent(transform,false);

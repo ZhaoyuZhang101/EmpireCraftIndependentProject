@@ -26,6 +26,34 @@
     return .12+.60*max(ink.x,ink.y);
    }
 #endif
+#if defined(ORBIS_PREVIEW)
+   float4 frag(v2f i):SV_Target
+   {
+    #ifdef ORBIS_LOCAL_SURFACE
+    float2 uv=LocalGeoUV(i.uv);
+    #else
+    float2 uv=MarkleyGeoUV(i.uv);
+    #endif
+    float3 colour=tex2D(_MainTex,uv).rgb;
+    if(_Political>.5)
+    {
+     float4 owner=tex2D(_OwnerTex,uv);
+     colour=lerp(colour,owner.rgb,.34*step(.001,owner.a));
+    }
+    if(_RiverOverviewReady>.5 && (_RiverMap>.5 || _WaterView>.5))
+    {
+     float2 dx=ddx(uv),dy=ddy(uv);dx.x-=round(dx.x);dy.x-=round(dy.x);
+     float lod=log2(max(1,max(length(dx*_RiverOverview_TexelSize.zw),length(dy*_RiverOverview_TexelSize.zw))));
+     float ink=FlatPresentationSample(_RiverOverview,uv,lod).r;
+     colour=lerp(colour,FlatColor(float3(.15,.40,.56)),ink);
+    }
+    if(max(_Natural,_Political)>.5)colour*=FlatDayLight(FlatRadial(uv),uv);
+    #ifdef UNITY_COLORSPACE_GAMMA
+    colour=GammaToLinearSpace(max(0,colour));
+    #endif
+    return float4(colour,1);
+   }
+#else
    float4 frag(v2f i):SV_Target
    {
 #ifdef ORBIS_SCROLL_SURFACE
@@ -286,3 +314,4 @@
     #endif
     return float4(max(0,col),1);
    }
+#endif

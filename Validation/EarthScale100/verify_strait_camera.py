@@ -117,7 +117,7 @@ def check_izmit_trees(capture, longitude, latitude, source_water, ocean, weight,
     return len(crowns) + wet_roots + missing_bank_tree
 
 
-def check(capture, report, site, world_width, atlas, ocean, lakes, artifacts, route):
+def check(capture, report, site, world_width, atlas, ocean, lakes, artifacts, route, window=None):
     dims = re.search(
         rf"^{site}-river-map: (\d+)x(\d+), ([\d.]+) px/tile, center ([-.\d]+)E ([-.\d]+)N,",
         report, re.MULTILINE)
@@ -133,7 +133,13 @@ def check(capture, report, site, world_width, atlas, ocean, lakes, artifacts, ro
     freshwater = contains_xy(lakes, longitude, latitude)
     # The chart has a pale blue area-water fill, ochre land and dark river ink.
     rendered_water = (rgb[..., 2] - rgb[..., 0] > 12) & (rgb[..., 0] > 103)
-    _, weight = atlas.sample(longitude, latitude)
+    if window is None:
+        _, weight = atlas.sample(longitude, latitude)
+    else:
+        # The named throat and both its banks must be drawn, even when a page
+        # is missing. An atlas-derived coverage mask would hide that regression.
+        west, south, east, north = window
+        weight = (longitude >= west) & (latitude >= south) & (longitude <= east) & (latitude <= north)
     # The atlas only defines the area under test. Expected land and sea come
     # from the independent vector polygon. Four pixels exclude the antialiased
     # shoreline and the small view displacement caused by coastal terrain relief.
@@ -178,7 +184,8 @@ def check(capture, report, site, world_width, atlas, ocean, lakes, artifacts, ro
         # The two-pixel ribbon can legitimately cover an antialiased bank.
         # It must visibly pass through the actual narrow throat, and cannot
         # appear on independently checked dry ground outside the shoreline band.
-        center = (29.0675, 41.110) if site == "bosporus" else (26.384, 40.160)
+        center = {"bosporus": (29.0675, 41.110), "dardanelles": (26.384, 40.160),
+                  "kanmon": (130.950, 33.949)}[site]
         throat = (np.abs(longitude-center[0]) < .06) & (np.abs(latitude-center[1]) < .005)
         dry_ink = np.count_nonzero(ink & checked & ~source_water)
         throat_ink = np.count_nonzero(ink & source_water & throat)
@@ -248,6 +255,24 @@ def main():
     atlas = Atlas()
     checks = [check(args.capture, report, site, int(generated[1]), atlas, ocean, lakes, args.artifacts, args.route)
               for site in ("bosporus", "dardanelles")]
+    if "kanmon-river-map:" in report:
+        seto = box(129, 32, 137, 36)
+        sea = geometry("ocean", args.cache, seto)
+        inland = geometry("lakes", args.cache, seto)
+        kanmon_route = args.capture / "kanmon-route.csv"
+        for site, bounds in (
+            ("kanmon", (130.915, 33.916, 131.050, 34.000)),
+            ("naruto", (134.612, 34.208, 134.702, 34.273)),
+            ("akashi", (134.960, 34.580, 135.077, 34.661)),
+        ):
+            checks.append(check(args.capture, report, site, int(generated[1]), None, sea, inland,
+                                args.artifacts, site == "kanmon" and kanmon_route.is_file(), window=bounds))
+        if kanmon_route.is_file():
+            path = LineString(np.loadtxt(kanmon_route, delimiter=",", skiprows=1))
+            cut = LineString([(130.930, 33.949), (130.978, 33.949)])
+            if not sea.covers(path) or not path.intersects(cut):
+                raise ValueError("Player route does not stay within the vector ocean through the Kanmon throat")
+            print(f"Kanmon: complete {len(path.coords)}-waypoint route in source ocean, surveyed throat crossed.")
     wrong, crowns, route_errors = map(sum, zip(*checks))
     if args.route:
         route_errors += check_route_line(args.capture,ocean)

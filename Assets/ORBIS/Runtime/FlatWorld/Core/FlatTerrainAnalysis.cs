@@ -103,6 +103,11 @@ namespace Orbis.Flat
         public static Biome ClassifyBiome(Koppen k,float elevation,float temperature,float annualRain,
                                           byte wetMonths,float gradient,float hand,bool nearFresh,bool water,float warmest=float.NaN)
         {
+            return ClassifyBiome(k,elevation,temperature,annualRain,wetMonths,gradient,hand,nearFresh,water,warmest,0,false);
+        }
+        static Biome ClassifyBiome(Koppen k,float elevation,float temperature,float annualRain,byte wetMonths,
+                                   float gradient,float hand,bool nearFresh,bool water,float warmest,float dryStress,bool sheltered)
+        {
             if(water)return Biome.Water;
             if(k==Koppen.EF)return Biome.Snow;
             if(k==Koppen.ET)return Biome.Tundra;
@@ -113,7 +118,8 @@ namespace Orbis.Flat
             if(k==Koppen.BWh||k==Koppen.BWk)return Biome.Desert;
             if(k==Koppen.BSh||k==Koppen.BSk)return Biome.Steppe;
             if(k==Koppen.Af||k==Koppen.Am)return Biome.Rainforest;
-            if(k==Koppen.Aw)return Biome.Grassland;
+            if(k==Koppen.Aw)return FlatEcology.TropicalWoodland(temperature,annualRain,wetMonths,dryStress,sheltered)
+                ?Biome.Woodland:Biome.Grassland;
             if(k>=Koppen.Dsa&&k<=Koppen.Dfd&&temperature<8)return Biome.Taiga;
             return annualRain>=650?Biome.Woodland:Biome.Grassland;
         }
@@ -153,14 +159,16 @@ namespace Orbis.Flat
             double southBed=0,northBed=0;
             for(int x=0;x<w.Width;x++){southBed+=w.Elevation[x];northBed+=w.Elevation[w.Count-w.Width+x];}
             southBed/=w.Width;northBed/=w.Width;
+            float cellKm=40030f/w.Width; // Ground spacing of the spherical terrain footprint.
             Parallel.For(0,w.Height,FlatWorkerPolicy.Options(cancel,workers),y=>
             {
                 cancel.ThrowIfCancellationRequested();
                 var footprint=new FlatTerrainFootprint(w,y,southBed,northBed);
+                float v=(y+.5f)/w.Height;
                 for(int x=0;x<w.Width;x++)
                 {
                     int i=y*w.Width+x;
-                    footprint.Measure(w.Elevation,x,w.Elevation[i],out f.Relief[i],out float gradient);
+                    footprint.Measure(w.Elevation,x,w.Elevation[i],out f.Relief[i],out float gradient,out float landRelief,out float uphill);
                     f.Gradient[i]=gradient;
                     float rain=0,temp=0,coldest=1000,warmest=-1000;
                     for(int m=0;m<12;m++)
@@ -171,6 +179,9 @@ namespace Orbis.Flat
                     }
                     f.AnnualRain[i]=rain;f.MeanTemperature[i]=temp;
                     float storage=75,mean=0,growingSoil=0,growingWeight=0;int saturated=0;
+                    bool area=AreaWater(w.Water[i]);
+                    var air=w.Climates[i]==Koppen.Aw&&!area?w.Moisture:null;
+                    float u=(x+.5f)/w.Width,dryStress=0;
                     float riparian=0,waterHand=f.Hand[i];
                     // Neighbouring freshwater supports low banks, but not elevated ridges.
                     for(int oy=-2;oy<=2;oy++)for(int ox=-2;ox<=2;ox++)
@@ -193,16 +204,21 @@ namespace Orbis.Flat
                         if(m>=24)
                         {
                             mean+=storage/1800f;if(storage>=120)saturated++;
-                            float warmth=Math.Max(0,w.Temperature[i*12+m%12]-5);
+                            float monthly=w.Temperature[i*12+m%12];
+                            if(air!=null&&storage<150)
+                                dryStress+=FlatEcology.TropicalDryStress(monthly,storage/150,air.Sample(air.Humidity,u,v,m%12));
+                            float warmth=Math.Max(0,monthly-5);
                             growingSoil+=storage/150*warmth;growingWeight+=warmth;
                             f.VegetationSeasons[FlatEcology.SeasonOffset(w,i,m%12)+3]=(byte)(storage/150*255+.5f);
                         }
                     }
                     f.Wetness[i]=mean;f.SaturatedMonths[i]=(byte)saturated;
-                    bool area=AreaWater(w.Water[i]);
                     f.Forms[i]=ClassifyForm(w.Elevation[i],f.Relief[i],gradient,f.Hand[i],fresh[i]<=1,area,
                         w.WaterLevel[i]>w.Elevation[i]||w.Downstream[i]<0);
-                    Biome biome=ClassifyBiome(w.Climates[i],w.Elevation[i],temp,rain,(byte)saturated,gradient,waterHand,riparian>.18f,area,warmest);
+                    // Positive uphill rise and above-sea relief avoid treating a deep coastline as shelter.
+                    bool sheltered=air!=null&&landRelief>=20*cellKm&&uphill>=2.5f*cellKm;
+                    Biome biome=ClassifyBiome(w.Climates[i],w.Elevation[i],temp,rain,(byte)saturated,
+                        gradient,waterHand,riparian>.18f,area,warmest,dryStress,sheltered);
                     Biome ecologyBiome=biome;
                     if(updateBiomes)
                     {

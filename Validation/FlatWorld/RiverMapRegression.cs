@@ -61,7 +61,43 @@ public static class RiverMapRegression
             }
             Check(Sample(w,10,.003).Distance>0 && Sample(w,11,.003).Distance<0,
                 "bank position follows the interpolated observed width");
+            // An isolated 900 m channel halfway along the transect. Its drawn
+            // half-width is 900 m while its surveyed half-width is still 450 m.
+            float x=(float)((10.5/360+.5)*width);
+            float centreY=reference.Y(0,w.Height);
+            float drawnRadius=900f/40030200f*width;
+            float DrawnEdge(float y)
+            {
+                int tile=w.Index((int)x,(int)y);
+                return FlatWaterGeometry.RiverDistance(w,tile,x-(int)x,y-(int)y);
+            }
+            foreach(int side in new[]{-1,1})
+                Check(DrawnEdge(centreY+side*.95f*drawnRadius)<0 &&
+                      DrawnEdge(centreY+side*1.05f*drawnRadius)>0,
+                    $"Earth {width}: mapped banks enclose twice the surveyed channel width");
+            var curves=w.Facts.RiverCurves;
+            int column=(int)(x*curves.OverviewWidth/width);
+            double StrokeProfile(byte[] ink)
+            {
+                double total=0;
+                for(int row=0;row<curves.OverviewWidth/2;row++)
+                    total+=ink[row*curves.OverviewWidth+column]/(255.0*(.43+.57*.8));
+                return total;
+            }
+            double profile=StrokeProfile(curves.DrawOverview(default));
+            double export=StrokeProfile(curves.DrawExportOverview(default));
+            double oldStroke=2*(.46+1.10*.8)*(1+.16);
+            Check(Math.Abs(profile-.5*oldStroke)<.03 && Math.Abs(export-2*oldStroke)<.22 &&
+                  Math.Abs(profile/export-.25)<.01,
+                $"Earth {width}: globe river {profile:F2} texels, full export {export:F2}, ratio {profile/export:P1}");
         }
+        float Width(TerrainPreset preset,float unfolding) => 1-FlatRiverCurves.GlobeWidthReduction(preset,unfolding);
+        Check(Width(TerrainPreset.Earth,0)==.25f && Width(TerrainPreset.Earth,.5f)==.625f && Width(TerrainPreset.Earth,1)==1,
+            "Earth unfolds from 0.5x original river width through 1.25x to 2x local water and banks");
+        foreach(TerrainPreset preset in Enum.GetValues(typeof(TerrainPreset)))
+            if(preset!=TerrainPreset.Earth)
+                Check(Width(preset,0)==1 && Width(preset,.5f)==1 && Width(preset,1)==1,
+                    preset+" retains its own width throughout the globe-to-local transition");
         // A bad coordinate must be rejected before it reaches the spatial index.
         bytes[14]=0xff;
         bool invalid=false;
@@ -133,6 +169,16 @@ public static class RiverMapRegression
             return;
         }
         var curves=w.Facts.RiverCurves;
+        // On the northbound reach the east/west offset must represent the
+        // same ground distance at 60.6 degrees as it does at the equator.
+        const double lat=60.6;
+        double bankDegrees=fullWidth/(40030200.0/360*Math.Cos(lat*Math.PI/180));
+        float row=(float)((lat/180+.5)*w.Height);
+        foreach(int side in new[]{-1,1})
+        {
+            float Edge(double factor) => curves.SampleMap((float)(((-179+side*factor*bankDegrees)/360+.5)*width),row).Distance;
+            Check(Edge(.95)<0&&Edge(1.05)>0,"mapped east and west banks retain their ground width at high latitude");
+        }
         int tile=w.Index((int)(width/360.0),(int)(150.0*width/360));
         double largestTurn=0;
         var local=Enumerable.Range(0,curves.TileSegmentCount(tile)).Select(i=>curves.TileSegment(tile,i)).ToArray();
@@ -201,6 +247,8 @@ public static class RiverMapRegression
         var b=FlatGenerator.Generate(128,64,"RIVERS-B",TerrainPreset.Continents,default);
         var inkA=a.Facts.RiverCurves.DrawOverview(default);
         var inkB=b.Facts.RiverCurves.DrawOverview(default);
+        Check(inkA.SequenceEqual(a.Facts.RiverCurves.DrawExportOverview(default)),
+            "procedural globe and export retain the identical network stroke");
         Check(!a.Facts.RiverCurves.HasSurvey && a.RiverReference==null && inkA.Any(x=>x>0) && inkB.Any(x=>x>0) &&
             !inkA.SequenceEqual(inkB),"two procedural seeds draw distinct simulated drainage networks");
         Check(inkA.SequenceEqual(FlatSave.Decode(FlatSave.Encode(a)).Facts.RiverCurves.DrawOverview(default)),
@@ -262,7 +310,7 @@ public static class RiverMapRegression
                     throw new Exception("Reload changed Nile delta seasonal growth/foliage/snow/soil");
         }
         var historic=world.Clone();
-        historic.UsesSurveyedLakeBeds=historic.UsesSurveyedStraits=false;
+        historic.UsesSurveyedLakeBeds=historic.UsesSurveyedStraits=historic.UsesGlobalStraits=false;
         historic.Biomes[farm]=Biome.Beach;
         historic.Fertility[farm]=.137f;
         byte[] old=FlatSave.Encode(historic);
@@ -277,10 +325,12 @@ public static class RiverMapRegression
     // preset scales without allocating the monthly climate analysis/renderer.
     public static void RunMouths(int width)
     {
-        var w = new WorldData(width, width/2, "RIVER-MOUTHS", TerrainPreset.Earth)
-            { UsesSurveyedLakeBeds = true, UsesSurveyedStraits = true };
+        var w = new WorldData(width, width/2, "RIVER-MOUTHS", TerrainPreset.Earth);
         w.WaterReference = FlatWaterReference.Read(width, File.ReadAllBytes(Data+$"Earth{width}.bytes"),
             File.ReadAllBytes(Data+$"EarthWater{width}.bytes"));
+        w.UsesSurveyedLakeBeds=w.WaterReference.UsesSurveyedLakeBeds;
+        w.UsesSurveyedStraits=w.WaterReference.UsesSurveyedStraits;
+        w.UsesGlobalStraits=w.WaterReference.UsesGlobalStraits;
         for (int i=0; i<w.Count; i++) w.Elevation[i] = w.WaterReference.OriginalBed(i);
         var marine = FlatOcean.Find(w, default);
         for (int i=0; i<w.Count; i++)
@@ -291,7 +341,8 @@ public static class RiverMapRegression
         w.RiverReference = FlatEarthRiverReference.Read(File.ReadAllBytes(Data+"EarthRivers.bytes"));
         w.Facts = new FlatTerrainFacts(w.Count);
         w.Facts.RiverCurves = FlatRiverCurves.Build(w,w.Facts,default);
-        var chart = FlatStraitNavigation.Read(File.ReadAllBytes(Data+"EarthStraitShore.bytes"));
+        var chart = FlatStraitNavigation.Read(File.ReadAllBytes(Data+
+            (w.UsesGlobalStraits?"EarthGlobalStraitShore.bytes":"EarthStraitShore.bytes")));
         var routes = new[] {
             ("Rosetta",30.36723,31.46772,30.38,31.55,.0012), ("Damietta",31.8442,31.5271,31.86,31.57,.0012),
             ("Yangtze",121.858226,31.414904,122.02,31.415,.004), ("Huang",119.23476,37.77714,119.29,37.79,.002),
@@ -315,6 +366,21 @@ public static class RiverMapRegression
             Check(!sea && Sample(w,lon,lat).Distance>0, $"Earth {width} {name} remains outside the marine and river channels");
         }
         if(failures.Count!=0)throw new Exception(string.Join(Environment.NewLine,failures));
+        // The Yangtze's lower tidal reach is traced inside the Natural Earth
+        // marine polygon. Preserve its Landsat width in hydrology while the
+        // polygon draws its islands and both banks. The adjoining inland
+        // Huangpu must still supply the local river map at Wusongkou.
+        FlatRiverSample Map(double lon,double lat) => w.Facts.RiverCurves.SampleMap(
+            (float)((lon/360+.5)*width),(float)((lat/180+.5)*w.Height));
+        var tidal=Sample(w,121.4437474,31.5187527);
+        double measuredWidth=2*tidal.HalfWidth*40030200/width;
+        Check(measuredWidth>20000 && measuredWidth<21500 && Map(121.4437474,31.5187527).Distance>0,
+            $"Earth {width} keeps the {measuredWidth:F0} m tidal survey and draws the estuary from its shoreline");
+        foreach(var (lon,lat) in new[]{(121.62168,31.60622),(121.31547,31.44582),(121.56134,31.60486)})
+            Check(chart.TryWater(w,new FlatSeaPoint(lon,lat),out bool ocean) && !ocean && Map(lon,lat).Distance>0,
+                $"Earth {width} surveyed island or mainland at {lon:F5}, {lat:F5} stays dry in both map fields");
+        Check(Map(121.517661,31.397444).Distance<0 && Map(121.488157,31.239858).Distance<0,
+            $"Earth {width} still draws the inland Huangpu at Wusongkou and the Bund");
         CheckCropFootprints(w);
     }
 

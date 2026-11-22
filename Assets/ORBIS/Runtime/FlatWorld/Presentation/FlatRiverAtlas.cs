@@ -55,6 +55,7 @@ namespace Orbis.Flat
 
         public void Bind(Material target)
         {
+            target.SetFloat("_RiverDisplayScale",requestedCurves?.MapWidthScale??1f);
             if(target.HasProperty("_RiverOverview"))
             {
                 target.SetTexture("_RiverOverview",overview?overview:Texture2D.blackTexture);
@@ -300,12 +301,12 @@ namespace Orbis.Flat
             readonly struct Candidate
             {
                 public readonly Color Ends,Section,Flow;
-                public Candidate(FlatRiverCurves.Segment segment,Vector2 bend,int x,int y,int worldWidth)
+                public Candidate(FlatRiverCurves.Segment segment,Vector2 bend,int x,int y,int worldWidth,float mapWidthScale)
                 {
                     var a=segment.A;var b=segment.B;
                     float ax=a.X-x;ax-=(float)Math.Round(ax/worldWidth)*worldWidth;
                     Ends=new Color(ax,a.Y-y,ax+(b.X-a.X),b.Y-y);
-                    Section=new Color(a.Radius,b.Radius,a.Depth,b.Depth);
+                    Section=new Color(a.Radius*mapWidthScale,b.Radius*mapWidthScale,a.Depth,b.Depth);
                     // Magnitude carries the signed turn at the station; the GPU
                     // decodes and interpolates the original unit tangents.
                     Flow=new Color(a.FlowX*(2+bend.x),a.FlowY*(2+bend.x),b.FlowX*(2+bend.y),b.FlowY*(2+bend.y));
@@ -428,20 +429,23 @@ namespace Orbis.Flat
                 {
                     if((i&127)==0)cancel.ThrowIfCancellationRequested();
                     int tile=curves.GetActiveTile(i),x=tile%width,y=tile/width;
+                    int entries=curves.TileSegmentCount(tile),count=0;
+                    if(entries>candidates.Length){Array.Resize(ref candidates,entries);Array.Resize(ref lower,entries);}
+                    for(int j=0;j<entries;j++)
+                    {
+                        int index=curves.TileSegmentIndex(tile,j);
+                        var segment=curves.SegmentAt(index);
+                        if(segment.ShoreDefinesBanks)continue;
+                        candidates[count++]=new Candidate(segment,bends[index],x,y,width,curves.MapWidthScale);
+                    }
+                    if(count==0)continue;
                     int group=y/GroupSize*groupColumns+x/GroupSize;
                     if(Groups[group]==0)Groups[group]=Reserve(GroupSize*GroupSize)+1;
                     int entry=Groups[group]-1+y%GroupSize*GroupSize+x%GroupSize;
-                    int count=curves.TileSegmentCount(tile);
-                    if(count>candidates.Length){Array.Resize(ref candidates,count);Array.Resize(ref lower,count);}
-                    for(int j=0;j<count;j++)
-                    {
-                        int segment=curves.TileSegmentIndex(tile,j);
-                        candidates[j]=new Candidate(curves.SegmentAt(segment),bends[segment],x,y,width);
-                    }
                     int divisions=1;
                     if(count>12)
                         while(divisions<ceiling&&divisions*candidatesPerDivision<count)divisions*=2;
-                    float sediment=curves.Sample(x+.5f,y+.5f).Sediment;
+                    float sediment=curves.SampleMap(x+.5f,y+.5f).Sediment;
                     int cells=divisions*divisions,first=divisions==1?entry:Reserve(cells);
                     if(divisions>1)Body[entry]=Header(first+1,-divisions,sediment);
                     // Geometry is shared by the entire tile. A subdivided leaf
@@ -601,7 +605,7 @@ namespace Orbis.Flat
                         if(tile>=slotsByTile.Length)break;
                         int code=slotsByTile[tile];
                         if(code==0)continue;
-                        FlatRiverSample sample=curves.Sample(tile%worldWidth+.5f,tile/worldWidth+.5f);
+                        FlatRiverSample sample=curves.SampleMap(tile%worldWidth+.5f,tile/worldWidth+.5f);
                         // A=0 is the normal one-tile contract. Dense fallbacks carry their block span.
                         pixels[offset+x]=new Color(code&255,code>>8,FiniteClamp(sample.Sediment,0,1,0),Span==1?0:Span);
                     }
@@ -616,7 +620,7 @@ namespace Orbis.Flat
                     if(x>=Columns*Pitch||slot>=origins.Length)
                     {pixels[offset+x]=new Color(8,0,0,0);continue;}
                     int origin=origins[slot];
-                    FlatRiverSample sample=curves.Sample(origin%worldWidth+(x%Pitch-1)*step,
+                    FlatRiverSample sample=curves.SampleMap(origin%worldWidth+(x%Pitch-1)*step,
                         origin/worldWidth+(localY-1)*step);
                     float halfWidth=FiniteClamp(sample.HalfWidth,0,8,0);
                     float flowX=sample.FlowX,flowY=sample.FlowY;

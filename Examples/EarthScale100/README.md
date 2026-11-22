@@ -49,13 +49,21 @@
 
 每档地球高程都从 4320 × 2160 的 ETOPO 全球概览按格子覆盖范围取平均，保留到整数米。4096 档的格均高程范围为 −10,161 至 +6,332 米。Natural Earth 海岸和内陆湖泊资料为海峡连通和湖面提供参考，游戏在此基础上计算排水、径流与气候。更换种子可以在相同的真实地形上重新开局。读档会还原地形预设、地图尺寸与模拟数据。可用 `python Tools/EarthScale100/bake_player_presets.py --check` 核对随包高程。
 
-新生成的地球为 18 条海峡保留连续的海水格，包括博斯普鲁斯、达达尼尔、琼州、台湾、直布罗陀和新加坡海峡。烘焙时沿 Natural Earth 海洋多边形寻找相邻格之间的水面开口，仅调整维持通道所需的格子。如果陆岸把格均高程抬到海面以上，游戏用海面下 1 米代表尚未解析的水深。局部镜头按地理岸线绘制两岸。V5 地球存档使用这套地形基准，之前的地球存档继续使用各自保存时的基准。可用 `python Tools/EarthScale100/bake_player_water.py --check` 复核六档水体数据。
+六档新地球都会检查全球岛岸在网格上相接的位置，以及被阻断的海湾和内海。只有原始海洋多边形在相邻两格之间有水面开口时，烘焙工具才会把它们接成航道。海峡里已有的水深保留到整数米，陆岸抬高格均海拔的位置以海面下 1 米代表未解析的海床。在精细海岸覆盖区，可以沿海图的实际水面选取航线端点。在日本可从关门海峡沿濑户内海抵达明石海峡，也可经丰后、鸣门或纪淡水道出海。放大到东经 132.98°、北纬 34.12° 可看见来岛海峡及周围岛屿。六档地图均验证了 36 条命名海峡、里翁和宿务等 3 条独立水道、两组贯通航线及两个近岸选点。V6 新地球使用全球校正，V5 及更早存档仍按生成时的海岸基准读档和重建。[Natural Earth v5.1.2 全球海洋岸线](https://github.com/nvkelso/natural-earth-vector/blob/v5.1.2/geojson/ne_10m_ocean.geojson)
+
+可运行 `python Tools/EarthScale100/bake_player_water.py --check` 和 `python Tools/EarthScale100/bake_global_shore.py --check` 逐字节复核六档水体与精细岸线。`python Validation/EarthScale100/verify_global_seaways.py` 把每个新增海格和原始海岸对照。`python Validation/EarthScale100/verify_strait_shore.py --navigation` 使用玩家实际的航线规划器，检查各档的逐段航迹。
 
 在北纬 41.11°、东经 29.07° 放大可查看博斯普鲁斯海峡的两岸。重点海峡的近景岸线采用南北约 217 米间距的独立采样。地形编辑、排水和格子选择仍使用上表中的模拟分辨率。
 
 在地球预设的「河网」图层，可沿开罗下游的罗塞塔支和达米埃塔支分别走到地中海，也可在中国查看长江口的崇明岛、珠江的磨刀门和横门水道，以及钱塘江进入杭州湾的河段。河口地带采用南北约 434 米间距的潮汐岸线，14 个河口与河湾另覆盖从内陆河段到外海的完整区域。六档地图共用同一套地理坐标。可运行 `python Validation/EarthScale100/test_river_selection.py` 检查河线、汇流点和河口连通。[Natural Earth 海岸](https://github.com/nvkelso/natural-earth-vector/blob/v5.1.2/geojson/ne_10m_ocean.geojson)
 
 在上海，黄浦江从淀山湖东南出口经外滩至吴淞口汇入长江。游戏内河心线约 113.9 公里。上游按 ESA WorldCover 10 米水面提取河道，中下游按 GRWL 卫星断面还原江弯和河宽。外滩机位在北纬 31.238°、东经 121.491°，可在自然视图和「河网」图层对照查看。[上海市水务局干流说明](https://swj.sh.gov.cn/shsdfbzssglc-tpxw/20201009/f5c0d47bcde1426fb03fdf93a9aabbda.html) · [Unity 同机位对比](huangpu-comparison.jpg)
+
+地球预设在星球视角使用细河线。相对于此前的两倍宽星球图，河线宽度为其四分之一，相当于原始图示宽度的 0.5 倍。从星球拉近时，自然地表和「河网」图层的线宽随地表展开平滑过渡。局部河道采用原始图示宽度的 2 倍，透明河网 PNG 导出也沿用两倍宽。2048 × 1024 地球的局部河网图中，荆江样点为 18 像素（原始 9 像素），外滩附近的黄浦江为 6 像素（原始 3 像素）。随机世界按各自排水网络原有的河宽绘制。[荆江与黄浦江局部实机对比](river-width-comparison.jpg)
+
+在东经 121.52°、北纬 31.53° 的长江潮汐河口，海图给出了两岸、崇明岛和江心洲的轮廓。局部自然图与河网图沿这些轮廓绘制水面。河心线仍保留实测宽度，黄浦江在吴淞口衔接长江。4096 × 2048 地球的同机位检查中，两张图上的 14,897 个陆地样点与 10,489 个水面样点均与海图、卫星资料一致。[水面越岸修复对比](yangtze-estuary-before-after.jpg)
+
+在海岸和湖岸资料重叠的区域，沙滩着色使用最近水边的距离。此前较远的湖岸在地图格的边界截断海岸渐变，在干地上留下一条笔直的浅线。消除重叠水面后，上述机位仍有 419 个陆上浅色格边像素。修正岸距后，在等高线开启的同一画面检测到 0 个。[同机位细线放大对比](yangtze-estuary-bank-lines.png) · [河口画面验证](../../Validation/EarthScale100/verify_estuary_camera.py)
 
 近看河口和海峡时，水色和海床透光使用 ETOPO 2022 原始 60 角秒水深，南北采样间距约 1.85 公里。窄于采样间距的水道会结合河床和岸线补出水深。区域图集 `EarthMarineDepth.bytes` 可用 `python Tools/EarthScale100/bake_marine_depth.py --source <ETOPO原始GeoTIFF路径> --check` 复核。[河口修改前后实机对比](river-mouths-comparison.jpg) · [NOAA 数据与校验值](global/metadata.json)
 

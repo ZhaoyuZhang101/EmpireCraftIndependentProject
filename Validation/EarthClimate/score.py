@@ -23,6 +23,8 @@ REGIONS = {
     "Sahara interior": (-10, 28, 20, 30),
     "Congo basin": (16, 29, -5, 4),
     "Indian monsoon": (73, 86, 16, 28),
+    "Mainland Indochina": (97, 107, 10, 20),
+    "Philippines": (119, 127, 5, 18),
     "Western Ghats coast": (72, 76, 13, 18),
     "Deccan leeward": (76, 80, 13, 18),
     "Thar lowlands": (69, 74, 25, 29),
@@ -138,6 +140,26 @@ def metrics(model, reference, area):
     }
 
 
+def warmest_month_boundary(t, observed_t, latitude, area):
+    hot, observed_hot = t.max(axis=1), observed_t.max(axis=1)
+    high = np.abs(latitude) >= 55
+    subsets = {"high_latitude": high, "observed_7_to_13_c": high & (np.abs(observed_hot - 10) <= 3)}
+    result = {}
+    for name, mask in subsets.items():
+        weight = area[mask]
+        if not weight.size:
+            result[name] = None
+            continue
+        cold, observed_cold = hot[mask] <= 10, observed_hot[mask] <= 10
+        result[name] = {
+            "cells": int(mask.sum()), "area_km2": float(weight.sum()),
+            "temperature_c": metrics(hot[mask], observed_hot[mask], weight),
+            "false_cold_area_share": float(weight[cold & ~observed_cold].sum() / weight.sum()),
+            "false_warm_area_share": float(weight[~cold & observed_cold].sum() / weight.sum()),
+        }
+    return result
+
+
 def region_summary(t, p, area):
     mt = np.average(t, axis=0, weights=area)
     mp = np.average(p, axis=0, weights=area)
@@ -214,7 +236,8 @@ def score(model_file, split):
             "export": {"file": model_file.name, "width": width, "height": height, "sha256": digest},
             "footprint_sha256": hashlib.sha256(np.sort(ids).astype("<u2").tobytes()).hexdigest(),
             "eligible_source_area_km2": float(area.sum()), "total_source_area_km2": total_area,
-            "metrics": stats, "wet_dry": wetdry, "regions": regions, "blocks": blocks, "common_land": common_land}
+            "metrics": stats, "wet_dry": wetdry, "warmest_month_boundary": warmest_month_boundary(t, ot, lat, area),
+            "regions": regions, "blocks": blocks, "common_land": common_land}
 
 
 def print_report(report):

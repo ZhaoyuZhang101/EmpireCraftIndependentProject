@@ -15,6 +15,7 @@ namespace Orbis.Flat
         readonly short[] survey;
         internal bool UsesSurveyedLakeBeds { get; private set; }
         internal bool UsesSurveyedStraits { get; private set; }
+        internal bool UsesGlobalStraits { get; private set; }
 
         FlatWaterReference(int width, byte[] originalBed)
         {
@@ -49,7 +50,7 @@ namespace Orbis.Flat
         }
 
         public static FlatWaterReference Read(int width, byte[] originalNorthFirstHeights, byte[] bytes,
-            bool useSurveyedLakeBeds = true, bool useSurveyedStraits = true)
+            bool useSurveyedLakeBeds = true, bool useSurveyedStraits = true, bool useGlobalStraits = true)
         {
             if (width < 64 || width > WorldData.MaxWidth || width % 8 != 0 ||
                 originalNorthFirstHeights == null || originalNorthFirstHeights.Length != (long)width * width ||
@@ -59,7 +60,8 @@ namespace Orbis.Flat
             using (var reader = new BinaryReader(new MemoryStream(bytes, false)))
             {
                 uint format = reader.ReadUInt32();
-                bool hasStraits = format == 0x3452574f; // OWR4 appends sparse, face-connected marine cells.
+                bool hasGlobal = format == 0x3552574f; // OWR5 appends additional worldwide marine cells after the V5 baseline.
+                bool hasStraits = hasGlobal || format == 0x3452574f;
                 bool hasNewShores = hasStraits || format == 0x3352574f; // OWR3 adds supplemental lake levels.
                 bool hasLakeBeds = hasNewShores || format == 0x3252574f;
                 if ((!hasLakeBeds && format != 0x3152574f) || reader.ReadInt32() != width)
@@ -121,22 +123,33 @@ namespace Orbis.Flat
                 }
                 if (hasStraits)
                 {
-                    int count = reader.ReadInt32(), last = -1;
-                    if (count < 0 || count > p || reader.BaseStream.Position + 4L * count != bytes.Length)
-                        throw new InvalidDataException("Invalid surveyed strait cell count.");
                     result.UsesSurveyedStraits = useSurveyedLakeBeds && useSurveyedStraits;
-                    for (int n = 0; n < count; n++)
+                    result.UsesGlobalStraits = hasGlobal && result.UsesSurveyedStraits && useGlobalStraits;
+                    void ReadChannels(bool global, bool apply, bool lastSection)
                     {
-                        int cell = reader.ReadInt32();
-                        if (cell <= last || cell >= p || (result.survey[cell] != Marine && result.survey[cell] != Passage))
-                            throw new InvalidDataException("Invalid surveyed strait cell.");
-                        last = cell;
-                        if (!result.UsesSurveyedStraits) continue;
-                        result.survey[cell] = Marine;
-                        // Keep measured depth where available. A positive mean mixes
-                        // dry banks into this cell; -1 m encodes an unresolved wet bed.
-                        if (result.SourceBed(cell) >= 0) result.SetSourceBed(cell, -1);
+                        if (reader.BaseStream.Position + 4 > bytes.Length)
+                            throw new InvalidDataException("Missing surveyed strait section.");
+                        int count = reader.ReadInt32(), last = -1;
+                        long end = reader.BaseStream.Position + 4L * count;
+                        if (count < 0 || count > p || (lastSection ? end != bytes.Length : end + 4 > bytes.Length))
+                            throw new InvalidDataException("Invalid surveyed strait cell count.");
+                        for (int n = 0; n < count; n++)
+                        {
+                            int cell = reader.ReadInt32();
+                            if (cell <= last || cell >= p)
+                                throw new InvalidDataException("Invalid surveyed strait cell.");
+                            short kind = result.survey[cell];
+                            if (kind != Marine && kind != Passage && !(global && kind == Dry))
+                                throw new InvalidDataException("Surveyed strait intersects an inland waterbody.");
+                            last = cell;
+                            if (!apply) continue;
+                            result.survey[cell] = Marine;
+                            // A positive mean mixes dry banks into the unresolved water bed.
+                            if (result.SourceBed(cell) >= 0) result.SetSourceBed(cell, -1);
+                        }
                     }
+                    ReadChannels(false, result.UsesSurveyedStraits, !hasGlobal);
+                    if (hasGlobal) ReadChannels(true, result.UsesGlobalStraits, true);
                 }
             }
             return result;

@@ -18,9 +18,14 @@ public static class SeaRouteRegression
         GridRoutes();
         if (args.Length > 1 && args[1] == "grid") return;
         const string root = "Assets/ORBIS/Resources/ORBIS/FlatWorld/";
-        var chart = FlatStraitNavigation.Read(File.ReadAllBytes(root + "EarthStraitShore.bytes"));
+        var chart = FlatStraitNavigation.Read(File.ReadAllBytes(root + "EarthGlobalStraitShore.bytes"));
         var widths = args.Length > 1 ? new[] { int.Parse(args[1]) } :
             Array.ConvertAll(File.ReadAllLines(root + "PlayerWidths.txt"), int.Parse);
+        if (Array.IndexOf(widths,2048) >= 0)
+        {
+            var oldChart = FlatStraitNavigation.Read(File.ReadAllBytes(root + "EarthStraitShore.bytes"));
+            EarthRoutes(root,oldChart,2048,null,null,false);
+        }
         foreach (var width in widths) EarthRoutes(root, chart, width,
             args.Length == 4 ? args[2] : null, args.Length == 4 ? args[3] : null);
     }
@@ -51,12 +56,12 @@ public static class SeaRouteRegression
         throw new Exception("Cancelled ship route still ran.");
     }
 
-    static void EarthRoutes(string root, FlatStraitNavigation chart, int width, string mouths, string export)
+    static void EarthRoutes(string root, FlatStraitNavigation chart, int width, string mouths, string export, bool global = true)
     {
         var w = new WorldData(width, width/2, "ORBIS-2D-2026", TerrainPreset.Earth)
-            { UsesSurveyedLakeBeds = true, UsesSurveyedStraits = true };
+            { UsesSurveyedLakeBeds = true, UsesSurveyedStraits = true, UsesGlobalStraits = global };
         w.WaterReference = FlatWaterReference.Read(width, File.ReadAllBytes(root + $"Earth{width}.bytes"),
-            File.ReadAllBytes(root + $"EarthWater{width}.bytes"));
+            File.ReadAllBytes(root + $"EarthWater{width}.bytes"),true,true,global);
         for (int i = 0; i < w.Count; i++) w.Elevation[i] = w.WaterReference.OriginalBed(i);
         var ocean = FlatOcean.Find(w, default);
         for (int i = 0; i < w.Count; i++)
@@ -112,7 +117,7 @@ public static class SeaRouteRegression
             w.Elevation[dam] = 29; w.Water[dam] = WaterKind.Land;
             Require(planner.Find(aegean, blackSea).Length == 0, "Ship crossed the raised Bosporus dam.");
         }
-        Console.WriteLine($"PASS Earth {width}: Aegean to Black Sea via {path.Length} navigable geographic waypoints.");
+        Console.WriteLine($"PASS V{(global?6:5)} Earth {width}: Aegean to Black Sea via {path.Length} navigable geographic waypoints.");
     }
 
     static void CheckEndpoints(FlatSeaPoint[] path, FlatSeaPoint a, FlatSeaPoint b)
