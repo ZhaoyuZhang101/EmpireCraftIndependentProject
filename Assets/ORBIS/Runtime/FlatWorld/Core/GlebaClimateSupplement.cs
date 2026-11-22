@@ -102,8 +102,13 @@ namespace Orbis.Flat
             int width = Math.Min(maxColumns, world.Width);
             int height = Math.Max(4, width / 2);
             var cfg = config ?? GlebaClimateConfig.Default;
-            var result = new GlebaClimateSupplement(width, height, cfg);
             var options = FlatWorkerPolicy.Options(cancel, workers);
+
+            int count = width * height;
+            var waterArr = new float[count];
+            var oceanArr = new float[count];
+            var elevArr = new float[count];
+            var peakArr = new float[count];
 
             // Equal-area spherical cell overlap integration (matching FlatMoisture / FlatOceanCirculation)
             var sourceLatitude = new double[world.Height + 1];
@@ -142,13 +147,34 @@ namespace Orbis.Flat
                         }
                     }
 
-                    float water = FMath.Clamp((float)waterSum, 0f, 1f);
-                    result.OceanFraction[i] = FMath.Clamp((float)oceanSum, 0f, water);
-                    result.LandFraction[i] = 1f - water;
-                    result.MeanElevation[i] = (float)elevSum;
-                    result.PeakElevation[i] = maxElev == float.MinValue ? (float)elevSum : maxElev;
+                    float wFrac = FMath.Clamp((float)waterSum, 0f, 1f);
+                    waterArr[i] = wFrac;
+                    oceanArr[i] = FMath.Clamp((float)oceanSum, 0f, wFrac);
+                    elevArr[i] = (float)elevSum;
+                    peakArr[i] = maxElev == float.MinValue ? (float)elevSum : maxElev;
                 }
             });
+
+            return BuildFromAggregated(width, height, waterArr, oceanArr, elevArr, peakArr, options, cfg);
+        }
+
+        internal static GlebaClimateSupplement BuildFromAggregated(
+            int width, int height,
+            float[] waterFraction, float[] oceanFraction,
+            float[] meanElevation, float[] peakElevation,
+            ParallelOptions options, GlebaClimateConfig config = null)
+        {
+            var cfg = config ?? GlebaClimateConfig.Default;
+            var result = new GlebaClimateSupplement(width, height, cfg);
+            int count = width * height;
+            for (int i = 0; i < count; i++)
+            {
+                float wFrac = FMath.Clamp(waterFraction[i], 0f, 1f);
+                result.OceanFraction[i] = FMath.Clamp(oceanFraction[i], 0f, wFrac);
+                result.LandFraction[i] = 1f - wFrac;
+                result.MeanElevation[i] = meanElevation[i];
+                result.PeakElevation[i] = peakElevation[i];
+            }
 
             // Distances & Saldo
             GlebaHelmholtzSolver.CalculateDistances(
@@ -169,7 +195,7 @@ namespace Orbis.Flat
             masterBands.InitializeBands(result.LandFraction, result.PeakElevation, result.SaldoNorth, result.SaldoSouth);
 
             // Solve all 12 calendar months independently & deterministically in parallel
-            int count = width * height;
+            var cancel = options.CancellationToken;
             Parallel.For(0, 12, options, month =>
             {
                 cancel.ThrowIfCancellationRequested();
