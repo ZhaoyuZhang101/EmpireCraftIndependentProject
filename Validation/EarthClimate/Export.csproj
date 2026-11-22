@@ -5,6 +5,7 @@
     <RollForward>Major</RollForward>
     <EnableDefaultCompileItems>false</EnableDefaultCompileItems>
     <DefineConstants Condition="'$(LegacyEarthDem)' == 'true'">$(DefineConstants);LEGACY_EARTH_DEM</DefineConstants>
+    <DefineConstants Condition="Exists('../../Assets/ORBIS/Runtime/FlatWorld/Core/FlatOceanCirculation.cs')">$(DefineConstants);CLIMATE_CIRCULATION</DefineConstants>
   </PropertyGroup>
   <ItemGroup>
     <Compile Include="../../Assets/ORBIS/Runtime/FlatWorld/Core/*.cs" />

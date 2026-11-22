@@ -26,6 +26,8 @@ public static class Program {
     case "--spherical-relief": SphericalRelief(); break;
     case "--weather": WeatherIntegrationRegression.Run(); break;
     case "--moisture": MoistureRegression(); break;
+    case "--wind-belts": WindBeltRegression.Run(args.Length>1 ? args[1] : null); break;
+    case "--ocean-circulation": OceanCirculationRegression.Run(); break;
     case "--seasonal-rainfall": SeasonalRainfallRegression.Run(); break;
     case "--seasonal-temperature": SeasonalTemperatureRegression.Run(); break;
     case "--east-asia-climate": ClimatologyRegression.EastAsia(args.Length>1?int.Parse(args[1]):256); break;

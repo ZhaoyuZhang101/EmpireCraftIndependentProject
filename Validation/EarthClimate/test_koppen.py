@@ -121,6 +121,14 @@ class KoppenScorer(unittest.TestCase):
                 expected = (3, 15) if name == "summer" else (0, 0)
                 self.assertEqual((s["temperature_mae_c"], s["precipitation_mae_mm"]), expected)
 
+    def test_input_attribution_is_separate_from_the_pure_model_gate(self):
+        self.mp[0] = 100   # The first Csa becomes Cfa because its summer stays wet.
+        self.mt[1] = -20   # A separate Csa becomes polar because its summer stays frozen.
+        r = self.compare(1)
+        self.assertEqual((r["five_group_agreement"], r["exact_subtype_agreement"]), (.9, .8))
+        self.assertEqual(r["with_observed_temperature"], {"five_group_agreement": 1, "exact_subtype_agreement": .9})
+        self.assertEqual(r["with_observed_precipitation"], {"five_group_agreement": .9, "exact_subtype_agreement": .9})
+
     def test_frozen_geographic_footprint_and_default_gate(self):
         # Recover eligible IDs from geometry. Every climate value still comes from the synthetic profiles above.
         mask = np.unpackbits(np.frombuffer(gzip.decompress((HERE / "land-mask.bin.gz").read_bytes()), dtype=np.uint8))

@@ -17,12 +17,12 @@ LAND = ("ncep.reanalysis/surface_gauss/land.sfc.gauss.nc",
         "7da97a6d508a499302002891bb11e7c284d99019698cb89de1b5f5da37df3ca3")
 
 
-def source(cache, info):
+def source(cache, info, *, server=SERVER, filename=None):
     remote, digest = info
-    path = cache / Path(remote).name
+    path = cache / (filename or Path(remote).name)
     if not path.exists():
         cache.mkdir(parents=True, exist_ok=True)
-        with urlopen(SERVER + remote, timeout=40) as response:
+        with urlopen(server + remote, timeout=40) as response:
             raw = response.read()
         if hashlib.sha256(raw).hexdigest() != digest:
             raise ValueError("Download differs from the pinned NOAA file")

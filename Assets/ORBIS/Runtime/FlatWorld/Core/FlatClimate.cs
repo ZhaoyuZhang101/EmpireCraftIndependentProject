@@ -8,6 +8,7 @@ namespace Orbis.Flat
     public static class FlatClimate
     {
         const double CircumferenceKm = 40030.229;
+        internal const float MarineAirCoupling = .65f;
         static readonly float[] Summer = Harmonic(false), Lag = Harmonic(true);
 
         static float[] Harmonic(bool quadrature)
@@ -172,7 +173,10 @@ namespace Orbis.Flat
             return residual;
         }
 
-        internal static void BuildTemperature(WorldData w, ParallelOptions options)
+        internal static void BuildTemperature(WorldData w, ParallelOptions options) =>
+            BuildTemperature(w, options, FlatOceanCirculation.Build(w, options));
+
+        static void BuildTemperature(WorldData w, ParallelOptions options, FlatOceanCirculation currents)
         {
             int width = w.Width, height = w.Height;
             var source = new float[w.Count];
@@ -218,6 +222,8 @@ namespace Orbis.Flat
                     // Area-weighted fit to monthly land normals, using elevation in metres.
                     float annual=28.258f-22.939f*s2-23.472f*s2*s2-.004577f*SurfaceHeight(w,i)
                         +5.409f*s2*(marine-.5f)+4.867f*subtropics*(inland-.5f)+6.078f*s*contrast;
+                    if (currents != null)
+                        annual += MarineAirCoupling * currents.SampleAir((x+.5f)/width,(y+.5f)/height);
                     float amplitude=sine*(8.566f+3.489f*distance+5.829f*inland+11.226f*s*inland-2.701f*contrast);
                     float lag=sine*(1.579f-2.569f*distance-3.087f*inland+4.774f*s*inland+.111f*contrast);
                     float land = 1 - regionalSea[i], z = relief[i];
@@ -261,10 +267,15 @@ namespace Orbis.Flat
         }
 
         public static void Build(WorldData w,CancellationToken cancel,int workers=0)
+            => Build(w,cancel,workers,true,true);
+
+        // The offline circulation experiment can hold either forcing at its control.
+        internal static void Build(WorldData w,CancellationToken cancel,int workers,bool seasonalWinds,bool oceanHeat)
         {
             var options=FlatWorkerPolicy.Options(cancel,workers);
-            BuildTemperature(w, options);
-            w.Moisture=FlatMoisture.Build(w,cancel,workers);
+            var currents=oceanHeat?FlatOceanCirculation.Build(w,options):null;
+            BuildTemperature(w,options,currents);
+            w.Moisture=FlatMoisture.BuildWithCirculation(w,cancel,workers,true,currents,seasonalWinds);
             Parallel.For(0,w.Height,options,y=>
             {
                 for(int x=0;x<w.Width;x++)

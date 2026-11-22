@@ -76,7 +76,8 @@ namespace Orbis.Flat
 
         internal static double SeaLevelPressure(double latitudeDegrees,float seasonalMonth,float regionalLand,double thermal)
         {
-            double itcz=FlatMoisture.ConvergenceLatitude(seasonalMonth,1-regionalLand,(float)thermal);
+            float axis=FlatMoisture.ConvergenceLatitude(seasonalMonth,1-regionalLand,0);
+            double itcz=FlatMoisture.LocalConvergence((float)latitudeDegrees,axis,(float)thermal);
             double subtropical=28+3*regionalLand;
             return OrbisAtmosphereCore.SeaLevelReferenceHPa+7*Math.Exp(-Math.Pow((Math.Abs(latitudeDegrees)-subtropical)/12,2))
                 -6*Math.Exp(-Math.Pow((latitudeDegrees-itcz)/14,2))-Math.Max(-4,Math.Min(4,thermal))*.30;

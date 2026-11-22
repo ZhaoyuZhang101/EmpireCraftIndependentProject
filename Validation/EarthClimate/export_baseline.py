@@ -15,15 +15,15 @@ REPO = HERE.parents[1]
 REVISION = "fcb360fd872b6a7621868006ac72e1cd00b0ee37"
 BEFORE_SEASONS = "06bfd500e642b5242ca5ccbeb3bc85eb7b54efec"
 BEFORE_MONSOON = "1bee7ae203eb765ab118af11031392b88fa45cd2"
+BEFORE_CIRCULATION = "2d05a937549fbc4dab04ab245e14527cd1df6e99"
 CORE = "Assets/ORBIS/Runtime/FlatWorld/Core"
 
 
-def export_baseline(output, width, seed, before_seasons=False, before_monsoon=False):
+def export_baseline(output, width, seed, revision=REVISION):
     output = output.resolve()
     output.parent.mkdir(parents=True, exist_ok=True)
     dem = f"Assets/ORBIS/Resources/ORBIS/FlatWorld/Earth{width}.bytes"
     assets = [dem]
-    revision = BEFORE_MONSOON if before_monsoon else BEFORE_SEASONS if before_seasons else REVISION
     geographic_water = revision != REVISION
     if geographic_water:
         assets += [dem.replace("Earth", "EarthWater"), str(Path(dem).with_name("EarthRivers.bytes").as_posix())]
@@ -53,14 +53,17 @@ if __name__ == "__main__":
     parser.add_argument("--output", type=Path)
     parser.add_argument("--width", type=int, choices=(256, 512, 1024, 1536, 2048, 4096), default=256)
     control = parser.add_mutually_exclusive_group()
-    control.add_argument("--before-seasons", action="store_true", help="Use the immediate pre-seasonal Earth generation control.")
-    control.add_argument("--before-monsoon", action="store_true", help="Use the six-width control from before the monsoon circulation repair.")
+    control.add_argument("--before-seasons", dest="revision", action="store_const", const=BEFORE_SEASONS, help="Use the immediate pre-seasonal Earth generation control.")
+    control.add_argument("--before-monsoon", dest="revision", action="store_const", const=BEFORE_MONSOON, help="Use the six-width control from before the monsoon circulation repair.")
+    control.add_argument("--before-circulation", dest="revision", action="store_const", const=BEFORE_CIRCULATION, help="Use the player model before seasonal wind belts and wind-driven ocean heat transport.")
+    parser.set_defaults(revision=REVISION)
     parser.add_argument("--seed", default="ORBIS-2D-2026")
     args = parser.parse_args()
-    if not (args.before_seasons or args.before_monsoon) and args.width > 1024:
+    if args.revision == REVISION and args.width > 1024:
         parser.error("The historical control provides widths 256, 512 and 1024.")
-    if args.before_seasons and args.width > 2048:
+    if args.revision == BEFORE_SEASONS and args.width > 2048:
         parser.error("The pre-seasonal control provides widths up to 2048.")
-    name = "before-monsoon" if args.before_monsoon else "before-seasons" if args.before_seasons else "baseline"
+    name = {REVISION: "baseline", BEFORE_SEASONS: "before-seasons", BEFORE_MONSOON: "before-monsoon",
+            BEFORE_CIRCULATION: "before-circulation"}[args.revision]
     output = args.output or REPO / f"ValidationOutput/EarthClimate/{name}.bin"
-    export_baseline(output, args.width, args.seed, args.before_seasons, args.before_monsoon)
+    export_baseline(output, args.width, args.seed, args.revision)

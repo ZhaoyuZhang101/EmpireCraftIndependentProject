@@ -67,7 +67,24 @@ internal static class CompareKoppen
 
     private sealed record Report(string Split, string ModelFile, string ModelSha256, int ModelWidth, int ModelHeight, int Cells, int Blocks,
         string FootprintSha256, decimal AreaKm2, decimal FiveGroupAgreement, decimal ExactSubtypeAgreement,
-        bool FiveGroupPass, bool ExactSubtypePass, Dictionary<string, ObservedSubtype> ObservedSubtypes, Hemisphere[] Hemispheres);
+        bool FiveGroupPass, bool ExactSubtypePass, Dictionary<string, ObservedSubtype> ObservedSubtypes, Hemisphere[] Hemispheres,
+        Agreement WithObservedTemperature, Agreement WithObservedPrecipitation);
+
+    private sealed record Agreement(decimal FiveGroupAgreement, decimal ExactSubtypeAgreement);
+
+    private sealed class MatchedArea
+    {
+        private decimal broad, exact;
+
+        public void Add(Koppen candidate, string observed, decimal area)
+        {
+            string name = candidate.ToString();
+            if (name[0] == observed[0]) broad += area;
+            if (name == observed) exact += area;
+        }
+
+        public Agreement Share(decimal total) => new(broad / total, exact / total);
+    }
 
     private sealed class ObservedSubtype
     {
@@ -97,6 +114,10 @@ internal static class CompareKoppen
         var south = new SeasonalErrors(false);
         var observedT = new float[Months];
         var observedP = new float[Months];
+        var localT = new float[Months];
+        var localP = new float[Months];
+        var withObservedT = new MatchedArea();
+        var withObservedP = new MatchedArea();
         var subtypes = Enum.GetValues<Koppen>().Where(k => k != Koppen.Unknown)
             .ToDictionary(k => k.ToString(), k => new ObservedSubtype());
         decimal total = 0, broad = 0, exact = 0;
@@ -127,6 +148,12 @@ internal static class CompareKoppen
             var observed = KoppenClassifier.Classify(observedT, observedP);
             var modeled = KoppenClassifier.Classify(temperature, precipitation, offset);
             var name = observed.ToString();
+            // Diagnostic substitutions only. The gate below always scores the
+            // normal generator with both of its own monthly fields.
+            Array.Copy(temperature, offset, localT, 0, Months);
+            Array.Copy(precipitation, offset, localP, 0, Months);
+            withObservedT.Add(KoppenClassifier.Classify(observedT, localP), name, area);
+            withObservedP.Add(KoppenClassifier.Classify(localT, observedP), name, area);
             subtypes[name].Add(area, observed == modeled);
             if (observed == modeled) exact += area;
             if (name[0] == modeled.ToString()[0]) broad += area;
@@ -144,7 +171,8 @@ internal static class CompareKoppen
         return new Report(split, Path.GetFileName(export), modelSha256, width, height, tiles.Count, blocks.Count,
             digest, total, broad / total, exact / total,
             10 * broad > 9 * total, 10 * exact > 9 * total, subtypes,
-            new[] { north, south }.Where(h => h.Cells != 0).Select(h => h.Summary()).ToArray());
+            new[] { north, south }.Where(h => h.Cells != 0).Select(h => h.Summary()).ToArray(),
+            withObservedT.Share(total), withObservedP.Share(total));
     }
 
     private static (int, int, string, float[], float[]) ReadModel(string path)

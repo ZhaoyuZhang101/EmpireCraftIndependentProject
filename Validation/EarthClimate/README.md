@@ -4,6 +4,45 @@
 
 [本次模型与历史版本的对照结果](RESULTS.md)
 
+## 风带、洋流与陆地柯本验收
+
+以 `2d05a93` 为本轮的完整历史对照。常规导出直接执行和玩家相同的 `FlatGenerator.Generate`。下面用同一地形、海陆、河湖和种子复现 256 档留出分数。把宽度改为 512、1024、1536、2048 或 4096 可验证其余地图。默认留出命令在任一指标未超过 90% 时写出 JSON 并返回 1。
+
+```powershell
+$out = "ValidationOutput/CirculationClimate"
+python Validation/EarthClimate/export_baseline.py --before-circulation --width 256 --output "$out/baseline-256.bin"
+dotnet run --project Validation/EarthClimate/Export.csproj -c Release -- "$out/spherical-256.bin" 256
+dotnet run --project Validation/EarthClimate/Export.csproj -c Release -- --compare-koppen "$out/baseline-256.bin" --json "$out/baseline-256-holdout.json"
+dotnet run --project Validation/EarthClimate/Export.csproj -c Release -- --compare-koppen "$out/spherical-256.bin" --json "$out/spherical-256-holdout.json"
+python Validation/EarthClimate/score.py "$out/spherical-256.bin" --split holdout --json "$out/spherical-256-field.json"
+```
+
+评分器的 `with_observed_temperature` 和 `with_observed_precipitation` 在离线诊断中分别替换一个月值序列，衡量剩余偏差来自哪一项。正式两项一致率始终使用生成器自己的月温和月雨。
+
+以下四组对照固定地形和其他降水物理。`control` 使用原大气输送风并关闭风生海温异常，`still-ocean` 启用季节风带及其球面输送，`fixed-winds` 仅启用风生洋流的热力作用，`coupled` 同时启用两者。两组开启洋流的试验使用相同的年平均海洋风应力。风带试验改变大气输送，海洋试验改变沿岸气温和蒸发。完整旧版由上面的历史导出命令复现。
+
+```powershell
+foreach ($forcing in "control","still-ocean","fixed-winds","coupled") {
+    dotnet run --project Validation/EarthClimate/Export.csproj -c Release -- --circulation $forcing "$out/$forcing.bin" 256
+    dotnet run --project Validation/EarthClimate/Export.csproj -c Release -- --compare-koppen "$out/$forcing.bin" --json "$out/$forcing-holdout.json"
+}
+```
+
+下面的诊断导出包含 128×64 的全海格掩膜、两套逐月地面风，以及年均海温异常、海洋输送的近地气温异常、东西和南北向海流。海温异常单位为 °C，海流单位为 m/s。模拟风是归一化分量。验证风向时，以 NOAA NCEP/NCAR R1 的 1991–2020 年 10 米风为参照，在高斯格点上按面积求平均。参考风速达到 1 m/s 才计风向，计算分量正负时要求相应观测分量绝对值达到 1 m/s。[NOAA NCEP/NCAR R1](https://psl.noaa.gov/data/gridded/data.ncep.reanalysis.html)
+
+海温对照使用 NOAA OISST v2 的 1991–2020 年逐月常年值，12 个月等权。开阔海域评分要求周围四个模拟格均为全海格，每一纬线上从观测与模拟各自减去同一组有效经度的平均值。东西岸对照用海盆两侧匹配的纬线计算温差。风、海温与浮标检验共用地理留出规则，`ocean-holdout` 由原坐标哈希选出全部 32 个预留块。开发区检查使用含合格 CRU 陆地样本的 57 个开发块内的海域。下载文件按脚本登记的 SHA-256 验证，依赖 NumPy、h5py 和 rasterio，绘图另用 Matplotlib。核心测试以 .NET 8 为目标，本次 .NET 9 环境用 `$env:DOTNET_ROLL_FORWARD="Major"` 执行。[NOAA OISST v2](https://psl.noaa.gov/data/gridded/data.noaa.oisst.v2.html)
+
+浮标检验使用 NOAA/AOML 年均近表层流速。在原始 0.25° 网格上每四点取一点，先将有采样记录的东西和南北分量按面积平均到模拟格，再计算流向和矢量误差。每个全海格至少需要四个有效样点，有效样点覆盖至少一半的取样面积，且整行处于观测纬度范围内。观测平均速度达到 0.05 m/s 才计入流向，模拟静止按 90° 计。静海矢量误差和模拟矢量误差都使用全部合格海格。[NOAA 漂流浮标年均流速](https://erddap.aoml.noaa.gov/gdp/erddap/info/drifter_annualmeans/index.html) · [Laurindo 等，2017](https://doi.org/10.1016/j.dsr.2017.04.009)
+
+```powershell
+dotnet run --project Validation/FlatWorld/FlatWorld.Core.Tests.csproj -c Release -- --wind-belts "$out/spherical-winds.bin"
+dotnet run --project Validation/FlatWorld/FlatWorld.Core.Tests.csproj -c Release -- --ocean-circulation
+python Validation/EarthClimate/check_wind_belts.py "$out/spherical-winds.bin" --split ocean-holdout --json "$out/spherical-wind-holdout.json"
+python Validation/EarthClimate/check_ocean_currents.py "$out/spherical-winds.bin" --split ocean-holdout --json "$out/spherical-ocean-holdout.json"
+python Validation/EarthClimate/check_drifter_currents.py "$out/spherical-winds.bin" --split ocean-holdout --json "$out/spherical-drifter-ocean-holdout.json"
+python Validation/EarthClimate/plot_circulation.py "$out/spherical-winds.bin" "$out/spherical-wind-holdout.json" "$out/spherical-ocean-holdout.json" "$out/seasonal-circulation.png"
+```
+
 ## 复现
 
 在仓库根目录运行。月常年值文件已经随验证工具提供。评分使用 Python 3.11 或更新版本和 NumPy，导出使用 .NET SDK，复现历史版本还需要 Git。评分 JSON 会记录导出地图的尺寸和 SHA-256。
@@ -54,7 +93,7 @@ dotnet run --project Validation/EarthClimate/Export.csproj -c Release -- --compa
 温度系数复算使用 256 档地形、海陆几何和 57 个开发区地理块。五折交叉验证在每个训练折分别拟合背景项及 16 个热力系数。脚本还可根据模拟地形独立重建逐月温度，并与 C# 导出逐格核对。ECL1 没有保存湖面高程，这项数值核对会明确列出有足够输入的非湖泊单元数。
 
 ```powershell
-python Validation/EarthClimate/fit_temperature.py ValidationOutput/EarthClimate/before-seasons.bin --check-runtime ValidationOutput/EarthClimate/current.bin
+python Validation/EarthClimate/fit_temperature.py ValidationOutput/EarthClimate/before-seasons.bin --check-runtime ValidationOutput/CirculationClimate/spherical-256.bin --ocean-air ValidationOutput/CirculationClimate/spherical-winds.bin
 ```
 
 ## 数据、字段与许可

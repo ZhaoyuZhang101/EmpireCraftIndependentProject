@@ -26,8 +26,12 @@ namespace Orbis.Editor
                 const string ui="Assets/ORBIS/Resources/ORBIS/FlatWorld/FlatWorld.uxml";
                 AssetDatabase.ImportAsset(ui,ImportAssetOptions.ForceUpdate|ImportAssetOptions.ForceSynchronousImport);
                 var tree=AssetDatabase.LoadAssetAtPath<VisualTreeAsset>(ui);if(!tree)throw new InvalidOperationException("UXML failed to import.");
-                var root=tree.CloneTree();foreach(string name in new[]{"World","Terrain","Water","Climate","Civs","Files"})
+                var root=tree.CloneTree();foreach(string name in new[]{"World","Terrain","Civs","Files"})
                 {if(root.Q<Button>("tab"+name)==null||root.Q("panel"+name)==null)throw new InvalidOperationException("Missing tab/panel "+name);}
+                var terrain=root.Q("panelTerrain");
+                if(terrain.Q<Label>("waterStatus")==null||terrain.Q<Button>("climateStatistics")==null||
+                    terrain.Q<Button>("rebuild")==null||root.Q("climateStatsWindow")==null)
+                    throw new InvalidOperationException("Missing water status, climate atlas or climate rebuild control.");
                 report.uxmlImported=true;
                 if(SystemInfo.graphicsDeviceType==GraphicsDeviceType.Null)throw new InvalidOperationException("No graphics API. Re-run WITHOUT -nographics; on Windows select D3D11.");
                 ShaderUtil.allowAsyncCompilation=false;
@@ -39,7 +43,13 @@ namespace Orbis.Editor
                     try
                     {
                         for(int pass=0;pass<material.passCount;pass++)
-                        {ShaderUtil.CompilePass(material,pass,true);if(!ShaderUtil.IsPassCompiled(material,pass))throw new InvalidOperationException("Uncompiled pass "+path+" / "+pass);report.compiledPasses++;}
+                        {
+                            // Unity's shadowcaster has depth and cube variants; a bare material has neither.
+                            if(material.GetPassName(pass)=="SURFACE_DEPTH_PERF32")material.EnableKeyword("SHADOWS_DEPTH");
+                            ShaderUtil.CompilePass(material,pass,true);
+                            if(!ShaderUtil.IsPassCompiled(material,pass))throw new InvalidOperationException("Uncompiled pass "+path+" / "+pass);
+                            report.compiledPasses++;
+                        }
                         if(ShaderUtil.ShaderHasError(shader)||!shader.isSupported)throw new InvalidOperationException("Shader compilation failed: "+path+". See Editor.log and Console.");
                     }
                     finally{UnityEngine.Object.DestroyImmediate(material);}

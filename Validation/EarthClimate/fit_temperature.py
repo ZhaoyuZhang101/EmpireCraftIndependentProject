@@ -183,7 +183,25 @@ def report(label, t, obs, area):
     print("  Monthly MAE Jan-Dec", np.round(mean(abs(error)), 3))
 
 
-def fit(path, check_runtime):
+def marine_adjustment(circulation_file, height, width):
+    # These are the simulated marine-air anomalies on the physical grid.
+    # Reconstruct the runtime's cell-centred, periodic lookup independently.
+    from check_wind_belts import read_export
+    _, _, currents = read_export(circulation_file)
+    air = currents[1]
+    h, w = air.shape
+    if w != min(128, width) or h != w // 2:
+        raise ValueError("Ocean-air diagnostic and climate export grids differ")
+    x = (np.arange(width) + .5) * w / width - .5
+    y = np.clip((np.arange(height) + .5) * h / height - .5, 0, h-1)[:, None]
+    ix, iy = np.floor(x).astype(int), np.floor(y).astype(int)
+    fx, fy = x-ix, y-iy
+    def row(j):
+        return (1-fx)*air[j, ix % w] + fx*air[j, (ix+1) % w]
+    return .65 * ((1-fy)*row(iy) + fy*row(np.minimum(iy+1, h-1))).ravel()
+
+
+def fit(path, check_runtime, ocean_air=None):
     fields = read_model(path)
     if fields[0].shape != (HEIGHT, WIDTH):
         raise ValueError("Fit at the common observational resolution (256 x 128).")
@@ -222,6 +240,7 @@ def fit(path, check_runtime):
         if isinstance(check_runtime, Path):
             fields = read_model(check_runtime)
             mean, annual, pairs = geometry(fields)
+        adjustment = marine_adjustment(ocean_air, *fields[0].shape) if ocean_air else None
         sample = np.flatnonzero(fields[2].ravel() != 4)
         error = 0
         for start in range(0, len(sample), 8192):
@@ -230,10 +249,12 @@ def fit(path, check_runtime):
                          + (annual[cells]@np.round(background[1], 3))[:, None]*COS
                          + (annual[cells]@np.round(background[2], 3))[:, None]*SIN
                          + terms_for(pairs, cells)@np.round(coeff, 4))
+            if adjustment is not None:
+                predicted += adjustment[cells, None]
             error = max(error, abs(np.clip(predicted, -85, 55) - fields[3].reshape(-1, 12)[cells]).max())
         print(f"{len(sample)} non-lake cells, maximum runtime discrepancy {error:.6f} C")
         if error > .003:
-            raise AssertionError("Runtime export does not reproduce the fitted parameterization.")
+            raise AssertionError("Runtime export does not reproduce the fitted parameterization. Coupled maps require their --ocean-air diagnostic.")
 
 
 if __name__ == "__main__":
@@ -241,5 +262,9 @@ if __name__ == "__main__":
     parser.add_argument("earth_export", type=Path)
     parser.add_argument("--check-runtime", nargs="?", const=True, type=Path, metavar="EXPORT",
                         help="compare all reconstructible cells of this or another export with the fitted C# model")
+    parser.add_argument("--ocean-air", type=Path, metavar="OWB2",
+                        help="include the wind-driven marine-air signal exported on the same Earth geometry")
     args = parser.parse_args()
-    fit(args.earth_export, args.check_runtime)
+    if args.ocean_air and not args.check_runtime:
+        parser.error("--ocean-air requires --check-runtime")
+    fit(args.earth_export, args.check_runtime, args.ocean_air)
