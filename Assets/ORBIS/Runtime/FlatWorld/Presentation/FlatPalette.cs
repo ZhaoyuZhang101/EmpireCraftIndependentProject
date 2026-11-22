@@ -33,9 +33,10 @@ namespace Orbis.Flat
             if(layer==MapLayer.GlebaFlora)return "Gleba 乔灌草植被结构（RGB 三元图）：红 = 灌木比例 · 绿 = 草本比例 · 蓝 = 乔木比例 · 深黑 = 裸地/荒漠（Empty Land）。";
             if(layer==MapLayer.GlebaSoilTexture)return "Gleba 六遍土壤质地（RGB 三元图）：红 = 砂粒（风蚀沙丘/砂岩）· 绿 = 粉砂（冰期黄土/冲积平原）· 蓝 = 黏粒（风化红壤/湖积黏土）。";
             if(layer==MapLayer.GlebaSoilFertility)return "Gleba 土壤厚度与矿质养分：综合 6 遍流水搬运沉积的表土层深度、基岩矿质养分富集度与有机质（褐岩 → 金壤 → 沃绿）。";
-            if(layer==MapLayer.GlebaBedrock)return "Gleba 20 类基岩岩性：砂岩/灰岩/白垩/页岩/岩盐（沉积岩）· 花岗岩/闪长岩/辉长岩/玄武岩/安山岩/流纹岩（火成岩）· 板岩/片岩/片麻岩（变质岩）。";
-            if(layer==MapLayer.GlebaTectonics)return "Gleba 板块、微板块地体、造山带与火山：浅界线为板块边界，绯红为俯冲海沟弧，琥珀橙为陆陆碰撞造山带，青色为洋中脊，紫色为大陆裂谷，亮橙黄点为活火山。";
+            if(layer==MapLayer.GlebaBedrock)return "Gleba 37 类完整基岩岩性：7 类碎屑沉积岩 · 5 类化学/蒸发沉积岩 · 10 类侵入/喷出长英度火成岩（含大火成岩省溢流玄武岩）· 15 类高压俯冲/巴罗变质带/太古宙绿岩带变质岩。";
+            if(layer==MapLayer.GlebaTectonics)return "Gleba 板块、微板块地体、古造山带、大火成岩省与火山：浅界线为板块边界，绯红为俯冲海沟弧，琥珀橙为碰撞造山带，靛紫为大火成岩省玄武岩台地，青铜为古造山缝合带，亮橙黄点为活火山。";
             if(layer==MapLayer.GlebaHydroGeo)return "Gleba 水文地质综合：粉红/亮金为热带珊瑚礁与环礁沙洲 · 亮青为 LGM 冰蚀峡湾海岸 · 冰蓝为末次盛冰期冰盖 · 橙褐为内流咸水湖 · 宝蓝为构造裂谷淡水湖 · 青绿斑块为深层承压/自流含水层。";
+            if(layer==MapLayer.GlebaCrops)return "Gleba 起源农作物与文明承载力：金珀为野生豌豆 · 赤陶橙为新月沃地苦野豌豆 · 鲜柠绿为温带野生黑麦 · 翡翠青/亮水青为季风野生稻与满江红固氮共生系 · 亮暖金高光为大河冲积与海岸文明摇篮高承载区。";
             if(layer==MapLayer.Fertility)return "棕 → 绿：0…100% 文明用地肥力。";
             if(layer==MapLayer.Nations)return "国家色代表 Zone 归属，不决定河岸或地貌。";
             for(int i=layer==MapLayer.Climate?1:0;i<colors.Length;i++)

@@ -398,6 +398,36 @@ internal static class GlebaSupplementRegression
         Check(itczJulLat - itczJanLat > 12.0,
             $"Expected Indian/Asian ITCZ deep convective cloud belt to migrate >12 deg northward Jan->Jul: Jan={itczJanLat:F1}deg, Jul={itczJulLat:F1}deg");
         Console.WriteLine($"Earth 256 Gleba cloud physics: MonsoonLift={monsoonLift:F2} vs SaharaLift={saharaLift:F2}, PeruSc={peruSc:F2}, Roaring50s={roaringFiftiesTrack:F2}, ITCZ Jan={itczJanLat:F1}->Jul={itczJulLat:F1}deg");
+
+        // 9. Round 11: Complete 37-rock registry, Deccan/Siberian LIPs, Paleo-orogens & Wild Founder Crops / Carrying Capacity
+        Check(GlebaGeographySupplement.RockTypeCount == 37 &&
+              GlebaGeographySupplement.GetRockProperties(GlebaRockKind.Limestone).CoralReefBedrock &&
+              Math.Abs(GlebaGeographySupplement.GetRockProperties(GlebaRockKind.Basalt).MineralRichness - 1.0f) < 1e-5f,
+            "Gleba rock registry must contain all 37 rock_types.lua entries with exact Limestone reef & Basalt mineral richness");
+        GlebaGeographySupplement.GetMicroplateGeochemistry(17, 0x12345u, out _, out float mpQ, out float mpC, out _, out _);
+        Check(Math.Abs((mpQ + mpC) - 1.0f) < 1e-4f, "Microplate quartz + calcite must normalize to 1.0");
+
+        var seenRocks = new bool[37];
+        for (int t = 0; t < earth.Count; t++) seenRocks[(int)geo.Bedrock[t]] = true;
+        int distinctEarthRocks = 0;
+        for (int r = 0; r < 37; r++) if (seenRocks[r]) distinctEarthRocks++;
+
+        var deccan = GlebaClimateSupplement.SampleTileDiagnostic(earth, TileAtLonLat(earth, 76f, 19f), 6);
+        var yangtze = GlebaClimateSupplement.SampleTileDiagnostic(earth, TileAtLonLat(earth, 116f, 29f), 6);
+        var europeLoess = GlebaClimateSupplement.SampleTileDiagnostic(earth, TileAtLonLat(earth, 18f, 50f), 6);
+        Check(geo.LipTileCount >= 20 && (deccan.GeoFlags & GlebaGeoFlags.LargeIgneousProvince) != 0 &&
+              (deccan.RockKind == GlebaRockKind.Basalt || deccan.RockKind == GlebaRockKind.Picrobasalt),
+            $"Deccan Traps (76E,19N) must carry LargeIgneousProvince flood basalt: flags={deccan.GeoFlags}, rock={deccan.RockKind}, lipTiles={geo.LipTileCount}");
+        Check(geo.PaleoOrogenTileCount >= 10 && distinctEarthRocks >= 22,
+            $"Expected paleo-orogen belts ({geo.PaleoOrogenTileCount}) and >=22 distinct rock types on Earth 256 ({distinctEarthRocks})");
+        Check((yangtze.DominantCrop == GlebaFounderCrop.WildRice || yangtze.DominantCrop == GlebaFounderCrop.AzollaCompanion) &&
+              yangtze.CarryingCapacity > 0.45f,
+            $"Yangtze monsoon basin must favor WildRice/Azolla with high carrying capacity: crop={yangtze.DominantCrop}, cap={yangtze.CarryingCapacity:F2}");
+        Check((europeLoess.DominantCrop == GlebaFounderCrop.WildRye || europeLoess.DominantCrop == GlebaFounderCrop.WildPea || europeLoess.DominantCrop == GlebaFounderCrop.WildBitterVetch) &&
+              europeLoess.CarryingCapacity > sahara.CarryingCapacity + 0.25f &&
+              antarctica.CarryingCapacity == 0f && geo.CradleTileCount >= 30,
+            $"Temperate loess vs Sahara/Antarctica carrying capacity failed: eurCrop={europeLoess.DominantCrop}({europeLoess.CarryingCapacity:F2}), sahara={sahara.CarryingCapacity:F2}, cradles={geo.CradleTileCount}");
+        Console.WriteLine($"Earth 256 Gleba Round 11: rocks={distinctEarthRocks}/37, LIPs={geo.LipTileCount} (Deccan={deccan.RockKind}), PaleoOrogens={geo.PaleoOrogenTileCount}, Yangtze={yangtze.DominantCrop}(cap={yangtze.CarryingCapacity:F2}), Cradles={geo.CradleTileCount}");
     }
 
     static int FindNearestMatchingTile(WorldData w, float lonDeg, float latDeg, int radius, Func<int, bool> pred)
@@ -458,7 +488,7 @@ internal static class GlebaSupplementRegression
         Check(hasWindFlow && FMath.Finite(fu) && FMath.Finite(fv) && hasRossbyFlow && ru > 0f && (wr + wg + wb) > 0 && (cr + cg + cb) > 0,
             "Mapmode color and UV flow evaluators must produce valid colors and vectors");
 
-        for (MapLayer layer = MapLayer.SurfaceWinds; layer <= MapLayer.GlebaHydroGeo; layer++)
+        for (MapLayer layer = MapLayer.SurfaceWinds; layer <= MapLayer.GlebaCrops; layer++)
         {
             var gMode = GlebaGeographySupplement.MapLayerToGlebaMode(layer);
             GlebaGeographySupplement.EvaluateMapmodeColor(world, 1000, 6, gMode, out byte mr, out byte mg, out byte mb);

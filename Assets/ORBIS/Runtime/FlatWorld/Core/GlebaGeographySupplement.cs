@@ -26,7 +26,25 @@ namespace Orbis.Flat
         Rhyolite = 16,
         Slate = 17,
         Schist = 18,
-        Gneiss = 19
+        Gneiss = 19,
+        // Remaining 17 rock types from Gleba v0.3.6 mods/base/data/rock_types.lua (37 total)
+        Breccia = 20,
+        Granodiorite = 21,
+        Peridotite = 22,
+        Dacite = 23,
+        Picrobasalt = 24,
+        Marble = 25,
+        Quartzite = 26,
+        Skarn = 27,
+        Hornfel = 28,
+        Phyllite = 29,
+        Migmatite = 30,
+        Blueschist = 31,
+        Eclogite = 32,
+        Greenstone = 33,
+        Amphibolite = 34,
+        Greenschist = 35,
+        Granulite = 36
     }
 
     public enum GlebaWaterbodyType : byte
@@ -67,7 +85,10 @@ namespace Orbis.Flat
         CoralCay = 1 << 1,
         FjordCoast = 1 << 2,
         LgmGlaciated = 1 << 3,
-        ArtesianAquifer = 1 << 4
+        ArtesianAquifer = 1 << 4,
+        LargeIgneousProvince = 1 << 5,
+        PaleoOrogen = 1 << 6,
+        MantleSuperswell = 1 << 7
     }
 
     public enum GlebaMapmodeKind : byte
@@ -93,7 +114,8 @@ namespace Orbis.Flat
         SoilTexture = 18,
         SoilFertility = 19,
         TectonicsAndVolcanism = 20,
-        HydroGeoComposite = 21
+        HydroGeoComposite = 21,
+        CropsAndCarryingCapacity = 22
     }
 
     public readonly struct GlebaRockProperties
@@ -161,6 +183,11 @@ namespace Orbis.Flat
         public readonly byte[] OrogenyStrengthByte;
         public readonly byte[] VolcanoFlags;
         public readonly byte[] VolcanoVeiTenths;
+        // Stage 54 domesticable founder crops & Stages 61-62 civilization carrying capacity
+        public readonly GlebaFounderCrop[] DominantCrop;
+        public readonly byte[] CropSuitabilityByte;
+        public readonly byte[] NitrogenFixingByte;
+        public readonly byte[] CarryingCapacityByte;
         public int[] AreaToRegion;
         public int[] RegionToSuperRegion;
         public int[] SuperRegionToSubcontinent;
@@ -169,6 +196,9 @@ namespace Orbis.Flat
         public int FjordCoastTileCount;
         public int VolcanoCount;
         public int ActiveVolcanoCount;
+        public int LipTileCount;
+        public int PaleoOrogenTileCount;
+        public int CradleTileCount;
         public int AreaCount;
         public int RegionCount;
         public int SuperRegionCount;
@@ -209,6 +239,10 @@ namespace Orbis.Flat
             OrogenyStrengthByte = new byte[count];
             VolcanoFlags = new byte[count];
             VolcanoVeiTenths = new byte[count];
+            DominantCrop = new GlebaFounderCrop[count];
+            CropSuitabilityByte = new byte[count];
+            NitrogenFixingByte = new byte[count];
+            CarryingCapacityByte = new byte[count];
             for (int i = 0; i < count; i++)
             {
                 AquiferId[i] = -1;
@@ -293,6 +327,9 @@ namespace Orbis.Flat
                 FjordCoastTileCount = FjordCoastTileCount,
                 VolcanoCount = VolcanoCount,
                 ActiveVolcanoCount = ActiveVolcanoCount,
+                LipTileCount = LipTileCount,
+                PaleoOrogenTileCount = PaleoOrogenTileCount,
+                CradleTileCount = CradleTileCount,
                 AreaCount = AreaCount,
                 RegionCount = RegionCount,
                 SuperRegionCount = SuperRegionCount,
@@ -332,18 +369,24 @@ namespace Orbis.Flat
             Array.Copy(OrogenyStrengthByte, c.OrogenyStrengthByte, Count);
             Array.Copy(VolcanoFlags, c.VolcanoFlags, Count);
             Array.Copy(VolcanoVeiTenths, c.VolcanoVeiTenths, Count);
+            Array.Copy(DominantCrop, c.DominantCrop, Count);
+            Array.Copy(CropSuitabilityByte, c.CropSuitabilityByte, Count);
+            Array.Copy(NitrogenFixingByte, c.NitrogenFixingByte, Count);
+            Array.Copy(CarryingCapacityByte, c.CarryingCapacityByte, Count);
             return c;
         }
     }
 
     /// <summary>
     /// Port of Gleba v0.3.6 remaining geographic, oceanographic, hydrogeological, erosion, and mapmode systems:
-    /// - Bedrock & porosity registry (`rock_types.lua`)
+    /// - Complete 37-rock bedrock, felsicity/quartz/calcite & porosity registry (`core/data.lua` + `rock_types.lua`)
+    /// - Large Igneous Provinces (LIPs), mantle superswells & eroded paleo-orogens (`lips`, `superswells`, `old_features`)
     /// - Deep confined/unconfined groundwater aquifers (`aquifer_gen::generate_aquifers`)
     /// - Tropical coral reefs & emergent coral cays (`coral_reefs::generate_coral_reefs`)
     /// - Glacial fjords & LGM snowline mass balance (`fjords::generate_fjords`)
     /// - Endorheic saltwater vs outflowing freshwater lakes (`lakes::generate_*_lakes`)
     /// - Global ocean inaccessibility, 8-domain 4-tier geographic hierarchy & biogeographic realms
+    /// - Wild founder crops & civilization cradle carrying capacity (`plants.lua` + `find_civilization_spots`)
     /// - 12-month seasonal ocean surface currents & 11-stop Cividis / flowfield mapmode evaluators
     /// - Thermal angle-of-repose & sorted stream-power hydraulic erosion operators
     /// </summary>
@@ -352,28 +395,46 @@ namespace Orbis.Flat
         const double EarthRadiusKm = 6371.0088;
         const double NominalPlanetAreaKm2 = 510064472.0;
 
+        // Complete 37-entry rock registry matching Gleba v0.3.6 `core/data.lua` + `mods/base/data/rock_types.lua`
         static readonly GlebaRockProperties[] RockTable = new GlebaRockProperties[]
         {
-            new GlebaRockProperties(GlebaRockKind.Sandstone,    0.70f, 0.20f, 0.10f, 0.50f, 0.25f, 0.20f, false, 214, 186, 115),
-            new GlebaRockProperties(GlebaRockKind.Conglomerate, 0.95f, 0.05f, 0.00f, 0.40f, 0.20f, 0.15f, false, 190, 155, 165),
-            new GlebaRockProperties(GlebaRockKind.Siltstone,    0.25f, 0.50f, 0.25f, 1.00f, 0.20f, 0.30f, false, 166, 131,  17),
-            new GlebaRockProperties(GlebaRockKind.Mudstone,     0.25f, 0.20f, 0.55f, 1.00f, 0.40f, 0.20f, false, 163,  78,  30),
-            new GlebaRockProperties(GlebaRockKind.Claystone,    0.20f, 0.10f, 0.70f, 1.00f, 0.44f, 0.10f, false, 160,  40,  46),
-            new GlebaRockProperties(GlebaRockKind.Shale,        0.20f, 0.40f, 0.40f, 1.00f, 0.50f, 0.50f, false, 239, 228, 176),
-            new GlebaRockProperties(GlebaRockKind.Chalk,        0.25f, 0.45f, 0.30f, 0.30f, 0.20f, 0.25f, false, 195, 220, 195),
-            new GlebaRockProperties(GlebaRockKind.Limestone,    0.35f, 0.40f, 0.25f, 0.25f, 0.27f, 0.50f, true,   82, 242,  77),
-            new GlebaRockProperties(GlebaRockKind.Dolostone,    0.30f, 0.35f, 0.35f, 0.20f, 0.27f, 0.40f, false,  34, 177,  76),
-            new GlebaRockProperties(GlebaRockKind.Chert,        0.35f, 0.40f, 0.25f, 0.50f, 0.22f, 0.40f, false,  30, 147,  56),
-            new GlebaRockProperties(GlebaRockKind.Halite,       0.40f, 0.30f, 0.30f, 0.20f, 1.00f, 0.20f, false, 255, 235, 235),
-            new GlebaRockProperties(GlebaRockKind.Granite,      0.70f, 0.10f, 0.20f, 0.50f, 0.53f, 0.05f, false, 190, 100, 220),
-            new GlebaRockProperties(GlebaRockKind.Diorite,      0.60f, 0.10f, 0.30f, 0.75f, 0.80f, 0.03f, false, 150,  60, 180),
-            new GlebaRockProperties(GlebaRockKind.Gabbro,       0.45f, 0.15f, 0.40f, 0.90f, 0.92f, 0.02f, false,  90,  45, 120),
-            new GlebaRockProperties(GlebaRockKind.Basalt,       0.45f, 0.15f, 0.40f, 0.90f, 0.90f, 0.45f, false,  70,  75,  90),
-            new GlebaRockProperties(GlebaRockKind.Andesite,     0.55f, 0.20f, 0.25f, 0.75f, 0.78f, 0.40f, false, 115,  95, 125),
-            new GlebaRockProperties(GlebaRockKind.Rhyolite,     0.65f, 0.15f, 0.20f, 0.55f, 0.55f, 0.30f, false, 165, 120, 145),
-            new GlebaRockProperties(GlebaRockKind.Slate,        0.25f, 0.45f, 0.30f, 0.45f, 0.35f, 0.30f, false, 110, 120, 135),
-            new GlebaRockProperties(GlebaRockKind.Schist,       0.45f, 0.35f, 0.20f, 0.40f, 0.45f, 0.20f, false, 130, 135, 150),
-            new GlebaRockProperties(GlebaRockKind.Gneiss,       0.65f, 0.20f, 0.15f, 0.35f, 0.48f, 0.15f, false, 155, 130, 165)
+            new GlebaRockProperties(GlebaRockKind.Sandstone,    0.75f, 0.15f, 0.10f, 0.7000f, 0.40f, 0.20f, false, 200, 190,  15),
+            new GlebaRockProperties(GlebaRockKind.Conglomerate, 0.95f, 0.05f, 0.00f, 0.4000f, 0.20f, 0.15f, false, 190, 155, 165),
+            new GlebaRockProperties(GlebaRockKind.Siltstone,    0.25f, 0.50f, 0.25f, 1.0000f, 0.20f, 0.30f, false, 166, 131,  17),
+            new GlebaRockProperties(GlebaRockKind.Mudstone,     0.25f, 0.20f, 0.55f, 1.0000f, 0.40f, 0.20f, false, 163,  78,  30),
+            new GlebaRockProperties(GlebaRockKind.Claystone,    0.20f, 0.10f, 0.70f, 1.0000f, 0.44f, 0.10f, false, 160,  40,  46),
+            new GlebaRockProperties(GlebaRockKind.Shale,        0.20f, 0.40f, 0.40f, 1.0000f, 0.50f, 0.50f, false, 239, 228, 176),
+            new GlebaRockProperties(GlebaRockKind.Chalk,        0.25f, 0.45f, 0.30f, 0.3000f, 0.20f, 0.25f, false, 195, 220, 195),
+            new GlebaRockProperties(GlebaRockKind.Limestone,    0.35f, 0.40f, 0.25f, 0.2500f, 0.27f, 0.50f, true,   82, 242,  77),
+            new GlebaRockProperties(GlebaRockKind.Dolostone,    0.30f, 0.35f, 0.35f, 0.2000f, 0.27f, 0.40f, false,  34, 177,  76),
+            new GlebaRockProperties(GlebaRockKind.Chert,        0.35f, 0.40f, 0.25f, 0.5000f, 0.22f, 0.40f, false,  30, 147,  56),
+            new GlebaRockProperties(GlebaRockKind.Halite,       0.40f, 0.30f, 0.30f, 0.2000f, 1.00f, 0.20f, false, 255, 235, 235),
+            new GlebaRockProperties(GlebaRockKind.Granite,      0.70f, 0.10f, 0.20f, 0.5000f, 0.53f, 0.05f, false, 190, 100, 220),
+            new GlebaRockProperties(GlebaRockKind.Diorite,      0.65f, 0.00f, 0.35f, 0.7500f, 0.80f, 0.03f, false, 150,  60, 180),
+            new GlebaRockProperties(GlebaRockKind.Gabbro,       0.35f, 0.00f, 0.66f, 0.8000f, 1.00f, 0.02f, false, 130,  40, 160),
+            new GlebaRockProperties(GlebaRockKind.Basalt,       0.10f, 0.45f, 0.45f, 1.0000f, 1.00f, 0.45f, false,  10,  18, 165),
+            new GlebaRockProperties(GlebaRockKind.Andesite,     0.20f, 0.45f, 0.35f, 0.9000f, 0.73f, 0.40f, false,  11,  19, 190),
+            new GlebaRockProperties(GlebaRockKind.Rhyolite,     0.40f, 0.30f, 0.30f, 0.8000f, 0.53f, 0.30f, false,  15,  21, 239),
+            new GlebaRockProperties(GlebaRockKind.Slate,        0.40f, 0.05f, 0.55f, 0.7000f, 0.50f, 0.30f, false,  56,  56,  56),
+            new GlebaRockProperties(GlebaRockKind.Schist,       0.30f, 0.00f, 0.70f, 0.3000f, 0.66f, 0.20f, false, 100, 100, 100),
+            new GlebaRockProperties(GlebaRockKind.Gneiss,       0.20f, 0.00f, 0.80f, 0.2000f, 1.00f, 0.15f, false, 120, 120, 120),
+            new GlebaRockProperties(GlebaRockKind.Breccia,      0.95f, 0.05f, 0.00f, 0.3000f, 0.10f, 0.15f, false, 180, 124, 135),
+            new GlebaRockProperties(GlebaRockKind.Granodiorite, 0.65f, 0.05f, 0.30f, 0.6250f, 0.66f, 0.04f, false, 170,  80, 200),
+            new GlebaRockProperties(GlebaRockKind.Peridotite,   0.25f, 0.00f, 0.75f, 1.0000f, 0.80f, 0.01f, false, 110,  20, 140),
+            new GlebaRockProperties(GlebaRockKind.Dacite,       0.30f, 0.40f, 0.30f, 0.8500f, 0.60f, 0.35f, false,  13,  20, 211),
+            new GlebaRockProperties(GlebaRockKind.Picrobasalt,  0.00f, 0.50f, 0.50f, 1.0000f, 0.87f, 0.50f, false,   6,  15, 140),
+            new GlebaRockProperties(GlebaRockKind.Marble,       0.40f, 0.30f, 0.30f, 0.2000f, 0.33f, 0.15f, false, 200, 200, 250),
+            new GlebaRockProperties(GlebaRockKind.Quartzite,    0.45f, 0.30f, 0.25f, 0.2000f, 0.26f, 0.15f, false, 250, 200, 200),
+            new GlebaRockProperties(GlebaRockKind.Skarn,        0.15f, 0.25f, 0.55f, 0.1000f, 0.33f, 0.15f, false,  40, 145, 145),
+            new GlebaRockProperties(GlebaRockKind.Hornfel,      0.20f, 0.20f, 0.60f, 0.3000f, 0.50f, 0.15f, false,  20, 223, 200),
+            new GlebaRockProperties(GlebaRockKind.Phyllite,     0.40f, 0.00f, 0.60f, 0.4000f, 0.57f, 0.25f, false,  85,  85,  85),
+            new GlebaRockProperties(GlebaRockKind.Migmatite,    0.10f, 0.00f, 0.90f, 0.0750f, 1.00f, 0.10f, false, 143, 143, 143),
+            new GlebaRockProperties(GlebaRockKind.Blueschist,   0.00f, 0.40f, 0.60f, 0.3750f, 0.83f, 0.01f, false,   0,  50, 100),
+            new GlebaRockProperties(GlebaRockKind.Eclogite,     0.00f, 0.30f, 0.70f, 0.2400f, 0.90f, 0.01f, false,   0,  50,  50),
+            new GlebaRockProperties(GlebaRockKind.Greenstone,   0.30f, 0.30f, 0.40f, 0.1500f, 0.97f, 0.01f, false,   0, 100,   0),
+            new GlebaRockProperties(GlebaRockKind.Amphibolite,  0.20f, 0.20f, 0.60f, 0.1000f, 1.00f, 0.01f, false,   0,  50,   0),
+            new GlebaRockProperties(GlebaRockKind.Greenschist,  0.10f, 0.10f, 0.80f, 0.0750f, 0.93f, 0.01f, false,   0,  75,   0),
+            new GlebaRockProperties(GlebaRockKind.Granulite,    0.00f, 0.00f, 1.00f, 0.0625f, 0.66f, 0.01f, false,   0,  25,   0)
         };
 
         // 11-stop Cividis colormap (.rdata@0x1822f89b0 in gleba_godot.dll)
@@ -381,7 +442,29 @@ namespace Orbis.Flat
         static readonly byte[] CividisG = { 34, 51, 69, 87, 105, 124, 143, 163, 184, 207, 232 };
         static readonly byte[] CividisB = { 78, 112, 108, 108, 112, 120, 119, 113, 102, 82, 55 };
 
+        public static int RockTypeCount => RockTable.Length;
         public static GlebaRockProperties GetRockProperties(GlebaRockKind kind) => RockTable[(int)kind];
+
+        /// <summary>
+        /// Evaluates per-microplate normalized (quartz, calcite) matching `get_microplate_quartz_and_calcite` (0x1808f8220)
+        /// plus terrane felsicity, dolomitization, and chalkification parameters.
+        /// </summary>
+        public static void GetMicroplateGeochemistry(
+            ushort microplateId, uint worldSeed,
+            out float felsicity, out float quartz, out float calcite, out float dolomitization, out float chalkification)
+        {
+            uint baseKey = unchecked(worldSeed ^ ((uint)microplateId * 0x9e3779b9u));
+            var r1 = new WyRand(baseKey + 1u);
+            var r2 = new WyRand(baseKey + 2u);
+            float qRaw = r1.NextFloat();
+            float cRaw = r2.NextFloat();
+            float sum = Math.Max(qRaw + cRaw, 1e-5f);
+            quartz = qRaw / sum;
+            calcite = cRaw / sum;
+            felsicity = 0.40f + 0.42f * FMath.Unit(baseKey ^ 0x13572468u);
+            dolomitization = FMath.Unit(baseKey ^ 0x24681357u);
+            chalkification = FMath.Unit(baseKey ^ 0x89abcdefu);
+        }
 
         struct WyRand
         {
@@ -648,7 +731,142 @@ namespace Orbis.Flat
             // 6. Physiographic Domains, 4-Tier Geographic Hierarchy & Biogeographic Realms
             BuildDomainsRealmsAndHierarchy(w, f, geo, ux, uy, uz, tileAreaKm2, baseSeed, cancel);
 
+            // 7. Stage 54 Domesticable Wild Founder Crops & Stages 61-62 Settlement / Carrying Capacity
+            BuildFounderCropsAndCarryingCapacity(w, f, geo, cancel);
+
             return geo;
+        }
+
+        static void BuildFounderCropsAndCarryingCapacity(
+            WorldData w, FlatTerrainFacts f, GlebaGeographyFacts geo, CancellationToken cancel)
+        {
+            int n = w.Count, width = w.Width;
+            var moisture = w.Moisture;
+            int cradles = 0;
+
+            for (int i = 0; i < n; i++)
+            {
+                if ((i & 8191) == 0) cancel.ThrowIfCancellationRequested();
+                bool isLand = !FlatTerrainAnalysis.AreaWater(w.Water[i]);
+                if (!isLand) continue;
+
+                float rh = 0.5f;
+                if (moisture != null)
+                {
+                    float u = (i % width + 0.5f) / width;
+                    float v = (i / width + 0.5f) / w.Height;
+                    float sum = 0f;
+                    for (int m = 0; m < 12; m++) sum += moisture.Sample(moisture.Humidity, u, v, m);
+                    rh = FMath.Clamp(sum / 12f, 0f, 1f);
+                }
+                else
+                {
+                    rh = FMath.Clamp(f.AnnualRain[i] / 1200f, 0.05f, 1f);
+                }
+
+                var soil = geo.GetSoilState(i);
+                bool isCoast = w.CoastDistance[i] <= 1;
+                var biome = f.GlebaBiomes != null ? f.GlebaBiomes[i] : GlebaBiomeKind.TemperateGrasslandsSavannasAndShrublands;
+                var eval = GlebaEcologySupplement.EvaluateFounderCropsAndCarryingCapacity(
+                    true, isCoast, w.Elevation[i], Math.Abs(w.Latitude(i)),
+                    f.MeanTemperature[i], f.AnnualRain[i], rh,
+                    geo.ErosionWaterflow[i], biome, in soil);
+
+                geo.DominantCrop[i] = eval.DominantCrop;
+                geo.CropSuitabilityByte[i] = (byte)FMath.Clamp((int)Math.Round(eval.MaxSuitability * 255f), 0, 255);
+                geo.NitrogenFixingByte[i] = (byte)FMath.Clamp((int)Math.Round(eval.NitrogenFixing * 255f), 0, 255);
+                geo.CarryingCapacityByte[i] = (byte)FMath.Clamp((int)Math.Round(eval.CarryingCapacity * 255f), 0, 255);
+                if (eval.CarryingCapacity >= 0.58f) cradles++;
+            }
+            geo.CradleTileCount = cradles;
+        }
+
+        static void StampLipsPaleoOrogensAndSuperswells(
+            WorldData w, FlatTerrainFacts f, GlebaGeographyFacts geo,
+            float[] ux, float[] uy, float[] uz, float[] fbmNoise, uint seed)
+        {
+            int n = w.Count;
+            const int LipProvinceCount = 5;
+            var lx = new float[LipProvinceCount];
+            var ly = new float[LipProvinceCount];
+            var lz = new float[LipProvinceCount];
+            var lRadiusCos = new float[LipProvinceCount];
+
+            if (w.Preset == TerrainPreset.Earth)
+            {
+                // Anchor to Earth's 5 major Phanerozoic continental flood-basalt traps:
+                // Deccan (76E,19N), Siberian (98E,64N), Ethiopian (38.5E,10.5N), Parana (-52W,-24S), Columbia (-118.5W,46N)
+                float[] lons = { 76f, 98f, 38.5f, -52f, -118.5f };
+                float[] lats = { 19f, 64f, 10.5f, -24f, 46f };
+                float[] radKm = { 560f, 920f, 480f, 620f, 380f };
+                for (int k = 0; k < LipProvinceCount; k++)
+                {
+                    double la = lats[k] * (Math.PI / 180.0), lo = lons[k] * (Math.PI / 180.0);
+                    float cl = (float)Math.Cos(la);
+                    lx[k] = cl * (float)Math.Cos(lo);
+                    ly[k] = cl * (float)Math.Sin(lo);
+                    lz[k] = (float)Math.Sin(la);
+                    lRadiusCos[k] = (float)Math.Cos(radKm[k] / EarthRadiusKm);
+                }
+            }
+            else
+            {
+                var rng = new WyRand(seed ^ 0x1197ba5aUL);
+                for (int k = 0; k < LipProvinceCount; k++)
+                {
+                    float z = 1.6f * rng.NextFloat() - 0.8f;
+                    float a = 6.2831853f * rng.NextFloat();
+                    float r = (float)Math.Sqrt(Math.Max(0f, 1f - z * z));
+                    lx[k] = r * (float)Math.Cos(a);
+                    ly[k] = r * (float)Math.Sin(a);
+                    lz[k] = z;
+                    float radKm = 420f + 520f * rng.NextFloat();
+                    lRadiusCos[k] = (float)Math.Cos(radKm / EarthRadiusKm);
+                }
+            }
+
+            int lipCount = 0, paleoCount = 0;
+            for (int i = 0; i < n; i++)
+            {
+                bool ocean = FlatTerrainAnalysis.Ocean(w.Water[i]);
+                float elev = w.Elevation[i];
+                var setting = geo.BoundarySetting[i];
+                float warp = 0.032f * fbmNoise[i];
+
+                // Stage 12 (`lips::generate_large_igneous_provinces`): flood-basalt traps
+                for (int k = 0; k < LipProvinceCount; k++)
+                {
+                    float dot = ux[i] * lx[k] + uy[i] * ly[k] + uz[i] * lz[k] + warp;
+                    if (dot >= lRadiusCos[k] && (!ocean ? elev >= 120f && elev <= 2800f : elev >= -3800f))
+                    {
+                        geo.Flags[i] |= GlebaGeoFlags.LargeIgneousProvince;
+                        lipCount++;
+                        break;
+                    }
+                }
+
+                // Stages 2 & 11 (`old_features::generate_old_mountains_and_hills`): eroded intraplate paleo-orogens
+                if (!ocean && setting == TectonicSetting.Interior && elev >= 340f && elev <= 1650f && f.Relief[i] >= 280f)
+                {
+                    float sutureNoise = SphericalFbm6(ux[i], uz[i], uy[i], 4.6f, seed ^ 0x01d0809eu);
+                    if (sutureNoise > -0.08f)
+                    {
+                        geo.Flags[i] |= GlebaGeoFlags.PaleoOrogen;
+                        if (geo.OrogenyStrengthByte[i] < 92) geo.OrogenyStrengthByte[i] = 92;
+                        paleoCount++;
+                    }
+                }
+
+                // Stage 17 (`superswells::generate_superswells`): broad dynamic-topography mantle superswell plateaus
+                if (!ocean && setting == TectonicSetting.Interior && elev >= 720f && elev <= 2100f && f.Relief[i] < 420f)
+                {
+                    float swell = SphericalFbm6(uy[i], ux[i], uz[i], 1.65f, seed ^ 0x509e85e1u);
+                    if (swell > 0.12f)
+                        geo.Flags[i] |= GlebaGeoFlags.MantleSuperswell;
+                }
+            }
+            geo.LipTileCount = lipCount;
+            geo.PaleoOrogenTileCount = paleoCount;
         }
 
         static void BuildTectonicsAndVolcanism(
@@ -722,6 +940,7 @@ namespace Orbis.Flat
                 }
                 geo.VolcanoCount = vCount;
                 geo.ActiveVolcanoCount = activeCount;
+                StampLipsPaleoOrogensAndSuperswells(w, f, geo, ux, uy, uz, fbmNoise, seed);
                 return;
             }
 
@@ -882,6 +1101,7 @@ namespace Orbis.Flat
             }
             geo.VolcanoCount = volTotal;
             geo.ActiveVolcanoCount = volActive;
+            StampLipsPaleoOrogensAndSuperswells(w, f, geo, ux, uy, uz, fbmNoise, seed);
         }
 
         static void BuildRoutedSoils(
@@ -893,6 +1113,7 @@ namespace Orbis.Flat
             var humidity = new float[n];
             var moisture = w.Moisture;
 
+            // Passes 1-3: Initialize from bedrock -> LGM glacier loess -> Aeolian desert deflation
             for (int i = 0; i < n; i++)
             {
                 if ((i & 8191) == 0) cancel.ThrowIfCancellationRequested();
@@ -923,11 +1144,22 @@ namespace Orbis.Flat
                     coastalBeach, f.AnnualRain[i], n0, n1, n2, n3, n0 * 0.7f, n1 * 0.7f);
                 GlebaEcologySupplement.ApplyGlacierLoess(ref s, true, lgmIce[i], w.Elevation[i]);
                 GlebaEcologySupplement.ApplyAeolianDeflation(ref s, true, w.Elevation[i], f.AnnualRain[i]);
+                soils[i] = s;
+            }
+
+            // Pass 4 (`soil::blur_soils`, 0x1808ed640): Depth-weighted Jacobi diffusion across land neighbors
+            GlebaEcologySupplement.BlurLandSoils(w, soils, iterations: 4, strength: 0.65f);
+
+            // Pass 5 (`soil::thin_mountain_soils`): Strip soil on steep alpine gradients
+            for (int i = 0; i < n; i++)
+            {
+                if (FlatTerrainAnalysis.AreaWater(w.Water[i])) continue;
+                var s = soils[i];
                 GlebaEcologySupplement.ThinMountainSoil(ref s, w.Elevation[i], f.Gradient[i]);
                 soils[i] = s;
             }
 
-            // Passes 5 & 6: Multi-pass fluvial sediment & nutrient routing along DrainOrder into floodplains & deltas
+            // Pass 6 (`soil::transport_sediments`): Multi-pass fluvial sediment & nutrient routing along DrainOrder
             var inflow = new float[n];
             var sedSand = new float[n];
             var sedSilt = new float[n];
@@ -994,58 +1226,126 @@ namespace Orbis.Flat
             float chemNoise = SphericalFbm6(vx, vy, vz, 6.10f, seed ^ 0x97531fdbu);
             bool ocean = FlatTerrainAnalysis.Ocean(w.Water[i]);
 
+            GetMicroplateGeochemistry(
+                geo.MicroplateId[i], seed,
+                out float baseFels, out float quartz, out float calcite, out float dolom, out float chalkif);
+            float felsicity = FMath.Clamp(baseFels + 0.12f * lithNoise, 0.35f, 0.85f);
+
+            // Stage 12 Large Igneous Provinces (flood-basalt traps: Basalt & rare ultramafic Picrobasalt)
+            if (geo.HasFlag(i, GlebaGeoFlags.LargeIgneousProvince))
+                return felsicity < 0.45f && lithNoise < -0.10f ? GlebaRockKind.Picrobasalt : GlebaRockKind.Basalt;
+
             if (ocean)
             {
                 if (geo.BoundarySetting[i] == TectonicSetting.Ridge)
-                    return lithNoise > 0.25f ? GlebaRockKind.Gabbro : GlebaRockKind.Basalt;
+                    return lithNoise > 0.44f ? GlebaRockKind.Peridotite : (lithNoise > 0.16f ? GlebaRockKind.Gabbro : GlebaRockKind.Basalt);
+                if (geo.BoundarySetting[i] == TectonicSetting.Subduction && elev < -3600f)
+                    return lithNoise > 0.22f ? GlebaRockKind.Eclogite : (lithNoise > -0.15f ? GlebaRockKind.Blueschist : GlebaRockKind.Basalt);
                 if (elev < -2200f)
-                    return chemNoise > 0.35f ? GlebaRockKind.Chert : (lithNoise > 0.2f ? GlebaRockKind.Gabbro : GlebaRockKind.Basalt);
+                    return (quartz >= 0.54f && chemNoise > 0.18f) ? GlebaRockKind.Chert : (lithNoise > 0.22f ? GlebaRockKind.Gabbro : GlebaRockKind.Basalt);
                 if (elev < -350f)
-                    return lithNoise > 0.15f ? GlebaRockKind.Shale : GlebaRockKind.Mudstone;
-                if (f.MeanTemperature[i] > 16f && chemNoise > -0.15f)
-                    return chemNoise > 0.3f ? GlebaRockKind.Limestone : GlebaRockKind.Chalk;
+                    return lithNoise > 0.18f ? GlebaRockKind.Shale : (lithNoise > -0.22f ? GlebaRockKind.Mudstone : GlebaRockKind.Claystone);
+                if (f.MeanTemperature[i] > 15f && calcite >= 0.50f && chemNoise > -0.20f)
+                {
+                    if (calcite >= 0.60f && chalkif >= 0.50f) return GlebaRockKind.Chalk;
+                    return dolom >= 0.80f ? GlebaRockKind.Dolostone : GlebaRockKind.Limestone;
+                }
                 return lithNoise > 0f ? GlebaRockKind.Sandstone : GlebaRockKind.Shale;
             }
 
             var setting = geo.BoundarySetting[i];
             if (setting == TectonicSetting.Subduction || setting == TectonicSetting.IslandArc)
-                return lithNoise > 0.25f ? GlebaRockKind.Rhyolite : (lithNoise > -0.25f ? GlebaRockKind.Andesite : GlebaRockKind.Diorite);
+            {
+                // High-P/Low-T subduction metamorphic belt (blueschist -> eclogite)
+                if (f.Relief[i] > 920f && chemNoise > 0.30f)
+                    return elev > 1850f ? GlebaRockKind.Eclogite : GlebaRockKind.Blueschist;
+                // Contact metamorphic aureoles around volcanic centers (skarn / hornfels)
+                if (geo.VolcanoFlags[i] != 0 && chemNoise > 0.10f)
+                    return calcite >= 0.50f ? GlebaRockKind.Skarn : GlebaRockKind.Hornfel;
+                // Deep eroded batholith vs extrusive volcanic arc by felsicity series
+                if (f.Relief[i] > 880f && lithNoise < -0.12f)
+                {
+                    if (felsicity >= 0.69f) return GlebaRockKind.Granite;
+                    if (felsicity >= 0.63f) return GlebaRockKind.Granodiorite;
+                    if (felsicity >= 0.52f) return GlebaRockKind.Diorite;
+                    return felsicity >= 0.45f ? GlebaRockKind.Gabbro : GlebaRockKind.Peridotite;
+                }
+                if (felsicity >= 0.69f) return GlebaRockKind.Rhyolite;
+                if (felsicity >= 0.63f) return GlebaRockKind.Dacite;
+                if (felsicity >= 0.52f) return GlebaRockKind.Andesite;
+                return felsicity >= 0.45f ? GlebaRockKind.Basalt : GlebaRockKind.Picrobasalt;
+            }
+
             if (setting == TectonicSetting.Rift || setting == TectonicSetting.Ridge)
-                return lithNoise > 0.1f ? GlebaRockKind.Basalt : GlebaRockKind.Sandstone;
-            if (setting == TectonicSetting.Collision && elev > 1400f)
-                return lithNoise > 0.2f ? GlebaRockKind.Granite : (chemNoise > 0f ? GlebaRockKind.Gneiss : GlebaRockKind.Schist);
+            {
+                if (chemNoise > 0.32f) return calcite >= 0.50f ? GlebaRockKind.Skarn : GlebaRockKind.Hornfel;
+                if (lithNoise > 0.08f) return felsicity < 0.45f ? GlebaRockKind.Picrobasalt : GlebaRockKind.Basalt;
+                return GlebaRockKind.Sandstone;
+            }
+
+            if (setting == TectonicSetting.Collision && elev > 1350f)
+            {
+                if (chemNoise > 0.30f)
+                    return calcite >= 0.50f ? GlebaRockKind.Marble : GlebaRockKind.Quartzite;
+                if (lithNoise > 0.24f)
+                    return felsicity >= 0.66f ? GlebaRockKind.Granite : GlebaRockKind.Granodiorite;
+                if (lithNoise < -0.26f)
+                    return elev > 3400f ? GlebaRockKind.Granulite : (elev > 2200f ? GlebaRockKind.Amphibolite : GlebaRockKind.Greenschist);
+                // Barrovian pelitic P-T series: slate -> phyllite -> schist -> gneiss -> migmatite
+                if (elev > 4000f) return GlebaRockKind.Migmatite;
+                if (elev > 2800f) return GlebaRockKind.Gneiss;
+                if (elev > 2000f) return GlebaRockKind.Schist;
+                return elev > 1550f ? GlebaRockKind.Phyllite : GlebaRockKind.Slate;
+            }
+
+            // Eroded intraplate paleo-orogens (Urals, Appalachians, Caledonides)
+            if (geo.HasFlag(i, GlebaGeoFlags.PaleoOrogen))
+            {
+                if (chemNoise > 0.24f) return calcite >= 0.50f ? GlebaRockKind.Marble : GlebaRockKind.Quartzite;
+                if (lithNoise > 0.22f) return GlebaRockKind.Granodiorite;
+                if (lithNoise > -0.05f) return GlebaRockKind.Phyllite;
+                return lithNoise > -0.28f ? GlebaRockKind.Slate : GlebaRockKind.Greenschist;
+            }
 
             // Arid endorheic evaporite basins
             if ((w.Downstream[i] < 0 || f.Forms[i] == Landform.Depression) && f.AnnualRain[i] < 260f)
             {
                 if (chemNoise > 0.28f) return GlebaRockKind.Halite;
                 if (chemNoise > -0.05f) return GlebaRockKind.Dolostone;
-                return GlebaRockKind.Sandstone;
+                return lithNoise < -0.20f ? GlebaRockKind.Claystone : GlebaRockKind.Sandstone;
             }
 
-            // High relief mountain belts & crystalline shields vs porous sedimentary basins
+            // High relief mountain belts & fanglomerate / talus breccias (minimum_elevation = 1000m in rock_types.lua)
             if (elev > 2200f || f.Relief[i] > 1100f)
             {
-                if (lithNoise > 0.22f) return GlebaRockKind.Granite;
-                if (lithNoise > -0.15f) return GlebaRockKind.Gneiss;
-                return chemNoise > 0.1f ? GlebaRockKind.Andesite : GlebaRockKind.Schist;
+                if (lithNoise > 0.25f) return felsicity >= 0.66f ? GlebaRockKind.Granite : GlebaRockKind.Granodiorite;
+                if (lithNoise > -0.12f) return elev > 3600f ? GlebaRockKind.Migmatite : GlebaRockKind.Gneiss;
+                return chemNoise > 0.15f ? GlebaRockKind.Marble : GlebaRockKind.Schist;
             }
 
-            if (f.Relief[i] > 650f && elev > 800f)
+            if (f.Relief[i] > 650f && elev >= 800f)
             {
-                if (lithNoise > 0.30f) return GlebaRockKind.Conglomerate;
-                return lithNoise > -0.10f ? GlebaRockKind.Slate : GlebaRockKind.Granite;
+                if (lithNoise > 0.30f) return elev >= 1000f && chemNoise > 0.05f ? GlebaRockKind.Breccia : GlebaRockKind.Conglomerate;
+                return lithNoise > -0.10f ? GlebaRockKind.Phyllite : GlebaRockKind.Slate;
             }
 
-            // Continental platforms, plains, river basins & karst provinces (mostly porous >= 0.16, with crystalline shield domes)
-            if (fbmMain > 0.42f) return GlebaRockKind.Granite;   // Crystalline shield dome (porosity 0.05, aquitard)
-            if (fbmMain > 0.30f) return GlebaRockKind.Gneiss;    // Metamorphic basement (porosity 0.15, aquitard)
-            if (chemNoise > 0.28f) return f.MeanTemperature[i] > 8f ? GlebaRockKind.Limestone : GlebaRockKind.Dolostone;
-            if (chemNoise > 0.12f && elev < 500f) return GlebaRockKind.Chalk;
-            if (lithNoise > 0.18f) return GlebaRockKind.Sandstone;
+            // Archean cratonic shields & basement domes (aquitard porosity < 0.16)
+            if (fbmMain > 0.42f)
+                return chemNoise > 0.22f ? GlebaRockKind.Greenstone : (felsicity >= 0.66f ? GlebaRockKind.Granite : GlebaRockKind.Granodiorite);
+            if (fbmMain > 0.30f)
+                return chemNoise > 0.26f ? GlebaRockKind.Amphibolite : (chemNoise < -0.26f ? GlebaRockKind.Granulite : GlebaRockKind.Gneiss);
+
+            // Continental sedimentary platforms, karst tables & river basins (porous >= 0.16 for regional aquifers)
+            if (calcite >= 0.50f && chemNoise > 0.14f)
+            {
+                if (calcite >= 0.60f && chalkif >= 0.50f && elev < 550f) return GlebaRockKind.Chalk;
+                return (dolom >= 0.80f || f.MeanTemperature[i] <= 7f) ? GlebaRockKind.Dolostone : GlebaRockKind.Limestone;
+            }
+            if (quartz >= 0.58f && chemNoise > 0.28f) return GlebaRockKind.Chert;
+            if (lithNoise > 0.16f) return GlebaRockKind.Sandstone;
             if (lithNoise > -0.12f) return GlebaRockKind.Siltstone;
             if (lithNoise > -0.34f) return GlebaRockKind.Shale;
-            return chemNoise > 0f ? GlebaRockKind.Mudstone : GlebaRockKind.Basalt;
+            return chemNoise > -0.18f ? GlebaRockKind.Mudstone : GlebaRockKind.Claystone;
         }
 
         static void ClassifyWaterbodiesAndInaccessibility(
@@ -2195,6 +2495,18 @@ namespace Orbis.Flat
                         pg = FMath.Lerp(pg, 88f, 0.58f);
                         pb = FMath.Lerp(pb, 236f, 0.58f);
                     }
+                    if (geo.HasFlag(tile, GlebaGeoFlags.LargeIgneousProvince))
+                    {
+                        pr = FMath.Lerp(pr, 88f, 0.50f);
+                        pg = FMath.Lerp(pg, 54f, 0.50f);
+                        pb = FMath.Lerp(pb, 218f, 0.56f);
+                    }
+                    else if (geo.HasFlag(tile, GlebaGeoFlags.PaleoOrogen))
+                    {
+                        pr = FMath.Lerp(pr, 186f, 0.44f);
+                        pg = FMath.Lerp(pg, 146f, 0.44f);
+                        pb = FMath.Lerp(pb, 88f, 0.44f);
+                    }
                     if (plateEdge)
                     {
                         pr = FMath.Lerp(pr, 250f, 0.42f);
@@ -2204,6 +2516,53 @@ namespace Orbis.Flat
                     r = (byte)FMath.Clamp(pr, 0f, 255f);
                     g = (byte)FMath.Clamp(pg, 0f, 255f);
                     b = (byte)FMath.Clamp(pb, 0f, 255f);
+                    return;
+                }
+                case GlebaMapmodeKind.CropsAndCarryingCapacity:
+                {
+                    if (isWater) { r = 22; g = 38; b = 58; return; }
+                    if (world.Facts != null && world.Facts.GroundedIceMeters[tile] > 0.01f) { r = 224; g = 232; b = 240; return; }
+                    if (geo == null)
+                    {
+                        SampleCividis(FMath.Clamp(world.Fertility[tile], 0f, 1f), out r, out g, out b);
+                        return;
+                    }
+                    float cap = geo.CarryingCapacityByte[tile] / 255f;
+                    float suit = geo.CropSuitabilityByte[tile] / 255f;
+                    var crop = geo.DominantCrop[tile];
+
+                    // Base carrying-capacity tone: cold/arid slate (64,62,58) -> pastoral ochre (156,136,86) -> fertile cradle gold-green
+                    float cr = FMath.Lerp(64f, 168f, FMath.Clamp(cap * 1.6f, 0f, 1f));
+                    float cg = FMath.Lerp(62f, 162f, FMath.Clamp(cap * 1.6f, 0f, 1f));
+                    float cb = FMath.Lerp(58f, 92f, FMath.Clamp(cap * 1.6f, 0f, 1f));
+
+                    if (crop != GlebaFounderCrop.None && suit > 0.02f)
+                    {
+                        float wCrop = FMath.Clamp(0.28f + 0.65f * suit, 0f, 0.88f);
+                        float tr = 180f, tg = 210f, tb = 110f;
+                        switch (crop)
+                        {
+                            case GlebaFounderCrop.WildPea:         tr = 238f; tg = 196f; tb =  68f; break; // Warm pulse amber
+                            case GlebaFounderCrop.WildBitterVetch: tr = 242f; tg = 128f; tb =  64f; break; // Fertile Crescent terracotta-amber
+                            case GlebaFounderCrop.WildRye:         tr = 152f; tg = 224f; tb =  96f; break; // Temperate cereal lime-green
+                            case GlebaFounderCrop.WildRice:        tr =  64f; tg = 208f; tb = 172f; break; // Monsoon paddy jade
+                            case GlebaFounderCrop.AzollaCompanion: tr =  42f; tg = 236f; tb = 212f; break; // Azolla-rice nitrogen-fixing bright aqua
+                        }
+                        cr = FMath.Lerp(cr, tr, wCrop);
+                        cg = FMath.Lerp(cg, tg, wCrop);
+                        cb = FMath.Lerp(cb, tb, wCrop);
+                    }
+                    if (cap >= 0.58f)
+                    {
+                        // Highlight top alluvial/coastal civilization cradles
+                        float glow = FMath.Clamp((cap - 0.58f) / 0.32f, 0f, 1f) * 0.35f;
+                        cr = FMath.Lerp(cr, 255f, glow);
+                        cg = FMath.Lerp(cg, 244f, glow);
+                        cb = FMath.Lerp(cb, 156f, glow);
+                    }
+                    r = (byte)FMath.Clamp(cr, 0f, 255f);
+                    g = (byte)FMath.Clamp(cg, 0f, 255f);
+                    b = (byte)FMath.Clamp(cb, 0f, 255f);
                     return;
                 }
                 case GlebaMapmodeKind.HydroGeoComposite:
@@ -2509,6 +2868,7 @@ namespace Orbis.Flat
                 case MapLayer.GlebaBedrock: return GlebaMapmodeKind.Bedrock;
                 case MapLayer.GlebaTectonics: return GlebaMapmodeKind.TectonicsAndVolcanism;
                 case MapLayer.GlebaHydroGeo: return GlebaMapmodeKind.HydroGeoComposite;
+                case MapLayer.GlebaCrops: return GlebaMapmodeKind.CropsAndCarryingCapacity;
                 default: return GlebaMapmodeKind.ClimateSurfaceWinds;
             }
         }

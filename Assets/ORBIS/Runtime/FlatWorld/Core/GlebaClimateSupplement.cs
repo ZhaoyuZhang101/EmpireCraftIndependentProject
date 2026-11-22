@@ -407,6 +407,10 @@ namespace Orbis.Flat
                 d.BoundarySetting = geo.BoundarySetting[tile];
                 d.OrogenyStrength = geo.OrogenyStrengthByte[tile] / 255f;
                 d.HasVolcano = geo.TryGetVolcano(tile, out d.VolcanoKind, out d.VolcanoDormant, out d.VolcanoVei);
+                d.DominantCrop = geo.DominantCrop[tile];
+                d.CropSuitability = geo.CropSuitabilityByte[tile] / 255f;
+                d.NitrogenFixing = geo.NitrogenFixingByte[tile] / 255f;
+                d.CarryingCapacity = geo.CarryingCapacityByte[tile] / 255f;
             }
             return d;
         }
@@ -437,6 +441,8 @@ namespace Orbis.Flat
         public bool HasVolcano, VolcanoDormant;
         public VolcanoKind VolcanoKind;
         public float VolcanoVei;
+        public GlebaFounderCrop DominantCrop;
+        public float CropSuitability, NitrogenFixing, CarryingCapacity;
         public int AreaId, RegionId, SuperRegionId, SubcontinentId;
     }
 }

@@ -80,7 +80,7 @@ namespace Orbis.Flat
             sizeField.choices=new List<string>(Array.ConvertAll(playerWidths,width=>$"{width} × {width/2}"));
             sizeField.index=Math.Max(0,Array.FindLastIndex(playerWidths,width=>width<=initialWidth));
             presetField=root.Q<DropdownField>("preset");presetField.choices=new List<string>{"大陆与群山","群岛","超级大陆","内海世界","地球（真实地形）"};presetField.index=0;
-            layerField=root.Q<DropdownField>("layer");layerField.choices=new List<string>{"自然地表","文明版图","20 档高度","Köppen 柯本气候","本月温度","本月降水","海水与淡水","土地肥力","地貌 / 丘陵高原","地表材料 / 沙泥砾岩","土壤桶湿度","河流 / 河口悬沙","生态植被 / 14 类","河网","风带与气压（Gleba）","洋流与海温（Gleba）","高空急流与罗斯贝波（Gleba）","地形雨影与大陆度（Gleba）","月均相对湿度（Gleba）","生态群系 23 类（Gleba）","乔灌草植被结构 RGB（Gleba）","土壤质地砂粉黏 RGB（Gleba）","土壤厚度与矿质养分（Gleba）","基岩岩性 20 类（Gleba）","板块边界、造山与火山（Gleba）","含水层、冰期峡湾与珊瑚礁（Gleba）"};layerField.index=0;
+            layerField=root.Q<DropdownField>("layer");layerField.choices=new List<string>{"自然地表","文明版图","20 档高度","Köppen 柯本气候","本月温度","本月降水","海水与淡水","土地肥力","地貌 / 丘陵高原","地表材料 / 沙泥砾岩","土壤桶湿度","河流 / 河口悬沙","生态植被 / 14 类","河网","风带与气压（Gleba）","洋流与海温（Gleba）","高空急流与罗斯贝波（Gleba）","地形雨影与大陆度（Gleba）","月均相对湿度（Gleba）","生态群系 23 类（Gleba）","乔灌草植被结构 RGB（Gleba）","土壤质地砂粉黏 RGB（Gleba）","土壤厚度与矿质养分（Gleba）","基岩岩性 37 类（Gleba）","板块边界、造山与火山（Gleba）","含水层、冰期峡湾与珊瑚礁（Gleba）","起源作物与承载力（Gleba）"};layerField.index=0;
             climateYearField=root.Q<DropdownField>("climateYear");climateYearField.choices=new List<string>{"今年","明年","后年"};climateYearField.index=0;
             climateYearField.RegisterValueChangedCallback(e=>{if(map){map.SetClimateYearOffset(climateYearField.index);UpdateHUD();}});
             layerField.RegisterValueChangedCallback(e=>{
@@ -321,7 +321,7 @@ namespace Orbis.Flat
             try
             {
                 next.Initialize(world);next.GetComponent<MeshRenderer>().enabled=false;
-                next.SetLayer((MapLayer)Mathf.Clamp(layerField.index,0,(int)MapLayer.GlebaHydroGeo));
+                next.SetLayer((MapLayer)Mathf.Clamp(layerField.index,0,(int)MapLayer.GlebaCrops));
                 next.SetClimateYearOffset(climateYearField.index);
                 nextNav.Initialize(world,viewCamera,next);
                 nextGlobe.Initialize(world,viewCamera,next,true);nextGlobe.PrepareScroll();
@@ -634,8 +634,16 @@ namespace Orbis.Flat
                 if(gd.IceMeters>0.01f||gd.LgmIceMeters>0.5f)
                     sb.Append("\n现代冰川：").Append(gd.IceMeters.ToString("F0")).Append(" m · 末次盛冰期 LGM 冰盖：").Append(gd.LgmIceMeters.ToString("F0")).Append(" m");
                 sb.Append("\n六遍土壤：厚 ").Append(gd.Soil.Depth.ToString("F2")).Append(" m · 砂 ").Append(gd.Soil.Sand.ToString("P0")).Append(" / 粉 ").Append(gd.Soil.Silt.ToString("P0")).Append(" / 黏 ").Append(gd.Soil.Clay.ToString("P0")).Append(" · 矿质 ").Append(gd.Soil.MineralRichness.ToString("P0")).Append(" · 渗透 ").Append(gd.Soil.GetPermeability().ToString("P0"));
+                sb.Append("\n农业与承载力：").Append(GlebaEcologySupplement.GetFounderCropLabel(gd.DominantCrop)).Append(" (适生 ").Append(gd.CropSuitability.ToString("P0")).Append(") · 聚落承载力 ").Append(gd.CarryingCapacity.ToString("P0"));
             }
             sb.Append("\n基岩：").Append(gd.RockKind).Append(" · 板块 #").Append(gd.PlateId).Append(" (地体 #").Append(gd.MicroplateId).Append(") · 构造：").Append(gd.BoundarySetting).Append(" (造山 ").Append(gd.OrogenyStrength.ToString("P0")).Append(')');
+            if((gd.GeoFlags&(GlebaGeoFlags.LargeIgneousProvince|GlebaGeoFlags.PaleoOrogen|GlebaGeoFlags.MantleSuperswell))!=0)
+            {
+                sb.Append("\n深部构造特征：");
+                if((gd.GeoFlags&GlebaGeoFlags.LargeIgneousProvince)!=0)sb.Append("大火成岩省溢流玄武岩台地 (LIP) ");
+                if((gd.GeoFlags&GlebaGeoFlags.PaleoOrogen)!=0)sb.Append("古造山剥蚀缝合带 ");
+                if((gd.GeoFlags&GlebaGeoFlags.MantleSuperswell)!=0)sb.Append("地幔超级隆起高原 ");
+            }
             if(gd.HasVolcano)
                 sb.Append("\n火山活动：").Append(gd.VolcanoKind).Append(gd.VolcanoDormant?" (休眠)":" (活火山)").Append(" · 爆发指数 ").Append(gd.VolcanoVei.ToString("F1")).Append(" VEI");
             if(!areaWater&&gd.AquiferId>=0)

@@ -108,5 +108,57 @@
 - **全球海洋不可达度与四级地理区划**：太平洋主大洋不可达度 `0 km`，准噶尔盆地（欧亚大陆难抵极）不可达度达 **`2,971 km`**，里海不重置海洋距离；全球自动聚合为 **`4,475` Areas → `643` Regions → `196` SuperRegions → `108` Subcontinents**，并输出 8 大 Wallace 生物地理界。
 - **12 个月季节洋流与 Cividis 图层**：索马里/北印度洋表层流在 1 月东北季风与 7 月西南季风间呈现显著反转；完整提供 Gleba 11 阶 Cividis 色带（`#00224e -> #fee837`）、向岸蓝/离岸红海岸风着色及 `(FlowU, -FlowV)` UV 矢量流场接口。
 - **6 遍水系路由土壤、23 类群系与构造火山体系**：撒哈拉风蚀沙地砂粒占比达 **`95%`**，恒河—布拉马普特拉等大河三角洲泛滥平原富集深厚粉砂—黏土冲积壤土（土层深 `> 2.5 m`）；芬诺斯堪的亚/劳伦泰德复现末次盛冰期（LGM）大陆冰盖；地球环太平洋与巽他俯冲弧自动识别 `24` 处火山中心（`19` 座活火山，含 VEI 爆发指数）。
-- **12 项可交互 Gleba 专题图层**：涵盖 `风带与气压`、`洋流与海温`、`高空急流与罗斯贝波`（均带 GPU 实时动态流线箭头）、`地形雨影与大陆度`、`月均相对湿度`、`生态群系 23 类`、`乔灌草植被结构 RGB`、`土壤质地砂粉黏 RGB`、`土壤厚度与矿质养分`、`基岩岩性 20 类`、`板块边界、造山与火山`、`含水层、冰期峡湾与珊瑚礁`。
+- **13 项可交互 Gleba 专题图层**：涵盖 `风带与气压`、`洋流与海温`、`高空急流与罗斯贝波`（均带 GPU 实时动态流线箭头）、`地形雨影与大陆度`、`月均相对湿度`、`生态群系 23 类`、`乔灌草植被结构 RGB`、`土壤质地砂粉黏 RGB`、`土壤厚度与矿质养分`、`基岩岩性 37 类`、`板块边界、造山与火山`、`含水层、冰期峡湾与珊瑚礁`、`起源作物与承载力`。
 - **卫星级物理气候云场（位置 + 形状双重升级）**：基于 Gleba 海平面气压下沉区、动态 ITCZ、极锋斜压风暴轴、东边界冷涌升海温与二维山脉雨影生成 `256×128` 物理强迫场（地球 7 月南亚季风抬升 `0.98` vs 撒哈拉副高下沉 `0.38`，秘鲁涌升寒流海洋层积云 `0.38`，南大洋咆哮西风带斜压风暴轴 `0.85`，亚洲—印度洋 ITCZ 对流核纬度从 1 月 `-2.7°` 北跳至 7 月 `+13.9°`），并在 [FlatSkyBake.shader](file:///d:/ORBIS_TerrainPerf3_5_Markley/Assets/ORBIS/Resources/ORBIS/FlatWorld/FlatSkyBake.shader) 与 [ScrollCloudSource.cginc](file:///d:/ORBIS_TerrainPerf3_5_Markley/Assets/ORBIS/Resources/ORBIS/FlatWorld/ScrollCloudSource.cginc) 中实现斜压逗点锋面气旋、冷锋干舌、ITCZ 对流云团与顺高空风剪切铁砧卷云、信风积云街、冷涌升蜂窝海洋层积云及多尺度 3D 体积云团细节（彻底消除旧版大尺度各向同性团块噪波）。
+
+---
+
+## 5. Round 11 终审补全清单（Gleba 全 66 阶段无死角收口）
+
+在对 `gleba_godot.dll` 全部符号表（66 个默认生成阶段 `Stages 0..65`）及全部 Lua/RON/Shader 数据文件（`core/data.lua`、`base/data/rock_types.lua`、`plants.lua`、`biomes.lua`、`mapmode.lua`、`model.ron`、`static.ron`）逐项核查后，Round 11 将最后 4 项遗漏细节全部补齐：
+
+1. **完整 37 类基岩注册表与地体地球化学（`Stages 1, 3, 13, 30` + `rock_types.lua`）**：
+   - 补齐 `core/data.lua` + `rock_types.lua` 中全部 **37 类活性基岩**（在原有 20 类基础上新增 `Breccia` 角砾岩、`Granodiorite` 花岗闪长岩、`Peridotite` 橄榄岩、`Dacite` 英安岩、`Picrobasalt` 苦橄玄武岩、`Marble` 大理岩、`Quartzite` 石英岩、`Skarn` 矽卡岩、`Hornfel` 角页岩、`Phyllite` 千枚岩、`Migmatite` 混合岩、`Blueschist` 蓝片岩、`Eclogite` 榴辉岩、`Greenstone` 绿岩、`Amphibolite` 角闪岩、`Greenschist` 绿片岩、`Granulite` 麻粒岩），精确还原每类岩石的砂/粉/黏风化配比、风化速率、矿质富集度、有效孔隙度与 `map_color`。
+   - 复刻 `get_microplate_quartz_and_calcite`（`0x1808f8220`）微板块地体归一化 `(quartz, calcite)` 与长英度 `felsicity` 判别逻辑（Earth `256×128` 实测自然分化出 `35/37` 种基岩省）。
+2. **大火成岩省溢流玄武岩台地（LIPs，`Stage 12`）、古造山剥蚀带（`Stages 2 & 11`）与地幔超级隆起（`Stage 17`）**：
+   - 新增 `GlebaGeoFlags.LargeIgneousProvince`、`PaleoOrogen`、`MantleSuperswell`：在真实地球自动锚定德干暗色岩（Deccan Traps）、西伯利亚暗色岩、埃塞俄比亚高原、巴拉那与哥伦比亚河五大溢流玄武岩省（风化生成高矿质 `mineral_richness = 1.0` 黑棉土），在随机大陆按球面噪波生成古缝合山系与地幔隆起高原。
+3. **第 49 阶段第 4 遍土壤空间扩散（`soil::blur_soils`，`0x1808ed640`）**：
+   - 在 [GlebaEcologySupplement.cs](file:///d:/ORBIS_TerrainPerf3_5_Markley/Assets/ORBIS/Runtime/FlatWorld/Core/GlebaEcologySupplement.cs) 新增按土层厚度加权的陆邻域 Jacobi 扩散算子 `BlurLandSoils`，严格嵌入 `ApplyAeolianDeflation`（第 3 遍）与 `ThinMountainSoil` / `StepFluvialSediment`（第 5–6 遍）之间，消除岩性边界锯齿同时完整保留河谷冲积与海岸对比。
+4. **第 54 阶段原生可驯化起源作物（`plants.lua` + `get_preference_score_in`）与第 61–62 阶段文明摇篮承载力（`find_civilization_spots`）**：
+   - 移植 `WildPea`（野生豌豆，固氮 `0.70`）、`WildBitterVetch`（苦野豌豆，固氮 `0.15`）、`WildRye`（野生黑麦）、`WildRice`（普通野生稻）及水稻伴生固氮蕨 `AzollaCompanion`（满江红，固氮 `1.00`）的 6 维分段偏好乘积评估器与聚落承载力评分，新增 **`MapLayer.GlebaCrops`（`起源作物与承载力（Gleba）`）** 视图及 Tile HUD 面板展示（Earth `256` 实测长江流域主导 `WildRice`、中欧黄土带主导 `WildRye/WildPea`、全球识别 `1,837` 个高承载文明摇篮格）。
+
+---
+
+## 6. GPT 分支合并交接指南（`DiDu_geleba` Merge Handover Guide）
+
+### 6.1 分支拓扑信息
+- **分支名称**：`DiDu_geleba`
+- **分叉基线提交（Merge Base）**：`8d311ab`（`Couple land heating, wind-driven evaporation and orographic rain to climate normals`）
+- **设计策略**：核心物理与数据全部封装在独立的 `Gleba*.cs` 与 `FlatCirculationOverlay.cginc` 补充包模块中，对宿主管线采用最小侵入式挂载，不改变存档二进制格式（`FlatSave` 无破坏性变更）。
+
+### 6.2 新增独立模块清单（全部配备唯一 GUID `.meta`，可直接无冲突合入）
+- `Assets/ORBIS/Runtime/FlatWorld/Core/GlebaClimateConfig.cs` (+ `.meta`)
+- `Assets/ORBIS/Runtime/FlatWorld/Core/GlebaHelmholtzSolver.cs` (+ `.meta`)
+- `Assets/ORBIS/Runtime/FlatWorld/Core/GlebaCirculationBands.cs` (+ `.meta`)
+- `Assets/ORBIS/Runtime/FlatWorld/Core/GlebaClimateSupplement.cs` (+ `.meta`)
+- `Assets/ORBIS/Runtime/FlatWorld/Core/GlebaEcologySupplement.cs` (+ `.meta`)
+- `Assets/ORBIS/Runtime/FlatWorld/Core/GlebaGeographySupplement.cs` (+ `.meta`)
+- `Assets/ORBIS/Runtime/FlatWorld/Core/FlatSeasonalSnow.cs` (+ `.meta`)
+- `Assets/ORBIS/Resources/ORBIS/FlatWorld/FlatCirculationOverlay.cginc` (+ `.meta`)
+- `Validation/FlatWorld/GlebaSupplementRegression.cs`
+- `Preview/OrbisUI_Round2_Proposals.html`
+- `docs/superpowers/specs/2026-11-22-ui-proposal-a-edge-rail.md`
+- `docs/superpowers/specs/2026-11-22-gleba-climate-reference.md`
+- `docs/superpowers/specs/2026-11-22-gleba-port-results.md`
+
+### 6.3 与主线 / `codex` 并行修改文件的合并冲突消解规则
+若目标分支同时包含近期河网/海峡/湖冰/季节植被等改动，按以下规则保留双方增量即可零风险合入：
+1. **`FlatTypes.cs`**：保留 `MapLayer` 枚举末尾追加的 13 个 Gleba 图层（`SurfaceWinds .. GlebaCrops`），并保留目标分支新增的 `WorldData` 字段（如 `UsesGlobalStraits` 等）。
+2. **`FlatTerrainAnalysis.cs` & `FlatEcology.cs`**：保留 `FlatTerrainFacts` 上的 `Biotemperature`、`GroundedIceMeters`、`GlebaBiomes`、`GlebaGeography` 派生缓存构建与 `Clone()` 拷贝，同时保留目标分支的 `LakeIce` 等字段。
+3. **`FlatMoisture.cs`、`FlatWindBelts.cs`、`FlatOceanCirculation.cs`、`FlatClimate.cs`**：保留 `FlatMoistureState.Gleba`（`GlebaClimateSupplement.Build`）耦合、Ekman/涌升海温修正与极地冰穹降温项；若目标分支调整了季风通量系数，保留 `Gleba` 补充项叠加逻辑。
+4. **`FlatMapRenderer.cs`、`FlatMapRenderJobs.cs`、`FlatGlobePresenter.cs`、`FlatPalette.cs`**：保留 `layer >= MapLayer.SurfaceWinds` 的 `OverlayColor` 采样分支、`UpdateGlebaCirculationOverlay` 流场半精度纹理上传及 `FlatPalette.Legend` 中的 Gleba 图例分支。
+5. **`FlatSkyRenderer.cs`、`FlatSkyBake.shader`、`ScrollCloudSource.cginc`**：保留 `GlebaGeographySupplement.BuildCloudSynopticFields` 生成的 `_CloudSynopticTex` / `_CloudSynopticAuxTex` / `_UpperWindTex` 绑定与斜压锋面/ITCZ/层积云着色器函数。
+6. **地表 Shader（`FlatMap.shader`、`FlatMapFragment.cginc`、`LocalSurface.shader`、`ScrollSurface.shader`、`Surface.shader`）**：保留 `#include "FlatCirculationOverlay.cginc"`（在 `Surface.shader` 中为 `#include "FlatWorld/FlatCirculationOverlay.cginc"`）与片元末尾的 `GlebaApplyCirculationOverlay(...)` 调用；注意不要新增额外 `SamplerState`（已严格控制在 D3D11 16 采样器上限内）。
+7. **`FlatWorldApp.cs`**：保留 `layerField.choices` 末尾追加的 13 个 Gleba 中文图层名、`Mathf.Clamp(..., (int)MapLayer.GlebaCrops)` 上界，以及 `UpdateHUD()` 中调用的 `FormatGlebaTileHud(i)`。
+8. **`Validation/FlatWorld/Program.cs`**：保留 `--gleba-supplement` CLI 入口（调用 `GlebaSupplementRegression.Run()`）。
+

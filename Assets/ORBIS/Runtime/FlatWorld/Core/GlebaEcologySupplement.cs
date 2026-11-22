@@ -44,6 +44,32 @@ namespace Orbis.Flat
         Swamp = 22
     }
 
+    /// <summary>
+    /// Domesticable wild founder crops & nitrogen-fixing companion species from Gleba v0.3.6 (mods/base/data/plants.lua).
+    /// </summary>
+    public enum GlebaFounderCrop : byte
+    {
+        None = 0,
+        WildPea = 1,          // Pisum sativum elatius -> Common pea (nitrogen_fixing = 0.70 -> 1.0)
+        WildBitterVetch = 2,  // Vicia ervilia -> Common bitter vetch (nitrogen_fixing = 0.15 -> 0.70)
+        WildRye = 3,          // Secale segetale -> Common rye
+        WildRice = 4,         // Oryza rufipogon -> Short-grain & Long-grain rice
+        AzollaCompanion = 5   // Azolla (Fairy moss) paddy nitrogen-fixing companion (nitrogen_fixing = 1.0)
+    }
+
+    public struct GlebaCropEvaluation
+    {
+        public GlebaFounderCrop DominantCrop;
+        public float MaxSuitability;
+        public float PeaScore;
+        public float BitterVetchScore;
+        public float RyeScore;
+        public float RiceScore;
+        public float AzollaScore;
+        public float NitrogenFixing;
+        public float CarryingCapacity;
+    }
+
     public struct GlebaSoilState
     {
         public float Sand;
@@ -124,6 +150,18 @@ namespace Orbis.Flat
         static readonly GlebaClimateConfig.CurvePoint[] SeaIceCurve = {
             P(-100f, 30f), P(-30f, 20f), P(-10f, 10f), P(-1f, 3f), P(0f, 0f)
         };
+
+        // Wild founder crop preference curves from mods/base/data/plants.lua & PlantSpecies::get_preference_score_in (0x180a67c20)
+        static readonly GlebaClimateConfig.CurvePoint[] PeaLatCurve = { P(20f, 0f), P(30f, 1f), P(40f, 1f), P(50f, 0.1f), P(66f, 0f) };
+        static readonly GlebaClimateConfig.CurvePoint[] VetchLatCurve = { P(30f, 0f), P(35f, 0.1f), P(40f, 1f), P(45f, 0.1f), P(50f, 0.1f), P(62f, 0f) };
+        static readonly GlebaClimateConfig.CurvePoint[] PeaVetchTempCurve = { P(0f, 0f), P(10f, 0.5f), P(14f, 1f), P(20f, 0.5f), P(30f, 0.25f), P(38f, 0f) };
+        static readonly GlebaClimateConfig.CurvePoint[] TemperateCropRainCurve = { P(0f, 0f), P(20f, 0.1f), P(40f, 0.5f), P(70f, 1f), P(115f, 0.85f), P(165f, 0.40f) };
+        static readonly GlebaClimateConfig.CurvePoint[] RyeLatCurve = { P(0f, 0f), P(24f, 0f), P(33f, 1f), P(54f, 1f), P(70f, 0f) };
+        static readonly GlebaClimateConfig.CurvePoint[] RyeTempCurve = { P(0f, 0f), P(10f, 1f), P(19f, 1f), P(28f, 0.25f), P(36f, 0f) };
+        static readonly GlebaClimateConfig.CurvePoint[] RiceLatCurve = { P(0f, 1f), P(29f, 1f), P(42f, 0f) };
+        static readonly GlebaClimateConfig.CurvePoint[] RiceTempCurve = { P(0f, 0f), P(10f, 0.75f), P(30f, 1f), P(35f, 1f), P(50f, 0f) };
+        static readonly GlebaClimateConfig.CurvePoint[] RiceRainCurve = { P(0f, 0f), P(40f, 0.1f), P(70f, 0.9f), P(100f, 1f) };
+        static readonly GlebaClimateConfig.CurvePoint[] RicePermClayCurve = { P(0f, 0.75f), P(0.5f, 1f), P(1f, 0.75f) };
 
         static float Eval3(float x, float x0, float y0, float x1, float y1, float x2, float y2)
         {
@@ -572,6 +610,187 @@ namespace Orbis.Flat
             soils[u].Clay = (oldD * soils[u].Clay + depClay) / newD;
             soils[u].NormalizeTexture();
             soils[u].Depth = oldD + depDepth;
+        }
+
+        /// <summary>
+        /// Stage 49 Pass 4 (`soil::blur_soils`, 0x1808ed640): Depth-weighted Jacobi diffusion of
+        /// sand, clay, silt, and mineral richness across adjacent land tiles (leaving organics and coastlines intact).
+        /// </summary>
+        public static void BlurLandSoils(WorldData world, GlebaSoilState[] soils, int iterations = 4, float strength = 0.65f)
+        {
+            if (world == null || soils == null || iterations <= 0 || strength <= 0f) return;
+            int n = world.Count;
+            var next = new GlebaSoilState[n];
+            for (int iter = 0; iter < iterations; iter++)
+            {
+                for (int i = 0; i < n; i++)
+                {
+                    if (FlatTerrainAnalysis.AreaWater(world.Water[i])) continue;
+                    var s = soils[i];
+                    float d0 = Math.Max(s.Depth, 1e-5f);
+                    float depthSum = d0;
+                    float weightSum = 1f;
+                    float sandSum = d0 * s.Sand;
+                    float claySum = d0 * s.Clay;
+                    float siltSum = d0 * s.Silt;
+                    float minSum = d0 * s.MineralRichness;
+
+                    for (int d = 0; d < 4; d++)
+                    {
+                        int nb = world.SphereNeighbor(i, d);
+                        if (FlatTerrainAnalysis.AreaWater(world.Water[nb])) continue;
+                        var sn = soils[nb];
+                        float dn = Math.Max(sn.Depth, 1e-5f) * strength;
+                        depthSum += dn;
+                        weightSum += strength;
+                        sandSum += dn * sn.Sand;
+                        claySum += dn * sn.Clay;
+                        siltSum += dn * sn.Silt;
+                        minSum += dn * sn.MineralRichness;
+                    }
+
+                    float invD = 1f / Math.Max(depthSum, 1e-5f);
+                    var dst = new GlebaSoilState
+                    {
+                        Sand = sandSum * invD,
+                        Clay = claySum * invD,
+                        Silt = siltSum * invD,
+                        Depth = depthSum / weightSum,
+                        MineralRichness = FMath.Clamp(minSum * invD, 0f, 1f),
+                        Organics = s.Organics
+                    };
+                    dst.NormalizeTexture();
+                    next[i] = dst;
+                }
+                Array.Copy(next, soils, n);
+            }
+        }
+
+        /// <summary>
+        /// Exact `obj.civ_spawning_block = true` biome table from Gleba v0.3.6 `mods/base/data/biomes.lua`.
+        /// </summary>
+        public static bool IsBiomeCivSpawningBlocked(GlebaBiomeKind biome)
+        {
+            switch (biome)
+            {
+                case GlebaBiomeKind.DesertsAndXericShrublands:
+                case GlebaBiomeKind.RockyWasteland:
+                case GlebaBiomeKind.ArcticWasteland:
+                case GlebaBiomeKind.Tundra:
+                case GlebaBiomeKind.Sea:
+                case GlebaBiomeKind.GlaciatedSea:
+                case GlebaBiomeKind.SweetwaterLake:
+                case GlebaBiomeKind.GlaciatedSweetwaterLake:
+                case GlebaBiomeKind.SaltwaterLake:
+                case GlebaBiomeKind.GlaciatedSaltwaterLake:
+                case GlebaBiomeKind.Glacier:
+                    return true;
+                default:
+                    return false;
+            }
+        }
+
+        public static string GetFounderCropLabel(GlebaFounderCrop crop)
+        {
+            switch (crop)
+            {
+                case GlebaFounderCrop.WildPea: return "野生豌豆 → 豌豆 (固氮 0.70)";
+                case GlebaFounderCrop.WildBitterVetch: return "野生苦野豌豆 → 苦野豌豆 (固氮 0.15)";
+                case GlebaFounderCrop.WildRye: return "野生黑麦 → 黑麦";
+                case GlebaFounderCrop.WildRice: return "普通野生稻 → 粳稻/籼稻";
+                case GlebaFounderCrop.AzollaCompanion: return "野生稻 + 满江红固氮共生系 (固氮 1.00)";
+                default: return "无原生起源农作物";
+            }
+        }
+
+        /// <summary>
+        /// Evaluates Stage 54 domesticable wild founder crops (`plants.lua` + `PlantSpecies::get_preference_score_in`, 0x180a67c20)
+        /// and Stages 61-62 settlement / carrying-capacity score (`find_civilization_spots`, 0x180a55060).
+        /// </summary>
+        public static GlebaCropEvaluation EvaluateFounderCropsAndCarryingCapacity(
+            bool isLand, bool isCoast, float elevationMeters, float absLatitudeDegrees,
+            float meanAnnualTempC, float annualRainMm, float relativeHumidity,
+            float erosionWaterflow, GlebaBiomeKind biome, in GlebaSoilState soil)
+        {
+            var eval = new GlebaCropEvaluation();
+            if (!isLand || elevationMeters < 0f || soil.Depth <= 1e-4f) return eval;
+
+            float perm = FMath.Clamp(soil.GetPermeability(), 0f, 1f);
+            float clay = FMath.Clamp(soil.Clay, 0f, 1f);
+            float minRich = FMath.Clamp(soil.MineralRichness, 0f, 1f);
+            float rainMo = annualRainMm / 12f;
+            // Alluvial river floodplains supply natural flood-recession moisture alongside local rainfall
+            float riverIrrigMo = erosionWaterflow > 12f
+                ? Math.Min(52f, 2.8f * (float)Math.Sqrt(Math.Max(0f, erosionWaterflow - 12f)))
+                : 0f;
+            float effRainMo = rainMo + riverIrrigMo;
+
+            // 6-curve multiplicative preference scores matching PlantSpecies::get_preference_score_in (0x180a67c20)
+            float tempRain = GlebaClimateConfig.EvaluateCurve(TemperateCropRainCurve, effRainMo);
+            float peaVetchTemp = GlebaClimateConfig.EvaluateCurve(PeaVetchTempCurve, meanAnnualTempC);
+
+            eval.PeaScore = GlebaClimateConfig.EvaluateCurve(PeaLatCurve, absLatitudeDegrees)
+                          * peaVetchTemp * tempRain * minRich;
+            eval.BitterVetchScore = GlebaClimateConfig.EvaluateCurve(VetchLatCurve, absLatitudeDegrees)
+                                  * peaVetchTemp * tempRain * minRich;
+            eval.RyeScore = GlebaClimateConfig.EvaluateCurve(RyeLatCurve, absLatitudeDegrees)
+                          * GlebaClimateConfig.EvaluateCurve(RyeTempCurve, meanAnnualTempC)
+                          * tempRain * minRich;
+            eval.RiceScore = GlebaClimateConfig.EvaluateCurve(RiceLatCurve, absLatitudeDegrees)
+                           * GlebaClimateConfig.EvaluateCurve(RiceTempCurve, meanAnnualTempC)
+                           * GlebaClimateConfig.EvaluateCurve(RiceRainCurve, effRainMo)
+                           * GlebaClimateConfig.EvaluateCurve(RicePermClayCurve, perm)
+                           * GlebaClimateConfig.EvaluateCurve(RicePermClayCurve, clay)
+                           * minRich;
+
+            // Azolla (Fairy moss) paddy nitrogen-fixing companion thrives in warm, high-water/wetland rice zones
+            bool wetPaddy = effRainMo >= 75f || erosionWaterflow >= 35f ||
+                            biome == GlebaBiomeKind.Marsh || biome == GlebaBiomeKind.Swamp;
+            eval.AzollaScore = (wetPaddy && meanAnnualTempC >= 12f && eval.RiceScore > 0.08f)
+                ? FMath.Clamp(eval.RiceScore * FMath.Clamp((effRainMo - 55f) / 45f, 0.35f, 1f), 0f, 1f)
+                : 0f;
+
+            float best = 0.02f;
+            GlebaFounderCrop dom = GlebaFounderCrop.None;
+            if (eval.PeaScore > best) { best = eval.PeaScore; dom = GlebaFounderCrop.WildPea; }
+            if (eval.BitterVetchScore > best) { best = eval.BitterVetchScore; dom = GlebaFounderCrop.WildBitterVetch; }
+            if (eval.RyeScore > best) { best = eval.RyeScore; dom = GlebaFounderCrop.WildRye; }
+            if (eval.RiceScore > best)
+            {
+                best = eval.RiceScore;
+                dom = eval.AzollaScore >= 0.25f ? GlebaFounderCrop.AzollaCompanion : GlebaFounderCrop.WildRice;
+            }
+            eval.DominantCrop = dom;
+            eval.MaxSuitability = dom == GlebaFounderCrop.None ? 0f : FMath.Clamp(best, 0f, 1f);
+
+            // Aggregate nitrogen-fixing potential from Wild Pea (0.70), Bitter Vetch (0.15), and Azolla (1.00)
+            eval.NitrogenFixing = FMath.Clamp(
+                Math.Max(0.70f * eval.PeaScore + 0.15f * eval.BitterVetchScore, eval.AzollaScore),
+                0f, 1f);
+
+            // Stage 61-62 settlement / carrying-capacity score (`find_civilization_spots`, 0x180a55060)
+            bool civBlocked = IsBiomeCivSpawningBlocked(biome) && riverIrrigMo < 22f;
+            if (biome == GlebaBiomeKind.Glacier || biome == GlebaBiomeKind.ArcticWasteland || meanAnnualTempC < -4f)
+            {
+                eval.CarryingCapacity = 0f;
+                return eval;
+            }
+
+            float soilTerm = 0.52f * minRich + 0.26f * perm + 0.22f * FMath.Clamp(soil.Depth / 3.0f, 0f, 1f);
+            float riverBonus = erosionWaterflow > 1f
+                ? FMath.Clamp((float)Math.Log(1.0 + 2.0 * erosionWaterflow) / 13.5f, 0f, 0.42f)
+                : 0f;
+            float coastBonus = isCoast ? 0.16f : 0f; // Gleba +0.33 raw weight normalized to [0,1]
+            float elevPenalty = FMath.Clamp(Math.Max(0f, elevationMeters - 400f) / 3600f, 0f, 0.65f);
+            float tempPenalty = 0.085f * (float)Math.Sqrt(Math.Abs(meanAnnualTempC - 16.5f));
+            float rainPenalty = 0.045f * (float)Math.Sqrt(Math.Abs(effRainMo - 85f));
+            float humPenalty = 0.05f * (float)Math.Sqrt(Math.Abs(FMath.Clamp(relativeHumidity, 0f, 1f) - 0.62f));
+            float cropSynergy = 0.34f * eval.MaxSuitability + 0.12f * eval.NitrogenFixing;
+
+            float rawCap = soilTerm + riverBonus + coastBonus + cropSynergy - elevPenalty - tempPenalty - rainPenalty - humPenalty;
+            if (civBlocked) rawCap *= 0.22f;
+            eval.CarryingCapacity = FMath.Clamp(rawCap, 0f, 1f);
+            return eval;
         }
 
         /// <summary>
