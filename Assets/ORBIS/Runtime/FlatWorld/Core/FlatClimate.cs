@@ -247,14 +247,23 @@ namespace Orbis.Flat
                     float coldBarrier = Math.Max(0, coldWind.Read(relief, x, width)-z);
                     float coldSource = (1-coldWind.Read(nearbySea, x, width))*(east[x]+Math.Max(0,westRelief))
                         *(float)(coldLatitude*Math.Exp(-coldBarrier/1.2f));
-                    float winterHeat = 5.8070f*snow*marineAir + 2.5175f*s*FMath.Clamp(poleward-z, -3, 3) - 1.3023f*coldSource;
+                    // Unobstructed meridional continental corridors on eastern continental margins
+                    // (e.g. Siberian High cold surges down East China vs Himalaya-shielded India)
+                    float polewardSea = FMath.Lerp(south.Read(regionalSea, x, width), north.Read(regionalSea, x, width), .5f + .5f*hemisphere);
+                    float polewardLand = 1f - polewardSea;
+                    float eastMargin = Math.Max(0f, east[x] - west[x]);
+                    float openCorridor = (float)Math.Exp(-Math.Max(0f, poleward - z) / .95f);
+                    float coldSurge = eastMargin * polewardLand * openCorridor * (float)Math.Exp(-Math.Pow((degrees - 25) / 8.0, 2));
+                    float winterHeat = 5.8070f*snow*marineAir + 2.5175f*s*FMath.Clamp(poleward-z, -3, 3) - 1.3023f*coldSource - 2.3f*coldSurge;
+                    // Circumpolar subpolar ocean air outbreaks cool warm-temperate continents facing an unbroken poleward ocean (e.g. Southern Australia)
+                    float subpolarOceanCool = FMath.Clamp((polewardSea - .68f) / .28f, 0f, 1f) * (float)Math.Exp(-Math.Pow((degrees - 35) / 7.5, 2));
                     // Dry ground heats ahead of summer maritime inflow. On a
                     // high plateau the warm-season free-air lapse is steeper.
                     float seaContrast = hemisphere*(south.Read(nearbySea, x, width)-north.Read(nearbySea, x, width));
                     float premonsoon = Math.Max(0,seaContrast)*(1+Math.Max(0,poleward-z))*premonsoonBelt;
                     float summerLapse = -.6556f*source[i];
                     annual += coupling * (-.6123f*equatorial + 2.7301f*subtropics*land - 3.5319f*subtropics*coastContrast[i]
-                        - 2.2503f*s*FMath.Clamp(westRelief, -3, 3) + .5f*(winterHeat+summerLapse));
+                        - 2.2503f*s*FMath.Clamp(westRelief, -3, 3) - 1.8f*subpolarOceanCool + .5f*(winterHeat+summerLapse));
                     amplitude += coupling * (2.1601f*sine*(marine-nearbySea[i]) + .5f*hemisphere*(summerLapse-winterHeat));
                     lag -= coupling * hemisphere*(.4912f*tropical+.5713f*premonsoon);
                     // In warm-season westerlies, a broad elevated continental source
@@ -290,18 +299,20 @@ namespace Orbis.Flat
                 float v = (y + .5f) / w.Height;
                 var sunlight = new float[12];
                 for (int m = 0; m < 12; m++) sunlight[m] = (float)(SolarFlux((v - .5) * Math.PI, m) / 300);
+                var snow = new FlatSeasonalSnow();
                 for (int x = 0; x < w.Width; x++)
                 {
                     int i = y*w.Width + x;
                     if (FlatTerrainAnalysis.AreaWater(w.Water[i])) continue;
                     float u = (x + .5f) / w.Width;
+                    bool freezes = false;
                     for (int m = 0; m < 12; m++)
                     {
                         // Use the frequency of precipitating cloud as a proxy for cloud
                         // exposure. The two reference fractions are the calibration-land
                         // means weighted by incident sunlight and freezing respectively.
-                        float rain = predictor.Sample(predictor.Rain, u, v, m);
-                        float cloud = (float)(1 - Math.Exp(-rain / 45f));
+                        float condensation = 30*predictor.Sample(predictor.Condensation, u, v, m);
+                        float cloud = snow.Cloud[m] = (float)(1 - Math.Exp(-condensation / 45f));
                         int j = i*12 + m;
                         float air = w.Temperature[j], cold = FMath.Clamp((4 - air) / 18, 0, 1);
                         float stable = cold*cold*(3 - 2*cold);
@@ -310,7 +321,11 @@ namespace Orbis.Flat
                         float shortwave = .9384f * (.6461f - cloud) * sunlight[m];
                         float longwave = 8.7247f * (cloud - .3500f) * stable;
                         w.Temperature[j] = FMath.Clamp(air + shortwave + longwave, -85, 55);
+                        freezes |= w.Temperature[j] < 0;
                     }
+                    if (!freezes) continue;
+                    for (int m = 0; m < 12; m++) snow.Rain[m] = predictor.Sample(predictor.Rain,u,v,m);
+                    snow.Apply(w.Temperature,i*12,sunlight);
                 }
             });
         }

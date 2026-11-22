@@ -167,18 +167,20 @@ namespace Orbis.Flat
             var cfg = config ?? GlebaClimateConfig.Default;
             var result = new GlebaClimateSupplement(width, height, cfg);
             int count = width * height;
+            var nonOcean = new float[count];
             for (int i = 0; i < count; i++)
             {
                 float wFrac = FMath.Clamp(waterFraction[i], 0f, 1f);
                 result.OceanFraction[i] = FMath.Clamp(oceanFraction[i], 0f, wFrac);
                 result.LandFraction[i] = 1f - wFrac;
+                nonOcean[i] = 1f - result.OceanFraction[i];
                 result.MeanElevation[i] = meanElevation[i];
                 result.PeakElevation[i] = peakElevation[i];
             }
 
-            // Distances & Saldo
+            // Distances & Saldo (DistanceToSeaKm measures distance to open ocean/sea, excluding endorheic inland lakes)
             GlebaHelmholtzSolver.CalculateDistances(
-                result.LandFraction, width, height,
+                nonOcean, width, height,
                 out float[] distSea, out float[] distLand, out float[] distDeep,
                 GlebaHelmholtzSolver.EarthRadiusKm, sphericalMetric: true);
             Array.Copy(distSea, result.DistanceToSeaKm, distSea.Length);

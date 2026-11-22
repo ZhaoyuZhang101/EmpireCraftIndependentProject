@@ -347,5 +347,124 @@ namespace Orbis.Flat
                 rainShadowiness[i] = FMath.Clamp(rainShadowiness[i], 0f, 1f);
             }
         }
+
+        /// <summary>
+        /// Resolution-independent spherical Lagrangian backward streamline integration for
+        /// upwind continental fetch [0, 1] and upwind mountain barrier rain shadow [0, 1].
+        /// Preserves exact periodic-longitude equivariance and hemispheric reflection symmetry.
+        /// </summary>
+        public static void TraceUpwindFetchAndShadow(
+            int width, int height,
+            float[] landSource, float[] crestSource,
+            float[] windEastNormalized, float[] windNorthNormalized,
+            out float[] windContinentality, out float[] upwindCrest)
+        {
+            int count = width * height;
+            windContinentality = new float[count];
+            upwindCrest = new float[count];
+
+            const int Steps = 30;
+            const double ReferenceStepKm = 90.0;
+            double rowKm = Math.PI * EarthRadiusKm / height;
+
+            for (int y = 0; y < height; y++)
+            {
+                int row = y * width;
+                for (int x = 0; x < width; x++)
+                {
+                    int startIdx = row + x;
+                    double px = x;
+                    double py = y;
+                    double fetchSum = 0.35 * landSource[startIdx];
+                    double weightSum = 0.35;
+                    double weight = 1.0;
+                    double shadowMax = 0.0;
+
+                    for (int s = 1; s <= Steps; s++)
+                    {
+                        SampleVelocity(windEastNormalized, windNorthNormalized, width, height, px, py, out double ux, out double uy);
+                        double speed = Math.Sqrt(ux * ux + uy * uy);
+                        if (speed < 1e-4)
+                        {
+                            double localLand = SampleBilinear(landSource, width, height, px, py);
+                            fetchSum += weight * localLand;
+                            weightSum += weight;
+                            weight *= 0.92;
+                            continue;
+                        }
+
+                        // Scale step length gently by wind speed (0.45..1.25 * ReferenceStepKm) so fast jets reach further upwind
+                        // while calm interiors reflect local airmass residence.
+                        double stepKm = ReferenceStepKm * Math.Min(1.30, 0.40 + 1.15 * speed);
+                        double latRad = ((py + 0.5) / height - 0.5) * Math.PI;
+                        double cosLat = Math.Max(0.16, Math.Cos(latRad));
+                        double colKm = (2.0 * Math.PI * EarthRadiusKm * cosLat) / width;
+
+                        px -= (ux / speed) * (stepKm / colKm);
+                        py = Math.Max(0.0, Math.Min(height - 1.0, py - (uy / speed) * (stepKm / rowKm)));
+
+                        double landVal = SampleBilinear(landSource, width, height, px, py);
+                        fetchSum += weight * landVal;
+                        weightSum += weight;
+                        weight *= 0.92;
+
+                        if (s <= 6)
+                        {
+                            double crestVal = SampleBilinear(crestSource, width, height, px, py);
+                            double decay = Math.Exp(-(s - 1) * 0.22);
+                            double candidate = crestVal * decay;
+                            if (candidate > shadowMax) shadowMax = candidate;
+                        }
+                    }
+
+                    windContinentality[startIdx] = FMath.Clamp((float)(fetchSum / weightSum), 0f, 1f);
+                    upwindCrest[startIdx] = FMath.Clamp((float)shadowMax, 0f, 1f);
+                }
+            }
+        }
+
+        static double SampleBilinear(float[] field, int width, int height, double px, double py)
+        {
+            py = Math.Max(0.0, Math.Min(height - 1.0, py));
+            int i0 = (int)Math.Floor(px);
+            int j0 = (int)Math.Floor(py);
+            if (j0 >= height - 1) j0 = height - 2;
+            if (j0 < 0) j0 = 0;
+            double sx = px - i0;
+            double sy = py - j0;
+
+            int x0 = FMath.Wrap(i0, width);
+            int x1 = x0 + 1 == width ? 0 : x0 + 1;
+            int r0 = j0 * width;
+            int r1 = (j0 + 1) * width;
+
+            double v0 = (1.0 - sx) * field[r0 + x0] + sx * field[r0 + x1];
+            double v1 = (1.0 - sx) * field[r1 + x0] + sx * field[r1 + x1];
+            return (1.0 - sy) * v0 + sy * v1;
+        }
+
+        static void SampleVelocity(float[] vxField, float[] vyField, int width, int height, double px, double py, out double vx, out double vy)
+        {
+            py = Math.Max(0.0, Math.Min(height - 1.0, py));
+            int i0 = (int)Math.Floor(px);
+            int j0 = (int)Math.Floor(py);
+            if (j0 >= height - 1) j0 = height - 2;
+            if (j0 < 0) j0 = 0;
+            double sx = px - i0;
+            double sy = py - j0;
+
+            int x0 = FMath.Wrap(i0, width);
+            int x1 = x0 + 1 == width ? 0 : x0 + 1;
+            int r0 = j0 * width;
+            int r1 = (j0 + 1) * width;
+
+            double ux0 = (1.0 - sx) * vxField[r0 + x0] + sx * vxField[r0 + x1];
+            double ux1 = (1.0 - sx) * vxField[r1 + x0] + sx * vxField[r1 + x1];
+            vx = (1.0 - sy) * ux0 + sy * ux1;
+
+            double uy0 = (1.0 - sx) * vyField[r0 + x0] + sx * vyField[r0 + x1];
+            double uy1 = (1.0 - sx) * vyField[r1 + x0] + sx * vyField[r1 + x1];
+            vy = (1.0 - sy) * uy0 + sy * uy1;
+        }
     }
 }
