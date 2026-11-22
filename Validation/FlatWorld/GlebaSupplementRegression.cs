@@ -16,8 +16,10 @@ internal static class GlebaSupplementRegression
         CheckWideContinentDesertsVsMonsoon();
         CheckOceanGyresAndBoundaryCurrents();
         CheckHoldridgeBiomesAndGlaciers();
+        CheckRossbyJetsAndMapmodes();
         CheckRealEarthDiagnostics();
-        Console.WriteLine("PASS Gleba supplement package: rotation equivariance, hemispheric symmetry, STHZ desert/monsoon ovals, boundary currents, Holdridge ecology, and Earth 256 diagnostics.");
+        CheckProceduralGeographyCarvingAndErosion();
+        Console.WriteLine("PASS Gleba supplement package: circulation, Rossby jets, ocean currents/upwelling, Holdridge ecology, saltwater/freshwater lakes, coral reefs, fjords, aquifers, hierarchy, and Earth 256 diagnostics.");
     }
 
     static void CheckRotationAndWorkers()
@@ -230,5 +232,134 @@ internal static class GlebaSupplementRegression
             $"Sahara must classify as desert with sandy deflated soil: biome={sahara.GlebaBiome}, sand={sahara.Soil.Sand:F2}");
         Check(siberia.GlebaBiome == GlebaBiomeKind.Taiga && siberia.Flora.ConiferFraction > 0.65f,
             $"Central Siberia must classify as conifer Taiga: biome={siberia.GlebaBiome}, conifer={siberia.Flora.ConiferFraction:F2}");
+
+        // Geography supplement checks on Earth-256: lakes, reefs, fjords, aquifers, inaccessibility, seasonal currents
+        var geo = earth.Facts.GlebaGeography;
+        Check(geo != null, "Generated Earth must publish Facts.GlebaGeography");
+
+        // 1. Endorheic SaltwaterLake (Caspian Sea ~42N, 50E) vs Outflowing SweetwaterLake (Lake Superior ~47.5N, 87.5W & Lake Victoria ~1S, 33E)
+        int caspianTile = FindNearestMatchingTile(earth, 50f, 42f, 5, t => earth.Water[t] == WaterKind.Lake);
+        int superiorTile = FindNearestMatchingTile(earth, -87.5f, 47.5f, 5, t => earth.Water[t] == WaterKind.Lake);
+        Check(caspianTile >= 0 && superiorTile >= 0, $"Expected Caspian ({caspianTile}) and Superior ({superiorTile}) lake cells on Earth 256");
+        var caspianDiag = GlebaClimateSupplement.SampleTileDiagnostic(earth, caspianTile, 6);
+        var superiorDiag = GlebaClimateSupplement.SampleTileDiagnostic(earth, superiorTile, 6);
+        Check(caspianDiag.WaterbodyType == GlebaWaterbodyType.SaltwaterLake &&
+              caspianDiag.LakeOrigin == GlebaLakeOrigin.Endorheic &&
+              (caspianDiag.GlebaBiome == GlebaBiomeKind.SaltwaterLake || caspianDiag.GlebaBiome == GlebaBiomeKind.GlaciatedSaltwaterLake),
+            $"Caspian Sea must classify as endorheic SaltwaterLake: wb={caspianDiag.WaterbodyType}, origin={caspianDiag.LakeOrigin}, biome={caspianDiag.GlebaBiome}");
+        Check(superiorDiag.WaterbodyType == GlebaWaterbodyType.SweetwaterLake &&
+              superiorDiag.LakeOrigin == GlebaLakeOrigin.Glacial &&
+              superiorDiag.GlebaBiome == GlebaBiomeKind.SweetwaterLake,
+            $"Lake Superior must classify as glacial SweetwaterLake: wb={superiorDiag.WaterbodyType}, origin={superiorDiag.LakeOrigin}, biome={superiorDiag.GlebaBiome}");
+
+        // 2. Coral reefs restricted strictly to warm tropical/subtropical shallow seas (zero in high latitudes)
+        int polarReefs = 0;
+        for (int t = 0; t < earth.Count; t++)
+            if (geo.HasFlag(t, GlebaGeoFlags.CoralReef) && Math.Abs(earth.Latitude(t)) > 40f) polarReefs++;
+        Check(geo.CoralReefTileCount > 20 && polarReefs == 0,
+            $"Expected warm-water coral reefs (>20) and zero polar reefs: total={geo.CoralReefTileCount}, polar={polarReefs}");
+
+        // 3. Glacial fjord coasts in high-latitude mountain margins (Norway/Chile/Alaska/Greenland) and zero in tropics
+        int tropicFjords = 0, norwayPatagoniaFjords = 0;
+        for (int t = 0; t < earth.Count; t++)
+        {
+            if (!geo.HasFlag(t, GlebaGeoFlags.FjordCoast)) continue;
+            float absLat = Math.Abs(earth.Latitude(t));
+            if (absLat < 32f) tropicFjords++;
+            if (absLat >= 42f) norwayPatagoniaFjords++;
+        }
+        Check(geo.FjordCoastTileCount > 25 && norwayPatagoniaFjords > 25 && tropicFjords == 0,
+            $"Expected high-latitude fjord coasts and zero tropical fjords: total={geo.FjordCoastTileCount}, highLat={norwayPatagoniaFjords}, tropic={tropicFjords}");
+
+        // 4. Deep groundwater aquifers on porous unglaciated land, zero under Antarctic ice sheet
+        Check(geo.AquiferCount >= 10 && antarctica.AquiferId < 0,
+            $"Expected >=10 regional aquifers and no subglacial Antarctic aquifer: count={geo.AquiferCount}, antAq={antarctica.AquiferId}");
+
+        // 5. Global Ocean Inaccessibility & 4-Tier Hierarchy & Biogeographic Realms
+        var dzungaria = GlebaClimateSupplement.SampleTileDiagnostic(earth, TileAtLonLat(earth, 86f, 45f), 6);
+        var pacific = GlebaClimateSupplement.SampleTileDiagnostic(earth, TileAtLonLat(earth, -150f, 0f), 6);
+        Check(pacific.InaccessibilityKm == 0f && dzungaria.InaccessibilityKm > 1800f && caspianDiag.InaccessibilityKm > 400f,
+            $"Expected Pacific inaccessibility=0, Dzungaria >1800 km, Caspian >400 km: pac={pacific.InaccessibilityKm:F0}, dz={dzungaria.InaccessibilityKm:F0}, casp={caspianDiag.InaccessibilityKm:F0}");
+        Check(geo.AreaCount > geo.RegionCount && geo.RegionCount > geo.SuperRegionCount &&
+              geo.SuperRegionCount >= geo.SubcontinentCount && geo.SubcontinentCount >= 2,
+            $"Expected nested 4-tier hierarchy counts: Areas={geo.AreaCount}, Regions={geo.RegionCount}, Super={geo.SuperRegionCount}, Subcont={geo.SubcontinentCount}");
+        Check(amazon.BiogeographicRealm != siberia.BiogeographicRealm && sahara.BiogeographicRealm != antarctica.BiogeographicRealm,
+            "Distinct continents must carry distinct Wallace biogeographic realms");
+
+        // 6. Seasonal Somali / Monsoon Ocean Current shift & Eastern-Boundary Upwelling SST contrast
+        GlebaGeographySupplement.SampleSeasonalOceanCurrent(earth, (54f + 180f) / 360f, (9f + 90f) / 180f, 0,
+            out float somaliJanE, out float somaliJanN, out _, out _);
+        GlebaGeographySupplement.SampleSeasonalOceanCurrent(earth, (54f + 180f) / 360f, (9f + 90f) / 180f, 6,
+            out float somaliJulE, out float somaliJulN, out _, out _);
+        GlebaGeographySupplement.SampleSeasonalOceanCurrent(earth, (-72f + 180f) / 360f, (34f + 90f) / 180f, 6,
+            out _, out _, out _, out float gulfStreamSstAnom);
+        GlebaGeographySupplement.SampleSeasonalOceanCurrent(earth, (-16f + 180f) / 360f, (24f + 90f) / 180f, 6,
+            out _, out _, out _, out float canarySstAnom);
+        Check(somaliJulN > somaliJanN + 0.01f || somaliJulE > somaliJanE + 0.01f,
+            $"Expected Somali / Arabian Sea monsoon surface current shift Jan->Jul: Jan=({somaliJanE:F3},{somaliJanN:F3}), Jul=({somaliJulE:F3},{somaliJulN:F3})");
+        Check(gulfStreamSstAnom > canarySstAnom + 1.5f,
+            $"Expected Gulf Stream warm anomaly > Canary upwelling cold anomaly: GS={gulfStreamSstAnom:F2}C vs Can={canarySstAnom:F2}C");
+
+        Console.WriteLine($"Earth 256 Gleba geography: reefs={geo.CoralReefTileCount}, fjords={geo.FjordCoastTileCount}, aquifers={geo.AquiferCount}, " +
+                          $"Caspian={caspianDiag.WaterbodyType}, Superior={superiorDiag.WaterbodyType}, DzungariaDist={dzungaria.InaccessibilityKm:F0}km, " +
+                          $"Hierarchy={geo.AreaCount}/{geo.RegionCount}/{geo.SuperRegionCount}/{geo.SubcontinentCount}, GS-Canary SST={gulfStreamSstAnom - canarySstAnom:F2}C");
+    }
+
+    static int FindNearestMatchingTile(WorldData w, float lonDeg, float latDeg, int radius, Func<int, bool> pred)
+    {
+        int cx = FMath.Clamp((int)((lonDeg + 180f) / 360f * w.Width), 0, w.Width - 1);
+        int cy = FMath.Clamp((int)((latDeg + 90f) / 180f * w.Height), 0, w.Height - 1);
+        int best = -1, bestDist2 = int.MaxValue;
+        for (int dy = -radius; dy <= radius; dy++)
+        for (int dx = -radius; dx <= radius; dx++)
+        {
+            int idx = w.Index(cx + dx, cy + dy);
+            if (idx < 0 || !pred(idx)) continue;
+            int d2 = dx * dx + dy * dy;
+            if (d2 < bestDist2) { bestDist2 = d2; best = idx; }
+        }
+        return best;
+    }
+
+    static void CheckRossbyJetsAndMapmodes()
+    {
+        // Rossby jet streams peak eastward near +-30 deg and +-60 deg with longitudinal wave meanders
+        var rossby = new GlebaRossbyWaveField(0x12345678u);
+        double minVy = double.MaxValue, maxVy = double.MinValue, meanVx = 0.0;
+        for (int i = 0; i < 36; i++)
+        {
+            double lon = -Math.PI + (i + 0.5) * (2.0 * Math.PI / 36.0);
+            rossby.GetJetStreamMovementAtLatLon(58.0 * Math.PI / 180.0, lon, out float vx, out float vy);
+            meanVx += vx / 36.0;
+            if (vy < minVy) minVy = vy;
+            if (vy > maxVy) maxVy = vy;
+        }
+        Check(meanVx > 0.20 && maxVy > 0.15 && minVy < -0.15,
+            $"Rossby polar jet must flow eastward with meridional wave meanders: meanVx={meanVx:F3}, vy=[{minVy:F3}, {maxVy:F3}]");
+
+        GlebaGeographySupplement.SampleCividis(0f, out byte r0, out byte g0, out byte b0);
+        GlebaGeographySupplement.SampleCividis(1f, out byte r1, out byte g1, out byte b1);
+        Check(r0 == 0 && g0 == 34 && b0 == 78 && r1 == 254 && g1 == 232 && b1 == 55,
+            "Cividis endpoint stops must match Gleba .rdata lookup table (#00224e -> #fee837)");
+    }
+
+    static void CheckProceduralGeographyCarvingAndErosion()
+    {
+        var world = FlatGenerator.Generate(128, 64, "GLEBA-CARVE-2026", TerrainPreset.Continents, default);
+        Check(world.Facts?.GlebaGeography != null, "Procedural Continents world must build GlebaGeography");
+
+        GlebaGeographySupplement.EvaluateMapmodeColor(world, 1000, 6, GlebaMapmodeKind.ClimateSurfaceWinds, out byte wr, out byte wg, out byte wb);
+        bool hasWindFlow = GlebaGeographySupplement.EvaluateMapmodeFlow(world, 0.5f, 0.35f, 6, GlebaMapmodeKind.ClimateSurfaceWinds, out float fu, out float fv);
+        bool hasRossbyFlow = GlebaGeographySupplement.EvaluateMapmodeFlow(world, 0.25f, 0.82f, 6, GlebaMapmodeKind.RossbyJetStream, out float ru, out _);
+        Check(hasWindFlow && FMath.Finite(fu) && FMath.Finite(fv) && hasRossbyFlow && ru > 0f && (wr + wg + wb) > 0,
+            "Mapmode color and UV flow evaluators must produce valid colors and vectors");
+
+        var clone = world.Clone();
+        int shoaled = GlebaGeographySupplement.ShoalCoralReefs(clone, clone.Facts.GlebaGeography);
+        int fjords = GlebaGeographySupplement.CarveGlacialFjords(clone, acceptanceProbability: 1.0f);
+        int relaxed = GlebaGeographySupplement.ApplyThermalErosion(clone, iterations: 4);
+        float[] etFlow = GlebaGeographySupplement.ApplySortedHydraulicErosion(clone);
+        Check(shoaled == clone.Facts.GlebaGeography.CoralReefTileCount && fjords >= 0 && relaxed >= 0 && etFlow.Length == clone.Count,
+            $"Procedural carving & erosion operators failed: shoaled={shoaled}, fjords={fjords}, relaxed={relaxed}");
     }
 }

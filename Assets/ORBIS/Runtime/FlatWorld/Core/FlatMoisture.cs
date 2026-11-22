@@ -13,11 +13,12 @@ namespace Orbis.Flat
         public readonly float[] Humidity,Condensation,East,North,Rain;
         public readonly double[] BudgetError=new double[12];
         public GlebaClimateSupplement Gleba { get; internal set; }
+        internal FlatOceanCirculation OceanCurrents { get; set; }
         public FlatMoistureState(int width,int height)
         {Width=width;Height=height;int n=width*height*12;Humidity=new float[n];Condensation=new float[n];East=new float[n];North=new float[n];Rain=new float[n];}
         public FlatMoistureState Clone()
         {
-            var s=new FlatMoistureState(Width,Height){Gleba=Gleba};Array.Copy(Humidity,s.Humidity,Humidity.Length);Array.Copy(Condensation,s.Condensation,Humidity.Length);
+            var s=new FlatMoistureState(Width,Height){Gleba=Gleba,OceanCurrents=OceanCurrents};Array.Copy(Humidity,s.Humidity,Humidity.Length);Array.Copy(Condensation,s.Condensation,Humidity.Length);
             Array.Copy(East,s.East,Humidity.Length);Array.Copy(North,s.North,Humidity.Length);Array.Copy(Rain,s.Rain,Humidity.Length);Array.Copy(BudgetError,s.BudgetError,12);return s;
         }
         public float Sample(float[] data,float u,float v,int month)
@@ -351,7 +352,7 @@ namespace Orbis.Flat
             MonthlyFluxObserver observeFlux=null)
         {
             int width=Math.Min(maxColumns,world.Width),height=width/2,count=width*height;
-            var state=new FlatMoistureState(width,height);var elevation=new float[count];var water=new float[count];var area=new float[count];
+            var state=new FlatMoistureState(width,height){OceanCurrents=currents};var elevation=new float[count];var water=new float[count];var area=new float[count];
             var ocean=new float[count];
             var ridgeHeight=new float[count];
             var landMeanElev=new float[count];

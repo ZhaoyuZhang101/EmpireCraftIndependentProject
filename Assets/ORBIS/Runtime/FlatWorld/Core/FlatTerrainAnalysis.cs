@@ -21,6 +21,7 @@ namespace Orbis.Flat
         public readonly VegetationCover[] Vegetation;public readonly float[] Canopy;
         public readonly TreeSpecies[] Trees;
         public readonly GlebaBiomeKind[] GlebaBiomes;
+        public GlebaGeographyFacts GlebaGeography { get; internal set; }
         public byte[] VegetationSeasons {get;internal set;}
         public bool VegetationSeasonsReady {get;internal set;}
         public readonly ushort[] FreshDistance;
@@ -41,7 +42,7 @@ namespace Orbis.Flat
         }
         public FlatTerrainFacts Clone()
         {
-            var f=new FlatTerrainFacts(Forms.Length){MouthCount=MouthCount,RiverCurves=RiverCurves,RiverDischarge=RiverDischarge,
+            var f=new FlatTerrainFacts(Forms.Length){MouthCount=MouthCount,RiverCurves=RiverCurves,RiverDischarge=RiverDischarge,GlebaGeography=GlebaGeography?.Clone(),
                 VegetationSeasons=VegetationSeasons==null?null:(byte[])VegetationSeasons.Clone(),VegetationSeasonsReady=VegetationSeasonsReady};
             Array.Copy(Vegetation,f.Vegetation,Forms.Length);Array.Copy(Canopy,f.Canopy,Forms.Length);
             Array.Copy(Trees,f.Trees,Forms.Length);Array.Copy(GlebaBiomes,f.GlebaBiomes,Forms.Length);
@@ -129,6 +130,7 @@ namespace Orbis.Flat
             Array.Copy(fresh,f.FreshDistance,w.Count);
             // HAND-like elevation above the drainage receiver; lakes have horizontal spill surfaces.
             var receiver=new int[w.Count];
+            var lakeRoots=new int[w.Count];
             // Reuse the unpublished meander cache for phase until the independent
             // row pass converts each cell to its final lateral offset.
             var channelPhase=f.Meander;
@@ -139,6 +141,7 @@ namespace Orbis.Flat
                 if((k&4095)==0)cancel.ThrowIfCancellationRequested();
                 int i=w.DrainOrder[k],p=w.Downstream[i];
                 receiver[i]=w.Water[i]!=WaterKind.Land?i:p<0?i:receiver[p];
+                lakeRoots[i]=w.Water[i]!=WaterKind.Lake?-1:(p>=0&&w.Water[p]==WaterKind.Lake&&w.WaterLevel[p]==w.WaterLevel[i])?lakeRoots[p]:i;
                 f.Hand[i]=Math.Max(0,w.Elevation[i]-w.WaterLevel[receiver[i]]);
                 if(w.Water[i]==WaterKind.River)
                 {
@@ -181,7 +184,8 @@ namespace Orbis.Flat
                         ?GlebaEcologySupplement.ComputeSeaIceMeters(true,temp)
                         :GlebaEcologySupplement.ComputeGroundedIceMeters(true,w.Elevation[i],warmest,rain/12f);
                     var glebaFlora=GlebaEcologySupplement.EvaluateFlora(!glebaArea,glebaArea?0f:f.GroundedIceMeters[i],w.Elevation[i],Math.Abs(w.Latitude(i)),biotemp,rain,minRain,coldest);
-                    f.GlebaBiomes[i]=GlebaEcologySupplement.ClassifyGlebaBiome(glebaArea,w.Water[i]==WaterKind.Lake,!Ocean(w.Water[i]),f.GroundedIceMeters[i],w.Elevation[i],
+                    bool freshwater=w.Water[i]==WaterKind.Lake?(lakeRoots[i]>=0&&w.Downstream[lakeRoots[i]]>=0):!Ocean(w.Water[i]);
+                    f.GlebaBiomes[i]=GlebaEcologySupplement.ClassifyGlebaBiome(glebaArea,w.Water[i]==WaterKind.Lake,freshwater,f.GroundedIceMeters[i],w.Elevation[i],
                         w.Temperature[i*12],w.Temperature[i*12+6],w.Precipitation[i*12],w.Precipitation[i*12+6],w.Climates[i],in glebaFlora);
                     float storage=75,mean=0,growingSoil=0,growingWeight=0;int saturated=0;
                     float riparian=0,waterHand=f.Hand[i];
@@ -300,6 +304,7 @@ namespace Orbis.Flat
             FlatEcology.ApplyNileCropland(w,f,cancel);
             FlatEcology.CompleteSeasonAtlas(w,f);
             BuildPlumes(w,f,cancel);FlatSurfaceSampling.BuildShore(w,f,cancel);
+            f.GlebaGeography=GlebaGeographySupplement.Build(w,f,lakeRoots,cancel,workers);
             f.RiverCurves=FlatRiverCurves.Build(w,f,cancel);w.Facts=f;
         }
         static void BuildPlumes(WorldData w,FlatTerrainFacts f,CancellationToken cancel)

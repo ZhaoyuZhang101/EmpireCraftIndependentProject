@@ -371,6 +371,27 @@ namespace Orbis.Flat
                 d.EffectiveLatitudeDeg = gleba.SampleMonthly(gleba.EffectiveLatitudeDeg, u, v, month);
             }
             FlatEcology.EvaluateGlebaTile(world, tile, out d.Flora, out d.GlebaBiome, out d.Soil, out d.BiotemperatureC, out d.IceMeters);
+            GlebaGeographySupplement.SampleSeasonalOceanCurrent(
+                world, u, v, month,
+                out d.SeasonalCurrentEastMs, out d.SeasonalCurrentNorthMs,
+                out d.OceanDynamicHeight, out d.SstAnomalyC);
+
+            var geo = world.Facts?.GlebaGeography;
+            if (geo != null && (uint)tile < (uint)geo.Count)
+            {
+                d.RockKind = geo.Bedrock[tile];
+                d.WaterbodyType = geo.WaterbodyTypes[tile];
+                d.LakeOrigin = geo.LakeOrigins[tile];
+                d.GeoFlags = geo.Flags[tile];
+                d.AquiferId = geo.AquiferId[tile];
+                d.AquiferDepthMeters = geo.AquiferDepthMeters[tile];
+                d.AquiferThicknessMeters = geo.AquiferThicknessMeters(tile);
+                d.InaccessibilityKm = geo.InaccessibilityKm(tile);
+                d.TerrainDomain = geo.Domains[tile];
+                d.BiogeographicRealm = geo.BiogeographicRealms[tile];
+                d.RegionId = geo.GetRegionId(tile);
+                d.SubcontinentId = geo.GetSubcontinentId(tile);
+            }
             return d;
         }
     }
@@ -381,9 +402,19 @@ namespace Orbis.Flat
         public float ItczLatitudeDeg, SthzNorthDeg, SthzSouthDeg, PolarFrontNorthDeg, PolarFrontSouthDeg, EffectiveLatitudeDeg;
         public float PressureHpa, RainfallImpact, WindContinentality, RainShadowiness, DistanceToSeaKm;
         public float WindEast, WindNorth, CurrentEast, CurrentNorth;
+        public float SeasonalCurrentEastMs, SeasonalCurrentNorthMs, OceanDynamicHeight, SstAnomalyC;
         public float BiotemperatureC, IceMeters;
         public GlebaBiomeKind GlebaBiome;
         public GlebaPlantCover Flora;
         public GlebaSoilState Soil;
+        public GlebaRockKind RockKind;
+        public GlebaWaterbodyType WaterbodyType;
+        public GlebaLakeOrigin LakeOrigin;
+        public GlebaGeoFlags GeoFlags;
+        public short AquiferId;
+        public float AquiferDepthMeters, AquiferThicknessMeters, InaccessibilityKm;
+        public GlebaTerrainDomain TerrainDomain;
+        public byte BiogeographicRealm;
+        public int RegionId, SubcontinentId;
     }
 }

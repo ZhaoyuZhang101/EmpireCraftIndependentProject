@@ -400,15 +400,23 @@ namespace Orbis.Flat
             });
         }
 
-        internal float SampleAir(float u, float v)
+        internal float Sample(float[] field, float u, float v)
         {
             float px = u * Width - .5f, py = FMath.Clamp(v * Height - .5f, 0, Height - 1);
             int x = (int)Math.Floor(px), y = (int)py;
             float tx = px - x, ty = py - y;
             int w = FMath.Wrap(x, Width), e = (w + 1) % Width;
             int row = y * Width, north = Math.Min(Height - 1, y + 1) * Width;
-            return FMath.Lerp(FMath.Lerp(AirAnomaly[row + w], AirAnomaly[row + e], tx),
-                FMath.Lerp(AirAnomaly[north + w], AirAnomaly[north + e], tx), ty);
+            return FMath.Lerp(FMath.Lerp(field[row + w], field[row + e], tx),
+                FMath.Lerp(field[north + w], field[north + e], tx), ty);
         }
+
+        internal void SampleCurrent(float u, float v, out float east, out float north)
+        {
+            east = Sample(East, u, v);
+            north = Sample(North, u, v);
+        }
+
+        internal float SampleAir(float u, float v) => Sample(AirAnomaly, u, v);
     }
 }
