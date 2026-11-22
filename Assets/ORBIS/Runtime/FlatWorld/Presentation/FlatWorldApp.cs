@@ -11,7 +11,7 @@ using UnityEngine.UIElements;
 namespace Orbis.Flat
 {
     [DefaultExecutionOrder(-100)]
-    public sealed class FlatWorldApp : MonoBehaviour
+    public sealed partial class FlatWorldApp : MonoBehaviour
     {
         public string initialSeed="ORBIS-2D-2026";
         public int initialWidth=512;
@@ -146,6 +146,7 @@ namespace Orbis.Flat
                 if(e.keyCode==KeyCode.C)contourToggle.value=!contourToggle.value;
                 if(e.keyCode==KeyCode.G)gridToggle.value=!gridToggle.value;
             });
+            InstallEmpireHud();
         }
         void MapShortcut(KeyDownEvent e)
         {
