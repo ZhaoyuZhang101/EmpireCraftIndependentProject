@@ -24,6 +24,8 @@ namespace Orbis.Flat
             if(layer==MapLayer.Height)return "低绿 → 高白：0…4000m；等高线使用真实预设海拔插值。";
             if(layer==MapLayer.Water)return "深海 / 中海 / 浅海 / 淡水湖 / 细河道；混合区随汇流量展开。";
             if(layer==MapLayer.Rivers)return "深蓝粗线为主河道，细线为支流。地球按已测绘河道显示，随机世界按本地汇流显示。";
+            if(layer==MapLayer.SurfaceWinds)return "Gleba 风带与海平面气压：深蓝为高压脊，亮黄为赤道槽/季风低压/副极地低压；蓝岸为向岸湿风，红岸为离岸干风。\n橙实线：ITCZ 热带辐合带 · 青虚线：STHZ 副热带高压脊 · 紫虚线：极锋带 · 动态流线箭头显示当月近地风向与风速。";
+            if(layer==MapLayer.OceanCurrents)return "Gleba 表层洋流与海温：Cividis 动态海面高度叠加暖流（暖金橙）与涌升寒流（冰青蓝），动态流线箭头显示当月表层洋流方向与流速。";
             if(layer==MapLayer.Fertility)return "棕 → 绿：0…100% 文明用地肥力。";
             if(layer==MapLayer.Nations)return "国家色代表 Zone 归属，不决定河岸或地貌。";
             for(int i=layer==MapLayer.Climate?1:0;i<colors.Length;i++)
@@ -118,6 +120,16 @@ namespace Orbis.Flat
                 case MapLayer.Sediment:c=w.Water[i]==WaterKind.Land?RGB(0x727773):Color.Lerp(RGB(0x326785),RGB(0xb79b69),w.Facts.Sediment[i]);break;
                 case MapLayer.Vegetation:c=FlatTerrainAnalysis.AreaWater(w.Water[i])?Water(w.Water[i]):RGB(VegetationColors[(int)w.Facts.Vegetation[i]]);break;
                 case MapLayer.Fertility:c=Color.Lerp(RGB(0xb39d7a),RGB(0x478c68),w.Fertility[i]);break;
+                case MapLayer.SurfaceWinds:
+                {
+                    GlebaGeographySupplement.EvaluateMapmodeColor(w,i,w.Month,GlebaMapmodeKind.ClimateSurfaceWinds,out byte r,out byte g,out byte b);
+                    return new Color32(r,g,b,255);
+                }
+                case MapLayer.OceanCurrents:
+                {
+                    GlebaGeographySupplement.EvaluateMapmodeColor(w,i,w.Month,GlebaMapmodeKind.ClimateOceanCurrents,out byte r,out byte g,out byte b);
+                    return new Color32(r,g,b,255);
+                }
             }
             c.a=1;return c;
         }

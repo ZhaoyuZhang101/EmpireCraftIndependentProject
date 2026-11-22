@@ -35,7 +35,11 @@ Shader "ORBIS/Surface"
   [HideInInspector] _FlatPolitical("2D political tint",Float)=0
   _Tint("Tint",Color)=(1,1,1,1)
   _TerrainAtlas("Biome albedo",2D)="white"{}
-  _FlatTerrain("Shared 2D terrain",2D)="white"{} _FlatOwners("Shared owners",2D)="black"{} _FlatInfo("Shared semantics",2D)="black"{}
+  _FlatTerrain("Shared 2D terrain",2D)="white"{} _FlatDisplay("Shared 2D display",2D)="white"{} _FlatOwners("Shared owners",2D)="black"{} _FlatInfo("Shared semantics",2D)="black"{}
+  [HideInInspector] _GlebaWindFlowTex("Gleba two-month surface wind flow",2D)="black"{}
+  [HideInInspector] _GlebaCurrentFlowTex("Gleba two-month ocean current flow",2D)="black"{}
+  [HideInInspector] _GlebaBandsTex("Gleba circulation front latitudes",2D)="black"{}
+  [HideInInspector] _GlebaCirculation("Gleba circulation mode clock blend ready",Vector)=(0,0,0,0)
   _HydroA("Depth flow width",2D)="black"{} _HydroB("Meander sediment freshwater links",2D)="black"{} _GeoTex("Height materials",2D)="black"{}
   _VisualTex("Reconstructed field",2D)="black"{} _SkyTex("Climate cloud layers",2D)="black"{}
   [HideInInspector] _PoleBedDepth("Polar bed and depth, south then north",Vector)=(0,0,0,0)
@@ -76,7 +80,9 @@ Shader "ORBIS/Surface"
    #define ORBIS_SURFACE_RIVER_VARIANTS 1
    #include "FlatWorld/Water/FlatWater.cginc"
    #include "FlatWorld/FlatCloudCover.cginc"
+   #include "FlatWorld/FlatCirculationOverlay.cginc"
    #include "FlatWorld/Water/FlatWaterReflection.cginc"
+   UNITY_DECLARE_TEX2D_NOSAMPLER(_FlatDisplay);
    sampler2D _FlatTerrain,_FlatOwners,_FlatInfo,_TerrainAtlas;
    float _FlatWorldReady,_FlatPolitical,_Natural,_Night,_SolarEnergy,_CloudShadow,_ShadowStrength;
    float _TerrainAtlasReady,_SurfaceDetail,_Settlement,_Clouds,_SurfaceDebug;
@@ -219,6 +225,11 @@ Shader "ORBIS/Surface"
     else col+=_Settlement*_Night*night*float3(.9,.38,.09);
     col*=lerp(1,cloudShade,smoothstep(-.05,.18,dot(radial,sun)));
     if(_RiverMap>.5&&_FlatWorldReady>.5)col=riverMapColor;
+    if(_GlebaCirculation.x>.5&&_FlatWorldReady>.5)
+    {
+     float3 dispCol=FlatColor(FlatPresentationSample(_FlatDisplay,uv,0).rgb);
+     col=FlatApplyCirculationOverlay(dispCol,uv,pixelsPerTile,water,floor(info.g+.5));
+    }
     return float4(max(0,col),1);
    }
    ENDCG

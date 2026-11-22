@@ -341,6 +341,14 @@ internal static class GlebaSupplementRegression
         GlebaGeographySupplement.SampleCividis(1f, out byte r1, out byte g1, out byte b1);
         Check(r0 == 0 && g0 == 34 && b0 == 78 && r1 == 254 && g1 == 232 && b1 == 55,
             "Cividis endpoint stops must match Gleba .rdata lookup table (#00224e -> #fee837)");
+
+        Check(Enum.TryParse<MapLayer>("SurfaceWinds", out _) && Enum.TryParse<MapLayer>("OceanCurrents", out _),
+            "MapLayer must expose SurfaceWinds and OceanCurrents views");
+        Check(GlebaGeographySupplement.FloatToHalfBits(0f) == 0x0000 &&
+              GlebaGeographySupplement.FloatToHalfBits(1f) == 0x3C00 &&
+              GlebaGeographySupplement.FloatToHalfBits(-1f) == 0xBC00 &&
+              GlebaGeographySupplement.FloatToHalfBits(0.5f) == 0x3800,
+            "FloatToHalfBits must encode IEEE-754 binary16 values accurately");
     }
 
     static void CheckProceduralGeographyCarvingAndErosion()
@@ -349,10 +357,26 @@ internal static class GlebaSupplementRegression
         Check(world.Facts?.GlebaGeography != null, "Procedural Continents world must build GlebaGeography");
 
         GlebaGeographySupplement.EvaluateMapmodeColor(world, 1000, 6, GlebaMapmodeKind.ClimateSurfaceWinds, out byte wr, out byte wg, out byte wb);
+        GlebaGeographySupplement.EvaluateMapmodeColor(world, 1000, 6, GlebaMapmodeKind.ClimateOceanCurrents, out byte cr, out byte cg, out byte cb);
         bool hasWindFlow = GlebaGeographySupplement.EvaluateMapmodeFlow(world, 0.5f, 0.35f, 6, GlebaMapmodeKind.ClimateSurfaceWinds, out float fu, out float fv);
         bool hasRossbyFlow = GlebaGeographySupplement.EvaluateMapmodeFlow(world, 0.25f, 0.82f, 6, GlebaMapmodeKind.RossbyJetStream, out float ru, out _);
-        Check(hasWindFlow && FMath.Finite(fu) && FMath.Finite(fv) && hasRossbyFlow && ru > 0f && (wr + wg + wb) > 0,
+        Check(hasWindFlow && FMath.Finite(fu) && FMath.Finite(fv) && hasRossbyFlow && ru > 0f && (wr + wg + wb) > 0 && (cr + cg + cb) > 0,
             "Mapmode color and UV flow evaluators must produce valid colors and vectors");
+
+        var windHalf = new ushort[64 * 32 * 4];
+        var currHalf = new ushort[64 * 32 * 4];
+        var bandHalf = new ushort[64 * 4 * 4];
+        GlebaGeographySupplement.PackTwoMonthWindFlowHalf(world, 6, 64, 32, windHalf);
+        GlebaGeographySupplement.PackTwoMonthCurrentFlowHalf(world, 6, 64, 32, currHalf);
+        GlebaGeographySupplement.PackInterpolatedBandsHalf(world, 195.0, 64, bandHalf);
+        int nonZeroWind = 0, nonZeroCurr = 0;
+        for (int i = 0; i < windHalf.Length; i++)
+        {
+            if ((windHalf[i] & 0x7FFFu) != 0) nonZeroWind++;
+            if ((currHalf[i] & 0x7FFFu) != 0) nonZeroCurr++;
+        }
+        Check(nonZeroWind > 1000 && nonZeroCurr > 500 && bandHalf[0] == bandHalf[64 * 4] && bandHalf[2 * 64 * 4] == bandHalf[3 * 64 * 4],
+            $"Two-month RGBAHalf flow and band packers failed: wind={nonZeroWind}, curr={nonZeroCurr}");
 
         var clone = world.Clone();
         int shoaled = GlebaGeographySupplement.ShoalCoralReefs(clone, clone.Facts.GlebaGeography);

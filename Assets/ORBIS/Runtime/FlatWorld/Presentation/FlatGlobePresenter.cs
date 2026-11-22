@@ -16,7 +16,7 @@ namespace Orbis.Flat
             viewCamera=target;maps=renderer;
             Snapshot=OrbisWorld.CreateFlatPresentation(world);
             View=gameObject.AddComponent<OrbisPlanetView>();View.Initialize(Snapshot,viewCamera,null,null,scrollPresentation);View.showRivers=false;
-            View.SurfaceMaterial.SetFloat("_FlatWorldReady",1);View.SurfaceMaterial.SetTexture("_FlatTerrain",maps.TerrainTexture);View.SurfaceMaterial.SetTexture("_FlatOwners",maps.OwnerTexture);View.SurfaceMaterial.SetTexture("_FlatInfo",maps.InfoTexture);
+            View.SurfaceMaterial.SetFloat("_FlatWorldReady",1);View.SurfaceMaterial.SetTexture("_FlatTerrain",maps.TerrainTexture);View.SurfaceMaterial.SetTexture("_FlatDisplay",maps.DisplayTexture);View.SurfaceMaterial.SetTexture("_FlatOwners",maps.OwnerTexture);View.SurfaceMaterial.SetTexture("_FlatInfo",maps.InfoTexture);
             View.SurfaceMaterial.SetTexture("_VisualTex",maps.VisualTexture);View.SurfaceMaterial.SetFloat("_FieldReady",1);
             maps.BindPolarTerrain(View.SurfaceMaterial);
             materialTerrainRevision=maps.PublishedTerrainRevision;

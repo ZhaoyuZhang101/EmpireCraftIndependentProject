@@ -5,6 +5,10 @@ Shader "ORBIS/FlatWorld/ScrollSurface"
   [HideInInspector] _VegetationWindTex("Seasonal vegetation wind",2D)="black"{}
   [HideInInspector] _VegetationWindReady("Vegetation wind ready",Float)=0
   [HideInInspector] _VegetationWindBlend("Vegetation wind month blend",Float)=0
+  [HideInInspector] _GlebaWindFlowTex("Gleba two-month surface wind flow",2D)="black"{}
+  [HideInInspector] _GlebaCurrentFlowTex("Gleba two-month ocean current flow",2D)="black"{}
+  [HideInInspector] _GlebaBandsTex("Gleba circulation front latitudes",2D)="black"{}
+  [HideInInspector] _GlebaCirculation("Gleba circulation mode clock blend ready",Vector)=(0,0,0,0)
   [HideInInspector] _VegetationSeasonTex("Climate vegetation seasons",2D)="white"{}
   [HideInInspector] _VegetationSeasonReady("Vegetation seasons ready",Float)=0
   [HideInInspector] _VegetationSeason("Current month next month blend",Vector)=(0,1,0,0)

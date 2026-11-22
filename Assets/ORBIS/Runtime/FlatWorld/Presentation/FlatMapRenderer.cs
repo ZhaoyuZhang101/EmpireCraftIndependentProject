@@ -19,6 +19,12 @@ namespace Orbis.Flat
         Vector4 poleBedDepth;
         public Texture2D EcologyTexture { get; private set; }
         public Texture2D VegetationTexture { get; private set; }
+        const int GlebaFlowWidth=256,GlebaFlowHeight=128;
+        Texture2D glebaWindFlowTex,glebaCurrentFlowTex,glebaBandsTex;
+        ushort[] glebaFlowBuffer,glebaBandsBuffer;
+        int uploadedGlebaFlowMonth=-1,uploadedGlebaFlowRevision=-1;
+        double uploadedGlebaBandsDay=double.NaN;
+        float circulationClock;
         public Texture2D RiverSeasonTexture { get; private set; }
         FlatRiverStageField riverSeasons;
         public FlatSkyRenderer Sky { get; private set; }
@@ -94,6 +100,14 @@ namespace Orbis.Flat
             EcologyTexture=Make(world.Width,world.Height,"Vegetation cover / biome and tree / wetness / seeded variation",true);
             Material.SetTexture("_EcologyTex",EcologyTexture);Material.SetFloat("_EcologyReady",1);
             Material.SetTexture("_VisualTex",VisualTexture);Material.SetFloat("_FieldReady",1);
+            glebaWindFlowTex=MakeData(GlebaFlowWidth,GlebaFlowHeight,"Gleba two-month surface wind flow",true);
+            glebaCurrentFlowTex=MakeData(GlebaFlowWidth,GlebaFlowHeight,"Gleba two-month ocean current flow",true);
+            glebaBandsTex=MakeData(GlebaFlowWidth,4,"Gleba circulation front latitudes",true);
+            glebaFlowBuffer=new ushort[GlebaFlowWidth*GlebaFlowHeight*4];
+            glebaBandsBuffer=new ushort[GlebaFlowWidth*4*4];
+            Material.SetTexture("_GlebaWindFlowTex",glebaWindFlowTex);
+            Material.SetTexture("_GlebaCurrentFlowTex",glebaCurrentFlowTex);
+            Material.SetTexture("_GlebaBandsTex",glebaBandsTex);
             RefreshVegetationSeasons();SetVegetationDay(world.Day);
             Material.SetFloat("_SmoothTerrain",1);Material.SetFloat("_Vegetation",1);Material.SetFloat("_Bathymetry",1);Material.SetFloat("_Relief",1);
             Material.SetTexture("_HydroA",HydroTexture);Material.SetTexture("_HydroB",MixingTexture);Material.SetTexture("_GeoTex",GeometryTexture);
@@ -127,11 +141,54 @@ namespace Orbis.Flat
             LocalFocusTile=tile;
             LocalEditFootprint=footprint;
         }
-        public void Configure(bool grid,float pixelsPerTile)
+        public void Configure(bool grid,float pixelsPerTile,float flowClock=0f)
         {
+            circulationClock=flowClock;
             Material.SetFloat("_Grid",grid?1:0);Material.SetFloat("_PixelsPerTile",pixelsPerTile);
             SetVegetationDay(World.Day);
             ConfigureLayer();
+        }
+        static void UploadHalfData(Texture2D tex,ushort[] halfData)
+        {
+            if(tex.format==TextureFormat.RGBAHalf)tex.SetPixelData(halfData,0);
+            else
+            {
+                var floats=new float[halfData.Length];
+                for(int i=0;i<halfData.Length;i++)floats[i]=Mathf.HalfToFloat(halfData[i]);
+                tex.SetPixelData(floats,0);
+            }
+            tex.Apply(false,false);
+        }
+        void UpdateGlebaCirculation(double day,int month,float monthBlend,Material target)
+        {
+            int mode=VisibleLayer==MapLayer.SurfaceWinds?1:VisibleLayer==MapLayer.OceanCurrents?2:0;
+            if(mode>0&&glebaWindFlowTex&&glebaCurrentFlowTex&&glebaBandsTex)
+            {
+                if(uploadedGlebaFlowMonth!=month||uploadedGlebaFlowRevision!=World.TerrainRevision)
+                {
+                    GlebaGeographySupplement.PackTwoMonthWindFlowHalf(World,month,GlebaFlowWidth,GlebaFlowHeight,glebaFlowBuffer);
+                    UploadHalfData(glebaWindFlowTex,glebaFlowBuffer);
+                    GlebaGeographySupplement.PackTwoMonthCurrentFlowHalf(World,month,GlebaFlowWidth,GlebaFlowHeight,glebaFlowBuffer);
+                    UploadHalfData(glebaCurrentFlowTex,glebaFlowBuffer);
+                    uploadedGlebaFlowMonth=month;
+                    uploadedGlebaFlowRevision=World.TerrainRevision;
+                    uploadedGlebaBandsDay=double.NaN;
+                }
+                if(mode==1&&(double.IsNaN(uploadedGlebaBandsDay)||Math.Abs(day-uploadedGlebaBandsDay)>.05))
+                {
+                    GlebaGeographySupplement.PackInterpolatedBandsHalf(World,day,GlebaFlowWidth,glebaBandsBuffer);
+                    UploadHalfData(glebaBandsTex,glebaBandsBuffer);
+                    uploadedGlebaBandsDay=day;
+                }
+                target.SetTexture("_GlebaWindFlowTex",glebaWindFlowTex);
+                target.SetTexture("_GlebaCurrentFlowTex",glebaCurrentFlowTex);
+                target.SetTexture("_GlebaBandsTex",glebaBandsTex);
+                target.SetVector("_GlebaCirculation",new Vector4(mode,circulationClock,monthBlend,1f));
+            }
+            else
+            {
+                target.SetVector("_GlebaCirculation",Vector4.zero);
+            }
         }
         void RefreshVegetationSeasons()
         {
@@ -202,6 +259,7 @@ namespace Orbis.Flat
             var year=FlatClimateYear.At(FMath.Seed(World.Seed),day);
             target.SetVector("_ClimateYearHeat",new Vector4(year.HeatX,year.HeatY,year.HeatZ,year.MeanHeat));
             target.SetVector("_ClimateYearRain",new Vector4(year.RainX,year.RainY,year.RainZ,0));
+            UpdateGlebaCirculation(day,month,(float)(period-whole),target);
         }
         void ConfigureLayer()
         {
@@ -209,6 +267,8 @@ namespace Orbis.Flat
             Material.SetFloat("_DrawHeight",VisibleLayer==MapLayer.Height?1:0);
             Material.SetFloat("_RiverMap",VisibleLayer==MapLayer.Rivers?1:0);
             Material.SetFloat("_WaterView",VisibleLayer==MapLayer.Natural||VisibleLayer==MapLayer.Nations||VisibleLayer==MapLayer.Water?1:0);
+            double period=World.Day/30,whole=Math.Floor(period);int month=(int)((whole%12+12)%12);
+            UpdateGlebaCirculation(World.Day,month,(float)(period-whole),Material);
         }
         public void Flush(bool force=false)
         {
@@ -281,7 +341,7 @@ namespace Orbis.Flat
             renderJobs?.Dispose();
             if(mesh)Destroy(mesh);
             if(Material)Destroy(Material);
-            foreach(var texture in new[]{TerrainTexture,DisplayTexture,OwnerTexture,InfoTexture,HydroTexture,MixingTexture,GeometryTexture,VisualTexture,EcologyTexture,VegetationTexture,RiverSeasonTexture})
+            foreach(var texture in new[]{TerrainTexture,DisplayTexture,OwnerTexture,InfoTexture,HydroTexture,MixingTexture,GeometryTexture,VisualTexture,EcologyTexture,VegetationTexture,RiverSeasonTexture,glebaWindFlowTex,glebaCurrentFlowTex,glebaBandsTex})
                 if(texture)Destroy(texture);
         }
     }

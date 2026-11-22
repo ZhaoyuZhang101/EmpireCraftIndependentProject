@@ -20,7 +20,7 @@ namespace Orbis.Flat
         FlatScrollNavigator navigation;
         readonly FlatSolarClock solarClock = new FlatSolarClock();
         Action<float> simulationStep;
-        bool screenshotMode; double visualClock;
+        bool screenshotMode; double visualClock,circulationClock;
         public double CalendarDay { get { return World==null?0:solarClock.RenderDay(World.Day); } }
         Camera viewCamera;FlatMapRenderer map;FlatGlobePresenter globe;UIDocument document;PanelSettings panel;Font font;
         FlatWildlifePresenter wildlife;
@@ -80,7 +80,7 @@ namespace Orbis.Flat
             sizeField.choices=new List<string>(Array.ConvertAll(playerWidths,width=>$"{width} × {width/2}"));
             sizeField.index=Math.Max(0,Array.FindLastIndex(playerWidths,width=>width<=initialWidth));
             presetField=root.Q<DropdownField>("preset");presetField.choices=new List<string>{"大陆与群山","群岛","超级大陆","内海世界","地球（真实地形）"};presetField.index=0;
-            layerField=root.Q<DropdownField>("layer");layerField.choices=new List<string>{"自然地表","文明版图","20 档高度","Köppen 柯本气候","本月温度","本月降水","海水与淡水","土地肥力","地貌 / 丘陵高原","地表材料 / 沙泥砾岩","土壤桶湿度","河流 / 河口悬沙","生态植被 / 14 类","河网"};layerField.index=0;
+            layerField=root.Q<DropdownField>("layer");layerField.choices=new List<string>{"自然地表","文明版图","20 档高度","Köppen 柯本气候","本月温度","本月降水","海水与淡水","土地肥力","地貌 / 丘陵高原","地表材料 / 沙泥砾岩","土壤桶湿度","河流 / 河口悬沙","生态植被 / 14 类","河网","风带与气压（Gleba）","洋流与海温（Gleba）"};layerField.index=0;
             climateYearField=root.Q<DropdownField>("climateYear");climateYearField.choices=new List<string>{"今年","明年","后年"};climateYearField.index=0;
             climateYearField.RegisterValueChangedCallback(e=>{if(map){map.SetClimateYearOffset(climateYearField.index);UpdateHUD();}});
             layerField.RegisterValueChangedCallback(e=>{
@@ -321,7 +321,7 @@ namespace Orbis.Flat
             try
             {
                 next.Initialize(world);next.GetComponent<MeshRenderer>().enabled=false;
-                next.SetLayer((MapLayer)Mathf.Clamp(layerField.index,0,(int)MapLayer.Rivers));
+                next.SetLayer((MapLayer)Mathf.Clamp(layerField.index,0,(int)MapLayer.OceanCurrents));
                 next.SetClimateYearOffset(climateYearField.index);
                 nextNav.Initialize(world,viewCamera,next);
                 nextGlobe.Initialize(world,viewCamera,next,true);nextGlobe.PrepareScroll();
@@ -369,13 +369,13 @@ namespace Orbis.Flat
             float realDt=Mathf.Max(0,Time.unscaledDeltaTime),dt=Mathf.Min(realDt,.10f);bool animate=!paused&&!Busy;
             solarClock.Advance(realDt,speed,120f,!animate,simulationStep);
             int period=(int)Math.Floor(World.Day/30);
-            if(period!=lastClimatePeriod){lastClimatePeriod=period;if(map.Layer==MapLayer.Temperature||map.Layer==MapLayer.Rain)World.MarkAllDirty();}
-            map.Flush();if(animate)visualClock+=dt;
+            if(period!=lastClimatePeriod){lastClimatePeriod=period;if(map.Layer==MapLayer.Temperature||map.Layer==MapLayer.Rain||map.Layer==MapLayer.SurfaceWinds||map.Layer==MapLayer.OceanCurrents)World.MarkAllDirty();}
+            map.Flush();if(animate)visualClock+=dt;if(!Busy)circulationClock+=dt;
             UpdateViewportRect();navigation.Tick(dt,CalendarDay);
             UpdateLocalEditTarget();
             if(!screenshotMode)minimap.Tick(viewCamera);
             globeMode=!navigation.IsFlat;pixelsPerTile=navigation.PixelsPerTile;pan=navigation.CenterTile;
-            map.Configure(gridToggle.value,pixelsPerTile);
+            map.Configure(gridToggle.value,pixelsPerTile,(float)circulationClock);
             map.SetVegetationDay(CalendarDay);
             bool natural=map.VisibleLayer==MapLayer.Natural||map.VisibleLayer==MapLayer.Nations;
             bool skyNeeded=natural&&cloudToggle.value;
@@ -398,7 +398,7 @@ namespace Orbis.Flat
         {
             if(World==null||!map||!navigation)return;
             UpdateViewportRect();navigation.Tick(0,CalendarDay);pixelsPerTile=navigation.PixelsPerTile;pan=navigation.CenterTile;
-            map.Configure(gridToggle.value,pixelsPerTile);
+            map.Configure(gridToggle.value,pixelsPerTile,(float)circulationClock);
         }
         void UpdateViewportRect()
         {
@@ -596,7 +596,31 @@ namespace Orbis.Flat
                     info.text+="\n常年丰水峰值 "+(peak+1)+" 月 · 枯水低值 "+(low+1)+" 月";
             }
             else if(FlatTerrainAnalysis.AreaWater(World.Water[i]))info.text+="\n水深："+facts.Depth[i].ToString("F1")+" m";
-            info.text+=wildlife.DescribeTile(i);
+            info.text+=FormatGlebaTileHud(i)+wildlife.DescribeTile(i);
+        }
+        string FormatGlebaTileHud(int tile)
+        {
+            var gd=GlebaClimateSupplement.SampleTileDiagnostic(World,tile,World.Month);
+            if(!gd.Available)return "";
+            var sb=new StringBuilder(256);
+            sb.Append("\n\n[Gleba 环流与洋流]\n海平面气压：").Append(gd.PressureHpa.ToString("F1")).Append(" hPa · 降水影响：").Append(gd.RainfallImpact.ToString("+0.00;-0.00;0.00"));
+            sb.Append("\n近地风矢量：(").Append(gd.WindEast.ToString("+0.00;-0.00;0.00")).Append(", ").Append(gd.WindNorth.ToString("+0.00;-0.00;0.00")).Append(") · 雨影度：").Append(gd.RainShadowiness.ToString("P0"));
+            sb.Append("\n当月环流带：ITCZ ").Append(gd.ItczLatitudeDeg.ToString("+0.0;-0.0;0.0")).Append("° · 副高 ").Append(gd.SthzNorthDeg.ToString("F1")).Append("°/").Append(gd.SthzSouthDeg.ToString("F1")).Append("°");
+            if(FlatTerrainAnalysis.Ocean(World.Water[tile]))
+            {
+                float spd=Mathf.Sqrt(gd.SeasonalCurrentEastMs*gd.SeasonalCurrentEastMs+gd.SeasonalCurrentNorthMs*gd.SeasonalCurrentNorthMs);
+                sb.Append("\n表层洋流：").Append(spd.ToString("F3")).Append(" m/s (").Append(gd.SeasonalCurrentEastMs.ToString("+0.00;-0.00;0.00")).Append(", ").Append(gd.SeasonalCurrentNorthMs.ToString("+0.00;-0.00;0.00")).Append(')');
+                sb.Append("\n海温异常：").Append(gd.SstAnomalyC.ToString("+0.00;-0.00;0.00")).Append(" °C · 动态海高：").Append(gd.OceanDynamicHeight.ToString("F0"));
+            }
+            else if(World.Water[tile]==WaterKind.Lake)
+            {
+                sb.Append("\n湖盆属性：").Append(gd.WaterbodyType==GlebaWaterbodyType.SaltwaterLake?"内流咸水湖":"外流淡水湖").Append(" (").Append(gd.LakeOrigin).Append(')');
+            }
+            else if(gd.AquiferId>=0)
+            {
+                sb.Append("\n深层含水层：#").Append(gd.AquiferId).Append(" · 埋深 ").Append(gd.AquiferDepthMeters.ToString("F0")).Append(" m · 厚 ").Append(gd.AquiferThicknessMeters.ToString("F1")).Append(" m");
+            }
+            return sb.ToString();
         }
         static string BiomeName(Biome b)
         {return FlatPalette.BiomeNames[(int)b];}

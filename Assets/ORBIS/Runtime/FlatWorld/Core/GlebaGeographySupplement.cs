@@ -1386,13 +1386,23 @@ namespace Orbis.Flat
             {
                 case GlebaMapmodeKind.ClimateSurfaceWinds:
                 {
-                    float p = gleba != null ? gleba.SampleMonthly(gleba.PressureHpa, u, v, month) : 1013.25f;
+                    float p;
+                    if (gleba != null)
+                    {
+                        p = gleba.SampleMonthly(gleba.PressureHpa, u, v, month);
+                    }
+                    else
+                    {
+                        float season = (float)Math.Cos((month - 6) * Math.PI / 6.0);
+                        float shiftLat = latDeg - 8f * season;
+                        p = 1000f - 45f * (float)Math.Cos(shiftLat * (Math.PI / 30.0));
+                    }
                     float t = 1f - FMath.Clamp((p - 900f) / 200f, 0f, 1f);
                     SampleCividis(t, out byte cr, out byte cg, out byte cb);
                     r = (byte)FMath.Clamp(baseVal + 0.955f * (cr - baseVal), 0f, 255f);
                     g = (byte)FMath.Clamp(baseVal + 0.955f * (cg - baseVal), 0f, 255f);
                     b = (byte)FMath.Clamp(baseVal + 0.955f * (cb - baseVal), 0f, 255f);
-                    if (gleba != null)
+                    if (gleba != null && world.CoastDistance[tile] <= 2)
                     {
                         int gx = FMath.Wrap((int)(u * gleba.Width), gleba.Width);
                         int gy = FMath.Clamp((int)(v * gleba.Height), 0, gleba.Height - 1);
@@ -1414,12 +1424,39 @@ namespace Orbis.Flat
                 }
                 case GlebaMapmodeKind.ClimateOceanCurrents:
                 {
-                    if (!isWater) { r = g = b = 80; return; }
-                    SampleSeasonalOceanCurrent(world, u, v, month, out _, out _, out float dynH, out _);
+                    if (!isWater)
+                    {
+                        float lift = FMath.Clamp(world.Elevation[tile] / 4000f, 0f, 1f) * 18f;
+                        r = (byte)(68f + lift);
+                        g = (byte)(72f + lift);
+                        b = (byte)(78f + lift * 0.9f);
+                        return;
+                    }
+                    if (world.Water[tile] == WaterKind.Lake)
+                    {
+                        bool salt = geo != null && geo.WaterbodyTypes[tile] == GlebaWaterbodyType.SaltwaterLake;
+                        r = salt ? (byte)66 : (byte)56;
+                        g = salt ? (byte)86 : (byte)106;
+                        b = salt ? (byte)114 : (byte)124;
+                        return;
+                    }
+                    SampleSeasonalOceanCurrent(world, u, v, month, out _, out _, out float dynH, out float sstAnom);
                     SampleCividis(FMath.Clamp((dynH - 900f) / 200f, 0f, 1f), out byte cr, out byte cg, out byte cb);
-                    r = (byte)FMath.Clamp(30f + 0.25f * (cr - 30f), 0f, 255f);
-                    g = (byte)FMath.Clamp(30f + 0.25f * (cg - 30f), 0f, 255f);
-                    b = (byte)FMath.Clamp(30f + 0.25f * (cb - 30f), 0f, 255f);
+                    float rr = 24f + 0.36f * (cr - 24f);
+                    float gg = 34f + 0.36f * (cg - 34f);
+                    float bb = 52f + 0.36f * (cb - 52f);
+                    // Subtle OISST warm western-boundary vs cold upwelling thermal tint
+                    float warm = FMath.Clamp(sstAnom / 3.5f, 0f, 1f);
+                    float cool = FMath.Clamp(-sstAnom / 2.8f, 0f, 1f);
+                    rr = FMath.Lerp(rr, 212f, warm * 0.42f);
+                    gg = FMath.Lerp(gg, 118f, warm * 0.32f);
+                    bb = FMath.Lerp(bb, 68f, warm * 0.28f);
+                    rr = FMath.Lerp(rr, 28f, cool * 0.32f);
+                    gg = FMath.Lerp(gg, 146f, cool * 0.38f);
+                    bb = FMath.Lerp(bb, 198f, cool * 0.42f);
+                    r = (byte)FMath.Clamp(rr, 0f, 255f);
+                    g = (byte)FMath.Clamp(gg, 0f, 255f);
+                    b = (byte)FMath.Clamp(bb, 0f, 255f);
                     return;
                 }
                 case GlebaMapmodeKind.ClimateItcz:
@@ -1602,6 +1639,147 @@ namespace Orbis.Flat
                 }
                 default:
                     return false;
+            }
+        }
+
+        /// <summary>
+        /// Converts a 32-bit IEEE-754 float to 16-bit binary16 (RGBAHalf channel) without .NET 5 System.Half dependency.
+        /// </summary>
+        public static ushort FloatToHalfBits(float value)
+        {
+            uint bits = BitConverter.ToUInt32(BitConverter.GetBytes(value), 0);
+            uint sign = (bits >> 16) & 0x8000u;
+            int exp = (int)((bits >> 23) & 0xFFu) - 127 + 15;
+            uint mant = bits & 0x007FFFFFu;
+            if (exp <= 0)
+            {
+                if (exp < -10) return (ushort)sign;
+                mant = (mant | 0x00800000u) >> (1 - exp);
+                return (ushort)(sign | ((mant + 0x00001000u) >> 13));
+            }
+            if (exp >= 31) return (ushort)(sign | 0x7C00u);
+            return (ushort)(sign | ((uint)exp << 10) | ((mant + 0x00001000u) >> 13));
+        }
+
+        /// <summary>
+        /// Packs two consecutive calendar months (m0 in RG, m1 in BA) of surface wind vectors (+East, +North)
+        /// into an RGBAHalf buffer of size width * height * 4.
+        /// </summary>
+        public static void PackTwoMonthWindFlowHalf(WorldData world, int month0, int width, int height, ushort[] dstRgbaHalf)
+        {
+            if (world == null || dstRgbaHalf == null || dstRgbaHalf.Length < width * height * 4) return;
+            int m0 = FMath.Wrap(month0, 12), m1 = (m0 + 1) % 12;
+            var moisture = world.Moisture;
+            float s0 = (float)Math.Cos((m0 - 6) * Math.PI / 6.0);
+            float s1 = (float)Math.Cos((m1 - 6) * Math.PI / 6.0);
+
+            for (int y = 0; y < height; y++)
+            {
+                float v = (y + 0.5f) / height;
+                float lat = (v - 0.5f) * 180f;
+                int row = y * width;
+                for (int x = 0; x < width; x++)
+                {
+                    float u = (x + 0.5f) / width;
+                    float e0, n0, e1, n1;
+                    if (moisture != null)
+                    {
+                        e0 = moisture.Sample(moisture.East, u, v, m0);
+                        n0 = moisture.Sample(moisture.North, u, v, m0);
+                        e1 = moisture.Sample(moisture.East, u, v, m1);
+                        n1 = moisture.Sample(moisture.North, u, v, m1);
+                    }
+                    else
+                    {
+                        e0 = FlatWindBelts.Zonal(lat, s0);
+                        n0 = -0.32f * (float)Math.Sin((lat - 8f * s0) * (Math.PI / 30.0));
+                        e1 = FlatWindBelts.Zonal(lat, s1);
+                        n1 = -0.32f * (float)Math.Sin((lat - 8f * s1) * (Math.PI / 30.0));
+                    }
+                    int p = (row + x) * 4;
+                    dstRgbaHalf[p] = FloatToHalfBits(e0);
+                    dstRgbaHalf[p + 1] = FloatToHalfBits(n0);
+                    dstRgbaHalf[p + 2] = FloatToHalfBits(e1);
+                    dstRgbaHalf[p + 3] = FloatToHalfBits(n1);
+                }
+            }
+        }
+
+        /// <summary>
+        /// Packs two consecutive calendar months (m0 in RG, m1 in BA) of seasonal ocean surface current velocities (m/s)
+        /// into an RGBAHalf buffer of size width * height * 4.
+        /// </summary>
+        public static void PackTwoMonthCurrentFlowHalf(WorldData world, int month0, int width, int height, ushort[] dstRgbaHalf)
+        {
+            if (world == null || dstRgbaHalf == null || dstRgbaHalf.Length < width * height * 4) return;
+            int m0 = FMath.Wrap(month0, 12), m1 = (m0 + 1) % 12;
+
+            for (int y = 0; y < height; y++)
+            {
+                float v = (y + 0.5f) / height;
+                int row = y * width;
+                for (int x = 0; x < width; x++)
+                {
+                    float u = (x + 0.5f) / width;
+                    SampleSeasonalOceanCurrent(world, u, v, m0, out float e0, out float n0, out _, out _);
+                    SampleSeasonalOceanCurrent(world, u, v, m1, out float e1, out float n1, out _, out _);
+                    int p = (row + x) * 4;
+                    dstRgbaHalf[p] = FloatToHalfBits(e0);
+                    dstRgbaHalf[p + 1] = FloatToHalfBits(n0);
+                    dstRgbaHalf[p + 2] = FloatToHalfBits(e1);
+                    dstRgbaHalf[p + 3] = FloatToHalfBits(n1);
+                }
+            }
+        }
+
+        /// <summary>
+        /// Packs Gleba's 5 dynamic circulation band latitudes (normalized V in [0, 1]) interpolated at calendarDay
+        /// into a width * 4 RGBAHalf texture buffer (rows 0..1: ItczV, SthzNV, SthzSV, PolarNV; rows 2..3: PolarSV, 0, 0, 0).
+        /// </summary>
+        public static void PackInterpolatedBandsHalf(WorldData world, double calendarDay, int width, ushort[] dstRgbaHalf)
+        {
+            if (world == null || dstRgbaHalf == null || dstRgbaHalf.Length < width * 4 * 4) return;
+            double period = calendarDay / 30.0, whole = Math.Floor(period);
+            int m0 = FMath.Wrap((int)whole, 12), m1 = (m0 + 1) % 12;
+            float blend = (float)(period - whole);
+            var gleba = world.Moisture?.Gleba;
+            float season = (float)Math.Cos(((m0 + blend) - 6.0) * Math.PI / 6.0);
+
+            for (int x = 0; x < width; x++)
+            {
+                float u = (x + 0.5f) / width;
+                float itczDeg, sthzNDeg, sthzSDeg, polNDeg, polSDeg;
+                if (gleba != null)
+                {
+                    itczDeg = FMath.Lerp(gleba.SampleBandDegrees(gleba.ItczLatRad, u, m0), gleba.SampleBandDegrees(gleba.ItczLatRad, u, m1), blend);
+                    sthzNDeg = FMath.Lerp(gleba.SampleBandDegrees(gleba.SthzNorthLatRad, u, m0), gleba.SampleBandDegrees(gleba.SthzNorthLatRad, u, m1), blend);
+                    sthzSDeg = FMath.Lerp(gleba.SampleBandDegrees(gleba.SthzSouthLatRad, u, m0), gleba.SampleBandDegrees(gleba.SthzSouthLatRad, u, m1), blend);
+                    polNDeg = FMath.Lerp(gleba.SampleBandDegrees(gleba.PolarNorthLatRad, u, m0), gleba.SampleBandDegrees(gleba.PolarNorthLatRad, u, m1), blend);
+                    polSDeg = FMath.Lerp(gleba.SampleBandDegrees(gleba.PolarSouthLatRad, u, m0), gleba.SampleBandDegrees(gleba.PolarSouthLatRad, u, m1), blend);
+                }
+                else
+                {
+                    itczDeg = 6f * season;
+                    sthzNDeg = 30f + 2f * season;
+                    sthzSDeg = -30f + 2f * season;
+                    polNDeg = 62f + 2f * season;
+                    polSDeg = -62f + 2f * season;
+                }
+
+                ushort hItcz = FloatToHalfBits(FMath.Clamp((itczDeg + 90f) / 180f, 0.01f, 0.99f));
+                ushort hSthzN = FloatToHalfBits(FMath.Clamp((sthzNDeg + 90f) / 180f, 0.01f, 0.99f));
+                ushort hSthzS = FloatToHalfBits(FMath.Clamp((sthzSDeg + 90f) / 180f, 0.01f, 0.99f));
+                ushort hPolN = FloatToHalfBits(FMath.Clamp((polNDeg + 90f) / 180f, 0.01f, 0.99f));
+                ushort hPolS = FloatToHalfBits(FMath.Clamp((polSDeg + 90f) / 180f, 0.01f, 0.99f));
+                ushort hZero = 0;
+
+                for (int r = 0; r < 2; r++)
+                {
+                    int pA = (r * width + x) * 4;
+                    dstRgbaHalf[pA] = hItcz; dstRgbaHalf[pA + 1] = hSthzN; dstRgbaHalf[pA + 2] = hSthzS; dstRgbaHalf[pA + 3] = hPolN;
+                    int pB = ((r + 2) * width + x) * 4;
+                    dstRgbaHalf[pB] = hPolS; dstRgbaHalf[pB + 1] = hZero; dstRgbaHalf[pB + 2] = hZero; dstRgbaHalf[pB + 3] = hZero;
+                }
             }
         }
 
