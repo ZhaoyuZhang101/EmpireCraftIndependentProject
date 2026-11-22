@@ -1,6 +1,6 @@
-"""Bake major river courses from Natural Earth v5.1.2 and GRWL V01.02.
+"""Bake major river courses from Natural Earth, GRWL and ESA WorldCover.
 
-Requires NumPy, Pillow (shared data reader), SciPy, and Shapely 2. Source coordinates
+Dependencies are in requirements.txt. Source coordinates
 are WGS84. Natural Earth scale ranks and min_zoom express map prominence.
 Simplification in a local ground metric preserves endpoints and confluences.
 """
@@ -19,6 +19,7 @@ from bake_player_presets import ROOT, RESOURCES, SOURCE
 from river_widths import RiverWidths, complete_widths
 from river_transects import RiverTransects
 from river_centerlines import RiverCenterlines
+from huangpu import huangpu_course
 
 
 # Rank 5 includes the Colorado, Marañón and upper Mississippi. One rank-0
@@ -276,12 +277,16 @@ def river_stations(points, terrain, endpoint_keys, mapped_outlet, centerlines):
     course = np.column_stack(((simple[:, 0]/east + 180) % 360 - 180, simple[:, 1]))
     protected = [tuple(key) in endpoint_keys for key in quantize(*course.T)]
     course = centerlines.refine(course, protected)
-    uv = (course + [180, 90]) / [360, 180]
-    xy = np.rint(uv * 16777215).clip(0, 16777215).astype("<u4")
+    xy = stored_coordinates(course)
     xy = xy[np.r_[True, np.any(xy[1:] != xy[:-1], axis=1)]]
     if len(xy) < 2:
         return None
     return xy
+
+
+def stored_coordinates(points):
+    uv = (points + [180, 90]) / [360, 180]
+    return np.rint(uv * 16777215).clip(0, 16777215).astype("<u4")
 
 
 def pack_part(xy, rank, widths):
@@ -338,6 +343,11 @@ def main():
         parts.append(pack_part(xy, rank, complete_widths(points, measured, fallback)))
         direct += np.isfinite(measured).sum()
         total += len(xy)
+    # This regional addition has its own surveys and does not contribute to
+    # the rank-wide width estimates used for the global Natural Earth set.
+    huangpu, widths = huangpu_course(args.cache)
+    parts.append(pack_part(stored_coordinates(huangpu), 7, widths))
+    total += len(huangpu)
     data = struct.pack("<4sI", b"ORV2", len(parts)) + b"".join(parts)
     path = RESOURCES / "EarthRivers.bytes"
     if args.check:
@@ -346,8 +356,9 @@ def main():
     else:
         path.write_bytes(data)
     print(f"Selected {feature_count} nonempty river features, "
-          f"{len(selected)-1} source parts plus the Yangtze tidal reach, {len(parts)} drawable parts, "
-          f"{total} stations ({direct} GRWL matches, {cross_sections} local transect matches), "
+          f"{len(selected)-1} source parts plus the Yangtze tidal reach and Huangpu, {len(parts)} drawable parts, "
+          f"{total} stations ({direct} GRWL matches on the global set, including {cross_sections} local transect matches, "
+          f"plus {len(huangpu)} Huangpu stations), "
           f"{centerlines.accepted} registered sections covering {centerlines.kilometres:.0f} km, {len(data)} bytes, "
           f"sha256 {hashlib.sha256(data).hexdigest()}")
 

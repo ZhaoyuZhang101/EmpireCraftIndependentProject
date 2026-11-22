@@ -1,17 +1,15 @@
 """Aggregate ESA WorldCover 2021 cropland inside the Natural Earth Nile Delta."""
 import argparse
-import hashlib
-import urllib.request
 from pathlib import Path
 
 import numpy as np
-import rasterio
 from rasterio.features import geometry_mask
 from rasterio.windows import from_bounds
 from shapely.geometry import shape
 
 from bake_player_presets import ROOT
 from bake_player_water import features
+from worldcover import open_worldcover
 
 
 TILES = {
@@ -29,20 +27,7 @@ def aggregate(cache):
     x1, y1 = np.ceil(np.array([east, north])*RESOLUTION).astype(int)
     rows = np.zeros((y1-y0, x1-x0), dtype=np.uint8)
     for tile, checksum in TILES.items():
-        filename = f"ESA_WorldCover_10m_2021_v200_{tile}_Map.tif"
-        path = cache/filename
-        if not path.exists():
-            url = "https://esa-worldcover.s3.eu-central-1.amazonaws.com/v200/2021/map/"+filename
-            with urllib.request.urlopen(url, timeout=180) as response:
-                data = response.read()
-            if hashlib.sha256(data).hexdigest() != checksum:
-                raise ValueError(f"Downloaded WorldCover {tile} checksum mismatch")
-            path.write_bytes(data)
-        if hashlib.sha256(path.read_bytes()).hexdigest() != checksum:
-            raise ValueError(f"Cached WorldCover {tile} checksum mismatch")
-        with rasterio.open(path) as source:
-            if source.crs.to_epsg() != 4326 or source.shape != (36000,36000):
-                raise ValueError("Unexpected ESA WorldCover tile")
+        with open_worldcover(cache, tile, checksum) as source:
             left = max(x0, round(source.bounds.left*RESOLUTION))
             right = min(x1, round(source.bounds.right*RESOLUTION))
             for y in range(y0, y1):

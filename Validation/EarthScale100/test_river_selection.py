@@ -57,6 +57,49 @@ class RiverSelectionTest(unittest.TestCase):
         return min((scale(self.lines[i], xfact=east, yfact=1, origin=point).distance(point)
                     * 111.2 for i in nearby), default=math.inf)
 
+    def test_huangpu_mainstem_from_dianfeng_to_wusongkou(self):
+        # WorldCover permanent-water centres upstream and independent GRWL
+        # transects downstream. All sites must lie on one downstream course.
+        sites = [
+            (120.978792, 31.089875, 94), (121.011542, 31.072125, 116),
+            (121.034375, 31.058875, 121), (121.107625, 31.008292, 178),
+            (121.172292, 30.957458, 246), (121.192292, 30.953708, 241),
+            (121.260283, 30.963095, 270), (121.412094, 30.993874, 502),
+            (121.453551, 31.150134, 398), (121.505512, 31.217868, 303),
+            (121.488157, 31.239858, 424), (121.562740, 31.275627, 449),
+            (121.500388, 31.362602, 469), (121.508334, 31.388676, 583),
+        ]
+        index = self.tree.nearest(Point(121.488157, 31.239858))
+        metres = np.array([111200 * math.cos(math.radians(31)), 111200])
+        xy = np.asarray(self.lines[index].coords)
+        self.assertLess(np.linalg.norm((xy[0]-[120.975, 31.091])*metres), 150,
+                        "mainstem must begin at the Dianshan Lake outlet")
+        self.assertLess(np.linalg.norm((xy[-1]-[121.517661, 31.397444])*metres), 50,
+                        "mainstem must end at Wusongkou in the Yangtze")
+        line = LineString(xy*metres)
+        along = np.r_[0, np.cumsum(np.linalg.norm(np.diff(xy*metres, axis=0), axis=1))]
+        self.assertTrue(105000 < line.length < 122000, line.length)
+        previous = -1
+        for lon, lat, width in sites:
+            with self.subTest(site=(lon, lat)):
+                p = Point(np.array([lon, lat])*metres)
+                self.assertLess(line.distance(p), min(65, width*.4))
+                station = line.project(p)
+                self.assertGreater(station, previous)
+                previous = station
+                actual = np.interp(station, along, self.widths[index])
+                self.assertLess(abs(actual-width), max(35, width*.20))
+        # WorldCover forest pixels on the near banks at wide tributary forks.
+        # A symmetric ribbon must not reach land across from the tributary.
+        for lon, lat in [(121.073622, 31.033074), (121.084664, 31.022586), (121.095736, 31.010974)]:
+            with self.subTest(fork_bank=(lon, lat)):
+                p = Point(np.array([lon, lat])*metres)
+                radius = .5*np.interp(line.project(p), along, self.widths[index])
+                self.assertGreater(line.distance(p)-radius, 10)
+        for lon, lat in [(121.1472, 30.8265), (121.4815, 31.2385), (121.505, 31.239)]:
+            with self.subTest(dry_or_other_reach=(lon, lat)):
+                self.assertGreater(self.distance_km(lon, lat), .5)
+
     def test_widths_follow_observed_cross_sections(self):
         # GRWL V01.01 raw station positions and widths (200 m medians).
         # A station can lie between two vertices of the simplified asset.
@@ -186,6 +229,7 @@ class RiverSelectionTest(unittest.TestCase):
             ("Rosetta", (31.14527,30.17532), (30.38,31.55), [(30.94,30.80)]),
             ("Damietta", (31.14527,30.17532), (31.86,31.57), [(31.52,30.72)]),
             ("Yangtze / Chongming", (120.205719,31.934053), (122.02,31.415), [(121.58,31.622)]),
+            ("Huangpu / Wusongkou", (121.488157,31.239858), (121.58,31.45), [(121.47,31.30)]),
             ("Yellow", (118.75869,37.76027), (119.29,37.79), [(119.14,37.79)]),
             ("Pearl / Modaomen", (112.950893,22.834932), (113.46,21.95), [(113.38,22.53)]),
             ("Qiantang", (119.784458,29.880265), (121.44,30.41), [(120.42,30.28)]),

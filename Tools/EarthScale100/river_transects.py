@@ -50,17 +50,21 @@ def section_file(cache, tile, entry):
     return path
 
 
+def read_transects(cache, tile, entry):
+    path = section_file(cache, tile, entry)
+    # Fields are in the source DBF's original order.
+    fields = ["width_m", "segmentID", "segmentInd", "lakeFlag", "lon", "lat"]
+    with shapefile.Reader(dbf=str(path)) as reader:
+        return np.fromiter(reader.iterRecords(fields=fields), dtype=(float, (6,)), count=len(reader))
+
+
 class RiverTransects(RiverWidths):
     def __init__(self, cache):
         manifest = json.loads(Path(__file__).with_name("grwl_section_tiles.json").read_text())
         starts, ends, sizes = [], [], []
         self.run_ids = []
         for tile, entry in manifest.items():
-            path = section_file(cache, tile, entry)
-            # Fields are in the source DBF's original order.
-            fields = ["width_m", "segmentID", "segmentInd", "lakeFlag", "lon", "lat"]
-            with shapefile.Reader(dbf=str(path)) as reader:
-                records = np.fromiter(reader.iterRecords(fields=fields), dtype=(float, (6,)), count=len(reader))
+            records = read_transects(cache, tile, entry)
             w, seg, order, flag, lon, lat = records.T
             coords = records[:, 4:6]
             wet = ((flag == 0) | (flag == 2)) & (w >= 90) & (w < 65535)

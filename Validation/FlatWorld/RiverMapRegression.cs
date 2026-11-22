@@ -7,11 +7,11 @@ using Orbis.Flat;
 public static class RiverMapRegression
 {
     const string Data = "Assets/ORBIS/Resources/ORBIS/FlatWorld/";
-    // Natural Earth 1:10m controls and the GRWL NH48/17/3396 transect on the Yangtze.
+    // Natural Earth and GRWL controls on surveyed player rivers.
     static readonly (string name, double lon, double lat)[] Sites = {
         ("Amazonas", -64.596099, -3.387709), ("Nile", 31.157319, 27.218573),
         ("Yangtze", 107.512794, 29.881527), ("Lena", 106.699718, 57.045111),
-        ("Yukon", -159.773834, 63.051540)
+        ("Yukon", -159.773834, 63.051540), ("Huangpu at the Bund", 121.488157, 31.239858)
     };
 
     static void Check(bool ok, string message)
@@ -180,7 +180,7 @@ public static class RiverMapRegression
         var saved=FlatSave.Encode(world);
         var loaded=FlatSave.Decode(saved);
         FlatEarthRiverReference.Restore(loaded,bed,water,rivers,default);
-        Check(saved.SequenceEqual(FlatSave.Encode(loaded)) && Sample(loaded,Sites[0].lon,Sites[0].lat).Distance<0,
+        Check(saved.SequenceEqual(FlatSave.Encode(loaded)) && Sites.All(site=>Sample(loaded,site.lon,site.lat).Distance<0),
             "Earth reload restores the survey with identical serialized terrain, water and climate");
         CheckDeltaFloodplain(world,loaded,bed,water,rivers);
 
@@ -295,6 +295,7 @@ public static class RiverMapRegression
         var routes = new[] {
             ("Rosetta",30.36723,31.46772,30.38,31.55,.0012), ("Damietta",31.8442,31.5271,31.86,31.57,.0012),
             ("Yangtze",121.858226,31.414904,122.02,31.415,.004), ("Huang",119.23476,37.77714,119.29,37.79,.002),
+            ("Huangpu / Wusongkou",121.517661,31.397444,121.58,31.45,.0015),
             ("Xi / Hengmen",113.59769,22.59360,113.70,22.53,.002), ("Xi / Modaomen",113.18139,22.54373,113.46,21.95,.003),
             ("Qiantang",120.20023,30.22262,121.44,30.41,.004), ("Padma / Meghna",90.25,23.462,90.62,22.0,.005),
             ("Amazon", -52.712,-1.584,-49.75,.60,.006), ("Mississippi",-89.41356,28.93517,-89.48,28.88,.002),
@@ -307,7 +308,8 @@ public static class RiverMapRegression
             catch(Exception e) { failures.Add(e.Message); }
         }
         foreach (var (name,lon,lat) in new[] {("land between Nile branches",30.94,30.80),
-            ("Chongming Island",121.58,31.622),("Pearl delta bank",113.38,22.53),("Caspian basin",51.0,42.0)})
+            ("Chongming Island",121.58,31.622),("upper Huangpu fork bank",121.084664,31.022586),
+            ("Pearl delta bank",113.38,22.53),("Caspian basin",51.0,42.0)})
         {
             chart.TryWater(w,new FlatSeaPoint(lon,lat),out bool sea);
             Check(!sea && Sample(w,lon,lat).Distance>0, $"Earth {width} {name} remains outside the marine and river channels");

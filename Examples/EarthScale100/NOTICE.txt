@@ -66,7 +66,7 @@ https://github.com/nvkelso/natural-earth-vector/blob/v5.1.2/geojson/ne_10m_geogr
 python Tools/EarthScale100/bake_nile_cropland.py --check reproduces the table.
 
 EarthRivers.bytes uses the public-domain Natural Earth v5.1.2 Rivers + Lake
-Centerlines at 1:10 million. The player atlas includes 704 drawable parts.
+Centerlines at 1:10 million. The player atlas includes 705 drawable parts.
 The Yangtze changes from a river line into the Ocean polygon at Zhenjiang. Its
 chart centreline follows connected water pixels between the mapped banks and
 islands to the mouth identified by the 1:110 million Chang river endpoint.
@@ -75,7 +75,7 @@ regional rivers and connecting reaches listed in the bake script. The bake
 preserves multipart boundaries and shared confluences. Generalized courses
 are simplified at about 145 m tolerance in a local ground metric before
 registration to the available transects. ORV2 encodes normalized
-24-bit coordinates and full width in metres at 76,957 vertices. Encoding
+24-bit coordinates and full width in metres at 77,696 vertices. Encoding
 precision does not increase the positional accuracy of the source cartography.
 Water depth and animation are illustrative. ETOPO endpoint elevations orient
 the optical current where the source line was digitized upstream. Charted
@@ -103,6 +103,19 @@ retain the Natural Earth course. Player attribution is in EarthWaterCredits.txt.
 https://zenodo.org/records/18624542
 https://doi.org/10.1126/science.aat0636
 https://creativecommons.org/licenses/by/4.0/
+
+The Huangpu mainstem follows the Shanghai Water Authority's alignment from
+the Dianshan Lake outlet to Wusongkou on the Yangtze. Its upper 32.5 km
+use ESA WorldCover 2021 v200 tile N30E120, class 80 (permanent water).
+ORBIS follows the channel between forks, spans short gaps in the water mask
+and estimates widths from the opposite banks on the native 10 m raster.
+The remainder uses GRWL V01.01 tile NH51, segment 5, stations 2550 down to
+83. Ordered transects supply the centreline and local widths. Missing
+observations borrow nearby widths from the same channel. The resulting
+113.9 km line stops in the surveyed Yangtze water at Wusongkou.
+WorldCover attribution and licence are given above and in EarthWaterCredits.txt.
+https://swj.sh.gov.cn/shsdfbzssglc-tpxw/20201009/f5c0d47bcde1426fb03fdf93a9aabbda.html
+https://doi.org/10.5281/zenodo.7254221
 
 python Tools/EarthScale100/bake_player_rivers.py --check reconstructs the
 player river resource from checksum-verified source geometry and width data.
