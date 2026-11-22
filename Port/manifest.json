@@ -1,0 +1,5 @@
+{
+  "about": "EmpireCraft files ported from the WorldBox mod. One entry per ported file: mod path, the mod commit it was copied from, the port date, the destination and what changed. Phase 0 code is new and has no entries.",
+  "modRepository": "EmpireCraft (WorldBox mod)",
+  "files": []
+}
