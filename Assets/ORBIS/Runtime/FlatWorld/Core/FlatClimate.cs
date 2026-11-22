@@ -251,6 +251,10 @@ namespace Orbis.Flat
                         - 2.2503f*s*FMath.Clamp(westRelief, -3, 3) + .5f*(winterHeat+summerLapse));
                     amplitude += coupling * (2.1601f*sine*(marine-nearbySea[i]) + .5f*hemisphere*(summerLapse-winterHeat));
                     lag -= coupling * hemisphere*(.4912f*tropical+.5713f*premonsoon);
+                    // In warm-season westerlies, a broad elevated continental source
+                    // heats air above the lowland boundary layer. Marine air damps
+                    // the effect. westRelief is a regional height difference in km.
+                    float plateauHeat=2.9068f*westerlies*(1-nearbySea[i])*FMath.Clamp(westRelief-.7f,0,2.5f);
                     float excursion = 5 + 23*land + 4*Math.Min(2, poleward)*land;
                     for (int m = 0; m < 12; m++)
                     {
@@ -259,7 +263,7 @@ namespace Orbis.Flat
                         float radiative = 1.2139f*solar[m] + 2.8346f*land*solar[(m+11)%12];
                         float snowShape = s2*land*(-1.6792f*(2*c*c-1) + 1.0032f*(2*c*q));
                         float cloudCooling = .7768f*(float)Math.Exp(-fromConvergence*fromConvergence);
-                        w.Temperature[off+m] = FMath.Clamp(annual + amplitude*c + lag*q
+                        w.Temperature[off+m] = FMath.Clamp(annual + amplitude*c + lag*q + plateauHeat*Math.Max(0,hemisphere*c)
                             + coupling*(radiative + snowShape - cloudCooling), -85, 55);
                     }
                 }

@@ -26,6 +26,17 @@ internal static class SeasonalRainfallRegression
             Console.WriteLine($"{hemisphere * 36} degrees, west and east coast summer/winter mm: {ws:F1}/{ww:F1}, {es:F1}/{ew:F1}");
             if (!(ws < 40 && ws < ww / 3 && es > 2 * ew))
                 throw new Exception("The two continental margins should have opposite rainy seasons.");
+
+            // On the poleward part of this unobstructed coast the sea can
+            // sustain the wet season after the inland summer maximum passes.
+            int midlatitudeRow = (int)((hemisphere * 46.0 / 180 + .5) * world.Height);
+            int shore = world.Index(80, midlatitudeRow) * 12;
+            int interior = world.Index(72, midlatitudeRow) * 12;
+            int lateSummer = (summer + 1) % 12;
+            Console.WriteLine($"{hemisphere * 46} degrees, midsummer/late summer: shore {rain[shore+summer]:F1}/{rain[shore+lateSummer]:F1}, interior {rain[interior+summer]:F1}/{rain[interior+lateSummer]:F1} mm.");
+            if (!(rain[shore+lateSummer] > 2 * rain[shore+summer] / 3 &&
+                  rain[interior+lateSummer] < rain[interior+summer] / 2))
+                throw new Exception("Late-summer marine supply should persist at the coast and diminish inland.");
         }
     }
 

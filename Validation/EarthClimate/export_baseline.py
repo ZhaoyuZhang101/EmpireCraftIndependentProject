@@ -16,6 +16,7 @@ REVISION = "fcb360fd872b6a7621868006ac72e1cd00b0ee37"
 BEFORE_SEASONS = "06bfd500e642b5242ca5ccbeb3bc85eb7b54efec"
 BEFORE_MONSOON = "1bee7ae203eb765ab118af11031392b88fa45cd2"
 BEFORE_CIRCULATION = "2d05a937549fbc4dab04ab245e14527cd1df6e99"
+BEFORE_BOHAI = "e560df56e44d9a43f61eba3fa68d73281de0097e"
 CORE = "Assets/ORBIS/Runtime/FlatWorld/Core"
 
 
@@ -56,6 +57,7 @@ if __name__ == "__main__":
     control.add_argument("--before-seasons", dest="revision", action="store_const", const=BEFORE_SEASONS, help="Use the immediate pre-seasonal Earth generation control.")
     control.add_argument("--before-monsoon", dest="revision", action="store_const", const=BEFORE_MONSOON, help="Use the six-width control from before the monsoon circulation repair.")
     control.add_argument("--before-circulation", dest="revision", action="store_const", const=BEFORE_CIRCULATION, help="Use the player model before seasonal wind belts and wind-driven ocean heat transport.")
+    control.add_argument("--before-bohai", dest="revision", action="store_const", const=BEFORE_BOHAI, help="Use the player model before the poleward coastal monsoon repair.")
     parser.set_defaults(revision=REVISION)
     parser.add_argument("--seed", default="ORBIS-2D-2026")
     args = parser.parse_args()
@@ -64,6 +66,6 @@ if __name__ == "__main__":
     if args.revision == BEFORE_SEASONS and args.width > 2048:
         parser.error("The pre-seasonal control provides widths up to 2048.")
     name = {REVISION: "baseline", BEFORE_SEASONS: "before-seasons", BEFORE_MONSOON: "before-monsoon",
-            BEFORE_CIRCULATION: "before-circulation"}[args.revision]
+            BEFORE_CIRCULATION: "before-circulation", BEFORE_BOHAI: "before-bohai"}[args.revision]
     output = args.output or REPO / f"ValidationOutput/EarthClimate/{name}.bin"
     export_baseline(output, args.width, args.seed, args.revision)

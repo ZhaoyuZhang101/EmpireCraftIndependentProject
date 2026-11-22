@@ -144,9 +144,11 @@ def geometry(fields):
         (s*s*regional_land, np.cos(2*PHASE)), (s*s*regional_land, np.sin(2*PHASE)),
         (ones, convective), (cold_source, winter), (moist_coast*hemisphere, SIN),
         (relief, summer))
+    plateau = (westerly * (1-sea_near) * np.clip(upstream-height-.7, 0, 2.5),
+               np.maximum(0, hemisphere[..., None] * COS))
     return (np.stack(np.broadcast_arrays(*mean), axis=-1).reshape(h*w, -1),
             np.stack(np.broadcast_arrays(*annual), axis=-1).reshape(h*w, -1),
-            [(g * coupling, months) for g, months in pairs])
+            [(g * coupling, months) for g, months in pairs], plateau)
 
 
 def terms_for(pairs, ids):
@@ -201,11 +203,35 @@ def marine_adjustment(circulation_file, height, width):
     return .65 * ((1-fy)*row(iy) + fy*row(np.minimum(iy+1, h-1))).ravel()
 
 
-def fit(path, check_runtime, ocean_air=None):
+def fit_plateau(path, ids, obs, area, fold):
+    fields = read_model(path)
+    if fields[0].shape != (HEIGHT, WIDTH):
+        raise ValueError("The pre-plateau control must use the 256 x 128 reference grid.")
+    land = np.isin(fields[2].ravel()[ids], [0, 5])
+    _, _, _, plateau = geometry(fields)
+    exposure = terms_for([plateau], ids[land])[..., 0]
+    residual = obs[land] - fields[3].reshape(-1, 12)[ids[land]]
+    weights = area[land, None]
+
+    def coefficient(mask):
+        x = exposure[mask]
+        denominator = (weights[mask] * x**2).sum()
+        if denominator <= 0:
+            raise ValueError("No exposed land for the plateau heat fit.")
+        return (weights[mask] * x * residual[mask]).sum() / denominator
+
+    all_land = coefficient(slice(None))
+    folds = [coefficient(fold[land] != k) for k in range(5)]
+    print(f"Warm-season plateau heat: {land.sum()} calibration land/river cells, {all_land:.4f} K/km")
+    print("  Leave-one-fold-out K/km:", np.round(folds, 4))
+    return round(all_land, 4)
+
+
+def fit(path, check_runtime, ocean_air=None, plateau_baseline=None):
     fields = read_model(path)
     if fields[0].shape != (HEIGHT, WIDTH):
         raise ValueError("Fit at the common observational resolution (256 x 128).")
-    mean, annual, pairs = geometry(fields)
+    mean, annual, pairs, plateau = geometry(fields)
     ids, area, obs, _ = observation("calibration")
     keep = area >= .5*tile_area(HEIGHT)[ids // WIDTH]
     ids, area, obs = ids[keep], area[keep], obs[keep]
@@ -234,12 +260,13 @@ def fit(path, check_runtime, ocean_air=None):
         print(name, np.round(values, 3))
     for name, value in zip(LABELS, coeff):
         print(name, f"{value:.4f}")
+    plateau_heat = fit_plateau(plateau_baseline, ids, obs, area, fold) if plateau_baseline else 0
     if check_runtime:
         # ECL1 stores lake beds, while the runtime applies the local lapse rate at lake stage.
         # All other cells have a directly reconstructible temperature, including ocean and ice.
         if isinstance(check_runtime, Path):
             fields = read_model(check_runtime)
-            mean, annual, pairs = geometry(fields)
+            mean, annual, pairs, plateau = geometry(fields)
         adjustment = marine_adjustment(ocean_air, *fields[0].shape) if ocean_air else None
         sample = np.flatnonzero(fields[2].ravel() != 4)
         error = 0
@@ -249,6 +276,8 @@ def fit(path, check_runtime, ocean_air=None):
                          + (annual[cells]@np.round(background[1], 3))[:, None]*COS
                          + (annual[cells]@np.round(background[2], 3))[:, None]*SIN
                          + terms_for(pairs, cells)@np.round(coeff, 4))
+            if plateau_heat:
+                predicted += terms_for([plateau], cells)[..., 0] * plateau_heat
             if adjustment is not None:
                 predicted += adjustment[cells, None]
             error = max(error, abs(np.clip(predicted, -85, 55) - fields[3].reshape(-1, 12)[cells]).max())
@@ -264,7 +293,9 @@ if __name__ == "__main__":
                         help="compare all reconstructible cells of this or another export with the fitted C# model")
     parser.add_argument("--ocean-air", type=Path, metavar="OWB2",
                         help="include the wind-driven marine-air signal exported on the same Earth geometry")
+    parser.add_argument("--plateau-baseline", type=Path, metavar="ECL1",
+                        help="fit warm-season downwind heating to residuals of the pre-plateau control")
     args = parser.parse_args()
     if args.ocean_air and not args.check_runtime:
         parser.error("--ocean-air requires --check-runtime")
-    fit(args.earth_export, args.check_runtime, args.ocean_air)
+    fit(args.earth_export, args.check_runtime, args.ocean_air, args.plateau_baseline)

@@ -4,6 +4,37 @@
 
 [本次模型与历史版本的对照结果](RESULTS.md)
 
+## 河北至辽宁的沿海夏季风
+
+以 `e560df5` 为对照。先对同一张玩家地球的逐月气温、降水做面积匹配，再把这两组月值分别送入游戏的柯本分类器。渤海样区取 116–125°E、38–43°N，西、南边界包含在内。21 个合格的 CRU 陆地格均属开发块 93。相邻的内蒙古东南部和辽东也列在逐月报告的 `regions` 中。[结果与玩家画面对照](RESULTS.md#河北至辽宁的沿海夏季风)
+
+```powershell
+$out = "ValidationOutput/BohaiClimate"
+$width = 2048
+python Validation/EarthClimate/export_baseline.py --before-bohai --width $width --output "$out/before-$width.bin"
+dotnet run --project Validation/EarthClimate/Export.csproj -c Release -- "$out/after-$width.bin" $width
+foreach ($stage in "before", "after") {
+    $file = "$out/$stage-$width.bin"
+    python Validation/EarthClimate/score.py $file --split calibration --json "$out/$stage-$width-field-calibration.json"
+    dotnet run --project Validation/EarthClimate/Export.csproj -c Release -- --compare-koppen $file --split calibration --window 116 125 38 43 --json "$out/$stage-$width-bohai.json"
+    dotnet run --project Validation/EarthClimate/Export.csproj -c Release -- --compare-koppen $file --json "$out/$stage-$width-holdout.json"
+}
+dotnet run --project Validation/FlatWorld/FlatWorld.Core.Tests.csproj -c Release -- --east-asia-climate $width
+dotnet run --project Validation/FlatWorld/FlatWorld.Core.Tests.csproj -c Release -- --seasonal-rainfall
+```
+
+`--window west east south north` 按参考格中心选取递增的经纬度范围，只能用于开发区诊断。全球验收仍使用已登记的完整留出区。六档地图采用同一套评分命令。两项全球一致率中任一项未超过 90%，默认留出评分会写出报告并返回退出码 1。
+
+温度校准分两步。原来的热力参数使用季节模型引入前的地形拟合。新增的暖季高地下风向增温系数使用本次修改前的月温残差拟合。下面的命令在 256 档重建 C# 运行时月温，需安装 NumPy 和 h5py。
+
+```powershell
+python Validation/EarthClimate/export_baseline.py --before-seasons --width 256 --output "$out/before-seasons-256.bin"
+python Validation/EarthClimate/export_baseline.py --before-bohai --width 256 --output "$out/before-256.bin"
+dotnet run --project Validation/EarthClimate/Export.csproj -c Release -- "$out/after-256.bin" 256
+dotnet run --project Validation/FlatWorld/FlatWorld.Core.Tests.csproj -c Release -- --wind-belts "$out/after-winds.bin"
+python Validation/EarthClimate/fit_temperature.py "$out/before-seasons-256.bin" --plateau-baseline "$out/before-256.bin" --check-runtime "$out/after-256.bin" --ocean-air "$out/after-winds.bin"
+```
+
 ## 风带、洋流与陆地柯本验收
 
 以 `2d05a93` 为本轮的完整历史对照。常规导出直接执行和玩家相同的 `FlatGenerator.Generate`。下面用同一地形、海陆、河湖和种子复现 256 档留出分数。把宽度改为 512、1024、1536、2048 或 4096 可验证其余地图。默认留出命令在任一指标未超过 90% 时写出 JSON 并返回 1。

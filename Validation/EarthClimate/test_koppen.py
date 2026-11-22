@@ -45,7 +45,7 @@ class KoppenScorer(unittest.TestCase):
         self.ot, self.op = [np.stack([np.roll(v, p) for p in phase]).astype("<f4") for v in (TEMPERATURE, RAIN)]
         self.mt, self.mp = self.ot.copy(), self.op.copy()
 
-    def compare(self, code=0, holdout_split=False, strict=True):
+    def compare(self, code=0, holdout_split=False, strict=True, window=None):
         split = "holdout" if holdout_split else "calibration"
         with gzip.open(self.data / f"{split}.csv.gz", "wt", newline="") as stream:
             rows = csv.writer(stream)
@@ -64,6 +64,8 @@ class KoppenScorer(unittest.TestCase):
         args = [] if holdout_split else ["--split", split]
         if strict and not holdout_split:
             args.append("--check-target")
+        if window is not None:
+            args.extend(["--window", *map(str, window)])
         run = subprocess.run(["dotnet", str(self.dll), "--compare-koppen", str(model), *args, "--json", "report.json"],
                              cwd=self.root, capture_output=True, encoding="utf-8", errors="replace")
         self.assertEqual(run.returncode, code, run.stdout + run.stderr)
@@ -157,6 +159,16 @@ class KoppenScorer(unittest.TestCase):
         self.assertIn("temperature", self.compare(2))  # A broken export even beyond the eligible sample.
         self.mt[0, 2], self.op[1, 2] = 0, -1
         self.assertIn("precipitation", self.compare(2))
+
+    def test_calibration_window_leaves_global_gate_intact(self):
+        window = (-152, -148, 50, 60)
+        self.mp[5] = 100
+        regional = self.compare(strict=False, window=window)
+        self.assertEqual((regional["cells"], regional["blocks"]), (3, 1))
+        self.assertAlmostEqual(regional["exact_subtype_agreement"], 2/3)
+        self.assertEqual(regional["calibration_window"]["west"], -152)
+        self.assertIn("calibration", self.compare(2, holdout_split=True, window=window))
+        self.assertIn("calibration", self.compare(2, window=window))
 
 
 if __name__ == "__main__":

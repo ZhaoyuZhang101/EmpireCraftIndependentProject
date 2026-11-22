@@ -8,6 +8,7 @@ using System.IO.Compression;
 using System.Linq;
 using System.Security.Cryptography;
 using System.Text.Json;
+using System.Text.Json.Serialization;
 using Orbis.Flat;
 
 internal static class CompareKoppen
@@ -16,7 +17,7 @@ internal static class CompareKoppen
     private const int Width = 256, Height = 128, Months = 12;
     // The independently registered observation footprint also used by score.py.
     private const string HoldoutFootprint = "270c599eac1be55f630b38cf48e19f5268f8a24141e22fbc2b109bee36e5cbfa";
-    private const string Usage = "Usage: --compare-koppen export.bin [--split holdout|calibration] [--check-target] [--json report.json]";
+    private const string Usage = "Usage: --compare-koppen export.bin [--split holdout|calibration] [--window west east south north] [--check-target] [--json report.json]";
 
     public static int Command(string[] args)
     {
@@ -24,6 +25,7 @@ internal static class CompareKoppen
         {
             if (args.Length < 2) throw new ArgumentException(Usage);
             string split = "holdout", jsonPath = null;
+            Window window = null;
             bool check = false;
             for (int i = 2; i < args.Length; i++)
             {
@@ -31,13 +33,19 @@ internal static class CompareKoppen
                 {
                     case "--split" when i + 1 < args.Length: split = args[++i]; break;
                     case "--json" when i + 1 < args.Length: jsonPath = args[++i]; break;
+                    case "--window" when i + 4 < args.Length:
+                        window = Window.Parse(args, i + 1);
+                        i += 4;
+                        break;
                     case "--check-target": check = true; break;
                     default: throw new ArgumentException(Usage);
                 }
             }
             if (split != "calibration" && split != "holdout") throw new ArgumentException(Usage);
+            if (window != null && (split != "calibration" || check))
+                throw new ArgumentException("A window is a calibration diagnostic. The target requires the full split.");
 
-            var report = Score(args[1], split);
+            var report = Score(args[1], split, window);
             Print(report);
             if (jsonPath != null)
             {
@@ -68,7 +76,28 @@ internal static class CompareKoppen
     private sealed record Report(string Split, string ModelFile, string ModelSha256, int ModelWidth, int ModelHeight, int Cells, int Blocks,
         string FootprintSha256, decimal AreaKm2, decimal FiveGroupAgreement, decimal ExactSubtypeAgreement,
         bool FiveGroupPass, bool ExactSubtypePass, Dictionary<string, ObservedSubtype> ObservedSubtypes, Hemisphere[] Hemispheres,
-        Agreement WithObservedTemperature, Agreement WithObservedPrecipitation);
+        Agreement WithObservedTemperature, Agreement WithObservedPrecipitation,
+        [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] Window CalibrationWindow);
+
+    private sealed record Window(double West, double East, double South, double North)
+    {
+        public static Window Parse(string[] args, int start)
+        {
+            double Degrees(int offset) => double.Parse(args[start + offset], NumberStyles.Float, CultureInfo.InvariantCulture);
+            var bounds = new Window(Degrees(0), Degrees(1), Degrees(2), Degrees(3));
+            if (!(bounds.West >= -180 && bounds.East <= 180 && bounds.West < bounds.East &&
+                  bounds.South >= -90 && bounds.North <= 90 && bounds.South < bounds.North))
+                throw new ArgumentException("Expected increasing longitude and latitude bounds in degrees.");
+            return bounds;
+        }
+
+        public bool Contains(int tile)
+        {
+            double lon = (tile % Width + .5) * 360 / Width - 180;
+            double lat = (tile / Width + .5) * 180 / Height - 90;
+            return lon >= West && lon < East && lat >= South && lat < North;
+        }
+    }
 
     private sealed record Agreement(decimal FiveGroupAgreement, decimal ExactSubtypeAgreement);
 
@@ -99,7 +128,7 @@ internal static class CompareKoppen
         }
     }
 
-    private static Report Score(string export, string split)
+    private static Report Score(string export, string split, Window window)
     {
         var (width, height, modelSha256, temperature, precipitation) = ReadModel(export);
         using var file = File.OpenRead(Path.Combine(DataDirectory, split + ".csv.gz"));
@@ -134,7 +163,7 @@ internal static class CompareKoppen
             double edge = Math.PI * ((double)y / Height - .5);
             double tileArea = 6371.0088 * 6371.0088 * (2 * Math.PI / Width) * (Math.Sin(edge + Math.PI / Height) - Math.Sin(edge));
             // Eligibility depends only on the registered CRU land area, even on simulated water.
-            if ((double)area < .5 * tileArea) continue;
+            if ((double)area < .5 * tileArea || (window != null && !window.Contains(tile))) continue;
             if (!tiles.Add((ushort)tile)) throw new InvalidDataException($"Repeated CRU tile {tile}.");
             blocks.Add(y / 16 * (Width / 16) + tile % Width / 16);
             for (int m = 0; m < Months; m++)
@@ -172,7 +201,7 @@ internal static class CompareKoppen
             digest, total, broad / total, exact / total,
             10 * broad > 9 * total, 10 * exact > 9 * total, subtypes,
             new[] { north, south }.Where(h => h.Cells != 0).Select(h => h.Summary()).ToArray(),
-            withObservedT.Share(total), withObservedP.Share(total));
+            withObservedT.Share(total), withObservedP.Share(total), window);
     }
 
     private static (int, int, string, float[], float[]) ReadModel(string path)
@@ -307,6 +336,8 @@ internal static class CompareKoppen
 
     private static void Print(Report report)
     {
+        if (report.CalibrationWindow is Window w)
+            Console.WriteLine(FormattableString.Invariant($"Calibration window: {w.West} to {w.East} longitude, {w.South} to {w.North} latitude."));
         Console.WriteLine(FormattableString.Invariant($"{report.Cells} CRU {report.Split} cells, area-weighted Köppen agreement: 5 groups {report.FiveGroupAgreement:P2}, 30 subtypes {report.ExactSubtypeAgreement:P2}"));
         Console.WriteLine(FormattableString.Invariant($"{report.Blocks} spatial blocks, {report.AreaKm2:F4} km2, reference footprint SHA-256 {report.FootprintSha256}"));
         foreach (var h in report.Hemispheres)
