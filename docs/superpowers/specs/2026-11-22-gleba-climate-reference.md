@@ -8,6 +8,7 @@
   - [GlebaHelmholtzSolver.cs](file:///d:/ORBIS_TerrainPerf3_5_Markley/Assets/ORBIS/Runtime/FlatWorld/Core/GlebaHelmholtzSolver.cs)
   - [GlebaCirculationBands.cs](file:///d:/ORBIS_TerrainPerf3_5_Markley/Assets/ORBIS/Runtime/FlatWorld/Core/GlebaCirculationBands.cs)
   - [GlebaEcologySupplement.cs](file:///d:/ORBIS_TerrainPerf3_5_Markley/Assets/ORBIS/Runtime/FlatWorld/Core/GlebaEcologySupplement.cs)
+  - [GlebaGeographySupplement.cs](file:///d:/ORBIS_TerrainPerf3_5_Markley/Assets/ORBIS/Runtime/FlatWorld/Core/GlebaGeographySupplement.cs)
   - [GlebaClimateSupplement.cs](file:///d:/ORBIS_TerrainPerf3_5_Markley/Assets/ORBIS/Runtime/FlatWorld/Core/GlebaClimateSupplement.cs)
 
 ---
@@ -43,6 +44,18 @@
    - 降水场仅沿大气风场平流 128 步（`dt = 0.0015`），乘 `(1 - rain_shadowiness[s])` 与大陆腹地不可达度干旱因子；温度场转开尔文后沿洋流场平流 128 步（`dt = 0.005`），并在地块采样阶段施加 `+0.43 °C`（`0..100 m` 低地增温）与 `-4.3 °C/km`（`>100 m` 海拔直减率）。
 10. **Holdridge 17 曲线植物功能型 + 23 级生物群系 + 四遍冰川 + 六遍土壤流水沉积**：
     - `initialize_flora_from_holdridge_and_koppen`（`0x1808efa90`）通过 17 张生物温度/降水/纬度/林线折线表计算乔木、灌木、草本、针阔比与裸地率（`dead_land`），包含高山林线退树转草与热带干季稀树草原退树转灌草机制；随后由 `biomes.lua` 按优先级 `0..301` 判定群系。
+11. **四支高空 Rossby 波急流与行星波蜿蜒（`GlobalRossby` / `RossbyWave`，`0x1808bae60`）**：
+    - 在南北极锋急流（基准 $\pm 60^\circ$）与南北副热带急流（基准 $\pm 30^\circ$，权重 `0.33`）上各叠加多组纬向波数 $k \in \{4..8\}$（机器码中精确执行 `k_eff = wave_number - 1`）的简谐波 $A \cos(k_{\text{eff}}(\lambda + \phi_0 + \omega t))$，生成高空西风急流的经向槽脊斜率与粒子追踪流场。
+12. **冰川峡湾上溯刻蚀（`fjords::generate_fjords`，`0x18080a330`，Stage 32）**：
+    - 在末次盛冰期（LGM）基底冰厚 `ice_age_ice > 10 m` 且具造山带起伏的陆地海岸按 `75%` 概率选种（禁止相邻双口），沿最陡上坡陆地追踪 `20..70 km`，刻蚀出峡口 `-20..-30 m`、峡首 `-10 m` 的水下 U 型槽谷。
+13. **热带珊瑚礁与环礁沙洲（`coral_reefs::generate_coral_reefs`，`0x180a4b1a0`，Stage 51）**：
+    - 在最冷月水温 $T_{\min} \ge 15.5\,^\circ\text{C}$ 且水深 `[-750, -15] m` 的海域选种，按优先级 $2.1|\Delta e| - d_{\text{gc,km}} + 2.2\,\text{fbm}_6$ 沿水下海山/陆架坡折优先扩张，将海底向 `[-5, -1) m` 灰岩（`limestone`）礁坪抬浅 `97.5%`，并在孤立远洋礁盘按小预算反比概率生成 `[0, 3) m` 珊瑚沙洲岛（Coral Cay）。
+14. **深层孔隙含水层与自流盆地（`aquifer_gen::generate_aquifers`，`0x1808aaea0`，Stage 50）**：
+    - 基于 `rock_types.lua` 的孔隙度表（砂岩 `0.20`、页岩/灰岩 `0.50`、白云岩 `0.40`、玄武岩 `0.45` 等 $\ge 0.16$ 储水岩 vs 花岗岩 `0.05`/片麻岩 `0.15` 隔水基底），在无现代冰盖的陆地 `±750 m` 构造高程带内按同微板块（`+3000`）、同岩性（`+5000`）与顺坡自流偏置（下坡惩罚仅为上坡的 $1/3$）扩张，结合径流与土壤渗透率计算潜水面埋深（`1..5000 m`）与饱水厚度。
+15. **内流咸水湖与外流淡水湖成因体系（`lakes::generate_*_lakes`，`0x1808042d0..0x180809a90`，Stage 45）**：
+    - 严格按水系拓扑区分盐度：**无出海口的内流终点盆地（`Endorheic`，深 `100..300 m`）无条件归为 `SaltwaterLake`**（如里海、咸海、大盐湖）；**具溢流出口的裂谷湖（`Rifting`，`7x` 水量，深 `200..2000 m`，如贝加尔湖/坦噶尼喀湖）、冰蚀盾地湖（`Glacial`，LGM 冰区 `<500 m`，如五大湖/芬兰湖群）与随机湖（`Stochastic`）归为 `SweetwaterLake`**。
+16. **全球海洋不可达度、四级地理区划、生物地理界与 Cividis 流场图层（Stages 53–60 & `mapmodes::basic`）**：
+    - 从全球最大连通主大洋出发做多源 BFS（跨越陆地与内陆湖海）计算大陆腹地不可达度；按 8 类地形构造域（大河谷、冰川、高耸造山带、`>4 km` 高原、构造裂谷高地、沉积低地、大陆盾地、水域）执行 `Area -> Region -> SuperRegion -> Subcontinent` 四级聚合与 $\le 2$ 碎片消融；并提供 11 阶 Cividis 感知均匀色带（`#00224e -> #fee837`）、向岸蓝/离岸红海岸风叠加及 UV 空间 `(vx, -vy)` 矢量流场采样。
 
 ---
 
@@ -106,5 +119,11 @@
    - 目标：在 `holdout` 独立检验集上显著降低月降水 MAE/RMSE 与年降水误差，大幅提升 `<250 mm` 干旱区召回率（撒哈拉、塔尔、塔里木、萨赫勒、德干背风坡、澳洲内陆）及 Köppen 5 大类 / 30 亚类一致率！
 4. **第三轮移植（Round 3 — Holdridge 生物温度、林线/稀树草原生态群落、海冰/冰川诊断与统计面板集成）**：
    - 将 `GlebaEcologySupplement` 的生物温度、高山林线退树转草、热带干季稀树草原分异融合进 `FlatEcology` / `FlatTerrainAnalysis`，并在气候诊断系统中暴露 Gleba 环流/雨影/生物温度指标。
-5. **第四轮收官验证（Round 4 — 多分辨率全量回归、确定性与存档兼容检验、最终对比报告）**：
-   - 运行 `FlatWorld.Core.Tests` 全套回归、`test_koppen.py`、多分辨率地球（`256`、`512`、`1024`、`2048`）`calibration` + `holdout` 评测，输出完整前后对比报告并整洁提交至 `DiDu_geleba` 分支。
+5. **第四轮基准验证（Round 4 — 多分辨率回归与初版评测报告）**：
+   - 运行 `FlatWorld.Core.Tests` 全套回归、`test_koppen.py`、多分辨率地球 `calibration` + `holdout` 评测。
+6. **第五轮移植（Round 5 — 高空 Rossby 急流、Saldo 热赤道风带与非纬向海平面气压耦合）**：
+   - 移植 4 支高空 Rossby 波急流（`GlebaRossbyWaveField`），将分段副热带高压/副极地低压梯度风与经向 Saldo ITCZ 耦合进 `FlatWindBelts.SurfaceWithGleba` 与 `FlatWeatherSimulation.BuildGlebaPressureOffsets`，显著降低全球海洋风向误差。
+7. **第六轮移植（Round 6 — Ekman 表层风海流、大洋东边界涌升流 SST 与极地冰穹降温）**：
+   - 在 `FlatOceanCirculation` 引入有界海盆海岸衰减 Ekman 信风/西风漂流、东边界温跃层涌升流（加那利/加利福尼亚/秘鲁/本格拉寒流）与单连通海盆精确热量守恒闭合；在 `FlatClimate` 引入内陆极地高海拔冰穹对称辐射降温。
+8. **第七与第八轮收官（Rounds 7–8 — 珊瑚礁、峡湾、深层含水层、咸淡水湖成因、四级地理区划、季节洋流/图层与盲测总验收）**：
+   - 新增 [GlebaGeographySupplement.cs](file:///d:/ORBIS_TerrainPerf3_5_Markley/Assets/ORBIS/Runtime/FlatWorld/Core/GlebaGeographySupplement.cs) 并接入 `FlatTerrainAnalysis` 与 `GlebaClimateSupplement.SampleTileDiagnostic`，完成 `calibration` + `holdout` + `ocean-holdout` 全维度盲测验收。
