@@ -23,6 +23,7 @@ namespace Orbis.Flat
         PlanetLocation[] route=Array.Empty<PlanetLocation>();bool seaRoute;
         public IReadOnlyList<PlanetLocation> RoutePoints => route;
         const int Rings=128,Sectors=256;Vector2[] lattice;int[] triangles;
+        float foldHeightWeight;
         readonly FlatPlantHeightCache plantHeights=new FlatPlantHeightCache();
 #if UNITY_EDITOR
         readonly FlatShaderPreview editorPreview = new FlatShaderPreview();
@@ -196,6 +197,13 @@ namespace Orbis.Flat
             surface.SetVector("_LocalCenter",V(projection.Frame.Up));surface.SetVector("_LocalEast",V(projection.Frame.East));surface.SetVector("_LocalNorth",V(projection.Frame.North));
             surface.SetVector("_ScrollNormal",normal);surface.SetVector("_ScrollRight",east);surface.SetVector("_ScrollUp",north);
             surface.SetFloat("_ScrollMorph",morph);surface.SetFloat("_ScrollSpin",spin);surface.SetFloat("_LocalRadius",Radius);
+            // Filter when a moving ring spans several source cells. The stationary
+            // globe keeps its silhouette and the final plane uses the full relief.
+            float cellsPerRing=Radius/(Rings*TileScale);
+            foldHeightWeight=maps.FoldHeights==null || !IsTransitioning ? 0 :
+                Mathf.SmoothStep(0,1,Mathf.InverseLerp(.5f,2,cellsPerRing))*Mathf.SmoothStep(0,1,morph/.06f);
+            surface.SetFloat("_FoldHeightWeight",foldHeightWeight);
+            if(foldHeightWeight>0)surface.SetTexture("_FoldHeightTex",maps.FoldHeights.Texture);
             surface.SetFloat("_RiverGlobeNarrowing",FlatRiverCurves.GlobeWidthReduction(world.Preset,morph));
             surface.SetFloat("_PixelsPerTile",pixels);surface.SetFloat("_DetailWeight",DetailWeight);surface.SetVector("_ScrollPoleHeights",poles);surface.SetFloat("_ScrollHeightScale",FlatGlobeGeometry.HeightScale);
             surface.SetVector("_ScrollRelief",ReliefParameters);
@@ -426,15 +434,22 @@ namespace Orbis.Flat
         {
             return ProjectedVertex(xy,ReliefParameters);
         }
+        internal float FoldSphereRadius(Vector2 uv,float rawRadius)
+        {
+            if(foldHeightWeight<=0)return rawRadius;
+            float filtered=FlatGlobeGeometry.Radius(maps.FoldHeights.Sample(uv),uv.y,FlatFoldHeights.Columns/2,poles);
+            return Mathf.Lerp(rawRadius,filtered,foldHeightWeight);
+        }
         Vector4 ProjectedVertex(Vector2 xy,Vector4 reliefParameters)
         {
             var p=LocalDirection(xy);
             var location=PlanetCoordinateSystem.FromWorld(p,new PlanetVector(),1);
             var uv=new Vector2((float)PlanetCoordinateSystem.MapU(location),(float)PlanetCoordinateSystem.MapV(location));
-            float radius=FlatGlobeGeometry.Radius(FlatGlobeGeometry.SurfaceHeight(world,uv),uv.y,world.Height,poles);
+            float radius=foldHeightWeight<1||reliefParameters.w>0
+                ?FlatGlobeGeometry.Radius(FlatGlobeGeometry.SurfaceHeight(world,uv),uv.y,world.Height,poles):1;
             var relief=FlatGlobeGeometry.ReliefPosition(xy,radius-1,reliefParameters);
             var plane=normal*(1+relief.z)+east*relief.x+north*relief.y;
-            Vector3 position=Vector3.Lerp(Spin*Reflect(V(p))*radius,plane,morph);
+            Vector3 position=Vector3.Lerp(Spin*Reflect(V(p))*FoldSphereRadius(uv,radius),plane,morph);
             return new Vector4(position.x,position.y,position.z,FlatGlobeGeometry.ReliefClipWeight(radius-1,reliefParameters,morph));
         }
         public int Pick(Vector2 screen)=>TryFlatPoint(screen,out var tile)?FlatScrollMath.Tile(tile.x,Math.Min(world.Height-.0001,tile.y),world.Width,world.Height):-1;

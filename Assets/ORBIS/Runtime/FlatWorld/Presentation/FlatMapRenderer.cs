@@ -16,6 +16,7 @@ namespace Orbis.Flat
         public Texture2D MixingTexture { get; private set; }
         public Texture2D GeometryTexture { get; private set; }
         public Texture2D VisualTexture { get; private set; }
+        internal FlatFoldHeights FoldHeights { get; private set; }
         Vector4 poleBedDepth;
         public Texture2D EcologyTexture { get; private set; }
         public Texture2D VegetationTexture { get; private set; }
@@ -272,6 +273,11 @@ namespace Orbis.Flat
                     poleBedDepth=new Vector4((float)(southBed/World.Width),(float)(southDepth/World.Width),
                         (float)(northBed/World.Width),(float)(northDepth/World.Width));
                     earthRelief?.UpdateCoverage(World);
+                    if(World.Width>FlatFoldHeights.Columns)
+                    {
+                        if(FoldHeights==null)FoldHeights=new FlatFoldHeights();
+                        FoldHeights.Rebuild(World);
+                    }
                     BindPolarTerrain(Material);
                     HydroTexture.Apply(false,false);MixingTexture.Apply(false,false);GeometryTexture.Apply(false,false);VisualTexture.Apply(false,false);EcologyTexture.Apply(false,false);
                     dataRevision=renderJobs.CapturedTerrainRevision;RefreshVegetationSeasons();SetVegetationDay(World.Day);
@@ -295,6 +301,7 @@ namespace Orbis.Flat
         }
         void OnDestroy()
         {
+            FoldHeights?.Dispose();
             earthRelief?.Dispose();
             riverAtlas?.Dispose();
             renderJobs?.Dispose();

@@ -6,6 +6,8 @@
 float3 _LocalCenter,_LocalEast,_LocalNorth;
 float3 _ScrollNormal,_ScrollRight,_ScrollUp;
 float _LocalRadius,_ScrollMorph,_ScrollSpin;
+sampler2D _FoldHeightTex;
+float _FoldHeightWeight;
 float3 LocalDirection(float2 xy)
 {
  return OrbisLocalDirection(_LocalCenter,_LocalEast,_LocalNorth,xy,_ScrollMorph);
@@ -17,10 +19,17 @@ float2 LocalGeoUV(float2 xy)
 float3 ScrollPosition(float2 meshUV,float shell,out float2 xy,out float clipWeight)
 {
  xy=meshUV*_LocalRadius;float3 radial=LocalDirection(xy);float2 uv=OrbisGeographicUV(radial);
- float radius=ScrollTerrainRadius(uv,_MapSize);
+ float radius=1;
+ if(_FoldHeightWeight<1 || _ScrollRelief.w>0)radius=ScrollTerrainRadius(uv,_MapSize);
+ float sphereRadius=radius;
+ if(_FoldHeightWeight>0)
+ {
+  float metres=tex2Dlod(_FoldHeightTex,float4(uv,0,0)).r;
+  sphereRadius=lerp(radius,ScrollRadius(metres,uv,128),_FoldHeightWeight);
+ }
  clipWeight=FlatReliefClipWeight(radius-1,_ScrollMorph);
  radial.z=-radial.z;float s=sin(_ScrollSpin),c=cos(_ScrollSpin);
- float3 sphere=float3(c*radial.x+s*radial.z,radial.y,-s*radial.x+c*radial.z)*(radius+shell);
+ float3 sphere=float3(c*radial.x+s*radial.z,radial.y,-s*radial.x+c*radial.z)*(sphereRadius+shell);
  float3 relief=FlatReliefPosition(xy,radius-1);
  float3 plane=_ScrollNormal*(1+relief.z)+_ScrollRight*relief.x+_ScrollUp*relief.y;
  return lerp(sphere,plane,_ScrollMorph);

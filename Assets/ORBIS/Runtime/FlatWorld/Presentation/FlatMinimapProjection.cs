@@ -97,8 +97,10 @@ namespace Orbis.Flat
         Vector2 ProjectFold(Vector2 point)
         {
             var direction = Direction(point);
-            float height = Height(GeographicUV(direction));
-            var sphere = spin * new Vector3((float)direction.X, (float)direction.Y, -(float)direction.Z) * (1 + height);
+            var uv = GeographicUV(direction);
+            float height = Height(uv);
+            float sphereRadius = localChart != null ? localChart.FoldSphereRadius(uv, 1 + height) : 1 + height;
+            var sphere = spin * new Vector3((float)direction.X, (float)direction.Y, -(float)direction.Z) * sphereRadius;
             var r = FlatGlobeGeometry.ReliefPosition(point, height, relief);
             var plane = normal * (1 + r.z) + east * r.x + north * r.y;
             return viewProjection.MultiplyPoint(Vector3.Lerp(sphere, plane, morph));

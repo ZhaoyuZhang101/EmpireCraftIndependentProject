@@ -13,6 +13,8 @@ Shader "ORBIS/FlatWorld/LocalSurface"
   [HideInInspector] _ClimateYearHeat("Regional temperature anomaly",Vector)=(0,0,0,0)
   [HideInInspector] _ClimateYearRain("Regional rainfall anomaly",Vector)=(0,0,0,0)
   [HideInInspector] _ScrollRelief("Terrain relief view",Vector)=(0,0,.72,0)
+  [HideInInspector] _FoldHeightTex("Geographic fold elevations",2D)="black"{}
+  [HideInInspector] _FoldHeightWeight("Fold geometry filter",Float)=0
   [HideInInspector] _PlantHeightTex("Local terrain vertex heights",2D)="black"{}
   [HideInInspector] _PlantLattice("Local height lattice",Vector)=(0,0,0,0)
   [HideInInspector] _EcologyTex("Derived ecology traits",2D)="black"{}

@@ -144,12 +144,11 @@ namespace Orbis.Flat
         {
             double south=0,north=0;
             for(int x=0;x<world.Width;x++)
-            { south+=Height(world,x,0); north+=Height(world,x,world.Height-1); }
+            { south+=SurfaceHeightAt(world,x); north+=SurfaceHeightAt(world,world.Count-world.Width+x); }
             return new Vector2((float)(south/world.Width),(float)(north/world.Width));
         }
-        static float Height(WorldData w,int x,int y)
+        internal static float SurfaceHeightAt(WorldData w,int i)
         {
-            int i=y*w.Width+x;
             return Mathf.Clamp(w.Elevation[i]+(w.Facts.ShoreDistance[i]>0?w.Facts.Depth[i]:0),HeightBands.MinimumBed,MaximumHeight);
         }
         public static float SurfaceHeight(WorldData world,Vector2 uv)
@@ -163,7 +162,7 @@ namespace Orbis.Flat
         }
         static float SurfaceCorner(WorldData world,int x,int y)
         {
-            return Height(world,FMath.Wrap(x,world.Width),Mathf.Clamp(y,0,world.Height-1));
+            return SurfaceHeightAt(world,Mathf.Clamp(y,0,world.Height-1)*world.Width+FMath.Wrap(x,world.Width));
         }
         public static float Radius(float height,float latitudeUV,int rows,Vector2 poles)
         {
