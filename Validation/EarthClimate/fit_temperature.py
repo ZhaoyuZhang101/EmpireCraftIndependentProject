@@ -2,6 +2,8 @@
 import argparse
 import hashlib
 from pathlib import Path
+import struct
+import subprocess
 
 import numpy as np
 
@@ -227,7 +229,120 @@ def fit_plateau(path, ids, obs, area, fold):
     return round(all_land, 4)
 
 
-def fit(path, check_runtime, ocean_air=None, plateau_baseline=None):
+def read_cloud(path, shape, columns):
+    """Read the simulated cloud predictor and interpolate its rain to land-cell centres."""
+    data = Path(path).read_bytes()
+    if len(data) < 12:
+        raise ValueError("Truncated ORC1 header")
+    code, w, h = struct.unpack_from('<4sii', data)
+    height, width = shape
+    if code != b'ORC1' or w != min(columns,width) or h != w//2 or len(data) != 12+48*w*h:
+        raise ValueError("Invalid cloud forecast grid")
+    rain = np.frombuffer(data, '<f4', offset=12).reshape(h, w, 12)
+    if not np.isfinite(rain).all() or rain.min() < 0:
+        raise ValueError("Invalid simulated cloud-forecast rain")
+    x = (np.arange(width)+.5)*w/width-.5
+    y = np.clip((np.arange(height)+.5)*h/height-.5, 0, h-1)
+    i, j = np.floor(x).astype(int), y.astype(int)
+    u, v = (x-i)[None, :, None], (y-j)[:, None, None]
+    rows = (1-u)*rain[:, i%w] + u*rain[:, (i+1)%w]
+    rain = (1-v)*rows[j] + v*rows[np.minimum(h-1, j+1)]
+    return -np.expm1(-rain/45).reshape(-1,12)
+
+
+def surface_weights(temperature, ids, shape):
+    height, width = shape
+    lat = (np.pi*((ids//width+.5)/height-.5))[:, None]
+    dec = np.arcsin(np.sin(np.deg2rad(23.44))*np.cos(PHASE+.42))
+    hour = np.arccos(np.clip(-np.tan(lat)*np.tan(dec), -1, 1))
+    sun = 1361/(300*np.pi)*(1-.0334*np.cos(PHASE+.20))*(hour*np.sin(lat)*np.sin(dec)
+                                                          + np.cos(lat)*np.cos(dec)*np.sin(hour))
+    f = np.clip((4-temperature)/18, 0, 1)
+    return sun, f*f*(3-2*f)
+
+
+def surface_fit(temp, cloud, ids, shape, target, area, train):
+    sun, cold = surface_weights(temp, ids, shape)
+    weight = area[train, None]
+    def reference(exposure):
+        return np.sum(weight*exposure[train]*cloud[train]) / np.sum(weight*exposure[train])
+    short_ref, long_ref = reference(sun), reference(cold)
+    terms = np.stack(((short_ref-cloud)*sun, (cloud-long_ref)*cold), axis=-1)
+    gain = solve(terms[train].reshape(-1,2), (target-temp)[train].ravel(), np.repeat(area[train],12), 0)
+    return np.array([short_ref, long_ref, *gain])
+
+
+def surface_change(temp, cloud, ids, shape, params):
+    sun, cold = surface_weights(temp, ids, shape)
+    solar_ref, cold_ref, shortwave, longwave = params
+    return shortwave*(solar_ref-cloud)*sun + longwave*(cloud-cold_ref)*cold
+
+
+def check_surface_folds(directory, model, plateau_model, fits, ids, area, obs, fold, ocean_air):
+    """Refit the historical background in each fold and run a separate cloud forecast from its temperatures."""
+    directory.mkdir(exist_ok=True, parents=True)
+    shape = model[0].shape
+    if shape != (HEIGHT, WIDTH) or plateau_model[0].shape != shape:
+        raise ValueError("Surface heat cross-validation requires 256 x 128 controls.")
+    ocean = marine_adjustment(ocean_air, *shape)[:, None]
+    cells = np.arange(HEIGHT*WIDTH)
+    def matrices(fields, sample):
+        m, a, pairs, plat = geometry(fields)
+        return m[sample], a[sample], terms_for(pairs, sample), terms_for([plat], sample)[...,0]
+    historical = matrices(plateau_model, ids)
+    current = matrices(model, cells)
+    def reconstruct(matrix, background, coefficients):
+        m, a, detail, _ = matrix
+        return ((m@background[0])[:, None]+(a@background[1])[:, None]*COS
+                +(a@background[2])[:, None]*SIN+detail@coefficients)
+    land = np.isin(model[2].ravel()[ids], [0,5])
+    plateau_land = np.isin(plateau_model[2].ravel()[ids], [0,5])
+    source = model[3].reshape(-1,12)
+    root = Path(__file__).resolve().parents[2]
+    project = root/'Validation/FlatWorld/FlatWorld.Core.Tests.csproj'
+    subprocess.run(['dotnet','build',str(project),'-c','Release','--artifacts-path',str(directory/'build')], check=True, cwd=root)
+    dll = directory/'build/bin/FlatWorld.Core.Tests/release/FlatWorld.Core.Tests.dll'
+    n = len(fits)-1
+    all_backgrounds = []
+    for k, (background, coeff) in enumerate(fits):
+        tr = (fold != k) & plateau_land
+        exposure = historical[-1][tr]
+        residual = (obs-reconstruct(historical,background,coeff)-ocean[ids])[tr]
+        gain = np.sum(area[tr,None]*exposure*residual)/np.sum(area[tr,None]*exposure**2)
+        field = reconstruct(current, [np.round(b,3) for b in background], np.round(coeff,4))
+        all_backgrounds.append(field+ocean+round(gain,4)*current[-1])
+    # Lake stage is missing from ECL1. Only its local lapse term uses stage
+    # instead of bed; recover that integer-metre difference from the pinned
+    # runtime control and reapply each fold's own independently fitted lapse.
+    lakes = model[2].ravel() == 4
+    valid = (source[lakes] > -85) & (source[lakes] < 55)
+    stage_delta = np.where(valid, source[lakes]-all_backgrounds[-1][lakes], np.nan)
+    stage_km = np.round(1000*np.nanmedian(stage_delta,axis=1)/round(fits[-1][0][0][3],3))/1000
+    if not np.isfinite(stage_km).all():
+        raise ValueError('Cannot recover a lake stage from a fully clipped control.')
+    old, new = np.empty_like(obs), np.empty_like(obs)
+    for k in range(n):
+        field = all_backgrounds[k]
+        field[lakes] += stage_km[:,None]*round(fits[k][0][0][3],3)
+        temp = np.clip(field,-85,55).astype('<f4')
+        normals = directory/f'fold-{k}.f32'
+        temp.tofile(normals)
+        fit_cloud, forecast = directory/f'fold-{k}.fit.orc', directory/f'fold-{k}.orc'
+        for command, output in (('--surface-fit-cloud', fit_cloud), ('--surface-cloud', forecast)):
+            subprocess.run(['dotnet', '--roll-forward', 'Major', str(dll), command, str(output), str(WIDTH), str(normals)],
+                           check=True, cwd=root)
+        base, tr = temp[ids], fold != k
+        params = surface_fit(base, read_cloud(fit_cloud, shape, 64)[ids], ids, shape, obs, area, tr & land)
+        change = surface_change(base, read_cloud(forecast, shape, 128)[ids], ids, shape, params)
+        old[~tr], new[~tr] = base[~tr], np.clip(base+change*land[:,None],-85,55)[~tr]
+        print(f'  Fold {k} solar/cold reference and sensitivities:',np.round(params,4))
+    report('Five-fold land heat before radiation',old,obs,area)
+    report('Five-fold land heat with independent cloud forecasts',new,obs,area)
+    np.savez_compressed(directory/'calibration-temperatures.npz',tile=ids,fold=fold,background=old,radiation=new)
+
+
+def fit(path, check_runtime, ocean_air=None, plateau_baseline=None, surface_control=None,
+        surface_cloud=None, check_cloud=None, cloud_folds=None):
     fields = read_model(path)
     if fields[0].shape != (HEIGHT, WIDTH):
         raise ValueError("Fit at the common observational resolution (256 x 128).")
@@ -243,6 +358,7 @@ def fit(path, check_runtime, ocean_air=None, plateau_baseline=None):
     matrices = (mean[ids], annual[ids], annual[ids])
     targets = (obs.mean(1), 2*(obs*COS).mean(1), 2*(obs*SIN).mean(1))
     old, updated = np.zeros_like(obs), np.zeros_like(obs)
+    fits = []
     for k in (0, 1, 2, 3, 4, -1):
         train = fold != k
         land = train & ~ocean
@@ -252,6 +368,7 @@ def fit(path, check_runtime, ocean_air=None, plateau_baseline=None):
         coeff = solve(detail[train].reshape(-1, len(LABELS)), (obs-normals)[train].ravel(), np.repeat(area[train], 12), .002)
         predicted = normals + detail@coeff
         old[~train], updated[~train] = normals[~train], predicted[~train]
+        fits.append((background,coeff))
     print(f"Calibration: {len(ids)} cells; complete spatial blocks per fold:",
           [len(np.unique(block[fold == k])) for k in range(5)])
     report("Five-fold original background", old, obs, area)
@@ -261,6 +378,18 @@ def fit(path, check_runtime, ocean_air=None, plateau_baseline=None):
     for name, value in zip(LABELS, coeff):
         print(name, f"{value:.4f}")
     plateau_heat = fit_plateau(plateau_baseline, ids, obs, area, fold) if plateau_baseline else 0
+    surface_params = None
+    if surface_control:
+        control = read_model(surface_control)
+        if control[0].shape != (HEIGHT,WIDTH):
+            raise ValueError('Use the 256 x 128 pre-radiation control for fitting.')
+        cloud = read_cloud(surface_cloud, control[0].shape, 64)[ids]
+        land = np.isin(control[2].ravel()[ids], [0, 5])
+        params = surface_fit(control[3].reshape(-1, 12)[ids], cloud, ids, control[0].shape, obs, area, land)
+        surface_params = np.round(params, 4)
+        print('Land cloud radiation: solar/cold reference fractions and sensitivities', surface_params)
+        if cloud_folds:
+            check_surface_folds(cloud_folds.resolve(),control,read_model(plateau_baseline),fits,ids,area,obs,fold,ocean_air)
     if check_runtime:
         # ECL1 stores lake beds, while the runtime applies the local lapse rate at lake stage.
         # All other cells have a directly reconstructible temperature, including ocean and ice.
@@ -268,6 +397,7 @@ def fit(path, check_runtime, ocean_air=None, plateau_baseline=None):
             fields = read_model(check_runtime)
             mean, annual, pairs, plateau = geometry(fields)
         adjustment = marine_adjustment(ocean_air, *fields[0].shape) if ocean_air else None
+        cloud = read_cloud(check_cloud, fields[0].shape, 128) if check_cloud else None
         sample = np.flatnonzero(fields[2].ravel() != 4)
         error = 0
         for start in range(0, len(sample), 8192):
@@ -280,10 +410,14 @@ def fit(path, check_runtime, ocean_air=None, plateau_baseline=None):
                 predicted += terms_for([plateau], cells)[..., 0] * plateau_heat
             if adjustment is not None:
                 predicted += adjustment[cells, None]
+            if cloud is not None:
+                predicted = np.clip(predicted,-85,55)
+                change = surface_change(predicted,cloud[cells],cells,fields[0].shape,surface_params)
+                predicted += change*np.isin(fields[2].ravel()[cells],[0,5])[:,None]
             error = max(error, abs(np.clip(predicted, -85, 55) - fields[3].reshape(-1, 12)[cells]).max())
         print(f"{len(sample)} non-lake cells, maximum runtime discrepancy {error:.6f} C")
         if error > .003:
-            raise AssertionError("Runtime export does not reproduce the fitted parameterization. Coupled maps require their --ocean-air diagnostic.")
+            raise AssertionError("Runtime export differs from the fitted heat model. Supply the matching marine-air, plateau, and cloud forcing controls for its generation.")
 
 
 if __name__ == "__main__":
@@ -295,7 +429,20 @@ if __name__ == "__main__":
                         help="include the wind-driven marine-air signal exported on the same Earth geometry")
     parser.add_argument("--plateau-baseline", type=Path, metavar="ECL1",
                         help="fit warm-season downwind heating to residuals of the pre-plateau control")
+    parser.add_argument('--surface-control',type=Path,metavar='ECL1',help='pre-cloud 256-column background temperature')
+    parser.add_argument('--surface-cloud',type=Path,metavar='ORC1',help='frozen 64-column fit predictor from --surface-fit-cloud in the core test executable')
+    parser.add_argument('--check-cloud',type=Path,metavar='ORC1',help='runtime predictor from --surface-cloud on the same geometry as --check-runtime')
+    parser.add_argument('--cloud-folds',type=Path,metavar='DIR',help='refit the background and generate independent cloud forecasts for five entire spatial folds')
     args = parser.parse_args()
-    if args.ocean_air and not args.check_runtime:
-        parser.error("--ocean-air requires --check-runtime")
-    fit(args.earth_export, args.check_runtime, args.ocean_air, args.plateau_baseline)
+    if args.ocean_air and not (args.check_runtime or args.cloud_folds):
+        parser.error("--ocean-air requires --check-runtime or --cloud-folds")
+    if bool(args.surface_control) != bool(args.surface_cloud):
+        parser.error('--surface-control and --surface-cloud are used together')
+    if args.cloud_folds and not (args.surface_control and args.plateau_baseline and args.ocean_air):
+        parser.error('--cloud-folds needs --surface-control, --surface-cloud, --ocean-air and --plateau-baseline')
+    if args.check_cloud and not (args.surface_cloud and args.check_runtime):
+        parser.error('--check-cloud requires --surface-cloud and --check-runtime')
+    if args.surface_cloud and args.check_runtime and not args.check_cloud:
+        parser.error('Surface radiation runtime verification needs the 128-column predictor from --check-cloud')
+    fit(args.earth_export,args.check_runtime,args.ocean_air,args.plateau_baseline,args.surface_control,
+        args.surface_cloud,args.check_cloud,args.cloud_folds)

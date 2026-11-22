@@ -148,6 +148,17 @@ namespace Orbis.Flat
                 .25f * near.Read(field, x, width) + .4f * middle.Read(field, x, width) + .35f * far.Read(field, x, width);
         }
 
+        // Daily-mean top-of-atmosphere shortwave flux in W/m2.
+        static double SolarFlux(double latitude, int month)
+        {
+            double phase = (month - 6) * Math.PI / 6;
+            double declination = Math.Asin(Math.Sin(23.44 * Math.PI / 180) * Math.Cos(phase + .42));
+            double hour = Math.Acos(Math.Max(-1, Math.Min(1, -Math.Tan(latitude) * Math.Tan(declination))));
+            return 1361 / Math.PI * (1 - .0334 * Math.Cos(phase + .20))
+                * (hour * Math.Sin(latitude) * Math.Sin(declination)
+                + Math.Cos(latitude) * Math.Cos(declination) * Math.Sin(hour));
+        }
+
         // The annual mean and first harmonic are already in the background.
         // Keep the remaining equinoctial peaks and polar-day/night shape of
         // daily-mean top-of-atmosphere insolation, including orbital eccentricity.
@@ -157,12 +168,7 @@ namespace Orbis.Flat
             double mean = 0, cosine = 0, sine = 0;
             for (int m = 0; m < 12; m++)
             {
-                double phase = (m - 6) * Math.PI / 6;
-                double declination = Math.Asin(Math.Sin(23.44 * Math.PI / 180) * Math.Cos(phase + .42));
-                double hour = Math.Acos(Math.Max(-1, Math.Min(1, -Math.Tan(latitude) * Math.Tan(declination))));
-                flux[m] = 1361 / Math.PI * (1 - .0334 * Math.Cos(phase + .20))
-                    * (hour * Math.Sin(latitude) * Math.Sin(declination)
-                    + Math.Cos(latitude) * Math.Cos(declination) * Math.Sin(hour));
+                flux[m] = SolarFlux(latitude, m);
                 mean += flux[m] / 12;
                 cosine += flux[m] * Summer[m] / 6;
                 sine += flux[m] * Lag[m] / 6;
@@ -270,6 +276,45 @@ namespace Orbis.Flat
             });
         }
 
+        // This predictor transports moisture from the background temperature. The
+        // final moisture solve then uses the adjusted surface normals, as on save reload.
+        // Keep both on the same grid so rotating by an atmospheric cell moves the
+        // cloud forcing, even at coasts and when a shift crosses the map seam.
+        internal static FlatMoistureState PredictRadiativeCloud(WorldData w, CancellationToken cancel, int workers, bool seasonalWinds)
+            => FlatMoisture.BuildWithCirculation(w, cancel, workers, true, null, seasonalWinds);
+
+        static void ApplyLandCloudRadiation(WorldData w, FlatMoistureState predictor, ParallelOptions options)
+        {
+            Parallel.For(0, w.Height, options, y =>
+            {
+                float v = (y + .5f) / w.Height;
+                var sunlight = new float[12];
+                for (int m = 0; m < 12; m++) sunlight[m] = (float)(SolarFlux((v - .5) * Math.PI, m) / 300);
+                for (int x = 0; x < w.Width; x++)
+                {
+                    int i = y*w.Width + x;
+                    if (FlatTerrainAnalysis.AreaWater(w.Water[i])) continue;
+                    float u = (x + .5f) / w.Width;
+                    for (int m = 0; m < 12; m++)
+                    {
+                        // Use the frequency of precipitating cloud as a proxy for cloud
+                        // exposure. The two reference fractions are the calibration-land
+                        // means weighted by incident sunlight and freezing respectively.
+                        float rain = predictor.Sample(predictor.Rain, u, v, m);
+                        float cloud = (float)(1 - Math.Exp(-rain / 45f));
+                        int j = i*12 + m;
+                        float air = w.Temperature[j], cold = FMath.Clamp((4 - air) / 18, 0, 1);
+                        float stable = cold*cold*(3 - 2*cold);
+                        // Cloud shades warm ground. In a cold, stable boundary layer its
+                        // downward longwave emission limits surface radiative cooling.
+                        float shortwave = .9384f * (.6461f - cloud) * sunlight[m];
+                        float longwave = 8.7247f * (cloud - .3500f) * stable;
+                        w.Temperature[j] = FMath.Clamp(air + shortwave + longwave, -85, 55);
+                    }
+                }
+            });
+        }
+
         public static void Build(WorldData w,CancellationToken cancel,int workers=0)
             => Build(w,cancel,workers,true,true);
 
@@ -279,13 +324,14 @@ namespace Orbis.Flat
             var options=FlatWorkerPolicy.Options(cancel,workers);
             var currents=oceanHeat?FlatOceanCirculation.Build(w,options):null;
             BuildTemperature(w,options,currents);
+            ApplyLandCloudRadiation(w,PredictRadiativeCloud(w,cancel,workers,seasonalWinds),options);
             w.Moisture=FlatMoisture.BuildWithCirculation(w,cancel,workers,true,currents,seasonalWinds);
+            FlatOrographicRainfall.Distribute(w,w.Moisture,options);
             Parallel.For(0,w.Height,options,y=>
             {
                 for(int x=0;x<w.Width;x++)
                 {
                     int i=y*w.Width+x;
-                    for(int m=0;m<12;m++)w.Precipitation[i*12+m]=w.Moisture.Sample(w.Moisture.Rain,(x+.5f)/w.Width,(y+.5f)/w.Height,m);
                     w.Climates[i]=KoppenClassifier.Classify(w.Temperature,w.Precipitation,i*12);
                 }
             });

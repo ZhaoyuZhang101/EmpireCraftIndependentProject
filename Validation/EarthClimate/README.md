@@ -4,6 +4,54 @@
 
 [本次模型与历史版本的对照结果](RESULTS.md)
 
+## 全球水汽输送、地形降水与陆面云辐射
+
+对照版本为 `4aa93fc340c6028f934ae78d43ec38176a379d57`。用相同的地球高程、水系、种子和玩家生成入口导出两版逐月场。柯本评分采用原有 17 个留出块的 1,806 个陆地参考格，按观测面积加权。六档分别评分。开发区有 57 个块，适合检查具体地区和调试机制。[结果](RESULTS.md#全球水汽输送地形降水与陆面云辐射)
+
+```powershell
+$out = "ValidationOutput/GlobalClimatePhysics"
+$export = "Validation/EarthClimate/Export.csproj"
+$tests = "Validation/FlatWorld/FlatWorld.Core.Tests.csproj"
+foreach ($width in 256,512,1024,1536,2048,4096) {
+    python Validation/EarthClimate/export_baseline.py --before-surface-climate --width $width --output "$out/control-$width.bin"
+    dotnet run --project $export -c Release -- "$out/final-$width.bin" $width ORBIS-2D-2026
+    foreach ($stage in "control","final") {
+        $map = "$out/$stage-$width.bin"
+        dotnet run --project $export -c Release -- --compare-koppen $map --split holdout --json "$out/$stage-$width-holdout.json"
+        if ($LASTEXITCODE -gt 1) { throw "Invalid comparison for $map" }
+        python Validation/EarthClimate/score.py $map --split holdout --json "$out/$stage-$width-field-holdout.json"
+    }
+}
+dotnet run --project $tests -c Release -- --orographic-rainfall
+dotnet run --project $tests -c Release -- --seasonal-rainfall
+dotnet run --project $tests -c Release -- --seasonal-temperature
+dotnet run --project $tests -c Release -- --environment
+python -m unittest discover -s Validation/EarthClimate -p test_koppen.py
+```
+
+柯本命令将两项一致率和各自的通过标记写入 JSON。退出码 1 表示至少一项未严格超过 90%，2 表示输入无效。`largest_confusions` 按错分面积列出前十个「观测 → 模拟」组合，分母是整个评分区域。`rainfall_attribution` 在相同月温下分别替换全年雨量或逐月雨量占比。只有双方全年雨量均为正的格子才有可比较的月占比，报告给出配对格数及面积。纯模拟门槛始终使用原始评分范围。
+
+陆面云辐射系数在 256 档的开发区拟合。`--surface-fit-cloud` 导出拟合时冻结的 64×32 预测场。`--surface-cloud` 导出玩家使用的 128×64 预测场，与最终水汽网格对齐。空间交叉验证在每个训练折重新拟合背景温度，并从该折自己的温度重新计算两种云场。独立重建需要 NumPy 和 h5py。
+
+```powershell
+python Validation/EarthClimate/export_baseline.py --before-seasons --width 256 --output "$out/preseason.bin"
+python Validation/EarthClimate/export_baseline.py --before-bohai --width 256 --output "$out/preplateau.bin"
+dotnet run --project $tests -c Release -- --wind-belts "$out/winds.bin"
+dotnet run --project $tests -c Release -- --surface-fit-cloud "$out/fit.orc" 256
+dotnet run --project $tests -c Release -- --surface-cloud "$out/player.orc" 256
+python Validation/EarthClimate/fit_temperature.py "$out/preseason.bin" --plateau-baseline "$out/preplateau.bin" --surface-control "$out/control-256.bin" --ocean-air "$out/winds.bin" --surface-cloud "$out/fit.orc" --check-cloud "$out/player.orc" --check-runtime "$out/final-256.bin" --cloud-folds "$out/spatial-folds"
+```
+
+Unity 端核对使用同一版本工程的独立副本。把本目录的 `EarthClimateMenuRegression.cs` 复制到副本的 `Assets/ORBIS/Editor`。用 Unity 6000.0.55f1 执行下面的命令，方法会从玩家菜单生成指定尺寸的地球，核对 8,192 个地表格的逐月气候和实际分类，写入日志后退出。以下示例中的 `$qa` 为工程副本的绝对路径。
+
+```powershell
+$reference = (Resolve-Path "$out/final-2048.bin").Path
+$log = Join-Path (Resolve-Path $out).Path "menu-final.log"
+$argsForUnity = @("-batchmode","-force-d3d11","-projectPath",('"{0}"' -f $qa),"-executeMethod","EarthClimateMenuRegression.Run","-earthClimateReference",('"{0}"' -f $reference),"-logFile",('"{0}"' -f $log))
+$run = Start-Process -FilePath "D:/Program Files/Unity 6000.0.55f1/Editor/Unity.exe" -ArgumentList $argsForUnity -WindowStyle Hidden -PassThru -Wait
+if ($run.ExitCode -ne 0) { throw "See $log" }
+```
+
 ## 河北至辽宁的沿海夏季风
 
 以 `e560df5` 为对照。先对同一张玩家地球的逐月气温、降水做面积匹配，再把这两组月值分别送入游戏的柯本分类器。渤海样区取 116–125°E、38–43°N，西、南边界包含在内。21 个合格的 CRU 陆地格均属开发块 93。相邻的内蒙古东南部和辽东也列在逐月报告的 `regions` 中。[结果与玩家画面对照](RESULTS.md#河北至辽宁的沿海夏季风)
@@ -12,7 +60,7 @@
 $out = "ValidationOutput/BohaiClimate"
 $width = 2048
 python Validation/EarthClimate/export_baseline.py --before-bohai --width $width --output "$out/before-$width.bin"
-dotnet run --project Validation/EarthClimate/Export.csproj -c Release -- "$out/after-$width.bin" $width
+python Validation/EarthClimate/export_baseline.py --before-surface-climate --width $width --output "$out/after-$width.bin"
 foreach ($stage in "before", "after") {
     $file = "$out/$stage-$width.bin"
     python Validation/EarthClimate/score.py $file --split calibration --json "$out/$stage-$width-field-calibration.json"
@@ -30,7 +78,7 @@ dotnet run --project Validation/FlatWorld/FlatWorld.Core.Tests.csproj -c Release
 ```powershell
 python Validation/EarthClimate/export_baseline.py --before-seasons --width 256 --output "$out/before-seasons-256.bin"
 python Validation/EarthClimate/export_baseline.py --before-bohai --width 256 --output "$out/before-256.bin"
-dotnet run --project Validation/EarthClimate/Export.csproj -c Release -- "$out/after-256.bin" 256
+python Validation/EarthClimate/export_baseline.py --before-surface-climate --width 256 --output "$out/after-256.bin"
 dotnet run --project Validation/FlatWorld/FlatWorld.Core.Tests.csproj -c Release -- --wind-belts "$out/after-winds.bin"
 python Validation/EarthClimate/fit_temperature.py "$out/before-seasons-256.bin" --plateau-baseline "$out/before-256.bin" --check-runtime "$out/after-256.bin" --ocean-air "$out/after-winds.bin"
 ```

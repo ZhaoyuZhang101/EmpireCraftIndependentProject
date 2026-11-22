@@ -88,6 +88,9 @@ class KoppenScorer(unittest.TestCase):
         self.assertAlmostEqual(observed["Csa"]["recall"], 8 / 9)
         self.assertEqual(observed["EF"], {"area_km2": 9000, "recall": 1})
         self.assertEqual(observed["Cfa"], {"area_km2": 0, "recall": None})
+        self.assertEqual(r["largest_confusions"], [
+            {"observed": "Csa", "modeled": "Cfa", "area_km2": 9000, "share_of_total_area": .1}
+        ])
         self.compare(strict=False)  # Calibration-only diagnostics can finish below target.
         self.mt[0] = -20
         r = self.compare(1)
@@ -130,6 +133,22 @@ class KoppenScorer(unittest.TestCase):
         self.assertEqual((r["five_group_agreement"], r["exact_subtype_agreement"]), (.9, .8))
         self.assertEqual(r["with_observed_temperature"], {"five_group_agreement": 1, "exact_subtype_agreement": .9})
         self.assertEqual(r["with_observed_precipitation"], {"five_group_agreement": .9, "exact_subtype_agreement": .9})
+
+    def test_precipitation_amount_and_calendar_diagnostics(self):
+        self.mp[0] *= .1                         # Correct seasonal distribution; too little water.
+        self.mp[1] = self.op[1].sum() / 12       # Correct annual total; missing dry summer.
+        self.mp[2] = 0
+        self.op[3] = self.mp[3] = 0
+        r = self.compare(strict=False)
+        split = r["rainfall_attribution"]
+        self.assertEqual((r["cells"], split["cells"], split["area_km2"]), (10, 8, 72000))
+        self.assertEqual(split["pure_simulation"]["exact_subtype_agreement"], 6/8)
+        self.assertEqual(split["with_observed_annual_total"], {"five_group_agreement": 1, "exact_subtype_agreement": 7/8})
+        self.assertEqual(split["with_observed_monthly_fractions"], {"five_group_agreement": 7/8, "exact_subtype_agreement": 7/8})
+        self.mp[:] = 0
+        dry = self.compare(strict=False)["rainfall_attribution"]
+        self.assertEqual(dry["cells"], 0)
+        self.assertIsNone(dry["with_observed_monthly_fractions"])
 
     def test_frozen_geographic_footprint_and_default_gate(self):
         # Recover eligible IDs from geometry. Every climate value still comes from the synthetic profiles above.

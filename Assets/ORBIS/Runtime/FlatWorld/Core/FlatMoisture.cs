@@ -35,11 +35,11 @@ namespace Orbis.Flat
         }
         sealed class MonthlyTransport
         {
-            public readonly float[] PotentialEvaporation, SeaHumidityContrast, Capacity, Lift, Efficiency, Transpiration;
+            public readonly float[] PotentialEvaporation, WindExchange, SeaHumidityContrast, Capacity, Lift, Efficiency, Transpiration;
             public readonly TransportWeights[] Faces;
             public MonthlyTransport(int count)
             {
-                PotentialEvaporation=new float[count]; SeaHumidityContrast=new float[count]; Capacity=new float[count]; Lift=new float[count];
+                PotentialEvaporation=new float[count]; WindExchange=new float[count]; SeaHumidityContrast=new float[count]; Capacity=new float[count]; Lift=new float[count];
                 Efficiency=new float[count]; Transpiration=new float[count]; Faces=new TransportWeights[count];
             }
         }
@@ -218,14 +218,83 @@ namespace Orbis.Flat
             }
             return sectors;
         }
+        internal struct ThermalPressureGradient
+        {
+            public float East, North, SummerEast, SummerNorth;
+        }
+
+        // Sample continental heating at 375–1500 km. Land warms more than the
+        // sea each day. Its seasonal contribution scales with the fundamental
+        // of the simulated temperature cycle (a 7 K amplitude gives full strength).
+        internal static ThermalPressureGradient[] RegionalHeatLow(float[] water,float[] temperature,
+            float[] annualTemperature,int width,int height)
+        {
+            int count=width*height;
+            var gradients=new ThermalPressureGradient[count];
+            var seasonalHeating=new float[count];
+            var cosine=new float[12];var sine=new float[12];
+            for(int m=0;m<12;m++)
+            {
+                double phase=(m-6)*Math.PI/6;
+                cosine[m]=(float)Math.Cos(phase);sine[m]=(float)Math.Sin(phase);
+            }
+            for(int i=0;i<count;i++)
+            {
+                float c=0,s=0;
+                for(int m=0;m<12;m++)
+                {
+                    float anomaly=temperature[i*12+m]-annualTemperature[i];
+                    c+=anomaly*cosine[m]/6;s+=anomaly*sine[m]/6;
+                }
+                seasonalHeating[i]=(1-water[i])*Math.Min(1,(float)Math.Sqrt(c*c+s*s)/7);
+            }
+            float kmRow=20015.1f/height;
+            for(int y=0;y<height;y++)
+            {
+                float latitude=((y+.5f)/height-.5f)*180;
+                if(Math.Abs(latitude)>45)continue;
+                float kmColumn=kmRow*(float)Math.Cos(latitude*Math.PI/180);
+                for(int x=0;x<width;x++)
+                {
+                    var gradient=new ThermalPressureGradient();
+                    for(int direction=0;direction<8;direction++)
+                    {
+                        float east=(float)Math.Cos(direction*Math.PI/4);
+                        float north=(float)Math.Sin(direction*Math.PI/4);
+                        for(int ring=1;ring<=4;ring++)
+                        {
+                            float px=x+east*(375*ring)/kmColumn,py=y+north*(375*ring)/kmRow;
+                            float land=1-FractionAt(water,width,height,px,py);
+                            float sourceLatitude=latitude+north*(375*ring)/kmRow*180/height;
+                            float summer=FractionAt(seasonalHeating,width,height,px,py)
+                                *FMath.Clamp(sourceLatitude/12,-1,1);
+                            gradient.East+=land*east/16;gradient.North+=land*north/16;
+                            gradient.SummerEast+=summer*east/16;gradient.SummerNorth+=summer*north/16;
+                        }
+                    }
+                    gradients[y*width+x]=gradient;
+                }
+            }
+            return gradients;
+        }
+
+        // Turbulent evaporation depends on speed even when eddies cancel in
+        // the monthly mean wind. A reference-grid step per six hours is 14.5 m/s.
+        // Add a 4 m/s background RMS wind and the variance of transient fronts.
+        internal static float OpenWaterExchange(float eastStep,float northStep,float frontalActivity)
+        {
+            float meanSquare=14.5f*14.5f*(eastStep*eastStep+northStep*northStep);
+            return (float)Math.Sqrt(16+16*frontalActivity+meanSquare)/6;
+        }
+
         public static FlatMoistureState Build(WorldData world,CancellationToken cancel,int workers=0,bool evaporate=true)
             => BuildWithCirculation(world,cancel,workers,evaporate,
                 FlatOceanCirculation.Build(world,FlatWorkerPolicy.Options(cancel,workers)));
 
         internal static FlatMoistureState BuildWithCirculation(WorldData world,CancellationToken cancel,int workers,
-            bool evaporate,FlatOceanCirculation currents,bool seasonalWinds=true)
+            bool evaporate,FlatOceanCirculation currents,bool seasonalWinds=true,int maxColumns=128)
         {
-            int width=Math.Min(128,world.Width),height=width/2,count=width*height;
+            int width=Math.Min(maxColumns,world.Width),height=width/2,count=width*height;
             var state=new FlatMoistureState(width,height);var elevation=new float[count];var water=new float[count];var area=new float[count];
             var ocean=new float[count];
             var ridgeHeight=new float[count];
@@ -278,6 +347,7 @@ namespace Orbis.Flat
             var annualTemperature=new float[count];
             for(int i=0;i<count;i++)
                 for(int m=0;m<12;m++)annualTemperature[i]+=monthlyTemperature[i*12+m]/12;
+            var heatLow=RegionalHeatLow(water,monthlyTemperature,annualTemperature,width,height);
             var months=new MonthlyTransport[12];
             var options=FlatWorkerPolicy.Options(cancel,workers);
             Parallel.For(0,12,options,month=>
@@ -363,6 +433,11 @@ namespace Orbis.Flat
                     // Moist warm sectors move poleward within midlatitude storms.
                     // This is an eddy moisture flux in the column, separate from
                     // the climatological wind used by the surface weather.
+                    // The direct tropical response weakens beyond the subtropical ridge.
+                    // A one-day friction time gives f*tau = 12.60*sin(latitude).
+                    // .20 reference cells per step corresponds to about 2.9 m/s.
+                    float rotation=12.601f*coriolis;
+                    float thermalResponse=.20f*(float)Math.Exp(-Math.Pow(ab/32,4))*gridScale/(1+rotation*rotation);
                     float stormFlux=.09f*hemi*FMath.Clamp(gradient/6,0,1)*
                         (float)Math.Exp(-Math.Pow((ab-52)/20,4))*(1-.45f*summer)*gridScale;
                     float westBelt=.75f*(float)Math.Exp(-Math.Pow((ab-37)/9,4));
@@ -406,6 +481,7 @@ namespace Orbis.Flat
                         north+=hemi*.24f*marineInflow;
                         float surfaceEast=FMath.Clamp(east-gx*.12f,-.32f,.32f);
                         float surfaceNorth=y==0||y==height-1?0:FMath.Clamp(north+returnFlow-gy*.20f,-.14f,.14f);
+                        column.WindExchange[i]=OpenWaterExchange(surfaceEast,surfaceNorth,stormLift/.10f);
                         state.East[i*12+month]=surfaceEast/.32f;state.North[i*12+month]=surfaceNorth/.32f;
                         // Only the boundary-layer share flows directly across isobars.
                         const float boundaryShare=.45f;
@@ -419,6 +495,14 @@ namespace Orbis.Flat
                         // the moist marine boundary layer than by inland air.
                         float columnReturn=returnFlow*(.05f+.15f*ocean[i]);
                         float advectedNorth=FMath.Clamp(north+columnReturn-gy*.20f*boundaryShare,-.14f,.14f)*gridScale*jetSpeed;
+                        // The mixed-layer flow towards heated land turns to its
+                        // right in the north and to its left in the south.
+                        // Daily heating supplies a weaker year-round component.
+                        var heatGradient=heatLow[i];
+                        float towardsEast=.25f*heatGradient.East+solstice*heatGradient.SummerEast;
+                        float towardsNorth=.25f*heatGradient.North+solstice*heatGradient.SummerNorth;
+                        u[i]+=thermalResponse*(towardsEast+rotation*towardsNorth);
+                        advectedNorth+=thermalResponse*(towardsNorth-rotation*towardsEast);
                         float meridionalLimit=seasonalWinds?.28f:Math.Min(.28f,1-4*eddy-Math.Abs(u[i]));
                         v[i]=y==0||y==height-1?0:FMath.Clamp(advectedNorth+stormFlux,-meridionalLimit,meridionalLimit);
                         if(seasonalWinds)
@@ -552,6 +636,7 @@ namespace Orbis.Flat
                         float humidity=FMath.Clamp(air/cap,0,1);
                         float evaporation=column.PotentialEvaporation[i]*(.60f+1.15f*(1-humidity));
                         float openWaterEvap=sea*Math.Max(0,evaporation+column.PotentialEvaporation[i]*column.SeaHumidityContrast[i]);
+                        openWaterEvap*=column.WindExchange[i];
                         float landEvap=Math.Min(soil[i],evaporation*column.Transpiration[i]*land*Math.Min(1,soil[i]*inverseFieldWater[i]));
                         air+=openWaterEvap+landEvap;
                         float cloudFraction=FMath.Clamp((humidity-.40f)*2,0,1);

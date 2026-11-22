@@ -5,6 +5,7 @@ internal static class SeasonalRainfallRegression
 {
     public static void Run()
     {
+        CheckThermalInflow();
         CheckWaterSources();
         CheckPeninsulaMonsoon();
         // Rotate seasons through the same terrain in the two hemispheres. Flat
@@ -38,6 +39,42 @@ internal static class SeasonalRainfallRegression
                   rain[interior+lateSummer] < rain[interior+summer] / 2))
                 throw new Exception("Late-summer marine supply should persist at the coast and diminish inland.");
         }
+    }
+
+    private static void CheckThermalInflow()
+    {
+        const int width=128, height=64;
+        var water=new float[width*height];
+        var temperature=new float[width*height*12];
+        var annual=new float[width*height];
+        // A north-south continent crosses the equator. Both shorelines have
+        // the same annual heat and opposite normals. Only its land has seasons.
+        for(int y=0;y<height;y++)
+        for(int x=0;x<width;x++)
+        {
+            int i=y*width+x;
+            water[i]=x>=32 && x<96 ? 0 : 1;
+            annual[i]=24;
+            for(int m=0;m<12;m++)
+                temperature[i*12+m]=24+(1-water[i])*7*(float)Math.Cos((m-6)*Math.PI/6);
+        }
+        var gradients=FlatMoisture.RegionalHeatLow(water,temperature,annual,width,height);
+        int north=(int)((15.0/180+.5)*height),south=height-1-north;
+        var west=gradients[north*width+32];var east=gradients[north*width+95];
+        var reflected=gradients[south*width+32];
+        if (!(west.East>.3f && east.East<-.3f && west.SummerEast>.25f &&
+              Math.Abs(west.SummerEast+reflected.SummerEast)<1e-5f &&
+              Math.Abs(west.SummerEast+east.SummerEast)<1e-5f))
+            throw new Exception("A seasonal thermal low should draw air inland on either shore and reverse six months across the equator.");
+        Array.Fill(temperature,24f);
+        var constant=FlatMoisture.RegionalHeatLow(water,temperature,annual,width,height)[north*width+32];
+        if (constant.SummerEast!=0 || constant.East!=west.East)
+            throw new Exception("Removing seasonal heating should leave only the year-round onshore gradient.");
+        float calm=FlatMoisture.OpenWaterExchange(0,0,0);
+        float trade=FlatMoisture.OpenWaterExchange(-.24f,0,0);
+        float storm=FlatMoisture.OpenWaterExchange(.24f,0,1);
+        if (!(calm>0 && calm<trade && trade<storm && trade==FlatMoisture.OpenWaterExchange(.24f,0,0)))
+            throw new Exception("Open-water exchange should increase with mean speed and with the variance of transient winds.");
     }
 
     private static void CheckPeninsulaMonsoon()

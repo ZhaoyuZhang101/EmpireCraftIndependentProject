@@ -64,10 +64,7 @@ internal static class SeasonalTemperatureRegression
 
     private static void CheckPremonsoonHeat()
     {
-        const string path = "Assets/ORBIS/Resources/ORBIS/FlatWorld/";
-        var world = FlatGenerator.Generate(256, 128, "ORBIS-2D-2026", TerrainPreset.Earth, default,
-            File.ReadAllBytes(path + "Earth256.bytes"), File.ReadAllBytes(path + "EarthWater256.bytes"),
-            File.ReadAllBytes(path + "EarthRivers.bytes"));
+        var world = Earth(256);
         // The development-area CRU normals put the hot season ahead of the
         // rains over the Deccan. Compare the premonsoon and established monsoon.
         double may = 0, july = 0, area = 0;
@@ -84,5 +81,69 @@ internal static class SeasonalTemperatureRegression
         Console.WriteLine($"Deccan May/July temperatures: {may/area:F1}/{july/area:F1} C.");
         if (!(area > 0 && may > july))
             throw new Exception("The dry premonsoon must be warmer than the established wet monsoon on the Deccan.");
+        CheckCloudResponse(world);
+    }
+
+    static void CheckCloudResponse(WorldData world)
+    {
+        var final = (float[])world.Temperature.Clone();
+        FlatClimate.BuildTemperature(world, FlatWorkerPolicy.Options(default));
+        double dryWarm = 0, wetWarm = 0, dryCold = 0, wetCold = 0;
+        int nd = 0, nw = 0, cd = 0, cw = 0;
+        for (int i = 0; i < world.Count; i++)
+        {
+            for (int m = 0; m < 12; m++)
+            {
+                int j = i*12 + m;
+                float t = world.Temperature[j], p = world.Precipitation[j], difference = final[j] - t;
+                if (FlatTerrainAnalysis.AreaWater(world.Water[i]))
+                {
+                    if (difference != 0) throw new Exception("The terrestrial cloud response altered a water surface.");
+                    continue;
+                }
+                if (t > 18 && p < 5) { dryWarm += difference; nd++; }
+                if (t > 18 && p > 140) { wetWarm += difference; nw++; }
+                if (t < -18 && p < 4) { dryCold += difference; cd++; }
+                if (t < -18 && p > 35) { wetCold += difference; cw++; }
+            }
+        }
+        Console.WriteLine($"Land cloud response, hot dry/wet {dryWarm/nd:F2}/{wetWarm/nw:F2}, cold dry/wet {dryCold/cd:F2}/{wetCold/cw:F2} C.");
+        if (!(dryWarm/nd > 0 && wetWarm/nw < 0 && dryCold/cd < 0 && wetCold/cw > 0))
+            throw new Exception("Summer cloud must reduce land heating and winter cloud must shelter frozen ground from radiative cooling.");
+    }
+
+    static WorldData Earth(int width)
+    {
+        const string path = "Assets/ORBIS/Resources/ORBIS/FlatWorld/";
+        return FlatGenerator.Generate(width, width/2, "ORBIS-2D-2026", TerrainPreset.Earth, default,
+            File.ReadAllBytes($"{path}Earth{width}.bytes"), File.ReadAllBytes($"{path}EarthWater{width}.bytes"),
+            File.ReadAllBytes(path + "EarthRivers.bytes"));
+    }
+
+    internal static void ExportCloud(string[] args, bool calibrationControl = false)
+    {
+        if (args.Length < 2 || args.Length > 4)
+            throw new ArgumentException("--surface-cloud output.orc [width] [fold-background.f32]");
+        int width = args.Length >= 3 ? int.Parse(args[2]) : 256;
+        var world = Earth(width);
+        if (args.Length == 4)
+        {
+            using var input = new BinaryReader(File.OpenRead(args[3]));
+            if (input.BaseStream.Length != (long)world.Temperature.Length*sizeof(float))
+                throw new InvalidDataException("Incorrect monthly background size.");
+            for (int j = 0; j < world.Temperature.Length; j++) world.Temperature[j] = input.ReadSingle();
+        }
+        else FlatClimate.BuildTemperature(world, FlatWorkerPolicy.Options(default));
+        // Radiation coefficients were frozen using a 64-column predictor. The
+        // player uses the full atmospheric grid to retain rotation equivariance.
+        var cloud = calibrationControl ? FlatMoisture.BuildWithCirculation(world, default, 0, true, null, true, 64)
+            : FlatClimate.PredictRadiativeCloud(world, default, 0, true);
+        string path = Path.GetFullPath(args[1]);
+        Directory.CreateDirectory(Path.GetDirectoryName(path));
+        using var output = new BinaryWriter(File.Create(path));
+        output.Write(System.Text.Encoding.ASCII.GetBytes("ORC1"));
+        output.Write(cloud.Width); output.Write(cloud.Height);
+        foreach (float rain in cloud.Rain) output.Write(rain);
+        Console.WriteLine($"{cloud.Width} x {cloud.Height} monthly cloud-predictor rain, {path}");
     }
 }

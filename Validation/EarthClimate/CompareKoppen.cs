@@ -75,8 +75,8 @@ internal static class CompareKoppen
 
     private sealed record Report(string Split, string ModelFile, string ModelSha256, int ModelWidth, int ModelHeight, int Cells, int Blocks,
         string FootprintSha256, decimal AreaKm2, decimal FiveGroupAgreement, decimal ExactSubtypeAgreement,
-        bool FiveGroupPass, bool ExactSubtypePass, Dictionary<string, ObservedSubtype> ObservedSubtypes, Hemisphere[] Hemispheres,
-        Agreement WithObservedTemperature, Agreement WithObservedPrecipitation,
+        bool FiveGroupPass, bool ExactSubtypePass, Dictionary<string, ObservedSubtype> ObservedSubtypes, Confusion[] LargestConfusions, Hemisphere[] Hemispheres,
+        Agreement WithObservedTemperature, Agreement WithObservedPrecipitation, RainfallAttribution RainfallAttribution,
         [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] Window CalibrationWindow);
 
     private sealed record Window(double West, double East, double South, double North)
@@ -100,6 +100,39 @@ internal static class CompareKoppen
     }
 
     private sealed record Agreement(decimal FiveGroupAgreement, decimal ExactSubtypeAgreement);
+    private sealed record Confusion(string Observed, string Modeled, decimal AreaKm2, decimal ShareOfTotalArea);
+    private sealed record RainfallAttribution(int Cells, decimal AreaKm2, Agreement PureSimulation,
+        Agreement WithObservedAnnualTotal, Agreement WithObservedMonthlyFractions);
+
+    private sealed class RainfallComparison
+    {
+        private readonly MatchedArea pure = new(), annual = new(), fractions = new();
+        private readonly float[] hybrid = new float[Months];
+        private int cells;
+        private decimal area;
+
+        public void Add(float[] temperature, float[] modeledRain, float[] observedRain, Koppen modeled,
+            string observedClass, decimal weight)
+        {
+            double modelTotal = modeledRain.Sum(p => (double)p), observedTotal = observedRain.Sum(p => (double)p);
+            // A rainless year has no defined seasonal fractions. This exclusion
+            // applies only to these paired diagnostics, never to the global score.
+            if (modelTotal == 0 || observedTotal == 0) return;
+            cells++;
+            area += weight;
+            pure.Add(modeled, observedClass, weight);
+            for (int m = 0; m < Months; m++)
+                hybrid[m] = (float)(modeledRain[m] * (observedTotal / modelTotal));
+            annual.Add(KoppenClassifier.Classify(temperature, hybrid), observedClass, weight);
+            for (int m = 0; m < Months; m++)
+                hybrid[m] = (float)(observedRain[m] * (modelTotal / observedTotal));
+            fractions.Add(KoppenClassifier.Classify(temperature, hybrid), observedClass, weight);
+        }
+
+        public RainfallAttribution Summary() => area == 0
+            ? new(0, 0, null, null, null)
+            : new(cells, area, pure.Share(area), annual.Share(area), fractions.Share(area));
+    }
 
     private sealed class MatchedArea
     {
@@ -147,8 +180,10 @@ internal static class CompareKoppen
         var localP = new float[Months];
         var withObservedT = new MatchedArea();
         var withObservedP = new MatchedArea();
+        var rainfall = new RainfallComparison();
         var subtypes = Enum.GetValues<Koppen>().Where(k => k != Koppen.Unknown)
             .ToDictionary(k => k.ToString(), k => new ObservedSubtype());
+        var confusions = new Dictionary<(Koppen Observed, Koppen Modeled), decimal>();
         decimal total = 0, broad = 0, exact = 0;
         string line;
         while ((line = data.ReadLine()) != null)
@@ -183,8 +218,14 @@ internal static class CompareKoppen
             Array.Copy(precipitation, offset, localP, 0, Months);
             withObservedT.Add(KoppenClassifier.Classify(observedT, localP), name, area);
             withObservedP.Add(KoppenClassifier.Classify(localT, observedP), name, area);
+            rainfall.Add(localT, localP, observedP, modeled, name, area);
             subtypes[name].Add(area, observed == modeled);
             if (observed == modeled) exact += area;
+            else
+            {
+                var pair = (observed, modeled);
+                confusions[pair] = confusions.GetValueOrDefault(pair) + area;
+            }
             if (name[0] == modeled.ToString()[0]) broad += area;
             total += area;
             (y >= Height / 2 ? north : south).Add((double)area, observedT, observedP, temperature, precipitation, offset);
@@ -200,8 +241,10 @@ internal static class CompareKoppen
         return new Report(split, Path.GetFileName(export), modelSha256, width, height, tiles.Count, blocks.Count,
             digest, total, broad / total, exact / total,
             10 * broad > 9 * total, 10 * exact > 9 * total, subtypes,
+            confusions.OrderByDescending(pair => pair.Value).ThenBy(pair => pair.Key.Observed).ThenBy(pair => pair.Key.Modeled)
+                .Take(10).Select(pair => new Confusion(pair.Key.Observed.ToString(), pair.Key.Modeled.ToString(), pair.Value, pair.Value / total)).ToArray(),
             new[] { north, south }.Where(h => h.Cells != 0).Select(h => h.Summary()).ToArray(),
-            withObservedT.Share(total), withObservedP.Share(total), window);
+            withObservedT.Share(total), withObservedP.Share(total), rainfall.Summary(), window);
     }
 
     private static (int, int, string, float[], float[]) ReadModel(string path)

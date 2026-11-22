@@ -29,7 +29,10 @@ public static class Program {
     case "--wind-belts": WindBeltRegression.Run(args.Length>1 ? args[1] : null); break;
     case "--ocean-circulation": OceanCirculationRegression.Run(); break;
     case "--seasonal-rainfall": SeasonalRainfallRegression.Run(); break;
+    case "--orographic-rainfall": OrographicRainfallRegression.Run(); break;
     case "--seasonal-temperature": SeasonalTemperatureRegression.Run(); break;
+    case "--surface-cloud": SeasonalTemperatureRegression.ExportCloud(args); break;
+    case "--surface-fit-cloud": SeasonalTemperatureRegression.ExportCloud(args, true); break;
     case "--east-asia-climate": ClimatologyRegression.EastAsia(args.Length>1?int.Parse(args[1]):256); break;
     case "--environment": EnvironmentRegression(); break;
     case "--hydrology": HydrologyRegression.Run(); break;
