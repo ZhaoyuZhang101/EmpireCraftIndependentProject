@@ -8,7 +8,7 @@ float _RiverOverviewReady,_RiverSurvey,_RiverMap;
 float4 _RiverAtlasLayout;
 float _RiverAtlasReady,_RiverPreviewReady,_RiverSeasonReady;
 float4 _RiverSeason;
-float _RiverMinPixels;
+float _RiverMinPixels,_RiverWidthGain;
 
 #if defined(ORBIS_RIVER_VECTORS)
 #define FLAT_VECTOR_FIELD true
@@ -19,6 +19,13 @@ float _RiverMinPixels;
 #endif
 
 bool FlatRiverFieldReady() { return max(_RiverAtlasReady,_RiverPreviewReady)>.5; }
+
+float FlatRiverStrokeRadius(float radius,float minimumRadius,float cellsPerPixel)
+{
+    float stroke=max(radius,minimumRadius);
+    // Add at most one screen pixel per bank and stay within the atlas search margin.
+    return min(stroke+min(stroke*_RiverWidthGain,cellsPerPixel),radius+.28);
+}
 
 // Use the same geographic linework at both scales. The filtered overview spans
 // more than one catchment per pixel; the sparse distance field resolves local banks.
@@ -32,7 +39,7 @@ float FlatRiverMapInk(float2 cell,float4 channel,out float closeView)
     float radius=length(channel.ba);
     float importance=_RiverSurvey>.5?smoothstep(.08,2.2,radius*(40075*_MapSize.z)):
         saturate((radius-.012)/.14);
-    float halfWidth=max(radius,min(.27,ground*lerp(.46,1.28,importance)));
+    float halfWidth=FlatRiverStrokeRadius(radius,min(.27,ground*lerp(.46,1.28,importance)),ground);
     float aa=clamp(ground*.58,.003,.18);
     float fine=(1-smoothstep(-aa,aa,channel.r+radius-halfWidth))*step(.0001,radius)*lerp(.58,1,importance);
     closeView=FlatRiverFieldReady()?1-smoothstep(.08,.38,ground):0;
@@ -178,8 +185,9 @@ float4 FlatRiverBaseSample(float2 cell)
 float FlatRiverDisplayRadius(float radius,float pixelsPerTile)
 {
     float weight=lerp(smoothstep(.03,.10,radius),.62,_RiverSurvey);
-    float wanted=min(.28,_RiverMinPixels*.5/max(1,pixelsPerTile))*weight*step(.000001,radius);
-    return max(radius,wanted);
+    float cellsPerPixel=1/max(1,pixelsPerTile);
+    float wanted=min(.28,_RiverMinPixels*.5*cellsPerPixel)*weight*step(.000001,radius);
+    return FlatRiverStrokeRadius(radius,wanted,cellsPerPixel);
 }
 float4 FlatRiverDisplaySample(float4 river,float pixelsPerTile)
 {

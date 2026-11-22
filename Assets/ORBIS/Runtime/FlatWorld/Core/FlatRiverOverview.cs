@@ -5,6 +5,8 @@ namespace Orbis.Flat
 {
     public sealed partial class FlatRiverCurves
     {
+        public const float DisplayWidthGain = .16f;
+
         // A bounded, filterable overview keeps subpixel tributaries from blinking
         // on a globe. Close views use the distance field from the same segments.
         public int OverviewWidth => Math.Min(2048,Math.Max(512,Width*4));
@@ -21,7 +23,7 @@ namespace Orbis.Flat
                 var a=segment.A;var b=segment.B;
                 float importance=segment.Reach<0 ? 1-(~segment.Reach)*.1f :
                     FMath.Clamp((Math.Max(a.Radius,b.Radius)-.012f)/.14f,0,1);
-                float radius=.46f+1.10f*importance;
+                float radius=(.46f+1.10f*importance)*(1+DisplayWidthGain);
                 float opacity=.43f+.57f*importance;
                 float ax=a.X*scale,ay=a.Y*scale,bx=b.X*scale,by=b.Y*scale;
                 float metric=Metric((ay+by)*.5f,height);
