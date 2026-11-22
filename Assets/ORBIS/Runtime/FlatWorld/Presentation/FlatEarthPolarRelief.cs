@@ -9,8 +9,8 @@ namespace Orbis.Flat
     // its edited elevations remain authoritative for picking, paths and water.
     internal sealed class FlatEarthPolarRelief : IDisposable
     {
-        readonly Texture2D bed, coast, coverage, lakes, lakeDetail, straits, straitDetail;
-        static Texture2D sharedLakes, sharedLakeDetail, sharedStraits, sharedStraitDetail;
+        readonly Texture2D bed, coast, coverage, lakes, lakeDetail, straits, straitDetail, marineDepth;
+        static Texture2D sharedLakes, sharedLakeDetail, sharedStraits, sharedStraitDetail, sharedMarineDepth;
         static int lakeUsers;
         Vector4 poleCoverage;
 
@@ -46,9 +46,14 @@ namespace Orbis.Flat
             lakeDetail = sharedLakeDetail;
             if (world.UsesSurveyedStraits)
             {
-                if (!sharedStraits) LoadStraitShore(out sharedStraits, out sharedStraitDetail);
+                if (!sharedStraits)
+                {
+                    LoadStraitShore(out sharedStraits, out sharedStraitDetail);
+                    if (sharedStraits) sharedMarineDepth = LoadMarineDepth();
+                }
                 straits = sharedStraits;
                 straitDetail = sharedStraitDetail;
+                marineDepth = sharedMarineDepth;
             }
             lakeUsers++;
             coverage = new Texture2D(world.Width, world.Height, TextureFormat.RG16, false, true) {
@@ -146,13 +151,39 @@ namespace Orbis.Flat
             }
         }
 
+        static Texture2D LoadMarineDepth()
+        {
+            var asset = Resources.Load<TextAsset>("ORBIS/FlatWorld/EarthMarineDepth");
+            if (!asset) return null;
+            try
+            {
+                using var stream = new MemoryStream(asset.bytes, false);
+                using var reader = new BinaryReader(stream);
+                if (stream.Length <= 12 || reader.ReadUInt32() != 0x3144424fu) // OBD1
+                    throw new InvalidDataException("Invalid marine depth header.");
+                int width = reader.ReadInt32(), height = reader.ReadInt32();
+                if (width != 2048 || height <= 507 || height > 8192 || (height-507)%17 != 0)
+                    throw new InvalidDataException("Invalid marine depth dimensions.");
+                if (Math.Max(width, height) > SystemInfo.maxTextureSize) return null;
+                using var inflater = new DeflateStream(stream, CompressionMode.Decompress);
+                byte[] pixels = ReadPixels(inflater, width*height*2);
+                if (inflater.ReadByte() != -1) throw new InvalidDataException("Excess marine depth pixels.");
+                return StraitTexture("ETOPO 2022 coastal depths", TextureFormat.RG16, width, height, pixels);
+            }
+            catch (Exception e) when (e is InvalidDataException || e is IOException)
+            {
+                Debug.LogWarning("EarthMarineDepth: " + e.Message);
+                return null;
+            }
+        }
+
         static byte[] ReadPixels(Stream stream, int length)
         {
             var pixels = new byte[length];
             for (int offset = 0; offset < length;)
             {
                 int count = stream.Read(pixels, offset, length-offset);
-                if (count == 0) throw new InvalidDataException("Incomplete regional shoreline texture.");
+                if (count == 0) throw new InvalidDataException("Incomplete regional texture.");
                 offset += count;
             }
             return pixels;
@@ -220,6 +251,8 @@ namespace Orbis.Flat
             if (straits) material.SetTexture("_EarthStraitShore", straits);
             material.SetTexture("_EarthStraitDetail", straitDetail ? straitDetail : Texture2D.blackTexture);
             material.SetFloat("_EarthStraitReady", straits ? 1 : 0);
+            if (material.HasProperty("_EarthMarineDepth"))
+                material.SetTexture("_EarthMarineDepth", marineDepth ? marineDepth : Texture2D.blackTexture);
         }
 
         public void Dispose()
@@ -233,8 +266,9 @@ namespace Orbis.Flat
                 UnityEngine.Object.Destroy(sharedLakeDetail);
                 UnityEngine.Object.Destroy(sharedStraits);
                 UnityEngine.Object.Destroy(sharedStraitDetail);
+                UnityEngine.Object.Destroy(sharedMarineDepth);
                 sharedLakes = sharedLakeDetail = null;
-                sharedStraits = sharedStraitDetail = null;
+                sharedStraits = sharedStraitDetail = sharedMarineDepth = null;
             }
         }
     }

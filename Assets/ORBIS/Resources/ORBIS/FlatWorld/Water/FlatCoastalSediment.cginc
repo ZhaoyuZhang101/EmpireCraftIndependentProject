@@ -5,6 +5,7 @@ struct FlatCoastalSediment
 {
     float shore;       // Positive offshore, in local beach artwork units.
     float beachScale;  // Artwork units per equatorial cell.
+    float surveyDepthWeight; // Fraction of the optical bed supplied by the coastal survey.
     float coverage;
     float mud;
     float bar;

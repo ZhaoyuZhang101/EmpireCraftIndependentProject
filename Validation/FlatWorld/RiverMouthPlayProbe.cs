@@ -1,5 +1,6 @@
 // Run in an isolated Unity project with -batchmode -force-d3d11 -executeMethod
 // RiverMouthPlayProbe.Run -mouthOutput <directory> -mouthWidth 2048 (or 4096).
+// Add -estuaryControls for globe cameras and the largest connected outlet on a seeded Continents map.
 using System;
 using System.Collections.Generic;
 using System.IO;
@@ -19,6 +20,7 @@ public static class RiverMouthPlayProbe
     static int stage, frame = -1;
     static string Output => SessionState.GetString(Key + ".output", "");
     static int Width => SessionState.GetInt(Key + ".width", 2048);
+    static readonly bool EstuaryControls = Array.IndexOf(Environment.GetCommandLineArgs(), "-estuaryControls") >= 0;
     // Scale is pixels per 2048-wide world cell, for equivalent geographic cameras.
     static readonly (string name, double lon, double lat, float scale)[] Sites =
     {
@@ -104,6 +106,17 @@ public static class RiverMouthPlayProbe
                 stage++;
                 return;
             }
+            if (stage == 3)
+            {
+                if (app.World.Preset != TerrainPreset.Continents || app.World.Width != 512)
+                    throw new InvalidOperationException("Procedural control world failed to generate");
+                if (map.PreparationPending || !map.RiverAtlasReady || map.VisibleLayer != MapLayer.Natural) return;
+                CaptureProceduralMouth(app, map);
+                Orbis.Editor.RiverAtlasRegression.Run();
+                Record("PASS procedural river atlas on the player material");
+                Finish(0);
+                return;
+            }
             if (app.World.Preset != TerrainPreset.Earth || app.World.Width != Width)
                 throw new InvalidOperationException("Earth generation failed");
             if (map.PreparationPending) return;
@@ -134,9 +147,33 @@ public static class RiverMouthPlayProbe
                 Record("PASS vegetation roots on both projections, seasonal banks, shadows and reflections");
             }
             Record("PASS both map layers rendered through the player camera");
+            if (EstuaryControls)
+            {
+                var size = ui.Q<DropdownField>("size");
+                size.index = size.choices.IndexOf("512 × 256");
+                ui.Q<DropdownField>("preset").index = (int)TerrainPreset.Continents;
+                ui.Q<DropdownField>("layer").index = (int)MapLayer.Natural;
+                ui.Q<TextField>("seed").value = "ORBIS-ESTUARY";
+                Press(ui, "generate");
+                stage++;
+                return;
+            }
             Finish(0);
         }
         catch (Exception e) { Record(e.ToString()); Debug.LogException(e); Finish(1); }
+    }
+
+    static void CaptureProceduralMouth(FlatWorldApp app, FlatMapRenderer map)
+    {
+        var world = app.World;
+        int mouth = -1;
+        for (int i = 0; i < world.Count; i++)
+            if (world.Water[i] == WaterKind.River && FlatSeaNavigation.IsMarineCell(world, world.Downstream[i]) &&
+                (mouth < 0 || world.Runoff[i] > world.Runoff[mouth])) mouth = i;
+        if (mouth < 0) throw new InvalidOperationException("Seed produced no connected marine outlet");
+        Record($"Procedural seed {world.Seed}: river tile {mouth} drains into marine tile {world.Downstream[mouth]}");
+        Capture(app, map, "procedural-mouth", ((mouth % world.Width + .5) / world.Width - .5) * 360,
+            ((mouth / world.Width + .5) / world.Height - .5) * 180, 23, MapLayer.Natural);
     }
 
     static void Capture(FlatWorldApp app, FlatMapRenderer map, string name, double lon, double lat,
@@ -155,10 +192,10 @@ public static class RiverMouthPlayProbe
             cam.rect = new Rect(0, 0, 1, 1);
             double day = app.CalendarDay;
             nav.Tick(0, day);
-            nav.Focus(app.World.Index((int)((lon + 180) / 360 * Width),
+            nav.Focus(app.World.Index((int)((lon + 180) / 360 * app.World.Width),
                 (int)((lat + 90) / 180 * app.World.Height)), day);
             nav.Tick(3, day);
-            float desired = Mathf.Min(96, referenceScale * 2048 / Width);
+            float desired = Mathf.Min(96, referenceScale * 2048 / app.World.Width);
             nav.Wheel(Mathf.Log(nav.PixelsPerTile / desired) / .075f, cam.pixelRect.center, day);
             nav.Tick(3, day);
             nav.Recenter(new PlanetLocation(lon * Math.PI / 180, lat * Math.PI / 180), day);
@@ -167,7 +204,13 @@ public static class RiverMouthPlayProbe
             map.Configure(false, nav.PixelsPerTile);
             nav.SyncMaterials();
             var material = nav.SurfaceMaterial;
-            if(Array.IndexOf(Environment.GetCommandLineArgs(),"-requireSurveyVectors")>=0 &&
+            if (EstuaryControls && layer == MapLayer.Natural)
+            {
+                if (name == "pearl-delta") CheckMarineDepth(material);
+                if (name == "procedural-mouth" && material.GetFloat("_EarthStraitReady") > .5f)
+                    throw new InvalidOperationException("Earth coastal survey active on a procedural material");
+            }
+            if(app.World.Preset == TerrainPreset.Earth && Array.IndexOf(Environment.GetCommandLineArgs(),"-requireSurveyVectors")>=0 &&
                material.GetVector("_RiverAtlasLayout").z>=0)
                 throw new InvalidOperationException("The surveyed map fell back to a filtered river raster");
             if(material.shader.keywordSpace.FindKeyword("ORBIS_RIVER_VECTORS").isValid &&
@@ -218,6 +261,21 @@ public static class RiverMouthPlayProbe
             if(name=="jingjiang" && layer==MapLayer.Natural &&
                 Array.IndexOf(Environment.GetCommandLineArgs(),"-riverClip")>=0)
                 CaptureRiverClip(app,map,cam,lon,lat,desired,sunlight,target,pixels);
+            if (EstuaryControls && layer == MapLayer.Natural && (name == "pearl-delta" || name == "procedural-mouth"))
+            {
+                nav.GoGlobe(day);
+                nav.Tick(3, day);
+                nav.Recenter(new PlanetLocation(lon * Math.PI / 180, lat * Math.PI / 180), day);
+                if (!nav.IsGlobe) throw new InvalidOperationException("Failed to reach globe camera");
+                map.Configure(false, nav.PixelsPerTile);
+                nav.SyncMaterials();
+                SetLighting(nav.SurfaceMaterial, sunlight, 2);
+                cam.Render();
+                RenderTexture.active = target;
+                pixels.ReadPixels(new Rect(0, 0, target.width, target.height), 0, 0, false);
+                File.WriteAllBytes(Path.Combine(Output, name + "-Globe.png"), pixels.EncodeToPNG());
+                Record($"{name}: globe camera, {nav.SurfaceMaterial.shader.name}");
+            }
         }
         finally
         {
@@ -226,6 +284,54 @@ public static class RiverMouthPlayProbe
             RenderTexture.active = active;
             Object.DestroyImmediate(pixels);
             RenderTexture.ReleaseTemporary(target);
+        }
+    }
+
+    static void CheckMarineDepth(Material player)
+    {
+        var depth = player.GetTexture("_EarthMarineDepth");
+        if (!depth || depth.width != 2048 || player.GetFloat("_EarthStraitReady") < .5f)
+            throw new InvalidOperationException("Missing Earth coastal depth atlas on the player material");
+        var probe = new Material(AssetDatabase.LoadAssetAtPath<Shader>("Assets/ORBIS/Editor/RiverOpticsProbe.shader"));
+        var target = RenderTexture.GetTemporary(1,1,0,RenderTextureFormat.ARGBFloat,RenderTextureReadWrite.Linear);
+        var pixel = new Texture2D(1,1,TextureFormat.RGBAFloat,false,true);
+        var previous = RenderTexture.active;
+        try
+        {
+            probe.SetTexture("_EarthMarineDepth",depth);
+            probe.SetVector("_MapSize",player.GetVector("_MapSize"));
+            probe.SetFloat("_TestOutput",10);
+            ShaderUtil.CompilePass(probe,0,true);
+            void Check(int x, int y, float survey, float expected, float weight, int turns = 0, float coastKm = 2)
+            {
+                // Pixel centres in the original north-first 21600 x 10800 NOAA GeoTIFF.
+                probe.SetVector("_TestSite", new Vector4((x+.5f)/21600+turns,1-(y+.5f)/10800,0,0));
+                probe.SetFloat("_TestShore",survey);
+                probe.SetFloat("_TestCoastKm",coastKm);
+                Graphics.Blit(null,target,probe);
+                RenderTexture.active=target;
+                pixel.ReadPixels(new Rect(0,0,1,1),0,0);
+                var result=pixel.GetPixel(0,0);
+                if (Mathf.Abs(result.r-expected)>.06f+.025f*expected || Mathf.Abs(result.g-weight)>.015f ||
+                    Mathf.Abs(result.b-.12f)>.001f || Mathf.Abs(result.a-.18f)>.001f)
+                    throw new InvalidOperationException($"ETOPO node ({x},{y}): expected depth {expected} m, weight {weight}, got {result}");
+                Record($"PASS ETOPO node ({x},{y}), expected {expected:F3} m, GPU {result.r:F3} m, survey weight {result.g:F3}");
+            }
+            Check(17610,4078,1,1,1);            // Pearl shallows inside a coarse dry cell
+            Check(17626,4072,1,10.4375f,1);     // Lingdingyang channel
+            Check(17630,4081,1,24.6875f,1,1);   // Outer estuary, longitude wrapped
+            Check(18102,3520,1,10.0625f,1);     // Yangtze channel
+            Check(17598,4050,1,24,1);           // Supported fallback bed uses the regional chart between samples
+            Check(17598,4050,1,24,0,0,-2);      // Dry surveyed bank
+            Check(10800,5400,1,24,0);           // No regional ETOPO page at 0 N, 0 E
+            Check(17626,4072,0,24,0);           // Survey disabled by terrain edits
+        }
+        finally
+        {
+            RenderTexture.active=previous;
+            RenderTexture.ReleaseTemporary(target);
+            Object.DestroyImmediate(pixel);
+            Object.DestroyImmediate(probe);
         }
     }
 

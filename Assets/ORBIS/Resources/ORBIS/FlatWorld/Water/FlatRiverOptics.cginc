@@ -67,7 +67,12 @@ FlatRiverSection FlatRiverSectionAt(float2 cell,float4 channel,float4 field,floa
     float2 seaward;
     float shore=FlatMetricShore(cell,field.g,seaward);
     float mouthSpan=clamp(.12+1.35*r.width,.14,.42);
-    r.influence=step(.0001,r.width)*bank*(1-smoothstep(-mouthSpan,.65*mouthSpan,shore));
+    // An outgoing current carries river waves beyond the coast. Along a beach
+    // or at an inland outlet the transition stays close to the channel.
+    float outgoing=smoothstep(.05,.75,dot(tangent,seaward));
+    float offshore=lerp(.65*mouthSpan,min(1.2,max(1.45*mouthSpan,4*r.width)),outgoing);
+    float upstream=-mouthSpan*(1-.5*outgoing);
+    r.influence=step(.0001,r.width)*bank*(1-smoothstep(upstream,offshore,shore));
     return r;
 }
 FlatRiverSection FlatRiverSectionAt(float2 cell,float4 channel,float4 field)

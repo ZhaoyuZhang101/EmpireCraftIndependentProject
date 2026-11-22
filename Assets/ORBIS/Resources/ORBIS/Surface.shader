@@ -49,6 +49,7 @@ Shader "ORBIS/Surface"
   [HideInInspector] _EarthLakeReady("Inland shoreline survey ready",Float)=0
   [HideInInspector] _EarthStraitShore("Regional marine shorelines",2D)="black"{}
   [HideInInspector] _EarthStraitDetail("Surveyed strait banks",2D)="black"{}
+  [HideInInspector] _EarthMarineDepth("Surveyed coastal depths",2D)="black"{}
   [HideInInspector] _EarthStraitReady("Strait shoreline survey ready",Float)=0
   [HideInInspector] _SkyReady("Sky cache ready",Float)=0
   [HideInInspector] _SkyClock("Sky time",Float)=0
@@ -140,7 +141,6 @@ Shader "ORBIS/Surface"
      float4 river=FlatRiverReceiver(cell,tileUV,hydro,mixing,field,riverBank);
      float closeRiver,riverInk=FlatRiverMapInk(cell,river,closeRiver);
      if(_RiverMap>.5)riverMapColor=FlatRiverMapColor(cell,_FlatInfo,info.g,field,aa,riverInk,surveyLake);
-     riverOverviewInk=riverInk*(1-closeRiver)*(1-smoothstep(-.04,.08,field.g));
      river=FlatRiverDisplaySample(river,pixelsPerTile);
      channel=FlatRiverSectionAt(cell,river,field,riverBank);
      water=FlatDisplayedWaterMask(channel.edge,field.g,aa,pixelsPerTile,edgeDistance);
@@ -151,10 +151,13 @@ Shader "ORBIS/Surface"
      float wetSupport;
      float4 basin=FlatAreaWaterOptics(cell,_FlatInfo,float4(field.b,mixing.g,mixing.b,floor(info.g+.5)),wetSupport);
      if(surveyWeight>0&&wetSupport>0)basin.r=max(.15,basin.r+(gridBed-field.r));
-     FlatEarthMarineOptics(surveyCoast,field.r,surveyStrait,basin,wetSupport);
+     float surveyDepth=FlatEarthMarineOptics(uv,surveyCoast,field.r,surveyStrait,basin,wetSupport);
      FlatEarthLakeOptics(surveyLake,field.g,basin,wetSupport);
+     float marineSupport=wetSupport*saturate(4-basin.a);
+     riverOverviewInk=riverInk*(1-closeRiver)*max(1-smoothstep(-.04,.08,field.g),channel.influence*marineSupport);
      float beachScale=FlatEarthBeachScale(surveyStrait*(1-surveyLake));
      coast=FlatCoastAt(cell,field,basin,wetSupport,edgeDistance,0,_WaterClock,beachScale);
+     coast.surveyDepthWeight=surveyDepth*(1-surveyLake);
      float sediment=FlatReachSediment(cell,channel,field.g,mixing.g);
      waterKind=basin.a;field.b=basin.r;mixing.gb=basin.gb;
      mixing.g=lerp(mixing.g,sediment,channel.influence);

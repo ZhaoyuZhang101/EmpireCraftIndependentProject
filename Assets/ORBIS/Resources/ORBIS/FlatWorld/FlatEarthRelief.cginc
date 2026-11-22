@@ -7,9 +7,11 @@ UNITY_DECLARE_TEX2D_NOSAMPLER(_EarthLakeShore);
 UNITY_DECLARE_TEX2D_NOSAMPLER(_EarthLakeDetail);
 UNITY_DECLARE_TEX2D_NOSAMPLER(_EarthStraitShore);
 UNITY_DECLARE_TEX2D_NOSAMPLER(_EarthStraitDetail);
+UNITY_DECLARE_TEX2D_NOSAMPLER(_EarthMarineDepth);
 float4 _EarthPolarBed_TexelSize,_EarthSurveyAtPoles;
 float4 _EarthLakeShore_TexelSize,_EarthLakeDetail_TexelSize;
 float4 _EarthStraitShore_TexelSize,_EarthStraitDetail_TexelSize;
+float4 _EarthMarineDepth_TexelSize;
 float _EarthPolarReady,_EarthLakeReady,_EarthStraitReady;
 
 // Two R8 texels at exact texel centres encode each one-based detail page.
@@ -207,8 +209,30 @@ float FlatEarthBeachScale(float strait)
     return lerp(1,max(1,(40030.2/.4)*_MapSize.z),strait);
 }
 
-void FlatEarthMarineOptics(float2 coast,float bed,float strait,inout float4 optics,inout float wetSupport)
+float2 FlatEarthCoastalDepth(float2 uv)
 {
+    [branch] if(_EarthMarineDepth_TexelSize.z<2048)return float2(-1,0);
+    float2 location=float2(frac(uv.x)*1440,min(saturate(uv.y)*720,719.9999));
+    float2 tile=floor(location);
+    float2 index=FlatEarthStraitSlot(tile.y*1440+tile.x,2048);
+    #ifdef UNITY_SEPARATE_TEXTURE_SAMPLER
+    float2 bytes=round(255*_EarthMarineDepth.Load(int3((int2)index,0)).rg);
+    #else
+    float2 bytes=round(255*FlatPresentationSample(_EarthMarineDepth,(index+.5)*_EarthMarineDepth_TexelSize.xy,0).rg);
+    #endif
+    float slot=dot(bytes,float2(1,256))-1;
+    [branch] if(slot<0)return float2(-1,0);
+    float2 origin=FlatEarthStraitSlot(slot,120)*17+float2(0,507);
+    float2 address=(origin+1+frac(location)*15)*_EarthMarineDepth_TexelSize.xy;
+    float2 encoded=FlatPresentationSample(_EarthMarineDepth,address,0).rg;
+    // Only submerged native ETOPO nodes contribute near a mixed land/water pixel.
+    return float2(exp2(14*encoded.r/max(encoded.g,1e-4))-1,smoothstep(.1,.85,encoded.g));
+}
+
+// Return how much of the chart and bed lighting should use this optical depth.
+float FlatEarthMarineOptics(float2 uv,float2 coast,float bed,float strait,inout float4 optics,inout float wetSupport)
+{
+    float footprintKm=FlatEarthGroundFootprint(uv)*40030.2;
     float wet=max(0,coast.y-strait)*smoothstep(-.02,.10,coast.x);
     if(wet>0)
     {
@@ -216,18 +240,35 @@ void FlatEarthMarineOptics(float2 coast,float bed,float strait,inout float4 opti
         optics.r=lerp(optics.r,max(.15,-bed),wet);
         wetSupport=max(wetSupport,wet);
     }
-    if(strait<=0)return;
+    if(strait<=0)return 0;
     float km=coast.x*40030.2*_MapSize.z;
     wet=strait*smoothstep(-.08,.16,km);
-    if(wet<=0)return;
+    if(wet<=0)return 0;
     // Retain available simulated marine depth/sediment. Over a dry grid
     // sample, supply a shallow optical bed for the surveyed saltwater receiver.
-    float depth=bed<0?max(.35,-bed):clamp(.5+max(0,km)*5,.5,18);
-    float marine=saturate(wetSupport*4)*saturate(4-optics.a);
+    // A surveyed channel can cross the coarse DEM's zero contour underwater.
+    // Carry its shallow bed across that contour until the DEM resolves deeper water.
+    float depth=max(-bed,clamp(.5+max(0,km)*5,.5,18));
+    float marine=smoothstep(0,1,wetSupport)*saturate(4-optics.a);
+    float fill=wet*(1-marine);
     if(wetSupport<=1e-6)optics=float4(depth,0,0,3);
-    optics.rgb=lerp(optics.rgb,float3(depth,0,0),wet*(1-marine));
+    optics.rgb=lerp(optics.rgb,float3(depth,0,0),fill);
+    float detail=wet*(1-smoothstep(2,8,footprintKm));
+    if(detail>0)
+    {
+        float2 measured=FlatEarthCoastalDepth(uv);
+        if(measured.x>=0)
+        {
+            optics.r=lerp(optics.r,max(.15,measured.x),detail*measured.y);
+            // The finer coastline can classify a dry ETOPO node as water. Keep
+            // its fallback depth on the same optical response as nearby measured
+            // nodes. Switching the coarse chart shading back on creates dark dots.
+            fill=lerp(fill,1,detail);
+        }
+    }
     optics.a=lerp(optics.a,3,wet);
     wetSupport=max(wetSupport,wet);
+    return fill;
 }
 
 float FlatApplyEarthShore(float2 uv,float waterKind,inout float shore,inout float2 coast)

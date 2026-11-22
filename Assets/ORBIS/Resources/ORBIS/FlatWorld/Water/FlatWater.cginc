@@ -581,8 +581,7 @@ float3 FlatWaterShade(float2 cell,float4 mixing,float4 field,float3 bottom,float
     float beachScale=max(1,coast.beachScale);
     // The basin's zero contour crosses the river under open water. Breakers
     // and beach material belong on the two banks, not across the thalweg.
-    float opening=smoothstep(0,.75,-channel.edge/max(.0001,channel.width))*
-                  (1-smoothstep(.12,.42,shoreDistance));
+    float opening=smoothstep(0,.75,-channel.edge/max(.0001,channel.width));
     coast.coverage*=1-opening;
     float shoreVariation=.5+.5*sin(dot(artwork,float3(1.7,2.3,.9)));
     float shoreCrest=FlatCoastFoam(shoreDistance,_WaterClock,shoreVariation)*(1-opening)*(1-.62*coast.coverage*coast.mud);
@@ -669,11 +668,12 @@ float3 FlatWaterShade(float2 cell,float4 mixing,float4 field,float3 bottom,float
     absorption=lerp(absorption,float3(.22,.076,.047),river);
     scattering=lerp(scattering,float3(.014,.041,.038),river);
     float opticalShore=field.g*beachScale;
-    float basinDepth=lerp(.15,max(.15,field.b),smoothstep(0,1.5,opticalShore));
     float channelDepth=max(.12,channel.depth*FlatRiverDepthProfile(channel)*(1-.23*riffle));
+    // The bank shoals to the waterline. In the opening, start the shelf profile
+    // at the submerged channel bed and carry it into the receiving basin.
+    float entranceDepth=lerp(.15,channelDepth,opening);
+    float basinDepth=lerp(entranceDepth,max(.15,field.b),smoothstep(0,1.5,opticalShore));
     float depth=lerp(basinDepth,channelDepth,river);
-    float sill=opening*(1-smoothstep(0,.12,shoreDistance));
-    depth=max(depth,channelDepth*sill);
     // A small depositional bar modulates only the optical path through the
     // very shallow sandy apron. Inlet depths and the shoreline mask stay exact.
     float shoal=coast.bar*coast.coverage*ocean*(1-smoothstep(4,15,depth));
@@ -684,10 +684,9 @@ float3 FlatWaterShade(float2 cell,float4 mixing,float4 field,float3 bottom,float
     float3 bedPosition=FlatDetailPosition(bedCell);
     float2 depthCell=cell+FlatBedParallax(cell,localView,depth,clearance);
     float measuredDepth=depth,depthRelief=1;
-    if(_FieldReady>.5)
-    {
-        if(river<.999)depthRelief=lerp(FlatSampleSeabed(depthCell,localLight,measuredDepth),1,river);
-    }
+    float gridBedWeight=(1-river)*(1-coast.surveyDepthWeight);
+    if(_FieldReady>.5&&gridBedWeight>.001)
+        depthRelief=lerp(1,FlatSampleSeabed(depthCell,localLight,measuredDepth),gridBedWeight);
     // Geographic wave patterns keep light bands attached to the submerged bed.
     float3 sunView=normalize(float3(localLight.xy,max(.1,localLight.z)));
     float2 sunOffset=FlatBedRefraction(cell,sunView,normal,depth,clearance);
@@ -724,8 +723,8 @@ float3 FlatWaterShade(float2 cell,float4 mixing,float4 field,float3 bottom,float
     // Physically, 80m and 2200m are both optically opaque. Optional cartographic
     // bathymetry makes the true data depth readable; it is NOT deep-water transparency.
     float chartMetres=depth;
-    if(_FieldReady>.5&&_ScrollRelief.x>0&&river<.999)
-        chartMetres=lerp(depth,max(.15,measuredDepth),_ScrollRelief.x*smoothstep(.10,.70,field.g)*(1-river));
+    if(_FieldReady>.5&&_ScrollRelief.x>0)
+        chartMetres=lerp(depth,max(.15,measuredDepth),_ScrollRelief.x*smoothstep(.10,.70,field.g)*gridBedWeight);
     float logDepth=log2(1+chartMetres);
     float3 depthColor=lerp(FlatColor(float3(.20,.65,.65)),FlatColor(float3(.045,.34,.54)),smoothstep(1,7.5,logDepth));
     depthColor=lerp(depthColor,FlatColor(float3(.015,.10,.25)),smoothstep(7.5,11.97,logDepth));

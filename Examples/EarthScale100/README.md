@@ -55,6 +55,8 @@
 
 在地球预设的「河网」图层，可沿开罗下游的罗塞塔支和达米埃塔支分别走到地中海，也可在中国查看长江口的崇明岛、珠江的磨刀门和横门水道，以及钱塘江进入杭州湾的河段。河口地带采用南北约 434 米间距的潮汐岸线，14 个河口与河湾另覆盖从内陆河段到外海的完整区域。六档地图共用同一套地理坐标。可运行 `python Validation/EarthScale100/test_river_selection.py` 检查河线、汇流点和河口连通。[Natural Earth 海岸](https://github.com/nvkelso/natural-earth-vector/blob/v5.1.2/geojson/ne_10m_ocean.geojson)
 
+近看河口和海峡时，水色和海床透光使用 ETOPO 2022 原始 60 角秒水深，南北采样间距约 1.85 公里。窄于采样间距的水道会结合河床和岸线补出水深。区域图集 `EarthMarineDepth.bytes` 可用 `python Tools/EarthScale100/bake_marine_depth.py --source <ETOPO原始GeoTIFF路径> --check` 复核。[河口修改前后实机对比](river-mouths-comparison.jpg) · [NOAA 数据与校验值](global/metadata.json)
+
 长江荆江的测试机位在东经 112.6318°、北纬 29.7510°。地球河网在有连续卫星观测的 397 段河道上，按 GRWL 横断面校正了约 7354 公里的河心位置。荆江样区留出的 146 个横断面中，落在游戏河道内的从 31 个增至 146 个，河心偏差中位数从 792 米降至 18 米。实测稀少的河段沿原有底图延伸，宽度会插值或回到同等级河流的典型值。[GRWL 数据](https://zenodo.org/records/18624542)
 
 下面是 4096 档自然视图的同机位实机画面。录屏依次展示静止水纹、沿急弯拖动和滚轮缩小。[荆江 3 秒录屏](jingjiang-river-motion.mp4)

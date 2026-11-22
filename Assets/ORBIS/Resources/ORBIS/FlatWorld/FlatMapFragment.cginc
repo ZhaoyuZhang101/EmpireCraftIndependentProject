@@ -136,10 +136,12 @@
      float wetSupport;
      float4 areaOptics=FlatAreaWaterOptics(cell,_InfoTex,float4(field.b,mixing.g,mixing.b,floor(info.g+.5)),wetSupport);
      if(surveyWeight>0&&wetSupport>0)areaOptics.r=max(.15,areaOptics.r+(gridBed-field.r));
-     FlatEarthMarineOptics(surveyCoast,field.r,surveyStrait,areaOptics,wetSupport);
+     float surveyDepth=FlatEarthMarineOptics(i.uv,surveyCoast,field.r,surveyStrait,areaOptics,wetSupport);
      FlatEarthLakeOptics(surveyLake,field.g,areaOptics,wetSupport);
+     float marineSupport=wetSupport*saturate(4-areaOptics.a);
      float beachScale=FlatEarthBeachScale(surveyStrait*(1-surveyLake));
      FlatCoastalSediment coast=FlatCoastAt(cell,field,areaOptics,wetSupport,edgeDistance,frozen,_WaterClock,beachScale);
+     coast.surveyDepthWeight=surveyDepth*(1-surveyLake);
      FlatRiverSection channel=FlatRiverSectionAt(cell,river,field,riverBank);
      float sediment=FlatReachSediment(cell,channel,field.g,mixing.g);
      field.b=areaOptics.r;mixing.gb=areaOptics.gb;
@@ -161,14 +163,15 @@
       // Emphasize channels only while their physical width is unresolved.
       // The optical weight also fades across the submerged bank at a mouth.
       float riverPixels=2*riverRadius*_PixelsPerTile;
-      float exposedReach=1-smoothstep(-max(.04,aa),0,field.g);
+      float exposedReach=max(1-smoothstep(-max(.04,aa),0,field.g),marineSupport);
       float tint=saturate(_RiverTint)*channel.influence*exposedReach*(1-smoothstep(1.5,5,riverPixels));
       waterColor=lerp(waterColor,FlatColor(float3(.17,.43,.62))*illumination,tint);
       // Keep the normal derivatives above uniform across shorelines. Only the
       // reflection lookup can be skipped for completely dry receivers.
       [branch] if(waterMask>.001)
       {
-       float waterHeight=field.r+field.b;
+       // An optical bed below the coarse terrain still reflects at sea level.
+       float waterHeight=lerp(field.r+field.b,0,coast.surveyDepthWeight);
        #ifdef ORBIS_SCROLL_SURFACE
        if(_ScrollMorph>.999&&_ScrollRelief.x>.05)
         waterHeight=dot(world-_ScrollNormal,_ScrollNormal)/max(1e-9,_ScrollHeightScale*_ScrollRelief.w);
@@ -179,7 +182,7 @@
      }
      col=lerp(col,waterColor,waterMask);
      // Keep unresolved channels visible through the same daylight and cloud pass.
-     float exposed=(1-smoothstep(-.04,.08,field.g))*(1-polarIce);
+     float exposed=max(1-smoothstep(-.04,.08,field.g),channel.influence*marineSupport)*(1-polarIce);
      col=lerp(col,FlatColor(float3(.15,.40,.56))*illumination,overviewInk*(1-closeRiver)*exposed*.79);
     }
     else col*=illumination;
