@@ -13,8 +13,10 @@ namespace Orbis.Flat
         public bool Ready { get { return Texture && ColumnTexture && bake && hpColumn && rendered && Texture.IsCreated() && ColumnTexture.IsCreated(); } }
         public string Status { get; private set; } = "云层缓存等待启用。";
         public int CacheWidth { get; private set; }
-        const int ClimateWidth=128,ClimateHeight=64;
-        WorldData world;Texture2D climate,hpHigh,wind,windBack,climateWind;Texture3D hpNoise,hpDetail;Material bake,hpColumn;
+        const int ClimateWidth=256,ClimateHeight=128;
+        WorldData world;Texture2D climate,hpHigh,wind,windBack,climateWind,glebaForcing,glebaAux,glebaUpperWind;Texture3D hpNoise,hpDetail;Material bake,hpColumn;
+        readonly byte[] glebaForcingBytes=new byte[ClimateWidth*ClimateHeight*4],glebaAuxBytes=new byte[ClimateWidth*ClimateHeight*4];
+        readonly ushort[] glebaUpperWindHalf=new ushort[ClimateWidth*ClimateHeight*4];
         readonly Color32[] monthly=new Color32[ClimateWidth*ClimateHeight];
         readonly Color[] windPixels=new Color[ClimateWidth*ClimateHeight],seasonalWindPixels=new Color[ClimateWidth*ClimateHeight];
         readonly Vector2[] longitudeBasis=new Vector2[ClimateWidth],latitudeBasis=new Vector2[ClimateHeight];
@@ -69,7 +71,11 @@ namespace Orbis.Flat
             hpColumn.SetFloat("_Density",1);hpColumn.SetFloat("_Cover",1);
             climate=new Texture2D(ClimateWidth,ClimateHeight,TextureFormat.RGBA32,false,true)
                 {name="Monthly visual weather",filterMode=FilterMode.Bilinear,wrapModeU=TextureWrapMode.Repeat,wrapModeV=TextureWrapMode.Clamp};
+            glebaForcing=new Texture2D(ClimateWidth,ClimateHeight,TextureFormat.RGBA32,false,true){name="Gleba synoptic cloud forcing",filterMode=FilterMode.Bilinear,wrapModeU=TextureWrapMode.Repeat,wrapModeV=TextureWrapMode.Clamp};
+            glebaAux=new Texture2D(ClimateWidth,ClimateHeight,TextureFormat.RGBA32,false,true){name="Gleba stratocumulus and orographic cloud aux",filterMode=FilterMode.Bilinear,wrapModeU=TextureWrapMode.Repeat,wrapModeV=TextureWrapMode.Clamp};
+            glebaUpperWind=WeatherTexture("Gleba upper-level Rossby and anvil wind");
             bake.SetTexture("_ClimateTex",climate);bake.SetTexture("_ClimateWindTex",climateWind);
+            bake.SetTexture("_GlebaCloudForcingTex",glebaForcing);bake.SetTexture("_GlebaCloudAuxTex",glebaAux);bake.SetTexture("_GlebaUpperWindTex",glebaUpperWind);bake.SetFloat("_GlebaCloudEnable",1f);
             hpColumn.SetTexture("_ScrollCloudWindTex",wind);hpColumn.SetTexture("_ClimateTex",climate);
             try{Resize(512);}catch(Exception ex){failed=true;Status="云缓存不可用，地表继续运行："+ex.Message;Debug.LogException(ex);}
         }
@@ -180,7 +186,17 @@ namespace Orbis.Flat
             for(int x=0;x<w;x++){south+=(Color)monthly[x];north+=(Color)monthly[(h-1)*w+x];}
             bake.SetVector("_ClimatePoleSouth",(Vector4)(south/w));bake.SetVector("_ClimatePoleNorth",(Vector4)(north/w));
             bake.SetFloat("_ClimateRows",h);
-            climate.SetPixels32(monthly);climate.Apply(false,false);climateStartDay=season.SegmentStartDay;revision=world.TerrainRevision;
+            climate.SetPixels32(monthly);climate.Apply(false,false);
+            GlebaGeographySupplement.BuildCloudSynopticFields(world,season.SegmentStartDay,w,h,glebaForcingBytes,glebaAuxBytes,glebaUpperWindHalf);
+            glebaForcing.LoadRawTextureData(glebaForcingBytes);glebaForcing.Apply(false,false);
+            glebaAux.LoadRawTextureData(glebaAuxBytes);glebaAux.Apply(false,false);
+            if(glebaUpperWind.format==TextureFormat.RGBAHalf)glebaUpperWind.SetPixelData(glebaUpperWindHalf,0);
+            else{var flt=new float[glebaUpperWindHalf.Length];for(int k=0;k<flt.Length;k++)flt[k]=Mathf.HalfToFloat(glebaUpperWindHalf[k]);glebaUpperWind.SetPixelData(flt,0);}
+            glebaUpperWind.Apply(false,false);
+            Vector4 fSouth=Vector4.zero,fNorth=Vector4.zero;int topRow=(h-1)*w*4;
+            for(int x=0;x<w;x++){int b0=x*4,b1=topRow+x*4;fSouth+=new Vector4(glebaForcingBytes[b0],glebaForcingBytes[b0+1],glebaForcingBytes[b0+2],glebaForcingBytes[b0+3]);fNorth+=new Vector4(glebaForcingBytes[b1],glebaForcingBytes[b1+1],glebaForcingBytes[b1+2],glebaForcingBytes[b1+3]);}
+            float poleInv=1f/(255f*w);bake.SetVector("_GlebaForcingPoleSouth",fSouth*poleInv);bake.SetVector("_GlebaForcingPoleNorth",fNorth*poleInv);bake.SetFloat("_GlebaCloudEnable",1f);
+            climateStartDay=season.SegmentStartDay;revision=world.TerrainRevision;
         }
         void UploadWind(FlatMonthlyForcing season)
         {
@@ -306,6 +322,6 @@ namespace Orbis.Flat
             target.SetVectorArray("_OrbisLightning",flashes);
         }
         void OnDestroy()
-        {regionalClimate?.Dispose();ReleaseCache(weatherBack);ReleaseCache(columnBack);ReleaseCache(columnStrip);ReleaseCache(Texture);ReleaseCache(ColumnTexture);if(climate)Destroy(climate);if(wind)Destroy(wind);if(windBack)Destroy(windBack);if(climateWind)Destroy(climateWind);if(bake)Destroy(bake);if(hpColumn)Destroy(hpColumn);if(hpNoise)Destroy(hpNoise);if(hpDetail)Destroy(hpDetail);if(hpHigh)Destroy(hpHigh);}
+        {regionalClimate?.Dispose();ReleaseCache(weatherBack);ReleaseCache(columnBack);ReleaseCache(columnStrip);ReleaseCache(Texture);ReleaseCache(ColumnTexture);if(climate)Destroy(climate);if(glebaForcing)Destroy(glebaForcing);if(glebaAux)Destroy(glebaAux);if(glebaUpperWind)Destroy(glebaUpperWind);if(wind)Destroy(wind);if(windBack)Destroy(windBack);if(climateWind)Destroy(climateWind);if(bake)Destroy(bake);if(hpColumn)Destroy(hpColumn);if(hpNoise)Destroy(hpNoise);if(hpDetail)Destroy(hpDetail);if(hpHigh)Destroy(hpHigh);}
     }
 }

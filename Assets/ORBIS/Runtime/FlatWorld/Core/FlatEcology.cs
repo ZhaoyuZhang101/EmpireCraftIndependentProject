@@ -409,9 +409,17 @@ namespace Orbis.Flat
                     ? GlebaEcologySupplement.ComputeSeaIceMeters(true, temp)
                     : GlebaEcologySupplement.ComputeGroundedIceMeters(true, world.Elevation[tile], warmest, rain / 12f));
 
-            flora = GlebaEcologySupplement.EvaluateFlora(
-                !area, area ? 0f : iceMeters, world.Elevation[tile], Math.Abs(world.Latitude(tile)),
-                biotemperature, rain, minRain, coldest);
+            var geo = facts?.GlebaGeography;
+            if (geo != null && (uint)tile < (uint)geo.Count)
+            {
+                flora = geo.GetFloraState(tile);
+            }
+            else
+            {
+                flora = GlebaEcologySupplement.EvaluateFlora(
+                    !area, area ? 0f : iceMeters, world.Elevation[tile], Math.Abs(world.Latitude(tile)),
+                    biotemperature, rain, minRain, coldest);
+            }
             glebaBiome = facts?.GlebaBiomes != null
                 ? facts.GlebaBiomes[tile]
                 : GlebaEcologySupplement.ClassifyGlebaBiome(
@@ -427,27 +435,9 @@ namespace Orbis.Flat
             float gradient = facts?.Gradient != null ? facts.Gradient[tile] : 0f;
             float sediment = facts?.Sediment != null ? facts.Sediment[tile] : 0f;
             bool coastalBeach = world.CoastDistance[tile] <= 1 && world.Elevation[tile] <= 100;
-            var geo = facts?.GlebaGeography;
-            if (geo != null && (uint)tile < (uint)geo.Count && !area)
+            if (geo != null && (uint)tile < (uint)geo.Count && !area && geo.SoilDepthCentimeters[tile] > 0)
             {
-                var rp = GlebaGeographySupplement.GetRockProperties(geo.Bedrock[tile]);
-                soil = GlebaEcologySupplement.InitializeTileSoil(
-                    rp.Sand, rp.Clay, rp.Silt, rp.WeatheringRate, rp.MineralRichness, coastalBeach, rain);
-                soil.Organics = FMath.Clamp(0.15f + 0.70f * flora.TotalPlants + 0.15f * FMath.Clamp(sediment, 0f, 1f), 0f, 1f);
-                if (geo.HasFlag(tile, GlebaGeoFlags.LgmGlaciated))
-                    GlebaEcologySupplement.ApplyGlacierLoess(ref soil, true, 50f, world.Elevation[tile]);
-                GlebaEcologySupplement.ApplyAeolianDeflation(ref soil, true, world.Elevation[tile], rain);
-                GlebaEcologySupplement.ThinMountainSoil(ref soil, world.Elevation[tile], gradient);
-                if (sediment > 0.02f)
-                {
-                    float dep = 0.6f * sediment;
-                    float oldD = soil.Depth, newD = oldD + dep;
-                    soil.Sand = (oldD * soil.Sand + dep * 0.15f) / newD;
-                    soil.Silt = (oldD * soil.Silt + dep * 0.60f) / newD;
-                    soil.Clay = (oldD * soil.Clay + dep * 0.25f) / newD;
-                    soil.Depth = newD;
-                    soil.NormalizeTexture();
-                }
+                soil = geo.GetSoilState(tile);
             }
             else
             {

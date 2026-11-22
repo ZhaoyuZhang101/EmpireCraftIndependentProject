@@ -36,7 +36,12 @@ namespace Orbis.Flat
         MontaneGrasslandsAndShrublands = 14,
         WetJungle = 15,
         Tundra = 16,
-        Taiga = 17
+        Taiga = 17,
+        ArcticWasteland = 18,
+        GlaciatedSweetwaterLake = 19,
+        Bog = 20,
+        Marsh = 21,
+        Swamp = 22
     }
 
     public struct GlebaSoilState
@@ -264,13 +269,13 @@ namespace Orbis.Flat
         public static GlebaBiomeKind ClassifyGlebaBiome(
             bool aquatic, bool lake, bool freshwater, float iceThickness,
             float elevationMeters, float janTempC, float julTempC, float janRainMm, float julRainMm,
-            Koppen koppen, in GlebaPlantCover flora)
+            Koppen koppen, in GlebaPlantCover flora, bool marsh = false)
         {
             bool icy = iceThickness > 0.001f;
             if (aquatic)
             {
                 if (!lake) return icy ? GlebaBiomeKind.GlaciatedSea : GlebaBiomeKind.Sea;
-                if (freshwater) return icy ? GlebaBiomeKind.RockyWasteland : GlebaBiomeKind.SweetwaterLake;
+                if (freshwater) return icy ? GlebaBiomeKind.GlaciatedSweetwaterLake : GlebaBiomeKind.SweetwaterLake;
                 return icy ? GlebaBiomeKind.GlaciatedSaltwaterLake : GlebaBiomeKind.SaltwaterLake;
             }
             if (icy) return GlebaBiomeKind.Glacier;
@@ -299,6 +304,8 @@ namespace Orbis.Flat
 
             // Priority 0..301 ascending (last match wins)
             GlebaBiomeKind chosen = GlebaBiomeKind.RockyWasteland;
+            if (tWin <= 0f && tSum <= 15f && tAvg <= 0f)
+                chosen = GlebaBiomeKind.ArcticWasteland; // p=10
             if (dead >= 0.50f && tWin >= 0f) chosen = GlebaBiomeKind.DesertsAndXericShrublands; // p=20
 
             if (dead <= 0.50f)
@@ -315,10 +322,18 @@ namespace Orbis.Flat
             if (elevationMeters >= 2500f && trees <= 0.55f && dead <= 0.90f)
                 chosen = GlebaBiomeKind.MontaneGrasslandsAndShrublands; // p=50
 
+            // Wetland biomes (biomes.lua: bog / marsh / swamp, priority 50)
+            if (marsh && dead <= 0.65f)
+            {
+                if (tAvg < 6f) chosen = GlebaBiomeKind.Bog;
+                else if (flora.Grass >= 0.50f) chosen = GlebaBiomeKind.Marsh;
+                else chosen = GlebaBiomeKind.Swamp;
+            }
+
             if (trees >= 0.55f && tWin >= 18f && dead <= 0.50f && winToSum <= 8.25f && sumToWin <= 8.25f)
                 chosen = GlebaBiomeKind.WetJungle; // p=51
 
-            if (tWin <= 0f && tSum <= 15f && tAvg <= 0f)
+            if (tWin <= 0f && tSum <= 15f && tAvg <= 0f && dead < 0.72f)
                 chosen = GlebaBiomeKind.Tundra; // p=300
 
             if (trees >= 0.55f && dead <= 0.50f &&
@@ -326,6 +341,68 @@ namespace Orbis.Flat
                 chosen = GlebaBiomeKind.Taiga; // p=301
 
             return chosen;
+        }
+
+        public static void GetGlebaBiomeMapColor(GlebaBiomeKind kind, out byte r, out byte g, out byte b)
+        {
+            switch (kind)
+            {
+                case GlebaBiomeKind.DesertsAndXericShrublands:             r = 247; g = 232; b = 186; return;
+                case GlebaBiomeKind.RockyWasteland:                        r = 148; g = 132; b = 116; return;
+                case GlebaBiomeKind.ArcticWasteland:                       r = 108; g = 112; b = 118; return;
+                case GlebaBiomeKind.Sea:                                   r =  28; g =  64; b =  98; return;
+                case GlebaBiomeKind.GlaciatedSea:                          r = 196; g = 228; b = 242; return;
+                case GlebaBiomeKind.SweetwaterLake:                        r =  74; g = 158; b = 204; return;
+                case GlebaBiomeKind.GlaciatedSweetwaterLake:               r = 178; g = 218; b = 238; return;
+                case GlebaBiomeKind.SaltwaterLake:                         r =  58; g = 128; b = 148; return;
+                case GlebaBiomeKind.GlaciatedSaltwaterLake:                r = 160; g = 204; b = 216; return;
+                case GlebaBiomeKind.Glacier:                               r = 236; g = 240; b = 245; return;
+                case GlebaBiomeKind.TemperateConiferousForest:             r =  18; g =  96; b =  42; return;
+                case GlebaBiomeKind.TemperateBroadleafAndMixedForest:      r = 113; g = 200; b =  55; return;
+                case GlebaBiomeKind.DryJungle:                             r = 212; g = 170; b =  24; return;
+                case GlebaBiomeKind.WetJungle:                             r =  48; g = 124; b =  38; return;
+                case GlebaBiomeKind.Taiga:                                 r =  44; g = 160; b =  90; return;
+                case GlebaBiomeKind.TemperateGrasslandsSavannasAndShrublands: r = 205; g = 222; b = 135; return;
+                case GlebaBiomeKind.TropicalGrasslandsSavannasAndShrublands:  r = 255; g = 216; b =  82; return;
+                case GlebaBiomeKind.MediterraneanForestWoodlandAndScrub:   r = 200; g = 113; b =  55; return;
+                case GlebaBiomeKind.MontaneGrasslandsAndShrublands:        r = 192; g = 168; b = 228; return;
+                case GlebaBiomeKind.Tundra:                                r = 135; g = 218; b = 202; return;
+                case GlebaBiomeKind.Bog:                                   r = 178; g = 122; b = 196; return;
+                case GlebaBiomeKind.Marsh:                                 r = 206; g = 138; b = 222; return;
+                case GlebaBiomeKind.Swamp:                                 r = 138; g = 104; b = 172; return;
+                default:                                                   r = 128; g = 128; b = 128; return;
+            }
+        }
+
+        public static string GetGlebaBiomeLabel(GlebaBiomeKind kind)
+        {
+            switch (kind)
+            {
+                case GlebaBiomeKind.RockyWasteland: return "寒旱裸岩荒原 (Rocky Wasteland)";
+                case GlebaBiomeKind.DesertsAndXericShrublands: return "荒漠与旱生灌丛 (Desert)";
+                case GlebaBiomeKind.Sea: return "海洋 (Sea)";
+                case GlebaBiomeKind.GlaciatedSea: return "海冰封冻海域 (Glaciated Sea)";
+                case GlebaBiomeKind.SweetwaterLake: return "外流淡水湖 (Sweetwater Lake)";
+                case GlebaBiomeKind.GlaciatedSweetwaterLake: return "冰封淡水湖 (Glaciated Lake)";
+                case GlebaBiomeKind.SaltwaterLake: return "内流咸水湖 (Saltwater Lake)";
+                case GlebaBiomeKind.GlaciatedSaltwaterLake: return "冰封咸水湖 (Glaciated Salt Lake)";
+                case GlebaBiomeKind.Glacier: return "大陆冰川/冰盖 (Glacier)";
+                case GlebaBiomeKind.TemperateConiferousForest: return "温带针叶林 (Temperate Conifer)";
+                case GlebaBiomeKind.TemperateBroadleafAndMixedForest: return "温带阔叶混交林 (Temperate Forest)";
+                case GlebaBiomeKind.DryJungle: return "热带季雨林/旱林 (Dry Jungle)";
+                case GlebaBiomeKind.TemperateGrasslandsSavannasAndShrublands: return "温带草原 (Steppe)";
+                case GlebaBiomeKind.TropicalGrasslandsSavannasAndShrublands: return "热带稀树草原 (Savanna)";
+                case GlebaBiomeKind.MediterraneanForestWoodlandAndScrub: return "地中海硬叶林灌丛 (Mediterranean)";
+                case GlebaBiomeKind.MontaneGrasslandsAndShrublands: return "高山草甸灌丛 (Montane)";
+                case GlebaBiomeKind.WetJungle: return "热带湿润雨林 (Moist Jungle)";
+                case GlebaBiomeKind.Tundra: return "极地苔原 (Tundra)";
+                case GlebaBiomeKind.Taiga: return "北方针叶林/泰加林 (Taiga)";
+                case GlebaBiomeKind.ArcticWasteland: return "极地冰缘寒漠 (Arctic Wasteland)";
+                case GlebaBiomeKind.Bog: return "寒温带泥炭沼泽 (Bog)";
+                case GlebaBiomeKind.Marsh: return "草本沼泽湿地 (Marsh)";
+                case GlebaBiomeKind.Swamp: return "林木沼泽湿地 (Swamp)";
+                default: return kind.ToString();
+            }
         }
 
         /// <summary>
@@ -443,7 +520,8 @@ namespace Orbis.Flat
         public static void StepFluvialSediment(
             int u, int downstreamV, float avgMonthlyRainMm, float avgMonthlyHumidity,
             float[] inflow, float[] outDischarge, GlebaSoilState[] soils,
-            float[] sedSand, float[] sedSilt, float[] sedClay, float[] sedMinerals)
+            float[] sedSand, float[] sedSilt, float[] sedClay, float[] sedMinerals,
+            bool floodplainOrDelta = false)
         {
             float h = FMath.Clamp(avgMonthlyHumidity, 1e-4f, 1.0f);
             float rawQ = avgMonthlyRainMm + inflow[u] - 10.0f;
@@ -452,7 +530,7 @@ namespace Orbis.Flat
             outDischarge[u] = q;
             if (downstreamV >= 0) inflow[downstreamV] += q;
 
-            float erodeFrac = FMath.Clamp(((float)Math.Pow(q, 0.25) * 1.2f) / 35.0f, 0f, 1f);
+            float erodeFrac = FMath.Clamp(((float)Math.Pow(q, 0.25) * 1.2f) / 35.0f, 0f, 1f) * (floodplainOrDelta ? 0.35f : 1.0f);
             float erodedDepth = soils[u].Depth * erodeFrac;
             soils[u].Depth -= erodedDepth;
 
@@ -466,16 +544,23 @@ namespace Orbis.Flat
 
             float inTotal = sedSand[u] + sedSilt[u] + sedClay[u];
             float inMinConc = inTotal > 0f ? (sedMinerals[u] / inTotal) : 0f;
-            float depSand = 0.10f * sedSand[u];
-            float depSilt = 0.02f * sedSilt[u];
-            float depClay = 0.01f * sedClay[u];
+            // Steep reaches drop coarse sand while carrying fines; low-gradient floodplains & deltas settle suspended silt and clay
+            float rSand = floodplainOrDelta ? 0.05f : 0.10f;
+            float rSilt = floodplainOrDelta ? 0.24f : 0.02f;
+            float rClay = floodplainOrDelta ? 0.16f : 0.01f;
+            float depSand = rSand * sedSand[u];
+            float depSilt = rSilt * sedSilt[u];
+            float depClay = rClay * sedClay[u];
             float depDepth = depSand + depSilt + depClay;
 
             if (downstreamV >= 0)
             {
-                sedSand[downstreamV] += 0.90f * sedSand[u];
-                sedSilt[downstreamV] += 0.98f * sedSilt[u];
-                sedClay[downstreamV] += 0.99f * sedClay[u];
+                // Fluvial comminution grinds a fraction of transported coarse sand into alluvial silt down-valley
+                float remSand = (1f - rSand) * sedSand[u];
+                float groundToSilt = 0.06f * remSand;
+                sedSand[downstreamV] += remSand - groundToSilt;
+                sedSilt[downstreamV] += (1f - rSilt) * sedSilt[u] + groundToSilt;
+                sedClay[downstreamV] += (1f - rClay) * sedClay[u];
                 sedMinerals[downstreamV] += (inTotal - depDepth) * inMinConc;
             }
 

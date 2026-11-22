@@ -22,7 +22,7 @@ namespace Orbis.Flat
         const int GlebaFlowWidth=256,GlebaFlowHeight=128;
         Texture2D glebaWindFlowTex,glebaCurrentFlowTex,glebaBandsTex;
         ushort[] glebaFlowBuffer,glebaBandsBuffer;
-        int uploadedGlebaFlowMonth=-1,uploadedGlebaFlowRevision=-1;
+        int uploadedGlebaFlowMonth=-1,uploadedGlebaFlowRevision=-1,uploadedGlebaFlowMode=-1;
         double uploadedGlebaBandsDay=double.NaN;
         float circulationClock;
         public Texture2D RiverSeasonTexture { get; private set; }
@@ -161,20 +161,27 @@ namespace Orbis.Flat
         }
         void UpdateGlebaCirculation(double day,int month,float monthBlend,Material target)
         {
-            int mode=VisibleLayer==MapLayer.SurfaceWinds?1:VisibleLayer==MapLayer.OceanCurrents?2:0;
+            int mode=VisibleLayer==MapLayer.SurfaceWinds?1:VisibleLayer==MapLayer.OceanCurrents?2:VisibleLayer==MapLayer.RossbyJets?3:0;
             if(mode>0&&glebaWindFlowTex&&glebaCurrentFlowTex&&glebaBandsTex)
             {
-                if(uploadedGlebaFlowMonth!=month||uploadedGlebaFlowRevision!=World.TerrainRevision)
+                if(uploadedGlebaFlowMonth!=month||uploadedGlebaFlowRevision!=World.TerrainRevision||uploadedGlebaFlowMode!=mode)
                 {
-                    GlebaGeographySupplement.PackTwoMonthWindFlowHalf(World,month,GlebaFlowWidth,GlebaFlowHeight,glebaFlowBuffer);
+                    if(mode==3)
+                        GlebaGeographySupplement.PackTwoMonthRossbyFlowHalf(World,month,GlebaFlowWidth,GlebaFlowHeight,glebaFlowBuffer);
+                    else
+                        GlebaGeographySupplement.PackTwoMonthWindFlowHalf(World,month,GlebaFlowWidth,GlebaFlowHeight,glebaFlowBuffer);
                     UploadHalfData(glebaWindFlowTex,glebaFlowBuffer);
-                    GlebaGeographySupplement.PackTwoMonthCurrentFlowHalf(World,month,GlebaFlowWidth,GlebaFlowHeight,glebaFlowBuffer);
-                    UploadHalfData(glebaCurrentFlowTex,glebaFlowBuffer);
+                    if(mode==2||uploadedGlebaFlowRevision!=World.TerrainRevision||uploadedGlebaFlowMonth!=month)
+                    {
+                        GlebaGeographySupplement.PackTwoMonthCurrentFlowHalf(World,month,GlebaFlowWidth,GlebaFlowHeight,glebaFlowBuffer);
+                        UploadHalfData(glebaCurrentFlowTex,glebaFlowBuffer);
+                    }
                     uploadedGlebaFlowMonth=month;
                     uploadedGlebaFlowRevision=World.TerrainRevision;
+                    uploadedGlebaFlowMode=mode;
                     uploadedGlebaBandsDay=double.NaN;
                 }
-                if(mode==1&&(double.IsNaN(uploadedGlebaBandsDay)||Math.Abs(day-uploadedGlebaBandsDay)>.05))
+                if((mode==1||mode==3)&&(double.IsNaN(uploadedGlebaBandsDay)||Math.Abs(day-uploadedGlebaBandsDay)>.05))
                 {
                     GlebaGeographySupplement.PackInterpolatedBandsHalf(World,day,GlebaFlowWidth,glebaBandsBuffer);
                     UploadHalfData(glebaBandsTex,glebaBandsBuffer);

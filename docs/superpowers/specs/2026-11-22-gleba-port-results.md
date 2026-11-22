@@ -26,6 +26,9 @@
 | **Round 5：高空 Rossby 急流与表面风带** | `2356eae` | 移植 4 支高空 Rossby 波急流（`GlebaRossbyWaveField`），将分段副热带高压脊/副极地低压槽地转+跨等压线风与 `Saldo` 热赤道耦合入 `FlatWindBelts.SurfaceWithGleba`、`FlatWeatherSimulation` 与 `FlatClimateObservation`。 |
 | **Round 6：Ekman 表层洋流、东边界涌升流与极地冰穹** | `b80020e` | 升级 `FlatOceanCirculation`（有界海盆海岸衰减风驱 Ekman 漂流、加那利/加利福尼亚/秘鲁/本格拉东边界温跃层涌升流、分海盆精确热量闭合），并在 `FlatClimate` 引入对称极地高海拔内陆冰穹辐射降温。 |
 | **Round 7：珊瑚礁、峡湾、含水层、咸淡水湖、四级区划与流场图层** | `9d80004` | 新增 [GlebaGeographySupplement.cs](file:///d:/ORBIS_TerrainPerf3_5_Markley/Assets/ORBIS/Runtime/FlatWorld/Core/GlebaGeographySupplement.cs)：20 类基岩与孔隙度表、深层含水层与自流盆地、热带珊瑚礁与沙洲岛、LGM 冰川峡湾、内流咸水湖（里海等）vs 外流淡水湖（苏必利尔湖等）拓扑修正、海洋不可达度、8 地形域四级区划（`Area/Region/SuperRegion/Subcontinent`）、Wallace 生物地理界、12 个月季风反转表层洋流、11 阶 Cividis 色带/流场采样器及热力/水力侵蚀算子。 |
+| **Round 8：独立海洋留出集与 CRU 多分辨率全量盲测总验收** | `6b12797` | 完成 `ocean-holdout`（NCEP R1 风带、GDP 浮标洋流、OISST v2 海温异常、南极 `<60°S` 气温）与 `CRU holdout`（`256..2048`）独立盲测验收。 |
+| **Round 9：风带视图与洋流视图 GPU 动态流线与锋线复刻** | `52a94c7` | 新增 [FlatCirculationOverlay.cginc](file:///d:/ORBIS_TerrainPerf3_5_Markley/Assets/ORBIS/Resources/ORBIS/FlatWorld/FlatCirculationOverlay.cginc) 球面等面积自适应动态彗尾流线与 5 条实时锋线（`ITCZ`、`STHZ`、`PolarFront`），贯通 3D 星球、无缝展开过渡与 2D 地表。 |
+| **Round 10：全量 Gleba 地理/土壤/构造图层复刻与卫星级气候云真实度重构** | `HEAD` | 实装完整 6 遍水系路由土壤质地/养分（含风蚀沙化、冰期黄土、河道粉磨与泛滥平原淤积）、23 类 Holdridge/湿地/冰封湖海群系、地球与随机世界统一的板块/微板块地体/俯冲造山/活火山 VEI 体系、全部 12 个 Gleba 专属地图模式（含 GPU 动态高空 Rossby 急流视图），并将 Gleba 天气尺度物理强迫注入 `256×128 -> 2048×1024` 云场与多尺度 3D 体积云（斜压逗点气旋锋面、干舌切入、ITCZ 深对流云团与铁砧卷云、东边界涌升寒流蜂窝层积云、迎风坡地形云墙与背风焚风晴空区）。 |
 
 ---
 
@@ -104,3 +107,6 @@
 - **深层孔隙含水层**：在无冰盖储水沉积盆地上生成 `632` 个区域含水层（含潜水面埋深、饱水厚度与自流盆地标记），南极冰盖下含水层数为 **`0`**。
 - **全球海洋不可达度与四级地理区划**：太平洋主大洋不可达度 `0 km`，准噶尔盆地（欧亚大陆难抵极）不可达度达 **`2,971 km`**，里海不重置海洋距离；全球自动聚合为 **`4,475` Areas → `643` Regions → `196` SuperRegions → `108` Subcontinents**，并输出 8 大 Wallace 生物地理界。
 - **12 个月季节洋流与 Cividis 图层**：索马里/北印度洋表层流在 1 月东北季风与 7 月西南季风间呈现显著反转；完整提供 Gleba 11 阶 Cividis 色带（`#00224e -> #fee837`）、向岸蓝/离岸红海岸风着色及 `(FlowU, -FlowV)` UV 矢量流场接口。
+- **6 遍水系路由土壤、23 类群系与构造火山体系**：撒哈拉风蚀沙地砂粒占比达 **`95%`**，恒河—布拉马普特拉等大河三角洲泛滥平原富集深厚粉砂—黏土冲积壤土（土层深 `> 2.5 m`）；芬诺斯堪的亚/劳伦泰德复现末次盛冰期（LGM）大陆冰盖；地球环太平洋与巽他俯冲弧自动识别 `24` 处火山中心（`19` 座活火山，含 VEI 爆发指数）。
+- **12 项可交互 Gleba 专题图层**：涵盖 `风带与气压`、`洋流与海温`、`高空急流与罗斯贝波`（均带 GPU 实时动态流线箭头）、`地形雨影与大陆度`、`月均相对湿度`、`生态群系 23 类`、`乔灌草植被结构 RGB`、`土壤质地砂粉黏 RGB`、`土壤厚度与矿质养分`、`基岩岩性 20 类`、`板块边界、造山与火山`、`含水层、冰期峡湾与珊瑚礁`。
+- **卫星级物理气候云场（位置 + 形状双重升级）**：基于 Gleba 海平面气压下沉区、动态 ITCZ、极锋斜压风暴轴、东边界冷涌升海温与二维山脉雨影生成 `256×128` 物理强迫场（地球 7 月南亚季风抬升 `0.98` vs 撒哈拉副高下沉 `0.38`，秘鲁涌升寒流海洋层积云 `0.38`，南大洋咆哮西风带斜压风暴轴 `0.85`，亚洲—印度洋 ITCZ 对流核纬度从 1 月 `-2.7°` 北跳至 7 月 `+13.9°`），并在 [FlatSkyBake.shader](file:///d:/ORBIS_TerrainPerf3_5_Markley/Assets/ORBIS/Resources/ORBIS/FlatWorld/FlatSkyBake.shader) 与 [ScrollCloudSource.cginc](file:///d:/ORBIS_TerrainPerf3_5_Markley/Assets/ORBIS/Resources/ORBIS/FlatWorld/ScrollCloudSource.cginc) 中实现斜压逗点锋面气旋、冷锋干舌、ITCZ 对流云团与顺高空风剪切铁砧卷云、信风积云街、冷涌升蜂窝海洋层积云及多尺度 3D 体积云团细节（彻底消除旧版大尺度各向同性团块噪波）。

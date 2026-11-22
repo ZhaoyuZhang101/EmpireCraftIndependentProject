@@ -92,10 +92,9 @@ namespace Orbis.Flat
         {
             var f=source.Facts;int owner=source.Owner[i];
             Color32 overlayColor=default;
-            if(layer==MapLayer.SurfaceWinds||layer==MapLayer.OceanCurrents)
+            if(layer>=MapLayer.SurfaceWinds)
             {
-                var gMode=layer==MapLayer.SurfaceWinds?GlebaMapmodeKind.ClimateSurfaceWinds:GlebaMapmodeKind.ClimateOceanCurrents;
-                GlebaGeographySupplement.EvaluateMapmodeColor(source,i,month,gMode,out byte mr,out byte mg,out byte mb);
+                GlebaGeographySupplement.EvaluateMapmodeColor(source,i,month,GlebaGeographySupplement.MapLayerToGlebaMode(layer),out byte mr,out byte mg,out byte mb);
                 overlayColor=new Color32(mr,mg,mb,255);
             }
             return new Tile{Elevation=source.Elevation[i],Water=source.Water[i],Biome=source.Biomes[i],Climate=source.Climates[i],Building=source.Buildings[i],
@@ -231,7 +230,7 @@ namespace Orbis.Flat
                     case MapLayer.Fertility:display=Color.Lerp(RGB(0xb39d7a),RGB(0x478c68),t.Fertility);break;
                 }
                 display.a=1;
-                Color32 finalDisplay=(Layer==MapLayer.SurfaceWinds||Layer==MapLayer.OceanCurrents)?t.OverlayColor:(Layer==MapLayer.Natural?terrain:(Color32)display);
+                Color32 finalDisplay=Layer>=MapLayer.SurfaceWinds?t.OverlayColor:(Layer==MapLayer.Natural?terrain:(Color32)display);
                 int level=0;if(t.Elevation>0){level=20;for(int b=0;b<Bands.Length;b++)if(t.Elevation<=Bands[b]){level=b+1;break;}}
                 Output[j]=new PackedColors{Terrain=terrain,Display=finalDisplay,
                     Ecology=new Color32((byte)t.Vegetation,(byte)(((int)t.Tree+1)*16+(int)t.Biome),(byte)Mathf.RoundToInt(Mathf.Clamp01(t.Wetness)*255),(byte)(FMath.Hash((uint)i^Seed)&255)),

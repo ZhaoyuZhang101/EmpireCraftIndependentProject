@@ -26,6 +26,16 @@ namespace Orbis.Flat
             if(layer==MapLayer.Rivers)return "深蓝粗线为主河道，细线为支流。地球按已测绘河道显示，随机世界按本地汇流显示。";
             if(layer==MapLayer.SurfaceWinds)return "Gleba 风带与海平面气压：深蓝为高压脊，亮黄为赤道槽/季风低压/副极地低压；蓝岸为向岸湿风，红岸为离岸干风。\n橙实线：ITCZ 热带辐合带 · 青虚线：STHZ 副热带高压脊 · 紫虚线：极锋带 · 动态流线箭头显示当月近地风向与风速。";
             if(layer==MapLayer.OceanCurrents)return "Gleba 表层洋流与海温：Cividis 动态海面高度叠加暖流（暖金橙）与涌升寒流（冰青蓝），动态流线箭头显示当月表层洋流方向与流速。";
+            if(layer==MapLayer.RossbyJets)return "Gleba 高空急流与罗斯贝波：显示南北极锋急流与副热带急流的 4–8 波行星蜿蜒槽脊、急流核风速（暗紫 → 亮金）及实时动态高空急流流线。";
+            if(layer==MapLayer.RainShadow)return "Gleba 地形雨影与风程大陆度：Cividis 深蓝为海洋迎风湿润带，亮金黄为山脉背风坡 Helmholtz 雨影区与深内陆风程干旱核。";
+            if(layer==MapLayer.RelativeHumidity)return "Gleba 月均相对湿度：荒漠暖赭（0%）→ 温带青绿（50%）→ 季风/赤道深钴蓝（100%）。";
+            if(layer==MapLayer.GlebaBiomes)return "Gleba 23 类生态群系：基于 Holdridge 17 条生理温度/降水/林线曲线、稀树草原干季转移、泥炭/草本/森林沼泽及海冰/冰盖分类。";
+            if(layer==MapLayer.GlebaFlora)return "Gleba 乔灌草植被结构（RGB 三元图）：红 = 灌木比例 · 绿 = 草本比例 · 蓝 = 乔木比例 · 深黑 = 裸地/荒漠（Empty Land）。";
+            if(layer==MapLayer.GlebaSoilTexture)return "Gleba 六遍土壤质地（RGB 三元图）：红 = 砂粒（风蚀沙丘/砂岩）· 绿 = 粉砂（冰期黄土/冲积平原）· 蓝 = 黏粒（风化红壤/湖积黏土）。";
+            if(layer==MapLayer.GlebaSoilFertility)return "Gleba 土壤厚度与矿质养分：综合 6 遍流水搬运沉积的表土层深度、基岩矿质养分富集度与有机质（褐岩 → 金壤 → 沃绿）。";
+            if(layer==MapLayer.GlebaBedrock)return "Gleba 20 类基岩岩性：砂岩/灰岩/白垩/页岩/岩盐（沉积岩）· 花岗岩/闪长岩/辉长岩/玄武岩/安山岩/流纹岩（火成岩）· 板岩/片岩/片麻岩（变质岩）。";
+            if(layer==MapLayer.GlebaTectonics)return "Gleba 板块、微板块地体、造山带与火山：浅界线为板块边界，绯红为俯冲海沟弧，琥珀橙为陆陆碰撞造山带，青色为洋中脊，紫色为大陆裂谷，亮橙黄点为活火山。";
+            if(layer==MapLayer.GlebaHydroGeo)return "Gleba 水文地质综合：粉红/亮金为热带珊瑚礁与环礁沙洲 · 亮青为 LGM 冰蚀峡湾海岸 · 冰蓝为末次盛冰期冰盖 · 橙褐为内流咸水湖 · 宝蓝为构造裂谷淡水湖 · 青绿斑块为深层承压/自流含水层。";
             if(layer==MapLayer.Fertility)return "棕 → 绿：0…100% 文明用地肥力。";
             if(layer==MapLayer.Nations)return "国家色代表 Zone 归属，不决定河岸或地貌。";
             for(int i=layer==MapLayer.Climate?1:0;i<colors.Length;i++)
@@ -101,6 +111,11 @@ namespace Orbis.Flat
         public static Color32 Display(WorldData w,int i,MapLayer layer)
         {
             Color c=Terrain(w,i);c.a=1;
+            if(layer>=MapLayer.SurfaceWinds)
+            {
+                GlebaGeographySupplement.EvaluateMapmodeColor(w,i,w.Month,GlebaGeographySupplement.MapLayerToGlebaMode(layer),out byte r,out byte g,out byte b);
+                return new Color32(r,g,b,255);
+            }
             switch(layer)
             {
                 case MapLayer.Nations:break; // Exactly one political tint, in the shader.
@@ -120,16 +135,6 @@ namespace Orbis.Flat
                 case MapLayer.Sediment:c=w.Water[i]==WaterKind.Land?RGB(0x727773):Color.Lerp(RGB(0x326785),RGB(0xb79b69),w.Facts.Sediment[i]);break;
                 case MapLayer.Vegetation:c=FlatTerrainAnalysis.AreaWater(w.Water[i])?Water(w.Water[i]):RGB(VegetationColors[(int)w.Facts.Vegetation[i]]);break;
                 case MapLayer.Fertility:c=Color.Lerp(RGB(0xb39d7a),RGB(0x478c68),w.Fertility[i]);break;
-                case MapLayer.SurfaceWinds:
-                {
-                    GlebaGeographySupplement.EvaluateMapmodeColor(w,i,w.Month,GlebaMapmodeKind.ClimateSurfaceWinds,out byte r,out byte g,out byte b);
-                    return new Color32(r,g,b,255);
-                }
-                case MapLayer.OceanCurrents:
-                {
-                    GlebaGeographySupplement.EvaluateMapmodeColor(w,i,w.Month,GlebaMapmodeKind.ClimateOceanCurrents,out byte r,out byte g,out byte b);
-                    return new Color32(r,g,b,255);
-                }
             }
             c.a=1;return c;
         }

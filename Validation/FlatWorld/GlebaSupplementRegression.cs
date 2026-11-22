@@ -301,8 +301,103 @@ internal static class GlebaSupplementRegression
             $"Expected Gulf Stream warm anomaly > Canary upwelling cold anomaly: GS={gulfStreamSstAnom:F2}C vs Can={canarySstAnom:F2}C");
 
         Console.WriteLine($"Earth 256 Gleba geography: reefs={geo.CoralReefTileCount}, fjords={geo.FjordCoastTileCount}, aquifers={geo.AquiferCount}, " +
-                          $"Caspian={caspianDiag.WaterbodyType}, Superior={superiorDiag.WaterbodyType}, DzungariaDist={dzungaria.InaccessibilityKm:F0}km, " +
-                          $"Hierarchy={geo.AreaCount}/{geo.RegionCount}/{geo.SuperRegionCount}/{geo.SubcontinentCount}, GS-Canary SST={gulfStreamSstAnom - canarySstAnom:F2}C");
+                          $"volcanoes={geo.VolcanoCount}(active={geo.ActiveVolcanoCount}), Caspian={caspianDiag.WaterbodyType}, Superior={superiorDiag.WaterbodyType}, " +
+                          $"DzungariaDist={dzungaria.InaccessibilityKm:F0}km, Hierarchy={geo.AreaCount}/{geo.RegionCount}/{geo.SuperRegionCount}/{geo.SubcontinentCount}, GS-Canary SST={gulfStreamSstAnom - canarySstAnom:F2}C");
+
+        // 7. 6-pass drainage-routed soils, LGM ice sheets & inferred Earth tectonics/volcanism
+        int riverMouth = -1; float bestRunoff = -1f;
+        for (int dy = -5; dy <= 5; dy++)
+        for (int dx = -5; dx <= 5; dx++)
+        {
+            int idx = earth.Index((int)((89.5f + 180f) / 360f * earth.Width) + dx, (int)((23.5f + 90f) / 180f * earth.Height) + dy);
+            if (idx >= 0 && !FlatTerrainAnalysis.AreaWater(earth.Water[idx]) && earth.Runoff[idx] > bestRunoff)
+            {
+                bestRunoff = earth.Runoff[idx];
+                riverMouth = idx;
+            }
+        }
+        Check(riverMouth >= 0, "Expected alluvial river lowland tile near Ganges-Brahmaputra delta");
+        var deltaSoil = geo.GetSoilState(riverMouth);
+        Check(sahara.Soil.Sand > 0.70f && (deltaSoil.Silt + deltaSoil.Clay) > 0.55f && deltaSoil.Depth > sahara.Soil.Depth,
+            $"Expected aeolian sand in Sahara ({sahara.Soil.Sand:F2}) and deeper silt-clay alluvium in delta (silt+clay={deltaSoil.Silt + deltaSoil.Clay:F2}, depth={deltaSoil.Depth:F2} vs {sahara.Soil.Depth:F2})");
+        var scandinavia = GlebaClimateSupplement.SampleTileDiagnostic(earth, TileAtLonLat(earth, 15f, 65f), 6);
+        Check(scandinavia.LgmIceMeters > 100f && geo.VolcanoCount >= 10 && geo.ActiveVolcanoCount >= 5,
+            $"Expected Fennoscandian LGM ice >100m ({scandinavia.LgmIceMeters:F0}m) and Ring-of-Fire volcanoes ({geo.VolcanoCount}/{geo.ActiveVolcanoCount})");
+
+        // 8. Synoptic Cloud Forcing Physics on Earth (July vs January)
+        const int cw = 256, ch = 128;
+        var forcingJul = new byte[cw * ch * 4];
+        var auxJul = new byte[cw * ch * 4];
+        var upperJul = new ushort[cw * ch * 4];
+        var forcingJan = new byte[cw * ch * 4];
+        var auxJan = new byte[cw * ch * 4];
+        GlebaGeographySupplement.BuildCloudSynopticFields(earth, 195.0, cw, ch, forcingJul, auxJul, upperJul);
+        GlebaGeographySupplement.BuildCloudSynopticFields(earth, 15.0, cw, ch, forcingJan, auxJan, null);
+
+        double MeanChannel(byte[] buf, int chIdx, float lon0, float lon1, float lat0, float lat1)
+        {
+            double sum = 0; int cnt = 0;
+            for (int y = 0; y < ch; y++)
+            {
+                float lat = ((y + 0.5f) / ch - 0.5f) * 180f;
+                if (lat < lat0 || lat > lat1) continue;
+                for (int x = 0; x < cw; x++)
+                {
+                    float lon = ((x + 0.5f) / cw - 0.5f) * 360f;
+                    if (lon < lon0 || lon > lon1) continue;
+                    sum += buf[(y * cw + x) * 4 + chIdx] / 255.0;
+                    cnt++;
+                }
+            }
+            return cnt > 0 ? sum / cnt : 0.0;
+        }
+
+        double monsoonLift = MeanChannel(forcingJul, 0, 82f, 94f, 14f, 24f);
+        double monsoonItcz = MeanChannel(forcingJul, 1, 82f, 94f, 14f, 24f);
+        double saharaLift = MeanChannel(forcingJul, 0, 8f, 32f, 20f, 28f);
+        double saharaMoist = MeanChannel(forcingJul, 3, 8f, 32f, 20f, 28f);
+        Check(monsoonLift > saharaLift + 0.25 && monsoonItcz > 0.35 && saharaMoist < 0.25,
+            $"July cloud forcing must favor South Asian Monsoon over Sahara subsidence: monsoonLift={monsoonLift:F2} (ITCZ={monsoonItcz:F2}) vs saharaLift={saharaLift:F2} (moist={saharaMoist:F2})");
+
+        double himalayaWindward = MeanChannel(auxJul, 1, 84f, 92f, 26f, 28.5f);
+        double tibetLeeShadow = MeanChannel(auxJul, 2, 82f, 92f, 30.5f, 35f);
+        Check(himalayaWindward > 0.08 && tibetLeeShadow > 0.18,
+            $"Expected Himalayan windward crest lift ({himalayaWindward:F2}) and Tibetan leeward rain-shadow clearing ({tibetLeeShadow:F2})");
+
+        double peruSc = MeanChannel(auxJul, 0, -84f, -75f, -24f, -10f);
+        double benguelaSc = MeanChannel(auxJul, 0, 6f, 13f, -26f, -14f);
+        double kuroshioSc = MeanChannel(auxJul, 0, 130f, 142f, 24f, 32f);
+        Check(peruSc > 0.30 && benguelaSc > 0.30 && peruSc > kuroshioSc + 0.08,
+            $"Expected eastern-boundary upwelling Marine Stratocumulus > western boundary: Peru={peruSc:F2}, Benguela={benguelaSc:F2} vs Kuroshio={kuroshioSc:F2}");
+
+        double northAtlanticTrack = MeanChannel(forcingJul, 2, -45f, -15f, 46f, 60f);
+        double roaringFiftiesTrack = MeanChannel(forcingJul, 2, -180f, 180f, -60f, -46f);
+        Check(northAtlanticTrack > 0.42 && roaringFiftiesTrack > 0.45,
+            $"Expected strong mid-latitude baroclinic storm tracks: N.Atl={northAtlanticTrack:F2}, S.Ocean={roaringFiftiesTrack:F2}");
+
+        // Seasonal migration of Asian-Indian sector ITCZ convective cloud core (75E..95E)
+        double WeightedItczLat(byte[] buf)
+        {
+            double num = 0, den = 1e-9;
+            for (int y = 0; y < ch; y++)
+            {
+                float lat = ((y + 0.5f) / ch - 0.5f) * 180f;
+                if (Math.Abs(lat) > 35f) continue;
+                for (int x = 0; x < cw; x++)
+                {
+                    float lon = ((x + 0.5f) / cw - 0.5f) * 360f;
+                    if (lon < 75f || lon > 95f) continue;
+                    double w = buf[(y * cw + x) * 4 + 1] / 255.0;
+                    num += lat * w; den += w;
+                }
+            }
+            return num / den;
+        }
+        double itczJanLat = WeightedItczLat(forcingJan);
+        double itczJulLat = WeightedItczLat(forcingJul);
+        Check(itczJulLat - itczJanLat > 12.0,
+            $"Expected Indian/Asian ITCZ deep convective cloud belt to migrate >12 deg northward Jan->Jul: Jan={itczJanLat:F1}deg, Jul={itczJulLat:F1}deg");
+        Console.WriteLine($"Earth 256 Gleba cloud physics: MonsoonLift={monsoonLift:F2} vs SaharaLift={saharaLift:F2}, PeruSc={peruSc:F2}, Roaring50s={roaringFiftiesTrack:F2}, ITCZ Jan={itczJanLat:F1}->Jul={itczJulLat:F1}deg");
     }
 
     static int FindNearestMatchingTile(WorldData w, float lonDeg, float latDeg, int radius, Func<int, bool> pred)
@@ -363,20 +458,30 @@ internal static class GlebaSupplementRegression
         Check(hasWindFlow && FMath.Finite(fu) && FMath.Finite(fv) && hasRossbyFlow && ru > 0f && (wr + wg + wb) > 0 && (cr + cg + cb) > 0,
             "Mapmode color and UV flow evaluators must produce valid colors and vectors");
 
+        for (MapLayer layer = MapLayer.SurfaceWinds; layer <= MapLayer.GlebaHydroGeo; layer++)
+        {
+            var gMode = GlebaGeographySupplement.MapLayerToGlebaMode(layer);
+            GlebaGeographySupplement.EvaluateMapmodeColor(world, 1000, 6, gMode, out byte mr, out byte mg, out byte mb);
+            Check((mr + mg + mb) >= 0, $"Invalid mapmode color for {layer}");
+        }
+
         var windHalf = new ushort[64 * 32 * 4];
         var currHalf = new ushort[64 * 32 * 4];
+        var rossbyHalf = new ushort[64 * 32 * 4];
         var bandHalf = new ushort[64 * 4 * 4];
         GlebaGeographySupplement.PackTwoMonthWindFlowHalf(world, 6, 64, 32, windHalf);
         GlebaGeographySupplement.PackTwoMonthCurrentFlowHalf(world, 6, 64, 32, currHalf);
+        GlebaGeographySupplement.PackTwoMonthRossbyFlowHalf(world, 6, 64, 32, rossbyHalf);
         GlebaGeographySupplement.PackInterpolatedBandsHalf(world, 195.0, 64, bandHalf);
-        int nonZeroWind = 0, nonZeroCurr = 0;
+        int nonZeroWind = 0, nonZeroCurr = 0, nonZeroRossby = 0;
         for (int i = 0; i < windHalf.Length; i++)
         {
             if ((windHalf[i] & 0x7FFFu) != 0) nonZeroWind++;
             if ((currHalf[i] & 0x7FFFu) != 0) nonZeroCurr++;
+            if ((rossbyHalf[i] & 0x7FFFu) != 0) nonZeroRossby++;
         }
-        Check(nonZeroWind > 1000 && nonZeroCurr > 500 && bandHalf[0] == bandHalf[64 * 4] && bandHalf[2 * 64 * 4] == bandHalf[3 * 64 * 4],
-            $"Two-month RGBAHalf flow and band packers failed: wind={nonZeroWind}, curr={nonZeroCurr}");
+        Check(nonZeroWind > 1000 && nonZeroCurr > 500 && nonZeroRossby > 1000 && bandHalf[0] == bandHalf[64 * 4] && bandHalf[2 * 64 * 4] == bandHalf[3 * 64 * 4],
+            $"Two-month RGBAHalf flow and band packers failed: wind={nonZeroWind}, curr={nonZeroCurr}, rossby={nonZeroRossby}");
 
         var clone = world.Clone();
         int shoaled = GlebaGeographySupplement.ShoalCoralReefs(clone, clone.Facts.GlebaGeography);

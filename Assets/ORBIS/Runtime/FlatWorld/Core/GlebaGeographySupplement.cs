@@ -86,7 +86,14 @@ namespace Orbis.Flat
         Aquifers = 11,
         CoralReefsAndFjords = 12,
         Inaccessibility = 13,
-        GeographicRegions = 14
+        GeographicRegions = 14,
+        RelativeHumidity = 15,
+        GlebaBiomes = 16,
+        GlebaFlora = 17,
+        SoilTexture = 18,
+        SoilFertility = 19,
+        TectonicsAndVolcanism = 20,
+        HydroGeoComposite = 21
     }
 
     public readonly struct GlebaRockProperties
@@ -139,12 +146,29 @@ namespace Orbis.Flat
         public readonly GlebaTerrainDomain[] Domains;
         public readonly byte[] BiogeographicRealms;
         public readonly int[] AreaId;
+        // Stage 49 6-pass drainage-routed topsoil & erosion waterflow
+        public readonly byte[] SoilSandByte, SoilSiltByte, SoilClayByte;
+        public readonly ushort[] SoilDepthCentimeters;
+        public readonly byte[] SoilRichnessByte, SoilPermeabilityByte, SoilOrganicsByte;
+        public readonly float[] ErosionWaterflow;
+        // Holdridge plant functional types & LGM ice thickness
+        public readonly byte[] FloraTreesByte, FloraShrubsByte, FloraGrassByte, FloraTotalByte, FloraConiferByte;
+        public readonly ushort[] LgmIceMeters;
+        // Tectonics, microplates, orogeny & volcanism (procedural + Earth inferred)
+        public readonly byte[] PlateId;
+        public readonly ushort[] MicroplateId;
+        public readonly TectonicSetting[] BoundarySetting;
+        public readonly byte[] OrogenyStrengthByte;
+        public readonly byte[] VolcanoFlags;
+        public readonly byte[] VolcanoVeiTenths;
         public int[] AreaToRegion;
         public int[] RegionToSuperRegion;
         public int[] SuperRegionToSubcontinent;
         public int AquiferCount;
         public int CoralReefTileCount;
         public int FjordCoastTileCount;
+        public int VolcanoCount;
+        public int ActiveVolcanoCount;
         public int AreaCount;
         public int RegionCount;
         public int SuperRegionCount;
@@ -165,6 +189,26 @@ namespace Orbis.Flat
             Domains = new GlebaTerrainDomain[count];
             BiogeographicRealms = new byte[count];
             AreaId = new int[count];
+            SoilSandByte = new byte[count];
+            SoilSiltByte = new byte[count];
+            SoilClayByte = new byte[count];
+            SoilDepthCentimeters = new ushort[count];
+            SoilRichnessByte = new byte[count];
+            SoilPermeabilityByte = new byte[count];
+            SoilOrganicsByte = new byte[count];
+            ErosionWaterflow = new float[count];
+            FloraTreesByte = new byte[count];
+            FloraShrubsByte = new byte[count];
+            FloraGrassByte = new byte[count];
+            FloraTotalByte = new byte[count];
+            FloraConiferByte = new byte[count];
+            LgmIceMeters = new ushort[count];
+            PlateId = new byte[count];
+            MicroplateId = new ushort[count];
+            BoundarySetting = new TectonicSetting[count];
+            OrogenyStrengthByte = new byte[count];
+            VolcanoFlags = new byte[count];
+            VolcanoVeiTenths = new byte[count];
             for (int i = 0; i < count; i++)
             {
                 AquiferId[i] = -1;
@@ -178,6 +222,49 @@ namespace Orbis.Flat
         public float InaccessibilityKm(int tile) => InaccessibilityHops[tile] * CellKm;
         public float AquiferThicknessMeters(int tile) => AquiferThicknessTenths[tile] * 0.1f;
         public bool HasFlag(int tile, GlebaGeoFlags flag) => (Flags[tile] & flag) != 0;
+
+        public GlebaSoilState GetSoilState(int tile)
+        {
+            if ((uint)tile >= (uint)Count || SoilDepthCentimeters[tile] == 0) return default;
+            var s = new GlebaSoilState
+            {
+                Sand = SoilSandByte[tile] / 255f,
+                Silt = SoilSiltByte[tile] / 255f,
+                Clay = SoilClayByte[tile] / 255f,
+                Depth = SoilDepthCentimeters[tile] * 0.01f,
+                MineralRichness = SoilRichnessByte[tile] / 255f,
+                Organics = SoilOrganicsByte[tile] / 255f
+            };
+            s.NormalizeTexture();
+            return s;
+        }
+
+        public GlebaPlantCover GetFloraState(int tile)
+        {
+            if ((uint)tile >= (uint)Count) return default;
+            return new GlebaPlantCover
+            {
+                Trees = FloraTreesByte[tile] / 255f,
+                Shrubs = FloraShrubsByte[tile] / 255f,
+                Grass = FloraGrassByte[tile] / 255f,
+                TotalPlants = FloraTotalByte[tile] / 255f,
+                ConifersVsBroadleaf = 1f - FloraConiferByte[tile] / 255f
+            };
+        }
+
+        public bool TryGetVolcano(int tile, out VolcanoKind kind, out bool dormant, out float vei)
+        {
+            kind = VolcanoKind.Arc;
+            dormant = false;
+            vei = 0f;
+            if ((uint)tile >= (uint)Count) return false;
+            int code = VolcanoFlags[tile] & 0x07;
+            if (code == 0) return false;
+            kind = code == 1 ? VolcanoKind.Arc : code == 2 ? VolcanoKind.Hotspot : VolcanoKind.Rift;
+            dormant = (VolcanoFlags[tile] & 0x10) != 0;
+            vei = VolcanoVeiTenths[tile] * 0.1f;
+            return true;
+        }
 
         public int GetRegionId(int tile)
         {
@@ -204,6 +291,8 @@ namespace Orbis.Flat
                 AquiferCount = AquiferCount,
                 CoralReefTileCount = CoralReefTileCount,
                 FjordCoastTileCount = FjordCoastTileCount,
+                VolcanoCount = VolcanoCount,
+                ActiveVolcanoCount = ActiveVolcanoCount,
                 AreaCount = AreaCount,
                 RegionCount = RegionCount,
                 SuperRegionCount = SuperRegionCount,
@@ -223,6 +312,26 @@ namespace Orbis.Flat
             Array.Copy(Domains, c.Domains, Count);
             Array.Copy(BiogeographicRealms, c.BiogeographicRealms, Count);
             Array.Copy(AreaId, c.AreaId, Count);
+            Array.Copy(SoilSandByte, c.SoilSandByte, Count);
+            Array.Copy(SoilSiltByte, c.SoilSiltByte, Count);
+            Array.Copy(SoilClayByte, c.SoilClayByte, Count);
+            Array.Copy(SoilDepthCentimeters, c.SoilDepthCentimeters, Count);
+            Array.Copy(SoilRichnessByte, c.SoilRichnessByte, Count);
+            Array.Copy(SoilPermeabilityByte, c.SoilPermeabilityByte, Count);
+            Array.Copy(SoilOrganicsByte, c.SoilOrganicsByte, Count);
+            Array.Copy(ErosionWaterflow, c.ErosionWaterflow, Count);
+            Array.Copy(FloraTreesByte, c.FloraTreesByte, Count);
+            Array.Copy(FloraShrubsByte, c.FloraShrubsByte, Count);
+            Array.Copy(FloraGrassByte, c.FloraGrassByte, Count);
+            Array.Copy(FloraTotalByte, c.FloraTotalByte, Count);
+            Array.Copy(FloraConiferByte, c.FloraConiferByte, Count);
+            Array.Copy(LgmIceMeters, c.LgmIceMeters, Count);
+            Array.Copy(PlateId, c.PlateId, Count);
+            Array.Copy(MicroplateId, c.MicroplateId, Count);
+            Array.Copy(BoundarySetting, c.BoundarySetting, Count);
+            Array.Copy(OrogenyStrengthByte, c.OrogenyStrengthByte, Count);
+            Array.Copy(VolcanoFlags, c.VolcanoFlags, Count);
+            Array.Copy(VolcanoVeiTenths, c.VolcanoVeiTenths, Count);
             return c;
         }
     }
@@ -470,10 +579,16 @@ namespace Orbis.Flat
                     fbmNoise[i] = SphericalFbm6(vx, vy, vz, 2.43728f, baseSeed ^ 0x13579bdfu);
 
                     bool isLand = !FlatTerrainAnalysis.AreaWater(w.Water[i]);
-                    float warmest = -1000f;
+                    float warmest = -1000f, coldest = 1000f, minRain = float.MaxValue;
                     int tBase = i * 12;
                     for (int m = 0; m < 12; m++)
-                        if (w.Temperature[tBase + m] > warmest) warmest = w.Temperature[tBase + m];
+                    {
+                        float tm = w.Temperature[tBase + m];
+                        float rm = w.Precipitation[tBase + m];
+                        if (tm > warmest) warmest = tm;
+                        if (tm < coldest) coldest = tm;
+                        if (rm < minRain) minRain = rm;
+                    }
 
                     float maxLandNb = Math.Max(0f, (float)w.Elevation[i]);
                     for (int dy = -1; dy <= 1; dy++)
@@ -488,9 +603,30 @@ namespace Orbis.Flat
                         isLand, w.Elevation[i], aboveSeaRelief, absLatDeg,
                         f.MeanTemperature[i], warmest, f.AnnualRain[i]);
                     lgmIce[i] = lgm;
+                    geo.LgmIceMeters[i] = (ushort)FMath.Clamp((int)Math.Round(lgm), 0, 65535);
                     if (lgm > 0f) geo.Flags[i] |= GlebaGeoFlags.LgmGlaciated;
 
-                    geo.Bedrock[i] = ClassifyTileBedrock(w, f, i, vx, vy, vz, fbmNoise[i], baseSeed);
+                    var flora = GlebaEcologySupplement.EvaluateFlora(
+                        isLand, isLand ? f.GroundedIceMeters[i] : 0f, w.Elevation[i], absLatDeg,
+                        f.Biotemperature[i], f.AnnualRain[i], minRain, coldest);
+                    geo.FloraTreesByte[i] = (byte)FMath.Clamp((int)Math.Round(flora.Trees * 255f), 0, 255);
+                    geo.FloraShrubsByte[i] = (byte)FMath.Clamp((int)Math.Round(flora.Shrubs * 255f), 0, 255);
+                    geo.FloraGrassByte[i] = (byte)FMath.Clamp((int)Math.Round(flora.Grass * 255f), 0, 255);
+                    geo.FloraTotalByte[i] = (byte)FMath.Clamp((int)Math.Round(flora.TotalPlants * 255f), 0, 255);
+                    geo.FloraConiferByte[i] = (byte)FMath.Clamp((int)Math.Round(flora.ConiferFraction * 255f), 0, 255);
+                }
+            });
+
+            // 1b. Tectonic plates, microplate terranes, orogeny strength & volcanism (procedural + Earth inferred)
+            BuildTectonicsAndVolcanism(w, f, geo, ux, uy, uz, fbmNoise, baseSeed, options);
+
+            Parallel.For(0, height, options, y =>
+            {
+                int row = y * width;
+                for (int x = 0; x < width; x++)
+                {
+                    int i = row + x;
+                    geo.Bedrock[i] = ClassifyTileBedrock(w, f, geo, i, ux[i], uy[i], uz[i], fbmNoise[i], baseSeed);
                 }
             });
 
@@ -503,6 +639,9 @@ namespace Orbis.Flat
             // 4. Tropical Coral Reefs (Stage 51: T_min >= 15.5 C, warm shallow shelf/seamounts, best-first growth)
             GenerateCoralReefs(w, geo, ux, uy, uz, fbmNoise, tileAreaKm2, baseSeed);
 
+            // 4b. Stage 49 6-Pass Drainage-Routed Soils & Erosion Waterflow (bedrock + LGM loess + aeolian + fluvial)
+            BuildRoutedSoils(w, f, geo, lgmIce, ux, uy, uz, baseSeed, cancel);
+
             // 5. Deep Groundwater Aquifers (Stage 50: porous >= 0.16 unglaciated land, +-750m structural band)
             GenerateAquifers(w, f, geo, ux, uy, uz, fbmNoise, tileAreaKm2, baseSeed, cancel);
 
@@ -512,8 +651,342 @@ namespace Orbis.Flat
             return geo;
         }
 
+        static void BuildTectonicsAndVolcanism(
+            WorldData w, FlatTerrainFacts f, GlebaGeographyFacts geo,
+            float[] ux, float[] uy, float[] uz, float[] fbmNoise,
+            uint seed, ParallelOptions options)
+        {
+            int n = w.Count, width = w.Width, height = w.Height;
+            var tec = w.Tectonics;
+
+            // Generate 64 warped spherical microplate terrane seeds (Gleba TectonicMicroplates)
+            const int MicroCount = 64;
+            var mx = new float[MicroCount];
+            var my = new float[MicroCount];
+            var mz = new float[MicroCount];
+            var rng = new WyRand(seed ^ 0x7ec7031cUL);
+            for (int k = 0; k < MicroCount; k++)
+            {
+                float z = 2f * rng.NextFloat() - 1f;
+                float a = 6.2831853f * rng.NextFloat();
+                float r = (float)Math.Sqrt(Math.Max(0f, 1f - z * z));
+                mx[k] = r * (float)Math.Cos(a);
+                my[k] = r * (float)Math.Sin(a);
+                mz[k] = z;
+            }
+
+            if (tec != null)
+            {
+                Parallel.For(0, height, options, y =>
+                {
+                    int row = y * width;
+                    for (int x = 0; x < width; x++)
+                    {
+                        int i = row + x;
+                        geo.PlateId[i] = tec.Plate[i];
+                        geo.BoundarySetting[i] = tec.Setting[i];
+                        float orog = FMath.Clamp(tec.Seismicity[i] * 0.65f + Math.Max(0f, w.Elevation[i]) / 5200f * 0.35f, 0f, 1f);
+                        geo.OrogenyStrengthByte[i] = (byte)Math.Round(orog * 255f);
+
+                        float wx = ux[i] + 0.24f * fbmNoise[i];
+                        float wy = uy[i] + 0.24f * SphericalFbm6(uy[i], uz[i], ux[i], 3.1f, seed ^ 0x55aa11u);
+                        float wz = uz[i] + 0.18f * fbmNoise[i];
+                        int bestM = 0; float bestDot = -9f;
+                        for (int k = 0; k < MicroCount; k++)
+                        {
+                            float d = wx * mx[k] + wy * my[k] + wz * mz[k];
+                            if (d > bestDot) { bestDot = d; bestM = k; }
+                        }
+                        geo.MicroplateId[i] = (ushort)((tec.Plate[i] * MicroCount) + bestM);
+                    }
+                });
+
+                int vCount = 0, activeCount = 0;
+                if (tec.Volcanoes != null)
+                {
+                    for (int k = 0; k < tec.Volcanoes.Length; k++)
+                    {
+                        var v = tec.Volcanoes[k];
+                        if ((uint)v.Tile >= (uint)n) continue;
+                        byte code = v.Kind == VolcanoKind.Arc ? (byte)1 : v.Kind == VolcanoKind.Hotspot ? (byte)2 : (byte)3;
+                        bool dormant = v.Activity < 0.42f;
+                        if (dormant) code |= 0x10;
+                        if (v.Kind == VolcanoKind.Hotspot && v.Activity >= 0.85f) code |= 0x20;
+                        float baseVei = v.Kind == VolcanoKind.Arc ? 3.8f : v.Kind == VolcanoKind.Rift ? 2.6f : 2.1f;
+                        float vei = FMath.Clamp(baseVei + 2.8f * v.Activity * FMath.Unit(FMath.Hash((uint)v.Tile ^ seed)), 1.0f, 7.5f);
+                        if (geo.VolcanoFlags[v.Tile] == 0) vCount++;
+                        if (!dormant && (geo.VolcanoFlags[v.Tile] == 0 || (geo.VolcanoFlags[v.Tile] & 0x10) != 0)) activeCount++;
+                        geo.VolcanoFlags[v.Tile] = code;
+                        geo.VolcanoVeiTenths[v.Tile] = (byte)FMath.Clamp((int)Math.Round(vei * 10f), 10, 78);
+                    }
+                }
+                geo.VolcanoCount = vCount;
+                geo.ActiveVolcanoCount = activeCount;
+                return;
+            }
+
+            // Earth / imported DEM tectonic & volcanic inference from bathymetry, trenches, ridges & orogens
+            const int MajorCount = 14;
+            var px = new float[MajorCount];
+            var py = new float[MajorCount];
+            var pz = new float[MajorCount];
+            for (int k = 0; k < MajorCount; k++)
+            {
+                float z = 1.65f * ((k + 0.5f) / MajorCount - 0.5f);
+                float a = k * 2.3999632f + 0.45f;
+                float r = (float)Math.Sqrt(Math.Max(0f, 1f - z * z));
+                px[k] = r * (float)Math.Cos(a);
+                py[k] = r * (float)Math.Sin(a);
+                pz[k] = z;
+            }
+
+            int searchR = Math.Max(2, (int)Math.Round(320f / Math.Max(20f, geo.CellKm)));
+            Parallel.For(0, height, options, y =>
+            {
+                int row = y * width;
+                for (int x = 0; x < width; x++)
+                {
+                    int i = row + x;
+                    float wx = ux[i] + 0.28f * fbmNoise[i];
+                    float wy = uy[i] + 0.28f * SphericalFbm6(uy[i], uz[i], ux[i], 2.3f, seed ^ 0x9911u);
+                    float wz = uz[i] + 0.20f * fbmNoise[i];
+
+                    int bestP = 0; float bestPD = -9f;
+                    for (int k = 0; k < MajorCount; k++)
+                    {
+                        float d = wx * px[k] + wy * py[k] + wz * pz[k];
+                        if (d > bestPD) { bestPD = d; bestP = k; }
+                    }
+                    geo.PlateId[i] = (byte)bestP;
+
+                    int bestM = 0; float bestMD = -9f;
+                    for (int k = 0; k < MicroCount; k++)
+                    {
+                        float d = wx * mx[k] + wy * my[k] + wz * mz[k];
+                        if (d > bestMD) { bestMD = d; bestM = k; }
+                    }
+                    geo.MicroplateId[i] = (ushort)(bestP * MicroCount + bestM);
+
+                    float elev = w.Elevation[i];
+                    bool ocean = FlatTerrainAnalysis.Ocean(w.Water[i]);
+                    short minSea = 0, maxLand = 0, minSeaLocal = 0;
+                    for (int dy = -searchR; dy <= searchR; dy++)
+                    {
+                        int ny = y + dy;
+                        if (ny < 0 || ny >= height) continue;
+                        for (int dx = -searchR; dx <= searchR; dx++)
+                        {
+                            if (dx * dx + dy * dy > searchR * searchR) continue;
+                            int nb = ny * width + FMath.Wrap(x + dx, width);
+                            short eNb = w.Elevation[nb];
+                            if (FlatTerrainAnalysis.Ocean(w.Water[nb]))
+                            {
+                                if (eNb < minSea) minSea = eNb;
+                                if (Math.Abs(dx) <= 1 && Math.Abs(dy) <= 1 && eNb < minSeaLocal) minSeaLocal = eNb;
+                            }
+                            else if (eNb > maxLand) maxLand = eNb;
+                        }
+                    }
+
+                    short trenchThresh = width <= 256 ? (short)-3500 : (short)-4200;
+                    TectonicSetting setting = TectonicSetting.Interior;
+                    float orog = 0f;
+                    if (!ocean && minSea <= trenchThresh && maxLand >= 280 && w.CoastDistance[i] <= searchR + 2)
+                    {
+                        setting = w.CoastDistance[i] <= 2 && elev < 1600f ? TectonicSetting.IslandArc : TectonicSetting.Subduction;
+                        orog = FMath.Clamp((-minSea - 3200f) / 3800f * 0.65f + f.Relief[i] / 2500f * 0.35f, 0.35f, 1f);
+                    }
+                    else if (ocean && elev <= trenchThresh - 300 && maxLand >= 200)
+                    {
+                        setting = TectonicSetting.Subduction;
+                        orog = FMath.Clamp((-elev - 3600f) / 4000f, 0.30f, 1f);
+                    }
+                    else if (!ocean && (elev >= 2400f || (elev >= 1300f && f.Relief[i] >= 950f)))
+                    {
+                        setting = TectonicSetting.Collision;
+                        orog = FMath.Clamp(elev / 5000f * 0.6f + f.Relief[i] / 2200f * 0.4f, 0.35f, 1f);
+                    }
+                    else if (!ocean && w.Water[i] == WaterKind.Lake && f.Depth[i] >= 140f && f.Relief[i] >= 400f)
+                    {
+                        setting = TectonicSetting.Rift;
+                        orog = 0.45f;
+                    }
+                    else if (ocean && w.CoastDistance[i] > searchR && elev >= -3400f && elev <= -1400f && minSea <= elev - 750f)
+                    {
+                        setting = TectonicSetting.Ridge;
+                        orog = 0.38f;
+                    }
+                    else
+                    {
+                        orog = FMath.Clamp(f.Relief[i] / 3200f, 0f, 0.35f);
+                    }
+
+                    geo.BoundarySetting[i] = setting;
+                    geo.OrogenyStrengthByte[i] = (byte)Math.Round(orog * 255f);
+                }
+            });
+
+            // Deterministic volcanic centers along inferred subduction arcs, rifts, and oceanic seamount hotspots
+            int volTotal = 0, volActive = 0;
+            int minSpacing = Math.Max(2, width / 96);
+            short minArcElev = width <= 256 ? (short)260 : (short)480;
+            for (int y = 1; y < height - 1; y++)
+            {
+                for (int x = 0; x < width; x++)
+                {
+                    int i = y * width + x;
+                    var s = geo.BoundarySetting[i];
+                    bool ocean = FlatTerrainAnalysis.Ocean(w.Water[i]);
+                    byte code = 0;
+                    if (!ocean && (s == TectonicSetting.Subduction || s == TectonicSetting.IslandArc) && w.Elevation[i] >= minArcElev)
+                        code = 1; // Arc stratovolcano
+                    else if (!ocean && s == TectonicSetting.Rift && f.Relief[i] >= 380f)
+                        code = 3; // Continental rift volcano
+                    else if (!ocean && w.CoastDistance[i] <= 2 && w.Elevation[i] >= 850 && f.Relief[i] >= 850f && s != TectonicSetting.Collision)
+                        code = 2; // High volcanic island hotspot (Hawaii, Tenerife, Reunion, Iceland)
+
+                    if (code == 0) continue;
+
+                    // Require local elevation peak within minSpacing
+                    short eCenter = w.Elevation[i];
+                    uint hCenter = FMath.Hash((uint)i ^ (seed + 0x701ca0u));
+                    bool peak = width < 1024 || (hCenter & 1u) == 0;
+                    for (int dy = -minSpacing; dy <= minSpacing && peak; dy++)
+                    {
+                        int ny = y + dy;
+                        if (ny < 0 || ny >= height) continue;
+                        for (int dx = -minSpacing; dx <= minSpacing; dx++)
+                        {
+                            if (dx == 0 && dy == 0) continue;
+                            int nb = ny * width + FMath.Wrap(x + dx, width);
+                            if (w.Elevation[nb] > eCenter || (w.Elevation[nb] == eCenter && nb < i))
+                            {
+                                peak = false;
+                                break;
+                            }
+                        }
+                    }
+                    if (!peak) continue;
+
+                    bool dormant = ((hCenter >> 8) & 3u) == 0;
+                    if (dormant) code |= 0x10;
+                    if ((code & 0x07) == 2) code |= 0x20;
+                    float vei = (code & 0x07) == 1
+                        ? 3.4f + 3.2f * FMath.Unit(hCenter ^ 0x1234u)
+                        : 2.0f + 2.4f * FMath.Unit(hCenter ^ 0x5678u);
+                    geo.VolcanoFlags[i] = code;
+                    geo.VolcanoVeiTenths[i] = (byte)FMath.Clamp((int)Math.Round(vei * 10f), 10, 75);
+                    volTotal++;
+                    if (!dormant) volActive++;
+                }
+            }
+            geo.VolcanoCount = volTotal;
+            geo.ActiveVolcanoCount = volActive;
+        }
+
+        static void BuildRoutedSoils(
+            WorldData w, FlatTerrainFacts f, GlebaGeographyFacts geo, float[] lgmIce,
+            float[] ux, float[] uy, float[] uz, uint seed, CancellationToken cancel)
+        {
+            int n = w.Count;
+            var soils = new GlebaSoilState[n];
+            var humidity = new float[n];
+            var moisture = w.Moisture;
+
+            for (int i = 0; i < n; i++)
+            {
+                if ((i & 8191) == 0) cancel.ThrowIfCancellationRequested();
+                bool isLand = !FlatTerrainAnalysis.AreaWater(w.Water[i]);
+                if (moisture != null)
+                {
+                    float u = (i % w.Width + 0.5f) / w.Width;
+                    float v = (i / w.Width + 0.5f) / w.Height;
+                    float hSum = 0f;
+                    for (int m = 0; m < 12; m++) hSum += moisture.Sample(moisture.Humidity, u, v, m);
+                    humidity[i] = FMath.Clamp(hSum / 12f, 0.02f, 1f);
+                }
+                else
+                {
+                    humidity[i] = FMath.Clamp(f.AnnualRain[i] / 1200f, 0.05f, 1f);
+                }
+
+                if (!isLand) continue;
+                var rp = RockTable[(int)geo.Bedrock[i]];
+                bool coastalBeach = w.CoastDistance[i] <= 1 && w.Elevation[i] <= 90 && w.Water[i] != WaterKind.River && f.Forms[i] != Landform.Floodplain;
+                float n0 = SphericalFbm6(ux[i], uy[i], uz[i], 5.1f, seed ^ 0x501101u);
+                float n1 = SphericalFbm6(uy[i], uz[i], ux[i], 5.3f, seed ^ 0x501102u);
+                float n2 = SphericalFbm6(uz[i], ux[i], uy[i], 5.5f, seed ^ 0x501103u);
+                float n3 = SphericalFbm6(ux[i], uz[i], uy[i], 4.2f, seed ^ 0x501104u);
+
+                var s = GlebaEcologySupplement.InitializeTileSoil(
+                    rp.Sand, rp.Clay, rp.Silt, rp.WeatheringRate, rp.MineralRichness,
+                    coastalBeach, f.AnnualRain[i], n0, n1, n2, n3, n0 * 0.7f, n1 * 0.7f);
+                GlebaEcologySupplement.ApplyGlacierLoess(ref s, true, lgmIce[i], w.Elevation[i]);
+                GlebaEcologySupplement.ApplyAeolianDeflation(ref s, true, w.Elevation[i], f.AnnualRain[i]);
+                GlebaEcologySupplement.ThinMountainSoil(ref s, w.Elevation[i], f.Gradient[i]);
+                soils[i] = s;
+            }
+
+            // Passes 5 & 6: Multi-pass fluvial sediment & nutrient routing along DrainOrder into floodplains & deltas
+            var inflow = new float[n];
+            var sedSand = new float[n];
+            var sedSilt = new float[n];
+            var sedClay = new float[n];
+            var sedMinerals = new float[n];
+
+            for (int iter = 0; iter < 3; iter++)
+            {
+                Array.Clear(inflow, 0, n);
+                Array.Clear(sedSand, 0, n);
+                Array.Clear(sedSilt, 0, n);
+                Array.Clear(sedClay, 0, n);
+                Array.Clear(sedMinerals, 0, n);
+
+                for (int k = 0; k < n; k++)
+                {
+                    if ((k & 8191) == 0) cancel.ThrowIfCancellationRequested();
+                    int u = w.DrainOrder[k];
+                    if (FlatTerrainAnalysis.AreaWater(w.Water[u])) continue;
+                    int v = w.Downstream[u];
+                    int nextLand = (v >= 0 && !FlatTerrainAnalysis.AreaWater(w.Water[v])) ? v : -1;
+                    bool floodplainOrDelta = nextLand < 0 || f.Forms[u] == Landform.Floodplain || (w.Water[u] == WaterKind.River && f.Gradient[u] <= 80f);
+                    GlebaEcologySupplement.StepFluvialSediment(
+                        u, nextLand, f.AnnualRain[u] / 12f, humidity[u],
+                        inflow, geo.ErosionWaterflow, soils,
+                        sedSand, sedSilt, sedClay, sedMinerals, floodplainOrDelta);
+                }
+            }
+
+            for (int i = 0; i < n; i++)
+            {
+                if (FlatTerrainAnalysis.AreaWater(w.Water[i])) continue;
+                var s = soils[i];
+                float sed = f.Sediment[i];
+                if (sed > 0.02f)
+                {
+                    float dep = 1.65f * sed;
+                    float oldD = Math.Max(s.Depth, 1e-4f), newD = oldD + dep;
+                    s.Sand = (oldD * s.Sand + dep * 0.10f) / newD;
+                    s.Silt = (oldD * s.Silt + dep * 0.62f) / newD;
+                    s.Clay = (oldD * s.Clay + dep * 0.28f) / newD;
+                    s.MineralRichness = FMath.Clamp((oldD * s.MineralRichness + dep * 0.85f) / newD, 0f, 1f);
+                    s.Depth = newD;
+                }
+                float plants = geo.FloraTotalByte[i] / 255f;
+                s.Organics = FMath.Clamp(0.10f + 0.75f * plants + 0.15f * FMath.Clamp(sed, 0f, 1f), 0f, 1f);
+                s.NormalizeTexture();
+                geo.SoilSandByte[i] = (byte)FMath.Clamp((int)Math.Round(s.Sand * 255f), 0, 255);
+                geo.SoilSiltByte[i] = (byte)FMath.Clamp((int)Math.Round(s.Silt * 255f), 0, 255);
+                geo.SoilClayByte[i] = (byte)FMath.Clamp((int)Math.Round(s.Clay * 255f), 0, 255);
+                geo.SoilDepthCentimeters[i] = (ushort)FMath.Clamp((int)Math.Round(s.Depth * 100f), 1, 65000);
+                geo.SoilRichnessByte[i] = (byte)FMath.Clamp((int)Math.Round(s.MineralRichness * 255f), 0, 255);
+                geo.SoilPermeabilityByte[i] = (byte)FMath.Clamp((int)Math.Round(FMath.Clamp(s.GetPermeability(), 0f, 1f) * 255f), 0, 255);
+                geo.SoilOrganicsByte[i] = (byte)FMath.Clamp((int)Math.Round(s.Organics * 255f), 0, 255);
+            }
+        }
+
         static GlebaRockKind ClassifyTileBedrock(
-            WorldData w, FlatTerrainFacts f, int i,
+            WorldData w, FlatTerrainFacts f, GlebaGeographyFacts geo, int i,
             float vx, float vy, float vz, float fbmMain, uint seed)
         {
             float elev = w.Elevation[i];
@@ -523,6 +996,8 @@ namespace Orbis.Flat
 
             if (ocean)
             {
+                if (geo.BoundarySetting[i] == TectonicSetting.Ridge)
+                    return lithNoise > 0.25f ? GlebaRockKind.Gabbro : GlebaRockKind.Basalt;
                 if (elev < -2200f)
                     return chemNoise > 0.35f ? GlebaRockKind.Chert : (lithNoise > 0.2f ? GlebaRockKind.Gabbro : GlebaRockKind.Basalt);
                 if (elev < -350f)
@@ -532,17 +1007,13 @@ namespace Orbis.Flat
                 return lithNoise > 0f ? GlebaRockKind.Sandstone : GlebaRockKind.Shale;
             }
 
-            var tec = w.Tectonics;
-            if (tec != null)
-            {
-                var setting = tec.Setting[i];
-                if (setting == TectonicSetting.Subduction || setting == TectonicSetting.IslandArc)
-                    return lithNoise > 0.25f ? GlebaRockKind.Rhyolite : (lithNoise > -0.25f ? GlebaRockKind.Andesite : GlebaRockKind.Diorite);
-                if (setting == TectonicSetting.Rift || setting == TectonicSetting.Ridge)
-                    return lithNoise > 0.1f ? GlebaRockKind.Basalt : GlebaRockKind.Sandstone;
-                if (setting == TectonicSetting.Collision && elev > 1400f)
-                    return lithNoise > 0.2f ? GlebaRockKind.Granite : (chemNoise > 0f ? GlebaRockKind.Gneiss : GlebaRockKind.Schist);
-            }
+            var setting = geo.BoundarySetting[i];
+            if (setting == TectonicSetting.Subduction || setting == TectonicSetting.IslandArc)
+                return lithNoise > 0.25f ? GlebaRockKind.Rhyolite : (lithNoise > -0.25f ? GlebaRockKind.Andesite : GlebaRockKind.Diorite);
+            if (setting == TectonicSetting.Rift || setting == TectonicSetting.Ridge)
+                return lithNoise > 0.1f ? GlebaRockKind.Basalt : GlebaRockKind.Sandstone;
+            if (setting == TectonicSetting.Collision && elev > 1400f)
+                return lithNoise > 0.2f ? GlebaRockKind.Granite : (chemNoise > 0f ? GlebaRockKind.Gneiss : GlebaRockKind.Schist);
 
             // Arid endorheic evaporite basins
             if ((w.Downstream[i] < 0 || f.Forms[i] == Landform.Depression) && f.AnnualRain[i] < 260f)
@@ -894,7 +1365,7 @@ namespace Orbis.Flat
                 heap.Push(seedTile, 0f);
 
                 float seedElev = w.Elevation[seedTile];
-                int seedPlate = tec != null ? tec.Plate[seedTile] : 0;
+                int seedPlate = geo.PlateId[seedTile];
                 GlebaRockKind seedRock = geo.Bedrock[seedTile];
 
                 while (heap.Count > 0 && filled.Count < maxTiles)
@@ -920,7 +1391,7 @@ namespace Orbis.Flat
                         if (Math.Abs(dElev) >= 750f) continue;
 
                         float distKm = GreatCircleKm(ux[seedTile], uy[seedTile], uz[seedTile], ux[nb], uy[nb], uz[nb]);
-                        float weight = (tec != null && tec.Plate[nb] == seedPlate ? 3000f : 0f)
+                        float weight = (geo.PlateId[nb] == seedPlate ? 3000f : 0f)
                                      + (geo.Bedrock[nb] == seedRock ? 5000f : 0f)
                                      + 150f * fbmNoise[nb]
                                      - distKm
@@ -933,17 +1404,12 @@ namespace Orbis.Flat
 
                 if (filled.Count == 0) continue;
 
-                // Accumulate recharge from surface runoff + soil texture permeability
+                // Accumulate recharge from surface runoff + 6-pass routed soil texture permeability
                 float acc = rng.NextFloat() * (250f * seedProps.Porosity) * rng.NextFloat() + filled.Count;
                 for (int k = 0; k < filled.Count; k++)
                 {
                     int t = filled[k];
-                    var rp = RockTable[(int)geo.Bedrock[t]];
-                    float sf = 1.0f;
-                    if (rp.Sand > 0.15f) sf += (rp.Sand - 0.15f) * 0.8f / 0.85f;
-                    if (rp.Silt > 0.85f) sf += (rp.Silt - 0.85f) * (-0.1f) / 0.15f;
-                    if (rp.Clay > 0.20f) sf += (rp.Clay - 0.20f) * (-0.5f) / 0.80f;
-                    sf = Math.Max(0.2f, sf);
+                    float sf = Math.Max(0.2f, geo.SoilDepthCentimeters[t] > 0 ? geo.SoilPermeabilityByte[t] / 255f * 1.4f : 0.7f);
                     acc += (float)Math.Sqrt(Math.Max(w.Runoff[t], 0f)) * sf;
                 }
 
@@ -1516,8 +1982,19 @@ namespace Orbis.Flat
                 }
                 case GlebaMapmodeKind.RainShadow:
                 {
-                    float sh = gleba != null ? FMath.Clamp(gleba.SampleMonthly(gleba.RainShadowiness, u, v, month), 0f, 1f) : 0f;
-                    SampleCividis(sh, out r, out g, out b);
+                    if (isWater)
+                    {
+                        r = 26; g = 42; b = 62;
+                        return;
+                    }
+                    float sh = gleba != null
+                        ? FMath.Clamp(gleba.SampleMonthly(gleba.RainShadowiness, u, v, month), 0f, 1f)
+                        : FMath.Clamp((world.Facts != null ? world.Facts.Relief[tile] / 2400f : 0f) * (1f - world.Precipitation[tile * 12 + month] / 120f), 0f, 1f);
+                    float cont = gleba != null
+                        ? FMath.Clamp(gleba.SampleMonthly(gleba.MappedContinentality, u, v, month), 0f, 1f)
+                        : FMath.Clamp(world.CoastDistance[tile] / 24f, 0f, 1f);
+                    float combined = FMath.Clamp(0.72f * sh + 0.28f * cont, 0f, 1f);
+                    SampleCividis(combined, out r, out g, out b);
                     return;
                 }
                 case GlebaMapmodeKind.Continentality:
@@ -1526,11 +2003,244 @@ namespace Orbis.Flat
                     SampleCividis(c, out r, out g, out b);
                     return;
                 }
+                case GlebaMapmodeKind.RossbyJetStream:
+                {
+                    double latRad = (v - 0.5) * Math.PI;
+                    double lonRad = (u - 0.5) * 2.0 * Math.PI;
+                    var rossby = new GlebaRossbyWaveField(FMath.Seed(world.Seed))
+                    {
+                        RossbyTimeRadians = (month / 12.0) * 2.0 * Math.PI
+                    };
+                    rossby.GetJetStreamMovementAtLatLon(latRad, lonRad, out float jx, out float jy);
+                    float jetSpd = FMath.Clamp((float)Math.Sqrt(jx * jx + jy * jy) / 0.022f, 0f, 1f);
+                    SampleCividis(jetSpd, out byte cr, out byte cg, out byte cb);
+                    float bg = isWater ? 24f : 56f + FMath.Clamp(world.Elevation[tile] / 4500f, 0f, 1f) * 28f;
+                    // Blend upper-tropospheric violet-indigo trough shading with golden-cyan jet isotachs
+                    r = (byte)FMath.Clamp(bg + 0.86f * (cr - bg) + 34f * jetSpd * (1f - jetSpd), 0f, 255f);
+                    g = (byte)FMath.Clamp(bg + 0.82f * (cg - bg), 0f, 255f);
+                    b = (byte)FMath.Clamp(bg + 0.88f * (cb - bg) + 48f * (1f - jetSpd) * (isWater ? 0.5f : 0.35f), 0f, 255f);
+                    return;
+                }
+                case GlebaMapmodeKind.RelativeHumidity:
+                {
+                    float rh = world.Moisture != null
+                        ? FMath.Clamp(world.Moisture.Sample(world.Moisture.Humidity, u, v, month), 0f, 1f)
+                        : FMath.Clamp((isWater ? 0.82f : 0.18f) + world.Precipitation[tile * 12 + month] / 180f, 0f, 1f);
+                    // Gleba Humidity palette: arid sand-ochre (218,176,108) -> temperate emerald (72,168,142) -> saturated monsoon cobalt (26,88,168)
+                    if (rh < 0.5f)
+                    {
+                        float t = rh * 2f;
+                        r = (byte)FMath.Lerp(218f, 72f, t);
+                        g = (byte)FMath.Lerp(176f, 168f, t);
+                        b = (byte)FMath.Lerp(108f, 142f, t);
+                    }
+                    else
+                    {
+                        float t = (rh - 0.5f) * 2f;
+                        r = (byte)FMath.Lerp(72f, 26f, t);
+                        g = (byte)FMath.Lerp(168f, 88f, t);
+                        b = (byte)FMath.Lerp(142f, 168f, t);
+                    }
+                    if (isWater)
+                    {
+                        r = (byte)(r * 0.72f + 10f);
+                        g = (byte)(g * 0.76f + 16f);
+                        b = (byte)(b * 0.84f + 24f);
+                    }
+                    return;
+                }
+                case GlebaMapmodeKind.GlebaBiomes:
+                {
+                    var bk = world.Facts?.GlebaBiomes != null ? world.Facts.GlebaBiomes[tile]
+                        : (isWater ? GlebaBiomeKind.Sea : GlebaBiomeKind.TemperateGrasslandsSavannasAndShrublands);
+                    GlebaEcologySupplement.GetGlebaBiomeMapColor(bk, out r, out g, out b);
+                    return;
+                }
+                case GlebaMapmodeKind.GlebaFlora:
+                {
+                    if (isWater) { r = 20; g = 36; b = 54; return; }
+                    if (world.Facts != null && world.Facts.GroundedIceMeters[tile] > 0.01f) { r = 228; g = 236; b = 244; return; }
+                    float trees, shrubs, grass, total;
+                    if (geo != null)
+                    {
+                        trees = geo.FloraTreesByte[tile] / 255f;
+                        shrubs = geo.FloraShrubsByte[tile] / 255f;
+                        grass = geo.FloraGrassByte[tile] / 255f;
+                        total = geo.FloraTotalByte[tile] / 255f;
+                    }
+                    else
+                    {
+                        total = world.Facts != null ? FMath.Clamp(world.Facts.Wetness[tile] * 1.15f, 0f, 1f) : 0.5f;
+                        trees = world.Facts != null ? world.Facts.Canopy[tile] : 0.3f;
+                        grass = Math.Max(0f, 1f - trees) * 0.7f;
+                        shrubs = Math.Max(0f, 1f - trees) * 0.3f;
+                    }
+                    // Gleba Vegetation mapmode: Red = shrubs, Green = grasses, Blue = trees, Dark = bare/empty land
+                    float bareFloor = 24f * (1f - total);
+                    r = (byte)FMath.Clamp(bareFloor + 235f * shrubs * total, 0f, 255f);
+                    g = (byte)FMath.Clamp(bareFloor + 235f * grass * total, 0f, 255f);
+                    b = (byte)FMath.Clamp(bareFloor + 245f * trees * total, 0f, 255f);
+                    return;
+                }
+                case GlebaMapmodeKind.SoilTexture:
+                {
+                    if (isWater) { r = 24; g = 42; b = 62; return; }
+                    if (world.Facts != null && world.Facts.GroundedIceMeters[tile] > 0.01f) { r = 222; g = 230; b = 238; return; }
+                    if (geo != null && geo.SoilDepthCentimeters[tile] > 0)
+                    {
+                        float depthGain = 0.42f + 0.58f * FMath.Clamp(geo.SoilDepthCentimeters[tile] / 350f, 0f, 1f);
+                        // Gleba SoilTexture: Red = sand, Green = silt, Blue = clay
+                        r = (byte)FMath.Clamp(22f + geo.SoilSandByte[tile] * depthGain, 0f, 255f);
+                        g = (byte)FMath.Clamp(22f + geo.SoilSiltByte[tile] * depthGain, 0f, 255f);
+                        b = (byte)FMath.Clamp(22f + geo.SoilClayByte[tile] * depthGain, 0f, 255f);
+                        return;
+                    }
+                    r = 154; g = 128; b = 92;
+                    return;
+                }
+                case GlebaMapmodeKind.SoilFertility:
+                {
+                    if (isWater) { r = 24; g = 40; b = 58; return; }
+                    if (world.Facts != null && world.Facts.GroundedIceMeters[tile] > 0.01f) { r = 216; g = 226; b = 235; return; }
+                    float score;
+                    if (geo != null && geo.SoilDepthCentimeters[tile] > 0)
+                    {
+                        float dNorm = FMath.Clamp(geo.SoilDepthCentimeters[tile] / 450f, 0f, 1f);
+                        float rich = geo.SoilRichnessByte[tile] / 255f;
+                        float org = geo.SoilOrganicsByte[tile] / 255f;
+                        score = FMath.Clamp(0.42f * rich + 0.33f * dNorm + 0.25f * org, 0f, 1f);
+                    }
+                    else
+                    {
+                        score = FMath.Clamp(world.Fertility[tile], 0f, 1f);
+                    }
+                    // Rich chernozem/alluvial loam gradient: rocky ochre (142,108,76) -> golden loam (204,186,96) -> lush fertile green (46,158,78)
+                    if (score < 0.5f)
+                    {
+                        float t = score * 2f;
+                        r = (byte)FMath.Lerp(142f, 204f, t);
+                        g = (byte)FMath.Lerp(108f, 186f, t);
+                        b = (byte)FMath.Lerp(76f, 96f, t);
+                    }
+                    else
+                    {
+                        float t = (score - 0.5f) * 2f;
+                        r = (byte)FMath.Lerp(204f, 46f, t);
+                        g = (byte)FMath.Lerp(186f, 158f, t);
+                        b = (byte)FMath.Lerp(96f, 78f, t);
+                    }
+                    return;
+                }
                 case GlebaMapmodeKind.Bedrock:
                 {
                     if (geo == null) { r = g = b = (byte)baseVal; return; }
                     var rp = RockTable[(int)geo.Bedrock[tile]];
-                    r = rp.MapR; g = rp.MapG; b = rp.MapB;
+                    float shade = isWater ? 0.58f : (0.86f + 0.18f * FMath.Clamp(world.Elevation[tile] / 3500f, 0f, 1f));
+                    r = (byte)FMath.Clamp(rp.MapR * shade, 0f, 255f);
+                    g = (byte)FMath.Clamp(rp.MapG * shade, 0f, 255f);
+                    b = (byte)FMath.Clamp(rp.MapB * shade, 0f, 255f);
+                    return;
+                }
+                case GlebaMapmodeKind.TectonicsAndVolcanism:
+                {
+                    if (geo == null) { r = g = b = (byte)baseVal; return; }
+                    if (geo.TryGetVolcano(tile, out var vKind, out bool dormant, out _))
+                    {
+                        if (!dormant)
+                        {
+                            r = 255;
+                            g = vKind == VolcanoKind.Hotspot ? (byte)218 : (byte)86;
+                            b = vKind == VolcanoKind.Rift ? (byte)180 : (byte)28;
+                            return;
+                        }
+                        r = 196; g = 112; b = 88;
+                        return;
+                    }
+                    uint ph = FMath.Hash((uint)geo.PlateId[tile] * 0x9e3779b9u + 17u);
+                    uint mh = FMath.Hash((uint)geo.MicroplateId[tile] * 0x85ebca6bu);
+                    float pr = 72f + (ph & 0x7Fu) * 0.85f + (mh & 0x1Fu) * 0.45f;
+                    float pg = 76f + ((ph >> 8) & 0x7Fu) * 0.85f + ((mh >> 8) & 0x1Fu) * 0.45f;
+                    float pb = 84f + ((ph >> 16) & 0x7Fu) * 0.85f + ((mh >> 16) & 0x1Fu) * 0.45f;
+                    if (isWater) { pr *= 0.64f; pg *= 0.68f; pb *= 0.78f; }
+
+                    // Highlight plate boundaries & active orogenic / subduction / spreading belts
+                    bool plateEdge = false;
+                    byte ownPlate = geo.PlateId[tile];
+                    for (int d = 0; d < 4; d++)
+                        if (geo.PlateId[world.SphereNeighbor(tile, d)] != ownPlate) { plateEdge = true; break; }
+
+                    var bs = geo.BoundarySetting[tile];
+                    float orog = geo.OrogenyStrengthByte[tile] / 255f;
+                    if (bs == TectonicSetting.Subduction || bs == TectonicSetting.IslandArc)
+                    {
+                        pr = FMath.Lerp(pr, 232f, 0.55f * orog + 0.20f);
+                        pg = FMath.Lerp(pg, 74f, 0.55f * orog + 0.20f);
+                        pb = FMath.Lerp(pb, 96f, 0.55f * orog + 0.20f);
+                    }
+                    else if (bs == TectonicSetting.Collision)
+                    {
+                        pr = FMath.Lerp(pr, 238f, 0.62f * orog);
+                        pg = FMath.Lerp(pg, 148f, 0.62f * orog);
+                        pb = FMath.Lerp(pb, 58f, 0.62f * orog);
+                    }
+                    else if (bs == TectonicSetting.Ridge)
+                    {
+                        pr = FMath.Lerp(pr, 56f, 0.58f);
+                        pg = FMath.Lerp(pg, 206f, 0.58f);
+                        pb = FMath.Lerp(pb, 238f, 0.58f);
+                    }
+                    else if (bs == TectonicSetting.Rift)
+                    {
+                        pr = FMath.Lerp(pr, 198f, 0.58f);
+                        pg = FMath.Lerp(pg, 88f, 0.58f);
+                        pb = FMath.Lerp(pb, 236f, 0.58f);
+                    }
+                    if (plateEdge)
+                    {
+                        pr = FMath.Lerp(pr, 250f, 0.42f);
+                        pg = FMath.Lerp(pg, 236f, 0.42f);
+                        pb = FMath.Lerp(pb, 196f, 0.42f);
+                    }
+                    r = (byte)FMath.Clamp(pr, 0f, 255f);
+                    g = (byte)FMath.Clamp(pg, 0f, 255f);
+                    b = (byte)FMath.Clamp(pb, 0f, 255f);
+                    return;
+                }
+                case GlebaMapmodeKind.HydroGeoComposite:
+                {
+                    if (geo != null)
+                    {
+                        if (geo.HasFlag(tile, GlebaGeoFlags.CoralCay)) { r = 255; g = 234; b = 112; return; }
+                        if (geo.HasFlag(tile, GlebaGeoFlags.CoralReef)) { r = 255; g = 106; b = 162; return; }
+                        if (geo.HasFlag(tile, GlebaGeoFlags.FjordCoast)) { r = 64; g = 216; b = 255; return; }
+                        if (world.Water[tile] == WaterKind.Lake)
+                        {
+                            if (geo.WaterbodyTypes[tile] == GlebaWaterbodyType.SaltwaterLake) { r = 224; g = 122; b = 78; return; }
+                            if (geo.LakeOrigins[tile] == GlebaLakeOrigin.Rifting) { r = 68; g = 128; b = 248; return; }
+                            if (geo.LakeOrigins[tile] == GlebaLakeOrigin.Glacial) { r = 98; g = 204; b = 242; return; }
+                            r = 78; g = 172; b = 214; return;
+                        }
+                        if (!isWater && geo.LgmIceMeters[tile] > 25)
+                        {
+                            float iceT = FMath.Clamp(geo.LgmIceMeters[tile] / 1800f, 0f, 1f);
+                            r = (byte)FMath.Lerp(162f, 232f, iceT);
+                            g = (byte)FMath.Lerp(198f, 242f, iceT);
+                            b = (byte)FMath.Lerp(232f, 255f, iceT);
+                            return;
+                        }
+                        if (!isWater && geo.AquiferId[tile] >= 0)
+                        {
+                            bool artesian = geo.HasFlag(tile, GlebaGeoFlags.ArtesianAquifer);
+                            uint ah = FMath.Hash((uint)geo.AquiferId[tile] * 0x9e3779b9u);
+                            r = (byte)(artesian ? 52 : 76 + (ah & 0x3Fu));
+                            g = (byte)(artesian ? 196 : 138 + ((ah >> 8) & 0x4Fu));
+                            b = (byte)(artesian ? 188 : 176 + ((ah >> 16) & 0x4Fu));
+                            return;
+                        }
+                    }
+                    r = (byte)(isWater ? 24 : 74);
+                    g = (byte)(isWater ? 40 : 78);
+                    b = (byte)(isWater ? 60 : 76);
                     return;
                 }
                 case GlebaMapmodeKind.Aquifers:
@@ -1779,6 +2489,284 @@ namespace Orbis.Flat
                     dstRgbaHalf[pA] = hItcz; dstRgbaHalf[pA + 1] = hSthzN; dstRgbaHalf[pA + 2] = hSthzS; dstRgbaHalf[pA + 3] = hPolN;
                     int pB = ((r + 2) * width + x) * 4;
                     dstRgbaHalf[pB] = hPolS; dstRgbaHalf[pB + 1] = hZero; dstRgbaHalf[pB + 2] = hZero; dstRgbaHalf[pB + 3] = hZero;
+                }
+            }
+        }
+
+        public static GlebaMapmodeKind MapLayerToGlebaMode(MapLayer layer)
+        {
+            switch (layer)
+            {
+                case MapLayer.SurfaceWinds: return GlebaMapmodeKind.ClimateSurfaceWinds;
+                case MapLayer.OceanCurrents: return GlebaMapmodeKind.ClimateOceanCurrents;
+                case MapLayer.RossbyJets: return GlebaMapmodeKind.RossbyJetStream;
+                case MapLayer.RainShadow: return GlebaMapmodeKind.RainShadow;
+                case MapLayer.RelativeHumidity: return GlebaMapmodeKind.RelativeHumidity;
+                case MapLayer.GlebaBiomes: return GlebaMapmodeKind.GlebaBiomes;
+                case MapLayer.GlebaFlora: return GlebaMapmodeKind.GlebaFlora;
+                case MapLayer.GlebaSoilTexture: return GlebaMapmodeKind.SoilTexture;
+                case MapLayer.GlebaSoilFertility: return GlebaMapmodeKind.SoilFertility;
+                case MapLayer.GlebaBedrock: return GlebaMapmodeKind.Bedrock;
+                case MapLayer.GlebaTectonics: return GlebaMapmodeKind.TectonicsAndVolcanism;
+                case MapLayer.GlebaHydroGeo: return GlebaMapmodeKind.HydroGeoComposite;
+                default: return GlebaMapmodeKind.ClimateSurfaceWinds;
+            }
+        }
+
+        /// <summary>
+        /// Packs two consecutive calendar months (m0 in RG, m1 in BA) of upper-tropospheric Rossby wave jet stream
+        /// velocities (+East, +North) into an RGBAHalf buffer of size width * height * 4.
+        /// </summary>
+        public static void PackTwoMonthRossbyFlowHalf(WorldData world, int month0, int width, int height, ushort[] dstRgbaHalf)
+        {
+            if (world == null || dstRgbaHalf == null || dstRgbaHalf.Length < width * height * 4) return;
+            int m0 = FMath.Wrap(month0, 12), m1 = (m0 + 1) % 12;
+            uint seed = FMath.Seed(world.Seed);
+            var r0 = new GlebaRossbyWaveField(seed) { RossbyTimeRadians = (m0 / 12.0) * 2.0 * Math.PI };
+            var r1 = new GlebaRossbyWaveField(seed) { RossbyTimeRadians = (m1 / 12.0) * 2.0 * Math.PI };
+
+            for (int y = 0; y < height; y++)
+            {
+                double latRad = ((y + 0.5) / height - 0.5) * Math.PI;
+                int row = y * width;
+                for (int x = 0; x < width; x++)
+                {
+                    double lonRad = ((x + 0.5) / width - 0.5) * 2.0 * Math.PI;
+                    r0.GetJetStreamMovementAtLatLon(latRad, lonRad, out float jx0, out float jy0);
+                    r1.GetJetStreamMovementAtLatLon(latRad, lonRad, out float jx1, out float jy1);
+                    int p = (row + x) * 4;
+                    dstRgbaHalf[p] = FloatToHalfBits(jx0);
+                    dstRgbaHalf[p + 1] = FloatToHalfBits(jy0);
+                    dstRgbaHalf[p + 2] = FloatToHalfBits(jx1);
+                    dstRgbaHalf[p + 3] = FloatToHalfBits(jy1);
+                }
+            }
+        }
+
+        /// <summary>
+        /// Builds Gleba physical cloud synoptic forcing fields interpolated at <paramref name="calendarDay"/> on a width * height grid:
+        /// - forcingRgba (RGBA32): R = SynopticLift, G = ItczDeepConvection, B = BaroclinicStormTrack, A = MoistureEnvelope
+        /// - auxRgba (RGBA32): R = MarineStratocumulus, G = OrographicCrest, B = LeeRainShadow, A = PolarFrontNorm
+        /// - upperWindHalf (RGBAHalf, optional): RG = start upper-level Rossby/outflow jet, BA = next half-month upper-level jet
+        /// </summary>
+        public static void BuildCloudSynopticFields(
+            WorldData world, double calendarDay, int width, int height,
+            byte[] forcingRgba, byte[] auxRgba, ushort[] upperWindHalf = null)
+        {
+            if (world == null || forcingRgba == null || auxRgba == null) return;
+            int count = width * height;
+            if (forcingRgba.Length < count * 4 || auxRgba.Length < count * 4) return;
+
+            double period = calendarDay / 30.0, whole = Math.Floor(period);
+            int m0 = FMath.Wrap((int)whole, 12), m1 = (m0 + 1) % 12;
+            float blend = (float)(period - whole);
+            var moisture = world.Moisture;
+            var gleba = moisture?.Gleba;
+            float season = (float)Math.Cos(((m0 + blend) - 6.0) * Math.PI / 6.0);
+
+            var itczCol = new float[width];
+            var sthzNCol = new float[width];
+            var sthzSCol = new float[width];
+            var polNCol = new float[width];
+            var polSCol = new float[width];
+
+            for (int x = 0; x < width; x++)
+            {
+                float u = (x + 0.5f) / width;
+                if (gleba != null)
+                {
+                    itczCol[x] = FMath.Lerp(gleba.SampleBandDegrees(gleba.ItczLatRad, u, m0), gleba.SampleBandDegrees(gleba.ItczLatRad, u, m1), blend);
+                    sthzNCol[x] = FMath.Lerp(gleba.SampleBandDegrees(gleba.SthzNorthLatRad, u, m0), gleba.SampleBandDegrees(gleba.SthzNorthLatRad, u, m1), blend);
+                    sthzSCol[x] = FMath.Lerp(gleba.SampleBandDegrees(gleba.SthzSouthLatRad, u, m0), gleba.SampleBandDegrees(gleba.SthzSouthLatRad, u, m1), blend);
+                    polNCol[x] = FMath.Lerp(gleba.SampleBandDegrees(gleba.PolarNorthLatRad, u, m0), gleba.SampleBandDegrees(gleba.PolarNorthLatRad, u, m1), blend);
+                    polSCol[x] = FMath.Lerp(gleba.SampleBandDegrees(gleba.PolarSouthLatRad, u, m0), gleba.SampleBandDegrees(gleba.PolarSouthLatRad, u, m1), blend);
+                }
+                else
+                {
+                    itczCol[x] = 6f * season;
+                    sthzNCol[x] = 30f + 2f * season;
+                    sthzSCol[x] = -30f + 2f * season;
+                    polNCol[x] = 62f + 2f * season;
+                    polSCol[x] = -62f + 2f * season;
+                }
+            }
+
+            var windE = new float[count];
+            var windN = new float[count];
+            var elevG = new float[count];
+            var cosRow = new float[height];
+
+            for (int y = 0; y < height; y++)
+            {
+                float v = (y + 0.5f) / height;
+                float latRad = (v - 0.5f) * 3.14159265f;
+                float latDeg = (v - 0.5f) * 180f;
+                cosRow[y] = Math.Max(0.16f, (float)Math.Cos(latRad));
+                int sy = FMath.Clamp((int)(v * world.Height), 0, world.Height - 1);
+                int row = y * width;
+                for (int x = 0; x < width; x++)
+                {
+                    float u = (x + 0.5f) / width;
+                    int sx = FMath.Wrap((int)(u * world.Width), world.Width);
+                    int tile = sy * world.Width + sx;
+                    elevG[row + x] = Math.Max(0f, (float)world.Elevation[tile]);
+                    if (moisture != null)
+                    {
+                        windE[row + x] = FMath.Lerp(moisture.Sample(moisture.East, u, v, m0), moisture.Sample(moisture.East, u, v, m1), blend);
+                        windN[row + x] = FMath.Lerp(moisture.Sample(moisture.North, u, v, m0), moisture.Sample(moisture.North, u, v, m1), blend);
+                    }
+                    else
+                    {
+                        windE[row + x] = FlatWindBelts.Zonal(latDeg, season);
+                        windN[row + x] = -0.30f * (float)Math.Sin((latDeg - 8f * season) * (Math.PI / 30.0));
+                    }
+                }
+            }
+
+            uint seed = FMath.Seed(world.Seed);
+            double rossbyT0 = ((calendarDay % 360.0 + 360.0) % 360.0) / 360.0 * 2.0 * Math.PI;
+            double rossbyT1 = (((calendarDay + 15.0) % 360.0 + 360.0) % 360.0) / 360.0 * 2.0 * Math.PI;
+            var rossby0 = upperWindHalf != null ? new GlebaRossbyWaveField(seed) { RossbyTimeRadians = rossbyT0 } : null;
+            var rossby1 = upperWindHalf != null ? new GlebaRossbyWaveField(seed) { RossbyTimeRadians = rossbyT1 } : null;
+            float cellKm = 40030f / width;
+
+            for (int y = 0; y < height; y++)
+            {
+                float v = (y + 0.5f) / height;
+                float latDeg = (v - 0.5f) * 180f;
+                float absLat = Math.Abs(latDeg);
+                double latRad = (v - 0.5) * Math.PI;
+                int yS = Math.Max(0, y - 1), yN = Math.Min(height - 1, y + 1);
+                int sy = FMath.Clamp((int)(v * world.Height), 0, world.Height - 1);
+                int row = y * width;
+
+                for (int x = 0; x < width; x++)
+                {
+                    int idx = row + x;
+                    int xW = x == 0 ? width - 1 : x - 1;
+                    int xE = x + 1 == width ? 0 : x + 1;
+                    float u = (x + 0.5f) / width;
+                    int sx = FMath.Wrap((int)(u * world.Width), world.Width);
+                    int tile = sy * world.Width + sx;
+
+                    // 2x2 neighborhood monthly rain & temperature
+                    float rainMm = 0f, tempC = 0f;
+                    for (int dy = 0; dy < 2; dy++)
+                    for (int dx = 0; dx < 2; dx++)
+                    {
+                        int nt = FMath.Clamp(sy + dy, 0, world.Height - 1) * world.Width + FMath.Wrap(sx + dx, world.Width);
+                        rainMm += 0.25f * FMath.Lerp(world.Precipitation[nt * 12 + m0], world.Precipitation[nt * 12 + m1], blend);
+                        tempC += 0.25f * FMath.Lerp(world.Temperature[nt * 12 + m0], world.Temperature[nt * 12 + m1], blend);
+                    }
+
+                    float slp, rainImpact, rainShadow, oceanFrac, rh;
+                    if (gleba != null)
+                    {
+                        slp = FMath.Lerp(gleba.SampleMonthly(gleba.PressureHpa, u, v, m0), gleba.SampleMonthly(gleba.PressureHpa, u, v, m1), blend);
+                        rainImpact = FMath.Lerp(gleba.SampleMonthly(gleba.RainfallImpact, u, v, m0), gleba.SampleMonthly(gleba.RainfallImpact, u, v, m1), blend);
+                        rainShadow = FMath.Lerp(gleba.SampleMonthly(gleba.RainShadowiness, u, v, m0), gleba.SampleMonthly(gleba.RainShadowiness, u, v, m1), blend);
+                        oceanFrac = gleba.SampleStatic(gleba.OceanFraction, u, v);
+                        rh = FMath.Lerp(moisture.Sample(moisture.Humidity, u, v, m0), moisture.Sample(moisture.Humidity, u, v, m1), blend);
+                    }
+                    else
+                    {
+                        slp = 1000f - 45f * (float)Math.Cos((latDeg - 8f * season) * (Math.PI / 30.0));
+                        rainImpact = 0f;
+                        rainShadow = 0f;
+                        oceanFrac = FlatTerrainAnalysis.Ocean(world.Water[tile]) ? 1f : 0f;
+                        rh = FMath.Clamp((oceanFrac > 0.5f ? 0.78f : 0.25f) + rainMm / 200f, 0f, 1f);
+                    }
+
+                    float sstAnom = 0f;
+                    if (moisture?.OceanCurrents != null && oceanFrac > 0.05f)
+                        sstAnom = moisture.OceanCurrents.Sample(moisture.OceanCurrents.SeaAnomaly, u, v);
+
+                    // Surface wind convergence (-div V) and windward/leeward orographic slope forcing
+                    float duDx = (windE[row + xE] - windE[row + xW]) / (2f * cosRow[y]);
+                    float dvDy = (windN[yN * width + x] * cosRow[yN] - windN[yS * width + x] * cosRow[yS]) / Math.Max(1, yN - yS);
+                    float windConv = FMath.Clamp(-(duDx + dvDy) * 3.2f, -0.8f, 1.0f);
+
+                    float dhDx = (elevG[row + xE] - elevG[row + xW]) / (2f * cosRow[y] * cellKm);
+                    float dhDy = (elevG[yN * width + x] - elevG[yS * width + x]) / (Math.Max(1, yN - yS) * cellKm);
+                    float slopeDot = windE[idx] * dhDx + windN[idx] * dhDy; // m/km * windUnit
+                    float windwardLift = FMath.Clamp(slopeDot / 1.65f, 0f, 1f);
+                    float leeDownslope = FMath.Clamp(-slopeDot / 2.20f, 0f, 1f);
+
+                    float lowP = FMath.Clamp((1010f - slp) / 58f, 0f, 1f) + 0.50f * FMath.Clamp(rainImpact, 0f, 0.5f);
+                    float highP = FMath.Clamp((slp - 1012f) / 55f, 0f, 1f);
+                    float negImpact = FMath.Clamp(-rainImpact, 0f, 1f);
+                    float dSthz = Math.Min(Math.Abs(latDeg - sthzNCol[x]), Math.Abs(latDeg - sthzSCol[x]));
+                    float sthzRidge = (float)Math.Exp(-(dSthz * dSthz) / (9.5 * 9.5));
+                    float aridSub = FMath.Clamp((0.44f - rh) / 0.30f, 0f, 1f) * (1f - 0.65f * oceanFrac);
+                    float subsidence = FMath.Clamp(
+                        0.46f * highP + 0.40f * negImpact + 0.28f * sthzRidge * (0.35f + 0.65f * highP) + 0.48f * aridSub,
+                        0f, 1f);
+
+                    float synopticLift = FMath.Clamp(
+                        0.46f + 0.50f * lowP + 0.32f * windConv + 0.44f * windwardLift - 0.54f * subsidence - 0.56f * rainShadow,
+                        0f, 1f);
+
+                    float dItcz = Math.Abs(latDeg - itczCol[x]);
+                    float itczBand = (float)Math.Exp(-(dItcz * dItcz) / (6.8 * 6.8));
+                    float monsoonCore = Smooth(125f, 280f, rainMm) * Smooth(19f, 26f, tempC) * (1f - Smooth(26f, 35f, absLat));
+                    float moistGate = Smooth(0.35f, 0.74f, rh + 0.35f * FMath.Clamp(rainMm / 200f, 0f, 1f));
+                    float itczConv = FMath.Clamp(
+                        Math.Max(itczBand * moistGate, monsoonCore * 0.86f) * (1f - 0.65f * negImpact) * (1f - 0.70f * rainShadow),
+                        0f, 1f);
+
+                    float dPolar = Math.Min(Math.Abs(latDeg - polNCol[x]), Math.Abs(latDeg - polSCol[x]));
+                    float polarBand = (float)Math.Exp(-(dPolar * dPolar) / (14.5 * 14.5));
+                    float midLat = Smooth(24f, 35f, absLat) * (1f - Smooth(68f, 82f, absLat));
+                    float warmFront = FMath.Clamp(sstAnom / 2.4f, 0f, 1f);
+                    float contBlock = (1f - oceanFrac) * FMath.Clamp(0.55f * highP + 0.45f * FMath.Clamp((0.38f - rh) * 2.5f, 0f, 1f), 0f, 0.85f);
+                    float stormTrack = FMath.Clamp(
+                        midLat * (0.72f * polarBand + 0.28f) * (0.42f + 0.52f * oceanFrac + 0.28f * warmFront) * (1f - contBlock),
+                        0f, 1f);
+
+                    float moistureEnv = FMath.Clamp(
+                        0.62f * Smooth(0.22f, 0.82f, rh) + 0.38f * FMath.Clamp(rainMm / 185f, 0f, 1f) - 0.38f * aridSub,
+                        0f, 1f);
+
+                    // Cold eastern-boundary upwelling + subtropical subsidence lid -> low honeycomb Marine Stratocumulus
+                    float coolUpwelling = FMath.Clamp((0.42f - sstAnom) / 2.1f, 0f, 1f);
+                    float inversionLid = FMath.Clamp(0.52f * highP + 0.48f * sthzRidge + 0.32f * negImpact, 0f, 1f);
+                    float scLat = Smooth(6f, 13f, absLat) * (1f - Smooth(33f, 43f, absLat));
+                    float marineSc = FMath.Clamp(
+                        oceanFrac * scLat * (0.24f + 0.76f * coolUpwelling) * (0.32f + 0.68f * inversionLid) * (1f - 0.85f * itczConv),
+                        0f, 1f);
+
+                    float orogCrest = FMath.Clamp(windwardLift * Smooth(0.26f, 0.68f, rh + 0.25f * FMath.Clamp(rainMm / 160f, 0f, 1f)), 0f, 1f);
+                    float leeShadow = FMath.Clamp(rainShadow + 0.35f * leeDownslope, 0f, 1f);
+                    float localPol = latDeg >= 0f ? polNCol[x] : -polSCol[x];
+                    float polNorm = FMath.Clamp((localPol - 30f) / 45f, 0f, 1f);
+
+                    int p4 = idx * 4;
+                    forcingRgba[p4] = (byte)FMath.Clamp((int)Math.Round(synopticLift * 255f), 0, 255);
+                    forcingRgba[p4 + 1] = (byte)FMath.Clamp((int)Math.Round(itczConv * 255f), 0, 255);
+                    forcingRgba[p4 + 2] = (byte)FMath.Clamp((int)Math.Round(stormTrack * 255f), 0, 255);
+                    forcingRgba[p4 + 3] = (byte)FMath.Clamp((int)Math.Round(moistureEnv * 255f), 0, 255);
+
+                    auxRgba[p4] = (byte)FMath.Clamp((int)Math.Round(marineSc * 255f), 0, 255);
+                    auxRgba[p4 + 1] = (byte)FMath.Clamp((int)Math.Round(orogCrest * 255f), 0, 255);
+                    auxRgba[p4 + 2] = (byte)FMath.Clamp((int)Math.Round(leeShadow * 255f), 0, 255);
+                    auxRgba[p4 + 3] = (byte)FMath.Clamp((int)Math.Round(polNorm * 255f), 0, 255);
+
+                    if (upperWindHalf != null && upperWindHalf.Length >= count * 4)
+                    {
+                        double lonRad = (u - 0.5) * 2.0 * Math.PI;
+                        rossby0.GetJetStreamMovementAtLatLon(latRad, lonRad, out float jx0, out float jy0);
+                        rossby1.GetJetStreamMovementAtLatLon(latRad, lonRad, out float jx1, out float jy1);
+                        // Scale Rossby jet into surface-wind units + tropical upper-tropospheric easterly anvil outflow
+                        float tropEasterly = -0.55f * itczConv;
+                        float ux0 = jx0 * 52f + tropEasterly;
+                        float uy0 = jy0 * 52f + 0.12f * windN[idx] * itczConv;
+                        float ux1 = jx1 * 52f + tropEasterly;
+                        float uy1 = jy1 * 52f + 0.12f * windN[idx] * itczConv;
+                        upperWindHalf[p4] = FloatToHalfBits(ux0);
+                        upperWindHalf[p4 + 1] = FloatToHalfBits(uy0);
+                        upperWindHalf[p4 + 2] = FloatToHalfBits(ux1);
+                        upperWindHalf[p4 + 3] = FloatToHalfBits(uy1);
+                    }
                 }
             }
         }

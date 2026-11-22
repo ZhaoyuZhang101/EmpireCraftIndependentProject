@@ -40,36 +40,44 @@ float2 ScrollClimateDensities(float3 p,bool simpleMode)
  float low=0,high=0;
  if(coverage>.004&&z<11500)
  {
-  // Sample successive radial slices through the HP body. Low decks have shallow
-  // tops while moist convective towers build well above them.
+  // Sample successive radial slices through the HP body. Multi-scale spherical
+  // frequencies prevent giant single-cell bubbles on the globe while preserving
+  // mesoscale cloud turrets, wind-sheared convective towers and cellular decks.
   float altitude=z/7000;
-  float scale=3.1+altitude*.18;
-  // Rotate the HP lattice off the map axes before sampling the cloud body.
   const float3x3 frame=float3x3(.36,.48,-.80,-.80,.60,0,.48,.64,.60);
-  float3 offset=float3(.13,.71,.37)+mul(frame,localWind)*altitude*.8;
-  float3 q0=mul(frame,a)*scale+offset,q1=mul(frame,b)*scale+offset;
-  float4 body=lerp(tex3Dlod(_CloudNoise,float4(q0,0)),tex3Dlod(_CloudNoise,float4(q1,0)),phase);
-  float shape=saturate(body.r*.82+body.g*.24+coverage*.09);
+  float3 offset=float3(.13,.71,.37)+mul(frame,localWind)*altitude*1.25;
+  float macroScale=5.2+altitude*.24;
+  float mesoScale=13.4+altitude*.55;
+  float3 q0=mul(frame,a),q1=mul(frame,b);
+  float4 macroBody=lerp(tex3Dlod(_CloudNoise,float4(q0*macroScale+offset,0)),tex3Dlod(_CloudNoise,float4(q1*macroScale+offset,0)),phase);
+  float3 mesoWarp=(macroBody.gba-.5)*.20;
+  float4 body=lerp(tex3Dlod(_CloudNoise,float4(q0*mesoScale+offset*1.63+mesoWarp,0)),tex3Dlod(_CloudNoise,float4(q1*mesoScale+offset*1.63+mesoWarp,0)),phase);
+  float shape=saturate(macroBody.r*.44+body.r*.40+body.g*.20+coverage*.09);
   float4 erosion=.48;
   if(!simpleMode)
   {
-   float3 curl=(body.gba-.5)*.74;
-   erosion=lerp(tex3Dlod(_CloudDetailNoise,float4(q0*5.7+curl,0)),tex3Dlod(_CloudDetailNoise,float4(q1*5.7+curl,0)),phase);
-   coverage=saturate(coverage+(erosion.r*.66+erosion.g*.34-.48)*.46*smoothstep(.02,.19,coverage));
+   float3 curl=(body.gba-.5)*.68;
+   erosion=lerp(tex3Dlod(_CloudDetailNoise,float4(q0*42.0+curl,0)),tex3Dlod(_CloudDetailNoise,float4(q1*42.0+curl,0)),phase);
+   coverage=saturate(coverage+(erosion.r*.66+erosion.g*.34-.48)*.44*smoothstep(.02,.19,coverage));
   }
   float tower=smoothstep(.32,.95,convection);
-  float height=450+(z-450)/lerp(.88,1.33,tower);
-  low=OrbisHPLowDensityDetailed(height,.26+.74*coverage,convection,shape,erosion,.58+.42*body.g);
-  low*=coverage*lerp(.48,1.15,tower);
+  float height=450+(z-450)/lerp(.88,1.35,tower);
+  low=OrbisHPLowDensityDetailed(height,.26+.74*coverage,convection,shape,erosion,.56+.44*body.g);
+  low*=coverage*lerp(.50,1.16,tower);
  }
  if(weather.g>.004&&z>5750)
  {
-  // Ice clouds have a separate silhouette and optical depth. They can persist
-  // over clear ocean without borrowing any of the cumulus body samples.
+  // Ice clouds have a separate silhouette and optical depth, sheared along local wind when present.
   float4 ice=tex2Dlod(_HPHighDetail,float4(uv,0,0));
   float s,c;sincos(_ScrollWeatherTime*.0018,s,c);
   float3 upper=float3(c*up.x-s*up.z,up.y,s*up.x+c*up.z);
-  float3 filament=float3(dot(upper,float3(.84,.25,.48))*3.1,dot(upper,float3(-.50,.05,.86))*11,upper.y*9.7);
+  float wLen=length(localWind);
+  float wActive=smoothstep(.0005,.004,wLen);
+  float3 dynAlong=wLen>1e-5?(localWind/wLen):float3(.84,.25,.48);
+  float3 dynCross=normalize(cross(up,dynAlong)+float3(1e-5,0,0));
+  float3 axisAlong=normalize(lerp(float3(.84,.25,.48),dynAlong,wActive));
+  float3 axisCross=normalize(lerp(float3(-.50,.05,.86),dynCross,wActive));
+  float3 filament=float3(dot(upper,axisAlong)*3.1,dot(upper,axisCross)*12.5,upper.y*9.7);
   float fine=tex3Dlod(_CloudDetailNoise,float4(filament+(ice.b-.5)*.37,0)).g;
   float highCover=weather.g*(.68+.57*fine);
   high=OrbisHPHighDensity(z,.24+.63*highCover,.36,.66+.34*ice.r,ice.g)*highCover*.85;

@@ -369,7 +369,14 @@ namespace Orbis.Flat
                 d.CurrentNorth = gleba.SampleMonthly(gleba.CurrentNorth, u, v, month);
                 d.DistanceToSeaKm = gleba.SampleStatic(gleba.DistanceToSeaKm, u, v);
                 d.EffectiveLatitudeDeg = gleba.SampleMonthly(gleba.EffectiveLatitudeDeg, u, v, month);
+                d.RelativeHumidity = FMath.Clamp(world.Moisture.Sample(world.Moisture.Humidity, u, v, month), 0f, 1f);
             }
+            var rossby = new GlebaRossbyWaveField(FMath.Seed(world.Seed))
+            {
+                RossbyTimeRadians = (month / 12.0) * 2.0 * Math.PI
+            };
+            rossby.GetJetStreamMovementAtLatLon((v - 0.5) * Math.PI, (u - 0.5) * 2.0 * Math.PI, out d.RossbyJetEast, out d.RossbyJetNorth);
+
             FlatEcology.EvaluateGlebaTile(world, tile, out d.Flora, out d.GlebaBiome, out d.Soil, out d.BiotemperatureC, out d.IceMeters);
             GlebaGeographySupplement.SampleSeasonalOceanCurrent(
                 world, u, v, month,
@@ -389,8 +396,17 @@ namespace Orbis.Flat
                 d.InaccessibilityKm = geo.InaccessibilityKm(tile);
                 d.TerrainDomain = geo.Domains[tile];
                 d.BiogeographicRealm = geo.BiogeographicRealms[tile];
+                d.AreaId = geo.AreaId[tile];
                 d.RegionId = geo.GetRegionId(tile);
+                d.SuperRegionId = geo.GetSuperRegionId(tile);
                 d.SubcontinentId = geo.GetSubcontinentId(tile);
+                d.LgmIceMeters = geo.LgmIceMeters[tile];
+                d.ErosionWaterflow = geo.ErosionWaterflow[tile];
+                d.PlateId = geo.PlateId[tile];
+                d.MicroplateId = geo.MicroplateId[tile];
+                d.BoundarySetting = geo.BoundarySetting[tile];
+                d.OrogenyStrength = geo.OrogenyStrengthByte[tile] / 255f;
+                d.HasVolcano = geo.TryGetVolcano(tile, out d.VolcanoKind, out d.VolcanoDormant, out d.VolcanoVei);
             }
             return d;
         }
@@ -400,10 +416,10 @@ namespace Orbis.Flat
     {
         public bool Available;
         public float ItczLatitudeDeg, SthzNorthDeg, SthzSouthDeg, PolarFrontNorthDeg, PolarFrontSouthDeg, EffectiveLatitudeDeg;
-        public float PressureHpa, RainfallImpact, WindContinentality, RainShadowiness, DistanceToSeaKm;
-        public float WindEast, WindNorth, CurrentEast, CurrentNorth;
+        public float PressureHpa, RainfallImpact, WindContinentality, RainShadowiness, DistanceToSeaKm, RelativeHumidity;
+        public float WindEast, WindNorth, CurrentEast, CurrentNorth, RossbyJetEast, RossbyJetNorth;
         public float SeasonalCurrentEastMs, SeasonalCurrentNorthMs, OceanDynamicHeight, SstAnomalyC;
-        public float BiotemperatureC, IceMeters;
+        public float BiotemperatureC, IceMeters, LgmIceMeters, ErosionWaterflow;
         public GlebaBiomeKind GlebaBiome;
         public GlebaPlantCover Flora;
         public GlebaSoilState Soil;
@@ -414,7 +430,13 @@ namespace Orbis.Flat
         public short AquiferId;
         public float AquiferDepthMeters, AquiferThicknessMeters, InaccessibilityKm;
         public GlebaTerrainDomain TerrainDomain;
-        public byte BiogeographicRealm;
-        public int RegionId, SubcontinentId;
+        public byte BiogeographicRealm, PlateId;
+        public ushort MicroplateId;
+        public TectonicSetting BoundarySetting;
+        public float OrogenyStrength;
+        public bool HasVolcano, VolcanoDormant;
+        public VolcanoKind VolcanoKind;
+        public float VolcanoVei;
+        public int AreaId, RegionId, SuperRegionId, SubcontinentId;
     }
 }
