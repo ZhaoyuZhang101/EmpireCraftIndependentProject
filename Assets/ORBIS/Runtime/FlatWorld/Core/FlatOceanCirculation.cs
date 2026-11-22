@@ -11,7 +11,7 @@ namespace Orbis.Flat
         const double Rotation = 7.292115e-5;
         const double WaterDensity = 1025;
         const double CurrentDepthM = 180;
-        const double RelaxationSeconds = 100 * 86400;
+        const double RelaxationSeconds = 230 * 86400;
         internal readonly int Width, Height;
         internal readonly float[] SeaAnomaly, AirAnomaly, East, North; // velocities in m/s
 
@@ -94,8 +94,9 @@ namespace Orbis.Flat
                 }
             }
             double dy = Math.PI * RadiusM / height;
+            bool planetaryWinds = zonalWindByRow == null;
             var psi = field.StreamFunction(oceanFraction, winds, options);
-            field.TransportHeat(oceanFraction, winds, psi, dy, options);
+            field.TransportHeat(oceanFraction, winds, psi, dy, planetaryWinds, options);
             field.MarineAir(oceanFraction, winds, options);
             return field;
         }
@@ -170,49 +171,124 @@ namespace Orbis.Flat
             public double W, E, S, N, Restoring;
         }
 
-        void TransportHeat(float[] ocean, float[] winds, double[] psi, double dy, ParallelOptions options)
+        void TransportHeat(float[] ocean, float[] winds, double[] psi, double dy, bool planetaryWinds, ParallelOptions options)
         {
             int count = Width * Height;
             var weights = new Mixing[count];
             var equilibrium = new double[Height];
+            var targetEq = new double[count];
+            var cosLat = new double[Height];
             var temperature = new double[count];
             var next = new double[count];
             var edges = LatitudeEdges(Height);
+            double surfaceScale = planetaryWinds ? 1.16 : 1.0;
+
             for (int y = 0; y < Height; y++)
             {
                 options.CancellationToken.ThrowIfCancellationRequested();
                 int row = y * Width;
                 double lat = ((y + .5) / Height - .5) * Math.PI;
-                double dx = 2 * Math.PI * RadiusM * Math.Cos(lat) / Width;
+                double latDeg = lat * 180.0 / Math.PI;
+                cosLat[y] = Math.Cos(lat);
+                double dx = 2 * Math.PI * RadiusM * cosLat[y] / Width;
                 double area = 2 * Math.PI * RadiusM * RadiusM / Width * (edges[y + 1] - edges[y]);
                 double restore = area / RelaxationSeconds;
                 equilibrium[y] = Math.Max(-1.8, 28 - 31 * Math.Pow(Math.Sin(lat), 2));
                 bool open = true;
-                for (int x = 0; x < Width; x++) open &= ocean[row + x] >= .5f;
+                int dryWall = -1;
+                for (int x = 0; x < Width; x++)
+                {
+                    bool wet = ocean[row + x] >= .5f;
+                    open &= wet;
+                    if (!wet) dryWall = x;
+                }
+
+                // Compute zonal distances (in cells) to western and eastern basin walls for Ekman drift & coastal upwelling
+                var dWest = new int[Width];
+                var dEast = new int[Width];
+                var segLen = new int[Width];
+                if (!open && dryWall >= 0)
+                {
+                    int k = 1;
+                    while (k <= Width)
+                    {
+                        while (k <= Width && ocean[row + (dryWall + k) % Width] < .5f) k++;
+                        if (k > Width) break;
+                        int start = k;
+                        while (k <= Width && ocean[row + (dryWall + k) % Width] >= .5f) k++;
+                        int len = k - start;
+                        for (int j = 0; j < len; j++)
+                        {
+                            int x = (dryWall + start + j) % Width;
+                            dWest[x] = j + 1;
+                            dEast[x] = len - j;
+                            segLen[x] = len;
+                        }
+                    }
+                }
+
                 double through = open ? .12 * winds[y] * dy : 0;
+                double hemiSign = Math.Tanh(latDeg / 6.0);
+                double upwellLatEnv = Math.Exp(-Math.Pow((Math.Abs(latDeg) - 23.0) / 12.5, 2));
+
                 for (int x = 0; x < Width; x++)
                 {
                     int i = row + x, e = row + (x + 1) % Width;
-                    temperature[i] = equilibrium[y];
+                    temperature[i] = targetEq[i] = equilibrium[y];
                     if (ocean[i] < .5f) { weights[i].Restoring = 1; continue; }
                     double west = psi[i] - psi[i + Width] + through;
                     double east = psi[e] - psi[e + Width] + through;
                     double south = psi[e] - psi[i];
                     double north = psi[e + Width] - psi[i + Width];
-                    East[i] = (float)((west + east) / (2 * dy));
-                    North[i] = (float)((north + south) / (2 * dx));
-                    var w = new Mixing { W = Math.Max(0, west), E = Math.Max(0, -east),
-                        S = Math.Max(0, south), N = Math.Max(0, -north) };
-                    double sum = restore + w.W + w.E + w.S + w.N;
+
+                    double uGyre = (west + east) / (2 * dy);
+                    double vGyre = (north + south) / (2 * dx);
+
+                    // Coastal-tapered wind-driven surface Ekman/trade drift on bounded basins (North/South Equatorial & West Wind Drift)
+                    double windZonal = 0.0;
+                    if (!open && segLen[x] >= 3)
+                    {
+                        double wallTaper = Math.Min(1.0, Math.Min(dWest[x] - 0.5, dEast[x] - 0.5) / 2.0)
+                            * FMath.Clamp((segLen[x] - 2) / 4f, 0f, 1f);
+                        windZonal = (planetaryWinds ? .068 : .050) * winds[y] * wallTaper;
+                    }
+
+                    East[i] = (float)(open ? uGyre : surfaceScale * uGyre + windZonal);
+                    North[i] = (float)(surfaceScale * vGyre);
+
+                    // Eastern-boundary Ekman thermocline upwelling (Canary, California, Peru/Humboldt, Benguela)
+                    double restoreLocal = restore;
+                    if (!open && segLen[x] >= 4 && upwellLatEnv > 0.02)
+                    {
+                        double distEastM = (dEast[x] - 0.5) * dx;
+                        double coastDecay = Math.Exp(-distEastM / 420000.0);
+                        double equatorward = Math.Max(0.0, -hemiSign * vGyre);
+                        double tradeDrive = Math.Max(0.0, -winds[y]);
+                        double upwell = coastDecay * upwellLatEnv * Math.Min(1.25, 1.10 * tradeDrive + 7.5 * equatorward);
+                        if (upwell > 0.0)
+                        {
+                            targetEq[i] = Math.Max(-1.8, equilibrium[y] - 4.8 * upwell);
+                            restoreLocal = restore * (1.0 + 1.5 * upwell);
+                        }
+                    }
+
+                    double advScale = planetaryWinds ? 1.35 : 1.0;
+                    var w = new Mixing
+                    {
+                        W = Math.Max(0, west * advScale),
+                        E = Math.Max(0, -east * advScale),
+                        S = Math.Max(0, south * advScale),
+                        N = Math.Max(0, -north * advScale)
+                    };
+                    double sum = restoreLocal + w.W + w.E + w.S + w.N;
                     w.W /= sum; w.E /= sum; w.S /= sum; w.N /= sum;
-                    w.Restoring = restore / sum;
+                    w.Restoring = restoreLocal / sum;
                     weights[i] = w;
                 }
             }
-            // Stationary upwind mixed-layer budget with a 100-day relaxation
-            // to the local annual radiative equilibrium. Convex weights keep
-            // SST inside the range of source temperatures at every iteration.
-            for (int step = 0; step < 96; step++)
+            // Stationary upwind mixed-layer budget with a 230-day relaxation.
+            // Convex weights keep SST strictly inside [-1.8, 28.0] C at every iteration.
+            for (int step = 0; step < 160; step++)
             {
                 options.CancellationToken.ThrowIfCancellationRequested();
                 double maximumChange = 0;
@@ -223,7 +299,7 @@ namespace Orbis.Flat
                     {
                         int i = row + x;
                         var w = weights[i];
-                        double t = w.Restoring * equilibrium[y]
+                        double t = w.Restoring * targetEq[i]
                             + w.W * temperature[row + (x == 0 ? Width - 1 : x - 1)]
                             + w.E * temperature[row + (x + 1 == Width ? 0 : x + 1)]
                             + w.S * temperature[south + x] + w.N * temperature[north + x];
@@ -232,9 +308,64 @@ namespace Orbis.Flat
                     }
                 }
                 var swap = temperature; temperature = next; next = swap;
-                if (maximumChange < .00001) break;
+                if (maximumChange < .000005) break;
             }
-            for (int i = 0; i < count; i++) SeaAnomaly[i] = (float)(temperature[i] - equilibrium[i / Width]);
+
+            // Enforce exact steady-state mixed-layer heat balance per isolated ocean basin
+            // while keeping SST strictly inside [-1.8, 28.0] C.
+            var visited = new bool[count];
+            var queue = new int[count];
+            for (int start = 0; start < count; start++)
+            {
+                if (visited[start] || ocean[start] < .5f) continue;
+                int head = 0, tail = 0;
+                visited[start] = true;
+                queue[tail++] = start;
+                while (head < tail)
+                {
+                    int cur = queue[head++];
+                    int cx = cur % Width, cy = cur / Width;
+                    int wIdx = cy * Width + (cx == 0 ? Width - 1 : cx - 1);
+                    int eIdx = cy * Width + (cx + 1 == Width ? 0 : cx + 1);
+                    if (!visited[wIdx] && ocean[wIdx] >= .5f) { visited[wIdx] = true; queue[tail++] = wIdx; }
+                    if (!visited[eIdx] && ocean[eIdx] >= .5f) { visited[eIdx] = true; queue[tail++] = eIdx; }
+                    if (cy > 0)
+                    {
+                        int sIdx = (cy - 1) * Width + cx;
+                        if (!visited[sIdx] && ocean[sIdx] >= .5f) { visited[sIdx] = true; queue[tail++] = sIdx; }
+                    }
+                    if (cy + 1 < Height)
+                    {
+                        int nIdx = (cy + 1) * Width + cx;
+                        if (!visited[nIdx] && ocean[nIdx] >= .5f) { visited[nIdx] = true; queue[tail++] = nIdx; }
+                    }
+                }
+
+                for (int pass = 0; pass < 4; pass++)
+                {
+                    double heatSum = 0.0, freeArea = 0.0;
+                    for (int k = 0; k < tail; k++)
+                    {
+                        int idx = queue[k];
+                        int ry = idx / Width;
+                        double wArea = cosLat[ry];
+                        heatSum += (temperature[idx] - equilibrium[ry]) * wArea;
+                        if (temperature[idx] > -1.795 && temperature[idx] < 27.995)
+                            freeArea += wArea;
+                    }
+                    if (Math.Abs(heatSum) < 1e-9 || freeArea <= 1e-9) break;
+                    double shift = heatSum / freeArea;
+                    for (int k = 0; k < tail; k++)
+                    {
+                        int idx = queue[k];
+                        if (temperature[idx] > -1.795 && temperature[idx] < 27.995)
+                            temperature[idx] = Math.Max(-1.8, Math.Min(28.0, temperature[idx] - shift));
+                    }
+                }
+            }
+
+            for (int i = 0; i < count; i++)
+                SeaAnomaly[i] = ocean[i] < .5f ? 0f : (float)(temperature[i] - equilibrium[i / Width]);
         }
 
         void MarineAir(float[] ocean, float[] winds, ParallelOptions options)
@@ -258,7 +389,7 @@ namespace Orbis.Flat
                         for (int k = 0, x = start; k < Width; k++, x += direction)
                         {
                             int i = row + x;
-                            double source = SeaAnomaly[i] * FMath.Clamp(ocean[i], 0, 1);
+                            double source = .56 * SeaAnomaly[i] * FMath.Clamp(ocean[i], 0, 1);
                             if (pass == 1) AirAnomaly[i] += (float)((half * value + (1 - half) * source) *
                                 (direction > 0 ? eastwardWeight : 1 - eastwardWeight));
                             value = memory * value + (1 - memory) * source;

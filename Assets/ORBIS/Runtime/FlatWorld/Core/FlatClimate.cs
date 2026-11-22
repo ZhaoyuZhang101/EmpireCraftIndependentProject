@@ -257,13 +257,20 @@ namespace Orbis.Flat
                     float winterHeat = 5.8070f*snow*marineAir + 2.5175f*s*FMath.Clamp(poleward-z, -3, 3) - 1.3023f*coldSource - 2.3f*coldSurge;
                     // Circumpolar subpolar ocean air outbreaks cool warm-temperate continents facing an unbroken poleward ocean (e.g. Southern Australia)
                     float subpolarOceanCool = FMath.Clamp((polewardSea - .68f) / .28f, 0f, 1f) * (float)Math.Exp(-Math.Pow((degrees - 35) / 7.5, 2));
+                    // High-albedo polar continental ice-sheet & katabatic inversion cooling (Gleba polar continental drop on interior ice domes)
+                    float polarLat = FMath.Clamp((float)((degrees - 67.0) / 14.0), 0f, 1f);
+                    polarLat = polarLat * polarLat * (3f - 2f * polarLat);
+                    float polarElev = FMath.Clamp((SurfaceHeight(w, i) - 1200f) / 1300f, 0f, 1f);
+                    float iceInterior = 1f - FMath.Clamp(nearbySea[i] / .14f, 0f, 1f);
+                    float polarIceCapCool = !FlatTerrainAnalysis.AreaWater(w.Water[i])
+                        ? 21.0f * polarLat * polarElev * iceInterior : 0f;
                     // Dry ground heats ahead of summer maritime inflow. On a
                     // high plateau the warm-season free-air lapse is steeper.
                     float seaContrast = hemisphere*(south.Read(nearbySea, x, width)-north.Read(nearbySea, x, width));
                     float premonsoon = Math.Max(0,seaContrast)*(1+Math.Max(0,poleward-z))*premonsoonBelt;
                     float summerLapse = -.6556f*source[i];
                     annual += coupling * (-.6123f*equatorial + 2.7301f*subtropics*land - 3.5319f*subtropics*coastContrast[i]
-                        - 2.2503f*s*FMath.Clamp(westRelief, -3, 3) - 1.8f*subpolarOceanCool + .5f*(winterHeat+summerLapse));
+                        - 2.2503f*s*FMath.Clamp(westRelief, -3, 3) - 1.8f*subpolarOceanCool + .5f*(winterHeat+summerLapse)) - polarIceCapCool;
                     amplitude += coupling * (2.1601f*sine*(marine-nearbySea[i]) + .5f*hemisphere*(summerLapse-winterHeat));
                     lag -= coupling * hemisphere*(.4912f*tropical+.5713f*premonsoon);
                     // In warm-season westerlies, a broad elevated continental source

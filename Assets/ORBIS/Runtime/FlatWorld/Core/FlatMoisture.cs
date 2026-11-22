@@ -489,7 +489,7 @@ namespace Orbis.Flat
                         // Wind-driven surface currents change the saturation humidity
                         // at the sea skin. Air temperature already includes the marine
                         // heat carried inland, so only its difference from SST enters here.
-                        float skinMinusAir=currents.SeaAnomaly[i]-FlatClimate.MarineAirCoupling*currents.AirAnomaly[i];
+                        float skinMinusAir=(currents.SeaAnomaly[i]*.56f-FlatClimate.MarineAirCoupling*currents.AirAnomaly[i]);
                         float seaShare=ocean[i]/Math.Max(.0001f,water[i]);
                         column.SeaHumidityContrast[i]=1.15f*seaShare*(Capacity(temp+skinMinusAir)/Capacity(temp)-1);
                     }
@@ -593,7 +593,26 @@ namespace Orbis.Flat
                         float surfaceEast=surfEastArr[i]=FMath.Clamp(east+.4f*jetEast-gx*.12f,-.32f,.32f);
                         float surfaceNorth=surfNorthArr[i]=y==0||y==height-1?0:FMath.Clamp(north+.4f*jetNorth+returnFlow-gy*.20f,-.14f,.14f);
                         column.WindExchange[i]=OpenWaterExchange(surfaceEast,surfaceNorth,stormLift/.10f);
-                        state.East[i*12+month]=surfaceEast/.32f;state.North[i*12+month]=surfaceNorth/.32f;
+                        if(seasonalWinds && gleba!=null && oceanContrast>0f)
+                        {
+                            const float radToDeg=57.29578f;
+                            float gItcz=gleba.ItczLatRad[x*12+month]*radToDeg;
+                            float gPfN=gleba.PolarNorthLatRad[x*12+month]*radToDeg;
+                            float gPfS=gleba.PolarSouthLatRad[x*12+month]*radToDeg;
+                            float pScale=width/128f;
+                            float pgEastHpa=(gleba.PressureHpa[westCell[i]*12+month]-gleba.PressureHpa[eastCell[i]*12+month])*pScale;
+                            float pgNorthHpa=(gleba.PressureHpa[southCell[i]*12+month]-gleba.PressureHpa[northCell[i]*12+month])*pScale*(2f*height/width);
+                            float monsoonOvr=FMath.Clamp(1.8f*momentumJet+1.5f*sector.BarrierJet*monsoonBelt+1.4f*supply,0f,1f);
+                            winds.SurfaceWithGleba(convergenceLatitude[i],1-regionalLand[i],gItcz,gPfN,gPfS,pgEastHpa,pgNorthHpa,oceanContrast,monsoonOvr,out float gSurfE,out float gSurfN);
+                            float pubEast=FMath.Clamp(surfaceEast+(gSurfE-meanEast),-.32f,.32f);
+                            float pubNorth=y==0||y==height-1?0:FMath.Clamp(north+.4f*jetNorth+gSurfN-gy*.20f,-.28f,.28f);
+                            state.East[i*12+month]=pubEast/.32f;
+                            state.North[i*12+month]=pubNorth/.32f;
+                        }
+                        else
+                        {
+                            state.East[i*12+month]=surfaceEast/.32f;state.North[i*12+month]=surfaceNorth/.32f;
+                        }
                         if(glebaWindX!=null)
                         {
                             glebaWindX[i]=surfaceEast/.32f;
