@@ -13,7 +13,7 @@ namespace Orbis.Flat
     {
         public const int Width=64,Height=32;
         public readonly OrbisAtmosphereCore Model;
-        readonly float[] temperature,rain,humidity,east,north,ground,soil,regionalLand;
+        readonly float[] temperature,rain,humidity,east,north,ground,soil,regionalLand,glebaPressureOffset;
         readonly float[] currentRain;
         readonly double[] seaLevelTemperature,zonalTemperature=new double[Height];
         readonly uint climateSeed;
@@ -30,6 +30,7 @@ namespace Orbis.Flat
             int count=Width*Height;var p=new AtmosVector[count];var area=new double[count];var links=new List<AtmosEdge>();
             climateSeed=FMath.Seed(world.Seed);currentRain=new float[count];seaLevelTemperature=new double[count];
             temperature=new float[count*12];rain=new float[count*12];humidity=new float[count*12];east=new float[count*12];north=new float[count*12];
+            glebaPressureOffset=BuildGlebaPressureOffsets(world);
             ground=new float[count];soil=new float[count];var land=new float[count];water=new bool[count];tangentEast=new AtmosVector[count];tangentNorth=new AtmosVector[count];
             for(int y=0;y<Height;y++)for(int x=0;x<Width;x++)
             {
@@ -74,6 +75,34 @@ namespace Orbis.Flat
             return Math.Min(.85,Math.Max(0,rainfall)/1000+marine+front);
         }
 
+        internal static float[] BuildGlebaPressureOffsets(WorldData world)
+        {
+            var gleba=world.Moisture?.Gleba;
+            if(gleba==null)return null;
+            var offsets=new float[Width*Height*12];
+            for(int y=0;y<Height;y++)
+            {
+                float v=(y+.5f)/Height;
+                for(int m=0;m<12;m++)
+                {
+                    double rowSum=0;
+                    for(int x=0;x<Width;x++)
+                    {
+                        float pCell=gleba.SampleMonthly(gleba.PressureHpa,(x+.5f)/Width,v,m);
+                        offsets[(y*Width+x)*12+m]=pCell;
+                        rowSum+=pCell;
+                    }
+                    float rowMean=(float)(rowSum/Width);
+                    for(int x=0;x<Width;x++)
+                    {
+                        int idx=(y*Width+x)*12+m;
+                        offsets[idx]=FMath.Clamp((offsets[idx]-rowMean)*.12f,-8f,8f);
+                    }
+                }
+            }
+            return offsets;
+        }
+
         internal static double SeaLevelPressure(double latitudeDegrees,float seasonalMonth,float regionalLand,double thermal)
         {
             float axis=FlatMoisture.ConvergenceLatitude(seasonalMonth,1-regionalLand,0);
@@ -104,7 +133,8 @@ namespace Orbis.Flat
                 int start=i*12;double temp=seaLevelTemperature[i]-ground[i]*.0065;
                 double lat=Math.Asin(Model.Position[i].Y)*180/Math.PI;
                 double thermal=seaLevelTemperature[i]-zonalTemperature[i/Width];
-                double pressure=SeaLevelPressure(lat,season.SeasonalMonth,regionalLand[i],thermal);
+                double glebaOff=glebaPressureOffset==null?0:season.Sample(glebaPressureOffset,start);
+                double pressure=SeaLevelPressure(lat,season.SeasonalMonth,regionalLand[i],thermal)+glebaOff;
                 int x=i%Width,y=i/Width,west=y*Width+(x+Width-1)%Width,eastCell=y*Width+(x+1)%Width;
                 int southCell=Math.Max(0,y-1)*Width+x,northCell=Math.Min(Height-1,y+1)*Width+x;
                 double gradient=Math.Sqrt(Math.Pow((seaLevelTemperature[eastCell]-seaLevelTemperature[west])*.5,2)

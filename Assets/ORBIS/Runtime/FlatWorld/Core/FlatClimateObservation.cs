@@ -314,11 +314,12 @@ namespace Orbis.Flat
             readonly double[] groundCorrection = new double[Width * Height], latitudes = new double[Height];
             readonly double[] normals = new double[Width * Height * Months], current = new double[Width * Height];
             readonly double[] rowDays = new double[Height], thermalRow = new double[Width];
-            readonly float[] land;
+            readonly float[] land, glebaPressureOffset;
 
             internal PressureField(WorldData world)
             {
                 source = world;
+                glebaPressureOffset = FlatWeatherSimulation.BuildGlebaPressureOffsets(world);
                 var localLand = new float[tiles.Length];
                 for (int y = 0; y < Height; y++)
                 {
@@ -349,7 +350,8 @@ namespace Orbis.Flat
                     for (int x = 0; x < Width; x++)
                     {
                         int i = y * Width + x;
-                        normals[i * Months + m] = FlatWeatherSimulation.SeaLevelPressure(latitudes[y], m, land[i], thermalRow[x] - sum / Width);
+                        double glebaOff = glebaPressureOffset == null ? 0 : glebaPressureOffset[i * Months + m];
+                        normals[i * Months + m] = FlatWeatherSimulation.SeaLevelPressure(latitudes[y], m, land[i], thermalRow[x] - sum / Width) + glebaOff;
                     }
                 }
             }
@@ -377,7 +379,8 @@ namespace Orbis.Flat
                 for (int x = 0; x < Width; x++)
                 {
                     int i = first + x;
-                    current[i] = FlatWeatherSimulation.SeaLevelPressure(latitudes[y], season.SeasonalMonth, land[i], thermalRow[x] - sum / Width);
+                    double glebaOff = glebaPressureOffset == null ? 0 : season.Sample(glebaPressureOffset, i * Months);
+                    current[i] = FlatWeatherSimulation.SeaLevelPressure(latitudes[y], season.SeasonalMonth, land[i], thermalRow[x] - sum / Width) + glebaOff;
                 }
                 rowDays[y] = day;
                 return current[cell];

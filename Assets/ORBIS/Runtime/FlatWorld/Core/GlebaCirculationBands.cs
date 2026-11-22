@@ -939,4 +939,148 @@ namespace Orbis.Flat
             return FMath.Clamp(num / den, 0f, 1f);
         }
     }
+
+    /// <summary>
+    /// Gleba v0.3.6 GlobalRossbyWaveData (0x1808bb970, 0x1808ba8b0, 0x1808bae60):
+    /// 4-jet (North/South Polar & Subtropical) planetary Rossby wave harmonics (wavenumbers 4..8, k = n - 1)
+    /// blended with 3D unit-sphere synoptic background winds.
+    /// </summary>
+    public sealed class GlebaRossbyWaveField
+    {
+        public readonly struct RossbyHarmonic
+        {
+            public readonly int WaveNumber;
+            public readonly double PhaseRadians;
+            public readonly float AmplitudeRadians;
+            public RossbyHarmonic(int waveNumber, double phaseRadians, float amplitudeRadians)
+            {
+                WaveNumber = waveNumber;
+                PhaseRadians = phaseRadians;
+                AmplitudeRadians = amplitudeRadians;
+            }
+        }
+
+        public static readonly RossbyHarmonic[] DefaultNorthPolarWaves = {
+            new RossbyHarmonic(4, 0.18483000993728638, 0.04363323f),
+            new RossbyHarmonic(5, 2.123500108718872,   0.04363323f),
+            new RossbyHarmonic(6, 0.0,                 0.17453292f),
+            new RossbyHarmonic(7, 2.4310338497161865,  0.04363323f),
+            new RossbyHarmonic(8, 0.5340707302093506,  0.04363323f)
+        };
+        public static readonly RossbyHarmonic[] DefaultSouthPolarWaves = {
+            new RossbyHarmonic(4, 1.1848300695419312,  0.017453292f),
+            new RossbyHarmonic(5, 12.123500108718872,  0.034906585f),
+            new RossbyHarmonic(6, 0.15609999001026154, 0.08726646f),
+            new RossbyHarmonic(7, 893.1208999156952,   0.017453292f),
+            new RossbyHarmonic(8, 0.12895599007606506, 0.017453292f)
+        };
+        public static readonly RossbyHarmonic[] DefaultNorthSubtropicalWaves = {
+            new RossbyHarmonic(4, 1.1848300695419312,  0.07853982f),
+            new RossbyHarmonic(5, 6.123500108718872,   0.04363323f),
+            new RossbyHarmonic(6, 0.12895000010728836, 0.08726646f),
+            new RossbyHarmonic(7, 4.178399980068207,   0.04363323f),
+            new RossbyHarmonic(8, 3.12809419631958,    0.10471976f)
+        };
+        public static readonly RossbyHarmonic[] DefaultSouthSubtropicalWaves = {
+            new RossbyHarmonic(4, 0.5218009948730469,  0.034906585f),
+            new RossbyHarmonic(5, 31.2389999628067,    0.05235988f),
+            new RossbyHarmonic(6, 1.481909990310669,   0.017453292f),
+            new RossbyHarmonic(7, 8954.12399995327,    0.034906585f),
+            new RossbyHarmonic(8, 0.45389099419116974, 0.034906585f)
+        };
+
+        public readonly uint Seed;
+        public double RossbyTimeRadians;
+        public float BaseNorthPolarJetLatRad = 1.0471976f;       // +60 deg
+        public float BaseSouthPolarJetLatRad = -1.0471976f;      // -60 deg
+        public float BaseNorthSubtropicalJetLatRad = 0.5235988f; // +30 deg
+        public float BaseSouthSubtropicalJetLatRad = -0.5235988f;// -30 deg
+
+        public GlebaRossbyWaveField(uint worldSeed, double rossbyTimeRadians = 0.0)
+        {
+            Seed = worldSeed;
+            RossbyTimeRadians = rossbyTimeRadians;
+        }
+
+        static double SmoothNoise3D(uint seed, double x, double y, double z)
+        {
+            int ix = (int)Math.Floor(x), iy = (int)Math.Floor(y), iz = (int)Math.Floor(z);
+            float fx = (float)(x - ix), fy = (float)(y - iy), fz = (float)(z - iz);
+            fx = fx * fx * (3f - 2f * fx);
+            fy = fy * fy * (3f - 2f * fy);
+            fz = fz * fz * (3f - 2f * fz);
+            float Cell(int cx, int cy, int cz)
+            {
+                unchecked { return FMath.Unit((uint)cx * 73856093u ^ (uint)cy * 19349663u ^ (uint)cz * 83492791u ^ seed) * 2f - 1f; }
+            }
+            float c00 = FMath.Lerp(Cell(ix, iy, iz), Cell(ix + 1, iy, iz), fx);
+            float c10 = FMath.Lerp(Cell(ix, iy + 1, iz), Cell(ix + 1, iy + 1, iz), fx);
+            float c01 = FMath.Lerp(Cell(ix, iy, iz + 1), Cell(ix + 1, iy, iz + 1), fx);
+            float c11 = FMath.Lerp(Cell(ix, iy + 1, iz + 1), Cell(ix + 1, iy + 1, iz + 1), fx);
+            return FMath.Lerp(FMath.Lerp(c00, c10, fy), FMath.Lerp(c01, c11, fy), fz);
+        }
+
+        public void GetBaseRossbyWinds(double latRad, double lonRad, out float vx, out float vy)
+        {
+            double colat = Math.PI * 0.5 - latRad;
+            double sinColat = Math.Sin(colat);
+            double px = 2.8215 * sinColat * Math.Cos(lonRad);
+            double py = 2.8215 * Math.Cos(colat);
+            double pz = -2.8215 * sinColat * Math.Sin(lonRad);
+            uint fbmSeed = unchecked(Seed + 0x2515u);
+            double t = RossbyTimeRadians;
+            double nx = SmoothNoise3D(fbmSeed, px + t, py + t, pz + t);
+            double ny = SmoothNoise3D(unchecked(fbmSeed ^ 0x9e3779b9u), px + t + 17.31, py + t - 9.47, pz + t + 5.83);
+            double nm = SmoothNoise3D(unchecked(fbmSeed ^ 0x85ebca6bu), px - 11.19, py + 23.71, pz - 7.13);
+            double len = Math.Sqrt(nx * nx + ny * ny);
+            double ux = len > 1e-9 ? nx / len : 0.0;
+            double uy = len > 1e-9 ? ny / len : 0.0;
+            double mag = Math.Abs(nm) * 0.95 + 0.05;
+            vx = (float)(ux * mag);
+            vy = (float)(uy * mag);
+        }
+
+        static void EvalJet(RossbyHarmonic[] waves, float baseLatRad, double lonRad, double rossbyTimeRad, out double jetLat, out double slope)
+        {
+            jetLat = baseLatRad;
+            slope = 0.0;
+            for (int i = 0; i < waves.Length; i++)
+            {
+                var w = waves[i];
+                double k = w.WaveNumber - 1; // Exact Gleba v0.3.6 decrement
+                double phase = k * (w.PhaseRadians + rossbyTimeRad + lonRad);
+                jetLat += w.AmplitudeRadians * Math.Cos(phase);
+                slope -= w.AmplitudeRadians * k * Math.Sin(phase);
+            }
+        }
+
+        public void GetJetStreamMovementAtLatLon(double latRad, double lonRad, out float vx, out float vy)
+        {
+            EvalJet(DefaultNorthPolarWaves, BaseNorthPolarJetLatRad, lonRad, RossbyTimeRadians, out double npLat, out double npSlope);
+            EvalJet(DefaultSouthPolarWaves, BaseSouthPolarJetLatRad, lonRad, RossbyTimeRadians, out double spLat, out double spSlope);
+            EvalJet(DefaultNorthSubtropicalWaves, BaseNorthSubtropicalJetLatRad, lonRad, RossbyTimeRadians, out double nsLat, out double nsSlope);
+            EvalJet(DefaultSouthSubtropicalWaves, BaseSouthSubtropicalJetLatRad, lonRad, RossbyTimeRadians, out double ssLat, out double ssSlope);
+
+            double h = FMath.Clamp((float)(latRad / (Math.PI / 12.0)), -1f, 1f) * 0.5 + 0.5;
+            double wNp = 1.0 - FMath.Clamp((float)(Math.Abs(latRad - npLat) / 0.15), 0f, 1f);
+            double wSp = 1.0 - FMath.Clamp((float)(Math.Abs(latRad - spLat) / 0.15), 0f, 1f);
+            double wNs = 1.0 - FMath.Clamp((float)(Math.Abs(latRad - nsLat) / 0.15), 0f, 1f);
+            double wSs = 1.0 - FMath.Clamp((float)(Math.Abs(latRad - ssLat) / 0.15), 0f, 1f);
+
+            double wPolar = wSp + h * (wNp - wSp);
+            double sPolar = spSlope + h * (npSlope - spSlope);
+            double wSub = wSs + h * (wNs - wSs);
+            double sSub = ssSlope + h * (nsSlope - ssSlope);
+
+            double jetVx = wPolar + 0.33 * wSub;
+            double jetVy = wPolar * sPolar + 0.33 * wSub * sSub;
+
+            double wTot = FMath.Clamp((float)(wPolar + wSub), 0f, 1f);
+            double bgBlend = FMath.Clamp((float)(1.0 - 2.0 * wTot), 0f, 1f);
+            GetBaseRossbyWinds(latRad, lonRad, out float bgVx, out float bgVy);
+
+            vx = (float)((1.0 - bgBlend) * jetVx + bgBlend * (0.2 * bgVx));
+            vy = (float)((1.0 - bgBlend) * jetVy + bgBlend * (0.2 * bgVy));
+        }
+    }
 }

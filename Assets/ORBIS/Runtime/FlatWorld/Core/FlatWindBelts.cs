@@ -68,5 +68,58 @@ namespace Orbis.Flat
         static float PolarReturn(float position, float ridge, float front) => position < front
             ? .055f * Lobe((position - ridge) / (front - ridge))
             : -.045f * Lobe((position - front) / (90 - front));
+
+        // Couples Gleba's Saldo-pulled ITCZ, dynamic subpolar front, and segmented 18-oval
+        // sea-level pressure geostrophic + cross-isobaric Ekman gyre winds into surface circulation.
+        internal void SurfaceWithGleba(
+            float heatLowLatitude, float maritime,
+            float glebaItczDeg, float glebaPfNorthDeg, float glebaPfSouthDeg,
+            float pgEastHpa, float pgNorthHpa, float oceanContrast, float monsoonOverride,
+            out float east, out float north)
+        {
+            if (oceanContrast <= 0f)
+            {
+                Surface(heatLowLatitude, maritime, out east, out north);
+                return;
+            }
+
+            float degrees = Math.Abs(latitude);
+            float axis = FMath.Lerp(4 * solstice, heatLowLatitude, .25f);
+            float subtropGate = 1f - SmoothStep((degrees - 30f) / 11f);
+            axis = FMath.Lerp(axis, glebaItczDeg, .52f * maritime * oceanContrast * subtropGate);
+
+            east = EastAt(axis, maritime);
+
+            float side = latitude >= axis ? 1 : -1;
+            float position = side * latitude, equator = side * axis;
+            float ridge = Math.Max(SubtropicalRidge(side * solstice), equator + 8);
+            if (position < ridge)
+                north = -side * .105f * Lobe((position - equator) / (ridge - equator));
+            else
+                north = side * FMath.Lerp(PolarReturn(position, ridge, PolarFront(side * solstice)),
+                    PolarReturn(position, ridge, MarinePolarFront), maritime);
+
+            // Geostrophic + frictional cross-isobaric Ekman wind around Gleba's segmented SLP ovals.
+            // Gate meridional pressure-gradient (zonal geoX) to <41 deg so Gleba's 1100 hPa polar cap
+            // never reverses the 40-68 deg westerlies, while preserving zonal pressure-gradient (meridional geoY)
+            // around both Subtropical Highs and Icelandic/Aleutian Subpolar Lows.
+            float wGeo = degrees < 2.5f ? 0f : FMath.Clamp((degrees - 2.5f) / 5f, 0f, 1f);
+            float geoX = latitude >= 0f ? +pgNorthHpa : -pgNorthHpa;
+            float geoY = latitude >= 0f ? -pgEastHpa : +pgEastHpa;
+            float cGeo = FMath.Lerp(.70f, .84f, maritime) * wGeo;
+            float cPg = FMath.Lerp(.50f, .34f, maritime);
+            float baseScale = .0185f * oceanContrast * (1f - FMath.Clamp(monsoonOverride, 0f, .85f));
+            float zonalScale = baseScale * subtropGate;
+            float meridWeight = FMath.Lerp(.35f * (1f - SmoothStep((degrees - 68f) / 12f)), 1f, subtropGate);
+            float meridScale = baseScale * meridWeight;
+            east += FMath.Clamp((cGeo * geoX * subtropGate + cPg * pgEastHpa) * zonalScale, -.16f, .16f);
+            north += FMath.Clamp((cGeo * geoY + cPg * pgNorthHpa * subtropGate) * meridScale, -.22f, .22f);
+        }
+
+        static float SmoothStep(float t)
+        {
+            t = FMath.Clamp(t, 0f, 1f);
+            return t * t * (3f - 2f * t);
+        }
     }
 }
