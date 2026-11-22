@@ -15,10 +15,12 @@ namespace Orbis.Flat
         public readonly Landform[] Forms;
         public readonly GroundMaterial[] Materials;
         public readonly float[] Relief,Gradient,Hand,Wetness,AnnualRain,MeanTemperature;
+        public readonly float[] Biotemperature,GroundedIceMeters;
         public readonly float[] Sediment,Freshness,FlowX,FlowY,HalfWidth,Depth,ShoreDistance,Meander;
         public readonly byte[] SaturatedMonths,Connections;
         public readonly VegetationCover[] Vegetation;public readonly float[] Canopy;
         public readonly TreeSpecies[] Trees;
+        public readonly GlebaBiomeKind[] GlebaBiomes;
         public byte[] VegetationSeasons {get;internal set;}
         public bool VegetationSeasonsReady {get;internal set;}
         public readonly ushort[] FreshDistance;
@@ -29,9 +31,10 @@ namespace Orbis.Flat
         {
             Forms=new Landform[count];Materials=new GroundMaterial[count];
             Vegetation=new VegetationCover[count];Canopy=new float[count];
-            Trees=new TreeSpecies[count];
+            Trees=new TreeSpecies[count];GlebaBiomes=new GlebaBiomeKind[count];
             Relief=new float[count];Gradient=new float[count];Hand=new float[count];Wetness=new float[count];
             AnnualRain=new float[count];MeanTemperature=new float[count];
+            Biotemperature=new float[count];GroundedIceMeters=new float[count];
             Sediment=new float[count];Freshness=new float[count];FlowX=new float[count];FlowY=new float[count];
             HalfWidth=new float[count];Depth=new float[count];ShoreDistance=new float[count];Meander=new float[count];
             SaturatedMonths=new byte[count];Connections=new byte[count];FreshDistance=new ushort[count];
@@ -41,10 +44,10 @@ namespace Orbis.Flat
             var f=new FlatTerrainFacts(Forms.Length){MouthCount=MouthCount,RiverCurves=RiverCurves,RiverDischarge=RiverDischarge,
                 VegetationSeasons=VegetationSeasons==null?null:(byte[])VegetationSeasons.Clone(),VegetationSeasonsReady=VegetationSeasonsReady};
             Array.Copy(Vegetation,f.Vegetation,Forms.Length);Array.Copy(Canopy,f.Canopy,Forms.Length);
-            Array.Copy(Trees,f.Trees,Forms.Length);
+            Array.Copy(Trees,f.Trees,Forms.Length);Array.Copy(GlebaBiomes,f.GlebaBiomes,Forms.Length);
             Array.Copy(Forms,f.Forms,Forms.Length);Array.Copy(Materials,f.Materials,Forms.Length);
-            float[][] a={Relief,Gradient,Hand,Wetness,AnnualRain,MeanTemperature,Sediment,Freshness,FlowX,FlowY,HalfWidth,Depth,ShoreDistance,Meander};
-            float[][] b={f.Relief,f.Gradient,f.Hand,f.Wetness,f.AnnualRain,f.MeanTemperature,f.Sediment,f.Freshness,f.FlowX,f.FlowY,f.HalfWidth,f.Depth,f.ShoreDistance,f.Meander};
+            float[][] a={Relief,Gradient,Hand,Wetness,AnnualRain,MeanTemperature,Biotemperature,GroundedIceMeters,Sediment,Freshness,FlowX,FlowY,HalfWidth,Depth,ShoreDistance,Meander};
+            float[][] b={f.Relief,f.Gradient,f.Hand,f.Wetness,f.AnnualRain,f.MeanTemperature,f.Biotemperature,f.GroundedIceMeters,f.Sediment,f.Freshness,f.FlowX,f.FlowY,f.HalfWidth,f.Depth,f.ShoreDistance,f.Meander};
             for(int i=0;i<a.Length;i++)Array.Copy(a[i],b[i],Forms.Length);
             Array.Copy(SaturatedMonths,f.SaturatedMonths,Forms.Length);Array.Copy(Connections,f.Connections,Forms.Length);
             Array.Copy(FreshDistance,f.FreshDistance,Forms.Length);return f;
@@ -162,14 +165,24 @@ namespace Orbis.Flat
                     int i=y*w.Width+x;
                     footprint.Measure(w.Elevation,x,w.Elevation[i],out f.Relief[i],out float gradient);
                     f.Gradient[i]=gradient;
-                    float rain=0,temp=0,coldest=1000,warmest=-1000;
+                    float rain=0,temp=0,coldest=1000,warmest=-1000,minRain=float.MaxValue;
                     for(int m=0;m<12;m++)
                     {
                         float monthly=w.Temperature[i*12+m];
-                        rain+=w.Precipitation[i*12+m];temp+=monthly/12f;
+                        float monthlyRain=w.Precipitation[i*12+m];
+                        rain+=monthlyRain;temp+=monthly/12f;
                         coldest=Math.Min(coldest,monthly);warmest=Math.Max(warmest,monthly);
+                        minRain=Math.Min(minRain,monthlyRain);
                     }
                     f.AnnualRain[i]=rain;f.MeanTemperature[i]=temp;
+                    float biotemp=f.Biotemperature[i]=GlebaEcologySupplement.ComputeBiotemperature(w.Temperature,i*12,clampAbove30:true);
+                    bool glebaArea=AreaWater(w.Water[i]);
+                    f.GroundedIceMeters[i]=glebaArea
+                        ?GlebaEcologySupplement.ComputeSeaIceMeters(true,temp)
+                        :GlebaEcologySupplement.ComputeGroundedIceMeters(true,w.Elevation[i],warmest,rain/12f);
+                    var glebaFlora=GlebaEcologySupplement.EvaluateFlora(!glebaArea,glebaArea?0f:f.GroundedIceMeters[i],w.Elevation[i],Math.Abs(w.Latitude(i)),biotemp,rain,minRain,coldest);
+                    f.GlebaBiomes[i]=GlebaEcologySupplement.ClassifyGlebaBiome(glebaArea,w.Water[i]==WaterKind.Lake,!Ocean(w.Water[i]),f.GroundedIceMeters[i],w.Elevation[i],
+                        w.Temperature[i*12],w.Temperature[i*12+6],w.Precipitation[i*12],w.Precipitation[i*12+6],w.Climates[i],in glebaFlora);
                     float storage=75,mean=0,growingSoil=0,growingWeight=0;int saturated=0;
                     float riparian=0,waterHand=f.Hand[i];
                     // Neighbouring freshwater supports low banks, but not elevated ridges.

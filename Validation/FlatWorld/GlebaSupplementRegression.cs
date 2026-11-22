@@ -172,6 +172,27 @@ internal static class GlebaSupplementRegression
         float seaIce = GlebaEcologySupplement.ComputeSeaIceMeters(true, -12f);
         float glacier = GlebaEcologySupplement.ComputeGroundedIceMeters(true, 1800f, -8f, 45f);
         Check(seaIce > 10f && glacier > 200f, "Polar sea ice and subfreezing highland glacier must have positive thickness");
+
+        // Holdridge latitude/warmth-dependent alpine treeline canopy taper
+        float tempLowCanopy = FlatEcology.ContinuousCanopy(Biome.Woodland, 13f, 1200f, 0.75f, 80f, 20f, biotemperature: 13f, elevation: 400f);
+        float tempHighCanopy = FlatEcology.ContinuousCanopy(Biome.Woodland, 13f, 1200f, 0.75f, 80f, 20f, biotemperature: 13f, elevation: 2900f);
+        float tropHighMult = GlebaEcologySupplement.ComputeTreelineMultiplier(24f, 2900f);
+        Check(tempHighCanopy < 0.45f * tempLowCanopy && Math.Abs(tropHighMult - 1f) < 1e-5f,
+            $"Holdridge treeline must suppress temperate 2900m canopy ({tempHighCanopy:F2} vs {tempLowCanopy:F2}) while sparing 2900m equatorial cloud forest ({tropHighMult:F2})");
+
+        // 6-stage soil pipeline (glacial loess silt/clay enrichment vs desert aeolian sand deflation)
+        var loessSoil = GlebaEcologySupplement.EvaluateLocalSoil(true, false, 180f, 40f, 650f, 6f, 0.85f);
+        var ergSoil = GlebaEcologySupplement.EvaluateLocalSoil(true, false, 350f, 30f, 35f, 34f, 0.05f);
+        Check(loessSoil.Clay + loessSoil.Silt > 0.80f && loessSoil.Depth > 4f,
+            $"LGM loess lowland must be deep silt/clay rich: clay+silt={loessSoil.Clay + loessSoil.Silt:F2}, depth={loessSoil.Depth:F2}");
+        Check(ergSoil.Sand > 0.75f, $"Hyper-arid lowland desert must deflate fines into sandy erg: sand={ergSoil.Sand:F2}");
+    }
+
+    static int TileAtLonLat(WorldData world, float lonDeg, float latDeg)
+    {
+        int x = FMath.Clamp((int)((lonDeg + 180f) / 360f * world.Width), 0, world.Width - 1);
+        int y = FMath.Clamp((int)((latDeg + 90f) / 180f * world.Height), 0, world.Height - 1);
+        return y * world.Width + x;
     }
 
     static void CheckRealEarthDiagnostics()
@@ -181,13 +202,33 @@ internal static class GlebaSupplementRegression
             File.ReadAllBytes(assets + "Earth256.bytes"),
             File.ReadAllBytes(assets + "EarthWater256.bytes"),
             File.ReadAllBytes(assets + "EarthRivers.bytes"));
-        var sup = GlebaClimateSupplement.Build(earth, default, workers: 4, maxColumns: 128);
+        Check(earth.Moisture?.Gleba != null && earth.Facts?.Biotemperature != null &&
+              earth.Facts.GroundedIceMeters != null && earth.Facts.GlebaBiomes != null,
+            "Generated Earth must publish integrated Moisture.Gleba and Facts.{Biotemperature, GroundedIceMeters, GlebaBiomes}");
 
-        // Sahara (25N, 10E) vs South China (24N, 113E) vs Deccan Leeward (16N, 78E) in July (month 6)
+        var sup = earth.Moisture.Gleba;
+        // Sahara (25N, 10E) vs South China (24N, 113E) vs Tarim Leeward (39N, 84E) in July (month 6)
         float saharaImpact = sup.SampleMonthly(sup.RainfallImpact, (10f + 180f) / 360f, (25f + 90f) / 180f, 6);
         float southChinaImpact = sup.SampleMonthly(sup.RainfallImpact, (113f + 180f) / 360f, (24f + 90f) / 180f, 6);
         float tibetShadow = sup.SampleMonthly(sup.RainShadowiness, (84f + 180f) / 360f, (39f + 90f) / 180f, 6);
-        Console.WriteLine($"Earth 256 Gleba diagnostics (July): Sahara impact={saharaImpact:F2}, South China impact={southChinaImpact:F2}, Tarim rainShadow={tibetShadow:F2}");
+
+        var antarctica = GlebaClimateSupplement.SampleTileDiagnostic(earth, TileAtLonLat(earth, 90f, -80f), 0);
+        var amazon = GlebaClimateSupplement.SampleTileDiagnostic(earth, TileAtLonLat(earth, -62f, -3f), 6);
+        var sahara = GlebaClimateSupplement.SampleTileDiagnostic(earth, TileAtLonLat(earth, 12f, 24f), 6);
+        var siberia = GlebaClimateSupplement.SampleTileDiagnostic(earth, TileAtLonLat(earth, 100f, 63f), 6);
+
+        Console.WriteLine($"Earth 256 Gleba diagnostics (July): Sahara impact={saharaImpact:F2} ({sahara.GlebaBiome}, sand={sahara.Soil.Sand:F2}), " +
+                          $"South China impact={southChinaImpact:F2}, Tarim rainShadow={tibetShadow:F2}, " +
+                          $"Amazon={amazon.GlebaBiome} (B={amazon.BiotemperatureC:F1}C), Siberia={siberia.GlebaBiome}, Antarctica ice={antarctica.IceMeters:F0}m");
+
         Check(saharaImpact < southChinaImpact - 0.3f && tibetShadow > 0.05f, "Earth Sahara vs South China SLP impact or Tarim rain shadow missing");
+        Check(antarctica.Available && antarctica.IceMeters > 500f && antarctica.GlebaBiome == GlebaBiomeKind.Glacier,
+            $"Antarctica must carry grounded ice sheet: {antarctica.IceMeters:F1}m, {antarctica.GlebaBiome}");
+        Check(amazon.BiotemperatureC > 22f && amazon.GlebaBiome == GlebaBiomeKind.WetJungle && amazon.Flora.Trees > 0.60f,
+            $"Amazon must classify as WetJungle: B={amazon.BiotemperatureC:F1}, biome={amazon.GlebaBiome}, trees={amazon.Flora.Trees:F2}");
+        Check(sahara.GlebaBiome == GlebaBiomeKind.DesertsAndXericShrublands && sahara.Soil.Sand > 0.65f,
+            $"Sahara must classify as desert with sandy deflated soil: biome={sahara.GlebaBiome}, sand={sahara.Soil.Sand:F2}");
+        Check(siberia.GlebaBiome == GlebaBiomeKind.Taiga && siberia.Flora.ConiferFraction > 0.65f,
+            $"Central Siberia must classify as conifer Taiga: biome={siberia.GlebaBiome}, conifer={siberia.Flora.ConiferFraction:F2}");
     }
 }

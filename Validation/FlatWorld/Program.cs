@@ -27,6 +27,7 @@ public static class Program {
     case "--weather": WeatherIntegrationRegression.Run(); break;
     case "--moisture": MoistureRegression(); break;
     case "--wind-belts": WindBeltRegression.Run(args.Length>1 ? args[1] : null); break;
+    case "--gleba-supplement": GlebaSupplementRegression.Run(); break;
     case "--ocean-circulation": OceanCirculationRegression.Run(); break;
     case "--seasonal-rainfall": SeasonalRainfallRegression.Run(); break;
     case "--orographic-rainfall": OrographicRainfallRegression.Run(); break;

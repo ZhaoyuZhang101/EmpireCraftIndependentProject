@@ -137,7 +137,8 @@ namespace Orbis.Flat
 
         /// <summary>
         /// Holdridge physiological biotemperature (TileData::get_biotemperature, 0x18097ca10):
-        /// mean of monthly temperatures strictly inside [0, 30] C (months outside [0, 30] contribute 0).
+        /// mean of monthly temperatures strictly inside [0, 30] C (months outside [0, 30] contribute 0,
+        /// or clamp at 30 C when clampAbove30 is enabled).
         /// </summary>
         public static float ComputeBiotemperature(float[] monthlyTemperatures, int offset12, bool clampAbove30 = false)
         {
@@ -154,6 +155,17 @@ namespace Orbis.Flat
                 sum += t;
             }
             return sum / 12f;
+        }
+
+        /// <summary>
+        /// Holdridge latitude- and warmth-dependent alpine treeline canopy multiplier [0.05, 1.0]
+        /// from CurveTreelineHigh (0x1822d9c90). Equals 1.0 below (eHigh - 1400 m).
+        /// </summary>
+        public static float ComputeTreelineMultiplier(float biotemperatureC, float elevationMeters)
+        {
+            float eHigh = GlebaClimateConfig.EvaluateCurve(CurveTreelineHigh, biotemperatureC);
+            float eMid = biotemperatureC < 0f ? 350f : (eHigh - 650f);
+            return Eval3(elevationMeters, eMid - 750f, 1f, eMid, 0.5f, eMid + 500f, 0.05f);
         }
 
         /// <summary>
@@ -324,10 +336,12 @@ namespace Orbis.Flat
 
         /// <summary>
         /// Present-day or LGM grounded glacier thickness in meters (glacier::assign_grounded_ice).
+        /// When bedrockElevation is false (default for surface DEMs whose ice domes already include ice height),
+        /// subglacial bedrock is estimated so polar ice sheets (Antarctica, Greenland) retain realistic thickness.
         /// </summary>
         public static float ComputeGroundedIceMeters(
             bool isLand, float elevationMeters, float warmestMonthTempC, float meanMonthlyRainMm,
-            float tempOffsetC = 0f, float noiseCoolingC = 0f)
+            float tempOffsetC = 0f, float noiseCoolingC = 0f, bool bedrockElevation = false)
         {
             if (elevationMeters <= -500f) return 0f;
             float tEff = warmestMonthTempC + tempOffsetC - Math.Max(0f, noiseCoolingC);
@@ -359,8 +373,147 @@ namespace Orbis.Flat
             }
 
             if (ice <= 0f) return 0f;
-            float low = ice - 0.75f * Math.Max(elevationMeters, 0f);
-            return Math.Max(low + 0.05f * (ice - low), 0f);
+            float posElev = Math.Max(elevationMeters, 0f);
+            if (bedrockElevation || !isLand)
+            {
+                float low = ice - 0.75f * posElev;
+                return Math.Max(low + 0.05f * (ice - low), 0f);
+            }
+            float effectiveBed = Math.Min(posElev, 600f + 0.28f * Math.Max(0f, posElev - 600f));
+            float lowSurf = ice - 0.75f * effectiveBed;
+            float damped = Math.Max(lowSurf + 0.05f * (ice - lowSurf), 0f);
+            float domeThickness = 0.72f * Math.Max(0f, posElev - 600f) * FMath.Clamp(-tEff / 10f, 0f, 1f);
+            return Math.Max(Math.Max(damped, domeThickness), 25f + 300f * c);
+        }
+
+        // --- Stage 49 6-Pass Soil Synthesis (soil::initialize_soils, glacier_loess, aeolian_deposits, thin_mountain_soils, transport_sediments) ---
+
+        public static GlebaSoilState InitializeTileSoil(
+            float rockSand, float rockClay, float rockSilt, float rockWeatheringRate, float rockMineralRichness,
+            bool coastalBeach, float annualRainMm,
+            float n0 = 0f, float n1 = 0f, float n2 = 0f, float n3 = 0f, float n4 = 0f, float n5 = 0f)
+        {
+            var s = new GlebaSoilState();
+            float sandBonus = coastalBeach ? 0.10f : 0.0f;
+            s.Sand = Math.Max(rockSand + 0.05f * n0, 0f) + sandBonus;
+            s.Silt = Math.Max(rockSilt + 0.05f * n1, 0f);
+            s.Clay = Math.Max(rockClay + 0.05f * n2, 0f);
+            s.NormalizeTexture();
+
+            float rainFactor = FMath.Clamp((float)Math.Sqrt(2.0f * (annualRainMm / 12.0f)), 0.001f, 20.0f);
+            s.Depth = Math.Max(rainFactor * rockWeatheringRate * 0.5f + 0.25f * n3, 1e-4f);
+            s.MineralRichness = FMath.Clamp(rockMineralRichness + 0.05f * n4, 0f, 1f);
+            s.Organics = FMath.Clamp(0.5f * n5 + 0.5f, 0f, 1f);
+            return s;
+        }
+
+        public static void ApplyGlacierLoess(ref GlebaSoilState s, bool isLand, float lgmIceMeters, float elevationMeters)
+        {
+            if (isLand && lgmIceMeters > 0f && elevationMeters < 1500f)
+            {
+                float sum = Math.Max(s.Sand + s.Clay + s.Silt, 1e-5f);
+                s.Sand = 0.5f * (s.Sand / sum);
+                s.Clay = (s.Clay / sum) + 2.5f;
+                s.Silt = 2.1f * (s.Silt / sum);
+                s.Depth = 1.5f * (s.Depth + 2.5f);
+            }
+            s.NormalizeTexture();
+        }
+
+        public static void ApplyAeolianDeflation(ref GlebaSoilState s, bool isLand, float elevationMeters, float annualRainMm)
+        {
+            if (!isLand || elevationMeters >= 1500f) return;
+            float rMo = annualRainMm / 12.0f;
+            if (rMo < 20.0f)
+            {
+                float keepFines = Math.Max(rMo / 20.0f, 0f);
+                s.Clay *= keepFines;
+                s.Silt *= keepFines;
+                s.NormalizeTexture();
+            }
+        }
+
+        public static void ThinMountainSoil(ref GlebaSoilState s, float elevationMeters, float gradientMeters)
+        {
+            float elevF = FMath.Clamp(elevationMeters / 4000.0f, 0f, 1f);
+            float thin = FMath.Clamp(((gradientMeters - 250.0f) * elevF) / 750.0f, 0f, 1f);
+            s.Depth = Math.Max((1.0f - thin) * s.Depth, 1e-5f);
+        }
+
+        public static void StepFluvialSediment(
+            int u, int downstreamV, float avgMonthlyRainMm, float avgMonthlyHumidity,
+            float[] inflow, float[] outDischarge, GlebaSoilState[] soils,
+            float[] sedSand, float[] sedSilt, float[] sedClay, float[] sedMinerals)
+        {
+            float h = FMath.Clamp(avgMonthlyHumidity, 1e-4f, 1.0f);
+            float rawQ = avgMonthlyRainMm + inflow[u] - 10.0f;
+            float evap = (float)Math.Sqrt(Math.Max(rawQ, 0f)) / h;
+            float q = Math.Max(inflow[u], Math.Max(rawQ - evap, 0f));
+            outDischarge[u] = q;
+            if (downstreamV >= 0) inflow[downstreamV] += q;
+
+            float erodeFrac = FMath.Clamp(((float)Math.Pow(q, 0.25) * 1.2f) / 35.0f, 0f, 1f);
+            float erodedDepth = soils[u].Depth * erodeFrac;
+            soils[u].Depth -= erodedDepth;
+
+            if (downstreamV >= 0)
+            {
+                sedSand[downstreamV] += erodedDepth * soils[u].Sand;
+                sedSilt[downstreamV] += erodedDepth * soils[u].Silt;
+                sedClay[downstreamV] += erodedDepth * soils[u].Clay;
+                sedMinerals[downstreamV] += erodedDepth * soils[u].MineralRichness;
+            }
+
+            float inTotal = sedSand[u] + sedSilt[u] + sedClay[u];
+            float inMinConc = inTotal > 0f ? (sedMinerals[u] / inTotal) : 0f;
+            float depSand = 0.10f * sedSand[u];
+            float depSilt = 0.02f * sedSilt[u];
+            float depClay = 0.01f * sedClay[u];
+            float depDepth = depSand + depSilt + depClay;
+
+            if (downstreamV >= 0)
+            {
+                sedSand[downstreamV] += 0.90f * sedSand[u];
+                sedSilt[downstreamV] += 0.98f * sedSilt[u];
+                sedClay[downstreamV] += 0.99f * sedClay[u];
+                sedMinerals[downstreamV] += (inTotal - depDepth) * inMinConc;
+            }
+
+            float oldD = soils[u].Depth;
+            float newD = Math.Max(oldD + depDepth, 1e-5f);
+            soils[u].MineralRichness = FMath.Clamp((oldD * soils[u].MineralRichness + depDepth * inMinConc) / newD, 0f, 1f);
+            soils[u].Sand = (oldD * soils[u].Sand + depSand) / newD;
+            soils[u].Silt = (oldD * soils[u].Silt + depSilt) / newD;
+            soils[u].Clay = (oldD * soils[u].Clay + depClay) / newD;
+            soils[u].NormalizeTexture();
+            soils[u].Depth = oldD + depDepth;
+        }
+
+        /// <summary>
+        /// Evaluates deterministic single-tile Gleba soil state (bedrock base + LGM loess + aeolian deflation + mountain thinning + alluvial silt).
+        /// </summary>
+        public static GlebaSoilState EvaluateLocalSoil(
+            bool isLand, bool coastalBeach, float elevationMeters, float gradientMeters,
+            float annualRainMm, float warmestMonthTempC, float totalPlants, float riverSediment = 0f)
+        {
+            if (!isLand) return default;
+            var soil = InitializeTileSoil(0.34f, 0.32f, 0.34f, 0.45f, 0.55f, coastalBeach, annualRainMm);
+            // Last Glacial Maximum (-6 C -> -9 C amplified) loess enrichment in glaciated/periglacial lowlands
+            float lgmIce = ComputeGroundedIceMeters(true, elevationMeters, warmestMonthTempC, annualRainMm / 12f, tempOffsetC: -9f);
+            ApplyGlacierLoess(ref soil, true, lgmIce, elevationMeters);
+            ApplyAeolianDeflation(ref soil, true, elevationMeters, annualRainMm);
+            ThinMountainSoil(ref soil, elevationMeters, gradientMeters);
+            if (riverSediment > 0f)
+            {
+                float alluvial = FMath.Clamp(riverSediment, 0f, 0.85f);
+                soil.Silt += 0.8f * alluvial;
+                soil.Clay += 0.3f * alluvial;
+                soil.Depth += 1.2f * alluvial;
+                soil.MineralRichness = FMath.Clamp(soil.MineralRichness + 0.25f * alluvial, 0f, 1f);
+                soil.NormalizeTexture();
+            }
+            soil.Organics = FMath.Clamp(0.15f + 0.80f * totalPlants * FMath.Clamp(1.15f - Math.Max(0f, warmestMonthTempC - 22f) * 0.04f, 0.35f, 1f), 0f, 1f);
+            return soil;
         }
     }
 }

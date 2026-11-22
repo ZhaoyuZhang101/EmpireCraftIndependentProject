@@ -338,5 +338,52 @@ namespace Orbis.Flat
             int x1 = x0 + 1 == Width ? 0 : x0 + 1;
             return FMath.Lerp(bandRad12[x0 * 12 + month], bandRad12[x1 * 12 + month], tx) * RadToDeg;
         }
+
+        /// <summary>
+        /// Samples complete Gleba circulation, advective continentality, rain shadow, boundary current,
+        /// and Holdridge ecological diagnostics for a native world tile and calendar month.
+        /// </summary>
+        public static GlebaTileClimateDiagnostic SampleTileDiagnostic(WorldData world, int tile, int month)
+        {
+            var d = new GlebaTileClimateDiagnostic();
+            if (world == null || (uint)tile >= (uint)world.Count) return d;
+            month = FMath.Wrap(month, 12);
+            float u = (tile % world.Width + 0.5f) / world.Width;
+            float v = (tile / world.Width + 0.5f) / world.Height;
+            var gleba = world.Moisture?.Gleba;
+            if (gleba != null)
+            {
+                d.Available = true;
+                d.ItczLatitudeDeg = gleba.SampleBandDegrees(gleba.ItczLatRad, u, month);
+                d.SthzNorthDeg = gleba.SampleBandDegrees(gleba.SthzNorthLatRad, u, month);
+                d.SthzSouthDeg = gleba.SampleBandDegrees(gleba.SthzSouthLatRad, u, month);
+                d.PolarFrontNorthDeg = gleba.SampleBandDegrees(gleba.PolarNorthLatRad, u, month);
+                d.PolarFrontSouthDeg = gleba.SampleBandDegrees(gleba.PolarSouthLatRad, u, month);
+                d.PressureHpa = gleba.SampleMonthly(gleba.PressureHpa, u, v, month);
+                d.RainfallImpact = gleba.SampleMonthly(gleba.RainfallImpact, u, v, month);
+                d.WindContinentality = gleba.SampleMonthly(gleba.WindContinentality, u, v, month);
+                d.RainShadowiness = gleba.SampleMonthly(gleba.RainShadowiness, u, v, month);
+                d.WindEast = gleba.SampleMonthly(gleba.WindEast, u, v, month);
+                d.WindNorth = gleba.SampleMonthly(gleba.WindNorth, u, v, month);
+                d.CurrentEast = gleba.SampleMonthly(gleba.CurrentEast, u, v, month);
+                d.CurrentNorth = gleba.SampleMonthly(gleba.CurrentNorth, u, v, month);
+                d.DistanceToSeaKm = gleba.SampleStatic(gleba.DistanceToSeaKm, u, v);
+                d.EffectiveLatitudeDeg = gleba.SampleMonthly(gleba.EffectiveLatitudeDeg, u, v, month);
+            }
+            FlatEcology.EvaluateGlebaTile(world, tile, out d.Flora, out d.GlebaBiome, out d.Soil, out d.BiotemperatureC, out d.IceMeters);
+            return d;
+        }
+    }
+
+    public struct GlebaTileClimateDiagnostic
+    {
+        public bool Available;
+        public float ItczLatitudeDeg, SthzNorthDeg, SthzSouthDeg, PolarFrontNorthDeg, PolarFrontSouthDeg, EffectiveLatitudeDeg;
+        public float PressureHpa, RainfallImpact, WindContinentality, RainShadowiness, DistanceToSeaKm;
+        public float WindEast, WindNorth, CurrentEast, CurrentNorth;
+        public float BiotemperatureC, IceMeters;
+        public GlebaBiomeKind GlebaBiome;
+        public GlebaPlantCover Flora;
+        public GlebaSoilState Soil;
     }
 }
