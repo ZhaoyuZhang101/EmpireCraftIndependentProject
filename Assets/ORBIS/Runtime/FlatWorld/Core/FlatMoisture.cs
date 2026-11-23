@@ -128,7 +128,7 @@ namespace Orbis.Flat
         static void ComputeContinentalCorridors(int width,int height,float[] ocean,float[] landMeanElev,float[] landCrest,
             MarineSectors[] sectors,GlebaClimateSupplement gleba,
             out float[] gulfCorridor,out float[] saczMonsoon,out float[] isolatedSubtropLee,
-            out float[] subtropHighPlateau,out float[] interiorSteppe)
+            out float[] subtropHighPlateau,out float[] interiorSteppe,out float[] orographicTower)
         {
             int count=width*height;
             gulfCorridor=new float[count];
@@ -136,11 +136,12 @@ namespace Orbis.Flat
             isolatedSubtropLee=new float[count];
             subtropHighPlateau=new float[count];
             interiorSteppe=new float[count];
+            orographicTower=new float[count];
             float kmRow=20015.115f/height;
             for(int y=0;y<height;y++)
             {
                 float lat=((y+.5f)/height-.5f)*180f,ab=Math.Abs(lat);
-                if(ab<4f || ab>56f)continue;
+                if(ab<4f || ab>57f)continue;
                 float hemi=lat>=0f?1f:-1f;
                 float kmCol=kmRow*Math.Max(.18f,(float)Math.Cos(lat*Math.PI/180.0));
                 for(int x=0;x<width;x++)
@@ -226,10 +227,10 @@ namespace Orbis.Flat
                         }
                     }
 
-                    // 3. Isolated Horse-Latitude Island-Continent (e.g. Outback Australia, inland of 340 km):
+                    // 3. Isolated Horse-Latitude Island-Continent (e.g. Outback Queensland/NSW inland of Great Dividing Range, >155 km):
                     //    Lacks BOTH a poleward midlatitude landmass (42..52 deg is ocean) AND an equatorial continent (3..11 deg is sea,
                     //    sparing Southern Africa which connects continuously to the equatorial Congo landmass!).
-                    if(ab>=15f && ab<=31.5f && ocean[i]<.5f && saczMonsoon[i]<.2f && gulfCorridor[i]<.2f)
+                    if(ab>=14f && ab<=31.8f && ocean[i]<.5f && saczMonsoon[i]<.2f && gulfCorridor[i]<.2f)
                     {
                         float poleMidLand=0f;
                         for(int p=0;p<3;p++)
@@ -249,27 +250,48 @@ namespace Orbis.Flat
                         }
                         float noPoleContinent=ExoPlaSimSupplement.SmoothStep(.32f,.10f,poleMidLand);
                         float noEqContinent=ExoPlaSimSupplement.SmoothStep(.45f,.20f,eqBandLand);
-                        isolatedSubtropLee[i]=(1f-ocean[i])*noPoleContinent*noEqContinent*ExoPlaSimSupplement.SmoothStep(340f,740f,distKm)
-                            *ExoPlaSimSupplement.SmoothStep(15.0f,19.5f,ab)*ExoPlaSimSupplement.SmoothStep(31.5f,27.0f,ab);
+                        isolatedSubtropLee[i]=(1f-ocean[i])*noPoleContinent*noEqContinent*ExoPlaSimSupplement.SmoothStep(155f,430f,distKm)
+                            *ExoPlaSimSupplement.SmoothStep(14.0f,18.5f,ab)*ExoPlaSimSupplement.SmoothStep(31.8f,27.2f,ab);
                     }
 
-                    // 4. Subtropical High Plateau Adjacent to Cold Western Ocean (e.g. Mexican Altiplano, SW US, NW Argentina Puna):
-                    if(ab>=16.5f && ab<=40.5f && ocean[i]<.5f && landMeanElev[i]>940f)
+                    // 4. Topographic Prominence: Mountain Water Towers (Zagros, Caucasus, Tian Shan, Rockies, Qilian)
+                    //    vs Enclosed / High Rain-Shadow Basins (Tarim, Great Basin, Mexican Interior Basin, Puna).
+                    float regionalElev=0f;
+                    if(ab>=16f && ab<=55f && ocean[i]<.5f)
+                    {
+                        for(int dir=0;dir<8;dir++)
+                        {
+                            double ang=dir*(Math.PI/4.0);
+                            float ex=(float)Math.Cos(ang),ny=(float)Math.Sin(ang);
+                            float e1=FractionAt(landMeanElev,width,height,x+ex*380f/kmCol,y+ny*380f/kmRow);
+                            float e2=FractionAt(landMeanElev,width,height,x+ex*760f/kmCol,y+ny*760f/kmRow);
+                            regionalElev+=(.45f*e1+.55f*e2)*.125f;
+                        }
+                        float prominence=landCrest[i]-regionalElev;
+                        if(ab>=26.0f && prominence>360f)
+                        {
+                            orographicTower[i]=(1f-ocean[i])*ExoPlaSimSupplement.SmoothStep(360f,1020f,prominence)
+                                *ExoPlaSimSupplement.SmoothStep(820f,1480f,landCrest[i])
+                                *ExoPlaSimSupplement.SmoothStep(26.0f,30.5f,ab)*ExoPlaSimSupplement.SmoothStep(55.5f,49.5f,ab);
+                        }
+                    }
+
+                    // 5. Subtropical / Midlatitude High Basin-Plateau Floor Adjacent to Western Ocean (spares prominent mountain water towers!):
+                    if(ab>=16.5f && ab<=43.5f && ocean[i]<.5f && landMeanElev[i]>880f)
                     {
                         float westSeaNear=0f;
                         for(int k=1;k<=6;k++)
-                            westSeaNear=Math.Max(westSeaNear,FractionAt(ocean,width,height,x-(k*270f)/kmCol,y));
+                            westSeaNear=Math.Max(westSeaNear,FractionAt(ocean,width,height,x-(k*280f)/kmCol,y));
                         float westOceanGate=FMath.Clamp((westSeaNear-.35f)/.35f,0f,1f);
                         float notShieldedAsia=1f-FMath.Clamp(sectors[i].ShieldedInflow*8f,0f,1f);
-                        subtropHighPlateau[i]=(1f-ocean[i])*westOceanGate*notShieldedAsia
-                            *ExoPlaSimSupplement.SmoothStep(940f,1480f,landMeanElev[i])
+                        subtropHighPlateau[i]=(1f-ocean[i])*(1f-orographicTower[i])*westOceanGate*notShieldedAsia
+                            *ExoPlaSimSupplement.SmoothStep(880f,1420f,landMeanElev[i])
                             *(1f-FMath.Clamp(2.5f*saczMonsoon[i]+2.5f*gulfCorridor[i],0f,1f))
-                            *ExoPlaSimSupplement.SmoothStep(16.5f,20.5f,ab)*ExoPlaSimSupplement.SmoothStep(40.5f,35.0f,ab);
+                            *ExoPlaSimSupplement.SmoothStep(16.5f,20.5f,ab)*ExoPlaSimSupplement.SmoothStep(43.5f,37.5f,ab);
                     }
 
-                    // 5. Deep Midlatitude Steppe Isolated from Open Westerly & Equatorward Oceans (e.g. Caspian / Kazakh / Turan):
-                    //    Samples 1000..3000 km west so narrow inland seas (Black Sea) do not mask continental interior aridity.
-                    if(ab>=38.5f && ab<=54.0f && ocean[i]<.5f)
+                    // 6. Deep Midlatitude Steppe Isolated from Open Westerly & Equatorward Oceans (spares mountain water towers!):
+                    if(ab>=38.0f && ab<=54.0f && ocean[i]<.5f)
                     {
                         float westOpenSea=0f;
                         for(int k=4;k<=10;k++)
@@ -280,8 +302,8 @@ namespace Orbis.Flat
                         float noWestOcean=ExoPlaSimSupplement.SmoothStep(.22f,.08f,westOpenSea);
                         float noEqOcean=ExoPlaSimSupplement.SmoothStep(.18f,.05f,eqOpenSea);
                         float noEastFetch=1f-FMath.Clamp(3.0f*sectors[i].SummerMarineFetch+3.0f*sectors[i].EasternMargin+2.5f*gulfCorridor[i],0f,1f);
-                        interiorSteppe[i]=(1f-ocean[i])*noWestOcean*noEqOcean*noEastFetch
-                            *ExoPlaSimSupplement.SmoothStep(38.5f,42.5f,ab)*ExoPlaSimSupplement.SmoothStep(54.0f,49.5f,ab);
+                        interiorSteppe[i]=(1f-ocean[i])*(1f-orographicTower[i])*noWestOcean*noEqOcean*noEastFetch
+                            *ExoPlaSimSupplement.SmoothStep(38.0f,42.0f,ab)*ExoPlaSimSupplement.SmoothStep(54.0f,49.5f,ab);
                     }
                 }
             }
@@ -616,10 +638,10 @@ namespace Orbis.Flat
                 landSource[i]=1f-ocean[i];
                 crestSource[i]=(1f-.85f*ocean[i])*FMath.Clamp((landCrest[i]-520f)/1700f,0f,1f);
             }
-            float[] gulfCorridor=null,saczMonsoon=null,isolatedSubtropLee=null,subtropHighPlateau=null,interiorSteppe=null;
+            float[] gulfCorridor=null,saczMonsoon=null,isolatedSubtropLee=null,subtropHighPlateau=null,interiorSteppe=null,orographicTower=null;
             if(oceanContrast>0f)
                 ComputeContinentalCorridors(width,height,ocean,landMeanElev,landCrest,sectors,gleba,
-                    out gulfCorridor,out saczMonsoon,out isolatedSubtropLee,out subtropHighPlateau,out interiorSteppe);
+                    out gulfCorridor,out saczMonsoon,out isolatedSubtropLee,out subtropHighPlateau,out interiorSteppe,out orographicTower);
             Parallel.For(0,12,options,month=>
             {
                 var column=months[month]=new MonthlyTransport(count);
@@ -659,6 +681,22 @@ namespace Orbis.Flat
                         float equatorward=-hemiSign*gleba.CurrentNorth[i*12+month];
                         coastalCurrent+=.16f*oceanContrast*ocean[i]*FMath.Clamp(equatorward*8f,-1f,1f)
                             *(float)Math.Exp(-Math.Pow((Math.Abs(lat)-24)/16,2));
+                    }
+                    // Nearshore tropical western-ocean upwelling off continuous eastern continental margins bounded by a poleward monsoon landmass
+                    // & coastal rift highlands (Somali / Arabian coast; 0 on Amazon mouth & Indonesia!)
+                    if(oceanContrast>0f && ocean[i]>.25f && Math.Abs(lat)<14.5f)
+                    {
+                        float kmR1=20015.115f/height, kmC1=kmR1*Math.Max(.25f,(float)Math.Cos(lat*Math.PI/180));
+                        float cw1=1f-FractionAt(ocean,width,height,x-750f/kmC1,y);
+                        float cw2=1f-FractionAt(ocean,width,height,x-1550f/kmC1,y);
+                        float westRift=Math.Max(FractionAt(landCrest,width,height,x-450f/kmC1,y),FractionAt(landCrest,width,height,x-950f/kmC1,y));
+                        float nMonsoonRow=(23f/180f+.5f)*height-.5f, sMonsoonRow=(-23f/180f+.5f)*height-.5f;
+                        float poleBasinWall=Math.Max(
+                            1f-.5f*(FractionAt(ocean,width,height,x+300f/kmC1,nMonsoonRow)+FractionAt(ocean,width,height,x+1200f/kmC1,nMonsoonRow)),
+                            1f-.5f*(FractionAt(ocean,width,height,x+300f/kmC1,sMonsoonRow)+FractionAt(ocean,width,height,x+1200f/kmC1,sMonsoonRow)));
+                        float somaliBasinGate=ExoPlaSimSupplement.SmoothStep(.28f,.55f,poleBasinWall)*ExoPlaSimSupplement.SmoothStep(700f,1300f,westRift);
+                        float somaliSea=ocean[i]*somaliBasinGate*FMath.Clamp((Math.Min(cw1,cw2)-.55f)/.30f,0f,1f)*(float)Math.Exp(-Math.Pow(lat/11f,2));
+                        coastalCurrent+=.95f*oceanContrast*somaliSea;
                     }
                     pet[i]*=1-.30f*coastalCurrent;
                     if(currents!=null && ocean[i]>0)
@@ -905,7 +943,15 @@ namespace Orbis.Flat
                             float w1=1f-FractionAt(ocean,width,height,x-650f/kmColPass2,y);
                             float w2=1f-FractionAt(ocean,width,height,x-1400f/kmColPass2,y);
                             float continuousWestContinent=Math.Min(w1,w2);
-                            float eastMarginTropics=FMath.Clamp((eastSea-.30f)/.35f,0f,1f)*FMath.Clamp((continuousWestContinent-.55f)/.30f,0f,1f)*(float)Math.Exp(-Math.Pow(ab/14f,2));
+                            // Require a poleward subtropical landmass capping the eastern ocean basin (Arabia/Asia north of Indian Ocean = 0.8+,
+                            // vs open North/South Atlantic off Amazon mouth = 0.0!) + coastal/rift highland chain (>750 m within 950 km west).
+                            float nWallRow=(23f/180f+.5f)*height-.5f, sWallRow=(-23f/180f+.5f)*height-.5f;
+                            float basinCapLand=Math.Max(
+                                1f-.5f*(FractionAt(ocean,width,height,x+400f/kmColPass2,nWallRow)+FractionAt(ocean,width,height,x+1400f/kmColPass2,nWallRow)),
+                                1f-.5f*(FractionAt(ocean,width,height,x+400f/kmColPass2,sWallRow)+FractionAt(ocean,width,height,x+1400f/kmColPass2,sWallRow)));
+                            float riftCrest=Math.Max(landCrest[i],Math.Max(FractionAt(landCrest,width,height,x-450f/kmColPass2,y),FractionAt(landCrest,width,height,x-950f/kmColPass2,y)));
+                            float monsoonalRiftMargin=ExoPlaSimSupplement.SmoothStep(.28f,.55f,basinCapLand)*ExoPlaSimSupplement.SmoothStep(680f,1250f,riftCrest);
+                            float eastMarginTropics=monsoonalRiftMargin*FMath.Clamp((eastSea-.30f)/.35f,0f,1f)*FMath.Clamp((continuousWestContinent-.55f)/.30f,0f,1f)*(float)Math.Exp(-Math.Pow(ab/14f,2));
                             if(eastMarginTropics>0f)
                             {
                                 float upMeridional=FMath.Clamp(-surfaceNorth/.018f,-1f,1f);
@@ -914,8 +960,12 @@ namespace Orbis.Flat
                                 float offshoreMode=FMath.Clamp((surfaceEast+.03f)/.08f,0f,1f);
                                 float outflowMode=Math.Abs(upMeridional)*FMath.Clamp((upwindPoleLand-.28f)/.32f,0f,1f)
                                     *FMath.Clamp((Math.Abs(lat-convergenceLatitude[i])-5f)/10f,0f,1f);
-                                somaliDivergence=oceanContrast*eastMarginTropics*FMath.Clamp(Math.Max(offshoreMode,outflowMode),0f,.94f);
-                                cap[i]*=1f+.42f*somaliDivergence;
+                                // Indian Ocean Walker descending branch keeps equatorial Somalia/Kenya/Turkana/Afar (<14.5 deg) semi-arid year-round,
+                                // while coastal frictional divergence / Rift escarpment blocks westward export of un-rained vapour into Congo & Lake Chad!
+                                float walkerDescend=.78f*ExoPlaSimSupplement.SmoothStep(15.0f,9.5f,ab);
+                                somaliDivergence=oceanContrast*eastMarginTropics*FMath.Clamp(Math.Max(walkerDescend,Math.Max(offshoreMode,outflowMode)),0f,.94f);
+                                cap[i]*=1f+.52f*somaliDivergence;
+                                if(u[i]<0f) u[i]*=1f-.45f*somaliDivergence;
                             }
                         }
 
@@ -923,10 +973,11 @@ namespace Orbis.Flat
                         float gulfCool=gulfHere*FMath.Clamp(.82f-.75f*summer,0f,1f);
                         float saczHere=saczMonsoon!=null?oceanContrast*saczMonsoon[i]*(1f-somaliDivergence):0f;
                         float saczActive=saczHere*ExoPlaSimSupplement.SmoothStep(-.18f,.52f,summer);
-                        float nonMonsoonEastLee=isolatedSubtropLee!=null?oceanContrast*isolatedSubtropLee[i]:0f;
-                        float effectiveEastMargin=sector.EasternMargin*(1f-.62f*nonMonsoonEastLee);
+                        float towerHere=orographicTower!=null?oceanContrast*orographicTower[i]:0f;
+                        float nonMonsoonEastLee=isolatedSubtropLee!=null?oceanContrast*isolatedSubtropLee[i]*(1f-towerHere):0f;
+                        float effectiveEastMargin=sector.EasternMargin*(1f-.78f*nonMonsoonEastLee);
 
-                        float monsoon=sector.Monsoon*monsoonBelt*(1f-.38f*nonMonsoonEastLee), onshore=effectiveEastMargin*onshoreBelt;
+                        float monsoon=sector.Monsoon*monsoonBelt*(1f-.56f*nonMonsoonEastLee), onshore=effectiveEastMargin*onshoreBelt;
                         float marineInflow=sector.SummerMarineFetch*coastalSeason;
                         float coastFront=effectiveEastMargin*advancingFront;
                         float westCoast=westBelt*sector.WesternMargin;
@@ -1064,56 +1115,62 @@ namespace Orbis.Flat
                         float lifetime=FMath.Lerp(.7f,FMath.Lerp(3.0f,5.0f,ocean[i]),track);
                         column.Release[i]=1-(float)Math.Exp(-dt/lifetime);
                         column.Rainout[i]=.4f+.24f*(1-water[i]);
-                        lift[i]+=.24f*corridor+.60f*frontalLift+.16f*warmMarginCyclones+.15f*gulfCool;
+                        lift[i]+=.24f*corridor+.60f*frontalLift+.16f*warmMarginCyclones+.15f*gulfCool+.12f*towerHere*(.45f+.55f*coolSeason);
                         float coastalRise=Math.Max(0,ridgeHeight[i]-ridgeHeight[upX])*Math.Abs(u[i])
                             +Math.Max(0,ridgeHeight[i]-ridgeHeight[upY])*Math.Abs(v[i]);
                         lift[i]+=.25f*marineInflow*Math.Min(2,coastalRise/(dt*220));
-                        rainEfficiency[i]+=.8f*corridor+.40f*frontalLift/.055f+.62f*warmMarginCyclones+.65f*gulfCool;
+                        rainEfficiency[i]+=.8f*corridor+.40f*frontalLift/.055f+.62f*warmMarginCyclones+.65f*gulfCool+.58f*towerHere;
 
                         // Surgical Gleba + ExoPlaSim (`rainmod.f90` Convective vs Stratiform + Maritime Sea-Breeze Guard) coupling:
                         float tempNow=monthlyTemperature[i*12+month];
                         column.StratiformCritRh[i]=.90f;
                         column.SolidSnowFrac[i]=ExoPlaSimSupplement.SmoothStep(2.0f,-2.5f,tempNow);
                         float baseConv=rainEfficiency[i]*convection;
-                        float baseStrat=(.4f+.6f*rainEfficiency[i])*(fronts+Math.Min(.30f,rise/1400))+.60f*frontalLift+.16f*warmMarginCyclones+.15f*gulfCool;
+                        float baseStrat=(.4f+.6f*rainEfficiency[i])*(fronts+Math.Min(.30f,rise/1400))+.60f*frontalLift+.16f*warmMarginCyclones+.15f*gulfCool+.12f*towerHere;
                         column.ConvectiveShare[i]=FMath.Clamp((baseConv+.24f*corridor)/Math.Max(.005f,baseConv+baseStrat+.24f*corridor),0f,1f)*ExoPlaSimSupplement.SmoothStep(6f,19f,tempNow);
 
                         if(oceanContrast>0f)
                         {
                             float seaBreeze=exo!=null?exo.MaritimeSeaBreezeGuard[i]:0f;
                             column.SeaBreezeResilience[i]=seaBreeze;
+                            float towerShield=1f-.78f*towerHere;
                             float nonIsland=FMath.Clamp((regionalLand[i]-.22f)/.35f,0f,1f)*(1f-.75f*seaBreeze);
                             float activeMonsoonGuard=1f-FMath.Clamp(wetSeason*4.0f+summerJet*2.5f+saczActive*2.4f+corridor*1.8f,0f,.90f);
                             float westOrInteriorSthz=FMath.Clamp((distOceanKm-450f)/450f+2.5f*Math.Max(0f,sector.WesternMargin-effectiveEastMargin),0f,1f);
-                            float sthzDry=oceanContrast*Math.Max(0f,-glebaImpact)*winterMedGate*westOrInteriorSthz*activeMonsoonGuard
+                            float sthzDry=oceanContrast*Math.Max(0f,-glebaImpact)*winterMedGate*westOrInteriorSthz*activeMonsoonGuard*towerShield
                                 *(.25f+.75f*(1f-ocean[i]))*(float)Math.Exp(-Math.Pow((ab-23f)/13f,2))*nonIsland;
                             float easternSeaboardGuard=1f-FMath.Clamp(2.8f*effectiveEastMargin+2.5f*sector.SummerMarineFetch+2.2f*saczActive+2.4f*gulfHere,0f,.86f);
                             float rawSteppe=interiorSteppe!=null?interiorSteppe[i]:0f;
-                            float inlandDry=oceanContrast*Math.Max(mappedCont*inlandLatBand,.66f*rawSteppe)*easternSeaboardGuard*(1f-ocean[i])*(1f-.85f*seaBreeze);
-                            // Taper rain shadow across deep-equatorial maritime archipelagos (<10 deg), warm sea-breeze peninsulas, and Gulf/SACZ corridors
+                            float inlandDry=oceanContrast*Math.Max(mappedCont*inlandLatBand,.80f*rawSteppe)*easternSeaboardGuard*towerShield*(1f-ocean[i])*(1f-.85f*seaBreeze);
+                            // Taper rain shadow across deep-equatorial maritime archipelagos (<10 deg), warm sea-breeze peninsulas, prominent mountain crests, and Gulf/SACZ corridors
                             float shadowLatGate=FMath.Clamp((ab-8.5f)/5.5f,.12f,1f)*(1f-.45f*FMath.Clamp(summerJet*2f,0f,1f))*(1f-.55f*seaBreeze)
-                                *(1f-.78f*gulfHere)*(1f-.55f*saczActive);
+                                *(1f-.78f*gulfHere)*(1f-.55f*saczActive)*(1f-.65f*towerHere);
                             float shadowDry=oceanContrast*shadowLatGate*FMath.Clamp(1.10f*leeShadow,0f,.55f)*(1f-.7f*ocean[i]);
 
-                            // Subtropical high plateau above marine boundary layer (Mexican Plateau, SW US, Puna; spares monsoon/shielded Asia)
+                            // Subtropical / midlatitude high basin-plateau floor above marine boundary layer (spares prominent mountain water towers)
                             float subtropPlateau=subtropHighPlateau!=null?oceanContrast*subtropHighPlateau[i]*(1f-.90f*seaBreeze):0f;
                             // Blocked midlatitude steppe & Foehn lee: free-tropospheric advection above shallow surface inversion / adiabatic descent
                             float blockedSteppe=Math.Max(
                                 inlandDry*ExoPlaSimSupplement.SmoothStep(38.0f,42.5f,ab)*ExoPlaSimSupplement.SmoothStep(54.0f,49.0f,ab)*(1f-FMath.Clamp(2.5f*gulfHere+3.0f*sector.SummerMarineFetch,0f,1f)),
-                                .85f*oceanContrast*rawSteppe);
-                            float foehnLee=shadowDry*ExoPlaSimSupplement.SmoothStep(33f,39f,ab)*(1f-FMath.Clamp(2.5f*gulfHere,0f,1f));
-                            cap[i]*=1f+.38f*blockedSteppe*(.35f+.65f*coolSeason)+.38f*foehnLee+.32f*subtropPlateau+.18f*eqSolsticeDry;
+                                .92f*oceanContrast*rawSteppe);
+                            float foehnLee=shadowDry*ExoPlaSimSupplement.SmoothStep(33f,39f,ab)*(1f-FMath.Clamp(2.5f*gulfHere+2.0f*towerHere,0f,1f));
+                            cap[i]*=1f+.48f*blockedSteppe*(.40f+.60f*coolSeason)+.50f*foehnLee+.38f*subtropPlateau+.18f*eqSolsticeDry;
+
+                            // Harmattan / Intertropical Discontinuity dry-front cap on tropical desert-fringe steppes (Sahel 11..18 deg south of STHZ high)
+                            float harmattanCap=oceanContrast*sthzCap*(1f-ocean[i])*(1f-.95f*seaBreeze)*towerShield
+                                *ExoPlaSimSupplement.SmoothStep(10.8f,13.8f,ab)*ExoPlaSimSupplement.SmoothStep(21.5f,17.5f,ab)
+                                *(1f-FMath.Clamp(2.5f*effectiveEastMargin+2.2f*saczActive+2.2f*gulfHere,0f,1f));
 
                             // Subtropical desert & dry-margin CIN lid (`ab >= 20.5 deg` ONLY so tropical Aw savannas at <20 deg stay 100% untouched!):
-                            // suppresses residual drizzle in Sahara, Arabia, Thar, Interior Australia & summer-dry subtropics (`BWh -> BSh` reduction + lower global MAE/RMSE)
                             float subtropDesertGate=ExoPlaSimSupplement.SmoothStep(20.5f,25.5f,ab)*(float)Math.Exp(-Math.Pow((ab-28.0f)/12.5f,2));
-                            float desertMarginLid=oceanContrast*sthzCap*(1f-ocean[i])*(1f-.95f*seaBreeze)*subtropDesertGate
+                            float desertMarginLid=oceanContrast*sthzCap*(1f-ocean[i])*(1f-.95f*seaBreeze)*subtropDesertGate*towerShield
                                 *(1f-FMath.Clamp(2.5f*effectiveEastMargin+2.2f*saczActive+2.2f*gulfHere,0f,1f));
-                            float hyperAridCore=oceanContrast*(1f-ocean[i])*(1f-.95f*seaBreeze)*subtropDesertGate
+                            float hyperAridCore=oceanContrast*(1f-ocean[i])*(1f-.95f*seaBreeze)*subtropDesertGate*towerShield
                                 *ExoPlaSimSupplement.SmoothStep(.12f,.36f,sthzDry+.60f*sthzCap);
 
                             float combinedSuppress=(1f-.88f*somaliDivergence)*(1f-.43f*sthzDry)*(1f-.63f*inlandDry)*(1f-shadowDry)
-                                *(1f-.34f*hyperAridCore)*(1f-.26f*desertMarginLid)*(1f-.30f*blockedSteppe)*(1f-.34f*subtropPlateau)*(1f-.34f*eqSolsticeDry);
+                                *(1f-.34f*hyperAridCore)*(1f-.26f*desertMarginLid)*(1f-.36f*blockedSteppe)*(1f-.36f*foehnLee)
+                                *(1f-.40f*subtropPlateau)*(1f-.34f*eqSolsticeDry)*(1f-.36f*harmattanCap);
 
                             // Soft-capped lowland equatorial + Maritime-Continent / Indochina diurnal sea-breeze convergence boost (0% SE Asia desert guarantee!)
                             float wallGuard=1f-FMath.Clamp((climbEast+climbNorth)/350f,0f,1f);
@@ -1123,7 +1180,7 @@ namespace Orbis.Flat
                             // Monsoon peninsulas (>=10 deg, Indochina/Philippines) concentrate sea-breeze boost in warm wet season so winter stays true Aw!
                             float breezeSeason=FMath.Lerp(ExoPlaSimSupplement.SmoothStep(.10f,.58f,summer+.30f*warmSea),1f,ExoPlaSimSupplement.SmoothStep(10.5f,5.5f,ab));
                             float seaBreezeBoost=oceanContrast*seaBreeze*warmBreeze*breezeSeason*(.46f+.36f*itczNear);
-                            float eqItczBoost=1f+oceanContrast*itczNear*lowlandGate*unsaturatedPeak*(1f-somaliDivergence)*(1f-.65f*eqSolsticeDry)
+                            float eqItczBoost=1f+oceanContrast*itczNear*lowlandGate*unsaturatedPeak*(1f-somaliDivergence)*(1f-.65f*eqSolsticeDry)*(1f-.70f*harmattanCap)
                                 *(.20f*(float)Math.Exp(-Math.Pow(ab/12.5f,2))+.12f*Math.Max(0f,glebaImpact)*(float)Math.Exp(-Math.Pow(ab/20f,2))*(1f-mappedCont))
                                 +seaBreezeBoost;
 
@@ -1135,7 +1192,7 @@ namespace Orbis.Flat
 
                             lift[i]=lift[i]*combinedSuppress*eqItczBoost*coldStratBoost;
                             rainEfficiency[i]=Math.Max(.04f,rainEfficiency[i]*combinedSuppress*eqItczBoost*coldStratBoost);
-                            column.Rainout[i]*=(1f-.42f*shadowDry-.42f*hyperAridCore-.28f*desertMarginLid-.80f*somaliDivergence-.30f*subtropPlateau)
+                            column.Rainout[i]*=(1f-.42f*shadowDry-.42f*hyperAridCore-.28f*desertMarginLid-.80f*somaliDivergence-.32f*subtropPlateau-.30f*harmattanCap)
                                 *(1f+.24f*seaBreeze*warmBreeze*breezeSeason);
 
                             // Western-Pacific typhoon moisture organization strictly on open Pacific margin (`sector.EasternMargin`), never Bay of Bengal -> Deccan!
@@ -1144,9 +1201,9 @@ namespace Orbis.Flat
                             float warmPoolMpi=ocean[i]*westernBasinGate*typhoonSeason*ExoPlaSimSupplement.SmoothStep(26.4f,28.6f,tempNow)*coriolisGenesis*(1f-.85f*somaliDivergence);
                             column.OrganizedFraction[i]=FMath.Clamp(column.OrganizedFraction[i]+.10f*oceanContrast*warmPoolMpi*receivingLand,0f,1f);
 
-                            column.StratiformCritRh[i]=FMath.Clamp(.90f+.055f*hyperAridCore+.035f*desertMarginLid+.055f*blockedSteppe+.045f*foehnLee+.035f*subtropPlateau-.055f*icePhase,.83f,.97f);
-                            float extraDry=.30f*sthzDry+.52f*inlandDry+.40f*hyperAridCore+.30f*desertMarginLid+.36f*shadowDry+.32f*subtropPlateau+1.15f*somaliDivergence;
-                            column.DryLayer[i]=FMath.Clamp((column.DryLayer[i]+extraDry)*(1f-.40f*warmMarginCyclones-.42f*gulfCool)*(1f-.30f*seaBreeze*warmBreeze*breezeSeason),.08f,2.05f);
+                            column.StratiformCritRh[i]=FMath.Clamp(.90f+.055f*hyperAridCore+.035f*desertMarginLid+.055f*blockedSteppe+.050f*foehnLee+.040f*subtropPlateau-.055f*icePhase-.035f*towerHere,.82f,.97f);
+                            float extraDry=.30f*sthzDry+.52f*inlandDry+.40f*hyperAridCore+.30f*desertMarginLid+.36f*shadowDry+.35f*subtropPlateau+.30f*harmattanCap+1.15f*somaliDivergence;
+                            column.DryLayer[i]=FMath.Clamp((column.DryLayer[i]+extraDry)*(1f-.40f*warmMarginCyclones-.42f*gulfCool)*(1f-.52f*towerHere)*(1f-.30f*seaBreeze*warmBreeze*breezeSeason),.08f,2.05f);
                         }
 
                         u[i]/=1+climbEast*gridScale/850;

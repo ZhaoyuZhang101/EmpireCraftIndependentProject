@@ -231,8 +231,10 @@ namespace Orbis.Flat
                     int i=y*w.Width+x,off=i*12;
                     float marine=FMath.Lerp(east[x],west[x],westerlies), inland=1-marine, contrast=west[x]-east[x];
                     float distance=Math.Min(1,w.CoastDistance[i]/(.05f*w.Width));
-                    // Area-weighted fit to monthly land normals, using elevation in metres.
-                    float annual=28.258f-(22.939f*s2+23.472f*s2*s2)/Math.Max(.55f,hadleyScale)-.004577f*lapseScale*SurfaceHeight(w,i)
+                    float surfElev = SurfaceHeight(w, i);
+                    float highFreeAir = Math.Max(0f, surfElev - 2500f);
+                    // Area-weighted fit to monthly land normals, using elevation in metres; above 2.5 km free-troposphere lapse steepens.
+                    float annual=28.258f-(22.939f*s2+23.472f*s2*s2)/Math.Max(.55f,hadleyScale)-.004577f*lapseScale*surfElev-.00145f*lapseScale*highFreeAir
                         +5.409f*s2*(marine-.5f)+4.867f*subtropics*(inland-.5f)+6.078f*s*contrast;
                     if (customPlanet)
                     {
@@ -247,8 +249,12 @@ namespace Orbis.Flat
                             annual = FMath.Lerp(annual, eyeball + ghDelta, 0.78f);
                         }
                     }
+                    float oceanAirAnom = 0f;
                     if (currents != null)
-                        annual += MarineAirCoupling * currents.SampleAir((x+.5f)/width,(y+.5f)/height);
+                    {
+                        oceanAirAnom = currents.SampleAir((x+.5f)/width,(y+.5f)/height);
+                        annual += MarineAirCoupling * oceanAirAnom;
+                    }
                     float amplitude=obliqRatio*sine*(8.566f+3.489f*distance+5.829f*inland+11.226f*s*inland-2.701f*contrast);
                     float lag=obliqRatio*sine*(1.579f-2.569f*distance-3.087f*inland+4.774f*s*inland+.111f*contrast);
                     float land = 1 - regionalSea[i], z = relief[i];
@@ -272,8 +278,16 @@ namespace Orbis.Flat
                     float polewardLand = 1f - polewardSea;
                     float eastMargin = Math.Max(0f, east[x] - west[x]);
                     float openCorridor = (float)Math.Exp(-Math.Max(0f, poleward - z) / .95f);
-                    float coldSurge = eastMargin * polewardLand * openCorridor * (float)Math.Exp(-Math.Pow((degrees - 25) / 8.0, 2));
-                    float winterHeat = 5.8070f*snow*marineAir + 2.5175f*s*FMath.Clamp(poleward-z, -3, 3) - 1.3023f*coldSource - 2.3f*coldSurge;
+                    float coldSurge = eastMargin * polewardLand * openCorridor * (
+                        (float)Math.Exp(-Math.Pow((degrees - 25) / 8.0, 2))
+                        + .65f * (float)Math.Exp(-Math.Pow((degrees - 37.5) / 5.8, 2)));
+                    // Trade-wind tropical lowlands without a poleward continent retain moist winter warmth; high inland basins pool cold winter air.
+                    float lowTropicalTrade = east[x] * FMath.Clamp((.45f - polewardLand) / .30f, 0f, 1f)
+                        * FMath.Clamp((920f - surfElev) / 520f, 0f, 1f) * (float)Math.Exp(-Math.Pow((degrees - 21.0) / 8.0, 2));
+                    float highBasinWinterPool = FMath.Clamp((surfElev - 920f) / 650f, 0f, 1f) * FMath.Clamp((inland - .42f) / .35f, 0f, 1f)
+                        * (float)Math.Exp(-Math.Pow((degrees - 37.5) / 7.5, 2));
+                    float winterHeat = 5.8070f*snow*marineAir + 2.5175f*s*FMath.Clamp(poleward-z, -3, 3)
+                        - 1.3023f*coldSource - 2.3f*coldSurge + 2.45f*lowTropicalTrade - 1.35f*highBasinWinterPool;
                     // Circumpolar subpolar ocean air outbreaks cool warm-temperate continents facing an unbroken poleward ocean (e.g. Southern Australia)
                     float subpolarOceanCool = FMath.Clamp((polewardSea - .68f) / .28f, 0f, 1f) * (float)Math.Exp(-Math.Pow((degrees - 35) / 7.5, 2));
                     // High-albedo polar continental ice-sheet & katabatic inversion cooling (Gleba polar continental drop on interior ice domes)
@@ -288,9 +302,15 @@ namespace Orbis.Flat
                     float seaContrast = hemisphere*(south.Read(nearbySea, x, width)-north.Read(nearbySea, x, width));
                     float premonsoon = Math.Max(0,seaContrast)*(1+Math.Max(0,poleward-z))*premonsoonBelt;
                     float summerLapse = -.6556f*source[i];
+                    // Warm western-boundary/poleward currents (e.g. North Atlantic Drift, Brazil Current) buffer maritime winter cooling
+                    // directly on coastal/island land where continental `coupling` is small (cancels exactly at peak summer!).
+                    float directWarmWinter = !FlatTerrainAnalysis.AreaWater(w.Water[i])
+                        ? Math.Max(0f, oceanAirAnom) * FMath.Clamp(1.8f * marine, 0f, 1f) * .55f : 0f;
                     annual += coupling * (-.6123f*equatorial + 2.7301f*subtropics*land - 3.5319f*subtropics*coastContrast[i]
-                        - 2.2503f*s*FMath.Clamp(westRelief, -3, 3) - 1.8f*subpolarOceanCool + .5f*(winterHeat+summerLapse)) - polarIceCapCool;
-                    amplitude += coupling * (2.1601f*sine*(marine-nearbySea[i]) + .5f*hemisphere*(summerLapse-winterHeat));
+                        - 2.2503f*s*FMath.Clamp(westRelief, -3, 3) - 1.8f*subpolarOceanCool + .5f*(winterHeat+summerLapse))
+                        + .5f * directWarmWinter - polarIceCapCool;
+                    amplitude += coupling * (2.1601f*sine*(marine-nearbySea[i]) + .5f*hemisphere*(summerLapse-winterHeat))
+                        - .5f * hemisphere * directWarmWinter;
                     lag -= coupling * hemisphere*(.4912f*tropical+.5713f*premonsoon);
                     // In warm-season westerlies, a broad elevated continental source
                     // heats air above the lowland boundary layer. Marine air damps

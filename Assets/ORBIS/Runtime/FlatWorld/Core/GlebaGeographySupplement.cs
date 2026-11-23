@@ -3049,7 +3049,9 @@ namespace Orbis.Flat
                     float dhDx = (elevG[row + xE] - elevG[row + xW]) / (2f * cosRow[y] * cellKm);
                     float dhDy = (elevG[yN * width + x] - elevG[yS * width + x]) / (Math.Max(1, yN - yS) * cellKm);
                     float slopeDot = windE[idx] * dhDx + windN[idx] * dhDy; // m/km * windUnit
-                    float windwardLift = FMath.Clamp(slopeDot / 1.65f, 0f, 1f);
+                    float eqFacingSlope = Math.Max(0f, (latDeg >= 0f ? 1f : -1f) * dhDy);
+                    float anabaticCrest = 0.34f * Smooth(2.0f, 7.2f, eqFacingSlope) * Smooth(0.26f, 0.56f, rh) * Smooth(-6f, 6f, tempC);
+                    float windwardLift = Math.Max(FMath.Clamp(slopeDot / 1.65f, 0f, 1f), anabaticCrest);
                     float leeDownslope = FMath.Clamp(-slopeDot / 2.20f, 0f, 1f);
 
                     float lowP = FMath.Clamp((1010f - slp) / 58f, 0f, 1f) + 0.50f * FMath.Clamp(rainImpact, 0f, 0.5f);
@@ -3107,7 +3109,7 @@ namespace Orbis.Flat
                         oceanFrac * scLat * (0.24f + 0.76f * coolUpwelling) * (0.32f + 0.68f * inversionLid) * (1f - 0.85f * itczConv),
                         0f, 1f);
 
-                    float orogCrest = FMath.Clamp(windwardLift * Smooth(0.26f, 0.68f, rh + 0.25f * FMath.Clamp(rainMm / 160f, 0f, 1f)), 0f, 1f);
+                    float orogCrest = FMath.Clamp(windwardLift * Smooth(0.18f, 0.54f, rh + 0.30f * FMath.Clamp(rainMm / 140f, 0f, 1f)), 0f, 1f);
                     float leeShadow = FMath.Clamp(rainShadow + 0.35f * leeDownslope, 0f, 1f);
                     float localPol = latDeg >= 0f ? polNCol[x] : -polSCol[x];
                     float polNorm = FMath.Clamp((localPol - 30f) / 45f, 0f, 1f);

@@ -335,9 +335,15 @@ namespace Orbis.Flat
                         if (tm > warmest) warmest = tm;
                     }
 
-                    // Permafrost active-layer thaw & dark wet-soil/taiga shortwave absorption strictly near the 10 C subarctic treeline (`warmest < 12.6 C`)
-                    // Avoids warming 3-month Dfc into 4-month Dfb while curing the -0.77 C false-cold tundra bias (`ET <-> Dfc`).
-                    float borealMoist = SmoothStep(180f, 500f, annRain) * SmoothStep(-38f, -6f, coldest) * SmoothStep(4.0f, 12.6f, 12.8f - warmest) * SmoothStep(4.5f, 8.2f, warmest);
+                    // Permafrost active-layer thaw & dark wet-soil/taiga shortwave absorption across the continental 10 C treeline:
+                    // Excludes cold Arctic/subarctic sea-ice coasts (< 280 km from sea, e.g. Hudson Bay / Yamal / Chukotka coastal tundra)
+                    // where summer sea fog keeps observed Tmax < 10 C (`ET`), while curing continental Siberian/Yukon `D -> E` cold bias!
+                    float distSeaKm = predictor.Gleba != null
+                        ? SampleBilinear(predictor.Gleba.DistanceToSeaKm, predictor.Width, predictor.Height, u * predictor.Width - 0.5f, v * predictor.Height - 0.5f)
+                        : 400f;
+                    float inlandTaigaGate = SmoothStep(160f, 400f, distSeaKm);
+                    float borealMoist = inlandTaigaGate * SmoothStep(120f, 270f, annRain) * SmoothStep(-3f, -15f, coldest)
+                        * SmoothStep(13.2f, 10.3f, warmest) * SmoothStep(5.8f, 8.2f, warmest);
                     float hyperArid = SmoothStep(190f, 38f, annRain) * (1f - breeze);
 
                     for (int m = 0; m < 12; m++)
@@ -353,12 +359,12 @@ namespace Orbis.Flat
 
                         float f = 0f;
 
-                        // 1. High-latitude peak-summer active-layer thaw warming right across the 10 C treeline boundary (`ET <-> Dfc`)
-                        if (highLatGate > 0f && borealMoist > 0f && t > 5.0f && t < 12.6f)
+                        // 1. High-latitude peak-summer active-layer thaw warming right across the continental 10 C treeline (`ET <-> Dfc/Dwc`)
+                        if (highLatGate > 0f && borealMoist > 0f && t > 5.8f && t < 13.2f)
                         {
-                            float peakSummerOnly = SmoothStep(Math.Max(5.0f, warmest - 2.4f), warmest, t);
-                            float wetDarkening = cfg.WetSoilAlbedoFeedback ? (0.68f + 0.32f * SmoothStep(0.35f, 0.75f, rh)) : 0.75f;
-                            f += 0.58f * highLatGate * borealMoist * peakSummerOnly * sunNorm * (1.05f - 0.35f * cloud) * wetDarkening;
+                            float peakSummerOnly = SmoothStep(Math.Max(5.8f, warmest - 2.4f), warmest, t);
+                            float wetDarkening = cfg.WetSoilAlbedoFeedback ? (0.70f + 0.30f * SmoothStep(0.32f, 0.72f, rh)) : 0.75f;
+                            f += 0.80f * highLatGate * borealMoist * peakSummerOnly * sunNorm * (1.06f - 0.34f * cloud) * wetDarkening;
                         }
 
                         // 2. Clear-sky dry winter OLR cooling in hyper-arid interiors (zero summer heating inflation so RegionalHeatLow doesn't pull monsoon rain into Thar/Arabia!)
