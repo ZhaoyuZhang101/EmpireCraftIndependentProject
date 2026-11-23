@@ -198,7 +198,10 @@ namespace Orbis.Flat
             glebaUpperWind.Apply(false,false);
             Vector4 fSouth=Vector4.zero,fNorth=Vector4.zero;int topRow=(h-1)*w*4;
             for(int x=0;x<w;x++){int b0=x*4,b1=topRow+x*4;fSouth+=new Vector4(glebaForcingBytes[b0],glebaForcingBytes[b0+1],glebaForcingBytes[b0+2],glebaForcingBytes[b0+3]);fNorth+=new Vector4(glebaForcingBytes[b1],glebaForcingBytes[b1+1],glebaForcingBytes[b1+2],glebaForcingBytes[b1+3]);}
-            float poleInv=1f/(255f*w);bake.SetVector("_GlebaForcingPoleSouth",fSouth*poleInv);bake.SetVector("_GlebaForcingPoleNorth",fNorth*poleInv);bake.SetFloat("_GlebaCloudEnable",1f);
+            float poleInv=1f/(255f*w);bake.SetVector("_GlebaForcingPoleSouth",fSouth*poleInv);bake.SetVector("_GlebaForcingPoleNorth",fNorth*poleInv);
+            GlebaGeographySupplement.GetCloudCirculationParams(world,out float hadleyRad,out float polarRad,out float rossbyWaveK,out float regimeCode);
+            bake.SetVector("_GlebaCirculationParams",new Vector4(hadleyRad,polarRad,rossbyWaveK,regimeCode));
+            bake.SetFloat("_GlebaCloudEnable",1f);
             climateStartDay=season.SegmentStartDay;revision=world.TerrainRevision;
         }
         void UploadWind(FlatMonthlyForcing season)
