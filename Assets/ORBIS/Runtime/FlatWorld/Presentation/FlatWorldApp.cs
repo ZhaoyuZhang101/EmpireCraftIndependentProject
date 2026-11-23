@@ -83,7 +83,7 @@ namespace Orbis.Flat
             sizeField.choices=new List<string>(Array.ConvertAll(playerWidths,width=>$"{width} × {width/2}"));
             sizeField.index=Math.Max(0,Array.FindLastIndex(playerWidths,width=>width<=initialWidth));
             presetField=root.Q<DropdownField>("preset");presetField.choices=new List<string>{"大陆与群山","群岛","超级大陆","内海世界","地球（真实地形）"};presetField.index=0;
-            layerField=root.Q<DropdownField>("layer");layerField.choices=new List<string>{"自然地表","文明版图","20 档高度","Köppen 柯本气候","本月温度","本月降水","海水与淡水","土地肥力","地貌 / 丘陵高原","地表材料 / 沙泥砾岩","土壤桶湿度","河流 / 河口悬沙","生态植被 / 14 类","河网","风带与气压（Gleba）","洋流与海温（Gleba）","高空急流与罗斯贝波（Gleba）","地形雨影与大陆度（Gleba）","月均相对湿度（Gleba）","生态群系（Gleba）","乔灌草植被结构 RGB（Gleba）","土壤质地砂粉黏 RGB（Gleba）","土壤厚度与矿质养分（Gleba）","基岩岩性 37 类（Gleba）","板块边界、造山与火山（Gleba）","含水层、冰期峡湾与珊瑚礁（Gleba）","起源作物与承载力（Gleba）","对流雨与层状雨（ExoPlaSim）","辐射收支与 OLR（ExoPlaSim）","昼夜温差与感潜热（ExoPlaSim）","风暴潜势 MPI / CAPE（ExoPlaSim）","Pasta 生物气候 19 类（ExoPlaSim）"};layerField.index=0;
+            layerField=root.Q<DropdownField>("layer");layerField.choices=new List<string>{"自然地表","文明版图","20 档高度","Köppen 柯本气候","本月温度","本月降水","海水与淡水","土地肥力","地貌 / 丘陵高原","地表材料 / 沙泥砾岩","土壤桶湿度","河流 / 河口悬沙","生态植被 / 14 类","河网","风带与气压","洋流与海温","高空急流与罗斯贝波","地形雨影与大陆度","月均相对湿度","生态群系","乔灌草植被结构 RGB","土壤质地砂粉黏 RGB","土壤厚度与矿质养分","基岩岩性 37 类","板块边界、造山与火山","含水层、冰期峡湾与珊瑚礁","起源作物与承载力","对流雨与层状雨（ExoPlaSim）","辐射收支与 OLR（ExoPlaSim）","昼夜温差与感潜热（ExoPlaSim）","风暴潜势 MPI / CAPE（ExoPlaSim）","Pasta 生物气候 19 类（ExoPlaSim）"};layerField.index=0;
             climateYearField=root.Q<DropdownField>("climateYear");climateYearField.choices=new List<string>{"今年","明年","后年"};climateYearField.index=0;
             climateYearField.RegisterValueChangedCallback(e=>{if(map){map.SetClimateYearOffset(climateYearField.index);UpdateHUD();}});
             layerField.RegisterValueChangedCallback(e=>{
@@ -705,7 +705,7 @@ namespace Orbis.Flat
             var sb=new StringBuilder(512);
             bool areaWater=FlatTerrainAnalysis.AreaWater(World.Water[tile]);
 
-            sb.Append("\n\n[Gleba 环流 · 急流 · 洋流]");
+            sb.Append("\n\n[环流 · 急流 · 洋流]");
             if(gd.Available)
             {
                 sb.Append("\n海平面气压：").Append(gd.PressureHpa.ToString("F1")).Append(" hPa · 相对湿度：").Append(gd.RelativeHumidity.ToString("P0")).Append(" · 抑增雨：").Append(gd.RainfallImpact.ToString("+0.00;-0.00;0.00"));
@@ -725,7 +725,7 @@ namespace Orbis.Flat
                 sb.Append("\n湖盆属性：").Append(gd.WaterbodyType==GlebaWaterbodyType.SaltwaterLake?"内流咸水湖":"外流淡水湖").Append(" · 成因：").Append(gd.LakeOrigin);
             }
 
-            sb.Append("\n\n[Gleba 生态 · 冰川 · 土壤 · 地质]");
+            sb.Append("\n\n[生态 · 冰川 · 土壤 · 地质]");
             sb.Append("\n群系：").Append(GlebaEcologySupplement.GetGlebaBiomeLabel(gd.GlebaBiome)).Append(" · 生物温度 B：").Append(gd.BiotemperatureC.ToString("F1")).Append(" °C");
             if(!areaWater)
             {
