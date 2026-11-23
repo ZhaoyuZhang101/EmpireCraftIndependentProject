@@ -12,12 +12,15 @@ namespace Orbis.Flat
         readonly Texture2D bed, coast, coverage, lakes, lakeDetail, straits, straitDetail, marineDepth;
         static Texture2D sharedLakes, sharedLakeDetail, sharedMarineDepth;
         static FlatEarthLandRelief sharedLand;
+        static FlatEarthOceanShore sharedOcean;
         // A loaded V5 map and a newly generated map may coexist during handover.
         static readonly Texture2D[] sharedStraits = new Texture2D[2], sharedStraitDetail = new Texture2D[2];
         static readonly int[] straitUsers = new int[2];
         readonly int straitVersion = -1;
         static int lakeUsers;
         Vector4 poleCoverage;
+        RenderTexture treeBanks;
+        Material treeBankBake;
 
         internal static FlatEarthPolarRelief Create(WorldData world)
         {
@@ -55,6 +58,7 @@ namespace Orbis.Flat
                 straitVersion = world.UsesGlobalStraits ? 1 : 0;
                 if (straitUsers[straitVersion]++ == 0)
                 {
+                    if (world.UsesGlobalStraits) sharedOcean = FlatEarthOceanShore.Load(SystemInfo.maxTextureSize);
                     LoadStraitShore(world.UsesGlobalStraits, out sharedStraits[straitVersion], out sharedStraitDetail[straitVersion]);
                     if (world.UsesGlobalStraits && !sharedStraits[straitVersion] && SystemInfo.maxTextureSize < 8192)
                         LoadStraitShore(false, out sharedStraits[straitVersion], out sharedStraitDetail[straitVersion]);
@@ -277,9 +281,34 @@ namespace Orbis.Flat
             coverage.Apply(false, false);
         }
 
+        internal void UpdateTreeBanks(Material surface, bool terrainChanged)
+        {
+            if (!treeBanks)
+            {
+                if (!terrainChanged || (!lakes && !straits && (straitVersion != 1 || sharedOcean == null))) return;
+                var shader = Resources.Load<Shader>("ORBIS/FlatWorld/TreeBanks");
+                if (!shader || !shader.isSupported) return;
+                treeBankBake = new Material(shader);
+                var format = SystemInfo.SupportsRenderTextureFormat(RenderTextureFormat.RGHalf) ? RenderTextureFormat.RGHalf :
+                    SystemInfo.SupportsRenderTextureFormat(RenderTextureFormat.ARGBHalf) ? RenderTextureFormat.ARGBHalf : RenderTextureFormat.ARGBFloat;
+                treeBanks = new RenderTexture(coverage.width, coverage.height, 0, format, RenderTextureReadWrite.Linear) {
+                    name = "Earth banks at geographic tree roots", filterMode = FilterMode.Point,
+                    wrapModeU = TextureWrapMode.Repeat, wrapModeV = TextureWrapMode.Clamp
+                };
+            }
+            if (!terrainChanged && treeBanks.IsCreated()) return;
+            // The caller has published both terrain fields and the player-edit mask.
+            treeBankBake.CopyPropertiesFromMaterial(surface);
+            var previous = RenderTexture.active;
+            try { Graphics.Blit(null, treeBanks, treeBankBake, 0); }
+            finally { RenderTexture.active = previous; }
+            surface.SetTexture("_EarthTreeBanks", treeBanks);
+        }
+
         internal void Bind(Material material)
         {
             sharedLand?.Bind(material);
+            if (treeBanks && material.HasProperty("_EarthTreeBanks")) material.SetTexture("_EarthTreeBanks", treeBanks);
             material.SetTexture("_EarthPolarBed", bed);
             material.SetTexture("_EarthPolarCoast", coast);
             material.SetTexture("_EarthSurveyMask", coverage);
@@ -288,9 +317,10 @@ namespace Orbis.Flat
             if (lakes) material.SetTexture("_EarthLakeShore", lakes);
             if (lakeDetail) material.SetTexture("_EarthLakeDetail", lakeDetail);
             material.SetFloat("_EarthLakeReady", lakes ? 1 : 0);
-            if (straits) material.SetTexture("_EarthStraitShore", straits);
+            FlatEarthOceanShore.Bind(material, straitVersion == 1 ? sharedOcean : null);
+            material.SetTexture("_EarthStraitShore", straits ? straits : Texture2D.blackTexture);
             material.SetTexture("_EarthStraitDetail", straitDetail ? straitDetail : Texture2D.blackTexture);
-            material.SetFloat("_EarthStraitReady", straits ? 1 : 0);
+            material.SetFloat("_EarthStraitReady", straits || (straitVersion == 1 && sharedOcean != null) ? 1 : 0);
             if (material.HasProperty("_EarthMarineDepth"))
                 material.SetTexture("_EarthMarineDepth", marineDepth ? marineDepth : Texture2D.blackTexture);
         }
@@ -300,8 +330,12 @@ namespace Orbis.Flat
             UnityEngine.Object.Destroy(bed);
             UnityEngine.Object.Destroy(coast);
             UnityEngine.Object.Destroy(coverage);
+            if (treeBanks) treeBanks.Release();
+            UnityEngine.Object.Destroy(treeBanks);
+            UnityEngine.Object.Destroy(treeBankBake);
             if (straitVersion >= 0 && --straitUsers[straitVersion] == 0)
             {
+                if (straitVersion == 1) { sharedOcean?.Dispose(); sharedOcean = null; }
                 UnityEngine.Object.Destroy(sharedStraits[straitVersion]);
                 UnityEngine.Object.Destroy(sharedStraitDetail[straitVersion]);
                 sharedStraits[straitVersion] = sharedStraitDetail[straitVersion] = null;

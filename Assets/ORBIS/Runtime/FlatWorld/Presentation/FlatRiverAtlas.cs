@@ -10,6 +10,7 @@ namespace Orbis.Flat
     /// <summary>Streams an immutable river graph into one sparse, revision-matched GPU field.</summary>
     internal sealed class FlatRiverAtlas : IDisposable
     {
+        internal const string DiagnosticKeyword="ORBIS_DIAGNOSTIC";
         const int MaximumSlots=65534;
         const int MaximumTexels=20*1024*1024;
         const int DetailIntervals=32;
@@ -69,13 +70,21 @@ namespace Orbis.Flat
             BindMode(target);
         }
 
+        internal void SetDiagnosticMode(Material target,bool active)
+        {
+            if(target.IsKeywordEnabled(DiagnosticKeyword)==active)return;
+            if(active)target.EnableKeyword(DiagnosticKeyword);else target.DisableKeyword(DiagnosticKeyword);
+            BindMode(target);
+        }
+
         void BindMode(Material target)
         {
             // Separate the expensive temporary D8 reconstruction from the
             // resident distance and vector fields in production fragment shaders.
             bool published=Ready||previewReady;
-            bool vectors=published&&Layout.z<0;
-            bool raster=!vectors&&(published||surveyVisible||requestedCurves!=null&&requestedCurves.HasSurvey);
+            bool rivers=!target.IsKeywordEnabled(DiagnosticKeyword);
+            bool vectors=rivers&&published&&Layout.z<0;
+            bool raster=rivers&&!vectors&&(published||surveyVisible||requestedCurves!=null&&requestedCurves.HasSurvey);
             if(vectors)target.EnableKeyword("ORBIS_RIVER_VECTORS");else target.DisableKeyword("ORBIS_RIVER_VECTORS");
             if(raster)target.EnableKeyword("ORBIS_RIVER_RASTER");else target.DisableKeyword("ORBIS_RIVER_RASTER");
         }

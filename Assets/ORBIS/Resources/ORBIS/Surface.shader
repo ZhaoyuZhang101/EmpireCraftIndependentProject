@@ -18,6 +18,7 @@ Shader "ORBIS/Surface"
   [HideInInspector] _RiverOverview("River network overview",2D)="black"{}
   [HideInInspector] _RiverOverviewReady("River overview ready",Float)=0
   [HideInInspector] _RiverSurvey("Surveyed river courses",Float)=0
+  [HideInInspector] _KoppenMap("Surveyed climate map",Float)=0
   [HideInInspector] _RiverMap("River network map",Float)=0
   [HideInInspector] _RiverPreviewReady("Initial river field ready",Float)=0
   [HideInInspector] _RiverSeasonTex("Seasonal river discharge",2D)="black"{}
@@ -58,6 +59,8 @@ Shader "ORBIS/Surface"
   [HideInInspector] _EarthLakeShore("Surveyed inland shorelines",2D)="black"{}
   [HideInInspector] _EarthLakeDetail("Near lake shorelines",2D)="black"{}
   [HideInInspector] _EarthLakeReady("Inland shoreline survey ready",Float)=0
+  [HideInInspector] _EarthOceanDirectory("Global marine coast directory",2D)="black"{}
+  [HideInInspector] _EarthOceanPages("Global marine banks",2D)="black"{}
   [HideInInspector] _EarthStraitShore("Regional marine shorelines",2D)="black"{}
   [HideInInspector] _EarthStraitDetail("Surveyed strait banks",2D)="black"{}
   [HideInInspector] _EarthMarineDepth("Surveyed coastal depths",2D)="black"{}
@@ -83,12 +86,14 @@ Shader "ORBIS/Surface"
    // The camera pass renders the atmosphere. Survey, ice, river and circulation
    // textures on this surface reuse the same presentation sampler.
    #define ORBIS_FLAT_NO_SWE
-   #pragma multi_compile_local_fragment __ ORBIS_RIVER_RASTER ORBIS_RIVER_VECTORS
+   #pragma multi_compile_local_fragment __ ORBIS_RIVER_RASTER ORBIS_RIVER_VECTORS ORBIS_DIAGNOSTIC
    #define ORBIS_SURFACE_RIVER_VARIANTS 1
    #include "FlatWorld/Water/FlatWater.cginc"
    #include "FlatWorld/FlatLakeIce.cginc"
    #include "FlatWorld/FlatCloudCover.cginc"
+   #ifdef ORBIS_DIAGNOSTIC
    #include "FlatWorld/FlatCirculationOverlay.cginc"
+   #endif
    #include "FlatWorld/Water/FlatWaterReflection.cginc"
    UNITY_DECLARE_TEX2D_NOSAMPLER(_FlatDisplay);
    sampler2D _FlatTerrain,_FlatOwners,_FlatInfo,_TerrainAtlas;
@@ -110,6 +115,20 @@ Shader "ORBIS/Surface"
    float4 frag(v2f i):SV_Target
    {
     OrbisPatchClip(i.local,i.pos.xy);
+#ifdef ORBIS_DIAGNOSTIC
+    float2 uv=OrbisGeographicUV(normalize(i.local));
+    float2 cell=float2(frac(uv.x),clamp(uv.y,0,1-_MapSize.w*.0001))*_MapSize.xy;
+    float2 dx,dy;FlatCellScreenDerivatives(cell,dx,dy);
+    float pixelsPerTile=1/max(1e-5,max(length(dx),length(dy)));
+    float2 displayUV=lerp((floor(cell)+.5)*_MapSize.zw,FlatBlendUV(cell),step(.5,_GlebaCirculation.x));
+    float4 display=FlatPresentationSample(_FlatDisplay,displayUV,0);
+    float areaWater;
+    float3 col=FlatDiagnosticSurface(display,uv,cell,_FlatInfo,pixelsPerTile,areaWater);
+    #ifdef UNITY_COLORSPACE_GAMMA
+    col=GammaToLinearSpace(max(0,col));
+    #endif
+    return float4(max(0,col),1);
+#else
     float3 radial=normalize(i.local),normal=normalize(i.normal),sun=normalize(_Sun+float3(0,1e-7,0)),view=normalize(i.view);
     if(dot(normal,radial)<0)normal=-normal;
     float2 uv=OrbisGeographicUV(radial);
@@ -241,18 +260,17 @@ Shader "ORBIS/Surface"
     else col+=_Settlement*_Night*night*float3(.9,.38,.09);
     col*=lerp(1,cloudShade,smoothstep(-.05,.18,dot(radial,sun)));
     if(_RiverMap>.5&&_FlatWorldReady>.5)col=riverMapColor;
-    if(max(_FlatDiagnosticDisplay,_GlebaCirculation.x)>.5&&_FlatWorldReady>.5)
+    if(_FlatDiagnosticDisplay>.5&&_FlatWorldReady>.5)
     {
      float2 displayUV=(floor(uv*_MapSize.xy)+.5)*_MapSize.zw;
-     if(_GlebaCirculation.x>.5)displayUV=FlatBlendUV(uv*_MapSize.xy);
      col=FlatPresentationSample(_FlatDisplay,displayUV,0).rgb;
-     if(_GlebaCirculation.x>.5)col=FlatApplyCirculationOverlay(col,uv,pixelsPerTile,water,floor(info.g+.5));
      // Match the folded surface's linear output to the native atmosphere/display pass.
      #ifdef UNITY_COLORSPACE_GAMMA
      col=GammaToLinearSpace(max(0,col));
      #endif
     }
     return float4(max(0,col),1);
+#endif
    }
    ENDCG
   }

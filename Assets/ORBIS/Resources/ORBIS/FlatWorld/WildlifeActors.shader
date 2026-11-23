@@ -9,6 +9,9 @@ Shader "ORBIS/FlatWorld/WildlifeActors"
   _VisualTex("Terrain fields",2D)="black"{}
   _InfoTex("Terrain objects",2D)="black"{}
   [HideInInspector] _EarthSurveyMask("Unedited Earth terrain",2D)="white"{}
+  [HideInInspector] _EarthOceanDirectory("Global marine coast directory",2D)="black"{}
+  [HideInInspector] _EarthOceanPages("Global marine banks",2D)="black"{}
+  [HideInInspector] _EarthTreeBanks("Surveyed banks at tree roots",2D)="black"{}
   [HideInInspector] _EarthStraitShore("Regional marine shorelines",2D)="black"{}
   [HideInInspector] _EarthStraitDetail("Surveyed strait banks",2D)="black"{}
   [HideInInspector] _EarthStraitReady("Strait shoreline survey ready",Float)=0

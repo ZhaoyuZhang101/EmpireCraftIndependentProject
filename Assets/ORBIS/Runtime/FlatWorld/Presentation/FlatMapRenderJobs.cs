@@ -115,8 +115,8 @@ namespace Orbis.Flat
             }
             else if(layer>=MapLayer.SurfaceWinds)
             {
-                GlebaGeographySupplement.EvaluateMapmodeColor(source,i,month,GlebaGeographySupplement.MapLayerToGlebaMode(layer),out byte mr,out byte mg,out byte mb);
-                overlayColor=new Color32(mr,mg,mb,255);
+                GlebaGeographySupplement.PackMapmodeDisplay(source,i,month,GlebaGeographySupplement.MapLayerToGlebaMode(layer),out byte mr,out byte mg,out byte mb,out byte ma);
+                overlayColor=new Color32(mr,mg,mb,ma);
             }
             return new Tile{Elevation=source.Elevation[i],Water=source.Water[i],Biome=source.Biomes[i],Climate=source.Climates[i],Building=source.Buildings[i],
                 Material=f.Materials[i],Vegetation=f.Vegetation[i],Tree=f.Trees[i],Form=f.Forms[i],Owner=owner<0?new Color32(0,0,0,0):FlatPalette.RGB(source.Nations[owner].Color,(byte)(owner+1)),
@@ -157,7 +157,7 @@ namespace Orbis.Flat
                 {int i=source.Index(x,y);tiles[i]=Capture(i);CapturedTiles++;}
             }
             ScheduledTiles=offset;Version++;
-            handle=new PackJob{Tiles=tiles,Indices=indices,Palette=palette,Bands=bands,Output=output,Width=source.Width,Height=source.Height,Seed=worldSeed,Layer=layer,
+            handle=new PackJob{Tiles=tiles,Indices=indices,Palette=palette,Bands=bands,Output=output,Width=source.Width,Height=source.Height,Seed=worldSeed,Layer=layer,SurveyedCoast=source.UsesGlobalStraits,
                 ClimateYear=FlatClimateYear.At(worldSeed,climatePeriod*30.0)}.Schedule(offset,128);
             Pending=true;started=Stopwatch.GetTimestamp();
             // Ownership transfers only after successful scheduling. Subsequent main-thread dirties remain in this set.
@@ -203,6 +203,7 @@ namespace Orbis.Flat
             public int Width,Height;
             public uint Seed;
             public MapLayer Layer;
+            public bool SurveyedCoast;
             public FlatClimateYear ClimateYear;
             static Color32 RGB(uint value) {return new Color32((byte)(value>>16),(byte)(value>>8),(byte)value,255);}
             static bool Area(WaterKind w) {return w>=WaterKind.DeepOcean&&w<=WaterKind.Lake;}
@@ -238,7 +239,10 @@ namespace Orbis.Flat
                 switch(Layer)
                 {
                     case MapLayer.Height:display=area?Water(t.Water):Color.Lerp(RGB(0x597b62),RGB(0xe4e1d2),t.Elevation/4000f);break;
-                    case MapLayer.Climate:display=t.Water>=WaterKind.DeepOcean&&t.Water<=WaterKind.ShallowOcean?Water(t.Water):RGB(Palette[26+(int)t.Climate]);break;
+                    case MapLayer.Climate:
+                        display=t.Water>=WaterKind.DeepOcean&&t.Water<=WaterKind.ShallowOcean
+                            ?(SurveyedCoast?RGB(FlatPalette.ClimateOceanColor):Water(t.Water)):RGB(Palette[26+(int)t.Climate]);
+                        break;
                     case MapLayer.Temperature:display=Color.Lerp(RGB(0x4169ab),RGB(0xe9aa6a),Mathf.InverseLerp(-25,35,t.Temperature));break;
                     case MapLayer.Rain:display=Color.Lerp(RGB(0xd1bb93),RGB(0x2c869b),Mathf.Clamp01(t.Rain/240));break;
                     case MapLayer.Water:display=area?Water(t.Water):RGB(0x767b71);break;

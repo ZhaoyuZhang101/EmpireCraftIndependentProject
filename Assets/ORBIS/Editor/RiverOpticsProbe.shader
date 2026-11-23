@@ -62,7 +62,7 @@ Shader "Hidden/ORBIS/RiverOpticsProbe"
    float weight=FlatEarthMarineOptics(_TestSite,float2(_TestCoastKm*_MapSize.x/40030.2,_TestShore),-24,_TestShore,optics,support);
    return float4(optics.r,weight,optics.gb);
   }
-  if(_TestOutput==11)return float4(FlatEarthCoastalDepth(_TestSite),0,1);
+  if(_TestOutput==11)return float4(FlatEarthCoastalDepth(_TestSite,0),0,1);
   if(_TestOutput==6)
   {
    float2 cell=float2((112.632+180)/360.0,(29.751+90)/180.0)*_MapSize.xy+(i.uv-.5)*1.35;

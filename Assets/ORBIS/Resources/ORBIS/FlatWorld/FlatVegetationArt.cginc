@@ -117,12 +117,6 @@ float4 PDPalmCrown(float2 pixel,float seed,float3 projectionX,float3 projectionY
     return float4(normal,step(-99,front));
 }
 
-float4 PDTreePlacement(float2 id)
-{
-    float seed=PDHash(id);
-    float2 anchor=float2(16+(seed-.5)*16,13+(PDHash(id+71)-.5)*14);
-    return float4(floor(anchor)+.5,.78+.30*PDHash(id+float2(29,13)),seed);
-}
 
 float PDTreeSpecies(float4 ecology,float4 info,float shore)
 {

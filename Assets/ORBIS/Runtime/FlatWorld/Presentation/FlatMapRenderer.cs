@@ -82,10 +82,21 @@ namespace Orbis.Flat
             vegetationMonthPair=world.Width>2048||Math.Max((world.Width+2)*3,(world.Height+2)*4)>maximumTextureSize;
             riverPanelPair=world.Height*3>maximumTextureSize;
         }
+        static void BindKoppenPalette()
+        {
+            // The simulation classifies all cells, including marine cells with
+            // surveyed islands. Reuse the exact colours of the CPU climate map.
+            var colours=new Vector4[FlatPalette.ClimateColors.Length+1];
+            for(int i=0;i<FlatPalette.ClimateColors.Length;i++)
+                colours[i]=(Color)FlatPalette.RGB(FlatPalette.ClimateColors[i]);
+            colours[colours.Length-1]=(Color)FlatPalette.RGB(FlatPalette.ClimateOceanColor);
+            Shader.SetGlobalVectorArray("_OrbisKoppenColours",colours);
+        }
         public void Initialize(WorldData world)
         {
             if(world.Facts==null)FlatTerrainAnalysis.Build(world,System.Threading.CancellationToken.None,false);
             BindWorld(world,SystemInfo.maxTextureSize);
+            if(world.Preset==TerrainPreset.Earth)BindKoppenPalette();
             TerrainTexture=Make(world.Width,world.Height,"Flat world terrain / water");DisplayTexture=Make(world.Width,world.Height,"Flat world active overlay");OwnerTexture=Make(world.Width,world.Height,"Authoritative nation colors");InfoTexture=Make(world.Width,world.Height,"Flat world semantic data",true);
             TerrainTexture.filterMode=DisplayTexture.filterMode=FilterMode.Bilinear;
             Shader shader=Resources.Load<Shader>("ORBIS/FlatWorld/FlatMap");if(!shader)throw new InvalidOperationException("Missing ORBIS/FlatWorld/FlatMap shader.");
@@ -161,6 +172,17 @@ namespace Orbis.Flat
             }
             tex.Apply(false,false);
         }
+        void UpdateClimateLayers(double day,int month,float monthBlend,Material target)
+        {
+            target.SetFloat("_KoppenMap",VisibleLayer==MapLayer.Climate && World.UsesGlobalStraits ? 1 : 0);
+            bool chart=VisibleLayer==MapLayer.Climate||VisibleLayer==MapLayer.SurfaceWinds||VisibleLayer==MapLayer.OceanCurrents||
+                       VisibleLayer==MapLayer.RossbyJets||VisibleLayer==MapLayer.ExoStormPotential;
+            // A standalone legacy planet retains its native surface until a
+            // flat world publishes valid classification and geographic fields.
+            if(chart&&target.HasProperty("_FlatWorldReady"))chart=target.GetFloat("_FlatWorldReady")>.5f;
+            riverAtlas?.SetDiagnosticMode(target,chart);
+            UpdateGlebaCirculation(day,month,monthBlend,target);
+        }
         void UpdateGlebaCirculation(double day,int month,float monthBlend,Material target)
         {
             int mode=(VisibleLayer==MapLayer.SurfaceWinds||VisibleLayer==MapLayer.ExoStormPotential)?1:VisibleLayer==MapLayer.OceanCurrents?2:VisibleLayer==MapLayer.RossbyJets?3:0;
@@ -192,7 +214,10 @@ namespace Orbis.Flat
                 target.SetTexture("_GlebaWindFlowTex",glebaWindFlowTex);
                 target.SetTexture("_GlebaCurrentFlowTex",glebaCurrentFlowTex);
                 target.SetTexture("_GlebaBandsTex",glebaBandsTex);
-                target.SetVector("_GlebaCirculation",new Vector4(mode,circulationClock,monthBlend,1f));
+                // The storm diagnostic shares the surface wind data and fronts.
+                // The extra cartographic coastline belongs to the wind/current maps.
+                int displayMode=VisibleLayer==MapLayer.ExoStormPotential?4:mode;
+                target.SetVector("_GlebaCirculation",new Vector4(displayMode,circulationClock,monthBlend,1f));
             }
             else
             {
@@ -280,7 +305,7 @@ namespace Orbis.Flat
             var year=FlatClimateYear.At(FMath.Seed(World.Seed),day);
             target.SetVector("_ClimateYearHeat",new Vector4(year.HeatX,year.HeatY,year.HeatZ,year.MeanHeat));
             target.SetVector("_ClimateYearRain",new Vector4(year.RainX,year.RainY,year.RainZ,0));
-            UpdateGlebaCirculation(day,month,(float)(period-whole),target);
+            UpdateClimateLayers(day,month,(float)(period-whole),target);
         }
         void ConfigureLayer()
         {
@@ -289,7 +314,7 @@ namespace Orbis.Flat
             Material.SetFloat("_RiverMap",VisibleLayer==MapLayer.Rivers?1:0);
             Material.SetFloat("_WaterView",VisibleLayer==MapLayer.Natural||VisibleLayer==MapLayer.Nations||VisibleLayer==MapLayer.Water?1:0);
             double period=World.Day/30,whole=Math.Floor(period);int month=(int)((whole%12+12)%12);
-            UpdateGlebaCirculation(World.Day,month,(float)(period-whole),Material);
+            UpdateClimateLayers(World.Day,month,(float)(period-whole),Material);
         }
         public void Flush(bool force=false)
         {
@@ -306,6 +331,7 @@ namespace Orbis.Flat
             riverAtlas.Tick(World.Facts.RiverCurves,World.TerrainRevision,dataRevision);
             bool refreshData=dataRevision!=World.TerrainRevision;
             if(refreshData)World.MarkAllDirty();
+            else earthRelief?.UpdateTreeBanks(Material,false);
             renderJobs.Schedule(Layer,refreshData,ClimateYearOffset);
         }
         void PublishCompleted()
@@ -347,6 +373,7 @@ namespace Orbis.Flat
                     }
                     BindPolarTerrain(Material);
                     HydroTexture.Apply(false,false);MixingTexture.Apply(false,false);GeometryTexture.Apply(false,false);VisualTexture.Apply(false,false);EcologyTexture.Apply(false,false);
+                    earthRelief?.UpdateTreeBanks(Material,true);
                     dataRevision=renderJobs.CapturedTerrainRevision;RefreshVegetationSeasons();SetVegetationDay(World.Day);
                 }
             }

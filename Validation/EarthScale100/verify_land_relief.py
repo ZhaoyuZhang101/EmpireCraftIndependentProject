@@ -63,7 +63,9 @@ def verify(source):
         from rasterio.windows import Window
 
         sites = ((121, 31, "Shanghai"), (115, 31, "Dabie"), (118, 32, "Lower Yangtze"),
-                 (86, 27, "Himalayas"), (7, 46, "Alps"),
+                 (86, 27, "Himalayas"), (7, 46, "Alps"), (22, 36, "Taygetus and Laconian Gulf"),
+                 (24, 35, "Cretan mountains"), (18, 42, "Dinaric Alps and Bay of Kotor"),
+                 (0, 42, "Pyrenees"), (121, 36, "Haiyang and Yellow Sea shelf"),
                  (-72, -14, "Andes"), (35, 31, "Jordan rift"), (36, -2, "Kenya"),
                  (178, -18, "Fiji"), (140, -34, "Murray basin"))
         with rasterio.open(source) as tiff:

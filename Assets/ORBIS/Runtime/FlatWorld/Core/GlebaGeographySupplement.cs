@@ -2137,7 +2137,22 @@ namespace Orbis.Flat
             WorldData world, int tile, int month, GlebaMapmodeKind mode,
             out byte r, out byte g, out byte b)
         {
+            EvaluateMapmodeColor(world, tile, month, mode, false, out r, out g, out b, out _);
+        }
+
+        // Keep pressure separate from the onshore/offshore class so the surface
+        // can locate its coloured line on the measured, sub-tile marine bank.
+        public static void PackMapmodeDisplay(WorldData world, int tile, int month, GlebaMapmodeKind mode,
+            out byte r, out byte g, out byte b, out byte a)
+        {
+            EvaluateMapmodeColor(world, tile, month, mode, true, out r, out g, out b, out a);
+        }
+
+        static void EvaluateMapmodeColor(WorldData world, int tile, int month, GlebaMapmodeKind mode,
+            bool separateWindShore, out byte r, out byte g, out byte b, out byte a)
+        {
             r = g = b = 80;
+            a = 255;
             if (world == null || (uint)tile >= (uint)world.Count) return;
             month = FMath.Wrap(month, 12);
             bool isWater = FlatTerrainAnalysis.AreaWater(world.Water[tile]);
@@ -2152,6 +2167,8 @@ namespace Orbis.Flat
             {
                 case GlebaMapmodeKind.ClimateSurfaceWinds:
                 {
+                    // The narrow range leaves raw display-map exports nearly opaque.
+                    a = 253;
                     float p;
                     if (gleba != null)
                     {
@@ -2168,11 +2185,17 @@ namespace Orbis.Flat
                     r = (byte)FMath.Clamp(baseVal + 0.955f * (cr - baseVal), 0f, 255f);
                     g = (byte)FMath.Clamp(baseVal + 0.955f * (cg - baseVal), 0f, 255f);
                     b = (byte)FMath.Clamp(baseVal + 0.955f * (cb - baseVal), 0f, 255f);
-                    if (gleba != null && world.CoastDistance[tile] <= 2)
+                    if (gleba != null && (separateWindShore || world.CoastDistance[tile] <= 2))
                     {
                         int gx = FMath.Wrap((int)(u * gleba.Width), gleba.Width);
                         int gy = FMath.Clamp((int)(v * gleba.Height), 0, gleba.Height - 1);
                         var shore = gleba.ShoreTypes[(gy * gleba.Width + gx) * 12 + month];
+                        if (separateWindShore)
+                        {
+                            a = shore == GlebaShoreType.OnShore ? (byte)255 :
+                                shore == GlebaShoreType.OffShore ? (byte)251 : (byte)253;
+                            return;
+                        }
                         if (shore == GlebaShoreType.OnShore)
                         {
                             r = (byte)(r + 0.5f * (50f - r));

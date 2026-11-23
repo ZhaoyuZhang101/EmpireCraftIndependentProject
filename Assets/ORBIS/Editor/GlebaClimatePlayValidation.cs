@@ -147,6 +147,9 @@ namespace Orbis.Editor
 
             var layers = ui.Q<DropdownField>("layer");
             Require(layers.choices.Count == (int)MapLayer.ExoPastaClimate + 1, "Incomplete layer selector.");
+            layers.index = (int)MapLayer.Climate;
+            while (map.VisibleLayer != MapLayer.Climate || map.PreparationPending) yield return null;
+            CheckClimateOcean(w, map);
             for (MapLayer layer = MapLayer.SurfaceWinds; layer <= MapLayer.ExoPastaClimate; layer++)
             {
                 Begin("January " + layer);
@@ -226,17 +229,39 @@ namespace Orbis.Editor
             Record($"{name}: {cells} land cells, {rain / weight:F1} mm/y, BWh/BWk {bw} cells, desert biome {desert} cells");
         }
 
+        static void CheckClimateOcean(WorldData world, FlatMapRenderer map)
+        {
+            var pixels = map.DisplayTexture.GetPixels32();
+            var ocean = FlatPalette.Water(WaterKind.DeepOcean);
+            foreach (var kind in new[] { WaterKind.DeepOcean, WaterKind.MiddleOcean, WaterKind.ShallowOcean })
+            {
+                int tile = Array.IndexOf(world.Water, kind);
+                Require(tile >= 0 && pixels[tile].Equals(ocean) && FlatPalette.Display(world, tile, MapLayer.Climate).Equals(ocean),
+                    $"Visible climate map exposes the simulation grid at {kind}.");
+            }
+            int land = Array.IndexOf(world.Water, WaterKind.Land);
+            Require(land >= 0 && pixels[land].Equals(FlatPalette.RGB(FlatPalette.ClimateColors[(int)world.Climates[land]])),
+                "Climate map lost its simulated land class.");
+        }
+
         static void CheckMap(WorldData w, FlatMapRenderer map, Material surface, MapLayer layer)
         {
             Require(surface.GetTexture("_MainTex") == map.DisplayTexture, "Visible surface lost its diagnostic map.");
+            bool chart = layer == MapLayer.Climate || layer == MapLayer.OceanCurrents || layer == MapLayer.SurfaceWinds ||
+                         layer == MapLayer.RossbyJets || layer == MapLayer.ExoStormPotential;
+            Require(surface.IsKeywordEnabled("ORBIS_DIAGNOSTIC") == chart && map.Material.IsKeywordEnabled("ORBIS_DIAGNOSTIC") == chart,
+                $"Published map and visible surface disagree on the diagnostic variant for {layer}.");
+            if (chart) Require(!surface.IsKeywordEnabled("ORBIS_RIVER_RASTER") && !surface.IsKeywordEnabled("ORBIS_RIVER_VECTORS"),
+                $"Diagnostic pass still selects a river variant for {layer}.");
             var pixels = map.DisplayTexture.GetPixels32();
             for (int i = 0; i < w.Count; i += 137)
             {
-                byte r, g, b;
+                byte r, g, b, a = 255;
                 if (layer >= MapLayer.ExoConvectiveRain)
                     ExoPlaSimSupplement.EvaluateMapmodeColor(w, i, w.Month, ExoPlaSimSupplement.MapLayerToExoMode(layer), out r, out g, out b);
-                else GlebaGeographySupplement.EvaluateMapmodeColor(w, i, w.Month, GlebaGeographySupplement.MapLayerToGlebaMode(layer), out r, out g, out b);
-                Require(pixels[i].r == r && pixels[i].g == g && pixels[i].b == b, $"Stale {layer} pixel at tile {i}, month {w.Month + 1}.");
+                else GlebaGeographySupplement.PackMapmodeDisplay(w, i, w.Month, GlebaGeographySupplement.MapLayerToGlebaMode(layer), out r, out g, out b, out a);
+                Require(pixels[i].r == r && pixels[i].g == g && pixels[i].b == b && pixels[i].a == a,
+                    $"Stale {layer} texel at tile {i}, month {w.Month + 1}.");
             }
             if (layer == MapLayer.SurfaceWinds || layer == MapLayer.OceanCurrents || layer == MapLayer.RossbyJets || layer == MapLayer.ExoStormPotential)
             {

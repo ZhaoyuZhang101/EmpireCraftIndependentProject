@@ -35,6 +35,9 @@ Shader "ORBIS/FlatWorld/ScrollSurface"
   [HideInInspector] _EarthLakeShore("Surveyed inland shorelines",2D)="black"{}
   [HideInInspector] _EarthLakeDetail("Near lake shorelines",2D)="black"{}
   [HideInInspector] _EarthLakeReady("Inland shoreline survey ready",Float)=0
+  [HideInInspector] _EarthOceanDirectory("Global marine coast directory",2D)="black"{}
+  [HideInInspector] _EarthOceanPages("Global marine banks",2D)="black"{}
+  [HideInInspector] _EarthTreeBanks("Surveyed banks at tree roots",2D)="black"{}
   [HideInInspector] _EarthStraitShore("Regional marine shorelines",2D)="black"{}
   [HideInInspector] _EarthStraitDetail("Surveyed strait banks",2D)="black"{}
   [HideInInspector] _EarthMarineDepth("Surveyed coastal depths",2D)="black"{}
@@ -43,6 +46,7 @@ Shader "ORBIS/FlatWorld/ScrollSurface"
   [HideInInspector] _RiverOverview("River network overview",2D)="black"{}
   [HideInInspector] _RiverOverviewReady("River overview ready",Float)=0
   [HideInInspector] _RiverSurvey("Surveyed river courses",Float)=0
+  [HideInInspector] _KoppenMap("Surveyed climate map",Float)=0
   [HideInInspector] _RiverMap("River network map",Float)=0
   [HideInInspector] _RiverPreviewReady("Initial river field ready",Float)=0
   [HideInInspector] _RiverSeasonTex("Seasonal river discharge",2D)="black"{}
@@ -112,7 +116,7 @@ Shader "ORBIS/FlatWorld/ScrollSurface"
    #pragma fragment frag
    #pragma target 3.0
    #include "UnityCG.cginc"
-   #pragma multi_compile_local_fragment __ ORBIS_RIVER_RASTER ORBIS_RIVER_VECTORS ORBIS_PREVIEW
+   #pragma multi_compile_local_fragment __ ORBIS_RIVER_RASTER ORBIS_RIVER_VECTORS ORBIS_PREVIEW ORBIS_DIAGNOSTIC
    #define ORBIS_SURFACE_RIVER_VARIANTS 1
    #include "Water/FlatWater.cginc"
    #define ORBIS_SCROLL_SURFACE 1

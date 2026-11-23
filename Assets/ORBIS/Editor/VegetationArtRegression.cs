@@ -170,6 +170,30 @@ namespace Orbis.Editor
    try
    {
     probe.CopyPropertiesFromMaterial(earth);
+    if (!(earth.GetTexture("_EarthTreeBanks") is RenderTexture treeBanks) || !treeBanks.IsCreated())
+     throw new InvalidOperationException("The published Earth tree bank texture is unavailable.");
+    var size=earth.GetVector("_MapSize");
+    probe.SetFloat("_ProbeMode",13);probe.SetVector("_ProbeGrid",new Vector4(columns,rows,0,0));
+    ShaderUtil.CompilePass(probe,0,true);
+    int cachedWet=0,cachedDry=0,model=0;
+    foreach(var site in new[]{new Vector2(22.5f,36.5f),new Vector2(121.36522f,36.60291f),
+     new Vector2(29.1f,41.1f),new Vector2(120.1f,31.2f),new Vector2(-87,45.8f),
+     new Vector2(172.8f,-43.7f),new Vector2(-180,-16.6f),new Vector2(180,-16.6f)})
+    {
+     int left=Mathf.FloorToInt((site.x/360+.5f)*size.x)-columns/2;
+     int bottom=Mathf.FloorToInt((site.y/180+.5f)*size.y)-rows/2;
+     probe.SetVector("_ProbeRoot",new Vector4(left,bottom,0,0));
+     var banks=Sample();
+     for(int i=0;i<banks.Length;i++)
+     {
+      var b=banks[i];
+      if((b.r>=0)!=(b.b>=0)||Mathf.Abs(b.r-b.b)>.0011f*Mathf.Max(1,Mathf.Abs(b.r))||Mathf.Abs(b.g-b.a)>.00051f)
+       throw new InvalidOperationException($"Tree bank differs at tile ({left+i%columns},{bottom+i/columns}): direct ({b.r:R},{b.g:R}), cached ({b.b:R},{b.a:R}).");
+      if(b.g<=.001f)model++;else if(b.r>=0)cachedWet++;else cachedDry++;
+     }
+    }
+    if(cachedWet==0||cachedDry==0||model==0)throw new InvalidOperationException("Tree bank controls lack surveyed wet, dry or model roots.");
+    Debug.Log($"Tree bank cache PASS: {cachedWet} wet and {cachedDry} dry surveyed roots and {model} model roots match their live geographic samples.");
     // Every source tile would support a tree without the regional shoreline.
     // The real tree anchors may fall on the other side of the bank from their tile centres.
     field.SetPixel(0,0,new Color(10,-3,0,1));field.Apply();
@@ -180,7 +204,6 @@ namespace Orbis.Editor
     probe.SetVector("_MapSize",new Vector4(4096,2048,1f/4096,1f/2048));
     probe.SetFloat("_ProbeMode",10);probe.SetVector("_ProbeRoot",new Vector4(2371,1481,0,0));
     probe.SetVector("_ProbeGrid",new Vector4(columns,rows,0,0));
-    ShaderUtil.CompilePass(probe,0,true);
     var surveyed=Sample();
     probe.SetTexture("_EarthSurveyMask",hydro);
     var edited=Sample();

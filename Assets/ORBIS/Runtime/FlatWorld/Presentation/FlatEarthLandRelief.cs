@@ -62,7 +62,7 @@ namespace Orbis.Flat
             finally { Resources.UnloadAsset(asset); }
         }
 
-        static Texture2D ReadTexture(string name, int width, int height, TextureFormat format, bool mips, Stream source, byte[] buffer)
+        internal static Texture2D ReadTexture(string name, int width, int height, TextureFormat format, bool mips, Stream source, byte[] buffer)
         {
             var texture = new Texture2D(width, height, format, mips, true) {
                 name = name, filterMode = mips ? FilterMode.Trilinear : FilterMode.Bilinear,

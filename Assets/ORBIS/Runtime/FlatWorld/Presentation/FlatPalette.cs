@@ -62,6 +62,9 @@ namespace Orbis.Flat
             return text.ToString();
         }
         public static Color32 RGB(uint h,byte a=255) { return new Color32((byte)(h>>16),(byte)(h>>8),(byte)h,a); }
+        // Ocean depth is recorded in its own layers. On a surveyed climate map a
+        // single marine colour keeps coarse shelf boundaries out of the coastline.
+        internal const uint ClimateOceanColor = 0x183950;
         public static Color32 RiverMapBase(WaterKind water)
         {
             if(water==WaterKind.Lake)return RGB(0x94c4cf);
@@ -134,14 +137,17 @@ namespace Orbis.Flat
             }
             if(layer>=MapLayer.SurfaceWinds)
             {
-                GlebaGeographySupplement.EvaluateMapmodeColor(w,i,w.Month,GlebaGeographySupplement.MapLayerToGlebaMode(layer),out byte r,out byte g,out byte b);
-                return new Color32(r,g,b,255);
+                GlebaGeographySupplement.PackMapmodeDisplay(w,i,w.Month,GlebaGeographySupplement.MapLayerToGlebaMode(layer),out byte r,out byte g,out byte b,out byte a);
+                return new Color32(r,g,b,a);
             }
             switch(layer)
             {
                 case MapLayer.Nations:break; // Exactly one political tint, in the shader.
                 case MapLayer.Height: c=FlatTerrainAnalysis.AreaWater(w.Water[i])?Water(w.Water[i]):Color.Lerp(RGB(0x597b62),RGB(0xe4e1d2),w.Elevation[i]/4000f);break;
-                case MapLayer.Climate:c=w.Water[i]>=WaterKind.DeepOcean&&w.Water[i]<=WaterKind.ShallowOcean?Water(w.Water[i]):RGB(ClimateColors[(int)w.Climates[i]]);break;
+                case MapLayer.Climate:
+                    c=w.Water[i]>=WaterKind.DeepOcean&&w.Water[i]<=WaterKind.ShallowOcean
+                        ?(w.UsesGlobalStraits?RGB(ClimateOceanColor):Water(w.Water[i])):RGB(ClimateColors[(int)w.Climates[i]]);
+                    break;
                 case MapLayer.Temperature:
                 case MapLayer.Rain:
                     var year=FlatClimateYear.At(FMath.Seed(w.Seed),System.Math.Floor(w.Day/30)*30);

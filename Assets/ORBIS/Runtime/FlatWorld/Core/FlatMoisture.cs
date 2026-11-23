@@ -45,12 +45,14 @@ namespace Orbis.Flat
             public readonly TransportWeights[] DisturbanceFaces;
             public readonly float[] OrganizedFraction, Release, Rainout;
             public readonly float[] ConvectiveShare, StratiformCritRh, SolidSnowFrac, SeaBreezeResilience;
+            public readonly float[] LandThermalActivity;
             public MonthlyTransport(int count)
             {
                 PotentialEvaporation=new float[count]; WindExchange=new float[count]; SeaHumidityContrast=new float[count]; Capacity=new float[count]; Lift=new float[count];
                 Efficiency=new float[count]; Transpiration=new float[count]; DryLayer=new float[count]; Faces=new TransportWeights[count];
                 DisturbanceFaces=new TransportWeights[count]; OrganizedFraction=new float[count]; Release=new float[count]; Rainout=new float[count];
                 ConvectiveShare=new float[count]; StratiformCritRh=new float[count]; SolidSnowFrac=new float[count]; SeaBreezeResilience=new float[count];
+                LandThermalActivity=new float[count];
             }
         }
         // Marine thermal influence reaches inland from the coast. Distances
@@ -1223,6 +1225,16 @@ namespace Orbis.Flat
                             column.DryLayer[i]=FMath.Clamp((column.DryLayer[i]+extraDry)*(1f-.40f*warmMarginCyclones-.42f*gulfCool)*(1f-.52f*towerHere)*(1f-.30f*seaBreeze*warmBreeze*breezeSeason),.08f,2.05f);
                         }
 
+                        // Seasonal heating grows the continental mixed layer. A subsiding
+                        // high inhibits thermals even when the surface is warm.
+                        if (seasonalWinds)
+                        {
+                            float seasonalHeating = FMath.Clamp((tempNow - annualTemperature[i]) / 12f, 0f, 1f);
+                            float warmBoundaryLayer = FMath.Clamp((tempNow - 10f) / 12f, 0f, 1f);
+                            float inhibition = FMath.Clamp(-2f * glebaImpact, 0f, 1f);
+                            column.LandThermalActivity[i] = seasonalHeating * warmBoundaryLayer * (1f - inhibition);
+                        }
+
                         u[i]/=1+climbEast*gridScale/850;
                         v[i]/=1+climbNorth*gridScale/850;
                     }
@@ -1317,7 +1329,12 @@ namespace Orbis.Flat
                         float critRh=column.StratiformCritRh[i]>0f?column.StratiformCritRh[i]:.90f;
                         float largeScaleExcess=Math.Max(0,air-cap*critRh)*.65f;
                         float dynCond=air*Math.Min(.7f,(column.Lift[i]+column.Efficiency[i]*.055f*cloudFraction*cloudFraction)*dt);
-                        float condensed=largeScaleExcess+dynCond;
+                        // Moist thermals return a share of actual land evapotranspiration to
+                        // convection. Credit convection already diagnosed from resolved lift.
+                        float humidLayer = FMath.Clamp((humidity - .35f) / .4f, 0f, 1f);
+                        float thermalMoisture = landEvap * column.LandThermalActivity[i] * humidLayer;
+                        float landConvection = Math.Max(0f, thermalMoisture - dynCond * column.ConvectiveShare[i]);
+                        float condensed=largeScaleExcess+dynCond+landConvection;
                         float gross=Math.Min(air,condensed+stormCloud);
                         float skinMax=Math.Max(1e-4f,30f*land), deepMax=Math.Max(1e-4f,120f*land);
                         float wettedSurface=sea+land*Math.Min(1,totalSoil*inverseFieldWater[i]);
@@ -1345,7 +1362,7 @@ namespace Orbis.Flat
                             state.Condensation[a]+=gross;
                             if(exo!=null)
                             {
-                                float convRaw=dynCond*column.ConvectiveShare[i]+stormCloud*(.35f+.65f*column.ConvectiveShare[i]);
+                                float convRaw=landConvection+dynCond*column.ConvectiveShare[i]+stormCloud*(.35f+.65f*column.ConvectiveShare[i]);
                                 float convFrac=gross>1e-6f?FMath.Clamp(convRaw/(condensed+stormCloud+1e-6f),0f,1f):0f;
                                 exo.ConvectiveRain[a]+=rain*convFrac;
                                 exo.StratiformRain[a]+=rain*(1f-convFrac);

@@ -4,10 +4,18 @@
 float _DetailWeight;
 float PDBox(float2 p,float2 lo,float2 hi)
 {return step(lo.x,p.x)*step(lo.y,p.y)*(1-step(hi.x,p.x))*(1-step(hi.y,p.y));}
-float PDHash(float2 p)
+#include "FlatTreePlacement.cginc"
+UNITY_DECLARE_TEX2D_NOSAMPLER(_EarthTreeBanks);
+float2 FlatCachedTreeBank(float2 id,float gridShore)
 {
- p.x=p.x-floor(p.x/_MapSize.x)*_MapSize.x;
- return frac(sin(dot(p,float2(12.9898,78.233)))*43758.5453);
+ if(_EarthStraitReady+_EarthLakeReady<.5)return float2(gridShore,0);
+#ifdef UNITY_SEPARATE_TEXTURE_SAMPLER
+ id.x-=floor(id.x/_MapSize.x)*_MapSize.x;
+ float2 bank=_EarthTreeBanks.Load(int3(id,0)).rg;
+#else
+ float2 bank=FlatPresentationSample(_EarthTreeBanks,(id+.5)*_MapSize.zw,0).rg;
+#endif
+ return bank.y>0?bank:float2(gridShore,0);
 }
 float3 PDPaint(float3 col,float3 ink,float mask){return lerp(col,FlatColor(ink),saturate(mask));}
 #include "FlatEcologyDetail.cginc"
@@ -24,7 +32,7 @@ float3 FlatVegetation(float3 col,float2 cell,float canopy,float pixelsPerTile,PD
  return FlatCanopyColor(col,cell,canopy,pixelsPerTile,plant.zw,offset,edge);
 }
 #include "FlatAmbientLife.cginc"
-float PDTreeSize(float2 id,float4 placement,float4 info,float4 ecology)
+float PDTreeSizeAt(float2 id,float4 placement,float4 info,float4 ecology,bool directProbe)
 {
  if(info.b>.5||(info.g>.5&&info.g<4.5))return 0;
  float2 root=placement.xy/32,uv=(id+root)*_MapSize.zw;
@@ -35,13 +43,17 @@ float PDTreeSize(float2 id,float4 placement,float4 info,float4 ecology)
  if(occupancy>density||density<=0||field.g>-.18)return 0;
  // A root is a geographic point. Its surveyed bank must stay fixed while a
  // crown, shadow or reflection crosses pixels with different screen footprints.
- float2 strait=FlatEarthStrait(uv,0);
- float shore=lerp(field.g,strait.x,strait.y);
- float lakeWeight;
- FlatEarthLakeAt(uv,info.g,strait.y,0,0,shore,lakeWeight);
+ float2 bankSurvey;
+#ifdef ORBIS_DIRECT_TREE_BANK_TEST
+ // Synthetic editor controls can put a root at an arbitrary point within the cell.
+ if(directProbe)bankSurvey=FlatEarthTreeBank(uv,info.g,field.g);
+ else
+#endif
+ bankSurvey=FlatCachedTreeBank(id,field.g);
+ float shore=bankSurvey.x;
  if(shore>=0)return 0;
  float size=placement.z;
- float surveyed=max(strait.y,lakeWeight);
+ float surveyed=bankSurvey.y;
  if(surveyed>0)
  {
   // The 32-pixel tree is a map symbol. Allow 1.5 km of coastal overhang,
@@ -58,6 +70,8 @@ float PDTreeSize(float2 id,float4 placement,float4 info,float4 ecology)
  float extent=length(float2(21,40))*FlatTreeLatitudeScale(id,placement.y)/32;
  return min(size,bank/max(.0001,extent));
 }
+float PDTreeSize(float2 id,float4 placement,float4 info,float4 ecology)
+{return PDTreeSizeAt(id,placement,info,ecology,false);}
 bool PDTreeAvailable(float2 id,float4 placement,float4 info,float4 ecology)
 {return PDTreeSize(id,placement,info,ecology)>0;}
 static const float PDSettlementHeightProjection=.46947156;

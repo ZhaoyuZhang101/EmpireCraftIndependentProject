@@ -65,6 +65,17 @@ float FlatSurveyBasinShore(float2 uv,float2 cell,sampler2D semantic,float kind,i
     }
     return strait;
 }
+float _KoppenMap;
+float4 _OrbisKoppenColours[32]; // 31 simulated classes, then the climate map ocean colour.
+float3 FlatKoppenCoast(float3 display,float4 semantic,float shore,float aa,float coverage)
+{
+    if(coverage<=0)return display;
+    bool wasOcean=semantic.g>.5 && semantic.g<3.5;
+    float3 land=wasOcean ? FlatColor(_OrbisKoppenColours[(int)clamp(round(semantic.a),0,30)].rgb) : display;
+    float3 sea=wasOcean ? display : FlatColor(_OrbisKoppenColours[31].rgb);
+    return lerp(display,lerp(land,sea,smoothstep(-aa,aa,shore)),coverage);
+}
+
 float3 FlatRiverMapColor(float2 cell,sampler2D semantic,float kind,float4 field,float aa,float ink,float surveyLake)
 {
     float sea=smoothstep(-aa,aa,field.g);

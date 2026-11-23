@@ -28,6 +28,7 @@ namespace Orbis.Flat
             preview.CopyPropertiesFromMaterial(detailed);
             preview.DisableKeyword("ORBIS_RIVER_RASTER");
             preview.DisableKeyword("ORBIS_RIVER_VECTORS");
+            if(preview.IsKeywordEnabled(FlatRiverAtlas.DiagnosticKeyword))preview.DisableKeyword(FlatRiverAtlas.DiagnosticKeyword);
             preview.EnableKeyword("ORBIS_PREVIEW");
             if (!ShaderUtil.IsPassCompiled(preview, pass)) ShaderUtil.CompilePass(preview, pass, true);
             return preview;

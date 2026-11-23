@@ -7,10 +7,13 @@ UNITY_DECLARE_TEX2D_NOSAMPLER(_EarthLakeShore);
 UNITY_DECLARE_TEX2D_NOSAMPLER(_EarthLakeDetail);
 UNITY_DECLARE_TEX2D_NOSAMPLER(_EarthStraitShore);
 UNITY_DECLARE_TEX2D_NOSAMPLER(_EarthStraitDetail);
+UNITY_DECLARE_TEX2D_NOSAMPLER(_EarthOceanDirectory);
+UNITY_DECLARE_TEX2D_NOSAMPLER(_EarthOceanPages);
 UNITY_DECLARE_TEX2D_NOSAMPLER(_EarthMarineDepth);
 float4 _EarthPolarBed_TexelSize,_EarthSurveyAtPoles;
 float4 _EarthLakeShore_TexelSize,_EarthLakeDetail_TexelSize;
 float4 _EarthStraitShore_TexelSize,_EarthStraitDetail_TexelSize;
+float4 _EarthOceanDirectory_TexelSize,_EarthOceanPages_TexelSize;
 float4 _EarthMarineDepth_TexelSize;
 float _EarthPolarReady,_EarthLakeReady,_EarthStraitReady;
 UNITY_DECLARE_TEX2D_NOSAMPLER(_EarthLandOverview);
@@ -190,27 +193,35 @@ float3 FlatEarthOverviewLand(float2 uv,float lod)
     return float3(FlatEarthOverviewHeight(uv,lod),float2(east,north)*perKm);
 }
 
-float3 FlatEarthNativeLand(float2 uv,inout float weight)
+bool FlatEarthLandPage(float2 uv,out float2 address,out float2 heightRange)
 {
+    address=0;heightRange=0;
     float2 region=float2(frac(uv.x)*360,clamp(uv.y*180-30,0,119.99999));
     float2 tile=floor(region);
     float4 entry=round(FlatPresentationSample(_EarthLandDirectory,(tile+.5)/float2(360,120),0)*255);
     float slot=entry.r+256*entry.g-1;
-    if(slot<0){weight=0;return 0;}
+    if(slot<0)return false;
     float word=entry.b+256*entry.a,exponent=floor(word/8192);
-    float base=word-exponent*8192-1024,scale=exp2(exponent)*255;
+    heightRange=float2(word-exponent*8192-1024,exp2(exponent)*255);
     // A degree contains 60 original samples plus one duplicate from each
     // neighbour. Both pages encode each duplicate at exactly the same height.
     float columns=floor(_EarthLandPages_TexelSize.z/62);
     float row=floor((slot+.5)/columns);
+    address=(float2(slot-row*columns,row)*62+1+frac(region)*60)*_EarthLandPages_TexelSize.xy;
+    return true;
+}
+
+float3 FlatEarthNativeLand(float2 uv,inout float weight)
+{
+    float2 address,heightRange;
+    if(!FlatEarthLandPage(uv,address,heightRange)){weight=0;return 0;}
     float2 texel=_EarthLandPages_TexelSize.xy;
-    float2 address=(float2(slot-row*columns,row)*62+1+frac(region)*60)*texel;
     float east=FlatPresentationSample(_EarthLandPages,address+float2(.5*texel.x,0),0).r-
                FlatPresentationSample(_EarthLandPages,address-float2(.5*texel.x,0),0).r;
     float north=FlatPresentationSample(_EarthLandPages,address+float2(0,.5*texel.y),0).r-
                 FlatPresentationSample(_EarthLandPages,address-float2(0,.5*texel.y),0).r;
-    return float3(base+scale*FlatPresentationSample(_EarthLandPages,address,0).r,
-        float2(east,north)*(scale*21600/40030.2));
+    return float3(heightRange.x+heightRange.y*FlatPresentationSample(_EarthLandPages,address,0).r,
+        float2(east,north)*(heightRange.y*21600/40030.2));
 }
 
 // The water receiver is classified first. Only the rendered land height and
@@ -270,9 +281,9 @@ float FlatEarthStraitPage(float2 pixel)
     return dot(bytes,float2(1,256))-1;
 }
 
-float2 FlatEarthStrait(float2 uv,float footprintKm)
+float2 FlatEarthRegionalStrait(float2 uv,float footprintKm)
 {
-    [branch] if(_EarthStraitReady<.5)return 0;
+    if(_EarthStraitShore_TexelSize.z<2048)return 0;
     float2 location=float2(frac(uv.x)*1440,min(saturate(uv.y)*720,719.9999));
     float2 tile=floor(location),phase=frac(location);
     float index=tile.y*1440+tile.x;
@@ -283,9 +294,7 @@ float2 FlatEarthStrait(float2 uv,float footprintKm)
     float2 origin=FlatEarthStraitSlot(slot,floor(columns/18))*float2(18,19)+float2(0,headerRows);
     float2 data=FlatPresentationSample(_EarthStraitShore,(origin+float2(1,2)+phase*16)*_EarthStraitShore_TexelSize.xy,0).rg;
     float km=(data.r*255-128)*.5;
-    // A terrain edit excludes the whole brush cell and its neighbours from
-    // the survey. A coarse dry semantic cell may legitimately contain a strait.
-    float weight=data.g*FlatPresentationSample(_EarthSurveyMask,uv,0).r;
+    float weight=data.g;
     [branch] if(weight<=0)return 0;
     float detail=smoothstep(.975,.999,data.g)*(1-smoothstep(2,6,abs(km)))*(1-smoothstep(1.2,4,footprintKm));
     [branch] if(detail>0)
@@ -316,6 +325,64 @@ float2 FlatEarthStrait(float2 uv,float footprintKm)
     return float2(km*_MapSize.x/40030.2,weight);
 }
 
+float2 FlatEarthOceanCoast(float2 uv)
+{
+    if(_EarthOceanDirectory_TexelSize.z<1440)return 0;
+    float2 position=float2(frac(uv.x)*1440,min(saturate(uv.y)*720,719.9999));
+    float2 tile=floor(position);
+    #ifdef UNITY_SEPARATE_TEXTURE_SAMPLER
+    float4 entry=round(255*_EarthOceanDirectory.Load(int3((int2)tile,0)));
+    #else
+    float4 entry=round(255*FlatPresentationSample(_EarthOceanDirectory,(tile+.5)*_EarthOceanDirectory_TexelSize.xy,0));
+    #endif
+    float slot=dot(entry.rg,float2(1,256))-1;
+    float fine=(entry.a>=128?127:-127)/32.0;
+    [branch] if(slot>=0)
+    {
+        float2 origin=32*FlatEarthStraitSlot(floor(slot*.25),128);
+        float2 address=(origin+1+frac(position)*30)*_EarthOceanPages_TexelSize.xy;
+        float4 codes=FlatPresentationSample(_EarthOceanPages,address,0);
+        float4 channel=1-step(.5,abs(float4(0,1,2,3)-fmod(slot,4)));
+        fine=(dot(codes,channel)*255-128)/32;
+    }
+    // A small island need not contain a directory centre. Its native sign
+    // remains authoritative even where the kilometre-scale overview is open sea.
+    float2 broadCodes=255*FlatPresentationSample(_EarthOceanDirectory,uv,0).ba;
+    float broad=(dot(broadCodes,float2(1,256))-32768)/32;
+    float km=sign(fine)*lerp(abs(fine),max(abs(fine),sign(fine)*broad),smoothstep(1.5,3.96,abs(fine)));
+    float cellKm=40030.2*_MapSize.z;
+    // Inland lakes, edited terrain and remote open water keep their own physical
+    // fields. Cover enough ground to correct the footprint of even a 256 map cell.
+    return float2(km/cellKm,1-smoothstep(1.5*cellKm+20,3*cellKm+45,abs(km)));
+}
+
+float2 FlatEarthStrait(float2 uv,float footprintKm)
+{
+    if(_EarthStraitReady<.5)return 0;
+    float2 coast=FlatEarthRegionalStrait(uv,footprintKm);
+    [branch] if(coast.y<.99999)
+    {
+        float2 worldwide=FlatEarthOceanCoast(uv);
+        float fill=worldwide.y*(1-coast.y);
+        float total=coast.y+fill;
+        coast=float2((coast.x*coast.y+worldwide.x*fill)/max(.00001,total),total);
+    }
+    // Apply the edit halo once, after combining the independent chart scales.
+    if(coast.y>0)coast.y*=FlatPresentationSample(_EarthSurveyMask,uv,0).r;
+    return coast;
+}
+
+// One fixed geographic sample per tree root. The same bank applies to a
+// crown, its shadow and its reflection at every camera scale.
+float2 FlatEarthTreeBank(float2 uv,float kind,float gridShore)
+{
+    float2 strait=FlatEarthStrait(uv,0);
+    float shore=lerp(gridShore,strait.x,strait.y);
+    float lakeWeight;
+    FlatEarthLakeAt(uv,kind,strait.y,0,0,shore,lakeWeight);
+    return float2(shore,max(strait.y,lakeWeight));
+}
+
 float FlatEarthShoreAA(float2 uv,float aa,float strait)
 {
     if(strait<=0)return aa;
@@ -340,16 +407,35 @@ float2 FlatEarthMarineTexel(float2 pixel)
     #endif
 }
 
-float2 FlatEarthCoastalDepth(float2 uv)
+float2 FlatEarthOpenCoastalDepth(float2 uv,float offshoreKm)
 {
-    [branch] if(_EarthMarineDepth_TexelSize.z<2048)return float2(-1,0);
+    if(_EarthOceanDirectory_TexelSize.z<1440 || _EarthLandOverview_TexelSize.z<3600)return float2(-1,0);
+    float bed=FlatPresentationSample(_EarthLandOverview,uv,0).r*65535-32768;
+    float latitude=abs(180*uv.y-90);
+    float2 address,heightRange;
+    [branch] if(latitude<60 && _EarthLandPages_TexelSize.z>=8192 && FlatEarthLandPage(uv,address,heightRange))
+    {
+        float z=heightRange.x+heightRange.y*FlatPresentationSample(_EarthLandPages,address,0).r;
+        // The native land atlas retains shelf depths to -512 m. Match to the
+        // unclipped NOAA overview only where that native encoding bottoms out.
+        float shelf=lerp(z,min(z,bed),smoothstep(416,510,-z));
+        bed=lerp(shelf,bed,smoothstep(58,60,latitude));
+    }
+    // A narrow tidal arm can be wet in the ocean polygon and dry in ETOPO.
+    float shallow=clamp(.5+.8*max(0,offshoreKm),.5,12);
+    return float2(max(-bed,lerp(.15,shallow,smoothstep(-.15,3,bed))),1);
+}
+
+float2 FlatEarthRegionalDepth(float2 uv)
+{
+    if(_EarthMarineDepth_TexelSize.z<2048)return float2(-1,0);
     float2 location=float2(frac(uv.x)*1440,min(saturate(uv.y)*720,719.9999));
     float2 tile=floor(location);
     float columns=_EarthMarineDepth_TexelSize.z;
     float2 index=FlatEarthStraitSlot(tile.y*1440+tile.x,columns);
     float2 bytes=round(255*FlatEarthMarineTexel(index));
     float slot=dot(bytes,float2(1,256))-1;
-    [branch] if(slot<0)return float2(-1,0);
+    if(slot<0)return float2(-1,0);
     float2 origin=FlatEarthStraitSlot(slot,floor(columns/17))*17+float2(0,ceil((1440.0*720.0)/columns));
     // Interpolate in the 17 x 17 source page. Normalizing the address against
     // different atlas shapes can change the hardware filter weights on steep beds.
@@ -360,6 +446,13 @@ float2 FlatEarthCoastalDepth(float2 uv)
     float2 encoded=lerp(south,north,phase.y);
     // Only submerged native ETOPO nodes contribute near a mixed land/water pixel.
     return float2(exp2(14*encoded.r/max(encoded.g,1e-4))-1,smoothstep(.1,.85,encoded.g));
+}
+
+float2 FlatEarthCoastalDepth(float2 uv,float offshoreKm)
+{
+    float2 measured=FlatEarthRegionalDepth(uv);
+    if(measured.x<0)measured=FlatEarthOpenCoastalDepth(uv,offshoreKm);
+    return measured;
 }
 
 // Return how much of the chart and bed lighting should use this optical depth.
@@ -389,7 +482,7 @@ float FlatEarthMarineOptics(float2 uv,float2 coast,float bed,float strait,inout 
     float detail=wet*(1-smoothstep(2,8,footprintKm));
     if(detail>0)
     {
-        float2 measured=FlatEarthCoastalDepth(uv);
+        float2 measured=FlatEarthCoastalDepth(uv,km);
         if(measured.x>=0)
         {
             optics.r=lerp(optics.r,max(.15,measured.x),detail*measured.y);

@@ -476,10 +476,40 @@ internal static class GlebaSupplementRegression
             "FloatToHalfBits must encode IEEE-754 binary16 values accurately");
     }
 
+    static void CheckWindShorePacking(WorldData world, int month)
+    {
+        var bands = world.Moisture.Gleba;
+        int onshore = 0, offshore = 0;
+        for (int tile = 0; tile < world.Count; tile++)
+        {
+            float u = (tile % world.Width + .5f) / world.Width, v = (tile / world.Width + .5f) / world.Height;
+            int index = (int)(v * bands.Height) * bands.Width + (int)(u * bands.Width);
+            var type = bands.ShoreTypes[index * 12 + month];
+            GlebaGeographySupplement.PackMapmodeDisplay(world, tile, month, GlebaMapmodeKind.ClimateSurfaceWinds,
+                out byte r, out byte g, out byte b, out byte a);
+            Check(a == (type == GlebaShoreType.OnShore ? 255 : type == GlebaShoreType.OffShore ? 251 : 253),
+                "Wind display must carry the simulated shore class separately from pressure");
+            if (world.CoastDistance[tile] <= 2 && type != GlebaShoreType.NotApplicable)
+            {
+                bool wet = type == GlebaShoreType.OnShore;
+                if (wet) onshore++; else offshore++;
+                r = (byte)(.5f * (r + (wet ? 50 : 150)));
+                g = (byte)(.5f * (g + 50));
+                b = (byte)(.5f * (b + (wet ? 200 : 50)));
+            }
+            GlebaGeographySupplement.EvaluateMapmodeColor(world, tile, month, GlebaMapmodeKind.ClimateSurfaceWinds,
+                out byte originalR, out byte originalG, out byte originalB);
+            Check(r == originalR && g == originalG && b == originalB,
+                "Wind pressure and the stored class must reproduce the original Gleba diagnostic");
+        }
+        Check(onshore > 0 && offshore > 0, "Wind display fixture must contain both marine shore classes");
+    }
+
     static void CheckProceduralGeographyCarvingAndErosion()
     {
         var world = FlatGenerator.Generate(128, 64, "GLEBA-CARVE-2026", TerrainPreset.Continents, default);
         Check(world.Facts?.GlebaGeography != null, "Procedural Continents world must build GlebaGeography");
+        CheckWindShorePacking(world, 6);
 
         GlebaGeographySupplement.EvaluateMapmodeColor(world, 1000, 6, GlebaMapmodeKind.ClimateSurfaceWinds, out byte wr, out byte wg, out byte wb);
         GlebaGeographySupplement.EvaluateMapmodeColor(world, 1000, 6, GlebaMapmodeKind.ClimateOceanCurrents, out byte cr, out byte cg, out byte cb);

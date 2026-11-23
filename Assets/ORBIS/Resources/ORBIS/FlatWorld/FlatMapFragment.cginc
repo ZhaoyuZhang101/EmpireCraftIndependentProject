@@ -1,7 +1,9 @@
    // Map readability (globals, 0 = off): minimum on-screen width of main
    // channels when zoomed out, and a clear-water tint for river channels.
    float _RiverTint;
+   #ifdef ORBIS_DIAGNOSTIC
    #include "FlatCirculationOverlay.cginc"
+   #endif
 #ifdef ORBIS_LOCAL_SURFACE
    float4 _LocalFocus,_LocalEditFootprint;
    float FlatFocusCorners(float2 pixels,float radius)
@@ -66,7 +68,7 @@
 #elif defined(ORBIS_SCROLL_SURFACE)
     i.uv=MarkleyGeoUV(i.uv);
 #endif
-#ifdef ORBIS_SCROLL_SURFACE
+#if defined(ORBIS_SCROLL_SURFACE) && !defined(ORBIS_DIAGNOSTIC)
     float2 chartRightGeographic,chartUpGeographic;
     FlatChartGeographicBasis(i.uv,chartCoordinate,chartRightGeographic,chartUpGeographic);
 #endif
@@ -75,9 +77,21 @@
     float2 cellDx,cellDy;FlatCellScreenDerivatives(cell,cellDx,cellDy);
     float2 cellPerPixel=max(1e-5,sqrt(cellDx*cellDx+cellDy*cellDy));
 #endif
+#ifdef ORBIS_DIAGNOSTIC
+    // Class colours use exact tile centres. The flow layer uses a smooth
+    // pressure/SST map below its independently sampled vector field.
+    float2 displayUV=lerp(uv,FlatBlendUV(cell),step(.5,_GlebaCirculation.x));
+    float4 display=tex2Dlod(_MainTex,float4(displayUV,0,0));
+    float waterMask;
+    float3 col=FlatDiagnosticSurface(display,i.uv,cell,_InfoTex,_PixelsPerTile,waterMask);
+    #ifdef ORBIS_LOCAL_SURFACE
+    float3 world=i.world.xyz/max(1e-6,i.world.w);
+    float2 projected=float2(dot(world-_ScrollNormal,_ScrollRight),dot(world-_ScrollNormal,_ScrollUp));
+    #endif
+#else
     float naturalView=max(_Natural,_Political);
     float terrainView=max(naturalView,_DrawHeight);
-    float2 colorUV=lerp(uv,FlatBlendUV(cell),max(_SmoothTerrain*terrainView,step(.5,_GlebaCirculation.x)));
+    float2 colorUV=lerp(uv,FlatBlendUV(cell),_SmoothTerrain*terrainView);
     float3 col=tex2D(_MainTex,colorUV).rgb;
     float4 own=tex2D(_OwnerTex,uv),info=tex2D(_InfoTex,uv)*255;
     float4 hydro=tex2Dlod(_HydroA,float4(uv,0,0)),mixing=tex2Dlod(_HydroB,float4(uv,0,0)),geo=tex2Dlod(_GeoTex,float4(uv,0,0));
@@ -226,7 +240,6 @@
     }
     else col*=illumination;
     if(_RiverMap>.5)col=FlatRiverMapColor(cell,_InfoTex,info.g,field,aa,overviewInk,surveyLake);
-    if(_GlebaCirculation.x>.5)col=FlatApplyCirculationOverlay(col,i.uv,_PixelsPerTile,waterMask,floor(info.g+.5));
     float snowAndCap=max(polarIce,snowSurface);
     if(snowAndCap>.001)col=lerp(col,FlatPolarIceColor(i.uv,waterMask)*illumination*lerp(terrainRelief.rgb,1,waterMask),snowAndCap);
     if(lakeIce>.001)col=lerp(col,FlatLakeIceColor(FlatRadial(i.uv),lakePixelKm)*illumination,lakeIce);
@@ -287,6 +300,7 @@
      col+=town*exp(-dot(structureOffset,structureOffset)*14)*night*_FlatNightLights*FlatColor(float3(.82,.42,.13))*.75;
      col=lerp(col,FlatSkyComposite(col,i.uv,cloud,_PixelsPerTile,weather,illumination),skyWeight);
     }
+#endif
 #ifdef ORBIS_LOCAL_SURFACE
     if(_ScrollMorph>=1)
     {

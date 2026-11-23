@@ -165,6 +165,25 @@ namespace Orbis.Editor
                 }
                 if (Sample(9,landLon,landLat).g!=0 || Sample(8,15,79).g!=0)
                     failures.Add("Land survey covered a wet receiver or the existing polar chart");
+                // Interior points on opposite sides of Natural Earth 1:10m ocean polygons.
+                // In Earth512 the old regional charts either missed or rounded these banks.
+                if (world.UsesGlobalStraits && SystemInfo.maxTextureSize >= 4096)
+                {
+                    var shores = new[] {
+                        ("Messenia", 21.73f, 36.82f, false), ("Mani", 22.44f, 36.53f, false),
+                        ("Laconia", 22.96f, 36.86f, false), ("Argolic Gulf", 23.03f, 37.19f, true),
+                        ("Haiyang bay", 121.45f, 36.70f, true), ("Shandong peninsula", 122.55f, 37.26f, false),
+                        ("Brest roadstead", -4.47f, 48.32f, true), ("Northern Madagascar", 49.52f, -12.85f, false)
+                    };
+                    foreach (var (place, lon, lat, sea) in shores)
+                    {
+                        int cell = world.Index((int)((lon/360+.5f)*width), (int)((lat/180+.5f)*world.Height));
+                        probe.SetFloat("_ProbeWaterKind", (int)world.Water[cell]);
+                        var coast = Sample(7, lon, lat);
+                        if (coast.b < .99f || (sea ? coast.r <= 0 : coast.r >= 0))
+                            failures.Add($"{place}: expected {(sea ? "sea" : "land")}, signed shore {coast.r:F4}, survey weight {coast.b:F3}");
+                    }
+                }
                 // Natural Earth polygon membership at interior points misrepresented
                 // by the 512-grid coastline in Svalbard and the Antarctic Peninsula.
                 foreach (var site in new[] { new Vector3(18.35312f,80.15885f,-1), new Vector3(11.27188f,78.51615f,-1),

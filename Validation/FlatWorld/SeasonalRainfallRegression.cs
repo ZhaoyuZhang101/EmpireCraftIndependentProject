@@ -8,6 +8,7 @@ internal static class SeasonalRainfallRegression
         CheckThermalInflow();
         CheckWaterSources();
         CheckWarmIslandTrades();
+        CheckWarmContinentalConvection();
         CheckPeninsulaMonsoon();
         // Rotate seasons through the same terrain in the two hemispheres. Flat
         // topography isolates the influence of the adjacent ocean and storms.
@@ -39,6 +40,47 @@ internal static class SeasonalRainfallRegression
             if (!(rain[shore+lateSummer] > 2 * rain[shore+summer] / 3 &&
                   rain[interior+lateSummer] < rain[interior+summer] / 2))
                 throw new Exception("Late-summer marine supply should persist at the coast and diminish inland.");
+        }
+    }
+
+    private static void CheckWarmContinentalConvection()
+    {
+        var world = new WorldData(128, 64, "THERMAL-INTERIOR", TerrainPreset.Continents);
+        for (int y = 0; y < world.Height; y++)
+        for (int x = 0; x < world.Width; x++)
+        {
+            int i = world.Index(x, y);
+            bool land = x >= 36 && x < 80;
+            world.Water[i] = land ? WaterKind.Land : WaterKind.DeepOcean;
+            world.Elevation[i] = (short)(land ? 100 : -800);
+            world.WaterLevel[i] = (short)(land ? 100 : 0);
+            world.CoastDistance[i] = (ushort)(land ? Math.Min(x - 35, 80 - x) : 0);
+            double latitude = (y + .5) / world.Height * 180 - 90;
+            for (int m = 0; m < 12; m++)
+            {
+                double seasonal = Math.Sin(latitude * Math.PI / 180) * Math.Cos((m - 6) * Math.PI / 6);
+                world.Temperature[i * 12 + m] = (float)(26 - .34 * Math.Abs(latitude) + (land ? 14 : 4) * seasonal);
+            }
+        }
+
+        var air = FlatMoisture.BuildWithCirculation(world, default, 2, true, null);
+        foreach (int summer in new[] { 0, 6 })
+        {
+            double warmTotal = 0, warmConvective = 0, coldTotal = 0, coldConvective = 0;
+            // The same inland strip in both hemispheres, roughly 49–55 degrees.
+            for (int row = 49; row <= 51; row++)
+            for (int x = 40; x <= 45; x++)
+            {
+                int y = summer == 6 ? row : world.Height - 1 - row;
+                int offset = world.Index(x, y) * 12, winter = (summer + 6) % 12;
+                warmTotal += air.Rain[offset + summer];
+                warmConvective += air.ExoPlaSim.ConvectiveRain[offset + summer];
+                coldTotal += air.Rain[offset + winter];
+                coldConvective += air.ExoPlaSim.ConvectiveRain[offset + winter];
+            }
+            Console.WriteLine($"Warm continental convection, summer month {summer + 1}: {warmConvective / warmTotal:P1} of summer precipitation, {coldConvective / coldTotal:P1} in winter.");
+            if (!(warmTotal > 0 && coldTotal > 0 && warmConvective > .25 * warmTotal && coldConvective < .05 * coldTotal))
+                throw new Exception("Warm moist continental interiors must support summer convection between the monsoon and polar fronts.");
         }
     }
 
