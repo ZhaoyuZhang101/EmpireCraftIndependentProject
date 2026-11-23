@@ -25,7 +25,7 @@ namespace Orbis.Flat
         int visibleWindRevision=-1;bool stagingWind;
         int revision=-1,windRevision=-1;float debt,windBlend;bool rendered,failed;
         double stagedClock;
-        Vector4 pendingNorth,pendingSouth,visibleNorth,visibleSouth;
+        Vector4 pendingNorth,pendingSouth,pendingPhase,visibleNorth,visibleSouth,visiblePhase;
         FlatRegionalCloudField regionalClimate;
         long? stagingClimateStep;
         int stagingRevision;
@@ -149,7 +149,10 @@ namespace Orbis.Flat
                 visibleWindDay=stagingWindDay;visibleWindRevision=stagingRevision;
             }
             stagedClock=hpColumn.GetFloat("_ScrollWeatherTime");
-            visibleNorth=pendingNorth;visibleSouth=pendingSouth;
+            visibleNorth=pendingNorth;visibleSouth=pendingSouth;visiblePhase=pendingPhase;
+            Shader.SetGlobalVector("_OrbisCycloneNorth",visibleNorth);
+            Shader.SetGlobalVector("_OrbisCycloneSouth",visibleSouth);
+            Shader.SetGlobalVector("_OrbisCyclonePhase",visiblePhase);
             RegionalClimateStep=stagingClimateStep;
             pendingStrip=-1;rendered=true;
             Status="云层 "+Texture.width+"×"+Texture.height+" · 云影和雨雪 "+CacheWidth+"×"+(CacheWidth/2)+
@@ -247,8 +250,11 @@ namespace Orbis.Flat
             var north=state==null?default:state.Sample(true,calendarDay);
             var south=state==null?default:state.Sample(false,calendarDay);
             pendingNorth=StormVector(north);pendingSouth=StormVector(south);
+            pendingPhase=new Vector4((float)(north.Phase%(2*Math.PI)),(float)(south.Phase%(2*Math.PI)),0,0);
             bake.SetVector("_CycloneNorth",pendingNorth);bake.SetVector("_CycloneSouth",pendingSouth);
-            bake.SetVector("_CyclonePhase",new Vector4((float)(north.Phase%(2*Math.PI)),(float)(south.Phase%(2*Math.PI)),0,0));
+            bake.SetVector("_CyclonePhase",pendingPhase);
+            hpColumn.SetVector("_OrbisCycloneNorth",pendingNorth);hpColumn.SetVector("_OrbisCycloneSouth",pendingSouth);
+            hpColumn.SetVector("_OrbisCyclonePhase",pendingPhase);
         }
         public void Tick(float delta,bool needed,bool animate,bool autoSun,int width,double calendarDay,Vector2 focus=default,bool local=false)
         {
@@ -322,6 +328,6 @@ namespace Orbis.Flat
             target.SetVectorArray("_OrbisLightning",flashes);
         }
         void OnDestroy()
-        {regionalClimate?.Dispose();ReleaseCache(weatherBack);ReleaseCache(columnBack);ReleaseCache(columnStrip);ReleaseCache(Texture);ReleaseCache(ColumnTexture);if(climate)Destroy(climate);if(glebaForcing)Destroy(glebaForcing);if(glebaAux)Destroy(glebaAux);if(glebaUpperWind)Destroy(glebaUpperWind);if(wind)Destroy(wind);if(windBack)Destroy(windBack);if(climateWind)Destroy(climateWind);if(bake)Destroy(bake);if(hpColumn)Destroy(hpColumn);if(hpNoise)Destroy(hpNoise);if(hpDetail)Destroy(hpDetail);if(hpHigh)Destroy(hpHigh);}
+        {Shader.SetGlobalVector("_OrbisCycloneNorth",Vector4.zero);Shader.SetGlobalVector("_OrbisCycloneSouth",Vector4.zero);Shader.SetGlobalVector("_OrbisCyclonePhase",Vector4.zero);regionalClimate?.Dispose();ReleaseCache(weatherBack);ReleaseCache(columnBack);ReleaseCache(columnStrip);ReleaseCache(Texture);ReleaseCache(ColumnTexture);if(climate)Destroy(climate);if(glebaForcing)Destroy(glebaForcing);if(glebaAux)Destroy(glebaAux);if(glebaUpperWind)Destroy(glebaUpperWind);if(wind)Destroy(wind);if(windBack)Destroy(windBack);if(climateWind)Destroy(climateWind);if(bake)Destroy(bake);if(hpColumn)Destroy(hpColumn);if(hpNoise)Destroy(hpNoise);if(hpDetail)Destroy(hpDetail);if(hpHigh)Destroy(hpHigh);}
     }
 }

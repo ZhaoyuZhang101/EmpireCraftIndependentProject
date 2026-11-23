@@ -93,11 +93,15 @@ namespace Orbis.Flat
         {
             if (!track.Tracked) return FindDisturbance(climate, hemisphere, seed, tick);
             var air = climate.At(track.U, track.V, hemisphere);
-            // Beta drift grows with circulation. The environmental wind, sampled
-            // over the surrounding climate cells, supplies most of the translation.
+            // Beta drift grows with circulation. Deep-layer 500 hPa steering suppresses shallow
+            // surface Hadley equatorward Ekman inflow in the tropics so typhoons/hurricanes track
+            // WNW and recurve poleward around the subtropical ridge instead of drifting into 0-5 deg.
             double beta = track.WindSpeed / (track.WindSpeed + 20);
+            double latDegAbs = Math.Abs((track.V - .5) * 180.0);
+            double deepLayerGate = air.HasDeepDiagnostics ? (1.0 - .74 * Unit((25.0 - latDegAbs) / 12.0)) : 1.0;
+            double polewardBeta = air.HasDeepDiagnostics ? (1.65 * beta + .55 * air.SynopticSeed) : (1.25 * beta);
             double east = .72 * air.East - 1.5 * beta;
-            double north = .72 * air.North + hemisphere * 1.25 * beta;
+            double north = .72 * air.North * deepLayerGate + hemisphere * polewardBeta;
             double translation = Math.Sqrt(east * east + north * north);
             Advect(ref track, east, north, translation);
             // Sample the moved centre too: a coast crossed in this interval removes
@@ -105,17 +109,20 @@ namespace Orbis.Flat
             var arrival = climate.At(track.U, track.V, hemisphere);
             double wind = track.WindSpeed;
             double sea = arrival.Sea;
-            double stirring = sea * .7 * (wind / 28) * (wind / 28);
+            double warmPoolBuffer = arrival.HasDeepDiagnostics ? (1.0 - .42 * Unit((arrival.MpiFactor - 1.0) / .75)) : 1.0;
+            double stirring = sea * .7 * warmPoolBuffer * (wind / 28) * (wind / 28);
             double flushing = .16 + .17 * translation;
             track.OceanCooling = Math.Min(12, FlatScrollMath.ExpApproach(track.OceanCooling, stirring / flushing, flushing, StepDays));
             double rotation = Unit(hemisphere * (track.V - .5) * 180 / 7);
-            double heat = sea * Unit((arrival.Temperature - track.OceanCooling - 24.5) / 3.5)
+            // Account for marine 2m air-SST enthalpy disequilibrium (~1.2 C) when Emanuel MPI diagnostics are present
+            double sstOffset = arrival.HasDeepDiagnostics ? 1.25 * Unit((arrival.MpiFactor - .85) / .65) : 0.0;
+            double heat = sea * Unit((arrival.Temperature + sstOffset - track.OceanCooling - 24.5) / 3.5)
                 * arrival.HumidityFactor * (.42 + .58 * arrival.RainFactor) * rotation;
             // Inflow from the pressure deficit lifts moist air. Condensation warms
             // the core and lowers pressure; surface exchange grows with its winds.
-            double lift = 1 - Math.Exp(-(.62 * arrival.Organization + track.PressureDeficit / 18 + wind / 32));
-            double exchange = .26 + .74 * Unit((Math.Sqrt(arrival.East * arrival.East + arrival.North * arrival.North) + wind) / 30);
-            double heating = 54 * arrival.MpiFactor * heat * exchange * lift / (1 + .60 * arrival.Strain + .55 * arrival.ShearVentilation);
+            double lift = 1 - Math.Exp(-(.68 * arrival.Organization + track.PressureDeficit / 16 + wind / 29));
+            double exchange = .26 + .74 * Unit((Math.Sqrt(arrival.East * arrival.East + arrival.North * arrival.North) + wind) / 28);
+            double heating = 56 * arrival.MpiFactor * heat * exchange * lift / (1 + .60 * arrival.Strain + .55 * arrival.ShearVentilation);
             double filling = .37 + .85 * (1 - heat) + 1.05 * (1 - sea) + .18 * arrival.Strain + .22 * arrival.ShearVentilation;
             track.PressureDeficit = Math.Min(110, FlatScrollMath.ExpApproach(track.PressureDeficit, heating / filling, filling, StepDays));
             // Gradient-wind balance at the core radius, with boundary-layer spin-up
@@ -175,7 +182,8 @@ namespace Orbis.Flat
                 int tile = climate.Tile(u, v);
                 if (!FlatTerrainAnalysis.Ocean(climate.World.Water[tile])) continue;
                 var air = climate.At(u, v, hemisphere);
-                double growth = air.Sea * Unit((air.Temperature - 25.6) / 2.5)
+                double sstGenOffset = air.HasDeepDiagnostics ? 1.15 * Unit((air.MpiFactor - .85) / .65) : 0.0;
+                double growth = air.Sea * Unit((air.Temperature + sstGenOffset - 25.6) / 2.5)
                     * air.HumidityFactor * air.RainFactor * air.Organization * air.MpiFactor
                     / (1 + air.Strain + .65 * air.ShearVentilation);
                 if (growth <= bestGrowth) continue;
@@ -189,7 +197,8 @@ namespace Orbis.Flat
         {
             public double Temperature, HumidityFactor, RainFactor, Sea;
             public double East, North, Organization, PlanetaryVorticity, Strain;
-            public double MpiFactor, ShearVentilation;
+            public double MpiFactor, ShearVentilation, SynopticSeed;
+            public bool HasDeepDiagnostics;
         }
 
         readonly struct Climate
@@ -253,6 +262,7 @@ namespace Orbis.Flat
                 var exo = columns.ExoPlaSim;
                 if (exo != null)
                 {
+                    air.HasDeepDiagnostics = true;
                     int m0 = FMath.Wrap((int)Math.Floor(season.SeasonalMonth), 12), m1 = (m0 + 1) % 12;
                     float frac = (float)(season.SeasonalMonth - Math.Floor(season.SeasonalMonth));
                     float mpi = FMath.Lerp(exo.SampleMonthly(exo.MaxPotentialIntensityMs, (float)u, (float)v, m0),
@@ -261,8 +271,19 @@ namespace Orbis.Flat
                                              exo.SampleMonthly(exo.VerticalShearMs, (float)u, (float)v, m1), frac);
                     float chi = FMath.Lerp(exo.SampleMonthly(exo.EntropyDeficit, (float)u, (float)v, m0),
                                            exo.SampleMonthly(exo.EntropyDeficit, (float)u, (float)v, m1), frac);
-                    air.MpiFactor = FMath.Clamp((float)(0.72 + 0.48 * (mpi / 62.0)), 0.50f, 1.32f);
-                    air.ShearVentilation = Math.Max(0.0, (shear - 12.0) / 20.0) * (0.35 + 0.65 * chi);
+                    float gpi = FMath.Lerp(exo.SampleMonthly(exo.GenesisPotential, (float)u, (float)v, m0),
+                                           exo.SampleMonthly(exo.GenesisPotential, (float)u, (float)v, m1), frac);
+                    // Gate warm-pool MPI boost & synoptic wave seeds to summer/autumn cyclone season (>8.5 deg lat);
+                    // GPI already includes (1 + 0.1*Vshear)^-2, so avoid double-penalizing moderate tropical easterly-jet shear.
+                    double latGate = Unit((Math.Abs(sinLat) - 0.145) / 0.09);
+                    double summerSeason = Unit(hemisphere * Math.Sin((season.SeasonalMonth - 3.5) * Math.PI / 6.0) * 1.6 - 0.05);
+                    double gpiActive = Unit((gpi - 0.085) / 0.14);
+                    double mpiBoost = summerSeason * latGate * gpiActive * Math.Max(0.0, (mpi - 50.0) / 34.0);
+                    air.MpiFactor = FMath.Clamp((float)(0.62 + 0.22 * (mpi / 68.0) + 1.18 * mpiBoost) * (float)(0.35 + 0.65 * latGate), 0.35f, 2.02f);
+                    air.ShearVentilation = Math.Max(0.0, (shear - 28.0) / 32.0) * (0.35 + 0.65 * chi);
+                    double waveSeed = summerSeason * latGate * gpiActive * Unit((mpi - 56.0) / 24.0);
+                    air.SynopticSeed = waveSeed;
+                    air.Organization = air.Organization * (0.30 + 0.70 * latGate) + 0.80 * waveSeed;
                 }
                 else
                 {
