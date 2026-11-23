@@ -3070,9 +3070,21 @@ namespace Orbis.Flat
                     float itczBand = (float)Math.Exp(-(dItcz * dItcz) / (6.8 * 6.8));
                     float monsoonCore = Smooth(125f, 280f, rainMm) * Smooth(19f, 26f, tempC) * (1f - Smooth(26f, 35f, absLat));
                     float moistGate = Smooth(0.35f, 0.74f, rh + 0.35f * FMath.Clamp(rainMm / 200f, 0f, 1f));
+                    float exoCapeBoost = 0f, exoCinDamp = 0f;
+                    var exo = moisture?.ExoPlaSim;
+                    if (exo != null)
+                    {
+                        float cape = FMath.Lerp(exo.SampleMonthly(exo.CapeJkg, u, v, m0), exo.SampleMonthly(exo.CapeJkg, u, v, m1), blend);
+                        float chi = FMath.Lerp(exo.SampleMonthly(exo.EntropyDeficit, u, v, m0), exo.SampleMonthly(exo.EntropyDeficit, u, v, m1), blend);
+                        float breeze = exo.SampleStatic(exo.MaritimeSeaBreezeGuard, u, v);
+                        exoCapeBoost = 0.28f * Smooth(450f, 2100f, cape) + 0.16f * breeze * Smooth(19f, 26f, tempC);
+                        exoCinDamp = 0.26f * Smooth(0.68f, 0.95f, chi) * (1f - breeze);
+                    }
                     float itczConv = FMath.Clamp(
-                        Math.Max(itczBand * moistGate, monsoonCore * 0.86f) * (1f - 0.65f * negImpact) * (1f - 0.70f * rainShadow),
+                        (Math.Max(itczBand * moistGate, monsoonCore * 0.86f) + exoCapeBoost * moistGate)
+                        * (1f - 0.65f * negImpact) * (1f - 0.70f * rainShadow) * (1f - exoCinDamp),
                         0f, 1f);
+                    synopticLift = FMath.Clamp(synopticLift + 0.18f * exoCapeBoost - 0.20f * exoCinDamp, 0f, 1f);
 
                     float dPolar = Math.Min(Math.Abs(latDeg - polNCol[x]), Math.Abs(latDeg - polSCol[x]));
                     float polarBand = (float)Math.Exp(-(dPolar * dPolar) / (14.5 * 14.5));

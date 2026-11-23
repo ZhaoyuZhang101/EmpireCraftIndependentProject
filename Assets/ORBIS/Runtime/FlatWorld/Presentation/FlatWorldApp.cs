@@ -30,7 +30,9 @@ namespace Orbis.Flat
         TextField seedField,pathField;DropdownField sizeField,presetField,layerField,toolField,heightField,brushField;
         int[] playerWidths;
         Toggle gridToggle,cloudToggle,contourToggle;
-        DropdownField cloudQuality,climateYearField;Label legend,waterStatus,skyStatus;
+        DropdownField cloudQuality,climateYearField,planetPresetField;Label legend,waterStatus,skyStatus,planetSummaryLabel;
+        SliderInt planetCo2Slider;Slider planetObliqSlider;
+        ExoPlaSimPlanetConfig activePlanetConfig=ExoPlaSimPlanetConfig.CreatePreset(ExoPlaSimPreset.EarthModern);
         readonly string[] tabNames={"World","Terrain","Civs","Files"};
         readonly SemaphoreSlim worldWorker=new SemaphoreSlim(1,1);
         Task<WorldData> pending;CancellationTokenSource cancellation;bool seedOnInstall,paused,globeMode,dragging,moved;
@@ -80,7 +82,7 @@ namespace Orbis.Flat
             sizeField.choices=new List<string>(Array.ConvertAll(playerWidths,width=>$"{width} × {width/2}"));
             sizeField.index=Math.Max(0,Array.FindLastIndex(playerWidths,width=>width<=initialWidth));
             presetField=root.Q<DropdownField>("preset");presetField.choices=new List<string>{"大陆与群山","群岛","超级大陆","内海世界","地球（真实地形）"};presetField.index=0;
-            layerField=root.Q<DropdownField>("layer");layerField.choices=new List<string>{"自然地表","文明版图","20 档高度","Köppen 柯本气候","本月温度","本月降水","海水与淡水","土地肥力","地貌 / 丘陵高原","地表材料 / 沙泥砾岩","土壤桶湿度","河流 / 河口悬沙","生态植被 / 14 类","河网","风带与气压（Gleba）","洋流与海温（Gleba）","高空急流与罗斯贝波（Gleba）","地形雨影与大陆度（Gleba）","月均相对湿度（Gleba）","生态群系 23 类（Gleba）","乔灌草植被结构 RGB（Gleba）","土壤质地砂粉黏 RGB（Gleba）","土壤厚度与矿质养分（Gleba）","基岩岩性 37 类（Gleba）","板块边界、造山与火山（Gleba）","含水层、冰期峡湾与珊瑚礁（Gleba）","起源作物与承载力（Gleba）"};layerField.index=0;
+            layerField=root.Q<DropdownField>("layer");layerField.choices=new List<string>{"自然地表","文明版图","20 档高度","Köppen 柯本气候","本月温度","本月降水","海水与淡水","土地肥力","地貌 / 丘陵高原","地表材料 / 沙泥砾岩","土壤桶湿度","河流 / 河口悬沙","生态植被 / 14 类","河网","风带与气压（Gleba）","洋流与海温（Gleba）","高空急流与罗斯贝波（Gleba）","地形雨影与大陆度（Gleba）","月均相对湿度（Gleba）","生态群系 23 类（Gleba）","乔灌草植被结构 RGB（Gleba）","土壤质地砂粉黏 RGB（Gleba）","土壤厚度与矿质养分（Gleba）","基岩岩性 37 类（Gleba）","板块边界、造山与火山（Gleba）","含水层、冰期峡湾与珊瑚礁（Gleba）","起源作物与承载力（Gleba）","对流雨与层状雨（ExoPlaSim）","辐射收支与 OLR（ExoPlaSim）","昼夜温差与感潜热（ExoPlaSim）","风暴潜势 MPI / CAPE（ExoPlaSim）","Pasta 生物气候 19 类（ExoPlaSim）"};layerField.index=0;
             climateYearField=root.Q<DropdownField>("climateYear");climateYearField.choices=new List<string>{"今年","明年","后年"};climateYearField.index=0;
             climateYearField.RegisterValueChangedCallback(e=>{if(map){map.SetClimateYearOffset(climateYearField.index);UpdateHUD();}});
             layerField.RegisterValueChangedCallback(e=>{
@@ -171,6 +173,27 @@ namespace Orbis.Flat
             legend=root.Q<Label>("legend");waterStatus=root.Q<Label>("waterStatus");skyStatus=root.Q<Label>("skyStatus");
             contourToggle=root.Q<Toggle>("contours");contourToggle.value=true;
             cloudQuality=root.Q<DropdownField>("cloudQuality");cloudQuality.choices=new List<string>{"性能","均衡","精细"};cloudQuality.index=1;
+            planetPresetField=root.Q<DropdownField>("planetPreset");
+            planetCo2Slider=root.Q<SliderInt>("planetCo2");
+            planetObliqSlider=root.Q<Slider>("planetObliq");
+            planetSummaryLabel=root.Q<Label>("planetSummary");
+            if(planetPresetField!=null)
+            {
+                var pChoices=new List<string>();
+                for(int p=0;p<=6;p++)pChoices.Add(ExoPlaSimPlanetConfig.GetPresetLabel((ExoPlaSimPreset)p));
+                planetPresetField.choices=pChoices;planetPresetField.index=0;
+                planetPresetField.RegisterValueChangedCallback(_=>{
+                    activePlanetConfig=ExoPlaSimPlanetConfig.CreatePreset((ExoPlaSimPreset)Mathf.Clamp(planetPresetField.index,0,6));
+                    if(planetCo2Slider!=null)planetCo2Slider.SetValueWithoutNotify(Mathf.RoundToInt(activePlanetConfig.Co2Ppm));
+                    if(planetObliqSlider!=null)planetObliqSlider.SetValueWithoutNotify(activePlanetConfig.ObliquityDeg);
+                    RefreshPlanetSummary();
+                });
+            }
+            if(planetCo2Slider!=null)planetCo2Slider.RegisterValueChangedCallback(e=>{activePlanetConfig.Co2Ppm=e.newValue;RefreshPlanetSummary();});
+            if(planetObliqSlider!=null)planetObliqSlider.RegisterValueChangedCallback(e=>{activePlanetConfig.ObliquityDeg=e.newValue;RefreshPlanetSummary();});
+            var applyPlanetBtn=root.Q<Button>("applyPlanet");
+            if(applyPlanetBtn!=null)applyPlanetBtn.clicked+=ApplyPlanetClimate;
+            RefreshPlanetSummary();
             foreach(string name in tabNames){string tab=name;Bind("tab"+name,()=>ShowTab(tab));}
             ShowTab("World");
         }
@@ -288,7 +311,12 @@ namespace Orbis.Flat
                 geographicRivers=rivers.bytes;
                 statusText="载入地球陆地和海床高程，生成河湖、气候与初始文明…";
             }
-            Queue(c=>FlatGenerator.Generate(width,width/2,seed,preset,c,earthHeights,geographicWater,geographicRivers),statusText,true);
+            var cfgClone=activePlanetConfig?.Clone();
+            Queue(c=>{
+                var w=FlatGenerator.Generate(width,width/2,seed,preset,c,earthHeights,geographicWater,geographicRivers);
+                if(cfgClone!=null&&!cfgClone.IsStandardModernEarth){w.PlanetClimate=cfgClone;FlatGenerator.Rebuild(w,c);}
+                return w;
+            },statusText,true);
         }
         void Install(WorldData world)
         {
@@ -321,7 +349,7 @@ namespace Orbis.Flat
             try
             {
                 next.Initialize(world);next.GetComponent<MeshRenderer>().enabled=false;
-                next.SetLayer((MapLayer)Mathf.Clamp(layerField.index,0,(int)MapLayer.GlebaCrops));
+                next.SetLayer((MapLayer)Mathf.Clamp(layerField.index,0,(int)MapLayer.ExoPastaClimate));
                 next.SetClimateYearOffset(climateYearField.index);
                 nextNav.Initialize(world,viewCamera,next);
                 nextGlobe.Initialize(world,viewCamera,next,true);nextGlobe.PrepareScroll();
@@ -596,7 +624,7 @@ namespace Orbis.Flat
                     info.text+="\n常年丰水峰值 "+(peak+1)+" 月 · 枯水低值 "+(low+1)+" 月";
             }
             else if(FlatTerrainAnalysis.AreaWater(World.Water[i]))info.text+="\n水深："+facts.Depth[i].ToString("F1")+" m";
-            info.text+=FormatGlebaTileHud(i)+wildlife.DescribeTile(i);
+            info.text+=FormatGlebaTileHud(i)+FormatExoPlaSimTileHud(i)+wildlife.DescribeTile(i);
         }
         static readonly string[] RealmNames={"古北界","新北界","新热带界","非洲热带界","大洋洲界","印马来界","澳新/华莱士界","南极界"};
         string FormatGlebaTileHud(int tile)
@@ -652,6 +680,36 @@ namespace Orbis.Flat
                 sb.Append("\n海岸地貌：LGM 冰川峡湾陡岸");
             string realm=gd.BiogeographicRealm<RealmNames.Length?RealmNames[gd.BiogeographicRealm]:("界#"+gd.BiogeographicRealm);
             sb.Append("\n地理区划：").Append(realm).Append(" · 次大陆 #").Append(gd.SubcontinentId).Append(" / 大区 #").Append(gd.SuperRegionId).Append(" / 区域 #").Append(gd.RegionId).Append(" · 距主大洋 ").Append(gd.InaccessibilityKm.ToString("F0")).Append(" km");
+            return sb.ToString();
+        }
+        void RefreshPlanetSummary()
+        {
+            if(planetSummaryLabel==null||activePlanetConfig==null)return;
+            planetSummaryLabel.text=$"{activePlanetConfig.TotalPressureBar:F2} bar · {activePlanetConfig.Co2Ppm:F0} ppm CO2 · 倾角 {activePlanetConfig.ObliquityDeg:F1}° · 均衡温偏 {activePlanetConfig.GlobalEquilibriumTempDeltaC:+0.0;-0.0;0.0} °C";
+        }
+        void ApplyPlanetClimate()
+        {
+            if(World==null||Busy){SetStatus("世界数据正在生成或重建；完成后才能应用行星气候。");return;}
+            solarClock.Flush(simulationStep);
+            var copy=World.CloneForTerrainRebuild();
+            copy.PlanetClimate=activePlanetConfig.Clone();
+            Queue(c=>{FlatGenerator.Rebuild(copy,c);return copy;},"按 ExoPlaSim 行星轨道与温室气体配置重算全球大气、洋流与生物群系…");
+        }
+        string FormatExoPlaSimTileHud(int tile)
+        {
+            var ed=ExoPlaSimSupplement.SampleTileDiagnostic(World,tile,World.Month);
+            if(!ed.Available)return "";
+            var sb=new StringBuilder(384);
+            var exo=World.Moisture.ExoPlaSim;
+            sb.Append("\n\n[ExoPlaSim 辐射 · 水循环 · 风暴潜势]");
+            sb.Append("\nPasta 生物气候：").Append(ExoPlaSimSupplement.GetPastaLabel(ed.PastaClimate));
+            sb.Append("\n降水模态：对流 ").Append(ed.ConvectiveRainMm.ToString("F0")).Append(" mm · 层状 ").Append(ed.StratiformRainMm.ToString("F0")).Append(" mm · 降雪 ").Append(ed.SnowfallMm.ToString("F0")).Append(" mm · 云下蒸发 ").Append(ed.VirgaReevapMm.ToString("F0")).Append(" mm");
+            if(!FlatTerrainAnalysis.AreaWater(World.Water[tile]))
+                sb.Append("\n双层水库：表皮 ").Append(ed.ShallowSoilMoisture.ToString("P0")).Append(" · 深根 ").Append(ed.DeepRootMoisture.ToString("P0")).Append(" · 海风辐合护栏 ").Append(ed.MaritimeSeaBreeze.ToString("P0"));
+            sb.Append("\n地表能量：反照率 ").Append(ed.SurfaceAlbedo.ToString("F2")).Append(" · 净短波 ").Append(ed.NetShortwaveWm2.ToString("F0")).Append(" W/m² · OLR ").Append(ed.OutgoingLongwaveWm2.ToString("F0")).Append(" W/m²");
+            sb.Append("\n感潜热与温差：感热 ").Append(ed.SensibleHeatWm2.ToString("F0")).Append(" W/m² · 潜热 ").Append(ed.LatentHeatWm2.ToString("F0")).Append(" W/m² · 昼夜温差 DTR ").Append(ed.DiurnalTempRangeC.ToString("F1")).Append(" °C");
+            sb.Append("\n风暴气候学：CAPE ").Append(ed.CapeJkg.ToString("F0")).Append(" J/kg · MPI ").Append(ed.MaxPotentialIntensityMs.ToString("F0")).Append(" m/s · 风切变 ").Append(ed.VerticalWindShearMs.ToString("F1")).Append(" m/s · 生成 GPI ").Append(ed.GenesisPotentialIndex.ToString("P0"));
+            sb.Append("\n全球辐射收支：短波吸收 ").Append(exo.GlobalMeanToaNetSolarWm2.ToString("F1")).Append(" W/m² · OLR ").Append(exo.GlobalMeanOlrWm2.ToString("F1")).Append(" W/m² · 大气 ").Append(exo.Config.TotalPressureBar.ToString("F2")).Append(" bar (").Append(exo.Config.Co2Ppm.ToString("F0")).Append(" ppm CO2)");
             return sb.ToString();
         }
         static string BiomeName(Biome b)

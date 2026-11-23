@@ -35,6 +35,13 @@
       <ui:Button name="generate" text="生成世界" class="accent"/>
       <ui:Label text="生成将替换当前世界；请先保存。" class="muted"/>
      </ui:Foldout>
+     <ui:Foldout text="行星与温室气候 (ExoPlaSim)" value="false">
+      <ui:DropdownField name="planetPreset" label="行星预设"/>
+      <ui:SliderInt name="planetCo2" label="CO2 (ppm)" low-value="100" high-value="2400" value="360"/>
+      <ui:Slider name="planetObliq" label="地轴倾角 (°)" low-value="0" high-value="60" value="23.44"/>
+      <ui:Button name="applyPlanet" text="应用行星气候并重算" class="accent"/>
+      <ui:Label name="planetSummary" text="1.01 bar · 360 ppm CO2 · 倾角 23.4°" class="muted"/>
+     </ui:Foldout>
      <ui:Label name="skyStatus" text="" class="muted"/>
     </ui:VisualElement>
     <ui:VisualElement name="panelTerrain" class="tab-page is-hidden">

@@ -13,12 +13,13 @@ namespace Orbis.Flat
         public readonly float[] Humidity,Condensation,East,North,Rain;
         public readonly double[] BudgetError=new double[12];
         public GlebaClimateSupplement Gleba { get; internal set; }
+        public ExoPlaSimSupplement ExoPlaSim { get; internal set; }
         internal FlatOceanCirculation OceanCurrents { get; set; }
         public FlatMoistureState(int width,int height)
         {Width=width;Height=height;int n=width*height*12;Humidity=new float[n];Condensation=new float[n];East=new float[n];North=new float[n];Rain=new float[n];}
         public FlatMoistureState Clone()
         {
-            var s=new FlatMoistureState(Width,Height){Gleba=Gleba,OceanCurrents=OceanCurrents};Array.Copy(Humidity,s.Humidity,Humidity.Length);Array.Copy(Condensation,s.Condensation,Humidity.Length);
+            var s=new FlatMoistureState(Width,Height){Gleba=Gleba,ExoPlaSim=ExoPlaSim,OceanCurrents=OceanCurrents};Array.Copy(Humidity,s.Humidity,Humidity.Length);Array.Copy(Condensation,s.Condensation,Humidity.Length);
             Array.Copy(East,s.East,Humidity.Length);Array.Copy(North,s.North,Humidity.Length);Array.Copy(Rain,s.Rain,Humidity.Length);Array.Copy(BudgetError,s.BudgetError,12);return s;
         }
         public float Sample(float[] data,float u,float v,int month)
@@ -43,11 +44,13 @@ namespace Orbis.Flat
             public readonly TransportWeights[] Faces;
             public readonly TransportWeights[] DisturbanceFaces;
             public readonly float[] OrganizedFraction, Release, Rainout;
+            public readonly float[] ConvectiveShare, StratiformCritRh, SolidSnowFrac, SeaBreezeResilience;
             public MonthlyTransport(int count)
             {
                 PotentialEvaporation=new float[count]; WindExchange=new float[count]; SeaHumidityContrast=new float[count]; Capacity=new float[count]; Lift=new float[count];
                 Efficiency=new float[count]; Transpiration=new float[count]; DryLayer=new float[count]; Faces=new TransportWeights[count];
                 DisturbanceFaces=new TransportWeights[count]; OrganizedFraction=new float[count]; Release=new float[count]; Rainout=new float[count];
+                ConvectiveShare=new float[count]; StratiformCritRh=new float[count]; SolidSnowFrac=new float[count]; SeaBreezeResilience=new float[count];
             }
         }
         // Marine thermal influence reaches inland from the coast. Distances
@@ -436,6 +439,13 @@ namespace Orbis.Flat
             float oceanShare=totalSphereArea>0?(float)(totalOceanArea/totalSphereArea):0f;
             float oceanContrast=seasonalWinds?FMath.Clamp(6f*oceanShare*(1f-oceanShare),0f,1f):0f;
             var gleba=seasonalWinds?(state.Gleba=GlebaClimateSupplement.BuildFromAggregated(width,height,water,ocean,elevation,ridgeHeight,options)):null;
+            var planetCfg=world.PlanetClimate??ExoPlaSimPlanetConfig.DefaultEarth;
+            var exo=seasonalWinds?(state.ExoPlaSim=new ExoPlaSimSupplement(width,height,planetCfg)):null;
+            if(exo!=null && oceanContrast>0f)
+            {
+                var guard=ExoPlaSimSupplement.ComputeMaritimeSeaBreezeGuard(width,height,ocean,landMeanElev,annualTemperature,currents,gleba,planetCfg.MaritimeSeaBreezeGuard);
+                Array.Copy(guard,exo.MaritimeSeaBreezeGuard,count);
+            }
             var landSource=new float[count];
             var crestSource=new float[count];
             for(int i=0;i<count;i++)
@@ -837,7 +847,8 @@ namespace Orbis.Flat
                                 float lee=0;
                                 for(int steps=1;steps<=3;steps++)
                                     lee=Math.Max(lee,(FractionAt(ridgeHeight,width,height,x-steps*dx,y-steps*dy)-elevation[i])/(1+.5f*(steps-1)));
-                                float drying=(float)Math.Exp(-summerJet*lee/350);
+                                float penGuard=exo!=null?exo.MaritimeSeaBreezeGuard[i]:0f;
+                                float drying=(float)Math.Exp(-summerJet*lee*(1f-.78f*penGuard)/350);
                                 lift[i]*=drying;
                                 rainEfficiency[i]*=drying;
                             }
@@ -873,34 +884,72 @@ namespace Orbis.Flat
                         lift[i]+=.25f*marineInflow*Math.Min(2,coastalRise/(dt*220));
                         rainEfficiency[i]+=.8f*corridor+.40f*frontalLift/.055f+.62f*warmMarginCyclones;
 
-                        // Surgical Gleba coupling: STHZ high-pressure subsidence, deep-interior continentality (ab >= 20, dist > 850 km),
-                        // Somali coastal divergence, all-belt Helmholtz leeward rain shadow, and soft-capped lowland equatorial ITCZ boost.
+                        // Surgical Gleba + ExoPlaSim (`rainmod.f90` Convective vs Stratiform + Maritime Sea-Breeze Guard) coupling:
+                        float tempNow=monthlyTemperature[i*12+month];
+                        column.StratiformCritRh[i]=.90f;
+                        column.SolidSnowFrac[i]=ExoPlaSimSupplement.SmoothStep(2.0f,-2.5f,tempNow);
+                        float baseConv=rainEfficiency[i]*convection;
+                        float baseStrat=(.4f+.6f*rainEfficiency[i])*(fronts+Math.Min(.30f,rise/1400))+.60f*frontalLift+.16f*warmMarginCyclones;
+                        column.ConvectiveShare[i]=FMath.Clamp((baseConv+.24f*corridor)/Math.Max(.005f,baseConv+baseStrat+.24f*corridor),0f,1f)*ExoPlaSimSupplement.SmoothStep(6f,19f,tempNow);
+
                         if(oceanContrast>0f)
                         {
-                            float nonIsland=FMath.Clamp((regionalLand[i]-.22f)/.35f,0f,1f);
+                            float seaBreeze=exo!=null?exo.MaritimeSeaBreezeGuard[i]:0f;
+                            column.SeaBreezeResilience[i]=seaBreeze;
+                            float nonIsland=FMath.Clamp((regionalLand[i]-.22f)/.35f,0f,1f)*(1f-.75f*seaBreeze);
                             float activeMonsoonGuard=1f-FMath.Clamp(wetSeason*4.0f+summerJet*2.5f,0f,.90f);
                             float westOrInteriorSthz=FMath.Clamp((distOceanKm-450f)/450f+2.5f*Math.Max(0f,sector.WesternMargin-sector.EasternMargin),0f,1f);
                             float sthzDry=oceanContrast*Math.Max(0f,-glebaImpact)*winterMedGate*westOrInteriorSthz*activeMonsoonGuard
                                 *(.25f+.75f*(1f-ocean[i]))*(float)Math.Exp(-Math.Pow((ab-23f)/13f,2))*nonIsland;
                             float easternSeaboardGuard=1f-FMath.Clamp(2.8f*sector.EasternMargin+2.5f*sector.SummerMarineFetch,0f,.85f);
-                            float inlandDry=oceanContrast*mappedCont*inlandLatBand*easternSeaboardGuard*(1f-ocean[i]);
-                            // Taper rain shadow across deep-equatorial maritime archipelagos (<10 deg, e.g. New Guinea) while keeping full strength at >=12 deg
-                            float shadowLatGate=FMath.Clamp((ab-8.5f)/5.5f,.12f,1f)*(1f-.45f*FMath.Clamp(summerJet*2f,0f,1f));
+                            float inlandDry=oceanContrast*mappedCont*inlandLatBand*easternSeaboardGuard*(1f-ocean[i])*(1f-.85f*seaBreeze);
+                            // Taper rain shadow across deep-equatorial maritime archipelagos (<10 deg) and warm sea-breeze peninsulas (Indochina / Malay / Philippines)
+                            float shadowLatGate=FMath.Clamp((ab-8.5f)/5.5f,.12f,1f)*(1f-.45f*FMath.Clamp(summerJet*2f,0f,1f))*(1f-.55f*seaBreeze);
                             float shadowDry=oceanContrast*shadowLatGate*FMath.Clamp(1.10f*leeShadow,0f,.55f)*(1f-.7f*ocean[i]);
 
-                            float combinedSuppress=(1f-.88f*somaliDivergence)*(1f-.40f*sthzDry)*(1f-.62f*inlandDry)*(1f-shadowDry);
-                            // Soft-capped lowland equatorial boost: lifts interior Amazon/Maritime-Continent without inflating blocked Andes foothill walls
+                            // Subtropical desert & dry-margin CIN lid (`ab >= 20.5 deg` ONLY so tropical Aw savannas at <20 deg stay 100% untouched!):
+                            // suppresses residual drizzle in Sahara, Arabia, Thar, Interior Australia & summer-dry subtropics (`BWh -> BSh` reduction + lower global MAE/RMSE)
+                            float subtropDesertGate=ExoPlaSimSupplement.SmoothStep(20.5f,25.5f,ab)*(float)Math.Exp(-Math.Pow((ab-28.0f)/12.5f,2));
+                            float desertMarginLid=oceanContrast*sthzCap*(1f-ocean[i])*(1f-.95f*seaBreeze)*subtropDesertGate
+                                *(1f-FMath.Clamp(2.5f*sector.EasternMargin,0f,1f));
+                            float hyperAridCore=oceanContrast*(1f-ocean[i])*(1f-.95f*seaBreeze)*subtropDesertGate
+                                *ExoPlaSimSupplement.SmoothStep(.12f,.36f,sthzDry+.60f*sthzCap);
+
+                            float combinedSuppress=(1f-.88f*somaliDivergence)*(1f-.43f*sthzDry)*(1f-.63f*inlandDry)*(1f-shadowDry)
+                                *(1f-.34f*hyperAridCore)*(1f-.26f*desertMarginLid);
+
+                            // Soft-capped lowland equatorial + Maritime-Continent / Indochina diurnal sea-breeze convergence boost (0% SE Asia desert guarantee!)
                             float wallGuard=1f-FMath.Clamp((climbEast+climbNorth)/350f,0f,1f);
                             float lowlandGate=FMath.Clamp(1f-Math.Max(0f,landMeanElev[i]-220f)/650f,0f,1f)*wallGuard;
-                            float unsaturatedPeak=FMath.Clamp(1f-lift[i]/.28f,0f,1f);
+                            float unsaturatedPeak=FMath.Clamp(1f-lift[i]/.30f,0f,1f);
+                            float warmBreeze=ExoPlaSimSupplement.SmoothStep(18.5f,25.0f,tempNow)*(1f-somaliDivergence);
+                            // Monsoon peninsulas (>=10 deg, Indochina/Philippines) concentrate sea-breeze boost in warm wet season so winter stays true Aw!
+                            float breezeSeason=FMath.Lerp(ExoPlaSimSupplement.SmoothStep(.10f,.58f,summer+.30f*warmSea),1f,ExoPlaSimSupplement.SmoothStep(10.5f,5.5f,ab));
+                            float seaBreezeBoost=oceanContrast*seaBreeze*warmBreeze*breezeSeason*(.46f+.36f*itczNear);
                             float eqItczBoost=1f+oceanContrast*itczNear*lowlandGate*unsaturatedPeak*(1f-somaliDivergence)
-                                *(.20f*(float)Math.Exp(-Math.Pow(ab/12.5f,2))+.12f*Math.Max(0f,glebaImpact)*(float)Math.Exp(-Math.Pow(ab/20f,2))*(1f-mappedCont));
+                                *(.20f*(float)Math.Exp(-Math.Pow(ab/12.5f,2))+.12f*Math.Max(0f,glebaImpact)*(float)Math.Exp(-Math.Pow(ab/20f,2))*(1f-mappedCont))
+                                +seaBreezeBoost;
 
-                            lift[i]=lift[i]*combinedSuppress*eqItczBoost;
-                            rainEfficiency[i]=Math.Max(.04f,rainEfficiency[i]*combinedSuppress*eqItczBoost);
-                            column.Rainout[i]*=1f-.42f*shadowDry-.80f*somaliDivergence;
-                            float extraDry=.28f*sthzDry+.50f*inlandDry+.36f*shadowDry+1.15f*somaliDivergence;
-                            column.DryLayer[i]=FMath.Clamp((column.DryLayer[i]+extraDry)*(1f-.40f*warmMarginCyclones),.08f,1.85f);
+                            // Bergeron-Findeisen ice-phase stratiform condensation in cold non-monsoon boreal interiors (reduces Dfc -> Dwc without wetting East Asian winter outflow)
+                            float nonEastMonsoon=1f-FMath.Clamp(3.5f*sector.EasternMargin+2.0f*sector.Monsoon,0f,1f);
+                            float icePhase=oceanContrast*(1f-ocean[i])*nonEastMonsoon*ExoPlaSimSupplement.SmoothStep(52f,61f,ab)
+                                *ExoPlaSimSupplement.SmoothStep(-4f,-16f,tempNow)*coolSeason;
+                            float coldStratBoost=1f+.22f*icePhase;
+
+                            lift[i]=lift[i]*combinedSuppress*eqItczBoost*coldStratBoost;
+                            rainEfficiency[i]=Math.Max(.04f,rainEfficiency[i]*combinedSuppress*eqItczBoost*coldStratBoost);
+                            column.Rainout[i]*=(1f-.42f*shadowDry-.42f*hyperAridCore-.28f*desertMarginLid-.80f*somaliDivergence)
+                                *(1f+.24f*seaBreeze*warmBreeze*breezeSeason);
+
+                            // Western-Pacific typhoon moisture organization strictly on open Pacific margin (`sector.EasternMargin`), never Bay of Bengal -> Deccan!
+                            float westernBasinGate=FMath.Clamp(3.0f*sector.EasternMargin,0f,1f);
+                            float typhoonSeason=ExoPlaSimSupplement.SmoothStep(.28f,.72f,.75f*summer+.45f*warmSea);
+                            float warmPoolMpi=ocean[i]*westernBasinGate*typhoonSeason*ExoPlaSimSupplement.SmoothStep(26.4f,28.6f,tempNow)*coriolisGenesis*(1f-.85f*somaliDivergence);
+                            column.OrganizedFraction[i]=FMath.Clamp(column.OrganizedFraction[i]+.10f*oceanContrast*warmPoolMpi*receivingLand,0f,1f);
+
+                            column.StratiformCritRh[i]=FMath.Clamp(.90f+.055f*hyperAridCore+.035f*desertMarginLid-.055f*icePhase,.83f,.96f);
+                            float extraDry=.30f*sthzDry+.52f*inlandDry+.40f*hyperAridCore+.30f*desertMarginLid+.36f*shadowDry+1.15f*somaliDivergence;
+                            column.DryLayer[i]=FMath.Clamp((column.DryLayer[i]+extraDry)*(1f-.40f*warmMarginCyclones)*(1f-.30f*seaBreeze*warmBreeze*breezeSeason),.08f,2.05f);
                         }
 
                         u[i]/=1+climbEast*gridScale/850;
@@ -933,6 +982,8 @@ namespace Orbis.Flat
                 }
             });
             IntegrateYear(state,months,dt,water,area,inverseFieldWater,westCell,eastCell,southCell,northCell,options,observeFlux);
+            if(exo!=null)
+                ExoPlaSimSupplement.FinalizeDiagnostics(state,ocean,water,elevation,monthlyTemperature,planetCfg,options);
             return state;
         }
 
@@ -941,21 +992,23 @@ namespace Orbis.Flat
             ParallelOptions options,MonthlyFluxObserver observeFlux)
         {
             int count=water.Length, steps=(int)(30/dt);
+            var exo=state.ExoPlaSim;
             var donorSum=observeFlux==null ? null : new double[count];
             var mobileSum=observeFlux==null ? null : new double[count];
-            var q=new float[count];var next=new float[count];var soil=new float[count];
+            var q=new float[count];var next=new float[count];
+            var shallowSoil=new float[count];var deepSoil=new float[count];
             var mobile=new float[count];var nextMobile=new float[count];
             int bands=Math.Max(1,state.Height/8);
             var incoming=new double[bands];var outgoing=new double[bands];
             // Start empty, with ocean and lake evaporation supplying the cycle.
-            // Retain ambient vapour, organized moisture and soil water through two spin-up years and the reported
-            // third year, including the December-to-January boundary.
+            // Retain ambient vapour, organized moisture and two-layer (shallow skin + deep root) soil water
+            // through two spin-up years and the reported third year, with exact mass conservation.
             for(int visit=0;visit<36;visit++)
             {
                 int month=visit%12;bool record=visit>=24;
                 var column=months[month];
                 double initial=0,external=0,export=0;
-                if(record)for(int i=0;i<count;i++)initial+=((double)q[i]+soil[i]+mobile[i])*area[i];
+                if(record)for(int i=0;i<count;i++)initial+=((double)q[i]+shallowSoil[i]+deepSoil[i]+mobile[i])*area[i];
                 Array.Clear(incoming,0,bands);Array.Clear(outgoing,0,bands);
                 if (record && donorSum!=null) {Array.Clear(donorSum,0,count);Array.Clear(mobileSum,0,count);}
                 // Keep the reduction order fixed across worker counts. Readers
@@ -975,24 +1028,43 @@ namespace Orbis.Flat
                         float released=carried*column.Release[i];
                         float stormCloud=released*column.Rainout[i];
                         float cap=column.Capacity[i], sea=water[i], land=1-sea;
+                        float totalSoil=shallowSoil[i]+deepSoil[i];
                         float humidity=FMath.Clamp((air+carried)/cap,0,1);
                         float evaporation=column.PotentialEvaporation[i]*(.60f+1.15f*(1-humidity));
                         float openWaterEvap=sea*Math.Max(0,evaporation+column.PotentialEvaporation[i]*column.SeaHumidityContrast[i]);
                         openWaterEvap*=column.WindExchange[i];
-                        float landEvap=Math.Min(soil[i],evaporation*column.Transpiration[i]*land*Math.Min(1,soil[i]*inverseFieldWater[i]));
+                        float soilAvail=Math.Min(1f,(totalSoil+0.18f*column.SeaBreezeResilience[i]*deepSoil[i])*inverseFieldWater[i]);
+                        float landEvap=Math.Min(totalSoil,evaporation*column.Transpiration[i]*land*soilAvail);
+                        float skinDraw=Math.Min(shallowSoil[i],landEvap*(0.55f+0.25f*(1f-column.SeaBreezeResilience[i])));
+                        float rootDraw=Math.Min(deepSoil[i],landEvap-skinDraw);
+                        skinDraw=Math.Min(shallowSoil[i],landEvap-rootDraw);
+                        landEvap=skinDraw+rootDraw;
                         float organized=column.OrganizedFraction[i]*(openWaterEvap+air*dt/2);
                         nextMobile[i]=carried-released+organized;
                         air+=openWaterEvap+landEvap+released-organized;
                         float cloudFraction=FMath.Clamp((humidity-.40f)*2,0,1);
-                        float condensed=Math.Max(0,air-cap*.90f)*.65f+
-                            air*Math.Min(.7f,(column.Lift[i]+column.Efficiency[i]*.055f*cloudFraction*cloudFraction)*dt);
+                        float critRh=column.StratiformCritRh[i]>0f?column.StratiformCritRh[i]:.90f;
+                        float largeScaleExcess=Math.Max(0,air-cap*critRh)*.65f;
+                        float dynCond=air*Math.Min(.7f,(column.Lift[i]+column.Efficiency[i]*.055f*cloudFraction*cloudFraction)*dt);
+                        float condensed=largeScaleExcess+dynCond;
                         float gross=Math.Min(air,condensed+stormCloud);
-                        float wettedSurface=sea+land*Math.Min(1,soil[i]*inverseFieldWater[i]);
-                        float rain=gross-SubcloudEvaporation(gross,air,cap,dt,wettedSurface,column.DryLayer[i]);
+                        float skinMax=Math.Max(1e-4f,30f*land), deepMax=Math.Max(1e-4f,120f*land);
+                        float wettedSurface=sea+land*Math.Min(1,totalSoil*inverseFieldWater[i]);
+                        float virga=SubcloudEvaporation(gross,air,cap,dt,wettedSurface,column.DryLayer[i]);
+                        float rain=gross-virga;
                         next[i]=air-rain;
-                        float stored=soil[i]-landEvap+rain*land;
-                        float runoff=Math.Max(0,stored-150*land);
-                        soil[i]=stored-runoff;
+                        // Exact mass-conserving 2-layer soil percolation (30 mm shallow skin + 120 mm deep root zone = 150 mm total;
+                        // gravity drainage only enters deep pore space so runoff strictly occurs when total profile exceeds 150 mm!)
+                        float nextShallow=shallowSoil[i]-skinDraw+rain*land;
+                        float baseDeep=deepSoil[i]-rootDraw;
+                        float deepRoom=Math.Max(0f,120f*land-baseDeep);
+                        float overflow=Math.Max(0f,nextShallow-30f*land);
+                        float gravityDrain=Math.Min(deepRoom,Math.Min(Math.Max(0f,nextShallow-overflow),0.12f*dt*Math.Max(0f,nextShallow-overflow)));
+                        float perc=overflow+gravityDrain;
+                        shallowSoil[i]=nextShallow-perc;
+                        float nextDeep=baseDeep+perc;
+                        float runoff=Math.Max(0f,nextDeep-120f*land);
+                        deepSoil[i]=nextDeep-runoff;
                         if(record)
                         {
                             added+=openWaterEvap*area[i];removed+=(rain*sea+runoff)*area[i];
@@ -1000,6 +1072,17 @@ namespace Orbis.Flat
                             state.Humidity[a]+=Math.Min(1,(next[i]+nextMobile[i])/cap)/steps;
                             state.Rain[a]+=rain;
                             state.Condensation[a]+=gross;
+                            if(exo!=null)
+                            {
+                                float convRaw=dynCond*column.ConvectiveShare[i]+stormCloud*(.35f+.65f*column.ConvectiveShare[i]);
+                                float convFrac=gross>1e-6f?FMath.Clamp(convRaw/(condensed+stormCloud+1e-6f),0f,1f):0f;
+                                exo.ConvectiveRain[a]+=rain*convFrac;
+                                exo.StratiformRain[a]+=rain*(1f-convFrac);
+                                exo.Snowfall[a]+=rain*column.SolidSnowFrac[i];
+                                exo.VirgaReevap[a]+=virga;
+                                exo.ShallowSoil[a]+=(land>1e-4f?FMath.Clamp(shallowSoil[i]/skinMax,0f,1f):1f)/steps;
+                                exo.DeepSoil[a]+=(land>1e-4f?FMath.Clamp(deepSoil[i]/deepMax,0f,1f):1f)/steps;
+                            }
                         }
                     }
                     incoming[band]+=added;outgoing[band]+=removed;
@@ -1023,7 +1106,7 @@ namespace Orbis.Flat
                 double final=0;
                 for(int i=0;i<count;i++)
                 {
-                    final+=((double)q[i]+soil[i]+mobile[i])*area[i];
+                    final+=((double)q[i]+shallowSoil[i]+deepSoil[i]+mobile[i])*area[i];
                     state.Condensation[i*12+month]/=30;
                 }
                 state.BudgetError[month]=Math.Abs(initial+external-export-final)/Math.Max(1,initial+external);

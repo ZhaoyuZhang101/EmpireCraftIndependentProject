@@ -143,22 +143,26 @@
 - `Assets/ORBIS/Runtime/FlatWorld/Core/GlebaClimateSupplement.cs` (+ `.meta`)
 - `Assets/ORBIS/Runtime/FlatWorld/Core/GlebaEcologySupplement.cs` (+ `.meta`)
 - `Assets/ORBIS/Runtime/FlatWorld/Core/GlebaGeographySupplement.cs` (+ `.meta`)
+- `Assets/ORBIS/Runtime/FlatWorld/Core/ExoPlaSimConfig.cs` (+ `.meta`)
+- `Assets/ORBIS/Runtime/FlatWorld/Core/ExoPlaSimSupplement.cs` (+ `.meta`)
 - `Assets/ORBIS/Runtime/FlatWorld/Core/FlatSeasonalSnow.cs` (+ `.meta`)
 - `Assets/ORBIS/Resources/ORBIS/FlatWorld/FlatCirculationOverlay.cginc` (+ `.meta`)
 - `Validation/FlatWorld/GlebaSupplementRegression.cs`
+- `Validation/FlatWorld/ExoPlaSimSupplementRegression.cs`
 - `Preview/OrbisUI_Round2_Proposals.html`
 - `docs/superpowers/specs/2026-11-22-ui-proposal-a-edge-rail.md`
 - `docs/superpowers/specs/2026-11-22-gleba-climate-reference.md`
 - `docs/superpowers/specs/2026-11-22-gleba-port-results.md`
+- `docs/superpowers/specs/2026-11-23-exoplasim-climate-upgrade.md`
 
 ### 6.3 与主线 / `codex` 并行修改文件的合并冲突消解规则
 若目标分支同时包含近期河网/海峡/湖冰/季节植被等改动，按以下规则保留双方增量即可零风险合入：
-1. **`FlatTypes.cs`**：保留 `MapLayer` 枚举末尾追加的 13 个 Gleba 图层（`SurfaceWinds .. GlebaCrops`），并保留目标分支新增的 `WorldData` 字段（如 `UsesGlobalStraits` 等）。
+1. **`FlatTypes.cs`**：保留 `MapLayer` 枚举末尾追加的 13 个 Gleba 图层与 5 个 ExoPlaSim 图层（`SurfaceWinds .. ExoPastaClimate`），保留 `WorldData.PlanetClimate` 字段及 `Clone()` 拷贝，并保留目标分支新增的 `WorldData` 字段（如 `UsesGlobalStraits` 等）。
 2. **`FlatTerrainAnalysis.cs` & `FlatEcology.cs`**：保留 `FlatTerrainFacts` 上的 `Biotemperature`、`GroundedIceMeters`、`GlebaBiomes`、`GlebaGeography` 派生缓存构建与 `Clone()` 拷贝，同时保留目标分支的 `LakeIce` 等字段。
-3. **`FlatMoisture.cs`、`FlatWindBelts.cs`、`FlatOceanCirculation.cs`、`FlatClimate.cs`**：保留 `FlatMoistureState.Gleba`（`GlebaClimateSupplement.Build`）耦合、Ekman/涌升海温修正与极地冰穹降温项；若目标分支调整了季风通量系数，保留 `Gleba` 补充项叠加逻辑。
-4. **`FlatMapRenderer.cs`、`FlatMapRenderJobs.cs`、`FlatGlobePresenter.cs`、`FlatPalette.cs`**：保留 `layer >= MapLayer.SurfaceWinds` 的 `OverlayColor` 采样分支、`UpdateGlebaCirculationOverlay` 流场半精度纹理上传及 `FlatPalette.Legend` 中的 Gleba 图例分支。
-5. **`FlatSkyRenderer.cs`、`FlatSkyBake.shader`、`ScrollCloudSource.cginc`**：保留 `GlebaGeographySupplement.BuildCloudSynopticFields` 生成的 `_CloudSynopticTex` / `_CloudSynopticAuxTex` / `_UpperWindTex` 绑定与斜压锋面/ITCZ/层积云着色器函数。
+3. **`FlatMoisture.cs`、`FlatWindBelts.cs`、`FlatOceanCirculation.cs`、`FlatClimate.cs`、`FlatCycloneWeather.cs`、`FlatWeatherSimulation.cs`**：保留 `FlatMoistureState.Gleba` 与 `FlatMoistureState.ExoPlaSim`（双模态降水、双层根区水库、东南亚海陆风护栏、五层土壤热响应、行星温室强迫、气旋 MPI/风切变耦合）及 Ekman/涌升海温与极地冰穹降温项。
+4. **`FlatMapRenderer.cs`、`FlatMapRenderJobs.cs`、`FlatGlobePresenter.cs`、`FlatPalette.cs`**：保留 `layer >= MapLayer.ExoConvectiveRain` 与 `layer >= MapLayer.SurfaceWinds` 的 `OverlayColor` 采样分支、`UpdateGlebaCirculation` 流场半精度纹理上传及 `FlatPalette.Legend` 图例分支。
+5. **`FlatSkyRenderer.cs`、`FlatSkyBake.shader`、`ScrollCloudSource.cginc`**：保留 `GlebaGeographySupplement.BuildCloudSynopticFields`（含 ExoPlaSim `CAPE`/海风深对流耦合）生成的 `_CloudSynopticTex` / `_CloudSynopticAuxTex` / `_UpperWindTex` 绑定与着色器函数。
 6. **地表 Shader（`FlatMap.shader`、`FlatMapFragment.cginc`、`LocalSurface.shader`、`ScrollSurface.shader`、`Surface.shader`）**：保留 `#include "FlatCirculationOverlay.cginc"`（在 `Surface.shader` 中为 `#include "FlatWorld/FlatCirculationOverlay.cginc"`）与片元末尾的 `GlebaApplyCirculationOverlay(...)` 调用；注意不要新增额外 `SamplerState`（已严格控制在 D3D11 16 采样器上限内）。
-7. **`FlatWorldApp.cs`**：保留 `layerField.choices` 末尾追加的 13 个 Gleba 中文图层名、`Mathf.Clamp(..., (int)MapLayer.GlebaCrops)` 上界，以及 `UpdateHUD()` 中调用的 `FormatGlebaTileHud(i)`。
-8. **`Validation/FlatWorld/Program.cs`**：保留 `--gleba-supplement` CLI 入口（调用 `GlebaSupplementRegression.Run()`）。
+7. **`FlatWorld.uxml` & `FlatWorldApp.cs`**：保留 `layerField.choices` 末尾追加的 18 个 Gleba + ExoPlaSim 中文图层名、`Mathf.Clamp(..., (int)MapLayer.ExoPastaClimate)` 上界、`行星与温室气候 (ExoPlaSim)` 折叠面板绑定，以及 `UpdateHUD()` 中调用的 `FormatGlebaTileHud(i)` + `FormatExoPlaSimTileHud(i)`。
+8. **`Validation/FlatWorld/Program.cs` & `FlatWorld.Core.Tests.csproj`**：保留 `--gleba-supplement` 与 `--exoplasim-supplement` CLI 入口及编译项。
 

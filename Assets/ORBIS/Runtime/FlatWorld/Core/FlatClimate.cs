@@ -194,6 +194,12 @@ namespace Orbis.Flat
             for (int i = 0; i < source.Length; i++)
                 source[i] = FlatTerrainAnalysis.AreaWater(w.Water[i]) ? 0 : Math.Max(0f, w.Elevation[i]) * .001f;
             var relief = Regional(source, width, height, 650, options);
+            var planet = w.PlanetClimate;
+            bool customPlanet = planet != null && !planet.IsStandardModernEarth;
+            float ghDelta = customPlanet ? planet.GlobalEquilibriumTempDeltaC : 0f;
+            float lapseScale = customPlanet ? planet.MoistLapseRateScale : 1f;
+            float obliqRatio = customPlanet ? FMath.Clamp(planet.ObliquityDeg / 23.44f, 0f, 3.2f) : 1f;
+            float hadleyScale = customPlanet ? planet.HadleyExpansionFactor : 1f;
             Parallel.For(0,w.Height,options,y=>
             {
                 double latitude=((y+.5)/w.Height-.5)*Math.PI;
@@ -226,12 +232,25 @@ namespace Orbis.Flat
                     float marine=FMath.Lerp(east[x],west[x],westerlies), inland=1-marine, contrast=west[x]-east[x];
                     float distance=Math.Min(1,w.CoastDistance[i]/(.05f*w.Width));
                     // Area-weighted fit to monthly land normals, using elevation in metres.
-                    float annual=28.258f-22.939f*s2-23.472f*s2*s2-.004577f*SurfaceHeight(w,i)
+                    float annual=28.258f-(22.939f*s2+23.472f*s2*s2)/Math.Max(.55f,hadleyScale)-.004577f*lapseScale*SurfaceHeight(w,i)
                         +5.409f*s2*(marine-.5f)+4.867f*subtropics*(inland-.5f)+6.078f*s*contrast;
+                    if (customPlanet)
+                    {
+                        // Polar greenhouse / ice-albedo amplification under non-Earth CO2 / stellar forcing
+                        annual += ghDelta * (0.85f + 0.45f * s2);
+                        if (planet.TidallyLocked)
+                        {
+                            double lonRad = (((x + .5) / width) - .5) * 2 * Math.PI;
+                            double subLon = planet.SubstellarLongitudeDeg * Math.PI / 180.0;
+                            double cosZ = Math.Cos(latitude) * Math.Cos(lonRad - subLon);
+                            float eyeball = cosZ > 0 ? 26f * (float)Math.Pow(cosZ, 0.65) - 6f : -34f + 12f * marine;
+                            annual = FMath.Lerp(annual, eyeball + ghDelta, 0.78f);
+                        }
+                    }
                     if (currents != null)
                         annual += MarineAirCoupling * currents.SampleAir((x+.5f)/width,(y+.5f)/height);
-                    float amplitude=sine*(8.566f+3.489f*distance+5.829f*inland+11.226f*s*inland-2.701f*contrast);
-                    float lag=sine*(1.579f-2.569f*distance-3.087f*inland+4.774f*s*inland+.111f*contrast);
+                    float amplitude=obliqRatio*sine*(8.566f+3.489f*distance+5.829f*inland+11.226f*s*inland-2.701f*contrast);
+                    float lag=obliqRatio*sine*(1.579f-2.569f*distance-3.087f*inland+4.774f*s*inland+.111f*contrast);
                     float land = 1 - regionalSea[i], z = relief[i];
                     float poleward = FMath.Lerp(south.Read(relief, x, width), north.Read(relief, x, width), .5f + .5f*hemisphere);
                     float winterSwing = s * (7 + 17 * land);
@@ -346,7 +365,10 @@ namespace Orbis.Flat
             var options=FlatWorkerPolicy.Options(cancel,workers);
             var currents=oceanHeat?FlatOceanCirculation.Build(w,options):null;
             BuildTemperature(w,options,currents);
-            ApplyLandCloudRadiation(w,PredictRadiativeCloud(w,cancel,workers,seasonalWinds),options);
+            var predictor=PredictRadiativeCloud(w,cancel,workers,seasonalWinds);
+            ApplyLandCloudRadiation(w,predictor,options);
+            if(seasonalWinds)
+                ExoPlaSimSupplement.ApplyRadiativeSoilThermalResponse(w,predictor,w.PlanetClimate,options);
             w.Moisture=FlatMoisture.BuildWithCirculation(w,cancel,workers,true,currents,seasonalWinds);
             FlatOrographicRainfall.Distribute(w,w.Moisture,options);
             Parallel.For(0,w.Height,options,y=>

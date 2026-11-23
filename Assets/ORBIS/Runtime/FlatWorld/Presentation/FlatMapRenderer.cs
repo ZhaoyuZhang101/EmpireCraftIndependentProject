@@ -161,7 +161,7 @@ namespace Orbis.Flat
         }
         void UpdateGlebaCirculation(double day,int month,float monthBlend,Material target)
         {
-            int mode=VisibleLayer==MapLayer.SurfaceWinds?1:VisibleLayer==MapLayer.OceanCurrents?2:VisibleLayer==MapLayer.RossbyJets?3:0;
+            int mode=(VisibleLayer==MapLayer.SurfaceWinds||VisibleLayer==MapLayer.ExoStormPotential)?1:VisibleLayer==MapLayer.OceanCurrents?2:VisibleLayer==MapLayer.RossbyJets?3:0;
             if(mode>0&&glebaWindFlowTex&&glebaCurrentFlowTex&&glebaBandsTex)
             {
                 if(uploadedGlebaFlowMonth!=month||uploadedGlebaFlowRevision!=World.TerrainRevision||uploadedGlebaFlowMode!=mode)

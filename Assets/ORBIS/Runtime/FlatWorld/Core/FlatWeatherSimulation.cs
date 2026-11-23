@@ -13,7 +13,7 @@ namespace Orbis.Flat
     {
         public const int Width=64,Height=32;
         public readonly OrbisAtmosphereCore Model;
-        readonly float[] temperature,rain,humidity,east,north,ground,soil,regionalLand,glebaPressureOffset;
+        readonly float[] temperature,rain,humidity,east,north,ground,soil,regionalLand,glebaPressureOffset,exoCapeFactor,exoDtrAmplitude;
         readonly float[] currentRain;
         readonly double[] seaLevelTemperature,zonalTemperature=new double[Height];
         readonly uint climateSeed;
@@ -31,6 +31,8 @@ namespace Orbis.Flat
             climateSeed=FMath.Seed(world.Seed);currentRain=new float[count];seaLevelTemperature=new double[count];
             temperature=new float[count*12];rain=new float[count*12];humidity=new float[count*12];east=new float[count*12];north=new float[count*12];
             glebaPressureOffset=BuildGlebaPressureOffsets(world);
+            exoCapeFactor=world.Moisture?.ExoPlaSim!=null?new float[count*12]:null;
+            exoDtrAmplitude=world.Moisture?.ExoPlaSim!=null?new float[count*12]:null;
             ground=new float[count];soil=new float[count];var land=new float[count];water=new bool[count];tangentEast=new AtmosVector[count];tangentNorth=new AtmosVector[count];
             for(int y=0;y<Height;y++)for(int x=0;x<Width;x++)
             {
@@ -45,6 +47,11 @@ namespace Orbis.Flat
                     int j=i*12+m;temperature[j]=world.Temperature[cell*12+m];rain[j]=world.Precipitation[cell*12+m];var s=world.Moisture;
                     humidity[j]=s==null?FMath.Clamp(.35f+rain[j]/400,0,1):s.Sample(s.Humidity,(float)u,(float)v,m);
                     east[j]=s==null?0:s.Sample(s.East,(float)u,(float)v,m);north[j]=s==null?0:s.Sample(s.North,(float)u,(float)v,m);
+                    if(exoCapeFactor!=null)
+                    {
+                        exoCapeFactor[j]=FMath.Clamp(s.ExoPlaSim.SampleMonthly(s.ExoPlaSim.CapeJkg,(float)u,(float)v,m)/2200f,0f,1f);
+                        exoDtrAmplitude[j]=s.ExoPlaSim.SampleMonthly(s.ExoPlaSim.DiurnalTempRangeC,(float)u,(float)v,m);
+                    }
                 }
             }
             regionalLand=FlatMoisture.RegionalContinentality(land,Width,Height);
@@ -141,8 +148,17 @@ namespace Orbis.Flat
                     +Math.Pow((seaLevelTemperature[northCell]-seaLevelTemperature[southCell])*.5,2));
                 double relativeHumidity=season.Sample(humidity,start,ClimateRange.Fraction);
                 double lift=SynopticLift(currentRain[i],relativeHumidity,temp,water[i],gradient);
+                double cosSolar=Math.Cos((day%1)*Math.PI*2+(i%Width+.5)*Math.PI*2/Width);
+                double daylight=Math.Max(0,cosSolar);
+                if(exoCapeFactor!=null)
+                {
+                    double capeFrac=season.Sample(exoCapeFactor,start,ClimateRange.Fraction);
+                    double dtr=season.Sample(exoDtrAmplitude,start,ClimateRange.Nonnegative);
+                    // Diurnal solar heating modulates boundary-layer temperature & afternoon CAPE convective updrafts
+                    temp+=0.32*dtr*cosSolar;
+                    lift=Math.Min(.90,lift+0.12*capeFrac*(0.45+0.55*daylight));
+                }
                 var velocity=tangentEast[i]*season.Sample(east,start)+tangentNorth[i]*season.Sample(north,start);
-                double daylight=Math.Max(0,Math.Cos((day%1)*Math.PI*2+(i%Width+.5)*Math.PI*2/Width));
                 Model.SetForcing(i,temp+273.15,daylight,soil[i],water[i],velocity,pressure,ground[i],lift,0);
             }
         }

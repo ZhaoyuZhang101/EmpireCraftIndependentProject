@@ -9,7 +9,7 @@ namespace Orbis.Flat
     public enum TerrainPreset : byte { Continents, Archipelago, GreatContinent, InlandSea, Earth }
     public enum Koppen : byte { Unknown, Af, Am, Aw, BWh, BWk, BSh, BSk, Csa, Csb, Csc, Cwa, Cwb, Cwc, Cfa, Cfb, Cfc, Dsa, Dsb, Dsc, Dsd, Dwa, Dwb, Dwc, Dwd, Dfa, Dfb, Dfc, Dfd, ET, EF }
     public enum Structure : byte { None, Settlement, Farm, Road, Bridge }
-    public enum MapLayer : byte { Natural, Nations, Height, Climate, Temperature, Rain, Water, Fertility, Landforms, Materials, Wetness, Sediment, Vegetation, Rivers, SurfaceWinds, OceanCurrents, RossbyJets, RainShadow, RelativeHumidity, GlebaBiomes, GlebaFlora, GlebaSoilTexture, GlebaSoilFertility, GlebaBedrock, GlebaTectonics, GlebaHydroGeo, GlebaCrops }
+    public enum MapLayer : byte { Natural, Nations, Height, Climate, Temperature, Rain, Water, Fertility, Landforms, Materials, Wetness, Sediment, Vegetation, Rivers, SurfaceWinds, OceanCurrents, RossbyJets, RainShadow, RelativeHumidity, GlebaBiomes, GlebaFlora, GlebaSoilTexture, GlebaSoilFertility, GlebaBedrock, GlebaTectonics, GlebaHydroGeo, GlebaCrops, ExoConvectiveRain, ExoRadiationOlr, ExoDiurnalRange, ExoStormPotential, ExoPastaClimate }
 
     // The core deliberately has no Unity references. Arrays use SOUTH-first rows.
     public static class FMath
@@ -69,6 +69,7 @@ namespace Orbis.Flat
         public bool UsesSurveyedStraits { get; internal set; }
         public FlatEarthRiverReference RiverReference;
         public FlatCycloneWeather Cyclones;
+        public ExoPlaSimPlanetConfig PlanetClimate;
         public short[] Elevation,WaterLevel;
         public WaterKind[] Water;
         public Biome[] Biomes;
@@ -149,6 +150,7 @@ namespace Orbis.Flat
             w.UsesSurveyedStraits=UsesSurveyedStraits;
             w.RiverReference=RiverReference;
             w.Cyclones=Cyclones==null?null:Cyclones.Clone();
+            w.PlanetClimate=PlanetClimate?.Clone();
             foreach(var actor in Wildlife)w.Wildlife.Add(actor.Clone());
             foreach(var n in Nations)w.Nations.Add(n.Clone());return w;
         }

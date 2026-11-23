@@ -92,7 +92,12 @@ namespace Orbis.Flat
         {
             var f=source.Facts;int owner=source.Owner[i];
             Color32 overlayColor=default;
-            if(layer>=MapLayer.SurfaceWinds)
+            if(layer>=MapLayer.ExoConvectiveRain)
+            {
+                ExoPlaSimSupplement.EvaluateMapmodeColor(source,i,month,ExoPlaSimSupplement.MapLayerToExoMode(layer),out byte mr,out byte mg,out byte mb);
+                overlayColor=new Color32(mr,mg,mb,255);
+            }
+            else if(layer>=MapLayer.SurfaceWinds)
             {
                 GlebaGeographySupplement.EvaluateMapmodeColor(source,i,month,GlebaGeographySupplement.MapLayerToGlebaMode(layer),out byte mr,out byte mg,out byte mb);
                 overlayColor=new Color32(mr,mg,mb,255);

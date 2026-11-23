@@ -37,6 +37,21 @@ namespace Orbis.Flat
             if(layer==MapLayer.GlebaTectonics)return "Gleba 板块、微板块地体、古造山带、大火成岩省与火山：浅界线为板块边界，绯红为俯冲海沟弧，琥珀橙为碰撞造山带，靛紫为大火成岩省玄武岩台地，青铜为古造山缝合带，亮橙黄点为活火山。";
             if(layer==MapLayer.GlebaHydroGeo)return "Gleba 水文地质综合：粉红/亮金为热带珊瑚礁与环礁沙洲 · 亮青为 LGM 冰蚀峡湾海岸 · 冰蓝为末次盛冰期冰盖 · 橙褐为内流咸水湖 · 宝蓝为构造裂谷淡水湖 · 青绿斑块为深层承压/自流含水层。";
             if(layer==MapLayer.GlebaCrops)return "Gleba 起源农作物与文明承载力：金珀为野生豌豆 · 赤陶橙为新月沃地苦野豌豆 · 鲜柠绿为温带野生黑麦 · 翡翠青/亮水青为季风野生稻与满江红固氮共生系 · 亮暖金高光为大河冲积与海岸文明摇篮高承载区。";
+            if(layer==MapLayer.ExoConvectiveRain)return "ExoPlaSim 水循环拆分（对流雨 vs 层状雨 vs 降雪）：暖品红/珊瑚红为深对流雷暴降水（ITCZ/季风/海陆风辐合）· 青钴蓝为斜压锋面与迎风地形大尺度层状降水 · 冰白为固态降雪。";
+            if(layer==MapLayer.ExoRadiationOlr)return "ExoPlaSim 辐射能量收支与出射长波 OLR：深靛蓝（<160 W/m²）为高耸深对流云顶与强温室捕获区 · 亮金黄（>285 W/m²）为副高晴空干沙漠热辐射窗 · 冰青高光为高反照率冰雪盖。";
+            if(layer==MapLayer.ExoDiurnalRange)return "ExoPlaSim 昼夜温差 DTR 与感潜热波文比：深海蓝（1–3 °C）为高热容海洋恒温区 · 翠青绿（6–9 °C）为高潜热湿润雨林/季风海岸 · 炽金橙（16–22 °C）为干土高感热荒漠大温差区。";
+            if(layer==MapLayer.ExoStormPotential)return "ExoPlaSim 风暴气候学（MPI / CAPE / 生成潜势 GPI）：暗紫 → 绯红 → 亮金核显示热带洋面最大潜在台风强度（m/s）与低风切变生成温床；陆地绿金显示深对流有效位能 CAPE；叠加实时引导气流流线。";
+            if(layer==MapLayer.ExoPastaClimate)
+            {
+                var sb=new System.Text.StringBuilder("ExoPlaSim Pasta 生物气候分类（19 类陆海气候带）：\n");
+                for(int p=0;p<=18;p++)
+                {
+                    var pk=(PastaClimateKind)p;
+                    uint hex=ExoPlaSimSupplement.GetPastaColorHex(pk);
+                    sb.Append("<color=#").Append(hex.ToString("X6")).Append(">■</color> ").Append(ExoPlaSimSupplement.GetPastaLabel(pk)).Append('\n');
+                }
+                return sb.ToString();
+            }
             if(layer==MapLayer.Fertility)return "棕 → 绿：0…100% 文明用地肥力。";
             if(layer==MapLayer.Nations)return "国家色代表 Zone 归属，不决定河岸或地貌。";
             for(int i=layer==MapLayer.Climate?1:0;i<colors.Length;i++)
@@ -112,6 +127,11 @@ namespace Orbis.Flat
         public static Color32 Display(WorldData w,int i,MapLayer layer)
         {
             Color c=Terrain(w,i);c.a=1;
+            if(layer>=MapLayer.ExoConvectiveRain)
+            {
+                ExoPlaSimSupplement.EvaluateMapmodeColor(w,i,w.Month,ExoPlaSimSupplement.MapLayerToExoMode(layer),out byte r,out byte g,out byte b);
+                return new Color32(r,g,b,255);
+            }
             if(layer>=MapLayer.SurfaceWinds)
             {
                 GlebaGeographySupplement.EvaluateMapmodeColor(w,i,w.Month,GlebaGeographySupplement.MapLayerToGlebaMode(layer),out byte r,out byte g,out byte b);
