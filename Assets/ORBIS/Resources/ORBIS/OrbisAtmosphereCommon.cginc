@@ -58,12 +58,12 @@ float2 ScrollCloudSunTransmission(float3 p,float3 sun)
   float2 columnUV=OrbisWeatherUV(axis+sampleZ*sun);
   float base=ScrollCloudGround(columnUV);
   float4 weather=tex2Dlod(_ScrollWeatherTex,float4(columnUV,0,0));
-  // A shallow stratus deck and a rising cumulus tower should not project the
-  // same footprint. Match the changing heights in ScrollClimateDensities.
-  float convection=smoothstep(.26,.87,weather.b);
+  // Match shadow projection shell heights to the 5-tier physical cloud base & top altitudes
+  // (Marine Sc 420-1450m, Trade Cu 1060-3050m, Mid Ac/As 3950-5950m, Towering Cb 510-12400m, High Ci 8350-13150m)
+  float2 lowSpan=OrbisCloudVerticalSpan(weather.b,weather.r);
   float iceCover=pow(.24+.63*saturate(weather.g),.65);
-  float4 layerHeights=float4(450,lerp(1900,8100,convection),
-                             7600-1600*iceCover,7600+4000*iceCover);
+  float4 layerHeights=float4(lowSpan.x,max(lowSpan.y,weather.b>.30&&weather.b<.74?5950.0:lowSpan.y),
+                             8350-1150*iceCover,9100+4050*iceCover);
   float4 radii=base+layerHeights*_CloudHeightScale;
   float4 chord=side*sqrt(max(0,radii*radii-impact2));
   [unroll] for(int deck=0;deck<2;deck++)
@@ -267,18 +267,24 @@ void OrbisIntegrateSample(float3 p,float ds,float2 cloudLayers,float3 sun,float2
    directT=lerp(directT,min(directT,shadowT),saturate(_ShadowStrength));
   #endif
   float highWeight=cloudLayers.y/max(cloudDensity,1e-6);
-  float3 direct=directT*lerp(phaseCloud,phaseHigh,highWeight)*.70*sunT;
+  // Schneider-Vos Beer-Powder rim & altitude-graded ambient bounce: sunlit cauliflower crowns
+  // gleam with crisp silver-white relief while cloud bases & deep inter-turret clefts hold rich slate-blue depth.
+  float powder=1.0-.46*exp(-cloudDensity*ORBIS_EXTINCTION*ds*2.8);
+  float3 direct=directT*lerp(phaseCloud,phaseHigh,highWeight)*(.76*(.84+.52*powder))*sunT;
   float3 multiple=fields.y*_CloudMS*_ScatteringStrength*sunT;
-  float denseGate=smoothstep(.025,.18,cloudDensity);
+  float denseGate=smoothstep(.018,.16,cloudDensity);
   multiple*=denseGate;
   float3 moonScatter=moonT*phaseMoonCloud*.65*(.25+.75*exp(-cloudDensity*.75));
   // Self-occlusion proxy, not a second LightField/raymarch. Solar energy scales
   // ONLY the existing solar terms, not moonlight, night sky, airglow or lightning.
   float3 nightDiffuse=OrbisNightAmbient(p,sun,0)*(.45+.55*exp(-nightTau*.10))*
       lerp(.70,1.30,exp(-cloudDensity*.75));
-  float3 radiance=(direct+multiple+OrbisDaySkyFill(p,sun)*1.5)*max(.1,_SolarEnergy)+
+  float3 radiance=(direct+multiple+OrbisDaySkyFill(p,sun)*1.45)*max(.1,_SolarEnergy)+
       nightDiffuse+moonScatter+OrbisLightningLight(p)*3.5;
-  if(_Night<.5)radiance=max(radiance,float3(.20,.23,.27));
+  float altFrac=saturate((length(p)-ORBIS_CLOUD_BASE)/max(1e-5,ORBIS_CLOUD_TOP-ORBIS_CLOUD_BASE));
+  float dayHemi=saturate(dot(normalize(p),sun)*2.4+.22);
+  float3 ambientFloor=lerp(float3(.062,.084,.120),float3(.162,.190,.228),smoothstep(.04,.76,altFrac))*dayHemi;
+  if(_Night<.5)radiance=max(radiance,ambientFloor);
   if(_CloudDebug==1)radiance=cloudDensity.xxx;
   if(_CloudDebug==2)radiance=direct;
   if(_CloudDebug==3)radiance=multiple;

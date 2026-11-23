@@ -16,6 +16,9 @@ Shader "Hidden/ORBIS/HPCloudColumn"
   _ScrollHeightScale("Ground scale",Float)=0
   _ScrollSourceSize("Source size",Vector)=(512,256,0,0)
   _ColumnUVTransform("Slice offset and scale",Vector)=(0,0,1,1)
+  [HideInInspector] _OrbisCycloneNorth("Staged northern cyclone",Vector)=(0,0,0,0)
+  [HideInInspector] _OrbisCycloneSouth("Staged southern cyclone",Vector)=(0,0,0,0)
+  [HideInInspector] _OrbisCyclonePhase("Staged cyclone phase",Vector)=(0,0,0,0)
  }
  SubShader { Cull Off ZWrite Off ZTest Always Pass {
  CGPROGRAM
