@@ -146,7 +146,9 @@ namespace Orbis.Flat
             see.Categories.Add(HudCat("自然", "nat_terrain", "地表图层",
                 HudLayer("自然地表", "nat_terrain", MapLayer.Natural), HudLayer("20 档高度", "nat_relief", MapLayer.Height),
                 HudLayer("地貌", "iconTileLoessPlateau", MapLayer.Landforms), HudLayer("地表材料", "iconTileSteppePlateau", MapLayer.Materials),
-                HudLayer("生态植被", "nat_plants", MapLayer.Vegetation), HudLayer("土地肥力", "civ_farm", MapLayer.Fertility)));
+                HudLayer("生态植被", "nat_plants", MapLayer.Vegetation), HudLayer("土地肥力", "civ_farm", MapLayer.Fertility),
+                HudLayer("生态群系", "nat_forest", MapLayer.GlebaBiomes), HudLayer("土壤", "deposit_clear", MapLayer.GlebaSoilFertility),
+                HudLayer("基岩", "iconTileAlpinePlateau", MapLayer.GlebaBedrock), HudLayer("板块", "nat_quake", MapLayer.GlebaTectonics)));
             see.Categories.Add(HudCat("气候", "nat_climate", "气候图层",
                 HudLayer("柯本气候", "nat_climate", MapLayer.Climate), HudLayer("本月温度", "nat_coldwave", MapLayer.Temperature),
                 HudLayer("本月降水", "nat_rainfall", MapLayer.Rain), HudLayer("土壤湿度", "nat_rain", MapLayer.Wetness),
@@ -155,10 +157,12 @@ namespace Orbis.Flat
                     Run = () => { climateYearField.index = (climateYearField.index + 1) % 3; SetStatus("同月对比：" + climateYearField.value + "。"); },
                     IsOn = () => climateYearField.index > 0 },
                 HudWindow("气候统计", "iconHistory", () => ShowClimateStatistics(), "打开气候统计图集。"),
-                HudLater("洋流", "nat_current"), HudLater("气旋", "nat_cyclone")));
+                HudLayer("风带气压", "nat_cloud", MapLayer.SurfaceWinds), HudLayer("洋流海温", "nat_current", MapLayer.OceanCurrents),
+                HudLayer("高空急流", "nat_daynight", MapLayer.RossbyJets), HudLayer("雨影", "nat_rainfall", MapLayer.RainShadow),
+                HudLayer("相对湿度", "nat_rain", MapLayer.RelativeHumidity), HudLayer("风暴潜势", "nat_cyclone", MapLayer.ExoStormPotential)));
             see.Categories.Add(HudCat("水文", "nat_river", "江河湖海",
                 HudLayer("海水与淡水", "nat_lake", MapLayer.Water), HudLayer("河网", "nat_river", MapLayer.Rivers),
-                HudLayer("河口悬沙", "deposit_clear", MapLayer.Sediment),
+                HudLayer("河口悬沙", "deposit_clear", MapLayer.Sediment), HudLayer("含水层", "nat_lake", MapLayer.GlebaHydroGeo),
                 HudAction("寻汇流", "nat_strait", () => FocusRiver(true), "依次定位两条以上河道相汇之处。"),
                 HudAction("寻河口", "nat_find_mouth", () => FocusRiver(false), "依次定位河流入海之处。")));
             see.Categories.Add(HudCat("舆图", "nat_grid", "图面辅助",
@@ -172,6 +176,7 @@ namespace Orbis.Flat
             see.Categories.Add(HudCat("治理", "governance_layer", "政令与教化",
                 HudLater("政令", "governance_layer"), HudLater("教化", "edification_layer"), HudLater("城市", "city_view")));
             see.Categories.Add(HudCat("民生", "wealth_layer", "财富与市场",
+                HudLayer("作物承载", "civ_farm", MapLayer.GlebaCrops),
                 HudLater("财富", "wealth_layer"), HudLater("市场", "market_layer"), HudLater("人口", "iconPopulation50")));
             see.Categories.Add(HudCat("信仰", "TabPapacy", "宗教分布",
                 HudLater("宗教", "TabPapacy"), HudLater("圣地", "iconToolHolyCity")));
@@ -223,6 +228,7 @@ namespace Orbis.Flat
             build.Categories.Add(HudCat("道路", "road_paint", "道路桥梁",
                 HudEdit("道路", "road_paint", 5, "本国地块，耗粮 15，降低通行成本。"),
                 HudEdit("桥梁", "civ_bridge", 6, "本国河流或浅湖（水深不超过 100 米），耗粮 40。"),
+                HudEdit("海上航线", "ship_1", 8, "先点出发海面，再点目的海面，查看航线；右键重选。"),
                 HudLater("官道", "road_connect")));
             build.Categories.Add(HudCat("城池", "place_city", "城与关隘",
                 HudLater("城", "place_city"), HudLater("关城", "place_fort"), HudLater("宫殿", "build_palace"), HudLater("港口", "port")));
@@ -238,7 +244,7 @@ namespace Orbis.Flat
         {
             if (!Ready()) return;
             solarClock.Flush(simulationStep);
-            var copy = World.Clone();
+            var copy = World.CloneForTerrainRebuild();
             Queue(c => { FlatGenerator.Rebuild(copy, c); return copy; }, "重新计算排水、月均气候与生物群系…");
         }
 

@@ -5,7 +5,13 @@ Shader "ORBIS/FlatWorld/FlatMap"
   [HideInInspector] _VegetationWindTex("Seasonal vegetation wind",2D)="black"{}
   [HideInInspector] _VegetationWindReady("Vegetation wind ready",Float)=0
   [HideInInspector] _VegetationWindBlend("Vegetation wind month blend",Float)=0
+  [HideInInspector] _GlebaWindFlowTex("Gleba two-month surface wind flow",2D)="black"{}
+  [HideInInspector] _GlebaCurrentFlowTex("Gleba two-month ocean current flow",2D)="black"{}
+  [HideInInspector] _GlebaBandsTex("Gleba circulation front latitudes",2D)="black"{}
+  [HideInInspector] _GlebaCirculation("Gleba circulation mode clock blend ready",Vector)=(0,0,0,0)
   [HideInInspector] _VegetationSeasonTex("Climate vegetation seasons",2D)="white"{}
+  [HideInInspector] _LakeIceTex("Lake temperature history",2D)="white"{}
+  [HideInInspector] _LakeIceSeason("Lake cooling months, blend and availability",Vector)=(0,1,0,0)
   [HideInInspector] _VegetationSeasonReady("Vegetation seasons ready",Float)=0
   [HideInInspector] _VegetationSeason("Current month next month blend",Vector)=(0,1,0,0)
   [HideInInspector] _ClimateYearHeat("Regional temperature anomaly",Vector)=(0,0,0,0)
@@ -13,9 +19,13 @@ Shader "ORBIS/FlatWorld/FlatMap"
   [HideInInspector] _EcologyTex("Derived ecology traits",2D)="black"{}
   [HideInInspector] _EcologyReady("Ecology traits ready",Float)=0
   [HideInInspector] _MapSize("World dimensions and inverse dimensions",Vector)=(1,1,1,1)
+  [HideInInspector] _SelectedPoint("Geographic selection UV",Vector)=(0,0,0,0)
   [HideInInspector] _FieldReady("Terrain and bed fields ready",Float)=0
   [HideInInspector] _PoleBedDepth("Polar bed and depth, south then north",Vector)=(0,0,0,0)
   [HideInInspector] _EarthPolarBed("Surveyed polar bed",2D)="black"{}
+  [HideInInspector] _EarthLandOverview("Filtered Earth elevations",2D)="black"{}
+  [HideInInspector] _EarthLandDirectory("Native Earth land directory",2D)="black"{}
+  [HideInInspector] _EarthLandPages("Native Earth land elevations",2D)="black"{}
   [HideInInspector] _EarthPolarCoast("Surveyed marine shoreline",2D)="black"{}
   [HideInInspector] _EarthSurveyMask("Unedited Earth terrain",2D)="white"{}
   [HideInInspector] _EarthSurveyAtPoles("Unedited south and north poles",Vector)=(1,1,0,0)
@@ -23,10 +33,18 @@ Shader "ORBIS/FlatWorld/FlatMap"
   [HideInInspector] _EarthLakeShore("Surveyed inland shorelines",2D)="black"{}
   [HideInInspector] _EarthLakeDetail("Near lake shorelines",2D)="black"{}
   [HideInInspector] _EarthLakeReady("Inland shoreline survey ready",Float)=0
+  [HideInInspector] _EarthOceanDirectory("Global marine coast directory",2D)="black"{}
+  [HideInInspector] _EarthOceanPages("Global marine banks",2D)="black"{}
+  [HideInInspector] _EarthTreeBanks("Surveyed banks at tree roots",2D)="black"{}
+  [HideInInspector] _EarthStraitShore("Regional marine shorelines",2D)="black"{}
+  [HideInInspector] _EarthStraitDetail("Surveyed strait banks",2D)="black"{}
+  [HideInInspector] _EarthMarineDepth("Surveyed coastal depths",2D)="black"{}
+  [HideInInspector] _EarthStraitReady("Strait shoreline survey ready",Float)=0
   [HideInInspector] _RiverAtlas("Continuous river field",2D)="black"{}
   [HideInInspector] _RiverOverview("River network overview",2D)="black"{}
   [HideInInspector] _RiverOverviewReady("River overview ready",Float)=0
   [HideInInspector] _RiverSurvey("Surveyed river courses",Float)=0
+  [HideInInspector] _KoppenMap("Surveyed climate map",Float)=0
   [HideInInspector] _RiverMap("River network map",Float)=0
   [HideInInspector] _RiverPreviewReady("Initial river field ready",Float)=0
   [HideInInspector] _RiverSeasonTex("Seasonal river discharge",2D)="black"{}
@@ -39,6 +57,7 @@ Shader "ORBIS/FlatWorld/FlatMap"
  [HideInInspector] _VendorStreamNormal ("Vendor stream waves", 2D) = "gray" {}
  [HideInInspector] _VendorOceanNormal ("Vendor ocean waves", 2D) = "gray" {}
  [HideInInspector] _VendorLakeNormal ("SW3 lake ripples", 2D) = "bump" {}
+ [HideInInspector] _VendorLakeSmoothNormal ("SW3 calm lake ripples", 2D) = "bump" {}
  [HideInInspector] _VendorOceanFoam ("SW3 ocean foam", 2D) = "black" {}
  [HideInInspector] _VendorRiverFoam ("SW3 river foam", 2D) = "black" {}
 
@@ -67,11 +86,13 @@ Shader "ORBIS/FlatWorld/FlatMap"
    #pragma fragment frag
    #pragma target 3.0
    #include "UnityCG.cginc"
+   #pragma multi_compile_local_fragment __ ORBIS_RIVER_RASTER ORBIS_RIVER_VECTORS ORBIS_DIAGNOSTIC
+   #define ORBIS_SURFACE_RIVER_VARIANTS 1
    #include "Water/FlatWater.cginc"
    #include "FlatSkyComposite.cginc"
    sampler2D _MainTex,_OwnerTex,_InfoTex;
    float4 _Selected;
-   float _Grid,_PixelsPerTile,_Natural,_Political,_WaterView,_ShowContours,_ContourInterval,_DrawHeight;
+   float _Grid,_Natural,_Political,_WaterView,_ShowContours,_ContourInterval,_DrawHeight;
    struct appdata {float4 vertex:POSITION;float2 uv:TEXCOORD0;};
    struct v2f {float4 pos:SV_POSITION;float2 uv:TEXCOORD0;};
    v2f vert(appdata v){v2f o;o.pos=UnityObjectToClipPos(v.vertex);o.uv=v.uv;return o;}

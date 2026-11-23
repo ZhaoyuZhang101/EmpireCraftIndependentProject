@@ -78,8 +78,8 @@ def ring_area_km2(ring):
     return abs(np.dot(np.diff(np.unwrap(lon)), mean_sine)) * RADIUS_KM**2
 
 
-def load_footprints(cache):
-    """Dissolve all selected water polygons, sharing source selection with the water-bed bake."""
+def load_footprints(cache, other_shores=None):
+    """Keep the bed survey stable; optionally collect smaller mapped shores for display."""
     from bake_player_water import features, polygons
 
     selected = []
@@ -88,12 +88,15 @@ def load_footprints(cache):
 
     def include(rings, landmark=False):
         area = ring_area_km2(rings[0]) - sum(ring_area_km2(hole) for hole in rings[1:])
-        if landmark or area >= MIN_AREA_KM2:
+        group = selected if landmark or area >= MIN_AREA_KM2 else other_shores
+        if group is not None:
             polygon = Polygon(rings[0], rings[1:])
-            selected.append(polygon if polygon.is_valid else shapely.make_valid(polygon))
+            group.append(polygon if polygon.is_valid else shapely.make_valid(polygon))
 
     for feature in features("lakes", cache):
         lake_id = feature["properties"]["ne_id"]
+        if lake_id == 1159126865:  # Artificial southern Dead Sea evaporation ponds.
+            continue
         landmark = lake_id in landmark_ids
         if landmark:
             found_ids.add(lake_id)
@@ -150,12 +153,16 @@ def signed_codes(lake, coast, lon, lat, step_rad):
     return np.rint(128 + np.where(inside, angle, -angle) * (4 / step_rad)).clip(1, 255).astype(np.uint8)
 
 
-def distance_atlas(footprints):
+def distance_atlas(footprints, field=None):
 
     step = 360 / WIDTH
     step_rad = np.deg2rad(step)
-    band = 127 / 4 * step
-    field = np.ones((WIDTH // 2, WIDTH), np.uint8)
+    secondary = field is not None
+    # A minor lake refines its own banks. Keep distant procedural ponds and
+    # drainage outside that bank on the original gameplay water field.
+    band = (8 if secondary else 127 / 4) * step
+    if field is None:
+        field = np.ones((WIDTH // 2, WIDTH), np.uint8)
     for lake in footprints:
         west, south, east, north = lake.bounds
         # A geodesic within the band can reach at most this latitude. Bounding
@@ -171,6 +178,11 @@ def distance_atlas(footprints):
         lon = (columns + .5) * step - 180
         lat = (np.arange(y0, y1) + .5) * step - 90
         values = signed_codes(lake, shore_tree(lake, step_rad/16), lon, lat, step_rad)
+        if secondary:
+            # Keep true distances through four survey texels (including all fine
+            # shoreline lookups), then release the dry-side correction by eight.
+            weight = np.clip((values.astype(float)-96)/16, 0, 1)
+            values = np.rint(1 + (values-1)*weight**2*(3-2*weight)).astype(np.uint8)
         # Outside both polygons the union takes the distance to the nearer shore.
         field[y0:y1, wrapped] = np.maximum(field[y0:y1, wrapped], values)
     return field
@@ -179,7 +191,7 @@ def distance_atlas(footprints):
 def detail_atlas(footprints):
     """Pack shore-intersecting 64-square pages with a one-texel bilinear gutter.
 
-    The first 256 rows store a 1024x512 little-endian page index, two R8 texels
+    The first 1 MiB stores a 1024x512 little-endian page index, two R8 texels
     per entry. Zero selects the overview. Both the index and pages run south first.
     """
     tile_step = 360 / INDEX_WIDTH
@@ -211,10 +223,11 @@ def detail_atlas(footprints):
                 np.maximum(pages[key], values, out=pages[key])
             else:
                 pages[key] = values
-    per_row = PACKED_WIDTH // pitch
+    width = PACKED_WIDTH if len(pages) <= ((8192-256)//pitch)*(PACKED_WIDTH//pitch) else 8192
+    per_row = width // pitch
     index = np.zeros(INDEX_WIDTH**2 // 2, dtype="<u2")
-    index_rows = index.nbytes // PACKED_WIDTH
-    field = np.zeros((index_rows + ((len(pages)+per_row-1)//per_row)*pitch, PACKED_WIDTH), np.uint8)
+    index_rows = index.nbytes // width
+    field = np.zeros((index_rows + ((len(pages)+per_row-1)//per_row)*pitch, width), np.uint8)
     if len(pages) >= 65536 or field.shape[0] > 8192:
         raise ValueError("Lake detail exceeds the runtime atlas limits")
     for slot, key in enumerate(sorted(pages)):
@@ -222,7 +235,7 @@ def detail_atlas(footprints):
         x = (slot % per_row) * pitch
         y = index_rows + (slot // per_row) * pitch
         field[y:y+pitch, x:x+pitch] = pages[key]
-    field[:index_rows] = index.view(np.uint8).reshape(index_rows, PACKED_WIDTH)
+    field[:index_rows] = index.view(np.uint8).reshape(index_rows, width)
     return field, len(pages)
 
 
@@ -244,8 +257,11 @@ def main():
     parser.add_argument("--cache", type=Path, default=ROOT / "ValidationOutput/BasinWater")
     args = parser.parse_args()
     args.cache.mkdir(parents=True, exist_ok=True)
-    footprints, selected = load_footprints(args.cache)
+    secondary = []
+    footprints, selected = load_footprints(args.cache, secondary)
     field = distance_atlas(footprints)
+    minor = [p for p in shapely.get_parts(shapely.union_all(secondary)) if p.geom_type == "Polygon"]
+    distance_atlas(minor, field)
     data = encode(field)
     path = RESOURCES / "EarthMajorLakes.bytes"
     if args.check:
@@ -257,7 +273,8 @@ def main():
           f"{sum(len(p.interiors) for p in footprints)} island rings. "
           f"{WIDTH} x {WIDTH//2}, {np.count_nonzero(field > 128)} water texels, "
           f"{len(data)} bytes, SHA-256 {hashlib.sha256(data).hexdigest()}.")
-    packed, pages = detail_atlas(footprints)
+    shores = [p for p in shapely.get_parts(shapely.union_all(footprints + minor)) if p.geom_type == "Polygon"]
+    packed, pages = detail_atlas(shores)
     compressor = zlib.compressobj(level=6, wbits=-15)
     detail = struct.pack("<4sii", b"OLD1", packed.shape[1], packed.shape[0]) + compressor.compress(packed) + compressor.flush()
     path = RESOURCES / "EarthLakeDetail.bytes"

@@ -12,6 +12,25 @@ ORBIS selects four polygons, rounds their geographic coordinates, rasterizes
 their shores, and uses the source reference elevations on the simulation grid.
 https://creativecommons.org/licenses/by/4.0/
 
+River widths and portions of surveyed river and estuary centre lines use Global River
+Widths from Landsat (GRWL) by George H. Allen and Tamlin M. Pavelsky, summary
+statistics V01.02 and vector V01.01, licensed under CC BY 4.0. ORBIS matches
+and smooths Landsat transects and reach medians, interpolates widths, and
+registers selected courses to ordered transect centres. Junctions and tidal
+outlets are tied to the mapped network and shorelines.
+https://zenodo.org/records/18624542
+https://doi.org/10.1126/science.aat0636
+https://creativecommons.org/licenses/by/4.0/
+
 Other geographic river and lake outlines and ocean shores use Natural Earth
 v5.1.2, public domain. The Yangtze estuary chart line is derived from its banks.
 https://www.naturalearthdata.com/
+
+Nile Delta cropland and the upper Huangpu River use ESA WorldCover 10 m
+2021 v200, Zanaga et al. (2022).
+© ESA WorldCover project 2021 / Contains modified Copernicus Sentinel data
+(2021) processed by ESA WorldCover consortium. ORBIS clips cropland to the
+Natural Earth delta and aggregates it to geographic crop fractions. On the
+upper Huangpu it traces the permanent water channel and measures bank widths.
+https://doi.org/10.5281/zenodo.7254221
+https://creativecommons.org/licenses/by/4.0/

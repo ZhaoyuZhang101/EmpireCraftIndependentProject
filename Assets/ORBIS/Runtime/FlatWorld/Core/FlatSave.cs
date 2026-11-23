@@ -12,6 +12,9 @@ namespace Orbis.Flat
         // Same tile records. A V4 Earth save uses the surveyed lake beds as its
         // terrain-edit baseline. V1-V3 Earth saves continue using the raw DEM.
         public const int SurveyedEarthVersion=4;
+        // Same records as V4; only newly generated Earth maps adopt the strait beds.
+        public const int StraitEarthVersion=5;
+        public const int GlobalStraitEarthVersion=6;
         const int TileRecordBytes=34+12*2*sizeof(float);
         const int MaxTiles=WorldData.MaxWidth*(WorldData.MaxWidth/2);
         // Grid data plus bounded header, nation names, wildlife and cyclone records.
@@ -82,7 +85,8 @@ namespace Orbis.Flat
             stream.Position=payloadOffset;
             using(var b=new BinaryWriter(stream,Encoding.UTF8,true))
             {
-                b.Write(w.UsesSurveyedLakeBeds?SurveyedEarthVersion:Version);b.Write(w.Width);b.Write(w.Height);StringWrite(b,w.Seed,512);b.Write((byte)w.Preset);b.Write(w.Day);b.Write(w.ExpansionRemainder);
+                int version=w.UsesGlobalStraits?GlobalStraitEarthVersion:w.UsesSurveyedStraits?StraitEarthVersion:w.UsesSurveyedLakeBeds?SurveyedEarthVersion:Version;
+                b.Write(version);b.Write(w.Width);b.Write(w.Height);StringWrite(b,w.Seed,512);b.Write((byte)w.Preset);b.Write(w.Day);b.Write(w.ExpansionRemainder);
                 b.Write(w.Nations.Count);
                 foreach(var n in w.Nations){StringWrite(b,n.Name,256);b.Write(n.Capital);b.Write(n.Color);b.Write(n.Food);b.Write(n.Refuges);b.Write(n.ExpansionClock);}
                 for(int i=0;i<w.Count;i++)
@@ -138,13 +142,14 @@ namespace Orbis.Flat
         }
         static WorldData ReadPayload(BinaryReader b)
         {
-            int version=b.ReadInt32();Check(version>=1&&version<=SurveyedEarthVersion,"Unsupported save version.");int width=b.ReadInt32(),height=b.ReadInt32();string seed=StringRead(b,512);var preset=(TerrainPreset)b.ReadByte();
-            Check(version!=SurveyedEarthVersion||preset==TerrainPreset.Earth,"A surveyed Earth save requires the Earth preset.");
+            int version=b.ReadInt32();Check(version>=1&&version<=GlobalStraitEarthVersion,"Unsupported save version.");int width=b.ReadInt32(),height=b.ReadInt32();string seed=StringRead(b,512);var preset=(TerrainPreset)b.ReadByte();
+            Check(version<SurveyedEarthVersion||preset==TerrainPreset.Earth,"A surveyed Earth save requires the Earth preset.");
             Check(WorldData.SupportsDimensions(width,height),"Invalid world dimensions.");
             int countTiles=width*height;
             long minimumBytes=(long)countTiles*TileRecordBytes+countTiles/WorldData.TilesPerZone*sizeof(int)+2*sizeof(double)+sizeof(int);
             Check(b.BaseStream.Length-b.BaseStream.Position>=minimumBytes,"Truncated tile payload.");
-            var w=new WorldData(width,height,seed,preset){Day=b.ReadDouble(),ExpansionRemainder=b.ReadDouble(),UsesSurveyedLakeBeds=version==SurveyedEarthVersion};
+            var w=new WorldData(width,height,seed,preset){Day=b.ReadDouble(),ExpansionRemainder=b.ReadDouble(),
+                UsesSurveyedLakeBeds=version>=SurveyedEarthVersion,UsesSurveyedStraits=version>=StraitEarthVersion,UsesGlobalStraits=version>=GlobalStraitEarthVersion};
             int nations=b.ReadInt32();Check(nations>=0&&nations<=WorldData.MaxNations,"Invalid nation count.");
             for(int i=0;i<nations;i++)w.Nations.Add(new Nation{Name=StringRead(b,256),Capital=b.ReadInt32(),Color=b.ReadUInt32(),Food=b.ReadDouble(),Refuges=b.ReadDouble(),ExpansionClock=b.ReadDouble()});
             for(int i=0;i<w.Count;i++)
@@ -183,6 +188,8 @@ namespace Orbis.Flat
         {
             Check(w.Nations.Count<=WorldData.MaxNations&&w.Preset<=TerrainPreset.Earth,"Invalid settings.");
             Check(!w.UsesSurveyedLakeBeds||w.Preset==TerrainPreset.Earth,"Invalid surveyed Earth baseline.");
+            Check(!w.UsesSurveyedStraits||w.UsesSurveyedLakeBeds,"Invalid surveyed strait baseline.");
+            Check(!w.UsesGlobalStraits||w.UsesSurveyedStraits,"Invalid global strait baseline.");
             Check(Finite(w.Day)&&w.Day>=0&&w.Day<1e9&&Finite(w.ExpansionRemainder)&&w.ExpansionRemainder>=0&&w.ExpansionRemainder<1e6,"Invalid time.");
             var cyclones = w.Cyclones;
             if (cyclones != null)

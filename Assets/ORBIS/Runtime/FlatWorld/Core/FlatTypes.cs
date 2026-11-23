@@ -9,7 +9,7 @@ namespace Orbis.Flat
     public enum TerrainPreset : byte { Continents, Archipelago, GreatContinent, InlandSea, Earth }
     public enum Koppen : byte { Unknown, Af, Am, Aw, BWh, BWk, BSh, BSk, Csa, Csb, Csc, Cwa, Cwb, Cwc, Cfa, Cfb, Cfc, Dsa, Dsb, Dsc, Dsd, Dwa, Dwb, Dwc, Dwd, Dfa, Dfb, Dfc, Dfd, ET, EF }
     public enum Structure : byte { None, Settlement, Farm, Road, Bridge }
-    public enum MapLayer : byte { Natural, Nations, Height, Climate, Temperature, Rain, Water, Fertility, Landforms, Materials, Wetness, Sediment, Vegetation, Rivers }
+    public enum MapLayer : byte { Natural, Nations, Height, Climate, Temperature, Rain, Water, Fertility, Landforms, Materials, Wetness, Sediment, Vegetation, Rivers, SurfaceWinds, OceanCurrents, RossbyJets, RainShadow, RelativeHumidity, GlebaBiomes, GlebaFlora, GlebaSoilTexture, GlebaSoilFertility, GlebaBedrock, GlebaTectonics, GlebaHydroGeo, GlebaCrops, ExoConvectiveRain, ExoRadiationOlr, ExoDiurnalRange, ExoStormPotential, ExoPastaClimate }
 
     // The core deliberately has no Unity references. Arrays use SOUTH-first rows.
     public static class FMath
@@ -54,7 +54,7 @@ namespace Orbis.Flat
     }
     public sealed class WorldData
     {
-        public const int ZoneSide=4, TilesPerZone=16, MaxWidth=2048, MaxNations=12;
+        public const int ZoneSide=4, TilesPerZone=16, MaxWidth=4096, MaxNations=12;
         public readonly int Width,Height,Count,ZoneWidth,ZoneHeight;
         public string Seed;
         public TerrainPreset Preset;
@@ -64,10 +64,14 @@ namespace Orbis.Flat
         // Plate/volcano record of a generated bed (null for imported heightmaps).
         public FlatTectonicFacts Tectonics;
         public FlatWaterReference WaterReference;
+        public FlatGeographicSurface GeographicSurface { get; internal set; }
         // The original coarse DEM and the lake-aware Earth preset have distinct edit baselines.
         public bool UsesSurveyedLakeBeds { get; internal set; }
+        public bool UsesSurveyedStraits { get; internal set; }
+        public bool UsesGlobalStraits { get; internal set; }
         public FlatEarthRiverReference RiverReference;
         public FlatCycloneWeather Cyclones;
+        public ExoPlaSimPlanetConfig PlanetClimate;
         public short[] Elevation,WaterLevel;
         public WaterKind[] Water;
         public Biome[] Biomes;
@@ -127,20 +131,30 @@ namespace Orbis.Flat
         { DirtyChunks.Add((id/Width/ChunkSide)*ChunkWidth+(id%Width/ChunkSide));TileRevision++;Revision++; }
         public void MarkAllDirty()
         { for(int y=0;y<(Height+31)/32;y++)for(int x=0;x<ChunkWidth;x++)DirtyChunks.Add(y*ChunkWidth+x);Revision++; }
-        public WorldData Clone()
+        public WorldData Clone() => Clone(true);
+        // Rebuild publishes new terrain facts and moisture before the worker exposes this copy.
+        public WorldData CloneForTerrainRebuild() => Clone(false);
+        WorldData Clone(bool copyDerivedCaches)
         {
             var w=new WorldData(Width,Height,Seed,Preset){Day=Day,ExpansionRemainder=ExpansionRemainder,Revision=Revision,TerrainRevision=TerrainRevision,TileRevision=TileRevision,WildlifeInitialized=WildlifeInitialized};
             Array.Copy(Elevation,w.Elevation,Count);Array.Copy(WaterLevel,w.WaterLevel,Count);Array.Copy(Water,w.Water,Count);Array.Copy(Biomes,w.Biomes,Count);Array.Copy(Climates,w.Climates,Count);Array.Copy(Buildings,w.Buildings,Count);
             Array.Copy(Owner,w.Owner,Count);Array.Copy(ZoneOwner,w.ZoneOwner,ZoneCount);Array.Copy(Downstream,w.Downstream,Count);Array.Copy(DrainOrder,w.DrainOrder,Count);
             Array.Copy(Fertility,w.Fertility,Count);Array.Copy(Runoff,w.Runoff,Count);Array.Copy(Population,w.Population,Count);Array.Copy(CoastDistance,w.CoastDistance,Count);
             Array.Copy(Temperature,w.Temperature,Count*12);Array.Copy(Precipitation,w.Precipitation,Count*12);
-            w.Facts=Facts==null?null:Facts.Clone();
-            w.Moisture=Moisture==null?null:Moisture.Clone();
+            if(copyDerivedCaches)
+            {
+                w.Facts=Facts?.Clone();
+                w.Moisture=Moisture?.Clone();
+            }
             w.Tectonics=Tectonics;
             w.WaterReference=WaterReference;
+            w.GeographicSurface=GeographicSurface;
             w.UsesSurveyedLakeBeds=UsesSurveyedLakeBeds;
+            w.UsesSurveyedStraits=UsesSurveyedStraits;
+            w.UsesGlobalStraits=UsesGlobalStraits;
             w.RiverReference=RiverReference;
             w.Cyclones=Cyclones==null?null:Cyclones.Clone();
+            w.PlanetClimate=PlanetClimate?.Clone();
             foreach(var actor in Wildlife)w.Wildlife.Add(actor.Clone());
             foreach(var n in Nations)w.Nations.Add(n.Clone());return w;
         }

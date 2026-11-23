@@ -11,7 +11,7 @@ namespace Orbis.Flat
         const float AtlasEnterScale = 1.42f, AtlasExitScale = 1.08f;
         bool detailFromAtlas, atlasEnterPending, atlasExitPending, atlasAligning;
         public bool HasStrategicReturn => atlasMode || detailFromAtlas;
-        int atlasFocus = -1;
+        PlanetLocation? atlasFocus;
         float atlasExitZoom, atlasWheelPixels;
         Vector2 atlasScreen;
         struct AtlasBookmark
@@ -68,7 +68,7 @@ namespace Orbis.Flat
                 go.transform.SetParent(transform, false);
                 atlas = go.AddComponent<MarkleyAtlasNavigator>();
                 atlas.Initialize(world, viewCamera, maps);
-                atlas.SetRoute(route);
+                atlas.SetGeographicRoute(route,seaRoute);
             }
             atlasEnterPending = atlasExitPending = atlasAligning = false;
             SetStrategicSurface(true);
@@ -81,21 +81,21 @@ namespace Orbis.Flat
             atlasMode = strategic;
             atlas.gameObject.SetActive(strategic);
             terrain.enabled = !strategic;
-            if (routeRenderer) routeRenderer.enabled = !strategic;
+            if (routeRenderer) routeRenderer.enabled = !strategic && route.Length > 1;
         }
 
         PlanetLocation TileLocation(int tile) => PlanetCoordinateSystem.FromMapUV(
             (tile % world.Width + .5) / world.Width, (tile / world.Width + .5) / world.Height);
 
-        void FocusStrategic(int tile, double day)
+        void FocusStrategic(PlanetLocation location)
         {
-            atlasFocus = tile;
+            atlasFocus = location;
             atlasScreen = viewCamera.pixelRect.center;
             atlasEnterPending = true;
-            var point = atlas.NearestChartPoint(TileLocation(tile));
+            var point = atlas.NearestChartPoint(location);
             atlas.DetailMetric(point, out _, out _, out float magnification);
             float localPixels = Mathf.Max(48, EntryPixels * (AtlasEnterScale + .12f));
-            atlas.FocusStrategic(tile, localPixels / magnification);
+            atlas.FocusStrategic(location, localPixels / magnification);
         }
 
         bool RouteAtlasWheel(float amount, Vector2 screen, double day)
@@ -105,11 +105,11 @@ namespace Orbis.Flat
             {
                 if (Mathf.Abs(wheel) < .00001f) return true;
                 if (wheel > 0 && atlas.AtOverviewLimit) { GoGlobe(day); return true; }
-                float requested = atlasEnterPending && atlasFocus < 0 ? atlasWheelPixels : atlas.RequestedPixels;
+                float requested = atlasEnterPending && !atlasFocus.HasValue ? atlasWheelPixels : atlas.RequestedPixels;
                 float displayed = atlas.PixelsPerTile;
                 bool reversing = wheel < 0 ? requested < displayed : requested > displayed;
                 atlasScreen = screen;
-                atlasFocus = -1;
+                atlasFocus = null;
                 atlasEnterPending = false;
                 // Allow small worlds to reach the same angular field of view as large
                 // ones. Bound the pending target even if many wheel events share a frame.
@@ -160,10 +160,10 @@ namespace Orbis.Flat
             atlas.Tick(dt, day);
             if (!atlasEnterPending || atlas.IsFocusing) return;
             Vector2 point;
-            if (atlasFocus >= 0)
+            if (atlasFocus.HasValue)
             {
                 atlasScreen = viewCamera.pixelRect.center;
-                point = atlas.NearestChartPoint(TileLocation(atlasFocus));
+                point = atlas.NearestChartPoint(atlasFocus.Value);
             }
             else if (!atlas.TryReliefPoint(atlasScreen, out point)) return;
             atlas.DetailMetric(point, out var location, out var right, out float magnification);
@@ -172,7 +172,7 @@ namespace Orbis.Flat
             float ground = atlas.PixelsPerTile * magnification;
             float offset = (atlasScreen - viewCamera.pixelRect.center).magnitude * TileScale;
             float localPixels = .5f * (ground + Mathf.Sqrt(Mathf.Max(0, ground * ground - offset * offset)));
-            if (atlasFocus < 0 && localPixels < EntryPixels * AtlasEnterScale * .9999f)
+            if (!atlasFocus.HasValue && localPixels < EntryPixels * AtlasEnterScale * .9999f)
             {
                 if (!atlas.IsZooming)
                 {
@@ -182,8 +182,8 @@ namespace Orbis.Flat
                 }
                 return;
             }
-            if (atlasFocus >= 0) location = TileLocation(atlasFocus);
-            float remaining = atlasFocus >= 0 ? 1 : atlasWheelPixels / atlas.PixelsPerTile;
+            if (atlasFocus.HasValue) location = atlasFocus.Value;
+            float remaining = atlasFocus.HasValue ? 1 : atlasWheelPixels / atlas.PixelsPerTile;
             var anchor = PlanetCoordinateSystem.SurfaceNormal(location);
             SetStrategicSurface(false);
             atlasEnterPending = atlasExitPending = false;

@@ -24,7 +24,8 @@ public static class RiverMapPlayProbe
     }
     public static void Run()
     {
-        if(!Application.isBatchMode||!Application.productName.StartsWith("ORBIS-River-QA-"))
+        if(!Application.isBatchMode||!(Application.productName.StartsWith("ORBIS-River-QA-")||
+             Application.productName.StartsWith("ORBIS-Straits-QA-")))
             throw new InvalidOperationException("Use an isolated river QA product and save directory.");
         var args=Environment.GetCommandLineArgs();
         SessionState.SetString(Key+".output",args[Array.IndexOf(args,"-riverOutput")+1]);
@@ -54,7 +55,7 @@ public static class RiverMapPlayProbe
             if(chart && chart.World.Preset==TerrainPreset.Earth)
             {
                 foreach(var site in new[]{new Vector2(-64.59610f,-3.38771f),new Vector2(31.15732f,27.21857f),
-                    new Vector2(107.51979f,29.88732f),new Vector2(106.69972f,57.04511f),new Vector2(-159.77383f,63.05154f)})
+                    new Vector2(107.512794f,29.881527f),new Vector2(106.69972f,57.04511f),new Vector2(-159.77383f,63.05154f)})
                 {
                     int x=(int)((site.x/360+.5f)*w),y=(int)((site.y/180+.5f)*h);
                     Color c=pixels.GetPixel(x,y);
@@ -224,11 +225,13 @@ public static class RiverMapPlayProbe
             }
             if(name=="jianghuai")
             {
-                foreach(var geo in new[]{new Vector2(120.206f,31.924f),new Vector2(121.500f,31.483f)})
+                foreach(var geo in new[]{new Vector2(120.205719f,31.934053f),new Vector2(121.500f,31.483f)})
                 {
                     Color c=At(geo);
-                    Check(c.r<.23f&&c.b-c.r>.20f,$"Yangtze estuary channel on GPU at {geo}");
+                    Check(c.r<.23f&&c.b-c.r>.20f,$"Yangtze estuary channel on GPU at {geo} (R={c.r:F2}, B={c.b:F2})");
                 }
+                Color tidalMargin=At(new Vector2(120.206f,31.924f));
+                Check(tidalMargin.b-tidalMargin.r>.09f,"Jiangyin tidal margin remains open water");
                 Color island=At(new Vector2(121.580f,31.622f));
                 Check(island.r>.30f,"Yangtze river ink stays off the interior of Chongming Island");
             }
@@ -273,11 +276,13 @@ public static class RiverMapPlayProbe
             for(int y=0;y<side;y++)for(int x=0;x<side;x++)
             {
                 float cx=origin.x+(x+.5f)*8/side,cy=origin.y+(y+.5f)*8/side;
-                var sample=map.World.Facts.RiverCurves.Sample(cx,cy);
-                if(sample.HalfWidth<.045f||sample.Distance>-.020f)continue;
+                var sample=map.World.Facts.RiverCurves.SampleMap(cx,cy);
+                // Test the inner half of mapped cross-sections at every
+                // width. A fixed 0.045-cell threshold omits real channels.
+                if(sample.HalfWidth<=0||sample.Distance>-.5f*sample.HalfWidth)continue;
                 wet++;
                 float distance=actual[y*side+x].r;
-                if(distance>.006f)
+                if(distance>=0 || Mathf.Abs(distance-sample.Distance)>.0005f)
                 {
                     if(missed++<3)example+=$" ({cx:F3},{cy:F3}: cpu={sample.Distance:F3}, gpu={distance:F3})";
                 }

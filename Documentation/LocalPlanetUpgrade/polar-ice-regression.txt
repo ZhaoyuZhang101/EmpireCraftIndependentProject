@@ -1,1 +1,2 @@
 PASS GPU north/south ice caps, sea ice/land snow, temperate exclusion and finite color; samples=65536 invalid=0
+PASS GPU seasonal lake ice: lake/survey masks, marine/river exclusion, shallow margins, deep centres, thaw, regional heat, twelve months and both poles.

@@ -1,13 +1,15 @@
 """Check the shipped major-lake atlas against named sites and vector shorelines."""
 import argparse
+from functools import lru_cache
 import struct
 import sys
 import zlib
 from pathlib import Path
 
 import numpy as np
+import shapely
 from shapely import contains_xy
-from shapely.geometry import LineString, Polygon, shape
+from shapely.geometry import LineString, box, shape
 
 ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT / "Tools/EarthScale100"))
@@ -65,6 +67,8 @@ def verify_sites(atlas):
         "Siling Co": (89.099, 31.794, True),
         "Chaohu": (117.608, 31.526, True), "Poyang": (116.221, 29.137, True),
         "Taihu": (120.127, 31.195, True), "Hongze": (118.720, 33.300, True),
+        "Huoqiu north bank": (116.414, 32.395, False),
+        "Datong next to Dongting": (112.478, 29.202, True),
         "Gaoyou": (119.340, 32.841, True), "Honghu": (113.401, 29.907, True),
         "Liangzi": (114.567, 30.263, True), "Xingkai": (132.409, 45.032, True),
         "Hulun": (117.482, 49.008, True), "Buir": (117.735, 47.843, True),
@@ -85,20 +89,65 @@ def verify_sites(atlas):
     for name, (lon, lat, wet) in sites.items():
         value = sample(atlas, lon, lat)
         assert (value > 129 if wet else value < 127), f"{name} ({lon}, {lat}) = {value:.1f}"
+    # These narrow lake centres straddle both banks at the 4.9-km overview.
+    # Test their signed distance here and their open-water interiors on the fine pages.
+    for lon, lat in ((120.738, 31.437), (116.353, 32.280)):
+        assert sample(atlas, lon, lat) > 128, f"Missing secondary lake at {lon}, {lat}"
     # Unrelated marine areas and polar caps are outside the finite lake-distance band.
     distant = ((0, 0), (-84, 59), (10, 88), (150, -70), (-180, 0), (180, 0), (0, -90), (0, 90))
     for lon, lat in distant:
         assert sample(atlas, lon, lat) == 1
-    # The separate Datong Lake in Hunan and southern Dead Sea evaporation
-    # ponds lie outside the chosen landmarks; the base Earth hydrology owns them.
-    for lon, lat in ((112.478, 29.202), (35.46, 31.17)):
-        assert sample(atlas, lon, lat) < 127
+    # The southern Dead Sea evaporation ponds are excluded from the natural shoreline.
+    assert sample(atlas, 35.46, 31.17) < 127
     return len(sites), len(distant)
 
 
 def unit_vectors(coordinates):
     lon, lat = np.deg2rad(coordinates).T
     return np.stack((np.cos(lat) * np.cos(lon), np.cos(lat) * np.sin(lon), np.sin(lat)), axis=-1)
+
+def distance_reference(width, cache):
+    from bake_major_lakes import load_footprints
+
+    minor = []
+    primary, _ = load_footprints(cache, minor)
+    secondary = [p for p in shapely.get_parts(shapely.union_all(minor)) if p.geom_type == "Polygon"]
+    fine = width == 65536
+    bodies = primary + secondary
+    if fine:
+        bodies = [p for p in shapely.get_parts(shapely.union_all(bodies)) if p.geom_type == "Polygon"]
+    nearby = shapely.STRtree(bodies)
+    step = 360 / width
+    radius = 32 * step
+
+    @lru_cache(None)
+    def edges(index):
+        rings = [bodies[index].exterior, *bodies[index].interiors]
+        starts = np.concatenate([unit_vectors(ring.coords[:-1]) for ring in rings])
+        ends = np.concatenate([unit_vectors(ring.coords[1:]) for ring in rings])
+        normals = np.cross(starts, ends)
+        lengths = np.linalg.norm(normals, axis=1)
+        valid = lengths > 1e-14
+        starts, ends, normals = starts[valid], ends[valid], normals[valid] / lengths[valid, None]
+        return starts, ends, normals, np.cross(normals, starts), np.cross(ends, normals)
+
+    def read(x, y):
+        dx = radius / np.cos(np.deg2rad(abs(y) + radius))
+        point, result = unit_vectors((x, y)), 1.0
+        for index in nearby.query(box(x-dx, y-radius, x+dx, y+radius)):
+            starts, ends, normals, forward, backward = edges(index)
+            on_arc = (forward @ point >= 0) & (backward @ point >= 0)
+            angles = np.arccos(np.clip(np.maximum(starts @ point, ends @ point), -1, 1))
+            angles[on_arc] = np.arcsin(np.clip(np.abs(normals[on_arc] @ point), 0, 1))
+            distance = angles.min() * (1 if contains_xy(bodies[index], x, y) else -1)
+            code = np.clip(128 + np.rad2deg(distance) * 4 / step, 1, 255)
+            if not fine and index >= len(primary) and code < 112:
+                rounded = np.rint(code)
+                t = np.clip((rounded - 96) / 16, 0, 1)
+                code = 1 + (rounded-1)*t*t*(3-2*t)
+            result = max(result, code)
+        return result
+    return read
 
 
 def verify_distances(width, read_pixel, cache):
@@ -110,21 +159,13 @@ def verify_distances(width, read_pixel, cache):
     step = 360 / width
     cases = 0
     max_error = 0.0
+    expected_at = distance_reference(width, cache)
     for feature in features("lakes", cache):
         name = feature["properties"]["name"]
         if name not in names:
             continue
         names.remove(name)
         (rings,) = polygons(feature)
-        lake = Polygon(rings[0], rings[1:])
-        starts = np.concatenate([unit_vectors(ring[:-1]) for ring in rings])
-        ends = np.concatenate([unit_vectors(ring[1:]) for ring in rings])
-        normals = np.cross(starts, ends)
-        lengths = np.linalg.norm(normals, axis=1)
-        valid = lengths > 1e-14
-        starts, ends = starts[valid], ends[valid]
-        normals = normals[valid] / lengths[valid, None]
-        forward, backward = np.cross(normals, starts), np.cross(ends, normals)
         offsets = ((-7, 0), (7, 0), (0, -4), (0, 4))
         if name == "Lake Taymyr" and width == 8192:
             # At 75 N merely padding 32 longitude texels would cut off the atlas
@@ -138,12 +179,7 @@ def verify_distances(width, read_pixel, cache):
                     i = int((lon + 180) / step) + dx
                     j = int((lat + 90) / step) + dy
                     x, y = (i + .5) * step - 180, (j + .5) * step - 90
-                    point = unit_vectors((x, y))
-                    on_arc = (forward @ point >= 0) & (backward @ point >= 0)
-                    angles = np.arccos(np.clip(np.maximum(starts @ point, ends @ point), -1, 1))
-                    angles[on_arc] = np.arcsin(np.clip(np.abs(normals[on_arc] @ point), 0, 1))
-                    signed = angles.min() if contains_xy(lake, x, y) else -angles.min()
-                    expected = np.clip(128 + np.rad2deg(signed) * 4 / step, 1, 255)
+                    expected = expected_at(x, y)
                     actual = int(read_pixel(i, j))
                     error = abs(actual - expected)
                     assert error <= .65, f"{name} ({x:.3f}, {y:.3f}): {actual} vs {expected:.2f}"
@@ -156,15 +192,17 @@ def verify_distances(width, read_pixel, cache):
 def verify_detail(cache):
     raw = ASSET.with_name("EarthLakeDetail.bytes").read_bytes()
     tag, width, height = struct.unpack_from("<4sii", raw)
-    assert tag == b"OLD1" and width == 4096 and (height-256)%66 == 0
+    assert tag == b"OLD1" and width in (4096, 8192) and 0 < height <= 8192
+    index_rows = 1024*512*2//width
+    assert (height-index_rows)%66 == 0
     image = np.frombuffer(zlib.decompress(raw[12:], -15), np.uint8).reshape(height, width)
-    table = image[:256].view("<u2").reshape(512, 1024)
+    table = image[:index_rows].view("<u2").reshape(512, 1024)
     occupied = table[table != 0]
     assert np.array_equal(np.sort(occupied), np.arange(1, 1 + occupied.size))
 
     def page(slot):
         row, col = divmod(int(slot)-1, width//66)
-        tile = image[256+row*66:256+(row+1)*66, col*66:(col+1)*66]
+        tile = image[index_rows+row*66:index_rows+(row+1)*66, col*66:(col+1)*66]
         assert tile.shape == (66, 66)
         return tile
 
@@ -196,7 +234,8 @@ def verify_detail(cache):
                 + fy*((1-fx)*pixel(i,j+1) + fx*pixel(i+1,j+1)))
 
     # The middle of Fuxian is narrow enough for coarse texels to straddle both banks.
-    for lon, lat in ((102.887, 24.494), (100.182, 25.783), (102.721, 24.849), (81.180, 44.609)):
+    for lon, lat in ((102.887, 24.494), (100.182, 25.783), (102.721, 24.849), (81.180, 44.609),
+                     (120.738, 31.437), (116.353, 32.280), (112.478, 29.202)):
         assert fine_code(lon, lat) > 129, f"Missing surveyed lake interior at ({lon}, {lat})"
     assert fine_code(102.823, 24.662) < 127, "The ridge between Dianchi and Fuxian flooded"
 

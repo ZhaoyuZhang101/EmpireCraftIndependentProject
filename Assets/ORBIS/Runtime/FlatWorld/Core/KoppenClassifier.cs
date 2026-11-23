@@ -6,8 +6,11 @@ namespace Orbis.Flat
     public static class KoppenClassifier
     {
         public static Koppen Classify(float[] temperature,float[] precipitation,int offset=0)
+            => Classify((ReadOnlySpan<float>)temperature, precipitation, offset);
+
+        public static Koppen Classify(ReadOnlySpan<float> temperature, ReadOnlySpan<float> precipitation, int offset=0)
         {
-            if(temperature==null||precipitation==null||offset<0||temperature.Length-offset<12||precipitation.Length-offset<12)
+            if(offset<0||temperature.Length-offset<12||precipitation.Length-offset<12)
                 throw new ArgumentException("Twelve temperature and precipitation values are required.");
             float cold=1000,hot=-1000,mean=0,rain=0,driest=1e9f,aprTemp=0,octTemp=0;
             int warmMonths=0;

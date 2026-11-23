@@ -49,20 +49,47 @@ namespace Orbis.Flat
             }
             cooldown-=delta;if(cooldown>0)return;
             cooldown=1.8f+(float)random.NextDouble()*3.6f;
-            int month=world.Month,next=(month+1)%12,chosen=-1;float best=0;
-            float blend=FMath.Clamp((float)(world.Day%30)/30,0,1);
+            int chosen=-1;float best=0;
+            var season=new FlatMonthlyForcing(world.Day);
             var climate=FlatClimateYear.At(FMath.Seed(world.Seed),world.Day);
+            var moisture=world.Moisture;
+            var currents=moisture?.OceanCurrents;
+            var exo=moisture?.ExoPlaSim;
+            int month0=FMath.Clamp((int)Math.Floor((world.Day%360+360)%360/30.0),0,11);
             for(int attempt=0;attempt<32;attempt++)
             {
                 int x=local?FMath.Wrap((int)Math.Floor(focusX)+random.Next(-6,7),world.Width):random.Next(world.Width);
                 int y=local?FMath.Clamp((int)Math.Floor(focusY)+random.Next(-6,7),0,world.Height-1):random.Next(world.Height);
                 int cell=y*world.Width+x;
-                float rain=FMath.Lerp(world.Precipitation[cell*12+month],world.Precipitation[cell*12+next],blend);
-                float temperature=FMath.Lerp(world.Temperature[cell*12+month],world.Temperature[cell*12+next],blend);
+                float rain=season.Sample(world.Precipitation,cell*12,ClimateRange.Nonnegative);
+                float temperature=season.Sample(world.Temperature,cell*12);
                 climate.AtTile(cell,world.Width,world.Height,out float degrees,out float regionalRain);
                 rain*=1+regionalRain;temperature+=degrees;
-                if(rain<90||temperature<2)continue;
-                float score=rain*(.7f+(float)random.NextDouble()*.3f);
+                bool isOcean=FlatTerrainAnalysis.Ocean(world.Water[cell]);
+                // NASA LIS/OTD physics: ~88% of lightning occurs over heated land, islands & coastal sea-breeze convergence
+                // where strong mixed-phase updrafts (>6 m/s) separate ice/graupel charge. Open-ocean trade showers &
+                // equatorial Ekman cold-tongue upwelling slots lack ice-phase charge separation unless driven by warm-pool squalls.
+                float phaseWeight=1f;
+                if(isOcean)
+                {
+                    if(rain<155f||temperature<12f)continue;
+                    float u=(x+.5f)/world.Width,v=(y+.5f)/world.Height;
+                    float latDeg=(v-.5f)*180f;
+                    float sstAnom=currents!=null?currents.Sample(currents.SeaAnomaly,u,v):0f;
+                    float breeze=exo!=null?exo.SampleStatic(exo.MaritimeSeaBreezeGuard,u,v):0f;
+                    bool eqColdSlot=Math.Abs(latDeg)<4.5f&&sstAnom<0.22f&&breeze<0.15f;
+                    if(eqColdSlot&&rain<245f)continue;
+                    float warmPool=FMath.Clamp((sstAnom-0.10f)/0.85f,0f,1f);
+                    phaseWeight=FMath.Lerp(0.20f,0.52f,Math.Max(warmPool,breeze))*(eqColdSlot?0.35f:1f);
+                }
+                else if(rain<90f||temperature<2f)continue;
+                else if(exo!=null)
+                {
+                    float u=(x+.5f)/world.Width,v=(y+.5f)/world.Height;
+                    float cape=exo.SampleMonthly(exo.CapeJkg,u,v,month0);
+                    phaseWeight=0.88f+0.24f*FMath.Clamp(cape/2000f,0f,1f);
+                }
+                float score=rain*phaseWeight*(.7f+(float)random.NextDouble()*.3f);
                 if(score>best){best=score;chosen=cell;}
             }
             if(chosen<0)return;

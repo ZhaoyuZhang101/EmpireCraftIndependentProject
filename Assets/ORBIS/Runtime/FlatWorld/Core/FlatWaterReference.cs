@@ -14,6 +14,8 @@ namespace Orbis.Flat
         readonly byte[] northFirstBed;
         readonly short[] survey;
         internal bool UsesSurveyedLakeBeds { get; private set; }
+        internal bool UsesSurveyedStraits { get; private set; }
+        internal bool UsesGlobalStraits { get; private set; }
 
         FlatWaterReference(int width, byte[] originalBed)
         {
@@ -30,9 +32,10 @@ namespace Orbis.Flat
             short kind = At(tile);
             return kind == Marine || kind == Passage;
         }
-        internal short OriginalBed(int tile)
+        internal short OriginalBed(int tile) => SourceBed(Source(tile));
+        short SourceBed(int cell)
         {
-            int p = Source(tile) * 2;
+            int p = cell * 2;
             return unchecked((short)(northFirstBed[p] | northFirstBed[p + 1] << 8));
         }
         void SetSourceBed(int cell, short bed)
@@ -47,7 +50,7 @@ namespace Orbis.Flat
         }
 
         public static FlatWaterReference Read(int width, byte[] originalNorthFirstHeights, byte[] bytes,
-            bool useSurveyedLakeBeds = true)
+            bool useSurveyedLakeBeds = true, bool useSurveyedStraits = true, bool useGlobalStraits = true)
         {
             if (width < 64 || width > WorldData.MaxWidth || width % 8 != 0 ||
                 originalNorthFirstHeights == null || originalNorthFirstHeights.Length != (long)width * width ||
@@ -57,7 +60,9 @@ namespace Orbis.Flat
             using (var reader = new BinaryReader(new MemoryStream(bytes, false)))
             {
                 uint format = reader.ReadUInt32();
-                bool hasNewShores = format == 0x3352574f; // OWR3 also has surveyed levels for formerly dry cells.
+                bool hasGlobal = format == 0x3552574f; // OWR5 appends additional worldwide marine cells after the V5 baseline.
+                bool hasStraits = hasGlobal || format == 0x3452574f;
+                bool hasNewShores = hasStraits || format == 0x3352574f; // OWR3 adds supplemental lake levels.
                 bool hasLakeBeds = hasNewShores || format == 0x3252574f;
                 if ((!hasLakeBeds && format != 0x3152574f) || reader.ReadInt32() != width)
                     throw new InvalidDataException("Geographic water reference signature or width mismatch.");
@@ -87,8 +92,7 @@ namespace Orbis.Flat
                         if (cell <= last || cell >= p) throw new InvalidDataException("Invalid surveyed lake-bed index.");
                         last = cell;
                         short stage = result.survey[cell];
-                        int offset = cell * 2;
-                        short mean = unchecked((short)(originalNorthFirstHeights[offset] | originalNorthFirstHeights[offset + 1] << 8));
+                        short mean = result.SourceBed(cell);
                         if (stage < HeightBands.MinimumBed || stage == mean || stage > mean + 2)
                             throw new InvalidDataException("Invalid representative lake bed.");
                         if (useSurveyedLakeBeds)
@@ -97,7 +101,9 @@ namespace Orbis.Flat
                     if (hasNewShores)
                     {
                         int extra = reader.ReadInt32();
-                        if (extra <= 0 || extra > p || bedsEnd + 4L + 6L * extra != bytes.Length)
+                        long shoresEnd = bedsEnd + 4L + 6L * extra;
+                        if (extra < (hasStraits ? 0 : 1) || extra > p ||
+                            (hasStraits ? shoresEnd + 4 > bytes.Length : shoresEnd != bytes.Length))
                             throw new InvalidDataException("Invalid supplemental lake cell count.");
                         last = -1;
                         for (int n = 0; n < extra; n++)
@@ -110,12 +116,40 @@ namespace Orbis.Flat
                             last = cell;
                             if (!useSurveyedLakeBeds) continue;
                             result.survey[cell] = stage;
-                            int offset = 2 * cell;
-                            short bed = unchecked((short)(originalNorthFirstHeights[offset] | originalNorthFirstHeights[offset + 1] << 8));
-                            if (bed > stage) result.SetSourceBed(cell, stage);
+                            if (result.SourceBed(cell) > stage) result.SetSourceBed(cell, stage);
                         }
                     }
                     result.UsesSurveyedLakeBeds = useSurveyedLakeBeds && (count != 0 || hasNewShores);
+                }
+                if (hasStraits)
+                {
+                    result.UsesSurveyedStraits = useSurveyedLakeBeds && useSurveyedStraits;
+                    result.UsesGlobalStraits = hasGlobal && result.UsesSurveyedStraits && useGlobalStraits;
+                    void ReadChannels(bool global, bool apply, bool lastSection)
+                    {
+                        if (reader.BaseStream.Position + 4 > bytes.Length)
+                            throw new InvalidDataException("Missing surveyed strait section.");
+                        int count = reader.ReadInt32(), last = -1;
+                        long end = reader.BaseStream.Position + 4L * count;
+                        if (count < 0 || count > p || (lastSection ? end != bytes.Length : end + 4 > bytes.Length))
+                            throw new InvalidDataException("Invalid surveyed strait cell count.");
+                        for (int n = 0; n < count; n++)
+                        {
+                            int cell = reader.ReadInt32();
+                            if (cell <= last || cell >= p)
+                                throw new InvalidDataException("Invalid surveyed strait cell.");
+                            short kind = result.survey[cell];
+                            if (kind != Marine && kind != Passage && !(global && kind == Dry))
+                                throw new InvalidDataException("Surveyed strait intersects an inland waterbody.");
+                            last = cell;
+                            if (!apply) continue;
+                            result.survey[cell] = Marine;
+                            // A positive mean mixes dry banks into the unresolved water bed.
+                            if (result.SourceBed(cell) >= 0) result.SetSourceBed(cell, -1);
+                        }
+                    }
+                    ReadChannels(false, result.UsesSurveyedStraits, !hasGlobal);
+                    if (hasGlobal) ReadChannels(true, result.UsesGlobalStraits, true);
                 }
             }
             return result;

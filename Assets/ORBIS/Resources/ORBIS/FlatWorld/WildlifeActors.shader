@@ -8,6 +8,13 @@ Shader "ORBIS/FlatWorld/WildlifeActors"
   _SkyTex("Climate cloud shadows",2D)="black"{}
   _VisualTex("Terrain fields",2D)="black"{}
   _InfoTex("Terrain objects",2D)="black"{}
+  [HideInInspector] _EarthSurveyMask("Unedited Earth terrain",2D)="white"{}
+  [HideInInspector] _EarthOceanDirectory("Global marine coast directory",2D)="black"{}
+  [HideInInspector] _EarthOceanPages("Global marine banks",2D)="black"{}
+  [HideInInspector] _EarthTreeBanks("Surveyed banks at tree roots",2D)="black"{}
+  [HideInInspector] _EarthStraitShore("Regional marine shorelines",2D)="black"{}
+  [HideInInspector] _EarthStraitDetail("Surveyed strait banks",2D)="black"{}
+  [HideInInspector] _EarthStraitReady("Strait shoreline survey ready",Float)=0
   [HideInInspector] _PlantHeightTex("Local terrain vertex heights",2D)="black"{}
   [HideInInspector] _PlantLattice("Local height lattice",Vector)=(0,0,0,0)
   [HideInInspector] _ScrollRelief("Terrain relief view",Vector)=(0,0,.72,0)
@@ -39,6 +46,8 @@ Shader "ORBIS/FlatWorld/WildlifeActors"
    #pragma fragment frag
    #include "UnityCG.cginc"
    #define ORBIS_FLAT_NO_SWE
+   #pragma multi_compile_local_fragment __ ORBIS_RIVER_RASTER ORBIS_RIVER_VECTORS ORBIS_PREVIEW
+   #define ORBIS_SURFACE_RIVER_VARIANTS 1
    #include "Water/FlatWater.cginc"
    #ifdef ORBIS_ATLAS_PLANTS
    #include "ScrollProjection.cginc"
@@ -114,6 +123,7 @@ Shader "ORBIS/FlatWorld/WildlifeActors"
     float3 colour=ink*art.a+FlatColor(trailColour)*light*particle*(1-art.a);
     opacity*=i.state.z;
     clip(opacity-.001);
+    #ifndef ORBIS_PREVIEW
     if(_WildlifeOcclusionReady>.5)
     {
      float2 cell=i.geographic.xy*_MapSize.xy+i.cellAxes.xy*i.pixel.x+i.cellAxes.zw*i.pixel.y;
@@ -133,6 +143,7 @@ Shader "ORBIS/FlatWorld/WildlifeActors"
      opacity*=lerp(1,visible,saturate(_DetailWeight));
      clip(opacity-.001);
     }
+    #endif
     colour/=max(.001,art.a+(1-art.a)*(particle+(1-particle)*shadow));
     #ifdef UNITY_COLORSPACE_GAMMA
     colour=GammaToLinearSpace(max(0,colour));

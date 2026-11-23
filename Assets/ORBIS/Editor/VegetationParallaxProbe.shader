@@ -45,7 +45,7 @@ Shader "Hidden/ORBIS/VegetationParallaxProbe"
  {
   float2 cluster=float2(2,1);
   float salt=.42;
-  if(_ProbeKind>=3)
+  if(_ProbeKind>=2)
   {
    if(_ProbeCover<2)
    {
@@ -60,7 +60,7 @@ Shader "Hidden/ORBIS/VegetationParallaxProbe"
    float variation=PDHash(_ProbeTile+cluster*.213+salt*41+71);
    float2 anchor=cluster*8+PDGroundPlantLayout(variation,1,_ProbeCover).xy;
    anchor.y=16+(anchor.y-16)*FlatArtworkLatitudeScale((_ProbeTile.y+.5)*_MapSize.w);
-   return float4(PDTreePlacement(_ProbeTile).xy/32,anchor/32);
+   if(_ProbeKind>=3)return float4(PDTreePlacement(_ProbeTile).xy/32,anchor/32);
   }
   #ifdef ORBIS_ATLAS_PLANTS
   float2 cell=MarkleyGeoUV(i.chart)*_MapSize.xy;
@@ -70,7 +70,9 @@ Shader "Hidden/ORBIS/VegetationParallaxProbe"
   PDPlantView view=PDLocalPlantView(i.projected.xy/i.projected.z,i.chart);
   #endif
   #ifdef ORBIS_PROBE_REEDS
-  float3 art=PixelGround(0,cell,float4(1000,-4,0,1),0,0,float4(_ProbeCover,3,.7,salt),view);
+  float4 ecology=float4(_ProbeCover,3,.7,salt);
+  float3 art=_ProbeKind>=2?PDGroundPlant(0,view,cell,_ProbeTile,cluster,ecology,_ProbeCover,1,1,1):
+                           PixelGround(0,cell,float4(1000,-4,0,1),0,0,ecology,view);
   #else
   float3 art=PixelProps(0,cell,0,0,0,1,view);
   #endif

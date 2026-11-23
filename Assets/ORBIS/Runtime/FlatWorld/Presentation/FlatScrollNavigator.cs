@@ -19,9 +19,15 @@ namespace Orbis.Flat
         float distance=3.1f,morph,pixels=16,spin,zoom,targetZoom,zoomVelocity;
         Vector2 zoomScreen;bool zoomAnchor;Quaternion orbitRotation=Quaternion.Euler(18,0,0);
         PlanetVector zoomGroundAnchor;
-        double currentDay,lockDay;bool locked;Vector3 normal,east,north;Vector2 poles;int revision=-1;int[] route=new int[0];
+        double currentDay,lockDay;bool locked;Vector3 normal,east,north;Vector2 poles;int revision=-1;
+        PlanetLocation[] route=Array.Empty<PlanetLocation>();bool seaRoute;
+        public IReadOnlyList<PlanetLocation> RoutePoints => route;
         const int Rings=128,Sectors=256;Vector2[] lattice;int[] triangles;
+        float foldHeightWeight;
         readonly FlatPlantHeightCache plantHeights=new FlatPlantHeightCache();
+#if UNITY_EDITOR
+        readonly FlatShaderPreview editorPreview = new FlatShaderPreview();
+#endif
         Vector4[] pickPositions;int[] pickVertexStamps,pickCellStamps;int pickGeneration;
         Ray pickRay;Vector4 pickRelief;float pickRadius,pickNearest;Vector2 pickHit;
         public PlanetTangentFrame LocalFrame=>projection.Frame;
@@ -191,13 +197,29 @@ namespace Orbis.Flat
             surface.SetVector("_LocalCenter",V(projection.Frame.Up));surface.SetVector("_LocalEast",V(projection.Frame.East));surface.SetVector("_LocalNorth",V(projection.Frame.North));
             surface.SetVector("_ScrollNormal",normal);surface.SetVector("_ScrollRight",east);surface.SetVector("_ScrollUp",north);
             surface.SetFloat("_ScrollMorph",morph);surface.SetFloat("_ScrollSpin",spin);surface.SetFloat("_LocalRadius",Radius);
+            // Filter when a moving ring spans several source cells. The stationary
+            // globe keeps its silhouette and the final plane uses the full relief.
+            float cellsPerRing=Radius/(Rings*TileScale);
+            foldHeightWeight=maps.FoldHeights==null || !IsTransitioning ? 0 :
+                Mathf.SmoothStep(0,1,Mathf.InverseLerp(.5f,2,cellsPerRing))*Mathf.SmoothStep(0,1,morph/.06f);
+            surface.SetFloat("_FoldHeightWeight",foldHeightWeight);
+            if(foldHeightWeight>0)surface.SetTexture("_FoldHeightTex",maps.FoldHeights.Texture);
+            surface.SetFloat("_RiverGlobeNarrowing",FlatRiverCurves.GlobeWidthReduction(world.Preset,morph));
             surface.SetFloat("_PixelsPerTile",pixels);surface.SetFloat("_DetailWeight",DetailWeight);surface.SetVector("_ScrollPoleHeights",poles);surface.SetFloat("_ScrollHeightScale",FlatGlobeGeometry.HeightScale);
             surface.SetVector("_ScrollRelief",ReliefParameters);
             surface.SetVector("_MapSize",new Vector4(world.Width,world.Height,1f/world.Width,1f/world.Height));
             plantHeights.Bind(surface,maps.VisualTexture,Sectors,Rings);
             BindSelectionFocus();
         }
-        public void SyncMaterials(){if(atlasMode){atlas.SyncMaterials();return;}surface.CopyPropertiesFromMaterial(maps.Material);Bind();}
+        public void SyncMaterials()
+        {
+            if(atlasMode){atlas.SyncMaterials();return;}
+            surface.CopyPropertiesFromMaterial(maps.Material);Bind();
+#if UNITY_EDITOR
+            var draw = editorPreview.ForDraw(surface, surface.FindPass("SCROLL_SURFACE"));
+            if (terrain.sharedMaterial != draw) terrain.sharedMaterial = draw;
+#endif
+        }
         void Capture(Vector2 screen,double day)
         {
             if(TryGetPlanetLocation(screen,out var p))
@@ -294,9 +316,13 @@ namespace Orbis.Flat
         }
         public void Focus(int tile,double day)
         {
-            if(tile<0||tile>=world.Count)return;if(atlasMode){FocusStrategic(tile,day);return;}
+            if(tile>=0&&tile<world.Count)Focus(TileLocation(tile),day);
+        }
+        public void Focus(PlanetLocation location,double day)
+        {
+            if(atlasMode){FocusStrategic(location);return;}
             atlasAligning=false;atlasExitPending=false;
-            projection=new PlanetLocalProjection(PlanetCoordinateSystem.FromMapUV((tile%world.Width+.5)/world.Width,(tile/world.Width+.5)/world.Height));lockDay=day;locked=true;Frame();
+            projection=new PlanetLocalProjection(location);lockDay=day;locked=true;Frame();
             zoomAnchor=false;targetZoom=ZoomForPixels(Mathf.Max(48,EntryPixels));
         }
         public bool TryProjectionPoint(Vector2 screen,out Vector2 point)
@@ -412,15 +438,22 @@ namespace Orbis.Flat
         {
             return ProjectedVertex(xy,ReliefParameters);
         }
+        internal float FoldSphereRadius(Vector2 uv,float rawRadius)
+        {
+            if(foldHeightWeight<=0)return rawRadius;
+            float filtered=FlatGlobeGeometry.Radius(maps.FoldHeights.Sample(uv),uv.y,FlatFoldHeights.Columns/2,poles);
+            return Mathf.Lerp(rawRadius,filtered,foldHeightWeight);
+        }
         Vector4 ProjectedVertex(Vector2 xy,Vector4 reliefParameters)
         {
             var p=LocalDirection(xy);
             var location=PlanetCoordinateSystem.FromWorld(p,new PlanetVector(),1);
             var uv=new Vector2((float)PlanetCoordinateSystem.MapU(location),(float)PlanetCoordinateSystem.MapV(location));
-            float radius=FlatGlobeGeometry.Radius(FlatGlobeGeometry.SurfaceHeight(world,uv),uv.y,world.Height,poles);
+            float radius=foldHeightWeight<1||reliefParameters.w>0
+                ?FlatGlobeGeometry.Radius(FlatGlobeGeometry.SurfaceHeight(world,uv),uv.y,world.Height,poles):1;
             var relief=FlatGlobeGeometry.ReliefPosition(xy,radius-1,reliefParameters);
             var plane=normal*(1+relief.z)+east*relief.x+north*relief.y;
-            Vector3 position=Vector3.Lerp(Spin*Reflect(V(p))*radius,plane,morph);
+            Vector3 position=Vector3.Lerp(Spin*Reflect(V(p))*FoldSphereRadius(uv,radius),plane,morph);
             return new Vector4(position.x,position.y,position.z,FlatGlobeGeometry.ReliefClipWeight(radius-1,reliefParameters,morph));
         }
         public int Pick(Vector2 screen)=>TryFlatPoint(screen,out var tile)?FlatScrollMath.Tile(tile.x,Math.Min(world.Height-.0001,tile.y),world.Width,world.Height):-1;
@@ -432,11 +465,12 @@ namespace Orbis.Flat
             var focus=Vector4.zero;int tile=maps.LocalFocusTile;
             if(morph>=1&&tile>=0&&tile<world.Count)
             {
-                var location=PlanetCoordinateSystem.FromMapUV((tile%world.Width+.5)/world.Width,(tile/world.Width+.5)/world.Height);
+                var picked = area.width == 0 ? maps.SelectedLocation : null;
+                var location = picked ?? TileLocation(tile);
                 var point=LocalPoint(PlanetCoordinateSystem.SurfaceNormal(location));
                 if(TryRenderedSurface(point,ReliefParameters,false,out var position,out _,out _))
                     focus=new Vector4(Vector3.Dot(position-normal,east),Vector3.Dot(position-normal,north),
-                        pixels/TileScale,Mathf.Clamp(pixels*.5f,5,22));
+                        pixels/TileScale,picked.HasValue ? 7 : Mathf.Clamp(pixels*.5f,5,22));
             }
             surface.SetVector("_LocalFocus",focus);
         }
@@ -485,7 +519,21 @@ namespace Orbis.Flat
             var dx=axisX*ex.x+axisY*ex.y;var dy=axisX*ny.x+axisY*ny.y;
             return FlatGlobeGeometry.TryActorFrame(viewCamera,dx,dy,TileScale/32,out geographicEast,out geographicNorth,out cellAxes);
         }
-        public void SetRoute(int[] ids){route=ids??new int[0];if(atlas)atlas.SetRoute(route);UpdateRoute();}
+        internal static PlanetLocation[] TileLocations(WorldData data,int[] ids)
+        {
+            if(ids==null||ids.Length==0)return Array.Empty<PlanetLocation>();
+            var locations=new PlanetLocation[ids.Length];
+            for(int i=0;i<ids.Length;i++)locations[i]=PlanetCoordinateSystem.FromMapUV(
+                (ids[i]%data.Width+.5)/data.Width,(ids[i]/data.Width+.5)/data.Height);
+            return locations;
+        }
+        public void SetRoute(int[] ids)=>SetGeographicRoute(TileLocations(world,ids),false);
+        internal void SetGeographicRoute(PlanetLocation[] points,bool marine)
+        {
+            route=points;seaRoute=marine;
+            if(atlas)atlas.SetGeographicRoute(points,marine);
+            UpdateRoute();
+        }
         void UpdateRoute()
         {
             if(route.Length<2){if(routeRenderer)routeRenderer.enabled=false;return;}
@@ -499,17 +547,18 @@ namespace Orbis.Flat
             }
             routeRenderer.enabled=!atlasMode;routeVertices.Clear();routeIndices.Clear();
             var relief=ReliefParameters;
+            float halfWidth=seaRoute?1.05f*TileScale/Mathf.Max(.25f,pixels):.00075f;
             Vector3 previousPosition=Vector3.zero;bool connected=false;
             for(int i=0;i<route.Length;i++)
             {
-                var p=PlanetCoordinateSystem.SurfaceNormal(PlanetCoordinateSystem.FromMapUV((route[i]%world.Width+.5)/world.Width,(route[i]/world.Width+.5)/world.Height));
+                var p=PlanetCoordinateSystem.SurfaceNormal(route[i]);
                 bool valid=TryRenderedSurface(LocalPoint(p),relief,false,out var position,out _,out _);
                 if(valid)
                 {
                     position+=normal*.0002f;
                     if(connected)
                     {
-                        var side=Vector3.Cross(position-previousPosition,viewCamera.transform.forward).normalized*.00075f;
+                        var side=Vector3.Cross(position-previousPosition,viewCamera.transform.forward).normalized*halfWidth;
                         int start=routeVertices.Count;
                         routeVertices.Add(previousPosition-side);routeVertices.Add(previousPosition+side);routeVertices.Add(position-side);routeVertices.Add(position+side);
                         routeIndices.Add(start);routeIndices.Add(start+1);routeIndices.Add(start+2);routeIndices.Add(start+2);routeIndices.Add(start+1);routeIndices.Add(start+3);
@@ -521,6 +570,12 @@ namespace Orbis.Flat
             }
             routeMesh.Clear();routeMesh.SetVertices(routeVertices);routeMesh.SetTriangles(routeIndices,0);routeMesh.RecalculateBounds();
         }
-        void OnDestroy(){plantHeights.Dispose();if(mesh)Destroy(mesh);if(surface)Destroy(surface);if(routeMesh)Destroy(routeMesh);if(routeMaterial)Destroy(routeMaterial);}
+        void OnDestroy()
+        {
+#if UNITY_EDITOR
+            editorPreview.Dispose();
+#endif
+            plantHeights.Dispose();if(mesh)Destroy(mesh);if(surface)Destroy(surface);if(routeMesh)Destroy(routeMesh);if(routeMaterial)Destroy(routeMaterial);
+        }
     }
 }

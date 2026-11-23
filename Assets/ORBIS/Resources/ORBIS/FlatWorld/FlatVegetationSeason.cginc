@@ -7,6 +7,12 @@ float4 _ClimateYearHeat,_ClimateYearRain;
 
 float4 FlatVegetationMonth(float2 cell,float month)
 {
+    if(_VegetationSeason.w>.5)
+    {
+        float panel=month-floor(month*.5)*2;
+        float v=clamp(cell.y,.5,_MapSize.y-.5)*_MapSize.w;
+        return FlatPresentationSample(_VegetationSeasonTex,float2(frac(cell.x*_MapSize.z),(panel+v)*.5),0);
+    }
     float2 size=_MapSize.xy+2;
     float2 origin=float2(month-floor(month/3)*3,floor(month/3))*size;
     float2 coordinate=float2(frac(cell.x*_MapSize.z)*_MapSize.x,clamp(cell.y,0,_MapSize.y))+1;

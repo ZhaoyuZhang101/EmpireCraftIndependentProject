@@ -39,6 +39,8 @@ namespace Orbis.Flat
                 {
                     w.WaterReference=FlatWaterReference.Read(width,earthHeights,geographicWater);
                     w.UsesSurveyedLakeBeds=w.WaterReference.UsesSurveyedLakeBeds;
+                    w.UsesSurveyedStraits=w.WaterReference.UsesSurveyedStraits;
+                    w.UsesGlobalStraits=w.WaterReference.UsesGlobalStraits;
                 }
                 if(geographicRivers!=null)w.RiverReference=FlatEarthRiverReference.Read(geographicRivers);
                 for(int y=0;y<height;y++)
@@ -59,6 +61,7 @@ namespace Orbis.Flat
             {
                 w.Tectonics=FlatTectonics.Build(w,cancel);
                 FlatErosion.Apply(w,cancel);
+                GlebaPlanetGeomorphology.Apply(w,cancel);
             }
             Rebuild(w,cancel);return w;
         }

@@ -58,6 +58,7 @@ SHADERS = [
     "Assets/ORBIS/Resources/ORBIS/FlatWorld/WildlifeActors.shader",
     "Assets/ORBIS/Resources/ORBIS/FlatWorld/ScrollSurface.shader",
     "Assets/ORBIS/Resources/ORBIS/Surface.shader",
+    "Assets/ORBIS/Resources/ORBIS/FlatWorld/TreeBanks.shader",
     "Assets/ORBIS/Resources/ORBIS/FlatWorld/FlatSkyBake.shader",
     "Assets/ORBIS/Resources/ORBIS/FlatWorld/HPCloudColumn.shader",
     "Assets/ORBIS/Resources/ORBIS/Clouds.shader",

@@ -9,7 +9,7 @@ struct FlatRiverSection
     float influence;
 };
 
-FlatRiverSection FlatRiverSectionAt(float2 cell,float4 channel,float4 field)
+FlatRiverSection FlatRiverSectionAt(float2 cell,float4 channel,float4 field,float2 bankProfile)
 {
     FlatRiverSection r;
     r.edge=channel.r;r.width=length(channel.ba);r.depth=channel.g;
@@ -34,8 +34,10 @@ FlatRiverSection FlatRiverSectionAt(float2 cell,float4 channel,float4 field)
     float footprint=max(length(dx*metric),length(dy*metric));
     float resolved=smoothstep(.45,1.8,r.width/max(.0001,footprint));
     r.across=clamp(side,-1,1)*min(2.6,centreDistance/max(.0001,r.width));
+    bool analytic=FlatRiverFieldReady()&&FLAT_VECTOR_FIELD;
+    if(analytic)r.across=clamp(bankProfile.x/max(.0001,r.width),-2.6,2.6);
     float turn=dot(ddx(tangent)*along.x+ddy(tangent)*along.y,left);
-    [branch] if(FlatRiverFieldReady()&&resolved>.03&&r.width>.0001&&r.edge<.21&&field.g<.48)
+    [branch] if(!FLAT_VECTOR_FIELD&&FlatRiverFieldReady()&&resolved>.03&&r.width>.0001&&r.edge<.21&&field.g<.48)
     {
         // A bend sorts sediment over a length of channel. The derivative of a
         // bilinear atlas tangent changes abruptly at an individual grid line.
@@ -51,9 +53,12 @@ FlatRiverSection FlatRiverSectionAt(float2 cell,float4 channel,float4 field)
                        (1-smoothstep(.04,.23,float2(upstream.r,downstream.r)));
         float sum=support.x+support.y;
         float measured=(dot(tangent-a,left)*support.x+dot(b-tangent,left)*support.y)/(reach*max(.001,sum));
-        turn=lerp(turn,measured,smoothstep(.05,.84,sum));
+        float confidence=smoothstep(.05,.84,sum);
+        // Survey vertices are discrete. A screen derivative at a vertex or
+        // confluence would lay a stripe of cut-bank material across the river.
+        turn=lerp(turn,measured,confidence);
     }
-    r.bend=clamp(turn*.82,-1,1)*resolved;
+    r.bend=(analytic?bankProfile.y:clamp(turn*.82,-1,1))*resolved;
     float drop=-dot(float2(ddx(field.r),ddy(field.r)),along);
     r.grade=smoothstep(8,115,drop*(_MapSize.x/512));
     float bank=1-smoothstep(.001,.045+r.width*.85,r.edge);
@@ -62,9 +67,16 @@ FlatRiverSection FlatRiverSectionAt(float2 cell,float4 channel,float4 field)
     float2 seaward;
     float shore=FlatMetricShore(cell,field.g,seaward);
     float mouthSpan=clamp(.12+1.35*r.width,.14,.42);
-    r.influence=step(.0001,r.width)*bank*(1-smoothstep(-mouthSpan,.65*mouthSpan,shore));
+    // An outgoing current carries river waves beyond the coast. Along a beach
+    // or at an inland outlet the transition stays close to the channel.
+    float outgoing=smoothstep(.05,.75,dot(tangent,seaward));
+    float offshore=lerp(.65*mouthSpan,min(1.2,max(1.45*mouthSpan,4*r.width)),outgoing);
+    float upstream=-mouthSpan*(1-.5*outgoing);
+    r.influence=step(.0001,r.width)*bank*(1-smoothstep(upstream,offshore,shore));
     return r;
 }
+FlatRiverSection FlatRiverSectionAt(float2 cell,float4 channel,float4 field)
+{return FlatRiverSectionAt(cell,channel,field,0);}
 
 float FlatRiverDepthProfile(FlatRiverSection r)
 {
@@ -91,33 +103,31 @@ float FlatRiverRiffle(FlatRiverSection r,float3 position)
 
 struct FlatRiverWaveUV
 {
-    float4 uv; // Two downstream projections share the same cross-channel coordinate.
-    float weight;
+    float3 position,drift,weights;
+    float footprint,resolved;
 };
 
-FlatRiverWaveUV FlatRiverWaveCoordinates(FlatRiverSection r,float2 cell)
+FlatRiverWaveUV FlatRiverWaveCoordinates(FlatRiverSection r,float3 artwork,float3 drift,float3 weights,float groundPixel)
 {
     FlatRiverWaveUV waves;
-    float across=r.across*r.width*3;
-    float frequency=max(1,round(_MapSize.x*.58))/max(1,_MapSize.x);
-    waves.uv=float4(across,cell.x*frequency*sign(r.flow.x),across+.37,cell.y*.58*sign(r.flow.y)+.41);
-    float2 weight=r.flow*r.flow;weight*=weight;
-    waves.weight=weight.x/max(.0001,weight.x+weight.y);
+    // The SW3 image contains several large ripples per repeat. A 7 km
+    // repeat on Earth resolves those bands at local-map scale. Keep all
+    // phases anchored on the sphere; only the short advection vector turns.
+    float frequency=lerp(.85,40030/(7*max(1,_MapSize.x)),saturate(_RiverSurvey));
+    waves.position=artwork*frequency;waves.drift=drift;waves.weights=weights;
+    waves.footprint=max(.000001,groundPixel*frequency);
+    waves.resolved=smoothstep(.60,2.3,r.width/max(.00001,groundPixel));
     return waves;
 }
 
-float2 FlatRiverSW3Normal(sampler2D artwork,FlatRiverWaveUV waves,float scale,float phase,float lod)
+float2 FlatRiverSW3Normal(sampler2D artwork,FlatRiverWaveUV waves,float phase,float lod,float3 right,float3 up)
 {
-    float4 uv=waves.uv*scale-float4(0,phase,0,phase);
-    float2 a=UnpackNormal(tex2Dlod(artwork,float4(uv.xy,0,lod))).xy;
-    float2 b=UnpackNormal(tex2Dlod(artwork,float4(uv.zw,0,lod))).xy;
-    return lerp(b,a,waves.weight);
+    return FlatDetailNormal(artwork,waves.position-waves.drift*phase,waves.weights,0,lod,right,up);
 }
 
 float FlatRiverSW3Foam(sampler2D artwork,FlatRiverWaveUV waves,float phase,float lod)
 {
-    float4 uv=waves.uv-float4(0,phase,0,phase);
-    return lerp(tex2Dlod(artwork,float4(uv.zw,0,lod)).r,tex2Dlod(artwork,float4(uv.xy,0,lod)).r,waves.weight);
+    return FlatDetailTexture(artwork,waves.position-waves.drift*phase,waves.weights,0,lod);
 }
 
 float3 FlatRiverSubstrate(float3 localBed,float3 position,FlatRiverSection r,float across,float sediment,float footprint)
@@ -128,9 +138,8 @@ float3 FlatRiverSubstrate(float3 localBed,float3 position,FlatRiverSection r,flo
     float grainVisibility=1-smoothstep(.025,.11,footprint);
     // Fine deposits collect on the inside of a bend. Sorted bands follow the
     // actual bank, including where its reach crosses a dry simulation tile.
-    float sorted=sin(across*15+(patch-.5)*5);
     float3 sand=lerp(float3(.76,.71,.57),float3(.59,.54,.43),saturate(sediment*1.5));
-    sand*=1+(grain*.23+sorted*.045)*grainVisibility+(patch-.5)*.10;
+    sand*=1+grain*.23*grainVisibility+(patch-.5)*.10;
     float3 gravel=FlatColor(float3(.54,.54,.47)*(1+grain*.32*grainVisibility));
     return lerp(lerp(localBed,gravel,r.grade*.46),FlatColor(sand),bar*.86);
 }
@@ -140,10 +149,12 @@ float3 FlatRiverBank(float3 land,float3 bed,float3 relief,float3 position,FlatRi
 {
     float bar=FlatRiverPointBar(r,r.across);
     float variation=FlatDetailNoise(position*3.1+21);
-    float width=clamp(r.width*lerp(.26,1.34,bar),.009,.19)*lerp(.66,1.25,variation);
+    float viewScale=1-_RiverGlobeNarrowing;
+    float width=min(.19*viewScale,r.width*lerp(.21,.87,bar))*lerp(.82,1.15,variation);
+    aa*=viewScale;
     float coverage=(1-smoothstep(0,width+aa,r.edge))*dry*(1-smoothstep(-.15,.12,basinShore));
     float3 material=FlatRiverSubstrate(bed,position,r,r.across,sediment,footprint);
     float damp=1-smoothstep(0,width*.76+aa*.25,r.edge);
-    return lerp(land,material*relief*(1-.14*damp),coverage*lerp(.46,.91,bar));
+    return lerp(land,material*relief*(1-.14*damp),coverage*lerp(.36,.75,bar));
 }
 #endif

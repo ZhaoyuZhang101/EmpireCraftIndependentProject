@@ -23,6 +23,9 @@ namespace Orbis.Flat
         Camera viewCamera;
         Mesh mesh;
         Material material;
+#if UNITY_EDITOR
+        readonly FlatShaderPreview editorPreview = new FlatShaderPreview();
+#endif
         MeshRenderer display;
         Vector2[] previousPositions,directions;
         float[] screenFacing;
@@ -76,6 +79,10 @@ namespace Orbis.Flat
             material.SetFloat("_LocalPhysicalArtwork",navigation.IsAtlas?0:1);
             if(navigation.IsAtlas)material.EnableKeyword("ORBIS_ATLAS_PLANTS");
             else material.DisableKeyword("ORBIS_ATLAS_PLANTS");
+#if UNITY_EDITOR
+            var draw = editorPreview.ForDraw(material, 0);
+            if (display.sharedMaterial != draw) display.sharedMaterial = draw;
+#endif
             vertices.Clear();pixels.Clear();actors.Clear();states.Clear();geography.Clear();motion.Clear();cellMappings.Clear();indices.Clear();
             float pixelScale=(float)(Math.PI*2/world.Width/32);
             Vector3 screenRight=viewCamera.transform.right*pixelScale,screenUp=viewCamera.transform.up*pixelScale;
@@ -151,6 +158,9 @@ namespace Orbis.Flat
         }
         void OnDestroy()
         {
+#if UNITY_EDITOR
+            editorPreview.Dispose();
+#endif
             Camera.onPreCull-=BeforeCameraRender;
             Simulation?.Dispose();
             if(mesh)Destroy(mesh);if(material)Destroy(material);

@@ -19,6 +19,7 @@ namespace Orbis.Editor
             var probe=new Material(AssetDatabase.LoadAssetAtPath<Shader>("Assets/ORBIS/Editor/VegetationParallaxProbe.shader"));
             var field=new Texture2D(Width,Height,TextureFormat.RGBAFloat,false,true);
             var info=new Texture2D(Width,Height,TextureFormat.RGBA32,false,true);
+            var bank=RiverAtlasRegression.BindUniformBank(probe,Width,Height,.16f);
             int atlasRows=Mathf.CeilToInt((float)(Width/MarkleyProjection.Aspect));
             var mesh=CreateLattice(256,128,false);
             var atlasMesh=CreateLattice(Width,atlasRows,true);
@@ -123,6 +124,27 @@ namespace Orbis.Editor
                             float overlap=intersection/(float)Math.Max(1,union);
                             report.Add($"{(union>25&&overlap>.96f?"PASS":"FAIL")} {kind}, row {tile.y}, slope {slope}, silhouette overlap {overlap:P2} ({intersection}/{union})");
                         }
+                        // Draw just the selected clump over a dry receiver on
+                        // the steep fixture. Its source must follow both the
+                        // readable zoom width and the physical seasonal stage.
+                        probe.SetFloat("_ProbeKind",2);
+                        int InkPixels()=>Array.FindAll(Render(),p=>Mathf.Max(p.r,Mathf.Max(p.g,p.b))>.008f).Length;
+                        int dry=InkPixels();
+                        probe.SetFloat("_PixelsPerTile",4);probe.SetFloat("_RiverMinPixels",2.4f);
+                        probe.SetFloat("_RiverAtlasReady",1);
+                        int wet=InkPixels();
+                        report.Add($"{(dry>0&&wet==0?"PASS":"FAIL")} {kind}, row {tile.y}, zoom-widened river excludes source on relief, dry / wet pixels {dry} / {wet}");
+                        if(!tree)
+                        {
+                            probe.SetFloat("_RiverMinPixels",0);RiverAtlasRegression.WriteUniformBank(bank,.018f);
+                            int low=InkPixels();
+                            probe.SetTexture("_RiverSeasonTex",Texture2D.whiteTexture);
+                            probe.SetFloat("_RiverSeasonReady",1);
+                            int high=InkPixels();
+                            report.Add($"{(low>0&&high==0?"PASS":"FAIL")} {kind}, row {tile.y}, spring flood excludes roots, low / high stage pixels {low} / {high}");
+                            probe.SetFloat("_RiverSeasonReady",0);RiverAtlasRegression.WriteUniformBank(bank,.16f);
+                        }
+                        probe.SetFloat("_RiverAtlasReady",0);probe.SetFloat("_RiverMinPixels",0);
                     }
                 }
                 report.Add($"{(acrossTile>0?"PASS":"FAIL")} crown coverage beyond the source tile, {acrossTile} pixels");
@@ -143,7 +165,7 @@ namespace Orbis.Editor
                 RenderTexture.active=previous;ShaderUtil.allowAsyncCompilation=async;
                 commands.Release();RenderTexture.ReleaseTemporary(target);
                 plantHeights.Dispose();atlasHeights.Dispose();
-                foreach(var resource in new UnityEngine.Object[]{read,preview,mesh,atlasMesh,probe,info,field})
+                foreach(var resource in new UnityEngine.Object[]{read,preview,mesh,atlasMesh,probe,info,field,bank})
                     UnityEngine.Object.DestroyImmediate(resource);
             }
             if(report.Exists(s=>s.StartsWith("FAIL")))throw new Exception(string.Join("\n",report));

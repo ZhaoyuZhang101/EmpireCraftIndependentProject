@@ -18,11 +18,16 @@ Shader "Hidden/ORBIS/PolarDetailProbe"
    {
     float4 field=FlatField(_ProbeOrigin.xy*_MapSize.xy);
     float2 gradient=0;
+    if(_ProjectionProbe>7.5)
+    {
+     float weight=FlatEarthLandRelief(_ProbeOrigin.xy,1-step(8.5,_ProjectionProbe),field.r,gradient);
+     return float4(field.r,weight,gradient);
+    }
     if(_ProjectionProbe>6.5)
     {
      float2 coast;float before=field.g;
      FlatEarthRelief(_ProbeOrigin.xy,field.r,gradient,coast);
-     FlatApplyEarthShore(_ProbeWaterKind,field.g,coast);
+     FlatApplyEarthShore(_ProbeOrigin.xy,_ProbeWaterKind,field.g,coast);
      return float4(field.g,before,coast.y,1);
     }
     if(_ProjectionProbe>5.5)FlatEarthRelief(_ProbeOrigin.xy,field.r,gradient);

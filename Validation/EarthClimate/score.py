@@ -6,6 +6,7 @@ import hashlib
 import json
 import os
 import struct
+import sys
 from pathlib import Path
 
 import numpy as np
@@ -22,11 +23,23 @@ REGIONS = {
     "Sahara interior": (-10, 28, 20, 30),
     "Congo basin": (16, 29, -5, 4),
     "Indian monsoon": (73, 86, 16, 28),
+    "Mainland Indochina": (97, 107, 10, 20),
+    "Philippines": (119, 127, 5, 18),
+    "Western Ghats coast": (72, 76, 13, 18),
+    "Deccan leeward": (76, 80, 13, 18),
+    "Thar lowlands": (69, 74, 25, 29),
+    "Lower Gangetic plain": (83, 89, 23, 27),
+    "Assam valley": (90, 96, 25, 28),
     "North China Plain": (114, 119, 34, 40),
+    "Bohai hinterland": (116, 125, 38, 43),
+    "Southeast Inner Mongolia": (113, 119, 42, 45),
+    "Eastern Liaoning": (124, 126, 40, 42.5),
     "Middle/lower Yangtze": (110, 121, 28, 33),
     "South China": (108, 117, 22, 26),
     "Sichuan Basin": (103, 108, 28, 32),
     "Tarim interior": (78, 87, 38, 41),
+    "Northeast China Plain": (122, 128, 43, 48),
+    "Central Tibetan Plateau": (82, 94, 30, 35),
     "Sahel": (-13, 28, 12, 17),
     "Interior Australia": (122, 140, -31, -21),
     "Western Europe": (-5, 12, 46, 54),
@@ -127,6 +140,26 @@ def metrics(model, reference, area):
     }
 
 
+def warmest_month_boundary(t, observed_t, latitude, area):
+    hot, observed_hot = t.max(axis=1), observed_t.max(axis=1)
+    high = np.abs(latitude) >= 55
+    subsets = {"high_latitude": high, "observed_7_to_13_c": high & (np.abs(observed_hot - 10) <= 3)}
+    result = {}
+    for name, mask in subsets.items():
+        weight = area[mask]
+        if not weight.size:
+            result[name] = None
+            continue
+        cold, observed_cold = hot[mask] <= 10, observed_hot[mask] <= 10
+        result[name] = {
+            "cells": int(mask.sum()), "area_km2": float(weight.sum()),
+            "temperature_c": metrics(hot[mask], observed_hot[mask], weight),
+            "false_cold_area_share": float(weight[cold & ~observed_cold].sum() / weight.sum()),
+            "false_warm_area_share": float(weight[~cold & observed_cold].sum() / weight.sum()),
+        }
+    return result
+
+
 def region_summary(t, p, area):
     mt = np.average(t, axis=0, weights=area)
     mp = np.average(p, axis=0, weights=area)
@@ -203,7 +236,8 @@ def score(model_file, split):
             "export": {"file": model_file.name, "width": width, "height": height, "sha256": digest},
             "footprint_sha256": hashlib.sha256(np.sort(ids).astype("<u2").tobytes()).hexdigest(),
             "eligible_source_area_km2": float(area.sum()), "total_source_area_km2": total_area,
-            "metrics": stats, "wet_dry": wetdry, "regions": regions, "blocks": blocks, "common_land": common_land}
+            "metrics": stats, "wet_dry": wetdry, "warmest_month_boundary": warmest_month_boundary(t, ot, lat, area),
+            "regions": regions, "blocks": blocks, "common_land": common_land}
 
 
 def print_report(report):
@@ -254,9 +288,16 @@ if __name__ == "__main__":
     parser.add_argument("export", type=Path)
     parser.add_argument("--split", choices=("calibration", "holdout", "all"), default="calibration")
     parser.add_argument("--json", type=Path, help="Write full monthly, seasonal and regional results.")
+    parser.add_argument("--emit-koppen-normals", action="store_true",
+                        help="Stream the two collocated float32 monthly fields for the C# Köppen scorer.")
     parser.add_argument("--check-improvement", action="store_true",
                         help="Require finite monthly MAE and RMSE below the pinned 256/512 holdout baselines.")
     args = parser.parse_args()
+    if args.emit_koppen_normals:
+        _, temperature, precipitation = collocate(args.export)
+        for field in (temperature, precipitation):
+            sys.stdout.buffer.write(np.asarray(field, dtype="<f4").tobytes(order="C"))
+        sys.exit(0)
     report = score(args.export, args.split)
     print_report(report)
     if args.json:

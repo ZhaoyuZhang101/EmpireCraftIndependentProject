@@ -10,13 +10,47 @@ Shader "Hidden/ORBIS/VegetationArtProbe"
  #include "../Resources/ORBIS/FlatWorld/Water/FlatWater.cginc"
  #include "../Resources/ORBIS/FlatWorld/FlatSkyComposite.cginc"
  sampler2D _InfoTex;
+ #define ORBIS_DIRECT_TREE_BANK_TEST 1
  #include "../Resources/ORBIS/FlatWorld/FlatPixelDetail.cginc"
  float2 _ProbeRoot;
+ float2 _ProbeGrid;
  float _ProbeMode;
  float _ProbeSpecies,_ProbeSeed,_ProbeFoliage;
  float3 _ProbeLight;
  float4 frag(v2f_img i):SV_Target
  {
+  if(_ProbeMode>12.5)
+  {
+   float2 id=_ProbeRoot+floor(i.uv*_ProbeGrid);
+   float2 uv=(id+PDTreePlacement(id).xy/32)*_MapSize.zw;
+   float shore=FlatVisualSample(float4(uv,0,0)).g;
+   float kind=tex2Dlod(_InfoTex,float4((id+.5)*_MapSize.zw,0,0)).g*255;
+   return float4(FlatEarthTreeBank(uv,kind,shore),FlatCachedTreeBank(id,shore));
+  }
+  if(_ProbeMode>11.5)
+  {
+   float2 cell=_ProbeRoot*_MapSize.xy;
+   float4 placement=float4(frac(cell)*32,.65,0);
+   float shore=-3;
+   float lake=FlatEarthLake(_ProbeRoot,0,0,shore);
+   return float4(shore,lake,PDTreeSizeAt(floor(cell),placement,0,float4(-1,0,0,0),true),1);
+  }
+  if(_ProbeMode>9.5)
+  {
+   float2 id=_ProbeRoot+floor(i.uv*_ProbeGrid);
+   float4 placement=PDTreePlacement(id);
+   float2 uv=(id+placement.xy/32)*_MapSize.zw;
+   float2 root=FlatEarthStrait(uv,0);
+   if(_ProbeMode>10.5)
+   {
+    float2 centreUV=(id+.5)*_MapSize.zw;
+    float4 info=tex2Dlod(_InfoTex,float4(centreUV,0,0))*255;
+    float4 ecology=FlatEcologyData(centreUV,info);placement.w=ecology.a;
+    return float4((uv-.5)*float2(360,180),root.x*40030.2*_MapSize.z,PDTreeAvailable(id,placement,info,ecology));
+   }
+   float centre=FlatEarthStrait((id+.5)*_MapSize.zw,0).x;
+   return float4(PDTreeSizeAt(id,placement,0,float4(-1,0,0,0),true),root,centre);
+  }
   if(_ProbeMode>2.5)
   {
    float2 pixel=floor((i.uv-float2(.5,.30))*48);

@@ -9,10 +9,20 @@ namespace Orbis.Flat
     // its edited elevations remain authoritative for picking, paths and water.
     internal sealed class FlatEarthPolarRelief : IDisposable
     {
-        readonly Texture2D bed, coast, coverage, lakes, lakeDetail;
-        static Texture2D sharedLakes, sharedLakeDetail;
+        readonly Texture2D bed, coast, coverage, lakes, lakeDetail, straits, straitDetail, marineDepth;
+        static Texture2D sharedLakes, sharedLakeDetail, sharedMarineDepth;
+        static FlatEarthLandRelief sharedLand;
+        static FlatEarthOceanShore sharedOcean;
+        // A loaded V5 map and a newly generated map may coexist during handover.
+        static readonly Texture2D[] sharedStraits = new Texture2D[2], sharedStraitDetail = new Texture2D[2];
+        static readonly int[] straitUsers = new int[2];
+        readonly int straitVersion = -1;
         static int lakeUsers;
         Vector4 poleCoverage;
+        RenderTexture treeBanks;
+        Material treeBankBake;
+
+        internal static float? SurveyedLandHeight(float u, float v) => sharedLand?.HeightAt(u, v);
 
         internal static FlatEarthPolarRelief Create(WorldData world)
         {
@@ -39,11 +49,27 @@ namespace Orbis.Flat
             coast = Atlas("Natural Earth polar shoreline", TextureFormat.R8, shore, size);
             if (lakeUsers == 0)
             {
+                sharedLand = new FlatEarthLandRelief();
                 sharedLakes = LoadLakeShore(false);
                 if (sharedLakes) sharedLakeDetail = LoadLakeShore(true);
             }
             lakes = sharedLakes;
             lakeDetail = sharedLakeDetail;
+            if (world.UsesSurveyedStraits)
+            {
+                straitVersion = world.UsesGlobalStraits ? 1 : 0;
+                if (straitUsers[straitVersion]++ == 0)
+                {
+                    if (world.UsesGlobalStraits) sharedOcean = FlatEarthOceanShore.Load(SystemInfo.maxTextureSize);
+                    LoadStraitShore(world.UsesGlobalStraits, out sharedStraits[straitVersion], out sharedStraitDetail[straitVersion]);
+                    if (world.UsesGlobalStraits && !sharedStraits[straitVersion] && SystemInfo.maxTextureSize < 8192)
+                        LoadStraitShore(false, out sharedStraits[straitVersion], out sharedStraitDetail[straitVersion]);
+                }
+                straits = sharedStraits[straitVersion];
+                straitDetail = sharedStraitDetail[straitVersion];
+                if (straits && !sharedMarineDepth) sharedMarineDepth = LoadMarineDepth(SystemInfo.maxTextureSize);
+                marineDepth = sharedMarineDepth;
+            }
             lakeUsers++;
             coverage = new Texture2D(world.Width, world.Height, TextureFormat.RG16, false, true) {
                 name = "Earth survey coverage and marine support", filterMode = FilterMode.Bilinear,
@@ -64,7 +90,8 @@ namespace Orbis.Flat
                 if (data.Length < 15 || reader.ReadUInt32() != (detail ? 0x31444c4fu : 0x314b4c4fu))
                     throw new InvalidDataException("Invalid shoreline header.");
                 int width = reader.ReadInt32(), height = reader.ReadInt32();
-                if (detail ? width != 4096 || height <= 256 || height > 8192 || (height-256)%66 != 0
+                int indexRows = width == 8192 ? 128 : 256;
+                if (detail ? (width != 4096 && width != 8192) || height <= indexRows || height > 8192 || (height-indexRows)%66 != 0
                            : width != 8192 || height != 4096 || (data.Length-12)%3 != 0)
                     throw new InvalidDataException("Invalid shoreline dimensions.");
                 if (Math.Max(width, height) > SystemInfo.maxTextureSize) return null;
@@ -95,7 +122,7 @@ namespace Orbis.Flat
                 }
                 if (offset != pixels.Length) throw new InvalidDataException("Incomplete shoreline texture.");
                 var map = new Texture2D(width, height, TextureFormat.R8, !detail, true) {
-                    name = name, filterMode = detail ? FilterMode.Bilinear : FilterMode.Trilinear,
+                    name = name, filterMode = detail ? FilterMode.Point : FilterMode.Trilinear,
                     wrapModeU = detail ? TextureWrapMode.Clamp : TextureWrapMode.Repeat, wrapModeV = TextureWrapMode.Clamp
                 };
                 map.SetPixelData(pixels, 0);
@@ -107,6 +134,114 @@ namespace Orbis.Flat
                 Debug.LogWarning(name + ": " + e.Message);
                 return null;
             }
+        }
+
+        static void LoadStraitShore(bool global, out Texture2D regional, out Texture2D detail)
+        {
+            regional = detail = null;
+            string name = global ? "EarthGlobalStraitShore" : "EarthStraitShore";
+            var asset = Resources.Load<TextAsset>("ORBIS/FlatWorld/" + name);
+            if (!asset) return;
+            try
+            {
+                using var stream = new MemoryStream(asset.bytes, false);
+                using var reader = new BinaryReader(stream);
+                if (stream.Length <= 20 || reader.ReadUInt32() != (global ? 0x3248534fu : 0x3148534fu)) // OSH2 / OSH1
+                    throw new InvalidDataException("Invalid regional shoreline header.");
+                int width = reader.ReadInt32(), height = reader.ReadInt32();
+                int fineWidth = reader.ReadInt32(), fineHeight = reader.ReadInt32();
+                if (global ? (width != 2048 && width != 4096 && width != 8192) || (fineWidth != 4096 && fineWidth != 8192)
+                           : width != 2048 || fineWidth != 4096)
+                    throw new InvalidDataException("Invalid regional shoreline atlas width.");
+                int header = (1440*720 + width-1)/width;
+                int maxDimension = global ? 8192 : 4096;
+                if (height <= header || height > maxDimension || (height-header)%19 != 0 ||
+                    fineHeight <= 0 || fineHeight > maxDimension || fineHeight%130 != 0)
+                    throw new InvalidDataException("Invalid regional shoreline dimensions.");
+                int limit = SystemInfo.maxTextureSize;
+                if (width > limit || height > limit) return;
+                using var inflater = new DeflateStream(stream, CompressionMode.Decompress);
+                byte[] shore = ReadPixels(inflater, width*height*2);
+                byte[] fine = fineWidth <= limit && fineHeight <= limit ? ReadPixels(inflater, fineWidth*fineHeight) : null;
+                if (fine != null && inflater.ReadByte() != -1) throw new InvalidDataException("Excess regional shoreline data.");
+                regional = StraitTexture("Natural Earth strait regions", TextureFormat.RG16, width, height, shore);
+                if (fine != null) detail = StraitTexture("Natural Earth strait banks", TextureFormat.R8, fineWidth, fineHeight, fine);
+            }
+            catch (Exception e) when (e is InvalidDataException || e is IOException)
+            {
+                Debug.LogWarning(name + ": " + e.Message);
+            }
+        }
+
+        static Texture2D LoadMarineDepth(int limit)
+        {
+            var asset = Resources.Load<TextAsset>("ORBIS/FlatWorld/EarthMarineDepth");
+            if (!asset) return null;
+            try
+            {
+                using var stream = new MemoryStream(asset.bytes, false);
+                using var reader = new BinaryReader(stream);
+                if (stream.Length <= 12 || reader.ReadUInt32() != 0x3144424fu) // OBD1
+                    throw new InvalidDataException("Invalid marine depth header.");
+                int width = reader.ReadInt32(), height = reader.ReadInt32();
+                if (width != 2048 || height <= 507 || height > 8192 || (height-507)%17 != 0)
+                    throw new InvalidDataException("Invalid marine depth dimensions.");
+                if (width > limit || (height > limit && limit < 4096)) return null;
+                using var inflater = new DeflateStream(stream, CompressionMode.Decompress);
+                byte[] pixels = ReadPixels(inflater, width*height*2);
+                if (inflater.ReadByte() != -1) throw new InvalidDataException("Excess marine depth pixels.");
+                if (height > limit) pixels = RepackMarineDepth(pixels, ref width, ref height);
+                if (height > limit) return null;
+                return StraitTexture("ETOPO 2022 coastal depths", TextureFormat.RG16, width, height, pixels);
+            }
+            catch (Exception e) when (e is InvalidDataException || e is IOException)
+            {
+                Debug.LogWarning("EarthMarineDepth: " + e.Message);
+                return null;
+            }
+        }
+
+        static byte[] RepackMarineDepth(byte[] source, ref int width, ref int height)
+        {
+            // Two rows of 120 geographic pages fit side by side on a 4096-wide GPU.
+            // Directory IDs and the 17 x 17 native depths of every page stay exact.
+            const int page = 17, entries = 1440*720;
+            int header = (entries+width-1)/width, cols = width/page;
+            int pageRows = (height-header)/page, wider = width*2;
+            int newHeader = (entries+wider-1)/wider, newHeight = newHeader+(pageRows+1)/2*page;
+            var destination = new byte[wider*newHeight*2];
+            Buffer.BlockCopy(source,0,destination,0,entries*2);
+            for (int row=0;row<pageRows;row++)
+            for (int y=0;y<page;y++)
+            {
+                int from=(header+row*page+y)*width;
+                int to=(newHeader+row/2*page+y)*wider+(row%2)*cols*page;
+                Buffer.BlockCopy(source,from*2,destination,to*2,cols*page*2);
+            }
+            width=wider; height=newHeight;
+            return destination;
+        }
+
+        static byte[] ReadPixels(Stream stream, int length)
+        {
+            var pixels = new byte[length];
+            for (int offset = 0; offset < length;)
+            {
+                int count = stream.Read(pixels, offset, length-offset);
+                if (count == 0) throw new InvalidDataException("Incomplete regional texture.");
+                offset += count;
+            }
+            return pixels;
+        }
+
+        static Texture2D StraitTexture(string name, TextureFormat format, int width, int height, byte[] pixels)
+        {
+            var texture = new Texture2D(width, height, format, false, true) {
+                name = name, filterMode = FilterMode.Bilinear, wrapMode = TextureWrapMode.Clamp, anisoLevel = 0
+            };
+            texture.SetPixelData(pixels, 0);
+            texture.Apply(false, true);
+            return texture;
         }
 
         static Texture2D Atlas(string name, TextureFormat format, byte[] data, int size)
@@ -148,8 +283,34 @@ namespace Orbis.Flat
             coverage.Apply(false, false);
         }
 
+        internal void UpdateTreeBanks(Material surface, bool terrainChanged)
+        {
+            if (!treeBanks)
+            {
+                if (!terrainChanged || (!lakes && !straits && (straitVersion != 1 || sharedOcean == null))) return;
+                var shader = Resources.Load<Shader>("ORBIS/FlatWorld/TreeBanks");
+                if (!shader || !shader.isSupported) return;
+                treeBankBake = new Material(shader);
+                var format = SystemInfo.SupportsRenderTextureFormat(RenderTextureFormat.RGHalf) ? RenderTextureFormat.RGHalf :
+                    SystemInfo.SupportsRenderTextureFormat(RenderTextureFormat.ARGBHalf) ? RenderTextureFormat.ARGBHalf : RenderTextureFormat.ARGBFloat;
+                treeBanks = new RenderTexture(coverage.width, coverage.height, 0, format, RenderTextureReadWrite.Linear) {
+                    name = "Earth banks at geographic tree roots", filterMode = FilterMode.Point,
+                    wrapModeU = TextureWrapMode.Repeat, wrapModeV = TextureWrapMode.Clamp
+                };
+            }
+            if (!terrainChanged && treeBanks.IsCreated()) return;
+            // The caller has published both terrain fields and the player-edit mask.
+            treeBankBake.CopyPropertiesFromMaterial(surface);
+            var previous = RenderTexture.active;
+            try { Graphics.Blit(null, treeBanks, treeBankBake, 0); }
+            finally { RenderTexture.active = previous; }
+            surface.SetTexture("_EarthTreeBanks", treeBanks);
+        }
+
         internal void Bind(Material material)
         {
+            sharedLand?.Bind(material);
+            if (treeBanks && material.HasProperty("_EarthTreeBanks")) material.SetTexture("_EarthTreeBanks", treeBanks);
             material.SetTexture("_EarthPolarBed", bed);
             material.SetTexture("_EarthPolarCoast", coast);
             material.SetTexture("_EarthSurveyMask", coverage);
@@ -158,6 +319,12 @@ namespace Orbis.Flat
             if (lakes) material.SetTexture("_EarthLakeShore", lakes);
             if (lakeDetail) material.SetTexture("_EarthLakeDetail", lakeDetail);
             material.SetFloat("_EarthLakeReady", lakes ? 1 : 0);
+            FlatEarthOceanShore.Bind(material, straitVersion == 1 ? sharedOcean : null);
+            material.SetTexture("_EarthStraitShore", straits ? straits : Texture2D.blackTexture);
+            material.SetTexture("_EarthStraitDetail", straitDetail ? straitDetail : Texture2D.blackTexture);
+            material.SetFloat("_EarthStraitReady", straits || (straitVersion == 1 && sharedOcean != null) ? 1 : 0);
+            if (material.HasProperty("_EarthMarineDepth"))
+                material.SetTexture("_EarthMarineDepth", marineDepth ? marineDepth : Texture2D.blackTexture);
         }
 
         public void Dispose()
@@ -165,11 +332,24 @@ namespace Orbis.Flat
             UnityEngine.Object.Destroy(bed);
             UnityEngine.Object.Destroy(coast);
             UnityEngine.Object.Destroy(coverage);
+            if (treeBanks) treeBanks.Release();
+            UnityEngine.Object.Destroy(treeBanks);
+            UnityEngine.Object.Destroy(treeBankBake);
+            if (straitVersion >= 0 && --straitUsers[straitVersion] == 0)
+            {
+                if (straitVersion == 1) { sharedOcean?.Dispose(); sharedOcean = null; }
+                UnityEngine.Object.Destroy(sharedStraits[straitVersion]);
+                UnityEngine.Object.Destroy(sharedStraitDetail[straitVersion]);
+                sharedStraits[straitVersion] = sharedStraitDetail[straitVersion] = null;
+            }
             if (--lakeUsers == 0)
             {
+                sharedLand?.Dispose();
+                sharedLand = null;
                 UnityEngine.Object.Destroy(sharedLakes);
                 UnityEngine.Object.Destroy(sharedLakeDetail);
-                sharedLakes = sharedLakeDetail = null;
+                UnityEngine.Object.Destroy(sharedMarineDepth);
+                sharedLakes = sharedLakeDetail = sharedMarineDepth = null;
             }
         }
     }

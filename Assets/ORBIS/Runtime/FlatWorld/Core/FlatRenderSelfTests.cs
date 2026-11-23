@@ -232,6 +232,24 @@ namespace Orbis.Flat
             var legacy=FlatSave.Decode(FlatSave.Encode(highland));
             Check(legacy.Biomes[0]==Biome.Snow&&legacy.Facts.Vegetation[0]==VegetationCover.BorealForest&&legacy.Facts.Canopy[0]>.5f,
                 "Legacy highland snow labels rebuild climate-suitable forest presentation");
+            var plain=new WorldData(64,32,"wetland-edge",TerrainPreset.Continents);
+            for(int i=0;i<plain.Count;i++)
+            {
+                plain.Elevation[i]=plain.WaterLevel[i]=24;plain.DrainOrder[i]=i;plain.Climates[i]=Koppen.Cfa;
+                for(int m=0;m<12;m++){plain.Temperature[i*12+m]=19;plain.Precipitation[i*12+m]=120;}
+            }
+            FlatTerrainAnalysis.Build(plain,default,true,1);
+            var shore=plain.Clone();shore.Water[shore.Index(32,16)]=WaterKind.Lake;
+            FlatTerrainAnalysis.Build(shore,default,true,1);
+            float change=0;int edges=0;
+            for(int dy=-2;dy<=2;dy++)for(int dx=-2;dx<=2;dx++)
+            {
+                int i=shore.Index(32+dx,16+dy);
+                if(dx*dx+dy*dy<4 || shore.Biomes[i]!=Biome.Wetland || plain.Facts.Canopy[i]<.7f)continue;
+                change+=Math.Abs(shore.Facts.Canopy[i]-plain.Facts.Canopy[i]);edges++;
+            }
+            Check(edges>0&&change/edges<.15f,"A lake must not cut a square opening in woodland at the outer margin of its wetland");
+            Check(shore.Biomes[shore.Index(32,17)]==Biome.Wetland,"Fresh shallow banks retain their wetland habitat");
         }
         static void TestVegetationSeasons()
         {

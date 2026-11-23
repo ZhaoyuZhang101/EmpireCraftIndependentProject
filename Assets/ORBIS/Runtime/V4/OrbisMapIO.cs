@@ -9,7 +9,7 @@ namespace Orbis
         static byte[] ReadBounded(string path)
         {
             var file=new FileInfo(path);if(!file.Exists)throw new FileNotFoundException("找不到地图："+path);
-            if(file.Length<32||file.Length>OrbisRasterCodec.MaxBytes)throw new InvalidDataException("每张地图须小于 32 MiB。");return File.ReadAllBytes(path);
+            if(file.Length<32||file.Length>OrbisRasterCodec.MaxBytes)throw new InvalidDataException($"每张地图须在 32 字节至 {OrbisRasterCodec.MaxBytes/1048576} MiB 之间。");return File.ReadAllBytes(path);
         }
         public static OrbisWorldMap Read(string heightPath,string riverPath,float sea=.475f,float span=2)
         {return new OrbisWorldMap(ReadBounded(heightPath),string.IsNullOrWhiteSpace(riverPath)?null:ReadBounded(riverPath),sea,span);}

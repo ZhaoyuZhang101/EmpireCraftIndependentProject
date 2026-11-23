@@ -63,6 +63,7 @@ namespace Orbis.Flat
         int nextSlot;
         double previousDay = double.NaN;
         FlatClimateYear currentYear;
+        FlatMonthlyForcing season;
         public int CachedWaterStations => slots?.Count ?? 0;
 
         struct Station
@@ -104,6 +105,56 @@ namespace Orbis.Flat
             normals = new FlatRiverDischarge.WaterMonth[capacity * Months];
         }
 
+        // Reconstruct monthly normals at the geographic point, using atmospheric
+        // temperature above the sampled terrain and excluding ocean bathymetry.
+        public static void SampleNormals(WorldData world, double u, double v, float? elevation,
+            Span<float> temperature, Span<float> precipitation)
+        {
+            if (world == null) throw new ArgumentNullException(nameof(world));
+            if (!OrbisAtmosphereCore.Finite(u) || !OrbisAtmosphereCore.Finite(v) ||
+                (elevation.HasValue && !FMath.Finite(elevation.Value)))
+                throw new ArgumentException("Invalid climate sample coordinates or elevation.");
+            if (temperature.Length < Months || precipitation.Length < Months)
+                throw new ArgumentException("Twelve temperature and precipitation outputs are required.");
+
+            double x = (u - Math.Floor(u)) * world.Width - .5;
+            double y = Math.Max(0, Math.Min(world.Height - 1, v * world.Height - .5));
+            int column = (int)Math.Floor(x), row = (int)y;
+            int nextRow = Math.Min(row + 1, world.Height - 1);
+            float east = (float)(x - column), north = (float)(y - row);
+            Span<int> cells = stackalloc int[]
+            {
+                world.Index(column, row), world.Index(column + 1, row),
+                world.Index(column, nextRow), world.Index(column + 1, nextRow)
+            };
+            Span<float> weights = stackalloc float[]
+            {
+                (1 - east) * (1 - north), east * (1 - north),
+                (1 - east) * north, east * north
+            };
+            float heightCorrection = 0;
+            if (elevation.HasValue)
+            {
+                float meanHeight = 0;
+                for (int i = 0; i < cells.Length; i++)
+                    meanHeight += weights[i] * FlatClimate.SurfaceHeight(world, cells[i]);
+                heightCorrection = (meanHeight - elevation.Value) * .0065f *
+                    (world.PlanetClimate?.MoistLapseRateScale ?? 1f);
+            }
+            for (int month = 0; month < Months; month++)
+            {
+                float heat = 0, rain = 0;
+                for (int i = 0; i < cells.Length; i++)
+                {
+                    int offset = cells[i] * Months + month;
+                    heat += weights[i] * world.Temperature[offset];
+                    rain += weights[i] * world.Precipitation[offset];
+                }
+                temperature[month] = FMath.Clamp(heat + heightCorrection, -85, 55);
+                precipitation[month] = rain;
+            }
+        }
+
         public FlatClimateObservation Normal(int tile, int month)
         {
             if ((uint)tile >= (uint)world.Count) return FlatClimateObservation.Missing;
@@ -143,32 +194,33 @@ namespace Orbis.Flat
         {
             if ((uint)tile >= (uint)world.Count || !OrbisAtmosphereCore.Finite(day))
                 return FlatClimateObservation.Missing;
-            double whole = Math.Floor(day / MonthDays);
-            if (whole <= long.MinValue || whole >= long.MaxValue) return FlatClimateObservation.Missing;
-            long absoluteMonth = (long)whole;
-            int m = FMath.Wrap((int)(absoluteMonth % Months), Months), next = (m + 1) % Months;
-            // A negative epsilon belongs to December even when its fractional
-            // phase rounds to one. Keep that integer calendar month for water.
-            double phase = Math.Min(1, Math.Max(0, (day - whole * MonthDays) / MonthDays));
-            float blend = (float)phase, seasonalMonth = (float)(m + phase);
-            int x = tile % world.Width, y = tile / world.Width, a = tile * Months + m, b = tile * Months + next;
+            if (day != previousDay)
+            {
+                var nextSeason = new FlatMonthlyForcing(day);
+                if (nextSeason.AbsoluteMonth <= long.MinValue || nextSeason.AbsoluteMonth >= long.MaxValue)
+                    return FlatClimateObservation.Missing;
+                season = nextSeason;
+                currentYear = FlatClimateYear.At(seed, day);
+                previousDay = day;
+            }
+            long absoluteMonth = (long)season.AbsoluteMonth;
+            int m = season.Month, x = tile % world.Width, y = tile / world.Width, start = tile * Months;
             float u = (x + .5f) / world.Width, v = (y + .5f) / world.Height;
             var direction = new AtmosVector(sinLon[x] * cosLat[y], sinLat[y], cosLon[x] * cosLat[y]);
-            if (day != previousDay) { currentYear = FlatClimateYear.At(seed, day); previousDay = day; }
             currentYear.Offsets((float)direction.X, (float)direction.Y, (float)direction.Z, out float degrees, out float fraction);
             var value = FlatClimateObservation.Missing;
             value.Source = FlatClimateObservationSource.RegionalForcing;
             value.Elevation = world.Elevation[tile];
-            value.Temperature = FMath.Lerp(world.Temperature[a], world.Temperature[b], blend) + degrees;
-            Rain(ref value, FMath.Lerp(world.Precipitation[a], world.Precipitation[b], blend) * (1 + fraction));
-            value.Pressure = pressure.Current(PressureField.Cell(x, y, world), day, m, next, blend, seasonalMonth, currentYear);
+            value.Temperature = season.Sample(world.Temperature, start) + degrees;
+            Rain(ref value, season.Sample(world.Precipitation, start, ClimateRange.Nonnegative) * (1 + fraction));
+            value.Pressure = pressure.Current(PressureField.Cell(x, y, world), day, season, currentYear);
             var air = world.Moisture;
             double east = double.NaN, north = double.NaN;
             if (air != null)
             {
-                value.Humidity = Column(air, air.Humidity, u, v, m, next, blend);
-                east = Column(air, air.East, u, v, m, next, blend) * FlatCycloneWeather.ClimateWindMetresPerSecond;
-                north = Column(air, air.North, u, v, m, next, blend) * FlatCycloneWeather.ClimateWindMetresPerSecond;
+                value.Humidity = season.Sample(air, air.Humidity, u, v, ClimateRange.Fraction);
+                east = season.Sample(air, air.East, u, v) * FlatCycloneWeather.ClimateWindMetresPerSecond;
+                north = season.Sample(air, air.North, u, v) * FlatCycloneWeather.ClimateWindMetresPerSecond;
             }
             if (storms != null && storms.StepIndex == FlatCycloneWeather.StepAt(day))
             {
@@ -208,11 +260,6 @@ namespace Orbis.Flat
             if (precipitation < 0 || !OrbisAtmosphereCore.Finite(precipitation)) return;
             value.Precipitation = precipitation / MonthDays;
             value.PrecipitationWindowDays = MonthDays;
-        }
-
-        static float Column(FlatMoistureState air, float[] data, float u, float v, int m, int next, float blend)
-        {
-            return FMath.Lerp(air.Sample(data, u, v, m), air.Sample(data, u, v, next), blend);
         }
 
         // The saved tracker has a centre deficit and eyewall wind, not a solved
@@ -317,11 +364,12 @@ namespace Orbis.Flat
             readonly double[] groundCorrection = new double[Width * Height], latitudes = new double[Height];
             readonly double[] normals = new double[Width * Height * Months], current = new double[Width * Height];
             readonly double[] rowDays = new double[Height], thermalRow = new double[Width];
-            readonly float[] land;
+            readonly float[] land, glebaPressureOffset;
 
             internal PressureField(WorldData world)
             {
                 source = world;
+                glebaPressureOffset = FlatWeatherSimulation.BuildGlebaPressureOffsets(world);
                 var localLand = new float[tiles.Length];
                 for (int y = 0; y < Height; y++)
                 {
@@ -352,7 +400,8 @@ namespace Orbis.Flat
                     for (int x = 0; x < Width; x++)
                     {
                         int i = y * Width + x;
-                        normals[i * Months + m] = FlatWeatherSimulation.SeaLevelPressure(latitudes[y], m, land[i], thermalRow[x] - sum / Width);
+                        double glebaOff = glebaPressureOffset == null ? 0 : glebaPressureOffset[i * Months + m];
+                        normals[i * Months + m] = FlatWeatherSimulation.SeaLevelPressure(latitudes[y], m, land[i], thermalRow[x] - sum / Width) + glebaOff;
                     }
                 }
             }
@@ -362,7 +411,7 @@ namespace Orbis.Flat
                 return (2 * y + 1) * Height / (2 * world.Height) * Width + (2 * x + 1) * Width / (2 * world.Width);
             }
             internal double Normal(int cell, int month) { return normals[cell * Months + month]; }
-            internal double Current(int cell, double day, int month, int next, float blend, float season, FlatClimateYear year)
+            internal double Current(int cell, double day, FlatMonthlyForcing season, FlatClimateYear year)
             {
                 int y = cell / Width;
                 if (rowDays[y] == day) return current[cell];
@@ -373,14 +422,15 @@ namespace Orbis.Flat
                     int i = first + x, start = tiles[i] * Months;
                     var p = directions[i];
                     year.Offsets((float)p.X, (float)p.Y, (float)p.Z, out float degrees, out _);
-                    thermalRow[x] = FMath.Lerp(source.Temperature[start + month], source.Temperature[start + next], blend)
+                    thermalRow[x] = season.Sample(source.Temperature, start)
                         + degrees + groundCorrection[i];
                     sum += thermalRow[x];
                 }
                 for (int x = 0; x < Width; x++)
                 {
                     int i = first + x;
-                    current[i] = FlatWeatherSimulation.SeaLevelPressure(latitudes[y], season, land[i], thermalRow[x] - sum / Width);
+                    double glebaOff = glebaPressureOffset == null ? 0 : season.Sample(glebaPressureOffset, i * Months);
+                    current[i] = FlatWeatherSimulation.SeaLevelPressure(latitudes[y], season.SeasonalMonth, land[i], thermalRow[x] - sum / Width) + glebaOff;
                 }
                 rowDays[y] = day;
                 return current[cell];

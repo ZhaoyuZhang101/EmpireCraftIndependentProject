@@ -5,5 +5,13 @@
   <ItemGroup><Compile Include="ClimateMathRegression.cs"/><Compile Include="BiomeStatisticsRegression.cs"/><Compile Include="ClimateObservationRegression.cs"/></ItemGroup>
   <ItemGroup><Compile Include="RegionalStatisticsRegression.cs"/><Compile Include="TectonicsRegression.cs"/></ItemGroup>
   <ItemGroup><Compile Include="PolarTerrainRegression.cs"/></ItemGroup>
-  <ItemGroup><Compile Include="BasinWaterRegression.cs"/><Compile Include="RiverMapRegression.cs"/></ItemGroup>
+  <ItemGroup><Compile Include="BasinWaterRegression.cs"/><Compile Include="RiverMapRegression.cs"/><Compile Include="LakeIceRegression.cs"/></ItemGroup>
+  <ItemGroup><Compile Include="SeaRouteRegression.cs"/></ItemGroup>
+  <ItemGroup><Compile Include="SeasonalRainfallRegression.cs"/><Compile Include="SeasonalTemperatureRegression.cs"/></ItemGroup>
+  <ItemGroup><Compile Include="OrographicRainfallRegression.cs"/></ItemGroup>
+  <ItemGroup><Compile Include="WindBeltRegression.cs"/><Compile Include="OceanCirculationRegression.cs"/></ItemGroup>
+  <ItemGroup><Compile Include="MoistureFluxRegression.cs"/></ItemGroup>
+  <ItemGroup><Compile Include="GlebaSupplementRegression.cs"/><Compile Include="ExoPlaSimSupplementRegression.cs"/></ItemGroup>
+  <ItemGroup><Compile Include="../../Assets/ORBIS/Runtime/V4/OrbisRasterCodec.cs"/></ItemGroup>
+  <ItemGroup><Compile Include="../../Assets/ORBIS/Runtime/Planet/Core/PlanetCoordinateSystem.cs"/><Compile Include="../../Assets/ORBIS/Runtime/Planet/Core/PlanetSurfaceData.cs"/></ItemGroup>
 </Project>

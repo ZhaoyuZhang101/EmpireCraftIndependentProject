@@ -65,7 +65,13 @@ float4 FlatWaterPropReflection(float2 cell,float waterHeight,float3 ray,float3 l
         {
             float tree;
             float4 ecology=FlatEcologyData(uv,info,tree);placement.w=ecology.a;
-            if(!PDTreeAvailable(source,placement,info,ecology))continue;
+            float size=PDTreeSize(source,placement,info,ecology);
+            if(size<=0)continue;
+            float ratio=placement.z/size;
+            pixel*=ratio;
+            if(!PDTreeInDrawBounds(pixel))continue;
+            fade=1-smoothstep(44,58,length(ground)*ratio);
+            if(fade<.001)continue;
             float shore=1-smoothstep(.2,1.2,-FlatVisualSample(float4(uv,0,0)).g);
             float species=PDTreeSpecies(ecology,info,shore,tree);
             float leaf=FlatVegetationSeason(source+.5).y;
@@ -90,7 +96,12 @@ float3 FlatReflectWater(float3 color,float2 cell,float4 field,float waterHeight,
     float3 sky=FlatWaterSkyReflection(cell,ray,sun,light,clouds);
     // Replace the original constant sky contribution after depth/foam blending.
     color-=light*float3(.34,.48,.58)*surface.skyWeight*skyVisible;
-    color=lerp(max(0,color),sky,weight);
+    float3 transmitted=max(0,color);
+    // The still lake has already reserved its Fresnel share of the radiance.
+    // Fill that share with the geographic sky instead of dimming the bed again.
+    float reflectedLake=surface.skyWeight*skyVisible;
+    color=lerp(lerp(transmitted,sky,weight),transmitted+sky*reflectedLake,surface.lake);
+    weight=lerp(weight,reflectedLake,surface.lake);
     #ifdef ORBIS_FLAT_PIXEL_DETAIL
     if(props>.001&&field.g<1.6&&_FieldReady>.5)
     {

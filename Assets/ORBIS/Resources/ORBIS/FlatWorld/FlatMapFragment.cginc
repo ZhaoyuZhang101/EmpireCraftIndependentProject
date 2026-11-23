@@ -1,6 +1,22 @@
    // Map readability (globals, 0 = off): minimum on-screen width of main
    // channels when zoomed out, and a clear-water tint for river channels.
-   float _RiverMinPixels,_RiverTint;
+   float _RiverTint;
+   float4 _SelectedPoint;
+   // Invert the local UV-to-screen differential so the marker stays the same
+   // screen size on the globe, on oblique atlas copies and across the date line.
+   float FlatPointInk(float2 uv)
+   {
+    if (_SelectedPoint.z < .5) return 0;
+    float2 offset=uv-_SelectedPoint.xy, dx=ddx(uv), dy=ddy(uv);
+    offset.x-=round(offset.x); dx.x-=round(dx.x); dy.x-=round(dy.x);
+    float det=dx.x*dy.y-dx.y*dy.x;
+    if (abs(det)<1e-14) return 0;
+    float2 pixel=abs(float2(offset.x*dy.y-offset.y*dy.x,dx.x*offset.y-dx.y*offset.x)/det);
+    return saturate(1.45-abs(max(pixel.x,pixel.y)-7))*saturate(min(pixel.x,pixel.y)-3);
+   }
+   #ifdef ORBIS_DIAGNOSTIC
+   #include "FlatCirculationOverlay.cginc"
+   #endif
 #ifdef ORBIS_LOCAL_SURFACE
    float4 _LocalFocus,_LocalEditFootprint;
    float FlatFocusCorners(float2 pixels,float radius)
@@ -26,6 +42,53 @@
     return .12+.60*max(ink.x,ink.y);
    }
 #endif
+#if defined(ORBIS_PREVIEW)
+   float4 frag(v2f i):SV_Target
+   {
+    #ifdef ORBIS_LOCAL_SURFACE
+    float2 uv=LocalGeoUV(i.uv);
+    #else
+    float2 uv=MarkleyGeoUV(i.uv);
+    #endif
+    float3 colour=tex2D(_MainTex,uv).rgb;
+    if(max(_Natural,_Political)>.5 && _FieldReady>.5)
+    {
+     // The natural RGB texture is the dry ground below the continuous water
+     // mask. Composite the same banks in the temporary editor preview.
+     float2 cell=uv*_MapSize.xy;
+     float kind=round(255*tex2Dlod(_InfoTex,float4((floor(cell)+.5)*_MapSize.zw,0,0)).g);
+     float4 field=FlatField(cell);
+     float2 gradient=0,coast;
+     FlatEarthRelief(uv,field.r,gradient,coast);
+     float chart=FlatSurveyBasinShore(uv,cell,_InfoTex,kind,field.g,coast);
+     float lake=FlatEarthLake(uv,kind,chart,field.g);
+     float aa=FlatEarthShoreAA(uv,clamp(.65/max(1,_PixelsPerTile),.008,.28),chart);
+     float wet=smoothstep(-aa,aa,field.g);
+     float3 sea=kind==1?float3(24,57,80):kind==2?float3(36,92,120):float3(68,146,149);
+     float inland=max(lake,step(.5,1-abs(kind-4)));
+     colour=lerp(colour,FlatColor(lerp(sea,float3(89,155,167),inland)/255),wet);
+    }
+    if(_Political>.5)
+    {
+     float4 owner=tex2D(_OwnerTex,uv);
+     colour=lerp(colour,owner.rgb,.34*step(.001,owner.a));
+    }
+    if(_RiverOverviewReady>.5 && (_RiverMap>.5 || _WaterView>.5))
+    {
+     float2 dx=ddx(uv),dy=ddy(uv);dx.x-=round(dx.x);dy.x-=round(dy.x);
+     float lod=log2(max(1,max(length(dx*_RiverOverview_TexelSize.zw),length(dy*_RiverOverview_TexelSize.zw))));
+     float ink=FlatPresentationSample(_RiverOverview,uv,lod).r;
+     colour=lerp(colour,FlatColor(float3(.15,.40,.56)),ink);
+    }
+    if(max(_Natural,_Political)>.5)colour*=FlatDayLight(FlatRadial(uv),uv);
+    colour=lerp(colour,FlatColor(float3(1,.91,.61)),FlatPointInk(uv));
+    #ifdef UNITY_COLORSPACE_GAMMA
+    colour=GammaToLinearSpace(max(0,colour));
+    #endif
+    return float4(colour,1);
+   }
+#else
+   #include "FlatLakeIce.cginc"
    float4 frag(v2f i):SV_Target
    {
 #ifdef ORBIS_SCROLL_SURFACE
@@ -36,7 +99,7 @@
 #elif defined(ORBIS_SCROLL_SURFACE)
     i.uv=MarkleyGeoUV(i.uv);
 #endif
-#ifdef ORBIS_SCROLL_SURFACE
+#if defined(ORBIS_SCROLL_SURFACE) && !defined(ORBIS_DIAGNOSTIC)
     float2 chartRightGeographic,chartUpGeographic;
     FlatChartGeographicBasis(i.uv,chartCoordinate,chartRightGeographic,chartUpGeographic);
 #endif
@@ -45,6 +108,18 @@
     float2 cellDx,cellDy;FlatCellScreenDerivatives(cell,cellDx,cellDy);
     float2 cellPerPixel=max(1e-5,sqrt(cellDx*cellDx+cellDy*cellDy));
 #endif
+#ifdef ORBIS_DIAGNOSTIC
+    // Class colours use exact tile centres. The flow layer uses a smooth
+    // pressure/SST map below its independently sampled vector field.
+    float2 displayUV=lerp(uv,FlatBlendUV(cell),step(.5,_GlebaCirculation.x));
+    float4 display=tex2Dlod(_MainTex,float4(displayUV,0,0));
+    float waterMask;
+    float3 col=FlatDiagnosticSurface(display,i.uv,cell,_InfoTex,_PixelsPerTile,waterMask);
+    #ifdef ORBIS_LOCAL_SURFACE
+    float3 world=i.world.xyz/max(1e-6,i.world.w);
+    float2 projected=float2(dot(world-_ScrollNormal,_ScrollRight),dot(world-_ScrollNormal,_ScrollUp));
+    #endif
+#else
     float naturalView=max(_Natural,_Political);
     float terrainView=max(naturalView,_DrawHeight);
     float2 colorUV=lerp(uv,FlatBlendUV(cell),_SmoothTerrain*terrainView);
@@ -54,29 +129,25 @@
     float4 field=FlatField(cell);
     float gridBed=field.r;
     float2 terrainGradient=0,surveyCoast=0;
-    float surveyWeight=0,surveyLake=0;
+    float surveyWeight=0,surveyLake=0,surveyStrait=0;
     if(terrainView>.5||_WaterView>.5||_RiverMap>.5)
     {
      if(terrainView>.5)terrainGradient=FlatFieldGradient(cell,0);
      surveyWeight=FlatEarthRelief(i.uv,field.r,terrainGradient,surveyCoast);
-     FlatApplyEarthShore(info.g,field.g,surveyCoast);
-     surveyLake=FlatEarthLake(i.uv,info.g,field.g);
+     surveyStrait=FlatSurveyBasinShore(i.uv,cell,_InfoTex,info.g,field.g,surveyCoast);
+     surveyLake=FlatEarthLake(i.uv,info.g,surveyStrait,field.g);
     }
     float edgeDistance;
-    float aa=clamp(.65/max(1,_PixelsPerTile),.008,.28);
-    float4 river=FlatRiverReceiver(cell,uv,hydro,mixing,field);
+    float aa=FlatEarthShoreAA(i.uv,clamp(.65/max(1,_PixelsPerTile),.008,.28),surveyStrait);
+    float2 riverBank;
+    float4 river=FlatRiverReceiver(cell,uv,hydro,mixing,field,riverBank);
     float overviewInk=0,closeRiver=0;
     if(_WaterView>.5||_RiverMap>.5)overviewInk=FlatRiverMapInk(cell,river,closeRiver);
     float riverRadius=length(river.ba);
-    [branch] if(_RiverMinPixels>0&&river.r<1&&riverRadius>.0001)
-    {
-     // Larger discharge (wider channel) earns more of the minimum. The atlas
-     // field reaches ~0.3 tile beyond a reach, so the widened edge stays inside it.
-     float wanted=min(.28,_RiverMinPixels*.5/max(1,_PixelsPerTile))*smoothstep(.03,.10,riverRadius);
-     float grow=max(0,wanted-riverRadius);
-     river.r-=grow;river.ba*=(riverRadius+grow)/riverRadius;
-    }
-    float waterMask=FlatWaterMask(river.r,field.g,aa,edgeDistance);
+    river=FlatRiverDisplaySample(river,_PixelsPerTile);
+    float waterMask=FlatDisplayedWaterMask(river.r,field.g,aa,_PixelsPerTile,edgeDistance);
+    float landBed=field.r,landSurvey=0;
+    if(terrainView>.5)landSurvey=FlatEarthLandRelief(i.uv,1-waterMask,landBed,terrainGradient);
     float polarIce=FlatPolarIceMask(i.uv,waterMask,0)*naturalView;
     float landSnow=FlatLandSnow(cell,_InfoTex)*(1-waterMask)*naturalView;
     float4 season=float4(1,1,0,.5);
@@ -116,25 +187,25 @@
      float4 localMoon=float4(FlatGeographicLight(i.uv,_OrbisMoon.xyz),_OrbisMoon.w*_OrbisNightParams.x);
      terrainLight=FlatTerrainLight(localSun,localMoon,_FlatDayNight*naturalView);
      if(waterMask<.999||_DrawHeight>.5)
-      terrainRelief=FlatTerrainRelief(cell,gridBed,terrainGradient,terrainLight,surfaceView,FlatWetMineral(substrate.z,surfaceWetness,field.a),surveyWeight);
+      terrainRelief=FlatTerrainRelief(cell,gridBed,terrainGradient,terrainLight,surfaceView,FlatWetMineral(substrate.z,surfaceWetness,field.a),max(surveyWeight,landSurvey));
      snowSurface=FlatTerrainSnow(snowCover,cell,terrainGradient,_PixelsPerTile);
     }
-    float frozen=max(polarIce,snowSurface);
-    // A seasonal snowpack covers the ground under trees and buildings.
-    float permanentIce=max(polarIce,landSnow*snowSurface/max(.00001,snowCover));
+    float lakeIce=0,waterIce=polarIce,lakePixelKm=40030.2*FlatEarthGroundFootprint(i.uv);
+    float frozen=max(waterIce,snowSurface);
     if(naturalView>.5)
     {
-     float2 ecologyCell=FlatEcotoneCell(cell,field.g);
-     col=tex2D(_MainTex,FlatBlendUV(ecologyCell)).rgb;
+     col=FlatEcotoneAlbedo(_MainTex,cell,field.g,1);
+     float rockWeathering=FlatRockWeathering(col,substrate.a,season.b);
      col=FlatEcotoneColor(col,cell,field.a,substrate.a);
      col=lerp(col,FlatSeasonGround(col,field.a,season),1-waterMask);
      if(_DetailWeight<1)col=lerp(FlatVegetation(col,cell,field.a,_PixelsPerTile,plantView),col,_DetailWeight);
-     col=FlatTerrainFine(col,cell,_PixelsPerTile*(1-step(.999,waterMask)),terrainGradient,field,substrate.xy,surfaceWetness,terrainLight);
-     if(_DetailWeight>0)col=lerp(col,PixelGround(col,cell,field,waterMask,terrainGradient,FlatEcologyData(uv,info),plantView),_DetailWeight);
+     float4 landField=field;landField.r=landBed;
+     col=FlatTerrainFine(col,cell,_PixelsPerTile*(1-step(.999,waterMask)),terrainGradient,landField,substrate.xy,surfaceWetness,rockWeathering,terrainLight);
+     if(_DetailWeight>0)col=lerp(col,PixelGround(col,cell,landField,waterMask,terrainGradient,FlatEcologyData(uv,info),rockWeathering,plantView),_DetailWeight);
     }
     if(_DrawHeight>.5)
     {
-     col=FlatElevationColor(field.r);
+     col=FlatElevationColor(landBed);
      terrainRelief.rgb=dot(terrainRelief.rgb,float3(.2126,.7152,.0722));
     }
     col=lerp(col*terrainRelief.rgb,FlatColor(float3(.84,.87,.90)),terrainRelief.a);
@@ -143,14 +214,27 @@
      float wetSupport;
      float4 areaOptics=FlatAreaWaterOptics(cell,_InfoTex,float4(field.b,mixing.g,mixing.b,floor(info.g+.5)),wetSupport);
      if(surveyWeight>0&&wetSupport>0)areaOptics.r=max(.15,areaOptics.r+(gridBed-field.r));
-     FlatEarthMarineOptics(surveyCoast,field.r,areaOptics,wetSupport);
+     float surveyDepth=FlatEarthMarineOptics(i.uv,surveyCoast,field.r,surveyStrait,areaOptics,wetSupport);
+     float lakeReceiver=naturalView*FlatLakeIceReceiver(areaOptics.a,wetSupport,surveyLake,field.g,aa);
      FlatEarthLakeOptics(surveyLake,field.g,areaOptics,wetSupport);
-     FlatCoastalSediment coast=FlatCoastAt(cell,field,areaOptics,wetSupport,edgeDistance,frozen,_WaterClock);
-     FlatRiverSection channel=FlatRiverSectionAt(cell,river,field);
+     [branch] if(lakeReceiver>.0001)
+     {
+      polarIce*=1-lakeReceiver;
+      lakeIce=lakeReceiver*FlatLakeIceCover(i.uv,FlatRadial(i.uv),areaOptics.r,field.g,lakePixelKm);
+      waterIce=max(polarIce,lakeIce);frozen=max(waterIce,snowSurface);
+     }
+     float marineSupport=wetSupport*saturate(4-areaOptics.a);
+     float beachScale=FlatEarthBeachScale(surveyStrait*(1-surveyLake));
+     FlatCoastalSediment coast=FlatCoastAt(cell,field,areaOptics,wetSupport,edgeDistance,frozen,_WaterClock,beachScale);
+     coast.surveyDepthWeight=surveyDepth*(1-surveyLake);
+     FlatRiverSection channel=FlatRiverSectionAt(cell,river,field,riverBank);
      float sediment=FlatReachSediment(cell,channel,field.g,mixing.g);
      field.b=areaOptics.r;mixing.gb=areaOptics.gb;
      mixing.g=lerp(mixing.g,sediment,channel.influence);
-     col=FlatWaterBanks(cell,col,terrainRelief.rgb,channel,sediment,field.g,(1-waterMask)*_ShowBanks,aa,1/max(1,_PixelsPerTile));
+     // The Water overlay has a solid dry legend colour. Restore it where a
+     // surveyed bank lies inside a blue simulation cell, before shading water.
+     col=lerp(col,FlatColor(float3(118,123,113)/255),surveyStrait*(1-naturalView)*(1-waterMask));
+     col=FlatWaterBanks(cell,col,terrainRelief.rgb,channel,sediment,field.g,(1-waterMask)*_ShowBanks,aa,1/max(1,_PixelsPerTile),beachScale);
      col=lerp(col,coast.albedo*terrainRelief.rgb,coast.coverage*_ShowBanks*naturalView);
      col*=illumination;
      float3 bottom=FlatMaterialColor(floor(geo.g+.5))*.72;
@@ -160,42 +244,45 @@
      if(_ShowWater>.5)
      {
       FlatWaterSurfaceData waterSurface;
-      waterColor=FlatWaterShade(cell,mixing,field,bottom,illumination,waterView,waterLight,_WaveAmount*(1-polarIce),areaOptics.a,coast,channel,waterSurface);
+      waterColor=FlatWaterShade(cell,mixing,field,bottom,illumination,waterView,waterLight,_WaveAmount*(1-waterIce),areaOptics.a,coast,channel,waterSurface);
       // Emphasize channels only while their physical width is unresolved.
       // The optical weight also fades across the submerged bank at a mouth.
       float riverPixels=2*riverRadius*_PixelsPerTile;
-      float exposedReach=1-smoothstep(-max(.04,aa),0,field.g);
+      float exposedReach=max(1-smoothstep(-max(.04,aa),0,field.g),marineSupport);
       float tint=saturate(_RiverTint)*channel.influence*exposedReach*(1-smoothstep(1.5,5,riverPixels));
       waterColor=lerp(waterColor,FlatColor(float3(.17,.43,.62))*illumination,tint);
       // Keep the normal derivatives above uniform across shorelines. Only the
       // reflection lookup can be skipped for completely dry receivers.
-      [branch] if(waterMask>.001)
+      [branch] if(waterMask>.001&&lakeIce<.999)
       {
-       float waterHeight=field.r+field.b;
+       // An optical bed below the coarse terrain still reflects at sea level.
+       float waterHeight=lerp(field.r+field.b,0,coast.surveyDepthWeight);
        #ifdef ORBIS_SCROLL_SURFACE
        if(_ScrollMorph>.999&&_ScrollRelief.x>.05)
         waterHeight=dot(world-_ScrollNormal,_ScrollNormal)/max(1e-9,_ScrollHeightScale*_ScrollRelief.w);
        #endif
-       float reflectionDetail=_DetailWeight*naturalView*(1-polarIce)*waterMask;
+       float reflectionDetail=_DetailWeight*naturalView*(1-waterIce)*waterMask;
        waterColor=FlatReflectWater(waterColor,cell,field,waterHeight,waterView,waterLight,illumination,waterSurface,_FlatClouds*_SkyReady,reflectionDetail);
       }
      }
      col=lerp(col,waterColor,waterMask);
      // Keep unresolved channels visible through the same daylight and cloud pass.
-     float exposed=(1-smoothstep(-.04,.08,field.g))*(1-polarIce);
+     float exposed=max(1-smoothstep(-.04,.08,field.g),channel.influence*marineSupport)*(1-waterIce);
      col=lerp(col,FlatColor(float3(.15,.40,.56))*illumination,overviewInk*(1-closeRiver)*exposed*.79);
     }
     else col*=illumination;
     if(_RiverMap>.5)col=FlatRiverMapColor(cell,_InfoTex,info.g,field,aa,overviewInk,surveyLake);
-    if(frozen>.001)col=lerp(col,FlatPolarIceColor(i.uv,waterMask)*illumination*lerp(terrainRelief.rgb,1,waterMask),frozen);
-    float major;float contour=FlatContour(field.r,_ContourInterval,_PixelsPerTile,major);
+    float snowAndCap=max(polarIce,snowSurface);
+    if(snowAndCap>.001)col=lerp(col,FlatPolarIceColor(i.uv,waterMask)*illumination*lerp(terrainRelief.rgb,1,waterMask),snowAndCap);
+    if(lakeIce>.001)col=lerp(col,FlatLakeIceColor(FlatRadial(i.uv),lakePixelKm)*illumination,lakeIce);
+    float major;float contour=FlatContour(landBed,_ContourInterval,_PixelsPerTile,major);
     float contourStrength=max(_ShowContours,_DrawHeight)*smoothstep(3,5,_PixelsPerTile)*terrainView;
     float gentleSlope=FlatGentleContourWeight(terrainGradient);
     float landContour=contour*lerp(1-waterMask,1,_DrawHeight);
     landContour*=lerp(gentleSlope*lerp(1,.72,_DetailWeight),1,_DrawHeight);
     col=lerp(col,FlatColor(float3(.31,.30,.24))*illumination,landContour*contourStrength*lerp(.23,.42,major));
     float depthMajor;float depthContour=FlatContour(-field.b,_ContourInterval,_PixelsPerTile,depthMajor);
-    float depthContourStrength=waterMask*step(.01,field.g)*(1-polarIce)*_Bathymetry*(1-_DrawHeight)*gentleSlope;
+    float depthContourStrength=waterMask*step(.01,field.g)*(1-waterIce)*_Bathymetry*(1-_DrawHeight)*gentleSlope;
     col=lerp(col,FlatColor(float3(.075,.27,.36))*illumination,depthContour*depthContourStrength*contourStrength*lerp(.12,.23,depthMajor));
     if(_Political>.5)
     {
@@ -235,7 +322,9 @@
      // geographic receiver first discards most crown rows near the poles.
      if(_DetailWeight>0)
      {
-      col=lerp(col,PixelAmbientLife(col,cell,field,waterMask,info,illumination),_DetailWeight*(1-permanentIce));
+      // Snow lies under branches and buildings. Frozen water hides aquatic life.
+      float permanentIce=max(polarIce,landSnow*snowSurface/max(.00001,snowCover));
+      col=lerp(col,PixelAmbientLife(col,cell,field,waterMask,info,illumination),_DetailWeight*(1-max(permanentIce,lakeIce)));
       col=lerp(col,PixelProps(col,cell,field,waterMask,structure,illumination,plantView),_DetailWeight*(1-permanentIce));
      }
      float night=1-FlatDayWeight(FlatRadial(i.uv));
@@ -243,6 +332,7 @@
      col+=town*exp(-dot(structureOffset,structureOffset)*14)*night*_FlatNightLights*FlatColor(float3(.82,.42,.13))*.75;
      col=lerp(col,FlatSkyComposite(col,i.uv,cloud,_PixelsPerTile,weather,illumination),skyWeight);
     }
+#endif
 #ifdef ORBIS_LOCAL_SURFACE
     if(_ScrollMorph>=1)
     {
@@ -271,6 +361,10 @@
      col=lerp(col,FlatColor(float3(.20,.24,.21)),zoneMask*.24*(1-waterMask));
      if(_PixelsPerTile>=16){float tileMask=max(1-step(.5/_PixelsPerTile,f.x),1-step(.5/_PixelsPerTile,f.y));col*=1-tileMask*.10*(1-waterMask);}
     }
+    if (_SelectedPoint.z>.5)
+     col=lerp(col,FlatColor(float3(1,.91,.61)),FlatPointInk(i.uv));
+    else
+    {
     float selected=1-step(.5,max(abs(id.x-_Selected.x),abs(id.y-_Selected.y)));
     float selectionWidth=min(.20,1.5/max(1,_PixelsPerTile));
     float rim=1-step(selectionWidth,min(min(f.x,f.y),min(1-f.x,1-f.y)));
@@ -280,9 +374,11 @@
     float zoneRim=1-step(selectionWidth,min(min(selectedZone.x,selectedZone.y),min(4-selectedZone.x,4-selectedZone.y)));
     col=lerp(col,FlatColor(float3(.94,.84,.53)),inZone*zoneRim*.7);
     }
+    }
     #if defined(ORBIS_SCROLL_SURFACE) && defined(UNITY_COLORSPACE_GAMMA)
     // Native volume/display always consumes linear scene radiance, including its flat endpoint.
     col=GammaToLinearSpace(max(0,col));
     #endif
     return float4(max(0,col),1);
    }
+#endif

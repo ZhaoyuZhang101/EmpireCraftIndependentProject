@@ -15,12 +15,16 @@ namespace Orbis.Flat
         public readonly Landform[] Forms;
         public readonly GroundMaterial[] Materials;
         public readonly float[] Relief,Gradient,Hand,Wetness,AnnualRain,MeanTemperature;
+        public readonly float[] Biotemperature,GroundedIceMeters;
         public readonly float[] Sediment,Freshness,FlowX,FlowY,HalfWidth,Depth,ShoreDistance,Meander;
         public readonly byte[] SaturatedMonths,Connections;
         public readonly VegetationCover[] Vegetation;public readonly float[] Canopy;
         public readonly TreeSpecies[] Trees;
+        public readonly GlebaBiomeKind[] GlebaBiomes;
+        public GlebaGeographyFacts GlebaGeography { get; internal set; }
         public byte[] VegetationSeasons {get;internal set;}
         public bool VegetationSeasonsReady {get;internal set;}
+        public FlatLakeIceField LakeIce {get;internal set;}
         public readonly ushort[] FreshDistance;
         public FlatRiverCurves RiverCurves { get; internal set; }
         public FlatRiverDischarge RiverDischarge { get; internal set; }
@@ -29,22 +33,24 @@ namespace Orbis.Flat
         {
             Forms=new Landform[count];Materials=new GroundMaterial[count];
             Vegetation=new VegetationCover[count];Canopy=new float[count];
-            Trees=new TreeSpecies[count];
+            Trees=new TreeSpecies[count];GlebaBiomes=new GlebaBiomeKind[count];
             Relief=new float[count];Gradient=new float[count];Hand=new float[count];Wetness=new float[count];
             AnnualRain=new float[count];MeanTemperature=new float[count];
+            Biotemperature=new float[count];GroundedIceMeters=new float[count];
             Sediment=new float[count];Freshness=new float[count];FlowX=new float[count];FlowY=new float[count];
             HalfWidth=new float[count];Depth=new float[count];ShoreDistance=new float[count];Meander=new float[count];
             SaturatedMonths=new byte[count];Connections=new byte[count];FreshDistance=new ushort[count];
         }
         public FlatTerrainFacts Clone()
         {
-            var f=new FlatTerrainFacts(Forms.Length){MouthCount=MouthCount,RiverCurves=RiverCurves,RiverDischarge=RiverDischarge,
+            var f=new FlatTerrainFacts(Forms.Length){MouthCount=MouthCount,RiverCurves=RiverCurves,RiverDischarge=RiverDischarge,LakeIce=LakeIce,
+                GlebaGeography=GlebaGeography?.Clone(),
                 VegetationSeasons=VegetationSeasons==null?null:(byte[])VegetationSeasons.Clone(),VegetationSeasonsReady=VegetationSeasonsReady};
             Array.Copy(Vegetation,f.Vegetation,Forms.Length);Array.Copy(Canopy,f.Canopy,Forms.Length);
-            Array.Copy(Trees,f.Trees,Forms.Length);
+            Array.Copy(Trees,f.Trees,Forms.Length);Array.Copy(GlebaBiomes,f.GlebaBiomes,Forms.Length);
             Array.Copy(Forms,f.Forms,Forms.Length);Array.Copy(Materials,f.Materials,Forms.Length);
-            float[][] a={Relief,Gradient,Hand,Wetness,AnnualRain,MeanTemperature,Sediment,Freshness,FlowX,FlowY,HalfWidth,Depth,ShoreDistance,Meander};
-            float[][] b={f.Relief,f.Gradient,f.Hand,f.Wetness,f.AnnualRain,f.MeanTemperature,f.Sediment,f.Freshness,f.FlowX,f.FlowY,f.HalfWidth,f.Depth,f.ShoreDistance,f.Meander};
+            float[][] a={Relief,Gradient,Hand,Wetness,AnnualRain,MeanTemperature,Biotemperature,GroundedIceMeters,Sediment,Freshness,FlowX,FlowY,HalfWidth,Depth,ShoreDistance,Meander};
+            float[][] b={f.Relief,f.Gradient,f.Hand,f.Wetness,f.AnnualRain,f.MeanTemperature,f.Biotemperature,f.GroundedIceMeters,f.Sediment,f.Freshness,f.FlowX,f.FlowY,f.HalfWidth,f.Depth,f.ShoreDistance,f.Meander};
             for(int i=0;i<a.Length;i++)Array.Copy(a[i],b[i],Forms.Length);
             Array.Copy(SaturatedMonths,f.SaturatedMonths,Forms.Length);Array.Copy(Connections,f.Connections,Forms.Length);
             Array.Copy(FreshDistance,f.FreshDistance,Forms.Length);return f;
@@ -103,6 +109,11 @@ namespace Orbis.Flat
         public static Biome ClassifyBiome(Koppen k,float elevation,float temperature,float annualRain,
                                           byte wetMonths,float gradient,float hand,bool nearFresh,bool water,float warmest=float.NaN)
         {
+            return ClassifyBiome(k,elevation,temperature,annualRain,wetMonths,gradient,hand,nearFresh,water,warmest,0,false);
+        }
+        static Biome ClassifyBiome(Koppen k,float elevation,float temperature,float annualRain,byte wetMonths,
+                                   float gradient,float hand,bool nearFresh,bool water,float warmest,float dryStress,bool sheltered)
+        {
             if(water)return Biome.Water;
             if(k==Koppen.EF)return Biome.Snow;
             if(k==Koppen.ET)return Biome.Tundra;
@@ -113,7 +124,8 @@ namespace Orbis.Flat
             if(k==Koppen.BWh||k==Koppen.BWk)return Biome.Desert;
             if(k==Koppen.BSh||k==Koppen.BSk)return Biome.Steppe;
             if(k==Koppen.Af||k==Koppen.Am)return Biome.Rainforest;
-            if(k==Koppen.Aw)return Biome.Grassland;
+            if(k==Koppen.Aw)return FlatEcology.TropicalWoodland(temperature,annualRain,wetMonths,dryStress,sheltered)
+                ?Biome.Woodland:Biome.Grassland;
             if(k>=Koppen.Dsa&&k<=Koppen.Dfd&&temperature<8)return Biome.Taiga;
             return annualRain>=650?Biome.Woodland:Biome.Grassland;
         }
@@ -126,6 +138,7 @@ namespace Orbis.Flat
             Array.Copy(fresh,f.FreshDistance,w.Count);
             // HAND-like elevation above the drainage receiver; lakes have horizontal spill surfaces.
             var receiver=new int[w.Count];
+            var lakeRoots=new int[w.Count];
             // Reuse the unpublished meander cache for phase until the independent
             // row pass converts each cell to its final lateral offset.
             var channelPhase=f.Meander;
@@ -136,6 +149,7 @@ namespace Orbis.Flat
                 if((k&4095)==0)cancel.ThrowIfCancellationRequested();
                 int i=w.DrainOrder[k],p=w.Downstream[i];
                 receiver[i]=w.Water[i]!=WaterKind.Land?i:p<0?i:receiver[p];
+                lakeRoots[i]=w.Water[i]!=WaterKind.Lake?-1:(p>=0&&w.Water[p]==WaterKind.Lake&&w.WaterLevel[p]==w.WaterLevel[i])?lakeRoots[p]:i;
                 f.Hand[i]=Math.Max(0,w.Elevation[i]-w.WaterLevel[receiver[i]]);
                 if(w.Water[i]==WaterKind.River)
                 {
@@ -153,24 +167,37 @@ namespace Orbis.Flat
             double southBed=0,northBed=0;
             for(int x=0;x<w.Width;x++){southBed+=w.Elevation[x];northBed+=w.Elevation[w.Count-w.Width+x];}
             southBed/=w.Width;northBed/=w.Width;
+            float cellKm=40030f/w.Width; // Ground spacing of the spherical terrain footprint.
             Parallel.For(0,w.Height,FlatWorkerPolicy.Options(cancel,workers),y=>
             {
                 cancel.ThrowIfCancellationRequested();
                 var footprint=new FlatTerrainFootprint(w,y,southBed,northBed);
+                float v=(y+.5f)/w.Height;
                 for(int x=0;x<w.Width;x++)
                 {
                     int i=y*w.Width+x;
-                    footprint.Measure(w.Elevation,x,w.Elevation[i],out f.Relief[i],out float gradient);
+                    footprint.Measure(w.Elevation,x,w.Elevation[i],out f.Relief[i],out float gradient,out float landRelief,out float uphill);
                     f.Gradient[i]=gradient;
-                    float rain=0,temp=0,coldest=1000,warmest=-1000;
+                    float rain=0,temp=0,coldest=1000,warmest=-1000,minRain=float.MaxValue;
                     for(int m=0;m<12;m++)
                     {
                         float monthly=w.Temperature[i*12+m];
-                        rain+=w.Precipitation[i*12+m];temp+=monthly/12f;
+                        float monthlyRain=w.Precipitation[i*12+m];
+                        rain+=monthlyRain;temp+=monthly/12f;
                         coldest=Math.Min(coldest,monthly);warmest=Math.Max(warmest,monthly);
+                        minRain=Math.Min(minRain,monthlyRain);
                     }
                     f.AnnualRain[i]=rain;f.MeanTemperature[i]=temp;
+                    float biotemp=f.Biotemperature[i]=GlebaEcologySupplement.ComputeBiotemperature(w.Temperature,i*12,clampAbove30:true);
+                    bool area=AreaWater(w.Water[i]);
+                    f.GroundedIceMeters[i]=area
+                        ?GlebaEcologySupplement.ComputeSeaIceMeters(true,temp)
+                        :GlebaEcologySupplement.ComputeGroundedIceMeters(true,w.Elevation[i],warmest,rain/12f);
+                    var glebaFlora=GlebaEcologySupplement.EvaluateFlora(!area,area?0f:f.GroundedIceMeters[i],w.Elevation[i],Math.Abs(w.Latitude(i)),biotemp,rain,minRain,coldest);
+                    bool freshwater=w.Water[i]==WaterKind.Lake?(lakeRoots[i]>=0&&w.Downstream[lakeRoots[i]]>=0):!Ocean(w.Water[i]);
                     float storage=75,mean=0,growingSoil=0,growingWeight=0;int saturated=0;
+                    var air=w.Climates[i]==Koppen.Aw&&!area?w.Moisture:null;
+                    float u=(x+.5f)/w.Width,dryStress=0;
                     float riparian=0,waterHand=f.Hand[i];
                     // Neighbouring freshwater supports low banks, but not elevated ridges.
                     for(int oy=-2;oy<=2;oy++)for(int ox=-2;ox<=2;ox++)
@@ -193,16 +220,24 @@ namespace Orbis.Flat
                         if(m>=24)
                         {
                             mean+=storage/1800f;if(storage>=120)saturated++;
-                            float warmth=Math.Max(0,w.Temperature[i*12+m%12]-5);
+                            float monthly=w.Temperature[i*12+m%12];
+                            if(air!=null&&storage<150)
+                                dryStress+=FlatEcology.TropicalDryStress(monthly,storage/150,air.Sample(air.Humidity,u,v,m%12));
+                            float warmth=Math.Max(0,monthly-5);
                             growingSoil+=storage/150*warmth;growingWeight+=warmth;
                             f.VegetationSeasons[FlatEcology.SeasonOffset(w,i,m%12)+3]=(byte)(storage/150*255+.5f);
                         }
                     }
                     f.Wetness[i]=mean;f.SaturatedMonths[i]=(byte)saturated;
-                    bool area=AreaWater(w.Water[i]);
+                    bool isWetland=!area&&riparian>.18f&&saturated>=8&&gradient<=100&&waterHand<=100&&temp>-2f;
+                    f.GlebaBiomes[i]=GlebaEcologySupplement.ClassifyGlebaBiome(area,w.Water[i]==WaterKind.Lake,freshwater,f.GroundedIceMeters[i],w.Elevation[i],
+                        coldest,warmest,temp,w.Climates[i],in glebaFlora,isWetland);
                     f.Forms[i]=ClassifyForm(w.Elevation[i],f.Relief[i],gradient,f.Hand[i],fresh[i]<=1,area,
                         w.WaterLevel[i]>w.Elevation[i]||w.Downstream[i]<0);
-                    Biome biome=ClassifyBiome(w.Climates[i],w.Elevation[i],temp,rain,(byte)saturated,gradient,waterHand,riparian>.18f,area,warmest);
+                    // Positive uphill rise and above-sea relief avoid treating a deep coastline as shelter.
+                    bool sheltered=air!=null&&landRelief>=20*cellKm&&uphill>=2.5f*cellKm;
+                    Biome biome=ClassifyBiome(w.Climates[i],w.Elevation[i],temp,rain,(byte)saturated,
+                        gradient,waterHand,riparian>.18f,area,warmest,dryStress,sheltered);
                     Biome ecologyBiome=biome;
                     if(updateBiomes)
                     {
@@ -229,6 +264,19 @@ namespace Orbis.Flat
                     float canopy=FlatEcology.ContinuousCanopy(ecologyBiome,temp,rain,seasonalSoil,gradient,warmest);
                     float stand=FlatEcology.StandVariation(w,x,y,treeSeed,out float clearing);
                     f.Canopy[i]=FlatEcology.StandCanopy(f.Vegetation[i],canopy,seasonalSoil,warmest,riparian,clearing);
+                    if(ecologyBiome==Biome.Wetland && riparian<.65f)
+                    {
+                        // The wetland label is discrete. Fade the visual canopy into the
+                        // local climatic stand as freshwater supply reaches its outer edge.
+                        Biome background=ClassifyBiome(w.Climates[i],w.Elevation[i],temp,rain,(byte)saturated,
+                            gradient,waterHand,false,false,warmest,dryStress,sheltered);
+                        var cover=FlatEcology.Classify(background,w.Climates[i],temp,rain,gradient,warmest);
+                        float potential=FlatEcology.ContinuousCanopy(background,temp,rain,seasonalSoil,gradient,warmest);
+                        float standCover=cover==VegetationCover.Bare?0:
+                            FlatEcology.StandCanopy(cover,potential,seasonalSoil,warmest,0,clearing);
+                        float wet=FMath.Clamp((riparian-.18f)/(.65f-.18f),0,1);
+                        f.Canopy[i]=FMath.Lerp(standCover,f.Canopy[i],wet*wet*(3-2*wet));
+                    }
                     bool freshBank=fresh[i]<=2&&waterHand<=100;
                     f.Trees[i]=FlatEcology.SelectTree(f.Vegetation[i],w.Climates[i],coldest,warmest,seasonalSoil,freshBank,w.CoastDistance[i]<=2,stand);
                     FlatEcology.BuildSeasons(w,f,i,coldest);
@@ -284,8 +332,11 @@ namespace Orbis.Flat
                 else f.Sediment[i]=w.Water[i]==WaterKind.River?FMath.Clamp(.025f+concentration,.025f,.85f):0;
                 if(parent>=0)sedimentLoad[parent]+=sedimentLoad[i]*.99f;
             }
+            FlatEcology.ApplyNileCropland(w,f,cancel);
             FlatEcology.CompleteSeasonAtlas(w,f);
+            f.LakeIce=new FlatLakeIceField(w,cancel,workers);
             BuildPlumes(w,f,cancel);FlatSurfaceSampling.BuildShore(w,f,cancel);
+            f.GlebaGeography=GlebaGeographySupplement.Build(w,f,lakeRoots,cancel,workers);
             f.RiverCurves=FlatRiverCurves.Build(w,f,cancel);w.Facts=f;
         }
         static void BuildPlumes(WorldData w,FlatTerrainFacts f,CancellationToken cancel)

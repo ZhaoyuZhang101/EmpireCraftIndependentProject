@@ -1,0 +1,16 @@
+{
+  "dataset": "NOAA NCEI ETOPO 2022 60 Arc-Second Global Relief Model, ice surface; includes ocean bathymetry",
+  "doi": "https://doi.org/10.25921/fd45-gt74",
+  "source_sha256": "9d27d4b8ea8e76977e2988bca667d7c8fa68b927355feffcddd6b4875a7fd08e",
+  "vertical_datum": "EGM2008 orthometric height (metres)",
+  "license": "CC0-1.0 per NOAA dataset use constraints",
+  "overview": "3600 x 1800, area means of native 6 x 6 samples, rounded once in metres; south first",
+  "detail": "Native 60 arc-seconds between 60 S and 60 N; 1 degree pages with a shared geographic sample at each edge",
+  "page_selection": "Every page touching terrain at or above -500 m. Heights below -512 m are clamped for land shading.",
+  "pages": 16903,
+  "maximum_quantization_error_metres": 16.0,
+  "sha256": {
+    "EarthLandOverview.bytes": "83c6d69b66d77cac2b3b18d6a5c83a31018933b2ed13cdcb21432300191df05b",
+    "EarthLandDetail.bytes": "0513672d0955261002c0e8452371c42cd9acc7968ed793e1c3d9cd4486b5e0f9"
+  }
+}

@@ -22,14 +22,20 @@ namespace Orbis.Flat
             public VegetationCover Vegetation;
             public TreeSpecies Tree;
             public Landform Form;
-            public Color32 Owner;
+            public byte IslandCoverCode;
+            public Color32 Owner,OverlayColor;
             public float Temperature,Rain,Fertility,Depth,FlowX,FlowY,HalfWidth,Shore,Sediment,Freshness,Wetness,Hand,Canopy,Meander;
             public byte Connections;
+            public ushort RockWeathering;
         }
         public struct Pixel
         {
             public Color32 Terrain,Display,Owner,Info,Ecology;
             public Color Hydro,Mixing,Geometry,Visual;
+        }
+        struct PackedColors
+        {
+            public Color32 Terrain,Display,Info,Ecology;
         }
         public struct Chunk
         {
@@ -41,7 +47,7 @@ namespace Orbis.Flat
         NativeArray<Tile> tiles;
         NativeArray<int> indices,bands;
         NativeArray<uint> palette;
-        NativeArray<Pixel> output;
+        NativeArray<PackedColors> output;
         readonly List<Chunk> chunks=new List<Chunk>();
         JobHandle handle;
         int terrainRevision,month,climatePeriod;
@@ -63,7 +69,13 @@ namespace Orbis.Flat
         {
             if(disposed)throw new ObjectDisposedException(nameof(FlatMapRenderJobs));
             if(Pending)throw new InvalidOperationException("Complete the batch before reading its output.");
-            return output[index];
+            var color=output[index];
+            var t=tiles[indices[index]];
+            // The frozen tile already owns these float channels. Keeping a second native
+            // copy until upload would cost another 512 MiB on a 4096 x 2048 map.
+            return new Pixel{Terrain=color.Terrain,Display=color.Display,Owner=t.Owner,Info=color.Info,Ecology=color.Ecology,
+                Hydro=new Color(t.Depth,t.FlowX,t.FlowY,t.HalfWidth),Mixing=new Color(t.Meander,t.Sediment,t.Freshness,t.Connections),
+                Geometry=new Color(t.Elevation,(float)t.Material,t.Wetness,t.Hand),Visual=new Color(t.Elevation,t.Shore,t.Depth,t.Canopy)};
         }
         public FlatMapRenderJobs(WorldData world)
         {
@@ -71,7 +83,7 @@ namespace Orbis.Flat
             worldSeed=FMath.Seed(world.Seed);
             tiles=new NativeArray<Tile>(world.Count,Allocator.Persistent);
             indices=new NativeArray<int>(world.Count,Allocator.Persistent);
-            output=new NativeArray<Pixel>(world.Count,Allocator.Persistent);
+            output=new NativeArray<PackedColors>(world.Count,Allocator.Persistent);
             bands=new NativeArray<int>(HeightBands.Upper,Allocator.Persistent);
             // Read mutable managed palette tables once, never from a job.
             var colors=new List<uint>();colors.AddRange(FlatPalette.BiomeColors);colors.AddRange(FlatPalette.VegetationColors);
@@ -81,13 +93,45 @@ namespace Orbis.Flat
         Tile Capture(int i)
         {
             var f=source.Facts;int owner=source.Owner[i];
+            float canopy=f.Canopy[i];
+            if(source.Water[i]==WaterKind.Lake && f.ShoreDistance[i]<=2 && source.WaterReference!=null)
+            {
+                // A surveyed bank may expose land inside a coarse lake cell. Extend
+                // the canopy like the land albedo under that bank; water masks it.
+                float total=0,weight=0;
+                for(int dy=-2;dy<=2;dy++)for(int dx=-2;dx<=2;dx++)
+                {
+                    int d=dx*dx+dy*dy;
+                    if(d==0||d>4)continue;
+                    int n=source.Index(i%source.Width+dx,i/source.Width+dy);
+                    if(n<0||FlatTerrainAnalysis.AreaWater(source.Water[n]))continue;
+                    total+=f.Canopy[n]/d;weight+=1f/d;
+                }
+                if(weight>0)canopy=total/weight;
+            }
+            Color32 overlayColor=default;
+            if(layer>=MapLayer.ExoConvectiveRain)
+            {
+                ExoPlaSimSupplement.EvaluateMapmodeColor(source,i,month,ExoPlaSimSupplement.MapLayerToExoMode(layer),out byte mr,out byte mg,out byte mb);
+                overlayColor=new Color32(mr,mg,mb,255);
+            }
+            else if(layer>=MapLayer.SurfaceWinds)
+            {
+                GlebaGeographySupplement.PackMapmodeDisplay(source,i,month,GlebaGeographySupplement.MapLayerToGlebaMode(layer),out byte mr,out byte mg,out byte mb,out byte ma);
+                overlayColor=new Color32(mr,mg,mb,ma);
+            }
+            byte islandCoverCode=source.Preset==TerrainPreset.Earth&&source.WaterReference!=null&&FlatTerrainAnalysis.AreaWater(source.Water[i])
+                ? (byte)(1+(int)FlatPalette.IslandCover(source,i)) : (byte)0;
+            var surfaceMaterial=islandCoverCode==0?f.Materials[i]:FlatPalette.IslandSubstrate((VegetationCover)(islandCoverCode-1));
             return new Tile{Elevation=source.Elevation[i],Water=source.Water[i],Biome=source.Biomes[i],Climate=source.Climates[i],Building=source.Buildings[i],
                 Material=f.Materials[i],Vegetation=f.Vegetation[i],Tree=f.Trees[i],Form=f.Forms[i],Owner=owner<0?new Color32(0,0,0,0):FlatPalette.RGB(source.Nations[owner].Color,(byte)(owner+1)),
+                OverlayColor=overlayColor,IslandCoverCode=islandCoverCode,
+                RockWeathering=FlatPalette.RockWeathering(surfaceMaterial,source.Biomes[i],f.MeanTemperature[i],f.Wetness[i]),
                 Temperature=source.Temperature[i*12+month],Rain=source.Precipitation[i*12+month],Fertility=source.Fertility[i],Depth=f.Depth[i],FlowX=f.FlowX[i],FlowY=f.FlowY[i],
                 // Earth streams its mapped overview first. Suppress the legacy tile
                 // channels while waiting for the matching detailed distance field.
                 HalfWidth=f.RiverCurves!=null&&f.RiverCurves.HasSurvey?0:f.HalfWidth[i],
-                Shore=f.ShoreDistance[i],Sediment=f.Sediment[i],Freshness=f.Freshness[i],Wetness=f.Wetness[i],Hand=f.Hand[i],Canopy=f.Canopy[i],Meander=f.Meander[i],Connections=f.Connections[i]};
+                Shore=f.ShoreDistance[i],Sediment=f.Sediment[i],Freshness=f.Freshness[i],Wetness=f.Wetness[i],Hand=f.Hand[i],Canopy=canopy,Meander=f.Meander[i],Connections=f.Connections[i]};
         }
         public bool Schedule(MapLayer requestedLayer,bool refreshData,int climateYearOffset=0)
         {
@@ -119,7 +163,7 @@ namespace Orbis.Flat
                 {int i=source.Index(x,y);tiles[i]=Capture(i);CapturedTiles++;}
             }
             ScheduledTiles=offset;Version++;
-            handle=new PackJob{Tiles=tiles,Indices=indices,Palette=palette,Bands=bands,Output=output,Width=source.Width,Height=source.Height,Seed=worldSeed,Layer=layer,
+            handle=new PackJob{Tiles=tiles,Indices=indices,Palette=palette,Bands=bands,Output=output,Width=source.Width,Height=source.Height,Seed=worldSeed,Layer=layer,SurveyedCoast=source.UsesGlobalStraits,
                 ClimateYear=FlatClimateYear.At(worldSeed,climatePeriod*30.0)}.Schedule(offset,128);
             Pending=true;started=Stopwatch.GetTimestamp();
             // Ownership transfers only after successful scheduling. Subsequent main-thread dirties remain in this set.
@@ -161,10 +205,11 @@ namespace Orbis.Flat
             [ReadOnly] public NativeArray<Tile> Tiles;
             [ReadOnly] public NativeArray<int> Indices,Bands;
             [ReadOnly] public NativeArray<uint> Palette;
-            [WriteOnly] public NativeArray<Pixel> Output;
+            [WriteOnly] public NativeArray<PackedColors> Output;
             public int Width,Height;
             public uint Seed;
             public MapLayer Layer;
+            public bool SurveyedCoast;
             public FlatClimateYear ClimateYear;
             static Color32 RGB(uint value) {return new Color32((byte)(value>>16),(byte)(value>>8),(byte)value,255);}
             static bool Area(WaterKind w) {return w>=WaterKind.DeepOcean&&w<=WaterKind.Lake;}
@@ -173,11 +218,17 @@ namespace Orbis.Flat
                 switch(w){case WaterKind.DeepOcean:return RGB(0x183950);case WaterKind.MiddleOcean:return RGB(0x245c78);case WaterKind.ShallowOcean:return RGB(0x449295);case WaterKind.Lake:return RGB(0x599ba7);case WaterKind.River:return RGB(0x74b0bd);default:return RGB(0x867c64);}
             }
             Color32 Land(Tile t)
-            {return FlatPalette.NaturalLand(t.Vegetation,t.Material,t.Wetness,Palette[12+(int)t.Vegetation],Palette[65+(int)t.Material]);}
+            {return FlatPalette.NaturalLand(t.Vegetation,t.Material,t.Wetness,Palette[12+(int)t.Vegetation],Palette[65+(int)t.Material],t.RockWeathering);}
             public void Execute(int j)
             {
                 int i=Indices[j];Tile t=Tiles[i];bool area=Area(t.Water);
                 Color32 terrain=area?Water(t.Water):Land(t);
+                if (t.IslandCoverCode != 0)
+                {
+                    var cover = (VegetationCover)(t.IslandCoverCode - 1);
+                    var material = FlatPalette.IslandSubstrate(cover);
+                    terrain = FlatPalette.NaturalLand(cover, material, t.Wetness, Palette[12+(int)cover], Palette[65+(int)material], t.RockWeathering);
+                }
                 if(area&&t.Shore<=2)
                 {
                     int best=-1,distance=100,tx=i%Width,ty=i/Width;
@@ -200,7 +251,10 @@ namespace Orbis.Flat
                 switch(Layer)
                 {
                     case MapLayer.Height:display=area?Water(t.Water):Color.Lerp(RGB(0x597b62),RGB(0xe4e1d2),t.Elevation/4000f);break;
-                    case MapLayer.Climate:display=t.Water>=WaterKind.DeepOcean&&t.Water<=WaterKind.ShallowOcean?Water(t.Water):RGB(Palette[26+(int)t.Climate]);break;
+                    case MapLayer.Climate:
+                        display=t.Water>=WaterKind.DeepOcean&&t.Water<=WaterKind.ShallowOcean
+                            ?(SurveyedCoast?RGB(FlatPalette.ClimateOceanColor):Water(t.Water)):RGB(Palette[26+(int)t.Climate]);
+                        break;
                     case MapLayer.Temperature:display=Color.Lerp(RGB(0x4169ab),RGB(0xe9aa6a),Mathf.InverseLerp(-25,35,t.Temperature));break;
                     case MapLayer.Rain:display=Color.Lerp(RGB(0xd1bb93),RGB(0x2c869b),Mathf.Clamp01(t.Rain/240));break;
                     case MapLayer.Water:display=area?Water(t.Water):RGB(0x767b71);break;
@@ -213,11 +267,11 @@ namespace Orbis.Flat
                     case MapLayer.Fertility:display=Color.Lerp(RGB(0xb39d7a),RGB(0x478c68),t.Fertility);break;
                 }
                 display.a=1;
+                Color32 finalDisplay=Layer>=MapLayer.SurfaceWinds?t.OverlayColor:(Layer==MapLayer.Natural?terrain:(Color32)display);
                 int level=0;if(t.Elevation>0){level=20;for(int b=0;b<Bands.Length;b++)if(t.Elevation<=Bands[b]){level=b+1;break;}}
-                Output[j]=new Pixel{Terrain=terrain,Display=Layer==MapLayer.Natural?terrain:(Color32)display,Owner=t.Owner,
+                Output[j]=new PackedColors{Terrain=terrain,Display=finalDisplay,
                     Ecology=new Color32((byte)t.Vegetation,(byte)(((int)t.Tree+1)*16+(int)t.Biome),(byte)Mathf.RoundToInt(Mathf.Clamp01(t.Wetness)*255),(byte)(FMath.Hash((uint)i^Seed)&255)),
-                    Info=new Color32((byte)level,(byte)t.Water,(byte)t.Building,(byte)t.Climate),Hydro=new Color(t.Depth,t.FlowX,t.FlowY,t.HalfWidth),
-                    Mixing=new Color(t.Meander,t.Sediment,t.Freshness,t.Connections),Geometry=new Color(t.Elevation,(float)t.Material,t.Wetness,t.Hand),Visual=new Color(t.Elevation,t.Shore,t.Depth,t.Canopy)};
+                    Info=new Color32((byte)level,(byte)t.Water,(byte)t.Building,(byte)t.Climate)};
             }
         }
     }

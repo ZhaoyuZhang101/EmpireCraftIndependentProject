@@ -205,6 +205,63 @@ namespace Orbis.Editor
             }
         }
 
+        public static void CheckLargeSeasonTexture(FlatMapRenderer map)
+        {
+            var world=map.World;
+            var texture=map.VegetationTexture;
+            if(world.Width!=4096||!texture||texture.width!=world.Width||texture.height!=world.Height*2)
+                throw new InvalidOperationException("The 4096 world must retain two full-resolution vegetation months on the GPU.");
+            var probe=new Material(AssetDatabase.LoadAssetAtPath<Shader>("Assets/ORBIS/Editor/TerrainQualityProbe.shader"));
+            var target=RenderTexture.GetTemporary(1,1,0,RenderTextureFormat.ARGBFloat,RenderTextureReadWrite.Linear);
+            var image=new Texture2D(1,1,TextureFormat.RGBAFloat,false,true);
+            var previous=RenderTexture.active;bool async=ShaderUtil.allowAsyncCompilation;
+            Color ReadTile(int tile)
+            {
+                probe.SetVector("_ProbeOrigin",new Vector4(tile%world.Width+.5f,tile/world.Width+.5f,0,0));
+                Graphics.Blit(Texture2D.whiteTexture,target,probe);RenderTexture.active=target;
+                image.ReadPixels(new Rect(0,0,1,1),0,0);
+                return image.GetPixel(0,0);
+            }
+            try
+            {
+                ShaderUtil.allowAsyncCompilation=false;ShaderUtil.CompilePass(probe,0,true);
+                foreach(int month in new[]{0,1,6,11})
+                {
+                    double day=(month+.42)*30;
+                    map.SetVegetationDay(day);
+                    int channel=(month%2)*world.Count*4;
+                    var raw=texture.GetPixelData<byte>(0);
+                    byte original=raw[channel],marker=(byte)(original^128);
+                    raw[channel]=marker;
+                    try
+                    {
+                        // The CPU marker must survive this same-pair bind without reaching the GPU.
+                        map.SetVegetationDay(month*30);probe.CopyPropertiesFromMaterial(map.Material);
+                        probe.SetFloat("_ProbeMode",20);probe.SetVector("_ProbeSpan",new Vector4(.000001f,.000001f,0,0));
+                        probe.SetVector("_ClimateYearHeat",Vector4.zero);probe.SetVector("_ClimateYearRain",Vector4.zero);
+                        if(texture.GetPixelData<byte>(0)[channel]!=marker||Math.Abs(ReadTile(0).r-original/255f)>.0001f)
+                            throw new Exception("An unchanged vegetation month pair was recopied or uploaded.");
+                    }
+                    finally { raw=texture.GetPixelData<byte>(0);raw[channel]=original; }
+                    map.SetVegetationDay(day);probe.CopyPropertiesFromMaterial(map.Material);
+                    probe.SetFloat("_ProbeMode",20);probe.SetVector("_ProbeSpan",new Vector4(.000001f,.000001f,0,0));
+                    foreach(int tile in new[]{0,world.Width-1,world.Index(2458,1558),world.Count-1})
+                    {
+                        var sample=ReadTile(tile);
+                        FlatEcology.SampleSurfaceSeason(world,tile,day,out float growth,out float foliage,out float snow,out float soil);
+                        if(Math.Abs(sample.r-growth)>.003||Math.Abs(sample.g-foliage)>.003||
+                           Math.Abs(sample.b-snow)>.003||Math.Abs(sample.a-soil)>.003)
+                            throw new Exception($"4096 vegetation texture differs at tile {tile}, month {month}.");
+                    }
+                }
+            }
+            finally
+            {
+                map.SetVegetationDay(world.Day);
+                RenderTexture.active=previous;ShaderUtil.allowAsyncCompilation=async;
+                RenderTexture.ReleaseTemporary(target);UnityEngine.Object.DestroyImmediate(image);UnityEngine.Object.DestroyImmediate(probe);
+            }
+        }
         static void Check(List<string> report,bool passed,string description)
         {
             report.Add((passed?"PASS ":"FAIL ")+description);

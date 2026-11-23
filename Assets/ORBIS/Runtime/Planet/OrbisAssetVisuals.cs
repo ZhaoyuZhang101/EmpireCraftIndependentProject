@@ -4,12 +4,14 @@ namespace Orbis.Planet
     // Reuses the owner's supplied artwork/noise, without importing incompatible render pipelines.
     public static class OrbisAssetVisuals
     {
-        static bool loaded;static Texture2D stream,ocean,lake,oceanFoam,riverFoam;
+        static bool loaded;static Texture2D stream,ocean,lake,smoothLake,oceanFoam,riverFoam;
         static bool celestialLoaded;static Texture2D sunArt,moonArt;
-        static void Load(){if(loaded&&stream&&ocean&&lake&&oceanFoam&&riverFoam)return;loaded=true;
+        static void Load(){if(loaded&&stream&&ocean&&lake&&smoothLake&&oceanFoam&&riverFoam)return;loaded=true;
             stream=Resources.Load<Texture2D>("ORBISVendor/SW3/StreamWaves");ocean=Resources.Load<Texture2D>("ORBISVendor/SW3/OceanWaves");
             lake=Resources.Load<Texture2D>("ORBISVendor/SW3/SharpWaves");
-            if(!lake)lake=Resources.Load<Texture2D>("ORBISVendor/SW3/SmoothWaves");
+            smoothLake=Resources.Load<Texture2D>("ORBISVendor/SW3/SmoothWaves");
+            if(!lake)lake=smoothLake;
+            if(!smoothLake)smoothLake=lake;
             oceanFoam=Resources.Load<Texture2D>("ORBISVendor/SW3/OceanFoam");riverFoam=Resources.Load<Texture2D>("ORBISVendor/SW3/DirectionalFoam");
         }
         public static void BindWater(Material m)
@@ -17,6 +19,7 @@ namespace Orbis.Planet
             Load();m.SetFloat("_VendorWaterReady",stream&&ocean&&lake&&oceanFoam&&riverFoam?1:0);
             if(stream)m.SetTexture("_VendorStreamNormal",stream);if(ocean)m.SetTexture("_VendorOceanNormal",ocean);
             if(lake)m.SetTexture("_VendorLakeNormal",lake);if(oceanFoam)m.SetTexture("_VendorOceanFoam",oceanFoam);if(riverFoam)m.SetTexture("_VendorRiverFoam",riverFoam);
+            if(smoothLake)m.SetTexture("_VendorLakeSmoothNormal",smoothLake);
         }
         public static void BindCelestials(Material m)
         {

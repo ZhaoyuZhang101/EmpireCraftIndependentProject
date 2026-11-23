@@ -48,7 +48,8 @@ namespace Orbis.Flat
             }
         }
 
-        internal void Measure(short[] bed, int x, short centre, out float relief, out float gradient)
+        internal void Measure(short[] bed, int x, short centre, out float relief, out float gradient,
+                              out float landRelief, out float uphill)
         {
             // The immediate east/west samples lie inside one ground step. Keep
             // narrow cliffs that a farther geodesic tap could skip at high latitude.
@@ -57,6 +58,7 @@ namespace Orbis.Flat
             float low = Math.Min(centre, Math.Min(west, east));
             float high = Math.Max(centre, Math.Max(west, east));
             gradient = Math.Max(high - centre, centre - low);
+            uphill = high - centre;
             foreach (var tap in taps)
             {
                 int left = x + tap.Column;
@@ -68,9 +70,14 @@ namespace Orbis.Flat
                 float value = (lower + (upper - lower) * tap.NorthWeight) * tap.RingWeight + tap.PoleContribution;
                 low = Math.Min(low, value);
                 high = Math.Max(high, value);
-                if (tap.Cardinal) gradient = Math.Max(gradient, Math.Abs(value - centre));
+                if (tap.Cardinal)
+                {
+                    gradient = Math.Max(gradient, Math.Abs(value - centre));
+                    uphill = Math.Max(uphill, value - centre);
+                }
             }
             relief = high - low;
+            landRelief = Math.Max(0, high) - Math.Max(0, low);
         }
     }
 }

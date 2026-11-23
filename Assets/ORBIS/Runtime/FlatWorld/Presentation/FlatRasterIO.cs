@@ -23,7 +23,7 @@ namespace Orbis.Flat
             if(rivers!=null)
             {
                 int width=rivers.OverviewWidth,height=width/2;
-                var ink=rivers.DrawOverview(CancellationToken.None);
+                var ink=rivers.DrawExportOverview(CancellationToken.None);
                 var rgba=new byte[width*height*4];
                 for(int y=0;y<height;y++)for(int x=0;x<width;x++)
                 {
@@ -40,7 +40,7 @@ namespace Orbis.Flat
 
         public static WorldData Import(string path,string seed,CancellationToken cancel,bool preserveMetres)
         {
-            var f=new FileInfo(path);if(!f.Exists||f.Length>OrbisRasterCodec.MaxBytes)throw new InvalidDataException("Height image missing or larger than 32 MiB.");
+            var f=new FileInfo(path);if(!f.Exists||f.Length>OrbisRasterCodec.MaxBytes)throw new InvalidDataException($"Height image missing or larger than {OrbisRasterCodec.MaxBytes/1048576} MiB.");
             var raster=OrbisRasterCodec.Read(File.ReadAllBytes(path));
             var w=new WorldData(raster.width,raster.height,seed,TerrainPreset.Continents);
             for(int y=0;y<w.Height;y++)for(int x=0;x<w.Width;x++)

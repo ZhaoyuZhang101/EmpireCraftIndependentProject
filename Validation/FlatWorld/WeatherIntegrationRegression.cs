@@ -23,6 +23,15 @@ public static class WeatherIntegrationRegression
    throw new Exception("Land and sea ITCZ excursions are indistinguishable");
   if(FlatMoisture.ConvergenceLatitude(6,0,4)<=FlatMoisture.ConvergenceLatitude(6,0,0))
    throw new Exception("Thermal anomaly does not bend the convergence zone");
+  foreach (float anomaly in new[]{-4f,4f})
+  foreach (float month in new[]{2f,4f,6f})
+  foreach (float latitude in new[]{8f,24f})
+  {
+   double first=FlatWeatherSimulation.SeaLevelPressure(latitude,month,.5f,anomaly);
+   double reflected=FlatWeatherSimulation.SeaLevelPressure(-latitude,(month+6)%12,.5f,anomaly);
+   if(Math.Abs(first-reflected)>1e-4)
+    throw new Exception($"Mirroring the warm or cold column and its season changed pressure by {first-reflected:F3} hPa.");
+  }
   if(FlatWeatherSimulation.SynopticLift(20,.88,-6,true,3)<.15||FlatWeatherSimulation.SynopticLift(20,.25,28,false,3)>.05)
    throw new Exception("Frontal/marine lift must depend on moisture and thermal contrast");
   var w=new WorldData(64,32,"weather-integration",TerrainPreset.Continents);

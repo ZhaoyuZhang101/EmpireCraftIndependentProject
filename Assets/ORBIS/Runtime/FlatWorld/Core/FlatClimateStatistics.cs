@@ -34,7 +34,7 @@ namespace Orbis.Flat
         readonly FlatBiomeEstimate[] biomeCells;
         FlatClimateSamples samples;
         FlatBiomeStatistics biomes;
-        int terrainRevision, weatherMonth = -1, waterMonth = -1;
+        int terrainRevision, referenceMonth = -1;
         long lastTick = long.MinValue;
         bool dirty, lastHadStorms;
         FlatCycloneTrack north, south, previousNorth, previousSouth;
@@ -188,7 +188,7 @@ namespace Orbis.Flat
             partition.Add(row, weight, work);
         }
 
-        void BuildPartition(int region, int airMonth, int budgetMonth)
+        void BuildPartition(int region, int month)
         {
             for (int group = 0; group < partitions.GetLength(1); group++) partitions[region,group] = null;
             int y0 = region / regionsX * RegionSide, x0 = region % regionsX * RegionSide;
@@ -197,22 +197,19 @@ namespace Orbis.Flat
             {
                 int cell = y*Width+x, tile = tiles[cell];
                 double weight = weights[y];
-                var air = samples.Normal(tile, airMonth);
+                var air = samples.Normal(tile, month);
                 Group surface = Surface(world.Water[tile]);
                 Train(region, surface, air, weight);
                 int outlet = lakeGauges[cell];
                 // Lake outlets also contribute air observations on coasts whose grid centre is dry.
                 if (surface != Group.LakeAir && outlet >= 0)
-                    Train(region, Group.LakeAir, samples.Normal(outlet, airMonth), weight);
+                    Train(region, Group.LakeAir, samples.Normal(outlet, month), weight);
                 if (atmosphereOnly) continue;
                 if (surface != Group.MarineAir)
-                {
-                    var budget = airMonth == budgetMonth ? air : samples.Normal(tile, budgetMonth);
-                    Train(region, surface == Group.LakeAir ? Group.Lake : Group.Soil, budget, weight);
-                }
-                if (riverGauges[cell] >= 0) Train(region, Group.River, samples.Normal(riverGauges[cell], budgetMonth), weight);
+                    Train(region, surface == Group.LakeAir ? Group.Lake : Group.Soil, air, weight);
+                if (riverGauges[cell] >= 0) Train(region, Group.River, samples.Normal(riverGauges[cell], month), weight);
                 if (outlet < 0) continue;
-                var lake = samples.Normal(outlet, budgetMonth);
+                var lake = samples.Normal(outlet, month);
                 Train(region, Group.Outlet, lake, weight);
                 // At most one lake site per coarse cell, including cells whose centre is dry.
                 if (surface != Group.LakeAir)
@@ -252,7 +249,7 @@ namespace Orbis.Flat
             if (!OnlineClimateMoments.Finite(day) || Math.Abs(day) > 1e15) return false;
             cancel.ThrowIfCancellationRequested();
             if (terrainRevision != world.TerrainRevision) RebuildTerrain(cancel);
-            // Preserve the containing water-budget month even when the tracker
+            // Preserve the containing calendar month even when the tracker
             // rounds a float time infinitesimally before midnight to its next step.
             long tick = (long)Math.Floor(day * 4);
             bool hasStorms = captured != null && captured.StepIndex == tick;
@@ -261,9 +258,8 @@ namespace Orbis.Flat
                  !SameTrack(captured.PreviousNorth,previousNorth) || !SameTrack(captured.PreviousSouth,previousSouth)));
             if (!dirty && !changed) return true;
             double tickDay = tick * .25;
-            int budgetMonth = FMath.Wrap((int)(Math.Floor(tickDay/30) % 12), 12);
-            int airMonth = FMath.Wrap((int)(Math.Floor((tickDay+15)/30) % 12), 12);
-            if (airMonth != weatherMonth || (!atmosphereOnly && budgetMonth != waterMonth)) InvalidateAll();
+            int month = new FlatMonthlyForcing(tickDay).Month;
+            if (month != referenceMonth) InvalidateAll();
             try
             {
                 if (dirty)
@@ -271,7 +267,7 @@ namespace Orbis.Flat
                     for (int r = 0; r < RegionCount; r++) if (dirtyPartitions[r])
                     {
                         cancel.ThrowIfCancellationRequested();
-                        BuildPartition(r, airMonth, budgetMonth);
+                        BuildPartition(r, month);
                     }
                     for (int r = 0; r < RegionCount; r++) if (dirtyFits[r])
                     {
@@ -294,8 +290,7 @@ namespace Orbis.Flat
             Array.Clear(dirtyPartitions, 0, RegionCount);
             Array.Clear(dirtyFits, 0, RegionCount);
             dirty = false;
-            weatherMonth = airMonth;
-            waterMonth = budgetMonth;
+            referenceMonth = month;
             lastTick = tick;
             lastHadStorms = hasStorms;
             if (hasStorms)

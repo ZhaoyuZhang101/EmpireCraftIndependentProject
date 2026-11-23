@@ -11,10 +11,107 @@ namespace Orbis.Flat
 
     public static class FlatEcology
     {
-        public static float ContinuousCanopy(Biome biome,float temperature,float annualRain,float soil,float gradient,float warmest=float.NaN)
+        // Area-average the observed crop fraction over the actual player tile.
+        // Partial desert/coast cells at low resolution keep their full footprint.
+        static float NileCropFraction(int x,int y,int width)
+        {
+            var rows=FlatNileCropland.Rows;
+            double scale=FlatNileCropland.SamplesPerDegree,span=360*scale/width;
+            double west=x*span-180*scale-FlatNileCropland.West;
+            double south=y*span-90*scale-FlatNileCropland.South;
+            double radians=Math.PI/(180*scale);
+            double AreaLatitude(double yIndex) => Math.Sin((FlatNileCropland.South+yIndex)*radians);
+            double sum=0;
+            for(int row=Math.Max(0,(int)Math.Floor(south));row<Math.Min(rows.Length,Math.Ceiling(south+span));row++)
+            {
+                double dy=AreaLatitude(Math.Min(row+1,south+span))-AreaLatitude(Math.Max(row,south));
+                for(int col=Math.Max(0,(int)Math.Floor(west));col<Math.Min(rows[row].Length,Math.Ceiling(west+span));col++)
+                {
+                    char digit=rows[row][col];
+                    int crop=digit<='9'?digit-'0':digit-'a'+10;
+                    double dx=Math.Min(col+1,west+span)-Math.Max(col,west);
+                    sum+=dx*dy*crop;
+                }
+            }
+            return (float)(sum/(15*span*(AreaLatitude(south+span)-AreaLatitude(south))));
+        }
+
+        internal static void ApplyNileCropland(WorldData w,FlatTerrainFacts facts,System.Threading.CancellationToken cancel)
+        {
+            if(w.Preset!=TerrainPreset.Earth||w.WaterReference==null||w.RiverReference==null)return;
+            var rows=FlatNileCropland.Rows;
+            double scale=FlatNileCropland.SamplesPerDegree,tiles=w.Width/360.0;
+            int x0=(int)Math.Floor((180+FlatNileCropland.West/scale)*tiles);
+            int x1=(int)Math.Ceiling((180+(FlatNileCropland.West+rows[0].Length)/scale)*tiles);
+            int y0=(int)Math.Floor((90+FlatNileCropland.South/scale)*tiles);
+            int y1=(int)Math.Ceiling((90+(FlatNileCropland.South+rows.Length)/scale)*tiles);
+            for(int y=y0;y<y1;y++)
+            {
+                cancel.ThrowIfCancellationRequested();
+                for(int x=x0;x<x1;x++)
+                {
+                    int i=w.Index(x,y);
+                    if(FlatTerrainAnalysis.AreaWater(w.Water[i]))continue;
+                    float share=NileCropFraction(x,y,w.Width);
+                    if(share<=0)continue;
+                    bool original=true;
+                    for(int dy=-1;dy<=1&&original;dy++)for(int dx=-1;dx<=1;dx++)
+                    {
+                        int n=w.Index(x+dx,y+dy);
+                        if(!w.WaterReference.MatchesOriginalBed(n,w.Elevation[n])){original=false;break;}
+                    }
+                    if(!original)continue;
+                    // Irrigated herbs remain active between the two main branches.
+                    // This root-zone floor is an ecological proxy; the catchment,
+                    // monthly precipitation and runoff budgets are independent.
+                    float soilFloor=.74f*share;
+                    if(share>=.5f)
+                    {
+                        facts.Forms[i]=Landform.Floodplain;
+                        facts.Materials[i]=GroundMaterial.Silt;
+                        facts.Vegetation[i]=VegetationCover.Grassland;
+                        facts.Canopy[i]=Math.Min(facts.Canopy[i],.16f*(1-share));
+                        facts.Trees[i]=TreeSpecies.Shrub;
+                    }
+                    facts.Wetness[i]=Math.Max(facts.Wetness[i],soilFloor);
+                    if(facts.VegetationSeasons==null)continue;
+                    float coldest=float.MaxValue;
+                    byte floor=(byte)(255*soilFloor+.5f);
+                    for(int m=0;m<12;m++)
+                    {
+                        int at=SeasonOffset(w,i,m)+3;
+                        facts.VegetationSeasons[at]=Math.Max(facts.VegetationSeasons[at],floor);
+                        coldest=Math.Min(coldest,w.Temperature[12*i+m]);
+                    }
+                    BuildSeasons(w,facts,i,coldest);
+                }
+            }
+        }
+
+        internal static float AnnualWaterDemand(float temperature) => Math.Max(240,(temperature+5)*36);
+
+        // Monthly drying pressure on a partially empty root zone. Column humidity
+        // and saturation vapour pressure (FAO-56, kPa) give a proxy for air demand.
+        internal static float TropicalDryStress(float temperature,float soilFraction,float columnHumidity)
+        {
+            float saturation=.6108f*(float)Math.Exp(17.27f*temperature/(temperature+237.3f));
+            return (1-soilFraction)*(1-columnHumidity)*saturation;
+        }
+
+        internal static bool TropicalWoodland(float temperature,float rain,int wetMonths,float dryStress,bool sheltered)
+        {
+            float demand=AnnualWaterDemand(temperature);
+            if(rain<demand)return false;
+            // Four dry months at 3 kPa give 12 kPa-months. Sheltered terrain
+            // can sustain woodland through a shorter recharge season with surplus rain.
+            if(wetMonths>=6)return sheltered||dryStress<=12;
+            return sheltered&&wetMonths>=4&&rain>=1.2f*demand&&dryStress<=12;
+        }
+
+        public static float ContinuousCanopy(Biome biome,float temperature,float annualRain,float soil,float gradient,float warmest=float.NaN,float biotemperature=float.NaN,float elevation=float.NaN)
         {
             if(biome==Biome.Water||biome==Biome.Snow||biome==Biome.Beach)return 0;
-            float demand=Math.Max(240,(temperature+5)*36);
+            float demand=AnnualWaterDemand(temperature);
             float available=FMath.Clamp(soil*.55f+annualRain/demand*.45f,0,1);
             // Growing-season warmth allows Siberian-type forests to retain a
             // canopy through long winters. Legacy callers retain the annual proxy.
@@ -22,6 +119,8 @@ namespace Orbis.Flat
             float slope=1-FMath.Clamp((gradient-200)/1100,0,.85f);
             float t=FMath.Clamp((available-.12f)/.78f,0,1);t=t*t*(3-2*t);
             float canopy=(.04f+.90f*t)*warmth*slope;
+            if(FMath.Finite(biotemperature)&&FMath.Finite(elevation))
+                canopy*=GlebaEcologySupplement.ComputeTreelineMultiplier(biotemperature,elevation);
             if(biome==Biome.Tundra||biome==Biome.Alpine&&(!FMath.Finite(warmest)||warmest<=10))canopy=Math.Min(.16f,canopy);
             if(biome==Biome.Wetland)canopy=Math.Min(.42f,canopy);
             return canopy;
@@ -41,7 +140,7 @@ namespace Orbis.Flat
             if(biome==Biome.Steppe)return VegetationCover.DrySteppe;
             if(biome==Biome.Taiga)return VegetationCover.BorealForest;
             if(Subarctic(climate)&&biome==Biome.Woodland)return VegetationCover.BorealForest;
-            if(climate==Koppen.Aw)return VegetationCover.Savanna;
+            if(climate==Koppen.Aw)return biome==Biome.Woodland?VegetationCover.SeasonalForest:VegetationCover.Savanna;
             if(climate==Koppen.Csa||climate==Koppen.Csb||climate==Koppen.Csc)return VegetationCover.Shrubland;
             if(biome==Biome.Rainforest)return climate==Koppen.Am?VegetationCover.SeasonalForest:VegetationCover.TropicalRainforest;
             if(biome==Biome.Woodland)
@@ -288,6 +387,81 @@ namespace Orbis.Flat
             growth=FMath.Clamp(growth+1.7f*waterBalance*growth*(1-growth),0,1);
             foliage=FMath.Clamp(foliage+waterBalance*foliage*(1-foliage),0,1);
             snow=FMath.Clamp(snow+(rain-.19f*heat)*snow*(1-snow)*1.8f,0,1);
+        }
+
+        /// <summary>
+        /// Evaluates full Gleba v0.3.6 Holdridge flora, 23-rule biome, grounded glacier / sea-ice thickness,
+        /// and 6-stage soil state for a world tile (reading cached FlatTerrainFacts when built).
+        /// </summary>
+        public static void EvaluateGlebaTile(
+            WorldData world, int tile,
+            out GlebaPlantCover flora, out GlebaBiomeKind glebaBiome, out GlebaSoilState soil,
+            out float biotemperature, out float iceMeters)
+        {
+            flora = default;
+            glebaBiome = GlebaBiomeKind.RockyWasteland;
+            soil = default;
+            biotemperature = 0f;
+            iceMeters = 0f;
+            if (world == null || (uint)tile >= (uint)world.Count) return;
+
+            bool area = FlatTerrainAnalysis.AreaWater(world.Water[tile]);
+            float rain = 0f, temp = 0f, coldest = 1000f, warmest = -1000f, minRain = float.MaxValue;
+            int base12 = tile * 12;
+            for (int m = 0; m < 12; m++)
+            {
+                float tm = world.Temperature[base12 + m];
+                float rm = world.Precipitation[base12 + m];
+                rain += rm;
+                temp += tm / 12f;
+                if (tm < coldest) coldest = tm;
+                if (tm > warmest) warmest = tm;
+                if (rm < minRain) minRain = rm;
+            }
+
+            var facts = world.Facts;
+            biotemperature = facts?.Biotemperature != null
+                ? facts.Biotemperature[tile]
+                : GlebaEcologySupplement.ComputeBiotemperature(world.Temperature, base12, clampAbove30: true);
+            iceMeters = facts?.GroundedIceMeters != null
+                ? facts.GroundedIceMeters[tile]
+                : (area
+                    ? GlebaEcologySupplement.ComputeSeaIceMeters(true, temp)
+                    : GlebaEcologySupplement.ComputeGroundedIceMeters(true, world.Elevation[tile], warmest, rain / 12f));
+
+            var geo = facts?.GlebaGeography;
+            if (geo != null && (uint)tile < (uint)geo.Count)
+            {
+                flora = geo.GetFloraState(tile);
+            }
+            else
+            {
+                flora = GlebaEcologySupplement.EvaluateFlora(
+                    !area, area ? 0f : iceMeters, world.Elevation[tile], Math.Abs(world.Latitude(tile)),
+                    biotemperature, rain, minRain, coldest);
+            }
+            glebaBiome = facts?.GlebaBiomes != null
+                ? facts.GlebaBiomes[tile]
+                : GlebaEcologySupplement.ClassifyGlebaBiome(
+                    area, world.Water[tile] == WaterKind.Lake,
+                    world.Water[tile] == WaterKind.Lake
+                        ? world.Downstream[GlebaGeographySupplement.FindLakeRootFallback(world, tile)] >= 0
+                        : !FlatTerrainAnalysis.Ocean(world.Water[tile]),
+                    iceMeters, world.Elevation[tile], coldest, warmest, temp,
+                    world.Climates[tile], in flora);
+
+            float gradient = facts?.Gradient != null ? facts.Gradient[tile] : 0f;
+            float sediment = facts?.Sediment != null ? facts.Sediment[tile] : 0f;
+            bool coastalBeach = world.CoastDistance[tile] <= 1 && world.Elevation[tile] <= 100;
+            if (geo != null && (uint)tile < (uint)geo.Count && !area && geo.SoilDepthCentimeters[tile] > 0)
+            {
+                soil = geo.GetSoilState(tile);
+            }
+            else
+            {
+                soil = GlebaEcologySupplement.EvaluateLocalSoil(
+                    !area, coastalBeach, world.Elevation[tile], gradient, rain, warmest, flora.TotalPlants, sediment);
+            }
         }
     }
 }

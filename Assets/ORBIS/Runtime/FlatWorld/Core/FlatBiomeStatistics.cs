@@ -352,6 +352,7 @@ namespace Orbis.Flat
                     case VegetationCover.TropicalRainforest: return FlatBiomeClass.TropicalRainforest;
                     case VegetationCover.Savanna: return FlatBiomeClass.TropicalSavanna;
                     case VegetationCover.SeasonalForest:
+                        if (k == Koppen.Aw) return FlatBiomeClass.None; // Dry tropical woodland is outside these eight reference classes.
                         return k == Koppen.Am || k == Koppen.Af ? FlatBiomeClass.TropicalRainforest : FlatBiomeClass.TemperateForest;
                     case VegetationCover.TemperateRainforest:
                     case VegetationCover.DeciduousForest: return FlatBiomeClass.TemperateForest;
@@ -373,7 +374,7 @@ namespace Orbis.Flat
                 case Biome.Rainforest: return FlatBiomeClass.TropicalRainforest;
                 case Biome.Grassland: return k == Koppen.Aw ? FlatBiomeClass.TropicalSavanna : FlatBiomeClass.TemperateGrassland;
                 case Biome.Steppe: return FlatBiomeClass.TemperateGrassland;
-                case Biome.Woodland: return FlatBiomeClass.TemperateForest;
+                case Biome.Woodland: return k == Koppen.Aw ? FlatBiomeClass.None : FlatBiomeClass.TemperateForest;
                 case Biome.Desert: return FlatBiomeClass.Desert;
                 case Biome.Taiga: return FlatBiomeClass.BorealForest;
                 case Biome.Alpine: return FlatBiomeClass.Alpine;

@@ -25,7 +25,7 @@ namespace Orbis
         static readonly string[] RayNames={"_RayBL","_RayTL","_RayTR","_RayBR"};
         static readonly string[] MapNames={"_MapBL","_MapTL","_MapTR","_MapBR"};
         static readonly Vector2[] MapUV={new Vector2(0,0),new Vector2(0,1),new Vector2(1,1),new Vector2(1,0)};
-        static readonly float[] Scale={.65f,.8f,1f,1f};
+        static readonly float[] Scale={.65f,.78f,.86f,1f};
         static readonly int[] CloudSteps={32,48,64,64};
         static readonly int[] AirSteps={16,24,32,48};
         static readonly int[] LightSteps={4,6,8,8};
@@ -184,7 +184,8 @@ namespace Orbis
             if(fullResolutionReference||q==3||SystemInfo.supportedRenderTargetCount<2||!composite||
                 !SystemInfo.SupportsRenderTextureFormat(RenderTextureFormat.ARGBHalf)||(map&&!mapMRT))
             {Present(source,destination,m,map?2:1);return;}
-            int width=Mathf.Max(4,Mathf.CeilToInt(source.width*Scale[q])),height=Mathf.Max(4,Mathf.CeilToInt(source.height*Scale[q]));
+            float renderScale=referenceCloudIntegration?Mathf.Max(Scale[q],q>=2?1f:Scale[q]):Scale[q];
+            int width=Mathf.Max(4,Mathf.CeilToInt(source.width*renderScale)),height=Mathf.Max(4,Mathf.CeilToInt(source.height*renderScale));
             RenderTexture light=null,transmission=null;RenderTexture previous=RenderTexture.active;
             bool oldSRGB=GL.sRGBWrite;
             try

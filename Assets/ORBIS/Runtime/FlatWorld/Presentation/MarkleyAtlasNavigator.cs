@@ -20,6 +20,9 @@ namespace Orbis.Flat
         FlatMapRenderer maps;
         Mesh lattice, flatMesh, routeMesh;
         readonly FlatPlantHeightCache plantHeights=new FlatPlantHeightCache();
+#if UNITY_EDITOR
+        readonly FlatShaderPreview editorPreview = new FlatShaderPreview();
+#endif
         readonly List<MeshFilter> sheetFilters = new List<MeshFilter>();
         bool flatGeometry;
         Material surface, routeMaterial;
@@ -41,10 +44,11 @@ namespace Orbis.Flat
         float endGap = DefaultEndGap, pixels = 16, entryPixels = 16, entryViewportHeight = 1, morph, displaySpin;
         double lockedDay, currentDay;
         bool landingLocked, atlasPending, exitPending, entryScaleRecorded;
-        int focusTile=-1;int pendingFocus=-1; bool focusZoom;Vector2 focusCenter; float targetPixels=-1; Vector2 zoomScreen; bool zoomAnchor;
+        PlanetLocation focusLocation;int pendingFocus=-1; bool focusZoom;Vector2 focusCenter; float targetPixels=-1; Vector2 zoomScreen; bool zoomAnchor;
         Vector2 strategicZoomPoint;
         bool hasStrategicZoomPoint;
-        int[] route = new int[0];
+        PlanetLocation[] route = Array.Empty<PlanetLocation>();
+        bool seaRoute;
         Vector2 lastRoutePan = new Vector2(float.NaN, float.NaN);
         Vector3 lastRouteNormal;
         float lastRoutePixels = -1;
@@ -200,7 +204,7 @@ namespace Orbis.Flat
                 pixels=(float)FlatScrollMath.ExpApproach(pixels,targetPixels,14,dt);
                 if(focusZoom)
                 {
-                    focusCenter=ProjectedTile(focusTile,pan);
+                    focusCenter=NearestChartPoint(focusLocation);
                     float blend=1-Mathf.Exp(-14*dt);
                     mapPosition.Move(PlanetCoordinateSystem.NearestOffset(focusCenter.x-mapPosition.X,world.Width)*blend,
                         (focusCenter.y-mapPosition.Y)*blend,world.Width,world.Height);
@@ -272,7 +276,7 @@ namespace Orbis.Flat
             }
             if(IsFlat&&pendingFocus>=0)
             {
-                focusTile=pendingFocus;focusCenter=ProjectedTile(pendingFocus,pan);focusZoom=true;
+                focusLocation=TileLocation(pendingFocus);focusCenter=NearestChartPoint(focusLocation);focusZoom=true;
                 pendingFocus=-1;targetPixels=48;zoomAnchor=false;NormalizePan();
             }
             if(IsFlat&&exitPending&&targetPixels<0)
@@ -314,9 +318,9 @@ namespace Orbis.Flat
             focusZoom = false;
         }
 
-        internal void FocusStrategic(int tile, float chartPixels)
+        internal void FocusStrategic(PlanetLocation location, float chartPixels)
         {
-            focusTile = tile;
+            focusLocation = location;
             focusZoom = true;
             zoomAnchor = false;
             targetPixels = Mathf.Max(FitPixels(), chartPixels);
@@ -401,6 +405,11 @@ namespace Orbis.Flat
             if (!maps || !surface) return;
             surface.CopyPropertiesFromMaterial(maps.Material);
             CommitProjection();
+#if UNITY_EDITOR
+            var draw = editorPreview.ForDraw(surface, surface.FindPass("SCROLL_SURFACE"));
+            if (surfaces[0].sharedMaterial != draw)
+                foreach (var sheet in surfaces) sheet.sharedMaterial = draw;
+#endif
         }
         void ApplyProjection(Material m)
         {
@@ -411,6 +420,7 @@ namespace Orbis.Flat
             m.SetVector("_ScrollPan", new Vector4(p.x, p.y, 0, 0));
             m.SetVector("_ScrollRight", east); m.SetVector("_ScrollUp", north); m.SetVector("_ScrollNormal", normal);
             m.SetFloat("_ScrollMorph", morph); m.SetFloat("_ScrollSpin", displaySpin);
+            m.SetFloat("_RiverGlobeNarrowing",FlatRiverCurves.GlobeWidthReduction(world.Preset,morph));
             m.SetFloat("_PixelsPerTile", pixels);
             m.SetFloat("_DetailWeight", DetailWeight);
             m.SetVector("_ScrollPoleHeights",polarHeights);
@@ -431,12 +441,8 @@ namespace Orbis.Flat
             if(IsTransitioning){AlignFrame(currentDay);pitch=Mathf.Asin(Mathf.Clamp(normal.y,-1,1))*Mathf.Rad2Deg;yaw=Mathf.Atan2(-normal.x,-normal.z)*Mathf.Rad2Deg;}
             Tick(0,currentDay);
         }
-        Vector2 ProjectedTile(int tile,Vector2 near)
-        {
-            var location=PlanetCoordinateSystem.FromMapUV((tile%world.Width+.5)/world.Width,(tile/world.Width+.5)/world.Height);
-            var canonical=MarkleyProjection.Project(location);var anchorUV=new Vector2(near.x/world.Width,near.y/MapHeight);
-            return Vector2.Scale(MarkleyProjection.Nearest(canonical,anchorUV),ProjectionSize);
-        }
+        PlanetLocation TileLocation(int tile) => PlanetCoordinateSystem.FromMapUV(
+            (tile%world.Width+.5)/world.Width, (tile/world.Width+.5)/world.Height);
         public void Wheel(float wheel, Vector2 screen, double day)
         {
             wheel = Mathf.Clamp(wheel, -24, 24);if(Mathf.Abs(wheel)<.00001f)return;
@@ -500,7 +506,7 @@ namespace Orbis.Flat
         {
             if (tile < 0 || tile >= world.Count) return;exitPending=false;
             Vector2 uv = new Vector2((tile % world.Width + .5f) / world.Width, (tile / world.Width + .5f) / world.Height);
-            if (IsFlat) { focusTile=tile;focusCenter=ProjectedTile(tile,pan);focusZoom=true; targetPixels=48;zoomAnchor=false;NormalizePan();Tick(0, day); }
+            if (IsFlat) { focusLocation=TileLocation(tile);focusCenter=NearestChartPoint(focusLocation);focusZoom=true; targetPixels=48;zoomAnchor=false;NormalizePan();Tick(0, day); }
             else
             {
                 entryScaleRecorded=false;LockPlane(uv, day);
@@ -659,9 +665,10 @@ namespace Orbis.Flat
             float h=FlatGlobeGeometry.SurfaceHeight(world,uv);
             return point.magnitude - FlatGlobeGeometry.Radius(h,uv.y,world.Height,polarHeights);
         }
-        public void SetRoute(int[] ids)
+        public void SetRoute(int[] ids)=>SetGeographicRoute(FlatScrollNavigator.TileLocations(world,ids),false);
+        internal void SetGeographicRoute(PlanetLocation[] points,bool marine)
         {
-            route = ids ?? new int[0]; lastRoutePixels = -1;
+            route = points; seaRoute = marine; lastRoutePixels = -1;
             if (route.Length < 2 && !routeMesh) return;
             if (!routeMesh)
             {
@@ -678,15 +685,15 @@ namespace Orbis.Flat
             lastRoutePan=pan;lastRouteNormal=normal;lastRoutePixels=pixels;
             lastRouteRevision=world.TerrainRevision;
             var v=routeVertices;var cs=routeColors;var triangles=routeIndices;v.Clear();cs.Clear();triangles.Clear();
-            float width=Mathf.Clamp(1.5f/Mathf.Max(1,pixels),.07f,.20f)*TileScale;
+            float width=(seaRoute?1.05f/Mathf.Max(.25f,pixels):Mathf.Clamp(1.5f/Mathf.Max(1,pixels),.07f,.20f))*TileScale;
             Vector3 lift=normal*.00006f;Vector2 near=new Vector2(pan.x/world.Width,pan.y/MapHeight);
             float halfX=viewCamera.pixelWidth/Mathf.Max(1,pixels)*.6f,halfY=viewCamera.pixelHeight/Mathf.Max(1,pixels)*.6f;
             halfY+=FlatGlobeGeometry.LocalHeightSpan*FlatGlobeGeometry.ReliefTilt/TileScale;
             var relief=ReliefParameters;
             for(int i=1;i<route.Length;i++)
             {
-                var p0=MarkleyProjection.Project(PlanetCoordinateSystem.FromMapUV((route[i-1]%world.Width+.5)/world.Width,(route[i-1]/world.Width+.5)/world.Height));
-                var p1=MarkleyProjection.Project(PlanetCoordinateSystem.FromMapUV((route[i]%world.Width+.5)/world.Width,(route[i]/world.Width+.5)/world.Height));p1=MarkleyProjection.Nearest(p1,p0);
+                var p0=MarkleyProjection.Project(route[i-1]);
+                var p1=MarkleyProjection.Project(route[i]);p1=MarkleyProjection.Nearest(p1,p0);
                 for(int row=-2;row<=3;row++)for(int col=-1;col<=1;col++){
                     int k=(int)Math.Floor(row/2.0);bool odd=row-2*k==1;float sign=odd?-1:1;
                     Vector2 a=new Vector2((float)(odd?.75-p0.x-k*.5:p0.x-k*.5),odd?row+1-p0.y:row+p0.y);
@@ -705,6 +712,9 @@ namespace Orbis.Flat
         }
         void OnDestroy()
         {
+#if UNITY_EDITOR
+            editorPreview.Dispose();
+#endif
             plantHeights.Dispose();
             if (surface) Destroy(surface); if (flatMesh) Destroy(flatMesh); if (lattice) Destroy(lattice);
             if (routeMesh) Destroy(routeMesh); if (routeMaterial) Destroy(routeMaterial);

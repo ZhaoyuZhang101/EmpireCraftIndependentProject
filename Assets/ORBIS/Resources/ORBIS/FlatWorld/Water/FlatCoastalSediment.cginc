@@ -3,7 +3,9 @@
 
 struct FlatCoastalSediment
 {
-    float shore;       // Positive offshore, measured in equatorial cell widths.
+    float shore;       // Positive offshore, in local beach artwork units.
+    float beachScale;  // Artwork units per equatorial cell.
+    float surveyDepthWeight; // Fraction of the optical bed supplied by the coastal survey.
     float coverage;
     float mud;
     float bar;
@@ -83,15 +85,17 @@ FlatCoastalSediment FlatCoastArtwork(float3 p,float3 seaward,float shore,float g
 }
 
 FlatCoastalSediment FlatCoastAt(float2 cell,float4 field,float4 basin,float wetSupport,
-                                float edge,float frozen,float clock)
+                                float edge,float frozen,float clock,float beachScale)
 {
     float2 seaward;
-    float shore=FlatMetricShore(cell,field.g,seaward);
+    float groundShore=FlatMetricShore(cell,field.g,seaward);
+    float shore=groundShore*beachScale;
     float grade=length(FlatTerrainMetricGradient(cell,FlatHeightGradient(field.r,cell)))*(_MapSize.x/512);
     float3 p=FlatDetailPosition(cell);
     float footprint=max(length(ddx(p)),length(ddy(p)));
     FlatCoastalSediment coast=(FlatCoastalSediment)0;
     coast.shore=shore;
+    coast.beachScale=beachScale;
     // Kinds 1..3 are marine, 4 is a lake and 5 is a river. A river may cross
     // the dry side of a sea cell; compare its actual edge with the sea shore.
     float sea=saturate(basin.a)*saturate(4-basin.a)*smoothstep(0,.045,wetSupport);
@@ -103,12 +107,19 @@ FlatCoastalSediment FlatCoastAt(float2 cell,float4 field,float4 basin,float wetS
     float2 metric=float2(max(.08,cos(lat)),_MapSize.x/(2*_MapSize.y));
     float3 east=float3(cos(lon),0,-sin(lon));
     float3 north=float3(-sin(lat)*sin(lon),cos(lat),-sin(lat)*cos(lon));
-    float shelter=FlatCoastShelter(cell,shore,seaward,metric);
+    float shelter=FlatCoastShelter(cell,groundShore,seaward,metric);
     float wetness=tex2Dlod(_GeoTex,float4(uv,0,0)).b;
     float mud=FlatMudFraction(grade,shelter,wetness,basin.b,basin.g);
     coast=FlatCoastArtwork(p,east*seaward.x+north*seaward.y,shore,grade,mud,footprint,clock);
+    coast.beachScale=beachScale;
     coast.coverage*=sea*(1-smoothstep(22,115,max(0,field.r)));
     return coast;
+}
+
+FlatCoastalSediment FlatCoastAt(float2 cell,float4 field,float4 basin,float wetSupport,
+                                float edge,float frozen,float clock)
+{
+    return FlatCoastAt(cell,field,basin,wetSupport,edge,frozen,clock,1);
 }
 
 // Use the neighbouring measured depths for the bed normal and relative crest

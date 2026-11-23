@@ -55,6 +55,78 @@ internal static class ClimatologyRegression
         Region("South China", 108, 117, 22, 26, 1150, 2300, .32, .72);
         Region("Sichuan Basin", 103, 108, 28, 32, 710, 1520, .42, .82);
         Region("Tarim Basin", 78, 87, 38, 41, 0, 250, 0, 1, dry: true);
+        // The interior monsoon belt is separated from the Thar by its western
+        // boundary here. Most rain arrives in June–September, beyond the Ghats.
+        Region("Central Indian monsoon", 75, 85, 18, 26, 800, 1600, .65, .97);
+        // CRU-CL's development cells resolve early rains in the south, then
+        // the midsummer front in the northeast. Both orderings reverse if the
+        // eastern rain belt simply follows a late oceanic temperature peak.
+        CheckRainyMonths(world, "South China spring/autumn", 108, 117, 22, 26, 2, 8, 3);
+        CheckRainyMonths(world, "Northeast China July/September", 122, 128, 43, 48, 6, 8, 1);
+        CheckBohaiMonsoon(world);
+    }
+
+    static void CheckBohaiMonsoon(WorldData world)
+    {
+        // CRU-CL 1961–90 calibration land cells in the Bohai hinterland average
+        // 568 mm/year, of which 306 mm falls in July and August. The nearby
+        // inland steppe (113–119 E, 42–45 N) averages only 322 mm/year.
+        double coast = 0, inland = 0, rain = 0, midsummer = 0, julyHeat = 0, steppeRain = 0, arid = 0;
+        for (int y = 0; y < world.Height; y++)
+        {
+            double lat = (y+.5)*180/world.Height-90;
+            if (lat < 38 || lat >= 45) continue;
+            double weight = Math.Cos(lat*Math.PI/180);
+            for (int x = 0; x < world.Width; x++)
+            {
+                double lon = (x+.5)*360/world.Width-180;
+                int i = world.Index(x,y);
+                if (FlatTerrainAnalysis.AreaWater(world.Water[i])) continue;
+                if (lon >= 116 && lon < 125 && lat < 43)
+                {
+                    coast += weight;
+                    rain += world.Facts.AnnualRain[i]*weight;
+                    midsummer += (world.Precipitation[i*12+6]+world.Precipitation[i*12+7])*weight;
+                    julyHeat += world.Temperature[i*12+6]*weight;
+                    if (world.Climates[i] >= Koppen.BWh && world.Climates[i] <= Koppen.BSk) arid += weight;
+                }
+                if (lon >= 113 && lon < 119 && lat >= 42)
+                {
+                    inland += weight;
+                    steppeRain += world.Facts.AnnualRain[i]*weight;
+                }
+            }
+        }
+        Console.WriteLine($"{world.Width} Bohai: annual {rain/coast:F0} mm, Jul–Aug {midsummer/coast:F0} mm, July {julyHeat/coast:F1} C, B climates {arid/coast:P0}, inland steppe {steppeRain/inland:F0} mm/year.");
+        if (!(coast > 0 && inland > 0 && rain/coast > 475 && rain/coast < 710 &&
+            midsummer/coast > 240 && julyHeat/coast > 21.8 && julyHeat/coast < 25 && arid/coast < .30 && steppeRain/inland < 400))
+            throw new Exception("The Bohai summer monsoon should reach the coastal hinterland while the inland steppe stays drier.");
+    }
+
+    static void CheckRainyMonths(WorldData world, string name, int west, int east, int south, int north,
+        int wetterStart, int drierStart, int months)
+    {
+        double wetter=0,drier=0,area=0;
+        for(int y=0;y<world.Height;y++)
+        {
+            double lat=((y+.5)/world.Height-.5)*180;
+            if(lat<south || lat>=north) continue;
+            double weight=Math.Cos(lat*Math.PI/180);
+            for(int x=0;x<world.Width;x++)
+            {
+                int i=y*world.Width+x;
+                double lon=((x+.5)/world.Width-.5)*360;
+                if(lon<west || lon>=east || FlatTerrainAnalysis.AreaWater(world.Water[i])) continue;
+                area+=weight;
+                for(int m=0;m<months;m++)
+                {
+                    wetter+=weight*world.Precipitation[i*12+wetterStart+m];
+                    drier+=weight*world.Precipitation[i*12+drierStart+m];
+                }
+            }
+        }
+        Console.WriteLine($"{world.Width} {name}: {wetter/area:F0}/{drier/area:F0} mm.");
+        if(!(area>0 && wetter>drier)) throw new Exception($"The seasonal rain ordering is reversed in {name}.");
     }
 
     public static void EasternCoastCirculation()

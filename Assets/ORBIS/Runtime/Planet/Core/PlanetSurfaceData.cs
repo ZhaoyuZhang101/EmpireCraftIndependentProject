@@ -15,6 +15,7 @@ namespace Orbis.Planet
     // This is distinct from the legacy unit-sphere artistic height exaggeration.
     public sealed class PlanetSurfaceData
     {
+        const double MinimumRadiusMetres=2048;
         public readonly WorldData World;
         public readonly PlanetVector Center;
         public readonly double Radius;
@@ -23,7 +24,7 @@ namespace Orbis.Planet
         public PlanetSurfaceData(WorldData world,double radius,PlanetVector center)
         {
             if(world==null||world.Facts==null)throw new ArgumentException("Analysed WorldData is required.");
-            if(!(radius>WorldData.MaxWidth)||double.IsInfinity(radius))throw new ArgumentOutOfRangeException(nameof(radius));
+            if(!(radius>MinimumRadiusMetres)||double.IsInfinity(radius))throw new ArgumentOutOfRangeException(nameof(radius));
             World=world;Radius=radius;Center=center;Refresh();
         }
         public void Refresh()

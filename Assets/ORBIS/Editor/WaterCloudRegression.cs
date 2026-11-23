@@ -31,8 +31,10 @@ namespace Orbis.Editor
     }
     double oceanLake=Difference(samples[0],samples[1]),riverLake=Difference(samples[2],samples[1]);
     report.Add((oceanLake>1e-4&&riverLake>1e-4?"PASS":"FAIL")+" distinct ocean/lake/river results; differences="+oceanLake+", "+riverLake);
-    report.Add((m.GetFloat("_VendorWaterReady")>.5?"PASS":"FAIL")+" all five SW3 artwork resources bound");
-    string[] waterSlots={"_VendorStreamNormal","_VendorLakeNormal","_VendorOceanNormal","_VendorOceanFoam","_VendorRiverFoam"};
+    var lakeWaves=Resources.Load<Texture2D>("ORBISVendor/SW3/SmoothWaves");
+    var sharpWaves=Resources.Load<Texture2D>("ORBISVendor/SW3/SharpWaves");
+    report.Add((m.GetFloat("_VendorWaterReady")>.5&&lakeWaves&&sharpWaves?"PASS":"FAIL")+" SW3 lake and river ripple textures available");
+    string[] waterSlots={"_VendorStreamNormal","_VendorLakeNormal","_VendorLakeSmoothNormal","_VendorOceanNormal","_VendorOceanFoam","_VendorRiverFoam"};
     foreach(string resource in new[]{"ORBIS/Surface","ORBIS/FlatWorld/FlatMap","ORBIS/FlatWorld/LocalSurface","ORBIS/FlatWorld/ScrollSurface"})
     {
      var surface=new Material(Resources.Load<Shader>(resource));Material copy=null;
@@ -40,6 +42,7 @@ namespace Orbis.Editor
      {
       Orbis.Planet.OrbisAssetVisuals.BindWater(surface);copy=new Material(surface);bool valid=true;
       foreach(string slot in waterSlots)valid&=surface.HasProperty(slot)&&copy.HasProperty(slot)&&surface.GetTexture(slot)!=null&&copy.GetTexture(slot)==surface.GetTexture(slot);
+      valid=valid&&surface.GetTexture("_VendorLakeSmoothNormal")==lakeWaves&&surface.GetTexture("_VendorLakeNormal")==sharpWaves;
       if(resource=="ORBIS/Surface")valid&=surface.HasProperty("_Natural");
       report.Add((valid?"PASS":"FAIL")+" declared SW3 texture properties survive material cloning on "+resource);
      }

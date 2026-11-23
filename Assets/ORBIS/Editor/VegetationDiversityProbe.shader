@@ -12,11 +12,7 @@ Shader "Hidden/ORBIS/VegetationDiversityProbe"
             #include "UnityCG.cginc"
 
             float4 _MapSize;
-            float PDHash(float2 p)
-            {
-                p.x=p.x-floor(p.x/_MapSize.x)*_MapSize.x;
-                return frac(sin(dot(p,float2(12.9898,78.233)))*43758.5453);
-            }
+            #include "../Resources/ORBIS/FlatWorld/FlatTreePlacement.cginc"
             float PDBox(float2 p,float2 lo,float2 hi)
             {
                 return step(lo.x,p.x)*step(lo.y,p.y)*(1-step(hi.x,p.x))*(1-step(hi.y,p.y));

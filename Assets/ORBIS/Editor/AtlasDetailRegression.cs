@@ -51,6 +51,16 @@ namespace Orbis.Editor
                     Check(report, nav.IsFlat && !nav.IsAtlas && nav.Pick(camera.pixelRect.center) == tile &&
                         found && error <= .20 && PlanetVector.Dot(north, nav.LocalFrame.North) > .999,
                         $"F focuses the real tile in north-up local detail; row={row}, hit={found}, error={error:F4} px");
+                    // Both clicks are in that same tile but must retain their distinct shore positions.
+                    foreach (double x in new[]{.17, .82})
+                    {
+                        var shore=PlanetCoordinateSystem.FromMapUV((width-1+x)/width, (row+.36)/world.Height);
+                        nav.OpenAtlas(0); nav.Focus(shore,0); nav.Tick(3,0); nav.Tick(3,0);
+                        bool picked=nav.TryGetPlanetLocation(camera.pixelRect.center,out var actual);
+                        double offset=picked ? PixelError(shore,actual,nav.PixelsPerTile,width) : double.PositiveInfinity;
+                        Check(report,nav.IsFlat&&!nav.IsAtlas&&offset<=.20,
+                            $"F retains a sub-tile shore on entering local detail; row={row}, x={x}, error={offset:F4} px");
+                    }
                 }
                 nav.OpenAtlas(0);
                 nav.Recenter(PlanetCoordinateSystem.FromMapUV(.998, .93), 0);
@@ -94,6 +104,7 @@ namespace Orbis.Editor
             }
             finally
             {
+                root.GetComponent<FlatMapRenderer>()?.ReleaseRenderJobs();
                 UnityEngine.Object.DestroyImmediate(root);
                 RenderTexture.ReleaseTemporary(target);
                 Directory.CreateDirectory("ValidationOutput/LocalPlanet");
