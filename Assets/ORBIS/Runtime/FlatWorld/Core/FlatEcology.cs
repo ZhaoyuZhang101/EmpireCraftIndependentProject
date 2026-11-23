@@ -108,7 +108,7 @@ namespace Orbis.Flat
             return sheltered&&wetMonths>=4&&rain>=1.2f*demand&&dryStress<=12;
         }
 
-        public static float ContinuousCanopy(Biome biome,float temperature,float annualRain,float soil,float gradient,float warmest=float.NaN)
+        public static float ContinuousCanopy(Biome biome,float temperature,float annualRain,float soil,float gradient,float warmest=float.NaN,float biotemperature=float.NaN,float elevation=float.NaN)
         {
             if(biome==Biome.Water||biome==Biome.Snow||biome==Biome.Beach)return 0;
             float demand=AnnualWaterDemand(temperature);
@@ -119,6 +119,8 @@ namespace Orbis.Flat
             float slope=1-FMath.Clamp((gradient-200)/1100,0,.85f);
             float t=FMath.Clamp((available-.12f)/.78f,0,1);t=t*t*(3-2*t);
             float canopy=(.04f+.90f*t)*warmth*slope;
+            if(FMath.Finite(biotemperature)&&FMath.Finite(elevation))
+                canopy*=GlebaEcologySupplement.ComputeTreelineMultiplier(biotemperature,elevation);
             if(biome==Biome.Tundra||biome==Biome.Alpine&&(!FMath.Finite(warmest)||warmest<=10))canopy=Math.Min(.16f,canopy);
             if(biome==Biome.Wetland)canopy=Math.Min(.42f,canopy);
             return canopy;
@@ -385,6 +387,83 @@ namespace Orbis.Flat
             growth=FMath.Clamp(growth+1.7f*waterBalance*growth*(1-growth),0,1);
             foliage=FMath.Clamp(foliage+waterBalance*foliage*(1-foliage),0,1);
             snow=FMath.Clamp(snow+(rain-.19f*heat)*snow*(1-snow)*1.8f,0,1);
+        }
+
+        /// <summary>
+        /// Evaluates full Gleba v0.3.6 Holdridge flora, 23-rule biome, grounded glacier / sea-ice thickness,
+        /// and 6-stage soil state for a world tile (reading cached FlatTerrainFacts when built).
+        /// </summary>
+        public static void EvaluateGlebaTile(
+            WorldData world, int tile,
+            out GlebaPlantCover flora, out GlebaBiomeKind glebaBiome, out GlebaSoilState soil,
+            out float biotemperature, out float iceMeters)
+        {
+            flora = default;
+            glebaBiome = GlebaBiomeKind.RockyWasteland;
+            soil = default;
+            biotemperature = 0f;
+            iceMeters = 0f;
+            if (world == null || (uint)tile >= (uint)world.Count) return;
+
+            bool area = FlatTerrainAnalysis.AreaWater(world.Water[tile]);
+            float rain = 0f, temp = 0f, coldest = 1000f, warmest = -1000f, minRain = float.MaxValue;
+            int base12 = tile * 12;
+            for (int m = 0; m < 12; m++)
+            {
+                float tm = world.Temperature[base12 + m];
+                float rm = world.Precipitation[base12 + m];
+                rain += rm;
+                temp += tm / 12f;
+                if (tm < coldest) coldest = tm;
+                if (tm > warmest) warmest = tm;
+                if (rm < minRain) minRain = rm;
+            }
+
+            var facts = world.Facts;
+            biotemperature = facts?.Biotemperature != null
+                ? facts.Biotemperature[tile]
+                : GlebaEcologySupplement.ComputeBiotemperature(world.Temperature, base12, clampAbove30: true);
+            iceMeters = facts?.GroundedIceMeters != null
+                ? facts.GroundedIceMeters[tile]
+                : (area
+                    ? GlebaEcologySupplement.ComputeSeaIceMeters(true, temp)
+                    : GlebaEcologySupplement.ComputeGroundedIceMeters(true, world.Elevation[tile], warmest, rain / 12f));
+
+            var geo = facts?.GlebaGeography;
+            if (geo != null && (uint)tile < (uint)geo.Count)
+            {
+                flora = geo.GetFloraState(tile);
+            }
+            else
+            {
+                flora = GlebaEcologySupplement.EvaluateFlora(
+                    !area, area ? 0f : iceMeters, world.Elevation[tile], Math.Abs(world.Latitude(tile)),
+                    biotemperature, rain, minRain, coldest);
+            }
+            glebaBiome = facts?.GlebaBiomes != null
+                ? facts.GlebaBiomes[tile]
+                : GlebaEcologySupplement.ClassifyGlebaBiome(
+                    area, world.Water[tile] == WaterKind.Lake,
+                    world.Water[tile] == WaterKind.Lake
+                        ? world.Downstream[GlebaGeographySupplement.FindLakeRootFallback(world, tile)] >= 0
+                        : !FlatTerrainAnalysis.Ocean(world.Water[tile]),
+                    iceMeters, world.Elevation[tile],
+                    world.Temperature[base12 + 0], world.Temperature[base12 + 6],
+                    world.Precipitation[base12 + 0], world.Precipitation[base12 + 6],
+                    world.Climates[tile], in flora);
+
+            float gradient = facts?.Gradient != null ? facts.Gradient[tile] : 0f;
+            float sediment = facts?.Sediment != null ? facts.Sediment[tile] : 0f;
+            bool coastalBeach = world.CoastDistance[tile] <= 1 && world.Elevation[tile] <= 100;
+            if (geo != null && (uint)tile < (uint)geo.Count && !area && geo.SoilDepthCentimeters[tile] > 0)
+            {
+                soil = geo.GetSoilState(tile);
+            }
+            else
+            {
+                soil = GlebaEcologySupplement.EvaluateLocalSoil(
+                    !area, coastalBeach, world.Elevation[tile], gradient, rain, warmest, flora.TotalPlants, sediment);
+            }
         }
     }
 }

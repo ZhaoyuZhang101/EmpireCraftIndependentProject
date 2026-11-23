@@ -5,6 +5,12 @@ Shader "ORBIS/FlatWorld/SkyBake"
   _ClimateTex("Monthly precipitation and temperature",2D)="black"{}
   _ClimateWindTex("Climate wind",2D)="black"{}
   _RegionalCloudResponse("Regional moist, dry and convective response",2D)="black"{}
+  _CloudSynopticTex("Gleba synoptic lift, ITCZ, storm track, moisture",2D)="black"{}
+  _CloudSynopticAuxTex("Gleba marine Sc, orographic, rain shadow, polar front",2D)="black"{}
+  _UpperWindTex("Gleba Rossby jet and anvil wind",2D)="black"{}
+  [HideInInspector] _GlebaCloudEnable("Enable Gleba synoptic cloud physics",Float)=0
+  [HideInInspector] _GlebaForcingPoleSouth("South pole forcing",Vector)=(0.35,0,0.25,0.35)
+  [HideInInspector] _GlebaForcingPoleNorth("North pole forcing",Vector)=(0.35,0,0.25,0.35)
   [HideInInspector] _RegionalCloudPoles("South and north cloud responses",Vector)=(0,0,0,0)
   [HideInInspector] _CycloneNorth("Northern pressure centre and wind strength",Vector)=(0,0,0,0)
   [HideInInspector] _CycloneSouth("Southern pressure centre and wind strength",Vector)=(0,0,0,0)
@@ -19,14 +25,19 @@ Shader "ORBIS/FlatWorld/SkyBake"
    CGPROGRAM
    #pragma vertex vert_img
    #pragma fragment frag
-   #pragma target 3.0
+   #pragma target 3.5
    #include "UnityCG.cginc"
    #include "FlatCycloneWind.cginc"
-   sampler2D _ClimateTex,_ClimateWindTex,_RegionalCloudResponse;
+   UNITY_DECLARE_TEX2D(_ClimateTex);
+   sampler2D _ClimateWindTex,_RegionalCloudResponse;
+   // All three forcing grids use the climate texture's bilinear, repeat-U/clamp-V state.
+   UNITY_DECLARE_TEX2D_NOSAMPLER(_CloudSynopticTex);
+   UNITY_DECLARE_TEX2D_NOSAMPLER(_CloudSynopticAuxTex);
+   UNITY_DECLARE_TEX2D_NOSAMPLER(_UpperWindTex);
    float4 _RegionalCloudResponse_TexelSize,_RegionalCloudPoles;
-   float _VisualTime,_MonthBlend,_ClimateRows;
+   float _VisualTime,_MonthBlend,_ClimateRows,_GlebaCloudEnable;
    float4 _CyclonePhase;
-   float4 _ClimatePoleSouth,_ClimatePoleNorth;
+   float4 _ClimatePoleSouth,_ClimatePoleNorth,_GlebaForcingPoleSouth,_GlebaForcingPoleNorth;
    float Hash3(float3 p){p=frac(p*.1031);p+=dot(p,p.yzx+33.33);return frac((p.x+p.y)*p.z);}
    float Corner(float3 cell,float3 offset)
    {
@@ -103,10 +114,66 @@ Shader "ORBIS/FlatWorld/SkyBake"
     float upper=eye*(.07+.36*filaments+.31*shield)*(1+.27*dot(local,downwind));
     weather=lerp(weather,float4(low,upper,.17+.83*convection,smoothstep(.46,.86,convection)),influence);
    }
+   struct EraMorphology
+   {
+    float baseTex,honeycomb,mcsCluster,anvilShield,frontalLow,frontalDry,wcbCirrus;
+   };
+   EraMorphology SampleEraMorphology(
+    float eraId,float age,float3 radial,float longitude,float latitude,
+    float3 velocity,float3 windAxis,float windSpd,float polarLatRad,float3 jetAxis,float3 wander)
+   {
+    EraMorphology o;
+    float3 p=normalize(radial-velocity*age*7.2);
+    float3 seed=float3(Hash3(float3(eraId,4,7)),Hash3(float3(eraId,11,3)),Hash3(float3(eraId,5,19)))*15.0;
+    float3 curl=float3(
+     Noise3(p*4.8+wander+seed+17.0),
+     Noise3(p*4.8+wander+seed+43.0),
+     Noise3(p*4.8+wander+seed+71.0))-.5;
+
+    // Anisotropic wind-sheared coordinate organizes clouds into realistic cloud streets & bands
+    float3 pStreak=p-windAxis*dot(p,windAxis)*(.58*windSpd);
+    float synoptic=Fbm(p*6.4+curl*1.20+wander+seed);
+    float streets=Fbm(Turn(pStreak)*16.5+curl*.85+wander+seed);
+    float cumulus=Noise3(Turn(p)*33.0+curl*.60+wander+seed);
+    o.baseTex=synoptic*.50+streets*.32+cumulus*.18;
+    o.honeycomb=synoptic*.46+(1.0-abs(2.0*Noise3(Turn(p)*25.0+curl*.48+seed)-1.0))*.54;
+
+    // ITCZ mesoscale convective clusters & upper-air downwind sheared cirrus anvil shields
+    o.mcsCluster=smoothstep(.42,.80,synoptic*.58+streets*.42)*(.52+.48*smoothstep(.34,.78,cumulus));
+    float3 pAnvil=normalize(p-jetAxis*.052);
+    o.anvilShield=smoothstep(.36,.76,Fbm(pAnvil*7.2+curl*.90+wander+seed));
+
+    // Mid-latitude baroclinic Rossby wave comma cyclones (exact integer harmonics -> zero dateline seam)
+    float eraLon=6.2831853*Hash3(float3(eraId,9,2));
+    float theta=5.0*longitude-1.10*age+eraLon+.40*sin(2.0*longitude+seed.x);
+    float waveS=sin(theta),waveC=cos(theta);
+    float waveFade=smoothstep(-.68,-.15,waveC);
+    float dx=atan2(waveS,waveC)/5.0*max(.22,cos(latitude));
+    float dy=(abs(latitude)-polarLatRad-.062*sin(3.0*longitude-.55*age+seed.y));
+
+    // Comma head vortex wrapping cyclonically poleward + trailing cold front + dry-slot intrusion
+    float2 vortVec=float2(dx,dy-.032);
+    float rVort=length(vortVec)/.21;
+    float vortAng=atan2(vortVec.y,vortVec.x+1e-6)+2.35*log(1.0+4.8*rVort)+1.10*(synoptic-.5);
+    float commaHead=(1.0-smoothstep(.30,1.02,rVort))*smoothstep(-.16,.78,cos(vortAng))*smoothstep(.04,.20,rVort);
+
+    float dxFront=.56*dy-.48*dy*dy;
+    float dFront=dx-dxFront+.034*(streets-.5);
+    float coldFront=exp(-pow(dFront/.035,2.0))*smoothstep(-.36,-.20,dy)*(1.0-smoothstep(.02,.13,dy))*(.58+.52*streets);
+    float wcb=smoothstep(-.01,.09,dFront)*(1.0-smoothstep(.09,.24,dFront))*smoothstep(-.16,.14,dy)*(1.0-smoothstep(.14,.28,dy));
+    float drySlot=exp(-pow((dFront+.056)/.042,2.0))*smoothstep(-.26,-.03,dy)*(1.0-smoothstep(.06,.18,dy));
+    float coldCells=smoothstep(.08,.22,-dFront)*(1.0-smoothstep(.22,.36,-dFront))*smoothstep(-.30,.10,dy)*pow(cumulus,1.85)*.56;
+
+    o.frontalLow=waveFade*saturate(max(commaHead*(.74+.34*streets),coldFront)+.44*wcb*synoptic+coldCells);
+    o.frontalDry=waveFade*drySlot;
+    o.wcbCirrus=waveFade*saturate(wcb*(.62+.48*synoptic)+commaHead*.65);
+    return o;
+   }
    float4 frag(v2f_img i):SV_Target
    {
-    float4 monthly=tex2D(_ClimateTex,i.uv);
-    if(_ClimateRows>0)monthly=lerp(lerp(_ClimatePoleSouth,_ClimatePoleNorth,step(.5,i.uv.y)),monthly,smoothstep(0,1,min(i.uv.y,1-i.uv.y)*_ClimateRows));
+    float4 monthly=UNITY_SAMPLE_TEX2D(_ClimateTex,i.uv);
+    float poleBlend=_ClimateRows>0?smoothstep(0,1,min(i.uv.y,1-i.uv.y)*_ClimateRows):1;
+    if(_ClimateRows>0)monthly=lerp(lerp(_ClimatePoleSouth,_ClimatePoleNorth,step(.5,i.uv.y)),monthly,poleBlend);
     float wet=lerp(monthly.r,monthly.g,_MonthBlend);
     float longitude=(i.uv.x-.5)*6.283185307,latitude=(i.uv.y-.5)*3.141592654;
     float3 radial=float3(sin(longitude)*cos(latitude),sin(latitude),cos(longitude)*cos(latitude));
@@ -116,39 +183,109 @@ Shader "ORBIS/FlatWorld/SkyBake"
     float2 flow=lerp(wind.rg,wind.ba,_MonthBlend);
     float3 east=float3(cos(longitude),0,-sin(longitude));
     float3 north=float3(-sin(latitude)*sin(longitude),cos(latitude),-sin(latitude)*cos(longitude));
-    float3 velocity=(east*flow.x+north*flow.y)*(.014*smoothstep(0,.10,length(radial.xz)));
+    float3 windVec=east*flow.x+north*flow.y;
+    float windMag=length(windVec);
+    float3 windAxis=windMag>1e-4?(windVec/windMag):east;
+    float windSpd=saturate(windMag/.85)*smoothstep(0,.12,length(radial.xz));
+    float3 velocity=windVec*(.014*smoothstep(0,.10,length(radial.xz)));
     velocity*=min(1,.025/max(.0001,length(velocity)));
-    // Visual cloud evolution uses the existing seasonal wind and two smoothly
-    // changing spherical noise fields. It has no running water-vapour solver.
+
+    float4 forcing=float4(.5,0,0,wet);
+    float4 aux=float4(0,0,0,.68);
+    float3 jetAxis=normalize(float3(.84,.25,.48));
+    if(_GlebaCloudEnable>.5)
+    {
+     forcing=UNITY_SAMPLE_TEX2D_SAMPLER(_CloudSynopticTex,_ClimateTex,i.uv);
+     forcing=lerp(lerp(_GlebaForcingPoleSouth,_GlebaForcingPoleNorth,step(.5,i.uv.y)),forcing,poleBlend);
+     aux=UNITY_SAMPLE_TEX2D_SAMPLER(_CloudSynopticAuxTex,_ClimateTex,i.uv);
+     float4 uWind=UNITY_SAMPLE_TEX2D_SAMPLER(_UpperWindTex,_ClimateTex,i.uv);
+     float2 uFlow=lerp(uWind.rg,uWind.ba,_MonthBlend);
+     float3 jetVec=east*uFlow.x+north*uFlow.y;
+     float jetLen=length(jetVec);
+     if(jetLen>1e-3&&length(radial.xz)>.08)jetAxis=jetVec/jetLen;
+    }
+    float polarLatRad=(30.0+45.0*aux.a)*.01745329;
+
+    // Continuous two-era spherical advection (exact zero-jump handover at every 80s era boundary)
     float era=floor(_VisualTime*.0125),phase=frac(_VisualTime*.0125);
     float blend=phase*phase*(3-2*phase);
-    float3 p0=normalize(radial-velocity*phase*7);
-    float3 p1=normalize(radial+velocity*(1-phase)*7);
-    float3 seed0=float3(Hash3(float3(era,4,7)),Hash3(float3(era,11,3)),Hash3(float3(era,5,19)))*13;
-    float3 seed1=float3(Hash3(float3(era+1,4,7)),Hash3(float3(era+1,11,3)),Hash3(float3(era+1,5,19)))*13;
-    float3 wander=float3(sin(_VisualTime*.007),cos(_VisualTime*.009),sin(_VisualTime*.004))*.65;
-    float3 distortion=float3(Noise3(radial*3.4+wander+17),Noise3(radial*3.4+wander+43),Noise3(radial*3.4+wander+71))-.5;
-    float broad=lerp(Fbm(p0*4.6+distortion*1.55+wander+seed0),Fbm(p1*4.6+distortion*1.55+wander+seed1),blend);
-    float cells=lerp(Noise3(Turn(p0)*15.5+distortion+wander+seed0),Noise3(Turn(p1)*15.5+distortion+wander+seed1),blend);
+    float3 wander=float3(sin(_VisualTime*.007),cos(_VisualTime*.009),sin(_VisualTime*.004))*.62;
+    EraMorphology m0=SampleEraMorphology(era,phase,radial,longitude,latitude,velocity,windAxis,windSpd,polarLatRad,jetAxis,wander);
+    EraMorphology m1=SampleEraMorphology(era+1.0,phase-1.0,radial,longitude,latitude,velocity,windAxis,windSpd,polarLatRad,jetAxis,wander);
+
+    float baseTex=lerp(m0.baseTex,m1.baseTex,blend);
+    float honeycomb=lerp(m0.honeycomb,m1.honeycomb,blend);
+    float mcsCluster=lerp(m0.mcsCluster,m1.mcsCluster,blend);
+    float anvilShield=lerp(m0.anvilShield,m1.anvilShield,blend);
+    float frontalLow=lerp(m0.frontalLow,m1.frontalLow,blend);
+    float frontalDry=lerp(m0.frontalDry,m1.frontalDry,blend);
+    float wcbCirrus=lerp(m0.wcbCirrus,m1.wcbCirrus,blend);
+
     float3 regional=tex2D(_RegionalCloudResponse,i.uv).rgb;
     float2 pole=lerp(_RegionalCloudPoles.xy,_RegionalCloudPoles.zw,step(.5,i.uv.y));
     float2 response=lerp(pole,float2(regional.r-regional.g,regional.b),
        smoothstep(0,.5,min(i.uv.y,1-i.uv.y)*_RegionalCloudResponse_TexelSize.w));
-    float threshold=lerp(.56,.35,wet)-.085*response.x;
-    float low=smoothstep(threshold-.06,threshold+.25,broad*.76+cells*.24);
-    float storm=saturate(smoothstep(.27,.78,wet)*smoothstep(.62,.96,low)*(1+.35*response.y));
-    // Upper-level flow carries long ice filaments even above gaps in the low deck.
-    float3 upper=RotateY(radial,-_VisualTime*.0018);
-    float envelope=smoothstep(.33,.67,Fbm(upper*4.3+wander*.5+float3(12,2,8)));
-    float3 streakAxis=normalize(float3(.84,.25,.48));
-    float3 crossAxis=normalize(float3(-.48,.12,.86));
-    float3 shear=upper+distortion*.038;
-    float ribbonA=Noise3((shear-streakAxis*dot(shear,streakAxis)*.94)*35+float3(9,4,2));
-    float ribbonB=Noise3((shear-crossAxis*dot(shear,crossAxis)*.92)*42+float3(3,2,7));
-    float align=.5+.5*(abs(dot(east*flow.x+north*flow.y,streakAxis))-abs(dot(east*flow.x+north*flow.y,crossAxis)))*smoothstep(0,.16,length(radial.xz));
-    float wisps=lerp(ribbonB,ribbonA,smoothstep(.30,.70,align));
-    float high=envelope*(.14+.70*smoothstep(.31,.78,wisps))*lerp(.65,1,wet);
-    float4 weather=float4(low,high,saturate(.16+wet*.32+storm*.52),storm);
+
+    float low,high,convection,storm;
+    if(_GlebaCloudEnable>.5)
+    {
+     float synLift=forcing.r,itczConv=forcing.g,stormTrack=forcing.b,moistEnv=forcing.a;
+     float marineSc=aux.r,orogCrest=aux.g,leeShadow=aux.b;
+
+     // Physical condensation threshold suppressed over STHZ highs, deserts & foehn rain shadows
+     float support=saturate(.38*wet+.36*synLift+.26*moistEnv-.34*leeShadow+.30*orogCrest);
+     float threshold=lerp(.74,.31,support)-.095*response.x;
+     float airmassLow=smoothstep(threshold-.05,threshold+.22,baseTex);
+     // Baroclinic dry slots clear airmass clouds behind cold fronts while comma spirals & fronts build
+     airmassLow*=1.0-.78*stormTrack*frontalDry;
+
+     float frontalCloud=stormTrack*frontalLow*smoothstep(.16,.62,moistEnv+.45*wet);
+     float itczCloud=itczConv*mcsCluster*1.08;
+     float scCloud=marineSc*smoothstep(.38,.74,honeycomb)*.78;
+     float orogCloud=orogCrest*smoothstep(.34,.72,baseTex)*.76;
+
+     low=saturate(max(max(airmassLow,frontalCloud),max(itczCloud,max(scCloud,orogCloud))));
+     // Ensure regional atmospheric observations modulate existing cloud decks bidirectionally
+     low=saturate(low+.05*response.x*smoothstep(.01,.15,low+.15*support));
+
+     float scShare=saturate(scCloud-max(airmassLow,max(frontalCloud,itczCloud))*.85);
+     float deepShare=saturate(max(itczCloud,frontalCloud*.82));
+     storm=saturate(smoothstep(.22,.76,wet)*smoothstep(.56,.93,low)*(1+.35*response.y)*(1.0-.85*scShare));
+     convection=lerp(saturate(.18+wet*.30+deepShare*.38+storm*.42),0.08,scShare);
+
+     // Upper-tropospheric Rossby jet streaks, frontal warm-conveyor shields & ITCZ anvil canopies
+     float3 upper=RotateY(radial,-_VisualTime*.0018);
+     float3 crossJet=normalize(cross(radial,jetAxis)+float3(1e-5,0,0));
+     float3 jetShear=upper+wander*.04;
+     float jetStreak=Noise3((jetShear-jetAxis*dot(jetShear,jetAxis)*.92)*36.0+float3(9,4,2));
+     float crossStreak=Noise3((jetShear-crossJet*dot(jetShear,crossJet)*.90)*42.0+float3(3,2,7));
+     float poleTaper=smoothstep(0,.16,length(radial.xz));
+     float wisps=lerp(crossStreak,jetStreak,.25+.70*poleTaper);
+     float envJet=smoothstep(.34,.68,Fbm(upper*4.8+wander*.5+float3(12,2,8)));
+     float jetCirrus=envJet*(.10+.62*smoothstep(.32,.78,wisps))*lerp(.35,1.0,saturate(.55*moistEnv+.45*wet));
+     float anvilCirrus=itczConv*anvilShield*(.45+.55*smoothstep(.25,.75,wisps));
+     float frontCirrus=stormTrack*wcbCirrus*(.50+.50*smoothstep(.28,.76,wisps));
+     high=saturate(max(jetCirrus,max(anvilCirrus,frontCirrus)));
+    }
+    else
+    {
+     float threshold=lerp(.57,.35,wet)-.095*response.x;
+     low=smoothstep(threshold-.06,threshold+.24,baseTex);
+     storm=saturate(smoothstep(.27,.78,wet)*smoothstep(.62,.96,low)*(1+.35*response.y));
+     convection=saturate(.16+wet*.32+storm*.52);
+     float3 upper=RotateY(radial,-_VisualTime*.0018);
+     float envelope=smoothstep(.33,.67,Fbm(upper*4.3+wander*.5+float3(12,2,8)));
+     float3 streakAxis=normalize(float3(.84,.25,.48));
+     float3 crossAxis=normalize(float3(-.48,.12,.86));
+     float3 ribbonPos=upper+wander*.035;
+     float ribbonA=Noise3((ribbonPos-streakAxis*dot(ribbonPos,streakAxis)*.94)*35+float3(9,4,2));
+     float ribbonB=Noise3((ribbonPos-crossAxis*dot(ribbonPos,crossAxis)*.92)*42+float3(3,2,7));
+     float align=.5+.5*(abs(dot(windVec,streakAxis))-abs(dot(windVec,crossAxis)))*smoothstep(0,.16,length(radial.xz));
+     float wisps=lerp(ribbonB,ribbonA,smoothstep(.30,.70,align));
+     high=envelope*(.14+.70*smoothstep(.31,.78,wisps))*lerp(.65,1,wet);
+    }
+
+    float4 weather=float4(low,high,convection,storm);
     Cyclone(radial,_CycloneNorth,1,_CyclonePhase.x,flow,weather);
     Cyclone(radial,_CycloneSouth,-1,_CyclonePhase.y,flow,weather);
     return weather;

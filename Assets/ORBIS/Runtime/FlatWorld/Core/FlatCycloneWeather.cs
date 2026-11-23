@@ -115,8 +115,8 @@ namespace Orbis.Flat
             // the core and lowers pressure; surface exchange grows with its winds.
             double lift = 1 - Math.Exp(-(.62 * arrival.Organization + track.PressureDeficit / 18 + wind / 32));
             double exchange = .26 + .74 * Unit((Math.Sqrt(arrival.East * arrival.East + arrival.North * arrival.North) + wind) / 30);
-            double heating = 54 * heat * exchange * lift / (1 + .60 * arrival.Strain);
-            double filling = .37 + .85 * (1 - heat) + 1.05 * (1 - sea) + .18 * arrival.Strain;
+            double heating = 54 * arrival.MpiFactor * heat * exchange * lift / (1 + .60 * arrival.Strain + .55 * arrival.ShearVentilation);
+            double filling = .37 + .85 * (1 - heat) + 1.05 * (1 - sea) + .18 * arrival.Strain + .22 * arrival.ShearVentilation;
             track.PressureDeficit = Math.Min(110, FlatScrollMath.ExpApproach(track.PressureDeficit, heating / filling, filling, StepDays));
             // Gradient-wind balance at the core radius, with boundary-layer spin-up
             // and stronger surface drag over land. Pressure is in hPa.
@@ -176,7 +176,8 @@ namespace Orbis.Flat
                 if (!FlatTerrainAnalysis.Ocean(climate.World.Water[tile])) continue;
                 var air = climate.At(u, v, hemisphere);
                 double growth = air.Sea * Unit((air.Temperature - 25.6) / 2.5)
-                    * air.HumidityFactor * air.RainFactor * air.Organization / (1 + air.Strain);
+                    * air.HumidityFactor * air.RainFactor * air.Organization * air.MpiFactor
+                    / (1 + air.Strain + .65 * air.ShearVentilation);
                 if (growth <= bestGrowth) continue;
                 bestGrowth = growth;
                 best = new FlatCycloneTrack { Tracked = true, U = u, V = v };
@@ -188,6 +189,7 @@ namespace Orbis.Flat
         {
             public double Temperature, HumidityFactor, RainFactor, Sea;
             public double East, North, Organization, PlanetaryVorticity, Strain;
+            public double MpiFactor, ShearVentilation;
         }
 
         readonly struct Climate
@@ -248,6 +250,25 @@ namespace Orbis.Flat
                 double stretching = Math.Max(0, convergence) * absolute;
                 if (absolute > 0)
                     air.Organization = Unit((stretching + .60 * Math.Max(0, curl - .075) - .055) / .38);
+                var exo = columns.ExoPlaSim;
+                if (exo != null)
+                {
+                    int m0 = FMath.Wrap((int)Math.Floor(season.SeasonalMonth), 12), m1 = (m0 + 1) % 12;
+                    float frac = (float)(season.SeasonalMonth - Math.Floor(season.SeasonalMonth));
+                    float mpi = FMath.Lerp(exo.SampleMonthly(exo.MaxPotentialIntensityMs, (float)u, (float)v, m0),
+                                           exo.SampleMonthly(exo.MaxPotentialIntensityMs, (float)u, (float)v, m1), frac);
+                    float shear = FMath.Lerp(exo.SampleMonthly(exo.VerticalShearMs, (float)u, (float)v, m0),
+                                             exo.SampleMonthly(exo.VerticalShearMs, (float)u, (float)v, m1), frac);
+                    float chi = FMath.Lerp(exo.SampleMonthly(exo.EntropyDeficit, (float)u, (float)v, m0),
+                                           exo.SampleMonthly(exo.EntropyDeficit, (float)u, (float)v, m1), frac);
+                    air.MpiFactor = FMath.Clamp((float)(0.72 + 0.48 * (mpi / 62.0)), 0.50f, 1.32f);
+                    air.ShearVentilation = Math.Max(0.0, (shear - 12.0) / 20.0) * (0.35 + 0.65 * chi);
+                }
+                else
+                {
+                    air.MpiFactor = 1.0;
+                    air.ShearVentilation = 0.0;
+                }
                 return air;
             }
 

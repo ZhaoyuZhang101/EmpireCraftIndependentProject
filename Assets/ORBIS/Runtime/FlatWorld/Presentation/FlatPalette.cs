@@ -24,6 +24,34 @@ namespace Orbis.Flat
             if(layer==MapLayer.Height)return "低绿 → 高白：0…4000m；等高线使用真实预设海拔插值。";
             if(layer==MapLayer.Water)return "深海 / 中海 / 浅海 / 淡水湖 / 细河道；混合区随汇流量展开。";
             if(layer==MapLayer.Rivers)return "深蓝粗线为主河道，细线为支流。地球按已测绘河道显示，随机世界按本地汇流显示。";
+            if(layer==MapLayer.SurfaceWinds)return "Gleba 风带与海平面气压：深蓝为高压脊，亮黄为赤道槽/季风低压/副极地低压；蓝岸为向岸湿风，红岸为离岸干风。\n橙实线：ITCZ 热带辐合带 · 青虚线：STHZ 副热带高压脊 · 紫虚线：极锋带 · 动态流线箭头显示当月近地风向与风速。";
+            if(layer==MapLayer.OceanCurrents)return "Gleba 表层洋流与海温：Cividis 动态海面高度叠加暖流（暖金橙）与涌升寒流（冰青蓝），动态流线箭头显示当月表层洋流方向与流速。";
+            if(layer==MapLayer.RossbyJets)return "Gleba 高空急流与罗斯贝波：显示南北极锋急流与副热带急流的 4–8 波行星蜿蜒槽脊、急流核风速（暗紫 → 亮金）及实时动态高空急流流线。";
+            if(layer==MapLayer.RainShadow)return "Gleba 地形雨影与风程大陆度：Cividis 深蓝为海洋迎风湿润带，亮金黄为山脉背风坡 Helmholtz 雨影区与深内陆风程干旱核。";
+            if(layer==MapLayer.RelativeHumidity)return "Gleba 月均相对湿度：荒漠暖赭（0%）→ 温带青绿（50%）→ 季风/赤道深钴蓝（100%）。";
+            if(layer==MapLayer.GlebaBiomes)return "Gleba 23 类生态群系：基于 Holdridge 17 条生理温度/降水/林线曲线、稀树草原干季转移、泥炭/草本/森林沼泽及海冰/冰盖分类。";
+            if(layer==MapLayer.GlebaFlora)return "Gleba 乔灌草植被结构（RGB 三元图）：红 = 灌木比例 · 绿 = 草本比例 · 蓝 = 乔木比例 · 深黑 = 裸地/荒漠（Empty Land）。";
+            if(layer==MapLayer.GlebaSoilTexture)return "Gleba 六遍土壤质地（RGB 三元图）：红 = 砂粒（风蚀沙丘/砂岩）· 绿 = 粉砂（冰期黄土/冲积平原）· 蓝 = 黏粒（风化红壤/湖积黏土）。";
+            if(layer==MapLayer.GlebaSoilFertility)return "Gleba 土壤厚度与矿质养分：综合 6 遍流水搬运沉积的表土层深度、基岩矿质养分富集度与有机质（褐岩 → 金壤 → 沃绿）。";
+            if(layer==MapLayer.GlebaBedrock)return "Gleba 37 类完整基岩岩性：7 类碎屑沉积岩 · 5 类化学/蒸发沉积岩 · 10 类侵入/喷出长英度火成岩（含大火成岩省溢流玄武岩）· 15 类高压俯冲/巴罗变质带/太古宙绿岩带变质岩。";
+            if(layer==MapLayer.GlebaTectonics)return "Gleba 板块、微板块地体、古造山带、大火成岩省与火山：浅界线为板块边界，绯红为俯冲海沟弧，琥珀橙为碰撞造山带，靛紫为大火成岩省玄武岩台地，青铜为古造山缝合带，亮橙黄点为活火山。";
+            if(layer==MapLayer.GlebaHydroGeo)return "Gleba 水文地质综合：粉红/亮金为热带珊瑚礁与环礁沙洲 · 亮青为 LGM 冰蚀峡湾海岸 · 冰蓝为末次盛冰期冰盖 · 橙褐为内流咸水湖 · 宝蓝为构造裂谷淡水湖 · 青绿斑块为深层承压/自流含水层。";
+            if(layer==MapLayer.GlebaCrops)return "Gleba 起源农作物与文明承载力：金珀为野生豌豆 · 赤陶橙为新月沃地苦野豌豆 · 鲜柠绿为温带野生黑麦 · 翡翠青/亮水青为季风野生稻与满江红固氮共生系 · 亮暖金高光为大河冲积与海岸文明摇篮高承载区。";
+            if(layer==MapLayer.ExoConvectiveRain)return "ExoPlaSim 水循环拆分（对流雨 vs 层状雨 vs 降雪）：暖品红/珊瑚红为深对流雷暴降水（ITCZ/季风/海陆风辐合）· 青钴蓝为斜压锋面与迎风地形大尺度层状降水 · 冰白为固态降雪。";
+            if(layer==MapLayer.ExoRadiationOlr)return "ExoPlaSim 辐射能量收支与出射长波 OLR：深靛蓝（<160 W/m²）为高耸深对流云顶与强温室捕获区 · 亮金黄（>285 W/m²）为副高晴空干沙漠热辐射窗 · 冰青高光为高反照率冰雪盖。";
+            if(layer==MapLayer.ExoDiurnalRange)return "ExoPlaSim 昼夜温差 DTR 与感潜热波文比：深海蓝（1–3 °C）为高热容海洋恒温区 · 翠青绿（6–9 °C）为高潜热湿润雨林/季风海岸 · 炽金橙（16–22 °C）为干土高感热荒漠大温差区。";
+            if(layer==MapLayer.ExoStormPotential)return "ExoPlaSim 风暴气候学（MPI / CAPE / 生成潜势 GPI）：暗紫 → 绯红 → 亮金核显示热带洋面最大潜在台风强度（m/s）与低风切变生成温床；陆地绿金显示深对流有效位能 CAPE；叠加实时引导气流流线。";
+            if(layer==MapLayer.ExoPastaClimate)
+            {
+                var sb=new System.Text.StringBuilder("ExoPlaSim Pasta 生物气候分类（19 类陆海气候带）：\n");
+                for(int p=0;p<=18;p++)
+                {
+                    var pk=(PastaClimateKind)p;
+                    uint hex=ExoPlaSimSupplement.GetPastaColorHex(pk);
+                    sb.Append("<color=#").Append(hex.ToString("X6")).Append(">■</color> ").Append(ExoPlaSimSupplement.GetPastaLabel(pk)).Append('\n');
+                }
+                return sb.ToString();
+            }
             if(layer==MapLayer.Fertility)return "棕 → 绿：0…100% 文明用地肥力。";
             if(layer==MapLayer.Nations)return "国家色代表 Zone 归属，不决定河岸或地貌。";
             for(int i=layer==MapLayer.Climate?1:0;i<colors.Length;i++)
@@ -99,6 +127,16 @@ namespace Orbis.Flat
         public static Color32 Display(WorldData w,int i,MapLayer layer)
         {
             Color c=Terrain(w,i);c.a=1;
+            if(layer>=MapLayer.ExoConvectiveRain)
+            {
+                ExoPlaSimSupplement.EvaluateMapmodeColor(w,i,w.Month,ExoPlaSimSupplement.MapLayerToExoMode(layer),out byte r,out byte g,out byte b);
+                return new Color32(r,g,b,255);
+            }
+            if(layer>=MapLayer.SurfaceWinds)
+            {
+                GlebaGeographySupplement.EvaluateMapmodeColor(w,i,w.Month,GlebaGeographySupplement.MapLayerToGlebaMode(layer),out byte r,out byte g,out byte b);
+                return new Color32(r,g,b,255);
+            }
             switch(layer)
             {
                 case MapLayer.Nations:break; // Exactly one political tint, in the shader.

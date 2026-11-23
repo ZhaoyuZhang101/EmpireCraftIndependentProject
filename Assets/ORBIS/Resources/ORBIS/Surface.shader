@@ -35,10 +35,15 @@ Shader "ORBIS/Surface"
   [HideInInspector] _VendorOceanFoam("SW3 ocean foam",2D)="black"{}
   [HideInInspector] _VendorRiverFoam("SW3 river foam",2D)="black"{}
   [HideInInspector] _FlatWorldReady("2D authoritative source",Float)=0
+  [HideInInspector] _FlatDiagnosticDisplay("Shared diagnostic layer",Float)=0
   [HideInInspector] _FlatPolitical("2D political tint",Float)=0
   _Tint("Tint",Color)=(1,1,1,1)
   _TerrainAtlas("Biome albedo",2D)="white"{}
-  _FlatTerrain("Shared 2D terrain",2D)="white"{} _FlatOwners("Shared owners",2D)="black"{} _FlatInfo("Shared semantics",2D)="black"{}
+  _FlatTerrain("Shared 2D terrain",2D)="white"{} _FlatDisplay("Shared 2D display",2D)="white"{} _FlatOwners("Shared owners",2D)="black"{} _FlatInfo("Shared semantics",2D)="black"{}
+  [HideInInspector] _GlebaWindFlowTex("Gleba two-month surface wind flow",2D)="black"{}
+  [HideInInspector] _GlebaCurrentFlowTex("Gleba two-month ocean current flow",2D)="black"{}
+  [HideInInspector] _GlebaBandsTex("Gleba circulation front latitudes",2D)="black"{}
+  [HideInInspector] _GlebaCirculation("Gleba circulation mode clock blend ready",Vector)=(0,0,0,0)
   _HydroA("Depth flow width",2D)="black"{} _HydroB("Meander sediment freshwater links",2D)="black"{} _GeoTex("Height materials",2D)="black"{}
   _VisualTex("Reconstructed field",2D)="black"{} _SkyTex("Climate cloud layers",2D)="black"{}
   [HideInInspector] _PoleBedDepth("Polar bed and depth, south then north",Vector)=(0,0,0,0)
@@ -75,17 +80,19 @@ Shader "ORBIS/Surface"
    #pragma target 3.0
    #include "UnityCG.cginc"
    #include "OrbisPatch.cginc"
-   // Surface never includes OrbisOptics/OrbisWater/CloudCommon. Atmospheric volume
-   // stays in its camera pass. Nine samplers; no ray-march or nested atmosphere paths.
+   // The camera pass renders the atmosphere. Survey, ice, river and circulation
+   // textures on this surface reuse the same presentation sampler.
    #define ORBIS_FLAT_NO_SWE
    #pragma multi_compile_local_fragment __ ORBIS_RIVER_RASTER ORBIS_RIVER_VECTORS
    #define ORBIS_SURFACE_RIVER_VARIANTS 1
    #include "FlatWorld/Water/FlatWater.cginc"
    #include "FlatWorld/FlatLakeIce.cginc"
    #include "FlatWorld/FlatCloudCover.cginc"
+   #include "FlatWorld/FlatCirculationOverlay.cginc"
    #include "FlatWorld/Water/FlatWaterReflection.cginc"
+   UNITY_DECLARE_TEX2D_NOSAMPLER(_FlatDisplay);
    sampler2D _FlatTerrain,_FlatOwners,_FlatInfo,_TerrainAtlas;
-   float _FlatWorldReady,_FlatPolitical,_Natural,_Night,_SolarEnergy,_CloudShadow,_ShadowStrength;
+   float _FlatWorldReady,_FlatDiagnosticDisplay,_FlatPolitical,_Natural,_Night,_SolarEnergy,_CloudShadow,_ShadowStrength;
    float _TerrainAtlasReady,_SurfaceDetail,_Settlement,_Clouds,_SurfaceDebug;
    float _SkyReady,_FlatCloudShadows,_FlatNightLights,_ShowContours,_ContourInterval;
    float3 _Sun;float4 _Tint,_FlatSize;
@@ -234,6 +241,17 @@ Shader "ORBIS/Surface"
     else col+=_Settlement*_Night*night*float3(.9,.38,.09);
     col*=lerp(1,cloudShade,smoothstep(-.05,.18,dot(radial,sun)));
     if(_RiverMap>.5&&_FlatWorldReady>.5)col=riverMapColor;
+    if(max(_FlatDiagnosticDisplay,_GlebaCirculation.x)>.5&&_FlatWorldReady>.5)
+    {
+     float2 displayUV=(floor(uv*_MapSize.xy)+.5)*_MapSize.zw;
+     if(_GlebaCirculation.x>.5)displayUV=FlatBlendUV(uv*_MapSize.xy);
+     col=FlatPresentationSample(_FlatDisplay,displayUV,0).rgb;
+     if(_GlebaCirculation.x>.5)col=FlatApplyCirculationOverlay(col,uv,pixelsPerTile,water,floor(info.g+.5));
+     // Match the folded surface's linear output to the native atmosphere/display pass.
+     #ifdef UNITY_COLORSPACE_GAMMA
+     col=GammaToLinearSpace(max(0,col));
+     #endif
+    }
     return float4(max(0,col),1);
    }
    ENDCG

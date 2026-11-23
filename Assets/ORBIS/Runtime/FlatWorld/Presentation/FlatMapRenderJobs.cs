@@ -22,7 +22,7 @@ namespace Orbis.Flat
             public VegetationCover Vegetation;
             public TreeSpecies Tree;
             public Landform Form;
-            public Color32 Owner;
+            public Color32 Owner,OverlayColor;
             public float Temperature,Rain,Fertility,Depth,FlowX,FlowY,HalfWidth,Shore,Sediment,Freshness,Wetness,Hand,Canopy,Meander;
             public byte Connections;
         }
@@ -107,8 +107,20 @@ namespace Orbis.Flat
                 }
                 if(weight>0)canopy=total/weight;
             }
+            Color32 overlayColor=default;
+            if(layer>=MapLayer.ExoConvectiveRain)
+            {
+                ExoPlaSimSupplement.EvaluateMapmodeColor(source,i,month,ExoPlaSimSupplement.MapLayerToExoMode(layer),out byte mr,out byte mg,out byte mb);
+                overlayColor=new Color32(mr,mg,mb,255);
+            }
+            else if(layer>=MapLayer.SurfaceWinds)
+            {
+                GlebaGeographySupplement.EvaluateMapmodeColor(source,i,month,GlebaGeographySupplement.MapLayerToGlebaMode(layer),out byte mr,out byte mg,out byte mb);
+                overlayColor=new Color32(mr,mg,mb,255);
+            }
             return new Tile{Elevation=source.Elevation[i],Water=source.Water[i],Biome=source.Biomes[i],Climate=source.Climates[i],Building=source.Buildings[i],
                 Material=f.Materials[i],Vegetation=f.Vegetation[i],Tree=f.Trees[i],Form=f.Forms[i],Owner=owner<0?new Color32(0,0,0,0):FlatPalette.RGB(source.Nations[owner].Color,(byte)(owner+1)),
+                OverlayColor=overlayColor,
                 Temperature=source.Temperature[i*12+month],Rain=source.Precipitation[i*12+month],Fertility=source.Fertility[i],Depth=f.Depth[i],FlowX=f.FlowX[i],FlowY=f.FlowY[i],
                 // Earth streams its mapped overview first. Suppress the legacy tile
                 // channels while waiting for the matching detailed distance field.
@@ -239,8 +251,9 @@ namespace Orbis.Flat
                     case MapLayer.Fertility:display=Color.Lerp(RGB(0xb39d7a),RGB(0x478c68),t.Fertility);break;
                 }
                 display.a=1;
+                Color32 finalDisplay=Layer>=MapLayer.SurfaceWinds?t.OverlayColor:(Layer==MapLayer.Natural?terrain:(Color32)display);
                 int level=0;if(t.Elevation>0){level=20;for(int b=0;b<Bands.Length;b++)if(t.Elevation<=Bands[b]){level=b+1;break;}}
-                Output[j]=new PackedColors{Terrain=terrain,Display=Layer==MapLayer.Natural?terrain:(Color32)display,
+                Output[j]=new PackedColors{Terrain=terrain,Display=finalDisplay,
                     Ecology=new Color32((byte)t.Vegetation,(byte)(((int)t.Tree+1)*16+(int)t.Biome),(byte)Mathf.RoundToInt(Mathf.Clamp01(t.Wetness)*255),(byte)(FMath.Hash((uint)i^Seed)&255)),
                     Info=new Color32((byte)level,(byte)t.Water,(byte)t.Building,(byte)t.Climate)};
             }
