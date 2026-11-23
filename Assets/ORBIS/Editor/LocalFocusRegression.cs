@@ -39,6 +39,7 @@ namespace Orbis.Editor
                 var material=nav.SurfaceMaterial;
                 int pass=material.FindPass("SCROLL_SURFACE");
                 ShaderUtil.CompilePass(material,pass,true);
+                nav.SyncMaterials(); // Switch from the loading preview to the pass just compiled.
                 var terrain=Array.Find(nav.GetComponentsInChildren<MeshRenderer>(),r=>r.sharedMaterial==material);
                 var mesh=terrain.GetComponent<MeshFilter>().sharedMesh;
                 Color[] Render()
@@ -102,6 +103,21 @@ namespace Orbis.Editor
                         report.Add((total>0&&inside>0&&matched==total?"PASS ":"FAIL ")+
                             $"geographic brush {brush} at ({column},{row}) including wrapped and clipped cells, matches={matched}/{total}, inside={inside}");
                     }
+                    var shore=PlanetCoordinateSystem.FromMapUV((column+.79)/world.Width,(row+.33)/world.Height);
+                    map.Select(tile,shore);nav.SyncMaterials();pixels=Render();
+                    var pin=material.GetVector("_LocalFocus");
+                    Vector2 screen=camera.pixelRect.center+new Vector2(pin.x,pin.y)*pin.z;
+                    bool hitPin=nav.TryGetPlanetLocation(screen,out var pinLocation);
+                    double pinError=PlanetLocalProjection.Distance(PlanetCoordinateSystem.SurfaceNormal(shore),
+                        PlanetCoordinateSystem.SurfaceNormal(pinLocation),1)*world.Width*nav.PixelsPerTile/(2*Math.PI);
+                    int litCorners=0;
+                    foreach(int signX in new[]{-1,1})foreach(int signY in new[]{-1,1})
+                    {
+                        int px=Mathf.FloorToInt(screen.x+signX*pin.w),py=Mathf.FloorToInt(screen.y+signY*pin.w);
+                        if(px>=0&&px<width&&py>=0&&py<height&&pixels[py*width+px].r>.25f)litCorners++;
+                    }
+                    report.Add((hitPin&&pinError<.2&&litCorners==4?"PASS ":"FAIL ")+
+                        $"sub-tile pin ({column},{row}), corners={litCorners}/4, geographic error={pinError:F4}px");
                 }
                 CheckSettlementArtwork(report);
             }
@@ -109,6 +125,7 @@ namespace Orbis.Editor
             {
                 ShaderUtil.allowAsyncCompilation=async;RenderTexture.active=previous;camera.targetTexture=null;
                 commands.Release();RenderTexture.ReleaseTemporary(target);
+                root.GetComponent<FlatMapRenderer>()?.ReleaseRenderJobs();
                 UnityEngine.Object.DestroyImmediate(read);UnityEngine.Object.DestroyImmediate(root);
             }
             Directory.CreateDirectory("ValidationOutput/local-focus");

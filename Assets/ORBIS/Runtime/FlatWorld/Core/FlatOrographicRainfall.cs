@@ -11,6 +11,7 @@ namespace Orbis.Flat
         const double RadiusKm = 6371.0088;
         const double ExposureLengthKm = 160;
         const double CloudExtentKm = 120;
+        const double IslandExposureKm = 32;
 
         internal static void Distribute(WorldData world, FlatMoistureState air, ParallelOptions options)
         {
@@ -55,6 +56,11 @@ namespace Orbis.Flat
                 var east = new SurfaceTap(world, latitude, 1, 0, southPole, northPole);
                 var south = new SurfaceTap(world, latitude, 0, -1, southPole, northPole);
                 var north = new SurfaceTap(world, latitude, 0, 1, southPole, northPole);
+                // Shallow marine clouds follow local island slopes below the trade-wind
+                // inversion. The regional 160 km stencil can see ocean on all sides.
+                float tropical = FMath.Clamp((36f - (float)Math.Abs(latitude * 180 / Math.PI)) / 10f, 0, 1);
+                var island = tropical > 0 && air.Gleba != null
+                    ? new IslandSlopes(world, latitude, southPole, northPole) : default;
                 for (int x = 0; x < world.Width; x++)
                 {
                     int i = y * world.Width + x, offset = i * 12;
@@ -66,19 +72,41 @@ namespace Orbis.Flat
                     // crosses a mountain range without following its local slopes.
                     float columnLoss = Math.Max(0, z - 600) / 3500;
                     var taps = columns.Fine[x];
-                    if (fromWest == 0 && fromEast == 0 && fromSouth == 0 && fromNorth == 0)
+                    float marineWeight = 0;
+                    if (tropical > 0 && air.Gleba != null && !FlatTerrainAnalysis.AreaWater(world.Water[i]))
+                    {
+                        float ocean = air.Gleba.SampleStatic(air.Gleba.OceanFraction,
+                            (x + .5f) / world.Width, (y + .5f) / world.Height);
+                        marineWeight = tropical * FMath.Clamp((ocean - .6f) / .3f, 0, 1);
+                    }
+                    if (marineWeight == 0 && fromWest == 0 && fromEast == 0 && fromSouth == 0 && fromNorth == 0)
                     {
                         float preference = .7f + .3f * (float)Math.Exp(-columnLoss);
                         for (int m = 0; m < 12; m++) world.Precipitation[offset + m] = preference;
                     }
                     else
                     {
+                        var slopes = marineWeight > 0 ? island.Read(bed, x, world.Width, z) : default;
+                        float cloudLayer = FMath.Clamp((2700 - z) / 1000, 0, 1);
                         for (int m = 0; m < 12; m++)
                         {
-                            float ascent = 0;
+                            float ascent = 0, islandAscent = 0;
                             foreach (var tap in taps)
-                                ascent += tap.Weight * rowFlow[tap.Index * 12 + m].Rise(fromWest, fromEast, fromSouth, fromNorth);
-                            world.Precipitation[offset + m] = .7f + .3f * (float)Math.Exp(FMath.Clamp(ascent / 1500 - columnLoss, -2, 2));
+                            {
+                                var wind = rowFlow[tap.Index * 12 + m];
+                                ascent += tap.Weight * wind.Rise(fromWest, fromEast, fromSouth, fromNorth);
+                                if (marineWeight > 0) islandAscent += tap.Weight * wind.IslandRise(slopes);
+                            }
+                            float preference = .7f + .3f * (float)Math.Exp(FMath.Clamp(ascent / 1500 - columnLoss, -2, 2));
+                            if (marineWeight > 0)
+                            {
+                                // The 390 m lift response and 58% shallow share are
+                                // subgrid model parameters. Background rain crosses
+                                // the summit even above the marine inversion.
+                                float shallow = cloudLayer * (float)Math.Exp(FMath.Clamp(cloudLayer * islandAscent / 390, -1.8f, 2.3f));
+                                preference *= FMath.Lerp(1, .42f + .58f * shallow, marineWeight);
+                            }
+                            world.Precipitation[offset + m] = preference;
                         }
                     }
                     foreach (var tap in taps)
@@ -195,6 +223,42 @@ namespace Orbis.Flat
 
             internal float Rise(float west, float east, float south, float north) =>
                 fromWest * west + fromEast * east + fromSouth * south + fromNorth * north;
+
+            internal float IslandRise((float east, float north, float ne, float nw, float crest) slopes)
+            {
+                // Split the humid wind into its two adjacent compass bearings.
+                float east = fromWest - fromEast, north = fromSouth - fromNorth;
+                float diagonal = Math.Min(Math.Abs(east), Math.Abs(north));
+                int e = Math.Sign(east), n = Math.Sign(north);
+                return (east - e * diagonal) * slopes.east + (north - n * diagonal) * slopes.north
+                    + 1.41421356f * diagonal * n * (e == n ? slopes.ne : slopes.nw)
+                    + Math.Max(Math.Abs(east), Math.Abs(north)) * slopes.crest;
+            }
+        }
+
+        readonly struct IslandSlopes
+        {
+            readonly SurfaceTap west, east, south, north, ne, sw, nw, se;
+
+            internal IslandSlopes(WorldData world, double latitude, double southPole, double northPole)
+            {
+                const double diagonal = .7071067811865476;
+                SurfaceTap Tap(double e, double n) => new SurfaceTap(world, latitude, e, n, southPole, northPole, IslandExposureKm);
+                west = Tap(-1, 0); east = Tap(1, 0); south = Tap(0, -1); north = Tap(0, 1);
+                ne = Tap(diagonal, diagonal); sw = Tap(-diagonal, -diagonal);
+                nw = Tap(-diagonal, diagonal); se = Tap(diagonal, -diagonal);
+            }
+
+            internal (float east, float north, float ne, float nw, float crest) Read(short[] bed, int x, int width, float z)
+            {
+                float Height(SurfaceTap tap) => Math.Max(0, tap.Read(bed, x, width));
+                float e = Height(east), w = Height(west), n = Height(north), s = Height(south);
+                float en = Height(ne), ws = Height(sw), wn = Height(nw), es = Height(se);
+                // A low summit still receives droplets formed on the approaching
+                // slopes even when the centred gradient at its highest point is zero.
+                float rim = .25f * (Math.Max(e,w) + Math.Max(n,s) + Math.Max(en,ws) + Math.Max(wn,es));
+                return (.5f * (e-w), .5f * (n-s), .5f * (en-ws), .5f * (wn-es), Math.Max(0, z-rim));
+            }
         }
 
         readonly struct SurfaceTap
@@ -204,9 +268,10 @@ namespace Orbis.Flat
 
             // Follow a fixed-distance great circle. The last DEM row is a ring
             // of samples around the pole; all meridians share a single polar value.
-            internal SurfaceTap(WorldData world, double latitude, int east, int north, double southPole, double northPole)
+            internal SurfaceTap(WorldData world, double latitude, double east, double north, double southPole,
+                double northPole, double distanceKm = ExposureLengthKm)
             {
-                double angle = ExposureLengthKm / RadiusKm, along = Math.Cos(angle), across = Math.Sin(angle);
+                double angle = distanceKm / RadiusKm, along = Math.Cos(angle), across = Math.Sin(angle);
                 double sin = Math.Sin(latitude), cos = Math.Cos(latitude);
                 double x = east * across, y = sin * along + cos * north * across;
                 double z = cos * along - sin * north * across;

@@ -33,9 +33,13 @@
 
 4096 档在同一片地表上有 2048 档四倍的可玩格，共 524,288 个文明管理区。逐格保存高程、水体和十二个月的气候后，一份完整原生存档约占 1.02 GiB。
 
-地球近景在同一模拟格内也能显示山脊、谷地与坡向。球体、局部展开和战略图共用 NOAA ETOPO 2022 陆地高程。中低纬近景使用 60 角秒原始采样，南北约 1.85 公里，在江淮东西约 1.6 公里。远景使用经过平均的地形。南北纬 50° 到 60° 逐渐过渡到两极的立体投影资料，各极使用 1537 × 1537 纹理。玩家编辑区按游戏地形显示，模拟、拾取和寻路使用原有地块。[陆地资料与校验值](global/land-relief.json)
+地球近景在同一模拟格内也能显示山脊、谷地与坡向。球体、局部展开和战略图共用 NOAA ETOPO 2022 陆地高程。中低纬近景使用 60 角秒原始采样，南北约 1.85 公里，在江淮东西约 1.6 公里。远景使用经过平均的地形。南北纬 50° 到 60° 逐渐过渡到两极的立体投影资料，各极使用 1537 × 1537 纹理。玩家编辑区按游戏地形显示。模拟保留原有地块，近岸拾取与航线按点击位置和实际岸线判定。[陆地资料与校验值](global/land-relief.json)
 
 地球预设的全球海岸取自 Natural Earth 1:10m 海洋多边形。新地球以每度 120 个采样重建海陆边界，南北间距约 0.93 公里，可在 512 × 256 地球上辨认伯罗奔尼撒半岛南端的三个海岬、爱琴海群岛和山东海阳的海湾。海峡与河口有更细的海岸资料时优先使用这些资料。近岸水深取自 NOAA ETOPO，地形刷编辑区使用玩家修改后的岸线。运行 `python Tools/EarthScale100/bake_ocean_coast.py --check` 可逐字节核对全球海岸，运行 `python Validation/EarthScale100/verify_ocean_coast.py` 可检验两岸交点、跨日期变更线的拼接和 13 个地区的源数据一致性。[Natural Earth v5.1.2 海洋多边形](https://github.com/nvkelso/natural-earth-vector/blob/v5.1.2/geojson/ne_10m_ocean.geojson)
+
+小于一个模拟格的岛屿按实际岸线着色。近岸小岛借用邻近陆地的颜色，孤立海岛按所在格的气候与土壤湿度估算地表底色。下图为 512 × 256 地球预设的正午近景，圣赫勒拿岛和费尔南多－迪诺罗尼亚群岛的岛心都位于深海模拟格内。
+
+![Unity 中两处孤岛的地表和近岸浅海对照](island-surface-comparison.png)
 
 湖岸取自 Natural Earth 和 HydroLAKES。江淮近景可辨阳澄湖和霍邱城西湖等小湖，岸边与湖心根据水深和岸距着色。地图按当地月温估算湖泊持续受冷和回暖的程度，冷季浅岸先封冻，升温后冰面逐渐融开。缺少实测湖深的区域按岸距估算光学深度。[湖岸与地球水文](EU4-Lakes.md)
 
@@ -87,7 +91,7 @@ Unity 6000.0.55f1、D3D11、RTX 5070 Laptop 上，4096 档荆江的 12 帧跟踪
 
 ![4096 × 2048 地球实机，航线从爱琴海穿过马尔马拉海进入黑海](marmara-sea-route.png)
 
-船只逻辑可为当前世界创建 `var planner = new FlatSeaNavigation(world, survey)`，再调用 `planner.Find(start, end, cancellationToken)`。返回的 `FlatSeaPoint[]` 按航行顺序排列，经纬度单位为度。两点之间无法通行时返回空数组。新地球地图的 `survey` 由 `FlatStraitNavigation.Read` 从 `EarthStraitShore.bytes` 解码，可跨查询复用。随机世界可以直接使用 `new FlatSeaNavigation(world)`。地形编辑或换图发布新世界后，用新的世界数据创建规划器。
+游戏载入地球时会把该存档对应的海峡、全球海岸、湖岸和极区资料绑定到世界。船只逻辑可创建 `new FlatSeaNavigation(world)`，再调用 `Find(start, end, cancellationToken)`，取得按航行顺序排列的经纬度航点。坐标单位为度，两点无法连通时返回空数组。512 档地球上，吉亚罗斯岛西侧（东经 24.63468°）和东侧（东经 24.76622°）在北纬 37.61164° 落入同一海格，两点之间的航线会绕过岛身。程序生成的群岛和玩家编辑区使用连续岸距判定是否通航。地形重建或换图后，应使用新世界创建规划器。
 
 运行 `python Validation/EarthScale100/verify_strait_shore.py --navigation` 可在全部六档地图上规划样例航线，并逐段对照 Natural Earth 海洋多边形。`--navigation 4096` 可只测最大地图。
 

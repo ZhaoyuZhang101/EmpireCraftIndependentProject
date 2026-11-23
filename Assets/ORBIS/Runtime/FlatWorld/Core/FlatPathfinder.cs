@@ -18,7 +18,7 @@ namespace Orbis.Flat
                 if(i==goal){var p=new List<int>();for(int j=i;j>=0;j=parent[j])p.Add(j);p.Reverse();return p.ToArray();}
                 for(int d=0;d<4;d++)
                 {
-                    int n=w.Neighbor(i,d);if(!w.Walkable(n)||closed[n])continue;
+                    int n=w.Neighbor(i,d);if(!w.Walkable(n)||closed[n]||!FlatGeographicSurface.GroundEdge(w,i,n))continue;
                     int cost=10+Math.Abs(w.Elevation[n]-w.Elevation[i])/60;
                     if(w.Water[n]==WaterKind.River&&w.Buildings[n]!=Structure.Bridge)cost+=25;
                     if(w.Buildings[n]==Structure.Road||w.Buildings[n]==Structure.Bridge)cost=5;

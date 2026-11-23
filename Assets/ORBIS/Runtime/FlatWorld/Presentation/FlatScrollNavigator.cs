@@ -316,9 +316,13 @@ namespace Orbis.Flat
         }
         public void Focus(int tile,double day)
         {
-            if(tile<0||tile>=world.Count)return;if(atlasMode){FocusStrategic(tile,day);return;}
+            if(tile>=0&&tile<world.Count)Focus(TileLocation(tile),day);
+        }
+        public void Focus(PlanetLocation location,double day)
+        {
+            if(atlasMode){FocusStrategic(location);return;}
             atlasAligning=false;atlasExitPending=false;
-            projection=new PlanetLocalProjection(PlanetCoordinateSystem.FromMapUV((tile%world.Width+.5)/world.Width,(tile/world.Width+.5)/world.Height));lockDay=day;locked=true;Frame();
+            projection=new PlanetLocalProjection(location);lockDay=day;locked=true;Frame();
             zoomAnchor=false;targetZoom=ZoomForPixels(Mathf.Max(48,EntryPixels));
         }
         public bool TryProjectionPoint(Vector2 screen,out Vector2 point)
@@ -461,11 +465,12 @@ namespace Orbis.Flat
             var focus=Vector4.zero;int tile=maps.LocalFocusTile;
             if(morph>=1&&tile>=0&&tile<world.Count)
             {
-                var location=PlanetCoordinateSystem.FromMapUV((tile%world.Width+.5)/world.Width,(tile/world.Width+.5)/world.Height);
+                var picked = area.width == 0 ? maps.SelectedLocation : null;
+                var location = picked ?? TileLocation(tile);
                 var point=LocalPoint(PlanetCoordinateSystem.SurfaceNormal(location));
                 if(TryRenderedSurface(point,ReliefParameters,false,out var position,out _,out _))
                     focus=new Vector4(Vector3.Dot(position-normal,east),Vector3.Dot(position-normal,north),
-                        pixels/TileScale,Mathf.Clamp(pixels*.5f,5,22));
+                        pixels/TileScale,picked.HasValue ? 7 : Mathf.Clamp(pixels*.5f,5,22));
             }
             surface.SetVector("_LocalFocus",focus);
         }

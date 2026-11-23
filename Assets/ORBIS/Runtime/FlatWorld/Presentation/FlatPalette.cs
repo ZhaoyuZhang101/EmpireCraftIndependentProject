@@ -5,14 +5,29 @@ namespace Orbis.Flat
     {
         public static readonly uint[] BiomeColors={0x3694a5,0xd8c28a,0x7d9860,0x486d49,0x285d46,0xcda775,0xa8a36a,0x557c75,0xa6b6a2,0x878b90,0xdde4dc,0x547d61};
         public static readonly uint[] VegetationColors={0x9a805b,0x8fa66a,0xb2a570,0xa0a365,0x899468,0x648756,0x56805b,0x386c58,0x557b70,0x285d46,0x63856c,0x95a886,0xa6b6a2,0xdde4dc};
-        public static readonly string[] VegetationNames={"裸地 / 非植被","温带草原","干草原","稀树草原","灌丛 / 地中海植被","季节性森林","温带落叶林","温带雨林","北方针叶林","热带雨林","湿地草本","高山草甸","苔原植被","冰雪"};
+        public static readonly string[] VegetationNames={"裸地 / 非植被","草原","干草原","稀树草原","灌丛","季节性森林","温带落叶林","温带雨林","北方针叶林","热带雨林","湿地草本","高山草甸","苔原植被","冰雪"};
         public static readonly string[] TreeNames={"阔叶树","松树","桦树","棕榈","金合欢","柳树","灌木","热带阔叶树"};
         public static readonly uint[] ClimateColors={0x58666e,0x266849,0x36875c,0x91ad56,0xd9b175,0xc5ba9b,0xc4a863,0xb7b77d,0xe2c865,0xd9d88b,0xb1caa4,0x92bf73,0x6da171,0xabcbb4,0x48a888,0x579e96,0x99c3c2,0xaa929f,0x9585b0,0x9791b5,0xc0b9d0,0x9b819a,0x887dad,0xa5a6c5,0xc1c6dc,0x5c829e,0x739cb8,0x9fbaca,0xc6d8e0,0xb8c9c7,0xe5ecea};
         public static readonly uint[] LandformColors={0x36758a,0x7eaa68,0xb69c64,0xb99886,0x827d78,0x65998b,0x73935b,0x547970};
         public static readonly uint[] MaterialColors={0x9a805b,0xd8c28a,0x897257,0x9b9e91,0x878b90,0xdde4dc};
         public static readonly string[] LandformNames={"水域","平原","丘陵","高原","山地","河谷","泛洪平原","洼地"};
         public static readonly string[] MaterialNames={"土壤","沙子","淤泥 / 细粉砂","砾石河滩","裸岩","冰雪"};
-        public static readonly string[] BiomeNames={"水域","旧存档沙滩","草地 / 热带草原","林地 / 季节林","热带雨林","沙漠","半干旱草原","针叶林","苔原","高山带","冰雪带","沼泽湿地"};
+        public static readonly string[] BiomeNames={"水域","旧存档沙滩","草地","林地 / 季节林","热带雨林","沙漠","半干旱草原","针叶林","苔原","高山带","冰雪带","沼泽湿地"};
+        public static string ClimateName(Koppen type)
+        {
+            switch(type)
+            {
+                case Koppen.Csa: return "Csa · 热夏地中海气候（夏干冬雨）";
+                case Koppen.Csb: return "Csb · 暖夏地中海气候（夏干冬雨）";
+                case Koppen.Csc: return "Csc · 凉夏地中海气候（夏干冬雨）";
+                case Koppen.Af: return "Af · 热带雨林气候";
+                case Koppen.Am: return "Am · 热带季风气候";
+                case Koppen.Aw: return "Aw · 热带干湿季气候";
+                case Koppen.BSh: return "BSh · 热半干旱气候";
+                case Koppen.BSk: return "BSk · 冷半干旱气候";
+                default: return type.ToString();
+            }
+        }
         public static string Legend(MapLayer layer)
         {
             var text=new System.Text.StringBuilder();
@@ -29,7 +44,7 @@ namespace Orbis.Flat
             if(layer==MapLayer.RossbyJets)return "Gleba 高空急流与罗斯贝波：显示南北极锋急流与副热带急流的 4–8 波行星蜿蜒槽脊、急流核风速（暗紫 → 亮金）及实时动态高空急流流线。";
             if(layer==MapLayer.RainShadow)return "Gleba 地形雨影与风程大陆度：Cividis 深蓝为海洋迎风湿润带，亮金黄为山脉背风坡 Helmholtz 雨影区与深内陆风程干旱核。";
             if(layer==MapLayer.RelativeHumidity)return "Gleba 月均相对湿度：荒漠暖赭（0%）→ 温带青绿（50%）→ 季风/赤道深钴蓝（100%）。";
-            if(layer==MapLayer.GlebaBiomes)return "Gleba 23 类生态群系：基于 Holdridge 17 条生理温度/降水/林线曲线、稀树草原干季转移、泥炭/草本/森林沼泽及海冰/冰盖分类。";
+            if(layer==MapLayer.GlebaBiomes)return "Gleba 生态群系综合全年冷暖、干湿季、林线和植被结构，区分地中海硬叶植被、热带稀树草原、湿热草地及半干旱草原。";
             if(layer==MapLayer.GlebaFlora)return "Gleba 乔灌草植被结构（RGB 三元图）：红 = 灌木比例 · 绿 = 草本比例 · 蓝 = 乔木比例 · 深黑 = 裸地/荒漠（Empty Land）。";
             if(layer==MapLayer.GlebaSoilTexture)return "Gleba 六遍土壤质地（RGB 三元图）：红 = 砂粒（风蚀沙丘/砂岩）· 绿 = 粉砂（冰期黄土/冲积平原）· 蓝 = 黏粒（风化红壤/湖积黏土）。";
             if(layer==MapLayer.GlebaSoilFertility)return "Gleba 土壤厚度与矿质养分：综合 6 遍流水搬运沉积的表土层深度、基岩矿质养分富集度与有机质（褐岩 → 金壤 → 沃绿）。";
@@ -109,10 +124,30 @@ namespace Orbis.Flat
             var material=w.Facts.Materials[i];
             return NaturalLand(cover,material,w.Facts.Wetness[i],VegetationColors[(int)cover],MaterialColors[(int)material]);
         }
+        // Offshore climate cells still have monthly normals and a land water-balance
+        // estimate. Use those for the dry underlay of islands below the grid scale.
+        // Gameplay water, habitat and building ownership remain per simulation cell.
+        internal static VegetationCover IslandCover(WorldData world, int tile)
+        {
+            var facts = world.Facts;
+            var climate = world.Climates[tile];
+            float temperature = facts.MeanTemperature[tile], rain = facts.AnnualRain[tile];
+            var biome = FlatTerrainAnalysis.ClassifyBiome(climate, 0, temperature, rain,
+                facts.SaturatedMonths[tile], 0, 0, false, false);
+            return FlatEcology.Classify(biome, climate, temperature, rain, 0);
+        }
+        internal static GroundMaterial IslandSubstrate(VegetationCover cover)
+            => cover == VegetationCover.Bare ? GroundMaterial.Rock : GroundMaterial.Soil;
         public static Color32 Terrain(WorldData w,int i)
         {
             bool area=FlatTerrainAnalysis.AreaWater(w.Water[i]);
             Color32 c=area?Water(w.Water[i]):LandColor(w,i);
+            if (area && w.Preset == TerrainPreset.Earth && w.WaterReference != null && w.Facts != null)
+            {
+                var cover = IslandCover(w,i);
+                var material = IslandSubstrate(cover);
+                c = NaturalLand(cover, material, w.Facts.Wetness[i], VegetationColors[(int)cover], MaterialColors[(int)material]);
+            }
             // Dilate land albedo only under the sub-tile shore reconstruction. Water
             // is composited afterwards. This prevents bilinear blue halos on beaches.
             if(area&&w.Facts!=null&&w.Facts.ShoreDistance[i]<=2)

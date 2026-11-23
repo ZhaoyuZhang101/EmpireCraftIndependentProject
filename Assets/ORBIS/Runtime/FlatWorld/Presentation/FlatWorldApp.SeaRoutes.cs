@@ -13,6 +13,8 @@ namespace Orbis.Flat
         FlatSeaPoint? seaOrigin;
         Task<FlatStraitNavigation> seaSurvey;
         bool seaSurveyIsGlobal;
+        Task<FlatGeographicSurface> geographicSurvey;
+        int geographicSurveyMode = -1;
         Task<SeaPreview> seaRequest;
         CancellationTokenSource seaCancellation;
 
@@ -28,6 +30,7 @@ namespace Orbis.Flat
         Task<FlatStraitNavigation> SurveyFor(WorldData world)
         {
             if (!world.UsesSurveyedStraits) return Task.FromResult<FlatStraitNavigation>(null);
+            if(world.GeographicSurface?.Regional!=null) return Task.FromResult(world.GeographicSurface.Regional);
             if (seaSurvey == null || seaSurvey.IsFaulted || seaSurveyIsGlobal != world.UsesGlobalStraits)
             {
                 string key = world.UsesGlobalStraits ? "EarthGlobalStraitShore" : "EarthStraitShore";
@@ -38,6 +41,45 @@ namespace Orbis.Flat
                 seaSurvey = Task.Run(() => FlatStraitNavigation.Read(bytes));
             }
             return seaSurvey;
+        }
+
+        bool PrepareGeographicSurface(WorldData world)
+        {
+            if(world.Preset!=TerrainPreset.Earth)
+            { geographicSurvey=null;seaSurvey=null;return false; }
+            if(world.WaterReference==null || world.GeographicSurface?.Prepared(world)==true)return false;
+            int limit=SystemInfo.maxTextureSize;
+            if(limit<3074 || !SystemInfo.SupportsTextureFormat(TextureFormat.R16) || !SystemInfo.SupportsTextureFormat(TextureFormat.R8) ||
+               !SystemInfo.SupportsTextureFormat(TextureFormat.RG16))return false;
+            var prior=world.GeographicSurface;
+            if(prior==null)
+            {
+                int mode=world.UsesGlobalStraits?2:world.UsesSurveyedStraits?1:0;
+                if(geographicSurvey==null || geographicSurvey.IsFaulted || geographicSurveyMode!=mode)
+                {
+                    // Unity APIs run on the main thread. The decoder and per-world
+                    // terrain-edit mask run before the incoming world is published.
+                    byte[] Bytes(string name)
+                    {
+                        var resource=Resources.Load<TextAsset>("ORBIS/FlatWorld/"+name);
+                        if(!resource)return null;
+                        var bytes=resource.bytes;Resources.UnloadAsset(resource);return bytes;
+                    }
+                    byte[] regional=mode==0?null:Bytes(mode==2 && limit>=8192?"EarthGlobalStraitShore":"EarthStraitShore");
+                    byte[] ocean=mode==2 && limit>=4096?Bytes("EarthOceanShore"):null;
+                    byte[] lakes=limit>=8192?Bytes("EarthMajorLakes"):null;
+                    byte[] fine=lakes==null?null:Bytes("EarthLakeDetail");
+                    byte[] polar=Bytes("EarthPolarCoast");
+                    geographicSurveyMode=mode;
+                    geographicSurvey=Task.Run(()=>FlatGeographicSurface.Read(regional,ocean,lakes,fine,polar));
+                }
+            }
+            var pendingSurvey=geographicSurvey;
+            Queue(c=>{
+                var data=prior??pendingSurvey.GetAwaiter().GetResult();
+                c.ThrowIfCancellationRequested();data.Attach(world);return world;
+            },"正在准备岛屿、海岸与通航水面…",seedOnInstall);
+            return true;
         }
 
         void CancelSeaRequest()

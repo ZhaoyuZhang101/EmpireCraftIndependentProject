@@ -5,6 +5,7 @@ using System.IO;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
+using Orbis.Planet;
 using UnityEngine;
 using UnityEngine.Rendering;
 using UnityEngine.UIElements;
@@ -82,7 +83,7 @@ namespace Orbis.Flat
             sizeField.choices=new List<string>(Array.ConvertAll(playerWidths,width=>$"{width} × {width/2}"));
             sizeField.index=Math.Max(0,Array.FindLastIndex(playerWidths,width=>width<=initialWidth));
             presetField=root.Q<DropdownField>("preset");presetField.choices=new List<string>{"大陆与群山","群岛","超级大陆","内海世界","地球（真实地形）"};presetField.index=0;
-            layerField=root.Q<DropdownField>("layer");layerField.choices=new List<string>{"自然地表","文明版图","20 档高度","Köppen 柯本气候","本月温度","本月降水","海水与淡水","土地肥力","地貌 / 丘陵高原","地表材料 / 沙泥砾岩","土壤桶湿度","河流 / 河口悬沙","生态植被 / 14 类","河网","风带与气压（Gleba）","洋流与海温（Gleba）","高空急流与罗斯贝波（Gleba）","地形雨影与大陆度（Gleba）","月均相对湿度（Gleba）","生态群系 23 类（Gleba）","乔灌草植被结构 RGB（Gleba）","土壤质地砂粉黏 RGB（Gleba）","土壤厚度与矿质养分（Gleba）","基岩岩性 37 类（Gleba）","板块边界、造山与火山（Gleba）","含水层、冰期峡湾与珊瑚礁（Gleba）","起源作物与承载力（Gleba）","对流雨与层状雨（ExoPlaSim）","辐射收支与 OLR（ExoPlaSim）","昼夜温差与感潜热（ExoPlaSim）","风暴潜势 MPI / CAPE（ExoPlaSim）","Pasta 生物气候 19 类（ExoPlaSim）"};layerField.index=0;
+            layerField=root.Q<DropdownField>("layer");layerField.choices=new List<string>{"自然地表","文明版图","20 档高度","Köppen 柯本气候","本月温度","本月降水","海水与淡水","土地肥力","地貌 / 丘陵高原","地表材料 / 沙泥砾岩","土壤桶湿度","河流 / 河口悬沙","生态植被 / 14 类","河网","风带与气压（Gleba）","洋流与海温（Gleba）","高空急流与罗斯贝波（Gleba）","地形雨影与大陆度（Gleba）","月均相对湿度（Gleba）","生态群系（Gleba）","乔灌草植被结构 RGB（Gleba）","土壤质地砂粉黏 RGB（Gleba）","土壤厚度与矿质养分（Gleba）","基岩岩性 37 类（Gleba）","板块边界、造山与火山（Gleba）","含水层、冰期峡湾与珊瑚礁（Gleba）","起源作物与承载力（Gleba）","对流雨与层状雨（ExoPlaSim）","辐射收支与 OLR（ExoPlaSim）","昼夜温差与感潜热（ExoPlaSim）","风暴潜势 MPI / CAPE（ExoPlaSim）","Pasta 生物气候 19 类（ExoPlaSim）"};layerField.index=0;
             climateYearField=root.Q<DropdownField>("climateYear");climateYearField.choices=new List<string>{"今年","明年","后年"};climateYearField.index=0;
             climateYearField.RegisterValueChangedCallback(e=>{if(map){map.SetClimateYearOffset(climateYearField.index);UpdateHUD();}});
             layerField.RegisterValueChangedCallback(e=>{
@@ -336,6 +337,7 @@ namespace Orbis.Flat
                 }
                 if(dem && water)world.WaterReference=FlatWaterReference.Read(world.Width,dem.bytes,water.bytes,world.UsesSurveyedLakeBeds,world.UsesSurveyedStraits,world.UsesGlobalStraits);
             }
+            if(PrepareGeographicSurface(world))return;
             var simulation=new FlatSimulation(world);if(seedOnInstall)simulation.SeedNations(4);
             var nextObject=new GameObject("Authoritative 2D map / render-data provider");nextObject.transform.SetParent(transform,false);
             var next=nextObject.AddComponent<FlatMapRenderer>();
@@ -496,14 +498,26 @@ namespace Orbis.Flat
         void Pick(Vector2 position)
         {
             if(World==null||Busy||!navigation)return;
+            if(!navigation.TryGetPlanetLocation(ScreenPoint(position),out var location))return;
             if(toolField.value==SeaRouteToolName)
             {
-                if(navigation.TryGetPlanetLocation(ScreenPoint(position),out var location))PickSeaPoint(location);
+                PickSeaPoint(location);
                 return;
             }
-            int hit=navigation.Pick(ScreenPoint(position));if(hit<0)return;
-            selected=hit;map.Select(selected);if(World.Owner[selected]>=0)activeNation=World.Owner[selected];
+            int hit=FlatScrollMath.Tile(PlanetCoordinateSystem.MapU(location)*World.Width,
+                Math.Min(World.Height-.0001,PlanetCoordinateSystem.MapV(location)*World.Height),World.Width,World.Height);
+            if(hit<0)return;
+            selected=hit;map.Select(hit,location);
+            var water=WaterAtLocation(location);
+            bool matches=SameSurface(water,World.Water[hit]);
+            if(matches&&World.Owner[hit]>=0)activeNation=World.Owner[hit];
             if(!navigation.IsFlat){UpdateHUD();return;}
+            if(!matches&&toolField.index!=0&&toolField.index!=3)
+            {
+                if(toolField.index==7)navigation.SetRoute(Array.Empty<int>());
+                SetStatus("这里的精细岸线与所属模拟格的地表不同。建设和陆路终点需要相符的模拟格。");
+                UpdateHUD();return;
+            }
             try
             {
                 switch(toolField.index)
@@ -557,8 +571,11 @@ namespace Orbis.Flat
         void Focus()
         {
             if(World==null||!navigation)return;
-            int tile=selected>=0?selected:navigation.Pick(viewCamera.pixelRect.center);
-            if(tile>=0){navigation.Focus(tile,CalendarDay);viewport.Focus();}
+            if(selected>=0&&map.SelectedLocation.HasValue)navigation.Focus(map.SelectedLocation.Value,CalendarDay);
+            else if(selected>=0)navigation.Focus(selected,CalendarDay);
+            else if(navigation.TryGetPlanetLocation(viewCamera.pixelRect.center,out var location))navigation.Focus(location,CalendarDay);
+            else return;
+            viewport.Focus();
         }
         void Save()
         {
@@ -582,6 +599,11 @@ namespace Orbis.Flat
         }
         readonly int[] zoneCounts=new int[WorldData.MaxNations];
         readonly StringBuilder nationText=new StringBuilder(512);
+        WaterKind WaterAtLocation(PlanetLocation p) => FlatGeographicSurface.WaterAt(World,
+            new FlatSeaPoint(p.Longitude*(180/Math.PI), p.Latitude*(180/Math.PI)));
+        static bool SameSurface(WaterKind a, WaterKind b) => a==b ||
+            FlatTerrainAnalysis.Ocean(a)&&FlatTerrainAnalysis.Ocean(b);
+
         void UpdateHUD()
         {
             if(World==null)return;
@@ -591,8 +613,22 @@ namespace Orbis.Flat
             var text=nationText;text.Clear();for(int c=0;c<World.Nations.Count;c++){var n=World.Nations[c];int zones=zoneCounts[c];text.Append(c==activeNation?"● ":"○ ").Append(n.Name).Append(" · ").Append(zones).Append("区 · 粮 ").Append(n.Food.ToString("N0")).Append('\n');}nations.text=text.ToString();
             skyStatus.text=map.Sky.Status+(globeMode&&globe.View.UsingSurfaceFallback?"\n警告：球体当前为简化 fallback，需检查 Shader。":"");
             legend.text=FlatPalette.Legend(map.Layer);waterStatus.text=globeMode?"摄影模式不运行局部 SWE。":map.LocalWater.Status;
-            if(selected<0){info.text="点击地图选择一个 Tile。\n\n每个 Zone = 4×4 = 16 个真实 Tile。\n海拔、生物群系、水体、气候与归属分别存储。";return;}
+            if(selected<0){info.text="点击地表查看位置，按 F 聚焦。\n\n每个 Zone 包含 4×4 个模拟格。";return;}
             int i=selected,zone=World.ZoneOf(i),level=HeightBands.Level(World.Elevation[i]);string owner=World.Owner[i]<0?"无主":World.Nations[World.Owner[i]].Name;
+            string positionText=string.Empty;
+            if(map.SelectedLocation.HasValue)
+            {
+                var p=map.SelectedLocation.Value;
+                double lat=p.Latitude*180/Math.PI,lon=p.Longitude*180/Math.PI;
+                var water=WaterAtLocation(p);
+                string surface=FlatTerrainAnalysis.Ocean(water)?"海面":WaterName(water);
+                positionText=$"选中位置　{Math.Abs(lat):F4}°{(lat<0?"S":"N")}　{Math.Abs(lon):F4}°{(lon<0?"W":"E")}\n地表判定　{surface}\n";
+                if(!SameSurface(water,World.Water[i]))
+                {
+                    info.text=positionText+$"\n所属模拟格 {i} · {WaterName(World.Water[i])}\n此处的海岸细于模拟格。气候、海拔和人口按整格计算。";
+                    return;
+                }
+            }
             int forecast=map.Layer==MapLayer.Temperature||map.Layer==MapLayer.Rain?map.ClimateYearOffset:0;
             double monthStart=Math.Floor(World.Day/30)*30+360*forecast;
             var climate=FlatClimateYear.At(FMath.Seed(World.Seed),monthStart);
@@ -600,7 +636,7 @@ namespace Orbis.Flat
             float currentTemperature=World.Temperature[i*12+World.Month]+temperatureOffset;
             float currentRain=World.Precipitation[i*12+World.Month]*(1+rainOffset);
             string climateDate=forecast==0?"本月":("第 "+((int)(monthStart/360)+1)+" 年同月");
-            info.text="TILE "+i+"   ["+(i%World.Width)+", "+(i/World.Width)+"]\nZONE "+zone+" · 内部格 "+(i%World.Width%4)+","+(i/World.Width%4)+"\n\n"+World.Elevation[i]+" m · "+(level>0?"L"+level.ToString("00"):"海平面以下")+"\n水体："+WaterName(World.Water[i])+"\n地表："+BiomeName(World.Biomes[i])+"\n柯本："+World.Climates[i]+"\n"+climateDate+"温度："+currentTemperature.ToString("F1")+" °C\n"+climateDate+"降水："+currentRain.ToString("F0")+" mm\n较常年同月："+temperatureOffset.ToString("+0.0;-0.0;0.0")+" °C · 降水 "+(100*rainOffset).ToString("+0;-0;0")+"%\n肥力："+(World.Fertility[i]*100).ToString("F0")+"%\n归属："+owner+"\n人口："+World.Population[i].ToString("F0")+"\n设施："+StructureName(World.Buildings[i])+"\n下游 Tile："+World.Downstream[i];
+            info.text=positionText+"TILE "+i+"   ["+(i%World.Width)+", "+(i/World.Width)+"]\nZONE "+zone+" · 内部格 "+(i%World.Width%4)+","+(i/World.Width%4)+"\n\n"+World.Elevation[i]+" m · "+(level>0?"L"+level.ToString("00"):"海平面以下")+"\n水体："+WaterName(World.Water[i])+"\n地表："+BiomeName(World.Biomes[i])+"\n柯本："+FlatPalette.ClimateName(World.Climates[i])+"\n"+climateDate+"温度："+currentTemperature.ToString("F1")+" °C\n"+climateDate+"降水："+currentRain.ToString("F0")+" mm\n较常年同月："+temperatureOffset.ToString("+0.0;-0.0;0.0")+" °C · 降水 "+(100*rainOffset).ToString("+0;-0;0")+"%\n肥力："+(World.Fertility[i]*100).ToString("F0")+"%\n归属："+owner+"\n人口："+World.Population[i].ToString("F0")+"\n设施："+StructureName(World.Buildings[i])+"\n下游 Tile："+World.Downstream[i];
             var facts=World.Facts;
             FlatEcology.SampleSurfaceSeason(World,i,CalendarDay,out float vegetationGrowth,out float foliage,out float seasonalSnow,out float soilMoisture);
             info.text+="\n当前生长活性："+(vegetationGrowth*100).ToString("F0")+"% · 叶量："+(foliage*100).ToString("F0")+"%";

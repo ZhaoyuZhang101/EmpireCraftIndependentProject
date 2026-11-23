@@ -22,6 +22,7 @@ namespace Orbis.Flat
             public VegetationCover Vegetation;
             public TreeSpecies Tree;
             public Landform Form;
+            public byte IslandCoverCode;
             public Color32 Owner,OverlayColor;
             public float Temperature,Rain,Fertility,Depth,FlowX,FlowY,HalfWidth,Shore,Sediment,Freshness,Wetness,Hand,Canopy,Meander;
             public byte Connections;
@@ -121,6 +122,8 @@ namespace Orbis.Flat
             return new Tile{Elevation=source.Elevation[i],Water=source.Water[i],Biome=source.Biomes[i],Climate=source.Climates[i],Building=source.Buildings[i],
                 Material=f.Materials[i],Vegetation=f.Vegetation[i],Tree=f.Trees[i],Form=f.Forms[i],Owner=owner<0?new Color32(0,0,0,0):FlatPalette.RGB(source.Nations[owner].Color,(byte)(owner+1)),
                 OverlayColor=overlayColor,
+                IslandCoverCode=source.Preset==TerrainPreset.Earth && source.WaterReference!=null && FlatTerrainAnalysis.AreaWater(source.Water[i])
+                    ? (byte)(1+(int)FlatPalette.IslandCover(source,i)) : (byte)0,
                 Temperature=source.Temperature[i*12+month],Rain=source.Precipitation[i*12+month],Fertility=source.Fertility[i],Depth=f.Depth[i],FlowX=f.FlowX[i],FlowY=f.FlowY[i],
                 // Earth streams its mapped overview first. Suppress the legacy tile
                 // channels while waiting for the matching detailed distance field.
@@ -217,6 +220,12 @@ namespace Orbis.Flat
             {
                 int i=Indices[j];Tile t=Tiles[i];bool area=Area(t.Water);
                 Color32 terrain=area?Water(t.Water):Land(t);
+                if (t.IslandCoverCode != 0)
+                {
+                    var cover = (VegetationCover)(t.IslandCoverCode - 1);
+                    var material = FlatPalette.IslandSubstrate(cover);
+                    terrain = FlatPalette.NaturalLand(cover, material, t.Wetness, Palette[12+(int)cover], Palette[65+(int)material]);
+                }
                 if(area&&t.Shore<=2)
                 {
                     int best=-1,distance=100,tx=i%Width,ty=i/Width;

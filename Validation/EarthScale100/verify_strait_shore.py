@@ -236,6 +236,12 @@ def verify_navigation(ocean, widths, artifacts):
     )
     gates = GATES + GLOBAL_GATES + holdouts
     mouths = {name: (a, b) for name, a, b, _ in gates}
+    islands = {"Gyaros": ((24.63468,37.61164), (24.76622,37.61164)),
+               "Makares": ((25.75553,37.11845), (25.86705,37.11845)),
+               "Niihau": ((-160.27304,21.90219), (-160.02644,21.90219))}
+    for name, ends in islands.items():
+        assert not ocean.covers(LineString(ends)), (name,"direct control misses the island")
+    mouths.update(islands)
     windows = {name: box(min(a[0], b[0])-pad, min(a[1], b[1])-pad,
                          max(a[0], b[0])+pad, max(a[1], b[1])+pad)
                for name, a, b, pad in gates}
@@ -276,7 +282,7 @@ def verify_navigation(ocean, widths, artifacts):
                         assert path.crosses(LineString([(west, lat), (east, lat)])), (width, name, "missed a narrows")
                 legs += len(points)-1
             print(f"Earth {width}: source ocean covers {legs} complete sailing legs across {len(tracks)} routes "
-                  f"({len(gates)} local straits, the Turkish and Seto through routes, and two exact water picks).", flush=True)
+                  f"({len(gates)} local straits, three island detours, the Turkish and Seto through routes, and two exact water picks).", flush=True)
 
 
 def geographic_panels(atlas, ocean, directory):

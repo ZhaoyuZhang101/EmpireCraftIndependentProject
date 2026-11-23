@@ -167,6 +167,22 @@ internal static class GlebaSupplementRegression
         var savanna = GlebaEcologySupplement.EvaluateFlora(true, 0f, 300f, 14f, 25f, 950f, 2f, 21f);
         Check(savanna.Trees < rainforest.Trees - 0.25f && savanna.Grass + savanna.Shrubs > 0.50f, "Tropical dry-season drought transfer must shift trees into savanna grass/shrubs");
 
+        var open = new GlebaPlantCover { Trees = .23f, Grass = .61f, Shrubs = .16f, TotalPlants = .87f };
+        GlebaBiomeKind OpenGround(Koppen climate, float height = 80, bool marsh = false) =>
+            GlebaEcologySupplement.ClassifyGlebaBiome(false, false, false, 0, height, 21, 25, 65, 70, climate, in open, marsh);
+        const GlebaBiomeKind tropicalSavanna = GlebaBiomeKind.TropicalGrasslandsSavannasAndShrublands;
+        Check(OpenGround(Koppen.BSh) != tropicalSavanna, "A hot semi-arid steppe must not be reported as tropical savanna");
+        Check(OpenGround(Koppen.Af) != tropicalSavanna && OpenGround(Koppen.Am) != tropicalSavanna,
+            "Open wet tropical sites need a different biome from seasonally dry savanna");
+        Check(OpenGround(Koppen.Aw) == tropicalSavanna, "Open tropical wet-dry sites must retain savanna");
+        Check(OpenGround(Koppen.Csa) == GlebaBiomeKind.MediterraneanForestWoodlandAndScrub &&
+              OpenGround(Koppen.Csb) == GlebaBiomeKind.MediterraneanForestWoodlandAndScrub &&
+              OpenGround(Koppen.Csc) == GlebaBiomeKind.MediterraneanForestWoodlandAndScrub,
+            "Use the twelve-month dry-summer classification even when January and July are both warm");
+        Check(OpenGround(Koppen.Aw, 3000) == GlebaBiomeKind.MontaneGrasslandsAndShrublands &&
+              OpenGround(Koppen.Aw, marsh: true) == GlebaBiomeKind.Marsh,
+            "Montane open ground and seasonally saturated marsh take precedence over savanna");
+
         var taiga = GlebaEcologySupplement.EvaluateFlora(true, 0f, 200f, 61f, 5.5f, 550f, 20f, -22f);
         var taigaBiome = GlebaEcologySupplement.ClassifyGlebaBiome(false, false, false, 0f, 200f, -22f, 16f, 22f, 75f, Koppen.Dfc, in taiga);
         Check(taiga.ConiferFraction > 0.65f && taigaBiome == GlebaBiomeKind.Taiga, "Boreal Dfc forest must be conifer-dominated Taiga");

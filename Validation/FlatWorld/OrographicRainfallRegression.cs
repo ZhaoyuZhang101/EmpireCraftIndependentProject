@@ -1,4 +1,5 @@
 using System;
+using System.IO;
 using Orbis.Flat;
 
 internal static class OrographicRainfallRegression
@@ -7,8 +8,84 @@ internal static class OrographicRainfallRegression
     {
         CheckOppositeWinds();
         CheckNorthwardFlow();
+        CheckTradeWindIsland();
         foreach (int width in new[] {128, 136, 256, 384})
             CheckBudget(width);
+    }
+
+    private static void CheckTradeWindIsland()
+    {
+        const int width = 1024;
+        var world = new WorldData(width, width / 2, "TRADE-WIND-ISLAND", TerrainPreset.Continents);
+        Array.Fill(world.Water, WaterKind.DeepOcean);
+        int centerX = 0, centerY = (int)(.61 * world.Height);
+        for (int y = -3; y <= 3; y++)
+        for (int x = -3; x <= 3; x++)
+        {
+            double radius = Math.Sqrt(x*x + y*y);
+            if (radius > 2.6) continue;
+            int i = world.Index(centerX + x, centerY + y);
+            world.Water[i] = WaterKind.Land;
+            world.Elevation[i] = (short)(3200 * Math.Exp(-radius * radius / 1.45));
+        }
+        var air = Air();
+        air.Gleba = GlebaClimateSupplement.Build(world, maxColumns: air.Width);
+        Array.Fill(air.Humidity, .8f);
+        int east = world.Index(centerX + 1, centerY)*12, west = world.Index(centerX - 1, centerY)*12;
+        int summit = world.Index(centerX, centerY)*12;
+        FlatOrographicRainfall.Distribute(world, air, FlatWorkerPolicy.Options(default, 4));
+        var rain = world.Precipitation;
+        Console.WriteLine($"Trade-wind island, westerly/easterly west-east-summit: " +
+            $"{rain[west]:F1}/{rain[east]:F1}/{rain[summit]:F1}, {rain[west+1]:F1}/{rain[east+1]:F1}/{rain[summit+1]:F1} mm/month.");
+        if (rain[west] < 2 * rain[east] || rain[east+1] < 2 * rain[west+1] ||
+            rain[summit] >= rain[west] || rain[summit+1] >= rain[east+1])
+            throw new Exception("The wet face of an oceanic mountain must follow the wind and exceed rainfall above the marine cloud layer.");
+        var source = Integrals(air.Rain, air.Width, air.Height);
+        var target = Integrals(rain, world.Width, world.Height);
+        for (int m = 0; m < 12; m++)
+            if (Math.Abs(target[m] / source[m] - 1) > 2e-7)
+                throw new Exception("Oceanic upslope condensation changed total monthly rain.");
+
+        for (int i = 0; i < world.Count; i++)
+            world.Elevation[i] = (short)(world.Elevation[i] / 3);
+        FlatOrographicRainfall.Distribute(world, air, FlatWorkerPolicy.Options(default, 4));
+        if (rain[summit] < 1.5f * 80 || rain[summit+1] < 1.5f * 80)
+            throw new Exception("A low island summit within the moist layer lost all incoming upslope rainfall.");
+    }
+
+    public static void CheckHawaii(int width)
+    {
+        const string assets = "Assets/ORBIS/Resources/ORBIS/FlatWorld/";
+        var world = FlatGenerator.Generate(width, width/2, "ORBIS-2D-2026", TerrainPreset.Earth, default,
+            File.ReadAllBytes(assets + $"Earth{width}.bytes"), File.ReadAllBytes(assets + $"EarthWater{width}.bytes"),
+            File.ReadAllBytes(assets + "EarthRivers.bytes"));
+        int Site(string name, double lon, double lat)
+        {
+            int tile = world.Index((int)((lon+180)*width/360), (int)((lat+90)*world.Height/180));
+            Console.WriteLine($"{width} {name}: tile {tile}, {world.Water[tile]}, {world.Elevation[tile]} m, " +
+                $"{world.Facts.AnnualRain[tile]:F0} mm/year, {world.Climates[tile]}, {world.Facts.Vegetation[tile]}");
+            return tile;
+        }
+        int wet = Site("Hilo", -155.09, 19.72), dry = Site("Waikoloa", -155.795, 19.94);
+        int high = Site("Mauna Kea", -155.47, 19.82);
+        if (width < 1024)
+        {
+            Console.WriteLine("Island coast and summit checks need separately resolved land tiles at this latitude.");
+            return;
+        }
+        if (wet == dry || high == wet || high == dry || FlatTerrainAnalysis.AreaWater(world.Water[wet]) ||
+            FlatTerrainAnalysis.AreaWater(world.Water[dry]) || FlatTerrainAnalysis.AreaWater(world.Water[high]))
+            throw new Exception("Hawaiian climate sites resolved to ocean or the same terrain tile.");
+        // Rainfall Atlas of Hawai‘i (1978–2007). At width 2048, the 250 m
+        // land samples inside each model tile average 5283/336/634 mm/year.
+        // https://rainfall.geography.hawaii.edu/downloads
+        var annual = world.Facts.AnnualRain;
+        bool rainforestClimate = world.Climates[wet] == Koppen.Af || world.Climates[wet] == Koppen.Am;
+        if (annual[wet] <= 2 * annual[dry] || annual[wet] <= 1.4f * annual[high] ||
+            (width >= 2048 && (annual[wet] < 1800 || annual[dry] > 1300 || !rainforestClimate)))
+            throw new Exception("Windward rainforest, leeward lowland and high island rain contrasts are unresolved.");
+        Console.WriteLine($"PASS Hawaiian windward/lee rainfall ratio {annual[wet] / annual[dry]:F2}, " +
+            $"windward/high mountain ratio {annual[wet] / annual[high]:F2}.");
     }
 
     private static WorldData Ridge(int width, int shift = 0)

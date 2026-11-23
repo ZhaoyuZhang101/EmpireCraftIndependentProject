@@ -69,7 +69,7 @@ namespace Orbis.Flat
                     }
                     for(int i=0;i<world.Count;i++)if(nextNodes[i]!=null)for(int edge=0;edge<4;edge++)
                     {
-                        int j=world.SphereNeighbor(i,edge);if(j<=i||nextNodes[j]==null)continue;
+                        int j=world.SphereNeighbor(i,edge);if(j<=i||nextNodes[j]==null||!FlatGeographicSurface.GroundEdge(world,i,j))continue;
                         double arc=edge<2?eastWest[i/world.Width]:northSouth;
                         double weight=1+Math.Abs(world.Elevation[i]-world.Elevation[j])/600.0;
                         if(world.Water[i]==WaterKind.River||world.Water[j]==WaterKind.River)weight+=2.5;

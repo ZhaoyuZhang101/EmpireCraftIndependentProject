@@ -64,6 +64,7 @@ namespace Orbis.Flat
         // Plate/volcano record of a generated bed (null for imported heightmaps).
         public FlatTectonicFacts Tectonics;
         public FlatWaterReference WaterReference;
+        public FlatGeographicSurface GeographicSurface { get; internal set; }
         // The original coarse DEM and the lake-aware Earth preset have distinct edit baselines.
         public bool UsesSurveyedLakeBeds { get; internal set; }
         public bool UsesSurveyedStraits { get; internal set; }
@@ -147,6 +148,7 @@ namespace Orbis.Flat
             }
             w.Tectonics=Tectonics;
             w.WaterReference=WaterReference;
+            w.GeographicSurface=GeographicSurface;
             w.UsesSurveyedLakeBeds=UsesSurveyedLakeBeds;
             w.UsesSurveyedStraits=UsesSurveyedStraits;
             w.UsesGlobalStraits=UsesGlobalStraits;

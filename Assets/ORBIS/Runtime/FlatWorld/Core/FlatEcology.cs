@@ -447,9 +447,7 @@ namespace Orbis.Flat
                     world.Water[tile] == WaterKind.Lake
                         ? world.Downstream[GlebaGeographySupplement.FindLakeRootFallback(world, tile)] >= 0
                         : !FlatTerrainAnalysis.Ocean(world.Water[tile]),
-                    iceMeters, world.Elevation[tile],
-                    world.Temperature[base12 + 0], world.Temperature[base12 + 6],
-                    world.Precipitation[base12 + 0], world.Precipitation[base12 + 6],
+                    iceMeters, world.Elevation[tile], coldest, warmest, temp,
                     world.Climates[tile], in flora);
 
             float gradient = facts?.Gradient != null ? facts.Gradient[tile] : 0f;

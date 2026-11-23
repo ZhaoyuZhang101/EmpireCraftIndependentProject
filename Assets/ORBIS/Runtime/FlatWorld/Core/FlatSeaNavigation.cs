@@ -9,6 +9,7 @@ namespace Orbis.Flat
     {
         readonly WorldData world;
         readonly FlatStraitNavigation survey;
+        bool ModelSurface => survey==null && world.Facts!=null;
 
         public FlatSeaNavigation(WorldData world, FlatStraitNavigation survey = null)
         {
@@ -17,7 +18,7 @@ namespace Orbis.Flat
             {
                 if (world.WaterReference == null)
                     throw new InvalidOperationException("Restore the Earth's water reference before planning a surveyed sea route.");
-                this.survey = survey ?? throw new ArgumentNullException(nameof(survey));
+                this.survey = survey ?? world.GeographicSurface?.Regional ?? throw new ArgumentNullException(nameof(survey));
             }
         }
 
@@ -41,7 +42,16 @@ namespace Orbis.Flat
         {
             if (!Valid(p)) return false;
             if (survey != null && survey.TryWater(world, p, out bool wet)) return wet;
+            if(ModelSurface)return FlatTerrainAnalysis.Ocean(FlatGeographicSurface.WaterAt(world,p));
             return IsMarineCell(world, Tile(p));
+        }
+
+        /// <summary>Checks the whole displayed geographic leg, including both exact endpoints.</summary>
+        public bool SegmentIsWater(FlatSeaPoint a,FlatSeaPoint b)
+        {
+            if(!Valid(a)||!Valid(b))return false;
+            if(survey!=null)return survey.SegmentIsWater(world,a,b);
+            return FlatModelSeaNavigation.Segment(world,a,b);
         }
 
         /// <summary>Returns ordered sailing waypoints, or an empty array if the endpoints cannot connect.</summary>
@@ -51,18 +61,44 @@ namespace Orbis.Flat
             if (!IsWater(start) || !IsWater(end)) return Array.Empty<FlatSeaPoint>();
             if (Same(start, end)) return new[] { start };
             int region = survey?.RegionAt(start) ?? 0;
-            if (region != 0 && region == survey.RegionAt(end) &&
+            bool global = survey!=null && survey.CanRouteOutsideCharts(world);
+            double near = Math.Max(1,3*360.0/world.Width);
+            bool localSpan = Math.Abs(FlatGeographicSurface.Wrap(end.Longitude-start.Longitude))<=near && Math.Abs(end.Latitude-start.Latitude)<=near;
+            if ((region != 0 && region == survey.RegionAt(end) || global && localSpan) &&
                 survey.TryRoute(world, start, end, out var local, cancel)) return local;
+            if(ModelSurface && localSpan && FlatModelSeaNavigation.TryRoute(world,start,end,out var model,cancel))return model;
 
             int first = AccessCell(start, cancel), last = AccessCell(end, cancel);
             if (first < 0 || last < 0) return Array.Empty<FlatSeaPoint>();
-            var cells = MarineCells(first, last, cancel);
-            if (cells.Length == 0) return Array.Empty<FlatSeaPoint>();
+            var blockedTiles=new HashSet<int>();
+            var blockedFaces=new HashSet<long>();
+            for (int attempt=0;attempt<12;attempt++)
+            {
+                var cells=MarineCells(first,last,cancel,blockedTiles,blockedFaces);
+                if(cells.Length==0)return Array.Empty<FlatSeaPoint>();
+                var track=TraceRoute(start,end,cells,region,global,cancel,out int blockedTile,out long blockedFace);
+                if(track.Length>0)return track;
+                if(!global && !ModelSurface)return track;
+                // A model ocean tile may be an entire island, or have two
+                // disconnected bays. Let the coarse search try another face.
+                if(blockedTile>=0 && blockedTile!=first && blockedTile!=last && blockedTiles.Add(blockedTile))continue;
+                if(blockedFace>=0 && blockedFaces.Add(blockedFace))continue;
+                return track;
+            }
+            return Array.Empty<FlatSeaPoint>();
+        }
+
+        static long Face(int a,int b) => ((long)Math.Min(a,b)<<32)|(uint)Math.Max(a,b);
+
+        FlatSeaPoint[] TraceRoute(FlatSeaPoint start,FlatSeaPoint end,int[] cells,int region,bool global,
+            CancellationToken cancel,out int blockedTile,out long blockedFace)
+        {
+            blockedTile=-1;blockedFace=-1;
             var result = new List<FlatSeaPoint> { start };
             FlatSeaPoint previous = start;
             int previousRegion = region;
-            // A single local solve spans each continuous survey area. Tile centres
-            // inside a strait need not lie in the navigable part of that tile.
+            // A regional solve spans a continuous chart. Its tile centres
+            // need not lie inside the navigable part of a narrow strait.
             for (int i = 0; i < cells.Length; i++)
             {
                 cancel.ThrowIfCancellationRequested();
@@ -72,17 +108,19 @@ namespace Orbis.Flat
                 bool lastInChart = i + 1 == cells.Length || chart == 0 ||
                     survey.RegionAt(Center(cells[i + 1])) != chart;
                 if (chart != 0 && !firstInChart && !lastInChart) continue;
-                if (chart != 0 && !survey.TryAnchor(world, cells[i], out point)) return Array.Empty<FlatSeaPoint>();
-                // A polar face joins opposite meridians across the pole itself.
+                if ((chart != 0 || global) && !survey.TryAnchor(world, cells[i], out point))
+                { blockedTile=cells[i];return Array.Empty<FlatSeaPoint>(); }
+                if (i>0)blockedFace=Face(cells[i-1],cells[i]);
+                // Crossing a polar face follows both meridians to the pole.
                 if (i > 0 && chart == 0 && previousRegion == 0 &&
                     Math.Abs(cells[i] - cells[i - 1]) == world.Width / 2 &&
                     cells[i] / world.Width == cells[i - 1] / world.Width)
                 {
                     double pole = point.Latitude < 0 ? -90 : 90;
-                    result.Add(new FlatSeaPoint(previous.Longitude, pole));
-                    result.Add(new FlatSeaPoint(point.Longitude, pole));
+                    if(!Join(result,new FlatSeaPoint(previous.Longitude,pole),0,0,cancel) ||
+                       !Join(result,new FlatSeaPoint(point.Longitude,pole),0,0,cancel))return Array.Empty<FlatSeaPoint>();
                 }
-                if (!Join(result, point, previousRegion, chart, cancel)) return Array.Empty<FlatSeaPoint>();
+                if (!Join(result, point, previousRegion, chart, cancel))return Array.Empty<FlatSeaPoint>();
                 previous = point;
                 previousRegion = chart;
             }
@@ -94,7 +132,13 @@ namespace Orbis.Flat
         {
             var start = path[path.Count - 1];
             if (Same(start, end)) return true;
-            if ((fromRegion != 0 || toRegion != 0) && !survey.SegmentIsWater(world, start, end))
+            if(ModelSurface && !FlatModelSeaNavigation.Segment(world,start,end))
+            {
+                if(!FlatModelSeaNavigation.TryRoute(world,start,end,out var detour,cancel))return false;
+                for(int i=1;i<detour.Length;i++)path.Add(detour[i]);
+            }
+            else if (survey!=null && (fromRegion!=0 || toRegion!=0 || survey.CanRouteOutsideCharts(world)) &&
+                !survey.SegmentIsWater(world, start, end))
             {
                 if (!survey.TryRoute(world, start, end, out var leg, cancel)) return false;
                 for (int i = 1; i < leg.Length; i++) path.Add(leg[i]);
@@ -106,7 +150,20 @@ namespace Orbis.Flat
         int AccessCell(FlatSeaPoint point, CancellationToken cancel)
         {
             int tile = Tile(point), region = survey?.RegionAt(point) ?? 0;
-            if (region == 0) return IsMarineCell(world, tile) ? tile : -1;
+            bool worldwide=survey!=null && survey.CanRouteOutsideCharts(world);
+            if(ModelSurface)
+            {
+                if(IsMarineCell(world,tile) && FlatModelSeaNavigation.Segment(world,point,Center(tile)))return tile;
+                int x=tile%world.Width,y=tile/world.Width;
+                for(int r=0;r<=3;r++)for(int j=-r;j<=r;j++)for(int i=-r;i<=r;i++)
+                {
+                    if(Math.Max(Math.Abs(i),Math.Abs(j))!=r)continue;
+                    int candidate=world.Index(x+i,y+j);
+                    if(IsMarineCell(world,candidate) && FlatModelSeaNavigation.TryRoute(world,point,Center(candidate),out _,cancel))return candidate;
+                }
+                return -1;
+            }
+            if (region == 0 && !worldwide) return IsMarineCell(world, tile) ? tile : -1;
             // A plotted inlet may have a dry mean elevation. Attach the selected
             // water point only to an ocean cell reachable within its own chart.
             var seen = new HashSet<int> { tile };
@@ -122,7 +179,11 @@ namespace Orbis.Flat
                 for (int d = 0; d < 4; d++)
                 {
                     int n = world.SphereNeighbor(i, d);
-                    if (seen.Add(n) && survey.RegionAt(Center(n)) == region) queue.Enqueue(n);
+                    if(!seen.Add(n))continue;
+                    if(region!=0 ? survey.RegionAt(Center(n))==region :
+                       Math.Abs(n/world.Width-tile/world.Width)<=3 &&
+                       Math.Min(Math.Abs(n%world.Width-tile%world.Width),world.Width-Math.Abs(n%world.Width-tile%world.Width))<=3)
+                        queue.Enqueue(n);
                 }
             }
             return -1;
@@ -130,7 +191,7 @@ namespace Orbis.Flat
 
         // A bidirectional face flood visits the smaller frontier first. The parent
         // direction and side occupy one byte per visited tile in lazily allocated pages.
-        int[] MarineCells(int start, int end, CancellationToken cancel)
+        int[] MarineCells(int start,int end,CancellationToken cancel,HashSet<int> blockedTiles,HashSet<long> blockedFaces)
         {
             if (start == end) return new[] { start };
             const int shift = 12, pageSize = 1 << shift, reverse = 8, root = 5;
@@ -167,7 +228,7 @@ namespace Orbis.Flat
                     for (int d = 0; d < 4; d++)
                     {
                         int n = world.SphereNeighbor(i, d);
-                        if (!IsMarineCell(world, n)) continue;
+                        if (!IsMarineCell(world, n) || blockedTiles.Contains(n) || blockedFaces.Contains(Face(i,n))) continue;
                         int mark = Mark(n);
                         if (mark != 0)
                         {

@@ -1,4 +1,5 @@
 using System;
+using System.IO;
 using Orbis.Flat;
 
 internal static class SeasonalRainfallRegression
@@ -10,6 +11,7 @@ internal static class SeasonalRainfallRegression
         CheckWarmIslandTrades();
         CheckWarmContinentalConvection();
         CheckPeninsulaMonsoon();
+        CheckSummerDryEarthCoasts();
         // Rotate seasons through the same terrain in the two hemispheres. Flat
         // topography isolates the influence of the adjacent ocean and storms.
         var world = new WorldData(128, 64, "SEASONAL-MARGINS", TerrainPreset.Continents);
@@ -41,6 +43,32 @@ internal static class SeasonalRainfallRegression
                   rain[interior+lateSummer] < rain[interior+summer] / 2))
                 throw new Exception("Late-summer marine supply should persist at the coast and diminish inland.");
         }
+    }
+
+    private static void CheckSummerDryEarthCoasts()
+    {
+        const string assets = "Assets/ORBIS/Resources/ORBIS/FlatWorld/";
+        var world = FlatGenerator.Generate(512, 256, "ORBIS-2D-2026", TerrainPreset.Earth, default,
+            File.ReadAllBytes(assets + "Earth512.bytes"), File.ReadAllBytes(assets + "EarthWater512.bytes"),
+            File.ReadAllBytes(assets + "EarthRivers.bytes"));
+        int Tile(double longitude, double latitude) => world.Index(
+            (int)((longitude + 180) * world.Width / 360), (int)((latitude + 90) * world.Height / 180));
+        // CRU-CL normals collocated to these land cells have a summer minimum
+        // below 40 mm and one third of the winter maximum (Beck's Cs rule).
+        foreach (var site in new[] { ("Athens", 23.728, 37.984), ("Tripoli", 22.373, 37.509), ("Izmir", 27.142, 38.424) })
+        {
+            int tile = Tile(site.Item2, site.Item3);
+            var climate = world.Climates[tile];
+            if (climate != Koppen.Csa && climate != Koppen.Csb)
+                throw new Exception($"{site.Item1} should have summer-dry temperate normals, found {climate}.");
+        }
+        int inland = Tile(20.448, 44.787) * 12;
+        float juneToAugust = world.Precipitation[inland + 5] + world.Precipitation[inland + 6] + world.Precipitation[inland + 7];
+        if (juneToAugust < 140)
+            throw new Exception($"Summer-dry coastal circulation deprived the continental Balkan control of rain ({juneToAugust:F1} mm).");
+        for (int month = 0; month < 12; month++)
+            if (!(world.Moisture.BudgetError[month] < 2e-5))
+                throw new Exception("The seasonal coastal moisture budget failed in month " + (month + 1));
     }
 
     private static void CheckWarmContinentalConvection()

@@ -18,16 +18,92 @@ public static class SeaRouteRegression
         GridRoutes();
         if (args.Length > 1 && args[1] == "grid") return;
         const string root = "Assets/ORBIS/Resources/ORBIS/FlatWorld/";
-        var chart = FlatStraitNavigation.Read(File.ReadAllBytes(root + "EarthGlobalStraitShore.bytes"));
+        byte[] Asset(string name)=>File.ReadAllBytes(root+name+".bytes");
+        var surface = FlatGeographicSurface.Read(Asset("EarthGlobalStraitShore"),Asset("EarthOceanShore"),
+            Asset("EarthMajorLakes"),Asset("EarthLakeDetail"),Asset("EarthPolarCoast"));
         var widths = args.Length > 1 ? new[] { int.Parse(args[1]) } :
             Array.ConvertAll(File.ReadAllLines(root + "PlayerWidths.txt"), int.Parse);
-        if (Array.IndexOf(widths,2048) >= 0)
+        if (Array.IndexOf(widths,2048) >= 0 || Array.IndexOf(widths,256) >= 0)
         {
-            var oldChart = FlatStraitNavigation.Read(File.ReadAllBytes(root + "EarthStraitShore.bytes"));
-            EarthRoutes(root,oldChart,2048,null,null,false);
+            var oldSurface=FlatGeographicSurface.Read(Asset("EarthStraitShore"),null,Asset("EarthMajorLakes"),Asset("EarthLakeDetail"),Asset("EarthPolarCoast"));
+            if(Array.IndexOf(widths,2048)>=0)EarthRoutes(root,oldSurface.Regional,2048,null,null,false,oldSurface);
+            if(Array.IndexOf(widths,256)>=0)LegacyModelShore(root,oldSurface);
         }
-        foreach (var width in widths) EarthRoutes(root, chart, width,
-            args.Length == 4 ? args[2] : null, args.Length == 4 ? args[3] : null);
+        if(Array.IndexOf(widths,512)>=0)GeneratedSurfaces(root,surface);
+        foreach (var width in widths) EarthRoutes(root, surface.Regional, width,
+            args.Length == 4 ? args[2] : null, args.Length == 4 ? args[3] : null, surface:surface);
+    }
+
+    static void LegacyModelShore(string root,FlatGeographicSurface surface)
+    {
+        var w=new WorldData(256,128,"ORBIS-2D-2026",TerrainPreset.Earth) { UsesSurveyedLakeBeds=true,UsesSurveyedStraits=true };
+        byte[] Asset(string name)=>File.ReadAllBytes(root+name+".bytes");
+        w.WaterReference=FlatWaterReference.Read(256,Asset("Earth256"),Asset("EarthWater256"),true,true,false);
+        for(int i=0;i<w.Count;i++)w.Elevation[i]=w.WaterReference.OriginalBed(i);
+        FlatGenerator.Rebuild(w,default);surface.Attach(w);
+        var planner=new FlatSeaNavigation(w);
+        FlatSeaPoint Point(double x,double y)=>new FlatSeaPoint(x*360/w.Width-180,y*180/w.Height-90);
+        // Off Brazil, these two points straddle a modeled headland within V5 sea tile 11101.
+        var a=Point(93+1.5/7,43+.5/7);var b=Point(93.5,43+5.5/7);
+        var headland=Point(93+2.5/7,43+3.0/7);
+        Require(surface.Regional.RegionAt(headland)==0 && FlatGeographicSurface.IsGroundAt(w,headland) && !planner.IsWater(headland),
+            "V5 regional fallback accepted a visible headland as a sea pick.");
+        var path=planner.Find(a,b);CheckEndpoints(path,a,b);
+        Require(!planner.SegmentIsWater(a,b) && path.Length>2,"V5 regional fallback cut across the modeled headland.");
+        CheckModelLegs(w,path);
+        var inlet=Point(77+.5/7,43+.5/7);
+        Require(w.Water[w.Index(77,43)]==WaterKind.Land && planner.IsWater(inlet),"V5 regional fallback rejected a water pick in a dry Chilean tile.");
+        Console.WriteLine("PASS V5 generated Earth: model shoreline picks, headland detour and continuous sailing legs outside the historical strait charts");
+    }
+
+    static void GeneratedSurfaces(string root,FlatGeographicSurface surface)
+    {
+        var random=FlatGenerator.Generate(256,128,"shore-archipelago-2026",TerrainPreset.Archipelago,default);
+        FlatSeaPoint CellPoint(double x,double y)=>new FlatSeaPoint(x*360/random.Width-180,y*180/random.Height-90);
+        var nav=new FlatSeaNavigation(random);
+        // All three points lie in procedural shallow-sea tile 10753.
+        double column=1+6.5/7;
+        var a=CellPoint(column,42+.5/7);var b=CellPoint(column,42+6.5/7);var inland=CellPoint(column,42.5);
+        Require(random.Water[10753]==WaterKind.ShallowOcean && nav.IsWater(a) && nav.IsWater(b) &&
+            !nav.IsWater(inland) && FlatGeographicSurface.IsGroundAt(random,inland),"Procedural island clicks disagree with the continuous shore.");
+        var detour=nav.Find(a,b);CheckEndpoints(detour,a,b);
+        Require(detour.Length>2 && !nav.SegmentIsWater(a,b),"Procedural route crossed a dry finger between two wet endpoints.");
+        CheckModelLegs(random,detour);
+        byte[] Asset(string name)=>File.ReadAllBytes(root+name+".bytes");
+        var earth=FlatGenerator.Generate(512,256,"ORBIS-2D-2026",TerrainPreset.Earth,default,Asset("Earth512"),Asset("EarthWater512"),Asset("EarthRivers"));
+        const int westBalaton=99608,eastBalaton=99609;
+        Require(FlatWildlifeSimulation.CanStep(earth,westBalaton,eastBalaton,false),"Expected two coarse walkable cells beside Lake Balaton.");
+        surface.Attach(earth);
+        Require(!FlatWildlifeSimulation.CanStep(earth,westBalaton,eastBalaton,false) && FlatWildlifeSimulation.CanStep(earth,westBalaton,eastBalaton,true),
+            "Ground animal crossed a surveyed lake or a flying animal lost its path.");
+        const int west=97923,east=97924;
+        Require(!FlatGeographicSurface.GroundEdge(earth,west,east),"Unbridged Great Lakes crossing accepted.");
+        earth.Buildings[east]=Structure.Bridge;
+        Require(FlatPathfinder.Find(earth,west,east).Length==2,"Built lake bridge no longer joins the two adjacent tiles.");
+        earth.Buildings[east]=Structure.None;
+        Require(!FlatGeographicSurface.GroundEdge(earth,west,east),"Removed bridge left a passable cached edge.");
+        var gyaros=new FlatSeaPoint(24.71146,37.61164);
+        Require(FlatGeographicSurface.IsGroundAt(earth,gyaros),"Missing Gyaros before edit.");
+        earth.Elevation[92963]=-2200;
+        FlatGenerator.Rebuild(earth,default);
+        var edited=new FlatSeaNavigation(earth);
+        Require(!FlatGeographicSurface.IsGroundAt(earth,gyaros) && edited.IsWater(gyaros),"Rebuilt edit retained the original island.");
+        Require(edited.SegmentIsWater(new FlatSeaPoint(24.63468,37.61164),new FlatSeaPoint(24.76622,37.61164)),"Submerged island still blocked a route.");
+        Console.WriteLine("PASS generated archipelago sub-cell selection and detour, Lake Balaton wildlife and flight, lake bridge construction/removal, Earth elevation edit and route invalidation");
+    }
+
+    static void CheckModelLegs(WorldData w,FlatSeaPoint[] path)
+    {
+        for(int i=1;i<path.Length;i++)
+        {
+            var p=path[i-1];var q=path[i];
+            for(int s=0;s<=512;s++)
+            {
+                double t=s/512.0,lon=p.Longitude+(q.Longitude-p.Longitude)*t,lat=p.Latitude+(q.Latitude-p.Latitude)*t;
+                Require(FlatSurfaceSampling.SampleShore(w,(float)((lon+180)*w.Width/360),(float)((lat+90)*w.Height/180))>0,
+                    "A sailing leg left the displayed model shoreline.");
+            }
+        }
     }
 
     static void GridRoutes()
@@ -56,7 +132,7 @@ public static class SeaRouteRegression
         throw new Exception("Cancelled ship route still ran.");
     }
 
-    static void EarthRoutes(string root, FlatStraitNavigation chart, int width, string mouths, string export, bool global = true)
+    static void EarthRoutes(string root, FlatStraitNavigation chart, int width, string mouths, string export, bool global = true, FlatGeographicSurface surface=null)
     {
         var w = new WorldData(width, width/2, "ORBIS-2D-2026", TerrainPreset.Earth)
             { UsesSurveyedLakeBeds = true, UsesSurveyedStraits = true, UsesGlobalStraits = global };
@@ -69,6 +145,7 @@ public static class SeaRouteRegression
             if (ocean[i]) w.Water[i] = HeightBands.Ocean(w.Elevation[i]);
             else if (w.WaterReference.At(i) >= w.Elevation[i]) w.Water[i] = WaterKind.Lake;
         }
+        surface?.Attach(w);
         var planner = new FlatSeaNavigation(w, chart);
         var aegean = new FlatSeaPoint(25.65, 40.00);
         var blackSea = new FlatSeaPoint(29.48, 41.64);
@@ -95,6 +172,25 @@ public static class SeaRouteRegression
         }
         if (width == 512)
         {
+            if(surface!=null)
+            {
+                foreach(var trial in new[] {
+                    (24.63468,24.71146,24.76622,37.61164), // Gyaros
+                    (25.75553,25.80878,25.86705,37.11845), // Makares archipelago
+                    (-160.27304,-160.14218,-160.02644,21.90219) }) // Niihau
+                {
+                    var a=new FlatSeaPoint(trial.Item1,trial.Item4);
+                    var island=new FlatSeaPoint(trial.Item2,trial.Item4);var b=new FlatSeaPoint(trial.Item3,trial.Item4);
+                    int Cell(FlatSeaPoint p)=>w.Index((int)((p.Longitude+180)*width/360),(int)((p.Latitude+90)*width/360));
+                    Require(Cell(a)==Cell(b) && Cell(a)==Cell(island) && FlatSeaNavigation.IsMarineCell(w,Cell(a)),"Expected three receivers in one ocean tile.");
+                    Require(FlatGeographicSurface.IsGroundAt(w,island) && !planner.IsWater(island) && planner.IsWater(a) && planner.IsWater(b),"Subcell selection disagrees with the geographical island.");
+                    Require(!chart.SegmentIsWater(w,a,b),"Sea segment crossed a sub-cell island.");
+                    var around=planner.Find(a,b);CheckEndpoints(around,a,b);
+                    Require(around.Length>2 && planner.Find(a,island).Length==0,"Water route accepted an island interior.");
+                    for(int j=1;j<around.Length;j++)Require(chart.SegmentIsWater(w,around[j-1],around[j]),"Unverified sailing leg around an island.");
+                }
+                Console.WriteLine("PASS three sub-cell islands, exact endpoints and every sailing leg; inshore water is selectable in a coarse dry tile.");
+            }
             var pick = new FlatSeaPoint(28.11, 40.79);
             int coarse = w.Index((int)((pick.Longitude+180)*width/360), (int)((pick.Latitude+90)*width/360));
             Require(!FlatSeaNavigation.IsMarineCell(w, coarse), "Expected the measured Marmara water pick to lie in a coarse dry cell.");

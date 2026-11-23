@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using Orbis.Planet;
 using Unity.Collections;
 using UnityEngine;
 namespace Orbis.Flat
@@ -36,6 +37,7 @@ namespace Orbis.Flat
         public MapLayer VisibleLayer { get; private set; }
         public int ClimateYearOffset { get; private set; }
         internal int LocalFocusTile { get; private set; } = -1;
+        internal PlanetLocation? SelectedLocation { get; private set; }
         internal RectInt LocalEditFootprint { get; private set; }
         Mesh mesh;MeshRenderer meshRenderer;int dataRevision=-1;
         FlatTerrainFacts vegetationSource;
@@ -144,8 +146,13 @@ namespace Orbis.Flat
             ClimateYearOffset=offset;
             if(Layer==MapLayer.Temperature||Layer==MapLayer.Rain)Flush(true);
         }
-        public void Select(int i)
+        public void Select(int i) => Select(i, null);
+        public void Select(int i, PlanetLocation? location)
         {
+            SelectedLocation = i >= 0 ? location : null;
+            var p = SelectedLocation.GetValueOrDefault();
+            Material.SetVector("_SelectedPoint", SelectedLocation.HasValue ?
+                new Vector4((float)PlanetCoordinateSystem.MapU(p), (float)PlanetCoordinateSystem.MapV(p), 1, 0) : Vector4.zero);
             Material.SetVector("_Selected",i<0?new Vector4(-100,-100,-100,-100):new Vector4(i%World.Width,i/World.Width,(i%World.Width)/4*4,(i/World.Width)/4*4));
             SetLocalTarget(i,default);
         }
@@ -393,12 +400,18 @@ namespace Orbis.Flat
             if(Application.isPlaying)Destroy(texture);
             else DestroyImmediate(texture);
         }
+        // Edit-mode fixtures can initialize the renderer without receiving OnDestroy.
+        public void ReleaseRenderJobs()
+        {
+            renderJobs?.Dispose();
+            renderJobs=null;
+        }
         void OnDestroy()
         {
             FoldHeights?.Dispose();
             earthRelief?.Dispose();
             riverAtlas?.Dispose();
-            renderJobs?.Dispose();
+            ReleaseRenderJobs();
             if(mesh)Destroy(mesh);
             if(Material)Destroy(Material);
             foreach(var texture in new[]{TerrainTexture,DisplayTexture,OwnerTexture,InfoTexture,HydroTexture,MixingTexture,GeometryTexture,VisualTexture,EcologyTexture,VegetationTexture,RiverSeasonTexture,lakeIceTexture,glebaWindFlowTex,glebaCurrentFlowTex,glebaBandsTex})

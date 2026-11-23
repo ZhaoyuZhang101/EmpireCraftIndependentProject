@@ -45,14 +45,14 @@ namespace Orbis.Flat
             public readonly TransportWeights[] DisturbanceFaces;
             public readonly float[] OrganizedFraction, Release, Rainout;
             public readonly float[] ConvectiveShare, StratiformCritRh, SolidSnowFrac, SeaBreezeResilience;
-            public readonly float[] LandThermalActivity;
+            public readonly float[] LandThermalActivity, MarineSubsidence, SurfaceCapacity;
             public MonthlyTransport(int count)
             {
                 PotentialEvaporation=new float[count]; WindExchange=new float[count]; SeaHumidityContrast=new float[count]; Capacity=new float[count]; Lift=new float[count];
                 Efficiency=new float[count]; Transpiration=new float[count]; DryLayer=new float[count]; Faces=new TransportWeights[count];
                 DisturbanceFaces=new TransportWeights[count]; OrganizedFraction=new float[count]; Release=new float[count]; Rainout=new float[count];
                 ConvectiveShare=new float[count]; StratiformCritRh=new float[count]; SolidSnowFrac=new float[count]; SeaBreezeResilience=new float[count];
-                LandThermalActivity=new float[count];
+                LandThermalActivity=new float[count]; MarineSubsidence=new float[count]; SurfaceCapacity=new float[count];
             }
         }
         // Marine thermal influence reaches inland from the coast. Distances
@@ -609,7 +609,14 @@ namespace Orbis.Flat
             // Transpiration falls as the root zone dries. The soil reservoir is
             // stored per whole cell, so scale its stress threshold by land area.
             var inverseFieldWater=new float[count];
-            for(int i=0;i<count;i++)inverseFieldWater[i]=1/Math.Max(.01f,45*(1-water[i]));
+            var dryCloudBaseShare = new float[count];
+            for(int i=0;i<count;i++)
+            {
+                inverseFieldWater[i]=1/Math.Max(.01f,45*(1-water[i]));
+                // Sustained ocean-fed monsoon plumes carry a moist subcloud
+                // layer even when the surrounding mean column is seasonally dry.
+                dryCloudBaseShare[i] = 1f - FMath.Clamp(2f * sectors[i].ShieldedInflow + sectors[i].Monsoon, 0f, 1f);
+            }
             // One reference cell is 360/128 degrees. A fixed physical wind or
             // diffusivity travels fewer grid cells on a coarser climate map.
             float gridScale=width/128f,eddy=.065f*gridScale*gridScale;
@@ -647,6 +654,14 @@ namespace Orbis.Flat
             Parallel.For(0,12,options,month=>
             {
                 var column=months[month]=new MonthlyTransport(count);
+                var seasonalAnomaly = new float[count];
+                // This seasonal coastal regime is on the poleward flank of the
+                // subtropical high. The equatorward side already has trade inversions.
+                float PolewardFlank(int x, float latitude)
+                {
+                    float ridge = latitude > 0f ? gleba.SthzNorthLatRad[x * 12 + month] : gleba.SthzSouthLatRad[x * 12 + month];
+                    return FMath.Clamp((Math.Abs(latitude) - Math.Abs(ridge * 57.29578f)) / 5f, 0f, 1f);
+                }
                 var pet=column.PotentialEvaporation;var cap=column.Capacity;
                 var pressure=new float[count];var u=new float[count];var v=new float[count];
                 var stormWest=new float[count];var stormPoleward=new float[count];
@@ -669,6 +684,7 @@ namespace Orbis.Flat
                 for(int y=0;y<height;y++)for(int x=0;x<width;x++)
                 {
                     int i=y*width+x;float temp=monthlyTemperature[i*12+month];
+                    seasonalAnomaly[i] = temp - annualTemperature[i];
                     float lat=((y+.5f)/height-.5f)*180;
                     float tropicalEnergy=(float)Math.Exp(-Math.Pow(lat/18,2));
                     pet[i]=evaporate?Math.Max(.05f,2+temp*.10f)*(1+.26f*tropicalEnergy)*dt:0;
@@ -791,6 +807,22 @@ namespace Orbis.Flat
                         if(seasonalWinds)winds.Surface(convergenceLatitude[i],1-regionalLand[i],out meanEast,out returnFlow);
                         float east=meanEast-gy*coriolis*.08f+monsoon*summer*.27f-.5f*onshore+.23f*winterFront-.22f*subsidence;
                         float north=gx*coriolis*.08f+monsoon*solstice*.20f+.14f*onshore*hemi*summer+hemi*(.12f*winterFront-.17f*subsidence);
+                        float marineShear = 0f;
+                        if (gleba != null && subsidence > 0f && Math.Abs(coriolis) > .15f)
+                        {
+                            // Turn the zonal sea-level pressure gradient into a meridional
+                            // geostrophic wind, with the Coriolis sign of this hemisphere.
+                            float rowMetres = 20015115f / height;
+                            float pressureEast = (gleba.PressureHpa[eastCell[i] * 12 + month]
+                                - gleba.PressureHpa[westCell[i] * 12 + month]) * 100f;
+                            float geostrophicNorth = pressureEast / (1.2f * 2f * rowMetres * area[i] * .00014584f * coriolis);
+                            float marineReach = (float)Math.Exp(-gleba.DistanceToSeaKm[i] / 150f);
+                            float ridge = FMath.Clamp(-2f * gleba.RainfallImpact[i * 12 + month], 0f, 1f);
+                            float exposure = PolewardFlank(x, lat) * FMath.Clamp(3f * subsidence, 0f, 1f)
+                                * marineReach * ridge * (float)Math.Sqrt(ocean[i]);
+                            // Frictional surface perturbation in reference cells per six hours.
+                            marineShear = exposure * FMath.Clamp(geostrophicNorth * .6f, -8f, 8f) * 21600f / rowMetres / gridScale;
+                        }
                         float summerJet=sector.ShieldedInflow*monsoonBelt*heating;
                         float momentumJet=sector.ShieldedInflow*monsoonBelt*jetSeason;
                         east+=.48f*momentumJet-.85f*sector.BarrierJet*monsoonBelt*jetSeason-.42f*coastFront+.12f*offshore;
@@ -811,7 +843,7 @@ namespace Orbis.Flat
                         float jetEast=1.2f*inflowEast-.5f*bay;
                         float jetNorth=1.2f*summerPole*inflowNorth-.09f*hemi*bay;
                         float surfaceEast=surfEastArr[i]=FMath.Clamp(east+.4f*jetEast-gx*.12f,-.32f,.32f);
-                        float surfaceNorth=surfNorthArr[i]=y==0||y==height-1?0:FMath.Clamp(north+.4f*jetNorth+returnFlow-gy*.20f,-.14f,.14f);
+                        float surfaceNorth=surfNorthArr[i]=y==0||y==height-1?0:FMath.Clamp(north+marineShear+.4f*jetNorth+returnFlow-gy*.20f,-.14f,.14f);
                         column.WindExchange[i]=OpenWaterExchange(surfaceEast,surfaceNorth,stormLift/.10f);
                         if(seasonalWinds && gleba!=null && oceanContrast>0f)
                         {
@@ -825,7 +857,7 @@ namespace Orbis.Flat
                             float monsoonOvr=FMath.Clamp(1.8f*momentumJet+1.5f*sector.BarrierJet*monsoonBelt+1.4f*supply,0f,1f);
                             winds.SurfaceWithGleba(convergenceLatitude[i],1-regionalLand[i],gItcz,gPfN,gPfS,pgEastHpa,pgNorthHpa,oceanContrast,monsoonOvr,out float gSurfE,out float gSurfN);
                             float pubEast=FMath.Clamp(surfaceEast+(gSurfE-meanEast),-.32f,.32f);
-                            float pubNorth=y==0||y==height-1?0:FMath.Clamp(north+.4f*jetNorth+gSurfN-gy*.20f,-.28f,.28f);
+                            float pubNorth=y==0||y==height-1?0:FMath.Clamp(north+marineShear+.4f*jetNorth+gSurfN-gy*.20f,-.28f,.28f);
                             state.East[i*12+month]=pubEast/.32f;
                             state.North[i*12+month]=pubNorth/.32f;
                         }
@@ -1235,6 +1267,28 @@ namespace Orbis.Flat
                             column.LandThermalActivity[i] = seasonalHeating * warmBoundaryLayer * (1f - inhibition);
                         }
 
+                        if (gleba != null && subsidence > 0f)
+                        {
+                            // Descending air warms above a moist coastal boundary layer. Its
+                            // influence decays inland over about a day's travel at 5 m/s.
+                            float marineReach = (float)Math.Exp(-3600f * continentality[i] / 420f);
+                            float sinking = FMath.Clamp(-3f * glebaImpact, 0f, 1f);
+                            float inversion = PolewardFlank(x, lat) * subsidence * marineReach * sinking;
+                            column.SurfaceCapacity[i] = cap[i];
+                            cap[i] *= Capacity(tempNow + 12f * inversion) / Capacity(tempNow);
+                            column.MarineSubsidence[i] = .25f * inversion;
+                        }
+                        if (gleba != null && winterFront > 0f)
+                        {
+                            // Cold air crossing a relatively warm sea enhances winter showers.
+                            // Seasonal anomalies remove the static lapse and latitudinal gradients.
+                            float polewardRow = y + hemi * 600f / kmRowPass2;
+                            float polewardLand = 1f - FractionAt(ocean, width, height, x, polewardRow);
+                            float seaFetch = .5f * (ocean[westCell[i]] + ocean[i]);
+                            float coldAir = FractionAt(seasonalAnomaly, width, height, x, polewardRow);
+                            float instability = Math.Max(0f, seasonalAnomaly[i] - coldAir);
+                            lift[i] += .18f * winterFront * seaFetch * polewardLand * instability;
+                        }
                         u[i]/=1+climbEast*gridScale/850;
                         v[i]/=1+climbNorth*gridScale/850;
                     }
@@ -1264,14 +1318,14 @@ namespace Orbis.Flat
                     };
                 }
             });
-            IntegrateYear(state,months,dt,water,area,inverseFieldWater,westCell,eastCell,southCell,northCell,options,observeFlux);
+            IntegrateYear(state,months,dt,water,area,inverseFieldWater,dryCloudBaseShare,westCell,eastCell,southCell,northCell,options,observeFlux);
             if(exo!=null)
                 ExoPlaSimSupplement.FinalizeDiagnostics(state,ocean,water,elevation,monthlyTemperature,planetCfg,options);
             return state;
         }
 
         static void IntegrateYear(FlatMoistureState state,MonthlyTransport[] months,float dt,
-            float[] water,float[] area,float[] inverseFieldWater,int[] west,int[] east,int[] south,int[] north,
+            float[] water,float[] area,float[] inverseFieldWater,float[] dryCloudBaseShare,int[] west,int[] east,int[] south,int[] north,
             ParallelOptions options,MonthlyFluxObserver observeFlux)
         {
             int count=water.Length, steps=(int)(30/dt);
@@ -1313,7 +1367,11 @@ namespace Orbis.Flat
                         float cap=column.Capacity[i], sea=water[i], land=1-sea;
                         float totalSoil=shallowSoil[i]+deepSoil[i];
                         float humidity=FMath.Clamp((air+carried)/cap,0,1);
-                        float evaporation=column.PotentialEvaporation[i]*(.60f+1.15f*(1-humidity));
+                        // Surface exchange sees the skin-level saturation capacity.
+                        // Warming aloft neither warms the water surface nor raises its vapour supply.
+                        float surfaceHumidity = column.SurfaceCapacity[i] > 0f
+                            ? FMath.Clamp((air + carried) / column.SurfaceCapacity[i], 0f, 1f) : humidity;
+                        float evaporation=column.PotentialEvaporation[i]*(.60f+1.15f*(1-surfaceHumidity));
                         float openWaterEvap=sea*Math.Max(0,evaporation+column.PotentialEvaporation[i]*column.SeaHumidityContrast[i]);
                         openWaterEvap*=column.WindExchange[i];
                         float soilAvail=Math.Min(1f,(totalSoil+0.18f*column.SeaBreezeResilience[i]*deepSoil[i])*inverseFieldWater[i]);
@@ -1328,7 +1386,10 @@ namespace Orbis.Flat
                         float cloudFraction=FMath.Clamp((humidity-.40f)*2,0,1);
                         float critRh=column.StratiformCritRh[i]>0f?column.StratiformCritRh[i]:.90f;
                         float largeScaleExcess=Math.Max(0,air-cap*critRh)*.65f;
-                        float dynCond=air*Math.Min(.7f,(column.Lift[i]+column.Efficiency[i]*.055f*cloudFraction*cloudFraction)*dt);
+                        float moistLayer = FMath.Clamp((humidity - .50f) / .25f, 0f, 1f);
+                        float netLift = column.Lift[i] + column.Efficiency[i] * .055f * cloudFraction * cloudFraction
+                            - column.MarineSubsidence[i] * moistLayer;
+                        float dynCond = air * FMath.Clamp(netLift * dt, 0f, .7f);
                         // Moist thermals return a share of actual land evapotranspiration to
                         // convection. Credit convection already diagnosed from resolved lift.
                         float humidLayer = FMath.Clamp((humidity - .35f) / .4f, 0f, 1f);
@@ -1338,7 +1399,13 @@ namespace Orbis.Flat
                         float gross=Math.Min(air,condensed+stormCloud);
                         float skinMax=Math.Max(1e-4f,30f*land), deepMax=Math.Max(1e-4f,120f*land);
                         float wettedSurface=sea+land*Math.Min(1,totalSoil*inverseFieldWater[i]);
-                        float virga=SubcloudEvaporation(gross,air,cap,dt,wettedSurface,column.DryLayer[i]);
+                        // The lifting condensation level rises with dew-point depression,
+                        // approximately proportional to -log(RH). Drops then traverse more
+                        // dry air. Use the existing fall depth above 60% RH and cap it at twice that depth.
+                        float fallDepth = 1f;
+                        if (exo != null && humidity < .61f)
+                            fallDepth += dryCloudBaseShare[i] * (FMath.Clamp(-(float)Math.Log(Math.Max(.05f, humidity)) / .51f, 1f, 2f) - 1f);
+                        float virga=SubcloudEvaporation(gross,air,cap,dt,wettedSurface,column.DryLayer[i]*fallDepth);
                         float rain=gross-virga;
                         next[i]=air-rain;
                         // Exact mass-conserving 2-layer soil percolation (30 mm shallow skin + 120 mm deep root zone = 150 mm total;

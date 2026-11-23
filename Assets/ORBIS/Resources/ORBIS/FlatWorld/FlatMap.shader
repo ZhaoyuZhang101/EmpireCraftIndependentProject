@@ -19,6 +19,7 @@ Shader "ORBIS/FlatWorld/FlatMap"
   [HideInInspector] _EcologyTex("Derived ecology traits",2D)="black"{}
   [HideInInspector] _EcologyReady("Ecology traits ready",Float)=0
   [HideInInspector] _MapSize("World dimensions and inverse dimensions",Vector)=(1,1,1,1)
+  [HideInInspector] _SelectedPoint("Geographic selection UV",Vector)=(0,0,0,0)
   [HideInInspector] _FieldReady("Terrain and bed fields ready",Float)=0
   [HideInInspector] _PoleBedDepth("Polar bed and depth, south then north",Vector)=(0,0,0,0)
   [HideInInspector] _EarthPolarBed("Surveyed polar bed",2D)="black"{}

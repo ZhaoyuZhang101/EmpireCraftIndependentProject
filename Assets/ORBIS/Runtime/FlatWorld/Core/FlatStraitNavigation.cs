@@ -156,7 +156,7 @@ namespace Orbis.Flat
         static int Chart(FlatSeaPoint p) => Math.Min(Rows - 1, (int)((p.Latitude + 90) * 4)) * Columns + (int)((Wrap(p.Longitude) + 180) * 4);
         public int RegionAt(FlatSeaPoint point) => Valid(point) ? regions[Index(Chart(point))] : 0;
 
-        double Sample(FlatSeaPoint p, out double strength)
+        internal double Sample(FlatSeaPoint p, out double strength)
         {
             double x = (Wrap(p.Longitude) + 180) * 4, y = Math.Min(Rows - 1e-8, (p.Latitude + 90) * 4);
             int ix = (int)x, iy = (int)y, s = Index(iy * Columns + ix);
@@ -192,6 +192,11 @@ namespace Orbis.Flat
         static int Tile(WorldData w, FlatSeaPoint p) => w.Index((int)((Wrap(p.Longitude) + 180) * w.Width / 360),
             Math.Min(w.Height - 1, (int)((p.Latitude + 90) * w.Height / 180)));
         static bool Enabled(WorldData w) => w != null && w.Preset == TerrainPreset.Earth && w.UsesSurveyedStraits && w.WaterReference != null;
+        internal bool CanRouteOutsideCharts(WorldData w)
+        {
+            var surface=w.GeographicSurface;
+            return surface!=null && ReferenceEquals(surface.Regional,this) && (surface.HasGlobal || w.Facts!=null);
+        }
         const int Marine = 1, OriginalBed = 2, Survey = 4;
         static int Flags(WorldData w, int tile, Dictionary<int, int> memo)
         {
@@ -223,6 +228,30 @@ namespace Orbis.Flat
         bool Water(WorldData w, FlatSeaPoint p, Dictionary<int, int> memo, out bool covered, double clearanceKm = 0)
         {
             int tile = Tile(w, p);
+            var surface = w.GeographicSurface;
+            if (surface != null && ReferenceEquals(surface.Regional,this))
+            {
+                var kind = surface.At(w,p,out double shore,out covered);
+                if(surface.HasGlobal || w.Facts!=null)
+                {
+                    // Outside measured coverage the same continuous model field
+                    // supplies selection and sailing, including a brush's edit halo.
+                    covered=true;
+                    if(!w.WaterReference.MatchesOriginalBed(tile,w.Elevation[tile]) && !FlatSeaNavigation.IsMarineCell(w,tile))return false;
+                }
+                if(clearanceKm>0 && surface.HasGlobal)
+                {
+                    int slot=Index(Chart(p));double safe=.70; // half the diagonal of a 120/degree ocean texel
+                    if(slot!=0)
+                    {
+                        int page=Regional(slot);
+                        if((coarse[page]|coarse[page+1])!=0)safe=SailingClearanceKm;
+                        else if((coarse[page+2]|coarse[page+3])!=0)safe=.34;
+                    }
+                    clearanceKm*=safe/SailingClearanceKm;
+                }
+                return covered ? FlatTerrainAnalysis.Ocean(kind) && shore>clearanceKm : FlatSeaNavigation.IsMarineCell(w,tile);
+            }
             covered = Enabled(w) && Index(Chart(p)) != 0;
             if (!covered)
                 return FlatSeaNavigation.IsMarineCell(w, tile);
@@ -265,7 +294,8 @@ namespace Orbis.Flat
                 return true;
             int limit = (int)Math.Ceiling(step * Resolution * 2);
             var memo = new Dictionary<int, int>();
-            for (int div = 4; div <= Math.Max(4, 2 * limit); div *= 2)
+            int maxDiv=CanRouteOutsideCharts(world)?Math.Min(256,2*limit):2*limit;
+            for (int div = 4; div <= Math.Max(4,maxDiv); div *= 2)
             {
                 double best = double.MaxValue;
                 for (int y = 0; y < div; y++)
@@ -315,14 +345,7 @@ namespace Orbis.Flat
                     limit = Math.Min(limit, (1 - t) * lengthKm * .5);
                 return Water(w, Interpolate(a, dx, dy, t), memo, out covered, limit);
             }
-            double Next(double start, double delta, double scale, double t)
-            {
-                if (delta == 0)
-                    return double.PositiveInfinity;
-                double grid = (start + delta * t) * scale;
-                double boundary = delta > 0 ? Math.Floor(grid + 1e-8) + 1 : Math.Ceiling(grid - 1e-8) - 1;
-                return (boundary / scale - start) / delta;
-            }
+            double Next(double start,double delta,double scale,double t) => FlatGeographicSurface.NextBoundary(start,delta,scale,t);
             double gs = w.Width / 360.0, extent = Math.Max(Math.Abs(dx), Math.Abs(dy));
             for (double t = 0; t < 1;)
             {
@@ -335,7 +358,9 @@ namespace Orbis.Flat
                     return false;
                 if (regional)
                 {
-                    int n = Math.Max(1, (int)Math.Ceiling((end - t) * extent * Resolution * 2));
+                    var geography=w.GeographicSurface;
+                    int mesh=geography==null || geography.HasNativeBank(Interpolate(a,dx,dy,(t+end)*.5)) ? Resolution : Math.Max(12,w.Width/45);
+                    int n = Math.Max(1, (int)Math.Ceiling((end - t) * extent * mesh * 2));
                     for (int i = 0; i <= n; i++)
                         if (!Navigable(Blend(t, end, (double)i / n), out _))
                             return false;
@@ -362,7 +387,8 @@ namespace Orbis.Flat
             if (!Enabled(world) || !Valid(start) || !Valid(end))
                 return false;
             int a = RegionAt(start), b = RegionAt(end);
-            if ((a == 0 && b == 0) || (a != 0 && b != 0 && a != b))
+            bool global = CanRouteOutsideCharts(world);
+            if (!global && ((a == 0 && b == 0) || (a != 0 && b != 0 && a != b)))
                 return false;
             if (!Water(world, start, null, out _) || !Water(world, end, null, out _))
                 return false;
@@ -371,7 +397,8 @@ namespace Orbis.Flat
                 path = new[] { start };
                 return true;
             }
-            var search = new LocalSearch(this, world, a != 0 ? a : b, start, end, cancel);
+            int region = global && (a==0 || b==0 || a!=b) ? 0 : a!=0 ? a : b;
+            var search = new LocalSearch(this, world, region, start, end, cancel);
             return search.Find(out path);
         }
 
@@ -416,14 +443,27 @@ namespace Orbis.Flat
                 int px = x / Page, py = y / Page, key = py * Columns + px;
                 if (!pages.TryGetValue(key, out var map))
                 {
+                    // Global detours are solved one local leg at a time. A dry
+                    // target cannot cause an unbounded flood at native resolution.
+                    if(region==0 && (pages.Count>=1024 || nodes.Count>=350000))return 0;
                     int slot = data.Index(key);
+                    bool InWindow()
+                    {
+                        int ax=X(start)/Page, ay=Y(start)/Page, bx=X(end)/Page, by=Y(end)/Page;
+                        int Offset(int col) => (col-ax+Columns*3/2)%Columns-Columns/2;
+                        int rel=Offset(px),target=Offset(bx);
+                        int margin=Math.Max(3,Math.Min(12,2+(int)Math.Ceiling(Columns*1.5/world.Width)));
+                        return Math.Abs(target)<=32 && Math.Abs(by-ay)<=32 &&
+                            rel>=Math.Min(0,target)-margin && rel<=Math.Max(0,target)+margin &&
+                            py>=Math.Min(ay,by)-margin && py<=Math.Max(ay,by)+margin;
+                    }
                     bool By(FlatSeaPoint p)
                     {
                         int dx = Math.Abs(px - X(p)/Page), limit = 1 + (int)Math.Ceiling(1440.0/world.Width);
                         return data.RegionAt(p) == 0 && Math.Min(dx,Columns-dx) <= limit && Math.Abs(py-Y(p)/Page) <= limit;
                     }
                     map = Empty;
-                    if (data.regions[slot] == region || (slot == 0 && (By(start) || By(end))))
+                    if (region==0 ? InWindow() : data.regions[slot] == region || (slot == 0 && (By(start) || By(end))))
                     {
                         cancel.ThrowIfCancellationRequested();
                         map = new int[Page * Page];
@@ -447,7 +487,24 @@ namespace Orbis.Flat
                         any |= f;
                     }
                 bool wet = false, settled = false;
-                if (slot == 0 || (any & OriginalBed) == 0)
+                var geo=world.GeographicSurface;
+                if(data.CanRouteOutsideCharts(world) && (region==0 || slot==0 || !data.fullSurvey[slot]))
+                {
+                    var kind=geo.At(world,c,out double km,out bool covered);
+                    bool sameModel=(first&Marine)!=0 || (any&Marine)==0;
+                    bool untouched=(first&Survey)!=0;
+                    double radius=size*.154 + .7;
+                    if(sameModel && !covered)
+                    {
+                        // Outside the surveys a headland can fall wholly within a
+                        // simulation cell. Refine the model's zero contour as well.
+                        if((world.Facts==null || Math.Abs(km)>3*radius) && (!geo.HasNativeBank(c) || (any&OriginalBed)==0))
+                        {wet=FlatTerrainAnalysis.Ocean(kind);settled=true;}
+                    }
+                    else if(untouched && covered && Math.Abs(km)>radius)
+                    {wet=FlatTerrainAnalysis.Ocean(kind);settled=true;}
+                }
+                else if (slot == 0 || (any & OriginalBed) == 0)
                 {
                     if ((first & Marine) != 0 || (any & Marine) == 0)
                     {
@@ -549,7 +606,7 @@ namespace Orbis.Flat
                             double cost = n.Cost + Distance(n.Center, portal) + Distance(portal, next.Center);
                             if (cost >= next.Cost)
                                 continue;
-                            if ((n.Size == 1 || next.Size == 1) && (!Wet(portal) || !Clear(n.Center, portal) || !Clear(portal, next.Center)))
+                            if ((region==0 || n.Size == 1 || next.Size == 1) && (!Wet(portal) || !Clear(n.Center, portal) || !Clear(portal, next.Center)))
                                 continue;
                             next.Parent = id;
                             next.Portal = portal;

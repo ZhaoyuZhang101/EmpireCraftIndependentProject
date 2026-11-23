@@ -41,7 +41,9 @@ namespace Orbis.Flat
         GlaciatedSweetwaterLake = 19,
         Bog = 20,
         Marsh = 21,
-        Swamp = 22
+        Swamp = 22,
+        HumidTropicalGrassland = 23,
+        SemiAridSteppe = 24
     }
 
     /// <summary>
@@ -308,6 +310,14 @@ namespace Orbis.Flat
             bool aquatic, bool lake, bool freshwater, float iceThickness,
             float elevationMeters, float janTempC, float julTempC, float janRainMm, float julRainMm,
             Koppen koppen, in GlebaPlantCover flora, bool marsh = false)
+            => ClassifyGlebaBiome(aquatic, lake, freshwater, iceThickness, elevationMeters,
+                Math.Min(janTempC, julTempC), Math.Max(janTempC, julTempC), (janTempC + julTempC) * .5f,
+                koppen, in flora, marsh);
+
+        // Köppen already integrates all twelve months, including the dry season and aridity threshold.
+        public static GlebaBiomeKind ClassifyGlebaBiome(
+            bool aquatic, bool lake, bool freshwater, float iceThickness, float elevationMeters,
+            float coldest, float warmest, float meanTemperature, Koppen koppen, in GlebaPlantCover flora, bool marsh = false)
         {
             bool icy = iceThickness > 0.001f;
             if (aquatic)
@@ -318,60 +328,51 @@ namespace Orbis.Flat
             }
             if (icy) return GlebaBiomeKind.Glacier;
 
-            float tWin = Math.Min(janTempC, julTempC);
-            float tSum = Math.Max(janTempC, julTempC);
-            float tAvg = 0.5f * (janTempC + julTempC);
             float dead = flora.DeadLand;
             float trees = flora.Trees;
             float conifer = flora.ConiferFraction;
 
-            float winToSum = 0.5f, sumToWin = 0.5f;
-            if (janRainMm > 0f || julRainMm > 0f)
-            {
-                if (julTempC > janTempC)
-                {
-                    winToSum = janRainMm / Math.Max(julRainMm, 1f);
-                    sumToWin = julRainMm / Math.Max(janRainMm, 1f);
-                }
-                else
-                {
-                    winToSum = julRainMm / Math.Max(janRainMm, 1f);
-                    sumToWin = janRainMm / Math.Max(julRainMm, 1f);
-                }
-            }
-
             // Priority 0..301 ascending (last match wins)
             GlebaBiomeKind chosen = GlebaBiomeKind.RockyWasteland;
-            if (tWin <= 0f && tSum <= 15f && tAvg <= 0f)
+            if (coldest <= 0f && warmest <= 15f && meanTemperature <= 0f)
                 chosen = GlebaBiomeKind.ArcticWasteland; // p=10
-            if (dead >= 0.50f && tWin >= 0f) chosen = GlebaBiomeKind.DesertsAndXericShrublands; // p=20
+            if (dead >= 0.50f && coldest >= 0f) chosen = GlebaBiomeKind.DesertsAndXericShrublands; // p=20
 
             if (dead <= 0.50f)
             {
-                if (trees >= 0.55f && conifer >= 0.65f) chosen = GlebaBiomeKind.TemperateConiferousForest; // p=50
-                if (trees >= 0.55f && conifer <= 0.65f) chosen = GlebaBiomeKind.TemperateBroadleafAndMixedForest; // p=50
-                if (trees >= 0.55f && tWin >= 18f) chosen = GlebaBiomeKind.DryJungle; // p=50
-                if (trees <= 0.55f) chosen = GlebaBiomeKind.TemperateGrasslandsSavannasAndShrublands; // p=50
-                if (trees <= 0.55f && tWin >= 18f) chosen = GlebaBiomeKind.TropicalGrasslandsSavannasAndShrublands; // p=50
-                if (tWin >= 0f && tWin <= 18f && (koppen == Koppen.Csa || koppen == Koppen.Csb || koppen == Koppen.Csc))
-                    chosen = GlebaBiomeKind.MediterraneanForestWoodlandAndScrub; // p=50
+                bool wooded = trees >= .55f;
+                switch (koppen)
+                {
+                    case Koppen.Csa: case Koppen.Csb: case Koppen.Csc:
+                        chosen = GlebaBiomeKind.MediterraneanForestWoodlandAndScrub; break;
+                    case Koppen.Aw:
+                        chosen = wooded ? GlebaBiomeKind.DryJungle : GlebaBiomeKind.TropicalGrasslandsSavannasAndShrublands; break;
+                    case Koppen.Af: case Koppen.Am:
+                        chosen = !wooded ? GlebaBiomeKind.HumidTropicalGrassland :
+                            koppen == Koppen.Af ? GlebaBiomeKind.WetJungle : GlebaBiomeKind.DryJungle; break;
+                    case Koppen.BSh: case Koppen.BSk:
+                        chosen = GlebaBiomeKind.SemiAridSteppe; break;
+                    case Koppen.BWh: case Koppen.BWk:
+                        chosen = GlebaBiomeKind.DesertsAndXericShrublands; break;
+                    default:
+                        chosen = !wooded ? GlebaBiomeKind.TemperateGrasslandsSavannasAndShrublands :
+                            conifer >= .65f ? GlebaBiomeKind.TemperateConiferousForest : GlebaBiomeKind.TemperateBroadleafAndMixedForest; break;
+                }
             }
 
             if (elevationMeters >= 2500f && trees <= 0.55f && dead <= 0.90f)
                 chosen = GlebaBiomeKind.MontaneGrasslandsAndShrublands; // p=50
 
             // Wetland biomes (biomes.lua: bog / marsh / swamp, priority 50)
-            if (marsh && dead <= 0.65f)
+            // A closed perhumid rainforest can have saturated soil without losing its canopy.
+            if (marsh && dead <= 0.65f && chosen != GlebaBiomeKind.WetJungle)
             {
-                if (tAvg < 6f) chosen = GlebaBiomeKind.Bog;
+                if (meanTemperature < 6f) chosen = GlebaBiomeKind.Bog;
                 else if (flora.Grass >= 0.50f) chosen = GlebaBiomeKind.Marsh;
                 else chosen = GlebaBiomeKind.Swamp;
             }
 
-            if (trees >= 0.55f && tWin >= 18f && dead <= 0.50f && winToSum <= 8.25f && sumToWin <= 8.25f)
-                chosen = GlebaBiomeKind.WetJungle; // p=51
-
-            if (tWin <= 0f && tSum <= 15f && tAvg <= 0f && dead < 0.72f)
+            if (coldest <= 0f && warmest <= 15f && meanTemperature <= 0f && dead < 0.72f)
                 chosen = GlebaBiomeKind.Tundra; // p=300
 
             if (trees >= 0.55f && dead <= 0.50f &&
@@ -403,6 +404,8 @@ namespace Orbis.Flat
                 case GlebaBiomeKind.TemperateGrasslandsSavannasAndShrublands: r = 205; g = 222; b = 135; return;
                 case GlebaBiomeKind.TropicalGrasslandsSavannasAndShrublands:  r = 255; g = 216; b =  82; return;
                 case GlebaBiomeKind.MediterraneanForestWoodlandAndScrub:   r = 200; g = 113; b =  55; return;
+                case GlebaBiomeKind.HumidTropicalGrassland:                r = 113; g = 185; b = 102; return;
+                case GlebaBiomeKind.SemiAridSteppe:                        r = 187; g = 172; b = 112; return;
                 case GlebaBiomeKind.MontaneGrasslandsAndShrublands:        r = 192; g = 168; b = 228; return;
                 case GlebaBiomeKind.Tundra:                                r = 135; g = 218; b = 202; return;
                 case GlebaBiomeKind.Bog:                                   r = 178; g = 122; b = 196; return;
@@ -431,6 +434,8 @@ namespace Orbis.Flat
                 case GlebaBiomeKind.TemperateGrasslandsSavannasAndShrublands: return "温带草原 (Steppe)";
                 case GlebaBiomeKind.TropicalGrasslandsSavannasAndShrublands: return "热带稀树草原 (Savanna)";
                 case GlebaBiomeKind.MediterraneanForestWoodlandAndScrub: return "地中海硬叶林灌丛 (Mediterranean)";
+                case GlebaBiomeKind.HumidTropicalGrassland: return "湿热草地与灌丛";
+                case GlebaBiomeKind.SemiAridSteppe: return "半干旱草原与灌丛";
                 case GlebaBiomeKind.MontaneGrasslandsAndShrublands: return "高山草甸灌丛 (Montane)";
                 case GlebaBiomeKind.WetJungle: return "热带湿润雨林 (Moist Jungle)";
                 case GlebaBiomeKind.Tundra: return "极地苔原 (Tundra)";

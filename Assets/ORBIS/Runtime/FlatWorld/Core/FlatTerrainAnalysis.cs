@@ -231,7 +231,7 @@ namespace Orbis.Flat
                     f.Wetness[i]=mean;f.SaturatedMonths[i]=(byte)saturated;
                     bool isWetland=!area&&riparian>.18f&&saturated>=8&&gradient<=100&&waterHand<=100&&temp>-2f;
                     f.GlebaBiomes[i]=GlebaEcologySupplement.ClassifyGlebaBiome(area,w.Water[i]==WaterKind.Lake,freshwater,f.GroundedIceMeters[i],w.Elevation[i],
-                        w.Temperature[i*12],w.Temperature[i*12+6],w.Precipitation[i*12],w.Precipitation[i*12+6],w.Climates[i],in glebaFlora,isWetland);
+                        coldest,warmest,temp,w.Climates[i],in glebaFlora,isWetland);
                     f.Forms[i]=ClassifyForm(w.Elevation[i],f.Relief[i],gradient,f.Hand[i],fresh[i]<=1,area,
                         w.WaterLevel[i]>w.Elevation[i]||w.Downstream[i]<0);
                     // Positive uphill rise and above-sea relief avoid treating a deep coastline as shelter.

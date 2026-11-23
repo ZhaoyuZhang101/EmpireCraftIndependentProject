@@ -189,6 +189,8 @@ namespace Orbis.Flat
             int tile = FlatScrollMath.Tile(x, y, world.Width, world.Height);
             if (!GroundClass(world, tile)) return false;
             float fx = (float)x, fy = (float)y;
+            if(world.GeographicSurface!=null && !FlatGeographicSurface.IsGroundAt(world,
+                new FlatSeaPoint(FlatGeographicSurface.Wrap(x*360/world.Width-180),Math.Max(-90,Math.Min(90,y*180/world.Height-90)))))return false;
             return FlatSurfaceSampling.SampleShore(world, fx, fy) < -.045f &&
                 FlatWaterGeometry.RiverDistance(world, tile, fx - tile % world.Width, fy - tile / world.Width) > .055f;
         }
@@ -212,7 +214,7 @@ namespace Orbis.Flat
             int direction = Direction(world, from, to);
             if (direction < 0) return false;
             if (flying) return true;
-            if (!IsGroundTile(world, from) || !IsGroundTile(world, to) ||
+            if (!IsGroundTile(world, from) || !IsGroundTile(world, to) || !FlatGeographicSurface.GroundEdge(world,from,to) ||
                 Math.Abs(world.Elevation[from] - world.Elevation[to]) > 140) return false;
             double x = from % world.Width + .5, y = from / world.Width + .5;
             double dx = direction == 0 ? -1 : direction == 1 ? 1 : 0;

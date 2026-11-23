@@ -1,6 +1,19 @@
    // Map readability (globals, 0 = off): minimum on-screen width of main
    // channels when zoomed out, and a clear-water tint for river channels.
    float _RiverTint;
+   float4 _SelectedPoint;
+   // Invert the local UV-to-screen differential so the marker stays the same
+   // screen size on the globe, on oblique atlas copies and across the date line.
+   float FlatPointInk(float2 uv)
+   {
+    if (_SelectedPoint.z < .5) return 0;
+    float2 offset=uv-_SelectedPoint.xy, dx=ddx(uv), dy=ddy(uv);
+    offset.x-=round(offset.x); dx.x-=round(dx.x); dy.x-=round(dy.x);
+    float det=dx.x*dy.y-dx.y*dy.x;
+    if (abs(det)<1e-14) return 0;
+    float2 pixel=abs(float2(offset.x*dy.y-offset.y*dy.x,dx.x*offset.y-dx.y*offset.x)/det);
+    return saturate(1.45-abs(max(pixel.x,pixel.y)-7))*saturate(min(pixel.x,pixel.y)-3);
+   }
    #ifdef ORBIS_DIAGNOSTIC
    #include "FlatCirculationOverlay.cginc"
    #endif
@@ -38,6 +51,23 @@
     float2 uv=MarkleyGeoUV(i.uv);
     #endif
     float3 colour=tex2D(_MainTex,uv).rgb;
+    if(max(_Natural,_Political)>.5 && _FieldReady>.5)
+    {
+     // The natural RGB texture is the dry ground below the continuous water
+     // mask. Composite the same banks in the temporary editor preview.
+     float2 cell=uv*_MapSize.xy;
+     float kind=round(255*tex2Dlod(_InfoTex,float4((floor(cell)+.5)*_MapSize.zw,0,0)).g);
+     float4 field=FlatField(cell);
+     float2 gradient=0,coast;
+     FlatEarthRelief(uv,field.r,gradient,coast);
+     float chart=FlatSurveyBasinShore(uv,cell,_InfoTex,kind,field.g,coast);
+     float lake=FlatEarthLake(uv,kind,chart,field.g);
+     float aa=FlatEarthShoreAA(uv,clamp(.65/max(1,_PixelsPerTile),.008,.28),chart);
+     float wet=smoothstep(-aa,aa,field.g);
+     float3 sea=kind==1?float3(24,57,80):kind==2?float3(36,92,120):float3(68,146,149);
+     float inland=max(lake,step(.5,1-abs(kind-4)));
+     colour=lerp(colour,FlatColor(lerp(sea,float3(89,155,167),inland)/255),wet);
+    }
     if(_Political>.5)
     {
      float4 owner=tex2D(_OwnerTex,uv);
@@ -51,6 +81,7 @@
      colour=lerp(colour,FlatColor(float3(.15,.40,.56)),ink);
     }
     if(max(_Natural,_Political)>.5)colour*=FlatDayLight(FlatRadial(uv),uv);
+    colour=lerp(colour,FlatColor(float3(1,.91,.61)),FlatPointInk(uv));
     #ifdef UNITY_COLORSPACE_GAMMA
     colour=GammaToLinearSpace(max(0,colour));
     #endif
@@ -329,6 +360,10 @@
      col=lerp(col,FlatColor(float3(.20,.24,.21)),zoneMask*.24*(1-waterMask));
      if(_PixelsPerTile>=16){float tileMask=max(1-step(.5/_PixelsPerTile,f.x),1-step(.5/_PixelsPerTile,f.y));col*=1-tileMask*.10*(1-waterMask);}
     }
+    if (_SelectedPoint.z>.5)
+     col=lerp(col,FlatColor(float3(1,.91,.61)),FlatPointInk(i.uv));
+    else
+    {
     float selected=1-step(.5,max(abs(id.x-_Selected.x),abs(id.y-_Selected.y)));
     float selectionWidth=min(.20,1.5/max(1,_PixelsPerTile));
     float rim=1-step(selectionWidth,min(min(f.x,f.y),min(1-f.x,1-f.y)));
@@ -337,6 +372,7 @@
     float inZone=step(0,selectedZone.x)*step(0,selectedZone.y)*step(selectedZone.x,4)*step(selectedZone.y,4);
     float zoneRim=1-step(selectionWidth,min(min(selectedZone.x,selectedZone.y),min(4-selectedZone.x,4-selectedZone.y)));
     col=lerp(col,FlatColor(float3(.94,.84,.53)),inZone*zoneRim*.7);
+    }
     }
     #if defined(ORBIS_SCROLL_SURFACE) && defined(UNITY_COLORSPACE_GAMMA)
     // Native volume/display always consumes linear scene radiance, including its flat endpoint.

@@ -44,7 +44,7 @@ namespace Orbis.Flat
         float endGap = DefaultEndGap, pixels = 16, entryPixels = 16, entryViewportHeight = 1, morph, displaySpin;
         double lockedDay, currentDay;
         bool landingLocked, atlasPending, exitPending, entryScaleRecorded;
-        int focusTile=-1;int pendingFocus=-1; bool focusZoom;Vector2 focusCenter; float targetPixels=-1; Vector2 zoomScreen; bool zoomAnchor;
+        PlanetLocation focusLocation;int pendingFocus=-1; bool focusZoom;Vector2 focusCenter; float targetPixels=-1; Vector2 zoomScreen; bool zoomAnchor;
         Vector2 strategicZoomPoint;
         bool hasStrategicZoomPoint;
         PlanetLocation[] route = Array.Empty<PlanetLocation>();
@@ -204,7 +204,7 @@ namespace Orbis.Flat
                 pixels=(float)FlatScrollMath.ExpApproach(pixels,targetPixels,14,dt);
                 if(focusZoom)
                 {
-                    focusCenter=ProjectedTile(focusTile,pan);
+                    focusCenter=NearestChartPoint(focusLocation);
                     float blend=1-Mathf.Exp(-14*dt);
                     mapPosition.Move(PlanetCoordinateSystem.NearestOffset(focusCenter.x-mapPosition.X,world.Width)*blend,
                         (focusCenter.y-mapPosition.Y)*blend,world.Width,world.Height);
@@ -276,7 +276,7 @@ namespace Orbis.Flat
             }
             if(IsFlat&&pendingFocus>=0)
             {
-                focusTile=pendingFocus;focusCenter=ProjectedTile(pendingFocus,pan);focusZoom=true;
+                focusLocation=TileLocation(pendingFocus);focusCenter=NearestChartPoint(focusLocation);focusZoom=true;
                 pendingFocus=-1;targetPixels=48;zoomAnchor=false;NormalizePan();
             }
             if(IsFlat&&exitPending&&targetPixels<0)
@@ -318,9 +318,9 @@ namespace Orbis.Flat
             focusZoom = false;
         }
 
-        internal void FocusStrategic(int tile, float chartPixels)
+        internal void FocusStrategic(PlanetLocation location, float chartPixels)
         {
-            focusTile = tile;
+            focusLocation = location;
             focusZoom = true;
             zoomAnchor = false;
             targetPixels = Mathf.Max(FitPixels(), chartPixels);
@@ -441,12 +441,8 @@ namespace Orbis.Flat
             if(IsTransitioning){AlignFrame(currentDay);pitch=Mathf.Asin(Mathf.Clamp(normal.y,-1,1))*Mathf.Rad2Deg;yaw=Mathf.Atan2(-normal.x,-normal.z)*Mathf.Rad2Deg;}
             Tick(0,currentDay);
         }
-        Vector2 ProjectedTile(int tile,Vector2 near)
-        {
-            var location=PlanetCoordinateSystem.FromMapUV((tile%world.Width+.5)/world.Width,(tile/world.Width+.5)/world.Height);
-            var canonical=MarkleyProjection.Project(location);var anchorUV=new Vector2(near.x/world.Width,near.y/MapHeight);
-            return Vector2.Scale(MarkleyProjection.Nearest(canonical,anchorUV),ProjectionSize);
-        }
+        PlanetLocation TileLocation(int tile) => PlanetCoordinateSystem.FromMapUV(
+            (tile%world.Width+.5)/world.Width, (tile/world.Width+.5)/world.Height);
         public void Wheel(float wheel, Vector2 screen, double day)
         {
             wheel = Mathf.Clamp(wheel, -24, 24);if(Mathf.Abs(wheel)<.00001f)return;
@@ -510,7 +506,7 @@ namespace Orbis.Flat
         {
             if (tile < 0 || tile >= world.Count) return;exitPending=false;
             Vector2 uv = new Vector2((tile % world.Width + .5f) / world.Width, (tile / world.Width + .5f) / world.Height);
-            if (IsFlat) { focusTile=tile;focusCenter=ProjectedTile(tile,pan);focusZoom=true; targetPixels=48;zoomAnchor=false;NormalizePan();Tick(0, day); }
+            if (IsFlat) { focusLocation=TileLocation(tile);focusCenter=NearestChartPoint(focusLocation);focusZoom=true; targetPixels=48;zoomAnchor=false;NormalizePan();Tick(0, day); }
             else
             {
                 entryScaleRecorded=false;LockPlane(uv, day);

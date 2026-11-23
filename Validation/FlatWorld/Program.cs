@@ -33,6 +33,7 @@ public static class Program {
     case "--ocean-circulation": OceanCirculationRegression.Run(); break;
     case "--seasonal-rainfall": SeasonalRainfallRegression.Run(); break;
     case "--orographic-rainfall": OrographicRainfallRegression.Run(); break;
+    case "--hawaii-climate": OrographicRainfallRegression.CheckHawaii(args.Length > 1 ? int.Parse(args[1]) : 2048); break;
     case "--seasonal-temperature": SeasonalTemperatureRegression.Run(); break;
     case "--surface-cloud": SeasonalTemperatureRegression.ExportCloud(args); break;
     case "--surface-snow-rain": SeasonalTemperatureRegression.ExportCloud(args, false, true); break;
