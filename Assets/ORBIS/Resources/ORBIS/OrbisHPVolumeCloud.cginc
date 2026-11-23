@@ -83,18 +83,23 @@ float OrbisHPLowDensityDetailed(float metres,float coverage,float type,float sha
         float anvilFlare=smoothstep(.64,.94,type)*smoothstep(.68,.80,localHeight)*(1-smoothstep(.88,.99,localHeight));
         profile=max(profile,anvilFlare*.72);
 
-        // Dry-air entrainment tapers lateral width upward -> rounded cauliflower domes instead of vertical cliffs
-        float entrain=smoothstep(.14,.84,localHeight)*(1.0-.58*anvilFlare)*(1.0-.65*sc);
+        // Cohesive synoptic storm bases without flattening 3D cauliflower billow crowns!
+        float overcastCore=smoothstep(.68,.95,coverage);
+        float baseCohesion=overcastCore*(1.0-smoothstep(.35,.78,localHeight));
+        float shapedCore=lerp(baseShape,max(baseShape,.62+.38*baseShape),baseCohesion*.55);
+
+        // Dry-air entrainment tapers lateral width upward -> rounded cauliflower domes on cumulus & crisp tops on shields
+        float entrain=smoothstep(.14,.84,localHeight)*(1.0-.58*anvilFlare)*(1.0-.65*sc)*(1.0-.42*baseCohesion);
         float effCov=lerp(coverage,coverage*(.36+.64*cell),sc)*(1.0-.46*entrain);
 
         float bottomFade=pow(saturate(localHeight/.15),1.25);
         float upFactor=smoothstep(.10,.46,localHeight);
-        float strength=lerp(.20,.38,saturate(type+.28*upFactor))*lerp(.35,1.0,bottomFade);
+        float strength=lerp(.22,.40,saturate(type+.28*upFactor))*lerp(.35,1.0,bottomFade);
         float billowDetail=lerp(curlyWisp*.55,invWorley,upFactor)*strength;
         float wispDetail=lerp(curlyWisp,invWorley*.58+curlyWisp*.42,anvilFlare)*strength*1.10;
 
-        float eroded=saturate((baseShape-billowDetail)/max(.02,1-billowDetail))*profile;
-        float erodedWispy=saturate((baseShape-wispDetail)/max(.02,1-wispDetail))*profile;
+        float eroded=saturate((shapedCore-billowDetail)/max(.02,1-billowDetail))*profile;
+        float erodedWispy=saturate((shapedCore-wispDetail)/max(.02,1-wispDetail))*profile;
         float threshold=1-effCov;
         float billowy=smoothstep(threshold,threshold+.22,eroded);
         float wispy=smoothstep(threshold-.09,threshold+.12,erodedWispy)*lerp(1.0-.65*localHeight,.88,anvilFlare);

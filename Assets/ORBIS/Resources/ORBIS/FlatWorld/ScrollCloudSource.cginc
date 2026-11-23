@@ -72,21 +72,35 @@ void ApplyTyphoon3DStadium(float3 up,float z,float4 centre,float spin,float rotP
 // Uses the SAME spherical coordinates on the globe and every repeated 2D sheet.
 float2 ScrollClimateDensities(float3 p,bool simpleMode)
 {
- float2 uv=OrbisWeatherUV(p);
+ float rLen=length(p);
+ float3 up=p/max(1e-7,rLen);
+ float2 uv=OrbisFastWeatherUV(up);
  float ground=simpleMode?ScrollCloudGroundFast(uv):ScrollCloudGround(uv);
- float z=(length(p)-ground)/max(1e-7,_CloudHeightScale);
+ float z=(rLen-ground)/max(1e-7,_CloudHeightScale);
  if(z<400||z>13500)return 0;
  float4 weather=tex2Dlod(_ScrollWeatherTex,float4(uv,0,0));
  float coverage=weather.r,highWeather=weather.g,convection=weather.b;
+ bool hasCyclone=(_OrbisCycloneNorth.w>.20)||(_OrbisCycloneSouth.w>.20);
+ if(!hasCyclone&&(coverage+highWeather<.006))return 0;
 
- float3 up=normalize(p);
  float3 localWind=tex2Dlod(_ScrollCloudWindTex,float4(uv,0,0)).xyz;
  float phase=frac(_ScrollWeatherTime*.016);
- float3 a=normalize(up-localWind*phase*8),b=normalize(up+localWind*(1-phase)*8);
+ float3 a=up,b=up;
+ if(!simpleMode)
+ {
+  a=normalize(up-localWind*phase*8);
+  b=normalize(up+localWind*(1-phase)*8);
+ }
+ else
+ {
+  a=normalize(up-localWind*(sin(phase*6.2831853)*3.2));
+ }
 
- // Apply 3D stadium eyewall & cyclonic vortex swirl when inside a Northern/Southern Typhoon or Hurricane
- ApplyTyphoon3DStadium(up,z,_OrbisCycloneNorth,1.0,_OrbisCyclonePhase.x,coverage,highWeather,convection,a,b);
- ApplyTyphoon3DStadium(up,z,_OrbisCycloneSouth,-1.0,_OrbisCyclonePhase.y,coverage,highWeather,convection,a,b);
+ if(hasCyclone)
+ {
+  ApplyTyphoon3DStadium(up,z,_OrbisCycloneNorth,1.0,_OrbisCyclonePhase.x,coverage,highWeather,convection,a,b);
+  ApplyTyphoon3DStadium(up,z,_OrbisCycloneSouth,-1.0,_OrbisCyclonePhase.y,coverage,highWeather,convection,a,b);
+ }
 
  if(coverage+highWeather<.006)return 0;
  float low=0,high=0;
@@ -94,45 +108,60 @@ float2 ScrollClimateDensities(float3 p,bool simpleMode)
  {
   float2 span=OrbisCloudVerticalSpan(convection,saturate(coverage+.12));
   bool inMidBand=convection>.28&&convection<.76&&z>3800.0&&z<6150.0;
-  // Exact conservative vertical support bound across Marine Sc, Trade Cu, Mid Ac/As, and Towering Cb
   if((z>span.x-90.0&&z<span.y*1.18+360.0)||inMidBand)
   {
    float altitude=z/7000;
    const float3x3 frame=float3x3(.36,.48,-.80,-.80,.60,0,.48,.64,.60);
    float3 radAxis=mul(frame,up);
    float3 windShear=mul(frame,localWind)*(altitude*1.60);
-   float3 q0=mul(frame,a),q1=mul(frame,b);
+   float3 q0=mul(frame,a);
 
-   float3 mPos0=q0*7.2+radAxis*(altitude*.34)+windShear*.45+float3(.13,.71,.37);
-   float3 mPos1=q1*7.2+radAxis*(altitude*.34)+windShear*.45+float3(.13,.71,.37);
-   float4 macroBody=lerp(tex3Dlod(_CloudNoise,float4(mPos0,0)),tex3Dlod(_CloudNoise,float4(mPos1,0)),phase);
-
-   float3 mesoWarp=(macroBody.gba-.5)*.18;
-   float3 bPos0=q0*18.5+radAxis*(altitude*1.05)+windShear+mesoWarp+float3(.41,.19,.83);
-   float3 bPos1=q1*18.5+radAxis*(altitude*1.05)+windShear+mesoWarp+float3(.41,.19,.83);
-   float4 body=lerp(tex3Dlod(_CloudNoise,float4(bPos0,0)),tex3Dlod(_CloudNoise,float4(bPos1,0)),phase);
-
-   float worleyMeso=body.g*.64+body.b*.36;
-   float basePW=macroBody.r*.32+body.r*.40+worleyMeso*.28;
-   float shape=saturate((basePW-(1.0-worleyMeso)*.24)/.76+coverage*.05);
-
-   float covBound=.26+.74*(simpleMode?coverage:saturate(coverage+.10));
-   float maxBaseShape=pow(shape,.68);
-   if(maxBaseShape>.86-covBound||inMidBand)
+   float shape=0,worleyMeso=.5,effCov=coverage;
+   float4 erosion=float4(.68,.68,.42,.42);
+   bool evalLow=false;
+   if(simpleMode)
    {
-    float4 erosion=float4(.68,.68,.42,.42);
-    if(!simpleMode)
+    float3 bPos=q0*19.2+radAxis*(altitude*1.05)+windShear+float3(.41,.19,.83);
+    float4 body=tex3Dlod(_CloudNoise,float4(bPos,0));
+    worleyMeso=body.g*.64+body.b*.36;
+    shape=saturate((body.r*.66+worleyMeso*.34-(1.0-worleyMeso)*.20)/.80+coverage*.08+.05);
+    effCov=saturate(coverage+.08);
+    evalLow=true;
+   }
+   else
+   {
+    float3 q1=mul(frame,b);
+    float3 mPos0=q0*6.8+radAxis*(altitude*.34)+windShear*.45+float3(.13,.71,.37);
+    float3 mPos1=q1*6.8+radAxis*(altitude*.34)+windShear*.45+float3(.13,.71,.37);
+    float4 macroBody=lerp(tex3Dlod(_CloudNoise,float4(mPos0,0)),tex3Dlod(_CloudNoise,float4(mPos1,0)),phase);
+
+    float3 mesoWarp=(macroBody.gba-.5)*.14;
+    float3 bPos0=q0*19.2+radAxis*(altitude*1.05)+windShear+mesoWarp+float3(.41,.19,.83);
+    float3 bPos1=q1*19.2+radAxis*(altitude*1.05)+windShear+mesoWarp+float3(.41,.19,.83);
+    float4 body=lerp(tex3Dlod(_CloudNoise,float4(bPos0,0)),tex3Dlod(_CloudNoise,float4(bPos1,0)),phase);
+
+    worleyMeso=body.g*.64+body.b*.36;
+    float basePW=macroBody.r*.34+body.r*.40+worleyMeso*.26;
+    shape=saturate((basePW-(1.0-worleyMeso)*.23)/.77+coverage*.06);
+
+    float covBound=.26+.74*saturate(coverage+.10);
+    if(pow(shape,.68)>.84-covBound||coverage>.72||inMidBand)
     {
-     float3 curl=(body.gba-.5)*.38;
-     float3 dPos0=q0*52.0+radAxis*(altitude*2.35)+windShear*1.45+curl;
-     float3 dPos1=q1*52.0+radAxis*(altitude*2.35)+windShear*1.45+curl;
+     float3 curl=(body.gba-.5)*.34;
+     float3 dPos0=q0*54.0+radAxis*(altitude*2.35)+windShear*1.45+curl;
+     float3 dPos1=q1*54.0+radAxis*(altitude*2.35)+windShear*1.45+curl;
      erosion=lerp(tex3Dlod(_CloudDetailNoise,float4(dPos0,0)),tex3Dlod(_CloudDetailNoise,float4(dPos1,0)),phase);
      float edgeInvW=1.0-(erosion.r*.64+erosion.g*.36);
-     coverage=saturate(coverage-edgeInvW*.15*(1.0-coverage)*smoothstep(.02,.30,coverage));
+     float edgeTear=edgeInvW*.19*(1.0-smoothstep(.65,.92,coverage))*smoothstep(.02,.26,coverage);
+     effCov=saturate(coverage-edgeTear);
+     evalLow=true;
     }
+   }
+   if(evalLow)
+   {
     float tower=smoothstep(.45,.96,convection);
-    low=OrbisHPLowDensityDetailed(z,.26+.74*coverage,convection,shape,erosion,.46+.54*worleyMeso);
-    low*=coverage*lerp(.56,1.22,tower);
+    float opticalGain=smoothstep(.04,.34,effCov)*lerp(.86,1.36,smoothstep(.30,.78,effCov))*lerp(.86,1.22,tower);
+    low=OrbisHPLowDensityDetailed(z,.26+.74*effCov,convection,shape,erosion,.46+.54*worleyMeso)*opticalGain;
    }
   }
  }

@@ -23,6 +23,7 @@ float2 OrbisGeographicUV(float3 direction)
     return float2(frac(OrbisGeographicAtan2(direction.x,direction.z)/6.283185307179586+.5),
                   OrbisGeographicAtan2(direction.y,length(direction.xz))/3.141592653589793+.5);
 }
+float2 OrbisFastWeatherUV(float3 p){float3 d=normalize(p);float u=frac(atan2(d.x,d.z)*.15915494309+.5);if(abs(d.x)+abs(d.z)<1e-7)u=.5;return float2(u,asin(clamp(d.y,-1.0,1.0))*.31830988618+.5);}
 float3 OrbisLocalDirection(float3 center,float3 east,float3 north,float2 xy,float blend)
 {
     float3 tangent=east*xy.x+north*xy.y;

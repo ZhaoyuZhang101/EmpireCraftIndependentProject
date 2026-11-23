@@ -269,21 +269,21 @@ void OrbisIntegrateSample(float3 p,float ds,float2 cloudLayers,float3 sun,float2
   float highWeight=cloudLayers.y/max(cloudDensity,1e-6);
   // Schneider-Vos Beer-Powder rim & altitude-graded ambient bounce: sunlit cauliflower crowns
   // gleam with crisp silver-white relief while cloud bases & deep inter-turret clefts hold rich slate-blue depth.
-  float powder=1.0-.46*exp(-cloudDensity*ORBIS_EXTINCTION*ds*2.8);
-  float3 direct=directT*lerp(phaseCloud,phaseHigh,highWeight)*(.76*(.84+.52*powder))*sunT;
-  float3 multiple=fields.y*_CloudMS*_ScatteringStrength*sunT;
-  float denseGate=smoothstep(.018,.16,cloudDensity);
+  float powder=1.0-.42*exp(-cloudDensity*ORBIS_EXTINCTION*ds*3.2);
+  float3 direct=directT*lerp(phaseCloud,phaseHigh,highWeight)*(.92*(.86+.48*powder))*sunT;
+  float3 multiple=fields.y*_CloudMS*_ScatteringStrength*1.22*sunT;
+  float denseGate=smoothstep(.014,.14,cloudDensity);
   multiple*=denseGate;
   float3 moonScatter=moonT*phaseMoonCloud*.65*(.25+.75*exp(-cloudDensity*.75));
   // Self-occlusion proxy, not a second LightField/raymarch. Solar energy scales
   // ONLY the existing solar terms, not moonlight, night sky, airglow or lightning.
   float3 nightDiffuse=OrbisNightAmbient(p,sun,0)*(.45+.55*exp(-nightTau*.10))*
       lerp(.70,1.30,exp(-cloudDensity*.75));
-  float3 radiance=(direct+multiple+OrbisDaySkyFill(p,sun)*1.45)*max(.1,_SolarEnergy)+
+  float3 radiance=(direct+multiple+OrbisDaySkyFill(p,sun)*1.35)*max(.1,_SolarEnergy)+
       nightDiffuse+moonScatter+OrbisLightningLight(p)*3.5;
   float altFrac=saturate((length(p)-ORBIS_CLOUD_BASE)/max(1e-5,ORBIS_CLOUD_TOP-ORBIS_CLOUD_BASE));
   float dayHemi=saturate(dot(normalize(p),sun)*2.4+.22);
-  float3 ambientFloor=lerp(float3(.062,.084,.120),float3(.162,.190,.228),smoothstep(.04,.76,altFrac))*dayHemi;
+  float3 ambientFloor=lerp(float3(.048,.066,.098),float3(.092,.110,.138),smoothstep(.04,.76,altFrac))*dayHemi;
   if(_Night<.5)radiance=max(radiance,ambientFloor);
   if(_CloudDebug==1)radiance=cloudDensity.xxx;
   if(_CloudDebug==2)radiance=direct;
@@ -331,8 +331,8 @@ OrbisVolumeResult OrbisMarchRay(float3 ro,float3 rd,float endDistance,float scen
  // A broader aerosol lobe keeps side-lit paths visible as the camera turns
  // through a shaft. Both phase functions integrate to one over a sphere.
  float moistPhase=lerp(phaseAir.y,HG(mu,.55)/(4*ORBIS_PI),.60);
- float phaseCloud=min(4.0,.83*HG(mu,.72)+.17*HG(mu,-.33));
- float phaseHigh=min(3.0,.85*HG(mu,.48)+.15*HG(mu,-.12));
+ float phaseCloud=min(4.0,.62*HG(mu,.74)+.26*HG(mu,-.42)+.28);
+ float phaseHigh=min(3.2,.64*HG(mu,.52)+.24*HG(mu,-.35)+.24);
  float moonMu=dot(rd,_OrbisMoon.xyz);
  float2 phaseMoon=OrbisGLSLPhase(moonMu);
  float phaseMoonCloud=min(2.0,.85*HG(moonMu,.45)+.15*HG(moonMu,-.15));
@@ -370,16 +370,16 @@ OrbisVolumeResult OrbisMarchRay(float3 ro,float3 rd,float endDistance,float scen
    // relaxed steps inside optically dense cloud interiors, and large empty steps.
    float slab=ORBIS_CLOUD_TOP-ORBIS_CLOUD_BASE;
    float cap=min(max(cursor/8,.00004),lerp(slab/16,slab/2,pow(saturate((cursor-segmentBegin)/.08),2)));
-   float large=min(ds,cap);
+   float minStep=(segmentEnd-cursor)/max(1,sampleCount-sampleIndex);
+   float large=min(segmentEnd-cursor,max(min(ds,cap),minStep));
    float2 probe=OrbisCloudDensities(ro+rd*(cursor+large*.5),true);
    bool hitProbe=(probe.x+probe.y)>.0005;
    float refine=clamp(_CloudRefinement,1,4);
-   if(_CloudLightSimple>.5)refine=lerp(1.0,refine,smoothstep(.14,.55,maxTrans));
-   stepSize=large*(hitProbe?rcp(refine):1);
-   stepSize=max(stepSize,(segmentEnd-cursor)/max(1,sampleCount-sampleIndex));
-   stepSize=min(stepSize,segmentEnd-cursor);
-   bool skipDetail=_CloudLightSimple>.5&&maxTrans<.18;
-   if(skipDetail&&(!hitProbe||abs(stepSize-large)<1e-6))density=probe;
+   if(_CloudLightSimple>.5)refine=lerp(1.0,refine,smoothstep(.18,.62,maxTrans));
+   stepSize=hitProbe?min(segmentEnd-cursor,max(min(ds,cap)*rcp(refine),minStep)):large;
+   bool skipDetail=_CloudLightSimple>.5&&maxTrans<.22;
+   if(!hitProbe)density=0;
+   else if(skipDetail&&abs(stepSize-large)<1e-6)density=probe;
    else density=OrbisCloudDensities(ro+rd*(cursor+stepSize*.5),skipDetail);
   }
   float3 p=ro+rd*(cursor+stepSize*.5);

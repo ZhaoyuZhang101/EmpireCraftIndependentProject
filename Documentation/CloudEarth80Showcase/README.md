@@ -1,8 +1,19 @@
-# ORBIS 气候驱动体积云系统：五档云高分层、3D 体育场台风眼墙与 NOAA 地球观测校准集
+# ORBIS 气候驱动体积云系统：大尺度双环流凝聚度、五档云高分层与台风实机验证集
 
-## 1. 五档物理云层高度分层（WMO 国际云图标准）
+## 1. 大尺度天气系统凝聚度、无散旋度流场与双环流耦合升级
 
-在 `OrbisHPVolumeCloud.cginc`、`ScrollCloudSource.cginc`、`FlatSkyBake.shader` 与 `OrbisAtmosphereCommon.cginc` 中实现显式五档云底（LCL）与云顶高度分层及对应视差阴影投射：
+针对卫星视角下云系曾出现的碎斑化与半透明灰蓝偏色问题，完成四项核心物理重构：
+
+1. **$k^{-5/3}$ 大尺度能量谱集中度与层次碎缕边缘（`FlatSkyBake.shader`）**：将云场包络方差的 `72%` 提升至 `3,000–10,000 km` 行星与天气尺度，配合无散球面流函数旋度形变（$\mathbf{p} \times \nabla\psi$）与高低空风切变拉伸，消除全洋面均匀碎云；同时在活跃天气系统边缘叠加多层纤维拉丝与积云街侵蚀，呈现真实卫星图的团块集中度与随机边缘形态。
+2. **正交双环流（哈德莱 × 沃克 + SPCZ/SACZ 斜向辐合带）与行星自转双环流（`DoubleCell`）全动态耦合（`GlebaGeographySupplement.cs`、`FlatSkyRenderer.cs`）**：
+   - **正交经纬双环流**：哈德莱下沉脊与沃克下沉支共同塑造北美西南部—墨西哥湾、副热带高压中心、撒哈拉等数千公里连片晴空区；沃克上升支、双 ITCZ 与副热带斜向辐合带（SPCZ/SACZ）凝聚强对流超团簇，并沿高空急流拖曳卷云羽。
+   - **行星自转双环流（`SlowRotatorDoubleCell`）**：通过 `_GlebaCirculationParams` 实时传入动态哈德莱终界纬度（`~42°`）、极锋纬度（`~83°`）与罗斯贝主导波数（`DoubleCell` 为 `k=1..2` 巨型行星涡旋，现代地球三环流为非对称 `k=2..3` 波包），彻底移除旧版三圈环流硬编码。
+3. **3D 体积云光学密度二次衰减修复与太空后向散射相函数校准（`ScrollCloudSource.cginc`、`OrbisHPVolumeCloud.cginc`、`OrbisAtmosphereCommon.cginc`）**：修复低云密度误乘两次 `coverage`（`coverage²`）导致的发灰透蓝问题，补齐米氏水滴与冰晶多重散射在太空俯视方向（$\mu < 0$）的后向反射率，使厚云团呈现纯正雪白反照率，薄卷云与碎积云边缘保持丝缕半透明层次。
+4. **体积云光线步进性能优化**：修复晴空采样段重复调用 6 次 3D 噪声的冗余问题并引入单次采样包络探针，在 `1280×720` 同步基准下星球全景耗时由 `34.48 ms` 降至 **`26.11 ms`**（比原始积分快 `50.3%`），低轨密云耗时由 `44.60 ms` 降至 **`33.70 ms`**（比原始积分快 `57.8%`）。
+
+---
+
+## 2. 五档物理云层高度分层（WMO 国际云图标准）
 
 | 云种层级 | 气候环流触发区 | 云底高度 `z_base` | 云顶高度 `z_top` | 3D 体积形态特征 |
 | :--- | :--- | :---: | :---: | :--- |
@@ -14,17 +25,10 @@
 
 ---
 
-## 2. 热带气旋（台风 / 飓风）与温带斜压逗点气旋强化
-
-1. **3D 体育场效应斜壁台风眼墙（Stadium Effect，`ScrollCloudSource.cginc`）**：眼区半径随海拔由海面至 `12.6 km` 向外倾斜扩张约 `3 倍`（`~40°` 斜坡剧场碗壁），并将 3D Worley 积雨云坐标绕风暴轴作切向气旋盘旋扭曲，真实还原超强台风阶梯状环形眼墙、次级同心眼墙与反气旋横纹卷云外流盖。
-2. **Emanuel MPI / GPI 耦合热带气旋生成与副高转向路径（`FlatCycloneWeather.cs`）**：耦合海表热焓不平衡、季风槽/东风波涡度扰动与 500 hPa 深层引导气流，使真实地球在夏秋季自然生成 `45–55 m/s` 强台风与加勒比/大西洋大型飓风（`CycloneRegression` 全量通过）。
-3. **双圈对数螺旋温带斜压逗点气旋（`FlatSkyBake.shader`）**：强化北大西洋、北太平洋与南大洋咆哮西风带的双圈锢囚螺旋逗点云头、3,800 km 弧形冷暖锋雨带与干侵入晴空槽。
-
----
-
 ## 3. 游戏内实机截图清单（`1600×900`，Unity 6000.0.55f1 Direct3D11）
 
-- `9_earth_super_typhoon_stadium_eye.png` — 西太平洋（台湾/吕宋以东洋面）超强台风近景：40° 倾斜 3D 体育场眼墙、螺旋雨带与反气旋卷云外流羽
-- `10_earth_hurricane_and_comma_cyclone.png` — 实机连续推演生成的 9 月加勒比大型飓风（`45.2 m/s`）与北大西洋温带逗点气旋同框全景
-- `8_earth_grazing_cumulus_horizon.png` — 东海/台海与西太平洋近地轨道掠射地平线：直观展示低层积云、中层高积云、万米积雨云塔与高空卷云的多高度分层视差
-- `1_earth_pacific_double_itcz_july.png` ~ `7_gleba_procedural_doublecell_globe.png` — 全季节太平洋、春分美洲、撒哈拉/季风对比、北大西洋冬季风暴轴、印太暖池、低轨海洋性大陆与 Gleba 双环流架空行星
+- `0_nasa_reference_north_america_view.png` — 对标 NASA Blue Marble 北美—墨西哥湾—东太平洋同机位实机图：北美西南部与墨西哥湾晴空下沉区、美东大西洋锋面云盾与东太平洋 `8°N` 聚合对流带
+- `9_earth_super_typhoon_stadium_eye.png` — 西太平洋超强台风近景：40° 倾斜 3D 体育场眼墙、纯白中心密蔽云区（CDO）与螺旋雨带
+- `10_earth_hurricane_and_comma_cyclone.png` — 实机连续推演生成的 9 月加勒比大型飓风（`45.2 m/s`）与大西洋气旋全景
+- `8_earth_grazing_cumulus_horizon.png` — 近地轨道掠射地平线多高度分层视差
+- `1_earth_pacific_double_itcz_july.png` ~ `7_gleba_procedural_doublecell_globe.png` — 太平洋双 ITCZ、春分美洲、撒哈拉/季风对比、北大西洋风暴轴、印太暖池 SPCZ、低轨海洋性大陆与 Gleba 慢自转双环流行星
