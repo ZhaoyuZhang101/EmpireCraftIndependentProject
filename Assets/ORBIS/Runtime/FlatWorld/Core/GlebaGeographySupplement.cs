@@ -3137,11 +3137,12 @@ namespace Orbis.Flat
                     float dItcz = Math.Abs(latDeg - itczCol[x]);
                     float itczBand = (float)Math.Exp(-(dItcz * dItcz) / (6.8 * 6.8));
                     float monsoonCore = Smooth(105f, 240f, rainMm) * Smooth(18.5f, 24.5f, tempC) * (1f - Smooth(26f, 35f, absLat));
-                    float exoCapeBoost = 0f, exoCinDamp = 0f, capeVal = 0f, deepSoilVal = 0f, breezeVal = breezeRow[idx];
+                    float exoCapeBoost = 0f, exoCinDamp = 0f, capeVal = 0f, deepSoilVal = 0f, shallowSoilVal = 0f, breezeVal = breezeRow[idx];
                     if (exo != null)
                     {
                         capeVal = FMath.Lerp(exo.SampleMonthly(exo.CapeJkg, u, v, m0), exo.SampleMonthly(exo.CapeJkg, u, v, m1), blend);
                         deepSoilVal = FMath.Lerp(exo.SampleMonthly(exo.DeepSoil, u, v, m0), exo.SampleMonthly(exo.DeepSoil, u, v, m1), blend);
+                        shallowSoilVal = FMath.Lerp(exo.SampleMonthly(exo.ShallowSoil, u, v, m0), exo.SampleMonthly(exo.ShallowSoil, u, v, m1), blend);
                         float chi = FMath.Lerp(exo.SampleMonthly(exo.EntropyDeficit, u, v, m0), exo.SampleMonthly(exo.EntropyDeficit, u, v, m1), blend);
                         exoCapeBoost = 0.28f * Smooth(450f, 2100f, capeVal) + 0.16f * breezeVal * Smooth(19f, 26f, tempC);
                         exoCinDamp = 0.26f * Smooth(0.68f, 0.95f, chi) * (1f - breezeVal);
@@ -3237,6 +3238,23 @@ namespace Orbis.Flat
                     float leeShadow = FMath.Clamp(rainShadow + 0.35f * leeDownslope + 0.82f * walkerClear, 0f, 1f);
                     float localPol = latDeg >= 0f ? polNCol[x] : -polSCol[x];
                     float polNorm = FMath.Clamp((localPol - 30f) / 45f, 0f, 1f);
+
+                    // Physically calibrated Sundqvist / PlaSim / Gleba climatological cloud potential (forcing.r in [0.04, 0.88]):
+                    // Uses exact fine-grid land/water exposure so peninsular deserts (Arabia, Baja, Somali) are not blurred
+                    // with adjacent seas while rainforests/monsoons, storm tracks, Sc decks, and cold-tongue slots match Earth.
+                    float fineLand = FlatTerrainAnalysis.AreaWater(world.Water[tile]) ? 0f : 1f;
+                    float fineSea = 1f - fineLand;
+                    float effRainMm = rainMm * (1f - 0.78f * fineSea * leeShadow) + 34f * fineLand * deepSoilVal;
+                    float fRain = 1f - (float)Math.Exp(-effRainMm / 72f);
+                    float fRh = Smooth(0.26f, 0.84f, rh) * (1f - 0.55f * leeShadow);
+                    float aridLandClear = fineLand * (1f - Smooth(0.12f, 0.62f, rh * Smooth(2f, 45f, rainMm + 25f * deepSoilVal))) * (1f - Smooth(1f, 32f, rainMm));
+                    float subtropDry = (1f - 0.72f * fineSea) * (0.55f * highP + 0.45f * negImpact) * (1f - Smooth(4f, 42f, rainMm));
+                    float winStratus = fineLand * (1f - Smooth(-18f, 2f, tempC)) * Smooth(0.34f, 0.75f, rh) * (1f - Smooth(1300f, 2600f, elevG[idx]));
+                    float icePlateauClear = Smooth(1400f, 2900f, elevG[idx]) * (1f - Smooth(-32f, -10f, tempC));
+                    float climBase = 0.05f + 0.25f * fineSea + 0.14f * fineLand * Smooth(0.24f, 0.64f, rh + 0.45f * shallowSoilVal) * Smooth(3f, 28f, rainMm + 30f * deepSoilVal);
+                    float climDyn = 0.38f * fRain + 0.07f * fRh + 0.10f * marineSc + 0.16f * stormTrack + 0.25f * itczConv + 0.13f * winStratus + 0.05f * orogCrest;
+                    float climSupp = 0.25f * leeShadow + 0.16f * aridLandClear + 0.11f * subtropDry + 0.18f * icePlateauClear;
+                    synopticLift = FMath.Clamp(climBase + climDyn - climSupp, 0.04f, 0.88f);
 
                     int p4 = idx * 4;
                     forcingRgba[p4] = (byte)FMath.Clamp((int)Math.Round(synopticLift * 255f), 0, 255);

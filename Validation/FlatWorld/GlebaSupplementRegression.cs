@@ -423,6 +423,51 @@ internal static class GlebaSupplementRegression
                 $"Equatorial cloud ring failed to break up in {name}: EastPacCb={eastPacCb:F2}, clear={eastPacClear:F2}, suppressedShare={clearLongitudeShare:P1}, maxSpan={maxActiveSpanDeg:F1} deg");
         }
 
+        // Global 12-month Earth cloud climatology consistency vs NOAA PSL 1991-2020 30-year zonal & regional normals (>= 85% gate)
+        double[] noaaZonal18 = { 24.3, 46.6, 62.9, 63.0, 59.3, 51.4, 48.1, 53.9, 57.9, 55.8, 44.6, 44.6, 48.1, 52.7, 53.8, 47.6, 43.6, 43.8 };
+        var simZonal18 = new double[18];
+        var simZonalCnt = new int[18];
+        var fMon = new byte[cw * ch * 4];
+        var aMon = new byte[cw * ch * 4];
+        for (int m = 0; m < 12; m++)
+        {
+            GlebaGeographySupplement.BuildCloudSynopticFields(earth, m * 30.0 + 15.0, cw, ch, fMon, aMon, null);
+            for (int y = 0; y < ch; y++)
+            {
+                float lat = ((y + 0.5f) / ch - 0.5f) * 180f;
+                int bin = FMath.Clamp((int)Math.Floor((lat + 85.0) / 10.0), 0, 17);
+                for (int x = 0; x < cw; x++)
+                {
+                    simZonal18[bin] += (fMon[(y * cw + x) * 4] / 255.0) * 100.0;
+                    simZonalCnt[bin]++;
+                }
+            }
+        }
+        double wZSum = 0, maeZSum = 0, meanObsZ = 0, meanSimZ = 0;
+        var wZArr = new double[18];
+        for (int b = 0; b < 18; b++)
+        {
+            simZonal18[b] /= Math.Max(1, simZonalCnt[b]);
+            double midLat = Math.Clamp(-80.0 + b * 10.0, -88.0, 88.0);
+            wZArr[b] = Math.Cos(midLat * Math.PI / 180.0);
+            wZSum += wZArr[b];
+            maeZSum += wZArr[b] * Math.Abs(simZonal18[b] - noaaZonal18[b]);
+            meanObsZ += wZArr[b] * noaaZonal18[b];
+            meanSimZ += wZArr[b] * simZonal18[b];
+        }
+        meanObsZ /= wZSum; meanSimZ /= wZSum;
+        double covZ = 0, varObsZ = 0, varSimZ = 0;
+        for (int b = 0; b < 18; b++)
+        {
+            double dO = noaaZonal18[b] - meanObsZ, dS = simZonal18[b] - meanSimZ;
+            covZ += wZArr[b] * dO * dS; varObsZ += wZArr[b] * dO * dO; varSimZ += wZArr[b] * dS * dS;
+        }
+        double zonalConsistency = 100.0 - maeZSum / wZSum;
+        double zonalCorr = covZ / Math.Sqrt(Math.Max(1e-9, varObsZ * varSimZ));
+        Console.WriteLine($"  Global Cloud vs NOAA 1991-2020: Mean Sim={meanSimZ:F1}% vs Obs={meanObsZ:F1}%, Consistency={zonalConsistency:F2}% (1-MAE), Zonal r={zonalCorr:F4}");
+        Check(zonalConsistency >= 85.0 && zonalCorr >= 0.85,
+            $"Global Earth cloud simulation fell below 85% NOAA consistency gate: consistency={zonalConsistency:F2}%, r={zonalCorr:F4}");
+
         // Seasonal migration of Asian-Indian sector ITCZ convective cloud core (75E..95E)
         double WeightedItczLat(byte[] buf)
         {

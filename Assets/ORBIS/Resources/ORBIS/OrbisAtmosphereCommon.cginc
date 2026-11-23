@@ -118,7 +118,7 @@ float2 OrbisLightSegment(float index,float count,float span)
 {
  return OrbisHPLightSegment(index,count,span);
 }
-float2 LightFieldBounded(float3 p,float3 sun,float density,int maxSteps)
+float2 LightField(float3 p,float3 sun,float density)
 {
  if(OrbisSunVisible(p,sun)<.5)return float2(0,0);
  float lengthToExit=max(0.0,OrbisSphere(p,sun,ORBIS_CLOUD_TOP).y);
@@ -126,7 +126,7 @@ float2 LightFieldBounded(float3 p,float3 sun,float density,int maxSteps)
  if(inner.x>0)lengthToExit=min(lengthToExit,inner.x);
  if(lengthToExit<=0.0)return float2(1,0);
  // The loop cap and quadrature divisor MUST use the same bounded count.
- int lightSteps=clamp(maxSteps,1,8);
+ int lightSteps=clamp(_LightSteps,1,8);
  float4 tauFirst=0;float4 tauLast=0;float totalTau=0;
  bool allowEarlyOut=_CloudLightSimple>.5;
  [loop] [fastopt] for(int j=0;j<8;j++)
@@ -135,7 +135,6 @@ float2 LightFieldBounded(float3 p,float3 sun,float density,int maxSteps)
   float2 segment=OrbisLightSegment(j,lightSteps,lengthToExit);
   float sampleTau=0;
   // Dynamic GPU branch skips 3D volume reads once Beer-Lambert extinction > 99.987%
-  // while keeping a single induction exit so fxc / UnityShaderCompiler stays fast.
   [branch] if(!allowEarlyOut||totalTau<5.6)
   {
    float t=(segment.x+segment.y)*.5;
@@ -170,10 +169,6 @@ float2 LightFieldBounded(float3 p,float3 sun,float density,int maxSteps)
  float thinSuppression=1-exp(-totalTau*1.2);
  diffuse=OrbisHPCompressDiffuse(diffuse)*thinSuppression;
  return float2(direct,diffuse);
-}
-float2 LightField(float3 p,float3 sun,float density)
-{
- return LightFieldBounded(p,sun,density,_LightSteps);
 }
 
 // Same phi_fwd source integral for the cached shadow path. The atlas stores total
@@ -262,10 +257,7 @@ void OrbisIntegrateSample(float3 p,float ds,float2 cloudLayers,float3 sun,float2
   if(useCachedShadow)
       fields=float2(shadowT,OrbisCachedPhi(-log(max(shadowT,1e-6)),cloudDensity));
   else
-  {
-   int stepCap=!fastDense?_LightSteps:(maxT>=.52?_LightSteps:(maxT>=.22?min(_LightSteps,4):min(_LightSteps,2)));
-   fields=LightFieldBounded(p,sun,cloudDensity,stepCap);
-  }
+      fields=LightField(p,sun,cloudDensity);
   float directT=fields.x;
   #ifdef ORBIS_SHARED_SCROLL_WEATHER
   // An upstream bank can shadow a thin cloud as well as the air around it.

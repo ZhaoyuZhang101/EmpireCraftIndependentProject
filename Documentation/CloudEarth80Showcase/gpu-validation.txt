@@ -1,0 +1,13 @@
+Unity=6000.0.55f1 GPU=NVIDIA GeForce RTX 5070 Laptop GPU API=Direct3D11
+PASS ClimateCloudRegression.Run()
+PASS LightningRegression.Run()
+Earth1024-Globe-Pacific | 星球 | NVIDIA GeForce RTX 5070 Laptop GPU | 1280x720 synchronous camera render median: volume=43.17 ms, original-integration=64.04 ms, no-volume=10.31 ms
+Captured 1_earth_pacific_double_itcz_july.png | day=195.872 | center=(lon=-150.0deg,lat=6.0deg) | sunDot=0.930 | skyReady=True
+Captured 2_earth_equinox_pacific_americas_apr.png | day=105.731 | center=(lon=-98.0deg,lat=4.0deg) | sunDot=0.961 | skyReady=True
+Captured 3_earth_monsoon_sahara_contrast_july.png | day=195.294 | center=(lon=58.0deg,lat=18.0deg) | sunDot=0.964 | skyReady=True
+Captured 4_earth_amazon_atlantic_storm_jan.png | day=15.583 | center=(lon=-46.0deg,lat=12.0deg) | sunDot=0.803 | skyReady=True
+Captured 5_earth_autumn_indopacific_walker_oct.png | day=285.206 | center=(lon=122.0deg,lat=-10.0deg) | sunDot=0.962 | skyReady=True
+Earth1024-LowOrbit-DenseClouds | 星球 | NVIDIA GeForce RTX 5070 Laptop GPU | 1280x720 synchronous camera render median: volume=52.18 ms, original-integration=87.98 ms, no-volume=12.13 ms
+Captured 6_earth_low_orbit_volumetric_clouds.png | day=195.117 | center=(lon=116.0deg,lat=-4.0deg) | sunDot=0.914 | skyReady=True
+Captured 7_gleba_procedural_doublecell_globe.png | day=195.138 | center=(lon=112.5deg,lat=12.0deg) | sunDot=0.943 | skyReady=True
+ALL_SHOWCASE_SCREENSHOTS_DONE
