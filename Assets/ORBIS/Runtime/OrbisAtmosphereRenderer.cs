@@ -25,10 +25,10 @@ namespace Orbis
         static readonly string[] RayNames={"_RayBL","_RayTL","_RayTR","_RayBR"};
         static readonly string[] MapNames={"_MapBL","_MapTL","_MapTR","_MapBR"};
         static readonly Vector2[] MapUV={new Vector2(0,0),new Vector2(0,1),new Vector2(1,1),new Vector2(1,0)};
-        static readonly float[] Scale={.65f,.78f,.86f,1f};
-        static readonly int[] CloudSteps={32,48,64,64};
-        static readonly int[] AirSteps={16,24,32,48};
-        static readonly int[] LightSteps={4,6,8,8};
+        static readonly float[] Scale={.56f,.68f,.80f,1f},RefScale={.65f,.78f,.86f,1f};
+        static readonly int[] CloudSteps={26,36,48,64},RefCloudSteps={32,48,64,64};
+        static readonly int[] AirSteps={10,14,20,48},RefAirSteps={16,24,32,48};
+        static readonly int[] LightSteps={3,4,5,8},RefLightSteps={4,6,8,8},CloudRefinement={1,2,2,3};
         void OnEnable()
         {
             cameraComponent=GetComponent<Camera>();cameraComponent.depthTextureMode|=DepthTextureMode.Depth;
@@ -150,8 +150,8 @@ namespace Orbis
             // at the transition boundary caused allocation and rendering spikes.
             m.SetFloat("_ScrollVolumeWeight",scroll?scrollVolumeWeight:1);
             m.SetFloat("_CloudViewBlend",0);m.SetFloat("_LocalCloudMap",0);
-            m.SetInt("_CloudSteps",CloudSteps[q]);m.SetInt("_AirSteps",AirSteps[q]);m.SetInt("_LightSteps",LightSteps[q]);m.SetInt("_CloudDebug",cloudDebug);
-            m.SetFloat("_CloudRefinement",referenceCloudIntegration?4:Mathf.Min(4,q+1));
+            m.SetInt("_CloudSteps",referenceCloudIntegration?RefCloudSteps[q]:CloudSteps[q]);m.SetInt("_AirSteps",referenceCloudIntegration?RefAirSteps[q]:AirSteps[q]);m.SetInt("_LightSteps",referenceCloudIntegration?RefLightSteps[q]:LightSteps[q]);m.SetInt("_CloudDebug",cloudDebug);
+            m.SetFloat("_CloudRefinement",referenceCloudIntegration?4:CloudRefinement[q]);
             m.SetFloat("_CloudLightSimple",referenceCloudIntegration?0:1);
             if(map)
             {
@@ -184,7 +184,7 @@ namespace Orbis
             if(fullResolutionReference||q==3||SystemInfo.supportedRenderTargetCount<2||!composite||
                 !SystemInfo.SupportsRenderTextureFormat(RenderTextureFormat.ARGBHalf)||(map&&!mapMRT))
             {Present(source,destination,m,map?2:1);return;}
-            float renderScale=referenceCloudIntegration?Mathf.Max(Scale[q],q>=2?1f:Scale[q]):Scale[q];
+            float renderScale=referenceCloudIntegration?Mathf.Max(RefScale[q],q>=2?1f:RefScale[q]):Scale[q];
             int width=Mathf.Max(4,Mathf.CeilToInt(source.width*renderScale)),height=Mathf.Max(4,Mathf.CeilToInt(source.height*renderScale));
             RenderTexture light=null,transmission=null;RenderTexture previous=RenderTexture.active;
             bool oldSRGB=GL.sRGBWrite;
