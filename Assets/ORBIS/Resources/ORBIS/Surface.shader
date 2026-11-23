@@ -181,6 +181,7 @@ Shader "ORBIS/Surface"
      landBed=field.r;
      float landSurvey=FlatEarthLandRelief(uv,1-water,landBed,terrainGradient);
      float4 substrate=FlatNaturalGround(_GeoTex,cell,geo,pixelsPerTile,water);
+     float rockWeathering=FlatRockWeathering(col,substrate.a,season.b);
      float surfaceWetness=lerp(substrate.a,season.a,saturate(_VegetationSeasonReady));
      col=FlatEcotoneColor(col,cell,field.a,substrate.a);
      col=lerp(col,FlatSeasonGround(col,field.a,season),1-water);
@@ -203,7 +204,7 @@ Shader "ORBIS/Surface"
      float4 localMoon=float4(FlatGeographicLight(uv,_OrbisMoon.xyz),_OrbisMoon.w*_OrbisNightParams.x);
      float4 terrainLight=FlatTerrainLight(localLight,localMoon,_Night);
      float4 landField=field;landField.r=landBed;
-     col=FlatTerrainFine(col,cell,pixelsPerTile*(1-step(.999,water)),terrainGradient,landField,substrate.xy,surfaceWetness,terrainLight);
+     col=FlatTerrainFine(col,cell,pixelsPerTile*(1-step(.999,water)),terrainGradient,landField,substrate.xy,surfaceWetness,rockWeathering,terrainLight);
      if(water<.999)
       terrainRelief=FlatTerrainRelief(cell,gridBed,terrainGradient,terrainLight,localView,FlatWetMineral(substrate.z,surfaceWetness,field.a),max(surveyWeight,landSurvey));
      col=lerp(col*terrainRelief.rgb,FlatColor(float3(.84,.87,.90)),terrainRelief.a);

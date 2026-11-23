@@ -195,12 +195,13 @@
     if(naturalView>.5)
     {
      col=FlatEcotoneAlbedo(_MainTex,cell,field.g,1);
+     float rockWeathering=FlatRockWeathering(col,substrate.a,season.b);
      col=FlatEcotoneColor(col,cell,field.a,substrate.a);
      col=lerp(col,FlatSeasonGround(col,field.a,season),1-waterMask);
      if(_DetailWeight<1)col=lerp(FlatVegetation(col,cell,field.a,_PixelsPerTile,plantView),col,_DetailWeight);
      float4 landField=field;landField.r=landBed;
-     col=FlatTerrainFine(col,cell,_PixelsPerTile*(1-step(.999,waterMask)),terrainGradient,landField,substrate.xy,surfaceWetness,terrainLight);
-     if(_DetailWeight>0)col=lerp(col,PixelGround(col,cell,landField,waterMask,terrainGradient,FlatEcologyData(uv,info),plantView),_DetailWeight);
+     col=FlatTerrainFine(col,cell,_PixelsPerTile*(1-step(.999,waterMask)),terrainGradient,landField,substrate.xy,surfaceWetness,rockWeathering,terrainLight);
+     if(_DetailWeight>0)col=lerp(col,PixelGround(col,cell,landField,waterMask,terrainGradient,FlatEcologyData(uv,info),rockWeathering,plantView),_DetailWeight);
     }
     if(_DrawHeight>.5)
     {

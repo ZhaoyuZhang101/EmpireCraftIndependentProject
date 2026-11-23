@@ -1281,6 +1281,50 @@ namespace Orbis.Flat
                             cap[i] *= Capacity(tempNow + 12f * inversion) / Capacity(tempNow);
                             column.MarineSubsidence[i] = .25f * inversion;
                         }
+                        if (gleba != null && oceanContrast > 0f && summer > .25f)
+                        {
+                            // Equatorward flow near the summer ridge extends the dry
+                            // subtropical air over inland basins and enclosed seas.
+                            float ridge = lat > 0f ? gleba.SthzNorthLatRad[x * 12 + month] : gleba.SthzSouthLatRad[x * 12 + month];
+                            float ridgeDistance = Math.Abs(lat - ridge * 57.29578f);
+                            float ridgeProximity = ExoPlaSimSupplement.SmoothStep(12f, 4f, ridgeDistance)
+                                * ExoPlaSimSupplement.SmoothStep(23f, 27f, ab);
+                            float openMarineInflow = FMath.Clamp(3f * sector.EasternMargin + 3f * sector.ShieldedInflow
+                                + 2f * sector.SummerMarineFetch + gulfHere, 0f, 1f);
+                            float equatorwardWind = ExoPlaSimSupplement.SmoothStep(.04f, .22f, -hemi * state.North[i * 12 + month]);
+                            float upwindLand = ExoPlaSimSupplement.SmoothStep(.42f, .75f, windCont);
+                            float summerSubsidence = oceanContrast * ridgeProximity * equatorwardWind * (1f - openMarineInflow)
+                                * upwindLand * ExoPlaSimSupplement.SmoothStep(.25f, .80f, summer);
+                            if (summerSubsidence > 0f)
+                            {
+                                // Subsidence warms the air aloft. Evaporation at the
+                                // ground and sea surface still uses the skin capacity.
+                                if (column.SurfaceCapacity[i] <= 0f) column.SurfaceCapacity[i] = cap[i];
+                                cap[i] *= Capacity(tempNow + 7f * summerSubsidence) / Capacity(tempNow);
+                                lift[i] *= 1f - .90f * summerSubsidence;
+                                rainEfficiency[i] *= 1f - .90f * summerSubsidence;
+                                column.LandThermalActivity[i] *= 1f - .95f * summerSubsidence;
+                                column.DryLayer[i] += .6f * summerSubsidence;
+                                column.Rainout[i] *= 1f - .65f * summerSubsidence;
+                            }
+                        }
+                        if (gleba != null && oceanContrast > 0f && summer < .35f && ab > 25f && ab < 45f)
+                        {
+                            // Low subtropical basins receive moist air from the western
+                            // and equatorward seas during cool-season fronts.
+                            float seasonalWesterly = ExoPlaSimSupplement.SmoothStep(.35f, -.75f, summer)
+                                * ExoPlaSimSupplement.SmoothStep(25f, 31f, ab) * ExoPlaSimSupplement.SmoothStep(45f, 36f, ab);
+                            float westernFetch = ExoPlaSimSupplement.SmoothStep(.025f, .32f, sector.WesternMargin);
+                            float equatorwardFetch = ExoPlaSimSupplement.SmoothStep(.13f, .26f, sector.Monsoon);
+                            float frontalMoisture = (.42f * westernFetch + .58f * equatorwardFetch)
+                                * ExoPlaSimSupplement.SmoothStep(.95f, .32f, sector.WesternMargin);
+                            float continentalFront = oceanContrast * seasonalWesterly * frontalMoisture
+                                * ExoPlaSimSupplement.SmoothStep(.22f, .035f, lift[i])
+                                * ExoPlaSimSupplement.SmoothStep(1400f, 450f, landMeanElev[i])
+                                * (1f - FMath.Clamp(2f * sector.EasternMargin + gulfHere, 0f, 1f));
+                            lift[i] += .075f * continentalFront;
+                            column.DryLayer[i] *= 1f - .38f * continentalFront;
+                        }
                         if (gleba != null && winterFront > 0f)
                         {
                             // Cold air crossing a relatively warm sea enhances winter showers.

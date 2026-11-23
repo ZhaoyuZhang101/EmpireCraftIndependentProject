@@ -26,6 +26,7 @@ namespace Orbis.Flat
             public Color32 Owner,OverlayColor;
             public float Temperature,Rain,Fertility,Depth,FlowX,FlowY,HalfWidth,Shore,Sediment,Freshness,Wetness,Hand,Canopy,Meander;
             public byte Connections;
+            public ushort RockWeathering;
         }
         public struct Pixel
         {
@@ -119,11 +120,13 @@ namespace Orbis.Flat
                 GlebaGeographySupplement.PackMapmodeDisplay(source,i,month,GlebaGeographySupplement.MapLayerToGlebaMode(layer),out byte mr,out byte mg,out byte mb,out byte ma);
                 overlayColor=new Color32(mr,mg,mb,ma);
             }
+            byte islandCoverCode=source.Preset==TerrainPreset.Earth&&source.WaterReference!=null&&FlatTerrainAnalysis.AreaWater(source.Water[i])
+                ? (byte)(1+(int)FlatPalette.IslandCover(source,i)) : (byte)0;
+            var surfaceMaterial=islandCoverCode==0?f.Materials[i]:FlatPalette.IslandSubstrate((VegetationCover)(islandCoverCode-1));
             return new Tile{Elevation=source.Elevation[i],Water=source.Water[i],Biome=source.Biomes[i],Climate=source.Climates[i],Building=source.Buildings[i],
                 Material=f.Materials[i],Vegetation=f.Vegetation[i],Tree=f.Trees[i],Form=f.Forms[i],Owner=owner<0?new Color32(0,0,0,0):FlatPalette.RGB(source.Nations[owner].Color,(byte)(owner+1)),
-                OverlayColor=overlayColor,
-                IslandCoverCode=source.Preset==TerrainPreset.Earth && source.WaterReference!=null && FlatTerrainAnalysis.AreaWater(source.Water[i])
-                    ? (byte)(1+(int)FlatPalette.IslandCover(source,i)) : (byte)0,
+                OverlayColor=overlayColor,IslandCoverCode=islandCoverCode,
+                RockWeathering=FlatPalette.RockWeathering(surfaceMaterial,source.Biomes[i],f.MeanTemperature[i],f.Wetness[i]),
                 Temperature=source.Temperature[i*12+month],Rain=source.Precipitation[i*12+month],Fertility=source.Fertility[i],Depth=f.Depth[i],FlowX=f.FlowX[i],FlowY=f.FlowY[i],
                 // Earth streams its mapped overview first. Suppress the legacy tile
                 // channels while waiting for the matching detailed distance field.
@@ -215,7 +218,7 @@ namespace Orbis.Flat
                 switch(w){case WaterKind.DeepOcean:return RGB(0x183950);case WaterKind.MiddleOcean:return RGB(0x245c78);case WaterKind.ShallowOcean:return RGB(0x449295);case WaterKind.Lake:return RGB(0x599ba7);case WaterKind.River:return RGB(0x74b0bd);default:return RGB(0x867c64);}
             }
             Color32 Land(Tile t)
-            {return FlatPalette.NaturalLand(t.Vegetation,t.Material,t.Wetness,Palette[12+(int)t.Vegetation],Palette[65+(int)t.Material]);}
+            {return FlatPalette.NaturalLand(t.Vegetation,t.Material,t.Wetness,Palette[12+(int)t.Vegetation],Palette[65+(int)t.Material],t.RockWeathering);}
             public void Execute(int j)
             {
                 int i=Indices[j];Tile t=Tiles[i];bool area=Area(t.Water);
@@ -224,7 +227,7 @@ namespace Orbis.Flat
                 {
                     var cover = (VegetationCover)(t.IslandCoverCode - 1);
                     var material = FlatPalette.IslandSubstrate(cover);
-                    terrain = FlatPalette.NaturalLand(cover, material, t.Wetness, Palette[12+(int)cover], Palette[65+(int)material]);
+                    terrain = FlatPalette.NaturalLand(cover, material, t.Wetness, Palette[12+(int)cover], Palette[65+(int)material], t.RockWeathering);
                 }
                 if(area&&t.Shore<=2)
                 {

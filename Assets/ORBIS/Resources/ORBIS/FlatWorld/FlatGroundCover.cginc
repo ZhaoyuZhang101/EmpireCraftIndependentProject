@@ -81,7 +81,7 @@ float3 PDGroundPlant(float3 col,PDPlantView view,float2 cell,float2 source,float
  return col;
 }
 
-float3 PixelGround(float3 baseColor,float2 cell,float4 field,float waterMask,float2 heightGradient,float4 ecology,PDPlantView view)
+float3 PixelGround(float3 baseColor,float2 cell,float4 field,float waterMask,float2 heightGradient,float4 ecology,float rockWeathering,PDPlantView view)
 {
  float2 id=floor(cell),uv=(id+.5)*_MapSize.zw;
  id.x-=floor(id.x/_MapSize.x)*_MapSize.x;
@@ -100,7 +100,9 @@ float3 PixelGround(float3 baseColor,float2 cell,float4 field,float waterMask,flo
  float face=smoothstep(180,650,slope)*smoothstep(.30,.70,weathered)*(1-smoothstep(.4,.85,field.a));
  face*=step(.01,field.r)*(1-waterMask)*step(.20,-field.g);
  float strata=step(.42,FlatDetailNoise(artwork*24));
- float3 rock=lerp(float3(.36,.35,.29),float3(.53,.50,.41),strata*.35+weathered*.65);
+ float rockTone=strata*.35+weathered*.65;
+ float3 rock=lerp(float3(.36,.35,.29),float3(.53,.50,.41),rockTone);
+ rock=lerp(rock,FlatWeatheredRockAlbedo(rockTone),rockWeathering);
  float weathering=lerp(.5,.15+.85*smoothstep(.22,.75,grain),grainWeight);
  col=PDPaint(col,rock,face*weathering*.30);
  if(waterMask>.99)return col;
@@ -179,6 +181,8 @@ float3 PixelGround(float3 baseColor,float2 cell,float4 field,float waterMask,flo
  col=PDPaint(col,lerp(float3(.51,.49,.40),float3(.60,.57,.46),variation),stone*pebbles);
  return col;
 }
+float3 PixelGround(float3 col,float2 cell,float4 field,float waterMask,float2 gradient,float4 ecology,PDPlantView view)
+{return PixelGround(col,cell,field,waterMask,gradient,ecology,0,view);}
 float3 PixelGround(float3 col,float2 cell,float4 field,float waterMask,float2 gradient,float4 ecology)
 {return PixelGround(col,cell,field,waterMask,gradient,ecology,PDGroundView());}
 #endif

@@ -286,8 +286,40 @@ internal static class ClimateObservationRegression
         Near(after, reference, 0, "evicting a station cannot change its replay");
     }
 
+    static void GeographicNormals()
+    {
+        var world = new WorldData(64, 32, "GEOGRAPHIC-NORMALS", TerrainPreset.Continents);
+        int coast = world.Index(0, 3), sea = world.Index(63, 3);
+        world.Water[sea] = WaterKind.DeepOcean;
+        world.Elevation[sea] = -3500;
+        world.Elevation[coast] = 800;
+        for (int m = 0; m < 12; m++)
+        {
+            world.Temperature[coast * 12 + m] = 15f + m;
+            world.Temperature[sea * 12 + m] = 24f + m;
+            world.Precipitation[coast * 12 + m] = 44f - m;
+            world.Precipitation[sea * 12 + m] = 12f - m;
+        }
+
+        Span<float> temperature = stackalloc float[12], precipitation = stackalloc float[12];
+        FlatClimateSamples.SampleNormals(world, 0, 3.5 / 32, 500f, temperature, precipitation);
+        for (int m = 0; m < 12; m++)
+        {
+            Near(temperature[m], 18.85 + m, .00001, "local lapse correction above both sea and land");
+            Near(precipitation[m], 28 - m, .00001, "local rain follows the monthly normals");
+        }
+        float atSeam = temperature[6];
+        FlatClimateSamples.SampleNormals(world, 1, 3.5 / 32, 500f, temperature, precipitation);
+        Near(temperature[6], atSeam, 0, "local climate wraps across the date line");
+        FlatClimateSamples.SampleNormals(world, 0, 3.5 / 32, null, temperature, precipitation);
+        Near(temperature[6], 25.5, 0, "island with unresolved height uses atmospheric grid normals");
+        Check(KoppenClassifier.Classify(temperature, precipitation) ==
+            KoppenClassifier.Classify(temperature.ToArray(), precipitation.ToArray()),
+            "point and cell classifiers follow the same Köppen rules");
+    }
     public static void Run()
     {
+        GeographicNormals();
         SeasonalCalendar();
         LightningSeason();
         SavedAndCurrent();

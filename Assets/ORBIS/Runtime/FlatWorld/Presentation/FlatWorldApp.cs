@@ -616,6 +616,10 @@ namespace Orbis.Flat
             legend.text=FlatPalette.Legend(map.Layer);waterStatus.text=globeMode?"摄影模式不运行局部 SWE。":map.LocalWater.Status;
             if(selected<0){info.text="点击地表查看位置，按 F 聚焦。\n\n每个 Zone 包含 4×4 个模拟格。";return;}
             int i=selected,zone=World.ZoneOf(i),level=HeightBands.Level(World.Elevation[i]);string owner=World.Owner[i]<0?"无主":World.Nations[World.Owner[i]].Name;
+            int forecast=map.Layer==MapLayer.Temperature||map.Layer==MapLayer.Rain?map.ClimateYearOffset:0;
+            double monthStart=Math.Floor(World.Day/30)*30+360*forecast;
+            var climate=FlatClimateYear.At(FMath.Seed(World.Seed),monthStart);
+            string climateDate=forecast==0?"本月":("第 "+((int)(monthStart/360)+1)+" 年同月");
             string positionText=string.Empty;
             if(map.SelectedLocation.HasValue)
             {
@@ -626,17 +630,15 @@ namespace Orbis.Flat
                 positionText=$"选中位置　{Math.Abs(lat):F4}°{(lat<0?"S":"N")}　{Math.Abs(lon):F4}°{(lon<0?"W":"E")}\n地表判定　{surface}\n";
                 if(!SameSurface(water,World.Water[i]))
                 {
-                    info.text=positionText+$"\n所属模拟格 {i} · {WaterName(World.Water[i])}\n此处的海岸细于模拟格。气候、海拔和人口按整格计算。";
+                    info.text = water == WaterKind.Land
+                        ? positionText + DescribeLocalLand(p, i, climate, climateDate)
+                        : positionText + $"\n所属模拟格 {i} · {WaterName(World.Water[i])}\n此处的海岸细于模拟格。";
                     return;
                 }
             }
-            int forecast=map.Layer==MapLayer.Temperature||map.Layer==MapLayer.Rain?map.ClimateYearOffset:0;
-            double monthStart=Math.Floor(World.Day/30)*30+360*forecast;
-            var climate=FlatClimateYear.At(FMath.Seed(World.Seed),monthStart);
             climate.AtTile(i,World.Width,World.Height,out float temperatureOffset,out float rainOffset);
             float currentTemperature=World.Temperature[i*12+World.Month]+temperatureOffset;
             float currentRain=World.Precipitation[i*12+World.Month]*(1+rainOffset);
-            string climateDate=forecast==0?"本月":("第 "+((int)(monthStart/360)+1)+" 年同月");
             info.text=positionText+"TILE "+i+"   ["+(i%World.Width)+", "+(i/World.Width)+"]\nZONE "+zone+" · 内部格 "+(i%World.Width%4)+","+(i/World.Width%4)+"\n\n"+World.Elevation[i]+" m · "+(level>0?"L"+level.ToString("00"):"海平面以下")+"\n水体："+WaterName(World.Water[i])+"\n地表："+BiomeName(World.Biomes[i])+"\n柯本："+FlatPalette.ClimateName(World.Climates[i])+"\n"+climateDate+"温度："+currentTemperature.ToString("F1")+" °C\n"+climateDate+"降水："+currentRain.ToString("F0")+" mm\n较常年同月："+temperatureOffset.ToString("+0.0;-0.0;0.0")+" °C · 降水 "+(100*rainOffset).ToString("+0;-0;0")+"%\n肥力："+(World.Fertility[i]*100).ToString("F0")+"%\n归属："+owner+"\n人口："+World.Population[i].ToString("F0")+"\n设施："+StructureName(World.Buildings[i])+"\n下游 Tile："+World.Downstream[i];
             var facts=World.Facts;
             FlatEcology.SampleSurfaceSeason(World,i,CalendarDay,out float vegetationGrowth,out float foliage,out float seasonalSnow,out float soilMoisture);
@@ -671,6 +673,30 @@ namespace Orbis.Flat
             else if(FlatTerrainAnalysis.AreaWater(World.Water[i]))info.text+="\n水深："+facts.Depth[i].ToString("F1")+" m";
             info.text+=FormatGlebaTileHud(i)+FormatExoPlaSimTileHud(i)+wildlife.DescribeTile(i);
         }
+        string DescribeLocalLand(PlanetLocation point, int tile, FlatClimateYear year, string climateDate)
+        {
+            double u = PlanetCoordinateSystem.MapU(point), v = PlanetCoordinateSystem.MapV(point);
+            float? elevation = World.GeographicSurface == null ? null : FlatEarthPolarRelief.SurveyedLandHeight((float)u, (float)v);
+            Span<float> temperature = stackalloc float[12];
+            Span<float> precipitation = stackalloc float[12];
+            FlatClimateSamples.SampleNormals(World, u, v, elevation, temperature, precipitation);
+
+            var normal = PlanetCoordinateSystem.SurfaceNormal(point);
+            year.Offsets((float)normal.X, (float)normal.Y, (float)normal.Z, out float heat, out float rain);
+            float meanTemperature = 0, annualRain = 0;
+            for (int m = 0; m < 12; m++)
+            {
+                meanTemperature += temperature[m];
+                annualRain += precipitation[m];
+            }
+            var koppen = KoppenClassifier.Classify(temperature, precipitation);
+            string altitude = elevation.HasValue ? $"地形高程约 {elevation.Value:F0} m\n" : string.Empty;
+            return $"\n局地气候估算\n{altitude}柯本：{FlatPalette.ClimateName(koppen)}\n" +
+                $"{climateDate}温度：{temperature[World.Month] + heat:F1} °C\n{climateDate}降水：{precipitation[World.Month] * (1 + rain):F1} mm\n" +
+                $"年均温：{meanTemperature / 12:F1} °C\n年降水：{annualRain:F0} mm\n\n" +
+                $"所属模拟格 {tile} · 人口与建设按模拟格计算";
+        }
+
         static readonly string[] RealmNames={"古北界","新北界","新热带界","非洲热带界","大洋洲界","印马来界","澳新/华莱士界","南极界"};
         string FormatGlebaTileHud(int tile)
         {

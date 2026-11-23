@@ -98,11 +98,20 @@ namespace Orbis.Flat
                                (byte)((from.g*remaining+to.g*weight+128)>>8),
                                (byte)((from.b*remaining+to.b*weight+128)>>8),255);
         }
-        internal static Color32 NaturalLand(VegetationCover cover,GroundMaterial material,float wetness,uint coverColor,uint materialColor)
+        internal static ushort RockWeathering(GroundMaterial material,Biome biome,float temperature,float wetness)
+        {
+            if(material!=GroundMaterial.Rock||biome==Biome.Alpine||biome==Biome.Tundra||biome==Biome.Snow)return 0;
+            // Use annual climate so the rock's base pigment is stable through the seasons.
+            float exposure=Mathf.InverseLerp(10,20,temperature)*(1-Mathf.InverseLerp(.28f,.65f,wetness));
+            return (ushort)Mathf.RoundToInt(exposure*exposure*(3-2*exposure)*256);
+        }
+        internal static Color32 NaturalLand(VegetationCover cover,GroundMaterial material,float wetness,uint coverColor,uint materialColor,ushort rockWeathering)
         {
             var substrate=RGB(materialColor);
             if(material==GroundMaterial.Snow)return substrate;
             if(cover==VegetationCover.Ice)return RGB(coverColor);
+            if(material==GroundMaterial.Rock&&rockWeathering>0)
+                substrate=MixAlbedo(substrate,RGB(0xad906f),rockWeathering);
             int moisture=(int)(Mathf.Clamp01(wetness)*256);
             // Moist fine earth absorbs more diffuse light than stone or gravel.
             int absorption=material==GroundMaterial.Rock||material==GroundMaterial.Gravel?26:54;
@@ -120,9 +129,13 @@ namespace Orbis.Flat
         static Color32 LandColor(WorldData w,int i)
         {
             if(w.Facts==null)return RGB(BiomeColors[(int)w.Biomes[i]]);
-            var cover=w.Facts.Vegetation[i];
-            var material=w.Facts.Materials[i];
-            return NaturalLand(cover,material,w.Facts.Wetness[i],VegetationColors[(int)cover],MaterialColors[(int)material]);
+            return NaturalLand(w,i,w.Facts.Vegetation[i],w.Facts.Materials[i]);
+        }
+        static Color32 NaturalLand(WorldData w,int i,VegetationCover cover,GroundMaterial material)
+        {
+            float wetness=w.Facts.Wetness[i];
+            ushort weathering=RockWeathering(material,w.Biomes[i],w.Facts.MeanTemperature[i],wetness);
+            return NaturalLand(cover,material,wetness,VegetationColors[(int)cover],MaterialColors[(int)material],weathering);
         }
         // Offshore climate cells still have monthly normals and a land water-balance
         // estimate. Use those for the dry underlay of islands below the grid scale.
@@ -146,7 +159,7 @@ namespace Orbis.Flat
             {
                 var cover = IslandCover(w,i);
                 var material = IslandSubstrate(cover);
-                c = NaturalLand(cover, material, w.Facts.Wetness[i], VegetationColors[(int)cover], MaterialColors[(int)material]);
+                c = NaturalLand(w, i, cover, material);
             }
             // Dilate land albedo only under the sub-tile shore reconstruction. Water
             // is composited afterwards. This prevents bilinear blue halos on beaches.

@@ -22,6 +22,8 @@ namespace Orbis.Flat
         RenderTexture treeBanks;
         Material treeBankBake;
 
+        internal static float? SurveyedLandHeight(float u, float v) => sharedLand?.HeightAt(u, v);
+
         internal static FlatEarthPolarRelief Create(WorldData world)
         {
             if (world.Preset != TerrainPreset.Earth || world.WaterReference == null ||

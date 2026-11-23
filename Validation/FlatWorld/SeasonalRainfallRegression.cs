@@ -11,7 +11,7 @@ internal static class SeasonalRainfallRegression
         CheckWarmIslandTrades();
         CheckWarmContinentalConvection();
         CheckPeninsulaMonsoon();
-        CheckSummerDryEarthCoasts();
+        CheckEarthSeasonalRainfall();
         // Rotate seasons through the same terrain in the two hemispheres. Flat
         // topography isolates the influence of the adjacent ocean and storms.
         var world = new WorldData(128, 64, "SEASONAL-MARGINS", TerrainPreset.Continents);
@@ -45,7 +45,7 @@ internal static class SeasonalRainfallRegression
         }
     }
 
-    private static void CheckSummerDryEarthCoasts()
+    private static void CheckEarthSeasonalRainfall()
     {
         const string assets = "Assets/ORBIS/Resources/ORBIS/FlatWorld/";
         var world = FlatGenerator.Generate(512, 256, "ORBIS-2D-2026", TerrainPreset.Earth, default,
@@ -66,9 +66,31 @@ internal static class SeasonalRainfallRegression
         float juneToAugust = world.Precipitation[inland + 5] + world.Precipitation[inland + 6] + world.Precipitation[inland + 7];
         if (juneToAugust < 140)
             throw new Exception($"Summer-dry coastal circulation deprived the continental Balkan control of rain ({juneToAugust:F1} mm).");
+
+        // CRU-CL v2.0 (1961–1990) area-matched land cells in the calibration
+        // split are BWh over the lower Tigris–Euphrates and Csa in these upper
+        // basin cells. The limits allow for comparing a 512-wide model tile
+        // with the larger reference cell containing the same location.
+        foreach (var (name, longitude, latitude, expectedClimate, maxSummer, minWinter) in new[]
+        {
+            ("Basra", 47.810, 30.509, Koppen.BWh, 12f, 54f),
+            ("Baghdad", 44.366, 33.315, Koppen.BWh, 10f, 68f),
+            ("Erbil", 44.009, 36.191, Koppen.Csa, 42f, 125f),
+            ("Diyarbakir", 40.210, 37.920, Koppen.Csa, 68f, 145f)
+        })
+        {
+            int tile = Tile(longitude, latitude);
+            int offset = tile * 12;
+            float summer = world.Precipitation[offset + 5] + world.Precipitation[offset + 6] + world.Precipitation[offset + 7];
+            float winter = world.Precipitation[offset + 11] + world.Precipitation[offset] + world.Precipitation[offset + 1];
+            Koppen climate = world.Climates[tile];
+            Console.WriteLine($"{name} {climate}, winter/summer rain {winter:F1}/{summer:F1} mm.");
+            if (!(climate == expectedClimate && summer <= maxSummer && winter >= minWinter))
+                throw new Exception($"{name} should have {expectedClimate} normals and a wet winter relative to its dry summer.");
+        }
         for (int month = 0; month < 12; month++)
             if (!(world.Moisture.BudgetError[month] < 2e-5))
-                throw new Exception("The seasonal coastal moisture budget failed in month " + (month + 1));
+                throw new Exception("The Earth seasonal moisture budget failed in month " + (month + 1));
     }
 
     private static void CheckWarmContinentalConvection()

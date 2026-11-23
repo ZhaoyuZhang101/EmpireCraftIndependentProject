@@ -6,8 +6,8 @@ using UnityEngine;
 
 namespace Orbis.Flat
 {
-    // The shared Earth textures are immutable after upload. A 4K device can
-    // use the mipmapped overview without reading or inflating the 8K page atlas.
+    // The detailed atlas is GPU-only. Keep the shared overview readable for
+    // picked elevations without synchronizing with the renderer.
     internal sealed class FlatEarthLandRelief : IDisposable
     {
         Texture2D overview, directory, pages;
@@ -41,7 +41,7 @@ namespace Orbis.Flat
                     directory = ReadTexture("ETOPO native land directory", 360, 120, TextureFormat.RGBA32, false, inflater, buffer);
                     pages = ReadTexture("ETOPO native land elevations", width, height, TextureFormat.R8, false, inflater, buffer);
                 }
-                else overview = ReadTexture("ETOPO filtered land elevations", width, height, TextureFormat.R16, true, inflater, buffer);
+                else overview = ReadTexture("ETOPO filtered land elevations", width, height, TextureFormat.R16, true, inflater, buffer, keepReadable: true);
                 if (inflater.ReadByte() != -1) throw new InvalidDataException("Excess land survey pixels.");
             }
             catch (Exception e) when (e is InvalidDataException || e is IOException)
@@ -62,7 +62,7 @@ namespace Orbis.Flat
             finally { Resources.UnloadAsset(asset); }
         }
 
-        internal static Texture2D ReadTexture(string name, int width, int height, TextureFormat format, bool mips, Stream source, byte[] buffer)
+        internal static Texture2D ReadTexture(string name, int width, int height, TextureFormat format, bool mips, Stream source, byte[] buffer, bool keepReadable = false)
         {
             var texture = new Texture2D(width, height, format, mips, true) {
                 name = name, filterMode = mips ? FilterMode.Trilinear : FilterMode.Bilinear,
@@ -80,7 +80,7 @@ namespace Orbis.Flat
                     NativeArray<byte>.Copy(buffer, 0, pixels, offset, count);
                     offset += count;
                 }
-                texture.Apply(mips, true);
+                texture.Apply(mips, !keepReadable);
                 return texture;
             }
             catch
@@ -88,6 +88,23 @@ namespace Orbis.Flat
                 UnityEngine.Object.Destroy(texture);
                 throw;
             }
+        }
+
+        internal float? HeightAt(float u, float v)
+        {
+            if (!overview) return null;
+            int width = overview.width, height = overview.height;
+            float x = Mathf.Repeat(u, 1) * width - .5f;
+            float y = Mathf.Clamp(v * height - .5f, 0, height - 1);
+            int column = Mathf.FloorToInt(x), row = (int)y;
+            int left = FMath.Wrap(column, width), right = FMath.Wrap(column + 1, width);
+            int south = row * width, north = Math.Min(row + 1, height - 1) * width;
+            var metres = overview.GetPixelData<ushort>(0);
+            float bottom = Mathf.Lerp(metres[south + left], metres[south + right], x - column);
+            float top = Mathf.Lerp(metres[north + left], metres[north + right], x - column);
+            float result = Mathf.Lerp(bottom, top, y - row) - 32768;
+            // The overview can still contain ocean averaged into a small island.
+            return result >= 0 ? result : (float?)null;
         }
 
         internal void Bind(Material material)

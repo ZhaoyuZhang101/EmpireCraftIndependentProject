@@ -327,7 +327,21 @@ float3 FlatElevationColor(float metres)
     float3 seabed=lerp(float3(.25,.53,.60),float3(.07,.18,.29),smoothstep(0,3600,-metres));
     return FlatColor(lerp(seabed,land,smoothstep(-30,30,metres)));
 }
-float3 FlatTerrainFine(float3 col,float2 cell,float pixelsPerTile,float2 heightGradient,float4 field,float2 sandGravel,float wetness,float4 light)
+float FlatRockWeathering(float3 albedo,float wetness,float snow)
+{
+#ifndef UNITY_COLORSPACE_GAMMA
+    albedo=LinearToGammaSpace(albedo);
+#endif
+    // Use the blended ground pigment so fine rock follows the underlying terrain
+    // through ecotones and changes in zoom.
+    float warmth=smoothstep(.02,.08,albedo.r-albedo.g);
+    return warmth*(1-smoothstep(.30,.70,wetness))*(1-smoothstep(.08,.65,snow));
+}
+float3 FlatWeatheredRockAlbedo(float tone)
+{
+    return lerp(float3(.42,.32,.23),float3(.69,.57,.42),tone);
+}
+float3 FlatTerrainFine(float3 col,float2 cell,float pixelsPerTile,float2 heightGradient,float4 field,float2 sandGravel,float wetness,float rockWeathering,float4 light)
 {
     float3 position=FlatDetailPosition(cell);
     float footprint=max(length(ddx(position)),length(ddy(position)));
@@ -361,7 +375,8 @@ float3 FlatTerrainFine(float3 col,float2 cell,float pixelsPerTile,float2 heightG
             // Exposure follows altitude and slope. Rock albedo varies over the
             // outcrop, so an entire mountainside cannot stripe at a fixed height.
             float rockTone=smoothstep(.19,.81,crag*.70+broken*.30);
-            float3 rock=FlatColor(lerp(float3(.26,.28,.30),float3(.60,.59,.55),rockTone));
+            float3 coolRock=lerp(float3(.26,.28,.30),float3(.60,.59,.55),rockTone);
+            float3 rock=FlatColor(lerp(coolRock,FlatWeatheredRockAlbedo(rockTone),rockWeathering));
             // Ridge breakup adds small face changes to the real elevation gradient.
             // It never modifies elevation, drainage, ownership or movement data.
             // Analytic geographic gradients keep the same rock face under camera
@@ -377,6 +392,10 @@ float3 FlatTerrainFine(float3 col,float2 cell,float pixelsPerTile,float2 heightG
         }
     }
     return result;
+}
+float3 FlatTerrainFine(float3 col,float2 cell,float pixelsPerTile,float2 heightGradient,float4 field,float2 sandGravel,float wetness,float4 light)
+{
+    return FlatTerrainFine(col,cell,pixelsPerTile,heightGradient,field,sandGravel,wetness,0,light);
 }
 float FlatRelief(float h,float2 cell,float3 localLight)
 {

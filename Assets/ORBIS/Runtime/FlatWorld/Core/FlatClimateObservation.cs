@@ -105,6 +105,56 @@ namespace Orbis.Flat
             normals = new FlatRiverDischarge.WaterMonth[capacity * Months];
         }
 
+        // Reconstruct monthly normals at the geographic point, using atmospheric
+        // temperature above the sampled terrain and excluding ocean bathymetry.
+        public static void SampleNormals(WorldData world, double u, double v, float? elevation,
+            Span<float> temperature, Span<float> precipitation)
+        {
+            if (world == null) throw new ArgumentNullException(nameof(world));
+            if (!OrbisAtmosphereCore.Finite(u) || !OrbisAtmosphereCore.Finite(v) ||
+                (elevation.HasValue && !FMath.Finite(elevation.Value)))
+                throw new ArgumentException("Invalid climate sample coordinates or elevation.");
+            if (temperature.Length < Months || precipitation.Length < Months)
+                throw new ArgumentException("Twelve temperature and precipitation outputs are required.");
+
+            double x = (u - Math.Floor(u)) * world.Width - .5;
+            double y = Math.Max(0, Math.Min(world.Height - 1, v * world.Height - .5));
+            int column = (int)Math.Floor(x), row = (int)y;
+            int nextRow = Math.Min(row + 1, world.Height - 1);
+            float east = (float)(x - column), north = (float)(y - row);
+            Span<int> cells = stackalloc int[]
+            {
+                world.Index(column, row), world.Index(column + 1, row),
+                world.Index(column, nextRow), world.Index(column + 1, nextRow)
+            };
+            Span<float> weights = stackalloc float[]
+            {
+                (1 - east) * (1 - north), east * (1 - north),
+                (1 - east) * north, east * north
+            };
+            float heightCorrection = 0;
+            if (elevation.HasValue)
+            {
+                float meanHeight = 0;
+                for (int i = 0; i < cells.Length; i++)
+                    meanHeight += weights[i] * FlatClimate.SurfaceHeight(world, cells[i]);
+                heightCorrection = (meanHeight - elevation.Value) * .0065f *
+                    (world.PlanetClimate?.MoistLapseRateScale ?? 1f);
+            }
+            for (int month = 0; month < Months; month++)
+            {
+                float heat = 0, rain = 0;
+                for (int i = 0; i < cells.Length; i++)
+                {
+                    int offset = cells[i] * Months + month;
+                    heat += weights[i] * world.Temperature[offset];
+                    rain += weights[i] * world.Precipitation[offset];
+                }
+                temperature[month] = FMath.Clamp(heat + heightCorrection, -85, 55);
+                precipitation[month] = rain;
+            }
+        }
+
         public FlatClimateObservation Normal(int tile, int month)
         {
             if ((uint)tile >= (uint)world.Count) return FlatClimateObservation.Missing;
