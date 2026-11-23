@@ -154,6 +154,7 @@
 - `docs/superpowers/specs/2026-11-22-gleba-climate-reference.md`
 - `docs/superpowers/specs/2026-11-22-gleba-port-results.md`
 - `docs/superpowers/specs/2026-11-23-exoplasim-climate-upgrade.md`
+- `docs/superpowers/specs/2026-11-23-global-earth-evaluation.md`
 
 ### 6.3 与主线 / `codex` 并行修改文件的合并冲突消解规则
 若目标分支同时包含近期河网/海峡/湖冰/季节植被等改动，按以下规则保留双方增量即可零风险合入：
