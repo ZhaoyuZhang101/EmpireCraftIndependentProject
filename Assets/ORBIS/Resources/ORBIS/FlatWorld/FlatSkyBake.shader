@@ -127,17 +127,20 @@ Shader "ORBIS/FlatWorld/SkyBake"
      Noise3(p*4.8+wander+seed+71.0))-.5;
 
     // Anisotropic wind-sheared coordinate organizes clouds into realistic cloud streets & bands
-    float3 pStreak=p-windAxis*dot(p,windAxis)*(.58*windSpd);
+    float tropTaper=smoothstep(.12,.38,abs(p.y));
+    float3 pStreak=p-windAxis*dot(p,windAxis)*(lerp(.36,.58,tropTaper)*windSpd);
     float synoptic=Fbm(p*6.4+curl*1.20+wander+seed);
     float streets=Fbm(Turn(pStreak)*16.5+curl*.85+wander+seed);
     float cumulus=Noise3(Turn(p)*33.0+curl*.60+wander+seed);
     o.baseTex=synoptic*.50+streets*.32+cumulus*.18;
     o.honeycomb=synoptic*.46+(1.0-abs(2.0*Noise3(Turn(p)*25.0+curl*.48+seed)-1.0))*.54;
 
-    // ITCZ mesoscale convective clusters & upper-air downwind sheared cirrus anvil shields
-    o.mcsCluster=smoothstep(.42,.80,synoptic*.58+streets*.42)*(.52+.48*smoothstep(.34,.78,cumulus));
-    float3 pAnvil=normalize(p-jetAxis*.052);
-    o.anvilShield=smoothstep(.36,.76,Fbm(pAnvil*7.2+curl*.90+wander+seed));
+    // ITCZ mesoscale convective clusters (MCS) with clear radiative-convective subsidence moats
+    // so tropical clouds form discrete cellular clusters rather than a giant zonal ribbon.
+    float mcsEnv=smoothstep(.47,.81,synoptic*.52+streets*.48);
+    o.mcsCluster=mcsEnv*(.24+.76*smoothstep(.42,.80,cumulus));
+    float3 pAnvil=normalize(p-jetAxis*.046);
+    o.anvilShield=smoothstep(.47,.83,Fbm(pAnvil*8.8+curl*.95+wander+seed))*(.40+.60*mcsEnv);
 
     // Mid-latitude baroclinic Rossby wave comma cyclones (exact integer harmonics -> zero dateline seam)
     float eraLon=6.2831853*Hash3(float3(eraId,9,2));
@@ -227,29 +230,39 @@ Shader "ORBIS/FlatWorld/SkyBake"
     {
      float synLift=forcing.r,itczConv=forcing.g,stormTrack=forcing.b,moistEnv=forcing.a;
      float marineSc=aux.r,orogCrest=aux.g,leeShadow=aux.b;
+     float tropBelt=1.0-smoothstep(.16,.42,abs(radial.y));
 
-     // Physical condensation threshold suppressed over STHZ highs, deserts & foehn rain shadows
-     float support=saturate(.38*wet+.36*synLift+.26*moistEnv-.34*leeShadow+.30*orogCrest);
-     float threshold=lerp(.74,.31,support)-.095*response.x;
-     float airmassLow=smoothstep(threshold-.05,threshold+.22,baseTex);
+     // Physical condensation threshold suppressed over STHZ highs, deserts, foehn rain shadows &
+     // Walker/equatorial Ekman subsidence clear slots (carried in leeShadow) so _ClimateTex's
+     // zonal ocean rain cannot paint an unbroken 360-degree equatorial stratus band in any season.
+     float effWet=wet*(1.0-.72*leeShadow);
+     float support=saturate(.34*effWet+.36*synLift+.26*moistEnv-.48*leeShadow+.30*orogCrest);
+     float threshold=lerp(.75,.33,support)-.088*response.x*(1.0-.62*leeShadow);
+     float tropCellular=lerp(1.0,.36+.64*smoothstep(.36,.76,mcsCluster+.42*baseTex),tropBelt*(1.0-orogCrest));
+     float airmassLow=smoothstep(threshold-.04,threshold+.23,baseTex)*tropCellular*(1.0-.58*tropBelt*leeShadow);
      // Baroclinic dry slots clear airmass clouds behind cold fronts while comma spirals & fronts build
      airmassLow*=1.0-.78*stormTrack*frontalDry;
 
-     float frontalCloud=stormTrack*frontalLow*smoothstep(.16,.62,moistEnv+.45*wet);
-     float itczCloud=itczConv*mcsCluster*1.08;
-     float scCloud=marineSc*smoothstep(.38,.74,honeycomb)*.78;
+     float frontalCloud=stormTrack*frontalLow*smoothstep(.16,.62,moistEnv+.45*effWet);
+     float itczCloud=itczConv*mcsCluster*1.06;
+     float scCloud=marineSc*smoothstep(.42,.76,honeycomb)*lerp(.78,.48,tropBelt);
      float orogCloud=orogCrest*smoothstep(.34,.72,baseTex)*.76;
 
      low=saturate(max(max(airmassLow,frontalCloud),max(itczCloud,max(scCloud,orogCloud))));
      // Ensure regional atmospheric observations modulate existing cloud decks bidirectionally
      low=saturate(low+.05*response.x*smoothstep(.01,.15,low+.15*support));
 
-     float scShare=saturate(scCloud-max(airmassLow,max(frontalCloud,itczCloud))*.85);
+     float scShare=saturate(max(scCloud-max(airmassLow,max(frontalCloud,itczCloud))*.85,marineSc*.72-max(frontalCloud,itczCloud)*.95));
      float deepShare=saturate(max(itczCloud,frontalCloud*.82));
-     storm=saturate(smoothstep(.22,.76,wet)*smoothstep(.56,.93,low)*(1+.35*response.y)*(1.0-.85*scShare));
-     convection=lerp(saturate(.18+wet*.30+deepShare*.38+storm*.42),0.08,scShare);
+     // Require organized deep convective/frontal/orographic forcing for thunderheads & lightning;
+     // ordinary humid trade-wind cumulus & equatorial cold-tongue Sc remain shallow (<2.5 km) without lightning.
+     float deepTrigger=smoothstep(.16,.66,deepShare+.32*synLift*orogCrest+.22*synLift*smoothstep(.55,.90,effWet));
+     storm=saturate(smoothstep(.22,.76,effWet)*smoothstep(.58,.94,low)*deepTrigger*(1+.35*response.y)*(1.0-.90*scShare));
+     convection=lerp(saturate(.14+effWet*.18+deepShare*.46+storm*.42),0.08,scShare);
 
-     // Upper-tropospheric Rossby jet streaks, frontal warm-conveyor shields & ITCZ anvil canopies
+     // Upper-tropospheric Rossby jet streaks, frontal warm-conveyor shields & ITCZ anvil canopies:
+     // Taper Rossby jet cirrus out of the equatorial Walker belt so high clouds on 0 deg come only
+     // from active MCS anvil plumes instead of bridging clear ocean basins into a continuous ring.
      float3 upper=RotateY(radial,-_VisualTime*.0018);
      float3 crossJet=normalize(cross(radial,jetAxis)+float3(1e-5,0,0));
      float3 jetShear=upper+wander*.04;
@@ -258,7 +271,8 @@ Shader "ORBIS/FlatWorld/SkyBake"
      float poleTaper=smoothstep(0,.16,length(radial.xz));
      float wisps=lerp(crossStreak,jetStreak,.25+.70*poleTaper);
      float envJet=smoothstep(.34,.68,Fbm(upper*4.8+wander*.5+float3(12,2,8)));
-     float jetCirrus=envJet*(.10+.62*smoothstep(.32,.78,wisps))*lerp(.35,1.0,saturate(.55*moistEnv+.45*wet));
+     float eqJetTaper=lerp(.20,1.0,smoothstep(.10,.34,abs(radial.y)))*(1.0-.72*leeShadow);
+     float jetCirrus=envJet*eqJetTaper*(.10+.62*smoothstep(.32,.78,wisps))*lerp(.35,1.0,saturate(.55*moistEnv+.45*effWet));
      float anvilCirrus=itczConv*anvilShield*(.45+.55*smoothstep(.25,.75,wisps));
      float frontCirrus=stormTrack*wcbCirrus*(.50+.50*smoothstep(.28,.76,wisps));
      high=saturate(max(jetCirrus,max(anvilCirrus,frontCirrus)));

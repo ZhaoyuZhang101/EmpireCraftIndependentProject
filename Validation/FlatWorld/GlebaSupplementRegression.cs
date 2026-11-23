@@ -376,6 +376,53 @@ internal static class GlebaSupplementRegression
         Check(northAtlanticTrack > 0.42 && roaringFiftiesTrack > 0.45,
             $"Expected strong mid-latitude baroclinic storm tracks: N.Atl={northAtlanticTrack:F2}, S.Ocean={roaringFiftiesTrack:F2}");
 
+        // Hadley-Walker Orthogonal Double Circulation + Equatorial Ekman Cold-Tongue & Split Double-ITCZ:
+        // Audit ALL FOUR SEASONS (Jan, Apr Equinox, Jul, Oct Equinox) to guarantee NO 360-degree continuous equatorial cloud ring!
+        double warmPoolMcConv = MeanChannel(forcingJul, 1, 100f, 140f, -3f, 4f);
+        double amazonEqConv = MeanChannel(forcingJan, 1, -70f, -54f, -5f, 2f);
+        double eastPacColdSlotConv = MeanChannel(forcingJul, 1, -135f, -92f, -2.2f, 2.2f);
+        double eastPacOffEqItcz = MeanChannel(forcingJul, 1, -135f, -95f, 6.0f, 10.0f);
+        double eastPacColdSlotSc = MeanChannel(auxJul, 0, -135f, -92f, -2.2f, 2.2f);
+        Console.WriteLine($"  Hadley-Walker & Double-ITCZ: MaritimeContinent Cb={warmPoolMcConv:F2}, Amazon Cb={amazonEqConv:F2}, EastPac 0deg ColdSlot Cb={eastPacColdSlotConv:F2} (Sc={eastPacColdSlotSc:F2}), EastPac 6-10N Split-ITCZ={eastPacOffEqItcz:F2}");
+        Check(warmPoolMcConv > eastPacColdSlotConv + 0.30 && amazonEqConv > eastPacColdSlotConv + 0.25,
+            $"Walker ascending limbs must exceed equatorial Pacific cold-tongue Cb: MC={warmPoolMcConv:F2}, Amz={amazonEqConv:F2} vs EastPac0={eastPacColdSlotConv:F2}");
+        Check(eastPacColdSlotConv < 0.16 && eastPacOffEqItcz > eastPacColdSlotConv + 0.10 && eastPacColdSlotSc > 0.22,
+            $"Equatorial Ekman cold tongue must suppress 0 deg thunderclouds, split ITCZ off-equator, and form low Sc: slotCb={eastPacColdSlotConv:F2}, offEq={eastPacOffEqItcz:F2}, slotSc={eastPacColdSlotSc:F2}");
+
+        var fSeason = new byte[cw * ch * 4];
+        var aSeason = new byte[cw * ch * 4];
+        foreach ((string name, double day) in new[] { ("Jan", 15.0), ("Apr-Equinox", 105.0), ("Jul", 195.0), ("Oct-Equinox", 285.0) })
+        {
+            GlebaGeographySupplement.BuildCloudSynopticFields(earth, day, cw, ch, fSeason, aSeason, null);
+            double eastPacCb = MeanChannel(fSeason, 1, -145f, -90f, -2.5f, 2.5f);
+            double eastPacClear = MeanChannel(aSeason, 2, -145f, -90f, -2.5f, 2.5f);
+            int suppressedCols = 0, maxContiguousActive = 0, curActive = 0;
+            int eqY0 = (int)((-3.0 / 180.0 + 0.5) * ch), eqY1 = (int)((3.0 / 180.0 + 0.5) * ch);
+            for (int pass = 0; pass < 2; pass++)
+            {
+                for (int x = 0; x < cw; x++)
+                {
+                    double colCb = 0, colClear = 0;
+                    for (int y = eqY0; y <= eqY1; y++)
+                    {
+                        colCb += fSeason[(y * cw + x) * 4 + 1] / 255.0;
+                        colClear += aSeason[(y * cw + x) * 4 + 2] / 255.0;
+                    }
+                    int rows = eqY1 - eqY0 + 1;
+                    colCb /= rows; colClear /= rows;
+                    if (pass == 0 && colCb < 0.20 && colClear > 0.22) suppressedCols++;
+                    if (colCb >= 0.32) { curActive++; if (curActive > maxContiguousActive) maxContiguousActive = curActive; }
+                    else curActive = 0;
+                }
+            }
+            maxContiguousActive = Math.Min(cw, maxContiguousActive);
+            double clearLongitudeShare = suppressedCols / (double)cw;
+            double maxActiveSpanDeg = maxContiguousActive * 360.0 / cw;
+            Console.WriteLine($"  4-Season Equator Audit [{name,-11}]: EastPac0 Cb={eastPacCb:F2} (clear={eastPacClear:F2}), suppressedLngShare={clearLongitudeShare:P1}, maxContiguousConvSpan={maxActiveSpanDeg:F1} deg");
+            Check(eastPacCb < 0.16 && eastPacClear > 0.35 && clearLongitudeShare >= 0.42 && maxActiveSpanDeg < 115.0,
+                $"Equatorial cloud ring failed to break up in {name}: EastPacCb={eastPacCb:F2}, clear={eastPacClear:F2}, suppressedShare={clearLongitudeShare:P1}, maxSpan={maxActiveSpanDeg:F1} deg");
+        }
+
         // Seasonal migration of Asian-Indian sector ITCZ convective cloud core (75E..95E)
         double WeightedItczLat(byte[] buf)
         {
@@ -587,6 +634,29 @@ internal static class GlebaSupplementRegression
 
             Check(maxRes - minRes > 0.45f, $"{preset}: insufficient lithology resistance contrast ({minRes:F2}..{maxRes:F2})");
             Check(passive > 50 && hawaii > 0 && shield > 0, $"{preset}: missing passive shelves ({passive}), shields ({shield}), or hotspot chains ({hawaii})");
+
+            // Verify all 4 seasons on procedural worlds never form an unbroken 360-degree equatorial cloud ring
+            const int pw = 128, ph = 64;
+            var pf = new byte[pw * ph * 4];
+            var pa = new byte[pw * ph * 4];
+            int py0 = (int)((-3.0 / 180.0 + 0.5) * ph), py1 = (int)((3.0 / 180.0 + 0.5) * ph);
+            foreach (double pDay in new[] { 15.0, 105.0, 195.0, 285.0 })
+            {
+                GlebaGeographySupplement.BuildCloudSynopticFields(w, pDay, pw, ph, pf, pa, null);
+                int pSuppressed = 0, pMaxSpan = 0, pCur = 0;
+                for (int pass = 0; pass < 2; pass++)
+                for (int x = 0; x < pw; x++)
+                {
+                    double cCb = 0;
+                    for (int y = py0; y <= py1; y++) cCb += pf[(y * pw + x) * 4 + 1] / 255.0;
+                    cCb /= (py1 - py0 + 1);
+                    if (pass == 0 && cCb < 0.22) pSuppressed++;
+                    if (cCb >= 0.35) { pCur++; if (pCur > pMaxSpan) pMaxSpan = pCur; } else pCur = 0;
+                }
+                pMaxSpan = Math.Min(pw, pMaxSpan);
+                Check(pSuppressed >= pw * 0.35 && pMaxSpan * 360.0 / pw < 150.0,
+                    $"{preset} day={pDay}: unbroken equatorial convective belt (suppressed={pSuppressed}/{pw}, maxSpan={pMaxSpan * 360.0 / pw:F1} deg)");
+            }
 
             totalPassiveShelf += passive;
             totalTrench += trench;

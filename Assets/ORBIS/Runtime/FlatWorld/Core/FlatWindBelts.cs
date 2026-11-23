@@ -6,30 +6,51 @@ namespace Orbis.Flat
     // solstitial cosine is +1 in northern summer, -1 in southern summer.
     internal readonly struct FlatWindBelts
     {
-        static float SubtropicalRidge(float summer) => 30 + 4 * summer;
-        static float PolarFront(float summer) => 65 + 4 * summer;
-        const float MarinePolarFront = 68;
-        readonly float latitude, solstice, inlandEastStep, marineEastStep;
+        static float SubtropicalRidge(float ridgeBase, float summer) => ridgeBase + 4 * summer;
+        static float PolarFront(float frontBase, float summer) => Math.Min(89f, frontBase + 4 * summer);
+        const float DefaultRidgeBase = 30f;
+        const float DefaultPolarFront = 65f;
+        const float MarinePolarFront = 68f;
+        readonly float latitude, solstice, ridgeBase, frontBase, marineFront, inlandEastStep, marineEastStep;
 
         internal FlatWindBelts(float latitude, float solstitialCosine)
+            : this(latitude, solstitialCosine, null)
+        {
+        }
+
+        internal FlatWindBelts(float latitude, float solstitialCosine, ExoPlaSimPlanetConfig planet)
         {
             this.latitude = latitude;
             solstice = solstitialCosine;
+            bool custom = planet != null && !planet.IsStandardModernEarth;
+            ridgeBase = custom ? planet.HadleyTerminusDeg : DefaultRidgeBase;
+            frontBase = custom ? planet.PolarFrontTerminusDeg : DefaultPolarFront;
+            marineFront = custom
+                ? Math.Min(89f, frontBase + 3f * FMath.Clamp((85f - frontBase) / 20f, 0f, 1f))
+                : MarinePolarFront;
+
             float summer = FMath.Clamp(latitude / 8, -1, 1) * solstitialCosine;
             float degrees = Math.Abs(latitude);
-            float trade = (float)Math.Tanh((degrees - SubtropicalRidge(summer)) / 8);
-            float polar = (float)(.5 + .5 * Math.Tanh((degrees - 65) / 8));
+            float trade = (float)Math.Tanh((degrees - SubtropicalRidge(ridgeBase, summer)) / 8);
+            // In SingleCell / DoubleCell ("双环流") regimes, frontBase >= 79 deg collapses the 3rd polar-easterly cap
+            // so the hemisphere consists of an expanded Hadley cell + a single merged mid-to-high-latitude cell.
+            float polarCapWeight = custom ? FMath.Clamp((83f - frontBase) / 14f, 0f, 1f) : 1f;
+            float polar = polarCapWeight * (float)(.5 + .5 * Math.Tanh((degrees - frontBase) / 8));
+            float multiBandMod = custom && planet.CirculationRegime == ExoPlaSimCirculationRegime.MultiBandJets && degrees > frontBase
+                ? .35f * (float)Math.Cos((degrees - frontBase) * Math.PI / 16f)
+                : 0f;
             // The winter temperature contrast strengthens westerlies. The
             // polar easterlies are weaker than tropical trades on average.
             float EastStep(float front)
             {
-                float belt = trade * (float)Math.Tanh((front - degrees) / 8);
+                float frontTanh = custom && front >= 84f ? 1f : (float)Math.Tanh((front - degrees) / 8);
+                float belt = trade * frontTanh + multiBandMod;
                 return .24f * belt * (1 - .55f * polar) * (1 - .55f * summer * Math.Max(0, belt));
             }
-            inlandEastStep = EastStep(PolarFront(summer));
+            inlandEastStep = EastStep(PolarFront(frontBase, summer));
             // Ocean thermal inertia damps the seasonal shift of the subpolar
             // front. The two regimes blend inland over the maritime fetch.
-            marineEastStep = EastStep(MarinePolarFront);
+            marineEastStep = EastStep(marineFront);
         }
 
         float EastAt(float axis, float maritime)
@@ -57,17 +78,17 @@ namespace Orbis.Flat
             east = EastAt(axis, maritime);
             float side = latitude >= axis ? 1 : -1;
             float position = side * latitude, equator = side * axis;
-            float ridge = Math.Max(SubtropicalRidge(side * solstice), equator + 8);
+            float ridge = Math.Max(SubtropicalRidge(ridgeBase, side * solstice), equator + 8);
             if (position < ridge)
-                north = -side * .10f * Lobe((position - equator) / (ridge - equator));
+                north = -side * .10f * Lobe((position - equator) / Math.Max(4f, ridge - equator));
             else
-                north = side * FMath.Lerp(PolarReturn(position, ridge, PolarFront(side * solstice)),
-                    PolarReturn(position, ridge, MarinePolarFront), maritime);
+                north = side * FMath.Lerp(PolarReturn(position, ridge, PolarFront(frontBase, side * solstice)),
+                    PolarReturn(position, ridge, marineFront), maritime);
         }
 
         static float PolarReturn(float position, float ridge, float front) => position < front
-            ? .055f * Lobe((position - ridge) / (front - ridge))
-            : -.045f * Lobe((position - front) / (90 - front));
+            ? .055f * Lobe((position - ridge) / Math.Max(4f, front - ridge))
+            : (front >= 86f ? 0f : -.045f * Lobe((position - front) / Math.Max(2f, 90 - front)));
 
         // Couples Gleba's Saldo-pulled ITCZ, dynamic subpolar front, and segmented 18-oval
         // sea-level pressure geostrophic + cross-isobaric Ekman gyre winds into surface circulation.
@@ -92,12 +113,12 @@ namespace Orbis.Flat
 
             float side = latitude >= axis ? 1 : -1;
             float position = side * latitude, equator = side * axis;
-            float ridge = Math.Max(SubtropicalRidge(side * solstice), equator + 8);
+            float ridge = Math.Max(SubtropicalRidge(ridgeBase, side * solstice), equator + 8);
             if (position < ridge)
-                north = -side * .105f * Lobe((position - equator) / (ridge - equator));
+                north = -side * .105f * Lobe((position - equator) / Math.Max(4f, ridge - equator));
             else
-                north = side * FMath.Lerp(PolarReturn(position, ridge, PolarFront(side * solstice)),
-                    PolarReturn(position, ridge, MarinePolarFront), maritime);
+                north = side * FMath.Lerp(PolarReturn(position, ridge, PolarFront(frontBase, side * solstice)),
+                    PolarReturn(position, ridge, marineFront), maritime);
 
             // Geostrophic + frictional cross-isobaric Ekman wind around Gleba's segmented SLP ovals.
             // Gate meridional pressure-gradient (zonal geoX) to <41 deg so Gleba's 1100 hPa polar cap

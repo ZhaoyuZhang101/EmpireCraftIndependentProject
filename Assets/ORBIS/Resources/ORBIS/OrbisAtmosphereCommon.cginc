@@ -118,7 +118,7 @@ float2 OrbisLightSegment(float index,float count,float span)
 {
  return OrbisHPLightSegment(index,count,span);
 }
-float2 LightField(float3 p,float3 sun,float density)
+float2 LightFieldBounded(float3 p,float3 sun,float density,int maxSteps)
 {
  if(OrbisSunVisible(p,sun)<.5)return float2(0,0);
  float lengthToExit=max(0.0,OrbisSphere(p,sun,ORBIS_CLOUD_TOP).y);
@@ -126,18 +126,22 @@ float2 LightField(float3 p,float3 sun,float density)
  if(inner.x>0)lengthToExit=min(lengthToExit,inner.x);
  if(lengthToExit<=0.0)return float2(1,0);
  // The loop cap and quadrature divisor MUST use the same bounded count.
- int lightSteps=clamp(_LightSteps,1,8);
- float ds=lengthToExit/lightSteps;
+ int lightSteps=clamp(maxSteps,1,8);
  float4 tauFirst=0;float4 tauLast=0;float totalTau=0;
+ bool allowEarlyOut=_CloudLightSimple>.5;
  [loop] [fastopt] for(int j=0;j<8;j++)
  {
   if(j>=lightSteps)break;
   float2 segment=OrbisLightSegment(j,lightSteps,lengthToExit);
-  float t=(segment.x+segment.y)*.5;
-  // Fine erosion controls the visible silhouette. Lighting integrates the
-  // broader density field, avoiding two detail-volume reads per light sample.
-  float2 lightDensity=OrbisCloudDensities(p+sun*t,_CloudLightSimple>.5);
-  float sampleTau=(lightDensity.x+lightDensity.y)*ORBIS_EXTINCTION*(segment.y-segment.x);
+  float sampleTau=0;
+  // Dynamic GPU branch skips 3D volume reads once Beer-Lambert extinction > 99.987%
+  // while keeping a single induction exit so fxc / UnityShaderCompiler stays fast.
+  [branch] if(!allowEarlyOut||totalTau<5.6)
+  {
+   float t=(segment.x+segment.y)*.5;
+   float2 lightDensity=OrbisCloudDensities(p+sun*t,allowEarlyOut);
+   sampleTau=(lightDensity.x+lightDensity.y)*ORBIS_EXTINCTION*(segment.y-segment.x);
+  }
   if(j==0)tauFirst.x=sampleTau;
   else if(j==1)tauFirst.y=sampleTau;
   else if(j==2)tauFirst.z=sampleTau;
@@ -166,6 +170,10 @@ float2 LightField(float3 p,float3 sun,float density)
  float thinSuppression=1-exp(-totalTau*1.2);
  diffuse=OrbisHPCompressDiffuse(diffuse)*thinSuppression;
  return float2(direct,diffuse);
+}
+float2 LightField(float3 p,float3 sun,float density)
+{
+ return LightFieldBounded(p,sun,density,_LightSteps);
 }
 
 // Same phi_fwd source integral for the cached shadow path. The atlas stores total
@@ -203,6 +211,8 @@ void OrbisIntegrateSample(float3 p,float ds,float2 cloudLayers,float3 sun,float2
  float3 sigma=AirExtinction(rho)+cloudDensity*ORBIS_EXTINCTION;
  if(max(sigma.r,max(sigma.g,sigma.b))<1e-6)return;
  float3 sunT=AirSunTransmittance(p,sun);
+ float maxT=max(transmission.r,max(transmission.g,transmission.b));
+ bool fastDense=_CloudLightSimple>.5;
  // Both uses previously inlined the entire direct-shadow fallback independently.
  // Evaluate the SAME shadow once, only when at least one consumer needs it.
  float shadowT=1.0;
@@ -210,14 +220,13 @@ void OrbisIntegrateSample(float3 p,float ds,float2 cloudLayers,float3 sun,float2
  #ifdef ORBIS_SHARED_SCROLL_WEATHER
  if(_ScrollCloudSource>.5)
  {
-  [branch] if(_GodRays>.5&&_Clouds>.5&&any(sunT>1e-5))
+  [branch] if(_GodRays>.5&&_Clouds>.5&&any(sunT>1e-5)&&(!fastDense||maxT>.035))
   {
    float2 paths=ScrollCloudSunTransmission(p,sun);
    shadowT=paths.x;
    float opening=smoothstep(.025,.57,paths.x-paths.y)*paths.x;
-   // The same droplets scatter and extinguish the view ray, so light in a
-   // gap has a finite brightness even when the camera travels along the beam.
-   [branch] if(dot(p,p)<1.05*1.05)
+   // ScrollMoistAerosol vanishes identically for cloudDensity >= 0.14; skip height/weather fetches inside dense clouds.
+   [branch] if(dot(p,p)<1.05*1.05&&cloudDensity<.14)
     moistScatter=ScrollMoistAerosol(p,cloudDensity,opening)*_AtmoBetaMie.rgb*
                 ((.30+10*opening)*max(0,_Haze)*_AirDensity*saturate(_Atmosphere)*saturate(_ShadowStrength)*
                  smoothstep(.001,.08,max(sunT.r,max(sunT.g,sunT.b))));
@@ -246,9 +255,17 @@ void OrbisIntegrateSample(float3 p,float ds,float2 cloudLayers,float3 sun,float2
  if(cloudDensity>.0005)
  {
   float2 fields;
-  if(_OrbisShadowReady>.5)
+  bool useCachedShadow=_OrbisShadowReady>.5;
+  #ifdef ORBIS_SHARED_SCROLL_WEATHER
+  useCachedShadow=useCachedShadow||(fastDense&&_ScrollCloudSource>.5&&_GodRays>.5&&maxT<.22);
+  #endif
+  if(useCachedShadow)
       fields=float2(shadowT,OrbisCachedPhi(-log(max(shadowT,1e-6)),cloudDensity));
-  else fields=LightField(p,sun,cloudDensity);
+  else
+  {
+   int stepCap=!fastDense?_LightSteps:(maxT>=.52?_LightSteps:(maxT>=.22?min(_LightSteps,4):min(_LightSteps,2)));
+   fields=LightFieldBounded(p,sun,cloudDensity,stepCap);
+  }
   float directT=fields.x;
   #ifdef ORBIS_SHARED_SCROLL_WEATHER
   // An upstream bank can shadow a thin cloud as well as the air around it.
@@ -329,7 +346,8 @@ OrbisVolumeResult OrbisMarchRay(float3 ro,float3 rd,float endDistance,float scen
  // five ordered shell intervals, one rolled loop and bounded early extinction.
  [loop] [fastopt] for(int traversal=0;traversal<1285;traversal++)
  {
-  if(max(transmission.r,max(transmission.g,transmission.b))<.002)break;
+  float maxTrans=max(transmission.r,max(transmission.g,transmission.b));
+  if(maxTrans<(_CloudLightSimple>.5?.008:.002))break;
   if(sampleIndex>=sampleCount||cursor>=segmentEnd)
   {
    if(nextInterval>=5)break;
@@ -350,16 +368,21 @@ OrbisVolumeResult OrbisMarchRay(float3 ro,float3 rd,float endDistance,float scen
   float stepSize=min(ds,segmentEnd-cursor);float2 density=0;
   if(segmentHasCloud)
   {
-   // HP: cheap no-erosion probe, fine steps inside clouds and large empty steps.
-   // Preserve an exact interval end even when the bounded iteration budget is tight.
+   // HP: cheap no-erosion probe, fine steps on sunlit outer cloud silhouettes,
+   // relaxed steps inside optically dense cloud interiors, and large empty steps.
    float slab=ORBIS_CLOUD_TOP-ORBIS_CLOUD_BASE;
    float cap=min(max(cursor/8,.00004),lerp(slab/16,slab/2,pow(saturate((cursor-segmentBegin)/.08),2)));
    float large=min(ds,cap);
    float2 probe=OrbisCloudDensities(ro+rd*(cursor+large*.5),true);
-   stepSize=large*((probe.x+probe.y)>.0005?rcp(clamp(_CloudRefinement,1,4)):1);
+   bool hitProbe=(probe.x+probe.y)>.0005;
+   float refine=clamp(_CloudRefinement,1,4);
+   if(_CloudLightSimple>.5)refine=lerp(1.0,refine,smoothstep(.14,.55,maxTrans));
+   stepSize=large*(hitProbe?rcp(refine):1);
    stepSize=max(stepSize,(segmentEnd-cursor)/max(1,sampleCount-sampleIndex));
    stepSize=min(stepSize,segmentEnd-cursor);
-   density=OrbisCloudDensities(ro+rd*(cursor+stepSize*.5),false);
+   bool skipDetail=_CloudLightSimple>.5&&maxTrans<.18;
+   if(skipDetail&&(!hitProbe||abs(stepSize-large)<1e-6))density=probe;
+   else density=OrbisCloudDensities(ro+rd*(cursor+stepSize*.5),skipDetail);
   }
   float3 p=ro+rd*(cursor+stepSize*.5);
   OrbisIntegrateSample(p,stepSize,density,sun,phaseAir,moistPhase,phaseCloud,phaseHigh,phaseMoon,phaseMoonCloud,light,transmission);

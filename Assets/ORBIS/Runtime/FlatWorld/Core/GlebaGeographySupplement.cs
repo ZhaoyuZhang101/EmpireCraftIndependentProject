@@ -2987,7 +2987,13 @@ namespace Orbis.Flat
             var windE = new float[count];
             var windN = new float[count];
             var elevG = new float[count];
+            var oceanRow = new float[count];
+            var breezeRow = new float[count];
+            var fetchEastKm = new float[count];
+            var distWestKm = new float[count];
             var cosRow = new float[height];
+            var exo = moisture?.ExoPlaSim;
+            float baseLonKm = 40030f / width;
 
             for (int y = 0; y < height; y++)
             {
@@ -2997,12 +3003,17 @@ namespace Orbis.Flat
                 cosRow[y] = Math.Max(0.16f, (float)Math.Cos(latRad));
                 int sy = FMath.Clamp((int)(v * world.Height), 0, world.Height - 1);
                 int row = y * width;
+                float lonStepKm = baseLonKm * cosRow[y];
                 for (int x = 0; x < width; x++)
                 {
                     float u = (x + 0.5f) / width;
                     int sx = FMath.Wrap((int)(u * world.Width), world.Width);
                     int tile = sy * world.Width + sx;
                     elevG[row + x] = Math.Max(0f, (float)world.Elevation[tile]);
+                    oceanRow[row + x] = gleba != null
+                        ? gleba.SampleStatic(gleba.OceanFraction, u, v)
+                        : (FlatTerrainAnalysis.Ocean(world.Water[tile]) ? 1f : 0f);
+                    breezeRow[row + x] = exo != null ? exo.SampleStatic(exo.MaritimeSeaBreezeGuard, u, v) : 0f;
                     if (moisture != null)
                     {
                         windE[row + x] = FMath.Lerp(moisture.Sample(moisture.East, u, v, m0), moisture.Sample(moisture.East, u, v, m1), blend);
@@ -3013,6 +3024,28 @@ namespace Orbis.Flat
                         windE[row + x] = FlatWindBelts.Zonal(latDeg, season);
                         windN[row + x] = -0.30f * (float)Math.Sin((latDeg - 8f * season) * (Math.PI / 30.0));
                     }
+                }
+
+                // Coordinate-free zonal ocean-basin fetch scan (periodic 2x wrap):
+                // Under tropical easterlies, eastern & central ocean margins shoal the thermocline (Walker descending
+                // limb + equatorial Ekman upwelling clear slot in ALL seasons), while warm water piles up in the far west.
+                float runWestward = 0f;
+                for (int step = 2 * width - 1; step >= 0; step--)
+                {
+                    int x = step % width;
+                    int idx = row + x;
+                    if (oceanRow[idx] < 0.45f || breezeRow[idx] > 0.22f) runWestward = 0f;
+                    else runWestward = Math.Min(18000f, runWestward + lonStepKm);
+                    if (step < width) fetchEastKm[idx] = runWestward;
+                }
+                float runEastward = 0f;
+                for (int step = 0; step < 2 * width; step++)
+                {
+                    int x = step % width;
+                    int idx = row + x;
+                    if (oceanRow[idx] < 0.45f || breezeRow[idx] > 0.22f) runEastward = 0f;
+                    else runEastward = Math.Min(18000f, runEastward + lonStepKm);
+                    if (step >= width) distWestKm[idx] = runEastward;
                 }
             }
 
@@ -3103,23 +3136,79 @@ namespace Orbis.Flat
 
                     float dItcz = Math.Abs(latDeg - itczCol[x]);
                     float itczBand = (float)Math.Exp(-(dItcz * dItcz) / (6.8 * 6.8));
-                    float monsoonCore = Smooth(125f, 280f, rainMm) * Smooth(19f, 26f, tempC) * (1f - Smooth(26f, 35f, absLat));
-                    float moistGate = Smooth(0.35f, 0.74f, rh + 0.35f * FMath.Clamp(rainMm / 200f, 0f, 1f));
-                    float exoCapeBoost = 0f, exoCinDamp = 0f;
-                    var exo = moisture?.ExoPlaSim;
+                    float monsoonCore = Smooth(105f, 240f, rainMm) * Smooth(18.5f, 24.5f, tempC) * (1f - Smooth(26f, 35f, absLat));
+                    float exoCapeBoost = 0f, exoCinDamp = 0f, capeVal = 0f, deepSoilVal = 0f, breezeVal = breezeRow[idx];
                     if (exo != null)
                     {
-                        float cape = FMath.Lerp(exo.SampleMonthly(exo.CapeJkg, u, v, m0), exo.SampleMonthly(exo.CapeJkg, u, v, m1), blend);
+                        capeVal = FMath.Lerp(exo.SampleMonthly(exo.CapeJkg, u, v, m0), exo.SampleMonthly(exo.CapeJkg, u, v, m1), blend);
+                        deepSoilVal = FMath.Lerp(exo.SampleMonthly(exo.DeepSoil, u, v, m0), exo.SampleMonthly(exo.DeepSoil, u, v, m1), blend);
                         float chi = FMath.Lerp(exo.SampleMonthly(exo.EntropyDeficit, u, v, m0), exo.SampleMonthly(exo.EntropyDeficit, u, v, m1), blend);
-                        float breeze = exo.SampleStatic(exo.MaritimeSeaBreezeGuard, u, v);
-                        exoCapeBoost = 0.28f * Smooth(450f, 2100f, cape) + 0.16f * breeze * Smooth(19f, 26f, tempC);
-                        exoCinDamp = 0.26f * Smooth(0.68f, 0.95f, chi) * (1f - breeze);
+                        exoCapeBoost = 0.28f * Smooth(450f, 2100f, capeVal) + 0.16f * breezeVal * Smooth(19f, 26f, tempC);
+                        exoCinDamp = 0.26f * Smooth(0.68f, 0.95f, chi) * (1f - breezeVal);
                     }
+                    // Continental "Green Ocean" afternoon canopy-transpiration convection over humid equatorial rainforests
+                    // (Amazonia, Congo) persists across seasons via deep-root moisture recycling even when the heat-low migrates.
+                    float greenOceanConv = (1f - oceanFrac) * Smooth(68f, 165f, rainMm + 48f * deepSoilVal) * Smooth(20.0f, 24.5f, tempC)
+                                         * Smooth(0.20f, 0.48f, Math.Max(rh, 0.65f * deepSoilVal)) * (1f - Smooth(15f, 24f, absLat));
+                    float moistGate = Smooth(0.32f, 0.72f, rh + 0.38f * FMath.Clamp((rainMm + 35f * deepSoilVal) / 190f, 0f, 1f));
+
+                    // Orthogonal Hadley-Walker Double Circulation + Equatorial Ekman Upwelling Cold-Tongue & Split Double-ITCZ:
+                    // Note: Smooth(edge0, edge1, x) requires edge0 < edge1!
+                    // 1) Across eastern & central tropical ocean basins (and all-ocean zonal fetches), trade-wind stress shoals
+                    //    the thermocline and drives poleward Ekman divergence on both sides of f=0 in ALL FOUR SEASONS
+                    //    (including Spring/Autumn equinoxes), carving an equatorial cold-tongue subsidence slot (~0 deg)
+                    //    and bifurcating marine convergence into twin off-equator bands (~6.5-9.5 deg N/S).
+                    // 2) Intraseasonal MJO / Kelvin-Rossby longitudinal wave packets further break open-ocean warm pools into
+                    //    finite convective sectors so an unbroken 360-degree equatorial cloud ring can NEVER form.
+                    float easterlyTrade = Smooth(-0.005f, 0.048f, -windE[idx]);
+                    float basinSpanKm = fetchEastKm[idx] + distWestKm[idx];
+                    float westwardBasinPos = basinSpanKm >= 34000f
+                        ? 0.45f
+                        : fetchEastKm[idx] / Math.Max(1400f, basinSpanKm);
+                    float eastCentralBasin = Smooth(1600f, 3800f, basinSpanKm) * (1f - Smooth(0.46f, 0.76f, westwardBasinPos));
+                    float westernSomaliDiv = Smooth(1800f, 4000f, basinSpanKm) * (1f - Smooth(900f, 2400f, distWestKm[idx]))
+                                           * Smooth(0f, 110f, 155f - rainMm);
+                    float warmPool = Smooth(0.18f, 0.85f, sstAnom) * Smooth(0.50f, 0.80f, westwardBasinPos);
+                    float openEqOcean = Smooth(0.45f, 0.85f, oceanFrac) * (1f - Smooth(0.08f, 0.34f, breezeVal));
+
+                    double lonRad = (u - 0.5) * 2.0 * Math.PI;
+                    double mjoPhase = ((calendarDay % 360.0 + 360.0) % 360.0) / 45.0 * 2.0 * Math.PI;
+                    float mjoWave = (float)(0.62 * Math.Cos(2.0 * lonRad - mjoPhase) + 0.38 * Math.Cos(3.0 * lonRad - 1.35 * mjoPhase + 1.15));
+                    float mjoDryPhase = Smooth(-0.10f, 0.58f, -mjoWave);
+
+                    float eqCore = (float)Math.Exp(-(latDeg * latDeg) / (4.1 * 4.1));
+                    float ekmanColdSlot = openEqOcean * eqCore
+                                        * Math.Max(0.48f + 0.52f * easterlyTrade, eastCentralBasin)
+                                        * (1f - 0.84f * warmPool)
+                                        * Smooth(14f, 25f, tempC);
+                    float tropOceanBelt = openEqOcean * (1f - Smooth(9f, 23f, absLat));
+                    float walkerDescend = tropOceanBelt * Math.Max(eastCentralBasin * (1f - 0.75f * warmPool), westernSomaliDiv);
+                    float walkerClear = FMath.Clamp(
+                        0.88f * ekmanColdSlot + 0.56f * walkerDescend + 0.44f * tropOceanBelt * mjoDryPhase * (1f - 0.50f * warmPool),
+                        0f, 0.94f);
+
+                    float offEqDist = Math.Abs(absLat - 7.4f);
+                    float hemiSummerBias = 0.64f + 0.36f * (float)Math.Tanh(latDeg * season * 0.25);
+                    float doubleItczBand = openEqOcean * (0.40f + 0.60f * easterlyTrade) * hemiSummerBias
+                                         * (float)Math.Exp(-(offEqDist * offEqDist) / (2.9 * 2.9))
+                                         * (1f - 0.45f * mjoDryPhase);
+                    float effectiveItczBand = Math.Max(itczBand * (1f - 0.90f * ekmanColdSlot), 0.76f * doubleItczBand);
+
+                    float landOrIsland = FMath.Clamp((1f - oceanFrac) + 0.92f * breezeVal, 0f, 1f);
+                    float walkerMarineAscend = FMath.Clamp(
+                        0.58f * warmPool + 0.46f * doubleItczBand + 0.30f * Smooth(165f, 285f, rainMm) * (1f - 0.70f * eastCentralBasin)
+                        + 0.26f * Smooth(0.18f, 0.68f, lowP + 0.5f * Math.Max(0f, windConv))
+                        + 0.20f * Smooth(1200f, 2400f, capeVal)
+                        - 0.45f * eastCentralBasin * (1f - 0.85f * doubleItczBand) - 0.35f * mjoDryPhase,
+                        0.05f, 1f);
+                    float walkerGate = FMath.Lerp(walkerMarineAscend, 1f, landOrIsland) * (1f - 0.90f * ekmanColdSlot);
+
+                    float landRainShadowDamp = FMath.Lerp(0.70f, 0.22f, greenOceanConv);
                     float itczConv = FMath.Clamp(
-                        (Math.Max(itczBand * moistGate, monsoonCore * 0.86f) + exoCapeBoost * moistGate)
-                        * (1f - 0.65f * negImpact) * (1f - 0.70f * rainShadow) * (1f - exoCinDamp),
+                        (Math.Max(effectiveItczBand * moistGate, Math.Max(monsoonCore * 0.88f, greenOceanConv * 0.92f)) + exoCapeBoost * moistGate * walkerGate)
+                        * walkerGate * (1f - 0.65f * negImpact * (1f - 0.80f * greenOceanConv)) * (1f - landRainShadowDamp * rainShadow) * (1f - exoCinDamp),
                         0f, 1f);
-                    synopticLift = FMath.Clamp(synopticLift + 0.18f * exoCapeBoost - 0.20f * exoCinDamp, 0f, 1f);
+                    synopticLift = FMath.Clamp(synopticLift + 0.18f * exoCapeBoost * walkerGate + 0.18f * greenOceanConv - 0.20f * exoCinDamp - 0.46f * walkerClear, 0f, 1f);
 
                     float dPolar = Math.Min(Math.Abs(latDeg - polNCol[x]), Math.Abs(latDeg - polSCol[x]));
                     float polarBand = (float)Math.Exp(-(dPolar * dPolar) / (14.5 * 14.5));
@@ -3131,19 +3220,21 @@ namespace Orbis.Flat
                         0f, 1f);
 
                     float moistureEnv = FMath.Clamp(
-                        0.62f * Smooth(0.22f, 0.82f, rh) + 0.38f * FMath.Clamp(rainMm / 185f, 0f, 1f) - 0.38f * aridSub,
+                        0.62f * Smooth(0.22f, 0.82f, rh) + 0.38f * FMath.Clamp(rainMm / 185f, 0f, 1f) - 0.38f * aridSub - 0.52f * walkerClear,
                         0f, 1f);
 
-                    // Cold eastern-boundary upwelling + subtropical subsidence lid -> low honeycomb Marine Stratocumulus
+                    // Cold eastern-boundary upwelling + subtropical subsidence lid + equatorial Ekman cold-tongue -> low Marine Stratocumulus / shallow Cu
                     float coolUpwelling = FMath.Clamp((0.42f - sstAnom) / 2.1f, 0f, 1f);
                     float inversionLid = FMath.Clamp(0.52f * highP + 0.48f * sthzRidge + 0.32f * negImpact, 0f, 1f);
                     float scLat = Smooth(6f, 13f, absLat) * (1f - Smooth(33f, 43f, absLat));
+                    float subtropSc = oceanFrac * scLat * (0.24f + 0.76f * coolUpwelling) * (0.32f + 0.68f * inversionLid);
+                    float eqColdSc = ekmanColdSlot * (0.28f + 0.20f * Math.Max(coolUpwelling, eastCentralBasin));
                     float marineSc = FMath.Clamp(
-                        oceanFrac * scLat * (0.24f + 0.76f * coolUpwelling) * (0.32f + 0.68f * inversionLid) * (1f - 0.85f * itczConv),
+                        Math.Max(subtropSc, eqColdSc) * (1f - 0.85f * itczConv),
                         0f, 1f);
 
                     float orogCrest = FMath.Clamp(windwardLift * Smooth(0.18f, 0.54f, rh + 0.30f * FMath.Clamp(rainMm / 140f, 0f, 1f)), 0f, 1f);
-                    float leeShadow = FMath.Clamp(rainShadow + 0.35f * leeDownslope, 0f, 1f);
+                    float leeShadow = FMath.Clamp(rainShadow + 0.35f * leeDownslope + 0.82f * walkerClear, 0f, 1f);
                     float localPol = latDeg >= 0f ? polNCol[x] : -polSCol[x];
                     float polNorm = FMath.Clamp((localPol - 30f) / 45f, 0f, 1f);
 
@@ -3160,7 +3251,6 @@ namespace Orbis.Flat
 
                     if (upperWindHalf != null && upperWindHalf.Length >= count * 4)
                     {
-                        double lonRad = (u - 0.5) * 2.0 * Math.PI;
                         rossby0.GetJetStreamMovementAtLatLon(latRad, lonRad, out float jx0, out float jy0);
                         rossby1.GetJetStreamMovementAtLatLon(latRad, lonRad, out float jx1, out float jy1);
                         // Scale Rossby jet into surface-wind units + tropical upper-tropospheric easterly anvil outflow

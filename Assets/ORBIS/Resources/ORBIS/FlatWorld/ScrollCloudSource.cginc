@@ -23,11 +23,16 @@ float ScrollCloudGround(float2 uv)
  return ScrollInterpolatedRadius(ScrollHeightAt(centre),ScrollHeightAt(centre+dx),
                                  ScrollHeightAt(centre+dy),ScrollHeightAt(centre+dx+dy),fraction,uv,_ScrollSourceSize.y);
 }
+float ScrollCloudGroundFast(float2 uv)
+{
+ if(_ScrollHeightScale<=0)return 1;
+ return ScrollRadius(ScrollSurfaceHeight(ScrollHeightAt(uv)),uv,_ScrollSourceSize.y);
+}
 // Uses the SAME spherical coordinates on the globe and every repeated 2D sheet.
 float2 ScrollClimateDensities(float3 p,bool simpleMode)
 {
  float2 uv=OrbisWeatherUV(p);
- float ground=ScrollCloudGround(uv);
+ float ground=simpleMode?ScrollCloudGroundFast(uv):ScrollCloudGround(uv);
  float z=(length(p)-ground)/max(1e-7,_CloudHeightScale);
  if(z<400||z>13500)return 0;
  float4 weather=tex2Dlod(_ScrollWeatherTex,float4(uv,0,0));
@@ -35,35 +40,49 @@ float2 ScrollClimateDensities(float3 p,bool simpleMode)
  float3 up=normalize(p);
  float3 localWind=tex2Dlod(_ScrollCloudWindTex,float4(uv,0,0)).xyz;
  float phase=frac(_ScrollWeatherTime*.016);
- float3 a=normalize(up-localWind*phase*8),b=normalize(up+localWind*(1-phase)*8);
  float coverage=weather.r,convection=weather.b;
  float low=0,high=0;
  if(coverage>.004&&z<11500)
  {
-  // Sample successive radial slices through the HP body. Multi-scale spherical
-  // frequencies prevent giant single-cell bubbles on the globe while preserving
-  // mesoscale cloud turrets, wind-sheared convective towers and cellular decks.
-  float altitude=z/7000;
-  const float3x3 frame=float3x3(.36,.48,-.80,-.80,.60,0,.48,.64,.60);
-  float3 offset=float3(.13,.71,.37)+mul(frame,localWind)*altitude*1.25;
-  float macroScale=5.2+altitude*.24;
-  float mesoScale=13.4+altitude*.55;
-  float3 q0=mul(frame,a),q1=mul(frame,b);
-  float4 macroBody=lerp(tex3Dlod(_CloudNoise,float4(q0*macroScale+offset,0)),tex3Dlod(_CloudNoise,float4(q1*macroScale+offset,0)),phase);
-  float3 mesoWarp=(macroBody.gba-.5)*.20;
-  float4 body=lerp(tex3Dlod(_CloudNoise,float4(q0*mesoScale+offset*1.63+mesoWarp,0)),tex3Dlod(_CloudNoise,float4(q1*mesoScale+offset*1.63+mesoWarp,0)),phase);
-  float shape=saturate(macroBody.r*.44+body.r*.40+body.g*.20+coverage*.09);
-  float4 erosion=.48;
-  if(!simpleMode)
-  {
-   float3 curl=(body.gba-.5)*.68;
-   erosion=lerp(tex3Dlod(_CloudDetailNoise,float4(q0*42.0+curl,0)),tex3Dlod(_CloudDetailNoise,float4(q1*42.0+curl,0)),phase);
-   coverage=saturate(coverage+(erosion.r*.66+erosion.g*.34-.48)*.44*smoothstep(.02,.19,coverage));
-  }
   float tower=smoothstep(.32,.95,convection);
   float height=450+(z-450)/lerp(.88,1.35,tower);
-  low=OrbisHPLowDensityDetailed(height,.26+.74*coverage,convection,shape,erosion,.56+.44*body.g);
-  low*=coverage*lerp(.50,1.16,tower);
+  // Exact vertical support bound for OrbisHPLowDensityDetailed: skip 3D volume fetches
+  // when ray altitude lies strictly above the local Cu/Tcu/Cb profile ceiling.
+  float hBound=(height-450)/6200;
+  float covBound=.26+.74*(simpleMode?coverage:saturate(coverage+.23));
+  float minLocalH=hBound/(1.16*(1.0+.55*covBound*max(0.0,hBound)));
+  float profileCut=convection<=.001?.435:(convection<=.5?.635:.835);
+  if(minLocalH<profileCut)
+  {
+   float3 a=normalize(up-localWind*phase*8),b=normalize(up+localWind*(1-phase)*8);
+   // Sample successive radial slices through the HP body. Multi-scale spherical
+   // frequencies prevent giant single-cell bubbles on the globe while preserving
+   // mesoscale cloud turrets, wind-sheared convective towers and cellular decks.
+   float altitude=z/7000;
+   const float3x3 frame=float3x3(.36,.48,-.80,-.80,.60,0,.48,.64,.60);
+   float3 offset=float3(.13,.71,.37)+mul(frame,localWind)*altitude*1.25;
+   float macroScale=5.2+altitude*.24;
+   float mesoScale=13.4+altitude*.55;
+   float3 q0=mul(frame,a),q1=mul(frame,b);
+   float4 macroBody=lerp(tex3Dlod(_CloudNoise,float4(q0*macroScale+offset,0)),tex3Dlod(_CloudNoise,float4(q1*macroScale+offset,0)),phase);
+   float3 mesoWarp=(macroBody.gba-.5)*.20;
+   float4 body=lerp(tex3Dlod(_CloudNoise,float4(q0*mesoScale+offset*1.63+mesoWarp,0)),tex3Dlod(_CloudNoise,float4(q1*mesoScale+offset*1.63+mesoWarp,0)),phase);
+   float shape=saturate(macroBody.r*.44+body.r*.40+body.g*.20+coverage*.09);
+   // Detail erosion only subtracts from pow(shape,0.62); skip 64^3 detail fetches if shape cannot condense.
+   float maxBaseShape=pow(shape,.62);
+   if(maxBaseShape>.89-covBound)
+   {
+    float4 erosion=.48;
+    if(!simpleMode)
+    {
+     float3 curl=(body.gba-.5)*.68;
+     erosion=lerp(tex3Dlod(_CloudDetailNoise,float4(q0*42.0+curl,0)),tex3Dlod(_CloudDetailNoise,float4(q1*42.0+curl,0)),phase);
+     coverage=saturate(coverage+(erosion.r*.66+erosion.g*.34-.48)*.44*smoothstep(.02,.19,coverage));
+    }
+    low=OrbisHPLowDensityDetailed(height,.26+.74*coverage,convection,shape,erosion,.56+.44*body.g);
+    low*=coverage*lerp(.50,1.16,tower);
+   }
+  }
  }
  if(weather.g>.004&&z>5750)
  {
