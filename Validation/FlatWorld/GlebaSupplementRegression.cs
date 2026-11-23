@@ -19,7 +19,8 @@ internal static class GlebaSupplementRegression
         CheckRossbyJetsAndMapmodes();
         CheckRealEarthDiagnostics();
         CheckProceduralGeographyCarvingAndErosion();
-        Console.WriteLine("PASS Gleba supplement package: circulation, Rossby jets, ocean currents/upwelling, Holdridge ecology, saltwater/freshwater lakes, coral reefs, fjords, aquifers, hierarchy, and Earth 256 diagnostics.");
+        CheckProceduralPlanetGeneration();
+        Console.WriteLine("PASS Gleba supplement package: circulation, Rossby jets, ocean currents/upwelling, Holdridge ecology, saltwater/freshwater lakes, coral reefs, fjords, aquifers, hierarchy, procedural planet generation, and Earth 256 diagnostics.");
     }
 
     static void CheckRotationAndWorkers()
@@ -520,5 +521,92 @@ internal static class GlebaSupplementRegression
         float[] etFlow = GlebaGeographySupplement.ApplySortedHydraulicErosion(clone);
         Check(shoaled == clone.Facts.GlebaGeography.CoralReefTileCount && fjords >= 0 && relaxed >= 0 && etFlow.Length == clone.Count,
             $"Procedural carving & erosion operators failed: shoaled={shoaled}, fjords={fjords}, relaxed={relaxed}");
+    }
+
+    static void CheckProceduralPlanetGeneration()
+    {
+        int totalPassiveShelf = 0, totalTrench = 0, totalForeland = 0, totalPaleo = 0, totalLip = 0, totalSwell = 0, totalFjords = 0, totalReefs = 0;
+        double passiveDepthSum = 0, trenchDepthSum = 0;
+
+        foreach (TerrainPreset preset in FlatGenerator.ProceduralPresets)
+        {
+            var w = FlatGenerator.Generate(256, 128, "GLEBA-PLANET-GEN-2026", preset, default);
+            var tec = w.Tectonics;
+            var geo = w.Facts?.GlebaGeography;
+            Check(tec != null && geo != null, $"{preset}: missing Tectonics or GlebaGeography");
+            Check(tec.Microplate != null && tec.Microplate.Length == w.Count && tec.MicroplateCount >= 40,
+                $"{preset}: invalid microplate hierarchy count={tec.MicroplateCount}");
+            Check(tec.Province != null && tec.Province.Length == w.Count && tec.RockResistance != null && tec.RockResistance.Length == w.Count,
+                $"{preset}: missing Gleba province or lithology resistance arrays");
+
+            float minRes = float.MaxValue, maxRes = float.MinValue;
+            int passive = 0, trench = 0, foreland = 0, paleo = 0, lip = 0, swell = 0, shield = 0, hawaii = 0;
+
+            for (int i = 0; i < w.Count; i++)
+            {
+                // Sub-plate microplates are strictly nested inside macro-plates (4 microplates per plate)
+                Check(tec.Microplate[i] / 4 == tec.Plate[i] && geo.MicroplateId[i] == tec.Microplate[i],
+                    $"{preset}: microplate {tec.Microplate[i]} out of sync with macro-plate {tec.Plate[i]} or GlebaGeography");
+
+                float r = tec.RockResistance[i];
+                if (r < minRes) minRes = r;
+                if (r > maxRes) maxRes = r;
+
+                var p = tec.Province[i];
+                if ((p & GlebaTectonicProvince.PassiveShelf) != 0 && FlatTerrainAnalysis.Ocean(w.Water[i]))
+                {
+                    passive++;
+                    passiveDepthSum += -w.Elevation[i];
+                }
+                if ((p & GlebaTectonicProvince.ActiveTrench) != 0 && FlatTerrainAnalysis.Ocean(w.Water[i]))
+                {
+                    trench++;
+                    trenchDepthSum += -w.Elevation[i];
+                }
+                if ((p & GlebaTectonicProvince.ForelandBasin) != 0) foreland++;
+                if ((p & GlebaTectonicProvince.PaleoOrogen) != 0)
+                {
+                    paleo++;
+                    Check(geo.HasFlag(i, GlebaGeoFlags.PaleoOrogen), $"{preset}: PaleoOrogen flag not synced to GlebaGeography");
+                }
+                if ((p & GlebaTectonicProvince.LargeIgneousProvince) != 0)
+                {
+                    lip++;
+                    Check(geo.HasFlag(i, GlebaGeoFlags.LargeIgneousProvince), $"{preset}: LIP flag not synced to GlebaGeography");
+                    if (!FlatTerrainAnalysis.Ocean(w.Water[i]))
+                    {
+                        var rock = geo.Bedrock[i];
+                        Check(rock == GlebaRockKind.Basalt || rock == GlebaRockKind.Picrobasalt,
+                            $"{preset}: continental LIP tile must map to flood-basalt bedrock, got {rock}");
+                    }
+                }
+                if ((p & GlebaTectonicProvince.MantleSuperswell) != 0) swell++;
+                if ((p & GlebaTectonicProvince.CratonShield) != 0) shield++;
+                if ((p & GlebaTectonicProvince.HawaiianChain) != 0) hawaii++;
+            }
+
+            Check(maxRes - minRes > 0.45f, $"{preset}: insufficient lithology resistance contrast ({minRes:F2}..{maxRes:F2})");
+            Check(passive > 50 && hawaii > 0 && shield > 0, $"{preset}: missing passive shelves ({passive}), shields ({shield}), or hotspot chains ({hawaii})");
+
+            totalPassiveShelf += passive;
+            totalTrench += trench;
+            totalForeland += foreland;
+            totalPaleo += paleo;
+            totalLip += lip;
+            totalSwell += swell;
+            totalFjords += geo.FjordCoastTileCount;
+            totalReefs += geo.CoralReefTileCount;
+
+            Console.WriteLine($"  GlebaPlanetGen {preset,-14}: microplates={tec.MicroplateCount}, passiveShelf={passive}, trench={trench}, foreland={foreland}, paleoOrogen={paleo}, LIP={lip}, superswell={swell}, fjords={geo.FjordCoastTileCount}, reefs={geo.CoralReefTileCount}");
+        }
+
+        double meanPassiveDepth = passiveDepthSum / Math.Max(1, totalPassiveShelf);
+        double meanTrenchDepth = trenchDepthSum / Math.Max(1, totalTrench);
+        Console.WriteLine($"  GlebaPlanetGen shelf/trench contrast: passive shelf mean depth={meanPassiveDepth:F0} m vs active trench mean depth={meanTrenchDepth:F0} m");
+
+        Check(totalTrench > 50 && meanPassiveDepth < 320.0 && meanTrenchDepth > 5200.0,
+            $"Passive shelf ({meanPassiveDepth:F0} m) vs active trench ({meanTrenchDepth:F0} m) bathymetric contrast failed");
+        Check(totalForeland > 100 && totalPaleo > 50 && totalLip > 100 && totalSwell > 100 && totalFjords > 10 && totalReefs > 20,
+            $"Missing Gleba provinces across presets: foreland={totalForeland}, paleo={totalPaleo}, lip={totalLip}, swell={totalSwell}, fjords={totalFjords}, reefs={totalReefs}");
     }
 }

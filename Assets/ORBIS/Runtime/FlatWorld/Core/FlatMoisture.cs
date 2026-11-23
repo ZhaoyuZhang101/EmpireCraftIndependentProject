@@ -1192,7 +1192,7 @@ namespace Orbis.Flat
 
                             lift[i]=lift[i]*combinedSuppress*eqItczBoost*coldStratBoost;
                             rainEfficiency[i]=Math.Max(.04f,rainEfficiency[i]*combinedSuppress*eqItczBoost*coldStratBoost);
-                            column.Rainout[i]*=(1f-.42f*shadowDry-.42f*hyperAridCore-.28f*desertMarginLid-.80f*somaliDivergence-.32f*subtropPlateau-.30f*harmattanCap)
+                            column.Rainout[i]*=Math.Max(0f,1f-.42f*shadowDry-.42f*hyperAridCore-.28f*desertMarginLid-.80f*somaliDivergence-.32f*subtropPlateau-.30f*harmattanCap)
                                 *(1f+.24f*seaBreeze*warmBreeze*breezeSeason);
 
                             // Western-Pacific typhoon moisture organization strictly on open Pacific margin (`sector.EasternMargin`), never Bay of Bengal -> Deccan!
@@ -1301,7 +1301,7 @@ namespace Orbis.Flat
                         float largeScaleExcess=Math.Max(0,air-cap*critRh)*.65f;
                         float dynCond=air*Math.Min(.7f,(column.Lift[i]+column.Efficiency[i]*.055f*cloudFraction*cloudFraction)*dt);
                         float condensed=largeScaleExcess+dynCond;
-                        float gross=Math.Min(air,condensed+stormCloud);
+                        float gross=Math.Max(0f,Math.Min(air,condensed+stormCloud));
                         float skinMax=Math.Max(1e-4f,30f*land), deepMax=Math.Max(1e-4f,120f*land);
                         float wettedSurface=sea+land*Math.Min(1,totalSoil*inverseFieldWater[i]);
                         float virga=SubcloudEvaporation(gross,air,cap,dt,wettedSurface,column.DryLayer[i]);

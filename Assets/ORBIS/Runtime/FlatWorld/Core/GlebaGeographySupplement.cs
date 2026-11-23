@@ -786,6 +786,32 @@ namespace Orbis.Flat
             float[] ux, float[] uy, float[] uz, float[] fbmNoise, uint seed)
         {
             int n = w.Count;
+            if (w.Preset != TerrainPreset.Earth && w.Tectonics != null && w.Tectonics.Province != null && w.Tectonics.Province.Length == n)
+            {
+                var prov = w.Tectonics.Province;
+                int lipAuth = 0, paleoAuth = 0;
+                for (int i = 0; i < n; i++)
+                {
+                    var p = prov[i];
+                    if ((p & GlebaTectonicProvince.LargeIgneousProvince) != 0)
+                    {
+                        geo.Flags[i] |= GlebaGeoFlags.LargeIgneousProvince;
+                        lipAuth++;
+                    }
+                    if ((p & GlebaTectonicProvince.PaleoOrogen) != 0)
+                    {
+                        geo.Flags[i] |= GlebaGeoFlags.PaleoOrogen;
+                        if (geo.OrogenyStrengthByte[i] < 92) geo.OrogenyStrengthByte[i] = 92;
+                        paleoAuth++;
+                    }
+                    if ((p & GlebaTectonicProvince.MantleSuperswell) != 0)
+                        geo.Flags[i] |= GlebaGeoFlags.MantleSuperswell;
+                }
+                geo.LipTileCount = lipAuth;
+                geo.PaleoOrogenTileCount = paleoAuth;
+                return;
+            }
+
             const int LipProvinceCount = 5;
             var lx = new float[LipProvinceCount];
             var ly = new float[LipProvinceCount];
@@ -906,16 +932,23 @@ namespace Orbis.Flat
                         float orog = FMath.Clamp(tec.Seismicity[i] * 0.65f + Math.Max(0f, w.Elevation[i]) / 5200f * 0.35f, 0f, 1f);
                         geo.OrogenyStrengthByte[i] = (byte)Math.Round(orog * 255f);
 
-                        float wx = ux[i] + 0.24f * fbmNoise[i];
-                        float wy = uy[i] + 0.24f * SphericalFbm6(uy[i], uz[i], ux[i], 3.1f, seed ^ 0x55aa11u);
-                        float wz = uz[i] + 0.18f * fbmNoise[i];
-                        int bestM = 0; float bestDot = -9f;
-                        for (int k = 0; k < MicroCount; k++)
+                        if (tec.Microplate != null && tec.Microplate.Length == n)
                         {
-                            float d = wx * mx[k] + wy * my[k] + wz * mz[k];
-                            if (d > bestDot) { bestDot = d; bestM = k; }
+                            geo.MicroplateId[i] = tec.Microplate[i];
                         }
-                        geo.MicroplateId[i] = (ushort)((tec.Plate[i] * MicroCount) + bestM);
+                        else
+                        {
+                            float wx = ux[i] + 0.24f * fbmNoise[i];
+                            float wy = uy[i] + 0.24f * SphericalFbm6(uy[i], uz[i], ux[i], 3.1f, seed ^ 0x55aa11u);
+                            float wz = uz[i] + 0.18f * fbmNoise[i];
+                            int bestM = 0; float bestDot = -9f;
+                            for (int k = 0; k < MicroCount; k++)
+                            {
+                                float d = wx * mx[k] + wy * my[k] + wz * mz[k];
+                                if (d > bestDot) { bestDot = d; bestM = k; }
+                            }
+                            geo.MicroplateId[i] = (ushort)((tec.Plate[i] * MicroCount) + bestM);
+                        }
                     }
                 });
 
