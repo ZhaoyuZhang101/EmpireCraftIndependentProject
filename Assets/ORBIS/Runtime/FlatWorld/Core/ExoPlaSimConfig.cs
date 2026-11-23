@@ -10,7 +10,23 @@ namespace Orbis.Flat
         IcehouseGlacial = 3,
         HighObliquity35 = 4,
         SuperEarthDense = 5,
-        TidallyLockedEyeball = 6
+        TidallyLockedEyeball = 6,
+        SlowRotatorDoubleCell = 7
+    }
+
+    /// <summary>
+    /// Planetary meridional atmospheric circulation regime governed by rotation rate (Rossby / Held-Hou number):
+    /// - SingleCell: ultra-slow rotator or tidally locked (Omega &lt;= 0.28x Earth, 1 global equator-to-pole / substellar cell)
+    /// - DoubleCell ("双环流"): intermediate slow rotator (0.28x &lt; Omega &lt;= 0.68x Earth, expanded ~0-44 deg Hadley cell + merged ~44-90 deg high-latitude cell, 2 cells per hemisphere)
+    /// - ThreeCell: Earth-like rotator (0.68x &lt; Omega &lt;= 1.45x Earth, Hadley + Ferrel + Polar = 3 cells per hemisphere)
+    /// - MultiBandJets: fast rotator (Omega &gt; 1.45x Earth, shrunken Hadley + multiple baroclinic eddy jet bands)
+    /// </summary>
+    public enum ExoPlaSimCirculationRegime : byte
+    {
+        SingleCell = 1,
+        DoubleCell = 2,
+        ThreeCell = 3,
+        MultiBandJets = 4
     }
 
     /// <summary>
@@ -148,6 +164,49 @@ namespace Orbis.Flat
             TidallyLocked ? 2.4f : FMath.Clamp((float)Math.Pow(Math.Max(0.04, RotationRateRatio), -0.42), 0.55f, 2.5f);
 
         /// <summary>
+        /// Meridional circulation cell regime per hemisphere (SingleCell / DoubleCell / ThreeCell / MultiBandJets).
+        /// </summary>
+        public ExoPlaSimCirculationRegime CirculationRegime
+        {
+            get
+            {
+                if (TidallyLocked || RotationRateRatio <= 0.28f) return ExoPlaSimCirculationRegime.SingleCell;
+                if (RotationRateRatio <= 0.68f) return ExoPlaSimCirculationRegime.DoubleCell;
+                if (RotationRateRatio <= 1.45f) return ExoPlaSimCirculationRegime.ThreeCell;
+                return ExoPlaSimCirculationRegime.MultiBandJets;
+            }
+        }
+
+        /// <summary>
+        /// Mean subtropical Hadley subsidence ridge latitude (deg). ~30 deg on Earth, ~42-48 deg in DoubleCell regime.
+        /// </summary>
+        public float HadleyTerminusDeg =>
+            IsStandardModernEarth ? 30.0f : FMath.Clamp(30.0f * HadleyExpansionFactor, 16.5f, 80.0f);
+
+        /// <summary>
+        /// Mean subpolar front / second-cell terminus latitude (deg).
+        /// In DoubleCell ("双环流"), Ferrel + Polar merge into one high-latitude cell reaching ~84-88 deg without a polar easterly cap.
+        /// </summary>
+        public float PolarFrontTerminusDeg
+        {
+            get
+            {
+                if (IsStandardModernEarth) return 65.0f;
+                switch (CirculationRegime)
+                {
+                    case ExoPlaSimCirculationRegime.SingleCell:
+                        return 89.0f;
+                    case ExoPlaSimCirculationRegime.DoubleCell:
+                        return FMath.Clamp(88.0f - 9.0f * ((RotationRateRatio - 0.28f) / 0.40f), 79.0f, 88.0f);
+                    case ExoPlaSimCirculationRegime.MultiBandJets:
+                        return FMath.Clamp(65.0f * (float)Math.Pow(RotationRateRatio, -0.36), 40.0f, 58.0f);
+                    default:
+                        return FMath.Clamp(65.0f * (float)Math.Pow(Math.Max(0.5, RotationRateRatio), -0.25), 56.0f, 74.0f);
+                }
+            }
+        }
+
+        /// <summary>
         /// Computes daily-mean Top-Of-Atmosphere (TOA) incident shortwave flux in W/m2 at (latitudeRad, longitudeRad, month).
         /// Supports arbitrary obliquity, eccentricity, stellar constant, and tidally-locked substellar geometry.
         /// </summary>
@@ -215,6 +274,11 @@ namespace Orbis.Flat
                     c.Eccentricity = 0.0f;
                     c.Co2Ppm = 450.0f;
                     break;
+                case ExoPlaSimPreset.SlowRotatorDoubleCell:
+                    c.RotationRateRatio = 0.45f; // ~53h sidereal day -> Held-Hou expanded Hadley (~42 deg) + single high-lat cell (2-cell regime)
+                    c.ObliquityDeg = 22.5f;
+                    c.Co2Ppm = 380.0f;
+                    break;
             }
             return c;
         }
@@ -230,7 +294,20 @@ namespace Orbis.Flat
                 case ExoPlaSimPreset.HighObliquity35: return "高倾角强季风行星 (倾角 35°)";
                 case ExoPlaSimPreset.SuperEarthDense: return "稠密大气超级地球 (2.16 bar · 1.4g)";
                 case ExoPlaSimPreset.TidallyLockedEyeball: return "红矮星潮汐锁定眼球行星";
+                case ExoPlaSimPreset.SlowRotatorDoubleCell: return "慢自转双环流行星 (0.45x自转 · 双环流)";
                 default: return preset.ToString();
+            }
+        }
+
+        public static string GetCirculationRegimeLabel(ExoPlaSimCirculationRegime regime)
+        {
+            switch (regime)
+            {
+                case ExoPlaSimCirculationRegime.SingleCell: return "单环流 (全局哈德莱环流)";
+                case ExoPlaSimCirculationRegime.DoubleCell: return "双环流 (宽哈德莱 + 中高纬合并环流)";
+                case ExoPlaSimCirculationRegime.ThreeCell: return "三环流 (哈德莱 + 费雷尔 + 极地)";
+                case ExoPlaSimCirculationRegime.MultiBandJets: return "多环流急流带 (快自转多涡旋带)";
+                default: return regime.ToString();
             }
         }
     }

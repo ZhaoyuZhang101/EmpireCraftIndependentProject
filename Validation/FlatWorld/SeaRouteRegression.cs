@@ -61,10 +61,10 @@ public static class SeaRouteRegression
         var random=FlatGenerator.Generate(256,128,"shore-archipelago-2026",TerrainPreset.Archipelago,default);
         FlatSeaPoint CellPoint(double x,double y)=>new FlatSeaPoint(x*360/random.Width-180,y*180/random.Height-90);
         var nav=new FlatSeaNavigation(random);
-        // All three points lie in procedural shallow-sea tile 10753.
-        double column=1+6.5/7;
-        var a=CellPoint(column,42+.5/7);var b=CellPoint(column,42+6.5/7);var inland=CellPoint(column,42.5);
-        Require(random.Water[10753]==WaterKind.ShallowOcean && nav.IsWater(a) && nav.IsWater(b) &&
+        // All three points lie in procedural shallow-sea tile 8928.
+        double column=224+1.5/7;
+        var a=CellPoint(column,34+.5/7);var b=CellPoint(column,34+6.5/7);var inland=CellPoint(column,34.5);
+        Require(random.Water[8928]==WaterKind.ShallowOcean && nav.IsWater(a) && nav.IsWater(b) &&
             !nav.IsWater(inland) && FlatGeographicSurface.IsGroundAt(random,inland),"Procedural island clicks disagree with the continuous shore.");
         var detour=nav.Find(a,b);CheckEndpoints(detour,a,b);
         Require(detour.Length>2 && !nav.SegmentIsWater(a,b),"Procedural route crossed a dry finger between two wet endpoints.");

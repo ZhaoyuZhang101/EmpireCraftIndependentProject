@@ -731,6 +731,9 @@ namespace Orbis.Flat
                     zonalTemp[y]+=temp+elevation[i]*.0065f;
                 }
                 for(int y=0;y<height;y++)zonalTemp[y]/=width;
+                var planet=world.PlanetClimate;
+                bool customPlanet=planet!=null && !planet.IsStandardModernEarth;
+                float hadleyRidgeScale=customPlanet?planet.HadleyTerminusDeg/30f:1f;
                 var convergenceLatitude=new float[count];
                 for(int y=0;y<height;y++)for(int x=0;x<width;x++)
                 {
@@ -744,7 +747,7 @@ namespace Orbis.Flat
                     // through the equator and grows toward the tropics.
                     float hemisphere=FMath.Clamp((float)Math.Sin(lat*Math.PI/180)*2.5f,-1,1);
                     float seasonalHeat=regionalLand[i]*(float)Math.Cos((month-6)*Math.PI/6)*hemisphere*Math.Max(0,1-Math.Abs(lat)/75);
-                    float subtropical=FMath.Lerp(30,28,seaRegion)+Math.Max(0,seasonalHeat)*3;
+                    float subtropical=(FMath.Lerp(30,28,seaRegion)+Math.Max(0,seasonalHeat)*3)*hadleyRidgeScale;
                     float glebaPressureAnom=gleba!=null && oceanContrast>0f
                         ?(gleba.PressureHpa[i*12+month]-zonalGlebaP[y])*.005f*oceanContrast:0f;
                     pressure[i]=1.7f*(float)Math.Exp(-Math.Pow((Math.Abs(lat)-subtropical)/12,2))
@@ -758,7 +761,7 @@ namespace Orbis.Flat
                 {
                     float lat=((y+.5f)/height-.5f)*180,ab=Math.Abs(lat);
                     float coriolis=(float)Math.Sin(lat*Math.PI/180);
-                    var winds=seasonalWinds?new FlatWindBelts(lat,solstice):default;
+                    var winds=seasonalWinds?new FlatWindBelts(lat,solstice,planet):default;
                     float referenceEast=seasonalWinds?0:(float)Math.Tanh((ab-30)/8)*(float)Math.Tanh((68-ab)/8)*.24f;
                     float hemi=FMath.Clamp(coriolis*8,-1,1);
                     float summer=solstice*hemi;
@@ -1243,7 +1246,7 @@ namespace Orbis.Flat
 
                             lift[i]=lift[i]*combinedSuppress*eqItczBoost*coldStratBoost;
                             rainEfficiency[i]=Math.Max(.04f,rainEfficiency[i]*combinedSuppress*eqItczBoost*coldStratBoost);
-                            column.Rainout[i]*=(1f-.42f*shadowDry-.42f*hyperAridCore-.28f*desertMarginLid-.80f*somaliDivergence-.32f*subtropPlateau-.30f*harmattanCap)
+                            column.Rainout[i]*=Math.Max(0f,1f-.42f*shadowDry-.42f*hyperAridCore-.28f*desertMarginLid-.80f*somaliDivergence-.32f*subtropPlateau-.30f*harmattanCap)
                                 *(1f+.24f*seaBreeze*warmBreeze*breezeSeason);
 
                             // Western-Pacific typhoon moisture organization strictly on open Pacific margin (`sector.EasternMargin`), never Bay of Bengal -> Deccan!
@@ -1395,8 +1398,8 @@ namespace Orbis.Flat
                         float humidLayer = FMath.Clamp((humidity - .35f) / .4f, 0f, 1f);
                         float thermalMoisture = landEvap * column.LandThermalActivity[i] * humidLayer;
                         float landConvection = Math.Max(0f, thermalMoisture - dynCond * column.ConvectiveShare[i]);
-                        float condensed=largeScaleExcess+dynCond+landConvection;
-                        float gross=Math.Min(air,condensed+stormCloud);
+                        float condensed = largeScaleExcess + dynCond + landConvection;
+                        float gross = Math.Max(0f, Math.Min(air, condensed + stormCloud));
                         float skinMax=Math.Max(1e-4f,30f*land), deepMax=Math.Max(1e-4f,120f*land);
                         float wettedSurface=sea+land*Math.Min(1,totalSoil*inverseFieldWater[i]);
                         // The lifting condensation level rises with dew-point depression,

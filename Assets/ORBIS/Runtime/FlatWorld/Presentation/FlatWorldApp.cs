@@ -180,11 +180,12 @@ namespace Orbis.Flat
             planetSummaryLabel=root.Q<Label>("planetSummary");
             if(planetPresetField!=null)
             {
-                var pChoices=new List<string>();
-                for(int p=0;p<=6;p++)pChoices.Add(ExoPlaSimPlanetConfig.GetPresetLabel((ExoPlaSimPreset)p));
+                var presets=(ExoPlaSimPreset[])Enum.GetValues(typeof(ExoPlaSimPreset));
+                var pChoices=new List<string>(presets.Length);
+                foreach(var preset in presets)pChoices.Add(ExoPlaSimPlanetConfig.GetPresetLabel(preset));
                 planetPresetField.choices=pChoices;planetPresetField.index=0;
                 planetPresetField.RegisterValueChangedCallback(_=>{
-                    activePlanetConfig=ExoPlaSimPlanetConfig.CreatePreset((ExoPlaSimPreset)Mathf.Clamp(planetPresetField.index,0,6));
+                    activePlanetConfig=ExoPlaSimPlanetConfig.CreatePreset(presets[Mathf.Clamp(planetPresetField.index,0,presets.Length-1)]);
                     if(planetCo2Slider!=null)planetCo2Slider.SetValueWithoutNotify(Mathf.RoundToInt(activePlanetConfig.Co2Ppm));
                     if(planetObliqSlider!=null)planetObliqSlider.SetValueWithoutNotify(activePlanetConfig.ObliquityDeg);
                     RefreshPlanetSummary();

@@ -61,6 +61,7 @@ namespace Orbis.Flat
             {
                 w.Tectonics=FlatTectonics.Build(w,cancel);
                 FlatErosion.Apply(w,cancel);
+                GlebaPlanetGeomorphology.Apply(w,cancel);
             }
             Rebuild(w,cancel);return w;
         }

@@ -100,13 +100,13 @@ internal static class LakeIceRegression
     static void ProceduralSouthernLake()
     {
         var w = FlatGenerator.Generate(256, 128, "ORBIS-2D-2025", TerrainPreset.Continents, default);
-        int tile = w.Index(40, 21);
-        const float u = 40.5f / 256, v = 21.5f / 128;
+        int tile = w.Index(56, 12);
+        const float u = 56.5f / 256, v = 12.5f / 128;
         float summer = w.Facts.LakeIce.FilteredAirTemperature(u, v, 45);
         float winter = w.Facts.LakeIce.FilteredAirTemperature(u, v, 225);
         Check(w.Water[tile] == WaterKind.Lake && summer > 5 && winter < -5.5f,
-            "Generated southern lake at 123.05 W, 59.77 S did not have a summer thaw and winter freeze.");
-        Console.WriteLine($"PASS procedural southern lake, -123.05 E -59.77 N: February {summer:F1}, August {winter:F1} C.");
+            "Generated southern lake at 100.55 W, 72.42 S did not have a summer thaw and winter freeze.");
+        Console.WriteLine($"PASS procedural southern lake, 100.55 W, 72.42 S: February {summer:F1}, August {winter:F1} C.");
     }
 
     internal static void Run(string[] args)

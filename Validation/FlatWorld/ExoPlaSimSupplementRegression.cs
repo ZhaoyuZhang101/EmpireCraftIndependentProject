@@ -249,5 +249,34 @@ internal static class ExoPlaSimSupplementRegression
         var dDay = ExoPlaSimSupplement.SampleTileDiagnostic(eyeball, dayTile, 0);
         Console.WriteLine($"  Tidally-locked Eyeball: Substellar={tDay:F1} C, Antistellar={tNight:F1} C, Land/Sea DTR={dDay.DiurnalTempRangeC:F2} C");
         Check(tDay > tNight + 25.0f && dDay.DiurnalTempRangeC < 2.6f, "Tidally-locked eyeball planet failed substellar/nightside contrast or DTR suppression");
+
+        // Planetary meridional circulation regime hierarchy: SingleCell / DoubleCell ("双环流") / ThreeCell / MultiBandJets
+        var doubleCellCfg = ExoPlaSimPlanetConfig.CreatePreset(ExoPlaSimPreset.SlowRotatorDoubleCell);
+        var fastJetCfg = ExoPlaSimPlanetConfig.CreatePreset(ExoPlaSimPreset.EarthModern);
+        fastJetCfg.RotationRateRatio = 2.0f;
+        Check(eyeball.PlanetClimate.CirculationRegime == ExoPlaSimCirculationRegime.SingleCell &&
+              doubleCellCfg.CirculationRegime == ExoPlaSimCirculationRegime.DoubleCell &&
+              ExoPlaSimPlanetConfig.DefaultEarth.CirculationRegime == ExoPlaSimCirculationRegime.ThreeCell &&
+              fastJetCfg.CirculationRegime == ExoPlaSimCirculationRegime.MultiBandJets,
+            "Planetary rotation circulation regime classification mismatch");
+        Check(doubleCellCfg.HadleyTerminusDeg > 39.0f && doubleCellCfg.HadleyTerminusDeg < 48.0f &&
+              doubleCellCfg.PolarFrontTerminusDeg >= 80.0f && fastJetCfg.HadleyTerminusDeg < 24.0f,
+            $"DoubleCell / MultiBandJets cell termini out of physical Held-Hou bounds: DoubleCell Hadley={doubleCellCfg.HadleyTerminusDeg:F1}, Polar={doubleCellCfg.PolarFrontTerminusDeg:F1}");
+
+        var doubleCellWorld = baseWorld.CloneForTerrainRebuild();
+        doubleCellWorld.PlanetClimate = doubleCellCfg;
+        FlatGenerator.Rebuild(doubleCellWorld, default);
+        int row36N = (int)((36.0 / 180.0 + 0.5) * doubleCellWorld.Moisture.Height);
+        double zonalEastEarth36 = 0, zonalEastDouble36 = 0;
+        for (int x = 0; x < doubleCellWorld.Moisture.Width; x++)
+        {
+            zonalEastEarth36 += baseWorld.Moisture.East[(row36N * baseWorld.Moisture.Width + x) * 12];
+            zonalEastDouble36 += doubleCellWorld.Moisture.East[(row36N * doubleCellWorld.Moisture.Width + x) * 12];
+        }
+        zonalEastEarth36 /= doubleCellWorld.Moisture.Width;
+        zonalEastDouble36 /= doubleCellWorld.Moisture.Width;
+        Console.WriteLine($"  Double-Cell (0.45x rot) Hadley expansion: HadleyTerminus={doubleCellCfg.HadleyTerminusDeg:F1} deg, 36N Jan zonal wind Earth={zonalEastEarth36:F3} vs DoubleCell={zonalEastDouble36:F3}");
+        Check(zonalEastDouble36 < zonalEastEarth36 - 0.04,
+            $"Slow-rotator DoubleCell failed to expand easterly trade-wind Hadley cell across 36N: Earth={zonalEastEarth36:F3}, DoubleCell={zonalEastDouble36:F3}");
     }
 }

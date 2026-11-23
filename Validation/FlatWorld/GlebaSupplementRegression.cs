@@ -19,7 +19,8 @@ internal static class GlebaSupplementRegression
         CheckRossbyJetsAndMapmodes();
         CheckRealEarthDiagnostics();
         CheckProceduralGeographyCarvingAndErosion();
-        Console.WriteLine("PASS Gleba supplement package: circulation, Rossby jets, ocean currents/upwelling, Holdridge ecology, saltwater/freshwater lakes, coral reefs, fjords, aquifers, hierarchy, and Earth 256 diagnostics.");
+        CheckProceduralPlanetGeneration();
+        Console.WriteLine("PASS Gleba supplement package: circulation, Rossby jets, ocean currents/upwelling, Holdridge ecology, saltwater/freshwater lakes, coral reefs, fjords, aquifers, hierarchy, procedural planet generation, and Earth 256 diagnostics.");
     }
 
     static void CheckRotationAndWorkers()
@@ -391,6 +392,98 @@ internal static class GlebaSupplementRegression
         Check(northAtlanticTrack > 0.42 && roaringFiftiesTrack > 0.45,
             $"Expected strong mid-latitude baroclinic storm tracks: N.Atl={northAtlanticTrack:F2}, S.Ocean={roaringFiftiesTrack:F2}");
 
+        // Hadley-Walker Orthogonal Double Circulation + Equatorial Ekman Cold-Tongue & Split Double-ITCZ:
+        // Audit ALL FOUR SEASONS (Jan, Apr Equinox, Jul, Oct Equinox) to guarantee NO 360-degree continuous equatorial cloud ring!
+        double warmPoolMcConv = MeanChannel(forcingJul, 1, 100f, 140f, -3f, 4f);
+        double amazonEqConv = MeanChannel(forcingJan, 1, -70f, -54f, -5f, 2f);
+        double eastPacColdSlotConv = MeanChannel(forcingJul, 1, -135f, -92f, -2.2f, 2.2f);
+        double eastPacOffEqItcz = MeanChannel(forcingJul, 1, -135f, -95f, 6.0f, 10.0f);
+        double eastPacColdSlotSc = MeanChannel(auxJul, 0, -135f, -92f, -2.2f, 2.2f);
+        Console.WriteLine($"  Hadley-Walker & Double-ITCZ: MaritimeContinent Cb={warmPoolMcConv:F2}, Amazon Cb={amazonEqConv:F2}, EastPac 0deg ColdSlot Cb={eastPacColdSlotConv:F2} (Sc={eastPacColdSlotSc:F2}), EastPac 6-10N Split-ITCZ={eastPacOffEqItcz:F2}");
+        Check(warmPoolMcConv > eastPacColdSlotConv + 0.30 && amazonEqConv > eastPacColdSlotConv + 0.25,
+            $"Walker ascending limbs must exceed equatorial Pacific cold-tongue Cb: MC={warmPoolMcConv:F2}, Amz={amazonEqConv:F2} vs EastPac0={eastPacColdSlotConv:F2}");
+        Check(eastPacColdSlotConv < 0.16 && eastPacOffEqItcz > eastPacColdSlotConv + 0.10 && eastPacColdSlotSc > 0.22,
+            $"Equatorial Ekman cold tongue must suppress 0 deg thunderclouds, split ITCZ off-equator, and form low Sc: slotCb={eastPacColdSlotConv:F2}, offEq={eastPacOffEqItcz:F2}, slotSc={eastPacColdSlotSc:F2}");
+
+        var fSeason = new byte[cw * ch * 4];
+        var aSeason = new byte[cw * ch * 4];
+        foreach ((string name, double day) in new[] { ("Jan", 15.0), ("Apr-Equinox", 105.0), ("Jul", 195.0), ("Oct-Equinox", 285.0) })
+        {
+            GlebaGeographySupplement.BuildCloudSynopticFields(earth, day, cw, ch, fSeason, aSeason, null);
+            double eastPacCb = MeanChannel(fSeason, 1, -145f, -90f, -2.5f, 2.5f);
+            double eastPacClear = MeanChannel(aSeason, 2, -145f, -90f, -2.5f, 2.5f);
+            int suppressedCols = 0, maxContiguousActive = 0, curActive = 0;
+            int eqY0 = (int)((-3.0 / 180.0 + 0.5) * ch), eqY1 = (int)((3.0 / 180.0 + 0.5) * ch);
+            for (int pass = 0; pass < 2; pass++)
+            {
+                for (int x = 0; x < cw; x++)
+                {
+                    double colCb = 0, colClear = 0;
+                    for (int y = eqY0; y <= eqY1; y++)
+                    {
+                        colCb += fSeason[(y * cw + x) * 4 + 1] / 255.0;
+                        colClear += aSeason[(y * cw + x) * 4 + 2] / 255.0;
+                    }
+                    int rows = eqY1 - eqY0 + 1;
+                    colCb /= rows; colClear /= rows;
+                    if (pass == 0 && colCb < 0.20 && colClear > 0.22) suppressedCols++;
+                    if (colCb >= 0.32) { curActive++; if (curActive > maxContiguousActive) maxContiguousActive = curActive; }
+                    else curActive = 0;
+                }
+            }
+            maxContiguousActive = Math.Min(cw, maxContiguousActive);
+            double clearLongitudeShare = suppressedCols / (double)cw;
+            double maxActiveSpanDeg = maxContiguousActive * 360.0 / cw;
+            Console.WriteLine($"  4-Season Equator Audit [{name,-11}]: EastPac0 Cb={eastPacCb:F2} (clear={eastPacClear:F2}), suppressedLngShare={clearLongitudeShare:P1}, maxContiguousConvSpan={maxActiveSpanDeg:F1} deg");
+            Check(eastPacCb < 0.16 && eastPacClear > 0.35 && clearLongitudeShare >= 0.42 && maxActiveSpanDeg < 115.0,
+                $"Equatorial cloud ring failed to break up in {name}: EastPacCb={eastPacCb:F2}, clear={eastPacClear:F2}, suppressedShare={clearLongitudeShare:P1}, maxSpan={maxActiveSpanDeg:F1} deg");
+        }
+
+        // Global 12-month Earth cloud climatology consistency vs NOAA PSL 1991-2020 30-year zonal & regional normals (>= 85% gate)
+        double[] noaaZonal18 = { 24.3, 46.6, 62.9, 63.0, 59.3, 51.4, 48.1, 53.9, 57.9, 55.8, 44.6, 44.6, 48.1, 52.7, 53.8, 47.6, 43.6, 43.8 };
+        var simZonal18 = new double[18];
+        var simZonalCnt = new int[18];
+        var fMon = new byte[cw * ch * 4];
+        var aMon = new byte[cw * ch * 4];
+        for (int m = 0; m < 12; m++)
+        {
+            GlebaGeographySupplement.BuildCloudSynopticFields(earth, m * 30.0 + 15.0, cw, ch, fMon, aMon, null);
+            for (int y = 0; y < ch; y++)
+            {
+                float lat = ((y + 0.5f) / ch - 0.5f) * 180f;
+                int bin = FMath.Clamp((int)Math.Floor((lat + 85.0) / 10.0), 0, 17);
+                for (int x = 0; x < cw; x++)
+                {
+                    simZonal18[bin] += (fMon[(y * cw + x) * 4] / 255.0) * 100.0;
+                    simZonalCnt[bin]++;
+                }
+            }
+        }
+        double wZSum = 0, maeZSum = 0, meanObsZ = 0, meanSimZ = 0;
+        var wZArr = new double[18];
+        for (int b = 0; b < 18; b++)
+        {
+            simZonal18[b] /= Math.Max(1, simZonalCnt[b]);
+            double midLat = Math.Clamp(-80.0 + b * 10.0, -88.0, 88.0);
+            wZArr[b] = Math.Cos(midLat * Math.PI / 180.0);
+            wZSum += wZArr[b];
+            maeZSum += wZArr[b] * Math.Abs(simZonal18[b] - noaaZonal18[b]);
+            meanObsZ += wZArr[b] * noaaZonal18[b];
+            meanSimZ += wZArr[b] * simZonal18[b];
+        }
+        meanObsZ /= wZSum; meanSimZ /= wZSum;
+        double covZ = 0, varObsZ = 0, varSimZ = 0;
+        for (int b = 0; b < 18; b++)
+        {
+            double dO = noaaZonal18[b] - meanObsZ, dS = simZonal18[b] - meanSimZ;
+            covZ += wZArr[b] * dO * dS; varObsZ += wZArr[b] * dO * dO; varSimZ += wZArr[b] * dS * dS;
+        }
+        double zonalConsistency = 100.0 - maeZSum / wZSum;
+        double zonalCorr = covZ / Math.Sqrt(Math.Max(1e-9, varObsZ * varSimZ));
+        Console.WriteLine($"  Global Cloud vs NOAA 1991-2020: Mean Sim={meanSimZ:F1}% vs Obs={meanObsZ:F1}%, Consistency={zonalConsistency:F2}% (1-MAE), Zonal r={zonalCorr:F4}");
+        Check(zonalConsistency >= 85.0 && zonalCorr >= 0.85,
+            $"Global Earth cloud simulation fell below 85% NOAA consistency gate: consistency={zonalConsistency:F2}%, r={zonalCorr:F4}");
+
         // Seasonal migration of Asian-Indian sector ITCZ convective cloud core (75E..95E)
         double WeightedItczLat(byte[] buf)
         {
@@ -566,5 +659,115 @@ internal static class GlebaSupplementRegression
         float[] etFlow = GlebaGeographySupplement.ApplySortedHydraulicErosion(clone);
         Check(shoaled == clone.Facts.GlebaGeography.CoralReefTileCount && fjords >= 0 && relaxed >= 0 && etFlow.Length == clone.Count,
             $"Procedural carving & erosion operators failed: shoaled={shoaled}, fjords={fjords}, relaxed={relaxed}");
+    }
+
+    static void CheckProceduralPlanetGeneration()
+    {
+        int totalPassiveShelf = 0, totalTrench = 0, totalForeland = 0, totalPaleo = 0, totalLip = 0, totalSwell = 0, totalFjords = 0, totalReefs = 0;
+        double passiveDepthSum = 0, trenchDepthSum = 0;
+
+        foreach (TerrainPreset preset in FlatGenerator.ProceduralPresets)
+        {
+            var w = FlatGenerator.Generate(256, 128, "GLEBA-PLANET-GEN-2026", preset, default);
+            var tec = w.Tectonics;
+            var geo = w.Facts?.GlebaGeography;
+            Check(tec != null && geo != null, $"{preset}: missing Tectonics or GlebaGeography");
+            Check(tec.Microplate != null && tec.Microplate.Length == w.Count && tec.MicroplateCount >= 40,
+                $"{preset}: invalid microplate hierarchy count={tec.MicroplateCount}");
+            Check(tec.Province != null && tec.Province.Length == w.Count && tec.RockResistance != null && tec.RockResistance.Length == w.Count,
+                $"{preset}: missing Gleba province or lithology resistance arrays");
+
+            float minRes = float.MaxValue, maxRes = float.MinValue;
+            int passive = 0, trench = 0, foreland = 0, paleo = 0, lip = 0, swell = 0, shield = 0, hawaii = 0;
+
+            for (int i = 0; i < w.Count; i++)
+            {
+                // Sub-plate microplates are strictly nested inside macro-plates (4 microplates per plate)
+                Check(tec.Microplate[i] / 4 == tec.Plate[i] && geo.MicroplateId[i] == tec.Microplate[i],
+                    $"{preset}: microplate {tec.Microplate[i]} out of sync with macro-plate {tec.Plate[i]} or GlebaGeography");
+
+                float r = tec.RockResistance[i];
+                if (r < minRes) minRes = r;
+                if (r > maxRes) maxRes = r;
+
+                var p = tec.Province[i];
+                if ((p & GlebaTectonicProvince.PassiveShelf) != 0 && FlatTerrainAnalysis.Ocean(w.Water[i]))
+                {
+                    passive++;
+                    passiveDepthSum += -w.Elevation[i];
+                }
+                if ((p & GlebaTectonicProvince.ActiveTrench) != 0 && FlatTerrainAnalysis.Ocean(w.Water[i]))
+                {
+                    trench++;
+                    trenchDepthSum += -w.Elevation[i];
+                }
+                if ((p & GlebaTectonicProvince.ForelandBasin) != 0) foreland++;
+                if ((p & GlebaTectonicProvince.PaleoOrogen) != 0)
+                {
+                    paleo++;
+                    Check(geo.HasFlag(i, GlebaGeoFlags.PaleoOrogen), $"{preset}: PaleoOrogen flag not synced to GlebaGeography");
+                }
+                if ((p & GlebaTectonicProvince.LargeIgneousProvince) != 0)
+                {
+                    lip++;
+                    Check(geo.HasFlag(i, GlebaGeoFlags.LargeIgneousProvince), $"{preset}: LIP flag not synced to GlebaGeography");
+                    if (!FlatTerrainAnalysis.Ocean(w.Water[i]))
+                    {
+                        var rock = geo.Bedrock[i];
+                        Check(rock == GlebaRockKind.Basalt || rock == GlebaRockKind.Picrobasalt,
+                            $"{preset}: continental LIP tile must map to flood-basalt bedrock, got {rock}");
+                    }
+                }
+                if ((p & GlebaTectonicProvince.MantleSuperswell) != 0) swell++;
+                if ((p & GlebaTectonicProvince.CratonShield) != 0) shield++;
+                if ((p & GlebaTectonicProvince.HawaiianChain) != 0) hawaii++;
+            }
+
+            Check(maxRes - minRes > 0.45f, $"{preset}: insufficient lithology resistance contrast ({minRes:F2}..{maxRes:F2})");
+            Check(passive > 50 && hawaii > 0 && shield > 0, $"{preset}: missing passive shelves ({passive}), shields ({shield}), or hotspot chains ({hawaii})");
+
+            // Verify all 4 seasons on procedural worlds never form an unbroken 360-degree equatorial cloud ring
+            const int pw = 128, ph = 64;
+            var pf = new byte[pw * ph * 4];
+            var pa = new byte[pw * ph * 4];
+            int py0 = (int)((-3.0 / 180.0 + 0.5) * ph), py1 = (int)((3.0 / 180.0 + 0.5) * ph);
+            foreach (double pDay in new[] { 15.0, 105.0, 195.0, 285.0 })
+            {
+                GlebaGeographySupplement.BuildCloudSynopticFields(w, pDay, pw, ph, pf, pa, null);
+                int pSuppressed = 0, pMaxSpan = 0, pCur = 0;
+                for (int pass = 0; pass < 2; pass++)
+                for (int x = 0; x < pw; x++)
+                {
+                    double cCb = 0;
+                    for (int y = py0; y <= py1; y++) cCb += pf[(y * pw + x) * 4 + 1] / 255.0;
+                    cCb /= (py1 - py0 + 1);
+                    if (pass == 0 && cCb < 0.22) pSuppressed++;
+                    if (cCb >= 0.35) { pCur++; if (pCur > pMaxSpan) pMaxSpan = pCur; } else pCur = 0;
+                }
+                pMaxSpan = Math.Min(pw, pMaxSpan);
+                Check(pSuppressed >= pw * 0.35 && pMaxSpan * 360.0 / pw < 150.0,
+                    $"{preset} day={pDay}: unbroken equatorial convective belt (suppressed={pSuppressed}/{pw}, maxSpan={pMaxSpan * 360.0 / pw:F1} deg)");
+            }
+
+            totalPassiveShelf += passive;
+            totalTrench += trench;
+            totalForeland += foreland;
+            totalPaleo += paleo;
+            totalLip += lip;
+            totalSwell += swell;
+            totalFjords += geo.FjordCoastTileCount;
+            totalReefs += geo.CoralReefTileCount;
+
+            Console.WriteLine($"  GlebaPlanetGen {preset,-14}: microplates={tec.MicroplateCount}, passiveShelf={passive}, trench={trench}, foreland={foreland}, paleoOrogen={paleo}, LIP={lip}, superswell={swell}, fjords={geo.FjordCoastTileCount}, reefs={geo.CoralReefTileCount}");
+        }
+
+        double meanPassiveDepth = passiveDepthSum / Math.Max(1, totalPassiveShelf);
+        double meanTrenchDepth = trenchDepthSum / Math.Max(1, totalTrench);
+        Console.WriteLine($"  GlebaPlanetGen shelf/trench contrast: passive shelf mean depth={meanPassiveDepth:F0} m vs active trench mean depth={meanTrenchDepth:F0} m");
+
+        Check(totalTrench > 50 && meanPassiveDepth < 320.0 && meanTrenchDepth > 5200.0,
+            $"Passive shelf ({meanPassiveDepth:F0} m) vs active trench ({meanTrenchDepth:F0} m) bathymetric contrast failed");
+        Check(totalForeland > 100 && totalPaleo > 50 && totalLip > 100 && totalSwell > 100 && totalFjords > 10 && totalReefs > 20,
+            $"Missing Gleba provinces across presets: foreland={totalForeland}, paleo={totalPaleo}, lip={totalLip}, swell={totalSwell}, fjords={totalFjords}, reefs={totalReefs}");
     }
 }
