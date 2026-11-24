@@ -17,6 +17,9 @@ namespace Orbis.Flat
         Task worker;
         long requested = long.MinValue;
         int revision;
+        FlatMoistureState requestedMoisture;
+        bool requestedHadStorms;
+        FlatCycloneTrack requestedNorth, requestedSouth, requestedPrevNorth, requestedPrevSouth;
         bool available;
         Texture2D texture;
         Vector4 poles;
@@ -24,10 +27,23 @@ namespace Orbis.Flat
 
         internal FlatRegionalCloudField(WorldData world) { this.world = world; }
 
+        bool SameRequestedStorms(long tick)
+        {
+            var c = world.Cyclones;
+            bool hasStorms = c != null && c.StepIndex == tick;
+            if (hasStorms != requestedHadStorms) return false;
+            if (!hasStorms) return true;
+            return FlatSkyForcingCache.SameCycloneTrack(c.North, requestedNorth) &&
+                   FlatSkyForcingCache.SameCycloneTrack(c.South, requestedSouth) &&
+                   FlatSkyForcingCache.SameCycloneTrack(c.PreviousNorth, requestedPrevNorth) &&
+                   FlatSkyForcingCache.SameCycloneTrack(c.PreviousSouth, requestedPrevSouth);
+        }
+
         internal bool Prepare(double day, out bool changed)
         {
             long tick = (long)Math.Floor(day * 4);
-            bool current = requested == tick && revision == world.TerrainRevision;
+            bool current = requested == tick && revision == world.TerrainRevision &&
+                ReferenceEquals(requestedMoisture, world.Moisture) && SameRequestedStorms(tick);
             changed = false;
             if (worker != null)
             {
@@ -58,18 +74,30 @@ namespace Orbis.Flat
                 changed = current;
             }
             if (current) return true;
+            bool rebuildModel = !ReferenceEquals(requestedMoisture, world.Moisture);
             available = false;
             requested = tick;
             revision = world.TerrainRevision;
+            requestedMoisture = world.Moisture;
             var storms = world.Cyclones?.Clone();
+            requestedHadStorms = storms != null && storms.StepIndex == tick;
+            if (requestedHadStorms)
+            {
+                requestedNorth = storms.North; requestedSouth = storms.South;
+                requestedPrevNorth = storms.PreviousNorth; requestedPrevSouth = storms.PreviousSouth;
+            }
+            else
+            {
+                requestedNorth = requestedSouth = requestedPrevNorth = requestedPrevSouth = default;
+            }
             var token = lifetime.Token;
-            worker = Task.Run(() => Calculate(tick * .25, storms, token), token);
+            worker = Task.Run(() => Calculate(tick * .25, storms, rebuildModel, token), token);
             return false;
         }
 
-        void Calculate(double day, FlatCycloneWeather storms, CancellationToken cancel)
+        void Calculate(double day, FlatCycloneWeather storms, bool rebuildModel, CancellationToken cancel)
         {
-            if (model == null) model = new FlatClimateStatistics(world, cancel, Width, atmosphereOnly: true);
+            if (model == null || rebuildModel) model = new FlatClimateStatistics(world, cancel, Width, atmosphereOnly: true);
             model.Refresh(day, storms, cancel);
             for (int i = 0; i < pixels.Length; i++)
             {
