@@ -86,40 +86,45 @@ Shader "ORBIS/FlatWorld/SkyBake"
 
     // Inverse advection winds convective cells into trailing logarithmic spiral rainbands
     // (exact hemispheric chirality: counter-clockwise in NH, clockwise in SH).
-    float turn=lerp(.82,3.25,organized)*log(1+4.7*max(r,0));
-    float phase=bearingInStorm+spin*turn+.78*distort;
+    float turn=lerp(.82,3.35,organized)*log(1+4.8*max(r,0));
+    float phase=bearingInStorm+spin*turn+.72*distort;
     float2 flow=float2(cos(phase),sin(phase))*r;
-    float cells=Fbm(float3(flow*5.8,1)+seed);
-    float billows=Noise3(float3(body*21,3)+seed);
+    float cells=Fbm(float3(flow*5.4,1)+seed);
+    float spiralRipple=.5+.5*cos(3.0*phase+1.8*(cells-.5));
+    float gravWave=.5+.5*cos(24.0*r-2.0*phase+1.2*distort);
 
-    float mainArm=smoothstep(.02,.92,cos(phase+1.45*(cells-.5)));
-    float secondaryArm=smoothstep(.18,.94,cos(2.0*phase+1.10+1.35*(cells-.5)))*(1-smoothstep(.52,.98,r))*.82;
-    float feeder=smoothstep(.24,.95,cos(phase+2.53+.48*sin(5.6*r)+2.2*(cells-.5)));
-    feeder*=smoothstep(.20,.72,cells)*(.92-.34*smoothstep(.25,.88,r));
-    float squalls=smoothstep(.44,.76,cells*.68+billows*.32);
-    float bands=max(max(mainArm*lerp(.52,1.04,cells),secondaryArm),feeder)+.22*squalls;
+    float mainArm=smoothstep(-.04,.88,cos(phase+1.35*(cells-.5)));
+    float secondaryArm=smoothstep(.12,.92,cos(2.0*phase+1.10+1.25*(cells-.5)))*(1-smoothstep(.54,1.02,r))*.84;
+    float feeder=smoothstep(.20,.92,cos(phase+2.53+.44*sin(5.4*r)+2.0*(cells-.5)));
+    feeder*=smoothstep(.18,.70,cells)*(.92-.32*smoothstep(.28,.92,r));
+    float spiralApron=(1-smoothstep(.35,.96,r))*(.42+.58*cells)*.58;
+    float bands=saturate(max(max(mainArm*lerp(.58,1.04,cells),secondaryArm),max(feeder,spiralApron)));
 
-    // Intense Central Dense Overcast (CDO) eyewall ring + secondary eyewall moat + crisp pinpoint eye
-    float maturity=smoothstep(.46,.78,centre.w);
-    float innerWall=(1-smoothstep(.11,.32,r))*(.86+.18*billows);
-    float outerRing=exp(-pow((r-.24)/.055,2))*maturity*.72*(.75+.25*cells);
-    float wall=max(innerWall,outerRing);
-    float eye=lerp(1,smoothstep(.020,.076,r+.010*distort),maturity);
+    // Organic swirling Central Dense Overcast (CDO) glaciated canopy + logarithmic spiral rainbands + crisp eye
+    // (warps CDO radius with cells so the CDO forms a natural swirling pinwheel — zero circular pancake edge & zero gray spots!)
+    float maturity=smoothstep(.44,.76,centre.w);
+    float rCdo=r*(1.0+.28*(cells-.5)-.14*(spiralRipple-.5));
+    float cdoDome=(1-smoothstep(.16,.52,rCdo))*lerp(.50,1.0,maturity)*(.84+.10*spiralRipple+.06*gravWave);
+    float innerWall=(1-smoothstep(.11,.30,r))*(.92+.08*gravWave);
+    float outerRing=exp(-pow((r-.24)/.062,2))*maturity*.76*(.80+.20*spiralRipple);
+    float wall=max(max(innerWall,cdoDome),outerRing);
+    float eye=lerp(1,smoothstep(.022,.078,r+.008*distort),maturity);
 
-    float bodyCover=lerp(saturate(cells*.8+.28*billows),max(wall,bands),organized);
-    float low=eye*saturate(.035+bodyCover*(.85+.22*billows));
-    float convection=eye*saturate(max(wall*maturity*.98,bodyCover*(.40+.86*centre.w)));
-    float stormCore=eye*smoothstep(.40,.82,convection);
+    float bodyCover=lerp(saturate(cells*.84+.20*spiralRipple),max(wall,bands),organized);
+    float low=eye*saturate(.04+bodyCover*(.90+.12*spiralRipple));
+    float convection=eye*saturate(max(wall*maturity*.98,bodyCover*(.44+.82*centre.w)));
+    float stormCore=eye*smoothstep(.38,.80,convection);
 
-    float lowBoundary=1-smoothstep(.58,1.16,r+.12*distort);
+    float lowBoundary=1-smoothstep(.58,1.18,r+.11*distort);
     float lowInfluence=lowBoundary*smoothstep(.035,.44,centre.w);
 
-    // Anticyclonic upper-tropospheric cirrus outflow canopy & transverse radial cirrus ribs
-    float icePhase=phase-spin*(1.12+.52*r)+2.4*(cells-.5);
-    float filaments=pow(.5+.5*cos(3.0*icePhase),2.6);
-    float radialRibs=pow(.5+.5*cos(14.0*bearingInStorm-spin*4.2*r+3.5*distort),2.2)*smoothstep(.14,.55,r);
-    float shield=1-smoothstep(.38,1.08,r);
-    float upper=eye*saturate((.10+.38*filaments+.22*radialRibs+.42*shield)*(1+.26*dot(local,downwind))*(.55+.55*organized));
+    // Organic swirling CDO cirrus shield transitioning smoothly into anticyclonic radial outflow ribs
+    float icePhase=phase-spin*(1.12+.52*r)+2.1*(cells-.5);
+    float filaments=pow(.5+.5*cos(3.0*icePhase),2.2);
+    float radialRibs=pow(.5+.5*cos(14.0*bearingInStorm-spin*4.2*r+3.2*distort),2.0)*smoothstep(.26,.66,r);
+    float innerCanopy=(1-smoothstep(.22,.56,rCdo))*.84;
+    float shield=1-smoothstep(.42,1.12,r);
+    float upper=eye*saturate(max(innerCanopy*maturity,(.12+.36*filaments+.24*radialRibs+.44*shield))*(1+.22*dot(local,downwind))*(.58+.52*organized));
     float outBoundary=1-smoothstep(.72,1.34,r+.10*distort);
     float outInfluence=outBoundary*smoothstep(.035,.46,centre.w);
 
