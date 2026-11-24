@@ -183,7 +183,7 @@ namespace Orbis
             bool mapMRT=map&&m.passCount>3&&composite&&composite.passCount>1;
             if(fullResolutionReference||q==3||SystemInfo.supportedRenderTargetCount<2||!composite||
                 !SystemInfo.SupportsRenderTextureFormat(RenderTextureFormat.ARGBHalf)||(map&&!mapMRT))
-            {Present(source,destination,m,map?2:1);return;}
+            {m.SetVector("_VolumeTexelSize",new Vector4(1f/Mathf.Max(1,source.width),1f/Mathf.Max(1,source.height),source.width,source.height));Present(source,destination,m,map?2:1);return;}
             float renderScale=referenceCloudIntegration?Mathf.Max(RefScale[q],q>=2?1f:RefScale[q]):Scale[q];
             int width=Mathf.Max(4,Mathf.CeilToInt(source.width*renderScale)),height=Mathf.Max(4,Mathf.CeilToInt(source.height*renderScale));
             RenderTexture light=null,transmission=null;RenderTexture previous=RenderTexture.active;
@@ -197,6 +197,7 @@ namespace Orbis
                 buffers[0]=light.colorBuffer;buffers[1]=transmission.colorBuffer;
                 GL.sRGBWrite=false;Graphics.SetRenderTarget(buffers,light.depthBuffer);
                 m.SetTexture("_MainTex",source);
+                m.SetVector("_VolumeTexelSize",new Vector4(1f/width,1f/height,width,height));
                 GL.PushMatrix();
                 try
                 {

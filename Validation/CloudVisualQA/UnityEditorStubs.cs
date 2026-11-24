@@ -71,10 +71,12 @@ namespace UnityEngine
         public float sqrMagnitude => x * x + y * y + z * z;
         public Vector3 normalized => this;
         public static Vector3 operator -(Vector3 a) => new Vector3(-a.x, -a.y, -a.z);
+        public static Vector3 operator -(Vector3 a, Vector3 b) => new Vector3(a.x - b.x, a.y - b.y, a.z - b.z);
         public static Vector3 operator +(Vector3 a, Vector3 b) => new Vector3(a.x + b.x, a.y + b.y, a.z + b.z);
         public static Vector3 operator *(Vector3 a, float s) => new Vector3(a.x * s, a.y * s, a.z * s);
         public static float Dot(Vector3 a, Vector3 b) => a.x * b.x + a.y * b.y + a.z * b.z;
         public static Vector3 Cross(Vector3 a, Vector3 b) => default;
+        public static Vector3 ProjectOnPlane(Vector3 v, Vector3 planeNormal) => v;
     }
     public struct Quaternion
     {
@@ -87,7 +89,12 @@ namespace UnityEngine
         public const float Deg2Rad = 0.017453292f;
         public const float Rad2Deg = 57.29578f;
         public static float Tan(float f) => (float)Math.Tan(f);
+        public static float Sin(float f) => (float)Math.Sin(f);
+        public static float Cos(float f) => (float)Math.Cos(f);
+        public static float Asin(float f) => (float)Math.Asin(f);
         public static float Sqrt(float f) => (float)Math.Sqrt(f);
+        public static float Clamp(float v, float min, float max) => Math.Max(min, Math.Min(max, v));
+        public static float Lerp(float a, float b, float t) => a + (b - a) * Clamp(t, 0f, 1f);
     }
     public static class GL { public static bool sRGBWrite; }
     public static class Graphics { public static void Blit(Texture src, RenderTexture dst) { } }
@@ -149,8 +156,9 @@ namespace Orbis
     {
         public float exposure = 1f, cloudCover = 1f, cloudDensity = 1f;
         public int cloudQuality = 1;
-        public bool clouds, atmosphere, night;
+        public bool clouds, cloudShadows, godRays, atmosphere, night;
     }
+    public static class OrbisWeatherField { public const float HeightScale = 1f / 6371000f; }
     public sealed class OrbisWorld { public OrbisSettings settings = new OrbisSettings(); }
     public sealed class OrbisPlanetView : UnityEngine.MonoBehaviour { public UnityEngine.Material CloudMaterial => null; }
     public sealed class OrbisAtmosphereRenderer : UnityEngine.MonoBehaviour

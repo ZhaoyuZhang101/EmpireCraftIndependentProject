@@ -174,12 +174,12 @@ Shader "ORBIS/FlatWorld/SkyBake"
     // Natural inter-band spiral moats: soft feathered rainband skirts, curled boundary-layer cumulus streets (1.2-2.8 km),
     // and gentle misty inflow veil softening close-up canyon walls while preserving crisp spiral channels from orbit!
     float moatMask=saturate(1.0-smoothstep(.14,.68,max(wall,bandCore)));
-    float innerCrease=(1.0-smoothstep(.22,.84,r))*lerp(.24,.50,smoothstep(.18,.82,convClusters*.65+fineCloud*.35))*moatMask*(1.0-.42*upwindDry);
+    float innerCrease=(1.0-smoothstep(.22,.84,r))*lerp(.23,.50,smoothstep(.19,.82,convClusters*.65+fineCloud*.35))*moatMask*(1.0-.42*upwindDry);
     float streetWave=.5+.5*cos(5.0*phase+2.0*(fineCloud-.5)+1.2*(mesoCells-.5));
-    float moatStreets=smoothstep(.22,.74,mesoCells*.44+fineCloud*.36+streetWave*.20);
-    float moatHaze=moatMask*(1.0-smoothstep(.42,1.36,r))*(.10+.24*smoothstep(.24,.76,cells*.55+fineCloud*.45))*lerp(.88,.44,upwindDry);
-    float moatCumulus=moatMask*(1.0-smoothstep(.56,1.38,r))*moatStreets*lerp(.54,.28,upwindDry);
-    float lowMoat=max(max(innerCrease,moatCumulus),max(moatHaze,bandSkirt*.92));
+    float moatStreets=smoothstep(.23,.73,mesoCells*.43+fineCloud*.36+streetWave*.21);
+    float moatHaze=moatMask*(1.0-smoothstep(.42,1.36,r))*(.09+.23*smoothstep(.24,.76,cells*.55+fineCloud*.45))*lerp(.88,.44,upwindDry);
+    float moatCumulus=moatMask*(1.0-smoothstep(.56,1.38,r))*moatStreets*lerp(.55,.28,upwindDry);
+    float lowMoat=max(max(innerCrease,moatCumulus),max(moatHaze,bandSkirt*.90));
 
     float organizedBody=max(max(wall,bandCore),lowMoat);
     float bodyCover=lerp(saturate(cells*.76+.24*bandCore),organizedBody,organized);
@@ -208,11 +208,13 @@ Shader "ORBIS/FlatWorld/SkyBake"
     float outflowRibbonA=pow(.5+.5*cos(2.0*icePhase+1.2*(outflowWisps-.5)),1.7)*smoothstep(.20,.74,outflowWisps);
     float outflowRibbonB=pow(.5+.5*cos(3.0*icePhase+1.6+1.1*(fineCloud-.5)),2.0)*smoothstep(.26,.78,outflowWisps)*.78;
     float outflowPlumes=max(outflowRibbonA,outflowRibbonB)*smoothstep(.14,.42,r)*(1.0-smoothstep(.92,1.54,r));
-    float cdoIce=(1.0-smoothstep(.16,.42,rCdo))*.88*innerSwirlRelief;
-    float bandIce=saturate(arm1*.92+arm2*.78+arm3*.58+arm4*.82+subSpur*.55+bandSkirt*.42);
+    // Silky translucent anticyclonic cirrus outflow fan: keeps lush swirling storm canopy while
+    // allowing curved convective rainband billows and inter-band low clouds to read cleanly beneath.
+    float cdoIce=(1.0-smoothstep(.16,.42,rCdo))*(.76+.16*saturate(outflowRibbonA*.60+spiralRipple*.40))*innerSwirlRelief;
+    float bandIce=saturate(arm1*.88+arm2*.76+arm3*.56+arm4*.80+subSpur*.54+bandSkirt*.38);
     float fanAsym=.58+.52*inflowBias*(1.0-.38*upwindDry);
-    float moatCirrusKeep=lerp(1.0,.50,moatMask*smoothstep(.24,.60,r));
-    float upper=eye*saturate(max(cdoIce*maturity,max(bandIce*.84,outflowPlumes*.82*fanAsym))*moatCirrusKeep*(.60+.48*organized));
+    float moatCirrusKeep=lerp(1.0,.48,moatMask*smoothstep(.22,.56,r));
+    float upper=eye*saturate(max(cdoIce*maturity,max(bandIce*.83,outflowPlumes*.81*fanAsym))*moatCirrusKeep*(.60+.48*organized));
     float outOuter=lerp(1.22,1.58,inflowBias);
     float outBoundary=1.0-smoothstep(.70*outOuter,outOuter,r+.14*distort);
     float outInfluence=saturate(max(outBoundary,bandReach*.90))*smoothstep(.035,.46,centre.w);

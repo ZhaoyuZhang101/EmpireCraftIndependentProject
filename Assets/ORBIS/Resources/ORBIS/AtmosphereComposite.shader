@@ -20,16 +20,22 @@ Shader "ORBIS/AtmosphereComposite"
   if(_MainTex_TexelSize.y<0)duv.y=1-duv.y;
   #endif
   float depth=OrbisEyeDepth(SAMPLE_DEPTH_TEXTURE(_CameraDepthTexture,duv));
+  // Slope-aware bilateral tolerance: on oblique curved planet surfaces, depth varies smoothly
+  // by 2-8% per low-res texel; scaling tolerance by fwidth(depth) preserves smooth bilinear
+  // reconstruction on curved surfaces while still rejecting true planet-limb / horizon jumps.
+  float depthTol=max(.016*depth,min(.18*depth,fwidth(depth)*2.5));
   float2 grid=i.uv*_VolumeTexelSize.zw-.5,base=floor(grid),fracUV=frac(grid);
   float3 L=0,T=0;float sum=0,best=1e20;float3 nearestL=0,nearestT=1;
   [unroll] for(int y=0;y<2;y++)[unroll] for(int x=0;x<2;x++)
   {
    float2 uv=(base+float2(x,y)+.5)*_VolumeTexelSize.xy;
    float4 light=tex2D(_RadianceTex,uv),trans=tex2D(_TransmittanceTex,uv);
-   float error=abs(light.a-depth)/max(.01,depth);
+   float diff=abs(light.a-depth);
+   float error=diff/max(.01,depth);
    if(error<best){best=error;nearestL=light.rgb;nearestT=trans.rgb;}
+   float excess=max(0.0,diff-depthTol)/max(.01,depth);
    float bilinear=(x?fracUV.x:1-fracUV.x)*(y?fracUV.y:1-fracUV.y);
-   float w=bilinear*exp(-error*100.0);L+=light.rgb*w;T+=trans.rgb*w;sum+=w;
+   float w=bilinear*exp(-excess*65.0);L+=light.rgb*w;T+=trans.rgb*w;sum+=w;
   }
   if(sum<1e-5){L=nearestL;T=nearestT;}else {L/=sum;T/=sum;}
   float3 background=OrbisBackgroundWithSun(tex2D(_MainTex,i.uv).rgb,i.uv,depth);

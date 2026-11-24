@@ -404,6 +404,67 @@ namespace Orbis.Editor.CloudVisualQA
                     });
                 }
 
+                if (mode == "clarity")
+                {
+                    Directory.CreateDirectory(Path.Combine(outDir, "clarity"));
+                    Directory.CreateDirectory(Path.Combine(outDir, "clarity", "motion"));
+                    ctx.Steps.Enqueue(() =>
+                    {
+                        Debug.Log("[CloudVisualQA] Clarity Audit: Pacific-Globe-Apr benchmark & q=2 full-disk capture...");
+                        RunClarityPacificStep(ctx.App, ctx.BaseEarth, outDir, ctx.PerfLines);
+                    });
+                    ctx.Steps.Enqueue(() =>
+                    {
+                        Debug.Log("[CloudVisualQA] Clarity Audit: Typhoon Wide & CloseUp (q=1, q=2, fullRes diag) + benchmarks...");
+                        RunClarityTyphoonStep(ctx.App, ctx.BaseEarth, outDir, ctx.PerfLines);
+                    });
+                    ctx.Steps.Enqueue(() =>
+                    {
+                        Debug.Log("[CloudVisualQA] Clarity Audit: Low-Orbit Oblique Grazing (q=1, q=2) + benchmark...");
+                        RunClarityLowOrbitStep(ctx.App, ctx.BaseEarth, outDir, ctx.PerfLines);
+                    });
+                    ctx.Steps.Enqueue(() =>
+                    {
+                        Debug.Log("[CloudVisualQA] Clarity Audit: Typhoon rotation & push-in stability sequence...");
+                        RunClarityMotionStep(ctx.App, ctx.BaseEarth, outDir, ctx.PerfLines);
+                    });
+                }
+
+                if (mode == "overnight")
+                {
+                    Directory.CreateDirectory(Path.Combine(outDir, "overnight"));
+                    Directory.CreateDirectory(Path.Combine(outDir, "overnight", "stills"));
+                    Directory.CreateDirectory(Path.Combine(outDir, "overnight", "motion", "pan_q1"));
+                    Directory.CreateDirectory(Path.Combine(outDir, "overnight", "motion", "push_q1"));
+                    Directory.CreateDirectory(Path.Combine(outDir, "overnight", "motion", "passage_q1"));
+                    Directory.CreateDirectory(Path.Combine(outDir, "overnight", "shafts"));
+                    ctx.Steps.Enqueue(() =>
+                    {
+                        Debug.Log("[CloudVisualQA] Overnight QA: Pacific-Globe-Apr stills (q=1,q=2) & benchmark...");
+                        RunOvernightPacificStep(ctx.App, ctx.BaseEarth, outDir, ctx.PerfLines);
+                    });
+                    ctx.Steps.Enqueue(() =>
+                    {
+                        Debug.Log("[CloudVisualQA] Overnight QA: Typhoon Wide & CloseUp stills (q=1,q=2) & benchmarks...");
+                        RunOvernightTyphoonStep(ctx.App, ctx.BaseEarth, outDir, ctx.PerfLines);
+                    });
+                    ctx.Steps.Enqueue(() =>
+                    {
+                        Debug.Log("[CloudVisualQA] Overnight QA: Low-Orbit Grazing & Oblique Cumulus CloseUp (q=1,q=2) & benchmark...");
+                        RunOvernightObliqueStep(ctx.App, ctx.BaseEarth, outDir, ctx.PerfLines);
+                    });
+                    ctx.Steps.Enqueue(() =>
+                    {
+                        Debug.Log("[CloudVisualQA] Overnight QA: Continuous slow motion (12 pan + 12 push-in + 12 cloud passage frames at q=1)...");
+                        RunOvernightMotionStep(ctx.App, ctx.BaseEarth, outDir, ctx.PerfLines);
+                    });
+                    ctx.Steps.Enqueue(() =>
+                    {
+                        Debug.Log("[CloudVisualQA] Overnight QA: Volumetric cloud-gap shafts (sunA/sunB/off) & benchmark...");
+                        RunOvernightShaftsStep(ctx.App, ctx.BaseEarth, outDir, ctx.PerfLines);
+                    });
+                }
+
                 ctx.Steps.Enqueue(() =>
                 {
                     bool pairsPassed = true;
@@ -1335,7 +1396,8 @@ namespace Orbis.Editor.CloudVisualQA
 
         static void CaptureTiltedShot(
             FlatWorldApp app, WorldData world, double camLonDeg, double camLatDeg,
-            float orbitalDistance, float tiltDeg, double spinDay, int quality, string outPngPath)
+            float orbitalDistance, float tiltDeg, double spinDay, int quality, string outPngPath,
+            bool fullResOverride = false)
         {
             InstallAndPublishSky(app, world, ClimateCloudQaScenarios.DefaultVisualClock, 1024, world.Day + 0.25,
                 out var map, out var globe, out var nav, out var camera, out var lens, out var atmosphere);
@@ -1349,6 +1411,7 @@ namespace Orbis.Editor.CloudVisualQA
             {
                 ConfigurePose(map, globe, nav, camera, lens, atmosphere, world,
                     camLonDeg, camLatDeg, orbitalDistance, tiltDeg, spinDay, quality, BaselineRenderWidth, BaselineRenderHeight, rt);
+                if (atmosphere && fullResOverride) atmosphere.fullResolutionReference = true;
                 camera.Render();
                 RenderTexture.active = rt;
                 readTex.ReadPixels(new Rect(0, 0, BaselineRenderWidth, BaselineRenderHeight), 0, 0);
@@ -1358,6 +1421,7 @@ namespace Orbis.Editor.CloudVisualQA
             }
             finally
             {
+                if (atmosphere) atmosphere.fullResolutionReference = false;
                 camera.targetTexture = oldTarget;
                 nav.SetViewport(oldRect);
                 RenderTexture.active = oldActive;
@@ -1551,6 +1615,403 @@ namespace Orbis.Editor.CloudVisualQA
             perfLines.Add(string.Format(CultureInfo.InvariantCulture,
                 "NATURAL_SH_PEAK | day={0:F2} | pos=({1:F2}deg,{2:F2}deg) | wind={3:F1}m/s | str={4:F2} | phase={5:F2}rad",
                 bestDay, sLon, sLat, bestTrack.WindSpeed, bestTrack.Strength, bestTrack.Phase));
+        }
+
+        static void RunClarityPacificStep(FlatWorldApp app, WorldData baseEarth, string outDir, List<string> perfLines)
+        {
+            perfLines.Add($"Unity={Application.unityVersion} GPU={SystemInfo.graphicsDeviceName} API={SystemInfo.graphicsDeviceType}");
+            var pacWorld = ClimateCloudQaScenarios.DeepCloneWorld(baseEarth);
+            pacWorld.Day = 105.823;
+            pacWorld.Cyclones = FlatCycloneWeather.SpinUp(pacWorld);
+            BenchmarkScene1280x720(app, pacWorld, "Pacific-Globe-Apr", -132.4, 17.0, 2.85f, 0f, 105.823, perfLines);
+            CaptureTiltedShot(app, pacWorld, -132.4, 17.0, 2.85f, 0f, 105.823, 2,
+                Path.Combine(outDir, "clarity", "04_pacific_globe_apr_q2.png"));
+        }
+
+        static void RunClarityTyphoonStep(FlatWorldApp app, WorldData baseEarth, string outDir, List<string> perfLines)
+        {
+            const double stormLon = 127.2, stormLat = 19.2, phase = 4.15;
+            var wideWorld = CreateCat5TyphoonWorld(baseEarth, 228.080, stormLon, stormLat, phase);
+            BenchmarkScene1280x720(app, wideWorld, "Typhoon-Wide-FullStorm", 127.2, 19.2, 1.72f, 0f, 228.080, perfLines);
+            CaptureTiltedShot(app, wideWorld, 127.2, 19.2, 1.72f, 0f, 228.080, 1,
+                Path.Combine(outDir, "clarity", "01_typhoon_wide_q1.png"));
+            CaptureTiltedShot(app, wideWorld, 127.2, 19.2, 1.72f, 0f, 228.080, 2,
+                Path.Combine(outDir, "clarity", "01_typhoon_wide_q2.png"));
+
+            var closeWorld = CreateCat5TyphoonWorld(baseEarth, 228.068, stormLon, stormLat, phase);
+            BenchmarkScene1280x720(app, closeWorld, "Typhoon-CloseUp-Eyewall", 127.4, 20.1, 1.34f, 14f, 228.068, perfLines);
+            CaptureTiltedShot(app, closeWorld, 127.4, 20.1, 1.34f, 14f, 228.068, 1,
+                Path.Combine(outDir, "clarity", "02_typhoon_closeup_q1.png"));
+            CaptureTiltedShot(app, closeWorld, 127.4, 20.1, 1.34f, 14f, 228.068, 2,
+                Path.Combine(outDir, "clarity", "02_typhoon_closeup_q2.png"));
+            CaptureTiltedShot(app, closeWorld, 127.4, 20.1, 1.34f, 14f, 228.068, 2,
+                Path.Combine(outDir, "clarity", "02_typhoon_closeup_q2_fullres.png"), fullResOverride: true);
+        }
+
+        static void RunClarityLowOrbitStep(FlatWorldApp app, WorldData baseEarth, string outDir, List<string> perfLines)
+        {
+            var grazeWorld = ClimateCloudQaScenarios.DeepCloneWorld(baseEarth);
+            grazeWorld.Day = 195.067; // Jul 14 (sunOff=+34 deg at lon=+122)
+            grazeWorld.Cyclones = FlatCycloneWeather.SpinUp(grazeWorld);
+            BenchmarkScene1280x720(app, grazeWorld, "LowOrbit-Grazing-Jul", 122.0, 12.0, 1.26f, 39f, 195.067, perfLines);
+            CaptureTiltedShot(app, grazeWorld, 122.0, 12.0, 1.26f, 39f, 195.067, 1,
+                Path.Combine(outDir, "clarity", "03_low_orbit_grazing_q1.png"));
+            CaptureTiltedShot(app, grazeWorld, 122.0, 12.0, 1.26f, 39f, 195.067, 2,
+                Path.Combine(outDir, "clarity", "03_low_orbit_grazing_q2.png"));
+        }
+
+        static void RunClarityMotionStep(FlatWorldApp app, WorldData baseEarth, string outDir, List<string> perfLines)
+        {
+            const double stormLon = 127.2, stormLat = 19.2, phase = 4.15;
+            var closeWorld = CreateCat5TyphoonWorld(baseEarth, 228.068, stormLon, stormLat, phase);
+            InstallAndPublishSky(app, closeWorld, ClimateCloudQaScenarios.DefaultVisualClock, 1024, closeWorld.Day + 0.25,
+                out var map, out var globe, out var nav, out var camera, out var lens, out var atmosphere);
+
+            var oldTarget = camera.targetTexture;
+            var oldRect = camera.pixelRect;
+            var oldActive = RenderTexture.active;
+            var rt = RenderTexture.GetTemporary(BaselineRenderWidth, BaselineRenderHeight, 24, RenderTextureFormat.ARGB32);
+            var readTex = new Texture2D(BaselineRenderWidth, BaselineRenderHeight, TextureFormat.RGBA32, false);
+            try
+            {
+                // Push-in sequence (R=1.62 -> 1.48 -> 1.34 -> 1.22) and orbital rotation/tilt sweep (lon/tilt)
+                var poses = new (string tag, double lon, double lat, float r, float tilt)[]
+                {
+                    ("push_0_R162", 127.3, 19.6, 1.62f, 6f),
+                    ("push_1_R148", 127.35, 19.85, 1.48f, 10f),
+                    ("push_2_R134", 127.4, 20.1, 1.34f, 14f),
+                    ("push_3_R122", 127.45, 20.3, 1.22f, 18f),
+                    ("rot_0_lon1268", 126.8, 20.0, 1.34f, 14f),
+                    ("rot_1_lon1272", 127.2, 20.1, 1.34f, 14f),
+                    ("rot_2_lon1276", 127.6, 20.1, 1.34f, 14f),
+                    ("rot_3_lon1280", 128.0, 20.0, 1.34f, 14f),
+                };
+                foreach (var p in poses)
+                {
+                    ConfigurePose(map, globe, nav, camera, lens, atmosphere, closeWorld,
+                        p.lon, p.lat, p.r, p.tilt, 228.068, 2, BaselineRenderWidth, BaselineRenderHeight, rt);
+                    camera.Render();
+                    RenderTexture.active = rt;
+                    readTex.ReadPixels(new Rect(0, 0, BaselineRenderWidth, BaselineRenderHeight), 0, 0);
+                    readTex.Apply(false, false);
+                    var img = FlipToNorthFirstRgba(BaselineRenderWidth, BaselineRenderHeight, readTex.GetPixels32());
+                    File.WriteAllBytes(Path.Combine(outDir, "clarity", "motion", p.tag + ".png"),
+                        OrbisRasterCodec.RGBA8(img.Width, img.Height, img.Rgba));
+                }
+                perfLines.Add("MOTION_SEQUENCE | captured 4 push-in (R1.62..1.22) + 4 orbit-sweep frames at 1600x900 q=2");
+            }
+            finally
+            {
+                camera.targetTexture = oldTarget;
+                nav.SetViewport(oldRect);
+                RenderTexture.active = oldActive;
+                UnityEngine.Object.DestroyImmediate(readTex);
+                RenderTexture.ReleaseTemporary(rt);
+            }
+        }
+
+        static void RunOvernightPacificStep(FlatWorldApp app, WorldData baseEarth, string outDir, List<string> perfLines)
+        {
+            perfLines.Add($"Unity={Application.unityVersion} GPU={SystemInfo.graphicsDeviceName} API={SystemInfo.graphicsDeviceType}");
+            var pacWorld = ClimateCloudQaScenarios.DeepCloneWorld(baseEarth);
+            pacWorld.Day = 105.823;
+            pacWorld.Cyclones = FlatCycloneWeather.SpinUp(pacWorld);
+            BenchmarkScene1280x720(app, pacWorld, "Pacific-Globe-Apr", -132.4, 17.0, 2.85f, 0f, 105.823, perfLines);
+            CaptureTiltedShot(app, pacWorld, -132.4, 17.0, 2.85f, 0f, 105.823, 1,
+                Path.Combine(outDir, "overnight", "stills", "04_pacific_globe_apr_q1.png"));
+            CaptureTiltedShot(app, pacWorld, -132.4, 17.0, 2.85f, 0f, 105.823, 2,
+                Path.Combine(outDir, "overnight", "stills", "04_pacific_globe_apr_q2.png"));
+        }
+
+        static void RunOvernightTyphoonStep(FlatWorldApp app, WorldData baseEarth, string outDir, List<string> perfLines)
+        {
+            const double stormLon = 127.2, stormLat = 19.2, phase = 4.15;
+            var wideWorld = CreateCat5TyphoonWorld(baseEarth, 228.080, stormLon, stormLat, phase);
+            BenchmarkScene1280x720(app, wideWorld, "Typhoon-Wide-FullStorm", 127.2, 19.2, 1.72f, 0f, 228.080, perfLines);
+            CaptureTiltedShot(app, wideWorld, 127.2, 19.2, 1.72f, 0f, 228.080, 1,
+                Path.Combine(outDir, "overnight", "stills", "01_typhoon_wide_q1.png"));
+            CaptureTiltedShot(app, wideWorld, 127.2, 19.2, 1.72f, 0f, 228.080, 2,
+                Path.Combine(outDir, "overnight", "stills", "01_typhoon_wide_q2.png"));
+
+            var closeWorld = CreateCat5TyphoonWorld(baseEarth, 228.068, stormLon, stormLat, phase);
+            BenchmarkScene1280x720(app, closeWorld, "Typhoon-CloseUp-Eyewall", 127.4, 20.1, 1.34f, 14f, 228.068, perfLines);
+            CaptureTiltedShot(app, closeWorld, 127.4, 20.1, 1.34f, 14f, 228.068, 1,
+                Path.Combine(outDir, "overnight", "stills", "02_typhoon_closeup_q1.png"));
+            CaptureTiltedShot(app, closeWorld, 127.4, 20.1, 1.34f, 14f, 228.068, 2,
+                Path.Combine(outDir, "overnight", "stills", "02_typhoon_closeup_q2.png"));
+        }
+
+        static void RunOvernightObliqueStep(FlatWorldApp app, WorldData baseEarth, string outDir, List<string> perfLines)
+        {
+            var grazeWorld = ClimateCloudQaScenarios.DeepCloneWorld(baseEarth);
+            grazeWorld.Day = 195.067;
+            grazeWorld.Cyclones = FlatCycloneWeather.SpinUp(grazeWorld);
+            BenchmarkScene1280x720(app, grazeWorld, "LowOrbit-Grazing-Jul", 122.0, 12.0, 1.26f, 39f, 195.067, perfLines);
+            CaptureTiltedShot(app, grazeWorld, 122.0, 12.0, 1.26f, 39f, 195.067, 1,
+                Path.Combine(outDir, "overnight", "stills", "03_low_orbit_grazing_q1.png"));
+            CaptureTiltedShot(app, grazeWorld, 122.0, 12.0, 1.26f, 39f, 195.067, 2,
+                Path.Combine(outDir, "overnight", "stills", "03_low_orbit_grazing_q2.png"));
+
+            // Low-altitude oblique close-up over broken tropical cumulus clouds (rounded tops/sides/gaps reference)
+            CaptureTiltedShot(app, grazeWorld, 123.5, 13.5, 1.07f, 58f, 195.067, 1,
+                Path.Combine(outDir, "overnight", "stills", "05_oblique_cumulus_close_q1.png"));
+            CaptureTiltedShot(app, grazeWorld, 123.5, 13.5, 1.07f, 58f, 195.067, 2,
+                Path.Combine(outDir, "overnight", "stills", "05_oblique_cumulus_close_q2.png"));
+        }
+
+        static void ConfigureAltitudeLookPose(
+            FlatMapRenderer map, FlatGlobePresenter globe, FlatScrollNavigator nav,
+            Camera camera, OrbisCelestialLens lens, OrbisAtmosphereRenderer atmosphere,
+            WorldData world, double camLonDeg, double camLatDeg, float altitudeMetres,
+            Vector3 customLookDirWorld, double navSpinDay, double sunSpinDay,
+            int quality, bool godRays, int renderW, int renderH, RenderTexture rt)
+        {
+            var loc = PlanetCoordinateSystem.FromMapUV((camLonDeg + 180.0) / 360.0, (camLatDeg + 90.0) / 180.0);
+            nav.Home(navSpinDay);
+            nav.Tick(3f, navSpinDay);
+            nav.Recenter(loc, navSpinDay);
+            nav.SetViewport(new Rect(0, 0, renderW, renderH));
+            nav.Tick(0f, navSpinDay);
+
+            Vector3 localDir = SurfaceNormalLocal(camLonDeg, camLatDeg);
+            Quaternion spinQ = Quaternion.AngleAxis(nav.DisplaySpin * Mathf.Rad2Deg, Vector3.up);
+            Vector3 worldNormal = (spinQ * ReflectZ(localDir)).normalized;
+            float altRadius = altitudeMetres * OrbisWeatherField.HeightScale;
+            float camRadius = 1.0f + altRadius;
+            Vector3 camPos = worldNormal * camRadius;
+
+            camera.targetTexture = rt;
+            camera.orthographic = false;
+            camera.fieldOfView = CameraFovDeg;
+            camera.nearClipPlane = Mathf.Clamp(altRadius * 0.25f, 0.00004f, 0.002f);
+            camera.farClipPlane = 80f;
+            camera.ResetProjectionMatrix();
+            camera.transform.SetPositionAndRotation(camPos, Quaternion.LookRotation(customLookDirWorld.normalized, worldNormal));
+
+            var settings = globe.Snapshot.settings;
+            settings.exposure = ClimateCloudQaScenarios.DefaultExposure;
+            settings.cloudQuality = quality;
+            settings.cloudCover = 1f;
+            settings.cloudDensity = 1f;
+            settings.clouds = true;
+            settings.cloudShadows = true;
+            settings.godRays = godRays;
+            settings.atmosphere = true;
+            settings.night = true;
+            if (lens) lens.strength = 0f;
+            if (atmosphere) { atmosphere.fullResolutionReference = false; atmosphere.referenceCloudIntegration = false; }
+
+            var sky = map.Sky;
+            Vector3 sunLocal = sky.Sun(180f, sunSpinDay, true);
+            map.Configure(false, nav.PixelsPerTile, 0f);
+            map.SetVegetationDay(world.Day);
+            sky.Bind(map.Material, sunLocal, true, true, true, true, false, false, true, 0f);
+            map.Material.SetFloat("_WaterClock", 0f);
+            nav.SyncMaterials();
+            globe.TickScroll(0f, ClimateCloudQaScenarios.DefaultVisualClock, world.Day, nav.DisplaySpin, 0f, true, true, true, true, sunLocal, true);
+        }
+
+        static void RunOvernightMotionStep(FlatWorldApp app, WorldData baseEarth, string outDir, List<string> perfLines)
+        {
+            const int motionW = 1280, motionH = 720, frameCount = 12;
+            const double stormLon = 127.2, stormLat = 19.2, phase = 4.15;
+            var motionWorld = CreateCat5TyphoonWorld(baseEarth, 228.068, stormLon, stormLat, phase);
+            InstallAndPublishSky(app, motionWorld, ClimateCloudQaScenarios.DefaultVisualClock, 1024, motionWorld.Day + 0.25,
+                out var map, out var globe, out var nav, out var camera, out var lens, out var atmosphere);
+
+            var oldTarget = camera.targetTexture;
+            var oldRect = camera.pixelRect;
+            var oldActive = RenderTexture.active;
+            var rt = RenderTexture.GetTemporary(motionW, motionH, 24, RenderTextureFormat.ARGB32);
+            var readTex = new Texture2D(motionW, motionH, TextureFormat.RGBA32, false);
+            try
+            {
+                Action<string> capture = relPath =>
+                {
+                    camera.Render();
+                    RenderTexture.active = rt;
+                    readTex.ReadPixels(new Rect(0, 0, motionW, motionH), 0, 0);
+                    readTex.Apply(false, false);
+                    var img = FlipToNorthFirstRgba(motionW, motionH, readTex.GetPixels32());
+                    File.WriteAllBytes(Path.Combine(outDir, relPath), OrbisRasterCodec.RGBA8(img.Width, img.Height, img.Rgba));
+                };
+
+                // 1. Slow horizontal pan (12 frames, 0.08 deg/frame at q=1 balanced) — exposes moving moire & grain
+                for (int f = 0; f < frameCount; f++)
+                {
+                    double lon = 126.90 + f * 0.08;
+                    ConfigurePose(map, globe, nav, camera, lens, atmosphere, motionWorld,
+                        lon, 20.1, 1.30f, 22f, 228.068, 1, motionW, motionH, rt);
+                    capture(Path.Combine("overnight", "motion", "pan_q1", $"f{f:D2}.png"));
+                }
+
+                // 2. Slow push-in (12 frames, R=1.44 -> 1.11, tilt=12 -> 42 deg at q=1 balanced)
+                for (int f = 0; f < frameCount; f++)
+                {
+                    float t = f / (float)(frameCount - 1);
+                    double lon = 127.30 + t * 0.22;
+                    double lat = 19.70 + t * 0.60;
+                    float r = Mathf.Lerp(1.44f, 1.11f, t);
+                    float tilt = Mathf.Lerp(12f, 42f, t);
+                    ConfigurePose(map, globe, nav, camera, lens, atmosphere, motionWorld,
+                        lon, lat, r, tilt, 228.068, 1, motionW, motionH, rt);
+                    capture(Path.Combine("overnight", "motion", "push_q1", $"f{f:D2}.png"));
+                }
+
+                // 3. Continuous cloud passage (12 frames, descending 16,000 m -> 250 m through typhoon outer rainband at q=1)
+                float[] altitudesM = { 16000f, 12500f, 9800f, 7600f, 5800f, 4300f, 3100f, 2100f, 1400f, 900f, 500f, 250f };
+                const double passLon = 128.45, passLat = 20.15;
+                Vector3 localNormal = SurfaceNormalLocal(passLon, passLat);
+                Vector3 localNorth = NorthTangentLocal(passLon, passLat);
+                nav.Home(228.068);
+                nav.Tick(3f, 228.068);
+                Quaternion spinQ = Quaternion.AngleAxis(nav.DisplaySpin * Mathf.Rad2Deg, Vector3.up);
+                Vector3 wNormal = (spinQ * ReflectZ(localNormal)).normalized;
+                Vector3 wNorth = (spinQ * ReflectZ(localNorth)).normalized;
+                Vector3 wWest = Vector3.Cross(wNorth, wNormal).normalized;
+                // Oblique gaze (-18 deg below horizon toward the eyewall & cloud gap)
+                Vector3 passLook = (wWest * Mathf.Cos(18f * Mathf.Deg2Rad) - wNormal * Mathf.Sin(18f * Mathf.Deg2Rad)).normalized;
+                for (int f = 0; f < frameCount; f++)
+                {
+                    ConfigureAltitudeLookPose(map, globe, nav, camera, lens, atmosphere, motionWorld,
+                        passLon, passLat, altitudesM[f], passLook, 228.068, 228.068, 1, true, motionW, motionH, rt);
+                    capture(Path.Combine("overnight", "motion", "passage_q1", $"f{f:D2}.png"));
+                }
+
+                perfLines.Add($"OVERNIGHT_MOTION | pan_q1={frameCount}f (0.08deg/f) | push_q1={frameCount}f (R1.44->1.11) | passage_q1={frameCount}f (16000m->250m) | res={motionW}x{motionH}");
+            }
+            finally
+            {
+                camera.targetTexture = oldTarget;
+                nav.SetViewport(oldRect);
+                RenderTexture.active = oldActive;
+                UnityEngine.Object.DestroyImmediate(readTex);
+                RenderTexture.ReleaseTemporary(rt);
+            }
+        }
+
+        static void RunOvernightShaftsStep(FlatWorldApp app, WorldData baseEarth, string outDir, List<string> perfLines)
+        {
+            var inv = CultureInfo.InvariantCulture;
+            var shaftWorld = ClimateCloudQaScenarios.DeepCloneWorld(baseEarth);
+            shaftWorld.Day = 195.067;
+            shaftWorld.Cyclones = FlatCycloneWeather.SpinUp(shaftWorld);
+            InstallAndPublishSky(app, shaftWorld, ClimateCloudQaScenarios.DefaultVisualClock, 1024, shaftWorld.Day + 0.25,
+                out var map, out var globe, out var nav, out var camera, out var lens, out var atmosphere);
+
+            const double camLon = 127.5, camLat = 16.0;
+            const float camAltM = 5500f;
+            Vector3 localNormal = SurfaceNormalLocal(camLon, camLat);
+            var sky = map.Sky;
+
+            // Find exact spinDayA on Day 195 where solar elevation at (camLon, camLat) is ~20 deg (ascending/descending low sun)
+            double spinDayA = 195.0;
+            double bestErr = 1e9;
+            float targetSinElev = Mathf.Sin(20f * Mathf.Deg2Rad);
+            for (int k = 0; k < 360; k++)
+            {
+                double candDay = 195.0 + k / 360.0;
+                Vector3 sunL = sky.Sun(180f, candDay, true).normalized;
+                float sinE = Vector3.Dot(localNormal, sunL);
+                // Prefer afternoon/western low sun so sun azimuth sweeps smoothly across ocean gaps
+                Vector3 sunNext = sky.Sun(180f, candDay + 0.005, true).normalized;
+                float dSinE = Vector3.Dot(localNormal, sunNext) - sinE;
+                if (dSinE < 0f)
+                {
+                    double err = Math.Abs(sinE - targetSinElev);
+                    if (err < bestErr) { bestErr = err; spinDayA = candDay; }
+                }
+            }
+            double spinDayB = spinDayA + 0.028; // ~10.1 deg lower/shifted sun, exact same locked camera & clouds
+
+            nav.Home(spinDayA);
+            nav.Tick(3f, spinDayA);
+            Quaternion spinQ = Quaternion.AngleAxis(nav.DisplaySpin * Mathf.Rad2Deg, Vector3.up);
+            Vector3 worldNormal = (spinQ * ReflectZ(localNormal)).normalized;
+            Vector3 sunAWorld = (spinQ * ReflectZ(sky.Sun(180f, spinDayA, true))).normalized;
+            Vector3 sunBWorld = (spinQ * ReflectZ(sky.Sun(180f, spinDayB, true))).normalized;
+            Vector3 toSunHoriz = Vector3.ProjectOnPlane(sunAWorld, worldNormal).normalized;
+            float elevADeg = Mathf.Asin(Mathf.Clamp(Vector3.Dot(worldNormal, sunAWorld), -1f, 1f)) * Mathf.Rad2Deg;
+            float elevBDeg = Mathf.Asin(Mathf.Clamp(Vector3.Dot(worldNormal, sunBWorld), -1f, 1f)) * Mathf.Rad2Deg;
+            // Aim obliquely (-6 deg pitch) across broken Philippine Sea cumulus towers & blue ocean gaps toward low sun
+            Vector3 lockedLook = (toSunHoriz * Mathf.Cos(6f * Mathf.Deg2Rad) - worldNormal * Mathf.Sin(6f * Mathf.Deg2Rad)).normalized;
+
+            var oldTarget = camera.targetTexture;
+            var oldRect = camera.pixelRect;
+            var oldActive = RenderTexture.active;
+            bool oldAtmo = atmosphere ? atmosphere.enabled : true;
+            var rt = RenderTexture.GetTemporary(BaselineRenderWidth, BaselineRenderHeight, 24, RenderTextureFormat.ARGB32);
+            var readTex = new Texture2D(BaselineRenderWidth, BaselineRenderHeight, TextureFormat.RGBA32, false);
+            var rtBench = RenderTexture.GetTemporary(1280, 720, 24, RenderTextureFormat.ARGB32);
+            var read1 = new Texture2D(1, 1, TextureFormat.RGB24, false);
+            try
+            {
+                Action<double, int, bool, string> snap = (sunDay, q, godRays, fileName) =>
+                {
+                    ConfigureAltitudeLookPose(map, globe, nav, camera, lens, atmosphere, shaftWorld,
+                        camLon, camLat, camAltM, lockedLook, spinDayA, sunDay, q, godRays,
+                        BaselineRenderWidth, BaselineRenderHeight, rt);
+                    camera.Render();
+                    RenderTexture.active = rt;
+                    readTex.ReadPixels(new Rect(0, 0, BaselineRenderWidth, BaselineRenderHeight), 0, 0);
+                    readTex.Apply(false, false);
+                    var img = FlipToNorthFirstRgba(BaselineRenderWidth, BaselineRenderHeight, readTex.GetPixels32());
+                    File.WriteAllBytes(Path.Combine(outDir, "overnight", "shafts", fileName),
+                        OrbisRasterCodec.RGBA8(img.Width, img.Height, img.Rgba));
+                };
+
+                snap(spinDayA, 1, true, "01_shafts_sunA_q1.png");
+                snap(spinDayA, 2, true, "01_shafts_sunA_q2.png");
+                snap(spinDayB, 1, true, "02_shafts_sunB_q1.png");
+                snap(spinDayA, 1, false, "03_shafts_off_q1.png");
+                snap(spinDayB, 1, false, "04_shafts_sunB_off_q1.png");
+
+                perfLines.Add(string.Format(inv,
+                    "SHAFTS_SETUP | pos=({0:F1},{1:F1}) alt={2:F0}m | sunA={3:F4}(elev={4:F1}deg) | sunB={5:F4}(elev={6:F1}deg)",
+                    camLon, camLat, camAltM, spinDayA, elevADeg, spinDayB, elevBDeg));
+
+                // Benchmark CloudGap-Shafts-SunA at 1280x720 q=1/q=2
+                foreach (int q in new[] { 1, 2 })
+                {
+                    ConfigureAltitudeLookPose(map, globe, nav, camera, lens, atmosphere, shaftWorld,
+                        camLon, camLat, camAltM, lockedLook, spinDayA, spinDayA, q, true, 1280, 720, rtBench);
+                    Func<double> measure = () =>
+                    {
+                        var times = new double[9];
+                        for (int k = 0; k < 11; k++)
+                        {
+                            var sw = System.Diagnostics.Stopwatch.StartNew();
+                            camera.Render();
+                            RenderTexture.active = rtBench;
+                            read1.ReadPixels(new Rect(0, 0, 1, 1), 0, 0);
+                            read1.Apply(false, false);
+                            sw.Stop();
+                            if (k >= 2) times[k - 2] = sw.Elapsed.TotalMilliseconds;
+                        }
+                        Array.Sort(times);
+                        return times[4];
+                    };
+                    if (atmosphere) atmosphere.enabled = true;
+                    double volMs = measure();
+                    if (atmosphere) atmosphere.enabled = false;
+                    double noVolMs = measure();
+                    if (atmosphere) atmosphere.enabled = true;
+                    perfLines.Add(string.Format(inv,
+                        "BENCH | CloudGap-Shafts-SunA | q={0} | 1280x720 | volume={1:F2} ms | no-volume={2:F2} ms | cloud={3:F2} ms",
+                        q, volMs, noVolMs, Math.Max(0.0, volMs - noVolMs)));
+                }
+            }
+            finally
+            {
+                if (atmosphere) atmosphere.enabled = oldAtmo;
+                camera.targetTexture = oldTarget;
+                nav.SetViewport(oldRect);
+                RenderTexture.active = oldActive;
+                UnityEngine.Object.DestroyImmediate(readTex);
+                UnityEngine.Object.DestroyImmediate(read1);
+                RenderTexture.ReleaseTemporary(rt);
+                RenderTexture.ReleaseTemporary(rtBench);
+            }
         }
     }
 }
