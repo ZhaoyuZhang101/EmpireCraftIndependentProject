@@ -63,8 +63,10 @@ float OrbisHPLowDensityDetailed(float metres,float coverage,float type,float sha
     float2 span=OrbisCloudVerticalSpan(type,coverage);
     float sc=(1-smoothstep(.05,.20,type))*.80;
     float domeField=saturate(shape*.58+cell*.42);
-    float topVar=lerp(.64,1.16,domeField);
-    float localTop=lerp(span.y,span.x+(span.y-span.x)*topVar,1.0-sc*.75);
+    float topVar=lerp(.64,1.10,domeField);
+    // Clamp localTop cleanly below the 13,100 m evaluation ceiling so overshooting Cb/typhoon peaks
+    // taper smoothly via topCap and NEVER hit a hard horizontal clip plane!
+    float localTop=min(12850.0,lerp(span.y,span.x+(span.y-span.x)*topVar,1.0-sc*.75));
 
     float density=0;
     float invWorley=1.0-(detail.r*.62+detail.g*.38);

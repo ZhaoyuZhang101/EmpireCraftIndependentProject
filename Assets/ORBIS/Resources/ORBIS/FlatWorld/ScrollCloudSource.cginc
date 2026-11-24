@@ -54,29 +54,34 @@ float ScrollCloudGroundFast(float2 uv)
 // Carves a 40-deg outward-sloping amphitheater eyewall (narrow eye at sea level, flaring wide at 12.6 km)
 // and winds the 3D Worley cumulus towers azimuthally around the vortex core!
 void ApplyTyphoon3DStadium(float3 up,float z,float4 centre,float spin,float rotPhase,
-                           inout float coverage,inout float highCov,inout float convection,inout float3 a,inout float3 b)
+                           inout float coverage,inout float highCov,inout float convection,inout float cdoSmooth,inout float3 a,inout float3 b)
 {
  if(centre.w<=.20)return;
  float extent=FlatCycloneRadius(centre.w);
  float dist=length(up-centre.xyz);
  if(dist>=extent*1.28)return;
  float r=dist/extent;
- float maturity=smoothstep(.46,.78,centre.w);
+ float maturity=smoothstep(.44,.76,centre.w);
  float altNorm=saturate((z-500.0)/11900.0);
 
- // Outward-sloping 3D Stadium Bowl: eye radius expands 3x from sea surface to tropopause!
- float stadiumR=lerp(.022,.082,pow(altNorm,.82));
- float eyeClear=lerp(1.0,smoothstep(stadiumR*.52,stadiumR*1.12,r),maturity);
+ // Outward-sloping 3D Stadium Bowl: eye radius expands ~4x from sea surface to tropopause!
+ float stadiumR=lerp(.022,.090,pow(altNorm,.78));
+ float eyeClear=lerp(1.0,smoothstep(stadiumR*.50,stadiumR*1.10,r),maturity);
  // Subtle low-level mesovortex "hub cloud" stratocumulus swirl at the bottom of the 12 km stadium bowl
  // (seen inside Category-5 Hurricane Isabel's eye from the ISS — gives instant vertical depth scale!)
- float hubZone=(1.0-smoothstep(950.0,1650.0,z))*smoothstep(420.0,680.0,z)*(1.0-smoothstep(stadiumR*.35,stadiumR*.95,r))*maturity;
- coverage=max(coverage*eyeClear,hubZone*.42);
- highCov*=lerp(1.0,smoothstep(stadiumR*.72,stadiumR*1.28,r),maturity);
+ float hubZone=(1.0-smoothstep(950.0,1750.0,z))*smoothstep(420.0,680.0,z)*(1.0-smoothstep(stadiumR*.32,stadiumR*.92,r))*maturity;
+ coverage=max(coverage*eyeClear,hubZone*.54);
+ highCov*=lerp(1.0,smoothstep(stadiumR*.70,stadiumR*1.24,r),maturity);
 
- // Towering 12.6 km stadium eyewall ring & overshooting tropopause collar right outside stadiumR
- float wallCollar=exp(-pow((r-(stadiumR+.042))/.055,2.0))*maturity*(1.0-smoothstep(12200.0,13100.0,z));
- coverage=max(coverage,wallCollar*.92*eyeClear);
- convection=lerp(max(convection,wallCollar*.98),.10,hubZone*.92);
+ // Organic swirling Central Dense Overcast (CDO) cohesion & towering 12.6 km stadium eyewall rim
+ // (preserves rich 3D spiral cloud-top relief while preventing dark-gray mottled holes inside the sunlit CDO!)
+ float stormCdo=(1.0-smoothstep(.16,.52,r))*smoothstep(.24,.68,centre.w)*eyeClear;
+ float cdoCap=stormCdo*(1.0-smoothstep(11800.0,12900.0,z));
+ float wallCollar=exp(-pow((r-(stadiumR+.046))/.060,2.0))*maturity*(1.0-smoothstep(12100.0,13000.0,z));
+ coverage=max(coverage,max(wallCollar*.94,cdoCap*.76)*eyeClear);
+ highCov=max(highCov,stormCdo*maturity*.76*smoothstep(7400.0,9200.0,z));
+ convection=lerp(max(convection,max(wallCollar*.98,cdoCap*.86)),.12,hubZone*.92);
+ cdoSmooth=max(cdoSmooth,stormCdo);
 
  // Azimuthal cyclonic swirl of 3D volumetric cloud coordinates around storm axis
  float swirlWeight=(1.0-smoothstep(.25,1.15,r))*smoothstep(.20,.65,centre.w);
@@ -123,19 +128,20 @@ float2 ScrollClimateDensities(float3 p,bool simpleMode)
   a=normalize(up-localWind*(sin(phase*6.2831853)*3.2));
  }
 
+ float cdoSmooth=0;
  if(hasCyclone)
  {
-  ApplyTyphoon3DStadium(up,z,_OrbisCycloneNorth,1.0,_OrbisCyclonePhase.x,coverage,highWeather,convection,a,b);
-  ApplyTyphoon3DStadium(up,z,_OrbisCycloneSouth,-1.0,_OrbisCyclonePhase.y,coverage,highWeather,convection,a,b);
+  ApplyTyphoon3DStadium(up,z,_OrbisCycloneNorth,1.0,_OrbisCyclonePhase.x,coverage,highWeather,convection,cdoSmooth,a,b);
+  ApplyTyphoon3DStadium(up,z,_OrbisCycloneSouth,-1.0,_OrbisCyclonePhase.y,coverage,highWeather,convection,cdoSmooth,a,b);
  }
 
  if(coverage+highWeather<.006)return 0;
  float low=0,high=0;
- if(coverage>.004&&z<12950&&(orbit<.999||coreVolume>.002))
+ if(coverage>.004&&z<13100&&(orbit<.999||coreVolume>.002))
  {
   float2 span=OrbisCloudVerticalSpan(convection,saturate(coverage+.12));
   bool inMidBand=convection>.28&&convection<.76&&z>3800.0&&z<6150.0;
-  if((z>span.x-90.0&&z<span.y*1.18+360.0)||inMidBand)
+  if((z>span.x-90.0&&z<span.y*1.14+300.0)||inMidBand)
   {
    float altitude=z/7000;
    const float3x3 frame=float3x3(.36,.48,-.80,-.80,.60,0,.48,.64,.60);
@@ -150,11 +156,16 @@ float2 ScrollClimateDensities(float3 p,bool simpleMode)
    bool evalLow=false;
    if(simpleMode)
    {
-    float3 bPos=q0*19.2+radAxis*(altitude*1.05)+windShear+float3(.41,.19,.83);
+    // Sync simpleMode frequency (30.0) & vertical shear (1.12) with the primary body pass so LightField
+    // sun-shadow probes NEVER cast phantom dark-gray spots from mismatched 19.2 vs 30.0 cloud-top bumps!
+    float3 bPos=q0*30.0+radAxis*(altitude*1.12)+windShear+float3(.41,.19,.83);
     float4 body=tex3Dlod(_CloudNoise,float4(bPos,0));
     worleyMeso=body.g*.64+body.b*.36;
-    shape=saturate((body.r*.66+worleyMeso*.34-(1.0-worleyMeso)*.20)/.80+coverage*.08+.05);
-    effCov=saturate(coverage+.08);
+    float baseS=body.r*.68+worleyMeso*.32;
+    baseS=lerp(baseS,.68+.32*baseS,cdoSmooth*.68);
+    worleyMeso=lerp(worleyMeso,.66+.34*worleyMeso,cdoSmooth*.65);
+    shape=saturate((baseS-(1.0-worleyMeso)*.16*(1.0-.60*cdoSmooth))/.84+coverage*.06+.10*smoothstep(.06,.52,coverage));
+    effCov=saturate(coverage+.04);
     evalLow=true;
    }
    else
@@ -176,9 +187,12 @@ float2 ScrollClimateDensities(float3 p,bool simpleMode)
 
     worleyMeso=body.g*.64+body.b*.36;
     float basePW=macroBody.r*.32+body.r*.42+worleyMeso*.26;
+    // Inside a mature typhoon CDO canopy, gently lift 3D noise floor to keep creamy swirling tops without gray holes!
+    basePW=lerp(basePW,.68+.32*basePW,cdoSmooth*.68);
+    worleyMeso=lerp(worleyMeso,.66+.34*worleyMeso,cdoSmooth*.65);
     // Keep soft synoptic mist envelopes connected while 3D fine detail sculpts lacy micro-structure
     float mistCohesion=.12*smoothstep(.06,.52,coverage);
-    shape=saturate((basePW-(1.0-worleyMeso)*.16)/.84+coverage*.06+mistCohesion);
+    shape=saturate((basePW-(1.0-worleyMeso)*.16*(1.0-.60*cdoSmooth))/.84+coverage*.06+mistCohesion);
 
     float covBound=.16+.84*saturate(coverage+.16);
     if(pow(shape,.68)>.86-covBound||coverage>.52||inMidBand)
@@ -194,15 +208,17 @@ float2 ScrollClimateDensities(float3 p,bool simpleMode)
      // Turns broad thin marine sheets into thousands of delicate 20-45 km milky puffs & lacy open cells like DSCOVR EPIC!
      float fineScMask=1.0-smoothstep(.08,.34,convection);
      float fineTradeMask=smoothstep(.08,.22,convection)*(1.0-smoothstep(.34,.56,convection));
-     float fineLaceWeight=saturate(fineScMask*.85+fineTradeMask*.58)*(1.0-smoothstep(.52,.84,coverage));
+     float fineLaceWeight=saturate(fineScMask*.85+fineTradeMask*.58)*(1.0-smoothstep(.52,.84,coverage))*(1.0-cdoSmooth);
      float fineCellular=saturate((1.0-(erosion.r*.58+erosion.g*.42))*.72+erosion.b*.28);
      float openCellFoam=smoothstep(.26,.78,abs(2.0*erosion.g-1.0)*.65+fineCellular*.35);
      float finePattern=lerp(fineCellular,openCellFoam,fineScMask*.55);
      shape=lerp(shape,saturate(shape*.48+finePattern*.66),fineLaceWeight*.72);
      worleyMeso=lerp(worleyMeso,finePattern,fineLaceWeight*.65);
+     // Keep sunlit typhoon CDO tops silky & creamy with gentle overshooting cloud relief
+     erosion=lerp(erosion,float4(.72,.72,.54,.54),cdoSmooth*.46);
 
      float edgeInvW=1.0-(erosion.r*.62+erosion.g*.38);
-     float edgeTear=edgeInvW*.13*(1.0-smoothstep(.58,.90,coverage))*smoothstep(.02,.22,coverage);
+     float edgeTear=edgeInvW*.13*(1.0-smoothstep(.58,.90,coverage))*smoothstep(.02,.22,coverage)*(1.0-.88*cdoSmooth);
      effCov=saturate(coverage-edgeTear);
      evalLow=true;
     }
@@ -251,9 +267,11 @@ float2 ScrollClimateDensities(float3 p,bool simpleMode)
    float streakB=(tapA.g+tapB.g)*.5;
    fine=saturate(streakA*.62+streakB*.38);
   }
-  float highCover=highWeather*(.26+.94*smoothstep(.15,.84,fine));
-  highCover*=lerp(1.0,smoothstep(.34,.70,fine)*1.5,saturate(_CloudStreak));
-  high=OrbisHPHighDensity(z,.16+.74*highCover,.36,.56+.44*ice.r,ice.g)*highCover*1.16;
+  float highMod=lerp(.26+.94*smoothstep(.15,.84,fine),.74+.34*fine,cdoSmooth*.78);
+  float highCover=highWeather*highMod;
+  // Wispy cirrus streaks, except inside a cyclone's smooth central overcast.
+  highCover*=lerp(1.0,smoothstep(.34,.70,fine)*1.5,saturate(_CloudStreak)*(1.0-saturate(cdoSmooth)));
+  high=OrbisHPHighDensity(z,.16+.74*highCover,.36,lerp(.56+.44*ice.r,.84+.16*ice.r,cdoSmooth*.75),ice.g)*highCover*1.16;
  }
  if(orbit>0)
  {
