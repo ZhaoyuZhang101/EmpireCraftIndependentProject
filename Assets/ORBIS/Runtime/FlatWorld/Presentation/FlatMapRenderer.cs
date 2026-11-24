@@ -108,6 +108,9 @@ namespace Orbis.Flat
             Shader.SetGlobalFloat("_RiverMinPixels",2.4f);Shader.SetGlobalFloat("_RiverTint",.38f);
             // Light and shade look in FlatSkyComposite (0 = reference): blue sky-lit shadows, warm low sun, sun-side cloud shading.
             Shader.SetGlobalFloat("_FlatLightLook",1);
+            // Cloud translucency (ScrollCloudSource globals, 0 = reference): thin cover and cirrus let the
+            // surface show through; only thick cores stay opaque white.
+            Shader.SetGlobalFloat("_CloudHighCut",.7f);Shader.SetGlobalFloat("_CloudThinFade",1);Shader.SetGlobalFloat("_CloudCoverCut",.15f);
             Material=new Material(shader);Material.SetTexture("_MainTex",DisplayTexture);Material.SetTexture("_OwnerTex",OwnerTexture);Material.SetTexture("_InfoTex",InfoTexture);Material.SetVector("_MapSize",new Vector4(world.Width,world.Height,1f/world.Width,1f/world.Height));
             HydroTexture=MakeData(world.Width,world.Height,"Depth / downhill flow / river width",true);
             MixingTexture=MakeData(world.Width,world.Height,"River meander / sediment / freshwater / links",true);

@@ -9,6 +9,10 @@ namespace Orbis.Flat
         public float Yaw,Pitch=18,Distance=3.1f,SunAngle;
         Camera viewCamera;double clock;FlatMapRenderer maps;
         float baseAir,baseHaze,baseCloudDensity;bool scrollPrepared;
+        // Satellite-photo look on the globe: thin air and haze let the deep ocean read navy
+        // and keep cloud against it crisp. The unfolded surface keeps its own atmosphere.
+        const float GlobeAir=.2f,GlobeHaze=.05f,GlobeExposure=.9f;
+        float baseExposure,nearAir,nearHaze,nearExposure;
         OrbisAtmosphereRenderer scrollVolume;FlatScrollNavigator scrollNav;Vector2 poles;int poleRevision=-1;
         int materialTerrainRevision=-1;
         public void Initialize(WorldData world,Camera target,FlatMapRenderer renderer,bool scrollPresentation=false)
@@ -51,7 +55,8 @@ namespace Orbis.Flat
         public void PrepareScroll()
         {
             if(scrollPrepared)return;scrollPrepared=true;
-            baseAir=Snapshot.settings.airDensity;baseHaze=Snapshot.settings.haze;baseCloudDensity=Snapshot.settings.cloudDensity;
+            nearAir=Snapshot.settings.airDensity*.10f;nearHaze=Snapshot.settings.haze;nearExposure=Snapshot.settings.exposure;
+            baseAir=GlobeAir;baseHaze=GlobeHaze;baseExposure=GlobeExposure;baseCloudDensity=Snapshot.settings.cloudDensity;
             Snapshot.settings.surfaceLOD=false;Snapshot.settings.spriteActors=false;
             // Preserve the native atmosphere implementation, but never draw a second terrain world.
             foreach(var renderer in GetComponentsInChildren<Renderer>(true))renderer.forceRenderingOff=true;
@@ -66,8 +71,10 @@ namespace Orbis.Flat
             transform.localScale=new Vector3(1,1,-1);
             transform.localRotation=Quaternion.AngleAxis(spin*Mathf.Rad2Deg,Vector3.up);
             float weight=1-Mathf.SmoothStep(0,1,Mathf.InverseLerp(.96f,1,unfold));
-            Snapshot.settings.airDensity=baseAir*Mathf.Lerp(1,.10f,Mathf.SmoothStep(0,1,Mathf.InverseLerp(.3f,.85f,unfold)));
-            Snapshot.settings.haze=baseHaze;
+            float near=Mathf.SmoothStep(0,1,Mathf.InverseLerp(.3f,.85f,unfold));
+            Snapshot.settings.airDensity=Mathf.Lerp(baseAir,nearAir,near);
+            Snapshot.settings.exposure=Mathf.Lerp(baseExposure,nearExposure,near);
+            Snapshot.settings.haze=Mathf.Lerp(baseHaze,nearHaze,near);
             Snapshot.settings.cloudDensity=baseCloudDensity;
             Snapshot.settings.clouds=clouds&&natural;
             Snapshot.settings.atmosphere=atmosphere&&natural;

@@ -8,6 +8,10 @@ UNITY_DECLARE_TEX2D(_ScrollHeightTex);
 float4 _ScrollSourceSize;
 float _ScrollWeatherTime;
 float4 _OrbisCycloneNorth,_OrbisCycloneSouth,_OrbisCyclonePhase;
+// Cloud translucency globals (0 = reference look): _CloudCoverCut removes the thinnest
+// baked veil, _CloudThinFade lowers the density of thin cover while cores stay opaque,
+// _CloudHighCut thins cirrus, _CloudDensityCut scales all low-cloud density.
+float _CloudCoverCut,_CloudThinFade,_CloudHighCut,_CloudDensityCut;
 
 float4 ScrollHeightAt(float2 uv)
 {
@@ -83,6 +87,9 @@ float2 ScrollClimateDensities(float3 p,bool simpleMode)
  if(z<400||z>13500)return 0;
  float4 weather=tex2Dlod(_ScrollWeatherTex,float4(uv,0,0));
  float coverage=weather.r,highWeather=weather.g,convection=weather.b;
+ float bakedCover=coverage;
+ coverage=saturate((coverage-_CloudCoverCut)/max(.05,1.0-_CloudCoverCut));
+ highWeather*=1.0-saturate(_CloudHighCut);
  bool hasCyclone=(_OrbisCycloneNorth.w>.20)||(_OrbisCycloneSouth.w>.20);
  if(!hasCyclone&&(coverage+highWeather<.006))return 0;
 
@@ -230,6 +237,8 @@ float2 ScrollClimateDensities(float3 p,bool simpleMode)
   float highCover=highWeather*(.26+.94*smoothstep(.15,.84,fine));
   high=OrbisHPHighDensity(z,.16+.74*highCover,.36,.56+.44*ice.r,ice.g)*highCover*1.16;
  }
+ float thinFade=smoothstep(.25,.85,bakedCover);
+ low*=lerp(1.0,thinFade*sqrt(thinFade),saturate(_CloudThinFade))*(1.0-saturate(_CloudDensityCut));
  return float2(low,high)*_Density*max(0,_Cover);
 }
 #endif

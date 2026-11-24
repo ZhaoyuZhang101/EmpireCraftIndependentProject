@@ -125,7 +125,7 @@ namespace Orbis.EditorTools
         {
             var globe=Get<FlatGlobePresenter>(app,"globe");if(!globe)return;var s=globe.Snapshot.settings;var t=typeof(FlatGlobePresenter);
             if(defaults==null)defaults=new Dictionary<string,float>{{"air",(float)t.GetField("baseAir",Private).GetValue(globe)},{"haze",(float)t.GetField("baseHaze",Private).GetValue(globe)},
-                {"cloudDensity",(float)t.GetField("baseCloudDensity",Private).GetValue(globe)},{"exposure",s.exposure},{"scatter",s.scatteringStrength},{"shadow",s.shadowStrength}};
+                {"cloudDensity",(float)t.GetField("baseCloudDensity",Private).GetValue(globe)},{"exposure",(float)t.GetField("baseExposure",Private).GetValue(globe)},{"scatter",s.scatteringStrength},{"shadow",s.shadowStrength}};
             var values=new Dictionary<string,float>(defaults);
             foreach(var pair in variantSettings[variant].Split(new[]{','},StringSplitOptions.RemoveEmptyEntries))
             {
@@ -134,7 +134,10 @@ namespace Orbis.EditorTools
             }
             t.GetField("baseAir",Private).SetValue(globe,values["air"]);t.GetField("baseHaze",Private).SetValue(globe,values["haze"]);
             t.GetField("baseCloudDensity",Private).SetValue(globe,values["cloudDensity"]);
-            s.exposure=values["exposure"];s.scatteringStrength=values["scatter"];s.shadowStrength=values["shadow"];
+            t.GetField("baseExposure",Private).SetValue(globe,values["exposure"]);s.scatteringStrength=values["scatter"];s.shadowStrength=values["shadow"];
+            // Shader globals also feed the baked cloud column: force a rebake for this variant.
+            var sky=Get<FlatMapRenderer>(app,"map")?.Sky;var revision=typeof(FlatSkyRenderer).GetField("revision",Private);
+            if(sky&&revision!=null)revision.SetValue(sky,-1);
             Debug.Log("OrbisLightingCapture variant "+variantNames[variant]+" "+variantSettings[variant]);
         }
 

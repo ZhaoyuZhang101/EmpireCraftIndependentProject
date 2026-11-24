@@ -88,11 +88,14 @@ namespace Orbis.EditorTools
                 var toggle=Get<Toggle>(app,"cloudToggle");if(toggle!=null)toggle.value=true;
                 var quality=Get<DropdownField>(app,"cloudQuality");if(quality!=null)quality.index=1;
                 nav.Home(app.CalendarDay);globeZoom=(float)Field(nav,"zoom");
-                variant=0;dayIndex=0;shot=0;ApplyVariant();Setup(app,nav);waited=0;stage=2;return;
+                variant=0;dayIndex=0;shot=0;ApplyVariant(app,camera);Setup(app,nav);waited=0;stage=2;return;
             }
-            if(!map.Sky.Ready||map.Sky.RegionalClimateStep!=(long)Math.Floor(app.World.Day*4)||waited++<150)return;
+            bool cloudsOn=Get<Toggle>(app,"cloudToggle")?.value??true;
+            if(cloudsOn&&(!map.Sky.Ready||map.Sky.RegionalClimateStep!=(long)Math.Floor(app.World.Day*4)))return;
+            if(waited++<150)return;
             string prefix=$"{variantNames[variant]}_d{days[dayIndex]:000}";
-            if(shot==0)
+            if(shot==0&&!cloudsOn){}
+            else if(shot==0)
             {
                 DumpMap(app.World,map.Sky.Texture,output,prefix);
                 // Forcing grids: synoptic (lift, ITCZ, storm track, moisture) and aux (Sc, orographic, lee, polar).
@@ -111,7 +114,7 @@ namespace Orbis.EditorTools
                 {
                     dayIndex=0;variant++;
                     if(variant>=variantNames.Count){File.WriteAllText(Path.Combine(output,"stats.txt"),stats.ToString());Finish(output,"done",0);return;}
-                    ApplyVariant();
+                    ApplyVariant(app,camera);
                 }
             }
             Setup(app,nav);
@@ -137,10 +140,31 @@ namespace Orbis.EditorTools
             nav.GoGlobe(day);nav.Recenter(location,day);SetZoom(nav,globeZoom,day);
         }
 
-        static void ApplyVariant()
+        // Variant keys: "_Global=value" sets a shader global; "clouds=0" turns the cloud toggle
+        // off; "atmo=0" disables the atmosphere/cloud image effect; "air", "haze" and "exposure"
+        // set the globe atmosphere settings. Settings persist into later variants unless reset.
+        static void ApplyVariant(FlatWorldApp app,Camera camera)
         {
+            var toggle=Get<Toggle>(app,"cloudToggle");if(toggle!=null)toggle.value=true;
+            foreach(var r in camera.GetComponents<OrbisAtmosphereRenderer>())r.enabled=true;
             foreach(var pair in variantSettings[variant].Split(new[]{','},StringSplitOptions.RemoveEmptyEntries))
-            {var kv=pair.Split('=');Shader.SetGlobalFloat(kv[0].Trim(),F(kv[1]));}
+            {
+                var kv=pair.Split('=');string key=kv[0].Trim();float value=F(kv[1]);
+                if(key=="clouds"){if(toggle!=null)toggle.value=value>.5f;}
+                else if(key=="air"||key=="haze"||key=="exposure")
+                {
+                    // The globe presenter re-applies its captured base air/haze every tick.
+                    var globe=Get<FlatGlobePresenter>(app,"globe");if(!globe)continue;var t=typeof(FlatGlobePresenter);
+                    if(key=="air")t.GetField("baseAir",Private).SetValue(globe,value);
+                    else if(key=="haze")t.GetField("baseHaze",Private).SetValue(globe,value);
+                    else t.GetField("baseExposure",Private).SetValue(globe,value);
+                }
+                else if(key=="atmo"){foreach(var r in camera.GetComponents<OrbisAtmosphereRenderer>())r.enabled=value>.5f;}
+                else Shader.SetGlobalFloat(key,value);
+            }
+            // Shader globals also feed the baked cloud column: force a rebake for this variant.
+            var sky=Get<FlatMapRenderer>(app,"map")?.Sky;var revision=typeof(FlatSkyRenderer).GetField("revision",Private);
+            if(sky&&revision!=null)revision.SetValue(sky,-1);
             Debug.Log("OrbisCloudAtlasCapture variant "+variantNames[variant]+" "+variantSettings[variant]);
         }
 
