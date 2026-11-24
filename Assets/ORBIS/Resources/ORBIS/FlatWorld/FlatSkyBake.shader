@@ -267,6 +267,61 @@ Shader "ORBIS/FlatWorld/SkyBake"
     o.wcbCirrus=waveFade*saturate(wcb*(.72+.36*frontFilament)+commaHead*.88+warmFront*.74+coldFront*.60);
     return o;
    }
+   // Mid-latitude cyclone train for organized storm-track cloud. k systems per hemisphere
+   // drift east along the storm track; each keeps its identity (index) while it travels.
+   // Local frame per system: X east (-1..1 across one spacing), Y poleward, both in units
+   // of half the system spacing, so every planet's wave number gives the same anatomy:
+   // comma head round the low, a long cold front trailing equatorward and west, a
+   // warm-front shield ahead of it, a dry slot wrapping in behind the front and open
+   // cumulus cells in the cold air.
+   struct MidlatCloud{float low,mid,dry,cirrus,front,cells,edge,env,intensity;};
+   MidlatCloud MidlatSystems(float longitude,float latitude,float3 radial,float k,float trackLat,float time)
+   {
+    MidlatCloud o;
+    float hs=latitude>=0?0.0:37.0;
+    float theta=k*longitude-time*.011+6.2831853*Hash3(float3(k,hs,3))+.9*sin(longitude+hs)+.5*sin(2.0*longitude+1.7+hs);
+    float cell=floor(theta/6.2831853);
+    float s=theta/6.2831853-cell-.5;
+    float idA=Hash3(float3(cell,hs,1)),idB=Hash3(float3(cell,hs,2)),idC=Hash3(float3(cell,hs,5));
+    float intensity=saturate(.30+.70*(.5+.5*sin(6.2831853*(time*.0009+idA))));
+    float size=lerp(.82,1.18,idB);
+    float halfSpacing=3.14159265/k*max(.3,cos(trackLat));
+    float3 drift=float3(hs,time*.0016,cell*.37);
+    float X=s*2.0+.20*(Noise3(radial*3.6+drift)-.5);
+    float Y=(abs(latitude)-trackLat-(idC-.5)*.10)/halfSpacing+.16*(Noise3(radial*3.6+drift+float3(9,4,1))-.5);
+    X/=size;Y/=size;
+
+    float t=Y-.05;
+    float Xf=.10+.55*t+.20*t*t+.07*(Noise3(radial*15.0+drift)-.5);
+    float along=smoothstep(-1.35,-1.0,t)*(1.0-smoothstep(0.0,.12,t));
+    float coldFront=exp(-pow((X-Xf)/(.10+.05*saturate(-t)),2.0))*along;
+    float Yw=-.02-.32*X;
+    float dW=Y-Yw;
+    float warmShield=smoothstep(-.12,.02,X)*(1.0-smoothstep(.55,.95,X))*smoothstep(-.08,.06,dW)*(1.0-smoothstep(.30,.62,dW));
+    float2 c=float2(X+.02,Y-.10);
+    float r=length(c)/.56;
+    float psi=atan2(c.y,c.x)-3.2*log(1.0+4.0*r);
+    float arms=smoothstep(-.20,.60,cos(psi+.6));
+    float head=(1.0-smoothstep(.70,1.05,r))*lerp(arms,1.0,.35*(1.0-smoothstep(.2,.6,r)))*smoothstep(.04,.12,r);
+    float drySlot=exp(-pow((X-(Xf-.17))/.085,2.0))*smoothstep(-1.0,-.55,t)*(1.0-smoothstep(-.05,.12,t));
+    float dryTongue=(1.0-arms)*(1.0-smoothstep(.55,.95,r))*smoothstep(.06,.18,r);
+    float cold=smoothstep(.05,.30,(Xf-.14)-X)*smoothstep(-1.7,-1.1,t)*(1.0-smoothstep(.25,.65,Y));
+    float warmSector=smoothstep(.02,.12,X-Xf)*smoothstep(.02,.12,Yw-Y)*smoothstep(-1.4,-.9,t);
+
+    o.dry=saturate(max(drySlot,dryTongue*.9));
+    float body=max(max(coldFront,warmShield),head);
+    o.low=saturate(max(smoothstep(.10,.55,body),max(cold*.70,warmSector*.62)))*(1.0-.95*o.dry);
+    o.front=coldFront;o.cells=cold;
+    o.mid=saturate(warmShield*.9+head*.6);
+    o.cirrus=saturate(warmShield*.9+head*.7+coldFront*.5)*(1.0-.8*o.dry);
+    // Between two systems both sides blend into the same post-frontal cell field; the
+    // track envelope uses the unshifted latitude so it is continuous from system to system.
+    o.edge=smoothstep(.55,1.0,abs(s*2.0));
+    float Y0=(abs(latitude)-trackLat)/halfSpacing;
+    o.env=smoothstep(-1.9,-1.4,Y0)*(1.0-smoothstep(.9,1.5,Y0));
+    o.intensity=intensity;
+    return o;
+   }
    float4 frag(v2f_img i):SV_Target
    {
     float4 monthly=UNITY_SAMPLE_TEX2D(_ClimateTex,i.uv);
@@ -347,55 +402,75 @@ Shader "ORBIS/FlatWorld/SkyBake"
      float lowTarget=saturate(climTarget*(1.0-.35*highShare));
      float highTarget=saturate((climTarget-lowTarget)/max(.14,1.0-lowTarget)+.22*highShare*climTarget);
 
-     // Four distinct NASA satellite morphological regimes:
+     // Organized cloud systems. The climatological fraction (synLift) is only reached
+     // on average: each regime decides WHERE the cloud is in a snapshot (cyclone train,
+     // ITCZ clusters, cold-current decks, fine trade cumulus), so cloud gathers into
+     // systems with clear air between them instead of an even speckle.
+     float stormWeight=smoothstep(.12,.45,stormTrack);
      float zBase=(baseTex-.502)*10.6;
-     float zStreets=(tradeStreets-.504)*10.8;
-     float zHoney=(honeycomb-.532)*8.8;
-     float zMcs=.54*zBase+.26*zStreets+2.05*(mcsCluster-.18);
-     // Sweeping curved comma shields + coiled spiral dry-intrusion tongue + lacy open-cell post-frontal cumulus
-     float zFront=.22*zBase+4.95*(frontalLow-.17)-4.45*frontalDry;
-     float stormWeight=smoothstep(.16,.62,stormTrack);
+     float uLow=rcp(1.0+exp(-1.702*clamp(zBase+.52*orogCrest*max(0.0,zBase+.35),-6.0,6.0)));
+     float detail=flowBands*.40+mesoCells*.34+fineGrain*.26;
+     // Background: large masses with crisp edges and a thin textured rim.
+     float rampB=.07;
+     float background=smoothstep(1.0-lowTarget-rampB,1.0-lowTarget+rampB,uLow);
+     background=saturate(background-(1.0-detail)*.45*background*(1.0-background)*4.0);
 
-     float zLow=lerp(zBase,zStreets,.42*tropBelt);
-     zLow=lerp(zLow,zMcs,saturate(tropBelt*(.32+.68*itczConv)));
-     zLow=lerp(zLow,zHoney,saturate(marineSc*.90));
-     zLow=lerp(zLow,zFront,stormWeight);
-     zLow+=.52*orogCrest*max(0.0,zBase+.35);
-     float uLow=rcp(1.0+exp(-1.702*clamp(zLow,-6.0,6.0)));
+     // Mid-latitude storm track: cyclone train.
+     float k=clamp(floor(rossbyK*2.3+.5),2.0,12.0);
+     float trackLat=max(.35,polarLatRad-.10);
+     MidlatCloud mc=MidlatSystems(longitude,latitude,radial,k,trackLat,_VisualTime);
+     float stormBackground=smoothstep(1.0-climTarget-rampB,1.0-climTarget+rampB,uLow);
+     float cellLace=smoothstep(.40,.72,abs(2.0*Noise3(radial*95.0+float3(3,7,1))-1.0))*(.55+.45*smoothstep(.35,.70,mesoCells));
+     float openCells=saturate(.10+.90*cellLace);
+     float stormLow=max(mc.low*(1.0-mc.cells*.55),mc.cells*openCells*.85);
+     stormLow=lerp(lerp(stormBackground*.8,stormLow,mc.intensity),openCells,mc.edge);
+     float stormMix=stormWeight*mc.env;
+     float sysMix=stormMix*(1.0-mc.edge);
+     float lowStorm=lerp(stormBackground,stormLow,stormMix);
 
-     // Hierarchical ISCCP optical profile: sweeping continuous fibrous frontal ribbons & comma spirals
-     // (NASA Apollo 17 / EPIC signature) + crisp lacy cellular trade streets & post-frontal open-cell wakes!
-     float sharpOrg=saturate(max(stormWeight*frontalLow,itczConv*mcsCluster));
-     float frontRibbon=saturate(stormWeight*frontalLow*1.25);
-     float rampCap=lerp(.36,.22,sharpOrg);
-     float wLow=max(1e-4,min(rampCap,min(lowTarget,1.0-lowTarget)));
-     float rawLow=smoothstep(1.0-lowTarget-wLow,1.0-lowTarget+wLow,uLow);
-     float detailField=lerp(flowBands*.40+mesoCells*.34+fineGrain*.26,flowBands*.64+fineGrain*.24+mesoCells*.12,frontRibbon);
-     float edgeBand=smoothstep(.01,.44,rawLow)*(1.0-smoothstep(.66,.97,rawLow));
-     float erodeAmt=lerp(.54,.28,frontRibbon);
-     float erodedEdge=saturate((rawLow-(1.0-detailField)*erodeAmt*edgeBand)/max(.24,1.0-.28*edgeBand));
-     float veilToCore=pow(erodedEdge,lerp(1.26,1.08,frontRibbon))*(.70+.40*smoothstep(.26,.82,detailField));
-     float postWakeLace=stormWeight*postFrontCells*smoothstep(.18,.58,climTarget)*.56;
-     low=saturate(max(lerp(veilToCore,max(veilToCore,.93),smoothstep(.74,.96,rawLow)*(sharpOrg*.74+.26)),postWakeLace)+
-                  .04*response.x*smoothstep(.02,.18,rawLow+.15*climTarget));
+     // Deep tropical convection: ITCZ, monsoon and rain-forest clusters, zonally elongated.
+     float trop=saturate(max(itczConv*1.15,smoothstep(.22,.60,wet)*tropBelt*(1.0-.55*leeShadow)*.85));
+     float3 zonal=normalize(east+float3(1e-5,0,0));
+     float3 pc=RotateY(radial,-_VisualTime*.0012);
+     float clusters=Fbm((pc-zonal*dot(pc,zonal)*.70)*9.0+float3(5,9,2))*.62+mcsCluster*.38;
+     float tropCover=.10+.72*trop;
+     float lowTrop=smoothstep(1.0-tropCover-.06,1.0-tropCover+.06,clusters+.30*(trop-.5))*smoothstep(.05,.25,trop);
 
-     // Explicit 5-tier cloud altitude classification in convection (weather.b):
-     float scShare=saturate(marineSc*.86-max(stormWeight*frontalLow,itczConv*mcsCluster)*.95);
-     float midShare=saturate(max(stormWeight*frontalMid*(1.0-.55*smoothstep(.65,.95,frontalLow)),
-                                 (.35*itczConv+.45*orogCrest)*(1.0-smoothstep(.55,.88,mcsCluster)))*(1.0-scShare));
-     float corePeak=smoothstep(.46,.86,planetary*.45+mesoCells*.55);
-     float deepShare=saturate(max(itczConv*smoothstep(.45,.88,uLow)*(.45+.55*mcsCluster),
-                                  stormWeight*smoothstep(.50,.90,frontalLow)*.88));
-     float deepTrigger=smoothstep(.20,.68,deepShare*(.52+.48*corePeak)+.32*synLift*orogCrest+.20*itczConv*smoothstep(.55,.90,effWet));
-     storm=saturate(smoothstep(.22,.76,effWet)*smoothstep(.60,.95,low)*deepTrigger*(1+.35*response.y)*(1.0-.92*scShare));
+     // Cold-current stratocumulus: a closed deck with honeycomb cells, breaking up at its edge.
+     float closed=1.0-abs(2.0*Noise3(RotateY(radial,-_VisualTime*.0006)*58.0+float3(2,5,8))-1.0);
+     float deckField=marineSc+.22*(planetary-.5)+.10*(honeycomb-.5);
+     float noDeck=(1.0-smoothstep(.25,.60,trop))*(1.0-stormWeight*.7);
+     float deck=smoothstep(.50,.66,deckField)*noDeck;
+     float lowDeck=deck*(.80+.20*smoothstep(.15,.65,closed));
+     // Weaker Sc signal: broken cells that thin westward into trade cumulus.
+     float brokenCover=saturate(.20+.55*smoothstep(.25,.62,deckField));
+     float lowBroken=smoothstep(1.0-brokenCover-.08,1.0-brokenCover+.08,closed*.55+mesoCells*.45)*.80*noDeck*smoothstep(.20,.40,marineSc);
 
-     float tradeType=.20+.11*smoothstep(.20,.75,flowBands);
-     float midType=.40+.13*frontalMid;
-     float deepType=saturate(.64+.20*deepShare+.22*storm);
-     convection=tradeType;
-     convection=lerp(convection,midType,saturate(midShare*1.15));
-     convection=lerp(convection,deepType,saturate(deepTrigger*1.10+storm*.60));
-     convection=lerp(convection,.06+.05*honeycomb,scShare);
+     // Trade cumulus: fine streets and puffs in mesoscale fields, never solid.
+     float3 ps=RotateY(radial,-_VisualTime*.0009);
+     float streets=Noise3((ps-windAxis*dot(ps,windAxis)*.85)*72.0+float3(1,3,7))*.55+Noise3(ps*118.0+float3(7,1,4))*.45;
+     float tradeEnv=smoothstep(.36,.66,Fbm(ps*8.5+float3(4,4,9)));
+     float tradeCover=saturate(lowTarget*.85)*(.45+.55*tradeEnv);
+     float lowTrade=smoothstep(1.0-tradeCover-.05,1.0-tradeCover+.05,streets)*.72;
+     float tradeWeight=tropBelt*(1.0-stormWeight);
+
+     low=lerp(background,lowTrade,tradeWeight*(1.0-trop));
+     low=lerp(low,lowStorm,stormWeight);
+     low=max(low,lowTrop*(1.0-stormWeight*.5));
+     low=max(low,max(lowDeck,lowBroken*(1.0-stormWeight)));
+     low=saturate(low+.20*orogCrest*background+.04*response.x*low);
+
+     // Cloud type in convection (weather.b): Sc .06, trade Cu .22, frontal/stratiform .45, deep .75+.
+     float deepShare=saturate(max(lowTrop*trop,sysMix*mc.front*.85));
+     float deepTrigger=smoothstep(.25,.70,deepShare*(.55+.45*mcsCluster)+.20*itczConv*smoothstep(.55,.90,effWet));
+     storm=saturate(smoothstep(.22,.76,effWet)*smoothstep(.60,.95,low)*deepTrigger*(1+.35*response.y)*(1.0-.92*deck));
+     float midShare=saturate(sysMix*mc.mid+.45*orogCrest*background);
+     convection=.20+.11*smoothstep(.20,.75,flowBands);
+     convection=lerp(convection,.40+.13*mc.mid,saturate(midShare*1.15));
+     convection=lerp(convection,saturate(.64+.20*deepShare+.22*storm),saturate(deepTrigger*1.10+storm*.60));
+     convection=lerp(convection,.09,lowBroken*(1.0-stormWeight)*.8);
+     convection=lerp(convection,.06+.05*closed,deck);
+     wcbCirrus=lerp(wcbCirrus*.4,mc.cirrus,sysMix*mc.intensity);
 
      // Upper-tropospheric Rossby jet streaks & downwind anvil/WCB plumes coupled to active synoptic systems
      // (clears subsiding dry gyres while trailing sweeping feathery cirrus plumes downwind of storms!)

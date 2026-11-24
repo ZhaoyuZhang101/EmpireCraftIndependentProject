@@ -3292,7 +3292,10 @@ namespace Orbis.Flat
                     float coolUpwelling = FMath.Clamp((0.42f - sstAnom) / 2.1f, 0f, 1f);
                     float inversionLid = FMath.Clamp(0.52f * highP + 0.48f * sthzRidge + 0.32f * negImpact, 0f, 1f);
                     float scLat = Smooth(6f * hadleyScale, 13f * hadleyScale, absLat) * (1f - Smooth(33f * hadleyScale, 43f * hadleyScale, absLat));
-                    float subtropSc = oceanFrac * scLat * (0.24f + 0.76f * coolUpwelling) * (0.32f + 0.68f * inversionLid);
+                    // Decks hug eastern boundaries: open ocean within a few thousand km of the coast to its east
+                    // (fetchEastKm), where the subtropical high drives alongshore upwelling. Mid-basin Sc stays broken.
+                    float eastBoundary = 1f - Smooth(700f, 3200f, fetchEastKm[idx]);
+                    float subtropSc = oceanFrac * scLat * (0.14f + 0.86f * Math.Max(coolUpwelling * (0.45f + 0.55f * eastBoundary), 0.92f * eastBoundary)) * (0.32f + 0.68f * inversionLid);
                     float eqColdSc = ekmanColdSlot * (0.28f + 0.20f * Math.Max(coolUpwelling, eastCentralBasin));
                     float marineSc = FMath.Clamp(
                         Math.Max(subtropSc, eqColdSc) * (1f - 0.85f * itczConv),
