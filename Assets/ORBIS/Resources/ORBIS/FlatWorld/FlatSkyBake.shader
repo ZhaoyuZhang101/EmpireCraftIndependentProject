@@ -312,7 +312,7 @@ Shader "ORBIS/FlatWorld/SkyBake"
     float polewardDeck=smoothstep(.0,.35,Y)*(1.0-smoothstep(1.0,1.45,Y))*smoothstep(-1.0,-.6,X)*(1.0-smoothstep(.7,1.0,X));
     o.dry=saturate(max(drySlot,dryTongue*.9));
     float body=max(max(coldFront,warmShield),head);
-    o.low=saturate(max(max(smoothstep(.10,.55,body),polewardDeck*.82),max(cold*.70,warmSector*.75)))*(1.0-.95*o.dry);
+    o.low=saturate(max(max(smoothstep(.10,.55,body),polewardDeck*.68),max(cold*.70,warmSector*.48)))*(1.0-.95*o.dry);
     o.front=coldFront;o.cells=cold;
     o.mid=saturate(warmShield*.9+head*.6);
     o.cirrus=saturate(warmShield*.9+head*.7+coldFront*.5)*(1.0-.8*o.dry);
@@ -413,19 +413,22 @@ Shader "ORBIS/FlatWorld/SkyBake"
      float uLow=rcp(1.0+exp(-1.702*clamp(zBase+.52*orogCrest*max(0.0,zBase+.35),-6.0,6.0)));
      float detail=flowBands*.40+mesoCells*.34+fineGrain*.26;
      // Background: large masses with crisp edges and a thin textured rim.
-     float rampB=.07;
+     float rampB=.12;
      float background=smoothstep(1.0-lowTarget-rampB,1.0-lowTarget+rampB,uLow);
-     background=saturate(background-(1.0-detail)*.45*background*(1.0-background)*4.0);
+     background=saturate(background-(1.0-detail)*.22*background*(1.0-background)*4.0);
+     // Optical depth follows how cloudy the climate is: thin veils where cloud is rare.
+     background*=.55+.45*saturate(climTarget*1.3);
 
      // Mid-latitude storm track: cyclone train.
      float k=clamp(floor(rossbyK*2.3+.5),2.0,12.0);
      float trackLat=max(.35,polarLatRad-.10);
      MidlatCloud mc=MidlatSystems(longitude,latitude,radial,k,trackLat,_VisualTime);
      float stormBackground=smoothstep(1.0-climTarget-rampB,1.0-climTarget+rampB,uLow);
-     float cellLace=smoothstep(.40,.72,abs(2.0*Noise3(radial*95.0+float3(3,7,1))-1.0))*(.55+.45*smoothstep(.35,.70,mesoCells));
-     float openCells=saturate(.42+.58*cellLace);
+     float cellLace=smoothstep(.28,.82,abs(2.0*Noise3(radial*58.0+float3(3,7,1))-1.0))*(.55+.45*smoothstep(.35,.70,mesoCells));
+     // Open cells leave clean gaps; the cells themselves are moderately thick.
+     float openCells=saturate((cellLace-.20)*1.5)*.68;
      float stormLow=max(mc.low*(1.0-mc.cells*.55),mc.cells*openCells*.85);
-     stormLow=lerp(lerp(stormBackground*.8,stormLow,mc.intensity),openCells,mc.edge);
+     stormLow=lerp(lerp(stormBackground*.6,stormLow,mc.intensity),openCells,mc.edge);
      float stormMix=stormWeight*mc.env;
      float sysMix=stormMix*(1.0-mc.edge);
      float lowStorm=lerp(stormBackground,stormLow,stormMix);
@@ -436,24 +439,24 @@ Shader "ORBIS/FlatWorld/SkyBake"
      float3 pc=RotateY(radial,-_VisualTime*.0012);
      float clusters=Fbm((pc-zonal*dot(pc,zonal)*.70)*9.0+float3(5,9,2))*.62+mcsCluster*.38;
      float tropCover=.10+.82*trop;
-     float lowTrop=smoothstep(1.0-tropCover-.06,1.0-tropCover+.06,clusters+.30*(trop-.5))*smoothstep(.05,.25,trop);
+     float lowTrop=smoothstep(1.0-tropCover-.11,1.0-tropCover+.11,clusters+.30*(trop-.5))*smoothstep(.05,.25,trop)*(.58+.42*smoothstep(.45,.85,clusters+.35*trop));
 
      // Cold-current stratocumulus: a closed deck with honeycomb cells, breaking up at its edge.
-     float closed=1.0-abs(2.0*Noise3(RotateY(radial,-_VisualTime*.0006)*58.0+float3(2,5,8))-1.0);
+     float closed=1.0-abs(2.0*Noise3(RotateY(radial,-_VisualTime*.0006)*44.0+float3(2,5,8))-1.0);
      float deckField=marineSc+.22*(planetary-.5)+.10*(honeycomb-.5);
      float noDeck=(1.0-smoothstep(.25,.60,trop))*(1.0-stormWeight*.7);
      float deck=smoothstep(.44,.60,deckField)*noDeck;
-     float lowDeck=deck*(.80+.20*smoothstep(.15,.65,closed));
+     float lowDeck=deck*(.68+.22*smoothstep(.15,.65,closed));
      // Weaker Sc signal: broken cells that thin westward into trade cumulus.
      float brokenCover=saturate(.20+.55*smoothstep(.25,.62,deckField));
-     float lowBroken=smoothstep(1.0-brokenCover-.08,1.0-brokenCover+.08,closed*.55+mesoCells*.45)*.80*noDeck*smoothstep(.20,.40,marineSc);
+     float lowBroken=smoothstep(1.0-brokenCover-.12,1.0-brokenCover+.12,closed*.55+mesoCells*.45)*.62*noDeck*smoothstep(.20,.40,marineSc);
 
      // Trade cumulus: fine streets and puffs in mesoscale fields, never solid.
      float3 ps=RotateY(radial,-_VisualTime*.0009);
-     float streets=Noise3((ps-windAxis*dot(ps,windAxis)*.85)*72.0+float3(1,3,7))*.55+Noise3(ps*118.0+float3(7,1,4))*.45;
+     float streets=Noise3((ps-windAxis*dot(ps,windAxis)*.85)*46.0+float3(1,3,7))*.60+Noise3(ps*74.0+float3(7,1,4))*.40;
      float tradeEnv=smoothstep(.36,.66,Fbm(ps*8.5+float3(4,4,9)));
      float tradeCover=saturate(lowTarget*.85)*(.45+.55*tradeEnv);
-     float lowTrade=smoothstep(1.0-tradeCover-.05,1.0-tradeCover+.05,streets)*.72;
+     float lowTrade=smoothstep(1.0-tradeCover-.11,1.0-tradeCover+.11,streets)*.55;
      float tradeWeight=tropBelt*(1.0-stormWeight);
 
      low=lerp(background,lowTrade,tradeWeight*(1.0-trop));

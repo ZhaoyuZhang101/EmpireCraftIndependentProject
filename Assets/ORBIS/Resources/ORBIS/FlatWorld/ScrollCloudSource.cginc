@@ -82,9 +82,7 @@ float2 ScrollClimateDensities(float3 p,bool simpleMode)
  float z=(rLen-ground)/max(1e-7,_CloudHeightScale);
  if(z<400||z>13500)return 0;
  float4 weather=tex2Dlod(_ScrollWeatherTex,float4(uv,0,0));
- // Mild contrast on the baked cover: organized systems stay solid, thin cloud stays thin,
- // so the 3D noise shapes cloud edges instead of re-scattering whole systems.
- float coverage=saturate((weather.r-.08)*1.25),highWeather=weather.g,convection=weather.b;
+ float coverage=weather.r,highWeather=weather.g,convection=weather.b;
  bool hasCyclone=(_OrbisCycloneNorth.w>.20)||(_OrbisCycloneSouth.w>.20);
  if(!hasCyclone&&(coverage+highWeather<.006))return 0;
 
