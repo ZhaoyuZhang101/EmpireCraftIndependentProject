@@ -1,0 +1,19 @@
+Unity=6000.0.55f1 GPU=NVIDIA GeForce RTX 5070 Laptop GPU API=Direct3D11
+Mode=FullAudit Regressions=False
+BENCH | Pacific-Globe-Apr | q=1 | 1280x720 | volume=8.84 ms | no-volume=3.25 ms | cloud=5.59 ms
+BENCH | Pacific-Globe-Apr | q=2 | 1280x720 | volume=12.85 ms | no-volume=3.40 ms | cloud=9.45 ms
+Captured 01_pacific_epic_apr.png | day=105.823 | center=(lon=-132.4deg,lat=17.0deg) | sunDot=0.956 | q=2 | skyReady=True
+Captured 02_pacific_epic_jul.png | day=196.994 | center=(lon=166.0deg,lat=14.5deg) | sunDot=0.959 | q=2 | skyReady=True
+Captured 03_africa_southernocean_oct.png | day=287.372 | center=(lon=30.2deg,lat=-1.9deg) | sunDot=0.951 | q=2 | skyReady=True
+Captured 04_south_atlantic_fronts_jan.png | day=15.548 | center=(lon=-33.2deg,lat=-24.0deg) | sunDot=0.966 | q=2 | skyReady=True
+Captured 05_peru_marine_sc_local.png | day=285.678 | center=(lon=-86.0deg,lat=-20.5deg) | sunDot=0.916 | q=2 | skyReady=True
+BENCH | LowOrbit-Grazing-Borneo | q=1 | 1280x720 | volume=9.90 ms | no-volume=3.27 ms | cloud=6.63 ms
+BENCH | LowOrbit-Grazing-Borneo | q=2 | 1280x720 | volume=14.31 ms | no-volume=3.35 ms | cloud=10.95 ms
+Captured 06_low_orbit_grazing_borneo.png | day=178.082 | center=(lon=116.5deg,lat=13.3deg) | sunDot=0.772 | q=2 | skyReady=True
+Captured 07_low_orbit_grazing_neasia.png | day=195.067 | center=(lon=122.0deg,lat=25.5deg) | sunDot=0.831 | q=2 | skyReady=True
+BENCH | LowOrbit-Typhoon | q=1 | 1280x720 | volume=11.75 ms | no-volume=4.23 ms | cloud=7.52 ms
+BENCH | LowOrbit-Typhoon | q=2 | 1280x720 | volume=17.71 ms | no-volume=4.38 ms | cloud=13.33 ms
+Captured 08_typhoon_closeup.png | day=228.068 | center=(lon=127.5deg,lat=19.7deg) | sunDot=0.888 | q=2 | skyReady=True
+Natural Hurricane Peak: day=256.25, wind=45.2 m/s, strength=0.82, pos=(-75.3deg,14.4deg)
+Captured 09_atlantic_hurricane_globe.png | day=256.648 | center=(lon=-75.3deg,lat=22.4deg) | sunDot=0.866 | q=2 | skyReady=True
+ALL_AUDIT_SHOTS_DONE

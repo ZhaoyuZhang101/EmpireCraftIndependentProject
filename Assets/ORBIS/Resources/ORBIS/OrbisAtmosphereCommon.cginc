@@ -267,15 +267,20 @@ void OrbisIntegrateSample(float3 p,float ds,float2 cloudLayers,float3 sun,float2
   float highWeight=cloudLayers.y/max(cloudDensity,1e-6);
   float rLen=length(p);
   float altFrac=saturate((rLen-ORBIS_CLOUD_BASE)/max(1e-5,ORBIS_CLOUD_TOP-ORBIS_CLOUD_BASE));
-  // Height- & direct-light-coupled cavity AO + EPIC luminous bright-core pop:
-  // Dense sunlit convective & frontal crowns gleam snow-white while surrounding thin marine lace stays airy & cool!
-  float cavityAO=lerp(.42,1.0,smoothstep(.04,.64,altFrac))*lerp(.62,1.0,smoothstep(.0,.42,directT));
-  float3 shadowTint=lerp(float3(.82,.90,1.08),float3(1,1,1),smoothstep(.06,.55,directT));
-  float corePop=1.0+.16*smoothstep(.06,.24,cloudDensity)*smoothstep(.18,.68,altFrac)*smoothstep(.32,.84,directT);
-  float powder=1.0-.48*exp(-cloudDensity*ORBIS_EXTINCTION*ds*3.4);
-  float3 direct=directT*lerp(phaseCloud,phaseHigh,highWeight)*(.80*(.84+.50*powder)*corePop)*sunT;
-  float3 multiple=fields.y*_CloudMS*_ScatteringStrength*.92*cavityAO*shadowTint*sunT;
-  float denseGate=smoothstep(.010,.13,cloudDensity);
+  // Sunlit-top-decoupled cavity AO + thin-veil purity + soft anti-clipping bright-core highlight knee:
+  //   - Sunlit low marine Sc (1 km) & sheer thin veils stay crisp luminous silver-white (ZERO dirty gray!)
+  //   - Thick cloud bases & shadowed lee flanks preserve cool atmospheric shadows & cloud-base light transmission
+  //   - Brightest convective & frontal crowns roll off gently above 1.08 to preserve 3D relief without clipping!
+  float sunlitTop=smoothstep(.18,.76,directT);
+  float baseOcclusion=lerp(.44,1.0,smoothstep(.02,.56,altFrac))*lerp(.58,1.0,smoothstep(.0,.46,directT));
+  float cavityAO=lerp(baseOcclusion,1.0,sunlitTop*.78);
+  float3 shadowTint=lerp(float3(.74,.86,1.08),float3(1,1,1),smoothstep(.05,.52,directT));
+  float corePop=1.0+.14*smoothstep(.05,.22,cloudDensity)*smoothstep(.14,.62,altFrac)*smoothstep(.30,.82,directT);
+  float thickMask=smoothstep(.018,.15,cloudDensity)*(1.0-highWeight*.72);
+  float powder=1.0-.44*thickMask*exp(-cloudDensity*ORBIS_EXTINCTION*ds*3.2);
+  float3 direct=directT*lerp(phaseCloud,phaseHigh,highWeight)*(.82*(.86+.48*powder)*corePop)*sunT;
+  float3 multiple=fields.y*_CloudMS*_ScatteringStrength*.94*cavityAO*shadowTint*sunT;
+  float denseGate=smoothstep(.003,.085,cloudDensity);
   multiple*=denseGate;
   float3 nightCloud=0;
   if(nightW>1e-5)
@@ -285,12 +290,15 @@ void OrbisIntegrateSample(float3 p,float ds,float2 cloudLayers,float3 sun,float2
        lerp(.70,1.30,exp(-cloudDensity*.75));
    nightCloud=nightDiffuse+moonScatter;
   }
-  float3 skyBounce=OrbisDaySkyFill(p,sun)*(.95*cavityAO*shadowTint);
+  float3 skyBounce=OrbisDaySkyFill(p,sun)*(1.02*cavityAO*shadowTint);
   float3 radiance=(direct+multiple+skyBounce)*max(.1,_SolarEnergy)+
       nightCloud+OrbisLightningLight(p)*3.5;
   float dayHemi=saturate(dot(p/max(1e-6,rLen),sun)*2.4+.22);
   float3 ambientFloor=lerp(float3(.036,.052,.082),float3(.074,.090,.118),smoothstep(.04,.76,altFrac))*dayHemi;
   if(_Night<.5)radiance=max(radiance,ambientFloor);
+  float peakR=max(radiance.r,max(radiance.g,radiance.b));
+  float knee=peakR>1.08?(1.08+(peakR-1.08)/(1.0+(peakR-1.08)*.55))/peakR:1.0;
+  radiance*=knee;
   if(_CloudDebug==1)radiance=cloudDensity.xxx;
   if(_CloudDebug==2)radiance=direct;
   if(_CloudDebug==3)radiance=multiple;

@@ -35,21 +35,21 @@ float4 OrbisHPHighDetail(float2 uv)
 }
 
 // Physical cloud-type altitude bounds (metres above local ground/ocean):
-//   type ~ 0.06 (Marine Sc/St) : base =  420 m, top =  1,450 m (ultra-low inversion sheet)
-//   type ~ 0.25 (Trade Cu)     : base = 1,040 m, top =  3,050 m (elevated LCL cauliflower puffs)
-//   type ~ 0.45 (Congestus/Ac) : base =  860 m, top =  4,600 m (+ detached 3,950-5,950 m Ac/As deck)
-//   type ~ 0.85..1.0 (Cb/Typh) : base =  520 m, top = 12,400 m (8.5x taller than Sc + tropopause anvil!)
+//   type ~ 0.06 (Marine Sc/St) : base =  560 m, top =  2,200 m (low inversion deck, smoothly resolved by raymarcher!)
+//   type ~ 0.25 (Trade Cu)     : base = 1,020 m, top =  3,150 m (elevated LCL cauliflower puffs)
+//   type ~ 0.45 (Congestus/Ac) : base =  860 m, top =  4,700 m (+ detached 3,950-5,950 m Ac/As deck)
+//   type ~ 0.85..1.0 (Cb/Typh) : base =  510 m, top = 12,400 m (towering Cb + tropopause anvil!)
 float2 OrbisCloudVerticalSpan(float type,float coverage)
 {
     float sc=1.0-smoothstep(.05,.18,type);
     float cu=smoothstep(.10,.22,type)*(1.0-smoothstep(.48,.70,type));
     float cb=smoothstep(.50,.96,type);
-    float baseM=lerp(760.0,420.0,sc);
-    baseM=lerp(baseM,1060.0,cu*.88);
+    float baseM=lerp(760.0,560.0,sc);
+    baseM=lerp(baseM,1020.0,cu*.88);
     baseM=lerp(baseM,510.0,cb);
 
-    float lowReach=lerp(.65,1.0,smoothstep(.18,.85,coverage));
-    float topM=lerp(1380.0,2950.0,smoothstep(.06,.34,type));
+    float lowReach=lerp(.76,1.0,smoothstep(.14,.82,coverage));
+    float topM=lerp(2200.0,3150.0,smoothstep(.06,.34,type));
     topM=lerp(topM,5200.0,smoothstep(.34,.60,type));
     topM=lerp(topM,12350.0,cb);
     topM=baseM+(topM-baseM)*lerp(lowReach,1.0,cb*.55);
@@ -66,7 +66,8 @@ float OrbisHPLowDensityDetailed(float metres,float coverage,float type,float sha
     float topVar=lerp(.64,1.10,domeField);
     // Clamp localTop cleanly below the 13,100 m evaluation ceiling so overshooting Cb/typhoon peaks
     // taper smoothly via topCap and NEVER hit a hard horizontal clip plane!
-    float localTop=min(12850.0,lerp(span.y,span.x+(span.y-span.x)*topVar,1.0-sc*.75));
+    // Keep 3D dome relief on marine Sc cobblestone pillows (1.0 - sc * 0.25) instead of flattening them into a tabletop!
+    float localTop=min(12850.0,lerp(span.y,span.x+(span.y-span.x)*topVar,1.0-sc*.25));
 
     float density=0;
     float invWorley=1.0-(detail.r*.62+detail.g*.38);
@@ -104,15 +105,17 @@ float OrbisHPLowDensityDetailed(float metres,float coverage,float type,float sha
         float eroded=saturate((shapedCore-billowDetail)/max(.02,1-billowDetail))*profile;
         float erodedWispy=saturate((shapedCore-wispDetail)/max(.02,1-wispDetail))*profile;
         float threshold=1-effCov;
-        // Two-tier EPIC vapor profile: wide translucent milky vapor skirt & delicate fine marine cellular lace
-        // nested smoothly beneath concentrated luminous snow-white cauliflower cloud cores (tau 0.08->0.60->8.0)
-        float coreWeight=smoothstep(.26,.74,coverage);
-        float billowy=smoothstep(threshold+.02,threshold+.20,eroded);
-        float gauzeVeil=smoothstep(threshold-.14,threshold+.26,erodedWispy)*lerp(1.0-.44*localHeight,.88,anvilFlare);
-        float cellLace=smoothstep(.12,.84,cell);
-        float clip=lerp(1,lerp(.32,1.0,pow(max(cellLace,.001),1.05)),sc);
-        float vaporBody=max(gauzeVeil*lerp(.30,.46,anvilFlare),billowy*lerp(.60,1.0,coreWeight));
-        density=lerp(vaporBody,billowy,coreWeight*.48*(1-.55*anvilFlare))*clip*coverage*lerp(.88,1.68,type);
+        // C1 continuous EPIC/VIIRS vapor ramp: sheer pearly mist skirt transitioning smoothly into
+        // crisp sculpted cloud cores without any hard two-step gray iso-contour cliff!
+        float coreWeight=smoothstep(.24,.74,coverage);
+        float billowy=smoothstep(threshold-.02,threshold+.22,eroded);
+        float gauzeVeil=smoothstep(threshold-.14,threshold+.26,erodedWispy)*lerp(1.0-.42*localHeight,.88,anvilFlare);
+        float cellLace=smoothstep(.12,.76,cell);
+        float clip=lerp(1,lerp(.04,1.0,pow(max(cellLace,.001),1.18)),sc);
+        float veilTerm=gauzeVeil*lerp(.25,.42,anvilFlare)*(1.0-.82*sc);
+        float coreTerm=billowy*lerp(.56,1.0,coreWeight);
+        float vaporBody=saturate(veilTerm+coreTerm*(1.0-veilTerm*.52));
+        density=lerp(vaporBody,billowy,coreWeight*.42*(1-.55*anvilFlare))*clip*coverage*lerp(.92,1.68,type);
     }
 
     // 2. Detached Mid-Tropospheric Altocumulus / Altostratus (Ac/As) Deck (3,950 - 5,950 m):
