@@ -1,0 +1,15 @@
+Unity=6000.0.55f1 GPU=NVIDIA GeForce RTX 5070 Laptop GPU API=Direct3D11
+Mode=FullTyphoonAudit Regressions=False
+Natural NH T0: day=256.25 pos=(-75.26deg,14.42deg) wind=45.2m/s str=0.82 phase=15.15rad
+Natural NH T1: day=257.25 (+24h) pos=(-81.29deg,14.71deg) wind=44.1m/s str=0.80 phase=21.87rad
+Natural SH Peak: day=74.75 pos=(-21.70deg,-14.34deg) wind=47.4m/s str=0.86 phase=-13.82rad
+BENCH | Typhoon-Wide-FullStorm | q=1 | 1280x720 | volume=13.95 ms | no-volume=5.79 ms | cloud=8.15 ms
+BENCH | Typhoon-Wide-FullStorm | q=2 | 1280x720 | volume=20.15 ms | no-volume=5.47 ms | cloud=14.67 ms
+Captured 01_typhoon_wide_fullstorm.png | day=228.080 | center=(lon=127.2deg,lat=19.2deg) | R=1.72 | tilt=0deg | sunDot=0.913 | q=2
+BENCH | Typhoon-CloseUp-Eyewall | q=1 | 1280x720 | volume=12.03 ms | no-volume=5.01 ms | cloud=7.02 ms
+BENCH | Typhoon-CloseUp-Eyewall | q=2 | 1280x720 | volume=19.03 ms | no-volume=4.76 ms | cloud=14.26 ms
+Captured 02_typhoon_eyewall_closeup.png | day=228.068 | center=(lon=127.4deg,lat=20.1deg) | R=1.34 | tilt=14deg | sunDot=0.888 | q=2
+Captured 03_natural_cyclone_t0.png | day=256.642 | center=(lon=-75.3deg,lat=14.4deg) | R=1.68 | tilt=0deg | sunDot=0.890 | q=2
+Captured 04_natural_cyclone_t1_later.png | day=257.659 | center=(lon=-81.3deg,lat=14.7deg) | R=1.68 | tilt=0deg | sunDot=0.888 | q=2
+Captured 05_natural_sh_cyclone_cw.png | day=74.494 | center=(lon=-21.7deg,lat=-14.3deg) | R=1.68 | tilt=0deg | sunDot=0.894 | q=2
+ALL_TYPHOON_SHOTS_DONE

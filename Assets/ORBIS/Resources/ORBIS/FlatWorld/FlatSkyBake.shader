@@ -71,67 +71,148 @@ Shader "ORBIS/FlatWorld/SkyBake"
     float3 axis=centre.xyz;
     float extent=FlatCycloneRadius(centre.w);
     float radius=length(p-axis)/extent;
-    if(radius>=1.36)return;
+    if(radius>=1.58)return;
     float3 east=normalize(cross(float3(0,1,0),axis));
     float3 north=cross(axis,east);
     float2 local=float2(dot(p,east),dot(p,north))/extent;
     float bearing=atan2(local.y,local.x+1e-7);
-    float organized=smoothstep(.16,.68,centre.w);
+    float organized=smoothstep(.14,.66,centre.w);
+    float maturity=smoothstep(.42,.74,centre.w);
+
+    // Steering / vertical-shear asymmetry basis:
+    //   downwind   : along steering/shear vector (broader outflow cirrus fan & longer sweeping rainbands)
+    //   rightFront : moisture-rich inflow quadrant (right-of-motion in NH, left-of-motion in SH)
     float2 downwind=steering*rsqrt(max(.04,dot(steering,steering)));
+    float2 rightFront=float2(-downwind.y,downwind.x)*spin;
+    float2 dirLocal=local/max(radius,.06);
+    float alongFlow=dot(dirLocal,downwind);
+    float acrossFlow=dot(dirLocal,rightFront);
+    float inflowBias=saturate(.52+.36*alongFlow+.24*acrossFlow);
+    float upwindDry=saturate(-.46*alongFlow-.28*acrossFlow);
+
     float bearingInStorm=bearing-rotation;
     float2 body=float2(cos(bearingInStorm),sin(bearingInStorm))*radius;
     float3 seed=axis*3.1+float3(7,19,3);
-    float distort=Noise3(float3(body*3.5,1)+seed)-.5;
-    float r=radius*(1+.18*distort)-.08*dot(local,downwind);
+    float distortA=Noise3(float3(body*2.4,1)+seed)-.5;
+    float distortB=Noise3(float3(body*5.6,3.7)+seed)-.5;
+    float distort=distortA*.70+distortB*.30;
+    // Asymmetric radial stretch breaks circularity: extends downwind/inflow flank, tightens upwind dry flank
+    float asymScale=1.0-.17*alongFlow-.09*acrossFlow;
+    float r=radius*asymScale*(1.0+.20*distort);
 
-    // Inverse advection winds convective cells into trailing logarithmic spiral rainbands
-    // (exact hemispheric chirality: counter-clockwise in NH, clockwise in SH).
-    float turn=lerp(.82,3.35,organized)*log(1+4.8*max(r,0));
-    float phase=bearingInStorm+spin*turn+.72*distort;
+    // Natural NASA VIIRS logarithmic spiral crossing pitch (~0.85-1.05 sweeping turns from eyewall to outer tail):
+    // Broad graceful sweeping arcs wrapping into the eyewall — zero concentric cinnamon-roll rings!
+    // Exact hemispheric chirality (CCW inward in NH spin=+1, CW inward in SH spin=-1).
+    float turn=lerp(.95,3.25,organized)*log(1.0+4.4*max(r,0.0));
+    float phase=bearingInStorm+spin*turn+.68*distortA+.28*distortB;
+
+    // Multi-scale spiral-following convective cloud structure (fluffy cauliflower clusters + feathery outer filaments!)
     float2 flow=float2(cos(phase),sin(phase))*r;
-    float cells=Fbm(float3(flow*5.4,1)+seed);
-    float spiralRipple=.5+.5*cos(3.0*phase+1.8*(cells-.5));
-    float gravWave=.5+.5*cos(24.0*r-2.0*phase+1.2*distort);
+    float cells=Fbm(float3(flow*3.8,1)+seed);
+    float mesoCells=Fbm(float3(body*7.2+flow*2.6,2.1)+seed);
+    float fineCloud=Noise3(float3(body*14.5+flow*4.5,4.3)+seed);
+    float convClusters=smoothstep(.18,.84,cells*.52+mesoCells*.34+fineCloud*.14);
+    float spiralRipple=.5+.5*cos(2.0*phase+1.8*(cells-.5));
+    float gravWave=.5+.5*cos(18.0*r-2.0*phase+1.4*distort);
+    float warpAng=1.08*(cells-.5)+.46*(mesoCells-.5);
 
-    float mainArm=smoothstep(-.04,.88,cos(phase+1.35*(cells-.5)));
-    float secondaryArm=smoothstep(.12,.92,cos(2.0*phase+1.10+1.25*(cells-.5)))*(1-smoothstep(.54,1.02,r))*.84;
-    float feeder=smoothstep(.20,.92,cos(phase+2.53+.44*sin(5.4*r)+2.0*(cells-.5)));
-    feeder*=smoothstep(.18,.70,cells)*(.92-.32*smoothstep(.28,.92,r));
-    float spiralApron=(1-smoothstep(.35,.96,r))*(.42+.58*cells)*.58;
-    float bands=saturate(max(max(mainArm*lerp(.58,1.04,cells),secondaryArm),max(feeder,spiralApron)));
+    // Four distinct, organically ragged, unequal-length/width/thickness spiral rainbands + feathered outer wisps:
+    // Crisp concave inner edge facing the dark spiral moat, broad feathery multi-strand convex outer flank -> VIIRS Hagibis!
+    float rTaper=lerp(1.0,.82,smoothstep(.28,1.32,r));
+    float clusterBreak=lerp(.56,1.12,convClusters);
+    float outerBreak=lerp(1.0,smoothstep(.18,.76,cells*.54+mesoCells*.46),smoothstep(.64,1.28,r));
 
-    // Organic swirling Central Dense Overcast (CDO) glaciated canopy + logarithmic spiral rainbands + crisp eye
-    // (warps CDO radius with cells so the CDO forms a natural swirling pinwheel — zero circular pancake edge & zero gray spots!)
-    float maturity=smoothstep(.44,.76,centre.w);
-    float rCdo=r*(1.0+.28*(cells-.5)-.14*(spiralRipple-.5));
-    float cdoDome=(1-smoothstep(.16,.52,rCdo))*lerp(.50,1.0,maturity)*(.84+.10*spiralRipple+.06*gravWave);
-    float innerWall=(1-smoothstep(.11,.30,r))*(.92+.08*gravWave);
-    float outerRing=exp(-pow((r-.24)/.062,2))*maturity*.76*(.80+.20*spiralRipple);
-    float wall=max(max(innerWall,cdoDome),outerRing);
-    float eye=lerp(1,smoothstep(.022,.078,r+.008*distort),maturity);
+    // Arm 1: Dominant primary principal rainband (widest, longest r=0.06..1.48, brightest convective ridge)
+    float a1=phase+warpAng;
+    float d1=atan2(sin(a1),cos(a1));
+    float w1=(d1<0?.54:1.04)*rTaper*(.84+.36*cells);
+    float arm1Env=(1.0-smoothstep(.94+inflowBias*.32,1.46+inflowBias*.16,r));
+    float arm1=exp(-pow(d1/w1,2.0))*arm1Env*clusterBreak*outerBreak;
 
-    float bodyCover=lerp(saturate(cells*.84+.20*spiralRipple),max(wall,bands),organized);
-    float low=eye*saturate(.04+bodyCover*(.90+.12*spiralRipple));
-    float convection=eye*saturate(max(wall*maturity*.98,bodyCover*(.44+.82*centre.w)));
-    float stormCore=eye*smoothstep(.38,.80,convection);
+    // Arm 2: Secondary principal rainband (+148 deg asymmetric offset, medium length r=0.07..1.24, feathered outer flank)
+    float a2=phase+2.58+warpAng*1.12+.24*sin(3.4*r);
+    float d2=atan2(sin(a2),cos(a2));
+    float w2=(d2<0?.38:.80)*rTaper*(.80+.40*mesoCells);
+    float arm2Env=(1.0-smoothstep(.68+inflowBias*.26,1.22+inflowBias*.16,r));
+    float arm2=exp(-pow(d2/w2,2.0))*arm2Env*.94*lerp(.50,1.12,convClusters)*outerBreak;
 
-    float lowBoundary=1-smoothstep(.58,1.18,r+.11*distort);
-    float lowInfluence=lowBoundary*smoothstep(.035,.44,centre.w);
+    // Arm 3: Outer asymmetric convergence feeder tail (+256 deg offset, long outer inflow sweep r=0.24..1.52!)
+    float a3=phase+4.47+warpAng*1.18-.24*cos(3.0*r);
+    float d3=atan2(sin(a3),cos(a3));
+    float w3=(d3<0?.36:.72)*lerp(1.0,.84,smoothstep(.45,1.35,r))*(.78+.42*cells);
+    float arm3Env=smoothstep(.16,.38,r)*(1.0-smoothstep(.96+inflowBias*.28,1.50+inflowBias*.12,r))*(.56+.54*inflowBias);
+    float arm3=exp(-pow(d3/w3,2.0))*arm3Env*.86*smoothstep(.14,.76,cells*.52+mesoCells*.48);
 
-    // Organic swirling CDO cirrus shield transitioning smoothly into feathered anticyclonic outflow plumes
-    // (avoids sharp bicycle-spoke radial ribs in low-orbit grazing views while preserving spiral outflow!)
-    float icePhase=phase-spin*(1.12+.52*r)+2.1*(cells-.5);
-    float filaments=pow(.5+.5*cos(3.0*icePhase),2.0);
-    float radialRibs=pow(.5+.5*cos(6.0*bearingInStorm-spin*3.2*r+4.4*distort+2.4*(cells-.5)),1.8)*smoothstep(.28,.68,r);
-    float innerCanopy=(1-smoothstep(.22,.56,rCdo))*.84;
-    float shield=1-smoothstep(.42,1.12,r);
-    float upper=eye*saturate(max(innerCanopy*maturity,(.12+.36*filaments+.13*radialRibs+.44*shield))*(1+.22*dot(local,downwind))*(.58+.52*organized));
-    float outBoundary=1-smoothstep(.72,1.34,r+.10*distort);
-    float outInfluence=outBoundary*smoothstep(.035,.46,centre.w);
+    // Arm 4: Inner comma CDO spiral rib (+66 deg, r=0.06..0.64 -> merges with Arm 1 into an asymmetric comma CDO!)
+    float a4=phase+1.15+warpAng*.85;
+    float d4=atan2(sin(a4),cos(a4));
+    float w4=(d4<0?.40:.70)*(.86+.28*cells);
+    float arm4Env=(1.0-smoothstep(.36,.68,r));
+    float arm4=exp(-pow(d4/w4,2.0))*arm4Env*.90*lerp(.68,1.06,cells);
 
-    weather.rb=lerp(weather.rb,float2(low,.18+.82*convection),lowInfluence);
+    // Subtle secondary sub-filament spurs peeling off convex outer rainband flanks (prevents single-snake outer arm!)
+    float subSpur=pow(.5+.5*cos(2.0*phase+1.7+1.4*(mesoCells-.5)),2.4)*smoothstep(.34,.78,cells)*smoothstep(.26,.54,r)*(1.0-smoothstep(.84,1.32,r))*.58;
+    float bandCore=saturate(max(max(max(arm1,arm2),max(arm3,arm4)),subSpur));
+    float bandInner=saturate(max(arm1,max(arm2*.90,arm4*.94)));
+
+    // Asymmetric comma-wrapped inner CDO + organically warped eyewall collar:
+    // Smoothly transitions from the 3D stadium eyewall into the swirling comma CDO (ZERO circular sticker donut ring!)
+    float rCdo=r*(1.0+.28*(cells-.5)-.24*bandInner-.13*alongFlow+.15*upwindDry);
+    float rWall=r*(1.0+.16*(cells-.5)-.10*bandInner);
+    float innerSwirlRelief=lerp(1.0,.82+.18*saturate(bandInner*.85+spiralRipple*.35),smoothstep(.12,.28,r));
+    float cdoComma=(1.0-smoothstep(.15,.41,rCdo))*lerp(.48,1.0,maturity)*innerSwirlRelief*(.90+.10*gravWave);
+    float innerWall=(1.0-smoothstep(.080,.245,rWall))*(.90+.10*gravWave);
+    float wall=max(innerWall,cdoComma);
+    float eye=lerp(1.0,smoothstep(.022,.076,r+.007*distort),maturity);
+
+    // Natural inter-band spiral moats: dark-blue ocean channels + curled low-altitude cumulus streets (1.2-2.6 km)
+    // and wispy rainband-flank skirts so gaps read as authentic marine boundary-layer moats rather than empty trenches!
+    float moatMask=saturate(1.0-smoothstep(.16,.66,max(wall,bandCore)));
+    float innerCrease=(1.0-smoothstep(.24,.76,r))*lerp(.28,.48,convClusters)*moatMask*(1.0-.48*upwindDry);
+    float streetWave=.5+.5*cos(6.0*phase+2.2*(fineCloud-.5));
+    float moatStreets=smoothstep(.30,.74,mesoCells*.46+fineCloud*.34+streetWave*.20);
+    float moatCumulus=moatMask*(1.0-smoothstep(.52,1.32,r))*moatStreets*lerp(.48,.22,upwindDry);
+    float lowMoat=max(innerCrease,moatCumulus);
+
+    float organizedBody=max(max(wall,bandCore),lowMoat);
+    float bodyCover=lerp(saturate(cells*.76+.24*bandCore),organizedBody,organized);
+    float low=eye*saturate(bodyCover*(.94+.08*spiralRipple));
+
+    // Distinct 3D height hierarchy: towering 11-12 km Cb ridges on eyewall & principal rainbands,
+    // mid-height convective shelves along band flanks, shallow 1.2-2.6 km cumulus streets in inter-band moats!
+    float bandConv=max(wall*maturity*.98,max(arm1*.95,max(arm2*.86,max(arm3*.76,max(arm4*.88,subSpur*.62))))*(.52+.56*centre.w));
+    float convection=eye*saturate(lerp(bandConv,.18+.18*moatStreets,moatMask*.82));
+    float stormCore=eye*smoothstep(.42,.82,convection)*smoothstep(.34,.74,low);
+
+    // Asymmetric storm envelope: tighter upwind/dry flank, sweeping downwind/inflow rainband tails
+    float lowOuter=lerp(1.10,1.48,inflowBias);
+    float lowBoundary=1.0-smoothstep(.64*lowOuter,lowOuter,r+.12*distort);
+    float bandReach=saturate(bandCore*1.20)*(1.0-smoothstep(1.10,1.52,r));
+    float lowInfluence=saturate(max(lowBoundary*(.74+.26*organized),bandReach))*smoothstep(.035,.44,centre.w);
+
+    // Spiral-aligned feathery anticyclonic cirrus outflow fan:
+    // Caps the eyewall, comma CDO & towering rainband crests, then fans smoothly outward along the storm's spin
+    // into silky translucent downwind plumes while preserving clear dark-blue inter-band moats!
+    float outflowTurn=turn+1.15*pow(max(r-.16,0.0),1.26);
+    float icePhase=bearingInStorm+spin*outflowTurn+.92*(cells-.5)+.45*distortA;
+    float2 outFlowPos=float2(cos(icePhase),sin(icePhase))*(r*1.15);
+    float outflowWisps=Fbm(float3(outFlowPos*4.2,3.1)+seed);
+    float outflowRibbonA=pow(.5+.5*cos(2.0*icePhase+1.2*(outflowWisps-.5)),1.7)*smoothstep(.22,.74,outflowWisps);
+    float outflowRibbonB=pow(.5+.5*cos(3.0*icePhase+1.6+1.1*(fineCloud-.5)),2.0)*smoothstep(.28,.78,outflowWisps)*.78;
+    float outflowPlumes=max(outflowRibbonA,outflowRibbonB)*smoothstep(.14,.42,r)*(1.0-smoothstep(.90,1.52,r));
+    float cdoIce=(1.0-smoothstep(.16,.42,rCdo))*.88*innerSwirlRelief;
+    float bandIce=saturate(arm1*.92+arm2*.78+arm3*.58+arm4*.82+subSpur*.55);
+    float fanAsym=.58+.52*inflowBias*(1.0-.38*upwindDry);
+    float moatCirrusKeep=lerp(1.0,.42,moatMask*smoothstep(.22,.56,r));
+    float upper=eye*saturate(max(cdoIce*maturity,max(bandIce*.84,outflowPlumes*.80*fanAsym))*moatCirrusKeep*(.60+.48*organized));
+    float outOuter=lerp(1.20,1.56,inflowBias);
+    float outBoundary=1.0-smoothstep(.74*outOuter,outOuter,r+.12*distort);
+    float outInfluence=saturate(max(outBoundary,bandReach*.92))*smoothstep(.035,.46,centre.w);
+
+    weather.rb=lerp(weather.rb,float2(low,.14+.86*convection),lowInfluence);
     weather.a=lerp(weather.a,stormCore,lowInfluence);
-    weather.g=lerp(weather.g,max(weather.g*.35,upper),outInfluence);
+    // Preserve clear spiral moats by attenuating ambient background upper clouds inside the moat channels
+    weather.g=lerp(weather.g,max(weather.g*(.16+.24*(1.0-moatMask)),upper),outInfluence);
    }
    struct EraMorphology
    {

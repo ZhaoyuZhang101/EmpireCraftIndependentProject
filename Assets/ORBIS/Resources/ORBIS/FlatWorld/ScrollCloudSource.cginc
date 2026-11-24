@@ -41,13 +41,13 @@ void ApplyTyphoon3DStadium(float3 up,float z,float4 centre,float spin,float rotP
  if(centre.w<=.20)return;
  float extent=FlatCycloneRadius(centre.w);
  float dist=length(up-centre.xyz);
- if(dist>=extent*1.28)return;
+ if(dist>=extent*1.52)return;
  float r=dist/extent;
- float maturity=smoothstep(.44,.76,centre.w);
+ float maturity=smoothstep(.42,.74,centre.w);
  float altNorm=saturate((z-500.0)/11900.0);
 
  // Outward-sloping 3D Stadium Bowl: eye radius expands ~4x from sea surface to tropopause!
- float stadiumR=lerp(.022,.090,pow(altNorm,.78));
+ float stadiumR=lerp(.022,.088,pow(altNorm,.78));
  float eyeClear=lerp(1.0,smoothstep(stadiumR*.50,stadiumR*1.10,r),maturity);
  // Subtle low-level mesovortex "hub cloud" stratocumulus swirl at the bottom of the 12 km stadium bowl
  // (seen inside Category-5 Hurricane Isabel's eye from the ISS — gives instant vertical depth scale!)
@@ -55,21 +55,23 @@ void ApplyTyphoon3DStadium(float3 up,float z,float4 centre,float spin,float rotP
  coverage=max(coverage*eyeClear,hubZone*.54);
  highCov*=lerp(1.0,smoothstep(stadiumR*.70,stadiumR*1.24,r),maturity);
 
- // Organic swirling Central Dense Overcast (CDO) cohesion & towering 12.6 km stadium eyewall rim
- // (preserves rich 3D spiral cloud-top relief while preventing dark-gray mottled holes inside the sunlit CDO!)
- float stormCdo=(1.0-smoothstep(.16,.52,r))*smoothstep(.24,.68,centre.w)*eyeClear;
- float cdoCap=stormCdo*(1.0-smoothstep(11800.0,12900.0,z));
- float wallCollar=exp(-pow((r-(stadiumR+.046))/.060,2.0))*maturity*(1.0-smoothstep(12100.0,13000.0,z));
- coverage=max(coverage,max(wallCollar*.94,cdoCap*.76)*eyeClear);
- highCov=max(highCov,stormCdo*maturity*.76*smoothstep(7400.0,9200.0,z));
- convection=lerp(max(convection,max(wallCollar*.98,cdoCap*.86)),.12,hubZone*.92);
- cdoSmooth=max(cdoSmooth,stormCdo);
+ // Tight 12.6 km stadium eyewall collar (strictly r < 0.21 — NEVER overwrites inner spiral moats with a round disk!)
+ // + Coverage-gated CDO cohesion (preserves 79e6fa2 zero-gray-spot creamy tops on bright spiral bands & inner CDO
+ // while keeping inter-band spiral moats razor-clear!)
+ float wallCollar=exp(-pow((r-(stadiumR+.038))/.046,2.0))*maturity*(1.0-smoothstep(12100.0,12980.0,z));
+ coverage=max(coverage,wallCollar*.95*eyeClear);
+ highCov=max(highCov,wallCollar*.74*smoothstep(7400.0,9200.0,z)*eyeClear);
+ convection=lerp(max(convection,wallCollar*.98),.12,hubZone*.92);
+ float denseSpiralBand=smoothstep(.44,.84,coverage);
+ float stormCdo=(1.0-smoothstep(.34,.92,r))*smoothstep(.24,.68,centre.w)*eyeClear*denseSpiralBand;
+ cdoSmooth=max(cdoSmooth,max(wallCollar,stormCdo));
 
- // Azimuthal cyclonic swirl of 3D volumetric cloud coordinates around storm axis
- float swirlWeight=(1.0-smoothstep(.25,1.15,r))*smoothstep(.20,.65,centre.w);
+ // Smooth logarithmic azimuthal cyclonic swirl of 3D volumetric clouds along spiral rainbands
+ // (gentle shear gradient 1.25 prevents comb-teeth sawtooth while preserving 3D billowy spiral ridges in both NH & SH!)
+ float swirlWeight=(1.0-smoothstep(.45,1.40,r))*smoothstep(.18,.62,centre.w);
  if(swirlWeight>.01)
  {
-  float swirlAng=spin*(1.55*log(1.0+4.2*max(r,.02))-.35*rotPhase)*swirlWeight;
+  float swirlAng=(spin*1.25*log(1.0+3.6*max(r,.02))-.50*rotPhase)*swirlWeight;
   float s,c;sincos(swirlAng,s,c);
   float3 axis=centre.xyz;
   a=normalize(a*c+cross(axis,a)*s+axis*dot(axis,a)*(1.0-c));
