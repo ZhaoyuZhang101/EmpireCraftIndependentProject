@@ -3244,7 +3244,8 @@ namespace Orbis.Flat
                     float offEqCenter = 7.4f * FMath.Lerp(1f, hadleyScale, 0.72f);
                     float offEqWidth = 2.9f * FMath.Lerp(1f, hadleyScale, 0.55f);
                     float offEqDist = Math.Abs(absLat - offEqCenter);
-                    float hemiSummerBias = 0.64f + 0.36f * (float)Math.Tanh(latDeg * season * 0.25);
+                    // Over open ocean the off-equator ITCZ keeps most of its strength year round (SST stays warmest off the equator).
+                    float hemiSummerBias = 0.80f + 0.20f * (float)Math.Tanh(latDeg * season * 0.25);
                     float doubleItczBand = openEqOcean * (0.40f + 0.60f * easterlyTrade) * hemiSummerBias
                                          * (float)Math.Exp(-(offEqDist * offEqDist) / (offEqWidth * offEqWidth))
                                          * (1f - 0.45f * mjoDryPhase);
@@ -3261,7 +3262,7 @@ namespace Orbis.Flat
                         + 0.20f * Smooth(1200f, 2400f, capeVal)
                         - 0.45f * eastCentralBasin * (1f - 0.85f * doubleItczBand) - 0.35f * mjoDryPhase,
                         0.05f, 1f);
-                    float walkerGate = FMath.Lerp(walkerMarineAscend, 1f, landOrIsland) * (1f - 0.90f * ekmanColdSlot);
+                    float walkerGate = FMath.Lerp(walkerMarineAscend, 1f, Math.Max(landOrIsland, 0.75f * doubleItczBand)) * (1f - 0.90f * ekmanColdSlot);
 
                     float landRainShadowDamp = FMath.Lerp(0.70f, 0.22f, greenOceanConv);
                     float itczConv = FMath.Clamp(
@@ -3295,7 +3296,7 @@ namespace Orbis.Flat
                     // Decks hug eastern boundaries: open ocean within a few thousand km of the coast to its east
                     // (fetchEastKm), where the subtropical high drives alongshore upwelling. Mid-basin Sc stays broken.
                     float eastBoundary = 1f - Smooth(700f, 3200f, fetchEastKm[idx]);
-                    float subtropSc = oceanFrac * scLat * (0.14f + 0.86f * Math.Max(coolUpwelling * (0.45f + 0.55f * eastBoundary), 0.92f * eastBoundary)) * (0.32f + 0.68f * inversionLid);
+                    float subtropSc = oceanFrac * scLat * (0.14f + 0.86f * Math.Max(coolUpwelling * (0.45f + 0.55f * eastBoundary), 0.92f * eastBoundary)) * (0.32f + 0.68f * Math.Max(inversionLid, 0.80f * eastBoundary));
                     float eqColdSc = ekmanColdSlot * (0.28f + 0.20f * Math.Max(coolUpwelling, eastCentralBasin));
                     float marineSc = FMath.Clamp(
                         Math.Max(subtropSc, eqColdSc) * (1f - 0.85f * itczConv),

@@ -308,9 +308,11 @@ Shader "ORBIS/FlatWorld/SkyBake"
     float cold=smoothstep(.05,.30,(Xf-.14)-X)*smoothstep(-1.7,-1.1,t)*(1.0-smoothstep(.25,.65,Y));
     float warmSector=smoothstep(.02,.12,X-Xf)*smoothstep(.02,.12,Yw-Y)*smoothstep(-1.4,-.9,t);
 
+    // Overcast on the cold side of the low, poleward of the comma head.
+    float polewardDeck=smoothstep(.0,.35,Y)*(1.0-smoothstep(1.0,1.45,Y))*smoothstep(-1.0,-.6,X)*(1.0-smoothstep(.7,1.0,X));
     o.dry=saturate(max(drySlot,dryTongue*.9));
     float body=max(max(coldFront,warmShield),head);
-    o.low=saturate(max(smoothstep(.10,.55,body),max(cold*.70,warmSector*.62)))*(1.0-.95*o.dry);
+    o.low=saturate(max(max(smoothstep(.10,.55,body),polewardDeck*.82),max(cold*.70,warmSector*.75)))*(1.0-.95*o.dry);
     o.front=coldFront;o.cells=cold;
     o.mid=saturate(warmShield*.9+head*.6);
     o.cirrus=saturate(warmShield*.9+head*.7+coldFront*.5)*(1.0-.8*o.dry);
@@ -421,7 +423,7 @@ Shader "ORBIS/FlatWorld/SkyBake"
      MidlatCloud mc=MidlatSystems(longitude,latitude,radial,k,trackLat,_VisualTime);
      float stormBackground=smoothstep(1.0-climTarget-rampB,1.0-climTarget+rampB,uLow);
      float cellLace=smoothstep(.40,.72,abs(2.0*Noise3(radial*95.0+float3(3,7,1))-1.0))*(.55+.45*smoothstep(.35,.70,mesoCells));
-     float openCells=saturate(.10+.90*cellLace);
+     float openCells=saturate(.42+.58*cellLace);
      float stormLow=max(mc.low*(1.0-mc.cells*.55),mc.cells*openCells*.85);
      stormLow=lerp(lerp(stormBackground*.8,stormLow,mc.intensity),openCells,mc.edge);
      float stormMix=stormWeight*mc.env;
@@ -429,18 +431,18 @@ Shader "ORBIS/FlatWorld/SkyBake"
      float lowStorm=lerp(stormBackground,stormLow,stormMix);
 
      // Deep tropical convection: ITCZ, monsoon and rain-forest clusters, zonally elongated.
-     float trop=saturate(max(itczConv*1.15,smoothstep(.22,.60,wet)*tropBelt*(1.0-.55*leeShadow)*.85));
+     float trop=saturate(max(itczConv*1.45,smoothstep(.22,.60,wet)*tropBelt*(1.0-.55*leeShadow)*.85));
      float3 zonal=normalize(east+float3(1e-5,0,0));
      float3 pc=RotateY(radial,-_VisualTime*.0012);
      float clusters=Fbm((pc-zonal*dot(pc,zonal)*.70)*9.0+float3(5,9,2))*.62+mcsCluster*.38;
-     float tropCover=.10+.72*trop;
+     float tropCover=.10+.82*trop;
      float lowTrop=smoothstep(1.0-tropCover-.06,1.0-tropCover+.06,clusters+.30*(trop-.5))*smoothstep(.05,.25,trop);
 
      // Cold-current stratocumulus: a closed deck with honeycomb cells, breaking up at its edge.
      float closed=1.0-abs(2.0*Noise3(RotateY(radial,-_VisualTime*.0006)*58.0+float3(2,5,8))-1.0);
      float deckField=marineSc+.22*(planetary-.5)+.10*(honeycomb-.5);
      float noDeck=(1.0-smoothstep(.25,.60,trop))*(1.0-stormWeight*.7);
-     float deck=smoothstep(.50,.66,deckField)*noDeck;
+     float deck=smoothstep(.44,.60,deckField)*noDeck;
      float lowDeck=deck*(.80+.20*smoothstep(.15,.65,closed));
      // Weaker Sc signal: broken cells that thin westward into trade cumulus.
      float brokenCover=saturate(.20+.55*smoothstep(.25,.62,deckField));
