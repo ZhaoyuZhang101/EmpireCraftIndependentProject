@@ -19,17 +19,14 @@ namespace Orbis.Flat
         Texture2D climate, hpHigh, wind, windBack, climateWind, glebaForcing, glebaAux, glebaUpperWind;
         Texture3D hpNoise, hpDetail;
         Material bake, hpColumn;
-        readonly FlatSkyForcingCache forcingCache = new FlatSkyForcingCache();
-        readonly byte[] monthlyBytes = new byte[ClimateWidth * ClimateHeight * 4];
-        readonly float[] poleSouthRgba = new float[4], poleNorthRgba = new float[4];
-        readonly byte[] glebaForcingBytes = new byte[ClimateWidth * ClimateHeight * 4], glebaAuxBytes = new byte[ClimateWidth * ClimateHeight * 4];
-        readonly ushort[] glebaUpperWindHalf = new ushort[ClimateWidth * ClimateHeight * 4];
-        readonly float[] seasonalWindRgba = new float[ClimateWidth * ClimateHeight * 4];
+        readonly FlatSkyForcingScheduler forcingScheduler = new FlatSkyForcingScheduler(ClimateWidth, ClimateHeight);
+        readonly float[] hiddenWindRgba = new float[ClimateWidth * ClimateHeight * 4];
         readonly Color[] windPixels = new Color[ClimateWidth * ClimateHeight], seasonalWindPixels = new Color[ClimateWidth * ClimateHeight];
         readonly Vector2[] longitudeBasis = new Vector2[ClimateWidth], latitudeBasis = new Vector2[ClimateHeight];
+        float[] upperWindFallback;
         double stagingWindDay;
         int stagingWindGeneration;
-        bool stagingWind;
+        bool stagingWind, pendingForcingBake;
         float debt, windBlend;
         bool rendered, failed;
         double stagedClock;
@@ -49,7 +46,10 @@ namespace Orbis.Flat
         public void Initialize(WorldData data)
         {
             world = data;
-            forcingCache.ResetAll();
+            forcingScheduler.Bind(world);
+            pendingForcingBake = false;
+            regionalClimate?.Dispose();
+            regionalClimate = null;
             lightning = new FlatLightningVisuals(data);
             wind = WeatherTexture("Visual cloud drift");
             windBack = WeatherTexture("Cloud drift staging");
@@ -66,7 +66,7 @@ namespace Orbis.Flat
             }
             var season = new FlatMonthlyForcing(world.Day);
             windBlend = season.SegmentBlend;
-            UploadWind(season);
+            UploadWindSync(season);
             Shader shader = Resources.Load<Shader>("ORBIS/FlatWorld/FlatSkyBake");
             Shader columnShader = Resources.Load<Shader>("ORBIS/FlatWorld/HPCloudColumn");
             if (!shader || !shader.isSupported || !columnShader || !columnShader.isSupported)
@@ -105,7 +105,11 @@ namespace Orbis.Flat
             bake.SetFloat("_GlebaCloudEnable", 1f);
             hpColumn.SetTexture("_ScrollCloudWindTex", wind);
             hpColumn.SetTexture("_ClimateTex", climate);
-            try { Resize(512); }
+            try
+            {
+                Resize(512);
+                forcingScheduler.Prefetch(world, world.Day);
+            }
             catch (Exception ex) { failed = true; Status = "云缓存不可用，地表继续运行：" + ex.Message; Debug.LogException(ex); }
         }
 
@@ -162,8 +166,8 @@ namespace Orbis.Flat
             strip.mipCount = 1;
             columnStrip = NewCache(strip, "Cloud column update strip");
             bake.SetTexture("_ClimateTex", climate);
-            forcingCache.InvalidateClimate();
             rendered = false;
+            pendingForcingBake = forcingScheduler.HasPublished;
             debt = 1;
             RegionalClimateStep = null;
         }
@@ -219,7 +223,7 @@ namespace Orbis.Flat
                 var oldWind = wind;
                 wind = windBack;
                 windBack = oldWind;
-                forcingCache.MarkCloudWindPublished(stagingWindDay, stagingRevision, stagingWindGeneration);
+                forcingScheduler.MarkCloudWindPublished(stagingWindDay, stagingRevision, stagingWindGeneration);
             }
             stagedClock = hpColumn.GetFloat("_ScrollWeatherTime");
             visibleNorth = pendingNorth;
@@ -235,85 +239,77 @@ namespace Orbis.Flat
                 (RegionalClimateStep.HasValue ? " · 区域气候统计" : " · 月气候");
         }
 
-        void ApplyGlebaForcingUniforms(int w, int h)
+        void ApplySeasonalWindPixels(float[] windRgba)
         {
-            Vector4 fSouth = Vector4.zero, fNorth = Vector4.zero;
-            int topRow = (h - 1) * w * 4;
-            for (int x = 0; x < w; x++)
-            {
-                int b0 = x * 4, b1 = topRow + x * 4;
-                fSouth += new Vector4(glebaForcingBytes[b0], glebaForcingBytes[b0 + 1], glebaForcingBytes[b0 + 2], glebaForcingBytes[b0 + 3]);
-                fNorth += new Vector4(glebaForcingBytes[b1], glebaForcingBytes[b1 + 1], glebaForcingBytes[b1 + 2], glebaForcingBytes[b1 + 3]);
-            }
-            float poleInv = 1f / (255f * w);
-            bake.SetVector("_GlebaForcingPoleSouth", fSouth * poleInv);
-            bake.SetVector("_GlebaForcingPoleNorth", fNorth * poleInv);
-            GlebaGeographySupplement.GetCloudCirculationParams(world, out float hadleyRad, out float polarRad, out float rossbyWaveK, out float regimeCode);
-            bake.SetVector("_GlebaCirculationParams", new Vector4(hadleyRad, polarRad, rossbyWaveK, regimeCode));
-            bake.SetFloat("_GlebaCloudEnable", 1f);
-        }
-
-        void UploadClimateSegment(FlatMonthlyForcing season, double synopticDay)
-        {
-            int w = ClimateWidth, h = ClimateHeight;
-            FlatSkyForcingCache.PackMonthlyClimateRgba(world, season, w, h, monthlyBytes, poleSouthRgba, poleNorthRgba);
-            bake.SetVector("_ClimatePoleSouth", new Vector4(poleSouthRgba[0], poleSouthRgba[1], poleSouthRgba[2], poleSouthRgba[3]));
-            bake.SetVector("_ClimatePoleNorth", new Vector4(poleNorthRgba[0], poleNorthRgba[1], poleNorthRgba[2], poleNorthRgba[3]));
-            bake.SetFloat("_ClimateRows", h);
-            climate.LoadRawTextureData(monthlyBytes);
-            climate.Apply(false, false);
-
-            // Upper-level Rossby wind texture stays anchored to SegmentStartDay so FlatSkyBake's
-            // lerp(uWind.rg, uWind.ba, _MonthBlend) remains continuous across the 15-day segment.
-            GlebaGeographySupplement.BuildCloudSynopticFields(
-                world, synopticDay, w, h, glebaForcingBytes, glebaAuxBytes, glebaUpperWindHalf, season.SegmentStartDay);
-            glebaForcing.LoadRawTextureData(glebaForcingBytes);
-            glebaForcing.Apply(false, false);
-            glebaAux.LoadRawTextureData(glebaAuxBytes);
-            glebaAux.Apply(false, false);
-            if (glebaUpperWind.format == TextureFormat.RGBAHalf) glebaUpperWind.SetPixelData(glebaUpperWindHalf, 0);
-            else
-            {
-                var flt = new float[glebaUpperWindHalf.Length];
-                for (int k = 0; k < flt.Length; k++) flt[k] = Mathf.HalfToFloat(glebaUpperWindHalf[k]);
-                glebaUpperWind.SetPixelData(flt, 0);
-            }
-            glebaUpperWind.Apply(false, false);
-            ApplyGlebaForcingUniforms(w, h);
-            forcingCache.MarkClimateSegmentUploaded(world, season, synopticDay);
-        }
-
-        void UploadSynopticForcing(double synopticDay)
-        {
-            int w = ClimateWidth, h = ClimateHeight;
-            GlebaGeographySupplement.BuildCloudSynopticFields(
-                world, synopticDay, w, h, glebaForcingBytes, glebaAuxBytes, null, forcingCache.ClimateSegmentStartDay);
-            glebaForcing.LoadRawTextureData(glebaForcingBytes);
-            glebaForcing.Apply(false, false);
-            glebaAux.LoadRawTextureData(glebaAuxBytes);
-            glebaAux.Apply(false, false);
-            ApplyGlebaForcingUniforms(w, h);
-            forcingCache.MarkSynopticUploaded(synopticDay);
-        }
-
-        void UploadWind(FlatMonthlyForcing season)
-        {
-            FlatSkyForcingCache.PackSeasonalWindRgba(world, season, ClimateWidth, ClimateHeight, seasonalWindRgba);
             for (int i = 0, p4 = 0; i < seasonalWindPixels.Length; i++, p4 += 4)
-                seasonalWindPixels[i] = new Color(seasonalWindRgba[p4], seasonalWindRgba[p4 + 1], seasonalWindRgba[p4 + 2], seasonalWindRgba[p4 + 3]);
+                seasonalWindPixels[i] = new Color(windRgba[p4], windRgba[p4 + 1], windRgba[p4 + 2], windRgba[p4 + 3]);
             climateWind.SetPixels(seasonalWindPixels);
             climateWind.Apply(false, false);
-            forcingCache.MarkWindUploaded(world, season);
+        }
+
+        void UploadWindSync(FlatMonthlyForcing season)
+        {
+            FlatSkyForcingCache.PackSeasonalWindRgba(world, season, ClimateWidth, ClimateHeight, hiddenWindRgba);
+            ApplySeasonalWindPixels(hiddenWindRgba);
+            forcingScheduler.MarkInitialWindUploaded(world, season);
+        }
+
+        /// <summary>
+        /// Uploads already-computed background forcing buffers on the Unity main thread with zero
+        /// heavy climate computation and zero per-refresh array allocations.
+        /// </summary>
+        void UploadForcingPayload(FlatSkyForcingPayload payload)
+        {
+            if (payload.HasSeasonalWind)
+                ApplySeasonalWindPixels(payload.SeasonalWindRgba);
+
+            if (payload.HasClimateSegment)
+            {
+                var cs = payload.ClimatePoleSouth;
+                var cn = payload.ClimatePoleNorth;
+                bake.SetVector("_ClimatePoleSouth", new Vector4(cs[0], cs[1], cs[2], cs[3]));
+                bake.SetVector("_ClimatePoleNorth", new Vector4(cn[0], cn[1], cn[2], cn[3]));
+                bake.SetFloat("_ClimateRows", payload.Height);
+                climate.LoadRawTextureData(payload.MonthlyClimateRgba);
+                climate.Apply(false, false);
+
+                if (glebaUpperWind.format == TextureFormat.RGBAHalf)
+                    glebaUpperWind.SetPixelData(payload.UpperWindHalf, 0);
+                else
+                {
+                    if (upperWindFallback == null || upperWindFallback.Length != payload.UpperWindHalf.Length)
+                        upperWindFallback = new float[payload.UpperWindHalf.Length];
+                    for (int k = 0; k < upperWindFallback.Length; k++)
+                        upperWindFallback[k] = Mathf.HalfToFloat(payload.UpperWindHalf[k]);
+                    glebaUpperWind.SetPixelData(upperWindFallback, 0);
+                }
+                glebaUpperWind.Apply(false, false);
+            }
+
+            if (payload.HasSynopticForcing)
+            {
+                glebaForcing.LoadRawTextureData(payload.ForcingRgba);
+                glebaForcing.Apply(false, false);
+                glebaAux.LoadRawTextureData(payload.AuxRgba);
+                glebaAux.Apply(false, false);
+                var fs = payload.ForcingPoleSouth;
+                var fn = payload.ForcingPoleNorth;
+                bake.SetVector("_GlebaForcingPoleSouth", new Vector4(fs[0], fs[1], fs[2], fs[3]));
+                bake.SetVector("_GlebaForcingPoleNorth", new Vector4(fn[0], fn[1], fn[2], fn[3]));
+                bake.SetVector("_GlebaCirculationParams", new Vector4(payload.HadleyRad, payload.PolarRad, payload.RossbyWaveK, payload.RegimeCode));
+                bake.SetFloat("_GlebaCloudEnable", 1f);
+            }
         }
 
         void StageCloudWind(bool forceStage)
         {
+            var cache = forcingScheduler.Cache;
             stagingWindDay = world.Day;
-            stagingWindGeneration = forcingCache.WindUploadGeneration;
+            stagingWindGeneration = cache.WindUploadGeneration;
             stagingWind = forceStage ||
-                stagingWindDay != forcingCache.VisibleWindDay ||
-                stagingRevision != forcingCache.VisibleWindRevision ||
-                stagingWindGeneration != forcingCache.VisibleWindGeneration;
+                stagingWindDay != cache.VisibleWindDay ||
+                stagingRevision != cache.VisibleWindRevision ||
+                stagingWindGeneration != cache.VisibleWindGeneration;
             if (stagingWind)
             {
                 for (int y = 0; y < ClimateHeight; y++)
@@ -380,42 +376,77 @@ namespace Orbis.Flat
             // Vegetation shares prevailing winds even while cloud rendering sleeps.
             var season = new FlatMonthlyForcing(world.Day);
             windBlend = season.SegmentBlend;
-            var plan = forcingCache.Evaluate(world, world.Day, needed);
-            if (plan.UploadWind) UploadWind(season);
-            if (!needed) { weatherWasHidden = true; Status = "云缓存休眠；晨昏/大气开关独立。"; return; }
+            if (!needed)
+            {
+                forcingScheduler.Poll(world, world.Day, cloudsNeeded: false, allowCommit: false, out _, out bool hiddenWindNeedsSync);
+                if (hiddenWindNeedsSync) UploadWindSync(season);
+                weatherWasHidden = true;
+                Status = "云缓存休眠；晨昏/大气开关独立。";
+                return;
+            }
             if (failed) return;
             try
             {
                 Resize(width);
-                if (double.IsNaN(forcingCache.ClimateSegmentStartDay))
-                    plan = forcingCache.Evaluate(world, world.Day, true);
                 // A sleeping cache may contain half of an old storm. Resume at today's track.
                 bool resumed = weatherWasHidden;
-                if (resumed) { pendingStrip = -1; weatherWasHidden = false; }
-                if (pendingStrip >= 0 && (stagingRevision != world.TerrainRevision || plan.UploadClimateSegment ||
+                if (resumed)
+                {
+                    pendingStrip = -1;
+                    weatherWasHidden = false;
+                    forcingScheduler.NotifyCloudsResumed();
+                }
+                if (pendingStrip >= 0 && (stagingRevision != world.TerrainRevision ||
+                    forcingScheduler.ShouldAbortPendingStrip(world, world.Day) ||
                     (stagingClimateStep.HasValue && stagingClimateStep.Value != (long)Math.Floor(world.Day * 4))))
                     pendingStrip = -1;
-                if (pendingStrip >= 0) { RenderColumnStrip(); return; }
+                if (pendingStrip >= 0)
+                {
+                    // Keep advancing/coalescing background forcing without overwriting _ClimateTex mid-strip.
+                    forcingScheduler.Poll(world, world.Day, cloudsNeeded: true, allowCommit: false, out _, out _);
+                    RenderColumnStrip();
+                    return;
+                }
+
+                if (forcingScheduler.Poll(world, world.Day, cloudsNeeded: true, allowCommit: true, out var readyPayload, out _))
+                {
+                    UploadForcingPayload(readyPayload);
+                    pendingForcingBake = true;
+                }
+
                 if (regionalClimate == null) regionalClimate = new FlatRegionalCloudField(world);
                 bool fieldReady = regionalClimate.Prepare(world.Day, out bool changed);
+
+                // Never publish an incomplete or segment-mismatched cloud bake while the matching
+                // background climate/forcing bundle is still building; keep the last complete pair on screen.
+                if (!forcingScheduler.IsSegmentCurrent(world, world.Day))
+                {
+                    if (!rendered) Status = "云层气候强迫后台构建中…";
+                    return;
+                }
+
                 // Keep the last complete pair on screen while the next six-hour field is computed.
                 // A newly ready field also wakes a paused sky after the first neutral bake.
                 if (!fieldReady && rendered) return;
+
                 SampleCyclones(calendarDay, out var nextNorth, out var nextSouth, out var nextPhase);
                 bool cycloneChanged = nextNorth != visibleNorth || nextSouth != visibleSouth || nextPhase != visiblePhase;
-                bool forcingChanged = plan.UploadClimateSegment || plan.UploadSynopticForcing || plan.StageCloudWind;
+                var cache = forcingScheduler.Cache;
+                bool windNeedsStage = world.Day != cache.VisibleWindDay ||
+                    world.TerrainRevision != cache.VisibleWindRevision ||
+                    cache.WindUploadGeneration != cache.VisibleWindGeneration;
+                bool forcingChanged = pendingForcingBake || windNeedsStage;
                 bool regionalChanged = changed || RegionalClimateStep != regionalClimate.Step;
                 if (!animate && rendered && !forcingChanged && !resumed && !regionalChanged && !cycloneChanged)
                 { Status = RegionalClimateStep.HasValue ? "云缓存暂停 · 区域气候统计" : "云缓存暂停 · 月气候"; return; }
                 debt += Mathf.Max(0, delta);
                 if (debt < .5f && rendered && !forcingChanged && !resumed && !regionalChanged && !cycloneChanged) return;
                 debt = 0;
-                if (plan.UploadClimateSegment) UploadClimateSegment(season, world.Day);
-                else if (plan.UploadSynopticForcing) UploadSynopticForcing(world.Day);
+                pendingForcingBake = false;
                 regionalClimate.Bind(bake);
                 stagingClimateStep = regionalClimate.Step;
                 stagingRevision = world.TerrainRevision;
-                StageCloudWind(plan.StageCloudWind);
+                StageCloudWind(windNeedsStage);
                 StageCyclones(nextNorth, nextSouth, nextPhase);
                 bake.SetFloat("_VisualTime", (float)Clock);
                 bake.SetFloat("_MonthBlend", season.SegmentBlend);
@@ -465,6 +496,7 @@ namespace Orbis.Flat
 
         void OnDestroy()
         {
+            forcingScheduler.Dispose();
             Shader.SetGlobalVector("_OrbisCycloneNorth", Vector4.zero);
             Shader.SetGlobalVector("_OrbisCycloneSouth", Vector4.zero);
             Shader.SetGlobalVector("_OrbisCyclonePhase", Vector4.zero);

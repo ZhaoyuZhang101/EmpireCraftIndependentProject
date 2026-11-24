@@ -44,6 +44,15 @@ namespace Orbis.Flat
             return Reconstruct(air.Sample(data, u, v, previous), air.Sample(data, u, v, Month), air.Sample(data, u, v, next), range);
         }
 
+        internal float SampleBilinear(float[] data, int c00, int c10, int c01, int c11, float tx, float ty, bool exactCenter, ClimateRange range = ClimateRange.Signed)
+        {
+            if (exactCenter) return Sample(data, c00, range);
+            float prior = FMath.Lerp(FMath.Lerp(data[c00 + previous], data[c10 + previous], tx), FMath.Lerp(data[c01 + previous], data[c11 + previous], tx), ty);
+            float mean = FMath.Lerp(FMath.Lerp(data[c00 + Month], data[c10 + Month], tx), FMath.Lerp(data[c01 + Month], data[c11 + Month], tx), ty);
+            float following = FMath.Lerp(FMath.Lerp(data[c00 + next], data[c10 + next], tx), FMath.Lerp(data[c01 + next], data[c11 + next], tx), ty);
+            return Reconstruct(prior, mean, following, range);
+        }
+
         static float Boundary(float a, float b, ClimateRange range)
         {
             float average = (a + b) * .5f;

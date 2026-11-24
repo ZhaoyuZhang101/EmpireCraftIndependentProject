@@ -1,6 +1,7 @@
 using System;
 using System.Diagnostics;
 using System.IO;
+using System.Threading;
 using Orbis.Flat;
 
 /// <summary>
@@ -49,8 +50,9 @@ public static class CloudForcingRegression
         VerifySeasonAndRotationBelts(fictional, "Fictional-Continents", day: 195.0);
 
         VerifyCacheContinuityRegionalCycloneAndSave(earth, fictional);
+        VerifyAsyncSchedulerPerformanceAndRaces(earth, fictional);
 
-        Console.WriteLine("PASS cloud-forcing regression: Earth + fictional world synoptic dynamics, CAPE/humidity/soil convection, wind/front/orography, cold/warm SST Sc, 1x vs 0.45x rotation belts, cache cadence, seasonal/interannual continuity, regional/cyclone wiring, and save compatibility.");
+        Console.WriteLine("PASS cloud-forcing regression: Earth + fictional world synoptic dynamics, CAPE/humidity/soil convection, wind/front/orography, cold/warm SST Sc, 1x vs 0.45x rotation belts, cache cadence, seasonal/interannual continuity, regional/cyclone wiring, save compatibility, and async background forcing scheduler (zero-alloc, coalescing, race safety).");
     }
 
     static WorldData BuildEarth256()
@@ -516,6 +518,378 @@ public static class CloudForcingRegression
             $"Intra-segment daily synoptic/MJO evolution missing or too jumpy: {dailyIntraSegmentDiff:F5}");
         Check(interannualForcing12 > 0.0015 && interannualForcing23 > 0.0015,
             $"Interannual FlatClimateYear signal did not reach cloud synoptic forcing: Y1-Y2={interannualForcing12:F5}, Y2-Y3={interannualForcing23:F5}");
+    }
+
+    static void VerifyAsyncSchedulerPerformanceAndRaces(WorldData earth, WorldData fictional)
+    {
+        // 8a. Bit-exactness & zero-allocation proof for reusable CloudSynopticWorkspace
+        var ws = new GlebaGeographySupplement.CloudSynopticWorkspace();
+        var refF = new byte[GridW * GridH * 4];
+        var refA = new byte[GridW * GridH * 4];
+        var refU = new ushort[GridW * GridH * 4];
+        var wsF = new byte[GridW * GridH * 4];
+        var wsA = new byte[GridW * GridH * 4];
+        var wsU = new ushort[GridW * GridH * 4];
+
+        GlebaGeographySupplement.BuildCloudSynopticFields(earth, 195.0, GridW, GridH, refF, refA, refU, 195.0);
+        GlebaGeographySupplement.BuildCloudSynopticFields(earth, 195.0, GridW, GridH, wsF, wsA, wsU, 195.0, ws, CancellationToken.None);
+        Check(refF.AsSpan().SequenceEqual(wsF) && refA.AsSpan().SequenceEqual(wsA) && refU.AsSpan().SequenceEqual(wsU),
+            "Cold CloudSynopticWorkspace output differed from reference BuildCloudSynopticFields");
+
+        // Warm daily refreshes (days 196..205): verify 0 large allocations & exact match on final day
+        long allocBefore = GC.GetAllocatedBytesForCurrentThread();
+        var swDaily = Stopwatch.StartNew();
+        for (int d = 0; d < 10; d++)
+            GlebaGeographySupplement.BuildCloudSynopticFields(earth, 196.0 + d, GridW, GridH, wsF, wsA, null, 195.0, ws, CancellationToken.None);
+        swDaily.Stop();
+        long allocWarm10 = GC.GetAllocatedBytesForCurrentThread() - allocBefore;
+        double warmDailyMs = swDaily.Elapsed.TotalMilliseconds / 10.0;
+
+        GlebaGeographySupplement.BuildCloudSynopticFields(earth, 205.0, GridW, GridH, refF, refA, null, 195.0);
+        Check(refF.AsSpan().SequenceEqual(wsF) && refA.AsSpan().SequenceEqual(wsA),
+            "Warm CloudSynopticWorkspace daily output drifted from stateless BuildCloudSynopticFields");
+        Check(allocWarm10 <= 2048,
+            $"Warm daily BuildCloudSynopticFields allocated unexpected memory: {allocWarm10:N0} bytes over 10 days");
+
+        // Helper: poll scheduler until a payload commits for the exact target (day, segment, revision)
+        FlatSkyForcingPayload WaitForCommit(FlatSkyForcingScheduler sched, WorldData w, double day, double expectedSeg, out double maxMainMs)
+        {
+            maxMainMs = 0;
+            var swWait = Stopwatch.StartNew();
+            FlatSkyForcingPayload last = null;
+            while (swWait.Elapsed.TotalSeconds < 5.0)
+            {
+                long t0 = Stopwatch.GetTimestamp();
+                bool committed = sched.Poll(w, day, cloudsNeeded: true, allowCommit: true, out var payload, out _);
+                double dtMs = (Stopwatch.GetTimestamp() - t0) * 1000.0 / Stopwatch.Frequency;
+                if (dtMs > maxMainMs) maxMainMs = dtMs;
+                if (committed && payload != null)
+                {
+                    last = payload;
+                    if (Math.Abs(payload.SynopticDay - day) < 1e-6 &&
+                        Math.Abs(payload.SegmentStartDay - expectedSeg) < 1e-6 &&
+                        payload.TerrainRevision == w.TerrainRevision)
+                        return payload;
+                }
+                Thread.Sleep(1);
+            }
+            throw new Exception($"Timed out waiting for scheduler commit at day={day}, seg={expectedSeg}, rev={w.TerrainRevision} (last={(last == null ? "none" : $"{last.SynopticDay}/{last.SegmentStartDay}")})");
+        }
+
+        // Helper: compare committed payload against ground-truth stateless builders
+        var simGpuForcing = new byte[GridW * GridH * 4];
+        var simGpuAux = new byte[GridW * GridH * 4];
+        var simGpuClimate = new byte[GridW * GridH * 4];
+        var simGpuUpper = new ushort[GridW * GridH * 4];
+        void AssertPayloadExact(WorldData w, FlatSkyForcingPayload p)
+        {
+            var eF = new byte[GridW * GridH * 4];
+            var eA = new byte[GridW * GridH * 4];
+            var eU = p.HasClimateSegment ? new ushort[GridW * GridH * 4] : null;
+            GlebaGeographySupplement.BuildCloudSynopticFields(w, p.SynopticDay, GridW, GridH, eF, eA, eU, p.SegmentStartDay);
+            Check(p.ForcingRgba.AsSpan().SequenceEqual(eF) && p.AuxRgba.AsSpan().SequenceEqual(eA),
+                $"Committed forcing/aux did not match stateless reference at day={p.SynopticDay}");
+            if (p.HasClimateSegment)
+            {
+                var eC = new byte[GridW * GridH * 4];
+                FlatSkyForcingCache.PackMonthlyClimateRgba(w, new FlatMonthlyForcing(p.SegmentStartDay), GridW, GridH, eC);
+                Check(p.MonthlyClimateRgba.AsSpan().SequenceEqual(eC),
+                    $"Committed monthly climate did not match reference at seg={p.SegmentStartDay}");
+                Check(p.UpperWindHalf.AsSpan().SequenceEqual(eU),
+                    $"Committed upper wind did not match reference at seg={p.SegmentStartDay}");
+            }
+        }
+
+        // 8b. Normal playback (Day 0 -> 32 in 0.25-day steps, 2 segment crossings + daily updates)
+        double mainPollIdleMax = 0, mainPollIdleSum = 0; int mainPollIdleCnt = 0;
+        double mainSubmitMax = 0, mainSubmitSum = 0; int mainSubmitCnt = 0;
+        double bgDailySum = 0, bgDailyMax = 0; int bgDailyCnt = 0;
+        double bgSegSum = 0, bgSegMax = 0; int bgSegCnt = 0;
+
+        using (var sched = new FlatSkyForcingScheduler(GridW, GridH))
+        {
+            sched.Bind(earth);
+            sched.MarkInitialWindUploaded(earth, new FlatMonthlyForcing(0.0));
+            sched.Prefetch(earth, 0.0);
+
+            var initial = WaitForCommit(sched, earth, 0.0, 0.0, out double initPollMax);
+            AssertPayloadExact(earth, initial);
+            bgSegSum += initial.WorkerDurationMs; bgSegMax = Math.Max(bgSegMax, initial.WorkerDurationMs); bgSegCnt++;
+
+            long steadyAllocStart = GC.GetAllocatedBytesForCurrentThread();
+            for (int tick = 1; tick <= 128; tick++)
+            {
+                double day = tick * 0.25;
+                long t0 = Stopwatch.GetTimestamp();
+                bool committed = sched.Poll(earth, day, cloudsNeeded: true, allowCommit: true, out var payload, out _);
+                if (committed && payload != null)
+                {
+                    // Simulate main-thread GPU texture upload (LoadRawTextureData memory copy)
+                    if (payload.HasClimateSegment)
+                    {
+                        Buffer.BlockCopy(payload.MonthlyClimateRgba, 0, simGpuClimate, 0, simGpuClimate.Length);
+                        Buffer.BlockCopy(payload.UpperWindHalf, 0, simGpuUpper, 0, simGpuUpper.Length * sizeof(ushort));
+                    }
+                    Buffer.BlockCopy(payload.ForcingRgba, 0, simGpuForcing, 0, simGpuForcing.Length);
+                    Buffer.BlockCopy(payload.AuxRgba, 0, simGpuAux, 0, simGpuAux.Length);
+                    double dtSubmit = (Stopwatch.GetTimestamp() - t0) * 1000.0 / Stopwatch.Frequency;
+                    mainSubmitSum += dtSubmit; if (dtSubmit > mainSubmitMax) mainSubmitMax = dtSubmit; mainSubmitCnt++;
+                    if (payload.HasClimateSegment)
+                    {
+                        bgSegSum += payload.WorkerDurationMs; if (payload.WorkerDurationMs > bgSegMax) bgSegMax = payload.WorkerDurationMs; bgSegCnt++;
+                    }
+                    else
+                    {
+                        bgDailySum += payload.WorkerDurationMs; if (payload.WorkerDurationMs > bgDailyMax) bgDailyMax = payload.WorkerDurationMs; bgDailyCnt++;
+                    }
+                }
+                else
+                {
+                    double dtIdle = (Stopwatch.GetTimestamp() - t0) * 1000.0 / Stopwatch.Frequency;
+                    mainPollIdleSum += dtIdle; if (dtIdle > mainPollIdleMax) mainPollIdleMax = dtIdle; mainPollIdleCnt++;
+                }
+
+                // Pace simulated playback (~16 ms frame budget) only when a background job is running so daily jobs finish naturally
+                if (sched.IsComputing)
+                {
+                    var swWait = Stopwatch.StartNew();
+                    while (sched.IsComputing && swWait.ElapsedMilliseconds < 25) Thread.Sleep(1);
+                }
+            }
+            // Drain final day 32 commit
+            var finalNorm = WaitForCommit(sched, earth, 32.0, 30.0, out _);
+            long steadyAllocBytes = GC.GetAllocatedBytesForCurrentThread() - steadyAllocStart;
+            AssertPayloadExact(earth, finalNorm);
+
+            Check(bgDailyCnt >= 20 && bgSegCnt >= 3,
+                $"Normal playback did not execute expected daily ({bgDailyCnt}) and segment ({bgSegCnt}) updates");
+            Check(mainPollIdleMax < 3.0 && mainSubmitMax < 5.0,
+                $"Main-thread Poll/Submit latency exceeded non-blocking budget: idleMax={mainPollIdleMax:F3} ms, submitMax={mainSubmitMax:F3} ms");
+            Check(steadyAllocBytes < 65536,
+                $"Main-thread steady-state 128 ticks allocated large buffers: {steadyAllocBytes:N0} B");
+            Check(sched.JobsDiscardedStale == 0 && sched.LastError == null,
+                $"Normal playback had stale discards ({sched.JobsDiscardedStale}) or error ({sched.LastError})");
+
+            Console.WriteLine($"[8a-b. Async Perf & Normal Play] WarmWorkspaceDaily={warmDailyMs:F2} ms (alloc/10d={allocWarm10} B) | " +
+                $"BgDaily={bgDailySum / Math.Max(1, bgDailyCnt):F2} ms (max {bgDailyMax:F2} ms, n={bgDailyCnt}), " +
+                $"BgSegment={bgSegSum / Math.Max(1, bgSegCnt):F2} ms (max {bgSegMax:F2} ms, n={bgSegCnt}) | " +
+                $"MainPollIdle={mainPollIdleSum / Math.Max(1, mainPollIdleCnt):F3} ms (max {mainPollIdleMax:F3} ms), " +
+                $"MainCommit+Upload={mainSubmitSum / Math.Max(1, mainSubmitCnt):F3} ms (max {mainSubmitMax:F3} ms) | " +
+                $"MainThreadSteadyAlloc(128 ticks)={steadyAllocBytes:N0} B");
+
+            // 8c. Continuous accelerated time: deterministic intra-segment & cross-segment coalescing
+            using var entered1 = new ManualResetEventSlim(false);
+            using var release1 = new ManualResetEventSlim(false);
+            int hookHits = 0;
+            sched.BeforeWorkerComputeHook = cancel =>
+            {
+                if (Interlocked.Increment(ref hookHits) == 1)
+                {
+                    entered1.Set();
+                    release1.Wait(cancel);
+                }
+            };
+
+            int jobsBeforeAccel = sched.JobsStarted;
+            // Inside Seg 30 (currently published Day 32): advance rapidly Day 33..43 while Day 33 is held in-flight
+            sched.Poll(earth, 33.0, true, true, out _, out _);
+            Check(entered1.Wait(2000), "Intra-segment acceleration test worker did not start");
+            for (int d = 34; d <= 43; d++)
+            {
+                long t0 = Stopwatch.GetTimestamp();
+                sched.Poll(earth, (double)d, true, true, out var mid, out _);
+                double dt = (Stopwatch.GetTimestamp() - t0) * 1000.0 / Stopwatch.Frequency;
+                Check(mid == null && dt < 2.0, $"Accelerated Poll should be non-blocking without premature commit (dt={dt:F3} ms)");
+            }
+            Check(sched.JobsStarted == jobsBeforeAccel + 1 && sched.RequestsCoalesced >= 10,
+                $"Accelerated intra-segment ticks failed to coalesce: jobs={sched.JobsStarted - jobsBeforeAccel}, coalesced={sched.RequestsCoalesced}");
+            release1.Set();
+            var accelCommit = WaitForCommit(sched, earth, 43.0, 30.0, out double accelMaxMainMs);
+            AssertPayloadExact(earth, accelCommit);
+            Check(sched.JobsStarted <= jobsBeforeAccel + 2,
+                $"Coalescing spawned extra intermediate jobs instead of jumping to Day 43: {sched.JobsStarted - jobsBeforeAccel}");
+
+            // Cross-segment acceleration: hold Seg 30 Day 44 mid-flight while jumping across Seg 45 into Seg 60 (Day 64)
+            using var entered2 = new ManualResetEventSlim(false);
+            using var release2 = new ManualResetEventSlim(false);
+            hookHits = 0;
+            sched.BeforeWorkerComputeHook = cancel =>
+            {
+                if (Interlocked.Increment(ref hookHits) == 1)
+                {
+                    entered2.Set();
+                    release2.Wait(cancel);
+                }
+            };
+            int cancelledBeforeCross = sched.JobsCancelled;
+            sched.Poll(earth, 44.0, true, true, out _, out _);
+            Check(entered2.Wait(2000), "Cross-segment acceleration worker did not start");
+            sched.Poll(earth, 50.0, true, true, out var midSeg1, out _);
+            sched.Poll(earth, 64.0, true, true, out var midSeg2, out _);
+            Check(midSeg1 == null && midSeg2 == null && !sched.IsSegmentCurrent(earth, 64.0),
+                "Cross-segment acceleration must hold publish until target segment completes");
+            Check(sched.JobsCancelled > cancelledBeforeCross, "Obsolete segment job should be cancelled on segment crossing");
+            release2.Set();
+            sched.BeforeWorkerComputeHook = null;
+            var crossCommit = WaitForCommit(sched, earth, 64.0, 60.0, out _);
+            AssertPayloadExact(earth, crossCommit);
+            Check(sched.IsSegmentCurrent(earth, 64.0), "Target segment 60 must be current after commit");
+
+            // 8d. Paused month jump (Day 64 -> July Day 195, fixed day polling while paused)
+            long jumpT0 = Stopwatch.GetTimestamp();
+            bool immediateJump = sched.Poll(earth, 195.0, true, true, out _, out _);
+            double pausedJumpMainMs = (Stopwatch.GetTimestamp() - jumpT0) * 1000.0 / Stopwatch.Frequency;
+            Check(!immediateJump && !sched.IsSegmentCurrent(earth, 195.0) && pausedJumpMainMs < 2.0,
+                $"Paused month jump blocked main thread or published prematurely: dt={pausedJumpMainMs:F3} ms");
+            var julyCommit = WaitForCommit(sched, earth, 195.0, 195.0, out double pausedWaitMainMax);
+            AssertPayloadExact(earth, julyCommit);
+            Check(julyCommit.HasClimateSegment && julyCommit.HasSeasonalWind && julyCommit.HasSynopticForcing,
+                "Paused month jump must publish atomic segment + wind + synoptic bundle");
+
+            // 8e. Rewind race (1: mid-flight cancellation; 2: already-completed future job discarded on rewind)
+            using var enteredRew = new ManualResetEventSlim(false);
+            using var releaseRew = new ManualResetEventSlim(false);
+            hookHits = 0;
+            sched.BeforeWorkerComputeHook = cancel =>
+            {
+                if (Interlocked.Increment(ref hookHits) == 1)
+                {
+                    enteredRew.Set();
+                    releaseRew.Wait(cancel);
+                }
+            };
+            sched.Poll(earth, 200.0, true, true, out _, out _);
+            Check(enteredRew.Wait(2000), "Rewind race worker did not start");
+            // Rewind to Jan Day 15 while Day 200 is running
+            sched.Poll(earth, 15.0, true, true, out var rewMid, out _);
+            Check(rewMid == null && !sched.IsSegmentCurrent(earth, 15.0), "Rewind must not commit future Day 200 payload");
+            releaseRew.Set();
+            sched.BeforeWorkerComputeHook = null;
+            var rewoundCommit = WaitForCommit(sched, earth, 15.0, 15.0, out _);
+            AssertPayloadExact(earth, rewoundCommit);
+            Check(Math.Abs(sched.PublishedSynopticDay - 15.0) < 1e-6, "Published day must equal rewound Day 15");
+
+            // Already-completed-before-rewind race: let Day 16 finish completely before main thread rewinds to Day 15.25
+            sched.Poll(earth, 16.0, true, true, out _, out _);
+            var swFin = Stopwatch.StartNew();
+            while (sched.IsComputing && swFin.ElapsedMilliseconds < 2000) Thread.Sleep(1);
+            int cancelledBeforeLateRew = sched.JobsCancelled;
+            sched.Poll(earth, 15.25, true, true, out var lateRewMid, out _);
+            Check(lateRewMid == null && sched.JobsCancelled > cancelledBeforeLateRew,
+                "Already-completed future Day 16 job must be rejected on rewind to Day 15.25");
+            var lateRewCommit = WaitForCommit(sched, earth, 15.25, 15.0, out _);
+            AssertPayloadExact(earth, lateRewCommit);
+
+            // 8f. Terrain edit mid-flight race (TerrainRevision++ + mutated climate)
+            var editWorld = earth.Clone();
+            editWorld.Moisture = earth.Moisture.Clone();
+            WaitForCommit(sched, editWorld, 195.0, 195.0, out _);
+
+            using var enteredEdit = new ManualResetEventSlim(false);
+            using var releaseEdit = new ManualResetEventSlim(false);
+            hookHits = 0;
+            sched.BeforeWorkerComputeHook = cancel =>
+            {
+                if (Interlocked.Increment(ref hookHits) == 1)
+                {
+                    enteredEdit.Set();
+                    releaseEdit.Wait(cancel);
+                }
+            };
+            sched.Poll(editWorld, 196.0, true, true, out _, out _);
+            Check(enteredEdit.Wait(2000), "Terrain-edit race worker did not start");
+            // Edit terrain & bump TerrainRevision while old revision job is still running
+            int editedRev = editWorld.TerrainRevision + 1;
+            for (int i = 0; i < editWorld.Count; i += 7) editWorld.Elevation[i] = (short)Math.Min(3800, editWorld.Elevation[i] + 600);
+            for (int i = 0; i < editWorld.Moisture.Humidity.Length; i += 11) editWorld.Moisture.Humidity[i] = 0.15f;
+            editWorld.TerrainRevision = editedRev;
+            Check(sched.ShouldAbortPendingStrip(editWorld, 196.0), "Terrain edit must signal strip abort");
+            sched.Poll(editWorld, 196.0, true, true, out var editMid, out _);
+            Check(editMid == null && !sched.IsSegmentCurrent(editWorld, 196.0), "Old terrain revision job must never publish over new revision");
+            releaseEdit.Set();
+            sched.BeforeWorkerComputeHook = null;
+            var editedCommit = WaitForCommit(sched, editWorld, 196.0, 195.0, out _);
+            Check(editedCommit.TerrainRevision == editedRev, "Committed payload must carry updated TerrainRevision");
+            AssertPayloadExact(editWorld, editedCommit);
+
+            // Already-completed stale revision race: let Day 197 complete on editedRev before bumping to editedRev+1
+            sched.Poll(editWorld, 197.0, true, true, out _, out _);
+            var swStale = Stopwatch.StartNew();
+            while (sched.IsComputing && swStale.ElapsedMilliseconds < 2000) Thread.Sleep(1);
+            int staleBefore = sched.JobsDiscardedStale;
+            editWorld.TerrainRevision = editedRev + 1;
+            sched.Poll(editWorld, 197.0, true, true, out var staleMid, out _);
+            Check(staleMid == null && sched.JobsDiscardedStale > staleBefore,
+                "Already-completed old TerrainRevision job must be discarded as stale without committing");
+            var editedCommit2 = WaitForCommit(sched, editWorld, 197.0, 195.0, out _);
+            Check(editedCommit2.TerrainRevision == editedRev + 1, "Second terrain edit revision must commit cleanly");
+            AssertPayloadExact(editWorld, editedCommit2);
+
+            // 8g. World switch mid-flight race (earth -> fictional)
+            WaitForCommit(sched, earth, 195.0, 195.0, out _);
+            using var enteredSw = new ManualResetEventSlim(false);
+            using var releaseSw = new ManualResetEventSlim(false);
+            hookHits = 0;
+            sched.BeforeWorkerComputeHook = cancel =>
+            {
+                if (Interlocked.Increment(ref hookHits) == 1)
+                {
+                    enteredSw.Set();
+                    releaseSw.Wait(cancel);
+                }
+            };
+            sched.Poll(earth, 196.0, true, true, out _, out _);
+            Check(enteredSw.Wait(2000), "World-switch race worker did not start");
+            sched.Poll(fictional, 195.0, true, true, out var swMid, out _);
+            Check(swMid == null && !sched.IsSegmentCurrent(fictional, 195.0), "Old Earth worker must never overwrite switched Fictional world");
+            releaseSw.Set();
+            sched.BeforeWorkerComputeHook = null;
+            var ficCommit = WaitForCommit(sched, fictional, 195.0, 195.0, out _);
+            AssertPayloadExact(fictional, ficCommit);
+
+            // 8h. Hide/resume clouds mid-flight race + mid-strip allowCommit=false protection
+            using var enteredHide = new ManualResetEventSlim(false);
+            using var releaseHide = new ManualResetEventSlim(false);
+            hookHits = 0;
+            sched.BeforeWorkerComputeHook = cancel =>
+            {
+                if (Interlocked.Increment(ref hookHits) == 1)
+                {
+                    enteredHide.Set();
+                    releaseHide.Wait(cancel);
+                }
+            };
+            sched.Poll(fictional, 196.0, true, true, out _, out _);
+            Check(enteredHide.Wait(2000), "Hide/resume race worker did not start");
+            // Hide clouds, advance across segment boundary to Day 212 while hidden, then resume
+            sched.Poll(fictional, 196.0, cloudsNeeded: false, allowCommit: false, out _, out _);
+            sched.Poll(fictional, 212.0, cloudsNeeded: false, allowCommit: false, out _, out bool hiddenWindSync);
+            Check(hiddenWindSync, "Crossing 15-day segment while clouds hidden must still signal vegetation wind sync");
+            sched.Poll(fictional, 212.0, cloudsNeeded: true, allowCommit: true, out var resumeMid, out _);
+            Check(resumeMid == null && !sched.IsSegmentCurrent(fictional, 212.0), "Pre-hide Day 196 worker must never overwrite resumed Day 212");
+            releaseHide.Set();
+            sched.BeforeWorkerComputeHook = null;
+            var resumeCommit = WaitForCommit(sched, fictional, 212.0, 210.0, out _);
+            AssertPayloadExact(fictional, resumeCommit);
+
+            // Mid-strip allowCommit=false guard: daily job Day 213 finishes while allowCommit=false, must wait to commit until allowCommit=true
+            sched.Poll(fictional, 213.0, true, allowCommit: false, out var stripHold1, out _);
+            Check(stripHold1 == null, "Mid-strip Poll must not commit while allowCommit=false");
+            var swStrip = Stopwatch.StartNew();
+            while (sched.IsComputing && swStrip.ElapsedMilliseconds < 2000) Thread.Sleep(1);
+            sched.Poll(fictional, 213.0, true, allowCommit: false, out var stripHold2, out _);
+            Check(stripHold2 == null && Math.Abs(sched.PublishedSynopticDay - 212.0) < 1e-6,
+                "Completed daily job must remain buffered while allowCommit=false (mid-strip)");
+            bool committedAfterStrip = sched.Poll(fictional, 213.0, true, allowCommit: true, out var stripRelease, out _);
+            Check(committedAfterStrip && stripRelease != null && Math.Abs(stripRelease.SynopticDay - 213.0) < 1e-6,
+                "Buffered daily job must commit immediately once allowCommit becomes true");
+            AssertPayloadExact(fictional, stripRelease);
+
+            Console.WriteLine($"[8c-h. Coalescing & Race Safety] AccelCoalesced={sched.RequestsCoalesced} (maxMain={accelMaxMainMs:F3} ms) | " +
+                $"PausedMonthJumpMain={pausedJumpMainMs:F3} ms (pollMax={pausedWaitMainMax:F3} ms) | " +
+                $"JobsStarted={sched.JobsStarted}, Accepted={sched.JobsAccepted}, Cancelled={sched.JobsCancelled}, DiscardedStale={sched.JobsDiscardedStale} | " +
+                $"Rewind/TerrainEdit/WorldSwitch/HideResume/MidStripGuard: ALL EXACT");
+        }
     }
 
     // ---- Helpers: World Perturbation, Site Selection & Faithful CPU Mirror of FlatSkyBake + OrbisCloudVerticalSpan ----
