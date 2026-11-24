@@ -71,7 +71,27 @@
     if(_WaterView>.5||_RiverMap>.5)overviewInk=FlatRiverMapInk(cell,river,closeRiver);
     float riverRadius=length(river.ba);
     river=FlatRiverDisplaySample(river,_PixelsPerTile);
-    float waterMask=FlatDisplayedWaterMask(river.r,field.g,aa,_PixelsPerTile,edgeDistance);
+    float baseWaterMask=FlatDisplayedWaterMask(river.r,field.g,aa,_PixelsPerTile,edgeDistance);
+    float waterMask=baseWaterMask;
+    FlatSWEField swe=(FlatSWEField)0;
+    #ifndef ORBIS_FLAT_NO_SWE
+    if(_WaterView>.5&&_SWEReady>.5)
+    {
+     swe=FlatSampleSWE(cell);
+     if(swe.weight>.001)
+     {
+      float floodAA=clamp(.06*(24.0/max(8.0,_PixelsPerTile)),.02,.10);
+      float floodMask=smoothstep(.035,.035+floodAA,swe.deltaEta)*swe.weight;
+      waterMask=max(waterMask,floodMask);
+      if(swe.deltaEta<-.05&&field.g>0&&closeRiver<.5)
+      {
+       float drawbackDry=smoothstep(.08,-.02,field.b+swe.deltaEta)*swe.weight;
+       waterMask*=(1-drawbackDry);
+      }
+     }
+    }
+    #endif
+    float inundatedWeight=saturate(waterMask-baseWaterMask);
     float polarIce=FlatPolarIceMask(i.uv,waterMask,0)*naturalView;
     float landSnow=FlatLandSnow(cell,_InfoTex)*(1-waterMask)*naturalView;
     float4 season=float4(1,1,0,.5);
@@ -102,7 +122,7 @@
     #elif defined(ORBIS_ATLAS_PLANTS)
     if(naturalView>.5&&_DetailWeight>0)plantView=PDAtlasPlantView(projected,chartCoordinate);
     #endif
-    if(naturalView>.5)substrate=FlatNaturalGround(_GeoTex,cell,geo,_PixelsPerTile,waterMask);
+    if(naturalView>.5)substrate=FlatNaturalGround(_GeoTex,cell,geo,_PixelsPerTile,baseWaterMask);
     float surfaceWetness=lerp(substrate.a,season.a,saturate(_VegetationSeasonReady));
     float4 terrainLight=0,terrainRelief=float4(1,1,1,0);
     float3 illumination=lerp(float3(1,1,1),FlatDayLight(FlatRadial(i.uv),i.uv),naturalView);
@@ -110,7 +130,7 @@
     {
      float4 localMoon=float4(FlatGeographicLight(i.uv,_OrbisMoon.xyz),_OrbisMoon.w*_OrbisNightParams.x);
      terrainLight=FlatTerrainLight(localSun,localMoon,_FlatDayNight*naturalView);
-     if(waterMask<.999||_DrawHeight>.5)
+     if(baseWaterMask<.999||_DrawHeight>.5)
       terrainRelief=FlatTerrainRelief(cell,gridBed,terrainGradient,terrainLight,surfaceView,FlatWetMineral(substrate.z,surfaceWetness,field.a),surveyWeight);
      snowSurface=FlatTerrainSnow(snowCover,cell,terrainGradient,_PixelsPerTile);
     }
@@ -121,10 +141,10 @@
     {
      col=FlatEcotoneAlbedo(_MainTex,cell,field.g,1);
      col=FlatEcotoneColor(col,cell,field.a,substrate.a);
-     col=lerp(col,FlatSeasonGround(col,field.a,season),1-waterMask);
+     col=lerp(col,FlatSeasonGround(col,field.a,season),1-baseWaterMask);
      if(_DetailWeight<1)col=lerp(FlatVegetation(col,cell,field.a,_PixelsPerTile,plantView),col,_DetailWeight);
-     col=FlatTerrainFine(col,cell,_PixelsPerTile*(1-step(.999,waterMask)),terrainGradient,field,substrate.xy,surfaceWetness,terrainLight);
-     if(_DetailWeight>0)col=lerp(col,PixelGround(col,cell,field,waterMask,terrainGradient,FlatEcologyData(uv,info),plantView),_DetailWeight);
+     col=FlatTerrainFine(col,cell,_PixelsPerTile*(1-step(.999,baseWaterMask)),terrainGradient,field,substrate.xy,surfaceWetness,terrainLight);
+     if(_DetailWeight>0)col=lerp(col,PixelGround(col,cell,field,baseWaterMask,terrainGradient,FlatEcologyData(uv,info),plantView),_DetailWeight);
     }
     if(_DrawHeight>.5)
     {
@@ -151,28 +171,30 @@
      // surveyed bank lies inside a blue simulation cell, before shading water.
      col=lerp(col,FlatColor(float3(118,123,113)/255),surveyStrait*(1-naturalView)*(1-waterMask));
      col=FlatWaterBanks(cell,col,terrainRelief.rgb,channel,sediment,field.g,(1-waterMask)*_ShowBanks,aa,1/max(1,_PixelsPerTile),beachScale);
-     col=lerp(col,coast.albedo*terrainRelief.rgb,coast.coverage*_ShowBanks*naturalView);
+     col=lerp(col,coast.albedo*terrainRelief.rgb,coast.coverage*_ShowBanks*naturalView*(1-inundatedWeight));
+     float3 prelitGround=col;
      col*=illumination;
-     float3 bottom=FlatMaterialColor(floor(geo.g+.5))*.72;
+     float3 bottom=lerp(FlatMaterialColor(floor(geo.g+.5))*.72,prelitGround,inundatedWeight*naturalView);
      float3 waterColor=FlatColor(float3(.20,.43,.55))*illumination;
      // The uniform switch skips optics without exposing padded land under water.
      float3 waterLight=localSun,waterView=surfaceView;
      if(_ShowWater>.5)
      {
       FlatWaterSurfaceData waterSurface;
-      waterColor=FlatWaterShade(cell,mixing,field,bottom,illumination,waterView,waterLight,_WaveAmount*(1-polarIce),areaOptics.a,coast,channel,waterSurface);
+      float basinKindForWater=lerp(areaOptics.a,swe.hazardKind<1.5?4.0:3.0,inundatedWeight*step(.5,1-step(.01,wetSupport)));
+      waterColor=FlatWaterShadeCore(cell,mixing,field,bottom,illumination,waterView,waterLight,_WaveAmount*(1-polarIce),basinKindForWater,coast,channel,swe,inundatedWeight,waterSurface);
       // Emphasize channels only while their physical width is unresolved.
       // The optical weight also fades across the submerged bank at a mouth.
       float riverPixels=2*riverRadius*_PixelsPerTile;
       float exposedReach=max(1-smoothstep(-max(.04,aa),0,field.g),marineSupport);
-      float tint=saturate(_RiverTint)*channel.influence*exposedReach*(1-smoothstep(1.5,5,riverPixels));
+      float tint=saturate(_RiverTint)*channel.influence*(1-inundatedWeight)*exposedReach*(1-smoothstep(1.5,5,riverPixels));
       waterColor=lerp(waterColor,FlatColor(float3(.17,.43,.62))*illumination,tint);
       // Keep the normal derivatives above uniform across shorelines. Only the
       // reflection lookup can be skipped for completely dry receivers.
       [branch] if(waterMask>.001)
       {
        // An optical bed below the coarse terrain still reflects at sea level.
-       float waterHeight=lerp(field.r+field.b,0,coast.surveyDepthWeight);
+       float waterHeight=lerp(field.r+field.b,0,coast.surveyDepthWeight)+swe.deltaEta;
        #ifdef ORBIS_SCROLL_SURFACE
        if(_ScrollMorph>.999&&_ScrollRelief.x>.05)
         waterHeight=dot(world-_ScrollNormal,_ScrollNormal)/max(1e-9,_ScrollHeightScale*_ScrollRelief.w);

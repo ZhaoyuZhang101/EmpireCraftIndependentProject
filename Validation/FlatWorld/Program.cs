@@ -43,6 +43,8 @@ public static class Program {
     case "--earth-straits": BasinWaterRegression.EarthStraits(); break;
     case "--sea-routes": SeaRouteRegression.Run(args); break;
     case "--cyclone": CycloneRegression.Run(); break;
+    case "--water-hazards":
+    case "--swe-hazards": WaterHazardsRegression.Run(args.Length>1 ? args[1] : null); break;
     default: Console.WriteLine(FlatSelfTests.Run()); break;
    }
    return 0;

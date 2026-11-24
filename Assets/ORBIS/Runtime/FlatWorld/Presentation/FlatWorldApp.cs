@@ -29,7 +29,7 @@ namespace Orbis.Flat
         VisualElement root,viewport;Label info,stats,notice,nations;Button modeButton,pauseButton,speedButton;
         TextField seedField,pathField;DropdownField sizeField,presetField,layerField,toolField,heightField,brushField;
         int[] playerWidths;
-        Toggle gridToggle,cloudToggle,contourToggle;
+        Toggle gridToggle,cloudToggle,contourToggle,hazardLiveWeatherToggle;
         DropdownField cloudQuality,climateYearField,planetPresetField;Label legend,waterStatus,skyStatus,planetSummaryLabel;
         SliderInt planetCo2Slider;Slider planetObliqSlider;
         ExoPlaSimPlanetConfig activePlanetConfig=ExoPlaSimPlanetConfig.CreatePreset(ExoPlaSimPreset.EarthModern);
@@ -193,9 +193,43 @@ namespace Orbis.Flat
             if(planetObliqSlider!=null)planetObliqSlider.RegisterValueChangedCallback(e=>{activePlanetConfig.ObliquityDeg=e.newValue;RefreshPlanetSummary();});
             var applyPlanetBtn=root.Q<Button>("applyPlanet");
             if(applyPlanetBtn!=null)applyPlanetBtn.clicked+=ApplyPlanetClimate;
+            hazardLiveWeatherToggle=root.Q<Toggle>("hazardLiveWeather");
+            if(hazardLiveWeatherToggle!=null)
+                hazardLiveWeatherToggle.RegisterValueChangedCallback(e=>{if(map&&map.LocalWater)map.LocalWater.AutoWeatherEvents=e.newValue;});
+            Bind("hazardRainFlood",()=>TriggerHazard(FlatHazardKind.RainFlood));
+            Bind("hazardTyphoon",()=>TriggerHazard(FlatHazardKind.TyphoonSurge));
+            Bind("hazardTsunami",()=>TriggerHazard(FlatHazardKind.Tsunami));
+            Bind("hazardFocus",FocusActiveHazard);
+            Bind("hazardClear",()=>{if(map&&map.LocalWater){map.LocalWater.ClearHazard();navigation?.SyncMaterials();UpdateHUD();SetStatus("已清理局部水灾并恢复基准河湖海材质。");}});
             RefreshPlanetSummary();
             foreach(string name in tabNames){string tab=name;Bind("tab"+name,()=>ShowTab(tab));}
             ShowTab("World");
+        }
+        public int TriggerHazard(FlatHazardKind kind,int preferredTile=-2,bool focusCamera=true)
+        {
+            if(World==null||Busy||!map||!map.LocalWater||!navigation){SetStatus("世界就绪后可触发局部水灾情景。");return -1;}
+            int seedTile=preferredTile==-2?selected:preferredTile;
+            int focusTile=map.LocalWater.StartHazard(kind,seedTile,liveWeather:false);
+            if(focusTile>=0)
+            {
+                selected=focusTile;map.Select(focusTile);
+                ChooseLayer(MapLayer.Natural);
+                if(focusCamera){if(navigation.IsAtlas)navigation.GoGlobe(CalendarDay);navigation.Focus(focusTile,CalendarDay);}
+                navigation.SyncMaterials();
+                UpdateHUD();
+                SetStatus("已启动"+FlatHazardMetrics.KindLabel(kind)+"（锚定局部 16×16 区域，拖动平移不会重置灾害；海啸与台风独立触发）。");
+            }
+            return focusTile;
+        }
+        void FocusActiveHazard()
+        {
+            if(World==null||Busy||!map||!map.LocalWater||!navigation)return;
+            int focusTile=map.LocalWater.ActiveFocusTile;
+            if(focusTile<0){SetStatus("当前无进行中的局部水灾；请先触发洪水、风暴潮或海啸。");return;}
+            selected=focusTile;map.Select(focusTile);ChooseLayer(MapLayer.Natural);
+            if(navigation.IsAtlas)navigation.GoGlobe(CalendarDay);
+            navigation.Focus(focusTile,CalendarDay);UpdateHUD();
+            SetStatus("已定位至当前锚定灾区（Tile "+focusTile+"）。");
         }
         void ShowTab(string selectedTab)
         {
@@ -364,7 +398,8 @@ namespace Orbis.Flat
                 throw;
             }
             DestroyGlobe();if(navigation){navigation.gameObject.SetActive(false);Destroy(navigation.gameObject);}
-            if(map){map.gameObject.SetActive(false);Destroy(map.gameObject);}route=new int[0];
+            if(map){if(map.LocalWater)map.LocalWater.ClearHazard();map.gameObject.SetActive(false);Destroy(map.gameObject);}route=new int[0];
+            if(next.LocalWater&&hazardLiveWeatherToggle!=null)next.LocalWater.AutoWeatherEvents=hazardLiveWeatherToggle.value;
             World=world;Simulation=simulation;simulationStep=simulation.Step;map=next;navigation=nextNav;globe=nextGlobe;wildlife=nextWildlife;solarClock.Reset();
             // Keep the provider active so Unity releases its native/GPU caches on destruction.
             // The shared lattice owns the visible terrain, and the provider's quad stays hidden.
@@ -410,10 +445,9 @@ namespace Orbis.Flat
             map.Sky.Tick(dt,skyNeeded,animate,false,cloudQuality.index==0?512:1024,CalendarDay,pan,navigation.Morph>.5f);
             Vector3 sun=map.Sky.Sun(180f,CalendarDay,true);
             bool waterView=natural||map.VisibleLayer==MapLayer.Water;
-            // SW3 owns the visible normal and foam animation; skip the old CPU/GPU
-            // shallow-water patch when its output cannot contribute to the shader.
-            bool sw3=map.Material.GetFloat("_VendorWaterReady")>.5f;
-            map.LocalWater.Tick(dt,pan.x,pan.y,!sw3&&navigation.IsFlat&&waterView&&pixelsPerTile>=8,animate);
+            if(hazardLiveWeatherToggle!=null)map.LocalWater.AutoWeatherEvents=hazardLiveWeatherToggle.value;
+            bool flatWaterVisible=navigation.IsFlat&&waterView&&(pixelsPerTile>=6f||map.LocalWater.HasActiveHazard);
+            map.LocalWater.Tick(dt,pan.x,pan.y,flatWaterVisible,animate,CalendarDay);
             BindSky(map.Material,sun);ApplyWaterSettings(map.Material);navigation.SyncMaterials();
             wildlife.Tick(animate?dt*speed:0,CalendarDay,sun,natural,animate?realDt:0);
             if(globe)globe.Snapshot.settings.cloudQuality=Mathf.Clamp(cloudQuality.index,0,2);
@@ -582,7 +616,7 @@ namespace Orbis.Flat
             Array.Clear(zoneCounts,0,zoneCounts.Length);for(int z=0;z<World.ZoneCount;z++){int ownerId=World.ZoneOwner[z];if(ownerId>=0)zoneCounts[ownerId]++;}
             var text=nationText;text.Clear();for(int c=0;c<World.Nations.Count;c++){var n=World.Nations[c];int zones=zoneCounts[c];text.Append(c==activeNation?"● ":"○ ").Append(n.Name).Append(" · ").Append(zones).Append("区 · 粮 ").Append(n.Food.ToString("N0")).Append('\n');}nations.text=text.ToString();
             skyStatus.text=map.Sky.Status+(globeMode&&globe.View.UsingSurfaceFallback?"\n警告：球体当前为简化 fallback，需检查 Shader。":"");
-            legend.text=FlatPalette.Legend(map.Layer);waterStatus.text=globeMode?"摄影模式不运行局部 SWE。":map.LocalWater.Status;
+            legend.text=FlatPalette.Legend(map.Layer);waterStatus.text=globeMode&&!map.LocalWater.HasActiveHazard?"摄影模式不运行局部 SWE。":map.LocalWater.Status;
             if(selected<0){info.text="点击地图选择一个 Tile。\n\n每个 Zone = 4×4 = 16 个真实 Tile。\n海拔、生物群系、水体、气候与归属分别存储。";return;}
             int i=selected,zone=World.ZoneOf(i),level=HeightBands.Level(World.Elevation[i]);string owner=World.Owner[i]<0?"无主":World.Nations[World.Owner[i]].Name;
             int forecast=map.Layer==MapLayer.Temperature||map.Layer==MapLayer.Rain?map.ClimateYearOffset:0;

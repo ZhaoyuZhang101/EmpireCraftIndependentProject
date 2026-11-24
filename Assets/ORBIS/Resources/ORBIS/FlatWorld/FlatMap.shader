@@ -55,6 +55,12 @@ Shader "ORBIS/FlatWorld/FlatMap"
   _GeoTex("Height material soil water",2D)="black"{} _SWEState("Local shallow water",2D)="gray"{}
   [HideInInspector] _SWEPreviousState("Previous shallow water patch",2D)="gray"{}
   [HideInInspector] _SWEBlend("Patch transition",Float)=1
+  [HideInInspector] _SWEReady("SWE patch active",Float)=0
+  [HideInInspector] _SWEPreviousReady("Previous SWE patch active",Float)=0
+  [HideInInspector] _SWERect("SWE world rect",Vector)=(0,0,16,16)
+  [HideInInspector] _SWEPreviousRect("Previous SWE world rect",Vector)=(0,0,16,16)
+  [HideInInspector] _SWEParams("SWE hazard parameters",Vector)=(0,0,120,0)
+  [HideInInspector] _WaterClock("Water animation clock",Float)=0
   _VisualTex("Continuous presentation fields",2D)="black"{} _SkyTex("Climate cloud layers",2D)="black"{}
   [HideInInspector] _SkyReady("Sky cache ready",Float)=0
   [HideInInspector] _SkyClock("Sky time",Float)=0
