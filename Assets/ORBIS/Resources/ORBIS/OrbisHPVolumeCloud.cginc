@@ -79,27 +79,34 @@ float OrbisHPLowDensityDetailed(float metres,float coverage,float type,float sha
         float topCap=1.0-smoothstep(.76,.99,localHeight);
         float profile=lclRamp*topCap;
 
-        // Glaciated cumulonimbus & typhoon eyewall tropopause anvil shelf (incus, ~9.0-12.2 km)
-        float anvilFlare=smoothstep(.64,.94,type)*smoothstep(.68,.80,localHeight)*(1-smoothstep(.88,.99,localHeight));
-        profile=max(profile,anvilFlare*.72);
+        // Glaciated cumulonimbus & typhoon eyewall tropopause anvil overhang (incus, ~9.0-12.3 km):
+        // Spreads laterally beyond the convective core like ISS Borneo thunderheads!
+        float anvilFlare=smoothstep(.60,.92,type)*smoothstep(.66,.80,localHeight)*(1-smoothstep(.88,.99,localHeight));
+        profile=max(profile,anvilFlare*.78);
 
-        // Dry-air entrainment tapers lateral width upward -> rounded cauliflower domes instead of vertical cliffs
-        float entrain=smoothstep(.14,.84,localHeight)*(1.0-.58*anvilFlare)*(1.0-.65*sc);
-        float effCov=lerp(coverage,coverage*(.36+.64*cell),sc)*(1.0-.46*entrain);
+        // Cohesive synoptic storm bases without flattening 3D cauliflower billow crowns!
+        float overcastCore=smoothstep(.70,.96,coverage);
+        float baseCohesion=overcastCore*(1.0-smoothstep(.32,.74,localHeight));
+        float shapedCore=lerp(baseShape,max(baseShape,.62+.38*baseShape),baseCohesion*.50);
 
-        float bottomFade=pow(saturate(localHeight/.15),1.25);
-        float upFactor=smoothstep(.10,.46,localHeight);
-        float strength=lerp(.20,.38,saturate(type+.28*upFactor))*lerp(.35,1.0,bottomFade);
-        float billowDetail=lerp(curlyWisp*.55,invWorley,upFactor)*strength;
-        float wispDetail=lerp(curlyWisp,invWorley*.58+curlyWisp*.42,anvilFlare)*strength*1.10;
+        // Dry-air entrainment tapers cumulus towers upward, while glaciated anvils flare outward
+        float entrain=smoothstep(.14,.84,localHeight)*(1.0-.78*anvilFlare)*(1.0-.65*sc)*(1.0-.42*baseCohesion);
+        float effCov=saturate(lerp(coverage,coverage*(.36+.64*cell),sc)*(1.0-.46*entrain)+.18*anvilFlare*coverage);
 
-        float eroded=saturate((baseShape-billowDetail)/max(.02,1-billowDetail))*profile;
-        float erodedWispy=saturate((baseShape-wispDetail)/max(.02,1-wispDetail))*profile;
+        float bottomFade=pow(saturate(localHeight/.14),1.20);
+        float upFactor=smoothstep(.08,.44,localHeight);
+        float strength=lerp(.25,.45,saturate(type+.28*upFactor))*lerp(.35,1.0,bottomFade);
+        float billowDetail=lerp(curlyWisp*.52,invWorley,upFactor)*strength;
+        float wispDetail=lerp(curlyWisp,invWorley*.46+curlyWisp*.54,anvilFlare)*strength*1.08;
+
+        float eroded=saturate((shapedCore-billowDetail)/max(.02,1-billowDetail))*profile;
+        float erodedWispy=saturate((shapedCore-wispDetail)/max(.02,1-wispDetail))*profile;
         float threshold=1-effCov;
-        float billowy=smoothstep(threshold,threshold+.22,eroded);
-        float wispy=smoothstep(threshold-.09,threshold+.12,erodedWispy)*lerp(1.0-.65*localHeight,.88,anvilFlare);
+        // Crisp cauliflower cumulus rim (0.11 transition) vs silky feathered glaciated anvil veil (0.20)
+        float billowy=smoothstep(threshold,threshold+.11,eroded);
+        float wispy=smoothstep(threshold-.07,threshold+.14,erodedWispy)*lerp(1.0-.62*localHeight,.84,anvilFlare);
         float clip=lerp(1,pow(max(cell,.001),1.35),sc);
-        density=lerp(wispy,billowy,smoothstep(0,.22,billowy)*(1-.45*anvilFlare))*clip*coverage*lerp(.86,1.52,type);
+        density=lerp(wispy,billowy,smoothstep(0,.20,billowy)*(1-.55*anvilFlare))*clip*coverage*lerp(.88,1.56,type);
     }
 
     // 2. Detached Mid-Tropospheric Altocumulus / Altostratus (Ac/As) Deck (3,950 - 5,950 m):

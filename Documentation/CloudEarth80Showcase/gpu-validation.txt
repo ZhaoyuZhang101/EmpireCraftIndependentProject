@@ -1,15 +1,19 @@
-Unity=6000.0.55f1 GPU=NVIDIA GeForce RTX 5070 Laptop GPU API=Direct3D11
+Unity=6000.0.55f1 GPU=NVIDIA GeForce RTX 5070 Laptop GPU API=Direct3D11 Mode=full
 PASS ClimateCloudRegression.Run()
 PASS HPCloudHeightRegression.Run()
 PASS WaterCloudRegression.Run()
 PASS LightningRegression.Run()
-Earth1024-Globe-Pacific | 星球 | NVIDIA GeForce RTX 5070 Laptop GPU | 1280x720 synchronous camera render median: volume=34.48 ms, original-integration=52.50 ms, no-volume=3.95 ms
+Captured 0_nasa_reference_north_america_view.png | day=262.728 | center=(lon=-96.0deg,lat=19.0deg) | sunDot=0.911 | skyReady=True
+Earth1024-Globe-Pacific-HighQ2 | 星球 | NVIDIA GeForce RTX 5070 Laptop GPU | 1280x720 synchronous camera render median: volume=12.09 ms, original-integration=36.38 ms, no-volume=3.53 ms
+Earth1024-Globe-Pacific-BalancedQ1 | 星球 | NVIDIA GeForce RTX 5070 Laptop GPU | 1280x720 synchronous camera render median: volume=8.62 ms, original-integration=19.08 ms, no-volume=3.36 ms
 Captured 1_earth_pacific_double_itcz_july.png | day=195.856 | center=(lon=-150.0deg,lat=12.0deg) | sunDot=0.921 | skyReady=True
+Captured 5_earth_autumn_indopacific_walker_oct.png | day=285.222 | center=(lon=122.0deg,lat=-22.0deg) | sunDot=0.911 | skyReady=True
 Captured 2_earth_equinox_pacific_americas_apr.png | day=105.717 | center=(lon=-98.0deg,lat=4.0deg) | sunDot=0.935 | skyReady=True
 Captured 3_earth_monsoon_sahara_contrast_july.png | day=228.261 | center=(lon=64.0deg,lat=18.0deg) | sunDot=0.927 | skyReady=True
 Captured 4_earth_amazon_atlantic_storm_jan.png | day=15.561 | center=(lon=-42.0deg,lat=22.0deg) | sunDot=0.679 | skyReady=True
-Captured 5_earth_autumn_indopacific_walker_oct.png | day=285.222 | center=(lon=122.0deg,lat=-14.0deg) | sunDot=0.928 | skyReady=True
-Earth1024-LowOrbit-DenseClouds | 星球 | NVIDIA GeForce RTX 5070 Laptop GPU | 1280x720 synchronous camera render median: volume=44.60 ms, original-integration=79.77 ms, no-volume=5.22 ms
+Captured 5_earth_autumn_indopacific_walker_oct.png | day=285.222 | center=(lon=122.0deg,lat=-18.0deg) | sunDot=0.921 | skyReady=True
+Earth1024-LowOrbit-DenseClouds-HighQ2 | 星球 | NVIDIA GeForce RTX 5070 Laptop GPU | 1280x720 synchronous camera render median: volume=14.46 ms, original-integration=52.21 ms, no-volume=4.44 ms
+Earth1024-LowOrbit-DenseClouds-BalancedQ1 | 星球 | NVIDIA GeForce RTX 5070 Laptop GPU | 1280x720 synchronous camera render median: volume=10.10 ms, original-integration=23.63 ms, no-volume=4.29 ms
 Captured 6_earth_low_orbit_volumetric_clouds.png | day=195.100 | center=(lon=116.0deg,lat=-5.0deg) | sunDot=0.874 | skyReady=True
 Captured 8_earth_grazing_cumulus_horizon.png | day=195.067 | center=(lon=122.0deg,lat=25.5deg) | sunDot=0.831 | skyReady=True
 Captured 9_earth_super_typhoon_stadium_eye.png | day=228.068 | center=(lon=127.5deg,lat=19.7deg) | sunDot=0.888 | skyReady=True
