@@ -2970,6 +2970,209 @@ namespace Orbis.Flat
         }
 
         /// <summary>
+        /// Reusable single-owner scratch &amp; static-terrain cache for <see cref="BuildCloudSynopticFields"/>.
+        /// Eliminates ~1.5 MiB of per-refresh heap allocations and caches terrain/ocean/fetch/SST/trig/bilinear
+        /// tables across daily refreshes when the underlying world, TerrainRevision, Moisture, and SST are unchanged.
+        /// Must only be used by one thread at a time (e.g., owned by a single background worker).
+        /// </summary>
+        public sealed class CloudSynopticWorkspace
+        {
+            internal int Width, Height;
+            internal float[] ItczCol, SthzNCol, SthzSCol, PolNCol, PolSCol, MjoDryCol;
+            internal double[] LonRadCol, SinLonCol, CosLonCol, SinLatRow, CosLatRow;
+            internal float[] ZonalSlpMean, CosRow;
+            internal float[] WindE, WindN, RainGrid, TempGrid, SlpTempGrid, SlpGrid, YearRainRow;
+            // Static per-(world, terrainRevision, moisture) cached fields
+            internal float[] ElevG, OceanRow, BreezeRow, FetchEastKm, DistWestKm, DhDxGrid, DhDyGrid, FineLandGrid, EastCoastalGrid;
+            // Precomputed 1D bilinear index tables (small L1-resident arrays)
+            internal int GWidth, GHeight, EWidth, EHeight, MWidth, MHeight, OWidth, OHeight;
+            internal int[] GX0, GX1, GY0, GY1, EX0, EX1, EY0, EY1, MX0, MX1, MY0, MY1, OX0, OX1, OY0, OY1;
+            internal float[] GTx, GTy, ETx, ETy, MTx, MTy, OTx, OTy;
+            internal bool[] MExactX, MExactY;
+
+            internal WorldData CachedWorld;
+            internal int CachedRevision = -1;
+            internal FlatMoistureState CachedMoisture;
+            internal ulong CachedStaticFp;
+            internal bool HasStaticCache;
+
+            public void InvalidateStaticCache()
+            {
+                HasStaticCache = false;
+                CachedWorld = null;
+                CachedRevision = -1;
+                CachedMoisture = null;
+                CachedStaticFp = 0;
+            }
+
+            internal void EnsureSize(int width, int height)
+            {
+                if (Width == width && Height == height && WindE != null) return;
+                Width = width;
+                Height = height;
+                int count = width * height;
+                ItczCol = new float[width];
+                SthzNCol = new float[width];
+                SthzSCol = new float[width];
+                PolNCol = new float[width];
+                PolSCol = new float[width];
+                MjoDryCol = new float[width];
+                LonRadCol = new double[width];
+                SinLonCol = new double[width];
+                CosLonCol = new double[width];
+                SinLatRow = new double[height];
+                CosLatRow = new double[height];
+                ZonalSlpMean = new float[height];
+                CosRow = new float[height];
+
+                WindE = new float[count];
+                WindN = new float[count];
+                RainGrid = new float[count];
+                TempGrid = new float[count];
+                SlpTempGrid = new float[count];
+                SlpGrid = new float[count];
+                YearRainRow = new float[count];
+
+                ElevG = new float[count];
+                OceanRow = new float[count];
+                BreezeRow = new float[count];
+                FetchEastKm = new float[count];
+                DistWestKm = new float[count];
+                DhDxGrid = new float[count];
+                DhDyGrid = new float[count];
+                FineLandGrid = new float[count];
+                EastCoastalGrid = new float[count];
+
+                for (int x = 0; x < width; x++)
+                {
+                    float u = (x + 0.5f) / width;
+                    double lon = ((double)u - 0.5) * Math.PI * 2.0;
+                    LonRadCol[x] = lon;
+                    SinLonCol[x] = Math.Sin(lon);
+                    CosLonCol[x] = Math.Cos(lon);
+                }
+                for (int y = 0; y < height; y++)
+                {
+                    float v = (y + 0.5f) / height;
+                    double latD = ((double)v - 0.5) * Math.PI;
+                    SinLatRow[y] = Math.Sin(latD);
+                    CosLatRow[y] = Math.Cos(latD);
+                    float latRad = (v - 0.5f) * 3.14159265f;
+                    CosRow[y] = Math.Max(0.16f, (float)Math.Cos(latRad));
+                }
+
+                GWidth = GHeight = EWidth = EHeight = MWidth = MHeight = OWidth = OHeight = -1;
+                InvalidateStaticCache();
+            }
+
+            internal void EnsureBilinearTables(int width, int height, FlatMoistureState moisture, GlebaClimateSupplement gleba, ExoPlaSimSupplement exo, FlatOceanCirculation ocean)
+            {
+                if (gleba != null && (GWidth != gleba.Width || GHeight != gleba.Height))
+                {
+                    GWidth = gleba.Width; GHeight = gleba.Height;
+                    BuildBilinear1D(width, height, GWidth, GHeight, out GX0, out GX1, out GTx, out GY0, out GY1, out GTy, out _, out _);
+                }
+                if (exo != null && (EWidth != exo.Width || EHeight != exo.Height))
+                {
+                    EWidth = exo.Width; EHeight = exo.Height;
+                    BuildBilinear1D(width, height, EWidth, EHeight, out EX0, out EX1, out ETx, out EY0, out EY1, out ETy, out _, out _);
+                }
+                if (moisture != null && (MWidth != moisture.Width || MHeight != moisture.Height))
+                {
+                    MWidth = moisture.Width; MHeight = moisture.Height;
+                    BuildBilinear1D(width, height, MWidth, MHeight, out MX0, out MX1, out MTx, out MY0, out MY1, out MTy, out MExactX, out MExactY);
+                }
+                if (ocean != null && (OWidth != ocean.Width || OHeight != ocean.Height))
+                {
+                    OWidth = ocean.Width; OHeight = ocean.Height;
+                    BuildBilinear1D(width, height, OWidth, OHeight, out OX0, out OX1, out OTx, out OY0, out OY1, out OTy, out _, out _);
+                }
+            }
+
+            static void BuildBilinear1D(
+                int dstW, int dstH, int srcW, int srcH,
+                out int[] x0Arr, out int[] x1Arr, out float[] txArr,
+                out int[] y0Arr, out int[] y1Arr, out float[] tyArr,
+                out bool[] exactXArr, out bool[] exactYArr)
+            {
+                x0Arr = new int[dstW]; x1Arr = new int[dstW]; txArr = new float[dstW]; exactXArr = new bool[dstW];
+                y0Arr = new int[dstH]; y1Arr = new int[dstH]; tyArr = new float[dstH]; exactYArr = new bool[dstH];
+                for (int x = 0; x < dstW; x++)
+                {
+                    float u = (x + 0.5f) / dstW;
+                    float px = u * srcW - 0.5f;
+                    int ix = (int)Math.Floor(px);
+                    int col = (int)px;
+                    exactXArr[x] = col == px && (uint)col < (uint)srcW;
+                    txArr[x] = px - ix;
+                    int x0 = FMath.Wrap(ix, srcW);
+                    x0Arr[x] = x0;
+                    x1Arr[x] = x0 + 1 == srcW ? 0 : x0 + 1;
+                }
+                for (int y = 0; y < dstH; y++)
+                {
+                    float v = (y + 0.5f) / dstH;
+                    float pyRaw = v * srcH - 0.5f;
+                    int rowRaw = (int)pyRaw;
+                    exactYArr[y] = rowRaw == pyRaw && (uint)rowRaw < (uint)srcH;
+                    float py = FMath.Clamp(pyRaw, 0f, srcH - 1f);
+                    int iy = (int)py;
+                    tyArr[y] = py - iy;
+                    y0Arr[y] = iy;
+                    y1Arr[y] = Math.Min(iy + 1, srcH - 1);
+                }
+            }
+
+            internal static ulong ComputeStaticFingerprint(WorldData world)
+            {
+                unchecked
+                {
+                    ulong h = 14695981039346656037UL;
+                    h = (h ^ (uint)world.TerrainRevision) * 1099511628211UL;
+                    var elev = world.Elevation;
+                    if (elev != null && elev.Length > 0)
+                    {
+                        int len = elev.Length;
+                        int stride = Math.Max(1, len / 192);
+                        if ((stride & 1) == 0) stride++;
+                        if (stride % 3 == 0) stride += 2;
+                        for (int i = 0; i < len; i += stride) h = (h ^ (ushort)elev[i]) * 1099511628211UL;
+                        h = (h ^ (ushort)elev[len - 1]) * 1099511628211UL;
+                    }
+                    var water = world.Water;
+                    if (water != null && water.Length > 0)
+                    {
+                        int len = water.Length;
+                        int stride = Math.Max(1, len / 192);
+                        if ((stride & 1) == 0) stride++;
+                        if (stride % 3 == 0) stride += 2;
+                        for (int i = 0; i < len; i += stride) h = (h ^ (byte)water[i]) * 1099511628211UL;
+                        h = (h ^ (byte)water[len - 1]) * 1099511628211UL;
+                    }
+                    var sst = world.Moisture?.OceanCurrents?.SeaAnomaly;
+                    if (sst != null && sst.Length > 0)
+                    {
+                        int len = sst.Length;
+                        int stride = Math.Max(1, len / 192);
+                        if ((stride & 1) == 0) stride++;
+                        if (stride % 3 == 0) stride += 2;
+                        for (int i = 0; i < len; i += stride)
+                            h = (h ^ (ulong)BitConverter.DoubleToInt64Bits(sst[i])) * 1099511628211UL;
+                        h = (h ^ (ulong)BitConverter.DoubleToInt64Bits(sst[len - 1])) * 1099511628211UL;
+                    }
+                    return h;
+                }
+            }
+        }
+
+        static float SampleBilinearBlend12(float[] field12, int c00, int c10, int c01, int c11, float tx, float ty, int m0, int m1, float blend)
+        {
+            float v0 = FMath.Lerp(FMath.Lerp(field12[c00 + m0], field12[c10 + m0], tx), FMath.Lerp(field12[c01 + m0], field12[c11 + m0], tx), ty);
+            float v1 = FMath.Lerp(FMath.Lerp(field12[c00 + m1], field12[c10 + m1], tx), FMath.Lerp(field12[c01 + m1], field12[c11 + m1], tx), ty);
+            return FMath.Lerp(v0, v1, blend);
+        }
+
+        /// <summary>
         /// Builds Gleba physical cloud synoptic forcing fields interpolated at <paramref name="calendarDay"/> on a width * height grid:
         /// - forcingRgba (RGBA32): R = SynopticLift, G = ItczDeepConvection, B = BaroclinicStormTrack, A = MoistureEnvelope
         /// - auxRgba (RGBA32): R = MarineStratocumulus, G = OrographicCrest, B = LeeRainShadow, A = PolarFrontNorm
@@ -2978,7 +3181,7 @@ namespace Orbis.Flat
         public static void BuildCloudSynopticFields(
             WorldData world, double calendarDay, int width, int height,
             byte[] forcingRgba, byte[] auxRgba, ushort[] upperWindHalf = null)
-            => BuildCloudSynopticFields(world, calendarDay, width, height, forcingRgba, auxRgba, upperWindHalf, calendarDay);
+            => BuildCloudSynopticFields(world, calendarDay, width, height, forcingRgba, auxRgba, upperWindHalf, calendarDay, null, CancellationToken.None);
 
         /// <summary>
         /// Overload allowing the 15-day upper-level Rossby jet buffer (RG/BA blended by _MonthBlend in FlatSkyBake)
@@ -2989,10 +3192,24 @@ namespace Orbis.Flat
             WorldData world, double calendarDay, int width, int height,
             byte[] forcingRgba, byte[] auxRgba, ushort[] upperWindHalf,
             double upperWindStartDay)
+            => BuildCloudSynopticFields(world, calendarDay, width, height, forcingRgba, auxRgba, upperWindHalf, upperWindStartDay, null, CancellationToken.None);
+
+        /// <summary>
+        /// Zero-allocation, cancellable overload using a caller-owned <see cref="CloudSynopticWorkspace"/>
+        /// for background thread execution without blocking the Unity main thread.
+        /// </summary>
+        public static void BuildCloudSynopticFields(
+            WorldData world, double calendarDay, int width, int height,
+            byte[] forcingRgba, byte[] auxRgba, ushort[] upperWindHalf,
+            double upperWindStartDay, CloudSynopticWorkspace workspace, CancellationToken cancel)
         {
             if (world == null || forcingRgba == null || auxRgba == null) return;
             int count = width * height;
             if (forcingRgba.Length < count * 4 || auxRgba.Length < count * 4) return;
+            cancel.ThrowIfCancellationRequested();
+
+            var ws = workspace ?? new CloudSynopticWorkspace();
+            ws.EnsureSize(width, height);
 
             // Align seasonal phase with FlatMonthlyForcing (each month m is centred at m*30 + 15)
             // so synoptic cloud forcing stays in phase with _ClimateTex, _ClimateWindTex, and FlatWeatherSimulation.
@@ -3004,6 +3221,7 @@ namespace Orbis.Flat
             var moisture = world.Moisture;
             var gleba = moisture?.Gleba;
             var exo = moisture?.ExoPlaSim;
+            var oceanCurrents = moisture?.OceanCurrents;
             var cfg = exo?.Config ?? world.PlanetClimate;
             bool customPlanet = cfg != null && !cfg.IsStandardModernEarth;
             float hadleyScale = customPlanet ? cfg.HadleyExpansionFactor : 1f;
@@ -3015,15 +3233,28 @@ namespace Orbis.Flat
             bool customCirculation = customPlanet && (Math.Abs(hadleyScale - 1f) > 0.03f || Math.Abs(targetPolarDeg - 65f) > 2f || tidallyLocked || Math.Abs(obliqScale - 1f) > 0.05f);
             float season = (float)Math.Cos(((m0 + blend) - 6.0) * Math.PI / 6.0);
 
-            var itczCol = new float[width];
-            var sthzNCol = new float[width];
-            var sthzSCol = new float[width];
-            var polNCol = new float[width];
-            var polSCol = new float[width];
+            ws.EnsureBilinearTables(width, height, moisture, gleba, exo, oceanCurrents);
 
+            var itczCol = ws.ItczCol;
+            var sthzNCol = ws.SthzNCol;
+            var sthzSCol = ws.SthzSCol;
+            var polNCol = ws.PolNCol;
+            var polSCol = ws.PolSCol;
+            var mjoDryCol = ws.MjoDryCol;
+            var lonRadCol = ws.LonRadCol;
+            var sinLonCol = ws.SinLonCol;
+            var cosLonCol = ws.CosLonCol;
+            var sinLatRow = ws.SinLatRow;
+            var cosLatRow = ws.CosLatRow;
+            var cosRow = ws.CosRow;
+
+            double mjoPhase = ((calendarDay % 360.0 + 360.0) % 360.0) / 45.0 * 2.0 * Math.PI;
             for (int x = 0; x < width; x++)
             {
                 float u = (x + 0.5f) / width;
+                double lonRad = lonRadCol[x];
+                float mjoWave = (float)(0.62 * Math.Cos(2.0 * lonRad - mjoPhase) + 0.38 * Math.Cos(3.0 * lonRad - 1.35 * mjoPhase + 1.15));
+                mjoDryCol[x] = Smooth(-0.10f, 0.58f, -mjoWave);
                 if (gleba != null)
                 {
                     itczCol[x] = FMath.Lerp(gleba.SampleBandDegrees(gleba.ItczLatRad, u, m0), gleba.SampleBandDegrees(gleba.ItczLatRad, u, m1), blend);
@@ -3059,31 +3290,129 @@ namespace Orbis.Flat
             uint seed = FMath.Seed(world.Seed);
             var climateYear = FlatClimateYear.At(seed, calendarDay);
 
-            var windE = new float[count];
-            var windN = new float[count];
-            var elevG = new float[count];
-            var oceanRow = new float[count];
-            var breezeRow = new float[count];
-            var rainGrid = new float[count];
-            var tempGrid = new float[count];
-            var slpTempGrid = new float[count];
-            var slpGrid = new float[count];
-            var zonalSlpMean = new float[height];
-            var yearRainRow = new float[count];
-            var fetchEastKm = new float[count];
-            var distWestKm = new float[count];
-            var cosRow = new float[height];
+            var windE = ws.WindE;
+            var windN = ws.WindN;
+            var elevG = ws.ElevG;
+            var oceanRow = ws.OceanRow;
+            var breezeRow = ws.BreezeRow;
+            var rainGrid = ws.RainGrid;
+            var tempGrid = ws.TempGrid;
+            var slpTempGrid = ws.SlpTempGrid;
+            var slpGrid = ws.SlpGrid;
+            var zonalSlpMean = ws.ZonalSlpMean;
+            var yearRainRow = ws.YearRainRow;
+            var fetchEastKm = ws.FetchEastKm;
+            var distWestKm = ws.DistWestKm;
+            var dhDxGrid = ws.DhDxGrid;
+            var dhDyGrid = ws.DhDyGrid;
+            var fineLandGrid = ws.FineLandGrid;
+            var eastCoastalGrid = ws.EastCoastalGrid;
+
             float baseLonKm = 40030f / width;
+            float cellKm = 40030f / width;
+
+            ulong staticFp = CloudSynopticWorkspace.ComputeStaticFingerprint(world);
+            bool needStatic = !ws.HasStaticCache ||
+                !ReferenceEquals(ws.CachedWorld, world) ||
+                ws.CachedRevision != world.TerrainRevision ||
+                !ReferenceEquals(ws.CachedMoisture, moisture) ||
+                ws.CachedStaticFp != staticFp;
+
+            if (needStatic)
+            {
+                for (int y = 0; y < height; y++)
+                {
+                    if ((y & 15) == 0) cancel.ThrowIfCancellationRequested();
+                    float v = (y + 0.5f) / height;
+                    int sy = FMath.Clamp((int)(v * world.Height), 0, world.Height - 1);
+                    int row = y * width;
+                    float lonStepKm = baseLonKm * cosRow[y];
+                    for (int x = 0; x < width; x++)
+                    {
+                        float u = (x + 0.5f) / width;
+                        int sx = FMath.Wrap((int)(u * world.Width), world.Width);
+                        int tile = sy * world.Width + sx;
+                        int idx = row + x;
+                        elevG[idx] = Math.Max(0f, (float)world.Elevation[tile]);
+                        fineLandGrid[idx] = FlatTerrainAnalysis.AreaWater(world.Water[tile]) ? 0f : 1f;
+                        float oFrac = gleba != null
+                            ? gleba.SampleStatic(gleba.OceanFraction, u, v)
+                            : (FlatTerrainAnalysis.Ocean(world.Water[tile]) ? 1f : 0f);
+                        oceanRow[idx] = oFrac;
+                        breezeRow[idx] = exo != null ? exo.SampleStatic(exo.MaritimeSeaBreezeGuard, u, v) : 0f;
+                    }
+
+                    // Coordinate-free zonal ocean-basin fetch scan (periodic 2x wrap):
+                    // Under tropical easterlies, eastern & central ocean margins shoal the thermocline (Walker descending
+                    // limb + equatorial Ekman upwelling clear slot in ALL seasons), while warm water piles up in the far west.
+                    float runWestward = 0f;
+                    for (int step = 2 * width - 1; step >= 0; step--)
+                    {
+                        int x = step % width;
+                        int idx = row + x;
+                        if (oceanRow[idx] < 0.45f || breezeRow[idx] > 0.22f) runWestward = 0f;
+                        else runWestward = Math.Min(18000f, runWestward + lonStepKm);
+                        if (step < width)
+                        {
+                            fetchEastKm[idx] = runWestward;
+                            eastCoastalGrid[idx] = 1f - Smooth(850f, 2300f, runWestward);
+                        }
+                    }
+                    float runEastward = 0f;
+                    for (int step = 0; step < 2 * width; step++)
+                    {
+                        int x = step % width;
+                        int idx = row + x;
+                        if (oceanRow[idx] < 0.45f || breezeRow[idx] > 0.22f) runEastward = 0f;
+                        else runEastward = Math.Min(18000f, runEastward + lonStepKm);
+                        if (step >= width) distWestKm[idx] = runEastward;
+                    }
+                }
+                for (int y = 0; y < height; y++)
+                {
+                    int yS = Math.Max(0, y - 1), yN = Math.Min(height - 1, y + 1);
+                    int row = y * width;
+                    float inv2CosCell = 1f / (2f * cosRow[y] * cellKm);
+                    float invDyCell = 1f / (Math.Max(1, yN - yS) * cellKm);
+                    for (int x = 0; x < width; x++)
+                    {
+                        int xW = x == 0 ? width - 1 : x - 1;
+                        int xE = x + 1 == width ? 0 : x + 1;
+                        int idx = row + x;
+                        dhDxGrid[idx] = (elevG[row + xE] - elevG[row + xW]) * inv2CosCell;
+                        dhDyGrid[idx] = (elevG[yN * width + x] - elevG[yS * width + x]) * invDyCell;
+                    }
+                }
+                ws.CachedWorld = world;
+                ws.CachedRevision = world.TerrainRevision;
+                ws.CachedMoisture = moisture;
+                ws.CachedStaticFp = staticFp;
+                ws.HasStaticCache = true;
+            }
+
+            var gX0 = ws.GX0; var gX1 = ws.GX1; var gTx = ws.GTx; var gY0 = ws.GY0; var gY1 = ws.GY1; var gTy = ws.GTy;
+            var eX0 = ws.EX0; var eX1 = ws.EX1; var eTx = ws.ETx; var eY0 = ws.EY0; var eY1 = ws.EY1; var eTy = ws.ETy;
+            var mX0 = ws.MX0; var mX1 = ws.MX1; var mTx = ws.MTx; var mY0 = ws.MY0; var mY1 = ws.MY1; var mTy = ws.MTy;
+            var oX0 = ws.OX0; var oX1 = ws.OX1; var oTx = ws.OTx; var oY0 = ws.OY0; var oY1 = ws.OY1; var oTy = ws.OTy;
+            var mExactX = ws.MExactX; var mExactY = ws.MExactY;
+            int gW = gleba != null ? gleba.Width : 0;
+            int eW = exo != null ? exo.Width : 0;
+            int mW = moisture != null ? moisture.Width : 0;
+            int oW = oceanCurrents != null ? oceanCurrents.Width : 0;
+            var seaAnomArr = oceanCurrents?.SeaAnomaly;
+            int worldW = world.Width, worldH = world.Height;
+            var precipArr = world.Precipitation;
+            var tempArr = world.Temperature;
 
             for (int y = 0; y < height; y++)
             {
+                if ((y & 7) == 0) cancel.ThrowIfCancellationRequested();
                 float v = (y + 0.5f) / height;
-                float latRad = (v - 0.5f) * 3.14159265f;
                 float latDeg = (v - 0.5f) * 180f;
-                cosRow[y] = Math.Max(0.16f, (float)Math.Cos(latRad));
-                int sy = FMath.Clamp((int)(v * world.Height), 0, world.Height - 1);
+                int sy = FMath.Clamp((int)(v * worldH), 0, worldH - 1);
+                int sy1 = Math.Min(sy + 1, worldH - 1);
                 int row = y * width;
-                float lonStepKm = baseLonKm * cosRow[y];
+                double sinLat = sinLatRow[y], cosLat = cosLatRow[y];
                 FlatWindBelts fallbackBelts = moisture == null ? new FlatWindBelts(latDeg, tidallyLocked ? 0f : season, cfg) : default;
                 float fallbackE = 0f, fallbackN = 0f;
                 if (moisture == null)
@@ -3092,27 +3421,41 @@ namespace Orbis.Flat
                     fallbackE /= 0.32f;
                     fallbackN /= 0.32f;
                 }
+                int gRow0 = gleba != null ? gY0[y] * gW : 0;
+                int gRow1 = gleba != null ? gY1[y] * gW : 0;
+                float gTyVal = gleba != null ? gTy[y] : 0f;
+                float slpFallback = gleba == null ? 1000f - 45f * (float)Math.Cos((latDeg - 8f * season * obliqScale) * (Math.PI / 30.0)) : 0f;
+                int mRow0 = moisture != null ? mY0[y] * mW : 0;
+                int mRow1 = moisture != null ? mY1[y] * mW : 0;
+                float mTyVal = moisture != null ? mTy[y] : 0f;
+                bool mExY = moisture != null && mExactY[y];
+
                 double slpRowSum = 0.0;
                 for (int x = 0; x < width; x++)
                 {
                     float u = (x + 0.5f) / width;
-                    int sx = FMath.Wrap((int)(u * world.Width), world.Width);
-                    int tile = sy * world.Width + sx;
+                    int sx = FMath.Wrap((int)(u * worldW), worldW);
+                    int sx1 = sx + 1 == worldW ? 0 : sx + 1;
                     int idx = row + x;
-                    elevG[idx] = Math.Max(0f, (float)world.Elevation[tile]);
-                    oceanRow[idx] = gleba != null
-                        ? gleba.SampleStatic(gleba.OceanFraction, u, v)
-                        : (FlatTerrainAnalysis.Ocean(world.Water[tile]) ? 1f : 0f);
-                    breezeRow[idx] = exo != null ? exo.SampleStatic(exo.MaritimeSeaBreezeGuard, u, v) : 0f;
-                    float slpVal = gleba != null
-                        ? FMath.Lerp(gleba.SampleMonthly(gleba.PressureHpa, u, v, m0), gleba.SampleMonthly(gleba.PressureHpa, u, v, m1), blend)
-                        : 1000f - 45f * (float)Math.Cos((latDeg - 8f * season * obliqScale) * (Math.PI / 30.0));
+
+                    float slpVal;
+                    if (gleba != null)
+                    {
+                        int gx0 = gX0[x], gx1 = gX1[x];
+                        slpVal = SampleBilinearBlend12(gleba.PressureHpa, (gRow0 + gx0) * 12, (gRow0 + gx1) * 12, (gRow1 + gx0) * 12, (gRow1 + gx1) * 12, gTx[x], gTyVal, m0, m1, blend);
+                    }
+                    else slpVal = slpFallback;
                     slpGrid[idx] = slpVal;
                     slpRowSum += slpVal;
+
                     if (moisture != null)
                     {
-                        windE[idx] = seasonForcing.Sample(moisture, moisture.East, u, v);
-                        windN[idx] = seasonForcing.Sample(moisture, moisture.North, u, v);
+                        int mx0 = mX0[x], mx1 = mX1[x];
+                        int mc00 = (mRow0 + mx0) * 12, mc10 = (mRow0 + mx1) * 12, mc01 = (mRow1 + mx0) * 12, mc11 = (mRow1 + mx1) * 12;
+                        float mtx = mTx[x];
+                        bool exact = mExY && mExactX[x];
+                        windE[idx] = seasonForcing.SampleBilinear(moisture.East, mc00, mc10, mc01, mc11, mtx, mTyVal, exact);
+                        windN[idx] = seasonForcing.SampleBilinear(moisture.North, mc00, mc10, mc01, mc11, mtx, mTyVal, exact);
                     }
                     else
                     {
@@ -3121,45 +3464,29 @@ namespace Orbis.Flat
                     }
 
                     // 2x2 neighborhood monthly rain & temperature with FlatMonthlyForcing + FlatClimateYear
-                    float rainMm = 0f, tempC = 0f;
-                    for (int dy = 0; dy < 2; dy++)
-                    for (int dx = 0; dx < 2; dx++)
-                    {
-                        int nt = FMath.Clamp(sy + dy, 0, world.Height - 1) * world.Width + FMath.Wrap(sx + dx, world.Width);
-                        int off = nt * 12;
-                        rainMm += 0.25f * seasonForcing.Sample(world.Precipitation, off, ClimateRange.Nonnegative);
-                        tempC += 0.25f * seasonForcing.Sample(world.Temperature, off);
-                    }
-                    var dir = FlatWeatherSimulation.Direction(u, v);
-                    climateYear.Offsets((float)dir.X, (float)dir.Y, (float)dir.Z, out float yearTempDelta, out float yearRainDelta);
+                    int o00 = (sy * worldW + sx) * 12;
+                    int o10 = (sy * worldW + sx1) * 12;
+                    int o01 = (sy1 * worldW + sx) * 12;
+                    int o11 = (sy1 * worldW + sx1) * 12;
+                    float rainMm = 0.25f * seasonForcing.Sample(precipArr, o00, ClimateRange.Nonnegative)
+                                 + 0.25f * seasonForcing.Sample(precipArr, o10, ClimateRange.Nonnegative)
+                                 + 0.25f * seasonForcing.Sample(precipArr, o01, ClimateRange.Nonnegative)
+                                 + 0.25f * seasonForcing.Sample(precipArr, o11, ClimateRange.Nonnegative);
+                    float tempC = 0.25f * seasonForcing.Sample(tempArr, o00)
+                                + 0.25f * seasonForcing.Sample(tempArr, o10)
+                                + 0.25f * seasonForcing.Sample(tempArr, o01)
+                                + 0.25f * seasonForcing.Sample(tempArr, o11);
+
+                    float dxDir = (float)(sinLonCol[x] * cosLat);
+                    float dyDir = (float)sinLat;
+                    float dzDir = (float)(cosLonCol[x] * cosLat);
+                    climateYear.Offsets(dxDir, dyDir, dzDir, out float yearTempDelta, out float yearRainDelta);
                     yearRainRow[idx] = yearRainDelta;
                     rainGrid[idx] = Math.Max(0f, rainMm * (1f + yearRainDelta));
                     tempGrid[idx] = tempC + yearTempDelta;
                     slpTempGrid[idx] = tempGrid[idx] + 0.0065f * elevG[idx];
                 }
                 zonalSlpMean[y] = (float)(slpRowSum / width);
-
-                // Coordinate-free zonal ocean-basin fetch scan (periodic 2x wrap):
-                // Under tropical easterlies, eastern & central ocean margins shoal the thermocline (Walker descending
-                // limb + equatorial Ekman upwelling clear slot in ALL seasons), while warm water piles up in the far west.
-                float runWestward = 0f;
-                for (int step = 2 * width - 1; step >= 0; step--)
-                {
-                    int x = step % width;
-                    int idx = row + x;
-                    if (oceanRow[idx] < 0.45f || breezeRow[idx] > 0.22f) runWestward = 0f;
-                    else runWestward = Math.Min(18000f, runWestward + lonStepKm);
-                    if (step < width) fetchEastKm[idx] = runWestward;
-                }
-                float runEastward = 0f;
-                for (int step = 0; step < 2 * width; step++)
-                {
-                    int x = step % width;
-                    int idx = row + x;
-                    if (oceanRow[idx] < 0.45f || breezeRow[idx] > 0.22f) runEastward = 0f;
-                    else runEastward = Math.Min(18000f, runEastward + lonStepKm);
-                    if (step >= width) distWestKm[idx] = runEastward;
-                }
             }
 
             double rossbyT0 = ((upperWindStartDay % 360.0 + 360.0) % 360.0) / 360.0 * 2.0 * Math.PI;
@@ -3176,88 +3503,144 @@ namespace Orbis.Flat
                 rossby0.BaseSouthPolarJetLatRad = rossby1.BaseSouthPolarJetLatRad = -polJetRad;
             }
             var upperEndForcing = upperWindHalf != null ? new FlatMonthlyForcing(upperWindStartDay + FlatMonthlyForcing.HalfMonthDays) : default;
-            float cellKm = 40030f / width;
+            float itczWidth = 6.8f * FMath.Lerp(1f, hadleyScale, 0.65f);
+            float invItczWidth2 = 1f / (itczWidth * itczWidth);
+            float eqSlotWidth = 4.1f * FMath.Lerp(1f, hadleyScale, 0.5f);
+            float offEqCenter = 7.4f * FMath.Lerp(1f, hadleyScale, 0.72f);
+            float offEqWidth = 2.9f * FMath.Lerp(1f, hadleyScale, 0.55f);
+            float polarWidth = 14.5f * FMath.Lerp(1f, hadleyScale, 0.35f);
+            float invPolarWidth2 = 1f / (polarWidth * polarWidth);
 
             for (int y = 0; y < height; y++)
             {
+                if ((y & 7) == 0) cancel.ThrowIfCancellationRequested();
                 float v = (y + 0.5f) / height;
                 float latDeg = (v - 0.5f) * 180f;
                 float absLat = Math.Abs(latDeg);
                 double latRad = (v - 0.5) * Math.PI;
                 int yS = Math.Max(0, y - 1), yN = Math.Min(height - 1, y + 1);
-                int sy = FMath.Clamp((int)(v * world.Height), 0, world.Height - 1);
                 int row = y * width;
+                float cosY = cosRow[y], cosYN = cosRow[yN], cosYS = cosRow[yS];
+                float inv2CosY = 1f / (2f * cosY);
+                float invDy = 1f / Math.Max(1, yN - yS);
+                float inv2CosCell = 1f / (2f * cosY * cellKm);
+                float invDyCell = 1f / (Math.Max(1, yN - yS) * cellKm);
+                float hemiSgn = FMath.Clamp((float)sinLatRow[y] * 6f, -1f, 1f);
+                float latSign = latDeg >= 0f ? 1f : -1f;
+                float upwellLatGate = Smooth(6f * hadleyScale, 15f * hadleyScale, absLat) * (1f - Smooth(32f * hadleyScale, 44f * hadleyScale, absLat));
+                float monsoonLatGate = 1f - Smooth(26f * hadleyScale, 35f * hadleyScale, absLat);
+                float greenOceanLatGate = 1f - Smooth(15f * hadleyScale, 24f * hadleyScale, absLat);
+                float eqCore = (float)Math.Exp(-(latDeg * latDeg) / (eqSlotWidth * eqSlotWidth));
+                float tropOceanLatGate = 1f - Smooth(9f * hadleyScale, 23f * hadleyScale, absLat);
+                float offEqDist = Math.Abs(absLat - offEqCenter);
+                float hemiSummerBias = 0.64f + 0.36f * (float)Math.Tanh(latDeg * season * obliqScale * 0.25);
+                float doubleItczLatFactor = hemiSummerBias * (float)Math.Exp(-(offEqDist * offEqDist) / (offEqWidth * offEqWidth));
+                float spczBelt = Smooth(8f * hadleyScale, 15f * hadleyScale, absLat) * (1f - Smooth(27f * hadleyScale, 37f * hadleyScale, absLat));
+                float scLat = Smooth(6f * hadleyScale, 13f * hadleyScale, absLat) * (1f - Smooth(33f * hadleyScale, 43f * hadleyScale, absLat));
+                float defaultMidLat = customCirculation ? 0f : Smooth(24f, 35f, absLat) * (1f - Smooth(68f, 82f, absLat));
+                float rowZonalSlp = zonalSlpMean[y];
+
+                int gRow0 = gleba != null ? gY0[y] * gW : 0;
+                int gRow1 = gleba != null ? gY1[y] * gW : 0;
+                float gTyVal = gleba != null ? gTy[y] : 0f;
+                int eRow0 = exo != null ? eY0[y] * eW : 0;
+                int eRow1 = exo != null ? eY1[y] * eW : 0;
+                float eTyVal = exo != null ? eTy[y] : 0f;
+                int mRow0 = moisture != null ? mY0[y] * mW : 0;
+                int mRow1 = moisture != null ? mY1[y] * mW : 0;
+                float mTyVal = moisture != null ? mTy[y] : 0f;
+                bool mExY = moisture != null && mExactY[y];
+                int oRow0 = seaAnomArr != null ? oY0[y] * oW : 0;
+                int oRow1 = seaAnomArr != null ? oY1[y] * oW : 0;
+                float oTyVal = seaAnomArr != null ? oTy[y] : 0f;
 
                 for (int x = 0; x < width; x++)
                 {
                     int idx = row + x;
                     int xW = x == 0 ? width - 1 : x - 1;
                     int xE = x + 1 == width ? 0 : x + 1;
-                    float u = (x + 0.5f) / width;
-                    int sx = FMath.Wrap((int)(u * world.Width), world.Width);
-                    int tile = sy * world.Width + sx;
 
                     float rainMm = rainGrid[idx];
                     float tempC = tempGrid[idx];
                     float yearRainDelta = yearRainRow[idx];
+                    float oceanFrac = oceanRow[idx];
+                    float slp = slpGrid[idx];
 
-                    float slp = slpGrid[idx], rainImpact, rainShadow, oceanFrac, rh;
+                    int gc00 = 0, gc10 = 0, gc01 = 0, gc11 = 0;
+                    float gtx = 0f;
+                    float rainImpact, rainShadow;
                     if (gleba != null)
                     {
-                        rainImpact = FMath.Lerp(gleba.SampleMonthly(gleba.RainfallImpact, u, v, m0), gleba.SampleMonthly(gleba.RainfallImpact, u, v, m1), blend);
-                        rainShadow = FMath.Lerp(gleba.SampleMonthly(gleba.RainShadowiness, u, v, m0), gleba.SampleMonthly(gleba.RainShadowiness, u, v, m1), blend);
-                        oceanFrac = oceanRow[idx];
-                        rh = seasonForcing.Sample(moisture, moisture.Humidity, u, v, ClimateRange.Fraction);
+                        int gx0 = gX0[x], gx1 = gX1[x];
+                        gc00 = (gRow0 + gx0) * 12; gc10 = (gRow0 + gx1) * 12;
+                        gc01 = (gRow1 + gx0) * 12; gc11 = (gRow1 + gx1) * 12;
+                        gtx = gTx[x];
+                        rainImpact = SampleBilinearBlend12(gleba.RainfallImpact, gc00, gc10, gc01, gc11, gtx, gTyVal, m0, m1, blend);
+                        rainShadow = SampleBilinearBlend12(gleba.RainShadowiness, gc00, gc10, gc01, gc11, gtx, gTyVal, m0, m1, blend);
                     }
                     else
                     {
                         rainImpact = 0f;
                         rainShadow = 0f;
-                        oceanFrac = oceanRow[idx];
-                        rh = moisture != null
-                            ? seasonForcing.Sample(moisture, moisture.Humidity, u, v, ClimateRange.Fraction)
-                            : FMath.Clamp((oceanFrac > 0.5f ? 0.78f : 0.25f) + rainMm / 200f, 0f, 1f);
+                    }
+
+                    int mc00 = 0, mc10 = 0, mc01 = 0, mc11 = 0;
+                    float mtx = 0f;
+                    bool mExact = false;
+                    float rh, condNorm;
+                    if (moisture != null)
+                    {
+                        int mx0 = mX0[x], mx1 = mX1[x];
+                        mc00 = (mRow0 + mx0) * 12; mc10 = (mRow0 + mx1) * 12;
+                        mc01 = (mRow1 + mx0) * 12; mc11 = (mRow1 + mx1) * 12;
+                        mtx = mTx[x];
+                        mExact = mExY && mExactX[x];
+                        rh = seasonForcing.SampleBilinear(moisture.Humidity, mc00, mc10, mc01, mc11, mtx, mTyVal, mExact, ClimateRange.Fraction);
+                        float condDay = Math.Max(0f, seasonForcing.SampleBilinear(moisture.Condensation, mc00, mc10, mc01, mc11, mtx, mTyVal, mExact, ClimateRange.Nonnegative) * (1f + yearRainDelta));
+                        condNorm = 1f - (float)Math.Exp(-condDay * 30f / 65f);
+                    }
+                    else
+                    {
+                        rh = FMath.Clamp((oceanFrac > 0.5f ? 0.78f : 0.25f) + rainMm / 200f, 0f, 1f);
+                        condNorm = 0f;
                     }
                     rh = FMath.Clamp(rh * (1f + 0.28f * yearRainDelta), 0f, 1f);
 
-                    float condNorm = 0f;
-                    if (moisture != null)
-                    {
-                        float condDay = Math.Max(0f, seasonForcing.Sample(moisture, moisture.Condensation, u, v, ClimateRange.Nonnegative) * (1f + yearRainDelta));
-                        condNorm = 1f - (float)Math.Exp(-condDay * 30f / 65f);
-                    }
-
                     float sstAnom = 0f;
-                    if (moisture?.OceanCurrents != null && oceanFrac > 0.05f)
-                        sstAnom = moisture.OceanCurrents.Sample(moisture.OceanCurrents.SeaAnomaly, u, v);
-                    float eastCoastal = 1f - Smooth(850f, 2300f, fetchEastKm[idx]);
-                    float seasonalUpwell = 0f;
-                    if (gleba != null && oceanFrac > 0.05f && eastCoastal > 0.01f)
+                    if (seaAnomArr != null && oceanFrac > 0.05f)
                     {
-                        float curN = FMath.Lerp(gleba.SampleMonthly(gleba.CurrentNorth, u, v, m0), gleba.SampleMonthly(gleba.CurrentNorth, u, v, m1), blend);
-                        float hemiSgn = FMath.Clamp((float)Math.Sin(latRad) * 6f, -1f, 1f);
-                        seasonalUpwell = eastCoastal * FMath.Clamp(-hemiSgn * curN * 8.5f, -0.40f, 0.80f)
-                            * Smooth(6f * hadleyScale, 15f * hadleyScale, absLat)
-                            * (1f - Smooth(32f * hadleyScale, 44f * hadleyScale, absLat));
+                        int ox0 = oX0[x], ox1 = oX1[x];
+                        float otx = oTx[x];
+                        sstAnom = FMath.Lerp(
+                            FMath.Lerp(seaAnomArr[oRow0 + ox0], seaAnomArr[oRow0 + ox1], otx),
+                            FMath.Lerp(seaAnomArr[oRow1 + ox0], seaAnomArr[oRow1 + ox1], otx),
+                            oTyVal);
+                    }
+                    float eastCoastal = eastCoastalGrid[idx];
+                    float seasonalUpwell = 0f;
+                    if (gleba != null && oceanFrac > 0.05f && eastCoastal > 0.01f && upwellLatGate > 0f)
+                    {
+                        float curN = SampleBilinearBlend12(gleba.CurrentNorth, gc00, gc10, gc01, gc11, gtx, gTyVal, m0, m1, blend);
+                        seasonalUpwell = eastCoastal * FMath.Clamp(-hemiSgn * curN * 8.5f, -0.40f, 0.80f) * upwellLatGate;
                     }
                     float effSstAnom = sstAnom - 0.85f * seasonalUpwell;
 
                     // Surface wind convergence (-div V), windward/leeward orographic slope forcing,
                     // and baroclinic sea-level thermal-gradient frontogenesis (matching FlatWeatherSimulation.SynopticLift).
-                    float duDx = (windE[row + xE] - windE[row + xW]) / (2f * cosRow[y]);
-                    float dvDy = (windN[yN * width + x] * cosRow[yN] - windN[yS * width + x] * cosRow[yS]) / Math.Max(1, yN - yS);
+                    float duDx = (windE[row + xE] - windE[row + xW]) * inv2CosY;
+                    float dvDy = (windN[yN * width + x] * cosYN - windN[yS * width + x] * cosYS) * invDy;
                     float windConv = FMath.Clamp(-(duDx + dvDy) * 3.2f, -0.8f, 1.0f);
 
-                    float dTdx = (slpTempGrid[row + xE] - slpTempGrid[row + xW]) / (2f * cosRow[y] * cellKm);
-                    float dTdy = (slpTempGrid[yN * width + x] - slpTempGrid[yS * width + x]) / (Math.Max(1, yN - yS) * cellKm);
+                    float dTdx = (slpTempGrid[row + xE] - slpTempGrid[row + xW]) * inv2CosCell;
+                    float dTdy = (slpTempGrid[yN * width + x] - slpTempGrid[yS * width + x]) * invDyCell;
                     float thermalGrad300 = (float)Math.Sqrt(dTdx * dTdx + dTdy * dTdy) * 300f;
                     float baroclinicFront = Smooth(1.2f, 5.5f, thermalGrad300) * Smooth(0.26f, 0.72f, rh);
 
-                    float dhDx = (elevG[row + xE] - elevG[row + xW]) / (2f * cosRow[y] * cellKm);
-                    float dhDy = (elevG[yN * width + x] - elevG[yS * width + x]) / (Math.Max(1, yN - yS) * cellKm);
+                    float dhDx = dhDxGrid[idx];
+                    float dhDy = dhDyGrid[idx];
                     float slopeDot = windE[idx] * dhDx + windN[idx] * dhDy; // m/km * windUnit
                     float leeDownslope = FMath.Clamp(-slopeDot / 2.20f, 0f, 1f);
-                    float eqFacingSlope = Math.Max(0f, (latDeg >= 0f ? 1f : -1f) * dhDy);
+                    float eqFacingSlope = Math.Max(0f, latSign * dhDy);
                     float anabaticCrest = 0.34f * Smooth(2.0f, 7.2f, eqFacingSlope) * Smooth(0.26f, 0.56f, rh) * Smooth(-6f, 6f, tempC) * (1f - 0.85f * leeDownslope);
                     float windwardLift = Math.Max(FMath.Clamp(slopeDot / 1.65f, 0f, 1f), anabaticCrest);
 
@@ -3265,32 +3648,32 @@ namespace Orbis.Flat
                     float highP = FMath.Clamp((slp - 1012f) / 55f, 0f, 1f);
                     // Eddy (zonal-anomaly) sea-level pressure separates synoptic troughs/ridges from the
                     // static meridional pressure profile so NOAA zonal climatology stays unbiased.
-                    float slpEddy = slp - zonalSlpMean[y];
+                    float slpEddy = slp - rowZonalSlp;
                     float eddyLowP = FMath.Clamp(-slpEddy / 28f, 0f, 1f);
                     float eddyHighP = FMath.Clamp(slpEddy / 28f, 0f, 1f);
                     float negImpact = FMath.Clamp(-rainImpact, 0f, 1f);
                     float dSthz = Math.Min(Math.Abs(latDeg - sthzNCol[x]), Math.Abs(latDeg - sthzSCol[x]));
                     float sthzRidge = (float)Math.Exp(-(dSthz * dSthz) / (9.5 * 9.5));
                     float aridSub = FMath.Clamp((0.44f - rh) / 0.30f, 0f, 1f) * (1f - 0.65f * oceanFrac);
-                    float subsidence = FMath.Clamp(
-                        0.46f * highP + 0.40f * negImpact + 0.28f * sthzRidge * (0.35f + 0.65f * highP) + 0.48f * aridSub,
-                        0f, 1f);
 
                     float dItcz = Math.Abs(latDeg - itczCol[x]);
-                    float itczWidth = 6.8f * FMath.Lerp(1f, hadleyScale, 0.65f);
-                    float itczBand = (float)Math.Exp(-(dItcz * dItcz) / (itczWidth * itczWidth));
-                    float monsoonCore = Smooth(105f, 240f, rainMm) * Smooth(18.5f, 24.5f, tempC) * (1f - Smooth(26f * hadleyScale, 35f * hadleyScale, absLat));
+                    float itczBand = (float)Math.Exp(-(dItcz * dItcz) * invItczWidth2);
+                    float monsoonCore = Smooth(105f, 240f, rainMm) * Smooth(18.5f, 24.5f, tempC) * monsoonLatGate;
                     float exoCapeBoost = 0f, exoCinDamp = 0f, capeVal = 0f, deepSoilVal = 0f, shallowSoilVal = 0f, chi = 0.35f;
                     float convFrac = 0f, stratRainVal = 0f, virgaDry = 0f, breezeVal = breezeRow[idx];
                     if (exo != null)
                     {
-                        capeVal = FMath.Lerp(exo.SampleMonthly(exo.CapeJkg, u, v, m0), exo.SampleMonthly(exo.CapeJkg, u, v, m1), blend);
-                        deepSoilVal = FMath.Lerp(exo.SampleMonthly(exo.DeepSoil, u, v, m0), exo.SampleMonthly(exo.DeepSoil, u, v, m1), blend);
-                        shallowSoilVal = FMath.Lerp(exo.SampleMonthly(exo.ShallowSoil, u, v, m0), exo.SampleMonthly(exo.ShallowSoil, u, v, m1), blend);
-                        chi = FMath.Lerp(exo.SampleMonthly(exo.EntropyDeficit, u, v, m0), exo.SampleMonthly(exo.EntropyDeficit, u, v, m1), blend);
-                        float convRainVal = FMath.Lerp(exo.SampleMonthly(exo.ConvectiveRain, u, v, m0), exo.SampleMonthly(exo.ConvectiveRain, u, v, m1), blend);
-                        stratRainVal = FMath.Lerp(exo.SampleMonthly(exo.StratiformRain, u, v, m0), exo.SampleMonthly(exo.StratiformRain, u, v, m1), blend);
-                        float virgaVal = FMath.Lerp(exo.SampleMonthly(exo.VirgaReevap, u, v, m0), exo.SampleMonthly(exo.VirgaReevap, u, v, m1), blend);
+                        int ex0 = eX0[x], ex1 = eX1[x];
+                        int ec00 = (eRow0 + ex0) * 12, ec10 = (eRow0 + ex1) * 12;
+                        int ec01 = (eRow1 + ex0) * 12, ec11 = (eRow1 + ex1) * 12;
+                        float etx = eTx[x];
+                        capeVal = SampleBilinearBlend12(exo.CapeJkg, ec00, ec10, ec01, ec11, etx, eTyVal, m0, m1, blend);
+                        deepSoilVal = SampleBilinearBlend12(exo.DeepSoil, ec00, ec10, ec01, ec11, etx, eTyVal, m0, m1, blend);
+                        shallowSoilVal = SampleBilinearBlend12(exo.ShallowSoil, ec00, ec10, ec01, ec11, etx, eTyVal, m0, m1, blend);
+                        chi = SampleBilinearBlend12(exo.EntropyDeficit, ec00, ec10, ec01, ec11, etx, eTyVal, m0, m1, blend);
+                        float convRainVal = SampleBilinearBlend12(exo.ConvectiveRain, ec00, ec10, ec01, ec11, etx, eTyVal, m0, m1, blend);
+                        stratRainVal = SampleBilinearBlend12(exo.StratiformRain, ec00, ec10, ec01, ec11, etx, eTyVal, m0, m1, blend);
+                        float virgaVal = SampleBilinearBlend12(exo.VirgaReevap, ec00, ec10, ec01, ec11, etx, eTyVal, m0, m1, blend);
                         float totalModal = convRainVal + stratRainVal;
                         convFrac = totalModal > 1f ? FMath.Clamp(convRainVal / totalModal, 0f, 1f) : 0f;
                         virgaDry = totalModal + virgaVal > 1f ? FMath.Clamp(virgaVal / (totalModal + virgaVal + 12f), 0f, 1f) : 0f;
@@ -3302,7 +3685,7 @@ namespace Orbis.Flat
                     // Continental "Green Ocean" afternoon canopy-transpiration convection over humid equatorial rainforests
                     // (Amazonia, Congo) persists across seasons via deep-root moisture recycling even when the heat-low migrates.
                     float greenOceanConv = (1f - oceanFrac) * Smooth(68f, 165f, rainMm + 48f * deepSoilVal) * Smooth(20.0f, 24.5f, tempC)
-                                         * Smooth(0.20f, 0.48f, Math.Max(rh, 0.65f * deepSoilVal)) * (1f - Smooth(15f * hadleyScale, 24f * hadleyScale, absLat));
+                                         * Smooth(0.20f, 0.48f, Math.Max(rh, 0.65f * deepSoilVal)) * greenOceanLatGate;
                     float landSoilMoist = (1f - oceanFrac) * (0.45f * shallowSoilVal + 0.55f * deepSoilVal);
                     float warmSoilConv = landSoilMoist * Smooth(16f, 26f, tempC) * Smooth(0.30f, 0.70f, rh);
                     float moistGate = Smooth(0.32f, 0.72f, rh + 0.38f * FMath.Clamp((rainMm + 35f * deepSoilVal) / 190f, 0f, 1f));
@@ -3321,33 +3704,21 @@ namespace Orbis.Flat
                     float warmPool = Math.Max(Smooth(0.18f, 0.85f, effSstAnom) * Smooth(0.50f, 0.80f, westwardBasinPos), 0.78f * warmElNino);
                     float coolUpwelling = FMath.Clamp((0.18f - effSstAnom) / 1.75f, 0f, 1f);
                     float openEqOcean = Smooth(0.45f, 0.85f, oceanFrac) * (1f - Smooth(0.08f, 0.34f, breezeVal));
+                    float mjoDryPhase = mjoDryCol[x];
 
-                    double lonRad = (u - 0.5) * 2.0 * Math.PI;
-                    double mjoPhase = ((calendarDay % 360.0 + 360.0) % 360.0) / 45.0 * 2.0 * Math.PI;
-                    float mjoWave = (float)(0.62 * Math.Cos(2.0 * lonRad - mjoPhase) + 0.38 * Math.Cos(3.0 * lonRad - 1.35 * mjoPhase + 1.15));
-                    float mjoDryPhase = Smooth(-0.10f, 0.58f, -mjoWave);
-
-                    float eqSlotWidth = 4.1f * FMath.Lerp(1f, hadleyScale, 0.5f);
-                    float eqCore = (float)Math.Exp(-(latDeg * latDeg) / (eqSlotWidth * eqSlotWidth));
                     float ekmanColdSlot = openEqOcean * eqCore
                                         * Math.Max(0.48f + 0.52f * easterlyTrade, eastCentralBasin)
                                         * (1f - 0.84f * warmPool)
                                         * Smooth(14f, 25f, tempC);
-                    float tropOceanBelt = openEqOcean * (1f - Smooth(9f * hadleyScale, 23f * hadleyScale, absLat));
+                    float tropOceanBelt = openEqOcean * tropOceanLatGate;
                     float walkerDescend = tropOceanBelt * Math.Max(eastCentralBasin * (1f - 0.75f * warmPool), westernSomaliDiv);
                     float walkerClear = FMath.Clamp(
                         0.88f * ekmanColdSlot + 0.56f * walkerDescend + 0.44f * tropOceanBelt * mjoDryPhase * (1f - 0.50f * warmPool),
                         0f, 0.94f);
 
-                    float offEqCenter = 7.4f * FMath.Lerp(1f, hadleyScale, 0.72f);
-                    float offEqWidth = 2.9f * FMath.Lerp(1f, hadleyScale, 0.55f);
-                    float offEqDist = Math.Abs(absLat - offEqCenter);
-                    float hemiSummerBias = 0.64f + 0.36f * (float)Math.Tanh(latDeg * season * obliqScale * 0.25);
-                    float doubleItczBand = openEqOcean * (0.40f + 0.60f * easterlyTrade) * hemiSummerBias
-                                         * (float)Math.Exp(-(offEqDist * offEqDist) / (offEqWidth * offEqWidth))
+                    float doubleItczBand = openEqOcean * (0.40f + 0.60f * easterlyTrade) * doubleItczLatFactor
                                          * (1f - 0.45f * mjoDryPhase);
                     // Diagonal Subtropical Convergence Zones (SPCZ / SACZ / Meiyu-Baiu): warm western-ocean moisture export toward midlatitudes
-                    float spczBelt = Smooth(8f * hadleyScale, 15f * hadleyScale, absLat) * (1f - Smooth(27f * hadleyScale, 37f * hadleyScale, absLat));
                     float spczBand = oceanFrac * spczBelt * Smooth(0.42f, 0.82f, westwardBasinPos + 0.25f * FMath.Clamp(effSstAnom, 0f, 1.5f))
                                    * Smooth(95f, 210f, rainMm) * Smooth(-0.08f, 0.35f, windConv);
                     float effectiveItczBand = Math.Max(Math.Max(itczBand * (1f - 0.90f * ekmanColdSlot), 0.76f * doubleItczBand), 0.62f * spczBand);
@@ -3363,7 +3734,7 @@ namespace Orbis.Flat
                     float walkerGate = FMath.Lerp(walkerMarineAscend, 1f, landOrIsland) * (1f - 0.90f * ekmanColdSlot);
                     if (tidallyLocked)
                     {
-                        float cosSub = (float)(Math.Cos(latRad) * Math.Cos(lonRad - subLonRad));
+                        float cosSub = (float)(cosLatRow[y] * Math.Cos(lonRadCol[x] - subLonRad));
                         walkerGate *= Smooth(-0.15f, 0.55f, cosSub);
                     }
 
@@ -3380,13 +3751,15 @@ namespace Orbis.Flat
                         0f, 1f);
 
                     float dPolar = Math.Min(Math.Abs(latDeg - polNCol[x]), Math.Abs(latDeg - polSCol[x]));
-                    float polarWidth = 14.5f * FMath.Lerp(1f, hadleyScale, 0.35f);
-                    float polarBand = (float)Math.Exp(-(dPolar * dPolar) / (polarWidth * polarWidth));
-                    float localSthzAbs = Math.Abs(latDeg >= 0f ? sthzNCol[x] : sthzSCol[x]);
-                    float localPolAbs = Math.Abs(latDeg >= 0f ? polNCol[x] : polSCol[x]);
-                    float midLat = customCirculation
-                        ? Smooth(localSthzAbs * 0.78f, localSthzAbs * 1.08f, absLat) * (1f - Smooth(Math.Min(85f, localPolAbs + 5f), Math.Min(89.5f, localPolAbs + 13f), absLat))
-                        : Smooth(24f, 35f, absLat) * (1f - Smooth(68f, 82f, absLat));
+                    float polarBand = (float)Math.Exp(-(dPolar * dPolar) * invPolarWidth2);
+                    float midLat;
+                    if (customCirculation)
+                    {
+                        float localSthzAbs = Math.Abs(latDeg >= 0f ? sthzNCol[x] : sthzSCol[x]);
+                        float localPolAbs = Math.Abs(latDeg >= 0f ? polNCol[x] : polSCol[x]);
+                        midLat = Smooth(localSthzAbs * 0.78f, localSthzAbs * 1.08f, absLat) * (1f - Smooth(Math.Min(85f, localPolAbs + 5f), Math.Min(89.5f, localPolAbs + 13f), absLat));
+                    }
+                    else midLat = defaultMidLat;
                     float warmFront = FMath.Clamp(effSstAnom / 2.4f, 0f, 1f);
                     float contBlock = (1f - oceanFrac) * FMath.Clamp(0.55f * highP + 0.45f * FMath.Clamp((0.38f - rh) * 2.5f, 0f, 1f), 0f, 0.85f);
                     float moistAir = Smooth(0.06f, 0.34f, rh + 0.32f * FMath.Clamp((rainMm + 25f * deepSoilVal) / 140f, 0f, 1f) + 0.22f * condNorm);
@@ -3411,7 +3784,6 @@ namespace Orbis.Flat
                     float inversionLid = FMath.Clamp(0.50f * highP + 0.46f * sthzRidge + 0.30f * negImpact + 0.14f * Smooth(0.42f, 0.85f, chi), 0f, 1f);
                     float coldDeckGate = Math.Max(coolUpwelling * (0.40f + 0.60f * eastCoastal), Smooth(0.95f, 1.85f, -effSstAnom));
                     float lowLevelStability = FMath.Clamp((0.08f + 0.92f * coldDeckGate) * (0.30f + 0.70f * inversionLid) * (1f - 0.78f * warmSst) * (1f - 0.48f * capeInstability), 0f, 1f);
-                    float scLat = Smooth(6f * hadleyScale, 13f * hadleyScale, absLat) * (1f - Smooth(33f * hadleyScale, 43f * hadleyScale, absLat));
                     float subtropSc = oceanFrac * scLat * FMath.Clamp(lowLevelStability * 1.18f, 0f, 1f);
                     float eqColdSc = ekmanColdSlot * (0.28f + 0.24f * Math.Max(coolUpwelling, eastCentralBasin)) * (1f - 0.62f * warmSst);
                     float marineSc = FMath.Clamp(
@@ -3429,7 +3801,7 @@ namespace Orbis.Flat
                     // coupled with the restored moisture-gated synoptic vertical-motion anomaly (eddyLowP/eddyHighP, windConv,
                     // windwardLift/leeDownslope, baroclinicFront, CAPE/CIN, rainImpact) so weather-scale variations survive calibration
                     // without distorting the 30-year NOAA zonal climatology.
-                    float fineLand = FlatTerrainAnalysis.AreaWater(world.Water[tile]) ? 0f : 1f;
+                    float fineLand = fineLandGrid[idx];
                     float fineSea = 1f - fineLand;
                     float effRainMm = rainMm * (1f - 0.78f * fineSea * leeShadow) + 34f * fineLand * deepSoilVal;
                     float fRain = 1f - (float)Math.Exp(-effRainMm / 72f);
@@ -3474,9 +3846,12 @@ namespace Orbis.Flat
 
                     if (upperWindHalf != null && upperWindHalf.Length >= count * 4)
                     {
+                        double lonRad = lonRadCol[x];
                         rossby0.GetJetStreamMovementAtLatLon(latRad, lonRad, out float jx0, out float jy0);
                         rossby1.GetJetStreamMovementAtLatLon(latRad, lonRad, out float jx1, out float jy1);
-                        float endWindN = moisture != null ? upperEndForcing.Sample(moisture, moisture.North, u, v) : windN[idx];
+                        float endWindN = moisture != null
+                            ? upperEndForcing.SampleBilinear(moisture.North, mc00, mc10, mc01, mc11, mtx, mTyVal, mExact)
+                            : windN[idx];
                         // Scale Rossby jet into surface-wind units + tropical upper-tropospheric easterly anvil outflow
                         float tropEasterly = -0.55f * itczConv;
                         float ux0 = jx0 * 52f + tropEasterly;
