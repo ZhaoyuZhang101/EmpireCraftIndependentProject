@@ -106,6 +106,8 @@ namespace Orbis.Flat
             // The globe, local surface and river map share these display settings.
             Shader.SetGlobalFloat("_RiverWidthGain",FlatRiverCurves.DisplayWidthGain);
             Shader.SetGlobalFloat("_RiverMinPixels",2.4f);Shader.SetGlobalFloat("_RiverTint",.38f);
+            // Light and shade look in FlatSkyComposite (0 = reference): blue sky-lit shadows, warm low sun, sun-side cloud shading.
+            Shader.SetGlobalFloat("_FlatLightLook",1);
             Material=new Material(shader);Material.SetTexture("_MainTex",DisplayTexture);Material.SetTexture("_OwnerTex",OwnerTexture);Material.SetTexture("_InfoTex",InfoTexture);Material.SetVector("_MapSize",new Vector4(world.Width,world.Height,1f/world.Width,1f/world.Height));
             HydroTexture=MakeData(world.Width,world.Height,"Depth / downhill flow / river width",true);
             MixingTexture=MakeData(world.Width,world.Height,"River meander / sediment / freshwater / links",true);
