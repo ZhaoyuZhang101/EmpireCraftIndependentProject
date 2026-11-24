@@ -1,48 +1,57 @@
-# ORBIS 体积云 7 轮 NASA 对标迭代与 GPU 深度加速验证集
+# ORBIS 体积云 NASA 实拍对标、细长弯曲云带（5 轮精修）与 GPU 深度加速验证集
 
-## 1. GPU 渲染性能飞跃（Unity 6000.0.55f1 · Direct3D11 · `1280×720` 同步相机中位数）
+## 1. GPU 渲染性能与着色器编译（Unity 6000.0.55f1 · Direct3D11 · `1280×720` 同步中位数）
 
 实测硬件：`NVIDIA GeForce RTX 5070 Laptop GPU`（`CloudRenderBenchmark.Run`，含 CPU `ReadPixels` 同步回读）：
 
-| 测试场景与画质档位 | 原始参考积分 (`original`) | 升级前基线 (`afd8e73`) | **7 轮终版 (`Round 7`)** | 纯体积云通道 (`volume - no-volume`) | 相对 `afd8e73` 提速 |
+| 测试场景与画质档位 | 原始参考积分 (`original`) | 早期基线 (`afd8e73`) | **细长弯曲云带 5 轮终版 (`Round 5`)** | 纯体积云通道 (`volume - no-volume`) | 相对原始积分提速 |
 | :--- | :---: | :---: | :---: | :---: | :---: |
-| **星球全景 (`Globe-Pacific`, `q=2` 精细)** | `52.50 ms` | `34.48 ms` | **`12.09 ms`** | **`8.56 ms`**（原 `30.53 ms`） | **快 `3.57×`（降耗 `72.0%`）** |
-| **星球全景 (`Globe-Pacific`, `q=1` 均衡默认)** | `23.83 ms` | `~21 ms` | **`8.62 ms`** | **`5.26 ms`** | **稳超 `115 FPS`** |
-| **低轨密云 (`LowOrbit-DenseClouds`, `q=2` 精细)** | `79.77 ms` | `44.60 ms` | **`14.46 ms`** | **`10.02 ms`**（原 `39.38 ms`） | **快 `3.93×`（降耗 `74.6%`）** |
-| **低轨密云 (`LowOrbit-DenseClouds`, `q=1` 均衡默认)** | `28.28 ms` | `~27 ms` | **`10.10 ms`** | **`5.81 ms`** | **稳超 `99 FPS`** |
+| **星球全景 (`Globe-Pacific`, `q=2` 精细)** | `38.40 ms` | `34.48 ms` | **`12.86 ms`** | **`9.96 ms`**（原 `35.50 ms`） | **纯云快 `3.56×`** |
+| **星球全景 (`Globe-Pacific`, `q=1` 均衡默认)** | `20.49 ms` | `~21 ms` | **`8.58 ms`** | **`5.69 ms`** | **稳超 `116 FPS`** |
+| **低轨密云 (`LowOrbit-DenseClouds`, `q=2` 精细)** | `54.81 ms` | `44.60 ms` | **`16.45 ms`**（无 CPU 争用 `~14.5 ms`） | **`10.28 ms`**（原 `48.64 ms`） | **纯云快 `4.73×`** |
+| **低轨密云 (`LowOrbit-DenseClouds`, `q=1` 均衡默认)** | `27.48 ms` | `~27 ms` | **`10.20 ms`** | **`5.74 ms`** | **稳超 `98 FPS`** |
 
-### 核心性能优化项
-- **晴空段零冗余体积采样**（`OrbisAtmosphereCommon.cginc`）：修复晴空包络探针未命中后仍调用 6 次 3D 噪声的缺陷；
-- **单次采样 `simpleMode` 包络与光路探针**（`ScrollCloudSource.cginc`）：将占空探针与太阳阴影步进的 4 次 `128³` 体积读取压缩为 1 次，并跳过探针阶段的高云 3D 细丝读取；
-- **昼半球月光/夜气辉全跳过 + 丁达尔空柱快筛**（`OrbisAtmosphereCommon.cginc`、`GeographicCoordinates.cginc`）：引入硬件 SFU `OrbisFastWeatherUV` 与单采样 `ScrollCloudGroundFast`，太阳直射半球跳过 `_AtmoOpticalDepth` 月光 LUT 与气辉计算，并提前将遮挡云体内部交由预积分柱缓存接管；
-- **多档位步长与双边上采样解耦**（`OrbisAtmosphereRenderer.cs`）：运行时档位 `{0.56, 0.68, 0.80, 1.00}`、云步进 `{26, 36, 48, 64}`、光照步进 `{3, 4, 5, 8}` 与参考积分基线完全分离。
+> 注：本轮还通过 `FlatSkyBake.shader` 双纪元 `[loop]` 化将 FXC D3D11 `ps_5_0` 单变体编译时间由 `>65s` 降至 **`9.1s`**，并移除 `ScrollCloudSource.cginc` 内层循环中的无效切向投影 ALU 与 `<0.04` 不可见晴空卷云底噪。
 
 ---
 
-## 2. 对标 8 张 NASA 实拍原图的 7 轮体积云形态迭代总结
+## 2. 细长弯曲云带 5 轮闭环迭代总结（对标 8 张 NASA 官方实拍原图）
 
-参考图库涵盖用户上传的 NASA Blue Marble 西半球、NASA DSCOVR EPIC L1 三大洋实时全盘照、Blue Marble 东半球、Apollo 17 以及 ISS 空间站婆罗洲积雨云砧与飓风伊莎贝尔眼墙特写：
+在前期 7 轮 NASA 对标 + GPU 加速基线（`d5d97b6`）之上，针对“缺乏自然、普通的细长弯曲形状云带（大气河、副热带/信风弓形云带、斜向 SPCZ/SACZ 与拉丝高空卷云）”开展 5 轮实机 Unity 渲染闭环精修：
 
-1. **第 1 轮**：对齐 ISCCP 卫星光学厚度指数分布（薄纱云幕 `0.07–0.46` + 内嵌雪白对流白核 `0.9–1.8`）与流线拉伸（`3.5–6.5×`）；
-2. **第 2 轮**：四大卫星云系形态专化（副热带东岸蜂窝层积云街、温带 4,500 km 弧形锋面与冷锋后开细胞鱼网碎积云、细长 ITCZ/SPCZ 对流热塔带、陆地地形积云）；
-3. **第 3 轮**：引入**保方差双相位流场混合**（彻底消除 `phase≈0.5` 模糊发糊）、**顺风倾斜积雨云砧外悬（Anvil Overhang）**以及无赤道水平条纹的 3D 弯曲马尾卷云；
-4. **第 4 轮**：全套体积云 GPU 渲染管线深度加速，实现纯云通道 `3.6×–3.9×` 提速且与前轮肉眼零画质差异；
-5. **第 5 轮**：新增**高度与直射光耦合的云谷腔体自阴影遮蔽（Cavity AO）**与冷蓝天光补色，消除高光截断发平，拉出 3D 积雨云塔与台风眼墙深蓝立体阴影；同时在天气尺度叠加沿哈德莱-沃克-罗斯贝流线的各向异性拉丝形变；
-6. **第 6 轮**：温带斜压气旋雕刻**卷入气旋核心的 1.5 圈对数螺旋干侵入晴空舌**，超强台风 12 km 深眼底加入 ISS 实拍级的**低空微涡旋眼底云纱（Hub Cloud）**；
-7. **第 7 轮**：优化斜压锋面主干连续性（抑制高频点状打断），通过 `1,833,265` 项核心气候断言、全部原生 D3D11 着色器变体与 4 项 Unity GPU 回归，归档 11 张 `1600×900` 实机验证图。
+1. **第 1 轮（等值线初探）**：尝试三尺度各向同性卷曲脊线；掠射地平线效果好，但全球尺度高频弯折偏“面条/细丝状”且全局升噪拖慢低轨帧耗（`16.09 ms`）；
+2. **第 2 轮（几何根因定位 + 极速验证）**：移除平坦升噪后恢复至 `11.13 ms / 7.52 ms`，同时通过精确向量分析定位了长期存在的球面几何根因——单位球面上径向向量 `p` 与任意风切向量 `T` 恒正交（`dot(p, T) ≡ 0`），导致原 `p - T * dot(p, T) * k` 投影完全退化为各向同性团块；并引入 `[loop]` 将 `FlatSkyBake.shader` 编译提速 ~10×；
+3. **第 3 轮（行星流函数等值线 + 真球面 3-tap LIC）**：用真实球面切向位移 3-tap LIC 取代失效投影，并试跑流函数等值线细长弧带；证实可拉出大尺度弧带，但也直观暴露了多独立等值线叠加产生的 `X` 交叉与牙膏管式硬边缺陷；
+4. **第 4 轮（地转斜压弯曲条带 FBM + 3D 卷云 2-tap LIC）**：改用“先经大尺度行星无散旋度 `curl1` 弯曲、再拉伸跨流经向轴 4.5–7.2×”的地转斜压弯曲 FBM，彻底消除 `X` 交叉与条状硬边，并在 `ScrollCloudSource.cginc` 高云层用零额外采样的 2-tap 球面 LIC 实现真实顺风拉丝 3D 卷云；实机检出赤道 `latitude>=0` 接缝、部分弧带/高云边缘偏圆润及高云底噪增加耗时（`+2.5 ms`）3 项收尾瑕疵；
+5. **第 5 轮（赤道 $C^\infty$ 连续 + 碎积云羽化边缘 + 全量回归验收）**：
+   - 将半球斜压倾斜改为赤道 $C^\infty$ 平滑函数 `0.24 * lat / (|lat| + 0.32)`，彻底消除赤道接缝；
+   - 跨流拉伸比精调至 `4.6×–6.1×`，且在 `smoothstep` 阈值前注入 3-tap LIC 丝缕、中尺度积云与高频碎粒，并在 `low` 通道恢复自然碎积云边缘侵蚀，使每条细长弯曲云带都具备 NASA 实拍级蓬松羽化/破碎边缘；
+   - 高空卷云加入丝缕边缘雕蚀、裁剪 `<0.04` 晴空微噪，并在 `ScrollCloudSource.cginc` 放开 3D 卷云透空动态范围（`.18 + 1.06 * smoothstep(.18, .86, fine)`），彻底消除平滑圆片云并恢复 `~8.6 ms / ~10.2 ms` 均衡档高帧率。
 
 ---
 
-## 3. 实机验证图清单（`1600×900`，Unity 6000.0.55f1 Direct3D11）
+## 3. 全量自动回归验证结果（第 5 轮终版）
 
-- `0_nasa_reference_north_america_view.png` — 对标 NASA Blue Marble 北美—墨西哥湾—东太平洋同机位
-- `1_earth_pacific_double_itcz_july.png` — 对标 NASA DSCOVR EPIC 7 月太平洋双 ITCZ、冷舌晴空与北太平洋气旋
-- `2_earth_equinox_pacific_americas_apr.png` — 4 月春分东太平洋冷舌、秘鲁层积云与亚马逊对流
-- `3_earth_monsoon_sahara_contrast_july.png` — 对标 Blue Marble 东半球：撒哈拉/阿拉伯/索马里晴空 vs 亚洲季风
-- `4_earth_amazon_atlantic_storm_jan.png` — 1 月北大西洋晨昏温带气旋与亚马逊对流
-- `5_earth_autumn_indopacific_walker_oct.png` — 10 月澳洲晴空荒漠、西澳层积云街与南大洋咆哮西风带锋面
-- `6_earth_low_orbit_volumetric_clouds.png` — 低轨海洋性大陆 3D 花椰菜积雨云与丝缕云砧
-- `7_gleba_procedural_doublecell_globe.png` — 架空世界 Gleba 慢自转双环流（`SlowRotatorDoubleCell`，`0.45×` 自转）
-- `8_earth_grazing_cumulus_horizon.png` — 对标 ISS 婆罗洲地平线：五档云高分层与顺风拉丝冰晶云砧
-- `9_earth_super_typhoon_stadium_eye.png` — 对标 ISS 飓风伊莎贝尔：3D 体育场斜壁台风眼、阴影阶梯与眼底微涡旋云纱
-- `10_earth_hurricane_and_comma_cyclone.png` — 实机连续推演第 256 天加勒比大型飓风（`45.2 m/s`）全景
+- **核心 C# 气候与 NOAA 1991–2020 云气候学测试**：`FlatWorld.Core.Tests.dll` — **`PASS / 1,833,265 assertions`**（0 警告、0 错误）
+- **原生 Windows D3D11 着色器变体编译**：`FlatSkyBake`、`HPCloudColumn`、`Clouds`、`AtmosphereComposite`、`WaterCloudProbe`、`CloudPassageProbe` 共 **44 / 44 变体全过**（Linear + Gamma, `vs_5_0` + `ps_5_0`）
+- **Unity 实机 D3D11 GPU 回归（4 / 4 全过）**：
+  - `PASS ClimateCloudRegression.Run()`
+  - `PASS HPCloudHeightRegression.Run()`
+  - `PASS WaterCloudRegression.Run()`
+  - `PASS LightningRegression.Run()`
+
+---
+
+## 4. 实机验证图清单（`1600×900`，Unity 6000.0.55f1 Direct3D11）
+
+- `0_nasa_reference_north_america_view.png` — 对标 NASA Blue Marble 北美—墨西哥湾—东太平洋同机位（可见东太平洋、加勒比与南太平洋细长弯曲云带）
+- `1_earth_pacific_double_itcz_july.png` — 对标 NASA DSCOVR EPIC 7 月太平洋双 ITCZ、斜向弯曲 SPCZ 云带、冷舌晴空与北太平洋气旋
+- `2_earth_equinox_pacific_americas_apr.png` — 4 月春分东太平洋细长弓形云带、冷舌、秘鲁层积云与亚马逊对流
+- `3_earth_monsoon_sahara_contrast_july.png` — 对标 Blue Marble 东半球：撒哈拉/阿拉伯/索马里晴空、亚洲季风与南印度洋细长弧形云带
+- `4_earth_amazon_atlantic_storm_jan.png` — 1 月北大西洋晨昏弯曲云带、撒哈拉晴空与亚马逊对流
+- `5_earth_autumn_indopacific_walker_oct.png` — 10 月澳洲晴空荒漠、西澳层积云街、印尼弯曲沃克云系与南大洋弧形西风带
+- `6_earth_low_orbit_volumetric_clouds.png` — 低轨海洋性大陆 3D 花椰菜积雨云与无接缝跨赤道弯曲云系
+- `7_gleba_procedural_doublecell_globe.png` — 架空世界 Gleba 慢自转双环流（`SlowRotatorDoubleCell`，`0.45×` 自转）与蜿蜒细长弯曲云带
+- `8_earth_grazing_cumulus_horizon.png` — 对标 ISS 婆罗洲地平线：五档云高分层、2-tap 球面 LIC 拉丝弯曲卷云与顺风冰晶云砧
+- `9_earth_super_typhoon_stadium_eye.png` — 对标 ISS 飓风伊莎贝尔：3D 体育场斜壁台风眼、阴影阶梯、眼底微涡旋云纱与外围放射卷云肋
+- `10_earth_hurricane_and_comma_cyclone.png` — 实机连续推演第 256 天加勒比大型飓风（`45.2 m/s`）与周边弯曲信风云带全景

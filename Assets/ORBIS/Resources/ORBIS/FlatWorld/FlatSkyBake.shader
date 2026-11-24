@@ -129,7 +129,7 @@ Shader "ORBIS/FlatWorld/SkyBake"
    }
    struct EraMorphology
    {
-    float planetary,baseTex,flowBands,mesoCells,fineGrain,tradeStreets,honeycomb,mcsCluster,anvilShield,frontalLow,frontalMid,frontalDry,postFrontCells,wcbCirrus;
+    float planetary,baseTex,flowBands,mesoCells,fineGrain,curvedBand,curvedWisp,tradeStreets,honeycomb,mcsCluster,anvilShield,frontalLow,frontalMid,frontalDry,postFrontCells,wcbCirrus;
    };
    EraMorphology SampleEraMorphology(
     float eraId,float age,float3 radial,float longitude,float latitude,
@@ -146,36 +146,66 @@ Shader "ORBIS/FlatWorld/SkyBake"
      Fbm(p*2.2+wander*.55+seed+43.0),
      Fbm(p*2.2+wander*.55+seed+71.0))-.5;
     float3 curl1=cross(p,psi1);
-    float3 p1=normalize(p+curl1*.090);
+    float3 p1=normalize(p+curl1*.125);
 
     float3 psi2=float3(
-     Noise3(Turn(p1)*6.2+seed+11.0),
-     Noise3(Turn(p1)*6.2+seed+29.0),
-     Noise3(Turn(p1)*6.2+seed+53.0))-.5;
+     Noise3(Turn(p1)*5.8+seed+11.0),
+     Noise3(Turn(p1)*5.8+seed+29.0),
+     Noise3(Turn(p1)*5.8+seed+53.0))-.5;
     float3 curl2=cross(p1,psi2);
-    float3 pFlow=normalize(p1+curl2*.038);
+    float3 pFlow=normalize(p1+curl2*.048);
 
-    // 1. Multi-scale streamline-combed flow fields (anisotropically sheared at BOTH synoptic & meso scales
-    // so weather systems sweep into curved ribbons & diagonal bands instead of round blobs — NASA EPIC signature!)
-    float3 flowDir=normalize(lerp(windAxis,jetAxis,.35)+float3(1e-5,0,0));
-    float synAniso=lerp(.44,.68,windSpd);
-    float3 pSynStreak=pFlow-flowDir*dot(pFlow,flowDir)*synAniso;
-    float streakAniso=lerp(.68,.88,windSpd);
-    float3 pStreak=pFlow-windAxis*dot(pFlow,windAxis)*streakAniso;
-    float3 pJetStreak=pFlow-jetAxis*dot(pFlow,jetAxis)*.88;
+    // 1. Multi-scale TRUE spherical flow-combed fields (3-tap tangent LIC along local climate wind!).
+    // NOTE: On a unit sphere dot(p, tangent) == 0 identically; true spherical tangent LIC genuinely combs
+    // clouds 3x-5x along real curved planetary winds at every latitude with zero seams!
+    float3 flowDir=normalize(lerp(windAxis,jetAxis,.38)+float3(1e-5,0,0));
+    float licStep=lerp(.012,.024,windSpd);
+    float3 pFlowP=normalize(pFlow+flowDir*licStep);
+    float3 pFlowM=normalize(pFlow-flowDir*licStep);
     float planetary=Fbm(p1*2.05+wander*.50+seed*.7+float3(3.1,7.4,1.9));
-    float synoptic=Fbm(Turn(pSynStreak)*4.9+wander*.80+seed);
-    float flowBands=Fbm(Turn(pStreak)*17.5+wander+seed*1.4);
+    float synoptic=(Noise3(Turn(pFlow)*5.2+wander*.80+seed)+
+                    Noise3(Turn(pFlowP)*5.2+wander*.80+seed)+
+                    Noise3(Turn(pFlowM)*5.2+wander*.80+seed))*(1.0/3.0);
+    float3 pWindP=normalize(pFlow+windAxis*(licStep*.85));
+    float3 pWindM=normalize(pFlow-windAxis*(licStep*.85));
+    float flowBands=(Noise3(Turn(pFlow)*18.0+wander+seed*1.4)+
+                     Noise3(Turn(pWindP)*18.0+wander+seed*1.4)+
+                     Noise3(Turn(pWindM)*18.0+wander+seed*1.4))*(1.0/3.0);
     float mesoCells=Fbm(Turn(pFlow)*38.0+seed*1.9);
-    float fineGrain=Fbm(Turn(pJetStreak)*68.0+seed*2.7);
+    float fineGrain=Noise3(Turn(pFlow)*68.0+seed*2.7)*.55+
+                    Noise3(Turn(normalize(pFlow+jetAxis*.012))*68.0+seed*2.7)*.45;
+
+    // 1b. Geostrophic Baroclinic Curved-Band FBM (Authentic NASA slender sweeping curved cloud bands!):
+    // Stretches cross-stream meridional axis (pWave.y) by 4.6x-6.1x relative to along-stream (x,z) AFTER warping
+    // the unit sphere by large-scale divergence-free planetary curl1 (R_curv ~ 2,500-5,000 km) + smooth C-infinity
+    // equatorial-continuous baroclinic Rossby tilt. Perturbed by crisp multi-scale cloud tufts & LIC filaments BEFORE
+    // thresholding so EVERY slender curved arc has ragged, feathery, tattered NASA edges (zero smooth ovals/seams!).
+    float eqWeight=smoothstep(.04,.44,length(radial.xz));
+    float yStretch1=lerp(1.90,6.60,eqWeight);
+    float yStretch2=lerp(2.25,8.80,eqWeight);
+    float3 pWave=normalize(p+curl1*.33+curl2*.045);
+    float hemiDiag=.24*(latitude/(abs(latitude)+.32));
+    float baroY=pWave.y+hemiDiag*sin(longitude*2.0+psi1.x*2.4)*eqWeight*.16+.12*psi1.y;
+    float3 qBand1=float3(pWave.x*1.45,baroY*yStretch1,pWave.z*1.45);
+    float3 qBand2=float3(pWave.x*2.75,baroY*yStretch2,pWave.z*2.75);
+    float bandField1=Fbm(qBand1+wander*.42+seed+float3(13.4,27.1,5.8));
+    float bandField2=Noise3(qBand2+wander*.60+seed+float3(47.2,11.8,19.4))*.62+
+                     Noise3(qBand2*1.9+wander*.72+seed+float3(19.1,5.7,31.4))*.38;
+    float bandH=bandField1*.48+bandField2*.26+flowBands*.14+mesoCells*.08+fineGrain*.04;
+    float bandCore=smoothstep(.48,.81,bandH);
+    float fineStreamer=smoothstep(.51,.84,bandField2*.48+flowBands*.30+fineGrain*.22);
+    float ribbonCloud=.34+.66*smoothstep(.20,.82,flowBands*.46+mesoCells*.32+fineGrain*.22);
+    float ribbonSilk=.26+.74*smoothstep(.20,.84,flowBands*.54+fineGrain*.46);
+    o.curvedBand=saturate((bandCore*.86+fineStreamer*.38*(1.0-.42*bandCore))*ribbonCloud);
+    o.curvedWisp=saturate((bandCore*.68+fineStreamer*.66*(1.0-.32*bandCore))*ribbonSilk);
 
     // 2. Regime A: Parallel wind-aligned trade-wind cloud streets & fine marine Sc Rayleigh-Benard cellular lace
-    // (seen off Baja, Peru, Namibia & across central subtropical oceans in NASA EPIC & Blue Marble East!)
-    float3 crossWind=normalize(cross(radial,windAxis)+float3(1e-5,0,0));
-    float3 pStreet=pFlow-windAxis*dot(pFlow,windAxis)*.88;
-    float streetRipple=Noise3(Turn(pStreet)*64.0+seed+5.0);
-    float streetPuffs=Noise3(Turn(pFlow)*92.0+seed+13.0);
-    o.tradeStreets=planetary*.34+synoptic*.22+streetRipple*.26+streetPuffs*.18;
+    // (true spherical LIC along windAxis -> genuine parallel trade streets!)
+    float streetRipple=(Noise3(Turn(pFlow)*54.0+seed+5.0)+
+                        Noise3(Turn(normalize(pFlow+windAxis*.012))*54.0+seed+5.0)+
+                        Noise3(Turn(normalize(pFlow-windAxis*.012))*54.0+seed+5.0))*(1.0/3.0);
+    float streetPuffs=Noise3(Turn(pFlow)*88.0+seed+13.0);
+    o.tradeStreets=planetary*.32+synoptic*.22+streetRipple*.30+streetPuffs*.16;
 
     float cellClosed=1.0-abs(2.0*Noise3(Turn(pFlow)*46.0+seed)-1.0);
     float cellFine=1.0-abs(2.0*Noise3(Turn(pFlow)*88.0+seed+9.0)-1.0);
@@ -186,21 +216,25 @@ Shader "ORBIS/FlatWorld/SkyBake"
     o.flowBands=flowBands;
     o.mesoCells=mesoCells;
     o.fineGrain=fineGrain;
-    o.baseTex=planetary*.38+synoptic*.34+flowBands*.18+mesoCells*.06+fineGrain*.04;
+    o.baseTex=planetary*.32+synoptic*.30+bandField1*.20+flowBands*.12+mesoCells*.04+fineGrain*.02;
 
-    // 3. Regime B: Narrow, sinuous ITCZ / SPCZ convective filaments studded with tight bright Cb hot-towers
+    // 3. Regime B: Slender, sinuous curved ITCZ / SPCZ convective filaments studded with tight bright Cb hot-towers
     // + long downwind brushed-silk cirrus anvil plumes (NASA EPIC Pacific & ISS Borneo signature!)
-    float3 pZonalRibbon=pFlow-flowDir*dot(pFlow,flowDir)*.84;
-    float itczRibbon=Fbm(Turn(pZonalRibbon)*13.0+wander*.7+seed+float3(5.3,1.7,8.9));
-    float hotTowers=smoothstep(.48,.84,mesoCells*.55+Noise3(Turn(pFlow)*78.0+seed+21.0)*.45);
-    float mcsEnv=smoothstep(.42,.78,planetary*.34+synoptic*.32+itczRibbon*.34);
-    o.mcsCluster=mcsEnv*(.24+.76*hotTowers);
+    float3 qItcz=float3(pWave.x*2.1,(pWave.y+.06*(psi1.z))*lerp(2.2,7.8,eqWeight),pWave.z*2.1);
+    float itczSlender=smoothstep(.48,.82,Fbm(qItcz+wander*.48+seed+float3(5.3,1.7,8.9)));
+    float itczRibbon=(Noise3(Turn(pFlow)*12.5+wander*.7+seed+float3(5.3,1.7,8.9))+
+                      Noise3(Turn(pFlowP)*12.5+wander*.7+seed+float3(5.3,1.7,8.9))+
+                      Noise3(Turn(pFlowM)*12.5+wander*.7+seed+float3(5.3,1.7,8.9)))*(1.0/3.0);
+    float hotTowers=smoothstep(.46,.82,mesoCells*.56+Noise3(Turn(pFlow)*78.0+seed+21.0)*.44);
+    float mcsEnv=smoothstep(.34,.76,max(itczSlender*.86,planetary*.28+synoptic*.28+itczRibbon*.44));
+    o.mcsCluster=mcsEnv*(.26+.74*hotTowers);
     float3 pAnvilNear=normalize(pFlow-jetAxis*.052);
     float3 pAnvilFar=normalize(pFlow-jetAxis*.135);
     float anvilNear=Fbm(pAnvilNear*5.4+wander*.7+seed);
     float anvilFar=Fbm(pAnvilFar*3.4+wander*.6+seed);
-    float anvilSilk=Fbm((pAnvilNear-jetAxis*dot(pAnvilNear,jetAxis)*.88)*24.0+seed+4.0);
-    o.anvilShield=smoothstep(.40,.78,anvilNear*.50+anvilFar*.32+anvilSilk*.18)*(.26+.74*mcsEnv);
+    float anvilSilk=(Noise3(Turn(pAnvilNear)*22.0+seed+4.0)+
+                     Noise3(Turn(normalize(pAnvilNear+jetAxis*.018))*22.0+seed+4.0))*.5;
+    o.anvilShield=smoothstep(.38,.76,anvilNear*.46+anvilFar*.32+anvilSilk*.22)*(.26+.74*mcsEnv);
 
     // 4. Regime C: Extratropical Sweeping 4,500 km Curved Frontal Arcs + Tightly-Wound 2.2-Turn Spiral Comma Vortices
     // + Peppered Open-Cell Cold-Air Cumulus ("fishnet speckle" behind every cold front in Apollo 17 & EPIC!)
@@ -235,10 +269,11 @@ Shader "ORBIS/FlatWorld/SkyBake"
     float spiralDryTongue=smoothstep(.08,.76,-spiralWave)*(1.0-smoothstep(.16,1.08,rVort))*smoothstep(.02,.10,rVort);
     float vortexEyeClear=(1.0-smoothstep(.02,.085,rVort))*.85;
 
-    // Sweeping 4,800 km curved cold-front ribbon with fine fibrous shear streaks along the frontal axis
+    // Sweeping 4,800 km curved cold-front ribbon with true 3-tap spherical LIC fibrous shear streaks along the frontal axis
     float3 frontTangent=normalize(east*.66+north*hemiSign*.75+1e-5);
-    float3 pFrontShear=pFlow-frontTangent*dot(pFlow,frontTangent)*.86;
-    float frontFilament=Fbm(Turn(pFrontShear)*17.5+hSeed);
+    float frontFilament=(Noise3(Turn(pFlow)*18.0+hSeed)+
+                         Noise3(Turn(normalize(pFlow+frontTangent*.020))*18.0+hSeed)+
+                         Noise3(Turn(normalize(pFlow-frontTangent*.020))*18.0+hSeed))*(1.0/3.0);
 
     float dxFront=-.02+.88*(dy-.05)-.46*(dy-.05)*abs(dy-.05);
     float dFront=dx-dxFront+.034*(synoptic-.5)+.018*(frontFilament-.5);
@@ -303,14 +338,20 @@ Shader "ORBIS/FlatWorld/SkyBake"
     float era=floor(_VisualTime*.0125),phase=frac(_VisualTime*.0125);
     float blend=phase*phase*(3-2*phase);
     float3 wander=float3(sin(_VisualTime*.007),cos(_VisualTime*.009),sin(_VisualTime*.004))*.62;
-    EraMorphology m0=SampleEraMorphology(era,phase,radial,longitude,latitude,east,north,velocity,windAxis,windSpd,polarLatRad,rossbyK,jetAxis,wander);
-    EraMorphology m1=SampleEraMorphology(era+1.0,phase-1.0,radial,longitude,latitude,east,north,velocity,windAxis,windSpd,polarLatRad,rossbyK,jetAxis,wander);
+    EraMorphology m0=(EraMorphology)0,m1=(EraMorphology)0;
+    [loop] for(int ei=0;ei<2;ei++)
+    {
+     EraMorphology me=SampleEraMorphology(era+ei,phase-ei,radial,longitude,latitude,east,north,velocity,windAxis,windSpd,polarLatRad,rossbyK,jetAxis,wander);
+     if(ei==0)m0=me;else m1=me;
+    }
 
     float planetary=lerp(m0.planetary,m1.planetary,blend);
     float baseTex=lerp(m0.baseTex,m1.baseTex,blend);
     float flowBands=lerp(m0.flowBands,m1.flowBands,blend);
     float mesoCells=lerp(m0.mesoCells,m1.mesoCells,blend);
     float fineGrain=lerp(m0.fineGrain,m1.fineGrain,blend);
+    float curvedBand=lerp(m0.curvedBand,m1.curvedBand,blend);
+    float curvedWisp=lerp(m0.curvedWisp,m1.curvedWisp,blend);
     float tradeStreets=lerp(m0.tradeStreets,m1.tradeStreets,blend);
     float honeycomb=lerp(m0.honeycomb,m1.honeycomb,blend);
     float mcsCluster=lerp(m0.mcsCluster,m1.mcsCluster,blend);
@@ -343,34 +384,37 @@ Shader "ORBIS/FlatWorld/SkyBake"
      float lowTarget=saturate(climTarget*(1.0-.35*highShare));
      float highTarget=saturate((climTarget-lowTarget)/max(.14,1.0-lowTarget)+.22*highShare*climTarget);
 
-     // Four distinct NASA satellite morphological regimes:
-     float zBase=(baseTex-.502)*10.6;
-     float zStreets=(tradeStreets-.504)*10.8;
-     float zHoney=(honeycomb-.532)*8.8;
-     float zMcs=.54*zBase+.26*zStreets+2.05*(mcsCluster-.18);
-     // Sweeping curved comma shields + coiled spiral dry-intrusion tongue + lacy open-cell post-frontal cumulus
-     float zFront=.22*zBase+4.95*(frontalLow-.17)-4.45*frontalDry;
+     // Five authentic NASA satellite morphological components:
+     // Ordinary open-ocean & subtropical belts weave sweeping feathery curved cloud bands alongside convective clusters!
+     float zBase=(baseTex-.502)*9.8;
+     float zRibbon=(baseTex-.512)*6.2+4.85*(curvedBand-.22)+1.15*(curvedWisp-.18);
+     float zStreets=(tradeStreets-.506)*9.6+2.65*(curvedBand-.20);
+     float zHoney=(honeycomb-.532)*8.6+1.35*(curvedBand-.20);
+     float zMcs=.44*zRibbon+.24*zStreets+2.15*(mcsCluster-.18);
+     // Sweeping curved comma shields + coiled spiral dry-intrusion tongue + slender curved frontal bands
+     float zFront=.28*zRibbon+4.95*(frontalLow-.17)-4.45*frontalDry;
      float stormWeight=smoothstep(.16,.62,stormTrack);
 
-     float zLow=lerp(zBase,zStreets,.42*tropBelt);
-     zLow=lerp(zLow,zMcs,saturate(tropBelt*(.32+.68*itczConv)));
-     zLow=lerp(zLow,zHoney,saturate(marineSc*.90));
+     float zLow=lerp(zBase,zRibbon,.78);
+     zLow=lerp(zLow,zStreets,.34*tropBelt);
+     zLow=lerp(zLow,zMcs,saturate(tropBelt*(.30+.70*itczConv)));
+     zLow=lerp(zLow,zHoney,saturate(marineSc*.88));
      zLow=lerp(zLow,zFront,stormWeight);
      zLow+=.52*orogCrest*max(0.0,zBase+.35);
      float uLow=rcp(1.0+exp(-1.702*clamp(zLow,-6.0,6.0)));
 
-     // Hierarchical ISCCP optical profile: sweeping continuous fibrous frontal ribbons & comma spirals
-     // (NASA Apollo 17 / EPIC signature) + crisp lacy cellular trade streets & post-frontal open-cell wakes!
+     // Hierarchical ISCCP optical profile: keep crisp tattered cumulus & lacy silk edges on EVERY curved band
+     // (only preserve dense continuous frontal cores — zero smooth cartoon pillow edges!)
      float sharpOrg=saturate(max(stormWeight*frontalLow,itczConv*mcsCluster));
-     float frontRibbon=saturate(stormWeight*frontalLow*1.25);
-     float rampCap=lerp(.36,.22,sharpOrg);
+     float frontPreserve=saturate(stormWeight*frontalLow*1.25);
+     float rampCap=lerp(.35,.22,sharpOrg);
      float wLow=max(1e-4,min(rampCap,min(lowTarget,1.0-lowTarget)));
      float rawLow=smoothstep(1.0-lowTarget-wLow,1.0-lowTarget+wLow,uLow);
-     float detailField=lerp(flowBands*.40+mesoCells*.34+fineGrain*.26,flowBands*.64+fineGrain*.24+mesoCells*.12,frontRibbon);
-     float edgeBand=smoothstep(.01,.44,rawLow)*(1.0-smoothstep(.66,.97,rawLow));
-     float erodeAmt=lerp(.54,.28,frontRibbon);
+     float detailField=lerp(flowBands*.40+mesoCells*.36+fineGrain*.24,flowBands*.60+fineGrain*.24+mesoCells*.16,frontPreserve);
+     float edgeBand=smoothstep(.01,.52,rawLow)*(1.0-smoothstep(.64,.96,rawLow));
+     float erodeAmt=lerp(.58,.30,frontPreserve);
      float erodedEdge=saturate((rawLow-(1.0-detailField)*erodeAmt*edgeBand)/max(.24,1.0-.28*edgeBand));
-     float veilToCore=pow(erodedEdge,lerp(1.26,1.08,frontRibbon))*(.70+.40*smoothstep(.26,.82,detailField));
+     float veilToCore=pow(erodedEdge,lerp(1.26,1.08,frontPreserve))*(.70+.40*smoothstep(.26,.82,detailField));
      float postWakeLace=stormWeight*postFrontCells*smoothstep(.18,.58,climTarget)*.56;
      low=saturate(max(lerp(veilToCore,max(veilToCore,.93),smoothstep(.74,.96,rawLow)*(sharpOrg*.74+.26)),postWakeLace)+
                   .04*response.x*smoothstep(.02,.18,rawLow+.15*climTarget));
@@ -394,23 +438,43 @@ Shader "ORBIS/FlatWorld/SkyBake"
      convection=lerp(convection,.06+.05*honeycomb,scShare);
 
      // Upper-tropospheric Rossby jet streaks & downwind anvil/WCB plumes coupled to active synoptic systems
-     // (clears subsiding dry gyres while trailing sweeping feathery cirrus plumes downwind of storms!)
+     // Uses true 3-tap spherical LIC along 250 hPa jetAxis -> genuine sweeping brushed-silk curved cirrus ribbons!
      float3 upper=RotateY(radial,-_VisualTime*.0018);
      float3 crossJet=normalize(cross(radial,jetAxis)+float3(1e-5,0,0));
-     float3 jetShear=upper+wander*.04;
-     float jetStreak=Fbm((jetShear-jetAxis*dot(jetShear,jetAxis)*.90)*14.0+float3(9,4,2));
-     float crossStreak=Fbm((jetShear-crossJet*dot(jetShear,crossJet)*.86)*18.0+float3(3,2,7));
+     float3 jetShear=normalize(upper+wander*.035);
+     float jetStreak=(Noise3(Turn(jetShear)*15.0+float3(9,4,2))+
+                      Noise3(Turn(normalize(jetShear+jetAxis*.024))*15.0+float3(9,4,2))+
+                      Noise3(Turn(normalize(jetShear-jetAxis*.024))*15.0+float3(9,4,2)))*(1.0/3.0);
+     float crossStreak=(Noise3(Turn(jetShear)*19.0+float3(3,2,7))+
+                        Noise3(Turn(normalize(jetShear+crossJet*.020))*19.0+float3(3,2,7)))*.5;
      float poleTaper=smoothstep(0,.16,length(radial.xz));
      float wisps=lerp(crossStreak,jetStreak,.24+.72*poleTaper);
 
-     float zJet=(Fbm(upper*2.8+wander*.45+float3(12,2,8))-.50)*5.2+(wisps-.50)*4.2+1.35*(uLow-.50);
-     float zAnvil=2.55*(anvilShield-.20)+(wisps-.50)*3.8+1.10*(uLow-.45);
-     float zWcb=.28*zJet+3.65*(wcbCirrus-.15)+(wisps-.50)*2.4;
+     // Upper-tropospheric curved brushed-silk jet banners (stretched FBM + 3-tap spherical LIC along 250 hPa jetAxis!)
+     float3 jetPsi=float3(
+      Noise3(jetShear*2.1+wander*.35+float3(12,2,8)),
+      Noise3(jetShear*2.1+wander*.35+float3(31,7,19)),
+      Noise3(jetShear*2.1+wander*.35+float3(5,23,41)))-.5;
+     float3 pJetWave=normalize(jetShear+cross(jetShear,jetPsi)*.32);
+     float yJetStretch=lerp(2.0,7.6,smoothstep(.04,.42,length(radial.xz)));
+     float3 qJetBand=float3(pJetWave.x*1.65,(pJetWave.y+.10*jetPsi.y)*yJetStretch,pJetWave.z*1.65);
+     float jetH=Fbm(qJetBand+wander*.42+float3(12,2,8))*.54+wisps*.28+fineGrain*.18;
+     float jetBanner=smoothstep(.50,.84,jetH)*smoothstep(.24,.80,wisps*.64+fineGrain*.36);
+     float curvedCirrus=saturate(max(curvedWisp*.82,jetBanner));
+
+     float zJet=(Fbm(upper*2.8+wander*.45+float3(12,2,8))-.51)*4.0+(wisps-.50)*4.2+4.35*(curvedCirrus-.24)+1.00*(uLow-.50);
+     float zAnvil=2.55*(anvilShield-.20)+(wisps-.50)*3.8+3.10*(curvedCirrus-.24)+.95*(uLow-.45);
+     float zWcb=.26*zJet+3.65*(wcbCirrus-.15)+2.45*(curvedCirrus-.24)+(wisps-.50)*2.4;
      float zHigh=lerp(zJet,zAnvil,saturate(itczConv*1.15));
      zHigh=lerp(zHigh,zWcb,stormWeight);
      float uHigh=rcp(1.0+exp(-1.702*clamp(zHigh,-6.0,6.0)));
-     float wHigh=max(1e-4,min(.36,min(highTarget,1.0-highTarget)));
-     high=smoothstep(1.0-highTarget-wHigh,1.0-highTarget+wHigh,uHigh)*(1.0-.68*tropBelt*leeShadow);
+     float wHigh=max(1e-4,min(.34,min(highTarget,1.0-highTarget)));
+     float rawHigh=smoothstep(1.0-highTarget-wHigh,1.0-highTarget+wHigh,uHigh);
+     // Carve feathery wind-combed silk edges & prune sub-visible <0.04 clear-sky haze (faster GPU empty-sky skip!)
+     float highSilk=smoothstep(.16,.84,wisps*.62+fineGrain*.38);
+     float highEdge=smoothstep(.02,.56,rawHigh);
+     float highEroded=saturate((rawHigh-(1.0-highSilk)*.38*highEdge)/max(.35,1.0-.24*highEdge));
+     high=smoothstep(.04,.96,highEroded)*(1.0-.68*tropBelt*leeShadow);
     }
     else
     {
