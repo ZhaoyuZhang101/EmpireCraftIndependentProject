@@ -31,6 +31,16 @@ Shader "ORBIS/FlatWorld/SkyBake"
    #include "FlatCycloneWind.cginc"
    sampler2D _ClimateTex,_ClimateWindTex,_RegionalCloudResponse;
    sampler2D _CloudSynopticTex,_CloudSynopticAuxTex,_UpperWindTex;
+   float4 _CloudSynopticTex_TexelSize;
+   // The forcing grid marks land and sea per cell, so its contours follow coasts in one-cell
+   // steps. Four bilinear taps round those steps off, and the caller wanders the lookup by about a
+   // cell so what is left of the grid does not line up into straight edges.
+   float4 SoftForcing(sampler2D grid,float2 uv)
+   {
+    float2 o=_CloudSynopticTex_TexelSize.xy*1.5;
+    return (tex2D(grid,uv+float2(o.x,o.y))+tex2D(grid,uv+float2(-o.x,o.y))+
+            tex2D(grid,uv+float2(o.x,-o.y))+tex2D(grid,uv+float2(-o.x,-o.y)))*.25;
+   }
    float4 _RegionalCloudResponse_TexelSize,_RegionalCloudPoles;
    float _VisualTime,_MonthBlend,_ClimateRows,_GlebaCloudEnable;
    float4 _CyclonePhase,_GlebaCirculationParams;
@@ -391,9 +401,11 @@ Shader "ORBIS/FlatWorld/SkyBake"
     float3 jetAxis=normalize(float3(.84,.25,.48));
     if(_GlebaCloudEnable>.5)
     {
-     forcing=tex2D(_CloudSynopticTex,i.uv);
+     float2 wander2=float2(Noise3(radial*61.0+float3(3,1,7)),Noise3(radial*61.0+float3(8,5,2)))-.5;
+     float2 gridUV=i.uv+wander2*_CloudSynopticTex_TexelSize.xy*2.4;
+     forcing=SoftForcing(_CloudSynopticTex,gridUV);
      forcing=lerp(lerp(_GlebaForcingPoleSouth,_GlebaForcingPoleNorth,step(.5,i.uv.y)),forcing,poleBlend);
-     aux=tex2D(_CloudSynopticAuxTex,i.uv);
+     aux=SoftForcing(_CloudSynopticAuxTex,gridUV);
      float4 uWind=tex2D(_UpperWindTex,i.uv);
      float2 uFlow=lerp(uWind.rg,uWind.ba,_MonthBlend);
      float3 jetVec=east*uFlow.x+north*uFlow.y;

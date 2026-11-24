@@ -10,8 +10,22 @@ float _ScrollWeatherTime;
 float4 _OrbisCycloneNorth,_OrbisCycloneSouth,_OrbisCyclonePhase;
 // Cloud translucency globals (0 = reference look): _CloudCoverCut removes the thinnest
 // baked veil, _CloudThinFade lowers the density of thin cover while cores stay opaque,
-// _CloudHighCut thins cirrus, _CloudDensityCut scales all low-cloud density.
-float _CloudCoverCut,_CloudThinFade,_CloudHighCut,_CloudDensityCut;
+// _CloudHighCut thins cirrus, _CloudDensityCut scales all low-cloud density,
+// _CloudThinEdge moves the thin-cover fade toward thicker cover (sparser white),
+// _CloudStreak breaks uniform cirrus film into wispy streaks.
+// _CloudSoftLod reads a coarser weather mip so texel-size cloud specks feather out from orbit.
+float _CloudCoverCut,_CloudThinFade,_CloudHighCut,_CloudDensityCut,_CloudThinEdge,_CloudStreak,_CloudSoftLod;
+// Orbit veil (0 = off): from orbit a cloud is a translucent sheet whose optical depth follows
+// the baked cover continuously, alpha = 1 - exp(-tau); only the highest cover turns opaque.
+// _CloudOrbitTau scales the low-cloud optical depth, _CloudVeilStart is the cover where it
+// starts, _CloudOrbitHighTau is the optical depth of full cirrus cover.
+// _CloudOrbitCore adds the optical depth of the few near-overcast cores that read as solid white.
+// _CloudOrbitSmooth low-passes the inside of cloud sheets (a coarser weather mip and less
+// thickness noise) while edges keep their detail.
+// _CloudOrbitVolume keeps the volumetric cloud in the thickest cores, so they stand out of the veil in relief.
+float _CloudOrbitVeil,_CloudOrbitTau,_CloudVeilStart,_CloudOrbitHighTau,_CloudOrbitCore,_CloudOrbitSmooth,_CloudOrbitVolume;
+// _CloudOrbitVolumeStart is the baked cover above which a core turns volumetric.
+float _CloudOrbitVolumeStart;
 
 float4 ScrollHeightAt(float2 uv)
 {
@@ -85,10 +99,13 @@ float2 ScrollClimateDensities(float3 p,bool simpleMode)
  float ground=simpleMode?ScrollCloudGroundFast(uv):ScrollCloudGround(uv);
  float z=(rLen-ground)/max(1e-7,_CloudHeightScale);
  if(z<400||z>13500)return 0;
- float4 weather=tex2Dlod(_ScrollWeatherTex,float4(uv,0,0));
+ float4 weather=tex2Dlod(_ScrollWeatherTex,float4(uv,0,max(0,_CloudSoftLod)));
  float coverage=weather.r,highWeather=weather.g,convection=weather.b;
- float bakedCover=coverage;
- coverage=saturate((coverage-_CloudCoverCut)/max(.05,1.0-_CloudCoverCut));
+ float bakedCover=coverage,bakedHigh=highWeather;
+ float orbit=saturate(_CloudOrbitVeil);
+ float coreVolume=saturate(_CloudOrbitVolume)*orbit*smoothstep(_CloudOrbitVolumeStart,_CloudOrbitVolumeStart+.14,bakedCover);
+ float coverCut=_CloudCoverCut;
+ coverage=saturate((coverage-coverCut)/max(.05,1.0-coverCut));
  highWeather*=1.0-saturate(_CloudHighCut);
  bool hasCyclone=(_OrbisCycloneNorth.w>.20)||(_OrbisCycloneSouth.w>.20);
  if(!hasCyclone&&(coverage+highWeather<.006))return 0;
@@ -114,7 +131,7 @@ float2 ScrollClimateDensities(float3 p,bool simpleMode)
 
  if(coverage+highWeather<.006)return 0;
  float low=0,high=0;
- if(coverage>.004&&z<12950)
+ if(coverage>.004&&z<12950&&(orbit<.999||coreVolume>.002))
  {
   float2 span=OrbisCloudVerticalSpan(convection,saturate(coverage+.12));
   bool inMidBand=convection>.28&&convection<.76&&z>3800.0&&z<6150.0;
@@ -202,7 +219,7 @@ float2 ScrollClimateDensities(float3 p,bool simpleMode)
    }
   }
  }
- if(highWeather>.004&&z>6950)
+ if(highWeather>.004&&z>6950&&orbit<.999)
  {
   // High-tropospheric Curved Brushed-Silk Cirrus & Glaciated Anvil Plumes (7.2 - 13.3 km):
   // Uses orthogonal 3D rotated sphere frame + true altitude Z coordinate (zero equatorial horizontal banding!)
@@ -235,10 +252,48 @@ float2 ScrollClimateDensities(float3 p,bool simpleMode)
    fine=saturate(streakA*.62+streakB*.38);
   }
   float highCover=highWeather*(.26+.94*smoothstep(.15,.84,fine));
+  highCover*=lerp(1.0,smoothstep(.34,.70,fine)*1.5,saturate(_CloudStreak));
   high=OrbisHPHighDensity(z,.16+.74*highCover,.36,.56+.44*ice.r,ice.g)*highCover*1.16;
  }
- float thinFade=smoothstep(.25,.85,bakedCover);
- low*=lerp(1.0,thinFade*sqrt(thinFade),saturate(_CloudThinFade))*(1.0-saturate(_CloudDensityCut));
+ if(orbit>0)
+ {
+  // 720 is ORBIS_EXTINCTION: density * 720 * path (in radii) is optical depth.
+  float perMetre=720.0*_CloudHeightScale;
+  // One noise read frays the sheet below the weather map's texel size: it erodes edges and
+  // varies the thickness, so veils look wispy instead of showing texture steps.
+  float4 fray=tex3Dlod(_CloudNoise,float4(up*23.0+float3(.41,.19,.83),0));
+  float wisp=fray.r*.6+fray.g*.4;
+  // Undo the volumetric cover cut: the veil follows the baked cover itself.
+  float veilCover=coverage>.001?coverage*max(.05,1.0-coverCut)+coverCut:bakedCover;
+  // Layers: a smooth low veil, fibrous cirrus above it, and volumetric cores standing out of it.
+  float smoothing=saturate(_CloudOrbitSmooth),softHigh=bakedHigh;
+  [branch] if(smoothing>.001)
+  {
+   float4 soft=tex2Dlod(_ScrollWeatherTex,float4(uv,0,2));
+   float interior=smoothstep(.34,.62,soft.r)*smoothing;
+   // Keep explicit cyclone structure, which is written into the fine cover only.
+   interior*=saturate(1.0-abs(veilCover-bakedCover)*8.0);
+   veilCover=lerp(veilCover,soft.r,interior);softHigh=lerp(bakedHigh,soft.g,smoothing*.35);
+   wisp=lerp(wisp,.5,interior*.75);
+  }
+  float frayed=veilCover+(wisp-.5)*.16*smoothstep(.02,.20,veilCover);
+  float x=saturate((frayed-_CloudVeilStart)/max(.05,1.0-_CloudVeilStart));
+  float core=smoothstep(.84,1.0,frayed);
+  float tau=(_CloudOrbitTau*pow(x,1.2)/(1.08-x)*(.45+1.1*wisp)+_CloudOrbitCore*core*core)*lerp(1.0,2.2,smoothstep(.58,.92,convection));
+  float2 slab=OrbisCloudVerticalSpan(convection,saturate(veilCover+.12));
+  float thick=max(400.0,slab.y-slab.x),hLow=(z-slab.x)/thick;
+  float lowSlab=tau*smoothstep(0,.15,hLow)*(1.0-smoothstep(.8,1.0,hLow))/(perMetre*thick*.825);
+  float hc=pow(saturate(softHigh),.65);
+  float hb=8350.0-1150.0*hc,ht=9100.0+4050.0*hc;
+  float tauHigh=_CloudOrbitHighTau*pow(saturate(softHigh),1.3)*(.5+fray.b);
+  float highSlab=tauHigh*smoothstep(hb-350.0,hb+350.0,z)*(1.0-smoothstep(ht-350.0,ht+350.0,z))/(perMetre*max(700.0,ht-hb));
+  // The dense volumetric cloud hands over early, so mid-zoom is not thicker than either end.
+  float volume=(1.0-orbit)*(1.0-orbit)*(1.0-orbit);
+  low=low*max(volume,coreVolume)+lowSlab*orbit;high=high*volume+highSlab*orbit;
+ }
+ float thinEdge=saturate(_CloudThinEdge);
+ float thinFade=smoothstep(lerp(.25,.55,thinEdge),lerp(.85,.97,thinEdge),bakedCover);
+ low*=lerp(lerp(1.0,thinFade*sqrt(thinFade),saturate(_CloudThinFade))*(1.0-saturate(_CloudDensityCut)),1.0,orbit);
  return float2(low,high)*_Density*max(0,_Cover);
 }
 #endif

@@ -93,7 +93,7 @@ namespace Orbis.Flat
             CacheWidth=width;int height=width/2;
             // The cheap weather pass resolves thin feeder bands at twice the
             // linear resolution of the ray-integrated shadow/precipitation map.
-            Texture=new RenderTexture(width*2,height*2,0,RenderTextureFormat.ARGB32,RenderTextureReadWrite.Linear){name="Low and high cloud cover",filterMode=FilterMode.Bilinear,wrapModeU=TextureWrapMode.Repeat,wrapModeV=TextureWrapMode.Clamp,useMipMap=false,autoGenerateMips=false};
+            Texture=new RenderTexture(width*2,height*2,0,RenderTextureFormat.ARGB32,RenderTextureReadWrite.Linear){name="Low and high cloud cover",filterMode=FilterMode.Bilinear,wrapModeU=TextureWrapMode.Repeat,wrapModeV=TextureWrapMode.Clamp,useMipMap=true,autoGenerateMips=true};
             if(!Texture.Create())throw new InvalidOperationException("Cannot allocate 2D cloud render target.");
             var columnDescriptor=Texture.descriptor;columnDescriptor.width=width;columnDescriptor.height=height;
             // Keep nearby cloud coverage for local light shafts alongside the exact radial column.

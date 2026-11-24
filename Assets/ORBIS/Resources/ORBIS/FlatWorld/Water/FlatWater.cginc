@@ -1,5 +1,7 @@
 #ifndef ORBIS_FLAT_WATER_INCLUDED
 #define ORBIS_FLAT_WATER_INCLUDED
+// Set by the globe presenter: 1 from orbit, 0 on the unfolded map.
+float _OceanOrbitTint;
 #include "HPWaterOptics.cginc"
 #include "../FlatSurfaceField.cginc"
 #include "FlatRiverAtlas.cginc"
@@ -779,6 +781,10 @@ float3 FlatWaterShade(float2 cell,float4 mixing,float4 field,float3 bottom,float
     float3 marineChart=lerp(FlatColor(float3(.28,.64,.64)),FlatColor(float3(.12,.52,.61)),smoothstep(1.6,7.4,logDepth));
     marineChart=lerp(marineChart,FlatColor(float3(.06,.33,.52)),smoothstep(7.1,10.35,logDepth));
     marineChart=lerp(marineChart,FlatColor(float3(.025,.15,.32)),smoothstep(10.15,11.97,logDepth));
+    // From orbit the open ocean reads as dark navy rather than chart cyan (0 = chart colours).
+    // Sunlit seawater returns almost no red, so the chart tint is red-heavy to land on navy.
+    float3 orbitNavy=lerp(FlatColor(float3(.40,.30,.44)),FlatColor(float3(.45,.22,.34)),smoothstep(8.0,11.97,logDepth));
+    marineChart=lerp(marineChart,orbitNavy,clamp(_OceanOrbitTint,0,1.6)*smoothstep(5.5,8.5,logDepth));
     depthColor=lerp(depthColor,marineChart,ocean*saturate(_FieldReady));
     float lakeDepth=lerp(.30,.62,smoothstep(2,30,depth));
     float chartDepth=lerp(lerp(.70,lakeDepth,lake),.18,river);

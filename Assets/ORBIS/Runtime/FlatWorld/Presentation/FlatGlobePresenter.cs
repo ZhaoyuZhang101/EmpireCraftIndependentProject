@@ -11,7 +11,15 @@ namespace Orbis.Flat
         float baseAir,baseHaze,baseCloudDensity;bool scrollPrepared;
         // Satellite-photo look on the globe: thin air and haze let the deep ocean read navy
         // and keep cloud against it crisp. The unfolded surface keeps its own atmosphere.
-        const float GlobeAir=.2f,GlobeHaze=.05f,GlobeExposure=.9f;
+        const float GlobeAir=.08f,GlobeHaze=0f,GlobeExposure=1f;
+        // Orbital cloud look (ScrollCloudSource globals): only thick cloud reads white, thin cover and
+        // cirrus stay see-through and texel-size specks feather out; the deep ocean takes a navy tint.
+        // Near values match FlatMapRenderer.
+        float globeCoverCut=.42f,globeThinEdge=1f,globeHighCut=.82f,globeStreak=1f,globeSoftLod=2f,globeOceanTint=.5f;
+        float globeOrbitVeil=1f,globeOrbitTau=.05f,globeVeilStart=.32f,globeOrbitHighTau=.15f,globeOrbitCore=1.4f,globeOrbitSmooth=0f,globeOrbitVolume=1f,globeOrbitVolumeStart=.78f;
+        // Orbit mist (AtmosphereComposite globals): ground under cloud is blurred and greyed, bright cloud glows.
+        float globeMist=1f,globeMistBlur=1.5f,globeMistGrey=.6f,globeHalo=.6f;
+        const float NearCoverCut=.15f,NearHighCut=.7f;
         float baseExposure,nearAir,nearHaze,nearExposure;
         OrbisAtmosphereRenderer scrollVolume;FlatScrollNavigator scrollNav;Vector2 poles;int poleRevision=-1;
         int materialTerrainRevision=-1;
@@ -75,6 +83,17 @@ namespace Orbis.Flat
             Snapshot.settings.airDensity=Mathf.Lerp(baseAir,nearAir,near);
             Snapshot.settings.exposure=Mathf.Lerp(baseExposure,nearExposure,near);
             Snapshot.settings.haze=Mathf.Lerp(baseHaze,nearHaze,near);
+            Shader.SetGlobalFloat("_CloudCoverCut",Mathf.Lerp(globeCoverCut,NearCoverCut,near));
+            Shader.SetGlobalFloat("_CloudThinEdge",Mathf.Lerp(globeThinEdge,0,near));
+            Shader.SetGlobalFloat("_CloudHighCut",Mathf.Lerp(globeHighCut,NearHighCut,near));
+            Shader.SetGlobalFloat("_CloudStreak",Mathf.Lerp(globeStreak,0,near));
+            Shader.SetGlobalFloat("_CloudSoftLod",near<.5f?globeSoftLod:0);
+            Shader.SetGlobalFloat("_OceanOrbitTint",globeOceanTint*(1-near));
+            Shader.SetGlobalFloat("_CloudOrbitVeil",globeOrbitVeil*(1-near));Shader.SetGlobalFloat("_CloudOrbitTau",globeOrbitTau);
+            Shader.SetGlobalFloat("_CloudOrbitSmooth",globeOrbitSmooth);Shader.SetGlobalFloat("_CloudOrbitVolume",globeOrbitVolume);Shader.SetGlobalFloat("_CloudOrbitVolumeStart",globeOrbitVolumeStart);
+            Shader.SetGlobalFloat("_OrbitMist",globeMist*(1-near));Shader.SetGlobalFloat("_OrbitMistBlur",globeMistBlur);
+            Shader.SetGlobalFloat("_OrbitMistGrey",globeMistGrey);Shader.SetGlobalFloat("_OrbitHalo",globeHalo);
+            Shader.SetGlobalFloat("_CloudOrbitCore",globeOrbitCore);Shader.SetGlobalFloat("_CloudVeilStart",globeVeilStart);Shader.SetGlobalFloat("_CloudOrbitHighTau",globeOrbitHighTau);
             Snapshot.settings.cloudDensity=baseCloudDensity;
             Snapshot.settings.clouds=clouds&&natural;
             Snapshot.settings.atmosphere=atmosphere&&natural;

@@ -105,7 +105,16 @@ namespace Orbis.EditorTools
                         var copy=t.GetPixels32();var alpha=new Color32[copy.Length];for(int k=0;k<copy.Length;k++){byte a=copy[k].a;alpha[k]=new Color32(a,a,a,255);}
                         Write(pixels,t.width,t.height,Path.Combine(output,$"{prefix}{name}_rgb.png"));Write(alpha,t.width,t.height,Path.Combine(output,$"{prefix}{name}_a.png"));}
             }
-            else Render(camera,nav,app,Path.Combine(output,$"{prefix}_c{shot}_globe.png"));
+            else
+            {
+                Render(camera,nav,app,Path.Combine(output,$"{prefix}_c{shot}_globe.png"));
+                if(benchVariant&&shot==1)
+                {
+                    // Synchronous 1280x720 render cost of this variant (existing benchmark; it also writes its own log).
+                    string cost=Orbis.Editor.CloudRenderBenchmark.Run(prefix);
+                    File.AppendAllText(Path.Combine(output,"bench.txt"),cost);Debug.Log("OrbisCloudAtlasCapture bench "+cost);
+                }
+            }
             waited=0;shot++;
             if(shot>centers.Count)
             {
@@ -143,8 +152,10 @@ namespace Orbis.EditorTools
         // Variant keys: "_Global=value" sets a shader global; "clouds=0" turns the cloud toggle
         // off; "atmo=0" disables the atmosphere/cloud image effect; "air", "haze" and "exposure"
         // set the globe atmosphere settings. Settings persist into later variants unless reset.
+        static bool benchVariant;
         static void ApplyVariant(FlatWorldApp app,Camera camera)
         {
+            benchVariant=false;
             var toggle=Get<Toggle>(app,"cloudToggle");if(toggle!=null)toggle.value=true;
             foreach(var r in camera.GetComponents<OrbisAtmosphereRenderer>())r.enabled=true;
             foreach(var pair in variantSettings[variant].Split(new[]{','},StringSplitOptions.RemoveEmptyEntries))
@@ -159,8 +170,16 @@ namespace Orbis.EditorTools
                     else if(key=="haze")t.GetField("baseHaze",Private).SetValue(globe,value);
                     else t.GetField("baseExposure",Private).SetValue(globe,value);
                 }
+                else if(key=="bench"){benchVariant=value>.5f;}
                 else if(key=="atmo"){foreach(var r in camera.GetComponents<OrbisAtmosphereRenderer>())r.enabled=value>.5f;}
-                else Shader.SetGlobalFloat(key,value);
+                else
+                {
+                    Shader.SetGlobalFloat(key,value);
+                    var globe=Get<FlatGlobePresenter>(app,"globe");
+                    var field=key.StartsWith("_Cloud")||key.StartsWith("_Orbit")?typeof(FlatGlobePresenter).GetField("globe"+key.Substring(6),Private):
+                        key=="_OceanOrbitTint"?typeof(FlatGlobePresenter).GetField("globeOceanTint",Private):null;
+                    if(globe&&field!=null)field.SetValue(globe,value);
+                }
             }
             // Shader globals also feed the baked cloud column: force a rebake for this variant.
             var sky=Get<FlatMapRenderer>(app,"map")?.Sky;var revision=typeof(FlatSkyRenderer).GetField("revision",Private);
