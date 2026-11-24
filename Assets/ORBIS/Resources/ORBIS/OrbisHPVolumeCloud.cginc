@@ -43,7 +43,7 @@ float2 OrbisCloudVerticalSpan(float type,float coverage)
 {
     float sc=1.0-smoothstep(.05,.18,type);
     float cu=smoothstep(.10,.22,type)*(1.0-smoothstep(.48,.70,type));
-    float cb=smoothstep(.56,.96,type);
+    float cb=smoothstep(.50,.96,type);
     float baseM=lerp(760.0,420.0,sc);
     baseM=lerp(baseM,1060.0,cu*.88);
     baseM=lerp(baseM,510.0,cb);
@@ -75,8 +75,8 @@ float OrbisHPLowDensityDetailed(float metres,float coverage,float type,float sha
     if(metres>span.x-80.0&&metres<localTop+350.0)
     {
         float localHeight=saturate((metres-span.x)/max(350.0,localTop-span.x));
-        float lclRamp=smoothstep(0,.09,localHeight);
-        float topCap=1.0-smoothstep(.76,.99,localHeight);
+        float lclRamp=smoothstep(0,.13,localHeight);
+        float topCap=1.0-smoothstep(.70,.99,localHeight);
         float profile=lclRamp*topCap;
 
         // Glaciated cumulonimbus & typhoon eyewall tropopause anvil overhang (incus, ~9.0-12.3 km):
@@ -102,11 +102,15 @@ float OrbisHPLowDensityDetailed(float metres,float coverage,float type,float sha
         float eroded=saturate((shapedCore-billowDetail)/max(.02,1-billowDetail))*profile;
         float erodedWispy=saturate((shapedCore-wispDetail)/max(.02,1-wispDetail))*profile;
         float threshold=1-effCov;
-        // Crisp cauliflower cumulus rim (0.11 transition) vs silky feathered glaciated anvil veil (0.20)
-        float billowy=smoothstep(threshold,threshold+.11,eroded);
-        float wispy=smoothstep(threshold-.07,threshold+.14,erodedWispy)*lerp(1.0-.62*localHeight,.84,anvilFlare);
-        float clip=lerp(1,pow(max(cell,.001),1.35),sc);
-        density=lerp(wispy,billowy,smoothstep(0,.20,billowy)*(1-.55*anvilFlare))*clip*coverage*lerp(.88,1.56,type);
+        // Two-tier EPIC vapor profile: wide translucent milky vapor skirt & delicate fine marine cellular lace
+        // nested smoothly beneath concentrated luminous snow-white cauliflower cloud cores (tau 0.08->0.60->8.0)
+        float coreWeight=smoothstep(.26,.74,coverage);
+        float billowy=smoothstep(threshold+.02,threshold+.20,eroded);
+        float gauzeVeil=smoothstep(threshold-.14,threshold+.26,erodedWispy)*lerp(1.0-.44*localHeight,.88,anvilFlare);
+        float cellLace=smoothstep(.12,.84,cell);
+        float clip=lerp(1,lerp(.32,1.0,pow(max(cellLace,.001),1.05)),sc);
+        float vaporBody=max(gauzeVeil*lerp(.30,.46,anvilFlare),billowy*lerp(.60,1.0,coreWeight));
+        density=lerp(vaporBody,billowy,coreWeight*.48*(1-.55*anvilFlare))*clip*coverage*lerp(.88,1.68,type);
     }
 
     // 2. Detached Mid-Tropospheric Altocumulus / Altostratus (Ac/As) Deck (3,950 - 5,950 m):

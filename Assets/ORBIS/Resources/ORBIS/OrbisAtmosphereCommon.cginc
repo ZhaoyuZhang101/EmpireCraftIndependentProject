@@ -267,14 +267,15 @@ void OrbisIntegrateSample(float3 p,float ds,float2 cloudLayers,float3 sun,float2
   float highWeight=cloudLayers.y/max(cloudDensity,1e-6);
   float rLen=length(p);
   float altFrac=saturate((rLen-ORBIS_CLOUD_BASE)/max(1e-5,ORBIS_CLOUD_TOP-ORBIS_CLOUD_BASE));
-  // Height- & direct-light-coupled cavity AO: sunlit crowns gleam snow-white without tonemap clipping,
-  // while deep inter-turret canyons & shadowed hurricane stadium eyewalls hold rich cool slate-blue relief!
-  float cavityAO=lerp(.44,1.0,smoothstep(.04,.64,altFrac))*lerp(.64,1.0,smoothstep(.0,.42,directT));
+  // Height- & direct-light-coupled cavity AO + EPIC luminous bright-core pop:
+  // Dense sunlit convective & frontal crowns gleam snow-white while surrounding thin marine lace stays airy & cool!
+  float cavityAO=lerp(.42,1.0,smoothstep(.04,.64,altFrac))*lerp(.62,1.0,smoothstep(.0,.42,directT));
   float3 shadowTint=lerp(float3(.82,.90,1.08),float3(1,1,1),smoothstep(.06,.55,directT));
+  float corePop=1.0+.16*smoothstep(.06,.24,cloudDensity)*smoothstep(.18,.68,altFrac)*smoothstep(.32,.84,directT);
   float powder=1.0-.48*exp(-cloudDensity*ORBIS_EXTINCTION*ds*3.4);
-  float3 direct=directT*lerp(phaseCloud,phaseHigh,highWeight)*(.80*(.84+.50*powder))*sunT;
-  float3 multiple=fields.y*_CloudMS*_ScatteringStrength*.90*cavityAO*shadowTint*sunT;
-  float denseGate=smoothstep(.014,.14,cloudDensity);
+  float3 direct=directT*lerp(phaseCloud,phaseHigh,highWeight)*(.80*(.84+.50*powder)*corePop)*sunT;
+  float3 multiple=fields.y*_CloudMS*_ScatteringStrength*.92*cavityAO*shadowTint*sunT;
+  float denseGate=smoothstep(.010,.13,cloudDensity);
   multiple*=denseGate;
   float3 nightCloud=0;
   if(nightW>1e-5)

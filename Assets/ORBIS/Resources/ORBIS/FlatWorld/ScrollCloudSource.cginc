@@ -135,34 +135,50 @@ float2 ScrollClimateDensities(float3 p,bool simpleMode)
    }
    else
    {
-    // Variance-preserving dual-phase flow blend: prevents 50% contrast washout / fuzzy edges at phase ~ 0.5!
+    // Variance-preserving dual-phase flow blend: keeps crisp cauliflower tops & unbroken slender curved bands!
     float invStd=rsqrt(max(.5,phase*phase+(1.0-phase)*(1.0-phase)));
     float3 q1=mul(frame,b);
-    float3 mPos0=q0*6.8+radAxis*(altitude*.34)+windShear*.45+float3(.13,.71,.37);
-    float3 mPos1=q1*6.8+radAxis*(altitude*.34)+windShear*.45+float3(.13,.71,.37);
+
+    float3 mPos0=q0*6.4+radAxis*(altitude*.34)+windShear*.45+float3(.13,.71,.37);
+    float3 mPos1=q1*6.4+radAxis*(altitude*.34)+windShear*.45+float3(.13,.71,.37);
     float4 macroRaw=lerp(tex3Dlod(_CloudNoise,float4(mPos0,0)),tex3Dlod(_CloudNoise,float4(mPos1,0)),phase);
     float4 macroBody=saturate(.5+(macroRaw-.5)*lerp(1.0,invStd,.65));
 
-    float3 mesoWarp=(macroBody.gba-.5)*.14;
-    float3 bPos0=q0*22.0+radAxis*(altitude*1.12)+windShear+mesoWarp+float3(.41,.19,.83);
-    float3 bPos1=q1*22.0+radAxis*(altitude*1.12)+windShear+mesoWarp+float3(.41,.19,.83);
+    float3 mesoWarp=(macroBody.gba-.5)*.11;
+    float3 bPos0=q0*30.0+radAxis*(altitude*1.12)+windShear+mesoWarp+float3(.41,.19,.83);
+    float3 bPos1=q1*30.0+radAxis*(altitude*1.12)+windShear+mesoWarp+float3(.41,.19,.83);
     float4 bodyRaw=lerp(tex3Dlod(_CloudNoise,float4(bPos0,0)),tex3Dlod(_CloudNoise,float4(bPos1,0)),phase);
     float4 body=saturate(.5+(bodyRaw-.5)*lerp(1.0,invStd,.78));
 
     worleyMeso=body.g*.64+body.b*.36;
     float basePW=macroBody.r*.32+body.r*.42+worleyMeso*.26;
-    shape=saturate((basePW-(1.0-worleyMeso)*.24)/.76+coverage*.06);
+    // Keep soft synoptic mist envelopes connected while 3D fine detail sculpts lacy micro-structure
+    float mistCohesion=.12*smoothstep(.06,.52,coverage);
+    shape=saturate((basePW-(1.0-worleyMeso)*.16)/.84+coverage*.06+mistCohesion);
 
-    float covBound=.26+.74*saturate(coverage+.10);
-    if(pow(shape,.68)>.84-covBound||coverage>.72||inMidBand)
+    float covBound=.16+.84*saturate(coverage+.16);
+    if(pow(shape,.68)>.86-covBound||coverage>.52||inMidBand)
     {
-     float3 curl=(body.gba-.5)*.34;
-     float3 dPos0=q0*72.0+radAxis*(altitude*2.65)+windShear*1.45+curl;
-     float3 dPos1=q1*72.0+radAxis*(altitude*2.65)+windShear*1.45+curl;
+     float3 curl=(body.gba-.5)*.24;
+     // High-frequency 3D cellular granulation (k=112 -> authentic 20-45 km EPIC marine cumulus & open-cell lace!)
+     float3 dPos0=q0*112.0+radAxis*(altitude*2.85)+windShear*1.45+curl;
+     float3 dPos1=q1*112.0+radAxis*(altitude*2.85)+windShear*1.45+curl;
      float4 eroRaw=lerp(tex3Dlod(_CloudDetailNoise,float4(dPos0,0)),tex3Dlod(_CloudDetailNoise,float4(dPos1,0)),phase);
      erosion=saturate(.5+(eroRaw-.5)*lerp(1.0,invStd,.85));
-     float edgeInvW=1.0-(erosion.r*.64+erosion.g*.36);
-     float edgeTear=edgeInvW*.20*(1.0-smoothstep(.65,.92,coverage))*smoothstep(.02,.26,coverage);
+
+     // Fine-grained marine Sc & subtropical trade cumulus speckling (zero extra texture reads!):
+     // Turns broad thin marine sheets into thousands of delicate 20-45 km milky puffs & lacy open cells like DSCOVR EPIC!
+     float fineScMask=1.0-smoothstep(.08,.34,convection);
+     float fineTradeMask=smoothstep(.08,.22,convection)*(1.0-smoothstep(.34,.56,convection));
+     float fineLaceWeight=saturate(fineScMask*.85+fineTradeMask*.58)*(1.0-smoothstep(.52,.84,coverage));
+     float fineCellular=saturate((1.0-(erosion.r*.58+erosion.g*.42))*.72+erosion.b*.28);
+     float openCellFoam=smoothstep(.26,.78,abs(2.0*erosion.g-1.0)*.65+fineCellular*.35);
+     float finePattern=lerp(fineCellular,openCellFoam,fineScMask*.55);
+     shape=lerp(shape,saturate(shape*.48+finePattern*.66),fineLaceWeight*.72);
+     worleyMeso=lerp(worleyMeso,finePattern,fineLaceWeight*.65);
+
+     float edgeInvW=1.0-(erosion.r*.62+erosion.g*.38);
+     float edgeTear=edgeInvW*.13*(1.0-smoothstep(.58,.90,coverage))*smoothstep(.02,.22,coverage);
      effCov=saturate(coverage-edgeTear);
      evalLow=true;
     }
@@ -170,9 +186,12 @@ float2 ScrollClimateDensities(float3 p,bool simpleMode)
    if(evalLow)
    {
     float tower=smoothstep(.45,.96,convection);
-    // ISCCP exponential optical-depth curve: translucent gossamer skirts (0.08-0.46) -> opaque snow-white cores (0.9-1.8)
-    float opticalGain=(lerp(.07,.46,smoothstep(.04,.48,effCov))+.98*pow(smoothstep(.42,.94,effCov),1.45))*lerp(.86,1.24,tower);
-    low=OrbisHPLowDensityDetailed(z,.26+.74*effCov,convection,shape,erosion,.46+.54*worleyMeso)*opticalGain;
+    // True EPIC exponential vapor curve: airy translucent sea-mist & fine marine lace (0.04-0.28)
+    // transitioning smoothly into dazzling luminous snow-white convective & frontal cores (0.90-1.85)!
+    float thinMist=lerp(.040,.27,smoothstep(.02,.44,effCov));
+    float denseCore=1.48*pow(smoothstep(.36,.92,effCov),1.48);
+    float opticalGain=(thinMist+denseCore)*lerp(.84,1.32,tower);
+    low=OrbisHPLowDensityDetailed(z,.14+.86*effCov,convection,shape,erosion,.42+.58*worleyMeso)*opticalGain;
    }
   }
  }
@@ -192,19 +211,24 @@ float2 ScrollClimateDensities(float3 p,bool simpleMode)
    float3 dynCross=normalize(cross(up,dynAlong)+float3(1e-5,0,0));
    float3 axisAlong=normalize(lerp(float3(.84,.25,.48),dynAlong,wActive));
    float3 axisCross=normalize(lerp(float3(-.50,.05,.86),dynCross,wActive));
-   // Gentle 3D curved mares'-tail swirl + fallstreak virga hook along altitude
+   // Gentle 3D curved mares'-tail swirl + fallstreak virga hook + TRUE 2-tap spherical LIC along axisAlong
+   // (zero extra texture fetches, genuinely brushes 3D cirrus fibers along local upper flow!)
    float curve=(ice.b-.5)*1.10+(ice.a-.5)*.65;
-   float fallHook=(z-8400)*.00022;
+   float fallHook=(z-8400)*.00024;
    float altZ=(z-7200.0)/5600.0;
-   float3 uAniso=upper-axisAlong*dot(upper,axisAlong)*.76+axisCross*(curve*.055)+axisAlong*fallHook;
+   float3 uSwirl=normalize(upper+axisCross*(curve*.048)+axisAlong*fallHook);
+   float3 uLic=normalize(uSwirl+axisAlong*.028);
    const float3x3 cFrame=float3x3(.48,.64,.60,-.80,.60,0,.36,.48,-.80);
-   float3 cRot=mul(cFrame,uAniso);
-   float streakA=tex3Dlod(_CloudDetailNoise,float4(cRot*9.5+float3(0,0,altZ*.85)+(ice.b-.5)*.30,0)).b;
-   float streakB=tex3Dlod(_CloudDetailNoise,float4(cRot*24.0+float3(.37,.19,altZ*1.6)+(ice.a-.5)*.22,0)).g;
-   fine=saturate(streakA*.60+streakB*.40);
+   float3 cRot0=mul(cFrame,uSwirl);
+   float3 cRot1=mul(cFrame,uLic);
+   float4 tapA=tex3Dlod(_CloudDetailNoise,float4(cRot0*13.5+float3(0,0,altZ*.90)+(ice.b-.5)*.26,0));
+   float4 tapB=tex3Dlod(_CloudDetailNoise,float4(cRot1*13.5+float3(0,0,altZ*.90)+(ice.b-.5)*.26,0));
+   float streakA=(tapA.b+tapB.b)*.5;
+   float streakB=(tapA.g+tapB.g)*.5;
+   fine=saturate(streakA*.62+streakB*.38);
   }
-  float highCover=highWeather*(.54+.74*fine);
-  high=OrbisHPHighDensity(z,.22+.68*highCover,.38,.62+.38*ice.r,ice.g)*highCover*1.12;
+  float highCover=highWeather*(.26+.94*smoothstep(.15,.84,fine));
+  high=OrbisHPHighDensity(z,.16+.74*highCover,.36,.56+.44*ice.r,ice.g)*highCover*1.16;
  }
  return float2(low,high)*_Density*max(0,_Cover);
 }
