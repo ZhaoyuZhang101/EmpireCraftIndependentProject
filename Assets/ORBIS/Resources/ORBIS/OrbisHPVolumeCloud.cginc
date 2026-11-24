@@ -110,11 +110,11 @@ float OrbisHPLowDensityDetailed(float metres,float coverage,float type,float sha
         float coreWeight=smoothstep(.24,.74,coverage);
         float billowy=smoothstep(threshold-.02,threshold+.22,eroded);
         float gauzeVeil=smoothstep(threshold-.14,threshold+.26,erodedWispy)*lerp(1.0-.42*localHeight,.88,anvilFlare);
-        float cellLace=smoothstep(.12,.76,cell);
-        float clip=lerp(1,lerp(.04,1.0,pow(max(cellLace,.001),1.18)),sc);
-        float veilTerm=gauzeVeil*lerp(.25,.42,anvilFlare)*(1.0-.82*sc);
-        float coreTerm=billowy*lerp(.56,1.0,coreWeight);
-        float vaporBody=saturate(veilTerm+coreTerm*(1.0-veilTerm*.52));
+        float cellLace=smoothstep(.12,.78,cell);
+        float clip=lerp(1,lerp(.20,1.0,pow(max(cellLace,.001),1.08)),sc);
+        float veilTerm=gauzeVeil*lerp(.29,.46,anvilFlare)*(1.0-.34*sc);
+        float coreTerm=billowy*lerp(.58,1.0,coreWeight);
+        float vaporBody=saturate(veilTerm+coreTerm*(1.0-veilTerm*.50));
         density=lerp(vaporBody,billowy,coreWeight*.42*(1-.55*anvilFlare))*clip*coverage*lerp(.92,1.68,type);
     }
 

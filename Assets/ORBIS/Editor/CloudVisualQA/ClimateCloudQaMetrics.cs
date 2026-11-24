@@ -960,11 +960,16 @@ namespace Orbis.Editor.CloudVisualQA
                 if (a < 12) speckleCount++;
             }
             int top3Area = 0;
-            for (int k = 0; k < Math.Min(3, bandAreas.Count); k++) top3Area += bandAreas[k];
-            double top3Span = 0;
+            double top3WeightedSpan = 0;
             int spanN = Math.Min(3, bandSpans.Count);
-            for (int k = 0; k < spanN; k++) top3Span += bandSpans[k];
-            if (spanN > 0) top3Span /= spanN;
+            for (int k = 0; k < spanN; k++)
+            {
+                top3Area += bandAreas[k];
+                top3WeightedSpan += bandAreas[k] * bandSpans[k];
+            }
+            // Area-weighted top-3 band span prevents the unweighted band-merging paradox where merging two long
+            // bands into a single disk-spanning system promotes a tiny 2-3% stray puff into slot #3 and lowers the mean.
+            double top3Span = top3Area > 0 ? top3WeightedSpan / top3Area : 0;
 
             var res = new FullDiskVisualMetrics
             {

@@ -60,6 +60,7 @@ namespace Orbis.Editor.CloudVisualQA
             public double ForcingToColumnR;
             public ScreenRoiDeltaStats ScreenStats;
             public double LatShiftForcing, LatShiftColumn, LatShiftScreen;
+            public double ExtraLatShiftStormForcing, ExtraLatShiftStormWeather;
             public double DipoleForcing, DipoleColumn, DipoleScreen;
             public CycloneEvolutionMetrics Cyclone;
             public AntiNoiseBindingVerdict Verdict;
@@ -90,6 +91,7 @@ namespace Orbis.Editor.CloudVisualQA
             public bool SharedAllPassed = true;
             public readonly List<PairedRunRecord> PairRecords = new List<PairedRunRecord>();
             public readonly List<BaselineRunRecord> BaselineRecords = new List<BaselineRunRecord>();
+            public readonly List<string> PerfLines = new List<string>();
             public readonly Queue<Action> Steps = new Queue<Action>();
             public int CooldownFrames;
         }
@@ -308,7 +310,7 @@ namespace Orbis.Editor.CloudVisualQA
                 ctx.BaseEarth = ClimateCloudQaScenarios.BuildRealEarth(
                     earthWidth, demAsset.bytes, waterAsset.bytes, riverAsset.bytes, ClimateCloudQaScenarios.DefaultSeed);
 
-                if (mode == "full" || mode == "pairs")
+                if (mode == "full" || mode == "full_typhoon" || mode == "pairs")
                 {
                     Directory.CreateDirectory(Path.Combine(outDir, "pairs"));
                     var scenarios = ClimateCloudQaScenarios.BuildAllPairedScenarios(ctx.BaseEarth);
@@ -365,7 +367,7 @@ namespace Orbis.Editor.CloudVisualQA
                     }
                 }
 
-                if (mode == "full" || mode == "baseline")
+                if (mode == "full" || mode == "full_typhoon" || mode == "baseline")
                 {
                     Directory.CreateDirectory(Path.Combine(outDir, "baseline_79e6fa2"));
                     var views = ClimateCloudQaScenarios.Build79e6fa2BaselineViews();
@@ -382,6 +384,26 @@ namespace Orbis.Editor.CloudVisualQA
                     }
                 }
 
+                if (mode == "full_typhoon" || mode == "typhoon")
+                {
+                    Directory.CreateDirectory(Path.Combine(outDir, "typhoon"));
+                    ctx.Steps.Enqueue(() =>
+                    {
+                        Debug.Log("[CloudVisualQA] Benchmarking Pacific-Globe-Apr (1280x720 q=1/q=2) & DailyCacheUpdate...");
+                        RunPacificBenchAndDailyCacheCheck(ctx.App, ctx.BaseEarth, ctx.PerfLines);
+                    });
+                    ctx.Steps.Enqueue(() =>
+                    {
+                        Debug.Log("[CloudVisualQA] Capturing & benchmarking Cat-5 Typhoon Wide & CloseUp...");
+                        RunTyphoonShotsAndBench(ctx.App, ctx.BaseEarth, outDir, ctx.PerfLines);
+                    });
+                    ctx.Steps.Enqueue(() =>
+                    {
+                        Debug.Log("[CloudVisualQA] Capturing natural SH clockwise cyclone...");
+                        RunNaturalShCycloneShot(ctx.App, ctx.BaseEarth, outDir, ctx.PerfLines);
+                    });
+                }
+
                 ctx.Steps.Enqueue(() =>
                 {
                     bool pairsPassed = true;
@@ -389,6 +411,8 @@ namespace Orbis.Editor.CloudVisualQA
                     bool baselinePassed = true;
                     foreach (var b in ctx.BaselineRecords) baselinePassed &= b.Verdict.Passed;
                     WriteReports(outDir, mode, quality, earthWidth, ctx.SharedResults, ctx.SharedAllPassed, ctx.PairRecords, ctx.BaselineRecords);
+                    if (ctx.PerfLines.Count > 0)
+                        File.WriteAllLines(Path.Combine(outDir, "perf-benchmark.txt"), ctx.PerfLines, Encoding.UTF8);
 
                     bool allOk = ctx.SharedAllPassed && pairsPassed && baselinePassed;
                     Debug.Log($"[CloudVisualQA] Suite finished: shared={ctx.SharedAllPassed} pairs={pairsPassed} ({ctx.PairRecords.Count}) baseline79={baselinePassed} ({ctx.BaselineRecords.Count}) -> {(allOk ? "PASS" : "FAIL")}");
@@ -465,6 +489,19 @@ namespace Orbis.Editor.CloudVisualQA
                 rec.LatShiftForcing = fLatB - fLatA;
                 rec.LatShiftColumn = cLatB - cLatA;
                 rec.LatShiftScreen = rec.ScreenStats.LatCentroidDegB - rec.ScreenStats.LatCentroidDegA;
+
+                var extraBoxN = new GeoBox(-180, 180, 30, 88);
+                var extraBoxS = new GeoBox(-180, 180, -88, -30);
+                double sfA = 0.5 * (ClimateCloudQaMetrics.ComputeLatitudeCentroid(forcingA, (r, g, b, a) => b, extraBoxN, true) +
+                                    ClimateCloudQaMetrics.ComputeLatitudeCentroid(forcingA, (r, g, b, a) => b, extraBoxS, true));
+                double sfB = 0.5 * (ClimateCloudQaMetrics.ComputeLatitudeCentroid(forcingB, (r, g, b, a) => b, extraBoxN, true) +
+                                    ClimateCloudQaMetrics.ComputeLatitudeCentroid(forcingB, (r, g, b, a) => b, extraBoxS, true));
+                double swA = 0.5 * (ClimateCloudQaMetrics.ComputeLatitudeCentroid(rec.WeatherA, (r, g, b, a) => r, extraBoxN, true) +
+                                    ClimateCloudQaMetrics.ComputeLatitudeCentroid(rec.WeatherA, (r, g, b, a) => r, extraBoxS, true));
+                double swB = 0.5 * (ClimateCloudQaMetrics.ComputeLatitudeCentroid(rec.WeatherB, (r, g, b, a) => r, extraBoxN, true) +
+                                    ClimateCloudQaMetrics.ComputeLatitudeCentroid(rec.WeatherB, (r, g, b, a) => r, extraBoxS, true));
+                rec.ExtraLatShiftStormForcing = sfB - sfA;
+                rec.ExtraLatShiftStormWeather = swB - swA;
             }
             else if (spec.Expectation == PairExpectationKind.CycloneEvolution && spec.HasNaturalCyclone)
             {
@@ -533,13 +570,16 @@ namespace Orbis.Editor.CloudVisualQA
 
             if (view.UseNaturalStormPeak && peakStorm != null && peakStorm.Found)
             {
-                world = ClimateCloudQaScenarios.DeepCloneWorld(peakStorm.WorldT1);
-                double sLon = (peakStorm.Track1.U - 0.5) * 360.0;
-                double sLat = (peakStorm.Track1.V - 0.5) * 180.0;
+                var peakWorld = peakStorm.WorldPeak ?? peakStorm.WorldT1;
+                var peakTrack = peakStorm.PeakTrack.Tracked ? peakStorm.PeakTrack : peakStorm.Track1;
+                double peakDay = peakStorm.PeakDay > 0 ? peakStorm.PeakDay : peakStorm.Day1;
+                world = ClimateCloudQaScenarios.DeepCloneWorld(peakWorld);
+                double sLon = (peakTrack.U - 0.5) * 360.0;
+                double sLat = (peakTrack.V - 0.5) * 180.0;
                 camLon = sLon;
                 camLat = Math.Max(-55.0, Math.Min(55.0, sLat + (sLat >= 0 ? 8.0 : -8.0)));
                 double fracDay = Wrap01(0.5 - (camLon + view.SunLonOffsetDeg) / 360.0);
-                day = Math.Floor(peakStorm.Day1) + fracDay;
+                day = Math.Floor(peakDay) + fracDay;
 
                 double dLatRad = (sLat - camLat) * Math.PI / 180.0;
                 double denom = (view.OrbitalDistance - Math.Cos(dLatRad)) * Math.Tan(CameraFovDeg * 0.5 * Math.PI / 180.0) * 0.88;
@@ -1021,6 +1061,9 @@ namespace Orbis.Editor.CloudVisualQA
                     md.AppendLine($"- **Physical Axis**: {r.Spec.PhysicalAxis}");
                     md.AppendLine($"- **E2E Coverage**: `{r.Spec.CoverageLevel}` — {r.Spec.CoverageNote}");
                     foreach (var c in r.Verdict.Checks) md.AppendLine($"- {c}");
+                    if (r.Spec.Expectation == PairExpectationKind.PolewardExpansion)
+                        md.AppendFormat(inv, "- INFO extratropical polar/storm-track |lat| shift (30..88 deg): forcing stormTrack={0:+0.00;-0.00} deg, baked Weather low-cloud={1:+0.00;-0.00} deg\n",
+                            r.ExtraLatShiftStormForcing, r.ExtraLatShiftStormWeather);
                     md.AppendLine();
                 }
             }
@@ -1131,6 +1174,277 @@ namespace Orbis.Editor.CloudVisualQA
             SessionState.SetInt(KeyExit, -1);
             EditorApplication.update -= ExitAfterPlay;
             EditorApplication.Exit(code);
+        }
+
+        static WorldData CreateCat5TyphoonWorld(WorldData baseEarth, double day, double stormLonDeg, double stormLatDeg, double phaseRad)
+        {
+            var world = ClimateCloudQaScenarios.DeepCloneWorld(baseEarth);
+            world.Day = day;
+            long stepIdx = FlatCycloneWeather.StepAt(day);
+            var track = new FlatCycloneTrack
+            {
+                Tracked = true,
+                U = (stormLonDeg + 180.0) / 360.0,
+                V = (stormLatDeg + 90.0) / 180.0,
+                PressureDeficit = 88.0,
+                WindSpeed = 54.0,
+                Phase = phaseRad,
+                AgeDays = 5.0,
+                OceanCooling = 1.2
+            };
+            world.Cyclones = new FlatCycloneWeather
+            {
+                StepIndex = stepIdx,
+                North = track,
+                PreviousNorth = track
+            };
+            return world;
+        }
+
+        static void ConfigurePose(
+            FlatMapRenderer map, FlatGlobePresenter globe, FlatScrollNavigator nav,
+            Camera camera, OrbisCelestialLens lens, OrbisAtmosphereRenderer atmosphere,
+            WorldData world, double camLonDeg, double camLatDeg, float orbitalDistance, float tiltDeg,
+            double spinDay, int quality, int renderW, int renderH, RenderTexture rt)
+        {
+            var loc = PlanetCoordinateSystem.FromMapUV((camLonDeg + 180.0) / 360.0, (camLatDeg + 90.0) / 180.0);
+            nav.Home(spinDay);
+            nav.Tick(3f, spinDay);
+            nav.Recenter(loc, spinDay);
+            nav.SetViewport(new Rect(0, 0, renderW, renderH));
+            nav.Tick(0f, spinDay);
+
+            Vector3 localDir = SurfaceNormalLocal(camLonDeg, camLatDeg);
+            Vector3 localNorth = NorthTangentLocal(camLonDeg, camLatDeg);
+            Quaternion spinQ = Quaternion.AngleAxis(nav.DisplaySpin * Mathf.Rad2Deg, Vector3.up);
+            Vector3 worldNormal = (spinQ * ReflectZ(localDir)).normalized;
+            Vector3 worldNorth = (spinQ * ReflectZ(localNorth)).normalized;
+
+            camera.targetTexture = rt;
+            camera.orthographic = false;
+            camera.fieldOfView = CameraFovDeg;
+            camera.nearClipPlane = 0.002f;
+            camera.farClipPlane = 80f;
+            camera.ResetProjectionMatrix();
+            if (Math.Abs(tiltDeg) < 0.01f)
+            {
+                camera.transform.SetPositionAndRotation(worldNormal * orbitalDistance, Quaternion.LookRotation(-worldNormal, worldNorth));
+            }
+            else
+            {
+                double tiltRad = tiltDeg * (Math.PI / 180.0);
+                float ct = (float)Math.Cos(tiltRad), st = (float)Math.Sin(tiltRad);
+                Vector3 viewDirFromTarget = (worldNormal * ct + worldNorth * (-st)).normalized;
+                Vector3 camPos = worldNormal + viewDirFromTarget * Math.Max(0.05f, orbitalDistance - 1.0f);
+                Vector3 lookDir = (worldNormal + camPos * (-1f)).normalized;
+                camera.transform.SetPositionAndRotation(camPos, Quaternion.LookRotation(lookDir, worldNorth));
+            }
+
+            var settings = globe.Snapshot.settings;
+            settings.exposure = ClimateCloudQaScenarios.DefaultExposure;
+            settings.cloudQuality = quality;
+            settings.cloudCover = 1f;
+            settings.cloudDensity = 1f;
+            settings.clouds = true;
+            settings.atmosphere = true;
+            settings.night = true;
+            if (lens) lens.strength = 0f;
+            if (atmosphere) { atmosphere.fullResolutionReference = false; atmosphere.referenceCloudIntegration = false; }
+
+            var sky = map.Sky;
+            Vector3 sunLocal = sky.Sun(180f, spinDay, true);
+            map.Configure(false, nav.PixelsPerTile, 0f);
+            map.SetVegetationDay(world.Day);
+            sky.Bind(map.Material, sunLocal, true, true, true, true, false, false, true, 0f);
+            map.Material.SetFloat("_WaterClock", 0f);
+            nav.SyncMaterials();
+            globe.TickScroll(0f, ClimateCloudQaScenarios.DefaultVisualClock, world.Day, nav.DisplaySpin, 0f, true, true, true, true, sunLocal, true);
+        }
+
+        static void BenchmarkScene1280x720(
+            FlatWorldApp app, WorldData world, string label,
+            double camLonDeg, double camLatDeg, float orbitalDistance, float tiltDeg, double spinDay,
+            List<string> perfLines)
+        {
+            var inv = CultureInfo.InvariantCulture;
+            InstallAndPublishSky(app, world, ClimateCloudQaScenarios.DefaultVisualClock, 1024, world.Day + 0.25,
+                out var map, out var globe, out var nav, out var camera, out var lens, out var atmosphere);
+
+            var oldTarget = camera.targetTexture;
+            var oldRect = camera.pixelRect;
+            var oldActive = RenderTexture.active;
+            bool oldAtmo = atmosphere ? atmosphere.enabled : true;
+            var rt = RenderTexture.GetTemporary(1280, 720, 24, RenderTextureFormat.ARGB32);
+            var read1 = new Texture2D(1, 1, TextureFormat.RGB24, false);
+            try
+            {
+                foreach (int q in new[] { 1, 2 })
+                {
+                    ConfigurePose(map, globe, nav, camera, lens, atmosphere, world,
+                        camLonDeg, camLatDeg, orbitalDistance, tiltDeg, spinDay, q, 1280, 720, rt);
+
+                    Func<double> measure = () =>
+                    {
+                        var times = new double[9];
+                        for (int k = 0; k < 11; k++)
+                        {
+                            var sw = System.Diagnostics.Stopwatch.StartNew();
+                            camera.Render();
+                            RenderTexture.active = rt;
+                            read1.ReadPixels(new Rect(0, 0, 1, 1), 0, 0);
+                            read1.Apply(false, false);
+                            sw.Stop();
+                            if (k >= 2) times[k - 2] = sw.Elapsed.TotalMilliseconds;
+                        }
+                        Array.Sort(times);
+                        return times[4];
+                    };
+
+                    if (atmosphere) atmosphere.enabled = true;
+                    double volMs = measure();
+                    if (atmosphere) atmosphere.enabled = false;
+                    double noVolMs = measure();
+                    if (atmosphere) atmosphere.enabled = true;
+                    double cloudMs = Math.Max(0.0, volMs - noVolMs);
+                    string line = string.Format(inv,
+                        "BENCH | {0} | q={1} | 1280x720 | volume={2:F2} ms | no-volume={3:F2} ms | cloud={4:F2} ms",
+                        label, q, volMs, noVolMs, cloudMs);
+                    perfLines.Add(line);
+                    Debug.Log("[CloudVisualQA] " + line);
+                }
+            }
+            finally
+            {
+                if (atmosphere) atmosphere.enabled = oldAtmo;
+                camera.targetTexture = oldTarget;
+                nav.SetViewport(oldRect);
+                RenderTexture.active = oldActive;
+                UnityEngine.Object.DestroyImmediate(read1);
+                RenderTexture.ReleaseTemporary(rt);
+            }
+        }
+
+        static void CaptureTiltedShot(
+            FlatWorldApp app, WorldData world, double camLonDeg, double camLatDeg,
+            float orbitalDistance, float tiltDeg, double spinDay, int quality, string outPngPath)
+        {
+            InstallAndPublishSky(app, world, ClimateCloudQaScenarios.DefaultVisualClock, 1024, world.Day + 0.25,
+                out var map, out var globe, out var nav, out var camera, out var lens, out var atmosphere);
+
+            var oldTarget = camera.targetTexture;
+            var oldRect = camera.pixelRect;
+            var oldActive = RenderTexture.active;
+            var rt = RenderTexture.GetTemporary(BaselineRenderWidth, BaselineRenderHeight, 24, RenderTextureFormat.ARGB32);
+            var readTex = new Texture2D(BaselineRenderWidth, BaselineRenderHeight, TextureFormat.RGBA32, false);
+            try
+            {
+                ConfigurePose(map, globe, nav, camera, lens, atmosphere, world,
+                    camLonDeg, camLatDeg, orbitalDistance, tiltDeg, spinDay, quality, BaselineRenderWidth, BaselineRenderHeight, rt);
+                camera.Render();
+                RenderTexture.active = rt;
+                readTex.ReadPixels(new Rect(0, 0, BaselineRenderWidth, BaselineRenderHeight), 0, 0);
+                readTex.Apply(false, false);
+                var img = FlipToNorthFirstRgba(BaselineRenderWidth, BaselineRenderHeight, readTex.GetPixels32());
+                File.WriteAllBytes(outPngPath, OrbisRasterCodec.RGBA8(img.Width, img.Height, img.Rgba));
+            }
+            finally
+            {
+                camera.targetTexture = oldTarget;
+                nav.SetViewport(oldRect);
+                RenderTexture.active = oldActive;
+                UnityEngine.Object.DestroyImmediate(readTex);
+                RenderTexture.ReleaseTemporary(rt);
+            }
+        }
+
+        static void RunPacificBenchAndDailyCacheCheck(FlatWorldApp app, WorldData baseEarth, List<string> perfLines)
+        {
+            var inv = CultureInfo.InvariantCulture;
+            perfLines.Add($"Unity={Application.unityVersion} GPU={SystemInfo.graphicsDeviceName} API={SystemInfo.graphicsDeviceType}");
+
+            var pacWorld = ClimateCloudQaScenarios.DeepCloneWorld(baseEarth);
+            pacWorld.Day = 105.823;
+            pacWorld.Cyclones = FlatCycloneWeather.SpinUp(pacWorld);
+            BenchmarkScene1280x720(app, pacWorld, "Pacific-Globe-Apr", -132.4, 17.0, 2.85f, 0f, 105.823, perfLines);
+
+            // Measure true frame-time hitch on Earth512 when crossing a daily synoptic boundary
+            var map = typeof(FlatWorldApp).GetField("map", Private).GetValue(app) as FlatMapRenderer;
+            var sky = map.Sky;
+            var dayHitches = new double[5];
+            for (int d = 0; d < 5; d++)
+            {
+                pacWorld.Day = 107.0 + d;
+                long expectedStep = (long)Math.Floor(pacWorld.Day * 4.0);
+                double maxTickMs = 0.0;
+                var guard = System.Diagnostics.Stopwatch.StartNew();
+                while (guard.Elapsed.TotalSeconds < 5.0)
+                {
+                    var swTick = System.Diagnostics.Stopwatch.StartNew();
+                    sky.Tick(1f, true, false, false, 1024, pacWorld.Day);
+                    swTick.Stop();
+                    if (swTick.Elapsed.TotalMilliseconds > maxTickMs) maxTickMs = swTick.Elapsed.TotalMilliseconds;
+                    if (sky.RegionalClimateStep.HasValue && sky.RegionalClimateStep.Value == expectedStep)
+                        break;
+                    Thread.Sleep(1);
+                }
+                dayHitches[d] = maxTickMs;
+            }
+            Array.Sort(dayHitches);
+            string hitchLine = string.Format(inv,
+                "DAILY_CACHE_HITCH | Earth512 | 5-day peak sync Tick median={0:F2} ms | max={1:F2} ms | samples=[{2}]",
+                dayHitches[2], dayHitches[4], string.Join(", ", Array.ConvertAll(dayHitches, v => v.ToString("F2", inv))));
+            perfLines.Add(hitchLine);
+            Debug.Log("[CloudVisualQA] " + hitchLine);
+        }
+
+        static void RunTyphoonShotsAndBench(FlatWorldApp app, WorldData baseEarth, string outDir, List<string> perfLines)
+        {
+            const double stormLon = 127.2, stormLat = 19.2, phase = 4.15;
+            var wideWorld = CreateCat5TyphoonWorld(baseEarth, 228.080, stormLon, stormLat, phase);
+            BenchmarkScene1280x720(app, wideWorld, "Typhoon-Wide-FullStorm", 127.2, 19.2, 1.72f, 0f, 228.080, perfLines);
+            CaptureTiltedShot(app, wideWorld, 127.2, 19.2, 1.72f, 0f, 228.080, 2,
+                Path.Combine(outDir, "typhoon", "01_typhoon_wide_fullstorm.png"));
+
+            var closeWorld = CreateCat5TyphoonWorld(baseEarth, 228.068, stormLon, stormLat, phase);
+            BenchmarkScene1280x720(app, closeWorld, "Typhoon-CloseUp-Eyewall", 127.4, 20.1, 1.34f, 14f, 228.068, perfLines);
+            CaptureTiltedShot(app, closeWorld, 127.4, 20.1, 1.34f, 14f, 228.068, 2,
+                Path.Combine(outDir, "typhoon", "02_typhoon_eyewall_closeup.png"));
+        }
+
+        static void RunNaturalShCycloneShot(FlatWorldApp app, WorldData baseEarth, string outDir, List<string> perfLines)
+        {
+            var simWorld = ClimateCloudQaScenarios.DeepCloneWorld(baseEarth);
+            simWorld.Day = 0;
+            simWorld.Cyclones = FlatCycloneWeather.SpinUp(simWorld);
+            var sim = new FlatSimulation(simWorld);
+            double bestWind = 0, bestDay = 0;
+            FlatCycloneTrack bestTrack = default;
+            FlatCycloneWeather bestState = null;
+            for (int step = 0; step < 360 * 4; step++)
+            {
+                sim.Step(0.25f);
+                var s = simWorld.Cyclones.South;
+                if (s.Tracked && s.WindSpeed > bestWind && s.AgeDays >= 1.5)
+                {
+                    bestWind = s.WindSpeed;
+                    bestDay = simWorld.Day;
+                    bestTrack = s;
+                    bestState = simWorld.Cyclones.Clone();
+                }
+            }
+            if (bestState == null) return;
+            var shWorld = ClimateCloudQaScenarios.DeepCloneWorld(baseEarth);
+            double sLon = (bestTrack.U - 0.5) * 360.0;
+            double sLat = (bestTrack.V - 0.5) * 180.0;
+            double fracDay = Wrap01(0.5 - (sLon + 24.0) / 360.0);
+            double shotDay = Math.Floor(bestDay) + fracDay;
+            shWorld.Day = bestDay;
+            shWorld.Cyclones = bestState;
+            CaptureTiltedShot(app, shWorld, sLon, sLat, 1.68f, 0f, shotDay, 2,
+                Path.Combine(outDir, "typhoon", "03_natural_sh_cyclone_cw.png"));
+            perfLines.Add(string.Format(CultureInfo.InvariantCulture,
+                "NATURAL_SH_PEAK | day={0:F2} | pos=({1:F2}deg,{2:F2}deg) | wind={3:F1}m/s | str={4:F2} | phase={5:F2}rad",
+                bestDay, sLon, sLat, bestTrack.WindSpeed, bestTrack.Strength, bestTrack.Phase));
         }
     }
 }

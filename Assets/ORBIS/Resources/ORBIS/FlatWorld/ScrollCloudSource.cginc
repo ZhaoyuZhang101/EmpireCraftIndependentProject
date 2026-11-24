@@ -62,7 +62,7 @@ void ApplyTyphoon3DStadium(float3 up,float z,float4 centre,float spin,float rotP
  coverage=max(coverage,wallCollar*.95*eyeClear);
  highCov=max(highCov,wallCollar*.74*smoothstep(7400.0,9200.0,z)*eyeClear);
  convection=lerp(max(convection,wallCollar*.98),.12,hubZone*.92);
- float denseSpiralBand=smoothstep(.44,.84,coverage);
+ float denseSpiralBand=smoothstep(.38,.80,coverage);
  float stormCdo=(1.0-smoothstep(.34,.92,r))*smoothstep(.24,.68,centre.w)*eyeClear*denseSpiralBand;
  cdoSmooth=max(cdoSmooth,max(wallCollar,stormCdo));
 
@@ -198,19 +198,24 @@ float2 ScrollClimateDensities(float3 p,bool simpleMode)
       float closedCobble=smoothstep(.34,.66,wClosed)*(.76+.24*smoothstep(.18,.72,erosion.g));
       // Open-cell actiniform rings: Voronoi interstitial walls (1 - body.b) beaded with 7-14 km Worley cumulus puffs!
       float cellWall=1.0-(body.b*.76+body.g*.24);
-      float openRing=smoothstep(.42,.74,cellWall*.70+erosion.g*.40)*(.48+.52*smoothstep(.20,.66,erosion.r*.58+erosion.g*.42));
-      float finePopcorn=smoothstep(.36,.74,erosion.r*.52+erosion.g*.48);
+      float openRing=smoothstep(.36,.72,cellWall*.73+erosion.g*.41)*(.54+.46*smoothstep(.18,.68,erosion.r*.58+erosion.g*.42));
+      float finePopcorn=saturate(.12+.88*smoothstep(.26,.74,erosion.r*.52+erosion.g*.48));
 
       // Organic mesoscale transition between closed-cell cobblestone sheets (nearshore/high cover) and Pockets of Open Cells (POCs)
       float pocOpen=saturate(smoothstep(.24,.70,(1.0-coverage*.80)+(macroBody.g-.46)*1.22));
       float scPattern=lerp(closedCobble,openRing,pocOpen);
-      float wakePattern=lerp(openRing,finePopcorn,.32);
-      float tradePattern=lerp(finePopcorn,openRing,.42);
+      float wakePattern=lerp(openRing,finePopcorn,.40);
+      float tradePattern=lerp(finePopcorn,openRing,.36);
       float targetPattern=(marineScMask*scPattern+openWakeMask*.90*wakePattern+tradeCuMask*.55*tradePattern)/max(1e-4,cellSum);
 
-      float sculptW=saturate(marineScMask*.94+openWakeMask*.84+tradeCuMask*.52)*(1.0-smoothstep(.74,.98,coverage)*(1.0-marineScMask*.82));
-      shape=lerp(shape,saturate(shape*.22+targetPattern*.88),sculptW);
-      worleyMeso=lerp(worleyMeso,targetPattern,sculptW*.92);
+      // Keep crisp 3D Voronoi cobblestone contrast on marine Sc decks (Peru/Baja/Namibia) while preserving
+      // 79e6fa2 airy continuous shape energy & thin-veil gradients on subtropical trade bands & post-frontal ribbons!
+      float scDominance=marineScMask/max(1e-4,cellSum);
+      float sculptW=saturate(marineScMask*.94+openWakeMask*.80+tradeCuMask*.54)*(1.0-smoothstep(.72,.96,coverage)*(1.0-marineScMask*.82));
+      float baseKeep=lerp(.40,.22,scDominance);
+      float patGain=lerp(.72,.88,scDominance);
+      shape=lerp(shape,saturate(shape*baseKeep+targetPattern*patGain),sculptW*lerp(.76,1.0,scDominance));
+      worleyMeso=lerp(worleyMeso,targetPattern,sculptW*lerp(.72,.92,scDominance));
       // Crisp bright luminance & optical depth on closed-cell cobblestone pillows (Peru/Chile, Baja, Namibia)
       scCobbleGain=lerp(1.0,1.52,marineScMask*(1.0-pocOpen*.55)*closedCobble);
      }

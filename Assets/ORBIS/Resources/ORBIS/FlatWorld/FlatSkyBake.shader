@@ -117,10 +117,11 @@ Shader "ORBIS/FlatWorld/SkyBake"
     float warpAng=1.08*(cells-.5)+.46*(mesoCells-.5);
 
     // Four distinct, organically ragged, unequal-length/width/thickness spiral rainbands + feathered outer wisps:
-    // Crisp concave inner edge facing the dark spiral moat, broad feathery multi-strand convex outer flank -> VIIRS Hagibis!
+    // Crisp concave inner edge facing the spiral moat, broad feathery multi-strand convex outer flank -> VIIRS Hagibis!
     float rTaper=lerp(1.0,.82,smoothstep(.28,1.32,r));
     float clusterBreak=lerp(.56,1.12,convClusters);
-    float outerBreak=lerp(1.0,smoothstep(.18,.76,cells*.54+mesoCells*.46),smoothstep(.64,1.28,r));
+    float outerBreak=lerp(1.0,smoothstep(.12,.74,cells*.50+mesoCells*.34+fineCloud*.16),smoothstep(.62,1.34,r));
+    float edgeWisp=smoothstep(.16,.80,mesoCells*.48+fineCloud*.34+cells*.18);
 
     // Arm 1: Dominant primary principal rainband (widest, longest r=0.06..1.48, brightest convective ridge)
     float a1=phase+warpAng;
@@ -128,6 +129,7 @@ Shader "ORBIS/FlatWorld/SkyBake"
     float w1=(d1<0?.54:1.04)*rTaper*(.84+.36*cells);
     float arm1Env=(1.0-smoothstep(.94+inflowBias*.32,1.46+inflowBias*.16,r));
     float arm1=exp(-pow(d1/w1,2.0))*arm1Env*clusterBreak*outerBreak;
+    float flank1=exp(-pow(d1/(w1*(d1<0?1.26:1.72)),2.0))*arm1Env*edgeWisp*.46;
 
     // Arm 2: Secondary principal rainband (+148 deg asymmetric offset, medium length r=0.07..1.24, feathered outer flank)
     float a2=phase+2.58+warpAng*1.12+.24*sin(3.4*r);
@@ -135,6 +137,7 @@ Shader "ORBIS/FlatWorld/SkyBake"
     float w2=(d2<0?.38:.80)*rTaper*(.80+.40*mesoCells);
     float arm2Env=(1.0-smoothstep(.68+inflowBias*.26,1.22+inflowBias*.16,r));
     float arm2=exp(-pow(d2/w2,2.0))*arm2Env*.94*lerp(.50,1.12,convClusters)*outerBreak;
+    float flank2=exp(-pow(d2/(w2*(d2<0?1.22:1.68)),2.0))*arm2Env*edgeWisp*.42;
 
     // Arm 3: Outer asymmetric convergence feeder tail (+256 deg offset, long outer inflow sweep r=0.24..1.52!)
     float a3=phase+4.47+warpAng*1.18-.24*cos(3.0*r);
@@ -142,6 +145,7 @@ Shader "ORBIS/FlatWorld/SkyBake"
     float w3=(d3<0?.36:.72)*lerp(1.0,.84,smoothstep(.45,1.35,r))*(.78+.42*cells);
     float arm3Env=smoothstep(.16,.38,r)*(1.0-smoothstep(.96+inflowBias*.28,1.50+inflowBias*.12,r))*(.56+.54*inflowBias);
     float arm3=exp(-pow(d3/w3,2.0))*arm3Env*.86*smoothstep(.14,.76,cells*.52+mesoCells*.48);
+    float flank3=exp(-pow(d3/(w3*(d3<0?1.22:1.66)),2.0))*arm3Env*edgeWisp*.38;
 
     // Arm 4: Inner comma CDO spiral rib (+66 deg, r=0.06..0.64 -> merges with Arm 1 into an asymmetric comma CDO!)
     float a4=phase+1.15+warpAng*.85;
@@ -149,10 +153,12 @@ Shader "ORBIS/FlatWorld/SkyBake"
     float w4=(d4<0?.40:.70)*(.86+.28*cells);
     float arm4Env=(1.0-smoothstep(.36,.68,r));
     float arm4=exp(-pow(d4/w4,2.0))*arm4Env*.90*lerp(.68,1.06,cells);
+    float flank4=exp(-pow(d4/(w4*(d4<0?1.20:1.56)),2.0))*arm4Env*edgeWisp*.44;
 
     // Subtle secondary sub-filament spurs peeling off convex outer rainband flanks (prevents single-snake outer arm!)
-    float subSpur=pow(.5+.5*cos(2.0*phase+1.7+1.4*(mesoCells-.5)),2.4)*smoothstep(.34,.78,cells)*smoothstep(.26,.54,r)*(1.0-smoothstep(.84,1.32,r))*.58;
+    float subSpur=pow(.5+.5*cos(2.0*phase+1.7+1.4*(mesoCells-.5)),2.4)*smoothstep(.34,.78,cells)*smoothstep(.26,.54,r)*(1.0-smoothstep(.84,1.34,r))*.58;
     float bandCore=saturate(max(max(max(arm1,arm2),max(arm3,arm4)),subSpur));
+    float bandSkirt=saturate(max(max(flank1,flank2),max(flank3,flank4)));
     float bandInner=saturate(max(arm1,max(arm2*.90,arm4*.94)));
 
     // Asymmetric comma-wrapped inner CDO + organically warped eyewall collar:
@@ -165,54 +171,56 @@ Shader "ORBIS/FlatWorld/SkyBake"
     float wall=max(innerWall,cdoComma);
     float eye=lerp(1.0,smoothstep(.022,.076,r+.007*distort),maturity);
 
-    // Natural inter-band spiral moats: dark-blue ocean channels + curled low-altitude cumulus streets (1.2-2.6 km)
-    // and wispy rainband-flank skirts so gaps read as authentic marine boundary-layer moats rather than empty trenches!
-    float moatMask=saturate(1.0-smoothstep(.16,.66,max(wall,bandCore)));
-    float innerCrease=(1.0-smoothstep(.24,.76,r))*lerp(.28,.48,convClusters)*moatMask*(1.0-.48*upwindDry);
-    float streetWave=.5+.5*cos(6.0*phase+2.2*(fineCloud-.5));
-    float moatStreets=smoothstep(.30,.74,mesoCells*.46+fineCloud*.34+streetWave*.20);
-    float moatCumulus=moatMask*(1.0-smoothstep(.52,1.32,r))*moatStreets*lerp(.48,.22,upwindDry);
-    float lowMoat=max(innerCrease,moatCumulus);
+    // Natural inter-band spiral moats: soft feathered rainband skirts, curled boundary-layer cumulus streets (1.2-2.8 km),
+    // and gentle misty inflow veil softening close-up canyon walls while preserving crisp spiral channels from orbit!
+    float moatMask=saturate(1.0-smoothstep(.14,.68,max(wall,bandCore)));
+    float innerCrease=(1.0-smoothstep(.22,.84,r))*lerp(.24,.50,smoothstep(.18,.82,convClusters*.65+fineCloud*.35))*moatMask*(1.0-.42*upwindDry);
+    float streetWave=.5+.5*cos(5.0*phase+2.0*(fineCloud-.5)+1.2*(mesoCells-.5));
+    float moatStreets=smoothstep(.22,.74,mesoCells*.44+fineCloud*.36+streetWave*.20);
+    float moatHaze=moatMask*(1.0-smoothstep(.42,1.36,r))*(.10+.24*smoothstep(.24,.76,cells*.55+fineCloud*.45))*lerp(.88,.44,upwindDry);
+    float moatCumulus=moatMask*(1.0-smoothstep(.56,1.38,r))*moatStreets*lerp(.54,.28,upwindDry);
+    float lowMoat=max(max(innerCrease,moatCumulus),max(moatHaze,bandSkirt*.92));
 
     float organizedBody=max(max(wall,bandCore),lowMoat);
     float bodyCover=lerp(saturate(cells*.76+.24*bandCore),organizedBody,organized);
     float low=eye*saturate(bodyCover*(.94+.08*spiralRipple));
 
     // Distinct 3D height hierarchy: towering 11-12 km Cb ridges on eyewall & principal rainbands,
-    // mid-height convective shelves along band flanks, shallow 1.2-2.6 km cumulus streets in inter-band moats!
-    float bandConv=max(wall*maturity*.98,max(arm1*.95,max(arm2*.86,max(arm3*.76,max(arm4*.88,subSpur*.62))))*(.52+.56*centre.w));
-    float convection=eye*saturate(lerp(bandConv,.18+.18*moatStreets,moatMask*.82));
+    // mid-height convective shelves along feathered outer band flanks, shallow 1.2-2.8 km cumulus streets in moats!
+    float flankConv=bandSkirt*(.30+.18*cells);
+    float bandConv=max(max(wall*maturity*.98,max(arm1*.95,max(arm2*.86,max(arm3*.76,max(arm4*.88,subSpur*.62))))*(.52+.56*centre.w)),flankConv);
+    float convection=eye*saturate(lerp(bandConv,.16+.16*moatStreets,moatMask*.78));
     float stormCore=eye*smoothstep(.42,.82,convection)*smoothstep(.34,.74,low);
 
     // Asymmetric storm envelope: tighter upwind/dry flank, sweeping downwind/inflow rainband tails
-    float lowOuter=lerp(1.10,1.48,inflowBias);
-    float lowBoundary=1.0-smoothstep(.64*lowOuter,lowOuter,r+.12*distort);
-    float bandReach=saturate(bandCore*1.20)*(1.0-smoothstep(1.10,1.52,r));
-    float lowInfluence=saturate(max(lowBoundary*(.74+.26*organized),bandReach))*smoothstep(.035,.44,centre.w);
+    float lowOuter=lerp(1.12,1.52,inflowBias);
+    float lowBoundary=1.0-smoothstep(.58*lowOuter,lowOuter,r+.14*distort);
+    float bandReach=saturate(max(bandCore*1.16,bandSkirt*.95))*(1.0-smoothstep(1.06,1.54,r));
+    float lowInfluence=saturate(max(lowBoundary*(.72+.28*organized),bandReach))*smoothstep(.035,.44,centre.w);
 
     // Spiral-aligned feathery anticyclonic cirrus outflow fan:
     // Caps the eyewall, comma CDO & towering rainband crests, then fans smoothly outward along the storm's spin
-    // into silky translucent downwind plumes while preserving clear dark-blue inter-band moats!
+    // into silky translucent downwind plumes while preserving readable inter-band spiral channels!
     float outflowTurn=turn+1.15*pow(max(r-.16,0.0),1.26);
     float icePhase=bearingInStorm+spin*outflowTurn+.92*(cells-.5)+.45*distortA;
     float2 outFlowPos=float2(cos(icePhase),sin(icePhase))*(r*1.15);
     float outflowWisps=Fbm(float3(outFlowPos*4.2,3.1)+seed);
-    float outflowRibbonA=pow(.5+.5*cos(2.0*icePhase+1.2*(outflowWisps-.5)),1.7)*smoothstep(.22,.74,outflowWisps);
-    float outflowRibbonB=pow(.5+.5*cos(3.0*icePhase+1.6+1.1*(fineCloud-.5)),2.0)*smoothstep(.28,.78,outflowWisps)*.78;
-    float outflowPlumes=max(outflowRibbonA,outflowRibbonB)*smoothstep(.14,.42,r)*(1.0-smoothstep(.90,1.52,r));
+    float outflowRibbonA=pow(.5+.5*cos(2.0*icePhase+1.2*(outflowWisps-.5)),1.7)*smoothstep(.20,.74,outflowWisps);
+    float outflowRibbonB=pow(.5+.5*cos(3.0*icePhase+1.6+1.1*(fineCloud-.5)),2.0)*smoothstep(.26,.78,outflowWisps)*.78;
+    float outflowPlumes=max(outflowRibbonA,outflowRibbonB)*smoothstep(.14,.42,r)*(1.0-smoothstep(.92,1.54,r));
     float cdoIce=(1.0-smoothstep(.16,.42,rCdo))*.88*innerSwirlRelief;
-    float bandIce=saturate(arm1*.92+arm2*.78+arm3*.58+arm4*.82+subSpur*.55);
+    float bandIce=saturate(arm1*.92+arm2*.78+arm3*.58+arm4*.82+subSpur*.55+bandSkirt*.42);
     float fanAsym=.58+.52*inflowBias*(1.0-.38*upwindDry);
-    float moatCirrusKeep=lerp(1.0,.42,moatMask*smoothstep(.22,.56,r));
-    float upper=eye*saturate(max(cdoIce*maturity,max(bandIce*.84,outflowPlumes*.80*fanAsym))*moatCirrusKeep*(.60+.48*organized));
-    float outOuter=lerp(1.20,1.56,inflowBias);
-    float outBoundary=1.0-smoothstep(.74*outOuter,outOuter,r+.12*distort);
-    float outInfluence=saturate(max(outBoundary,bandReach*.92))*smoothstep(.035,.46,centre.w);
+    float moatCirrusKeep=lerp(1.0,.50,moatMask*smoothstep(.24,.60,r));
+    float upper=eye*saturate(max(cdoIce*maturity,max(bandIce*.84,outflowPlumes*.82*fanAsym))*moatCirrusKeep*(.60+.48*organized));
+    float outOuter=lerp(1.22,1.58,inflowBias);
+    float outBoundary=1.0-smoothstep(.70*outOuter,outOuter,r+.14*distort);
+    float outInfluence=saturate(max(outBoundary,bandReach*.90))*smoothstep(.035,.46,centre.w);
 
     weather.rb=lerp(weather.rb,float2(low,.14+.86*convection),lowInfluence);
     weather.a=lerp(weather.a,stormCore,lowInfluence);
-    // Preserve clear spiral moats by attenuating ambient background upper clouds inside the moat channels
-    weather.g=lerp(weather.g,max(weather.g*(.16+.24*(1.0-moatMask)),upper),outInfluence);
+    // Preserve readable spiral moats while blending outer storm cirrus smoothly into ambient upper clouds
+    weather.g=lerp(weather.g,max(weather.g*(.20+.26*(1.0-moatMask)),upper),outInfluence);
    }
    struct EraMorphology
    {
@@ -227,30 +235,30 @@ Shader "ORBIS/FlatWorld/SkyBake"
     float3 seed=float3(Hash3(float3(eraId,4,7)),Hash3(float3(eraId,11,3)),Hash3(float3(eraId,5,19)))*15.0;
 
     // Two-stage divergence-free spherical curl-streamfunction advection ("cream-in-coffee" geophysical fluid swirl!):
-    // Stronger planetary-scale swirl (0.26) + synoptic eddy curl (0.10) bends cloud sheets into authentic EPIC
-    // sweeping C-arcs, S-ribbons & hooked cyclonic eddies while gathering clouds into coherent synoptic clusters!
+    // Planetary-scale swirl (0.25) + synoptic eddy curl (0.095) bends cloud sheets into authentic EPIC
+    // sweeping C-arcs, S-ribbons & hooked cyclonic eddies without over-fragmenting continuous bands!
     float3 psi1=float3(
-     Fbm(p*1.85+wander*.50+seed+17.0),
-     Fbm(p*1.85+wander*.50+seed+43.0),
-     Fbm(p*1.85+wander*.50+seed+71.0))-.5;
+     Fbm(p*1.92+wander*.50+seed+17.0),
+     Fbm(p*1.92+wander*.50+seed+43.0),
+     Fbm(p*1.92+wander*.50+seed+71.0))-.5;
     float3 curl1=cross(p,psi1);
-    float3 p1=normalize(p+curl1*.26);
+    float3 p1=normalize(p+curl1*.25);
 
     float3 psi2=float3(
-     Noise3(Turn(p1)*4.2+seed+11.0),
-     Noise3(Turn(p1)*4.2+seed+29.0),
-     Noise3(Turn(p1)*4.2+seed+53.0))-.5;
+     Noise3(Turn(p1)*4.3+seed+11.0),
+     Noise3(Turn(p1)*4.3+seed+29.0),
+     Noise3(Turn(p1)*4.3+seed+53.0))-.5;
     float3 curl2=cross(p1,psi2);
-    float3 pFlow=normalize(p1+curl2*.10);
+    float3 pFlow=normalize(p1+curl2*.095);
 
     // 1. Multi-scale TRUE spherical flow-combed fields (3-tap tangent LIC along local climate wind!).
     float3 flowDir=normalize(lerp(windAxis,jetAxis,.42)+float3(1e-5,0,0));
     float licStep=lerp(.016,.032,windSpd);
     float3 pFlowP=normalize(pFlow+flowDir*licStep);
     float3 pFlowM=normalize(pFlow-flowDir*licStep);
-    // Planetary-scale synoptic high/low clustering field (creates broad coherent cloud complexes & natural quiet clear basins!)
+    // Subtle planetary-scale synoptic clustering modulation (gently shapes clear basins without carving bald holes!)
     float synCluster=Fbm(p1*1.38+wander*.38+seed*.55+float3(11.3,2.7,8.4));
-    float planetary=Fbm(p1*1.90+wander*.46+seed*.7+float3(3.1,7.4,1.9));
+    float planetary=Fbm(p1*1.78+wander*.46+seed*.7+float3(3.1,7.4,1.9));
     float synoptic=(Noise3(Turn(pFlow)*4.2+wander*.75+seed)+
                     Noise3(Turn(pFlowP)*4.2+wander*.75+seed)+
                     Noise3(Turn(pFlowM)*4.2+wander*.75+seed))*(1.0/3.0);
@@ -263,25 +271,25 @@ Shader "ORBIS/FlatWorld/SkyBake"
     float fineGrain=Noise3(Turn(pFlow)*58.0+seed*2.7)*.54+
                     Noise3(Turn(normalize(pFlow+jetAxis*.016))*58.0+seed*2.7)*.46;
 
-    // 1b. Geostrophic Baroclinic Sweeping Fluid Bands (continuous planetary-scale curved sheets & graceful arcs!):
-    // Moderate meridional stretch (4.6) avoids central-ocean parallel zebra-dashes while keeping smooth fluid ribbons!
+    // 1b. Geostrophic Baroclinic Sweeping Fluid Bands (restores 79e6fa2 continuous 3,000-6,000 km sweeping arcs
+    // with broad translucent vapor aprons surrounding luminous fibrous spines!):
     float eqWeight=smoothstep(.04,.44,length(radial.xz));
-    float yStretch1=lerp(1.75,4.10,eqWeight);
-    float yStretch2=lerp(2.05,4.85,eqWeight);
-    float3 pWave=normalize(p+curl1*.36+curl2*.08);
-    float hemiDiag=.28*(latitude/(abs(latitude)+.28));
-    float baroY=pWave.y+hemiDiag*sin(longitude*2.0+psi1.x*2.4)*eqWeight*.19+.15*psi1.y;
-    float3 qBand1=float3(pWave.x*1.28,baroY*yStretch1,pWave.z*1.28);
-    float3 qBand2=float3(pWave.x*2.25,baroY*yStretch2,pWave.z*2.25);
+    float yStretch1=lerp(1.85,5.75,eqWeight);
+    float yStretch2=lerp(2.20,8.05,eqWeight);
+    float3 pWave=normalize(p+curl1*.36+curl2*.075);
+    float hemiDiag=.28*(latitude/(abs(latitude)+.30));
+    float baroY=pWave.y+hemiDiag*sin(longitude*2.0+psi1.x*2.4)*eqWeight*.18+.13*psi1.y;
+    float3 qBand1=float3(pWave.x*1.35,baroY*yStretch1,pWave.z*1.35);
+    float3 qBand2=float3(pWave.x*2.52,baroY*yStretch2,pWave.z*2.52);
     float bandField1=Fbm(qBand1+wander*.40+seed+float3(13.4,27.1,5.8));
-    float bandField2=Noise3(qBand2+wander*.56+seed+float3(47.2,11.8,19.4))*.62+
-                     Noise3(qBand2*1.75+wander*.68+seed+float3(19.1,5.7,31.4))*.38;
-    float bandH=bandField1*.60+bandField2*.18+planetary*.10+flowBands*.08+fineGrain*.04;
-    float bandVeil=smoothstep(.35,.74,bandH);
-    float bandSpine=smoothstep(.53,.84,bandH*.72+flowBands*.18+fineGrain*.10);
-    float ribbonSilk=.45+.55*smoothstep(.16,.84,flowBands*.58+fineGrain*.42);
-    o.curvedBand=saturate(bandVeil*.54+bandSpine*.56*ribbonSilk);
-    o.curvedWisp=saturate((bandVeil*.66+bandSpine*.50)*ribbonSilk);
+    float bandField2=Noise3(qBand2+wander*.56+seed+float3(47.2,11.8,19.4))*.60+
+                     Noise3(qBand2*1.85+wander*.68+seed+float3(19.1,5.7,31.4))*.40;
+    float bandH=bandField1*.55+bandField2*.25+flowBands*.13+mesoCells*.04+fineGrain*.03;
+    float bandVeil=smoothstep(.34,.74,bandH);
+    float bandSpine=smoothstep(.52,.84,bandH*.72+flowBands*.18+fineGrain*.10);
+    float ribbonSilk=.42+.58*smoothstep(.16,.84,flowBands*.58+fineGrain*.42);
+    o.curvedBand=saturate(bandVeil*.56+bandSpine*.54*ribbonSilk);
+    o.curvedWisp=saturate((bandVeil*.68+bandSpine*.48)*ribbonSilk);
 
     // 2. Regime A: Subtropical Marine Stratocumulus Closed/Open-Cell Mesoscale Envelope & Trade Streets
     // Keep 2D cache frequencies strictly below 1024x512 Nyquist (k<=66) so low-orbit marine Sc has ZERO aliasing;
@@ -290,22 +298,21 @@ Shader "ORBIS/FlatWorld/SkyBake"
                         Noise3(Turn(normalize(pFlow+windAxis*.020))*46.0+seed+5.0)+
                         Noise3(Turn(normalize(pFlow-windAxis*.020))*46.0+seed+5.0))*(1.0/3.0);
     float mesoFoam=Noise3(Turn(pFlow)*66.0+seed+13.0);
-    float streetEnv=smoothstep(.26,.66,synCluster*.36+planetary*.34+bandField1*.30);
-    o.tradeStreets=saturate(synCluster*.20+planetary*.20+synoptic*.18+streetRipple*.24+smoothstep(.38,.74,mesoFoam)*.32*streetEnv);
+    float streetEnv=smoothstep(.24,.64,planetary*.42+synoptic*.30+bandField1*.28);
+    o.tradeStreets=saturate(planetary*.23+synoptic*.19+streetRipple*.24+smoothstep(.35,.72,mesoFoam)*.42*streetEnv);
 
     // Coherent eastern-boundary marine Sc sheets with organic mesoscale Pockets of Open Cells (POCs)
-    // Modulated strongly by synCluster so Sc forms natural meandering decks + clear ocean bays (NEVER a zonal band!)
-    float scDeckMacro=smoothstep(.26,.68,synCluster*.44+planetary*.34+synoptic*.22);
+    float scDeckMacro=smoothstep(.24,.64,synCluster*.26+planetary*.44+synoptic*.30);
     float scPocRift=smoothstep(.28,.72,Noise3(Turn(pFlow)*14.0+seed+29.0)*.62+mesoCells*.38);
     float scBreak=smoothstep(.30,.72,mesoFoam*.55+streetRipple*.45);
-    o.honeycomb=saturate(scDeckMacro*(.50+.30*scPocRift+.22*scBreak));
+    o.honeycomb=saturate(scDeckMacro*(.52+.28*scPocRift+.22*scBreak));
 
     o.planetary=planetary;
     o.synCluster=synCluster;
     o.flowBands=flowBands;
     o.mesoCells=mesoCells;
     o.fineGrain=fineGrain;
-    o.baseTex=synCluster*.26+planetary*.26+synoptic*.24+bandField1*.14+flowBands*.07+mesoCells*.03;
+    o.baseTex=planetary*.32+synoptic*.30+bandField1*.20+flowBands*.12+mesoCells*.04+fineGrain*.02;
 
     // 3. Regime B: Slender, Sinuous Continuous Pacific ITCZ Line + Sweeping Diagonal SPCZ Multi-Strand Ribbon
     // studded with tight dazzling-white Cb hot-towers & long downwind brushed-silk cirrus anvil plumes!
@@ -316,8 +323,8 @@ Shader "ORBIS/FlatWorld/SkyBake"
                       Noise3(Turn(pFlowM)*15.0+wander*.65+seed+float3(5.3,1.7,8.9)))*(1.0/3.0);
     float itczSlender=smoothstep(.38,.74,itczField*.64+itczRibbon*.26+fineGrain*.10);
     float hotTowers=smoothstep(.36,.74,mesoCells*.50+mesoFoam*.34+fineGrain*.16);
-    float mcsEnv=smoothstep(.24,.72,max(itczSlender*1.04,synCluster*.26+synoptic*.28+itczRibbon*.46));
-    o.mcsCluster=saturate(mcsEnv*(.36+.64*hotTowers));
+    float mcsEnv=smoothstep(.22,.70,max(itczSlender*1.04,planetary*.24+synoptic*.28+itczRibbon*.48));
+    o.mcsCluster=saturate(mcsEnv*(.38+.62*hotTowers));
     float3 pAnvilNear=normalize(pFlow-jetAxis*.058);
     float3 pAnvilFar=normalize(pFlow-jetAxis*.155);
     float anvilNear=Fbm(pAnvilNear*4.6+wander*.65+seed);
@@ -328,7 +335,7 @@ Shader "ORBIS/FlatWorld/SkyBake"
     o.anvilShield=smoothstep(.28,.70,anvilNear*.40+anvilFar*.32+anvilSilk*.28)*(.38+.62*mcsEnv);
 
     // 4. Regime C: NASA EPIC / VIIRS Sweeping Curved Mid-Latitude Frontal Banners + Bold 2.5-Turn Spiral Comma Cyclones
-    // + Meandering Non-Zonal Rossby Storm Tracks + High-Latitude Polar Vortex Trough Openings + Post-Frontal Open Cells!
+    // + Planetary-Scaled Rossby Storm Tracks + Gentle Polar Cap Leads + Post-Frontal Open Cells!
     float hemiSign=latitude>=0?1.0:-1.0;
     float3 hSeed=seed+(latitude>=0?float3(0,0,0):float3(19.7,41.3,13.9));
     float k1=max(2.0,floor(rossbyK+.35+.5));
@@ -337,34 +344,33 @@ Shader "ORBIS/FlatWorld/SkyBake"
     float eraLon2=6.2831853*Hash3(float3(eraId,15.0+hemiSign*3.0,6));
     float packPhase=6.2831853*Hash3(float3(eraId,23.0+hemiSign*5.0,11));
 
-    // Strong Rossby wave-packet modulation concentrates energy into 2-3 dramatic curved cyclones per hemisphere
-    // with wide, crisp dark-ocean anticyclonic clearings between storm packets (eliminates fixed zonal bands!)
-    float packetWave=.56*cos(longitude-.35*age+packPhase)+.44*cos(2.0*longitude+.22*age+eraLon2);
-    float packetEnv=smoothstep(-.42,.46,packetWave+(synCluster-.5)*1.25);
+    // Coherent Rossby wave-packet modulation matching 79e6fa2 continuity while preserving anticyclonic clear basins
+    float packetWave=.58*cos(longitude-.35*age+packPhase)+.42*cos(2.0*longitude+.22*age+eraLon2);
+    float packetEnv=smoothstep(-.48,.42,packetWave+(planetary*.65+synCluster*.35-.5)*1.05);
 
-    // Meandering storm latitude swings +-10 deg with Rossby waves so fronts never march along a fixed parallel!
-    float rossbyMeander=.155*sin(k1*longitude-.42*age+hSeed.y)+.085*cos(k2*longitude+.30*age+hSeed.z)+.08*(synCluster-.5);
-    float stormLatRad=clamp(polarLatRad*.86+rossbyMeander,.52,.98);
-    float theta=k1*longitude-.88*age+eraLon1+.62*sin(k2*longitude-1.12*age+eraLon2)+.34*sin(longitude+hSeed.x);
+    // Un-truncated storm track latitude follows planetary polarLatRad (supports slow-rotator 0.45x double-cell up to ~75 deg!)
+    float rossbyMeander=.125*sin(k1*longitude-.42*age+hSeed.y)+.065*cos(k2*longitude+.30*age+hSeed.z)+.05*(synCluster-.5);
+    float stormLatRad=clamp(polarLatRad*.85+rossbyMeander,.54,1.32);
+    float theta=k1*longitude-.88*age+eraLon1+.60*sin(k2*longitude-1.12*age+eraLon2)+.32*sin(longitude+hSeed.x);
     float waveS=sin(theta),waveC=cos(theta);
-    float waveFade=smoothstep(-.84,-.02,waveC)*(.34+.66*packetEnv);
-    float dx=atan2(waveS,waveC)/max(1.4,k1+.12)*max(.24,cos(latitude));
+    float waveFade=smoothstep(-.88,-.06,waveC)*(.44+.56*packetEnv);
+    float dx=atan2(waveS,waveC)/max(1.4,k1+.14)*max(.24,cos(latitude));
     float dy=(abs(latitude)-stormLatRad);
 
     // Boldly wound 2.5-turn spiral occluded comma cyclone with dramatic dark-blue dry-intrusion channel
-    float2 vortVec=float2(dx+.050+.032*(synoptic-.5),dy-.045+.028*(planetary-.5));
-    float rVort=length(vortVec)/lerp(.31,.44,saturate(3.4-k1));
-    float vortAng=atan2(vortVec.y,vortVec.x+1e-6)+4.75*log(1.0+8.2*rVort)+.62*(synoptic-.5)+.32*(flowBands-.5);
+    float2 vortVec=float2(dx+.052+.032*(synoptic-.5),dy-.048+.028*(planetary-.5));
+    float rVort=length(vortVec)/lerp(.32,.45,saturate(3.4-k1));
+    float vortAng=atan2(vortVec.y,vortVec.x+1e-6)+4.60*log(1.0+8.0*rVort)+.62*(synoptic-.5)+.32*(flowBands-.5);
     float spiralWave=cos(vortAng);
-    float spiralPrimary=smoothstep(-.10,.70,spiralWave);
-    float spiralSecondary=smoothstep(.18,.86,cos(2.0*vortAng+1.15))*.72;
-    float commaCollar=exp(-pow((rVort-.16)/.088,2.0))*.82;
-    float commaHead=(1.0-smoothstep(.58,1.34,rVort))*smoothstep(.024,.088,rVort)*max(max(spiralPrimary,spiralSecondary),commaCollar);
-    float spiralDryTongue=smoothstep(-.02,.64,-spiralWave)*(1.0-smoothstep(.16,1.26,rVort))*smoothstep(.016,.078,rVort);
-    float vortexEyeClear=(1.0-smoothstep(.016,.076,rVort))*.94;
+    float spiralPrimary=smoothstep(-.14,.69,spiralWave);
+    float spiralSecondary=smoothstep(.15,.85,cos(2.0*vortAng+1.15))*.72;
+    float commaCollar=exp(-pow((rVort-.16)/.092,2.0))*.80;
+    float commaHead=(1.0-smoothstep(.60,1.38,rVort))*smoothstep(.024,.090,rVort)*max(max(spiralPrimary,spiralSecondary),commaCollar);
+    float spiralDryTongue=smoothstep(.00,.66,-spiralWave)*(1.0-smoothstep(.18,1.24,rVort))*smoothstep(.018,.082,rVort);
+    float vortexEyeClear=(1.0-smoothstep(.018,.078,rVort))*.92;
 
-    // Sweeping 5,500 km curved cold-front banner reaching equatorward into subtropics with CRISP rear edge!
-    float3 frontTangent=normalize(east*.66+north*hemiSign*.75+1e-5);
+    // Sweeping 5,500 km curved cold-front banner reaching equatorward into subtropics
+    float3 frontTangent=normalize(east*.67+north*hemiSign*.74+1e-5);
     float frontSilkA=(Noise3(Turn(pFlow)*22.0+hSeed)+
                       Noise3(Turn(normalize(pFlow+frontTangent*.028))*22.0+hSeed)+
                       Noise3(Turn(normalize(pFlow-frontTangent*.028))*22.0+hSeed))*(1.0/3.0);
@@ -372,39 +378,41 @@ Shader "ORBIS/FlatWorld/SkyBake"
                       Noise3(Turn(normalize(pFlow+frontTangent*.018))*48.0+hSeed+7.0))*.5;
     float frontFilament=frontSilkA*.62+frontSilkB*.38;
 
-    float dxFront=-.01+1.04*(dy-.04)-.52*(dy-.04)*abs(dy-.04);
-    float dFront=dx-dxFront+.034*(synoptic-.5)+.020*(frontFilament-.5);
+    float dxFront=-.01+1.00*(dy-.04)-.47*(dy-.04)*abs(dy-.04);
+    float dFront=dx-dxFront+.036*(synoptic-.5)+.021*(frontFilament-.5);
     // Asymmetric cold front: crisp drop on cold/rear side (dFront < 0), graceful multi-strand veil on warm/front side (dFront > 0)
-    float frontWidth=dFront<0?.046:.086;
-    float coldFront=exp(-pow(dFront/frontWidth,2.0))*smoothstep(-.64,-.18,dy)*(1.0-smoothstep(.16,.36,dy))*(.76+.42*frontFilament);
-    float coldFrontApron=exp(-pow((dFront-.060)/.138,2.0))*smoothstep(-.60,-.12,dy)*(1.0-smoothstep(.18,.38,dy))*.60*(.50+.50*frontFilament);
+    float frontWidth=dFront<0?.058:.092;
+    float coldFront=exp(-pow(dFront/frontWidth,2.0))*smoothstep(-.62,-.18,dy)*(1.0-smoothstep(.16,.36,dy))*(.74+.42*frontFilament);
+    float coldFrontApron=exp(-pow((dFront-.054)/.148,2.0))*smoothstep(-.58,-.12,dy)*(1.0-smoothstep(.18,.38,dy))*.64*(.52+.48*frontFilament);
 
-    float dWarm=(dy-(.072-.54*max(0.0,dx+.02)))+.028*(synoptic-.5);
-    float warmFront=exp(-pow(dWarm/.080,2.0))*smoothstep(-.10,.04,dx)*(1.0-smoothstep(.28,.52,dx))*(.68+.44*frontFilament);
+    float dWarm=(dy-(.072-.53*max(0.0,dx+.02)))+.029*(synoptic-.5);
+    float warmFront=exp(-pow(dWarm/.086,2.0))*smoothstep(-.10,.04,dx)*(1.0-smoothstep(.28,.52,dx))*(.68+.44*frontFilament);
 
-    float wcb=smoothstep(-.01,.11,dFront)*(1.0-smoothstep(.12,.38,dFront))*smoothstep(-.38,.22,dy)*(1.0-smoothstep(.24,.46,dy));
-    float drySlot=exp(-pow((dFront+.082)/.076,2.0))*smoothstep(-.54,-.04,dy)*(1.0-smoothstep(.18,.40,dy));
+    float wcb=smoothstep(-.02,.11,dFront)*(1.0-smoothstep(.12,.40,dFront))*smoothstep(-.36,.22,dy)*(1.0-smoothstep(.24,.46,dy));
+    float drySlot=exp(-pow((dFront+.086)/.076,2.0))*smoothstep(-.50,-.04,dy)*(1.0-smoothstep(.16,.38,dy));
 
     // Post-frontal cold-air wake envelope (triggers crisp 3D Worley open-cell cumulus lace in ScrollCloudSource!)
-    float coldWake=smoothstep(.04,.16,-dFront)*(1.0-smoothstep(.42,.80,-dFront))*smoothstep(-.52,.26,dy);
-    float wakeLoop=saturate(coldWake+spiralDryTongue*.85);
-    float openCellPatch=smoothstep(.24,.66,Noise3(Turn(pFlow)*18.0+hSeed+17.0)*.58+mesoCells*.42);
+    float coldWake=smoothstep(.04,.17,-dFront)*(1.0-smoothstep(.40,.78,-dFront))*smoothstep(-.50,.25,dy);
+    float wakeLoop=saturate(coldWake+spiralDryTongue*.84);
+    float openCellPatch=smoothstep(.22,.64,Noise3(Turn(pFlow)*18.0+hSeed+17.0)*.58+mesoCells*.42);
     float openCellMeso=smoothstep(.34,.72,mesoFoam*.60+fineGrain*.40);
-    float postCells=wakeLoop*(.44+.56*openCellMeso)*(.48+.52*openCellPatch)*.88;
+    float postCells=wakeLoop*(.46+.54*openCellMeso)*(.50+.50*openCellPatch)*.90;
 
-    // High-latitude baroclinic wave-trough openings (46-84 deg): carves realistic dark-ocean/land leads
-    // & curved swirling polar-vortex bands so Bering/Siberia/Arctic & Antarctic NEVER freeze into solid white slabs!
-    float highLatZone=smoothstep(.66,.86,abs(radial.y));
+    // Gentle high-latitude polar-cap leads strictly poleward of the storm track (scales with polarLatRad so
+    // mid-latitude Pacific/Southern Ocean frontal banners and 0.45x slow-rotator polar fronts are NEVER truncated!)
+    float polarZoneStart=sin(clamp(polarLatRad*.98,.92,1.34));
+    float polarZoneEnd=sin(clamp(polarLatRad*1.16,1.16,1.50));
+    float highLatZone=smoothstep(polarZoneStart,polarZoneEnd,abs(radial.y));
     float polarTroughWave=Fbm(pWave*2.55+wander*.44+hSeed+float3(23.1,9.4,15.7));
     float polarSwirlLead=Noise3(p1*3.4+wander*.52+hSeed+float3(5.2,31.7,11.1));
-    float polarLead=smoothstep(.42,.74,1.0-(polarTroughWave*.65+polarSwirlLead*.35)+.18*(1.0-bandField1));
+    float polarLead=smoothstep(.48,.80,1.0-(polarTroughWave*.65+polarSwirlLead*.35)+.12*(1.0-bandField1));
     o.polarCarve=highLatZone*polarLead;
 
-    o.frontalLow=waveFade*saturate(max(max(commaHead*(.92+.16*frontFilament),max(coldFront,coldFrontApron)),warmFront*.94)+.54*wcb*(.54+.46*frontFilament));
+    o.frontalLow=waveFade*saturate(max(max(commaHead*(.92+.16*frontFilament),max(coldFront,coldFrontApron)),warmFront*.94)+.56*wcb*(.55+.45*frontFilament));
     o.postFrontCells=waveFade*postCells;
-    o.frontalMid=waveFade*saturate(warmFront+.80*wcb+commaHead*.66+coldFrontApron*.52);
+    o.frontalMid=waveFade*saturate(warmFront+.82*wcb+commaHead*.68+coldFrontApron*.54);
     o.frontalDry=waveFade*saturate(max(drySlot,max(spiralDryTongue*.96,vortexEyeClear)));
-    o.wcbCirrus=waveFade*saturate(wcb*(.74+.36*frontFilament)+commaHead*.92+warmFront*.76+coldFront*.70+coldFrontApron*.58);
+    o.wcbCirrus=waveFade*saturate(wcb*(.76+.34*frontFilament)+commaHead*.92+warmFront*.78+coldFront*.72+coldFrontApron*.60);
     return o;
    }
    float4 frag(v2f_img i):SV_Target
@@ -427,7 +435,7 @@ Shader "ORBIS/FlatWorld/SkyBake"
     velocity*=min(1,.025/max(.0001,length(velocity)));
 
     float4 forcing=float4(.5,0,0,wet);
-    float4 aux=float4(0,0,0,.68);
+    float4 aux=float4(0,0,0,.55);
     float3 jetAxis=normalize(float3(.84,.25,.48));
     if(_GlebaCloudEnable>.5)
     {
@@ -440,7 +448,11 @@ Shader "ORBIS/FlatWorld/SkyBake"
      float jetLen=length(jetVec);
      if(jetLen>1e-3&&length(radial.xz)>.08)jetAxis=jetVec/jetLen;
     }
-    float polarLatRad=(30.0+45.0*aux.a)*.01745329;
+    // Decode un-truncated local polar-front latitude (30..88 deg) and synchronize with planetary circulation terminus
+    float auxPolarRad=(30.0+58.0*aux.a)*.01745329;
+    float polarLatRad=_GlebaCloudEnable>.5&&_GlebaCirculationParams.y>.2
+        ? clamp(_GlebaCirculationParams.y+(auxPolarRad-_GlebaCirculationParams.y)*.45,.52,1.52)
+        : auxPolarRad;
     float rossbyK=_GlebaCloudEnable>.5&&_GlebaCirculationParams.z>.5?_GlebaCirculationParams.z:2.6;
     float hadleyRad=_GlebaCloudEnable>.5&&_GlebaCirculationParams.x>.1?_GlebaCirculationParams.x:.5236;
 
@@ -493,64 +505,72 @@ Shader "ORBIS/FlatWorld/SkyBake"
      float scProtect=smoothstep(.38,.74,marineSc);
      float lowLee=leeShadow*(1.0-.82*scProtect);
 
-     // ISCCP joint optical-depth partition + natural global clustering & clear-sky breathing room:
-     // Prevent high-lift polar & rainforest zones from saturating into solid chalky white caps/blankets!
-     float highShare=saturate(.58*itczConv+.54*stormTrack+.24*moistEnv)*(1.0-.82*marineSc)*(1.0-.68*leeShadow);
+     // ISCCP joint optical-depth partition matching 79e6fa2 natural clear/veil/core balance:
+     float highShare=saturate(.58*itczConv+.52*stormTrack+.26*moistEnv)*(1.0-.78*marineSc)*(1.0-.66*leeShadow);
      float climTarget=saturate(synLift+.11*response.x*(1.0-.50*lowLee));
-     float lowTarget=saturate(climTarget*(1.0-.36*highShare));
-     float highTarget=saturate((climTarget-lowTarget)/max(.14,1.0-lowTarget)+.20*highShare*climTarget);
+     float lowTarget=saturate(climTarget*(1.0-.35*highShare));
+     float highTarget=saturate((climTarget-lowTarget)/max(.14,1.0-lowTarget)+.22*highShare*climTarget);
 
      // Five authentic NASA DSCOVR EPIC & VIIRS continuous morphological regimes:
-     // Planetary synCluster concentrates vapor into coherent synoptic systems while opening crisp quiet clear basins!
-     float clusterBias=(synCluster-.49)*2.45;
-     float zBase=(baseTex-.506)*5.6+clusterBias;
-     float zRibbon=(baseTex-.506)*3.1+clusterBias*.75+3.95*(curvedBand-.29)+1.10*(curvedWisp-.25);
-     float zStreets=(tradeStreets-.508)*5.8+clusterBias*.65+2.00*(curvedBand-.28);
-     float zHoney=(honeycomb-.44)*5.4+clusterBias*.55+.95*(curvedBand-.28)+.85*scProtect;
-     float zMcs=.38*zRibbon+.18*zStreets+2.90*(mcsCluster-.22)+clusterBias*.50;
+     // Very gentle synCluster preserves 79e6fa2 unbroken sweeping band continuity without carving bald gaps!
+     float clusterBias=(synCluster-.495)*.18;
+     float zBase=(baseTex-.496)*5.4+clusterBias;
+     float zRibbon=(baseTex-.498)*3.4+clusterBias*.45+3.80*(curvedBand-.275)+1.08*(curvedWisp-.235);
+     float zStreets=(tradeStreets-.496)*5.6+clusterBias*.35+2.25*(curvedBand-.26);
+     float zHoney=(honeycomb-.46)*5.4+clusterBias*.30+1.15*(curvedBand-.26)+.75*scProtect;
+     float zMcs=.45*zRibbon+.21*zStreets+2.60*(mcsCluster-.185)+clusterBias*.25;
      // Sweeping curved comma spirals + coiled dark-blue spiral dry slots + bold 5,500 km curved frontal banners
-     float zFront=.20*zRibbon+5.95*(frontalLow-.14)-5.60*frontalDry-2.85*polarCarve;
-     float midLatBoost=smoothstep(.30,.58,abs(radial.y))*(1.0-smoothstep(.90,.99,abs(radial.y)));
-     float stormWeight=saturate(smoothstep(.05,.42,stormTrack+.28*midLatBoost)*(1.0-.75*leeShadow));
+     float zFront=.24*zRibbon+5.45*(frontalLow-.15)-5.30*frontalDry-1.15*polarCarve;
+     // Hadley/polar-scaled & moisture-gated mid-latitude storm band (never fabricates fronts in dry zones or fixed latitudes!)
+     float midSin0=sin(clamp(hadleyRad*.74,.28,.88));
+     float midSin1=sin(clamp(hadleyRad*1.24,.52,.96));
+     float polCap0=sin(clamp(polarLatRad*1.08,1.10,1.46));
+     float polCap1=sin(clamp(polarLatRad*1.20,1.32,1.54));
+     float midMoistGate=smoothstep(.16,.48,moistEnv)*smoothstep(.14,.42,climTarget);
+     float midLatBoost=smoothstep(midSin0,midSin1,abs(radial.y))*(1.0-smoothstep(polCap0,polCap1,abs(radial.y)))*midMoistGate;
+     float stormWeight=saturate(smoothstep(.08,.48,stormTrack+.18*midLatBoost)*(1.0-.75*leeShadow));
 
      float zLow=lerp(zBase,zRibbon,.74);
-     zLow=lerp(zLow,zStreets,.36*tropBelt);
-     zLow=lerp(zLow,zMcs,saturate(tropBelt*(.32+.68*itczConv)));
-     zLow=lerp(zLow,zHoney,saturate(scProtect*.94));
+     zLow=lerp(zLow,zStreets,.38*tropBelt);
+     zLow=lerp(zLow,zMcs,saturate(tropBelt*(.30+.70*itczConv)));
+     zLow=lerp(zLow,zHoney,saturate(scProtect*.92));
      zLow=lerp(zLow,zFront,stormWeight);
-     zLow+=.48*orogCrest*max(0.0,zBase+.35);
-     float uLow=rcp(1.0+exp(-1.22*clamp(zLow,-5.5,5.5)));
+     float orogMoist=smoothstep(.16,.48,moistEnv);
+     zLow+=.82*orogCrest*(.30+.70*smoothstep(.22,.78,baseTex))*orogMoist;
+     float uLow=rcp(1.0+exp(-1.19*clamp(zLow,-5.5,5.5)));
 
-     // EPIC Continuous Three-Tier Atmospheric Vapor Distribution with natural clearings:
-     //   - Carve BOTH mid-latitude dry intrusions AND high-latitude polar-vortex leads so polar caps NEVER blank white
-     //   - Protect sweeping curved fronts & comma spirals from blanketRelief while opening clean gaps in solid tropics!
-     float sharpOrg=saturate(max(stormWeight*frontalLow*1.12,itczConv*mcsCluster));
-     float dryGuard=smoothstep(.11,.36,climTarget+.16*scProtect)*(1.0-.84*lowLee);
-     float polarDryCarve=saturate(stormWeight*frontalDry*smoothstep(.30,.60,abs(radial.y))+polarCarve*.90);
-     float blanketRelief=smoothstep(.48,.82,lowTarget)*(1.0-smoothstep(.24,.72,synCluster*.52+planetary*.48))*(1.0-.86*sharpOrg);
-     float effLowTarget=saturate(min(.74,lowTarget*(1.0-.62*polarDryCarve-.42*blanketRelief)+.16*scProtect*smoothstep(.28,.68,synCluster*.55+planetary*.45))+.04*smoothstep(.28,.66,climTarget)*(1.0-lowLee));
-     float veilTarget=saturate(min(.74,effLowTarget*1.16+.07*dryGuard)*(1.0-.70*polarDryCarve));
-     float wVeil=max(1e-4,min(.42,min(veilTarget,1.0-veilTarget)+.08));
+     // EPIC Continuous Three-Tier Atmospheric Vapor Distribution restoring 79e6fa2 full-disk balance:
+     //   1. broadVeil: airy pearly translucent mist & soft thin-cloud gradients bridging sweeping cloud bands
+     //   2. coherentBody: unbroken curved fronts, ITCZ/SPCZ ribbons & eastern-boundary marine Sc decks
+     //   3. brightCore: snow-white convective knots, comma heads & windward orographic cap clouds
+     float sharpOrg=saturate(max(stormWeight*frontalLow*1.06,itczConv*mcsCluster));
+     float dryGuard=smoothstep(.10,.35,climTarget+.16*scProtect)*(1.0-.84*lowLee);
+     float polarDryCarve=saturate(stormWeight*frontalDry*smoothstep(midSin0,midSin1,abs(radial.y))+polarCarve*.38);
+     float blanketRelief=smoothstep(.68,.92,lowTarget)*(1.0-smoothstep(.26,.66,synCluster*.35+planetary*.65))*(1.0-.90*sharpOrg);
+     float effLowTarget=saturate(min(.86,lowTarget*(1.0-.58*polarDryCarve-.08*blanketRelief)+.14*scProtect*smoothstep(.24,.64,synCluster*.30+planetary*.70)+.18*orogCrest*orogMoist*(1.0-.70*leeShadow))+.045*smoothstep(.24,.60,climTarget)*(1.0-lowLee));
+     float veilTarget=saturate(min(.86,effLowTarget*1.28+.102*dryGuard)*(1.0-.62*polarDryCarve));
+     float wVeil=max(1e-4,min(.44,min(veilTarget,1.0-veilTarget)+.09));
      float rawVeil=smoothstep(1.0-veilTarget-wVeil,1.0-veilTarget+wVeil,uLow);
-     float wCore=max(1e-4,min(.23,min(effLowTarget,1.0-effLowTarget)));
+     float wCore=max(1e-4,min(.24,min(effLowTarget,1.0-effLowTarget)));
      float rawCore=smoothstep(1.0-effLowTarget-wCore,1.0-effLowTarget+wCore,uLow);
 
-     // Wind-combed silky texture + organic eastern-boundary marine Sc decks (Peru/Chile, Baja, Namibia ONLY!)
-     // + bold sweeping mid-latitude curved fronts + post-frontal open-cell wakes + sinuous Pacific ITCZ / SPCZ!
+     // Wind-combed silky texture + organic eastern-boundary marine Sc decks + sweeping curved fronts
+     // + post-frontal open-cell wakes + sinuous Pacific ITCZ / SPCZ + moisture-gated orographic windward cap clouds!
      float silkTex=flowBands*.54+fineGrain*.30+mesoCells*.16;
-     float veilLayer=rawVeil*lerp(.26,.50,smoothstep(.16,.84,silkTex))*dryGuard;
+     float veilLayer=rawVeil*lerp(.31,.56,smoothstep(.16,.84,silkTex))*dryGuard;
      float bodyLayer=rawCore*(.64+.36*smoothstep(.18,.82,silkTex));
-     float denseCore=smoothstep(.42,.80,rawCore)*(sharpOrg*.90+.10)*(.92+.08*smoothstep(.22,.78,mesoCells));
-     float frontDirect=stormWeight*smoothstep(.24,.72,frontalLow)*(1.0-.85*frontalDry)*smoothstep(.10,.38,climTarget+.22*midLatBoost)*.86;
-     float postWakeLace=stormWeight*postFrontCells*smoothstep(.08,.40,climTarget+.20*midLatBoost)*.82;
+     float denseCore=smoothstep(.44,.82,rawCore)*(sharpOrg*.88+.12)*(.92+.08*smoothstep(.22,.78,mesoCells));
+     float frontDirect=stormWeight*smoothstep(.24,.72,frontalLow)*(1.0-.85*frontalDry)*smoothstep(.10,.38,climTarget+.12*midLatBoost)*.84;
+     float postWakeLace=stormWeight*postFrontCells*smoothstep(.08,.40,climTarget+.12*midLatBoost)*.82;
      // Localized eastern-boundary marine stratocumulus sheet (closed-cell cobbles nearshore -> open-cell POCs seaward!)
-     float scDeckDirect=scProtect*smoothstep(.22,.64,honeycomb)*smoothstep(.18,.54,moistEnv+.28*scProtect)*.80;
-     float oceanTradeGate=smoothstep(.18,.44,climTarget)*smoothstep(.32,.62,moistEnv)*(1.0-.88*lowLee);
-     float tradePatchEnv=smoothstep(.42,.74,synCluster*.48+curvedBand*.52);
-     float tradeFineField=smoothstep(.44,.70,tradeStreets*.62+honeycomb*.38);
-     float marineTapestry=oceanTradeGate*tradePatchEnv*tradeFineField*lerp(.34,.54,saturate(scProtect+.30*tropBelt));
-     float itczDirectLift=smoothstep(.14,.52,itczConv)*smoothstep(.38,.80,mcsCluster)*(1.0-.82*leeShadow)*.82;
-     low=saturate(max(max(veilLayer,bodyLayer),max(max(max(denseCore,frontDirect),postWakeLace),max(max(marineTapestry,scDeckDirect),itczDirectLift)))+
+     float scDeckDirect=scProtect*smoothstep(.20,.62,honeycomb)*smoothstep(.18,.52,moistEnv+.28*scProtect)*(1.0-.72*leeShadow*(1.0-.55*scProtect))*.80;
+     float oceanTradeGate=smoothstep(.16,.42,climTarget)*smoothstep(.28,.58,moistEnv)*(1.0-.88*lowLee);
+     float tradePatchEnv=smoothstep(.34,.67,planetary*.48+curvedBand*.52);
+     float tradeFineField=smoothstep(.40,.68,tradeStreets*.64+honeycomb*.36);
+     float marineTapestry=oceanTradeGate*tradePatchEnv*tradeFineField*lerp(.40,.64,saturate(marineSc+.38*tropBelt));
+     float itczDirectLift=smoothstep(.12,.50,itczConv)*smoothstep(.36,.80,mcsCluster)*(1.0-.82*leeShadow)*.82;
+     float orogDirectCap=orogCrest*smoothstep(.16,.52,moistEnv)*(1.0-.78*leeShadow)*(.44+.56*smoothstep(.20,.78,flowBands*.55+mesoCells*.45))*.76;
+     low=saturate(max(max(veilLayer,bodyLayer),max(max(max(denseCore,frontDirect),max(postWakeLace,orogDirectCap)),max(max(marineTapestry,scDeckDirect),itczDirectLift)))+
                   .04*response.x*smoothstep(.02,.18,rawVeil+.15*climTarget));
 
      // Explicit 5-tier cloud altitude classification in convection (weather.b):
@@ -601,16 +621,16 @@ Shader "ORBIS/FlatWorld/SkyBake"
 
      float zJet=(Fbm(upper*2.4+wander*.42+float3(12,2,8))-.49)*2.6+(wisps-.48)*3.0+3.75*(curvedCirrus-.24)+.95*(uLow-.50);
      float zAnvil=2.65*(anvilShield-.18)+(wisps-.48)*2.8+2.85*(curvedCirrus-.24)+.85*(uLow-.45);
-     float zWcb=.28*zJet+3.75*(wcbCirrus-.15)+2.40*(curvedCirrus-.24)+(wisps-.48)*2.0-2.40*polarCarve;
+     float zWcb=.28*zJet+3.70*(wcbCirrus-.14)+2.40*(curvedCirrus-.24)+(wisps-.48)*2.0-1.05*polarCarve;
      float zHigh=lerp(zJet,zAnvil,saturate(itczConv*1.15));
      zHigh=lerp(zHigh,zWcb,stormWeight);
      float uHigh=rcp(1.0+exp(-1.16*clamp(zHigh,-5.5,5.5)));
-     float highEnvTarget=saturate(highTarget*1.14+.03*dryGuard)*(1.0-.58*polarDryCarve);
-     float wHigh=max(1e-4,min(.40,min(highEnvTarget,1.0-highEnvTarget)+.06));
+     float highEnvTarget=saturate(highTarget*1.20+.045*dryGuard)*(1.0-.48*polarDryCarve);
+     float wHigh=max(1e-4,min(.42,min(highEnvTarget,1.0-highEnvTarget)+.06));
      float rawHigh=smoothstep(1.0-highEnvTarget-wHigh,1.0-highEnvTarget+wHigh,uHigh);
      float highSilk=.34+.66*smoothstep(.18,.84,wisps*.64+fineGrain*.36);
      float anvilOutflow=smoothstep(.16,.56,itczConv)*anvilShield*.70;
-     high=smoothstep(.05,.92,saturate(max(rawHigh*highSilk*1.10,anvilOutflow)))*(1.0-.78*tropBelt*leeShadow);
+     high=smoothstep(.05,.92,saturate(max(rawHigh*highSilk*1.13,anvilOutflow)))*(1.0-.78*tropBelt*leeShadow);
     }
     else
     {

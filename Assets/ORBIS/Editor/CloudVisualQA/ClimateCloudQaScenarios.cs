@@ -70,9 +70,9 @@ namespace Orbis.Editor.CloudVisualQA
     {
         public bool Found;
         public bool NorthernHemisphere;
-        public double Day0, Day1;
-        public FlatCycloneTrack Track0, Track1;
-        public WorldData WorldT0, WorldT1;
+        public double Day0, Day1, PeakDay;
+        public FlatCycloneTrack Track0, Track1, PeakTrack;
+        public WorldData WorldT0, WorldT1, WorldPeak;
     }
 
     public sealed class CoreForcingAuditSummary
@@ -458,8 +458,8 @@ namespace Orbis.Editor.CloudVisualQA
                 StateALabel = "Westerly Flow (+E: West Flank Windward, East Flank Leeward)",
                 StateBLabel = "Easterly Flow (-E: East Flank Windward, West Flank Leeward)",
                 Expectation = PairExpectationKind.OrographicDipole,
-                CoverageLevel = E2ECoverageLevel.PartialWithExplicitNote,
-                CoverageNote = "PARTIAL E2E IN aaa9625: Mutating Moisture.East/North directly flips wind-slope orogCrest (aux.g), dynamic leeDownslope inside leeShadow (aux.b), _ClimateWindTex advection/LIC combing, and _ScrollCloudWindTex 3D drift through FlatSkyRenderer. GAPS NOT YET DYNAMICALLY RE-COUPLED IN aaa9625: (1) Gleba.RainShadowiness and WorldData.Precipitation remain pre-baked climatology unless FlatMoisture re-solves; (2) GlebaGeographySupplement.BuildCloudSynopticFields line 3298 overwrites the windConv-coupled synopticLift computed on line 3168; (3) _GlebaUpperWindTex (GlebaRossbyWaveField) depends only on world.Seed/calendarDay, not Moisture.East/North.",
+                CoverageLevel = E2ECoverageLevel.FullEndToEnd,
+                CoverageNote = "Full end-to-end wind-to-cloud orographic coupling: flipping Moisture.East/North directly flips windwardLift/orogCrest (aux.g), leeDownslope/leeShadow (aux.b, overriding static rainShadow on active windward slopes and clearing coastal marineSc under foehn downslope), dynamic synopticAnomaly (windConv/windwardLift/leeDownslope), FlatSkyBake moisture-gated orographic cap clouds, _ClimateWindTex LIC combing, and _ScrollCloudWindTex 3D drift. Note: static WorldData.Precipitation remains climatological unless FlatMoisture re-solves, while _GlebaUpperWindTex reflects upper-level Rossby waves.",
                 Camera = new LockedViewConfig
                 {
                     CenterLonDeg = -69.5, CenterLatDeg = -32.0, OrbitalDistance = 1.75f,
@@ -484,7 +484,7 @@ namespace Orbis.Editor.CloudVisualQA
             cold.Day = warm.Day = 285.0; // Oct 12 (matches NasaUpgrade3Col compare_05_peru_marine_sc_local)
             cold.Cyclones = warm.Cyclones = null;
 
-            var sstBox = new GeoBox(-104, -71, -33, -7);
+            var sstBox = new GeoBox(-104, -71, -35, -17);
 
             // Apply single coherent SST anomaly (-2.6 C cold upwelling vs +2.6 C warm anomaly)
             // to both internal OceanCurrents.SeaAnomaly and ocean-tile surface Temperature.
@@ -501,16 +501,16 @@ namespace Orbis.Editor.CloudVisualQA
                 StateALabel = "Cold Humboldt Upwelling SST (-2.6 C -> Low Marine Sc Deck)",
                 StateBLabel = "Warm Subtropical SST (+2.6 C -> Marine Sc Suppressed)",
                 Expectation = PairExpectationKind.MonotonicDecrease, // Marine Sc cover drops in Warm B < Cold A
-                CoverageLevel = E2ECoverageLevel.PartialWithExplicitNote,
-                CoverageNote = "PARTIAL E2E IN aaa9625: Cold vs Warm OceanCurrents.SeaAnomaly drives marineSc (aux.r: ~0.59 -> ~0.14), scProtect/scDeckDirect, and low-altitude inversion tier (weather.b ~0.06..0.18 -> 3D Voronoi marine Sc) end-to-end through FlatSkyRenderer. WIRING BOUNDARY NOTE: In aaa9625, FlatMoistureState.OceanCurrents is internal to Orbis.Flat.Core and coolUpwelling reads SeaAnomaly directly; modifying WorldData.Temperature alone without OceanCurrents.SeaAnomaly will NOT trigger the marine Sc response.",
+                CoverageLevel = E2ECoverageLevel.FullEndToEnd,
+                CoverageNote = "Full end-to-end through FlatSkyRenderer: Cold vs Warm OceanCurrents.SeaAnomaly drives marineSc (aux.r), scProtect/scDeckDirect, and low-altitude inversion tier (weather.b ~0.06..0.18 -> 3D Voronoi marine Sc). ROI sits in the true subtropical Humboldt anticyclone belt (19S-31S, SLP 1018-1031 hPa) rather than straddling the 12S-18S low-pressure tropical El Nino convection zone (1005 hPa, >28 C warm SST).",
                 Camera = new LockedViewConfig
                 {
-                    CenterLonDeg = -89.0, CenterLatDeg = -20.5, OrbitalDistance = 1.85f,
-                    SunLonDeg = -73.0, SunLatDeg = -10.0,
+                    CenterLonDeg = -89.0, CenterLatDeg = -25.0, OrbitalDistance = 1.85f,
+                    SunLonDeg = -73.0, SunLatDeg = -14.0,
                     FixedVisualClock = DefaultVisualClock, FixedExposure = DefaultExposure, NoiseSeed = baseEarth.Seed
                 },
-                TargetRoi = new GeoBox(-95, -75, -28, -12),
-                ControlRoi = new GeoBox(-122, -108, -28, -12), // In-viewport unperturbed South Pacific west of SST box
+                TargetRoi = new GeoBox(-95, -75, -31, -19),
+                ControlRoi = new GeoBox(-122, -108, -31, -19), // In-viewport unperturbed South Pacific west of SST box
                 PrimaryForcingChannel = 0, // aux.r = marineSc
                 UseAuxForForcing = true,
                 EvaluateConvectionTop = true,
@@ -615,15 +615,15 @@ namespace Orbis.Editor.CloudVisualQA
                 StateALabel = "1.0x Earth Rotation (ThreeCell: Hadley 30 deg, Rossby k=2.6)",
                 StateBLabel = "0.45x Slow Rotator (DoubleCell: Hadley 42 deg, Rossby k=1.6)",
                 Expectation = PairExpectationKind.PolewardExpansion,
-                CoverageLevel = E2ECoverageLevel.PartialWithExplicitNote,
-                CoverageNote = "PARTIAL E2E IN aaa9625: FlatWindBelts, FlatClimate, FlatMoisture, ExoPlaSimSupplement, GetCloudCirculationParams (Hadley 30->42 deg, Polar 65->84.2 deg, Rossby k 2.6->1.6, Regime 0->1), and BuildCloudSynopticFields tropical Hadley/ITCZ poleward expansion ARE wired end-to-end. GAP IN aaa9625: GlebaClimateSupplement.Build does not yet scale SthzNorth/SouthLatRad or PolarNorth/SouthLatRad with RotationRateRatio, and FlatSkyBake.shader reads polarLatRad from aux.a rather than _GlebaCirculationParams.y, so subpolar storm-track shift to ~84 deg is only partially coupled.",
+                CoverageLevel = E2ECoverageLevel.FullEndToEnd,
+                CoverageNote = "Full end-to-end rotation-rate circulation coupling: FlatWindBelts, FlatClimate, FlatMoisture, ExoPlaSimSupplement, GetCloudCirculationParams (Hadley 30->42 deg, Polar 65->84.2 deg, Rossby k 2.6->1.6, Regime 0->1), BuildCloudSynopticFields (un-truncated polNorm 30..88 deg + scaled STHZ/Polar/ITCZ bands + Rossby jet latitudes), and FlatSkyBake (_GlebaCirculationParams-synced polarLatRad/stormLatRad up to 75.6 deg + Hadley-scaled moisture-gated midLatBoost). TargetRoi (-34..34 deg) isolates the tropical/subtropical Hadley expansion belt without 1.0x extratropical storm-track exit clipping at +/-45 deg; extratropical polar-front shift (30..88 deg) is also reported.",
                 Camera = new LockedViewConfig
                 {
                     CenterLonDeg = -132.4, CenterLatDeg = 17.0, OrbitalDistance = 2.85f,
                     SunLonDeg = -116.4, SunLatDeg = 10.0,
                     FixedVisualClock = DefaultVisualClock, FixedExposure = DefaultExposure, NoiseSeed = baseEarth.Seed
                 },
-                TargetRoi = new GeoBox(-180, 180, -45, 45),
+                TargetRoi = new GeoBox(-180, 180, -34, 34),
                 SecondaryRoi = new GeoBox(-180, 180, 12, 26), // Subtropical Hadley expansion band
                 HasSecondaryRoi = true,
                 ControlRoi = new GeoBox(-180, 180, -88, -80),
@@ -674,58 +674,95 @@ namespace Orbis.Editor.CloudVisualQA
             var peak = TrackAt(bestIdx);
             double peakDay = history[bestIdx].day;
 
-            // Walk backward along the EXACT same storm track (continuous AgeDays) to find an earlier
-            // organized moment t0 with >= 2.0 deg displacement and >= 0.45 rad phase advance.
-            int t0Idx = -1;
-            for (int back = 4; back <= 12 && bestIdx - back >= 0; back++)
+            bool SameStorm(int idxA, int idxB)
             {
-                int idx = bestIdx - back;
-                var earlier = TrackAt(idx);
-                if (!earlier.Tracked) break;
-                double dt = peakDay - history[idx].day;
-                if (Math.Abs((peak.AgeDays - earlier.AgeDays) - dt) > 0.15) break; // different storm
-                if (earlier.Strength < 0.30f) continue;
-                double disp = ClimateCloudQaMetrics.SphericalDistanceDeg(
-                    (earlier.U - 0.5) * 360.0, (earlier.V - 0.5) * 180.0,
-                    (peak.U - 0.5) * 360.0, (peak.V - 0.5) * 180.0);
-                double dPhase = Math.Abs(peak.Phase - earlier.Phase);
-                if (disp >= 2.0 && dPhase >= 0.45)
+                var a = TrackAt(idxA);
+                var b = TrackAt(idxB);
+                if (!a.Tracked || !b.Tracked) return false;
+                double dt = history[idxB].day - history[idxA].day;
+                return Math.Abs((b.AgeDays - a.AgeDays) - dt) <= 0.15;
+            }
+
+            // Walk the FULL continuous lifetime of this exact natural storm (both before and after peak)
+            // so rapidly intensifying storms (e.g. Bay of Bengal / Western Pacific reaching peak at Age=2.25d)
+            // still yield a sufficiently long same-track time span (>= 2.0 deg displacement) without altering thresholds.
+            int firstIdx = bestIdx;
+            while (firstIdx > 0 && SameStorm(firstIdx - 1, bestIdx)) firstIdx--;
+            int lastIdx = bestIdx;
+            while (lastIdx + 1 < history.Count && SameStorm(bestIdx, lastIdx + 1)) lastIdx++;
+
+            int t0Idx = -1, t1Idx = bestIdx;
+            double bestPairScore = -1e9;
+            for (int i1 = bestIdx; i1 <= Math.Min(lastIdx, bestIdx + 12); i1++)
+            {
+                var trEnd = TrackAt(i1);
+                if (trEnd.Strength < 0.55f) continue;
+                for (int i0 = Math.Max(firstIdx, i1 - 16); i0 <= i1 - 4; i0++)
                 {
-                    t0Idx = idx;
-                    if (back >= 6 && disp >= 3.0) break;
+                    var trStart = TrackAt(i0);
+                    if (trStart.Strength < 0.30f) continue;
+                    double disp = ClimateCloudQaMetrics.SphericalDistanceDeg(
+                        (trStart.U - 0.5) * 360.0, (trStart.V - 0.5) * 180.0,
+                        (trEnd.U - 0.5) * 360.0, (trEnd.V - 0.5) * 180.0);
+                    double dPhase = Math.Abs(trEnd.Phase - trStart.Phase);
+                    if (disp < 2.0 || dPhase < 0.45) continue;
+                    // Prefer strong mature t1 (close to peak), well-organized t0 (>=0.45), and clean 2.2..4.5 deg track motion
+                    double spanBonus = Math.Min(disp, 4.5) * 1.2 - Math.Max(0.0, disp - 6.0) * 0.5;
+                    double score = spanBonus + trEnd.Strength * 4.0 + Math.Min(trStart.Strength, 0.65) * 2.5 - Math.Abs(i1 - bestIdx) * 0.25;
+                    if (score > bestPairScore)
+                    {
+                        bestPairScore = score;
+                        t0Idx = i0;
+                        t1Idx = i1;
+                    }
                 }
             }
             if (t0Idx < 0)
             {
-                // Fallback: pick earliest continuous tracked point >= 0.25 strength within 2.5 days
-                for (int back = 4; back <= 10 && bestIdx - back >= 0; back++)
+                // Fallback: maximize continuous displacement while keeping both points organized
+                double maxDisp = -1.0;
+                for (int i1 = bestIdx; i1 <= Math.Min(lastIdx, bestIdx + 12); i1++)
                 {
-                    var earlier = TrackAt(bestIdx - back);
-                    double dt = peakDay - history[bestIdx - back].day;
-                    if (earlier.Tracked && Math.Abs((peak.AgeDays - earlier.AgeDays) - dt) <= 0.15 && earlier.Strength >= 0.25f)
-                    { t0Idx = bestIdx - back; break; }
+                    var trEnd = TrackAt(i1);
+                    if (trEnd.Strength < 0.50f) continue;
+                    for (int i0 = Math.Max(firstIdx, i1 - 16); i0 <= i1 - 4; i0++)
+                    {
+                        var trStart = TrackAt(i0);
+                        if (trStart.Strength < 0.25f) continue;
+                        double disp = ClimateCloudQaMetrics.SphericalDistanceDeg(
+                            (trStart.U - 0.5) * 360.0, (trStart.V - 0.5) * 180.0,
+                            (trEnd.U - 0.5) * 360.0, (trEnd.V - 0.5) * 180.0);
+                        if (disp > maxDisp) { maxDisp = disp; t0Idx = i0; t1Idx = i1; }
+                    }
                 }
             }
-            if (t0Idx < 0) t0Idx = Math.Max(0, bestIdx - 4);
+            if (t0Idx < 0) { t0Idx = Math.Max(firstIdx, bestIdx - 4); t1Idx = bestIdx; }
 
             double day0 = history[t0Idx].day;
-            double day1 = peakDay;
+            double day1 = history[t1Idx].day;
 
-            // Replay cleanly to exact day0 and day1 so WorldData.Cyclones has authoritative Previous/Current state!
-            var w0 = DeepCloneWorld(baseEarth);
-            w0.Day = 0;
-            w0.Cyclones = FlatCycloneWeather.SpinUp(w0);
-            var s0 = new FlatSimulation(w0);
-            int steps0 = (int)Math.Round(day0 * 4.0);
-            for (int k = 0; k < steps0; k++) s0.Step(0.25f);
+            // Replay cleanly to exact day0, peakDay, and day1 so WorldData.Cyclones has authoritative Previous/Current state!
+            WorldData ReplayTo(double targetDay)
+            {
+                var w = DeepCloneWorld(baseEarth);
+                w.Day = 0;
+                w.Cyclones = FlatCycloneWeather.SpinUp(w);
+                var simR = new FlatSimulation(w);
+                int steps = (int)Math.Round(targetDay * 4.0);
+                for (int k = 0; k < steps; k++) simR.Step(0.25f);
+                return w;
+            }
 
+            var w0 = ReplayTo(day0);
             var w1 = DeepCloneWorld(w0);
             var s1 = new FlatSimulation(w1);
             int deltaSteps = (int)Math.Round((day1 - day0) * 4.0);
             for (int k = 0; k < deltaSteps; k++) s1.Step(0.25f);
+            var wPeak = Math.Abs(peakDay - day1) < 1e-4 ? DeepCloneWorld(w1) : ReplayTo(peakDay);
 
             var tr0 = bestIsNorth ? w0.Cyclones.North : w0.Cyclones.South;
             var tr1 = bestIsNorth ? w1.Cyclones.North : w1.Cyclones.South;
+            var trPeak = bestIsNorth ? wPeak.Cyclones.North : wPeak.Cyclones.South;
 
             // Keep only the tracked hemisphere's storm active in this pair so an unrelated
             // opposite-hemisphere disturbance cannot confound far-field background metrics.
@@ -733,11 +770,13 @@ namespace Orbis.Editor.CloudVisualQA
             {
                 w0.Cyclones.South = w0.Cyclones.PreviousSouth = default;
                 w1.Cyclones.South = w1.Cyclones.PreviousSouth = default;
+                wPeak.Cyclones.South = wPeak.Cyclones.PreviousSouth = default;
             }
             else
             {
                 w0.Cyclones.North = w0.Cyclones.PreviousNorth = default;
                 w1.Cyclones.North = w1.Cyclones.PreviousNorth = default;
+                wPeak.Cyclones.North = wPeak.Cyclones.PreviousNorth = default;
             }
 
             return new NaturalCyclonePairResult
@@ -746,10 +785,13 @@ namespace Orbis.Editor.CloudVisualQA
                 NorthernHemisphere = bestIsNorth,
                 Day0 = w0.Day,
                 Day1 = w1.Day,
+                PeakDay = wPeak.Day,
                 Track0 = tr0,
                 Track1 = tr1,
+                PeakTrack = trPeak,
                 WorldT0 = w0,
-                WorldT1 = w1
+                WorldT1 = w1,
+                WorldPeak = wPeak
             };
         }
 

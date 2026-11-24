@@ -3264,10 +3264,12 @@ namespace Orbis.Flat
                     float lowP = FMath.Clamp((1010f - slp) / 58f, 0f, 1f) + 0.50f * FMath.Clamp(rainImpact, 0f, 0.5f);
                     float highP = FMath.Clamp((slp - 1012f) / 55f, 0f, 1f);
                     // Eddy (zonal-anomaly) sea-level pressure separates synoptic troughs/ridges from the
-                    // static meridional pressure profile so NOAA zonal climatology stays unbiased.
+                    // static meridional pressure profile without letting continental summer heat lows
+                    // (e.g. July Asian monsoon) artificially suppress moderate-SLP open-ocean clouds.
                     float slpEddy = slp - zonalSlpMean[y];
                     float eddyLowP = FMath.Clamp(-slpEddy / 28f, 0f, 1f);
-                    float eddyHighP = FMath.Clamp(slpEddy / 28f, 0f, 1f);
+                    float absHighP = FMath.Clamp((slp - 1010f) / 18f, 0f, 1f);
+                    float eddyHighP = FMath.Clamp(slpEddy / 28f, 0f, 1f) * (0.35f + 0.65f * absHighP);
                     float negImpact = FMath.Clamp(-rainImpact, 0f, 1f);
                     float dSthz = Math.Min(Math.Abs(latDeg - sthzNCol[x]), Math.Abs(latDeg - sthzSCol[x]));
                     float sthzRidge = (float)Math.Exp(-(dSthz * dSthz) / (9.5 * 9.5));
@@ -3415,15 +3417,18 @@ namespace Orbis.Flat
                     float subtropSc = oceanFrac * scLat * FMath.Clamp(lowLevelStability * 1.18f, 0f, 1f);
                     float eqColdSc = ekmanColdSlot * (0.28f + 0.24f * Math.Max(coolUpwelling, eastCentralBasin)) * (1f - 0.62f * warmSst);
                     float marineSc = FMath.Clamp(
-                        Math.Max(subtropSc, eqColdSc) * (1f - 0.85f * itczConv) * moistAir,
+                        Math.Max(subtropSc, eqColdSc) * (1f - 0.85f * itczConv) * (1f - 0.68f * leeDownslope) * moistAir,
                         0f, 1f);
 
                     float orogCrest = FMath.Clamp(windwardLift * Smooth(0.18f, 0.54f, rh + 0.30f * FMath.Clamp(rainMm / 140f, 0f, 1f)), 0f, 1f);
                     float dryAirClear = 0.96f * (1f - moistAir);
                     float ridgeClear = FMath.Clamp(0.26f * eddyHighP + 0.18f * Math.Max(0f, -windConv), 0f, 0.42f) * (1f - 0.55f * FMath.Clamp(rainMm / 150f, 0f, 1f));
-                    float leeShadow = FMath.Clamp(rainShadow + 0.46f * leeDownslope + 0.82f * walkerClear + ridgeClear + dryAirClear, 0f, 1f);
+                    // Active upslope flow overrides stale climatological rain-shadowiness from the opposite wind regime,
+                    // while active downslope flow builds a dynamic foehn rain shadow on the leeward slope.
+                    float effStaticShadow = rainShadow * (1f - 0.82f * windwardLift);
+                    float leeShadow = FMath.Clamp(effStaticShadow + 0.56f * leeDownslope + 0.82f * walkerClear + ridgeClear + dryAirClear, 0f, 1f);
                     float localPol = latDeg >= 0f ? polNCol[x] : -polSCol[x];
-                    float polNorm = FMath.Clamp((localPol - 30f) / 45f, 0f, 1f);
+                    float polNorm = FMath.Clamp((localPol - 30f) / 58f, 0f, 1f);
 
                     // Physically calibrated Sundqvist / PlaSim / Gleba climatological cloud potential (forcing.r in [0.04, 0.88])
                     // coupled with the restored moisture-gated synoptic vertical-motion anomaly (eddyLowP/eddyHighP, windConv,

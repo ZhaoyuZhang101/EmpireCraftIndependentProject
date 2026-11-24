@@ -743,57 +743,65 @@ public static class CloudForcingRegression
         float effWet = wet * (1.0f - 0.72f * leeShadow);
         float scProtect = Smooth(0.38f, 0.74f, marineSc);
         float lowLee = leeShadow * (1.0f - 0.82f * scProtect);
-        float highShare = Sat(0.58f * itczConv + 0.54f * stormTrack + 0.24f * moistEnv) * (1.0f - 0.82f * marineSc) * (1.0f - 0.68f * leeShadow);
+        float highShare = Sat(0.58f * itczConv + 0.52f * stormTrack + 0.26f * moistEnv) * (1.0f - 0.78f * marineSc) * (1.0f - 0.66f * leeShadow);
         float climTarget = Sat(synLift + 0.11f * respX * (1.0f - 0.50f * lowLee));
-        float lowTarget = Sat(climTarget * (1.0f - 0.36f * highShare));
-        float highTarget = Sat((climTarget - lowTarget) / Math.Max(0.14f, 1.0f - lowTarget) + 0.20f * highShare * climTarget);
-        float midLatBoost = Smooth(0.30f, 0.58f, absSinLat) * (1.0f - Smooth(0.90f, 0.99f, absSinLat));
-        float stormWeight = Sat(Smooth(0.05f, 0.42f, stormTrack + 0.28f * midLatBoost) * (1.0f - 0.75f * leeShadow));
+        float lowTarget = Sat(climTarget * (1.0f - 0.35f * highShare));
+        float highTarget = Sat((climTarget - lowTarget) / Math.Max(0.14f, 1.0f - lowTarget) + 0.22f * highShare * climTarget);
+        float auxPolarRad = (30.0f + 58.0f * aux.a) * 0.01745329f;
+        float midSin0 = (float)Math.Sin(FMath.Clamp(hadleyRad * 0.74f, 0.28f, 0.88f));
+        float midSin1 = (float)Math.Sin(FMath.Clamp(hadleyRad * 1.24f, 0.52f, 0.96f));
+        float polCap0 = (float)Math.Sin(FMath.Clamp(auxPolarRad * 1.08f, 1.10f, 1.46f));
+        float polCap1 = (float)Math.Sin(FMath.Clamp(auxPolarRad * 1.20f, 1.32f, 1.54f));
+        float midMoistGate = Smooth(0.16f, 0.48f, moistEnv) * Smooth(0.14f, 0.42f, climTarget);
+        float midLatBoost = Smooth(midSin0, midSin1, absSinLat) * (1.0f - Smooth(polCap0, polCap1, absSinLat)) * midMoistGate;
+        float stormWeight = Sat(Smooth(0.08f, 0.48f, stormTrack + 0.18f * midLatBoost) * (1.0f - 0.75f * leeShadow));
 
         double sLow = 0, sHigh = 0, sConv = 0, sStorm = 0, sBase = 0, sTop = 0;
         for (int i = 0; i < phases.Length; i++)
         {
             var m = phases[i];
-            float clusterBias = (m.synCluster - 0.49f) * 2.45f;
-            float zBase = (m.baseTex - 0.506f) * 5.6f + clusterBias;
-            float zRibbon = (m.baseTex - 0.506f) * 3.1f + clusterBias * 0.75f + 3.95f * (m.curvedBand - 0.29f) + 1.10f * (m.curvedWisp - 0.25f);
-            float zStreets = (m.tradeStreets - 0.508f) * 5.8f + clusterBias * 0.65f + 2.00f * (m.curvedBand - 0.28f);
-            float zHoney = (m.honeycomb - 0.44f) * 5.4f + clusterBias * 0.55f + 0.95f * (m.curvedBand - 0.28f) + 0.85f * scProtect;
-            float zMcs = 0.38f * zRibbon + 0.18f * zStreets + 2.90f * (m.mcsCluster - 0.22f) + clusterBias * 0.50f;
-            float zFront = 0.20f * zRibbon + 5.95f * (m.frontalLow - 0.14f) - 5.60f * m.frontalDry - 2.85f * m.polarCarve;
+            float clusterBias = (m.synCluster - 0.495f) * 0.18f;
+            float zBase = (m.baseTex - 0.496f) * 5.4f + clusterBias;
+            float zRibbon = (m.baseTex - 0.498f) * 3.4f + clusterBias * 0.45f + 3.80f * (m.curvedBand - 0.275f) + 1.08f * (m.curvedWisp - 0.235f);
+            float zStreets = (m.tradeStreets - 0.496f) * 5.6f + clusterBias * 0.35f + 2.25f * (m.curvedBand - 0.26f);
+            float zHoney = (m.honeycomb - 0.46f) * 5.4f + clusterBias * 0.30f + 1.15f * (m.curvedBand - 0.26f) + 0.75f * scProtect;
+            float zMcs = 0.45f * zRibbon + 0.21f * zStreets + 2.60f * (m.mcsCluster - 0.185f) + clusterBias * 0.25f;
+            float zFront = 0.24f * zRibbon + 5.45f * (m.frontalLow - 0.15f) - 5.30f * m.frontalDry - 1.15f * m.polarCarve;
 
             float zLow = FMath.Lerp(zBase, zRibbon, 0.74f);
-            zLow = FMath.Lerp(zLow, zStreets, 0.36f * tropBelt);
-            zLow = FMath.Lerp(zLow, zMcs, Sat(tropBelt * (0.32f + 0.68f * itczConv)));
-            zLow = FMath.Lerp(zLow, zHoney, Sat(scProtect * 0.94f));
+            zLow = FMath.Lerp(zLow, zStreets, 0.38f * tropBelt);
+            zLow = FMath.Lerp(zLow, zMcs, Sat(tropBelt * (0.30f + 0.70f * itczConv)));
+            zLow = FMath.Lerp(zLow, zHoney, Sat(scProtect * 0.92f));
             zLow = FMath.Lerp(zLow, zFront, stormWeight);
-            zLow += 0.48f * orogCrest * Math.Max(0.0f, zBase + 0.35f);
-            float uLow = 1.0f / (1.0f + (float)Math.Exp(-1.22f * FMath.Clamp(zLow, -5.5f, 5.5f)));
+            float orogMoist = Smooth(0.16f, 0.48f, moistEnv);
+            zLow += 0.82f * orogCrest * (0.30f + 0.70f * Smooth(0.22f, 0.78f, m.baseTex)) * orogMoist;
+            float uLow = 1.0f / (1.0f + (float)Math.Exp(-1.19f * FMath.Clamp(zLow, -5.5f, 5.5f)));
 
-            float sharpOrg = Sat(Math.Max(stormWeight * m.frontalLow * 1.12f, itczConv * m.mcsCluster));
-            float dryGuard = Smooth(0.11f, 0.36f, climTarget + 0.16f * scProtect) * (1.0f - 0.84f * lowLee);
-            float polarDryCarve = Sat(stormWeight * m.frontalDry * Smooth(0.30f, 0.60f, absSinLat) + m.polarCarve * 0.90f);
-            float blanketRelief = Smooth(0.48f, 0.82f, lowTarget) * (1.0f - Smooth(0.24f, 0.72f, m.synCluster * 0.52f + m.planetary * 0.48f)) * (1.0f - 0.86f * sharpOrg);
-            float effLowTarget = Sat(Math.Min(0.74f, lowTarget * (1.0f - 0.62f * polarDryCarve - 0.42f * blanketRelief) + 0.16f * scProtect * Smooth(0.28f, 0.68f, m.synCluster * 0.55f + m.planetary * 0.45f)) + 0.04f * Smooth(0.28f, 0.66f, climTarget) * (1.0f - lowLee));
-            float veilTarget = Sat(Math.Min(0.74f, effLowTarget * 1.16f + 0.07f * dryGuard) * (1.0f - 0.70f * polarDryCarve));
-            float wVeil = Math.Max(1e-4f, Math.Min(0.42f, Math.Min(veilTarget, 1.0f - veilTarget) + 0.08f));
+            float sharpOrg = Sat(Math.Max(stormWeight * m.frontalLow * 1.06f, itczConv * m.mcsCluster));
+            float dryGuard = Smooth(0.10f, 0.35f, climTarget + 0.16f * scProtect) * (1.0f - 0.84f * lowLee);
+            float polarDryCarve = Sat(stormWeight * m.frontalDry * Smooth(midSin0, midSin1, absSinLat) + m.polarCarve * 0.38f);
+            float blanketRelief = Smooth(0.68f, 0.92f, lowTarget) * (1.0f - Smooth(0.26f, 0.66f, m.synCluster * 0.35f + m.planetary * 0.65f)) * (1.0f - 0.90f * sharpOrg);
+            float effLowTarget = Sat(Math.Min(0.86f, lowTarget * (1.0f - 0.58f * polarDryCarve - 0.08f * blanketRelief) + 0.14f * scProtect * Smooth(0.24f, 0.64f, m.synCluster * 0.30f + m.planetary * 0.70f) + 0.18f * orogCrest * orogMoist * (1.0f - 0.70f * leeShadow)) + 0.045f * Smooth(0.24f, 0.60f, climTarget) * (1.0f - lowLee));
+            float veilTarget = Sat(Math.Min(0.86f, effLowTarget * 1.28f + 0.102f * dryGuard) * (1.0f - 0.62f * polarDryCarve));
+            float wVeil = Math.Max(1e-4f, Math.Min(0.44f, Math.Min(veilTarget, 1.0f - veilTarget) + 0.09f));
             float rawVeil = Smooth(1.0f - veilTarget - wVeil, 1.0f - veilTarget + wVeil, uLow);
-            float wCore = Math.Max(1e-4f, Math.Min(0.23f, Math.Min(effLowTarget, 1.0f - effLowTarget)));
+            float wCore = Math.Max(1e-4f, Math.Min(0.24f, Math.Min(effLowTarget, 1.0f - effLowTarget)));
             float rawCore = Smooth(1.0f - effLowTarget - wCore, 1.0f - effLowTarget + wCore, uLow);
 
             float silkTex = m.flowBands * 0.54f + m.fineGrain * 0.30f + m.mesoCells * 0.16f;
-            float veilLayer = rawVeil * FMath.Lerp(0.26f, 0.50f, Smooth(0.16f, 0.84f, silkTex)) * dryGuard;
+            float veilLayer = rawVeil * FMath.Lerp(0.31f, 0.56f, Smooth(0.16f, 0.84f, silkTex)) * dryGuard;
             float bodyLayer = rawCore * (0.64f + 0.36f * Smooth(0.18f, 0.82f, silkTex));
-            float denseCore = Smooth(0.42f, 0.80f, rawCore) * (sharpOrg * 0.90f + 0.10f) * (0.92f + 0.08f * Smooth(0.22f, 0.78f, m.mesoCells));
-            float frontDirect = stormWeight * Smooth(0.24f, 0.72f, m.frontalLow) * (1.0f - 0.85f * m.frontalDry) * Smooth(0.10f, 0.38f, climTarget + 0.22f * midLatBoost) * 0.86f;
-            float postWakeLace = stormWeight * m.postFrontCells * Smooth(0.08f, 0.40f, climTarget + 0.20f * midLatBoost) * 0.82f;
-            float scDeckDirect = scProtect * Smooth(0.22f, 0.64f, m.honeycomb) * Smooth(0.18f, 0.54f, moistEnv + 0.28f * scProtect) * 0.80f;
-            float oceanTradeGate = Smooth(0.18f, 0.44f, climTarget) * Smooth(0.32f, 0.62f, moistEnv) * (1.0f - 0.88f * lowLee);
-            float tradePatchEnv = Smooth(0.42f, 0.74f, m.synCluster * 0.48f + m.curvedBand * 0.52f);
-            float tradeFineField = Smooth(0.44f, 0.70f, m.tradeStreets * 0.62f + m.honeycomb * 0.38f);
-            float marineTapestry = oceanTradeGate * tradePatchEnv * tradeFineField * FMath.Lerp(0.34f, 0.54f, Sat(scProtect + 0.30f * tropBelt));
-            float itczDirectLift = Smooth(0.14f, 0.52f, itczConv) * Smooth(0.38f, 0.80f, m.mcsCluster) * (1.0f - 0.82f * leeShadow) * 0.82f;
-            float low = Sat(Math.Max(Math.Max(veilLayer, bodyLayer), Math.Max(Math.Max(Math.Max(denseCore, frontDirect), postWakeLace), Math.Max(Math.Max(marineTapestry, scDeckDirect), itczDirectLift))) +
+            float denseCore = Smooth(0.44f, 0.82f, rawCore) * (sharpOrg * 0.88f + 0.12f) * (0.92f + 0.08f * Smooth(0.22f, 0.78f, m.mesoCells));
+            float frontDirect = stormWeight * Smooth(0.24f, 0.72f, m.frontalLow) * (1.0f - 0.85f * m.frontalDry) * Smooth(0.10f, 0.38f, climTarget + 0.12f * midLatBoost) * 0.84f;
+            float postWakeLace = stormWeight * m.postFrontCells * Smooth(0.08f, 0.40f, climTarget + 0.12f * midLatBoost) * 0.82f;
+            float scDeckDirect = scProtect * Smooth(0.20f, 0.62f, m.honeycomb) * Smooth(0.18f, 0.52f, moistEnv + 0.28f * scProtect) * (1.0f - 0.72f * leeShadow * (1.0f - 0.55f * scProtect)) * 0.80f;
+            float oceanTradeGate = Smooth(0.16f, 0.42f, climTarget) * Smooth(0.28f, 0.58f, moistEnv) * (1.0f - 0.88f * lowLee);
+            float tradePatchEnv = Smooth(0.34f, 0.67f, m.planetary * 0.48f + m.curvedBand * 0.52f);
+            float tradeFineField = Smooth(0.40f, 0.68f, m.tradeStreets * 0.64f + m.honeycomb * 0.36f);
+            float marineTapestry = oceanTradeGate * tradePatchEnv * tradeFineField * FMath.Lerp(0.40f, 0.64f, Sat(marineSc + 0.38f * tropBelt));
+            float itczDirectLift = Smooth(0.12f, 0.50f, itczConv) * Smooth(0.36f, 0.80f, m.mcsCluster) * (1.0f - 0.82f * leeShadow) * 0.82f;
+            float orogDirectCap = orogCrest * Smooth(0.16f, 0.52f, moistEnv) * (1.0f - 0.78f * leeShadow) * (0.44f + 0.56f * Smooth(0.20f, 0.78f, m.flowBands * 0.55f + m.mesoCells * 0.45f)) * 0.76f;
+            float low = Sat(Math.Max(Math.Max(veilLayer, bodyLayer), Math.Max(Math.Max(Math.Max(denseCore, frontDirect), Math.Max(postWakeLace, orogDirectCap)), Math.Max(Math.Max(marineTapestry, scDeckDirect), itczDirectLift))) +
                             0.04f * respX * Smooth(0.02f, 0.18f, rawVeil + 0.15f * climTarget));
 
             float postOpenShare = Sat(postWakeLace * 1.15f * (1.0f - Smooth(0.30f, 0.65f, m.frontalLow)));
@@ -818,16 +826,16 @@ public static class CloudForcingRegression
             float curvedCirrus = Sat(m.curvedWisp * 0.88f);
             float zJet = (m.baseTex - 0.49f) * 2.6f + (m.wisps - 0.48f) * 3.0f + 3.75f * (curvedCirrus - 0.24f) + 0.95f * (uLow - 0.50f);
             float zAnvil = 2.65f * (m.anvilShield - 0.18f) + (m.wisps - 0.48f) * 2.8f + 2.85f * (curvedCirrus - 0.24f) + 0.85f * (uLow - 0.45f);
-            float zWcb = 0.28f * zJet + 3.75f * (m.wcbCirrus - 0.15f) + 2.40f * (curvedCirrus - 0.24f) + (m.wisps - 0.48f) * 2.0f - 2.40f * m.polarCarve;
+            float zWcb = 0.28f * zJet + 3.70f * (m.wcbCirrus - 0.14f) + 2.40f * (curvedCirrus - 0.24f) + (m.wisps - 0.48f) * 2.0f - 1.05f * m.polarCarve;
             float zHigh = FMath.Lerp(zJet, zAnvil, Sat(itczConv * 1.15f));
             zHigh = FMath.Lerp(zHigh, zWcb, stormWeight);
             float uHigh = 1.0f / (1.0f + (float)Math.Exp(-1.16f * FMath.Clamp(zHigh, -5.5f, 5.5f)));
-            float highEnvTarget = Sat(highTarget * 1.14f + 0.03f * dryGuard) * (1.0f - 0.58f * polarDryCarve);
-            float wHigh = Math.Max(1e-4f, Math.Min(0.40f, Math.Min(highEnvTarget, 1.0f - highEnvTarget) + 0.06f));
+            float highEnvTarget = Sat(highTarget * 1.20f + 0.045f * dryGuard) * (1.0f - 0.48f * polarDryCarve);
+            float wHigh = Math.Max(1e-4f, Math.Min(0.42f, Math.Min(highEnvTarget, 1.0f - highEnvTarget) + 0.06f));
             float rawHigh = Smooth(1.0f - highEnvTarget - wHigh, 1.0f - highEnvTarget + wHigh, uHigh);
             float highSilk = 0.34f + 0.66f * Smooth(0.18f, 0.84f, m.wisps * 0.64f + m.fineGrain * 0.36f);
             float anvilOutflow = Smooth(0.16f, 0.56f, itczConv) * m.anvilShield * 0.70f;
-            float high = Smooth(0.05f, 0.92f, Sat(Math.Max(rawHigh * highSilk * 1.10f, anvilOutflow))) * (1.0f - 0.78f * tropBelt * leeShadow);
+            float high = Smooth(0.05f, 0.92f, Sat(Math.Max(rawHigh * highSilk * 1.13f, anvilOutflow))) * (1.0f - 0.78f * tropBelt * leeShadow);
 
             OrbisCloudVerticalSpan(convection, low, out float baseM, out float topM);
             sLow += low; sHigh += high; sConv += convection; sStorm += storm; sBase += baseM; sTop += topM;
