@@ -13,6 +13,7 @@ namespace Orbis.Flat
         readonly WorldData world;
         readonly CancellationTokenSource lifetime = new CancellationTokenSource();
         readonly Color32[] pixels = new Color32[Width * Height];
+        readonly FlatMoistureCloudBudget moistureBudget = new FlatMoistureCloudBudget();
         FlatClimateStatistics model;
         Task worker;
         long requested = long.MinValue;
@@ -116,11 +117,12 @@ namespace Orbis.Flat
         {
             if (model == null || rebuildModel) model = new FlatClimateStatistics(world, cancel, Width, atmosphereOnly: true);
             model.Refresh(day, storms, cancel);
+            moistureBudget.Solve(world, day, storms);
             for (int i = 0; i < pixels.Length; i++)
             {
-                var response = RegionalCloudResponse.FromSynoptic(model.Cells[i], world, day, storms);
+                var response = RegionalCloudResponse.FromSynoptic(model.Cells[i], i, moistureBudget, storms, day);
                 pixels[i] = new Color32(Byte(Math.Max(0, response.Cover)), Byte(Math.Max(0, -response.Cover)),
-                    Byte(response.Convection), 255);
+                    Byte(response.Convection), Byte(response.Evaporation));
             }
         }
 

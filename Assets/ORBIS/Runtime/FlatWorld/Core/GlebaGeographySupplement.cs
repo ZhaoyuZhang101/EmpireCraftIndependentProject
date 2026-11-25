@@ -3012,6 +3012,7 @@ namespace Orbis.Flat
             internal int[] GX0, GX1, GY0, GY1, EX0, EX1, EY0, EY1, MX0, MX1, MY0, MY1, OX0, OX1, OY0, OY1;
             internal float[] GTx, GTy, ETx, ETy, MTx, MTy, OTx, OTy;
             internal bool[] MExactX, MExactY;
+            internal readonly FlatMoistureCloudBudget MoistureBudget = new FlatMoistureCloudBudget();
 
             internal WorldData CachedWorld;
             internal int CachedRevision = -1;
@@ -3233,6 +3234,7 @@ namespace Orbis.Flat
 
             var ws = workspace ?? new CloudSynopticWorkspace();
             ws.EnsureSize(width, height);
+            ws.MoistureBudget.Solve(world, calendarDay, null);
 
             // Align seasonal phase with FlatMonthlyForcing (each month m is centred at m*30 + 15)
             // so synoptic cloud forcing stays in phase with _ClimateTex, _ClimateWindTex, and FlatWeatherSimulation.
@@ -3671,20 +3673,23 @@ namespace Orbis.Flat
                     float sthzRidge = (float)Math.Exp(-(dSthz * dSthz) / (9.5 * 9.5));
                     float baseHighP = FMath.Clamp((slp - 1012f) / 55f, 0f, 1f);
 
-                    // Propagating synoptic waves & Lagrangian upwind moist-uplift growth -> downwind post-rain / subsidence clearing.
-                    // Note: active cyclone & wake cloud coupling is evaluated solely in FlatRegionalCloudField on a cloned 6h snapshot
-                    // so background FlatSkyForcingScheduler jobs never race against mutable world.Cyclones on the shared WorldData.
+                    // Propagating synoptic waves + conserved 2-layer moisture-saturation-fallout-evaporation budget:
+                    // moist uplift cools to saturation to condense clouds; dry-air advection, rain-out depletion, and
+                    // subsidence adiabatic warming evaporate clouds (monsoon belts keep a wetter mean without a permanent floor).
                     float synMoistUplift = 0f, synPostRainClear = 0f, synSlpDelta = 0f;
+                    float budCloud = 0f, budVapAnom = 0f, budEvap = 0f, budW = 0f;
                     if (!tidallyLocked)
                     {
+                        double uNorm = (x + 0.5) / width;
                         FlatSynopticWeather.EvaluateCloudLifecycle(
-                            seed, calendarDay, (x + 0.5) / width, v,
+                            seed, calendarDay, uNorm, v,
                             windE[idx], windN[idx], rh, rainMm,
                             oceanFrac, thermalGrad300, sthzRidge, baseHighP,
                             targetHadleyDeg, targetPolarDeg,
                             out synMoistUplift, out synPostRainClear, out synSlpDelta);
+                        ws.MoistureBudget.SampleBilinear(uNorm, v, out budCloud, out budVapAnom, out budEvap, out budW);
                     }
-                    float effSlp = slp + synSlpDelta;
+                    float effSlp = slp + synSlpDelta - 2.5f * budW;
 
                     float lowP = FMath.Clamp((1010f - effSlp) / 58f, 0f, 1f) + 0.50f * FMath.Clamp(rainImpact, 0f, 0.5f);
                     float highP = FMath.Clamp((effSlp - 1012f) / 55f, 0f, 1f);
@@ -3784,13 +3789,28 @@ namespace Orbis.Flat
                     float landRainShadowDamp = FMath.Lerp(0.70f, 0.22f, greenOceanConv);
                     float convConvergence = 0.14f * Math.Max(0f, windConv) * Smooth(15f, 25f, tempC) * moistGate;
                     float sstConvMod = oceanFrac * Smooth(17.5f, 25.5f, tempC + 0.5f * effSstAnom) * (0.18f * warmSst - 0.14f * coolUpwelling);
+                    // Local explicit deep-low + high-RH + convergence overrides coarse background subsidence (preserving sharp fronts & patches),
+                    // but yields whenever prognostic rain-out depletion or synoptic ridge subsidence (budEvap) actively sub-saturates the column.
+                    float localSatOverride = Smooth(0.24f, 0.62f, eddyLowP + 0.65f * Math.Max(0f, windConv) + 0.55f * baroclinicFront + 0.65f * warmElNino)
+                                           * Smooth(0.67f, 0.83f, rh);
+                    float effEvap = FMath.Clamp((0.46f * synPostRainClear + 0.62f * budEvap) * (1f - 0.88f * localSatOverride), 0f, 0.94f);
+                    float effCondGrowth = FMath.Clamp(0.58f * synMoistUplift + 0.54f * budCloud + 0.16f * Math.Max(0f, budVapAnom), 0f, 1.15f);
+                    // Subtropical & frontal monsoon blanket relief (15..50 deg, rain > 85 mm): concentrates monthly rainfall into saturated
+                    // frontal/monsoon convergence episodes and shuts off condensation during WPSH ridge subsidence / post-rain dry advection,
+                    // while leaving equatorial ITCZ cores, warm El Nino SST anomalies, and subtropical gyres on their NOAA curve.
+                    float blanketWeight = Smooth(85f, 185f, rainMm) * Smooth(15f, 24f, absLat) * (1f - Smooth(43f, 53f, absLat)) * (1f - 0.80f * warmElNino);
+                    float highLatStormClear = Smooth(44f, 58f, absLat);
+                    float blanketDryShutoff = blanketWeight * Smooth(0.20f, 0.62f, effEvap) * (1f - 0.82f * oceanFrac * scLat * coolUpwelling);
+                    float satSupplyGate = FMath.Clamp((1f + 0.44f * blanketWeight * effCondGrowth) * (1f - 0.90f * blanketDryShutoff), 0.06f, 1.42f);
+
                     float baseConv = Math.Max(effectiveItczBand * moistGate, Math.Max(monsoonCore * 0.88f, greenOceanConv * 0.92f));
-                    float synTropConv = 0.18f * synMoistUplift * monsoonLatGate * moistGate;
+                    float climItczOutflow = FMath.Clamp(baseConv * walkerGate * (1f - 0.55f * negImpact), 0f, 1f);
+                    float synTropConv = 0.22f * effCondGrowth * monsoonLatGate * moistGate;
                     float itczConv = FMath.Clamp(
-                        (baseConv + synTropConv + (exoCapeBoost + 0.12f * warmSoilConv) * moistGate * walkerGate + convConvergence + sstConvMod * moistGate)
+                        (baseConv * satSupplyGate + synTropConv + (exoCapeBoost + 0.12f * warmSoilConv) * moistGate * walkerGate * FMath.Lerp(1f, satSupplyGate, 0.75f * blanketWeight) + convConvergence + sstConvMod * moistGate)
                         * walkerGate * (1f - 0.65f * negImpact * (1f - 0.80f * greenOceanConv))
                         * (1f - landRainShadowDamp * rainShadow)
-                        * (1f - FMath.Clamp(exoCinDamp + 0.24f * synPostRainClear, 0f, 0.72f))
+                        * (1f - FMath.Clamp(exoCinDamp + (0.20f + 0.62f * blanketWeight) * effEvap, 0f, 0.88f))
                         * (1f - 0.52f * coolUpwelling * oceanFrac * (1f - breezeVal)),
                         0f, 1f);
 
@@ -3808,20 +3828,20 @@ namespace Orbis.Flat
                     float contBlock = (1f - oceanFrac) * FMath.Clamp(0.55f * highP + 0.45f * FMath.Clamp((0.38f - rh) * 2.5f, 0f, 1f), 0f, 0.85f);
                     float moistAir = Smooth(0.06f, 0.34f, rh + 0.32f * FMath.Clamp((rainMm + 25f * deepSoilVal) / 140f, 0f, 1f) + 0.22f * condNorm);
                     float frontDyn = 0.14f * baroclinicFront + 0.14f * Math.Max(0f, windConv) * Smooth(0.28f, 0.72f, rh) + 0.14f * eddyLowP * Smooth(0.28f, 0.72f, rh)
-                                   + 0.22f * synMoistUplift;
+                                   + 0.22f * (1f - 0.45f * highLatStormClear) * effCondGrowth;
                     float stratSupport = exo != null ? 0.05f * Smooth(20f, 95f, stratRainVal) * (1f - convFrac) : 0f;
                     float stormTrack = FMath.Clamp(
                         midLat * (0.66f * polarBand + 0.20f + frontDyn + stratSupport)
                         * (0.42f + 0.50f * oceanFrac + 0.30f * warmFront - 0.16f * coolUpwelling * oceanFrac)
-                        * (1f - contBlock) * (1f - 0.38f * eddyHighP) * (1f - 0.36f * synPostRainClear) * moistAir,
+                        * (1f - contBlock) * (1f - 0.38f * eddyHighP) * (1f - (0.34f + 0.32f * blanketWeight + 0.22f * highLatStormClear) * effEvap) * moistAir,
                         0f, 1f);
 
                     float moistureEnv = FMath.Clamp(
-                        (0.54f * Smooth(0.22f, 0.82f, rh) + 0.30f * FMath.Clamp(rainMm / 185f, 0f, 1f) + 0.14f * condNorm
+                        (0.54f * Smooth(0.22f, 0.82f, rh) + 0.30f * FMath.Clamp(rainMm / 185f, 0f, 1f) * satSupplyGate + 0.14f * condNorm
                         + 0.10f * landSoilMoist * Smooth(0.18f, 0.65f, rh + 0.35f * deepSoilVal)
-                        + 0.12f * synMoistUplift * moistAir
+                        + 0.14f * effCondGrowth * moistAir
                         - 0.36f * aridSub - 0.14f * virgaDry * (1f - oceanFrac) - 0.50f * walkerClear
-                        - 0.16f * synPostRainClear),
+                        - (0.14f + 0.32f * blanketWeight) * effEvap),
                         0f, 1f);
 
                     // Cold eastern-boundary upwelling + subtropical subsidence lid + low-level marine stability -> low Marine Stratocumulus.
@@ -3845,24 +3865,21 @@ namespace Orbis.Flat
                     float effStaticShadow = rainShadow * (1f - 0.82f * windwardLift);
                     // Post-precipitation rain-out & dry post-trough subsidence clear clouds outside protected marine Sc decks.
                     float scShield = Smooth(0.36f, 0.70f, marineSc);
-                    float synSubsidenceShadow = 0.44f * synPostRainClear * (1f - 0.82f * scShield);
+                    float synSubsidenceShadow = (0.30f * effEvap + 0.48f * blanketDryShutoff + 0.14f * highLatStormClear * effEvap) * (1f - 0.82f * scShield) * (1f - 0.75f * windwardLift);
                     float leeShadow = FMath.Clamp(effStaticShadow + 0.56f * leeDownslope + 0.82f * walkerClear + ridgeClear + synSubsidenceShadow + dryAirClear, 0f, 1f);
                     float localPol = latDeg >= 0f ? polNCol[x] : -polSCol[x];
                     float polNorm = FMath.Clamp((localPol - 30f) / 58f, 0f, 1f);
 
-                    // Physically calibrated Sundqvist / PlaSim / Gleba climatological cloud potential (forcing.r in [0.04, 0.88])
-                    // coupled with the restored moisture-gated synoptic vertical-motion anomaly & transient precipitation partitioning:
-                    // in transient weather belts, monthly rainfall concentrates into passing moist troughs (+synMoistUplift) and clears
-                    // in post-rain subsiding ridges (-synPostRainClear) without shifting the 30-year zonal climatology.
                     float fineLand = fineLandGrid[idx];
                     float fineSea = 1f - fineLand;
-                    float transientPartition = FMath.Clamp(1f + 0.52f * synMoistUplift - 0.72f * synPostRainClear * (1f - 0.75f * scShield), 0.18f, 1.55f);
-                    float effRainMm = (rainMm * (1f - 0.78f * fineSea * leeShadow) + 34f * fineLand * deepSoilVal * (1f - 0.55f * synPostRainClear)) * transientPartition;
+                    float nonBlanketPart = FMath.Clamp(1f + 0.58f * (1f - 0.35f * highLatStormClear) * effCondGrowth + 0.14f * localSatOverride - (0.48f + 0.18f * highLatStormClear) * effEvap * (1f - 0.78f * scShield), 0.08f, 1.62f);
+                    float transientPartition = nonBlanketPart * (1f - 0.92f * blanketDryShutoff);
+                    float effRainMm = (rainMm * (1f - 0.78f * fineSea * leeShadow) + 34f * fineLand * deepSoilVal * (1f - 0.55f * effEvap)) * transientPartition;
                     float fRain = 1f - (float)Math.Exp(-effRainMm / 72f);
-                    float fRh = Smooth(0.26f, 0.84f, rh * (1f + 0.16f * synMoistUplift - 0.28f * synPostRainClear * (1f - 0.80f * scShield))) * (1f - 0.55f * leeShadow);
+                    float fRh = Smooth(0.26f, 0.84f, rh * (1f + 0.18f * effCondGrowth - (0.24f + 0.24f * blanketWeight) * effEvap * (1f - 0.80f * scShield))) * (1f - 0.55f * leeShadow);
                     float aridLandClear = fineLand * (1f - Smooth(0.12f, 0.62f, rh * Smooth(2f, 45f, rainMm + 25f * deepSoilVal))) * (1f - Smooth(1f, 32f, rainMm));
                     float subtropDry = (1f - 0.72f * fineSea) * (0.55f * highP + 0.45f * negImpact) * (1f - Smooth(4f, 42f, rainMm));
-                    float winStratus = fineLand * (1f - Smooth(-18f, 2f, tempC)) * Smooth(0.34f, 0.75f, rh) * (1f - Smooth(1300f, 2600f, elevG[idx]));
+                    float winStratus = fineLand * (1f - Smooth(-18f, 2f, tempC)) * Smooth(0.34f, 0.75f, rh) * (1f - Smooth(1300f, 2600f, elevG[idx])) * (1f - 0.40f * effEvap);
                     float icePlateauClear = Smooth(1400f, 2900f, elevG[idx]) * (1f - Smooth(-32f, -10f, tempC));
 
                     float moistSupport = Smooth(0.18f, 0.68f, rh + 0.28f * FMath.Clamp((rainMm + 25f * deepSoilVal) / 150f, 0f, 1f) + 0.18f * condNorm);
@@ -3875,16 +3892,19 @@ namespace Orbis.Flat
                                     + 0.22f * exoCapeBoost * walkerGate
                                     + 0.20f * posImpact
                                     + 0.14f * condExcess
-                                    + 0.48f * synMoistUplift;
+                                    + 0.52f * (1f - 0.30f * highLatStormClear) * effCondGrowth;
                     float dynDescent = 0.54f * eddyHighP
                                      + 0.36f * Math.Max(0f, -windConv)
                                      + 0.34f * leeDownslope
                                      + 0.24f * exoCinDamp
                                      + 0.20f * negImpact
-                                     + 0.52f * synPostRainClear;
-                    float synopticAnomaly = FMath.Clamp(dynAscent * moistSupport - dynDescent, -0.78f, 0.85f);
+                                     + (0.42f + 0.54f * blanketWeight + 0.14f * highLatStormClear) * effEvap;
+                    float synopticAnomaly = FMath.Clamp(dynAscent * moistSupport - dynDescent, -0.85f, 0.85f);
 
-                    float climBase = 0.05f + 0.24f * fineSea * moistAir + 0.14f * fineLand * Smooth(0.24f, 0.64f, rh + 0.45f * shallowSoilVal) * Smooth(3f, 28f, rainMm + 30f * deepSoilVal);
+                    float seaBaseMod = FMath.Clamp((1f + 0.10f * effCondGrowth * (1f - 0.60f * highLatStormClear) - 0.16f * highLatStormClear * effEvap) * (1f - 0.78f * blanketDryShutoff), 0.16f, 1.12f);
+                    float seaBaseSupply = 0.24f * fineSea * moistAir * seaBaseMod;
+                    float landBaseSupply = 0.14f * fineLand * Smooth(0.24f, 0.64f, rh + 0.45f * shallowSoilVal) * Smooth(3f, 28f, rainMm + 30f * deepSoilVal) * (1f - 0.72f * blanketDryShutoff);
+                    float climBase = 0.05f + seaBaseSupply + landBaseSupply;
                     float climDyn = 0.36f * fRain + 0.07f * fRh + 0.10f * marineSc + 0.16f * stormTrack + 0.22f * itczConv + 0.13f * winStratus + 0.05f * orogCrest;
                     float climSupp = 0.24f * leeShadow + 0.16f * aridLandClear + 0.10f * subtropDry + 0.18f * icePlateauClear;
                     float synopticLift = FMath.Clamp(climBase + climDyn - climSupp + 0.24f * synopticAnomaly, 0.04f, 0.88f);
@@ -3908,12 +3928,14 @@ namespace Orbis.Flat
                         float endWindN = moisture != null
                             ? upperEndForcing.SampleBilinear(moisture.North, mc00, mc10, mc01, mc11, mtx, mTyVal, mExact)
                             : windN[idx];
-                        // Scale Rossby jet into surface-wind units + tropical upper-tropospheric easterly anvil outflow
-                        float tropEasterly = -0.55f * itczConv;
-                        float ux0 = jx0 * 52f + tropEasterly;
-                        float uy0 = jy0 * 52f + 0.12f * windN[idx] * itczConv;
-                        float ux1 = jx1 * 52f + tropEasterly;
-                        float uy1 = jy1 * 52f + 0.12f * endWindN * itczConv;
+                        // Unified physical m/s contract across all _UpperWindTex terms:
+                        // 52 * jet is already m/s; convert 9 m/s normalized tropical easterly & meridional outflow units to m/s (x9).
+                        const float SurfaceUnitToMs = FlatCycloneWeather.ClimateWindMetresPerSecond;
+                        float tropEasterlyMs = -0.55f * SurfaceUnitToMs * climItczOutflow;
+                        float ux0 = jx0 * 52f + tropEasterlyMs;
+                        float uy0 = jy0 * 52f + 0.12f * SurfaceUnitToMs * windN[idx] * climItczOutflow;
+                        float ux1 = jx1 * 52f + tropEasterlyMs;
+                        float uy1 = jy1 * 52f + 0.12f * SurfaceUnitToMs * endWindN * climItczOutflow;
                         upperWindHalf[p4] = FloatToHalfBits(ux0);
                         upperWindHalf[p4 + 1] = FloatToHalfBits(uy0);
                         upperWindHalf[p4 + 2] = FloatToHalfBits(ux1);

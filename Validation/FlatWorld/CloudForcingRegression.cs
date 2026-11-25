@@ -910,37 +910,68 @@ public static class CloudForcingRegression
         var a = new byte[GridW * GridH * 4];
 
         int xEastUs = LonToX(-74f), yEastUs = LatToY(39f);
+        int xEcs = LonToX(124.5f), yEcs = LatToY(29.5f);
         int xAzores = LonToX(-28f), yAzores = LatToY(31f);
         int xMonsoon = LonToX(88f), yMonsoon = LatToY(21f);
         double minTransient = 1.0, maxTransient = 0.0;
-        double maxAzores = 0.0, minMonsoon = 1.0;
+        double minEcs = 1.0, maxEcs = 0.0, maxEcsEvap = 0.0;
+        double sumAzores = 0.0, maxAzores = 0.0, sumMonsoon = 0.0;
+        var budget = new FlatMoistureCloudBudget();
 
         for (int step = 0; step <= 60; step++)
         {
             double d = sim.World.Day;
             GlebaGeographySupplement.BuildCloudSynopticFields(w, d, GridW, GridH, f, a, null);
             stats.Refresh(d, w.Cyclones, default);
+            budget.Solve(w, d, w.Cyclones);
+            Check(budget.WaterBudgetErrorKgM2 < 1e-4, $"Moisture cloud budget violated conservation: err={budget.WaterBudgetErrorKgM2:E3}");
 
-            double EvalSite(int sx, int sy, float lon, float lat)
+            double EvalSite(int sx, int sy, float lon, float lat, out float evapA)
             {
                 int rx = FMath.Wrap((int)Math.Floor((lon / 360f + 0.5f) * 64), 64);
                 int ry = FMath.Clamp((int)Math.Floor((lat / 180f + 0.5f) * 32), 0, 31);
-                var reg = RegionalCloudResponse.FromSynoptic(stats.Cells[ry * 64 + rx], w, d, w.Cyclones);
+                int rIdx = ry * 64 + rx;
+                var reg = RegionalCloudResponse.FromSynoptic(stats.Cells[rIdx], rIdx, budget, w.Cyclones, d);
+                Check(reg.Evaporation >= 0f && reg.Evaporation <= 1f, $"Evaporation alpha out of [0,1]: {reg.Evaporation}");
+                evapA = reg.Evaporation;
                 int p4 = (sy * GridW + sx) * 4;
                 double lift = f[p4] / 255.0, lee = a[p4 + 2] / 255.0, sc = a[p4] / 255.0;
-                return Math.Max(0.0, Math.Min(1.0, lift + 0.16 * reg.Cover - 0.18 * lee * (1.0 - 0.8 * sc)));
+                return Math.Max(0.0, Math.Min(1.0, (lift + 0.16 * reg.Cover - 0.18 * lee * (1.0 - 0.8 * sc)) * (1.0 - 0.45 * evapA * (1.0 - 0.8 * sc))));
             }
 
-            double trVal = EvalSite(xEastUs, yEastUs, -74f, 39f);
-            double azVal = EvalSite(xAzores, yAzores, -28f, 31f);
-            double moVal = EvalSite(xMonsoon, yMonsoon, 88f, 21f);
+            double trVal = EvalSite(xEastUs, yEastUs, -74f, 39f, out _);
+            double ecsVal = EvalSite(xEcs, yEcs, 124.5f, 29.5f, out float ecsEvap);
+            double azVal = EvalSite(xAzores, yAzores, -28f, 31f, out _);
+            double moVal = EvalSite(xMonsoon, yMonsoon, 88f, 21f, out _);
             if (trVal < minTransient) minTransient = trVal;
             if (trVal > maxTransient) maxTransient = trVal;
+            if (ecsVal < minEcs) minEcs = ecsVal;
+            if (ecsVal > maxEcs) maxEcs = ecsVal;
+            if (ecsEvap > maxEcsEvap) maxEcsEvap = ecsEvap;
             if (azVal > maxAzores) maxAzores = azVal;
-            if (moVal < minMonsoon) minMonsoon = moVal;
+            sumAzores += azVal;
+            sumMonsoon += moVal;
 
             if (step < 60) sim.Step(0.25f);
         }
+        double meanAzores = sumAzores / 61.0, meanMonsoon = sumMonsoon / 61.0;
+
+        // Verify _UpperWindTex physical m/s contract (52*jet + 9*tropical outflow)
+        var uCheck = new ushort[GridW * GridH * 4];
+        GlebaGeographySupplement.BuildCloudSynopticFields(w, 195.0, GridW, GridH, f, a, uCheck, 195.0);
+        double minTropU = 0.0, maxMidU = 0.0;
+        for (int y = 0; y < GridH; y++)
+        {
+            float absLat = Math.Abs(((y + 0.5f) / GridH - 0.5f) * 180f);
+            for (int x = 0; x < GridW; x++)
+            {
+                float ux = HalfToFloat(uCheck[(y * GridW + x) * 4]);
+                if (absLat < 16f && ux < minTropU) minTropU = ux;
+                if (absLat > 30f && absLat < 68f && ux > maxMidU) maxMidU = ux;
+            }
+        }
+        Check(maxMidU > 20.0 && maxMidU < 85.0 && minTropU < -3.0 && minTropU > -18.0,
+            $"_UpperWindTex physical m/s contract violated: maxMidU={maxMidU:F2} m/s, minTropU={minTropU:F2} m/s");
 
         // 9b. Same-date speed-partition determinism (0.05d vs 1.0d steps) + paused sampling invariance
         var wFast = earthBase.Clone(); wFast.Day = 180.0; wFast.Cyclones = FlatCycloneWeather.SpinUpAt(wFast, 180.0);
@@ -976,13 +1007,15 @@ public static class CloudForcingRegression
             && wFast.Cyclones.South.Equals(liveDecoded.Cyclones.South),
             "Post-save/load future cyclone trajectories diverged from continuous simulation");
 
-        Console.WriteLine($"[9. Synoptic Weather Lifecycle & Persistence] TransientSpan={maxTransient - minTransient:F3} [{minTransient:F3}..{maxTransient:F3}] | " +
-            $"AzoresMax={maxAzores:F3} (persistent clear) | MonsoonMin={minMonsoon:F3} (persistent cloudy) | 1x/20x & LiveSave Exact=TRUE");
+        Console.WriteLine($"[9. Synoptic Weather Lifecycle & Budget] ECS=[{minEcs:F3}..{maxEcs:F3}] (maxEvapA={maxEcsEvap:F3}) | TransientSpan={maxTransient - minTransient:F3} [{minTransient:F3}..{maxTransient:F3}] | " +
+            $"AzoresMean={meanAzores:F3} (max {maxAzores:F3}) vs MonsoonMean={meanMonsoon:F3} | UpperWind=[{minTropU:F2}..{maxMidU:F2} m/s] | 1x/20x & LiveSave Exact=TRUE");
 
+        Check(minEcs < 0.52 && (maxEcs - minEcs) >= 0.22 && maxEcsEvap >= 0.25,
+            $"East China Sea remained permanently overcast or lacked dry-intrusion/subsidence clearing: [{minEcs:F3}..{maxEcs:F3}], maxEvapA={maxEcsEvap:F3}");
         Check(maxTransient - minTransient >= 0.16,
             $"Transient midlatitude storm track lacked moist-uplift/post-rain cloud lifecycle span: {maxTransient - minTransient:F3}");
-        Check(maxAzores <= 0.25 && minMonsoon >= 0.45,
-            $"Persistent climate regimes destabilized: AzoresMax={maxAzores:F3}, MonsoonMin={minMonsoon:F3}");
+        Check(meanAzores <= 0.18 && maxAzores <= 0.30 && meanMonsoon >= meanAzores + 0.35,
+            $"Climate regime contrast degraded: AzoresMean={meanAzores:F3} (max={maxAzores:F3}), MonsoonMean={meanMonsoon:F3}");
     }
 
     // ---- Helpers: World Perturbation, Site Selection & Faithful CPU Mirror of FlatSkyBake + OrbisCloudVerticalSpan ----
