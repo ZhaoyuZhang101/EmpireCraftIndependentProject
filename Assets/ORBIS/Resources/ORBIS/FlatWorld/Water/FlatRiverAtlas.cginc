@@ -18,7 +18,10 @@ float _RiverMinPixels,_RiverWidthGain,_RiverDisplayScale,_RiverGlobeNarrowing;
 #define FLAT_VECTOR_FIELD (_RiverAtlasLayout.z<0)
 #endif
 
-bool FlatRiverFieldReady() { return max(_RiverAtlasReady,_RiverPreviewReady)>.5; }
+// Set by the globe presenter: 1 from orbit, where a river is narrower than a pixel and the
+// raster rivers stand in for the analytic field.
+float _OrbitSurfaceLod;
+bool FlatRiverFieldReady() { return max(_RiverAtlasReady,_RiverPreviewReady)>.5&&_OrbitSurfaceLod<.5; }
 
 float FlatRiverStrokeRadius(float radius,float minimumRadius,float cellsPerPixel)
 {

@@ -12,6 +12,11 @@ namespace Orbis
         public OrbisMapView atlas;
         public Orbis.Flat.FlatScrollNavigator scroll;
         public float scrollVolumeWeight=1;
+        // Seen from orbit the clouds are a smooth translucent veil: a lower resolution and far fewer
+        // samples give the same picture. orbitEconomy is set by the globe presenter (1 = orbit).
+        public float orbitEconomy;
+        public float orbitScale=.5f;
+        public int orbitCloudSteps=8,orbitAirSteps=6,orbitLightSteps=2;
         [Tooltip("Bypass half-resolution buffers to compare thin silhouettes and UV orientation.")]
         public bool fullResolutionReference;
         [Tooltip("A/B verification of the original fourfold cloud integration cost.")]
@@ -152,6 +157,13 @@ namespace Orbis
             m.SetFloat("_CloudViewBlend",0);m.SetFloat("_LocalCloudMap",0);
             m.SetInt("_CloudSteps",referenceCloudIntegration?RefCloudSteps[q]:CloudSteps[q]);m.SetInt("_AirSteps",referenceCloudIntegration?RefAirSteps[q]:AirSteps[q]);m.SetInt("_LightSteps",referenceCloudIntegration?RefLightSteps[q]:LightSteps[q]);m.SetInt("_CloudDebug",cloudDebug);
             m.SetFloat("_CloudRefinement",referenceCloudIntegration?4:CloudRefinement[q]);
+            bool economy=orbitEconomy>.5f&&!referenceCloudIntegration&&!fullResolutionReference&&!map;
+            if(economy)
+            {
+                m.SetInt("_CloudSteps",Mathf.Min(CloudSteps[q],orbitCloudSteps));m.SetInt("_AirSteps",Mathf.Min(AirSteps[q],orbitAirSteps));
+                m.SetInt("_LightSteps",Mathf.Min(LightSteps[q],orbitLightSteps));
+            }
+            m.SetFloat("_OrbitFast",economy?1:0);
             m.SetFloat("_CloudLightSimple",referenceCloudIntegration?0:1);
             if(map)
             {
@@ -185,6 +197,7 @@ namespace Orbis
                 !SystemInfo.SupportsRenderTextureFormat(RenderTextureFormat.ARGBHalf)||(map&&!mapMRT))
             {Present(source,destination,m,map?2:1);return;}
             float renderScale=referenceCloudIntegration?Mathf.Max(RefScale[q],q>=2?1f:RefScale[q]):Scale[q];
+            if(economy)renderScale=Mathf.Min(renderScale,orbitScale);
             int width=Mathf.Max(4,Mathf.CeilToInt(source.width*renderScale)),height=Mathf.Max(4,Mathf.CeilToInt(source.height*renderScale));
             RenderTexture light=null,transmission=null;RenderTexture previous=RenderTexture.active;
             bool oldSRGB=GL.sRGBWrite;

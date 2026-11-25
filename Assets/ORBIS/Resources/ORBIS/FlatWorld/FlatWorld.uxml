@@ -28,7 +28,7 @@
     <ui:VisualElement name="panelWorld" class="tab-page">
      <ui:Label text="同一个世界，三个尺度" class="section"/>
      <ui:Label text="滚轮从星球进入局部地表。M 打开全球总览，再按 M 返回原视图。在总览中按 F 可细看选区，Home 返回星球。" class="muted"/>
-     <ui:DropdownField name="cloudQuality" label="画面质量"/><ui:Toggle name="clouds" label="云层与云影"/>
+     <ui:DropdownField name="cloudQuality" label="画面质量"/><ui:Toggle name="clouds" label="云层与云影"/><ui:Toggle name="volumetricClouds" label="体积云" tooltip="球面视角显示立体云团。关闭更流畅。"/>
      <ui:Button name="home" text="Home 重置视野"/>
      <ui:Foldout text="生成新世界" value="false">
       <ui:TextField name="seed" label="种子"/><ui:DropdownField name="size" label="地图大小"/><ui:DropdownField name="preset" label="地形"/>

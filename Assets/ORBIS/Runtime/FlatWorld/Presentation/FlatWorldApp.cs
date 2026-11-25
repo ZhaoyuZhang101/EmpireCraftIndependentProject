@@ -30,7 +30,7 @@ namespace Orbis.Flat
         VisualElement root,viewport;Label info,stats,notice,nations;Button modeButton,pauseButton,speedButton;
         TextField seedField,pathField;DropdownField sizeField,presetField,layerField,toolField,heightField,brushField;
         int[] playerWidths;
-        Toggle gridToggle,cloudToggle,contourToggle;
+        Toggle gridToggle,cloudToggle,contourToggle,volumetricToggle;
         DropdownField cloudQuality,climateYearField,planetPresetField;Label legend,waterStatus,skyStatus,planetSummaryLabel;
         SliderInt planetCo2Slider;Slider planetObliqSlider;
         ExoPlaSimPlanetConfig activePlanetConfig=ExoPlaSimPlanetConfig.CreatePreset(ExoPlaSimPreset.EarthModern);
@@ -101,7 +101,7 @@ namespace Orbis.Flat
             for(int i=1;i<=20;i++)heightField.choices.Add("L"+i.ToString("00")+" · "+HeightBands.Preset(i)+" m");heightField.index=3;
             brushField=root.Q<DropdownField>("brush");brushField.choices=new List<string>{"1 Tile","1 Zone · 4×4","3×3 Tiles","9×9 Tiles"};brushField.index=0;
             pathField=root.Q<TextField>("path");pathField.value=Path.Combine(Application.persistentDataPath,"orbis-height16.png");
-            gridToggle=root.Q<Toggle>("grid");gridToggle.value=false;cloudToggle=root.Q<Toggle>("clouds");cloudToggle.value=true;
+            gridToggle=root.Q<Toggle>("grid");gridToggle.value=false;cloudToggle=root.Q<Toggle>("clouds");cloudToggle.value=true;volumetricToggle=root.Q<Toggle>("volumetricClouds");if(volumetricToggle!=null)volumetricToggle.value=false;
             modeButton=root.Q<Button>("mode");pauseButton=root.Q<Button>("pause");speedButton=root.Q<Button>("speed");
             Bind("generate",Generate);Bind("seedCivs",()=>{if(Ready()){int n=Simulation.SeedNations(4);map.Flush();SetStatus("新增 "+n+" 个文明。领地按 4×4 Zone 扩展。 ");}});
             Bind("pause",()=>{paused=!paused;UpdateHUD();});Bind("speed",()=>{speed=speed==1?4:speed==4?12:speed==12?20:1;UpdateHUD();});
@@ -429,6 +429,7 @@ namespace Orbis.Flat
             BindSky(map.Material,sun);ApplyWaterSettings(map.Material);navigation.SyncMaterials();
             wildlife.Tick(animate?dt*speed:0,CalendarDay,sun,natural,animate?realDt:0);
             if(globe)globe.Snapshot.settings.cloudQuality=Mathf.Clamp(cloudQuality.index,0,2);
+            if(globe)globe.OrbitVolumetric=volumetricToggle!=null&&volumetricToggle.value;
             if(globe)globe.TickScroll(animate?dt:0,visualClock,CalendarDay,navigation.DisplaySpin,navigation.Morph,
                 cloudToggle.value,true,true,cloudToggle.value,sun,natural);
             hudAge+=dt;if(hudAge>.25f){hudAge=0;UpdateHUD();}

@@ -290,6 +290,7 @@ namespace Orbis.Flat
             var card = Hud.Card("云与图面", "nat_cloud", null, true);
             card.Add(HudMirror("云层质量", cloudQuality));
             card.Add(HudMirror("云层", cloudToggle));
+            if (volumetricToggle != null) card.Add(HudMirror("体积云", volumetricToggle));
             card.Add(HudMirror("等高线", contourToggle));
             card.Add(HudMirror("网格", gridToggle));
             page.Add(card);

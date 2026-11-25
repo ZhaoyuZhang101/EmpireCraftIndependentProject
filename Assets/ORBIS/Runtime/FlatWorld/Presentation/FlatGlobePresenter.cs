@@ -7,6 +7,9 @@ namespace Orbis.Flat
         public OrbisPlanetView View { get; private set; }
         public OrbisWorld Snapshot { get; private set; }
         public float Yaw,Pitch=18,Distance=3.1f,SunAngle;
+        // From orbit, clouds are a translucent veil with analytic cores (off: aims at 120 fps), or the
+        // veil plus volumetric cores (on: aims at 60 fps). Close views always use volumetric cloud.
+        public bool OrbitVolumetric;
         Camera viewCamera;double clock;FlatMapRenderer maps;
         float baseAir,baseHaze,baseCloudDensity;bool scrollPrepared;
         // Satellite-photo look on the globe: thin air and haze let the deep ocean read navy
@@ -16,8 +19,11 @@ namespace Orbis.Flat
         // cirrus stay see-through and texel-size specks feather out; the deep ocean takes a navy tint.
         // Near values match FlatMapRenderer.
         float globeCoverCut=.42f,globeThinEdge=1f,globeHighCut=.82f,globeStreak=1f,globeSoftLod=2f,globeOceanTint=.5f;
-        float globeOrbitVeil=1f,globeOrbitTau=.05f,globeVeilStart=.32f,globeOrbitHighTau=.15f,globeOrbitCore=1.4f,globeOrbitSmooth=0f,globeOrbitVolume=1f,globeOrbitVolumeStart=.78f;
+        float globeOrbitVeil=1f,globeOrbitTau=.035f,globeVeilStart=.36f,globeOrbitHighTau=.15f,globeOrbitCore=1.5f,globeOrbitCoreStart=.80f,globeOrbitSmooth=0f,globeOrbitVolume=1f,globeOrbitVolumeStart=.78f;
         // Orbit mist (AtmosphereComposite globals): ground under cloud is blurred and greyed, bright cloud glows.
+        float globeEconomy=1f,globeSurfaceLod=1f,globeVeilShade=.05f,globeRiverPixels=1.1f;
+        // Orbit render budgets: cloud resolution scale, then cloud/air/light samples for each mode.
+        float globeOrbitScale=.5f,globeVeilSteps=8,globeVeilAir=6,globeVeilLight=2,globeVolSteps=30,globeVolAir=8,globeVolLight=3;
         float globeMist=1f,globeMistBlur=1.5f,globeMistGrey=.6f,globeHalo=.6f;
         const float NearCoverCut=.15f,NearHighCut=.7f;
         float baseExposure,nearAir,nearHaze,nearExposure;
@@ -90,10 +96,18 @@ namespace Orbis.Flat
             Shader.SetGlobalFloat("_CloudSoftLod",near<.5f?globeSoftLod:0);
             Shader.SetGlobalFloat("_OceanOrbitTint",globeOceanTint*(1-near));
             Shader.SetGlobalFloat("_CloudOrbitVeil",globeOrbitVeil*(1-near));Shader.SetGlobalFloat("_CloudOrbitTau",globeOrbitTau);
-            Shader.SetGlobalFloat("_CloudOrbitSmooth",globeOrbitSmooth);Shader.SetGlobalFloat("_CloudOrbitVolume",globeOrbitVolume);Shader.SetGlobalFloat("_CloudOrbitVolumeStart",globeOrbitVolumeStart);
+            Shader.SetGlobalFloat("_CloudOrbitSmooth",globeOrbitSmooth);Shader.SetGlobalFloat("_CloudOrbitVolume",OrbitVolumetric?globeOrbitVolume:0);Shader.SetGlobalFloat("_CloudOrbitVolumeStart",globeOrbitVolumeStart);
             Shader.SetGlobalFloat("_OrbitMist",globeMist*(1-near));Shader.SetGlobalFloat("_OrbitMistBlur",globeMistBlur);
             Shader.SetGlobalFloat("_OrbitMistGrey",globeMistGrey);Shader.SetGlobalFloat("_OrbitHalo",globeHalo);
-            Shader.SetGlobalFloat("_CloudOrbitCore",globeOrbitCore);Shader.SetGlobalFloat("_CloudVeilStart",globeVeilStart);Shader.SetGlobalFloat("_CloudOrbitHighTau",globeOrbitHighTau);
+            // Volumetric cores bring their own white; the analytic core then only covers near-overcast cover.
+            Shader.SetGlobalFloat("_CloudOrbitCore",OrbitVolumetric?1.4f:globeOrbitCore);Shader.SetGlobalFloat("_CloudOrbitCoreStart",OrbitVolumetric?.84f:globeOrbitCoreStart);
+            bool orbit=near<.02f;
+            Shader.SetGlobalFloat("_OrbitVeilOnly",orbit&&globeEconomy>.5f&&!OrbitVolumetric?1:0);
+            // Surface level of detail belongs to the 120 fps mode; with volumetric cloud on, rivers keep their analytic field.
+            bool surfaceLod=orbit&&!OrbitVolumetric&&globeSurfaceLod>.5f;
+            Shader.SetGlobalFloat("_OrbitSurfaceLod",surfaceLod?1:0);Shader.SetGlobalFloat("_OrbitVeilShade",globeVeilShade);
+            // 2.4 is the map's readability minimum (FlatMapRenderer); orbit raster rivers use a thinner one.
+            Shader.SetGlobalFloat("_RiverMinPixels",surfaceLod?globeRiverPixels:2.4f);Shader.SetGlobalFloat("_CloudVeilStart",globeVeilStart);Shader.SetGlobalFloat("_CloudOrbitHighTau",globeOrbitHighTau);
             Snapshot.settings.cloudDensity=baseCloudDensity;
             Snapshot.settings.clouds=clouds&&natural;
             Snapshot.settings.atmosphere=atmosphere&&natural;
@@ -124,7 +138,11 @@ namespace Orbis.Flat
             m.SetFloat("_GodRays",volumeLight?1:0);
             if(!scrollVolume)foreach(var volume in viewCamera.GetComponents<OrbisAtmosphereRenderer>())if(volume.view==View)scrollVolume=volume;
             if(!scrollNav)scrollNav=maps.GetComponentInParent<FlatWorldApp>()?.Navigation;
-            if(scrollVolume){scrollVolume.scroll=scrollNav;scrollVolume.scrollVolumeWeight=weight;}
+            if(scrollVolume){scrollVolume.scroll=scrollNav;scrollVolume.scrollVolumeWeight=weight;scrollVolume.orbitEconomy=near<.02f?globeEconomy:0;
+                scrollVolume.orbitScale=globeOrbitScale;
+                scrollVolume.orbitCloudSteps=(int)(OrbitVolumetric?globeVolSteps:globeVeilSteps);
+                scrollVolume.orbitAirSteps=(int)(OrbitVolumetric?globeVolAir:globeVeilAir);
+                scrollVolume.orbitLightSteps=(int)(OrbitVolumetric?globeVolLight:globeVeilLight);}
             // Intentionally NOT View.Sync(): it enables/culls the old meshes and starts local surface LOD.
             // The viewCamera image effect keeps its display transform at both endpoints; only volume density fades.
         }

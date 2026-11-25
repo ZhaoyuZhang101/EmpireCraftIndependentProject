@@ -10,7 +10,7 @@ float4 _MainTex_TexelSize;
 #include "OrbisAtmosphereView.cginc"
 #include "OrbisHPVolumeCloud.cginc"
 int _CloudSteps,_AirSteps,_LightSteps,_CloudDebug;
-float _CloudRefinement,_CloudLightSimple;
+float _CloudRefinement,_CloudLightSimple,_OrbitFast,_OrbitVeilOnly,_OrbitVeilShade;
 float _CloudMS,_ScatteringStrength,_MapVolume;
 float _ScrollVolumeWeight;
 float _LocalCloudMap,_CloudCameraHeight,_CloudViewBlend,_CloudProjectionBlend;
@@ -132,7 +132,12 @@ float2 LightField(float3 p,float3 sun,float density)
   float2 segment=OrbisLightSegment(j,lightSteps,lengthToExit);
   float sampleTau=0;
   // Dynamic GPU branch skips 3D volume reads once Beer-Lambert extinction > 99.987%
-  [branch] if(!allowEarlyOut||totalTau<4.4)
+  // Orbit veil: the sheet is uniform along the short path to the shell top, so its own density
+  // gives the sun optical depth without reading the cloud field again. Only a fraction of it
+  // shades the sheet: that stands in for the multiple scattering a thin-density veil does not
+  // get from this model, and keeps thick cores white instead of grey.
+  [branch] if(_OrbitFast>.5&&_OrbitVeilOnly>.5)sampleTau=density*ORBIS_EXTINCTION*(segment.y-segment.x)*_OrbitVeilShade;
+  else if(!allowEarlyOut||totalTau<4.4)
   {
    float t=(segment.x+segment.y)*.5;
    float2 lightDensity=OrbisCloudDensities(p+sun*t,allowEarlyOut);
@@ -383,7 +388,11 @@ OrbisVolumeResult OrbisMarchRay(float3 ro,float3 rd,float endDistance,float scen
    float refine=clamp(_CloudRefinement,1,4);
    if(_CloudLightSimple>.5)refine=lerp(1.0,refine,smoothstep(.18,.62,maxTrans));
    stepSize=hitProbe?min(segmentEnd-cursor,max(min(ds,cap)*rcp(refine),minStep)):large;
-   bool skipDetail=_CloudLightSimple>.5&&maxTrans<.22;
+   // Orbit budget: a veil is smooth along the ray, so its probe is its density and it takes the
+   // large step. Only dense volumetric cores are refined.
+   bool veilOnly=_OrbitFast>.5&&(_OrbitVeilOnly>.5||(probe.x+probe.y)<.12);
+   if(veilOnly&&hitProbe)stepSize=large;
+   bool skipDetail=(_CloudLightSimple>.5&&maxTrans<.22)||veilOnly;
    if(!hitProbe)density=0;
    else if(skipDetail&&abs(stepSize-large)<1e-6)density=probe;
    else density=OrbisCloudDensities(ro+rd*(cursor+stepSize*.5),skipDetail);

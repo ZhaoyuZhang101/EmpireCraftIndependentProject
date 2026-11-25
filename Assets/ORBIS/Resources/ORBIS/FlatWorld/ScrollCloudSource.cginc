@@ -23,7 +23,8 @@ float _CloudCoverCut,_CloudThinFade,_CloudHighCut,_CloudDensityCut,_CloudThinEdg
 // _CloudOrbitSmooth low-passes the inside of cloud sheets (a coarser weather mip and less
 // thickness noise) while edges keep their detail.
 // _CloudOrbitVolume keeps the volumetric cloud in the thickest cores, so they stand out of the veil in relief.
-float _CloudOrbitVeil,_CloudOrbitTau,_CloudVeilStart,_CloudOrbitHighTau,_CloudOrbitCore,_CloudOrbitSmooth,_CloudOrbitVolume;
+// _CloudOrbitCoreStart is the baked cover where that opaque core begins.
+float _CloudOrbitVeil,_CloudOrbitTau,_CloudVeilStart,_CloudOrbitHighTau,_CloudOrbitCore,_CloudOrbitSmooth,_CloudOrbitVolume,_CloudOrbitCoreStart;
 // _CloudOrbitVolumeStart is the baked cover above which a core turns volumetric.
 float _CloudOrbitVolumeStart;
 
@@ -296,15 +297,18 @@ float2 ScrollClimateDensities(float3 p,bool simpleMode)
   }
   float frayed=veilCover+(wisp-.5)*.16*smoothstep(.02,.20,veilCover);
   float x=saturate((frayed-_CloudVeilStart)/max(.05,1.0-_CloudVeilStart));
-  float core=smoothstep(.84,1.0,frayed);
+  float core=smoothstep(_CloudOrbitCoreStart,_CloudOrbitCoreStart+.20,frayed);
   float tau=(_CloudOrbitTau*pow(x,1.2)/(1.08-x)*(.45+1.1*wisp)+_CloudOrbitCore*core*core)*lerp(1.0,2.2,smoothstep(.58,.92,convection));
   float2 slab=OrbisCloudVerticalSpan(convection,saturate(veilCover+.12));
   float thick=max(400.0,slab.y-slab.x),hLow=(z-slab.x)/thick;
   float lowSlab=tau*smoothstep(0,.15,hLow)*(1.0-smoothstep(.8,1.0,hLow))/(perMetre*thick*.825);
+  float shellFill=smoothstep(.90,1.0,orbit);
+  lowSlab=lerp(lowSlab,tau/(perMetre*13100.0),shellFill);
   float hc=pow(saturate(softHigh),.65);
   float hb=8350.0-1150.0*hc,ht=9100.0+4050.0*hc;
   float tauHigh=_CloudOrbitHighTau*pow(saturate(softHigh),1.3)*(.5+fray.b);
   float highSlab=tauHigh*smoothstep(hb-350.0,hb+350.0,z)*(1.0-smoothstep(ht-350.0,ht+350.0,z))/(perMetre*max(700.0,ht-hb));
+  highSlab=lerp(highSlab,tauHigh/(perMetre*13100.0),shellFill);
   // The dense volumetric cloud hands over early, so mid-zoom is not thicker than either end.
   float volume=(1.0-orbit)*(1.0-orbit)*(1.0-orbit);
   low=low*max(volume,coreVolume)+lowSlab*orbit;high=high*volume+highSlab*orbit;

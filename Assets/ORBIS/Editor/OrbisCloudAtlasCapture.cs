@@ -110,8 +110,7 @@ namespace Orbis.EditorTools
                 Render(camera,nav,app,Path.Combine(output,$"{prefix}_c{shot}_globe.png"));
                 if(benchVariant&&shot==1)
                 {
-                    // Synchronous 1280x720 render cost of this variant (existing benchmark; it also writes its own log).
-                    string cost=Orbis.Editor.CloudRenderBenchmark.Run(prefix);
+                    string cost=Bench(camera,nav,app,prefix);
                     File.AppendAllText(Path.Combine(output,"bench.txt"),cost);Debug.Log("OrbisCloudAtlasCapture bench "+cost);
                 }
             }
@@ -153,9 +152,54 @@ namespace Orbis.EditorTools
         // off; "atmo=0" disables the atmosphere/cloud image effect; "air", "haze" and "exposure"
         // set the globe atmosphere settings. Settings persist into later variants unless reset.
         static bool benchVariant;
+        static readonly Dictionary<string,float> surfaceOverrides=new Dictionary<string,float>();
+        // Synchronous camera render time (median, GPU flushed by a one-pixel readback) at each size in
+        // -orbisBenchSizes "1920x1080;2560x1440": the whole frame, and the frame without the volume pass.
+        static string Bench(Camera camera,FlatScrollNavigator nav,FlatWorldApp app,string label)
+        {
+            var volumes=camera.GetComponents<OrbisAtmosphereRenderer>();var result=new StringBuilder(label);
+            var target=camera.targetTexture;var rect=camera.pixelRect;var active=RenderTexture.active;
+            var enabled=Array.ConvertAll(volumes,v=>v.enabled);
+            Action<bool> setVolumes=on=>{for(int k=0;k<volumes.Length;k++)volumes[k].enabled=on&&enabled[k];};
+            var read=new Texture2D(1,1,TextureFormat.RGB24,false);
+            try
+            {
+                foreach(var size in (Arg("-orbisBenchSizes")??"1920x1080").Split(';'))
+                {
+                    var wh=size.Split('x');int w=int.Parse(wh[0]),h=int.Parse(wh[1]);
+                    var rt=new RenderTexture(w,h,24,RenderTextureFormat.ARGB32);rt.Create();
+                    camera.targetTexture=rt;nav.SetViewport(new Rect(0,0,w,h));nav.Tick(0,app.CalendarDay);nav.SyncMaterials();
+                    Func<double> measure=()=>
+                    {
+                        var times=new double[15];
+                        for(int i=0;i<19;i++)
+                        {
+                            var timer=System.Diagnostics.Stopwatch.StartNew();camera.Render();RenderTexture.active=rt;
+                            read.ReadPixels(new Rect(0,0,1,1),0,0);read.Apply();timer.Stop();
+                            if(i>=4)times[i-4]=timer.Elapsed.TotalMilliseconds;
+                        }
+                        Array.Sort(times);return times[7];
+                    };
+                    // Surface feature probes apply to the material that draws the globe surface, for the measurement only.
+                    var surface=nav.SurfaceMaterial;var saved=new Dictionary<string,float>();
+                    if(surface)foreach(var pair in surfaceOverrides)if(surface.HasProperty(pair.Key)){saved[pair.Key]=surface.GetFloat(pair.Key);surface.SetFloat(pair.Key,pair.Value);}
+                    double full=measure();setVolumes(false);double bare=measure();setVolumes(true);
+                    if(surface)foreach(var pair in saved)surface.SetFloat(pair.Key,pair.Value);
+                    if(surfaceOverrides.Count>0)result.Append($" [{saved.Count}/{surfaceOverrides.Count} surface overrides applied]");
+                    result.Append($" | {w}x{h} frame {full:F2} ms, without volume {bare:F2} ms, volume {full-bare:F2} ms");
+                    camera.targetTexture=target;RenderTexture.active=active;rt.Release();UnityEngine.Object.DestroyImmediate(rt);
+                }
+            }
+            finally
+            {
+                setVolumes(true);camera.targetTexture=target;nav.SetViewport(rect);nav.Tick(0,app.CalendarDay);
+                RenderTexture.active=active;UnityEngine.Object.DestroyImmediate(read);
+            }
+            return result.Append("\n").ToString();
+        }
         static void ApplyVariant(FlatWorldApp app,Camera camera)
         {
-            benchVariant=false;
+            benchVariant=false;surfaceOverrides.Clear();
             var toggle=Get<Toggle>(app,"cloudToggle");if(toggle!=null)toggle.value=true;
             foreach(var r in camera.GetComponents<OrbisAtmosphereRenderer>())r.enabled=true;
             foreach(var pair in variantSettings[variant].Split(new[]{','},StringSplitOptions.RemoveEmptyEntries))
@@ -171,6 +215,28 @@ namespace Orbis.EditorTools
                     else t.GetField("baseExposure",Private).SetValue(globe,value);
                 }
                 else if(key=="bench"){benchVariant=value>.5f;}
+                else if(key=="riverpx"){var presenter=Get<FlatGlobePresenter>(app,"globe");if(presenter)typeof(FlatGlobePresenter).GetField("globeRiverPixels",Private).SetValue(presenter,value);}
+                else if(key=="shade"){var presenter=Get<FlatGlobePresenter>(app,"globe");if(presenter)typeof(FlatGlobePresenter).GetField("globeVeilShade",Private).SetValue(presenter,value);}
+                else if(key=="volumetric"){var box=Get<Toggle>(app,"volumetricToggle");if(box!=null)box.value=value>.5f;}
+                else if(key=="volSteps"||key=="volAir"||key=="volLight")
+                {
+                    var presenter=Get<FlatGlobePresenter>(app,"globe");
+                    if(presenter)typeof(FlatGlobePresenter).GetField(key=="volSteps"?"globeVolSteps":key=="volAir"?"globeVolAir":"globeVolLight",Private).SetValue(presenter,value);
+                }
+                else if(key=="lod"){var presenter=Get<FlatGlobePresenter>(app,"globe");if(presenter)typeof(FlatGlobePresenter).GetField("globeSurfaceLod",Private).SetValue(presenter,value);}
+                else if(key.StartsWith("mat.")){surfaceOverrides[key.Substring(4)]=value;}
+                else if(key.StartsWith("eco"))
+                {
+                    // Orbit render budget: eco=0/1 switches it; ecoScale, ecoSteps, ecoAir, ecoLight set its values.
+                    var globe=Get<FlatGlobePresenter>(app,"globe");
+                    if(key=="eco"){if(globe)typeof(FlatGlobePresenter).GetField("globeEconomy",Private).SetValue(globe,value);}
+                    else if(globe)
+                    {
+                        // ecoScale; ecoSteps/ecoAir/ecoLight for the veil mode; volSteps/volAir/volLight for volumetric.
+                        string field=key=="ecoScale"?"globeOrbitScale":key=="ecoSteps"?"globeVeilSteps":key=="ecoAir"?"globeVeilAir":key=="ecoLight"?"globeVeilLight":null;
+                        if(field!=null)typeof(FlatGlobePresenter).GetField(field,Private).SetValue(globe,value);
+                    }
+                }
                 else if(key=="atmo"){foreach(var r in camera.GetComponents<OrbisAtmosphereRenderer>())r.enabled=value>.5f;}
                 else
                 {
