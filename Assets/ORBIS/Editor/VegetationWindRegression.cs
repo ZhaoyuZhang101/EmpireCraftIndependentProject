@@ -205,14 +205,15 @@ namespace Orbis.Editor
                 sky.Tick(0, true, false, false, 512, world.Day);
                 sky.Bind(probe, Vector3.forward, false, false, false, false, false, false, false, 0);
                 var texture = (Texture2D)probe.GetTexture("_VegetationWindTex");
+                int sampleX = texture.width / 2, sampleY = texture.height / 2;
                 float East(int index) => world.Moisture == null ? .4f :
-                    world.Moisture.Sample(world.Moisture.East, 64.5f / 128, 32.5f / 64, index);
+                    world.Moisture.Sample(world.Moisture.East, (sampleX + .5f) / texture.width, (sampleY + .5f) / texture.height, index);
                 int month = world.Month;
                 float mean = East(month), left = .5f * (East((month + 11) % 12) + mean);
                 float right = .5f * (mean + East((month + 1) % 12)), peak = 2 * mean - .5f * (left + right);
                 float phase = (float)(world.Day % 30) / 30;
                 float expected = phase < .5f ? Mathf.Lerp(left, peak, 2 * phase) : Mathf.Lerp(peak, right, 2 * phase - 1);
-                Color wind = texture.GetPixel(64, 32);
+                Color wind = texture.GetPixel(sampleX, sampleY);
                 Check(lines, Math.Abs(Mathf.Lerp(wind.r, wind.b, probe.GetFloat("_VegetationWindBlend")) - expected) < .001,
                     "vegetation receives the calendar wind during a pending cloud snapshot");
                 Check(lines, Difference(cloudWind, sky.DynamicWind.GetPixels()) == 0,

@@ -27,7 +27,22 @@ namespace Orbis.Flat
         FlatWildlifePresenter wildlife;
         FlatWorldMinimap minimap;
         internal FlatClimateStatisticsPanel ClimateStatisticsPanel { get; private set; }
-        VisualElement root,viewport;Label info,stats,notice,nations;Button modeButton,pauseButton,speedButton;
+        VisualElement root,viewport;Label info,stats,notice,nations;Button modeButton,pauseButton,speedButton,returnOriginalButton;
+        sealed class SavedSessionSnapshot
+        {
+            public WorldData World;
+            public int Selected,ActiveNation;
+            public bool WasFlat,WasPaused;
+            public Vector2 CenterTile;
+            public float Speed;
+            public MapLayer Layer;
+        }
+        SavedSessionSnapshot savedSession;
+        string activeDemoLabel,pendingDemoLabel;
+        WorldData pendingDemoWorld;
+        int pendingDemoFocusTile=-1;
+        FlatHazardKind pendingDemoHazard=FlatHazardKind.None;
+        public bool IsDemoWorldActive => savedSession!=null&&!ReferenceEquals(World,savedSession.World);
         TextField seedField,pathField;DropdownField sizeField,presetField,layerField,toolField,heightField,brushField;
         int[] playerWidths;
         Toggle gridToggle,cloudToggle,contourToggle,hazardLiveWeatherToggle;
@@ -203,6 +218,12 @@ namespace Orbis.Flat
             Bind("hazardTsunami",()=>TriggerHazard(FlatHazardKind.Tsunami));
             Bind("hazardFocus",FocusActiveHazard);
             Bind("hazardClear",()=>{if(map&&map.LocalWater){map.LocalWater.ClearHazard();navigation?.SyncMaterials();UpdateHUD();SetStatus("已清理局部水灾并恢复基准河湖海材质。");}});
+            returnOriginalButton=root.Q<Button>("hazardReturnOriginal");
+            if(returnOriginalButton!=null)
+            {
+                returnOriginalButton.clicked+=()=>{try{ExitIsolatedDemoWorld();}catch(Exception e){SetStatus(e.Message);Debug.LogException(e);}};
+                returnOriginalButton.EnableInClassList("is-hidden",!IsDemoWorldActive);
+            }
             RefreshPlanetSummary();
             foreach(string name in tabNames){string tab=name;Bind("tab"+name,()=>ShowTab(tab));}
             ShowTab("World");
@@ -232,6 +253,121 @@ namespace Orbis.Flat
             if(navigation.IsAtlas)navigation.GoGlobe(CalendarDay);
             navigation.Focus(focusTile,CalendarDay);UpdateHUD();
             SetStatus("已定位至当前锚定灾区（Tile "+focusTile+"）。");
+        }
+        /// <summary>
+        /// Switches to an isolated demo WorldData (clone or standalone Earth scenario) without mutating the player's
+        /// live world, calendar day, or save file. Call <see cref="ExitIsolatedDemoWorld"/> to restore the original session.
+        /// </summary>
+        public void EnterIsolatedDemoWorld(WorldData demoWorld,int focusTile=-1,string demoLabel="地球气象灾害演示",FlatHazardKind autoHazard=FlatHazardKind.None)
+        {
+            if(demoWorld==null||Busy||ReferenceEquals(demoWorld,World))return;
+            var priorSnapshot=savedSession;
+            string priorLabel=activeDemoLabel;
+            if(savedSession==null&&World!=null)
+            {
+                solarClock.Flush(simulationStep);
+                savedSession=new SavedSessionSnapshot
+                {
+                    World=World,
+                    Selected=selected,
+                    ActiveNation=activeNation,
+                    WasFlat=navigation&&navigation.IsFlat,
+                    WasPaused=paused,
+                    CenterTile=navigation?navigation.CenterTile:Vector2.zero,
+                    Speed=speed,
+                    Layer=map?map.Layer:MapLayer.Natural
+                };
+            }
+            pendingDemoWorld=demoWorld;
+            pendingDemoLabel=string.IsNullOrWhiteSpace(demoLabel)?"地球气象灾害演示":demoLabel;
+            pendingDemoFocusTile=focusTile;
+            pendingDemoHazard=autoHazard;
+            seedOnInstall=false;
+            try
+            {
+                Install(demoWorld);
+            }
+            catch
+            {
+                pendingDemoWorld=null;pendingDemoLabel=null;pendingDemoFocusTile=-1;pendingDemoHazard=FlatHazardKind.None;
+                if(priorSnapshot==null&&savedSession!=null&&ReferenceEquals(World,savedSession.World))
+                {
+                    savedSession=null;activeDemoLabel=priorLabel;
+                }
+                if(returnOriginalButton!=null)returnOriginalButton.EnableInClassList("is-hidden",!IsDemoWorldActive);
+                throw;
+            }
+        }
+        public bool ExitIsolatedDemoWorld()
+        {
+            if(savedSession==null||Busy)return false;
+            // Preserve savedSession and return button until Install(original) succeeds!
+            pendingDemoWorld=null;pendingDemoLabel=null;pendingDemoFocusTile=-1;pendingDemoHazard=FlatHazardKind.None;
+            seedOnInstall=false;
+            Install(savedSession.World);
+            return savedSession==null;
+        }
+        void CompleteIsolatedDemoInstall(WorldData installed)
+        {
+            if(pendingDemoWorld!=null&&ReferenceEquals(installed,pendingDemoWorld))
+            {
+                int focusTile=pendingDemoFocusTile;
+                var autoHazard=pendingDemoHazard;
+                activeDemoLabel=string.IsNullOrWhiteSpace(pendingDemoLabel)?"地球气象灾害演示":pendingDemoLabel;
+                pendingDemoWorld=null;pendingDemoLabel=null;pendingDemoFocusTile=-1;pendingDemoHazard=FlatHazardKind.None;
+                if(autoHazard!=FlatHazardKind.None&&map&&map.LocalWater)
+                {
+                    int hzTile=map.LocalWater.StartHazard(autoHazard,focusTile,liveWeather:false);
+                    if(hzTile>=0)focusTile=hzTile;
+                }
+                if(focusTile>=0&&focusTile<World.Count&&navigation&&map)
+                {
+                    selected=focusTile;map.Select(focusTile);
+                    ChooseLayer(MapLayer.Natural);
+                    if(navigation.IsAtlas)navigation.GoGlobe(CalendarDay);
+                    navigation.Focus(focusTile,CalendarDay);
+                    navigation.SyncMaterials();
+                }
+                if(returnOriginalButton!=null)returnOriginalButton.EnableInClassList("is-hidden",!IsDemoWorldActive);
+                UpdateHUD();
+                SetStatus("已进入隔离演示「"+activeDemoLabel+"」（原局时间与存档均受保护，点击「返回原局」可随时恢复）。");
+                return;
+            }
+            if(savedSession!=null&&ReferenceEquals(installed,savedSession.World))
+            {
+                var snap=savedSession;
+                savedSession=null;activeDemoLabel=null;
+                pendingDemoWorld=null;pendingDemoLabel=null;pendingDemoFocusTile=-1;pendingDemoHazard=FlatHazardKind.None;
+                paused=snap.WasPaused;
+                speed=snap.Speed;
+                selected=snap.Selected;
+                activeNation=snap.ActiveNation;
+                ChooseLayer(snap.Layer);
+                if(map&&selected>=0)map.Select(selected);
+                if(navigation)
+                {
+                    if(snap.WasFlat)
+                    {
+                        int x=Mathf.Clamp((int)snap.CenterTile.x,0,World.Width-1);
+                        int y=Mathf.Clamp((int)snap.CenterTile.y,0,World.Height-1);
+                        navigation.Focus(y*World.Width+x,CalendarDay);
+                    }
+                    else navigation.Home(CalendarDay);
+                    navigation.Tick(0,CalendarDay);
+                    navigation.SyncMaterials();
+                }
+                if(returnOriginalButton!=null)returnOriginalButton.EnableInClassList("is-hidden",true);
+                UpdateHUD();
+                SetStatus("已返回原局，原日历时间与世界状态保持完整。");
+            }
+        }
+        void RecoverDemoIsolationOnAsyncAbort()
+        {
+            bool abortedInitialEntry=pendingDemoWorld!=null&&savedSession!=null&&ReferenceEquals(World,savedSession.World);
+            pendingDemoWorld=null;pendingDemoLabel=null;pendingDemoFocusTile=-1;pendingDemoHazard=FlatHazardKind.None;
+            if(abortedInitialEntry){savedSession=null;activeDemoLabel=null;}
+            // When still on a demo world (!ReferenceEquals(World, savedSession.World)), preserve savedSession & return button!
+            if(returnOriginalButton!=null)returnOriginalButton.EnableInClassList("is-hidden",!IsDemoWorldActive);
         }
         void ShowTab(string selectedTab)
         {
@@ -330,6 +466,7 @@ namespace Orbis.Flat
         }
         void Generate()
         {
+            if(IsDemoWorldActive){SetStatus("演示模式已与原局隔离，请先点击「返回原局」再生成新世界。");return;}
             int width=playerWidths[sizeField.index];
             string seed=seedField.value.Trim();
             var preset=(TerrainPreset)presetField.index;
@@ -421,13 +558,14 @@ namespace Orbis.Flat
             minimap.Bind(navigation,map);
             if(root.focusController?.focusedElement==null)viewport.Focus();
             UpdateHUD();SetStatus("世界就绪：默认星球。滚轮进入局部地表，拖动可连续穿过日期线和极区；全球总览独立打开。");
+            CompleteIsolatedDemoInstall(world);
         }
         void Update()
         {
             if(pending!=null&&pending.IsCompleted)
             {
                 var completed=pending;pending=null;var source=cancellation;cancellation=null;
-                try{Install(completed.GetAwaiter().GetResult());}catch(OperationCanceledException){SetStatus("已取消，保留原世界。");}catch(Exception e){SetStatus("操作失败，保留原世界："+e.Message);Debug.LogException(e);}finally{source?.Dispose();}
+                try{Install(completed.GetAwaiter().GetResult());}catch(OperationCanceledException){RecoverDemoIsolationOnAsyncAbort();SetStatus("已取消，保留原世界。");}catch(Exception e){RecoverDemoIsolationOnAsyncAbort();SetStatus("操作失败，保留原世界："+e.Message);Debug.LogException(e);}finally{source?.Dispose();}
             }
             if(World==null||!navigation)return;
             PublishSeaRoute();
@@ -614,13 +752,16 @@ namespace Orbis.Flat
         }
         void Save()
         {
-            if(World==null||Busy)return;solarClock.Flush(simulationStep);FlatSave.WriteAtomic(SavePath,World);
+            if(World==null||Busy)return;
+            if(IsDemoWorldActive){SetStatus("演示模式已与原局隔离，禁止覆盖原局存档；请先点击「返回原局」。");return;}
+            solarClock.Flush(simulationStep);FlatSave.WriteAtomic(SavePath,World);
             SetStatus("已保存世界与连续日历相位；前一份存档保留 .bak："+SavePath);
         }
-        void Load() {string path=SavePath;Queue(c=>{c.ThrowIfCancellationRequested();return FlatSave.Read(path);},"校验并载入 2D 世界存档…");}
+        void Load() {if(IsDemoWorldActive){SetStatus("演示模式已与原局隔离，请先点击「返回原局」再读取原局存档。");return;}string path=SavePath;Queue(c=>{c.ThrowIfCancellationRequested();return FlatSave.Read(path);},"校验并载入 2D 世界存档…");}
         void Import()
         {
             if(Busy)return;
+            if(IsDemoWorldActive){SetStatus("演示模式已与原局隔离，请先点击「返回原局」再导入高度图。");return;}
             string path=HeightPath,seed=seedField.value.Trim();
             bool preserveMetres=root.Q<Toggle>("preserveElevation").value;
             Queue(c=>FlatRasterIO.Import(path,seed,c,preserveMetres),"从灰度高度图导入新世界（黑 −4000m / 白 4000m）…",true);
@@ -643,7 +784,8 @@ namespace Orbis.Flat
         {
             if(World==null)return;
             FlatSkyCalendar.DecomposeDate(CalendarDay,out long hudYear,out int hudMonth,out int hudDay,out int hudHour,out int hudMinute);
-            stats.text="第 "+hudYear+" 年 / "+hudMonth+" 月 "+hudDay+" 日 · "+hudHour.ToString("00")+":"+hudMinute.ToString("00")+"    "+World.Width+" × "+World.Height+" Tiles    "+World.ZoneCount.ToString("N0")+" Zones    人口 "+Simulation.TotalPopulation().ToString("N0")+("    "+navigation.ModeName+(paused?" · 已暂停":" · 同一世界时钟"));
+            stats.text="第 "+hudYear+" 年 / "+hudMonth+" 月 "+hudDay+" 日 · "+hudHour.ToString("00")+":"+hudMinute.ToString("00")+"    "+World.Width+" × "+World.Height+" Tiles    "+World.ZoneCount.ToString("N0")+" Zones    人口 "+Simulation.TotalPopulation().ToString("N0")+("    "+navigation.ModeName+(paused?" · 已暂停":" · 同一世界时钟"))+(IsDemoWorldActive?"    [隔离演示："+activeDemoLabel+"]":"");
+            if(returnOriginalButton!=null)returnOriginalButton.EnableInClassList("is-hidden",!IsDemoWorldActive);
             modeButton.text=navigation.HasStrategicReturn?"M  返回原视图":"M  全球总览";pauseButton.text=paused?"继续":"暂停";speedButton.text=speed+"×";
             Array.Clear(zoneCounts,0,zoneCounts.Length);for(int z=0;z<World.ZoneCount;z++){int ownerId=World.ZoneOwner[z];if(ownerId>=0)zoneCounts[ownerId]++;}
             var text=nationText;text.Clear();for(int c=0;c<World.Nations.Count;c++){var n=World.Nations[c];int zones=zoneCounts[c];text.Append(c==activeNation?"● ":"○ ").Append(n.Name).Append(" · ").Append(zones).Append("区 · 粮 ").Append(n.Food.ToString("N0")).Append('\n');}nations.text=text.ToString();

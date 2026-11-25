@@ -75,28 +75,119 @@ float PDTreeSize(float2 id,float4 placement,float4 info,float4 ecology)
 bool PDTreeAvailable(float2 id,float4 placement,float4 info,float4 ecology)
 {return PDTreeSize(id,placement,info,ecology)>0;}
 static const float PDSettlementHeightProjection=.46947156;
-float2 PDSettlementGeometry(float2 q)
+struct PDSettlementState
+{
+ float wall,roof,eave,awning,pole,flag;
+ float2 roofQ;
+ float flagWave;
+};
+// Foundation & wall (y<=15) stay strictly pinned; roof eaves, side awning and gable flag flutter with published wind.
+PDSettlementState PDSettlementEvaluate(float2 q,float2 wind,float seed)
+{
+ PDSettlementState s=(PDSettlementState)0;
+ s.wall=PDBox(q,float2(7,5),float2(26,16));
+ float windMag=length(wind);
+ float breeze=smoothstep(.15,.75,windMag);
+ float storm=smoothstep(.55,1.85,windMag);
+ float phase=_SkyClock*(4.2+6.8*storm)+seed*6.283185307;
+ // Eaves & shingle upper edge tremble slightly in strong gusts while remaining anchored above the wall top (y=16).
+ float roofLift=saturate((q.y-15.5)/12.5);
+ float eaveOsc=sin(phase+q.x*.35)*(.28*storm)+cos(phase*1.63+seed*11)*(.18*storm);
+ float2 roofShift=float2(clamp(wind.x*.22*storm+eaveOsc,-.95,.95),clamp(wind.y*.10*storm,-.35,.35))*roofLift;
+ float2 rq=q-roofShift;
+ s.roofQ=rq;
+ float2 roof=rq-float2(16,21);
+ s.roof=step(abs(roof.x),13)*step(abs(roof.y),7);
+ // Hanging eave trim below roof line trembles slightly in strong winds.
+ float eaveFlutter=floor(sin(phase*1.4+q.x*.65)*storm*.75+.5)*storm;
+ s.eave=PDBox(float2(q.x,q.y-eaveFlutter*.4),float2(4,14),float2(28,16))*(1-s.wall);
+ // Market cloth awning anchored to the east wall (x=25..26); outer edge billows with wind.
+ float awningSpan=saturate((q.x-25)/4.0);
+ float clothWave=sin(phase*1.25-awningSpan*2.4)*(breeze*.38+storm*.72);
+ float awningDrop=lerp(.55,-.45,saturate(windMag*.45))+clothWave*awningSpan;
+ float2 aq=float2(q.x-clamp(wind.x*.28*awningSpan,-.6,.9),q.y-awningDrop*awningSpan);
+ s.awning=PDBox(aq,float2(25,11),float2(29.2,15))*(1-s.wall);
+ // Gable flagpole pinned at roof ridge (x=22.5, y=26..30.5) with wind-driven streaming pennant kept strictly inside [0,31].
+ s.pole=PDBox(q,float2(22.0,26),float2(23.1,30.6));
+ float dirX=windMag>.08?(wind.x>=0?1:-1):(seed<.5?1:-1);
+ float flagLen=lerp(1.8,5.4,saturate(breeze*.45+storm*.75));
+ float along=(q.x-22.5)*dirX;
+ float alongNorm=saturate(along/max(1.0,flagLen));
+ float flagWave=sin(phase*1.35-along*1.15)*(breeze*.38+storm*.95)*alongNorm;
+ float droop=lerp(-1.3,.30*clamp(wind.y,-1.1,1.1),saturate(breeze*.55+storm*.65))*alongNorm;
+ float fy=q.y-(28.8+droop+flagWave);
+ float halfHeight=lerp(1.15,.50,alongNorm);
+ s.flag=step(.2,along)*step(along,flagLen)*step(abs(fy),halfHeight);
+ s.flagWave=flagWave;
+ return s;
+}
+struct PDSettlementShadowWind
+{
+ float2 roofShift;
+ float eaveShiftY;
+ float2 awningShift;
+ float dirX,flagLen,flagTipOffset;
+};
+// Precompute per-settlement shadow wind once outside the 6x4 shadow loop (zero trig inside shadow taps).
+PDSettlementShadowWind PDSettlementPrecomputeShadowWind(float2 wind,float seed)
+{
+ PDSettlementShadowWind p=(PDSettlementShadowWind)0;
+ float windMag=length(wind);
+ float breeze=smoothstep(.15,.75,windMag);
+ float storm=smoothstep(.55,1.85,windMag);
+ float phase=_SkyClock*(4.2+6.8*storm)+seed*6.283185307;
+ float sPhase,cPhase;
+ sincos(phase,sPhase,cPhase);
+ p.roofShift=float2(clamp(wind.x*.22*storm+sPhase*.28*storm+cPhase*.18*storm,-.95,.95),clamp(wind.y*.10*storm,-.35,.35));
+ p.eaveShiftY=sPhase*storm*.30;
+ float clothWave=sPhase*(breeze*.38+storm*.72);
+ p.awningShift=float2(clamp(wind.x*.22,-.5,.8),lerp(.45,-.35,saturate(windMag*.45))+clothWave*.75);
+ p.dirX=windMag>.08?(wind.x>=0?1:-1):(seed<.5?1:-1);
+ p.flagLen=lerp(1.8,5.4,saturate(breeze*.45+storm*.75));
+ float droop=lerp(-1.3,.30*clamp(wind.y,-1.1,1.1),saturate(breeze*.55+storm*.65));
+ p.flagTipOffset=droop+cPhase*(breeze*.38+storm*.95);
+ return p;
+}
+float2 PDSettlementShadowGeometry(float2 q,PDSettlementShadowWind p)
 {
  float wall=PDBox(q,float2(7,5),float2(26,16));
- float2 roof=q-float2(16,21);
- return float2(wall,step(abs(roof.x),13)*step(abs(roof.y),7));
+ float roofLift=saturate((q.y-15.5)/12.5);
+ float2 roof=q-p.roofShift*roofLift-float2(16,21);
+ float roofMask=step(abs(roof.x),13)*step(abs(roof.y),7);
+ float eave=PDBox(float2(q.x,q.y-p.eaveShiftY),float2(4,14),float2(28,16))*(1-wall);
+ float awning=PDBox(q-p.awningShift*saturate((q.x-25)*.25),float2(25,11),float2(29.2,15))*(1-wall);
+ float pole=PDBox(q,float2(22.0,26),float2(23.1,30.6));
+ float along=(q.x-22.5)*p.dirX;
+ float alongNorm=saturate(along/max(1.0,p.flagLen));
+ float flag=step(.2,along)*step(along,p.flagLen)*step(abs(q.y-(28.8+p.flagTipOffset*alongNorm)),lerp(1.15,.50,alongNorm));
+ return float2(wall,max(max(roofMask,eave),max(awning,max(pole,flag))));
 }
-float PDSettlementCastShadow(float2 ground,float2 direction)
+float2 PDSettlementGeometry(float2 q,float2 wind,float seed)
 {
+ PDSettlementState s=PDSettlementEvaluate(q,wind,seed);
+ return float2(s.wall,max(max(s.roof,s.eave),max(s.awning,max(s.pole,s.flag))));
+}
+float2 PDSettlementGeometry(float2 q)
+{return PDSettlementGeometry(q,0,0);}
+float PDSettlementCastShadow(float2 ground,float2 direction,float2 wind,float seed)
+{
+ PDSettlementShadowWind wp=PDSettlementPrecomputeShadowWind(wind,seed);
  float coverage=0;
- [unroll] for(int slice=0;slice<6;slice++)
+ [loop] for(int slice=0;slice<6;slice++)
  {
   float height=slice*1.5;
   float2 samplePoint=ground-direction*height;
-  float2 geometry=PDSettlementGeometry(samplePoint+float2(.35,.35));
-  geometry+=PDSettlementGeometry(samplePoint+float2(-.35,.35));
-  geometry+=PDSettlementGeometry(samplePoint+float2(.35,-.35));
-  geometry+=PDSettlementGeometry(samplePoint-float2(.35,.35));
+  float2 geometry=PDSettlementShadowGeometry(samplePoint+float2(.35,.35),wp);
+  geometry+=PDSettlementShadowGeometry(samplePoint+float2(-.35,.35),wp);
+  geometry+=PDSettlementShadowGeometry(samplePoint+float2(.35,-.35),wp);
+  geometry+=PDSettlementShadowGeometry(samplePoint-float2(.35,.35),wp);
   geometry*=.25;
   coverage=max(coverage,max(geometry.x*step(height,4.5),geometry.y));
  }
  return coverage;
 }
+float PDSettlementCastShadow(float2 ground,float2 direction)
+{return PDSettlementCastShadow(ground,direction,0,0);}
 #include "FlatGroundCover.cginc"
 // Evaluate neighbouring casters before painting ANY artwork. The receiver cell
 // never clips a silhouette; the source cell owns occupancy, shape and sunlight.
@@ -131,7 +222,11 @@ float PixelPropShadow(float2 cell)
   if(info.b>.5&&info.b<1.5)
   {
    q.y=16+(q.y-16)/scale;
-   mask=PDSettlementCastShadow(q,direction)*.27;
+   float2 canonicalRoot=root;canonicalRoot.x-=floor(canonicalRoot.x/_MapSize.x)*_MapSize.x;
+   float sSeed=PDHash(canonicalRoot+float2(17.3,53.7));
+   float sStorm;
+   float2 sWind=PDSettlementWind(canonicalRoot,sSeed,sStorm);
+   mask=PDSettlementCastShadow(q,direction,sWind,sSeed)*.27;
   }
   else if(info.b<.5&&!(info.g>.5&&info.g<4.5))
   {
@@ -169,22 +264,32 @@ float4 PDTreeArtwork(float2 pixel,float2 id,float species,float seed,float leaf,
  col=PDPaint(col,foliage*light,crown.a);
  return float4(col,saturate(crown.a+trunk));
 }
-float4 PDSettlementArtwork(float2 q,float3 light)
+float4 PDSettlementArtwork(float2 q,float3 light,float2 wind,float seed)
 {
  float3 col=0;
- float2 geometry=PDSettlementGeometry(q);
- float wall=geometry.x;
+ PDSettlementState s=PDSettlementEvaluate(q,wind,seed);
+ float wall=s.wall;
  float board=step(1,fmod(q.y,4));col=PDPaint(col,lerp(float3(.30,.20,.12),float3(.59,.43,.25),board)*light,wall);
- float roofMask=geometry.y;
+ float awningStripe=step(1,fmod(floor(q.x+q.y*.25),2));
+ col=PDPaint(col,lerp(float3(.70,.24,.18),float3(.90,.82,.66),awningStripe)*light,s.awning);
+ col=PDPaint(col,float3(.26,.19,.12)*light,s.eave);
+ float roofMask=s.roof;
+ float2 rq=s.roofQ;
  col=PDPaint(col,float3(.19,.16,.10)*light,roofMask);
- float interior=PDBox(q,float2(4,16),float2(28,27));
- float shingle=step(1,fmod(q.y,3))*step(1,fmod(q.x+floor(q.y/3)*3,6));
+ float interior=PDBox(rq,float2(4,16),float2(28,27));
+ float shingle=step(1,fmod(rq.y,3))*step(1,fmod(rq.x+floor(rq.y/3)*3,6));
  col=PDPaint(col,lerp(float3(.42,.28,.12),float3(.69,.48,.21),shingle)*light,interior);
- col=PDPaint(col,float3(.82,.65,.32)*light,PDBox(q,float2(4,26),float2(28,28)));
+ col=PDPaint(col,float3(.82,.65,.32)*light,PDBox(rq,float2(4,26),float2(28,28)));
  col=PDPaint(col,float3(.13,.12,.10)*light,PDBox(q,float2(14,5),float2(19,13)));
  col=PDPaint(col,float3(.92,.73,.33)*light,PDBox(q,float2(9,9),float2(12,12))+PDBox(q,float2(22,9),float2(25,12)));
- return float4(col,max(wall,roofMask));
+ col=PDPaint(col,float3(.38,.31,.22)*light,s.pole);
+ float3 flagCol=lerp(float3(.78,.20,.17),float3(.92,.72,.26),step(.5,frac(seed*5.3)))*(.88+.18*saturate(s.flagWave+.5));
+ col=PDPaint(col,flagCol*light,s.flag);
+ float alpha=max(max(wall,roofMask),max(max(s.eave,s.awning),max(s.pole,s.flag)));
+ return float4(col,alpha);
 }
+float4 PDSettlementArtwork(float2 q,float3 light)
+{return PDSettlementArtwork(q,light,0,0);}
 float3 PixelProps(float3 col,float2 cell,float4 field,float waterMask,float structure,float3 light,PDPlantView plantView)
 {
  col*=1-PixelPropShadow(cell);
@@ -232,7 +337,11 @@ float3 PixelProps(float3 col,float2 cell,float4 field,float waterMask,float stru
  }
  if(structure>.5 && structure<1.5)
  {
-  float4 art=PDSettlementArtwork(q,light);col=lerp(col,art.rgb,art.a);
+  float2 canonicalId=id;canonicalId.x-=floor(canonicalId.x/_MapSize.x)*_MapSize.x;
+  float sSeed=PDHash(canonicalId+float2(17.3,53.7));
+  float sStorm;
+  float2 sWind=PDSettlementWind(canonicalId,sSeed,sStorm);
+  float4 art=PDSettlementArtwork(q,light,sWind,sSeed);col=lerp(col,art.rgb,art.a);
  }
  else if(structure>1.5 && structure<2.5)
  {

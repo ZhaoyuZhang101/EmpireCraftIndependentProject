@@ -31,6 +31,9 @@ Shader "ORBIS/FlatWorld/WildlifeActors"
   _VegetationSeasonTex("Seasonal foliage",2D)="white"{}
   [HideInInspector] _ClimateYearHeat("Regional temperature anomaly",Vector)=(0,0,0,0)
   [HideInInspector] _ClimateYearRain("Regional rainfall anomaly",Vector)=(0,0,0,0)
+  [HideInInspector] _SkyClock("Sky time",Float)=0
+  [HideInInspector] _CycloneNorth("Published northern cyclone",Vector)=(0,0,0,0)
+  [HideInInspector] _CycloneSouth("Published southern cyclone",Vector)=(0,0,0,0)
  }
  SubShader
  {
@@ -89,19 +92,21 @@ Shader "ORBIS/FlatWorld/WildlifeActors"
     #endif
     o.actor=v.actor;o.state=v.state;o.geographic=v.geographic;o.motion=v.motion;o.cellAxes=v.cellAxes;return o;
    }
-   float4 AnimalArt(float2 pixel,float4 actor,float4 state,float2 environment)
+   float4 AnimalArt(float2 pixel,float4 actor,float4 state,float2 environment,float2 wind)
    {
-    return PDWildlifeActorArt(pixel,actor,state,environment);
+    return PDWildlifeActorArt(pixel,actor,state,environment,wind,_SkyClock);
    }
    float4 frag(v2f i):SV_Target
    {
     float3 radial=FlatRadial(i.geographic.xy);
     float3 sun=FlatGeographicLight(i.geographic.xy,normalize(_FlatSun+float3(0,1e-7,0)));
     float daylight=smoothstep(-.04,.18,sun.z);
-    float height=PDWildlifeHeight(i.actor,i.state);
+    // Share the exact published cyclone wind with vegetation, settlements and rain (zero new samplers).
+    float2 stormWind=FlatCycloneLocalWind(i.geographic.xy);
+    float height=PDWildlifeHeight(i.actor,i.state,stormWind);
     float2 cast=clamp(-i.geographic.zw/max(.35,sun.z),-2.6,2.6)*height;
-    float4 art=AnimalArt(i.pixel,i.actor,i.state,i.motion.zw);
-    float shadow=AnimalArt(i.pixel-cast,i.actor,i.state,i.motion.zw).a*daylight*.25;
+    float4 art=AnimalArt(i.pixel,i.actor,i.state,i.motion.zw,stormWind);
+    float shadow=AnimalArt(i.pixel-cast,i.actor,i.state,i.motion.zw,stormWind).a*daylight*.25;
     float3 light=FlatDayLight(radial,i.geographic.xy);
     float3 ink=FlatColor(art.rgb)*light;
     float particle=0;

@@ -19,6 +19,21 @@ Shader "Hidden/ORBIS/VegetationArtProbe"
  float3 _ProbeLight;
  float4 frag(v2f_img i):SV_Target
  {
+  if(_ProbeMode>14.5)
+  {
+   float2 ground=i.uv*32;
+   float sStorm;
+   float2 sWind=PDSettlementWind(_ProbeRoot,_ProbeSeed,sStorm);
+   float2 dir=-_ProbeLight.xy/max(.25,_ProbeLight.z);
+   return PDSettlementCastShadow(ground,dir,sWind,_ProbeSeed).xxxx;
+  }
+  if(_ProbeMode>13.5)
+  {
+   float2 q=floor(i.uv*32);
+   float sStorm;
+   float2 sWind=PDSettlementWind(_ProbeRoot,_ProbeSeed,sStorm);
+   return PDSettlementArtwork(q,1,sWind,_ProbeSeed);
+  }
   if(_ProbeMode>12.5)
   {
    float2 id=_ProbeRoot+floor(i.uv*_ProbeGrid);

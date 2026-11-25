@@ -84,6 +84,8 @@ Shader "ORBIS/FlatWorld/ScrollSurface"
   [HideInInspector] _FlatCloudShadows("Cloud shadows enabled",Float)=1
   [HideInInspector] _CloudOpacity("Cloud opacity",Float)=0
   [HideInInspector] _FlatSun("Sun direction",Vector)=(0,1,0,0)
+  [HideInInspector] _CycloneNorth("Published northern cyclone",Vector)=(0,0,0,0)
+  [HideInInspector] _CycloneSouth("Published southern cyclone",Vector)=(0,0,0,0)
  }
  SubShader
  {
