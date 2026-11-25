@@ -77,9 +77,7 @@ public class SpecificClan
             SnapshotPeople().Where(person => person != null && person.is_alive).ToList();
     public long founder { get; set; }
     public SpecificClanType clan_sex_priority { get; set; }
-#if EC_PENDING
     public string color { get; set; } = (new Color(0.7f, 0.8f, 0.7f)).ToHexString();
-#endif
     public long ancestral_city_id { get; set; } = -1L;
     // 族长死于战乱或饥荒(无小人模式，见 VirtualGenealogySystem)：不再从虚拟族人里补族长；之后又有实体族人时清除
     public bool head_lost_to_calamity { get; set; }
@@ -356,7 +354,6 @@ public class SpecificClan
         return children;
     }
 
-#if EC_PENDING
     public void newSpecificClan(Person actor)
     {
         _cache = new Dictionary<long, PersonalClanIdentity>();
@@ -369,7 +366,6 @@ public class SpecificClan
         color = ColorSelector.NextColor();
         RecordAncestralCity(SpecificClanManager.GetOriginCity(actor));
     }
-#endif
 
     private bool judgeMalePriority(Person actor)
     {
@@ -436,7 +432,7 @@ public class SpecificClan
                 {
                     foreach (var child in actor.GetChildren())
                     {
-                        child.setClan(pci._actor.Clan);
+                        child.SetClan(pci._actor.Clan);
                         pci.addChild(child, true, recordHistory: false);
                     }
                 }
@@ -528,7 +524,6 @@ public static class SpecificClanManager
     }
 
     // 这个单位的父母在族谱里的身份(在世实体父母优先，其次按原版记下的父母 id 找，含已故、虚拟的)
-#if EC_PENDING
     public static List<PersonalClanIdentity> RecordedParents(Person actor)
     {
         var result = new List<PersonalClanIdentity>();
@@ -546,7 +541,7 @@ public static class SpecificClanManager
             // 原版找父母失败就只看记下的 id
         }
         // 原版记下的父母(属性，以前按字段名反射找不到)
-        foreach (long id in new[] { actor.Record.parent_id_1, actor.Record.parent_id_2 })
+        foreach (long id in new[] { actor.Record.ParentKey1, actor.Record.ParentKey2 })
         {
             if (id <= 0) continue;
             PersonalClanIdentity identity = PersonByActorId(id);
@@ -554,10 +549,8 @@ public static class SpecificClanManager
         }
         return result;
     }
-#endif
 
     // 把人挪到另一个宗族(族谱身份不变)，有实体的原版氏族也跟过去(找这一族里有实体的人的氏族)
-#if EC_PENDING
     public static void MoveToClan(PersonalClanIdentity person, SpecificClan target)
     {
         if (person == null || target == null || person.specific_clan_id == target.id) return;
@@ -569,11 +562,9 @@ public static class SpecificClanManager
         actor.SetPersonalIdentity(person);
         SyncVanillaClan(actor);
     }
-#endif
 
     // 原版氏族跟着宗族走(人物档案里"氏族"与"宗族"一致)：挪进对应这个宗族的原版氏族；
     // 一个都没有(族人都没有实体、原来的氏族已散)就以本人为始祖新立一个，对应到这个宗族(按姓起名，如"公氏")
-#if EC_PENDING
     public static void SyncVanillaClan(Person actor, Dictionary<long, Clan> cache = null)
     {
         if (actor?.Record == null || actor.IsGone() || actor.HasDied()) return;
@@ -584,20 +575,19 @@ public static class SpecificClanManager
             Clan target = VanillaClanOf(specific, actor, cache);
             if (target == null)
             {
-                target = EmpireWorld.Current.Clans.newClan(actor, true);
+                target = EmpireWorld.Current.NewClan(actor, true);
                 if (target == null) return;
                 target.SetSpecificClan(specific);
                 SpecificClanManager.SyncVanillaClanName(target);
                 if (cache != null) cache[specific.id] = target;
             }
-            if (actor.Clan != target) actor.setClan(target);
+            if (actor.Clan != target) actor.SetClan(target);
         }
         catch (Exception exception)
         {
             LogService.LogWarning($"[EmpireCraft][族谱] 同步原版氏族失败: {exception.Message}");
         }
     }
-#endif
 
     private static Clan VanillaClanOf(SpecificClan specific, Person except, Dictionary<long, Clan> cache)
     {
@@ -617,7 +607,6 @@ public static class SpecificClanManager
     }
 
     // 把记下的父母接回族谱(父亲、母亲各接一位；已有的不动)，返回是否接上了
-#if EC_PENDING
     public static bool LinkRecordedParents(Person actor, PersonalClanIdentity child)
     {
         if (actor == null || child == null) return false;
@@ -631,7 +620,6 @@ public static class SpecificClanManager
         }
         return linked;
     }
-#endif
 
     public static void RebuildCache()
     {
@@ -696,7 +684,7 @@ public static class SpecificClanManager
         specificClan.addActor(actor);
         if (actor.HasClan())
         {
-            foreach (var member in actor.Clan.units.ToList())
+            foreach (var member in actor.Clan.People.ToList())
             {
                 if (member != actor)
                 {
@@ -720,12 +708,13 @@ public static class SpecificClanManager
         }
         return specificClan;
     }
+#endif
 
     public static City GetOriginCity(Person actor)
     {
         if (actor == null) return null;
         if (actor.HasCity()) return actor.City;
-        if (actor.Cell != null && actor.Cell.hasCity()) return actor.Cell.City;
+        if (actor.Cell != null && actor.Cell.HasCity()) return actor.Cell.City;
         if (actor.GetParents().Any())
         {
             foreach (var parent in actor.GetParents())
@@ -738,7 +727,6 @@ public static class SpecificClanManager
         }
         return null;
     }
-#endif
 
     public static List<(ClanRelation, PersonalClanIdentity)> FindAllRelations(PersonalClanIdentity self)
     {
@@ -1191,7 +1179,6 @@ public static class SpecificClanManager
     
     // 写：所有对 _specificClans 的 Add/Remove/Clear 必须同一把锁保护
     // 原版氏族的名字跟着宗族、支脉走：华夏姬姓分出的鲁氏，原版氏族就叫"鲁氏"
-#if EC_PENDING
     public static void SyncVanillaClanName(Clan clan)
     {
         SpecificClan specific = clan?.Record == null ? null : clan.GetSpecificClan();
@@ -1213,7 +1200,6 @@ public static class SpecificClanManager
         }
         return changed;
     }
-#endif
 
     // 现有各氏族的名字(取古姓时避开已用的)
     public static HashSet<string> ClanNames()
@@ -1300,7 +1286,7 @@ public static class SpecificClanManager
         {
             try
             {
-                EmpireWorld.Current.Clans.newClan(actor, true);
+                EmpireWorld.Current.NewClan(actor, true);
             }
             catch
             {
@@ -1625,6 +1611,7 @@ public class PersonalClanIdentity
     // 需要这个人(继承、分封、作乱……)时调用：虚拟族人当场落成实体，否则返回现有实体
 #if EC_PENDING
     public Person Realize() => is_alive ? VirtualGenealogySystem.Realize(this) : _actor;
+#endif
 
     public void newPersonalClanIdentity(SpecificClan specificClan, Person a)
     {
@@ -1643,13 +1630,11 @@ public class PersonalClanIdentity
         culture = CultureService.ResolveRecordedActorCulture(a);
         generation = 0;
     }
-#endif
 
     public void SetOfficeName(string name)
     {
         this.officeName = name;
     }
-#if EC_PENDING
     public void recordAllInfo()
     {
         Person actor = _actor;
@@ -1679,7 +1664,7 @@ public class PersonalClanIdentity
             fullOfficeName = actor.GetOffice().GetName(actor.GetOffice().meta_object);
         }
         clanName = actor.HasClan() ? actor.Clan.Name : "";
-        familyName = actor.hasFamily() ? actor.family.data.name : "";
+        familyName = actor.HasFamily() ? actor.Family.Record.Name : "";
         factionName = actor.GetFaction()?.Name ?? "";
         ownedTitleNames = (actor.GetOwnedTitle() ?? new List<long>())
             .Select(titleId => ModClass.KINGDOM_TITLE_MANAGER.Get(titleId)?.data?.name)
@@ -1689,7 +1674,6 @@ public class PersonalClanIdentity
         educationLevel = (actor.HasTrait("jingshi") ? "trait_jingshi" : "") +"/" +(actor.HasTrait("gongshi") ? "trait_gongshi" : "") +"/"+ (actor.HasTrait("juren")?"trait_juren":"");
         PeeragesLevel = string.Join("_", culture, actor.GetPeeragesLevel().ToString());
     }
-#endif
     public bool isMale()
     {
         return sex == Sex.Male;
@@ -1789,6 +1773,7 @@ public class PersonalClanIdentity
             }
         }
     }
+#endif
 
     public void setParent(PersonalClanIdentity identity, bool recordHistory = true)
     {
@@ -1818,13 +1803,12 @@ public class PersonalClanIdentity
 
         if (identity.is_main&&identity.is_alive)
         {
-            _actor.setClan(identity._actor.Clan);
+            _actor.SetClan(identity._actor.Clan);
         }
 
         sex = _actor.Sex;
         generation = identity.generation + 1;
     }
-#endif
 
     public void RecordPendingChildBirthHistory()
     {

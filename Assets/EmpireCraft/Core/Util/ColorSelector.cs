@@ -14,18 +14,15 @@ namespace EmpireCraft.Core
 
 public static class ColorSelector
 {
-#if EC_PENDING
     public static string NextColor()
     {
         Color randomColor = new Color(Random.value, Random.value, Random.value);
         Color pastel = Color.Lerp(randomColor, Color.white, 0.5f);
         return pastel.ToHexString();
     }
-#endif
     /// <summary>
     /// 将 Color 转为 "#RRGGBBAA" 格式的十六进制字符串
     /// </summary>
-#if EC_PENDING
     public static string ToHexString(this Color color, bool includeAlpha = true)
     {
         // ColorUtility 会返回不带 “#” 的纯十六进制码
@@ -35,6 +32,5 @@ public static class ColorSelector
 
         return "#" + hex;
     }
-#endif
 }
 }

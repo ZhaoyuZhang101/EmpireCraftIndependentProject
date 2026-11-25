@@ -325,7 +325,6 @@ public static class ConstitutionalEconomySystem
         if (state.welfare_funded) empire.CoreKingdom.SubMoney(cost, TreasuryCategory.Welfare);
     }
 
-#if EC_PENDING
     private static void UpdateBudding(Empire empire, ConstitutionalEconomyState state)
     {
         ConstitutionConfig config = Config;
@@ -364,7 +363,6 @@ public static class ConstitutionalEconomySystem
                 state.capitalist_budding = false;
         }
     }
-#endif
 
     // 主体文化变更（同化、归化、换朝）时由 CultureService 调用。走与年度同步相同的逻辑，
     // 所以进行中的立宪改革会被正确中止——而不是只把稳定计时器清零、让改革在新文化下继续。
@@ -547,7 +545,6 @@ public static class ConstitutionalEconomySystem
     // 无小人模式下背景人口折算户数时每户的人数
     private const int PeoplePerBackgroundHousehold = 4;
 
-#if EC_PENDING
     private static void CountHouseholds(Empire empire, out int households, out int merchants,
         out int merchantCities)
     {
@@ -565,7 +562,7 @@ public static class ConstitutionalEconomySystem
             foreach (Person actor in city.People ?? Enumerable.Empty<Person>())
             {
                 if (actor == null || actor.IsGone() || !actor.Alive || actor.City != city) continue;
-                string key = actor.hasFamily() ? $"f:{actor.family.id}" : $"a:{actor.Key}";
+                string key = actor.HasFamily() ? $"f:{actor.Family.Key}" : $"a:{actor.Key}";
                 seen.Add(key);
                 if (!actor.GetOrCreate().is_economic_merchant) continue;
                 merchantKeys.Add(key);
@@ -590,7 +587,6 @@ public static class ConstitutionalEconomySystem
         households = seen.Count + Mathf.RoundToInt(backgroundHouseholds);
         merchants = merchantKeys.Count + Mathf.RoundToInt(backgroundMerchants);
     }
-#endif
 
     #region 查询（只读，UI 可以随便调用）
 

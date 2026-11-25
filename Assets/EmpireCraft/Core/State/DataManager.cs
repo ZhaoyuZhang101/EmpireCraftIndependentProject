@@ -511,7 +511,6 @@ public static class DataManager
         }
     }
 
-#if EC_PENDING
     private static void NormalizeLoadedNameSeparators()
     {
         if (EmpireWorld.Current == null) return;
@@ -522,8 +521,8 @@ public static class DataManager
             actor.Name = actor.Name.UseLocalizedNameSeparator();
             if (actor.Clan?.Record != null)
                 actor.Clan.Name = actor.Clan.Name.UseLocalizedNameSeparator();
-            if (actor.family?.data != null)
-                actor.family.data.name = actor.family.data.name.UseLocalizedNameSeparator();
+            if (actor.Family?.Record != null)
+                actor.Family.Record.Name = actor.Family.Record.Name.UseLocalizedNameSeparator();
         }
 
         foreach (Realm kingdom in EmpireWorld.Current.LiveRealms)
@@ -538,6 +537,7 @@ public static class DataManager
             city.Name = city.Name.UseLocalizedNameSeparator();
         }
     }
+#if EC_PENDING
     public static void SaveAll(string saveRootPath)
     {
         if (string.IsNullOrEmpty(saveRootPath))

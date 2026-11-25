@@ -1602,7 +1602,7 @@ public static class CorpsSystem
             var soldiers = city.People.Where(actor => actor?.Record != null && !actor.IsGone() && actor.Alive &&
                                                      actor.City == city && CityPopulationSystem.IsSoldier(actor) &&
                                                      !CityPopulationSystem.IsVehicle(actor) && !IsGeneral(actor) &&
-                                                     !actor.IsRuler() && !actor.IsCityLeader() && !actor.isFavorite() &&
+                                                     !actor.IsRuler() && !actor.IsCityLeader() && !actor.IsFavorite() &&
                                                      actor.GetOrCreate().legion_size > 1f).ToList();
             if (soldiers.Count <= guards) continue;
             CorpsData target = Of(kingdom).Where(corps => !corps.militia)
@@ -1708,7 +1708,7 @@ public static class CorpsSystem
         foreach (Person soldier in army.People.ToList())
         {
             if (soldier?.Record == null || soldier.IsGone()) continue;
-            soldier.removeFromArmy();
+            soldier.RemoveFromArmy();
             if (soldier == captain || CityPopulationSystem.IsNotable(soldier)) soldier.stopBeingWarrior();
         }
         city.disbandArmy();
@@ -1845,6 +1845,7 @@ public static class CorpsSystem
             }
         }
     }
+#endif
 
     private static void EnsureGeneral(Realm kingdom, CorpsData corps)
     {
@@ -1867,7 +1868,6 @@ public static class CorpsSystem
         GeneralsByCity.TryGetValue(home.Key, out int count);
         GeneralsByCity[home.Key] = count + 1;
     }
-#endif
 
     // 改由某人统领这支军(宦官掌兵等，见 TempFac_宦官掌兵)：原统领卸任
 #if EC_PENDING
@@ -1897,7 +1897,7 @@ public static class CorpsSystem
         GeneralIndex.Remove(corps.general_id);
         corps.general_id = -1L;
         if (general?.Record == null || general.IsGone() || !general.Alive) return;
-        if (general.IsRuler() || general.IsCityLeader() || general.isFavorite()) return;
+        if (general.IsRuler() || general.IsCityLeader() || general.IsFavorite()) return;
         City home = Home(corps) ?? general.City;
         if (home != null) CityPopulationSystem.DisbandIntoPopulation(general, home);
     }

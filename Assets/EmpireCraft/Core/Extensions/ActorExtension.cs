@@ -93,7 +93,7 @@ public class Name
                     cityName = actor.City.Name;
                 } else
                 {
-                    if (actor.Cell.hasCity())
+                    if (actor.Cell.HasCity())
                     {
                         cityName = actor.Cell.City.Name;
                     } else
@@ -116,10 +116,10 @@ public class Name
                 {
                     actor.Clan.Name = OverallHelperFunc.JoinNameParts(real_family_name, LM.Get("Clan"));
                 }
-                if (actor.hasFamily())
+                if (actor.HasFamily())
                 {
-                    actor.family.data.name = OverallHelperFunc.JoinNameParts(real_family_name, LM.Get("Family"));
-                    actor.family.SetFamilyCityPre(false);
+                    actor.Family.Record.Name = OverallHelperFunc.JoinNameParts(real_family_name, LM.Get("Family"));
+                    actor.Family.SetFamilyCityPre(false);
                 }
             }
             real_family_name = (use_local_as_family_name&&cityName!="") ? cityName : familyName;
@@ -1107,12 +1107,12 @@ public static class ActorExtension
     // 实际出生时间：原版成年落地(神力造人、自动文明)和无小人模式从人口落成的成年人，年龄记在"额外年龄"
     // (age_overgrowth)里，created_time 是落地那天，原版 getBirthday() 就把落地日当生日——族谱上一位四十岁的皇帝
     // 只比长子大几个月，像是五岁生子。按额外年龄往前推(原版新生儿额外年龄为 1，一年 60 秒)
-#if EC_PENDING
     public static double TrueBirthTime(this Person a) =>
-        a?.Record == null ? 0d : a.BirthStamp - Math.Max(0, a.Record.age_overgrowth - 1) * 60d;
+        a?.Record == null ? 0d : a.BirthStamp - Math.Max(0, a.Record.AgeOvergrowth - 1) * 60d;
 
     public static string TrueBirthday(this Person a) => GameClock.DateText(a.TrueBirthTime());
 
+#if EC_PENDING
     public static PersonalClanIdentity InitialPersonalIdentity(this Person a, SpecificClan clan)
     {
         if (a == null) return null;
@@ -1693,7 +1693,6 @@ public static class ActorExtension
         return TakeableTitles(a).Any();
     }
 
-#if EC_PENDING
     public static List<KingdomTitle> titleCanBeDestroy(this Person a)
     {
         List<KingdomTitle> titles = new List<KingdomTitle>();
@@ -1729,6 +1728,7 @@ public static class ActorExtension
         return destroyable;
     }
 
+#if EC_PENDING
     public static List<KingdomTitle> takeTitle(this Person a)
     {
         List<KingdomTitle> takedTitles = new List<KingdomTitle>();

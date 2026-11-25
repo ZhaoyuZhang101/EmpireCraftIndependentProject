@@ -433,15 +433,13 @@ public static class LandEconomySystem
 
     // 初始授田按宗族在本城的"户数"(家庭数 + 不在家庭里的个人)算，每户一份——
     // 换成按宗族持有之后全城授出去的土地总量跟原来按家庭授田时一样，只是归到了宗族名下。
-#if EC_PENDING
     private static float GetInitialGrant(IEnumerable<Person> members)
     {
         int households = members.Where(IsLivingResident)
-            .Select(actor => actor.hasFamily() ? $"f:{actor.family.id}" : $"a:{actor.Key}")
+            .Select(actor => actor.HasFamily() ? $"f:{actor.Family.Key}" : $"a:{actor.Key}")
             .Distinct().Count();
         return HouseholdBaseShare * Math.Max(1, households);
     }
-#endif
 
     private static Person SelectRepresentative(IEnumerable<Person> members)
     {
@@ -547,7 +545,6 @@ public static class LandEconomySystem
         }
     }
 
-#if EC_PENDING
     private static void EnsureInitialHouseholdShares(City city,
         Dictionary<string, List<Person>> households = null)
     {
@@ -575,6 +572,7 @@ public static class LandEconomySystem
         TrimPrivateSharesToCapacity(city, data);
     }
 
+#if EC_PENDING
     private static void ProcessLandPurchases(City city, Dictionary<string, List<Person>> households)
     {
         CityExtension.CityExtraData data = EnsureData(city);

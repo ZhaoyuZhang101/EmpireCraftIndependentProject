@@ -63,13 +63,13 @@ public class KingdomTitleManager : RecordStore<KingdomTitle, KingdomTitleData>
 
         return title;
     }
+#endif
 
     public bool checkTitleExist(long t) 
     {
-        update(-1L);
-        return get(t) != null;
+        Update(-1L);
+        return Get(t) != null;
     }
-#endif
 
     // 法理扩张(未冻结法理)时，单个王国法理最多容纳的城市数；0 表示不限。只限制决议自动扩张，
     // 上帝之力手动加城不受影响。

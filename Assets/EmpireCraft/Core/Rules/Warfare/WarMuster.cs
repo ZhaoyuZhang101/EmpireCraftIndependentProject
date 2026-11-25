@@ -98,7 +98,7 @@ public static class WarMuster
     {
         War war = announce
             ? EmpireWorld.Current.StartWar(attacker, target, WarKinds.Normal)
-            : EmpireWorld.Current.LiveWars.newWar(attacker, target, WarKinds.Normal);
+            : EmpireWorld.Current.StartWar(attacker, target, WarKinds.Normal);
         if (war == null) return null;
         war.SetEmpireWarType(type);
         if (goal != WarGoal.None) WarGoalSystem.Preset(war, goal);

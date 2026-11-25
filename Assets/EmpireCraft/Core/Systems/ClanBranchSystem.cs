@@ -88,7 +88,6 @@ public static class ClanBranchSystem
 
     #region 别子为祖
 
-#if EC_PENDING
     private static bool TryEnfeoffBranch(SpecificClan clan, List<PersonalClanIdentity> living, PersonalClanIdentity chiefIdentity)
     {
         // 宗子本人得是一国之君，"别子"才有意义：宗子自己的国家之外受封为君的族人、受封为王的成年宗室，各另立一支
@@ -133,7 +132,6 @@ public static class ClanBranchSystem
         }
         return false;
     }
-#endif
 
     #endregion
 
@@ -151,7 +149,6 @@ public static class ClanBranchSystem
             clan.city_settle_since.Remove(cityId);
     }
 
-#if EC_PENDING
     private static bool TryMigrationBranch(SpecificClan clan, List<PersonalClanIdentity> living, PersonalClanIdentity chief)
     {
         City ancestral = clan.GetAncestralCity();
@@ -184,13 +181,11 @@ public static class ClanBranchSystem
         }
         return false;
     }
-#endif
 
     #endregion
 
     #region 五服已尽
 
-#if EC_PENDING
     private static bool TryMourningBranch(SpecificClan clan, List<PersonalClanIdentity> living,
         PersonalClanIdentity chief)
     {
@@ -243,7 +238,6 @@ public static class ClanBranchSystem
         }
         return false;
     }
-#endif
 
     // 顺着宗族的血脉往上走：优先留在本宗族里、作为主方(is_main)的那一位父母
     private static PersonalClanIdentity GetLineParent(PersonalClanIdentity identity)
@@ -263,7 +257,6 @@ public static class ClanBranchSystem
 
     // founder 记为分支创始人(可以是已故的房祖)；vanillaFounder 在世，有实体时用他建原版氏族——
     // 他是虚拟族人就找这一支里有实体的人建；整支都是虚拟族人的不建原版氏族(有人落成实体时再随他建)
-#if EC_PENDING
     private static SpecificClan Split(SpecificClan parent, PersonalClanIdentity founder,
         PersonalClanIdentity vanillaFounder, List<PersonalClanIdentity> members, string reason, string label,
         City seat, string shiSource = null)
@@ -285,7 +278,7 @@ public static class ClanBranchSystem
         {
             try
             {
-                vanillaClan = EmpireWorld.Current.Clans.newClan(founderActor, true);
+                vanillaClan = EmpireWorld.Current.NewClan(founderActor, true);
             }
             catch
             {
@@ -322,7 +315,7 @@ public static class ClanBranchSystem
             identity.specific_clan_id = branch.id;
             branch.Upsert(identity);
             Person actor = identity.is_virtual ? null : identity._actor;
-            if (vanillaClan != null && actor != null && !actor.IsGone() && actor.Clan != vanillaClan) actor.setClan(vanillaClan);
+            if (vanillaClan != null && actor != null && !actor.IsGone() && actor.Clan != vanillaClan) actor.SetClan(vanillaClan);
         }
         // 已故的房祖不搬家(留在原宗族的谱上)，但分支要能从他查起
         parent.last_branch_timestamp = GameClock.Now;
@@ -332,7 +325,6 @@ public static class ClanBranchSystem
             LandEconomySystem.TransferClanLand(pair.Key, parent, branch, pair.Value);
         return branch;
     }
-#endif
 
     private static void Announce(SpecificClan branch, Realm kingdom, string content, PersonalClanIdentity person)
     {

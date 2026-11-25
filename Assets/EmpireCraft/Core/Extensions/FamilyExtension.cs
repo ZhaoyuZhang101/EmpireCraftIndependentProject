@@ -15,7 +15,6 @@ public static class FamilyExtension
     {
         public bool is_culture_applied { get; set; } = false;
     }
-#if EC_PENDING
     public static void ApplyCulture(this Family family)
     {
         family.GetOrCreate().is_culture_applied = true;
@@ -30,6 +29,5 @@ public static class FamilyExtension
     {
         return family.GetOrCreate<Family, FamilyExtraData>(isSave);
     }
-#endif
 }
 }

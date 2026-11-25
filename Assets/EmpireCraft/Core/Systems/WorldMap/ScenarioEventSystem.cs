@@ -162,7 +162,7 @@ public static class ScenarioEventSystem
     public static bool Shield(Person actor, bool countDeath)
     {
         if (!countDeath || _scriptedDeath || _state == null || !IsProtected(actor)) return false;
-        actor.Record.health = actor.getMaxHealth();
+        actor.Record.health = actor.GetMaxHealth();
         return true;
     }
 #endif
@@ -545,7 +545,7 @@ public static class ScenarioEventSystem
                 if (heir == null) return "人不在本国";
                 City post = CityOf(step.city);
                 bool reserve = post != null && Holds(a, post);
-                if (heir.Realm != a) heir.joinKingdom(a);
+                if (heir.Realm != a) heir.SetRealm(a);
                 City stay = reserve ? post : a.Capital;
                 if (stay != null && heir.City != stay) heir.JoinCity(stay);
                 ScenarioPlotRules.AddHeir(a.GetOrCreate().scripted_heirs ??= new List<long>(), heir.Key, reserve);
@@ -626,7 +626,7 @@ public static class ScenarioEventSystem
         foreach (Person follower in people.Where(actor => actor != leader && actor.Realm != rebel && !actor.IsRuler()))
         {
             Leave(follower);
-            follower.joinKingdom(rebel);
+            follower.SetRealm(rebel);
             if (follower.City?.Realm != rebel) follower.JoinCity(seat);
         }
         foreach ((Realm from, CorpsData entry) in corps)
@@ -645,7 +645,7 @@ public static class ScenarioEventSystem
                 .OrderByDescending(entry => entry.strength).FirstOrDefault();
             if (free != null) CorpsSystem.AssignGeneral(rebel, free, follower);
         }
-        War war = EmpireWorld.Current.LiveWars.newWar(rebel, target, WarKinds.Normal);
+        War war = EmpireWorld.Current.StartWar(rebel, target, WarKinds.Normal);
         if (war != null)
         {
             war.SetEmpireWarType(EmpireWarType.地方独立);
@@ -837,7 +837,7 @@ public static class ScenarioEventSystem
             {
                 case ScenarioPlotRules.RebelFate.Return:
                     Leave(leader);
-                    leader.joinKingdom(rebel);
+                    leader.SetRealm(rebel);
                     leader.JoinCity(rebel.Capital);
                     if (!rebel.HasRuler()) rebel.SetRuler(leader);
                     LogService.LogInfo($"[EmpireCraft][剧情事件] {leader.FullName()} 城破后逃回 {rebel.GetKingdomName()}");
@@ -945,7 +945,7 @@ public static class ScenarioEventSystem
             // 人本来就在献出去的城里的留在原城，空着的城主之位归他(祖大寿仍守锦州)
             City home = person.City != null && cities.Contains(person.City) && person.City.Realm == to ? person.City : seat;
             Leave(person);
-            if (person.Realm != to) person.joinKingdom(to);
+            if (person.Realm != to) person.SetRealm(to);
             if (home != null && person.City != home) person.JoinCity(home);
             if (home != null && cities.Contains(home) && home.Leader == null)
             {

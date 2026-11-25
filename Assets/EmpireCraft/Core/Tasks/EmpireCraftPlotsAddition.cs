@@ -1261,7 +1261,7 @@ namespace EmpireCraft.Core
                         {
                             RebellionCauseData cause = RebellionSystem.Capture(target, target.Capital,
                                 "rebellion_reason_crime", crime.ToString());
-                            var war = EmpireWorld.Current.LiveWars.newWar(target, kingdom, WarKinds.Normal);
+                            var war = EmpireWorld.Current.StartWar(target, kingdom, WarKinds.Normal);
                             if (war == null) return false;
                             war.SetEmpireWarType(EmpireWarType.地方叛乱, pre: kingdom.Name, nanoObject:empire, belongingFaction:target.Ruler?.GetFaction());
                             empire.leave(target, true, true);
@@ -1364,7 +1364,7 @@ namespace EmpireCraft.Core
                         var target = EmpireWorld.Current.LiveRealms.ToList().Find(k =>
                             !religion.Realms.Contains(k) && HolyWarNeighbour(kingdom, k));
                         if (target == null) return false;
-                        var war = EmpireWorld.Current.LiveWars.newWar(kingdom, target, WarKinds.Normal);
+                        var war = EmpireWorld.Current.StartWar(kingdom, target, WarKinds.Normal);
                         if (war == null) return false;
                         war.SetEmpireWarType(EmpireWarType.神圣, pre:religion.Name);
                         regime.religion_point -= 1000;

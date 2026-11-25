@@ -330,7 +330,7 @@ public static class OfficeSelector
             {
                 if (unit.IsSkeleton()) continue;
                 if (!pOffice.Accepts(unit)) continue;
-                if (unit.HasOfficeIdentity()&&unit.isActor()&&unit.HasCulture())
+                if (unit.HasOfficeIdentity()&&unit.IsActor()&&unit.HasCulture())
                 {
                     var flag1 = false;
                     var flag2 = false;
@@ -380,7 +380,7 @@ public static class OfficeSelector
             int num2 = 1;
             if (unit.is_profession_citizen)
             {
-                if (unit.isFavorite())
+                if (unit.IsFavorite())
                 {
                     num2 += 2;
                 }

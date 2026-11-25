@@ -24,6 +24,9 @@ using Newtonsoft.Json.Linq;
 //   PortSurvey suspend <sources> <report.json> <core folder> [<more source folders>...]
 //     Wraps the members that cannot compile yet in #if EC_PENDING (see Suspend.cs).
 //
+//   PortSurvey seams <sources> <seams.json>
+//     Switches off the mod's version of the members written by hand for this game (see Seams.cs).
+//
 //   PortSurvey graph <sources> <graph.json> <core folder> [<more source folders>...]
 //     Every member's own errors and the members it refers to, suspended parts included (see Graph.cs).
 public static class Program
@@ -32,6 +35,7 @@ public static class Program
 
     public static int Main(string[] args)
     {
+        if (args.Length == 3 && args[0] == "seams") return Seams.Run(Path.GetFullPath(args[1]), args[2]);
         if (args.Length < 4 || (args[0] != "survey" && args[0] != "fix" && args[0] != "suspend" && args[0] != "graph"))
         { Console.Error.WriteLine("PortSurvey survey|fix|suspend|graph <sources> <report.json|members.json> <core folder> [more folders]"); return 2; }
         string sources = Path.GetFullPath(args[1]);
@@ -128,6 +132,20 @@ public static class Program
                     if (declared != null && declared.OverriddenMethod == null && declared.ContainingType != null &&
                         Lookup(map, declared.ContainingType.BaseType, method.Identifier.Text, out string overridden) && overridden.Length > 0)
                         edits.Add(new TextChange(method.Identifier.Span, overridden));
+                    continue;
+                }
+                // A member of a base class used without `this.` inside a class that derives from it: newObjectFromID(...) in a store.
+                if (node is IdentifierNameSyntax bare && !(bare.Parent is MemberAccessExpressionSyntax qualifiedName && qualifiedName.Name == bare) &&
+                    !(bare.Parent is MemberBindingExpressionSyntax) && !(bare.Parent is AssignmentExpressionSyntax set && set.Left == bare && set.Parent is InitializerExpressionSyntax) && !bare.IsVar)
+                {
+                    var bound = model.GetSymbolInfo(bare);
+                    if (bound.Symbol == null && bound.CandidateSymbols.Length == 0)
+                    {
+                        var holder = model.GetEnclosingSymbol(bare.SpanStart);
+                        var within = holder as INamedTypeSymbol ?? holder?.ContainingType;
+                        if (within != null && Lookup(map, within, bare.Identifier.Text, out string own) && own.Length > 0)
+                            edits.Add(new TextChange(bare.Identifier.Span, own));
+                    }
                     continue;
                 }
                 // A member named in an object initializer: new News(kind) { kingdom = x } -> { Realm = x }.

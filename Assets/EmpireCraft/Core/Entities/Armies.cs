@@ -68,5 +68,12 @@ namespace EmpireCraft.Core
         public static string FamilyOf(Culture culture) => culture == null || !culture.Alive || culture.Family == null ? "" : culture.Family;
         public static void SetFamily(Culture culture, string family, bool addTraits = true) { if (culture != null && culture.data != null) culture.Family = string.IsNullOrWhiteSpace(family) ? null : family; }
         public static NameParts NameParts(Culture culture, EntityKind kind) => null;
+        // The culture on record that follows this family of rules, if there is one.
+        public static Culture OfFamily(EmpireWorld world, string family)
+        {
+            if (world == null || string.IsNullOrEmpty(family)) return null;
+            foreach (var culture in world.Cultures.list) if (culture.Alive && culture.Family == family) return culture;
+            return null;
+        }
     }
 }

@@ -225,6 +225,7 @@ public static class RoyalMarriageSystem
         Empire otherEmpire = other.GetEmpire();
         if (otherEmpire != null && otherEmpire != home.GetEmpire()) otherEmpire.RecordHistory(directContent: text);
     }
+#endif
 
     private static void Relocate(Person mover, Realm destination)
     {
@@ -234,11 +235,10 @@ public static class RoyalMarriageSystem
             mover.EndOffice();
         }
         if (mover.IsCityLeader() && mover.City != null) mover.City.RemoveLeader();
-        mover.removeFromArmy();
-        mover.joinKingdom(destination);
+        mover.RemoveFromArmy();
+        mover.SetRealm(destination);
         mover.JoinCity(destination.Capital);
     }
-#endif
 
     #endregion
 

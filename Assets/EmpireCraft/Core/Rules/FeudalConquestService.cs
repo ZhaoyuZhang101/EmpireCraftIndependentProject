@@ -236,7 +236,7 @@ public static class FeudalConquestService
         City royalDomain = empire.CoreKingdom.Capital;
         if (formerKing != null && !formerKing.IsGone() && formerKing.Alive && royalDomain != null)
         {
-            formerKing.removeFromArmy();
+            formerKing.RemoveFromArmy();
             if (formerKing.IsCityLeader()) formerKing.City.RemoveLeader();
             formerKing.JoinCity(royalDomain);
             if (royalDomain._city_tile != null) formerKing.goTo(royalDomain._city_tile);

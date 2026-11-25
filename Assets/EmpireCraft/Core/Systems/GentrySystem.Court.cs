@@ -78,7 +78,6 @@ public static partial class GentrySystem
                                           (person._actor.IsOnOffice() || person._actor.IsCityLeader()));
 
     // 改革阻力(见 InstitutionSystem.CalculatePoliticalBalance)：返回要加的支持、反对
-#if EC_PENDING
     public static (float support, float opposition) ReformLean(InstitutionRealm realm, InstitutionNodeConfig node)
     {
         if (realm == null || node?.politics == null) return (0f, 0f);
@@ -96,6 +95,5 @@ public static partial class GentrySystem
                        node.politics.support_classes.TryGetValue(SocialClass.Landlord, out float landlordSupport) && landlordSupport >= 0.5f;
         return pleases ? (Mathf.Min(LeanSupportCap, weight * LeanSupport), 0f) : (0f, 0f);
     }
-#endif
 }
 }

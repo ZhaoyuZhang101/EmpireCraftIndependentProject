@@ -1,4 +1,4 @@
-// Ported from the EmpireCraft mod: Scripts/Data/ConstitutionalEconomyState.cs @ e770dbbe. Body kept line-for-line for three-way sync;
+// Ported from the EmpireCraft mod: Scripts/Data/ConstitutionalEconomyState.cs @ 573aceb9. Body kept line-for-line for three-way sync;
 // see Port/manifest.json and Tools/PortTool.
 using System.Collections.Generic;
 
@@ -159,6 +159,9 @@ public sealed class ConstitutionalEconomyState
     public bool welfare_funded;
     // —— 共和(见 RepublicSystem) ——
     public bool is_republic;
+    // 剧本定死的旗号(PartyIdeology 的序号，-1 = 没定)：君主国、君主立宪没有立国理念，以前旗号跟着执政党走，
+    // 一换届世界阵营就跟着变色(见 WarlordEraSystem.GovernmentIdeology)。只在不是共和国时管用
+    public int flag_ideology = -1;
     public EmpireCraft.Core.PartyIdeology republic_ideology;
     public double republic_since = -1d;
     // 0 = legacy/unset, 1 = common era, 2 = republic era.

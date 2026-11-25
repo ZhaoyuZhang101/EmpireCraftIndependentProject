@@ -40,6 +40,17 @@ namespace EmpireCraft.Core
         }
     }
 
+    // A household. None is ever on record: kinship is kept on the persons and their houses.
+    public sealed class Family : Entity
+    {
+        public long Id = -1L;
+        public string Name;
+        public override long Key => Id;
+        public override bool Alive => false;
+        public override EntityKind KindOfEntity => EntityKind.Family;
+        public Family Record => this;
+    }
+
     // A kind of plot: what is being plotted (a war, a union ...).
     public sealed class PlotKind
     {

@@ -218,7 +218,7 @@ public static class NationalSentimentSystem
                     if (joined != null && !joined.HasEnded() &&
                         (joined.IsAttacker(member) && joined.IsAttacker(core) || joined.IsDefender(member) && joined.IsDefender(core)))
                         joined.Leave(member);
-                War war = EmpireWorld.Current.LiveWars.newWar(member, core, WarKinds.Normal);
+                War war = EmpireWorld.Current.StartWar(member, core, WarKinds.Normal);
                 if (war == null) continue;
                 empire.leave(member, true, true);
                 war.SetEmpireWarType(EmpireWarType.地方独立);

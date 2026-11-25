@@ -87,7 +87,7 @@ public class EmpireManager : RecordStore<Empire, EmpireData>
             if (_livenessQueue.Count == 0) break;
             Empire current = _livenessQueue.Dequeue();
             // 排队以后已解散、已移出的跳过
-            if (current?.data == null || current.IsArchived() || get(current.Key) != current) continue;
+            if (current?.data == null || current.IsArchived() || Get(current.Key) != current) continue;
             if (_livenessStats) RefreshStats(current, GameClock.Now);
             CheckOne(current, false, _livenessDissolve);
         } while (budget.Elapsed.TotalMilliseconds < LivenessBudgetMs);
@@ -306,7 +306,7 @@ public class EmpireManager : RecordStore<Empire, EmpireData>
         // Dispose 把史书收进 ALL_HISTORY_DATA；静默撤去的不留
         if (silent && !hadHistory && pEmpire.data != null) ModClass.ALL_HISTORY_DATA.Remove(pEmpire.data.id);
         pEmpire.Archive();
-        removeObject(pEmpire);
+        RemoveObject(pEmpire);
         // 伪核心只是僭称者自行制造的主张，不是可被后继国家继承的历史法理。
         if ((destroyFalseCore || destroyOwnCore) && EmpireCoreManager.Get(falseCore.id) == falseCore)
             EmpireCoreManager.DestroyEmpireCore(falseCore, force: destroyOwnCore);
@@ -379,12 +379,13 @@ public class EmpireManager : RecordStore<Empire, EmpireData>
         base.RemoveObject(pKingdom);
         EmpireWorld.Current.Zones?.setDrawnZonesDirty();
     }
+#endif
     
     public void RemoveArchivedEmpire(Empire pEmpire)
     {
         if (pEmpire == null) return;
         if (!pEmpire.IsArchived()) return;
-        removeObject(pEmpire);
+        RemoveObject(pEmpire);
     }
     
     public void PurgeArchivedOlderThanYears(int years)
@@ -396,11 +397,10 @@ public class EmpireManager : RecordStore<Empire, EmpireData>
             if (!e.IsArchived()) continue;
             if (GameClock.YearsSince(e.data.timestamp_established_time) > years)
             {
-                removeObject(e);
+                RemoveObject(e);
             }
         }
     }
-#endif
 
     // Token: 0x0400230C RID: 8972
 #if EC_PENDING
@@ -466,7 +466,7 @@ public class EmpireManager : RecordStore<Empire, EmpireData>
             return null;
         }
         long id = OverallHelperFunc.IdGenerator.NextId();
-        var empire = newObjectFromID(id);
+        var empire = NewObjectFromKey(id);
         empire.CreateNewEmpire(pKingdom, isSplit, replacingEmpire);
         if (empire.CoreKingdom == null)
         {
@@ -485,7 +485,7 @@ public class EmpireManager : RecordStore<Empire, EmpireData>
         BindFoundingCore(empire, pKingdom, forceNewCore, bindCore, replacingEmpire);
         RealmNamingSystem.OnEmpireBound(empire, pKingdom);
         pKingdom.GetOrCreate().isEmpire = true;
-        pKingdom.SetEmpireID(empire.id);
+        pKingdom.SetEmpireID(empire.Key);
         EmpireFormationService.OnEmpireCreated(empire);
         // 称帝前王国在推的制度改革带进帝国(见 InstitutionSystem.Realm.cs)
         InstitutionSystem.OnEmpireProclaimed(empire);
@@ -495,7 +495,7 @@ public class EmpireManager : RecordStore<Empire, EmpireData>
         {
             new News(NewsKinds.become_new_empire_log, pKingdom.Ruler.Name, empire.GetEmpireName())
             {
-                Location = pKingdom.location,
+                Location = pKingdom.Location,
                 Color1 = pKingdom.GetColor().GetColorText()
             }.Add();
         }
@@ -503,7 +503,7 @@ public class EmpireManager : RecordStore<Empire, EmpireData>
         {
             new News(NewsKinds.become_new_empire_west_log, pKingdom.Ruler.Name, empire.GetEmpireName())
             {
-                Location = pKingdom.location,
+                Location = pKingdom.Location,
                 Color1 = pKingdom.GetColor().GetColorText()
             }.Add();
         }
@@ -515,7 +515,6 @@ public class EmpireManager : RecordStore<Empire, EmpireData>
     // 空着的帝国法理接手(记录不动)，被别的现存帝国占着就另立(冻结法理时只记无主的法理，见 EmpireCoreManager.TitlesForNewCore)
     // bindCore：称帝时指定绑哪个帝国法理(据有法理，见 RealmNamingSystem.PlanDominionBinding)
     // replacing：同一帝国换了中央接续(前朝随即解散，见 Empire.ReplaceEmpire)。冻结法理时接着用前朝的帝国法理，否则新朝只剩空核心
-#if EC_PENDING
     private static void BindFoundingCore(Empire empire, Realm kingdom, bool forceNewCore, EmpireCore bindCore, Empire replacing)
     {
         Empire predecessor = ModClass.KINGDOM_TITLE_FREEZE ? replacing : null;
@@ -534,15 +533,13 @@ public class EmpireManager : RecordStore<Empire, EmpireData>
             EmpireCoreManager.newEmpireCore(empire, RealmNamingSystem.FreshCoreName(empire));
         }
     }
-#endif
 
     // 都城刚失守、原版 AI 还没另选的(要等这一国下次 AI，见 KingdomBehCheckCapital)：按同样的规则当场选一座；一座城都没有就立不了
-#if EC_PENDING
     private static bool EnsureCapitalForNewEmpire(Realm kingdom)
     {
         if (kingdom.HasCapital() && kingdom.Capital.Alive) return true;
         City seat = null;
-        foreach (City city in kingdom.getCities())
+        foreach (City city in kingdom.GetCities())
             if (seat == null || EmpireCraft.Core.CityLedger.Buildings(city) >
                 EmpireCraft.Core.CityLedger.Buildings(seat)) seat = city;
         if (seat == null) return false;
@@ -566,7 +563,7 @@ public class EmpireManager : RecordStore<Empire, EmpireData>
             return false;
         }
 
-        fallbackKing.removeFromArmy();
+        fallbackKing.RemoveFromArmy();
         if (fallbackKing.IsCityLeader() && fallbackKing.City != null)
         {
             fallbackKing.City.RemoveLeader();
@@ -576,10 +573,9 @@ public class EmpireManager : RecordStore<Empire, EmpireData>
         {
             fallbackKing.JoinCity(kingdom.Capital);
         }
-        fallbackKing.joinKingdom(kingdom);
+        fallbackKing.SetRealm(kingdom);
         return kingdom.HasRuler() && kingdom.Ruler != null && !kingdom.Ruler.IsGone();
     }
-#endif
 
     private static Person FindFallbackKingCandidate(Realm kingdom)
     {

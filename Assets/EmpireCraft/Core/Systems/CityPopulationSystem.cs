@@ -22,7 +22,7 @@ namespace EmpireCraft.Core
 //
 // 年度结算分帧进行：到期时把全部城市排进队列，之后每帧最多处理 SliceBudgetMs 毫秒，剩下的下一帧接着做。
 // 第二步会把土地、就业、理念、政党投票等统计改为读这里的数据，而不是遍历城里的单位。
-public static class CityPopulationSystem
+public static partial class CityPopulationSystem
 {
     private const double SliceBudgetMs = 2d;
     // ---- 背景人口的生育与死亡(每年) ----
@@ -742,7 +742,7 @@ public static class CityPopulationSystem
         if (actor.IsRuler()) return "君主";
         if (actor.IsCityLeader()) return "城主";
         if (IsSoldier(actor)) return "士兵";
-        if (actor.isFavorite() || actor.isCameraFollowingUnit()) return "收藏";
+        if (actor.IsFavorite() || actor.isCameraFollowingUnit()) return "收藏";
         if (actor.plot != null) return "谋划";
         SocialClass socialClass = EmpireCaftActorJudgeClass.JudgeClass(actor);
         if (socialClass == SocialClass.Officer) return "官员";
@@ -867,7 +867,6 @@ public static class CityPopulationSystem
 #endif
 
     // 立即结算一座城市(界面打开、读档修复等需要最新数据的场合)
-#if EC_PENDING
     public static void UpdateCity(City city, double now)
     {
         CityPopulationData data = Get(city);
@@ -877,11 +876,9 @@ public static class CityPopulationSystem
         if (AbstractPopulationEnabled) DriftBackgroundTowardNamed(data, BackgroundOpinionDrift);
         data.last_census = now;
     }
-#endif
 
     // 用城里的实体单位校准人口组。keepBackground 为 false 时丢弃背景人口，人口组完全等于单位统计；
     // 为 true 时保留每组的背景人口，只把实体单位部分换成这次数到的人数
-#if EC_PENDING
     public static void Census(City city, CityPopulationData data, bool keepBackground, bool preserveSmallGroups = false)
     {
         var counted = new Dictionary<(SocialClass, string, string, PartyIdeology), int>();
@@ -936,7 +933,6 @@ public static class CityPopulationSystem
         data.groups = rebuilt;
         data.named_units = named;
     }
-#endif
 
     // 神力"增加人口"另给的容量(人，见 CityPopulationData.brush_capacity)
     public static float BrushCapacity(City city)
@@ -1597,7 +1593,7 @@ public static class CityPopulationSystem
     {
         if (actor?.Record == null || actor.IsGone()) return "无效";
         if (actor.IsRuler() || actor.IsCityLeader()) return "君主城主";
-        if (actor.isFavorite() || actor.isCameraFollowingUnit()) return "收藏";
+        if (actor.IsFavorite() || actor.isCameraFollowingUnit()) return "收藏";
         if (actor.plot != null) return "谋划";
         SocialClass socialClass = EmpireCaftActorJudgeClass.JudgeClass(actor);
         if (socialClass == SocialClass.Officer) return "官员";
@@ -1649,7 +1645,7 @@ public static class CityPopulationSystem
         if (PureMapMode.Enabled) return PureNotable(actor);
         // 在任官员一律留着：宗室远支先判成贵族、不算要紧，以前在任也会被月度并入回收，官位跟着空出来
         if (actor.IsRuler() || actor.IsCityLeader() || actor.IsOnOffice()) return true;
-        if (actor.isFavorite() || actor.isCameraFollowingUnit()) return true;
+        if (actor.IsFavorite() || actor.isCameraFollowingUnit()) return true;
         if (actor.plot != null) return true;
         // 各步分别累计计时(见 FrameProfiler)，用来找月度并入"分类"一步的大头
         SocialClass socialClass;
@@ -1680,7 +1676,7 @@ public static class CityPopulationSystem
 #if EC_PENDING
     private static bool PureNotable(Person actor)
     {
-        if (actor.IsRuler() || actor.IsCityLeader() || actor.isFavorite() || actor.isCameraFollowingUnit() ||
+        if (actor.IsRuler() || actor.IsCityLeader() || actor.IsFavorite() || actor.isCameraFollowingUnit() ||
             actor.plot != null || actor.IsOnOffice()) return true;
         if (EmpireCaftActorJudgeClass.IsNoble(actor) && IsImportantNoble(actor)) return true;
         if (actor.GetFaction() != null) return true;
@@ -1704,7 +1700,7 @@ public static class CityPopulationSystem
 
 #if EC_PENDING
     private static bool ImmediatelyProtected(Person actor) => actor.IsRuler() || actor.IsCityLeader() || actor.IsOnOffice() ||
-        actor.isFavorite() || actor.isCameraFollowingUnit() || actor.plot != null || CorpsSystem.IsGeneral(actor);
+        actor.IsFavorite() || actor.isCameraFollowingUnit() || actor.plot != null || CorpsSystem.IsGeneral(actor);
 #endif
 
     // 要紧的贵族：君主、继承人、君主与储君的配偶和子女、有封地或爵位的人。其余宗室并入虚拟族谱，需要时再落成。
@@ -1792,7 +1788,7 @@ public static class CityPopulationSystem
             // 不留军人实体：被拉去当兵的名人恢复文职
             if (notable && CorpsSystem.NoMilitaryUnits && IsSoldier(actor) && !actor.IsRuler())
             {
-                actor.removeFromArmy();
+                actor.RemoveFromArmy();
                 actor.stopBeingWarrior();
             }
             if (notable || CorpsSystem.IsGeneral(actor)) continue;
@@ -1912,7 +1908,7 @@ public static class CityPopulationSystem
                             origin.social_class, origin.culture, origin.species, origin.ideology, origin.size);
                     }
         }
-        actor.removeFromArmy();
+        actor.RemoveFromArmy();
         actor.stopBeingWarrior();
         UpdateLegions(home);
         InvalidateHouseholdCaches();
@@ -1997,7 +1993,7 @@ public static class CityPopulationSystem
         if (extra.legion_home_city_id >= 0L) socialClass = extra.legion_home_social_class;
         if (socialClass == SocialClass.Army) socialClass = SocialClass.Peasant;
         var identity = actor.GetPersonalIdentity();
-        int capturedCash = actor.Money, capturedLoot = actor.Record.loot;
+        int capturedCash = actor.Money, capturedLoot = actor.Record.Loot;
         float oldLegionSize = extra.legion_size, oldLegionFull = extra.legion_full;
         long oldLegionHome = extra.legion_home_city_id;
         // Preserve existing balances before removing the actor or its legion
@@ -2134,7 +2130,6 @@ public static class CityPopulationSystem
     // 义军(无小人模式)：起义、革命时从本城背景人口里当场武装 count 个兵，每个兵代表一支义军，
     // 一共动员背景人口的 share。返回实际征到的人数(兵)
     // garrison：城市治安守兵(CityStabilitySystem 招募)，始终是城里的实体
-#if EC_PENDING
     public static int RaiseMilitia(City city, int count, float share, bool garrison = false)
     {
         // 军团模式：起义、革命的义军编成一支军，不再一兵一个实体
@@ -2174,7 +2169,6 @@ public static class CityPopulationSystem
         if (raised > 0) UpdateLegions(city);
         return raised;
     }
-#endif
 
     // 战时能动员的兵力(各军镇的战时兵额与现有士兵取大者之和)：原版 AI 判断要不要开战、打谁时用
 #if EC_PENDING
@@ -2215,7 +2209,6 @@ public static class CityPopulationSystem
     public static bool IsVehicle(Person actor) =>
         actor?.Asset != null && (actor.Asset.IsBoat || actor.Asset.Id.StartsWith("warbox_") || actor.HasTrait("warbox_unit"));
 
-#if EC_PENDING
     public static float LegionAlive(Person actor)
     {
         if (actor?.Record == null || actor.IsGone()) return 0f;
@@ -2234,8 +2227,8 @@ public static class CityPopulationSystem
     {
         try
         {
-            int max = actor.getMaxHealth();
-            if (max > 0) return Mathf.Clamp01((float)actor.getHealth() / max);
+            int max = actor.GetMaxHealth();
+            if (max > 0) return Mathf.Clamp01((float)actor.GetHealth() / max);
         }
         catch
         {
@@ -2243,10 +2236,8 @@ public static class CityPopulationSystem
         }
         return 1f;
     }
-#endif
 
     // 补员：士兵回血时，军团按生命值补回满编，补的人从本国各城的背景人口里征调；人口不够就补到能补的数
-#if EC_PENDING
     private static void ReinforceLegion(Person actor, Realm kingdom)
     {
         ActorExtension.ActorExtraData extra = actor.GetOrCreate();
@@ -2266,11 +2257,9 @@ public static class CityPopulationSystem
         }
         extra.legion_size += taken;
     }
-#endif
 
     // 士兵战死：他代表的整个军团(当前存活的人)当场从所属城市的人口里扣掉，不用等每月重算。
     // 解散退伍时会先把军团人数清零再移除单位，不会被当成阵亡
-#if EC_PENDING
     public static void OnSoldierDied(Person actor)
     {
         if (!AbstractPopulationEnabled || actor?.Record == null) return;
@@ -2283,11 +2272,9 @@ public static class CityPopulationSystem
         CityPopulationData data = actor.City == null ? null : Get(actor.City);
         if (data != null && lost > 0f) data.levied = Mathf.Max(0f, data.levied - lost);
     }
-#endif
 
     // 重算本城在外军团的人数(士兵本人已作为实体单位计入，这里只记其余的人)。士兵战死后不再出现在城里，
     // 他的军团也随之从人口里消失
-#if EC_PENDING
     public static void UpdateLegions(City city)
     {
         CityPopulationData data = Get(city);
@@ -2306,24 +2293,23 @@ public static class CityPopulationSystem
         // 军团(见 CorpsSystem)的兵员与不留实体时的治安守兵记在驻地城市
         data.levied = levied + CorpsSystem.LeviedAt(city) + CorpsSystem.VirtualGarrison(city);
     }
-#endif
 
     // 按人口组生成一个具体的人：物种、文化、理念取自人口组，加入本城与本国；soldier 为 true 时直接成为士兵
-#if EC_PENDING
+#if EC_REPLACED // written by hand for this game: see Assets/EmpireCraft/Core/Seams
     public static Person SpawnFromGroup(City city, PopGroup group, bool soldier)
     {
         // 征召兵直接在朝向敌国的边境集结，找不到边境就在城里
-        Cell tile = (soldier ? FrontTile(city.Realm) : null) ?? PickTile(city);
+        Cell tile = (soldier ? FrontTile(city.kingdom) : null) ?? PickTile(city);
         if (tile == null) return null;
         Person actor = CreateUnit(group.species, tile, city);
-        if (actor?.Record == null) return null;
+        if (actor?.data == null) return null;
         Culture culture = CultureService.GetNativeCultureObject(group.culture);
-        if (culture != null) actor.SetCulture(culture);
-        actor.joinKingdom(city.Realm);
-        actor.JoinCity(city);
+        if (culture != null) actor.setCulture(culture);
+        actor.joinKingdom(city.kingdom);
+        actor.joinCity(city);
         // 背景人口信本城的宗教(见 BackgroundReligionSystem)，落成的人也带着。以前不带，补上来的城主、君主都无教，
         // 原版的城教、国教跟着城主、君主走，就跟不上人口的信仰
-        if (!actor.HasReligion() && city.HasReligion()) actor.SetReligion(city.Religion);
+        if (!actor.hasReligion() && city.hasReligion()) actor.setReligion(city.religion);
         IdeologyPopulationSystem.Set(actor, group.ideology);
         // 从人口里落成的都是成年人：士兵 18~35 岁(服役年龄)，平民(补位城主、官员) 25~55 岁；
         // 寿命短的物种按寿命折算，并保证已经成年
@@ -2339,11 +2325,11 @@ public static class CityPopulationSystem
         {
             actor.SetSocialClass(group.social_class);
             // 从人口里生成的人自立一个氏族(按文化取姓)，不会被并进别人的氏族、冒用别人的姓
-            if (!actor.HasClan())
+            if (!actor.hasClan())
             {
                 try
                 {
-                    EmpireWorld.Current.Clans.newClan(actor, true);
+                    EmpireWorld.Current.clans.newClan(actor, true);
                 }
                 catch (Exception exception)
                 {
@@ -2396,7 +2382,6 @@ public static class CityPopulationSystem
     // 算饥荒至少一年缺几份口粮(一户人的小城差一份，吃饱率就掉到零)
     private const float MinFamineShortage = 2f;
 
-#if EC_PENDING
     private static void AssignAdultAge(Person actor, int min, int max)
     {
         try
@@ -2421,10 +2406,8 @@ public static class CityPopulationSystem
             LogService.LogWarning($"[EmpireCraft] 无小人模式设定年龄失败: {exception.Message}");
         }
     }
-#endif
 
     // 起事首领(无小人模式)：民变、农民起义要有个带头的平民，城里没有平民实体时从背景人口里生成一人，优先农民
-#if EC_PENDING
     public static Person SpawnRebelLeader(City city)
     {
         if (!AbstractPopulationEnabled || city?.Record == null || city.IsGone() || city.Realm == null) return null;
@@ -2438,7 +2421,6 @@ public static class CityPopulationSystem
         if (actor != null) RemoveBackground(group, 1f);
         return actor;
     }
-#endif
 
     // 执笔的读书人(无小人模式)：写书不需要实体居民，但书要有作者。城里没有合适的实体单位时，
     // 从人口里请一位读书人(优先官僚、市民、商人、贵族、地主这些识字阶层)落成实体执笔，书署他的名字；
@@ -2477,7 +2459,6 @@ public static class CityPopulationSystem
     }
 
     // 从背景人口中生成一名成年平民(物种、文化、理念、阶层取自抽中的人口组)，并从背景人口里扣掉，总人口不变
-#if EC_PENDING
     public static Person SpawnCivilian(City city)
     {
         if (!AbstractPopulationEnabled || city?.Record == null || city.IsGone() || city.Realm == null) return null;
@@ -2494,7 +2475,6 @@ public static class CityPopulationSystem
         }
         return actor;
     }
-#endif
 
     // 城里某阶层的背景人数
     public static float BackgroundOfClass(City city, SocialClass socialClass)
@@ -2508,7 +2488,6 @@ public static class CityPopulationSystem
     }
 
     // 从某阶层的背景人口中生成一人(社会起义推举首领等)，总人口不变
-#if EC_PENDING
     public static Person SpawnCivilianOfClass(City city, SocialClass socialClass)
     {
         if (!AbstractPopulationEnabled || city?.Record == null || city.IsGone() || city.Realm == null) return null;
@@ -2525,7 +2504,6 @@ public static class CityPopulationSystem
         }
         return actor;
     }
-#endif
 
     // 官职空缺且找不到合适人选时(无小人模式)，从官职所在城市(否则本国首都)的人口中生成一人。
     // 王位不在此列：君主空缺走继承制度，不能凭空生成
@@ -2577,7 +2555,6 @@ public static class CityPopulationSystem
 
     // 落成一名指定物种/文化的人(虚拟族人用)：优先从同物种同文化的背景人口里扣，其次同物种，
     // 都没有就直接生成(人口多出一人)
-#if EC_PENDING
     public static Person SpawnPerson(City city, string species, string culture)
     {
         if (city?.Record == null || city.IsGone() || city.Realm == null || string.IsNullOrEmpty(species)) return null;
@@ -2593,7 +2570,6 @@ public static class CityPopulationSystem
         if (actor != null && group != null) RemoveBackground(group, 1f);
         return actor;
     }
-#endif
 
     // 从背景人口里减去一名指定物种/文化的人(虚拟族人身故)
     public static void RemovePerson(City city, string species, string culture)

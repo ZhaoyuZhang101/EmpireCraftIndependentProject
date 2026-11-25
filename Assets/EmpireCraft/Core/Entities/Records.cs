@@ -36,6 +36,8 @@ namespace EmpireCraft.Core
         public override bool Alive => !_removed && data != null;
         public string Name { get { return data == null ? null : data.name; } set { if (data != null) data.name = value; } }
         public virtual void LoadData(TData record) { data = record; }
+        public bool IsAlive() => Alive;
+        public virtual void ClearListUnits() { }
         // The colours of this object, for those that have any (an empire, a title).
         public virtual Tint GetColor() => null;
         // What belongs to this object, for those that hold cities or persons; and its own bookkeeping before a save.
@@ -43,8 +45,10 @@ namespace EmpireCraft.Core
         public virtual IEnumerable<Person> GetUnits() => System.Linq.Enumerable.Empty<Person>();
         public virtual int CountUnits() => 0;
         public virtual void Save() { }
-        // Called by the store when the object leaves the world.
+        // Called by the store when the object leaves the world, for the object's own tidying up.
+        // The ported classes override this without calling the base, so the store marks the object itself.
         public virtual void Dispose() { _removed = true; }
+        internal void MarkRemoved() { _removed = true; }
     }
 
     // Holds the record objects of one kind for a world: creation with fresh keys,
@@ -84,12 +88,12 @@ namespace EmpireCraft.Core
         public virtual void RemoveObject(TObject item)
         {
             if (item == null || !_byKey.Remove(item.Key)) return;
-            list.Remove(item); item.Dispose();
+            list.Remove(item); item.MarkRemoved(); item.Dispose();
         }
 
         public virtual void Clear()
         {
-            foreach (var item in list) item.Dispose();
+            foreach (var item in list) { item.MarkRemoved(); item.Dispose(); }
             list.Clear(); _byKey.Clear(); _nextKey = 1;
         }
 

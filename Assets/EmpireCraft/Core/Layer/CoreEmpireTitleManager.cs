@@ -70,7 +70,6 @@ public static class EmpireCoreManager
 
     // 读档修复：原核心被外来帝国占着(见 IsClaimedByContest)，而它记录的中央政府仍在、且挂在它下面时，
     // 把原核心还给中央政府；外来帝国另立核心，只保留它自己实际控制的法理。
-#if EC_PENDING
     public static int RepairContestedCoreOwners()
     {
         if (EmpireCores == null || ModClass.EMPIRE_MANAGER == null) return 0;
@@ -108,7 +107,6 @@ public static class EmpireCoreManager
         }
         return repaired;
     }
-#endif
 
     // 读档修复(只在冻结法理开着时)：以前新立核心不看冻结，同一法理记进两个正式帝国法理，城被后记的拿走，法理图层上法理首都被踢出原帝国法理。
     // 保留先记的，后记的去掉，城改回去；城被军阀临时法理、伪法理拿走的也还给正式帝国法理(那两种的记录照旧留着，见 EnumerateOwnCities)
@@ -510,7 +508,6 @@ public static class EmpireCoreManager
             .ToList();
     }
 
-#if EC_PENDING
     public static string GetFoundingEmpireName(EmpireCore core)
     {
         if (core == null) return "";
@@ -568,7 +565,6 @@ public static class EmpireCoreManager
             .OrderBy(h => h?.descriptions?.FirstOrDefault()?.time ?? "")
             .ToList();
     }
-#endif
 
     public static List<KingdomTitle> GetTitles(EmpireCore core)
     {
@@ -706,6 +702,7 @@ public static class EmpireCoreManager
 #if EC_PENDING
     private static bool AcrossStrait(Empire empire, KingdomTitle title) =>
         title.GetCities().Any(city => city != null && !city.IsGone() && StraitReach.Reaches(empire.CoreKingdom, city));
+#endif
 
     public static void RebindEmpire(Empire empire, EmpireCore core)
     {
@@ -727,7 +724,6 @@ public static class EmpireCoreManager
             }
         }
     }
-#endif
 
     public static EmpireCore CreateCoreFromTitle(KingdomTitle title)
     {

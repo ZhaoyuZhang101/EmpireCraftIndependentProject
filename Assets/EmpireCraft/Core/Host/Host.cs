@@ -63,6 +63,7 @@ namespace EmpireCraft.Core
         public static float Pow(float value, float power) => (float)Math.Pow(value, power);
         public static float Exp(float value) => (float)Math.Exp(value);
         public static float Log(float value) => (float)Math.Log(value);
+        public static float Log(float value, float newBase) => (float)Math.Log(value, newBase);
         public static float Floor(float value) => (float)Math.Floor(value);
         public static float Ceil(float value) => (float)Math.Ceiling(value);
         public static float Round(float value) => (float)Math.Round(value);
@@ -174,6 +175,7 @@ namespace EmpireCraft.Core
         }
 
         public static string ToHtmlStringRGB(EcColor color) => color.Rgb.ToString("X6");
+        public static string ToHtmlStringRGBA(EcColor color) => color.Rgb.ToString("X6") + ((int)Math.Round(EcMath.Clamp01(color.a) * 255f)).ToString("X2");
     }
 
     // The random stream of the ported systems. It is reseeded from the world seed and month before

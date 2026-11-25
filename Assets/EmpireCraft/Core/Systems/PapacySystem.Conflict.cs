@@ -174,7 +174,7 @@ public static partial class PapacySystem
         {
             // 新入帝国十年内、神力拉入未满期的不倒戈(见 MembershipCooldown)
             if (member.HasEnemies() || !MembershipCooldown.Settled(member) || EcRandom.value >= DefectChance) continue;
-            War war = EmpireWorld.Current.LiveWars.newWar(member, core, WarKinds.Normal);
+            War war = EmpireWorld.Current.StartWar(member, core, WarKinds.Normal);
             if (war == null) continue;
             empire.leave(member, true, true);
             war.SetEmpireWarType(EmpireWarType.地方独立);

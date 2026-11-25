@@ -46,7 +46,6 @@ public static class ClanExtension
     // 这个氏族的族人该姓什么(给新生儿、入族的人起姓用)：有对应宗族的取宗族记的姓(族谱的姓)，
     // 不从原版氏族名里拆——原版氏族名现在显示的是"氏"(如华夏姬姓分出的"鲁氏"，见 SpecificClan.VanillaClanName)；
     // 没有对应宗族的照旧从氏族名里取
-#if EC_PENDING
     public static string GetMemberSurname(this Clan clan)
     {
         if (clan?.Record == null) return "";
@@ -59,7 +58,7 @@ public static class ClanExtension
         if (clan?.Record == null || string.IsNullOrWhiteSpace(clan.Name)) return "";
         var nameParts = clan.Name.SplitNameParts();
         string culture = null;
-        if (ConfigData.speciesCulturePair.TryGetValue(clan.species_id, out culture))
+        if (ConfigData.speciesCulturePair.TryGetValue(clan.SpeciesId, out culture))
         {
             if (OnomasticsRule.ALL_CULTURE_RULE.TryGetValue(culture, out Setting setting))
             {
@@ -73,7 +72,6 @@ public static class ClanExtension
             ? nameParts[0] + LM.Get($"{culture}_sex_post_{sex}")
             : nameParts[0];
     }
-#endif
 
     public static bool HasHistoryEmpire(this Clan a)
     {

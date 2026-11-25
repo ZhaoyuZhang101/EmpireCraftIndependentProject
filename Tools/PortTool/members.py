@@ -75,6 +75,15 @@ def find(args):
                 os.remove(path)
     orbis = os.path.join(tool.ROOT, "Assets", "ORBIS", "Runtime", "FlatWorld", "Core")
     print("%d candidates from mod %s" % (len(candidates), commit[:8]))
+    # Members written by hand for this game (Assets/EmpireCraft/Core/Seams): the mod's own version is switched off first,
+    # so everything else binds to the hand-written one.
+    seams = os.path.join(tool.ROOT, "Port", "seams.json")
+    if os.path.exists(seams):
+        result = subprocess.run(["dotnet", "run", "--project", os.path.join(tool.ROOT, "Validation", "PortSurvey"), "-c", "Release", "--",
+                                 "seams", os.path.join(work, "src"), seams], capture_output=True, text=True, encoding="utf-8", errors="replace")
+        print("seams: " + result.stdout.strip().splitlines()[-1] if result.stdout.strip() else "seams: no output")
+        if result.returncode != 0:
+            raise SystemExit(result.stderr[-2000:] or "a member listed in Port/seams.json was not found")
     print("by-type member renames: " + tool.semantic_fix(os.path.join(work, "src"), core))
     if args.graph:
         # Only the member graph: what every member lacks and which members it uses, before anything is suspended.

@@ -120,7 +120,7 @@ public static class GraceEdictService
 
     internal static void Crown(Realm fief, Person heir)
     {
-        heir.removeFromArmy();
+        heir.RemoveFromArmy();
         if (heir.IsCityLeader()) heir.City.RemoveLeader();
         OfficeObject office = fief.GetOffice();
         if (office == null)

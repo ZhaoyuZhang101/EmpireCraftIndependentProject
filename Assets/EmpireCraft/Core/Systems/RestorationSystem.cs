@@ -138,7 +138,7 @@ public static class RestorationSystem
             float chance = Mathf.Min(0.9f, (0.3f + republican) * (autonomous ? 1.5f : 1f));
             if (EcRandom.value >= chance) continue;
             empire.leave(member);
-            War war = EmpireWorld.Current.LiveWars.newWar(member, core, WarKinds.Normal);
+            War war = EmpireWorld.Current.StartWar(member, core, WarKinds.Normal);
             war?.SetEmpireWarType(EmpireWarType.地方独立);
             EventRecorder.Record(empire, actor: member.Ruler, logKingdom: member, text: string.Format(
                 LM.Get("restoration_uprising_history"), member.GetKingdomFullName(), ImperialName(empire)));

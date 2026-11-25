@@ -15,7 +15,6 @@ public sealed class KingdomTitleHolderRelation
 
 public static class KingdomTitleRelationResolver
 {
-#if EC_PENDING
     public static List<KingdomTitleHolderRelation> ResolveCurrentHolders(KingdomTitle title)
     {
         var result = new List<KingdomTitleHolderRelation>();
@@ -58,7 +57,6 @@ public static class KingdomTitleRelationResolver
 
         return result;
     }
-#endif
 
     public static List<Realm> FindCurrentAdministrations(KingdomTitle title)
     {

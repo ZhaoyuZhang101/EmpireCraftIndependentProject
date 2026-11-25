@@ -212,7 +212,7 @@ public static class VassalInvestitureService
     private static bool ReplaceKing(Realm vassal, Person replacement)
     {
         if (vassal == null || vassal.IsGone() || replacement == null || replacement.IsGone()) return false;
-        replacement.removeFromArmy();
+        replacement.RemoveFromArmy();
         if (replacement.IsCityLeader()) replacement.City.RemoveLeader();
         if (vassal.Capital != null && !vassal.Capital.IsGone() && replacement.City != vassal.Capital)
             replacement.JoinCity(vassal.Capital);

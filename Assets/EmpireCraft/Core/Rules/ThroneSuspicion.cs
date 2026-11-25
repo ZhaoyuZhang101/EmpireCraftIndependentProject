@@ -117,7 +117,7 @@ public static class ThroneSuspicion
         rebel.GetRegime()?.SetAllowArmy(true);
         CorpsSystem.Transfer(corps, kingdom, rebel, seat);
         Realm target = empire?.CoreKingdom ?? kingdom;
-        War war = EmpireWorld.Current.LiveWars.newWar(rebel, target, WarKinds.Normal);
+        War war = EmpireWorld.Current.StartWar(rebel, target, WarKinds.Normal);
         war?.SetEmpireWarType(EmpireWarType.地方独立);
         Report(kingdom, empire, string.Format(LM.Get("overshadow_rebel_history"), actor.FullName(), ruler.FullName(), seat.GetCityName()), actor);
         BiographySystem.Note(actor, string.Format(LM.Get("bio_overshadow_rebel"), ruler.FullName(), seat.GetCityName()), ruler);

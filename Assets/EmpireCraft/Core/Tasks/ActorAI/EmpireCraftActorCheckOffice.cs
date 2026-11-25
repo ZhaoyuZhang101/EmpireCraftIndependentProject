@@ -9,7 +9,6 @@ public class EmpireCraftActorCheckOffice:GameAIActorBase
 {
     public override Type OriginalBeh => GetType();
 
-#if EC_PENDING
     public override BehResult Execute(Person pActor)
     {
         if (pActor.IsGone()) return BehResult.Continue;
@@ -49,6 +48,5 @@ public class EmpireCraftActorCheckOffice:GameAIActorBase
         pActor.EndOffice();
         return BehResult.Continue;
     }
-#endif
 }
 }

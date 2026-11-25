@@ -79,7 +79,6 @@ public static class FallenEmpireRecords
             if (empire?.data != null && empire.IsArchived()) Record(empire, known: false);
     }
 
-#if EC_PENDING
     public static List<EmpireCraftHistory> Histories(FallenEmpireRecord record)
     {
         if (record == null || ModClass.ALL_HISTORY_DATA == null ||
@@ -87,7 +86,6 @@ public static class FallenEmpireRecords
             return new List<EmpireCraftHistory>();
         return histories.Where(history => history != null).ToList();
     }
-#endif
 
     // 清理灭亡超过若干年的(旧档补记的不知何时灭亡，按立国算)；史书仍留在 ALL_HISTORY_DATA，帝国法理窗口照样查得到
     public static void PurgeOlderThanYears(int years)

@@ -178,7 +178,7 @@ public static class EmpireBankruptcySystem
     {
         if (!member.HasRuler()) return false;
         empire.leave(member);
-        War war = EmpireWorld.Current.LiveWars.newWar(member, core, WarKinds.Normal);
+        War war = EmpireWorld.Current.StartWar(member, core, WarKinds.Normal);
         war?.SetEmpireWarType(EmpireWarType.地方独立);
         EventRecorder.Record(empire, actor: member.Ruler, logKingdom: member, text: string.Format(
             LM.Get("bankruptcy_independence_history"), empire.GetEmpireFullName(), member.GetKingdomFullName()));

@@ -158,20 +158,14 @@ public static partial class GentrySystem
 #endif
 
     // 族众系数：50 人为 1，每翻一番 +0.5；不到 50 人按比例、至少 0.5
-#if EC_PENDING
     public static float KinFactor(float kin) =>
         kin < InfluenceKin ? Mathf.Max(0.5f, kin / InfluenceKin) : 1f + Mathf.Log(kin / InfluenceKin, 2f) / 2f;
-#endif
 
     // 势力 = 门第 × 族众系数
-#if EC_PENDING
     public static float Influence(SpecificClan clan) => clan == null ? 0f : clan.gentry_pedigree * KinFactor(clan.gentry_kin);
-#endif
 
     // 一组世家的势力合计
-#if EC_PENDING
     public static float Influence(IEnumerable<SpecificClan> clans) => clans.Sum(clan => Influence(clan));
-#endif
 
     // 谱上的人死尽而族众还在、等着远支入谱的世家：绝户田不放(见 LandEconomySystem.ReleaseExtinctLand)
     public static bool KeepsLand(SpecificClan clan) => clan != null && clan.gentry && clan.gentry_kin >= KinRevive;

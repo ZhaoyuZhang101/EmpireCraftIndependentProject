@@ -484,7 +484,7 @@ public static class ProvincialCollapseSystem
         }
         else
         {
-            war = EmpireWorld.Current.LiveWars.newWar(province, core, WarKinds.Normal);
+            war = EmpireWorld.Current.StartWar(province, core, WarKinds.Normal);
             if (war == null) return false;
             empire.leave(province, true, true);
             war.SetEmpireWarType(EmpireWarType.地方独立);

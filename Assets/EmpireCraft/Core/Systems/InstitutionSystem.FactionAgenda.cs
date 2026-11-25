@@ -152,7 +152,6 @@ public static partial class InstitutionSystem
     }
 
     // 回退的天平：想废它的(原本反对它的阶层与派系)对拥护它的(原本支持者 ×1.5，连同时代潮流) + 祖制阻力
-#if EC_PENDING
     public static RevertBalanceView RevertBalance(InstitutionRealm realm, InstitutionNodeConfig node,
         Dictionary<SocialClass, float> shares = null)
     {
@@ -167,7 +166,6 @@ public static partial class InstitutionSystem
 
     public static RevertBalanceView RevertBalance(Empire empire, InstitutionNodeConfig node) =>
         empire?.CoreKingdom == null ? new RevertBalanceView() : RevertBalance(InstitutionRealm.Of(empire), node);
-#endif
 
     // 祖制阻力：施行越久越难改(20 起，每年 +0.5，至多 45)
     private static float TraditionResistance(string culture, InstitutionNodeConfig node)

@@ -2269,7 +2269,6 @@ public static partial class InstitutionSystem
 
     // 中央倒戈：起义爆发时，核心王国军中属于该阶层的士兵按怨气比例投奔叛军(怨气 75%→约 53%)，
     // 贵族、军人起义时倒戈的更多。倒戈者原地转投叛军，不再听中央调遣。
-#if EC_PENDING
     private static int DefectCoreSoldiers(Empire empire, Realm rebel, SocialClass socialClass, float grievance)
     {
         Realm core = empire?.CoreKingdom;
@@ -2296,14 +2295,13 @@ public static partial class InstitutionSystem
         {
             if (soldier == null || soldier.IsGone() || !soldier.Alive || !soldier.IsWarrior() ||
                 soldier.IsRuler() || soldier.Realm != source) continue;
-            soldier.removeFromArmy();
+            soldier.RemoveFromArmy();
             if (soldier.IsCityLeader()) soldier.City.RemoveLeader();
             soldier.JoinCity(destination);
             transferred++;
         }
         return transferred;
     }
-#endif
 
     public static void ResolveSocialRebellion(War war, WarOutcome winner)
     {
@@ -2336,14 +2334,11 @@ public static partial class InstitutionSystem
         EmpireCraft.Core.TranslateHelper.LogEventMessage(history, empire.CoreKingdom);
     }
 
-#if EC_PENDING
     public static InstitutionPoliticalBalance CalculatePoliticalBalance(Empire empire,
         InstitutionNodeConfig node, Dictionary<SocialClass, float> classShares = null) =>
         CalculatePoliticalBalance(InstitutionRealm.Of(empire), node, classShares);
-#endif
 
     // 帝国、王国同一套算法：阶层按本政权人口，派系按推改革那个王国(帝国核心/王国本身)的派系占比
-#if EC_PENDING
     public static InstitutionPoliticalBalance CalculatePoliticalBalance(InstitutionRealm realm,
         InstitutionNodeConfig node, Dictionary<SocialClass, float> classShares = null)
     {
@@ -2382,7 +2377,6 @@ public static partial class InstitutionSystem
         result.Opposition = InstitutionRules.Clamp100(result.Opposition);
         return result;
     }
-#endif
 
     private const float TrendSupportBase = 10f;
     private const float TrendSupportPerPush = 60f;

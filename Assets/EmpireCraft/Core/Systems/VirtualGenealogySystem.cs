@@ -129,7 +129,6 @@ public static partial class VirtualGenealogySystem
     // 抬了年纪的父母轮到他时再和祖父母比
     private const int ParentGapYears = RealisticAgeSystem.ParentAge, FixedGapYears = 18;
 
-#if EC_PENDING
     private static int RepairAgeOrder()
     {
         if (EmpireWorld.Current == null) return 0;
@@ -168,7 +167,6 @@ public static partial class VirtualGenealogySystem
         }
         return fixedCount;
     }
-#endif
 
     // 出生时间：在世有实体的看实体，虚拟族人按眼下年纪倒推，已故的看生日(没有就卒年减享年)；算不出为 NaN
     private static double BornTime(PersonalClanIdentity person, double now)
@@ -182,7 +180,6 @@ public static partial class VirtualGenealogySystem
     }
 
     // 改在世的人的年纪：有实体的改实体，虚拟族人改记下的年纪；生日跟着
-#if EC_PENDING
     private static void SetPersonAge(PersonalClanIdentity person, int years, double now)
     {
         Person actor = person.is_virtual ? null : person._actor;
@@ -194,12 +191,10 @@ public static partial class VirtualGenealogySystem
         }
         person.birthday = GameClock.DateText(now - years * 60d);
     }
-#endif
 
     // 读档校正旧存档的生日：成年落地的人以前把落地日记成生日(见 ActorExtension.TrueBirthTime)，族谱上父母只比子女大
     // 几个月。按年龄倒推出生时间：在世有实体的看实体，虚拟族人看族谱年龄，已故的看卒年减享年；比倒推的晚一年半以上
     // 才改(虚拟族人出生时记零岁，与原版差一岁不算)。认不出的日期格式不动
-#if EC_PENDING
     private static bool RepairBirthday(PersonalClanIdentity person)
     {
         if (!HistoryDateFormatter.TryParseTime(person.birthday, out double born)) return false;
@@ -222,6 +217,7 @@ public static partial class VirtualGenealogySystem
         return true;
     }
 
+#if EC_PENDING
     public static int Count
     {
         get
@@ -250,7 +246,7 @@ public static partial class VirtualGenealogySystem
         EnsureIndex();
         if (person == null)
         {
-            if (actor.Money == 0 && actor.Record.loot == 0) return true;
+            if (actor.Money == 0 && actor.Record.Loot == 0) return true;
             CityPopulationData population = CityPopulationSystem.Get(city);
             if (population == null) return false;
             return WalletReserveTransfers.TryCapture(actor,
@@ -267,7 +263,7 @@ public static partial class VirtualGenealogySystem
         if (string.IsNullOrWhiteSpace(person.birthplace))
             person.birthplace = city?.GetCityName() ?? actor.City?.GetCityName() ?? "";
         person.recordedAge = actor.Age();
-        if (actor.Money != 0 || actor.Record.loot != 0 || WalletReserveTransfers.HasAssets(person.wallet_reserve))
+        if (actor.Money != 0 || actor.Record.Loot != 0 || WalletReserveTransfers.HasAssets(person.wallet_reserve))
             if (!WalletReserveTransfers.TryCapture(actor, person.wallet_reserve ??= new WalletReserve())) return false;
         person.is_virtual = true;
         person.virtual_city_id = city?.Key ?? actor.City?.Key ?? -1L;
@@ -393,7 +389,6 @@ public static partial class VirtualGenealogySystem
 
     // Reuse the existing census pass in either population mode. A previously full
     // wallet can receive its remaining owned balance when space becomes available.
-#if EC_PENDING
     public static void RestoreStoredWallet(Person actor)
     {
         PersonalClanIdentity person = actor?.GetPersonalIdentity();
@@ -411,11 +406,9 @@ public static partial class VirtualGenealogySystem
         VirtualIds.Remove(person.id);
         RestoreStoredWallet(actor);
     }
-#endif
 
     // Only the reserve is inherited here. Native money/loot on a dying entity
     // remains under native combat/removal rules and must not be copied twice.
-#if EC_PENDING
     public static void SettleStoredEstate(PersonalClanIdentity person)
     {
         if (person == null || !WalletReserveTransfers.HasAssets(person.wallet_reserve)) return;
@@ -438,7 +431,6 @@ public static partial class VirtualGenealogySystem
                 heir.wallet_reserve ??= new WalletReserve())) return;
         if (!heir.is_virtual) RestoreStoredWallet(heir._actor);
     }
-#endif
 
     private static void PreserveDispersedWallet(PersonalClanIdentity person)
     {
@@ -484,14 +476,13 @@ public static partial class VirtualGenealogySystem
     // 把单位的年龄调到 target：优先改"额外年龄"，否则把出生时间往前推(按实际 getAge() 结果二分查找，不依赖每年秒数)。
     // 零岁也要设：不满一岁的虚拟族人落成时，以前跳过零岁，按平民落成成了二三十岁(见 CityPopulationSystem.SpawnFromGroup)，
     // 再并回人口就记成这个岁数，族谱里儿子比父亲还大(用户 2026-10-26)
-#if EC_PENDING
     public static void SetAge(Person actor, int target)
     {
         if (actor?.Record == null || target < 0) return;
         try
         {
             // 原版年龄 = 出生至今的年数 + 额外年龄
-            actor.Record.age_overgrowth += target - actor.Age();
+            actor.Record.AgeOvergrowth += target - actor.Age();
             if (actor.Age() == target) return;
             double born = actor.BirthStamp;
             double step = 1d;
@@ -526,14 +517,13 @@ public static partial class VirtualGenealogySystem
     {
         try
         {
-            if (actor?.Record != null && !actor.IsGone()) actor.calcAgeStates();
+            if (actor?.Record != null && !actor.IsGone()) actor.RefreshAge();
         }
         catch (Exception exception)
         {
             LogService.LogWarning($"[EmpireCraft][虚拟族谱] 刷新成年状态失败: {exception.Message}");
         }
     }
-#endif
 
     private static Person RealActor(long identityId)
     {
@@ -544,7 +534,6 @@ public static partial class VirtualGenealogySystem
     }
 
     // 只接回与有实体的人之间的关系：父母、子女、配偶，以及他们所在的原版氏族与家庭
-#if EC_PENDING
     private static void RestoreFamilyTies(Person actor, PersonalClanIdentity person, long previousActorId)
     {
         try
@@ -558,13 +547,13 @@ public static partial class VirtualGenealogySystem
             // 亲子：新单位记上父母(父母已不在世也按原来的单位 id 记，族谱照样能查到)；子女那边原来指向旧单位的改指新单位
             long fatherId = SpecificClanManager.getPerson(person.father)?.actor_id ?? -1L;
             long motherId = SpecificClanManager.getPerson(person.mother)?.actor_id ?? -1L;
-            if (fatherId > 0) actor.Record.parent_id_1 = fatherId;
-            if (motherId > 0) actor.Record.parent_id_2 = motherId;
+            if (fatherId > 0) actor.Record.ParentKey1 = fatherId;
+            if (motherId > 0) actor.Record.ParentKey2 = motherId;
             if (previousActorId > 0)
                 foreach (Person child in children)
                 {
-                    if (child.Record.parent_id_1 == previousActorId) child.Record.parent_id_1 = actor.Key;
-                    if (child.Record.parent_id_2 == previousActorId) child.Record.parent_id_2 = actor.Key;
+                    if (child.Record.ParentKey1 == previousActorId) child.Record.ParentKey1 = actor.Key;
+                    if (child.Record.ParentKey2 == previousActorId) child.Record.ParentKey2 = actor.Key;
                 }
 
             // 氏族：随父亲；父亲不在了随本宗族里有实体的族人(以前接着就随了在世的母亲，皇子落成后进了母亲的氏族)，
@@ -574,7 +563,7 @@ public static partial class VirtualGenealogySystem
                             .FirstOrDefault(found => found != null) ??
                         children.Select(child => child.Clan).FirstOrDefault(found => found != null) ??
                         (person.is_main ? null : spouse?.Clan) ?? mother?.Clan;
-            if (clan != null && actor.Clan != clan) actor.setClan(clan);
+            if (clan != null && actor.Clan != clan) actor.SetClan(clan);
 
             // 配偶：对方有实体、还没有别的伴侣时重新结为伴侣，并进入对方的家庭
             if (spouse != null && _setLover != null && (spouse.Spouse == null || spouse.Spouse.IsGone()))
@@ -583,9 +572,9 @@ public static partial class VirtualGenealogySystem
                 if (spouse.Spouse != actor) _setLover.Invoke(spouse, Args(_setLover, actor));
             }
             // 家庭：配偶的家庭，其次(未成年时)父母的家庭，再次子女的家庭
-            Family family = spouse?.family ?? (actor.IsAdult() ? null : father?.family ?? mother?.family) ??
-                            children.Select(child => child.family).FirstOrDefault(found => found != null);
-            if (family != null && _setFamily != null && actor.family != family)
+            Family family = spouse?.Family ?? (actor.IsAdult() ? null : father?.Family ?? mother?.Family) ??
+                            children.Select(child => child.Family).FirstOrDefault(found => found != null);
+            if (family != null && _setFamily != null && actor.Family != family)
                 _setFamily.Invoke(actor, Args(_setFamily, family));
         }
         catch (Exception exception)
@@ -593,7 +582,6 @@ public static partial class VirtualGenealogySystem
             LogService.LogWarning($"[EmpireCraft][虚拟族谱] 接回家庭关系失败: {exception.Message}");
         }
     }
-#endif
 
     #endregion
 
@@ -763,7 +751,6 @@ public static partial class VirtualGenealogySystem
     };
 
     // 史书与在位记录里提到的人(按单位 id)：每轮瘦身开始时收一遍；官称跟着当前语言，也在这时取
-#if EC_PENDING
     private static void CollectHistoryActors()
     {
         LocalOfficeTitles.Clear();
@@ -782,7 +769,6 @@ public static partial class VirtualGenealogySystem
         foreach (RegnalRecord record in empire?.data?.regnal_records ?? new List<RegnalRecord>())
             if (record != null && record.actor_id > 0) HistoryActors.Add(record.actor_id);
     }
-#endif
 
     // 爵位记成"文化_等级"，没有爵位的也有值(peerages_6)
     private static bool HasPeerage(PersonalClanIdentity person) =>
@@ -1614,6 +1600,7 @@ public static partial class VirtualGenealogySystem
                 ? OverallHelperFunc.JoinNameParts(given, child.surname)
                 : OverallHelperFunc.JoinNameParts(child.surname, given);
     }
+#endif
 
     private static void Die(PersonalClanIdentity person)
     {
@@ -1647,6 +1634,5 @@ public static partial class VirtualGenealogySystem
             LogService.LogWarning($"[EmpireCraft] 虚拟族人身故后整理宗族失败: {exception.Message}");
         }
     }
-#endif
 }
 }

@@ -303,7 +303,7 @@ public static class AnimalHusbandrySystem
     private static void GroupAnimal(Person actor)
     {
             if (actor?.Record == null || actor.IsGone() || !actor.Alive || actor.Asset == null) return;
-            if (actor.isFavorite() || actor.isCameraFollowingUnit()) return;
+            if (actor.IsFavorite() || actor.isCameraFollowingUnit()) return;
             Cell tile = actor.Cell;
             City owner = tile?.Zone?.City;
             if (owner == null) return;

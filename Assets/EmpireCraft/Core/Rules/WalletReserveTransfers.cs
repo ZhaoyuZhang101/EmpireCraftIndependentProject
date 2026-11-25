@@ -14,50 +14,46 @@ public static class WalletReserveTransfers
     public static bool HasAssets(WalletReserve reserve) =>
         reserve != null && (reserve.cash != 0L || reserve.loot != 0L);
 
-#if EC_PENDING
     public static bool TryCapture(Person actor, WalletReserve reserve)
     {
-        if (actor?.Record == null || reserve == null || actor.Money < 0 || actor.Record.loot < 0 ||
+        if (actor?.Record == null || reserve == null || actor.Money < 0 || actor.Record.Loot < 0 ||
             reserve.cash < 0L || reserve.loot < 0L) return false;
-        int cash = actor.Money, loot = actor.Record.loot;
+        int cash = actor.Money, loot = actor.Record.Loot;
         if (reserve.cash > long.MaxValue - cash || reserve.loot > long.MaxValue - loot) return false;
         // Preflight both assets before mutating either side. Zeroing the removed
         // actor also prevents native removal callbacks from taking the same money.
         reserve.cash += cash;
         reserve.loot += loot;
         actor.Money = 0;
-        actor.Record.loot = 0;
+        actor.Record.Loot = 0;
         return true;
     }
 
     public static void Restore(Person actor, WalletReserve reserve)
     {
-        if (actor?.Record == null || reserve == null || actor.Money < 0 || actor.Record.loot < 0 ||
+        if (actor?.Record == null || reserve == null || actor.Money < 0 || actor.Record.Loot < 0 ||
             reserve.cash < 0L || reserve.loot < 0L) return;
         int cash = (int)Math.Min(reserve.cash, Math.Max(0L, (long)NativeWalletLimit - actor.Money));
-        int loot = (int)Math.Min(reserve.loot, Math.Max(0L, (long)NativeWalletLimit - actor.Record.loot));
+        int loot = (int)Math.Min(reserve.loot, Math.Max(0L, (long)NativeWalletLimit - actor.Record.Loot));
         actor.Money += cash;
-        actor.Record.loot += loot;
+        actor.Record.Loot += loot;
         reserve.cash -= cash;
         reserve.loot -= loot;
     }
-#endif
 
     // Undo only this actor's captured amounts, never the rest of a city's pool.
     // Preserve pre-existing compatibility-mod balances above the native cap.
-#if EC_PENDING
     public static void RollbackCapture(Person actor, WalletReserve reserve, int capturedCash, int capturedLoot)
     {
-        if (actor?.Record == null || reserve == null || actor.Money < 0 || actor.Record.loot < 0 ||
+        if (actor?.Record == null || reserve == null || actor.Money < 0 || actor.Record.Loot < 0 ||
             reserve.cash < 0L || reserve.loot < 0L) return;
         int cash = (int)Math.Min(reserve.cash, Math.Min(Math.Max(0, capturedCash), (long)int.MaxValue - actor.Money));
-        int loot = (int)Math.Min(reserve.loot, Math.Min(Math.Max(0, capturedLoot), (long)int.MaxValue - actor.Record.loot));
+        int loot = (int)Math.Min(reserve.loot, Math.Min(Math.Max(0, capturedLoot), (long)int.MaxValue - actor.Record.Loot));
         actor.Money += cash;
-        actor.Record.loot += loot;
+        actor.Record.Loot += loot;
         reserve.cash -= cash;
         reserve.loot -= loot;
     }
-#endif
 
     // 按比例(0~1)把一部分保管款转到另一个账户(迁民带走自己那份)；返回是否成功
     public static bool TryMoveShare(WalletReserve source, WalletReserve destination, double share)
@@ -76,20 +72,18 @@ public static class WalletReserveTransfers
     }
 
     // 从背景人口里生成的平民领回人均一份(钱包上限以内)；直接写入钱包，不记为收入
-#if EC_PENDING
     public static void GrantPerCapita(Person actor, WalletReserve reserve, double people)
     {
-        if (actor?.Record == null || !HasAssets(reserve) || people < 1d || actor.Money < 0 || actor.Record.loot < 0 ||
+        if (actor?.Record == null || !HasAssets(reserve) || people < 1d || actor.Money < 0 || actor.Record.Loot < 0 ||
             reserve.cash < 0L || reserve.loot < 0L) return;
         int cash = (int)Math.Min(Math.Floor(reserve.cash / people), Math.Max(0L, (long)NativeWalletLimit - actor.Money));
-        int loot = (int)Math.Min(Math.Floor(reserve.loot / people), Math.Max(0L, (long)NativeWalletLimit - actor.Record.loot));
+        int loot = (int)Math.Min(Math.Floor(reserve.loot / people), Math.Max(0L, (long)NativeWalletLimit - actor.Record.Loot));
         if (cash <= 0 && loot <= 0) return;
         actor.Money += cash;
-        actor.Record.loot += loot;
+        actor.Record.Loot += loot;
         reserve.cash -= cash;
         reserve.loot -= loot;
     }
-#endif
 
     public static bool TryMove(WalletReserve source, WalletReserve destination)
     {

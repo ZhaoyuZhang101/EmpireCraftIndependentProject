@@ -230,7 +230,6 @@ public static partial class RealmNamingSystem
         return name.Length > text.Length && name.StartsWith(text, StringComparison.Ordinal) ? name.Substring(text.Length) : name;
     }
 
-#if EC_PENDING
     public static string PickGrandName(string culture, EmpireCore lead, long seed, out string prefix)
     {
         List<(string key, string name)> pool = GrandPool(culture, out string owner);
@@ -248,7 +247,6 @@ public static partial class RealmNamingSystem
         }
         return "";
     }
-#endif
 
     // 旧存档里国号整个记成"大某"的美号：改成去掉前缀字的有效国号、前缀照本文化美号前缀(读档时，见 DataManager)
     public static void NormalizeGrandName(Empire empire)
@@ -280,7 +278,6 @@ public static partial class RealmNamingSystem
     }
 
     // 本天下前朝(已亡帝国)用过的国号 → (皇族的姓、那一朝的都城)。按天下各帝国法理记的历代帝国与史书取
-#if EC_PENDING
     public static Dictionary<string, (string surname, City capital)> FallenDynasties(EmpireCore lead)
     {
         var result = new Dictionary<string, (string, City)>();
@@ -303,12 +300,10 @@ public static partial class RealmNamingSystem
         }
         return result;
     }
-#endif
 
     // ⑤ 查重：前朝用过的国号再用冠方位(新都相对前朝都城)，同都、方位算不出才加"后"；
     // 世界法则「姓氏国号」开着时先冠开国之君的姓，与前朝同姓再按上面的方位、"后"走。
     // 已带前缀(复国的方位等)的不加
-#if EC_PENDING
     private static void MarkReuse(Empire empire, Realm kingdom, string name, EmpireCore lead)
     {
         empire.data.directPre = "";
@@ -318,7 +313,6 @@ public static partial class RealmNamingSystem
         empire.data.founding_prefix = prefix;
         LogService.LogInfo($"[EmpireCraft][选定国号] {kingdom.GetKingdomName()} 用 {name}，前朝用过，冠 {prefix}");
     }
-#endif
 
     // 前朝用过的国号再用冠什么：
     //   · 世界法则「姓氏国号」开着、且与前朝不同姓：冠开国之君的姓(姓与名之间同方位前缀一样不空格)；
@@ -504,7 +498,6 @@ public static partial class RealmNamingSystem
     }
 
     // 外族入主采纳中原制度(兼用、从俗，见 CompositeEmpireService.TryAdoptInstitutionalCultureName)：改用美号
-#if EC_PENDING
     public static string ConquestGrandName(Empire empire, string institutionalCulture)
     {
         if (!Enabled || empire?.data == null || InstitutionSystem.GetCultureLine(institutionalCulture) != HuaxiaLine) return null;
@@ -514,6 +507,5 @@ public static partial class RealmNamingSystem
         empire.data.name_source = SourceGrandName;
         return grand;
     }
-#endif
 }
 }

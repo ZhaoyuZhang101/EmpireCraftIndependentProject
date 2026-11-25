@@ -386,7 +386,6 @@ public static class CityStabilitySystem
     private static float Funding(int due, int paid, bool fractionalBudget) => due > 0
         ? Mathf.Clamp01(paid / (float)due) : fractionalBudget ? 1f : 0f;
 
-#if EC_PENDING
     public static void Counts(City city, out int assigned, out int present, bool refresh = false)
     {
         if (_countFrame != Time.frameCount || !ReferenceEquals(_countWorld, EmpireWorld.Current) ||
@@ -416,7 +415,6 @@ public static class CityStabilitySystem
         present = (int)Math.Min(int.MaxValue, Math.Floor(local));
         GuardCounts[city] = new GuardCount(assigned, present);
     }
-#endif
 
     private static IEnumerable<Realm> Payers(City city)
     {

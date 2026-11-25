@@ -1525,7 +1525,7 @@ public static class KingdomExtension
         if (core.GetMoney() <= 0) return;
         if (!empire.CanStartPunitiveWar(k)) return;
         if (!(possibility < 0.2f)) return;
-        var war = EmpireWorld.Current.LiveWars.newWar(core, k, WarKinds.Normal);
+        var war = EmpireWorld.Current.StartWar(core, k, WarKinds.Normal);
         war?.SetEmpireWarType(EmpireWarType.伐不臣);
     }
 

@@ -674,9 +674,14 @@ def cmd_sync(args):
         base, _ = transform(source_of(mod, entry["commit"], entry["mod"]), entry["mod"], entry["commit"], mod_namespaces(mod, entry["commit"]), *rewrite)
         source = source_of(mod, now, entry["mod"])
         theirs, _ = transform(source, entry["mod"], now, mod_namespaces(mod, now), *rewrite)
+        # The header names the commit. A file whose commit was moved on without a change still carries the old one;
+        # give it the base's header so that line never conflicts.
+        ours = read(entry["dest"])
+        if ours.startswith("// Ported from the EmpireCraft mod: ") and base.startswith("// Ported from the EmpireCraft mod: "):
+            ours = base.split("\n", 1)[0] + "\n" + ours.split("\n", 1)[1]
         with tempfile.TemporaryDirectory() as tmp:
             names = {}
-            for label, text in (("ours", read(entry["dest"])), ("base", base), ("theirs", theirs)):
+            for label, text in (("ours", ours), ("base", base), ("theirs", theirs)):
                 names[label] = os.path.join(tmp, label + ".cs")
                 with open(names[label], "w", encoding="utf-8", newline="\n") as f:
                     f.write(text)

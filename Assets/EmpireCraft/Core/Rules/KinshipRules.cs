@@ -14,15 +14,13 @@ public static class KinshipRules
     private const int DirectDepth = 6;
     private const int CollateralDepth = 2;
 
-#if EC_PENDING
     public static bool AreCloseKin(Person a, Person b)
     {
         if (a == null || b == null) return false;
         if (a == b) return true;
-        if (a.isParentOf(b) || b.isParentOf(a)) return true;
+        if (a.IsParentOf(b) || b.IsParentOf(a)) return true;
         return AreCloseKin(a.GetPersonalIdentity(), b.GetPersonalIdentity());
     }
-#endif
 
     public static bool AreCloseKin(PersonalClanIdentity a, PersonalClanIdentity b)
     {

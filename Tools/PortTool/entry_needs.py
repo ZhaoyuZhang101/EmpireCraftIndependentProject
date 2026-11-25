@@ -43,6 +43,8 @@ def main():
     parser.add_argument("--entries", type=int, default=40, help="how many of the nearest entry points to list")
     parser.add_argument("--needs", type=int, default=60, help="how many needs to list")
     parser.add_argument("--show", help="list every need of one member, with the member each comes from")
+    parser.add_argument("--path", nargs=2, metavar=("FROM", "TO"), help="the shortest chain of references from one member to another")
+    parser.add_argument("--users", help="the members that refer to this one, with how many entry points reach each")
     args = parser.parse_args()
     units = json.load(io.open(args.graph, encoding="utf-8"))["units"]
     own = [sorted({need(error) for error in unit["errors"]}) for unit in units]
@@ -57,6 +59,41 @@ def main():
                     stack.append(other)
         return seen
 
+    if args.path:
+        starts = [index for index, unit in enumerate(units) if unit["name"] == args.path[0]]
+        goals = {index for index, unit in enumerate(units) if unit["name"] == args.path[1]}
+        parent = {index: None for index in starts}
+        queue = collections.deque(starts)
+        found = None
+        while queue and found is None:
+            current = queue.popleft()
+            if current in goals:
+                found = current
+                break
+            for other in units[current]["refs"]:
+                if other not in parent:
+                    parent[other] = current
+                    queue.append(other)
+        chain = []
+        while found is not None:
+            chain.append(found)
+            found = parent[found]
+        for index in reversed(chain):
+            print("%s  (%s:%d)" % (units[index]["name"], units[index]["file"], units[index]["line"]))
+        if not chain:
+            print("no chain")
+        return
+    if args.users:
+        targets = {index for index, unit in enumerate(units) if unit["name"] == args.users}
+        entries = [index for index, unit in enumerate(units) if ENTRY.match(unit["name"].split(".")[-1])]
+        reached = collections.Counter()
+        for index in entries:
+            for other in reach(index):
+                reached[other] += 1
+        for index, unit in enumerate(units):
+            if targets & set(unit["refs"]):
+                print("%4d entry points reach  %s  (%s:%d)" % (reached.get(index, 0), unit["name"], unit["file"], unit["line"]))
+        return
     if args.show:
         for index, unit in enumerate(units):
             if unit["name"] == args.show:

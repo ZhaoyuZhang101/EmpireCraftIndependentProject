@@ -2,7 +2,7 @@ using System.Collections.Generic;
 
 namespace EmpireCraft.Core
 {
-    public enum Sex : byte { Male, Female }
+    public enum Sex : byte { Male, Female, None }   // None is never a person's sex; the ported code names it for "either"
 
     // Core identity records. They refer to each other directly; Id is the index in
     // the world's store (never reused) and is what saves and annals write down.
@@ -34,6 +34,9 @@ namespace EmpireCraft.Core
         public bool IsCivilized()=>true;
         public override EntityKind KindOfEntity=>EntityKind.Realm;
         public Clan GetRulingClan()=>RulingClan;
+        public List<City> GetCities()=>Cities;
+        // Where the realm is on the map: its capital's seat.
+        public EcVector2 Location=>Capital==null?default(EcVector2):Capital.Center;
         // The people of the realm. This world has one; the peoples of the game are decided later.
         public string SpeciesId=PersonKind.HumanId;
         public string GetSpecies()=>SpeciesId;
@@ -156,18 +159,55 @@ namespace EmpireCraft.Core
 
         public override long Key=>Id;
         public Person Record=>this;
-        public double BirthStamp=>BirthMonth;
+        public double BirthStamp{get{return BirthMonth;}set{BirthMonth=(int)System.Math.Floor(value);}}
         // The realm this person reigns over, kept by WorldOps (not saved; rebuilt on load).
         public Realm Throne;
         // A ruler belongs to the realm of the throne, anyone else to the realm of the home city.
         public Realm Realm=>Throne??City?.Realm;
-        public string Name=>FullName();
+        // The full name. Writing it keeps the house name and takes the rest as the given name.
+        public string Name
+        {
+            get{return FullName();}
+            set
+            {
+                string text=value??"";string house=Clan!=null?Clan.Surname??"":"";
+                Given=house.Length>0&&text.StartsWith(house,System.StringComparison.Ordinal)&&text.Length>house.Length?text.Substring(house.Length):text;
+            }
+        }
         public string FullName()=>(Clan!=null?Clan.Surname:"")+Given;
         public bool IsRuler()=>Throne!=null;
         public bool IsCityLeader()=>City!=null&&City.Leader==this;
         public bool HasClan()=>Clan!=null;
         public int Age()=>(int)(((Alive?GameClock.Now:DeathMonth)-BirthMonth)/12);
         public bool IsAdult()=>Age()>=AdultAge;
+        // Years added to someone's age. A birth month is the true birth here, so adding years moves it back and none are kept apart.
+        public int AgeOvergrowth{get{return 0;}set{BirthMonth-=value*12;}}
+        public void RefreshAge(){}
+        // Parents by key, as the ported code stores them; writing one links the child both ways.
+        public long ParentKey1{get{return Father==null?-1L:Father.Key;}set{Father=ParentByKey(value,Father);}}
+        public long ParentKey2{get{return Mother==null?-1L:Mother.Key;}set{Mother=ParentByKey(value,Mother);}}
+        Person ParentByKey(long key,Person current)
+        {
+            var world=EmpireWorld.Current;
+            Person parent=world==null||key<0||key>=world.People.Count?null:world.People[(int)key];
+            if(parent==this)parent=null;
+            if(current!=null&&current!=parent)current.Children.Remove(this);
+            if(parent!=null&&!parent.Children.Contains(this))parent.Children.Add(this);
+            return parent;
+        }
+        public bool IsParentOf(Person other)=>other!=null&&(other.Father==this||other.Mother==this);
+        public void SetClan(Clan clan){Clan=clan;}
+        // Persons on record are not fought over on a map: they are hale, carry no spoils, and nobody follows them with a camera.
+        public int GetHealth()=>100;
+        public int GetMaxHealth()=>100;
+        public int Loot;
+        public bool IsFavorite()=>false;
+        public bool IsActor()=>true;
+        public EcVector2 Position{get{var cell=Cell;return cell==null?default(EcVector2):cell.PosV;}}
+        public void RemoveFromArmy(){Army=null;}
+        // Households are not tracked; a person has a house (clan), not a family record.
+        public Family Family=>null;
+        public bool HasFamily()=>false;
         public override EntityKind KindOfEntity=>EntityKind.Person;
         public PersonKind Asset=>PersonKind.Human;
         public JobKind Job=>null;            // persons on record are not labourers
@@ -245,7 +285,10 @@ namespace EmpireCraft.Core
         public override bool Alive=>true;   // a house is never struck from the record
         public Clan Record=>this;
         public override EntityKind KindOfEntity=>EntityKind.Clan;
-        public string Name=>Surname;
+        public string Name{get{return Surname;}set{Surname=value;}}
+        public string SpeciesId=>PersonKind.HumanId;
+        // The living persons of this house.
+        public List<Person> People{get{var found=new List<Person>();var world=EmpireWorld.Current;if(world!=null)foreach(var person in world.Living)if(person.Clan==this)found.Add(person);return found;}}
     }
 
     public static class EntityIds

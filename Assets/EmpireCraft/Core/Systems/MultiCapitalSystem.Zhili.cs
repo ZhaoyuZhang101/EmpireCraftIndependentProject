@@ -111,7 +111,7 @@ public static partial class MultiCapitalSystem
         if (heir.IsRuler() && heir.Realm != zhili) return;
         if (current != null) zhili.RemoveRuler();
         // 同继位就国：先卸下军职、城主之职(见 EmpireCraftKingdomBehCheckKing.MakeKingAndMoveToCapital)
-        heir.removeFromArmy();
+        heir.RemoveFromArmy();
         if (heir.IsCityLeader()) heir.City?.RemoveLeader();
         OfficeObject office = zhili.GetOffice();
         if (office != null)

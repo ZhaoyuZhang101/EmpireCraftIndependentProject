@@ -1512,7 +1512,6 @@ public static class ScenarioEditing
         : Era.relations.Where(relation => relation.a == polity.id || relation.b == polity.id).ToList();
 
     // 两国之间加一条关系(已有同种的就去掉)；a 是发起的一方(宣战方、保护方、称臣方、立附庸方、领市场方)
-#if EC_PENDING
     public static string ToggleRelation(WorldMapPolity a, WorldMapPolity b, string kind, string goal)
     {
         if (a == null || b == null || a == b || Era == null || string.IsNullOrEmpty(kind)) return null;
@@ -1541,7 +1540,6 @@ public static class ScenarioEditing
         string problem = RelationProblem(a, b, relation.kind);
         return problem == null ? text : text + "\n  " + problem.ColorString("#E9A85B");
     }
-#endif
 
     #endregion
 

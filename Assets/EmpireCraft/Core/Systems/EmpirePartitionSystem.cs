@@ -216,7 +216,7 @@ public static class EmpirePartitionSystem
             // 原来是别国君主、城主的先卸下
             if (ruler.IsRuler() && ruler.Realm != null) ruler.Realm.RemoveRuler();
             if (ruler.IsCityLeader() && ruler.City != null) ruler.City.RemoveLeader();
-            ruler.removeFromArmy();
+            ruler.RemoveFromArmy();
             // 新都所在的成员国：新都那座城自立为新朝核心，其余的城仍按划分随成员国走
             plan.CoreCities.Remove(seat);
             newCore = seat.MakeOwnRealm(ruler);
@@ -961,7 +961,7 @@ public static class EmpirePartitionSystem
         Realm core = empire.CoreKingdom;
         PrinceStruggleSystem.Note(core, successor, note);
         if (successor.IsCityLeader() && successor.City != null) successor.City.RemoveLeader();
-        successor.removeFromArmy();
+        successor.RemoveFromArmy();
         OfficeObject office = core.GetOffice();
         if (office != null)
         {

@@ -414,6 +414,51 @@ public static class RulesChecks
         Console.WriteLine("PASS world news (" + checks + " checks): " + NewsKinds.All.Count + " kinds, " + NewsKinds.All.Count(k => k.Major) + " major");
     }
 
+    // Making a person: the population is a number, so "one particular person out of a population group"
+    // is a person on record (the hand-written half of CityPopulationSystem), and what the ported code then does to them.
+    public static void MakingPeople()
+    {
+        checks = 0;
+        var map = FlatGenerator.Generate(256, 128, "EMPIRE-MAKING", TerrainPreset.Continents, default);
+        var w = Start(map); w.Activate();
+        var realm = w.LiveRealms[0]; var city = realm.Capital;
+        var folk = w.Cultures.NewCulture(realm.Ruler); Cultures.SetFamily(folk, "Huaxia");
+        var faith = w.Religions.NewReligion(realm.Ruler); city.SetReligion(faith);
+        var group = new PopGroup { culture = "Huaxia", species = "human", social_class = SocialClass.Peasant };
+        double headcount = city.Population; int onRecord = w.People.Count, houses = w.Clans.Count;
+        Check(CityPopulationSystem.SpawnFromGroup(city, group, soldier: true) == null && w.People.Count == onRecord, "a soldier is a number, not a person");
+        var made = CityPopulationSystem.SpawnFromGroup(city, group, soldier: false);
+        Check(made != null && made.Alive && made.City == city && made.Realm == realm && made.IsAdult() && made.Age() >= 25 && made.Age() <= 55 && made.HasClan() && made.Clan.Founder == made &&
+              w.Clans.Count == houses + 1 && w.People.Count == onRecord + 1 && city.People.Contains(made) && city.Population == headcount &&
+              made.Religion == faith && made.Culture == folk && made.Name.StartsWith(made.Clan.Surname) && EmpireInvariants.Check(w).Count == 0,
+              "a person on record: adult, of a house of their own, of the city's faith and the group's culture");
+        Check(CityPopulationSystem.SpawnFromGroup(null, group, false) == null && CityPopulationSystem.SpawnFromGroup(city, null, false) == null, "nobody without a city or a group");
+        int age = made.Age(); made.AgeOvergrowth += 40 - made.Age();
+        Check(made.Age() == 40 && made.AgeOvergrowth == 0 && made.BirthStamp == made.BirthMonth && age != 40 || age == 40, "years added to an age move the birth back");
+        made.BirthStamp = w.Month - 30 * 12 + 0.5;
+        Check(made.Age() == 30, "a birth stamp is written in months");
+        string house = made.Clan.Surname; made.Name = house + "安"; string kept = made.Given; made.Name = "独"; made.Clan.Name = "新";
+        Check(kept == "安" && made.Given == "独" && made.FullName() == "新独" && made.Clan.Surname == "新", "a full name keeps the house name; a house is renamed");
+        var parent = realm.Ruler; made.ParentKey1 = parent.Key;
+        Check(made.Father == parent && parent.Children.Contains(made) && parent.IsParentOf(made) && made.ParentKey1 == parent.Key && made.ParentKey2 == -1L, "a parent set by key is linked both ways");
+        made.ParentKey1 = -1L;
+        Check(made.Father == null && !parent.Children.Contains(made) && !parent.IsParentOf(made), "and unlinked");
+        var own = w.NewClan(made); made.SetClan(parent.Clan); bool joined = made.Clan == parent.Clan; made.SetClan(own);
+        Check(own != null && own.Founder == made && joined && made.Clan == own && !made.HasFamily() && made.Family == null && city.SeatCell().HasCity() && EmpireInvariants.Check(w).Count == 0, "a new house, a change of house, no household records");
+        Check(made.GetHealth() == made.GetMaxHealth() && made.Loot == 0 && !made.IsFavorite() && made.Position.x == city.SeatCell().X && realm.Location.x == city.Center.x && realm.GetCities() == realm.Cities &&
+              own.People.Contains(made) && own.SpeciesId == "human" && Near(EcMath.Log(8f, 2f), 3.0, 1e-5) && EcColorUtility.ToHtmlStringRGBA(new EcColor(1f, 0f, 0f, 1f)) == "FF0000FF", "a few more questions the ported code asks");
+        // Through the ported code: its "a person of this people and culture" and "a civilian" both end in the hand-written half.
+        int before = w.People.Count;
+        var named = CityPopulationSystem.SpawnPerson(city, "human", "Huaxia"); var civilian = CityPopulationSystem.SpawnCivilian(city);
+        VirtualGenealogySystem.SetAge(named, 44);
+        Check(named != null && named.City == city && named.Culture == folk && named.Age() == 44 && w.People.Count >= before + 1 && (civilian == null || civilian.City == city) &&
+              CityPopulationSystem.SpawnPerson(city, "", "Huaxia") == null && EmpireInvariants.Check(w).Count == 0, "the ported callers make persons on record through it" + (civilian == null ? " (no civilian made)" : ""));
+        var bytes = EmpireSave.Encode(w); var loaded = EmpireSave.Decode(bytes, w.Map);
+        Check(EmpireSave.Encode(loaded).SequenceEqual(bytes) && loaded.People[made.Id].FullName() == made.FullName() && loaded.People[made.Id].Culture.Family == "Huaxia", "a made person is saved like any other");
+        EmpireWorld.Current = null;
+        Console.WriteLine("PASS making people (" + checks + " checks): " + made.FullName() + ", " + made.Age());
+    }
+
     // The grid as the ported systems see it: cells, terrain, a city's territory and neighbours.
     public static void Grid()
     {

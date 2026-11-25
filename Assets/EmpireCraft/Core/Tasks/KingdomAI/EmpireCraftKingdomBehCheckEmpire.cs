@@ -111,7 +111,6 @@ public class EmpireCraftKingdomBehCheckEmpire:GameAIKingdomBase
     /// 每年计算一次军费，使用最近十年的财政记录
     /// </summary>
     /// <param name="pKingdom"></param>
-#if EC_PENDING
     public void CalcMilitaryExpenditure(Realm pKingdom)
     {
         Empire empire = pKingdom.GetEmpire();
@@ -173,7 +172,6 @@ public class EmpireCraftKingdomBehCheckEmpire:GameAIKingdomBase
             empire.StartToGive();
         }
     }
-#endif
     /// <summary>
     /// 判断是否称帝，同时检测出现错误的帝国并予以消灭
     /// </summary>

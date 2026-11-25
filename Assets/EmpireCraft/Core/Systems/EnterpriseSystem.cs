@@ -187,17 +187,14 @@ public static class EnterpriseSystem
         return idle <= 0L ? 0L : (long)Math.Floor(idle * (double)(source == target ? HomeIdleShare : OutsideIdleShare));
     }
 
-#if EC_PENDING
     private static IEnumerable<City> Investors(City city)
     {
         Realm kingdom = city.Realm;
         if (kingdom == null || kingdom.IsWild) return new[] { city };
-        return kingdom.getCities();
+        return kingdom.GetCities();
     }
-#endif
 
     // 这座城办民营产业能动用的民间资本：本城投资池，加本国各城闲着的现金里肯拿出来的那一份
-#if EC_PENDING
     public static long PrivateCapital(City city)
     {
         if (!Active || city?.Record == null) return 0L;
@@ -205,7 +202,6 @@ public static class EnterpriseSystem
         foreach (City source in Investors(city)) total += IdleOffer(source, city);
         return total;
     }
-#endif
 
     // 付民营的建设款：本城投资池 → 本城闲钱 → 本国别的城的闲钱(多的先出)；全额付得起才付
 #if EC_PENDING
@@ -306,7 +302,6 @@ public static class EnterpriseSystem
 #endif
 
     // ---- 3. 产业出资与所有权 ----
-#if EC_PENDING
     public static bool StatePreferred(Realm kingdom)
     {
         if (kingdom == null || kingdom.IsWild) return false;
@@ -317,7 +312,7 @@ public static class EnterpriseSystem
         // 没有国企制度：照原来规划决议的默认(重农、工业化时国家先出资)——缺粮的城占三成以上、工业时代国库充裕、
         // 时代档 4 以下(城市规划撤掉后规划决议没了，见 Scripts 历史 203ab90)
         int cities = 0, hungry = 0;
-        foreach (City city in kingdom.getCities())
+        foreach (City city in kingdom.GetCities())
         {
             if (city?.Record == null) continue;
             cities++;
@@ -329,7 +324,6 @@ public static class EnterpriseSystem
         if ((ModernStability.IsModern(kingdom) || era >= 7) && kingdom.GetMoney() >= 300) return true;
         return era < 4;
     }
-#endif
 
     // 定了私有化的国家(见 ModernPolicySystem)：新办的产业国库不出钱，民间出不起就不办(以前退回国库出钱、记成官营，和国策对不上)
     private static bool PrivateOnly(Realm kingdom) => ModernPolicySystem.StatePreferred(kingdom) == false;
@@ -384,10 +378,10 @@ public static class EnterpriseSystem
         }
         return selfBuild;
     }
+#endif
 
     public static bool CanFund(City city, int cost) => !Active || city?.Record == null ||
                                                      PrivateCapital(city) >= cost || !PrivateOnly(city.Realm) && CanPay(city, cost, false);
-#endif
 
     // 已有的扩建、添厂、升级：官营的国库出钱，民营的民间资本出钱(本城投资池，不够再动本国各城的闲钱，见 SpendPrivate)
 #if EC_PENDING

@@ -119,6 +119,7 @@ namespace EmpireCraft.Core
 
         public long Key => Index;
         public City City => World.CityAt(Index);
+        public bool HasCity() => World.TileCity[Index] >= 0;
         public Realm Realm => World.RealmAt(Index);
         public Cell Zone => this;
         public Cell Center => this;

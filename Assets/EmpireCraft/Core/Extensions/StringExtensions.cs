@@ -11,7 +11,6 @@ public static class StringExtensions
     /// <summary>
     /// 将颜色赋值于文本
     /// </summary>
-#if EC_PENDING
     public static string ColorString(this string content, string color= "", Color pColor = default)
     {
         if (String.IsNullOrEmpty(color))
@@ -20,7 +19,6 @@ public static class StringExtensions
         }
         return $"<color={color}>{content}</color>";
     }
-#endif
     /// <summary>
     /// 格式化本地化文件中的语句
     /// </summary>

@@ -145,7 +145,6 @@ public static class VassalReduction
 #endif
 
     // 朝廷眼下摆得出的加码
-#if EC_PENDING
     public static List<Extra> Extras(Realm realm, Realm other, int basis)
     {
         var extras = new List<Extra>();
@@ -158,10 +157,8 @@ public static class VassalReduction
         if (FreeTitle(realm, other) != null) extras.Add(new Extra { Id = "title", Value = VassalReductionRules.Title(basis) });
         return extras;
     }
-#endif
 
     // 手机发来的加码(编号用逗号连着)照眼下的行情重新认一遍：库银只留一档
-#if EC_PENDING
     public static List<Extra> Pick(Realm realm, Realm other, int basis, string ids)
     {
         var picked = new List<Extra>();
@@ -183,7 +180,6 @@ public static class VassalReduction
         if (empire == null || king == null || !king.Alive) return null;
         return realm.GetRegime()?.virtual_honorary_peerages?.FirstOrDefault(key => !empire.IsHonoraryPeerageReserved(key));
     }
-#endif
 
     // 谈成了：兑现加码、收改设之费、改设、其余藩属自危。办不了返回缘由的文字键
 #if EC_PENDING

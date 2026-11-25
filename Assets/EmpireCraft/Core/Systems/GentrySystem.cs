@@ -199,12 +199,9 @@ public static partial class GentrySystem
     private const float MonopolyMax = 0.95f, SwayBase = 0.6f, SwayPer = 1000f, SwayMax = 1.3f;
 
     // 在册世家的声势：势力合计每 1000 加一倍(0.6~1.3 倍)，世家又少又小的补官机会少
-#if EC_PENDING
     private static float Sway(List<SpecificClan> clans) => Mathf.Clamp(SwayBase + Influence(clans) / SwayPer, SwayBase, SwayMax);
-#endif
 
     // 按势力的平方挑一家(门第高、族众多的大族多中)
-#if EC_PENDING
     private static SpecificClan Weighted(List<SpecificClan> clans)
     {
         float total = clans.Sum(clan => Influence(clan) * Influence(clan));
@@ -213,7 +210,6 @@ public static partial class GentrySystem
             if ((roll -= Influence(clan) * Influence(clan)) <= 0f) return clan;
         return clans[clans.Count - 1];
     }
-#endif
 
     // 那家在本国的成年族人：实体优先，没有就把虚拟族人落成实体
 #if EC_PENDING
@@ -351,7 +347,6 @@ public static partial class GentrySystem
         SidesMandateMax = 15, UsurperGentryMandate = 5, UsurperDisdainPer = 2, UsurperDisdainMax = 8;
 
     // 两朝并立、天下裂土：世家依附郡望所在的那一朝(势力合计每 60 得法统 1，至多 15)
-#if EC_PENDING
     public static void ChooseSides(IEnumerable<Empire> realms)
     {
         foreach (Empire realm in realms.Where(realm => realm?.data != null && !realm.IsGone()).Distinct().ToList())
@@ -367,7 +362,6 @@ public static partial class GentrySystem
             realm.RecordHistory(directContent: content);
         }
     }
-#endif
 
     // 篡位(Empire.NewEmperor)：出自世家的诸世家多附之，起于寒门的诸世家耻之
     public static void OnUsurpation(Empire empire, Person usurper)

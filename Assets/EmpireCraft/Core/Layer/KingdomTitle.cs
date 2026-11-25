@@ -29,9 +29,7 @@ public class KingdomTitle : RecordObject<KingdomTitleData>
     public Realm main_kingdom;
 
     public Person owner;
-#if EC_PENDING
-    public Tint kingdomColor => getColor();
-#endif
+    public Tint kingdomColor => GetColor();
     public override EntityKind KindOfEntity => MetaTypeExtension.KingdomTitle;
 
 #if EC_PENDING
@@ -548,16 +546,16 @@ public class KingdomTitle : RecordObject<KingdomTitleData>
     }
 
 
-#if EC_PENDING
     public override void Dispose()
     {
-        clearListUnits();
+        ClearListUnits();
         this.city_list.Clear();
         this.city_list_hash.Clear();
         this.title_capital = null;
         this.owner = null;
     }
 
+#if EC_PENDING
     public void Dissolve()
     {
         foreach (var kingdom in EmpireWorld.Current.LiveRealms)

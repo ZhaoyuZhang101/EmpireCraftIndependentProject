@@ -138,7 +138,7 @@ public static class PuppetStateSystem
                  .Where(actor => actor?.Record != null && !actor.IsGone() && actor != leader && actor.IsAdult() && !actor.IsRuler()).ToList())
         {
             Detach(follower);
-            if (follower.Realm != puppet) follower.joinKingdom(puppet);
+            if (follower.Realm != puppet) follower.SetRealm(puppet);
             if (follower.City?.Realm != puppet) follower.JoinCity(seat);
         }
         string failed = Establish(master, puppet, record: false);

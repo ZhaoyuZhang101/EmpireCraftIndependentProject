@@ -392,6 +392,7 @@ public static class DiplomacyLedger
         }
         return events.OrderByDescending(item => item.at).ToList();
     }
+#endif
 
     private static IEnumerable<EmpireCraftHistory> Histories(Realm kingdom)
     {
@@ -401,7 +402,6 @@ public static class DiplomacyLedger
         List<EmpireCraftHistory> all = core != null ? EmpireCoreManager.GetAllHistories(core) : null;
         return all != null && all.Count > 0 ? all : empire.data.history ?? new List<EmpireCraftHistory>();
     }
-#endif
 
     // ───────── 市场 ─────────
     public static string GoodName(CommodityConfig good)

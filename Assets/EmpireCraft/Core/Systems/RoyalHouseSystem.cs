@@ -271,6 +271,7 @@ public static class RoyalHouseSystem
             .OrderByDescending(VirtualGenealogySystem.VirtualRenown).ThenBy(person => person.id);
         return KinRoster.RealizeFirst(pool, candidate => candidate.Alive && candidate.Spouse == null, 1);
     }
+#endif
 
     private static bool Kin(Person a, Person b)
     {
@@ -280,7 +281,6 @@ public static class RoyalHouseSystem
         List<Person> parentsB = b.GetParents()?.Where(parent => parent != null).ToList() ?? new List<Person>();
         return parentsA.Contains(b) || parentsB.Contains(a) || parentsA.Any(parentsB.Contains);
     }
-#endif
 
     #endregion
 

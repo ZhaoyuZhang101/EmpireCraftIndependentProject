@@ -370,7 +370,7 @@ public static class WorldMapScenario
                 }
                 else
                 {
-                    actor.joinKingdom(polity.kingdom);
+                    actor.SetRealm(polity.kingdom);
                     if (founder?.language != null) actor.setLanguage(founder.language);
                     if (founder?.Religion != null) actor.SetReligion(founder.Religion);
                     planned.city = EmpireWorld.Current.Cities.buildNewCity(actor, zone);
@@ -417,12 +417,12 @@ public static class WorldMapScenario
                 if (actor != null && person.Spouse)
                 {
                     SetSexAge(actor, person, false);
-                    actor.joinKingdom(polity.kingdom);
+                    actor.SetRealm(polity.kingdom);
                     if (seat != null) actor.JoinCity(seat);
                     PrepareName(actor, polity.culture);
                     ApplyNames(actor, person.fam, person.giv);
                     Person kin = person.sameHouse >= 0 && person.sameHouse < made.Count ? made[person.sameHouse] : null;
-                    if (kin?.Clan != null) actor.setClan(kin.Clan);
+                    if (kin?.Clan != null) actor.SetClan(kin.Clan);
                     else Household(actor, person.fam, person.giv);
                     if (person.fam == "") actor.GetModName().familyName = "";
                     actor.GetModName().SetName(actor);
@@ -430,10 +430,10 @@ public static class WorldMapScenario
                 else if (actor != null)
                 {
                     SetSexAge(actor, person, false);
-                    actor.joinKingdom(polity.kingdom);
+                    actor.SetRealm(polity.kingdom);
                     if (seat != null) actor.JoinCity(seat);
                     PrepareName(actor, polity.culture);
-                    if (founder.Clan != null) actor.setClan(founder.Clan);
+                    if (founder.Clan != null) actor.SetClan(founder.Clan);
                     ApplyNames(actor, person.fam ?? surname, person.giv);
                     // 君主没有姓的，宗室也不带模板起的姓(以前同一家族里各姓各的)
                     if (person.fam == "" || person.fam == null && string.IsNullOrEmpty(surname)) actor.GetModName().familyName = "";
@@ -457,16 +457,14 @@ public static class WorldMapScenario
 #endif
 
     // 后妃的娘家：另立一家，家族名就是她的姓(没有姓的以名为家名，同名臣)
-#if EC_PENDING
     private static void Household(Person actor, string fam, string giv)
     {
         string family = WorldMapData.PickParts(fam);
         if (string.IsNullOrEmpty(family)) actor.GetModName().familyName = "";
-        EmpireWorld.Current.Clans.newClan(actor, true);
+        EmpireWorld.Current.NewClan(actor, true);
         NameClan(actor.Clan, string.IsNullOrEmpty(family) ? WorldMapData.PickParts(giv) : family);
         if (string.IsNullOrEmpty(family)) actor.GetModName().familyName = "";
     }
-#endif
 
     // 后妃(收尾、各国都建好之后)：正妻与丈夫结为夫妻(君主的配偶就是皇后、王后，皇后位、外戚按她算)，妃嫔记为丈夫的妾室，
     // 子女接上生母(后宫争储按生母算宠妃，见 HaremSuccessionSystem)；娘家是别国君主家的并入那一族(德川和子入江户德川)。
@@ -494,7 +492,7 @@ public static class WorldMapScenario
                         actor.Clan != king.Clan)
                     {
                         king.CheckSpecificClan(false);
-                        actor.setClan(king.Clan);
+                        actor.SetClan(king.Clan);
                         PersonalClanIdentity own = actor.GetPersonalIdentity();
                         if (own != null && king.GetSpecificClan() is SpecificClan home) SpecificClanManager.MoveToClan(own, home);
                     }
@@ -572,7 +570,7 @@ public static class WorldMapScenario
                 Person actor = Spawn(RulerSpecies(polity), seat?.SeatCell() ?? founder.Cell);
                 if (actor == null) continue;
                 SetSexAge(actor, person.AsPerson(), false);
-                actor.joinKingdom(polity.kingdom);
+                actor.SetRealm(polity.kingdom);
                 if (seat != null) actor.JoinCity(seat);
                 PrepareName(actor, polity.culture);
                 ApplyNames(actor, person.fam, person.giv);
@@ -581,8 +579,8 @@ public static class WorldMapScenario
                 if (string.IsNullOrEmpty(family)) actor.GetModName().familyName = "";
                 // 后妃的娘家人(杨国忠之于杨贵妃)：入她那一家，外戚才连得上(见 ConsortKinSystem)
                 Person house = person.sameHouse >= 0 && person.sameHouse < polity.kinByIndex.Count ? polity.kinByIndex[person.sameHouse] : null;
-                if (house?.Clan != null) actor.setClan(house.Clan);
-                if (actor.Clan == null) EmpireWorld.Current.Clans.newClan(actor, true);
+                if (house?.Clan != null) actor.SetClan(house.Clan);
+                if (actor.Clan == null) EmpireWorld.Current.NewClan(actor, true);
                 if (string.IsNullOrEmpty(family))
                 {
                     actor.GetModName().familyName = "";
@@ -645,7 +643,7 @@ public static class WorldMapScenario
                         {
                             City city = _famousCities.TryGetValue(person.post, out City found) ? found : null;
                             if (city?.Record == null || city.IsGone() || city.Realm == null) break;
-                            if (actor.Realm != city.Realm) actor.joinKingdom(city.Realm);
+                            if (actor.Realm != city.Realm) actor.SetRealm(city.Realm);
                             actor.JoinCity(city);
                             city.GetOffice()?.SetActor(actor);
                             if (city.Leader != actor) city.SetLeader(actor, true);
@@ -767,15 +765,13 @@ public static class WorldMapScenario
     // 名人坐镇的城(城 id → 城)：收尾时清掉剧本的城表前记下
     private static readonly Dictionary<string, City> _famousCities = new();
 
-#if EC_PENDING
     private static void SetSexAge(Person actor, WorldMapPerson person, bool monarch)
     {
         if (person != null && person.Female) actor.Sex = Sex.Female;
         else if (monarch || person != null) actor.Sex = Sex.Male;
         int age = person != null && person.age >= 0 ? person.age : monarch ? EcRandom.Range(28, 50) : -1;
-        if (age >= 0) actor.Record.age_overgrowth = age;
+        if (age >= 0) actor.Record.AgeOvergrowth = age;
     }
-#endif
 
     // 换成本国文化(没有就以此人为创立者新建，套本国起名模板)，清掉造人时按种族起的名，按本国模板重起
 #if EC_PENDING
@@ -815,13 +811,11 @@ public static class WorldMapScenario
     }
 
     // 原版氏族改叫这个家族名(某某氏/家)；宗族另由 WorldMapHistory.NameHouse 改
-#if EC_PENDING
     private static void NameClan(Clan clan, string house)
     {
         if (clan?.Record == null || string.IsNullOrWhiteSpace(house)) return;
         clan.Name = OverallHelperFunc.JoinNameParts(house, LM.Get("Clan"));
     }
-#endif
 
     private static void ApplyNames(Person actor, string family, string given)
     {
@@ -996,7 +990,7 @@ public static class WorldMapScenario
     {
         Person native = Spawn(planned.species, tile);
         if (native == null) return;
-        native.joinKingdom(polity.kingdom);
+        native.SetRealm(polity.kingdom);
         if (founder.language != null) native.setLanguage(founder.language);
         if (founder.Religion != null) native.SetReligion(founder.Religion);
         native.JoinCity(planned.city);

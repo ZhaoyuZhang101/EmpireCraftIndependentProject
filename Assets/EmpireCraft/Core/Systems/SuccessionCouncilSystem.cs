@@ -46,7 +46,6 @@ public static class SuccessionCouncilSystem
 
     // 王位空缺时由继承检查调用(EmpireCraftKingdomBehCheckHeir.ResolveHeir)：议立未完返回空(皇位暂缺)，
     // 定策后返回迎立的人；handled 为假(屡次迎立不成)时照原来的继承顺序递补
-#if EC_PENDING
     public static (Person actor, string relation, bool handled) Resolve(Realm core, PersonalClanIdentity predecessor)
     {
         Empire empire = core.GetEmpire();
@@ -74,7 +73,6 @@ public static class SuccessionCouncilSystem
         council.chosen_actor = -1L;
         return (null, "", !council.gave_up);
     }
-#endif
 
     // 议立期间不从虚拟族谱里直接落成继承人(见 EmpireCraftKingdomBehCheckKing)
     public static bool InSession(Realm kingdom)

@@ -538,7 +538,7 @@ public static partial class TransmigrantSystem
         SenatorIds.Add(actor.Key);
         actor.Sex = seat.male ? Sex.Male : Sex.Female;
         int age = GameClock.Year - seat.birth_year;
-        actor.Record.age_overgrowth += age - actor.Age();
+        actor.Record.AgeOvergrowth += age - actor.Age();
         actor.SetFamilyName(seat.surname);
         actor.SetFirstName(seat.given);
         actor.GetModName().SetName(actor);

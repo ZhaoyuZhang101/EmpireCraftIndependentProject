@@ -137,7 +137,7 @@ public static class ImperialLegitimacyChallengeService
             if (falseCore != null) falseCore.false_core_against_empire_id = incumbent.Key;
         }
 
-        War war = EmpireWorld.Current.LiveWars.newWar(challenger.CoreKingdom, incumbent.CoreKingdom,
+        War war = EmpireWorld.Current.StartWar(challenger.CoreKingdom, incumbent.CoreKingdom,
             WarKinds.Normal);
         if (war == null)
         {
@@ -193,7 +193,7 @@ public static class ImperialLegitimacyChallengeService
         if (!SharesLandBorder(empire, rival)) return false;
         if (EcRandom.value > RivalryWarChance) return false;
 
-        War war = EmpireWorld.Current.LiveWars.newWar(core, rivalCore, WarKinds.Normal);
+        War war = EmpireWorld.Current.StartWar(core, rivalCore, WarKinds.Normal);
         if (war == null) return false;
         war.SetEmpireWarType(EmpireWarType.去帝号, nanoObject: rival);
         war.InitializeLegitimacyChallenge(empire, rival);
@@ -217,7 +217,7 @@ public static class ImperialLegitimacyChallengeService
         Realm core = claimant.CoreKingdom;
         Realm rivalCore = incumbent.CoreKingdom;
         if (!war || core.IsAtWarWith(rivalCore)) return;
-        War started = EmpireWorld.Current.LiveWars.newWar(core, rivalCore, WarKinds.Normal);
+        War started = EmpireWorld.Current.StartWar(core, rivalCore, WarKinds.Normal);
         if (started == null) return;
         started.SetEmpireWarType(EmpireWarType.去帝号, nanoObject: incumbent);
         started.InitializeLegitimacyChallenge(claimant, incumbent);
@@ -465,7 +465,6 @@ public static class ImperialLegitimacyChallengeService
         EmpireCraft.Core.TranslateHelper.LogEventMessage(content, challenger.CoreKingdom);
     }
 
-#if EC_PENDING
     private static void RecordFailure(War war, Empire challenger, Empire incumbent)
     {
         if (war == null) return;
@@ -514,7 +513,6 @@ public static class ImperialLegitimacyChallengeService
             kingdom_id = kingdomId
         });
     }
-#endif
 
     private static bool IsActiveEmpire(Empire empire)
     {

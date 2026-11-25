@@ -1105,7 +1105,6 @@ public static class CultureService
     /// 异文化征服只施加一次制度冲击并建立持续的占领文化压力，不会立即替换城市官方文化
     /// 或地名。达到文化影响门槛和稳定期后，仍需走城市文化转换谋划。
     /// </summary>
-#if EC_PENDING
     public static bool ApplyForeignOccupationCulture(City city, Realm occupier)
     {
         if (city?.Record == null || city.IsGone() || occupier?.Record == null || occupier.IsGone()) return false;
@@ -1145,7 +1144,6 @@ public static class CultureService
         TranslateHelper.LogForeignCultureOccupation(city, oldCulture, newCulture);
         return true;
     }
-#endif
 
     public static bool FindCultureRestorationCandidate(City city, Realm controller, out string culture)
     {

@@ -46,7 +46,6 @@ public static partial class CompositeEmpireService
     public static float NativismUrgency(Empire empire) => !CanProclaimNativism(empire) ? 0f
         : Math.Max(0f, (empire.data.composite_integration - 40) * 0.6f) + (GetRoute(empire) == RouteAdopt ? 10f : 0f);
 
-#if EC_PENDING
     public static string ProclaimNativism(Empire empire)
     {
         if (!CanProclaimNativism(empire) || EmpireWorld.Current == null) return null;
@@ -67,7 +66,6 @@ public static partial class CompositeEmpireService
         LogService.LogInfo($"[EmpireCraft][征服王朝] {empire.GetEmpireName()} 重申国语骑射，融合度 {empire.data.composite_integration}");
         return string.Format(LM.Get("claim_outcome_国语骑射_done"), ruling.GetCultureTranslate(), institutional.GetCultureTranslate());
     }
-#endif
 
     #endregion
 
@@ -89,7 +87,7 @@ public static partial class CompositeEmpireService
                 EcRandom.value >= OldGuardChance) continue;
             string name = member.GetKingdomFullName();
             empire.leave(member);
-            War war = EmpireWorld.Current.LiveWars.newWar(member, core, WarKinds.Normal);
+            War war = EmpireWorld.Current.StartWar(member, core, WarKinds.Normal);
             war?.SetEmpireWarType(EmpireCraft.Core.EmpireWarType.地方独立);
             EventRecorder.Record(empire, actor: member.Ruler, logKingdom: member, text: string.Format(
                 LM.Get("composite_old_guard_history"), oldRuling.GetCultureTranslate(), empire.GetEmpireName(),

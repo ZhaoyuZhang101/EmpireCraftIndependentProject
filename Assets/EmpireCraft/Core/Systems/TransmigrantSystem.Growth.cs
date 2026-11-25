@@ -605,7 +605,7 @@ public static partial class TransmigrantSystem
             _doomed = actor.Key;
             return false;
         }
-        actor.Record.health = actor.getMaxHealth();
+        actor.Record.health = actor.GetMaxHealth();
         return true;
     }
 #endif

@@ -256,7 +256,7 @@ public static class NomadCycleSystem
         // 不许自立(见 SecessionGate)：先开战后离开，要在开战前问
         if (EmpireCraft.Core.SecessionGate.Forbids("据地自立", kingdom.GetKingdomName())) return false;
         RebellionCauseData cause = RebellionSystem.Capture(kingdom, kingdom.Capital, reasonKey);
-        War war = EmpireWorld.Current.LiveWars.newWar(kingdom, empire.CoreKingdom, WarKinds.Normal);
+        War war = EmpireWorld.Current.StartWar(kingdom, empire.CoreKingdom, WarKinds.Normal);
         if (war == null) return false;
         kingdom.FinishedSelfPlot();
         empire.leave(kingdom, true, true);

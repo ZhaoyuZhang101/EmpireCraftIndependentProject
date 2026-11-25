@@ -101,7 +101,7 @@ public static class TemplateNameRepair
         int count = 0;
         foreach (Clan clan in EmpireWorld.Current.Clans)
         {
-            if (clan?.Record == null || AncientWarfareCompatibility.OwnsObject(clan.units.FirstOrDefault())) continue;
+            if (clan?.Record == null || AncientWarfareCompatibility.OwnsObject(clan.People.FirstOrDefault())) continue;
             if (IsRaw(clan.Name))
             {
                 NameParts names = Cultures.NameParts(CultureOf(clan), EntityKind.Clan);
@@ -155,7 +155,7 @@ public static class TemplateNameRepair
         int count = 0;
         foreach (Family family in EmpireWorld.Current.families)
         {
-            if (family?.data == null || !IsRaw(family.data.name)) continue;
+            if (family?.Record == null || !IsRaw(family.Record.Name)) continue;
             Person member = family.units.FirstOrDefault(actor => actor?.data != null && !actor.IsGone());
             // 动物的群(原版也叫家族)不按文明起名
             if (member == null || AncientWarfareCompatibility.OwnsObject(member) || member.Realm?.IsCivilized() != true) continue;
@@ -164,7 +164,7 @@ public static class TemplateNameRepair
             if (!string.IsNullOrEmpty(surname) && !IsRaw(surname))
             {
                 name = OverallHelperFunc.JoinNameParts(member.City?.Name ?? "", surname, LM.Get("Family"));
-                family.data.name = name;
+                family.Record.Name = name;
                 family.SetFamilyCityPre(member.City?.Record != null);
             }
             else
@@ -172,7 +172,7 @@ public static class TemplateNameRepair
                 NameParts names = Cultures.NameParts(member.Culture, EntityKind.Family);
                 name = Generate(() => names?.GenerateName()?.UseLocalizedNameSeparator());
                 if (string.IsNullOrEmpty(name)) continue;
-                family.data.name = name;
+                family.Record.Name = name;
                 family.SetFamilyCityPre(false);
             }
             count++;
@@ -213,7 +213,7 @@ public static class TemplateNameRepair
     private static string Surname(Person actor, Culture culture)
     {
         string surname = actor.HasClan() ? actor.Clan.GetMemberSurname() : null;
-        if (string.IsNullOrEmpty(surname) || IsRaw(surname)) surname = actor.hasFamily() ? actor.family.GetFamilyName() : null;
+        if (string.IsNullOrEmpty(surname) || IsRaw(surname)) surname = actor.HasFamily() ? actor.Family.GetFamilyName() : null;
         if (!string.IsNullOrEmpty(surname) && !IsRaw(surname)) return surname;
         NameParts names = Cultures.NameParts(culture, EntityKind.Family);
         return SurnameOf(Generate(() => names?.GenerateName()), CultureService.GetActorCulture(actor));
@@ -283,13 +283,13 @@ public static class TemplateNameRepair
         }
         return count;
     }
+#endif
 
     private static Culture CultureOf(Clan clan)
     {
-        Culture culture = clan.units.FirstOrDefault(actor => actor?.culture != null)?.culture;
-        return culture ?? CultureService.GetNativeCultureObject(OverallHelperFunc.GetCultureFromSpecies(clan.species_id));
+        Culture culture = clan.People.FirstOrDefault(actor => actor?.Culture != null)?.Culture;
+        return culture ?? CultureService.GetNativeCultureObject(OverallHelperFunc.GetCultureFromSpecies(clan.SpeciesId));
     }
-#endif
 
     // 模板才重套过，一般一次就好；万一还是字表名就再起几次，都不行返回 null(调用方保持原样)
 #if EC_PENDING

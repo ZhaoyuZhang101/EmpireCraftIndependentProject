@@ -28,9 +28,9 @@ public class EmpireCraftActorCheckCity:GameAIActorBase
                     if (owner != null && !owner.IsNeutral() && !owner.IsWild && !kingdom.IsAtWarWith(owner)) return BehResult.Continue;
                     city.JoinRealm(kingdom);
                 }
-                if (pActor.hasFamily())
+                if (pActor.HasFamily())
                 {
-                    foreach (var fActor in pActor.family.units)
+                    foreach (var fActor in pActor.Family.units)
                     {
                         fActor.joinCity(city);
                         fActor.goTo(city._city_tile);

@@ -76,6 +76,12 @@ namespace EmpireCraft.Core
         public int LandmassOf(int tile){if(_landmass==null)_landmass=EmpireBootstrap.Landmasses(this);return tile<0||tile>=_landmass.Length?-1:_landmass[tile];}
         public War WarByKey(long key){var x=key>=0&&key<Wars.Count?Wars[(int)key]:null;return x!=null&&x.Alive?x:null;}
         public bool HasWars()=>LiveWars.Count>0;
+        // A person founds a house of their own and belongs to it from then on.
+        public Clan NewClan(Person founder,bool announce=false)
+        {
+            if(founder==null)return null;
+            var clan=WorldOps.NewClan(this,Names.Surname(this,founder.Id*31+Month),founder);founder.Clan=clan;return clan;
+        }
         public War StartWar(Realm attacker,Realm defender,WarKind kind=null,bool log=true)=>WorldOps.StartWar(this,attacker,defender,kind);
         public void EndWar(War war,WarOutcome outcome=WarOutcome.Peace){if(war!=null&&war.Alive)WorldOps.EndWar(this,war,outcome);}
 

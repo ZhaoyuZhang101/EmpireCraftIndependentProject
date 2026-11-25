@@ -36,7 +36,6 @@ public static class LegionStatisticsReadCache
         Entries = new(); _world = EmpireWorld.Current; Hits = Builds = 0;
     }
 
-#if EC_PENDING
     public static IReadOnlyList<Contribution> Read(Person actor)
     {
         if (!ReferenceEquals(_world, EmpireWorld.Current)) Reset();
@@ -46,7 +45,7 @@ public static class LegionStatisticsReadCache
         if (extra.legion_size <= 1f || CityPopulationSystem.IsVehicle(actor)) return Array.Empty<Contribution>();
         int health = 0, maximum = 0;
         bool readable = true;
-        try { health = actor.getHealth(); maximum = actor.getMaxHealth(); }
+        try { health = actor.GetHealth(); maximum = actor.GetMaxHealth(); }
         catch { readable = false; }
         Entry entry = Entries.GetOrCreateValue(actor);
         List<LegionPopulationContribution> origins = extra.legion_population;
@@ -86,6 +85,5 @@ public static class LegionStatisticsReadCache
         Builds++;
         return entry.View;
     }
-#endif
 }
 }

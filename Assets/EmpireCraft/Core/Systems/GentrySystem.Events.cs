@@ -65,7 +65,7 @@ public static partial class GentrySystem
             bride.setLover(groom);
             Realm core = empire.CoreKingdom;
             if (bride.IsCityLeader() && bride.City != null) bride.City.RemoveLeader();
-            if (bride.Realm != core) bride.joinKingdom(core);
+            if (bride.Realm != core) bride.SetRealm(core);
             if (core.Capital != null && bride.City != core.Capital) bride.JoinCity(core.Capital);
             clan.gentry_pedigree = Mathf.Min(100f, clan.gentry_pedigree + ConsortPedigree);
             ShiftFavor(empire, FavorEmpress);

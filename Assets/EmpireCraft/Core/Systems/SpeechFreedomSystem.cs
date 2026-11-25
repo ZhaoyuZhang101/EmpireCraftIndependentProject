@@ -149,6 +149,7 @@ public static class SpeechFreedomSystem
         if (announce) Announce(author, book, ideology);
         return true;
     }
+#endif
 
     private static void Announce(Person author, Book book, PartyIdeology ideology)
     {
@@ -158,13 +159,12 @@ public static class SpeechFreedomSystem
         new News(NewsKinds.ideology_treatise_log,
             author.FullName(), book.Name, PartySystem.GetIdeologyName(ideology))
         {
-            Location = author.current_position,
+            Location = author.Position,
             Color1 = color,
             Color2 = color,
             Color3 = color
         }.Add();
     }
-#endif
 
     // 优先用该理念的专属书名(没用过的)，否则用体裁模板组合
 #if EC_PENDING

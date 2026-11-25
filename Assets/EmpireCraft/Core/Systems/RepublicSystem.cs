@@ -606,6 +606,7 @@ public static class RepublicSystem
         }
         return joined;
     }
+#endif
 
     private static int DefectImperialSoldiers(Empire empire, FixedFaction party, War war, Realm rebel)
     {
@@ -644,6 +645,7 @@ public static class RepublicSystem
         return total;
     }
 
+#if EC_PENDING
     private static int RaiseRevolutionaryMilitia(Empire empire, Realm rebel, PartyIdeology ideology, bool splitRealm)
     {
         City capital = rebel.Capital;

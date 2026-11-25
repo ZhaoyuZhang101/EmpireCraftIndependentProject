@@ -432,7 +432,7 @@ public static partial class PapacySystem
             if (rebel == null) continue;
             float chance = RevoltChance * (ReligiousTension.PolicyOf(core) == ReligiousTension.Policy.Intolerant ? 1.5f : 1f);
             if (EcRandom.value >= chance) continue;
-            War war = EmpireWorld.Current.LiveWars.newWar(rebel, core, WarKinds.Normal);
+            War war = EmpireWorld.Current.StartWar(rebel, core, WarKinds.Normal);
             if (war == null) continue;
             empire.leave(rebel, true, true);
             war.SetEmpireWarType(EmpireWarType.地方独立);

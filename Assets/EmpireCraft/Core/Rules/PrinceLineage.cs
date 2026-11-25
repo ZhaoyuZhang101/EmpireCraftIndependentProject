@@ -90,7 +90,6 @@ public static class PrinceLineage
     // 以前王爵只封给地图上有实体的人，而且要有空着的法理头衔——无小人、纯净地图下皇子多是虚拟族人，法理头衔又有限，
     // 许多皇子到死也没封王，绝嗣时藩王一系就轮不到他们。王号取本国还没有在世藩王用的法理头衔名，没有就取本国城名；
     // 有空着的法理王爵、本人又在地图上的，以后照原来的法理分封改授实封(见 Empire.ProcessLegalPeerageSuccession)
-#if EC_PENDING
     public static void GrantPrinces(Empire empire)
     {
         Person emperor = empire?.Emperor;
@@ -136,7 +135,6 @@ public static class PrinceLineage
             owner_personal_identity_id = son.id
         });
     }
-#endif
 
     // 本朝在世藩王已用的地名(王号去掉"王")
     private static HashSet<string> UsedTitles(Empire empire)
@@ -210,7 +208,6 @@ public static class PrinceLineage
 
     // 旧档补王号发生在身故之后，不能再等死亡回调。只补未定谥的已故藩王，帝王仍由帝国史书定谥。
     // 修复不追加一条发生在读档当天的“薨”记事，也不改已有谥号。
-#if EC_PENDING
     public static int BackfillPosthumous(IEnumerable<PersonalClanIdentity> people)
     {
         var emperors = new HashSet<long>();
@@ -240,7 +237,6 @@ public static class PrinceLineage
         }
         return filled;
     }
-#endif
 
     // 读档：旧档没记王号的，按个人经历里最近一次"获授某王"补上
     public static int Backfill(IEnumerable<PersonalClanIdentity> people)
