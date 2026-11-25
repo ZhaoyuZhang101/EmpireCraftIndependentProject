@@ -1015,6 +1015,7 @@ namespace Orbis.Flat
             public readonly ushort[] PrecipHalf = new ushort[PixelCount * 4];
             public float CloudSouthX, CloudSouthY, CloudNorthX, CloudNorthY;
             public float PrecipSouthRain, PrecipSouthSfc, PrecipNorthRain, PrecipNorthSfc;
+            public WorldData World;
             public long Tick = long.MinValue;
             public int Revision = -1;
             public FlatMoistureState Moisture;
@@ -1025,6 +1026,7 @@ namespace Orbis.Flat
 
             internal void Clear()
             {
+                World = null;
                 Tick = long.MinValue;
                 Revision = -1;
                 Moisture = null;
@@ -1085,11 +1087,26 @@ namespace Orbis.Flat
             in FlatCycloneTrack prevNorth, in FlatCycloneTrack prevSouth,
             float cloudSouthX, float cloudSouthY, float cloudNorthX, float cloudNorthY,
             float precipSouthRain, float precipSouthSfc, float precipNorthRain, float precipNorthSfc)
+            => CommitUpload(
+                null, slotIndex, workerTick, revision, moisture, hadStorms, spinUpAtTick,
+                in north, in south, in prevNorth, in prevSouth,
+                cloudSouthX, cloudSouthY, cloudNorthX, cloudNorthY,
+                precipSouthRain, precipSouthSfc, precipNorthRain, precipNorthSfc);
+
+        public ulong CommitUpload(
+            WorldData world,
+            int slotIndex, long workerTick, int revision, FlatMoistureState moisture,
+            bool hadStorms, bool spinUpAtTick,
+            in FlatCycloneTrack north, in FlatCycloneTrack south,
+            in FlatCycloneTrack prevNorth, in FlatCycloneTrack prevSouth,
+            float cloudSouthX, float cloudSouthY, float cloudNorthX, float cloudNorthY,
+            float precipSouthRain, float precipSouthSfc, float precipNorthRain, float precipNorthSfc)
         {
             if ((uint)slotIndex >= SlotCount || slotIndex == PublishedIndex || slotIndex == StagedIndex)
                 throw new InvalidOperationException("Cannot overwrite published or in-flight staged regional snapshot slot.");
 
             var s = slots[slotIndex];
+            s.World = world;
             s.Tick = workerTick;
             s.Revision = revision;
             s.Moisture = moisture;
@@ -1113,6 +1130,12 @@ namespace Orbis.Flat
             return s.Generation;
         }
 
+        static bool MatchesWorldIdentity(Slot s, WorldData world) =>
+            world != null && s != null && s.Valid &&
+            (s.World == null || ReferenceEquals(s.World, world)) &&
+            s.Revision == world.TerrainRevision &&
+            ReferenceEquals(s.Moisture, world.Moisture);
+
         /// <summary>
         /// Drops an unpublished staging candidate if terrain/moisture changed or the calendar rewound prior to its tick,
         /// without touching <see cref="PublishedIndex"/> or <see cref="StagedIndex"/>.
@@ -1121,8 +1144,7 @@ namespace Orbis.Flat
         {
             if (LatestUploadedIndex < 0) return;
             var s = slots[LatestUploadedIndex];
-            if (world == null || !s.Valid || s.Revision != world.TerrainRevision ||
-                !ReferenceEquals(s.Moisture, world.Moisture) || targetTick < s.Tick)
+            if (!MatchesWorldIdentity(s, world) || targetTick < s.Tick)
             {
                 LatestUploadedIndex = -1;
             }
@@ -1130,10 +1152,9 @@ namespace Orbis.Flat
 
         public bool HasValidLatestFor(WorldData world, long targetTick)
         {
-            if (world == null || LatestUploadedIndex < 0) return false;
+            if (LatestUploadedIndex < 0) return false;
             var s = slots[LatestUploadedIndex];
-            return s.Valid && s.Revision == world.TerrainRevision &&
-                   ReferenceEquals(s.Moisture, world.Moisture) && s.Tick <= targetTick;
+            return MatchesWorldIdentity(s, world) && s.Tick <= targetTick;
         }
 
         public bool HasExactLatestFor(WorldData world, long targetTick)
@@ -1178,9 +1199,8 @@ namespace Orbis.Flat
 
         public bool HasPublishedFor(WorldData world)
         {
-            if (world == null || PublishedIndex < 0) return false;
-            var s = slots[PublishedIndex];
-            return s.Valid && s.Revision == world.TerrainRevision && ReferenceEquals(s.Moisture, world.Moisture);
+            if (PublishedIndex < 0) return false;
+            return MatchesWorldIdentity(slots[PublishedIndex], world);
         }
 
         public long? GetPublishedTick(WorldData world) =>
@@ -1198,6 +1218,43 @@ namespace Orbis.Flat
             }
             diagnostic = FlatMoistureCloudBudget.SamplePackedPrecipitationHalf(slots[PublishedIndex].PrecipHalf, u, v);
             return true;
+        }
+
+        /// <summary>
+        /// Strictly samples 6-hour surface/cloud precipitation for the exact <paramref name="world"/> instance,
+        /// <paramref name="expectedTick"/>, and active cyclone state (preferring the published GPU slot and falling back
+        /// to an already-uploaded exact staging slot when 4-strip column baking is still in flight).
+        /// Rejects snapshots from cloned/different worlds, stale/coalesced ticks, or rewound dates.
+        /// </summary>
+        public bool TrySamplePrecipitationForTick(
+            WorldData world, long expectedTick, double u, double v,
+            out RegionalPrecipitationDiagnostic diagnostic)
+        {
+            if (PublishedIndex >= 0)
+            {
+                var pub = slots[PublishedIndex];
+                if (MatchesWorldIdentity(pub, world) && pub.Tick == expectedTick &&
+                    (pub.World != null ? ReferenceEquals(pub.World, world) : true) &&
+                    SameStorms(world.Cyclones, expectedTick, pub.Tick, pub.HadStorms, pub.SpinUpAtTick,
+                        in pub.North, in pub.South, in pub.PrevNorth, in pub.PrevSouth))
+                {
+                    diagnostic = FlatMoistureCloudBudget.SamplePackedPrecipitationHalf(pub.PrecipHalf, u, v);
+                    return true;
+                }
+            }
+
+            if (HasExactLatestFor(world, expectedTick))
+            {
+                var lat = slots[LatestUploadedIndex];
+                if (lat.World == null || ReferenceEquals(lat.World, world))
+                {
+                    diagnostic = FlatMoistureCloudBudget.SamplePackedPrecipitationHalf(lat.PrecipHalf, u, v);
+                    return true;
+                }
+            }
+
+            diagnostic = default;
+            return false;
         }
 
         public static bool SameStorms(

@@ -14,6 +14,46 @@ namespace Orbis.Flat
         public float Strength { get { return Tracked ? FMath.Clamp((float)(WindSpeed / 55), 0, 1) : 0; } }
     }
 
+    /// <summary>
+    /// Read-only physical 10 m surface wind, sea-level pressure deficit, and rainband precipitation sample
+    /// evaluated from a <see cref="FlatCycloneTrack"/> at normalized spherical coordinates <c>(u, v)</c>.
+    /// <list type="bullet">
+    ///   <item><description><c>u</c> in <c>[0, 1)</c> wraps eastward (<c>lonDeg = (u - 0.5) * 360</c>); <c>v</c> in <c>[0, 1]</c> increases northward (<c>latDeg = (v - 0.5) * 180</c>).</description></item>
+    ///   <item><description>Velocities (<see cref="EastMs"/>, <see cref="NorthMs"/>, <see cref="TangentialSpeedMs"/>, <see cref="RadialInflowMs"/>) are in SI <c>m/s</c>.</description></item>
+    ///   <item><description><see cref="PressureDeficitHpa"/> is in <c>hPa</c>; <see cref="RainRateMmPerHour"/> is in <c>mm/h</c> (<c>kg/m^2/h</c>); <see cref="RadiusKm"/> is great-circle distance in <c>km</c>.</description></item>
+    /// </list>
+    /// </summary>
+    public readonly struct FlatCycloneSurfaceWind
+    {
+        public readonly bool Active;
+        public readonly float EastMs;
+        public readonly float NorthMs;
+        public readonly float TangentialSpeedMs;
+        public readonly float SignedTangentialMs;
+        public readonly float RadialInflowMs;
+        public readonly float PressureDeficitHpa;
+        public readonly float RainRateMmPerHour;
+        public readonly float RadiusKm;
+
+        public float SpeedMs => (float)Math.Sqrt(EastMs * EastMs + NorthMs * NorthMs);
+
+        public FlatCycloneSurfaceWind(
+            bool active, float eastMs, float northMs,
+            float tangentialSpeedMs, float signedTangentialMs, float radialInflowMs,
+            float pressureDeficitHpa, float rainRateMmPerHour, float radiusKm)
+        {
+            Active = active;
+            EastMs = eastMs;
+            NorthMs = northMs;
+            TangentialSpeedMs = tangentialSpeedMs;
+            SignedTangentialMs = signedTangentialMs;
+            RadialInflowMs = radialInflowMs;
+            PressureDeficitHpa = pressureDeficitHpa;
+            RainRateMmPerHour = rainRateMmPerHour;
+            RadiusKm = radiusKm;
+        }
+    }
+
     // Two Lagrangian lows on the existing climate grid; no second global fluid grid.
     // The only mutable state is the calendar tick and its two pairs of endpoints.
     [Serializable]
@@ -147,6 +187,90 @@ namespace Orbis.Flat
             current.AgeDays = Mix(previous.AgeDays, current.AgeDays, t);
             current.OceanCooling = Mix(previous.OceanCooling, current.OceanCooling, t);
             return current;
+        }
+
+        /// <summary>
+        /// Evaluates physical Holland-like 10 m cyclonic tangential wind (<c>m/s</c>), 23% Ekman boundary-layer radial inflow,
+        /// pressure deficit (<c>hPa</c>), and eyewall/spiral-band rainfall (<c>mm/h</c>) from an already-sampled <see cref="FlatCycloneTrack"/>.
+        /// Zero allocations; strictly zero outside the storm's outer radius (~1,050 km) or when <c>!track.Tracked</c>.
+        /// </summary>
+        public static FlatCycloneSurfaceWind SampleSurfaceWindFromTrack(
+            in FlatCycloneTrack track, int hemisphereSpin, double u, double v)
+        {
+            if (!track.Tracked || track.WindSpeed <= 0.25 || track.PressureDeficit <= 0.05)
+                return default;
+
+            int spin = hemisphereSpin >= 0 ? 1 : -1;
+            double latRad = (FMath.Clamp((float)v, 0.001f, 0.999f) - 0.5) * Math.PI;
+            double stormLatRad = (FMath.Clamp((float)track.V, 0.001f, 0.999f) - 0.5) * Math.PI;
+            double cosMid = Math.Max(0.10, Math.Cos(0.5 * (latRad + stormLatRad)));
+            double dxKm = FlatScrollMath.Shortest(u - track.U, 1.0) * 40030.2 * cosMid;
+            double dyKm = (v - track.V) * 20015.1;
+            double rKm = Math.Sqrt(dxKm * dxKm + dyKm * dyKm);
+
+            double outerLimitKm = 620.0 + 430.0 * Math.Sqrt(track.Strength);
+            if (rKm >= outerLimitKm)
+                return new FlatCycloneSurfaceWind(false, 0f, 0f, 0f, 0f, 0f, 0f, 0f, (float)rKm);
+
+            double tOuter = Unit((rKm - outerLimitKm * 0.52) / (outerLimitKm * 0.48));
+            double outerGate = 1.0 - tOuter * tOuter * (3.0 - 2.0 * tOuter);
+
+            // Radius of maximum wind contracts from ~72 km (weak depression) to ~46 km (intense typhoon/hurricane).
+            double rmwKm = 72.0 - 26.0 * track.Strength;
+            double x = rKm / rmwKm;
+            double xPow = Math.Pow(x, 1.18);
+            double profile = (2.0 * xPow) / (1.0 + xPow * xPow);
+            double vTan = track.WindSpeed * profile * outerGate;
+            double vInflow = 0.23 * vTan;
+
+            double erX = 0.0, erY = 0.0;
+            if (rKm > 1e-4)
+            {
+                double invR = 1.0 / rKm;
+                erX = dxKm * invR;
+                erY = dyKm * invR;
+            }
+            // Northern Hemisphere (spin = +1): counter-clockwise (-erY, +erX); Southern Hemisphere (spin = -1): clockwise (+erY, -erX).
+            double etX = -erY * spin;
+            double etY = erX * spin;
+            double eastMs = etX * vTan - erX * vInflow;
+            double northMs = etY * vTan - erY * vInflow;
+
+            // Exponential pressure-deficit core (Holland B ~ 1.35) + spiral eyewall/rainband condensation rainfall (mm/h).
+            double rpKm = rmwKm * 1.38;
+            double localDeficitHpa = track.PressureDeficit * Math.Exp(-Math.Pow(rKm / rpKm, 1.35)) * outerGate;
+
+            double angle = Math.Atan2(dyKm, dxKm);
+            double spiral = 0.68 + 0.32 * Math.Cos(2.0 * (angle - spin * Math.Log(1.0 + x) * 1.35) - track.Phase);
+            double eyewallRing = Math.Exp(-0.5 * Math.Pow((x - 0.95) / 0.78, 2.0));
+            double outerBand = 0.34 * Math.Exp(-0.5 * Math.Pow((x - 2.35) / 1.35, 2.0));
+            double rainMmPerHour = 48.0 * Math.Pow(Math.Max(0.0, track.WindSpeed / 48.0), 1.35)
+                                 * Math.Max(eyewallRing, outerBand) * spiral * outerGate;
+
+            bool active = vTan > 0.20 || localDeficitHpa > 0.15;
+            return new FlatCycloneSurfaceWind(
+                active,
+                (float)eastMs,
+                (float)northMs,
+                (float)vTan,
+                (float)(spin * vTan),
+                (float)vInflow,
+                (float)localDeficitHpa,
+                (float)rainMmPerHour,
+                (float)rKm);
+        }
+
+        /// <summary>
+        /// Read-only sampler evaluating the dominant surface cyclone wind (<c>m/s</c>) at spherical <c>(u, v)</c> and <paramref name="day"/>.
+        /// Never advances or mutates <see cref="FlatCycloneWeather"/>.
+        /// </summary>
+        public FlatCycloneSurfaceWind SampleSurfaceWind(double u, double v, double day)
+        {
+            var nh = SampleSurfaceWindFromTrack(Sample(true, day), +1, u, v);
+            var sh = SampleSurfaceWindFromTrack(Sample(false, day), -1, u, v);
+            if (!sh.Active) return nh;
+            if (!nh.Active) return sh;
+            return nh.TangentialSpeedMs >= sh.TangentialSpeedMs ? nh : sh;
         }
 
         static FlatCycloneTrack AdvanceTrack(FlatCycloneTrack track, Climate climate, int hemisphere, uint seed, long tick)

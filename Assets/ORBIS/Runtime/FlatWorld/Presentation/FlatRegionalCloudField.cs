@@ -168,6 +168,7 @@ namespace Orbis.Flat
             FlatRegionalSnapshotPool.ComputeCloudPoles(
                 slot.CloudRgba, out float cSouthX, out float cSouthY, out float cNorthX, out float cNorthY);
             pool.CommitUpload(
+                world,
                 slotIdx, workerTick, workerRevision, workerMoisture,
                 workerHadStorms, workerSpinUpAtTick,
                 in workerNorth, in workerSouth, in workerPrevNorth, in workerPrevSouth,
@@ -275,6 +276,9 @@ namespace Orbis.Flat
 
         internal bool TrySamplePublishedPrecipitation(WorldData targetWorld, double u, double v, out RegionalPrecipitationDiagnostic diagnostic) =>
             pool.TrySamplePublishedPrecipitation(targetWorld, u, v, out diagnostic);
+
+        internal bool TrySamplePrecipitationForTick(WorldData targetWorld, long expectedTick, double u, double v, out RegionalPrecipitationDiagnostic diagnostic) =>
+            pool.TrySamplePrecipitationForTick(targetWorld, expectedTick, u, v, out diagnostic);
 
         public void Dispose()
         {
