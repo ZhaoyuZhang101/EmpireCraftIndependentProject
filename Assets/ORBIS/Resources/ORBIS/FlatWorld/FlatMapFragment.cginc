@@ -103,6 +103,9 @@
     float2 chartRightGeographic,chartUpGeographic;
     FlatChartGeographicBasis(i.uv,chartCoordinate,chartRightGeographic,chartUpGeographic);
 #endif
+#ifdef ORBIS_USE_FRAG_CYCLONE_WIND
+    gFragCycloneWind=FlatCycloneLocalWind(i.uv);
+#endif
     float2 cell=float2(frac(i.uv.x),clamp(i.uv.y,0,1-_MapSize.w*.0001))*_MapSize.xy,id=floor(cell),f=frac(cell),uv=(id+.5)*_MapSize.zw;
 #ifdef ORBIS_LOCAL_SURFACE
     float2 cellDx,cellDy;FlatCellScreenDerivatives(cell,cellDx,cellDy);

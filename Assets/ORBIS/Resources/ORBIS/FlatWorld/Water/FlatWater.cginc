@@ -175,13 +175,17 @@ float FlatLegacyFaceDistance(float2 p,float4 hydro,float connections,float meand
             float bend=meander;
             float2 bestTangent=tangent;
             float sourceRadius=max(.003,hydro.a*.18);
-            if(count<1.5)result=FlatBezierDistance(p,float2(.5,.5),b,(float2(.5,.5)+b)*.5,sourceRadius,rb,(sourceRadius+rb)*.5,bend*.35,bestTangent);
+            bool singleLink=count<1.5;
             [loop] [fastopt] for(int d=0;d<4;d++)
             {
-                if(count<1.5||d==outlet||links[d]<.5)continue;
+                if(singleLink?(d!=outlet):(d==outlet||links[d]<.5))continue;
                 float2 direction=float2(1,0);
-                float2 a=FlatRiverEdge(d,meander,neighborMeanders[d],max(hydro.a,neighborWidths[d]));bool straight=(d<2&&outlet<2)||(d>=2&&outlet>=2);
-                float candidate=FlatBezierDistance(p,a,b,straight?(a+b)*.5:float2(.5,.5),radii[d],rb,hydro.a,bend*(straight?1:.35),direction);
+                float2 a=singleLink?float2(.5,.5):FlatRiverEdge(d,meander,neighborMeanders[d],max(hydro.a,neighborWidths[d]));
+                bool straight=!singleLink&&((d<2&&outlet<2)||(d>=2&&outlet>=2));
+                float2 mid=singleLink?((float2(.5,.5)+b)*.5):(straight?(a+b)*.5:float2(.5,.5));
+                float ra=singleLink?sourceRadius:radii[d];
+                float rc=singleLink?((sourceRadius+rb)*.5):hydro.a;
+                float candidate=FlatBezierDistance(p,a,b,mid,ra,rb,rc,bend*(straight?1:.35),direction);
                 if(candidate<result){result=candidate;bestTangent=direction;}
             }
             float closest=.10,section=0;float2 faceDirection=bestTangent;
@@ -400,7 +404,7 @@ float4 FlatLegacyMouth(float2 cell,float2 uv,float4 field)
  float4 centre=FlatVisualSample(float4(uv,0,0));
  if(centre.g<=0||field.g>1.25)return result;
  float centreMeander=tex2Dlod(_HydroB,float4(uv,0,0)).r;
- [loop] for(int d=0;d<8;d++)
+ [loop] [fastopt] for(int d=0;d<8;d++)
  {
   float2 offset=d<4?(FlatEdge(d)-.5)*2:float2(fmod((float)d,2)*2-1,d<6?-1:1);
   float2 nextUV=uv+offset*_MapSize.zw;
@@ -463,20 +467,30 @@ float4 FlatRiverReceiver(float2 cell,float2 uv,float4 hydro,float4 mixing,float4
 
 float FlatPlantRiverEdge(float2 root,float pixelsPerTile)
 {
-    float4 channel=float4(8,0,0,0);
+    float2 edgeRadius=float2(8,0);
     #if defined(ORBIS_RIVER_VECTORS) || defined(ORBIS_RIVER_RASTER)
-    channel=FlatRiverBaseSample(root);
+    edgeRadius=FlatRiverBaseEdgeRadius(root);
     #else
-    [branch] if(FlatRiverFieldReady())channel=FlatRiverBaseSample(root);
-    else
+    [branch] if(FlatRiverFieldReady())edgeRadius=FlatRiverBaseEdgeRadius(root);
+    else if(_RiverSurvey<.5)
     {
+        // Compact pre-atlas plant-root channel clearance (avoids inlining the 4-loop legacy
+        // Bezier + ocean-mouth water solver 5x into every tree/grass/reflection prop loop).
+        // Physical river half-width hydro.a lies in [0.01, 0.25]; >= 0.49 indicates an unbound fallback texture.
         float2 uv=(floor(root)+.5)*_MapSize.zw;
-        float4 hydro=tex2Dlod(_HydroA,float4(uv,0,0)),mixing=tex2Dlod(_HydroB,float4(uv,0,0));
-        channel=FlatLegacyBase(root,uv,hydro,mixing,FlatVisualSample(float4(root*_MapSize.zw,0,0)));
+        float4 hydro=tex2Dlod(_HydroA,float4(uv,0,0));
+        if(hydro.a>=.01&&hydro.a<.49)
+        {
+            float2 p=frac(root)-.5;
+            float2 dir=dot(hydro.gb,hydro.gb)>1e-6?normalize(hydro.gb):float2(1,0);
+            float along=clamp(dot(p,dir),-.5,.5);
+            float dist=length(p-dir*along)-hydro.a;
+            edgeRadius=float2(dist,hydro.a);
+        }
     }
     #endif
-    float radius=length(channel.ba),stage=FlatRiverStage(root);
-    return channel.r+radius-FlatRiverDisplayRadius(FlatRiverActiveRadius(radius,stage),pixelsPerTile);
+    float radius=edgeRadius.y,stage=FlatRiverStage(root);
+    return edgeRadius.x+radius-FlatRiverDisplayRadius(FlatRiverActiveRadius(radius,stage),pixelsPerTile);
 }
 
 float3 FlatVegetation(float3 col,float2 cell,float canopy,float pixelsPerTile)
@@ -634,6 +648,26 @@ struct FlatWaterSurfaceData
     float visible;
     float lake;
 };
+float2 FlatDetailNormalDual(sampler2D tex,float3 basePos,float3 driftStep,float phase0,float phase1,float blend,float3 weights,float lod,float3 right,float3 up)
+{
+    float2 n0=0,n1=0;
+    [loop] [fastopt] for(int k=0;k<2;k++)
+    {
+        float2 sampleN=FlatDetailNormal(tex,basePos+driftStep*(k==0?phase0:phase1),weights,0,lod,right,up);
+        if(k==0)n0=sampleN;else n1=sampleN;
+    }
+    return lerp(n0,n1,blend);
+}
+float2 FlatRiverSW3NormalDual(sampler2D tex,FlatRiverWaveUV channelUV,float phase0,float phase1,float blend,float travel,float lod,float3 right,float3 up)
+{
+    float2 n0=0,n1=0;
+    [loop] [fastopt] for(int k=0;k<2;k++)
+    {
+        float2 sampleN=FlatRiverSW3Normal(tex,channelUV,(k==0?phase0:phase1)*travel,lod,right,up);
+        if(k==0)n0=sampleN;else n1=sampleN;
+    }
+    return lerp(n0,n1,blend);
+}
 float3 FlatWaterShadeCore(float2 cell,float4 mixing,float4 field,float3 bottom,float3 light,
                      float3 localView,float3 localLight,float waveStrength,float basinKind,
                      FlatCoastalSediment coast,FlatRiverSection channel,FlatSWEField swe,float inundated,
@@ -691,17 +725,13 @@ float3 FlatWaterShadeCore(float2 cell,float4 mixing,float4 field,float3 bottom,f
         if(river>.001)
         {
             float streamLOD=max(0,log2(max(.0001,channelUV.footprint*max(_VendorStreamNormal_TexelSize.z,_VendorStreamNormal_TexelSize.w))));
-            float2 stream0=FlatRiverSW3Normal(_VendorStreamNormal,channelUV,phase0*travel,streamLOD,right,up);
-            float2 stream1=FlatRiverSW3Normal(_VendorStreamNormal,channelUV,phase1*travel,streamLOD,right,up);
-            float2 n=lerp(stream0,stream1,blend);
+            float2 n=FlatRiverSW3NormalDual(_VendorStreamNormal,channelUV,phase0,phase1,blend,travel,streamLOD,right,up);
             vendorSlope=n*(.22+.12*riffle)*river*channelUV.resolved;
             // Short capillary crests have a spread of orientations even in a
             // straight pool. Geographic SW3 detail resolves these specular
             // facets independently of the long waves aligned to the channel.
             float sharpLOD=max(0,log2(max(.0001,footprint*max(_VendorLakeNormal_TexelSize.z,_VendorLakeNormal_TexelSize.w)/12)));
-            float2 fine0=FlatDetailNormal(_VendorLakeNormal,artwork*.5-drift*phase0*.70,weights,0,sharpLOD,right,up);
-            float2 fine1=FlatDetailNormal(_VendorLakeNormal,artwork*.5-drift*phase1*.70,weights,0,sharpLOD,right,up);
-            microSlopes=lerp(fine0,fine1,blend)*(.28+.10*riffle)*river;
+            microSlopes=FlatDetailNormalDual(_VendorLakeNormal,artwork*.5,-drift*.70,phase0,phase1,blend,weights,sharpLOD,right,up)*(.28+.10*riffle)*river;
         }
         if(river<.999)
         {
@@ -710,12 +740,8 @@ float3 FlatWaterShadeCore(float2 cell,float4 mixing,float4 field,float3 bottom,f
             // Blend decoded slopes so the original SW3 artwork changes smoothly.
             if(basinLake<1)
             {
-                float2 ocean0=FlatDetailNormal(_VendorOceanNormal,baseUV-drift*phase0*.175,weights,0,lod,right,up);
-                float2 ocean1=FlatDetailNormal(_VendorOceanNormal,baseUV-drift*phase1*.175,weights,0,lod,right,up);
-                oceanSlope=lerp(ocean0,ocean1,blend)*.12;
-                float2 fine0=FlatDetailNormal(_VendorOceanNormal,baseUV*2-drift*phase0*.35,weights,0,oceanFineLOD,right,up);
-                float2 fine1=FlatDetailNormal(_VendorOceanNormal,baseUV*2-drift*phase1*.35,weights,0,oceanFineLOD,right,up);
-                oceanMicro=lerp(fine0,fine1,blend)*.32;
+                oceanSlope=FlatDetailNormalDual(_VendorOceanNormal,baseUV,-drift*.175,phase0,phase1,blend,weights,lod,right,up)*.12;
+                oceanMicro=FlatDetailNormalDual(_VendorOceanNormal,baseUV*2,-drift*.35,phase0,phase1,blend,weights,oceanFineLOD,right,up)*.32;
             }
             if(basinLake>0)
             {
@@ -726,11 +752,8 @@ float3 FlatWaterShadeCore(float2 cell,float4 mixing,float4 field,float3 bottom,f
                 float3 lakeUV=artwork*lakeFrequency;
                 float lakePixel=footprint/6*lakeFrequency*max(_VendorLakeSmoothNormal_TexelSize.z,_VendorLakeSmoothNormal_TexelSize.w);
                 float lakeLOD=log2(max(1,lakePixel));
-                float2 main0=FlatDetailNormal(_VendorLakeSmoothNormal,lakeUV-drift*phase0*.34,weights,0,lakeLOD,right,up);
-                float2 main1=FlatDetailNormal(_VendorLakeSmoothNormal,lakeUV-drift*phase1*.34,weights,0,lakeLOD,right,up);
-                float2 broad0=FlatDetailNormal(_VendorLakeSmoothNormal,lakeUV*.5+drift*phase0*.272,weights,0,max(0,lakeLOD-1),right,up);
-                float2 broad1=FlatDetailNormal(_VendorLakeSmoothNormal,lakeUV*.5+drift*phase1*.272,weights,0,max(0,lakeLOD-1),right,up);
-                float2 mainWave=lerp(main0,main1,blend),broadWave=lerp(broad0,broad1,blend);
+                float2 mainWave=FlatDetailNormalDual(_VendorLakeSmoothNormal,lakeUV,-drift*.34,phase0,phase1,blend,weights,lakeLOD,right,up);
+                float2 broadWave=FlatDetailNormalDual(_VendorLakeSmoothNormal,lakeUV*.5,drift*.272,phase0,phase1,blend,weights,max(0,lakeLOD-1),right,up);
                 lakeSlope=(mainWave*.7+broadWave*.3)*.223;
                 lakeMicro=mainWave*.22;
             }

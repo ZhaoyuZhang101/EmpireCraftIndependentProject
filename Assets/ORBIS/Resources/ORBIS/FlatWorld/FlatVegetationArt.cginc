@@ -60,8 +60,11 @@ float4 PDPalmCrown(float2 pixel,float seed,float3 projectionX,float3 projectionY
     float front=-100;
     edge=-100;
     surface=0;
-    [loop] [fastopt] for(int frond=0;frond<7;frond++)
+    // Flat 14-step loop (7 fronds x 2 segments) keeps max loop nesting depth bounded inside prop loops.
+    [loop] [fastopt] for(int fs=0;fs<14;fs++)
     {
+        int frond=fs>>1;
+        int segment=fs&1;
         float variation=frac(seed*13+frond*.371);
         float angle=seed*6.283185307+frond*.897597901+(frac(seed*17+frond*.73)-.5)*.32;
         float3 direction=float3(cos(angle),sin(angle),0);
@@ -76,7 +79,6 @@ float4 PDPalmCrown(float2 pixel,float seed,float3 projectionX,float3 projectionY
         tip.z+=dot(wind,direction.xy)*.25;
         float3 middle=movingRoot*.25+bend*.5+tip*.25;
         float2 across=float2(dot(side,projectionX),dot(side,projectionY));
-        [unroll] for(int segment=0;segment<2;segment++)
         {
             float3 start=lerp(movingRoot,middle,segment),end=lerp(middle,tip,segment);
             float2 start2=float2(dot(start,projectionX),dot(start,projectionY));
@@ -172,71 +174,38 @@ float2 PDTreeQuarterTurn(float2 offset,float turns)
     return frac(turns*.25)>=.5?-rotated:rotated;
 }
 
+static const float4 kPDTreeLobes[35]={
+    // 0: broadleaf
+    float4(0,0,29,6.1),float4(-5.4,-1.5,24.5,5.6),float4(5.5,0,25.5,5.8),float4(-1.3,5.5,27.5,5.8),float4(1.5,-5,23,5.6),
+    // 1: pine
+    float4(0,0,19,10.3),float4(.3,-.2,21,9.7),float4(-.3,.3,24,8.7),float4(.4,.1,28,6.6),float4(0,.2,33,3.7),
+    // 2: birch
+    float4(0,0,30,6),float4(-2,-1,24,5),float4(2,.2,25,5.2),float4(0,3.5,29,4.4),float4(0,-3.4,23,4.5),
+    // 3: acacia (kind 3..4)
+    float4(0,0,25,7),float4(-5,-1,25,5.8),float4(5,0,26,5.6),float4(0,4,25,6),float4(1,-4,25,5.2),
+    // 4: willow (kind 5)
+    float4(0,0,23,7),float4(-5,0,19,6),float4(5,0,20,6),float4(-1,4,21,6),float4(1,-5,17,5.8),
+    // 5: shrub (kind 6)
+    float4(0,0,11,4.2),float4(-3.8,-.8,9,3.5),float4(3.4,.6,10,3.8),float4(-.7,2.7,11,3.6),float4(.7,-3,9,3.4),
+    // 6: tropical (kind >= 7)
+    float4(0,0,29,8.2),float4(-5,-1.3,24,6.6),float4(5,0,27,6.7),float4(-1,5,26,7),float4(1,-5,23,6.4)
+};
+
 float4 PDTreeLobe(int index,float kind,float seed)
 {
-    float4 volume;
-    if(kind==0)
+    int group=kind==0?0:kind==1?1:kind<2.5?2:kind<4.5?3:kind<5.5?4:kind<6.5?5:6;
+    float4 volume=kPDTreeLobes[group*5+index];
+    if(group==0)
     {
-        volume=float4(0,0,29,6.1);
-        if(index==1)volume=float4(-5.4,-1.5,24.5,5.6);
-        if(index==2)volume=float4(5.5,0,25.5,5.8);
-        if(index==3)volume=float4(-1.3,5.5,27.5,5.8);
-        if(index==4)volume=float4(1.5,-5,23,5.6);
         volume.x*=.86+seed*.28;
         volume.z+=(seed-.5)*index*.8;
         volume.xy=PDTreeQuarterTurn(volume.xy,floor(seed*4));
         return volume;
     }
-    if(kind==1)
+    if(group==1)
     {
-        // Crossing sprays at different heights narrow to a raised central leader.
-        volume=float4(0,0,19,10.3);
-        if(index==1)volume=float4(.3,-.2,21,9.7);
-        if(index==2)volume=float4(-.3,.3,24,8.7);
-        if(index==3)volume=float4(.4,.1,28,6.6);
-        if(index==4)volume=float4(0,.2,33,3.7);
         volume.x+=(seed-.5)*index*.38;
         return volume;
-    }
-    if(kind<2.5)
-    {
-        volume=float4(0,0,30,6);
-        if(index==1)volume=float4(-2,-1,24,5);
-        if(index==2)volume=float4(2,.2,25,5.2);
-        if(index==3)volume=float4(0,3.5,29,4.4);
-        if(index==4)volume=float4(0,-3.4,23,4.5);
-    }
-    else if(kind<4.5)
-    {
-        volume=float4(0,0,25,7);
-        if(index==1)volume=float4(-5,-1,25,5.8);
-        if(index==2)volume=float4(5,0,26,5.6);
-        if(index==3)volume=float4(0,4,25,6);
-        if(index==4)volume=float4(1,-4,25,5.2);
-    }
-    else if(kind<5.5)
-    {
-        volume=float4(0,0,23,7);
-        if(index==1)volume=float4(-5,0,19,6);
-        if(index==2)volume=float4(5,0,20,6);
-        if(index==3)volume=float4(-1,4,21,6);
-        if(index==4)volume=float4(1,-5,17,5.8);
-    }
-    else if(kind<6.5)
-    {
-        volume=float4(0,0,11,4.2);
-        if(index==1)volume=float4(-3.8,-.8,9,3.5);
-        if(index==2)volume=float4(3.4,.6,10,3.8);
-        if(index==3)volume=float4(-.7,2.7,11,3.6);
-        if(index==4)volume=float4(.7,-3,9,3.4);
-    }
-    else
-    {
-        volume=float4(0,0,29,8.2);
-        if(index==1)volume=float4(-5,-1.3,24,6.6);
-        if(index==2)volume=float4(5,0,27,6.7);
-        if(index==3)volume=float4(-1,5,26,7);
-        if(index==4)volume=float4(1,-5,23,6.4);
     }
     float turns=kind>3.5&&kind<4.5?floor(seed*2)*2:floor(seed*4);
     volume.xy=PDTreeQuarterTurn(volume.xy,turns);
@@ -312,7 +281,7 @@ float4 PDTreeCrown(float2 pixel,float type,float seed,float foliage,float2 wind,
         float2 cycle=PDTreeBranchCycle(seed),pineHeading=PDPineHeading(kind,seed);
         float front=-100;
         float3 normal=0;
-        [unroll] for(int lobe=0;lobe<5;lobe++)
+        [loop] [fastopt] for(int lobe=0;lobe<5;lobe++)
         {
             float2 axis;float3 axes;
             float4 volume=PDTreeMovingLobe(lobe,kind,seed,foliage,wind,cycle,pineHeading,axis,axes);
@@ -373,7 +342,7 @@ float PDTreeCastShadow(float2 pixel,float3 sun,float type,float seed,float folia
     else
     {
         float2 cycle=PDTreeBranchCycle(seed),pineHeading=PDPineHeading(kind,seed);
-        [unroll] for(int lobe=0;lobe<5;lobe++)
+        [loop] [fastopt] for(int lobe=0;lobe<5;lobe++)
         {
             float2 axis;float3 axes;
             float4 volume=PDTreeMovingLobe(lobe,kind,seed,foliage,wind,cycle,pineHeading,axis,axes);

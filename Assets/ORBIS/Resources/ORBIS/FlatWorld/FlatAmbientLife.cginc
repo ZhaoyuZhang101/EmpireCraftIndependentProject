@@ -43,7 +43,7 @@ float4 PDAmbientParticles(float2 pixel,float4 home,float species,float wetness)
  float tick=floor(_WaterClock/interval+home.z);
  float4 current=PDAmbientPose(home);
  float opacity=0;
- [unroll] for(int particle=0;particle<4;particle++)
+ [loop] [fastopt] for(int particle=0;particle<4;particle++)
  {
   float emission=(tick-particle-home.z)*interval;
   float age=_WaterClock-emission;
@@ -99,8 +99,8 @@ bool PDAmbientHomeClear(float4 home,bool ground)
  // river cannot cut a resident in half as it moves across a tile boundary.
  float2 root=floor(home.xy);
  bool clear=true;
- [unroll] for(int row=-1;row<=1;row++)
- [unroll] for(int column=-1;column<=1;column++)
+ [loop] [fastopt] for(int row=-1;row<=1;row++)
+ [loop] [fastopt] for(int column=-1;column<=1;column++)
  {
   float2 tile=root+float2(column,row);
   float2 nearest=max(abs(tile+.5-home.xy)-.5,0);
@@ -170,8 +170,14 @@ float3 PixelAmbientLife(float3 col,float2 cell,float4 field,float waterMask,floa
  if(visibility<.001)return col;
  float height=species<1.5?1.5:species<2.5?2.5:4;
  float2 cast=shadowDirection*height;
- float4 art=PDAmbientArt(pixel,species,pose,ecology.a);
- float shadow=PDAmbientArt(pixel-cast,species,pose,ecology.a).a*daylight;
+ float4 art=0;float shadow=0;
+ // Evaluate body and cast-shadow sprite masks through one rolled PDAmbientArt call site.
+ [loop] [fastopt] for(int artPass=0;artPass<2;artPass++)
+ {
+  float4 sampleArt=PDAmbientArt(artPass==0?pixel:(pixel-cast),species,pose,ecology.a);
+  if(artPass==0)art=sampleArt;
+  else shadow=sampleArt.a*daylight;
+ }
  float4 particles=PDAmbientParticles(pixel,home,species,ecology.b);
  if(art.a+shadow+particles.a<.001)return col;
  if(!PDAmbientHomeClear(home,ground))return col;

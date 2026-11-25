@@ -135,43 +135,55 @@ float3 PixelGround(float3 baseColor,float2 cell,float4 field,float waterMask,flo
  float2 source=floor(cell);
  float2 cluster=floor(q/8);
  #if defined(ORBIS_LOCAL_PLANTS) || defined(ORBIS_ATLAS_PLANTS)
- if(view.weight>0)
+ // Single PDGroundPlant call site serves both tilted local/atlas clumps and flat ground-view clumps
+ // so D3D11 fragment compilation never duplicates the full river/wind/foliage pipeline twice.
+ bool multiClump=view.weight>0;
+ int firstRow=(int)source.y,lastRow=firstRow;
+ float2 reach=0;
+ if(multiClump)
  {
   // Search for roots under the footprint of one upright clump. Its leaves
   // can land over the next clump, tile, or longitude seam on a steep slope.
   float pixelsPerArt=artSize/view.chartPerPixel;
   float2 gridPerPixel=sqrt(artDx*artDx+artDy*artDy)*float2(1,latitudeScale)/32;
-  float2 reach=clamp(8*pixelsPerArt*gridPerPixel,float2(.12,.20*latitudeScale),float2(.75,.75*latitudeScale));
-  int firstRow=max(0,(int)floor(cell.y-reach.y)),lastRow=min((int)_MapSize.y-1,(int)floor(cell.y+reach.y));
-  [loop] for(int row=firstRow;row<=lastRow;row++)
+  reach=clamp(8*pixelsPerArt*gridPerPixel,float2(.12,.20*latitudeScale),float2(.75,.75*latitudeScale));
+  firstRow=max(0,(int)floor(cell.y-reach.y));
+  lastRow=min((int)_MapSize.y-1,(int)floor(cell.y+reach.y));
+ }
+ [loop] [fastopt] for(int row=firstRow;row<=lastRow;row++)
+ {
+  int firstX=(int)(source.x*4+cluster.x),lastX=firstX;
+  int firstY=(int)cluster.y,lastY=firstY;
+  if(multiClump)
   {
    float sourceScale=FlatArtworkLatitudeScale((row+.5)*_MapSize.w);
    float2 limits=clamp(cell.y+float2(-reach.y,reach.y)-row,0,1);
    // Roots lie at x=3..4 and y=1..1.25 within an eight-pixel clump.
    float2 rows=2+(limits-.5)*4/sourceScale;
-   int firstY=(int)ceil(rows.x-1.25/8),lastY=(int)floor(rows.y-1./8);
-   int firstX=(int)ceil((cell.x-reach.x)*4-.5),lastX=(int)floor((cell.x+reach.x)*4-.375);
-   [loop] for(int gx=firstX;gx<=lastX;gx++)
+   firstY=(int)ceil(rows.x-1.25/8);lastY=(int)floor(rows.y-1./8);
+   firstX=(int)ceil((cell.x-reach.x)*4-.5);lastX=(int)floor((cell.x+reach.x)*4-.375);
+  }
+  [loop] [fastopt] for(int gx=firstX;gx<=lastX;gx++)
+  {
+   float2 tile=multiClump?float2(floor(gx*.25),row):source;
+   float4 localEcology=ecology;float localCover=cover;
+   if(multiClump&&any(tile!=source))
    {
-    float2 tile=float2(floor(gx*.25),row);
-    float4 localEcology=ecology;float localCover=cover;
-    if(any(tile!=source))
-    {
-     float2 tileUV=(tile+.5)*_MapSize.zw;
-     float4 info=tex2Dlod(_InfoTex,float4(tileUV,0,0))*255;
-     if(info.g>.5&&info.g<4.5)continue;
-     localEcology=FlatEcologyData(tileUV,info);localCover=floor(localEcology.r+.5);
-     if(localCover<-.5)localCover=FlatVisualSample(float4(tileUV,0,0)).a>.5?6:1;
-    }
-    if(localCover>12.5)continue;
-    [loop] for(int gy=firstY;gy<=lastY;gy++)
-     col=PDGroundPlant(col,view,cell,tile,float2(gx-tile.x*4,gy),localEcology,localCover,growth,patch,plantDetail);
+    float2 tileUV=(tile+.5)*_MapSize.zw;
+    float4 info=tex2Dlod(_InfoTex,float4(tileUV,0,0))*255;
+    if(info.g>.5&&info.g<4.5)continue;
+    localEcology=FlatEcologyData(tileUV,info);localCover=floor(localEcology.r+.5);
+    if(localCover<-.5)localCover=FlatVisualSample(float4(tileUV,0,0)).a>.5?6:1;
    }
+   if(multiClump&&localCover>12.5)continue;
+   float clumpDetail=multiClump?plantDetail:detail;
+   [loop] [fastopt] for(int gy=firstY;gy<=lastY;gy++)
+    col=PDGroundPlant(col,view,cell,tile,multiClump?float2(gx-tile.x*4,gy):cluster,localEcology,localCover,growth,patch,clumpDetail);
   }
  }
- else
- #endif
+ #else
   col=PDGroundPlant(col,view,cell,source,cluster,ecology,cover,growth,patch,detail);
+ #endif
 
  if(cover>12.5)return col;
  float seed=PDHash(id+cluster*.127+ecology.a*23);

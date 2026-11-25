@@ -77,8 +77,9 @@ float FlatRiverDepthScale(float stage) { return clamp(pow(clamp(stage,.1,4),.38)
 
 float4 FlatRiverAtlasTexel(int index,int firstRow)
 {
-    int columns=(int)_RiverAtlasLayout.x,row=index/columns;
-    int2 pixel=int2(index-row*columns,firstRow+row);
+    uint uIndex=(uint)max(0,index),uColumns=(uint)max(1,(int)_RiverAtlasLayout.x);
+    uint row=uIndex/uColumns;
+    int2 pixel=int2((int)(uIndex-row*uColumns),firstRow+(int)row);
     // Page IDs are discrete bytes. On a 4096 x 4830 atlas even a nominal
     // texel-centre bilinear lookup can turn 209 into 208.375 and select a neighbour.
     #ifdef UNITY_SEPARATE_TEXTURE_SAMPLER
@@ -97,13 +98,13 @@ float4 FlatRiverAtlasHeader(float2 tile)
     tile.y=clamp(tile.y,0,_MapSize.y-1);
     if(FLAT_VECTOR_FIELD)
     {
-        int groupSize=(int)-_RiverAtlasLayout.z;
-        int2 id=(int2)tile,group=id/groupSize;
-        int columns=((int)_MapSize.x+groupSize-1)/groupSize;
-        int page=FlatRiverPageAddress(FlatRiverAtlasTexel(group.y*columns+group.x,0));
+        uint groupSize=(uint)max(1,(int)-_RiverAtlasLayout.z);
+        uint2 id=(uint2)max(0,(int2)tile),group=id/groupSize;
+        uint columns=((uint)max(1,(int)_MapSize.x)+groupSize-1)/groupSize;
+        int page=FlatRiverPageAddress(FlatRiverAtlasTexel((int)(group.y*columns+group.x),0));
         if(page<0)return 0;
-        int2 local=id-group*groupSize;
-        return FlatRiverAtlasTexel(page+local.y*groupSize+local.x,(int)_RiverAtlasLayout.w);
+        uint2 local=id-group*groupSize;
+        return FlatRiverAtlasTexel(page+(int)(local.y*groupSize+local.x),(int)_RiverAtlasLayout.w);
     }
     return FlatRiverAtlasTexel((int)tile.y*(int)_MapSize.x+(int)tile.x,0);
 }
@@ -132,8 +133,9 @@ float4 FlatRiverGeometrySample(float2 cell,float4 header,out float2 bank)
         int address=start+3*i;
         if(records>=0)
         {
-            int component=i%4;
-            if(component==0)indices=FlatRiverAtlasTexel(start+i/4,body);
+            uint ui=(uint)i;
+            uint component=ui&3u;
+            if(component==0u)indices=FlatRiverAtlasTexel(start+(int)(ui>>2),body);
             address=records+3*(int)round(indices[component]);
         }
         float4 ends=FlatRiverAtlasTexel(address,body);
@@ -156,6 +158,71 @@ float4 FlatRiverGeometrySample(float2 cell,float4 header,out float2 bank)
         result.ba=dot(tangent,tangent)>1e-12?normalize(tangent)*radius:float2(radius,0);
         tangent=normalize(result.ba*metric+float2(1e-12,0));
         bank=float2(dot(offset,float2(-tangent.y,tangent.x)),lerp(amplitude.x,amplitude.y,along)-2);
+    }
+    return result;
+}
+
+// Lightweight edge + radius query for plant root clearance (identical geometry, skips flow/bank/depth).
+float2 FlatRiverGeometryEdgeRadius(float2 cell,float4 header)
+{
+    float2 p=frac(cell);int body=(int)_RiverAtlasLayout.w;
+    int start=FlatRiverPageAddress(header),count=(int)round(header.a);
+    int records=-1;
+    if(count<0)
+    {
+        records=start+count*count;
+        int2 local=(int2)floor(p*(-count));
+        header=FlatRiverAtlasTexel(start+local.y*(-count)+local.x,body);
+        start=FlatRiverPageAddress(header);count=(int)round(header.a);
+    }
+    float2 result=float2(8,0);
+    if(count<=0)return result;
+    float2 rows=floor(cell.y)+float2(0,1);
+    float2 scales=max(.08,cos((rows*_MapSize.w-.5)*3.14159265));
+    float2 metric=float2(lerp(scales.x,scales.y,p.y),1);
+    float4 indices=0;
+    [loop] [fastopt] for(int i=0;i<count;i++)
+    {
+        int address=start+3*i;
+        if(records>=0)
+        {
+            uint ui=(uint)i;
+            uint component=ui&3u;
+            if(component==0u)indices=FlatRiverAtlasTexel(start+(int)(ui>>2),body);
+            address=records+3*(int)round(indices[component]);
+        }
+        float4 ends=FlatRiverAtlasTexel(address,body);
+        float4 section=FlatRiverAtlasTexel(address+1,body);
+        float2 from=(p-ends.xy)*metric,delta=(ends.zw-ends.xy)*metric;
+        float t=saturate(dot(from,delta)/max(1e-12,dot(delta,delta)));
+        float width=lerp(section.x,section.y,t);
+        float edge=length(from-t*delta)-width;
+        if(edge<result.x)result=float2(edge,width);
+    }
+    return result;
+}
+
+float2 FlatRiverBaseEdgeRadius(float2 cell)
+{
+    float2 result=float2(8,0);
+    [branch] if(FlatRiverFieldReady())
+    {
+        cell.x-=floor(cell.x/_MapSize.x)*_MapSize.x;
+        cell.y=clamp(cell.y,0,_MapSize.y-.0001);
+        float4 header=FlatRiverAtlasHeader(floor(cell));
+        if(FLAT_VECTOR_FIELD)return FlatRiverGeometryEdgeRadius(cell,header);
+        float slot=floor(header.r+.5)+floor(header.g+.5)*256-1;
+        [branch] if(slot>=0)
+        {
+            float span=max(1,floor(header.a+.5));
+            float2 local=(cell-floor(cell/span)*span)/span;
+            float pitch=_RiverAtlasLayout.z,columns=floor(_RiverAtlasLayout.x/pitch);
+            float row=floor(slot/columns);
+            float2 pixel=float2((slot-row*columns)*pitch,_RiverAtlasLayout.w+row*pitch);
+            pixel+=1.5+local*(pitch-3);
+            float4 s=FlatPresentationSample(_RiverAtlas,pixel/_RiverAtlasLayout.xy,0);
+            result=float2(s.r,length(s.ba));
+        }
     }
     return result;
 }
@@ -222,10 +289,9 @@ float4 FlatRiverAtlasSample(float2 cell)
 
 bool FlatRiverAtlasClear(float2 cell,float clearance)
 {
-    float4 raw=FlatRiverBaseSample(cell);
-    float radius=length(raw.ba);
-    float current=FlatRiverActiveRadius(radius,FlatRiverStage(cell));
-    return raw.r+radius-current>=clearance;
+    float2 raw=FlatRiverBaseEdgeRadius(cell);
+    float current=FlatRiverActiveRadius(raw.y,FlatRiverStage(cell));
+    return raw.x+raw.y-current>=clearance;
 }
 
 float FlatRiverAtlasSediment(float2 cell)

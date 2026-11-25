@@ -129,6 +129,7 @@ Shader "ORBIS/FlatWorld/LocalSurface"
    #include "UnityCG.cginc"
    #pragma multi_compile_local_fragment __ ORBIS_RIVER_RASTER ORBIS_RIVER_VECTORS ORBIS_PREVIEW ORBIS_DIAGNOSTIC
    #define ORBIS_SURFACE_RIVER_VARIANTS 1
+   #define ORBIS_USE_FRAG_CYCLONE_WIND 1
    #include "Water/FlatWater.cginc"
    #define ORBIS_SCROLL_SURFACE 1
    #define ORBIS_LOCAL_SURFACE 1

@@ -96,6 +96,7 @@ Shader "ORBIS/FlatWorld/FlatMap"
    #include "UnityCG.cginc"
    #pragma multi_compile_local_fragment __ ORBIS_RIVER_RASTER ORBIS_RIVER_VECTORS ORBIS_DIAGNOSTIC
    #define ORBIS_SURFACE_RIVER_VARIANTS 1
+   #define ORBIS_USE_FRAG_CYCLONE_WIND 1
    #include "Water/FlatWater.cginc"
    #include "FlatSkyComposite.cginc"
    sampler2D _MainTex,_OwnerTex,_InfoTex;

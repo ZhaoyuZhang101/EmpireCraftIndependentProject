@@ -87,7 +87,7 @@ FlatPrecipitation FlatSamplePrecipitation(float2 uv,float2 cell,float4 cloud,flo
     float snow=saturate(cloud.b*smoothstep(.30,.68,max(cloud.r,cloud.g))*enabled);
     [branch] if(visible>.0001 && max(rain,snow)>.001)
     {
-        float2 wind=FlatSeasonalWind(uv)+FlatCycloneLocalWind(uv);
+        float2 wind=FlatSeasonalWind(uv)+FlatCurrentCycloneWind(uv);
         wind*=min(1,2.2/max(.001,length(wind)));
         float latitudeScale=FlatArtworkLatitudeScale(uv.y);
         float close=smoothstep(9,27,pixelsPerTile);
