@@ -995,4 +995,251 @@ namespace Orbis.Flat
 
         static double Phase(uint seed, uint salt) => FMath.Unit(FMath.Hash(seed ^ salt)) * (2.0 * Math.PI);
     }
+
+    /// <summary>
+    /// Preallocated 3-slot (<c>Published</c>, <c>Staged</c>, <c>UploadFree</c>) regional 6-hour snapshot coordinator.
+    /// Guarantees that an already-published snapshot and an in-flight 4-strip staged snapshot are never mutated in place
+    /// by background worker completions, repeated <c>Prepare</c> calls, coalescing, strip aborts, rewinds, or terrain edits.
+    /// Zero heap allocations after construction.
+    /// </summary>
+    public sealed class FlatRegionalSnapshotPool
+    {
+        public const int SlotCount = 3;
+        public const int Width = FlatMoistureCloudBudget.Width;
+        public const int Height = FlatMoistureCloudBudget.Height;
+        public const int PixelCount = Width * Height;
+
+        public sealed class Slot
+        {
+            public readonly byte[] CloudRgba = new byte[PixelCount * 4];
+            public readonly ushort[] PrecipHalf = new ushort[PixelCount * 4];
+            public float CloudSouthX, CloudSouthY, CloudNorthX, CloudNorthY;
+            public float PrecipSouthRain, PrecipSouthSfc, PrecipNorthRain, PrecipNorthSfc;
+            public long Tick = long.MinValue;
+            public int Revision = -1;
+            public FlatMoistureState Moisture;
+            public bool HadStorms, SpinUpAtTick;
+            public FlatCycloneTrack North, South, PrevNorth, PrevSouth;
+            public ulong Generation;
+            public bool Valid;
+
+            internal void Clear()
+            {
+                Tick = long.MinValue;
+                Revision = -1;
+                Moisture = null;
+                HadStorms = false;
+                SpinUpAtTick = false;
+                North = South = PrevNorth = PrevSouth = default;
+                Generation = 0;
+                Valid = false;
+            }
+        }
+
+        readonly Slot[] slots = new Slot[SlotCount] { new Slot(), new Slot(), new Slot() };
+        int uploadCursor;
+        ulong nextGeneration;
+
+        public int PublishedIndex { get; private set; } = -1;
+        public int StagedIndex { get; private set; } = -1;
+        public int LatestUploadedIndex { get; private set; } = -1;
+
+        public Slot GetSlot(int index) => (uint)index < SlotCount ? slots[index] : null;
+
+        public long LatestUploadedTick =>
+            LatestUploadedIndex >= 0 && slots[LatestUploadedIndex].Valid ? slots[LatestUploadedIndex].Tick : long.MinValue;
+
+        public ulong LatestUploadedGeneration =>
+            LatestUploadedIndex >= 0 && slots[LatestUploadedIndex].Valid ? slots[LatestUploadedIndex].Generation : 0UL;
+
+        /// <summary>
+        /// Acquires a mutable upload slot guaranteed to be distinct from both <see cref="PublishedIndex"/> and <see cref="StagedIndex"/>.
+        /// </summary>
+        public int AcquireUploadSlot()
+        {
+            for (int k = 0; k < SlotCount; k++)
+            {
+                int idx = (uploadCursor + k) % SlotCount;
+                if (idx != PublishedIndex && idx != StagedIndex && idx != LatestUploadedIndex)
+                {
+                    uploadCursor = (idx + 1) % SlotCount;
+                    return idx;
+                }
+            }
+            for (int k = 0; k < SlotCount; k++)
+            {
+                int idx = (uploadCursor + k) % SlotCount;
+                if (idx != PublishedIndex && idx != StagedIndex)
+                {
+                    uploadCursor = (idx + 1) % SlotCount;
+                    return idx;
+                }
+            }
+            throw new InvalidOperationException("No free regional snapshot slot available.");
+        }
+
+        public ulong CommitUpload(
+            int slotIndex, long workerTick, int revision, FlatMoistureState moisture,
+            bool hadStorms, bool spinUpAtTick,
+            in FlatCycloneTrack north, in FlatCycloneTrack south,
+            in FlatCycloneTrack prevNorth, in FlatCycloneTrack prevSouth,
+            float cloudSouthX, float cloudSouthY, float cloudNorthX, float cloudNorthY,
+            float precipSouthRain, float precipSouthSfc, float precipNorthRain, float precipNorthSfc)
+        {
+            if ((uint)slotIndex >= SlotCount || slotIndex == PublishedIndex || slotIndex == StagedIndex)
+                throw new InvalidOperationException("Cannot overwrite published or in-flight staged regional snapshot slot.");
+
+            var s = slots[slotIndex];
+            s.Tick = workerTick;
+            s.Revision = revision;
+            s.Moisture = moisture;
+            s.HadStorms = hadStorms;
+            s.SpinUpAtTick = spinUpAtTick;
+            s.North = north;
+            s.South = south;
+            s.PrevNorth = prevNorth;
+            s.PrevSouth = prevSouth;
+            s.CloudSouthX = cloudSouthX;
+            s.CloudSouthY = cloudSouthY;
+            s.CloudNorthX = cloudNorthX;
+            s.CloudNorthY = cloudNorthY;
+            s.PrecipSouthRain = precipSouthRain;
+            s.PrecipSouthSfc = precipSouthSfc;
+            s.PrecipNorthRain = precipNorthRain;
+            s.PrecipNorthSfc = precipNorthSfc;
+            s.Generation = ++nextGeneration;
+            s.Valid = true;
+            LatestUploadedIndex = slotIndex;
+            return s.Generation;
+        }
+
+        /// <summary>
+        /// Drops an unpublished staging candidate if terrain/moisture changed or the calendar rewound prior to its tick,
+        /// without touching <see cref="PublishedIndex"/> or <see cref="StagedIndex"/>.
+        /// </summary>
+        public void InvalidateLatestIfIncompatible(WorldData world, long targetTick)
+        {
+            if (LatestUploadedIndex < 0) return;
+            var s = slots[LatestUploadedIndex];
+            if (world == null || !s.Valid || s.Revision != world.TerrainRevision ||
+                !ReferenceEquals(s.Moisture, world.Moisture) || targetTick < s.Tick)
+            {
+                LatestUploadedIndex = -1;
+            }
+        }
+
+        public bool HasValidLatestFor(WorldData world, long targetTick)
+        {
+            if (world == null || LatestUploadedIndex < 0) return false;
+            var s = slots[LatestUploadedIndex];
+            return s.Valid && s.Revision == world.TerrainRevision &&
+                   ReferenceEquals(s.Moisture, world.Moisture) && s.Tick <= targetTick;
+        }
+
+        public bool HasExactLatestFor(WorldData world, long targetTick)
+        {
+            if (!HasValidLatestFor(world, targetTick)) return false;
+            var s = slots[LatestUploadedIndex];
+            return s.Tick == targetTick &&
+                   SameStorms(world.Cyclones, targetTick, s.Tick, s.HadStorms, s.SpinUpAtTick, in s.North, in s.South, in s.PrevNorth, in s.PrevSouth);
+        }
+
+        public int BeginStageForStrip(WorldData world, long targetTick)
+        {
+            StagedIndex = HasValidLatestFor(world, targetTick) ? LatestUploadedIndex : -1;
+            return StagedIndex;
+        }
+
+        public int CommitStagedStrip()
+        {
+            PublishedIndex = StagedIndex;
+            StagedIndex = -1;
+            return PublishedIndex;
+        }
+
+        public void AbortStagedStrip()
+        {
+            StagedIndex = -1;
+        }
+
+        public void ResetPublished()
+        {
+            PublishedIndex = -1;
+            StagedIndex = -1;
+        }
+
+        public void ResetAll()
+        {
+            PublishedIndex = -1;
+            StagedIndex = -1;
+            LatestUploadedIndex = -1;
+            for (int i = 0; i < SlotCount; i++) slots[i].Clear();
+        }
+
+        public bool HasPublishedFor(WorldData world)
+        {
+            if (world == null || PublishedIndex < 0) return false;
+            var s = slots[PublishedIndex];
+            return s.Valid && s.Revision == world.TerrainRevision && ReferenceEquals(s.Moisture, world.Moisture);
+        }
+
+        public long? GetPublishedTick(WorldData world) =>
+            HasPublishedFor(world) ? (long?)slots[PublishedIndex].Tick : null;
+
+        public ulong GetPublishedGeneration(WorldData world) =>
+            HasPublishedFor(world) ? slots[PublishedIndex].Generation : 0UL;
+
+        public bool TrySamplePublishedPrecipitation(WorldData world, double u, double v, out RegionalPrecipitationDiagnostic diagnostic)
+        {
+            if (!HasPublishedFor(world))
+            {
+                diagnostic = default;
+                return false;
+            }
+            diagnostic = FlatMoistureCloudBudget.SamplePackedPrecipitationHalf(slots[PublishedIndex].PrecipHalf, u, v);
+            return true;
+        }
+
+        public static bool SameStorms(
+            FlatCycloneWeather liveCyclones, long targetTick, long snapTick,
+            bool snapHadStorms, bool snapSpinUpAtTick,
+            in FlatCycloneTrack north, in FlatCycloneTrack south,
+            in FlatCycloneTrack prevNorth, in FlatCycloneTrack prevSouth)
+        {
+            if (liveCyclones == null) return !snapHadStorms;
+            if (!snapHadStorms) return false;
+            if (liveCyclones.StepIndex != targetTick)
+                return snapSpinUpAtTick && snapTick == targetTick;
+            if (snapSpinUpAtTick) return false;
+            return FlatSkyForcingCache.SameCycloneTrack(liveCyclones.North, north) &&
+                   FlatSkyForcingCache.SameCycloneTrack(liveCyclones.South, south) &&
+                   FlatSkyForcingCache.SameCycloneTrack(liveCyclones.PreviousNorth, prevNorth) &&
+                   FlatSkyForcingCache.SameCycloneTrack(liveCyclones.PreviousSouth, prevSouth);
+        }
+
+        public static void ComputeCloudPoles(
+            byte[] cloudRgba,
+            out float southMoisture, out float southConvection,
+            out float northMoisture, out float northConvection)
+        {
+            southMoisture = southConvection = northMoisture = northConvection = 0f;
+            if (cloudRgba == null || cloudRgba.Length < PixelCount * 4) return;
+            const float invScale = 1f / (255f * Width);
+            int sMoisture = 0, sConv = 0, nMoisture = 0, nConv = 0;
+            int nRowOffset = (Height - 1) * Width * 4;
+            for (int x = 0; x < Width; x++)
+            {
+                int s4 = x * 4;
+                sMoisture += cloudRgba[s4] - cloudRgba[s4 + 1];
+                sConv += cloudRgba[s4 + 2];
+                int n4 = nRowOffset + s4;
+                nMoisture += cloudRgba[n4] - cloudRgba[n4 + 1];
+                nConv += cloudRgba[n4 + 2];
+            }
+            southMoisture = sMoisture * invScale;
+            southConvection = sConv * invScale;
+            northMoisture = nMoisture * invScale;
+            northConvection = nConv * invScale;
+        }
+    }
 }

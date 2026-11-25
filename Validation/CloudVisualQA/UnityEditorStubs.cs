@@ -208,6 +208,10 @@ namespace Orbis.Flat
         public double RenderClock => 0;
         public bool Ready => true;
         public long? RegionalClimateStep { get; private set; }
+        public bool RegionalPrecipitationReady => false;
+        public UnityEngine.Texture2D RegionalPrecipitationTexture => null;
+        public UnityEngine.Vector4 RegionalPrecipitationPoles => default;
+        public bool TrySampleRegionalPrecipitation(double u, double v, out RegionalPrecipitationDiagnostic diagnostic) { diagnostic = default; return false; }
         public void Tick(float delta, bool needed, bool animate, bool autoSun, int width, double calendarDay, UnityEngine.Vector2 focus = default, bool local = false) { }
         public UnityEngine.Vector3 Sun(float manualAngle, double calendarDay = double.NaN, bool automatic = false) => default;
         public void Bind(UnityEngine.Material target, UnityEngine.Vector3 sun, bool clouds, bool shadows, bool atmosphere, bool dayNight, bool rain, bool lightning, bool nightLights, float opacity) { }
