@@ -118,7 +118,7 @@ namespace Orbis.Flat
             model.Refresh(day, storms, cancel);
             for (int i = 0; i < pixels.Length; i++)
             {
-                var response = RegionalCloudResponse.From(model.Cells[i]);
+                var response = RegionalCloudResponse.FromSynoptic(model.Cells[i], world, day, storms);
                 pixels[i] = new Color32(Byte(Math.Max(0, response.Cover)), Byte(Math.Max(0, -response.Cover)),
                     Byte(response.Convection), 255);
             }

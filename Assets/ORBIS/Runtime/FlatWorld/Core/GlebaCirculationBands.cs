@@ -1082,5 +1082,56 @@ namespace Orbis.Flat
             vx = (float)((1.0 - bgBlend) * jetVx + bgBlend * (0.2 * bgVx));
             vy = (float)((1.0 - bgBlend) * jetVy + bgBlend * (0.2 * bgVy));
         }
+
+        /// <summary>
+        /// Zero-allocation synoptic-timescale (baroclinic Rossby wave + subtropical ridge) upper-tropospheric
+        /// evaluator using continuous unwrapped <paramref name="calendarDay"/> (no 360-day wrap seam).
+        /// </summary>
+        public static void SampleSynopticUpperFlow(
+            uint worldSeed, double calendarDay, double latRad, double lonRad,
+            float subJetDeg, float polJetDeg,
+            out float upperEastMs, out float upperNorthMs,
+            out float troughDepth, out float aheadOfTrough)
+        {
+            // Eastward Rossby phase progression (~6.9 deg/day = 0.1204 rad/day -> ~8.7-day synoptic period at k=6).
+            double synTimeRad = -calendarDay * 0.120427718;
+            float subRad = FMath.Clamp(subJetDeg, 15f, 72f) * ((float)Math.PI / 180f);
+            float polRad = FMath.Clamp(polJetDeg, 35f, 82f) * ((float)Math.PI / 180f);
+
+            int hemi = latRad >= 0.0 ? 1 : -1;
+            EvalJet(hemi > 0 ? DefaultNorthPolarWaves : DefaultSouthPolarWaves,
+                hemi > 0 ? polRad : -polRad, lonRad, synTimeRad, out double pLat, out double pSlope);
+            EvalJet(hemi > 0 ? DefaultNorthSubtropicalWaves : DefaultSouthSubtropicalWaves,
+                hemi > 0 ? subRad : -subRad, lonRad, synTimeRad * 0.82, out double sLat, out double sSlope);
+
+            double absLat = Math.Abs(latRad);
+            double wPol = Math.Exp(-Math.Pow((absLat - Math.Abs(pLat)) / 0.24, 2.0));
+            double wSub = Math.Exp(-Math.Pow((absLat - Math.Abs(sLat)) / 0.22, 2.0));
+
+            // Equatorward jet bulge => cold trough (troughDepth > 0); poleward bulge => warm ridge (troughDepth < 0).
+            double pDisp = -hemi * (pLat - (hemi > 0 ? polRad : -polRad));
+            double sDisp = -hemi * (sLat - (hemi > 0 ? subRad : -subRad));
+            double normDisp = (wPol * pDisp + 0.85 * wSub * sDisp) / 0.16;
+
+            // Positive aheadOfTrough on leading (eastern) flank of trough => warm conveyor ascent & poleward steering.
+            double rawAhead = hemi * (wPol * pSlope + 0.85 * wSub * sSlope) / 0.55;
+
+            double colat = Math.PI * 0.5 - latRad;
+            double sinColat = Math.Sin(colat);
+            double px = 2.8215 * sinColat * Math.Cos(lonRad);
+            double py = 2.8215 * Math.Cos(colat);
+            double pz = -2.8215 * sinColat * Math.Sin(lonRad);
+            uint fbmSeed = unchecked(worldSeed + 0x2515u);
+            double eddyT = calendarDay * 0.085;
+            double nx = SmoothNoise3D(fbmSeed, px - eddyT, py + 0.35 * eddyT, pz - eddyT);
+            double ny = SmoothNoise3D(unchecked(fbmSeed ^ 0x9e3779b9u), px - eddyT + 17.31, py + 0.35 * eddyT - 9.47, pz - eddyT + 5.83);
+
+            troughDepth = FMath.Clamp((float)(normDisp + 0.28 * nx), -1.25f, 1.25f);
+            aheadOfTrough = FMath.Clamp((float)(rawAhead + 0.25 * ny), -1.25f, 1.25f);
+
+            double jetCoreMs = 26.0 * wPol + 16.0 * wSub;
+            upperEastMs = (float)(jetCoreMs + 4.5 * nx - 3.2 * Math.Max(0.0, -troughDepth) * wSub);
+            upperNorthMs = (float)(hemi * aheadOfTrough * (9.5 * wPol + 6.8 * wSub) + 3.8 * ny);
+        }
     }
 }

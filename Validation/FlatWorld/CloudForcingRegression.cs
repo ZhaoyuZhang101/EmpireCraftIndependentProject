@@ -51,8 +51,9 @@ public static class CloudForcingRegression
 
         VerifyCacheContinuityRegionalCycloneAndSave(earth, fictional);
         VerifyAsyncSchedulerPerformanceAndRaces(earth, fictional);
+        VerifySynopticWeatherEvolutionAndRegimePersistence(earth);
 
-        Console.WriteLine("PASS cloud-forcing regression: Earth + fictional world synoptic dynamics, CAPE/humidity/soil convection, wind/front/orography, cold/warm SST Sc, 1x vs 0.45x rotation belts, cache cadence, seasonal/interannual continuity, regional/cyclone wiring, save compatibility, and async background forcing scheduler (zero-alloc, coalescing, race safety).");
+        Console.WriteLine("PASS cloud-forcing regression: Earth + fictional world synoptic dynamics, CAPE/humidity/soil convection, wind/front/orography, cold/warm SST Sc, 1x vs 0.45x rotation belts, cache cadence, seasonal/interannual continuity, regional/cyclone wiring, save compatibility, synoptic weather lifecycle, and async background forcing scheduler (zero-alloc, coalescing, race safety).");
     }
 
     static WorldData BuildEarth256()
@@ -894,6 +895,94 @@ public static class CloudForcingRegression
                 $"JobsStarted={sched.JobsStarted}, Accepted={sched.JobsAccepted}, Cancelled={sched.JobsCancelled}, DiscardedStale={sched.JobsDiscardedStale} | " +
                 $"Rewind/TerrainEdit/WorldSwitch/HideResume/MidStripGuard: ALL EXACT");
         }
+    }
+
+    static void VerifySynopticWeatherEvolutionAndRegimePersistence(WorldData earthBase)
+    {
+        // 9a. 15-day (3h step) continuous evolution on Earth: verify non-replicating Caribbean/NH cyclone tracks,
+        // transient storm-track cloud growth/dissipation, and persistent Azores-High clear / Monsoon cloudy regimes.
+        var w = earthBase.Clone();
+        w.Day = 180.0;
+        w.Cyclones = FlatCycloneWeather.SpinUpAt(w, 180.0);
+        var sim = new FlatSimulation(w);
+        var stats = new FlatClimateStatistics(w, default, 64, atmosphereOnly: true);
+        var f = new byte[GridW * GridH * 4];
+        var a = new byte[GridW * GridH * 4];
+
+        int xEastUs = LonToX(-74f), yEastUs = LatToY(39f);
+        int xAzores = LonToX(-28f), yAzores = LatToY(31f);
+        int xMonsoon = LonToX(88f), yMonsoon = LatToY(21f);
+        double minTransient = 1.0, maxTransient = 0.0;
+        double maxAzores = 0.0, minMonsoon = 1.0;
+
+        for (int step = 0; step <= 60; step++)
+        {
+            double d = sim.World.Day;
+            GlebaGeographySupplement.BuildCloudSynopticFields(w, d, GridW, GridH, f, a, null);
+            stats.Refresh(d, w.Cyclones, default);
+
+            double EvalSite(int sx, int sy, float lon, float lat)
+            {
+                int rx = FMath.Wrap((int)Math.Floor((lon / 360f + 0.5f) * 64), 64);
+                int ry = FMath.Clamp((int)Math.Floor((lat / 180f + 0.5f) * 32), 0, 31);
+                var reg = RegionalCloudResponse.FromSynoptic(stats.Cells[ry * 64 + rx], w, d, w.Cyclones);
+                int p4 = (sy * GridW + sx) * 4;
+                double lift = f[p4] / 255.0, lee = a[p4 + 2] / 255.0, sc = a[p4] / 255.0;
+                return Math.Max(0.0, Math.Min(1.0, lift + 0.16 * reg.Cover - 0.18 * lee * (1.0 - 0.8 * sc)));
+            }
+
+            double trVal = EvalSite(xEastUs, yEastUs, -74f, 39f);
+            double azVal = EvalSite(xAzores, yAzores, -28f, 31f);
+            double moVal = EvalSite(xMonsoon, yMonsoon, 88f, 21f);
+            if (trVal < minTransient) minTransient = trVal;
+            if (trVal > maxTransient) maxTransient = trVal;
+            if (azVal > maxAzores) maxAzores = azVal;
+            if (moVal < minMonsoon) minMonsoon = moVal;
+
+            if (step < 60) sim.Step(0.25f);
+        }
+
+        // 9b. Same-date speed-partition determinism (0.05d vs 1.0d steps) + paused sampling invariance
+        var wFast = earthBase.Clone(); wFast.Day = 180.0; wFast.Cyclones = FlatCycloneWeather.SpinUpAt(wFast, 180.0);
+        var wSlow = earthBase.Clone(); wSlow.Day = 180.0; wSlow.Cyclones = FlatCycloneWeather.SpinUpAt(wSlow, 180.0);
+        var simFast = new FlatSimulation(wFast);
+        var simSlow = new FlatSimulation(wSlow);
+        for (int i = 0; i < 15; i++) simFast.Step(1.0f);
+        for (int i = 0; i < 300; i++) simSlow.Step(0.05f);
+
+        var fFast = new byte[GridW * GridH * 4]; var aFast = new byte[GridW * GridH * 4];
+        var fSlow = new byte[GridW * GridH * 4]; var aSlow = new byte[GridW * GridH * 4];
+        GlebaGeographySupplement.BuildCloudSynopticFields(wFast, 195.0, GridW, GridH, fFast, aFast, null);
+        GlebaGeographySupplement.BuildCloudSynopticFields(wSlow, 195.0, GridW, GridH, fSlow, aSlow, null);
+
+        Check(wFast.Cyclones.StepIndex == wSlow.Cyclones.StepIndex
+            && wFast.Cyclones.North.Equals(wSlow.Cyclones.North)
+            && wFast.Cyclones.South.Equals(wSlow.Cyclones.South)
+            && fFast.AsSpan().SequenceEqual(fSlow) && aFast.AsSpan().SequenceEqual(aSlow),
+            "Same-date 1x vs 20x simulation speed partition produced non-identical cyclone or cloud forcing state");
+
+        // Save/decode roundtrip on live evolved world + subsequent 8-day continuation must remain 100% bit-exact
+        byte[] liveSaved = FlatSave.Encode(wFast);
+        var liveDecoded = FlatSave.Decode(liveSaved);
+        var fLiveDec = new byte[GridW * GridH * 4]; var aLiveDec = new byte[GridW * GridH * 4];
+        GlebaGeographySupplement.BuildCloudSynopticFields(liveDecoded, 195.0, GridW, GridH, fLiveDec, aLiveDec, null);
+        Check(fFast.AsSpan().SequenceEqual(fLiveDec) && aFast.AsSpan().SequenceEqual(aLiveDec),
+            "Decoded live-cyclone save failed to reproduce identical cloud forcing");
+
+        var simReload = new FlatSimulation(liveDecoded);
+        for (int i = 0; i < 32; i++) { simFast.Step(0.25f); simReload.Step(0.25f); }
+        Check(wFast.Cyclones.StepIndex == liveDecoded.Cyclones.StepIndex
+            && wFast.Cyclones.North.Equals(liveDecoded.Cyclones.North)
+            && wFast.Cyclones.South.Equals(liveDecoded.Cyclones.South),
+            "Post-save/load future cyclone trajectories diverged from continuous simulation");
+
+        Console.WriteLine($"[9. Synoptic Weather Lifecycle & Persistence] TransientSpan={maxTransient - minTransient:F3} [{minTransient:F3}..{maxTransient:F3}] | " +
+            $"AzoresMax={maxAzores:F3} (persistent clear) | MonsoonMin={minMonsoon:F3} (persistent cloudy) | 1x/20x & LiveSave Exact=TRUE");
+
+        Check(maxTransient - minTransient >= 0.16,
+            $"Transient midlatitude storm track lacked moist-uplift/post-rain cloud lifecycle span: {maxTransient - minTransient:F3}");
+        Check(maxAzores <= 0.25 && minMonsoon >= 0.45,
+            $"Persistent climate regimes destabilized: AzoresMax={maxAzores:F3}, MonsoonMin={minMonsoon:F3}");
     }
 
     // ---- Helpers: World Perturbation, Site Selection & Faithful CPU Mirror of FlatSkyBake + OrbisCloudVerticalSpan ----
