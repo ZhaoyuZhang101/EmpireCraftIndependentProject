@@ -64,6 +64,65 @@ namespace Orbis.Flat
             }
         }
 
+        /// <summary>
+        /// Evaluates active cyclone core uplift, outer compensating subsidence moat, and trailing cold-wake SST cooling
+        /// purely from serialized track endpoints at <paramref name="day"/> so cloud forcing is 100% bit-exact across save/load.
+        /// </summary>
+        public void SampleCloudFootprint(
+            double u, double v, double day,
+            out float coreConvection, out float outerSubsidence, out float wakeCoolingC, out float wakeStabilization)
+        {
+            coreConvection = 0f;
+            outerSubsidence = 0f;
+            wakeCoolingC = 0f;
+            wakeStabilization = 0f;
+
+            double cosLat = Math.Max(0.12, Math.Cos((v - 0.5) * Math.PI));
+            for (int h = 0; h < 2; h++)
+            {
+                bool isNorth = h == 0;
+                var storm = Sample(isNorth, day);
+                if (!storm.Tracked || storm.Strength <= 0.02f) continue;
+                var prev = isNorth ? PreviousNorth : PreviousSouth;
+                var curr = isNorth ? North : South;
+
+                double dxKm = FlatScrollMath.Shortest(u - storm.U, 1.0) * 40030.0 * cosLat;
+                double dyKm = (v - storm.V) * 20015.0;
+                double rKm = Math.Sqrt(dxKm * dxKm + dyKm * dyKm);
+                if (rKm < 1650.0)
+                {
+                    float core = storm.Strength * (float)Math.Exp(-(rKm * rKm) / (460.0 * 460.0));
+                    if (core > coreConvection) coreConvection = core;
+                    // Compensating outer subsidence moat (700..1450 km) clears surrounding fair-weather ring
+                    double ring = (rKm - 980.0) / 360.0;
+                    float moat = storm.Strength * 0.55f * (float)Math.Exp(-(ring * ring));
+                    if (moat > outerSubsidence) outerSubsidence = moat;
+                }
+
+                // Trailing oceanic cold-wake & stabilized boundary-layer plume behind the moving storm center
+                double vxKm = prev.Tracked && curr.Tracked ? FlatScrollMath.Shortest(curr.U - prev.U, 1.0) * 40030.0 * cosLat : -120.0;
+                double vyKm = prev.Tracked && curr.Tracked ? (curr.V - prev.V) * 20015.0 : 0.0;
+                double vNorm = Math.Sqrt(vxKm * vxKm + vyKm * vyKm);
+                double tx = vNorm > 1e-3 ? -vxKm / vNorm : 1.0;
+                double ty = vNorm > 1e-3 ? -vyKm / vNorm : 0.0;
+                double alongWakeKm = dxKm * tx + dyKm * ty;
+                double crossWakeKm = dxKm * (-ty) + dyKm * tx;
+                double wakeLenKm = Math.Min(2200.0, 320.0 + storm.AgeDays * 380.0);
+                if (alongWakeKm > -180.0 && alongWakeKm < wakeLenKm && Math.Abs(crossWakeKm) < 950.0)
+                {
+                    double sAlong = alongWakeKm <= 0.0
+                        ? Math.Exp(-(alongWakeKm * alongWakeKm) / (180.0 * 180.0))
+                        : Math.Exp(-alongWakeKm / Math.Max(350.0, wakeLenKm * 0.62));
+                    double sCross = Math.Exp(-(crossWakeKm * crossWakeKm) / (420.0 * 420.0));
+                    float plume = (float)(sAlong * sCross);
+                    float coolAmp = (float)Math.Max(storm.OceanCooling, 1.25 * storm.Strength);
+                    float stabAmp = storm.Strength * (float)Unit((alongWakeKm - 220.0) / 380.0);
+                    if (coolAmp * plume > wakeCoolingC) wakeCoolingC = coolAmp * plume;
+                    if (stabAmp * plume > wakeStabilization) wakeStabilization = stabAmp * plume;
+                }
+            }
+        }
+
         public FlatCycloneTrack Sample(bool north, double day)
         {
             var previous = north ? PreviousNorth : PreviousSouth;
@@ -94,15 +153,15 @@ namespace Orbis.Flat
         {
             if (!track.Tracked) return FindDisturbance(climate, hemisphere, seed, tick);
             var air = climate.At(track.U, track.V, hemisphere);
-            // Beta drift grows with circulation. Deep-layer 500 hPa steering suppresses shallow
-            // surface Hadley equatorward Ekman inflow in the tropics so typhoons/hurricanes track
-            // WNW and recurve poleward around the subtropical ridge instead of drifting into 0-5 deg.
+            // Beta drift grows with circulation. Deep-layer 500-300 hPa steering suppresses shallow
+            // surface Hadley equatorward Ekman inflow in the tropics and couples trajectories to
+            // time-evolving subtropical-ridge strengths/weaknesses & passing midlatitude Rossby troughs.
             double beta = track.WindSpeed / (track.WindSpeed + 20);
             double latDegAbs = Math.Abs((track.V - .5) * 180.0);
             double deepLayerGate = air.HasDeepDiagnostics ? (1.0 - .74 * Unit((25.0 - latDegAbs) / 12.0)) : 1.0;
             double polewardBeta = air.HasDeepDiagnostics ? (1.65 * beta + .55 * air.SynopticSeed) : (1.25 * beta);
-            double east = .72 * air.East - 1.5 * beta;
-            double north = .72 * air.North * deepLayerGate + hemisphere * polewardBeta;
+            double east = .72 * air.East - 1.5 * beta + air.SynopticSteerEast;
+            double north = .72 * air.North * deepLayerGate + hemisphere * polewardBeta + air.SynopticSteerNorth;
             double translation = Math.Sqrt(east * east + north * north);
             Advect(ref track, east, north, translation);
             // Sample the moved centre too: a coast crossed in this interval removes
@@ -199,17 +258,22 @@ namespace Orbis.Flat
             public double Temperature, HumidityFactor, RainFactor, Sea;
             public double East, North, Organization, PlanetaryVorticity, Strain;
             public double MpiFactor, ShearVentilation, SynopticSeed;
+            public double SynopticSteerEast, SynopticSteerNorth;
             public bool HasDeepDiagnostics;
         }
 
         readonly struct Climate
         {
             public readonly WorldData World;
+            readonly uint seed;
+            readonly double day;
             readonly FlatMonthlyForcing season;
             readonly FlatClimateYear year;
             public Climate(WorldData world, uint seed, double day)
             {
                 World = world;
+                this.seed = seed;
+                this.day = day;
                 season = new FlatMonthlyForcing(day);
                 year = FlatClimateYear.At(seed, day);
             }
@@ -274,17 +338,32 @@ namespace Orbis.Flat
                                            exo.SampleMonthly(exo.EntropyDeficit, (float)u, (float)v, m1), frac);
                     float gpi = FMath.Lerp(exo.SampleMonthly(exo.GenesisPotential, (float)u, (float)v, m0),
                                            exo.SampleMonthly(exo.GenesisPotential, (float)u, (float)v, m1), frac);
-                    // Gate warm-pool MPI boost & synoptic wave seeds to summer/autumn cyclone season (>8.5 deg lat);
-                    // GPI already includes (1 + 0.1*Vshear)^-2, so avoid double-penalizing moderate tropical easterly-jet shear.
+
+                    var cfg = exo.Config ?? World.PlanetClimate;
+                    float subJetDeg = cfg != null && !cfg.IsStandardModernEarth ? cfg.HadleyTerminusDeg : 30f;
+                    float polJetDeg = cfg != null && !cfg.IsStandardModernEarth ? cfg.PolarFrontTerminusDeg : 62f;
+
+                    // Propagating tropical easterly waves + intraseasonal MJO/BSISO packet + 500-250 hPa Rossby troughs/ridges.
+                    FlatSynopticWeather.EvaluateTropicalWaveAndSteering(
+                        seed, day, u, v, hemisphere, air.East, air.North, subJetDeg, polJetDeg,
+                        out double waveEnvelope, out double synShearAdd, out double steerEastMs, out double steerNorthMs);
+
                     double latGate = Unit((Math.Abs(sinLat) - 0.145) / 0.09);
                     double summerSeason = Unit(hemisphere * Math.Sin((season.SeasonalMonth - 3.5) * Math.PI / 6.0) * 1.6 - 0.05);
                     double gpiActive = Unit((gpi - 0.085) / 0.14);
                     double mpiBoost = summerSeason * latGate * gpiActive * Math.Max(0.0, (mpi - 50.0) / 34.0);
                     air.MpiFactor = FMath.Clamp((float)(0.62 + 0.22 * (mpi / 68.0) + 1.18 * mpiBoost) * (float)(0.35 + 0.65 * latGate), 0.35f, 2.02f);
-                    air.ShearVentilation = Math.Max(0.0, (shear - 28.0) / 32.0) * (0.35 + 0.65 * chi);
-                    double waveSeed = summerSeason * latGate * gpiActive * Unit((mpi - 56.0) / 24.0);
-                    air.SynopticSeed = waveSeed;
-                    air.Organization = air.Organization * (0.30 + 0.70 * latGate) + 0.80 * waveSeed;
+                    air.ShearVentilation = Math.Max(0.0, (shear - 28.0) / 32.0) * (0.35 + 0.65 * chi) + synShearAdd;
+
+                    // Genesis organization & mid-level RH respond to propagating easterly-wave troughs / MJO active envelopes
+                    // rather than locking onto a static island convergence cell all month.
+                    double baseWaveSeed = summerSeason * latGate * gpiActive * Unit((mpi - 56.0) / 24.0);
+                    double disturbanceMod = 0.22 + 1.24 * waveEnvelope;
+                    air.SynopticSeed = baseWaveSeed * (0.45 + 0.90 * waveEnvelope);
+                    air.HumidityFactor = FMath.Clamp((float)(air.HumidityFactor * (0.72 + 0.42 * waveEnvelope)), 0f, 1.12f);
+                    air.Organization = (air.Organization * (0.30 + 0.70 * latGate) + 0.80 * baseWaveSeed) * disturbanceMod;
+                    air.SynopticSteerEast = steerEastMs;
+                    air.SynopticSteerNorth = steerNorthMs;
                 }
                 else
                 {
@@ -307,5 +386,160 @@ namespace Orbis.Flat
 
         static double Unit(double x) { return Math.Max(0, Math.Min(1, x)); }
         static double Mix(double a, double b, double t) { return a + (b - a) * t; }
+    }
+
+    /// <summary>
+    /// Deterministic, zero-allocation synoptic weather kinematics coupling low/upper winds, baroclinic Rossby
+    /// troughs/ridges, propagating tropical easterly waves, MJO envelopes, and upwind condensation -> downwind
+    /// post-precipitation rain-out &amp; dry subsidence cloud lifecycle.
+    /// </summary>
+    internal static class FlatSynopticWeather
+    {
+        const double Turn = 2.0 * Math.PI;
+
+        static double PhaseSeed(uint seed, uint salt) => FMath.Unit(FMath.Hash(seed ^ salt)) * Turn;
+
+        public static void EvaluateTropicalWaveAndSteering(
+            uint seed, double calendarDay, double u, double v, int hemisphere,
+            double surfaceEastMs, double surfaceNorthMs, float subJetDeg, float polJetDeg,
+            out double waveEnvelope, out double synShearAdd, out double steerEastMs, out double steerNorthMs)
+        {
+            double lon = (u - 0.5) * Turn;
+            double lat = (v - 0.5) * Math.PI;
+            double absLatDeg = Math.Abs((v - 0.5) * 180.0);
+
+            // 1. Intraseasonal MJO / BSISO eastward convective envelope (~36-day & ~24-day harmonics, unwrapped day)
+            //    migrates basin-scale convective favorability across Indian/WestPac/EastPac/Atlantic within 2-5 weeks.
+            double mjo1 = Math.Cos(lon - calendarDay * (Turn / 36.0) + PhaseSeed(seed, 0x41a7d311u));
+            double mjo2 = Math.Cos(2.0 * lon - calendarDay * (Turn / 23.5) + PhaseSeed(seed, 0x7b29c503u));
+            double mjo = 0.58 * mjo1 + 0.42 * mjo2;
+
+            // 2. Propagating tropical easterly waves (k = 6, 8, 11; westward ~6.0-7.4 deg/day) + meridional ITCZ/monsoon undulation
+            //    so consecutive disturbances form at genuinely different longitudes and latitudes (9..24 deg) rather than one grid row.
+            uint hSalt = hemisphere > 0 ? 0x19d4e27bu : 0x6c83f109u;
+            double tradeBoost = FMath.Clamp((float)(-surfaceEastMs / 8.5), 0f, 1.3f);
+            double cBase = 0.108 + 0.015 * tradeBoost; // rad/day westward
+            double latPhase = (absLatDeg - 15.0) * 0.16;
+            double w6 = Math.Cos(6.0 * (lon + calendarDay * cBase) + latPhase + PhaseSeed(seed, hSalt ^ 0x11u));
+            double w8 = Math.Cos(8.0 * (lon + calendarDay * (cBase * 1.13)) - 1.15 * latPhase + PhaseSeed(seed, hSalt ^ 0x22u));
+            double w11 = Math.Cos(11.0 * (lon + calendarDay * (cBase * 0.91)) + 0.85 * latPhase + PhaseSeed(seed, hSalt ^ 0x33u));
+            double wave = 0.44 * w6 + 0.36 * w8 + 0.20 * w11;
+
+            // Preferred genesis latitude migrates between low-latitude easterly waves (~11 deg) and monsoon/subtropical gyres (~20 deg).
+            double latAxisShift = 0.65 * Math.Sin(2.0 * lon - calendarDay * 0.21 + PhaseSeed(seed, hSalt ^ 0x55u))
+                                + 0.35 * Math.Cos(5.0 * lon + calendarDay * 0.31 + PhaseSeed(seed, hSalt ^ 0x77u));
+            double prefLatDeg = 15.2 + 4.8 * latAxisShift;
+            double latBandMatch = Math.Exp(-Math.Pow((absLatDeg - prefLatDeg) / 4.8, 2.0));
+
+            // Monsoon-trough westerly confluence bonus (low-latitude monsoon westerlies meeting trades in WPac / NIO / SPAC).
+            double monsoonConfluence = surfaceEastMs > -1.5 && absLatDeg < 21.0
+                ? 0.22 * FMath.Clamp((float)((surfaceEastMs + 1.5) / 5.5), 0f, 1f)
+                : 0.0;
+
+            double combined = 0.56 * wave + 0.34 * mjo + 0.34 * (latBandMatch - 0.38) + monsoonConfluence;
+            waveEnvelope = Math.Max(0.0, Math.Min(1.0, (combined + 0.14) / 0.72));
+
+            // 3. Upper-tropospheric 500-250 hPa Rossby trough / subtropical-ridge steering & synoptic wind shear.
+            GlebaRossbyWaveField.SampleSynopticUpperFlow(
+                seed, calendarDay, lat, lon, subJetDeg, polJetDeg,
+                out float upEastMs, out float upNorthMs, out float troughDepth, out float aheadOfTrough);
+
+            double dU = upEastMs - surfaceEastMs;
+            double dV = upNorthMs - surfaceNorthMs;
+            double synShearMs = Math.Sqrt(dU * dU + dV * dV);
+            // Digging midlatitude troughs inject dry high-shear air; upper ridges/outflow channels lower ventilation.
+            synShearAdd = Math.Max(0.0, (synShearMs - 16.5) / 26.0) * (0.35 + 0.45 * Math.Max(0.0, troughDepth));
+
+            double subtropGate = Math.Max(0.0, Math.Min(1.0, (absLatDeg - 8.5) / 16.0));
+            double recurveWesterlyGate = Math.Max(0.0, Math.Min(1.0, (absLatDeg - 19.0) / 11.0));
+            double ridgeStrength = Math.Max(0.0, -troughDepth);
+            double troughWeakness = Math.Max(0.0, aheadOfTrough) + 0.60 * Math.Max(0.0, troughDepth);
+
+            // Physical WNW -> recurving steering:
+            // - Strong subtropical ridge keeps storms on a low-latitude W/WNW track without unphysical equatorward diving;
+            // - Passing Rossby trough / ridge break steers poleward (WNW -> NNW -> NE recurvature above ~20 deg).
+            double synMeridionalWave = 0.55 * Math.Sin(4.0 * lon - calendarDay * 0.26 + PhaseSeed(seed, hSalt ^ 0x99u));
+            steerEastMs = recurveWesterlyGate * (2.60 * Math.Max(0.0, troughDepth) + 0.22 * Math.Max(0f, upEastMs))
+                        - (1.0 - 0.55 * recurveWesterlyGate) * 1.35 * ridgeStrength
+                        + 0.75 * mjo1 * (1.0 - subtropGate);
+            steerNorthMs = hemisphere * (0.55 + subtropGate * (2.65 * troughWeakness - 0.30 * ridgeStrength)
+                         + (1.0 - subtropGate) * Math.Max(-0.25, 0.55 * synMeridionalWave + 0.35));
+        }
+
+        /// <summary>
+        /// Evaluates synoptic vertical motion &amp; Lagrangian upwind condensation -> downwind post-rain depletion
+        /// for cloud evolution. Persistent climate regimes (subtropical anticyclones, monsoon/ITCZ moisture cores)
+        /// naturally buffer against artificial flipping.
+        /// </summary>
+        public static void EvaluateCloudLifecycle(
+            uint seed, double calendarDay, double u, double v,
+            float windEastUnit, float windNorthUnit, float rh, float rainMm,
+            float oceanFrac, float thermalGrad300, float sthzRidge, float highP,
+            float subJetDeg, float polJetDeg,
+            out float moistUplift, out float postRainDissipation, out float synopticSlpDeltaHpa)
+        {
+            EvalInstantOmega(seed, calendarDay, u, v, windEastUnit, thermalGrad300, sthzRidge, highP, subJetDeg, polJetDeg,
+                out float omegaNow, out synopticSlpDeltaHpa);
+
+            // Back-trajectory (~15.6 hours = 0.65 days upwind along actual low-level wind, 1 wind unit = 777.6 km/day).
+            const double lagDays = 0.65;
+            double cosLat = Math.Max(0.18, Math.Cos((v - 0.5) * Math.PI));
+            double du = (windEastUnit * 777.6 * lagDays) / (40030.0 * cosLat);
+            double dv = (windNorthUnit * 777.6 * lagDays) / 20015.0;
+            double uUp = FlatScrollMath.Wrap(u - du, 1.0);
+            double vUp = FMath.Clamp((float)(v - dv), 0.01f, 0.99f);
+            EvalInstantOmega(seed, calendarDay - lagDays, uUp, vUp, windEastUnit, thermalGrad300, sthzRidge, highP, subJetDeg, polJetDeg,
+                out float omegaUpwindPrior, out _);
+
+            // Moisture availability gates condensation growth; dry air cannot form cloud even in synoptic lift.
+            float frontActive = FMath.Clamp((thermalGrad300 - 1.2f) / 4.3f, 0f, 1f);
+            float moistAvail = FMath.Clamp((rh - 0.16f) / 0.58f, 0f, 1f);
+            moistUplift = Math.Max(0f, omegaNow) * moistAvail;
+
+            // Parcels that condensed & precipitated upwind ~15h ago and now enter neutral/subsiding air have depleted vapor
+            // unless sustained low-latitude tropical monsoon / ITCZ surface moisture flux or active frontogenesis replenishes ascent.
+            float absLatDeg = (float)Math.Abs((v - 0.5) * 180.0);
+            float tropMonsoonBelt = 1f - FMath.Clamp((absLatDeg - 23f) / 7f, 0f, 1f);
+            float monsoonReplenish = tropMonsoonBelt * FMath.Clamp((rainMm - 165f) / 130f, 0f, 1f) * FMath.Clamp((rh - 0.70f) / 0.20f, 0f, 1f) * (0.35f + 0.65f * oceanFrac);
+            float frontShield = 1f - 0.60f * frontActive * moistAvail;
+            float rainOutFallout = Math.Max(0f, omegaUpwindPrior - 0.50f * Math.Max(0f, omegaNow)) * moistAvail * (1f - 0.72f * monsoonReplenish) * frontShield;
+            float drySubsidence = Math.Max(0f, -omegaNow) * (1f - 0.58f * monsoonReplenish) * frontShield;
+            postRainDissipation = FMath.Clamp(0.82f * drySubsidence + 0.66f * rainOutFallout, 0f, 1f);
+        }
+
+        static void EvalInstantOmega(
+            uint seed, double day, double u, double v, float windEastUnit,
+            float thermalGrad300, float sthzRidge, float highP, float subJetDeg, float polJetDeg,
+            out float omega, out float slpDeltaHpa)
+        {
+            double lon = (u - 0.5) * Turn;
+            double lat = (v - 0.5) * Math.PI;
+            float absLatDeg = (float)Math.Abs((v - 0.5) * 180.0);
+
+            GlebaRossbyWaveField.SampleSynopticUpperFlow(
+                seed, day, lat, lon, subJetDeg, polJetDeg,
+                out _, out _, out float troughDepth, out float aheadOfTrough);
+
+            // Baroclinic Rossby wave vertical motion in midlatitudes: thermal gradients amplify cyclogenetic ascent
+            // (Sawyer-Eliassen frontogenesis) without turning an active thermal front into stronger ridge subsidence.
+            float midGate = FMath.Clamp((absLatDeg - 20f) / 13f, 0f, 1f) * (1f - FMath.Clamp((absLatDeg - 70f) / 14f, 0f, 1f));
+            float frontGrad = FMath.Clamp((thermalGrad300 - 1.2f) / 4.3f, 0f, 1f);
+            float anticycloneBlock = 1f - 0.75f * sthzRidge * FMath.Clamp(0.35f + 0.65f * highP, 0f, 1f);
+            float rawRossby = 0.72f * aheadOfTrough + 0.28f * troughDepth;
+            float rossbyScale = rawRossby >= 0f ? (0.55f + 0.45f * frontGrad) : 0.68f;
+            float rossbyOmega = midGate * anticycloneBlock * (rawRossby * rossbyScale + 0.22f * frontGrad);
+
+            // Tropical easterly waves + MJO vertical motion in low latitudes, suppressed in subtropical gyre cores.
+            float tropGate = 1f - FMath.Clamp((absLatDeg - 26f) / 10f, 0f, 1f);
+            double cWave = 0.108 + 0.015 * FMath.Clamp(-windEastUnit, -0.5f, 1.2f);
+            float ew = (float)(0.58 * Math.Cos(7.0 * (lon + day * cWave) + PhaseSeed(seed, 0x33a19bc7u))
+                             + 0.42 * Math.Cos(9.0 * (lon + day * (cWave * 1.09)) + PhaseSeed(seed, 0x51f07e4du)));
+            float mjo = (float)(0.62 * Math.Cos(lon - day * (Turn / 46.5) + PhaseSeed(seed, 0x41a7d311u))
+                              + 0.38 * Math.Cos(2.0 * lon - day * (Turn / 35.2) + PhaseSeed(seed, 0x7b29c503u)));
+            float tropOmega = tropGate * anticycloneBlock * (0.52f * ew + 0.34f * mjo);
+
+            omega = FMath.Clamp(rossbyOmega + tropOmega, -1f, 1f);
+            slpDeltaHpa = FMath.Clamp(-7.5f * midGate * anticycloneBlock * troughDepth - 2.8f * tropGate * (0.6f * ew + 0.4f * mjo), -12f, 12f);
+        }
     }
 }

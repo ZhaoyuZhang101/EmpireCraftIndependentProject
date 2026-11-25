@@ -38,6 +38,7 @@ namespace Orbis.Editor
     }
     var active=Bake();
     material.SetTexture("_RegionalCloudResponse",Texture2D.blackTexture);material.SetVector("_RegionalCloudPoles",Vector4.zero);
+    material.SetFloat("_RegionalEvapReady",0f);
     var neutral=Bake();int changed=0,thicker=0,thinner=0;
     for(int i=0;i<active.Length;i++){
      int d=active[i].r-neutral[i].r;

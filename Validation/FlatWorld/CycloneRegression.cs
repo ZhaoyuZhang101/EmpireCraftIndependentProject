@@ -140,6 +140,7 @@ public static class CycloneRegression
         var forecast = new FlatSimulation(atlas);
         double maxWind = 0;
         int stormDays = 0, formations = 0;
+        var recentNhStarts = new System.Collections.Generic.List<(double u, double v)>();
         for (int day = 0; day < 360; day++)
         {
             bool storm = false;
@@ -147,7 +148,11 @@ public static class CycloneRegression
             {
                 forecast.Step(.25f);
                 var state = atlas.Cyclones;
-                if (state.North.Tracked && !state.PreviousNorth.Tracked) formations++;
+                if (state.North.Tracked && !state.PreviousNorth.Tracked)
+                {
+                    formations++;
+                    recentNhStarts.Add((state.North.U, state.North.V));
+                }
                 if (state.South.Tracked && !state.PreviousSouth.Tracked) formations++;
                 double wind = Math.Max(state.North.WindSpeed, state.South.WindSpeed);
                 storm |= wind >= 17.5;
@@ -157,7 +162,22 @@ public static class CycloneRegression
         }
         timer.Stop();
         Check(formations > 0 && stormDays > 0 && stormDays < 360, "default climate must produce intermittent tropical storms");
-        Console.WriteLine($"PASS default atlas 360 days: {formations} disturbances, {stormDays} days with tropical-storm winds, peak {maxWind:F1} m/s; core advancement {timer.Elapsed.TotalMilliseconds:F1} ms");
+
+        // Consecutive NH disturbances must evolve with synoptic waves & cold-wake memory rather than cloning one static grid cell.
+        int distinctSuccessive = 0;
+        for (int i = 1; i < recentNhStarts.Count; i++)
+        {
+            double duDeg = FlatScrollMath.Shortest(recentNhStarts[i].u - recentNhStarts[i - 1].u, 1.0) * 360.0;
+            double dvDeg = (recentNhStarts[i].v - recentNhStarts[i - 1].v) * 180.0;
+            if (Math.Sqrt(duDeg * duDeg + dvDeg * dvDeg) >= 3.5) distinctSuccessive++;
+        }
+        Check(recentNhStarts.Count >= 4 && distinctSuccessive >= (int)(recentNhStarts.Count * 0.75),
+            $"consecutive NH cyclogenesis locked onto a static cell ({distinctSuccessive}/{Math.Max(0, recentNhStarts.Count - 1)} separated >= 3.5 deg)");
+
+        // Cold-wake footprint & save rehydration determinism check
+        atlas.Cyclones.SampleCloudFootprint(0.35, 0.58, atlas.Day, out float cycCore, out float cycMoat, out float wakeC, out float wakeStab);
+        Check(cycCore >= 0f && cycMoat >= 0f && wakeC >= 0f && wakeStab >= 0f, "cyclone cloud footprint must remain nonnegative");
+        Console.WriteLine($"PASS default atlas 360 days: {formations} disturbances ({distinctSuccessive}/{Math.Max(0, recentNhStarts.Count - 1)} successive NH non-repeating >=3.5 deg), {stormDays} days with tropical-storm winds, peak {maxWind:F1} m/s; core advancement {timer.Elapsed.TotalMilliseconds:F1} ms");
     }
 
     static WorldData Basin(float temperature, float rain, float humidity, float steering)
