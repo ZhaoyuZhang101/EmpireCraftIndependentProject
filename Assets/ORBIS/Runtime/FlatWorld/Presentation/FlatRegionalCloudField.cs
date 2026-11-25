@@ -20,10 +20,14 @@ namespace Orbis.Flat
         FlatMoistureState requestedMoisture;
         bool requestedHadStorms;
         FlatCycloneTrack requestedNorth, requestedSouth, requestedPrevNorth, requestedPrevSouth;
-        bool available;
+        bool available, hasUploadedTexture;
+        long uploadedTick = long.MinValue;
+        int uploadedRevision = -1;
+        FlatMoistureState uploadedMoisture;
         Texture2D texture;
         Vector4 poles;
         internal long? Step => available ? requested : (long?)null;
+        internal bool HasValidField => available || hasUploadedTexture;
 
         internal FlatRegionalCloudField(WorldData world) { this.world = world; }
 
@@ -42,16 +46,25 @@ namespace Orbis.Flat
         internal bool Prepare(double day, out bool changed)
         {
             long tick = (long)Math.Floor(day * 4);
+            if (hasUploadedTexture && (uploadedRevision != world.TerrainRevision ||
+                !ReferenceEquals(uploadedMoisture, world.Moisture) || tick < uploadedTick))
+            {
+                hasUploadedTexture = false;
+                uploadedTick = long.MinValue;
+            }
             bool current = requested == tick && revision == world.TerrainRevision &&
                 ReferenceEquals(requestedMoisture, world.Moisture) && SameRequestedStorms(tick);
             changed = false;
             if (worker != null)
             {
                 if (!worker.IsCompleted) return false;
+                bool workerMatchesProvenance = revision == world.TerrainRevision &&
+                    ReferenceEquals(requestedMoisture, world.Moisture) &&
+                    requested <= tick && requested >= uploadedTick;
                 try
                 {
                     worker.GetAwaiter().GetResult();
-                    if (current)
+                    if (current || workerMatchesProvenance)
                     {
                         if (!texture) texture = new Texture2D(Width, Height, TextureFormat.RGBA32, false, true) {
                             name = "Regional climate response for HP clouds", filterMode = FilterMode.Bilinear,
@@ -62,7 +75,11 @@ namespace Orbis.Flat
                         var south = Pole(0);
                         var north = Pole(Height - 1);
                         poles = new Vector4(south.x, south.y, north.x, north.y);
-                        available = true;
+                        hasUploadedTexture = true;
+                        uploadedTick = requested;
+                        uploadedRevision = revision;
+                        uploadedMoisture = requestedMoisture;
+                        available = current;
                     }
                 }
                 catch (Exception ex)
@@ -71,7 +88,7 @@ namespace Orbis.Flat
                     Debug.LogWarning("区域大气统计本期回退到月气候云场：" + ex.Message);
                 }
                 worker = null;
-                changed = current;
+                changed = current || workerMatchesProvenance;
             }
             if (current) return true;
             bool rebuildModel = !ReferenceEquals(requestedMoisture, world.Moisture);
@@ -123,8 +140,9 @@ namespace Orbis.Flat
 
         internal void Bind(Material bake)
         {
-            bake.SetTexture("_RegionalCloudResponse", available ? texture : Texture2D.blackTexture);
-            bake.SetVector("_RegionalCloudPoles", available ? poles : Vector4.zero);
+            bool valid = (available || hasUploadedTexture) && texture;
+            bake.SetTexture("_RegionalCloudResponse", valid ? texture : Texture2D.blackTexture);
+            bake.SetVector("_RegionalCloudPoles", valid ? poles : Vector4.zero);
         }
 
         public void Dispose()

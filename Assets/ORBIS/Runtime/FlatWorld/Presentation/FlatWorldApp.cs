@@ -642,7 +642,8 @@ namespace Orbis.Flat
         void UpdateHUD()
         {
             if(World==null)return;
-            stats.text="第 "+((int)(CalendarDay/360)+1)+" 年 / "+(World.Month+1)+" 月 · "+((int)(FlatSolarClock.Phase(CalendarDay)*24)).ToString("00")+":"+((int)(FlatSolarClock.Phase(CalendarDay)*1440)%60).ToString("00")+"    "+World.Width+" × "+World.Height+" Tiles    "+World.ZoneCount.ToString("N0")+" Zones    人口 "+Simulation.TotalPopulation().ToString("N0")+("    "+navigation.ModeName+(paused?" · 已暂停":" · 同一世界时钟"));
+            FlatSkyCalendar.DecomposeDate(CalendarDay,out long hudYear,out int hudMonth,out int hudDay,out int hudHour,out int hudMinute);
+            stats.text="第 "+hudYear+" 年 / "+hudMonth+" 月 "+hudDay+" 日 · "+hudHour.ToString("00")+":"+hudMinute.ToString("00")+"    "+World.Width+" × "+World.Height+" Tiles    "+World.ZoneCount.ToString("N0")+" Zones    人口 "+Simulation.TotalPopulation().ToString("N0")+("    "+navigation.ModeName+(paused?" · 已暂停":" · 同一世界时钟"));
             modeButton.text=navigation.HasStrategicReturn?"M  返回原视图":"M  全球总览";pauseButton.text=paused?"继续":"暂停";speedButton.text=speed+"×";
             Array.Clear(zoneCounts,0,zoneCounts.Length);for(int z=0;z<World.ZoneCount;z++){int ownerId=World.ZoneOwner[z];if(ownerId>=0)zoneCounts[ownerId]++;}
             var text=nationText;text.Clear();for(int c=0;c<World.Nations.Count;c++){var n=World.Nations[c];int zones=zoneCounts[c];text.Append(c==activeNation?"● ":"○ ").Append(n.Name).Append(" · ").Append(zones).Append("区 · 粮 ").Append(n.Food.ToString("N0")).Append('\n');}nations.text=text.ToString();

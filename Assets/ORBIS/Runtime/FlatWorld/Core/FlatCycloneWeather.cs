@@ -38,12 +38,13 @@ namespace Orbis.Flat
             return (long)Math.Floor(ticks + tolerance);
         }
 
-        public static FlatCycloneWeather SpinUp(WorldData world)
+        public static FlatCycloneWeather SpinUp(WorldData world) => SpinUpAt(world, world.Day);
+
+        internal static FlatCycloneWeather SpinUpAt(WorldData world, double day)
         {
-            // New worlds and old saves have no prior track. Integrate from still air
-            // using the corresponding prior dates, even across the year boundary.
-            var weather = new FlatCycloneWeather { StepIndex = StepAt(world.Day) - SpinUpSteps };
-            weather.AdvanceTo(world, world.Day);
+            // Integrate a preview from still air over the same spin-up window used for new worlds.
+            var weather = new FlatCycloneWeather { StepIndex = StepAt(day) - SpinUpSteps };
+            weather.AdvanceTo(world, day);
             return weather;
         }
 

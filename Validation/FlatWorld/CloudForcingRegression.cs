@@ -554,6 +554,7 @@ public static class CloudForcingRegression
         // Helper: poll scheduler until a payload commits for the exact target (day, segment, revision)
         FlatSkyForcingPayload WaitForCommit(FlatSkyForcingScheduler sched, WorldData w, double day, double expectedSeg, out double maxMainMs)
         {
+            double expectedSynoptic = FlatSkyCalendar.CanonicalSynopticDay(day);
             maxMainMs = 0;
             var swWait = Stopwatch.StartNew();
             FlatSkyForcingPayload last = null;
@@ -566,7 +567,7 @@ public static class CloudForcingRegression
                 if (committed && payload != null)
                 {
                     last = payload;
-                    if (Math.Abs(payload.SynopticDay - day) < 1e-6 &&
+                    if (Math.Abs(payload.SynopticDay - expectedSynoptic) < 1e-6 &&
                         Math.Abs(payload.SegmentStartDay - expectedSeg) < 1e-6 &&
                         payload.TerrainRevision == w.TerrainRevision)
                         return payload;

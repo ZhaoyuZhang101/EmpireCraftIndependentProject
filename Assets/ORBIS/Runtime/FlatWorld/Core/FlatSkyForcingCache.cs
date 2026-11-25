@@ -6,6 +6,48 @@ using System.Threading.Tasks;
 namespace Orbis.Flat
 {
     /// <summary>
+    /// Deterministic calendar-to-cloud time and physical spherical transport conversions shared by
+    /// FlatSkyRenderer, HUD diagnostics, and headless .NET regressions.
+    /// Maps 1 simulated calendar day (86,400 s) to exact physical air-parcel advection on Earth radius
+    /// (1 normalized wind unit = 9.0 m/s = 777.6 km/day = 0.122053 rad/day) across a 3.2-day (76.8 h)
+    /// synoptic weather-era lifecycle (80 shader _VisualTime units = 3.2 simulated days => 25.0 units/day).
+    /// </summary>
+    public static class FlatSkyCalendar
+    {
+        public const double WeatherUnitsPerDay = 25.0;
+        public const double MinBakeStepDays = 1.0 / 48.0;
+
+        public static double ResolveDay(double calendarDay, double worldDay) =>
+            !double.IsNaN(calendarDay) && !double.IsInfinity(calendarDay) ? calendarDay : worldDay;
+
+        public static double ToWeatherTime(double calendarDay) => calendarDay * WeatherUnitsPerDay;
+
+        public static double CanonicalSynopticDay(double calendarDay) =>
+            Math.Floor(calendarDay / FlatSkyForcingCache.SynopticRefreshCadenceDays + 1e-9) * FlatSkyForcingCache.SynopticRefreshCadenceDays;
+
+        public static void DecomposeDate(
+            double calendarDay,
+            out long yearOneBased, out int monthOneBased, out int dayOfMonthOneBased,
+            out int hour, out int minute)
+        {
+            const double DaysPerMonth = FlatClimateSamples.MonthDays;
+            const double DaysPerYear = DaysPerMonth * 12.0;
+            long yearZero = (long)Math.Floor(calendarDay / DaysPerYear);
+            double dayInYear = calendarDay - yearZero * DaysPerYear;
+            int monthZero = FMath.Clamp((int)Math.Floor(dayInYear / DaysPerMonth), 0, 11);
+            double dayInMonth = dayInYear - monthZero * DaysPerMonth;
+            int domZero = FMath.Clamp((int)Math.Floor(dayInMonth), 0, FlatClimateSamples.MonthDays - 1);
+            double phase = FlatSolarClock.Phase(calendarDay);
+            int totalMinutes = FMath.Clamp((int)Math.Floor(phase * 1440.0 + 1e-7), 0, 1439);
+            yearOneBased = yearZero + 1;
+            monthOneBased = monthZero + 1;
+            dayOfMonthOneBased = domZero + 1;
+            hour = totalMinutes / 60;
+            minute = totalMinutes % 60;
+        }
+    }
+
+    /// <summary>
     /// Pure-C# (no Unity dependency) climate-to-sky texture packing and cache-refresh coordinator.
     /// Keeps FlatSkyRenderer's existing GPU texture channels synchronized with seasonal ramps,
     /// interannual FlatClimateYear dipoles, daily synoptic/MJO evolution, moisture/wind/SST updates,
@@ -118,10 +160,10 @@ namespace Orbis.Flat
                 !ReferenceEquals(lastClimatePlanetConfig, world.PlanetClimate) ||
                 climateFp != lastClimateFingerprint;
             bool uploadClimateSegment = climateSourceChanged || ClimateSegmentStartDay != season.SegmentStartDay;
+            double targetSynopticDay = FlatSkyCalendar.CanonicalSynopticDay(day);
             bool uploadSynopticForcing = uploadClimateSegment ||
                 double.IsNaN(SynopticDay) ||
-                day < SynopticDay - 1e-6 ||
-                (day - SynopticDay) >= SynopticRefreshCadenceDays - 1e-6;
+                Math.Abs(SynopticDay - targetSynopticDay) > 1e-6;
             bool stageCloudWind = uploadWind ||
                 day != VisibleWindDay ||
                 world.TerrainRevision != VisibleWindRevision ||
@@ -895,10 +937,11 @@ namespace Orbis.Flat
             bool includeClimateSegment = plan.UploadClimateSegment;
             bool includeSynoptic = plan.UploadSynopticForcing || includeClimateSegment;
             bool includeWind = plan.UploadWind;
+            double synopticDay = FlatSkyCalendar.CanonicalSynopticDay(day);
 
             var spec = new JobSpec(
                 world, climateFp, windFp, epoch, ++nextRequestId,
-                segmentStartDay, day, includeClimateSegment, includeSynoptic, includeWind);
+                segmentStartDay, synopticDay, includeClimateSegment, includeSynoptic, includeWind);
 
             activeSpec = spec;
             activeCts = new CancellationTokenSource();

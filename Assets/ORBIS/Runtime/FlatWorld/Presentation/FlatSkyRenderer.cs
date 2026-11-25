@@ -29,12 +29,20 @@ namespace Orbis.Flat
         bool stagingWind, pendingForcingBake;
         float debt, windBlend;
         bool rendered, failed;
-        double stagedClock;
+        double stagedClock, stagingCalendarDay = double.NaN, stagingWeatherTime;
         Vector4 pendingNorth, pendingSouth, pendingPhase, visibleNorth, visibleSouth, visiblePhase;
         FlatRegionalCloudField regionalClimate;
+        FlatCycloneWeather rewindCycloneCache;
+        int rewindCycloneRevision = -1;
+        long rewindCycloneTargetStep = long.MinValue;
         long? stagingClimateStep;
         int stagingRevision;
         public long? RegionalClimateStep { get; private set; }
+        public double PublishedCalendarDay { get; private set; } = double.NaN;
+#if UNITY_EDITOR
+        // A locked weather phase isolates climate inputs in the editor's paired captures.
+        internal double? CaptureWeatherTimeOverride { get; set; }
+#endif
         bool weatherWasHidden;
         readonly Vector4[] flashes = new Vector4[4];
         FlatLightningVisuals lightning;
@@ -50,6 +58,11 @@ namespace Orbis.Flat
             pendingForcingBake = false;
             regionalClimate?.Dispose();
             regionalClimate = null;
+            rewindCycloneCache = null;
+            rewindCycloneRevision = -1;
+            rewindCycloneTargetStep = long.MinValue;
+            PublishedCalendarDay = double.NaN;
+            stagingCalendarDay = double.NaN;
             lightning = new FlatLightningVisuals(data);
             wind = WeatherTexture("Visual cloud drift");
             windBack = WeatherTexture("Cloud drift staging");
@@ -170,6 +183,8 @@ namespace Orbis.Flat
             pendingForcingBake = forcingScheduler.HasPublished;
             debt = 1;
             RegionalClimateStep = null;
+            PublishedCalendarDay = double.NaN;
+            stagingCalendarDay = double.NaN;
         }
 
         static RenderTexture NewCache(RenderTextureDescriptor descriptor, string label)
@@ -225,7 +240,8 @@ namespace Orbis.Flat
                 windBack = oldWind;
                 forcingScheduler.MarkCloudWindPublished(stagingWindDay, stagingRevision, stagingWindGeneration);
             }
-            stagedClock = hpColumn.GetFloat("_ScrollWeatherTime");
+            stagedClock = stagingWeatherTime;
+            PublishedCalendarDay = stagingCalendarDay;
             visibleNorth = pendingNorth;
             visibleSouth = pendingSouth;
             visiblePhase = pendingPhase;
@@ -301,13 +317,14 @@ namespace Orbis.Flat
             }
         }
 
-        void StageCloudWind(bool forceStage)
+        void StageCloudWind(double effectiveDay, bool forceStage)
         {
             var cache = forcingScheduler.Cache;
-            stagingWindDay = world.Day;
+            stagingWindDay = effectiveDay;
             stagingWindGeneration = cache.WindUploadGeneration;
             stagingWind = forceStage ||
-                stagingWindDay != cache.VisibleWindDay ||
+                double.IsNaN(cache.VisibleWindDay) ||
+                Math.Abs(stagingWindDay - cache.VisibleWindDay) > 1e-7 ||
                 stagingRevision != cache.VisibleWindRevision ||
                 stagingWindGeneration != cache.VisibleWindGeneration;
             if (stagingWind)
@@ -344,6 +361,21 @@ namespace Orbis.Flat
         void SampleCyclones(double calendarDay, out Vector4 northVec, out Vector4 southVec, out Vector4 phaseVec)
         {
             var state = world.Cyclones;
+            if (state != null)
+            {
+                long targetStep = FlatCycloneWeather.StepAt(calendarDay);
+                if (targetStep < state.StepIndex)
+                {
+                    if (rewindCycloneCache == null || rewindCycloneRevision != world.TerrainRevision ||
+                        targetStep < rewindCycloneTargetStep || targetStep > rewindCycloneCache.StepIndex)
+                    {
+                        rewindCycloneCache = FlatCycloneWeather.SpinUpAt(world, calendarDay);
+                        rewindCycloneRevision = world.TerrainRevision;
+                        rewindCycloneTargetStep = targetStep;
+                    }
+                    state = rewindCycloneCache;
+                }
+            }
             var north = state == null ? default : state.Sample(true, calendarDay);
             var south = state == null ? default : state.Sample(false, calendarDay);
             northVec = StormVector(north);
@@ -373,15 +405,20 @@ namespace Orbis.Flat
                 flashes[i] = new Vector4(flash.X, flash.Y, flash.Z, flash.Strength);
             }
             if (animate) Clock += Math.Max(0, delta);
+            double effectiveDay = FlatSkyCalendar.ResolveDay(calendarDay, world.Day);
+            double weatherTime = FlatSkyCalendar.ToWeatherTime(effectiveDay);
+#if UNITY_EDITOR
+            weatherTime = CaptureWeatherTimeOverride ?? weatherTime;
+#endif
             // Vegetation uses the current seasonal endpoints even while the
             // previous complete cloud/drift snapshot is still on screen.
-            var season = new FlatMonthlyForcing(world.Day);
-            if (forcingScheduler.Cache.Evaluate(world, world.Day, cloudsNeeded: false).UploadWind)
+            var season = new FlatMonthlyForcing(effectiveDay);
+            if (forcingScheduler.Cache.Evaluate(world, effectiveDay, cloudsNeeded: false).UploadWind)
                 UploadWindSync(season);
             windBlend = season.SegmentBlend;
             if (!needed)
             {
-                forcingScheduler.Poll(world, world.Day, cloudsNeeded: false, allowCommit: false, out _, out _);
+                forcingScheduler.Poll(world, effectiveDay, cloudsNeeded: false, allowCommit: false, out _, out _);
                 weatherWasHidden = true;
                 Status = "云缓存休眠；晨昏/大气开关独立。";
                 return;
@@ -399,63 +436,89 @@ namespace Orbis.Flat
                     forcingScheduler.NotifyCloudsResumed();
                 }
                 if (pendingStrip >= 0 && (stagingRevision != world.TerrainRevision ||
-                    forcingScheduler.ShouldAbortPendingStrip(world, world.Day) ||
-                    (stagingClimateStep.HasValue && stagingClimateStep.Value != (long)Math.Floor(world.Day * 4))))
+                    double.IsNaN(stagingCalendarDay) ||
+                    effectiveDay < stagingCalendarDay - 1e-7 ||
+                    (effectiveDay - stagingCalendarDay) > 0.5 ||
+                    (!animate && Math.Abs(effectiveDay - stagingCalendarDay) > 1e-7) ||
+                    forcingScheduler.ShouldAbortPendingStrip(world, effectiveDay)))
                     pendingStrip = -1;
                 if (pendingStrip >= 0)
                 {
                     // Keep advancing/coalescing background forcing without overwriting _ClimateTex mid-strip.
-                    forcingScheduler.Poll(world, world.Day, cloudsNeeded: true, allowCommit: false, out _, out _);
+                    forcingScheduler.Poll(world, effectiveDay, cloudsNeeded: true, allowCommit: false, out _, out _);
                     RenderColumnStrip();
                     return;
                 }
 
-                if (forcingScheduler.Poll(world, world.Day, cloudsNeeded: true, allowCommit: true, out var readyPayload, out _))
+                if (forcingScheduler.Poll(world, effectiveDay, cloudsNeeded: true, allowCommit: true, out var readyPayload, out _))
                 {
                     UploadForcingPayload(readyPayload);
                     pendingForcingBake = true;
                 }
 
                 if (regionalClimate == null) regionalClimate = new FlatRegionalCloudField(world);
-                bool fieldReady = regionalClimate.Prepare(world.Day, out bool changed);
+                double regionalDay = Math.Min(world.Day, effectiveDay);
+                bool fieldReady = regionalClimate.Prepare(regionalDay, out bool changed);
 
                 // Never publish an incomplete or segment-mismatched cloud bake while the matching
                 // background climate/forcing bundle is still building; keep the last complete pair on screen.
-                if (!forcingScheduler.IsSegmentCurrent(world, world.Day))
+                if (!forcingScheduler.IsSegmentCurrent(world, effectiveDay))
                 {
                     if (!rendered) Status = "云层气候强迫后台构建中…";
                     return;
                 }
 
-                // Keep the last complete pair on screen while the next six-hour field is computed.
-                // A newly ready field also wakes a paused sky after the first neutral bake.
-                if (!fieldReady && rendered) return;
+                // Hold when paused, rewound, or terrain-invalidated until the matching regional step finishes,
+                // while allowing continuous intra-day cloud advection across forward 6-hour steps.
+                if (!fieldReady && rendered && (!animate || !regionalClimate.HasValidField)) return;
 
-                SampleCyclones(calendarDay, out var nextNorth, out var nextSouth, out var nextPhase);
+                SampleCyclones(effectiveDay, out var nextNorth, out var nextSouth, out var nextPhase);
                 bool cycloneChanged = nextNorth != visibleNorth || nextSouth != visibleSouth || nextPhase != visiblePhase;
                 var cache = forcingScheduler.Cache;
-                bool windNeedsStage = world.Day != cache.VisibleWindDay ||
+                bool windNeedsStage = double.IsNaN(cache.VisibleWindDay) ||
+                    Math.Abs(effectiveDay - cache.VisibleWindDay) > 1e-7 ||
                     world.TerrainRevision != cache.VisibleWindRevision ||
                     cache.WindUploadGeneration != cache.VisibleWindGeneration;
-                bool forcingChanged = pendingForcingBake || windNeedsStage;
-                bool regionalChanged = changed || RegionalClimateStep != regionalClimate.Step;
-                if (!animate && rendered && !forcingChanged && !resumed && !regionalChanged && !cycloneChanged)
-                { Status = RegionalClimateStep.HasValue ? "云缓存暂停 · 区域气候统计" : "云缓存暂停 · 月气候"; return; }
-                debt += Mathf.Max(0, delta);
-                if (debt < .5f && rendered && !forcingChanged && !resumed && !regionalChanged && !cycloneChanged) return;
+                bool forcingChanged = pendingForcingBake ||
+                    world.TerrainRevision != cache.VisibleWindRevision ||
+                    cache.WindUploadGeneration != cache.VisibleWindGeneration;
+                bool regionalChanged = changed || (fieldReady && RegionalClimateStep != regionalClimate.Step);
+                double minBakeDays = animate ? FlatSkyCalendar.MinBakeStepDays : 1e-7;
+                bool calendarMoved = double.IsNaN(PublishedCalendarDay) ||
+                    Math.Abs(effectiveDay - PublishedCalendarDay) >= minBakeDays;
+#if UNITY_EDITOR
+                calendarMoved |= CaptureWeatherTimeOverride.HasValue && Math.Abs(weatherTime - RenderClock) > 1e-7;
+#endif
+                if (!animate)
+                {
+                    if (rendered && !calendarMoved && !forcingChanged && !resumed && !regionalChanged && !cycloneChanged)
+                    {
+                        Status = RegionalClimateStep.HasValue ? "云缓存暂停 · 区域气候统计" : "云缓存暂停 · 月气候";
+                        return;
+                    }
+                }
+                else
+                {
+                    debt += Mathf.Max(0, delta);
+                    if (rendered && !calendarMoved && debt < .5f && !forcingChanged && !resumed && !regionalChanged && !cycloneChanged)
+                        return;
+                }
                 debt = 0;
                 pendingForcingBake = false;
                 regionalClimate.Bind(bake);
-                stagingClimateStep = regionalClimate.Step;
+                stagingClimateStep = regionalClimate.Step ?? RegionalClimateStep;
+                if (!regionalClimate.HasValidField) stagingClimateStep = null;
                 stagingRevision = world.TerrainRevision;
-                StageCloudWind(windNeedsStage);
+                stagingCalendarDay = effectiveDay;
+                stagingWeatherTime = weatherTime;
+                StageCloudWind(effectiveDay, windNeedsStage);
                 StageCyclones(nextNorth, nextSouth, nextPhase);
-                bake.SetFloat("_VisualTime", (float)Clock);
+                bake.SetFloat("_VisualTime", (float)stagingWeatherTime);
                 bake.SetFloat("_MonthBlend", season.SegmentBlend);
                 hpColumn.SetFloat("_MonthBlend", season.SegmentBlend);
                 RenderCache(weatherBack, bake);
                 hpColumn.SetTexture("_ScrollWeatherTex", weatherBack);
-                hpColumn.SetFloat("_ScrollWeatherTime", (float)Clock);
+                hpColumn.SetFloat("_ScrollWeatherTime", (float)stagingWeatherTime);
                 pendingStrip = 0;
                 RenderColumnStrip();
             }

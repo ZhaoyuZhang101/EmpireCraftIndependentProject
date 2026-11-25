@@ -96,11 +96,14 @@ float2 ScrollClimateDensitiesMip(float3 p,bool simpleMode,float pixelFootprint,f
  if(!hasCyclone&&(coverage+highWeather<.006))return 0;
 
  float3 localWind=tex2Dlod(_ScrollCloudWindTex,float4(uv,0,0)).xyz;
- float phase=frac(_ScrollWeatherTime*.016);
+ // Calendar-locked dual-phase 3D puff advection (_ScrollWeatherTime = PublishedCalendarDay * 25.0):
+ // 4.7 sub-cell cycles/day keeps |b - a| <= 0.0267 rad (< 0.8 Worley cell, zero ghosting) while
+ // matching macro physical transport speed (9 m/s => 0.122 rad/day) with zero wallpaper slip.
+ float phase=frac(_ScrollWeatherTime*.188);
  // Soft-cap advection speed and damp linear dual-phase split inside active cyclones (where
  // ApplyTyphoon3DStadium already rotates 3D clouds via rotPhase) so primary & simpleMode
  // LightField stay 100% phase-locked with zero double-exposure ghosting or phantom gray craters!
- float3 advWind=localWind*rsqrt(1.0+dot(localWind,localWind)*200000.0);
+ float3 advWind=localWind*rsqrt(1.0+dot(localWind,localWind)*90000.0);
  float cycFlowKeep=1.0;
  if(hasCyclone)
  {
@@ -286,10 +289,10 @@ float2 ScrollClimateDensitiesMip(float3 p,bool simpleMode,float pixelFootprint,f
   float fine=.52;
   if(!simpleMode)
   {
-   float s,c;sincos(_ScrollWeatherTime*.0018,s,c);
-   float3 upper=float3(c*up.x-s*up.z,up.y,s*up.x+c*up.z);
    float wLen=length(localWind);
    float wActive=smoothstep(.0005,.004,wLen);
+   float s,c;sincos(_ScrollWeatherTime*.0048,s,c);
+   float3 upper=normalize(lerp(up,float3(c*up.x-s*up.z,up.y,s*up.x+c*up.z),wActive));
    float3 dynAlong=wLen>1e-5?(localWind/wLen):float3(.84,.25,.48);
    float3 dynCross=normalize(cross(up,dynAlong)+float3(1e-5,0,0));
    float3 axisAlong=normalize(lerp(float3(.84,.25,.48),dynAlong,wActive));

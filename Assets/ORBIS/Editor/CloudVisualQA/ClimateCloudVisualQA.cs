@@ -310,6 +310,9 @@ namespace Orbis.Editor.CloudVisualQA
                 ctx.BaseEarth = ClimateCloudQaScenarios.BuildRealEarth(
                     earthWidth, demAsset.bytes, waterAsset.bytes, riverAsset.bytes, ClimateCloudQaScenarios.DefaultSeed);
 
+                if (mode == "calendar")
+                    ctx.Steps.Enqueue(() => RunCalendarAudit(ctx.App, ctx.BaseEarth, outDir));
+
                 if (mode == "full" || mode == "full_typhoon" || mode == "pairs")
                 {
                     Directory.CreateDirectory(Path.Combine(outDir, "pairs"));
@@ -767,14 +770,15 @@ namespace Orbis.Editor.CloudVisualQA
 
             var sky = map.Sky;
             map.SetLayer(MapLayer.Natural);
-            var clockProp = typeof(FlatSkyRenderer).GetProperty("Clock", BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic);
+            var clockProp = typeof(FlatSkyRenderer).GetProperty("CaptureWeatherTimeOverride", BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic);
             clockProp?.SetValue(sky, fixedVisualClock);
             var pendingStripField = typeof(FlatSkyRenderer).GetField("pendingStrip", Private);
             var schedulerField = typeof(FlatSkyRenderer).GetField("forcingScheduler", Private);
             var pendingBakeField = typeof(FlatSkyRenderer).GetField("pendingForcingBake", Private);
             var scheduler = schedulerField?.GetValue(sky) as FlatSkyForcingScheduler;
 
-            long expectedStep = (long)Math.Floor(world.Day * 4.0);
+            long expectedStep = (long)Math.Floor(Math.Min(world.Day, cycloneCalendarDay) * 4.0);
+            double expectedSynopticDay = FlatSkyCalendar.CanonicalSynopticDay(cycloneCalendarDay);
             var sw = System.Diagnostics.Stopwatch.StartNew();
             while (sw.Elapsed.TotalSeconds < 20.0)
             {
@@ -784,8 +788,8 @@ namespace Orbis.Editor.CloudVisualQA
                 int strip = pendingStripField != null ? (int)pendingStripField.GetValue(sky) : -1;
                 bool pendingBake = pendingBakeField != null && (bool)pendingBakeField.GetValue(sky);
                 bool schedulerReady = scheduler == null ||
-                    (scheduler.HasPublished && scheduler.IsSegmentCurrent(world, world.Day) &&
-                     !scheduler.HasInFlightWork && Math.Abs(scheduler.PublishedSynopticDay - world.Day) < 1e-6);
+                    (scheduler.HasPublished && scheduler.IsSegmentCurrent(world, cycloneCalendarDay) &&
+                     !scheduler.HasInFlightWork && Math.Abs(scheduler.PublishedSynopticDay - expectedSynopticDay) < 1e-6);
                 if (sky.Ready && !map.PreparationPending && strip < 0 && !pendingBake && schedulerReady &&
                     sky.RegionalClimateStep.HasValue && sky.RegionalClimateStep.Value == expectedStep &&
                     Math.Abs(sky.RenderClock - fixedVisualClock) < 1e-3)
@@ -795,10 +799,10 @@ namespace Orbis.Editor.CloudVisualQA
 
             if (scheduler != null && scheduler.LastError != null)
                 throw new InvalidOperationException("Async FlatSkyForcingScheduler failed: " + scheduler.LastError);
-            if (!sky.Ready || (scheduler != null && (!scheduler.HasPublished || !scheduler.IsSegmentCurrent(world, world.Day) || Math.Abs(scheduler.PublishedSynopticDay - world.Day) >= 1e-6)))
+            if (!sky.Ready || (scheduler != null && (!scheduler.HasPublished || !scheduler.IsSegmentCurrent(world, cycloneCalendarDay) || Math.Abs(scheduler.PublishedSynopticDay - expectedSynopticDay) >= 1e-6)))
                 throw new InvalidOperationException($"Production FlatSkyRenderer did not reach steady ready state for day={world.Day:F3} (Ready={sky.Ready}, pubDay={scheduler?.PublishedSynopticDay}).");
-            if (Math.Abs(sky.Clock - fixedVisualClock) > 1e-3 || Math.Abs(sky.RenderClock - fixedVisualClock) > 1e-3)
-                throw new InvalidOperationException($"Visual clock lock violated: Clock={sky.Clock}, RenderClock={sky.RenderClock}, expected={fixedVisualClock}.");
+            if (Math.Abs(sky.RenderClock - fixedVisualClock) > 1e-3)
+                throw new InvalidOperationException($"Visual clock lock violated: RenderClock={sky.RenderClock}, expected={fixedVisualClock}.");
         }
 
         static void CaptureWorldState(
@@ -1472,16 +1476,143 @@ namespace Orbis.Editor.CloudVisualQA
             }
         }
 
+        static void RunCalendarAudit(FlatWorldApp app, WorldData baseEarth, string outDir)
+        {
+            const double startDay = 194.75;
+            const int skyWidth = 1024, width = 1280, height = 720;
+            var trace = new List<string>();
+            var fields = typeof(FlatWorldApp);
+            var skyFields = typeof(FlatSkyRenderer);
+            var pendingStrip = skyFields.GetField("pendingStrip", Private);
+            var pendingBake = skyFields.GetField("pendingForcingBake", Private);
+            var output = Path.Combine(outDir, "calendar.txt");
+
+            (Float4Grid Weather, Float4Grid Column) Capture(WorldData world, FlatMapRenderer map, string label)
+            {
+                var sky = map.Sky;
+                var scheduler = (FlatSkyForcingScheduler)skyFields.GetField("forcingScheduler", Private).GetValue(sky);
+                long regionalStep = (long)Math.Floor(world.Day * 4.0);
+                var wait = System.Diagnostics.Stopwatch.StartNew();
+                while (true)
+                {
+                    map.Flush();
+                    sky.Tick(0f, true, false, false, skyWidth, world.Day);
+                    if (sky.Ready && !map.PreparationPending && (int)pendingStrip.GetValue(sky) < 0 &&
+                        !(bool)pendingBake.GetValue(sky) && scheduler.HasPublished && !scheduler.HasInFlightWork &&
+                        scheduler.IsSegmentCurrent(world, world.Day) && sky.RegionalClimateStep == regionalStep &&
+                        Math.Abs(sky.RenderClock - FlatSkyCalendar.ToWeatherTime(world.Day)) < .0005)
+                        break;
+                    if (scheduler.LastError != null)
+                        throw new InvalidOperationException("Cloud calendar forcing failed: " + scheduler.LastError);
+                    if (wait.Elapsed.TotalSeconds > 25.0)
+                        throw new TimeoutException($"Cloud calendar did not publish at day {world.Day:F4}.");
+                    Thread.Sleep(2);
+                }
+
+                trace.Add(FormattableString.Invariant(
+                    $"{label} | day={world.Day:F4} skyTime={sky.RenderClock:F6} forcing={scheduler.PublishedSynopticDay:F4}"));
+                File.WriteAllLines(output, trace);
+                var globe = (FlatGlobePresenter)fields.GetField("globe", Private).GetValue(app);
+                var camera = (Camera)fields.GetField("viewCamera", Private).GetValue(app);
+                var atmosphere = Array.Find(camera.GetComponents<OrbisAtmosphereRenderer>(), a => a.enabled && a.view == globe.View);
+                var oldTarget = camera.targetTexture;
+                var oldRect = camera.pixelRect;
+                var oldActive = RenderTexture.active;
+                var rt = RenderTexture.GetTemporary(width, height, 24, RenderTextureFormat.ARGB32);
+                var read = new Texture2D(width, height, TextureFormat.RGBA32, false);
+                try
+                {
+                    ConfigurePose(map, globe, app.Navigation, camera, camera.GetComponent<OrbisCelestialLens>(),
+                        atmosphere, world, 131.0, 13.0, 1.30f, 14f, 195.067, 1, width, height, rt);
+                    camera.Render();
+                    RenderTexture.active = rt;
+                    read.ReadPixels(new Rect(0, 0, width, height), 0, 0);
+                    var frame = FlipToNorthFirstRgba(width, height, read.GetPixels32());
+                    File.WriteAllBytes(Path.Combine(outDir, label + ".png"),
+                        OrbisRasterCodec.RGBA8(frame.Width, frame.Height, frame.Rgba));
+                    return (ReadRenderTextureGrid(sky.Texture), ReadRenderTextureGrid(sky.ColumnTexture));
+                }
+                finally
+                {
+                    camera.targetTexture = oldTarget;
+                    app.Navigation.SetViewport(oldRect);
+                    RenderTexture.active = oldActive;
+                    UnityEngine.Object.DestroyImmediate(read);
+                    RenderTexture.ReleaseTemporary(rt);
+                }
+            }
+
+            double MeanCoverageDelta(Float4Grid a, Float4Grid b)
+            {
+                double error = 0.0;
+                for (int i = 0; i < a.R.Length; i++)
+                    error += Math.Abs(a.R[i] - b.R[i]) + Math.Abs(a.G[i] - b.G[i]);
+                return error / (2.0 * a.R.Length);
+            }
+
+            var fastWorld = baseEarth.Clone();
+            fastWorld.Day = startDay;
+            InstallWorldForCapture(app, fastWorld);
+            var fastMap = (FlatMapRenderer)fields.GetField("map", Private).GetValue(app);
+            var initial = Capture(fastWorld, fastMap, "fast-00h");
+            var fast24 = initial;
+            var clock = new FlatSolarClock();
+            var previous = initial;
+            int previousHour = 0;
+            foreach (int hour in new[] { 6, 12, 24, 48 })
+            {
+                double elapsed = (hour - previousHour) * 5.0 / 20.0;
+                clock.Advance(elapsed, 20.0, 120.0, false, step => fastWorld.Day += step);
+                clock.Flush(step => fastWorld.Day += step);
+                fastMap.Sky.Tick((float)elapsed, false, true, false, skyWidth, fastWorld.Day);
+                var sample = Capture(fastWorld, fastMap, $"fast-{hour:D2}h");
+                trace.Add(FormattableString.Invariant(
+                    $"interval {previousHour:D2}->{hour:D2}h coverage MAE={MeanCoverageDelta(previous.Weather, sample.Weather):F6} column MAE={MeanCoverageDelta(previous.Column, sample.Column):F6}"));
+                if (hour == 24) fast24 = sample;
+                previous = sample;
+                previousHour = hour;
+            }
+
+            fastMap.Sky.Tick(3f, false, false, false, skyWidth, fastWorld.Day);
+            var paused = Capture(fastWorld, fastMap, "paused-48h");
+            fastWorld.Day = startDay;
+            var rewind = Capture(fastWorld, fastMap, "rewind-00h");
+
+            var slowWorld = baseEarth.Clone();
+            slowWorld.Day = startDay;
+            InstallWorldForCapture(app, slowWorld);
+            var slowMap = (FlatMapRenderer)fields.GetField("map", Private).GetValue(app);
+            Capture(slowWorld, slowMap, "slow-00h");
+            clock.Reset();
+            clock.Advance(120.0, 1.0, 120.0, false, step => slowWorld.Day += step);
+            clock.Flush(step => slowWorld.Day += step);
+            slowMap.Sky.Tick(120f, false, true, false, skyWidth, slowWorld.Day);
+            var slow24 = Capture(slowWorld, slowMap, "slow-24h");
+
+            double SnapshotError((Float4Grid Weather, Float4Grid Column) a, (Float4Grid Weather, Float4Grid Column) b) =>
+                Math.Max(MeanCoverageDelta(a.Weather, b.Weather), MeanCoverageDelta(a.Column, b.Column));
+
+            double speedError = SnapshotError(fast24, slow24);
+            double pauseError = SnapshotError(previous, paused);
+            double rewindError = SnapshotError(initial, rewind);
+            trace.Add(FormattableString.Invariant(
+                $"same-day 1x vs 20x MAE={speedError:G9}, paused MAE={pauseError:G9}, rewind MAE={rewindError:G9}"));
+            File.WriteAllLines(output, trace);
+            if (speedError > .0005 || pauseError > .0005 || rewindError > .0005)
+                throw new InvalidOperationException($"Cloud calendar invariance failed. See {output}.");
+        }
+
         static void WaitSkySteadyForDay(
             FlatMapRenderer map, FlatSkyRenderer sky, WorldData world, double fixedClock, int skyWidth,
             out double dispatchTickMs, out double maxTickMs, out double totalWaitMs, out int ticks)
         {
-            var clockProp = typeof(FlatSkyRenderer).GetProperty("Clock", BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic);
+            var clockProp = typeof(FlatSkyRenderer).GetProperty("CaptureWeatherTimeOverride", BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic);
             var pendingStripField = typeof(FlatSkyRenderer).GetField("pendingStrip", Private);
             var schedulerField = typeof(FlatSkyRenderer).GetField("forcingScheduler", Private);
             var pendingBakeField = typeof(FlatSkyRenderer).GetField("pendingForcingBake", Private);
             var scheduler = schedulerField?.GetValue(sky) as FlatSkyForcingScheduler;
             long expectedStep = (long)Math.Floor(world.Day * 4.0);
+            double expectedSynopticDay = FlatSkyCalendar.CanonicalSynopticDay(world.Day);
 
             dispatchTickMs = 0.0;
             maxTickMs = 0.0;
@@ -1503,7 +1634,7 @@ namespace Orbis.Editor.CloudVisualQA
                 bool pendingBake = pendingBakeField != null && (bool)pendingBakeField.GetValue(sky);
                 bool schedulerReady = scheduler == null ||
                     (scheduler.HasPublished && scheduler.IsSegmentCurrent(world, world.Day) &&
-                     !scheduler.HasInFlightWork && Math.Abs(scheduler.PublishedSynopticDay - world.Day) < 1e-6);
+                     !scheduler.HasInFlightWork && Math.Abs(scheduler.PublishedSynopticDay - expectedSynopticDay) < 1e-6);
                 if (sky.Ready && !map.PreparationPending && strip < 0 && !pendingBake && schedulerReady &&
                     sky.RegionalClimateStep.HasValue && sky.RegionalClimateStep.Value == expectedStep &&
                     Math.Abs(sky.RenderClock - fixedClock) < 1e-3)
@@ -1515,7 +1646,7 @@ namespace Orbis.Editor.CloudVisualQA
 
             if (scheduler != null && scheduler.LastError != null)
                 throw new InvalidOperationException("Async forcing worker error during WaitSkySteadyForDay: " + scheduler.LastError);
-            if (!sky.Ready || (scheduler != null && (!scheduler.HasPublished || !scheduler.IsSegmentCurrent(world, world.Day) || Math.Abs(scheduler.PublishedSynopticDay - world.Day) >= 1e-6)))
+            if (!sky.Ready || (scheduler != null && (!scheduler.HasPublished || !scheduler.IsSegmentCurrent(world, world.Day) || Math.Abs(scheduler.PublishedSynopticDay - expectedSynopticDay) >= 1e-6)))
                 throw new InvalidOperationException($"Sky failed to reach steady ready state for day={world.Day:F3} (Ready={sky.Ready}, pubDay={scheduler?.PublishedSynopticDay}).");
         }
 
