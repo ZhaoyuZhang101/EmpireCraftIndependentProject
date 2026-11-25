@@ -82,7 +82,7 @@ void ApplyTyphoon3DStadium(float3 up,float z,float4 centre,float spin,float rotP
 
 // Uses the SAME spherical coordinates on the globe and every repeated 2D sheet.
 // pixelFootprint = projected world-space arc length per rendered pixel (0 = full-res mip 0).
-float2 ScrollClimateDensitiesMip(float3 p,bool simpleMode,float pixelFootprint)
+float2 ScrollClimateDensitiesMip(float3 p,bool simpleMode,float pixelFootprint,float rayFootprint)
 {
  float rLen=length(p);
  float3 up=p/max(1e-7,rLen);
@@ -123,10 +123,12 @@ float2 ScrollClimateDensitiesMip(float3 p,bool simpleMode,float pixelFootprint)
  if(coverage+highWeather<.006)return 0;
  // Physically matched trilinear 3D mip levels from view-ray pixel footprint (prevents Nyquist grain & moving moire).
  float fp=max(0.0,pixelFootprint);
- float macroMip=fp>1e-7?clamp(log2(max(1.0,fp*6.4*128.0))-.45,0.0,4.5):0.0;
- float bodyMip=fp>1e-7?clamp(log2(max(1.0,fp*30.0*128.0))-.45,0.0,5.0):0.0;
- float detailMip=fp>1e-7?clamp(log2(max(1.0,fp*112.0*64.0)),0.0,5.5):0.0;
- float cirrusMip=fp>1e-7?clamp(log2(max(1.0,fp*17.5*64.0))-.30,0.0,4.5):0.0;
+ float filteredFoot=max(fp,rayFootprint);
+ float macroMip=clamp(log2(max(1.0,fp*6.4*128.0))-.45,0.0,4.5);
+ float angularBodyMip=clamp(log2(max(1.0,fp*30.0*128.0))-.45,0.0,5.0);
+ float bodyMip=clamp(log2(max(1.0,filteredFoot*30.0*128.0))-.45,0.0,5.0);
+ float detailMip=clamp(log2(max(1.0,filteredFoot*112.0*64.0)),0.0,5.5);
+ float cirrusMip=clamp(log2(max(1.0,filteredFoot*17.5*64.0))-.30,0.0,4.5);
 
  float low=0,high=0;
  if(coverage>.004&&z<13100)
@@ -266,7 +268,7 @@ float2 ScrollClimateDensitiesMip(float3 p,bool simpleMode,float pixelFootprint)
     // broken cumulus puffs into their mean, Jensen's inequality (E[exp(-tau)] > exp(-E[tau])) requires
     // delaying denseCore saturation on mid-coverage broken clouds (effCov 0.34..0.72) while keeping
     // clear gyres open and thin-cloud veils luminous (dense storm cores protected via stormProtect).
-    float mipBlur=smoothstep(.55,2.35,bodyMip);
+    float mipBlur=smoothstep(.55,2.35,angularBodyMip);
     float stormProtect=saturate(cdoSmooth*1.4);
     float orbitM=mipBlur*(1.0-.90*stormProtect);
     float thinMist=lerp(.030,.24,smoothstep(.04,.48,effCov))*lerp(1.0,.66,orbitM*(1.0-smoothstep(.04,.28,effCov)));
@@ -315,6 +317,6 @@ float2 ScrollClimateDensitiesMip(float3 p,bool simpleMode,float pixelFootprint)
 }
 float2 ScrollClimateDensities(float3 p,bool simpleMode)
 {
- return ScrollClimateDensitiesMip(p,simpleMode,0.0);
+ return ScrollClimateDensitiesMip(p,simpleMode,0.0,0.0);
 }
 #endif

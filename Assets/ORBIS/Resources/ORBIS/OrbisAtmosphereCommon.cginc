@@ -453,9 +453,15 @@ OrbisVolumeResult OrbisMarchRayFootprint(float3 ro,float3 rd,float endDistance,f
     float safeMinStep=(crustBoost>.05&&sampleIndex<sampleCount-8)?0.0:minStep;
     stepSize=min(segmentEnd-cursor,max(fineStep,safeMinStep));
     bool skipDetail=_CloudLightSimple>.5&&maxTrans<.16;
-    float sampleFoot=(cursor+stepSize*.5)*pixelAngle;
+    float sampleDistance=cursor+stepSize*.5;
+    float sampleFoot=sampleDistance*pixelAngle;
+    // Body noise changes about 3.6 times faster vertically than horizontally.
+    // Band-limit the march to about two stretched sample strides in nearby clouds.
+    float radialRate=dot(ro,rd)+sampleDistance;
+    float stretchedStride=max(ds,stepSize)*sqrt(1.0+11.6*radialRate*radialRate);
+    float rayFoot=min(actualSlab*.40,2.0*stretchedStride)*smoothstep(.12,.70,grazing);
     if(skipDetail&&abs(stepSize-large)<1e-6)density=probe;
-    else density=OrbisCloudDensitiesMip(ro+rd*(cursor+stepSize*.5),skipDetail,sampleFoot);
+    else density=OrbisCloudDensitiesMip(ro+rd*sampleDistance,skipDetail,sampleFoot,rayFoot);
    }
    else
    {

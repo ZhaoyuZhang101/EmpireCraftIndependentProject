@@ -82,11 +82,11 @@ float3 OrbisLightningLight(float3 p)
  }
  return light;
 }
-float2 OrbisCloudDensitiesMip(float3 p,bool simpleMode,float pixelFootprint)
+float2 OrbisCloudDensitiesMip(float3 p,bool simpleMode,float pixelFootprint,float rayFootprint)
 {
  if(_Clouds<.5||length(p)<ORBIS_CLOUD_BASE||length(p)>ORBIS_CLOUD_TOP)return 0;
  #ifdef ORBIS_SHARED_SCROLL_WEATHER
- if(_ScrollCloudSource>.5)return ScrollClimateDensitiesMip(p,simpleMode,pixelFootprint);
+ if(_ScrollCloudSource>.5)return ScrollClimateDensitiesMip(p,simpleMode,pixelFootprint,rayFootprint);
  #endif
  if(_LayeredWeather<.5)return 0;
  float3 up=normalize(p);float2 uv=OrbisWeatherUV(up);
@@ -114,6 +114,8 @@ float2 OrbisCloudDensitiesMip(float3 p,bool simpleMode,float pixelFootprint)
  float highFraction=wispy*.6;
  return density*float2(1-highFraction,highFraction);
 }
+float2 OrbisCloudDensitiesMip(float3 p,bool simpleMode,float pixelFootprint)
+{return OrbisCloudDensitiesMip(p,simpleMode,pixelFootprint,0.0);}
 float2 OrbisCloudDensities(float3 p,bool simpleMode) {return OrbisCloudDensitiesMip(p,simpleMode,0.0);}
 float OrbisCloudDensity(float3 p) {float2 density=OrbisCloudDensities(p,false);return density.x+density.y;}
 float OrbisCloudShadowDirect(float3 p,float3 sun)

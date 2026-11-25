@@ -430,6 +430,9 @@ namespace Orbis.Editor.CloudVisualQA
                     });
                 }
 
+                if (mode == "sky_band_probe")
+                    ctx.Steps.Enqueue(() => RunSkyBandProbe(ctx.App, ctx.BaseEarth, outDir, ctx.PerfLines));
+
                 if (mode == "overnight")
                 {
                     Directory.CreateDirectory(Path.Combine(outDir, "overnight"));
@@ -1809,6 +1812,73 @@ namespace Orbis.Editor.CloudVisualQA
             map.Material.SetFloat("_WaterClock", 0f);
             nav.SyncMaterials();
             globe.TickScroll(0f, ClimateCloudQaScenarios.DefaultVisualClock, world.Day, nav.DisplaySpin, 0f, true, true, true, true, sunLocal, true);
+        }
+
+        static void RunSkyBandProbe(FlatWorldApp app, WorldData baseEarth, string outDir, List<string> perfLines)
+        {
+            const double day = 195.067, lon = 122.0, lat = 12.0;
+            const int width = 1280, height = 720;
+            var world = ClimateCloudQaScenarios.DeepCloneWorld(baseEarth);
+            world.Day = day;
+            world.Cyclones = FlatCycloneWeather.SpinUp(world);
+            InstallAndPublishSky(app, world, ClimateCloudQaScenarios.DefaultVisualClock, 1024, day + 0.25,
+                out var map, out var globe, out var nav, out var camera, out var lens, out var atmosphere);
+
+            var originalTarget = camera.targetTexture;
+            var originalRect = camera.pixelRect;
+            var originalActive = RenderTexture.active;
+            var target = RenderTexture.GetTemporary(width, height, 24, RenderTextureFormat.ARGB32);
+            var readback = new Texture2D(width, height, TextureFormat.RGBA32, false);
+            void Capture(string name, bool fullResolution, bool denseReference, bool diffuse, bool godRays)
+            {
+                var material = atmosphere.view.CloudMaterial;
+                material.SetFloat("_GodRays", godRays ? 1f : 0f);
+                material.SetFloat("_CloudMS", diffuse ? 1f : 0f);
+                atmosphere.fullResolutionReference = fullResolution;
+                atmosphere.referenceCloudIntegration = denseReference;
+                camera.Render();
+                RenderTexture.active = target;
+                readback.ReadPixels(new Rect(0, 0, width, height), 0, 0);
+                readback.Apply(false, false);
+                var img = FlipToNorthFirstRgba(width, height, readback.GetPixels32());
+                File.WriteAllBytes(Path.Combine(outDir, name + ".png"), OrbisRasterCodec.RGBA8(img.Width, img.Height, img.Rgba));
+            }
+            try
+            {
+                ConfigurePose(map, globe, nav, camera, lens, atmosphere, world,
+                    lon, lat, 1.26f, 39f, day, 1, width, height, target);
+                Capture("01_graze_balanced", false, false, true, true);
+                Capture("02_graze_full_resolution", true, false, true, true);
+                Capture("03_graze_dense_reference", true, true, true, true);
+                Capture("04_graze_no_diffuse", false, false, false, true);
+                Capture("05_graze_no_shafts", false, false, true, false);
+
+                nav.Home(day);
+                nav.Tick(3f, day);
+                Quaternion spin = Quaternion.AngleAxis(nav.DisplaySpin * Mathf.Rad2Deg, Vector3.up);
+                Vector3 normal = (spin * ReflectZ(SurfaceNormalLocal(lon, lat))).normalized;
+                Vector3 north = (spin * ReflectZ(NorthTangentLocal(lon, lat))).normalized;
+                for (int frame = 0; frame < 8; frame++)
+                {
+                    float yaw = (-1.75f + frame * .5f) * Mathf.Deg2Rad;
+                    Vector3 east = Vector3.Cross(normal, north).normalized;
+                    Vector3 look = (north * Mathf.Cos(yaw) + east * Mathf.Sin(yaw) - normal * .10f).normalized;
+                    ConfigureAltitudeLookPose(map, globe, nav, camera, lens, atmosphere, world,
+                        lon, lat, 13500f, look, day, day, 1, true, width, height, target);
+                    Capture($"06_sky_look_f{frame:D2}", false, false, true, true);
+                }
+                perfLines.Add("Sky band probe | locked orbit variants + 8 sky panning frames at 1280x720");
+            }
+            finally
+            {
+                atmosphere.fullResolutionReference = false;
+                atmosphere.referenceCloudIntegration = false;
+                camera.targetTexture = originalTarget;
+                nav.SetViewport(originalRect);
+                RenderTexture.active = originalActive;
+                UnityEngine.Object.DestroyImmediate(readback);
+                RenderTexture.ReleaseTemporary(target);
+            }
         }
 
         static void RunOvernightMotionStep(FlatWorldApp app, WorldData baseEarth, string outDir, List<string> perfLines)
