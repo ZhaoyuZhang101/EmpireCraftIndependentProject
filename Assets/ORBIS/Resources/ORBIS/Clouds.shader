@@ -14,6 +14,9 @@ Shader "ORBIS/Clouds"
   [HideInInspector] _ScrollWeatherTex("Published regional weather",2D)="black"{}
   [HideInInspector] _ScrollCloudColumn("Published HP low/high cloud opacity",2D)="black"{}
   [HideInInspector] _ScrollCloudWindTex("Regional wind",2D)="black"{}
+  [HideInInspector] _ScrollUpperWindTex("Upper cloud wind",2D)="black"{}
+  [HideInInspector] _ScrollUpperWindReady("Upper cloud wind ready",Float)=0
+  [HideInInspector] _ScrollMonthBlend("Upper cloud wind month blend",Float)=0
   [HideInInspector] _ScrollHeightTex("Regional ground height",2D)="black"{}
   [HideInInspector] _ScrollCloudSource("Use regional weather",Float)=0
  }

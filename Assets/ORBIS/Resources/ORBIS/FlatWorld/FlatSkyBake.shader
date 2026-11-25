@@ -237,17 +237,9 @@ Shader "ORBIS/FlatWorld/SkyBake"
    }
    float2 NormalizeUpperFlow(float2 uRaw,float itczConv)
    {
-    // Guard against unscaled Rossby jet velocities in _UpperWindTex (up to ~70 vs surface ~1.0)
-    // while staying 1:1 linear once Core rescales _UpperWindTex into physical surface-wind units (~0..2.2).
-    float rawMag=length(uRaw);
-    float normMag=(rawMag>1.8)?(1.8+1.1*(1.0-exp(-(rawMag-1.8)*.08))):rawMag;
-    float2 uPhys=(rawMag>1e-4)?(uRaw*(normMag/rawMag)):float2(0,0);
-    // Damp unphysical >45 deg meridional spikes when raw Rossby velocity overflows, preserving gentle jet meanders.
-    uPhys.y*=lerp(1.0,.32,smoothstep(1.2,4.5,rawMag));
-    // Preserve tropical easterly anvil outflow when upper-jet noise leaks into the ITCZ belt.
-    float tropOut=smoothstep(.20,.65,itczConv);
-    uPhys.x=lerp(uPhys.x,min(uPhys.x,-.48*itczConv),tropOut*.75);
-    return uPhys;
+    // Plan B unified wind units (1.0 = 9.0 m/s): _UpperWindTex carries physical m/s Rossby jet
+    // and tropical easterly outflow; linear /9.0 matches _ClimateWindTex without weak-wind inflation.
+    return uRaw*(1.0/9.0);
    }
    float3 SphereTangentWind(float2 uv,float2 flow2)
    {
@@ -305,7 +297,7 @@ Shader "ORBIS/FlatWorld/SkyBake"
      #endif
      uFlow1=NormalizeUpperFlow(lerp(uw1.rg,uw1.ba,_MonthBlend),itczConv);
     }
-    float3 v1=SphereTangentWind(uv1,lerp(sFlow1,uFlow1,.68));
+    float3 v1=SphereTangentWind(uv1,lerp(sFlow1,uFlow1,.55));
     float mag1=length(v1);
     if(mag1<1e-4)return p1;
     float3 dir1=v1/mag1;
@@ -501,13 +493,13 @@ Shader "ORBIS/FlatWorld/SkyBake"
     float k1=max(2.0,floor(rossbyK+.35+.5));
     float k2=k1+1.0;
 
-    // Time-invariant hemispheric Rossby wave angular velocity matching physical baroclinic steering (~9.5 m/s):
+    // Time-invariant baroclinic Rossby wave phase speed (~7.2 m/s, matching Earth storm-track phase speed):
     // strictly 0 when hemisphere wind is calm, reverses cleanly on retrograde planets, and stays free of
-    // multi-year seasonal phase-rate drift (simDays * dU/dt) or spatial phase grating!
+    // multi-year seasonal phase-rate drift (simDays * dU/dt) or spatial phase grating.
     float basePolarRad=(_GlebaCloudEnable>.5&&_GlebaCirculationParams.y>.2)?_GlebaCirculationParams.y:1.0821;
     float cosTrack=max(.35,cos(clamp(basePolarRad*.82,.45,1.25)));
     float hemiDir=sign(hemiSteerU)*smoothstep(.02,.14,abs(hemiSteerU));
-    float advRate=clamp(hemiDir*.115/cosTrack,-.32,.32);
+    float advRate=clamp(hemiDir*.088/cosTrack,-.26,.26);
     float waveSpeedOn=abs(hemiDir);
     float phase1=fmod(simDays*advRate*k1,6.2831853);
     float phase2=fmod(simDays*(advRate*.74*k2+.045*hemiSign*waveSpeedOn),6.2831853);
@@ -598,8 +590,8 @@ Shader "ORBIS/FlatWorld/SkyBake"
      float jetLen=length(jetVec);
      if(jetLen>1e-3&&length(radial.xz)>.08)jetAxis=jetVec/jetLen;
     }
-    float3 upperWindVec=lerp(windVec,jetVec,.68);
-    float steerZonal=(_GlebaCloudEnable>.5?lerp(flow.x,uFlow.x,.28):flow.x)*poleDamp;
+    float3 upperWindVec=lerp(windVec,jetVec,.55);
+    float steerZonal=(_GlebaCloudEnable>.5?lerp(flow.x,uFlow.x,.25):flow.x)*poleDamp;
     // Decode un-truncated local polar-front latitude (30..88 deg) and synchronize with planetary circulation terminus
     float auxPolarRad=(30.0+58.0*aux.a)*.01745329;
     float polarLatRad=_GlebaCloudEnable>.5&&_GlebaCirculationParams.y>.2
@@ -728,7 +720,11 @@ Shader "ORBIS/FlatWorld/SkyBake"
      float polCap1=sin(clamp(polarLatRad*1.20,1.32,1.54));
      float midMoistGate=smoothstep(.16,.48,moistEnv)*smoothstep(.14,.42,climTarget);
      float midLatBoost=smoothstep(midSin0,midSin1,abs(radial.y))*(1.0-smoothstep(polCap0,polCap1,abs(radial.y)))*midMoistGate;
-     float stormWeight=saturate(smoothstep(.08,.48,stormTrack+.18*midLatBoost)*(1.0-.75*leeShadow));
+     // Gate continuous frontal storm track by local baroclinic westerly steering so weak/monsoonal NH summer
+     // mid-latitudes track actual local _ClimateWindTex instead of a forced eastward conveyor!
+     float localWestAlign=smoothstep(-.06,.36,steerZonal*sign(hemiSteerU+1e-5));
+     float baroSteerGate=lerp(.22,1.0,localWestAlign)*smoothstep(.04,.30,windMag);
+     float stormWeight=saturate(smoothstep(.08,.48,stormTrack+.18*midLatBoost)*(1.0-.75*leeShadow)*baroSteerGate);
 
      float zLow=lerp(zBase,zRibbon,.74);
      zLow=lerp(zLow,zStreets,.38*tropBelt);

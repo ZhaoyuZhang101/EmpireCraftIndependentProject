@@ -5,6 +5,9 @@ Shader "Hidden/ORBIS/HPCloudColumn"
   _ScrollWeatherTex("Cloud mass, height and precipitation",2D)="black"{}
   _ScrollHeightTex("Ground height",2D)="black"{}
   _ScrollCloudWindTex("Cloud wind",2D)="black"{}
+  [HideInInspector] _ScrollUpperWindTex("Upper cloud wind",2D)="black"{}
+  [HideInInspector] _ScrollUpperWindReady("Upper cloud wind ready",Float)=0
+  [HideInInspector] _ScrollMonthBlend("Upper cloud wind month blend",Float)=0
   _ClimateTex("Monthly precipitation and temperature",2D)="black"{}
   _MonthBlend("Seasonal blend",Float)=0
   _CloudNoise("Cloud shape",3D)="white"{}

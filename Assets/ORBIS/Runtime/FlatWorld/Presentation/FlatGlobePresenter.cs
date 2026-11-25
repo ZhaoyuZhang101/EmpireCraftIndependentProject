@@ -85,6 +85,9 @@ namespace Orbis.Flat
             m.SetFloat("_CloudShellTop",OrbisAtmosphereProfile.CloudTop);
             m.SetTexture("_ScrollWeatherTex",maps.Sky.Texture);
             m.SetTexture("_ScrollCloudWindTex",maps.Sky.DynamicWind?maps.Sky.DynamicWind:Texture2D.blackTexture);
+            m.SetTexture("_ScrollUpperWindTex",maps.Sky.UpperWind?maps.Sky.UpperWind:Texture2D.blackTexture);
+            m.SetFloat("_ScrollUpperWindReady",maps.Sky.UpperWindReady?1:0);
+            m.SetFloat("_ScrollMonthBlend",maps.Sky.SeasonalBlend);
             m.SetVectorArray("_OrbisLightning",maps.Sky.LightningFlashes);
             m.SetTexture("_ScrollHeightTex",maps.VisualTexture);
             m.SetVector("_ScrollSourceSize",new Vector4(maps.World.Width,maps.World.Height,0,0));

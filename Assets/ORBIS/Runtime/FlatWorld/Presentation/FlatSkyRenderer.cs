@@ -26,7 +26,7 @@ namespace Orbis.Flat
         float[] upperWindFallback;
         double stagingWindDay;
         int stagingWindGeneration;
-        bool stagingWind, pendingForcingBake;
+        bool stagingWind, pendingForcingBake, upperWindReady;
         float debt, windBlend;
         bool rendered, failed;
         double stagedClock, stagingCalendarDay = double.NaN, stagingWeatherTime;
@@ -47,6 +47,9 @@ namespace Orbis.Flat
         readonly Vector4[] flashes = new Vector4[4];
         FlatLightningVisuals lightning;
         public Texture2D DynamicWind { get { return wind; } }
+        public Texture2D UpperWind { get { return glebaUpperWind; } }
+        public bool UpperWindReady { get { return upperWindReady && glebaUpperWind; } }
+        public float SeasonalBlend { get { return windBlend; } }
         public bool DynamicReady { get { return Ready; } }
         public double RenderClock { get { return stagedClock; } }
         public Vector4[] LightningFlashes { get { return flashes; } }
@@ -56,6 +59,7 @@ namespace Orbis.Flat
             world = data;
             forcingScheduler.Bind(world);
             pendingForcingBake = false;
+            upperWindReady = false;
             regionalClimate?.Dispose();
             regionalClimate = null;
             rewindCycloneCache = null;
@@ -300,6 +304,7 @@ namespace Orbis.Flat
                     glebaUpperWind.SetPixelData(upperWindFallback, 0);
                 }
                 glebaUpperWind.Apply(false, false);
+                upperWindReady = true;
             }
 
             if (payload.HasSynopticForcing)
@@ -516,6 +521,9 @@ namespace Orbis.Flat
                 bake.SetFloat("_VisualTime", (float)stagingWeatherTime);
                 bake.SetFloat("_MonthBlend", season.SegmentBlend);
                 hpColumn.SetFloat("_MonthBlend", season.SegmentBlend);
+                hpColumn.SetTexture("_ScrollUpperWindTex", glebaUpperWind ? glebaUpperWind : Texture2D.blackTexture);
+                hpColumn.SetFloat("_ScrollUpperWindReady", upperWindReady && glebaUpperWind ? 1f : 0f);
+                hpColumn.SetFloat("_ScrollMonthBlend", season.SegmentBlend);
                 RenderCache(weatherBack, bake);
                 hpColumn.SetTexture("_ScrollWeatherTex", weatherBack);
                 hpColumn.SetFloat("_ScrollWeatherTime", (float)stagingWeatherTime);

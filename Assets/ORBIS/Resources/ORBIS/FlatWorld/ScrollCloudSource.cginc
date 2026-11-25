@@ -5,8 +5,9 @@
 #include "../OrbisHPVolumeCloud.cginc"
 sampler2D _ScrollWeatherTex, _ScrollCloudWindTex;
 UNITY_DECLARE_TEX2D(_ScrollHeightTex);
+UNITY_DECLARE_TEX2D_NOSAMPLER(_ScrollUpperWindTex);
 float4 _ScrollSourceSize;
-float _ScrollWeatherTime;
+float _ScrollWeatherTime,_ScrollUpperWindReady,_ScrollMonthBlend;
 float4 _OrbisCycloneNorth,_OrbisCycloneSouth,_OrbisCyclonePhase;
 
 float4 ScrollHeightAt(float2 uv)
@@ -310,17 +311,32 @@ float2 ScrollClimateDensitiesMip(float3 p,bool simpleMode,float pixelFootprint,f
  }
  if(highWeather>.004&&z>6950)
  {
-  // Wind-steered dual-phase 3D cirrus & _HPHighDetail advection (zero static 2D wallpaper, zero wrong-way drift!):
-  // Uses local wind direction in tropics (easterly anvil outflow) and eastward-sheared upper jet in mid-latitudes.
-  float wLen=length(localWind);
-  float wActive=smoothstep(.0004,.0035,wLen);
+  // Separate high-cloud wind direction, speed, and time calibration matching FlatSkyBake 1:1:
+  // reads physical m/s _ScrollUpperWindTex / 9.0 ONLY on high-altitude steps (z > 6950 m, zero low-cloud cost!)
+  // sharing _ScrollHeightTex's sampler so D3D11 sampler budget stays unchanged.
   float3 eastDir=normalize(float3(up.z,0,-up.x)+float3(1e-5,0,0));
-  float midJetW=smoothstep(.34,.62,abs(up.y))*(1.0-smoothstep(.88,.98,abs(up.y)));
-  float3 hiWind=(localWind+eastDir*(midJetW*.010))*cycFlowKeep;
-  float hiLen=length(hiWind);
-  float hiCap=hiLen>.028?(.028/max(1e-5,hiLen)):1.0;
-  float3 hiAdv=hiWind*(2.45*hiCap)*wActive;
-  float hiRaw=frac(_ScrollWeatherTime*.120+.37);
+  float3 surfUnit=localWind*(1.0/.014);
+  float3 upperUnit=surfUnit;
+  if(_ScrollUpperWindReady>.5)
+  {
+   #ifdef UNITY_SEPARATE_TEXTURE_SAMPLER
+   float4 uw=UNITY_SAMPLE_TEX2D_SAMPLER_LOD(_ScrollUpperWindTex,_ScrollHeightTex,uv,0);
+   #else
+   float4 uw=tex2Dlod(_ScrollUpperWindTex,float4(uv,0,0));
+   #endif
+   float2 uFlow=lerp(uw.rg,uw.ba,_ScrollMonthBlend)*(1.0/9.0);
+   float3 northDir=normalize(cross(up,eastDir)+float3(0,1e-5,0));
+   float3 jetUnit=eastDir*uFlow.x+northDir*uFlow.y;
+   upperUnit=lerp(surfUnit,jetUnit,.55);
+  }
+  float3 hiUnit=upperUnit*cycFlowKeep;
+  float hiLen=length(hiUnit);
+  float wActive=smoothstep(.03,.24,hiLen);
+  // 4.0 cycles/day (6h period): 0.122053 rad/day * 0.25 day = 0.030513 rad/cycle per 9 m/s unit
+  float hiDisp=hiLen*.030513;
+  float hiCap=hiDisp>.065?(.065/max(1e-5,hiDisp)):1.0;
+  float3 hiAdv=hiUnit*(.030513*hiCap)*wActive;
+  float hiRaw=frac(_ScrollWeatherTime*.160+.37);
   float hiBlend=hiRaw*hiRaw*(3.0-2.0*hiRaw);
   float3 hiA=normalize(up-hiAdv*hiRaw);
   float3 hiB=normalize(up+hiAdv*(1.0-hiRaw));
@@ -330,7 +346,7 @@ float2 ScrollClimateDensitiesMip(float3 p,bool simpleMode,float pixelFootprint,f
   float fine=.52;
   if(!simpleMode)
   {
-   float3 dynAlong=hiLen>1e-5?(hiWind/hiLen):eastDir;
+   float3 dynAlong=hiLen>1e-4?(hiUnit/hiLen):eastDir;
    float3 dynCross=normalize(cross(up,dynAlong)+float3(1e-5,0,0));
    float3 axisAlong=normalize(lerp(eastDir,dynAlong,wActive));
    float3 axisCross=normalize(lerp(normalize(cross(up,eastDir)+float3(1e-5,0,0)),dynCross,wActive));
