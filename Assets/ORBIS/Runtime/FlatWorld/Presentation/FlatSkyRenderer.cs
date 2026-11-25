@@ -440,10 +440,10 @@ namespace Orbis.Flat
 
         void SampleCyclones(double calendarDay, out Vector4 northVec, out Vector4 southVec, out Vector4 phaseVec)
         {
-            var state = world.Cyclones;
+            long targetStep = FlatCycloneWeather.StepAt(calendarDay);
+            var state = FlatCycloneWeather.ForwardStateAtTick(world, targetStep);
             if (state != null)
             {
-                long targetStep = FlatCycloneWeather.StepAt(calendarDay);
                 if (targetStep < state.StepIndex)
                 {
                     if (rewindCycloneCache == null || rewindCycloneRevision != world.TerrainRevision ||

@@ -78,6 +78,17 @@ namespace Orbis.Flat
             return (long)Math.Floor(ticks + tolerance);
         }
 
+        // The display and SWE may cross a six-hour boundary while a fraction of
+        // the game calendar is still pending. Predict on a copy in that case.
+        public static FlatCycloneWeather ForwardStateAtTick(WorldData world, long tick)
+        {
+            var current = world?.Cyclones;
+            if (current == null || tick <= current.StepIndex) return current;
+            var forecast = current.Clone();
+            forecast.AdvanceTo(world, tick * StepDays);
+            return forecast;
+        }
+
         public static FlatCycloneWeather SpinUp(WorldData world) => SpinUpAt(world, world.Day);
 
         public static FlatCycloneWeather SpinUpAt(WorldData world, double day)

@@ -36,7 +36,7 @@ namespace Orbis.Flat
         internal FlatRegionalCloudField(WorldData world) { this.world = world; }
 
         internal bool HasValidLatestFor(WorldData targetWorld, double day) =>
-            pool.HasValidLatestFor(targetWorld, (long)Math.Floor(day * 4));
+            pool.HasValidLatestFor(targetWorld, FlatCycloneWeather.StepAt(day));
 
         internal bool HasPublishedFor(WorldData targetWorld)
         {
@@ -53,18 +53,19 @@ namespace Orbis.Flat
 
         internal bool Prepare(double day, out bool changed)
         {
-            long tick = (long)Math.Floor(day * 4);
+            long tick = FlatCycloneWeather.StepAt(day);
             pool.InvalidateLatestIfIncompatible(world, tick);
             changed = false;
+            if (worker != null && !worker.IsCompleted) return false;
 
+            var state = FlatCycloneWeather.ForwardStateAtTick(world, tick);
             if (worker != null)
             {
-                if (!worker.IsCompleted) return false;
                 bool exactMatch = workerTick == tick &&
                     workerRevision == world.TerrainRevision &&
                     ReferenceEquals(workerMoisture, world.Moisture) &&
                     FlatRegionalSnapshotPool.SameStorms(
-                        world.Cyclones, tick, workerTick, workerHadStorms, workerSpinUpAtTick,
+                        state, tick, workerTick, workerHadStorms, workerSpinUpAtTick,
                         in workerNorth, in workerSouth, in workerPrevNorth, in workerPrevSouth);
                 bool coalescedMatch = !exactMatch &&
                     workerTick < tick &&
@@ -87,33 +88,17 @@ namespace Orbis.Flat
                 worker = null;
             }
 
-            if (pool.HasExactLatestFor(world, tick))
+            if (pool.HasExactLatestFor(world, tick, state))
                 return true;
 
             bool rebuildModel = !ReferenceEquals(workerMoisture, world.Moisture);
             workerTick = tick;
             workerRevision = world.TerrainRevision;
             workerMoisture = world.Moisture;
-            var liveCyclones = world.Cyclones;
-            workerHadStorms = liveCyclones != null;
-            workerSpinUpAtTick = liveCyclones != null && liveCyclones.StepIndex != tick;
-            FlatCycloneWeather storms = null;
-            if (liveCyclones != null)
-            {
-                if (tick < liveCyclones.StepIndex)
-                {
-                    storms = liveCyclones.Clone(); // Calculate() spins up at capturedTick * 0.25 on worker thread
-                }
-                else
-                {
-                    storms = liveCyclones.Clone();
-                    if (tick > storms.StepIndex)
-                    {
-                        storms.AdvanceTo(world, tick * .25);
-                        workerSpinUpAtTick = false;
-                    }
-                }
-            }
+            workerHadStorms = state != null;
+            workerSpinUpAtTick = state != null && state.StepIndex > tick;
+            var storms = state;
+            if (ReferenceEquals(storms, world.Cyclones)) storms = storms?.Clone();
             if (storms != null && !workerSpinUpAtTick)
             {
                 workerNorth = storms.North;
@@ -218,7 +203,7 @@ namespace Orbis.Flat
 
         internal void StageAndBind(WorldData targetWorld, double day, Material bake, Material hpColumn, out long? stagedTick, out ulong stagedGeneration)
         {
-            long targetTick = (long)Math.Floor(day * 4);
+            long targetTick = FlatCycloneWeather.StepAt(day);
             int slotIdx = pool.BeginStageForStrip(targetWorld, targetTick);
             BindSlotToMaterials(slotIdx, bake, hpColumn, out stagedTick, out stagedGeneration);
         }

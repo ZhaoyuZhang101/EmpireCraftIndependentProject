@@ -1286,13 +1286,16 @@ namespace Orbis.Flat
             return MatchesWorldIdentity(s, world) && s.Tick <= targetTick;
         }
 
-        public bool HasExactLatestFor(WorldData world, long targetTick)
-        {
-            if (!HasValidLatestFor(world, targetTick)) return false;
-            var s = slots[LatestUploadedIndex];
-            return s.Tick == targetTick &&
-                   SameStorms(world.Cyclones, targetTick, s.Tick, s.HadStorms, s.SpinUpAtTick, in s.North, in s.South, in s.PrevNorth, in s.PrevSouth);
-        }
+        public bool HasExactLatestFor(WorldData world, long targetTick) =>
+            HasExactLatestFor(world, targetTick, FlatCycloneWeather.ForwardStateAtTick(world, targetTick));
+
+        public bool HasExactLatestFor(WorldData world, long targetTick, FlatCycloneWeather stormState) =>
+            LatestUploadedIndex >= 0 && MatchesExactSnapshot(slots[LatestUploadedIndex], world, targetTick, stormState);
+
+        static bool MatchesExactSnapshot(Slot slot, WorldData world, long tick, FlatCycloneWeather stormState) =>
+            slot != null && slot.Tick == tick && MatchesWorldIdentity(slot, world) &&
+            SameStorms(stormState, tick, slot.Tick, slot.HadStorms, slot.SpinUpAtTick,
+                in slot.North, in slot.South, in slot.PrevNorth, in slot.PrevSouth);
 
         public int BeginStageForStrip(WorldData world, long targetTick)
         {
@@ -1359,31 +1362,20 @@ namespace Orbis.Flat
             WorldData world, long expectedTick, double u, double v,
             out RegionalPrecipitationDiagnostic diagnostic)
         {
-            if (PublishedIndex >= 0)
-            {
-                var pub = slots[PublishedIndex];
-                if (MatchesWorldIdentity(pub, world) && pub.Tick == expectedTick &&
-                    (pub.World != null ? ReferenceEquals(pub.World, world) : true) &&
-                    SameStorms(world.Cyclones, expectedTick, pub.Tick, pub.HadStorms, pub.SpinUpAtTick,
-                        in pub.North, in pub.South, in pub.PrevNorth, in pub.PrevSouth))
-                {
-                    diagnostic = FlatMoistureCloudBudget.SamplePackedPrecipitationHalf(pub.PrecipHalf, u, v);
-                    return true;
-                }
-            }
-
-            if (HasExactLatestFor(world, expectedTick))
-            {
-                var lat = slots[LatestUploadedIndex];
-                if (lat.World == null || ReferenceEquals(lat.World, world))
-                {
-                    diagnostic = FlatMoistureCloudBudget.SamplePackedPrecipitationHalf(lat.PrecipHalf, u, v);
-                    return true;
-                }
-            }
-
+            Slot published = PublishedIndex >= 0 ? slots[PublishedIndex] : null;
+            Slot latest = LatestUploadedIndex >= 0 ? slots[LatestUploadedIndex] : null;
             diagnostic = default;
-            return false;
+            if (published?.Tick != expectedTick && latest?.Tick != expectedTick) return false;
+
+            var state = FlatCycloneWeather.ForwardStateAtTick(world, expectedTick);
+            Slot match = published;
+            if (!MatchesExactSnapshot(match, world, expectedTick, state))
+            {
+                match = latest;
+                if (!MatchesExactSnapshot(match, world, expectedTick, state)) return false;
+            }
+            diagnostic = FlatMoistureCloudBudget.SamplePackedPrecipitationHalf(match.PrecipHalf, u, v);
+            return true;
         }
 
         public static bool SameStorms(
