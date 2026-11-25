@@ -24,7 +24,7 @@ public static class Program
             }
             else if(args.Length>0&&args[0]=="--fingerprint")
                 Fingerprint(args.Length>1?int.Parse(args[1]):256,args.Length>2?int.Parse(args[2]):75);
-            else{Operations();Skeleton();RulesChecks.Rules();RulesChecks.MoreRules();RulesChecks.Generated();RulesChecks.Wars();RulesChecks.People();RulesChecks.Grid();RulesChecks.Beliefs();RulesChecks.HostSwitches();RulesChecks.FirstEntry();RulesChecks.NewsChecks();RulesChecks.MakingPeople();RulesChecks.Alliances();RulesChecks.Running();RulesChecks.Empires();RulesChecks.Scheduling();RulesChecks.Data();RulesChecks.Accounts();RulesChecks.Runner();}
+            else{Operations();Skeleton();RulesChecks.Rules();RulesChecks.MoreRules();RulesChecks.Generated();RulesChecks.Wars();RulesChecks.People();RulesChecks.Grid();RulesChecks.Beliefs();RulesChecks.HostSwitches();RulesChecks.FirstEntry();RulesChecks.NewsChecks();RulesChecks.MakingPeople();RulesChecks.Alliances();RulesChecks.Running();RulesChecks.Empires();RulesChecks.CultureMap();RulesChecks.Scheduling();RulesChecks.Data();RulesChecks.Accounts();RulesChecks.Runner();}
             return 0;
         }
         catch(Exception e){Console.Error.WriteLine(e);return 1;}

@@ -628,6 +628,58 @@ public static class RulesChecks
         Console.WriteLine("PASS empires (" + checks + " checks)");
     }
 
+    // Which people each realm belongs to, by where it lies.
+    public static void CultureMap()
+    {
+        checks = 0;
+        LM.Clear(); LM.LoadFile(Path.Combine(DataFolder(), "Locales", "ch.json")); LM.Language = "ch";
+        GameData.Folder = DataFolder(); OnomasticsRule.ReadSetting(); RegimeManager.init();
+        PortedSystems.Reset(); PortedSystems.Enabled = true;
+        var map = FlatGenerator.Generate(512, 256, "EMPIRE-CULTURES", TerrainPreset.Continents, default);
+        var w = Start(map);
+        var families = w.LiveRealms.Select(r => CultureService.GetRealmCulture(r)).ToList();
+        int kinds = families.Distinct().Count();
+        Console.WriteLine("   " + w.LiveRealms.Count + " realms, " + kinds + " peoples: " + string.Join(", ", families.GroupBy(f => f).OrderByDescending(g => g.Count()).ThenBy(g => g.Key).Select(g => g.Key + " " + g.Count())));
+        Console.WriteLine("   regimes: " + string.Join(", ", w.LiveRealms.GroupBy(r => r.GetRegime()?.type.ToString() ?? "none").OrderByDescending(g => g.Count()).Select(g => g.Key + " " + g.Count())));
+        Check(w.LiveRealms.All(r => r.HasCulture() && CultureService.IsValidCulture(CultureService.GetRealmCulture(r)) && Cultures.FamilyOf(r.Culture) == CultureService.GetRealmCulture(r)), "every realm has a people");
+        Check(w.LiveRealms.All(r => r.Cities.All(c => c.Culture == r.Culture)) && w.Living.Where(p => p.Realm != null).All(p => p.HasCulture()), "its cities and people share it");
+        Check(families.All(f => CultureGeography.Families.Contains(f)), "only the historical peoples are placed");
+        Check(kinds >= Math.Min(8, w.LiveRealms.Count / 3) && families.GroupBy(f => f).Max(g => g.Count()) <= Math.Max(4, w.LiveRealms.Count / 4), "peoples are many, not one everywhere");
+        // History begins at the root of each people's institution line (the tribe for most; the Huaxia line has its own root).
+        bool rooted = w.LiveRealms.All(r =>
+        {
+            string line = OnomasticsRule.ALL_CULTURE_RULE[CultureService.GetRealmCulture(r)].institution_line;
+            return r.GetRegime() != null && InstitutionDefinitionRegistry.TryGetRootRegime(line, out RegimeType root) && r.GetRegime().type == root;
+        });
+        Check(rooted, "each realm starts at the root of its people's institution line");
+        // A people's realms lie together: most realms have a realm of the same people among their nearest three.
+        int together = w.LiveRealms.Count(r => w.LiveRealms.Where(o => o != r).OrderBy(o => w.Distance(o.Capital.Tile, r.Capital.Tile)).Take(3).Any(o => o.Culture == r.Culture));
+        Check(together * 2 >= w.LiveRealms.Count, "a people's realms lie together (" + together + "/" + w.LiveRealms.Count + ")");
+        // Hot desert goes to desert peoples, steppe to steppe peoples, where such land holds a realm.
+        bool desertOk = true; bool steppeOk = true;
+        foreach (var r in w.LiveRealms)
+        {
+            var cells = r.Cities.SelectMany(c => c.Tiles).ToList();
+            double desert = cells.Count(t => map.Climates[t] == Koppen.BWh) / (double)cells.Count;
+            double steppe = cells.Count(t => map.Climates[t] == Koppen.BSk || map.Climates[t] == Koppen.BWk) / (double)cells.Count;
+            string f = CultureService.GetRealmCulture(r);
+            if (desert > 0.8 && !(f == "Arab" || f == "Egypt" || f == "Persepolis" || f == "India")) desertOk = false;
+            if (steppe > 0.8 && !(f == "Youmu" || f == "Persepolis" || f == "Xizang" || f == "Manzhou" || f == "Arab")) steppeOk = false;
+        }
+        Check(desertOk && steppeOk, "deep desert and steppe go to peoples of such land");
+        // Same world, same peoples.
+        var again = Start(map);
+        Check(again.LiveRealms.Select(r => CultureService.GetRealmCulture(r)).SequenceEqual(families), "the same world gives the same peoples");
+        // Twenty years on: nothing fails, and realms that came about since have a people too.
+        Run(again, 20, world => { var bad = EmpireInvariants.Check(world, 1); Check(bad.Count == 0, "the world stays consistent" + (bad.Count > 0 ? ": " + bad[0] : "")); });
+        string faults = string.Join("; ", PortedSystems.Slots.Where(s => s.Faults > 0).Select(s => s.Name + " x" + s.Faults + " " + s.LastFault));
+        Check(PortedSystems.TotalFaults == 0, "no ported system fails with peoples and regimes in the world: " + faults);
+        Check(again.LiveRealms.All(r => r.HasCulture()), "realms that came about since have a people");
+        // Earth: realms take the people whose homeland holds their capital.
+        EmpireWorld.Current = null;
+        Console.WriteLine("PASS peoples by geography (" + checks + " checks)");
+    }
+
     // The grid as the ported systems see it: cells, terrain, a city's territory and neighbours.
     public static void Grid()
     {

@@ -83,6 +83,8 @@ namespace EmpireCraft.Core
             Run("palace army", () => { foreach (var realm in w.LiveRealms.ToArray()) PalaceArmySystem.Monthly(realm); });
 
             if (w.Month % 12 != 0) return;
+            // Realms, cities and people that came about during the year take the culture of where they are.
+            Run("culture upkeep", () => CultureGeography.Upkeep(w));
             Run("ambition", AmbitionSystem.Yearly);
             Run("hostages", HostageSystem.Yearly);
             Run("road treaties", RoadTreatySystem.Yearly);

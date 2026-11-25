@@ -238,6 +238,8 @@ namespace EmpireCraft.Core
             // Current from the start: switching worlds resets the ported systems (WorldSwitch), which is loading work,
             // not something for the first frame of play.
             world.Activate();
+            // Each realm's people by where it lies (when the culture rules and regime templates are loaded).
+            CultureGeography.Assign(world);
             return world;
         }
     }

@@ -62,6 +62,8 @@ namespace EmpireCraft.Presentation
                 OnomasticsRule.ReadSetting();
                 string texts = Path.Combine(GameData.Folder, "Locales", LM.Language + ".json");
                 if (File.Exists(texts)) LM.LoadFile(texts);
+                // Regime templates and their titles; realms take theirs from their people when a world opens.
+                RegimeManager.init();
             }
             catch (Exception e) { Debug.LogException(e); }
         }
