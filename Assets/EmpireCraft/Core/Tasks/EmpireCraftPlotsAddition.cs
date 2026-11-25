@@ -289,7 +289,6 @@ namespace EmpireCraft.Core
                 target.Ruler.GetViolateValue() >= 0);
         }
 
-#if EC_PENDING
         private static bool CanRunTributaryTitlePetition(Person actor)
         {
             if (actor == null || !actor.IsRuler() || !actor.HasRealm()) return false;
@@ -297,7 +296,6 @@ namespace EmpireCraft.Core
             Empire empire = kingdom?.GetTakenAllianceEmpire();
             return empire?.GetTributaryPetitionTitle(kingdom) != null;
         }
-#endif
 
         private static List<Realm> GetKingdomsRuledByActor(Person actor)
         {
@@ -346,7 +344,7 @@ namespace EmpireCraft.Core
                     continue;
                 }
 
-                if (requireGoodOpinion && !kingdom.isOpinionTowardsKingdomGood(empire.CoreKingdom))
+                if (requireGoodOpinion && !kingdom.IsOpinionGood(empire.CoreKingdom))
                 {
                     continue;
                 }
@@ -1248,7 +1246,7 @@ namespace EmpireCraft.Core
                         if (!targetKing.TryTriggerProbabilisticLaw(crime, 1f, _ => { })) return false;
                         bool crimeConfirmed = false;
                         double rebellingPossibility = 0.2f;
-                        if (!target.isOpinionTowardsKingdomGood(empire.CoreKingdom))
+                        if (!target.IsOpinionGood(empire.CoreKingdom))
                         {
                             rebellingPossibility = Math.Min(1d, target.Warriors() /
                                 (double)Math.Max(1, empire.countWarriors())) * 0.5d +
@@ -1412,7 +1410,7 @@ namespace EmpireCraft.Core
                             // 帝国内改朝换代：用新皇族之主的封国名，没有封国用美号(见 RealmNamingSystem.Founding)；天下之名关着时照旧随机起名
                             if (!RealmNamingSystem.NameUsurper(empire, pActor))
                             {
-                                string new_name = pActor.generateName(EntityKind.Realm, IdGenerator.NextId());
+                                string new_name = pActor.GenerateName(EntityKind.Realm, IdGenerator.NextId());
                                 LogService.LogInfo($"New Empire Name：{new_name}，Original Empire Name：{empire.GetEmpireName()}");
                                 string[] nameParts = new_name.SplitNameParts();
                                 empire.SetEmpireName(nameParts.Length > 0 ? nameParts[0] : new_name);
@@ -1501,7 +1499,7 @@ namespace EmpireCraft.Core
                     if (empire.Legitimacy > 60) return false;
                     if (regime == null) return false;
                     if (regime.IsAllowArmy()) return false;
-                    if (kingdom.isOpinionTowardsKingdomGood(empire.CoreKingdom)) return false;
+                    if (kingdom.IsOpinionGood(empire.CoreKingdom)) return false;
                     return true;
                 },
                 action = delegate(Person pActor) 
@@ -1539,7 +1537,7 @@ namespace EmpireCraft.Core
                     // 以前藩镇这一步正统跌到 30 以下才迈得出去(用户 2026-10-21 选"华夏有真乱世")
                     if (empire.CoreKingdom?.GetRegime()?.type == RegimeType.LvLing
                             ? RebellionSystem.SecessionAllegiance(kingdom, empire) >= 0
-                            : kingdom.isOpinionTowardsKingdomGood(empire.CoreKingdom)) return false;
+                            : kingdom.IsOpinionGood(empire.CoreKingdom)) return false;
                     return true;
                 },
                 action = delegate(Person pActor) 
@@ -1573,7 +1571,7 @@ namespace EmpireCraft.Core
                     if (!regime.IsAllowArmy()) return false;
                     if (!regime.IsAllowDiplomacy()) return false;
                     if (regime.GetLeaderSelectMethod() == LeaderSelectMethod.Succession) return false;
-                    if (kingdom.isOpinionTowardsKingdomGood(empire.CoreKingdom)) return false;
+                    if (kingdom.IsOpinionGood(empire.CoreKingdom)) return false;
                     return true;
                 },
                 action = delegate(Person pActor) 
@@ -1608,7 +1606,7 @@ namespace EmpireCraft.Core
                     if (!regime.IsAllowDiplomacy()) return false;
                     if (regime.GetLeaderSelectMethod() != LeaderSelectMethod.Succession) return false;
                     if (!regime.IsAllowSupportCenterArmy()) return false;
-                    if (kingdom.isOpinionTowardsKingdomGood(empire.CoreKingdom)) return false;
+                    if (kingdom.IsOpinionGood(empire.CoreKingdom)) return false;
                     return true;
                 },
                 action = delegate(Person pActor) 
@@ -1816,7 +1814,7 @@ namespace EmpireCraft.Core
                         if (title.IsGone()) continue;
                         Realm targetKingdom = title.FindRealmTitleHolder();
                         if (!kingdom.CanDeclareDeJureTitleWar(targetKingdom, title)) continue;
-                        if (kingdom.isOpinionTowardsKingdomGood(targetKingdom)) continue;
+                        if (kingdom.IsOpinionGood(targetKingdom)) continue;
                         foreach (Plot plot3 in EmpireWorld.Current.Plots)
                         {
                             if (plot3.IsActive() && plot3.isSameType(pPlotAsset))
@@ -2526,7 +2524,7 @@ namespace EmpireCraft.Core
             {
                 Realm kingdom = pActor.Realm;
                 if (!FeudalVassalService.CanJoinAlliance(kingdom, null)) return false;
-                if (kingdom.hasAlliance())
+                if (kingdom.HasAlliance())
                 {
                     return false;
                 }
@@ -2576,7 +2574,7 @@ namespace EmpireCraft.Core
                     {
                         return false;
                     }
-                    if (kingdom.hasAlliance())
+                    if (kingdom.HasAlliance())
                     {
                         return false;
                     }
@@ -2592,17 +2590,17 @@ namespace EmpireCraft.Core
                     {
                         return false;
                     }
-                    return EmpireWorld.Current.alliances.anyAlliances() ? true : false;
+                    return EmpireWorld.Current.AnyAlliances() ? true : false;
                 },
                 try_to_start_advanced = delegate (Person pActor, PlotKind pPlotAsset, bool pForced)
                 {
                     if (IsVanillaAllianceBlocked() || pActor?.plot?.isActive() == true || pActor?.Realm == null ||
-                        pActor.Realm.IsInEmpire() || pActor.Realm.hasAlliance() ||
+                        pActor.Realm.IsInEmpire() || pActor.Realm.HasAlliance() ||
                         !FeudalVassalService.CanJoinAlliance(pActor.Realm, null)) return false;
                     Realm kingdom = pActor.Realm;
                     _ = kingdom.power;
                     Alliance alliance = null;
-                    foreach (var item3 in EmpireWorld.Current.alliances.list.LoopRandom())
+                    foreach (var item3 in EmpireWorld.Current.LiveAlliances.LoopRandom())
                     {
                         if (!item3.hasWars())
                         {
@@ -2645,13 +2643,13 @@ namespace EmpireCraft.Core
                 },
                 check_other_plots = PlotsLibrary.alliance_create.check_other_plots,
                 check_can_be_forced = (Person pActor) =>
-                    !IsVanillaAllianceBlocked() && !pActor.Realm.hasAlliance() && !pActor.Realm.IsInEmpire() &&
+                    !IsVanillaAllianceBlocked() && !pActor.Realm.HasAlliance() && !pActor.Realm.IsInEmpire() &&
                     FeudalVassalService.CanJoinAlliance(pActor.Realm, null),
                 check_should_continue = delegate(Person pActor)
                 {
                     if (IsVanillaAllianceBlocked()) return false;
                     Plot plot = pActor.plot;
-                    if (pActor.Realm.hasAlliance() || pActor.Realm.IsInEmpire())
+                    if (pActor.Realm.HasAlliance() || pActor.Realm.IsInEmpire())
                     {
                         return false;
                     }
@@ -2674,7 +2672,7 @@ namespace EmpireCraft.Core
                 {
                     if (IsVanillaAllianceBlocked()) return false;
                     Plot plot = pActor.plot;
-                    if (pActor.Realm.hasAlliance() || pActor.Realm.IsInEmpire())
+                    if (pActor.Realm.HasAlliance() || pActor.Realm.IsInEmpire())
                     {
                         return false;
                     }
@@ -2726,8 +2724,8 @@ namespace EmpireCraft.Core
             EmpireFormationRoute route = EmpireFormationService.GetBestRoute(kingdom);
             if (route == EmpireFormationRoute.None) route = kingdom.GetOrCreate().empire_formation_route;
             kingdom.GetOrCreate().empire_formation_route = route;
-            Alliance foundingAlliance = kingdom.hasAlliance() ? kingdom.getAlliance() : null;
-            List<Realm> allianceMembers = foundingAlliance?.kingdoms_hashset?.ToList() ?? new List<Realm>();
+            Alliance foundingAlliance = kingdom.HasAlliance() ? kingdom.GetAlliance() : null;
+            List<Realm> allianceMembers = foundingAlliance?.MemberSet?.ToList() ?? new List<Realm>();
             List<Realm> coRuledRealms = PersonalUnionService.GetRealms(pActor)
                 .Where(realm => realm != kingdom && !realm.IsEmpire() && !realm.IsInEmpire()).ToList();
             // 同文化可以有多个帝国并立；主法理在别国核心里的是僭越称帝，先用临时核心，正统之争胜出后再接管原核心
@@ -2766,9 +2764,9 @@ namespace EmpireCraft.Core
             if (actor.HasCulture() && actor.Culture.HasTrait("serenity_now") ||
                 actor.HasTrait("pacifist")) return false;
             sharedWarPlot ??= AssetManager.plots_library.get("empirecraft_war");
-            if (kingdom.hasAlliance())
+            if (kingdom.HasAlliance())
             {
-                foreach (Realm ally in kingdom.getAlliance().kingdoms_hashset)
+                foreach (Realm ally in kingdom.GetAlliance().MemberSet)
                 {
                     Person allyKing = ally == kingdom ? null : ally?.Ruler;
                     if (allyKing?.hasPlot() == true && sharedWarPlot != null &&
@@ -2807,7 +2805,7 @@ namespace EmpireCraft.Core
             Realm kingdom = actor?.Realm;
             Realm target = actor?.plot?.target_kingdom;
             if (kingdom == null || target == null || !IsWarNeededForPlot(kingdom) || CorpsSystem.CannotFundWar(kingdom) ||
-                !IsValidModWarTarget(kingdom, target) || EmpireWorld.Current?.diplomacy == null) return false;
+                !IsValidModWarTarget(kingdom, target) || EmpireWorld.Current?.Diplomacy == null) return false;
             War war = EmpireWorld.Current.StartWar(kingdom, target, WarKinds.Normal);
             return war != null;
         }
@@ -2859,7 +2857,7 @@ namespace EmpireCraft.Core
                 // 再就近：通达层算好后按人员走过去的成本(翻山越岭的算远)，没算好时照旧量直线(见 ConnectivitySystem.WarTargetOrder)
                 .ThenBy(target => ConnectivitySystem.WarTargetOrder(pInitiatorKingdom, target,
                     Realm.distanceBetweenKingdom(pInitiatorKingdom, target)))
-                .ThenBy(target => EmpireWorld.Current.diplomacy?.getOpinion(pInitiatorKingdom, target)?.total ?? 0)
+                .ThenBy(target => EmpireWorld.Current.Diplomacy?.GetOpinion(pInitiatorKingdom, target)?.Total ?? 0)
                 .ThenBy(target => target.id)
                 .FirstOrDefault();
         }
@@ -2877,8 +2875,8 @@ namespace EmpireCraft.Core
                 !target.HasCities() || target.getAge() < SimGlobals.m.minimum_kingdom_age_for_attack ||
                 !initiator.Capital.reachableFrom(target.Capital) && !StraitReach.Across(initiator, target))
                 return false;
-            double lastWarEnded = DiplomacyHelpers.diplomacy?.getRelation(initiator, target)
-                ?.data?.timestamp_last_war_ended ?? -1d;
+            double lastWarEnded = EmpireWorld.Current.Diplomacy?.GetRelation(initiator, target)
+                ?.Record?.LastWarEnded ?? -1d;
             if (lastWarEnded >= 0 &&
                 GameClock.YearsSince(lastWarEnded) < SimGlobals.m.minimum_years_between_wars)
                 return false;

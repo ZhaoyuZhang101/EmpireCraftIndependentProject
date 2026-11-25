@@ -70,7 +70,7 @@ public static class MemberWarAid
         Realm core = empire.CoreKingdom;
         if (war.HasRealm(core) || EmpirePeacePatch.HasLeft(core, war, joiningAttackers: false)) return false;
         if (core.GetWars().Any(other => other.GetEmpireWarType() == EmpireWarType.藩王索取皇位)) return false;
-        return EmpirePeacePatch.Obeys(empire, member) || core.isOpinionTowardsKingdomGood(member);
+        return EmpirePeacePatch.Obeys(empire, member) || core.IsOpinionGood(member);
     }
 #endif
 
@@ -83,7 +83,7 @@ public static class MemberWarAid
             ally.GetEmpire() != empire || !Aidable(war, ally, empire) || war.HasRealm(member)) return false;
         if (member.GetWars().Any(other => other != null && !other.HasEnded())) return false;
         if (EmpirePeacePatch.HasLeft(member, war, joiningAttackers: false) || !member.IsNeighbourWith(ally)) return false;
-        return EmpirePeacePatch.Obeys(empire, member) || member.isOpinionTowardsKingdomGood(ally);
+        return EmpirePeacePatch.Obeys(empire, member) || member.IsOpinionGood(ally);
     }
 
     public static bool StartRequest(Person actor, PlotKind asset, bool forced)
@@ -178,7 +178,7 @@ public static class MemberWarAid
         else if (member.GetWars().Any(other => other != null && !other.HasEnded()) ||
                  EmpirePeacePatch.HasLeft(member, war, joiningAttackers: attacking)) return false;
         if (needy && WarScopeSystem.Level(core) < WarScopeSystem.Wider) return false;
-        return EmpirePeacePatch.Obeys(empire, member) || member.isOpinionTowardsKingdomGood(core);
+        return EmpirePeacePatch.Obeys(empire, member) || member.IsOpinionGood(core);
     }
 
     public static bool StartCenter(Person actor, PlotKind asset, bool forced)

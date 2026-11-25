@@ -10,7 +10,7 @@ namespace EmpireCraft.Core
     // a bed fingerprint. Derived indices (tile owners, living list) are rebuilt.
     public static class EmpireSave
     {
-        public const int Version=6;
+        public const int Version=7;
         const uint Magic=0x44574345; // "ECWD"
         const int MaxEntities=4_000_000,MaxString=256;
 
@@ -105,6 +105,14 @@ namespace EmpireCraft.Core
             if(version<6){b.Flush();return stream.ToArray();}
             // Version 6: the family of rules each culture follows.
             foreach(var x in w.Cultures.list)b.Write(x.Family??"");
+            if(version<7){b.Flush();return stream.ToArray();}
+            // Version 7: alliances. Each realm's alliance and the list of standing ones are rebuilt on load.
+            b.Write(w.Alliances.Count);
+            foreach(var a in w.Alliances)
+            {
+                b.Write(a.Name??"");b.Write(a.Founder.IdOf());b.Write(a.FoundedMonth);b.Write(a.EndedMonth);
+                Side(b,a.Members);Side(b,a.PastMembers);
+            }
             b.Flush();return stream.ToArray();
         }
 
@@ -163,7 +171,7 @@ namespace EmpireCraft.Core
             int entries=Count(b);
             for(int i=0;i<entries;i++)
             {
-                int month=b.ReadInt32();byte kind=b.ReadByte();Check(kind<=(byte)AnnalKind.WarEnded,"Unknown annal kind");
+                int month=b.ReadInt32();byte kind=b.ReadByte();Check(kind<=(byte)AnnalKind.AllianceEnded,"Unknown annal kind");
                 w.Annals.Entries.Add(new AnnalEntry(month,(AnnalKind)kind,b.ReadInt32(),b.ReadInt32(),b.ReadInt32()));
             }
             if(version>=2)
@@ -230,6 +238,21 @@ namespace EmpireCraft.Core
             }
             if(version>=6)
                 foreach(var x in w.Cultures.list){string family=Text(b);x.Family=family.Length==0?null:family;}
+            if(version>=7)
+            {
+                int alliances=Count(b);
+                for(int i=0;i<alliances;i++)
+                {
+                    var a=new Alliance{Id=i,Name=Text(b)};int founder=Ref(b,realms);a.Founder=founder<0?null:w.Realms[founder];
+                    a.FoundedMonth=b.ReadInt32();a.EndedMonth=b.ReadInt32();
+                    Side(b,w,a.Members,realms);Side(b,w,a.PastMembers,realms);
+                    w.Alliances.Add(a);
+                    if(!a.Alive)continue;
+                    w.LiveAlliances.Add(a);
+                    foreach(var r in a.Members){Check(r.Alliance==null,"Realm in two alliances");r.Alliance=a;}
+                }
+            }
+            w.Diplomacy.Rebuild();
             Check(stream.Position==stream.Length,"Trailing bytes in EmpireCraft section");
             var errors=EmpireInvariants.Check(w,1);
             Check(errors.Count==0,"Inconsistent EmpireCraft section: "+(errors.Count>0?errors[0]:""));

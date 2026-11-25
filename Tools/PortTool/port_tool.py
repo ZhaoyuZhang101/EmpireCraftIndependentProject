@@ -55,6 +55,7 @@ ALIASES = [
     (r"\bColorUtility\.", "ColorUtility", "EmpireCraft.Core.EcColorUtility"),
     (r"\bVector2Int\b", "Vector2Int", "EmpireCraft.Core.EcVector2Int"),
     (r"\bVector2\b", "Vector2", "EmpireCraft.Core.EcVector2"),
+    (r"\bVector3\b", "Vector3", "EmpireCraft.Core.EcVector3"),
     (r"(?<![.\w])Random\.(value|Range)\b", "Random", "EmpireCraft.Core.EcRandom"),
 ]
 # Fixed text swaps applied to every line (the same on both sides of a sync).
@@ -122,6 +123,14 @@ IDENTITY = [
     (r"(?<![.\w])(?:EmpireCraft\.Core\.)?ScreenFeedPatch\.Pending\b", "WorldNews.Pending"),
     (r"(?<![.\w])(?:EmpireCraft\.Core\.)?ScreenFeedPatch\.PublicNews\b", "WorldNews.IsPublic"),
     (r"(?<![.\w])ColorAsset\b", "Tint"),
+    (r"(?<![.\w])ColorLibrary\b", "Palette"),
+    (r"(?<![.\w])UnityEngine\.Vector2\b", "EcVector2"),
+    (r"(?<![.\w])UnityEngine\.Mathf\b", "EcMath"),
+    (r"(?<![.\w])ActorTrait\b", "PersonTrait"),
+    (r"(?<![.\w])ActorTool\.attributeDice\b", "PersonSorts.AttributeDice"),
+    (r"(?<![.\w])ListSorters\.sortUnitByAgeOldFirst\b", "PersonSorts.OldestFirst"),
+    (r"(?<![.\w])ListSorters\.getUnitSortedByAgeAndTraits\b", "PersonSorts.SeniorOf"),
+    (r"(?<![.\w])CulturePatch\.SyncCultureDisplayName\b", "Cultures.SyncName"),
     (r"(?<![.\w])Toolbox\.color_log_good\b", "Tint.Good"),
     (r"(?<![.\w])Toolbox\.color_log_warning\b", "Tint.Warning"),
     (r"(?<![.\w])LocalizedTextManager\.getText\b", "LM.Get"),
@@ -169,6 +178,11 @@ IDENTITY = [
     (r"\bpAddDefaultTraits:", "withDefaults:"),
     (r"\bpRebellion:", "rebellion:"),
     (r"(?<![.\w])DiplomacyHelpers\.wars\b", "EmpireWorld.Current.wars"),
+    # Relations and opinions between realms (Core/Entities/Alliances.cs).
+    (r"(?<![.\w])DiplomacyHelpers\.diplomacy\b", "EmpireWorld.Current.diplomacy"),
+    (r"(?<![.\w])KingdomOpinion\b", "RealmOpinion"),
+    (r"(?<![.\w])DiplomacyRelation\b", "RealmRelation"),
+    (r"(?<![.\w])OpinionAsset\b", "OpinionKind"),
     (r"\bDate\.getYearsSince\b", "GameClock.YearsSince"),
     (r"\bDate\.getCurrentYear\(\)", "GameClock.Year"),
     (r"\bDate\.getCurrentMonth\(\)", "GameClock.Month"),
@@ -407,7 +421,12 @@ def transform(text, key, commit, namespaces, identity=False, keep=()):
                 line = line.replace(old, new)
                 rewritten.add("%s -> %s" % (old, new))
         if identity and not line.startswith("using "):
-            line = relative.sub(lambda found: "" if known is None or found.group(1) in known else found.group(0), line)
+            # `GeneralSystems.EmpireLaw.LawType`: one qualifier per pass, so go round until nothing more comes off.
+            for _ in range(4):
+                stripped = relative.sub(lambda found: "" if known is None or found.group(1) in known else found.group(0), line)
+                if stripped == line:
+                    break
+                line = stripped
             for index, kept in enumerate(keep):
                 line = line.replace(kept, "\x00%d\x00" % index)
             for pattern, replacement in IDENTITY:

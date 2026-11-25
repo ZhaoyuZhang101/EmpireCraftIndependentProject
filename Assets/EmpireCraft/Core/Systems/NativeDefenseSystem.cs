@@ -85,7 +85,6 @@ public static class NativeDefenseSystem
         CultureService.SameKin(CultureService.GetRealmCulture(a), CultureService.GetRealmCulture(b));
 
     // side 所在的本土帝国正遭 foe(按所在帝国的中央)这一异族入侵，对方整体国力又不大于本帝国
-#if EC_PENDING
     public static bool Resisting(Realm side, Realm foe)
     {
         Realm native = ModRealm(side), invader = ModRealm(foe);
@@ -99,10 +98,8 @@ public static class NativeDefenseSystem
         Cache[key] = (now, value);
         return value;
     }
-#endif
 
     // 战斗欲望：side 的军在 city 上与 foe 交战(城是本族的城)
-#if EC_PENDING
     public static float CombatFactor(Realm side, Realm foe, City city)
     {
         if (side == null || foe == null || city?.Record == null || !Resisting(side, foe)) return 1f;
@@ -112,7 +109,6 @@ public static class NativeDefenseSystem
             ? Ardor * ReligionTenets.DefenseFactor(ModRealm(side), city)
             : 1f;
     }
-#endif
 
     // 本帝国(中央连同成员)作为守方的仗，主攻方与本帝国不同族
     private static IEnumerable<War> InvasionWars(Realm native)
@@ -188,14 +184,14 @@ public static class NativeDefenseSystem
 #if EC_PENDING
     private static IEnumerable<Realm> Candidates(Realm native, Realm invader, War war)
     {
-        Alliance alliance = invader.hasAlliance() ? invader.getAlliance() : null;
+        Alliance alliance = invader.HasAlliance() ? invader.GetAlliance() : null;
         Empire lord = invader.GetEmpire();
         return EmpireWorld.Current.LiveRealms
             .Where(kin => Alive(kin) && kin.IsCivilized() && ModRealm(kin) == kin && kin != native && kin != invader &&
                           !war.HasRealm(kin) && NativeBorn(kin) && SameKin(kin, native) &&
                           (lord == null || kin.GetTakenAllianceEmpire() != lord && kin.GetGivenAllianceEmpire() != lord) &&
                           !AncientWarfareCompatibility.Owns(kin) &&
-                          (alliance == null || !kin.hasAlliance() || kin.getAlliance() != alliance) &&
+                          (alliance == null || !kin.HasAlliance() || kin.GetAlliance() != alliance) &&
                           !FrontSystem.Hostile(kin, native) && !FrontSystem.Hostile(kin, invader) &&
                           !WarSituation.TooBusyForWar(kin) && !CorpsSystem.CannotFundWar(kin) &&
                           !EmpirePeacePatch.HasLeft(kin, war, joiningAttackers: false) &&

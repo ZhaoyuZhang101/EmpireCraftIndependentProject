@@ -462,7 +462,6 @@ public static partial class TransmigrantSystem
     }
 
     // 撕破脸：据有 RevealSeats 处省会(王国法理的首府)，或宣布了大宋国号，或宗主没了
-#if EC_PENDING
     private static void Reveal(Realm kingdom, TransmigrantState state)
     {
         if (state.revealed || state.disguise_lord_id < 0) return;
@@ -478,7 +477,6 @@ public static partial class TransmigrantSystem
         TranslateHelper.LogMajor(string.Format(LM.Get("transmigrant_revealed_history"), kingdom.GetKingdomFullName(),
             string.Join(LM.Get("list_separator"), seats.Take(3)), lord.GetEmpireFullName()), kingdom);
     }
-#endif
 
     #endregion
 

@@ -17,7 +17,6 @@ public static class BakufuSystem
 {
     public static bool IsBakufu(Empire empire) => empire?.CoreKingdom?.GetRegime()?.type == RegimeType.Bakufu;
 
-#if EC_PENDING
     public static void OnRegimeChanged(Empire empire, RegimeType? previous, RegimeType current)
     {
         if (empire?.data == null || empire.CoreKingdom == null || previous == current) return;
@@ -60,10 +59,8 @@ public static class BakufuSystem
         Record(empire, string.Format(LM.Get("bakufu_restoration_history"), empire.GetEmpireName(), shogun?.FullName() ?? "",
             emperor.FullName()));
     }
-#endif
 
     // 废藩置县：世袭或有外交权的成员(藩)改为不世袭、无外交权、朝廷选任的县；羁縻的不动
-#if EC_PENDING
     private static void AbolishHan(Empire empire)
     {
         int abolished = 0;
@@ -82,10 +79,8 @@ public static class BakufuSystem
         if (abolished > 0)
             Record(empire, string.Format(LM.Get("bakufu_han_abolished_history"), empire.GetEmpireName(), abolished));
     }
-#endif
 
     // 旧档(将军坐在君位上)的天皇：开幕时的天皇在世就是他；否则天皇家在世族人里辈分最高、年纪最大的男子(没有男子取女子)
-#if EC_PENDING
     public static Person Emperor(Empire empire)
     {
         if (empire?.data == null || empire.data.court_clan_id < 0) return null;
@@ -112,7 +107,6 @@ public static class BakufuSystem
         if (heir != null) empire.data.court_emperor_id = heir.Key;
         return heir;
     }
-#endif
 
     private static void Record(Empire empire, string content)
     {

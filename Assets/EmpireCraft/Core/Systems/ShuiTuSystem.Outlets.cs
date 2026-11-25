@@ -115,7 +115,6 @@ public static partial class ShuiTuSystem
 
     // 改政体：帝国核心连同同一制度线的成员一起改(同制度改革，见 InstitutionSystem.ChangeRegimeForTransition)；
     // 改了的各国记下(制度同步不再按文化改回去)。返回改了的成员数(不含本国)，没改成返回 -1
-#if EC_PENDING
     private static int ChangeRegime(Realm unit, RegimeType target)
     {
         if (RegimeManager.regimes == null || !RegimeManager.regimes.ContainsKey(target) || unit.GetRegime()?.type == target)
@@ -154,10 +153,8 @@ public static partial class ShuiTuSystem
         }
         return members;
     }
-#endif
 
     // 本族定居：改行定居官僚的律令制
-#if EC_PENDING
     private static bool Settle(Realm unit)
     {
         string name = unit.GetKingdomName();
@@ -167,10 +164,8 @@ public static partial class ShuiTuSystem
             CompositeEmpireService.GetRegimeName(RegimeType.LvLing)));
         return true;
     }
-#endif
 
     // 自行封建化保留本族汗庭与世袭领主；已采纳西方制度的才改行西方封建。
-#if EC_PENDING
     private static bool Feudalize(Realm unit)
     {
         string name = unit.GetKingdomName();
@@ -182,10 +177,8 @@ public static partial class ShuiTuSystem
             CompositeEmpireService.GetRegimeName(target), members));
         return true;
     }
-#endif
 
     // 整国游牧化：定居政权改行游牧
-#if EC_PENDING
     private static bool Nomadize(Realm unit)
     {
         string name = unit.GetKingdomName();
@@ -194,7 +187,6 @@ public static partial class ShuiTuSystem
             CompositeEmpireService.GetRegimeName(RegimeType.YouMu)));
         return true;
     }
-#endif
 
     // 附近有游牧：本国直辖城或与之相邻的城里有游牧文化为主的城，或接壤、隔海相望的国家是游牧文化
 #if EC_PENDING
@@ -428,7 +420,7 @@ public static partial class ShuiTuSystem
         string form = "independent";
         if (empire != null && !empire.IsGone())
         {
-            if (local.hasAlliance()) local.getAlliance().leave(local);
+            if (local.HasAlliance()) local.GetAlliance().Leave(local);
             empire.join(local, pForce: true);
             if (local.GetEmpire() == empire) form = "member";
         }

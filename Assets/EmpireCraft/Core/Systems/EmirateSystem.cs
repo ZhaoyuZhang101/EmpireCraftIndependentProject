@@ -1,7 +1,6 @@
 // Generated from the EmpireCraft mod: Scripts/GeneralSystems/EmirateSystem.cs. Do not edit by hand: Tools/PortTool/members.py rewrites it;
 // see Port/manifest.json and Tools/PortTool.
 using Mathf = EmpireCraft.Core.EcMath;
-using Vector2 = EmpireCraft.Core.EcVector2;
 using System.Collections.Generic;
 using System.Linq;
 
@@ -84,7 +83,6 @@ public static class EmirateSystem
     }
 
     // 离开阿拉伯政体：不再有苏丹、哈里发之分
-#if EC_PENDING
     public static void OnRegimeChanged(Empire empire, RegimeType? previous, RegimeType current)
     {
         // 改行阿拉伯政体就成了哈里发国：国教不是伊斯兰的当场定教(见 CaliphateFaith)
@@ -92,7 +90,6 @@ public static class EmirateSystem
         if (empire?.data == null || previous != RegimeType.Arabic || current == RegimeType.Arabic) return;
         if (MilitaryRegency.KindOf(empire) == MilitaryRegency.Sultan) MilitaryRegency.Dissolve(empire, null);
     }
-#endif
 
     // 每年一次(由 Empire.update 调用)
 #if EC_PENDING
@@ -266,20 +263,19 @@ public static class EmirateSystem
 
     // 鞭长莫及：各行省(含已世袭的埃米尔国，好让"边远"始终按版图算)按都城离帝国都城的直线距离排位，
     // 排位 = 第几近 / (行省数 − 1)，过了 DistantPercentile 才有份，线性升到最远的 DistantMax。只有一个行省时谈不上边远
-#if EC_PENDING
     private static Dictionary<long, float> DistantChances(Empire empire)
     {
         var result = new Dictionary<long, float>();
-        UnityEngine.Vector2? seat = SeatOf(empire.CoreKingdom);
+        EcVector2? seat = SeatOf(empire.CoreKingdom);
         if (seat == null) return result;
         var ranked = new List<(Realm kingdom, float distance)>();
         foreach (Realm kingdom in empire.kingdoms_list)
         {
             if (kingdom?.Record == null || kingdom.IsGone() || kingdom == empire.CoreKingdom ||
                 kingdom.GetRegime()?.type != RegimeType.Arabic) continue;
-            UnityEngine.Vector2? position = SeatOf(kingdom);
+            EcVector2? position = SeatOf(kingdom);
             // 只比远近，按平均地形折算的系数(见 AdministrativeControlSystem.BeyondReach)不影响排位，这里不乘
-            if (position != null) ranked.Add((kingdom, UnityEngine.Vector2.Distance(seat.Value, position.Value)));
+            if (position != null) ranked.Add((kingdom, EcVector2.Distance(seat.Value, position.Value)));
         }
         if (ranked.Count < 2) return result;
         ranked.Sort((a, b) => a.distance != b.distance ? a.distance.CompareTo(b.distance) : a.kingdom.Key.CompareTo(b.kingdom.Key));
@@ -292,15 +288,12 @@ public static class EmirateSystem
         }
         return result;
     }
-#endif
 
     // 边远的行省：远近排位在 DistantPercentile 以外的阿拉伯政体成员，不奉诏远征(见 WarScopeSystem.OrderMembers)
-#if EC_PENDING
     public static HashSet<long> DistantProvinces(Empire empire) =>
         empire?.data == null || empire.CoreKingdom == null || !Applies(empire)
             ? new HashSet<long>()
             : new HashSet<long>(DistantChances(empire).Keys);
-#endif
 
     // 最远行省每年的机会(%)：城数从 DistantSmallCities 到 DistantLargeCities 按 smoothstep 由 SmallMax 升到 LargeMax
     public static float DistantMax(int cities)
@@ -310,14 +303,12 @@ public static class EmirateSystem
     }
 
     // 治所位置(城心所在区块的格坐标，同行政控制力)
-#if EC_PENDING
-    private static UnityEngine.Vector2? SeatOf(Realm kingdom)
+    private static EcVector2? SeatOf(Realm kingdom)
     {
         City capital = kingdom?.Capital;
         if (capital?.Record == null || capital.IsGone() || capital.Zones == null || capital.Zones.Count == 0) return null;
         Cell zone = AdministrativeControlSystem.CenterZone(capital);
-        return zone == null ? null : new UnityEngine.Vector2(zone.X, zone.Y);
+        return zone == null ? null : new EcVector2(zone.X, zone.Y);
     }
-#endif
 }
 }

@@ -141,7 +141,6 @@ public static class TributaryRelations
     // 宗主兴师讨伐自己的朝贡国(天下共主平定天下里的朝贡国，用户 2026-11-07 选「共主可以打朝贡国」，见 UnificationSystem.Pacify)：
     // 开战即罢朝贡。开战那一下 WarPatch.DetachHostileTributaries 已把朝贡关系断了(史书记"脱离朝贡体系")，这里补断没断的，
     // 再清掉天下来朝的标记(以前要等年度结算才清，其间仍算来朝之国)与道远不通的计时，不留半截
-#if EC_PENDING
     public static void Renounce(Realm tributary, Empire empire)
     {
         if (tributary?.Record == null || empire == null) return;
@@ -149,7 +148,6 @@ public static class TributaryRelations
         tributary.GetOrCreate().tianxia_tributary_lead = -1L;
         Reach.Remove(tributary.Key);
     }
-#endif
 
     // 称臣纳贡和约：胜者所在帝国收得了朝贡就让对方称臣；返回是否成了
 #if EC_PENDING

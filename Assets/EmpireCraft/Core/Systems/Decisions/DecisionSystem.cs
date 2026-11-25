@@ -793,7 +793,7 @@ public static class DecisionSystem
                 plot.TargetRealm = item.kingdom >= 0 ? EmpireWorld.Current.RealmByKey(item.kingdom) : null;
                 plot.target_city = item.city >= 0 ? EmpireWorld.Current.CityByKey(item.city) : null;
                 plot.target_actor = item.actor >= 0 ? EmpireWorld.Current.PersonByKey(item.actor) : null;
-                plot.target_alliance = item.alliance >= 0 ? EmpireWorld.Current.alliances.get(item.alliance) : null;
+                plot.target_alliance = item.alliance >= 0 ? EmpireWorld.Current.AllianceByKey(item.alliance) : null;
                 item.plot = plot.data.id;
                 rebuilt++;
             }

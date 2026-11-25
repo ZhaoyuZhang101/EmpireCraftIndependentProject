@@ -62,13 +62,10 @@ public static class ExileGovernmentSystem
         return ra != null && rb != null && ra != rb && ra.IsAtWarWith(rb);
     }
 
-#if EC_PENDING
     private static bool Allied(Realm a, Realm b) =>
-        a?.Record != null && b?.Record != null && a.hasAlliance() && b.hasAlliance() && a.getAlliance() == b.getAlliance();
-#endif
+        a?.Record != null && b?.Record != null && a.HasAlliance() && b.HasAlliance() && a.GetAlliance() == b.GetAlliance();
 
     // 站在占领者一边：占领者本身、同一帝国、殖民地、傀儡、同盟
-#if EC_PENDING
     private static bool SidesWith(Realm kingdom, Realm enemy)
     {
         if (kingdom?.Record == null || enemy?.Record == null) return false;
@@ -76,12 +73,11 @@ public static class ExileGovernmentSystem
         return Allied(kingdom, enemy) || Allied(ModRealm(kingdom), ModRealm(enemy));
     }
 
-    private static int Opinion(Realm a, Realm b) => EmpireWorld.Current?.diplomacy?.getOpinion(a, b)?.total ?? 0;
+    private static int Opinion(Realm a, Realm b) => EmpireWorld.Current?.Diplomacy?.GetOpinion(a, b)?.Total ?? 0;
 
     private static int HostScore(Realm candidate, Realm exile, Realm enemy) =>
         ExileRules.HostScore(enemy != null && AtWar(candidate, enemy), Allied(candidate, exile), Opinion(candidate, exile),
             AtWar(candidate, exile), enemy != null && SidesWith(candidate, enemy));
-#endif
 
     private static bool CanHost(Realm candidate, Realm exile)
     {
@@ -92,7 +88,6 @@ public static class ExileGovernmentSystem
         return !IsExiled(candidate) && !PuppetStateSystem.IsPuppet(candidate) && !ColonySystem.IsColony(candidate);
     }
 
-#if EC_PENDING
     internal static Realm PickHost(Realm exile, Realm enemy, Realm except = null)
     {
         Realm best = null;
@@ -111,7 +106,6 @@ public static class ExileGovernmentSystem
         }
         return best;
     }
-#endif
 
     #endregion
 
@@ -348,7 +342,6 @@ public static class ExileGovernmentSystem
     }
 
     // 待收复的旧城落在东道国、盟国、与占领者交战的国家手里：交还
-#if EC_PENDING
     private static void Liberate(Realm exile, KingdomExtension.KingdomExtraData data)
     {
         if (data.exile_city_ids == null || data.exile_city_ids.Count == 0) return;
@@ -386,7 +379,6 @@ public static class ExileGovernmentSystem
         City seat = returned.FirstOrDefault(city => city.Realm == exile);
         if (seat != null && IsExiled(exile)) Return(exile, data, seat);
     }
-#endif
 
     // 还都：第一座交还的城作都城，随员入城
     private static void Return(Realm exile, KingdomExtension.KingdomExtraData data, City seat)

@@ -13,7 +13,6 @@ namespace EmpireCraft.Core
 public static class RegnalNameService
 {
     // Empire.NewEmperor 调用。recompute=true 用于帝国延续(ReplaceEmpire)后补齐前代记录再重算。
-#if EC_PENDING
     public static void OnEmperorCrowned(Empire empire, Person emperor, bool recompute = false)
     {
         if (empire?.data == null || emperor == null || emperor.IsGone()) return;
@@ -39,7 +38,6 @@ public static class RegnalNameService
             if (first != null && !first.IsGone() && first.Alive) SetRegnalSuffix(first, 1);
         }
     }
-#endif
 
     // 古典共和、西方封建，或帝国核心王国是罗马一系的文化
     private static bool Applies(Empire empire) =>
@@ -81,13 +79,11 @@ public static class RegnalNameService
         return number.ToString();
     }
 
-#if EC_PENDING
     private static void SetRegnalSuffix(Person actor, int ordinal)
     {
         actor.GetOrCreate().regnal_suffix = ToRoman(ordinal);
         actor.GetModName()?.SetName(actor);
     }
-#endif
 
     public static string ToRoman(int number)
     {

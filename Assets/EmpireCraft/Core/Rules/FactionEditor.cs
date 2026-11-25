@@ -136,7 +136,6 @@ public static class FactionEditor
         return faction;
     }
 
-#if EC_PENDING
     public static FixedFaction CreateByIdeology(Realm kingdom, PartyIdeology ideology, out string reason)
     {
         reason = Check(kingdom);
@@ -170,7 +169,6 @@ public static class FactionEditor
         Attach(kingdom, faction);
         return faction;
     }
-#endif
 
     private static string Check(Realm kingdom)
     {

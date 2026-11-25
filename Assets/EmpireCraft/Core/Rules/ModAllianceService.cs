@@ -10,67 +10,59 @@ namespace EmpireCraft.Core
 // 世界规则"禁止原版结盟"打开时，解散所有未标记的同盟；玩家用神力强制结成的同盟也保留。
 public static class ModAllianceService
 {
-#if EC_PENDING
     public static void Mark(Alliance alliance)
     {
         if (alliance == null || !alliance.Alive) return;
-        ModClass.MOD_ALLIANCE_IDS.Add(alliance.id);
+        ModClass.MOD_ALLIANCE_IDS.Add(alliance.Key);
     }
 
     public static bool IsModAlliance(Alliance alliance) =>
-        alliance != null && ModClass.MOD_ALLIANCE_IDS.Contains(alliance.id);
-#endif
+        alliance != null && ModClass.MOD_ALLIANCE_IDS.Contains(alliance.Key);
 
     public static bool IsVanillaAllianceBanned() =>
         WorldLaws.BanVanillaAlliance?.IsEnabled() == true;
 
     // 旧存档里模组同盟还没有标记：成员中有两国同属一位君主的(共主联盟、城邦同盟)视为模组同盟并补上标记
-#if EC_PENDING
     private static bool LooksLikeUnionAlliance(Alliance alliance)
     {
-        List<Person> kings = alliance.kingdoms_hashset
+        List<Person> kings = alliance.MemberSet
             .Where(kingdom => kingdom != null && kingdom.Alive && kingdom.HasRuler())
-            .Select(kingdom => kingdom.king).ToList();
+            .Select(kingdom => kingdom.Ruler).ToList();
         return kings.Count != kings.Distinct().Count();
     }
-#endif
 
     // 帝国与同盟不兼容：帝国本身及其成员国一律退出同盟(同盟剩不足两国时原版会自行解散)
-#if EC_PENDING
     public static void LeaveAllianceForEmpire(Realm kingdom)
     {
-        if (kingdom == null || kingdom.IsGone() || !kingdom.hasAlliance()) return;
-        kingdom.getAlliance().leave(kingdom);
+        if (kingdom == null || kingdom.IsGone() || !kingdom.HasAlliance()) return;
+        kingdom.GetAlliance().Leave(kingdom);
     }
-#endif
 
     // 定期调用：清掉已在帝国里(或本身是帝国)的同盟成员
-#if EC_PENDING
     public static void RemoveEmpireMembersFromAlliances()
     {
-        if (EmpireWorld.Current?.alliances == null) return;
-        foreach (Alliance alliance in EmpireWorld.Current.alliances.list.ToList())
+        if (EmpireWorld.Current?.LiveAlliances == null) return;
+        foreach (Alliance alliance in EmpireWorld.Current.LiveAlliances.ToList())
         {
             if (alliance == null || !alliance.Alive) continue;
             // 同盟里有国家成了帝国：整个同盟解散(与称帝时的处理一致)
-            if (alliance.kingdoms_hashset.Any(member => member != null && !member.IsGone() && member.IsEmpire()))
+            if (alliance.MemberSet.Any(member => member != null && !member.IsGone() && member.IsEmpire()))
             {
-                EmpireWorld.Current.alliances.dissolveAlliance(alliance);
+                EmpireWorld.Current.DissolveAlliance(alliance);
                 continue;
             }
-            foreach (Realm member in alliance.kingdoms_hashset.ToList())
+            foreach (Realm member in alliance.MemberSet.ToList())
                 if (member != null && !member.IsGone() && member.IsInEmpire())
-                    alliance.leave(member);
+                    alliance.Leave(member);
         }
     }
-#endif
 
     // 世界规则打开时调用：解散原版同盟
 #if EC_PENDING
     public static void DissolveVanillaAlliances()
     {
-        if (EmpireWorld.Current?.alliances == null) return;
-        foreach (Alliance alliance in EmpireWorld.Current.alliances.list.ToList())
+        if (EmpireWorld.Current?.LiveAlliances == null) return;
+        foreach (Alliance alliance in EmpireWorld.Current.LiveAlliances.ToList())
         {
             if (alliance == null || !alliance.Alive || alliance.isForcedType()) continue;
             if (IsModAlliance(alliance)) continue;
@@ -79,9 +71,9 @@ public static class ModAllianceService
                 Mark(alliance);
                 continue;
             }
-            EmpireWorld.Current.alliances.dissolveAlliance(alliance);
+            EmpireWorld.Current.DissolveAlliance(alliance);
         }
-        ModClass.MOD_ALLIANCE_IDS.RemoveWhere(id => EmpireWorld.Current.alliances.get(id) == null);
+        ModClass.MOD_ALLIANCE_IDS.RemoveWhere(id => EmpireWorld.Current.AllianceByKey(id) == null);
     }
 #endif
 }

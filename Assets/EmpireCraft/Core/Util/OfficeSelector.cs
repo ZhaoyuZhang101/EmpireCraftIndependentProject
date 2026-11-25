@@ -23,7 +23,6 @@ public static class OfficeSelector
         return true;
     }
 
-#if EC_PENDING
     public static void Select(this OfficeObject office, Realm pKingdom, string debugType = "中央")
     {
         Person actor = null;
@@ -116,10 +115,8 @@ public static class OfficeSelector
             }
         }
     }
-#endif
 
     // 本国够格当君主的男子里声望最高的一位
-#if EC_PENDING
     private static Person MaleRuler(OfficeObject office, Realm kingdom)
     {
         Person best = null;
@@ -164,7 +161,7 @@ public static class OfficeSelector
                         return consort;
                     }
                     var lover = empire.GetUnits().ToList().Find(a =>
-                        a.CanServeOffice(pKingdom) && a.IsFemale() && a.IsAdult() && a.age <= 25 &&
+                        a.CanServeOffice(pKingdom) && a.IsFemale() && a.IsAdult() && a.Age() <= 25 &&
                         (a.Clan == null || a.Clan != emperor.Clan) &&
                         !a.HasSpouse() && !lives.Contains(a) && !KinshipRules.AreCloseKin(emperor, a));
                     if (lover != null)
@@ -183,13 +180,13 @@ public static class OfficeSelector
                     }
 
                     var lover = empire.GetUnits().ToList().Find(a =>
-                        a.CanServeOffice(pKingdom) && a.IsFemale() && a.IsAdult() && a.age <= 25 &&
+                        a.CanServeOffice(pKingdom) && a.IsFemale() && a.IsAdult() && a.Age() <= 25 &&
                         (a.Clan == null || a.Clan != emperor.Clan) &&
                         !a.HasSpouse() && !a.IsSkeleton() && !KinshipRules.AreCloseKin(emperor, a));
                     if (lover != null)
                     {
                         lover.Spouse = emperor;
-                        emperor.setLover(lover);
+                        emperor.SetLover(lover);
                         emperor.GetPersonalIdentity().setLover(lover, isCus:false);
                         lover.JoinCity(emperor.City);
                         return lover;
@@ -213,11 +210,9 @@ public static class OfficeSelector
         if (designated != null) return designated;
         return RankElectiveCandidates(pKingdom).Select(item => item.candidate).FirstOrDefault();
     }
-#endif
 
     // 选举制首领(封建选帝、古典共和元老院)的推举次序：同派系的选帝侯/元老票数 → 偏好人选 → 威望 → 兵力。
     // 候选人是帝国各成员国(不含中央)的君主。帝国窗口的元老院示意图也按这个次序画
-#if EC_PENDING
     public static List<(Person candidate, int votes)> RankElectiveCandidates(Realm pKingdom)
     {
         Empire empire = pKingdom?.GetEmpire();
@@ -241,7 +236,6 @@ public static class OfficeSelector
             .ThenByDescending(item => item.candidate.Realm?.Warriors() ?? 0)
             .ToList();
     }
-#endif
 
     // 没有元老院的古典共和：偏好人选优先，其次兵力最强的成员国君主(同 TryGetStrongerLeader)
     public static List<Person> RankStrongestCandidates(Realm pKingdom)
@@ -293,7 +287,6 @@ public static class OfficeSelector
         return unit.IsCityLeader() && unit.City != null && unit.City.Leader == unit && !ReferenceEquals(target, unit.City);
     }
 
-#if EC_PENDING
     private static Person TryGetExamOfficer(OfficeObject pOffice, Realm  pKingdom)
     {
         IEnumerable<Person> targetPool;
@@ -378,13 +371,13 @@ public static class OfficeSelector
             }
             if (office != null && !office.Accepts(unit)) continue;
             int num2 = 1;
-            if (unit.is_profession_citizen)
+            if (unit.IsProfessionCitizen)
             {
                 if (unit.IsFavorite())
                 {
                     num2 += 2;
                 }
-                int num3 = ActorTool.attributeDice(unit, num2);
+                int num3 = PersonSorts.AttributeDice(unit, num2);
                 if (IsPreferredOfficeCandidate(unit, pKingdom))
                 {
                     if (actor == null || num3 > num)
@@ -405,9 +398,9 @@ public static class OfficeSelector
     private static Person TryGetClanOfficer(Realm pKingdom, OfficeObject office = null)
     {
         Clan clan = null;
-        if (pKingdom.Record.royal_clan_id.hasValue())
+        if (pKingdom.Record.RulingClanKey.HasValue())
         {
-            clan = EmpireWorld.Current.ClanByKey(pKingdom.Record.royal_clan_id);
+            clan = EmpireWorld.Current.ClanByKey(pKingdom.Record.RulingClanKey);
         }
         using ListPool<Person> listPool = new ListPool<Person>();
         using ListPool<Person> listPool2 = new ListPool<Person>();
@@ -460,10 +453,9 @@ public static class OfficeSelector
             if (upper.Any()) candidates = upper;
         }
         if (kingdom.HasCulture())
-            return ListSorters.getUnitSortedByAgeAndTraits(candidates, kingdom.Culture);
-        candidates.Sort(ListSorters.sortUnitByAgeOldFirst);
+            return PersonSorts.SeniorOf(candidates, kingdom.Culture);
+        candidates.Sort(PersonSorts.OldestFirst);
         return candidates.ElementAt(0);
     }
-#endif
 }
 }

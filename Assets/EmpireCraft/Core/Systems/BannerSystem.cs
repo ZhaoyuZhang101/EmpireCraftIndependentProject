@@ -95,7 +95,6 @@ public static partial class BannerSystem
 
     // 立政体：开局就是多元帝国的兼用路线；开局手里的城都算旗下旧地(辽东汉民编汉军、包衣)，只有别的游牧文化之城(漠南蒙古)
     // 不算，照旧作外藩、设省(见 LeagueBound、CompositeEmpireService.IsHomeland)
-#if EC_PENDING
     public static void Establish(Realm core, Empire empire)
     {
         if (core?.Record == null || empire?.data == null) return;
@@ -114,7 +113,6 @@ public static partial class BannerSystem
         }
         LogService.LogInfo($"[EmpireCraft][八旗] {empire.GetEmpireFullName()} 立八旗多元制，政体 {core.GetRegime()?.type}，{core.Cities?.Count ?? 0} 城");
     }
-#endif
 
     // 编旗的王朝入主(采纳华夏制度，见 CompositeEmpireService.AdoptCentralInstitutions)：改行八旗多元制。
     // 朝廷、国号照入主的常规走(不像剧本那样定死)，只是路线固定兼用；本族之城算旗下旧地

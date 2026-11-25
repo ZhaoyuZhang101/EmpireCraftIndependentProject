@@ -504,7 +504,7 @@ public static class WorldOrderSystem
             Realm core = state.CoreKingdom;
             BlocData best = _data.blocs.Where(bloc => Distance(state, bloc) <= CloseIdeology && LeaderOf(bloc) is Empire leader &&
                                                      !core.IsAtWarWith(leader.CoreKingdom) &&
-                                                     (EmpireWorld.Current.diplomacy?.getOpinion(core, leader.CoreKingdom)?.total ?? 0f) >= JoinMinOpinion &&
+                                                     (EmpireWorld.Current.Diplomacy?.GetOpinion(core, leader.CoreKingdom)?.Total ?? 0f) >= JoinMinOpinion &&
                                                      Contact(state, leader))
                 .OrderBy(bloc => Distance(state, bloc)).FirstOrDefault();
             if (best == null) continue;
@@ -704,7 +704,6 @@ public static class WorldOrderSystem
 
     #region 万国公会
 
-#if EC_PENDING
     private static void UpdateLeague(List<Empire> states, List<Empire> greats, Dictionary<long, double> power,
         HashSet<long> alive, double now)
     {
@@ -754,7 +753,6 @@ public static class WorldOrderSystem
             if (_data.league == null) return;
         }
     }
-#endif
 
     private static void FoundLeague(Empire founder, IEnumerable<Empire> members, double now, string key)
     {
@@ -767,7 +765,6 @@ public static class WorldOrderSystem
         Record(string.Format(LM.Get(key), founder.GetEmpireFullName()), founder, _data.league.members.Select(Living));
     }
 
-#if EC_PENDING
     private static void Decide(LeagueData league, List<Empire> council, Empire aggressor, Empire victim, Empire founder)
     {
         string a = aggressor.GetEmpireFullName(), v = victim.GetEmpireFullName();
@@ -782,8 +779,8 @@ public static class WorldOrderSystem
         {
             int yes = council.Count(seat => seat == victim || SameBloc(seat.CoreKingdom, cv) ||
                                             ColdWarBetween(seat.CoreKingdom, ca) != null ||
-                                            (EmpireWorld.Current.diplomacy?.getOpinion(seat.CoreKingdom, ca)?.total ?? 0f) <
-                                            (EmpireWorld.Current.diplomacy?.getOpinion(seat.CoreKingdom, cv)?.total ?? 0f));
+                                            (EmpireWorld.Current.Diplomacy?.GetOpinion(seat.CoreKingdom, ca)?.Total ?? 0f) <
+                                            (EmpireWorld.Current.Diplomacy?.GetOpinion(seat.CoreKingdom, cv)?.Total ?? 0f));
             if (yes * 2 > council.Count)
             {
                 league.resolutions++;
@@ -802,7 +799,6 @@ public static class WorldOrderSystem
         _data.sanctions.RemoveAll(sanction => sanction.by_bloc < 0);
         Record(LM.Get("world_league_dissolved_history"), founder, members);
     }
-#endif
 
     private static void Sanction(Empire target, int years, int byBloc, string reason)
     {

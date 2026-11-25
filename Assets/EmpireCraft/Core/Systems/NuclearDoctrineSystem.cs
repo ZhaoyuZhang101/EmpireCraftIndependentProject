@@ -268,9 +268,9 @@ public static class NuclearDoctrineSystem
             city?.NeighbourCities != null && city.NeighbourCities.Any(n => n?.Realm != null && other.Contains(n.Realm))));
     }
 
-#if EC_PENDING
     private static double Power(Realm realm) => Math.Max(1d, realm.GetNationalPower());
 
+#if EC_PENDING
     private static void UpdatePressure()
     {
         List<Realm> realms = Realms();

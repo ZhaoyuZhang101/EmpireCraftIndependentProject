@@ -112,7 +112,6 @@ public static class PartialEnfeoffment
     private static readonly Dictionary<long, double> LastCheck = new();
     private static object _world;
 
-#if EC_PENDING
     public static void TickUlus(Empire empire)
     {
         Realm core = empire?.CoreKingdom;
@@ -145,13 +144,11 @@ public static class PartialEnfeoffment
             return;
         }
     }
-#endif
 
     // ───── 人选与计数 ─────
 
     // 成年宗王：君主的儿子(年长的在前)，其次兄弟；同宗、不是君主、不是储君、还没受封。
     // 无小人模式下地图上没有合格的，按长幼落成至多两位虚拟族人再挑(同 EnfeoffmentHelper.FindEnfeoffmentCandidate)
-#if EC_PENDING
     public static List<Person> Princes(Empire empire)
     {
         var result = new List<Person>();
@@ -175,7 +172,6 @@ public static class PartialEnfeoffment
         }
         return result;
     }
-#endif
 
     public static bool IsEligiblePrince(Person actor, Empire empire)
     {

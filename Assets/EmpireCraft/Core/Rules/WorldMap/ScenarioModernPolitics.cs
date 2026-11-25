@@ -106,7 +106,6 @@ public static class ScenarioModernPolitics
 #endif
 
     // 进世界后(名将名臣已就位)：立执政党与别的政党、定中央占比、一党专政、首相
-#if EC_PENDING
     public static void Settle(Realm kingdom, Empire empire, WorldMapPolity data, Person primeMinister, Func<string, Person> person)
     {
         WorldMapModern modern = data?.modern;
@@ -147,11 +146,9 @@ public static class ScenarioModernPolitics
             LogService.LogWarning($"[EmpireCraft][世界地图] {kingdom.GetKingdomName()} 立党失败: {exception.Message}");
         }
     }
-#endif
 
     // 剧情事件改执政理念(日本 1940 解散各党、成立大政翼赞会)：a 的政府改由这一理念的党执政(写了名号的照名号)，
     // 共和国连同建国理念一起改；one_party 一党专政。首相(有议会的)或元首当党魁。做不了返回原因
-#if EC_PENDING
     public static string ChangeIdeology(Realm kingdom, string ideologyText, string party, bool oneParty)
     {
         PartyIdeology? ideology = ParseIdeology(ideologyText);
@@ -172,7 +169,6 @@ public static class ScenarioModernPolitics
         LogService.LogInfo($"[EmpireCraft][剧情事件] {kingdom.GetKingdomName()} 改由 {ruling.Name}({ideology}) 执政{(oneParty ? "，一党专政" : "")}");
         return null;
     }
-#endif
 
     // 中央占比：执政党六成，剧本里别的政党分三成，其余派系分剩下的
     private static void SetRatios(Realm core, FixedFaction ruling, List<FixedFaction> others)
@@ -192,7 +188,6 @@ public static class ScenarioModernPolitics
     // 地方实力派(民国的晋绥、桂系、川系、滇系、西北马家)：现代国家的成员原本是没有兵的省(Modern_province)，
     // 这里保留军队与财政(Modern_state)、首领由军中最能者接替(举能)，国号照剧本(晋绥、桂系)，行政改划不拆它的地盘；
     // 中央的仗照样随征(见 MemberWarAid)
-#if EC_PENDING
     public static void MakeWarlordMember(Realm kingdom, WorldMapPolity data, string name)
     {
         Regime regime = kingdom?.GetRegime();
@@ -206,6 +201,5 @@ public static class ScenarioModernPolitics
         EmpireCraftKingdomBehCheckKingdomType.SyncKingdomStatus(kingdom);
         LogService.LogInfo($"[EmpireCraft][世界地图] {name} 开局为地方实力派：{kingdom.GetKingdomType()}");
     }
-#endif
 }
 }

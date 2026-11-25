@@ -16,7 +16,7 @@ public sealed class RadianceMapColor : RecordObject<IdeologyMapColorData>
 
     public override EntityKind KindOfEntity => _type;
 #if EC_PENDING
-    public override ColorLibrary getColorLibrary() => AssetManager.culture_colors_library;
+    public override Palette getColorLibrary() => AssetManager.culture_colors_library;
 #endif
     public override Tint GetColor() => _color;
 

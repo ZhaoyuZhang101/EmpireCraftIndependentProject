@@ -9,13 +9,11 @@ public class EmpireCraftKingdomBehCheckEmpireLaw : GameAIKingdomBase
 {
     public override Type OriginalBeh => GetType();
 
-#if EC_PENDING
     public override BehResult Execute(Realm pKingdom)
     {
         if (pKingdom == null || pKingdom.IsGone()) return BehResult.Continue;
         EmpireLawSystem.CheckMercenaryOvermightyLaw(pKingdom);
         return BehResult.Continue;
     }
-#endif
 }
 }

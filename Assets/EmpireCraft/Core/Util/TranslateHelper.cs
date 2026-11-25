@@ -972,7 +972,6 @@ namespace EmpireCraft.Core
 
             }.RecordNationalHistoryIntoEmpire(empire);
         }
-#if EC_PENDING
         public static void LogOfficerBuildSpecificClan(Person actor, SpecificClan sc)
         {
             new News(NewsKinds.officer_build_specific_clan,
@@ -982,11 +981,10 @@ namespace EmpireCraft.Core
             {
                 Location = actor.Position,
                 Color1 = actor.Realm.GetColor().ColorText,
-                Color2 = actor.Clan.getColor()._color_text
+                Color2 = actor.Clan.GetColor().ColorText
 
             }.Add();
         }
-#endif
         public static void LogKingdomChangeCapitalToTitle(Realm kingdom,KingdomTitle title)
         {
             new News(NewsKinds.history_kingdom_change_capital_to_title,
@@ -1327,17 +1325,15 @@ namespace EmpireCraft.Core
         ///     $clan$ -> 家族
         ///     $empire$ → 帝国名
         /// </summary>
-#if EC_PENDING
         public static void LogRestoreHistoricalEmpire(Clan clan, Empire empire)
         {
             new News(NewsKinds.restore_historcial_empire,
                 empire.Name)
             {
-                Color1 = clan.getColor()._color_text,
+                Color1 = clan.GetColor().ColorText,
                 Color2 = empire.CoreKingdom.GetColor().ColorText
             }.RecordIntoEmpire(empire);
         }
-#endif
         /// <summary>
         /// 记录“追封先帝”
         ///     $actor$ -> 在任皇帝

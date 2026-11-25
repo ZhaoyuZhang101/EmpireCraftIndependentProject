@@ -117,7 +117,6 @@ public static class EnfeoffmentHelper
     public static City FindEnfeoffableCity(Empire empire, EmpireCore empireCore) =>
         FindEnfeoffableTitle(empire)?.title_capital;
 
-#if EC_PENDING
     public static Person FindEnfeoffmentCandidate(Empire empire)
     {
         PersonalClanIdentity emperorIdentity = empire?.Emperor?.GetPersonalIdentity();
@@ -143,7 +142,6 @@ public static class EnfeoffmentHelper
         }
         return null;
     }
-#endif
 
     public static bool IsEligibleSibling(Person actor, Empire empire)
     {
@@ -162,16 +160,13 @@ public static class EnfeoffmentHelper
 
     // 把 actor 分封为附庸国国王；调用方需要自行保证 actor 已经通过 IsEligibleSibling 校验，
     // 这里只重新做一次城池/政体防御性检查(跟 TempFac_分封.Execute 完全一致)。
-#if EC_PENDING
     public static bool TryEnfeoffActor(Empire empire, Person actor, int mandateReward = 10)
     {
         if (empire == null || WarBlocks(empire) || RegimeForbids(empire) || !IsEligibleSibling(actor, empire)) return false;
         return GrantTitle(empire, actor, FindEnfeoffableTitle(empire), mandateReward);
     }
-#endif
 
     // 把一块法理整块封给 actor 立为成员国(兄弟分封、宗王分兀鲁思共用，见 PartialEnfeoffment)；人选由调用方校验
-#if EC_PENDING
     internal static bool GrantTitle(Empire empire, Person actor, KingdomTitle fief, int mandateReward)
     {
         if (empire == null || actor == null || actor.IsGone() || RegimeForbids(empire)) return false;
@@ -223,7 +218,6 @@ public static class EnfeoffmentHelper
             (title?.data?.name ?? kingdom.Name) + LM.Get("default_peerages_2"));
         return true;
     }
-#endif
 
     // 分割继承法在没有城池可分/政体不支持真实分封(如 enfeoff_virtual_only)时的退路:
     // 数一数有几个兄弟本来"够资格"分到一份(除了缺地之外没有别的理由被排除)，
@@ -258,7 +252,6 @@ public static class EnfeoffmentHelper
     //   · 分割继承法、游牧兀鲁思：诸子分封；
     //   · 本文化已施行「分封建国」且尚未「削藩」：先君一死，新君的兄弟按法理裂土受封。
     // 政体只能虚封(如律令制)或已无法理可分时，按兄弟人数给正统性补偿。
-#if EC_PENDING
     public static void OnEmperorSucceeded(Empire empire)
     {
         Realm coreKingdom = empire?.CoreKingdom;
@@ -286,12 +279,10 @@ public static class EnfeoffmentHelper
         if (empire?.data?.succession_enfeoff_pending == true && !WarBlocks(empire))
             OnEmperorSucceeded(empire);
     }
-#endif
 
     // 分割继承法专用:一次继承事件里把新君的所有合法兄弟依次分封为附庸国，而不是像
     // TempFac_分封 那样按周期一次只分封一个。每分封成功一人，该兄弟自身就不再满足
     // IsEligibleSibling(变成 isKing())，循环靠这个天然终止；没有可分封的城池/候选人时同样终止。
-#if EC_PENDING
     public static int EnfeoffAllEligibleSiblings(Empire empire, int mandateRewardPerHeir = 5)
     {
         int enfeoffedCount = 0;
@@ -307,6 +298,5 @@ public static class EnfeoffmentHelper
         }
         return enfeoffedCount;
     }
-#endif
 }
 }

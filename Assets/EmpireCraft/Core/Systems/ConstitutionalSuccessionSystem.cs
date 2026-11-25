@@ -100,7 +100,6 @@ public static class ConstitutionalSuccessionSystem
     public static bool HasLivingDynasty(Empire empire) => LivingDynasty(empire).Count > 0 || VirtualDynasty(empire).Count > 0;
 
     // 有实体的宗室优先(按政绩、治理、声望)；都没有就从虚拟宗室里挑最年长的成年人落成实体
-#if EC_PENDING
     public static Person SelectRoyalHeir(Empire empire)
     {
         Person real = LivingDynasty(empire)
@@ -116,7 +115,6 @@ public static class ConstitutionalSuccessionSystem
         Person realized = virtualHeir?.Realize();
         return CanInherit(empire, realized) ? realized : null;
     }
-#endif
 
     public static string SelectionRelation(Empire empire) => LM.Get(!IsProtected(empire) && Unbroken(empire)
         ? "unbroken_succession_court"

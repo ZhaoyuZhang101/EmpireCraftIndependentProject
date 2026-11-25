@@ -683,6 +683,7 @@ public static class ScenarioWorldExport
         }
         return result;
     }
+#endif
 
     private static JArray Relations(Dictionary<Realm, ModRealm> realms, Func<Realm, string> realmId, Func<Realm, string> ownId)
     {
@@ -710,9 +711,9 @@ public static class ScenarioWorldExport
         });
         Guard("同盟", () =>
         {
-            foreach (Alliance alliance in EmpireWorld.Current.alliances.list.ToList())
+            foreach (Alliance alliance in EmpireWorld.Current.LiveAlliances.ToList())
             {
-                List<Realm> members = alliance?.kingdoms_list?.Where(kingdom => ownId(kingdom) != null && !kingdom.IsEmpire() && !kingdom.IsInEmpire())
+                List<Realm> members = alliance?.Members?.Where(kingdom => ownId(kingdom) != null && !kingdom.IsEmpire() && !kingdom.IsInEmpire())
                     .ToList();
                 if (members == null) continue;
                 for (int i = 1; i < members.Count; i++) Add(ownId(members[0]), ownId(members[i]), "alliance", false);
@@ -773,7 +774,6 @@ public static class ScenarioWorldExport
         }
         return result;
     }
-#endif
 
     #endregion
 

@@ -11,7 +11,6 @@ public class EmpireCraftEmpireBehCheckCabinet : GameAIEmpireBase
 {
     public override Type OriginalBeh => GetType();
     
-#if EC_PENDING
     public override BehResult Execute(Realm pKingdom)
     {
         if (pKingdom?.Record == null || pKingdom.IsGone()) return BehResult.Continue;
@@ -79,7 +78,6 @@ public class EmpireCraftEmpireBehCheckCabinet : GameAIEmpireBase
         }
         return base.Execute(pKingdom);
     }
-#endif
 
     public static bool IsCabinetControlEmpire(Realm pKingdom)
     {

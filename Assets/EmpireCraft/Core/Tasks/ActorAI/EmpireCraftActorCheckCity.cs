@@ -33,13 +33,13 @@ public class EmpireCraftActorCheckCity:GameAIActorBase
                     foreach (var fActor in pActor.Family.units)
                     {
                         fActor.joinCity(city);
-                        fActor.goTo(city._city_tile);
+                        fActor.goTo(city.SeatCell());
                     }
                 }
                 else
                 {
                     pActor.JoinCity(city);
-                    pActor.goTo(city._city_tile);
+                    pActor.GoTo(city.SeatCell());
                 }
             }
         }

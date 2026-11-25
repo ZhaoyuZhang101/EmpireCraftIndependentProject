@@ -2153,7 +2153,6 @@ public static class CityExtension
     {
         return city.Buildings.Any(b => b.Asset.Id.Contains("city_"));
     }
-#if EC_PENDING
     public static void InitialRegime(this City city)
     {
         if (!city.HasRealm()) return;
@@ -2194,7 +2193,6 @@ public static class CityExtension
         }
         city.SetOffice(officeObject2);
     }
-#endif
     public static double GetCorruptionRate(this City city)
     {
         return city.GetOrCreate().corruption_rate;

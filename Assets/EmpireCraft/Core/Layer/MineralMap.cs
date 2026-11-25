@@ -4,6 +4,7 @@ using Mathf = EmpireCraft.Core.EcMath;
 using Time = EmpireCraft.Core.FrameClock;
 using Color = EmpireCraft.Core.EcColor;
 using Vector2 = EmpireCraft.Core.EcVector2;
+using Vector3 = EmpireCraft.Core.EcVector3;
 using System.Collections.Generic;
 
 namespace EmpireCraft.Core
@@ -15,7 +16,7 @@ public sealed class MineralMapColor : RecordObject<IdeologyMapColorData>
 
     public override EntityKind KindOfEntity => MetaTypeExtension.Mineral;
 #if EC_PENDING
-    public override ColorLibrary getColorLibrary() => AssetManager.culture_colors_library;
+    public override Palette getColorLibrary() => AssetManager.culture_colors_library;
 #endif
     public override Tint GetColor() => _color;
 

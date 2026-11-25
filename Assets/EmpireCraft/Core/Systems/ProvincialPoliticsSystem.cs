@@ -172,7 +172,6 @@ public static class ProvincialPoliticsSystem
 
     #region 年度结算与地方选举
 
-#if EC_PENDING
     public static void Update(Empire empire)
     {
         ConstitutionalEconomyState state = State(empire);
@@ -240,10 +239,8 @@ public static class ProvincialPoliticsSystem
         EventRecorder.RecordRoutine(empire, summary);
         CheckFederalPressure(empire, state);
     }
-#endif
 
     // 省长出缺(去世等)：由本省执政党另推一人递补，不另行选举；返回是否已补上
-#if EC_PENDING
     public static bool TryFillGovernorVacancy(Realm province)
     {
         Empire empire = province?.GetEmpire();
@@ -253,10 +250,8 @@ public static class ProvincialPoliticsSystem
         TryInstallGovernor(empire, province, party);
         return province.HasRuler() && province.Ruler.GetFaction() == party;
     }
-#endif
 
     // 由本省胜选党的党员出任省长：优先没有官职的，住在本省的
-#if EC_PENDING
     private static void TryInstallGovernor(Empire empire, Realm province, FixedFaction party)
     {
         if (!OfficeManager.Offices.TryGetValue(province.GetOfficeID(), out OfficeObject office)) return;
@@ -288,7 +283,6 @@ public static class ProvincialPoliticsSystem
             candidate.RecordPersonalHistory(string.Format(LM.Get("local_election_governor_personal"),
                 province.GetKingdomName(), party.Name));
     }
-#endif
 
     // 在野党连续两次地方选举控制六成以上行政区：各省联合要求地方自治，单一制改行联邦制
     private static void CheckFederalPressure(Empire empire, ConstitutionalEconomyState state)

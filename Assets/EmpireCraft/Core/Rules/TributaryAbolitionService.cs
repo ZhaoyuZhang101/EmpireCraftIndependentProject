@@ -61,10 +61,11 @@ public static class TributaryAbolitionService
         EventRecorder.Record(empire, string.Format(LM.Get("tributary_abolished_history"), empire.GetEmpireFullName(),
             joined, vassals, independent));
     }
+#endif
 
     private static Choice Decide(Empire empire, Realm tributary)
     {
-        int opinion = EmpireWorld.Current?.diplomacy?.getOpinion(tributary, empire.CoreKingdom)?.total ?? 0;
+        int opinion = EmpireWorld.Current?.Diplomacy?.GetOpinion(tributary, empire.CoreKingdom)?.Total ?? 0;
         double overlordPower = Math.Max(1d, empire.GetNationalPower());
         double share = tributary.GetNationalPower() / overlordPower;
         if (share >= IndependencePowerShare || opinion < 0) return Choice.Independence;
@@ -74,7 +75,6 @@ public static class TributaryAbolitionService
         if (opinion >= JoinOpinion && share < JoinPowerShare && (sameCulture || closeIdeology)) return Choice.Join;
         return Choice.Vassal;
     }
-#endif
 
 }
 }

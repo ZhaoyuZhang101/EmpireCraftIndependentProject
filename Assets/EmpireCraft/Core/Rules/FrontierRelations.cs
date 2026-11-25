@@ -132,7 +132,6 @@ public static class FrontierRelations
     }
 
     // 降部戍边：游牧政权要向施行了羁縻的帝国称臣时，改为整部内附为羁縻州；返回是否内附了
-#if EC_PENDING
     public static bool SettleSurrenderedTribe(Realm lord, Realm tribe)
     {
         Empire empire = lord?.GetEmpire();
@@ -147,6 +146,5 @@ public static class FrontierRelations
         TranslateHelper.LogEventMessage(text, lord);
         return true;
     }
-#endif
 }
 }

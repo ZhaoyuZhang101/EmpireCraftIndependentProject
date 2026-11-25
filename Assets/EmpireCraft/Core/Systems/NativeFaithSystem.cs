@@ -194,7 +194,6 @@ public static class NativeFaithSystem
     }
 
     // 立教者：本城城主，没有就从本城人口里补一位(见 CityPopulationSystem.SpawnOfficial)，再没有才是都城的君主
-#if EC_PENDING
     private static Person Founder(City city)
     {
         Person leader = city.Leader;
@@ -204,7 +203,6 @@ public static class NativeFaithSystem
         Person king = city.IsCapital() ? city.Realm.Ruler : null;
         return Alive(king) && king.HasCulture() ? king : null;
     }
-#endif
 
     private static void Announce(Religion religion, City city, string key)
     {

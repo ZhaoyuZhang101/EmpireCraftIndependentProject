@@ -109,7 +109,7 @@ public static class CityFragmentSystem
         CityDistricts.Reset();
         foreach (City city in touched)
             if (city?.Record != null && !city.IsGone()) GameView.Redraw(city);
-        calc.setDrawnZonesDirty();
+        calc.MarkDirty();
         return count;
     }
 #endif

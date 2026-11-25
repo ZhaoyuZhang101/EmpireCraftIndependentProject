@@ -248,7 +248,6 @@ public static class ReligionSchismSystem
         return count;
     }
 
-#if EC_PENDING
     private static bool EasternSplit(Empire empire, Religion old, City oldHoly, string reference)
     {
         Realm core = empire.CoreKingdom;
@@ -290,7 +289,7 @@ public static class ReligionSchismSystem
             if (own == culture || own != reference) chance += FollowKinBonus;
             Empire realm = kingdom.GetEmpire();
             if (realm != null && PapacySystem.IsCrowned(realm) && !PapacySystem.State(realm).self_crowned ||
-                see != null && kingdom.hasAlliance() && see.hasAlliance() && kingdom.getAlliance() == see.getAlliance())
+                see != null && kingdom.HasAlliance() && see.HasAlliance() && kingdom.GetAlliance() == see.GetAlliance())
                 chance -= FollowLoyalPenalty;
             if (EcRandom.value >= chance) continue;
             ConvertKingdom(kingdom, old, church);
@@ -315,7 +314,6 @@ public static class ReligionSchismSystem
                            $"随之 {followers.Count} 国");
         return true;
     }
-#endif
 
     #endregion
 

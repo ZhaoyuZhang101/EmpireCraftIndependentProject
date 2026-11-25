@@ -345,7 +345,6 @@ public static class PartyBanSystem
 
     // 宪法页修改政党制度：多党 → 开放党禁；一党/统一战线 → 由执政党关闭党禁(统一战线保留友党)。
     // 已经关闭时在一党与统一战线之间切换，只改友党名单，不走重开再关闭
-#if EC_PENDING
     public static bool SetModeByConstitution(Empire empire, ConstitutionPartySystem mode)
     {
         ConstitutionalEconomyState state = State(empire);
@@ -379,7 +378,6 @@ public static class PartyBanSystem
         ParliamentSystem.Update(empire);
         return true;
     }
-#endif
 
     public static bool CanUnitedFront(Empire empire)
     {
@@ -428,7 +426,6 @@ public static class PartyBanSystem
     public static void CloseByClaim(Empire empire, FixedFaction faction) =>
         Close(empire, faction, DefaultAllies(empire, faction), "party_ban_claim_history");
 
-#if EC_PENDING
     public static bool CloseManually(Empire empire)
     {
         if (!CanCloseManually(empire, out FixedFaction leader, out List<FixedFaction> allies)) return false;
@@ -459,7 +456,6 @@ public static class PartyBanSystem
         ParliamentSystem.Update(empire);
         return true;
     }
-#endif
 
     // 社会主义党领导时，中间派作为友党保留
     private static List<FixedFaction> DefaultAllies(Empire empire, FixedFaction leader) =>
@@ -605,7 +601,6 @@ public static class PartyBanSystem
     }
 
     // 用户 2026-11-10：压力满了不再无声 Open()，只导进三条路之一(见本文件头注释)。
-#if EC_PENDING
     private static void UpdateReopenPressure(Empire empire, ConstitutionalEconomyState state)
     {
         (float support, float lost) = GetCoreSupport(empire);
@@ -633,7 +628,6 @@ public static class PartyBanSystem
         // 君主强硬、或已是一党制共和：不自上而下开放，交由人民革命(TempFac_开放党禁)推动、取胜才 Open。
         // 压力保持满格，让革命诉求持续获得最高优先级；革命成功按现有流程记史(君主国可能亡朝)。
     }
-#endif
 
     #endregion
 

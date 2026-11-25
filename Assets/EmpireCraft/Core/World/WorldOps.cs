@@ -151,6 +151,7 @@ namespace EmpireCraft.Core
             Live(w,r);
             Require(r.Cities.Count==0,"A realm ends only after losing its last city");
             foreach(var war in r.Wars.ToArray())LeaveWar(w,war,r);
+            if(r.Alliance!=null&&r.Alliance.Alive)LeaveAlliance(w,r.Alliance,r);
             if(r.Ruler!=null)r.Ruler.Throne=null;
             r.EndedMonth=w.Month;r.Ruler=null;r.Capital=null;w.LiveRealms.Remove(r);
             w.Annals.Add(w,AnnalKind.RealmEnded,r.Id);
@@ -164,6 +165,7 @@ namespace EmpireCraft.Core
         {
             Live(w,attacker);Live(w,defender);
             Require(attacker!=defender,"A realm cannot fight itself");
+            Require(!(attacker.HasAlliance()&&attacker.Alliance==defender.Alliance),"Allies cannot go to war with each other");
             foreach(var running in attacker.Wars){var enemies=running.EnemiesOf(attacker);if(enemies!=null&&enemies.Contains(defender))return running;}
             var war=new War{Id=w.Wars.Count,Kind=kind??WarKinds.Normal,MainAttacker=attacker,MainDefender=defender,StartedMonth=w.Month,
                 Name=name??attacker.Name+"与"+defender.Name+"之战"};
@@ -200,7 +202,50 @@ namespace EmpireCraft.Core
             foreach(var r in war.Attackers)r.Wars.Remove(war);
             foreach(var r in war.Defenders)r.Wars.Remove(war);
             w.LiveWars.Remove(war);
+            w.Diplomacy.WarEnded(war);
             w.Annals.Add(w,AnnalKind.WarEnded,war.Id,(int)outcome);
+        }
+
+        // Alliances. Membership lives on the alliance and on each realm; nothing else may change it.
+        static Alliance LiveAlliance(EmpireWorld w,Alliance a){Require(a!=null&&a.Alive&&a.Id<w.Alliances.Count&&w.Alliances[a.Id]==a,"No such standing alliance");return a;}
+
+        // Two realms with no alliance and no war between them found one.
+        public static Alliance FormAlliance(EmpireWorld w,Realm a,Realm b,string name=null)
+        {
+            Live(w,a);Live(w,b);
+            Require(a!=b,"A realm cannot ally with itself");
+            Require(!a.HasAlliance()&&!b.HasAlliance(),"Both realms must be free of alliances");
+            Require(!a.IsAtWarWith(b),"Realms at war with each other cannot ally");
+            var alliance=new Alliance{Id=w.Alliances.Count,Name=name??a.Name+"与"+b.Name+"之盟",Founder=a,FoundedMonth=w.Month};
+            alliance.Members.Add(a);alliance.Members.Add(b);a.Alliance=alliance;b.Alliance=alliance;
+            w.Alliances.Add(alliance);w.LiveAlliances.Add(alliance);
+            w.Annals.Add(w,AnnalKind.AllianceFormed,alliance.Id,a.Id,b.Id);
+            return alliance;
+        }
+
+        public static void JoinAlliance(EmpireWorld w,Alliance alliance,Realm r)
+        {
+            LiveAlliance(w,alliance);Live(w,r);
+            Require(!r.HasAlliance(),"Realm already stands in an alliance");
+            foreach(var member in alliance.Members)Require(!member.IsAtWarWith(r),"A realm at war with a member cannot join");
+            alliance.Members.Add(r);r.Alliance=alliance;
+        }
+
+        // An alliance of one is none: it ends when its second-last member leaves.
+        public static void LeaveAlliance(EmpireWorld w,Alliance alliance,Realm r)
+        {
+            LiveAlliance(w,alliance);
+            Require(alliance.Has(r),"Realm does not stand in this alliance");
+            alliance.Members.Remove(r);alliance.PastMembers.Add(r);r.Alliance=null;
+            if(alliance.Members.Count<2)DissolveAlliance(w,alliance);
+        }
+
+        public static void DissolveAlliance(EmpireWorld w,Alliance alliance)
+        {
+            LiveAlliance(w,alliance);
+            foreach(var member in alliance.Members){member.Alliance=null;alliance.PastMembers.Add(member);}
+            alliance.Members.Clear();alliance.EndedMonth=w.Month;w.LiveAlliances.Remove(alliance);
+            w.Annals.Add(w,AnnalKind.AllianceEnded,alliance.Id);
         }
 
         static void Detach(City c)
@@ -233,6 +278,16 @@ namespace EmpireCraft.Core
         public static void SetCapital(this Realm realm,City city)=>WorldOps.MoveCapital(World,realm,city);
         public static void JoinAttackers(this War war,Realm realm){if(war.Alive&&!realm.IsGone()&&!war.HasRealm(realm))WorldOps.JoinWar(World,war,realm,true);}
         public static void JoinDefenders(this War war,Realm realm){if(war.Alive&&!realm.IsGone()&&!war.HasRealm(realm))WorldOps.JoinWar(World,war,realm,false);}
+        // Joining answers whether the realm is in afterwards; a realm that cannot join (gone, allied elsewhere, at war with a member) is not.
+        public static bool Join(this Alliance alliance,Realm realm,bool recalculate=true,bool forced=false)
+        {
+            if(alliance==null||!alliance.Alive||realm.IsGone())return false;
+            if(alliance.Has(realm))return true;
+            if(realm.HasAlliance())return false;
+            foreach(var member in alliance.Members)if(member.IsAtWarWith(realm))return false;
+            WorldOps.JoinAlliance(World,alliance,realm);return true;
+        }
+        public static void Leave(this Alliance alliance,Realm realm,bool recalculate=true){if(alliance!=null&&alliance.Alive&&alliance.Has(realm))WorldOps.LeaveAlliance(World,alliance,realm);}
         public static void Leave(this War war,Realm realm){if(war.Alive&&war.HasRealm(realm))WorldOps.LeaveWar(World,war,realm);}
         // Territory by cell. A cell that is not free land next to the city is left alone.
         public static void AddZone(this City city,Cell cell)

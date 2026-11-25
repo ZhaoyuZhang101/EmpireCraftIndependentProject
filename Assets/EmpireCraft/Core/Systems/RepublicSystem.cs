@@ -379,22 +379,22 @@ public static class RepublicSystem
         foreach (Realm member in coalition) empire.leave(member, pRecalc: false, isLeave: true);
         empire.recalculate();
 
-        Alliance alliance = EmpireWorld.Current.alliances.newAlliance(coalition[0], coalition[1]);
+        Alliance alliance = EmpireWorld.Current.NewAlliance(coalition[0], coalition[1]);
         if (alliance == null)
         {
             foreach (Realm member in coalition) empire.join(member, pForce: true, pLegitimacyTransfer: true);
             return false;
         }
         ModAllianceService.Mark(alliance);
-        alliance.setName(string.Format(LM.Get("regional_republic_alliance_name"),
+        alliance.SetName(string.Format(LM.Get("regional_republic_alliance_name"),
             leaderRealm.GetKingdomName()));
-        foreach (Realm member in coalition.Skip(2)) alliance.join(member, true, true);
+        foreach (Realm member in coalition.Skip(2)) alliance.Join(member, true, true);
         foreach (Realm member in coalition) member.StartFactionRebelling(party);
 
         War war = EmpireWorld.Current.StartWar(leaderRealm, empire.CoreKingdom, WarKinds.Rebellion);
         if (war == null)
         {
-            EmpireWorld.Current.alliances.dissolveAlliance(alliance);
+            EmpireWorld.Current.DissolveAlliance(alliance);
             foreach (Realm member in coalition)
             {
                 member.EndFactionRebelling();
@@ -405,20 +405,20 @@ public static class RepublicSystem
         foreach (Realm member in coalition.Skip(1)) war.JoinAttackers(member);
         war.SetEmpireWarType(EmpireWarType.派系叛乱);
         foreach (Realm member in coalition) RebellionSystem.Record(member, war, causes[member]);
-        war.Name = string.Format(LM.Get("regional_republic_war_name"), alliance.name);
+        war.Name = string.Format(LM.Get("regional_republic_war_name"), alliance.Name);
         WarExtension.WarExtraData snapshot = war.GetOrCreate();
         snapshot.republic_revolution_empire_id = empire.Key;
         snapshot.republic_revolution_party_id = party?.GetID() ?? "";
-        snapshot.republic_revolution_party_name = party?.Name ?? alliance.name;
+        snapshot.republic_revolution_party_name = party?.Name ?? alliance.Name;
         snapshot.republic_revolution_ideology = ideology;
         snapshot.republic_revolution_leader_id = leaderRealm.Ruler?.Key ?? party?.GetLeader()?.Key ?? -1L;
         snapshot.republic_regional_coalition = true;
         snapshot.republic_regional_forced_abdication = mandateCollapse;
         snapshot.republic_regional_leader_kingdom_id = leaderRealm.Key;
-        snapshot.republic_regional_alliance_id = alliance.id;
+        snapshot.republic_regional_alliance_id = alliance.Key;
         snapshot.republic_revolution_allied_kingdom_ids = coalition.Skip(1).Select(member => member.Key).ToList();
         string text = string.Format(LM.Get(mandateCollapse ? "regional_republic_collapse_started_history"
-                : "regional_republic_started_history"), alliance.name,
+                : "regional_republic_started_history"), alliance.Name,
             empire.GetEmpireFullName(), PartySystem.GetIdeologyName(ideology));
         Record(empire, text, party?.GetLeader() ?? leaderRealm.Ruler);
         return true;
@@ -853,7 +853,6 @@ public static class RepublicSystem
 
     // 现代革命胜利：革命党组建新政府——改以其理念立国、领袖出任元首；一党专政理念关闭党禁，
     // 其余理念重开选举；旧宪法作废，下次更新时颁布新宪法(第 N 部)
-#if EC_PENDING
     private static void ApplyModernRevolution(Empire empire, FixedFaction party, PartyIdeology ideology, Person leader)
     {
         ConstitutionalEconomyState state = State(empire);
@@ -873,6 +872,7 @@ public static class RepublicSystem
             PartySystem.GetIdeologyName(ideology), oldName, empire.GetEmpireFullName()), leader);
     }
 
+#if EC_PENDING
     private static void ResolveRegionalRepublicCoalition(War war, WarOutcome winner,
         WarExtension.WarExtraData snapshot)
     {
@@ -883,7 +883,7 @@ public static class RepublicSystem
                 (snapshot.republic_revolution_allied_kingdom_ids ?? new List<long>())
                 .Select(id => EmpireWorld.Current.RealmByKey(id)))
             .Where(kingdom => kingdom != null && !kingdom.IsGone()).Distinct().ToList();
-        Alliance alliance = EmpireWorld.Current.alliances?.get(snapshot.republic_regional_alliance_id);
+        Alliance alliance = EmpireWorld.Current.AllianceByKey(snapshot.republic_regional_alliance_id);
         // 正统崩溃时的互保同盟打赢了：不另立国家，逼皇帝退位，各省回归，原帝国改行共和
         if (winner == WarOutcome.Attackers && snapshot.republic_regional_forced_abdication && origin != null &&
             !origin.IsGone() && !origin.IsArchived() && origin.CoreKingdom != null && !origin.CoreKingdom.IsGone() &&
@@ -944,7 +944,7 @@ public static class RepublicSystem
                 snapshot.republic_revolution_party_name, origin.GetEmpireFullName());
             Record(origin, text, EmpireWorld.Current.PersonByKey(snapshot.republic_revolution_leader_id));
         }
-        if (alliance != null && alliance.Alive) EmpireWorld.Current.alliances.dissolveAlliance(alliance);
+        if (alliance != null && alliance.Alive) EmpireWorld.Current.DissolveAlliance(alliance);
     }
 
     private static List<Person> SnapshotImmediateRoyalFamily(Person monarch)
@@ -1230,7 +1230,6 @@ public static class RepublicSystem
 
     // 共和国元首：总统制下每届大选后由执政党领袖(总理)出任；议会制下为议会选出的虚位元首(见 IsParliamentaryRepublic)；
     // 一党制下为执政党领袖，领袖换人即换。afterElection：刚举行完大选(议会制据此改选元首)
-#if EC_PENDING
     public static void UpdateHeadOfState(Empire empire, bool afterElection = false)
     {
         if (!IsRepublic(empire) || IsTransitioning(empire) ||
@@ -1258,13 +1257,11 @@ public static class RepublicSystem
         if (!empire.InstallHeadOfState(head)) return;
         Record(empire, HeadOfStateHistory(empire, head, previous), head);
     }
-#endif
 
     #endregion
 
     // 议会制的虚位元首：在任者仍然合格(在世、身在本国、不是总理)且不是刚大选完就留任；
     // 否则由议会从执政联盟里选总理以外威望最高、未做满任期的人。返回是否已处理(没选出人时交回总统制逻辑兜底)
-#if EC_PENDING
     private static bool UpdateCeremonialHead(Empire empire, bool afterElection)
     {
         ConstitutionalEconomyState state = State(empire);
@@ -1302,7 +1299,6 @@ public static class RepublicSystem
             GetHeadOfStateTitle(empire), head.GetFaction()?.Name ?? ""), head);
         return true;
     }
-#endif
 
     #region 理念政体机构(只作用于本帝国，不随文化同步)
 
@@ -1498,7 +1494,6 @@ public static class RepublicSystem
     #region 元首与反对党
 
     // 元首去世/离任：立即由总理(没有就是主导派系领袖)接任，不等下一届大选
-#if EC_PENDING
     public static void EnsureHeadOfState(Empire empire)
     {
         if (!IsRepublic(empire)) return;
@@ -1518,7 +1513,6 @@ public static class RepublicSystem
         }
         UpdateHeadOfState(empire);
     }
-#endif
 
     public static Person GetOppositionLeader(Empire empire)
     {

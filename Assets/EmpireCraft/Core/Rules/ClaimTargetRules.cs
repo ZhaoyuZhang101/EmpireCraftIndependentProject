@@ -100,9 +100,7 @@ public static class ClaimTargetRules
         private float _ours = -1f, _army = -1f;
         private HashSet<Realm> _near;
         private List<ClaimTargetOption> _builtin;
-#if EC_PENDING
         public float Ours => _ours >= 0f ? _ours : _ours = (float)WarSituation.Power(Empire);
-#endif
         public float Army => _army >= 0f ? _army : _army = Math.Max(1, Empire.countWarriors());
         // 陆上走得到的邻国(法理相连且走得通，见 WarReach)
 #if EC_PENDING
@@ -428,7 +426,7 @@ public static class ClaimTargetRules
             case "not_at_war": return !k.IsAtWarWith(c.Core);
             case "not_deterred": return !EmpireCraft.Core.NuclearDoctrineSystem.IsDeterred(c.Core, k);
             case "can_declare": return WarGate.CanDeclare(c.Core, k);
-            case "opinion_not_good": return !c.Core.isOpinionTowardsKingdomGood(k);
+            case "opinion_not_good": return !c.Core.IsOpinionGood(k);
             case "steppe_peace_allowed": return SteppeOrderSystem.PeacetimeWarAllowed(c.Core, k);
             case "not_in_empire": return !k.IsInEmpire();
             case "not_tributary": return !c.Empire.taken_Kingdoms.Contains(k);
@@ -475,6 +473,7 @@ public static class ClaimTargetRules
             default: return Unknown(rule);
         }
     }
+#endif
 
     private static float ScoreKingdom(Context c, Spec spec, Realm k, ref float theirs, List<string> tags)
     {
@@ -544,7 +543,6 @@ public static class ClaimTargetRules
         }
         return score;
     }
-#endif
 
     // 战事吃紧(提供岁币)：打了一年以上，丢了城且敌强两成，或敌强八成，或敌强五成又打了三年
     public static bool LosingWar(Realm core, Realm enemy)

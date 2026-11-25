@@ -577,7 +577,6 @@ public static class PartySystem
     }
 
     // A new party needs a real social base and an ideology already available to the culture.
-#if EC_PENDING
     private static void TryFoundParty(Empire empire, Regime regime, List<Person> citizens)
     {
         List<FixedFaction> parties = GetParties(empire);
@@ -615,7 +614,6 @@ public static class PartySystem
         Record(empire, string.Format(LM.Get("party_founded_history"), founder.FullName(), party.Name,
             GetIdeologyName(ideology)), founder);
     }
-#endif
 
     private static FixedFaction CreateParty(Empire empire, Regime regime, PartyIdeology ideology, Person founder)
     {
@@ -680,7 +678,6 @@ public static class PartySystem
     // 同理念的党必定合并。弱势政党(议席与得票都不到一成二、成立满三年)每年有机会并入理念相近的较大政党：
     //   基础三成；得票比上届下滑 +两成；与对方同在执政联盟 +一成五；按行政区选举(小党被挤压) +一成；
     //   理念越远越难谈拢(每 10 点距离 -3%)。每年每国最多合并一次
-#if EC_PENDING
     private static void TryMerge(Empire empire, Regime regime, ConstitutionalEconomyState state)
     {
         List<FixedFaction> parties = GetParties(empire);
@@ -727,7 +724,6 @@ public static class PartySystem
             return;
         }
     }
-#endif
 
     // 名存实亡的政党自行解散(党员各投立场最近的党，见 DissolveParty)：
     //   · 党员走光了：当即解散；
@@ -737,7 +733,6 @@ public static class PartySystem
     private const float DefunctVoteShare = 0.03f;
     private const float DefunctDissolveChance = 0.4f;
 
-#if EC_PENDING
     private static void TryDissolveDefunct(Empire empire, ConstitutionalEconomyState state)
     {
         List<FixedFaction> parties = GetParties(empire);
@@ -758,7 +753,6 @@ public static class PartySystem
             if (DissolveParty(empire, party)) return;
         }
     }
-#endif
 
     private static void Absorb(Empire empire, Regime regime, FixedFaction target, FixedFaction absorbed)
     {
@@ -771,7 +765,6 @@ public static class PartySystem
     }
 
     // 大党里有声望的人立场与党的理念相去太远 → 率众出走另组新党
-#if EC_PENDING
     private static void TrySplit(Empire empire, Regime regime, ConstitutionalEconomyState state)
     {
         List<FixedFaction> parties = GetParties(empire);
@@ -807,7 +800,6 @@ public static class PartySystem
         Record(empire, string.Format(LM.Get("party_split_history"), rebel.FullName(), big.Name, party.Name,
             GetIdeologyName(ideology)), rebel);
     }
-#endif
 
     #endregion
 
@@ -836,7 +828,6 @@ public static class PartySystem
         return true;
     }
 
-#if EC_PENDING
     public static FixedFaction PlayerFoundParty(Empire empire, PartyIdeology ideology)
     {
         if (!CanPlayerFound(empire, ideology, out _)) return null;
@@ -851,11 +842,9 @@ public static class PartySystem
             GetIdeologyName(ideology)), founder);
         return party;
     }
-#endif
 
     // 剧本开局就有的政党(中国国民党、全联盟共产党、立宪政友会)：不看民间理念份额、党数上限，照剧本的名号与党魁立党；
     // 同理念的党已有就改名换党魁。党魁没写(或找不到)就照常推举
-#if EC_PENDING
     public static FixedFaction ScenarioFoundParty(Empire empire, PartyIdeology ideology, Person leader, string name)
     {
         Regime regime = empire?.CoreKingdom?.GetRegime();
@@ -876,7 +865,6 @@ public static class PartySystem
         if (!string.IsNullOrWhiteSpace(name)) party.Name = name;
         return party;
     }
-#endif
 
     // 理念相近的小党自由合并：双方都不超过两成(议席，没有议会看中央占比)、光谱距离在合并范围内
     private const float PlayerMergeMaxShare = 0.2f;
@@ -894,7 +882,6 @@ public static class PartySystem
     }
 
     // 合并：小的并进大的(沿用大党党名)，党员、议席、中央占比随之转过去；涉及执政党时重新组阁
-#if EC_PENDING
     public static bool MergeParties(Empire empire, FixedFaction party)
     {
         FixedFaction partner = FindMergePartner(empire, party);
@@ -916,14 +903,12 @@ public static class PartySystem
         Record(empire, string.Format(LM.Get("party_merged_history"), absorbedName, target.Name), target.GetLeader());
         return true;
     }
-#endif
 
     public static bool CanDissolve(Empire empire, FixedFaction party) =>
         party != null && party.IsParty && !party.Ban && GetParties(empire).Count(other => other != party) >= 1;
 
     // 自行解散：党员按阶层立场加入剩下的政党中最接近的一个(对所有党都没好感的就成无党派)，
     // 议员带着议席转党，原中央占比按转入人数分给接收的党；执政党解散则重新组阁
-#if EC_PENDING
     public static bool DissolveParty(Empire empire, FixedFaction party)
     {
         if (!CanDissolve(empire, party)) return false;
@@ -966,7 +951,6 @@ public static class PartySystem
         Record(empire, string.Format(LM.Get("party_self_dissolved_history"), partyName), null);
         return true;
     }
-#endif
 
     #endregion
 
@@ -1096,7 +1080,6 @@ public static class PartySystem
     }
 
     // 找不到实体发起人时(无小人模式)，从京师人口里推举一位该理念的读书人
-#if EC_PENDING
     public static Person SpawnFounder(Empire empire, PartyIdeology ideology)
     {
         if (!CityPopulationSystem.AbstractPopulationEnabled) return null;
@@ -1105,7 +1088,6 @@ public static class PartySystem
         if (founder != null) IdeologyPopulationSystem.Set(founder, ideology);
         return founder;
     }
-#endif
 
     // 普选后按行政区选举：每个行政区(帝国内的一国)按人口分得议席(至少 1 席)，区内按得票用顿特法分给各党。
     // 返回每一席的 (政党, 行政区 id)。
@@ -1184,7 +1166,6 @@ public static class PartySystem
         GetCultureNamePool(culture, ideology, party => party.suffix_groups, "Suffix");
 
     // 选后：中央占比按议席比例重算；连续两届没有议席的党解散
-#if EC_PENDING
     public static void AfterElection(Empire empire, Dictionary<FixedFaction, int> allocation, int totalSeats)
     {
         Regime regime = empire.CoreKingdom.GetRegime();
@@ -1207,7 +1188,6 @@ public static class PartySystem
         // 丢了三成以上议席的党临时开党代会追责(见 PartyInnerSystem)
         PartyInnerSystem.AfterElection(empire, allocation, empire.data?.constitutional_economy?.previous_seat_counts);
     }
-#endif
 
     #endregion
 

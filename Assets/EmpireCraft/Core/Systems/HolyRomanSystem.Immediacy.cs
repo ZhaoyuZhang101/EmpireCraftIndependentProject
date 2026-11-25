@@ -42,7 +42,6 @@ public static partial class HolyRomanSystem
     #region 请愿与裁处
 
     // 大诸侯：四城以上或国力前三
-#if EC_PENDING
     private static List<Realm> BigPrinces(Empire empire)
     {
         List<Realm> realms = empire.kingdoms_list.Where(kingdom => kingdom?.Record != null && !kingdom.IsGone() &&
@@ -52,10 +51,8 @@ public static partial class HolyRomanSystem
                                                Estate(kingdom) == EstateNone && !IsBanned(kingdom) && kingdom.HasRuler() &&
                                                !Rebelling(kingdom)).ToList();
     }
-#endif
 
     // 请愿对象：接壤的一城小邦(普通诸侯，非中央、非选帝侯国)
-#if EC_PENDING
     private static Realm SmallNeighbour(Empire empire, HolyRomanState state, Realm lord) =>
         Members(empire).Where(small => small != lord && Estate(small) == EstateNone && small.Cities.Count == 1 &&
                                        small.Capital != null && !Seats(state).Contains(small.Key) && small.IsNeighbourWith(lord) &&
@@ -80,7 +77,6 @@ public static partial class HolyRomanSystem
             return;
         }
     }
-#endif
 
     public static (Realm lord, Realm small) PendingPetition(Empire empire)
     {
@@ -223,7 +219,6 @@ public static partial class HolyRomanSystem
 
     private static long RedeemPrice(PawnRecord record) => (long)(record.price * RedeemPremium);
 
-#if EC_PENDING
     private static void PawnsYearly(Empire empire, HolyRomanState state)
     {
         Realm core = empire.CoreKingdom;
@@ -250,10 +245,8 @@ public static partial class HolyRomanSystem
                 Redeem(empire, state, record, city, holder);
         }
     }
-#endif
 
     // 赎回：付押价×1.2 给受押国，城重新立为自由城市
-#if EC_PENDING
     private static bool Redeem(Empire empire, HolyRomanState state, PawnRecord record, City city, Realm holder)
     {
         Realm core = empire.CoreKingdom;
@@ -271,7 +264,6 @@ public static partial class HolyRomanSystem
         FiscalDiagnostics.Count("神罗·赎回典押");
         return true;
     }
-#endif
 
     #endregion
 
@@ -287,7 +279,6 @@ public static partial class HolyRomanSystem
     }
 
     // 赎回最早一笔付得起的典押
-#if EC_PENDING
     public static bool ActRedeem(Empire empire)
     {
         HolyRomanState state = State(empire);
@@ -301,7 +292,6 @@ public static partial class HolyRomanSystem
         }
         return false;
     }
-#endif
 
     #endregion
 

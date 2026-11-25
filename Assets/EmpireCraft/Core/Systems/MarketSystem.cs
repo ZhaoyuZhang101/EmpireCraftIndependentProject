@@ -108,7 +108,6 @@ public static class MarketSystem
     // ---- 禁运与封锁 ----
     // 交战双方互不通商；双方的盟友也跟着禁运(本国盟友不和本国的敌人做生意，敌人的盟友也不和本国做生意)；
     // 正在被攻打、或一半以上区块被敌军占领的城被围封锁，买不进也卖不出
-#if EC_PENDING
     public static bool Embargoed(Realm a, Realm b)
     {
         if (a == null || b == null || a == b) return false;
@@ -117,15 +116,16 @@ public static class MarketSystem
         if (WorldOrderSystem.TradeCut(a, b)) return true;
         // 关税战升到断绝通商(见 TradeWarSystem)
         if (TradeWarSystem.Cut(a, b)) return true;
-        if (a.hasAlliance())
-            foreach (Realm ally in a.getAlliance().kingdoms_list)
+        if (a.HasAlliance())
+            foreach (Realm ally in a.GetAlliance().Members)
                 if (ally != null && ally != a && !ally.IsGone() && ally.IsEnemy(b)) return true;
-        if (b.hasAlliance())
-            foreach (Realm ally in b.getAlliance().kingdoms_list)
+        if (b.HasAlliance())
+            foreach (Realm ally in b.GetAlliance().Members)
                 if (ally != null && ally != b && !ally.IsGone() && ally.IsEnemy(a)) return true;
         return false;
     }
 
+#if EC_PENDING
     public static bool Blockaded(City city)
     {
         if (city == null || city.IsGone()) return true;
@@ -426,8 +426,8 @@ public static class MarketSystem
         if (seller.Religion != null && buyer.Religion != seller.Religion && !buyer.HasBuildingType("type_temple") &&
             EcRandom.value < chance)
             buyer.SetReligion(seller.Religion);
-        if (foreign && seller.language != null && buyer.language != seller.language && EcRandom.value < chance)
-            buyer.setLanguage(seller.language);
+        if (foreign && seller.Language != null && buyer.Language != seller.Language && EcRandom.value < chance)
+            buyer.setLanguage(seller.Language);
     }
 #endif
 

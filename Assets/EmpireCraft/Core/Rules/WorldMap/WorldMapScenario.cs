@@ -91,9 +91,7 @@ public static class WorldMapScenario
     private static List<PlannedPolity> _polities = new();
     // 开局即流亡的国家(见 BuildExiles)：建好后并入 _polities
     private static readonly List<PlannedPolity> _exiles = new();
-#if EC_PENDING
     private static readonly Dictionary<string, Subspecies> _subspecies = new();
-#endif
     private static readonly HashSet<Cell> _usedZones = new();
 
 #if EC_PENDING
@@ -371,7 +369,7 @@ public static class WorldMapScenario
                 else
                 {
                     actor.SetRealm(polity.kingdom);
-                    if (founder?.language != null) actor.setLanguage(founder.language);
+                    if (founder?.Language != null) actor.SetLanguage(founder.Language);
                     if (founder?.Religion != null) actor.SetReligion(founder.Religion);
                     planned.city = EmpireWorld.Current.Cities.buildNewCity(actor, zone);
                     actor.JoinCity(planned.city);
@@ -539,7 +537,6 @@ public static class WorldMapScenario
 
     // 妃嫔进后宫(进世界后，帝国的后宫官职设好了)：剧本的妃嫔依次坐进空着的妃位(皇后位按君主配偶自选)。
     // 年过三十五的不坐(后宫照例另选年轻的，坐进去也当场被换)
-#if EC_PENDING
     private static void SeatConsorts(Empire empire, List<Person> consorts)
     {
         CenterOffice center = empire?.data?.centerOffice;
@@ -556,7 +553,6 @@ public static class WorldMapScenario
             free.RemoveAt(0);
         }
     }
-#endif
 
     // 名将名臣：生在都城、照剧本起名(各自一家，不入宗室)；进世界后再任官、统兵、坐镇(见 SeatFamous)
 #if EC_PENDING
@@ -598,7 +594,6 @@ public static class WorldMapScenario
 #endif
 
     // 进世界后(各国有城、有军、有官署了)：名臣任中枢要职，名将统一支军或坐镇一城，并记成名将名臣(照剧本的良才、名、国柱)
-#if EC_PENDING
     private static void SeatFamous(Realm kingdom, Empire empire, List<(Person actor, WorldMapFamous person)> people)
     {
         CenterOffice center = empire?.data?.centerOffice;
@@ -662,7 +657,6 @@ public static class WorldMapScenario
             FamousTalentSystem.Quiet = false;
         }
     }
-#endif
 
     // 开局国祚、王朝积弊、六弊没写时的默认(剧本编辑器积弊卡上的灰字也用这几个，见 ScenarioEditing.DeclineDefault)：
     //   国祚——前史里本朝第一位君主即位到开局年，没挂前史为 0(新开国)；前史里一个朝代跨了几个王室的(拜占庭、神圣罗马、
@@ -991,7 +985,7 @@ public static class WorldMapScenario
         Person native = Spawn(planned.species, tile);
         if (native == null) return;
         native.SetRealm(polity.kingdom);
-        if (founder.language != null) native.setLanguage(founder.language);
+        if (founder.Language != null) native.SetLanguage(founder.Language);
         if (founder.Religion != null) native.SetReligion(founder.Religion);
         native.JoinCity(planned.city);
         PrepareName(native, planned.culture);
@@ -1004,7 +998,7 @@ public static class WorldMapScenario
         if (subspecies != null && subspecies.IsGone()) subspecies = null;
         Person actor = EmpireWorld.Current.Living.createNewUnit(species, tile, false, 0f, subspecies, null, false, true, false, true);
         if (actor == null) return species == "human" ? null : Spawn("human", tile);
-        if (actor.subspecies != null) _subspecies[species] = actor.subspecies;
+        if (actor.Subspecies != null) _subspecies[species] = actor.Subspecies;
         return actor;
     }
 #endif
@@ -1217,7 +1211,7 @@ public static class WorldMapScenario
                 MergeFiller(pair.Key, pair.Value);
                 merged++;
             });
-        EmpireWorld.Current.Zones?.setDrawnZonesDirty();
+        EmpireWorld.Current.Zones?.MarkDirty();
         LogService.LogInfo($"[EmpireCraft][世界地图] 补空小国并入大国 {merged} 个");
     }
 #endif
@@ -1252,7 +1246,7 @@ public static class WorldMapScenario
             }
             RemoveFiller(filler);
         }
-        EmpireWorld.Current.Zones?.setDrawnZonesDirty();
+        EmpireWorld.Current.Zones?.MarkDirty();
         LogService.LogInfo($"[EmpireCraft][世界地图] 全图分给剧本国：补空 {fillers.Count} 国 {moved} 城一城一城并入(按地区认领 {byRegion} 城)");
     }
 #endif
@@ -1346,7 +1340,7 @@ public static class WorldMapScenario
         }
         if (gone == 0) return;
         WildernessSystem.RequestReattach();
-        EmpireWorld.Current.Zones?.setDrawnZonesDirty();
+        EmpireWorld.Current.Zones?.MarkDirty();
         LogService.LogInfo($"[EmpireCraft][世界地图] 被切碎的补空小国不立国 {gone} 个");
     }
 
@@ -1489,7 +1483,6 @@ public static class WorldMapScenario
 #endif
 
     // 部落改原始政体(华夏一系为华夏原始政体)
-#if EC_PENDING
     private static void MakeTribes(List<Realm> kingdoms)
     {
         foreach (Realm kingdom in kingdoms)
@@ -1501,7 +1494,6 @@ public static class WorldMapScenario
             EmpireCraft.Core.EmpireCraftKingdomBehCheckKingdomType.SyncKingdomStatus(kingdom);
         }
     }
-#endif
 
     // 剧本编辑器刷的地块归属(见 ScenarioCells)：刷了的地块先归那国(或那块王国法理)离它最近的城，铺辖地时别家不再领；
     // "c:城编号" 直接归那座城(从当前世界导入的剧本照原图写的，见 ScenarioWorldExport)。归城的这些地块记进 PaintedCityZones，
@@ -1646,7 +1638,7 @@ public static class WorldMapScenario
         }
         WorldMapZones.Build();
         claimed += WorldMapZones.FillAll((city, zone) => city.AddZone(zone));
-        EmpireWorld.Current.Zones?.setDrawnZonesDirty();
+        EmpireWorld.Current.Zones?.MarkDirty();
         LogService.LogInfo($"[EmpireCraft][世界地图] 铺满又分了 {claimed} 块");
         AnchorWilderness();
         _cityTerrainReach.Clear();
@@ -1704,7 +1696,7 @@ public static class WorldMapScenario
         // 照原图分地(从当前世界导入的剧本)：只按刷的分，不再往外铺
         if (_era?.exact == true)
         {
-            EmpireWorld.Current.Zones?.setDrawnZonesDirty();
+            EmpireWorld.Current.Zones?.MarkDirty();
             LogService.LogInfo($"[EmpireCraft][世界地图] 照原图分地 {claimed} 块");
             return;
         }
@@ -1718,7 +1710,7 @@ public static class WorldMapScenario
             city.AddZone(zone);
             claimed++;
         });
-        EmpireWorld.Current.Zones?.setDrawnZonesDirty();
+        EmpireWorld.Current.Zones?.MarkDirty();
         LogService.LogInfo($"[EmpireCraft][世界地图] 开局辖地铺了 {claimed} 块");
     }
 #endif
@@ -2032,7 +2024,7 @@ public static class WorldMapScenario
                 }
             }
         int divisions = SharedDivisions(areaOf);
-        EmpireWorld.Current.Zones?.setDrawnZonesDirty();
+        EmpireWorld.Current.Zones?.MarkDirty();
         LogService.LogInfo($"[EmpireCraft][世界地图] 共用省界：{bounds.Count} 块，{areaOf.Count} 城落在界内，地块归位 {moved} 块，按省设行政区 {divisions} 个");
     }
 #endif
@@ -2450,7 +2442,6 @@ public static class WorldMapScenario
     // 开局即是世袭藩镇：先照"转军府"改成军府(自主外交、拥兵、自收自支)，再改父死子继——世袭以后照旧是军府、不改封国
     // (同南明诸镇，见 SouthernGarrisonSystem.Enfeoff)。名字记作行政区名(魏博军、成德军、卢龙军)，离了这个帝国照自己握的法理改名
     // (见 KingdomExtension.AdministrativeFront)
-#if EC_PENDING
     private static void MakeFanzhen(PlannedPolity polity, PlannedPolity lord)
     {
         Realm kingdom = polity.kingdom;
@@ -2475,7 +2466,6 @@ public static class WorldMapScenario
         EmpireCraft.Core.EmpireCraftKingdomBehCheckKingdomType.SyncKingdomStatus(kingdom);
         LogService.LogInfo($"[EmpireCraft][世界地图] {polity.name} 开局为 {lord.name} 的世袭藩镇：{kingdom.GetKingdomName()}");
     }
-#endif
 
     // 剧本定下的入主(用户 10-29 "剧本里面让后金入关后走中华体制百分百叫大清")：记在本国上，据有那座城(北京)即算入关，
     // 采纳华夏制度走兼用，国号照剧本(见 CompositeEmpireService.ScriptedConquestName)
@@ -2507,7 +2497,6 @@ public static class WorldMapScenario
     }
 
     // 开局的君主、储君加长保底寿数；年轻皇帝族里没人的补子嗣，免得开局几年就寿终、绝嗣裂土(见 RealisticAgeSystem.OnScenarioStart)
-#if EC_PENDING
     private static void SettleRulers()
     {
         foreach (PlannedPolity polity in _polities)
@@ -2527,6 +2516,7 @@ public static class WorldMapScenario
         }
     }
 
+#if EC_PENDING
     private static void Finish()
     {
         Guard("开局流亡的国家", BuildExiles);
@@ -2670,7 +2660,6 @@ public static class WorldMapScenario
     // 剧本的帝国：核心王国的帝国编号得还指着它(出过开局一个月明的核心国不再归明、帝国被当成空壳解散的事)
     private static readonly List<(Realm kingdom, Empire empire)> _scenarioEmpires = new();
 
-#if EC_PENDING
     private static void VerifyEmpires(string when)
     {
         if (when == "收尾")
@@ -2691,7 +2680,6 @@ public static class WorldMapScenario
             empire.TryRepairState("world map");
         }
     }
-#endif
 
     #region 进世界之后
 
@@ -2889,7 +2877,6 @@ public static class WorldMapScenario
 #endif
 
     // 用户 2026-10-29 "日本幕府的天皇去哪儿了""天皇不应该是万世一系的吗"：以前德川家光直接坐了日本的君位，天皇家没生出来
-#if EC_PENDING
     private static void Shogunate(PlannedPolity polity)
     {
         Empire empire = polity.kingdom?.GetEmpire();
@@ -2898,7 +2885,6 @@ public static class WorldMapScenario
         LogService.LogInfo($"[EmpireCraft][世界地图] {polity.name} 就任将军没成：帝国 {empire?.GetEmpireName() ?? "无"}，" +
                            $"政体 {empire?.CoreKingdom?.GetRegime()?.type}，君主 {shogun?.FullName() ?? "无"}");
     }
-#endif
 
     // 开局按人口盖房(繁荣)：人口越多的城盖得越多、民居升得越高(到本文化科技许可的一级为止)，住房装不下的另给容量(同神力"增加人口")；
     // 再给一年口粮，免得一开局就闹饥荒。一帧只做几毫秒(四五百座城一次做完要卡好几秒)

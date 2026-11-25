@@ -123,7 +123,6 @@ public static class NomadAppanageSystem
 #endif
 
     // 新汗的兄弟(先汗诸子)：成年、不是君主、在本国，年长的在前
-#if EC_PENDING
     private static List<Person> Brothers(Realm kingdom, Person khan)
     {
         PersonalClanIdentity identity = khan.GetPersonalIdentity();
@@ -141,7 +140,6 @@ public static class NomadAppanageSystem
                 .Where(actor => !result.Contains(actor)));
         return result.OrderByDescending(actor => actor.Age()).ToList();
     }
-#endif
 
     // 帐：seed 连同挨着的本国城，至多 room 座，不带汗帐的都城
     private static List<City> Cluster(Realm kingdom, City seed, City seat, int room)

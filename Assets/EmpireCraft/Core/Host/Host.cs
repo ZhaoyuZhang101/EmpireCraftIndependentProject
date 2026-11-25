@@ -95,6 +95,17 @@ namespace EmpireCraft.Core
         public override string ToString() => "(" + x + ", " + y + ")";
     }
 
+    // A point with a height. The ported code keeps a few of these; a 2-vector turns into one and back freely.
+    public struct EcVector3
+    {
+        public float x, y, z;
+        public EcVector3(float x, float y, float z = 0f) { this.x = x; this.y = y; this.z = z; }
+        public static EcVector3 zero => new EcVector3(0f, 0f, 0f);
+        public static implicit operator EcVector3(EcVector2 v) => new EcVector3(v.x, v.y, 0f);
+        public static implicit operator EcVector2(EcVector3 v) => new EcVector2(v.x, v.y);
+        public static float Distance(EcVector3 a, EcVector3 b) { float dx = a.x - b.x, dy = a.y - b.y, dz = a.z - b.z; return (float)Math.Sqrt(dx * dx + dy * dy + dz * dz); }
+    }
+
     public struct EcVector2 : IEquatable<EcVector2>
     {
         public float x, y;

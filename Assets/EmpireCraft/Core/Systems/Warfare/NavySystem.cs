@@ -2,6 +2,7 @@
 // see Port/manifest.json and Tools/PortTool.
 using Mathf = EmpireCraft.Core.EcMath;
 using Time = EmpireCraft.Core.FrameClock;
+using Vector3 = EmpireCraft.Core.EcVector3;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -890,7 +891,7 @@ public static class NavySystem
         if (FlagshipMoves.TryGetValue(boat.Key, out float next) && now < next) return;
         FlagshipMoves[boat.Key] = now + FlagshipMoveInterval;
         if (boat.Cell.Zone == zone) return;
-        try { boat.goTo(zone.Center, pPathOnWater: true); }
+        try { boat.GoTo(zone.Center, pPathOnWater: true); }
         catch (Exception exception) { LogService.LogWarning($"[EmpireCraft][海军] 旗舰航行失败: {exception.Message}"); }
     }
 #endif

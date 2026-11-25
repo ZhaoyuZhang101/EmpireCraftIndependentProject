@@ -285,7 +285,6 @@ public static class CommodityMarketSystem
         TradeRouteSystem.TreatyPartner(b.leader) is Realm second && MarketOfKingdom.TryGetValue(second.Key, out long other) && other == a.leader?.Key;
 
     // 两个市场之间为什么不通商(界面用)：通的返回 null，否则返回原因键
-#if EC_PENDING
     public static string TradeBlock(Market a, Market b)
     {
         if (a?.leader?.Record == null || b?.leader?.Record == null) return "market_status_far";
@@ -293,7 +292,6 @@ public static class CommodityMarketSystem
         if ((a.policy == TradePolicy.Closed || b.policy == TradePolicy.Closed) && !TreatyBetween(a, b)) return "market_status_closed";
         return a.linked.Contains(b.leader.Key) ? null : "market_status_far";
     }
-#endif
 
     // 价格走势(最近几十年，读档后从头记，见 Settle)
     public static IList<float> PriceHistory(Market market, string good)
@@ -1148,7 +1146,6 @@ public static class CommodityMarketSystem
     }
 
     // 按货物路线连通(见上)
-#if EC_PENDING
     private static void LinkByRoutes(Action<long, long, bool> link)
     {
         ConnectivityConfig config = ConnectivitySystem.Config;
@@ -1172,10 +1169,8 @@ public static class CommodityMarketSystem
                 link(market.leader.Key, pair.Key, pair.Value.sea);
         }
     }
-#endif
 
     // 沿途的第三国与买卖任一方交战：这条路不通
-#if EC_PENDING
     private static bool RoadClosed(ConnectivityRoute route, Market a, Market b)
     {
         if (route.Third == null) return false;
@@ -1187,7 +1182,6 @@ public static class CommodityMarketSystem
         }
         return false;
     }
-#endif
 
     // ───────── 货款收现钱(用户 2026-11-25 "卖货收现金""这个也可以加") ─────────
     // 以前真钱只在国库发工钱的城里落下来(都城、驻军的城)，百姓卖货的收入只记家底估值，出货的城手里没有现钱，
@@ -1713,7 +1707,6 @@ public static class CommodityMarketSystem
     // 关税同盟：接壤大国的市场比自家缺得少、对它好感好、不交战的小国，每年有机会并入；交战、反目的退出
     private const float JoinChance = 0.2f, LeaveChance = 0.3f;
 
-#if EC_PENDING
     private static void Unions()
     {
         foreach (Realm kingdom in EmpireWorld.Current.LiveRealms.ToList())
@@ -1723,7 +1716,7 @@ public static class CommodityMarketSystem
             Realm leader = UnionLeader(kingdom);
             if (leader != null)
             {
-                bool stays = MarketOf(leader)?.great == true && !kingdom.IsEnemy(leader) && kingdom.isOpinionTowardsKingdomGood(leader);
+                bool stays = MarketOf(leader)?.great == true && !kingdom.IsEnemy(leader) && kingdom.IsOpinionGood(leader);
                 if (!stays && EcRandom.value < LeaveChance)
                 {
                     data.market_union_leader_id = -1L;
@@ -1745,7 +1738,7 @@ public static class CommodityMarketSystem
             {
                 Market other = MarketOf(neighbour);
                 if (other == null || other == own || !other.great || other.power < own.power * 3d) continue;
-                if (kingdom.IsEnemy(other.leader) || !kingdom.isOpinionTowardsKingdomGood(other.leader)) continue;
+                if (kingdom.IsEnemy(other.leader) || !kingdom.IsOpinionGood(other.leader)) continue;
                 float better = AverageShortage(own) - AverageShortage(other);
                 if (better > gain)
                 {
@@ -1759,7 +1752,6 @@ public static class CommodityMarketSystem
                 best.leader.GetKingdomFullName()), kingdom);
         }
     }
-#endif
 
     // 关税同盟够得着：两边人员往来的通达(取好的一边)不低于 union_min_strength
     private static bool UnionReach(Realm kingdom, Realm leader)

@@ -651,7 +651,6 @@ public static class ConstitutionSystem
     }
 
     // 宪法页点一下：换到下一个方案并手定；由制度推出的条款转完一圈后回到"自动"(解除手定、按实际状况重新推导)
-#if EC_PENDING
     public static bool CycleByPlayer(Empire empire, string row)
     {
         ConstitutionData constitution = Get(empire);
@@ -732,7 +731,6 @@ public static class ConstitutionSystem
             constitution.name, LM.Get($"constitution_clause_{row}"), ValueText(row, before), ValueText(row, value)));
         return true;
     }
-#endif
 
     // 条款取值的显示文字
     public static string ValueText(string row, string value) => row switch

@@ -49,7 +49,6 @@ public static class EmpireMembershipService
 
     // 在加载任意帝国对象之前统一判定，避免后加载的旧名单覆盖前一个帝国的核心或成员。
     // 直辖核心优先；普通成员尊重国家自己的存档归属，明确独立的国家不因旧名单重新入帝国。
-#if EC_PENDING
     public static void NormalizeLoadedMembership(IEnumerable<EmpireData> records, IEnumerable<Realm> kingdoms,
         ISet<long> kingdomsWithSavedData)
     {
@@ -106,6 +105,5 @@ public static class EmpireMembershipService
                 .Select(city => city.Key).Distinct().ToList();
         }
     }
-#endif
 }
 }

@@ -567,7 +567,6 @@ public static partial class CourtSystem
 #endif
 
     // 批红者：成年、未被挟制、不怠政(昏聩，见 RulerQualitySystem)的皇帝亲批；否则权臣代批，再没有就由议程官代批
-#if EC_PENDING
     public static (Person decider, string role) Decider(Empire empire)
     {
         Person emperor = empire?.Emperor;
@@ -582,7 +581,6 @@ public static partial class CourtSystem
 
     public static float ApprovalChance(Empire empire, CourtMemorial memorial, TemporaryFactionType issue,
         FixedFaction proposer) => Chance(ApprovalFactors(empire, memorial, issue, proposer));
-#endif
 
     // 准奏率 = 各项砝码相加，夹在 5%~95%
     public static float Chance(List<CourtScaleFactor> factors) =>
@@ -590,7 +588,6 @@ public static partial class CourtSystem
 
     // 批红准奏率的各项砝码(诉求天平页逐项列出)(用户 2026-11-10 "推动诉求也要加天平页面""这样才能知道成功还是没成功")：皇帝亲批看廷议(威权越高越不看)、圣眷、
     // 本人立场、秦汉丞相、方略、党争、打点；代批的看廷议与代批者所属派系的立场
-#if EC_PENDING
     public static List<CourtScaleFactor> ApprovalFactors(Empire empire, CourtMemorial memorial, TemporaryFactionType issue,
         FixedFaction proposer)
     {
@@ -660,7 +657,6 @@ public static partial class CourtSystem
                 if (divine != null) Add(divine.key, divine.value, divine.arg);
         }
     }
-#endif
 
     // 票拟这一步的预估(诉求天平页)：各项是过关的概率，乘起来是上达廷议的把握。不在议事会又没有盟友坐席的只有六成上达；
     // 议程官所属派系反对的，资本够疏通也只有一半能过，不够就压下

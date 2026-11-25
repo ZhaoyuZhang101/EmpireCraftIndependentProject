@@ -109,7 +109,6 @@ public static class TechRollbackSystem
     #region 回退
 
     // 点城：本文化退回上一个时代(已在石器时代的退回原始，一项科技不剩)；已在原始时代的照样把缺科技的制度、建筑清一遍
-#if EC_PENDING
     public static TechRollbackResult StepBack(string culture, Realm kingdom)
     {
         int era = TechnologySystem.GetEraTier(culture);
@@ -118,18 +117,15 @@ public static class TechRollbackSystem
         Announce(culture, kingdom, result);
         return result;
     }
-#endif
 
     // 科技窗口的「重置科技」(用户 2026-11-07 "重置科技按钮也改成同一套")：本文化一次退回原始时代，同举世退回原始里的一个文化。
     // 以前是把本文化的科技存档整个删掉，下一年按开局补齐(Bootstrap)从城里的建筑、已推行的制度把科技全补回来——又是"反弹"
-#if EC_PENDING
     public static TechRollbackResult ToPrimitive(string culture, Realm kingdom)
     {
         TechRollbackResult result = RollBackCulture(culture, -1, null);
         Announce(culture, kingdom, result);
         return result;
     }
-#endif
 
     // 真退了科技才写世界日志、记史书
     private static void Announce(string culture, Realm kingdom, TechRollbackResult result)
@@ -142,7 +138,6 @@ public static class TechRollbackSystem
     }
 
     // 举世退回原始：存过科技、制度的文化与眼下有国家、有城的文化，一齐退回原始时代
-#if EC_PENDING
     public static TechRollbackResult WorldToPrimitive()
     {
         var total = new TechRollbackResult();
@@ -182,10 +177,8 @@ public static class TechRollbackSystem
         Record(null, text);
         return total;
     }
-#endif
 
     // 退一个文化：科技、制度当场退，城里的建筑排队逐帧降级
-#if EC_PENDING
     private static TechRollbackResult RollBackCulture(string culture, int keepTier, WorldJob world, bool queueCities = true)
     {
         TechRollbackResult result = TechnologySystem.RollBack(culture, keepTier);
@@ -212,11 +205,9 @@ public static class TechRollbackSystem
         }
         return result;
     }
-#endif
 
     // 撤下本文化已施行、却缺了所需科技的制度(走制度窗口「回退此制度」同一条路，见 InstitutionSystem.ForceRevokeNodes)；
     // 被它们取代的旧制度随之恢复，恢复的旧制度若也缺科技，再撤一轮。返回净撤下的项数
-#if EC_PENDING
     public static int RevokeInstitutions(string culture)
     {
         CultureInstitutionState state = InstitutionSystem.GetOrCreateCultureState(culture);
@@ -231,7 +222,6 @@ public static class TechRollbackSystem
         InstitutionSystem.DropReformsLackingTech(culture);
         return before.Count(id => !state.enacted_node_ids.Contains(id));
     }
-#endif
 
     // 制度要的科技(节点自己写的 + 按特性挂的，见 TechnologySystem.GetInstitutionRequiredTechs)本文化有没有缺的；科技树里没有的 id 不算
     private static bool LacksTech(string culture, InstitutionNodeConfig node) =>

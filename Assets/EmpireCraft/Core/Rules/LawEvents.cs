@@ -71,7 +71,6 @@ public static class LawEvents
 #endif
 
     // 暗中犯罪：君主不记(律法给君主记罪只加暴虐，这里都是臣下的事)
-#if EC_PENDING
     private static bool Record(Person actor, LawType law)
     {
         if (!Living(actor) || actor.IsRuler()) return false;
@@ -85,7 +84,6 @@ public static class LawEvents
             return false;
         }
     }
-#endif
 
     #endregion
 
@@ -335,7 +333,6 @@ public static class LawEvents
     }
 
     // 朝议"赈济灾荒"发粮(TempFac_赈济灾荒)：到手不足 SkimLine 时，灾城主官按克扣的比例暗中记贪污
-#if EC_PENDING
     public static void ReliefSkimmed(IEnumerable<City> cities, float efficiency)
     {
         if (cities == null || efficiency >= SkimLine || !EmpireLawSystem.Enabled) return;
@@ -348,7 +345,6 @@ public static class LawEvents
             if (Record(Steward(city), LawType.贪污)) recorded++;
         }
     }
-#endif
 
     #endregion
 
@@ -376,25 +372,20 @@ public static class LawEvents
     #region 个人恩怨、兼并
 
     // 构陷宿敌去职得逞(PersonalTieSystem.Frame)
-#if EC_PENDING
     public static void Framed(Person actor)
     {
         if (EmpireLawSystem.Enabled) Record(actor, LawType.陷害);
     }
-#endif
 
     // 遣刺客得手(PersonalTieSystem.Revenge，在行刺之前判定)：victimKingdom 是死者所在的国，同国或同一帝国才记；
     // 刺的是本国君主记谋反
-#if EC_PENDING
     public static void Assassinated(Person actor, Realm victimKingdom, bool regicide)
     {
         if (!EmpireLawSystem.Enabled || !Living(actor) || !Within(victimKingdom, actor.Realm)) return;
         Record(actor, regicide ? LawType.谋反 : LawType.杀人);
     }
-#endif
 
     // 世家兼并郡望之田(GentrySystem.Annex 实际占到了地)：在任官员、城主的族人仗势占田，暗中记非法侵占土地
-#if EC_PENDING
     public static void ClanAnnexed(SpecificClan clan, City seat)
     {
         if (clan == null || seat?.Realm == null || EcRandom.value >= AnnexChance || !EmpireLawSystem.Enabled) return;
@@ -407,7 +398,6 @@ public static class LawEvents
             .FirstOrDefault();
         Record(culprit, LawType.非法侵占土地);
     }
-#endif
 
     #endregion
 }

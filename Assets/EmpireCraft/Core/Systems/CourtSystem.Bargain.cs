@@ -238,7 +238,6 @@ public static partial class CourtSystem
     private static IEnumerable<long> CentralOffices(Empire empire) =>
         (empire.data.centerOffice?.CoreOffices ?? new List<long>()).Concat(empire.data.centerOffice?.Divisions ?? new List<long>()).Distinct();
 
-#if EC_PENDING
     private static void Pay(Empire empire, FixedFaction proposer, FixedFaction partner, IEnumerable<CourtTerm> terms)
     {
         CourtFactionState mine = FactionState(empire, proposer), theirs = FactionState(empire, partner);
@@ -276,7 +275,6 @@ public static partial class CourtSystem
             }
         }
     }
-#endif
 
     #endregion
 

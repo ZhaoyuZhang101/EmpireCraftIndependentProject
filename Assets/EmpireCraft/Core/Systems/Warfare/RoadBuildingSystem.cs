@@ -122,7 +122,6 @@ public static class RoadBuildingSystem
     }
 
     // 每帧由 RoadNetwork.Tick 调；按游戏时间过一个月结算一次
-#if EC_PENDING
     public static void Tick()
     {
         double now = GameClock.Now;
@@ -140,7 +139,6 @@ public static class RoadBuildingSystem
             LogService.LogWarning($"[EmpireCraft][修路] 结算失败: {exception.Message}");
         }
     }
-#endif
 
     // 旧存档：路网规划算完后一次按各国科技铺好
     // 世界地图剧本开局：相邻城之间的干道按各国科技当场修通(同老世界补路，等路网规划算完)——丝路的河西走廊、尼罗河沿岸、
@@ -373,7 +371,6 @@ public static class RoadBuildingSystem
     }
 
     // 养路：造价的 5% 由路一头所在的国家出，付不起路况变差
-#if EC_PENDING
     private static void YearTick()
     {
         RoadTreatySystem.Yearly();
@@ -404,7 +401,6 @@ public static class RoadBuildingSystem
         changed |= RoadPaintSystem.YearlyUpkeep(DecayPerYear);
         if (changed) RoadNetwork.MarkDirty();
     }
-#endif
 
     // 神力连路(用户 2026-10-22，选"当场修通一串干道""照常养护")：从 from 沿规划好的相邻城干道找代价最小的一串到 to，
     // 当场修通、不要钱，之后照常养护。每段按两头国家科技能修的最高一级(不超过城市风格上限)，地形太险修不通的往上提到

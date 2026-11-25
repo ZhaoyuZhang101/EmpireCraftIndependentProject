@@ -35,7 +35,6 @@ public static class ShanrangSystem
         !InstitutionSystem.IsEnacted(CultureService.GetInstitutionCulture(empire.CoreKingdom), "huaxia_hereditary_kingship");
 
     // 每月(TribalFissionService.EnforceOneCity)
-#if EC_PENDING
     public static void Monthly()
     {
         if (ModClass.EMPIRE_MANAGER == null) return;
@@ -94,7 +93,6 @@ public static class ShanrangSystem
             empire.RecordHistory(directContent: content, actorId: best.Key, kingdomId: tribe.Key);
         }
     }
-#endif
 
     // 待推举的那一任不入世系：在位不满一年、换下时还活着的那条记录去掉
     private static void DropInterimReign(Empire empire, long id, string name)
@@ -153,16 +151,14 @@ public static class ShanrangSystem
     private static (Person actor, Realm tribe) Worthiest(Empire empire, Person ruler) =>
         Candidates(empire, ruler).OrderByDescending(entry => Score(entry.actor, entry.tribe)).FirstOrDefault();
 
-#if EC_PENDING
     private static bool Install(Empire empire, Person best, Realm tribe)
     {
         if (tribe == empire.CoreKingdom) return empire.InstallHeadOfState(best);
         // 别部首领为共主：那一部入部落联盟、成为共主之部；原来的共主之部之后离开帝国、共事新共主
         tribe.GetOrCreate().tribal_overlord_id = -1L;
-        if (tribe.hasAlliance()) tribe.getAlliance().leave(tribe);
+        if (tribe.HasAlliance()) tribe.GetAlliance().Leave(tribe);
         if (tribe.GetEmpire() != empire) empire.join(tribe, pForce: true);
         return empire.TransferCoreTo(tribe);
     }
-#endif
 }
 }

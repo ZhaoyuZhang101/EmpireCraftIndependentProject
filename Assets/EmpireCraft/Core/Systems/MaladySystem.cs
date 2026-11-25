@@ -94,7 +94,6 @@ public static class MaladySystem
 
     #region 每年
 
-#if EC_PENDING
     public static void Yearly(Empire empire)
     {
         try
@@ -112,14 +111,12 @@ public static class MaladySystem
             LogService.LogWarning($"[EmpireCraft][积弊] 年度结算失败: {exception.Message}");
         }
     }
-#endif
 
     // 积弊看实际理政的人：
     //   · 幕府：天皇是傀儡，朝政由将军掌着，看将军的资质(用户 2026-10-21 选"幕府会倒、应仁之乱"：以前按傀儡天皇算)；
     //   · 傀儡管不了(用户 2026-11-06 选)：被权臣、外戚(或苏丹)挟制的君主想管也管不了，明君、中兴之主给王朝积弊的折扣
     //     和六弊的逐年消退都不算，按中主算；庸弱、昏聩、荒淫、暴虐照算(以前挟制下的明君照样打六折、六弊每年降 2.5)。
     // 王朝积弊(见 DynasticCycleSystem.Update)与六弊同用这里
-#if EC_PENDING
     public static (RulerQualitySystem.Grade grade, bool restorer, bool shogunate) Governance(Empire empire)
     {
         bool shogunate = MilitaryRegency.KindOf(empire) == MilitaryRegency.Shogun;
@@ -176,7 +173,6 @@ public static class MaladySystem
         foreach (string key in All)
             if (Get(empire, key) < floor) empire.data.maladies[key] = floor;
     }
-#endif
 
     // 积弊滋生的快慢(历史周期律)：开国气象里不滋生；立国头 80 年二成，80~160 年四成五，之后全速
     // (用户 2026-10-21 选"放慢衰落"：以前 50/100 年、0.25/0.6，百年时几项同时加速，平庸之君的王朝 110 年正统就跌破 40)

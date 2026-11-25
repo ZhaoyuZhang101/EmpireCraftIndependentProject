@@ -287,7 +287,7 @@ public static class StateSettlementSystem
         foreach (Cell border in city.border_zones)
             foreach (Cell zone in border.Neighbours)
                 if (zone?.City == null && zone?.Center != null && zone.GroundCount > 0 &&
-                    zone.canBeClaimedByCity(city) && zone.checkCanSettleInThisBiomes(actor.subspecies) &&
+                    zone.canBeClaimedByCity(city) && zone.checkCanSettleInThisBiomes(actor.Subspecies) &&
                     zone.Center.IsSameIsland(city.SeatCell()) && zone.Center.reachableFrom(city.SeatCell())) return true;
         return false;
     }
@@ -460,7 +460,7 @@ public static class StateSettlementSystem
         Cell origin = landOrigin ?? source.SeatCell();
         if (zone.City != null || zone.Center == null || zone.GroundCount <= 0 ||
             !zone.Center.IsSameIsland(origin) || !zone.Center.reachableFrom(origin) ||
-            !zone.checkCanSettleInThisBiomes(actor.subspecies)) return 0;
+            !zone.checkCanSettleInThisBiomes(actor.Subspecies)) return 0;
         if (search.terrainScores.TryGetValue(zone.Index, out int score)) return score;
         int fields = 0;
         if (zone.Tiles != null)
@@ -479,7 +479,7 @@ public static class StateSettlementSystem
     {
         Cell origin = landOrigin ?? source.SeatCell();
         if (zone?.Center == null || actor == null || zone.City != null || !zone.canStartCityHere() ||
-            !zone.checkCanSettleInThisBiomes(actor.subspecies) ||
+            !zone.checkCanSettleInThisBiomes(actor.Subspecies) ||
             zone.Center.region?.island == null || !spontaneous && !overseas && zone.Center.region.island.getTileCount() < 300 ||
             !zone.Center.IsSameIsland(origin) || !zone.Center.reachableFrom(origin)) return false;
         // 自发聚落可以靠近原居地，不沿用官办城市的四层留白。
@@ -802,6 +802,7 @@ public static class StateSettlementSystem
             LogService.LogWarning($"[EmpireCraft] 国家建城项目待恢复({payer.Key}): {error.Message}");
         }
     }
+#endif
 
     private static bool FinishFief(Realm payer, StateSettlementProject project, City city)
     {
@@ -837,7 +838,6 @@ public static class StateSettlementSystem
         fief.ReconcileMainTitle();
         return true;
     }
-#endif
 
     private static void AddSupplies(CityPopulationData population, string resource, int amount)
     {

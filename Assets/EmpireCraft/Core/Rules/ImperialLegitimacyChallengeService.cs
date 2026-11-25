@@ -240,7 +240,6 @@ public static class ImperialLegitimacyChallengeService
     // 而僭越者占据了正规核心过半城池时，伪核心销毁、由它接管正规核心(同打赢正统之战)。
     // 以前只能靠打赢"去帝号"之战转正，正统帝国另外亡了就永远是伪法理，占满全图也一样。
     // 每年(ConstitutionalEconomySystem 年度结算)查一次
-#if EC_PENDING
     public static bool TryLegitimizeFalseCore(Empire empire)
     {
         if (!IsActiveEmpire(empire)) return false;
@@ -263,7 +262,6 @@ public static class ImperialLegitimacyChallengeService
         TranslateHelper.LogEventMessage(text, empire.CoreKingdom);
         return true;
     }
-#endif
 
     // 这座城归本帝国：周制战国时诸侯离开帝国、只记着所属周室，也算(见 ZhouEraSystem.SphereOf)
     private static bool Holds(Empire empire, City city)
@@ -298,7 +296,6 @@ public static class ImperialLegitimacyChallengeService
         empire.data.legitimacy_challenger = false;
     }
 
-#if EC_PENDING
     public static void ResolveWar(War war, WarOutcome winner)
     {
         if (war == null) return;
@@ -313,7 +310,6 @@ public static class ImperialLegitimacyChallengeService
         }
         RecordFailure(war, challenger, incumbent);
     }
-#endif
 
     private static void MarkRivalry(Empire challenger, Empire incumbent, bool challengerIsClaimant)
     {
@@ -325,7 +321,6 @@ public static class ImperialLegitimacyChallengeService
         incumbent.data.legitimacy_challenger = !challengerIsClaimant;
     }
 
-#if EC_PENDING
     private static void ResolveVictory(War war, Empire challenger, Empire incumbent)
     {
         if (challenger == null || challenger.IsArchived()) return;
@@ -447,7 +442,6 @@ public static class ImperialLegitimacyChallengeService
         TranslateHelper.LogHonoraryPeerageGranted(actor, empire, AnlePeerageKey);
         return true;
     }
-#endif
 
     private static void RecordDeclaration(Empire challenger, Empire incumbent, Person challengerEmperor,
         Person incumbentEmperor)

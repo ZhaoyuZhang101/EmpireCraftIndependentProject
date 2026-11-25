@@ -912,6 +912,7 @@ public class EmpireCraftActorCheckWarrior : GameAIActorBase
         // 如果还有因为其它战争没能复员的人，
         // 后续某场战争结束时 WarPatch 会再次 Request。
     }
+#endif
 
     private static bool IsKingdomOrEmpireStillAtWar(Realm kingdom)
     {
@@ -953,7 +954,7 @@ public class EmpireCraftActorCheckWarrior : GameAIActorBase
 
         try
         {
-            foreach (War war in EmpireWorld.Current.LiveWars.getWars(kingdom))
+            foreach (War war in EmpireWorld.Current.WarsOf(kingdom))
             {
                 if (war != null &&
                     war.Alive &&
@@ -969,7 +970,6 @@ public class EmpireCraftActorCheckWarrior : GameAIActorBase
 
         return false;
     }
-#endif
 
     // ============================================================
     // 原平时征兵逻辑

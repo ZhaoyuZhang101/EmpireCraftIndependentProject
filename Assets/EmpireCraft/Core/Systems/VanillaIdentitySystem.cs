@@ -14,11 +14,11 @@ public static class VanillaIdentitySystem
 #if EC_PENDING
     public static bool TryReuseLanguage(Person actor)
     {
-        if (actor?.Asset?.Civ != true || actor.hasLanguage() ||
-            actor.subspecies?.has_advanced_communication != true || EmpireWorld.Current?.languages == null) return false;
+        if (actor?.Asset?.Civ != true || actor.HasLanguage() ||
+            actor.Subspecies?.has_advanced_communication != true || EmpireWorld.Current?.languages == null) return false;
         foreach (Language language in EmpireWorld.Current.languages)
         {
-            if (language?.data == null || language.IsGone() ||
+            if (language?.Record == null || language.IsGone() ||
                 !string.Equals(language.species_id, actor.Asset.Id, StringComparison.Ordinal)) continue;
             actor.joinLanguage(language);
             return true;

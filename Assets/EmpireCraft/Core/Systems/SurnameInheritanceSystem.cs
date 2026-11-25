@@ -92,7 +92,6 @@ public static class SurnameInheritanceSystem
 
     // 读档修正一次(见 VirtualGenealogySystem.EnsureIndex)：华夏一系宗族里与父亲同宗、却没随父姓的族人改回父姓
     // (以前随了生母的姓)。按编号(大致是出生先后)从上往下改，父亲改过的儿子跟着改；活着的人名字一起改，史书里的旧名不动
-#if EC_PENDING
     public static int RepairPatrilineal(IEnumerable<PersonalClanIdentity> people)
     {
         int repaired = 0;
@@ -110,10 +109,8 @@ public static class SurnameInheritanceSystem
         }
         return repaired;
     }
-#endif
 
     // 改姓：族谱记录和(有实体的)人物名字一起改，史书里的旧名不动
-#if EC_PENDING
     public static void ApplySurname(PersonalClanIdentity person, string surname)
     {
         if (person == null || string.IsNullOrWhiteSpace(surname) || person.surname == surname) return;
@@ -132,7 +129,6 @@ public static class SurnameInheritanceSystem
                 : OverallHelperFunc.JoinNameParts(person.surname, person.given_name);
         }
     }
-#endif
 
     // 孩子入哪一族、随谁的姓：在位君主、储君一方；宗室一方；华夏一系宗法父系随父(入赘的除外)；
     // 其余是婚姻里为主、又是本宗继承性别的一方。都不是返回 null(按原版的氏族)
@@ -158,7 +154,6 @@ public static class SurnameInheritanceSystem
     // 读档修正一次：华夏一系里父亲是本宗主位、本人却不在父亲那一族(以前入谱时跟了原版分给他的母亲的氏族)的，
     // 改回父亲的宗族、随父姓。父亲先改，儿子跟着改；分出去的诸王各支(同一世系)不动
     // moved：挪过族的人 → 原来的宗族 id(在位君主挪了族，国家、帝国记的皇族要跟着改)
-#if EC_PENDING
     public static int RepairMaternalClan(IEnumerable<PersonalClanIdentity> people, Dictionary<long, long> moved = null)
     {
         int repaired = 0;
@@ -181,7 +176,6 @@ public static class SurnameInheritanceSystem
         }
         return repaired;
     }
-#endif
 
     // 华夏一系宗法父系：本宗主位族人(生在这一族的，不含嫁入的、妾)一律姓这一族的姓。以前有几处随了母亲、
     // 落成时随手起的、旧档里记错的姓(女帝之子崔辉、聂郁民之子步鲸都在聂氏一族却不姓聂)，世系上看着是改了姓
@@ -193,7 +187,6 @@ public static class SurnameInheritanceSystem
     }
 
     // 这个人该姓宗族的姓却没姓(族谱记的姓、全名、人物名字上的姓有一处不对)：改过来(活着的；史书里的旧名不动)。返回是否改了
-#if EC_PENDING
     public static bool EnforceClanSurname(PersonalClanIdentity person)
     {
         if (person == null || !person.is_alive || !person.is_main || person.is_concubine) return false;
@@ -226,7 +219,6 @@ public static class SurnameInheritanceSystem
         }
         return true;
     }
-#endif
 
     // 两种文化同属一个文化圈：同一天下(见 CultureService.SameKin，如华夏、山海都属华夏天下)。以前按制度线，
     // 游牧一线的阿兹特克、林地部族也算草原的同一圈，易俗改制时不改姓
@@ -272,7 +264,6 @@ public static class SurnameInheritanceSystem
     }
 
     // 读档修正：华夏宗族里在世的主位族人姓不是本族姓的，改回本族姓
-#if EC_PENDING
     public static int RepairClanSurnames(IEnumerable<PersonalClanIdentity> people)
     {
         int repaired = 0;
@@ -280,7 +271,6 @@ public static class SurnameInheritanceSystem
             if (EnforceClanSurname(person)) repaired++;
         return repaired;
     }
-#endif
 
     // 做过一朝皇族的宗族
     private static bool Dynastic(SpecificClan clan) =>

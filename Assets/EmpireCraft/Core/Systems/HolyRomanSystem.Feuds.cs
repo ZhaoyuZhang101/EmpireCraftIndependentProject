@@ -109,7 +109,6 @@ public static partial class HolyRomanSystem
                                           record.attacker_id == b.Key && record.defender_id == a.Key));
 
     // 私战对象：接壤的同帝国诸侯(非中央)，手里有攻方法理的城，兵力够；违禁私战另要兵力一倍半、两家交恶
-#if EC_PENDING
     private static (Realm defender, List<City> cities) FeudTarget(Empire empire, HolyRomanState state, Realm attacker,
         List<Realm> members, bool illegal)
     {
@@ -131,7 +130,6 @@ public static partial class HolyRomanSystem
         }
         return best == null ? (null, null) : (best, bestCities.Take(FeudMaxCities).ToList());
     }
-#endif
 
     // 每年至多新开一场；同时至多两场
 #if EC_PENDING
@@ -402,7 +400,6 @@ public static partial class HolyRomanSystem
     #endregion
 
     // 年度诊断的私战与法院一段
-#if EC_PENDING
     private static string FeudStatus(Empire empire, HolyRomanState state)
     {
         bool reformed = ReformEnacted(empire);
@@ -417,6 +414,5 @@ public static partial class HolyRomanSystem
                (authority >= IllegalFeudAuthority ? $"不会有(权威{authority}，要不到{IllegalFeudAuthority})" : $"够格{eligible}家") +
                $"；{feuds}";
     }
-#endif
 }
 }

@@ -301,7 +301,6 @@ public static class RevolutionSystem
         return null;
     }
 
-#if EC_PENDING
     public static string PlayerRespond(Empire empire, bool repress)
     {
         string reason = CanPlayerRespond(empire);
@@ -351,10 +350,8 @@ public static class RevolutionSystem
         if (state.revolution_tension < RipeAt - RipeHysteresis || state.revolution_org < OrgNeeded - RipeHysteresis)
             state.revolution_stage = state.revolution_tension >= UndercurrentAt ? Undercurrent : Calm;
     }
-#endif
 
     // 让步让出了什么：君主国许立宪(已立宪的提前大选)，共和国顺应民意或提前大选；都不成就只是许诺改革
-#if EC_PENDING
     private static string Concession(Empire empire, ConstitutionalEconomyState state)
     {
         if (!RepublicSystem.IsRepublic(empire))
@@ -370,7 +367,6 @@ public static class RevolutionSystem
         }
         return LM.Get("revolution_concession_promise");
     }
-#endif
 
     #endregion
 
@@ -512,7 +508,6 @@ public static class RevolutionSystem
 #endif
 
     // 停战(僵局、强制停战)：君主肯让步的立宪收场、革命军归建；不肯的各据一方，起事的那一块自立为革命政权
-#if EC_PENDING
     public static void OnPeace(Empire empire, War war, FixedFaction party, PartyIdeology ideology, bool splitRealm)
     {
         ConstitutionalEconomyState state = State(empire);
@@ -541,7 +536,6 @@ public static class RevolutionSystem
         rebel.GetOrCreate().revolutionary_seat = true;
         EventRecorder.Record(empire, string.Format(LM.Get("revolution_partition_history"), country, movement, seat));
     }
-#endif
 
     // 革命党兵败：党被取缔(RepublicSystem)，余党转入地下，组织留下四成
     public static void OnDefeat(Empire empire, PartyIdeology ideology)
@@ -719,7 +713,6 @@ public static class RevolutionSystem
         EventRecorder.Record(empire, string.Format(LM.Get("post_revolution_purge_history"), country, name));
     }
 
-#if EC_PENDING
     private static void Thermidor(Empire empire, ConstitutionalEconomyState state)
     {
         state.post_revolution_phase = 2;
@@ -742,7 +735,6 @@ public static class RevolutionSystem
             ? string.Format(LM.Get("post_revolution_thermidor_history"), empire.GetEmpireFullName(), successor.FullName(), fallen)
             : string.Format(LM.Get("post_revolution_thermidor_plain_history"), empire.GetEmpireFullName()), successor);
     }
-#endif
 
     #endregion
 }

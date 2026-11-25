@@ -755,7 +755,6 @@ public static class ScenarioEventSystem
 
     // 走投无路(见 ScenarioPlotRules.Desperate)：正和入侵者交战、兵力差两倍以上，入侵者已打到南方(占同族之城一半)或自己丢了一半的城。
     // 也给南明来投用(见 SouthernRetreatSystem)
-#if EC_PENDING
     internal static bool Desperate(Realm kingdom, Realm invader, float pressure)
     {
         if (kingdom?.Record == null || kingdom.IsGone() || invader?.Record == null || invader.IsGone()) return false;
@@ -764,7 +763,6 @@ public static class ScenarioEventSystem
         return ScenarioPlotRules.Desperate(FrontSystem.Hostile(kingdom, realm), WarSituation.Power(realm), WarSituation.Power(kingdom),
             pressure, cities, kingdom.GetOrCreate().peak_realm_cities);
     }
-#endif
 
     // 每年记下剧本各国见过的最多城数(顺、西打下北方以后再丢一半，才算被逼得没退路)
     private static void NotePeaks()
@@ -917,7 +915,6 @@ public static class ScenarioEventSystem
     // 城里的人全归 b：不想让谁跟着走，先把事情做完再献城
     // 写了 all 的是 a 这一方手里的全部城(傀儡覆灭、战败交还)；写了 region 的另加那片地区里 a 这一方手里的城(1945 交还朝鲜、东北)。
     // a 这一方连同它的殖民地、傀儡(日本连同朝鲜总督府、台湾总督府，见 Controls)
-#if EC_PENDING
     private static string Cede(WorldMapEventStep step, Realm origin)
     {
         Realm to = ModRealm(step.b);
@@ -964,7 +961,6 @@ public static class ScenarioEventSystem
         }
         return null;
     }
-#endif
 
     // 人物身故：person 里还活着的按写的顺序走(储君写在君主前面，君主一死就轮到后面的人继位)；走正常的死亡与继位流程
 #if EC_PENDING
@@ -1009,7 +1005,6 @@ public static class ScenarioEventSystem
 
     // 称帝定国号：只定国号，不改法理的名字(以前连王国法理一并改成"大顺"，法理图层上冒出一块"大顺")；
     // 写成"大某"的，"大"是美号(同开局的大明，见 RealmNamingSystem.GrandPrefix)，国号本名是"某"
-#if EC_PENDING
     private static void Proclaim(Empire empire, Realm kingdom, string parts)
     {
         bool grand = ScenarioPlotRules.SplitGrand(parts, out string plain);
@@ -1025,7 +1020,6 @@ public static class ScenarioEventSystem
         kingdom.SetKingdomName(name);
         EmpireCraft.Core.EmpireCraftKingdomBehCheckKingdomType.SyncKingdomStatus(kingdom);
     }
-#endif
 
     // 剧本起兵定的自定名就是这个国号时撤掉(玩家另起的名字不动)
     private static void ClearScriptedCustomName(Realm kingdom, string name)
@@ -1054,7 +1048,6 @@ public static class ScenarioEventSystem
     }
 
     // 改国号：帝国改帝号，王国改主法理名(国名照主法理定)
-#if EC_PENDING
     private static void Rename(Realm kingdom, string name)
     {
         Empire empire = kingdom.GetEmpire();
@@ -1070,7 +1063,6 @@ public static class ScenarioEventSystem
         if (!string.IsNullOrWhiteSpace(kingdom.GetCustomCountryName())) kingdom.SetCustomCountryName(name);
         EmpireCraft.Core.EmpireCraftKingdomBehCheckKingdomType.SyncKingdomStatus(kingdom);
     }
-#endif
 
     #endregion
 }

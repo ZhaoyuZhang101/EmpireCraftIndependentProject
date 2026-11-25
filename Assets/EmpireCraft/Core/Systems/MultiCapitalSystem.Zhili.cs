@@ -147,6 +147,7 @@ public static partial class MultiCapitalSystem
         }
         return true;
     }
+#endif
 
     private static void ReleaseZhili(Empire empire, string reasonKey)
     {
@@ -166,6 +167,5 @@ public static partial class MultiCapitalSystem
             zhili.GetKingdomFullName(), LM.Get(reasonKey)));
         LogService.LogInfo($"[EmpireCraft][直隶] {empire.GetEmpireFullName()} 撤第二直隶 {zhili.GetKingdomFullName()}");
     }
-#endif
 }
 }

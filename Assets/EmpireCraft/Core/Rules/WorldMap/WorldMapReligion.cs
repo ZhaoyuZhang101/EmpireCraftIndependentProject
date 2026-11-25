@@ -162,14 +162,15 @@ public static class WorldMapReligion
         }
         LogService.LogInfo($"[EmpireCraft][世界地图] 开局宗教：{string.Join("、", made.Values.Select(religion => religion.data.name))}");
     }
+#endif
 
     private static Religion Found(Definition definition, City holy, int year)
     {
         if (holy?.Record == null) return null;
         CityPopulationSystem.EnsureLeader(holy);
         Person founder = holy.Leader;
-        if (founder == null || founder.IsGone() || founder.subspecies == null) founder = holy.Realm?.Ruler;
-        if (founder == null || founder.IsGone() || founder.subspecies == null || founder.Realm == null) return null;
+        if (founder == null || founder.IsGone() || founder.Subspecies == null) founder = holy.Realm?.Ruler;
+        if (founder == null || founder.IsGone() || founder.Subspecies == null || founder.Realm == null) return null;
         Religion religion = EmpireWorld.Current.Religions.NewReligion(founder, false);
         if (religion?.data == null) return null;
         string name = WorldMapData.PickParts(AtYear(definition.n, year));
@@ -182,6 +183,5 @@ public static class WorldMapReligion
         ReligionChronicle.Clear(religion);
         return religion;
     }
-#endif
 }
 }

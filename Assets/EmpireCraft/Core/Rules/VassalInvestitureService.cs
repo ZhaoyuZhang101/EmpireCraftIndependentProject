@@ -98,7 +98,6 @@ public static class VassalInvestitureService
         return strength;
     }
 
-#if EC_PENDING
     private static void EvaluateKingdom(Empire empire, Realm vassal, out float authority, out float autonomy)
     {
         float coreStrength = GetMilitaryStrength(empire.CoreKingdom, empire);
@@ -114,7 +113,7 @@ public static class VassalInvestitureService
         double fiefTimestamp = vassal.GetFiedTimestamp();
         float tenure = fiefTimestamp < 0 ? 0f : GameClock.YearsSince(fiefTimestamp) * 2f;
 
-        int opinion = EmpireWorld.Current?.diplomacy?.getOpinion(vassal, empire.CoreKingdom)?.total ?? 0;
+        int opinion = EmpireWorld.Current?.Diplomacy?.GetOpinion(vassal, empire.CoreKingdom)?.Total ?? 0;
         float estrangement = 50f - opinion * 0.5f;
 
         double victory = vassal.GetOrCreate().investiture_defiance_victory_timestamp;
@@ -125,7 +124,6 @@ public static class VassalInvestitureService
         authority = GetSuzerainAuthority(empire, coreShare);
         autonomy = GetVassalAutonomy(empire, sizeShare, tenure, estrangement, bonus);
     }
-#endif
 
     #endregion
 
@@ -208,7 +206,6 @@ public static class VassalInvestitureService
         if (vassalFaction != null) empire.CoreKingdom.TryIncreaseFactionRatio(vassalFaction, 3);
     }
 
-#if EC_PENDING
     private static bool ReplaceKing(Realm vassal, Person replacement)
     {
         if (vassal == null || vassal.IsGone() || replacement == null || replacement.IsGone()) return false;
@@ -233,7 +230,6 @@ public static class VassalInvestitureService
         }
         return vassal.Ruler == replacement;
     }
-#endif
 
     #endregion
 
@@ -242,7 +238,7 @@ public static class VassalInvestitureService
 #if EC_PENDING
     private static bool StartDefianceWar(Empire empire, Realm vassal, Person heir, Person replacement)
     {
-        War war = DiplomacyHelpers.diplomacy.startWar(empire.CoreKingdom, vassal, WarKinds.Normal);
+        War war = EmpireWorld.Current.StartWar(empire.CoreKingdom, vassal, WarKinds.Normal);
         if (war == null) return false;
         war.SetEmpireWarType(EmpireWarType.不奉诏);
         WarExtension.WarExtraData data = war.GetOrCreate();
@@ -282,7 +278,6 @@ public static class VassalInvestitureService
             EmpireWorld.Current.EndWar(war, WarOutcome.Defenders);
     }
 
-#if EC_PENDING
     public static void ResolveDefianceWar(War war, WarOutcome winner)
     {
         WarExtension.WarExtraData data = war.GetOrCreate();
@@ -313,7 +308,6 @@ public static class VassalInvestitureService
         Record(empire, vassal, vassal.Ruler, "investiture_defiance_vassal_won_history", vassal.Ruler?.FullName() ?? heirName,
             vassalName);
     }
-#endif
 
     #endregion
 
@@ -360,7 +354,6 @@ public static class VassalInvestitureService
     #endregion
 
     // 改立人选，跟律令制王爵的顺序一致：原嗣君的兄弟(同出老藩王一支) → 皇帝的兄弟 → 太子以外的皇子
-#if EC_PENDING
     private static Person FindReplacement(Empire empire, Person heir)
     {
         long crownPrinceId = empire.CoreKingdom?.GetHeir()?.Key ?? -1L;
@@ -383,7 +376,6 @@ public static class VassalInvestitureService
                ?? (emperorIdentity == null ? null : Pick(SpecificClanManager.GetSiblingsWithRelation(emperorIdentity)))
                ?? (emperorIdentity == null ? null : Pick(SpecificClanManager.getChildren(emperorIdentity)));
     }
-#endif
 
     private static void Record(Empire empire, Realm vassal, Person actor, string key, params object[] args)
     {

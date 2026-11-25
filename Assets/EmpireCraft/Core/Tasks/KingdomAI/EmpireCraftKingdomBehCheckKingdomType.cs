@@ -290,6 +290,7 @@ public class EmpireCraftKingdomBehCheckKingdomType: GameAIKingdomBase
         if (ked != null) ked.last_kingdom_status_ts = GameClock.Now;
         return BehResult.Continue;
     }
+#endif
 
     private static void SyncOffice(Realm pKingdom)
     {
@@ -428,7 +429,6 @@ public class EmpireCraftKingdomBehCheckKingdomType: GameAIKingdomBase
             city.SetCityType(currentCityType);
         }
     }
-#endif
 
     // 各国眼下的名字(分隔符规整后) → 叫这个名字的有几国、其中一国。一帧里只列一回(这一帧里有国在这里改了名就作废重列)：
     // 以前每定一国的类别就把全世界的国名逐个规整、逐个比一遍，四百国的世界里一个月是十六万次字符串处理

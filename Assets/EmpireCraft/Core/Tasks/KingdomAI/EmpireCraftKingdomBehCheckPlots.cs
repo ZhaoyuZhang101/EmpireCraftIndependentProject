@@ -73,10 +73,12 @@ public class EmpireCraftKingdomBehCheckPlots : GameAIKingdomBase
                 $"({minister.Key}), stage={empire.data.powerful_minister_stage}, plot={plotId}");
         }
     }
+#endif
     public void CheckMainTitle(Realm pKingdom)
     {
         pKingdom.ReconcileMainTitle();
     }
+#if EC_PENDING
     public void CheckProgress(Realm pKingdom)
     {
         if (!pKingdom.HasEnemies())
@@ -145,7 +147,6 @@ public class EmpireCraftKingdomBehCheckPlots : GameAIKingdomBase
         EmpireWorld.Current.EndWar(war, WarOutcome.Peace);
         return true;
     }
-#if EC_PENDING
     public void CheckJoinReligionWar(Realm pKingdom)
     {
         if (!pKingdom.HasReligion()) return;
@@ -162,7 +163,7 @@ public class EmpireCraftKingdomBehCheckPlots : GameAIKingdomBase
                 if (pKingdom.Religion == war.MainAttacker?.Religion)
                 {
                     // 圣战加上限与距离(见 ReligiousTension.CanJoinHolyWar)
-                    if (pKingdom.isOpinionTowardsKingdomGood(war.MainAttacker) && ReligiousTension.CanJoinHolyWar(pKingdom, war))
+                    if (pKingdom.IsOpinionGood(war.MainAttacker) && ReligiousTension.CanJoinHolyWar(pKingdom, war))
                     {
                         war.JoinAttackers(pKingdom);
                         TranslateHelper.LogJoinReligionWar(pKingdom, pKingdom.Religion);
@@ -173,6 +174,7 @@ public class EmpireCraftKingdomBehCheckPlots : GameAIKingdomBase
         }
     }
     
+#if EC_PENDING
     public void CheckJoinWar(Realm pKingdom)
     {
         Empire empire = pKingdom.GetEmpire();
@@ -200,7 +202,7 @@ public class EmpireCraftKingdomBehCheckPlots : GameAIKingdomBase
         // 有自主外交的诸侯这里本来就放行(进攻、守土都随征，只要自己没在打仗、不在冷却)；封建帝国别国打上门时诸侯开战当时就随征，
         // 不等这里每月一查(用户 2026-10-21 选"称帝后动员不变差"，见 EmpirePeacePatch.FollowsIntoWar、FeudalVassalService.ExpandSide)
         if (!EmpirePeacePatch.Obeys(empire, pKingdom) &&
-            !pKingdom.isOpinionTowardsKingdomGood(coreKingdom) && !regime.IsAllowDiplomacy()) return;
+            !pKingdom.IsOpinionGood(coreKingdom) && !regime.IsAllowDiplomacy()) return;
         bool joinedAny = false;
         foreach (War w in coreKingdom.GetWarsCached(true).ToArray())
         {

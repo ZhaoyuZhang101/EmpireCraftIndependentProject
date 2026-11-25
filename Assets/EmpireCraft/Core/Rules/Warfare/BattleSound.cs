@@ -2,6 +2,7 @@
 // see Port/manifest.json and Tools/PortTool.
 using Mathf = EmpireCraft.Core.EcMath;
 using Time = EmpireCraft.Core.FrameClock;
+using Vector3 = EmpireCraft.Core.EcVector3;
 using System;
 using System.Collections.Generic;
 using Rand = System.Random;
@@ -56,9 +57,7 @@ public static class BattleSound
     // 一处交战：位置、规模(0~1)、环境声时代、激烈程度(满音量时每秒几发单发)、各种类权重
     private sealed class Spot
     {
-#if EC_PENDING
         public Vector3 Pos;
-#endif
         public float Weight, Rate;
         public int Ambient;
         public readonly float[] Palette = new float[12];
@@ -197,7 +196,6 @@ public static class BattleSound
 
     #region 交战处
 
-#if EC_PENDING
     private static void Scan()
     {
         foreach (Spot spot in Spots) SpotPool.Add(spot);
@@ -251,7 +249,6 @@ public static class BattleSound
         Array.Clear(spot.Palette, 0, spot.Palette.Length);
         return spot;
     }
-#endif
 
     private static Tally TakeTally()
     {

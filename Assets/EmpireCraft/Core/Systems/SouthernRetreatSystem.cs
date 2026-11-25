@@ -140,7 +140,7 @@ public static class SouthernRetreatSystem
         if (pressure < ScenarioPlotRules.RallyMinPressure) return joined;
         double courtPower = WarSituation.Power(courtCore);
         Empire invaderEmpire = invader.GetEmpire();
-        Alliance alliance = invader.hasAlliance() ? invader.getAlliance() : null;
+        Alliance alliance = invader.HasAlliance() ? invader.GetAlliance() : null;
         float? invaderY = invader.Capital != null && !invader.Capital.IsGone() ? invader.Capital.Center.y : null;
         foreach (Realm kingdom in EmpireWorld.Current.LiveRealms.ToList())
         {
@@ -150,7 +150,7 @@ public static class SouthernRetreatSystem
             if (FrontSystem.ModRealm(kingdom) != kingdom || kingdom.GetEmpire() == court) continue;
             if (invaderEmpire != null && (kingdom.GetEmpire() == invaderEmpire || kingdom.GetTakenAllianceEmpire() == invaderEmpire ||
                                           kingdom.GetGivenAllianceEmpire() == invaderEmpire)) continue;
-            if (alliance != null && kingdom.hasAlliance() && kingdom.getAlliance() == alliance) continue;
+            if (alliance != null && kingdom.HasAlliance() && kingdom.GetAlliance() == alliance) continue;
             if (!CultureService.SameKin(CultureService.GetRealmCulture(kingdom), culture)) continue;
             if (!kingdom.HasRebelledAgainst(court) && kingdom.GetOrCreate().left_empire_id != court.Key) continue;
             if (!SouthernRetreatRules.South(kingdom.Capital.Center.y, invaderY)) continue;

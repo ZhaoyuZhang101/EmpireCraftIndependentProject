@@ -22,7 +22,6 @@ public static class WorldWarSystem
         public bool Modern;
     }
 
-#if EC_PENDING
     public static void TryEscalate(War war, bool force = false)
     {
         if (war == null || war.Record == null || war.HasEnded() || EmpireWorld.Current == null) return;
@@ -101,7 +100,6 @@ public static class WorldWarSystem
         }
         return blocs.Values.ToList();
     }
-#endif
 
     private static string GetPolityName(Realm kingdom)
     {

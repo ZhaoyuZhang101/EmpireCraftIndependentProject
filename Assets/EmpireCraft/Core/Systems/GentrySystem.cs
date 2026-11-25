@@ -176,7 +176,6 @@ public static partial class GentrySystem
     }
 
     // 官缺补人(OfficeSelector.Select)：按机会挑一位世家子弟，没挑上返回空
-#if EC_PENDING
     public static Person Candidate(Realm kingdom, Func<Person, bool> fit)
     {
         Empire empire = kingdom?.GetEmpire();
@@ -194,7 +193,6 @@ public static partial class GentrySystem
         }
         return null;
     }
-#endif
 
     private const float MonopolyMax = 0.95f, SwayBase = 0.6f, SwayPer = 1000f, SwayMax = 1.3f;
 
@@ -212,7 +210,6 @@ public static partial class GentrySystem
     }
 
     // 那家在本国的成年族人：实体优先，没有就把虚拟族人落成实体
-#if EC_PENDING
     private static Person Member(SpecificClan clan, Realm kingdom, Func<Person, bool> fit)
     {
         PersonalClanIdentity candidate = null;
@@ -231,7 +228,6 @@ public static partial class GentrySystem
         Person realized = candidate?.Realize();
         return realized?.Record != null && fit(realized) ? realized : null;
     }
-#endif
 
     #endregion
 
@@ -283,7 +279,6 @@ public static partial class GentrySystem
     }
 
     // 据城自守：族中名望最高的人(实体优先，没有把郡望之城的虚拟族人落成实体)据郡望之城自立
-#if EC_PENDING
     private static bool Autonomy(SpecificClan clan, City seat, string key)
     {
         // 不许自立(见 SecessionGate)：立国前先动了城主，在这里先问
@@ -303,10 +298,8 @@ public static partial class GentrySystem
         Record(seat, string.Format(LM.Get(key), JunWang(clan), seat.GetCityName(), former.GetKingdomName()), force: true);
         return true;
     }
-#endif
 
     // 乱世里的强宗：每年(Assess)。筑了坞堡的丙等也算强宗、机会加倍；朝廷与世家交恶(关系 FavorLow 以下)机会再加倍
-#if EC_PENDING
     private static void TryAutonomy(SpecificClan clan, City seat)
     {
         bool fortress = HasFortress(seat);
@@ -320,10 +313,8 @@ public static partial class GentrySystem
         if (!weak || EcRandom.value >= chance) return;
         Autonomy(clan, seat, "gentry_autonomy_history");
     }
-#endif
 
     // 天下裂土(InterregnumSystem.TryFracture)：郡望在京畿的甲等世家各有一半机会据城自守
-#if EC_PENDING
     public static void OnFracture(Empire empire)
     {
         Realm core = empire?.CoreKingdom;
@@ -337,7 +328,6 @@ public static partial class GentrySystem
             if (Autonomy(clan, seat, "gentry_fracture_autonomy_history")) count++;
         }
     }
-#endif
 
     #endregion
 

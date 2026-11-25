@@ -38,9 +38,7 @@ public static class KejuSystem
     private static bool Afford(Empire empire, float rounds) =>
         !TreasurySystem.Enabled(empire.CoreKingdom) || empire.CoreKingdom.GetTreasuryBalance() >= Cost(empire) * rounds;
 
-#if EC_PENDING
     private static bool Calm(Empire empire) => !WarGoalSystem.FightingForSurvival(empire.CoreKingdom);
-#endif
 
     private static bool Due(Empire empire)
     {
@@ -98,11 +96,11 @@ public static class KejuSystem
         return ruler >= 0L && since >= 0d && GameClock.Now >= since && GameClock.YearsSince(since) < GraceYears;
     }
 
-#if EC_PENDING
     public static bool GraceOpen(Empire empire) =>
         HasKeju(empire) && NewReign(empire, out long ruler) && empire.data.keju_grace_ruler_id != ruler &&
         Calm(empire) && Afford(empire, 1.5f);
 
+#if EC_PENDING
     public static bool HoldGrace(Empire empire)
     {
         if (!GraceOpen(empire)) return false;

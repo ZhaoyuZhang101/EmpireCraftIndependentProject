@@ -831,7 +831,7 @@ public static class AdministrativeControlSystem
         if (empire != null && (realm.GetRegime()?.type is RegimeType.ZhouFeudalism or RegimeType.Origin or RegimeType.HuaxiaOrigin or RegimeType.Bakufu ||
                                TechnologySystem.GetEraTier(TechnologySystem.GetCultureOf(realm)) <= EarlyEraTier))
         {
-            if (local.hasAlliance()) local.getAlliance().leave(local);
+            if (local.HasAlliance()) local.GetAlliance().Leave(local);
             empire.join(local, pForce: true);
             if (local.GetEmpire() == empire)
             {
@@ -842,7 +842,7 @@ public static class AdministrativeControlSystem
         }
         if (empire != null && JimiSystem.Enacted(empire))
         {
-            if (local.hasAlliance()) local.getAlliance().leave(local);
+            if (local.HasAlliance()) local.GetAlliance().Leave(local);
             empire.join(local, pForce: true);
             if (local.GetEmpire() == empire)
             {

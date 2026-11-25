@@ -512,6 +512,7 @@ public static class TianxiaSystem
             InvalidateLegitimacy(holder);
         }
     }
+#endif
 
     private static void DisperseTributaries(EmpireCore lead, Realm holder, string name, float chance)
     {
@@ -526,7 +527,6 @@ public static class TianxiaSystem
         if (left.Count > 0)
             Record(holder, string.Format(LM.Get("tianxia_tribute_leave_history"), string.Join("、", left), name));
     }
-#endif
 
     // 天命动摇：地盘跌到七成五以下、正统低于三十、积弊六十以上
     private static bool Shaken(Realm holder, float share)

@@ -201,7 +201,6 @@ public static class MilitaryAccessSystem
 #endif
 
     // 一方灭亡的删掉；交战、期满、交恶的作废
-#if EC_PENDING
     private static void Expire()
     {
         double now = Now();
@@ -227,7 +226,6 @@ public static class MilitaryAccessSystem
             Log(key, host, guest, history);
         }
     }
-#endif
 
     // 各国按需求向第三国借道(一国一年至多 AsksPerYear 国，穿得多的先借)；已有的约还剩 RenewYears 年以上的不再借
 #if EC_PENDING
@@ -276,6 +274,7 @@ public static class MilitaryAccessSystem
         }
         return false;
     }
+#endif
 
     private static float PowerBonus(Realm host, Realm guest)
     {
@@ -283,16 +282,15 @@ public static class MilitaryAccessSystem
         if (mine <= 0d) return PowerCap;
         return Mathf.Clamp(((float)(theirs / mine) - 1f) * PowerWeight, PowerFloor, PowerCap);
     }
-#endif
 
     // ───────── 取数(回归测试换成替身) ─────────
     private static double Now() => GameClock.Now;
 
-#if EC_PENDING
     private static float Opinion(Realm from, Realm to) => DiplomacyLedger.Opinion(from, to);
 
     private static double Power(Realm kingdom) => kingdom.GetNationalPower();
 
+#if EC_PENDING
     private static bool Bound(Realm host, Realm other) => DiplomacyLedger.Allied(host, other) || RoyalMarriageSystem.Allied(host, other);
 #endif
 

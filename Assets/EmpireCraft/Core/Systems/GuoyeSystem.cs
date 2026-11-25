@@ -56,7 +56,6 @@ public static class GuoyeSystem
     }
 
     // 每年(帝国例行检查，见 EmpireCraftEmpireBehCheckMandate)：国人暴动
-#if EC_PENDING
     public static void Yearly(Empire empire)
     {
         Realm core = empire?.CoreKingdom;
@@ -104,10 +103,8 @@ public static class GuoyeSystem
         empire.RecordHistory(directContent: content, actorId: former.Key, kingdomId: core.Key);
         TranslateHelper.LogEventMessage(content, core);
     }
-#endif
 
     // 国人改立：储君，否则成年的宗亲(名望最高)
-#if EC_PENDING
     private static Person Successor(Empire empire, Person former)
     {
         Realm core = empire.CoreKingdom;
@@ -119,7 +116,6 @@ public static class GuoyeSystem
         return empire.EmpireSpecificClan?.AllAliveMembers?.Where(Fit).OrderByDescending(actor => actor.Renown).FirstOrDefault() ??
                KinRoster.RealizeAdultKin(empire.EmpireSpecificClan, kingdom => kingdom?.GetEmpire() == empire, Fit);
     }
-#endif
 
     // 出奔之地：离国都最近的别国城邑(本帝国诸侯国的都城优先)，没有就本国别的城
     private static City Refuge(Empire empire, Realm core)

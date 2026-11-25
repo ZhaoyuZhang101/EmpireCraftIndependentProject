@@ -40,6 +40,7 @@ public class EmpireCraftKingdomBehCheckHeir : GameAIKingdomBase
         InstallHeir(kingdom, ResolveHeir(kingdom, vacancy));
         return BehResult.Continue;
     }
+#endif
 
     private static void InstallHeir(Realm kingdom, (Person actor, string relation) heir)
     {
@@ -66,11 +67,9 @@ public class EmpireCraftKingdomBehCheckHeir : GameAIKingdomBase
         if (LateImperialSystem.SecretSuccession(kingdom)) return;
         TranslateHelper.LogKingChooseHeir(kingdom, heir.relation, heir.actor);
     }
-#endif
 
     // 认祖归宗：储君是先君(本宗主位)的亲生子女、却在另一个世系里，挪进先君的宗族、随先君的姓(名字本来不带姓的文化不加姓)。
     // 外家入继的(先君外嫁女儿的后代)、兄弟旁支不是先君亲生的，不挪
-#if EC_PENDING
     private static void ReturnToLine(PersonalClanIdentity parent, Person heir)
     {
         PersonalClanIdentity child = heir?.GetPersonalIdentity();
@@ -83,7 +82,6 @@ public class EmpireCraftKingdomBehCheckHeir : GameAIKingdomBase
         if (line.Patrilineal() || line.Matrilineal() || !string.IsNullOrWhiteSpace(heir.GetModName()?.familyName))
             SurnameInheritanceSystem.ApplySurname(child, surname);
     }
-#endif
 
     // 死亡、退位和真正的王位空缺才允许兄弟→孙辈→宗族→官员的原有兜底。
 #if EC_PENDING
@@ -115,6 +113,7 @@ public class EmpireCraftKingdomBehCheckHeir : GameAIKingdomBase
         }
         return next;
     }
+#endif
 
     public static PersonalClanIdentity PredecessorOf(Realm kingdom)
     {
@@ -126,7 +125,6 @@ public class EmpireCraftKingdomBehCheckHeir : GameAIKingdomBase
         }
         return kingdom == null ? null : SpecificClanManager.getPerson(kingdom.GetOrCreate().last_ruler_identity_id);
     }
-#endif
 
     // 成年、年幼的界线(继承排序用)
     private const int GrownAge = 16, TenderAge = 6;
@@ -402,7 +400,6 @@ public class EmpireCraftKingdomBehCheckHeir : GameAIKingdomBase
     public static bool BarredBySex(Realm kingdom, Person actor) =>
         actor?.Record != null && actor.Sex != Sex.Male && MaleOnlyThrone(kingdom);
 
-#if EC_PENDING
     private static Person Pick(Realm kingdom, IEnumerable<PersonalClanIdentity> candidates, PersonalClanIdentity parent,
         out PersonalClanIdentity selected)
     {
@@ -421,6 +418,7 @@ public class EmpireCraftKingdomBehCheckHeir : GameAIKingdomBase
         return null;
     }
 
+#if EC_PENDING
     private static (Person actor, string relation) CheckHeir(Realm kingdom, EmpireHeirLawType selection,
         SuccessionLawType law, PersonalClanIdentity parent)
     {
@@ -505,7 +503,6 @@ public class EmpireCraftKingdomBehCheckHeir : GameAIKingdomBase
 #endif
 
     // 外家入继：沿父母、子女找先君六步以内的血亲(含外嫁女子的后代)，近的在前；入继者本是别国君主的两国共主
-#if EC_PENDING
     private static (Person actor, string relation) CognaticHeir(Realm kingdom, PersonalClanIdentity parent)
     {
         bool protectedDynasty = kingdom.IsEmpire() && ConstitutionalSuccessionSystem.ThroneBound(kingdom.GetEmpire());
@@ -521,7 +518,6 @@ public class EmpireCraftKingdomBehCheckHeir : GameAIKingdomBase
         }
         return (null, "");
     }
-#endif
 
     // 议立新君的宗室人选池：先君以外、可以继位的宗亲(兄弟、叔侄、族人)，附亲疏(隔几代)
     public static List<(PersonalClanIdentity person, int kinship)> CollateralPool(Realm kingdom, PersonalClanIdentity parent)

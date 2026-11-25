@@ -22,7 +22,6 @@ public static class ConsortKinSystem
     private const float RegentShare = 0.5f;
     private const float PurgeBase = 0.06f;
 
-#if EC_PENDING
     public static SpecificClan ConsortClan(Empire empire)
     {
         Person emperor = empire?.Emperor;
@@ -42,10 +41,8 @@ public static class ConsortKinSystem
         SpecificClan own = actor?.Record == null ? null : actor.GetSpecificClan();
         return clan != null && own != null && SpecificClanManager.SameLineage(own, clan);
     }
-#endif
 
     // 外戚首领(大将军)
-#if EC_PENDING
     public static Person Chief(Empire empire)
     {
         SpecificClan clan = ConsortClan(empire);
@@ -72,7 +69,6 @@ public static class ConsortKinSystem
         }
         return chief;
     }
-#endif
 
     // 各帝国眼下的外戚首领(单位编号；不存档，读档后头一回挑首领时补上)：留在地图上不并回人口
     private static readonly Dictionary<long, long> Chiefs = new();
@@ -84,16 +80,13 @@ public static class ConsortKinSystem
     }
 
     // 幼主：外戚首领以大将军辅政(名望不低于朝中辅政人选的一半)
-#if EC_PENDING
     public static Person RegentFor(Empire empire, Person courtCandidate)
     {
         Person chief = Chief(empire);
         return chief != null && chief.Renown >= (courtCandidate?.Renown ?? 0) * RegentShare ? chief : null;
     }
-#endif
 
     // 成年皇帝庸弱、昏聩、荒淫，或年轻皇帝(不满 25 岁)有太后撑腰：外戚首领名望够了就专权
-#if EC_PENDING
     public static Person DominantFor(Empire empire, int entryInfluence)
     {
         if (!Backed(empire)) return null;
@@ -109,14 +102,12 @@ public static class ConsortKinSystem
         return RulerQualitySystem.IsBad(emperor) || emperor.Age() < YoungEmperor && empire.GetEmpressDowager() != null ||
                FactionBalanceSystem.BacksConsortKin(empire);
     }
-#endif
 
     private const int YoungEmperor = 25;
 
     #region 诛外戚
 
     // 每年(ConstitutionalEconomySystem 年度结算)
-#if EC_PENDING
     public static void Yearly(Empire empire)
     {
         try
@@ -138,7 +129,6 @@ public static class ConsortKinSystem
             LogService.LogWarning($"[EmpireCraft][外戚] 年度结算失败: {exception.Message}");
         }
     }
-#endif
 
     private static void Purge(Empire empire, Person emperor, Person kin)
     {

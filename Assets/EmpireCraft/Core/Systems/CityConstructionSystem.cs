@@ -164,8 +164,8 @@ public static class CityConstructionSystem
 #if EC_PENDING
     private static void AbandonBarrenHouses(City city)
     {
-        if (city.status == null || EcRandom.value >= 0.25f) return;
-        if (city.countBuildingsType("type_house", false) <= city.status.houses_max + 1) return;
+        if (city.Status == null || EcRandom.value >= 0.25f) return;
+        if (city.countBuildingsType("type_house", false) <= city.Status.HousesMax + 1) return;
         if (AbandonLedgerHouse(city)) return;
         Building worst = null;
         float worstWeight = TerrainSystem.BarrenWeight;
@@ -570,7 +570,7 @@ public static class CityConstructionSystem
             city.under_construction_building = null;
             // 住满了、民居又还没盖到上限：先盖房，不去升级别的建筑——首都的升级偏好(0.3 + 0.6×富庶 + 0.6)以前几乎回回先升级，
             // 唯一的开工名额和木石常被挪走，首都人口反倒不如别城(用户 2026-10-28 转群友"城市A还是帝国首都……人口只有一千多")
-            bool homesFirst = city.status != null && city.countBuildingsType("type_house", false) < city.status.houses_max &&
+            bool homesFirst = city.Status != null && city.countBuildingsType("type_house", false) < city.Status.HousesMax &&
                               CityPopulationSystem.GetTotal(city) >= city.GetPopulationMaximum() * HomesFirstShare;
             if (!homesFirst && EcRandom.value < 0.3f + 0.6f * Wealth(city) + SeatBonus(city) && TryUpgrade(city)) return;
             CityLedger.BuildTick(city);

@@ -130,15 +130,20 @@ def apply(args):
     manifest = tool.load_manifest()
     work = report["work"]
     today = datetime.date.today().isoformat()
+    # Files that keep no live code any more (wholly replaced by a seam, say) go first: removing one rewrites the
+    # manifest on disk, and the records below are made on a fresh copy of it.
+    gone = [path for path, info in sorted(report["per_file"].items()) if not info["live"]]
+    known = {e["mod"] for e in manifest["files"] if e.get("generated")}
+    for path in gone:
+        if path in known:
+            tool.cmd_remove(argparse.Namespace(paths=[path]))
+    manifest = tool.load_manifest()
     by_mod = {e["mod"]: e for e in manifest["files"]}
     taken = {e["dest"]: e["mod"] for e in manifest["files"]}
     count = lines = 0
     for path, info in sorted(report["per_file"].items()):
         entry = by_mod.get(path)
         if not info["live"]:
-            if entry and entry.get("generated"):
-                tool.cmd_remove(argparse.Namespace(paths=[path]))
-                manifest = tool.load_manifest()
             continue
         folder, name = closure.destination(path)
         dest = entry["dest"] if entry else "/".join((tool.CORE, folder, name))

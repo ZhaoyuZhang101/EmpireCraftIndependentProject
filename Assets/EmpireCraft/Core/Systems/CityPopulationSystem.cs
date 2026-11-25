@@ -357,7 +357,7 @@ public static partial class CityPopulationSystem
         if (Land.SquaredDist(captain.Cell, front) <= FrontHoldDistance * FrontHoldDistance) return;
         try
         {
-            captain.goTo(front);
+            captain.GoTo(front);
         }
         catch (Exception exception)
         {
@@ -1916,10 +1916,8 @@ public static partial class CityPopulationSystem
 #endif
 
     // 实体并回人口(军团统领卸任、旧制征召兵并入军团时用)
-#if EC_PENDING
     public static bool DisbandIntoPopulation(Person actor, City fallback) =>
         actor?.Record != null && !actor.IsGone() && actor.Alive && fallback != null && FoldIntoPopulation(actor, fallback);
-#endif
 
     // 纯净地图模式(见 PureMapMode)：不慢慢回收，城里与流民里不是名人的普通人一次并回人口(每次最多 limit 人，
     // 几帧清完)；军人照旧由月度结算按兵额处理。返回并入人数，more = 还有没清完的
@@ -1976,6 +1974,7 @@ public static partial class CityPopulationSystem
         if (folded > 0) InvalidateHouseholdCaches();
         return folded;
     }
+#endif
 
     private static bool FoldIntoPopulation(Person actor, City fallback)
     {
@@ -2031,7 +2030,6 @@ public static partial class CityPopulationSystem
                     ? SocialClass.Peasant : origin.social_class, origin.culture, origin.species, origin.ideology, origin.size);
         return true;
     }
-#endif
 
     // 饥饿值补满并结束睡眠。饥饿值(nutrition)在原版是属性：以前按字段名反射找不到，一直没补上
 #if EC_PENDING
@@ -2072,17 +2070,16 @@ public static partial class CityPopulationSystem
     private static MethodInfo _createWithSubspecies;
 
     // 交战时按空余兵额从背景人口里当场生成士兵(在城里随机地块)，仗打完由 FoldCommoners 解散
-#if EC_PENDING
     public static int RaiseLevies(City city)
     {
-        if (!AbstractPopulationEnabled || city?.status == null || city.Realm == null) return 0;
+        if (!AbstractPopulationEnabled || city?.Status == null || city.Realm == null) return 0;
         // 兵额按军制(见 LevyTarget)，并写回城市状态，免得原版以"超编"为由把新兵解散；
         // 军团模式下实体兵只剩城市守兵(治安)与军团统领，军镇兵额由军团承担(见 CorpsSystem)
         int slots = CorpsSystem.NoMilitaryUnits ? 0
             : CorpsSystem.Enabled ? CityStabilitySystem.FundedSlots(city) + CorpsSystem.GeneralsAt(city)
             : LevyTarget(city);
-        city.status.warrior_slots = slots;
-        int need = Mathf.Min(MaxLeviesPerPass, slots - city.status.warriors_current);
+        city.Status.WarriorSlots = slots;
+        int need = Mathf.Min(MaxLeviesPerPass, slots - city.Status.WarriorsCurrent);
         if (need <= 0) return 0;
         // 每个兵代表一个军团：兵源是全国的背景人口，可征比例由军制决定(默认一成)，按全国各军镇的兵额平分，每团最多一万人
         ArmyDoctrine doctrine = DoctrineOf(city.Realm);
@@ -2125,7 +2122,6 @@ public static partial class CityPopulationSystem
         if (raised > 0) UpdateLegions(city);
         return raised;
     }
-#endif
 
     // 义军(无小人模式)：起义、革命时从本城背景人口里当场武装 count 个兵，每个兵代表一支义军，
     // 一共动员背景人口的 share。返回实际征到的人数(兵)
@@ -2171,7 +2167,6 @@ public static partial class CityPopulationSystem
     }
 
     // 战时能动员的兵力(各军镇的战时兵额与现有士兵取大者之和)：原版 AI 判断要不要开战、打谁时用
-#if EC_PENDING
     public static int WarPotential(Realm kingdom)
     {
         if (!AbstractPopulationEnabled || kingdom?.Cities == null) return 0;
@@ -2179,15 +2174,13 @@ public static partial class CityPopulationSystem
         foreach (City city in kingdom.Cities)
         {
             if (city == null || city.IsGone()) continue;
-            total += Mathf.Max(LevyTarget(city, true), city.status?.warriors_current ?? 0);
+            total += Mathf.Max(LevyTarget(city, true), city.Status?.WarriorsCurrent ?? 0);
         }
         // 武备废弛：兵源打折，国力、开战比兵力也跟着看低(见 MaladySystem.LevyFactor)
         return Mathf.RoundToInt(total * MaladySystem.LevyFactor(kingdom));
     }
-#endif
 
     // 守方还能动员的兵(实体士兵之外，各军镇按战时兵额尚未征召的部分)。入城即降据此判断是否真的无兵可征
-#if EC_PENDING
     public static int MobilizableReserve(Realm kingdom, bool forceRefresh = false)
     {
         if (!AbstractPopulationEnabled || kingdom?.Cities == null) return 0;
@@ -2196,13 +2189,12 @@ public static partial class CityPopulationSystem
         int reserve = 0;
         foreach (City city in kingdom.Cities)
         {
-            if (city == null || city.IsGone() || city.status == null) continue;
-            reserve += Mathf.Max(0, LevyTarget(city) - city.status.warriors_current);
+            if (city == null || city.IsGone() || city.Status == null) continue;
+            reserve += Mathf.Max(0, LevyTarget(city) - city.Status.WarriorsCurrent);
         }
         MobilizableReserveCache[kingdom] = reserve;
         return reserve;
     }
-#endif
 
     // 军团现存人数：按士兵当前生命值折算满编人数，掉血就是减员，阵亡的人不会回来
     // 载具(WarBox 的坦克、装甲车、飞机等)不是人：不计人口、不代表军团、不并回人口
@@ -2425,7 +2417,6 @@ public static partial class CityPopulationSystem
     // 执笔的读书人(无小人模式)：写书不需要实体居民，但书要有作者。城里没有合适的实体单位时，
     // 从人口里请一位读书人(优先官僚、市民、商人、贵族、地主这些识字阶层)落成实体执笔，书署他的名字；
     // 写完他照常是普通人，下次并入时回到人口数据里
-#if EC_PENDING
     public static Person SpawnScholar(City city)
     {
         if (!AbstractPopulationEnabled || city?.Record == null || city.IsGone() || city.Realm == null) return null;
@@ -2439,12 +2430,11 @@ public static partial class CityPopulationSystem
         Person actor = SpawnFromGroup(city, group, soldier: false);
         if (actor == null) return null;
         RemoveBackground(group, 1f);
-        if (actor.language == null && city.language != null) actor.setLanguage(city.language);
+        if (actor.Language == null && city.Language != null) actor.SetLanguage(city.Language);
         if (actor.Culture == null && city.Culture != null) actor.SetCulture(city.Culture);
         if (actor.Religion == null && city.Religion != null) actor.SetReligion(city.Religion);
         return actor;
     }
-#endif
 
     // 识字人口(户)：官僚与市民阶层的背景人口折成户数
     public static int LiterateHouseholds(City city)
@@ -2508,7 +2498,6 @@ public static partial class CityPopulationSystem
     // 官职空缺且找不到合适人选时(无小人模式)，从官职所在城市(否则本国首都)的人口中生成一人。
     // 王位不在此列：君主空缺走继承制度，不能凭空生成
     // preferredOnly：只要合本国择官偏好(前现代父系文化男性、母系文化女性)的人，补不出就不补
-#if EC_PENDING
     public static Person SpawnForOffice(OfficeObject office, Realm kingdom, bool preferredOnly = false)
     {
         if (!AbstractPopulationEnabled || office == null) return null;
@@ -2517,11 +2506,9 @@ public static partial class CityPopulationSystem
         if (city == null || city.IsGone() || city.Realm == null) return null;
         return SpawnOfficial(city, kingdom ?? city.Realm, preferredOnly);
     }
-#endif
 
     // 从人口里补一名城主、君主或官员：按本国择官偏好(见 OfficeSelector.IsPreferredOfficeCandidate)挑性别，
     // 最多试 4 次，不合偏好的并回人口；都不合时 preferredOnly 就不补，否则用第一个不合偏好的人
-#if EC_PENDING
     public static Person SpawnOfficial(City city, Realm realm = null, bool preferredOnly = false)
     {
         if (city == null || city.IsGone()) return null;
@@ -2551,7 +2538,6 @@ public static partial class CityPopulationSystem
         }
         return fallback;
     }
-#endif
 
     // 落成一名指定物种/文化的人(虚拟族人用)：优先从同物种同文化的背景人口里扣，其次同物种，
     // 都没有就直接生成(人口多出一人)
@@ -2878,7 +2864,6 @@ public static partial class CityPopulationSystem
     }
 
     // 城主空缺时立即补位(每帧由城市更新调用)：先按官职选人，选不到就从背景人口里生成一人接任
-#if EC_PENDING
     public static void EnsureLeader(City city)
     {
         if (!AbstractPopulationEnabled || city?.Record == null || city.IsGone() || city.Realm == null ||
@@ -2907,7 +2892,6 @@ public static partial class CityPopulationSystem
             LogService.LogWarning($"[EmpireCraft] 无小人模式城主补位失败({city.Name}): {exception.Message}");
         }
     }
-#endif
 
     #endregion
 

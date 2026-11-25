@@ -97,7 +97,7 @@ public static class GreatPowerDiplomacy
     {
         Realm ca = a.CoreKingdom, cb = b.CoreKingdom;
         if (Active(a, b) || SameCivilization(ca, cb) || ca.IsAtWarWith(cb) || BarredByConquest(ca, cb)) return;
-        float opinion = EmpireWorld.Current.diplomacy?.getOpinion(ca, cb)?.total ?? 0f;
+        float opinion = EmpireWorld.Current.Diplomacy?.GetOpinion(ca, cb)?.Total ?? 0f;
         if (opinion < MinOpinion) return;
         bool common = ca.GetEnemies().Intersect(cb.GetEnemies()).Any();
         if (EcRandom.value >= (common ? CommonEnemyChance : PactChance)) return;

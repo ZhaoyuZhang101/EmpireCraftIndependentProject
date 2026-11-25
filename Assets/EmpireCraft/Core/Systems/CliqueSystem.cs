@@ -707,7 +707,6 @@ public static class CliqueSystem
 
     #region 后党、阉党
 
-#if EC_PENDING
     private static void Consorts(Empire empire, Regime regime, List<Person> officials)
     {
         Person chief = ConsortKinSystem.Chief(empire);
@@ -732,6 +731,7 @@ public static class CliqueSystem
         }
     }
 
+#if EC_PENDING
     private static void Eunuchs(Empire empire, Regime regime)
     {
         Person emperor = empire.Emperor;

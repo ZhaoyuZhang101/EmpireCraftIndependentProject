@@ -401,7 +401,6 @@ public static class HarshRuleSystem
 
     public static string GetStageName(int stage) => LM.Get($"street_unrest_stage_{Mathf.Clamp(stage, 0, 3)}");
 
-#if EC_PENDING
     private static void UpdateStreetUnrest(Empire empire, ConstitutionalEconomyState state)
     {
         // 在野党组织的示威、罢工也加压(见 PartyRelations)(用户 2026-11-10 "政党总感觉是空壳")
@@ -424,7 +423,6 @@ public static class HarshRuleSystem
         state.street_unrest_years = state.street_unrest_stage == Riots ? state.street_unrest_years + 1 : 0;
         if (state.street_unrest_years >= RiotYearsToCrisis) Crisis(empire, state);
     }
-#endif
 
     // AI 的回应：言论严格倾向镇压，威权/法西斯政府在合法性尚可时也镇压；连续镇压两年无效改为让步
     public static bool AiChoosesRepression(Empire empire, ConstitutionalEconomyState state)
@@ -447,7 +445,6 @@ public static class HarshRuleSystem
         return null;
     }
 
-#if EC_PENDING
     public static string PlayerRespond(Empire empire, bool repress)
     {
         string reason = CanPlayerRespond(empire);
@@ -478,10 +475,8 @@ public static class HarshRuleSystem
         // 民怨主要来自土地兼并：让步包括在兼并最严重的两座城市重分土地
         if (state.harsh_main_cause == "harsh_land") RedistributeWorstCities(empire, 2);
     }
-#endif
 
     // 土地改革：无地农民比例达到起义门槛的城市里，按兼并程度从重到轻重分土地，最多 limit 座
-#if EC_PENDING
     private static void RedistributeWorstCities(Empire empire, int limit)
     {
         List<City> cities = empire.AllCities()
@@ -493,7 +488,6 @@ public static class HarshRuleSystem
         EventRecorder.Record(empire, string.Format(LM.Get("street_land_reform_log"), empire.GetEmpireFullName(),
             string.Join("、", cities.Take(5).Select(city => city.GetCityName())) + (cities.Count > 5 ? "…" : "")));
     }
-#endif
 
     // 让步：减税、整顿腐败(街头压力下绕过议会的征税同意权)
     private static void Concede(Empire empire, float taxCut, double corruptionCut)
@@ -503,7 +497,6 @@ public static class HarshRuleSystem
         empire.CoreKingdom.AddCorruptionRate(-corruptionCut);
     }
 
-#if EC_PENDING
     private static void Crisis(Empire empire, ConstitutionalEconomyState state)
     {
         string country = empire.GetEmpireFullName();
@@ -560,7 +553,6 @@ public static class HarshRuleSystem
         state.street_unrest_years = 0;
         state.repression_years = 0;
     }
-#endif
 
     #endregion
 }

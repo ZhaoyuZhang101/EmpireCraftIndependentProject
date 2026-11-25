@@ -8,7 +8,6 @@ namespace EmpireCraft.Core
 public class EmpireCraftCityBehCheckOffice:GameAICityBase
 {
     public override Type OriginalBeh => GetType();
-#if EC_PENDING
     public override BehResult Execute(City pCity)
     {
         if (pCity.HasRealm())
@@ -29,7 +28,6 @@ public class EmpireCraftCityBehCheckOffice:GameAICityBase
         office.meta_object = pCity;
         office.is_local = true;
     }
-#endif
     public void UpdateOffice(City pCity)
     {
         if (!pCity.HasRealm()) return;

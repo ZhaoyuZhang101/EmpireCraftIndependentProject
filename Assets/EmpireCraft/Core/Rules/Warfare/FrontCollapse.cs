@@ -61,7 +61,6 @@ public static class FrontCollapse
     public static float Capture(Realm owner, Realm attacker) => Collapsed.Count > 0 && Collapsing(owner, attacker) ? CaptureBonus : 1f;
 
     // 每月对一场仗查一次：victor 是不是把 foe 打垮了
-#if EC_PENDING
     public static void Check(Realm victor, Realm foe, War war)
     {
         Realm a = ModRealm(foe), b = ModRealm(victor);
@@ -93,7 +92,6 @@ public static class FrontCollapse
         WarChronicle.Record(a, b, WarChronicle.Collapse, collapse);
         LogService.LogInfo($"[EmpireCraft][兵败如山倒] {a.GetKingdomName()} 被 {b.GetKingdomName()} 打垮({reason})");
     }
-#endif
 
     // 两家不再交战、灭了国的从表里清掉(每月一次)
     public static void Prune()
@@ -126,7 +124,6 @@ public static class FrontCollapse
         realm.GetEmpire()?.kingdoms_list?.Where(Alive) ?? new[] { realm };
 
     // 正规军(帝国连同各成员国)现有兵力与满编；不开军团时按士兵(连同可征之兵)与历来最多的士兵
-#if EC_PENDING
     private static (float strength, float full) Army(Realm realm)
     {
         if (CorpsSystem.Enabled)
@@ -150,7 +147,6 @@ public static class FrontCollapse
         (float strength, float full) = Army(realm);
         return full > 0f && strength >= full * RecoveredShare;
     }
-#endif
 
     // 这场仗里丢了都城(开战时的都城归了对方，或现在都城的城池被对方占着)、或丢了三分之一的城：返回说明，没有返回 null
     private static string Lost(Realm foe, Realm victor, War war)

@@ -180,7 +180,6 @@ public static partial class ParliamentSystem
     }
 
     // announce：election 大选后组阁 / no_confidence 倒阁后重新组阁；为空表示补选后的例行确认
-#if EC_PENDING
     private static void ElectPrimeMinister(Empire empire, ConstitutionalEconomyState state, string announce = null,
         HashSet<string> excluded = null)
     {
@@ -244,11 +243,9 @@ public static partial class ParliamentSystem
         if (announce != null || primeMinister.Key == previous) return;
         RecordPrimeMinister(empire, primeMinister, plan.Formateur, plan.Type, plan.Seats, total);
     }
-#endif
 
     // 剧本开局的首相(近卫文麿、张伯伦、墨索里尼)：第一届议会照剧本组阁——这人出任首相，他的党执政。
     // 他同时是这个党的党魁，下届大选前补选、换届复核都留着他(见 TryKeepGovernment)
-#if EC_PENDING
     public static bool ScenarioAppoint(Empire empire, Person primeMinister, FixedFaction party)
     {
         ConstitutionalEconomyState state = GetState(empire);
@@ -271,11 +268,9 @@ public static partial class ParliamentSystem
         AssignMinisters(empire, state, announce: false);
         return true;
     }
-#endif
 
     // 顺应民意(PublicOpinionSystem.AcceptPreferred)：把民意所向之党邀入执政联盟——它在议会有席位、不在执政一方、
     // 理念与首相党相距不超过 MaxCoalitionDistance；邀入后按新联盟重分部长(用户 2026-11-10 "政党机制也完善下"，问答选"一并修")
-#if EC_PENDING
     public static bool InviteIntoGovernment(Empire empire, FixedFaction party)
     {
         ConstitutionalEconomyState state = GetState(empire);
@@ -294,7 +289,6 @@ public static partial class ParliamentSystem
         AssignMinisters(empire, state, announce: true);
         return true;
     }
-#endif
 
     private static bool TryKeepGovernment(Empire empire, ConstitutionalEconomyState state,
         List<(FixedFaction faction, int seats)> blocs, int total)
@@ -346,7 +340,6 @@ public static partial class ParliamentSystem
     // 政治主官按执政联盟议席分配；分肥制另纳入配置为常任事务官的职位。
     // 本党已在任的留任，空出来的由该党推举
     // 有官职空缺时立即补任(内阁成员去世、调任后不必等到年度政局审查)
-#if EC_PENDING
     public static void FillVacantMinistries(Empire empire)
     {
         ConstitutionalEconomyState state = GetState(empire);
@@ -425,11 +418,9 @@ public static partial class ParliamentSystem
         if (!announce || !changed) return;
         RecordCabinet(empire, offices);
     }
-#endif
 
     // 执政党实体党员不够分部长时补一名党员：无小人模式从京城人口里推举(同组党时推举发起人，见 PartySystem.SpawnFounder)，
     // 有小人模式吸收京城里没入派、没任官的成年人。补上的人记入本党，理念随党
-#if EC_PENDING
     private static Person RecruitMinister(Empire empire, OfficeObject office, FixedFaction party, HashSet<long> used)
     {
         Realm core = empire?.CoreKingdom;
@@ -445,7 +436,6 @@ public static partial class ParliamentSystem
         recruit.SetFaction(party);
         return recruit;
     }
-#endif
 
     private static void RecordCabinet(Empire empire, List<OfficeObject> offices)
     {
@@ -461,7 +451,6 @@ public static partial class ParliamentSystem
 
     #region 年度政局：倒阁与施政议程
 
-#if EC_PENDING
     private static void ReviewGovernment(Empire empire, ConstitutionalEconomyState state)
     {
         if (!HasParliament(empire) || GetPrimeMinister(empire) == null) return;
@@ -476,7 +465,6 @@ public static partial class ParliamentSystem
         if (TryNoConfidence(empire, state)) return;
         UpdateAgenda(empire, state);
     }
-#endif
 
     private static bool CanHoldNoConfidence(Empire empire, ConstitutionalEconomyState state)
     {
@@ -492,7 +480,6 @@ public static partial class ParliamentSystem
     }
 
     // 在野党发起不信任投票；返回本年是否发生了倒阁(之后不再结算议程)
-#if EC_PENDING
     private static bool TryNoConfidence(Empire empire, ConstitutionalEconomyState state)
     {
         if (!CanHoldNoConfidence(empire, state)) return false;
@@ -595,11 +582,9 @@ public static partial class ParliamentSystem
         }
         return true;
     }
-#endif
 
     // 政府在街头抗争中倒台(见 HarshRuleSystem)：能凑出新的过半政府就重新组阁，否则解散议会提前大选。
     // 只适用于多党制的责任政府；返回是否倒台
-#if EC_PENDING
     public static bool ForceGovernmentCollapse(Empire empire)
     {
         if (!HasResponsibleGovernment(empire) || RepublicSystem.IsOneParty(empire) ||
@@ -631,7 +616,6 @@ public static partial class ParliamentSystem
         }
         return true;
     }
-#endif
 
     private static IEnumerable<Person> Ministers(Empire empire) =>
         (empire.data?.centerOffice?.CoreOffices ?? new List<long>())

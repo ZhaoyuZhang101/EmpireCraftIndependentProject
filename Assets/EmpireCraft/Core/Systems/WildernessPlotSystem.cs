@@ -1142,7 +1142,6 @@ public static class WildernessPlotSystem
 
     // 给没名字的县址起名(隔 NameSeconds 秒一回，一回至多看 NameScan 个、起 NamesPerPass 个)：已设县的取县城的名字；别的按县治最近(NameReach 块以内，
     // 世界地图不限远近)的城的主流文化起这个文化的城名，与现有的城、别的县址不重名(重了换个种子再起，至多 NameAttempts 回)
-#if EC_PENDING
     private static void NamePass()
     {
         List<WildPlot> pending = null;
@@ -1208,7 +1207,6 @@ public static class WildernessPlotSystem
         }
         _nameCursor = (_nameCursor + count) % Math.Max(1, pending.Count);
     }
-#endif
 
     #endregion
 

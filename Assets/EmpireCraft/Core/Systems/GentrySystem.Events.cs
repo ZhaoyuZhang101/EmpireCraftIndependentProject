@@ -26,7 +26,6 @@ public static partial class GentrySystem
     public static float FameFactor(Person actor) => IsGentry(actor) ? FameBonus : 1f;
 
     // 世家女入宫(每年，见 YearlyCourt)：皇帝没有正室为后，储君没有正室为妃
-#if EC_PENDING
     private static void TryConsort(Empire empire, List<SpecificClan> clans)
     {
         Realm core = empire.CoreKingdom;
@@ -36,7 +35,6 @@ public static partial class GentrySystem
         if (Unwed(emperor) && Random.value < ConsortChance) Wed(empire, clans, emperor, "gentry_empress_history");
         else if (heir != emperor && Unwed(heir) && Random.value < HeirConsortChance) Wed(empire, clans, heir, "gentry_heir_consort_history");
     }
-#endif
 
     private static bool Unwed(Person actor)
     {
@@ -45,7 +43,6 @@ public static partial class GentrySystem
         return identity != null && identity.IsFreeToMarry(-2L);
     }
 
-#if EC_PENDING
     private static void Wed(Empire empire, List<SpecificClan> clans, Person groom, string key)
     {
         foreach (SpecificClan clan in clans.Take(ConsortClans).OrderByDescending(clan => clan.gentry_pedigree * Random.Range(0.6f, 1f)))
@@ -61,8 +58,8 @@ public static partial class GentrySystem
             if (head.hasLover() && head.IsFreeToMarry(-2L)) head.lover = (-1L, -1L);
             head.setLover(bride);
             if (!head.hasLover()) continue;
-            groom.setLover(bride);
-            bride.setLover(groom);
+            groom.SetLover(bride);
+            bride.SetLover(groom);
             Realm core = empire.CoreKingdom;
             if (bride.IsCityLeader() && bride.City != null) bride.City.RemoveLeader();
             if (bride.Realm != core) bride.SetRealm(core);
@@ -74,7 +71,6 @@ public static partial class GentrySystem
             return;
         }
     }
-#endif
 
     // 灾年赈济(每年，Assess 里)
 #if EC_PENDING

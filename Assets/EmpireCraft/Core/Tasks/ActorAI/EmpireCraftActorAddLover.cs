@@ -23,7 +23,7 @@ public class EmpireCraftActorAddLover:GameAIActorBase
         var loverSex = culture.HasTrait("patriarchy") ? Sex.Female : Sex.Male;
         var identity = pActor.GetPersonalIdentity();
         if ( identity == null) return BehResult.Continue;
-        if (pActor.age>70) return BehResult.Continue;
+        if (pActor.Age()>70) return BehResult.Continue;
         var cus = identity.concubines;
         if (cus.Count > 0)
         {
@@ -53,7 +53,7 @@ public class EmpireCraftActorAddLover:GameAIActorBase
                 pActor.AddMoney(-25);
                 // 原版的恋人与模组家族里的配偶/妾都要空着(只看原版会把别人的妻妾挑走)
                 var actor = pActor.Realm.People.Find(a => a.Sex == loverSex
-                                                              && a.age <= 35 && a.IsAdult()
+                                                              && a.Age() <= 35 && a.IsAdult()
                                                               && RealisticAgeSystem.OldEnoughToParent(a)
                                                               && !a.HasSpouse()
                                                               && a.GetPersonalIdentity()?.IsFreeToMarry(identity.id) != false

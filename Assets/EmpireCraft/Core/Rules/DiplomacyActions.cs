@@ -77,8 +77,8 @@ public static class DiplomacyActions
                 Make("diplomacy_act_truce", (a, b) => null, (a, b, _) =>
                 {
                     EndWars(a, b);
-                    DiplomacyRelation relation = EmpireWorld.Current.diplomacy.getRelation(a, b);
-                    if (relation?.data != null) relation.data.timestamp_last_war_ended = GameClock.Now;
+                    RealmRelation relation = EmpireWorld.Current.Diplomacy.GetRelation(a, b);
+                    if (relation?.Record != null) relation.Record.LastWarEnded = GameClock.Now;
                     return null;
                 })
             }
@@ -96,11 +96,11 @@ public static class DiplomacyActions
                     if (a.IsEmpire() || a.IsInEmpire() || b.IsEmpire() || b.IsInEmpire()) return "diplomacy_reason_empire_alliance";
                     return OutOfReach(a, b) && !ContactReach(a, b) ? "diplomacy_reason_unreachable" : null;
                 }, (a, b, _) => Ally(a, b)),
-                Make("diplomacy_act_leave_alliance", (a, b) => a.hasAlliance() ? null : "diplomacy_reason_no_alliance", (a, b, _) =>
+                Make("diplomacy_act_leave_alliance", (a, b) => a.HasAlliance() ? null : "diplomacy_reason_no_alliance", (a, b, _) =>
                 {
-                    Alliance alliance = a.getAlliance();
-                    alliance.leave(a);
-                    if (alliance.kingdoms_list.Count < 2) EmpireWorld.Current.alliances.dissolveAlliance(alliance);
+                    Alliance alliance = a.GetAlliance();
+                    alliance.Leave(a);
+                    if (alliance.Members.Count < 2) EmpireWorld.Current.DissolveAlliance(alliance);
                     return null;
                 }),
                 Make("diplomacy_act_marry", (a, b) =>
@@ -307,13 +307,13 @@ public static class DiplomacyActions
 #if EC_PENDING
     private static string Ally(Realm a, Realm b)
     {
-        Alliance own = a.getAlliance(), theirs = b.getAlliance();
+        Alliance own = a.GetAlliance(), theirs = b.GetAlliance();
         if (own != null && theirs != null && own != theirs)
         {
-            theirs.leave(b);
-            if (theirs.kingdoms_list.Count < 2) EmpireWorld.Current.alliances.dissolveAlliance(theirs);
+            theirs.Leave(b);
+            if (theirs.Members.Count < 2) EmpireWorld.Current.DissolveAlliance(theirs);
         }
-        EmpireWorld.Current.alliances.forceAlliance(a, b);
+        EmpireWorld.Current.LiveAlliances.forceAlliance(a, b);
         return DiplomacyLedger.Allied(a, b) ? null : "diplomacy_reason_failed";
     }
 #endif
@@ -344,7 +344,7 @@ public static class DiplomacyActions
     {
         string forbidden = ForbiddenReason(a, b);
         if (forbidden != null) return forbidden;
-        double ended = EmpireWorld.Current.diplomacy?.getRelation(a, b)?.data?.timestamp_last_war_ended ?? -1d;
+        double ended = EmpireWorld.Current.Diplomacy?.GetRelation(a, b)?.Record?.LastWarEnded ?? -1d;
         // 剧本按史实定下的宣战不看停战年限(清军入关时与明罢兵，次年南下照样开战)
         if (!_applyingScenario && ended > 0d && GameClock.YearsSince(ended) < SimGlobals.m.minimum_years_between_wars) return "diplomacy_reason_truce";
         return WarReach.MayDeclare(a, b, WarKinds.Normal) ? null : "diplomacy_reason_unreachable";

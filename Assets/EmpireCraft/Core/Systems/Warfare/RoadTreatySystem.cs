@@ -46,9 +46,7 @@ public static class RoadTreatySystem
 
     public static bool WereFriendly(Realm a, Realm b) => Valid(a, b) && _data.friendly.Contains(Key(a, b));
 
-#if EC_PENDING
-    private static float Opinion(Realm from, Realm to) => EmpireWorld.Current.diplomacy?.getOpinion(from, to)?.total ?? 0;
-#endif
+    private static float Opinion(Realm from, Realm to) => EmpireWorld.Current.Diplomacy?.GetOpinion(from, to)?.Total ?? 0;
 
     // 两国的城之间规划了路的国对(不同国、不在同一帝国)
     private static List<(Realm a, Realm b)> Neighbours()
@@ -66,7 +64,6 @@ public static class RoadTreatySystem
     }
 
     // 每年(RoadBuildingSystem 的年结)：记交好的年数；开战的作废通路之约
-#if EC_PENDING
     public static void Yearly()
     {
         var alive = new HashSet<long>(EmpireWorld.Current.LiveRealms.Where(kingdom => kingdom?.Record != null && !kingdom.IsGone())
@@ -96,10 +93,8 @@ public static class RoadTreatySystem
             if (years >= FriendlyYearsNeeded && !_data.friendly.Contains(key)) _data.friendly.Add(key);
         }
     }
-#endif
 
     // 决议"通路之约"可以向谁发起：有过友好时期、还没议定、不在交战、对方对本国好感不低于 0
-#if EC_PENDING
     public static Realm Partner(Realm kingdom)
     {
         if (kingdom?.Record == null || kingdom.IsGone() || _data.friendly.Count == 0) return null;
@@ -123,6 +118,5 @@ public static class RoadTreatySystem
             kingdom);
         return true;
     }
-#endif
 }
 }

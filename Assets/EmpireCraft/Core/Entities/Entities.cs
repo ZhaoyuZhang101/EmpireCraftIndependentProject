@@ -23,6 +23,11 @@ namespace EmpireCraft.Core
         public int EndedMonth=-1;
         public readonly List<City> Cities=new List<City>();
         public readonly List<War> Wars=new List<War>();   // running wars, kept by WorldOps and rebuilt on load
+        public Alliance Alliance;                          // the alliance it stands in, kept by WorldOps and rebuilt on load
+        public bool HasAlliance()=>Alliance!=null&&Alliance.Alive;
+        public Alliance GetAlliance()=>HasAlliance()?Alliance:null;
+        // Good will towards another realm: its opinion of it is not below zero.
+        public bool IsOpinionGood(Realm other){var opinion=World==null?null:World.Diplomacy.GetOpinion(this,other);return opinion!=null&&opinion.Total>=0;}
         public override bool Alive=>EndedMonth<0;
 
         public override long Key=>Id;               // stable key for tables and saves of ported systems
@@ -34,6 +39,7 @@ namespace EmpireCraft.Core
         public bool IsCivilized()=>true;
         public override EntityKind KindOfEntity=>EntityKind.Realm;
         public Clan GetRulingClan()=>RulingClan;
+        public long RulingClanKey=>RulingClan==null?-1L:RulingClan.Key;
         public List<City> GetCities()=>Cities;
         // Where the realm is on the map: its capital's seat.
         public EcVector2 Location=>Capital==null?default(EcVector2):Capital.Center;
@@ -44,6 +50,10 @@ namespace EmpireCraft.Core
         // The realm's colours as the ported systems ask for them, from its map colour.
         Tint _tint;uint _tintOf;
         public Tint GetColor(){if(_tint==null||_tintOf!=Color){_tint=Tint.FromRgb(Color);_tintOf=Color;}return _tint;}
+        public void UpdateColor(Tint tint){if(tint!=null)Color=tint.Main.Rgb;}
+        public int BannerIconId,BannerBackgroundId;     // which emblem the realm flies; for the client
+        RealmAi _ai;
+        public RealmAi Ai=>_ai??(_ai=new RealmAi());
         public int CountCities()=>Cities.Count;
         public bool HasCities()=>Cities.Count>0;
         public int CountZones(){int total=0;foreach(var city in Cities)total+=city.Tiles.Count;return total;}
@@ -83,6 +93,9 @@ namespace EmpireCraft.Core
         public void SetLeader(Person leader,bool announce=false){Leader=leader!=null&&leader.Alive?leader:null;}
         public void RemoveLeader(){Leader=null;}
         public Tint GetColor()=>Realm==null?null:Realm.GetColor();   // a city wears its realm's colours
+        CityStatus _status;
+        public CityStatus Status=>_status??(_status=new CityStatus(this));
+        public Language Language=>null;
         public int CountZones()=>Tiles.Count;
         public bool IsCapital()=>Realm!=null&&Realm.Capital==this;
         public override EntityKind KindOfEntity=>EntityKind.City;
@@ -205,11 +218,35 @@ namespace EmpireCraft.Core
         public bool IsActor()=>true;
         public EcVector2 Position{get{var cell=Cell;return cell==null?default(EcVector2):cell.PosV;}}
         public void RemoveFromArmy(){Army=null;}
+        public Subspecies Subspecies=>null;
+        // An ordinary subject: on record, but neither reigning nor governing.
+        public bool IsProfessionCitizen=>Throne==null&&!IsCityLeader();
+        // A person goes to live where the cell is, if a city holds it.
+        public void GoTo(Cell cell){if(cell!=null&&Alive&&Throne==null){var city=cell.City;if(city!=null&&city.Alive)City=city;}}
+        // Two unmarried persons of opposite sex are joined; anything else leaves both as they were.
+        public void SetLover(Person other){var world=EmpireWorld.Current;if(world!=null&&other!=null&&other!=this&&Alive&&other.Alive&&Spouse==null&&other.Spouse==null&&Sex!=other.Sex)WorldOps.Marry(world,this,other);}
+        // A name of the kind asked for, from the name lists this game has for now.
+        public string GenerateName(EntityKind kind,long id,Sex sex=Sex.None)
+        {
+            var world=EmpireWorld.Current;if(world==null)return null;
+            int subject=(int)(id*131+world.Month);
+            switch(kind)
+            {
+                case EntityKind.Person:return Names.Given(world,sex==Sex.None?Sex:sex,subject);
+                case EntityKind.Clan:case EntityKind.Family:return Names.Surname(world,subject);
+                case EntityKind.City:case EntityKind.Realm:return Names.Place(world,subject);
+                default:return null;
+            }
+        }
         // Households are not tracked; a person has a house (clan), not a family record.
         public Family Family=>null;
         public bool HasFamily()=>false;
         public override EntityKind KindOfEntity=>EntityKind.Person;
         public PersonKind Asset=>PersonKind.Human;
+        public PersonKind GetActorAsset()=>PersonKind.Human;
+        public Language Language=>null;
+        public bool HasLanguage()=>false;
+        public void SetLanguage(Language language){}
         public JobKind Job=>null;            // persons on record are not labourers
         // The army this person leads, if any. Soldiers are counted, so only a captain is ever in one.
         public Army Army;
@@ -248,6 +285,8 @@ namespace EmpireCraft.Core
         HashSet<string> _traits;
         public IEnumerable<string> Traits=>_traits??(IEnumerable<string>)System.Array.Empty<string>();
         public int TraitCount=>_traits==null?0:_traits.Count;
+        // The traits as objects, in a fixed order, for the ported code that walks over them.
+        public List<PersonTrait> TraitList{get{var found=new List<PersonTrait>();if(_traits!=null){var ids=new List<string>(_traits);ids.Sort(System.StringComparer.Ordinal);foreach(string id in ids)found.Add(new PersonTrait(id));}return found;}}
         public bool HasTrait(string id)=>id!=null&&_traits!=null&&_traits.Contains(id);
         public bool AddTrait(string id,bool removeOpposites=false){if(string.IsNullOrEmpty(id))return false;if(_traits==null)_traits=new HashSet<string>(System.StringComparer.Ordinal);return _traits.Add(id);}
         public bool RemoveTrait(string id)=>id!=null&&_traits!=null&&_traits.Remove(id);
@@ -287,6 +326,8 @@ namespace EmpireCraft.Core
         public override EntityKind KindOfEntity=>EntityKind.Clan;
         public string Name{get{return Surname;}set{Surname=value;}}
         public string SpeciesId=>PersonKind.HumanId;
+        Tint _tint;
+        public Tint GetColor()=>_tint??(_tint=Palette.Titles.ColorFor(Id+100000));
         // The living persons of this house.
         public List<Person> People{get{var found=new List<Person>();var world=EmpireWorld.Current;if(world!=null)foreach(var person in world.Living)if(person.Clan==this)found.Add(person);return found;}}
     }

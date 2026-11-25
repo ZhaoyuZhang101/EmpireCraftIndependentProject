@@ -237,7 +237,6 @@ public static partial class ParliamentSystem
 
     #region 更新（由 ConstitutionalEconomySystem.Update 调用）
 
-#if EC_PENDING
     public static void Update(Empire empire)
     {
         ConstitutionalEconomyState state = GetState(empire);
@@ -289,7 +288,6 @@ public static partial class ParliamentSystem
             ReviewGovernment(empire, state);
         }
     }
-#endif
 
     // 议会成立或存续期间，普通内阁不再存在
     public static void RetireCabinet(Empire empire)
@@ -328,7 +326,6 @@ public static partial class ParliamentSystem
         state.government_agenda = null;
     }
 
-#if EC_PENDING
     private static void HoldGeneralElection(Empire empire, ConstitutionalEconomyState state)
     {
         // 上届议席与得票留作对比(议席图的涨跌箭头)
@@ -382,10 +379,8 @@ public static partial class ParliamentSystem
         // 共和国：大选后产生元首(总统制为执政党领袖，议会制由议会改选虚位元首)
         RepublicSystem.UpdateHeadOfState(empire, afterElection: true);
     }
-#endif
 
     // 补选：议员去世、离开帝国或改换派系后，由原派系另推一人；返回是否有议席变动
-#if EC_PENDING
     private static bool FillVacancies(Empire empire, ConstitutionalEconomyState state)
     {
         bool changed = false;
@@ -404,11 +399,9 @@ public static partial class ParliamentSystem
         }
         return changed;
     }
-#endif
 
     // 所属派系已不存在的议席：议员还在且已转入现存的党，议席随人转党；否则按得票(没有得票记录时按议席)
     // 补给现存最大的议会党团，由该党补选一人。返回是否有议席变动
-#if EC_PENDING
     private static bool ReassignOrphanSeats(Empire empire, ConstitutionalEconomyState state)
     {
         List<ParliamentSeat> orphans = state.parliament_seats
@@ -446,7 +439,6 @@ public static partial class ParliamentSystem
         }
         return true;
     }
-#endif
 
     private static bool IsSeatHolderValid(Empire empire, ParliamentSeat seat)
     {
@@ -456,14 +448,12 @@ public static partial class ParliamentSystem
     }
 
     // 执政党解散等情况下立即重新组阁
-#if EC_PENDING
     public static void ReelectGovernment(Empire empire)
     {
         if (!HasParliament(empire)) return;
         ElectPrimeMinister(empire, GetState(empire));
         RepublicSystem.UpdateHeadOfState(empire);
     }
-#endif
 
     // 派系领袖优先（须是本届议员或至少是本派合格成员），否则取本派排名最高的议员。
     // termLimited：大选后组阁时按宪法"最多 N 届"条款，已做满的人不能再出任(共和国)
@@ -541,7 +531,6 @@ public static partial class ParliamentSystem
             .ThenByDescending(actor => actor.Renown);
 
     // 有选区时优先选本区住民，没有合适的再从全党挑
-#if EC_PENDING
     private static Person PickCandidate(Empire empire, FixedFaction faction, long district, HashSet<long> exclude)
     {
         List<Person> ranked = RankCandidates(empire, faction, exclude).ToList();
@@ -556,7 +545,6 @@ public static partial class ParliamentSystem
         IdeologyPopulationSystem.Set(scholar, faction.Ideology);
         return scholar;
     }
-#endif
 
     // 议员与总理的资格：在世、成年、身在本帝国；君主国的皇帝本人不能当议员和总理。
     // 共和国的元首就是大选后执政党领袖(总理)本人(见 RepublicSystem.UpdateHeadOfState)，不能排除，

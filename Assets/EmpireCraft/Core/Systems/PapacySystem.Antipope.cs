@@ -179,10 +179,8 @@ public static partial class PapacySystem
         return empire != null && empire.CoreKingdom == realm ? empire.countCities() : realm?.Cities?.Count ?? 0;
     }
 
-#if EC_PENDING
     private static bool SchismAllied(Realm a, Realm b) =>
-        a != null && b != null && a != b && a.hasAlliance() && b.hasAlliance() && a.getAlliance() == b.getAlliance();
-#endif
+        a != null && b != null && a != b && a.HasAlliance() && b.HasAlliance() && a.GetAlliance() == b.GetAlliance();
 
     private static bool MajorRealm(Realm realm)
     {
@@ -196,7 +194,6 @@ public static partial class PapacySystem
 
     // 大分裂起头(UpdateCaptivity 调用；旧档只有标记的也走这里补扶立)：扶立不成返回 false，不起分裂。
     // 只有本土的普世教会闹对立教宗：分出的教会(国教会、新教会、皇帝兼管的正教会)不闹
-#if EC_PENDING
     private static bool StartSchism(Religion religion, int cause)
     {
         if (!ReligionSphere.IsNative(religion) || religion.GetOrCreate().Caesaropapist) return false;
@@ -235,10 +232,8 @@ public static partial class PapacySystem
                            $"{pope.FullName()}(起因 {cause})，对立一边 {schism.obedience.Count} 国");
         return true;
     }
-#endif
 
     // 扶立者：奉本教的国(帝国按中央)，不是教廷所在(挟持者)、不握圣地、RivalMinCities 城以上；按积怨与城数挑
-#if EC_PENDING
     private static Realm PickPatron(Religion religion, Realm see)
     {
         City holy = HolyCity(religion);
@@ -266,10 +261,8 @@ public static partial class PapacySystem
         }
         return best;
     }
-#endif
 
     // 对立一线的枢机：扶立者都城与对立一边的主教领都城
-#if EC_PENDING
     private static Person ElectAntipope(Religion religion, PapalSchismData schism, Realm patron)
     {
         var cities = new List<City> { patron.Capital };
@@ -282,7 +275,6 @@ public static partial class PapacySystem
         if (pick == rome) pick = null;
         return pick ?? CityPopulationSystem.SpawnOfficial(patron.Capital, patron);
     }
-#endif
 
     private static void SeatAntipope(Religion religion, PapalSchismData schism, Person pope, double now)
     {
@@ -421,7 +413,6 @@ public static partial class PapacySystem
     }
 
     // 对立教宗出缺：对立一边的枢机另推一位
-#if EC_PENDING
     private static bool ElectSuccessor(Religion religion, PapalSchismData schism, Realm patron)
     {
         if (patron?.Capital == null) return false;
@@ -435,13 +426,11 @@ public static partial class PapacySystem
         pick.RecordPersonalHistory(text);
         return true;
     }
-#endif
 
     #endregion
 
     #region 服从
 
-#if EC_PENDING
     private static void UpdateObedience(Religion religion, PapalSchismData schism, bool initial)
     {
         Realm rome = ModRealm(Papacy(religion));
@@ -511,7 +500,6 @@ public static partial class PapacySystem
         score += (kingdom.Key * 7919L % 100L) / 100f * 0.6f - 0.3f;
         return score;
     }
-#endif
 
     // 换了服从：另一位教宗下的绝罚作废
     private static void AnnulForeignBan(Realm kingdom, bool rival)

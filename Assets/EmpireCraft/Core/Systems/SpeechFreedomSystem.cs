@@ -102,15 +102,15 @@ public static class SpeechFreedomSystem
     {
         if (city == null || city.IsGone() || !city.HasBookSlots()) return false;
         List<Person> writers = city.People.Where(actor => actor != null && actor.Alive && actor.IsAdult() &&
-                                                         actor.City == city && actor.language != null &&
+                                                         actor.City == city && actor.Language != null &&
                                                          actor.Culture != null && !actor.IsWarMachine())
-            .OrderByDescending(actor => actor.stats["intelligence"]).Take(5).ToList();
+            .OrderByDescending(actor => actor.Stats["intelligence"]).Take(5).ToList();
         // 无小人模式：实体单位只剩名人，从人口里请几位读书人执笔(他们的理念取自人口，著作反映民间思潮)
         if (CityPopulationSystem.AbstractPopulationEnabled)
             for (int i = writers.Count; i < 3; i++)
             {
                 Person scholar = CityPopulationSystem.SpawnScholar(city);
-                if (scholar == null || scholar.language == null || scholar.Culture == null) break;
+                if (scholar == null || scholar.Language == null || scholar.Culture == null) break;
                 writers.Add(scholar);
             }
         if (writers.Count == 0) return false;

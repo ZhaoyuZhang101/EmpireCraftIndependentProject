@@ -183,8 +183,8 @@ public static class FeudalVassalService
         data.feudal_last_control_timestamp = -1d;
         data.feudal_vassal_since = GameClock.Now;
         data.feudal_annex_failed_at = -1d;
-        if (subject.hasAlliance() && lord.hasAlliance() && subject.getAlliance() == lord.getAlliance())
-            subject.getAlliance().leave(subject);
+        if (subject.HasAlliance() && lord.HasAlliance() && subject.GetAlliance() == lord.GetAlliance())
+            subject.GetAlliance().Leave(subject);
         VassalColorService.Apply(subject, lord);
         SyncColors(subject);
         return true;
@@ -244,9 +244,10 @@ public static class FeudalVassalService
         }
         if (subject.HasTakenAlliance()) subject.RemoveTakenAlliance();
         VassalColorService.Apply(subject, lord);
-        if (subject.GetOrCreate().feudal_vassal_level >= 3 && subject.hasAlliance())
-            subject.getAlliance().leave(subject);
+        if (subject.GetOrCreate().feudal_vassal_level >= 3 && subject.HasAlliance())
+            subject.GetAlliance().Leave(subject);
     }
+#endif
 
     private static void SyncColors(Realm lord)
     {
@@ -270,6 +271,7 @@ public static class FeudalVassalService
     public static Realm FindAnnexTarget(Realm lord) => GetDirectVassals(lord)
         .FirstOrDefault(subject => CanAnnex(lord, subject));
 
+#if EC_PENDING
     public static Realm FindPeacefulSubmissionTarget(Realm lord)
     {
         if (lord == null || EmpireWorld.Current?.LiveRealms == null) return null;
@@ -280,7 +282,7 @@ public static class FeudalVassalService
         foreach (Realm subject in EmpireWorld.Current.LiveRealms)
         {
             if (subject == null || subject == lord || !subject.HasRuler() || GetOverlord(subject) != null || !lord.IsNeighbourWith(subject)) continue;
-            int opinion = EmpireWorld.Current.diplomacy?.getOpinion(subject, lord)?.total ?? 0;
+            int opinion = EmpireWorld.Current.Diplomacy?.GetOpinion(subject, lord)?.Total ?? 0;
             if (opinion < 50 || opinion <= bestOpinion) continue;
             if (double.IsNaN(lordPower)) lordPower = GetWarPower(lord, false);
             if (lordPower <= GetWarPower(subject, true) || !CanBind(lord, subject)) continue;
@@ -289,15 +291,15 @@ public static class FeudalVassalService
         }
         return best;
     }
+#endif
 
     public static bool CanJoinAlliance(Realm subject, Alliance alliance)
     {
         Realm lord = GetOverlord(subject);
         if (lord == null) return true;
         return subject.GetOrCreate().feudal_vassal_level == 1 &&
-               (alliance == null || !alliance.kingdoms_hashset.Contains(lord));
+               (alliance == null || !alliance.MemberSet.Contains(lord));
     }
-#endif
 
     public static bool CanIncreaseControl(Realm lord, Realm subject)
     {
@@ -325,7 +327,7 @@ public static class FeudalVassalService
             if (data.feudal_vassal_level == 3)
             {
                 foreach (Realm child in GetDirectVassals(subject).ToList()) Break(child);
-                if (subject.hasAlliance()) subject.getAlliance().leave(subject);
+                if (subject.HasAlliance()) subject.GetAlliance().Leave(subject);
             }
         }
         return true;
@@ -352,7 +354,6 @@ public static class FeudalVassalService
         return !string.IsNullOrEmpty(culture) && InstitutionSystem.HasFeature(culture, InstitutionFeatures.DirectAdministration);
     }
 
-#if EC_PENDING
     public static bool CanAnnex(Realm lord, Realm subject)
     {
         if (lord?.Ruler == null || !lord.Ruler.Alive || GetOverlord(subject) != lord ||
@@ -366,13 +367,11 @@ public static class FeudalVassalService
         double ratio = GetWarPower(lord, false, subject) / Math.Max(1d, GetWarPower(subject, false));
         return ratio >= (HasDirectAdministration(lord) ? CentralizedAnnexPowerRatio : AnnexPowerRatio);
     }
-#endif
 
     // 吞并的成算：控制度越高、实力越悬殊、宗主集权越易成；控制度练满的必成。
     // 基数 0.4 → 0.5(用户 2026-10-21 选"附庸并入加快")：以前一级控制度、实力刚够两倍的只有四成出头，失败了又要等十年
     private const float AnnexChanceBase = 0.5f;
 
-#if EC_PENDING
     public static float AnnexChance(Realm lord, Realm subject)
     {
         var data = subject.GetOrCreate();
@@ -383,6 +382,7 @@ public static class FeudalVassalService
         return Mathf.Clamp(chance, 0.2f, 0.9f);
     }
 
+#if EC_PENDING
     public static bool Annex(Realm lord, Realm subject)
     {
         if (!CanAnnex(lord, subject)) return false;
@@ -423,7 +423,7 @@ public static class FeudalVassalService
         PersonalUnionService.CrownInUnion(subject, lord.Ruler);
         if (subject.Ruler != lord.Ruler) return false;
         Break(subject);
-        subject.updateColor(lord.GetColor());
+        subject.UpdateColor(lord.GetColor());
         if (lord.IsInEmpire()) lord.GetEmpire()?.join(subject, pForce: true);
         else PersonalUnionService.JoinAlliance(lord, subject);
         return true;
@@ -494,7 +494,7 @@ public static class FeudalVassalService
         PersonalUnionService.CrownInUnion(subject, lord.Ruler);
         if (subject.Ruler != lord.Ruler) return false;
         Break(subject);
-        subject.updateColor(lord.GetColor());
+        subject.UpdateColor(lord.GetColor());
         if (lord.IsInEmpire()) lord.GetEmpire()?.join(subject, pForce: true);
         else PersonalUnionService.JoinAlliance(lord, subject);
         return true;
@@ -518,7 +518,6 @@ public static class FeudalVassalService
     private static readonly Dictionary<(long, bool, long), (double power, float at)> WarPowerCache = new();
     private const float WarPowerCacheSeconds = 2f;
 
-#if EC_PENDING
     public static double GetWarPower(Realm kingdom, bool defending, Realm excluded = null)
     {
         if (kingdom == null || kingdom.IsGone()) return 0d;
@@ -552,7 +551,7 @@ public static class FeudalVassalService
             attacker.IsInSameEmpire(target) || RoyalMarriageSystem.Allied(attacker, target) ||
             IsInChain(attacker, target) || IsInChain(target, attacker) || ColonySystem.Bound(attacker, target) ||
             attacker.Ruler != null && attacker.Ruler == target.Ruler ||
-            attacker.hasAlliance() && attacker.getAlliance() == target.getAlliance()) return false;
+            attacker.HasAlliance() && attacker.GetAlliance() == target.GetAlliance()) return false;
         Realm attackerRoot = GetFeudalRoot(attacker);
         Realm targetRoot = GetFeudalRoot(target);
         if (attackerRoot == targetRoot || attackerRoot.IsInSameEmpire(targetRoot)) return false;
@@ -561,16 +560,16 @@ public static class FeudalVassalService
         {
             int level = attacker.GetOrCreate().feudal_vassal_level;
             if (level >= 3) return false;
-            if (level == 2 && (EmpireWorld.Current?.diplomacy?.getOpinion(lord, target)?.total ?? 0) >= 0)
+            if (level == 2 && (EmpireWorld.Current?.Diplomacy?.GetOpinion(lord, target)?.Total ?? 0) >= 0)
                 return false;
         }
-        bool hostile = (EmpireWorld.Current?.diplomacy?.getOpinion(attacker, target)?.total ?? 0) < 0;
+        bool hostile = (EmpireWorld.Current?.Diplomacy?.GetOpinion(attacker, target)?.Total ?? 0) < 0;
         if (!hostile && includeImperialMembers && attacker.IsEmpire())
         {
             Empire empire = attacker.GetEmpire();
             hostile = empire?.kingdoms_list?.Any(member => member != null && !member.IsGone() &&
                 member != attacker && member.IsNeighbourWith(target) &&
-                (EmpireWorld.Current?.diplomacy?.getOpinion(member, target)?.total ?? 0) < 0) == true;
+                (EmpireWorld.Current?.Diplomacy?.GetOpinion(member, target)?.Total ?? 0) < 0) == true;
         }
         // 开战的由头：交恶(好感为负)且强过对方整个附庸体系；对那国王位有继承宣称(见 RoyalMarriageSystem)且实力
         // 不太悬殊；或实力是对方整个附庸体系的两倍以上(以强凌弱，好感再好也会动手)
@@ -579,7 +578,6 @@ public static class FeudalVassalService
         if (RoyalMarriageSystem.HasClaim(attacker, target)) return ours > theirs * 0.8d;
         return ours >= theirs * 2d;
     }
-#endif
 
     public const int DefectorLoyaltyYears = 10;
 
@@ -653,7 +651,6 @@ public static class FeudalVassalService
             subject.GetOrCreate().feudal_defected_at = GameClock.Now;
     }
 
-#if EC_PENDING
     public static bool CanSeekIndependence(Realm subject)
     {
         Realm lord = GetOverlord(subject);
@@ -673,6 +670,7 @@ public static class FeudalVassalService
                GetWarPower(subject, false) > GetWarPower(lord, false, subject);
     }
 
+#if EC_PENDING
     public static bool StartIndependenceWar(Realm subject)
     {
         if (!CanSeekIndependence(subject)) return false;

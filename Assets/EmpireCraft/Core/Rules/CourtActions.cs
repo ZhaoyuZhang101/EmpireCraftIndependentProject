@@ -100,7 +100,6 @@ public static class CourtActions
         minister == null ? null : CourtSystem.Factions(empire).FirstOrDefault(faction => faction.GetLeader() == minister) ??
                                   CourtSystem.Factions(empire).FirstOrDefault(faction => minister.GetFaction() == faction);
 
-#if EC_PENDING
     public static string Appease(Empire empire)
     {
         Person minister = empire?.GetPowerfulMinister();
@@ -113,10 +112,8 @@ public static class CourtActions
         Mark(empire, "minister", "appease");
         return null;
     }
-#endif
 
     // 削权的天平：推力÷阻力
-#if EC_PENDING
     public static float CurbScale(Empire empire, List<ScaleWeight> weights)
     {
         Person minister = empire?.GetPowerfulMinister();
@@ -150,10 +147,8 @@ public static class CourtActions
         if (minister.HasArmy() || CorpsSystem.IsGeneral(minister)) Pull("court_w_minister_army", 1.5f);
         return push / pull;
     }
-#endif
 
     // 削权：成了返回 null(罢黜了 dismissed = true)，否则返回缘由的文字键
-#if EC_PENDING
     public static string Curb(Empire empire, out bool dismissed)
     {
         dismissed = false;
@@ -182,6 +177,5 @@ public static class CourtActions
         if (side != null) CourtSystem.AdjustFaction(empire, side, "grievance", 10f);
         return null;
     }
-#endif
 }
 }

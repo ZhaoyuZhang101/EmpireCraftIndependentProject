@@ -68,7 +68,6 @@ public static class RulerQualitySystem
     #region 即位定性
 
     // 即位时先评资质，再检查功绩；幼主等成年后评一次。中主也记下，不年年重掷。
-#if EC_PENDING
     public static void Assess(Empire empire, Person ruler)
     {
         if (empire?.data == null || ruler?.Record == null || !ruler.Alive) return;
@@ -98,13 +97,13 @@ public static class RulerQualitySystem
     {
         float talent = Mathf.Clamp((ruler.Stats["stewardship"] + ruler.Stats["intelligence"] - 20f) / 10f, -1.5f, 1.5f);
         int balance = 0;
-        foreach (ActorTrait trait in ruler.Traits)
+        foreach (PersonTrait trait in ruler.TraitList)
         {
             // 官位与开国、中兴功绩不是品性，不能反过来抬高资质抽取权重。
-            if (trait.id == RulerTraitSystem.Founder || trait.id == RulerTraitSystem.Restorer ||
-                trait.id == RulerTraitSystem.GreatRestorer) continue;
-            if (trait.type == TraitType.Positive) balance++;
-            else if (trait.type == TraitType.Negative) balance--;
+            if (trait.Id == RulerTraitSystem.Founder || trait.Id == RulerTraitSystem.Restorer ||
+                trait.Id == RulerTraitSystem.GreatRestorer) continue;
+            if (trait.Kind == TraitType.Positive) balance++;
+            else if (trait.Kind == TraitType.Negative) balance--;
         }
         float score = talent * 0.6f + Mathf.Clamp(balance, -3, 3) * 0.3f - PalaceDecay(empire, ruler);
         float up = Mathf.Exp(score), down = Mathf.Exp(-score);
@@ -123,7 +122,6 @@ public static class RulerQualitySystem
         if ((roll -= dissolute) < 0f) return Grade.Dissolute;
         return Grade.Tyrant;
     }
-#endif
 
     private const int EarlyGenerationYears = 60;
 

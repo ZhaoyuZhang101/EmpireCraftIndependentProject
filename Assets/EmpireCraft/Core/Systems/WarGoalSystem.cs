@@ -346,7 +346,6 @@ public static class WarGoalSystem
 
     // 扶立：对方宗室里另一位成年人(不是现任君主)，威望最高的
     // realize：地图上没有时从对方宗室的虚拟族人里落成一位(真要扶立时)；只看有没有人用 HasInstallCandidate
-#if EC_PENDING
     internal static Person InstallCandidate(Realm defender, bool realize = false)
     {
         SpecificClan clan = defender?.Ruler?.GetSpecificClan();
@@ -355,7 +354,6 @@ public static class WarGoalSystem
         Person pick = clan?.AllAliveMembers?.Where(Fit).OrderByDescending(actor => actor.Renown).FirstOrDefault();
         return pick ?? (realize ? KinRoster.RealizeFirst(VirtualInstallCandidates(defender, clan), Fit, 2) : null);
     }
-#endif
 
     // 对方宗室在本国的成年虚拟族人(纯净地图下宗室多不在地图上；以前只数地图上的，宗室在世也"无人可扶立")，年长的在前
     private static IEnumerable<PersonalClanIdentity> VirtualInstallCandidates(Realm defender, SpecificClan clan) =>
@@ -365,17 +363,13 @@ public static class WarGoalSystem
                 .OrderByDescending(person => person.age).ThenBy(person => person.id);
 
     // 有没有人可扶立(连虚拟族人一起看，不落成)
-#if EC_PENDING
     internal static bool HasInstallCandidate(Realm defender) =>
         InstallCandidate(defender) != null ||
         VirtualInstallCandidates(defender, defender?.Ruler?.GetSpecificClan()).Any();
-#endif
 
     // 继承之战兼领不成时退为扶立(见 WarObjective.SettleWin)
-#if EC_PENDING
     internal static bool TryInstall(Realm attacker, Realm defender) =>
         attacker?.Record != null && defender?.Record != null && !defender.IsGone() && !defender.IsEmpire() && Install(attacker, defender);
-#endif
 
     // 立附庸、称臣纳贡排进队列(羁縻、继承不成时的退路，见 WarObjective.SettleWin)
     internal static void QueueVassal(Realm lord, Realm subject)
@@ -383,7 +377,6 @@ public static class WarGoalSystem
         if (lord?.Record != null && subject?.Record != null) PendingVassals.Add((lord.Key, subject.Key));
     }
 
-#if EC_PENDING
     private static bool Install(Realm attacker, Realm defender)
     {
         Person candidate = InstallCandidate(defender, realize: true);
@@ -398,7 +391,6 @@ public static class WarGoalSystem
             candidate.FullName(), defender.GetKingdomName(), former?.FullName() ?? ""), attacker);
         return true;
     }
-#endif
 
     // 扶立之君：二十年内两国互不开战(见 WarGate、WarTargetPatch)
     public static bool Installed(Realm a, Realm b)
@@ -708,7 +700,6 @@ public static class WarGoalSystem
 
     // 发不出军饷的一方求和(见 CorpsSystem.SueForPeace)：攻方罢兵(判和，按双方所得结算，占不到便宜的反赔)；
     // 守方只要条件不过分就认输(按攻方的开战目标结算)。叛乱、独立、争位这类有自己收场的仗、全面战争不在此列
-#if EC_PENDING
     public static bool TrySueForPeace(War war, Realm broke)
     {
         if (war?.Record == null || war.HasEnded() || broke == null || war.IsTotalWar()) return false;
@@ -728,7 +719,6 @@ public static class WarGoalSystem
         EmpireWorld.Current.EndWar(war, WarOutcome.Attackers);
         return true;
     }
-#endif
 
     // 守方认输的代价太大：要吞并、要逼成附庸(帝国不会整个沦为附庸，只赔款)、割地要拿走都城或一半以上的城。
     // 2026-10-21 核对(封建能吞小国)：按兵力定的吞并、迫使附庸现在都要攻方两倍以上，死战落在被两倍兵力压着的国家身上，照旧合理；
@@ -750,7 +740,6 @@ public static class WarGoalSystem
 
     // 正被全面侵略：作为主守方的仗求不了和(对方条件过分，或是叛乱、独立、争位这类)，或在打全面战争，
     // 或是本土帝国(连同成员)抵御异族入侵。欠饷也困兽犹斗
-#if EC_PENDING
     public static bool FightingForSurvival(Realm kingdom)
     {
         if (kingdom == null) return false;
@@ -765,10 +754,8 @@ public static class WarGoalSystem
         }
         return false;
     }
-#endif
 
     // 被迫现代化：败方是帝国中央或独立君主国，战胜方是立宪、共和或现代国家时，按败方丢城多少决定是否被强行改造
-#if EC_PENDING
     private static void Modernize(War war, Realm loser, Realm victor, IEnumerable<Realm> losers, IEnumerable<Realm> victors)
     {
         if (loser?.Record == null || loser.IsGone()) return;
@@ -779,7 +766,6 @@ public static class WarGoalSystem
         bool lostCapital = capital != null && held.Exists(entry => entry.city == capital);
         ConstitutionalEconomySystem.ImposeModernization(empire, victor, held.Count, lostCapital);
     }
-#endif
 
     // 割让攻方占了一半以上的城；吞并且对方丢了一半城或都城时，主守方余下的城一并归主攻方(帝国核心不整体吞并，只割城)
 #if EC_PENDING

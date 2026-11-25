@@ -79,7 +79,6 @@ public static class SyncretismSystem
 #endif
 
     // 朝贡、岁币之国与宗主，同盟各国
-#if EC_PENDING
     private static void LinkTributaries(Action<Religion, Religion, float> link, float weight)
     {
         foreach (Empire empire in ModClass.EMPIRE_MANAGER?.ToList() ?? new List<Empire>())
@@ -97,8 +96,8 @@ public static class SyncretismSystem
         var alliances = new Dictionary<Alliance, List<Religion>>();
         foreach (Realm kingdom in EmpireWorld.Current.LiveRealms)
         {
-            if (kingdom?.Record == null || kingdom.IsGone() || kingdom.IsWild || !kingdom.HasReligion() || !kingdom.hasAlliance()) continue;
-            Alliance alliance = kingdom.getAlliance();
+            if (kingdom?.Record == null || kingdom.IsGone() || kingdom.IsWild || !kingdom.HasReligion() || !kingdom.HasAlliance()) continue;
+            Alliance alliance = kingdom.GetAlliance();
             if (alliance == null) continue;
             if (!alliances.TryGetValue(alliance, out List<Religion> list)) alliances[alliance] = list = new List<Religion>();
             list.Add(kingdom.Religion);
@@ -108,7 +107,6 @@ public static class SyncretismSystem
             for (int j = 0; j < list.Count; j++)
                 if (i != j) link(list[i], list[j], weight);
     }
-#endif
 
     private static void Accumulate(Dictionary<(Religion learner, Religion source), float> contacts, ReligionSyncretismConfig config)
     {

@@ -86,7 +86,6 @@ public static class WarCommandSystem
     }
 
     // 每月(CorpsSystem 月度结算里逐国调用；开战时 WarGoalSystem 也立即调一次)：交战或谋划开战、缺人的补拜；太平了罢去
-#if EC_PENDING
     public static void MonthTick(Realm kingdom)
     {
         if (kingdom?.Record == null || kingdom.IsGone() || ModRealm(kingdom) != kingdom) return;
@@ -123,7 +122,6 @@ public static class WarCommandSystem
         data.war_commander_title = TitleKey(kingdom, MainWar(kingdom));
         Announce(kingdom, pick, LM.Get(data.war_commander_title), "war_commander_appointed");
     }
-#endif
 
     private static void AppointQuartermaster(Realm kingdom)
     {
@@ -223,7 +221,6 @@ public static class WarCommandSystem
     private const float TriumphRenown = 30f;
     private const int TriumphFamousCap = 3;
 
-#if EC_PENDING
     public static void OnWarEnded(War war, WarOutcome winner)
     {
         if (!CorpsSystem.Enabled || war?.Record == null) return;
@@ -262,7 +259,6 @@ public static class WarCommandSystem
             LogService.LogWarning($"[EmpireCraft][凯旋受赏] 结算失败: {exception.Message}");
         }
     }
-#endif
 
     // 本国(帝国中央连同各成员国)军中的兵
     private static float Host(Realm kingdom)

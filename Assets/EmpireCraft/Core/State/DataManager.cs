@@ -471,7 +471,6 @@ public static class DataManager
 #endif
 
     // 没有模组存档、或读不出来：各国按文化定政体(古战模组的国家不归本模组管)
-#if EC_PENDING
     private static void InitialRegimeForAll()
     {
         foreach (var worldKingdom in EmpireWorld.Current.LiveRealms)
@@ -487,7 +486,6 @@ public static class DataManager
             }
         }
     }
-#endif
 
     // 没有模组存档的图(原版图、模组数据丢了)也可能带着混进字表名的起名模板(见 TemplateNameRepair)
 #if EC_PENDING
@@ -919,8 +917,8 @@ public static class DataManager
                 province_name = capital?.GetCityName(),
                 name = name,
                 original_actor_asset = capital?.Realm?.Ruler?.Asset?.Id ?? capital?.Realm?.asset?.id ?? capital?.GetSpecies(),
-                banner_background_id = capital?.Realm?.Record?.banner_background_id ?? 0,
-                banner_icon_id = capital?.Realm?.Record?.banner_icon_id ?? 0,
+                banner_background_id = capital?.Realm?.Record?.BannerBackgroundId ?? 0,
+                banner_icon_id = capital?.Realm?.Record?.BannerIconId ?? 0,
                 founder_kingdom_id = capital?.Realm?.Key ?? -1L,
                 founder_kingdom_name = capital?.Realm?.Name
             });

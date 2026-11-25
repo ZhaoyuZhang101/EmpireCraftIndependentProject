@@ -135,7 +135,6 @@ public static class NomadCycleSystem
 
     // 苏丹身故，新苏丹承袭(见 MilitaryRegency.Succeed)：新苏丹的国与同族的埃米尔不反。
     // 哈里发照旧在位、多已受册封，印度没有那 +8，门槛对它减 8(见 EmirateSystem.InvestitureGap)
-#if EC_PENDING
     public static void OnSultanSucceeded(Empire empire, Person sultan) =>
         Fitna(empire, sultan, "新苏丹承袭", EmirateSystem.InvestitureGap(empire));
 
@@ -185,7 +184,6 @@ public static class NomadCycleSystem
             LogService.LogWarning($"[EmpireCraft][哈里发更替] 结算失败: {exception.Message}");
         }
     }
-#endif
 
     // 会趁哈里发、苏丹更替自立的成员：世袭的埃米尔，或新近并入的别种政体成员；苏丹自己的国、苏丹同族的不反
     private static bool RestiveEmir(Empire empire, Realm member, Person regent)
@@ -381,7 +379,6 @@ public static class NomadCycleSystem
     private const float FarMinTiles = 60f;
     private static readonly Dictionary<long, double> DriftYear = new();
 
-#if EC_PENDING
     public static void UlusDrift(Empire empire)
     {
         if (!IsKhanate(empire) || EmpireWorld.Current == null) return;
@@ -419,7 +416,6 @@ public static class NomadCycleSystem
         EmpireCraft.Core.TranslateHelper.LogEventMessage(content, leaver);
         LogService.LogInfo($"[EmpireCraft][兀鲁思自主] {content}(自主{best:0.0}档，正统{empire.Legitimacy}{(newKhan ? "，新汗" : "")})");
     }
-#endif
 
     // 兀鲁思：游牧政体的成员国(行省、羁縻除外)，有君有都、没在起事、不在入伙宽限里
     private static bool Ulus(Empire empire, Realm member) =>

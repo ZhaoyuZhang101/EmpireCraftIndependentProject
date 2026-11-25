@@ -81,7 +81,6 @@ public static partial class RealmNamingSystem
     }
 
     // 每月(ConstitutionalEconomySystem.Update)：新冒出同名的当即改正；让出过的、已不再有同名的当即复称
-#if EC_PENDING
     public static void Monthly(Empire empire)
     {
         if (!Enabled || EmpireWorld.Current == null || !InContest(empire)) return;
@@ -111,10 +110,8 @@ public static partial class RealmNamingSystem
             LogService.LogWarning($"[EmpireCraft][同名相争] 月查失败: {exception.Message}");
         }
     }
-#endif
 
     // 每年(RealmNamingSystem.Yearly)：本国所用或让出的名
-#if EC_PENDING
     private static void YearlyContest(Empire empire)
     {
         if (!InContest(empire)) return;
@@ -122,11 +119,9 @@ public static partial class RealmNamingSystem
         ResolveName(yielded ? ClaimPrefixOf(empire.data) : PrefixOf(empire.data),
             yielded ? empire.data.title_claim_name : empire.GetEmpireName(), conflictOnly: false);
     }
-#endif
 
     // 一个名(前缀 + 名)的相争；conflictOnly = 只改正眼下同时有几家在用的(不按正统易手换名)；
     // releaseAlone = 让出过的已无同名就当即复称(月查)
-#if EC_PENDING
     public static void ResolveName(string prefix, string name, bool conflictOnly, bool releaseAlone = false)
     {
         if (!Enabled || string.IsNullOrWhiteSpace(name) || ModClass.EMPIRE_MANAGER == null) return;
@@ -182,7 +177,6 @@ public static partial class RealmNamingSystem
         if (holder == null && legit != null && legit.data.title_claim_yielded && CanSwitch(legit))
             Take(legit, name, stamp: true, alone: false);
     }
-#endif
 
     // 据有其一半以上城的那家：争天下之名看整个天下，争帝国法理名看那个帝国法理；恰好各半看天命；没人过半为 null
     private static Empire Legitimate(List<Empire> claimants, EmpireCore core, EmpireCore lead)
@@ -222,7 +216,6 @@ public static partial class RealmNamingSystem
     }
 
     // 让出：改用自家王国法理名(都城所在的，其次主法理)，没有就用美号(以前用都城名，国号成了城名)；与别国重名加方位
-#if EC_PENDING
     private static void Yield(Empire empire, string name, bool stamp)
     {
         string own = OwnName(empire, name, out string grandPrefix);
@@ -251,7 +244,6 @@ public static partial class RealmNamingSystem
         LogService.LogInfo($"[EmpireCraft][同名相争] {before} 未据其半，不得用 {name}，改称 {empire.GetEmpireFullName()}" +
                            (stamp ? "(正统易手)" : "(同名改正)"));
     }
-#endif
 
     // 复称：据有其一半以上，或别家都不用了
     private static void Take(Empire empire, string name, bool stamp, bool alone)
@@ -270,7 +262,6 @@ public static partial class RealmNamingSystem
     }
 
     // grandPrefix：用了美号时带回美号前缀，否则 null
-#if EC_PENDING
     private static string OwnName(Empire empire, string contested, out string grandPrefix)
     {
         grandPrefix = null;
@@ -294,6 +285,5 @@ public static partial class RealmNamingSystem
         grandPrefix = prefix;
         return grand;
     }
-#endif
 }
 }

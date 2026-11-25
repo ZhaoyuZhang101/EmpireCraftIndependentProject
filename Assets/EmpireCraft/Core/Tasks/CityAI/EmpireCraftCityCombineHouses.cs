@@ -85,7 +85,7 @@ public class EmpireCraftCityCombineHouses: GameAICityBase
         }
         FailedAt.Remove(city.Key);
         if (placed.IsUnderConstruction()) return;
-        int spare = city.status.housing_total + asset.HousingSlots - households;
+        int spare = city.Status.HousingTotal + asset.HousingSlots - households;
         foreach (Building house in city.Buildings.ToList())
         {
             if (house == null || house == placed || house.IsOnRemove() || house.Asset.Type != "type_house" ||

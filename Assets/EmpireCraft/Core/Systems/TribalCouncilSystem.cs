@@ -44,7 +44,6 @@ public static class TribalCouncilSystem
         (empire?.data?.tribal_council ?? new List<long>()).Select(id => EmpireWorld.Current.PersonByKey(id))
         .Where(actor => actor?.Record != null && !actor.IsGone() && actor.Alive).ToList();
 
-#if EC_PENDING
     public static void Monthly()
     {
         if (ModClass.EMPIRE_MANAGER == null) return;
@@ -106,7 +105,6 @@ public static class TribalCouncilSystem
     private static bool Eligible(Person actor) =>
         actor?.Record != null && !actor.IsGone() && actor.Alive && actor.IsAdult() && !actor.IsWarMachine() &&
         !actor.IsSkeleton();
-#endif
 
     // 推举计票：每位议事投本部参选的首领(本部几位参选的投分数最高的)；本部的人选不到最贤者分数七成、或本部没人参选的投最贤者。
     // 得票多的在前，票同比禅让的分数

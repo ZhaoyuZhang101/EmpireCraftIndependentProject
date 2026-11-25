@@ -34,7 +34,6 @@ public static partial class HolyRomanSystem
         IsChurchEstate(kingdom) || kingdom?.Record != null &&
         kingdom.GetKingdomType() is KingdomType.Feudalism_papal_state or KingdomType.Feudalism_diocese;
 
-#if EC_PENDING
     private static void MembersYearly(Empire empire, HolyRomanState state)
     {
         RepairEstates(empire);
@@ -43,7 +42,6 @@ public static partial class HolyRomanSystem
         FreeCityTaxes(empire);
         TryPawnFreeCity(empire);
     }
-#endif
 
     // 旧档修补：自由城市、主教领以前税级被设成"无"(一分税收不上)，改回"低"(直接写选项：议会掌握征税权时
     // SetTaxLevel 会被否决，这是修补不是改税)；自由城市的市长被推举为皇帝、整座城成了中央的，中央不再算自由城市
@@ -63,7 +61,6 @@ public static partial class HolyRomanSystem
 
     #region 自由城市
 
-#if EC_PENDING
     private static void TryCharterFreeCity(Empire empire)
     {
         List<Realm> members = Members(empire);
@@ -78,7 +75,6 @@ public static partial class HolyRomanSystem
         City city = HasDiet(empire) ? FreeCityCandidate(empire) : null;
         return city == null ? null : CharterFreeCity(empire, city);
     }
-#endif
 
     // 候选：三城以上的普通成员国(含中央)里，人口最多的非都城
     private static City FreeCityCandidate(Empire empire) =>
@@ -90,7 +86,6 @@ public static partial class HolyRomanSystem
                                                                 !EnfeoffmentHelper.IsRealmCapital(item)))
             .OrderByDescending(item => item.PopulationCount()).FirstOrDefault();
 
-#if EC_PENDING
     public static Realm CharterFreeCity(Empire empire, City city)
     {
         Realm former = city?.Realm;
@@ -103,10 +98,8 @@ public static partial class HolyRomanSystem
         Record(empire, string.Format(LM.Get("hre_free_city_history"), cityName, former.GetKingdomName()));
         return free;
     }
-#endif
 
     // 市民领袖：商人优先，其次城中其他成年人，按威望
-#if EC_PENDING
     private static Person Burgher(City city, Person exclude)
     {
         List<Person> locals = (city.People ?? new List<Person>()).ToList()
@@ -117,10 +110,8 @@ public static partial class HolyRomanSystem
                ?? locals.OrderByDescending(actor => actor.Renown).FirstOrDefault()
                ?? CityPopulationSystem.SpawnOfficial(city, city.Realm);
     }
-#endif
 
     // 一城立为帝国成员：不带法理头衔、用城名，不世袭，不给中央出兵
-#if EC_PENDING
     private static Realm SpinOff(Empire empire, City city, Person ruler, LeaderSelectMethod method, int estate)
     {
         if (ruler.City != city) ruler.JoinCity(city);
@@ -149,7 +140,6 @@ public static partial class HolyRomanSystem
         empire.join(realm, true, true);
         return realm;
     }
-#endif
 
     // 自由城市只给帝国缴税：本城税款照封建成员的分成交中央(见 TreasurySystem.TaxShares)，另每年缴一成年收入。
     // 这一成只从可用资金里出(扣掉安全储备)，不为它动用储备、举债
@@ -204,14 +194,12 @@ public static partial class HolyRomanSystem
 
     #region 教会诸侯
 
-#if EC_PENDING
     private static void TryEndowChurch(Empire empire)
     {
         if (ChurchBlocker(empire) != null || EcRandom.value >= ChurchChance) return;
         City city = ChurchCandidate(empire);
         if (city != null) EndowChurch(empire, city);
     }
-#endif
 
     // 封不出主教领的缘由(年度诊断也用)，能封时为 null。以前要中央五城以上——选帝制下中央就是当选者的自家领国，
     // 多半一到三城，从来封不出(玩家日志 0 次)。现在中央三城以上(封后还剩两城)、帝国合计六城以上即可；
@@ -229,13 +217,11 @@ public static partial class HolyRomanSystem
         return ChurchCandidate(empire) == null ? "中央没有可封的非都城" : null;
     }
 
-#if EC_PENDING
     public static Realm ActEndowChurch(Empire empire)
     {
         City city = HasDiet(empire) && empire.CoreKingdom.Cities.Count >= 2 ? ChurchCandidate(empire) : null;
         return city == null ? null : EndowChurch(empire, city);
     }
-#endif
 
     // 中央的非都城里挑一座不大不小的(最小的那座留给中央)
     private static City ChurchCandidate(Empire empire)
@@ -247,7 +233,6 @@ public static partial class HolyRomanSystem
         return cities.Count > 1 ? cities[1] : cities.FirstOrDefault();
     }
 
-#if EC_PENDING
     public static Realm EndowChurch(Empire empire, City city)
     {
         if (city?.Realm == null || city.Realm.GetEmpire() != empire || city == city.Realm.Capital) return null;
@@ -261,10 +246,8 @@ public static partial class HolyRomanSystem
             cityName, bishop.FullName()));
         return church;
     }
-#endif
 
     // 主教出缺(EmpireCraftKingdomBehCheckKing 在主教领没有君主时调用)：按叙任权另派
-#if EC_PENDING
     public static bool TryAppointBishop(Realm church)
     {
         try
@@ -292,11 +275,9 @@ public static partial class HolyRomanSystem
             return false;
         }
     }
-#endif
 
     // 人选：教会叙任由教廷派(教廷都城里的人)，君主叙任由皇帝派(帝都里的人，同族优先)，政教协约由本地推举；
     // 有教士特质的优先，再按威望
-#if EC_PENDING
     private static Person ChooseBishop(Empire empire, City seat, out string appointer)
     {
         int investiture = PapacySystem.Applies(empire) ? PapacySystem.Investiture(empire) : PapacySystem.InvestitureCrown;
@@ -326,7 +307,6 @@ public static partial class HolyRomanSystem
         }
         return pick ?? CityPopulationSystem.SpawnOfficial(seat, seat.Realm);
     }
-#endif
 
     private static IEnumerable<Person> Candidates(City city) =>
         (city?.People ?? new List<Person>()).ToList().Where(actor => actor?.Record != null && !actor.IsGone() && actor.Alive &&

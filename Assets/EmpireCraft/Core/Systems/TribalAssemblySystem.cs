@@ -77,7 +77,6 @@ public static class TribalAssemblySystem
         return GameClock.MonthOf(now) % 12 == slot || last >= 0d && since >= 13;
     }
 
-#if EC_PENDING
     private static void Assemble(Empire overlord, Realm core, List<Realm> tribes, double now)
     {
         KingdomExtension.KingdomExtraData record = core.GetOrCreate();
@@ -131,16 +130,14 @@ public static class TribalAssemblySystem
             EventRecorder.Record(overlord, string.Format(LM.Get("tribal_defiant_history"), tribe.GetKingdomName(), lord),
                 logKingdom: tribe);
     }
-#endif
 
     // 来朝的概率(公式见类头与常量)；与共主交战的不来
-#if EC_PENDING
     public static float AttendChance(Empire overlord, Realm tribe)
     {
         Realm core = overlord?.CoreKingdom;
         if (core?.Record == null || tribe?.Record == null || tribe.IsAtWarWith(core)) return 0f;
         KingdomExtension.KingdomExtraData data = tribe.GetOrCreate();
-        int opinion = EmpireWorld.Current.diplomacy?.getOpinion(tribe, core)?.total ?? 0;
+        int opinion = EmpireWorld.Current.Diplomacy?.GetOpinion(tribe, core)?.Total ?? 0;
         double corePower = core.GetNationalPower();
         float ratio = corePower > 0d ? (float)(tribe.GetNationalPower() / corePower) : 1f;
         float reach = TribalFissionService.Reach(overlord);
@@ -153,7 +150,6 @@ public static class TribalAssemblySystem
                        (cameLast ? CameBonus : 0f) - Math.Min(missed, 3) * MissedPenalty;
         return Math.Max(MinChance, Math.Min(MaxChance, chance));
     }
-#endif
 
     // 贡金(见 TributeFloor、TributeCap)：户数无小人模式按户，否则按人头
     public static int Tribute(Realm tribe)

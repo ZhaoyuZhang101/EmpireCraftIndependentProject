@@ -9,7 +9,6 @@ public class EmpireCraftKingdomBehCheckTax : GameAIKingdomBase
 {
     public override Type OriginalBeh => GetType();
 
-#if EC_PENDING
     public override BehResult Execute(Realm pKingdom)
     {
         pKingdom.CheckEmpire();
@@ -63,7 +62,6 @@ public class EmpireCraftKingdomBehCheckTax : GameAIKingdomBase
         pKingdom.RecordTaxTime();
         return BehResult.Continue;
     }
-#endif
 
 }
 }

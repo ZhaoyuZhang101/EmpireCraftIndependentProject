@@ -99,7 +99,6 @@ public static class EmpireFormationService
         return failed >= 0 && GameClock.YearsSince(failed) < FailureCooldownYears;
     }
 
-#if EC_PENDING
     public static EmpireFormationRoute GetBestRoute(Realm kingdom)
     {
         if (kingdom == null || kingdom.IsGone() || !kingdom.HasRuler()) return EmpireFormationRoute.None;
@@ -120,11 +119,9 @@ public static class EmpireFormationService
         if (kingdom.IsStrongestEmpireCandidateOfCulture()) return EmpireFormationRoute.SelfProclamation;
         return EmpireFormationRoute.None;
     }
-#endif
 
     // 同文化已有帝国：要比整个帝国(中央连同各成员国)都强才能称帝。以前只和同文化的独立国家比，帝国不算在内，
     // 天下已有大帝国，只占两三省的国家也能自立为帝
-#if EC_PENDING
     private static bool OutmatchedByEmpire(Realm kingdom, string culture)
     {
         if (ModClass.EMPIRE_MANAGER == null) return false;
@@ -143,10 +140,8 @@ public static class EmpireFormationService
         }
         return false;
     }
-#endif
 
     // 承续法统：沿用帝国核心已有的"崛起所需头衔数"，并且都城要在核心法理之内
-#if EC_PENDING
     private static bool MeetsLegitimacy(Realm kingdom)
     {
         EmpireCore core = EmpireCoreManager.GetRiseCandidateCore(kingdom);
@@ -164,7 +159,6 @@ public static class EmpireFormationService
         int controlled = coreCities.Count(city => bloc.Contains(city.Realm));
         return controlled >= (int)Math.Ceiling(coreCities.Count / 2f);
     }
-#endif
 
     // 宗室复国：国王所在宗族曾是某个帝国的皇族，该帝国灭亡不满百年，且宗族眼下没有在统治任何帝国
     private static bool MeetsRestoration(Realm kingdom)
@@ -181,7 +175,6 @@ public static class EmpireFormationService
     }
 
     // 每个法理只计一个独立国家；拥戴者至少四国，候选者须强于核心内所有其他独立国家。
-#if EC_PENDING
     private static bool MeetsAcclamation(Realm kingdom)
     {
         KingdomTitle mainTitle = kingdom.GetMainTitle();
@@ -200,25 +193,21 @@ public static class EmpireFormationService
         return deJurePeers.Count(other => GetOpinion(other, kingdom) > 0) >= 4 &&
                deJurePeers.All(other => bloc.Contains(other) || power > GetBlocPower(other));
     }
-#endif
 
     // 武力霸权：综合国力达到同文化第二强(其他独立国家中最强者)的两倍
-#if EC_PENDING
     private static bool MeetsHegemony(Realm kingdom, List<Realm> rivals)
     {
         if (rivals.Count == 0) return false;
         double second = rivals.Max(GetBlocPower);
         return GetBlocPower(kingdom) >= second * HegemonyRatio;
     }
-#endif
 
     // 共主国与联盟成员都参与称帝实力计算，同一国家只计一次。
-#if EC_PENDING
     public static IEnumerable<Realm> GetBlocMembers(Realm kingdom)
     {
         if (kingdom == null || kingdom.IsGone()) return Enumerable.Empty<Realm>();
-        IEnumerable<Realm> allies = kingdom.hasAlliance()
-            ? kingdom.getAlliance().kingdoms_hashset
+        IEnumerable<Realm> allies = kingdom.HasAlliance()
+            ? kingdom.GetAlliance().MemberSet
             : Enumerable.Empty<Realm>();
         IEnumerable<Realm> coRuled = kingdom.Ruler == null
             ? Enumerable.Empty<Realm>()
@@ -234,14 +223,13 @@ public static class EmpireFormationService
 
     private static bool IsAllianceRepresentative(Realm kingdom, string culture)
     {
-        if (kingdom?.hasAlliance() != true) return true;
-        return !kingdom.getAlliance().kingdoms_hashset.Any(member =>
-            member != null && member != kingdom && member.king?.kingdom == member &&
+        if (kingdom?.HasAlliance() != true) return true;
+        return !kingdom.GetAlliance().MemberSet.Any(member =>
+            member != null && member != kingdom && member.Ruler?.Realm == member &&
             string.Equals(CultureService.GetRealmCulture(member), culture, StringComparison.Ordinal) &&
             MeetsBaseRequirements(member) && !IsInFailureCooldown(member) &&
             KingdomExtension.IsStrongerEmpireCandidate(member, kingdom));
     }
-#endif
 
     // 称帝不服的"外人"怎么挑(用户 2026-11-08 选"真不服 + 同一天下 + 数量上限")。以前是：全世界同文化的独立国里，
     // 凡好感不为正(<= 0)的一律记恨二十年——而 0 正是"从没打过交道"的默认好感，于是隔着半个地球、素昧平生的
@@ -255,7 +243,6 @@ public static class EmpireFormationService
     // 反帝同盟本来就按陆地接壤聚类(见 FormAntiEmpireAlliances)，不受影响。
     private const int MaxOutsideDissenters = 5, MinOutsideDissenters = 3, OutsideDissenterShare = 4;
 
-#if EC_PENDING
     private static List<Realm> PickOutsideDissenters(Realm founder, string culture, List<Realm> already)
     {
         List<Realm> pool = GetSameCultureIndependents(founder, culture);
@@ -270,7 +257,6 @@ public static class EmpireFormationService
         int cap = Math.Min(MaxOutsideDissenters, Math.Max(MinOutsideDissenters, pool.Count / OutsideDissenterShare));
         return picked.Count > cap ? picked.Take(cap).ToList() : picked;
     }
-#endif
 
     // 够得着：与开国者接壤，或同属一个天下；天下算不出来时退回"都城在同一块陆地"
     private static bool WithinProclamationReach(Realm other, Realm founder, EmpireCore realm,
@@ -282,7 +268,6 @@ public static class EmpireFormationService
                theirs.IsSameIsland(seat);
     }
 
-#if EC_PENDING
     private static List<Realm> GetSameCultureIndependents(Realm kingdom, string culture)
     {
         HashSet<Realm> bloc = GetBlocMembers(kingdom).ToHashSet();
@@ -295,8 +280,7 @@ public static class EmpireFormationService
     }
 
     private static int GetOpinion(Realm from, Realm to) =>
-        EmpireWorld.Current?.diplomacy?.getOpinion(from, to)?.total ?? 0;
-#endif
+        EmpireWorld.Current?.Diplomacy?.GetOpinion(from, to)?.Total ?? 0;
 
     // 本文化连续多少年没有帝国。旧档缺少计时记录时，从现存最早的同文化王国追溯。
     public static float GetYearsWithoutEmpire(string culture)
@@ -345,7 +329,6 @@ public static class EmpireFormationService
     #region 筹备期
 
     // 称帝剧情开始前调用：记下路线、开始时间，以及此时同文化比自己强的国家数
-#if EC_PENDING
     public static void BeginPreparation(Realm kingdom, EmpireFormationRoute route)
     {
         KingdomExtension.KingdomExtraData data = kingdom.GetOrCreate();
@@ -360,10 +343,8 @@ public static class EmpireFormationService
         double power = GetBlocPower(kingdom);
         return GetSameCultureIndependents(kingdom, culture).Count(other => GetBlocPower(other) > power);
     }
-#endif
 
     // 称帝剧情的 check_should_continue。返回 false 即剧情中止；只有"筹备失败"才会进入冷却。
-#if EC_PENDING
     public static bool ShouldContinuePreparation(Person actor)
     {
         Realm kingdom = actor?.Realm;
@@ -387,7 +368,6 @@ public static class EmpireFormationService
         FailPreparation(kingdom, actor, reason);
         return false;
     }
-#endif
 
     private static void FailPreparation(Realm kingdom, Person king, string reasonKey)
     {
@@ -444,10 +424,8 @@ public static class EmpireFormationService
             : EmpireCoreManager.GetEmpires(core).FirstOrDefault(empire => empire != null && !empire.IsArchived());
     }
 
-#if EC_PENDING
     public static bool MeetsBaseRequirements(Realm kingdom) =>
         MeetsBaseRequirements(kingdom, requireNonNegativeTreasury: true);
-#endif
 
     // 称帝要先有「帝制」(用户 2026-10-27："把称帝这个决议放到文明科技树里面吧，要研究且满足条件才可以解锁"
     // "每个文化都有自己的称帝条件")：文明分支第四层一个节点，名字与前置按本文化的制度线换(见 TechTree.json 的 by_line)——
@@ -535,7 +513,6 @@ public static class EmpireFormationService
         core?.Record != null && !core.IsGone() && core.IsEmpire() && !PuppetStateSystem.IsPuppet(core) &&
         (FeudalVassalService.GetOverlord(core) != null || core.HasTakenAlliance() || ColonySystem.MetropoleOf(core) != null);
 
-#if EC_PENDING
     private static bool MeetsBaseRequirements(Realm kingdom, bool requireNonNegativeTreasury)
     {
         if (kingdom == null || kingdom.IsGone()) return false;
@@ -571,7 +548,6 @@ public static class EmpireFormationService
         // 主法理(城邦为都城)已属于某个现存帝国的核心时，称帝即为"僭越"：与该帝国并立并互为正统对手
         return true;
     }
-#endif
 
     #endregion
 
@@ -581,8 +557,8 @@ public static class EmpireFormationService
 #if EC_PENDING
     public static void CompleteFormation(Empire empire, Realm founder, EmpireFormationRoute route)
     {
-        Alliance alliance = founder?.hasAlliance() == true ? founder.getAlliance() : null;
-        CompleteFormation(empire, founder, route, alliance, alliance?.kingdoms_hashset?.ToList(),
+        Alliance alliance = founder?.HasAlliance() == true ? founder.GetAlliance() : null;
+        CompleteFormation(empire, founder, route, alliance, alliance?.MemberSet?.ToList(),
             PersonalUnionService.GetRealms(founder?.Ruler));
     }
 
@@ -607,8 +583,8 @@ public static class EmpireFormationService
         var dissenters = new List<Realm>();
         ResolveAllianceMembers(empire, founder, foundingAlliance, allianceMembers, coRuledRealms, dissenters);
         // 帝国与同盟不兼容：成员表态完毕后，开国者原来的同盟立即解散
-        if (foundingAlliance?.Alive == true && foundingAlliance.kingdoms_hashset.Contains(founder))
-            EmpireWorld.Current.alliances.dissolveAlliance(foundingAlliance);
+        if (foundingAlliance?.Alive == true && foundingAlliance.MemberSet.Contains(founder))
+            EmpireWorld.Current.DissolveAlliance(foundingAlliance);
 
         string culture = CultureService.GetRealmCulture(founder);
         dissenters.AddRange(PickOutsideDissenters(founder, culture, dissenters));
@@ -676,19 +652,18 @@ public static class EmpireFormationService
                 empire.GetEmpireName()), kingdomId: member.Key);
         }
     }
+#endif
 
     private static void LeaveFoundingAlliance(Alliance alliance, Realm member)
     {
-        if (alliance?.Alive == true && alliance.kingdoms_hashset.Contains(member))
-            alliance.leave(member);
+        if (alliance?.Alive == true && alliance.MemberSet.Contains(member))
+            alliance.Leave(member);
     }
-#endif
 
     // 不服者中彼此陆地接壤的连成一片，每一片(至少两国)结成一个反帝同盟；已在别的同盟里的不拉入
-#if EC_PENDING
     private static void FormAntiEmpireAlliances(Empire empire, List<Realm> dissenters)
     {
-        var pool = dissenters.Where(kingdom => kingdom != null && kingdom.Alive && !kingdom.hasAlliance())
+        var pool = dissenters.Where(kingdom => kingdom != null && kingdom.Alive && !kingdom.HasAlliance())
             .ToHashSet();
         while (pool.Count > 0)
         {
@@ -708,16 +683,15 @@ public static class EmpireFormationService
                 }
             }
             if (group.Count < 2) continue;
-            Alliance alliance = EmpireWorld.Current.alliances.newAlliance(group[0], group[1]);
+            Alliance alliance = EmpireWorld.Current.NewAlliance(group[0], group[1]);
             if (alliance == null) continue;
             ModAllianceService.Mark(alliance);
-            alliance.setName(string.Format(LM.Get("empire_formation_anti_alliance_name"), empire.GetEmpireName()));
-            foreach (Realm member in group.Skip(2)) alliance.join(member, true, true);
+            alliance.SetName(string.Format(LM.Get("empire_formation_anti_alliance_name"), empire.GetEmpireName()));
+            foreach (Realm member in group.Skip(2)) alliance.Join(member, true, true);
             empire.RecordHistory(directContent: string.Format(LM.Get("empire_formation_anti_alliance"),
                 string.Join("、", group.Select(kingdom => kingdom.GetKingdomName())), empire.GetEmpireName()));
         }
     }
-#endif
 
     private static IEnumerable<Realm> GetLandNeighbours(Realm kingdom)
     {

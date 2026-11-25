@@ -60,23 +60,22 @@ public static class PersonalUnionService
     }
 
     // 由 KingdomPatch 的 setKing 补丁调用：某人名下有两个以上不在帝国里的共主政体王国时，保证它们同盟
-#if EC_PENDING
     public static void OnKingCrowned(Realm kingdom, Person king)
     {
         if (!IsUnionRegime(kingdom) || king == null || king.IsGone()) return;
-        if (kingdom.hasAlliance())
+        if (kingdom.HasAlliance())
         {
-            Alliance existing = kingdom.getAlliance();
+            Alliance existing = kingdom.GetAlliance();
             if (kingdom.GetOrCreate().union_alliance_leader_kingdom_id < 0)
             {
-                foreach (Realm member in existing.kingdoms_hashset.ToList())
+                foreach (Realm member in existing.MemberSet.ToList())
                 {
                     if (member == null || member == kingdom ||
                         member.GetOrCreate().union_alliance_leader_kingdom_id != kingdom.Key || member.Ruler == king ||
                         member.GetOrCreate().union_leader_kingdom_id == kingdom.Key)
                         continue;
                     member.GetOrCreate().union_alliance_leader_kingdom_id = -1L;
-                    existing.leave(member);
+                    existing.Leave(member);
                 }
             }
             else
@@ -85,7 +84,7 @@ public static class PersonalUnionService
                 if (leader?.Ruler != king)
                 {
                     kingdom.GetOrCreate().union_alliance_leader_kingdom_id = -1L;
-                    existing.leave(kingdom);
+                    existing.Leave(kingdom);
                 }
             }
         }
@@ -96,7 +95,6 @@ public static class PersonalUnionService
         foreach (Realm realm in realms.Where(realm => realm != primary)) JoinAlliance(primary, realm);
         NameAllianceAfterLeader(primary);
     }
-#endif
 
     // 由 ActorPatch.Die 前缀在君主去世时调用(此时还能查到他名下的王国)
 #if EC_PENDING
@@ -217,7 +215,7 @@ public static class PersonalUnionService
             if (!leader.HasRuler() || leader.Ruler == null || !leader.Ruler.Alive) return true;
             data.union_leader_kingdom_id = -1L;
             CrownInUnion(kingdom, leader.Ruler);
-            kingdom.updateColor(leader.GetColor());
+            kingdom.UpdateColor(leader.GetColor());
             return true;
         }
         return false;
@@ -236,7 +234,7 @@ public static class PersonalUnionService
         }
         foreach (Realm realm in members)
         {
-            if (realm.hasAlliance()) realm.getAlliance().leave(realm);
+            if (realm.HasAlliance()) realm.GetAlliance().Leave(realm);
             realm.generateColor();
         }
     }
@@ -303,43 +301,41 @@ public static class PersonalUnionService
         }
         return inherited;
     }
+#endif
 
     public static void JoinAlliance(Realm leader, Realm member)
     {
         if (leader == null || member == null || leader == member ||
             leader.IsInEmpire() || member.IsInEmpire() ||
             FeudalVassalService.GetOverlord(member) == leader ||
-            !FeudalVassalService.CanJoinAlliance(member, leader.hasAlliance() ? leader.getAlliance() : null)) return;
-        Alliance leaderAlliance = leader.hasAlliance() ? leader.getAlliance() : null;
-        if (member.hasAlliance())
+            !FeudalVassalService.CanJoinAlliance(member, leader.HasAlliance() ? leader.GetAlliance() : null)) return;
+        Alliance leaderAlliance = leader.HasAlliance() ? leader.GetAlliance() : null;
+        if (member.HasAlliance())
         {
-            if (member.getAlliance() == leaderAlliance)
+            if (member.GetAlliance() == leaderAlliance)
             {
                 if (leader.Ruler != null && leader.Ruler == member.Ruler)
                     member.GetOrCreate().union_alliance_leader_kingdom_id = leader.Key;
                 return;
             }
-            member.getAlliance().leave(member);
+            member.GetAlliance().Leave(member);
         }
-        if (leaderAlliance != null) leaderAlliance.join(member, true, true);
-        else leaderAlliance = EmpireWorld.Current.alliances.newAlliance(leader, member);
+        if (leaderAlliance != null) leaderAlliance.Join(member, true, true);
+        else leaderAlliance = EmpireWorld.Current.NewAlliance(leader, member);
         ModAllianceService.Mark(leaderAlliance);
         if (leader.Ruler != null && leader.Ruler == member.Ruler)
             member.GetOrCreate().union_alliance_leader_kingdom_id = leader.Key;
     }
-#endif
 
     // 同盟直接以盟主国的名字命名(城邦即主城名)，不带"城邦"等后缀
-#if EC_PENDING
     public static void NameAllianceAfterLeader(Realm leader)
     {
-        Alliance alliance = leader != null && leader.hasAlliance() ? leader.getAlliance() : null;
+        Alliance alliance = leader != null && leader.HasAlliance() ? leader.GetAlliance() : null;
         if (alliance == null) return;
         string name = CityStateService.IsCityState(leader) && leader.Capital != null && !leader.Capital.IsGone()
             ? leader.Capital.GetCityName()
             : leader.Name;
-        if (!string.IsNullOrWhiteSpace(name)) alliance.setName(name);
+        if (!string.IsNullOrWhiteSpace(name)) alliance.SetName(name);
     }
-#endif
 }
 }

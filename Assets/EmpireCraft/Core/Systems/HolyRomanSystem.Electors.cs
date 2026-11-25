@@ -85,7 +85,6 @@ public static partial class HolyRomanSystem
     }
 
     // 每年：出缺、授予、兜底
-#if EC_PENDING
     private static void ElectorsYearly(Empire empire, HolyRomanState state)
     {
         EnsureSeats(empire, state);
@@ -112,10 +111,8 @@ public static partial class HolyRomanSystem
         if (Authority(empire) >= ElectorGrantThreshold) GrantElector(empire, state, spend: true);
         else if (years >= ElectorFallbackYears) FallbackElector(empire, state);
     }
-#endif
 
     // 亲近的诸侯：对皇帝好感、同族、皇帝党、城数名次
-#if EC_PENDING
     public static Realm ElectorCandidate(Empire empire)
     {
         HolyRomanState state = State(empire);
@@ -135,10 +132,8 @@ public static partial class HolyRomanSystem
         }
         return pool.OrderByDescending(Score).First();
     }
-#endif
 
     // 授予一席(AI 与神力按钮)：花 15
-#if EC_PENDING
     private static Realm GrantElector(Empire empire, HolyRomanState state, bool spend)
     {
         List<long> seats = Seats(state);
@@ -154,7 +149,6 @@ public static partial class HolyRomanSystem
             empire.Emperor?.FullName() ?? empire.CoreKingdom.GetKingdomName(), pick.GetKingdomName()), history: true);
         return pick;
     }
-#endif
 
     // 兜底：权威不足、久缺不补时按旧例给兵力最强的普通诸侯
     private static void FallbackElector(Empire empire, HolyRomanState state)
@@ -185,7 +179,6 @@ public static partial class HolyRomanSystem
         return true;
     }
 
-#if EC_PENDING
     public static Realm ActGrantElector(Empire empire)
     {
         if (!HasDiet(empire)) return null;
@@ -193,7 +186,6 @@ public static partial class HolyRomanSystem
         EnsureSeats(empire, state);
         return Seats(state).Contains(-1L) ? GrantElector(empire, state, spend: true) : null;
     }
-#endif
 
     public static bool ActStripElector(Empire empire)
     {

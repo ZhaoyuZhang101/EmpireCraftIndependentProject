@@ -139,7 +139,6 @@ public static class SchismSystem
     // 开进程(各路径原本"按机会逐家宣布独立"的地方)：members 是按原有筛选与每家机会选出的不稳成员(换君类已守住单次上限)；
     // gateLegitimacy、gateMalady 是该类的门槛(化解看)；ruler 是这回的新君(新将军、新苏丹)；detail 只进日志。
     // 选不出人不开；已有进程、大分裂冷却里不开(各路径先查过 UpheavalGuard.Blocked，这里再兜一次)
-#if EC_PENDING
     public static bool Begin(Empire empire, int kind, List<Realm> members, int gateLegitimacy, float gateMalady, Person ruler,
         string detail = null)
     {
@@ -178,7 +177,6 @@ public static class SchismSystem
             unstable.Count);
         return true;
     }
-#endif
 
     private static int WarningMonths(int kind) => kind switch
     {
@@ -271,7 +269,6 @@ public static class SchismSystem
     }
 
     // 看"新君在位满三年"的那位：汗位、雄主身后、哈里发、土崩瓦解看皇帝，苏丹、应仁看将军、苏丹；进程里又换了人，从这时起算
-#if EC_PENDING
     private static void TrackRuler(Empire empire)
     {
         EmpireData data = empire.data;
@@ -281,7 +278,6 @@ public static class SchismSystem
         data.schism_ruler_id = id;
         data.schism_ruler_at = ruler == null ? -1d : GameClock.Now;
     }
-#endif
 
     // 化解的缘由(日志用)；不化解返回 null
     private static string Resolution(Empire empire)
@@ -311,7 +307,6 @@ public static class SchismSystem
     }
 
     // 化解：割据的复奉号令，史书记"人心渐定"一类；不记大分裂冷却
-#if EC_PENDING
     private static void Resolve(Empire empire, string reason)
     {
         EmpireData data = empire.data;
@@ -325,10 +320,8 @@ public static class SchismSystem
             Chronicle(empire, kind, "resolved", empire.GetEmpireName(), RulerName(empire, kind), Title(empire, kind), members.Count);
         Clear(empire);
     }
-#endif
 
     // 预警期满：名单上的成员割据
-#if EC_PENDING
     private static void EnterBreakaway(Empire empire)
     {
         EmpireData data = empire.data;
@@ -342,7 +335,6 @@ public static class SchismSystem
         Chronicle(empire, data.schism_kind, "breakaway", empire.GetEmpireName(), RulerName(empire, data.schism_kind),
             Title(empire, data.schism_kind), Names(members), members.Count);
     }
-#endif
 
     #endregion
 
@@ -416,7 +408,6 @@ public static class SchismSystem
 
     // 争位者：割据成员里国力最强的一家(要有君主、都城，没在叛乱)。汗位、雄主身后先挑君主与本朝同宗的；
     // 哈里发先挑阿拉伯政体的(能称对立哈里发)；苏丹、应仁先挑君主够格执政的(不属皇族一系的成年人，见 MilitaryRegency.CanTakeOver)
-#if EC_PENDING
     private static Realm PickClaimant(Empire empire, int kind, List<Realm> rebels)
     {
         SpecificClan royal = empire.EmpireSpecificClan;
@@ -433,7 +424,6 @@ public static class SchismSystem
             .ThenByDescending(kingdom => kingdom.GetNationalPower())
             .FirstOrDefault();
     }
-#endif
 
     // 争位之战每月：争位者已亡或离开帝国，算兵败；中央已不在这场仗里(原中央覆灭、由别家接续)，算争位者胜；满五年强制议和
     private static void ContestMonthly(Empire empire)
@@ -502,7 +492,6 @@ public static class SchismSystem
         .Where(kingdom => kingdom?.Record != null && !kingdom.IsGone()).Sum(kingdom => kingdom.Warriors());
 
     // 战争结束(WarPatch.end_war，在神罗的结算之后)：记中央打赢一仗(化解用)；争位之战的结局
-#if EC_PENDING
     public static void OnWarEnded(War war, WarOutcome winner)
     {
         try
@@ -528,11 +517,9 @@ public static class SchismSystem
             LogService.LogWarning($"{Tag} 战争结束结算失败: {exception.Message}");
         }
     }
-#endif
 
     // 争位之战的结局：攻方胜且争位者还在帝国里——立为新君(新苏丹、新将军)，立不起来按相持分裂；守方胜或争位者已亡、已离开——兵败，
     // 诸部复服(守方胜正统 +5)；议和(满五年强制或中途)——相持分裂，争位者与随攻方的割据成员离开帝国各自独立
-#if EC_PENDING
     private static void Settle(Empire empire, War war, WarOutcome winner)
     {
         EmpireData data = empire.data;
@@ -631,10 +618,8 @@ public static class SchismSystem
         Chronicle(empire, kind, "split", name, person, realm, years, leavers.Count);
         Clear(empire);
     }
-#endif
 
     // 争位者立为新君：汗位、雄主身后、哈里发由争位者的国接任中央；苏丹、应仁由争位者一家执政
-#if EC_PENDING
     private static bool Install(Empire empire, int kind, Realm claimant)
     {
         Person king = claimant.Ruler;
@@ -644,7 +629,6 @@ public static class SchismSystem
         Unflag(claimant, empire);
         return empire.TransferCoreTo(claimant, keepName: true, settledContest: true) && empire.CoreKingdom == claimant;
     }
-#endif
 
     // 进程作罢(争位之战被别处移除之类)：割据的复奉号令；已打过争位之战，照样记冷却
     private static void Abandon(Empire empire, string reason)
@@ -900,11 +884,9 @@ public static class SchismSystem
         LoggedMomentum.Remove(empire.Key);
     }
 
-#if EC_PENDING
     private static Person Ruler(Empire empire, int kind) => kind is Sultan or Onin ? MilitaryRegency.Regent(empire) : empire.Emperor;
 
     private static string RulerName(Empire empire, int kind) => Ruler(empire, kind)?.FullName() ?? "";
-#endif
 
     // 称呼：汗；哈里发(印度称大君)；苏丹(印度称摄政王)；征夷大将军；土崩瓦解不用
     private static string Title(Empire empire, int kind)

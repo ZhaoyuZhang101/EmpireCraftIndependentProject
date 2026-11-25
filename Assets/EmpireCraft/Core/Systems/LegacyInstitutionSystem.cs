@@ -121,7 +121,6 @@ public static class LegacyInstitutionSystem
 
     // 国家文化改了(见 CultureService.SetRealmCulture)：previous 是改之前现用的制度文化；activeReform 是主动易俗(记一笔留给易俗收尾，
     // 见 AnnounceReform)。返回 true = 政体已有着落(旧制犹存，或成员照帝国之制随了核心)，调用方不再按新文化改政体
-#if EC_PENDING
     internal static bool OnRealmCultureChanged(Realm kingdom, string previous, string target, bool activeReform)
     {
         if (kingdom?.Record == null || kingdom.IsGone() || ReferenceEquals(kingdom, _deferred)) return false;
@@ -141,7 +140,6 @@ public static class LegacyInstitutionSystem
                 : "改从的文化不落后，一步改行新制");
         return false;
     }
-#endif
 
     // 易俗改制先改法理(法理会带着国家文化一起改，见 CultureService.RefreshCultureDependents)：这期间这一国的旧制存废不按法理同化定，
     // 留给易俗本身(SetRealmCulture 的 activeReform)
@@ -220,7 +218,6 @@ public static class LegacyInstitutionSystem
 
     // 成员作罢旧制，照帝国之制：国家文化就是帝国的制度文化时清空，否则制度文化记作帝国的(EnumerateAffectedKingdoms 因此带上它，
     // 往后随核心改政体；帝国之制将来落后了，它就成了这个成员的"旧制")；政体当即随核心
-#if EC_PENDING
     private static void FollowEmpire(Realm kingdom, Empire empire, string empireCulture, string legacy, bool announce)
     {
         KingdomExtension.KingdomExtraData data = kingdom.GetOrCreate();
@@ -235,11 +232,9 @@ public static class LegacyInstitutionSystem
         Record(kingdom, string.Format(LM.Get("legacy_institution_follow_history"), kingdom.GetKingdomName(),
             Translate(empireCulture), Translate(legacy)), announce);
     }
-#endif
 
     // 政体随核心(仿 InstitutionSystem.ApplyRegimeChangeCore 对成员的改法，保留成员的外交权与选任)；手选、锁定的不动，
     // 不从成形的政体改回原始政体
-#if EC_PENDING
     private static RegimeType? AlignWithCore(Realm kingdom, Empire empire)
     {
         RegimeType? current = kingdom.GetRegime()?.type;
@@ -257,14 +252,12 @@ public static class LegacyInstitutionSystem
         EmpireCraftKingdomBehCheckKingdomType.SyncKingdomStatus(kingdom);
         return kingdom.GetRegime()?.type;
     }
-#endif
 
     #endregion
 
     #region 年度：新文化追上了、或帝国之制够了，就改行新制
 
     // 登记在城市钩子的年度扫描里(见 CityPatch.WorldYearlyScans"旧制")；只看存着制度文化的国家
-#if EC_PENDING
     public static void TryYearlyScan()
     {
         if (EmpireWorld.Current?.LiveRealms == null || ModClass.IS_CLEAR) return;
@@ -323,7 +316,6 @@ public static class LegacyInstitutionSystem
         if (MemberEmpireOf(kingdom) is Empire empire && EmpireCovers(empire, legacy, out string empireCulture))
             FollowEmpire(kingdom, empire, empireCulture, legacy, kingdom.GetOrCreate().institution_culture_by_reform);
     }
-#endif
 
     // 新文化的制度树还停在原始政体，本国已是成形的政体：再等等(同 TryAdvanceRegimeTransition 不往原始政体改)
     private static bool WouldRegress(Realm kingdom, string culture)
@@ -334,7 +326,6 @@ public static class LegacyInstitutionSystem
     }
 
     // 改行新文化之制：政体按新文化反推(帝国核心照易俗改制的写法重算帝国的制度文化)，手选、锁定的政体不动；记一笔
-#if EC_PENDING
     private static void CatchUp(Realm kingdom, string legacy, string natural)
     {
         KingdomExtension.KingdomExtraData data = kingdom.GetOrCreate();
@@ -354,7 +345,6 @@ public static class LegacyInstitutionSystem
         Record(kingdom, string.Format(LM.Get("legacy_institution_ended_history"), RealmName(kingdom), Translate(natural),
             Translate(legacy)), announce);
     }
-#endif
 
     #endregion
 

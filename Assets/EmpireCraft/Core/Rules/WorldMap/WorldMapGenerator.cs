@@ -2,6 +2,7 @@
 // see Port/manifest.json and Tools/PortTool.
 using Mathf = EmpireCraft.Core.EcMath;
 using Vector2Int = EmpireCraft.Core.EcVector2Int;
+using Vector3 = EmpireCraft.Core.EcVector3;
 using System;
 
 namespace EmpireCraft.Core

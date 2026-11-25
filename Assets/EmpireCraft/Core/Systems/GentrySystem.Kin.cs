@@ -171,7 +171,6 @@ public static partial class GentrySystem
     public static bool KeepsLand(SpecificClan clan) => clan != null && clan.gentry && clan.gentry_kin >= KinRevive;
 
     // 本宗凋尽而族众还在：族中远支记一人入谱为宗子(见 VirtualGenealogySystem.RecordKinsman)
-#if EC_PENDING
     private static bool Revive(SpecificClan clan)
     {
         if (clan.gentry_kin < KinRevive || !CityPopulationSystem.AbstractPopulationEnabled) return false;
@@ -186,7 +185,6 @@ public static partial class GentrySystem
         LogService.LogInfo("[EmpireCraft][世家] " + text);
         return true;
     }
-#endif
 
     #endregion
 

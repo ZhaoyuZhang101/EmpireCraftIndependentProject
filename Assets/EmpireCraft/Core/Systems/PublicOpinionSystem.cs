@@ -236,7 +236,6 @@ public static class PublicOpinionSystem
     // 外国压力：只算执政理念与本国不同、且跟本国接壤或交战的帝国。
     // 通达层算好后(用户 2026-11-06 选"标准"，见 ConnectivitySystem)：接壤的按本国从对方学得到的通达强度(不算电讯)打折，
     // 隔着雪山大漠的压力小；不接壤、通达够 ideology_pressure_min 的(隔着窄海)也算，同样打折；电讯一路照旧另算
-#if EC_PENDING
     private static List<IdeologyPressureSource> ComputePressure(Empire empire, PartyIdeology governing, string culture)
     {
         var result = new List<IdeologyPressureSource>();
@@ -296,7 +295,6 @@ public static class PublicOpinionSystem
         }
         return result.OrderByDescending(source => source.amount).ToList();
     }
-#endif
 
     // 百姓最想要的理念：信众占比 + 外来压力；必须比执政理念的信众更多，且本文化有相应的技术基础
     private static PartyIdeology? PickPreferred(Dictionary<PartyIdeology, int> counts, int total,
@@ -436,7 +434,6 @@ public static class PublicOpinionSystem
         return true;
     }
 
-#if EC_PENDING
     public static bool AcceptPreferred(Empire empire)
     {
         ConstitutionalEconomyState state = State(empire);
@@ -464,10 +461,8 @@ public static class PublicOpinionSystem
         if (election) ParliamentSystem.Update(empire);
         return true;
     }
-#endif
 
     // 玩家下令提前大选(有议会、不是一党制时)
-#if EC_PENDING
     public static bool CallSnapElection(Empire empire)
     {
         ConstitutionalEconomyState state = State(empire);
@@ -476,7 +471,6 @@ public static class PublicOpinionSystem
         ParliamentSystem.Update(empire);
         return true;
     }
-#endif
 
     private static void Announce(Empire empire, string text)
     {

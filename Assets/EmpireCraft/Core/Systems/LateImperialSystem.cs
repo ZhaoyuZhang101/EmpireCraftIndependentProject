@@ -83,7 +83,6 @@ public static class LateImperialSystem
 
     #region 改土归流
 
-#if EC_PENDING
     public static void Yearly(Empire empire)
     {
         Realm core = empire?.CoreKingdom;
@@ -99,7 +98,6 @@ public static class LateImperialSystem
         if (target == null) return;
         Reform(empire, core, extra, target);
     }
-#endif
 
     // 羁縻州与直辖之地(本帝国里不是羁縻的成员或核心)接壤
     private static bool BordersDirectRule(Empire empire, Realm member)
@@ -114,7 +112,6 @@ public static class LateImperialSystem
         return false;
     }
 
-#if EC_PENDING
     private static void Reform(Empire empire, Realm core, KingdomExtension.KingdomExtraData extra, Realm member)
     {
         double now = GameClock.Now;
@@ -139,7 +136,6 @@ public static class LateImperialSystem
         TranslateHelper.LogEventMessage(text, core);
         LogService.LogInfo($"[EmpireCraft][改土归流] {empire.GetEmpireName()} 把 {member.GetKingdomName()} 改为直辖");
     }
-#endif
 
     // 改土归流以后土司旧地不服：当年扣满，十年里渐渐服帖(见 CityStabilitySystem)
     public static float TusiStabilityLoss(City city)

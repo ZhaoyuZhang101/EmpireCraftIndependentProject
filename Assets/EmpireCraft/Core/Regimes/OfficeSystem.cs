@@ -329,7 +329,6 @@ public class OfficeObject
         meta_object is Realm seat && seat.GetOffice() == this && seat.HasHeir() && seat.GetHeir() == actor &&
         seat.GetRegime()?.GetLeaderSelectMethod() == LeaderSelectMethod.Succession;
 
-#if EC_PENDING
     public void SetActor (Person actor)
     {
         // 神圣罗马式选帝制：选出别的成员国的君主时，他带着自家领国成为帝国中央，不调进原中央(见 HolyRomanSystem)
@@ -407,9 +406,9 @@ public class OfficeObject
                 City city =  (City)meta_object;
                 city.SetLeader(actor, true);
                 actor.JoinCity(city);
-                if (city?._city_tile != null)
+                if (city?.SeatCell() != null)
                 {
-                    actor.goTo(city._city_tile);
+                    actor.GoTo(city.SeatCell());
                 }
                 personalId?.SetOfficeName(GetName(city));
                 break;
@@ -422,14 +421,13 @@ public class OfficeObject
                 personalId?.SetOfficeName(GetName(kingdom));
                 kingdom.SetRuler(actor); 
                 actor.JoinCity(kingdom.Capital);
-                if (kingdom?.Capital?._city_tile != null)
+                if (kingdom?.Capital?.SeatCell() != null)
                 {
-                    actor.goTo(kingdom.Capital._city_tile);
+                    actor.GoTo(kingdom.Capital.SeatCell());
                 }
                 break;
         }
     }
-#endif
     public Person GetActor()
     {
         var res = EmpireWorld.Current.PersonByKey(actor_id);

@@ -459,6 +459,67 @@ public static class RulesChecks
         Console.WriteLine("PASS making people (" + checks + " checks): " + made.FullName() + ", " + made.Age());
     }
 
+    // Alliances and what realms have between them: who stands with whom, when two last made peace, good will.
+    public static void Alliances()
+    {
+        checks = 0;
+        var map = FlatGenerator.Generate(256, 128, "EMPIRE-ALLIES", TerrainPreset.Continents, default);
+        var w = Start(map); w.Activate();
+        Realm a = w.LiveRealms[0], b = w.LiveRealms[1], c = w.LiveRealms[2], d = w.LiveRealms[3];
+        Check(!a.HasAlliance() && a.GetAlliance() == null && !w.AnyAlliances() && w.NewAlliance(a, a) == null, "nobody is allied at first");
+        var league = w.NewAlliance(a, b);
+        Check(league != null && league.Alive && league.Key == 0 && league.Founder == a && league.Members.SequenceEqual(new[] { a, b }) && a.GetAlliance() == league && b.HasAlliance() &&
+              w.AnyAlliances() && w.AllianceByKey(0) == league && league.Name == a.Name + "与" + b.Name + "之盟" && league.KindOfEntity == EntityKind.Alliance, "two realms found an alliance");
+        Check(w.NewAlliance(a, c) == null && w.StartWar(a, b) == null && !a.IsAtWarWith(b), "an allied realm founds no second alliance; allies do not go to war");
+        Check(league.Join(c, true, true) && league.Join(c) && league.Members.Count == 3 && c.Alliance == league && league.MemberSet.Contains(c), "a third realm joins, once");
+        var war = w.StartWar(d, a);
+        Check(war != null && !league.Join(d) && !d.HasAlliance() && w.NewAlliance(d, a) == null, "a realm at war with a member cannot join");
+        Check(w.Diplomacy.GetOpinion(a, d).Total == Diplomacy.WarOpinion && !a.IsOpinionGood(d) && w.Diplomacy.GetOpinion(a, b).Total == Diplomacy.AllyOpinion && a.IsOpinionGood(b) &&
+              w.Diplomacy.GetOpinion(b, d).Total == 0 && b.IsOpinionGood(d) && w.Diplomacy.GetOpinion(a, a) == null && w.Diplomacy.GetOpinion(a, b).Results.Count == 1, "good will: allies yes, enemies no, strangers neutral");
+        Check(w.Diplomacy.GetRelation(a, d).LastWarEnded < 0 && ReferenceEquals(w.Diplomacy.GetRelation(a, d), w.Diplomacy.GetRelation(d, a)) && w.Diplomacy.GetRelation(a, a) == null, "one relation for a pair of realms");
+        Run(w, 1); w.EndWar(war);
+        Check(w.Diplomacy.GetRelation(a, d).LastWarEnded == w.Month && w.Diplomacy.GetRelation(a, d).Record.LastWarEnded == war.EndedMonth && w.Diplomacy.GetRelation(b, d).LastWarEnded < 0, "peace is remembered by the two who made it");
+        var bytes = EmpireSave.Encode(w); var loaded = EmpireSave.Decode(bytes, w.Map);
+        var again = loaded.Alliances[0];
+        Check(EmpireSave.Encode(loaded).SequenceEqual(bytes) && again.Alive && again.Members.Select(r => r.Id).SequenceEqual(league.Members.Select(r => r.Id)) && loaded.Realms[c.Id].Alliance == again &&
+              loaded.LiveAlliances.Count == 1 && loaded.Diplomacy.GetRelation(loaded.Realms[a.Id], loaded.Realms[d.Id]).LastWarEnded == war.EndedMonth && again.Name == league.Name, "alliances and remembered peace survive the save");
+        Check(EmpireSave.Decode(EmpireSave.Encode(w, 6), w.Map).Alliances.Count == 0, "a version-6 section loads without alliances");
+        league.Leave(c); league.Leave(c);
+        Check(league.Alive && league.Members.Count == 2 && !c.HasAlliance() && league.PastMembers.Contains(c) && EmpireInvariants.Check(w).Count == 0, "a member leaves");
+        league.Leave(b);
+        Check(!league.Alive && !a.HasAlliance() && !b.HasAlliance() && !w.AnyAlliances() && w.AllianceByKey(0) == null && league.Members.Count == 0 && league.EndedMonth == w.Month &&
+              w.Annals.Entries.Count(e => e.Kind == AnnalKind.AllianceFormed) == 1 && w.Annals.Entries.Count(e => e.Kind == AnnalKind.AllianceEnded) == 1, "an alliance of one is none");
+        w.DissolveAlliance(league);
+        var second = w.NewAlliance(c, d); var seat = d.Capital;
+        foreach (var city in d.Cities.ToArray()) WorldOps.TransferCity(w, city, a);
+        Check(second != null && !d.Alive && !second.Alive && !c.HasAlliance() && EmpireInvariants.Check(w).Count == 0 && Annals.Format(w, w.Annals.Entries.Last(e => e.Kind == AnnalKind.AllianceFormed)).Contains("结盟"), "a realm that ends leaves its alliance");
+        Realm keeper = w.LiveRealms[0]; uint was = keeper.Color; var next = Palette.Realms.GetNextColor(); keeper.UpdateColor(next); keeper.UpdateColor(null);
+        Check(keeper.Color == next.Main.Rgb && keeper.GetColor().Id == next.Id && Palette.Titles.ColorFor(5).Id == Palette.Titles.ColorFor(5).Id && Palette.Titles.ColorFor(5).Id != Palette.Titles.ColorFor(6).Id &&
+              Palette.Realms.GetNextColor().Id == next.Id, "a realm takes a new colour; the same key and the same state of the world give the same colour");
+        var status = keeper.Capital.Status;
+        Check(status.Population == keeper.Capital.PopulationCount() && status.PopulationAdults + status.PopulationChildren == status.Population && status.HousingTotal == keeper.Capital.GetPopulationMaximum() &&
+              status.HousingFree + status.HousingOccupied == status.HousingTotal && status.WarriorsCurrent == keeper.Capital.Warriors() && ReferenceEquals(keeper.Capital.Status, status) &&
+              keeper.Capital.Language == null && !keeper.Ruler.HasLanguage() && keeper.Ai.Task == null, "a city's headline numbers follow from its population, land and guards");
+        keeper.Ai.SetTask("do_something"); var notes = new CustomDataContainer<bool>(); notes["flag"] = true;
+        Check(keeper.Ai.Task == "do_something" && notes["flag"] && !notes["other"] && notes.Keys.Count == 1, "a realm's routine and named values");
+        Realm e = w.LiveRealms[0], f = w.LiveRealms[1]; var quarrel = w.StartWar(e, f); var other = new War { MainAttacker = f, MainDefender = e };
+        Check(quarrel != null && w.HasWars(e) && w.WarsOf(e).Contains(quarrel) && w.WarsOf(null).Count == 0 && quarrel.IsSameAs(other) && !quarrel.IsSameAs(quarrel) && e.RulingClanKey == e.RulingClan.Key &&
+              e.RulingClanKey.HasValue() && !(-1L).HasValue(), "the wars of a realm; the same quarrel whichever side attacked");
+        w.EndWar(quarrel);
+        var ruler = e.Ruler; ruler.AddTrait("wise"); ruler.AddTrait("cruel"); TraitKinds.Clear(); TraitKinds.Set("wise", TraitType.Positive);
+        var walked = ruler.TraitList;
+        Check(walked.Count == 2 && walked[0].Id == "cruel" && walked[1].Kind == TraitType.Positive && walked[0].Kind == TraitType.Other && ruler.Subspecies == null && !ruler.IsProfessionCitizen &&
+              ruler.GenerateName(EntityKind.Person, 3) != null && ruler.GenerateName(EntityKind.Clan, 3) != null && ruler.GenerateName(EntityKind.War, 3) == null && e.RulingClan.GetColor() != null, "a person's traits as objects; names by kind");
+        TraitKinds.Clear();
+        var pool = new ListPool<Person>(e.People); var numbers = new List<long> { 1, 2, 3 }; numbers.Swap(0, 2); numbers.Swap(0, 9);
+        EcRandom.Seed(7, 7); int dice = PersonSorts.AttributeDice(ruler, 3);
+        Check(pool.Count == e.People.Count && PersonSorts.SeniorOf(pool) == pool.OrderBy(p => p.BirthMonth).ThenBy(p => p.Id).First() && numbers[0] == 3 && numbers[2] == 1 && dice >= 0 && dice <= 10 + ruler.Intelligence + ruler.Stewardship &&
+              PersonSorts.AttributeDice(null, 1) == 0 && ((EcVector2)(EcVector3)new EcVector2(3f, 4f)).y == 4f && EcVector3.Distance(new EcVector3(0f, 0f), new EcVector3(3f, 4f)) == 5f, "seniority, a roll that favours the able, a list for a while, vectors");
+        pool.Dispose();
+        EmpireWorld.Current = null;
+        Console.WriteLine("PASS alliances (" + checks + " checks)");
+    }
+
     // The grid as the ported systems see it: cells, terrain, a city's territory and neighbours.
     public static void Grid()
     {

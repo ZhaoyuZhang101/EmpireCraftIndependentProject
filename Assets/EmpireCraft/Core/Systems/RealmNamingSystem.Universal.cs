@@ -267,7 +267,6 @@ public static partial class RealmNamingSystem
     private static readonly HashSet<long> RetroChecked = new();
 
     // 每年(RealmNamingSystem.Yearly)
-#if EC_PENDING
     private static void YearlyUniversal(Empire empire)
     {
         // 没有普世之名还挂着神圣的(旧档、别处授的)、不是那个唯一教会的、多出来的：神圣去掉(见 PapacySystem.HolyBlocker、HolyStays)
@@ -335,7 +334,6 @@ public static partial class RealmNamingSystem
         }
         if (state.universal_via != ViaDecree) CheckLapse(empire, state);
     }
-#endif
 
     // 帝位空缺(见文件头③)：连续 LapseYears 年不复为天下之主(StillPrimate)才收回；不再由教宗年年收回、转授更强的一家
     private static void CheckLapse(Empire empire, PapalRelationState state)

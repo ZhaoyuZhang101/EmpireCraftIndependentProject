@@ -131,7 +131,6 @@ public static class CultureService
     // 君主改从本国之俗(用户 2026-10-27："为什么皇帝的个人文化会直接改变政体，这不合理，应该根据国家文化反向影响皇帝个人")：
     // 外族出身的君主(联姻、入继、外姓议立、受封……)即位，他本人改从本国(征服王朝的帝国核心看统治文化)之俗——只改本人的文化、
     // 名字的写法，不改姓、不动宗族别的人；国家的文化、政体不随君主个人变(见 Empire.CreateNewEmpire)
-#if EC_PENDING
     public static void AssimilateRuler(Realm kingdom, Person ruler)
     {
         if (kingdom?.Record == null || kingdom.IsGone() || ruler?.Record == null || ruler.IsGone() ||
@@ -149,7 +148,6 @@ public static class CultureService
         ruler.GetModName()?.SetName(ruler);
         LogService.LogInfo($"[EmpireCraft][君主从俗] {kingdom.GetKingdomName()} 新君 {ruler.FullName()} {own} → {culture}");
     }
-#endif
 
     // allowLegacyInstitutions：换成文明等级更低的文化时旧制犹存(见 LegacyInstitutionSystem)，政体不按新文化改；
     // 叛乱自立、征服王朝、神力改俗、归化改制传 false(不保留，原有的旧制也一并作罢)。立国不满一年的新国
@@ -157,7 +155,6 @@ public static class CultureService
     // previousInstitutionCulture：调用方在改动帝国文化之前先取下的制度文化(易俗改制先改了帝国的文化再改国家)；空则在这里取。
     // activeReform：主动易俗——"仍沿旧制"由易俗收尾时记进世界日志(见 LegacyInstitutionSystem.AnnounceReform)；
     // 其余(法理同化、原版改文化、称帝改从君主之俗)只记本帝国史书与诊断
-#if EC_PENDING
     public static bool SetRealmCulture(Realm kingdom, string culture, bool updatePoliticalSystem = false,
         bool allowLegacyInstitutions = true, string previousInstitutionCulture = null, bool activeReform = false)
     {
@@ -186,17 +183,15 @@ public static class CultureService
         Culture nativeCulture = ResolveNativeCulture(culture, kingdom.Ruler, canCreateNativeCulture);
         if (nativeCulture != null)
         {
-            CulturePatch.SyncCultureDisplayName(nativeCulture, culture);
+            Cultures.SyncName(nativeCulture, culture);
             if (kingdom.Culture != nativeCulture) kingdom.SetCulture(nativeCulture);
         }
         if (updatePoliticalSystem && !keepLegacy) ApplyCulturePoliticalSystem(kingdom, culture);
         return changed;
     }
-#endif
 
     // 叛乱自立的新国取当地主文化(用户 2026-10-19 选"可和平同化、留少数族群"；以前取领头人个人的文化——异族守将、
     // 移民据城自立，整个新国就成了异族)；分封、分治、建国等别的立国照旧取立国者的文化。新立之国没有旧制可沿
-#if EC_PENDING
     public static void ApplyLocalCulture(Realm kingdom, City seat)
     {
         if (kingdom?.Record == null || kingdom.IsGone() || seat?.Record == null || seat.IsGone()) return;
@@ -204,7 +199,6 @@ public static class CultureService
         if (!IsValidCulture(local) || string.Equals(local, GetRealmCulture(kingdom), StringComparison.Ordinal)) return;
         SetRealmCulture(kingdom, local, updatePoliticalSystem: true, allowLegacyInstitutions: false);
     }
-#endif
 
     // 固定法理文化开着时(或立国之地的法理锁定了文化)，新国取立国之地(都城，没有都城取立国者所在的城)的官方文化，
     // 不取立国者本人的——以前异族守将、外来宗室受封、外族新君称帝，整个国家连同它的帝国法理就改成了外族文化
@@ -216,7 +210,6 @@ public static class CultureService
     // preferDeJure：新立的国家(KingdomPatch.NewCivKingdom)按立国之城的法理文化定文化与政体，没有法理才看立国者本人
     // (玩家反馈"新建立的国家有些会不根据本地法理建议政体"，用户 2026-10-21 选"按立国之城的法理文化"：以前一律按立国者，
     // 外族官员在别的文化的法理上自立，政体跟着他本人走)；称帝不走这条，征服王朝照旧保留征服者的文化(见 CompositeEmpireService)
-#if EC_PENDING
     public static void ApplyFounderCulture(Realm kingdom, Person founder, bool preferDeJure = false)
     {
         if (kingdom?.Record == null || founder == null) return;
@@ -237,7 +230,6 @@ public static class CultureService
         if (!IsValidCulture(culture)) return;
         SetRealmCulture(kingdom, culture, updatePoliticalSystem: true);
     }
-#endif
 
     private static bool IsRegimeAvailable(RegimeType regimeType)
     {
@@ -266,7 +258,6 @@ public static class CultureService
     //     开局各文化还在原始政体，这些国家就一直是律令制(玩家 2026-10-22 反馈"全图律令制")。
     //     读进来的旧档要等补记完制度才判断(见 TechnologySystem.AwaitingRegimeBackfill)。
     // 正常改革、手动指定、共和锁定、复合帝国的区域制度、水土改制另有规则，都不动
-#if EC_PENDING
     public static void RepairDefaultRegime(Realm kingdom)
     {
         if (kingdom?.Record == null || kingdom.IsGone() ||
@@ -291,13 +282,11 @@ public static class CultureService
             empire.data.centerOffice.Init(kingdom);
         LogService.LogInfo($"[EmpireCraft] 修复国家 {kingdom.Key} 的默认值政体: {polluted} -> {data.regimeType}，绑定文化 {culture}");
     }
-#endif
 
     // 汉化的行政区(剧本设的都护府：安西、北庭、单于……，见 KingdomExtraData.admin_name)还在设它的那个帝国里：朝廷派驻的军政机构，
     // 政体随帝国核心(律令制下是都护府)，不算默认值污染。已被改成阿拉伯、游牧政体的(叛去时照本地文化改了，请降复服回来；
     // 旧档里开局就被改了的，成了疏勒苏丹国、北庭汗国；用户 10-30 "我的安西都护府依旧没有这个行政区")改回来、补上行政授权。
     // 是这样的行政区返回 true(不再往下判)
-#if EC_PENDING
     private static bool KeepProtectorate(Realm kingdom, KingdomExtension.KingdomExtraData data)
     {
         if (string.IsNullOrWhiteSpace(data.admin_name) || kingdom.IsEmpire() || kingdom.GetEmpire()?.Key != data.admin_empire) return false;
@@ -319,7 +308,6 @@ public static class CultureService
         LogService.LogInfo($"[EmpireCraft] 都护府 {kingdom.Key} 政体随帝国核心: {before} -> {coreRegime.type}");
         return true;
     }
-#endif
 
     private static bool LineDeclares(string culture, RegimeType regime)
     {
@@ -425,7 +413,6 @@ public static class CultureService
     /// <summary>
     /// 由该国国王决议执行：把国家的 realm_culture 与政体正式转变为目标文化/政体。
     /// </summary>
-#if EC_PENDING
     public static bool ConvertKingdomRegime(Realm kingdom, string targetCulture, RegimeType targetRegimeType)
     {
         if (kingdom?.Record == null || kingdom.IsGone() || !IsValidCulture(targetCulture) ||
@@ -439,7 +426,6 @@ public static class CultureService
         TranslateHelper.LogKingdomRegimeConversion(kingdom, previousRegimeType, targetRegimeType);
         return true;
     }
-#endif
 
     public static string GetEmpireDefaultCulture(Empire empire)
     {
@@ -871,14 +857,13 @@ public static class CultureService
         data.culture_shares[culture] = 100f;
     }
 
-#if EC_PENDING
     public static void MigrateWorldCultureData()
     {
         if (EmpireWorld.Current == null) return;
         if (EmpireWorld.Current.Cultures != null)
         {
             foreach (Culture culture in EmpireWorld.Current.Cultures)
-                CulturePatch.SyncCultureDisplayName(culture);
+                Cultures.SyncName(culture);
         }
         foreach (EmpireCore core in EmpireCoreManager.EmpireCores.Values)
         {
@@ -899,7 +884,6 @@ public static class CultureService
             RepairDefaultRegime(kingdom);
         }
     }
-#endif
 
     public static string GetMainCulture(City city, bool initialize = true)
     {
@@ -1259,17 +1243,15 @@ public static class CultureService
     /// 现场按目标文化生成一个新地名（纯生成，不落地保存也不修改任何对象状态），
     /// 找不到该文化的任何存活单位可供借用时返回 null。人名要传性别(不传原版随手定男女，男丁会取成女名)。
     /// </summary>
-#if EC_PENDING
     public static string GenerateCulturalName(EntityKind metaType, long id, string culture, Sex sex = Sex.None)
     {
         Person templateActor = FindCultureTemplateActor(culture);
         if (templateActor == null) return null;
         string generated;
-        try { generated = templateActor.generateName(metaType, id, sex); }
+        try { generated = templateActor.GenerateName(metaType, id, sex); }
         catch { return null; }
         return string.IsNullOrWhiteSpace(generated) ? null : generated;
     }
-#endif
 
     public static string GetCityCulturalName(City city, string culture)
     {
@@ -1302,7 +1284,6 @@ public static class CultureService
     /// 应该用什么名字——历史里已经存过就恢复，没存过就现生成一个新的（同时也记录进历史，
     /// 这样以后同一种文化再次成为主流时可以直接复用）。只做解析，不修改 city 本身。
     /// </summary>
-#if EC_PENDING
     public static bool ResolveCulturalCityName(City city, string fromCulture, string toCulture,
         out string resolvedName, out bool restored)
     {
@@ -1327,7 +1308,6 @@ public static class CultureService
         resolvedName = generated;
         return true;
     }
-#endif
 
     /// <summary>
     /// SetCityMainCulture 的联动：解析新文化该用的名字并真的改到 city 身上，
@@ -1398,7 +1378,6 @@ public static class CultureService
     /// 历史里存过就恢复，没存过就借首都城市现生成一个新的（同时记录进历史）。
     /// 只做解析，不修改 title 本身。
     /// </summary>
-#if EC_PENDING
     private static void ResolveCulturalTitleName(KingdomTitle title, string fromCulture, string toCulture,
         out string resolvedTitleName, out bool titleRestored,
         out string resolvedProvinceName, out bool provinceRestored)
@@ -1451,13 +1430,11 @@ public static class CultureService
             }
         }
     }
-#endif
 
     /// <summary>
     /// ConvertTitleCulture 的联动：解析并应用头衔名/省份名的文化对应名字，
     /// 分别按恢复/新生成打世界提示；解析不出就保留原名不动。
     /// </summary>
-#if EC_PENDING
     private static void ApplyCulturalTitleRename(KingdomTitle title, string previousCulture, string newCulture)
     {
         if (title?.data == null) return;
@@ -1490,7 +1467,6 @@ public static class CultureService
                     isProvince: true);
         }
     }
-#endif
 
     public static float GetCultureShare(City city, string culture)
     {

@@ -77,7 +77,6 @@ public static partial class CourtSystem
     }
 
     // 皇帝方略：一派独大则制衡；威权不足又有宠信的派系则偏宠；有派系怨望过高而皇帝威权足则打压；否则亲政
-#if EC_PENDING
     private static (string strategy, string target) ChooseStrategy(Empire empire, List<FixedFaction> factions)
     {
         (Person _, string role) = Decider(empire);
@@ -95,7 +94,6 @@ public static partial class CourtSystem
         if (angry != null && (legitimacy >= 70 || empire.Emperor.HasTrait("paranoid"))) return ("suppress", angry.GetID());
         return ("personal", "");
     }
-#endif
 
     private static void SetStrategy(Empire empire, CourtState state, string strategy, string target)
     {
@@ -108,7 +106,6 @@ public static partial class CourtSystem
     // 批红的人变了(幼主成年亲政、新君即位、权臣倒台，或反过来皇帝失势)：方略当月改定，不等年度结算。
     // 以前方略一年才定一次，成年的皇帝亲政后还挂着"摄政"，最长一年(年度结算那时帝位虚悬就更久)。
     // 只改方略本身，圣眷的增减仍按年度结算
-#if EC_PENDING
     private static void RefreshStrategyOnRuleChange(Empire empire, CourtState state)
     {
         if (string.IsNullOrEmpty(state.strategy) || empire.Emperor == null) return;
@@ -143,7 +140,6 @@ public static partial class CourtSystem
             data.grievance = Mathf.Clamp(data.grievance, 0f, 100f);
         }
     }
-#endif
 
     #endregion
 
@@ -384,7 +380,6 @@ public static partial class CourtSystem
 
     // 内阁由皇帝任命(幼主、傀儡时由权臣/议程官按同样规则补缺)：人数随皇帝治理能力，
     // 缺额按"才干 + 所属派系圣眷 + 方略"取人；首辅出缺由得分最高的阁臣接任。
-#if EC_PENDING
     public static void MaintainCabinet(Empire empire)
     {
         if (empire?.CoreKingdom?.GetRegime() == null) return;
@@ -425,10 +420,8 @@ public static partial class CourtSystem
                 Log(State(empire), "court_log_new_leader", best.FullName(), best.GetFaction()?.Name ?? LM.Get("label_none"));
         }
     }
-#endif
 
     // 一年一次按方略换一人：制衡时拆掉占过半阁席的派系的一席，偏宠时给宠信派系一席
-#if EC_PENDING
     private static void ReshuffleCabinet(Empire empire, CourtState state)
     {
         List<Person> members = empire.GetCabinetMembers();
@@ -459,7 +452,6 @@ public static partial class CourtSystem
         if (!empire.AddCabinetMember(pick)) return;
         Log(state, "court_log_reshuffle", drop.FullName(), pick.FullName(), pick.GetFaction()?.Name ?? LM.Get("label_none"));
     }
-#endif
 
     // 阁席数随皇帝治理能力(3~15 线性对应 1~满员)
     public static int CabinetSize(Empire empire)
@@ -485,7 +477,6 @@ public static partial class CourtSystem
 
     public static float Competence(Person actor) => actor == null ? 0f : actor.Stewardship + actor.Intelligence;
 
-#if EC_PENDING
     public static float AppointScore(Empire empire, Person actor, List<Person> members, int size)
     {
         CourtState state = State(empire);
@@ -512,7 +503,6 @@ public static partial class CourtSystem
         }
         return score;
     }
-#endif
 
     // 内阁吏治：阁臣才干均值高于 20 时逐年压低中央腐败，低于时推高(每年最多 ±2%)
     public static float CabinetEfficiency(Empire empire)

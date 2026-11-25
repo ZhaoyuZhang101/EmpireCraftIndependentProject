@@ -42,7 +42,6 @@ public static class WarSituation
 
     // 主动开战比的实力：国力(人口、财力、军力综合，见 GetNationalPower)，平时军团只留常备兵、按兵数比不出谁强谁弱；
     // 帝国算中央连同各成员国
-#if EC_PENDING
     public static double Power(Realm kingdom)
     {
         if (kingdom?.Record == null || kingdom.IsGone()) return 0d;
@@ -52,17 +51,14 @@ public static class WarSituation
 
     public static double Power(Empire empire) =>
         empire?.kingdoms_list?.Where(member => member != null && !member.IsGone()).Sum(member => member.GetNationalPower()) ?? 0d;
-#endif
 
     // 忙不过来，不再开新仗：手上已有两场仗，或正被全面侵略(以前只要在打任何一场仗——平叛、边境冲突——就不提对外用兵)
     // 正为一场定了策的仗集结着(见 WarMuster)也算：这一场打起来之前不再提新的
-#if EC_PENDING
     public static bool TooBusyForWar(Realm kingdom) => Overstretched(kingdom) || WarMuster.Mustering(kingdom);
 
     public static bool Overstretched(Realm kingdom) =>
         kingdom?.Record == null || kingdom.IsGone() ||
         kingdom.GetWars().Count(war => war?.Record != null && !war.HasEnded()) >= 2 || WarGoalSystem.FightingForSurvival(kingdom);
-#endif
 
     public static void RecordParticipant(War war, Realm kingdom)
     {

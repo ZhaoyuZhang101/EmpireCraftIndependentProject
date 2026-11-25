@@ -883,7 +883,6 @@ public static partial class EmpireLawSystem
 
     // 要人死于人手(BiographySystem.RecordKiller)：同一朝的人、两边又不在交战，下手的人记一桩未发之罪——杀了本朝君主记谋反，
     // 别的记杀人(十恶)，日后年审查出来按律论处；打仗阵前杀的不算(用户 2026-11-10 "都杀了皇室的亲人了这罪名呢")
-#if EC_PENDING
     public static void OnNotableKilled(Person victim, Person killer)
     {
         if (!Enabled || victim?.Record == null || killer?.Record == null || killer.IsGone() || !killer.Alive || killer == victim) return;
@@ -902,7 +901,6 @@ public static partial class EmpireLawSystem
             LogService.LogWarning($"[律法][实事] 给 {killer.FullName()} 记{crime}失败: {exception.Message}");
         }
     }
-#endif
 
     // 不打仗的拥兵自立(据地自专、自立为汗、各自为汗、对立国王相持离去、投靠外国、改投入侵者、飞地自立……)：
     // 记在离去那一国的君主身上。各处在确认已离开帝国后调用(用户 2026-11-10 "接着做"自立的判定)

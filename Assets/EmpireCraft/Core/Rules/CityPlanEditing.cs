@@ -620,7 +620,7 @@ public static class CityPlanEditing
         if (urban != null)
             return (urban.Count, urban.Count * CityZoningSystem.SlotsPerZone(city), houses, CityZoningSystem.HousesMax(city));
         int zones = Facts(city)?.TownZones ?? 0;
-        return (zones, zones * CityZoningSystem.SlotsNormal, houses, city.status?.houses_max ?? 0);
+        return (zones, zones * CityZoningSystem.SlotsNormal, houses, city.Status?.HousesMax ?? 0);
     }
 #endif
 

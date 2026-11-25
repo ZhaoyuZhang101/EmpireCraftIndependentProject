@@ -1427,7 +1427,6 @@ public static class UnificationSystem
 #endif
 
     // 举国并入统一者：结束两家的战争，对方(帝国连同各成员国)所有的城逐帧移交
-#if EC_PENDING
     private static void Annex(Realm unifier, Realm foe, War war, string historyKey)
     {
         string name = foe.GetKingdomName();
@@ -1448,7 +1447,6 @@ public static class UnificationSystem
         int cities = members.Sum(member => WarGoalSystem.QueueAnnex(member, unifier));
         if (cities > 0) Record(unifier, historyKey, name, unifier.GetKingdomName());
     }
-#endif
 
     // 每年一行诊断(看周期律对不对)：各天下的阶段、前三家占比、统一者第几年；各王朝的年岁、积弊、弊病、正统、开国气象
     private static void Diagnose(List<ModRealm> realms)

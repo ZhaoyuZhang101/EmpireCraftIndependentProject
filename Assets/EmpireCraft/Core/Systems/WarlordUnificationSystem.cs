@@ -285,7 +285,7 @@ public static partial class WarlordEraSystem
                                       FeudalVassalService.GetOverlord(holder) != founderKingdom &&
                                       !holder.IsEnemy(founderKingdom) && !InTruce(founderKingdom, holder, founder) &&
                                       Borders(holder, founder) &&
-                                      (founderKingdom.getAlliance() == null || holder.getAlliance() != founderKingdom.getAlliance()))
+                                      (founderKingdom.GetAlliance() == null || holder.GetAlliance() != founderKingdom.GetAlliance()))
                      .OrderBy(holder => held[holder]).ToList())
         {
             if (wars >= MaxFounderWars || Random.value >= FounderWarChance) break;
@@ -371,7 +371,7 @@ public static partial class WarlordEraSystem
 #if EC_PENDING
     private static bool InTruce(Realm kingdom, Realm target, Empire government) =>
         government?.given_Kingdoms != null && government.given_Kingdoms.Contains(target) ||
-        GameClock.YearsSince(EmpireWorld.Current.diplomacy.getRelation(kingdom, target).data.timestamp_last_war_ended) <
+        GameClock.YearsSince(EmpireWorld.Current.Diplomacy.GetRelation(kingdom, target).Record.LastWarEnded) <
         SimGlobals.m.minimum_years_between_wars;
 #endif
 
@@ -430,7 +430,7 @@ public static partial class WarlordEraSystem
         if (holder.GetEmpire() == central)
         {
             holder.GetOrCreate().ideology_country_suffix = "";
-            holder.updateColor(centralKingdom.GetColor());
+            holder.UpdateColor(centralKingdom.GetColor());
             EmpireCraft.Core.EmpireCraftKingdomBehCheckKingdomType.SyncKingdomStatus(holder);
             return true;
         }

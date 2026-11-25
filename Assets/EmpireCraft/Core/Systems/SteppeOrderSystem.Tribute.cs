@@ -71,7 +71,6 @@ public static partial class SteppeOrderSystem
 #endif
 
     // 赏赐断了：不再称臣
-#if EC_PENDING
     private static void Renounce(Realm kingdom, SteppeState state)
     {
         Empire lord = kingdom.GetTakenAllianceEmpire();
@@ -83,7 +82,6 @@ public static partial class SteppeOrderSystem
             kingdom, lord.CoreKingdom);
         LogService.LogInfo($"{LogTag} {kingdom.GetKingdomName()} 赏赐断绝，不再向{lord.GetEmpireName()}称臣");
     }
-#endif
 
     // 手头紧的游牧政权向接壤的强盛定居帝国称臣
 #if EC_PENDING

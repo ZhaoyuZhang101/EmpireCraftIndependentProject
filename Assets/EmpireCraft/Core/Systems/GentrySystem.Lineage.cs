@@ -25,7 +25,6 @@ public static partial class GentrySystem
         SpecificClanManager.LineageClans(clan).Where(other => other != null && other != clan && !Ruling.Contains(other))
             .OrderByDescending(other => other.LivingPeople.Count);
 
-#if EC_PENDING
     private static void TryAdopt(SpecificClan clan, List<PersonalClanIdentity> living)
     {
         if (!CityPopulationSystem.AbstractPopulationEnabled ||
@@ -44,7 +43,6 @@ public static partial class GentrySystem
         NoteClan(clan, "clan_history_gentry_adopt", text);
         LogService.LogInfo("[EmpireCraft][世家] " + text);
     }
-#endif
 
     // 本宗凋尽：支脉承嗣；返回是否有支承了
     private static bool BranchSucceeds(SpecificClan clan)

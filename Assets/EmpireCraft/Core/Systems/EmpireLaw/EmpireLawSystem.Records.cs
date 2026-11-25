@@ -161,7 +161,6 @@ public static partial class EmpireLawSystem
     #region 牢狱
 
     // 收押(由 ApplyImprisonment 调)。封国国君、天子下狱只去官，不收押(收押会让他失去君位)
-#if EC_PENDING
     private static void Imprison(LawEnforcementContext context)
     {
         Person actor = context?.Person;
@@ -187,7 +186,6 @@ public static partial class EmpireLawSystem
         LawRealmState state = GetRealmState(context.Realm, true);
         if (state != null && !state.prisoners.Contains(identity.id)) state.prisoners.Add(identity.id);
     }
-#endif
 
     private static bool ServedOut(LawImprisonment imprisonment) =>
         imprisonment == null || imprisonment.since < 0d || EmpireWorld.Current == null ||

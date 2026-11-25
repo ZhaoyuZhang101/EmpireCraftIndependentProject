@@ -13,7 +13,7 @@ using System.Threading.Tasks;
 namespace EmpireCraft.Core
 {
 
-public class EmpireManager : RecordStore<Empire, EmpireData>
+public partial class EmpireManager : RecordStore<Empire, EmpireData>
 {
     private readonly List<Empire> _empiresToProcess = new();
 
@@ -101,7 +101,6 @@ public class EmpireManager : RecordStore<Empire, EmpireData>
 
     // 存续检查分几帧做完、整轮查完才解散：查的那一帧判了空壳，到解散时中央还在、有城、还挂着本帝国编号的不解散
     // (出过世界地图开局一个月大明被当空壳解散：解散时中央明明 59 城、还归大明)；修一遍，记下当时各项供查
-#if EC_PENDING
     private static bool CoreStillHolds(Empire empire)
     {
         Realm core = empire.CoreKingdom;
@@ -110,7 +109,6 @@ public class EmpireManager : RecordStore<Empire, EmpireData>
         EmpireCraft.Core.EmpireLossDiagnostics.OnDissolveSkipped(empire, repaired);
         return true;
     }
-#endif
 
     // 到月开一轮：整理同盟、正统对手这些全局的当帧做完，各帝国排队(见 CheckLiveness)
 #if EC_PENDING
@@ -278,7 +276,6 @@ public class EmpireManager : RecordStore<Empire, EmpireData>
     // silent：静默撤去(旧档里一部自立的部落帝国，部落不再是帝国，见 TribalFissionService.DissolveSettledTribes)——
     // 不记已亡帝国名录、不收进史书、不记皇族亡国与"本文化无帝国"的计时、不留解散诊断；进行中的制度改革照样交回核心王国；
     // 只属于它自己的帝国法理(空出来的 EmpireCore，见 OwnsCoreAlone)一并销毁
-#if EC_PENDING
     public void dissolveEmpire(Empire pEmpire, bool continued = false, bool silent = false)
     {
         if (pEmpire == null) return;
@@ -313,7 +310,6 @@ public class EmpireManager : RecordStore<Empire, EmpireData>
         // 冻结法理时另立的帝国法理常常是空的：帝国没了就不留空壳(有法理的留着等后来者)
         if (ModClass.KINGDOM_TITLE_FREEZE) TribalFissionService.DropEmptyCore(falseCore);
     }
-#endif
 
     // 帝国的科技采纳并进核心王国(本国没记过的整份交回；记过的补上已采纳的，采纳中的取进度大的)
     private static void HandBackRealmTech(Empire empire)
@@ -368,18 +364,16 @@ public class EmpireManager : RecordStore<Empire, EmpireData>
         return zones;
     }
 
-#if EC_PENDING
     public override void AddObject(Empire pObject)
     {
         base.AddObject(pObject);
-        EmpireWorld.Current.Zones?.setDrawnZonesDirty();
+        EmpireWorld.Current.Zones?.MarkDirty();
     }
     public override void RemoveObject(Empire pKingdom)
     {
         base.RemoveObject(pKingdom);
-        EmpireWorld.Current.Zones?.setDrawnZonesDirty();
+        EmpireWorld.Current.Zones?.MarkDirty();
     }
-#endif
     
     public void RemoveArchivedEmpire(Empire pEmpire)
     {
@@ -417,29 +411,30 @@ public class EmpireManager : RecordStore<Empire, EmpireData>
     // 不能把它当成"同文化已有帝国"而拒绝建立继承者。
     // 成员国、分封国沿用帝国的颜色；它后来自立成帝国(分裂、皇族延续如"南唐"、正统对手)时会和原帝国同色，
     // 地图上连成一片分不清。两个现存帝国同色时，给较晚成立的一方换一个颜色
-#if EC_PENDING
+#if EC_REPLACED // written by hand for this game: see Assets/EmpireCraft/Core/Seams
     public static void EnsureDistinctColor(Empire empire)
     {
         Realm core = empire?.CoreKingdom;
-        if (core?.Record == null || core.IsGone() || ModClass.EMPIRE_MANAGER == null) return;
+        if (core?.data == null || core.IsGone() || ModClass.EMPIRE_MANAGER == null) return;
         foreach (Empire other in ModClass.EMPIRE_MANAGER.ToList())
         {
             if (other == null || other == empire || other.IsGone() || other.IsArchived() ||
-                other.CoreKingdom?.Record == null || other.CoreKingdom.IsGone()) continue;
-            if (other.CoreKingdom.Record.color_id != core.Record.color_id) continue;
+                other.CoreKingdom?.data == null || other.CoreKingdom.IsGone()) continue;
+            if (other.CoreKingdom.data.color_id != core.data.color_id) continue;
             Empire younger = other.data.timestamp_established_time > empire.data.timestamp_established_time
                 ? other
                 : empire;
             Realm kingdom = younger.CoreKingdom;
-            PersonKind asset = kingdom.Ruler?.Asset ?? kingdom.People?.FirstOrDefault(unit => unit != null)?.Asset;
+            PersonKind asset = kingdom.king?.asset ?? kingdom.units?.FirstOrDefault(unit => unit != null)?.asset;
             if (asset == null) return;
             Tint next = kingdom.getColorLibrary()?.getNextColor(asset);
             if (next == null) return;
             kingdom.updateColor(next);
-            younger.updateColor(kingdom.GetColor());
+            younger.updateColor(kingdom.getColor());
             return;
         }
     }
+#endif
 
     public Empire NewEmpire(Realm pKingdom, bool isSplit = false,
         bool allowCultureRival = false, bool forceNewCore = false, Empire replacingEmpire = null,
@@ -474,7 +469,7 @@ public class EmpireManager : RecordStore<Empire, EmpireData>
             return null;
         }
         empire.addFounder(pKingdom);
-        empire.updateColor(pKingdom.GetColor());
+        empire.UpdateColor(pKingdom.GetColor());
         EnsureDistinctColor(empire);
         empire.data.timestamp_given_time = GameClock.Now;
         // 立国时间(开国气象 Empire.InFoundingGrace 用)
@@ -510,7 +505,6 @@ public class EmpireManager : RecordStore<Empire, EmpireData>
         
         return empire;
     }
-#endif
 
     // 空着的帝国法理接手(记录不动)，被别的现存帝国占着就另立(冻结法理时只记无主的法理，见 EmpireCoreManager.TitlesForNewCore)
     // bindCore：称帝时指定绑哪个帝国法理(据有法理，见 RealmNamingSystem.PlanDominionBinding)
@@ -623,7 +617,6 @@ public class EmpireManager : RecordStore<Empire, EmpireData>
                && actor.IsFitToRule();
     }
 
-#if EC_PENDING
     public bool forceEmpire(Realm pKingdom1, Realm pKingdom2)
     {
         if (EmpireCraft.Core.AncientWarfareCompatibility.BlocksEmpireFormation(pKingdom1) ||
@@ -652,6 +645,7 @@ public class EmpireManager : RecordStore<Empire, EmpireData>
         }
         return result;
     }
+#if EC_PENDING
     public Sprite[] getBackgroundsList()
     {
         if (_cached_banner_backgrounds == null)

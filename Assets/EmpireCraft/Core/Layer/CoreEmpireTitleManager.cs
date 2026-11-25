@@ -340,7 +340,6 @@ public static class EmpireCoreManager
 
     // 读档修复：0.4.7Beta1 称帝前补立的首府法理只收了都城，帝国法理、天下都只剩一块地。
     // 现存帝国本国还没有法理的城并进主法理(主法理须在本帝国法理里)，只动无法理的城，不改既有法理
-#if EC_PENDING
     public static int RepairUntitledCoreCities()
     {
         if (ModClass.EMPIRE_MANAGER == null || ModClass.KINGDOM_TITLE_MANAGER == null) return 0;
@@ -358,7 +357,6 @@ public static class EmpireCoreManager
         if (added > 0) LogService.LogInfo($"[EmpireCraft][法理] 帝国本国无法理的城已并入主法理 {added} 座");
         return added;
     }
-#endif
 
     public static List<Empire> GetEmpires(EmpireCore core)
     {
@@ -417,15 +415,13 @@ public static class EmpireCoreManager
         return null;
     }
 
-#if EC_PENDING
     public static bool GenerateColor(EmpireCore core)
     {
         KingdomTitle colorTitle = GetColorTitle(core);
         if (colorTitle == null) return false;
-        colorTitle.generateColor();
+        colorTitle.GenerateColor();
         return true;
     }
-#endif
 
     public static string GetCultureDisplayName(EmpireCore core)
     {

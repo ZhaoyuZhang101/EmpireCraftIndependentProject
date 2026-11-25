@@ -134,7 +134,6 @@ public static partial class PapacySystem
 
     #region 发端
 
-#if EC_PENDING
     private static void TrySpark(Religion religion)
     {
         List<Religion> reformations = Reformations(religion);
@@ -186,7 +185,6 @@ public static partial class PapacySystem
         if (reformer.IsRuler() && reformer.Realm == host) kind = OriginPrince;
         FoundReformedChurch(religion, best, reformer, kind);
     }
-#endif
 
     // 能起改革、改宗的国：不是教宗国、主教领，不握圣地
     private static bool ReformableRealm(Realm kingdom) =>

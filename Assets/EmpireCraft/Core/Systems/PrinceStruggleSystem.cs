@@ -282,7 +282,6 @@ public static class PrinceStruggleSystem
 #endif
 
     // 换上新君(照宫廷政变的做法：旧君离位，新君坐上君主官职)
-#if EC_PENDING
     private static void Install(Empire empire, Person successor, string note)
     {
         Realm core = empire.CoreKingdom;
@@ -296,7 +295,6 @@ public static class PrinceStruggleSystem
         }
         else core.SetRuler(successor);
     }
-#endif
 
     private static void Record(Empire empire, string text, Person actor)
     {

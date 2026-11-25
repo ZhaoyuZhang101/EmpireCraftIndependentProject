@@ -83,7 +83,6 @@ public static class SouthernGarrisonSystem
 #endif
 
     // 核心以外的成员改为世袭藩镇；直隶(京畿)、羁縻、正在叛乱的、不是律令制的不动
-#if EC_PENDING
     public static void Enfeoff(Empire empire)
     {
         if (!Formed(empire)) return;
@@ -117,7 +116,6 @@ public static class SouthernGarrisonSystem
         EventRecorder.Record(empire, text, empire.Emperor, empire.CoreKingdom);
         LogService.LogInfo($"[EmpireCraft][南明诸镇] {empire.GetEmpireFullName()} 改藩镇 {converted.Count} 家：{string.Join("、", converted)}");
     }
-#endif
 
     // 诸镇火并
 #if EC_PENDING
@@ -166,11 +164,11 @@ public static class SouthernGarrisonSystem
         if (!Alive(target) || target == attacker || target.Capital == null || target.Capital.IsGone() ||
             !attacker.IsNeighbourWith(target) || attacker.IsAtWarWith(target) || Feuding(target)) return false;
         if (attacker.Ruler != null && attacker.Ruler == target.Ruler) return false;
-        if (attacker.hasAlliance() && attacker.getAlliance() == target.getAlliance() || RoyalMarriageSystem.Allied(attacker, target))
+        if (attacker.HasAlliance() && attacker.GetAlliance() == target.GetAlliance() || RoyalMarriageSystem.Allied(attacker, target))
             return false;
-        double ended = EmpireWorld.Current.diplomacy.getRelation(attacker, target)?.data?.timestamp_last_war_ended ?? -1d;
+        double ended = EmpireWorld.Current.Diplomacy.GetRelation(attacker, target)?.Record?.LastWarEnded ?? -1d;
         if (ended >= 0d && GameClock.YearsSince(ended) < SimGlobals.m.minimum_years_between_wars) return false;
-        bool hostile = (EmpireWorld.Current.diplomacy.getOpinion(attacker, target)?.total ?? 0) < 0;
+        bool hostile = (EmpireWorld.Current.Diplomacy.GetOpinion(attacker, target)?.Total ?? 0) < 0;
         return hostile || attacker.GetNationalPower() >= target.GetNationalPower() * FeudPowerRatio;
     }
 #endif
@@ -218,7 +216,7 @@ public static class SouthernGarrisonSystem
         EmpireCraft.Core.EmpireLawSystem.NoteSecession(garrison);
         // 归了入侵者，随那边的颜色
         garrison._cached_color = null;
-        garrison.updateColor(conqueror.GetColor());
+        garrison.UpdateColor(conqueror.GetColor());
         EmpireCraftKingdomBehCheckKingdomType.SyncKingdomStatus(garrison);
         EmpireWorld.Current.Zones?.MarkDirty();
         string text = string.Format(LM.Get("southern_garrison_surrender_history"), garrison.GetKingdomName(), invader.GetKingdomName(),

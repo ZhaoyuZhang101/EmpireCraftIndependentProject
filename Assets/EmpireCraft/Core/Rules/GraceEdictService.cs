@@ -92,7 +92,6 @@ public static class GraceEdictService
 #endif
 
     // 次子们各得一城：立为只用城市名的小封国，不带法理头衔，同样世袭、归属帝国
-#if EC_PENDING
     private static bool CreateCityFief(Empire empire, Regime parentRegime, City city, Person son)
     {
         if (city == null || city.IsGone() || EnfeoffmentHelper.IsRealmCapital(city)) return false;
@@ -138,7 +137,6 @@ public static class GraceEdictService
             fief.SetRuler(heir);
         }
     }
-#endif
 
     public static bool IsActive(Empire empire) =>
         empire != null && !empire.IsGone() && !empire.IsArchived() && InstitutionSystem.HasFeature(empire, InstitutionFeatures.GraceEdict);
@@ -174,6 +172,7 @@ public static class GraceEdictService
             }
         }
     }
+#endif
 
     private static Person FindClanSuccessor(Empire empire, Person king)
     {
@@ -195,7 +194,6 @@ public static class GraceEdictService
                    .OrderByDescending(actor => actor.Age()).FirstOrDefault() ??
                KinRoster.RealizeAdultKin(king.GetSpecificClan(), realm => realm?.GetEmpire() == empire, IsAvailable);
     }
-#endif
 
     private static void Record(Empire empire, Realm kingdom, string key, params object[] args)
     {

@@ -115,7 +115,6 @@ public static class LandEconomySystem
         return regime != null && RegimeManager.AllowsLandlordClass(regime.type);
     }
 
-#if EC_PENDING
     public static void OpenPrivateLandMarket(Realm kingdom, bool redistribute, bool revolutionary)
     {
         if (kingdom == null || kingdom.IsGone()) return;
@@ -151,6 +150,7 @@ public static class LandEconomySystem
         if (population != null) population.background_landless = 0f;
     }
 
+#if EC_PENDING
     public static void UpdateCity(City city)
     {
         if (city == null || city.IsGone() || city.Realm == null || city.Realm.IsGone()) return;
@@ -312,6 +312,7 @@ public static class LandEconomySystem
         if (members.Any(actor => actor.GetOrCreate().socialClass == SocialClass.Labour)) return SocialClass.Labour;
         return SocialClass.Peasant;
     }
+#endif
 
     public static void MarkPeasantSocialRebellion(War war, Realm rebel, Realm origin, City originCity,
         float landlessRatio, string cause)
@@ -367,7 +368,6 @@ public static class LandEconomySystem
             rebelData.peasant_land_rebellion_origin_kingdom_id = -1L;
         }
     }
-#endif
 
     private static CityExtension.CityExtraData EnsureData(City city)
     {
@@ -713,13 +713,13 @@ public static class LandEconomySystem
         if (destination == null) return;
         foreach (Person actor in landless.Value.ToList()) actor.JoinCity(destination);
     }
+#endif
 
     private static void RefreshClasses(City city)
     {
         foreach (Person actor in city.People?.Where(IsLivingResident).ToList() ?? new List<Person>())
-            actor.SetSocialClass(ActorAI.EmpireCaftActorJudgeClass.JudgeClass(actor));
+            actor.SetSocialClass(EmpireCaftActorJudgeClass.JudgeClass(actor));
     }
-#endif
 
     // 城市无地农民占人口的比例(土地买卖未开放时为 0)，供理念传播等使用
     public static float GetLandlessRatio(City city) => CalculateLandlessPopulationRatio(city);
@@ -882,7 +882,6 @@ public static class LandEconomySystem
     // 开国均田：新帝国立国(开国气象期)或改朝换代后开国君主在位期间，辖下每座城(含后来打下、归附的城)
     // 平均一次地权，此后 RebellionCooldownYears 年内不再爆发农民起义。
     // 每朝每城只均一次(land_reform_key)；土地买卖未开放的城没有土地兼并，只记下标记与冷却。
-#if EC_PENDING
     private static void TryFoundingLandReform(City city)
     {
         Empire empire = city.Realm?.GetEmpire();
@@ -897,7 +896,6 @@ public static class LandEconomySystem
         if (IsLandMarketOpen(city.Realm)) RedistributeLand(city);
         data.last_land_rebellion_timestamp = GameClock.Now;
     }
-#endif
 
     // 一个政权(在帝国里就按整个帝国)各城无地农民比例的平均，按年缓存
     private static readonly Dictionary<long, (double time, float ratio)> RealmLandlessCache = new();

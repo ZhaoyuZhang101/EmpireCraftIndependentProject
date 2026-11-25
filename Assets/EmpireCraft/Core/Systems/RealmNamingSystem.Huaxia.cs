@@ -103,7 +103,6 @@ public static partial class RealmNamingSystem
     }
 
     // 定国号(Empire.SelectFoundingEmpireName 调用；返回 null 照旧规则)。西方只管称帝剧情来的(route 不为 None)
-#if EC_PENDING
     public static EmpireFoundingNameChoice SelectFoundingName(Empire empire, Realm kingdom, EmpireCore riseCore,
         EmpireFormationRoute route)
     {
@@ -113,7 +112,6 @@ public static partial class RealmNamingSystem
         // 华夏的选号顺序见 RealmNamingSystem.Founding(称帝剧情以外的建国——绝嗣裂土、挑战称帝等——也走)
         return SelectHuaxiaName(empire, kingdom, riseCore, route);
     }
-#endif
 
     // 西方(方案第 5 步)：称帝即用本帝国的帝国法理名——要绑的现成帝国法理空闲就用它的名；要新建法理的照旧(主法理名，新法理随之得名)
     private static EmpireFoundingNameChoice SelectWesternName(Empire empire, EmpireCore riseCore)
@@ -210,7 +208,6 @@ public static partial class RealmNamingSystem
     }
 
     // 称帝之后(称帝剧情落定)：与现存帝国同号的当即按同名相争改正(见 RealmNamingSystem.Contest)
-#if EC_PENDING
     public static void AfterProclaimed(Empire empire)
     {
         if (!Enabled || empire?.data == null || empire.CoreKingdom == null || !IsHuaxia(empire)) return;
@@ -218,7 +215,6 @@ public static partial class RealmNamingSystem
         if (empire.data.name_source != SourceEmpireTitle && empire.data.name_source != SourceRestoration) return;
         ResolveName(PrefixOf(empire.data), empire.GetEmpireName(), conflictOnly: true);
     }
-#endif
 
     private static readonly Dictionary<long, string> PendingAncestral = new();
 

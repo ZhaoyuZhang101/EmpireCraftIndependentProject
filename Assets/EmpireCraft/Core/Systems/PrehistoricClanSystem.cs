@@ -238,7 +238,6 @@ public static class PrehistoricClanSystem
 
     // 身份变了(即位)：周制、只有贵族称姓的时代，名字上显不显示姓随身份走，名字却是起名时定的——平民起名时无氏，
     // 当上君主照旧只称名(玩家 2026-10-21 反馈"有的皇帝掉姓")。重起一次名按新身份补上
-#if EC_PENDING
     public static void RefreshShownSurname(Person actor)
     {
         if (actor?.Record == null || EraOf(TechnologySystem.GetCultureOf(actor)) is not (SurnameEra.ZhouShi or SurnameEra.EliteOnly)) return;
@@ -246,10 +245,8 @@ public static class PrehistoricClanSystem
         if (name == null || !name.hasFamilyName(actor)) return;
         name.SetName(actor);
     }
-#endif
 
     // 每年(科技年度结算时)看本文化的姓氏时代变没变，变了就把本文化在世的人重新起一次名
-#if EC_PENDING
     public static void YearlyCheck(string culture)
     {
         if (string.IsNullOrEmpty(culture) || EmpireWorld.Current?.Living == null) return;
@@ -273,7 +270,6 @@ public static class PrehistoricClanSystem
         if (renamed > 0)
             LogService.LogInfo($"[EmpireCraft][姓氏演变] {culture} 进入 {era}，重新起名 {renamed} 人");
     }
-#endif
 
     // 新氏族的古姓：从本文化的古姓词库里取，优先取还没被用掉的
     public static string PickAncientSurname(string culture)

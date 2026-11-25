@@ -2,6 +2,7 @@
 // see Port/manifest.json and Tools/PortTool.
 using Mathf = EmpireCraft.Core.EcMath;
 using Time = EmpireCraft.Core.FrameClock;
+using Vector3 = EmpireCraft.Core.EcVector3;
 using System;
 using System.Collections.Generic;
 using System.IO;

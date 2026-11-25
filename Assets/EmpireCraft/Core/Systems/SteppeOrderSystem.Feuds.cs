@@ -64,7 +64,7 @@ public static partial class SteppeOrderSystem
         if (IsRealm(attacker) && IsRealm(defender))
             return !attacker.IsInSameEmpire(defender) && WarGate.CanDeclare(attacker, defender);
         if (!IsUlus(attacker) || !IsUlus(defender) || attacker.GetEmpire() != defender.GetEmpire()) return false;
-        double lastWarEnded = EmpireWorld.Current.diplomacy?.getRelation(attacker, defender)?.data?.timestamp_last_war_ended ?? -1d;
+        double lastWarEnded = EmpireWorld.Current.Diplomacy?.GetRelation(attacker, defender)?.Record?.LastWarEnded ?? -1d;
         return (lastWarEnded < 0d || GameClock.YearsSince(lastWarEnded) >= SimGlobals.m.minimum_years_between_wars) &&
                attacker.Ruler != defender.Ruler && !RoyalMarriageSystem.Allied(attacker, defender);
     }

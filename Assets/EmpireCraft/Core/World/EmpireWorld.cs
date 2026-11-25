@@ -17,6 +17,9 @@ namespace EmpireCraft.Core
         public readonly List<Realm> LiveRealms=new List<Realm>(); // living realms in founding order, kept by WorldOps
         public readonly List<War> Wars=new List<War>();          // every war, by id
         public readonly List<War> LiveWars=new List<War>();      // running wars, kept by WorldOps
+        public readonly List<Alliance> Alliances=new List<Alliance>();     // every alliance, by id
+        public readonly List<Alliance> LiveAlliances=new List<Alliance>(); // standing alliances, kept by WorldOps
+        public readonly Diplomacy Diplomacy;                     // relations and opinions between realms
         public readonly List<Person> Living=new List<Person>(); // living people, insertion order
         public readonly int[] TileCity;                        // city id per tile, -1 unclaimed
         public readonly Annals Annals=new Annals();
@@ -30,6 +33,7 @@ namespace EmpireCraft.Core
         {
             Map=map??throw new ArgumentNullException(nameof(map));Seed=seed;
             TileCity=new int[map.Count];for(int i=0;i<TileCity.Length;i++)TileCity[i]=-1;
+            Diplomacy=new Diplomacy(this);
             Religions=new ReligionStore(this);Cultures=new CultureStore(this);Books=new BookStore(this);Plots=new PlotStore(this);
         }
 
@@ -76,13 +80,29 @@ namespace EmpireCraft.Core
         public int LandmassOf(int tile){if(_landmass==null)_landmass=EmpireBootstrap.Landmasses(this);return tile<0||tile>=_landmass.Length?-1:_landmass[tile];}
         public War WarByKey(long key){var x=key>=0&&key<Wars.Count?Wars[(int)key]:null;return x!=null&&x.Alive?x:null;}
         public bool HasWars()=>LiveWars.Count>0;
+        public bool HasWars(Realm realm)=>realm!=null&&realm.Wars.Count>0;
+        public List<War> WarsOf(Realm realm,bool random=false)=>realm==null?new List<War>():new List<War>(realm.Wars);
         // A person founds a house of their own and belongs to it from then on.
         public Clan NewClan(Person founder,bool announce=false)
         {
             if(founder==null)return null;
             var clan=WorldOps.NewClan(this,Names.Surname(this,founder.Id*31+Month),founder);founder.Clan=clan;return clan;
         }
-        public War StartWar(Realm attacker,Realm defender,WarKind kind=null,bool log=true)=>WorldOps.StartWar(this,attacker,defender,kind);
+        // Null when there can be no such war: one of them is gone, they are the same realm, or they stand in one alliance.
+        public War StartWar(Realm attacker,Realm defender,WarKind kind=null,bool log=true)
+        {
+            if(attacker.IsGone()||defender.IsGone()||attacker==defender||(attacker.HasAlliance()&&attacker.Alliance==defender.Alliance))return null;
+            return WorldOps.StartWar(this,attacker,defender,kind);
+        }
+        public Alliance AllianceByKey(long key){var x=key>=0&&key<Alliances.Count?Alliances[(int)key]:null;return x!=null&&x.Alive?x:null;}
+        public bool AnyAlliances()=>LiveAlliances.Count>0;
+        // Null when the two cannot ally: one is gone, they are the same, at war with each other, or already in an alliance.
+        public Alliance NewAlliance(Realm a,Realm b)
+        {
+            if(a.IsGone()||b.IsGone()||a==b||a.HasAlliance()||b.HasAlliance()||a.IsAtWarWith(b))return null;
+            return WorldOps.FormAlliance(this,a,b);
+        }
+        public void DissolveAlliance(Alliance alliance){if(alliance!=null&&alliance.Alive)WorldOps.DissolveAlliance(this,alliance);}
         public void EndWar(War war,WarOutcome outcome=WarOutcome.Peace){if(war!=null&&war.Alive)WorldOps.EndWar(this,war,outcome);}
 
         // Stateless deterministic randomness: the same world seed, stream, month and
@@ -113,7 +133,7 @@ namespace EmpireCraft.Core
         public bool Claimable(int tile)=>tile>=0&&(Map.Water[tile]==WaterKind.Land||Map.Water[tile]==WaterKind.River);
     }
 
-    public enum AnnalKind : byte { RealmFounded, CityFounded, CityTransferred, RealmEnded, Accession, RulerDied, CapitalMoved, Secession, NewDynasty, WarStarted, WarEnded }
+    public enum AnnalKind : byte { RealmFounded, CityFounded, CityTransferred, RealmEnded, Accession, RulerDied, CapitalMoved, Secession, NewDynasty, WarStarted, WarEnded, AllianceFormed, AllianceEnded }
 
     public readonly struct AnnalEntry
     {
@@ -145,6 +165,8 @@ namespace EmpireCraft.Core
                 case AnnalKind.Secession: return when+"，"+C(e.B)+"脱离"+R(e.C)+"，自立为"+R(e.A)+"。";
                 case AnnalKind.WarStarted: return when+"，"+R(e.B)+"兴兵伐"+R(e.C)+"。";
                 case AnnalKind.WarEnded: return when+"，"+W(e.A)+"罢兵。";
+                case AnnalKind.AllianceFormed: return when+"，"+R(e.B)+"与"+R(e.C)+"结盟。";
+                case AnnalKind.AllianceEnded: return when+"，"+(e.A>=0&&e.A<w.Alliances.Count?w.Alliances[e.A].Name:"?")+"散。";
                 case AnnalKind.NewDynasty: return when+"，"+R(e.A)+"易姓，"+P(e.B)+"立"+(e.C>=0&&e.C<w.Clans.Count?w.Clans[e.C].Surname:"")+"氏之朝。";
                 default: return when+"。";
             }

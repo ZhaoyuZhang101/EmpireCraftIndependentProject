@@ -179,7 +179,6 @@ public static class TribalFissionService
 
     // 每月(RoyalHouseSystem)：名下不止一座城的部落分出一座(离都城最远的先分)；部落联盟的成员离开帝国、奉其为共主；
     // 旧档的部落帝国撤去(见 DissolveSettledTribes)；共主改行分封的，奉它的部落并入为诸侯
-#if EC_PENDING
     public static void EnforceOneCity()
     {
         if (EmpireWorld.Current?.LiveRealms == null) return;
@@ -234,7 +233,6 @@ public static class TribalFissionService
             LogService.LogWarning($"[EmpireCraft][部落分迁] 共主整理失败: {exception.Message}");
         }
     }
-#endif
 
     private static bool Fit(Person actor, City city) =>
         actor != null && !actor.IsGone() && actor.Alive && actor.IsAdult() && !actor.IsRuler() && actor.City == city &&
@@ -268,11 +266,10 @@ public static class TribalFissionService
 
     // 奉 overlord 为共主：退出同盟、不进帝国，记下共主；改奉新共主的记下归附的时间(共事年数定爵，见 Enfeoff；
     // 共主讨伐不臣、重新收回的照旧从原来算)
-#if EC_PENDING
     private static void Submit(Realm tribe, Empire overlord)
     {
         if (tribe?.Record == null || overlord == null) return;
-        if (tribe.hasAlliance()) tribe.getAlliance().leave(tribe);
+        if (tribe.HasAlliance()) tribe.GetAlliance().Leave(tribe);
         KingdomExtension.KingdomExtraData data = tribe.GetOrCreate();
         if (data.tribal_overlord_id != overlord.Key || data.tribal_submitted_at < 0d)
             data.tribal_submitted_at = EmpireWorld.Current?.Now() ?? -1d;
@@ -280,19 +277,17 @@ public static class TribalFissionService
         InvalidateVassals();
         tribe.GetRegime()?.SetAllowDiplomacy(true);
     }
-#endif
 
     // 结成部落联盟(head 为共主，帝国里只有它自己)。部落联盟是原始政体成帝国的唯一途径(单个部落不再自立为帝国，
     // 以前的 FormTribes 10-26 去掉)。帝国与同盟不兼容，共主之部退出同盟；盟友不跟着奉它为共主——
     // 10-17 起部落不因结盟结成部落联盟，以前每部都是帝国、没有同盟，碰不到这里；如今部落是国、会结盟，照旧不并盟友
-#if EC_PENDING
     private static Empire Confederation(Realm head)
     {
         if (head.IsInEmpire() || ModClass.EMPIRE_MANAGER == null || EmpireFormationService.IsSubject(head)) return null;
-        Alliance alliance = head.hasAlliance() ? head.getAlliance() : null;
+        Alliance alliance = head.HasAlliance() ? head.GetAlliance() : null;
         if (alliance != null)
         {
-            alliance.leave(head);
+            alliance.Leave(head);
             alliance = null;
         }
         Empire empire = ModClass.EMPIRE_MANAGER.NewEmpire(head, allowCultureRival: true);
@@ -303,12 +298,12 @@ public static class TribalFissionService
         var joined = new List<Realm>();
         if (alliance != null && alliance.Alive)
         {
-            foreach (Realm member in alliance.kingdoms_hashset.ToList())
+            foreach (Realm member in alliance.MemberSet.ToList())
                 if (member != null && member != head && IsTribal(member) && !member.IsInEmpire() &&
                     string.Equals(CultureService.GetRealmCulture(member), culture, global::System.StringComparison.Ordinal))
                     joined.Add(member);
             // 帝国与同盟不兼容
-            EmpireWorld.Current.alliances.dissolveAlliance(alliance);
+            EmpireWorld.Current.DissolveAlliance(alliance);
         }
         foreach (Realm member in joined) Submit(member, empire);
         string content = string.Format(LM.Get(joined.Count > 0 ? "tribal_confederation_history" : "tribal_tribe_formed_history"),
@@ -318,10 +313,8 @@ public static class TribalFissionService
         Redraw();
         return empire;
     }
-#endif
 
     // 部落联盟名下的成员离开帝国、奉其为共主(同战国周诸侯离开帝国，见 ZhouEraSystem.Detach)
-#if EC_PENDING
     private static void DetachMembers()
     {
         if (ModClass.EMPIRE_MANAGER == null) return;
@@ -347,7 +340,6 @@ public static class TribalFissionService
         }
         if (changed) Redraw();
     }
-#endif
 
     // 旧档里的部落帝国(以前每个独立的部落都自立为"某某部落"帝国，formed_as_tribe；10-26 起部落不再是帝国)，每月(见 EnforceOneCity)、
     // 读档后(见 AfterLoad)各清一遍：
@@ -356,7 +348,6 @@ public static class TribalFissionService
     //   · 有了共事的部落、或帝国里还有别的国：已是部落联盟，不再算一部自立；
     //   · 走出了原始阶段、又没有并入别的国(帝国里只有自己)：照旧撤掉帝国(记进已亡帝国)，回到普通的国——只有共事部落、诸侯的
     //     才留作帝国(否则进了宗法分封，每个小部落都成了一个一城的周室)。读档时不撤这种，留给每月
-#if EC_PENDING
     private static void DissolveSettledTribes(bool loading = false)
     {
         if (ModClass.EMPIRE_MANAGER == null) return;
@@ -389,17 +380,14 @@ public static class TribalFissionService
         LogService.LogInfo($"[EmpireCraft][部落分迁] 旧档一部自立的部落帝国 {silent} 个静默撤去，各回本国(部落不再是帝国)");
         if (!loading) Redraw();
     }
-#endif
 
     // 读档后(见 DataManager.LoadAll，帝国、法理、制度都已读进来)：旧档的部落帝国先清一遍，不等第一个月
-#if EC_PENDING
     public static void AfterLoad()
     {
         InvalidateVassals();
         DissolveSettledTribes(loading: true);
         InvalidateVassals();
     }
-#endif
 
     // 胜者所在的部落联盟：胜者共事的共主，或胜者自己是共主；都不是返回 null(战功记在这里，见 TribalWarSystem.Concede)
     public static Empire LeagueOf(Realm kingdom)
@@ -422,7 +410,6 @@ public static class TribalFissionService
     // 败者与随它改奉的部落的法理并进共主的帝国法理(用户 2026-10-26 选"法理随共事转移"，见 AbsorbTitles)。
     // 共主已满、太远就不纳入(只拿赔款)；败者本来就共事这个共主的(共主讨伐不臣，见 TribalAssemblySystem)不算新增，满额照样收回。
     // followed：随败者一同改奉新共主的部数(记战功用)
-#if EC_PENDING
     public static bool Incorporate(Realm winner, Realm loser) => Incorporate(winner, loser, out _);
 
     public static bool Incorporate(Realm winner, Realm loser, out int followed)
@@ -467,7 +454,6 @@ public static class TribalFissionService
         Redraw();
         return true;
     }
-#endif
 
     // 法理随共事转移(用户 2026-10-26 选"法理随共事转移")：共事部落的王国法理(主法理)并进共主的帝国法理；oldCore 是它原来的部落帝国(旧档)、
     // 部落联盟的帝国法理，里面的法理一并并过来(EmpireCoreManager.AddTitleToCore 会把法理从原来的帝国法理里移出)，并空了、
@@ -548,7 +534,6 @@ public static class TribalFissionService
 
     private static int YearsServed(Realm kingdom) => GameClock.YearsSince(SubmittedAt(kingdom));
 
-#if EC_PENDING
     private static void Enfeoff()
     {
         if (ModClass.EMPIRE_MANAGER == null) return;
@@ -605,10 +590,8 @@ public static class TribalFissionService
         InvalidateVassals();
         Redraw();
     }
-#endif
 
     // 并入 empire 为臣属(见 Enfeoff)；返回是否并入了。early：同批里最早共事的；senior：周制里按资历受封为侯(长期共事，赐胙)
-#if EC_PENDING
     private static bool Vassalize(Empire empire, Realm tribe, bool early, out bool senior)
     {
         senior = false;
@@ -690,7 +673,6 @@ public static class TribalFissionService
         empire.RecordHistory(directContent: content, kingdomId: tribe.Key);
         return true;
     }
-#endif
 
     // 奉谁为共主：不论那个共主还是不是原始政体(推行宗法分封的共主已改了政体，OverlordOf 不再认它，部落要到 Enfeoff 才并入)
     private static Empire Liege(Realm kingdom)
@@ -743,7 +725,6 @@ public static class TribalFissionService
         public double since;
     }
 
-#if EC_PENDING
     private static void SettleRoyalHouses()
     {
         if (ModClass.EMPIRE_MANAGER == null || EmpireWorld.Current?.LiveRealms == null) return;
@@ -761,7 +742,6 @@ public static class TribalFissionService
             SettleRoyalHouse(culture);
         }
     }
-#endif
 
     // 本文化(华夏一线)施行宗法分封不到 SettleWindowYears 年
     private static bool ZhouJustEnacted(string culture)
@@ -788,7 +768,6 @@ public static class TribalFissionService
                target == RegimeType.ZhouFeudalism;
     }
 
-#if EC_PENDING
     private static void SettleRoyalHouse(string culture)
     {
         double now = GameClock.Now;
@@ -901,7 +880,6 @@ public static class TribalFissionService
         EventRecorder.Record(realm, settled, logKingdom: seat);
         Redraw();
     }
-#endif
 
     // 改奉周室(定王室时，见 SettleRoyalHouse)：pin 为定下的爵位；原来共事别家的照原来的共事年数
     private static void Pledge(Realm kingdom, Empire realm, string pin)
@@ -913,25 +891,22 @@ public static class TribalFissionService
     }
 
     // 给独立的部落立帝国做周室(推戴，天命同部落联盟)：先退出同盟(帝国与同盟不兼容)
-#if EC_PENDING
     private static Empire Proclaim(Realm head)
     {
         if (head.IsInEmpire() || EmpireFormationService.IsSubject(head)) return null;
-        if (head.hasAlliance()) head.getAlliance().leave(head);
+        if (head.HasAlliance()) head.GetAlliance().Leave(head);
         Empire empire = ModClass.EMPIRE_MANAGER.NewEmpire(head, allowCultureRival: true, suppressFoundingLog: true);
         if (empire == null || empire.IsGone()) return null;
         empire.data.Mandate = EmpireFormationService.GetInitialMandate(EmpireFormationRoute.Acclamation);
         head.GetOrCreate().tribal_overlord_id = -1L;
         return empire;
     }
-#endif
 
     // 脱离：国力到了共主六成以上、或对共主怨恨极深(好感 -50 以下)的部落，每月约百分之一的机会不再共事、自立一方；
     // 当年来朝会盟的减半、屡次不朝记为不臣的加倍(见 TribalAssemblySystem.BreakawayFactor)
     private const float BreakawayPowerShare = 0.6f, BreakawayChance = 0.011f;
     private const int BreakawayOpinion = -50;
 
-#if EC_PENDING
     private static void Breakaway()
     {
         foreach (Realm kingdom in EmpireWorld.Current.LiveRealms.ToList())
@@ -939,7 +914,7 @@ public static class TribalFissionService
             Empire overlord = OverlordOf(kingdom);
             Realm core = overlord?.CoreKingdom;
             if (core == null || core.IsGone()) continue;
-            int opinion = EmpireWorld.Current.diplomacy?.getOpinion(kingdom, core)?.total ?? 0;
+            int opinion = EmpireWorld.Current.Diplomacy?.GetOpinion(kingdom, core)?.Total ?? 0;
             bool strong = kingdom.GetNationalPower() >= core.GetNationalPower() * BreakawayPowerShare;
             if (!strong && opinion > BreakawayOpinion ||
                 EcRandom.value >= BreakawayChance * TribalAssemblySystem.BreakawayFactor(kingdom, overlord)) continue;
@@ -950,7 +925,6 @@ public static class TribalFissionService
             Redraw();
         }
     }
-#endif
 
     // 政体跟着文化走(每月)：华夏的部落以前用各文化共用的原始政体，改用华夏原始政体(旧存档、新立的国)；
     // 本文化已经走出原始阶段(施行宗法分封)的，帝国之外还是原始政体的部落一并改过去(帝国由制度系统改，见 InstitutionSystem)。
@@ -958,7 +932,6 @@ public static class TribalFissionService
     // 共事的部落都已离去(脱离、放走、亡了)、帝国里也只有自己的部落联盟，走出原始阶段时撤去帝号(不记已亡帝国)、回到普通的国再改政体
     // (用户 2026-10-26：以前纳入部落时就把 formed_as_tribe 记为 false，这样的旧联盟不会被撤，进了宗法分封成一城的周室)；
     // 按资历定下的周室不撤
-#if EC_PENDING
     private static void Migrate()
     {
         try
@@ -1010,7 +983,6 @@ public static class TribalFissionService
             }
         }
     }
-#endif
 
     // 超出上限的共主每月放走一部：先放离得最远的(超出路程的先放)
     private static void Overflow()

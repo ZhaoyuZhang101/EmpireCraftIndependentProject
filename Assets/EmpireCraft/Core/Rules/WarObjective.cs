@@ -429,7 +429,6 @@ public static class WarObjective
     #region 议和结算
 
     // 攻方胜时按具体目标结算(WarGoalSystem.Settle)；返回是否已处理
-#if EC_PENDING
     internal static bool SettleWin(War war, Realm attacker, Realm defender, WarGoal goal)
     {
         WarExtension.WarExtraData data = war.GetOrCreate();
@@ -468,7 +467,6 @@ public static class WarObjective
         }
         return false;
     }
-#endif
 
     public static City Main(WarExtension.WarExtraData data) =>
         data == null || data.goal_main_city_id < 0 ? null : EmpireWorld.Current?.CityByKey(data.goal_main_city_id);
@@ -480,7 +478,6 @@ public static class WarObjective
         .ToList();
 
     // 内附为羁縻州(同降部戍边，见 FrontierRelations.SettleSurrenderedTribe，不限游牧)
-#if EC_PENDING
     private static bool Jimi(Realm lord, Realm subject)
     {
         Empire empire = lord?.GetEmpire();
@@ -495,7 +492,6 @@ public static class WarObjective
         TranslateHelper.LogEventMessage(text, lord);
         return true;
     }
-#endif
 
     // 兼领王位：宣称者(开战时的攻方君主)还在、还能兼领
     private static bool Inherit(War war, WarExtension.WarExtraData data, Realm attacker, Realm defender)

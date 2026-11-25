@@ -101,14 +101,12 @@ public static partial class EmpireLawSystem
 
     public static int DefaultLoot(LawType type) => type is LawType.贪污 or LawType.受贿 or LawType.盗窃 or LawType.诈骗 ? 300 : 0;
 
-#if EC_PENDING
     public static bool GodAddCrime(Person actor, LawType type)
     {
         if (actor?.Record == null || actor.IsGone() || !AddableCrimes(actor).Contains(type)) return false;
         actor.RecordCrime(type, DefaultLoot(type));
         return PendingCrimes(actor).Any(record => record.law_type == (int)type);
     }
-#endif
 
     // 担保人：本派首领，没有就父亲(都得在世、不在押、不是本人)
     public static PersonalClanIdentity FindGuarantor(Person actor)

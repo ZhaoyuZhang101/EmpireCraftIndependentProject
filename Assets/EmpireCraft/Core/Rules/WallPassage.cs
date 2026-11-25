@@ -104,6 +104,7 @@ public static class WallPassage
         if (state == Walled) return true;
         return !Opens(slot, side);
     }
+#endif
 
     private static bool Opens(int slot, Realm side)
     {
@@ -113,6 +114,7 @@ public static class WallPassage
         return false;
     }
 
+#if EC_PENDING
     private static byte State(Cell from, Cell to, out int slot)
     {
         slot = -1;

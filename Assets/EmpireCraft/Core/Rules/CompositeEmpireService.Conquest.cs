@@ -101,7 +101,6 @@ public static partial class CompositeEmpireService
 
     #region 北归
 
-#if EC_PENDING
     private static bool TryNorthernRetreat(Empire empire, string ruling, string institutional, float controlledShare)
     {
         Realm core = empire.CoreKingdom;
@@ -169,7 +168,6 @@ public static partial class CompositeEmpireService
         LogService.LogInfo($"[EmpireCraft][征服王朝] {before} 北归 {seat.GetCityName()}{(homesick ? "(离草思归)" : "")}，{left} 个成员脱离");
         return true;
     }
-#endif
 
     // 复合帝国作罢(一键易俗把整个帝国改成一个文化时，见 RealmCultureSystem)：不改政体，只清掉双重身份
     public static void Dissolve(Empire empire)

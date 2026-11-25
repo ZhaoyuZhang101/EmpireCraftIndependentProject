@@ -86,7 +86,6 @@ public static class TribalWarSystem
     private const int MeritMandateMax = 4, MeritMandateCeiling = 85;
 
     // 败者服输：赔款(国库三成)；施行了部落联合的奉胜者为共主(见 TribalFissionService.Incorporate)。统一战争收服部落也走这里
-#if EC_PENDING
     public static void Concede(Realm loser, Realm winner)
     {
         string loserName = loser.GetKingdomName(), winnerName = winner.GetKingdomName();
@@ -121,7 +120,6 @@ public static class TribalWarSystem
         // 年度会盟：共主讨伐不臣打赢的，败者不臣清零；部落反败共主的就此自立(见 TribalAssemblySystem.OnConcede)
         TribalAssemblySystem.OnConcede(loser, winner);
     }
-#endif
 
     // 记战功、换天命；返回记下的战功
     private static int Award(Empire league, int points)

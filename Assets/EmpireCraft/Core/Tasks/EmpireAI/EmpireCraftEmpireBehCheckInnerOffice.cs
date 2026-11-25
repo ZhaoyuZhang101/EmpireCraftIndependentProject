@@ -110,7 +110,6 @@ public class EmpireCraftEmpireBehCheckInnerOffice: GameAIEmpireBase
     }
 #endif
     //三省六部官员选拔机制
-#if EC_PENDING
     public void SelectOfficer(Empire pEmpire)
     {
         if (pEmpire == null || pEmpire.IsGone() || pEmpire.IsArchived()) return;
@@ -168,7 +167,7 @@ public class EmpireCraftEmpireBehCheckInnerOffice: GameAIEmpireBase
                     {
                         var actor = value.GetActor();
                         int onTime = value.GetOnTime();
-                        if (onTime < 0 || (actor != null && actor.age > 35))
+                        if (onTime < 0 || (actor != null && actor.Age() > 35))
                         {
                             value.Select(coreKingdom);
                         }
@@ -181,6 +180,5 @@ public class EmpireCraftEmpireBehCheckInnerOffice: GameAIEmpireBase
             }
         }
     }
-#endif
 }
 }

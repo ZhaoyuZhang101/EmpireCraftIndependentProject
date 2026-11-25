@@ -128,7 +128,6 @@ public static class FactionBalanceSystem
     }
 
     // 制衡：扶植次大派系，独大的一派让出占比(派系占比此消彼长，见 KingdomExtension.TryIncreaseFactionRatio)
-#if EC_PENDING
     private static void Balance(Empire empire, List<FixedFaction> factions, FixedFaction top)
     {
         if (top.CentralRatio < DominantShare || factions.Count < 2) return;
@@ -150,7 +149,6 @@ public static class FactionBalanceSystem
         if (!empire.CoreKingdom.TryIncreaseFactionRatio(second, amount)) return;
         CourtSystem.Log(CourtSystem.State(empire), "faction_balance_boost", decider.FullName(), second.Name, top.Name);
     }
-#endif
 
     private static void Consequences(Empire empire, List<FixedFaction> factions, FixedFaction top)
     {
@@ -216,7 +214,6 @@ public static class FactionBalanceSystem
     #region 接到别的系统上
 
     // 权臣进度(Empire.UpdatePowerfulMinister)：文臣专权、外戚干政或其他方向下，独大派系的人(外戚干政时也算外戚)每月多涨
-#if EC_PENDING
     public static int MinisterBonus(Empire empire, Person candidate)
     {
         if (candidate?.Record == null) return 0;
@@ -226,7 +223,6 @@ public static class FactionBalanceSystem
                     direction == Direction.Consort && ConsortKinSystem.IsConsortKin(empire, candidate);
         return ours ? Mathf.Clamp(Mathf.RoundToInt(Imbalance(empire) / 33f), 1, 3) : 0;
     }
-#endif
 
     // 外戚干政：失衡度 40 起外戚随时有撑腰(见 ConsortKinSystem.Backed)
     public static bool BacksConsortKin(Empire empire) => Current(empire) == Direction.Consort && Imbalance(empire) >= WarnAt;

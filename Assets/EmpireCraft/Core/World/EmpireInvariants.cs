@@ -69,6 +69,20 @@ namespace EmpireCraft.Core
                 if(p.Clan==null||p.Clan.Id>=w.Clans.Count||w.Clans[p.Clan.Id]!=p.Clan)Fail("person "+p.Id+" without clan");
             }
             if(living!=w.Living.Count)Fail("living index "+w.Living.Count+" != "+living);
+            // Alliances: a standing one has at least two living members, each of whom names it; an ended one has none.
+            foreach(var a in w.Alliances)
+            {
+                if(a.Alive!=w.LiveAlliances.Contains(a))Fail("standing alliance list misses or keeps alliance "+a.Id);
+                if(a.Alive&&a.Members.Count<2)Fail("alliance "+a.Id+" stands with fewer than two members");
+                if(!a.Alive&&a.Members.Count>0)Fail("ended alliance "+a.Id+" still has members");
+                foreach(var r in a.Members)if(!r.Alive||r.Alliance!=a)Fail("alliance "+a.Id+" member "+r.Id+" is out of step");
+                for(int i=0;i<a.Members.Count;i++)for(int k=i+1;k<a.Members.Count;k++)
+                {
+                    if(a.Members[i]==a.Members[k])Fail("alliance "+a.Id+" lists a member twice");
+                    else if(a.Members[i].IsAtWarWith(a.Members[k]))Fail("alliance "+a.Id+" members are at war with each other");
+                }
+            }
+            foreach(var r in w.Realms)if(r.Alliance!=null&&(!r.Alive||!r.Alliance.Alive||!r.Alliance.Has(r)))Fail("realm "+r.Id+" names an alliance it is not in");
             // A faith or culture held is either on this world's record or has left it; never another world's.
             bool Foreign(Religion x)=>x!=null&&x.Alive&&w.Religions.Get(x.Key)!=x;
             bool Alien(Culture x)=>x!=null&&x.Alive&&w.Cultures.Get(x.Key)!=x;

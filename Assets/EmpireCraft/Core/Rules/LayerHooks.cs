@@ -6,7 +6,7 @@ using System.Collections.Generic;
 namespace EmpireCraft.Core
 {
 
-// 套在原版图层委托外面的几层(图层补洞 EnclaveFill、无人区并进国土 Components.WildernessTerritory)各自每帧对一遍：
+// 套在原版图层委托外面的几层(图层补洞 EnclaveFill、无人区并进国土 WildernessTerritory)各自每帧对一遍：
 // 自己套的那层还在不在眼下的委托里头(一层层往里找)。不在(被别处整个换掉了，或头一回)才再套——
 // 只比"是不是自己套的"的话，两处互相套在对方外面，每帧各多套一层
 internal static class LayerHooks

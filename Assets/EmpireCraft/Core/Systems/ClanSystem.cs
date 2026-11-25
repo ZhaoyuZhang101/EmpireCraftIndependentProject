@@ -418,7 +418,6 @@ public class SpecificClan
         }
         return _patrilineal.Value;
     }
-#if EC_PENDING
     public void addActor(Person actor, bool is_concubines= false)
     {
         if (actor == null || actor.IsWarMachine()) return;
@@ -439,7 +438,6 @@ public class SpecificClan
             }
         }
     }
-#endif
     public void removeActor(PersonalClanIdentity identity)
     {
         lock (_cacheLock)
@@ -675,7 +673,6 @@ public static class SpecificClanManager
         }
     }
 
-#if EC_PENDING
     public static SpecificClan newSpecificClan(Person actor, bool show_log = false)
     {
         SpecificClan specificClan = new SpecificClan();
@@ -708,7 +705,6 @@ public static class SpecificClanManager
         }
         return specificClan;
     }
-#endif
 
     public static City GetOriginCity(Person actor)
     {
@@ -1277,7 +1273,6 @@ public static class SpecificClanManager
         return identityWithRelation;
     }
 
-#if EC_PENDING
     public static void CheckSpecificClan(this Person actor, bool show_log = false)
     {
         if (EmpireCraft.Core.AncientWarfareCompatibility.Owns(actor)) return;
@@ -1346,7 +1341,6 @@ public static class SpecificClanManager
 
         newSpecificClan(actor, show_log);
     }
-#endif
 
     // "是不是同一家"：同一个宗族，或者同出一个始祖宗族的分支(别子为祖的王子、迁居他乡的一支仍是宗室)。
     // 两边都为空时跟原来的 == 一样算相同。
@@ -1609,9 +1603,7 @@ public class PersonalClanIdentity
     public bool ShouldSerializevirtual_native_lifespan() => virtual_native_lifespan.HasValue;
 
     // 需要这个人(继承、分封、作乱……)时调用：虚拟族人当场落成实体，否则返回现有实体
-#if EC_PENDING
     public Person Realize() => is_alive ? VirtualGenealogySystem.Realize(this) : _actor;
-#endif
 
     public void newPersonalClanIdentity(SpecificClan specificClan, Person a)
     {
@@ -1711,7 +1703,6 @@ public class PersonalClanIdentity
         return is_main&&IsHeirPriority()&&is_alive&&identity?.id!=id&&!disinherited;
     }
 
-#if EC_PENDING
     public void setLover(Person actor, bool isCus = false, bool recordHistory = true)
     {
         if (actor == null) return;
@@ -1773,7 +1764,6 @@ public class PersonalClanIdentity
             }
         }
     }
-#endif
 
     public void setParent(PersonalClanIdentity identity, bool recordHistory = true)
     {
@@ -1958,7 +1948,6 @@ public class PersonalClanIdentity
         return HistoryDateFormatter.GetMonthDay(-1, formattedDate);
     }
 
-#if EC_PENDING
     public void addChild(Person actor, bool isNeedSetParentBoth=true, bool recordHistory = true)
     {
         PersonalClanIdentity existingIdentity = actor.GetPersonalIdentity();
@@ -1994,7 +1983,6 @@ public class PersonalClanIdentity
         actor.Realm?.StartToChooseHeir();
         actor.Realm?.RemoveCalcHeirStatus();
     }
-#endif
 }
 
 public class PersonalTie

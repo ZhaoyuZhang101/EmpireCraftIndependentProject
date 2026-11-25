@@ -366,7 +366,6 @@ public static class ConstitutionalEconomySystem
 
     // 主体文化变更（同化、归化、换朝）时由 CultureService 调用。走与年度同步相同的逻辑，
     // 所以进行中的立宪改革会被正确中止——而不是只把稳定计时器清零、让改革在新文化下继续。
-#if EC_PENDING
     public static void ResetCultureStability(Empire empire)
     {
         ConstitutionalEconomyState state = Ensure(empire);
@@ -390,7 +389,6 @@ public static class ConstitutionalEconomySystem
         ParliamentSystem.Update(empire);
         Record(empire, "constitution_culture_changed_history");
     }
-#endif
 
     private static void SyncRegime(Empire empire, ConstitutionalEconomyState state)
     {
@@ -483,7 +481,6 @@ public static class ConstitutionalEconomySystem
     // 战胜国就强行替它开放党禁——不受分封制与时代门槛、核心繁荣门槛限制，也不算本文化首开立宪。
     // 用户 2026-11-10：这是三条路里的"外部战争强迫"，外力能让穷地方现代化。
     // 败方是君主国则连带确立君主立宪；败方是一党闭关的共和国则直接逼开多党。
-#if EC_PENDING
     public static bool ImposeModernization(Empire loser, Realm victor, int lostCities, bool lostCapital)
     {
         ConstitutionalEconomyState state = Ensure(loser);
@@ -531,7 +528,6 @@ public static class ConstitutionalEconomySystem
         }
         return true;
     }
-#endif
 
     private static void CancelReform(ConstitutionalEconomyState state)
     {
@@ -724,7 +720,6 @@ public static class ConstitutionalEconomySystem
                InstitutionDefinitionRegistry.IsConstitutionEnabled(GetLine(empire));
     }
 
-#if EC_PENDING
     public static bool ForceConstitution(Empire empire)
     {
         if (!CanForceConstitution(empire)) return false;
@@ -737,10 +732,8 @@ public static class ConstitutionalEconomySystem
         Record(empire, "constitution_forced_history");
         return true;
     }
-#endif
 
     // 剧本开局即是君主立宪(1937 的英、日、意)：同上帝模式直接确立，但不记"强行立宪"那一笔(开局前早就立了)
-#if EC_PENDING
     public static bool EstablishScenarioConstitution(Empire empire)
     {
         if (!CanForceConstitution(empire)) return false;
@@ -752,7 +745,6 @@ public static class ConstitutionalEconomySystem
         ParliamentSystem.Update(empire);
         return true;
     }
-#endif
 
     public static bool StartReform(Empire empire)
     {
@@ -766,7 +758,6 @@ public static class ConstitutionalEconomySystem
         return true;
     }
 
-#if EC_PENDING
     private static void AdvanceReform(Empire empire, ConstitutionalEconomyState state)
     {
         ConstitutionConfig config = Config;
@@ -816,7 +807,6 @@ public static class ConstitutionalEconomySystem
         ParliamentSystem.Update(empire);
         Record(empire, "constitution_enacted_history");
     }
-#endif
 
     public static float GetParliamentarySupport(Empire empire)
     {

@@ -128,7 +128,6 @@ public static partial class PapacySystem
 
     // 已经称神圣的还算不算数(每年核对，见 RealmNamingSystem.YearlyUniversal)：不是那个教会的去掉；两家以上的留国力大的。
     // 教廷一时不在不收回
-#if EC_PENDING
     public static bool HolyStays(Empire empire)
     {
         if (ReligionOf(empire) != TheChurch()) return false;
@@ -137,7 +136,6 @@ public static partial class PapacySystem
         (double, long) mine = (WarSituation.Power(empire.CoreKingdom), -empire.Key), theirs = (WarSituation.Power(other.CoreKingdom), -other.Key);
         return mine.CompareTo(theirs) >= 0;
     }
-#endif
 
     // 教廷页按钮：有神圣之名的去掉，没有的授予
     public static bool ActHoly(Empire empire)

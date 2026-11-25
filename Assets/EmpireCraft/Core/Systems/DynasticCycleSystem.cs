@@ -89,7 +89,6 @@ public static class DynasticCycleSystem
     private static readonly HashSet<long> CatchUpLogged = new();
 
     // 每年在苛政结算中调用；传入的负担不包含本系统自己的贡献。
-#if EC_PENDING
     public static void Update(Empire empire, ConstitutionalEconomyState state, float governanceBurden)
     {
         if (state == null || !Applies(empire)) return;
@@ -146,7 +145,6 @@ public static class DynasticCycleSystem
             PopularRebellions(empire, state.dynastic_saturated_since).count > 0)
             OnSaturatedUprising(empire);
     }
-#endif
 
     // 危机线、满额的记载。积弊不再回落，以前回到 40 以下记"走出危机"的那一笔删了；改朝换代降到危机线下才重新记
     private static void Settle(Empire empire, ConstitutionalEconomyState state, double now)

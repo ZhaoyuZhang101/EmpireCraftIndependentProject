@@ -29,7 +29,6 @@ public static class PartyInnerSystem
     private const int ExpelPerYear = 2, PurgeMax = 5;
     private const float PartySchoolCost = 50f;
 
-#if EC_PENDING
     public static void Yearly(Empire empire)
     {
         if (!PartySystem.IsActive(empire)) return;
@@ -47,10 +46,8 @@ public static class PartyInnerSystem
             if (NeedsCongress(party)) HoldCongress(empire, party, defeat: false);
         }
     }
-#endif
 
     // 大选后(PartySystem.AfterElection)：记下各党丢了几成议席，丢三成以上的临时开党代会追责
-#if EC_PENDING
     public static void AfterElection(Empire empire, Dictionary<FixedFaction, int> allocation, Dictionary<string, int> previous)
     {
         if (!PartySystem.IsActive(empire) || previous == null) return;
@@ -62,7 +59,6 @@ public static class PartyInnerSystem
             if (party.LastSeatLoss >= DefeatSeatLoss && party.AllMembers.Count > 1) HoldCongress(empire, party, defeat: true);
         }
     }
-#endif
 
     // 分裂倍数(PartySystem.TrySplit)：一翼过二成的部分 ×3、大选丢议席 ×1.5，党纪高于 50 的部分减
     public static float SplitFactor(FixedFaction party) =>
@@ -139,7 +135,6 @@ public static class PartyInnerSystem
     private static float Score(Person actor) =>
         (actor.Renown) + (float)((actor.GetIdentity()?.TotalPerformance ?? 0d) / 5d) + (actor.IsOnOffice() ? 100f : 0f);
 
-#if EC_PENDING
     public static void HoldCongress(Empire empire, FixedFaction party, bool defeat)
     {
         Person incumbent = party.GetLeader();
@@ -173,7 +168,6 @@ public static class PartyInnerSystem
             empire.data?.constitutional_economy?.prime_minister_faction_id == party.GetID())
             ParliamentSystem.ReelectGovernment(empire);
     }
-#endif
 
     #endregion
 

@@ -227,7 +227,6 @@ public static class SuccessionCouncilSystem
     }
 
     // 皇族无人可继：权臣、两位声望最高的重臣，尊王一派可拥立一位宗室远支(从都城人口里认一位，改用皇族的姓)
-#if EC_PENDING
     private static void NominateOutsiders(Empire empire, Realm core, List<CourtSuccessionCandidate> result)
     {
         var used = new HashSet<long>();
@@ -255,13 +254,11 @@ public static class SuccessionCouncilSystem
                 name = LM.Get("court_succession_commoner_name"), basis = Commoner, age = 0, kinship = 99
             });
     }
-#endif
 
     #endregion
 
     #region ② 廷议
 
-#if EC_PENDING
     private static void Debate(Empire empire, CourtState state, CourtSuccession council, double now)
     {
         List<FixedFaction> factions = CourtSystem.Factions(empire);
@@ -332,13 +329,11 @@ public static class SuccessionCouncilSystem
         if (adult && candidate.basis is Elder or Worthy && faction.Type is FactionType.诸侯 or FactionType.自治) score -= 6f;
         return score;
     }
-#endif
 
     #endregion
 
     #region ③ 定策、④ 迎立
 
-#if EC_PENDING
     public static (Person decider, string role) Decider(Empire empire)
     {
         Person dowager = empire?.GetEmpressDowagerForCouncil();
@@ -348,7 +343,6 @@ public static class SuccessionCouncilSystem
         Person setter = CourtSystem.AgendaSetter(empire);
         return setter?.Record != null && !setter.IsGone() && setter.Alive ? (setter, "regent") : (null, "court");
     }
-#endif
 
     // 各人选的廷议支持率(0~100)
     public static float Support(CourtSuccession council, int index)
@@ -360,7 +354,6 @@ public static class SuccessionCouncilSystem
     }
 
     // 定策；forced ≥ 0 时直接立这一位(神力钦定)
-#if EC_PENDING
     private static void Decide(Empire empire, CourtState state, CourtSuccession council, double now, int forced)
     {
         Person decider = null;
@@ -438,10 +431,8 @@ public static class SuccessionCouncilSystem
         council.gave_up = council.attempts >= MaxAttempts;
         council.stage = -1;
     }
-#endif
 
     // 落成人选：宗室族人从族谱落成实体，远支从都城人口里认一位，外姓用现成的人
-#if EC_PENDING
     private static Person Enthrone(Empire empire, Realm core, CourtSuccessionCandidate candidate)
     {
         switch (candidate.basis)
@@ -468,10 +459,8 @@ public static class SuccessionCouncilSystem
         if (realize) return person.Realize();
         return person.is_virtual ? null : person._actor;
     }
-#endif
 
     // 神力钦定：开列人选后、定策前直接立其中一位
-#if EC_PENDING
     public static bool GodChoose(Empire empire, int index)
     {
         CourtState state = CourtSystem.State(empire);
@@ -481,7 +470,6 @@ public static class SuccessionCouncilSystem
         Decide(empire, state, council, GameClock.Now, index);
         return council.stage == 2;
     }
-#endif
 
     #endregion
 

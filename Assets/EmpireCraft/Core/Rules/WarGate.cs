@@ -30,7 +30,7 @@ public static class WarGate
         if (PuppetStateSystem.IsPuppet(attacker) || ExileGovernmentSystem.IsExiled(attacker) ||
             ColonySystem.ForeignAffairsByMetropole(attacker)) return false;
         if (Forbidden(attacker, target, ownTributary)) return false;
-        double lastWarEnded = EmpireWorld.Current?.diplomacy?.getRelation(attacker, target)?.data?.timestamp_last_war_ended ?? -1d;
+        double lastWarEnded = EmpireWorld.Current?.Diplomacy?.GetRelation(attacker, target)?.Record?.LastWarEnded ?? -1d;
         if (lastWarEnded >= 0d && GameClock.YearsSince(lastWarEnded) < SimGlobals.m.minimum_years_between_wars) return false;
         return FeudalVassalService.CanDeclareExternalWar(attacker, target, includeImperialMembers: attacker.IsEmpire());
     }
@@ -38,7 +38,6 @@ public static class WarGate
 
     // 不论强弱都不打的关系：统一战线、兄弟之国、共主与共事部落、跨文明通好、扶立、同一帝国、岁币与朝贡、同盟、
     // 姻亲、封建上下级、保护约、同一位君主。ownTributary：攻方打自己帝国的朝贡国不算"朝贡两头都不打"(只给共主平定，见类头)
-#if EC_PENDING
     public static bool Forbidden(Realm attacker, Realm target, bool ownTributary = false)
     {
         if (attacker == null || target == null || attacker == target) return true;
@@ -53,7 +52,7 @@ public static class WarGate
         Empire own = attacker.GetEmpire(), theirs = target.GetEmpire();
         if (own != null && (target.GetGivenAllianceEmpire() == own || target.GetTakenAllianceEmpire() == own && !ownTributary)) return true;
         if (theirs != null && (attacker.GetGivenAllianceEmpire() == theirs || attacker.GetTakenAllianceEmpire() == theirs)) return true;
-        if (attacker.hasAlliance() && target.hasAlliance() && attacker.getAlliance() == target.getAlliance()) return true;
+        if (attacker.HasAlliance() && target.HasAlliance() && attacker.GetAlliance() == target.GetAlliance()) return true;
         if (RoyalMarriageSystem.Allied(attacker, target)) return true;
         if (FeudalVassalService.IsInChain(attacker, target) || FeudalVassalService.IsInChain(target, attacker)) return true;
         // 宗主与殖民地、同一宗主的殖民地(见 ColonySystem)
@@ -68,6 +67,5 @@ public static class WarGate
         if (MembershipCooldown.TruceForbids(attacker, target)) return true;
         return attacker.Ruler != null && attacker.Ruler == target.Ruler;
     }
-#endif
 }
 }

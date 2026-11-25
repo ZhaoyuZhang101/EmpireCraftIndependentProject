@@ -76,7 +76,6 @@ public static class CityStateService
     }
 
     // CityManager.buildNewCity 之后调用：开国的第一座城用来定国名，之后新建的城独立为殖民城邦
-#if EC_PENDING
     public static void OnCityBuilt(City city, Person founder)
     {
         Realm mother = city?.Realm;
@@ -98,11 +97,9 @@ public static class CityStateService
         Record(mother, inEmpire ? "city_state_colony_empire_history" : "city_state_colony_history",
             mother.GetKingdomName(), colony.GetKingdomName());
     }
-#endif
 
     // 一城一国：城邦名下多出来的城(建城时还没施行城邦共和、后来才改制；和约割让、归附等别的来路)每月分出一座，
     // 由本城的主事者立为殖民城邦，与母邦结盟、共用一位君主(母邦在帝国里的并入帝国)。RoyalHouseSystem 每月调用
-#if EC_PENDING
     public static void EnforceOneCity()
     {
         if (EmpireWorld.Current?.LiveRealms == null) return;
@@ -136,7 +133,6 @@ public static class CityStateService
             }
         }
     }
-#endif
 
     // CityPatch.FinishedCapture 调用。返回 true 表示已按城邦规则处理，城市不归攻城方。
 #if EC_PENDING
@@ -201,7 +197,6 @@ public static class CityStateService
                ?? locals.OrderByDescending(actor => actor.Renown).FirstOrDefault();
     }
 
-#if EC_PENDING
     public static bool TryCrownLocalRuler(Realm realm)
     {
         City city = realm?.Capital;
@@ -215,6 +210,7 @@ public static class CityStateService
         return realm.Ruler == leader;
     }
 
+#if EC_PENDING
     private static void EndWarsBetween(Realm victor, Realm loser)
     {
         foreach (War war in loser.GetWars().ToList())
@@ -227,13 +223,12 @@ public static class CityStateService
 #endif
 
     // 攻城方/母邦在帝国里：并入该帝国(先退出原版联盟，两者不兼容)，返回 true；否则入盟，返回 false
-#if EC_PENDING
     private static bool Attach(Realm leader, Realm member)
     {
         Empire empire = leader?.GetEmpire();
         if (empire != null && !empire.IsGone() && !empire.IsArchived())
         {
-            if (member.hasAlliance()) member.getAlliance().leave(member);
+            if (member.HasAlliance()) member.GetAlliance().Leave(member);
             empire.join(member, pForce: true);
             return true;
         }
@@ -245,21 +240,18 @@ public static class CityStateService
         ShareSovereign(leader, member);
         return false;
     }
-#endif
 
     // 入盟的城邦同步盟主(战胜国/母邦)的颜色，并与盟主共用同一位君主；联盟以盟主城邦的名字命名。
     // 这里直接 setKing 而不走官职任命：任命会把君主迁到对方都城，他就离开了自己的城邦。
-#if EC_PENDING
     private static void ShareSovereign(Realm leader, Realm member)
     {
         if (leader == null || member == null || member.IsGone()) return;
-        member.updateColor(leader.GetColor());
+        member.UpdateColor(leader.GetColor());
         Person sovereign = leader.Ruler;
         if (sovereign == null || sovereign.IsGone() || !sovereign.Alive) return;
         PersonalUnionService.CrownInUnion(member, sovereign);
         PersonalUnionService.NameAllianceAfterLeader(leader);
     }
-#endif
 
     private static void Record(Realm kingdom, string key, params object[] args)
     {

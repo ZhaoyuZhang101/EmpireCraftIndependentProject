@@ -56,7 +56,6 @@ public static class EconomicCycleSystem
     #region 年度
 
     // 每年(ConstitutionalEconomySystem，先于革命形势与民意结算)
-#if EC_PENDING
     public static void Update(Empire empire, ConstitutionalEconomyState state)
     {
         if (empire?.CoreKingdom == null || state == null) return;
@@ -128,7 +127,6 @@ public static class EconomicCycleSystem
         float chance = CrashBase + (state.cycle_heat - OverheatAt) / 100f * CrashPerHeat;
         if (EcRandom.value < chance) Crash(empire, state, "bubble", null);
     }
-#endif
 
     private static void Enter(ConstitutionalEconomyState state, int phase, double now)
     {
@@ -140,7 +138,6 @@ public static class EconomicCycleSystem
         CommodityMarketSystem.PolicyOf(CommodityMarketSystem.MarketOf(core)?.leader ?? core);
 
     // 通商的伙伴里今年有没有崩盘的、会不会传过来
-#if EC_PENDING
     private static Empire ContagionSource(Empire empire, ConstitutionalEconomyState state)
     {
         Realm core = empire.CoreKingdom;
@@ -172,7 +169,6 @@ public static class EconomicCycleSystem
         }
         return null;
     }
-#endif
 
     private static bool JustCrashed(Empire empire)
     {

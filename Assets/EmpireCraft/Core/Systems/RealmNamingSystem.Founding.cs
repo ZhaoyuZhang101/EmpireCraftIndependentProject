@@ -1,6 +1,5 @@
 // Generated from the EmpireCraft mod: Scripts/GeneralSystems/RealmNamingSystem.Founding.cs. Do not edit by hand: Tools/PortTool/members.py rewrites it;
 // see Port/manifest.json and Tools/PortTool.
-using Vector2 = EmpireCraft.Core.EcVector2;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -43,7 +42,6 @@ public static partial class RealmNamingSystem
     }
 
     // 华夏选号(Empire.SelectFoundingEmpireName → SelectFoundingName)
-#if EC_PENDING
     private static EmpireFoundingNameChoice SelectHuaxiaName(Empire empire, Realm kingdom, EmpireCore riseCore,
         EmpireFormationRoute route)
     {
@@ -103,7 +101,6 @@ public static partial class RealmNamingSystem
         LogService.LogInfo($"[EmpireCraft][选定国号] {kingdom.GetKingdomName()} 无王国法理可用，取美号 {grand}");
         return new EmpireFoundingNameChoice(grand, EmpireFoundingNameSource.GrandName);
     }
-#endif
 
     // ② 够格的帝国法理：握着首府、无主、名字没别国在用、不是地名
     private static EmpireCore TitleNameCore(Realm kingdom, Empire founding)
@@ -407,7 +404,6 @@ public static partial class RealmNamingSystem
 
     // 帝国内部改朝换代(权臣篡位、外戚代立、太后另立……，见 Empire.NewEmperor)：用篡位者的封国名(他持有的王国法理)，没有封国用美号；
     // 宗室复辟(篡位者的宗族建过帝国)沿用旧号，不走这里。返回 false = 不是华夏、照旧规则
-#if EC_PENDING
     public static bool NameUsurper(Empire empire, Person usurper)
     {
         if (!Enabled || empire?.data == null || empire.CoreKingdom == null || !IsHuaxia(empire) ||
@@ -453,18 +449,16 @@ public static partial class RealmNamingSystem
         LogService.LogInfo($"[EmpireCraft][选定国号] {before} 改朝，{usurper?.FullName()} 定号 {empire.GetEmpireFullName()}");
         return true;
     }
-#endif
 
     // 先封王再受禅：以 bases(籍贯郡望、驻地)为本，先看它们自己的王国法理，再在 pool 的城里由近到远找；
     // 取不是地名、不是 avoid、眼下没有别国用作国号的第一块。找不到返回空(调用方再用美号)
-#if EC_PENDING
     internal static string EnfeoffedName(Empire empire, List<City> bases, IEnumerable<City> pool, params string[] avoid)
     {
         List<City> origins = bases.Where(city => city?.Record != null && !city.IsGone()).ToList();
         if (origins.Count == 0) return "";
         City anchor = origins[0];
         IEnumerable<City> nearby = (pool ?? Enumerable.Empty<City>()).Where(city => city?.Record != null && !city.IsGone())
-            .OrderBy(city => UnityEngine.Vector2.Distance(city.Center, anchor.Center));
+            .OrderBy(city => EcVector2.Distance(city.Center, anchor.Center));
         var seen = new HashSet<long>();
         foreach (City city in origins.Concat(nearby))
         {
@@ -477,7 +471,6 @@ public static partial class RealmNamingSystem
         }
         return "";
     }
-#endif
 
     // 籍贯与驻地：宗族郡望(世家的郡望之城，否则族人最早定居的城)、本人所在的城、本国都城
     private static List<City> BaseCities(Person actor, Realm kingdom)

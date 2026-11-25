@@ -1,5 +1,6 @@
 // Generated from the EmpireCraft mod: Scripts/Layer/KingdomTitle.cs. Do not edit by hand: Tools/PortTool/members.py rewrites it;
 // see Port/manifest.json and Tools/PortTool.
+using Vector3 = EmpireCraft.Core.EcVector3;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -9,7 +10,7 @@ using System.Threading.Tasks;
 
 namespace EmpireCraft.Core
 {
-public class KingdomTitle : RecordObject<KingdomTitleData>
+public partial class KingdomTitle : RecordObject<KingdomTitleData>
 {
     public const string JurisdictionHolder = "holder";
     public const string JurisdictionAdministration = "administration";
@@ -18,10 +19,8 @@ public class KingdomTitle : RecordObject<KingdomTitleData>
 #endif
     public HashSet<City> city_list_hash = new HashSet<City>();
     public List<City> city_list = new List<City>();
-#if EC_PENDING
     public Vector3 last_center;
     public Vector3 title_center;
-#endif
     private readonly List<Cell> _zoneScratch = new();
     private readonly List<City> _needRemoveCitiesBuffer = new();
     public City title_capital;
@@ -32,13 +31,11 @@ public class KingdomTitle : RecordObject<KingdomTitleData>
     public Tint kingdomColor => GetColor();
     public override EntityKind KindOfEntity => MetaTypeExtension.KingdomTitle;
 
-#if EC_PENDING
     public void SetOwner(Person pActor)
     {
         owner?.removeTitle(this);
         owner = pActor;
     }
-#endif
     public int GetTitleBeenControlledYear()
     {
         if (this.data == null) return 0;
@@ -55,8 +52,8 @@ public class KingdomTitle : RecordObject<KingdomTitleData>
         this.data.founder_actor_id = king?.Key ?? -1L;
         this.data.founder_actor_name = king?.Name ?? "";
         this.data.created_time = GameClock.Now;
-        this.data.banner_icon_id = city.Realm.Record.banner_icon_id;
-        this.data.banner_background_id = city.Realm.Record.banner_background_id;
+        this.data.banner_icon_id = city.Realm.Record.BannerIconId;
+        this.data.banner_background_id = city.Realm.Record.BannerBackgroundId;
         this.data.founder_kingdom_id = city.Realm.Key;
         this.data.founder_kingdom_name = city.Realm.Name;
         this.data.timestamp_established_time = GameClock.Now;
@@ -72,7 +69,7 @@ public class KingdomTitle : RecordObject<KingdomTitleData>
         data.original_actor_asset = king?.Asset?.Id ?? city.Realm.Record.original_actor_asset;
         CultureService.InitializeTitleCulture(this);
         recalculate();
-        generateColor();
+        GenerateColor();
         LogService.LogInfo("创建头衔成功");
         preserveAlive();
     }
@@ -122,8 +119,8 @@ public class KingdomTitle : RecordObject<KingdomTitleData>
         }
     }
 
-#if EC_PENDING
-    public override Tint GetColor()
+#if EC_REPLACED // written by hand for this game: see Assets/EmpireCraft/Core/Seams
+    public override Tint getColor()
     {
         // 王国法理用自己那套设色、接壤的不同色(见 DeJureMap)，不再与国家同一个色库
         Tint own = DeJureMap.TitleColor(this);
@@ -135,10 +132,12 @@ public class KingdomTitle : RecordObject<KingdomTitleData>
 
         return _cached_color;
     }
+#endif
 
+#if EC_PENDING
     public Sprite getElementIcon()
     {
-        PersonKind actorAsset = getActorAsset();
+        PersonKind actorAsset = GetActorAsset();
         if (actorAsset == null) return null;
         try
         {
@@ -160,7 +159,7 @@ public class KingdomTitle : RecordObject<KingdomTitleData>
     
     public Sprite getElementBackground()
     {
-        PersonKind actorAsset = getActorAsset();
+        PersonKind actorAsset = GetActorAsset();
         if (actorAsset == null) return null;
         try
         {
@@ -200,13 +199,17 @@ public class KingdomTitle : RecordObject<KingdomTitleData>
         }
         return res;
     }
+#endif
 
 
+#if EC_REPLACED // written by hand for this game: see Assets/EmpireCraft/Core/Seams
     public override PersonKind getActorAsset()
     {
         return getFounderSpecies();
     }
+#endif
 
+#if EC_PENDING
     public override int CountUnits()
     {
         var num = 0;
@@ -216,6 +219,8 @@ public class KingdomTitle : RecordObject<KingdomTitleData>
         }
         return num;
     }
+#endif
+#if EC_REPLACED // written by hand for this game: see Assets/EmpireCraft/Core/Seams
     public override void generateColor()
     {
         PersonKind actorAsset = getActorAsset();
@@ -227,7 +232,9 @@ public class KingdomTitle : RecordObject<KingdomTitleData>
         int nextColorIndex = getColorLibrary().getNextColorIndex(actorAsset);
         data.setColorID(nextColorIndex);
     }
+#endif
 
+#if EC_PENDING
     public PersonKind getFounderSpecies()
     {
         if (!string.IsNullOrWhiteSpace(data?.original_actor_asset))
@@ -256,11 +263,13 @@ public class KingdomTitle : RecordObject<KingdomTitleData>
         return tResult;
     }
 
-#if EC_PENDING
-    public override ColorLibrary getColorLibrary()
+#if EC_REPLACED // written by hand for this game: see Assets/EmpireCraft/Core/Seams
+    public override Palette getColorLibrary()
     {
         return AssetManager.kingdom_colors_library;
     }
+#endif
+#if EC_PENDING
     public Vector3 GetCenter()
     {
         if (!this._units_dirty)
@@ -397,7 +406,6 @@ public class KingdomTitle : RecordObject<KingdomTitleData>
         return zones;
     }
 
-#if EC_PENDING
     public void addCity(City city)
     {
         if (city == null) return;
@@ -418,11 +426,9 @@ public class KingdomTitle : RecordObject<KingdomTitleData>
         }
         recalculate();
     }
-#endif
 
     // byPlayer：玩家用权能把城市从法理上摘下。冻结法理只防止城市毁灭、战乱让法理自然消失；
     // 玩家亲手摘掉最后一座城时照样解散，否则会留下没有城市的"幽灵法理"
-#if EC_PENDING
     public void removeCity(City city, bool byPlayer = false)
     {
         EmpireCore core = this.title_capital?.GetEmpireCore();
@@ -438,6 +444,7 @@ public class KingdomTitle : RecordObject<KingdomTitleData>
             ModClass.KINGDOM_TITLE_MANAGER.dissolveTitle(this);
         }
     }
+#if EC_PENDING
     public override bool isReadyForRemoval()
     {
         return false;
@@ -555,7 +562,6 @@ public class KingdomTitle : RecordObject<KingdomTitleData>
         this.owner = null;
     }
 
-#if EC_PENDING
     public void Dissolve()
     {
         foreach (var kingdom in EmpireWorld.Current.LiveRealms)
@@ -574,7 +580,6 @@ public class KingdomTitle : RecordObject<KingdomTitleData>
             city.RemoveTitle();
         }
     }
-#endif
 
     public override IEnumerable<City> GetCities()
     {

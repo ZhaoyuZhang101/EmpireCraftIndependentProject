@@ -131,7 +131,6 @@ public static class WallGateSystem
 
     // 关城的城墙阻力(见 TerrainResistance)：这块地的关门放不放 visitor 过去——关在谁手里(被敌军占着就归占领者)，
     // 谁与同一势力、并肩作战的友邦、同盟才放
-#if EC_PENDING
     public static bool LetsThrough(Cell zone, Realm visitor)
     {
         City city = zone?.City;
@@ -139,10 +138,9 @@ public static class WallGateSystem
         Realm keeper = city.GetTileZoneOccupier(zone) ?? city.Realm;
         if (keeper?.Record == null) return false;
         if (FrontSystem.Friendly(keeper, visitor)) return true;
-        return keeper.hasAlliance() && visitor.hasAlliance() && keeper.getAlliance() == visitor.getAlliance() &&
+        return keeper.HasAlliance() && visitor.HasAlliance() && keeper.GetAlliance() == visitor.GetAlliance() &&
                !FrontSystem.Hostile(keeper, visitor);
     }
-#endif
 
     // 每帧(MapWallSystem.Tick)：关城、城墙变了就重算，另外每 RefreshSeconds 秒重算一遍；关门变了返回 true
 #if EC_PENDING

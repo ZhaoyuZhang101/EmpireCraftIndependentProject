@@ -84,7 +84,6 @@ public static class RoyalHouseSystem
 
     #region 每年过生日(ActorPatch.UpdateAge)
 
-#if EC_PENDING
     public static void OnBirthday(Person actor)
     {
         if (actor?.Record == null || actor.IsGone() || !actor.Alive || !actor.IsSapient()) return;
@@ -99,7 +98,6 @@ public static class RoyalHouseSystem
         float infant = InfantMortality(actor);
         if (infant > 0f && EcRandom.value < infant) Pending.Add((actor, Fate.Infant));
     }
-#endif
 
     private static float InfantMortality(Person actor)
     {
@@ -121,7 +119,6 @@ public static class RoyalHouseSystem
         return chance;
     }
 
-#if EC_PENDING
     private static void RepairSurname(Person actor)
     {
         // 华夏宗族的本宗族人姓本族的姓(见 SurnameInheritanceSystem.EnforceClanSurname)
@@ -133,7 +130,6 @@ public static class RoyalHouseSystem
         actor.SetFamilyName(clan);
         name.SetName(actor);
     }
-#endif
 
     #endregion
 
@@ -247,7 +243,6 @@ public static class RoyalHouseSystem
 #endif
 
     // 本国在世的人物里挑配偶：异性、同种族、成年未婚、非近亲，名望高的优先
-#if EC_PENDING
     private static Person FindConsort(Realm kingdom, Person royal)
     {
         Person best = null;
@@ -271,7 +266,6 @@ public static class RoyalHouseSystem
             .OrderByDescending(VirtualGenealogySystem.VirtualRenown).ThenBy(person => person.id);
         return KinRoster.RealizeFirst(pool, candidate => candidate.Alive && candidate.Spouse == null, 1);
     }
-#endif
 
     private static bool Kin(Person a, Person b)
     {
@@ -501,7 +495,7 @@ public static class RoyalHouseSystem
             if (fief == null) continue;
             prince.JoinCity(fief);
             if (PureMapMode.Enabled) prince.setCurrentTilePosition(fief.SeatCell());
-            else prince.goTo(fief.SeatCell());
+            else prince.GoTo(fief.SeatCell());
         }
         // 虚拟族人里的成年皇子(纯净地图下多是这样，以前一直记在京城)：族谱上改记到封地，不落成。
         // 封地同上：有爵位封地的(族谱上看不出，留给落成后再走上面那步)以外，挑皇子最少、人口最多的城

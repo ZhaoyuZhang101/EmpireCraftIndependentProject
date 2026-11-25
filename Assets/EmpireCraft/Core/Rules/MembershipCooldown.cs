@@ -148,17 +148,15 @@ public static class MembershipCooldown
     }
 
     // 两家正在交战，或停战不到 WarResultYears 年：打下来的、战后称臣立附庸的，照旧
-#if EC_PENDING
     private static bool WarResult(Realm kingdom, Empire empire, Realm lord)
     {
         if (empire != null && !empire.IsGone() && !empire.IsArchived() && empire.hasWarsWith(kingdom)) return true;
         if (lord != null && !lord.IsGone() && kingdom.IsAtWarWith(lord)) return true;
         Realm other = lord ?? empire?.CoreKingdom;
         if (other?.Record == null || other.IsGone()) return false;
-        double ended = EmpireWorld.Current?.diplomacy?.getRelation(kingdom, other)?.data?.timestamp_last_war_ended ?? -1d;
+        double ended = EmpireWorld.Current?.Diplomacy?.GetRelation(kingdom, other)?.Record?.LastWarEnded ?? -1d;
         return ended >= 0d && Now >= ended && GameClock.YearsSince(ended) < WarResultYears;
     }
-#endif
 
     // 危急：正被别国(不是 former 帝国的)攻打，这场仗已丢了 DesperateLostShare 以上的城，或敌方兵力是自己的 DesperateStrength 倍以上
     public static bool Desperate(Realm kingdom, Empire former)
@@ -188,7 +186,6 @@ public static class MembershipCooldown
     }
 
     // 并入帝国(不论自愿还是强制)：神力放出的保护期内拦下，打仗打下来的、自己危急来投的除外。会记日志
-#if EC_PENDING
     public static bool BlocksJoin(Realm kingdom, Empire empire)
     {
         if (GodActing || kingdom?.Record == null || empire == null) return false;
@@ -197,10 +194,8 @@ public static class MembershipCooldown
         LogBlocked(kingdom, empire, null, "并入", years);
         return true;
     }
-#endif
 
     // 收为朝贡国：神力放出的保护期内拦下(战后称臣、危急除外)；自愿的另看自己离开几年
-#if EC_PENDING
     public static bool BlocksTributary(Realm kingdom, Empire empire, bool forced)
     {
         if (GodActing || kingdom?.Record == null || empire == null) return false;
@@ -210,10 +205,8 @@ public static class MembershipCooldown
         LogBlocked(kingdom, empire, null, "称臣纳贡", years);
         return true;
     }
-#endif
 
     // 收为附庸：神力放出的保护期内原宗主(连同原帝国的核心)收不得，打下来的、危急的除外
-#if EC_PENDING
     public static bool BlocksVassal(Realm subject, Realm lord, bool log = true)
     {
         if (GodActing || subject?.Record == null || lord?.Record == null || subject.GetOrCreate().manual_release_at < 0d) return false;
@@ -223,7 +216,6 @@ public static class MembershipCooldown
         if (log) LogBlocked(subject, lordEmpire, lord, "为附庸", years);
         return true;
     }
-#endif
 
     #endregion
 

@@ -197,7 +197,6 @@ public static class PersonalTieSystem
 #endif
 
     // 构陷：使宿敌去职
-#if EC_PENDING
     private static bool Frame(Person actor, Person rival)
     {
         OfficeObject office = rival.GetOffice();
@@ -210,7 +209,6 @@ public static class PersonalTieSystem
         LawEvents.Framed(actor);
         return true;
     }
-#endif
 
     // 复仇：遣刺客
 #if EC_PENDING

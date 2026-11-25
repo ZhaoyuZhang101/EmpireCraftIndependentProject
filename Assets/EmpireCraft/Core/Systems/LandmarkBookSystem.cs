@@ -186,8 +186,8 @@ public static class LandmarkBookSystem
                                                         (abstracted ? CityPopulationSystem.LiterateHouseholds(city) : 0));
             float chance = Math.Min(ScholarMaxChance, ScholarBaseChance + ScholarChancePerLiterate * literate);
             if (roll >= chance) continue;
-            Person author = adults.Where(actor => actor.language != null && actor.Culture != null)
-                .OrderByDescending(actor => actor.stats["intelligence"]).FirstOrDefault();
+            Person author = adults.Where(actor => actor.Language != null && actor.Culture != null)
+                .OrderByDescending(actor => actor.Stats["intelligence"]).FirstOrDefault();
             // 没有实体执笔人：从人口里请一位读书人
             if (author == null && abstracted) author = CityPopulationSystem.SpawnScholar(city);
             if (author == null) continue;
@@ -270,7 +270,6 @@ public static class LandmarkBookSystem
 #endif
 
     // 本文化里最有学识的成年人，所在城市要有能放书的建筑
-#if EC_PENDING
     private static Person PickAuthor(List<City> cities)
     {
         Person best = null;
@@ -280,7 +279,7 @@ public static class LandmarkBookSystem
             if (city == null || city.IsGone() || city.GetBuildingWithBookSlot() == null) continue;
             foreach (Person actor in city.People)
             {
-                if (actor == null || !actor.Alive || !actor.IsAdult() || actor.language == null ||
+                if (actor == null || !actor.Alive || !actor.IsAdult() || actor.Language == null ||
                     actor.IsWarMachine()) continue;
                 float score = actor.Stats["intelligence"] + actor.Renown * 0.01f;
                 if (score <= bestScore) continue;
@@ -298,7 +297,6 @@ public static class LandmarkBookSystem
         }
         return best;
     }
-#endif
 
     #endregion
 

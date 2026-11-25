@@ -63,7 +63,7 @@ public static class KingdomFlagSystem
     private static bool FliesSenateFlag(Realm kingdom)
     {
         BannerAsset banner = AssetManager.kingdom_banners_library.get(kingdom.getActorAsset()?.banner_id);
-        int index = kingdom.Record.banner_icon_id;
+        int index = kingdom.Record.BannerIconId;
         return banner?.icons != null && index >= 0 && index < banner.icons.Count && banner.icons[index] == SenateIcon;
     }
 

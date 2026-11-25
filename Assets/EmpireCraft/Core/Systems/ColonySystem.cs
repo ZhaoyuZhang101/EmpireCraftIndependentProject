@@ -366,6 +366,7 @@ public static class ColonySystem
         Setup(colony, receiver, ColonyState.Mandate, place);
         return true;
     }
+#endif
 
     public static bool RotateGovernor(Realm colony)
     {
@@ -391,12 +392,12 @@ public static class ColonySystem
         Nationalize(colony, metropole, state);
         return true;
     }
-#endif
 
     // 一组城拆出去立为殖民地(总督府或特许公司)
 #if EC_PENDING
     private static Realm Found(Realm metropole, List<City> cities, int kind) =>
         AdministrativeControlSystem.ReleaseToLocal(metropole, cities, colony => Setup(colony, metropole, kind), out _);
+#endif
 
     private static string Setup(Realm colony, Realm metropole, int kind, string place = "")
     {
@@ -429,7 +430,6 @@ public static class ColonySystem
             metropole.GetKingdomFullName(), colony.GetKingdomFullName(), ruler), metropole);
         return "colony";
     }
-#endif
 
     private static void ApplyRegime(Realm colony, int kind)
     {
@@ -571,7 +571,6 @@ public static class ColonySystem
     #region 总督
 
     // 总督府出缺(见 OfficeSelector.Select)：宗主国派人；公司由董事会照投票选，这里不管
-#if EC_PENDING
     public static Person PickGovernor(Realm colony)
     {
         ColonyState state = Of(colony);
@@ -594,7 +593,6 @@ public static class ColonySystem
             colony.GetKingdomFullName()));
         return governor;
     }
-#endif
 
     #endregion
 
@@ -688,7 +686,6 @@ public static class ColonySystem
     }
 
     // 特许公司收归国有，改设总督府
-#if EC_PENDING
     private static void Nationalize(Realm colony, Realm metropole, ColonyState state)
     {
         string before = colony.GetKingdomFullName();
@@ -703,6 +700,7 @@ public static class ColonySystem
             colony.GetKingdomFullName()), metropole);
     }
 
+#if EC_PENDING
     private static void Drift(Realm colony, Realm metropole, ColonyState state, double now)
     {
         float gain = 2f + Mathf.Min(4f, Distance(colony.Capital, metropole.Capital) / 40f);
@@ -767,7 +765,6 @@ public static class ColonySystem
 #endif
 
     // 直辖殖民地和平改为自治领：总督卸任，本地推出自己的元首，政体照本地文化定
-#if EC_PENDING
     private static void BecomeDominion(Realm colony, Realm metropole, ColonyState state)
     {
         state.kind = ColonyState.Dominion;
@@ -782,7 +779,6 @@ public static class ColonySystem
         TranslateHelper.LogEventMessage(string.Format(LM.Get("colony_became_dominion"), colony.GetKingdomFullName(), metropole.GetKingdomFullName()),
             metropole);
     }
-#endif
 
     // 独立战争结束(见 FeudalVassalService.ResolveIndependenceWar)：殖民地胜则脱离，败则离心压回去
 #if EC_PENDING

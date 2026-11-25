@@ -46,6 +46,21 @@ namespace EmpireCraft.Core
     // hands out traits says here which way each one counts. Unlisted traits count neither way.
     public enum TraitType : byte { Other, Positive, Negative }
 
+    // A trait as the ported code walks over a person's traits: its id and which way it counts.
+    public sealed class PersonTrait
+    {
+        public readonly string Id;
+        public PersonTrait(string id) { Id = id; }
+        public TraitType Kind => Id.TraitKindOf();
+        public override string ToString() => Id;
+    }
+
+    // A branch of a people. This world has one people and no branches.
+    public sealed class Subspecies
+    {
+        public string SpeciesId = PersonKind.HumanId;
+    }
+
     public static class TraitKinds
     {
         static readonly Dictionary<string, TraitType> Known = new Dictionary<string, TraitType>(StringComparer.Ordinal);
@@ -68,6 +83,15 @@ namespace EmpireCraft.Core
         public static string FamilyOf(Culture culture) => culture == null || !culture.Alive || culture.Family == null ? "" : culture.Family;
         public static void SetFamily(Culture culture, string family, bool addTraits = true) { if (culture != null && culture.data != null) culture.Family = string.IsNullOrWhiteSpace(family) ? null : family; }
         public static NameParts NameParts(Culture culture, EntityKind kind) => null;
+        // A culture is shown under the name of its family of rules, in the loaded language.
+        public static bool SyncName(Culture culture, string family = null)
+        {
+            if (culture == null || culture.data == null) return false;
+            if (string.IsNullOrWhiteSpace(family)) family = culture.Family;
+            if (string.IsNullOrWhiteSpace(family)) return false;
+            culture.Name = LM.Has(family) ? LM.Get(family) : family;
+            return true;
+        }
         // The culture on record that follows this family of rules, if there is one.
         public static Culture OfFamily(EmpireWorld world, string family)
         {

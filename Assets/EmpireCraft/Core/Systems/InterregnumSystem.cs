@@ -30,7 +30,6 @@ public static class InterregnumSystem
         return !EmpirePartitionSystem.CanUnite(empire, out _);
     }
 
-#if EC_PENDING
     private static double Might(Realm kingdom)
     {
         try
@@ -42,7 +41,6 @@ public static class InterregnumSystem
             return kingdom.Cities?.Count ?? 0;
         }
     }
-#endif
 
     // 据地称帝的新帝国承接旧朝廷的积弊与王朝积弊，开国之君不得开国气象(见 Empire.FounderGrace)；
     // 王朝年岁也接着算(改朝换代三档之"保留"，用户 2026-10-26：以前称帝时归零，按新朝慢速滋生)

@@ -181,7 +181,6 @@ public static partial class TransmigrantSystem
 #endif
 
     // 第二次全体大会：看守内阁开的会，共同纲领、女仆培养与分配、归化民地位都在这里定(见 Milestones)
-#if EC_PENDING
     private static void SecondCongress(Realm kingdom, TransmigrantState state, int year)
     {
         Mark(state, "second_congress", year);
@@ -191,7 +190,6 @@ public static partial class TransmigrantSystem
         InstallRuler(kingdom, Elect(kingdom, state, termEnd: true));
         TranslateHelper.LogMajor(string.Format(LM.Get("transmigrant_event_second_congress_history"), kingdom.GetKingdomFullName()), kingdom);
     }
-#endif
 
     #endregion
 

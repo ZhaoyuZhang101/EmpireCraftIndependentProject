@@ -559,8 +559,8 @@ public static class FarmlandSystem
 #if EC_PENDING
     private static int ClearHousing(City city, Cell zone)
     {
-        if (zone?.City != city || zone.Tiles == null || city?.status == null) return 0;
-        int spare = city.status.housing_total - CityPopulationSystem.Households(city);
+        if (zone?.City != city || zone.Tiles == null || city?.Status == null) return 0;
+        int spare = city.Status.HousingTotal - CityPopulationSystem.Households(city);
         if (spare <= 0) return 0;
         var houses = new HashSet<Building>();
         foreach (Cell tile in zone.Tiles)

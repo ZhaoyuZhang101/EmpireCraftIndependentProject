@@ -240,7 +240,6 @@ public static partial class ShuiTuSystem
     // 读档时一次(按国家记 jimi_homeland_checked)：以前不服水土交出去的羁縻地区，城都在宗主帝国自己的法理里、
     // 按文化种族本该直辖的，改回直辖的州郡(不准外交、科举任命)。神力指定的、后来新设的羁縻不动(见 JimiSystem.Cycle、
     // AdministrativeControlSystem.Subordinate 设羁縻时一并记上)
-#if EC_PENDING
     public static void RestoreHomelandJimi()
     {
         if (EmpireWorld.Current?.LiveRealms == null) return;
@@ -273,7 +272,6 @@ public static partial class ShuiTuSystem
         }
         if (restored > 0) LogService.LogInfo($"[EmpireCraft][水土] 本朝法理里的羁縻地区改回直辖 {restored} 处");
     }
-#endif
 
     // 城领土陆地里旱地占几成(显示用)
     public static float DryShare(City city) => Dry(city).Share;

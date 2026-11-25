@@ -629,7 +629,7 @@ public class EmpireCraftActorCheckWarriorMove : GameAIActorBase
 
         // Setting the bookkeeping fields alone is not enough when another behaviour
         // currently owns movement. Explicitly wake the pathfinder for this target.
-        actor.goTo(target);
+        actor.GoTo(target);
 
         if (actor.IsArmyCaptain && actor.Army != null)
         {
@@ -650,13 +650,13 @@ public class EmpireCraftActorCheckWarriorMove : GameAIActorBase
         if (actor.tile_target != target || actor.beh_tile_target != target)
         {
             actor.SetFrontLineMoveTarget(target);
-            actor.goTo(target);
+            actor.GoTo(target);
         }
 
         if (!actor.HasFrontLineMoveTarget())
         {
             actor.SetFrontLineMoveTarget(target);
-            actor.goTo(target);
+            actor.GoTo(target);
         }
 
         if (frame - state.lastCheckFrame < ProgressCheckIntervalFrames)

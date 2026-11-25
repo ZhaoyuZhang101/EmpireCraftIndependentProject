@@ -16,7 +16,8 @@ using Newtonsoft.Json.Linq;
 // rest of the ported code calls the hand-written one.
 //
 // seams.json: { "CityPopulationSystem": ["SpawnFromGroup"], ... } - class name to member names
-// (every overload of a name). A name that is not found is an error: the mod has moved on.
+// (every overload of a name); "*" switches the whole type off, for a class written anew by hand.
+// A name that is not found is an error: the mod has moved on.
 public static class Seams
 {
     public static int Run(string sources, string table)
@@ -36,6 +37,14 @@ public static class Seams
             foreach (var type in types)
             {
                 var names = wanted[type.Identifier.Text];
+                if (names.Contains("*"))
+                {
+                    // The whole type goes; the hand-written one replaces it, so it is not made partial.
+                    var whole = type.GetLocation().GetLineSpan();
+                    off.Add((whole.StartLinePosition.Line, whole.EndLinePosition.Line));
+                    found.Add(type.Identifier.Text + ".*"); members++;
+                    continue;
+                }
                 foreach (var member in type.Members)
                 {
                     string name = member is MethodDeclarationSyntax m ? m.Identifier.Text : member is PropertyDeclarationSyntax p ? p.Identifier.Text :

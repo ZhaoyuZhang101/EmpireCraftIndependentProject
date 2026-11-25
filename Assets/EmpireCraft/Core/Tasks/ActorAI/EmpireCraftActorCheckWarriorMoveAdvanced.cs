@@ -2,6 +2,7 @@
 // see Port/manifest.json and Tools/PortTool.
 using Time = EmpireCraft.Core.FrameClock;
 using Color = EmpireCraft.Core.EcColor;
+using Vector3 = EmpireCraft.Core.EcVector3;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -113,7 +114,7 @@ public class EmpireCraftActorCheckWarriorMoveAdvanced : GameAIActorBase
 
         if (pActor.HasFrontLineMoveTarget())
         {
-            pActor.goTo(pActor.GetFrontLineMoveTarget());
+            pActor.GoTo(pActor.GetFrontLineMoveTarget());
             return BehResult.Continue;
         }
         // 2. 如果附近有己方城市被敌军占领的区块，优先清除占领状态
@@ -148,7 +149,7 @@ public class EmpireCraftActorCheckWarriorMoveAdvanced : GameAIActorBase
         {
             pActor.Army._prev_captain_position = targetTile;
         }
-        pActor.goTo(targetTile);
+        pActor.GoTo(targetTile);
         if (!EmpireCraft.Core.PureMapMode.Enabled)
             ((ZoneFlash)EffectsLibrary.spawn("fx_zone_highlight", targetTile, null, null, 0.8f)).start(Color.blue, 0.8f);
         return BehResult.Continue;
@@ -835,7 +836,7 @@ public class EmpireCraftActorCheckWarriorMoveAdvanced : GameAIActorBase
         if (enemy.Cell != null)
         {
             actor.SetFrontLineMoveTarget(enemy.Cell);
-            actor.goTo(enemy.Cell);
+            actor.GoTo(enemy.Cell);
         }
         actor.setAttackTarget(enemy);
         return true;
@@ -895,7 +896,7 @@ public class EmpireCraftActorCheckWarriorMoveAdvanced : GameAIActorBase
             return GetZoneTile(bestZone);
         }
 
-        return actor.Realm.Capital._city_tile;
+        return actor.Realm.Capital.SeatCell();
     }
 
     private static Cell FindBestFriendlyRetreatZone(Person actor)

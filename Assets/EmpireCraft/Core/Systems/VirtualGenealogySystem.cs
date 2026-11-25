@@ -39,7 +39,6 @@ public static partial class VirtualGenealogySystem
 #endif
 
     // 读档后从全局族谱索引里重建虚拟族人名单
-#if EC_PENDING
     private static void EnsureIndex()
     {
         if (ReferenceEquals(_world, EmpireWorld.Current)) return;
@@ -118,7 +117,6 @@ public static partial class VirtualGenealogySystem
         int vanillaNames = SpecificClanManager.SyncAllVanillaClanNames();
         if (vanillaNames > 0) LogService.LogInfo($"[EmpireCraft][虚拟族谱] 原版氏族名跟随宗族、支脉改名 {vanillaNames} 个");
     }
-#endif
 
     // 亲子年纪的修补(用户 2026-10-26 "会出现儿子比父亲大，以及3岁就有儿子")：以前不满一岁的虚拟族人落成时年龄设不回零岁，
     // 按平民落成成了二三十岁，再并回人口就记成这个岁数；原版几岁就算成年，几岁的人也生养(现在十六岁起，见
@@ -217,7 +215,6 @@ public static partial class VirtualGenealogySystem
         return true;
     }
 
-#if EC_PENDING
     public static int Count
     {
         get
@@ -226,18 +223,14 @@ public static partial class VirtualGenealogySystem
             return VirtualIds.Count;
         }
     }
-#endif
 
     // 并入前调用：族谱里的人转为虚拟族人，并断开与即将移除的单位的联系(之后单位移除不会把他记为死亡)
-#if EC_PENDING
     public static void Virtualize(Person actor, City city)
     {
         TryVirtualize(actor, city);
     }
-#endif
 
     // Cannot remove the entity unless its existing wallet has a durable owner.
-#if EC_PENDING
     public static bool TryVirtualize(Person actor, City city)
     {
         if (actor?.Record == null || !actor.Alive || EmpireWorld.Current == null || city?.Record == null || city.IsGone()) return false;
@@ -274,14 +267,12 @@ public static partial class VirtualGenealogySystem
         VirtualIds.Add(person.id);
         return true;
     }
-#endif
 
     // 落成实体：在原来所在的城(城没了就找同文化、同物种还有人的城)生成一人，套上族人的名字、性别、文化，
     // 并把族谱身份接回这个单位
     // 试着落成：按顺序落成候选人，第一个合格的留下。原是虚拟族人、落成后又不合格的当场并回人口——
     // 以前"挑一个成年皇子""挑一个声望够的子女"会把前面不合格的(多是孩子)全部落成并一直留在地图上，
     // 皇族子女又算要紧贵族不会被并入，每查一次就多一批实体。最多试 maxRealized 个虚拟族人
-#if EC_PENDING
     public static Person RealizeFirst(IEnumerable<PersonalClanIdentity> candidates, Func<Person, bool> accept,
         int maxRealized = 6)
     {
@@ -299,10 +290,8 @@ public static partial class VirtualGenealogySystem
         }
         return null;
     }
-#endif
 
     // 落成所有合格者；原是虚拟族人又不合格的当场并回人口
-#if EC_PENDING
     public static List<Person> RealizeAll(IEnumerable<PersonalClanIdentity> candidates, Func<Person, bool> accept)
     {
         var result = new List<Person>();
@@ -317,7 +306,6 @@ public static partial class VirtualGenealogySystem
         }
         return result;
     }
-#endif
 
     // 虚拟族人眼下的名望：并回人口时的名望，按在人口里过了几年每年去一成(虚拟时没有身份年入)
     public static int VirtualRenown(PersonalClanIdentity person)
@@ -327,7 +315,6 @@ public static partial class VirtualGenealogySystem
         return (int)Math.Round(person.virtual_renown * Math.Pow(1d - RenownSystem.Decay, Math.Min(years, 200d)));
     }
 
-#if EC_PENDING
     private static void Unrealize(Person actor)
     {
         if (actor?.Record == null || actor.IsGone() || !actor.Alive || actor.IsRuler() || actor.IsCityLeader()) return;
@@ -385,7 +372,6 @@ public static partial class VirtualGenealogySystem
         SpecificClanManager.SyncVanillaClan(actor);
         return actor;
     }
-#endif
 
     // Reuse the existing census pass in either population mode. A previously full
     // wallet can receive its remaining owned balance when space becomes available.
@@ -950,7 +936,6 @@ public static partial class VirtualGenealogySystem
         new[] { ClanRelation.SSGB, ClanRelation.SSGG }
     };
 
-#if EC_PENDING
     public static Person RealizeHeir(Realm kingdom)
     {
         if (!CityPopulationSystem.AbstractPopulationEnabled || kingdom?.Record == null || kingdom.IsGone()) return null;
@@ -977,10 +962,8 @@ public static partial class VirtualGenealogySystem
         }
         return heir?.Realize();
     }
-#endif
 
     // 宗室旁支入继：从都城人口中认一位宗室远支，编入皇族、改用皇族的姓
-#if EC_PENDING
     public static Person SpawnCadet(Realm kingdom, SpecificClan clan)
     {
         if (kingdom?.Capital == null || clan == null) return null;
@@ -1005,7 +988,6 @@ public static partial class VirtualGenealogySystem
         }
         return actor;
     }
-#endif
 
     private static PersonalClanIdentity PickHeir(IEnumerable<PersonalClanIdentity> people, PersonalClanIdentity last, bool maleOnly) =>
         people.Where(person => person != null && person.is_alive && person.is_virtual &&
@@ -1304,7 +1286,6 @@ public static partial class VirtualGenealogySystem
     private const float GentryBirthChance = 0.14f;
     private const int GentryMaxChildren = 6, GentryBirthMaxAge = 45, MaxGentryClanAlive = 50;
 
-#if EC_PENDING
     private static void TryBirth(PersonalClanIdentity parent)
     {
         if (!CityPopulationSystem.AbstractPopulationEnabled || !parent.is_main || !parent.IsHeirPriority()) return;
@@ -1345,11 +1326,9 @@ public static partial class VirtualGenealogySystem
         parent.children.Add(child.id);
         VirtualIds.Add(child.id);
     }
-#endif
 
     // 过继(世家无男丁可承，见 GentrySystem.TryAdopt)：有支脉、旁系里未成年或年轻的男丁(不是本支的继承人)就把他过继过来，
     // 记为养父之子(义父 father_in_law)；都没有就从族中远房记一位年轻的族子入谱。返回过继来的人
-#if EC_PENDING
     public static PersonalClanIdentity AdoptHeir(SpecificClan clan, PersonalClanIdentity adopter, IEnumerable<SpecificClan> kin)
     {
         if (clan == null || adopter == null || EmpireWorld.Current == null) return null;
@@ -1395,11 +1374,9 @@ public static partial class VirtualGenealogySystem
         heir.father_in_law = adopter.id;
         return heir;
     }
-#endif
 
     // 世家本宗凋尽而族众还在(见 GentrySystem.Revive)：族中远支记一位成年族人入谱为宗子，
     // 照谱上辈分最晚的族人取姓、文化、物种、辈分，住郡望之城。返回入谱的人
-#if EC_PENDING
     public static PersonalClanIdentity RecordKinsman(SpecificClan clan, City city)
     {
         if (clan == null || city?.Record == null || EmpireWorld.Current == null) return null;
@@ -1432,11 +1409,9 @@ public static partial class VirtualGenealogySystem
         VirtualIds.Add(kinsman.id);
         return kinsman;
     }
-#endif
 
     // 宗室添丁(无小人、纯净地图模式，见 RoyalHouseSystem)：在位君主、储君的子女直接记入族谱为虚拟子嗣，不生出实体；
     // 继位、分封等需要时再落成(见 RealizeHeir、EmpireCraftKingdomBehCheckHeir)。不受宗族在世人数上限限制
-#if EC_PENDING
     public static bool AddRoyalChild(Person royal, Person consort)
     {
         PersonalClanIdentity parent = royal?.GetPersonalIdentity();
@@ -1481,7 +1456,6 @@ public static partial class VirtualGenealogySystem
         VirtualIds.Add(child.id);
         return true;
     }
-#endif
 
     // 开国之君的家室(无小人、纯净地图模式)：改朝换代的第一位皇帝多半是年过半百的权臣、宿将，族谱里却往往只有他一人
     // (从人口里落成，或宗族刚为他新立)——身后"皇族已无可立之人"，群臣议立外姓，又换一朝(玩家日志里一百七十年换了
@@ -1489,7 +1463,6 @@ public static partial class VirtualGenealogySystem
     // (年长的儿子膝下再补孙辈)，虚拟入谱，继位、分封时再落成
     private const int FounderHeirMinAge = 36;
 
-#if EC_PENDING
     public static int EnsureFounderHouse(Person founder)
     {
         if (!CityPopulationSystem.AbstractPopulationEnabled || founder?.Record == null || EmpireWorld.Current == null) return 0;
@@ -1522,12 +1495,10 @@ public static partial class VirtualGenealogySystem
         if (added > 0) LogService.LogInfo($"[EmpireCraft][开国补嗣] {founder.FullName()}({age}岁) 族谱里没有成年男丁，补记子孙 {added} 人");
         return added;
     }
-#endif
 
     // 剧本开局的年轻皇帝(用户 2026-11-04 转玩家"一开局皇帝就死了""国号也给换了")：剧本只写了本人的，够不上开国补嗣的年纪
     // (FounderHeirMinAge)，族里只有他一个，身后皇族绝嗣、裂土换姓改国号(日志里遮娄其开局第 3 年、瞿折罗第 8 年)。
     // 族里没有别的男丁的按他的年纪补记一两个未必成年的儿子，虚拟入谱
-#if EC_PENDING
     public static int EnsureYoungRulerHouse(Person ruler)
     {
         if (!CityPopulationSystem.AbstractPopulationEnabled || ruler?.Record == null || EmpireWorld.Current == null) return 0;
@@ -1600,7 +1571,6 @@ public static partial class VirtualGenealogySystem
                 ? OverallHelperFunc.JoinNameParts(given, child.surname)
                 : OverallHelperFunc.JoinNameParts(child.surname, given);
     }
-#endif
 
     private static void Die(PersonalClanIdentity person)
     {

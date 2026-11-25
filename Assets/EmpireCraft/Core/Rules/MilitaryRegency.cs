@@ -49,9 +49,7 @@ public static class MilitaryRegency
 
     public static int KindOf(Empire empire) => empire?.data?.military_regency ?? None;
 
-#if EC_PENDING
     public static Person Regent(Empire empire) => Active(empire) ? empire.GetPowerfulMinister() : null;
-#endif
 
     // 该不该有将军/苏丹：幕府政体，或施行了苏丹官僚的阿拉伯政体
     private static int Wanted(Empire empire)
@@ -68,17 +66,14 @@ public static class MilitaryRegency
     public static string TitleKey(Empire empire) => KindOf(empire) == Shogun ? "bakufu_shogun_title" : "sultanate_regent_title";
 
     // 立即检查一次(开幕、施行苏丹官僚时)
-#if EC_PENDING
     public static void Refresh(Empire empire)
     {
         if (empire?.data == null) return;
         LastCheck.Remove(empire.Key);
         Maintain(empire);
     }
-#endif
 
     // 帝国每次更新调用(幕府、阿拉伯政体)；每月才真正检查一次
-#if EC_PENDING
     public static void Maintain(Empire empire)
     {
         if (empire?.data == null || empire.CoreKingdom == null || EmpireWorld.Current == null) return;
@@ -117,7 +112,6 @@ public static class MilitaryRegency
             Succeed(empire, ousted: departed || KindOf(empire) == Shogun && empire.data.powerful_minister_id <= 0, departed: departed);
         }
     }
-#endif
 
     // 执政者本人还活着，却已不在帝国里(他的国离开了帝国)
     private static bool Departed(Empire empire)
@@ -130,7 +124,6 @@ public static class MilitaryRegency
     }
 
     // 将军、苏丹在任：保持挟制(别处的清算、换代会把挟制解开)
-#if EC_PENDING
     private static void Assert(Empire empire)
     {
         Person regent = empire.GetPowerfulMinister();
@@ -155,10 +148,8 @@ public static class MilitaryRegency
         data.last_powerful_minister_timestamp = now;
         Assert(empire);
     }
-#endif
 
     // 剧本开局就有的将军、苏丹(世界地图临高剧本的德川家光)：指定此人当场就任，不看开国之君在位(见 WorldMapScenario.Shogunate)
-#if EC_PENDING
     public static bool Appoint(Empire empire, Person regent)
     {
         if (empire?.data == null || empire.CoreKingdom == null || EmpireWorld.Current == null) return false;
@@ -169,10 +160,8 @@ public static class MilitaryRegency
         LastCheck[empire.Key] = GameClock.Now;
         return true;
     }
-#endif
 
     // 武家拥立的一朝(幕府的南北朝，见 ShogunateDramaSystem)：当场立将军，不看开国之君在位
-#if EC_PENDING
     public static bool EstablishNow(Empire empire)
     {
         if (empire?.data == null || empire.CoreKingdom == null || EmpireWorld.Current == null) return false;
@@ -195,12 +184,10 @@ public static class MilitaryRegency
             regent.FullName(), emperor.FullName()));
         return true;
     }
-#endif
 
     // 承袭：家族里辈分最高的成年男子；家族绝了另择一家。
     // 将军(幕府会倒，见文件头)：被拉下马(ousted)、或正统、积弊到了门槛，另择一家；别家都不够格才仍由本家。
     // departed：执政者本人的国离开了帝国——将军、苏丹都另择一家(原家一系除外)，当月不判应仁之乱、苏丹更替之乱
-#if EC_PENDING
     private static void Succeed(Empire empire, bool ousted = false, bool departed = false)
     {
         int kind = KindOf(empire);
@@ -251,10 +238,8 @@ public static class MilitaryRegency
             }
         }
     }
-#endif
 
     // 应仁之乱(见文件头)：新将军的藩与同族、天领、羁縻不反；开国雄主、开国气象里不发生(RebellionSystem.CanAttempt)
-#if EC_PENDING
     private static void Onin(Empire empire, Person shogun, float average, int legitimacy)
     {
         try
@@ -296,7 +281,6 @@ public static class MilitaryRegency
             LogService.LogWarning($"[EmpireCraft][应仁之乱] 结算失败: {exception.Message}");
         }
     }
-#endif
 
     // 会趁将军更替自立的藩：有君主、有城、没在叛乱、没与朝廷开战的成员；天领(幕府直辖)、羁縻、新将军自己的藩与同族不反
     private static bool RestiveHan(Empire empire, Realm member, Person shogun)
@@ -319,7 +303,6 @@ public static class MilitaryRegency
     // 分裂进程的争位之战里争位者得胜(见 SchismSystem，用户 2026-10-21 选"争位内战代替集体出走")：争位者一家取代原执政家，
     // 成为将军家、苏丹家——照被拉下马另择一家的写法(Install；将军家换了一家另开幕府，王朝积弊重新起算，见 Succeed)。
     // 史书由 SchismSystem 记争位的结局；不判应仁之乱、苏丹更替之乱(进程收场时已记大分裂冷却)
-#if EC_PENDING
     public static bool Usurp(Empire empire, Person claimant)
     {
         if (!Active(empire) || !Eligible(empire, claimant)) return false;
@@ -334,10 +317,8 @@ public static class MilitaryRegency
                            $"{(kind == Shogun && newHouse ? "，另开幕府，王朝积弊重新起算" : "")}");
         return true;
     }
-#endif
 
     // 收场：大政奉还(幕府)、不再有苏丹(阿拉伯)
-#if EC_PENDING
     public static void Dissolve(Empire empire, string historyKey)
     {
         if (!Active(empire)) return;
@@ -348,7 +329,6 @@ public static class MilitaryRegency
         if (historyKey != null && regent != null && empire.Emperor != null)
             Record(empire, string.Format(LM.Get(historyKey), empire.GetEmpireName(), regent.FullName(), empire.Emperor.FullName()));
     }
-#endif
 
     private static bool Eligible(Empire empire, Person actor) =>
         actor?.Record != null && !actor.IsGone() && actor.Alive && actor.IsAdult() && actor != empire.Emperor &&
@@ -376,7 +356,6 @@ public static class MilitaryRegency
     }
 
     // 旧档：将军坐在君位上、天皇家记在 court_clan_id——请天皇家复位，坐着君位的将军改为权臣
-#if EC_PENDING
     private static void Migrate(Empire empire)
     {
         var data = empire.data;
@@ -401,7 +380,6 @@ public static class MilitaryRegency
         if (Eligible(empire, shogun)) Install(empire, shogun, Wanted(empire) == None ? Shogun : Wanted(empire));
         LogService.LogInfo($"[EmpireCraft][武家执政] {empire.GetEmpireName()} 旧档迁移：{emperor.FullName()} 复位，{shogun.FullName()} 为权臣");
     }
-#endif
 
     private static void Record(Empire empire, string content)
     {

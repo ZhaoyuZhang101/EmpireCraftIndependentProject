@@ -1,6 +1,5 @@
 // Generated from the EmpireCraft mod: Scripts/GeneralSystems/CompositeEmpireService.cs. Do not edit by hand: Tools/PortTool/members.py rewrites it;
 // see Port/manifest.json and Tools/PortTool.
-using Vector2 = EmpireCraft.Core.EcVector2;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -109,7 +108,6 @@ public static partial class CompositeEmpireService
             CultureService.IsValidCulture(institutional) ? institutional.GetCultureTranslate() : institutional);
     }
 
-#if EC_PENDING
     private static void UpdateRoute(Empire empire, string ruling, string institutional, float rulingShare)
     {
         int current = empire.data.composite_route;
@@ -139,7 +137,6 @@ public static partial class CompositeEmpireService
         if (current != 0) TranslateHelper.LogEventMessage(text, empire.CoreKingdom);
         LogService.LogInfo($"[EmpireCraft][征服王朝] {empire.GetEmpireName()} 治理路线 {current} → {next}(本族旧地 {homeland:P0})");
     }
-#endif
 
     // 属地文化更先进，或融入派当权
     private static bool DrawnToConquered(Empire empire, string ruling, string institutional) =>
@@ -511,7 +508,6 @@ public static partial class CompositeEmpireService
         return CultureService.GetRealmCulture(member);
     }
 
-#if EC_PENDING
     public static bool SynchronizeRegionalInstitution(Empire empire, Realm member)
     {
         if (!IsComposite(empire) || member?.Record == null || member.IsGone() || member.GetEmpire() != empire)
@@ -577,6 +573,7 @@ public static partial class CompositeEmpireService
         return changed;
     }
 
+#if EC_PENDING
     public static bool AdoptCentralInstitutions(Person actor)
     {
         if (!CanAdoptCentralInstitutions(actor)) return false;
@@ -653,7 +650,6 @@ public static partial class CompositeEmpireService
 
     // 开局就是多元帝国的兼用路线：不看据城多少、不等天命，国号是剧本定的不再改号，国号类别按朝廷的政体算(朝，不是匈鲁斯)；
     // 不分治、不从俗、不北归，不算离草
-#if EC_PENDING
     public static void EstablishCourt(Empire empire, string rulingCulture, string institutionalCulture)
     {
         double now = EmpireWorld.Current?.Now() ?? 0d;
@@ -683,6 +679,7 @@ public static partial class CompositeEmpireService
         empire.data.empire_type_key = "";
     }
 
+#if EC_PENDING
     public static void Update(Empire empire)
     {
         if (!IsComposite(empire) || empire.CoreKingdom == null || empire.CoreKingdom.IsGone() || EmpireWorld.Current == null)
@@ -825,7 +822,6 @@ public static partial class CompositeEmpireService
         !string.IsNullOrWhiteSpace(name) &&
         (NameCultureRepair.FromLine(name, "Huaxia") || !string.IsNullOrWhiteSpace(RealmNamingSystem.GrandNameMeaning(culture, name)));
 
-#if EC_PENDING
     public static bool TryAdoptInstitutionalCultureName(Empire empire)
     {
         // 朝廷用了中原制度就当场改号，不等融合度(以前要融合度到 60、分治的永远不改，外族王朝顶着游牧国号用中原制度好些年)；
@@ -891,7 +887,6 @@ public static partial class CompositeEmpireService
         }
         return true;
     }
-#endif
 
     // 主法理的汉名：主法理在华夏文化里的旧称；或主法理本身就是华夏一系的王国法理(名字出自华夏国名词库、法理文化是华夏一系)。
     // 有现存帝国在用这个名字的不取
@@ -936,7 +931,6 @@ public static partial class CompositeEmpireService
         LogService.LogInfo($"[EmpireCraft][入主定号] {text}({source})");
     }
 
-#if EC_PENDING
     private static CulturalNameCandidate SelectInstitutionalCultureName(Empire empire, string culture)
     {
         KingdomTitle mainTitle = empire.CoreKingdom.GetMainTitle();
@@ -990,7 +984,6 @@ public static partial class CompositeEmpireService
         string seatName = seat?.GetCityName();
         return string.IsNullOrWhiteSpace(seatName) ? null : NewNameCandidate(seatName, "ruling_seat");
     }
-#endif
 
     private static CulturalNameCandidate SelectTitleName(IEnumerable<KingdomTitle> titles, string culture,
         string source)
@@ -1019,13 +1012,11 @@ public static partial class CompositeEmpireService
                                              city.Realm?.GetEmpire() == empire);
     }
 
-#if EC_PENDING
     private static float DistanceFromSeat(City seat, City target)
     {
         if (seat == null || seat.IsGone() || target == null || target.IsGone()) return float.MaxValue;
-        return UnityEngine.Vector2.Distance(seat.Center, target.Center);
+        return EcVector2.Distance(seat.Center, target.Center);
     }
-#endif
 
     // 易俗改制(见 CultureReformSystem)：君主改从制度文化之俗，融合一步到位
 #if EC_PENDING

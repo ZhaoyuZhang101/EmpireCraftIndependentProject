@@ -107,7 +107,6 @@ public static partial class HolyRomanSystem
     }
 
     // 帝位选出的人(OfficeObject.SetActor 调用)：是别的成员国的君主时，带着自家领国成为中央，不调进原中央
-#if EC_PENDING
     public static bool TryElectHouse(Realm seat, Person elected)
     {
         try
@@ -141,7 +140,6 @@ public static partial class HolyRomanSystem
             return false;
         }
     }
-#endif
 
     // 记届数；同族连任(第二届起)或储君即位，帝国权威 +3
     private static void Elected(Empire empire, HolyRomanState state, Person emperor, bool heir)

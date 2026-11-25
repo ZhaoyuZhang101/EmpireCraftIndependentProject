@@ -40,7 +40,6 @@ public static class RulerTraitSystem
         (RegimeManager.IsMonarchy(empire.CoreKingdom.GetRegime()?.type) || empire.IsPrincipate() ||
          RegimeManager.IsPrimitive(empire.CoreKingdom.GetRegime()?.type));
 
-#if EC_PENDING
     public static void OnCrowned(Empire empire, Person actor)
     {
         if (!IsMonarchy(empire) || actor == null || !actor.Alive) return;
@@ -52,17 +51,14 @@ public static class RulerTraitSystem
         }
         CheckRestorer(empire, actor);
     }
-#endif
 
     // 每年：中兴之主的判定；旧档在位、还没定资质的君主补定
-#if EC_PENDING
     public static void CheckRestorer(Empire empire)
     {
         if (!IsMonarchy(empire) || empire.Emperor == null) return;
         RulerQualitySystem.Assess(empire, empire.Emperor);
         CheckRestorer(empire, empire.Emperor);
     }
-#endif
 
     private static void CheckRestorer(Empire empire, Person actor)
     {

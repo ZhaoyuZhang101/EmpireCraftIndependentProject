@@ -30,7 +30,6 @@ public static class NomadFeudalismSystem
         CultureService.GetRealmCulture(kingdom).IsNomadCulture() && !HasWesternInstitutions(kingdom) &&
         !RepublicSystem.IsRegimeLocked(kingdom) && !CompositeEmpireService.IsComposite(kingdom.GetEmpire());
 
-#if EC_PENDING
     public static void RepairAfterLoad()
     {
         if (EmpireWorld.Current?.LiveRealms == null || RegimeManager.GetTemplate(RegimeType.NomadFeudalism) == null) return;
@@ -97,6 +96,5 @@ public static class NomadFeudalismSystem
         if (kingdom.IsEmpire()) kingdom.GetEmpire()?.data?.centerOffice?.Init(kingdom);
         LogService.LogInfo($"[EmpireCraft][汗国分封] {kingdom.GetKingdomName()} 的旧水土封建化已改成本族分封制度");
     }
-#endif
 }
 }

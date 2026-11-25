@@ -35,7 +35,6 @@ public static class ModernTitleCentralization
 
     public static bool BlocksMemberMainTitle(Realm kingdom) => IsModernMember(kingdom);
 
-#if EC_PENDING
     public static void Update(Empire empire)
     {
         if (!IsModernState(empire)) return;
@@ -84,13 +83,11 @@ public static class ModernTitleCentralization
         foreach (KingdomTitle title in centralTitles) GiveToHead(title, head);
         AssignUntitledCities(empire);
     }
-#endif
 
     // 现代国家里新建(或毁城后重建)的城市没有法理：成员国不能再建法理、中央主法理又常常满员，
     // 这些城市会一直游离在法理之外。每年把它们编入所在行政区受托管理的法理(核心国编入主法理)，
     // 满员或没有时编入相邻城市所在、仍有空位的法理(优先同国，其次同一国家的其他行政区)。
     // 只收编无法理的城市，不改动已有法理的归属，因此冻结法理时同样适用。
-#if EC_PENDING
     private static void AssignUntitledCities(Empire empire)
     {
         foreach (Realm kingdom in empire.kingdoms_list.ToList())
@@ -107,7 +104,6 @@ public static class ModernTitleCentralization
             }
         }
     }
-#endif
 
     private static KingdomTitle NeighbourTitle(City city, Realm kingdom, Empire empire)
     {

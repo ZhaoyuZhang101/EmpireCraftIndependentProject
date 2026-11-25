@@ -290,8 +290,8 @@ public static class EmpirePartitionSystem
             }
             Tint best = colors.Where(color => color != null && !taken.Contains(color)).OrderByDescending(Distance)
                 .FirstOrDefault() ?? colors.Where(color => color != null).OrderByDescending(Distance).First();
-            core.updateColor(best);
-            twin.updateColor(best);
+            core.UpdateColor(best);
+            twin.UpdateColor(best);
         }
         catch (Exception exception)
         {
@@ -349,7 +349,6 @@ public static class EmpirePartitionSystem
     }
 
     // 新朝承袭：史书、王号序数、制度、税率、国教、开国之君、法统
-#if EC_PENDING
     private static void Inherit(Empire source, Empire twin, Person ruler)
     {
         twin.data.history.InsertRange(0, source.data.history ?? new List<EmpireCraftHistory>());
@@ -392,7 +391,6 @@ public static class EmpirePartitionSystem
         // 宗室另立的一朝另按篡位前的家底减半(见 Restore)；新朝的换君、满额民变记录从头记
         DynasticCycleSystem.Inherit(twin, DynasticCycleSystem.Capture(source), DynasticCycleSystem.Transition.Keep);
     }
-#endif
 
     private static T Clone<T>(T value) where T : class =>
         value == null ? null : JsonConvert.DeserializeObject<T>(JsonConvert.SerializeObject(value));
@@ -938,7 +936,6 @@ public static class EmpirePartitionSystem
 #endif
 
     // 宗室里挑一位(权臣、强藩要立的多是年少的)，从族谱落成实体
-#if EC_PENDING
     private static Person PickRoyal(Empire empire, Person emperor, bool preferYoung)
     {
         PersonalClanIdentity parent = emperor?.GetPersonalIdentity();
@@ -970,7 +967,6 @@ public static class EmpirePartitionSystem
         }
         if (core.Ruler != successor) core.SetRuler(successor);
     }
-#endif
 
     #endregion
 
@@ -1145,7 +1141,6 @@ public static class EmpirePartitionSystem
 
     // historyKey：记史的文案(参数同 partition_reunite_history：{0} 承统的君主、{1} 并入的一朝、{2} 合一后的国号)；
     // major：不论哪国都上屏(幕府说和、南北朝合一，见 ShogunateDramaSystem)
-#if EC_PENDING
     public static bool Reunite(Empire vacant, Empire heir, string historyKey = "partition_reunite_history", bool major = false)
     {
         if (vacant?.data == null || heir?.data == null || heir.IsGone() || heir.IsArchived()) return false;
@@ -1171,7 +1166,6 @@ public static class EmpirePartitionSystem
         EmpireWorld.Current.Zones?.MarkDirty();
         return true;
     }
-#endif
 
     #endregion
 }

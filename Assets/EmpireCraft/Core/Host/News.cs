@@ -33,6 +33,29 @@ namespace EmpireCraft.Core
         public static readonly EcColor Good = EcColor.FromRgb(0x8CE08C), Warning = EcColor.FromRgb(0xF0A050);
     }
 
+    // Where colours come from. There is no fixed list: a colour is worked out from a key, the same key always giving the
+    // same colour, and "the next colour" from the state of the world, so that a save plays on the same.
+    public sealed class Palette
+    {
+        public static readonly Palette Realms = new Palette(0x9E3779B9u), Titles = new Palette(0x7F4A7C15u);
+        readonly uint _salt;
+        public readonly List<Tint> list = new List<Tint>();
+        Palette(uint salt) { _salt = salt; }
+        public Tint ColorFor(long key)
+        {
+            unchecked
+            {
+                uint h = ((uint)key + 1u) * 2654435761u ^ _salt; h ^= h >> 15; h *= 2246822519u; h ^= h >> 13;
+                return Tint.FromRgb((((h & 0x7F) + 0x60) << 16) | ((((h >> 8) & 0x7F) + 0x60) << 8) | (((h >> 16) & 0x7F) + 0x60));
+            }
+        }
+        public Tint GetNextColor(object forWhom = null)
+        {
+            var world = EmpireWorld.Current;
+            return ColorFor(world == null ? 0L : (long)world.Month * 7919L + world.Realms.Count * 31L + world.Annals.Entries.Count);
+        }
+    }
+
     // One kind of message. The table of kinds is NewsKinds (generated from the mod's list).
     public sealed class NewsKind
     {

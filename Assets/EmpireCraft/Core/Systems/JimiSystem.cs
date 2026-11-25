@@ -57,7 +57,6 @@ public static class JimiSystem
     }
 
     // 神力：自动 → 羁縻 → 直辖 → 自动。返回提示文字
-#if EC_PENDING
     public static string Cycle(Realm kingdom)
     {
         Empire empire = kingdom?.GetEmpire();
@@ -73,7 +72,6 @@ public static class JimiSystem
         EmpireCraft.Core.EmpireCraftKingdomBehCheckKingdomType.SyncKingdomStatus(kingdom);
         return string.Format(LM.Get("jimi_policy_set"), kingdom.GetKingdomName(), LM.Get("jimi_mode_" + Mode(kingdom).ToString().ToLowerInvariant()));
     }
-#endif
 
     // 边防义务：每月一次(挂在 CityPatch 的世界扫描轮转上)
     public static void TryMonthlyScan()

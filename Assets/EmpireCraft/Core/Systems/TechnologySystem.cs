@@ -1366,7 +1366,6 @@ public static partial class TechnologySystem
 
     // 称帝要先推行本文明的称帝制度(见 EmpireFormationService.HasImperialRule)，可前代有过帝国的文化不必从头再推一遍
     // (用户 2026-10-27 截图楚国占了大半个华夏却不称帝)：本文化有过帝国(现存的、亡了留下记录的)、制度前置都齐的，承袭前代，直接施行
-#if EC_PENDING
     private static void ImperialPrecedent()
     {
         var cultures = new HashSet<string>(StringComparer.Ordinal);
@@ -1390,6 +1389,7 @@ public static partial class TechnologySystem
         }
     }
 
+#if EC_PENDING
     private static void YearlyUpdate(bool addResearch)
     {
         EnsureLoaded();
@@ -2375,10 +2375,8 @@ public static partial class TechnologySystem
 
     // 重置本文化的科技：退回原始时代，同科技回退神力(见 TechRollbackSystem.ToPrimitive；缺科技的制度撤下、超出科技的建筑降级、
     // 读档不按建筑与制度补回)。用户 2026-11-07 "重置科技按钮也改成同一套"——以前是把科技存档整个删掉，下一年开局补齐又全补回来
-#if EC_PENDING
     public static TechRollbackResult ResetCulture(string culture, Realm kingdom = null) =>
         TechRollbackSystem.ToPrimitive(culture, kingdom);
-#endif
 
     #endregion
 

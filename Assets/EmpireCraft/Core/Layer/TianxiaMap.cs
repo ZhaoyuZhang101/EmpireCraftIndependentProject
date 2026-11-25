@@ -18,7 +18,7 @@ public sealed class TianxiaMapColor : RecordObject<IdeologyMapColorData>
 
     public override EntityKind KindOfEntity => MetaTypeExtension.Tianxia;
 #if EC_PENDING
-    public override ColorLibrary getColorLibrary() => AssetManager.culture_colors_library;
+    public override Palette getColorLibrary() => AssetManager.culture_colors_library;
 #endif
     public override Tint GetColor() => _color;
 
@@ -262,16 +262,16 @@ public static class TianxiaMap
         {
             List<City> cities = TianxiaSystem.Cities(lead);
             if (cities.Count == 0) continue;
-            Components.TerritoryLabelRenderer.SubmitCities($"tianxia:{lead.id}", TianxiaSystem.Name(lead), cities,
-                Components.TerritoryLabelRenderer.TianxiaStyle, followWilderness: true);
+            TerritoryLabelRenderer.SubmitCities($"tianxia:{lead.id}", TianxiaSystem.Name(lead), cities,
+                TerritoryLabelRenderer.TianxiaStyle, followWilderness: true);
         }
         int index = 0;
         foreach (List<City> realm in UnificationSystem.UncoredRealms())
         {
             List<City> alive = realm.Where(city => city?.Record != null && !city.IsGone()).ToList();
             if (alive.Count > 0)
-                Components.TerritoryLabelRenderer.SubmitCities($"tianxia:uncored:{index}", UncoredName(realm), alive,
-                    Components.TerritoryLabelRenderer.UncoredTianxiaStyle, followWilderness: true);
+                TerritoryLabelRenderer.SubmitCities($"tianxia:uncored:{index}", UncoredName(realm), alive,
+                    TerritoryLabelRenderer.UncoredTianxiaStyle, followWilderness: true);
             index++;
         }
     }

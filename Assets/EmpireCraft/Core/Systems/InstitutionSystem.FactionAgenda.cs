@@ -248,7 +248,6 @@ public static partial class InstitutionSystem
 #endif
 
     // 回退的年度推进(见 AdvanceReform)：进度减半、最短年限加倍、激进度涨一倍半；过了起事线作罢
-#if EC_PENDING
     private static void AdvanceRevert(InstitutionRealm realm, InstitutionReformState reform, InstitutionNodeConfig node,
         Dictionary<SocialClass, float> shares, float years)
     {
@@ -278,7 +277,6 @@ public static partial class InstitutionSystem
         if (reform.progress >= 100f && GameClock.YearsSince(reform.started_timestamp) >= minimumYears)
             CompleteRevert(realm, node);
     }
-#endif
 
     // 众怒难犯：回退作罢，倡议的派系在朝堂上折了本钱
     private static void CollapseRevert(InstitutionRealm realm, InstitutionNodeConfig node, InstitutionReformState reform)
@@ -297,7 +295,6 @@ public static partial class InstitutionSystem
     }
 
     // 推完：撤下这项(它取代的旧制度恢复，同文化各政权一并同步)，正统 -5，拥护它的阶层怨气上涨
-#if EC_PENDING
     private static void CompleteRevert(InstitutionRealm realm, InstitutionNodeConfig node)
     {
         InstitutionEmpireState state = EnsureRealmState(realm);
@@ -316,7 +313,6 @@ public static partial class InstitutionSystem
         realm.Record(content, actorId: realm.Ruler?.Key ?? -1L, kingdomId: realm.Core?.Key ?? -1L);
         EmpireCraft.Core.TranslateHelper.LogEventMessage(content, realm.Core);
     }
-#endif
 
     // 显示用：回退的改革写成"回退「某制」"
     public static string ReformName(Empire empire, InstitutionReformState reform)
@@ -340,7 +336,6 @@ public static partial class InstitutionSystem
     public const float GodReformStep = 25f;
 
     // 神力推进改革线上眼下这一项(推行或回退)：加 amount 进度；推满或 complete 时当场完成，不等最短年限
-#if EC_PENDING
     public static bool GodAdvanceReform(InstitutionRealm realm, float amount, bool complete)
     {
         InstitutionEmpireState state = EnsureRealmState(realm);
@@ -358,7 +353,6 @@ public static partial class InstitutionSystem
         else CompleteReform(realm, node);
         return true;
     }
-#endif
 
     #endregion
 }

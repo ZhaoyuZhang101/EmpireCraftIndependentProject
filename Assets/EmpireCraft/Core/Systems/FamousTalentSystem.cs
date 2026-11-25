@@ -120,16 +120,13 @@ public static class FamousTalentSystem
     public static TalentRecord OfActorId(long actorId) =>
         actorId >= 0 && ByActor.TryGetValue(actorId, out TalentRecord record) && record.rank >= TalentRank.Fine ? record : null;
 
-#if EC_PENDING
     public static Person ActorOf(TalentRecord record)
     {
         if (record == null || !record.alive || EmpireWorld.Current == null) return null;
         return Rebind(record, record.rank >= TalentRank.Fine);
     }
-#endif
 
     // 按族谱找回记着的人(见 PersonRef)：已成名的转成了虚拟族人就落成一次(之后名将名臣留在地图上)，改记新编号
-#if EC_PENDING
     private static Person Rebind(TalentRecord record, bool realize)
     {
         long actorId = record.actor_id, identityId = record.identity_id;
@@ -143,7 +140,6 @@ public static class FamousTalentSystem
         }
         return actor;
     }
-#endif
 
     #endregion
 
@@ -549,7 +545,6 @@ public static class FamousTalentSystem
     public static string KindHex(TalentKind kind) => kind == TalentKind.General ? "#E9A85B" : "#7FD8EA";
 
     // 在世者现取官职(统领、统帅、官位都会变)，没取到用快照
-#if EC_PENDING
     public static string PostText(TalentRecord record)
     {
         Person actor = ActorOf(record);
@@ -560,13 +555,12 @@ public static class FamousTalentSystem
         }
         return record.post ?? "";
     }
-#endif
 
     // 特质本身带的属性，一行说清(数值见 EmpireCraftActorTraitLibrary 里的登记)
 #if EC_PENDING
     public static string EffectLine(TalentRecord record)
     {
-        ActorTrait trait = AssetManager.traits?.get(TraitOf(record.kind, record.rank));
+        PersonTrait trait = AssetManager.traits?.get(TraitOf(record.kind, record.rank));
         if (trait?.base_stats == null || !trait.base_stats.hasStats()) return "";
         var parts = new List<string>();
         foreach (string stat in record.kind == TalentKind.General

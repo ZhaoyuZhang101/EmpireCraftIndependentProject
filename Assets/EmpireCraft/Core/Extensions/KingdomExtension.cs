@@ -1272,7 +1272,6 @@ public static class KingdomExtension
         }
     }
 
-#if EC_PENDING
     public static void RefreshNationalPower(this Realm kingdom, bool force = false)
     {
         if (kingdom == null || kingdom.IsGone()) return;
@@ -1310,7 +1309,6 @@ public static class KingdomExtension
         KingdomExtraData data = kingdom.GetOrCreate();
         return $"{data.annual_power_population} / {data.annual_power_military} / {data.annual_power_economy}";
     }
-#endif
     public static void FinishedSelfPlot(this Realm kingdom)
     {
         kingdom.GetOrCreate().selfChangeRegimePlotsCountDown = 10;
@@ -1551,6 +1549,7 @@ public static class KingdomExtension
         if (attackerStrength <= 0 || defenderStrength <= 0) return false;
         return attackerStrength >= Math.Ceiling(defenderStrength * Math.Max(1f, minimumAdvantage));
     }
+#endif
 
     private static bool HasAnyActiveEmpireWar(Empire empire)
     {
@@ -1562,7 +1561,6 @@ public static class KingdomExtension
         }
         return false;
     }
-#endif
 
     private static long CountCurrentEmpireWarriors(Empire empire)
     {
@@ -1581,9 +1579,9 @@ public static class KingdomExtension
     private static long CountEffectiveDefenderWarriors(Realm target, Empire attackingEmpire)
     {
         long strength = Math.Max(0, target.Warriors());
-        if (target.hasAlliance())
+        if (target.HasAlliance())
         {
-            Alliance alliance = target.getAlliance();
+            Alliance alliance = target.GetAlliance();
             if (alliance != null) strength = Math.Max(strength, alliance.countWarriors());
         }
 
@@ -1603,9 +1601,9 @@ public static class KingdomExtension
     {
         if (EmpireWorld.Current?.LiveWars == null || target == null) return true;
         if (EmpireWorld.Current.HasWars(target)) return true;
-        if (target.hasAlliance())
+        if (target.HasAlliance())
         {
-            Alliance alliance = target.getAlliance();
+            Alliance alliance = target.GetAlliance();
             if (alliance != null && EmpireWorld.Current.HasWars(alliance)) return true;
         }
 
@@ -1764,7 +1762,6 @@ public static class KingdomExtension
         return EmpireSubmissionRules.CanVoluntarilyBecomeTributary(true, belongsToOverlordCore);
     }
 
-#if EC_PENDING
     public static void RemoveTakenAlliance(this Realm k, bool recordHistory = true)
     {
         Empire empire = k.GetTakenAllianceEmpire();
@@ -1783,6 +1780,7 @@ public static class KingdomExtension
             }, kingdomId: k.Key);
         }
     }
+#if EC_PENDING
     public static bool NeedToRemoveTakenAlliance(this Realm k)
     {
         if (!k.HasTakenAlliance()) return false;
@@ -1795,12 +1793,10 @@ public static class KingdomExtension
 
     // updateColor is used by older releases when a tributary joins. Restore the persistent
     // pre-existing kingdom color rather than generating a new random one when it leaves.
-#if EC_PENDING
     public static void RestoreOriginalKingdomColor(this Realm kingdom)
     {
         KingdomColorService.Restore(kingdom);
     }
-#endif
     public static bool HasGivenAlliance(this Realm k)
     {
         if (EmpireCraft.Core.AncientWarfareCompatibility.Owns(k)) return false;
@@ -2583,7 +2579,6 @@ public static class KingdomExtension
         }
     }
 
-#if EC_PENDING
     public static void InitialRegime(this Realm k)
     {
         if (k?.Record == null || k.IsGone()) return;
@@ -2643,7 +2638,6 @@ public static class KingdomExtension
             city.InitialRegime();
         }
     }
-#endif
     public static int GetIndependentValue(this Realm k)
     {
         var ed = k.GetOrCreate();
@@ -2859,7 +2853,6 @@ public static class KingdomExtension
         }
     }
 
-#if EC_PENDING
     public static void TransferRealmTitlesToRuler(this Realm kingdom, Person ruler)
     {
         if (kingdom == null || kingdom.IsGone() || ruler == null || ruler.IsGone() ||
@@ -2967,7 +2960,6 @@ public static class KingdomExtension
         if (previous != title) previous.RefreshAdministrativeDivisionNames();
         title.RefreshAdministrativeDivisionNames();
     }
-#endif
 
     public static KingdomTitle GetAdministrativeTitle(this Realm kingdom)
     {
@@ -3061,7 +3053,6 @@ public static class KingdomExtension
         return holderId == kingdom.Key;
     }
 
-#if EC_PENDING
     public static void RefreshAdministrativeDivisionNames(this KingdomTitle title)
     {
         if (title == null || title.IsGone()) return;
@@ -3070,7 +3061,6 @@ public static class KingdomExtension
             EmpireCraftKingdomBehCheckKingdomType.SyncKingdomStatus(administration);
         }
     }
-#endif
 
     public static void RemoveMainTitle(this Realm k)
     {
@@ -3172,7 +3162,6 @@ public static class KingdomExtension
         return isProvinceOrMilitary && empire.Mandate <= DeJureTitleBindingRules.WeakMandateThreshold;
     }
 
-#if EC_PENDING
     public static bool ReconcileMainTitle(this Realm kingdom,
         IEnumerable<KingdomTitle> newlyAcquiredTitles = null)
     {
@@ -3279,7 +3268,6 @@ public static class KingdomExtension
         EmpireCraftKingdomBehCheckKingdomType.SyncKingdomStatus(k);
         return true;
     }
-#endif
 
     public static KingdomTitle GetCapitalMainTitleCandidate(this Realm kingdom)
     {
@@ -3292,7 +3280,6 @@ public static class KingdomExtension
         return title;
     }
 
-#if EC_PENDING
     public static bool CanDeclareDeJureTitleWar(this Realm claimant, Realm holder,
         KingdomTitle title)
     {
@@ -3307,7 +3294,6 @@ public static class KingdomExtension
         return DeJureTitleClaimRules.ControlsRequiredShare(controlled, total) &&
                FeudalVassalService.CanDeclareExternalWar(claimant, holder);
     }
-#endif
 
     public static Realm FindRealmTitleHolder(this KingdomTitle title)
     {
@@ -3388,7 +3374,6 @@ public static class KingdomExtension
         return (controlled, total);
     }
 
-#if EC_PENDING
     public static List<KingdomTitle> InheritRealmTitles(this Realm successor,
         Realm defeated, IEnumerable<long> titleIds)
     {
@@ -3432,7 +3417,6 @@ public static class KingdomExtension
         successor.GetEmpire()?.SynchronizeLandedLegalTitles(successor);
         return inherited;
     }
-#endif
 
     public static KingdomTitle GetAncestralMainTitleCandidate(this Realm kingdom)
     {
@@ -3447,7 +3431,6 @@ public static class KingdomExtension
         return title;
     }
 
-#if EC_PENDING
     public static bool CanBecomeEmpire(this Realm k)
     {
         if (EmpireCraft.Core.AncientWarfareCompatibility.BlocksEmpireFormation(k)) return false;
@@ -3532,7 +3515,6 @@ public static class KingdomExtension
 
         return candidate.Key < incumbent.Key;
     }
-#endif
     public static KingdomExtraData GetOrCreate(this Realm a, bool isSave = false)
     {
         var ed = a.GetOrCreate<Realm, KingdomExtraData>(isSave);
@@ -3800,7 +3782,6 @@ public static class KingdomExtension
     }
 
     // 行政区脱离帝国时立即按新政权的类型和法理改名，正在交战也要换掉旧政区名。
-#if EC_PENDING
     private static void RenameAfterLeaving(Realm kingdom)
     {
         try
@@ -3812,7 +3793,6 @@ public static class KingdomExtension
             LogService.LogWarning($"[EmpireCraft] 行政区 {kingdom?.Key} 离开帝国后改名失败: {exception.Message}");
         }
     }
-#endif
 
     public static bool IsInSameEmpire(this Realm kingdom, Realm pKingdomTaget)
     {
@@ -3821,7 +3801,6 @@ public static class KingdomExtension
         return kingdom.GetEmpireID() == pKingdomTaget.GetEmpireID();
     }
 
-#if EC_PENDING
     public static void SetEmpireID(this Realm kingdom, long value)
     {
         if (kingdom == null) return;
@@ -3833,7 +3812,6 @@ public static class KingdomExtension
         if (ModClass.EMPIRE_MANAGER != null) ModClass.EMPIRE_MANAGER._dirty_cities = true;
         EmpireWorld.Current?.Zones?.MarkDirty();
     }
-#endif
     public static long GetEmpireID(this Realm kingdom)
     {
         if (kingdom == null) return -1L;
@@ -3848,7 +3826,6 @@ public static class KingdomExtension
         return EmpireCraft.Core.AncientWarfareCompatibility.Owns(empire?.CoreKingdom) ? null : empire;
     }
 
-#if EC_PENDING
     public static void CheckEmpire(this Realm kingdom)
     {
         if (!kingdom.IsInEmpire()) return;
@@ -3868,7 +3845,6 @@ public static class KingdomExtension
             kingdom.GetOrCreate().isEmpire = true;
         }
     }
-#endif
     public static void SetTimestampEmpire(this Realm kingdom, double value)
     {
         GetOrCreate(kingdom).TimestampEmpire = value;
@@ -3878,7 +3854,6 @@ public static class KingdomExtension
         return GetOrCreate(kingdom).TimestampEmpire;
     }
 
-#if EC_PENDING
     public static List<Empire> GetEmpiresCanBeJoined(this Realm kingdom)
     {
         List<Empire> empires = new List<Empire>();
@@ -3911,7 +3886,6 @@ public static class KingdomExtension
         kingdom.SetEmpireID(pEmpire.data.id);
         GetOrCreate(kingdom).TimestampEmpire = GameClock.Now;
     }
-#endif
 
     public static bool IsEmpire(this Realm kingdom)
     {
@@ -3932,7 +3906,6 @@ public static class KingdomExtension
         return true;
     }
 
-#if EC_PENDING
     public static void EmpireLeave (this Realm kingdom, bool isLeave = true)
     {
         if (kingdom==null) return;
@@ -3945,7 +3918,6 @@ public static class KingdomExtension
         data.isEmpire = false;
         if (rename) RenameAfterLeaving(kingdom);
     }
-#endif
     public static int GetLevel(this Realm kingdom)
     {
         return GetOrCreate(kingdom).Level;
@@ -3981,7 +3953,6 @@ public static class KingdomExtension
         return controlledTitles;
     }
 
-#if EC_PENDING
     public static Realm FindClosestKingdom(this Realm kingdom)
     {
         if (kingdom == null || kingdom.Cities == null || kingdom.Cities.Count == 0)
@@ -4016,21 +3987,21 @@ public static class KingdomExtension
 
             foreach (City city in kingdom.Cities)
             {
-                if (city == null || city._city_tile == null)
+                if (city == null || city.SeatCell() == null)
                 {
                     continue;
                 }
 
-                Vector2Int cityPos = city._city_tile.pos;
+                Vector2Int cityPos = city.SeatCell().Pos;
 
                 foreach (City otherCity in otherKingdom.Cities)
                 {
-                    if (otherCity == null || otherCity._city_tile == null)
+                    if (otherCity == null || otherCity.SeatCell() == null)
                     {
                         continue;
                     }
 
-                    Vector2Int otherPos = otherCity._city_tile.pos;
+                    Vector2Int otherPos = otherCity.SeatCell().Pos;
 
                     int dx = cityPos.x - otherPos.x;
                     int dy = cityPos.y - otherPos.y;
@@ -4048,7 +4019,6 @@ public static class KingdomExtension
 
         return closestKingdom;
     }
-#endif
 
     public static bool IsNeighbourWith(this Realm kingdom, Realm target)
     {

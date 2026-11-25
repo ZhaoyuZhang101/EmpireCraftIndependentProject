@@ -3,6 +3,7 @@
 using Mathf = EmpireCraft.Core.EcMath;
 using Time = EmpireCraft.Core.FrameClock;
 using Vector2 = EmpireCraft.Core.EcVector2;
+using Vector3 = EmpireCraft.Core.EcVector3;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -120,7 +121,7 @@ public static class CorpsSystem
 #if EC_PENDING
     public static void ResetWorldState()
     {
-        Components.CorpsMapRenderer.ClearLocate();
+        CorpsMapRenderer.ClearLocate();
         EquivalentsByCity.Clear();
         GeneralsByCity.Clear();
         GeneralIndex.Clear();
@@ -171,7 +172,7 @@ public static class CorpsSystem
             if (_lastMonth >= 0d) DisbandAllOnDisable();
             return;
         }
-        Components.CorpsMapRenderer.EnsureHost();
+        CorpsMapRenderer.EnsureHost();
         double now = GameClock.Now;
         if (now < _lastMonth) ResetMonthCycle();
         if (_monthPhase == MonthPhase.Idle && (_lastMonth < 0d || now < _lastMonth || GameClock.MonthsSince(_lastMonth) >= 1))
@@ -209,7 +210,6 @@ public static class CorpsSystem
 #endif
 
     // 关闭占领模式：各军就地退伍(兵员还回人口)，统领并回人口
-#if EC_PENDING
     private static void DisbandAllOnDisable()
     {
         ResetMonthCycle();
@@ -218,7 +218,6 @@ public static class CorpsSystem
         RebuildIndex();
         _lastMonth = -1d;
     }
-#endif
 
     #endregion
 
@@ -638,7 +637,6 @@ public static class CorpsSystem
     // (养不起就裁)。以前欠两成就投、谁都能投、投过去的军原地留在敌后：一局一百多起，连清入关后欠饷都投了朝鲜，战线乱成一团
     public const float DefectRate = 0.05f, DefectGrievance = 0.3f, DefectLosing = 0.6f;
 
-#if EC_PENDING
     private static void Defect(Realm kingdom, List<CorpsData> list, float grievance)
     {
         if (grievance < DefectGrievance || EmpireWorld.Current == null) return;
@@ -674,10 +672,8 @@ public static class CorpsSystem
             return;
         }
     }
-#endif
 
     // 粮饷不继，仗打不下去：能和就先和(对方条件过分的照打，见 WarGoalSystem.TrySueForPeace)
-#if EC_PENDING
     private static void SueForPeace(Realm kingdom)
     {
         foreach (War war in kingdom.GetWars().ToList())
@@ -688,7 +684,6 @@ public static class CorpsSystem
                 FrontSystem.Log(kingdom, string.Format(LM.Get("corps_log_unpaid_peace"), foe?.GetKingdomName() ?? ""));
         }
     }
-#endif
 
     private static int Draw(Realm payer, int amount, TreasuryCategory category)
     {
@@ -1179,7 +1174,6 @@ public static class CorpsSystem
     }
 
     // 手动解散(交战中的不能解散)
-#if EC_PENDING
     public static bool DisbandManual(Realm kingdom, CorpsData corps)
     {
         if (kingdom == null || corps == null || !corps.manual || corps.task is "attack" or "defend") return false;
@@ -1188,7 +1182,6 @@ public static class CorpsSystem
         FrontSystem.Log(kingdom, string.Format(LM.Get("corps_log_manual_disbanded"), name));
         return true;
     }
-#endif
 
     // 手动合并(军事页各行的"合并"，群友 2026-11-22 "要是能合并军团就好了")：把这支军并进本国离它 MergeReach 块以内最近的另一支军。
     //   · 正规军并正规军：两支合起来装得进其中一支的满编才并(收拢残军)，满编取大的；空出来的兵额照常由军镇再征，不多出兵来；
@@ -1221,7 +1214,6 @@ public static class CorpsSystem
         return best;
     }
 
-#if EC_PENDING
     public static CorpsData MergeManual(Realm kingdom, CorpsData corps)
     {
         CorpsData into = MergeTarget(kingdom, corps);
@@ -1241,7 +1233,6 @@ public static class CorpsSystem
         FrontSystem.Log(kingdom, string.Format(LM.Get("corps_log_merged"), name, Name(into)));
         return into;
     }
-#endif
 
     #endregion
 
@@ -1478,7 +1469,6 @@ public static class CorpsSystem
     }
 
     // 先遣军并回原军：兵员来源并回去，组织度按兵力加权
-#if EC_PENDING
     private static void Rejoin(Realm kingdom, CorpsData parent, CorpsData part)
     {
         float total = parent.strength + part.strength;
@@ -1498,7 +1488,6 @@ public static class CorpsSystem
         EmbarkRetry.Remove(part.id);
         Of(kingdom).Remove(part);
     }
-#endif
 
     // 先锋营(群友 2026-11-22 "独立出突骑和敢死队先锋队，人数规模在 100 以上，用于实行偷袭骚扰突围先登等")：
     // 打着仗的国从兵最多的一支正规军(够 VanguardParent 人)里分出 VanguardShare 的兵、VanguardMin~VanguardMax 人，
@@ -1523,7 +1512,6 @@ public static class CorpsSystem
     // 残军合并(群友 2026-11-22 "要是能合并军团就好了")：同一军镇的两支军都在待命、站在同一块地上，合起来还装得进
     // 其中一支的满编，就并成一支(留兵多的那支的番号)。战时才并——平时多出来的军本来就解散。
     // 分着渡海先遣军的不并(先遣军要并回原军)
-#if EC_PENDING
     private static void MergeRemnants(Realm kingdom, List<CorpsData> group, Dictionary<long, float> awayByParent)
     {
         if (group == null || group.Count < 2) return;
@@ -1553,7 +1541,6 @@ public static class CorpsSystem
         RemoveGeneral(corps);
         Of(kingdom).Remove(corps);
     }
-#endif
 
     // 阵亡：兵力减少，来源按比例扣减(死去的人不回人口)
     public static void Casualties(CorpsData corps, float dead)
@@ -1591,7 +1578,6 @@ public static class CorpsSystem
     // 开启军团模式前征召的实体兵(一团一个)：超出守兵额的并入本国军团，实体并回人口
     private const int MaxAbsorbPerKingdom = 12;
 
-#if EC_PENDING
     private static void AbsorbLegacyLegions(Realm kingdom)
     {
         int absorbed = 0;
@@ -1627,7 +1613,6 @@ public static class CorpsSystem
             }
         }
     }
-#endif
 
     private static void AddContribution(this CorpsData corps, LegionPopulationContribution origin)
     {
@@ -1870,7 +1855,6 @@ public static class CorpsSystem
     }
 
     // 改由某人统领这支军(宦官掌兵等，见 TempFac_宦官掌兵)：原统领卸任
-#if EC_PENDING
     public static bool AssignGeneral(Realm kingdom, CorpsData corps, Person general)
     {
         // 等着起事的流寇不给朝廷统兵(见 ScenarioEventSystem.IsReserved)
@@ -1901,7 +1885,6 @@ public static class CorpsSystem
         City home = Home(corps) ?? general.City;
         if (home != null) CityPopulationSystem.DisbandIntoPopulation(general, home);
     }
-#endif
 
     // 这人统领的军(不是统领返回空)
     public static CorpsData CorpsOf(Person actor)
@@ -1913,7 +1896,6 @@ public static class CorpsSystem
 
     // 整支军改投别国(拥兵自立，见 ThroneSuspicion)：驻地改到 home，回驻地待命
     // 被围投降的军被敌方收编(见 EncirclementSystem)：换了统领、编入对方，算手动组建的军(不随军制兵额裁撤)，老兵打了折
-#if EC_PENDING
     public static void CaptureCorps(Realm from, CorpsData corps, Realm captor)
     {
         if (corps == null || from == null || captor?.Record == null) return;
@@ -1928,7 +1910,6 @@ public static class CorpsSystem
         Paths.Remove(corps.id);
         Transfer(corps, from, captor, captor.Capital);
     }
-#endif
 
     public static void Transfer(CorpsData corps, Realm from, Realm to, City home)
     {
@@ -2850,7 +2831,6 @@ public static class CorpsSystem
         return Mathf.Max(1, Mathf.CeilToInt(seconds / 5f));
     }
 
-#if EC_PENDING
     private static void MoveGeneral(CorpsData corps)
     {
         if (corps.general_id < 0) return;
@@ -2862,10 +2842,9 @@ public static class CorpsSystem
         if (GeneralMoves.TryGetValue(general.Key, out float next) && now < next) return;
         GeneralMoves[general.Key] = now + GeneralMoveInterval;
         if (general.Cell.Zone == zone) return;
-        try { general.goTo(zone.Center); }
+        try { general.GoTo(zone.Center); }
         catch (Exception exception) { LogService.LogWarning($"[EmpireCraft][军团] 统领行军失败: {exception.Message}"); }
     }
-#endif
 
     #endregion
 

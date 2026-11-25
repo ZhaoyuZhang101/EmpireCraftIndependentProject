@@ -55,7 +55,6 @@ public static partial class HolyRomanSystem
     }
 
     // 返回 true = 皇帝退位、帝国已解散
-#if EC_PENDING
     private static bool DeclineYearly(Empire empire, HolyRomanState state)
     {
         state.departed_log ??= new List<string>();
@@ -73,7 +72,6 @@ public static partial class HolyRomanSystem
         Abdicate(empire, state);
         return true;
     }
-#endif
 
     // 退位解散还差什么(年度诊断、界面用)，条件已齐时为 null
     public static string AbdicationBlocker(Empire empire, HolyRomanState state)
@@ -89,7 +87,6 @@ public static partial class HolyRomanSystem
     }
 
     // 皇帝退位、帝国解散
-#if EC_PENDING
     private static void Abdicate(Empire empire, HolyRomanState state)
     {
         Realm core = empire.CoreKingdom;
@@ -111,22 +108,18 @@ public static partial class HolyRomanSystem
                            $"成员{Members(empire).Count}国(最多{state.peak_members})，立国{GameClock.YearsSince(empire.data.created_time)}年");
         ModClass.EMPIRE_MANAGER.dissolveEmpire(empire);
     }
-#endif
 
     // 神力按钮：皇帝退位(权威不到 10 时)
-#if EC_PENDING
     public static bool ActAbdicate(Empire empire)
     {
         if (!DissolutionEnabled || !HasDiet(empire) || Authority(empire) >= CollapseAuthority) return false;
         Abdicate(empire, State(empire));
         return true;
     }
-#endif
 
     private static bool IsPapacy(Realm kingdom) => kingdom.HasReligion() && PapacySystem.Papacy(kingdom.Religion) == kingdom;
 
     // 能拉走的成员：对皇帝好感不到 10、或改奉别教、或有自主外交
-#if EC_PENDING
     private static bool Discontent(Empire empire, HolyRomanState state, Realm member)
     {
         Realm core = empire.CoreKingdom;
@@ -137,10 +130,8 @@ public static partial class HolyRomanSystem
                member.HasReligion() && core.HasReligion() && member.Religion != core.Religion ||
                member.GetRegime()?.IsAllowDiplomacy() == true;
     }
-#endif
 
     // 保护人与要拉走的成员(没有就 null)
-#if EC_PENDING
     private static (Realm protector, List<Realm> departing) FindProtector(Empire empire, HolyRomanState state)
     {
         Realm core = empire.CoreKingdom;
@@ -218,10 +209,8 @@ public static partial class HolyRomanSystem
         LogService.LogInfo($"[EmpireCraft][神罗] {empire.GetEmpireFullName()} 保护同盟：{text}(权威{Authority(empire)}，" +
                            $"保护人国力{WarSituation.Power(protector):0}、中央{empire.CoreKingdom.GetNationalPower():0})");
     }
-#endif
 
     // 结盟(第一家为盟主)：盟主已有同盟就并入它的同盟，否则新结一个模组同盟；别的家已在别的同盟的先退出
-#if EC_PENDING
     private static void FormProtectedLeague(string name, List<Realm> realms)
     {
         List<Realm> group = realms.Where(kingdom => kingdom?.Record != null && !kingdom.IsGone() && !kingdom.IsInEmpire() &&
@@ -230,20 +219,20 @@ public static partial class HolyRomanSystem
         try
         {
             Realm head = group[0];
-            Alliance alliance = head.hasAlliance() ? head.getAlliance() : null;
+            Alliance alliance = head.HasAlliance() ? head.GetAlliance() : null;
             if (alliance == null)
             {
-                foreach (Realm kingdom in group.Where(kingdom => kingdom.hasAlliance()).ToList())
-                    kingdom.getAlliance().leave(kingdom);
-                alliance = EmpireWorld.Current.alliances.newAlliance(group[0], group[1]);
+                foreach (Realm kingdom in group.Where(kingdom => kingdom.HasAlliance()).ToList())
+                    kingdom.GetAlliance().Leave(kingdom);
+                alliance = EmpireWorld.Current.NewAlliance(group[0], group[1]);
                 if (alliance == null) return;
                 ModAllianceService.Mark(alliance);
-                alliance.setName(name);
+                alliance.SetName(name);
             }
-            foreach (Realm member in group.Where(kingdom => kingdom.getAlliance() != alliance))
+            foreach (Realm member in group.Where(kingdom => kingdom.GetAlliance() != alliance))
             {
-                if (member.hasAlliance()) member.getAlliance().leave(member);
-                alliance.join(member, true, true);
+                if (member.HasAlliance()) member.GetAlliance().Leave(member);
+                alliance.Join(member, true, true);
             }
         }
         catch (Exception exception)
@@ -251,7 +240,6 @@ public static partial class HolyRomanSystem
             LogService.LogWarning($"[EmpireCraft][神罗] 保护同盟结盟失败: {exception.Message}");
         }
     }
-#endif
 
     // 开战即援(WarPatch.new_war)：原帝国中央或其成员攻打被保护者时，保护人加入守方
     public static void OnWarStarted(War war)

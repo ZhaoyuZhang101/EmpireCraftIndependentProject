@@ -238,7 +238,6 @@ public static class ZhouEraSystem
         (empire?.CountPopulation() ?? 0) + DetachedVassals(empire).Sum(kingdom => kingdom.PopulationCount());
 
     // 战国：诸侯(郡除外)离开帝国，记下所属周室；爵位(国家类别)照旧
-#if EC_PENDING
     private static void Detach(Empire empire)
     {
         int count = 0;
@@ -259,7 +258,6 @@ public static class ZhouEraSystem
         RedrawMap();
         Log(empire, string.Format(LM.Get("zhou_log_detached"), count));
     }
-#endif
 
     // 周室归属变了：整图重画，外框跟着变(原版只在地块所属国或邻接变化时重画)
     private static void RedrawMap() => EmpireWorld.Current?.Zones?.MarkDirty();
@@ -318,7 +316,6 @@ public static class ZhouEraSystem
     }
 
     // 诸侯能否向 target 开战：同为周室诸侯可以(春秋不得攻王畿)；周室之外按常规
-#if EC_PENDING
     public static bool IsValidVassalWarTarget(Realm initiator, Realm target, out bool handled)
     {
         handled = false;
@@ -329,16 +326,15 @@ public static class ZhouEraSystem
         if (target == initiator) return false;
         if (target == empire.CoreKingdom && State(empire).era < Warring) return false;
         if (!initiator.IsNeighbourWith(target)) return false;
-        if (initiator.hasAlliance() && initiator.getAlliance() == target.getAlliance()) return false;
+        if (initiator.HasAlliance() && initiator.GetAlliance() == target.GetAlliance()) return false;
         // 合纵之国不互攻；连横之国与所依附之国不互攻
         ZhouEraState state = State(empire);
         if (state.coalition.Contains(initiator.Key) && state.coalition.Contains(target.Key)) return false;
         if (state.horizontal.Contains(initiator.Key) && target.Key == state.coalition_target ||
             state.horizontal.Contains(target.Key) && initiator.Key == state.coalition_target) return false;
-        bool hostile = (EmpireWorld.Current?.diplomacy?.getOpinion(initiator, target)?.total ?? 0) < 0;
+        bool hostile = (EmpireWorld.Current?.Diplomacy?.GetOpinion(initiator, target)?.Total ?? 0) < 0;
         return hostile || Power(initiator) >= Power(target) * 1.3f;
     }
-#endif
 
     #endregion
 
@@ -355,7 +351,6 @@ public static class ZhouEraSystem
         Pending.Add((city.Key, loser.Key, winner.Key, royal));
     }
 
-#if EC_PENDING
     private static void ProcessPending()
     {
         if (Pending.Count == 0) return;
@@ -371,7 +366,6 @@ public static class ZhouEraSystem
             else OnCapitalTaken(city, loser, winner);
         }
     }
-#endif
 
     public static void OnCapitalTaken(City city, Realm loser, Realm winner)
     {
@@ -402,7 +396,6 @@ public static class ZhouEraSystem
     }
 
     // 战国攻下王畿：周亡，攻者取周而代之
-#if EC_PENDING
     public static void OnRoyalCapitalTaken(City city, Realm royal, Realm winner)
     {
         Empire empire = royal?.GetEmpire();
@@ -428,7 +421,6 @@ public static class ZhouEraSystem
         successor.RecordHistory(directContent: string.Format(LM.Get("zhou_history_zhou_fell"), winner.GetKingdomName(), zhou),
             kingdomId: winner.Key);
     }
-#endif
 
     #endregion
 
@@ -643,7 +635,6 @@ public static class ZhouEraSystem
         HoldConference(empire, state, null);
     }
 
-#if EC_PENDING
     public static void EnterWarring(Empire empire, ZhouEraState state)
     {
         if (state.era >= Warring) return;
@@ -657,7 +648,6 @@ public static class ZhouEraSystem
         empire.RecordHistory(directContent: warring, kingdomId: empire.CoreKingdom.Key);
         EmpireCraft.Core.TranslateHelper.LogEventOnly(warring, empire.CoreKingdom);
     }
-#endif
 
     #endregion
 
@@ -728,7 +718,6 @@ public static class ZhouEraSystem
     }
 
     // 纳贡：诸侯每年以赋税一成献给霸主；国库交不出、或与霸主交恶不肯交的，记为不朝
-#if EC_PENDING
     private static void CollectTribute(Empire empire, ZhouEraState state, Realm hegemon)
     {
         int total = 0;
@@ -736,7 +725,7 @@ public static class ZhouEraSystem
         foreach (Realm vassal in Vassals(empire).Where(vassal => vassal != hegemon))
         {
             if (vassal.IsAtWarWith(hegemon) || state.kings.Contains(vassal.Key) ||
-                !HasZuo(state, vassal) && (EmpireWorld.Current.diplomacy?.getOpinion(vassal, hegemon)?.total ?? 0) < -20)
+                !HasZuo(state, vassal) && (EmpireWorld.Current.Diplomacy?.GetOpinion(vassal, hegemon)?.Total ?? 0) < -20)
             {
                 state.defiant.Add(vassal.Key);
                 continue;
@@ -753,7 +742,6 @@ public static class ZhouEraSystem
         }
         if (total > 0) hegemon.AddMoney(total, TreasuryCategory.Tribute);
     }
-#endif
 
     // 讨不庭：霸主讨伐接壤的不朝之国(比它弱的才动手)
     private static void PunishDefiant(Empire empire, ZhouEraState state, Realm hegemon)
@@ -813,7 +801,6 @@ public static class ZhouEraSystem
 #endif
 
     // 三家分晋：六城以上的大国，国君年幼或年老时更易被权臣瓜分为三
-#if EC_PENDING
     private static bool TryPartition(Empire empire, ZhouEraState state, Realm vassal)
     {
         // 不许自立(见 SecessionGate)：权臣不瓜分
@@ -865,7 +852,6 @@ public static class ZhouEraSystem
             kingdomId: vassal.Key);
         return true;
     }
-#endif
 
     // 田氏代齐：四城以上的大国，权臣(最大的非都城城主)篡夺君位
 #if EC_PENDING
@@ -917,7 +903,6 @@ public static class ZhouEraSystem
 
     #region 战国：称王、变法、合纵、统一
 
-#if EC_PENDING
     private static void WarringYear(Empire empire, ZhouEraState state)
     {
         foreach (Realm vassal in Vassals(empire).ToList())
@@ -944,10 +929,8 @@ public static class ZhouEraSystem
             if (wars < ConquestsPerYear && TryConquest(empire, state, vassal)) wars++;
         foreach (Realm vassal in Vassals(empire).ToList()) TrySubmit(empire, state, vassal);
     }
-#endif
 
     // 战国兼并：称王或变法之国不在打仗时，每年有一定可能向接壤、国力不到自己三分之二的诸侯(或王畿)开战，以吞并为务
-#if EC_PENDING
     private static bool TryConquest(Empire empire, ZhouEraState state, Realm vassal)
     {
         if (vassal?.Record == null || vassal.IsGone() || vassal.HasEnemies() ||
@@ -963,7 +946,6 @@ public static class ZhouEraSystem
         Log(empire, string.Format(LM.Get("zhou_log_conquest"), vassal.GetKingdomName(), target.GetKingdomName()));
         return true;
     }
-#endif
 
     // 一城小国：被国力四倍以上、不在交战的接壤大国(称王之国优先)包围，每年有一定可能举国降服
     private static void TrySubmit(Empire empire, ZhouEraState state, Realm small)
@@ -1250,7 +1232,6 @@ public static class ZhouEraSystem
     #region 神力
 
     // 推进时代：西周 → 春秋 → 战国 → 统一(由天下最强者统一，诸侯最强时先取周而代之)
-#if EC_PENDING
     public static void GodAdvance(Empire empire)
     {
         if (!Applies(empire)) return;
@@ -1276,7 +1257,6 @@ public static class ZhouEraSystem
                 break;
         }
     }
-#endif
 
     #endregion
 

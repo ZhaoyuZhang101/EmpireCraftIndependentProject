@@ -511,24 +511,22 @@ namespace EmpireCraft.Core
             }
             return false;
         }
-#if EC_PENDING
         public static void SetFamilyCityPre(this Family family, bool has_pre = true)
         {
-            if (family.Record.custom_data_bool == null)
+            if (family.Record.CustomDataBool == null)
             {
-                family.Record.custom_data_bool = new CustomDataContainer<bool>();
+                family.Record.CustomDataBool = new CustomDataContainer<bool>();
             }
-            family.Record.custom_data_bool.dict["has_city_pre"] = has_pre;
+            family.Record.CustomDataBool.dict["has_city_pre"] = has_pre;
         }
         public static bool HasBeenSetBefored(this Family family)
         {
-            if (family.Record.custom_data_bool == null)
+            if (family.Record.CustomDataBool == null)
             {
-                family.Record.custom_data_bool = new CustomDataContainer<bool>();
+                family.Record.CustomDataBool = new CustomDataContainer<bool>();
             }
-            return family.Record.custom_data_bool.dict.ContainsKey("has_city_pre");
+            return family.Record.CustomDataBool.dict.ContainsKey("has_city_pre");
         }
-#endif
         public static  List<Person> SearchUnitHelper(string content, List<Person> actors)
         {
             List<Person> actorsPool = new List<Person>();

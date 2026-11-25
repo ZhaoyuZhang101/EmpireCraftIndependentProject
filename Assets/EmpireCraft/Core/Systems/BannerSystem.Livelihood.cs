@@ -107,7 +107,6 @@ public static partial class BannerSystem
     #region 团练成勇营
 
     // 每年：民变未平而八旗打不动，属地行省办团练成勇营；天命跌破三十，办过勇营的督抚拥兵自重
-#if EC_PENDING
     private static void MilitiaYearly(Empire empire, Realm core, KingdomExtension.KingdomExtraData extra)
     {
         List<Realm> raised = (empire.kingdoms_list ?? new List<Realm>())
@@ -135,10 +134,8 @@ public static partial class BannerSystem
         Announce(empire, core, string.Format(LM.Get("banner_yongying_history"), empire.GetEmpireName(), province.GetKingdomName(), leader));
         LogService.LogInfo($"[EmpireCraft][八旗] {province.GetKingdomName()} 团练成勇营，兵 {(int)(corps?.strength ?? 0f)}");
     }
-#endif
 
     // 督抚拥兵自重：得以自行外交，成了藩镇
-#if EC_PENDING
     private static void Autonomy(Empire empire, Realm core, Realm member)
     {
         Regime regime = member.GetRegime();
@@ -149,7 +146,6 @@ public static partial class BannerSystem
         EmpireCraftKingdomBehCheckKingdomType.SyncKingdomStatus(member);
         Announce(empire, core, string.Format(LM.Get("banner_autonomy_history"), member.GetKingdomName(), empire.GetEmpireName()));
     }
-#endif
 
     #endregion
 }

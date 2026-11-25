@@ -151,10 +151,8 @@ public static partial class NomadRaidSystem
         kingdom.Warriors() + (CorpsSystem.Enabled ? CorpsSystem.Of(kingdom).Sum(corps => Mathf.Max(0f, corps.strength)) : 0f);
 
     // 劫掠时拼的国力：帝国核心算整个帝国，帝国的边地成员只算它自己(中央不为劫掠出兵，见 MemberWarAid)
-#if EC_PENDING
     private static double PowerOf(Realm kingdom) =>
         ModRealm(kingdom) == kingdom ? WarSituation.Power(kingdom) : kingdom.GetNationalPower();
-#endif
 
     #endregion
 
@@ -299,7 +297,6 @@ public static partial class NomadRaidSystem
 #endif
 
     // 能不能出兵：活着、有君、不在打仗、冷却已过、时代还没到工业
-#if EC_PENDING
     private static bool CanRaid(Realm kingdom)
     {
         if (!Alive(kingdom) || !kingdom.HasRuler() || kingdom.HasEnemies() || WarSituation.TooBusyForWar(kingdom)) return false;
@@ -310,6 +307,7 @@ public static partial class NomadRaidSystem
         return state.last_raid_at < 0d || YearsSince(state.last_raid_at) >= RaidCooldownYears;
     }
 
+#if EC_PENDING
     private static void Muster(Realm leader, HashSet<Realm> assigned)
     {
         List<Realm> members = IsNomad(leader) ? Gather(leader, assigned) : new List<Realm> { leader };
@@ -327,7 +325,6 @@ public static partial class NomadRaidSystem
 #endif
 
     // 召集：接壤的游牧政权(连同本汗国的兀鲁思)按自身压力、亲疏、强弱掷入盟；新入盟的接壤之部也一并召集
-#if EC_PENDING
     private static List<Realm> Gather(Realm leader, HashSet<Realm> assigned)
     {
         var members = new List<Realm> { leader };
@@ -365,7 +362,7 @@ public static partial class NomadRaidSystem
                 if (!sameRealm && power > leaderPower) continue;
                 bool sameCulture = CultureService.SameKin(culture, CultureService.GetRealmCulture(candidate));
                 bool inLaw = RoyalMarriageSystem.Allied(leader, candidate);
-                bool hostile = (EmpireWorld.Current.diplomacy?.getOpinion(candidate, leader)?.total ?? 0) < opinionFloor;
+                bool hostile = (EmpireWorld.Current.Diplomacy?.GetOpinion(candidate, leader)?.Total ?? 0) < opinionFloor;
                 float chance = SteppeRules.JoinChance(State(candidate).pressure, sameCulture, inLaw,
                     sameRealm || SameOverlord(leader, candidate), power < leaderPower * MuchWeaker, hostile);
                 if (EcRandom.value >= chance) continue;
@@ -375,7 +372,6 @@ public static partial class NomadRaidSystem
         }
         return members;
     }
-#endif
 
     // 同奉一主：同一个宗主的朝贡国，或共事同一个部落联盟
     private static bool SameOverlord(Realm a, Realm b)

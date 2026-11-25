@@ -20,7 +20,6 @@ public static class PapalElection
     public const int ByConclave = 1, ByImposition = 2;
     private const float ImposeChance = 0.6f;
 
-#if EC_PENDING
     public static bool TryHandleVacancy(Realm kingdom)
     {
         try
@@ -66,7 +65,6 @@ public static class PapalElection
             return false;
         }
     }
-#endif
 
     // 控制教廷的帝国：教宗国是其成员、附庸，或教廷之囚落在它手里
     private static Empire Patron(Realm papacy)

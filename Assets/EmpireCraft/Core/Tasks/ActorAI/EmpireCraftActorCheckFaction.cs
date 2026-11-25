@@ -13,13 +13,11 @@ public class EmpireCraftActorCheckFaction : GameAIActorBase
 
     public override Type OriginalBeh => GetType();
 
-#if EC_PENDING
     public override BehResult Execute(Person pActor)
     {
         TryJoin(pActor);
         return BehResult.Continue;
     }
-#endif
 
     // 年度补录：在任官员入派以前只靠人物自己的 AI(本行为)，可这套 AI 只在无小人模式的闲居者身上按时跑，
     // 城主、成员国君主、有小人模式下的官员几乎轮不到，派系里常年只有几个人。每年由帝国把还没入派的在任官员
@@ -28,7 +26,6 @@ public class EmpireCraftActorCheckFaction : GameAIActorBase
     private static readonly Dictionary<long, double> LastEnroll = new();
     private static object _enrollWorld;
 
-#if EC_PENDING
     public static int EnrollOfficials(Empire empire)
     {
         if (empire?.CoreKingdom == null || empire.IsGone() || empire.IsArchived() || EmpireWorld.Current == null) return 0;
@@ -198,6 +195,5 @@ public class EmpireCraftActorCheckFaction : GameAIActorBase
 
         return chosen != null;
     }
-#endif
 }
 }

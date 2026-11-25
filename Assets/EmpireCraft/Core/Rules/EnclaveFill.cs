@@ -32,7 +32,7 @@ public static class EnclaveFill
 #if EC_PENDING
         public MetaTypeAsset asset;
 #endif
-        // 套在里面的原委托；套上去的委托(每帧对一遍还是不是它，同 Components.WildernessTerritory.Hook)
+        // 套在里面的原委托；套上去的委托(每帧对一遍还是不是它，同 WildernessTerritory.Hook)
 #if EC_PENDING
         public MetaZoneGetMeta full, fullHook;
         public MetaZoneGetMetaSimple simple, simpleHook;

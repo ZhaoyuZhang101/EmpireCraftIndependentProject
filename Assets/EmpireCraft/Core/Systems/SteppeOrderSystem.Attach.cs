@@ -37,7 +37,6 @@ public static partial class SteppeOrderSystem
         NomadRaidSystem.IsNomad(empire.CoreKingdom) && !TribalFissionService.IsTribal(empire.CoreKingdom) &&
         !RepublicSystem.IsRepublic(empire);
 
-#if EC_PENDING
     private static void AttachYearly(List<Realm> nomads)
     {
         foreach (Realm kingdom in nomads.ToList())
@@ -48,10 +47,8 @@ public static partial class SteppeOrderSystem
             else TryAttach(kingdom, state);
         }
     }
-#endif
 
     // 投靠：接壤的最强汗国
-#if EC_PENDING
     private static void TryAttach(Realm kingdom, SteppeState state)
     {
         if (kingdom.GetEmpire() != null || kingdom.IsEmpire() || !NomadRaidSystem.IsNomad(kingdom) ||
@@ -72,10 +69,10 @@ public static partial class SteppeOrderSystem
         double own = kingdom.GetNationalPower();
         Realm core = best.CoreKingdom;
         if (own >= bestPower * AttachPowerShare || kingdom.IsAtWarWith(core) ||
-            (EmpireWorld.Current.diplomacy?.getOpinion(kingdom, core)?.total ?? 0) < AttachOpinion ||
+            (EmpireWorld.Current.Diplomacy?.GetOpinion(kingdom, core)?.Total ?? 0) < AttachOpinion ||
             MembershipCooldown.BlocksVoluntary(kingdom, best)) return;
         if (EcRandom.value >= SteppeRules.AttachChance(state.pressure)) return;
-        if (kingdom.hasAlliance()) kingdom.getAlliance().leave(kingdom);
+        if (kingdom.HasAlliance()) kingdom.GetAlliance().Leave(kingdom);
         best.join(kingdom, true, pForce: true);
         if (kingdom.GetEmpire() != best) return;
         EmpireCraft.Core.EmpireCraftKingdomBehCheckKingdomType.SyncKingdomStatus(kingdom);
@@ -86,7 +83,6 @@ public static partial class SteppeOrderSystem
         LogService.LogInfo($"{LogTag} 依附强部：{kingdom.GetKingdomName()}(国力{own:0}，压力{state.pressure:0})投靠" +
                            $"{best.GetEmpireName()}(国力{bestPower:0})为兀鲁思");
     }
-#endif
 
     // 合法理、同天下：都城与汗庭同在一个天下；都城所在的帝国法理没归别的帝国
     private static bool AttachFits(Realm kingdom, Empire khanate)
@@ -100,7 +96,6 @@ public static partial class SteppeOrderSystem
     }
 
     // 若即若离：大汗换人、汗国衰落时散去
-#if EC_PENDING
     private static void Drift(Realm kingdom, SteppeState state)
     {
         Empire empire = ModClass.EMPIRE_MANAGER?.Get(state.attached_empire_id);
@@ -143,6 +138,5 @@ public static partial class SteppeOrderSystem
         LogService.LogInfo($"{LogTag} 附从散去：{kingdom.GetKingdomName()} 离开{empire.GetEmpireName()}" +
                            $"({(key == "steppe_detach_succession_history" ? "易汗" : key == "steppe_detach_relief_history" ? $"灾年已过，压力{state.pressure:0}" : $"汗国势衰，正统{empire.Legitimacy}")})");
     }
-#endif
 }
 }

@@ -38,8 +38,10 @@ namespace EmpireCraft.Core
         public virtual void LoadData(TData record) { data = record; }
         public bool IsAlive() => Alive;
         public virtual void ClearListUnits() { }
+        public virtual void GenerateNewMetaObject() { }
         // The colours of this object, for those that have any (an empire, a title).
         public virtual Tint GetColor() => null;
+        public virtual void UpdateColor(Tint tint) { }
         // What belongs to this object, for those that hold cities or persons; and its own bookkeeping before a save.
         public virtual IEnumerable<City> GetCities() => System.Linq.Enumerable.Empty<City>();
         public virtual IEnumerable<Person> GetUnits() => System.Linq.Enumerable.Empty<Person>();

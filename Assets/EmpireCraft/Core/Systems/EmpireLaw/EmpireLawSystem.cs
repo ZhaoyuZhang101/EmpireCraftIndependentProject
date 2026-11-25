@@ -558,7 +558,6 @@ public static partial class EmpireLawSystem
 #endif
 
     // 每国每年由国家 AI 调一次(EmpireCraftKingdomBehCheckEmpireLaw)：先办狱政(刑满释放、宽仁之国恩赦)，再查拥兵自重
-#if EC_PENDING
     public static void CheckMercenaryOvermightyLaw(Realm kingdom)
     {
         if (!Enabled) return;
@@ -591,6 +590,7 @@ public static partial class EmpireLawSystem
         leader.RecordCrime(lawType);
     }
 
+#if EC_PENDING
     private static bool TryTriggerOfficialLaws(Person actor, Realm kingdom)
     {
         if (actor == null || kingdom == null) return false;
@@ -610,6 +610,7 @@ public static partial class EmpireLawSystem
 
         return TryAutoCrime(actor, LawType.谎报军功, 0.02f + GetMilitaryCrimeModifier(actor), null);
     }
+#endif
 
     private static bool TryTriggerGeneralLaws(Person actor, Realm kingdom)
     {
@@ -641,11 +642,9 @@ public static partial class EmpireLawSystem
 
         return TryAutoCrime(actor, LawType.散布恐慌谣言, 0.02f + deceitModifier + disorderModifier * 0.5f, null);
     }
-#endif
 
     // 每年自动查的犯罪按 AutoCrimeScale 压低；计谋里点名的(概率 1)不压。
     // 宽严(见 GetLawStance)：严苛之国人畏法而少犯(最少七成)，宽仁之国多犯(最多一成三)
-#if EC_PENDING
     private static bool TryAutoCrime(Person actor, LawType lawType, float chance, Action<LawEnforcementContext> extraPunishment)
     {
         float deterrence = actor?.Realm != null ? GetLawStance(actor.Realm).CrimeRateFactor : 1f;
@@ -665,10 +664,8 @@ public static partial class EmpireLawSystem
 
         return RecordCrime(actor, lawType);
     }
-#endif
 
     // amount：这回贪墨的数目，记进这桩罪的赃额(同一罪名二十年内未发的旧案只累计赃额，不另立案)
-#if EC_PENDING
     public static bool RecordCrime(this Person actor, LawType lawType, int amount = 0)
     {
         if (actor == null || actor.IsGone()) return false;
@@ -723,7 +720,6 @@ public static partial class EmpireLawSystem
         records.Add(record);
         return true;
     }
-#endif
 
     // 赃款记到这人本国尚未发觉的同一罪名的旧案上(没有旧案返回 false，由调用方另行立案)
     public static bool AddCrimeAmount(Person actor, LawType lawType, int amount)
@@ -1143,7 +1139,6 @@ public static partial class EmpireLawSystem
 
     // 下狱：去官(不禁子孙出仕)，按刑期收押(见 Imprison)：在押期间不得出任官职，刑满或大赦释放。
     // 以前挂 death_mark、加死亡率，死亡率没有地方读，等于只挂个标记
-#if EC_PENDING
     private static bool ApplyImprisonment(LawEnforcementContext context)
     {
         Person actor = context?.Person;
@@ -1157,7 +1152,6 @@ public static partial class EmpireLawSystem
         Imprison(context);
         return true;
     }
-#endif
 
     private static bool ApplyExile(LawEnforcementContext context)
     {

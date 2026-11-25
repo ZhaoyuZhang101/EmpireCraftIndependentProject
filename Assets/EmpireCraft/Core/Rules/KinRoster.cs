@@ -91,13 +91,10 @@ public static class KinRoster
         OnMap(person) ? person._actor.Realm : CityOf(person)?.Realm;
 
     // 落成：地图上的直接取单位，虚拟族人落成后再用 fitActor 复核，不合格的并回人口
-#if EC_PENDING
     public static List<Person> Realize(IEnumerable<PersonalClanIdentity> people, Func<Person, bool> fitActor) =>
         VirtualGenealogySystem.RealizeAll(people, fitActor).Where(actor => actor != null).Distinct().ToList();
-#endif
 
     // 改立、迎立宗亲：世系里在 inRealm 之内的成年虚拟族人，男子在先、年长的在前，落成第一个合格的(至多试 max 人)
-#if EC_PENDING
     public static Person RealizeAdultKin(SpecificClan clan, Func<Realm, bool> inRealm, Func<Person, bool> fitActor, int max = 2) =>
         clan == null ? null
             : RealizeFirst(Lineage(clan).Where(person => Virtual(person) && person.age >= AdultAge && !person.is_concubine &&
@@ -107,6 +104,5 @@ public static class KinRoster
 
     public static Person RealizeFirst(IEnumerable<PersonalClanIdentity> people, Func<Person, bool> fitActor, int maxRealized = 3) =>
         VirtualGenealogySystem.RealizeFirst(people, fitActor, maxRealized);
-#endif
 }
 }

@@ -137,7 +137,6 @@ internal static class WorldMapHistory
 
     // 皇室、王室的宗族叫剧本的家族名(哈布斯堡氏、萨法维氏)：以前取的是造人时原版按种族起的氏族名(施赖伯氏、大流士班家)；
     // 君主没写姓的取前史里本朝的家族名(杜洛、药罗葛，见 WorldMapScenario.HouseOf)
-#if EC_PENDING
     private static void NameHouse(ModRealm realm)
     {
         string family = WorldMapScenario.HouseOf(realm.data);
@@ -150,10 +149,8 @@ internal static class WorldMapHistory
             if (house.name != family) house.name = family;
         if (ruler.Clan != null) SpecificClanManager.SyncVanillaClanName(ruler.Clan);
     }
-#endif
 
     // 中途开局(117 年的汉安帝)：开国之君是史书里的第一位，今上不算开国(没有开国之君特质、开国宽限，身后不按开国定谥)，按常例重评
-#if EC_PENDING
     private static void NotFounder(Empire empire, EmpireCraftHistory founder)
     {
         empire.data.founder_actor_id = founder.id;
@@ -164,7 +161,6 @@ internal static class WorldMapHistory
         emperor.RemoveTrait(RulerTraitSystem.Founder);
         RulerTraitSystem.OnCrowned(empire, emperor);
     }
-#endif
 
     // 一条在位记录：华夏有谥号的拼成"汉高帝""唐高祖 · 唐神尧大圣大光孝皇帝"(谥号、庙号按键存，键见 ShiKey/MiaoKey)；
     // 没有中式谥号的(周天子、罗马皇帝……)记剧本称号，不再自动定谥(见 PosthumousNameGenerator.ScriptedTitle)
@@ -271,7 +267,6 @@ internal static class WorldMapHistory
         : string.Format(LM.Get("world_map_year_ad"), year);
 
     // 族谱：本朝(及世系经过的别朝)的历代君主、祖先做成已故族人，挂进今上的宗族，父子相连到今上
-#if EC_PENDING
     private static void Genealogy(ModRealm realm, int eraYear, HashSet<string> living)
     {
         string fatherPid = realm.data.ruler?.father;
@@ -404,7 +399,6 @@ internal static class WorldMapHistory
         clan.founder = made[root].id;
         clan.InvalidatePeople();
     }
-#endif
 
     private sealed class Ancestor
     {

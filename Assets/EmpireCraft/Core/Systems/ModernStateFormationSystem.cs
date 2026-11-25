@@ -62,7 +62,6 @@ public static class ModernStateFormationSystem
     // 可那只认君主名下已有的法理；政府解散或省州脱离后，这片法理还记在前任元首名下(ModernTitleCentralization 收归中央)，
     // 实际控制着它也认领不到，只能当自治军。按常规法理规则(据有法理首府、或占够地块，见 DeJureTitleClaimRules)
     // 能不战而得的，就从旧主名下承袭过来(同法理谋划 kingdom_get_title 的承袭方式)
-#if EC_PENDING
     internal static bool TryClaimSeatTitle(Realm kingdom)
     {
         if (kingdom == null || kingdom.IsGone() || !kingdom.HasRuler()) return false;
@@ -75,7 +74,6 @@ public static class ModernStateFormationSystem
         kingdom.InheritRealmTitles(title.FindRealmTitleHolder(), new[] { title.Key });
         return kingdom.HasMainTitle();
     }
-#endif
 
     // 组建政府：现代政体下取代"称帝"(所有文化)，政权由此进入帝国层、享有正常国家的全部机制
 #if EC_PENDING
@@ -163,7 +161,7 @@ public static class ModernStateFormationSystem
         {
             FeudalVassalService.Break(subject);
             subject.GetOrCreate().ideology_country_suffix = "";
-            subject.updateColor(government.CoreKingdom.GetColor());
+            subject.UpdateColor(government.CoreKingdom.GetColor());
             EmpireCraftKingdomBehCheckKingdomType.SyncKingdomStatus(subject);
             return true;
         }
@@ -198,7 +196,7 @@ public static class ModernStateFormationSystem
             if (member.GetEmpire() == government)
             {
                 member.GetOrCreate().ideology_country_suffix = "";
-                member.updateColor(government.CoreKingdom.GetColor());
+                member.UpdateColor(government.CoreKingdom.GetColor());
                 EmpireCraftKingdomBehCheckKingdomType.SyncKingdomStatus(member);
             }
         }

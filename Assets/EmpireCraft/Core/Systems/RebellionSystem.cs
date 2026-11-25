@@ -50,20 +50,18 @@ public static class RebellionSystem
     private static readonly HashSet<string> SecessionIgnoredOpinions = new()
         { "opinion_in_same_empire", "opinion_just_enfeoff", "opinion_empire_loyalty" };
 
-#if EC_PENDING
     public static int SecessionAllegiance(Realm kingdom, Empire empire)
     {
         Realm core = empire?.CoreKingdom;
-        if (kingdom?.Record == null || core?.Record == null || kingdom == core || EmpireWorld.Current?.diplomacy == null) return 0;
-        KingdomOpinion opinion = EmpireWorld.Current.diplomacy.getOpinion(kingdom, core);
+        if (kingdom?.Record == null || core?.Record == null || kingdom == core || EmpireWorld.Current?.Diplomacy == null) return 0;
+        RealmOpinion opinion = EmpireWorld.Current.Diplomacy.GetOpinion(kingdom, core);
         if (opinion == null) return 0;
-        int total = opinion.total;
-        if (opinion.results != null)
-            foreach (KeyValuePair<OpinionAsset, int> pair in opinion.results)
-                if (pair.Key?.id != null && SecessionIgnoredOpinions.Contains(pair.Key.id)) total -= pair.Value;
+        int total = opinion.Total;
+        if (opinion.Results != null)
+            foreach (KeyValuePair<OpinionKind, int> pair in opinion.Results)
+                if (pair.Key?.Id != null && SecessionIgnoredOpinions.Contains(pair.Key.Id)) total -= pair.Value;
         return total + (empire.Legitimacy - NomadCycleSystem.SecessionGate(kingdom)) * SecessionLegitimacyWeight;
     }
-#endif
 
     public static float ChanceFactor(Realm kingdom)
     {

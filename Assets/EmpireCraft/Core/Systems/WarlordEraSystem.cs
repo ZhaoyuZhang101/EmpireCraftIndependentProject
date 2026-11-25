@@ -1013,7 +1013,7 @@ public static partial class WarlordEraSystem
             EcRandom.value >= CoalitionChance) return null;
         PartyIdeology centralIdeology = IdeologyFamilies.StateIdeology(centralKingdom);
         List<Realm> members = held.Keys.Where(holder => holder != centralKingdom &&
-                IsLocalHolder(core, holder) && holder.HasRuler() && !holder.hasAlliance() &&
+                IsLocalHolder(core, holder) && holder.HasRuler() && !holder.HasAlliance() &&
                 Government(holder) == null && !holder.IsInEmpire() && !CorpsSystem.CannotFundWar(holder) &&
                 FeudalVassalService.GetOverlord(holder) == null &&
                 holder.GetRegime()?.type == RegimeType.Modern &&
@@ -1083,13 +1083,13 @@ public static partial class WarlordEraSystem
                 HolderName(leaderKingdom), ideology, central.GetBaseEmpireFullName()));
         return leader;
     }
+#endif
 
     private static bool HasGovernmentTitle(Realm kingdom)
     {
         if (kingdom == null || kingdom.IsGone() || !kingdom.HasRuler()) return false;
         return ModernStateFormationSystem.TryClaimSeatTitle(kingdom);
     }
-#endif
 
     private static War FindActiveWar(Realm first, Realm second) => first?.GetWars()
         ?.FirstOrDefault(war => war != null && war.Alive && !war.HasEnded() && war.HasRealm(second));

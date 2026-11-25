@@ -549,7 +549,7 @@ public static class WildernessSystem
         if (touched.Count == 0) return 0;
         CityDistricts.Reset();
         foreach (City city in touched) GameView.Redraw(city);
-        EmpireWorld.Current.Zones?.setDrawnZonesDirty();
+        EmpireWorld.Current.Zones?.MarkDirty();
         return count;
     }
 #endif
@@ -800,7 +800,7 @@ public static class WildernessSystem
         if (count == 0) return 0;
         CityDistricts.Reset();
         foreach (City city in touched) GameView.Redraw(city);
-        EmpireWorld.Current.Zones?.setDrawnZonesDirty();
+        EmpireWorld.Current.Zones?.MarkDirty();
         LogService.LogInfo($"[EmpireCraft][无人区] 城市边界固定：剧本刷给城的 {count} 块还给 {touched.Count} 座城");
         return count;
     }
@@ -963,7 +963,7 @@ public static class WildernessSystem
         return marks;
     }
 
-    // 一格的地形(平滑国界下无人区按格贴着地形画，见 Components.WildernessShape)：口径同 Classify 的格子标记——
+    // 一格的地形(平滑国界下无人区按格贴着地形画，见 WildernessShape)：口径同 Classify 的格子标记——
     // 水面、开过的田什么都不算；岩浆格为熔岩(不算山地、不看地面)；路、城墙看底下的地面；rock 山地山巅，hills 丘陵石地(不是山地的)；
     // 返回地面是哪一类荒地：岩浆为熔岩，冻土雪地为冻原，沙地荒漠为沙漠，丛林为雨林，沼泽为大泽，别的为 None(雪山既是 rock 又是冻原)
 #if EC_PENDING
@@ -1562,7 +1562,7 @@ public static class WildernessSystem
         if (touched.Count == 0) return 0;
         CityDistricts.Reset();
         foreach (City city in touched) GameView.Redraw(city);
-        EmpireWorld.Current.Zones?.setDrawnZonesDirty();
+        EmpireWorld.Current.Zones?.MarkDirty();
         LogService.LogInfo($"[EmpireCraft][无人区] {count} 块空地交给了 {touched.Count} 座挨着的城" + (open.Count > 0 ? $"，{open.Count} 块不挨着城、照旧空着" : ""));
         return count;
     }

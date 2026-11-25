@@ -59,7 +59,6 @@ public class EmpireCraftKingdomBehCheckEmpire:GameAIKingdomBase
     /// 帝国与核心国家同步数据
     /// </summary>
     /// <param name="pKingdom"></param>
-#if EC_PENDING
     public void SyncData(Realm pKingdom)
     {
         //同步天子
@@ -106,7 +105,6 @@ public class EmpireCraftKingdomBehCheckEmpire:GameAIKingdomBase
             });
         }
     }
-#endif
     /// <summary>
     /// 每年计算一次军费，使用最近十年的财政记录
     /// </summary>

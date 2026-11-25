@@ -101,7 +101,6 @@ public static partial class HolyRomanSystem
     // 与皇帝最不睦的世俗诸侯(不同族)在自己的都城另立新教会，圣地就在那里，之后各诸侯陆续改宗(PrincelyReformation)。
     // 以前新教会只能来自别的帝国脱离罗马，帝国自己施行宗教改革又是整个改宗——一国独大的西方或握着教廷的帝国，
     // 诸侯同盟与和约永远凑不齐(玩家日志 0 次)
-#if EC_PENDING
     private static void SeedReformation(Empire empire)
     {
         Religion old = empire.CoreKingdom.Religion;
@@ -114,7 +113,6 @@ public static partial class HolyRomanSystem
         if (founder == null) return;
         PapacySystem.FoundReformedChurch(old, founder.Capital, founder.Ruler, PapacySystem.OriginPrince);
     }
-#endif
 
     // 诸侯改宗：改奉从皇帝所奉宗教分出去的新教会
 #if EC_PENDING

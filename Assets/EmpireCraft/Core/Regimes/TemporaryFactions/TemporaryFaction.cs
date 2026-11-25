@@ -606,7 +606,7 @@ public abstract class TemporaryFaction
                 .ToList();
             if (royalMembers?.Any()??false)
             {
-                leader = royalMembers?.OrderByDescending(a => a.age).First();
+                leader = royalMembers?.OrderByDescending(a => a.Age()).First();
             }
 
             if (leader != null)

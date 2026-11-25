@@ -107,7 +107,7 @@ public static class RoyalMarriageSystem
         {
             if (other == kingdom || other?.Record == null || other.IsGone() || !other.HasRuler() ||
                 !RegimeManager.IsMonarchy(other.GetRegime()?.type) || kingdom.IsAtWarWith(other)) continue;
-            float opinion = EmpireWorld.Current.diplomacy?.getOpinion(kingdom, other)?.total ?? 0;
+            float opinion = EmpireWorld.Current.Diplomacy?.GetOpinion(kingdom, other)?.Total ?? 0;
             if (opinion < -30f) continue;
             float realm = (float)Math.Log10(1d + other.GetNationalPower());
             bool? reach = null;
@@ -192,6 +192,7 @@ public static class RoyalMarriageSystem
         Marry(home, bride, other, groom, log: false);
         return bride.HasSpouse() ? bride : null;
     }
+#endif
 
     private static void Marry(Realm home, Person royal, Realm other, Person partner, bool log = true)
     {
@@ -204,8 +205,8 @@ public static class RoyalMarriageSystem
         if (head.hasLover() && head.IsFreeToMarry(-2L)) head.lover = (-1L, -1L);
         head.setLover(spouse);
         if (!head.hasLover()) return;
-        royal.setLover(partner);
-        partner.setLover(royal);
+        royal.SetLover(partner);
+        partner.SetLover(royal);
         // 谁去谁的国家
         bool royalRules = Ruling(royal, home), partnerRules = Ruling(partner, other);
         Person mover = null;
@@ -225,7 +226,6 @@ public static class RoyalMarriageSystem
         Empire otherEmpire = other.GetEmpire();
         if (otherEmpire != null && otherEmpire != home.GetEmpire()) otherEmpire.RecordHistory(directContent: text);
     }
-#endif
 
     private static void Relocate(Person mover, Realm destination)
     {

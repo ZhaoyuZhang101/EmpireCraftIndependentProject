@@ -40,7 +40,6 @@ public static class PalaceArmySystem
 
     #region 每月
 
-#if EC_PENDING
     public static void Monthly(Realm kingdom)
     {
         Empire empire = kingdom?.GetEmpire();
@@ -93,13 +92,11 @@ public static class PalaceArmySystem
         target -= Mathf.Clamp01(core.GetOrCreate().corps_pay_shortfall) * 40f;
         return target;
     }
-#endif
 
     #endregion
 
     #region 每年：宫廷政变
 
-#if EC_PENDING
     public static void Yearly(Empire empire)
     {
         try
@@ -157,10 +154,8 @@ public static class PalaceArmySystem
         if (commander?.Record != null && commander.Alive && commander.IsAdult())
             MilitaryCoupSystem.PalaceSeize(empire, state, commander, CorpsSystem.Home(biggest));
     }
-#endif
 
     // 改立：储君，否则成年的皇族宗亲(名望最高)
-#if EC_PENDING
     private static Person Successor(Empire empire, Person former)
     {
         Realm core = empire.CoreKingdom;
@@ -173,7 +168,6 @@ public static class PalaceArmySystem
         return empire.EmpireSpecificClan?.AllAliveMembers?.Where(Fit).OrderByDescending(actor => actor.Renown).FirstOrDefault() ??
                KinRoster.RealizeAdultKin(empire.EmpireSpecificClan, kingdom => kingdom?.GetEmpire() == empire, Fit);
     }
-#endif
 
     #endregion
 }

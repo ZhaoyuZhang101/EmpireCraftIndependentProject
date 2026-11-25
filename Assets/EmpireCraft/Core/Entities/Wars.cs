@@ -43,6 +43,9 @@ namespace EmpireCraft.Core
         public War Record => this;
         public double StartedStamp => StartedMonth;
         public bool HasEnded() => EndedMonth >= 0;
+        // Two wars are the same quarrel when the same two realms lead them, whichever attacked.
+        public bool IsSameAs(War other) => other != null && other != this &&
+            ((MainAttacker == other.MainAttacker && MainDefender == other.MainDefender) || (MainAttacker == other.MainDefender && MainDefender == other.MainAttacker));
         public bool IsAttacker(Realm realm) => realm != null && Attackers.Contains(realm);
         public bool IsDefender(Realm realm) => realm != null && Defenders.Contains(realm);
         public bool HasRealm(Realm realm) => IsAttacker(realm) || IsDefender(realm);

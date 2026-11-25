@@ -52,18 +52,15 @@ public static partial class HolyRomanSystem
         empire.GetCabinetMembers().Where(actor => actor?.Record != null && !actor.IsGone() && actor.Alive &&
                                                   actor.Realm?.GetEmpire() == empire && !IsBanned(actor.Realm)).ToList();
 
-#if EC_PENDING
     private static List<Person> ElectionCandidates(Empire empire) =>
         Members(empire).Where(realm => realm.HasRuler() && Estate(realm) == EstateNone && !IsBanned(realm))
             .Select(realm => realm.Ruler)
             .Where(candidate => candidate?.Record != null && !candidate.IsGone() && candidate.Alive && candidate.IsAdult() &&
                                 candidate.IsFitToRule() && candidate.CanServeOffice(empire.CoreKingdom) && !candidate.IsSkeleton())
             .ToList();
-#endif
 
     private static string CampaignKey(Realm candidate, Realm elector) => $"{candidate?.Key ?? -1L}:{elector?.Key ?? -1L}";
 
-#if EC_PENDING
     private static float VoteScore(Empire empire, HolyRomanState state, Person elector, Person candidate, double maxPower, bool random)
     {
         Realm from = elector.Realm, realm = candidate.Realm;
@@ -87,10 +84,8 @@ public static partial class HolyRomanSystem
 
     private static double MaxPower(IEnumerable<Person> candidates) =>
         candidates.Select(candidate => candidate.Realm?.GetNationalPower() ?? 0d).DefaultIfEmpty(0d).Max();
-#endif
 
     // 票势前几名(不含随机项)
-#if EC_PENDING
     private static List<Person> TopCandidates(Empire empire, HolyRomanState state, List<Person> electors, List<Person> pool, int take)
     {
         double max = MaxPower(pool);
@@ -107,7 +102,6 @@ public static partial class HolyRomanSystem
             scores[e, c] = VoteScore(empire, state, electors[e], candidates[c], max, true);
         return scores;
     }
-#endif
 
     private static string TallyText(List<Person> candidates, ImperialElectionRules.Result tally)
     {
@@ -191,7 +185,6 @@ public static partial class HolyRomanSystem
 #endif
 
     // 即位：照 OfficeSelector 的办法置 Electing 后 SetActor(换家族走 TryElectHouse)
-#if EC_PENDING
     private static bool Install(Empire empire, HolyRomanState state, Person winner, string outcomeKey, string tally)
     {
         Realm core = empire.CoreKingdom;
@@ -224,7 +217,6 @@ public static partial class HolyRomanSystem
                            $"当选，{tally}，{LM.Get(outcomeKey)}");
         return true;
     }
-#endif
 
     private static void NoteElection(HolyRomanState state, string winner, string tally, string outcome)
     {
@@ -235,7 +227,6 @@ public static partial class HolyRomanSystem
 
     #region 大空位
 
-#if EC_PENDING
     private static void StartInterregnum(Empire empire, HolyRomanState state, string reason, List<Person> candidates)
     {
         state.interregnum_since = GameClock.Now;
@@ -247,10 +238,8 @@ public static partial class HolyRomanSystem
         FiscalDiagnostics.Count("神罗·大空位");
         LogService.LogInfo($"[EmpireCraft][神罗] {empire.GetEmpireFullName()} 大空位：{reason}，帝国代理 {state.vicar_name}");
     }
-#endif
 
     // 帝国代理：在座世俗选帝侯中国力最强、不是候选的一位；没有就最强诸侯
-#if EC_PENDING
     private static void PickVicar(Empire empire, HolyRomanState state, List<Person> candidates)
     {
         var excluded = new HashSet<Person>(candidates ?? new List<Person>());
@@ -263,10 +252,8 @@ public static partial class HolyRomanSystem
         state.vicar_realm_id = vicar?.Realm?.Key ?? -1L;
         state.vicar_name = vicar == null ? LM.Get("label_none") : $"{vicar.FullName()}({vicar.Realm?.GetKingdomName()})";
     }
-#endif
 
     // 满五年：帝国代理定夺，投他自己最属意的人(代理自己也行)
-#if EC_PENDING
     private static bool VicarDecides(Empire empire, HolyRomanState state, List<Person> pool)
     {
         Person vicar = Vicar(empire);
@@ -280,7 +267,6 @@ public static partial class HolyRomanSystem
         Person pick = pool.OrderByDescending(candidate => VoteScore(empire, state, vicar, candidate, max, false)).First();
         return Install(empire, state, pick, "hre_election_outcome_vicar", state.vicar_name);
     }
-#endif
 
     #endregion
 
@@ -337,7 +323,6 @@ public static partial class HolyRomanSystem
     }
 
     // 争位之战收场(OnWarEnded)：攻方胜，对立国王的领国成为中央；守方胜或议和，对立国王放弃
-#if EC_PENDING
     private static void SettleContest(Empire empire, HolyRomanState state, WarOutcome winner)
     {
         Realm realm = LiveKingdom(state.anti_king_realm_id);
@@ -358,7 +343,6 @@ public static partial class HolyRomanSystem
         ChangeAuthority(empire, AuthAntiKingFailed, "hre_auth_anti_king_failed", name);
         Record(empire, string.Format(LM.Get("hre_contest_failed_history"), name));
     }
-#endif
 
     #endregion
 
@@ -472,7 +456,6 @@ public static partial class HolyRomanSystem
 #endif
 
     // 界面用：拉票中的两位候选与眼下倒向他们的在座选帝侯数
-#if EC_PENDING
     public static List<(Person candidate, int votes)> CampaignStanding(Empire empire)
     {
         HolyRomanState state = State(empire);
@@ -488,10 +471,8 @@ public static partial class HolyRomanSystem
             result.Add((candidate, leaning.Count(pick => pick == candidate)));
         return result;
     }
-#endif
 
     // 选立储君过票：储君与票势最高的诸侯决选，皇帝替储君出的钱分给选帝侯；过半才立(返回 false = 选帝侯没答应)
-#if EC_PENDING
     private static bool KingOfRomansVote(Empire empire, HolyRomanState state, Person heir, long budget)
     {
         List<Person> electors = SeatedElectors(empire).Where(elector => elector != heir).ToList();
@@ -527,10 +508,8 @@ public static partial class HolyRomanSystem
         if (!passed) Record(empire, string.Format(LM.Get("hre_king_of_romans_refused_history"), heir.FullName(), rival.FullName()));
         return passed;
     }
-#endif
 
     // 年度诊断的会选一段
-#if EC_PENDING
     private static string ElectionStatus(Empire empire, HolyRomanState state)
     {
         if (state.interregnum_since >= 0d)
@@ -544,7 +523,6 @@ public static partial class HolyRomanSystem
         ElectionRecord last = state.elections?.LastOrDefault();
         return anti + campaign + (last == null ? "" : $"；上次{GameClock.YearsSince(last.at)}年前 {last.winner}({last.tally}，{last.outcome})");
     }
-#endif
 
     #endregion
 }

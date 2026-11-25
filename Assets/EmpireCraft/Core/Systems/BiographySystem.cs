@@ -182,7 +182,6 @@ public static class BiographySystem
                                 FamousTalentSystem.IsFamous(actor) || actor.IsCityLeader());
 
     // 死于人手：要人死了，下手的人也记一笔
-#if EC_PENDING
     public static void RecordKiller(Person victim, Person killer)
     {
         if (killer?.Record == null || killer.IsGone() || killer == victim || !Notable(victim) || killer.GetPersonalIdentity() == null) return;
@@ -193,7 +192,6 @@ public static class BiographySystem
         // 同朝相杀、又不在交战：记未发之罪(杀人；杀了君主记谋反，见 EmpireLawSystem.OnNotableKilled)
         EmpireLawSystem.OnNotableKilled(victim, killer);
     }
-#endif
 
     // 一句生平(大事)，人不在、没族谱身份的跳过
     public static void Note(Person actor, string text, Person related = null)

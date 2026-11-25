@@ -103,7 +103,6 @@ public static partial class PapacySystem
         Orders(religion).Any(order => Host(order) is Realm host && ModRealm(host) == ModRealm(kingdom)) ? 0.4f : 0f;
 
     // 每年(随教权结算)：大团长、捐献、养军、镇压
-#if EC_PENDING
     private static void UpdateOrders(Religion religion)
     {
         foreach (KnightOrderData order in Orders(religion).ToList())
@@ -203,7 +202,6 @@ public static partial class PapacySystem
         order.dissolved = true;
         if (host != null) RecordReligion(host, text.Contains("{0}") ? string.Format(text, order.name) : text);
     }
-#endif
 
     // 圣战收复圣地而当时没有教廷：骑士团在圣地立国，大团长为君
 #if EC_PENDING

@@ -865,7 +865,6 @@ public static class PeaceTable
     #region 文字
 
     // 一项条款的说法：(条款、小标、小标颜色)
-#if EC_PENDING
     public static (string label, string tag, string tagHex) Label(War war, PeaceTerm term)
     {
         Realm giver = Giver(war, term), receiver = Receiver(war, term);
@@ -938,7 +937,6 @@ public static class PeaceTable
         }
         return ("—", null, null);
     }
-#endif
 
     // 议和页"添加条件"的分类：1 城池、2 财货、3 臣属、4 宗教通商
     public static int Category(PeaceTerm term) => term.kind switch
@@ -951,7 +949,6 @@ public static class PeaceTable
     };
 
     // 一方出的条件写成一句：割洛阳、偃师，赔款金 1,200
-#if EC_PENDING
     private static string Clauses(War war, IEnumerable<PeaceTerm> terms)
     {
         var list = terms.ToList();
@@ -963,10 +960,8 @@ public static class PeaceTable
         clauses.AddRange(list.Where(term => term.kind != PeaceTermKind.City).Select(term => Label(war, term).label));
         return string.Join(LM.Get("peace_deal_comma"), clauses);
     }
-#endif
 
     // 整份和约：北燕割洛阳、偃师，赔款金 1,200；大梁开港通商二十年。空的是白和
-#if EC_PENDING
     public static string Describe(War war, PeaceDeal deal)
     {
         var parts = new List<string>();
@@ -979,13 +974,10 @@ public static class PeaceTable
         }
         return parts.Count == 0 ? LM.Get("peace_deal_white") : string.Join(LM.Get("peace_deal_semicolon"), parts);
     }
-#endif
 
     // 不带国名的简述(议和页"照目标开价"一格)
-#if EC_PENDING
     public static string Summary(War war, PeaceDeal deal) =>
         deal.terms.Count == 0 ? LM.Get("peace_deal_white") : Clauses(war, deal.terms);
-#endif
 
     // 概况页"若此刻议和"一行：两国肯不肯、照目标开的什么价
 #if EC_PENDING
@@ -1003,7 +995,6 @@ public static class PeaceTable
 #endif
 
     // 议和页天平下的一行提示：(左、右)
-#if EC_PENDING
     public static (string left, string right) Hint(War war, PeaceDeal deal, PeaceBasis basis, PeaceOpinion a, PeaceOpinion d)
     {
         if (a.Accepts && d.Accepts) return (LM.Get("peace_hint_both_label"), LM.Get("peace_hint_both"));
@@ -1022,7 +1013,6 @@ public static class PeaceTable
         }
         return (left, LM.Get("peace_hint_mediate"));
     }
-#endif
 
     #endregion
 }

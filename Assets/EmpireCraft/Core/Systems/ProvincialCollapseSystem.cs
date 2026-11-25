@@ -544,19 +544,19 @@ public static class ProvincialCollapseSystem
         data.republic_revolution_allied_kingdom_ids ??= new List<long>();
         data.republic_revolution_allied_kingdom_ids.Add(province.Key);
         Realm leader = EmpireWorld.Current.RealmByKey(data.republic_regional_leader_kingdom_id);
-        Alliance alliance = EmpireWorld.Current.alliances.get(data.republic_regional_alliance_id);
+        Alliance alliance = EmpireWorld.Current.AllianceByKey(data.republic_regional_alliance_id);
         if (alliance != null && alliance.Alive)
         {
-            if (!province.hasAlliance()) alliance.join(province, true, true);
+            if (!province.HasAlliance()) alliance.Join(province, true, true);
         }
-        else if (leader?.Record != null && !leader.IsGone() && !leader.hasAlliance() && !province.hasAlliance())
+        else if (leader?.Record != null && !leader.IsGone() && !leader.HasAlliance() && !province.HasAlliance())
         {
-            alliance = EmpireWorld.Current.alliances.newAlliance(leader, province);
+            alliance = EmpireWorld.Current.NewAlliance(leader, province);
             if (alliance != null)
             {
                 ModAllianceService.Mark(alliance);
-                alliance.setName(string.Format(LM.Get("regional_republic_alliance_name"), leader.GetKingdomName()));
-                data.republic_regional_alliance_id = alliance.id;
+                alliance.SetName(string.Format(LM.Get("regional_republic_alliance_name"), leader.GetKingdomName()));
+                data.republic_regional_alliance_id = alliance.Key;
             }
         }
         return war;

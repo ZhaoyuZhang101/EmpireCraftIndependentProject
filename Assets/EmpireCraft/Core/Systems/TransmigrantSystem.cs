@@ -75,7 +75,6 @@ public static partial class TransmigrantSystem
     // 主席出缺(见 EmpireCraftKingdomBehCheckKing)：只从元老里选，选不出就空着下回再选
     // (用户 10-29 "这是个什么鬼""国号不可能改的"：以前选不出元老就照常规挑人，一个归化民当了"皇帝"，
     // 跟着篡位、改朝、定年号、改国号，元老院成了"大巴元老院国家")
-#if EC_PENDING
     public static bool TryHandleVacancy(Realm kingdom)
     {
         if (Of(kingdom) == null) return false;
@@ -84,10 +83,8 @@ public static partial class TransmigrantSystem
         if (chairman != null) InstallRuler(kingdom, chairman);
         return true;
     }
-#endif
 
     // 旧档修复：元老院那一国被挤出帝国中央、或首领不是元老的，中央交回元老院、首领从元老里改选、国号照元老院的叫法
-#if EC_PENDING
     private static void Restore(Realm kingdom, TransmigrantState state)
     {
         Empire empire = kingdom.GetEmpire();
@@ -110,7 +107,6 @@ public static partial class TransmigrantSystem
             SyncEmpireName(kingdom);
         }
     }
-#endif
 
     public static Realm Active() =>
         EmpireWorld.Current?.LiveRealms?.FirstOrDefault(kingdom => kingdom != null && !kingdom.IsGone() && Of(kingdom) != null);
@@ -157,12 +153,12 @@ public static partial class TransmigrantSystem
                 best = asset;
             }
         }
-        if (best != null) kingdom.updateColor(best);
+        if (best != null) kingdom.UpdateColor(best);
         CustomColorSystem.Set(kingdom, MapColor);
         BannerAsset banner = AssetManager.kingdom_banners_library.get(kingdom.getActorAsset().banner_id);
         AppendBanners(banner);
         int icon = banner?.icons?.IndexOf(NationalBanner) ?? -1;
-        if (icon >= 0) kingdom.Record.banner_icon_id = icon;
+        if (icon >= 0) kingdom.Record.BannerIconId = icon;
     }
 #endif
 
@@ -504,7 +500,6 @@ public static partial class TransmigrantSystem
     }
 
     // 落成实体：主席(建国的那个人)、驻县办主任，执委会里的几位册为名臣名将
-#if EC_PENDING
     private static void BindLeaders(Realm kingdom, TransmigrantState state, City city, Person founder)
     {
         SenatorSeat chairman = state.seats[0];
@@ -547,10 +542,8 @@ public static partial class TransmigrantSystem
         actor.RecordPersonalHistory(string.Format(LM.Get(string.IsNullOrEmpty(post) ? "transmigrant_member_history" : "transmigrant_member_post_history"),
             city?.GetCityName() ?? "", post, seat.seat));
     }
-#endif
 
     // 穿越政体的殖民地总督：从名册上还没落成的元老里挑一位(原班、三十岁以上优先)，落成在殖民地首府(见 ColonySystem)
-#if EC_PENDING
     public static Person RealizeSenator(Realm metropole, City city)
     {
         TransmigrantState state = Of(metropole);
@@ -566,7 +559,6 @@ public static partial class TransmigrantSystem
         Bind(state, seat, actor, city);
         return actor;
     }
-#endif
 
     private static SenatorSeat SeatOf(TransmigrantState state, Person actor) =>
         actor == null ? null : state.seats.FirstOrDefault(seat => seat.actor_id == actor.Key);
@@ -648,7 +640,6 @@ public static partial class TransmigrantSystem
 
     // 选执委会主席(主席出缺时由 OfficeSelector.Select 调用；任满时由年度结算调用)：从元老里按名望选，
     // 原著执委会的核心人物、原班穿越者、现任(未满两届)占优；连任两届卸任的隔一届不能再选
-#if EC_PENDING
     public static Person ElectChairman(Realm kingdom) => Elect(kingdom, Of(kingdom), termEnd: false);
 
     private static Person Elect(Realm kingdom, TransmigrantState state, bool termEnd)
@@ -700,10 +691,8 @@ public static partial class TransmigrantSystem
         actor.RecordPersonalHistory(text);
         return actor;
     }
-#endif
 
     // 换上新的首领(执委会主席、殖民地总督)：原首领卸任留在原地
-#if EC_PENDING
     public static void InstallRuler(Realm kingdom, Person actor)
     {
         if (actor == null || kingdom.Ruler == actor) return;
@@ -717,7 +706,6 @@ public static partial class TransmigrantSystem
         }
         if (kingdom.Ruler != actor) kingdom.SetRuler(actor);
     }
-#endif
 
     #endregion
 
@@ -823,7 +811,6 @@ public static partial class TransmigrantSystem
     //   · 大宋澳洲行在：撕破伪装、打出大宋旗号那年(见 Reveal)；对外情报局：同年设立；
     //   · 元老院内阁制：大宋以后疆域过二十城，或太阳伞专案之后的第三次全体大会；
     //   · 北伐功成：内阁以后，当年称臣的宗主(明)已经灭亡
-#if EC_PENDING
     private static void Milestones(Realm kingdom, TransmigrantState state, int year)
     {
         int age = year - state.landed_year;
@@ -851,7 +838,6 @@ public static partial class TransmigrantSystem
                 LogService.LogInfo($"[EmpireCraft][穿越] {kingdom.GetKingdomFullName()} 条件达成，施行 {LM.Get("institution_" + node)}");
         }
     }
-#endif
 
     private static readonly string[] StageNodes =
         { "aosong_first_committee", "aosong_common_program", "aosong_great_song", "aosong_cabinet", "aosong_restoration" };
@@ -898,7 +884,6 @@ public static partial class TransmigrantSystem
     }
 
     // 每年：以前按封国分出去的成员(能外交、世袭、握着法理)改成大区；各大区照阶段重定名号与城名
-#if EC_PENDING
     private static void SyncRegions(Realm kingdom)
     {
         Empire empire = kingdom?.GetEmpire();
@@ -923,7 +908,6 @@ public static partial class TransmigrantSystem
             EmpireCraft.Core.EmpireCraftKingdomBehCheckKingdomType.SyncKingdomStatus(member);
         }
     }
-#endif
 
     #endregion
 
@@ -954,7 +938,6 @@ public static partial class TransmigrantSystem
         city?.Realm != null && StageOf(SenateOf(city.Realm)) >= RegionRenameStage &&
         (city.IsCapital() || CityPopulationSystem.GetTotal(city) >= 15000f);
 
-#if EC_PENDING
     private static void Stage(Realm kingdom, TransmigrantState state)
     {
         int stage = 1;
@@ -984,7 +967,6 @@ public static partial class TransmigrantSystem
             foreach (City city in kingdom.Cities.ToList()) city.RefreshCityDisplayName();
         }
     }
-#endif
 
     private const float NaturalizeLogMin = 50f;
 
@@ -1009,7 +991,6 @@ public static partial class TransmigrantSystem
 
     // 降临即是一国之政府(同现代政体组建政府，见 ModernStateFormationSystem.FormGovernment)：进帝国层，享有帝国的全部机制。
     // 降临时建；没建成(或帝国散了)的每年补建
-#if EC_PENDING
     private static void FormGovernment(Realm kingdom)
     {
         if (kingdom?.Record == null || kingdom.IsGone() || !kingdom.HasRuler() || kingdom.IsEmpire() || kingdom.IsInEmpire()) return;
@@ -1024,7 +1005,6 @@ public static partial class TransmigrantSystem
         }
         EmpireCraft.Core.EmpireCraftKingdomBehCheckKingdomType.SyncKingdomStatus(kingdom);
     }
-#endif
 
     // 帝国名就是国号(临高、大宋)，后缀照国家的(元老院、澳洲行在)
     private static void SyncEmpireName(Realm kingdom)
@@ -1046,7 +1026,6 @@ public static partial class TransmigrantSystem
     }
 
     // 以前已经随了澳洲人文化的别国改回华夏
-#if EC_PENDING
     private static void ReleaseCulture()
     {
         foreach (Realm kingdom in EmpireWorld.Current.LiveRealms.ToList())
@@ -1056,7 +1035,6 @@ public static partial class TransmigrantSystem
             if (culture != Culture) CultureService.SetRealmCulture(kingdom, culture, updatePoliticalSystem: true);
         }
     }
-#endif
 
     // 世界法则"穿越者随机降临"：世上有文化进了中世纪以后，每年 ArrivalChance；先找地图上的临高，没有就找华夏一处海边的城
     private const float ArrivalChance = 0.1f;

@@ -10,7 +10,6 @@ public class EmpireCraftEmpireBehSyncMapView:GameAIEmpireBase
 {
     public override Type OriginalBeh => GetType();
 
-#if EC_PENDING
     public override BehResult Execute(Realm pKingdom)
     {
         pKingdom.CheckEmpire();
@@ -20,6 +19,5 @@ public class EmpireCraftEmpireBehSyncMapView:GameAIEmpireBase
         empire.cities_list = EmpireMembershipService.EnumerateCities(empire).ToList();
         return BehResult.Continue;
     }
-#endif
 }
 }

@@ -22,7 +22,6 @@ public static class SenateSystem
         return Mathf.Clamp((int)Math.Floor(Math.Log10(population)) - 2, 1, 4);
     }
 
-#if EC_PENDING
     public static void Maintain(Empire empire)
     {
         Realm core = empire?.CoreKingdom;
@@ -66,6 +65,5 @@ public static class SenateSystem
     private static bool Eligible(Person actor, Realm core) =>
         actor?.Record != null && !actor.IsGone() && actor.Alive && actor.IsAdult() && !actor.IsWarMachine() &&
         !actor.IsSkeleton() && actor.CanServeOffice(core);
-#endif
 }
 }

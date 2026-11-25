@@ -49,6 +49,7 @@ namespace EmpireCraft.Core
         public override bool Alive => false;
         public override EntityKind KindOfEntity => EntityKind.Family;
         public Family Record => this;
+        public CustomDataContainer<bool> CustomDataBool;
     }
 
     // A kind of plot: what is being plotted (a war, a union ...).

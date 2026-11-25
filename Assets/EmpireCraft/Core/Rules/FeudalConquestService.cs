@@ -172,7 +172,6 @@ public static class FeudalConquestService
 #endif
 
     // 每月改封一国(见 Empire.ProcessTerritorialAcquisitionEnfeoff)；战时先挑不在前线的，都在前线就等下个月
-#if EC_PENDING
     public static void ProcessPeaceEnfeoff(Empire empire)
     {
         var pending = empire?.data?.pending_conquest_enfeoff_kingdom_ids;
@@ -193,10 +192,8 @@ public static class FeudalConquestService
         if (AppliesTo(empire) && member != null && !member.IsGone() && member.GetEmpire() == empire &&
             member != empire.CoreKingdom && HasEnfeoffmentInstitution(empire)) TryInstallPrince(empire, member);
     }
-#endif
 
     // 叛君被废，扶立一位本地贵族为君：优先贵族阶层，其次本国其他成年人，按威望取最高者
-#if EC_PENDING
     private static void InstallLocalNoble(Empire empire, Realm conquered)
     {
         Person formerKing = conquered.Ruler;
@@ -213,10 +210,8 @@ public static class FeudalConquestService
         Record(empire, conquered, "feudal_conquest_noble_history", empire.GetEmpireName(), conquered.GetKingdomName(),
             formerKing?.FullName() ?? "", noble.FullName());
     }
-#endif
 
     // 分封之后：把归附国的君位封给一位皇子(太子除外)，原国君迁往王畿
-#if EC_PENDING
     private static bool TryInstallPrince(Empire empire, Realm conquered)
     {
         PersonalClanIdentity emperorIdentity = empire.Emperor?.GetPersonalIdentity();
@@ -239,13 +234,12 @@ public static class FeudalConquestService
             formerKing.RemoveFromArmy();
             if (formerKing.IsCityLeader()) formerKing.City.RemoveLeader();
             formerKing.JoinCity(royalDomain);
-            if (royalDomain._city_tile != null) formerKing.goTo(royalDomain._city_tile);
+            if (royalDomain.SeatCell() != null) formerKing.GoTo(royalDomain.SeatCell());
         }
         Record(empire, conquered, "feudal_conquest_prince_history", empire.GetEmpireName(), prince.FullName(),
             conquered.GetKingdomName(), formerKing?.FullName() ?? "");
         return true;
     }
-#endif
 
     // 攻方一边正以吞并为目标攻打这个国家(它是主守方)
     private static bool AnnexWar(Realm captor, Realm conquered) =>

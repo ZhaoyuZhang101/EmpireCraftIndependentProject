@@ -45,7 +45,6 @@ public static partial class GentrySystem
     }
 
     // 每年(一轮门第结算开始时)：有世家的帝国，朝廷关系向底色靠、按关系增减法统；世家相争(见 GentrySystem.Events)
-#if EC_PENDING
     private static void YearlyCourt()
     {
         if (ModClass.EMPIRE_MANAGER == null) return;
@@ -64,7 +63,6 @@ public static partial class GentrySystem
             TryConsort(empire, clans);
         }
     }
-#endif
 
     // 立场：1 亲附、0 中立、-1 离心
     public static int Stance(SpecificClan clan, Empire empire)

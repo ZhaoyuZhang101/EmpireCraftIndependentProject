@@ -250,7 +250,6 @@ public static class TreasurySystem
 
     // 原法律系统对国王每次记罪都会增加暴虐值。即时缴税不能把一次年度贪污变成数千次治理惩罚。
     // stolen：这回贪墨的数目，记进未发的贪污案的赃额(量刑天平的赃额砝码，见 SentencingScale)；新立案仍一年至多一次
-#if EC_PENDING
     private static void RecordTaxCorruption(Person actor, int stolen)
     {
         if (EmpireCraft.Core.EmpireLawSystem.AddCrimeAmount(actor, LawType.贪污, stolen)) return;
@@ -260,7 +259,6 @@ public static class TreasurySystem
             GameClock.YearsSince(data.last_fiscal_corruption_crime_timestamp) < 1) return;
         if (actor.RecordCrime(LawType.贪污, stolen)) data.last_fiscal_corruption_crime_timestamp = now;
     }
-#endif
 
     // 劫掠只转移现有现金；债务不能作为负数战利品转嫁给胜方。
     // share：拿走几成(劫掠三成，用户 2026-10-17 选"劫掠只拿三成国库")
@@ -354,7 +352,6 @@ public static class TreasurySystem
 
     private static double Rate(double rate) => double.IsNaN(rate) || double.IsInfinity(rate) ? 0d : Math.Max(0d, Math.Min(1d, rate));
 
-#if EC_PENDING
     private static void CreditTaxShare(Realm kingdom, int amount, TreasuryCategory source)
     {
         kingdom.AddMoney(amount, TreasuryCategory.InternalTransfer);
@@ -370,6 +367,5 @@ public static class TreasurySystem
         PrivyPurse.Note(kingdom, PrivyPurse.Graft, stolen);
         RecordTaxCorruption(kingdom.Ruler, stolen);
     }
-#endif
 }
 }

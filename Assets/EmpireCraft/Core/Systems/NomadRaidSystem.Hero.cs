@@ -125,7 +125,7 @@ public static partial class NomadRaidSystem
             if (!Alive(member) || member == leader || member.GetEmpire() == empire || member.IsEmpire() || member.IsInEmpire() ||
                 !IsNomad(member) || TribalFissionService.IsTribal(member) || MembershipCooldown.BlocksJoin(member, empire)) continue;
             if (member.HasTakenAlliance()) member.RemoveTakenAlliance();
-            if (member.hasAlliance()) member.getAlliance().leave(member);
+            if (member.HasAlliance()) member.GetAlliance().Leave(member);
             empire.join(member, true, pForce: true);
             if (member.GetEmpire() != empire) continue;
             EmpireCraft.Core.EmpireCraftKingdomBehCheckKingdomType.SyncKingdomStatus(member);

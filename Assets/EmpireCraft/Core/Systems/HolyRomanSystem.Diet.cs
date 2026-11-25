@@ -82,14 +82,11 @@ public static partial class HolyRomanSystem
     private static bool SameHouse(Person a, Person b) =>
         a?.Record != null && b?.Record != null && SpecificClanManager.SameLineage(a.GetSpecificClan(), b.GetSpecificClan());
 
-#if EC_PENDING
-    private static int Opinion(Realm from, Realm to) => EmpireWorld.Current?.diplomacy?.getOpinion(from, to)?.total ?? 0;
+    private static int Opinion(Realm from, Realm to) => EmpireWorld.Current?.Diplomacy?.GetOpinion(from, to)?.Total ?? 0;
 
-    private static bool Allied(Realm a, Realm b) => a.hasAlliance() && b.hasAlliance() && a.getAlliance() == b.getAlliance();
-#endif
+    private static bool Allied(Realm a, Realm b) => a.HasAlliance() && b.HasAlliance() && a.GetAlliance() == b.GetAlliance();
 
     // 一票：皇帝的人缘、家族、党派、教会诸侯的叙任，加上议题本身的利害
-#if EC_PENDING
     private static float Stance(Empire empire, DietVoter voter, string agenda, Realm subject)
     {
         Realm core = empire.CoreKingdom, realm = voter.realm;
@@ -161,7 +158,6 @@ public static partial class HolyRomanSystem
         }
         return score + EcRandom.Range(-0.2f, 0.2f);
     }
-#endif
 
     // 中央与外敌(不在本帝国的)交战、中央领头的仗
     private static IEnumerable<Realm> OutsideFoes(Empire empire)
@@ -407,7 +403,6 @@ public static partial class HolyRomanSystem
     // 帝国战争应征：各成员国按中央一方出兵。听命于中央的诸侯在中央开战时就被带进了战争名单(见 FeudalVassalService.ExpandSide)，
     // 以前只数新加入的，回回"0国应征"，也没人下令出征——远处的军团照就近动员留守驻地。现在已在中央一方的与新加入的一律出征
     // (WarScopeSystem.Dispatch：全军可开往任何战线，兵多的诸侯出得多)；抗命的不出兵(已被带进战争的也只守本境)，记下以备禁令
-#if EC_PENDING
     private static string CallToArms(Empire empire, HolyRomanState state, War war, Realm subject, Dictionary<Realm, bool> ballots)
     {
         Realm core = empire.CoreKingdom;
@@ -463,7 +458,6 @@ public static partial class HolyRomanSystem
                            $"未征——与中央交战或在敌方 {opposed}、与敌国同盟 {allied}、被禁 {banned}、加入失败 {failed}");
         return string.Format(LM.Get("hre_diet_war_troops_outcome"), answered, Names(refused), CorpsSystem.ShortStrength(troops));
     }
-#endif
 
     // 成员国现有兵力：军团模式按各军团兵力，否则按原版计兵
     private static float Troops(Realm kingdom) =>
@@ -486,7 +480,6 @@ public static partial class HolyRomanSystem
     private static string Names(List<string> names) => names.Count == 0 ? LM.Get("label_none") : string.Join("、", names);
 
     // 执行禁令：施行帝国改革后由被禁者所在大区最强的诸侯；否则与它接壤的最强诸侯；都没有时皇帝自己出兵
-#if EC_PENDING
     private static Realm Executor(Empire empire, Realm target)
     {
         int strength = target.Warriors();
@@ -506,7 +499,6 @@ public static partial class HolyRomanSystem
         Realm core = empire.CoreKingdom;
         return core.Warriors() >= strength && !core.IsAtWarWith(target) ? core : null;
     }
-#endif
 
     // 禁令期满(或被禁者已不在帝国)解除；执行禁令的战争打完后解除
     private static void CleanupBan(Empire empire, HolyRomanState state)
@@ -532,7 +524,6 @@ public static partial class HolyRomanSystem
     #region 战争结束
 
     // 战争结束(WarPatch 在开战目标结算之后调用)：帝国战争、执行禁令的战争、宗教战争、护佑之战、诸侯私战
-#if EC_PENDING
     public static void OnWarEnded(War war, WarOutcome winner)
     {
         try
@@ -600,7 +591,6 @@ public static partial class HolyRomanSystem
             LogService.LogWarning($"[EmpireCraft][神罗] 战争结算失败: {exception.Message}");
         }
     }
-#endif
 
     #endregion
 

@@ -162,7 +162,6 @@ public static class CultureReformSystem
 
     // 一键易俗(见 RealmCultureSystem)：君主一家与在任官员，不论原来是什么文化，一律改从 target——
     // 宗族本非同一文化圈的整支改姓(同 Apply)；返回王族的新姓(没改姓为空)。scope：这次易俗的各国(举朝为整个帝国)，空则只本国
-#if EC_PENDING
     public static string ConvertRulers(Realm kingdom, string target, IEnumerable<Realm> scope = null)
     {
         if (kingdom?.Record == null || kingdom.IsGone() || !CultureService.IsValidCulture(target)) return null;
@@ -204,7 +203,6 @@ public static class CultureReformSystem
         }
         return royalSurname;
     }
-#endif
 
     // 宗族本非目标文化：看始祖记下的文化，没有记录就看这个人原来的文化。
     // 同一文化圈(制度线相同，如华夏、山海)里改俗只改风俗不改姓——以前只比文化名，汉朝改从山海之俗，
@@ -218,7 +216,6 @@ public static class CultureReformSystem
     }
 
     // 旧俗出身的在任官员改从新俗；宗族本非新文化的整支改姓
-#if EC_PENDING
     private static void ConvertOfficials(Realm kingdom, string previous, string target, Culture native, HashSet<string> taken,
         SpecificClan royal, HashSet<Realm> scope)
     {
@@ -240,7 +237,6 @@ public static class CultureReformSystem
             else Convert(clan, target, native, null, scope, home: true);
         }
     }
-#endif
 
     // 这次改俗涉及的国家：本国；是帝国核心的连同各成员国(宗室封国随帝室一起改)
     private static HashSet<Realm> ScopeOf(Realm kingdom)
@@ -288,7 +284,6 @@ public static class CultureReformSystem
 
     // 同一世系(同一始祖宗族分出来的)且同姓的各支一起改姓——只限 scope 里的(见类头)：有族人在别国的那一支只改本国族人的风俗、
     // 不改姓，与本国无关的同宗分支不动。返回新姓(一支也没改姓为空)
-#if EC_PENDING
     private static string RenameLineage(SpecificClan clan, string target, Culture native, HashSet<string> taken, long seed,
         HashSet<Realm> scope)
     {
@@ -318,10 +313,8 @@ public static class CultureReformSystem
         }
         return renamed ? surname : null;
     }
-#endif
 
     // 一支族人改从新俗：只改 scope 里的国家的族人；home(这次要改的那一支)所在不明的族人随它改，别的支所在不明的不动
-#if EC_PENDING
     private static void Convert(SpecificClan clan, string target, Culture native, string surname, HashSet<Realm> scope, bool home)
     {
         foreach (PersonalClanIdentity person in clan.LivingPeople)
@@ -358,10 +351,8 @@ public static class CultureReformSystem
         }
         name.SetName(actor);
     }
-#endif
 
     // 按新文化的宗族词库取一个姓；尽量不与现有宗族重名
-#if EC_PENDING
     private static string NewSurname(string culture, Culture native, HashSet<string> taken, long seed)
     {
         int pos = OnomasticsRule.ALL_CULTURE_RULE.TryGetValue(culture, out Setting setting) && setting?.Clan != null
@@ -382,6 +373,5 @@ public static class CultureReformSystem
         }
         return fallback;
     }
-#endif
 }
 }

@@ -12,7 +12,7 @@ namespace EmpireCraft.Core
 //   · 两国之间的各种关系一处汇总(Ties)：交战、停战、同盟、同一帝国、封建宗属、殖民、朝贡与岁币、关税同盟、姻亲、兄弟之国、
 //     通好、保护约、扶立、共事部落、统一战线、穿越政权的伪装属国——每项带生效与到期(世界时间，-1 不明)；
 //     标签按"对方对我是什么"写(对方是我的附庸就写"附庸")；
-//   · 态度：原版 KingdomOpinion 的总值与各项(模组加的好感项也在里面，见 EmpireCraftOpinionAddition)；一帧内缓存，总览每行要问一遍；
+//   · 态度：原版 RealmOpinion 的总值与各项(模组加的好感项也在里面，见 EmpireCraftOpinionAddition)；一帧内缓存，总览每行要问一遍；
 //   · 往来大事：没有按两国存的史书——从还留着的战争(原版只留最近二十场结束的)和两边帝国史册里抽：
 //     记着对方国家编号的条目，和正文里出现对方国名的条目；
 //   · 力量对比、宗主一系的树、市场里的身份。
@@ -94,7 +94,7 @@ public static class DiplomacyLedger
 
 #if EC_PENDING
     public static bool Allied(Realm a, Realm b) =>
-        a != null && b != null && a.hasAlliance() && b.hasAlliance() && Alliance.isSame(a.getAlliance(), b.getAlliance());
+        a != null && b != null && a.HasAlliance() && b.HasAlliance() && Alliance.isSame(a.GetAlliance(), b.GetAlliance());
 #endif
 
     public static string Standing(Realm kingdom)
@@ -203,7 +203,7 @@ public static class DiplomacyLedger
         if (a.IsAtWarWith(b)) Add("diplomacy_tie_war", Red);
         else
         {
-            double ended = EmpireWorld.Current.diplomacy?.getRelation(a, b)?.data?.timestamp_last_war_ended ?? -1d;
+            double ended = EmpireWorld.Current.Diplomacy?.GetRelation(a, b)?.Record?.LastWarEnded ?? -1d;
             if (ended > 0d && GameClock.YearsSince(ended) < SimGlobals.m.minimum_years_between_wars)
                 Add("diplomacy_tie_truce", Orange, ended, SimGlobals.m.minimum_years_between_wars);
         }
@@ -290,39 +290,36 @@ public static class DiplomacyLedger
     }
 
     // ───────── 态度 ─────────
-#if EC_PENDING
-    private static readonly Dictionary<(long, long), KingdomOpinion> OpinionCache = new();
-#endif
+    private static readonly Dictionary<(long, long), RealmOpinion> OpinionCache = new();
     private static int _opinionFrame = -1;
 
-#if EC_PENDING
-    private static KingdomOpinion OpinionOf(Realm a, Realm b)
+    private static RealmOpinion OpinionOf(Realm a, Realm b)
     {
-        if (a?.Record == null || b?.Record == null || a == b || EmpireWorld.Current?.diplomacy == null) return null;
+        if (a?.Record == null || b?.Record == null || a == b || EmpireWorld.Current?.Diplomacy == null) return null;
         if (_opinionFrame != Time.frameCount)
         {
             _opinionFrame = Time.frameCount;
             OpinionCache.Clear();
         }
-        if (!OpinionCache.TryGetValue((a.Key, b.Key), out KingdomOpinion opinion))
-            OpinionCache[(a.Key, b.Key)] = opinion = EmpireWorld.Current.diplomacy.getOpinion(a, b);
+        if (!OpinionCache.TryGetValue((a.Key, b.Key), out RealmOpinion opinion))
+            OpinionCache[(a.Key, b.Key)] = opinion = EmpireWorld.Current.Diplomacy.GetOpinion(a, b);
         return opinion;
     }
 
-    public static int Opinion(Realm a, Realm b) => OpinionOf(a, b)?.total ?? 0;
+    public static int Opinion(Realm a, Realm b) => OpinionOf(a, b)?.Total ?? 0;
 
+#if EC_PENDING
     public static List<(string label, int value)> OpinionParts(Realm a, Realm b)
     {
-        KingdomOpinion opinion = OpinionOf(a, b);
-        if (opinion?.results == null) return new List<(string, int)>();
-        return opinion.results.Where(pair => pair.Value != 0)
+        RealmOpinion opinion = OpinionOf(a, b);
+        if (opinion?.Results == null) return new List<(string, int)>();
+        return opinion.Results.Where(pair => pair.Value != 0)
             .OrderByDescending(pair => Mathf.Abs(pair.Value))
             .Select(pair => (LM.Get(pair.Key.getTranslationKey(pair.Value)), pair.Value)).ToList();
     }
 #endif
 
     // ───────── 力量 ─────────
-#if EC_PENDING
     public static Strength StrengthOf(Realm kingdom, bool bloc)
     {
         var result = new Strength();
@@ -341,7 +338,6 @@ public static class DiplomacyLedger
         }
         return result;
     }
-#endif
 
     // ───────── 往来大事 ─────────
 #if EC_PENDING

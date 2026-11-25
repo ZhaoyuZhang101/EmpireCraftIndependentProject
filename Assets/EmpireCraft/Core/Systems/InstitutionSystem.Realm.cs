@@ -371,7 +371,6 @@ public static partial class InstitutionSystem
     }
 
     // 王国推成了改政体的制度(仿 ApplyRegimeChangeCore)：手选过、被锁定的政体不动；君主国不随文化直接跳到现代(走 RepublicSystem)
-#if EC_PENDING
     private static void ApplyKingdomRegimeChange(InstitutionRealm realm, RegimeType regimeType)
     {
         Realm kingdom = realm?.Realm;
@@ -397,7 +396,6 @@ public static partial class InstitutionSystem
         // 圣城之主的政教合一不是制度给的(圣城神权自立)，换政体后照旧
         PapacySystem.KeepTheocracy(kingdom, piety);
     }
-#endif
 
     #endregion
 
@@ -447,7 +445,6 @@ public static partial class InstitutionSystem
 
     // 文化级制度变动(强制点亮、回退)后同步本文化的王国：作废已不成立的改革、补持久效果。
     // 还没扫过(没记底)的王国不在这里补，第一次年度扫描时按本文化现状记底
-#if EC_PENDING
     private static void SyncCultureKingdoms(string culture, Func<string, bool> reformVoid)
     {
         foreach (Realm kingdom in CultureKingdomRealms(culture))
@@ -458,11 +455,9 @@ public static partial class InstitutionSystem
             SyncSharedEffects(InstitutionRealm.Of(kingdom));
         }
     }
-#endif
 
     // 旧制作罢、改行新文化之制后(见 LegacyInstitutionSystem)：独立王国按新的制度文化补持久效果；政体重新加载过的
     // (选项回到模板默认)清掉落地记录整体重放。还没记底的王国不在这里补，第一次年度扫描时按现状记底
-#if EC_PENDING
     internal static void ResyncKingdomEffects(Realm kingdom, bool regimeReloaded)
     {
         if (!InstitutionRealm.IsSovereignKingdom(kingdom)) return;
@@ -474,7 +469,6 @@ public static partial class InstitutionSystem
         if (regimeReloaded) state.applied_node_ids.Clear();
         SyncSharedEffects(realm);
     }
-#endif
 
     #endregion
 }

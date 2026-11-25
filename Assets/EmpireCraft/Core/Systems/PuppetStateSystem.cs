@@ -194,7 +194,6 @@ public static class PuppetStateSystem
         if (actor.IsCityLeader() && actor.City != null) actor.City.RemoveLeader();
     }
 
-#if EC_PENDING
     public static void Release(Realm puppet, string historyKey)
     {
         if (puppet?.Record == null) return;
@@ -210,7 +209,6 @@ public static class PuppetStateSystem
         EventRecorder.Record(puppet, text);
         TranslateHelper.LogEventOnly(text, puppet);
     }
-#endif
 
     // 主国(连同主国所在帝国的中央)正在打的仗：傀儡补进同一方
     private static void JoinWars(Realm puppet, Realm master)

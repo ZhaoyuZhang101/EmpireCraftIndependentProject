@@ -21,7 +21,6 @@ public static class PersonRef
 
     // 找回存着的人。actorId、identityId 就地改成最新的(落成换了编号、旧档没记族谱身份的都补上)。
     // realize 为假时只认地图上的(虚拟族人返回空，人在不在世看 Person(..).is_alive)
-#if EC_PENDING
     public static Person Resolve(ref long actorId, ref long identityId, bool realize = true)
     {
         if (actorId <= 0 && identityId <= 0 || EmpireWorld.Current == null) return null;
@@ -40,10 +39,8 @@ public static class PersonRef
         actorId = actor.Key;
         return actor;
     }
-#endif
 
     // 族谱里在世的人：在地图上的直接取，虚拟族人落成
-#if EC_PENDING
     public static Person Present(PersonalClanIdentity person)
     {
         if (person == null || !person.is_alive) return null;
@@ -52,7 +49,6 @@ public static class PersonRef
         Person actor = person.Realize();
         return Alive(actor) ? actor : null;
     }
-#endif
 
     // 记着族谱身份的要角留在地图上：名将名臣、权臣、君主(储君)的生父母与配偶妃嫔、先君遗孀(太后)
     public static bool Keeps(Person actor)

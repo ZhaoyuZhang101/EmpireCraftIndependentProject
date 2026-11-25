@@ -112,7 +112,6 @@ public static class ShogunateDramaSystem
     }
 
     // ② 天皇起兵倒幕
-#if EC_PENDING
     private static void Rising(Empire empire, FixedFaction shogunal, FixedFaction loyalist)
     {
         EmpireData data = empire.data;
@@ -141,7 +140,6 @@ public static class ShogunateDramaSystem
         Record(empire, string.Format(LM.Get("shogunate_rising_won_history"), name, emperorName, shogunName), major: true);
         LogService.LogInfo($"{Tag} {name} 天皇{emperorName}倒幕成功(胜算 {odds:0.00})，天皇亲政");
     }
-#endif
 
     // ③ 公家新政 → ④ 南北朝分立(分不出来就再开幕府)
 #if EC_PENDING
@@ -178,7 +176,6 @@ public static class ShogunateDramaSystem
 #endif
 
     // ⑤ 南北朝合一：由有将军的武家一朝来判(empire 是武家一朝，court 是天皇亲政的那一朝)
-#if EC_PENDING
     private static void Reunite(Empire empire, Empire court, FixedFaction shogunal, FixedFaction loyalist)
     {
         if (court?.data == null || court.IsGone() || court.IsArchived() || !CourtRules(court)) return;
@@ -190,10 +187,8 @@ public static class ShogunateDramaSystem
         Boost(empire, shogunal, ReuniteBoost);
         LogService.LogInfo($"{Tag} 南北朝合一：{courtName} 并入 {name}");
     }
-#endif
 
     // ⑥ 战国：诸国大名一齐脱离，相邻的互相开战
-#if EC_PENDING
     private static bool Sengoku(Empire empire, FixedFaction shogunal, FixedFaction daimyo)
     {
         Realm core = empire.CoreKingdom;
@@ -218,7 +213,6 @@ public static class ShogunateDramaSystem
         LogService.LogInfo($"{Tag} {name} 进入战国：{left.Count} 家大名自立，开战 {wars} 处");
         return true;
     }
-#endif
 
     // 自立的大名之间：城挨着城的互相开战，每家至多 SengokuWarsEach 处(家数多时两两全开要几十上百场)
     private static int Feuds(List<Realm> realms)

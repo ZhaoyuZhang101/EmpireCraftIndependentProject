@@ -1071,7 +1071,6 @@ public static partial class FrontSystem
     private const double ThreatCacheSeconds = 30d;
     private static readonly Dictionary<(long self, long other), (double at, float value)> ThreatCache = new();
 
-#if EC_PENDING
     private static float BorderThreat(Realm kingdom, Realm other)
     {
         double now = GameClock.Now;
@@ -1088,7 +1087,6 @@ public static partial class FrontSystem
         ThreatCache[key] = (now, value);
         return value;
     }
-#endif
 
     // 预备军分驻本国各城：都城与边境的城在前(邻国威胁大的先、人多的先)，各军按编号依次轮着分，
     // 一城驻满一支才轮到下一城；义军留在本城。返回 军号 → 驻防地块
@@ -1140,7 +1138,6 @@ public static partial class FrontSystem
 #endif
 
     // 这座城挨着的外国里威胁最大的那一家(见 BorderThreat)；不挨着外国为 -1
-#if EC_PENDING
     private static float CityThreat(Realm kingdom, City city)
     {
         float worst = -1f;
@@ -1153,7 +1150,6 @@ public static partial class FrontSystem
             }
         return worst;
     }
-#endif
 
     // 内地协防边省(群友 2026-11-22 "相邻省份也会往边境省份输送驻扎兵力""尽量使边境省份维持在数千至上万边军的水平")：
     // 听调遣的成员国自己的边上没有像样的边患(GuestCalm 以下：不挨外国，或只挨自己人、有约在身的)，太平时把军派到

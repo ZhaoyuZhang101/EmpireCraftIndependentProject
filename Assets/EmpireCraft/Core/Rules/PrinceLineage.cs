@@ -59,7 +59,6 @@ public static class PrinceLineage
     // 皇位空缺、先君没有子孙又未立储：藩王本就是正统、向来是皇位人选(用户 2026-10-16："藩王本来就是正统，
     // 向来都可以是皇位候选人，何须入继"，"明朝皇帝不也没入继")——有藩王一系的，最近的一位直接即位，
     // 不过继、不交群臣议立。按亲疏，同样亲疏的先成年、再年长
-#if EC_PENDING
     public static (Person actor, string relation) DirectPrince(Realm core, PersonalClanIdentity predecessor)
     {
         if (core == null || predecessor == null) return (null, "");
@@ -75,7 +74,6 @@ public static class PrinceLineage
         }
         return (null, "");
     }
-#endif
 
     // 世系图、即位记事：对先君的亲属称谓，受封过王的再写上王号(如"叔·湘王""第三子·南越王")
     public static string Describe(PersonalClanIdentity predecessor, PersonalClanIdentity person)

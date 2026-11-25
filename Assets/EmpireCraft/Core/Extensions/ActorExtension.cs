@@ -2,6 +2,7 @@
 // see Port/manifest.json and Tools/PortTool.
 using Mathf = EmpireCraft.Core.EcMath;
 using Vector2 = EmpireCraft.Core.EcVector2;
+using Vector3 = EmpireCraft.Core.EcVector3;
 using Newtonsoft.Json.Converters;
 using Newtonsoft.Json;
 using System;
@@ -74,7 +75,6 @@ public class Name
         return suffixes[index < suffixes.Length ? index : 0] ?? "";
     }
 
-#if EC_PENDING
     public void SetName(Person actor)
     {
         if (actor == null) return;
@@ -194,7 +194,6 @@ public class Name
         // Only correct a recognized composed name; arbitrary player names stay intact.
         if (current != expected && current == reversed) SetName(actor);
     }
-#endif
 }
 public class OfficeIdentity
 {
@@ -465,7 +464,6 @@ public static class ActorExtension
         a.GetOrCreate().last_add_lover_timestamp = GameClock.Now;
     }
 
-#if EC_PENDING
     public static bool IsSkeleton(this Person a)
     {
         if (a == null || a.IsGone())
@@ -473,14 +471,15 @@ public static class ActorExtension
             return false;
         }
 
-        if (a.subspecies == null)
+        if (a.Subspecies == null)
         {
             return false;
         }
 
-        return a.subspecies.species_id == "skeleton";
+        return a.Subspecies.SpeciesId == "skeleton";
     }
 
+#if EC_PENDING
     public static void SetFrontLineMoveTarget(this Person a, Cell tile)
     {
         if (a == null)
@@ -1112,7 +1111,6 @@ public static class ActorExtension
 
     public static string TrueBirthday(this Person a) => GameClock.DateText(a.TrueBirthTime());
 
-#if EC_PENDING
     public static PersonalClanIdentity InitialPersonalIdentity(this Person a, SpecificClan clan)
     {
         if (a == null) return null;
@@ -1129,7 +1127,6 @@ public static class ActorExtension
         }
         return pci;
     }
-#endif
 
     public static Culture GetCulture(this Person a)
     {
@@ -1215,7 +1212,6 @@ public static class ActorExtension
         return !string.IsNullOrEmpty(data.honorary_peerage_key) &&
                (empire == null || data.honorary_peerage_empire_id == empire.data.id);
     }
-#if EC_PENDING
     public static bool GrantHonoraryPeerage(this Person a, Empire empire, string peerageKey)
     {
         if (a == null || a.IsGone() || empire == null || string.IsNullOrEmpty(peerageKey)) return false;
@@ -1234,7 +1230,6 @@ public static class ActorExtension
         TranslateHelper.LogHonoraryPeerageGranted(a, empire, peerageKey);
         return true;
     }
-#endif
     public static void editRenown(this Person a, int value)
     {
         if (a?.Record == null) return;
@@ -1440,13 +1435,11 @@ public static class ActorExtension
     }
 
 
-#if EC_PENDING
     public static bool CanAcquireTitle(this Person a)
     {
         return a != null && a.IsRuler() && a.Realm != null &&
                a.Realm.CanPursueDeJureTitle() && a.getAcquireTitle().Any();
     }
-#endif
 
     public static void UpgradeOfficial(this Person a, bool merit = false, int direct = -1)
     {
@@ -1564,7 +1557,6 @@ public static class ActorExtension
         return nameParts[0].Split(' ').Last();
     }
 
-#if EC_PENDING
     public static List<KingdomTitle> getAcquireTitle(this Person a)
     {
         List<KingdomTitle> titles = new();
@@ -1589,7 +1581,6 @@ public static class ActorExtension
         }
         return titles;
     }
-#endif
     public static bool CanTakeCity(this Person pActor)
     {
         Realm kingdom = pActor.Realm;
@@ -1630,7 +1621,6 @@ public static class ActorExtension
         KingdomTitle title = ModClass.KINGDOM_TITLE_MANAGER.Get(ownedTitles.First());
         return title;
     }
-#if EC_PENDING
     public static bool SetMainTitle(this Person a, KingdomTitle title)
     {
         var ownedTitles = a.GetOwnedTitle();
@@ -1653,7 +1643,6 @@ public static class ActorExtension
         }
         return true;
     }
-#endif
     public static bool HasTitle(this Person a)
     {
         if(a == null) return false;
@@ -1728,7 +1717,6 @@ public static class ActorExtension
         return destroyable;
     }
 
-#if EC_PENDING
     public static List<KingdomTitle> takeTitle(this Person a)
     {
         List<KingdomTitle> takedTitles = new List<KingdomTitle>();
@@ -1772,7 +1760,6 @@ public static class ActorExtension
         }
         return takedTitles;
     }
-#endif
 
     private static List<KingdomTitle> GetTakeableTitles(Person actor) => TakeableTitles(actor).ToList();
 
@@ -1845,7 +1832,6 @@ public static class ActorExtension
         }
     }
 
-#if EC_PENDING
     public static void removeTitle(this Person a, KingdomTitle title)
     {
         if (title == null) return;
@@ -1876,7 +1862,6 @@ public static class ActorExtension
             }
         }
     }
-#endif
 
     public static List<long> GetAcquireTitle(this Person a)
     {

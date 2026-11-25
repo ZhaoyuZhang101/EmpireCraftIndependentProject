@@ -16,106 +16,106 @@ public static class EmpireCraftOpinionAddition
     {
         OpinionLibrary opl = AssetManager.opinion_library;
         // 神力修正的好感(外交界面，见 DiplomacyActions.GodOpinion)
-        opl.add(new OpinionAsset
+        opl.add(new OpinionKind
         {
-            id = "opinion_god_favor",
+            Id = "opinion_god_favor",
             translation_key = "opinion_god_favor",
             translation_key_negative = "opinion_god_disfavor",
             calc = EmpireCraft.Core.DiplomacyActions.GodOpinion
         });
         // 剧本开局的旧谊、宿怨(世界地图剧本按史实设，六十年内淡去)
-        opl.add(new OpinionAsset
+        opl.add(new OpinionKind
         {
-            id = "opinion_history_ties",
+            Id = "opinion_history_ties",
             translation_key = "opinion_history_ties",
             translation_key_negative = "opinion_history_feud",
             calc = EmpireCraft.Core.DiplomacyActions.HistoryOpinion
         });
         // 对某国称帝不服：对其帝国核心王国好感大降，二十年内逐渐恢复(武力霸权称帝降得更多)
-        opl.add(new OpinionAsset
+        opl.add(new OpinionKind
         {
-            id = "opinion_empire_proclamation_grudge",
+            Id = "opinion_empire_proclamation_grudge",
             translation_key = "opinion_empire_proclamation_grudge",
             calc = EmpireCraft.Core.EmpireFormationService.GetGrudgeOpinion
         });
         // 挟冕之辱：教廷对施压、开战逼冕的帝国好感下降，二十年回复(见 RealmNamingSystem.Universal)
-        opl.add(new OpinionAsset
+        opl.add(new OpinionKind
         {
-            id = "opinion_coerced_coronation",
+            Id = "opinion_coerced_coronation",
             translation_key = "opinion_coerced_coronation",
             calc = EmpireCraft.Core.RealmNamingSystem.CoercionOpinion
         });
         // 核威慑：对方有核则不敢轻易开战，自己有核则有恃无恐(见 NuclearDoctrineSystem)
-        opl.add(new OpinionAsset
+        opl.add(new OpinionKind
         {
-            id = "opinion_nuclear_deterrence",
+            Id = "opinion_nuclear_deterrence",
             translation_key = "opinion_nuclear_deterrence",
             translation_key_negative = "opinion_nuclear_superiority",
             calc = EmpireCraft.Core.NuclearDoctrineSystem.DeterrenceOpinion
         });
         // 理念定亲疏：近代国家之间立国理念相近的亲善、相去甚远的提防、截然对立的敌视；还在激进期的革命政权，君主国都防着(见 WorldOrderSystem)
-        opl.add(new OpinionAsset
+        opl.add(new OpinionKind
         {
-            id = "opinion_ideology",
+            Id = "opinion_ideology",
             translation_key = "opinion_ideology_kin",
             translation_key_negative = "opinion_ideology_foe",
             calc = EmpireCraft.Core.WorldOrderSystem.IdeologyOpinion
         });
         // 阵营：同阵营 +40，冷战的对面 −40；万国公会会员对受制裁之国 −20(见 WorldOrderSystem)
-        opl.add(new OpinionAsset
+        opl.add(new OpinionKind
         {
-            id = "opinion_world_bloc",
+            Id = "opinion_world_bloc",
             translation_key = "opinion_world_bloc_ally",
             translation_key_negative = "opinion_world_bloc_rival",
             calc = EmpireCraft.Core.WorldOrderSystem.BlocOpinionOf
         });
         // 关税战：互加关税 −15，断绝通商 −25(见 TradeWarSystem)
-        opl.add(new OpinionAsset
+        opl.add(new OpinionKind
         {
-            id = "opinion_trade_war",
+            Id = "opinion_trade_war",
             translation_key_negative = "opinion_trade_war",
             calc = EmpireCraft.Core.TradeWarSystem.OpinionOf
         });
         // 外国资本：关键行业三成以上操在对方手里 +20；自己的产业被对方没收过(二十年内) −40(见 CompanySystem)
-        opl.add(new OpinionAsset
+        opl.add(new OpinionKind
         {
-            id = "opinion_foreign_capital",
+            Id = "opinion_foreign_capital",
             translation_key = "opinion_foreign_capital",
             translation_key_negative = "opinion_foreign_capital_seized",
             calc = EmpireCraft.Core.CompanySystem.OpinionOf
         });
         // 移民积怨：抽走本国人口 −25、往本国驱逐人口 −40，十年(见 MigrationRelations)
-        opl.add(new OpinionAsset
+        opl.add(new OpinionKind
         {
-            id = "opinion_migration_grievance",
+            Id = "opinion_migration_grievance",
             translation_key_negative = "opinion_migration_grievance",
             calc = EmpireCraft.Core.MigrationRelations.Opinion
         });
         // 跨文明通好：互认称号、互不侵犯的帝国好感 +40(见 GreatPowerDiplomacy)
-        opl.add(new OpinionAsset
+        opl.add(new OpinionKind
         {
-            id = "opinion_great_power_pact",
+            Id = "opinion_great_power_pact",
             translation_key = "opinion_great_power_pact",
             calc = EmpireCraft.Core.GreatPowerDiplomacy.PactOpinionOf
         });
         // 受胙：天子赐胙之国十年内对王室好感 +40(见 ZhouEraSystem.GrantZuo)
-        opl.add(new OpinionAsset
+        opl.add(new OpinionKind
         {
-            id = "opinion_zhou_zuo",
+            Id = "opinion_zhou_zuo",
             translation_key = "opinion_zhou_zuo",
             calc = EmpireCraft.Core.ZhouEraSystem.ZuoOpinionOf
         });
         // 会盟：当年来朝的部落与共主彼此好感 +10；屡次不朝、记为不臣的，共主对它好感 -25(见 TribalAssemblySystem)
-        opl.add(new OpinionAsset
+        opl.add(new OpinionKind
         {
-            id = "opinion_tribal_assembly",
+            Id = "opinion_tribal_assembly",
             translation_key = "opinion_tribal_assembly",
             translation_key_negative = "opinion_tribal_defiance",
             calc = EmpireCraft.Core.TribalAssemblySystem.OpinionOf
         });
-        opl.add(new OpinionAsset
+        opl.add(new OpinionKind
         {
-            id = "opinion_false_empire_core",
+            Id = "opinion_false_empire_core",
             translation_key_negative = "opinion_false_empire_core",
             calc = delegate (Realm pMain, Realm pTarget)
             {
@@ -126,9 +126,9 @@ public static class EmpireCraftOpinionAddition
                     ? -1200 : 0;
             }
         });
-        opl.add(new OpinionAsset
+        opl.add(new OpinionKind
         {
-            id = "opinion_empire_loyalty",
+            Id = "opinion_empire_loyalty",
             translation_key = "opinion_empire_loyalty",
             calc = delegate (Realm pMain, Realm pTarget)
             {
@@ -144,9 +144,9 @@ public static class EmpireCraftOpinionAddition
                 return result;
             }
         });
-        opl.add(new OpinionAsset
+        opl.add(new OpinionKind
         {
-            id = "opinion_empire_polite",
+            Id = "opinion_empire_polite",
             translation_key = "opinion_empire_polite",
             calc = delegate (Realm pMain, Realm pTarget)
             {
@@ -161,9 +161,9 @@ public static class EmpireCraftOpinionAddition
                 return result;
             }
         });
-        opl.add(new OpinionAsset
+        opl.add(new OpinionKind
         {
-            id = "opinion_occupied_title",
+            Id = "opinion_occupied_title",
             translation_key = "opinion_occupied_title",
             calc = delegate (Realm pMain, Realm pTarget)
             {
@@ -180,9 +180,9 @@ public static class EmpireCraftOpinionAddition
                 return result;
             }
         });
-        opl.add(new OpinionAsset
+        opl.add(new OpinionKind
         {
-            id = "opinion_different_faction",
+            Id = "opinion_different_faction",
             translation_key = "opinion_different_faction",
             calc = delegate (Realm pMain, Realm pTarget)
             {
@@ -201,9 +201,9 @@ public static class EmpireCraftOpinionAddition
                 return result;
             }
         });
-        opl.add(new OpinionAsset
+        opl.add(new OpinionKind
         {
-            id = "opinion_empire_maintained",
+            Id = "opinion_empire_maintained",
             translation_key = "opinion_empire_maintained",
             calc = delegate (Realm pMain, Realm pTarget)
             {
@@ -211,9 +211,9 @@ public static class EmpireCraftOpinionAddition
                 return 0;
             }
         });
-        opl.add(new OpinionAsset
+        opl.add(new OpinionKind
         {
-            id = "opinion_religion_place",
+            Id = "opinion_religion_place",
             translation_key = "opinion_religion_place",
             calc = delegate (Realm pMain, Realm pTarget)
             {
@@ -232,9 +232,9 @@ public static class EmpireCraftOpinionAddition
                 return result;
             }
         });
-        opl.add(new OpinionAsset
+        opl.add(new OpinionKind
         {
-            id = "opinion_empire_powerful_minister`",
+            Id = "opinion_empire_powerful_minister`",
             translation_key_negative = "opinion_empire_powerful_minister",
             calc = delegate (Realm pMain, Realm pTarget)
             {
@@ -249,9 +249,9 @@ public static class EmpireCraftOpinionAddition
                 return result;
             }
         });
-        opl.add(new OpinionAsset
+        opl.add(new OpinionKind
         {
-            id = "opinion_tianming_aquire",
+            Id = "opinion_tianming_aquire",
             translation_key_negative = "opinion_tianming_aquire",
             calc = delegate (Realm pMain, Realm pTarget)
             {
@@ -267,9 +267,9 @@ public static class EmpireCraftOpinionAddition
                 return result;
             }
         });
-        opl.add(new OpinionAsset
+        opl.add(new OpinionKind
         {
-            id = "opinion_in_same_empire",
+            Id = "opinion_in_same_empire",
             translation_key = "opinion_in_same_empire",
             calc = delegate (Realm pMain, Realm pTarget)
             {
@@ -281,9 +281,9 @@ public static class EmpireCraftOpinionAddition
                 return result;
             }
         });
-        opl.add(new OpinionAsset
+        opl.add(new OpinionKind
         {
-            id = "opinion_empire_clan_been_changed",
+            Id = "opinion_empire_clan_been_changed",
             translation_key = "opinion_empire_clan_been_changed",
             calc = delegate (Realm pMain, Realm pTarget)
             {
@@ -302,9 +302,9 @@ public static class EmpireCraftOpinionAddition
                 return result;
             }
         });
-        opl.add(new OpinionAsset
+        opl.add(new OpinionKind
         {
-            id = "opinion_different_empire_with_other_subspecies",
+            Id = "opinion_different_empire_with_other_subspecies",
             translation_key_negative = "opinion_different_empire_with_other_subspecies",
             calc = delegate (Realm pMain, Realm pTarget)
             {
@@ -317,9 +317,9 @@ public static class EmpireCraftOpinionAddition
                 return result;
             }
         });
-        opl.add(new OpinionAsset
+        opl.add(new OpinionKind
         {
-            id = "opinion_same_empire_core",
+            Id = "opinion_same_empire_core",
             translation_key_negative = "opinion_same_empire_core",
             calc = delegate (Realm pMain, Realm pTarget)
             {
@@ -337,9 +337,9 @@ public static class EmpireCraftOpinionAddition
                 return result;
             }
         });
-        opl.add(new OpinionAsset
+        opl.add(new OpinionKind
         {
-            id = "opinion_just_enfeoff",
+            Id = "opinion_just_enfeoff",
             translation_key = "opinion_just_enfeoff",
             calc = delegate (Realm pMain, Realm pTarget)
             {
@@ -352,9 +352,9 @@ public static class EmpireCraftOpinionAddition
                 return result;
             }
         });
-        opl.add(new OpinionAsset
+        opl.add(new OpinionKind
         {
-            id = "opinion_same_ruler",
+            Id = "opinion_same_ruler",
             translation_key = "opinion_same_ruler",
             calc = delegate (Realm pMain, Realm pTarget)
             {
@@ -366,9 +366,9 @@ public static class EmpireCraftOpinionAddition
                 return result;
             }
         });
-        opl.add(new OpinionAsset
+        opl.add(new OpinionKind
         {
-            id = "opinion_minister_usurpation",
+            Id = "opinion_minister_usurpation",
             translation_key_negative = "opinion_minister_usurpation",
             calc = delegate (Realm pMain, Realm pTarget)
             {
@@ -378,15 +378,15 @@ public static class EmpireCraftOpinionAddition
             }
         });
         // 藩属自危：朝廷把别的藩属改设成行政区(见 VassalReduction)
-        opl.add(new OpinionAsset
+        opl.add(new OpinionKind
         {
-            id = "opinion_vassal_alarm",
+            Id = "opinion_vassal_alarm",
             translation_key_negative = "opinion_vassal_alarm",
             calc = (pMain, pTarget) => EmpireCraft.Core.VassalReduction.AlarmOpinion(pMain, pTarget)
         });
-        opl.add(new OpinionAsset
+        opl.add(new OpinionKind
         {
-            id = "opinion_local_claim_failed",
+            Id = "opinion_local_claim_failed",
             translation_key_negative = "opinion_local_claim_failed",
             calc = delegate (Realm pMain, Realm pTarget)
             {
@@ -400,9 +400,9 @@ public static class EmpireCraftOpinionAddition
                 return result;
             }
         });
-        opl.add(new OpinionAsset
+        opl.add(new OpinionKind
         {
-            id = "opinion_rebel_against_empire",
+            Id = "opinion_rebel_against_empire",
             translation_key_negative = "opinion_rebel_against_empire",
             calc = delegate (Realm pMain, Realm pTarget)
             {
