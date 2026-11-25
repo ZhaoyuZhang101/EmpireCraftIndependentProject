@@ -14,7 +14,7 @@ namespace EmpireCraft.Core
         public readonly List<City> Cities=new List<City>();
         public readonly List<Person> People=new List<Person>();
         public readonly List<Clan> Clans=new List<Clan>();
-        public readonly List<int> Living=new List<int>();   // living person ids, insertion order
+        public readonly List<Person> Living=new List<Person>(); // living people, insertion order
         public readonly int[] TileCity;                        // city id per tile, -1 unclaimed
         public readonly Annals Annals=new Annals();
         public readonly RealmLedger Ledger=new RealmLedger();   // books kept by RealmAccounts
@@ -31,8 +31,14 @@ namespace EmpireCraft.Core
         public int Year=>StartYear+Month/12;
         public int MonthOfYear=>Month%12+1;
         public int AgeOf(Person p)=>((p.Alive?Month:p.DeathMonth)-p.BirthMonth)/12;
-        public int RealmOfTile(int tile){int c=TileCity[tile];return c<0?-1:Cities[c].Realm;}
-        public string FullName(Person p)=>(p.Clan>=0?Clans[p.Clan].Surname:"")+p.Given;
+        public City CityAt(int tile){int c=TileCity[tile];return c<0?null:Cities[c];}
+        public Realm RealmAt(int tile){int c=TileCity[tile];return c<0?null:Cities[c].Realm;}
+        public int RealmOfTile(int tile)=>RealmAt(tile).IdOf();
+        public string FullName(Person p)=>(p.Clan!=null?p.Clan.Surname:"")+p.Given;
+
+        // The world the ported systems act on. They are static, as in the mod, and
+        // reach the world through this; EmpireSimulation sets it before every step.
+        public static EmpireWorld Current;
 
         // Stateless deterministic randomness: the same world seed, stream, month and
         // subject always give the same draw, independent of iteration order or saves.

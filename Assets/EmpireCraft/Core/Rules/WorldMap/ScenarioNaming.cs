@@ -81,7 +81,7 @@ public static class ScenarioNaming
             owner = name.Substring(0, split).Trim();
             name = name.Substring(split + 1).Trim();
         }
-        string path = Path.Combine(EmpireData.Folder, "Locales", "Cultures", $"Culture_{owner}", owner + name + ".csv");
+        string path = Path.Combine(GameData.Folder, "Locales", "Cultures", $"Culture_{owner}", owner + name + ".csv");
         if (Cache.TryGetValue(path, out List<string[]> cached)) return cached;
         var words = new List<string[]>();
         try

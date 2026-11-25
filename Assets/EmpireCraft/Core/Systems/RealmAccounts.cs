@@ -73,12 +73,12 @@ namespace EmpireCraft.Core
             {
                 if (!realm.Alive) continue;
                 var account = ledger.Realms[realm.Id];
-                if (account.Dynasty < 0) { account.Dynasty = realm.RulingClan; account.DynastyStart = realm.FoundedMonth; }
+                if (account.Dynasty < 0) { account.Dynasty = realm.RulingClan.IdOf(); account.DynastyStart = realm.FoundedMonth; }
                 float grievance = DynasticCycleRules.HarshBurden(account.Pressure);
                 long tax = 0, leaked = 0, governanceDue = 0, garrisonDue = 0;
-                foreach (int id in realm.Cities)
+                foreach (var city in realm.Cities)
                 {
-                    var city = w.Cities[id]; var book = ledger.Cities[id];
+                    var book = ledger.Cities[city.Id];
                     int population = (int)Math.Min(int.MaxValue, city.Population);
                     var input = new CityStabilityInput(population, Math.Max(1, population / PeoplePerHousehold),
                         Loyalty(w, realm, city), account.Legitimacy, book.Corruption, 0f, 0f, grievance, false, true, -1, -1);
@@ -100,9 +100,9 @@ namespace EmpireCraft.Core
                 Post(account, now, monthsSince, -garrisonPaid, TreasuryCategory.Garrison);
                 account.InArrears = funding < 1d;
                 account.Unpaid += bills - governancePaid - garrisonPaid;
-                foreach (int id in realm.Cities)
+                foreach (var city in realm.Cities)
                 {
-                    var book = ledger.Cities[id];
+                    var book = ledger.Cities[city.Id];
                     book.Garrison = (int)(book.Required * funding);
                     float held = CityStabilityRules.Suppression(book.Garrison, book.Required, (float)funding);
                     book.Stability = CityStabilityRules.Advance(book.Stability, CityStabilityRules.Clamp(book.Natural + held), (float)funding * 100f);
@@ -120,7 +120,7 @@ namespace EmpireCraft.Core
             {
                 if (!realm.Alive) continue;
                 var account = ledger.Realms[realm.Id];
-                if (realm.RulingClan != account.Dynasty)
+                if (realm.RulingClan.IdOf() != account.Dynasty)
                 {
                     // A new house on the throne: the strain of the old dynasty is mostly shed.
                     if (account.Dynasty >= 0)
@@ -128,25 +128,25 @@ namespace EmpireCraft.Core
                         account.Pressure = DynasticCycleRules.Carry(account.Pressure, DynasticCycleSystem.Transition.Clear);
                         account.SaturatedYears = 0f;
                     }
-                    account.Dynasty = realm.RulingClan; account.DynastyStart = w.Month;
+                    account.Dynasty = realm.RulingClan.IdOf(); account.DynastyStart = w.Month;
                 }
                 double sum = 0d, capital = 0d;
-                foreach (int id in realm.Cities)
+                foreach (var city in realm.Cities)
                 {
-                    var book = ledger.Cities[id];
+                    int id = city.Id; var book = ledger.Cities[id];
                     // Stand-in for the office holder's character until officials are ported.
                     double corruptibility = w.Chance(Stream, id, 1) < 0.35d ? w.Chance(Stream, id, 2) : 0d;
                     double integrity = w.Chance(Stream, id, 3);
                     book.Corruption = (float)CorruptionRules.Bound(book.Corruption + CorruptionRules.AnnualOfficeChange(corruptibility, true, integrity));
                     sum += book.Corruption;
-                    if (id == realm.Capital) capital = book.Corruption;
+                    if (city == realm.Capital) capital = book.Corruption;
                 }
                 double mean = realm.Cities.Count > 0 ? sum / realm.Cities.Count : 0d;
                 double corruption = CorruptionRules.Realm(capital, mean, mean);
                 int age = Math.Max(0, (w.Month - account.DynastyStart) / 12);
                 float burden = DynasticCycleRules.HarshBurden(account.Pressure) + (float)corruption * 40f;
                 bool bankrupt = account.Unpaid > 0;
-                float growth = DynasticCycleRules.AnnualGrowth(age, burden, bankrupt, false, corruption, realm.Ruler < 0, false, false, 0f)
+                float growth = DynasticCycleRules.AnnualGrowth(age, burden, bankrupt, false, corruption, realm.Ruler == null, false, false, 0f)
                                * MaladySystem.PaceAt(age);
                 account.Pressure = DynasticCycleRules.Advance(account.Pressure, growth);
                 account.SaturatedYears = account.Pressure >= DynasticCycleRules.SaturatedPressure ? account.SaturatedYears + 1f : 0f;
@@ -159,8 +159,8 @@ namespace EmpireCraft.Core
         // Stand-in loyalty: firm at the capital, thinning with distance from it.
         static int Loyalty(EmpireWorld w, Realm realm, City city)
         {
-            if (realm.Capital < 0 || realm.Capital == city.Id) return 30;
-            float distance = w.Distance(w.Cities[realm.Capital].Tile, city.Tile);
+            if (realm.Capital == null || realm.Capital == city) return 30;
+            float distance = w.Distance(realm.Capital.Tile, city.Tile);
             return (int)Math.Max(-20f, 30f - distance * 1.2f);
         }
 

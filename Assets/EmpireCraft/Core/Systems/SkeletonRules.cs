@@ -57,7 +57,7 @@ namespace EmpireCraft.Core
                         float distance=w.Distance(c.Tile,n);if(distance>7)continue;
                         float s=m.Fertility[n]-distance*.04f;if(s>bestScore||(s==bestScore&&n<best)){bestScore=s;best=n;}
                     }
-                if(best>=0)WorldOps.ClaimTile(w,id,best);
+                if(best>=0)WorldOps.ClaimTile(w,c,best);
             }
         }
 
@@ -68,12 +68,11 @@ namespace EmpireCraft.Core
             for(int r=0;r<realms;r++)
             {
                 var realm=w.Realms[r];if(!realm.Alive)continue;
-                double people=0;foreach(int c in realm.Cities)people+=w.Cities[c].Population;
+                double people=0;foreach(var c in realm.Cities)people+=c.Population;
                 if(people<realm.Cities.Count*2200||w.Chance(Stream,r,1)>.12)continue;
                 int best=-1;float bestScore=0;
-                foreach(int c in realm.Cities)
+                foreach(var city in realm.Cities)
                 {
-                    var city=w.Cities[c];
                     foreach(int t in city.Tiles)
                         for(int d=0;d<4;d++)
                         {
@@ -84,23 +83,23 @@ namespace EmpireCraft.Core
                         }
                 }
                 if(best<0)continue;
-                int city2=WorldOps.FoundCity(w,best,r,Names.Place(w,best+w.Month));
+                City planted=WorldOps.FoundCity(w,best,realm,Names.Place(w,best+w.Month));
                 // Settlers come from the capital.
-                var capital=w.Cities[realm.Capital];double settlers=Math.Min(400,capital.Population*.1);
-                capital.Population-=settlers;w.Cities[city2].Population=settlers;
+                var capital=realm.Capital;double settlers=Math.Min(400,capital.Population*.1);
+                capital.Population-=settlers;planted.Population=settlers;
             }
         }
 
         static void Ageing(EmpireWorld w)
         {
-            var dead=new List<int>();
-            foreach(int id in w.Living)
+            var dead=new List<Person>();
+            foreach(var p in w.Living)
             {
-                int age=w.AgeOf(w.People[id]);
+                int age=w.AgeOf(p);
                 double q=age<5?.03:Math.Min(.85,.0006*Math.Exp(.082*age));
-                if(w.Chance(Stream,id,2)<q)dead.Add(id);
+                if(w.Chance(Stream,p.Id,2)<q)dead.Add(p);
             }
-            foreach(int id in dead)WorldOps.Death(w,id);
+            foreach(var p in dead)WorldOps.Death(w,p);
         }
 
         // Only reigning houses are tracked as people (capped per house); everyone else
@@ -108,32 +107,32 @@ namespace EmpireCraft.Core
         const int HouseCap=24;
         static void Families(EmpireWorld w)
         {
-            var reigning=new Dictionary<int,int>();
-            foreach(var r in w.Realms)if(r.Alive&&r.RulingClan>=0)reigning[r.RulingClan]=0;
-            foreach(int id in w.Living){int clan=w.People[id].Clan;if(reigning.ContainsKey(clan))reigning[clan]++;}
+            var reigning=new Dictionary<int,int>();   // clan id -> living members
+            foreach(var r in w.Realms)if(r.Alive&&r.RulingClan!=null)reigning[r.RulingClan.Id]=0;
+            foreach(var p in w.Living){int clan=p.Clan.Id;if(reigning.ContainsKey(clan))reigning[clan]++;}
             int snapshot=w.Living.Count;
             for(int k=0;k<snapshot;k++)
             {
-                var p=w.People[w.Living[k]];int age=w.AgeOf(p);
-                if(p.Sex!=Sex.Male||p.Spouse>=0||age<18||age>45||!reigning.TryGetValue(p.Clan,out int members)||members>=HouseCap)continue;
+                var p=w.Living[k];int age=w.AgeOf(p);
+                if(p.Sex!=Sex.Male||p.Spouse!=null||age<18||age>45||!reigning.TryGetValue(p.Clan.Id,out int members)||members>=HouseCap)continue;
                 if(w.Chance(Stream,p.Id,3)>=.35)continue;
-                int clan=WorldOps.NewClan(w,Names.Surname(w,p.Id*13+w.Month));
+                Clan clan=WorldOps.NewClan(w,Names.Surname(w,p.Id*13+w.Month));
                 int wifeAge=Math.Max(16,age-2-w.Pick(Stream,p.Id,8,4));
-                int wife=WorldOps.Birth(w,Names.Given(w,Sex.Female,p.Id*13+w.Month+1),Sex.Female,clan,p.City,-1,-1,wifeAge);
-                WorldOps.Marry(w,p.Id,wife);
+                Person wife=WorldOps.Birth(w,Names.Given(w,Sex.Female,p.Id*13+w.Month+1),Sex.Female,clan,p.City,null,null,wifeAge);
+                WorldOps.Marry(w,p,wife);
             }
             snapshot=w.Living.Count;
             for(int k=0;k<snapshot;k++)
             {
-                var mother=w.People[w.Living[k]];
-                if(mother.Sex!=Sex.Female||mother.Spouse<0)continue;
+                var mother=w.Living[k];
+                if(mother.Sex!=Sex.Female||mother.Spouse==null)continue;
                 int age=w.AgeOf(mother);if(age<16||age>40)continue;
-                var father=w.People[mother.Spouse];if(w.AgeOf(father)<16)continue;
-                if(!reigning.TryGetValue(father.Clan,out int members)||members>=HouseCap)continue;
+                var father=mother.Spouse;if(w.AgeOf(father)<16)continue;
+                if(!reigning.TryGetValue(father.Clan.Id,out int members)||members>=HouseCap)continue;
                 if(w.Chance(Stream,mother.Id,5)>.22)continue;
                 var sex=w.Chance(Stream,mother.Id,6)<.5?Sex.Male:Sex.Female;
-                WorldOps.Birth(w,Names.Given(w,sex,mother.Id*31+w.Month),sex,father.Clan,father.City,father.Id,mother.Id);
-                reigning[father.Clan]=members+1;
+                WorldOps.Birth(w,Names.Given(w,sex,mother.Id*31+w.Month),sex,father.Clan,father.City,father,mother);
+                reigning[father.Clan.Id]=members+1;
             }
         }
 
@@ -145,53 +144,53 @@ namespace EmpireCraft.Core
             int realms=w.Realms.Count;
             for(int r=0;r<realms;r++)
             {
-                var realm=w.Realms[r];if(!realm.Alive||realm.Ruler>=0)continue;
-                int heir=Heir(w,realm);
-                if(heir<0&&realm.Cities.Count>=6)Breakaway(w,r);
-                if(heir<0)heir=NewHouse(w,realm);
-                WorldOps.SetRuler(w,r,heir);
+                var realm=w.Realms[r];if(!realm.Alive||realm.Ruler!=null)continue;
+                Person heir=Heir(w,realm);
+                if(heir==null&&realm.Cities.Count>=6)Breakaway(w,realm);
+                if(heir==null)heir=NewHouse(w,realm);
+                WorldOps.SetRuler(w,realm,heir);
             }
         }
 
-        static int Heir(EmpireWorld w,Realm realm)
+        static Person Heir(EmpireWorld w,Realm realm)
         {
-            int last=realm.PreviousRuler,best=-1;
-            if(last>=0)foreach(int c in w.People[last].Children)if(Eligible(w,c,true)&&(best<0||w.People[c].BirthMonth<w.People[best].BirthMonth))best=c;
-            if(best>=0)return best;
-            foreach(int id in w.Living)if(w.People[id].Clan==realm.RulingClan&&Eligible(w,id,true)&&w.AgeOf(w.People[id])>=16&&(best<0||w.People[id].BirthMonth<w.People[best].BirthMonth))best=id;
-            if(best>=0)return best;
-            if(last>=0)foreach(int c in w.People[last].Children)if(Eligible(w,c,false)&&(best<0||w.People[c].BirthMonth<w.People[best].BirthMonth))best=c;
+            Person last=realm.PreviousRuler,best=null;
+            if(last!=null)foreach(var c in last.Children)if(Eligible(w,c,true)&&(best==null||c.BirthMonth<best.BirthMonth))best=c;
+            if(best!=null)return best;
+            foreach(var p in w.Living)if(p.Clan==realm.RulingClan&&Eligible(w,p,true)&&w.AgeOf(p)>=16&&(best==null||p.BirthMonth<best.BirthMonth))best=p;
+            if(best!=null)return best;
+            if(last!=null)foreach(var c in last.Children)if(Eligible(w,c,false)&&(best==null||c.BirthMonth<best.BirthMonth))best=c;
             return best;
         }
-        static bool Eligible(EmpireWorld w,int person,bool maleOnly)
+        static bool Eligible(EmpireWorld w,Person p,bool maleOnly)
         {
-            var p=w.People[person];if(!p.Alive||(maleOnly&&p.Sex!=Sex.Male))return false;
-            foreach(var r in w.Realms)if(r.Alive&&r.Ruler==person)return false;
+            if(!p.Alive||(maleOnly&&p.Sex!=Sex.Male))return false;
+            foreach(var r in w.Realms)if(r.Alive&&r.Ruler==p)return false;
             return true;
         }
 
-        static int NewHouse(EmpireWorld w,Realm realm)
+        static Person NewHouse(EmpireWorld w,Realm realm)
         {
-            int clan=WorldOps.NewClan(w,Names.Surname(w,realm.Id*17+w.Month));
+            Clan clan=WorldOps.NewClan(w,Names.Surname(w,realm.Id*17+w.Month));
             int age=28+w.Pick(Stream,realm.Id,20,8);
-            int ruler=WorldOps.Birth(w,Names.Given(w,Sex.Male,realm.Id*17+w.Month+1),Sex.Male,clan,realm.Capital,-1,-1,age);
-            w.Clans[clan].Founder=ruler;return ruler;
+            Person ruler=WorldOps.Birth(w,Names.Given(w,Sex.Male,realm.Id*17+w.Month+1),Sex.Male,clan,realm.Capital,null,null,age);
+            clan.Founder=ruler;return ruler;
         }
 
         // The largest city far from the capital leaves with its neighbours and founds a realm.
-        static void Breakaway(EmpireWorld w,int realmId)
+        static void Breakaway(EmpireWorld w,Realm realm)
         {
-            var realm=w.Realms[realmId];var capital=w.Cities[realm.Capital];
-            int seat=-1;double best=0;
-            foreach(int c in realm.Cities){if(c==realm.Capital)continue;var city=w.Cities[c];double v=city.Population*w.Distance(capital.Tile,city.Tile);if(v>best){best=v;seat=c;}}
-            if(seat<0)return;
-            var group=new List<int>();var seatCity=w.Cities[seat];
-            foreach(int c in realm.Cities)if(c!=seat&&c!=realm.Capital&&w.Distance(w.Cities[c].Tile,seatCity.Tile)<w.Distance(w.Cities[c].Tile,capital.Tile)*.8f)group.Add(c);
-            int clan=WorldOps.NewClan(w,Names.Surname(w,seat*19+w.Month));
-            int lord=WorldOps.Birth(w,Names.Given(w,Sex.Male,seat*19+w.Month+1),Sex.Male,clan,seat,-1,-1,30+w.Pick(Stream,seat,15,9));
-            w.Clans[clan].Founder=lord;
-            int newRealm=WorldOps.FoundRealm(w,Names.RealmOf(seatCity.Name),Names.Color(w,seat+w.Month),seat,lord);
-            foreach(int c in group)if(w.Cities[c].Realm==realmId&&w.Realms[realmId].Cities.Count>1)WorldOps.TransferCity(w,c,newRealm);
+            var capital=realm.Capital;
+            City seat=null;double best=0;
+            foreach(var city in realm.Cities){if(city==capital)continue;double v=city.Population*w.Distance(capital.Tile,city.Tile);if(v>best){best=v;seat=city;}}
+            if(seat==null)return;
+            var group=new List<City>();
+            foreach(var c in realm.Cities)if(c!=seat&&c!=capital&&w.Distance(c.Tile,seat.Tile)<w.Distance(c.Tile,capital.Tile)*.8f)group.Add(c);
+            Clan clan=WorldOps.NewClan(w,Names.Surname(w,seat.Id*19+w.Month));
+            Person lord=WorldOps.Birth(w,Names.Given(w,Sex.Male,seat.Id*19+w.Month+1),Sex.Male,clan,seat,null,null,30+w.Pick(Stream,seat.Id,15,9));
+            clan.Founder=lord;
+            Realm newRealm=WorldOps.FoundRealm(w,Names.RealmOf(seat.Name),Names.Color(w,seat.Id+w.Month),seat,lord);
+            foreach(var c in group)if(c.Realm==realm&&realm.Cities.Count>1)WorldOps.TransferCity(w,c,newRealm);
         }
     }
 }

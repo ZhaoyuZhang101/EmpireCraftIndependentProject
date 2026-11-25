@@ -91,7 +91,7 @@ public static class InstitutionDefinitionRegistry
         Global = new InstitutionGlobalConfig();
         InstitutionConfigNormalizer.Normalize(Global);
 
-        string folder = Path.Combine(EmpireData.Folder, FolderName);
+        string folder = Path.Combine(GameData.Folder, FolderName);
         if (!Directory.Exists(folder))
         {
             LogService.LogWarning($"未发现制度配置目录: {folder}，制度系统将没有任何可研究节点。");

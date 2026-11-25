@@ -54,13 +54,13 @@ namespace EmpireCraft.Presentation
                 if (level == LogLevel.Error) Debug.LogError(message);
                 else if (level == LogLevel.Warning) Debug.LogWarning(message);
             };
-            EmpireData.Folder = DataFolder;
-            if (!Directory.Exists(EmpireData.Folder)) { Debug.LogWarning("[EmpireCraft] rule data folder missing: " + EmpireData.Folder); return; }
+            GameData.Folder = DataFolder;
+            if (!Directory.Exists(GameData.Folder)) { Debug.LogWarning("[EmpireCraft] rule data folder missing: " + GameData.Folder); return; }
             try
             {
                 InstitutionDefinitionRegistry.Load();
                 OnomasticsRule.ReadSetting();
-                string texts = Path.Combine(EmpireData.Folder, "Locales", LM.Language + ".json");
+                string texts = Path.Combine(GameData.Folder, "Locales", LM.Language + ".json");
                 if (File.Exists(texts)) LM.LoadFile(texts);
             }
             catch (Exception e) { Debug.LogException(e); }

@@ -20,10 +20,24 @@ public static class Program
                 int width=args.Length>1?int.Parse(args[1]):1024,years=args.Length>2?int.Parse(args[2]):200;
                 Smoke(width,years,args.Length>3?args[3]:null);
             }
+            else if(args.Length>0&&args[0]=="--fingerprint")
+                Fingerprint(args.Length>1?int.Parse(args[1]):256,args.Length>2?int.Parse(args[2]):75);
             else{Operations();Skeleton();RulesChecks.Rules();RulesChecks.MoreRules();RulesChecks.Scheduling();RulesChecks.Data();RulesChecks.Accounts();RulesChecks.Runner();}
             return 0;
         }
         catch(Exception e){Console.Error.WriteLine(e);return 1;}
+    }
+
+    // Hash of the saved world after a fixed run. A refactor that must not change behaviour
+    // prints the same line before and after (compare on one machine and runtime).
+    static void Fingerprint(int width,int years)
+    {
+        var map=FlatGenerator.Generate(width,width/2,"EMPIRE-FINGERPRINT",TerrainPreset.Continents,default);
+        var w=EmpireRunner.Open(map,FMath.Seed(map.Seed));
+        for(int m=0;m<years*12;m++)EmpireSimulation.Month(w);
+        var bytes=EmpireSave.Encode(w);
+        string hash=BitConverter.ToString(System.Security.Cryptography.SHA256.HashData(bytes)).Replace("-","");
+        Console.WriteLine($"fingerprint {width}x{width/2} {years}y: {hash} ({bytes.Length} bytes, {w.Realms.Count} realms, {w.Cities.Count} cities, {w.People.Count} people, {w.Annals.Entries.Count} annals)");
     }
 
     static int checks;
@@ -45,29 +59,31 @@ public static class Program
         var map=FlatGenerator.Generate(256,128,"EMPIRE-OPS",TerrainPreset.Continents,default);
         var w=new EmpireWorld(map,7);
         var sites=Enumerable.Range(0,map.Count).Where(w.Settleable).OrderByDescending(t=>map.Fertility[t]).ToList();
-        int clan=WorldOps.NewClan(w,"林");
-        int king=WorldOps.Birth(w,"远",Sex.Male,clan,-1,-1,-1,40);
-        int queen=WorldOps.Birth(w,"清",Sex.Female,WorldOps.NewClan(w,"沈"),-1,-1,-1,36);
-        int a=WorldOps.FoundRealmAt(w,"甲国",0xaa3333,sites[0],"甲城",king);
+        Clan clan=WorldOps.NewClan(w,"林");
+        Person king=WorldOps.Birth(w,"远",Sex.Male,clan,null,null,null,40);
+        Person queen=WorldOps.Birth(w,"清",Sex.Female,WorldOps.NewClan(w,"沈"),null,null,null,36);
+        Realm a=WorldOps.FoundRealmAt(w,"甲国",0xaa3333,sites[0],"甲城",king);
         WorldOps.Marry(w,king,queen);
         int far=sites.First(t=>w.Distance(t,sites[0])>12);
-        int b=WorldOps.FoundCity(w,far,a,"乙城");
+        City b=WorldOps.FoundCity(w,far,a,"乙城");
         Consistent(w,"after founding");
         Throws(()=>WorldOps.FoundCity(w,sites[0],a,"重复"),"second city on an occupied seat");
         Throws(()=>WorldOps.Marry(w,king,queen),"remarriage");
         Throws(()=>WorldOps.EndRealm(w,a),"ending a realm that still holds cities");
-        Throws(()=>WorldOps.MoveCapital(w,a,99),"capital outside the realm");
-        int son=WorldOps.Birth(w,"承",Sex.Male,clan,w.Realms[a].Capital,king,queen,18);
-        int rebelClan=WorldOps.NewClan(w,"韩");int rebel=WorldOps.Birth(w,"霆",Sex.Male,rebelClan,b,-1,-1,30);
-        int r2=WorldOps.FoundRealm(w,"乙国",0x3333aa,b,rebel);
-        Check(w.Cities[b].Realm==r2&&w.Realms[a].Cities.Count==1,"breakaway moves the city");
+        Throws(()=>WorldOps.MoveCapital(w,a,null),"no capital city");
+        Throws(()=>WorldOps.MoveCapital(w,a,new City{Id=99}),"a city the world does not hold");
+        Person son=WorldOps.Birth(w,"承",Sex.Male,clan,a.Capital,king,queen,18);
+        Clan rebelClan=WorldOps.NewClan(w,"韩");Person rebel=WorldOps.Birth(w,"霆",Sex.Male,rebelClan,b,null,null,30);
+        Realm r2=WorldOps.FoundRealm(w,"乙国",0x3333aa,b,rebel);
+        Check(b.Realm==r2&&a.Cities.Count==1,"breakaway moves the city");
+        Throws(()=>WorldOps.MoveCapital(w,a,b),"capital outside the realm");
         Consistent(w,"after breakaway");
         WorldOps.Death(w,king);
-        Check(w.Realms[a].Ruler<0&&w.Realms[a].PreviousRuler==king&&w.People[queen].Spouse<0,"death vacates throne and marriage");
+        Check(a.Ruler==null&&a.PreviousRuler==king&&queen.Spouse==null,"death vacates throne and marriage");
         WorldOps.SetRuler(w,a,son);Consistent(w,"after succession");
         Throws(()=>WorldOps.SetRuler(w,r2,son),"one person ruling two realms");
-        WorldOps.TransferCity(w,w.Realms[a].Capital,r2);
-        Check(!w.Realms[a].Alive&&w.Realms[r2].Cities.Count==2,"losing the last city ends the realm");
+        WorldOps.TransferCity(w,a.Capital,r2);
+        Check(!a.Alive&&r2.Cities.Count==2,"losing the last city ends the realm");
         Consistent(w,"after conquest");
         Console.WriteLine("PASS world operations ("+checks+" checks)");
     }

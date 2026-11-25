@@ -56,12 +56,40 @@ ALIASES = [
 ]
 # Fixed text swaps applied to every line (the same on both sides of a sync).
 REWRITES = [
-    ("ModClass._declare.FolderPath", "EmpireData.Folder"),
+    ("ModClass._declare.FolderPath", "GameData.Folder"),
     ("NeoModLoader.General.LM.", "LM."),
     ("NeoModLoader.services.LogService.", "LogService."),
     ('PlayerConfig.dict["language"].stringVal', "LM.Language"),
     ("Config.time_scale_asset?.multiplier ?? 1f", "FrameClock.SpeedFactor"),
 ]
+# Identity rewrite (opt-in per file, `--identity`): the WorldBox polity objects become this
+# repository's entities, one identifier for one identifier so the line structure survives.
+# The target members live on the entities (Core/Entities) and on GameClock (Core/Host).
+# A mod class of its own may use one of the plain member names too (`title.capital`,
+# `mapData.cities`); list such receivers under `--keep` to leave them alone in that file.
+IDENTITY = [
+    (r"\bWorld\.world\.getCurWorldTime\(\)", "GameClock.Now"),
+    (r"\bWorld\.world\b", "EmpireWorld.Current"),
+    (r"(?<![.\w])Kingdom\b", "Realm"),
+    (r"(?<![.\w])Actor\b", "Person"),
+    (r"(?<![.\w])MapBox\b", "EmpireWorld"),
+    (r"\.isRekt\(\)", ".IsGone()"),
+    (r"\.isAlive\(\)", ".Alive"),
+    (r"\.hasKing\(\)", ".HasRuler()"),
+    (r"\.hasCapital\(\)", ".HasCapital()"),
+    (r"\.getID\(\)", ".Id"),
+    (r"\.data\.name\b", ".Name"),
+    (r"\.data\.id\b", ".Id"),
+    (r"\.king\b", ".Ruler"),
+    (r"\.capital\b", ".Capital"),
+    (r"\.cities\b", ".Cities"),
+    (r"\.kingdom\b", ".Realm"),
+    (r"\bDate\.getMonthsSince\b", "GameClock.MonthsSince"),
+    (r"\bDate\.getYearsSince\b", "GameClock.YearsSince"),
+    (r"\bDate\.getCurrentYear\(\)", "GameClock.Year"),
+    (r"\bDate\.getCurrentMonth\(\)", "GameClock.Month"),
+]
+IDENTITY = [(re.compile(pattern), replacement) for pattern, replacement in IDENTITY]
 DROPPED_USINGS = ("UnityEngine", "NeoModLoader", "HarmonyLib", "ai")
 
 
@@ -236,7 +264,7 @@ def source_of(mod, commit, key):
 
 # ---- transform -------------------------------------------------------------
 
-def transform(text, key, commit, namespaces):
+def transform(text, key, commit, namespaces, identity=False, keep=()):
     """Deterministic rewrite of one mod source file. Returns (text, change list)."""
     changes = []
     lines = text.split("\n")
@@ -247,6 +275,9 @@ def transform(text, key, commit, namespaces):
     dropped = set()
     rewritten = set()
     qualified = re.compile("|".join(re.escape(n) + r"\." for n in namespaces))
+    # `Layer.Empire`, `Regimes.Regime`: a namespace segment used as a relative qualifier.
+    segments = sorted({s for n in namespaces for s in n.split(".")[2:] if re.match(r"^[A-Za-z]\w*$", s)} - {"System"})
+    relative = re.compile(r"(?<![.\w])(?:%s)\.(?=[A-Z])" % "|".join(segments or ["__none__"]))
     for line in lines:
         m = re.match(r"^using\s+(static\s+)?([\w.]+)\s*;\s*$", line)
         if m:
@@ -272,11 +303,21 @@ def transform(text, key, commit, namespaces):
             if old in line:
                 line = line.replace(old, new)
                 rewritten.add("%s -> %s" % (old, new))
+        if identity and not line.startswith("using "):
+            line = relative.sub("", line)
+            for index, kept in enumerate(keep):
+                line = line.replace(kept, "\x00%d\x00" % index)
+            for pattern, replacement in IDENTITY:
+                line = pattern.sub(replacement, line)
+            for index, kept in enumerate(keep):
+                line = line.replace("\x00%d\x00" % index, kept)
         out.append(line)
     if file_scoped:
         out.append("}")
         changes.append("file-scoped namespace opened as a block (body not re-indented)")
     changes.append("namespace " + NAMESPACE)
+    if identity:
+        changes.append("identity rewrite (Kingdom -> Realm, Actor -> Person, members and clock)")
     body = "\n".join(out)
     aliases = []
     for pattern, alias, target in ALIASES:
@@ -329,19 +370,27 @@ def head(mod):
     return git(mod, "rev-parse", "HEAD").stdout.decode().strip()
 
 
-def record_source(manifest, mod, commit, key, dest, kind, note, force):
+def record_source(manifest, mod, commit, key, dest, kind, note, force, identity=None, keep=None):
     entry = find(manifest, key)
     if entry and not force:
         print("skip (already ported, use --force to regenerate): " + key)
         return
     if entry:
         dest = entry["dest"]
+    if identity is None:
+        identity = bool(entry and entry.get("identity"))
+    if keep is None:
+        keep = entry.get("keep", []) if entry else []
     source = source_of(mod, commit, key)
-    text, changes = transform(source, key, commit, mod_namespaces(mod, commit))
+    text, changes = transform(source, key, commit, mod_namespaces(mod, commit), identity, keep)
     write(dest, text)
     record = {"mod": key, "commit": commit, "ported": datetime.date.today().isoformat(), "dest": dest,
               "lines": source.count("\n"), "sha256": hashlib.sha256(source.encode("utf-8")).hexdigest(),
               "kind": kind, "changes": changes}
+    if identity:
+        record["identity"] = True
+    if keep:
+        record["keep"] = list(keep)
     if note:
         record["notes"] = [note]
     elif entry and entry.get("notes"):
@@ -359,7 +408,7 @@ def cmd_add(args):
     for path in args.paths:
         path = path.replace("\\", "/")
         dest = "/".join((CORE, args.dest or "Rules", os.path.basename(path)))
-        record_source(manifest, mod, commit, path, dest, "source", args.note, args.force)
+        record_source(manifest, mod, commit, path, dest, "source", args.note, args.force, args.identity or None, args.keep)
     save_manifest(manifest)
 
 
@@ -369,7 +418,7 @@ def cmd_extract(args):
     manifest = load_manifest()
     key = args.path.replace("\\", "/") + "#" + args.types
     dest = "/".join((CORE, args.dest or "Rules", args.types.split(",")[0] + ".cs"))
-    record_source(manifest, mod, commit, key, dest, "extract", args.note, args.force)
+    record_source(manifest, mod, commit, key, dest, "extract", args.note, args.force, args.identity or None, args.keep)
     save_manifest(manifest)
 
 
@@ -487,9 +536,10 @@ def cmd_sync(args):
             entry.update(commit=now, lines=raw.count(b"\n"), sha256=hashlib.sha256(raw).hexdigest())
             print("updated data " + entry["mod"])
             continue
-        base, _ = transform(source_of(mod, entry["commit"], entry["mod"]), entry["mod"], entry["commit"], mod_namespaces(mod, entry["commit"]))
+        rewrite = (bool(entry.get("identity")), entry.get("keep", []))
+        base, _ = transform(source_of(mod, entry["commit"], entry["mod"]), entry["mod"], entry["commit"], mod_namespaces(mod, entry["commit"]), *rewrite)
         source = source_of(mod, now, entry["mod"])
-        theirs, _ = transform(source, entry["mod"], now, mod_namespaces(mod, now))
+        theirs, _ = transform(source, entry["mod"], now, mod_namespaces(mod, now), *rewrite)
         with tempfile.TemporaryDirectory() as tmp:
             names = {}
             for label, text in (("ours", read(entry["dest"])), ("base", base), ("theirs", theirs)):
@@ -524,6 +574,8 @@ def main():
         p.add_argument("--commit", default="HEAD", help="mod revision to copy from (default HEAD)")
         p.add_argument("--note")
         p.add_argument("--force", action="store_true")
+        p.add_argument("--identity", action="store_true", help="rewrite WorldBox polity objects to this repository's entities")
+        p.add_argument("--keep", nargs="*", help="with --identity: text such as title.capital to leave alone")
     p = sub.add_parser("extract")
     p.add_argument("path")
     p.add_argument("types", help="comma separated: Type or Outer.Inner")
@@ -531,6 +583,8 @@ def main():
     p.add_argument("--commit", default="HEAD")
     p.add_argument("--note")
     p.add_argument("--force", action="store_true")
+    p.add_argument("--identity", action="store_true")
+    p.add_argument("--keep", nargs="*")
     p = sub.add_parser("remove")
     p.add_argument("paths", nargs="+")
     sub.add_parser("status")

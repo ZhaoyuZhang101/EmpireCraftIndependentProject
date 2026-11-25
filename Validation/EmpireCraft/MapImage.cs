@@ -33,7 +33,7 @@ public static class MapImage
         }
         foreach(var c in w.Cities.Where(c=>c.Alive))
         {
-            bool capital=w.Realms[c.Realm].Capital==c.Id;int x=c.Tile%width,y=c.Tile/width,s=capital?1:0;
+            bool capital=c.Realm.Capital==c;int x=c.Tile%width,y=c.Tile/width,s=capital?1:0;
             for(int dy=-s;dy<=s;dy++)for(int dx=-s;dx<=s;dx++)
             {
                 int px=((x+dx)%width+width)%width,py=height-1-Math.Clamp(y+dy,0,height-1);int o=(py*width+px)*3;

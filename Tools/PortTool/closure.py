@@ -77,7 +77,7 @@ def find_set(args):
     for path in candidates:
         source = tool.show(mod, commit, path)
         lines[path] = source.count("\n")
-        text, _ = tool.transform(source, path, commit, namespaces)
+        text, _ = tool.transform(source, path, commit, namespaces, args.identity, [])
         full = os.path.join(work, "src", *path.split("/"))
         os.makedirs(os.path.dirname(full), exist_ok=True)
         with open(full, "w", encoding="utf-8", newline="\n") as f:
@@ -133,7 +133,7 @@ def find_set(args):
             alive.discard(path)
             os.remove(os.path.join(work, "src", *path.split("/")))
         print("round %d: %d files out, %d left" % (round_number, len(errors), len(alive)))
-    report = {"commit": commit, "dirs": args.dirs, "pass": sorted(alive), "pass_lines": sum(lines[p] for p in alive), "rejected": rejected}
+    report = {"commit": commit, "dirs": args.dirs, "identity": bool(args.identity), "pass": sorted(alive), "pass_lines": sum(lines[p] for p in alive), "rejected": rejected}
     with open(args.report, "w", encoding="utf-8", newline="\n") as f:
         json.dump(report, f, ensure_ascii=False, indent=1)
     print("%d files (%d lines) compile on their own; %d thrown out. Report: %s" % (len(alive), report["pass_lines"], len(rejected), args.report))
@@ -161,7 +161,7 @@ def apply_set(args):
         if dest in taken or os.path.exists(os.path.join(tool.ROOT, dest)):
             raise SystemExit("destination already taken: %s (for %s)" % (dest, path))
         taken.add(dest)
-        tool.record_source(manifest, mod, report["commit"], path, dest, "source", None, False)
+        tool.record_source(manifest, mod, report["commit"], path, dest, "source", None, False, bool(report.get("identity")) or None, None)
         count += 1
     tool.save_manifest(manifest)
     print("ported %d files" % count)
@@ -175,6 +175,7 @@ def main():
     parser.add_argument("--work", help="scratch folder (default: the system temp folder)")
     parser.add_argument("--apply", help="port the passing files of this report")
     parser.add_argument("--skip", nargs="*", help="with --apply: mod paths to leave out")
+    parser.add_argument("--identity", action="store_true", help="apply the identity rewrite (Kingdom -> Realm ...) to the candidates")
     args = parser.parse_args()
     if hasattr(sys.stdout, "reconfigure"):
         sys.stdout.reconfigure(encoding="utf-8", errors="replace")

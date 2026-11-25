@@ -167,7 +167,7 @@ namespace EmpireCraft.Core
     }
 
     // Where the rule data (Assets/EmpireCraft/Data, or its shipped copy) is read from.
-    public static class EmpireData
+    public static class GameData
     {
         public static string Folder = "";
         public static string PathOf(params string[] parts)

@@ -17,7 +17,7 @@
 
 **宿主层 `Assets/EmpireCraft/Core/Host/Host.cs`(新写)**
 
-搬来的规则向"运行它的东西"要的几样服务，不引用引擎：帧时钟 `FrameClock`、数学 `EcMath`、颜色 `EcColor`、日志 `LogService`、文字表 `LM`、数据目录 `EmpireData`、分段计时 `FrameProfiler`。Unity 客户端和 dotnet 测试各自驱动它。
+搬来的规则向"运行它的东西"要的几样服务，不引用引擎：帧时钟 `FrameClock`、数学 `EcMath`、颜色 `EcColor`、日志 `LogService`、文字表 `LM`、数据目录 `GameData`、分段计时 `FrameProfiler`。Unity 客户端和 dotnet 测试各自驱动它。
 
 **搬来的源码：45 个文件，4,076 行**
 

@@ -57,27 +57,27 @@ namespace EmpireCraft.Core
             // Every landmass with sites but no capital gets one of its own.
             var massHasCapital=new HashSet<int>();foreach(int c in capitals)massHasCapital.Add(landmass[sites[c]]);
             for(int i=0;i<sites.Count;i++)if(massHasCapital.Add(landmass[sites[i]]))capitals.Add(i);
-            var realmOfSite=new int[sites.Count];for(int i=0;i<sites.Count;i++)realmOfSite[i]=-1;
+            var realmOfSite=new Realm[sites.Count];
             foreach(int c in capitals)realmOfSite[c]=FoundHouse(w,sites[c]);
             for(int i=0;i<sites.Count;i++)
             {
-                if(realmOfSite[i]>=0)continue;
+                if(realmOfSite[i]!=null)continue;
                 int best=-1;float bestDistance=float.MaxValue;
                 foreach(int c in capitals)
                 {
                     if(landmass[sites[c]]!=landmass[sites[i]])continue;
                     float d=w.Distance(sites[c],sites[i]);if(d<bestDistance){bestDistance=d;best=c;}
                 }
-                int realm=realmOfSite[best];
+                Realm realm=realmOfSite[best];
                 realmOfSite[i]=realm;WorldOps.FoundCity(w,sites[i],realm,Names.Place(w,sites[i]));
             }
             // Initial hinterland: two rings, claimed round-robin so neighbours share fairly.
             for(int ring=0;ring<2;ring++)
             {
-                var claims=new List<(int city,int tile)>();
+                var claims=new List<(City city,int tile)>();
                 foreach(var c in w.Cities)
                     foreach(int t in c.Tiles.ToArray())
-                        for(int d=0;d<4;d++){int n=m.Neighbor(t,d);if(n>=0&&w.Claimable(n)&&w.TileCity[n]<0)claims.Add((c.Id,n));}
+                        for(int d=0;d<4;d++){int n=m.Neighbor(t,d);if(n>=0&&w.Claimable(n)&&w.TileCity[n]<0)claims.Add((c,n));}
                 foreach(var (city,tile) in claims)if(w.TileCity[tile]<0)WorldOps.ClaimTile(w,city,tile);
             }
             foreach(var c in w.Cities)
@@ -88,23 +88,23 @@ namespace EmpireCraft.Core
         }
 
         // A realm founded at a site with a ruling family: ruler, spouse and children.
-        static int FoundHouse(EmpireWorld w,int tile)
+        static Realm FoundHouse(EmpireWorld w,int tile)
         {
-            int clan=WorldOps.NewClan(w,Names.Surname(w,tile));
+            Clan clan=WorldOps.NewClan(w,Names.Surname(w,tile));
             int age=24+w.Pick(Stream,tile,24,1);
-            int ruler=WorldOps.Birth(w,Names.Given(w,Sex.Male,tile*7+1),Sex.Male,clan,-1,-1,-1,age);
-            w.Clans[clan].Founder=ruler;
+            Person ruler=WorldOps.Birth(w,Names.Given(w,Sex.Male,tile*7+1),Sex.Male,clan,null,null,null,age);
+            clan.Founder=ruler;
             string capital=Names.Place(w,tile);
-            int realm=WorldOps.FoundRealmAt(w,Names.RealmOf(capital),Names.Color(w,tile),tile,capital,ruler);
-            int city=w.Realms[realm].Capital;w.People[ruler].City=city;
-            int wifeClan=WorldOps.NewClan(w,Names.Surname(w,tile*7+2));
-            int wife=WorldOps.Birth(w,Names.Given(w,Sex.Female,tile*7+3),Sex.Female,wifeClan,city,-1,-1,Math.Max(16,age-2-w.Pick(Stream,tile,6,2)));
+            Realm realm=WorldOps.FoundRealmAt(w,Names.RealmOf(capital),Names.Color(w,tile),tile,capital,ruler);
+            City city=realm.Capital;ruler.City=city;
+            Clan wifeClan=WorldOps.NewClan(w,Names.Surname(w,tile*7+2));
+            Person wife=WorldOps.Birth(w,Names.Given(w,Sex.Female,tile*7+3),Sex.Female,wifeClan,city,null,null,Math.Max(16,age-2-w.Pick(Stream,tile,6,2)));
             WorldOps.Marry(w,ruler,wife);
             int children=w.Pick(Stream,tile,4,3);
             for(int k=0;k<children;k++)
             {
                 int childAge=Math.Max(0,age-20-k*3);
-                if(childAge>w.AgeOf(w.People[wife])-15)continue;
+                if(childAge>w.AgeOf(wife)-15)continue;
                 var sex=w.Chance(Stream,tile,10+k)<.5?Sex.Male:Sex.Female;
                 WorldOps.Birth(w,Names.Given(w,sex,tile*7+20+k),sex,clan,city,ruler,wife,childAge);
             }

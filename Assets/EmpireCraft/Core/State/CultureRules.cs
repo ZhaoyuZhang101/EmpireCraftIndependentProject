@@ -223,7 +223,7 @@ public static class OnomasticsRule
     public static void ReadSetting()
     {
         var rules = new List<CultureRule>();
-        string legacyPath = Path.Combine(EmpireData.Folder, "CultureRulesConfig.json");
+        string legacyPath = Path.Combine(GameData.Folder, "CultureRulesConfig.json");
         if (File.Exists(legacyPath))
         {
             try
@@ -271,7 +271,7 @@ public static class OnomasticsRule
 
     public static IEnumerable<string> CultureRuleFiles()
     {
-        string root = Path.Combine(EmpireData.Folder, "Locales", "Cultures");
+        string root = Path.Combine(GameData.Folder, "Locales", "Cultures");
         if (!Directory.Exists(root)) yield break;
         foreach (string dir in Directory.EnumerateDirectories(root, "Culture_*").OrderBy(d => d, StringComparer.Ordinal))
         {

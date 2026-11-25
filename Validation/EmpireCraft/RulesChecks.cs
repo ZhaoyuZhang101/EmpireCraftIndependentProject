@@ -175,7 +175,7 @@ public static class RulesChecks
     public static void Data()
     {
         checks = 0;
-        EmpireData.Folder = DataFolder();
+        GameData.Folder = DataFolder();
         var lines = new List<string>(); int warnings = LogService.Warnings, errors = LogService.Errors;
         LogService.Sink = (level, message) => { if (level != LogLevel.Info) lines.Add(level + ": " + message); };
         InstitutionDefinitionRegistry.Load();
@@ -196,7 +196,7 @@ public static class RulesChecks
         Check(OnomasticsRule.ALL_CULTURE_RULE.Count >= 27, "culture rules: " + OnomasticsRule.ALL_CULTURE_RULE.Count);
         Check(OnomasticsRule.ALL_CULTURE_RULE.ContainsKey("Huaxia") && "Youmu".IsNomadCulture() && !"Huaxia".IsNomadCulture(), "culture traits");
         Check("Huaxia".GetCultureColor() != "Roma".GetCultureColor(), "cultures have their own colours");
-        LM.Clear(); int texts = LM.LoadFile(Path.Combine(EmpireData.Folder, "Locales", "ch.json")); LM.Language = "ch";
+        LM.Clear(); int texts = LM.LoadFile(Path.Combine(GameData.Folder, "Locales", "ch.json")); LM.Language = "ch";
         Check(texts > 5000 && SocialClass.Peasant.ToTranslate() != "class_peasant", "text table: " + texts + " entries");
         Check(!string.IsNullOrEmpty("Huaxia".GetCultureTranslate()), "culture names translate");
         LogService.Sink = null;
@@ -220,9 +220,9 @@ public static class RulesChecks
             var account = w.Ledger.Realm(realm.Id);
             if (!(account.Pressure >= 0f && account.Pressure <= 100f) || account.Legitimacy < 0 || account.Legitimacy > 100 || account.Treasury < 0)
                 throw new Exception(when + ": realm " + realm.Id + " books out of range (strain " + account.Pressure + ", legitimacy " + account.Legitimacy + ", treasury " + account.Treasury + ")");
-            foreach (int id in realm.Cities)
+            foreach (var city in realm.Cities)
             {
-                var book = w.Ledger.City(id);
+                int id = city.Id; var book = w.Ledger.City(id);
                 if (!(book.Stability >= 0f && book.Stability <= 100f) || !(book.Corruption >= 0f && book.Corruption <= 1f))
                     throw new Exception(when + ": city " + id + " books out of range");
             }
@@ -301,9 +301,9 @@ public static class RulesChecks
             if (!realm.Alive) continue;
             var account = w.Ledger.Realm(realm.Id); realms++;
             strain += account.Pressure; legitimacy += account.Legitimacy; treasury += account.Treasury; if (account.InArrears) arrears++;
-            foreach (int id in realm.Cities)
+            foreach (var city in realm.Cities)
             {
-                var book = w.Ledger.City(id); cities++; stability += book.Stability; corruption += book.Corruption;
+                var book = w.Ledger.City(city.Id); cities++; stability += book.Stability; corruption += book.Corruption;
                 if (book.Stability < CityStabilityRules.RebellionThreshold) restless++;
             }
         }

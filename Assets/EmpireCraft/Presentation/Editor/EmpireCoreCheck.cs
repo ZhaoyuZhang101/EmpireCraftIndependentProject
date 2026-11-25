@@ -33,7 +33,7 @@ namespace EmpireCraft.EditorTools
                 if (LogService.Errors != errorsBefore || nodes < 300 || OnomasticsRule.ALL_CULTURE_RULE.Count < 27 || LM.Count < 5000)
                     throw new Exception("rule data did not load: " + nodes + " institution nodes, " + OnomasticsRule.ALL_CULTURE_RULE.Count + " cultures, " + LM.Count + " texts");
                 Debug.Log("[EmpireCoreCheck] data: " + InstitutionDefinitionRegistry.Lines.Count + " institution lines, " + nodes + " nodes, " +
-                          OnomasticsRule.ALL_CULTURE_RULE.Count + " cultures, " + LM.Count + " texts from " + EmpireData.Folder);
+                          OnomasticsRule.ALL_CULTURE_RULE.Count + " cultures, " + LM.Count + " texts from " + GameData.Folder);
 
                 var clock = Stopwatch.StartNew();
                 var map = FlatGenerator.Generate(width, width / 2, "EMPIRE-UNITY-CHECK", TerrainPreset.Continents, default);
@@ -62,7 +62,7 @@ namespace EmpireCraft.EditorTools
                 {
                     if (!realm.Alive) continue;
                     treasury += world.Ledger.Realm(realm.Id).Treasury;
-                    foreach (int id in realm.Cities) { stability += world.Ledger.City(id).Stability; cities++; }
+                    foreach (var city in realm.Cities) { stability += world.Ledger.City(city.Id).Stability; cities++; }
                 }
                 Debug.Log("[EmpireCoreCheck] world " + width + "x" + width / 2 + ": generation " + generation + " ms, opening " + opening + " ms; " + years + " years in " + frames +
                           " frames, worst frame " + worstFrame.ToString("F2") + " ms, never more than " + worstBehind + " month behind");
