@@ -17,8 +17,14 @@ namespace UnityEngine
         public static implicit operator bool(Object exists) => exists != null;
     }
 
+    public class GameObject : Object
+    {
+        public T AddComponent<T>() where T : Component => default;
+    }
+
     public class Component : Object
     {
+        public GameObject gameObject => null;
         public Transform transform => null;
         public T GetComponent<T>() => default;
         public T[] GetComponents<T>() => Array.Empty<T>();
@@ -30,9 +36,12 @@ namespace UnityEngine
     public class Transform : Component { public void SetPositionAndRotation(Vector3 pos, Quaternion rot) { } }
     public class TextAsset : Object { public byte[] bytes => Array.Empty<byte>(); }
     public class Texture : Object { public int width; public int height; }
+    public struct RenderBuffer { }
     public class RenderTexture : Texture
     {
         public static RenderTexture active;
+        public RenderBuffer colorBuffer => default;
+        public RenderBuffer depthBuffer => default;
         public static RenderTexture GetTemporary(int w, int h, int d, RenderTextureFormat f, RenderTextureReadWrite rw = RenderTextureReadWrite.Default) => null;
         public static void ReleaseTemporary(RenderTexture rt) { }
     }
@@ -49,6 +58,9 @@ namespace UnityEngine
         public Texture GetTexture(string name) => null;
         public float GetFloat(string name) => 0f;
         public void SetFloat(string name, float v) { }
+        public void SetTexture(string name, Texture t) { }
+        public void SetVector(string name, Vector4 v) { }
+        public bool SetPass(int pass) => true;
     }
     public class Camera : Behaviour
     {
@@ -59,6 +71,7 @@ namespace UnityEngine
         public void ResetProjectionMatrix() { }
         public void Render() { }
     }
+    public struct Vector4 { public float x, y, z, w; public Vector4(float x, float y, float z, float w) { this.x = x; this.y = y; this.z = z; this.w = w; } }
     public struct Rect { public Rect(float x, float y, float w, float h) { } }
     public struct Vector2 { public float x, y; }
     public struct Color { public float r, g, b, a; }
@@ -96,8 +109,23 @@ namespace UnityEngine
         public static float Clamp(float v, float min, float max) => Math.Max(min, Math.Min(max, v));
         public static float Lerp(float a, float b, float t) => a + (b - a) * Clamp(t, 0f, 1f);
     }
-    public static class GL { public static bool sRGBWrite; }
-    public static class Graphics { public static void Blit(Texture src, RenderTexture dst) { } }
+    public static class GL
+    {
+        public const int QUADS = 7;
+        public static bool sRGBWrite;
+        public static void PushMatrix() { }
+        public static void PopMatrix() { }
+        public static void LoadOrtho() { }
+        public static void Begin(int mode) { }
+        public static void End() { }
+        public static void TexCoord2(float x, float y) { }
+        public static void Vertex3(float x, float y, float z) { }
+    }
+    public static class Graphics
+    {
+        public static void Blit(Texture src, RenderTexture dst) { }
+        public static void SetRenderTarget(RenderBuffer[] colorBuffers, RenderBuffer depthBuffer) { }
+    }
     public static class Resources { public static T Load<T>(string path) where T : Object => default; }
     public static class Application
     {
@@ -156,7 +184,7 @@ namespace Orbis
     {
         public float exposure = 1f, cloudCover = 1f, cloudDensity = 1f;
         public int cloudQuality = 1;
-        public bool clouds, cloudShadows, godRays, atmosphere, night;
+        public bool clouds, cloudShadows, godRays, atmosphere, night, multipleScattering;
     }
     public static class OrbisWeatherField { public const float HeightScale = 1f / 6371000f; }
     public sealed class OrbisWorld { public OrbisSettings settings = new OrbisSettings(); }
@@ -165,6 +193,7 @@ namespace Orbis
     {
         public OrbisPlanetView view;
         public bool fullResolutionReference, referenceCloudIntegration;
+        public int cloudDebug;
     }
     public sealed class OrbisCelestialLens : UnityEngine.MonoBehaviour { public float strength; }
 }
