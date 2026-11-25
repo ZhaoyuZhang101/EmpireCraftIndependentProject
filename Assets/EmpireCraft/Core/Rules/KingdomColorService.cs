@@ -1,0 +1,257 @@
+// Ported from the EmpireCraft mod: Scripts/GeneralSystems/KingdomColorService.cs @ 64c66e30. Body kept line-for-line for three-way sync;
+// see Port/manifest.json and Tools/PortTool.
+using Mathf = EmpireCraft.Core.EcMath;
+using Color = EmpireCraft.Core.EcColor;
+using System.Collections.Generic;
+using System.Linq;
+
+namespace EmpireCraft.Core
+{
+
+public static class KingdomColorService
+{
+    // 周制(分封)：帝国(天子)用核心王国的颜色，诸侯各用各的颜色——不与天子同色，也尽量不与别的诸侯同色。
+    // 分封出来的诸侯原先沿用宗主颜色，满图一片同色看不出列国
+#if EC_PENDING
+    public static bool KeepsOwnColor(Realm member)
+    {
+        var empire = member?.GetEmpire();
+        Realm core = empire?.CoreKingdom;
+        if (core == null || core == member) return false;
+        // 南明诸镇各用各的颜色(同一色系，见 SouthernGarrisonSystem)
+        return core.GetRegime()?.type == RegimeType.ZhouFeudalism || SouthernGarrisonSystem.IsGarrison(member);
+    }
+
+    public static void EnsureDistinctInZhou(Realm member)
+    {
+        if (!KeepsOwnColor(member) || AncientWarfareCompatibility.Owns(member)) return;
+        // 南明诸镇的色系每年由 SouthernGarrisonSystem 配(ApplyGarrisonFamily)，这里不另换
+        if (SouthernGarrisonSystem.IsGarrison(member)) return;
+        // 周室：整个周室同一色系(见 ApplySphereFamily)；不是周室的分封帝国才走下面的"各不相同"
+        if (ZhouEraSystem.Applies(member.GetEmpire()))
+        {
+            ApplySphereFamily(member.GetEmpire());
+            return;
+        }
+        var empire = member.GetEmpire();
+        Realm core = empire.CoreKingdom;
+        ColorAsset current = member.getColor();
+        bool clash = current == null || current == core.getColor() || current == empire.getColor();
+        if (!clash)
+            foreach (Realm other in empire.kingdoms_list)
+                if (other != null && other != member && !other.IsGone() && other.getColor() == current &&
+                    other.Key < member.Key)
+                {
+                    clash = true;
+                    break;
+                }
+        if (!clash) return;
+        var library = member.getColorLibrary();
+        var colors = library?.list;
+        if (colors == null || colors.Count == 0) return;
+        var used = new global::System.Collections.Generic.HashSet<ColorAsset> { core.getColor(), empire.getColor() };
+        foreach (Realm other in empire.kingdoms_list)
+            if (other != null && other != member && !other.IsGone()) used.Add(other.getColor());
+        ColorAsset next = null;
+        int original = member.Record.original_color_id;
+        if (original >= 0 && original < colors.Count && colors[original] != null && !used.Contains(colors[original]))
+            next = colors[original];
+        if (next == null)
+            foreach (ColorAsset candidate in colors)
+                if (candidate != null && !used.Contains(candidate))
+                {
+                    next = candidate;
+                    break;
+                }
+        // 颜色用尽：至少与天子不同色
+        if (next == null)
+            foreach (ColorAsset candidate in colors)
+                if (candidate != null && candidate != core.getColor() && candidate != empire.getColor())
+                {
+                    next = candidate;
+                    break;
+                }
+        if (next == null) return;
+        int nextId = colors.IndexOf(next);
+        member._cached_color = null;
+        member.Record.setColorID(nextId);
+        member.updateColor(next);
+        EmpireWorld.Current?.zone_calculator?.dirtyAndClear();
+    }
+#endif
+
+    private const float GraySaturation = 0.18f, DarkValue = 0.22f;
+
+    // 同一周室同一色系(内部同一大色系、细微差别，像暖色系、冷色系，一眼看出是一家)：
+    //   以天子的颜色为基准，诸侯(含战国离开帝国的)按色相离基准由近到远，依次取色板里还没被占用的颜色——
+    //   诸侯少时都挤在基准色附近，多了才往两侧铺开；灰白与很暗的颜色看不出色相，除非天子本身是这类颜色，否则排到最后；
+    //   别的周室(王畿与诸侯)在用的颜色不取，免得两个周室混成一片。
+    //   已经在本色系里的诸侯不动，只给新来的、或色系外的换色，不会每月闪色。
+    // 部落联盟(用户 2026-10-17 "共事的时候应该和诸侯国一样用统一色系")：共事同一共主的部落照此以共主的颜色为基准取同一色系；
+    //   别的周室、别的部落联盟在用的颜色都不取。
+#if EC_PENDING
+    public static void ApplySphereFamily(Empire sphere)
+    {
+        if (!ZhouEraSystem.Applies(sphere)) return;
+        ApplyFamily(sphere, ZhouEraSystem.Vassals(sphere));
+    }
+#endif
+
+    // 南明诸镇(见 SouthernGarrisonSystem)：以朝廷的颜色为基准取同一色系，国家图层看得出诸镇林立
+#if EC_PENDING
+    public static void ApplyGarrisonFamily(Empire empire, IEnumerable<Realm> garrisons) => ApplyFamily(empire, garrisons);
+#endif
+
+    // 每月(TribalFissionService.EnforceOneCity)：各有共事部落的部落联盟。换了色返回 true，由调用方重画
+    // (每月整理的整图重画并到末尾一次，见 TribalFissionService.Redraw；以前每换一家就整图重画一遍)
+    // 这一轮配色里各家只算一遍(见 Families；轮外不缓存)
+    private static List<(Empire head, IEnumerable<Realm> members)> _families;
+
+#if EC_PENDING
+    public static bool ApplyTribalFamilies()
+    {
+        _families = BuildFamilies();
+        bool changed = false;
+        try
+        {
+            var confederations = new HashSet<Empire>(TribalFissionService.Confederations());
+            foreach ((Empire head, IEnumerable<Realm> members) in _families.ToList())
+                if (confederations.Contains(head)) changed |= ApplyFamily(head, members, redraw: false);
+        }
+        finally
+        {
+            _families = null;
+        }
+        return changed;
+    }
+#endif
+
+    // 一家(周室或有共事部落的部落联盟)：基准帝国与它的诸侯、共事的部落(没有共事部落的部落联盟不算一家)
+#if EC_PENDING
+    private static List<(Empire head, IEnumerable<Realm> members)> Families() => _families ?? BuildFamilies();
+
+    private static List<(Empire head, IEnumerable<Realm> members)> BuildFamilies()
+    {
+        var result = new List<(Empire head, IEnumerable<Realm> members)>();
+        foreach (Empire empire in ModClass.EMPIRE_MANAGER?.ToList() ?? new List<Empire>())
+        {
+            if (empire?.CoreKingdom == null) continue;
+            if (ZhouEraSystem.Applies(empire)) result.Add((empire, ZhouEraSystem.Vassals(empire)));
+        }
+        Dictionary<long, List<Realm>> vassals = TribalFissionService.VassalMap();
+        foreach (Empire confederation in TribalFissionService.Confederations())
+            if (vassals.TryGetValue(confederation.Key, out List<Realm> members) && members.Count > 0)
+                result.Add((confederation, members));
+        return result;
+    }
+#endif
+
+    // redraw：换了色当场整图重画；false 时只返回换没换(由调用方并着画)
+#if EC_PENDING
+    private static bool ApplyFamily(Empire sphere, IEnumerable<Realm> members, bool redraw = true)
+    {
+        Realm core = sphere?.CoreKingdom;
+        if (core?.Record == null || core.IsGone() || AncientWarfareCompatibility.Owns(core)) return false;
+        List<Realm> vassals = members
+            .Where(kingdom => kingdom?.Record != null && !kingdom.IsGone() && kingdom != core && !AncientWarfareCompatibility.Owns(kingdom))
+            .OrderBy(kingdom => kingdom.id).ToList();
+        if (vassals.Count == 0) return false;
+        List<ColorAsset> colors = core.getColorLibrary()?.list;
+        ColorAsset royal = sphere.getColor() ?? core.getColor();
+        if (colors == null || colors.Count == 0 || royal == null) return false;
+        Color.RGBToHSV(royal.getColorMain(), out float hue, out float saturation, out float value);
+        bool grayBase = saturation < GraySaturation || value < DarkValue;
+        var excluded = new HashSet<ColorAsset> { royal, core.getColor() };
+        foreach ((Empire other, IEnumerable<Realm> otherMembers) in Families())
+        {
+            if (other == sphere) continue;
+            excluded.Add(other.getColor());
+            excluded.Add(other.CoreKingdom.getColor());
+            foreach (Realm kingdom in otherMembers) excluded.Add(kingdom?.getColor());
+        }
+        List<ColorAsset> family = colors.Where(color => color != null && !excluded.Contains(color))
+            .OrderBy(color => Distance(color, hue, grayBase)).Take(vassals.Count).ToList();
+        var palette = new HashSet<ColorAsset>(family);
+        var kept = new HashSet<ColorAsset>();
+        var pending = new List<Realm>();
+        foreach (Realm vassal in vassals)
+        {
+            ColorAsset current = vassal.getColor();
+            if (current != null && palette.Contains(current) && kept.Add(current)) continue;
+            pending.Add(vassal);
+        }
+        bool changed = false;
+        foreach (Realm vassal in pending)
+        {
+            ColorAsset next = family.FirstOrDefault(color => !kept.Contains(color));
+            if (next == null) break;
+            kept.Add(next);
+            vassal._cached_color = null;
+            vassal.Record.setColorID(colors.IndexOf(next));
+            vassal.updateColor(next);
+            changed = true;
+        }
+        if (changed && redraw) EmpireWorld.Current?.zone_calculator?.dirtyAndClear();
+        return changed;
+    }
+#endif
+
+    // 与基准色相的距离(0~0.5，按色环取近的一侧)；灰白黑排在最后(天子是灰色系时反过来)
+#if EC_PENDING
+    private static float Distance(ColorAsset color, float hue, bool grayBase)
+    {
+        Color.RGBToHSV(color.getColorMain(), out float h, out float s, out float v);
+        bool gray = s < GraySaturation || v < DarkValue;
+        if (grayBase) return gray ? s : 1f + s;
+        if (gray) return 2f;
+        float d = Mathf.Abs(h - hue);
+        return Mathf.Min(d, 1f - d);
+    }
+#endif
+
+    // Native generateColor changes data.color_id without clearing _cached_color.
+    // Resolve from persisted IDs and use updateColor so banners and map readers agree.
+#if EC_PENDING
+    public static void Restore(Realm kingdom, int preferredColorId = -1,
+        ColorAsset formerOverlordColor = null, bool useOriginalColor = true)
+    {
+        if (kingdom?.Record == null || kingdom.IsGone() || AncientWarfareCompatibility.Owns(kingdom)) return;
+        var library = kingdom.getColorLibrary();
+        var colors = library?.list;
+        if (colors == null || colors.Count == 0) return;
+        int index = preferredColorId;
+        if (useOriginalColor && (index < 0 || index >= colors.Count || colors[index] == null))
+            index = kingdom.Record.original_color_id;
+        ColorAsset next = index >= 0 && index < colors.Count ? colors[index] : null;
+        if (next == null || next == formerOverlordColor)
+        {
+            next = library.getNextColor(kingdom.getActorAsset());
+            if (next == null || next == formerOverlordColor)
+            {
+                next = null;
+                foreach (ColorAsset candidate in colors)
+                    if (candidate != null && candidate != formerOverlordColor)
+                    {
+                        next = candidate;
+                        break;
+                    }
+            }
+        }
+        if (next == null) return;
+        int nextId = colors.IndexOf(next);
+        if (nextId < 0) return;
+        bool changed = kingdom.Record.color_id != nextId ||
+                       kingdom._cached_color != null && kingdom._cached_color != next;
+        // Also repair a legacy mismatch where the cached color already equals the target,
+        // but the persisted color ID points elsewhere (updateColor would early-return).
+        kingdom._cached_color = null;
+        if (kingdom.Record.color_id < 0 || kingdom.Record.color_id >= colors.Count)
+            kingdom.Record.setColorID(nextId);
+        kingdom.updateColor(next);
+        if (kingdom.Record.original_color_id < 0 || kingdom.Record.original_color_id >= colors.Count)
+            kingdom.Record.original_color_id = nextId;
+        if (changed) EmpireWorld.Current?.zone_calculator?.dirtyAndClear();
+    }
+#endif
+}
+}

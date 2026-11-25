@@ -1,0 +1,239 @@
+// Ported from the EmpireCraft mod: Scripts/GeneralSystems/CultureModernizationSystem.cs @ 64c66e30. Body kept line-for-line for three-way sync;
+// see Port/manifest.json and Tools/PortTool.
+using System;
+using System.Collections.Generic;
+using System.Linq;
+
+namespace EmpireCraft.Core
+{
+
+public readonly struct CultureModernizationResult
+{
+    public readonly int Realms;
+    public readonly int States;
+    public readonly int Citizens;
+    public readonly int Parties;
+
+    public CultureModernizationResult(int realms, int states, int citizens, int parties)
+    {
+        Realms = realms;
+        States = states;
+        Citizens = citizens;
+        Parties = parties;
+    }
+}
+
+// Player shortcut for starting a culture in the modern political era. This deliberately
+// advances institutions and politics, but does not grant the culture every production tech.
+public static class CultureModernizationSystem
+{
+    private static object _scanWorld;
+    private static double _lastRealmTransitionScan = -1d;
+
+    private static readonly PartyIdeology[] ModernBaseIdeologies =
+    {
+        PartyIdeology.Centrism,
+        PartyIdeology.SocialLiberalism,
+        PartyIdeology.ConservativeLiberalism
+    };
+
+#if EC_PENDING
+    public static CultureModernizationResult ModernizeWorld()
+    {
+        CultureModernizationResult total = new(0, 0, 0, 0);
+        foreach (string culture in CultureService.GetActiveCultureKeys().ToList())
+        {
+            CultureModernizationResult result = Modernize(culture);
+            total = new CultureModernizationResult(
+                total.Realms + result.Realms,
+                total.States + result.States,
+                total.Citizens + result.Citizens,
+                total.Parties + result.Parties);
+        }
+        WarlordEraSystem.UpdateWorld(force: true);
+        return total;
+    }
+
+    public static CultureModernizationResult Modernize(string culture)
+    {
+        if (!CultureService.IsValidCulture(culture) || EmpireWorld.Current == null)
+            return new CultureModernizationResult(0, 0, 0, 0);
+
+        if (TechnologySystem.PremodernLocked)
+            EmpireCraftWorldLawLibrary.empirecraft_law_premodern?.toggle(false);
+
+        InstitutionSystem.ForceEnactAll(culture);
+        var cultureState = InstitutionSystem.GetOrCreateCultureState(culture);
+        if (cultureState != null)
+        {
+            cultureState.state_ideology = PartyIdeology.Centrism.ToString();
+            cultureState.state_ideology_since = GameClock.Now;
+            cultureState.active_ideology_route = IdeologyRoute.Center.ToString();
+        }
+        int citizens = MoveConservativesIntoModernPolitics(culture);
+
+        List<Realm> realms = EmpireWorld.Current.LiveRealms
+            .Where(kingdom => kingdom?.Record != null && !kingdom.IsGone() && kingdom.IsCivilized() &&
+                              string.Equals(CultureService.GetInstitutionCulture(kingdom), culture,
+                                  StringComparison.Ordinal))
+            .ToList();
+
+        List<Empire> existingStates = ActiveStates(culture);
+        foreach (Empire empire in existingStates)
+        {
+            InstitutionSystem.ChangeRegimeForTransition(empire, RegimeType.Modern);
+            RepublicSystem.SyncWithRegime(empire,
+                foundingIdeology: ModernStateFormationSystem.ResolveGovernmentIdeology(empire.CoreKingdom));
+            ReplaceConservativeGovernment(empire);
+        }
+
+        foreach (Realm kingdom in realms)
+        {
+            if (kingdom.GetRegime()?.type == RegimeType.Modern) continue;
+            kingdom.SetRegimeType(RegimeType.Modern);
+            kingdom.LoadRegime();
+            kingdom.SystemChange();
+        }
+
+        // 有主法理的独立国与附庸国都尝试组建现代政府；纯行政区仍留在所属国家内部。
+        // 不能组建政府者不论有无法理，都按理念显示为地方武装。
+        foreach (Realm kingdom in realms.Where(kingdom =>
+                     !kingdom.IsEmpire() && !kingdom.IsInEmpire() &&
+                     kingdom.GetAdministrativeTitle() == null).ToList())
+            ModernStateFormationSystem.TryUpdate(kingdom);
+
+        foreach (Empire state in ActiveStates(culture))
+            ModernStateFormationSystem.MergeSameCoreVassals(state);
+
+        List<Empire> states = ActiveStates(culture);
+        int parties = 0;
+        foreach (Empire empire in states)
+        {
+            if (empire.CoreKingdom.GetRegime()?.type != RegimeType.Modern)
+                InstitutionSystem.ChangeRegimeForTransition(empire, RegimeType.Modern);
+            RepublicSystem.SyncWithRegime(empire,
+                foundingIdeology: ModernStateFormationSystem.ResolveGovernmentIdeology(empire.CoreKingdom));
+            ReplaceConservativeGovernment(empire);
+            foreach (PartyIdeology ideology in ModernBaseIdeologies)
+            {
+                if (PartySystem.GetParties(empire).Any(party => party.Ideology == ideology)) continue;
+                if (PartySystem.PlayerFoundParty(empire, ideology) != null) parties++;
+            }
+        }
+
+        return new CultureModernizationResult(realms.Count, states.Count, citizens, parties);
+    }
+#endif
+
+    // 文化自然进入现代政治后，旧王国不能永远停在封建政体。每年承接一次：
+    // 有法理的独立国、附庸及次级附庸均可按首领理念组建政府；不能组建政府者
+    // 不论有无法理，都走理念对应的地方武装命名。纯行政区不参与。
+#if EC_PENDING
+    public static void TryYearlyRealmTransitionScan()
+    {
+        if (EmpireWorld.Current == null || ModClass.IS_CLEAR || TechnologySystem.PremodernLocked) return;
+        // 军阀时期的年度扫描是分帧做的，平时靠各政府的更新每帧推进；全图一个政府也没有时只有这里调用，
+        // 以前一年才调一次，只做得完第一片，到期重排又从头开始，后面的核心永远轮不到。这里每轮都推进一片
+        WarlordEraSystem.UpdateWorld();
+        double now = GameClock.Now;
+        if (!ReferenceEquals(_scanWorld, EmpireWorld.Current) || now < _lastRealmTransitionScan)
+        {
+            _scanWorld = EmpireWorld.Current;
+            _lastRealmTransitionScan = now;
+            return;
+        }
+        if (_lastRealmTransitionScan >= 0d && GameClock.YearsSince(_lastRealmTransitionScan) < 1) return;
+        _lastRealmTransitionScan = now;
+
+        bool changed = false;
+        foreach (Realm subject in EmpireWorld.Current.LiveRealms.ToList())
+            if (subject?.GetRegime()?.type == RegimeType.Modern &&
+                FeudalVassalService.GetOverlord(subject) != null)
+                changed |= ModernStateFormationSystem.TryMergeIntoOverlordGovernment(subject);
+        foreach (string culture in CultureService.GetActiveCultureKeys().ToList())
+        {
+            if (!HasEnteredModernPolitics(culture)) continue;
+            changed |= TransitionIndependentRealms(culture);
+        }
+        WarlordEraSystem.UpdateWorld(force: changed);
+    }
+#endif
+
+    // 本文化进入现代政治：先得有政党政治(开放党禁，要先立宪)，再有国家主理念或可废君主。
+    // 以前有了国家主理念就算——制度还没立宪，一次共和就让同文化所有独立国家每年被改成现代政体
+    private static bool HasEnteredModernPolitics(string culture)
+    {
+        if (InstitutionSystem.GetFeature(culture, PartySystem.FeaturePartyPolitics) <= 0f) return false;
+        return IdeologySpreadSystem.TryGetStateIdeology(culture, out _) ||
+               InstitutionSystem.GetFeature(culture, RepublicSystem.FeatureAbolishMonarchy) > 0f;
+    }
+
+    // 按制度文化找本文化的国家：旧制犹存的算在旧制所属的文化里(见 LegacyInstitutionSystem)
+#if EC_PENDING
+    private static bool TransitionIndependentRealms(string culture)
+    {
+        List<Realm> candidates = EmpireWorld.Current.LiveRealms
+            .Where(kingdom => kingdom?.Record != null && !kingdom.IsGone() && kingdom.IsCivilized() &&
+                              !kingdom.IsEmpire() && !kingdom.IsInEmpire() &&
+                              kingdom.GetAdministrativeTitle() == null &&
+                              string.Equals(CultureService.GetInstitutionCulture(kingdom), culture,
+                                  StringComparison.Ordinal))
+            .ToList();
+        bool changed = false;
+        foreach (Realm kingdom in candidates)
+        {
+            if (PuppetStateSystem.IsPuppet(kingdom)) continue;
+            // 近代化按国家各自走(用户 2026-11-10 "全文明一同现代化的设定")：以前同文化一进现代政治，这里每年把独立君主国统统改成
+            // 现代政体；现在君主国照本国条件掷共和革命(见 StateModernization.TryRevolution)，没起革命的照旧是君主国
+            if (kingdom.GetRegime()?.type != RegimeType.Modern)
+            {
+                if (!StateModernization.TryRevolution(kingdom)) continue;
+                changed = true;
+            }
+            if (ModernStateFormationSystem.TryUpdate(kingdom)) changed = true;
+        }
+        return changed;
+    }
+
+    private static void ReplaceConservativeGovernment(Empire empire)
+    {
+        var state = empire?.data?.constitutional_economy;
+        if (state?.is_republic != true || state.republic_ideology != PartyIdeology.Conservatism) return;
+        state.republic_ideology = PartyIdeology.Centrism;
+        empire.CoreKingdom.GetOrCreate().ideology_country_suffix =
+            PartySystem.PickCountrySuffix(empire, PartyIdeology.Centrism);
+        RepublicSystem.EnsureIdeologyBureau(empire);
+    }
+
+    private static List<Empire> ActiveStates(string culture) =>
+        (ModClass.EMPIRE_MANAGER ?? Enumerable.Empty<Empire>())
+        .Where(empire => empire?.data != null && !empire.IsArchived() && !empire.IsGone() &&
+                         empire.CoreKingdom != null &&
+                         string.Equals(InstitutionSystem.GetPrimaryCulture(empire), culture,
+                             StringComparison.Ordinal))
+        .ToList();
+
+    private static int MoveConservativesIntoModernPolitics(string culture)
+    {
+        int changed = 0;
+        foreach (Person actor in EmpireWorld.Current.Living.getSimpleList().ToList())
+        {
+            if (actor == null || actor.IsGone() || !actor.Alive || actor.City == null ||
+                actor.IsWarMachine() ||
+                !string.Equals(CultureService.GetActorCulture(actor), culture, StringComparison.Ordinal) ||
+                IdeologyPopulationSystem.Get(actor) != PartyIdeology.Conservatism) continue;
+
+            int bucket = (int)((actor.Key & long.MaxValue) % 10L);
+            PartyIdeology ideology = bucket < 5
+                ? PartyIdeology.Centrism
+                : bucket < 8
+                    ? PartyIdeology.SocialLiberalism
+                    : PartyIdeology.ConservativeLiberalism;
+            IdeologyPopulationSystem.Set(actor, ideology);
+            changed++;
+        }
+        return changed;
+    }
+#endif
+}
+}

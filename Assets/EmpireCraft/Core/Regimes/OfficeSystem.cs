@@ -1,0 +1,710 @@
+// Ported from the EmpireCraft mod: Scripts/Regimes/OfficeSystem.cs @ 64c66e30. Body kept line-for-line for three-way sync;
+// see Port/manifest.json and Tools/PortTool.
+using Time = EmpireCraft.Core.FrameClock;
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using Newtonsoft.Json;
+
+namespace EmpireCraft.Core
+{
+public enum OfficerPowerType
+{
+    宗教,     //宗教扩张加成
+    天子智教,  //增加天子智力
+    天子政教,  //添加皇帝diplomacy
+    天子护理,  //天子健康
+    备选,     //国王候补
+    拟定,     //拟定开战，制度转换
+    审核,     //同意或驳回政策
+    执行,     //开战，外交执行
+    人事,     //官员任免
+    财政,     //增加基础财政收入
+    礼仪,     //增加周边国家好感度
+    军事,     //加强军队攻击力
+    司法,     //减少叛乱和腐败
+    建设,     //加快建设速度
+    教育,     //国民基础智力增加
+    生育      //为皇帝诞下子嗣
+}
+public class BureauSetting
+{
+    public string pre;
+    public int type;
+    public string description;
+    public List<OfficerPowerType> powers;
+    public int merit;
+    public int honorary;
+    public bool select_from_local;
+    public List<string> condition;
+    public LeaderSelectMethod leader_select_method;
+    public List<string> require_traits;
+    // Central offices are department heads by default; false explicitly marks a permanent deputy/administrative post.
+    public bool? political_appointment;
+    public CityType city_type;
+    // Optional display suffix overrides; city_type continues to select city offices.
+    public string city_suffix_key;
+    public string capital_city_suffix_key;
+    // Optional culture-specific overrides for shared government templates.
+    public Dictionary<string, string> city_suffix_keys_by_culture;
+    public Dictionary<string, string> capital_city_suffix_keys_by_culture;
+}
+
+public class BureauConfig
+{
+    public List<BureauSetting> cores;
+    public List<BureauSetting> division;
+    public List<BureauSetting> harems;
+    public Dictionary<KingdomType, BureauSetting> kingdoms;
+    public Dictionary<CityType, BureauSetting> cities;
+    public Dictionary<ArmyOfficialType, BureauSetting> armies;
+}
+
+public static class OfficeManager
+{
+    public static Dictionary<long, OfficeObject> Offices = new();
+    public static bool Remove(long pOfficeID)
+    {
+        var res = Offices.Remove(pOfficeID);
+        return res;
+    }
+
+    // 撤掉一个官职，挂在上面的人一并卸任(以前只删官职，人身上还留着"在任"和官身里的官职编号)
+#if EC_PENDING
+    public static void RemoveAndRetire(long pOfficeID)
+    {
+        if (!Offices.TryGetValue(pOfficeID, out OfficeObject office)) return;
+        Person holder = office == null || office.actor_id < 0 ? null : EmpireWorld.Current?.units?.get(office.actor_id);
+        if (holder?.Record != null && !holder.IsGone() && holder.GetOrCreate().OfficeId == pOfficeID)
+        {
+            holder.EndOffice();
+            if (holder.HasOfficeIdentity() && holder.GetIdentity()?.GetOfficeId() == pOfficeID) holder.GetIdentity().RemoveOffice();
+        }
+        Offices.Remove(pOfficeID);
+    }
+#endif
+
+    // 清掉没有主人的官职：存活国家、存活城市、未解散帝国的中央机构(含后宫)、仍在的原版军队之外的官职都删掉，
+    // 挂在上面的人一并卸任。以前国家灭亡、城市被毁、帝国解散、军队解散后旧官职一直留着；
+    // 军队官职的归属不进存档，读档后认不回来又新建一份；中央机构每次重建还把每个官职登记两次。
+    // 本地存档里官职表有 11157 条，真正有人在任的只有 92 条。读档后、存档前与游戏中每分钟各清一次
+#if EC_PENDING
+    public static int Prune()
+    {
+        if (EmpireWorld.Current?.LiveRealms == null || Offices.Count == 0) return 0;
+        var live = new HashSet<long>();
+        foreach (Realm kingdom in EmpireWorld.Current.LiveRealms)
+            if (kingdom?.Record != null && !kingdom.IsGone()) live.Add(kingdom.GetOfficeID());
+        foreach (City city in EmpireWorld.Current.Cities)
+            if (city?.Record != null && !city.IsGone()) live.Add(city.GetOfficeID());
+        if (ModClass.EMPIRE_MANAGER != null)
+            foreach (Empire empire in ModClass.EMPIRE_MANAGER)
+            {
+                CenterOffice center = empire?.data?.centerOffice;
+                if (center == null || empire.IsArchived() || empire.IsGone()) continue;
+                foreach (long id in center.CoreOffices ?? new List<long>()) live.Add(id);
+                foreach (long id in center.Divisions ?? new List<long>()) live.Add(id);
+                foreach (long id in center.Harems ?? new List<long>()) live.Add(id);
+            }
+        var stale = new List<long>();
+        foreach (KeyValuePair<long, OfficeObject> pair in Offices)
+        {
+            if (live.Contains(pair.Key)) continue;
+            if (pair.Value?.meta_object is Army army && !army.IsGone()) continue;
+            stale.Add(pair.Key);
+        }
+        foreach (long id in stale)
+        {
+            Person holder = Offices[id]?.GetActor();
+            if (holder?.Record != null && !holder.IsGone() && holder.GetOrCreate().OfficeId == id)
+            {
+                holder.EndOffice();
+                if (holder.HasOfficeIdentity() && holder.GetIdentity()?.GetOfficeId() == id) holder.GetIdentity().RemoveOffice();
+            }
+            Offices.Remove(id);
+        }
+        if (stale.Count > 0) LogService.LogInfo($"[EmpireCraft][官职] 清掉没有主人的官职 {stale.Count} 条，剩 {Offices.Count} 条");
+        return stale.Count;
+    }
+#endif
+
+    private static float _pruneAt;
+
+    // 游戏中每分钟清一次
+#if EC_PENDING
+    public static void Tick()
+    {
+        if (EmpireWorld.Current == null || !Config.game_loaded || SmoothLoader.isLoading() || Time.unscaledTime < _pruneAt) return;
+        _pruneAt = Time.unscaledTime + 60f;
+        Prune();
+    }
+#endif
+    public static List<OfficerPowerType> AllPower = new List<OfficerPowerType>
+    {
+        OfficerPowerType.财政, OfficerPowerType.人事, OfficerPowerType.军事, OfficerPowerType.审核, 
+        OfficerPowerType.宗教, OfficerPowerType.执行, OfficerPowerType.教育, OfficerPowerType.礼仪,
+        OfficerPowerType.司法, OfficerPowerType.天子护理, OfficerPowerType.天子政教, OfficerPowerType.天子智教,
+        OfficerPowerType.建设, OfficerPowerType.生育
+    };
+}
+public class OfficeObject
+{
+    public long OfficeID { get; set; }
+    public double timestamp { get; set; }
+    public int officeType { get; set; }
+    public bool? political_appointment { get; set; }
+    public long actor_id { get; set; } = -1L;
+    public string pre { get; set; } = "";
+    public int merit { get; set; }
+    public List<OfficerPowerType> powers { get; set; }
+    public int honorary { get; set; }
+    [JsonIgnore]
+    public Entity meta_object { get; set; } = null;
+
+    public double last_pregnant_timestamp { get; set; } = -1L;
+
+    public bool select_from_local { get; set; } = false;
+    public LeaderSelectMethod leader_select_method { get; set; }
+    public bool is_local { get; set; } = false;
+    public RegimeType regimeType { get; set; }
+    public PeerageType peerageType { get; set; } = PeerageType.Civil;
+    public List<string> require_traits { get; set; } = new List<string>();
+    public List<string> history_officers = new List<string>();
+    
+#if EC_PENDING
+    public string GetName(Entity pNano = null)
+    {
+        string officePrefix = pre ?? "";
+        bool flag = officePrefix.Contains("_all");
+        string preX = string.IsNullOrEmpty(officePrefix) ? "" : LM.Get(officePrefix);
+        if (pNano is Army army && army._city?.data != null)
+        {
+            string cityName = army._city.GetCityName();
+            if (!string.IsNullOrWhiteSpace(cityName)) preX = cityName;
+        }
+        else switch (pNano?.meta_type)
+        {
+            case MetaType.Kingdom:
+                Realm kingdom = (Realm)pNano;
+                if (kingdom.Record != null)
+                {
+                    string kingdomName = kingdom.GetKingdomName();
+                    if (!string.IsNullOrWhiteSpace(kingdomName)) preX = kingdomName;
+                }
+                break;
+            case MetaType.City:
+                City city = (City)pNano;
+                if (city.Record != null)
+                {
+                    string cityName = city.GetCityName();
+                    if (!string.IsNullOrWhiteSpace(cityName)) preX = cityName;
+                }
+                break;
+        }
+        string post = LM.Get(EmpireCraft.Core.DynastyNaming.RankKey(regimeType, officeType,
+            pNano ?? meta_object)) ?? "";
+        if (flag) return post;
+        // 封国国君的官称：单字国名补“国”(湘国侯)
+        return pNano?.meta_type == MetaType.Kingdom
+            ? EmpireCraft.Core.ActorExtension.JoinRealmRank(preX, post)
+            : preX + post;
+    }
+    public void DetectPower(Empire empire)
+    {
+        var officer = GetActor();
+        foreach (var power in powers)
+        {
+            var newAddition = officer.CalcPower(power, empire);
+            empire.data.additions.Add(newAddition);
+            if (power == OfficerPowerType.生育)
+            {
+                if (officer.IsGone()) return;
+                if (GetPregnantYear() > 2)
+                {
+                    var kingdom = (Realm) meta_object;
+                    if (kingdom != null)
+                    {
+                        // 原版几岁就算成年：君主与女官都到生养的年纪(见 RealisticAgeSystem.MinParentAge)
+                        if (RealisticAgeSystem.OldEnoughToParent(officer) && RealisticAgeSystem.OldEnoughToParent(kingdom.Ruler) &&
+                            RealisticAgeSystem.YoungEnoughToParent(officer) && RealisticAgeSystem.YoungEnoughToParent(kingdom.Ruler) &&
+                            OverallHelperFunc.HasChangeToGiveBirth(officer, kingdom.Ruler) && RoyalHouseSystem.CanBirth(kingdom.Ruler))
+                        {
+                            BabyMaker.makeBaby(kingdom.Ruler, officer); 
+                        } 
+                    }
+                    last_pregnant_timestamp = GameClock.Now;
+                }
+            }
+        }
+    }
+#endif
+
+    public int GetPregnantYear()
+    {
+        if (last_pregnant_timestamp == -1L)
+        {
+            return 999;
+        }
+
+        return GameClock.YearsSince(last_pregnant_timestamp);
+    }
+#if EC_PENDING
+    public string GetOfficeName(Entity pNano = null)
+    {
+        string officePrefix = pre ?? "";
+        var flag = officePrefix.Contains("full")||officePrefix.Contains("all");
+        var preX = LM.Get(EmpireCraft.Core.DynastyNaming.RankKey(regimeType, officeType,
+            pNano ?? meta_object));
+        if (flag) preX = LM.Get(officePrefix);
+        switch (pNano?.meta_type)
+        {
+            case MetaType.Kingdom:
+                Realm kingdom = (Realm)pNano;
+                if (kingdom.Record != null && !string.IsNullOrWhiteSpace(kingdom.Name))
+                    preX = kingdom.Name;
+                break;
+            case MetaType.City:
+                City city = (City)pNano;
+                if (city.Record != null && !string.IsNullOrWhiteSpace(city.Name))
+                    preX = city.Name;
+                break;
+        }
+        return preX ?? "";
+    }
+#endif
+    public void InitialOffice(BureauSetting config, Action action = null, bool isNew = true)
+    {
+        officeType = config.type;
+        political_appointment = config.political_appointment;
+        timestamp = GameClock.Now;
+        pre = config.pre;
+        merit = config.merit;
+        honorary = config.honorary;
+        require_traits = config.require_traits;
+        select_from_local = config.select_from_local;
+        leader_select_method = config.leader_select_method;
+        powers = config.powers;
+        history_officers = new List<string> {};
+        if (isNew)
+        {
+            OfficeID = OverallHelperFunc.IdGenerator.NextId();
+            OfficeManager.Offices.Add(OfficeID, this);
+        }
+    }
+
+    // 重建官署时沿用的官职：只换配置(选法、权力、名号前缀……)，在任的人、任期、历任不动
+    public void ApplyConfig(BureauSetting config)
+    {
+        officeType = config.type;
+        political_appointment = config.political_appointment;
+        pre = config.pre;
+        merit = config.merit;
+        honorary = config.honorary;
+        require_traits = config.require_traits;
+        select_from_local = config.select_from_local;
+        leader_select_method = config.leader_select_method;
+        powers = config.powers;
+    }
+
+    // 这个人能不能任这个官(SetActor 的门槛)。选人时先过一遍：以前选中妃嫔、君主配偶这类任不上的人，
+    // SetActor 不声不响地拒掉，下一轮又选中同一人，官位一直空着
+#if EC_PENDING
+    public bool Accepts(Person actor)
+    {
+        if (is_local && meta_object is Realm constitutionalCore && constitutionalCore.IsEmpire() &&
+            ConstitutionalSuccessionSystem.ThroneBound(constitutionalCore.GetEmpire()) &&
+            !ConstitutionalSuccessionSystem.CanInherit(constitutionalCore.GetEmpire(), actor)) return false;
+        if (actor == null) return false;
+        // 世袭君位按血统传给继承人，不是任官：罢官禁锢(本人连同子孙不得出仕，见 EmpireLawSystem)管不着即位，只看活着、没在押。
+        // 用户 2026-11-10 "继任者不当皇帝"：储君早年贪污被罢官禁锢，先帝驾崩后任他为帝在这里被拒，继承人又不换，皇位一直空着
+        if (InheritsThrone(actor))
+        {
+            if (actor.IsGone() || !actor.Alive || actor.IsWarMachine() ||
+                EmpireCraft.Core.EmpireLawSystem.IsImprisoned(actor)) return false;
+        }
+        else if (!actor.CanServeOffice(GetOfficeKingdom(actor))) return false;
+        // 君主之位以外的官职(城主、朝官)只任成年人；君主可以是幼主(用户 2026-10-17 选"国君可以是幼主，城主不行")
+        if (!actor.IsAdult() && !(meta_object is Realm ruler && ruler.GetOffice() == this)) return false;
+        // 后宫以外的官职不任用妃嫔与在位君主的配偶；君主之位(本国的君主官职)不受影响
+        if (leader_select_method != LeaderSelectMethod.Harem && !(meta_object is Realm ruled && ruled.GetOffice() == this) &&
+            actor.IsHaremOrConsort()) return false;
+        if (EmpireCraft.Core.AncientWarfareCompatibility.Owns(actor) ||
+            EmpireCraft.Core.AncientWarfareCompatibility.OwnsObject(meta_object)) return false;
+        return true;
+    }
+#endif
+
+    // 这是世袭国家本国的君主之位，来的是本国的继承人
+#if EC_PENDING
+    private bool InheritsThrone(Person actor) =>
+        meta_object is Realm seat && seat.GetOffice() == this && seat.HasHeir() && seat.GetHeir() == actor &&
+        seat.GetRegime()?.GetLeaderSelectMethod() == LeaderSelectMethod.Succession;
+
+    public void SetActor (Person actor)
+    {
+        // 神圣罗马式选帝制：选出别的成员国的君主时，他带着自家领国成为帝国中央，不调进原中央(见 HolyRomanSystem)
+        if (is_local && meta_object is Realm electedSeat &&
+            EmpireCraft.Core.HolyRomanSystem.TryElectHouse(electedSeat, actor)) return;
+        if (!Accepts(actor)) return;
+        var originalActor = GetActor();
+        if (originalActor != null && !originalActor.IsGone())
+        {
+            originalActor.EndOffice();
+            if (originalActor.HasOfficeIdentity())
+            {
+                var id = originalActor.GetIdentity();
+                id.RemoveOffice();
+            }
+            else
+            {
+                RemoveActor();
+            }
+        }
+
+        if (actor.IsGone())
+        {
+            return;
+        }
+        bool isReappointment = history_officers.Contains(actor.Name);
+        if(!actor.hasCulture())
+        {
+            CultureService.SyncActorToCityMainCulture(actor, actor.City ?? actor.Realm?.Capital);
+        }
+        actor.CheckSpecificClan();
+        //初始化角色官职：科举国家的官身由科举给，没考过(宗族、职业补任或从人口补上来)的也给一份，
+        //否则这些人没有官阶，也进不了派系、内阁
+        if (actor.Realm.GetRegime().GetLeaderSelectMethod() != LeaderSelectMethod.Exam || !actor.HasOfficeIdentity())
+        {
+            actor.InitialIdentity();
+        }
+        if (actor.HasOfficeIdentity())
+        {
+            var identity = actor.GetIdentity();
+            if (identity != null)
+            {
+                if (actor.IsOnOffice())
+                {
+                    identity.RemoveOffice();
+                }
+                identity.SetOfficeId(OfficeID, actor);
+                actor.addTrait("officer");
+                actor.ChangeOfficialLevel(officeType);
+                OfficialRankSystem.OnAppointed(actor, this);
+            }
+        }
+        actor.StartOffice(this);
+        actor_id = actor.Key;
+        timestamp = GameClock.Now;
+        var empireName = "";
+        if (actor?.kingdom?.IsInEmpire() ?? false)
+        {
+            if (actor?.kingdom?.GetEmpire()!=null)
+            {
+                empireName = actor?.kingdom?.GetEmpire().GetEmpireName()+" | ";
+            }
+        }
+        var personalId = actor.GetPersonalIdentity();
+        personalId?.SetOfficeName(empireName+GetName());
+        // Kings and city leaders are also offices. Record their appointment here
+        // once instead of creating a second king/leader-specific history entry.
+        string officeHistoryKey = isReappointment ? "personal_history_office_reappointed" : "personal_history_office_started";
+        actor.RecordPersonalHistory(string.Format(LM.Get(officeHistoryKey), GetName(meta_object)));
+        // 本地官职还没挂回所属的城、国(meta_object 不进存档，读档后要等各自的行为检查挂回)：只记任职，不就位
+        if(!is_local || meta_object == null) return;
+        switch (meta_object.meta_type)
+        {
+            case MetaType.City:
+                City city =  (City)meta_object;
+                city.setLeader(actor, true);
+                actor.joinCity(city);
+                if (city?._city_tile != null)
+                {
+                    actor.goTo(city._city_tile);
+                }
+                personalId?.SetOfficeName(GetName(city));
+                break;
+            case MetaType.Kingdom:
+                Realm kingdom = (Realm)meta_object;
+                if (kingdom.IsInEmpire() && !kingdom.IsEmpire())
+                {
+                    personalId?.SetOfficeName(kingdom.GetEmpire().GetEmpireName() + "| ");
+                }
+                personalId?.SetOfficeName(GetName(kingdom));
+                kingdom.SetRuler(actor); 
+                actor.joinCity(kingdom.Capital);
+                if (kingdom?.capital?._city_tile != null)
+                {
+                    actor.goTo(kingdom.Capital._city_tile);
+                }
+                break;
+        }
+    }
+    public Person GetActor()
+    {
+        var res = EmpireWorld.Current.PersonByKey(actor_id);
+        if (res != null && res.IsWarMachine())
+        {
+            ClearInvalidHolder(res);
+            return null;
+        }
+        if (res != null)
+        {
+            if (res.isUnitFitToRule() && res.IsAdult())
+            {
+                return res;
+            }
+        }
+        return null;
+    }
+
+    private Realm GetOfficeKingdom(Person fallback = null)
+    {
+        if (meta_object is Realm kingdom) return kingdom;
+        if (meta_object is City city) return city.Realm;
+        if (meta_object is Army army) return army._city?.kingdom;
+        return fallback?.Realm;
+    }
+
+    private void ClearInvalidHolder(Person actor)
+    {
+        if (actor != null)
+        {
+            actor.EndOffice();
+            if (actor.hasTrait("officer")) actor.removeTrait("officer");
+            if (actor.hasTrait("officerLeave")) actor.removeTrait("officerLeave");
+            actor.RemoveIdentity();
+        }
+        actor_id = -1L;
+    }
+    public int GetOnTime()
+    {
+        if (this.actor_id == -1L)
+        {
+            return -1;
+        }
+        if (GetActor() == null)
+        {
+            return -1;
+        }
+        return GameClock.YearsSince(this.timestamp);
+    }
+
+    public void RemoveActor()
+    {
+        Person actor = EmpireWorld.Current.PersonByKey(actor_id);
+        if (actor!=null)
+        {
+            if (actor.hasTrait("officer"))
+            {
+                actor.addTrait("officerLeave");
+            }
+            history_officers.Add(actor.Name);
+            PersonalClanIdentity personalIdentity = actor.GetPersonalIdentity();
+            if (personalIdentity != null && !personalIdentity.death_history_recorded && actor.Alive && !actor.IsGone())
+            {
+                actor.RecordPersonalHistory(string.Format(LM.Get("personal_history_office_left"), GetName(meta_object)));
+            }
+            actor.EndOffice();
+            if (officeType is > 13 and <= 22)
+            {
+                actor.lover = null;
+            }
+        }
+
+
+        actor_id = -1L;
+        
+    }
+#endif
+}
+
+public class CenterOffice
+{
+    public List<long> CoreOffices { get; set; } = new List<long>();
+    public List<long> Divisions { get; set; } = new List<long>();
+    public List<long> Harems { get; set; } = new List<long>();
+    // 重建中央官署。同一种官职(类型号相同)沿用原来的官职对象，在任的人、任期、历任都留着；新设的官职空着等补，
+    // 撤掉的官职连人一起卸任。以前每次重建都整套删掉换成空缺：征服王朝成员国政体一变(每年制度同步)、读档、
+    // 存档前的帝国更新都会重建，中枢官职常年没人，存档里看到的整个朝廷都是空的
+#if EC_PENDING
+    public void Init(Realm pKingdom)
+    {
+        Regime pRegime = pKingdom.GetRegime();
+        // 共和国的核心国：中央机构按执政理念成套(见 RepublicSystem / IdeologyBureaus.json)
+        // 华夏律令制在秦汉阶段设三公九卿(见 CourtSystem.Dynasty)
+        BureauConfig bureau = RepublicSystem.GetBureauOverride(pKingdom, pRegime.bureau_config) ??
+                              CourtSystem.GetBureauOverride(pKingdom, pRegime.bureau_config) ?? pRegime.bureau_config;
+        Rebuild(CoreOffices, bureau.cores, pKingdom);
+        Rebuild(Divisions, bureau.division, pKingdom);
+        Rebuild(Harems, bureau.harems, pKingdom);
+        SyncFactionRatios(pKingdom);
+    }
+
+    private static void Rebuild(List<long> ids, List<BureauSetting> configs, Realm pKingdom)
+    {
+        var pool = new List<OfficeObject>();
+        foreach (long id in ids)
+            if (OfficeManager.Offices.TryGetValue(id, out OfficeObject old) && old != null && !pool.Contains(old)) pool.Add(old);
+        var kept = new HashSet<long>();
+        ids.Clear();
+        RegimeType regimeType = pKingdom.GetRegime().type;
+        foreach (BureauSetting config in configs ?? new List<BureauSetting>())
+        {
+            OfficeObject o = pool.FirstOrDefault(old => old.officeType == config.type);
+            if (o != null)
+            {
+                pool.Remove(o);
+                o.ApplyConfig(config);
+            }
+            else
+            {
+                o = new OfficeObject();
+                // 下面自己取 id 登记；这里再登记一次的话，第一个 id 没人记得，永远留在官职表里
+                o.InitialOffice(config, isNew: false);
+                o.OfficeID = OverallHelperFunc.IdGenerator.NextId();
+                o.actor_id = -1L;
+                o.history_officers.Clear();
+                OfficeManager.Offices.Add(o.OfficeID, o);
+            }
+            o.regimeType = regimeType;
+            o.meta_object = pKingdom;
+            o.is_local = false;
+            o.select_from_local = false;
+            ids.Add(o.OfficeID);
+            kept.Add(o.OfficeID);
+        }
+        foreach (OfficeObject stale in pool)
+            if (!kept.Contains(stale.OfficeID)) OfficeManager.RemoveAndRetire(stale.OfficeID);
+    }
+#endif
+
+    // 派系占比挂回核心国现在的派系：读档时占比表的键只是记着编号的占位派系(见 FactionRatioConverter)，
+    // 要按编号对回政体里真正的派系；成员国不设中央派系。以前每次存读档都整套重建官署、顺带在这里对一次，
+    // 官署完好不重建以后(见 Empire.TryRepairState)也要照对，否则读档后核心国各派占比都按 0 算
+#if EC_PENDING
+    public void SyncFactionRatios(Realm pKingdom)
+    {
+        if (pKingdom == null || !pKingdom.IsEmpire()) return;
+        var empire = pKingdom.GetEmpire();
+        empire?.kingdoms_list.ForEach(k =>
+        {
+            if (k == null || k.IsGone()) return;
+            if (k == empire.CoreKingdom)
+                k.ReconcileFactionRatios(pKingdom.GetRegime()?.GetPlayerFactions());
+            else
+                k.GetOrCreate().FactionRatio?.Clear();
+        });
+    }
+#endif
+
+    public void SyncMetaObject(Realm pkingdom)
+    {
+        foreach (var office_id in CoreOffices)
+        {
+            OfficeObject office = OfficeManager.Offices.TryGetValue(office_id, out OfficeObject o)? o: null;
+            if (office != null)
+            {
+                office.meta_object = pkingdom;
+                office.is_local = false;
+            }
+        }
+        foreach (var office_id in Divisions)
+        {
+            OfficeObject office = OfficeManager.Offices.TryGetValue(office_id, out OfficeObject o)? o: null;
+            if (office != null)
+            {
+                office.meta_object = pkingdom;
+                office.is_local = false;
+            }
+        }
+        // 后宫也要挂回核心国：meta_object 不进存档，读档后不挂回的话选妃(TryGetHarem)取 meta_object 时是空的。
+        // 以前读档时整套中央官署都重建一遍，后宫跟着新建，没露出来
+        foreach (var office_id in Harems ?? new List<long>())
+        {
+            OfficeObject office = OfficeManager.Offices.TryGetValue(office_id, out OfficeObject o)? o: null;
+            if (office != null)
+            {
+                office.meta_object = pkingdom;
+                office.is_local = false;
+            }
+        }
+    }
+
+    // 官署完好：登记的官职都还在官职表里、按核心国现在的政体设立，而且不是一个官职都没有。
+    // 完好的不必重建(重建会把在任者全部撤掉，见 Empire.TryRepairState)
+#if EC_PENDING
+    public bool IsIntact(Realm core)
+    {
+        RegimeType? type = core?.GetRegime()?.type;
+        if (type == null || CoreOffices == null || Divisions == null || Harems == null) return false;
+        int count = 0;
+        foreach (long id in CoreOffices.Concat(Divisions).Concat(Harems))
+        {
+            if (!OfficeManager.Offices.TryGetValue(id, out OfficeObject office) || office == null ||
+                office.regimeType != type) return false;
+            count++;
+        }
+        return count > 0;
+    }
+
+    public List<Person> GetAllOfficers(Empire empire)
+    {
+        List<Person> officers = new List<Person>();
+        foreach (Realm kingdom in empire.kingdoms_list)
+        {
+            officers.AddRange(kingdom.units.ToList().FindAll(a => a.hasTrait("officer")));
+        }
+
+        return officers;
+    }
+
+    public List<OfficeObject> GetAllOffices(Empire empire)
+    {
+        List<OfficeObject> offices = new List<OfficeObject>();
+        foreach (Realm kingdom in empire.kingdoms_list)
+        {
+            if (kingdom.GetOffice() != null)
+            {
+                offices.Add(kingdom.GetOffice());
+            }
+        }
+
+        foreach (var city in empire.AllCities())
+        {
+            if (city.GetOffice() != null)
+            {
+                offices.Add(city.GetOffice());
+            }
+        }
+
+        foreach (var coo in empire.data.centerOffice.CoreOffices)
+        {
+            var officeObject = OfficeManager.Offices.TryGetValue(coo, out OfficeObject o) ? o : null;
+            if (officeObject != null)
+            {
+                offices.Add(officeObject);
+            }
+        }
+
+        foreach (var dio in empire.data.centerOffice.Divisions)
+        {
+            var officeObject = OfficeManager.Offices.TryGetValue(dio, out OfficeObject o) ? o : null;
+            if (officeObject != null)
+            {
+                offices.Add(officeObject);
+            }
+        }
+
+        foreach (var dio in empire.data.centerOffice.Harems)
+        {
+            var officeObject = OfficeManager.Offices.TryGetValue(dio, out OfficeObject o) ? o : null;
+            if (officeObject != null)
+            {
+                offices.Add(officeObject);
+            }
+        }
+        return offices;
+    }
+#endif
+}
+}

@@ -1,0 +1,259 @@
+// Ported from the EmpireCraft mod: Scripts/Data/ConfigActions.cs @ 64c66e30. Body kept line-for-line for three-way sync;
+// see Port/manifest.json and Tools/PortTool.
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Text;
+using System.Threading.Tasks;
+
+namespace EmpireCraft.Core
+{
+    public class ConfigActions
+    {
+#if EC_PENDING
+        public static void SwitchTitleFreezeCallBack(bool on)
+        {
+            ModClass.KINGDOM_TITLE_FREEZE = on;
+        }
+        public static void TextTitleBeenDestroyCallBack(string time)
+        {
+            ModClass.TITLE_BEEN_DESTROY_TIME = int.Parse(time);
+        }
+        public static void TitleMaxCitiesCallBack(string count)
+        {
+            ModClass.TITLE_MAX_CITIES = int.TryParse(count, out int value) ? Math.Max(0, value) : 0;
+        }
+#endif
+        public static void TitleShareLimitCallBack(string count)
+        {
+            DeJureShareSystem.TitleShareLimit = SettlementValue(count, 2, 1, 99);
+            DeJureShareSystem.RefreshShareLimits();
+        }
+        public static void CoreShareLimitCallBack(string count)
+        {
+            DeJureShareSystem.CoreShareLimit = SettlementValue(count, 5, 1, 99);
+            DeJureShareSystem.RefreshShareLimits();
+        }
+        public static void TianxiaShareLimitCallBack(string count)
+        {
+            DeJureShareSystem.TianxiaShareLimit = SettlementValue(count, 2, 1, 99);
+            DeJureShareSystem.RefreshShareLimits();
+        }
+#if EC_PENDING
+        public static void CityMaxZonesCallBack(string count)
+        {
+            ModClass.CITY_MAX_ZONES = int.TryParse(count, out int value) ? Math.Max(0, value) : 50;
+        }
+#endif
+        private static int SettlementValue(string text, int fallback, int min, int max = 100000) =>
+            int.TryParse(text, out int value) ? Math.Min(max, Math.Max(min, value)) : fallback;
+#if EC_PENDING
+        public static void SettlementBaseGoldCallBack(string v) => ModClass.SETTLEMENT_BASE_GOLD = SettlementValue(v, 200, 50);
+        public static void SettlementPerCityGoldCallBack(string v) => ModClass.SETTLEMENT_PER_CITY_GOLD = SettlementValue(v, 25, 0);
+        public static void SettlementReserveGoldCallBack(string v) => ModClass.SETTLEMENT_RESERVE_GOLD = SettlementValue(v, 200, 0);
+        public static void SettlementWoodCallBack(string v) => ModClass.SETTLEMENT_WOOD = SettlementValue(v, 20, 1);
+        public static void SettlementStoneCallBack(string v) => ModClass.SETTLEMENT_STONE = SettlementValue(v, 10, 1);
+        public static void SettlementMinHouseholdsCallBack(string v) => ModClass.SETTLEMENT_MIN_HOUSEHOLDS = SettlementValue(v, 10, 10, 1000);
+        public static void SettlementTargetHouseholdsCallBack(string v) => ModClass.SETTLEMENT_TARGET_HOUSEHOLDS = SettlementValue(v, 20, 10, 1000);
+        public static void SettlementRetainHouseholdsCallBack(string v) => ModClass.SETTLEMENT_RETAIN_HOUSEHOLDS = SettlementValue(v, 30, 30, 1000);
+        public static void SettlementMigrationPercentCallBack(string v) => ModClass.SETTLEMENT_MAX_MIGRATION_PERCENT = SettlementValue(v, 25, 1, 25);
+        public static void SettlementFoodYearsCallBack(string v) => ModClass.SETTLEMENT_FOOD_YEARS = SettlementValue(v, 2, 1, 20);
+        public static void SettlementPreparationMonthsCallBack(string v) => ModClass.SETTLEMENT_PREPARATION_MONTHS = SettlementValue(v, 6, 1, 120);
+        public static void SettlementCooldownMonthsCallBack(string v) => ModClass.SETTLEMENT_COOLDOWN_MONTHS = SettlementValue(v, 36, 1, 1200);
+        public static void FeudalUnionRealmLimitCallBack(string count)
+        {
+            ModClass.FEUDAL_UNION_REALM_LIMIT = int.TryParse(count, out int value) ? Math.Max(1, value) : 3;
+        }
+        public static void SameCultureEmpireLimitCallBack(string count)
+        {
+            ModClass.SAME_CULTURE_EMPIRE_LIMIT = int.TryParse(count, out int value) ? Math.Max(1, value) : 2;
+        }
+        public static void WarEndYearCallBack(string time)
+        {
+            ModClass.WAR_END_YEAR = int.Parse(time);
+        }
+#endif
+        // 0 = 永远不承认分治
+#if EC_PENDING
+        public static void WarlordEraYearsCallBack(string years)
+        {
+            if (int.TryParse(years, out int value)) ModClass.WARLORD_ERA_YEARS = global::System.Math.Max(0, value);
+        }
+        public static void saveFreezeCallBack(bool on)
+        {
+            ModClass.SAVE_FREEZE = on;
+        }
+        public static void HighPopulationPerformanceCallBack(bool on)
+        {
+            ModClass.PERFORMANCE_HIGH_POPULATION_MODE = on;
+        }
+        public static void AdaptiveThroughputPerformanceCallBack(bool on)
+        {
+            ModClass.PERFORMANCE_ADAPTIVE_THROUGHPUT_MODE = on;
+            EmpireCraft.Core.EmpireCraftStrategicScheduler.Reset();
+        }
+        public static void HiddenVisualsPerformanceCallBack(bool on)
+        {
+            ModClass.PERFORMANCE_SKIP_HIDDEN_VISUALS = on;
+        }
+        public static void NameplateOverlapPerformanceCallBack(bool on)
+        {
+            ModClass.PERFORMANCE_SKIP_NAMEPLATE_OVERLAP = on;
+        }
+#endif
+        // 王国推制度改革(见 InstitutionSystem.Realm.cs)；设置里没有这一项时不会回调，ModClass 里默认开
+#if EC_PENDING
+        public static void KingdomInstitutionReformsCallBack(bool on)
+        {
+            ModClass.KINGDOM_INSTITUTION_REFORMS = on;
+        }
+#endif
+        // 神罗帝国解体：外国保护人拉走诸侯同盟、皇帝退位解散(见 HolyRomanSystem.Decline)；设置里没有这一项时默认开
+        public static void HreDissolutionCallBack(bool on)
+        {
+            EmpireCraft.Core.HolyRomanSystem.DissolutionEnabled = on;
+        }
+        // 天下之名：华夏帝国法理国号与复国、西方普世之名、现代唯一合法政府用天下之名(见 RealmNamingSystem)；设置里没有这一项时默认开
+        public static void RealmNameRulesCallBack(bool on)
+        {
+            EmpireCraft.Core.RealmNamingSystem.Enabled = on;
+        }
+        // 多京与直隶：华夏律令制联合天下的多京、行省阶段的两直隶(见 MultiCapitalSystem)；设置里没有这一项时默认开
+        public static void MultiCapitalCallBack(bool on)
+        {
+            EmpireCraft.Core.RealmNamingSystem.MultiCapitalEnabled = on;
+        }
+        // 无人区：连片的山脉、沙漠、冻土雪原、丛林、沼泽划成不归任何城的无人区(见 WildernessSystem)；设置里没有这一项时默认开
+#if EC_PENDING
+        public static void WildernessCallBack(bool on)
+        {
+            EmpireCraft.Core.WildernessSystem.SetEnabled(on);
+        }
+#endif
+        // 雨林全开发：玩家自己的图上雨林算开发完毕、不划无人区，世界地图剧本不受影响(见 WildernessSystem.JungleDeveloped)；设置里没有这一项时默认开
+#if EC_PENDING
+        public static void WildernessJungleDevelopedCallBack(bool on)
+        {
+            EmpireCraft.Core.WildernessSystem.SetJungleDeveloped(on);
+        }
+#endif
+        // 随机地图生成高原(默认开)：新开随机地图时挑一两片成片高地抬成高原、外缘铺山脊坡地留山口(见 PlateauGenerator)；已有的图不动
+        public static void PlateauRandomMapCallBack(bool on)
+        {
+            EmpireCraft.Core.PlateauGenerator.Enabled = on;
+        }
+        // 平滑国界：逐像素画国界、城界，军团模式下占领逐格推进(见 SmoothBorders、FrontSystem.Smooth)
+#if EC_PENDING
+        public static void SmoothBordersCallBack(bool on)
+        {
+            EmpireCraft.Core.SmoothBorders.Set(on);
+        }
+#endif
+        // 性能诊断日志：每 10 秒记各段耗时、帧率、尖峰帧(见 FrameProfiler)，计时本身也占帧数，平时关着
+#if EC_PENDING
+        public static void PerformanceDiagnosticsCallBack(bool on)
+        {
+            FrameProfiler.SetEnabled(on);
+        }
+#endif
+        // 稳定帧率：锁每秒 30 帧、关垂直同步(见 StableFrameRate)
+#if EC_PENDING
+        public static void StableFrameRateCallBack(bool on)
+        {
+            EmpireCraft.Core.StableFrameRate.Set(on);
+        }
+#endif
+
+        // 终端模式(见 TerminalHost)：开关、端口、领着君主时的世界流速(百分比)
+#if EC_PENDING
+        public static void TerminalModeCallBack(bool on)
+        {
+            EmpireCraft.Core.TerminalHost.Enabled = on;
+            EmpireCraft.Core.TerminalHost.Kick();
+        }
+#endif
+        // 轻量主机与服务器核心是两种主机方式，只开一个：开这个就把那个拨回去
+#if EC_PENDING
+        public static void TerminalLightweightHostCallBack(bool on)
+        {
+            EmpireCraft.Core.LightweightHostMode.Enabled = on;
+            if (!on || !EmpireCraft.Core.CoreHost.Enabled) return;
+            EmpireCraft.Core.CoreHost.Enabled = false;
+            EmpireCraft.Core.ModSettingsWindow.SetSwitch(EmpireCraft.Core.CoreHost.SettingId, false);
+        }
+#endif
+        // 用服务器核心当主机(见 CoreHost)：把当前这一局交给本机的独立核心跑，停下时带回
+#if EC_PENDING
+        public static void TerminalCoreHostCallBack(bool on)
+        {
+            EmpireCraft.Core.CoreHost.Enabled = on;
+            if (!on || !EmpireCraft.Core.LightweightHostMode.Enabled) return;
+            EmpireCraft.Core.LightweightHostMode.Enabled = false;
+            EmpireCraft.Core.ModSettingsWindow.SetSwitch(EmpireCraft.Core.LightweightHostMode.SettingId, false);
+        }
+        public static void TerminalPortCallBack(string text)
+        {
+            EmpireCraft.Core.TerminalHost.Port = SettlementValue(text, 8765, 1024, 65535);
+            EmpireCraft.Core.TerminalHost.Kick();
+        }
+#endif
+        // 外网地址：第三方隧道给的固定网址(手机不在同一个网络时用)，填了二维码就用它
+#if EC_PENDING
+        public static void TerminalPublicUrlCallBack(string text)
+        {
+            EmpireCraft.Core.TerminalHost.PublicText = text ?? "";
+        }
+#endif
+        // 联机大厅(见 TerminalHost.Lobby)：接不接入、房间公开与否、房间名、另填的大厅地址
+#if EC_PENDING
+        public static void TerminalLobbyCallBack(bool on)
+        {
+            EmpireCraft.Core.TerminalHost.LobbyEnabled = on;
+        }
+        public static void TerminalRoomOpenCallBack(bool on)
+        {
+            EmpireCraft.Core.TerminalHost.RoomOpen = on;
+        }
+        public static void TerminalRoomNameCallBack(string text)
+        {
+            EmpireCraft.Core.TerminalHost.RoomName = text ?? "";
+        }
+        public static void TerminalLobbyLineCallBack(string text)
+        {
+            EmpireCraft.Core.TerminalHost.LobbyLine = string.IsNullOrWhiteSpace(text) ? "global" : text.Trim();
+        }
+        public static void TerminalLobbyUrlCallBack(string text)
+        {
+            EmpireCraft.Core.TerminalHost.LobbyText = text ?? "";
+        }
+        public static void TerminalSpeedCallBack(string text)
+        {
+            EmpireCraft.Core.TerminalHost.SpeedPercent = SettlementValue(text, 10, 1, EmpireCraft.Core.TerminalHost.MaxSpeedPercent);
+        }
+#endif
+        // 席位上限：至多几部手机各领一位君主(管理员在手机上也能改，见 TerminalHost.Admin)
+#if EC_PENDING
+        public static void TerminalMaxSeatsCallBack(string text)
+        {
+            EmpireCraft.Core.TerminalPairing.Limit =
+                SettlementValue(text, 8, 1, EmpireCraft.Core.TerminalPairing.MaxSeats);
+        }
+#endif
+
+        // 纯净地图模式(见 PureMapMode)下次启动生效：启动读设置时定下本次是否开启，游戏中切换只存下来、提示重启
+        private static bool _pureMapLoaded;
+#if EC_PENDING
+        public static void PureMapCallBack(bool on)
+        {
+            if (!_pureMapLoaded)
+            {
+                _pureMapLoaded = true;
+                ModClass.PURE_MAP_MODE = on;
+                return;
+            }
+            if (on != ModClass.PURE_MAP_MODE)
+                WorldTip.showNow(LM.Get("pure_map_toggle_restart"), false, "top", 4f);
+        }
+#endif
+    }
+}

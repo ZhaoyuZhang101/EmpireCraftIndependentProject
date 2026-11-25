@@ -1,0 +1,395 @@
+// Ported from the EmpireCraft mod: Scripts/GeneralSystems/CultureReformSystem.cs @ 64c66e30. Body kept line-for-line for three-way sync;
+// see Port/manifest.json and Tools/PortTool.
+using System;
+using System.Collections.Generic;
+using System.Linq;
+
+namespace EmpireCraft.Core
+{
+
+// 易俗改制(如北魏孝文帝改革)：国家的文化与治下多数百姓不同时，君主改从百姓之俗——
+//   · 条件：都城的主流文化与国家文化(征服王朝看统治族群的文化)不同，且是治下过半城市的主流文化
+//     (帝国核心按全帝国的城市算)；征服王朝还要这个文化就是它采用的制度文化；
+//   · 国家文化、法理文化(未锁定、未开固定法理文化时)改为这个文化，政体随之改为该文化的政体
+//     (帝国核心由制度系统重算)；征服王朝融合一步到位；
+//   · 王族与旧俗出身的在任官员改从新俗；宗族本非这个文化的，整支改用新文化的姓氏(改姓)；
+//   · 只改这次改俗涉及的国家(本国；帝国核心连同各成员国，见 ScopeOf)里的族人：宗族、世系跨国的，别国的族人(连在位的君主)不动，
+//     有族人在别国的那一支只改本国族人的风俗、不整支改姓，与本国无关的同宗分支不动——以前按整个宗族、整个世系改
+//     (玩家："我给精灵帝国改文化，结果华夏皇帝变成西方文化了"，用户 2026-10-27 转：精灵国有官员与华夏皇族同宗)；
+//   · 旧俗为主的城市一时不安。
+// 只有游牧(国家文化、征服王朝的统治族群文化是游牧政体的文化)走这条决议(玩家："那么大一个游牧汗国直接变成法兰克了"
+// "能不能让别的文化不要参与改朝换代"；用户 2026-10-17："除了游牧，游牧的改朝换代是决议不是自动的")；
+// 别的文化不易俗，治下百姓的文化由同化、教化慢慢改。神力强制改俗(Force)不受此限。
+public static class CultureReformSystem
+{
+    public const string Plot = "kingdom_culture_reform";
+    // 旧俗为主的城市一次性掉的稳定度
+    private const float OldCustomShock = 15f;
+    // 一次改制最多给多少个官员宗族改姓(王族不算在内)
+    private const int MaxRenamedClans = 32;
+
+#if EC_PENDING
+    public static bool CanReform(Person actor) =>
+        actor?.kingdom?.king == actor && FindCandidate(actor.Realm, out _, out _);
+
+    public static bool FindCandidate(Realm kingdom, out string target, out string previous)
+    {
+        target = previous = null;
+        if (kingdom?.Record == null || kingdom.IsGone() || kingdom.Ruler == null || AncientWarfareCompatibility.Owns(kingdom) ||
+            JimiSystem.IsJimiAdministration(kingdom) || CultureService.IsProtectorateGeneralTitle(kingdom.GetMainTitle()))
+            return false;
+        Empire empire = kingdom.GetEmpire();
+        bool core = empire?.data != null && empire.CoreKingdom == kingdom && !empire.IsArchived() && !empire.IsGone();
+        bool composite = core && CompositeEmpireService.IsComposite(empire);
+        previous = composite ? CompositeEmpireService.GetRulingCulture(empire) : CultureService.GetRealmCulture(kingdom);
+        if (!CompositeEmpireService.IsNomadicCulture(previous)) return false;
+        City capital = kingdom.Ruler.City ?? kingdom.Capital;
+        if (capital?.Record == null || capital.IsGone() || capital.Realm != kingdom) return false;
+        string local = CultureService.GetMainCulture(capital);
+        if (!CultureService.IsValidCulture(local) || string.Equals(local, previous, StringComparison.Ordinal)) return false;
+        if (composite && !string.Equals(local, CompositeEmpireService.GetInstitutionalCulture(empire), StringComparison.Ordinal))
+            return false;
+        // 征服王朝要已走上从俗之路(见 CompositeEmpireService.GetRoute)：分治、兼用的不易俗
+        if (composite && CompositeEmpireService.GetRoute(empire) != CompositeEmpireService.RouteAdopt) return false;
+        int total = 0, same = 0;
+        foreach (City city in RealmCities(kingdom, core ? empire : null))
+        {
+            total++;
+            if (string.Equals(CultureService.GetMainCulture(city), local, StringComparison.Ordinal)) same++;
+        }
+        if (total == 0 || same * 2 <= total) return false;
+        target = local;
+        return true;
+    }
+#endif
+
+    private static IEnumerable<City> RealmCities(Realm kingdom, Empire empire)
+    {
+        IEnumerable<Realm> kingdoms = empire?.kingdoms_list != null ? empire.kingdoms_list : new List<Realm> { kingdom };
+        foreach (Realm member in kingdoms)
+        {
+            if (member?.Cities == null || member.IsGone()) continue;
+            foreach (City city in member.Cities)
+                if (city?.Record != null && !city.IsGone()) yield return city;
+        }
+    }
+
+#if EC_PENDING
+    public static bool Enact(Person king)
+    {
+        Realm kingdom = king?.Realm;
+        if (kingdom?.Ruler != king || !FindCandidate(kingdom, out string target, out string previous)) return false;
+        return Apply(kingdom, king, target, previous, false);
+    }
+#endif
+
+    // 神力易俗(见 GodPowers/CityCulturePower)：本国最后一座城改了文化，国家连同政体、制度当即改从新俗——不看条件，
+    // 法理文化锁定、固定法理文化也照改
+#if EC_PENDING
+    public static bool Force(Realm kingdom, string target)
+    {
+        if (kingdom?.Record == null || kingdom.IsGone() || !CultureService.IsValidCulture(target)) return false;
+        Empire empire = kingdom.GetEmpire();
+        bool core = empire?.data != null && empire.CoreKingdom == kingdom && !empire.IsArchived() && !empire.IsGone();
+        string previous = core && CompositeEmpireService.IsComposite(empire)
+            ? CompositeEmpireService.GetRulingCulture(empire) : CultureService.GetRealmCulture(kingdom);
+        if (string.Equals(previous, target, StringComparison.Ordinal)) return false;
+        Person king = kingdom.Ruler != null && !kingdom.Ruler.IsGone() && kingdom.Ruler.Alive ? kingdom.Ruler : null;
+        return Apply(kingdom, king, target, previous, true);
+    }
+
+    private static bool Apply(Realm kingdom, Person king, string target, string previous, bool force)
+    {
+        Empire empire = kingdom.GetEmpire();
+        bool core = empire?.data != null && empire.CoreKingdom == kingdom;
+        bool composite = core && CompositeEmpireService.IsComposite(empire);
+        RegimeType? before = kingdom.GetRegime()?.type;
+        // 旧制犹存(见 LegacyInstitutionSystem)：先取下改俗前现用的制度文化(帝国核心下面要先改帝国的文化)；
+        // 神力改俗连制度一并改，征服王朝另有制度文化之分，都不留旧制
+        string previousInstitution = LegacyInstitutionSystem.CurrentInstitutionCulture(kingdom);
+        bool allowLegacy = !force && !composite;
+
+        // 王族的宗族出身要在改俗之前看(改完君主本人就是新文化了)
+        SpecificClan royal = king?.GetSpecificClan();
+        bool renameRoyal = king != null && ForeignOrigin(royal, CultureService.GetActorCulture(king), target);
+
+        // 法理带着国家文化一起改(见 CultureService.RefreshCultureDependents)：这一步的旧制存废留给下面的易俗定，不按法理同化定
+        KingdomTitle title = kingdom.GetMainTitle();
+        if (title?.data != null && (force || !title.data.culture_locked && !CultureService.IsFixedDeJureCultureEnabled()))
+            LegacyInstitutionSystem.Deferred(kingdom, () => CultureService.ConvertTitleCulture(title, target));
+        if (composite) CompositeEmpireService.CompleteByReform(empire);
+        // 帝国不再按开国族群的文化算征服王朝(否则"采用中原制度"会把统治文化改回去)；
+        // 帝国核心的默认文化(没锁定的)、统治文化也换成新文化——以前只改国家，制度、天下、同化目标仍按旧文化
+        else if (core)
+        {
+            empire.data.conquest_founder_culture = target;
+            EmpireCore empireCore = EmpireCoreManager.Get(empire);
+            if (empireCore != null && !empireCore.culture_locked && !CultureService.IsFixedDeJureCultureEnabled())
+                empireCore.default_culture = target;
+            empire.data.ruling_culture = target;
+            InstitutionSystem.ForgetRulingMajority(empire);
+        }
+        // 新文化落后时政体、制度照旧(帝国核心由 ResyncCulture 按旧制所属的文化重算，同样不动)
+        CultureService.SetRealmCulture(kingdom, target, updatePoliticalSystem: !core, allowLegacyInstitutions: allowLegacy,
+            previousInstitutionCulture: previousInstitution, activeReform: true);
+        if (core) InstitutionSystem.ResyncCulture(empire);
+
+        Culture native = string.Equals(CulturePatch.GetInjectedCultureName(kingdom.culture), target, StringComparison.Ordinal)
+            ? kingdom.culture
+            : CultureService.GetNativeCultureObject(target);
+        var taken = new HashSet<string>(SpecificClanManager._specificClans.Where(c => c != null && !string.IsNullOrWhiteSpace(c.name))
+            .Select(c => c.name), StringComparer.Ordinal);
+        HashSet<Realm> scope = ScopeOf(kingdom);
+        string royalSurname = null;
+        if (royal != null && renameRoyal) royalSurname = RenameLineage(royal, target, native, taken, king.Key, scope);
+        else if (royal != null) Convert(royal, target, native, null, scope, home: true);
+        else if (king != null) Convert(king, target, native, null);
+        ConvertOfficials(kingdom, previous, target, native, taken, royal, scope);
+
+        foreach (City city in kingdom.Cities ?? new List<City>())
+        {
+            if (city?.Record == null || city.IsGone() ||
+                !string.Equals(CultureService.GetMainCulture(city), previous, StringComparison.Ordinal)) continue;
+            CityStabilityData state = CityStabilitySystem.State(city);
+            if (state != null) state.stability = Math.Max(0f, state.stability - OldCustomShock);
+        }
+        if (kingdom.GetRegime()?.type != before) EmpireCraftKingdomBehCheckKingdomType.SyncKingdomStatus(kingdom);
+        TranslateHelper.LogCultureReform(kingdom, core ? empire : null, king, target, royalSurname);
+        // 新文化落后、旧制犹存的，接着易俗记一笔"改从某之俗，仍沿某之制"
+        LegacyInstitutionSystem.AnnounceReform(kingdom, target);
+        LogService.LogInfo($"[EmpireCraft][易俗改制] {kingdom.GetKingdomName()} {previous} -> {target}，政体 {before} -> {kingdom.GetRegime()?.type}，王族改姓 {royalSurname ?? "(不改)"}");
+        return true;
+    }
+#endif
+
+    // 一键易俗(见 RealmCultureSystem)：君主一家与在任官员，不论原来是什么文化，一律改从 target——
+    // 宗族本非同一文化圈的整支改姓(同 Apply)；返回王族的新姓(没改姓为空)。scope：这次易俗的各国(举朝为整个帝国)，空则只本国
+#if EC_PENDING
+    public static string ConvertRulers(Realm kingdom, string target, IEnumerable<Realm> scope = null)
+    {
+        if (kingdom?.Record == null || kingdom.IsGone() || !CultureService.IsValidCulture(target)) return null;
+        var within = new HashSet<Realm>(scope ?? Enumerable.Empty<Realm>()) { kingdom };
+        Person king = kingdom.Ruler != null && !kingdom.Ruler.IsGone() && kingdom.Ruler.Alive ? kingdom.Ruler : null;
+        Culture native = string.Equals(CulturePatch.GetInjectedCultureName(kingdom.culture), target, StringComparison.Ordinal)
+            ? kingdom.culture
+            : CultureService.GetNativeCultureObject(target);
+        var taken = new HashSet<string>(SpecificClanManager._specificClans.Where(c => c != null && !string.IsNullOrWhiteSpace(c.name))
+            .Select(c => c.name), StringComparer.Ordinal);
+        var done = new HashSet<long>();
+        string royalSurname = null;
+        if (king != null && !string.Equals(CultureService.GetActorCulture(king), target, StringComparison.Ordinal))
+        {
+            SpecificClan royal = king.GetSpecificClan();
+            if (royal == null) Convert(king, target, native, null);
+            else
+            {
+                done.Add(Root(royal).id);
+                if (ForeignOrigin(royal, CultureService.GetActorCulture(king), target))
+                    royalSurname = RenameLineage(royal, target, native, taken, king.Key, within);
+                else Convert(royal, target, native, null, within, home: true);
+            }
+        }
+        foreach (Person actor in kingdom.units.ToList())
+        {
+            if (actor?.Record == null || actor.IsGone() || !actor.IsOnOffice() ||
+                string.Equals(CultureService.GetActorCulture(actor), target, StringComparison.Ordinal)) continue;
+            SpecificClan clan = actor.GetSpecificClan();
+            if (clan == null)
+            {
+                Convert(actor, target, native, null);
+                continue;
+            }
+            if (!done.Add(Root(clan).id)) continue;
+            if (done.Count <= MaxRenamedClans + 1 && ForeignOrigin(clan, CultureService.GetActorCulture(actor), target))
+                RenameLineage(clan, target, native, taken, actor.Key, within);
+            else Convert(clan, target, native, null, within, home: true);
+        }
+        return royalSurname;
+    }
+#endif
+
+    // 宗族本非目标文化：看始祖记下的文化，没有记录就看这个人原来的文化。
+    // 同一文化圈(制度线相同，如华夏、山海)里改俗只改风俗不改姓——以前只比文化名，汉朝改从山海之俗，
+    // 刘氏皇族整支改姓"彤鱼"(玩家反馈 2026-10-16)。改姓只留给跨文化圈的(如鲜卑拓跋改从华夏之俗改姓元)
+    private static bool ForeignOrigin(SpecificClan clan, string fallback, string target)
+    {
+        string origin = clan != null ? SpecificClanManager.getPerson(clan.founder)?.culture : null;
+        if (!CultureService.IsValidCulture(origin)) origin = fallback;
+        return CultureService.IsValidCulture(origin) && !string.Equals(origin, target, StringComparison.Ordinal) &&
+               !SurnameInheritanceSystem.SameSphere(origin, target);
+    }
+
+    // 旧俗出身的在任官员改从新俗；宗族本非新文化的整支改姓
+#if EC_PENDING
+    private static void ConvertOfficials(Realm kingdom, string previous, string target, Culture native, HashSet<string> taken,
+        SpecificClan royal, HashSet<Realm> scope)
+    {
+        var done = new HashSet<long>();
+        if (royal != null) done.Add(Root(royal).id);
+        foreach (Person actor in kingdom.units.ToList())
+        {
+            if (actor?.Record == null || actor.IsGone() || !actor.IsOnOffice() ||
+                !string.Equals(CultureService.GetActorCulture(actor), previous, StringComparison.Ordinal)) continue;
+            SpecificClan clan = actor.GetSpecificClan();
+            if (clan == null)
+            {
+                Convert(actor, target, native, null);
+                continue;
+            }
+            if (!done.Add(Root(clan).id)) continue;
+            if (done.Count <= MaxRenamedClans + 1 && ForeignOrigin(clan, previous, target))
+                RenameLineage(clan, target, native, taken, actor.Key, scope);
+            else Convert(clan, target, native, null, scope, home: true);
+        }
+    }
+#endif
+
+    // 这次改俗涉及的国家：本国；是帝国核心的连同各成员国(宗室封国随帝室一起改)
+#if EC_PENDING
+    private static HashSet<Realm> ScopeOf(Realm kingdom)
+    {
+        var scope = new HashSet<Realm> { kingdom };
+        Empire empire = kingdom.GetEmpire();
+        if (empire?.kingdoms_list != null && empire.CoreKingdom == kingdom && !empire.IsGone() && !empire.IsArchived())
+            foreach (Realm member in empire.kingdoms_list)
+                if (member?.Record != null && !member.IsGone()) scope.Add(member);
+        return scope;
+    }
+#endif
+
+    // 族人在哪一国：有实体看实体，虚拟族人看族谱记的城；不明的为空
+    private static Realm KingdomOf(PersonalClanIdentity person)
+    {
+        if (person == null) return null;
+        if (person.is_virtual)
+        {
+            City city = person.virtual_city_id > 0 ? EmpireWorld.Current.CityByKey(person.virtual_city_id) : null;
+            return city?.Record != null && !city.IsGone() ? city.Realm : null;
+        }
+        Person actor = person._actor;
+        return actor?.Record != null && !actor.IsGone() ? actor.Realm : null;
+    }
+
+    // 这一支有族人在 scope 之外的国家(别国的君主、官员、百姓)
+#if EC_PENDING
+    private static bool Spans(SpecificClan clan, HashSet<Realm> scope) =>
+        clan.LivingPeople.Any(person => KingdomOf(person) is Realm where && !scope.Contains(where));
+#endif
+
+    // 这一支有族人在 scope 里的国家
+#if EC_PENDING
+    private static bool Touches(SpecificClan clan, HashSet<Realm> scope) =>
+        clan.LivingPeople.Any(person => KingdomOf(person) is Realm where && scope.Contains(where));
+#endif
+
+    private static SpecificClan Root(SpecificClan clan)
+    {
+        SpecificClan root = clan;
+        for (int depth = 0; depth < 32 && root.parent_clan_id > 0; depth++)
+        {
+            SpecificClan parent = SpecificClanManager.Get(root.parent_clan_id);
+            if (parent == null) break;
+            root = parent;
+        }
+        return root;
+    }
+
+    // 同一世系(同一始祖宗族分出来的)且同姓的各支一起改姓——只限 scope 里的(见类头)：有族人在别国的那一支只改本国族人的风俗、
+    // 不改姓，与本国无关的同宗分支不动。返回新姓(一支也没改姓为空)
+#if EC_PENDING
+    private static string RenameLineage(SpecificClan clan, string target, Culture native, HashSet<string> taken, long seed,
+        HashSet<Realm> scope)
+    {
+        string surname = NewSurname(target, native, taken, seed);
+        if (string.IsNullOrWhiteSpace(surname))
+        {
+            Convert(clan, target, native, null, scope, home: true);
+            return null;
+        }
+        string old = clan.name;
+        long root = Root(clan).id;
+        bool renamed = false;
+        foreach (SpecificClan branch in SpecificClanManager._specificClans.ToList())
+        {
+            if (branch == null || branch != clan && (!string.Equals(branch.name, old, StringComparison.Ordinal) || Root(branch).id != root))
+                continue;
+            bool home = branch == clan;
+            if (Spans(branch, scope))
+            {
+                Convert(branch, target, native, null, scope, home);
+                continue;
+            }
+            if (!home && !Touches(branch, scope)) continue;
+            Convert(branch, target, native, surname, scope, home);
+            branch.name = surname;
+            renamed = true;
+        }
+        return renamed ? surname : null;
+    }
+#endif
+
+    // 一支族人改从新俗：只改 scope 里的国家的族人；home(这次要改的那一支)所在不明的族人随它改，别的支所在不明的不动
+#if EC_PENDING
+    private static void Convert(SpecificClan clan, string target, Culture native, string surname, HashSet<Realm> scope, bool home)
+    {
+        foreach (PersonalClanIdentity person in clan.LivingPeople)
+        {
+            Realm where = KingdomOf(person);
+            if (where != null ? !scope.Contains(where) : !home) continue;
+            Person actor = person._actor;
+            if (actor?.Record != null && !actor.IsGone())
+            {
+                Convert(actor, target, native, surname);
+                continue;
+            }
+            person.culture = target;
+            if (string.IsNullOrWhiteSpace(surname)) continue;
+            person.surname = surname;
+            person.name = string.IsNullOrWhiteSpace(person.given_name) ? person.name
+                : OnomasticsRule.ALL_CULTURE_RULE.TryGetValue(target, out Setting rule) && rule?.Unit?.is_invert == true
+                    ? OverallHelperFunc.JoinNameParts(person.given_name, surname)
+                    : OverallHelperFunc.JoinNameParts(surname, person.given_name);
+        }
+    }
+
+    private static void Convert(Person actor, string target, Culture native, string surname)
+    {
+        if (native != null && actor.culture != native) actor.setCulture(native);
+        PersonalClanIdentity identity = actor.GetPersonalIdentity();
+        if (identity != null) identity.culture = target;
+        Name name = actor.GetModName();
+        if (name == null) return;
+        if (!string.IsNullOrWhiteSpace(surname))
+        {
+            name.familyName = surname;
+            if (actor.HasClan()) actor.Clan.Name = OverallHelperFunc.JoinNameParts(surname, LM.Get("Clan"));
+        }
+        name.SetName(actor);
+    }
+#endif
+
+    // 按新文化的宗族词库取一个姓；尽量不与现有宗族重名
+#if EC_PENDING
+    private static string NewSurname(string culture, Culture native, HashSet<string> taken, long seed)
+    {
+        int pos = OnomasticsRule.ALL_CULTURE_RULE.TryGetValue(culture, out Setting setting) && setting?.Clan != null
+            ? setting.Clan.name_pos
+            : 0;
+        string clanWord = LM.Get("Clan");
+        string fallback = null;
+        for (int i = 0; i < 12; i++)
+        {
+            string generated = CultureService.GenerateCulturalName(MetaType.Clan, seed + i * 7919L, culture) ??
+                               CulturePatch.GetOnomasticDataSafe(native, MetaType.Clan)?.generateName();
+            string[] parts = (generated ?? "").SplitNameParts();
+            if (parts.Length == 0) continue;
+            string surname = parts[pos >= 0 && pos < parts.Length ? pos : 0];
+            if (string.IsNullOrWhiteSpace(surname) || surname == clanWord) continue;
+            fallback ??= surname;
+            if (taken.Add(surname)) return surname;
+        }
+        return fallback;
+    }
+#endif
+}
+}

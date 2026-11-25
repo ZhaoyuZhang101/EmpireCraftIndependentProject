@@ -1,0 +1,301 @@
+// Ported from the EmpireCraft mod: Scripts/GeneralSystems/ClaimAgendaSystem.cs @ 64c66e30. Body kept line-for-line for three-way sync;
+// see Port/manifest.json and Tools/PortTool.
+using Mathf = EmpireCraft.Core.EcMath;
+using System;
+using System.Collections.Generic;
+using System.Linq;
+
+namespace EmpireCraft.Core
+{
+
+public sealed class ClaimAgendaContext
+{
+    public Empire Empire;
+    public Dictionary<SocialClass, float> ClassShares;
+    public IReadOnlyDictionary<SocialClass, float> Grievances;
+    public Dictionary<PartyIdeology, int> IdeologyCounts;
+    public int Population;
+    public int ParliamentSeats;
+    public PartyOpeningPressure PartyOpening;
+}
+
+public sealed class ClaimAgendaView
+{
+    public float PopulationShare;
+    public float LegislativeShare;
+    public float Support;
+    public float Opposition;
+    public float Urgency;
+    public float Score;
+    public float ProgressMultiplier;
+    public int IdeologyStage;
+    public string TechnologyName = "";
+    public string Blocker = "";
+    public bool CanPropose => string.IsNullOrEmpty(Blocker);
+}
+
+public static class ClaimAgendaSystem
+{
+#if EC_PENDING
+    public static ClaimAgendaContext BuildContext(Empire empire)
+    {
+        if (empire?.CoreKingdom == null) return null;
+        var counts = IdeologyPopulationSystem.GetEmpireCounts(empire);
+        return new ClaimAgendaContext
+        {
+            Empire = empire,
+            ClassShares = InstitutionSystem.BuildClassShares(empire),
+            Grievances = InstitutionSystem.GetClassGrievances(empire),
+            IdeologyCounts = counts,
+            PartyOpening = PartyOpeningRules.Measure(counts, IdeologyFamilies.StateIdeology(empire)),
+            Population = counts.Values.Sum(),
+            ParliamentSeats = empire.data?.constitutional_economy?.parliament_seats?.Count ?? 0
+        };
+    }
+
+    public static ClaimAgendaView Evaluate(ClaimAgendaContext context, FixedFaction faction,
+        TemporaryFaction claim)
+    {
+        var view = new ClaimAgendaView();
+        if (context == null || faction == null || claim == null)
+        {
+            view.Blocker = "institution_reform_invalid";
+            return view;
+        }
+
+        Empire empire = context.Empire;
+        if (faction.IsParty && context.Population > 0)
+            view.PopulationShare = context.IdeologyCounts.TryGetValue(faction.Ideology, out int adherents)
+                ? 100f * adherents / context.Population : 0f;
+
+        float classSupport = 0f;
+        float classOpposition = 0f;
+        foreach (KeyValuePair<SocialClass, float> pair in context.ClassShares)
+        {
+            float effect = FactionClassSystem.GetClaimClassEffect(claim.type, pair.Key);
+            if (effect > 0f) classSupport += pair.Value * effect * 4f;
+            else classOpposition -= pair.Value * effect * 4f;
+        }
+        if (context.ParliamentSeats > 0)
+        {
+            int seats = empire.data.constitutional_economy.parliament_seats.Count(seat =>
+                seat.faction_id == faction.GetID());
+            view.LegislativeShare = 100f * seats / context.ParliamentSeats;
+        }
+        view.Support = Mathf.Clamp(12f + classSupport + view.PopulationShare * 0.32f +
+            faction.CentralRatio * 0.24f + view.LegislativeShare * 0.18f, 0f, 100f);
+        view.Opposition = Mathf.Clamp(8f + classOpposition +
+            (context.ParliamentSeats > 0 ? (100f - view.LegislativeShare) * 0.12f : 0f), 0f, 100f);
+        view.Urgency = GetUrgency(context, claim.type);
+
+        if (claim.type == TemporaryFactionType.开放党禁)
+        {
+            if (context.PartyOpening?.HasChallenge != true)
+                view.Blocker = "agenda_party_ban_requires_challenge";
+            // 用户 2026-11-10：核心繁荣不过发展门槛，自主开放党禁一律不触发(穷/贫瘠守封建、一党)。
+            else if (!PartyBanSystem.PassesModernizationGate(empire))
+                view.Blocker = "agenda_party_ban_requires_prosperity";
+            else
+            {
+                view.PopulationShare = context.PartyOpening.Population > 0
+                    ? 100f * context.PartyOpening.ChallengerPeople / context.PartyOpening.Population : 0f;
+                view.Support = Mathf.Clamp(view.Support + context.PartyOpening.LeadShare * 50f, 0f, 100f);
+                view.Urgency += context.PartyOpening.LeadShare * 40f;
+            }
+        }
+
+        string culture = InstitutionSystem.GetPrimaryCulture(empire);
+        if (faction.IsParty)
+        {
+            for (int stage = 1; stage <= 3; stage++)
+                if (InstitutionSystem.GetFeature(culture,
+                        IdeologyInstitutionPaths.StageFeature(faction.Ideology, stage)) > 0f)
+                    view.IdeologyStage = stage;
+        }
+
+        var reformNodes = InstitutionSystem.GetLineNodesWithFeature(empire,
+                InstitutionFeatures.ClaimReformPrefix + claim.type).ToList();
+        InstitutionNodeConfig target = reformNodes
+            .FirstOrDefault(node => !InstitutionSystem.IsEnacted(culture, node.id));
+        bool reopenPartyBan = claim.type == TemporaryFactionType.开放党禁 &&
+                              PartySystem.IsActive(empire) && PartyBanSystem.IsClosed(empire);
+        if (reopenPartyBan)
+        {
+            view.TechnologyName = LM.Get("institution_lift_party_ban");
+            if (ConstitutionSystem.IsPlayerLocked(empire, ConstitutionSystem.ClausePartySystem))
+                view.Blocker = "agenda_party_ban_constitution_locked";
+        }
+        else if (target != null)
+        {
+            view.TechnologyName = InstitutionSystem.GetNodeName(empire, target);
+            if (!InstitutionSystem.CanStartReform(empire, target, out string reason, false) &&
+                !InstitutionSystem.CanStartReform(empire, target, out _, true))
+                view.Blocker = reason;
+        }
+        else if (reformNodes.Count > 0)
+        {
+            view.TechnologyName = InstitutionSystem.GetNodeName(empire, reformNodes.Last());
+            view.Blocker = "institution_reform_already_enacted";
+        }
+        else if (claim.type == TemporaryFactionType.提高福利)
+        {
+            // 纲领阶段只有近代政党有；朋党(古代理念)只写理念名，不去取不存在的纲领文本
+            view.TechnologyName = faction.IsParty
+                ? $"{PartySystem.GetIdeologyName(faction.Ideology)} · " + LM.Get($"ideology_{faction.Ideology}_stage_2")
+                : PartySystem.GetIdeologyName(faction.Ideology, CultureDoctrines.CultureOf(faction));
+            if (!faction.IsParty || view.IdeologyStage < 2)
+                view.Blocker = "agenda_requires_policy_program";
+            else if (empire.data.constitutional_economy?.welfare_level >= 3)
+                view.Blocker = "agenda_welfare_maximum";
+            else if (empire.CoreKingdom.GetMoney() < ConstitutionalEconomySystem.GetWelfareAnnualCost(
+                         empire, empire.data.constitutional_economy.welfare_level + 1))
+                view.Blocker = "agenda_welfare_treasury";
+        }
+
+        // 与文化制度树、科技时代挂钩的前提(见 ClaimRules)；推动类决议显示要推动的制度
+        if (view.CanPropose && !ClaimRules.IsAllowed(empire, claim.type, out string ruleBlocker))
+            view.Blocker = ruleBlocker;
+        if (string.IsNullOrEmpty(view.TechnologyName))
+        {
+            InstitutionNodeConfig pushTarget = ClaimRules.FindPushTarget(empire, claim.type);
+            if (pushTarget != null) view.TechnologyName = InstitutionSystem.GetNodeName(empire, pushTarget);
+        }
+
+        view.Score = view.Support - view.Opposition + view.Urgency +
+                     (claim.IsStarted() ? 20f : 0f);
+        view.ProgressMultiplier = Mathf.Clamp(0.65f +
+            (view.Support - view.Opposition) / 100f +
+            (view.IdeologyStage >= 1 ? 0.1f : 0f) +
+            (view.IdeologyStage >= 2 ? 0.1f : 0f), 0.35f, 1.65f);
+        return view;
+    }
+
+    private static float GetUrgency(ClaimAgendaContext context, TemporaryFactionType type)
+    {
+        Empire empire = context.Empire;
+        float Grievance(SocialClass socialClass) => context.Grievances != null &&
+            context.Grievances.TryGetValue(socialClass, out float value) ? value : 0f;
+        float Share(SocialClass socialClass) => context.ClassShares != null &&
+            context.ClassShares.TryGetValue(socialClass, out float value) ? value : 0f;
+        // 种地的庶民里怨气最大的(国野之制下是国人、野人，见 GuoyeSystem)
+        float Peasantry() => Mathf.Max(Grievance(SocialClass.Peasant),
+            Mathf.Max(Grievance(SocialClass.Guoren), Grievance(SocialClass.Yeren)));
+        float urgency = type switch
+        {
+            TemporaryFactionType.提高福利 =>
+                (Grievance(SocialClass.Labour) + Peasantry()) * 0.18f,
+            TemporaryFactionType.土地改革 => GetLandlessUrgency(empire),
+            TemporaryFactionType.降低赋税 => (empire.data?.TaxRate ?? 0f) * 25f,
+            TemporaryFactionType.提高赋税 => TaxRaiseUrgency(empire),
+            TemporaryFactionType.建立共和 => (100f - empire.Legitimacy) * 0.18f +
+                Mathf.Max(0f, (Share(SocialClass.Labour) + Share(SocialClass.Peasant) - 0.45f) * 80f),
+            TemporaryFactionType.推行普选 => PartySystem.HasUniversalSuffrage(empire) ? 0f : 15f +
+                Mathf.Max(0f, (Share(SocialClass.Labour) + Share(SocialClass.Peasant) - 0.40f) * 100f),
+            TemporaryFactionType.开放党禁 => PartySystem.IsActive(empire) ? 0f : 15f,
+            // 饥荒人命关天；腐败越重越该整顿；皇帝年纪越大，立储越急
+            TemporaryFactionType.赈济灾荒 => 20f + Peasantry() * 0.2f,
+            // 看全帝国(中央、各州、各城)的腐败，以前只看中央王国自己，州县贪到顶朝廷也不急
+            TemporaryFactionType.整顿吏治 => (float)CorruptionSystem.GetRate(empire) * 60f,
+            // 朝堂议题(诛宦官、党锢……)：有事可办就有几分紧迫
+            TemporaryFactionType.诛宦官 or TemporaryFactionType.党锢 => 15f,
+            TemporaryFactionType.兴修水利 or TemporaryFactionType.屯田实边 => 8f + Peasantry() * 0.1f,
+            TemporaryFactionType.盐铁专营 or TemporaryFactionType.裁省用度 => EmpireBankruptcySystem.IsBankrupt(empire) ? 15f : 5f,
+            // 天命动摇时方士、清流急着封禅、大赦以挽天命
+            TemporaryFactionType.封禅 or TemporaryFactionType.大赦天下 =>
+                TianxiaSystem.PhaseOf(empire.CoreKingdom) == TianxiaSystem.Unrest ? 15f : 5f,
+            TemporaryFactionType.重定律令 or TemporaryFactionType.重农抑商 => 5f,
+            TemporaryFactionType.独尊官学 => 12f,
+            // 征服王朝融得越深、已在从俗，本族旧臣越急着重申国语骑射
+            TemporaryFactionType.国语骑射 => CompositeEmpireService.NativismUrgency(empire),
+            // 联合天下里未得普世之名、教廷又不肯认，武官急着兵临教廷
+            TemporaryFactionType.逼冕 => RealmNamingSystem.CoercionUrgency(empire),
+            TemporaryFactionType.册立储君 => empire.Emperor == null ? 0f
+                : Mathf.Clamp((empire.Emperor.Age() - 30) * 0.5f, 0f, 20f),
+            TemporaryFactionType.谋求统一 => UnificationUrgency(empire),
+            // 新议题(用户 2026-11-11 "增加更多的议题，比如开战，或者其他的符合利益的"，问答全选)
+            TemporaryFactionType.兴兵讨伐 => 8f,
+            TemporaryFactionType.罢兵议和 => 12f + Peasantry() * 0.1f,
+            TemporaryFactionType.整军经武 => 6f + Grievance(SocialClass.Army) * 0.1f,
+            // 打着仗、或军人怨气大时急着募兵
+            TemporaryFactionType.招募新军 => (CorpsSystem.IsAtWar(empire.CoreKingdom) ? 14f : 3f) + Grievance(SocialClass.Army) * 0.1f,
+            TemporaryFactionType.修筑城防 => 6f,
+            // 科举：恩科只有新君即位那两年提得出来，舞弊案发了越是吏治败坏越有人要查(见 KejuSystem)
+            TemporaryFactionType.特开恩科 => 16f,
+            TemporaryFactionType.严查科场 => 12f + MaladySystem.Get(empire, MaladySystem.Graft) * 0.1f,
+            TemporaryFactionType.开放互市 or TemporaryFactionType.通商减税 => 4f + Grievance(SocialClass.Merchant) * 0.15f,
+            TemporaryFactionType.营建宫室 => 3f,
+            TemporaryFactionType.和亲 => 6f,
+            TemporaryFactionType.增设官署 => 4f + Grievance(SocialClass.Officer) * 0.15f,
+            // 现代议题(2026-11-24)：劳工怨气、工潮、萧条、垄断、国库各催各的
+            TemporaryFactionType.劳动立法 => Grievance(SocialClass.Labour) * 0.18f,
+            TemporaryFactionType.承认工会 => (empire.data?.constitutional_economy?.union_strength ?? 0f) * 0.15f + Grievance(SocialClass.Labour) * 0.08f,
+            TemporaryFactionType.取缔工会 => empire.data?.constitutional_economy?.strike_stage > 0 ? 16f
+                : (empire.data?.constitutional_economy?.union_strength ?? 0f) * 0.1f,
+            TemporaryFactionType.削减福利 => EmpireBankruptcySystem.IsBankrupt(empire) ? 16f
+                : (empire.data?.constitutional_economy?.welfare_level ?? 0) * 3f + Grievance(SocialClass.Merchant) * 0.1f,
+            // 命脉操在外国资本手里时"收回利权"的呼声大涨(见 CompanySystem.Master)
+            TemporaryFactionType.国有化 => (EconomicCycleSystem.InCrisis(empire) ? 12f : 4f) + ConglomerateSystem.Monopoly(empire) * 15f +
+                                         (CompanySystem.Master(empire) != null ? 20f : 0f),
+            TemporaryFactionType.私有化 => EmpireBankruptcySystem.IsBankrupt(empire) ? 14f : 4f + Grievance(SocialClass.Merchant) * 0.1f,
+            TemporaryFactionType.关税壁垒 => EconomicCycleSystem.InCrisis(empire) ? 14f : 4f,
+            TemporaryFactionType.自由贸易 => 4f + Grievance(SocialClass.Merchant) * 0.12f,
+            TemporaryFactionType.救市纾困 => 20f + Grievance(SocialClass.Labour) * 0.1f,
+            TemporaryFactionType.反托拉斯 => ConglomerateSystem.Monopoly(empire) * 40f +
+                                           Mathf.Max(0f, empire.data?.constitutional_economy?.price_gouging ?? 0f) * 120f,
+            TemporaryFactionType.普及教育 => 6f,
+            _ => 0f
+        };
+        // 财阀游说：冲着它来的议题提不上议程，合它意的更急(见 ConglomerateSystem.Lobby)
+        return ConglomerateSystem.Lobby(empire, type, urgency);
+    }
+#endif
+
+    // 天下归于一家算统一完成(同 UnificationSystem 的九成)
+    private const float UnifiedRealmShare = 0.9f;
+
+    // 谋求统一的紧迫度：本朝所在的天下还没归于一家(别家割据、失地被邻国占着)就急于统一、收复，据有的越少越急(15~25)。
+    // 朋党取代固定派系以后，朝堂新议题(诛宦官、独尊官学、兴修水利、封禅……)都带了紧迫度，统一一直是 0；
+    // 统一要动兵，农民一反对议程分就低，提得出它的天子派、变法派总把它排在末尾，专主用兵的武官派又多被并掉、
+    // 只剩一两人(官员按学说归党)，天下分裂、失地未复也没人上奏。只给朋党朝廷(别的朝廷还是固定的两三派，主统一的那派一直在、上奏机会也多)；
+    // 天下已统一、别家受着天命(不能问鼎)、周制(征伐不服王化另有一套)、本朝是别国附庸的，都不急
+#if EC_PENDING
+    private static float UnificationUrgency(Empire empire)
+    {
+        Realm core = empire?.CoreKingdom;
+        if (core?.Capital == null || !CliqueSystem.Applies(empire) || ZhouEraSystem.Applies(empire)) return 0f;
+        if (EmpireCoreControl.Sovereign(core) != core) return 0f;
+        EmpireCore lead = TianxiaSystem.LeadOf(core.Capital);
+        if (lead == null || TianxiaSystem.BarsContender(lead, core)) return 0f;
+        (Dictionary<Realm, int> held, int total) = TianxiaSystem.Holdings(lead);
+        if (total <= 0) return 0f;
+        float share = held.TryGetValue(core, out int ours) ? ours / (float)total : 0f;
+        return share >= UnifiedRealmShare ? 0f : 15f + 10f * (1f - share) + UnificationDrive.AgendaUrgency * UnificationDrive.Of(core);
+    }
+#endif
+
+    // 国库欠饷、入不敷出，或税率压得很低时急着加税(以前加税没有紧迫度，减税却税率越高越急，税率只降不升)
+#if EC_PENDING
+    private static float TaxRaiseUrgency(Empire empire)
+    {
+        Realm core = empire?.CoreKingdom;
+        if (core == null || empire.data == null) return 0f;
+        float urgency = Mathf.Max(0f, 0.2f - empire.data.TaxRate) * 100f;
+        if (EmpireBankruptcySystem.IsBankrupt(empire)) return urgency + 20f;
+        if (TreasurySystem.Enabled(core))
+        {
+            TreasuryReport report = TreasurySystem.Report(core);
+            if (report.months >= 6 && report.operating_balance < 0) urgency += 10f;
+        }
+        return urgency;
+    }
+
+    private static float GetLandlessUrgency(Empire empire)
+    {
+        var cities = empire.CoreKingdom?.cities?.Where(city => city != null && !city.IsGone()).ToList();
+        return cities == null || cities.Count == 0 ? 0f :
+            Mathf.Clamp((float)cities.Average(city => LandEconomySystem.GetReport(city).LandlessPopulationRatio) * 100f,
+                0f, 30f);
+    }
+#endif
+}
+}

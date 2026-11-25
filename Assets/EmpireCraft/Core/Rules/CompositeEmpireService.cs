@@ -1,0 +1,1155 @@
+// Ported from the EmpireCraft mod: Scripts/GeneralSystems/CompositeEmpireService.cs @ 64c66e30. Body kept line-for-line for three-way sync;
+// see Port/manifest.json and Tools/PortTool.
+using System;
+using System.Collections.Generic;
+using System.Linq;
+
+namespace EmpireCraft.Core
+{
+
+public static partial class CompositeEmpireService
+{
+    // 改用制度文化的国号：融合度到 60(以前 70——统治族群还在时融合度封顶 69，国号永远改不了)
+    public const int CulturalNameIntegrationThreshold = 60;
+
+    private sealed class CulturalNameCandidate
+    {
+        public string Name;
+        public string Source;
+    }
+
+    public sealed class AdoptionStatus
+    {
+        public bool IsEligible;
+        public string RulingCulture = "";
+        public string InstitutionalCulture = "";
+        public RegimeType InstitutionalRegime = RegimeType.Feudalism;
+        public EmpireCore InstitutionalCore;
+        public int ControlledTitles;
+        public int TotalTitles;
+        public int Mandate;
+        // 统治族群是游牧，或被征服文化比本族先进(见 MoreAdvanced)：才走得上复合帝国这条路
+        public bool RulerIsNomadic;
+#if EC_PENDING
+        public bool Applicable => RulerIsNomadic || HasInstitutionalTarget && MoreAdvanced(InstitutionalCulture, RulingCulture);
+#endif
+        // 离草的游牧(见 ShuiTuSystem)：采纳定居文化的制度，控制法理的门槛从一半按档降到三分之一、四分之一、五分之一，
+        // 天命门槛每档低 5(ControlDivisor 是所选制度文化的门槛分母)
+        public int OffGrassTier;
+        public int ControlDivisor = 2;
+
+        public bool HasInstitutionalTarget =>
+            CultureService.IsValidCulture(InstitutionalCulture) && TotalTitles > 0;
+        public int RequiredTitles => (TotalTitles + ControlDivisor - 1) / ControlDivisor;
+        public int RequiredMandate => 40 - 5 * OffGrassTier;
+        public bool HasRequiredControl => HasInstitutionalTarget && ControlledTitles >= RequiredTitles;
+        public bool HasRequiredMandate => Mandate >= RequiredMandate;
+        public bool HasDistinctCultures =>
+            CultureService.IsValidCulture(RulingCulture) &&
+            CultureService.IsValidCulture(InstitutionalCulture) &&
+            !string.Equals(RulingCulture, InstitutionalCulture, StringComparison.Ordinal);
+    }
+
+    // 多元帝国：完成整合的复合帝国，或治下四分之一以上的城是异族(不同天下的文化)——逃人法、游牧立宪用
+    // (以前只认复合帝国，而复合帝国的制度按被征服文化的线走，游牧线上这两样永远到不了)
+#if EC_PENDING
+    public static bool IsMultiethnic(Empire empire)
+    {
+        if (empire?.data == null) return false;
+        if (empire.data.composite_integration_stage >= CompositeEmpireIntegrationStage.CompositeEmpire) return true;
+        string ruling = GetRulingCulture(empire);
+        if (!CultureService.IsValidCulture(ruling)) return false;
+        int total = 0, foreign = 0;
+        foreach (Realm kingdom in empire.kingdoms_list ?? new List<Realm>())
+        {
+            if (kingdom?.Cities == null || kingdom.IsGone()) continue;
+            foreach (City city in kingdom.Cities)
+            {
+                string main = city?.Record == null || city.IsGone() ? "" : CultureService.GetMainCulture(city, initialize: false);
+                if (!CultureService.IsValidCulture(main)) continue;
+                total++;
+                if (!CultureService.SameKin(main, ruling)) foreign++;
+            }
+        }
+        return total > 0 && foreign * 4 >= total;
+    }
+#endif
+
+    public static bool IsComposite(Empire empire)
+    {
+        return empire?.data != null &&
+               empire.data.composite_integration_stage != CompositeEmpireIntegrationStage.None;
+    }
+
+    // 治理路线(用户 2026-10-19 选"三条路线由局势定")，每年按局势重定(见 UpdateRoute)：
+    //   · 分治：本族旧地占三成五以上的城(或本族人口三成五以上)——朝廷照本族旧制，属地之民以其本制治之，
+    //     融合度不过 49、不改国号，不能易俗改制；
+    //   · 从俗：本族旧地不到一成五，且属地文化更先进或融入派当权(本俗反扑期间不从俗；离草的游牧对一切定居文化都肯从俗，
+    //     门槛按离草档位放宽，见 ShuiTuSystem)——融合每年多一点，
+    //     统治族群在也能融完，可以易俗改制；
+    //   · 兼用：其余——朝廷用属地制度，本族保留旧俗与军事传统，统治族群在时融合度不过 79。
+    // 已在某条路上的，要越过阈值五个百分点才改(免得年年来回)
+    public const int RouteDual = 1, RouteJoint = 2, RouteAdopt = 3;
+
+    public static int GetRoute(Empire empire)
+    {
+        if (!IsComposite(empire)) return 0;
+        int route = empire.data.composite_route;
+        return route is RouteDual or RouteJoint or RouteAdopt ? route : RouteJoint;
+    }
+
+    // 中央朝廷照哪种文化的制度：分治照本族旧制，兼用、从俗照属地制度
+#if EC_PENDING
+    public static string GetCourtCulture(Empire empire) =>
+        GetRoute(empire) == RouteDual ? GetRulingCulture(empire) : GetInstitutionalCulture(empire);
+#endif
+
+    public static string GetRouteName(Empire empire) => LM.Get("composite_route_" + GetRoute(empire));
+
+#if EC_PENDING
+    public static string GetRouteDetail(Empire empire, int route)
+    {
+        string ruling = GetRulingCulture(empire), institutional = GetInstitutionalCulture(empire);
+        return string.Format(LM.Get("composite_route_detail_" + route),
+            CultureService.IsValidCulture(ruling) ? ruling.GetCultureTranslate() : ruling,
+            CultureService.IsValidCulture(institutional) ? institutional.GetCultureTranslate() : institutional);
+    }
+
+    private static void UpdateRoute(Empire empire, string ruling, string institutional, float rulingShare)
+    {
+        int current = empire.data.composite_route;
+        float homeland = Math.Max(rulingShare, HomelandCityShare(empire, ruling));
+        // 离草的游牧(见 ShuiTuSystem)：每档把分治的门槛抬高、从俗的门槛放宽五个百分点，属地是定居文化就肯从俗
+        int offGrass = ShuiTuSystem.OffGrassTier(empire.CoreKingdom);
+        float push = 0.05f * offGrass;
+        int next;
+        if (homeland >= (current == RouteDual ? 0.30f : 0.35f) + push) next = RouteDual;
+        else if (!NativistActive(empire) &&
+                 (DrawnToConquered(empire, ruling, institutional) || offGrass > 0 && !IsNomadicCulture(institutional)) &&
+                 homeland < (current == RouteAdopt ? 0.20f : 0.15f) + push) next = RouteAdopt;
+        else next = RouteJoint;
+        // 剧本定下入主国号的(世界地图后金)：入关就走兼用(金清兼用)，不行分治
+        if (next == RouteDual && ScriptedConquestName(empire) != null) next = RouteJoint;
+        // 开局定下朝廷的(大清、大金)、八旗多元制：路线就是兼用，不分治、不从俗(见 EstablishCourt、BannerSystem)——首崇满洲，旗民分治
+        if (FixedCourt(empire) || BannerSystem.Practices(empire)) next = RouteJoint;
+        if (next == current) return;
+        empire.data.composite_route = next;
+        empire.data.composite_route_since = EmpireWorld.Current?.Now() ?? -1d;
+        SynchronizeRegionalInstitutions(empire);
+        InstitutionSystem.ForgetRulingMajority(empire);
+        InstitutionSystem.DropForeignReform(empire);
+        string text = string.Format(LM.Get(current == 0 ? "composite_route_chosen_history" : "composite_route_changed_history"),
+            empire.GetEmpireName(), LM.Get("composite_route_" + next), GetRouteDetail(empire, next));
+        empire.RecordHistory(directContent: text, kingdomId: empire.CoreKingdom.Key);
+        if (current != 0) TranslateHelper.LogEventMessage(text, empire.CoreKingdom);
+        LogService.LogInfo($"[EmpireCraft][征服王朝] {empire.GetEmpireName()} 治理路线 {current} → {next}(本族旧地 {homeland:P0})");
+    }
+#endif
+
+    // 属地文化更先进，或融入派当权
+#if EC_PENDING
+    private static bool DrawnToConquered(Empire empire, string ruling, string institutional) =>
+        MoreAdvanced(institutional, ruling) ||
+        empire.CoreKingdom?.GetRegime()?.GetDominateFaction()?.Type == FactionType.融入;
+#endif
+
+    // 本族旧地：主流文化是统治族群文化的城占几成
+#if EC_PENDING
+    private static float HomelandCityShare(Empire empire, string ruling)
+    {
+        int total = 0, home = 0;
+        foreach (Realm kingdom in empire?.kingdoms_list ?? new List<Realm>())
+        {
+            if (kingdom?.Cities == null || kingdom.IsGone()) continue;
+            foreach (City city in kingdom.Cities)
+            {
+                if (city?.Record == null || city.IsGone()) continue;
+                total++;
+                if (string.Equals(CultureService.GetMainCulture(city, initialize: false), ruling, StringComparison.Ordinal)) home++;
+            }
+        }
+        return total > 0 ? (float)home / total : 0f;
+    }
+
+    public static string GetRulingCulture(Empire empire)
+    {
+        if (CultureService.IsValidCulture(empire?.data?.ruling_culture)) return empire.data.ruling_culture;
+        return CultureService.GetRealmCulture(empire?.CoreKingdom);
+    }
+
+    public static string GetInstitutionalCulture(Empire empire)
+    {
+        if (CultureService.IsValidCulture(empire?.data?.institutional_culture))
+            return empire.data.institutional_culture;
+        return CultureService.GetEmpireDefaultCulture(empire);
+    }
+#endif
+
+    public static bool UsesMilitaryTradition(Empire empire, RegimeType regimeType)
+    {
+        return IsComposite(empire) && Enum.TryParse(empire.data.military_tradition, true,
+            out RegimeType saved) && saved == regimeType;
+    }
+
+#if EC_PENDING
+    public static string GetMilitaryTraditionName(Empire empire)
+    {
+        string value = empire?.data?.military_tradition;
+        if (string.IsNullOrWhiteSpace(value)) value = empire?.CoreKingdom?.GetRegime()?.type.ToString();
+        if (string.IsNullOrWhiteSpace(value)) return LM.Get("label_none");
+        string key = $"regime_type_{value}";
+        string localized = LM.Get(key);
+        return string.IsNullOrWhiteSpace(localized) || string.Equals(localized, key, StringComparison.Ordinal)
+            ? value
+            : localized;
+    }
+
+    public static string GetInstitutionalRegimeName(Empire empire)
+    {
+        if (BannerSystem.Practices(empire)) return LM.Get("regime_type_Banner");
+        string culture = GetCourtCulture(empire);
+        RegimeType regimeType = empire?.CoreKingdom?.GetRegime()?.type ?? RegimeType.Feudalism;
+        if (AdoptableRegime(culture, out RegimeType adoptable)) regimeType = adoptable;
+        return GetRegimeName(regimeType);
+    }
+#endif
+
+    // 征服王朝采纳某文化的制度时换成的政体(复查 2026-10-17)：按这个文化制度树实际走到的(TryResolveCultureRegime)，
+    // 解析不出才用文化配置——以前一律用配置里的静态政体：征服日本、印度、阿兹特克成了原始政体(一城一部落地拆)，
+    // 征服"中国"成了共和，征服西方成了城邦被拆城。原始、城邦、现代政体一律不采纳
+#if EC_PENDING
+    public static bool AdoptableRegime(string culture, out RegimeType regimeType)
+    {
+        regimeType = RegimeType.Feudalism;
+        if (!CultureService.IsValidCulture(culture)) return false;
+        if (InstitutionSystem.TryResolveCultureRegime(culture, out RegimeType resolved)) regimeType = resolved;
+        else if (OnomasticsRule.ALL_CULTURE_RULE.TryGetValue(culture, out Setting setting)) regimeType = setting.regime;
+        else return false;
+        return !RegimeManager.IsPrimitive(regimeType) && regimeType != RegimeType.ClassicalRepublic &&
+               regimeType != RegimeType.Modern;
+    }
+#endif
+
+    public static string GetRegimeName(RegimeType regimeType)
+    {
+        string key = $"regime_type_{regimeType}";
+        string localized = LM.Get(key);
+        return string.IsNullOrWhiteSpace(localized) || string.Equals(localized, key, StringComparison.Ordinal)
+            ? regimeType.ToString()
+            : localized;
+    }
+
+#if EC_PENDING
+    public static string GetRegionalInstitutionSummary(Empire empire)
+    {
+        if (!IsComposite(empire) || empire.kingdoms_list == null) return LM.Get("label_none");
+        var groups = empire.kingdoms_list
+            .Where(member => member?.Record != null && !member.IsGone() && member != empire.CoreKingdom)
+            .Select(member => new
+            {
+                Culture = ResolveRegionalInstitutionCulture(member),
+                Regime = member.GetRegime()?.type
+            })
+            .Where(item => CultureService.IsValidCulture(item.Culture) && item.Regime.HasValue)
+            .GroupBy(item => new { item.Culture, Regime = item.Regime.Value })
+            .OrderByDescending(group => group.Count())
+            .ThenBy(group => group.Key.Culture, StringComparer.Ordinal)
+            .ToList();
+        if (groups.Count == 0) return LM.Get("label_none");
+
+        List<string> entries = groups.Take(3)
+            .Select(group => $"{group.Key.Culture.GetCultureTranslate()}→{GetRegimeName(group.Key.Regime)}×{group.Count()}")
+            .ToList();
+        if (groups.Count > 3) entries.Add($"+{groups.Count - 3}");
+        return string.Join("\n", entries);
+    }
+#endif
+
+    public static string GetStageName(Empire empire)
+    {
+        string key = $"composite_empire_stage_{empire?.data?.composite_integration_stage ?? CompositeEmpireIntegrationStage.None}";
+        string localized = LM.Get(key);
+        return string.IsNullOrWhiteSpace(localized) || string.Equals(localized, key, StringComparison.Ordinal)
+            ? (empire?.data?.composite_integration_stage ?? CompositeEmpireIntegrationStage.None).ToString()
+            : localized;
+    }
+
+#if EC_PENDING
+    public static bool CanAdoptCentralInstitutions(Person actor)
+    {
+        Realm kingdom = actor?.Realm;
+        if (actor == null || kingdom == null || kingdom.IsGone() || !actor.IsRuler() || kingdom.Ruler != actor ||
+            !kingdom.IsEmpire()) return false;
+        Empire empire = kingdom.GetEmpire();
+        return GetAdoptionStatus(empire).IsEligible;
+    }
+
+    public static AdoptionStatus GetAdoptionStatus(Empire empire)
+    {
+        AdoptionStatus status = new AdoptionStatus
+        {
+            Mandate = empire?.Mandate ?? 0
+        };
+        if (empire?.data == null || empire.IsArchived() || empire.IsGone() ||
+            empire.CoreKingdom == null || empire.CoreKingdom.IsGone() || IsComposite(empire))
+        {
+            return status;
+        }
+
+        status.RulingCulture = ResolveConquestRulingCulture(empire);
+        if (CultureService.IsValidCulture(status.RulingCulture))
+        {
+            empire.data.conquest_founder_culture = status.RulingCulture;
+        }
+        // 任何征服者都可采纳更先进的被征服文化的制度(用户 2026-10-19 选"可和平同化、留少数族群"；以前只有游牧)：
+        // 游牧照旧；别的统治族群要治下有比本族先进的文化的城才往下找(省得每次扫全世界的法理)
+        status.RulerIsNomadic = IsNomadicCulture(status.RulingCulture);
+        if (!status.RulerIsNomadic && !HoldsMoreAdvancedCulture(empire, status.RulingCulture))
+        {
+            return status;
+        }
+        status.OffGrassTier = status.RulerIsNomadic ? ShuiTuSystem.OffGrassTier(empire.CoreKingdom) : 0;
+
+        if (ModClass.KINGDOM_TITLE_MANAGER != null)
+        {
+            var titleGroups = ModClass.KINGDOM_TITLE_MANAGER
+                .Where(title => title?.data != null && !title.IsGone())
+                .Select(title => new
+                {
+                    Title = title,
+                    Culture = CultureService.GetEffectiveTitleCulture(title)
+                })
+                .Where(item => CultureService.IsValidCulture(item.Culture))
+                .GroupBy(item => item.Culture, StringComparer.Ordinal);
+
+            foreach (var group in titleGroups)
+            {
+                ConsiderInstitutionalCandidate(status, empire, group.Key,
+                    group.Select(item => item.Title).ToList());
+            }
+        }
+
+        // 受着被征服文化那个天下的天命，也触发采纳(外族入主，用户 2026-10-19 选"可受天命、本族可光复")
+        bool mandateTrigger = TianxiaSystem.MandateOf(empire.CoreKingdom) is EmpireCore lead &&
+                              CultureService.SameKin(lead.default_culture, status.InstitutionalCulture);
+        // 剧本定下的入主(世界地图后金)：据有那座城(北京)即算入关，采纳华夏制度不看据城过半与天命
+        bool scriptedTrigger = ScriptedConquestReady(empire) && InstitutionSystem.GetCultureLine(status.InstitutionalCulture) == "Huaxia";
+        status.IsEligible = status.HasDistinctCultures && status.Applicable &&
+                            (status.HasRequiredControl || mandateTrigger || scriptedTrigger) &&
+                            (status.HasRequiredMandate || scriptedTrigger);
+        return status;
+    }
+#endif
+
+    // 剧本定下的入主国号(用户 10-29 "剧本里面让后金入关后走中华体制百分百叫大清"，见 KingdomExtraData.scripted_conquest_name)
+    public static string ScriptedConquestName(Empire empire)
+    {
+        string name = empire?.CoreKingdom?.Record == null || empire.CoreKingdom.IsGone() ? null
+            : empire.CoreKingdom.GetOrCreate().scripted_conquest_name;
+        return string.IsNullOrWhiteSpace(name) ? null : name.Trim();
+    }
+
+    // 据有剧本记的那座城(北京)：算入关
+#if EC_PENDING
+    private static bool ScriptedConquestReady(Empire empire)
+    {
+        if (ScriptedConquestName(empire) == null) return false;
+        long id = empire.CoreKingdom.GetOrCreate().scripted_conquest_city_id;
+        City city = id < 0 ? null : EmpireWorld.Current?.cities?.get(id);
+        return city?.kingdom?.data != null && !city.IsGone() &&
+               (city.Realm == empire.CoreKingdom || city.Realm.GetEmpire() == empire);
+    }
+#endif
+
+    // 被征服文化比本族先进：科技时代更晚，或同一时代文明等级更高
+#if EC_PENDING
+    public static bool MoreAdvanced(string conquered, string ruling)
+    {
+        if (!CultureService.IsValidCulture(conquered) || !CultureService.IsValidCulture(ruling)) return false;
+        if (TechnologySystem.IsEnabled)
+        {
+            int conqueredEra = TechnologySystem.GetEraTier(conquered), rulingEra = TechnologySystem.GetEraTier(ruling);
+            if (conqueredEra != rulingEra) return conqueredEra > rulingEra;
+        }
+        return InstitutionSystem.GetCultureLevel(conquered) > InstitutionSystem.GetCultureLevel(ruling);
+    }
+
+    private static bool HoldsMoreAdvancedCulture(Empire empire, string ruling)
+    {
+        var seen = new HashSet<string>(StringComparer.Ordinal);
+        foreach (Realm kingdom in empire.kingdoms_list ?? new List<Realm>())
+        {
+            if (kingdom?.Cities == null || kingdom.IsGone()) continue;
+            foreach (City city in kingdom.Cities)
+            {
+                string culture = city?.Record == null || city.IsGone() ? "" : CultureService.GetMainCulture(city, initialize: false);
+                if (!CultureService.IsValidCulture(culture) || string.Equals(culture, ruling, StringComparison.Ordinal) ||
+                    !seen.Add(culture)) continue;
+                if (MoreAdvanced(culture, ruling)) return true;
+            }
+        }
+        return false;
+    }
+
+    private static void ConsiderInstitutionalCandidate(AdoptionStatus status, Empire empire, string culture,
+        List<KingdomTitle> titles)
+    {
+        if (status == null || empire == null || titles == null || titles.Count == 0 ||
+            !CultureService.IsValidCulture(culture) ||
+            string.Equals(culture, status.RulingCulture, StringComparison.Ordinal) ||
+            !AdoptableRegime(culture, out RegimeType adoptable) ||
+            RegimeManager.regimes == null ||
+            !RegimeManager.regimes.TryGetValue(adoptable, out Regime targetRegime) || targetRegime == null)
+        {
+            return;
+        }
+
+        int controlled = titles.Count(title => title.getCities().Any(city =>
+            city != null && !city.IsGone() && city.Realm?.GetEmpire() == empire));
+        if (controlled <= 0) return;
+
+        // 离草的游牧采纳定居文化的制度，门槛按档放宽(见 AdoptionStatus.OffGrassTier)
+        int divisor = status.OffGrassTier > 0 && !IsNomadicCulture(culture) ? 2 + status.OffGrassTier : 2;
+        bool candidateEligible = controlled * divisor >= titles.Count;
+        bool currentEligible = status.HasRequiredControl;
+        bool replace = status.TotalTitles <= 0 || candidateEligible && !currentEligible;
+        if (!replace && candidateEligible == currentEligible)
+        {
+            replace = candidateEligible
+                ? controlled > status.ControlledTitles ||
+                  controlled == status.ControlledTitles &&
+                  controlled * status.TotalTitles > status.ControlledTitles * titles.Count
+                : controlled * status.TotalTitles > status.ControlledTitles * titles.Count ||
+                  controlled * status.TotalTitles == status.ControlledTitles * titles.Count &&
+                  controlled > status.ControlledTitles;
+        }
+        if (!replace) return;
+
+        status.InstitutionalCore = EmpireCoreManager.EmpireCores.Values.FirstOrDefault(core =>
+            core != null && string.Equals(core.default_culture, culture, StringComparison.Ordinal));
+        status.InstitutionalCulture = culture;
+        status.InstitutionalRegime = adoptable;
+        status.ControlledTitles = controlled;
+        status.TotalTitles = titles.Count;
+        status.ControlDivisor = divisor;
+    }
+
+    private static List<KingdomTitle> GetInstitutionalTitles(string culture)
+    {
+        if (!CultureService.IsValidCulture(culture) || ModClass.KINGDOM_TITLE_MANAGER == null)
+            return new List<KingdomTitle>();
+        return ModClass.KINGDOM_TITLE_MANAGER
+            .Where(title => title?.data != null && !title.IsGone() &&
+                            string.Equals(CultureService.GetEffectiveTitleCulture(title), culture,
+                                StringComparison.Ordinal))
+            .ToList();
+    }
+
+    private static string ResolveConquestRulingCulture(Empire empire)
+    {
+        if (CultureService.IsValidCulture(empire?.data?.conquest_founder_culture))
+            return empire.data.conquest_founder_culture;
+        if (CultureService.IsValidCulture(empire?.data?.ruling_culture))
+            return empire.data.ruling_culture;
+
+        long[] founderIds =
+        {
+            empire?.data?.dynasty_founder_actor_id ?? -1L,
+            empire?.data?.founder_actor_id ?? -1L
+        };
+        foreach (long founderId in founderIds.Distinct())
+        {
+            if (founderId <= 0) continue;
+            Person founder = EmpireWorld.Current?.units?.get(founderId);
+            string founderCulture = CultureService.GetActorCulture(founder);
+            if (CultureService.IsValidCulture(founderCulture)) return founderCulture;
+        }
+
+        string emperorCulture = CultureService.GetActorCulture(empire?.Emperor);
+        if (IsNomadicCulture(emperorCulture)) return emperorCulture;
+
+        string survivingNomadicCulture = EmpirePopulation.Enumerate(empire?.kingdoms_hashset)
+            .Where(actor => actor != null && !actor.IsGone() && actor.Alive)
+            .Select(CultureService.GetActorCulture)
+            .Where(IsNomadicCulture)
+            .GroupBy(culture => culture)
+            .OrderByDescending(group => group.Count())
+            .Select(group => group.Key)
+            .FirstOrDefault();
+        if (CultureService.IsValidCulture(survivingNomadicCulture)) return survivingNomadicCulture;
+
+        if (CultureService.IsValidCulture(emperorCulture)) return emperorCulture;
+        return CultureService.GetRealmCulture(empire?.CoreKingdom);
+    }
+#endif
+
+    public static bool IsNomadicCulture(string culture)
+    {
+        return CultureService.IsValidCulture(culture) &&
+               OnomasticsRule.ALL_CULTURE_RULE.TryGetValue(culture, out Setting setting) &&
+               (setting.regime == RegimeType.YouMu || culture.IsNomadCulture());
+    }
+
+#if EC_PENDING
+    public static bool TryGetCultureRegime(string culture, out RegimeType regimeType, out Regime regime)
+    {
+        regimeType = RegimeType.Feudalism;
+        regime = null;
+        if (!AdoptableRegime(culture, out RegimeType adoptable) || RegimeManager.regimes == null ||
+            !RegimeManager.regimes.TryGetValue(adoptable, out regime) || regime == null)
+        {
+            return false;
+        }
+        regimeType = adoptable;
+        return true;
+    }
+
+    public static string ResolveRegionalInstitutionCulture(Realm member)
+    {
+        if (member?.Record == null || member.IsGone()) return "";
+        List<City> cities = (member.Cities ?? new List<City>())
+            .Where(city => city?.Record != null && !city.IsGone() && city.Realm == member)
+            .ToList();
+        string capitalCulture = member.Capital?.GetTitle() is KingdomTitle capitalTitle
+            ? CultureService.GetEffectiveTitleCulture(capitalTitle)
+            : "";
+        string majorityCulture = cities
+            .Select(city => city.GetTitle())
+            .Where(title => title?.data != null && !title.IsGone())
+            .Select(CultureService.GetEffectiveTitleCulture)
+            .Where(CultureService.IsValidCulture)
+            .GroupBy(culture => culture, StringComparer.Ordinal)
+            .OrderByDescending(group => group.Count())
+            .ThenByDescending(group => string.Equals(group.Key, capitalCulture, StringComparison.Ordinal))
+            .Select(group => group.Key)
+            .FirstOrDefault();
+        if (CultureService.IsValidCulture(majorityCulture)) return majorityCulture;
+        if (CultureService.IsValidCulture(capitalCulture)) return capitalCulture;
+
+        long administrativeTitleId = member.GetOrCreate().AdministrativeTitle;
+        KingdomTitle administrativeTitle = ModClass.KINGDOM_TITLE_MANAGER?.get(administrativeTitleId);
+        string administrativeCulture = CultureService.GetEffectiveTitleCulture(administrativeTitle);
+        if (CultureService.IsValidCulture(administrativeCulture)) return administrativeCulture;
+        return CultureService.GetRealmCulture(member);
+    }
+
+    public static bool SynchronizeRegionalInstitution(Empire empire, Realm member)
+    {
+        if (!IsComposite(empire) || member?.Record == null || member.IsGone() || member.GetEmpire() != empire)
+            return false;
+        if (RepublicSystem.IsRegimeLocked(member)) return false;
+        // 成员国的政体是手选的或水土出路改的(记为手选，见 ShuiTuSystem.RegimeFree)，不按辖境文化改回去：
+        // 以前久居农地的汗国被水土改成汗国分封制，这里每年又改回游牧，两边来回改，中央官署跟着年年重建
+        if (member != empire.CoreKingdom && member.GetOrCreate().regime_manually_selected) return false;
+
+        string culture = member == empire.CoreKingdom
+            ? GetCourtCulture(empire)
+            : ResolveRegionalInstitutionCulture(member);
+        if (!TryGetCultureRegime(culture, out RegimeType targetType, out _)) return false;
+        if (member.GetRegime()?.type == targetType) return false;
+
+        KingdomTitle delegatedTitle = null;
+        if (member.GetMainTitle() == null)
+        {
+            delegatedTitle = ModClass.KINGDOM_TITLE_MANAGER?.get(member.GetOrCreate().AdministrativeTitle);
+        }
+
+        member.SetRegimeType(targetType);
+        member.LoadRegime();
+        Regime loaded = member.GetRegime();
+        if (loaded?.type != targetType) return false;
+
+        if (member == empire.CoreKingdom)
+        {
+            loaded.SetLeaderSelectMethod(LeaderSelectMethod.Succession);
+        }
+        else if (targetType == RegimeType.LvLing && member.GetMainTitle() == null)
+        {
+            loaded.SetAllowDiplomacy(false);
+            loaded.SetLeaderSelectMethod(LeaderSelectMethod.Exam);
+        }
+        else if (delegatedTitle != null && !delegatedTitle.IsGone() && member.HasRuler())
+        {
+            delegatedTitle.EndJurisdiction(member, KingdomTitle.JurisdictionAdministration);
+            member.GetOrCreate().AdministrativeTitle = -1L;
+            member.Ruler.AddOwnedTitle(delegatedTitle);
+            member.SetMainTitle(delegatedTitle);
+            member.ReconcileMainTitle(new[] { delegatedTitle });
+        }
+
+        EmpireCraftKingdomBehCheckKingdomType.SyncKingdomStatus(member);
+        return true;
+    }
+
+    public static int SynchronizeRegionalInstitutions(Empire empire)
+    {
+        if (!IsComposite(empire) || empire.kingdoms_list == null) return 0;
+        int changed = 0;
+        foreach (Realm member in empire.kingdoms_list
+                     .Where(value => value?.Record != null && !value.IsGone()).ToList())
+        {
+            if (SynchronizeRegionalInstitution(empire, member)) changed++;
+        }
+        if (changed > 0)
+        {
+            empire.data.centerOffice ??= new CenterOffice();
+            empire.data.centerOffice.Init(empire.CoreKingdom);
+        }
+        return changed;
+    }
+
+    public static bool AdoptCentralInstitutions(Person actor)
+    {
+        if (!CanAdoptCentralInstitutions(actor)) return false;
+        Empire empire = actor.Realm.GetEmpire();
+        AdoptionStatus status = GetAdoptionStatus(empire);
+        if (!status.IsEligible) return false;
+        string rulingCulture = status.RulingCulture;
+        string institutionalCulture = status.InstitutionalCulture;
+        Regime previousRegimeObject = empire.CoreKingdom.GetRegime();
+        RegimeType previousRegime = previousRegimeObject?.type ?? RegimeType.YouMu;
+
+        // The domestic apparatus changes below, but the dynasty's outward title remains the one
+        // it used at conquest. This keeps a nomadic khaganate from being renamed as a Chinese-style
+        // empire merely because it adopted the central bureaucracy.
+        if (string.IsNullOrWhiteSpace(empire.data.empire_type_key))
+            empire.data.empire_type_key = OverallHelperFunc.ResolveEmpireTypeKey(previousRegimeObject,
+                empire.CoreKingdom);
+
+        empire.data.conquest_founder_culture = rulingCulture;
+        empire.data.ruling_culture = rulingCulture;
+        empire.data.institutional_culture = institutionalCulture;
+        empire.data.external_identity_culture = rulingCulture;
+        empire.data.military_tradition = previousRegime.ToString();
+        empire.data.composite_integration = CompositeEmpireRules.InitialIntegration;
+        empire.data.composite_integration_stage = CompositeEmpireIntegrationStage.DualAdministration;
+        empire.data.central_plains_legitimacy = 60;
+        empire.data.ruling_tradition_legitimacy = 75;
+        empire.data.composite_identity_adopted_timestamp = GameClock.Now;
+        empire.data.last_composite_identity_update_timestamp = empire.data.composite_identity_adopted_timestamp;
+        empire.data.composite_route = 0;
+        // 编旗的王朝采纳华夏制度：改行八旗多元制，路线固定兼用(见 BannerSystem.TryEnter)
+        BannerSystem.TryEnter(empire);
+        PopulationShares(empire, rulingCulture, institutionalCulture, out float rulingShare, out _);
+        UpdateRoute(empire, rulingCulture, institutionalCulture, rulingShare);
+
+        SynchronizeRegionalInstitutions(empire);
+        empire.data.centerOffice ??= new CenterOffice();
+        empire.data.centerOffice.Init(empire.CoreKingdom);
+        SynchronizeMilitaryTraditionClaims(empire);
+        empire.CoreKingdom.SystemChange();
+        empire.AutoEnfeoff();
+        SynchronizeRegionalInstitutions(empire);
+        TranslateHelper.LogCompositeEmpireAdopted(empire, rulingCulture, institutionalCulture);
+        return true;
+    }
+#endif
+
+    // 守老家的帝国(编旗的、剧本开局定下朝廷的大清大金)：统治文化；别的返回 null。
+    // 本族老家留作直辖，不按当地文化分成游牧封国、也不设省(见 Empire.GetProtectedDirectCityIds)：
+    // 以前清开局就把满洲按游牧之地封给五个宗王(连储君都封了出去)，兴京又设了省交给外姓，直辖只剩盛京一片
+#if EC_PENDING
+    public static string HomelandCulture(Empire empire)
+    {
+        Realm core = empire?.CoreKingdom;
+        if (core?.Record == null || core.IsGone() || !BannerSystem.Organized(core) && !FixedCourt(empire)) return null;
+        string ruling = IsComposite(empire) ? GetRulingCulture(empire) : CultureService.GetRealmCulture(core);
+        return CultureService.IsValidCulture(ruling) ? ruling : null;
+    }
+
+    public static bool IsHomeland(City city, string rulingCulture) =>
+        city?.Record != null && !city.IsGone() &&
+        BannerRules.KeepsHome(city.hasTitle() ? CultureService.GetEffectiveTitleCulture(city.GetTitle()) : "", rulingCulture,
+            city.GetOrCreate().banner_home);
+#endif
+
+    // 剧本开局就定下的朝廷(八旗多元制的大清、天眷新制以后的大金)：
+    public static bool FixedCourt(Empire empire) =>
+        empire?.CoreKingdom?.Record != null && !empire.CoreKingdom.IsGone() && empire.CoreKingdom.GetOrCreate().fixed_court;
+
+#if EC_PENDING
+    public static bool FixedCourt(Realm kingdom)
+    {
+        if (kingdom?.Record == null || kingdom.IsGone()) return false;
+        Realm core = kingdom.GetEmpire()?.CoreKingdom ?? kingdom;
+        return core?.Record != null && !core.IsGone() && core.GetOrCreate().fixed_court;
+    }
+#endif
+
+    // 开局就是多元帝国的兼用路线：不看据城多少、不等天命，国号是剧本定的不再改号，国号类别按朝廷的政体算(朝，不是匈鲁斯)；
+    // 不分治、不从俗、不北归，不算离草
+#if EC_PENDING
+    public static void EstablishCourt(Empire empire, string rulingCulture, string institutionalCulture)
+    {
+        double now = EmpireWorld.Current?.Now() ?? 0d;
+        empire.CoreKingdom.GetOrCreate().fixed_court = true;
+        empire.data.conquest_founder_culture = rulingCulture;
+        empire.data.ruling_culture = rulingCulture;
+        empire.data.institutional_culture = institutionalCulture;
+        empire.data.external_identity_culture = rulingCulture;
+        empire.data.military_tradition = RegimeType.YouMu.ToString();
+        empire.data.composite_integration = CompositeEmpireRules.InitialIntegration;
+        empire.data.composite_integration_stage = CompositeEmpireIntegrationStage.DualAdministration;
+        empire.data.central_plains_legitimacy = 60;
+        empire.data.ruling_tradition_legitimacy = 75;
+        empire.data.composite_identity_adopted_timestamp = now;
+        empire.data.last_composite_identity_update_timestamp = now;
+        empire.data.composite_route = RouteJoint;
+        empire.data.composite_cultural_name_adopted = true;
+        empire.data.composite_cultural_name = empire.GetEmpireName();
+        empire.data.composite_cultural_name_culture = institutionalCulture;
+        empire.data.composite_cultural_name_source = "scripted";
+        SynchronizeRegionalInstitutions(empire);
+        empire.data.centerOffice ??= new CenterOffice();
+        empire.data.centerOffice.Init(empire.CoreKingdom);
+        SynchronizeMilitaryTraditionClaims(empire);
+        empire.CoreKingdom.SystemChange();
+        // 国号类别按现在的政体重算：朝，不是匈鲁斯
+        empire.data.empire_type_key = "";
+    }
+
+    public static void Update(Empire empire)
+    {
+        if (!IsComposite(empire) || empire.CoreKingdom == null || empire.CoreKingdom.IsGone() || EmpireWorld.Current == null)
+            return;
+        SynchronizeMilitaryTraditionClaims(empire);
+        double now = GameClock.Now;
+        if (empire.data.last_composite_identity_update_timestamp < 0)
+        {
+            empire.data.last_composite_identity_update_timestamp = now;
+            return;
+        }
+        if (GameClock.YearsSince(empire.data.last_composite_identity_update_timestamp) < 1) return;
+        empire.data.last_composite_identity_update_timestamp = now;
+        SynchronizeRegionalInstitutions(empire);
+        SynchronizeMilitaryTraditionClaims(empire);
+
+        string rulingCulture = GetRulingCulture(empire);
+        string institutionalCulture = GetInstitutionalCulture(empire);
+        PopulationShares(empire, rulingCulture, institutionalCulture, out float rulingShare, out float institutionalShare);
+        bool integrated = string.Equals(rulingCulture, institutionalCulture, StringComparison.Ordinal);
+        if (!integrated) UpdateRoute(empire, rulingCulture, institutionalCulture, rulingShare);
+        int route = GetRoute(empire);
+        string emperorCulture = CultureService.GetActorCulture(empire.Emperor);
+        bool emperorUsesRuling = string.Equals(emperorCulture, rulingCulture, StringComparison.Ordinal);
+        bool emperorUsesInstitution = string.Equals(emperorCulture, institutionalCulture, StringComparison.Ordinal);
+
+        List<KingdomTitle> titles = GetInstitutionalTitles(institutionalCulture);
+        int controlled = titles.Count(title => title.getCities().Any(city =>
+            city != null && !city.IsGone() && city.Realm?.GetEmpire() == empire));
+        float controlledShare = titles.Count > 0 ? (float)controlled / titles.Count : 0f;
+        // 北归(见 CompositeEmpireService.Conquest)：属地丢得差不多了，退回本族旧地
+        if (!integrated && TryNorthernRetreat(empire, rulingCulture, institutionalCulture, controlledShare)) return;
+        bool adoptable = AdoptableRegime(institutionalCulture, out RegimeType institutionalType);
+        // 分治：属地以其本制治之，朝廷照旧制——两边的正统都算照顾到了
+        bool institutionalRegime = route == RouteDual || adoptable && empire.CoreKingdom.GetRegime()?.type == institutionalType;
+        bool preservesMilitary = route == RouteDual || !adoptable ||
+            !string.Equals(empire.data.military_tradition, institutionalType.ToString(), StringComparison.OrdinalIgnoreCase);
+
+        empire.data.central_plains_legitimacy = Clamp100(empire.data.central_plains_legitimacy +
+            CompositeEmpireRules.GetCentralLegitimacyDelta(institutionalRegime, controlledShare, institutionalShare));
+        empire.data.ruling_tradition_legitimacy = Clamp100(empire.data.ruling_tradition_legitimacy +
+            CompositeEmpireRules.GetRulingLegitimacyDelta(emperorUsesRuling, rulingShare, preservesMilitary));
+
+        // 开局定下朝廷的：大清入关以前中原一城未有，两边的正统也不因此跌穿
+        if (FixedCourt(empire))
+        {
+            empire.data.central_plains_legitimacy = Math.Max(empire.data.central_plains_legitimacy, 40);
+            empire.data.ruling_tradition_legitimacy = Math.Max(empire.data.ruling_tradition_legitimacy, 40);
+        }
+
+        int delta = CompositeEmpireRules.GetAnnualIntegrationDelta(institutionalShare, rulingShare,
+            emperorUsesInstitution, emperorUsesRuling);
+        if (route == RouteAdopt) delta += 1;
+        else if (route == RouteDual) delta = Math.Min(delta, 1);
+        // 四等人防汉化(见 EthnicRankSystem)
+        if (delta > 0) delta = Math.Max(0, delta - EthnicRankSystem.IntegrationDrag(empire));
+        // 融合完成后统治文化就是制度文化，不再有"保留旧俗的统治族群"压着融合度
+        // (以前完成融合的王朝次年又被压回 69、退回"复合帝国")；从俗的王朝统治族群自己在改俗，也不压
+        // 八旗多元制(见 BannerSystem)：旗人世代在旗，八旗在统治族群就在——首崇满洲、旗民分治，融合度封顶，不会融完成汉人王朝
+        // (用户 2026-11-10 "这族群,判断也有问题""当官也没有满汉分官"：清打下全境后满洲人口不到一成，皇帝本人又算汉俗，
+        // 统治族群被当成没了，融合一路到 100，统治文化改成华夏，一百三十万人全算旗人，满缺汉缺也分不出来)
+        bool rulingEliteStillExists = !integrated && route != RouteAdopt &&
+                                      (emperorUsesRuling || rulingShare >= 0.08f || BannerSystem.Practices(empire));
+        int nextIntegration = Math.Max(1, CompositeEmpireRules.CapIntegration(
+            empire.data.composite_integration + delta, rulingEliteStillExists, !integrated && route == RouteDual));
+        CompositeEmpireIntegrationStage oldStage = empire.data.composite_integration_stage;
+        empire.data.composite_integration = nextIntegration;
+        empire.data.composite_integration_stage = CompositeEmpireRules.GetStage(nextIntegration);
+        TryAdoptInstitutionalCultureName(empire);
+
+        if (empire.data.central_plains_legitimacy < 20 || empire.data.ruling_tradition_legitimacy < 20)
+            empire.AddMandate(-2);
+        else if (empire.data.central_plains_legitimacy >= 60 && empire.data.ruling_tradition_legitimacy >= 60)
+            empire.AddMandate(1);
+
+        if (oldStage != empire.data.composite_integration_stage)
+            TranslateHelper.LogCompositeEmpireStageChanged(empire, oldStage, empire.data.composite_integration_stage);
+        if (empire.data.composite_integration_stage == CompositeEmpireIntegrationStage.IntegratedDynasty)
+            CompleteIntegration(empire, institutionalCulture);
+    }
+#endif
+
+    // 统治族群、制度文化各占治下人口的几成：按各城的文化构成乘城中人口(含无小人模式的背景人口)。
+    // 以前数实体小人——无小人模式下几乎没有小人，两个占比都是 0，融合只看皇帝本人的文化
+#if EC_PENDING
+    public static void PopulationShares(Empire empire, string rulingCulture, string institutionalCulture,
+        out float rulingShare, out float institutionalShare)
+    {
+        double total = 0d, ruling = 0d, institutional = 0d;
+        foreach (Realm kingdom in empire?.kingdoms_list ?? new List<Realm>())
+        {
+            if (kingdom?.Cities == null || kingdom.IsGone()) continue;
+            foreach (City city in kingdom.Cities)
+            {
+                if (city?.Record == null || city.IsGone()) continue;
+                double people = Math.Max(1, city.CountLivingPopulation());
+                Dictionary<string, float> shares = CultureService.GetCityCultureShares(city, initialize: false);
+                float sum = shares.Values.Sum();
+                total += people;
+                if (sum <= 0f)
+                {
+                    string main = CultureService.GetMainCulture(city, initialize: false);
+                    if (string.Equals(main, rulingCulture, StringComparison.Ordinal)) ruling += people;
+                    if (string.Equals(main, institutionalCulture, StringComparison.Ordinal)) institutional += people;
+                    continue;
+                }
+                if (shares.TryGetValue(rulingCulture ?? "", out float r)) ruling += people * r / sum;
+                if (shares.TryGetValue(institutionalCulture ?? "", out float i)) institutional += people * i / sum;
+            }
+        }
+        rulingShare = total > 0d ? (float)(ruling / total) : 0f;
+        institutionalShare = total > 0d ? (float)(institutional / total) : 0f;
+    }
+#endif
+
+    // 朝廷用中原制度的外族王朝(用户 2026-10-27："明明使用了中原制度却又不改国号还顶着游牧名称")：复合帝国走兼用、从俗
+    // (分治的朝廷照本族旧制，不算)、制度文化是华夏一系；或不是复合帝国，制度文化是华夏一系而统治文化不是
+#if EC_PENDING
+    private static bool CentralPlainsCourt(Empire empire, out string culture)
+    {
+        culture = null;
+        Realm core = empire?.CoreKingdom;
+        if (core?.Record == null || core.IsGone()) return false;
+        if (IsComposite(empire))
+        {
+            culture = GetInstitutionalCulture(empire);
+            return GetRoute(empire) != RouteDual && InstitutionSystem.GetCultureLine(culture) == "Huaxia";
+        }
+        culture = CultureService.GetInstitutionCulture(core);
+        return InstitutionSystem.GetCultureLine(culture) == "Huaxia" &&
+               InstitutionSystem.GetCultureLine(CultureService.GetRealmCulture(core)) != "Huaxia";
+    }
+#endif
+
+    // 国号是华夏选号规则定的(法理名、复国、起义旗号、篡位者封国、美号；见 RealmNamingSystem)：华夏人在华夏法理下称帝，
+    // 文化算出来是游牧也不再改成美号(用户 2026-10-27："华夏人在华夏法理下称帝也会因为文化是游牧……莫名其妙的用美号")
+    private static bool HuaxiaFounded(Empire empire) =>
+        empire.data.name_source is RealmNamingSystem.SourceKingdomTitle or RealmNamingSystem.SourceEmpireTitle or
+            RealmNamingSystem.SourceRestoration or RealmNamingSystem.SourceRebelBanner or RealmNamingSystem.SourceUsurper or
+            RealmNamingSystem.SourceGrandName;
+
+    // 国号已是汉名(出自华夏国名词库、美号词库)
+    private static bool HanName(string name, string culture) =>
+        !string.IsNullOrWhiteSpace(name) &&
+        (NameCultureRepair.FromLine(name, "Huaxia") || !string.IsNullOrWhiteSpace(RealmNamingSystem.GrandNameMeaning(culture, name)));
+
+#if EC_PENDING
+    public static bool TryAdoptInstitutionalCultureName(Empire empire)
+    {
+        // 朝廷用了中原制度就当场改号，不等融合度(以前要融合度到 60、分治的永远不改，外族王朝顶着游牧国号用中原制度好些年)；
+        // 别的制度线照旧等融合度
+        bool central = CentralPlainsCourt(empire, out string courtCulture);
+        if (!central && (!IsComposite(empire) || GetRoute(empire) == RouteDual ||
+                         empire.data.composite_integration < CulturalNameIntegrationThreshold))
+            return false;
+        if (empire.data.composite_cultural_name_adopted || empire.CoreKingdom?.Record == null || empire.CoreKingdom.IsGone() ||
+            empire.CoreKingdom.HasCustomCountryNaming())
+        {
+            return false;
+        }
+
+        string culture = central ? courtCulture : GetInstitutionalCulture(empire);
+        if (!CultureService.IsValidCulture(culture)) return false;
+        // 剧本定下的入主国号(后金入关称大清)：照它定，加"大"，不看本来是不是汉名、不另挑
+        string scripted = central ? ScriptedConquestName(empire) : null;
+        // 国号本来就是汉名的(入主前就用着中原的法理名、美号)：不改，记下即可
+        if (scripted == null && central && (HanName(empire.data.core_name, culture) || HuaxiaFounded(empire)))
+        {
+            empire.data.composite_cultural_name_adopted = true;
+            empire.data.composite_cultural_name = empire.GetEmpireName();
+            empire.data.composite_cultural_name_culture = culture;
+            empire.data.composite_cultural_name_source = "han_name";
+            empire.data.composite_cultural_name_adopted_timestamp = EmpireWorld.Current?.Now() ?? -1L;
+            return true;
+        }
+        // 入主中原采纳中原制度(兼用、从俗)：主法理本有汉名的直接沿用(用户 2026-10-27："如果那个异族的主法理原本就有漢名直接延用就好")，
+        // 没有才改用美号(见 RealmNamingSystem.Founding)
+        CulturalNameCandidate candidate = null;
+        if (scripted != null)
+        {
+            empire.data.directPre = RealmNamingSystem.GrandPrefix;
+            empire.data.name_source = RealmNamingSystem.SourceGrandName;
+            candidate = NewNameCandidate(scripted, "grand_name");
+        }
+        candidate ??= HanTitleName(empire, culture);
+        if (candidate == null)
+        {
+            string grand = RealmNamingSystem.ConquestGrandName(empire, culture);
+            candidate = !string.IsNullOrWhiteSpace(grand)
+                ? NewNameCandidate(grand, "grand_name")
+                : SelectInstitutionalCultureName(empire, culture);
+        }
+        if (candidate == null || string.IsNullOrWhiteSpace(candidate.Name)) return false;
+
+        string oldName = empire.GetEmpireName();
+        // 剧本定下的国号(大元、入关的大清)连国号类别一起换成朝廷的；别的入主王朝照旧保留本来的称号
+        empire.SetEmpireName(candidate.Name, preserveEmpireType: scripted == null);
+        string adoptedName = empire.GetEmpireName();
+        if (string.IsNullOrWhiteSpace(adoptedName)) return false;
+
+        empire.data.composite_cultural_name_adopted = true;
+        empire.data.composite_cultural_name = adoptedName;
+        empire.data.composite_cultural_name_culture = culture;
+        empire.data.composite_cultural_name_source = candidate.Source;
+        empire.data.composite_cultural_name_adopted_timestamp = EmpireWorld.Current?.Now() ?? -1L;
+        if (!string.Equals(oldName, adoptedName, StringComparison.Ordinal))
+        {
+            TranslateHelper.LogCompositeEmpireCulturalNameAdopted(empire, adoptedName, culture);
+            NoticeConquestName(empire, oldName, adoptedName, culture, candidate.Source);
+        }
+        return true;
+    }
+#endif
+
+    // 主法理的汉名：主法理在华夏文化里的旧称；或主法理本身就是华夏一系的王国法理(名字出自华夏国名词库、法理文化是华夏一系)。
+    // 有现存帝国在用这个名字的不取
+#if EC_PENDING
+    private static CulturalNameCandidate HanTitleName(Empire empire, string culture)
+    {
+        if (InstitutionSystem.GetCultureLine(culture) != "Huaxia") return null;
+        KingdomTitle main = empire.CoreKingdom.GetMainTitle();
+        if (main?.data == null || main.IsGone()) main = empire.CoreKingdom.Capital?.GetTitle();
+        if (main?.data == null || main.IsGone()) return null;
+        string historic = CultureService.GetTitleCulturalName(main, culture);
+        string own = EmpireCoreManager.NormalizeCoreName(main.data.name);
+        bool han = !string.IsNullOrWhiteSpace(own) &&
+                   (InstitutionSystem.GetCultureLine(CultureService.GetEffectiveTitleCulture(main)) == "Huaxia" ||
+                    NameCultureRepair.FromLine(own, "Huaxia"));
+        // 照地名起的主法理不当帝国号(见 RealmNamingSystem.PlaceTitle)，往下取美号
+        string name = !string.IsNullOrWhiteSpace(historic) ? historic.Trim() : han && !RealmNamingSystem.PlaceTitle(main) ? own : null;
+        if (string.IsNullOrWhiteSpace(name) || ModClass.EMPIRE_MANAGER?.Any(other => other?.data != null && other != empire &&
+                !other.IsGone() && !other.IsArchived() && string.Equals(other.GetEmpireName(), name, StringComparison.Ordinal)) == true)
+            return null;
+        return NewNameCandidate(name, "main_title_han");
+    }
+#endif
+
+    // 入主中原定国号的出处上屏幕(用户 2026-10-27："异族入主华夏取吉祥名字的时候也应该有提示，说明他的国号来源")：
+    // 美号写取义，沿用主法理的写沿用旧名，按所据之地改的写以地为号
+#if EC_PENDING
+    private static void NoticeConquestName(Empire empire, string oldName, string newName, string culture, string source)
+    {
+        string text;
+        if (source == "grand_name")
+        {
+            string meaning = RealmNamingSystem.GrandNameMeaning(culture, newName);
+            // 美号显示连前缀"大"一起(有效国号是一个字)
+            if (!string.IsNullOrWhiteSpace(empire.data.directPre)) newName = LM.Get(empire.data.directPre) + newName;
+            text = string.Format(LM.Get(string.IsNullOrWhiteSpace(meaning) ? "conquest_name_grand_plain_notice" : "conquest_name_grand_notice"),
+                oldName, newName, meaning);
+        }
+        else if (source is "main_title_han" or "main_title_history")
+            text = string.Format(LM.Get("conquest_name_title_notice"), oldName, newName);
+        else
+            text = string.Format(LM.Get("conquest_name_land_notice"), oldName, newName);
+        TranslateHelper.LogMajor(text, empire.CoreKingdom);
+        empire.RecordHistory(directContent: text);
+        LogService.LogInfo($"[EmpireCraft][入主定号] {text}({source})");
+    }
+
+    private static CulturalNameCandidate SelectInstitutionalCultureName(Empire empire, string culture)
+    {
+        KingdomTitle mainTitle = empire.CoreKingdom.GetMainTitle();
+        string mainHistoricName = CultureService.GetTitleCulturalName(mainTitle, culture);
+        if (!string.IsNullOrWhiteSpace(mainHistoricName))
+            return NewNameCandidate(mainHistoricName, "main_title_history");
+
+        City seat = empire.Emperor?.City;
+        if (seat == null || seat.IsGone()) seat = empire.CoreKingdom.Capital;
+
+        List<KingdomTitle> culturalCoreTitles = EmpireCoreManager.EmpireCores.Values
+            .Where(core => core != null &&
+                           string.Equals(core.default_culture, culture, StringComparison.Ordinal))
+            .SelectMany(EmpireCoreManager.GetTitles)
+            .Where(title => title?.data != null && !title.IsGone())
+            .Distinct()
+            .OrderByDescending(title => IsTitleControlledByEmpire(title, empire))
+            .ThenBy(title => DistanceFromSeat(seat, title.title_capital))
+            .ThenBy(title => title.Key)
+            .ToList();
+        CulturalNameCandidate coreName = SelectTitleName(culturalCoreTitles, culture, "institutional_core");
+        if (coreName != null) return coreName;
+
+        List<KingdomTitle> nearbyTitles = (empire.kingdoms_list ?? new List<Realm>())
+            .Where(kingdom => kingdom?.Record != null && !kingdom.IsGone())
+            .SelectMany(kingdom => kingdom.GetControlledTitles())
+            .Where(title => title?.data != null && !title.IsGone() &&
+                            string.Equals(CultureService.GetEffectiveTitleCulture(title), culture,
+                                StringComparison.Ordinal))
+            .Distinct()
+            .OrderBy(title => DistanceFromSeat(seat, title.title_capital))
+            .ThenBy(title => title.Key)
+            .ToList();
+        CulturalNameCandidate nearbyTitleName = SelectTitleName(nearbyTitles, culture, "nearby_title");
+        if (nearbyTitleName != null) return nearbyTitleName;
+
+        City nearbyCity = (empire.kingdoms_list ?? new List<Realm>())
+            .Where(kingdom => kingdom?.Record != null && !kingdom.IsGone())
+            .SelectMany(kingdom => kingdom.Cities ?? new List<City>())
+            .Where(city => city?.Record != null && !city.IsGone() &&
+                           (string.Equals(CultureService.GetMainCulture(city), culture, StringComparison.Ordinal) ||
+                            string.Equals(CultureService.GetEffectiveTitleCulture(city.GetTitle()), culture,
+                                StringComparison.Ordinal)))
+            .OrderBy(city => DistanceFromSeat(seat, city))
+            .ThenBy(city => city.Key)
+            .FirstOrDefault();
+        string nearbyCityName = nearbyCity?.GetCityName();
+        if (!string.IsNullOrWhiteSpace(nearbyCityName))
+            return NewNameCandidate(nearbyCityName, "nearby_place");
+
+        string seatName = seat?.GetCityName();
+        return string.IsNullOrWhiteSpace(seatName) ? null : NewNameCandidate(seatName, "ruling_seat");
+    }
+
+    private static CulturalNameCandidate SelectTitleName(IEnumerable<KingdomTitle> titles, string culture,
+        string source)
+    {
+        foreach (KingdomTitle title in titles)
+        {
+            string name = CultureService.GetTitleCulturalName(title, culture);
+            if (string.IsNullOrWhiteSpace(name) &&
+                string.Equals(CultureService.GetEffectiveTitleCulture(title), culture, StringComparison.Ordinal))
+            {
+                name = title.data.name;
+            }
+            if (!string.IsNullOrWhiteSpace(name)) return NewNameCandidate(name, source);
+        }
+        return null;
+    }
+#endif
+
+    private static CulturalNameCandidate NewNameCandidate(string name, string source)
+    {
+        return new CulturalNameCandidate { Name = name.Trim(), Source = source };
+    }
+
+#if EC_PENDING
+    private static bool IsTitleControlledByEmpire(KingdomTitle title, Empire empire)
+    {
+        return title.getCities().Any(city => city?.Record != null && !city.IsGone() &&
+                                             city.Realm?.GetEmpire() == empire);
+    }
+
+    private static float DistanceFromSeat(City seat, City target)
+    {
+        if (seat == null || seat.IsGone() || target == null || target.IsGone()) return float.MaxValue;
+        return UnityEngine.Vector2.Distance(seat.city_center, target.city_center);
+    }
+#endif
+
+    // 易俗改制(见 CultureReformSystem)：君主改从制度文化之俗，融合一步到位
+#if EC_PENDING
+    public static void CompleteByReform(Empire empire)
+    {
+        if (!IsComposite(empire)) return;
+        string institutionalCulture = GetInstitutionalCulture(empire);
+        CompositeEmpireIntegrationStage oldStage = empire.data.composite_integration_stage;
+        empire.data.composite_integration = Math.Max(empire.data.composite_integration, CompositeEmpireRules.IntegratedThreshold);
+        empire.data.composite_integration_stage = CompositeEmpireRules.GetStage(empire.data.composite_integration);
+        TryAdoptInstitutionalCultureName(empire);
+        if (oldStage != empire.data.composite_integration_stage)
+            TranslateHelper.LogCompositeEmpireStageChanged(empire, oldStage, empire.data.composite_integration_stage);
+        CompleteIntegration(empire, institutionalCulture);
+    }
+
+    private static void CompleteIntegration(Empire empire, string institutionalCulture)
+    {
+        if (!CultureService.IsValidCulture(institutionalCulture) ||
+            string.Equals(empire.data.ruling_culture, institutionalCulture, StringComparison.Ordinal)) return;
+        string oldRuling = GetRulingCulture(empire);
+        empire.data.ruling_culture = institutionalCulture;
+        empire.data.conquest_founder_culture = institutionalCulture;
+        empire.data.composite_route = RouteAdopt;
+        empire.data.external_identity_culture = institutionalCulture;
+        if (AdoptableRegime(institutionalCulture, out RegimeType institutionalType))
+            empire.data.military_tradition = institutionalType.ToString();
+        // 征服王朝本就分统治文化、制度文化，不叠旧制(见 LegacyInstitutionSystem)
+        CultureService.SetRealmCulture(empire.CoreKingdom, institutionalCulture, updatePoliticalSystem: false,
+            allowLegacyInstitutions: false);
+        // 帝国核心的默认文化(没锁定、该文化此刻没有别的正统帝国时)也换过来，国号类别按现行政体重取：
+        // 以前融合完成后核心仍是游牧文化(天下、同化目标都按旧文化)，对外仍称"汗国"
+        EmpireCore core = EmpireCoreManager.Get(empire);
+        if (core != null && !core.culture_locked && !CultureService.IsFixedDeJureCultureEnabled() &&
+            CultureService.GetActiveEmpireForCulture(institutionalCulture, empire) == null)
+            core.default_culture = institutionalCulture;
+        empire.data.empire_type_key = "";
+        InstitutionSystem.ForgetRulingMajority(empire);
+        SynchronizeMilitaryTraditionClaims(empire);
+        // 旧部不服改俗，据地起兵(见 CompositeEmpireService.Conquest)
+        OldGuardRevolt(empire, oldRuling, institutionalCulture);
+    }
+#endif
+
+    // 征服王朝随统治族群带来的诉求：游牧扩张挂在攘夷、融入派上(保留游牧军事传统时)；
+    // 国语骑射挂在攘夷、同化派上(统治族群游牧、尚未融完时)。没有这些派系的挂在当权派上
+#if EC_PENDING
+    private static void SynchronizeMilitaryTraditionClaims(Empire empire)
+    {
+        var factions = empire?.CoreKingdom?.GetRegime()?.GetPlayerFactions();
+        if (factions == null) return;
+        SyncClaim(empire, factions, TemporaryFactionType.游牧扩张, UsesMilitaryTradition(empire, RegimeType.YouMu),
+            FactionType.攘夷, FactionType.融入);
+        SyncClaim(empire, factions, TemporaryFactionType.国语骑射, NativistClaimApplies(empire),
+            FactionType.攘夷, FactionType.同化);
+    }
+
+    private static void SyncClaim(Empire empire, List<FixedFaction> factions, TemporaryFactionType type, bool wanted,
+        params FactionType[] hostTypes)
+    {
+        List<FixedFaction> hosts = factions.Where(f => f != null && hostTypes.Contains(f.Type)).ToList();
+        if (hosts.Count == 0 && factions.FirstOrDefault(f => f?.Force == true) is FixedFaction dominate)
+            hosts.Add(dominate);
+        foreach (FixedFaction faction in factions.Where(f => f != null))
+        {
+            faction.TemporaryFactionTypesRecord ??= new List<TemporaryFactionType>();
+            faction.TemporaryFactions ??= new List<TemporaryFaction>();
+            TemporaryFaction existing = faction.TemporaryFactions.FirstOrDefault(tf => tf != null && tf.type == type);
+            if (wanted && hosts.Contains(faction))
+            {
+                if (!faction.TemporaryFactionTypesRecord.Contains(type))
+                    faction.TemporaryFactionTypesRecord.Add(type);
+                if (existing == null && FactionManager.Config?.StoredTemporaryFaction != null &&
+                    FactionManager.Config.StoredTemporaryFaction.TryGetValue(type, out TemporaryFaction prototype))
+                {
+                    TemporaryFaction claim = prototype.Clone(faction);
+                    claim.Init(faction);
+                    claim.SetEmpire(empire);
+                    faction.TemporaryFactions.Add(claim);
+                }
+            }
+            else if (existing?.IsStarted() != true)
+            {
+                faction.TemporaryFactionTypesRecord.Remove(type);
+                faction.TemporaryFactions.RemoveAll(tf => tf != null && tf.type == type);
+            }
+        }
+    }
+#endif
+
+    private static int Clamp100(int value)
+    {
+        return Math.Max(0, Math.Min(100, value));
+    }
+}
+}

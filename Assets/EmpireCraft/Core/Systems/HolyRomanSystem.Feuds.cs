@@ -1,0 +1,442 @@
+// Ported from the EmpireCraft mod: Scripts/GeneralSystems/HolyRomanSystem.Feuds.cs @ 64c66e30. Body kept line-for-line for three-way sync;
+// see Port/manifest.json and Tools/PortTool.
+using System;
+using System.Collections.Generic;
+using System.Linq;
+
+namespace EmpireCraft.Core
+{
+
+// 诸侯私战与帝国法院(封建制帝国，见 HasDiet)：
+//   · 私战(帝国改革颁行之前)：普通诸侯(非中央、非被禁、君主成年、不在打仗)为法理向接壤的同帝国诸侯(非中央——皇帝家族领国
+//     不卷入私战)兴兵。只争守方手里属于攻方法理的非都城，至多两座(与攻方接壤的优先)；没有这样的城就打不起来，
+//     所以一城小邦、自由城市打不着。攻方兵力要有守方八成；每年每个够格攻方 5% × (2 − 权威/50)(系数夹 0.2~2，
+//     见 ImperialAuthorityRules.FeudChance)；每帝国同时至多两场、每年至多新开一场；同一对诸侯打完十年内不再私战；开战权威 −1；
+//     规模受限——不拉姻亲、不扩封建附庸与共主领国、不升级世界大战(WarPatch 见 ContainedWar)，中央与别的成员不援
+//     (MemberWarAid 本就不管成员打成员)；两家之间只有争的城能易手(CityPatch 见 BlocksFeudCity)，都城永远不在其内；
+//     打满三年强制议和。结局：攻方胜或议和——争城里攻方占了一半以上地块的割给攻方；守方胜——攻方赔款、打下的争城退还；
+//   · 帝国法院(帝国改革颁行之后)：私战禁止，领土纠纷改为诉讼——够格原告(普通诸侯或中央，持有法理的一方)每年 15% 起诉，
+//     一案一城，每帝国待裁至多三案；原告有余钱时半数会花一成年收"打点"(钱进中央国库)；审理满一年后每年五成宣判。
+//     判给几率见 ImperialAuthorityRules.CourtGrantChance，否则驳回；判给后被告可能抗判(DefyRulingChance)——
+//     遵判城归原告、权威 +1；抗判记抗命(−2)再 −1，下次议会先议对它的禁令(抗命名单按时间先后，它排第一)；
+//   · 违禁私战：颁行之后权威不到 30 时，兵力是守方一倍半以上、又与守方交恶的诸侯每年 2% 照样兴兵(同上规则)，
+//     开战即记抗命、权威再 −2。
+// 治安令只管对外开战与出兵，不管私战。
+public static partial class HolyRomanSystem
+{
+    private const float FeudMinStrength = 0.8f, IllegalFeudStrength = 1.5f, IllegalFeudChance = 0.02f, FeudHeldShare = 0.5f;
+    private const int FeudMaxCities = 2, FeudMaxConcurrent = 2, FeudPairCooldownYears = 10, FeudMaxYears = 3;
+    private const int IllegalFeudAuthority = 30, AuthFeud = -1, AuthIllegalFeud = -2;
+    private const float LawsuitChance = 0.15f, VerdictChance = 0.5f, BribeShare = 0.1f, BribeOdds = 0.5f;
+    private const int LawsuitMaxPending = 3, LawsuitHearingYears = 1, AuthRulingObeyed = 1, AuthRulingDefied = -1;
+    private const int CourtLogSize = 8;
+
+    // 正在由本系统兴起私战(startWar 前后)：开战钩子据此不拉姻亲、不扩封建、不升级世界大战
+    public static bool DeclaringFeud;
+
+    // 只许两家对打(不拉外人、不升级)的内战：私战、争位之战(神罗的对立国王，与分裂进程的争位之战，见 SchismSystem)、
+    // 游牧争草场(开战那一刻起)；劫掠之战也不拉姻亲、不扩封建、不升级世界大战(联盟各部由 NomadRaidSystem 自己拉进来)
+#if EC_PENDING
+    public static bool ContainedWar(War war) =>
+        DeclaringFeud || DeclaringContest || SchismSystem.Declaring || NomadRaidSystem.Declaring || SteppeOrderSystem.Declaring ||
+        SouthernGarrisonSystem.Declaring ||
+        war?.data != null && war.GetEmpireWarType() is EmpireWarType.私战 or EmpireWarType.对立国王 or EmpireWarType.劫掠 or
+            EmpireWarType.草场之争;
+#endif
+
+    public static int ActiveFeuds(HolyRomanState state) => state?.private_wars?.Count(record => record.ended_at < 0d) ?? 0;
+
+#if EC_PENDING
+    private static void FeudsYearly(Empire empire, HolyRomanState state)
+    {
+        state.private_wars ??= new List<PrivateWarRecord>();
+        state.lawsuits ??= new List<LawsuitRecord>();
+        state.court_log ??= new List<string>();
+        double now = GameClock.Now;
+        foreach (PrivateWarRecord record in state.private_wars.ToList())
+        {
+            if (record.ended_at >= 0d)
+            {
+                if (GameClock.YearsSince(record.ended_at) >= FeudPairCooldownYears) state.private_wars.Remove(record);
+                continue;
+            }
+            War war = LiveWar(record.war_id);
+            if (war == null)
+            {
+                // 没走到结束钩子(读档、战争被别处直接移除)：只记结束，不结算
+                record.ended_at = now;
+                continue;
+            }
+            state.year_turmoil = true;
+            if (WarSituation.WarYears(war) >= FeudMaxYears) EmpireWorld.Current.wars.endWar(war, WarWinner.Peace);
+        }
+        bool reformed = ReformEnacted(empire);
+        if (reformed) LawsuitsYearly(empire, state);
+        TryFeud(empire, state, illegal: reformed);
+    }
+#endif
+
+    #region 私战
+
+#if EC_PENDING
+    private static bool AtWar(Realm kingdom) => kingdom.getWars().Any(war => war?.data != null && !war.hasEnded());
+#endif
+
+    private static bool Rebelling(Realm kingdom) => kingdom.IsFactionRebelling() || kingdom.IsLocalRebelling();
+
+    // 能兴私战的诸侯
+#if EC_PENDING
+    private static bool FeudCapable(Empire empire, Realm kingdom) =>
+        kingdom?.Record != null && !kingdom.IsGone() && kingdom != empire.CoreKingdom && SecularPrince(kingdom) &&
+        !IsBanned(kingdom) && kingdom.HasRuler() && kingdom.Ruler.IsAdult() && !AtWar(kingdom) && !Rebelling(kingdom);
+#endif
+
+    // claimant 对这座城有法理：城所属法理在它的法理头衔里，或法理主国就是它
+#if EC_PENDING
+    private static bool ClaimsCity(Realm claimant, List<long> titles, City city)
+    {
+        var title = city?.GetTitle();
+        if (title == null || title.IsGone()) return false;
+        return titles.Contains(title.Key) || (title.main_kingdom ?? title.owner?.Realm) == claimant;
+    }
+#endif
+
+    // holder 手里属于 claimant 法理的非都城(与 claimant 接壤的在前)
+#if EC_PENDING
+    private static List<City> ClaimedFrom(Realm claimant, Realm holder)
+    {
+        List<long> titles = claimant.GetRealmTitleIds();
+        return holder.Cities.Where(city => city?.Record != null && !city.IsGone() && city != holder.Capital &&
+                                           !EnfeoffmentHelper.IsRealmCapital(city) && ClaimsCity(claimant, titles, city))
+            .OrderByDescending(city => city.neighbours_cities.Any(other => other?.kingdom == claimant))
+            .ThenBy(city => city.zones?.Count ?? 0).ToList();
+    }
+#endif
+
+    private static bool FeudCooling(HolyRomanState state, Realm a, Realm b) =>
+        state.private_wars.Any(record => record.ended_at >= 0d &&
+                                         (record.attacker_id == a.Key && record.defender_id == b.Key ||
+                                          record.attacker_id == b.Key && record.defender_id == a.Key));
+
+    // 私战对象：接壤的同帝国诸侯(非中央)，手里有攻方法理的城，兵力够；违禁私战另要兵力一倍半、两家交恶
+#if EC_PENDING
+    private static (Realm defender, List<City> cities) FeudTarget(Empire empire, HolyRomanState state, Realm attacker,
+        List<Realm> members, bool illegal)
+    {
+        float strength = Troops(attacker);
+        Realm best = null;
+        List<City> bestCities = null;
+        foreach (Realm defender in members)
+        {
+            if (defender == attacker || defender.IsGone() || !attacker.IsNeighbourWith(defender) || AtWar(defender) ||
+                Rebelling(defender) || FeudCooling(state, attacker, defender)) continue;
+            float theirs = Troops(defender);
+            if (strength < theirs * (illegal ? IllegalFeudStrength : FeudMinStrength)) continue;
+            if (illegal && Opinion(attacker, defender) >= 0) continue;
+            List<City> cities = ClaimedFrom(attacker, defender);
+            if (cities.Count == 0) continue;
+            if (best != null && cities.Count <= bestCities.Count) continue;
+            best = defender;
+            bestCities = cities;
+        }
+        return best == null ? (null, null) : (best, bestCities.Take(FeudMaxCities).ToList());
+    }
+#endif
+
+    // 每年至多新开一场；同时至多两场
+#if EC_PENDING
+    private static void TryFeud(Empire empire, HolyRomanState state, bool illegal)
+    {
+        int authority = Authority(empire);
+        if (illegal && authority >= IllegalFeudAuthority || ActiveFeuds(state) >= FeudMaxConcurrent) return;
+        float chance = illegal ? IllegalFeudChance : ImperialAuthorityRules.FeudChance(authority);
+        // 帝位虚悬时诸侯更敢兴兵
+        if (Interregnum(empire)) chance *= InterregnumFeudFactor;
+        List<Realm> members = Members(empire);
+        foreach (Realm attacker in members.Where(member => FeudCapable(empire, member)).OrderBy(_ => EcRandom.value))
+        {
+            (Realm defender, List<City> cities) = FeudTarget(empire, state, attacker, members, illegal);
+            if (defender == null || EcRandom.value >= chance) continue;
+            DeclareFeud(empire, state, attacker, defender, cities, illegal);
+            return;
+        }
+    }
+
+    private static void DeclareFeud(Empire empire, HolyRomanState state, Realm attacker, Realm defender, List<City> cities,
+        bool illegal)
+    {
+        War war;
+        DeclaringFeud = true;
+        try
+        {
+            war = EmpireWorld.Current.diplomacy.startWar(attacker, defender, WarTypeLibrary.normal);
+        }
+        finally
+        {
+            DeclaringFeud = false;
+        }
+        if (war?.data == null) return;
+        war.SetEmpireWarType(EmpireWarType.私战);
+        string first = cities[0].GetCityName();
+        string names = string.Join("、", cities.Select(city => city.GetCityName()));
+        war.data.name = string.Format(LM.Get(cities.Count > 1 ? "hre_feud_war_name_many" : "hre_feud_war_name"),
+            attacker.GetKingdomName(), first);
+        state.private_wars.Add(new PrivateWarRecord
+        {
+            war_id = war.data.id, attacker_id = attacker.Key, defender_id = defender.Key,
+            attacker_name = attacker.GetKingdomName(), defender_name = defender.GetKingdomName(), city_names = names,
+            city_ids = cities.Select(city => city.Key).ToList(), at = GameClock.Now, illegal = illegal
+        });
+        state.private_war_count++;
+        state.year_turmoil = true;
+        ChangeAuthority(empire, AuthFeud, "hre_auth_feud", attacker.GetKingdomName(), defender.GetKingdomName());
+        if (illegal)
+        {
+            MarkDefiance(empire, state, attacker);
+            ChangeAuthority(empire, AuthIllegalFeud, "hre_auth_illegal_feud", attacker.GetKingdomName());
+        }
+        Record(empire, string.Format(LM.Get(illegal ? "hre_feud_illegal_history" : "hre_feud_history"),
+            attacker.GetKingdomName(), names, defender.GetKingdomName()));
+        FiscalDiagnostics.Count(illegal ? "神罗·违禁私战" : "神罗·私战");
+        LogService.LogInfo($"[EmpireCraft][神罗] {empire.GetEmpireFullName()} {(illegal ? "违禁私战" : "私战")}：" +
+                           $"{attacker.GetKingdomName()}(兵{Troops(attacker):0})争{defender.GetKingdomName()}(兵{Troops(defender):0})的{names}，" +
+                           $"权威{Authority(empire)}");
+    }
+#endif
+
+    // 私战进行中：交战两家之间，不在争城清单里的城一律不易手(CityPatch 攻城结算、改换归属时调用)
+#if EC_PENDING
+    public static bool BlocksFeudCity(Realm newKingdom, City city)
+    {
+        Realm holder = city?.Realm;
+        if (newKingdom?.Record == null || holder?.Record == null || holder == newKingdom) return false;
+        try
+        {
+            foreach (War war in newKingdom.getWars())
+            {
+                if (war?.data == null || war.hasEnded() || war.GetEmpireWarType() != EmpireWarType.私战) continue;
+                if (!(war.isAttacker(newKingdom) && war.isDefender(holder) || war.isDefender(newKingdom) && war.isAttacker(holder)))
+                    continue;
+                PrivateWarRecord record = FeudRecord(holder.GetEmpire(), war.data.id) ?? FeudRecord(newKingdom.GetEmpire(), war.data.id);
+                return record != null && !record.city_ids.Contains(city.Key);
+            }
+        }
+        catch (Exception exception)
+        {
+            LogService.LogWarning($"[EmpireCraft][神罗] 私战拦城失败: {exception.Message}");
+        }
+        return false;
+    }
+#endif
+
+    private static PrivateWarRecord FeudRecord(Empire empire, long warId) =>
+        empire?.data?.holy_roman?.private_wars?.FirstOrDefault(record => record.war_id == warId && record.ended_at < 0d);
+
+    // 私战收场(OnWarEnded 调用)：攻方胜或议和，争城里攻方占了一半以上地块的割给攻方；守方胜，攻方赔款、打下的争城退还
+#if EC_PENDING
+    private static void SettleFeud(Empire empire, HolyRomanState state, War war, WarWinner winner)
+    {
+        PrivateWarRecord record = FeudRecord(empire, war.data.id);
+        if (record == null) return;
+        record.ended_at = GameClock.Now;
+        state.year_turmoil = true;
+        Realm attacker = LiveKingdom(record.attacker_id), defender = LiveKingdom(record.defender_id);
+        bool defendersWon = winner == WarWinner.Defenders;
+        var taken = new List<string>();
+        int returned = 0;
+        foreach (long id in record.city_ids)
+        {
+            City city = EmpireWorld.Current.CityByKey(id);
+            if (city?.Record == null || city.IsGone()) continue;
+            if (defendersWon)
+            {
+                if (attacker != null && defender != null && city.Realm == attacker)
+                {
+                    WarGoalSystem.QueueCession(city, defender);
+                    returned++;
+                }
+                continue;
+            }
+            if (attacker == null) continue;
+            if (city.Realm == attacker) taken.Add(city.GetCityName());
+            else if (city.Realm == defender && city.zones != null && city.zones.Count > 0 &&
+                     city.GetOccupiedTileZoneCount(attacker) >= city.zones.Count * FeudHeldShare)
+            {
+                WarGoalSystem.QueueCession(city, attacker);
+                taken.Add(city.GetCityName());
+            }
+        }
+        string text;
+        if (defendersWon)
+        {
+            if (attacker != null && defender != null) WarReparationsSystem.Impose(attacker, defender);
+            text = string.Format(LM.Get("hre_feud_lost_log"), record.attacker_name, record.defender_name, returned);
+        }
+        else
+            text = taken.Count > 0
+                ? string.Format(LM.Get("hre_feud_won_log"), record.attacker_name, record.defender_name, string.Join("、", taken))
+                : string.Format(LM.Get("hre_feud_draw_log"), record.attacker_name, record.defender_name);
+        CourtLog(state, text);
+        Record(empire, text);
+        FiscalDiagnostics.Count("神罗·私战割城", taken.Count);
+        LogService.LogInfo($"[EmpireCraft][神罗] {empire.GetEmpireFullName()} 私战收场({winner})：{text}");
+    }
+#endif
+
+    private static Realm LiveKingdom(long id)
+    {
+        Realm kingdom = id >= 0 ? EmpireWorld.Current.RealmByKey(id) : null;
+        return kingdom?.Record != null && !kingdom.IsGone() ? kingdom : null;
+    }
+
+    private static void CourtLog(HolyRomanState state, string text)
+    {
+        state.court_log ??= new List<string>();
+        state.court_log.Add(text);
+        while (state.court_log.Count > CourtLogSize) state.court_log.RemoveAt(0);
+    }
+
+    #endregion
+
+    #region 帝国法院
+
+#if EC_PENDING
+    private static bool CanSue(Empire empire, Realm kingdom) =>
+        kingdom?.Record != null && !kingdom.IsGone() && kingdom.GetEmpire() == empire && !IsBanned(kingdom) && kingdom.HasRuler() &&
+        (kingdom == empire.CoreKingdom || SecularPrince(kingdom)) && !Rebelling(kingdom);
+
+    private static void LawsuitsYearly(Empire empire, HolyRomanState state)
+    {
+        foreach (LawsuitRecord suit in state.lawsuits.ToList())
+        {
+            Realm plaintiff = LiveKingdom(suit.plaintiff_id), defendant = LiveKingdom(suit.defendant_id);
+            City city = EmpireWorld.Current.CityByKey(suit.city_id);
+            if (plaintiff == null || defendant == null || plaintiff.GetEmpire() != empire || defendant.GetEmpire() != empire ||
+                city?.Record == null || city.IsGone() || city.Realm != defendant)
+            {
+                // 两造不在帝国了、城已易手：撤案
+                state.lawsuits.Remove(suit);
+                continue;
+            }
+            // 两造正在交战(违禁私战、禁令战)：缓判
+            if (plaintiff.isInWarWith(defendant) || GameClock.YearsSince(suit.filed_at) < LawsuitHearingYears ||
+                EcRandom.value >= VerdictChance) continue;
+            state.lawsuits.Remove(suit);
+            Verdict(empire, state, suit, plaintiff, defendant, city);
+        }
+        if (state.lawsuits.Count >= LawsuitMaxPending) return;
+        List<Realm> realms = empire.kingdoms_list.Where(kingdom => kingdom?.Record != null && !kingdom.IsGone() &&
+                                                                     kingdom.GetEmpire() == empire).ToList();
+        foreach (Realm plaintiff in realms.Where(kingdom => CanSue(empire, kingdom)).OrderBy(_ => EcRandom.value))
+        {
+            (Realm defendant, City city) = SuitTarget(state, plaintiff, realms);
+            if (city == null || EcRandom.value >= LawsuitChance) continue;
+            File(empire, state, plaintiff, defendant, city);
+            if (state.lawsuits.Count >= LawsuitMaxPending) return;
+        }
+    }
+#endif
+
+    // 告谁、告哪座城：别家手里自己法理的非都城，接壤的在前；同一座城不重复立案
+#if EC_PENDING
+    private static (Realm defendant, City city) SuitTarget(HolyRomanState state, Realm plaintiff, List<Realm> realms)
+    {
+        foreach (Realm holder in realms.OrderByDescending(kingdom => plaintiff.IsNeighbourWith(kingdom)))
+        {
+            if (holder == plaintiff || holder.isInWarWith(plaintiff)) continue;
+            City city = ClaimedFrom(plaintiff, holder).FirstOrDefault(item => state.lawsuits.All(suit => suit.city_id != item.Key));
+            if (city != null) return (holder, city);
+        }
+        return (null, null);
+    }
+
+    private static void File(Empire empire, HolyRomanState state, Realm plaintiff, Realm defendant, City city)
+    {
+        Realm core = empire.CoreKingdom;
+        long bribe = (long)(StateDebtSystem.AnnualStableIncome(plaintiff) * BribeShare);
+        bool bribed = plaintiff != core && bribe > 0 && plaintiff.GetMoney() >= bribe * 3 && EcRandom.value < BribeOdds;
+        if (bribed)
+        {
+            plaintiff.SubMoney((int)bribe, TreasuryCategory.Gift);
+            core.AddMoney((int)bribe, TreasuryCategory.Gift);
+        }
+        state.lawsuits.Add(new LawsuitRecord
+        {
+            plaintiff_id = plaintiff.Key, defendant_id = defendant.Key, city_id = city.Key,
+            plaintiff_name = plaintiff.GetKingdomName(), defendant_name = defendant.GetKingdomName(), city_name = city.GetCityName(),
+            filed_at = GameClock.Now, bribed = bribed
+        });
+        FiscalDiagnostics.Count("神罗·诉讼");
+        LogService.LogInfo($"[EmpireCraft][神罗] {empire.GetEmpireFullName()} 帝国法院立案：{plaintiff.GetKingdomName()}诉" +
+                           $"{defendant.GetKingdomName()}争{city.GetCityName()}" + (bribed ? $"(打点{bribe})" : ""));
+    }
+
+    private static bool IsElectorRealm(Empire empire, Realm kingdom) =>
+        empire.GetCabinetMembers().Any(actor => actor?.Realm == kingdom && !actor.IsGone());
+#endif
+
+    private static bool ImperialHouse(Empire empire, Realm kingdom) =>
+        kingdom == empire.CoreKingdom || SameHouse(kingdom.Ruler, empire.Emperor);
+
+#if EC_PENDING
+    private static void Verdict(Empire empire, HolyRomanState state, LawsuitRecord suit, Realm plaintiff, Realm defendant,
+        City city)
+    {
+        int authority = Authority(empire);
+        float grant = ImperialAuthorityRules.CourtGrantChance(IsElectorRealm(empire, plaintiff), IsElectorRealm(empire, defendant),
+            ImperialHouse(empire, plaintiff), ImperialHouse(empire, defendant), authority, suit.bribed);
+        string text;
+        if (EcRandom.value >= grant)
+        {
+            state.lawsuits_refused++;
+            text = string.Format(LM.Get("hre_lawsuit_refused_log"), suit.plaintiff_name, suit.defendant_name, suit.city_name);
+        }
+        else
+        {
+            float troops = Troops(plaintiff);
+            bool stronger = Troops(defendant) >= Math.Max(1f, troops) * 2f;
+            if (EcRandom.value < ImperialAuthorityRules.DefyRulingChance(authority, stronger))
+            {
+                MarkDefiance(empire, state, defendant);
+                ChangeAuthority(empire, AuthRulingDefied, "hre_auth_ruling_defied", defendant.GetKingdomName());
+                FiscalDiagnostics.Count("神罗·抗判");
+                text = string.Format(LM.Get("hre_lawsuit_defied_log"), suit.defendant_name, suit.city_name, suit.plaintiff_name);
+            }
+            else
+            {
+                city.JoinRealm(plaintiff);
+                if (city.Realm != plaintiff) return;
+                state.court_rulings++;
+                state.lawsuits_granted++;
+                ChangeAuthority(empire, AuthRulingObeyed, "hre_auth_ruling_obeyed", suit.city_name);
+                FiscalDiagnostics.Count("神罗·判城");
+                text = string.Format(LM.Get("hre_court_ruling_history"), suit.city_name, suit.plaintiff_name, suit.defendant_name);
+            }
+        }
+        CourtLog(state, text);
+        Record(empire, text);
+        LogService.LogInfo($"[EmpireCraft][神罗] {empire.GetEmpireFullName()} 帝国法院宣判(判给几率{grant:P0}，权威{authority})：{text}");
+    }
+#endif
+
+    #endregion
+
+    // 年度诊断的私战与法院一段
+#if EC_PENDING
+    private static string FeudStatus(Empire empire, HolyRomanState state)
+    {
+        bool reformed = ReformEnacted(empire);
+        List<Realm> members = Members(empire);
+        int eligible = members.Where(member => FeudCapable(empire, member))
+            .Count(member => FeudTarget(empire, state, member, members, reformed).defender != null);
+        int authority = Authority(empire);
+        string feuds = $"进行中{ActiveFeuds(state)}场、累计{state.private_war_count}场";
+        if (!reformed)
+            return $"{feuds}；够格攻方{eligible}家，每家{ImperialAuthorityRules.FeudChance(authority):P1}";
+        return $"法院待裁{state.lawsuits?.Count ?? 0}案，累计判城{state.lawsuits_granted}、驳回{state.lawsuits_refused}；违禁私战" +
+               (authority >= IllegalFeudAuthority ? $"不会有(权威{authority}，要不到{IllegalFeudAuthority})" : $"够格{eligible}家") +
+               $"；{feuds}";
+    }
+#endif
+}
+}

@@ -1,0 +1,3011 @@
+// Ported from the EmpireCraft mod: Scripts/GeneralSystems/Warfare/CorpsSystem.cs @ 64c66e30. Body kept line-for-line for three-way sync;
+// see Port/manifest.json and Tools/PortTool.
+using Mathf = EmpireCraft.Core.EcMath;
+using Time = EmpireCraft.Core.FrameClock;
+using System;
+using System.Collections.Generic;
+using System.Linq;
+
+namespace EmpireCraft.Core
+{
+
+// 军团(借鉴钢铁雄心)：无小人模式 + 帝国占领模式下，征召兵不再一团一个实体兵，而是合编成"军"——
+// 兵力只是数字(从背景人口里抽，退伍还回，阵亡扣掉)，地图上最多一名统领实体(世界法则可关)；
+// 交战、推进战线、攻城都由 FrontSystem 每月按数值结算。
+//   · 军镇(中央/军区/军府，见 CityPopulationSystem 军制)按兵额折合：每 LegionsPerCorps 个旧制军团编一支军；
+//   · 城市治安的守兵(CityStabilitySystem 出钱养的兵额)照旧是实体，留在城里不出征；
+//   · 原版计兵数(City.countWarriors)把军团折算进去，战争 AI、投降、叛乱判定照常可用。
+public static class CorpsSystem
+{
+    public const int LegionsPerCorps = 8;
+    // 每月补员上限(满编的比例)、和平时每月退伍上限
+    private const float ReinforceShare = 0.08f;
+    private const float DemobilizeShare = 0.25f;
+    // 不在交战的军每月恢复的组织度
+    private const float RestOrg = 15f;
+    private const float IdleOrg = 8f;
+    // 统领开往军团所在地块的间隔(秒)
+    private const float GeneralMoveInterval = 3f;
+    // 陆上行军每个世界秒走几块地块：一个月 5 秒，步兵每月 0.5 块(各兵种再乘倍数，见 CorpsArmSystem.Speed)
+    private const float MarchZonesPerSecond = 0.1f;
+
+#if EC_PENDING
+    public static bool Enabled => CityPopulationSystem.AbstractPopulationEnabled &&
+                                  EmpireCraftWorldLawLibrary.empirecraft_law_switch_occupy_mode?.isEnabled() == true;
+
+    public static bool GeneralUnits => EmpireCraftWorldLawLibrary.empirecraft_law_corps_general?.isEnabled() != false;
+#endif
+
+    // 关闭「军团统领实体」：地图上不留任何军人实体——没有统领、城里的治安守兵只是人数、不再组建原版城市军队
+    // (羽林大将军、都督、镇将、戍主等军职空缺)；被拉去当兵的名人恢复文职。城主、刺史等地方官不受影响
+#if EC_PENDING
+    public static bool NoMilitaryUnits => Enabled && !GeneralUnits;
+#endif
+
+    private static readonly List<CorpsData> Empty = new();
+
+    public static List<CorpsData> Of(Realm kingdom)
+    {
+        if (kingdom?.Record == null || kingdom.IsGone()) return Empty;
+        var data = kingdom.GetOrCreate();
+        return data.corps ??= new List<CorpsData>();
+    }
+
+    public static IEnumerable<(Realm kingdom, CorpsData corps)> All()
+    {
+        if (EmpireWorld.Current?.LiveRealms == null) yield break;
+        foreach (Realm kingdom in EmpireWorld.Current.LiveRealms)
+        {
+            if (kingdom?.Record == null || kingdom.IsGone()) continue;
+            List<CorpsData> list = kingdom.GetOrCreate().corps;
+            if (list == null) continue;
+            foreach (CorpsData corps in list) yield return (kingdom, corps);
+        }
+    }
+
+    public static CorpsData Find(Realm kingdom, long id) => Of(kingdom).FirstOrDefault(corps => corps.id == id);
+
+#if EC_PENDING
+    public static City Home(CorpsData corps) => EmpireWorld.Current?.cities?.get(corps.home_city_id) is City city &&
+                                                city.Record != null && !city.IsGone() ? city : null;
+
+    public static TileZone Zone(CorpsData corps) => ZoneById(corps?.zone_id ?? -1);
+
+    public static TileZone ZoneById(int id) =>
+        id >= 0 && EmpireWorld.Current?.zone_calculator != null &&
+        EmpireWorld.Current.zone_calculator._zones_dict_id.TryGetValue(id, out TileZone zone) ? zone : null;
+#endif
+
+    // 折合旧制军团数(按现有兵力)
+    public static int Equivalent(CorpsData corps) => corps.full <= 0f || corps.strength <= 0f ? 0
+        : Mathf.Max(1, Mathf.RoundToInt(corps.legions * corps.strength / corps.full));
+
+    #region 计兵数缓存
+
+    private static readonly Dictionary<long, int> EquivalentsByCity = new();
+    private static readonly Dictionary<long, int> GeneralsByCity = new();
+    private static readonly Dictionary<long, (long kingdom, long corps)> GeneralIndex = new();
+
+    public static int EquivalentAt(City city) =>
+        city != null && EquivalentsByCity.TryGetValue(city.Key, out int count) ? count : 0;
+
+    public static int GeneralsAt(City city) =>
+        city != null && GeneralsByCity.TryGetValue(city.Key, out int count) ? count : 0;
+
+    public static bool IsGeneral(Person actor) => actor?.Record != null && GeneralIndex.ContainsKey(actor.Key);
+
+#if EC_PENDING
+    public static CorpsData CommandOf(Person general) =>
+        general?.Record != null && GeneralIndex.TryGetValue(general.Key, out var key) ? Find(EmpireWorld.Current?.kingdoms?.get(key.kingdom), key.corps) : null;
+
+    public static float LeviedAt(City city)
+    {
+        if (city == null || !Enabled) return 0f;
+        float total = 0f;
+        foreach (CorpsData corps in Of(city.Realm))
+            if (corps.home_city_id == city.Key) total += corps.strength;
+        return total;
+    }
+#endif
+
+    private static void RebuildIndex()
+    {
+        EquivalentsByCity.Clear();
+        GeneralsByCity.Clear();
+        GeneralIndex.Clear();
+        foreach ((Realm kingdom, CorpsData corps) in All())
+        {
+            EquivalentsByCity.TryGetValue(corps.home_city_id, out int count);
+            EquivalentsByCity[corps.home_city_id] = count + Equivalent(corps);
+            if (corps.general_id < 0) continue;
+            GeneralIndex[corps.general_id] = (kingdom.Key, corps.id);
+            GeneralsByCity.TryGetValue(corps.home_city_id, out int generals);
+            GeneralsByCity[corps.home_city_id] = generals + 1;
+        }
+    }
+
+#if EC_PENDING
+    public static void ResetWorldState()
+    {
+        Components.CorpsMapRenderer.ClearLocate();
+        EquivalentsByCity.Clear();
+        GeneralsByCity.Clear();
+        GeneralIndex.Clear();
+        _lastSecond = _lastMonth = -1d;
+        _monthStartFrame = -1;
+        _framesPerMonth = 30f;
+        _stepMs = 0.5d;
+        ResetMonthCycle();
+        LastMonthTick.Clear();
+        GeneralMoves.Clear();
+        Paths.Clear();
+        MarchRates.Clear();
+        MarchBlocked.Clear();
+        PathFailures.Clear();
+        EmbarkRetry.Clear();
+        GrantRatio.Clear();
+        MemberGaps.Clear();
+        RoadNetwork.ResetWorldState();
+        PureMapMode.ResetWorldState();
+        CorpsArmSystem.ResetWorldState();
+        VirtualIndustrySystem.ResetWorldState();
+        WarScopeSystem.ResetWorldState();
+        FrontSystem.ResetWorldState();
+        WarReadinessSystem.ResetWorldState();
+        NavySystem.ResetWorldState();
+    }
+#endif
+
+    #endregion
+
+    #region 每帧调度
+
+    private static double _lastSecond = -1d, _lastMonth = -1d;
+    private static object _world;
+    private static readonly Dictionary<long, float> GeneralMoves = new();
+
+#if EC_PENDING
+    public static void Update()
+    {
+        if (EmpireWorld.Current == null) return;
+        if (!ReferenceEquals(_world, EmpireWorld.Current))
+        {
+            _world = EmpireWorld.Current;
+            ResetWorldState();
+        }
+        if (!Enabled)
+        {
+            if (_lastMonth >= 0d) DisbandAllOnDisable();
+            return;
+        }
+        Components.CorpsMapRenderer.EnsureHost();
+        double now = GameClock.Now;
+        if (now < _lastMonth) ResetMonthCycle();
+        if (_monthPhase == MonthPhase.Idle && (_lastMonth < 0d || now < _lastMonth || GameClock.MonthsSince(_lastMonth) >= 1))
+        {
+            bool first = _lastMonth < 0d;
+            // 上一轮拖过了月界(见 MonthSlice)，这两轮之间隔的就不止一个月：帧数按月折算
+            int months = first || now < _lastMonth ? 1 : Math.Max(1, GameClock.MonthsSince(_lastMonth));
+            _lastMonth = now;
+            int frame = Time.frameCount;
+            if (_monthStartFrame >= 0 && frame > _monthStartFrame)
+                _framesPerMonth = Mathf.Lerp(_framesPerMonth, (frame - _monthStartFrame) / (float)months, 0.3f);
+            _monthStartFrame = frame;
+            BeginMonthCycle(now, first);
+        }
+        // 战线段多核算用的地形层(打仗时每帧滚动重建一点，见 FrontSystem.Parallel)
+        FrontSystem.ParallelTick();
+        if (_monthPhase != MonthPhase.Idle) AdvanceMonth();
+        // 平滑国界下的逐格占领(见 FrontSystem.Smooth)
+        using (FrameProfiler.Measure("战线·逐格推进")) FrontSystem.SmoothTick();
+        // 路网与航线(行军、航行据此寻路；自己按真实时间限频，见 RoadNetwork)
+        using (FrameProfiler.Measure("路网")) RoadNetwork.Tick();
+        // 节拍按整秒往前推，不按本帧时刻重置：以前每拍都拖长一帧的时间(开快速时一拍拖到 1.2 秒)，
+        // 兵牌按一拍一秒插值，到位后干等，走起来一顿一顿。一步跨了几个世界秒就补几拍，落后太多(暂停、卡顿)才重新对齐(见 SecondBeats)
+        int beats = SecondBeats.Due(ref _lastSecond, now);
+        // 欠的几拍在一趟里结(见 SecondTick)：以前一拍一趟，补几拍就把全部军团连同寻路过几遍，
+        // 游戏开快速时帧越慢、一帧要补的拍越多，越补越慢(群友 2026-11-17 "beta9 更新到 beta10 帧率瞬间跌了 20")
+        if (beats > 0)
+        {
+            try { using (FrameProfiler.Measure("军团·行军")) SecondTick(beats); }
+            catch (Exception exception) { LogService.LogWarning($"[EmpireCraft][军团] 行军失败: {exception.Message}"); }
+            try { using (FrameProfiler.Measure("军团·航行")) NavySystem.SecondTick(beats); }
+            catch (Exception exception) { LogService.LogWarning($"[EmpireCraft][海军] 航行失败: {exception.Message}"); }
+        }
+    }
+#endif
+
+    // 关闭占领模式：各军就地退伍(兵员还回人口)，统领并回人口
+#if EC_PENDING
+    private static void DisbandAllOnDisable()
+    {
+        ResetMonthCycle();
+        foreach ((Realm kingdom, CorpsData corps) in All().ToList()) Disband(kingdom, corps);
+        NavySystem.RemoveAllFlagships();
+        RebuildIndex();
+        _lastMonth = -1d;
+    }
+#endif
+
+    #endregion
+
+    #region 月度结算分帧
+
+    // 月度结算分帧：以前月初一帧里把全世界各国的征召补员后勤、海军、战线分派与交战一次结完，大图开战时那一帧卡几百毫秒。
+    // 现在月初把各国排队，每帧结几国(本段不过 MonthSliceMilliseconds，至少一国)，
+    // 各国都结完再结海军(一次)、战线(开头一次，逐国分派，交战结算一次)，最后重建计兵数缓存；先后次序与以前一样。
+    // 时间片随剩余工作适度放宽。
+    // 下个月到了这一轮还没结完：游戏里世界照走，不停下来等(用户 2026-11-24：卡的时候世界一顿一顿地停，像被暂停了)，
+    // 也不当场一口气结完(那是单帧卡两秒)。按欠账加码——拖过月界越久时间片越大，拖满一个月到 LateMonthSliceLimit；
+    // 这一轮结完紧接着开下一轮，各国按欠的月数补(见 DueMonths)，战线、海军一轮结一回。
+    // 独立核心没有画面要顾，仍让世界在月界等这一轮结完(见 LimitMonthElapsed)。
+    private enum MonthPhase { Idle, Kingdoms, Navy, FrontBegin, FrontAssign, FrontEnd }
+
+    private const double MonthSliceMilliseconds = 3d, GameMonthSliceLimit = 8d, LateMonthSliceLimit = 20d, ServerMonthSliceLimit = 64d;
+    // 每步(一国征召或分派)平均耗时、一个月有几帧：滑动平均
+    private static double _stepMs = 0.5d;
+    private static float _framesPerMonth = 30f;
+    private static int _monthStartFrame = -1;
+
+#if EC_PENDING
+    private static double MonthSlice()
+    {
+        if (SimulationFrameBudget.ServerMilliseconds.HasValue) return ServerMonthSliceLimit;
+        double limit = GameMonthSliceLimit;
+        // 拖过月界几个月了(小数)
+        double late = (GameClock.Now - _lastMonth) / Math.Max(0.001d, Date.getMonthTime()) - 1d;
+        if (late >= 0d) return limit + (LateMonthSliceLimit - limit) * Math.Min(1d, late);
+        int remaining = _monthPhase switch
+        {
+            MonthPhase.Kingdoms => MonthQueue.Count + (EmpireWorld.Current?.kingdoms?.Count ?? 0) + 3,
+            MonthPhase.Navy or MonthPhase.FrontBegin => (EmpireWorld.Current?.kingdoms?.Count ?? 0) + 2,
+            MonthPhase.FrontAssign => MonthQueue.Count + 1,
+            _ => 1
+        };
+        int elapsed = _monthStartFrame < 0 ? 0 : Time.frameCount - _monthStartFrame;
+        float framesLeft = Mathf.Max(1f, _framesPerMonth - elapsed - 1f);
+        double wanted = remaining * _stepMs / framesLeft;
+        return Math.Min(limit, Math.Max(MonthSliceMilliseconds, wanted));
+    }
+#endif
+    private static MonthPhase _monthPhase = MonthPhase.Idle;
+    private static readonly Queue<Realm> MonthQueue = new();
+    private static double _monthAt;
+    private static bool _monthFirst;
+
+    // 只在独立核心里用(见 TerminalPatch.AfterElapsed)：月结没结完，世界时间走到月界就停住等
+#if EC_PENDING
+    internal static float LimitMonthElapsed(float elapsed)
+    {
+        if (!SimulationFrameBudget.ServerMilliseconds.HasValue || _monthPhase == MonthPhase.Idle || _lastMonth < 0d || elapsed <= 0f ||
+            !ReferenceEquals(_world, EmpireWorld.Current) || !Config.game_loaded || Config.paused || SmoothLoader.isLoading()) return elapsed;
+
+        double now = GameClock.Now;
+        if (now < _lastMonth) return elapsed;
+        // 保留到月界的时间。卡在月界时仍然逐帧结算，Idle 后世界自然继续走。
+        return (float)Math.Min(elapsed, Math.Max(0d, _lastMonth + Date.getMonthTime() - now));
+    }
+#endif
+
+    private static void ResetMonthCycle()
+    {
+        _monthPhase = MonthPhase.Idle;
+        MonthQueue.Clear();
+    }
+
+#if EC_PENDING
+    private static void BeginMonthCycle(double now, bool first)
+    {
+        _monthAt = now;
+        _monthFirst = first;
+        try { MilitaryAccessSystem.Monthly(); }
+        catch (Exception exception) { LogService.LogWarning($"[EmpireCraft][借道] 年结失败: {exception}"); }
+        MonthQueue.Clear();
+        // 帝国与天下的主要国家(连同所在帝国的成员、藩属)先征召(见 RealmPriority)
+        RealmPriority.EnqueueByPriority(MonthQueue, EmpireWorld.Current.LiveRealms.ToList());
+        _monthPhase = MonthPhase.Kingdoms;
+    }
+
+    private static void AdvanceMonth()
+    {
+        var watch = global::System.Diagnostics.Stopwatch.StartNew();
+        int done = 0;
+        double slice = MonthSlice();
+        while (_monthPhase != MonthPhase.Idle)
+        {
+            if (done > 0 && watch.Elapsed.TotalMilliseconds >= slice)
+            {
+                _stepMs = _stepMs * 0.8d + watch.Elapsed.TotalMilliseconds / done * 0.2d;
+                return;
+            }
+            done++;
+            switch (_monthPhase)
+            {
+                case MonthPhase.Kingdoms:
+                    if (MonthQueue.Count == 0)
+                    {
+                        // 读档后第一个月只征召，不结海军、战线
+                        if (_monthFirst) FinishMonth();
+                        else _monthPhase = MonthPhase.Navy;
+                        break;
+                    }
+                    Realm kingdom = MonthQueue.Dequeue();
+                    int span = DueMonths(kingdom, _monthAt);
+                    if (span <= 0) break;
+                    try { using (FrameProfiler.Measure("军团·月度征召")) MonthTick(kingdom, _monthAt, span); }
+                    catch (Exception exception) { LogService.LogWarning($"[EmpireCraft][军团] 月度结算失败: {exception}"); }
+                    break;
+                case MonthPhase.Navy:
+                    // 海军先结算：制海权决定这个月的跨海登陆能不能成行(见 FrontSystem)
+                    if (!MonthStep("军团·海军月度", () => NavySystem.MonthTick(_monthAt))) break;
+                    _monthPhase = MonthPhase.FrontBegin;
+                    break;
+                case MonthPhase.FrontBegin:
+                    if (!MonthStep("军团·战线月度", () => FrontSystem.BeginMonth(_monthAt))) break;
+                    MonthQueue.Clear();
+                    // 战线分派也是主要国家先(见 RealmPriority)
+                    RealmPriority.EnqueueByPriority(MonthQueue, EmpireWorld.Current.LiveRealms.ToList());
+                    _monthPhase = MonthPhase.FrontAssign;
+                    break;
+                case MonthPhase.FrontAssign:
+                    if (MonthQueue.Count == 0)
+                    {
+                        _monthPhase = MonthPhase.FrontEnd;
+                        break;
+                    }
+                    Realm assigned = MonthQueue.Dequeue();
+                    int prefetch = Math.Max(1, (int)((slice - watch.Elapsed.TotalMilliseconds) / Math.Max(0.1d, _stepMs)));
+                    using (FrameProfiler.Measure("军团·战线月度"))
+                    using (FrameProfiler.Measure("战线·分派"))
+                        FrontSystem.AssignMonth(assigned, MonthQueue, prefetch);
+                    break;
+                case MonthPhase.FrontEnd:
+                    if (MonthStep("军团·战线月度", FrontSystem.EndMonth)) FinishMonth();
+                    break;
+            }
+        }
+    }
+#endif
+
+    // 海军、战线的整段：出错与以前一样跳过这个月余下的结算
+    private static bool MonthStep(string label, Action step)
+    {
+        try
+        {
+            using (FrameProfiler.Measure(label)) step();
+            return true;
+        }
+        catch (Exception exception)
+        {
+            LogService.LogWarning($"[EmpireCraft][军团] 月度结算失败: {exception}");
+            FinishMonth();
+            return false;
+        }
+    }
+
+    private static void FinishMonth()
+    {
+        ResetMonthCycle();
+        RebuildIndex();
+    }
+
+    #endregion
+
+    #region 月度：征召、补员、退伍、休整
+
+    // 算不过来降频时(见 SimulationStretch)各国的月度征召几个月轮一回、各国错开(按编号分到各月)：
+    // 动员范围、统帅、补员、补给线这些要把全国过一遍的做一次，补员、裁撤按欠的月数放量；
+    // 军饷、休整、老兵、被围、粮耗、换装、禁军这些按月记账的按欠的月数补跑几回(量与每月结一样)。
+    // 开战、停战那个月不等轮次。平时 SimulationStretch.Months 是 1，每国每月照旧。战线、行军不在这里，不受影响
+    private static readonly Dictionary<long, (double at, bool war)> LastMonthTick = new();
+    private const int MaxCatchUpMonths = 6;
+
+    // 这个月该不该结、结几个月的量(0 = 这个月轮不到)
+#if EC_PENDING
+    private static int DueMonths(Realm kingdom, double now)
+    {
+        if (kingdom?.Record == null) return 1;
+        bool war = IsAtWar(kingdom);
+        int stretch = Math.Max(1, SimulationStretch.Months);
+        int span = 1;
+        double at = now;
+        if (LastMonthTick.TryGetValue(kingdom.Key, out var last) && now >= last.at)
+        {
+            int since = GameClock.MonthsSince(last.at);
+            if (stretch > 1 && last.war == war && since < stretch)
+            {
+                long month = GameClock.Year * 12L + GameClock.Month;
+                if (since <= 0 || (month - Math.Abs(kingdom.Key)) % stretch != 0) return 0;
+            }
+            span = Mathf.Clamp(since, 1, MaxCatchUpMonths);
+            // 记到结清的那个月为止，不足一个月的零头留给下回：月结拖过月界时(见 MonthSlice)两回隔一个多月，
+            // 记成"现在"就每回都丢掉那截零头，军饷、补员越结越少
+            if (since >= 1 && since <= MaxCatchUpMonths) at = Math.Min(now, last.at + since * (double)Date.getMonthTime());
+        }
+        LastMonthTick[kingdom.Key] = (at, war);
+        return span;
+    }
+#endif
+
+    // 补员、裁撤这一回放几个月的量(见 DueMonths)
+    private static int _span = 1;
+
+#if EC_PENDING
+    private static void MonthTick(Realm kingdom, double now, int span = 1)
+    {
+        if (kingdom?.Record == null || kingdom.IsGone() || kingdom.IsNeutral() ||
+            AncientWarfareCompatibility.OwnsObject(kingdom)) return;
+        span = Math.Max(1, span);
+        // 各步分开计时(性能诊断日志"军团·月度征召"每帧近 10 毫秒、分配 6 MB，看是哪一步)
+        // 朝议定策的仗：集结好了才宣战(见 WarMuster)
+        using (FrameProfiler.Measure("征召·集结")) WarMuster.MonthTick(kingdom);
+        using (FrameProfiler.Measure("征召·动员范围")) WarScopeSystem.MonthTick(kingdom);
+        using (FrameProfiler.Measure("征召·统帅")) WarCommandSystem.MonthTick(kingdom);
+        List<CorpsData> list = kingdom.GetOrCreate().corps;
+        bool posts = kingdom.Cities?.Any(city => city != null && !city.IsGone() &&
+            CityPopulationSystem.PostOf(city, CityPopulationSystem.DoctrineOf(kingdom)) != CityPopulationSystem.ArmyPost.None) == true;
+        if (!posts && (list == null || list.Count == 0)) return;
+        _span = span;
+        try
+        {
+            using (FrameProfiler.Measure("征召·补员")) Mobilize(kingdom, now);
+        }
+        finally
+        {
+            _span = 1;
+        }
+        using (FrameProfiler.Measure("军团·后勤")) LogisticsSystem.MonthTick(kingdom, span);
+        using (FrameProfiler.Measure("征召·休整"))
+            for (int month = 0; month < span; month++)
+            {
+                Recover(kingdom);
+                CorpsVeterancy.Monthly(kingdom, Of(kingdom));
+            }
+        using (FrameProfiler.Measure("征召·军饷"))
+            for (int month = 0; month < span; month++) PayUpkeep(kingdom);
+        // 视财力换装一支(见 CorpsArmSystem)
+        using (FrameProfiler.Measure("征召·换装"))
+            for (int month = 0; month < span; month++) CorpsArmSystem.Monthly(kingdom, kingdom.GetOrCreate().corps);
+        AbsorbLegacyLegions(kingdom);
+        // 禁军空饷、忠诚、不奉诏
+        for (int month = 0; month < span; month++) PalaceArmySystem.Monthly(kingdom);
+    }
+#endif
+
+    // 野战军饷：按人头每月发(见 CityStabilityRules.CorpsAnnual)，按兵种加权(装备越先进越贵，见 CorpsArmSystem)，本国先付，听命于中央的成员付不起由中央补；
+    // 听命于中央的成员，核心国库超出储备的余钱先替它发(中央养兵，见 TreasuryHoardSystem)；
+    // 饷银发给各军的家乡城(回到民间)。发不出就军心涣散、兵丁逃散，久欠求和(见下方欠饷)。以前野战军不花一分钱。
+    // 另收行军费：每人每走一块地块 MarchCostPerZone，离前线越远的军开过去越贵(所以动员只动就近的军)
+    // 打仗的花销单记"战争开支"(TreasuryCategory.War，帝国收支里单列)：战时比平时多出来的军饷、行军费，
+    // 以及在前线交战的军每月的粮秣军械损耗(每人 BattleCostPerSoldier，按兵种加权)；平时的军饷照旧记"野战军费"
+    private const float MarchCostPerZone = 0.002f;
+    private const float BattleCostPerSoldier = 0.01f;
+
+    // 欠饷(全欠时)：组织度上限压到 100-UnpaidOrgCap(低状态，休整也回不满)；每月再扣 UnpaidOrg、逃散 DesertShare 的兵(回乡，
+    // 军费随之降下来，直到发得起)，欠饷期间不补员、不新编；连着 SuePeaceMonths 个月欠饷就求和(WarGoalSystem.TrySueForPeace)。
+    // 被全面侵略(要吞并、要逼成附庸、要拿都城或一半城、全面战争、叛乱独立这类谈不拢的仗)时不求和，困兽犹斗：
+    // 不额外扣组织度、逃散减半，压低了的组织度照样能守。以前欠饷每月扣 20 组织度，休整只回 15，全军永远溃退休整
+    private const float UnpaidShortfall = 0.15f, UnpaidOrgCap = 60f, UnpaidOrg = 10f, DesertShare = 0.05f, SuePeaceChance = 0.35f;
+    private const int SuePeaceMonths = 3;
+
+    // 军饷欠发中：不补员、不新编(起义军不算)
+#if EC_PENDING
+    public static bool Unpaid(Realm kingdom) =>
+        Enabled && kingdom?.Record != null && !kingdom.IsGone() && kingdom.GetOrCreate().corps_pay_shortfall >= UnpaidShortfall &&
+        !Insurgent(kingdom) && !BannerSystem.SelfSupplied(kingdom);
+#endif
+
+    // 叛军、民变等起义军(在打叛乱一类的仗、是攻方)：以战养战，边打边掠——欠饷不罚、照样补员，也没有进攻门槛
+    // (组织度再低也上阵、不退下去休整，见 FrontSystem.Assign)，只是战斗力打个折(InsurgentPower，见 FrontSystem.Effective)
+    public const float InsurgentPower = 0.7f;
+    private static readonly HashSet<EmpireWarType> UprisingTypes = new()
+        { EmpireWarType.地方叛乱, EmpireWarType.民族叛乱, EmpireWarType.宗教叛乱, EmpireWarType.派系叛乱, EmpireWarType.清君侧 };
+    private static readonly Dictionary<long, (double at, bool value)> InsurgentCache = new();
+
+#if EC_PENDING
+    public static bool Insurgent(Realm kingdom)
+    {
+        if (kingdom?.Record == null || kingdom.IsGone() || EmpireWorld.Current == null) return false;
+        double now = GameClock.Now;
+        if (InsurgentCache.TryGetValue(kingdom.Key, out var cached) && now >= cached.at && now - cached.at < 5d) return cached.value;
+        // 剧本点名的流寇(闯军、西军)：打仗就以战养战，攻守都算(见 ScenarioEventSystem.Roving)
+        bool value = ScenarioEventSystem.Roving(kingdom) && kingdom.hasEnemies();
+        foreach (War war in kingdom.getWars())
+        {
+            if (value) break;
+            if (war?.data == null || war.hasEnded() || !war.isAttacker(kingdom)) continue;
+            if (war.getAsset() != WarTypeLibrary.rebellion && !UprisingTypes.Contains(war.GetEmpireWarType())) continue;
+            value = true;
+            break;
+        }
+        InsurgentCache[kingdom.Key] = (now, value);
+        return value;
+    }
+
+    public static float InsurgentFactor(CorpsData corps) =>
+        corps != null && Insurgent(EmpireWorld.Current?.kingdoms?.get(corps.kingdom_id)) ? InsurgentPower : 1f;
+#endif
+
+    // 军饷发足了(欠饷不到一成半)
+    public static bool WellPaid(Realm kingdom) =>
+        kingdom?.Record != null && !kingdom.IsGone() && kingdom.GetOrCreate().corps_pay_shortfall < UnpaidShortfall;
+
+    // 打不起仗，不主动开战(含军阀联合另立政府)：军饷欠发；或没有野战军算不出欠饷的(多是小军阀)，
+    // 国库不到安全储备的四分之一、经常收支还在亏
+#if EC_PENDING
+    public static bool CannotFundWar(Realm kingdom)
+    {
+        if (Unpaid(kingdom)) return true;
+        if (kingdom?.Record == null || kingdom.IsGone() || !TreasurySystem.Enabled(kingdom) || Insurgent(kingdom)) return false;
+        if (kingdom.GetTreasuryBalance() >= TreasurySystem.SafetyReserve(kingdom) / 4) return false;
+        TreasuryReport report = TreasurySystem.Report(kingdom);
+        return report.months >= 3 && report.operating_balance < 0;
+    }
+#endif
+
+    // 下个月大约要发多少军饷(见 TransmigrantSystem.IssueScrip)：同 PayUpkeep，不算行军费
+#if EC_PENDING
+    public static long MonthlyBill(Realm kingdom)
+    {
+        float soldiers = 0f, engaged = 0f;
+        foreach (CorpsData corps in Of(kingdom))
+        {
+            if (corps.order_id >= 0) continue;
+            float weighted = Mathf.Max(0f, corps.strength) * CorpsArmSystem.Upkeep(CorpsArmSystem.Of(corps)) * FormationSystem.UpkeepFactor(corps);
+            soldiers += weighted;
+            if (corps.task is "attack" or "defend" && FrontSystem.Battles.ContainsKey(corps.sector_city_id)) engaged += weighted;
+        }
+        if (soldiers < 1f) return 0L;
+        return (long)Math.Ceiling(CityStabilityRules.CorpsAnnual(soldiers, IsAtWar(kingdom)) / 12d + engaged * BattleCostPerSoldier);
+    }
+
+    private static void PayUpkeep(Realm kingdom)
+    {
+        // 骑士团的军由骑士团自己付饷(见 PapacySystem.Orders)
+        List<CorpsData> list = Of(kingdom).Where(corps => corps.order_id < 0).ToList();
+        float soldiers = 0f, marching = 0f, engaged = 0f;
+        foreach (CorpsData corps in list)
+        {
+            // 装备越先进军饷越贵(见 CorpsArmSystem.Upkeep)
+            float weighted = Mathf.Max(0f, corps.strength) * CorpsArmSystem.Upkeep(CorpsArmSystem.Of(corps)) * FormationSystem.UpkeepFactor(corps);
+            soldiers += weighted;
+            marching += Mathf.Max(0f, corps.strength) * corps.march_zones;
+            corps.march_zones = 0;
+            if (corps.task is "attack" or "defend" && FrontSystem.Battles.ContainsKey(corps.sector_city_id)) engaged += weighted;
+        }
+        if (soldiers < 1f)
+        {
+            // 没有兵就不欠饷：清掉欠饷状态。以前军团解散后欠饷标记一直留着，这个国家再也征不了兵、开不了仗
+            var idle = kingdom.GetOrCreate();
+            idle.corps_pay_shortfall = 0f;
+            idle.corps_unpaid_months = 0;
+            return;
+        }
+        if (!TreasurySystem.Enabled(kingdom)) return;
+        var data = kingdom.GetOrCreate();
+        // 外藩自备鞍马，不领饷(见 BannerSystem.SelfSupplied)
+        if (BannerSystem.SelfSupplied(kingdom))
+        {
+            data.corps_pay_shortfall = 0f;
+            data.corps_unpaid_months = 0;
+            return;
+        }
+        double peace = CityStabilityRules.CorpsAnnual(soldiers, false);
+        int baseBill = CityStabilityRules.Invoice(peace, ref data.corps_upkeep_carry);
+        int warBill = (IsAtWar(kingdom)
+                          ? CityStabilityRules.Invoice(CityStabilityRules.CorpsAnnual(soldiers, true) - peace, ref data.corps_war_carry)
+                          : 0) +
+                      Mathf.RoundToInt(marching * MarchCostPerZone) + Mathf.RoundToInt(engaged * BattleCostPerSoldier);
+        int bill = baseBill + warBill;
+        if (bill <= 0) return;
+        Empire empire = kingdom.GetEmpire();
+        Realm core = empire?.CoreKingdom;
+        bool obeys = core != null && core != kingdom && TreasurySystem.Enabled(core) &&
+                     EmpirePeacePatch.Obeys(empire, kingdom);
+        int paidBase = 0, paidWar = 0;
+        // 中央养兵：核心国库超出储备的余钱先替听调遣的成员发饷(见 TreasuryHoardSystem)
+        if (obeys)
+        {
+            long spare = TreasuryHoardSystem.Surplus(core);
+            paidBase = Draw(core, (int)Math.Min(baseBill, spare), TreasuryCategory.Military);
+            paidWar = Draw(core, (int)Math.Min(warBill, spare - paidBase), TreasuryCategory.War);
+            TreasuryHoardSystem.RecordSubsidy(core, paidBase + paidWar);
+        }
+        paidBase += Draw(kingdom, baseBill - paidBase, TreasuryCategory.Military);
+        paidWar += Draw(kingdom, warBill - paidWar, TreasuryCategory.War);
+        if (paidBase + paidWar < bill && obeys)
+        {
+            paidBase += Draw(core, baseBill - paidBase, TreasuryCategory.Military);
+            paidWar += Draw(core, warBill - paidWar, TreasuryCategory.War);
+        }
+        int paid = paidBase + paidWar;
+        foreach (CorpsData corps in list)
+        {
+            int share = (int)(paid * (double)(Mathf.Max(0f, corps.strength) * CorpsArmSystem.Upkeep(CorpsArmSystem.Of(corps))) /
+                              soldiers);
+            if (share > 0 && Home(corps) is City home) EnterpriseSystem.ReturnToLocal(home, share);
+        }
+        float shortfall = Mathf.Max(0f, 1f - paid / (float)bill);
+        data.corps_pay_shortfall = shortfall;
+        // 起义军以战养战，欠饷不罚
+        bool insurgent = Insurgent(kingdom);
+        data.corps_unpaid_months = shortfall >= UnpaidShortfall && !insurgent ? Math.Min(120, data.corps_unpaid_months + 1) : 0;
+        // 末世克扣(见 DynasticCycleRules.PayArrears)：国库照付，兵拿不到——压组织度、逼人投敌，不算欠饷(补员、求和照旧)
+        float arrears = insurgent ? 0f : DynasticCycleSystem.PayArrears(kingdom);
+        if (shortfall <= 0f && arrears <= 0f || insurgent) return;
+        float grievance = Mathf.Max(shortfall, arrears);
+        bool survival = WarGoalSystem.FightingForSurvival(kingdom);
+        float ceiling = 100f - UnpaidOrgCap * grievance, deserted = 0f;
+        foreach (CorpsData corps in list)
+        {
+            corps.org = Mathf.Min(corps.org, ceiling);
+            if (!survival) corps.org = Mathf.Max(0f, corps.org - UnpaidOrg * shortfall);
+            float deserters = corps.strength * DesertShare * shortfall * (survival ? 0.5f : 1f);
+            if (deserters < 1f) continue;
+            Demobilize(kingdom, corps, deserters);
+            deserted += deserters;
+        }
+        if (deserted >= 1f) FrontSystem.Log(kingdom, string.Format(LM.Get("corps_log_desertion"), Mathf.RoundToInt(deserted)));
+        Defect(kingdom, list, grievance);
+        if (data.corps_unpaid_months >= SuePeaceMonths) SueForPeace(kingdom);
+    }
+#endif
+
+    // 欠饷投敌(用户 2026-11-09 "历史上很多明朝军人直接就投降清朝了""因为他们发的起军饷""而明军没军饷")：
+    // 欠饷或被克扣到 DefectGrievance 以上的军，在前线打不过、对面又发得起饷(国库有钱、不欠饷、不克扣，自备鞍马的外藩不算)，
+    // 每月有 DefectRate×欠饷成数 的机会整军投过去；一国一月至多一支。投过去的军主将撤职、退回对方都城整编，照对方的兵额养
+    // (养不起就裁)。以前欠两成就投、谁都能投、投过去的军原地留在敌后：一局一百多起，连清入关后欠饷都投了朝鲜，战线乱成一团
+    public const float DefectRate = 0.05f, DefectGrievance = 0.3f, DefectLosing = 0.6f;
+
+#if EC_PENDING
+    private static void Defect(Realm kingdom, List<CorpsData> list, float grievance)
+    {
+        if (grievance < DefectGrievance || EmpireWorld.Current == null) return;
+        Realm realm = FrontSystem.Realm(kingdom);
+        foreach (CorpsData corps in list.OrderBy(_ => EcRandom.value).ToList())
+        {
+            if (corps.militia || corps.order_id >= 0 || corps.embarked || corps.parent_id >= 0 || corps.strength < 1f) continue;
+            if (corps.task is not ("attack" or "defend") ||
+                !FrontSystem.Battles.TryGetValue(corps.sector_city_id, out FrontSystem.BattleView battle)) continue;
+            Realm attacker = EmpireWorld.Current.RealmByKey(battle.attacker_id), defender = EmpireWorld.Current.RealmByKey(battle.defender_id);
+            bool weAttack = FrontSystem.Realm(attacker) == realm;
+            Realm enemy = weAttack ? defender : FrontSystem.Realm(defender) == realm ? attacker : null;
+            if (enemy?.Record == null || enemy.IsGone() || FrontSystem.Realm(enemy) == realm || !PaysWell(enemy)) continue;
+            // 打不过才投：这一段对面占优
+            float enemyEdge = weAttack ? 1f - battle.ratio : battle.ratio;
+            if (enemyEdge < DefectLosing) continue;
+            if (EcRandom.value >= DefectRate * grievance) continue;
+            string name = Name(corps);
+            int men = Mathf.RoundToInt(corps.strength);
+            CaptureCorps(kingdom, corps, enemy);
+            // 退回对方都城整编，照对方的兵额养(不当手动组建的军)，不留在敌后
+            corps.manual = false;
+            if (enemy.Capital?.getTile()?.zone is TileZone seat)
+            {
+                corps.zone_id = seat.id;
+                corps.target_zone_id = seat.id;
+            }
+            string text = string.Format(LM.Get("corps_defected_history"), kingdom.GetKingdomName(), name, men, enemy.GetKingdomName());
+            FrontSystem.Log(kingdom, text);
+            FrontSystem.Log(enemy, text);
+            if (men >= 500) EmpireCraft.Core.TranslateHelper.LogEventMessage(text, kingdom);
+            LogService.LogInfo($"[EmpireCraft][欠饷投敌] {kingdom.GetKingdomName()} 的 {name}({men} 人)投 {enemy.GetKingdomName()}，欠饷 {grievance:P0}");
+            return;
+        }
+    }
+#endif
+
+    // 粮饷不继，仗打不下去：能和就先和(对方条件过分的照打，见 WarGoalSystem.TrySueForPeace)
+#if EC_PENDING
+    private static void SueForPeace(Realm kingdom)
+    {
+        foreach (War war in kingdom.getWars().ToList())
+        {
+            if (war?.data == null || war.hasEnded() || EcRandom.value >= SuePeaceChance) continue;
+            Realm foe = war.main_attacker == kingdom ? war.main_defender : war.main_attacker;
+            if (WarGoalSystem.TrySueForPeace(war, kingdom))
+                FrontSystem.Log(kingdom, string.Format(LM.Get("corps_log_unpaid_peace"), foe?.GetKingdomName() ?? ""));
+        }
+    }
+
+    private static int Draw(Realm payer, int amount, TreasuryCategory category)
+    {
+        if (amount <= 0) return 0;
+        int paid = Mathf.Min(amount, Mathf.Max(0, payer.GetMoney()));
+        if (paid > 0) payer.SubMoney(paid, category);
+        return paid;
+    }
+#endif
+
+    // 量入为出养兵：兵额按养得起多少封顶——平时军饷不超过经常收入的 PeaceBudgetShare，战时(连粮秣军械)不超过
+    // WarBudgetShare(被全面侵略时倾国而战，SurvivalBudgetShare)，国库存银另按 ReserveYears 年花掉；养不起就各军按比例缩编，
+    // 多出来的兵逐月裁撤(战时也裁)。以前兵额只看人口、战时只增不减，全世界近四成人口在当兵，一开战军饷就是收入的
+    // 一到两倍，几个月打空国库、欠饷溃散，谁也打不赢谁，大一统无从谈起。大国收入多养兵多，才压得住小国。
+    // 起义军以战养战不受此限；没有几个月账目的新国家也不限
+    private const float PeaceBudgetShare = 0.35f, WarBudgetShare = 0.7f, SurvivalBudgetShare = 1f, ReserveYears = 3f;
+    private const float PeaceCostPerSoldier = 0.1f, WarCostPerSoldier = 0.4f;
+    // 平时军镇只征兵源(背景人口 × 军制征兵比例)的这一成数(有常备军的军制用 StandingPoolShare)，战时全征
+    private const float PeacePoolShare = 0.3f, StandingPoolShare = 0.5f;
+    // 开战后兵源逐月征满：从平时的成数起，WarLevyMonths 个月涨到全征。以前开战当月一步全征，军饷当月就掏空国库，
+    // 连欠三个月就罢兵求和(开国雄主的仗也一样)。按本国(连同所属帝国的核心王国)打得最久的那场仗算
+    private const float WarLevyMonths = 9f;
+
+#if EC_PENDING
+    private static float WarLevyShare(Realm kingdom, float peace)
+    {
+        // 集结的那几个月也算(见 WarMuster)：定了策就开始征，集结完兵也差不多征齐了
+        int months = WarMuster.Months(kingdom);
+        foreach (Realm side in new[] { kingdom, FrontSystem.Realm(kingdom) })
+        {
+            if (side?.Record == null || side.IsGone()) continue;
+            foreach (War war in side.getWars())
+                if (war?.data != null && !war.hasEnded()) months = Mathf.Max(months, GameClock.MonthsSince(war.data.created_time));
+        }
+        // 部众思归：游牧汗国打满两年以后兵源逐年打九折，至多六折(见 NomadCycleSystem)
+        return Mathf.Lerp(peace, 1f, Mathf.Clamp01((months + 1) / WarLevyMonths)) * NomadCycleSystem.HomesickLevy(kingdom, months);
+    }
+#endif
+    // 起义军的正规军只征兵源的一半：仓促成军，一大半人编在义军里(见 RaiseMilitia)
+    private const float InsurgentLevy = 0.5f;
+
+    // 中央养兵也算进兵额(玩家反馈 2026-11-22 "体量差这么多兵力却拉不开"：人口 230 万的帝国 303 支军才 10.7 万兵)：
+    // 听调遣的成员国(行省、藩镇)军饷本来就由中央先付、不够中央兜底(见 PayUpkeep)，兵额却只按它自己那点留成算，
+    // 税都上缴了，各省平时的兵额缩到每个军团一个人，中央再富也养不出兵。现在成员国养不起的那部分报给中央，
+    // 中央自己养兵之外的余额按各省缺口摊下去(够就补齐，不够按比例)，晚一个月生效；还没算过的当补得齐，免得读档那个月先裁一轮
+    private static readonly Dictionary<long, float> GrantRatio = new();
+    private static readonly Dictionary<long, double> MemberGaps = new();
+    // 兵不过民：一国的兵额不超过人口(连已在军中的)按军制全征的数。战时满编只增不减是怕边征边缩，可丢了大半国土、
+    // 人口只剩零头的残国照旧按全盛时的满编补员(同一份反馈：30 万人口的国养着 11.8 万兵)。超出 OverCeilingSlack 的，
+    // 各军满编按比例收回来，多出来的兵每月放归 OverCeilingShare(平时照旧按 DemobilizeShare)
+    private const float OverCeilingSlack = 1.1f, OverCeilingShare = 0.05f;
+    // 军团数跟着兵额走：兵源超过各军镇军团数 × 每军团人数的，在都城添军团(至多 MaxSeatLegions 个)。以前军团数按户数封顶
+    // (中央 40 个)、每军团至多一万人，四百万人口的大国和一百万的一样到顶
+    private const int MaxSeatLegions = 96;
+    // 不成军：军府算下来不足这么多人的不单独成军，兵额并进都城那支(群友"把最低军团人数限制在 1000")；
+    // 以前养不起时各军府缩成 5/5、8/22 这种空架子，军团页几百行
+    private const float MinCorpsMen = 1000f;
+
+#if EC_PENDING
+    private static Realm ObeyedCore(Realm kingdom)
+    {
+        Empire empire = kingdom.GetEmpire();
+        Realm core = empire?.CoreKingdom;
+        return core != null && core != kingdom && !core.IsGone() && TreasurySystem.Enabled(core) &&
+               EmpirePeacePatch.Obeys(empire, kingdom) ? core : null;
+    }
+#endif
+
+    // report：把缺口报给中央、中央结算一次余额(每国每月只报一次，试算时不报)
+#if EC_PENDING
+    private static float BudgetFactor(Realm kingdom, bool war, float wanted, bool report = true)
+    {
+        if (wanted < 1f) return 1f;
+        if (Insurgent(kingdom)) return InsurgentLevy;
+        if (BannerSystem.SelfSupplied(kingdom)) return 1f;
+        if (!TreasurySystem.Enabled(kingdom)) return 1f;
+        if (TreasurySystem.Report(kingdom).months < 3) return 1f;
+        // 世界大战倾国而战，照生死存亡之战拨军费；军备竞赛中平时多拨(见 WorldOrderSystem)
+        float share = !war ? PeaceBudgetShare + WorldOrderSystem.ArmsBudget(kingdom)
+            : WarGoalSystem.FightingForSurvival(kingdom) || WorldOrderSystem.InWorldWar(kingdom) ? SurvivalBudgetShare : WarBudgetShare;
+        double budget = StateDebtSystem.AnnualStableIncome(kingdom) * (double)share +
+                        Math.Max(0L, kingdom.GetTreasuryBalance()) / (double)ReserveYears;
+        float perSoldier = Math.Max(0.01f, (war ? WarCostPerSoldier : PeaceCostPerSoldier) * AverageUpkeep(kingdom));
+        double need = wanted * (double)perSoldier;
+        Realm core = ObeyedCore(kingdom);
+        if (core != null)
+        {
+            double gap = Math.Max(0d, need - budget);
+            if (report)
+            {
+                MemberGaps.TryGetValue(core.Key, out double gaps);
+                MemberGaps[core.Key] = gaps + gap;
+            }
+            budget += gap * (GrantRatio.TryGetValue(core.Key, out float ratio) ? ratio : 1f);
+        }
+        else if (report && kingdom.GetEmpire()?.CoreKingdom == kingdom)
+        {
+            MemberGaps.TryGetValue(kingdom.Key, out double gaps);
+            GrantRatio[kingdom.Key] = gaps <= 0d ? 1f : Mathf.Clamp01((float)(Math.Max(0d, budget - need) / gaps));
+            MemberGaps[kingdom.Key] = 0d;
+        }
+        return Mathf.Clamp01((float)(budget / need));
+    }
+#endif
+
+    // 养不起兵时留着不裁的军镇(见 GarrisonCutRules)：京畿(本势力的都城、陪都)、边境(邻城里有本势力以外的国，
+    // 蛮荒不算)、驰援(战时本城或邻城正在交战)
+#if EC_PENDING
+    private static bool KeepsStrength(Realm kingdom, Realm centre, City city, bool war)
+    {
+        if (city == centre.Capital) return true;
+        foreach (City aux in MultiCapitalSystem.AuxiliaryCities(centre))
+            if (aux == city) return true;
+        if (war && FrontSystem.Battles.ContainsKey(city.Key)) return true;
+        if (city.neighbours_cities == null) return false;
+        foreach (City next in city.neighbours_cities)
+        {
+            Realm other = next?.Realm;
+            if (next?.Record == null || next.IsGone() || other?.Record == null) continue;
+            if (war && FrontSystem.Battles.ContainsKey(next.Key)) return true;
+            if (other != kingdom && !other.IsWild && (FrontSystem.Realm(other) ?? other) != centre) return true;
+        }
+        return false;
+    }
+#endif
+
+    // 本国各军按兵种的平均饷银倍数(装备越先进越贵，见 CorpsArmSystem.Upkeep)；入关前的禁旅八旗只领行粮(见 BannerSystem.PayFactor)
+#if EC_PENDING
+    private static float AverageUpkeep(Realm kingdom)
+    {
+        float men = 0f, weighted = 0f;
+        float banner = BannerSystem.PayFactor(kingdom);
+        foreach (CorpsData corps in Of(kingdom))
+        {
+            if (corps.order_id >= 0 || corps.strength <= 0f) continue;
+            men += corps.strength;
+            weighted += corps.strength * CorpsArmSystem.Upkeep(CorpsArmSystem.Of(corps)) * (FormationSystem.BannerSource(corps) ? banner : 1f);
+        }
+        return men > 0f ? weighted / men : banner;
+    }
+#endif
+
+    // 各军镇应有几支军、每支多少人；缺的当场征召，多的和平时退伍
+#if EC_PENDING
+    private static void Mobilize(Realm kingdom, double now)
+    {
+        List<CorpsData> list = Of(kingdom);
+        // 家乡城市已失：驻地划给了同一帝国的行政区、封国(划省、设行政区)的，这支军随驻地归那一国；
+        // 别的(丢给了敌国)改驻本国首都或别的军镇。以前一律收回京师：明开局先按全国编了军，划省以后五六万人都挤在北直隶，
+        // 战时满编只增不减，一直养着
+        foreach (CorpsData corps in list.ToList())
+        {
+            City home = Home(corps);
+            if (home != null && home.Realm == kingdom) continue;
+            if (FollowsHome(kingdom, corps, home))
+            {
+                // 改驻那一国的都城：驻地若不是那国的军镇，那国征兵时不会清点它，满编不跟着养不养得起缩，一直不裁
+                City station = home.Realm.Capital != null && !home.Realm.Capital.IsGone() ? home.Realm.Capital : home;
+                Transfer(corps, kingdom, home.Realm, station);
+                continue;
+            }
+            City fallback = kingdom.Capital ?? kingdom.Cities?.FirstOrDefault(city => city != null && !city.IsGone());
+            if (fallback != null) corps.home_city_id = fallback.Key;
+        }
+        list = Of(kingdom);
+        foreach (CorpsData empty in list.Where(corps => corps.strength < 1f && corps.task != "attack" && corps.task != "defend").ToList())
+            Disband(kingdom, empty);
+        bool war = IsAtWar(kingdom);
+        bool unpaid = Unpaid(kingdom);
+        // 渡海先遣军(见 Detach)：仗打完、或回到驻地待命，并回原军；原军没了就自成一军
+        foreach (CorpsData part in list.Where(corps => corps.parent_id >= 0).ToList())
+        {
+            CorpsData parent = list.FirstOrDefault(corps => corps.id == part.parent_id && corps.parent_id < 0);
+            if (parent == null)
+            {
+                part.parent_id = -1L;
+                part.formation_serial = 0;
+                continue;
+            }
+            // 先锋营打着仗不并回(见 EnsureVanguard)，仗打完同先遣军一样并回原军
+            if (part.vanguard && war) continue;
+            bool back = part.task == "reserve" && !part.embarked && Zone(part) is TileZone at && at == Home(part)?.getTile()?.zone;
+            if (back || !war && part.task is not ("attack" or "defend")) Rejoin(kingdom, parent, part);
+        }
+        FormationSystem.EnsureAll(kingdom, list);
+        CityPopulationSystem.ArmyDoctrine doctrine = CityPopulationSystem.DoctrineOf(kingdom);
+        var cities = kingdom.Cities.Where(city => city != null && !city.IsGone()).ToList();
+        // 各军镇的兵额(旧制军团数)。平时首都、军区首都(帝国里的各藩属王国)至少留一个军团("平时只留一名将领"，
+        // 见 CityPopulationSystem.LevyTarget)：城防卫兵另算，不占这一个名额——以前新开局的小国平时一个军团都没有，
+        // 几十年不打仗就一直没兵；帝国里各藩属王国平时也一兵没有，全帝国只有京师一支军
+        var posts = new Dictionary<City, int>();
+        int totalSlots = 0;
+        foreach (City city in cities)
+        {
+            CityPopulationSystem.ArmyPost post = CityPopulationSystem.PostOf(city, doctrine);
+            if (post == CityPopulationSystem.ArmyPost.None) continue;
+            int legions = Mathf.Max(post is CityPopulationSystem.ArmyPost.Central or CityPopulationSystem.ArmyPost.District ? 1 : 0,
+                CityPopulationSystem.LevyTarget(city) - CityStabilitySystem.FundedSlots(city));
+            posts[city] = legions;
+            totalSlots += legions;
+        }
+        // 兵源只分给军镇的兵额：城防守兵由城市治安另出钱从本城征(见 CityStabilitySystem)，不再把军团摊薄
+        // (以前按含守兵的兵额平分，平时京师那一个军团只分到兵源的几分之一，大国平时也只有一千来人)。
+        // 平时只征兵源的一部分(有常备军的多些)，战时全征
+        // 军备竞赛中平时多征(见 WorldOrderSystem)
+        float peace = (doctrine.CentralStanding || doctrine.DistrictStanding ? StandingPoolShare : PeacePoolShare) +
+                      WorldOrderSystem.ArmsPool(kingdom);
+        // 鞭长莫及：控制力低的城征不齐(见 AdministrativeControlSystem.Yield)
+        float background = 0f;
+        // 奴隶不征为兵、野人大半不征(见 SlaverySystem、GuoyeSystem)；收人头税的国家异教之民大半不征(见 ReligiousTension)；
+        // 水土不服的城少征(离草游牧的农地城征兵比例回落、不服水土的旱地城兵源打折，见 ShuiTuSystem.LevyFactor)
+        // 旗人皆兵：编旗之国的中央，旗人多算一份(见 BannerSystem.ExtraLevy)
+        foreach (City city in cities)
+            background += CityPopulationSystem.LevyBackground(city) + BannerSystem.ExtraLevy(city);
+        // 武备废弛：兵籍虚冒、军户逃亡，兵源打折(见 MaladySystem.LevyFactor)
+        float levyShare = war ? WarLevyShare(kingdom, peace) : peace;
+        float malady = MaladySystem.LevyFactor(kingdom);
+        float pool = background * doctrine.LevyShare * levyShare * malady;
+        // 军团数跟着兵额走(见 MaxSeatLegions)：按养得起的兵源试算，军团不够装的在都城添
+        City seat = kingdom.Capital;
+        if (seat != null && posts.TryGetValue(seat, out int seatSlots) && pool > totalSlots * CityPopulationSystem.PeoplePerLegion)
+        {
+            float affordable = pool * BudgetFactor(kingdom, war, pool, report: false);
+            int extra = Mathf.Min(Mathf.CeilToInt(affordable / CityPopulationSystem.PeoplePerLegion) - totalSlots, MaxSeatLegions - seatSlots);
+            if (extra > 0)
+            {
+                posts[seat] = seatSlots + extra;
+                totalSlots += extra;
+            }
+        }
+        float legionSize = Mathf.Clamp(pool / Mathf.Max(1, totalSlots), 1f, CityPopulationSystem.PeoplePerLegion);
+        // 量入为出：按人口该有的兵额超出养得起的，每个军团按比例缩编
+        float budget = BudgetFactor(kingdom, war, totalSlots * legionSize);
+        // 校验平衡用：打仗的游牧、阿拉伯国家或与之交战的国家，兵源、军费系数、征兵比例、积弊(限频，见 WarBalanceDiagnostics)
+        if (war) WarBalanceDiagnostics.Realm(kingdom, background, pool, budget, doctrine.LevyShare * levyShare);
+        bool limited = budget < 0.999f;
+        // 养不起时先裁内地：京畿、边境、邻城正打着仗的军镇先配足，剩下的才给内地(见 GarrisonCutRules)；
+        // 以前各军镇一律按同一个成数缩编
+        Realm centre = FrontSystem.Realm(kingdom) ?? kingdom;
+        bool realmStrained = centre != kingdom && CannotFundWar(centre);
+        var kept = new HashSet<City>();
+        float keepFactor = 1f, inlandFactor = 1f;
+        if (limited || realmStrained)
+        {
+            int keepSlots = 0, inlandSlots = 0;
+            foreach (KeyValuePair<City, int> post in posts)
+            {
+                if (post.Value <= 0) continue;
+                if (KeepsStrength(kingdom, centre, post.Key, war))
+                {
+                    kept.Add(post.Key);
+                    keepSlots += post.Value;
+                }
+                else inlandSlots += post.Value;
+            }
+            (keepFactor, inlandFactor) = GarrisonCutRules.Split(keepSlots, inlandSlots, budget, realmStrained);
+            // 内地缩编了也算"养不起"：战时满编照样往下减(见下 corps.full)
+            if (inlandFactor < 0.999f) limited = true;
+        }
+        float fullSize = legionSize;
+        // 各军镇的军、各军分出去的渡海先遣军兵力先按驻地、原军归好(以前每座军镇、每支军都把全国的军筛一遍)。
+        // 下面只对各军镇自己的正规军补员、退伍、新编，不动先遣军，也不改驻地，归好的不会变
+        var byHome = new Dictionary<long, List<CorpsData>>();
+        var awayByParent = new Dictionary<long, float>();
+        float levied = 0f, heldFull = 0f;
+        foreach (CorpsData corps in list)
+        {
+            if (!corps.militia && corps.order_id < 0) levied += Mathf.Max(0f, corps.strength);
+            if (corps.parent_id >= 0)
+            {
+                awayByParent.TryGetValue(corps.parent_id, out float away);
+                awayByParent[corps.parent_id] = away + corps.strength;
+                continue;
+            }
+            if (corps.militia || corps.order_id >= 0 || corps.manual) continue;
+            heldFull += Mathf.Max(0f, corps.full);
+            if (!byHome.TryGetValue(corps.home_city_id, out List<CorpsData> group))
+                byHome[corps.home_city_id] = group = new List<CorpsData>();
+            group.Add(corps);
+        }
+        // 兵不过民(见 OverCeilingSlack)：起义军裹挟成军、外藩自备鞍马的不限
+        float ceiling = (background + levied) * doctrine.LevyShare * malady;
+        float overScale = war && heldFull > ceiling * OverCeilingSlack && !Insurgent(kingdom) && !BannerSystem.SelfSupplied(kingdom)
+            ? ceiling / heldFull : 1f;
+        bool over = overScale < 1f;
+        // 不成军的小军府并进都城(见 MinCorpsMen)；战时已经成了军的照旧，仗打完再并
+        float seatExtra = 0f;
+        if (seat != null && posts.TryGetValue(seat, out int seatLegions) && seatLegions > 0)
+            foreach (City city in posts.Keys.ToList())
+            {
+                int legions = posts[city];
+                if (city == seat || legions <= 0 || war && byHome.ContainsKey(city.Key)) continue;
+                float men = legions * Mathf.Max(1f, fullSize * (limited ? kept.Contains(city) ? keepFactor : inlandFactor : 1f));
+                if (men >= MinCorpsMen) continue;
+                seatExtra += men;
+                posts[city] = 0;
+            }
+        foreach (City city in cities)
+        {
+            if (!posts.TryGetValue(city, out int legions)) continue;
+            int wanted = legions <= 0 ? 0 : Mathf.CeilToInt(legions / (float)LegionsPerCorps);
+            var here = byHome.TryGetValue(city.Key, out List<CorpsData> stationed) ? stationed : new List<CorpsData>();
+            // 这座军镇每个军团编多少人：留着的军镇、内地各按各的成数(养得起时都是足额)
+            float factor = limited ? kept.Contains(city) ? keepFactor : inlandFactor : 1f;
+            legionSize = Mathf.Max(1f, fullSize * factor) + (city == seat && legions > 0 ? seatExtra / legions : 0f);
+            // 这座军镇的兵额缩了没有(配足了的军镇战时照旧只增不减)
+            bool cut = factor < 0.999f;
+            // 每支军分到的旧制军团数
+            for (int i = 0; i < Mathf.Max(wanted, here.Count); i++)
+            {
+                int share = i < wanted ? Mathf.Min(LegionsPerCorps, legions - i * LegionsPerCorps) : 0;
+                if (i >= here.Count)
+                {
+                    if (share <= 0 || unpaid) break;
+                    CorpsData raised = Raise(kingdom, city, share, share * legionSize, now);
+                    if (raised == null) break;
+                    here.Add(raised);
+                    continue;
+                }
+                CorpsData corps = here[i];
+                corps.legions = Mathf.Max(share, war ? corps.legions : 0);
+                float full = corps.legions * legionSize;
+                // 战时满编只增不减，除非养不起了；兵额超出人口养得出的，旧满编按比例收回来
+                if (war && !cut) corps.full = Mathf.Max(corps.full * overScale, full);
+                else corps.full = full;
+                if (corps.full <= 0f)
+                {
+                    if (!war && corps.task != "attack" && corps.task != "defend") Disband(kingdom, corps);
+                    continue;
+                }
+                // 补给不到五成(海外断了航线、孤军深入、被围)补不上兵；在船上的也补不了。
+                // 分出去的渡海先遣军算在本军名下(补员、裁撤按两者合计)，免得一边分兵一边补满、兵越分越多
+                awayByParent.TryGetValue(corps.id, out float away);
+                if (corps.strength + away < corps.full && corps.supply >= 0.5f && !corps.embarked && !unpaid)
+                    Reinforce(kingdom, corps, Mathf.Min(corps.full * ReinforceShare * _span * FormationSystem.RaiseFactor(corps) * corps.supply,
+                        corps.full - away - corps.strength));
+                // 裁撤按现有兵力的成数：以前按满编的成数，养不起时满编缩到几百，几千欠饷的兵每月只裁几十，
+                // 明的各布政使司开局编了五六千兵，军费系数掉到 0.01 后好几年还养着
+                else if ((!war || cut || over) && corps.strength + away > corps.full)
+                    Demobilize(kingdom, corps, Mathf.Min(corps.strength + away - corps.full,
+                        Mathf.Max(corps.full, corps.strength) * Mathf.Min(1f, (war && !cut ? OverCeilingShare : DemobilizeShare) * _span) + 1f));
+            }
+        }
+        if (war)
+        {
+            foreach (List<CorpsData> group in byHome.Values) MergeRemnants(kingdom, group, awayByParent);
+            EnsureVanguard(kingdom);
+        }
+        // 手动组建的军：只补员，不随兵额增减
+        if (!unpaid)
+            foreach (CorpsData corps in list.Where(corps => corps.manual && !corps.embarked && corps.supply >= 0.5f &&
+                                                            Deficit(kingdom, corps) >= 1f).ToList())
+                Reinforce(kingdom, corps, corps.full * ReinforceShare * _span * FormationSystem.RaiseFactor(corps) * corps.supply);
+        // 义军：仗打完就地解散
+        if (!war)
+            foreach (CorpsData corps in list.Where(corps => corps.militia).ToList()) Disband(kingdom, corps);
+    }
+#endif
+
+    #region 手动组建(军事页"组建新军"，玩家反馈"在这两个界面里，弄一个添加……"，选"手动组建军团")
+
+    // 发得起饷：国库有钱，不欠饷、不克扣；自备鞍马的外藩、以战养战的起义军不算
+#if EC_PENDING
+    private static bool PaysWell(Realm kingdom)
+    {
+        Realm realm = FrontSystem.Realm(kingdom) ?? kingdom;
+        return !Unpaid(kingdom) && !Unpaid(realm) && !BannerSystem.SelfSupplied(kingdom) && !Insurgent(kingdom) &&
+               DynasticCycleSystem.PayArrears(kingdom) < UnpaidShortfall && realm.GetTreasuryBalance() > 0;
+    }
+#endif
+
+    // 驻地划给了同一帝国里的别国(行政区、封国)：正规军随驻地过去；正在攻守的、渡海先遣、手动组建、义军、骑士团的不动
+#if EC_PENDING
+    private static bool FollowsHome(Realm kingdom, CorpsData corps, City home)
+    {
+        if (home?.kingdom?.data == null || home.IsGone() || home.Realm == kingdom || home.Realm.IsGone()) return false;
+        if (corps.militia || corps.manual || corps.order_id >= 0 || corps.parent_id >= 0 || corps.embarked) return false;
+        if (corps.task is "attack" or "defend") return false;
+        EmpireCraft.Core.Empire empire = kingdom.GetEmpire();
+        return empire != null && home.Realm.GetEmpire() == empire;
+    }
+#endif
+
+    // 一支新军的满编：本国现有正规军的平均满编，没有就取驻地背景人口的二十分之一(五十到两千)；
+    // 每人一次性花一成国库(折合)；一国手动组建的军至多 1 + 城数/4 支
+    private const float ManualShareOfCity = 0.05f, ManualMin = 50f, ManualMax = 2000f, ManualCostPerPerson = 0.1f;
+
+#if EC_PENDING
+    public static int ManualLimit(Realm kingdom) => 1 + (kingdom?.cities?.Count ?? 0) / 4;
+#endif
+
+    public static int ManualCount(Realm kingdom) => Of(kingdom).Count(corps => corps.manual);
+
+#if EC_PENDING
+    public static float ManualSize(Realm kingdom, City home)
+    {
+        List<CorpsData> regular = Of(kingdom).Where(corps => !corps.militia && corps.order_id < 0 && corps.parent_id < 0 &&
+                                                             corps.full > 0f).ToList();
+        float size = regular.Count > 0 ? regular.Average(corps => corps.full)
+            : CityPopulationSystem.LevyBackground(home) * ManualShareOfCity;
+        return Mathf.Clamp(size, ManualMin, ManualMax);
+    }
+
+    public static int ManualCost(Realm kingdom, City home) => Mathf.CeilToInt(ManualSize(kingdom, home) * ManualCostPerPerson);
+#endif
+
+    // 可以组建的驻地：本国有效兵源最多的几座城
+#if EC_PENDING
+    public static List<City> ManualSeats(Realm kingdom, int count) =>
+        kingdom?.Cities == null ? new List<City>()
+            : kingdom.Cities.Where(city => city?.Record != null && !city.IsGone())
+                .OrderByDescending(CityPopulationSystem.LevyBackground).Take(count).ToList();
+#endif
+
+    // 不能组建的原因(本地化键)，能组建返回空。fromTreasury：玩家在军事页亲手组建，可动用整个国库(连同保底储备)；
+    // AI 只用可支配的钱。以前这里看国库总额、扣钱却只认可支配的钱，国库看着充足、点了没反应(群友 2026-11-11 报"国库充足都点了招募没有用")
+#if EC_PENDING
+    public static string ManualBlocker(Realm kingdom, City home, bool fromTreasury = false)
+    {
+        if (!Enabled || kingdom?.Record == null || kingdom.IsGone() || home?.Record == null || home.Realm != kingdom)
+            return "corps_manual_unavailable";
+        if (ManualCount(kingdom) >= ManualLimit(kingdom)) return "corps_manual_limit";
+        int funds = fromTreasury ? Math.Max(0, kingdom.GetMoney()) : StateSettlementSystem.DiscretionaryFunds(kingdom);
+        if (funds < ManualCost(kingdom, home)) return fromTreasury ? "corps_manual_no_money" : "corps_manual_no_discretionary";
+        if (CityPopulationSystem.LevyBackground(home) < ManualMin) return "corps_manual_no_people";
+        return null;
+    }
+#endif
+
+    // 上回组建没成的原因(本地化键)，军事页点了没成时提示
+    public static string LastManualFailure { get; private set; }
+
+#if EC_PENDING
+    public static CorpsData RaiseManual(Realm kingdom, City home, bool fromTreasury = false)
+    {
+        LastManualFailure = ManualBlocker(kingdom, home, fromTreasury);
+        if (LastManualFailure != null) return null;
+        float size = ManualSize(kingdom, home);
+        int cost = ManualCost(kingdom, home);
+        if (!TreasurySystem.TrySpend(kingdom, cost, TreasuryCategory.Military, !fromTreasury))
+        {
+            LastManualFailure = "corps_manual_no_money";
+            return null;
+        }
+        CorpsData corps = Raise(kingdom, home, LegionsPerCorps, size, GameClock.Now, manual: true);
+        if (corps == null)
+        {
+            // 附近几座城招不到合格的兵(族群等第、旗民、奴隶不得为兵等)，钱退回
+            kingdom.AddMoney(cost, TreasuryCategory.Military);
+            LastManualFailure = "corps_manual_no_recruits";
+            return null;
+        }
+        FrontSystem.Log(kingdom, string.Format(LM.Get("corps_log_manual_raised"), Name(corps), home.GetCityName(),
+            ShortStrength(corps.strength)));
+        return corps;
+    }
+#endif
+
+    // 穿越降临带来的军(见 TransmigrantSystem.Land)：在落脚的城就地成军，按手动组建的军算(不按军制裁撤)，兵种直接给定
+#if EC_PENDING
+    public static CorpsData RaiseLanding(Realm kingdom, City home, float people, CorpsArmSystem.Arm arm)
+    {
+        if (!Enabled || kingdom == null || home == null) return null;
+        CorpsData corps = Raise(kingdom, home, LegionsPerCorps, people, GameClock.Now, manual: true, formation: FormationSystem.Fubo);
+        if (corps == null) return null;
+        corps.arm = (int)arm;
+        return corps;
+    }
+#endif
+
+    // 事件编成的地方部队(见 TransmigrantSystem.Events)：按本国此刻该用的建制(或指定的建制，如团练成勇营)，不占手动组建的钱
+#if EC_PENDING
+    public static CorpsData RaiseStanding(Realm kingdom, City home, float people, string formation = null)
+    {
+        if (!Enabled || kingdom == null || home == null) return null;
+        return Raise(kingdom, home, LegionsPerCorps, people, GameClock.Now, manual: true, formation: formation);
+    }
+#endif
+
+    // 招募新军(见 TempFac_招募新军)(用户 2026-11-11 转群友"目前诉求没有招募新军吗？或加强军备"，"可以加")：兵源最多、够得上成军的几座城各成一军，
+    // 兵额照本国一军的平均，按手动组建的军算(不按军制裁撤)，经费走诉求经费不另扣。返回成了的军
+#if EC_PENDING
+    public static int RecruitSeats(Realm kingdom, int count) =>
+        ManualSeats(kingdom, count).Count(city => CityPopulationSystem.LevyBackground(city) >= ManualMin);
+
+    public static List<CorpsData> RecruitNew(Realm kingdom, int count)
+    {
+        var raised = new List<CorpsData>();
+        if (!Enabled || kingdom?.Record == null || kingdom.IsGone()) return raised;
+        foreach (City home in ManualSeats(kingdom, count).Where(city => CityPopulationSystem.LevyBackground(city) >= ManualMin))
+        {
+            CorpsData corps = RaiseStanding(kingdom, home, ManualSize(kingdom, home));
+            if (corps == null) continue;
+            raised.Add(corps);
+            FrontSystem.Log(kingdom, string.Format(LM.Get("corps_log_recruited"), Name(corps), home.GetCityName(), ShortStrength(corps.strength)));
+        }
+        return raised;
+    }
+#endif
+
+    // 整军经武(见 TempFac_整军经武)：各正规军补足兵员(照常从兵源里补，兵源不够补不满)，士气、粮秣整顿一新。返回整顿了几支
+#if EC_PENDING
+    public static int Refit(Realm kingdom)
+    {
+        if (!Enabled || kingdom?.Record == null || kingdom.IsGone()) return 0;
+        int count = 0;
+        foreach (CorpsData corps in Of(kingdom).Where(corps => !corps.militia && corps.order_id < 0).ToList())
+        {
+            if (corps.strength < corps.full) Reinforce(kingdom, corps, corps.full - corps.strength);
+            corps.org = 100f;
+            corps.rations = 1f;
+            corps.supply = Mathf.Max(corps.supply, 1f);
+            count++;
+        }
+        return count;
+    }
+#endif
+
+    // 手动解散(交战中的不能解散)
+#if EC_PENDING
+    public static bool DisbandManual(Realm kingdom, CorpsData corps)
+    {
+        if (kingdom == null || corps == null || !corps.manual || corps.task is "attack" or "defend") return false;
+        string name = Name(corps);
+        Disband(kingdom, corps);
+        FrontSystem.Log(kingdom, string.Format(LM.Get("corps_log_manual_disbanded"), name));
+        return true;
+    }
+#endif
+
+    // 手动合并(军事页各行的"合并"，群友 2026-11-22 "要是能合并军团就好了")：把这支军并进本国离它 MergeReach 块以内最近的另一支军。
+    //   · 正规军并正规军：两支合起来装得进其中一支的满编才并(收拢残军)，满编取大的；空出来的兵额照常由军镇再征，不多出兵来；
+    //   · 手动组建的军并手动组建的军：满编相加(本来就在兵额之外)；一支正规一支手动的不并；
+    //   · 义军、骑士团的军、渡海先遣军和分着先遣军的、在船上的、被围的、正在攻守的不并。
+    public const int MergeReach = 6;
+
+    private static bool Mergeable(Realm kingdom, CorpsData corps) =>
+        corps != null && !corps.militia && corps.order_id < 0 && corps.parent_id < 0 && !corps.embarked && corps.pocket_months <= 0 &&
+        corps.strength >= 1f && corps.task is not ("attack" or "defend") &&
+        !Of(kingdom).Any(part => part.parent_id == corps.id);
+
+    // 这支军能并进哪一支(没有为 null)
+#if EC_PENDING
+    public static CorpsData MergeTarget(Realm kingdom, CorpsData corps)
+    {
+        if (!Enabled || kingdom?.Record == null || kingdom.IsGone() || !Mergeable(kingdom, corps)) return null;
+        TileZone at = Zone(corps);
+        if (at == null) return null;
+        CorpsData best = null;
+        float nearest = float.MaxValue;
+        foreach (CorpsData other in Of(kingdom))
+        {
+            if (other == corps || other.manual != corps.manual || !Mergeable(kingdom, other)) continue;
+            if (!corps.manual && corps.strength + other.strength > Mathf.Max(corps.full, other.full)) continue;
+            float distance = ZoneDistance(Zone(other), at);
+            if (distance > MergeReach || distance >= nearest) continue;
+            best = other;
+            nearest = distance;
+        }
+        return best;
+    }
+
+    public static CorpsData MergeManual(Realm kingdom, CorpsData corps)
+    {
+        CorpsData into = MergeTarget(kingdom, corps);
+        if (into == null) return null;
+        string name = Name(corps);
+        if (corps.manual)
+        {
+            into.full += corps.full;
+            into.legions += corps.legions;
+        }
+        else
+        {
+            into.full = Mathf.Max(into.full, corps.full);
+            into.legions = Mathf.Max(into.legions, corps.legions);
+        }
+        Rejoin(kingdom, into, corps);
+        FrontSystem.Log(kingdom, string.Format(LM.Get("corps_log_merged"), name, Name(into)));
+        return into;
+    }
+#endif
+
+    #endregion
+
+#if EC_PENDING
+    public static bool IsAtWar(Realm kingdom) =>
+        kingdom != null && (kingdom.hasEnemies() || CityPopulationSystem.IsMobilizing(kingdom) ||
+                            FrontSystem.Realm(kingdom) is Realm realm && realm != kingdom && realm.hasEnemies());
+#endif
+
+    // 开局即有兵(世界地图剧本，见 WorldMapScenario)：照常按军制定各军镇的兵额、编军，编好的当场补满。返回全国兵力
+    // reset：剧本开局先散掉进世界时月结已经编的军(那时还没划省，京师一国按全国编了军)，再照划好的行政区编
+#if EC_PENDING
+    public static float Prefill(Realm kingdom, bool reset = false)
+    {
+        if (!Enabled || kingdom?.Record == null || kingdom.IsGone() || kingdom.IsNeutral() ||
+            AncientWarfareCompatibility.OwnsObject(kingdom)) return 0f;
+        if (reset)
+            foreach (CorpsData corps in Of(kingdom).Where(corps => corps.order_id < 0).ToList()) Disband(kingdom, corps);
+        Mobilize(kingdom, GameClock.Now);
+        foreach (CorpsData corps in Of(kingdom).Where(corps => !corps.militia && corps.order_id < 0 && corps.strength < corps.full).ToList())
+            Reinforce(kingdom, corps, corps.full - corps.strength);
+        RebuildIndex();
+        return Of(kingdom).Sum(corps => corps.strength);
+    }
+#endif
+
+    private static int NextSerial(Realm kingdom)
+    {
+        var data = kingdom.GetOrCreate();
+        return ++data.corps_serial;
+    }
+
+#if EC_PENDING
+    private static CorpsData Raise(Realm kingdom, City home, int legions, float people, double now, bool militia = false,
+        bool manual = false, string formation = null, long orderId = -1L)
+    {
+        var corps = new CorpsData
+        {
+            id = OverallHelperFunc.IdGenerator.NextId(), serial = militia ? 0 : NextSerial(kingdom),
+            kingdom_id = kingdom.Key, home_city_id = home.Key, legions = Mathf.Max(1, legions), full = people,
+            post = (int)CityPopulationSystem.PostOf(home, CityPopulationSystem.DoctrineOf(kingdom)),
+            zone_id = home.getTile()?.zone?.id ?? -1, raised_at = now, militia = militia, manual = manual, order_id = orderId
+        };
+        // 建制先定，兵源资格要看它；番号等成了军再编，成不了军不占号
+        corps.formation = formation ?? FormationSystem.Resolve(kingdom, corps);
+        Reinforce(kingdom, corps, people, militia ? home : null);
+        if (corps.strength < 1f) return null;
+        Of(kingdom).Add(corps);
+        FormationSystem.Ensure(kingdom, corps);
+        return corps;
+    }
+#endif
+
+    // 骑士团的军：在驻地城组建、补员、解散(见 PapacySystem.Orders)
+#if EC_PENDING
+    public static CorpsData RaiseOrderCorps(Realm host, City home, float people, long orderId)
+    {
+        if (!Enabled || host?.Record == null || home?.Record == null) return null;
+        return Raise(host, home, Mathf.Max(1, Mathf.RoundToInt(people / CityPopulationSystem.PeoplePerLegion)),
+            people, GameClock.Now, orderId: orderId);
+    }
+
+    public static void ReinforceOrderCorps(Realm host, CorpsData corps, float amount)
+    {
+        if (host?.Record == null || corps == null || amount <= 0f || corps.embarked || corps.supply < 0.5f) return;
+        Reinforce(host, corps, amount);
+    }
+#endif
+
+    // 从本国各城的背景人口里征兵(义军只从本城征)：就近补员——先从离这支军最近的几座本国城征，
+    // 离本国城越远补上来的越少(每离 15 块地块打一半)；近处征不够再按动员范围、全国抽(见 WarScopeSystem)
+    private const int NearbySources = 4;
+    private const float ReinforceDistanceHalf = 15f;
+
+    // 本国离 at 最近的 count 座城(按地块距离，一样近的按城的先后)，与 OrderBy(距离).Take(count) 同序。
+    // 补员、调粮每支军都要挑一次，以前每次把全国的城排一遍序
+#if EC_PENDING
+    public static List<City> NearestCities(Realm kingdom, TileZone at, int count)
+    {
+        var result = new List<City>(count);
+        if (kingdom?.Cities == null || at == null || count <= 0) return result;
+        var distances = new List<float>(count);
+        foreach (City city in kingdom.Cities)
+        {
+            TileZone zone = city?.Record != null && !city.IsGone() ? city.getTile()?.zone : null;
+            if (zone == null) continue;
+            float distance = ZoneDistance(zone, at);
+            if (result.Count == count && distance >= distances[count - 1]) continue;
+            // 插在一样近的城之后，保持先后
+            int index = result.Count;
+            while (index > 0 && distances[index - 1] > distance) index--;
+            if (result.Count == count)
+            {
+                result.RemoveAt(count - 1);
+                distances.RemoveAt(count - 1);
+            }
+            result.Insert(index, city);
+            distances.Insert(index, distance);
+        }
+        return result;
+    }
+#endif
+
+    // 募兵：从指定的城(可以是别国的城)招人补进这支军，来源随军记着，退伍时还回去(见 TransmigrantSystem.Recruit)
+#if EC_PENDING
+    public static float Enlist(Realm kingdom, CorpsData corps, City from, float amount)
+    {
+        if (kingdom?.Record == null || corps == null || from?.Record == null || from.IsGone()) return 0f;
+        float before = corps.strength;
+        Reinforce(kingdom, corps, amount, from);
+        return corps.strength - before;
+    }
+#endif
+
+    // 这支军还差多少人满编：分出去的先遣军算在本军名下，真减员才补，补员不会多出人来(所有补员、募兵入口共用)。先遣军自己不补员
+    public static float Deficit(Realm kingdom, CorpsData corps)
+    {
+        if (corps == null || corps.parent_id >= 0) return 0f;
+        float held = corps.strength;
+        foreach (CorpsData part in Of(kingdom))
+            if (part.parent_id == corps.id) held += part.strength;
+        return Mathf.Max(0f, corps.full - held);
+    }
+
+#if EC_PENDING
+    private static void Reinforce(Realm kingdom, CorpsData corps, float amount, City only = null)
+    {
+        // 缺额够一个人就至少补一个：以前按满编的成数算不到一人就不补，满编十几二十人的小军永远补不上(8/22 一挂好多年)
+        float deficit = Deficit(kingdom, corps);
+        if (deficit < 1f || amount <= 0f) return;
+        float need = Mathf.Min(Mathf.Max(1f, amount), deficit);
+        float taken = 0f;
+        TileZone at = Zone(corps);
+        List<City> nearby = only != null || at == null ? new List<City>() : NearestCities(kingdom, at, NearbySources);
+        if (nearby.Count > 0)
+        {
+            float distance = ZoneDistance(nearby[0].getTile().zone, at);
+            need = Mathf.Max(1f, need * ReinforceDistanceHalf / (ReinforceDistanceHalf + distance));
+        }
+        bool near = only == null && WarScopeSystem.InScope(Home(corps) ?? EmpireWorld.Current.CityByKey(corps.home_city_id));
+        // 只收受过训的合格军人(见 FormationSystem、NaturalizationSystem)；花钱募来的登记后入伍，不走这道
+        bool trained = only == null && FormationSystem.TrainedSource(corps);
+        bool bannerCorps = FormationSystem.BannerSource(corps);
+        string ruling = bannerCorps ? BannerSystem.RulingCulture(kingdom) : null;
+        for (int attempt = 0; taken < need && attempt < 12; attempt++)
+        {
+            // 就近的几座城抽完了：只从动员范围里的城再抽；举国总动员、奉诏出征才从全国抽(不再远距离征召)
+            City source = only ?? (attempt < nearby.Count ? nearby[attempt]
+                : FormationSystem.LocalSource(corps) ? null
+                : near ? CityPopulationSystem.DrawKingdomCity(kingdom, WarScopeSystem.InScope)
+                : WarScopeSystem.Unbounded(kingdom) ? CityPopulationSystem.DrawKingdomCity(kingdom) : null);
+            PopGroup group = source == null ? null
+                : CityPopulationSystem.DrawBackground(source, candidate => SlaverySystem.CanRecruit(candidate, corps.militia) &&
+                                                                           !(trained && candidate.social_class == SocialClass.Noble) &&
+                                                                           BannerSystem.MayRecruit(bannerCorps, ruling, candidate) &&
+                                                                           EthnicRankSystem.MayRecruit(kingdom, corps, source, candidate));
+            // 最近一城可能只有奴隶，继续找下一座，不能因此挡住邻城的自由民补员。
+            if (group == null) continue;
+            float want = need - taken;
+            if (trained)
+            {
+                want = Mathf.Min(want, NaturalizationSystem.Available(source));
+                if (want <= 0f) continue;
+            }
+            float contribution = CityPopulationSystem.RemoveBackground(group, want);
+            if (contribution <= 0f) break;
+            NaturalizationSystem.Drafted(source, contribution, trained);
+            LegionPopulationRules.Add(corps.population, source.Key, group, contribution, trained ? 1f : 0f);
+            taken += contribution;
+        }
+        // 新兵冲淡老兵(见 CorpsVeterancy)
+        CorpsVeterancy.Dilute(corps, corps.strength, taken);
+        corps.strength += taken;
+        if (taken > 0f) CityPopulationSystem.InvalidateHouseholdCaches();
+    }
+#endif
+
+    // 退伍：按来源还回人口
+#if EC_PENDING
+    private static void Demobilize(Realm kingdom, CorpsData corps, float amount)
+    {
+        amount = Mathf.Min(amount, corps.strength);
+        if (amount <= 0f) return;
+        float total = LegionPopulationRules.Total(corps.population);
+        if (total > 0f)
+        {
+            float ratio = Mathf.Clamp01(amount / total);
+            foreach (LegionPopulationContribution origin in corps.population)
+            {
+                if (origin == null || origin.size <= 0f) continue;
+                float back = origin.size * ratio;
+                origin.size -= back;
+                // 来源城还在本国就还回那座城(按编号直接取，不再逐个兵源把全国的城扫一遍)，否则还回驻地
+                City destination = EmpireWorld.Current.CityByKey(origin.city_id) is City source && source.Record != null &&
+                                   !source.IsGone() && source.Realm == kingdom
+                    ? source
+                    : Home(corps);
+                if (destination == null) continue;
+                CityPopulationSystem.AddBackground(destination, origin.social_class == SocialClass.Army
+                    ? SocialClass.Peasant : origin.social_class, origin.culture, origin.species, origin.ideology, back);
+                NaturalizationSystem.Returned(destination, back, origin.trained);
+            }
+            corps.population.RemoveAll(origin => origin == null || origin.size <= 0.01f);
+        }
+        corps.strength = Mathf.Max(0f, corps.strength - amount);
+        CityPopulationSystem.InvalidateHouseholdCaches();
+    }
+#endif
+
+    // 能不能分出渡海先遣军：义军、骑士团的军、先遣军自己、已在船上的不分
+    public static bool CanDetach(CorpsData corps) =>
+        corps != null && !corps.militia && corps.order_id < 0 && corps.parent_id < 0 && !corps.embarked && corps.strength > 1f;
+
+    // 渡海先遣军(见 FrontSystem.Assign)：整军装不下运输船时，按剩下的运力从本军分出一支先渡海，本军留守。
+    // 玩家反馈"远洋打仗还是有问题，两个隔海的国家一千五百年没打下来"：以前整军装不下就不派，战时一军一两万到几万人，
+    // 蒸汽时代以前一两个港口的运力只有几千。兵员来源按比例分过去；先遣军不补员、不另占兵额，仗打完或回到驻地就并回原军
+    public static CorpsData Detach(Realm kingdom, CorpsData parent, float amount)
+    {
+        if (kingdom?.Record == null || !CanDetach(parent)) return null;
+        amount = Mathf.Floor(Mathf.Min(amount, parent.strength - 1f));
+        if (amount < 1f) return null;
+        float share = amount / parent.strength;
+        var part = new CorpsData
+        {
+            id = OverallHelperFunc.IdGenerator.NextId(), serial = parent.serial, kingdom_id = kingdom.Key,
+            formation = parent.formation,
+            home_city_id = parent.home_city_id, post = parent.post, legions = Mathf.Max(1, Mathf.RoundToInt(parent.legions * share)),
+            full = amount, strength = amount, org = parent.org, task = parent.task, sector_city_id = parent.sector_city_id,
+            zone_id = parent.zone_id, target_zone_id = parent.target_zone_id, raised_at = GameClock.Now,
+            arm = parent.arm, supply = parent.supply, rations = parent.rations, phantom = parent.phantom, loyalty = parent.loyalty,
+            veterancy = parent.veterancy, parent_id = parent.id
+        };
+        foreach (LegionPopulationContribution origin in parent.population)
+        {
+            if (origin == null || origin.size <= 0f) continue;
+            float moved = origin.size * share;
+            origin.size -= moved;
+            part.population.Add(new LegionPopulationContribution
+            {
+                city_id = origin.city_id, social_class = origin.social_class, culture = origin.culture,
+                species = origin.species, ideology = origin.ideology, size = moved, trained = origin.trained
+            });
+        }
+        parent.population.RemoveAll(origin => origin == null || origin.size <= 0.01f);
+        parent.strength -= amount;
+        Of(kingdom).Add(part);
+        return part;
+    }
+
+    // 先遣军并回原军：兵员来源并回去，组织度按兵力加权
+#if EC_PENDING
+    private static void Rejoin(Realm kingdom, CorpsData parent, CorpsData part)
+    {
+        float total = parent.strength + part.strength;
+        if (total > 0f)
+        {
+            parent.org = (parent.org * parent.strength + part.org * part.strength) / total;
+            parent.veterancy = (parent.veterancy * parent.strength + part.veterancy * part.strength) / total;
+        }
+        parent.strength = total;
+        foreach (LegionPopulationContribution origin in part.population)
+            if (origin != null && origin.size > 0f) parent.AddContribution(origin);
+        part.population.Clear();
+        part.strength = 0f;
+        RemoveGeneral(part);
+        Paths.Remove(part.id);
+        PathFailures.Remove(part.id);
+        EmbarkRetry.Remove(part.id);
+        Of(kingdom).Remove(part);
+    }
+#endif
+
+    // 先锋营(群友 2026-11-22 "独立出突骑和敢死队先锋队，人数规模在 100 以上，用于实行偷袭骚扰突围先登等")：
+    // 打着仗的国从兵最多的一支正规军(够 VanguardParent 人)里分出 VanguardShare 的兵、VanguardMin~VanguardMax 人，
+    // 自成一营随军上阵，一国至多一营。攻城时先登(隔城墙的折损减轻)、每月骚扰守军(守军多掉组织度)，自己的伤亡加倍
+    // (见 FrontSystem.ResolveCity)；不补员、不另占兵额，仗打完并回原军。起义军不分
+    private const float VanguardShare = 0.03f, VanguardMin = 100f, VanguardMax = 800f, VanguardParent = 3000f;
+
+#if EC_PENDING
+    private static void EnsureVanguard(Realm kingdom)
+    {
+        List<CorpsData> list = Of(kingdom);
+        if (Insurgent(kingdom) || !kingdom.hasEnemies() || list.Any(corps => corps.vanguard)) return;
+        CorpsData parent = list.Where(corps => CanDetach(corps) && !corps.manual && corps.strength >= VanguardParent &&
+                                               corps.pocket_months <= 0 && corps.task != "retreat")
+            .OrderByDescending(corps => corps.strength).FirstOrDefault();
+        if (parent == null) return;
+        CorpsData part = Detach(kingdom, parent, Mathf.Clamp(parent.strength * VanguardShare, VanguardMin, VanguardMax));
+        if (part == null) return;
+        part.vanguard = true;
+        FrontSystem.Log(kingdom, string.Format(LM.Get("corps_log_vanguard"), Name(parent), Mathf.RoundToInt(part.strength)));
+    }
+#endif
+
+    // 残军合并(群友 2026-11-22 "要是能合并军团就好了")：同一军镇的两支军都在待命、站在同一块地上，合起来还装得进
+    // 其中一支的满编，就并成一支(留兵多的那支的番号)。战时才并——平时多出来的军本来就解散。
+    // 分着渡海先遣军的不并(先遣军要并回原军)
+#if EC_PENDING
+    private static void MergeRemnants(Realm kingdom, List<CorpsData> group, Dictionary<long, float> awayByParent)
+    {
+        if (group == null || group.Count < 2) return;
+        List<CorpsData> idle = group.Where(corps => corps.task == "reserve" && !corps.embarked && corps.strength >= 1f &&
+                                                    !awayByParent.ContainsKey(corps.id))
+            .OrderByDescending(corps => corps.strength).ToList();
+        for (int i = 0; i < idle.Count; i++)
+        {
+            CorpsData keep = idle[i];
+            for (int j = idle.Count - 1; j > i; j--)
+            {
+                CorpsData small = idle[j];
+                if (small.zone_id != keep.zone_id || keep.strength + small.strength > Mathf.Max(keep.full, small.full)) continue;
+                keep.full = Mathf.Max(keep.full, small.full);
+                keep.legions = Mathf.Max(keep.legions, small.legions);
+                Rejoin(kingdom, keep, small);
+                idle.RemoveAt(j);
+                group.Remove(small);
+            }
+        }
+    }
+
+    public static void Disband(Realm kingdom, CorpsData corps)
+    {
+        if (corps == null) return;
+        if (kingdom?.Record != null && !kingdom.IsGone()) Demobilize(kingdom, corps, corps.strength);
+        RemoveGeneral(corps);
+        Of(kingdom).Remove(corps);
+    }
+#endif
+
+    // 阵亡：兵力减少，来源按比例扣减(死去的人不回人口)
+#if EC_PENDING
+    public static void Casualties(CorpsData corps, float dead)
+    {
+        if (corps == null || dead <= 0f) return;
+        // 记进这国参与的各场仗(战争窗口的伤亡，见 WarChronicle)
+        WarChronicle.Casualties(corps.kingdom_id, Mathf.Min(dead, corps.strength));
+        corps.strength = Mathf.Max(0f, corps.strength - dead);
+        LegionPopulationRules.ReduceTo(corps.population, corps.strength);
+    }
+
+    private static void Recover(Realm kingdom)
+    {
+        // 欠饷时组织度回不满(见 PayUpkeep)：溃退的军回到上限附近就归建，不会永远卡在溃退休整
+        // 武备废弛：组织度上限压低、休整恢复变慢(见 MaladySystem.OrgCeiling)
+        float ceiling = MaladySystem.OrgCeiling(kingdom), recovery = MaladySystem.RecoveryFactor(kingdom);
+        float regroup = Mathf.Min(50f, Mathf.Min(ceiling, 100f - UnpaidOrgCap * kingdom.GetOrCreate().corps_pay_shortfall) - 5f);
+        foreach (CorpsData corps in Of(kingdom))
+        {
+            // 补给不到五成：组织度不恢复，反而下降(断绝时每月 -5)
+            if (corps.supply < 0.5f)
+            {
+                corps.org = Mathf.Max(0f, Mathf.Min(corps.org, ceiling) - (0.5f - corps.supply) * 10f);
+                continue;
+            }
+            bool fighting = corps.task is "attack" or "defend" && FrontSystem.EngagedLastMonth(corps);
+            if (!fighting) corps.org = Mathf.Min(ceiling, corps.org + (corps.task is "reserve" or "retreat" ? RestOrg : IdleOrg) * recovery);
+            else corps.org = Mathf.Min(corps.org, ceiling);
+            if (corps.task == "retreat" && corps.org >= regroup) corps.task = "reserve";
+            if (corps.task == "defend" && fighting) corps.entrench = Mathf.Min(0.3f, corps.entrench + 0.05f);
+            else if (corps.task != "defend") corps.entrench = 0f;
+        }
+    }
+#endif
+
+    // 开启军团模式前征召的实体兵(一团一个)：超出守兵额的并入本国军团，实体并回人口
+    private const int MaxAbsorbPerKingdom = 12;
+
+#if EC_PENDING
+    private static void AbsorbLegacyLegions(Realm kingdom)
+    {
+        int absorbed = 0;
+        foreach (City city in kingdom.Cities.ToList())
+        {
+            if (city?.units == null || city.IsGone()) continue;
+            int guards = NoMilitaryUnits ? 0 : CityStabilitySystem.FundedSlots(city);
+            var soldiers = city.units.Where(actor => actor?.data != null && !actor.IsGone() && actor.Alive &&
+                                                     actor.city == city && CityPopulationSystem.IsSoldier(actor) &&
+                                                     !CityPopulationSystem.IsVehicle(actor) && !IsGeneral(actor) &&
+                                                     !actor.isKing() && !actor.isCityLeader() && !actor.isFavorite() &&
+                                                     actor.GetOrCreate().legion_size > 1f).ToList();
+            if (soldiers.Count <= guards) continue;
+            CorpsData target = Of(kingdom).Where(corps => !corps.militia)
+                .OrderBy(corps => corps.home_city_id == city.Key ? 0 : 1).FirstOrDefault();
+            foreach (Person soldier in soldiers.Skip(guards))
+            {
+                if (absorbed >= MaxAbsorbPerKingdom) return;
+                var extra = soldier.GetOrCreate();
+                float alive = CityPopulationSystem.LegionAlive(soldier) - 1f;
+                if (target != null && extra.legion_population != null)
+                {
+                    foreach (LegionPopulationContribution origin in extra.legion_population)
+                        if (origin != null && origin.size > 0f)
+                            target.AddContribution(origin);
+                    target.strength += Mathf.Max(0f, alive);
+                    target.full = Mathf.Max(target.full, target.strength);
+                    extra.legion_population = null;
+                    extra.legion_size = extra.legion_full = 0f;
+                    extra.legion_home_city_id = -1L;
+                }
+                if (CityPopulationSystem.DisbandIntoPopulation(soldier, city)) absorbed++;
+            }
+        }
+    }
+#endif
+
+    private static void AddContribution(this CorpsData corps, LegionPopulationContribution origin)
+    {
+        LegionPopulationContribution same = corps.population.FirstOrDefault(other => other.city_id == origin.city_id &&
+            other.social_class == origin.social_class && other.culture == origin.culture &&
+            other.species == origin.species && other.ideology == origin.ideology);
+        if (same != null)
+        {
+            same.trained = LegionPopulationRules.Merge(same.trained, same.size, origin.trained, origin.size);
+            same.size += origin.size;
+        }
+        else corps.population.Add(new LegionPopulationContribution
+        {
+            city_id = origin.city_id, social_class = origin.social_class, culture = origin.culture,
+            species = origin.species, ideology = origin.ideology, size = origin.size, trained = origin.trained
+        });
+    }
+
+    #endregion
+
+    #region 不留实体时的治安守兵：只是城里的人数(从本城背景人口里抽，撤防还回)
+
+    public static float VirtualGarrison(City city) =>
+        city?.Record != null && city.GetOrCreate().stability is CityStabilityData state ? state.virtual_garrison : 0f;
+
+    public static void RecruitVirtualGarrison(City city, int needed)
+    {
+        if (city?.Record == null || needed <= 0 || city.GetOrCreate().stability is not CityStabilityData state) return;
+        state.virtual_garrison_origins ??= new List<LegionPopulationContribution>();
+        float taken = 0f;
+        for (int attempt = 0; taken < needed && attempt < 8; attempt++)
+        {
+            PopGroup group = CityPopulationSystem.DrawBackground(city, candidate => SlaverySystem.CanRecruit(candidate));
+            if (group == null) break;
+            float contribution = CityPopulationSystem.RemoveBackground(group, needed - taken);
+            if (contribution <= 0f) break;
+            LegionPopulationRules.Add(state.virtual_garrison_origins, city.Key, group, contribution);
+            taken += contribution;
+        }
+        state.virtual_garrison += taken;
+        if (taken > 0f) CityPopulationSystem.InvalidateHouseholdCaches();
+    }
+
+    // 守兵超出需要(或重新打开统领实体、改回实体守兵)时退回人口
+#if EC_PENDING
+    public static void SyncVirtualGarrison(City city, CityStabilityData state)
+    {
+        if (city?.Record == null || state == null || state.virtual_garrison <= 0f) return;
+        float keep = NoMilitaryUnits ? Mathf.Max(0, state.garrison_required) : 0f;
+        if (state.virtual_garrison <= keep) return;
+        float release = state.virtual_garrison - keep;
+        float total = LegionPopulationRules.Total(state.virtual_garrison_origins);
+        if (total > 0f)
+        {
+            float ratio = Mathf.Clamp01(release / total);
+            foreach (LegionPopulationContribution origin in state.virtual_garrison_origins)
+            {
+                if (origin == null || origin.size <= 0f) continue;
+                float back = origin.size * ratio;
+                origin.size -= back;
+                CityPopulationSystem.AddBackground(city, origin.social_class == SocialClass.Army ? SocialClass.Peasant
+                    : origin.social_class, origin.culture, origin.species, origin.ideology, back);
+            }
+            state.virtual_garrison_origins.RemoveAll(origin => origin == null || origin.size <= 0.01f);
+        }
+        state.virtual_garrison = keep;
+        CityPopulationSystem.InvalidateHouseholdCaches();
+    }
+#endif
+
+    // 城市军队解散：军职空缺，统领(多是被拉去带兵的名人)恢复文职
+#if EC_PENDING
+    public static void DisbandCityArmy(City city)
+    {
+        Army army = city?.army;
+        if (army == null) return;
+        foreach (var office in OfficeManager.Offices.Values.Where(office => office?.meta_object == army).ToList())
+            office.RemoveActor();
+        Person captain = army.getCaptain();
+        foreach (Person soldier in army.units.ToList())
+        {
+            if (soldier?.Record == null || soldier.IsGone()) continue;
+            soldier.removeFromArmy();
+            if (soldier == captain || CityPopulationSystem.IsNotable(soldier)) soldier.stopBeingWarrior();
+        }
+        city.disbandArmy();
+    }
+#endif
+
+    #endregion
+
+    #region 义军
+
+    // 起义、革命：在本城武装一支义军(取代原来的 count 个实体义军兵)，返回动员的人数
+#if EC_PENDING
+    public static int RaiseMilitia(City city, int count, float share)
+    {
+        if (city?.Realm == null || city.IsGone() || count <= 0) return 0;
+        float people = Mathf.Min(CityPopulationSystem.GetBackgroundTotal(city) * Mathf.Clamp01(share) * CityPopulationSystem.MilitiaTurnout,
+            count * CityPopulationSystem.PeoplePerLegion);
+        if (people < 1f) return 0;
+        // 本城已有义军(叛军又得了新城、又一次起事)：补足到这次的规模，不再另编一支——
+        // 以前每次都把各城再征一遍，几座城的叛军滚上几年就有二十万义军
+        CorpsData existing = Of(city.Realm).FirstOrDefault(corps => corps.militia && corps.home_city_id == city.Key);
+        if (existing != null)
+        {
+            existing.legions = Mathf.Max(existing.legions, count);
+            existing.full = Mathf.Max(existing.full, people);
+            Reinforce(city.Realm, existing, people, city);
+            RebuildIndex();
+            return count;
+        }
+        CorpsData corps = Raise(city.Realm, city, Mathf.Max(1, count), people, GameClock.Now, militia: true);
+        if (corps == null) return 0;
+        corps.task = "reserve";
+        RebuildIndex();
+        return count;
+    }
+#endif
+
+    #endregion
+
+    #region 统领实体与行军
+
+    private static int _vehicleSweep;
+
+    // 一趟结 beats 拍(世界过了几秒)：每个军团在自己身上连走 beats 拍，量与一拍一趟一样；
+    // 统帅补位与挪动、全部军团的清单每趟只做一回。
+    // 寻路额度：游戏里一趟一份(同 Beta9 一帧至多一拍时一样多)，没轮上的军团照旧攒着进度、下一趟寻到路一并补走，路程不丢；
+    // 独立核心照拍数放大(它要流速调快时军队跟得上，见 SecondBeats)
+#if EC_PENDING
+    private static void SecondTick(int beats)
+    {
+        beats = Math.Max(1, beats);
+        // 每 5 秒把载具实体收进账面(不留实体时)
+        _vehicleSweep += beats;
+        if (_vehicleSweep >= 5)
+        {
+            _vehicleSweep %= 5;
+            WarBoxCompatibility.SweepVehicles();
+        }
+        bool generals = GeneralUnits;
+        _pathsThisTick = 0;
+        _pathTicksThisTick = 0L;
+#if EC_SERVER
+        _pathScale = beats;
+#else
+        _pathScale = 1;
+#endif
+        foreach ((Realm kingdom, CorpsData corps) in All().ToList())
+        {
+            if (generals) EnsureGeneral(kingdom, corps);
+            else RemoveGeneral(corps);
+            MarchBeat(corps, beats);
+            MoveGeneral(corps);
+        }
+    }
+#endif
+
+    // 一个军团走 beats 拍(一拍一个世界秒)。几拍的路程并成一次算(2026-11-24 群友"11/5 那版更流畅，之后越来越卡")：
+    // 以前欠几拍就把下面这一套(地形道路判速度、找目标地块、记插值)原样做几遍，快进时一帧八遍、几百支军就是几千遍；
+    // 现在速度与目标一帧判一次，进度一次加足 beats 拍，该迈几块照样迈几块(迈进新地块后兵牌按新地块的速度插值，
+    // 这一趟里剩下的路程仍按出发那块的速度算，差的那一点下一趟就按新地块算了)。船上的照旧一拍一步
+#if EC_PENDING
+    private static void MarchBeat(CorpsData corps, int beats = 1)
+    {
+        if (corps.embarked)
+        {
+            // 在船上按船速走(见 Sail)
+            MarchRates.Remove(corps.id);
+            for (int beat = 0; beat < beats; beat++) StepTowardTarget(corps);
+        }
+        else
+        {
+            // 兵种定行军速度；山地、沼泽、丛林按兵种减速，离开道路再按兵种减速，飞机不受地形影响(见 CorpsArmSystem、RoadNetwork)
+            CorpsArmSystem.Arm arm = CorpsArmSystem.Of(corps);
+            float SpeedIn(TileZone zone)
+            {
+                float value = MarchZonesPerSecond * CorpsArmSystem.Speed(arm);
+                if (TerrainSystem.SlowsMarch(zone) || WarWeather.SlowsMarch(zone)) value *= CorpsArmSystem.Rough(arm);
+                if (!CorpsArmSystem.Flies(arm) && !RoadNetwork.IsRoad(zone)) value *= CorpsArmSystem.OffRoad(arm);
+                return value;
+            }
+            float speed = SpeedIn(Zone(corps));
+            corps.march_progress += speed * beats;
+            int target = FrontSystem.TargetZone(corps)?.id ?? -1;
+            bool blocked = MarchBlocked.TryGetValue(corps.id, out int blockedAt) && blockedAt == target;
+            if (!blocked) MarchBlocked.Remove(corps.id);
+            if (blocked) MarchRates.Remove(corps.id);
+            else MarchRates[corps.id] = speed;
+            while (corps.march_progress >= 1f)
+            {
+                corps.march_progress -= 1f;
+                int before = corps.zone_id;
+                _pathDeferred = false;
+                StepTowardTarget(corps);
+                // 本秒寻路排满了(见 NextStep)：这一步留到下一秒，进度不丢
+                if (_pathDeferred)
+                {
+                    _pathDeferred = false;
+                    corps.march_progress += 1f;
+                    break;
+                }
+                // 陆上行军记程，月底按路程收行军费(见 PayUpkeep)
+                if (!corps.embarked && corps.zone_id != before) corps.march_zones++;
+                // 到了(或走不动、上了船)就不攒进度
+                if (corps.embarked || corps.zone_id == before)
+                {
+                    corps.march_progress = 0f;
+                    // 停下了(到了、走不动)：兵牌不往前插值，目标不变就一直不插值
+                    MarchRates.Remove(corps.id);
+                    if (!corps.embarked) MarchBlocked[corps.id] = target;
+                    break;
+                }
+                // 迈进了新的一块：下一拍按新地块的速度走，兵牌也按它往前插值(以前照旧地块的速度，
+                // 从大路走进山地、荒野时兵牌先冲过头、结算后再往回拉)
+                MarchBlocked.Remove(corps.id);
+                MarchRates[corps.id] = SpeedIn(Zone(corps));
+            }
+        }
+    }
+
+    private static void EnsureGeneral(Realm kingdom, CorpsData corps)
+    {
+        if (corps.general_id >= 0)
+        {
+            Person existing = EmpireWorld.Current.PersonByKey(corps.general_id);
+            if (existing?.Record != null && !existing.IsGone() && existing.Alive && existing.Realm == kingdom) return;
+            corps.general_id = -1L;
+        }
+        City home = Home(corps);
+        if (home == null || home.Realm != kingdom) return;
+        PopGroup group = CityPopulationSystem.DrawBackground(home, candidate => SlaverySystem.CanRecruit(candidate, corps.militia) &&
+                                                                                  !string.IsNullOrEmpty(candidate.species));
+        if (group == null) return;
+        Person general = CityPopulationSystem.SpawnFromGroup(home, group, soldier: true);
+        if (general == null) return;
+        CityPopulationSystem.RemoveBackground(group, 1f);
+        corps.general_id = general.Key;
+        GeneralIndex[general.Key] = (kingdom.Key, corps.id);
+        GeneralsByCity.TryGetValue(home.Key, out int count);
+        GeneralsByCity[home.Key] = count + 1;
+    }
+#endif
+
+    // 改由某人统领这支军(宦官掌兵等，见 TempFac_宦官掌兵)：原统领卸任
+#if EC_PENDING
+    public static bool AssignGeneral(Realm kingdom, CorpsData corps, Person general)
+    {
+        // 等着起事的流寇不给朝廷统兵(见 ScenarioEventSystem.IsReserved)
+        if (EmpireCraft.Core.ScenarioEventSystem.IsReserved(general)) return false;
+        if (kingdom == null || corps == null || general?.Record == null || general.IsGone() || !general.Alive ||
+            general.Realm != kingdom || IsGeneral(general)) return false;
+        RemoveGeneral(corps);
+        corps.general_id = general.Key;
+        GeneralIndex[general.Key] = (kingdom.Key, corps.id);
+        City home = Home(corps);
+        if (home != null)
+        {
+            GeneralsByCity.TryGetValue(home.Key, out int count);
+            GeneralsByCity[home.Key] = count + 1;
+        }
+        return true;
+    }
+
+    private static void RemoveGeneral(CorpsData corps)
+    {
+        if (corps.general_id < 0) return;
+        Person general = EmpireWorld.Current?.units?.get(corps.general_id);
+        OfficialRankSystem.OnCommandEnded(general, corps);
+        GeneralIndex.Remove(corps.general_id);
+        corps.general_id = -1L;
+        if (general?.Record == null || general.IsGone() || !general.Alive) return;
+        if (general.IsRuler() || general.IsCityLeader() || general.isFavorite()) return;
+        City home = Home(corps) ?? general.City;
+        if (home != null) CityPopulationSystem.DisbandIntoPopulation(general, home);
+    }
+#endif
+
+    // 这人统领的军(不是统领返回空)
+    public static CorpsData CorpsOf(Person actor)
+    {
+        if (actor?.Record == null || !GeneralIndex.TryGetValue(actor.Key, out var key)) return null;
+        Realm kingdom = EmpireWorld.Current.RealmByKey(key.kingdom);
+        return kingdom == null ? null : Find(kingdom, key.corps);
+    }
+
+    // 整支军改投别国(拥兵自立，见 ThroneSuspicion)：驻地改到 home，回驻地待命
+    // 被围投降的军被敌方收编(见 EncirclementSystem)：换了统领、编入对方，算手动组建的军(不随军制兵额裁撤)，老兵打了折
+#if EC_PENDING
+    public static void CaptureCorps(Realm from, CorpsData corps, Realm captor)
+    {
+        if (corps == null || from == null || captor?.Record == null) return;
+        RemoveGeneral(corps);
+        corps.full = corps.strength;
+        corps.org = 30f;
+        corps.veterancy *= 0.5f;
+        corps.pocket_months = 0;
+        corps.parent_id = -1L;
+        corps.manual = true;
+        corps.target_zone_id = corps.zone_id;
+        Paths.Remove(corps.id);
+        Transfer(corps, from, captor, captor.Capital);
+    }
+
+    public static void Transfer(CorpsData corps, Realm from, Realm to, City home)
+    {
+        if (corps == null || from == null || to == null || from == to) return;
+        string former = Name(corps);
+        Of(from).Remove(corps);
+        corps.kingdom_id = to.Key;
+        if (home != null) corps.home_city_id = home.Key;
+        corps.task = "reserve";
+        corps.sector_city_id = -1L;
+        Of(to).Add(corps);
+        FormationSystem.Reassign(to, corps, former);
+        RebuildIndex();
+    }
+#endif
+
+    // 统领被俘归降(见 BattleDrama)：不再统领这支军，组织度大挫，下个月补任
+    public static void LoseGeneral(Person actor)
+    {
+        if (actor?.Record == null || !GeneralIndex.TryGetValue(actor.Key, out var key)) return;
+        GeneralIndex.Remove(actor.Key);
+        Realm kingdom = EmpireWorld.Current.RealmByKey(key.kingdom);
+        CorpsData corps = kingdom == null ? null : Find(kingdom, key.corps);
+        if (corps == null) return;
+        corps.general_id = -1L;
+        corps.org = Mathf.Max(0f, corps.org - 20f);
+    }
+
+    // 统领阵亡：组织度大挫，下个月补任
+#if EC_PENDING
+    public static void OnGeneralDied(Person actor)
+    {
+        if (actor?.Record == null || !GeneralIndex.TryGetValue(actor.Key, out var key)) return;
+        GeneralIndex.Remove(actor.Key);
+        Realm kingdom = EmpireWorld.Current.RealmByKey(key.kingdom);
+        CorpsData corps = kingdom == null ? null : Find(kingdom, key.corps);
+        if (corps == null) return;
+        corps.general_id = -1L;
+        corps.org = Mathf.Max(0f, corps.org - 20f);
+        FrontSystem.Log(kingdom, string.Format(LM.Get("corps_log_general_killed"), Name(corps), actor.FullName()));
+    }
+#endif
+
+    // 军团在地块上一格一格挪向目标(跨海登陆要有航线与运力，见 FrontSystem / NavySystem)
+#if EC_PENDING
+    private static void StepTowardTarget(CorpsData corps)
+    {
+        if (corps.embarked)
+        {
+            Sail(corps);
+            return;
+        }
+        // 被围的军走不出去，只能就地打或突围(见 EncirclementSystem)
+        if (corps.pocket_months > 0) return;
+        TileZone target = FrontSystem.TargetZone(corps);
+        if (target == null) return;
+        TileZone current = Zone(corps);
+        if (current == null)
+        {
+            corps.zone_id = target.id;
+            return;
+        }
+        if (current == target) return;
+        // 飞机直线飞越高山与海面，不必去港口登船(见 CorpsArmSystem)
+        if (CorpsArmSystem.Flies(corps))
+        {
+            Paths.Remove(corps.id);
+            TileZone hop = FlyStep(current, target);
+            if (hop != null) corps.zone_id = hop.id;
+            return;
+        }
+        // 旧存档里不在船上却停在海面的军(以前陆军直接走海面)：直接上岸到目标
+        if (SeaRegionSystem.IsSea(current))
+        {
+            corps.zone_id = target.id;
+            return;
+        }
+        // 目标在另一片陆地上，或同一片陆地上隔着第三国走不过去(登陆战线，见 FrontSystem.MustSail)：先开到本国港口，在港口上船(见 Embark、Sail)；
+        // 已在海外(不在驻地那片陆地上)、这片陆地上又没有本国港口(登陆上岸的军要回国、转战别处)：就近找一处岸边上船，
+        // 不再困在海外。本土没有港口的照旧出不了海
+        if (!SeaRegionSystem.IsSea(current) && (!SameLand(current, target) || FrontSystem.MustSail(corps, current, target)))
+        {
+            Realm kingdom = EmpireWorld.Current.RealmByKey(corps.kingdom_id);
+            City port = PortFor(kingdom, current);
+            TileZone portZone = port?.getTile()?.zone;
+            if (portZone != null)
+            {
+                if (current == portZone || current.city == port)
+                {
+                    Embark(kingdom, corps, target, SeaRegionSystem.RegionsAround(port));
+                    return;
+                }
+                target = portZone;
+            }
+            else
+            {
+                if (SameLand(current, Home(corps)?.getTile()?.zone)) return;
+                TileZone shore = SeaLanding.Shores(current).FirstOrDefault();
+                if (shore == null) return;
+                if (current == shore)
+                {
+                    Embark(kingdom, corps, target, SeaLanding.Waters(shore));
+                    return;
+                }
+                target = shore;
+            }
+        }
+        TileZone next = NextStep(corps, current, target);
+        if (next != null) corps.zone_id = next.id;
+    }
+#endif
+
+    // 两块地是否在同一片陆地上(有城的取城心，野地取地块中心)；拿不准时当作同一片
+#if EC_PENDING
+    public static bool SameLand(TileZone a, TileZone b)
+    {
+        WorldTile ta = LandTile(a), tb = LandTile(b);
+        return ta == null || tb == null || ta.isSameIsland(tb);
+    }
+
+    private static WorldTile LandTile(TileZone zone)
+    {
+        if (zone == null) return null;
+        WorldTile tile = zone.city?.data != null && !zone.city.IsGone() ? zone.city.getTile() : zone.centerTile;
+        return tile?.Type?.ground == true ? tile : null;
+    }
+#endif
+
+    // 上船的港口：本国(连同宗主中央)在这片陆地上、离得最近的港口城
+#if EC_PENDING
+    private static City PortFor(Realm kingdom, TileZone at)
+    {
+        if (kingdom == null) return null;
+        Realm realm = FrontSystem.Realm(kingdom);
+        IEnumerable<City> ports = NavySystem.Ports(kingdom);
+        if (realm != null && realm != kingdom) ports = ports.Concat(NavySystem.Ports(realm));
+        City best = null;
+        float bestDistance = float.MaxValue;
+        foreach (City port in ports)
+        {
+            TileZone zone = port.getTile()?.zone;
+            if (zone == null || !SameLand(at, zone)) continue;
+            float distance = ZoneDistance(at, zone);
+            if (distance >= bestDistance) continue;
+            best = port;
+            bestDistance = distance;
+        }
+        return best;
+    }
+#endif
+
+    // 这支军渡海从哪里上船(与 StepTowardTarget 一致)：这片陆地上本国(连同宗主中央)最近的港口；已在海外、这片陆地上没有
+    // 本国港口的，就近的岸边；本土没有港口(出不了海)返回空。已在船上、在海面的就是所在地块(FrontSystem 挑渡海的军用)
+#if EC_PENDING
+    public static TileZone EmbarkZone(Realm kingdom, CorpsData corps)
+    {
+        TileZone at = Zone(corps);
+        if (kingdom == null || at == null) return null;
+        if (corps.embarked || SeaRegionSystem.IsSea(at)) return at;
+        TileZone port = PortFor(kingdom, at)?.getTile()?.zone;
+        if (port != null) return port;
+        if (SameLand(at, Home(corps)?.getTile()?.zone)) return null;
+        return SeaLanding.Shores(at).FirstOrDefault();
+    }
+#endif
+
+    // 上船失败(没有能靠岸的海滩、航线被截断)后隔几秒(真实时间)再试
+    private const float EmbarkRetrySeconds = 5f;
+    private static readonly Dictionary<long, float> EmbarkRetry = new();
+
+    // 在港口(或岸边)上船：船开往目标所在那片陆地上沿陆路离目标最近、能靠岸的海滩(见 SeaLanding.Beachhead)，
+    // 上岸后走陆路开往目标；航线不经敌方制海、在舰种航程内。从这里出海走不了就按本国别的出海口算，再不行就原地等。
+    // 以前船只开到目标城外的海区，内陆的城求不出航线，军在港口等一辈子(玩家反馈殖民地"要等陆地连上了才打得动")
+#if EC_PENDING
+    private static void Embark(Realm kingdom, CorpsData corps, TileZone target, List<SeaRegionSystem.Region> start)
+    {
+        if (kingdom == null || target == null) return;
+        float clock = Time.unscaledTime;
+        if (EmbarkRetry.TryGetValue(corps.id, out float retryAt) && clock < retryAt) return;
+        TileZone shore = null;
+        List<SeaRegionSystem.Region> route = null;
+        if (start != null && start.Count > 0) (shore, route) = SeaLanding.Beachhead(kingdom, target, start);
+        if (shore == null) (shore, route) = SeaLanding.Beachhead(kingdom, target);
+        if (shore == null || route == null || route.Count == 0)
+        {
+            EmbarkRetry[corps.id] = clock + EmbarkRetrySeconds;
+            return;
+        }
+        EmbarkRetry.Remove(corps.id);
+        corps.embarked = true;
+        corps.landing_zone_id = shore.id;
+        corps.sea_route = route.Select(region => region.Id).ToList();
+        corps.sea_step = 0;
+        corps.sea_tick = 0;
+        corps.sea_path = Voyage(corps, Zone(corps), shore);
+        // 寻不到海上路线：照旧从第一个海区出发，按海区走
+        if (corps.sea_path.Count == 0 && route[0].Center != null) corps.zone_id = route[0].Center.id;
+        Paths.Remove(corps.id);
+    }
+#endif
+
+    // 船走的路线：只走登陆航线上的海区(不进敌方制海的海区)，海面上尽量沿航线(见 RoadNetwork.SeaPath)；寻不到返回空表
+#if EC_PENDING
+    private static List<int> Voyage(CorpsData corps, TileZone from, TileZone landing)
+    {
+        if (from == null || landing == null || corps.sea_route == null) return new List<int>();
+        var regions = new HashSet<int>(corps.sea_route);
+        List<TileZone> path = RoadNetwork.SeaPath(from, landing, from.city, landing.city,
+            zone => SeaRegionSystem.Of(zone) is { } region && regions.Contains(region.Id));
+        return path == null || path.Count < 2 ? new List<int>() : path.Select(zone => zone.id).ToList();
+    }
+#endif
+
+    // 船队每秒沿海上路线走 SailZones 块(与舰队相当)，驶入航线上的下一个海区可能遭截击，到了登陆；
+    // 旧存档(没有路线)先补算一条；寻不到路线时照旧每 SailSteps 秒前进一个海区，过了最后一个海区登陆
+    private const int SailSteps = 4, SailZones = 2;
+
+#if EC_PENDING
+    private static void Sail(CorpsData corps)
+    {
+        if (corps.sea_route == null || corps.sea_route.Count == 0)
+        {
+            Disembark(corps);
+            return;
+        }
+        corps.sea_path ??= Voyage(corps, Zone(corps), ZoneById(corps.landing_zone_id) ??
+            FrontSystem.TargetZone(corps) ?? EmpireWorld.Current.CityByKey(corps.sector_city_id)?.getTile()?.zone);
+        if (corps.sea_path.Count > 0)
+        {
+            SailAlong(corps);
+            return;
+        }
+        if (++corps.sea_tick < SailSteps) return;
+        corps.sea_tick = 0;
+        corps.sea_step++;
+        if (corps.sea_step >= corps.sea_route.Count)
+        {
+            Disembark(corps);
+            return;
+        }
+        SeaRegionSystem.Region region = SeaRegionSystem.Get(corps.sea_route[corps.sea_step]);
+        if (region?.Center != null) corps.zone_id = region.Center.id;
+        Intercept(corps, region);
+    }
+
+    private static void SailAlong(CorpsData corps)
+    {
+        for (int i = 0; i < SailZones; i++)
+        {
+            if (corps.sea_path.Count <= 1)
+            {
+                Disembark(corps);
+                return;
+            }
+            corps.sea_path.RemoveAt(0);
+            TileZone zone = ZoneById(corps.sea_path[0]);
+            if (zone == null) continue;
+            corps.zone_id = zone.id;
+            SeaRegionSystem.Region region = SeaRegionSystem.Of(zone);
+            int index = region == null ? -1 : corps.sea_route.IndexOf(region.Id);
+            if (index <= corps.sea_step) continue;
+            corps.sea_step = index;
+            Intercept(corps, region);
+        }
+    }
+
+    private static void Disembark(CorpsData corps)
+    {
+        corps.embarked = false;
+        corps.sea_path = null;
+        corps.sea_route = null;
+        corps.sea_step = 0;
+        corps.sea_tick = 0;
+        // 在上船时选好的海滩靠岸，上岸后走陆路开往目标；船还在海上时目标改到了别的陆地(仗打完回驻地等)就直接到目标
+        TileZone target = FrontSystem.TargetZone(corps);
+        TileZone landing = ZoneById(corps.landing_zone_id);
+        if (landing == null || SeaRegionSystem.IsSea(landing) ||
+            target != null && !SeaRegionSystem.IsSea(target) && !SameLand(landing, target))
+            landing = target;
+        if (landing == null || SeaRegionSystem.IsSea(landing))
+            landing = EmpireWorld.Current.CityByKey(corps.sector_city_id)?.getTile()?.zone;
+        if (landing != null) corps.zone_id = landing.id;
+        // 记着在哪靠的岸(下次上船时换掉)：隔着第三国的登陆战线据此认定已上岸，不再回头坐船(见 FrontSystem.Landed)
+        corps.landing_zone_id = landing != null && !SeaRegionSystem.IsSea(landing) ? landing.id : -1;
+        SeaLandingDiagnostics.Landed(corps.kingdom_id);
+        // 渡海去打仗的在纪事里记一笔：攻方"某军渡海在某城登岸"，守方"敌军渡海在某城登岸"
+        City city = EmpireWorld.Current.CityByKey(corps.sector_city_id);
+        Realm kingdom = EmpireWorld.Current.RealmByKey(corps.kingdom_id);
+        if (corps.task != "attack" || city?.Record == null || city.IsGone() || kingdom == null || !FrontSystem.Hostile(kingdom, city.Realm))
+            return;
+        FrontSystem.Log(kingdom, string.Format(LM.Get("corps_log_landed"), Name(corps), city.GetCityName()));
+        FrontSystem.Log(city.Realm, string.Format(LM.Get("corps_log_enemy_landed"), kingdom.GetKingdomName(), city.GetCityName()));
+    }
+#endif
+
+    // 船队驶入敌方制海的海区遭截击：没有护航折损一成五，有护航减半；组织度 -15
+#if EC_PENDING
+    private static void Intercept(CorpsData corps, SeaRegionSystem.Region region)
+    {
+        Realm kingdom = EmpireWorld.Current.RealmByKey(corps.kingdom_id);
+        if (kingdom == null || region == null || !NavySystem.IsHostile(kingdom, region)) return;
+        float loss = NavySystem.Escorted(kingdom, region) ? 0.07f : 0.15f;
+        Casualties(corps, corps.strength * loss);
+        corps.org = Mathf.Max(0f, corps.org - 15f);
+        FrontSystem.Log(kingdom, string.Format(LM.Get("corps_log_intercepted"), Name(corps), Mathf.RoundToInt(loss * 100f)));
+    }
+#endif
+
+    // 行军路线：按地块寻路，绕开原版最高的地形(见 TerrainSystem.Impassable)；路线按目标缓存，
+    // 走偏了(撤退、改派)或目标变了再重算；找不到路就朝目标就近挪一块可走的地。
+    // 城墙(见 WallPassage)：隔着城墙的两块地不能直接走，只从对本方开着的关门过(关城所在地块的控制者与同一势力、
+    // 并肩作战的友邦、同盟)，敌军绕过城墙尽头走或先打下关城；就近挪也不穿墙。缓存的路线每走一步看下一步还走不走得通
+    // (关城易手、和战变了、新画了城墙)，走不通就重寻。飞机(FlyStep)不受城墙限制，海上运兵照旧。
+    // 无人区(见 WildernessPassage；用户 2026-10-29 选军队"只能沿路过：没修路的地方过不去，修了路的地方(山口、商道)能走；
+    // 游牧过沙漠冻土、阿拉伯过沙漠照旧不受限")：对本方过不去的无人区不进(终点除外)，就近挪也不进；隔着过不去、绕不过去的
+    // 无人区的目标不寻路(不必搜满 MaxPathSearch)；缓存的路线下一步进了过不去的无人区(新划的区、路荒了)就重寻。
+    // 已经站在过不去的无人区里的(区域刚划出来时)可以在无人区里走、每步加重八倍，就近走出去，出去了就不再进。飞机、海运不受限
+    private const int MaxPathSearch = 6000;
+    private static readonly Dictionary<long, (int target, List<int> path)> Paths = new();
+    // 各军这一拍的行军速度(块/秒)：兵牌按节拍里过了几成往前插值(见 DrawPosition)；停下的不记
+    private static readonly Dictionary<long, float> MarchRates = new();
+    // 上回往前走不动(到了、被挡、没路)的军，记着当时的目标块：目标没变就不往前插值。
+    // 以前走不动的军每拍照样记速度，兵牌朝下一块滑十来秒、攒满一步走不过去就清零，从半路弹回本块，
+    // 前线上的军一顿一顿地进了又退(用户 10-29 "为什么所有军队都会走着走着突然回退一下")
+    private static readonly Dictionary<long, int> MarchBlocked = new();
+
+    // 寻路失败(多是够不着，要搜满 6000 块)的军：同一目标隔 PathRetrySeconds(世界时间)再寻，其间就近挪。
+    // 每秒行军结算里寻路至少 PathsPerTick 次，再多只在本秒寻路累计不到 PathTickMilliseconds 时寻，其余的军这一步等到下一秒
+    // (月初改派一大批军时不再一秒里全寻一遍)
+    private const double PathRetrySeconds = 10d;
+    private const int PathsPerTick = 4;
+    private const double PathTickMilliseconds = 3d;
+    private static readonly Dictionary<long, (int target, double retryAt)> PathFailures = new();
+    private static int _pathsThisTick;
+    private static long _pathTicksThisTick;
+    private static bool _pathDeferred;
+
+    // 这一趟的寻路额度放大几倍(一趟结几拍，见 SecondTick)
+    private static int _pathScale = 1;
+
+    private static bool PathBudget() =>
+        _pathsThisTick < PathsPerTick * _pathScale ||
+        _pathTicksThisTick * 1000d / global::System.Diagnostics.Stopwatch.Frequency < PathTickMilliseconds * _pathScale;
+
+#if EC_PENDING
+    private static TileZone NextStep(CorpsData corps, TileZone current, TileZone target)
+    {
+        Realm side = EmpireWorld.Current.RealmByKey(corps.kingdom_id);
+        if (Paths.TryGetValue(corps.id, out var cached) && cached.target == target.id && cached.path.Count >= 2 &&
+            cached.path[0] == current.id)
+        {
+            TileZone next = ZoneById(cached.path[1]);
+            // 下一步隔着城墙走不过去了(关门不再放行、新画了城墙)、进了过不去的无人区(新划的区、路荒了)：重寻
+            if (next != null && (side == null || !WallPassage.Blocks(current, next, side) &&
+                                 (next == target || !WildBlocks(current, next, side))))
+            {
+                cached.path.RemoveAt(0);
+                return next;
+            }
+            Paths.Remove(corps.id);
+        }
+        double now = GameClock.Now;
+        if (PathFailures.TryGetValue(corps.id, out var failed) && failed.target == target.id &&
+            now < failed.retryAt && now >= failed.retryAt - PathRetrySeconds)
+        {
+            Paths.Remove(corps.id);
+            return Nearer(current, target, side);
+        }
+        if (!PathBudget())
+        {
+            _pathDeferred = true;
+            return null;
+        }
+        long started = global::System.Diagnostics.Stopwatch.GetTimestamp();
+        List<int> path = FindPath(current, target, CorpsArmSystem.Of(corps), side);
+        _pathsThisTick++;
+        _pathTicksThisTick += global::System.Diagnostics.Stopwatch.GetTimestamp() - started;
+        if (_wallBlocked > 0) LogWallPath(corps, side, path, _wallBlocked);
+        if (path == null || path.Count < 2)
+        {
+            Paths.Remove(corps.id);
+            if (PathFailures.Count > 4096) PathFailures.Clear();
+            PathFailures[corps.id] = (target.id, now + PathRetrySeconds);
+            return Nearer(current, target, side);
+        }
+        PathFailures.Remove(corps.id);
+        // 要穿过的第三国记下，年底向它借道
+        if (side != null) MilitaryAccessSystem.NoteCrossing(side, path);
+        path.RemoveAt(0);
+        Paths[corps.id] = (target.id, path);
+        return ZoneById(path[0]);
+    }
+#endif
+
+    // 飞行：八方向里离目标最近的一块，不管地形与海面
+#if EC_PENDING
+    private static TileZone FlyStep(TileZone current, TileZone target)
+    {
+        TileZone best = null;
+        int bestDistance = int.MaxValue;
+        foreach (TileZone neighbour in current.neighbours_all ?? Array.Empty<TileZone>())
+        {
+            if (neighbour == null) continue;
+            int dx = neighbour.x - target.x, dy = neighbour.y - target.y;
+            int distance = dx * dx + dy * dy;
+            if (distance >= bestDistance) continue;
+            bestDistance = distance;
+            best = neighbour;
+        }
+        return best;
+    }
+#endif
+
+    // 按代价寻路(八方向)：路上的地块代价 1，路外按兵种加价(OffRoad 的倒数)，山地、沼泽、丛林再按兵种加价(Rough 的倒数)，
+    // 斜走乘 1.41；不可通行的地块与海面不进，终点除外。给了 side 时不相干的第三国的地加重八倍(能绕就绕，见 FrontSystem.Passable；
+    // 许 side 借道的不算，见 MilitaryAccessSystem)，
+    // 隔着城墙的两块地不走(关门对 side 开着的除外，进终点也一样，见 WallPassage)；不给 side(皇帝出行等借用)不看城墙。
+    // 无人区同城墙只看给了 side 的：对 side 过不去的不进(终点除外)，困在里面的在无人区里每步加重 ForeignStep 倍走出去(见 WildBlocks)
+    // 隔得太远绕不动时(搜满 MaxPathSearch 还没到)不加重再找一次，直接穿过去(见 FindPath)
+    private const float ForeignStep = 8f, EnemyStep = 3f;
+    // 上一次寻路被城墙挡掉的走法数(诊断日志用)
+    private static int _wallBlocked;
+    private static float _wallLoggedAt = -100f;
+    // 上一次寻路搜满 MaxPathSearch 也没到；到不了(无人区、城墙隔断，或四周走遍)的不算
+    private static bool _pathExhausted;
+    // 先从终点往回走几百块：城墙(连同高山、海面)把终点围在一小片里、走遍了也到不了出发地，就不必把外面几千块搜一遍
+    // (围城：城被一圈城墙围着、关门在敌方手里，攻城的军每次寻路都要搜满 MaxPathSearch)
+    private const int EnclosureSearch = 512;
+    private static readonly HashSet<int> EnclosureSeen = new();
+#if EC_PENDING
+    private static readonly Queue<TileZone> EnclosureQueue = new();
+#endif
+
+    // way：side 的无人区走法(见 WildernessPassage.Way)，0 不看无人区(困在无人区里的军，好往外走)
+#if EC_PENDING
+    private static bool Enclosed(TileZone from, TileZone to, Realm side, int way)
+    {
+        EnclosureSeen.Clear();
+        EnclosureQueue.Clear();
+        EnclosureSeen.Add(to.id);
+        EnclosureQueue.Enqueue(to);
+        bool enclosed = true;
+        while (EnclosureQueue.Count > 0 && enclosed)
+        {
+            if (EnclosureSeen.Count > EnclosureSearch)
+            {
+                enclosed = false;
+                break;
+            }
+            TileZone zone = EnclosureQueue.Dequeue();
+            foreach (TileZone next in zone.neighbours_all ?? Array.Empty<TileZone>())
+            {
+                if (next == null || EnclosureSeen.Contains(next.id)) continue;
+                if (WallPassage.BlocksKnown(next, zone, side))
+                {
+                    _wallBlocked++;
+                    continue;
+                }
+                if (next == from)
+                {
+                    enclosed = false;
+                    break;
+                }
+                if (TerrainSystem.Impassable(next) || SeaRegionSystem.IsSea(next) || !TerrainSystem.Crossable(zone, next)) continue;
+                if (!WildernessPassage.Open(next, way)) continue;
+                EnclosureSeen.Add(next.id);
+                EnclosureQueue.Enqueue(next);
+            }
+        }
+        EnclosureQueue.Clear();
+        return enclosed;
+    }
+
+    private static List<int> FindPath(TileZone from, TileZone to, CorpsArmSystem.Arm arm, Realm side = null)
+    {
+        List<int> path = SearchPath(from, to, arm, side, ForeignStep, EnemyStep, 1f);
+        // 第三国、敌占区每步加重好几倍，估价跟不上，隔着四五十块就搜不到头。以前到这里就只剩朝目标方向贴着走，
+        // 碰到湖、山就停在岸边(军队卡在飞地回不来)。绕不动就不绕：不加重，按路外的走法估价，直奔目标再找一次
+        if (path == null && _pathExhausted)
+            path = SearchPath(from, to, arm, side, 1f, 1f, 1f / Mathf.Max(0.1f, CorpsArmSystem.OffRoad(arm)));
+        return path;
+    }
+#endif
+
+    // 还要走多远的估价：一块至少 1，斜走 1.41(以前只算直走，斜着的路估低了，要多搜很多块)。
+    // 略放大一点，一样远的路先走离目标近的，不把一大片等价的路线都搜一遍
+#if EC_PENDING
+    private static float PathEstimate(TileZone a, TileZone b)
+    {
+        int dx = Mathf.Abs(a.x - b.x), dy = Mathf.Abs(a.y - b.y);
+        return (Mathf.Max(dx, dy) + 0.41f * Mathf.Min(dx, dy)) * 1.001f;
+    }
+
+    private static List<int> SearchPath(TileZone from, TileZone to, CorpsArmSystem.Arm arm, Realm side, float foreignStep, float enemyStep, float estimate)
+    {
+        _pathExhausted = false;
+        var passable = new Dictionary<long, bool>();
+        // 无人区：给了 side 才看；困在过不去的无人区里(stranded)的可以在无人区里走，好走出去
+        bool wild = side != null && WildernessPassage.Active;
+        int way = wild ? WildernessPassage.Way(side) : 0;
+        bool stranded = wild && !WildernessPassage.Open(from, way);
+        bool Foreign(TileZone zone)
+        {
+            if (side == null) return false;
+            // 过不去的无人区(只有困在里面的才走到这里)另按 ForeignStep 加重，不拿它判这一家让不让过
+            if (wild && !WildernessPassage.Open(zone, way)) return false;
+            Realm owner = FrontSystem.Controller(zone);
+            if (owner == null) return false;
+            if (!passable.TryGetValue(owner.Key, out bool ok)) passable[owner.Key] = ok = FrontSystem.Passable(side, zone);
+            return !ok;
+        }
+        // 敌占区能走但要绕：一头扎进去容易被围(见 EncirclementSystem)
+        var hostile = new Dictionary<long, bool>();
+        bool Enemy(TileZone zone)
+        {
+            if (side == null) return false;
+            Realm owner = FrontSystem.Controller(zone);
+            if (owner == null) return false;
+            if (!hostile.TryGetValue(owner.Key, out bool value)) hostile[owner.Key] = value = FrontSystem.Hostile(side, owner);
+            return value;
+        }
+        float offRoad = 1f / Mathf.Max(0.1f, CorpsArmSystem.OffRoad(arm));
+        float rough = 1f / Mathf.Max(0.1f, CorpsArmSystem.Rough(arm));
+        bool walls = side != null && WallPassage.Active;
+        _wallBlocked = 0;
+        // 隔着过不去、绕不过去的无人区：到不了，不必搜满 MaxPathSearch
+        if (wild && !stranded && from != to && !WildernessPassage.Reachable(from, to, side)) return null;
+        if (walls && from != to && Enclosed(from, to, side, stranded ? 0 : way)) return null;
+        BeginPathPass();
+        PathReach(from, 0f, -1);
+        PathOpen.Add((0f, from));
+        while (PathOpen.Count > 0 && _pathClosedCount < MaxPathSearch)
+        {
+            TileZone zone = PopMin(PathOpen);
+            if (zone == to) break;
+            if (PathClosed(zone)) continue;
+            _pathClosed[zone.id] = _pathPass;
+            _pathClosedCount++;
+            float here = _pathCost[zone.id];
+            foreach (TileZone neighbour in zone.neighbours_all ?? Array.Empty<TileZone>())
+            {
+                if (neighbour == null || PathClosed(neighbour)) continue;
+                // 陆军不走海面(跨海见 Embark)
+                if (neighbour != to && (TerrainSystem.Impassable(neighbour) || SeaRegionSystem.IsSea(neighbour))) continue;
+                // 交界是山脊、没有路口的不翻(见 TerrainSystem.Crossable)
+                if (!TerrainSystem.Crossable(zone, neighbour)) continue;
+                // 城墙：只从对本方开着的关门过
+                if (walls && WallPassage.BlocksKnown(zone, neighbour, side))
+                {
+                    _wallBlocked++;
+                    continue;
+                }
+                // 无人区：过不去的不进，困在里面的就近走出去
+                bool wilderness = wild && !WildernessPassage.Open(neighbour, way);
+                if (wilderness && neighbour != to && WildernessPassage.Open(zone, way)) continue;
+                float step = RoadNetwork.IsRoad(neighbour) ? 1f : offRoad;
+                if (TerrainSystem.SlowsMarch(neighbour) || WarWeather.SlowsMarch(neighbour)) step *= rough;
+                if (neighbour != to && Foreign(neighbour)) step *= foreignStep;
+                if (neighbour != to && Enemy(neighbour)) step *= enemyStep;
+                if (wilderness) step *= ForeignStep;
+                if (neighbour.x != zone.x && neighbour.y != zone.y) step *= 1.41f;
+                float total = here + step;
+                if (PathSeen(neighbour) && _pathCost[neighbour.id] <= total) continue;
+                PathReach(neighbour, total, zone.id);
+                PushHeap(PathOpen, (total + estimate * PathEstimate(neighbour, to), neighbour));
+            }
+        }
+        PathOpen.Clear();
+        if (!PathSeen(to))
+        {
+            _pathExhausted = _pathClosedCount >= MaxPathSearch;
+            return null;
+        }
+        var path = new List<int>();
+        for (int id = to.id; id != -1; id = _pathPrevious[id]) path.Add(id);
+        path.Reverse();
+        return path;
+    }
+#endif
+
+    // 寻路的工作数组(按地块编号，记趟次不清空)与堆：以前每次寻路新建三个字典、集合和一个列表
+    private static int _pathPass, _pathClosedCount;
+    private static int[] _pathSeen = new int[0], _pathClosed = new int[0], _pathPrevious = new int[0];
+    private static float[] _pathCost = new float[0];
+#if EC_PENDING
+    private static readonly List<(float key, TileZone zone)> PathOpen = new();
+
+    private static void BeginPathPass()
+    {
+        int size = EmpireWorld.Current?.zone_calculator?.zones?.Count ?? 0;
+        if (_pathSeen.Length < size) GrowPath(size);
+        _pathClosedCount = 0;
+        PathOpen.Clear();
+        if (++_pathPass < int.MaxValue) return;
+        Array.Clear(_pathSeen, 0, _pathSeen.Length);
+        Array.Clear(_pathClosed, 0, _pathClosed.Length);
+        _pathPass = 1;
+    }
+#endif
+
+    private static void GrowPath(int size)
+    {
+        Array.Resize(ref _pathSeen, size);
+        Array.Resize(ref _pathClosed, size);
+        Array.Resize(ref _pathPrevious, size);
+        Array.Resize(ref _pathCost, size);
+    }
+
+#if EC_PENDING
+    private static void PathReach(TileZone zone, float cost, int previous)
+    {
+        if (zone.id >= _pathSeen.Length) GrowPath(zone.id + 1);
+        _pathSeen[zone.id] = _pathPass;
+        _pathCost[zone.id] = cost;
+        _pathPrevious[zone.id] = previous;
+    }
+
+    private static bool PathSeen(TileZone zone) => zone.id < _pathSeen.Length && _pathSeen[zone.id] == _pathPass;
+
+    private static bool PathClosed(TileZone zone) => zone.id < _pathClosed.Length && _pathClosed[zone.id] == _pathPass;
+
+    public static void PushHeap(List<(float key, TileZone zone)> heap, (float key, TileZone zone) item)
+    {
+        heap.Add(item);
+        int i = heap.Count - 1;
+        while (i > 0)
+        {
+            int parent = (i - 1) / 2;
+            if (heap[parent].key <= heap[i].key) break;
+            (heap[parent], heap[i]) = (heap[i], heap[parent]);
+            i = parent;
+        }
+    }
+
+    public static TileZone PopMin(List<(float key, TileZone zone)> heap)
+    {
+        TileZone top = heap[0].zone;
+        int last = heap.Count - 1;
+        heap[0] = heap[last];
+        heap.RemoveAt(last);
+        for (int i = 0; ;)
+        {
+            int left = i * 2 + 1, right = left + 1, smallest = i;
+            if (left < heap.Count && heap[left].key < heap[smallest].key) smallest = left;
+            if (right < heap.Count && heap[right].key < heap[smallest].key) smallest = right;
+            if (smallest == i) break;
+            (heap[smallest], heap[i]) = (heap[i], heap[smallest]);
+            i = smallest;
+        }
+        return top;
+    }
+#endif
+
+    // 军牌画在哪(游戏里的兵牌、手机舆图共用一个口径；用户 2026-11-18 "为什么原版士兵移动这么快网页端却看起来很慢""可是原版的军牌也很快啊"
+    // →"改成一样")：统领(原版小人，按原版速度赶到军团所在的地块)在军团 FollowZones 块以内就画在统领所在的格子，同游戏里的兵牌
+    // (见 CorpsMapRenderer.CounterTarget，那边另有进出的回差)；不然按行军插值画在所在地块与下一块之间(见 DrawPosition)。
+    // 以前手机只拿到所在地块的中心，一块一跳，网页再把这一跳摊到两份军情之间慢慢挪，看着比游戏里慢得多。返回格子坐标
+    public const float FollowZones = 2f;
+
+#if EC_PENDING
+    public static Vector3 ShownPosition(CorpsData corps)
+    {
+        TileZone zone = Zone(corps);
+        if (zone == null) return Vector3.zero;
+        Person general = corps.general_id >= 0 ? EmpireWorld.Current.PersonByKey(corps.general_id) : null;
+        if (general?.Record != null && !general.IsGone() && general.Alive && general.current_tile?.zone != null &&
+            ZoneDistance(general.current_tile.zone, zone) <= FollowZones)
+            return general.current_tile.posV;
+        return DrawPosition(corps);
+    }
+#endif
+
+    // 画兵牌用：行军途中按行军进度画在所在地块与下一块之间(行军很慢，一块地要走二十几秒，
+    // 只在换地块时滑一下会一卡一卡的)；下一块按缓存的路线，飞机朝目标就近一块；不在行军返回所在地块中心
+#if EC_PENDING
+    public static Vector3 DrawPosition(CorpsData corps) => DrawPosition(corps, out _);
+#endif
+
+    // 画在哪：所在地块与下一块之间，进度 = 上一拍结算的进度 + 这一拍的速度 × 这一拍过了几成(按世界时间，暂停时不动)，
+    // 所以每帧都匀速往前走，不再等下一拍才挪。moving：正在往下一块走(兵牌按行军中画，不并进所在地块)
+#if EC_PENDING
+    public static Vector3 DrawPosition(CorpsData corps, out bool moving)
+    {
+        moving = false;
+        TileZone zone = Zone(corps);
+        Vector3 here = zone?.centerTile?.posV ?? Vector3.zero;
+        if (zone == null) return here;
+        if (corps.embarked)
+        {
+            // 船上：沿海上路线每拍走 SailZones 块(见 SailAlong)，同样按这一拍过了几成插值
+            List<int> sea = corps.sea_path;
+            if (sea == null || sea.Count < 2 || sea[0] != zone.id) return here;
+            float sailed = SailZones * TickFraction();
+            int index = Mathf.Min(Mathf.FloorToInt(sailed), sea.Count - 1);
+            TileZone from = ZoneById(sea[index]);
+            if (from?.centerTile == null) return here;
+            TileZone to = index + 1 < sea.Count ? ZoneById(sea[index + 1]) : null;
+            if (to?.centerTile == null) return from.centerTile.posV;
+            moving = true;
+            return Vector3.Lerp(from.centerTile.posV, to.centerTile.posV, sailed - index);
+        }
+        TileZone next = null, after = null;
+        bool predicting = MarchRates.TryGetValue(corps.id, out float rate) && rate > 0f;
+        if (CorpsArmSystem.Flies(corps))
+        {
+            TileZone target = FrontSystem.TargetZone(corps);
+            if (target != null && target != zone)
+            {
+                next = FlyStep(zone, target);
+                if (predicting && next != null && next != target) after = FlyStep(next, target);
+            }
+        }
+        else if (Paths.TryGetValue(corps.id, out var cached) && cached.path.Count >= 2 && cached.path[0] == zone.id)
+        {
+            next = ZoneById(cached.path[1]);
+            if (cached.path.Count >= 3) after = ZoneById(cached.path[2]);
+        }
+        else if (predicting && FrontSystem.TargetZone(corps) is TileZone target && target != zone)
+        {
+            // 没有缓存路线(寻路失败、本拍寻路排满)时照 NextStep 的退路，朝目标就近挪(不穿墙)
+            Realm side = EmpireWorld.Current.RealmByKey(corps.kingdom_id);
+            next = Nearer(zone, target, side);
+            if (next != null && next != target) after = Nearer(next, target, side);
+        }
+        if (next?.centerTile == null) return here;
+        float progress = corps.march_progress;
+        if (predicting)
+        {
+            moving = true;
+            progress += rate * TickFraction();
+        }
+        // 这一拍会跨进下一块的：过了下一块中心接着往再下一块走，免得停在中心等结算、结算后再往前一跳。
+        // 两块之间不走直线：有路沿路走，没路顺着地形绕开山、水(见 MarchLine)；飞机照旧直飞
+        bool flies = CorpsArmSystem.Flies(corps);
+        if (progress > 1f && after?.centerTile != null) return Along(next, after, Mathf.Clamp01(progress - 1f), flies);
+        return Along(zone, next, Mathf.Clamp01(progress), flies);
+    }
+#endif
+
+    // ───────── 军牌在两块地之间走的线 ─────────
+    // 用户 2026-11-18 "军队会沿着路走吗"→"贴着路走""没有路的时候才按算法""也不是直线应该是按地形"：
+    // 行军的快慢、路线照旧按地块算(见 FindPath、MarchZonesPerSecond)，这里只定两块地中心之间画在哪：
+    // 在这两块地(斜着相邻的连同夹着的两块)的格子里找一条最省的格子路，路最省、平地次之、林地丘陵沼泽再贵，山、水、岩浆不走
+    // (见 TerrainSystem.StepCost)；找不到(两块之间是山脊、整片是水)才照旧画直线。按两块地缓存，路网换了版本整表重算；
+    // 地形改了不跟着重算(画在哪而已)，表大了清掉重来
+#if EC_PENDING
+    private static readonly Dictionary<long, Vector2[]> MarchLines = new(PackedKeyComparer.Instance);
+#endif
+    private static int _marchLineRoads = int.MinValue;
+#if EC_PENDING
+    private static readonly Vector2[] NoLine = new Vector2[0];
+#endif
+    private const int MaxMarchLines = 8192;
+
+#if EC_PENDING
+    private static Vector3 Along(TileZone from, TileZone to, float t, bool flies)
+    {
+        Vector3 a = from.centerTile.posV, b = to.centerTile.posV;
+        Vector2[] line = flies ? NoLine : MarchLine(from, to);
+        if (line.Length < 2) return Vector3.Lerp(a, b, t);
+        float total = 0f;
+        for (int i = 1; i < line.Length; i++) total += Vector2.Distance(line[i - 1], line[i]);
+        if (total <= 0f) return Vector3.Lerp(a, b, t);
+        float want = total * t;
+        for (int i = 1; i < line.Length; i++)
+        {
+            float step = Vector2.Distance(line[i - 1], line[i]);
+            if (want <= step || i == line.Length - 1)
+            {
+                Vector2 at = Vector2.Lerp(line[i - 1], line[i], step > 0f ? Mathf.Clamp01(want / step) : 1f);
+                return new Vector3(at.x, at.y, a.z);
+            }
+            want -= step;
+        }
+        return b;
+    }
+
+    private static Vector2[] MarchLine(TileZone from, TileZone to)
+    {
+        if (_marchLineRoads != RoadNetwork.Version || MarchLines.Count > MaxMarchLines)
+        {
+            MarchLines.Clear();
+            _marchLineRoads = RoadNetwork.Version;
+        }
+        long key = (long)from.id << 32 | (uint)to.id;
+        if (MarchLines.TryGetValue(key, out Vector2[] line)) return line;
+        line = TraceMarchLine(from, to);
+        MarchLines[key] = line;
+        return line;
+    }
+#endif
+
+    // 两块地中心之间按格找最省的路(八方向，斜走 ×1.41，两边都挡着的斜角不钻)。范围是两块地的外框，至多 16×16 格
+#if EC_PENDING
+    private static Vector2[] TraceMarchLine(TileZone from, TileZone to)
+    {
+        WorldTile start = from.centerTile, goal = to.centerTile;
+        if (start == null || goal == null || EmpireWorld.Current == null) return NoLine;
+        int size = Config.CITY_ZONE_SIZE;
+        int x0 = Math.Min(from.x, to.x) * size, y0 = Math.Min(from.y, to.y) * size;
+        int w = (Math.Abs(from.x - to.x) + 1) * size, h = (Math.Abs(from.y - to.y) + 1) * size;
+        if (w > size * 2 || h > size * 2) return NoLine;
+        int n = w * h, mapW = EmpireWorld.width, mapH = EmpireWorld.height;
+        var cost = new float[n];
+        var dist = new float[n];
+        var parent = new int[n];
+        var done = new bool[n];
+        for (int i = 0; i < n; i++)
+        {
+            int tx = x0 + i % w, ty = y0 + i / w;
+            WorldTile tile = tx >= 0 && ty >= 0 && tx < mapW && ty < mapH ? EmpireWorld.Current.GetTileSimple(tx, ty) : null;
+            cost[i] = tile == null ? -1f : TerrainSystem.StepCost(tile);
+            dist[i] = float.MaxValue;
+            parent[i] = -1;
+        }
+        int s = (start.y - y0) * w + (start.x - x0), g = (goal.y - y0) * w + (goal.x - x0);
+        if (s < 0 || g < 0 || s >= n || g >= n) return NoLine;
+        // 起止两格就是两块地的中心，挡着也从那儿走(兵牌停着时就画在那)
+        if (cost[s] < 0f) cost[s] = 1f;
+        if (cost[g] < 0f) cost[g] = 1f;
+        dist[s] = 0f;
+        // 至多 256 格，逐个挑最近的就够快(按两块地缓存，同一对只算一回)
+        for (int round = 0; round < n; round++)
+        {
+            int best = -1;
+            float bestDist = float.MaxValue;
+            for (int i = 0; i < n; i++)
+                if (!done[i] && dist[i] < bestDist)
+                {
+                    best = i;
+                    bestDist = dist[i];
+                }
+            if (best < 0 || best == g) break;
+            done[best] = true;
+            int bx = best % w, by = best / w;
+            for (int dy = -1; dy <= 1; dy++)
+            for (int dx = -1; dx <= 1; dx++)
+            {
+                if (dx == 0 && dy == 0) continue;
+                int nx = bx + dx, ny = by + dy;
+                if (nx < 0 || ny < 0 || nx >= w || ny >= h) continue;
+                int next = ny * w + nx;
+                if (done[next] || cost[next] < 0f) continue;
+                bool diagonal = dx != 0 && dy != 0;
+                if (diagonal && cost[by * w + nx] < 0f && cost[ny * w + bx] < 0f) continue;
+                float total = bestDist + cost[next] * (diagonal ? 1.41f : 1f);
+                if (total < dist[next])
+                {
+                    dist[next] = total;
+                    parent[next] = best;
+                }
+            }
+        }
+        if (dist[g] == float.MaxValue) return NoLine;
+        var points = new List<Vector2>();
+        for (int at = g; at >= 0; at = parent[at]) points.Add(new Vector2(x0 + at % w, y0 + at / w));
+        points.Reverse();
+        // 一直往同一个方向走的中间格去掉，线短一些、算位置快一些
+        var line = new List<Vector2> { points[0] };
+        for (int i = 1; i < points.Count - 1; i++)
+        {
+            Vector2 before = points[i] - points[i - 1], after = points[i + 1] - points[i];
+            if (before != after) line.Add(points[i]);
+        }
+        if (points.Count > 1) line.Add(points[points.Count - 1]);
+        return line.ToArray();
+    }
+#endif
+
+    // 这一拍(见 Update 里的行军节拍，舰队航行同拍)过了几成
+    public static float TickFraction()
+    {
+        if (_lastSecond < 0d || EmpireWorld.Current == null) return 0f;
+        return Mathf.Clamp01((float)(GameClock.Now - _lastSecond));
+    }
+
+    // 别的系统借用军团的寻路(按兵种代价，优先走路，见 FindPath)，如皇帝出行(EmperorTourSystem)
+#if EC_PENDING
+    public static List<int> PathFor(TileZone from, TileZone to, CorpsArmSystem.Arm arm = CorpsArmSystem.Arm.Cavalry) =>
+        from == null || to == null ? null : FindPath(from, to, arm);
+#endif
+
+    // 朝目标就近挪一块(不进高山、海面；给了 side 时不穿城墙、不进过不去的无人区，见 WallPassage、WildBlocks)
+#if EC_PENDING
+    private static TileZone Nearer(TileZone current, TileZone target, Realm side = null)
+    {
+        TileZone best = null;
+        float bestDistance = ZoneDistance(current, target);
+        bool walls = side != null && WallPassage.Active;
+        foreach (TileZone neighbour in current.neighbours_all ?? Array.Empty<TileZone>())
+        {
+            if (neighbour == null || neighbour != target && (TerrainSystem.Impassable(neighbour) || SeaRegionSystem.IsSea(neighbour)))
+                continue;
+            if (!TerrainSystem.Crossable(current, neighbour)) continue;
+            if (walls && WallPassage.BlocksKnown(current, neighbour, side)) continue;
+            if (neighbour != target && WildBlocks(current, neighbour, side)) continue;
+            float distance = ZoneDistance(neighbour, target);
+            if (distance < bestDistance)
+            {
+                best = neighbour;
+                bestDistance = distance;
+            }
+        }
+        return best;
+    }
+#endif
+
+    // 从 from 走进相邻的 to 被无人区挡住：to 是 side 过不去的无人区，from 不是(困在无人区里的可以接着在里面走，好走出去)；
+    // 不给 side 的不看(同城墙)
+#if EC_PENDING
+    private static bool WildBlocks(TileZone from, TileZone to, Realm side) =>
+        side != null && !WildernessPassage.Passable(to, side) && WildernessPassage.Passable(from, side);
+#endif
+
+    // 诊断：寻路被城墙挡过的军(每 5 秒最多一行)
+#if EC_PENDING
+    private static void LogWallPath(CorpsData corps, Realm side, List<int> path, int blocked)
+    {
+        float now = Time.unscaledTime;
+        if (now < _wallLoggedAt + 5f && now >= _wallLoggedAt) return;
+        _wallLoggedAt = now;
+        string result = path == null || path.Count < 2 ? "找不到路，就近挪到墙边" : $"绕行，路线 {path.Count - 1} 块";
+        LogService.LogInfo($"[EmpireCraft][城墙隔断] {side?.data?.name} {Name(corps)} 寻路时 {blocked} 处被城墙挡住：{result}");
+    }
+
+    public static float ZoneDistance(TileZone a, TileZone b) =>
+        a == null || b == null ? float.MaxValue : Mathf.Max(Mathf.Abs(a.x - b.x), Mathf.Abs(a.y - b.y));
+#endif
+
+    // 还要几个月走到目标(手机上的军队条子；用户 2026-11-16 "要是能看到这些士兵的当前任务和预计到达时间就好了")：
+    // 有缓存的路线按路线的块数，没有按直线块数；速度取这一拍的行军速度(停着的按兵种的平地速度)；一个月 5 秒世界时长。
+    // 已到、没目标、在船上、被围的给 -1(手机写"驻在原地""渡海中""被围")
+#if EC_PENDING
+    public static int EtaMonths(CorpsData corps)
+    {
+        if (corps == null || corps.embarked || corps.pocket_months > 0) return -1;
+        TileZone here = Zone(corps), target = FrontSystem.TargetZone(corps);
+        if (here == null || target == null || here == target) return -1;
+        float left = Paths.TryGetValue(corps.id, out var cached) && cached.target == target.id && cached.path.Count >= 2 && cached.path[0] == here.id
+            ? cached.path.Count - 1
+            : ZoneDistance(here, target);
+        float rate = MarchRates.TryGetValue(corps.id, out float now) && now > 0f
+            ? now
+            : MarchZonesPerSecond * CorpsArmSystem.Speed(CorpsArmSystem.Of(corps));
+        if (rate <= 0f) return -1;
+        float seconds = Mathf.Max(0f, left - corps.march_progress) / rate;
+        return Mathf.Max(1, Mathf.CeilToInt(seconds / 5f));
+    }
+
+    private static void MoveGeneral(CorpsData corps)
+    {
+        if (corps.general_id < 0) return;
+        Person general = EmpireWorld.Current.PersonByKey(corps.general_id);
+        TileZone zone = Zone(corps);
+        if (general?.Record == null || general.IsGone() || !general.Alive || zone?.centerTile == null ||
+            general.current_tile == null) return;
+        float now = Time.unscaledTime;
+        if (GeneralMoves.TryGetValue(general.Key, out float next) && now < next) return;
+        GeneralMoves[general.Key] = now + GeneralMoveInterval;
+        if (general.current_tile.zone == zone) return;
+        try { general.goTo(zone.centerTile); }
+        catch (Exception exception) { LogService.LogWarning($"[EmpireCraft][军团] 统领行军失败: {exception.Message}"); }
+    }
+#endif
+
+    #endregion
+
+    #region 名称
+
+    private static readonly string[] Digits = { "", "一", "二", "三", "四", "五", "六", "七", "八", "九" };
+
+    internal static string Chinese(int number)
+    {
+        if (number <= 0) return "〇";
+        if (number < 10) return Digits[number];
+        if (number < 20) return "十" + Digits[number % 10];
+        if (number < 100) return Digits[number / 10] + "十" + Digits[number % 10];
+        return number.ToString();
+    }
+
+    internal static string Ordinal(int number)
+    {
+        int tens = number % 100;
+        string suffix = tens is >= 11 and <= 13 ? "th" : (number % 10) switch { 1 => "st", 2 => "nd", 3 => "rd", _ => "th" };
+        return number + suffix;
+    }
+
+#if EC_PENDING
+    public static string Name(CorpsData corps)
+    {
+        if (corps.militia)
+            return string.Format(LM.Get("corps_name_militia"), Home(corps)?.GetCityName() ?? "");
+        // 有建制番号的按建制写(见 FormationSystem)；骑士团、旧档头一个月前退回旧写法
+        string formal = FormationSystem.Name(corps);
+        if (formal != null) return formal;
+        string format = LM.Get("corps_name");
+        return string.Format(format, format.StartsWith("{0}") ? Ordinal(corps.serial) : Chinese(corps.serial));
+    }
+#endif
+
+    // 兵力简写：中文按"万"，英文按 k
+    public static string ShortStrength(float people)
+    {
+        bool chinese = !LM.Get("corps_name").StartsWith("{0}");
+        if (chinese)
+            return people >= 10000f ? $"{people / 10000f:0.#}万" : $"{Mathf.RoundToInt(people)}";
+        return people >= 1000f ? $"{people / 1000f:0.#}k" : $"{Mathf.RoundToInt(people)}";
+    }
+
+    #endregion
+}
+}

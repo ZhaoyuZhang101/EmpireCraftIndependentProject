@@ -1,0 +1,203 @@
+// Ported from the EmpireCraft mod: Scripts/GeneralSystems/IdeologySpreadSystem.cs @ 64c66e30. Body kept line-for-line for three-way sync;
+// see Port/manifest.json and Tools/PortTool.
+using System;
+using System.Collections.Generic;
+using System.Linq;
+
+namespace EmpireCraft.Core
+{
+
+// 理念传播。本文化第一次有帝国以某理念改制共和，这个理念就成为本文化的主导理念；
+// 之后每年，主导理念随书籍向接壤的异文化流传(本文化要有这个理念的奠基名著才传得出去)；
+// 通达层算好后(用户 2026-11-06 选"标准"，见 ConnectivitySystem)：每段边境的流传量乘对方从本国学得到的通达强度(不算电讯，
+// 电讯另算远程一路)，隔着雪山大漠的接壤传得慢；不接壤、通达够 ideology_remote_min 的(隔着窄海、沿着商路)也传，按一段边境算；
+// 达到阈值时，书的抄本传进对方一座能藏书的城、被当地读到，再影响当地居民。
+// 文化制度节点仍须由本国执政党推进，政党能否成立则取决于本国人口支持。
+public static class IdeologySpreadSystem
+{
+    private const float ExposurePerBorder = 10f;
+    private const float MaxExposurePerYear = 30f;
+    // 通信技术带来的跨国传入另算上限(见 MediaSystem)
+    private const float MaxRemoteExposurePerYear = 15f;
+    private const float UnlockExposure = 100f;
+    private static double _lastScan = -1d;
+
+    public static void ResetWorldState() => _lastScan = -1d;
+
+    public static string FeatureKey(PartyIdeology ideology) => $"ideology:{ideology}";
+
+    public static bool TryParseFeature(string feature, out PartyIdeology ideology)
+    {
+        ideology = default;
+        return feature != null && feature.StartsWith("ideology:", StringComparison.Ordinal) &&
+               Enum.TryParse(feature.Substring("ideology:".Length), out ideology);
+    }
+
+#if EC_PENDING
+    public static void SetStateIdeology(string culture, PartyIdeology ideology, Empire pioneer)
+    {
+        CultureInstitutionState state = InstitutionSystem.GetOrCreateCultureState(culture);
+        if (state == null || !string.IsNullOrEmpty(state.state_ideology)) return;
+        state.state_ideology = ideology.ToString();
+        state.state_ideology_since = GameClock.Now;
+        TranslateHelper.LogEventMessage(string.Format(LM.Get("ideology_state_ideology_log"),
+            culture.GetCultureTranslate(), PartySystem.GetIdeologyName(ideology), pioneer?.GetEmpireName() ?? ""),
+            pioneer?.CoreKingdom);
+    }
+#endif
+
+    public static bool TryGetStateIdeology(string culture, out PartyIdeology ideology)
+    {
+        ideology = default;
+        CultureInstitutionState state = InstitutionSystem.GetOrCreateCultureState(culture);
+        return state != null && Enum.TryParse(state.state_ideology, out ideology);
+    }
+
+    // 挂在城市更新上，这里自己限流成一年一次
+#if EC_PENDING
+    public static void TryYearlyScan()
+    {
+        if (EmpireWorld.Current == null || ModClass.IS_CLEAR || ModClass.EMPIRE_MANAGER == null) return;
+        if (TechnologySystem.NoNewModern) return; // 禁止近代化、时代锁在工业时代以前：理念不再传播
+        // 虚拟人口模式由 ModClass.Update 轮换；普通模式保持原来的调用时机。
+        if (!CityPopulationSystem.AbstractPopulationEnabled) IdeologyPopulationSystem.TickContact();
+        double now = GameClock.Now;
+        if (_lastScan < 0d || now < _lastScan)
+        {
+            _lastScan = now;
+            return;
+        }
+        if (GameClock.YearsSince(_lastScan) < 1) return;
+        _lastScan = now;
+        try
+        {
+            Spread();
+            IdeologyPopulationSystem.TryYearlyContact();
+        }
+        catch (Exception exception)
+        {
+            LogService.LogError($"理念传播失败: {exception}");
+        }
+    }
+
+    private static void Spread()
+    {
+        // 目标文化 → (理念 → 今年新增接触度)
+        var gains = new Dictionary<string, Dictionary<PartyIdeology, float>>();
+        var remote = new Dictionary<string, Dictionary<PartyIdeology, float>>();
+        List<Empire> empires = ModClass.EMPIRE_MANAGER.ToList().Where(empire => empire?.data != null && !empire.IsGone() &&
+            !empire.IsArchived() && empire.CoreKingdom != null && !empire.CoreKingdom.IsGone()).ToList();
+        foreach (Empire empire in empires)
+        {
+            string source = InstitutionSystem.GetPrimaryCulture(empire);
+            if (!TryGetStateIdeology(source, out PartyIdeology ideology)) continue;
+            // 理念随书流传：本文化手里没有这个理念的奠基名著，就没有书可传
+            if (!LandmarkBookSystem.HasFoundingBook(source, ideology)) continue;
+            // 本国连纸都没有，书抄不出去；印得越多，随边境往来带出去的越多(见 MediaSystem)
+            float media = MediaSystem.BookFactor(empire.CoreKingdom);
+            if (media <= 0f) continue;
+            var reached = new HashSet<Empire>();
+            var borders = new HashSet<(long, long)>();
+            bool weighted = ConnectivitySystem.Ready;
+            var bordered = new HashSet<long>();
+            foreach (Realm kingdom in empire.kingdoms_hashset.Where(kingdom => kingdom != null && !kingdom.IsGone()))
+            foreach (City city in kingdom.Cities.Where(city => city != null && !city.IsGone()))
+            foreach (City neighbour in (IEnumerable<City>)city.neighbours_cities ?? Array.Empty<City>())
+            {
+                Realm other = neighbour?.Realm;
+                if (other == null || other.IsGone() || other.GetEmpire() == empire) continue;
+                string target = CultureService.GetRealmCulture(other);
+                if (!CultureService.IsValidCulture(target) || target == source) continue;
+                if (other.GetEmpire() is Empire otherEmpire) reached.Add(otherEmpire);
+                if (!borders.Add((kingdom.Key, other.Key))) continue;
+                float reach = weighted ? Reach(other, empire.CoreKingdom) : 1f;
+                if (weighted) bordered.Add(ConnectivitySystem.RealmOf(other)?.Key ?? other.Key);
+                Add(gains, target, ideology, ExposurePerBorder * media * reach, MaxExposurePerYear);
+            }
+            // 不接壤、通达够的(隔着窄海、沿着商路)：按一段边境算，乘通达强度
+            if (weighted)
+                foreach (Realm other in EmpireWorld.Current.LiveRealms)
+                {
+                    if (other == null || other.IsGone() || !other.IsCivilized() || ConnectivitySystem.RealmOf(other) != other ||
+                        other == empire.CoreKingdom || other.GetEmpire() == empire || bordered.Contains(other.Key)) continue;
+                    string target = CultureService.GetRealmCulture(other);
+                    if (!CultureService.IsValidCulture(target) || target == source) continue;
+                    float reach = ConnectivitySystem.LearnStrength(other, empire.CoreKingdom, telecom: false);
+                    if (reach < ConnectivitySystem.Config.ideology_remote_min) continue;
+                    if (other.GetEmpire() is Empire otherEmpire) reached.Add(otherEmpire);
+                    Add(gains, target, ideology, ExposurePerBorder * media * reach, MaxExposurePerYear);
+                }
+            // 电报、广播、互联网：不接壤的开放国家也能收到这个理念
+            if (MediaSystem.CommLevel(empire.CoreKingdom) <= 0) continue;
+            foreach (Empire other in empires)
+            {
+                if (other == empire || reached.Contains(other)) continue;
+                string target = InstitutionSystem.GetPrimaryCulture(other);
+                if (!CultureService.IsValidCulture(target) || target == source) continue;
+                int link = MediaSystem.LinkLevel(empire.CoreKingdom, other.CoreKingdom);
+                if (link <= 0) continue;
+                Add(remote, target, ideology, MediaSystem.CrossBorderExposurePerYear(link), MaxRemoteExposurePerYear);
+            }
+        }
+
+        foreach (KeyValuePair<string, Dictionary<PartyIdeology, float>> culture in remote)
+        foreach (KeyValuePair<PartyIdeology, float> gain in culture.Value)
+            Add(gains, culture.Key, gain.Key, gain.Value, MaxExposurePerYear + MaxRemoteExposurePerYear);
+
+        foreach (KeyValuePair<string, Dictionary<PartyIdeology, float>> culture in gains)
+        foreach (KeyValuePair<PartyIdeology, float> gain in culture.Value)
+            ApplyExposure(culture.Key, gain.Key, gain.Value);
+
+        static void Add(Dictionary<string, Dictionary<PartyIdeology, float>> map, string culture, PartyIdeology ideology,
+            float amount, float cap)
+        {
+            if (!map.TryGetValue(culture, out Dictionary<PartyIdeology, float> perIdeology))
+                map[culture] = perIdeology = new Dictionary<PartyIdeology, float>();
+            perIdeology[ideology] = Math.Min(cap, (perIdeology.TryGetValue(ideology, out float value) ? value : 0f) + amount);
+        }
+    }
+#endif
+
+    // 对方从本国学得到的通达强度(不算电讯；还没算的按 1)
+#if EC_PENDING
+    private static float Reach(Realm learner, Realm source)
+    {
+        float strength = ConnectivitySystem.LearnStrength(learner, source, telecom: false);
+        return strength < 0f ? 1f : strength;
+    }
+
+    private static void ApplyExposure(string culture, PartyIdeology ideology, float gain)
+    {
+        // 基本理念随开放党禁而来，不单独播种。
+        if (PartySystem.BaseIdeologies.Contains(ideology) ||
+            InstitutionSystem.GetFeature(culture, FeatureKey(ideology)) > 0f) return;
+        CultureInstitutionState state = InstitutionSystem.GetOrCreateCultureState(culture);
+        if (state == null) return;
+        state.ideology_exposure ??= new Dictionary<string, float>();
+        string key = ideology.ToString();
+        float current = state.ideology_exposure.TryGetValue(key, out float previous) ? previous : 0f;
+        if (current < 0f)
+        {
+            if (IdeologyPopulationSystem.IsIdeaAvailable(culture, ideology)) return;
+            current = UnlockExposure; // 旧存档可能把零人改信也记成了传播完成，允许重试。
+        }
+        float exposure = Math.Min(UnlockExposure, current + Math.Max(0f, gain));
+        if (exposure >= UnlockExposure && !TechnologySystem.AreFeatureTechsMet(culture, FeatureKey(ideology)))
+            exposure = UnlockExposure - 0.01f;
+        state.ideology_exposure[key] = exposure;
+        if (exposure < UnlockExposure) return;
+        // 书的抄本传进来(对方还没有能藏书的城就进不来，下一年再试)
+        if (!LandmarkBookSystem.ReceiveFoundingBook(culture, ideology))
+        {
+            state.ideology_exposure[key] = UnlockExposure - 0.01f;
+            return;
+        }
+        int changed = IdeologyPopulationSystem.IntroduceToCulture(culture, ideology);
+        if (changed <= 0) return; // 暂无读者或未说服任何人时，接触度保留在门槛，下一次继续。
+        state.ideology_exposure[key] = -1f;
+        TranslateHelper.LogEventOnly(string.Format(LM.Get("ideology_spread_log"),
+            PartySystem.GetIdeologyName(ideology), culture.GetCultureTranslate()));
+    }
+#endif
+}
+}

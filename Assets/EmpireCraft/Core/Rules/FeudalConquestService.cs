@@ -1,0 +1,274 @@
+// Ported from the EmpireCraft mod: Scripts/GeneralSystems/FeudalConquestService.cs @ 64c66e30. Body kept line-for-line for three-way sync;
+// see Port/manifest.json and Tools/PortTool.
+using System;
+using System.Collections.Generic;
+using System.Linq;
+
+namespace EmpireCraft.Core
+{
+
+// 分封制帝国的征服规则(不限文化)：帝国直辖只守着自己的法理，不吞并别人的国家。
+//   · 帝国核心王国攻下某国都城即视为征服：该国称臣加入帝国，此前被帝国占去的、属于该国
+//     法理的城市全部归还；在攻下都城之前可以暂时占着对方的城；
+//   · 归附的国家基本自由：保留外交权和军队，居民按低税率纳税、不向中央输兵，原王室照旧世袭；
+//   · 本文化已施行分封类制度(开启"分封"诉求的制度)后，可以直接把该国君位封给皇子，
+//     原国君迁往王畿安置。
+//   · 西方封建制攻下别国都城后，只归还对方都城所在那一片王国法理里被占去的城，其余已占的城留给攻方，并建立直属附庸
+//     关系，原王室保留；例外：一城小国照普通攻城易主(整国并入)，攻方中央集权后五城以内的整国并入，别的帝国的成员国
+//     照普通攻城只易主都城、不收附庸；
+//   · 叛乱者也一样：分封制下攻下叛军都城，叛乱即告平定、对方重新归附("叛过就永不得回归"
+//     是律令制的规矩，不适用于分封制)，但原叛君被废，由帝国强制扶立一位本地贵族为君；
+//     分封之后优先改封皇子，没有合适的皇子才立本地贵族。
+public static class FeudalConquestService
+{
+#if EC_PENDING
+    public static bool AppliesTo(Empire empire) =>
+        empire?.CoreKingdom?.GetRegime()?.type == RegimeType.ZhouFeudalism;
+#endif
+
+    // 本文化是否施行过开启"迫使朝贡"诉求的制度(华夏朝贡体系、阿拉伯吉兹亚税、游牧驿站网络)；没有就不能收朝贡国
+#if EC_PENDING
+    public static bool HasTributeInstitution(Empire empire)
+    {
+        CultureInstitutionState state =
+            InstitutionSystem.GetOrCreateCultureState(InstitutionSystem.GetPrimaryCulture(empire));
+        if (state == null) return false;
+        return state.enacted_node_ids.Select(InstitutionDefinitionRegistry.Get).Any(node =>
+            node != null && node.effects_on_complete.Any(effect =>
+                effect.type == "enable_claim" && effect.value == "迫使朝贡"));
+    }
+#endif
+
+    // 本文化是否施行过开启"分封"诉求的制度(华夏分封建国、游牧兀鲁思分封等)
+#if EC_PENDING
+    public static bool HasEnfeoffmentInstitution(Empire empire)
+    {
+        CultureInstitutionState state =
+            InstitutionSystem.GetOrCreateCultureState(InstitutionSystem.GetPrimaryCulture(empire));
+        if (state == null) return false;
+        return state.enacted_node_ids.Select(InstitutionDefinitionRegistry.Get).Any(node =>
+            node != null && node.effects_on_complete.Any(effect =>
+                effect.type == "enable_claim" && effect.value == "分封"));
+    }
+#endif
+
+    // 中央集权后攻下都城整国并入的上限：三城 → 五城(用户 2026-10-21 选"攻下都城只退都城那一片法理")
+    private const int CentralizedAnnexMaxCities = 5;
+
+    // 由 CityPatch.FinishedCapture 调用。返回 true 表示已按征服规则处理，城市不再易主。
+#if EC_PENDING
+    public static bool TryResolveCapitalConquest(City city, Realm captor, Realm conquered)
+    {
+        if (city == null || captor == null || conquered == null || conquered.IsGone()) return false;
+        Empire empire = captor.GetEmpire();
+        if (empire != null && (empire.IsGone() || empire.IsArchived())) empire = null;
+        // 分封制：只管帝国核心王国攻城；西方封建制：任何封建王国攻城都只能占一个法理
+        bool zhou = empire != null && empire.CoreKingdom == captor && AppliesTo(empire);
+        bool western = captor.GetRegime()?.type == RegimeType.Feudalism;
+        if (!zhou && !western) return false;
+        // 天子攻下神力所立、不服王化之帝国的都城(见 ZhouEraSystem.GodMadeRival)：先撤它的帝号，再照不服王化之国称臣受封
+        if (zhou && conquered.Capital == city && ZhouEraSystem.GodMadeRival(empire, conquered))
+            ModClass.EMPIRE_MANAGER?.dissolveEmpire(conquered.GetEmpire());
+        if (conquered.IsEmpire() || (empire != null && conquered.GetEmpire() == empire) || conquered.Capital != city)
+            return false;
+        if (conquered.GetEmpire() != null && !RealmDiplomacySystem.CanChooseOverlord(conquered)) return false;
+        // 一城小国(只剩都城)：不论集权与否都不再留作附庸，照普通攻城易主——这座城就是它的全部，等于整国并入，
+        // 民心、天命、新征服城的治理度照普通攻城算(用户 2026-10-21 选"西欧能整合、帝国能倒")
+        if (western && conquered.countCities() <= 1) return false;
+        // 中央集权以后(direct_administration，如中央集权君主制)：攻下五城以内(见 CentralizedAnnexMaxCities)小国的都城
+        // 整国并入——以前西方封建攻城永远只收附庸，整合太慢(复查 2026-10-17)
+        if (western && conquered.countCities() <= CentralizedAnnexMaxCities &&
+            InstitutionSystem.GetFeature(CultureService.GetInstitutionCulture(captor), InstitutionFeatures.DirectAdministration) > 0f)
+        {
+            foreach (City part in conquered.Cities.ToList())
+                if (part != null && !part.IsGone()) part.JoinRealm(captor);
+            return true;
+        }
+        // 这场仗的目标是吞并(如行分封的攻方兵力两倍以上打三城以内的小国，用户 2026-10-21 选"封建能吞小国"，
+        // 见 WarGoalSystem.Ensure)：攻下都城不收附庸、不退城，照普通攻城易主，议和时按吞并把余下的城一并收走。
+        // 不让开的话这里先收附庸、退城，紧接着本函数里 lostWar 结算和约多半又按吞并整国收走，史书先记称臣、后记吞并
+        if (AnnexWar(captor, conquered)) return false;
+        // 帝国成员的都城被帝国外的封建君主攻下(同一帝国的在上面已交普通攻城)：照普通攻城只易主这一城，不收作附庸——
+        // 收附庸会把整个成员国连同其余城市拉出帝国，帝国被外人一座都城一座都城地掏空(用户 2026-10-21 选"堵住成员流失")
+        if (western && conquered.IsInEmpire()) return false;
+        if (western && (!conquered.HasRuler() || !FeudalVassalService.CanBind(captor, conquered))) return false;
+        bool rebel = empire != null &&
+                     (conquered.HasRebelledAgainst(empire) ||
+                      conquered.getWars().Any(war => war != null && !war.hasEnded() && IsRebellionWar(war) &&
+                                                     (war._list_attackers.Contains(captor) ||
+                                                      war._list_defenders.Contains(captor))));
+        // 叛乱平定后可以重新归附：清掉"曾反叛本帝国"的记录，否则 join 会按律令制的规矩拒绝
+        if (rebel) conquered.GetOrCreate().rebellion_origin_empire_ids?.Remove(empire.Key);
+
+        // 该国名下的法理：已经被帝国占去的这些城市全部归还(分封制)
+        HashSet<long> realmTitles = conquered.GetRealmTitleIds().ToHashSet();
+        KingdomTitle mainTitle = conquered.GetMainTitle();
+        if (mainTitle != null) realmTitles.Add(mainTitle.Key);
+        // 西方封建：只归还对方都城所在那一片王国法理里被占去的城，其余已占的城留给攻方(用户 2026-10-21 选"攻下都城只退
+        // 都城那一片法理")。以前该国名下的法理全部归还，打了几年只换来一个附庸，西欧核心永远只有几座城。
+        // 都城那片法理不是该国名下的(都城设在别人的法理里)，就一座也不退——不能把别人的法理城退给它
+        if (western)
+        {
+            KingdomTitle seat = city.GetTitle();
+            bool ownSeat = seat != null && !seat.IsGone() && realmTitles.Contains(seat.Key);
+            realmTitles.Clear();
+            if (ownSeat) realmTitles.Add(seat.Key);
+        }
+        foreach (City held in captor.Cities.ToList())
+        {
+            KingdomTitle title = held?.GetTitle();
+            if (held == null || held.IsGone() || held == captor.Capital || title == null ||
+                !realmTitles.Contains(title.Key)) continue;
+            held.JoinRealm(conquered);
+        }
+
+        // 都城按征服规则处理(称臣归附、城不易主)：先清掉它的占领再了结战事。否则下面 lostWar 当场结算和约时，割地、收复按
+        // "占了一半以上地块"把都城也割给攻方，新附庸连都城都没了(CityPatch 返回后本来也会清，只是晚了一步)。
+        // 封建攻方兵力一倍半到两倍之间改求割地(用户 2026-10-21 选"封建能吞小国"，见 WarGoalSystem.VassalStrength)，这种仗变多，先堵上
+        city.ClearOccupiedStatus();
+        foreach (War war in conquered.getWars().ToList())
+        {
+            bool opposing = (war._list_attackers.Contains(captor) && war._list_defenders.Contains(conquered)) ||
+                            (war._list_defenders.Contains(captor) && war._list_attackers.Contains(conquered));
+            if (opposing && war.Alive && !war.hasEnded()) war.lostWar(conquered);
+        }
+
+        // 西方封建征服先建立直属臣属，不把保留原王室的国家当作共主同盟。
+        if (western)
+        {
+            // 征服可以夺走别国的附庸：先解除旧从属再收编(和平途径不允许抢)
+            if (FeudalVassalService.GetOverlord(conquered) != null &&
+                FeudalVassalService.GetOverlord(conquered) != captor) FeudalVassalService.Break(conquered);
+            if (!FeudalVassalService.Bind(captor, conquered)) return true;
+            Record(null, conquered, "feudal_conquest_alliance_history", captor.GetKingdomName(),
+                conquered.GetKingdomName());
+            return true;
+        }
+
+        empire.join(conquered, pForce: true);
+        if (conquered.GetEmpire() != empire) return true;
+        Regime regime = conquered.GetRegime();
+        if (regime != null)
+        {
+            regime.SetAllowDiplomacy(true);
+            regime.SetAllowArmy(true);
+            regime.SetAllowSupportCenterArmy(false);
+            regime.SetTaxLevel(TaxLevel.Low);
+            regime.SetLeaderSelectMethod(LeaderSelectMethod.Succession);
+        }
+
+        string conqueredName = conquered.GetKingdomName();
+        Record(empire, conquered, rebel ? "feudal_conquest_rebel_submit_history" : "feudal_conquest_submit_history",
+            empire.GetEmpireName(), conqueredName);
+        // 战时归附、国境还在前线的，等离了前线再改封皇子(见 ProcessPeaceEnfeoff)。以前帝国一有战事就一律等停战，
+        // 列国常年征伐，归附国从来封不成
+        bool deferPrince = zhou && empire.HasTerritorialWar() &&
+                           EmpireCraft.Core.EnfeoffmentHelper.KingdomAtFront(conquered, empire.CoreKingdom);
+        if (deferPrince)
+        {
+            empire.data.territorial_enfeoff_pending = true;
+            empire.data.pending_conquest_enfeoff_kingdom_ids ??= new();
+            if (!empire.data.pending_conquest_enfeoff_kingdom_ids.Contains(conquered.Key))
+                empire.data.pending_conquest_enfeoff_kingdom_ids.Add(conquered.Key);
+        }
+        bool princeInstalled = !deferPrince && zhou && HasEnfeoffmentInstitution(empire) && TryInstallPrince(empire, conquered);
+        if (rebel && !princeInstalled) InstallLocalNoble(empire, conquered);
+        return true;
+    }
+#endif
+
+    // 每月改封一国(见 Empire.ProcessTerritorialAcquisitionEnfeoff)；战时先挑不在前线的，都在前线就等下个月
+#if EC_PENDING
+    public static void ProcessPeaceEnfeoff(Empire empire)
+    {
+        var pending = empire?.data?.pending_conquest_enfeoff_kingdom_ids;
+        if (pending == null || pending.Count == 0) return;
+        // 原始政体不分封(见 EnfeoffmentHelper.RegimeForbids)
+        if (EmpireCraft.Core.EnfeoffmentHelper.RegimeForbids(empire))
+        {
+            pending.Clear();
+            return;
+        }
+        Realm Member(long kingdomId) => empire.kingdoms_list.FirstOrDefault(kingdom => kingdom?.Key == kingdomId);
+        int index = !empire.HasTerritorialWar() ? 0 : pending.FindIndex(kingdomId =>
+            !EmpireCraft.Core.EnfeoffmentHelper.KingdomAtFront(Member(kingdomId), empire.CoreKingdom));
+        if (index < 0) return;
+        long id = pending[index];
+        pending.RemoveAt(index);
+        Realm member = Member(id);
+        if (AppliesTo(empire) && member != null && !member.IsGone() && member.GetEmpire() == empire &&
+            member != empire.CoreKingdom && HasEnfeoffmentInstitution(empire)) TryInstallPrince(empire, member);
+    }
+#endif
+
+    // 叛君被废，扶立一位本地贵族为君：优先贵族阶层，其次本国其他成年人，按威望取最高者
+#if EC_PENDING
+    private static void InstallLocalNoble(Empire empire, Realm conquered)
+    {
+        Person formerKing = conquered.Ruler;
+        List<Person> locals = (conquered.units ?? new List<Person>()).ToList()
+            .Where(actor => actor != null && !actor.IsGone() && actor.Alive && actor.isAdult() &&
+                            !actor.isKing() && actor != formerKing && actor.isUnitFitToRule())
+            .ToList();
+        Person noble = locals.Where(actor => actor.GetOrCreate().socialClass == SocialClass.Noble)
+                          .OrderByDescending(actor => actor.Record?.renown ?? 0).FirstOrDefault()
+                      ?? locals.OrderByDescending(actor => actor.Record?.renown ?? 0).FirstOrDefault();
+        if (noble == null) return;
+        GraceEdictService.Crown(conquered, noble);
+        if (conquered.Ruler != noble) return;
+        Record(empire, conquered, "feudal_conquest_noble_history", empire.GetEmpireName(), conquered.GetKingdomName(),
+            formerKing?.FullName() ?? "", noble.FullName());
+    }
+#endif
+
+    // 分封之后：把归附国的君位封给一位皇子(太子除外)，原国君迁往王畿
+#if EC_PENDING
+    private static bool TryInstallPrince(Empire empire, Realm conquered)
+    {
+        PersonalClanIdentity emperorIdentity = empire.Emperor?.GetPersonalIdentity();
+        if (emperorIdentity == null) return false;
+        long crownPrinceId = empire.CoreKingdom.GetHeir()?.Key ?? -1L;
+        Person prince = VirtualGenealogySystem.RealizeFirst(SpecificClanManager.getChildren(emperorIdentity)
+                .Select(item => item.Item2)
+                .Where(identity => identity != null && identity.CanHeir())
+                .OrderBy(identity => identity.rank),
+            actor => !actor.IsGone() && actor.Alive && actor.IsAdult() &&
+                     !actor.IsRuler() && actor.Key != crownPrinceId && actor.Realm?.GetEmpire() == empire);
+        if (prince == null) return false;
+
+        Person formerKing = conquered.Ruler;
+        GraceEdictService.Crown(conquered, prince);
+        if (conquered.Ruler != prince) return false;
+        City royalDomain = empire.CoreKingdom.Capital;
+        if (formerKing != null && !formerKing.IsGone() && formerKing.Alive && royalDomain != null)
+        {
+            formerKing.removeFromArmy();
+            if (formerKing.IsCityLeader()) formerKing.City.removeLeader();
+            formerKing.joinCity(royalDomain);
+            if (royalDomain._city_tile != null) formerKing.goTo(royalDomain._city_tile);
+        }
+        Record(empire, conquered, "feudal_conquest_prince_history", empire.GetEmpireName(), prince.FullName(),
+            conquered.GetKingdomName(), formerKing?.FullName() ?? "");
+        return true;
+    }
+#endif
+
+    // 攻方一边正以吞并为目标攻打这个国家(它是主守方)
+#if EC_PENDING
+    private static bool AnnexWar(Realm captor, Realm conquered) =>
+        conquered.getWars().Any(war => war?.data != null && !war.hasEnded() && war.main_defender == conquered &&
+                                       war.isAttacker(captor) && WarGoalSystem.Get(war) == WarGoal.吞并);
+
+    private static bool IsRebellionWar(War war) => war.GetEmpireWarType() is EmpireWarType.派系叛乱
+        or EmpireWarType.地方叛乱 or EmpireWarType.地方独立 or EmpireWarType.民族叛乱 or EmpireWarType.宗教叛乱
+        or EmpireWarType.不奉诏;
+
+    private static void Record(Empire empire, Realm kingdom, string key, params object[] args)
+    {
+        string content = string.Format(LM.Get(key), args);
+        empire?.RecordHistory(directContent: content, kingdomId: kingdom?.Key ?? -1L);
+        EmpireCraft.Core.TranslateHelper.LogEventMessage(content, kingdom ?? empire?.CoreKingdom);
+    }
+#endif
+}
+}

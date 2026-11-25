@@ -144,6 +144,35 @@ public static class RulesChecks
         Console.WriteLine("PASS second batch sample (" + checks + " checks)");
     }
 
+    // The mod code brought over member by member: the state it hangs on entities works on ours.
+    public static void Generated()
+    {
+        checks = 0;
+        var map = FlatGenerator.Generate(256, 128, "EMPIRE-GENERATED", TerrainPreset.Continents, default);
+        var w = Start(map); EmpireWorld.Current = w;
+        Realm realm = w.LiveRealms[0], other = w.LiveRealms[1]; City city = realm.Capital;
+        var state = realm.GetOrCreate();
+        Check(state != null && ReferenceEquals(state, realm.GetOrCreate()) && !ReferenceEquals(state, other.GetOrCreate()), "a realm keeps one state record of its own");
+        Check(other.Capital.GetOrCreate(true) == null, "asking for saved state does not create it");
+        city.GetOrCreate().Money = 1234;
+        Check(city.GetTreasuryBalance() == 1234 && city.GetMoney() == 1234, "city treasury reads back through the ported accessors");
+        Check(ReferenceEquals(city.GetOrCreate(true), city.GetOrCreate()), "created state is found again");
+        // A second world shares nothing with the first.
+        var w2 = Start(map);
+        Check(w2.LiveRealms[0].Capital.GetTreasuryBalance() == 0 && !ReferenceEquals(w2.LiveRealms[0].GetOrCreate(), state), "state belongs to the entity, not to the id");
+        Check(realm.Record == realm && realm.Key == realm.Id && !realm.IsGone() && realm.Ruler.IsRuler() && realm.Ruler.Realm == realm, "entity members the ported code asks for");
+        var store = new RecordStore<KingdomTitle, KingdomTitleData>();
+        var title = store.NewObject(); var second = store.NewObject();
+        Check(title.Key == 1 && second.Key == 2 && store.Get(2) == second && title.Alive && store.Count == 2, "a record store hands out keys and finds by key");
+        store.RemoveObject(title);
+        Check(title.IsGone() && store.Get(1) == null && store.Count == 1 && store.NewObject().Key == 3, "a removed record is gone and its key is not reused");
+        EcRandom.Seed(w.Seed, 7); float first = EcRandom.value; int pick = EcRandom.Range(0, 100);
+        EcRandom.Seed(w.Seed, 7);
+        Check(EcRandom.value == first && EcRandom.Range(0, 100) == pick && first >= 0f && first < 1f && pick >= 0 && pick < 100, "the random stream replays from its seed");
+        EmpireWorld.Current = null;
+        Console.WriteLine("PASS generated code sample (" + checks + " checks)");
+    }
+
     // The shared frame budget: jobs run once a frame while there is budget, are put
     // off when there is none, and are never starved.
     public static void Scheduling()

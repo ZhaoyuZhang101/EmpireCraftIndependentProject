@@ -44,7 +44,8 @@ def main():
     mod = tool.mod_repo(args)
     commit = tool.git(mod, "rev-parse", "HEAD").stdout.decode().strip()
     manifest = tool.load_manifest()
-    ported = {e["mod"] for e in manifest["files"] if e.get("kind") == "source"}
+    # Generated files are surveyed afresh from the mod, like the files not brought over at all.
+    ported = {e["mod"] for e in manifest["files"] if e.get("kind") == "source" and not e.get("generated")}
     listed = tool.git(mod, "ls-tree", "-r", "--name-only", commit, "--", *args.dirs).stdout.decode("utf-8").splitlines()
     candidates = [p for p in listed if p.endswith(".cs") and p not in ported]
     work = os.path.abspath(args.work or os.path.join(tempfile.gettempdir(), "ec_port_survey"))
@@ -62,8 +63,10 @@ def main():
     core = os.path.join(work, "core")
     shutil.copytree(os.path.join(tool.ROOT, "Assets", "EmpireCraft", "Core"), core, ignore=shutil.ignore_patterns("*.meta"))
     for entry in manifest["files"]:
-        if entry.get("kind") == "extract" and entry["mod"].partition("#")[0] in candidates:
-            os.remove(os.path.join(core, *entry["dest"].split("/")[3:]))
+        if entry.get("generated") or (entry.get("kind") == "extract" and entry["mod"].partition("#")[0] in candidates):
+            stale = os.path.join(core, *entry["dest"].split("/")[3:])
+            if os.path.exists(stale):
+                os.remove(stale)
     orbis = os.path.join(tool.ROOT, "Assets", "ORBIS", "Runtime", "FlatWorld", "Core")
     print("by-type member renames: " + tool.semantic_fix(os.path.join(work, "src"), core))
     raw = os.path.join(work, "raw.json")

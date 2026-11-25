@@ -1,0 +1,339 @@
+// Ported from the EmpireCraft mod: Scripts/GeneralSystems/ModernStateFormationSystem.cs @ 64c66e30. Body kept line-for-line for three-way sync;
+// see Port/manifest.json and Tools/PortTool.
+using System;
+using System.Collections.Generic;
+using System.Linq;
+
+namespace EmpireCraft.Core
+{
+
+// In the modern era an Empire object represents a normal sovereign state, not a ruler
+// claiming an imperial crown. A de jure title supplies legal statehood; untitled realms
+// remain armed, warlord or separatist governments until they acquire one.
+public static class ModernStateFormationSystem
+{
+#if EC_PENDING
+    public static bool TryUpdate(Realm kingdom)
+    {
+        // 一座城都没有的残余政权：谈不上组建政府，也不用改名、认领法理，等它收复城池或者君主寿终
+        if (kingdom == null || kingdom.IsGone() || !kingdom.hasCities() || kingdom.GetRegime()?.type != RegimeType.Modern ||
+            kingdom.GetAdministrativeTitle() != null)
+            return false;
+        // 傀儡(汪伪、蒙疆)、殖民地、宗主国不在图上的剧本属地不自行建政、不认领法理，国号照定下的(见 WarlordEraSystem.Dependent)
+        if (WarlordEraSystem.Dependent(kingdom)) return false;
+        if (TryGetSameCoreOverlord(kingdom, out Realm overlord) &&
+            overlord.GetRegime()?.type == RegimeType.Modern)
+        {
+            // 同一正规核心里的附庸等宗主建政；宗主已有政府时立即合并。
+            return TryMergeIntoOverlordGovernment(kingdom, overlord);
+        }
+        if (kingdom.IsEmpire() || kingdom.IsInEmpire()) return false;
+        RestoreSovereignRights(kingdom);
+        TryClaimSeatTitle(kingdom);
+        if (!kingdom.HasMainTitle())
+        {
+            ApplyUntitledName(kindom: kingdom);
+            return false;
+        }
+        kingdom.GetOrCreate().ideology_country_suffix = "";
+        // 强统一文化组建政府的条件更苛刻：只有天下里最强者(中央)或统一者才能组建，
+        // 其余有法理的只是军阀；由 CultureRule.jsonc 的 strong_unification 政治特质启用。
+        if (!WarlordEraSystem.CanFormGovernment(kingdom))
+        {
+            ApplyNonGovernmentName(kingdom);
+            return false;
+        }
+        return FormGovernment(kingdom) != null;
+    }
+#endif
+
+    // 现代国家的省、州建制时关了自主外交(见 Empire 的直辖区划分)，政府解散或脱离后这项留在了独立的地方势力身上：
+    // 外交权关着就不能谋求法理(KingdomExtension.CanPursueDeJureTitle)，没有法理又组建不了政府，永远是"某某自治军"。
+    // 独立的现代势力(不在任何国家里、也没有宗主)一律恢复自主外交
+#if EC_PENDING
+    private static void RestoreSovereignRights(Realm kingdom)
+    {
+        Regime regime = kingdom.GetRegime();
+        if (regime == null || regime.IsAllowDiplomacy() || FeudalVassalService.GetOverlord(kingdom) != null ||
+            PuppetStateSystem.IsPuppet(kingdom)) return;
+        regime.SetAllowDiplomacy(true);
+    }
+#endif
+
+    // 没有主法理的现代势力认领都城所在的法理。原先只调 ReconcileMainTitle(GetControlledTitle())，
+    // 可那只认君主名下已有的法理；政府解散或省州脱离后，这片法理还记在前任元首名下(ModernTitleCentralization 收归中央)，
+    // 实际控制着它也认领不到，只能当自治军。按常规法理规则(据有法理首府、或占够地块，见 DeJureTitleClaimRules)
+    // 能不战而得的，就从旧主名下承袭过来(同法理谋划 kingdom_get_title 的承袭方式)
+#if EC_PENDING
+    internal static bool TryClaimSeatTitle(Realm kingdom)
+    {
+        if (kingdom == null || kingdom.IsGone() || !kingdom.HasRuler()) return false;
+        if (kingdom.HasMainTitle()) return true;
+        kingdom.ReconcileMainTitle(kingdom.GetControlledTitle());
+        if (kingdom.HasMainTitle() || kingdom.IsInEmpire()) return kingdom.HasMainTitle();
+        KingdomTitle title = kingdom.GetCapitalDeJureTitle();
+        if (title?.title_capital == null || title.title_capital.IsGone() || title.title_capital.Realm != kingdom ||
+            !kingdom.CanAcquireDeJureTitleWithoutWar(title)) return false;
+        kingdom.InheritRealmTitles(title.FindRealmTitleHolder(), new[] { title.Key });
+        return kingdom.HasMainTitle();
+    }
+#endif
+
+    // 组建政府：现代政体下取代"称帝"(所有文化)，政权由此进入帝国层、享有正常国家的全部机制
+#if EC_PENDING
+    public static Empire FormGovernment(Realm kingdom)
+    {
+        if (kingdom == null || kingdom.IsGone() || !kingdom.HasRuler() || kingdom.IsEmpire() || kingdom.IsInEmpire() ||
+            AncientWarfareCompatibility.BlocksEmpireFormation(kingdom) ||
+            EmpireCraftWorldLawLibrary.empirecraft_law_ban_empire.isEnabled()) return null;
+        kingdom.GetOrCreate().ideology_country_suffix = "";
+        EmpireCore contestedCore = EmpireCoreManager.GetRiseCandidateCore(kingdom);
+        Empire empire = ModClass.EMPIRE_MANAGER?.NewEmpire(kingdom, allowCultureRival: true,
+            suppressFoundingLog: true);
+        if (empire == null) return null;
+        EmpireCore governmentCore = EmpireCoreManager.Get(empire);
+        if (contestedCore != null && governmentCore != null && governmentCore != contestedCore)
+        {
+            // 现代临时政府仍在原正规核心框架内争夺中央。这个子核心只是分治期间的
+            // 技术记录，不能标成僭称帝号产生的伪核心；统一时它会被销毁并接管原核心。
+            governmentCore.warlord_parent_core_id = contestedCore.id;
+            EmpireCoreManager.RestoreParentCities(governmentCore);
+        }
+        PartyIdeology ideology = ResolveGovernmentIdeology(kingdom);
+        RepublicSystem.SyncWithRegime(empire, foundingIdeology: ideology);
+        // 革命打成僵局后自立的那一块(见 RevolutionSystem.OnPeace)：革命建立的政府，军阀时期里不因势弱被撤销
+        if (kingdom.GetOrCreate().revolutionary_seat && empire.data?.constitutional_economy != null)
+            empire.data.constitutional_economy.revolutionary_government = true;
+        MergeSameCoreVassals(empire);
+        // 华夏的唯一合法政府当即以天下之名为号(见 RealmNamingSystem.ClaimModernRealmName)
+        RealmNamingSystem.ClaimModernRealmName(empire);
+        EmpireCraftKingdomBehCheckKingdomType.SyncKingdomStatus(kingdom);
+        string text = string.Format(LM.Get("modern_state_founded_log"),
+            kingdom.Ruler?.FullName() ?? LM.Get("label_none"), empire.GetEmpireFullName());
+        empire.RecordHistory(directContent: text, actorId: kingdom.Ruler?.Key ?? -1L, kingdomId: kingdom.Key);
+        TranslateHelper.LogEventMessage(text, kingdom);
+        return empire;
+    }
+#endif
+
+    // 法统 = 天下(军阀时期以天下为单位，见 WarlordEraSystem)：主法理所在核心的天下
+#if EC_PENDING
+    private static EmpireCore LawfulCore(Realm kingdom)
+    {
+        EmpireCore core = EmpireCoreManager.GetRiseCandidateCore(kingdom);
+        if (core?.false_core_against_empire_id > 0) return null;
+        return TianxiaSystem.Lead(core);
+    }
+#endif
+
+    // 是否同属一个法统(天下)：主法理与都城可能落在不同核心里，任一处在政府的天下里即算
+#if EC_PENDING
+    private static bool SameLawfulCore(Realm governmentKingdom, Realm subject)
+    {
+        EmpireCore lawful = LawfulCore(governmentKingdom);
+        if (lawful == null) return false;
+        if (LawfulCore(subject) == lawful) return true;
+        return subject?.Capital != null && TianxiaSystem.LeadOf(subject.Capital) == lawful;
+    }
+
+    private static bool TryGetSameCoreOverlord(Realm subject, out Realm overlord)
+    {
+        overlord = null;
+        EmpireCore core = LawfulCore(subject);
+        if (core == null) return false;
+        var visited = new HashSet<long> { subject.Key };
+        for (Realm parent = FeudalVassalService.GetOverlord(subject);
+             parent != null && visited.Add(parent.Key) && LawfulCore(parent) == core;
+             parent = FeudalVassalService.GetOverlord(parent))
+            overlord = parent;
+        return overlord != null;
+    }
+
+    public static bool TryMergeIntoOverlordGovernment(Realm subject)
+    {
+        return TryGetSameCoreOverlord(subject, out Realm overlord) &&
+               TryMergeIntoOverlordGovernment(subject, overlord);
+    }
+
+    private static bool TryMergeIntoOverlordGovernment(Realm subject, Realm overlord)
+    {
+        if (subject?.Record == null || subject.IsGone() || subject.GetRegime()?.type != RegimeType.Modern ||
+            AncientWarfareCompatibility.Owns(subject) ||
+            overlord?.GetRegime()?.type != RegimeType.Modern) return false;
+        Empire government = overlord.GetEmpire();
+        if (government == null || government.IsArchived() || government.IsGone() ||
+            government.CoreKingdom == null || !SameLawfulCore(government.CoreKingdom, subject)) return false;
+        if (subject.GetEmpire() == government)
+        {
+            FeudalVassalService.Break(subject);
+            subject.GetOrCreate().ideology_country_suffix = "";
+            subject.updateColor(government.CoreKingdom.getColor());
+            EmpireCraftKingdomBehCheckKingdomType.SyncKingdomStatus(subject);
+            return true;
+        }
+
+        Empire former = subject.IsEmpire() ? subject.GetEmpire() : null;
+        EmpireCore formerCore = EmpireCoreManager.Get(former);
+        EmpireCore lawfulCore = LawfulCore(subject);
+        List<Realm> formerMembers = former?.kingdoms_list?.Where(member => member != null &&
+            !member.IsGone()).ToList() ?? new List<Realm>();
+        if (former != null)
+        {
+            if (!formerMembers.Contains(subject)) formerMembers.Insert(0, subject);
+            // 有其他核心成员的政府不整体拆散；其范围超出了本次同核心合并。
+            if (formerMembers.Any(member => LawfulCore(member) != lawfulCore ||
+                    AncientWarfareCompatibility.Owns(member))) return false;
+            ModClass.EMPIRE_MANAGER.dissolveEmpire(former);
+            if (formerCore != null && formerCore != lawfulCore &&
+                formerCore.warlord_parent_core_id == lawfulCore.id &&
+                !EmpireCoreManager.GetEmpires(formerCore).Any(other => !other.IsArchived()))
+                EmpireCoreManager.DestroyEmpireCore(formerCore);
+        }
+        else if (subject.IsInEmpire())
+            subject.GetEmpire()?.leave(subject);
+
+        foreach (Realm member in formerMembers.Count > 0 ? formerMembers : new List<Realm> { subject })
+        {
+            foreach (Realm child in FeudalVassalService.GetDirectVassals(member).ToList())
+                if (LawfulCore(child) != lawfulCore)
+                    FeudalVassalService.Bind(government.CoreKingdom, child);
+            FeudalVassalService.Break(member);
+            government.join(member, pForce: true, pLegitimacyTransfer: true);
+            if (member.GetEmpire() == government)
+            {
+                member.GetOrCreate().ideology_country_suffix = "";
+                member.updateColor(government.CoreKingdom.getColor());
+                EmpireCraftKingdomBehCheckKingdomType.SyncKingdomStatus(member);
+            }
+        }
+        if (subject.GetEmpire() != government) return false;
+        // 若附庸先建政占用了正规核心，宗主随后建政时接管原核心并清掉临时核心。
+        EmpireCore governmentCore = EmpireCoreManager.Get(government);
+        if (formerCore == lawfulCore && governmentCore != null && governmentCore != lawfulCore &&
+            governmentCore.warlord_parent_core_id == lawfulCore.id &&
+            !EmpireCoreManager.GetEmpires(lawfulCore).Any(other => other != government && !other.IsArchived()))
+        {
+            EmpireCoreManager.DestroyEmpireCore(governmentCore);
+            EmpireCoreManager.RebindEmpire(government, lawfulCore);
+        }
+        EmpireCoreManager.SyncCitiesFromTitles(lawfulCore, preserveOccupiedCore: true);
+        EmpireCoreControl.Invalidate(lawfulCore);
+        return true;
+    }
+
+    public static bool MergeSameCoreVassals(Empire government)
+    {
+        if (government?.CoreKingdom == null || EmpireWorld.Current?.LiveRealms == null) return false;
+        bool changed = false;
+        foreach (Realm subject in EmpireWorld.Current.LiveRealms.ToList())
+        {
+            if (subject == null || subject == government.CoreKingdom || subject.IsGone() ||
+                !TryGetSameCoreOverlord(subject, out Realm overlord) ||
+                overlord.GetEmpire() != government) continue;
+            changed |= TryMergeIntoOverlordGovernment(subject, overlord);
+        }
+        return changed;
+    }
+#endif
+
+    // 新国家依建国首领的理念立制；首领理念尚未被本文化解锁时，采用光谱上最接近的
+    // 已解锁理念。文化刚进入现代、批量承接旧法理王国时也必须走同一套判定。
+#if EC_PENDING
+    public static PartyIdeology ResolveGovernmentIdeology(Realm kingdom)
+    {
+        PartyIdeology personal = IdeologyPopulationSystem.Get(kingdom.Ruler);
+        string culture = CultureService.GetRealmCulture(kingdom);
+        if (PartySystem.IsResearched(culture, personal) &&
+            TechnologySystem.AreFeatureTechsMet(culture, IdeologySpreadSystem.FeatureKey(personal)))
+            return personal;
+        return Enum.GetValues(typeof(PartyIdeology)).Cast<PartyIdeology>()
+            .Where(ideology => PartySystem.IsResearched(culture, ideology) &&
+                TechnologySystem.AreFeatureTechsMet(culture, IdeologySpreadSystem.FeatureKey(ideology)))
+            .OrderBy(ideology => PartySystem.IdeologyDistance(personal, ideology))
+            .DefaultIfEmpty(PartyIdeology.Centrism).First();
+    }
+
+    private static void ApplyUntitledName(Realm kindom)
+    {
+        ApplyNonGovernmentName(kindom);
+    }
+#endif
+
+    // 尚未组建正常政府的现代势力统一按理念称呼，是否已有法理不改变它当前的武装身份；
+    // 法理只决定它日后是否有资格组建政府。中间派为军阀，社会主义为人民武装等。
+    // 未组建政府的势力称呼：按本文化文化包里该理念的词库(Party.untitled_groups)抽一个，没配用 PartyNames 的默认称呼。
+    // 抽中后记在王国上，理念不变就不再重抽。称呼可能含 {0}(见 FormatLabel)。
+#if EC_PENDING
+    public static string GetNonGovernmentLabel(Realm kingdom)
+    {
+        // 民族情绪高涨(都城 ≥ 60)：改用民族主义武装的称呼(国民革命军、民族解放军……)
+        if (kingdom?.Capital != null && NationalSentimentSystem.GetCity(kingdom.Capital) >= 60f)
+        {
+            List<string> nationalist = Enumerable.Range(1, 6).Select(i => LM.Get($"nation_force_label_{i}"))
+                .Where(label => !label.StartsWith("nation_force_label_")).ToList();
+            if (nationalist.Count > 0) return nationalist[(int)(kingdom.Key % nationalist.Count)];
+        }
+        PartyIdeology ideology = NonGovernmentIdeology(kingdom);
+        List<string> pool = PartySystem.GetCultureNamePool(CultureService.GetRealmCulture(kingdom), ideology,
+            party => party.untitled_groups, "Untitled");
+        if (kingdom?.Record == null) return pool.FirstOrDefault() ?? PartySystem.GetIdeologyName(ideology);
+        var data = kingdom.GetOrCreate();
+        int pick = StablePick(pool.Count, ideology, ref data.non_government_label_ideology, ref data.non_government_label_pick);
+        return pick >= 0 ? pool[pick].Trim() : PartySystem.GetIdeologyName(ideology);
+    }
+#endif
+
+    // 称呼含 {0} 时把名号代进去(如"{0}系军阀")，否则接在名号后面
+#if EC_PENDING
+    public static string FormatLabel(string front, string label)
+    {
+        if (string.IsNullOrWhiteSpace(label)) return front ?? "";
+        return label.Contains("{0}")
+            ? label.Replace("{0}", front ?? "")
+            : OverallHelperFunc.JoinNameParts(front, label);
+    }
+#endif
+
+    // 理念变了、或记下的序号已不在词库范围里(旧存档、词库改动)就重抽
+    private static int StablePick(int count, PartyIdeology ideology, ref int storedIdeology, ref int storedPick)
+    {
+        if (count <= 0) return -1;
+        if (storedIdeology != (int)ideology || storedPick < 0 || storedPick >= count)
+        {
+            storedIdeology = (int)ideology;
+            storedPick = EcRandom.Range(0, count);
+        }
+        return storedPick;
+    }
+
+    // 未组建政府的势力按都城的主流理念称呼，与悬浮提示里的"理念"一致(不按君主个人理念)
+#if EC_PENDING
+    public static PartyIdeology NonGovernmentIdeology(Realm kingdom) =>
+        kingdom?.Capital != null && !kingdom.Capital.IsGone()
+            ? IdeologyPopulationSystem.GetDominant(kingdom.Capital)
+            : IdeologyFamilies.StateIdeology(kingdom);
+#endif
+
+
+    // 已组建政府、但尚未取得中央地位或完成统一时，使用另一套理念临时政府称呼。
+    // ideology：按哪个理念取称呼。临时政府传它的立国理念，免得执政党一换称呼就跟着变
+#if EC_PENDING
+    public static string GetProvisionalGovernmentLabel(Realm kingdom, PartyIdeology? ideologyOverride = null)
+    {
+        PartyIdeology ideology = ideologyOverride ?? IdeologyFamilies.StateIdeology(kingdom);
+        List<string> pool = PartySystem.GetCultureNamePool(CultureService.GetRealmCulture(kingdom), ideology,
+            party => party.provisional_groups, "Provisional");
+        if (kingdom?.Record == null) return pool.FirstOrDefault() ?? PartySystem.GetIdeologyName(ideology);
+        var data = kingdom.GetOrCreate();
+        int pick = StablePick(pool.Count, ideology, ref data.provisional_label_ideology, ref data.provisional_label_pick);
+        return pick >= 0 ? pool[pick].Trim() : PartySystem.GetIdeologyName(ideology);
+    }
+
+    private static void ApplyNonGovernmentName(Realm kingdom)
+    {
+        // 含 {0} 的称呼(如"{0}系军阀")只能由 TryGetNonGovernmentKingdomName 代入名号，这里存去掉占位符的部分
+        kingdom.GetOrCreate().ideology_country_suffix = GetNonGovernmentLabel(kingdom).Replace("{0}", "");
+    }
+#endif
+}
+}

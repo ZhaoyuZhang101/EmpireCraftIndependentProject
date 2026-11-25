@@ -1,0 +1,499 @@
+// Ported from the EmpireCraft mod: Scripts/GeneralSystems/DiplomacyActions.cs @ 64c66e30. Body kept line-for-line for three-way sync;
+// see Port/manifest.json and Tools/PortTool.
+using Mathf = EmpireCraft.Core.EcMath;
+using System;
+using System.Collections.Generic;
+using System.Linq;
+
+namespace EmpireCraft.Core
+{
+
+// 外交界面的操作(用户 2026-10-29 问答定"全部开放"；上帝视角，不写"玩家")。a 是焦点国，b 是对方：
+//   · 每项一个判定(能做返回 null，不能做返回原因的本地化键)与一个执行；执行前再判一次，执行都算神力所为(见 MembershipCooldown.ByGod)；
+//   · 宣战照 WarGate.Forbidden 的顺序逐条给原因(ForbiddenReason)，再看停战、够不够得着(WarReach)，先挑战争目标；
+//   · 停战、通好、保护约没有现成的公开入口，按各自系统的字段直接写(到期年限照各系统)；
+//   · 好感修正记在 KingdomExtraData.god_opinion，由好感项 opinion_god_favor 读(见 EmpireCraftOpinionAddition)，双向各改一档；
+//   · 借道：对方许焦点国借道(单向，见 MilitaryAccessSystem)，已有的再签就是续约；撤回把两国之间两个方向的都作废。
+public static class DiplomacyActions
+{
+    public sealed class Action
+    {
+        public string key;
+        // 硬条件：真做不到的，按钮灰掉
+        public Func<Realm, Realm, string> check;
+        public Func<Realm, Realm, WarGoal, string> run;
+        // 软条件：只提醒、不拦。AI 受它约束，上帝视角照样能做
+        // (用户 2026-11-09"给予玩家充分的打仗裁定权"；玩家 11-08"手动开战开不了")
+        public Func<Realm, Realm, string> warn;
+    }
+
+    public sealed class Group
+    {
+        public string titleKey;
+        public bool withGoals;
+        public List<Action> actions = new();
+    }
+
+    private const int OpinionStep = 20, OpinionMax = 100;
+
+    public static readonly WarGoal[] Goals =
+    {
+        WarGoal.夺城, WarGoal.侵略, WarGoal.吞并, WarGoal.迫使附庸, WarGoal.保护国, WarGoal.租借, WarGoal.赔款, WarGoal.劫掠, WarGoal.扶立,
+        WarGoal.争法理, WarGoal.通商, WarGoal.改宗
+    };
+
+    public static string GoalName(WarGoal goal) => WarGoalSystem.Name(goal);
+
+    private static Action Make(string key, Func<Realm, Realm, string> check, Func<Realm, Realm, WarGoal, string> run,
+        Func<Realm, Realm, string> warn = null) =>
+        new() { key = key, check = check, run = run, warn = warn };
+
+#if EC_PENDING
+    public static readonly List<Group> Groups = new()
+    {
+        new Group
+        {
+            titleKey = "diplomacy_group_war", withGoals = true,
+            actions =
+            {
+                Make("diplomacy_act_declare", CanDeclare, (a, b, goal) =>
+                {
+                    War war = EmpireWorld.Current.diplomacy.startWar(a, b, WarTypeLibrary.normal);
+                    if (war == null) return "diplomacy_reason_failed";
+                    // 剧本点名的劫掠(清军入塞)：只抢不占，抢够或满一年就退(见 NomadRaidSystem.War)
+                    if (_applyingScenario && goal == WarGoal.劫掠) war.SetEmpireWarType(EmpireWarType.劫掠);
+                    WarGoalSystem.Preset(war, goal);
+                    // 上帝视角点名的目标不被每年的重算改掉(见 WarGoalSystem.Review)
+                    war.GetOrCreate().war_goal_locked = true;
+                    if (_applyingScenario) war.GetOrCreate().scripted_war = true;
+                    if (_applyingScenario && _scenarioTarget != null) WarObjective.Aim(war, _scenarioTarget);
+                    return null;
+                }, DeclareWarning),
+                Make("diplomacy_act_peace", (a, b) => a.isInWarWith(b) ? null : "diplomacy_reason_not_at_war", (a, b, _) =>
+                {
+                    EndWars(a, b);
+                    return null;
+                }),
+                Make("diplomacy_act_truce", (a, b) => null, (a, b, _) =>
+                {
+                    EndWars(a, b);
+                    DiplomacyRelation relation = EmpireWorld.Current.diplomacy.getRelation(a, b);
+                    if (relation?.data != null) relation.data.timestamp_last_war_ended = GameClock.Now;
+                    return null;
+                })
+            }
+        },
+        new Group
+        {
+            titleKey = "diplomacy_group_alliance",
+            actions =
+            {
+                Make("diplomacy_act_ally", (a, b) =>
+                {
+                    if (DiplomacyLedger.Allied(a, b)) return "diplomacy_reason_already";
+                    if (a.isInWarWith(b)) return "diplomacy_reason_at_war";
+                    if (ModAllianceService.IsVanillaAllianceBanned()) return "diplomacy_reason_alliance_banned";
+                    if (a.IsEmpire() || a.IsInEmpire() || b.IsEmpire() || b.IsInEmpire()) return "diplomacy_reason_empire_alliance";
+                    return OutOfReach(a, b) && !ContactReach(a, b) ? "diplomacy_reason_unreachable" : null;
+                }, (a, b, _) => Ally(a, b)),
+                Make("diplomacy_act_leave_alliance", (a, b) => a.hasAlliance() ? null : "diplomacy_reason_no_alliance", (a, b, _) =>
+                {
+                    Alliance alliance = a.getAlliance();
+                    alliance.leave(a);
+                    if (alliance.kingdoms_list.Count < 2) EmpireWorld.Current.alliances.dissolveAlliance(alliance);
+                    return null;
+                }),
+                Make("diplomacy_act_marry", (a, b) =>
+                {
+                    if (RoyalMarriageSystem.Allied(a, b)) return "diplomacy_reason_already";
+                    return a.isInWarWith(b) ? "diplomacy_reason_at_war" : null;
+                }, (a, b, _) => RoyalMarriageSystem.ArrangeHeqin(a, b) != null ? null : "diplomacy_reason_no_match"),
+                Make("diplomacy_act_pact", (a, b) =>
+                {
+                    if (GreatPowerDiplomacy.Bound(a, b)) return "diplomacy_reason_already";
+                    if (a.GetEmpire() == null || b.GetEmpire() == null) return "diplomacy_reason_not_empire_both";
+                    if (a.IsInSameEmpire(b)) return "diplomacy_reason_same_empire";
+                    return a.isInWarWith(b) ? "diplomacy_reason_at_war" : null;
+                }, (a, b, _) =>
+                {
+                    Empire ea = a.GetEmpire(), eb = b.GetEmpire();
+                    double now = GameClock.Now;
+                    (ea.data.diplomatic_pacts ??= new Dictionary<long, double>())[eb.Key] = now;
+                    (eb.data.diplomatic_pacts ??= new Dictionary<long, double>())[ea.Key] = now;
+                    string text = string.Format(LM.Get("diplomacy_pact_history"), ea.GetEmpireName(), eb.GetEmpireName());
+                    ea.RecordHistory(directContent: text, kingdomId: eb.CoreKingdom?.Key ?? -1L);
+                    eb.RecordHistory(directContent: text, kingdomId: ea.CoreKingdom?.Key ?? -1L);
+                    TranslateHelper.LogEventMessage(text, a);
+                    return null;
+                }),
+                Make("diplomacy_act_protect", (a, b) =>
+                {
+                    if (HolyRomanSystem.ProtectedBy(b, a)) return "diplomacy_reason_already";
+                    return a.isInWarWith(b) ? "diplomacy_reason_at_war" : null;
+                }, (a, b, _) =>
+                {
+                    var data = b.GetOrCreate();
+                    data.hre_protector_id = a.Key;
+                    data.hre_protected_at = GameClock.Now;
+                    data.hre_protected_from_id = -1L;
+                    TranslateHelper.LogEventMessage(string.Format(LM.Get("diplomacy_protect_history"), a.GetKingdomFullName(),
+                        b.GetKingdomFullName()), a);
+                    return null;
+                })
+            }
+        },
+        new Group
+        {
+            titleKey = "diplomacy_group_access",
+            actions =
+            {
+                Make("diplomacy_act_access_short", CanBorrowPassage, (a, b, _) =>
+                {
+                    MilitaryAccessSystem.Sign(b, a, false, true);
+                    return null;
+                }),
+                Make("diplomacy_act_access_long", CanBorrowPassage, (a, b, _) =>
+                {
+                    MilitaryAccessSystem.Sign(b, a, true, true);
+                    return null;
+                }),
+                Make("diplomacy_act_access_end", (a, b) =>
+                    MilitaryAccessSystem.Find(b, a) != null || MilitaryAccessSystem.Find(a, b) != null ? null : "diplomacy_reason_no_access",
+                    (a, b, _) =>
+                    {
+                        MilitaryAccessSystem.Revoke(b, a, "military_access_ended");
+                        MilitaryAccessSystem.Revoke(a, b, "military_access_ended");
+                        return null;
+                    })
+            }
+        },
+        new Group
+        {
+            titleKey = "diplomacy_group_subjects",
+            actions =
+            {
+                Make("diplomacy_act_tribute", (a, b) =>
+                {
+                    Empire eb = b.GetEmpire();
+                    if (eb == null || eb.CoreKingdom != b) return "diplomacy_reason_not_empire";
+                    if (a.GetTakenAllianceEmpire() == eb) return "diplomacy_reason_already";
+                    return a.IsInEmpire() ? "diplomacy_reason_in_empire" : null;
+                }, (a, b, _) => TributaryRelations.Submit(b, a) ? null : "diplomacy_reason_failed"),
+                Make("diplomacy_act_end_tribute", (a, b) =>
+                    TributaryOf(a, b) || TributaryOf(b, a) ? null : "diplomacy_reason_no_tribute", (a, b, _) =>
+                {
+                    (TributaryOf(a, b) ? a : b).RemoveTakenAlliance();
+                    return null;
+                }),
+                Make("diplomacy_act_vassalize", (a, b) =>
+                {
+                    if (FeudalVassalService.GetOverlord(b) == a) return "diplomacy_reason_already";
+                    if (b.IsEmpire() || b.IsInEmpire()) return "diplomacy_reason_in_empire";
+                    return FeudalVassalService.IsInChain(a, b) ? "diplomacy_reason_chain" : null;
+                }, (a, b, _) => FeudalVassalService.ForceBind(a, b) ? null : "diplomacy_reason_failed"),
+                Make("diplomacy_act_release_vassal", (a, b) =>
+                    FeudalVassalService.GetOverlord(b) == a || FeudalVassalService.GetOverlord(a) == b ? null : "diplomacy_reason_no_vassal",
+                    (a, b, _) =>
+                    {
+                        FeudalVassalService.Break(FeudalVassalService.GetOverlord(b) == a ? b : a);
+                        return null;
+                    }),
+                Make("diplomacy_act_colonize", CanColonize, (a, b, _) => Colonize(a, b, false)),
+                Make("diplomacy_act_charter", CanColonize, (a, b, _) => Colonize(a, b, true)),
+                Make("diplomacy_act_free_colony", (a, b) =>
+                    ColonySystem.MetropoleOf(b) == a || ColonySystem.MetropoleOf(a) == b ? null : "diplomacy_reason_no_colony",
+                    (a, b, _) =>
+                    {
+                        Realm colony = ColonySystem.MetropoleOf(b) == a ? b : a;
+                        Realm metropole = ColonySystem.MetropoleOf(colony);
+                        ColonySystem.Release(colony, string.Format(LM.Get("diplomacy_colony_freed_history"),
+                            metropole?.GetKingdomFullName() ?? "", colony.GetKingdomFullName()));
+                        return null;
+                    }),
+                Make("diplomacy_act_rotate_governor", (a, b) =>
+                    ColonySystem.MetropoleOf(b) == a && ColonySystem.Of(b)?.kind == ColonyState.Governorate
+                        ? null : "diplomacy_reason_no_governorate",
+                    (a, b, _) => ColonySystem.RotateGovernor(b) ? null : "diplomacy_reason_no_candidate"),
+                Make("diplomacy_act_nationalize", (a, b) =>
+                    ColonySystem.MetropoleOf(b) == a && ColonySystem.Of(b)?.kind == ColonyState.Company
+                        ? null : "diplomacy_reason_no_company",
+                    (a, b, _) => ColonySystem.NationalizeNow(b) ? null : "diplomacy_reason_failed")
+            }
+        },
+        new Group
+        {
+            titleKey = "diplomacy_group_market",
+            actions =
+            {
+                Make("diplomacy_act_union_in", (a, b) =>
+                {
+                    if (CommodityMarketSystem.UnionOf(b) == a) return "diplomacy_reason_already";
+                    if (a.isInWarWith(b)) return "diplomacy_reason_at_war";
+                    if (DiplomacyLedger.SameMarket(a, b)) return "diplomacy_reason_same_market";
+                    return OutOfReach(a, b) && !UnionReach(a, b) ? "diplomacy_reason_unreachable" : null;
+                }, (a, b, _) => CommodityMarketSystem.JoinUnion(b, a)),
+                Make("diplomacy_act_union_out", (a, b) =>
+                    CommodityMarketSystem.UnionOf(b) == a || CommodityMarketSystem.UnionOf(a) == b ? null : "diplomacy_reason_no_union",
+                    (a, b, _) => CommodityMarketSystem.LeaveUnion(CommodityMarketSystem.UnionOf(b) == a ? b : a)),
+                // 关税战(见 TradeWarSystem)：向对方加征关税、罢手言和
+                Make("diplomacy_act_trade_war", (a, b) => TradeWarSystem.CanStart(a.GetEmpire(), b.GetEmpire()),
+                    (a, b, _) => TradeWarSystem.Start(a.GetEmpire(), b.GetEmpire(), "decree")),
+                Make("diplomacy_act_trade_peace", (a, b) => TradeWarSystem.Between(a, b) != null ? null : "trade_war_reason_none",
+                    (a, b, _) => TradeWarSystem.Settle(a.GetEmpire(), b.GetEmpire()))
+            }
+        },
+        new Group
+        {
+            titleKey = "diplomacy_group_opinion",
+            actions =
+            {
+                Make("diplomacy_act_opinion_up", (a, b) => null, (a, b, _) => ShiftOpinion(a, b, OpinionStep)),
+                Make("diplomacy_act_opinion_down", (a, b) => null, (a, b, _) => ShiftOpinion(a, b, -OpinionStep)),
+                Make("diplomacy_act_opinion_reset", (a, b) => GodOpinion(a, b) != 0 || GodOpinion(b, a) != 0 ? null : "diplomacy_reason_no_god_opinion",
+                    (a, b, _) =>
+                    {
+                        a.GetOrCreate().god_opinion?.Remove(b.Key);
+                        b.GetOrCreate().god_opinion?.Remove(a.Key);
+                        return null;
+                    })
+            }
+        }
+    };
+#endif
+
+    private static bool Valid(Realm a, Realm b) =>
+        a?.Record != null && b?.Record != null && !a.IsGone() && !b.IsGone() && a != b;
+
+    public static string Check(Action action, Realm a, Realm b) => !Valid(a, b) ? "diplomacy_reason_invalid" : action.check(a, b);
+
+    // 能做，但有话要说：界面用橙字提醒，按钮照常能点
+    public static string Warn(Action action, Realm a, Realm b) =>
+        action?.warn == null || !Valid(a, b) ? null : action.warn(a, b);
+
+    public static string Do(Action action, Realm a, Realm b, WarGoal goal)
+    {
+        string reason = Check(action, a, b);
+        if (reason != null) return reason;
+        return MembershipCooldown.ByGod(() => action.run(a, b, goal));
+    }
+
+    // ───────── 结盟 ─────────
+    // 结盟、关税同盟要够得着对方，判定同宣战(用户 2026-11-02 "结盟系统在新的外交系统中是不是没有距离限制"，问答选这两项)：
+    // 盟友要能驰援、货物要能互通；和亲、通好、保护约、朝贡照旧能远交。已有的远方同盟不解散；剧本按史实定的关系不拦
+    private static bool _applyingScenario;
+    // 剧本宣战点名的目标城(见 ApplyScenario、WarObjective.Aim)
+    private static City _scenarioTarget;
+
+    // 通达层算好后(用户 2026-11-06 同意，见 ConnectivitySystem)另有两条路(够得着宣战的照旧可以)：结盟——焦点国派使节过去的人员往来强度
+    // 不低于 diplomacy_min_strength(0.25，航海档、不要战舰)；关税同盟——两国人员往来强度(取好的一边)不低于 union_min_strength(0.4，
+    // 同 AI 并入关税同盟，见 CommodityMarketSystem)
+#if EC_PENDING
+    private static bool OutOfReach(Realm a, Realm b) => !_applyingScenario && !WarReach.Reachable(a, b);
+
+    private static bool ContactReach(Realm a, Realm b) => ConnectivitySystem.CanContact(a, b) == true;
+
+    private static bool UnionReach(Realm a, Realm b) =>
+        Math.Max(ConnectivitySystem.Strength(a, b, ConnectivityMode.People), ConnectivitySystem.Strength(b, a, ConnectivityMode.People)) >=
+        ConnectivitySystem.Config.union_min_strength;
+#endif
+
+    // 关税同盟能不能并入(外交界面市场页列可并入的市场用)
+#if EC_PENDING
+    public static bool CanReachUnion(Realm kingdom, Realm leader) => !OutOfReach(kingdom, leader) || UnionReach(kingdom, leader);
+#endif
+
+    // 原版 forceAlliance 只在新建同盟时返回真，并入现有同盟也返回假：以前并入成功了界面却报失败。
+    // 两边各有同盟时先退出旧的，不然同时挂在两个同盟的名单里
+#if EC_PENDING
+    private static string Ally(Realm a, Realm b)
+    {
+        Alliance own = a.getAlliance(), theirs = b.getAlliance();
+        if (own != null && theirs != null && own != theirs)
+        {
+            theirs.leave(b);
+            if (theirs.kingdoms_list.Count < 2) EmpireWorld.Current.alliances.dissolveAlliance(theirs);
+        }
+        EmpireWorld.Current.alliances.forceAlliance(a, b);
+        return DiplomacyLedger.Allied(a, b) ? null : "diplomacy_reason_failed";
+    }
+#endif
+
+    // ───────── 借道 ─────────
+    // 交战的借不了；同一帝国、并肩作战的本来就能走
+#if EC_PENDING
+    private static string CanBorrowPassage(Realm a, Realm b)
+    {
+        if (a.isInWarWith(b) || FrontSystem.Hostile(a, b)) return "diplomacy_reason_at_war";
+        return FrontSystem.Friendly(a, b) ? "diplomacy_reason_access_needless" : null;
+    }
+#endif
+
+    // ───────── 宣战 ─────────
+    // 宣战的硬条件：只有真做不到的才灰掉按钮。以前停战年限、够不着、同盟姻亲这些 AI 的约束
+    // 一样把上帝视角挡死，玩家反馈"手动开战开不了"(11-08)；用户 11-09 定"给予玩家充分的打仗裁定权"，
+    // 这些一律改成只提醒(见 DeclareWarning)
+#if EC_PENDING
+    private static string CanDeclare(Realm a, Realm b)
+    {
+        if (a.isInWarWith(b)) return "diplomacy_reason_at_war";
+        // 同一帝国内部不是外交，是内政(要打得先让它独立)
+        if (a.IsInSameEmpire(b)) return "diplomacy_reason_same_empire";
+        return null;
+    }
+#endif
+
+    // 宣战的软条件：AI 受它约束，上帝视角只提醒。按 WarGate.Forbidden 的顺序逐条给原因
+#if EC_PENDING
+    private static string DeclareWarning(Realm a, Realm b)
+    {
+        string forbidden = ForbiddenReason(a, b);
+        if (forbidden != null) return forbidden;
+        double ended = EmpireWorld.Current.diplomacy?.getRelation(a, b)?.data?.timestamp_last_war_ended ?? -1d;
+        // 剧本按史实定下的宣战不看停战年限(清军入关时与明罢兵，次年南下照样开战)
+        if (!_applyingScenario && ended > 0d && GameClock.YearsSince(ended) < SimGlobals.m.minimum_years_between_wars) return "diplomacy_reason_truce";
+        return WarReach.MayDeclare(a, b, WarTypeLibrary.normal) ? null : "diplomacy_reason_unreachable";
+    }
+#endif
+
+    // 不论强弱都不打的关系，与 WarGate.Forbidden 同一顺序，逐条给原因
+#if EC_PENDING
+    public static string ForbiddenReason(Realm a, Realm b)
+    {
+        if (NationalSentimentSystem.InSameUnitedFront(a, b)) return "diplomacy_reason_united_front";
+        if (EmpirePartitionSystem.InAmity(a, b)) return "diplomacy_reason_amity";
+        if (TribalFissionService.Bound(a, b)) return "diplomacy_reason_tribal";
+        if (GreatPowerDiplomacy.Bound(a, b)) return "diplomacy_reason_pact";
+        if (WarGoalSystem.Installed(a, b)) return "diplomacy_reason_installed";
+        if (a.IsInSameEmpire(b)) return "diplomacy_reason_same_empire";
+        Empire own = a.GetEmpire(), theirs = b.GetEmpire();
+        if (own != null && (b.GetGivenAllianceEmpire() == own || b.GetTakenAllianceEmpire() == own) ||
+            theirs != null && (a.GetGivenAllianceEmpire() == theirs || a.GetTakenAllianceEmpire() == theirs))
+            return "diplomacy_reason_tributary";
+        if (DiplomacyLedger.Allied(a, b)) return "diplomacy_reason_allied";
+        if (RoyalMarriageSystem.Allied(a, b)) return "diplomacy_reason_married";
+        if (FeudalVassalService.IsInChain(a, b) || FeudalVassalService.IsInChain(b, a)) return "diplomacy_reason_chain";
+        if (ColonySystem.Bound(a, b)) return "diplomacy_reason_colony";
+        if (TransmigrantSystem.DisguiseForbids(a, b)) return "diplomacy_reason_disguise";
+        if (HolyRomanSystem.ProtectedBy(a, b) || HolyRomanSystem.ProtectedBy(b, a)) return "diplomacy_reason_protected";
+        if (MembershipCooldown.TruceForbids(a, b)) return "diplomacy_reason_god_truce";
+        if (a.Ruler != null && a.Ruler == b.Ruler) return "diplomacy_reason_same_ruler";
+        return WarGate.Forbidden(a, b) ? "diplomacy_reason_forbidden" : null;
+    }
+
+    internal static void EndWars(Realm a, Realm b)
+    {
+        foreach (War war in EmpireWorld.Current.wars.list.Where(war => war != null && !war.hasEnded() && war.isInWarWith(a, b)).ToList())
+            EmpireWorld.Current.wars.endWar(war, WarWinner.Peace);
+    }
+#endif
+
+    // ───────── 宗属 ─────────
+#if EC_PENDING
+    private static bool TributaryOf(Realm subject, Realm lord)
+    {
+        Empire empire = lord.GetEmpire();
+        return empire != null && empire.CoreKingdom == lord && subject.GetTakenAllianceEmpire() == empire;
+    }
+
+    private static string CanColonize(Realm a, Realm b)
+    {
+        if (ColonySystem.MetropoleOf(b) == a) return "diplomacy_reason_already";
+        if (ColonySystem.IsColony(b)) return "diplomacy_reason_already_colony";
+        if (ColonySystem.IsColony(a)) return "diplomacy_reason_colony_cannot";
+        if (b.IsEmpire() || b.IsInEmpire()) return "diplomacy_reason_in_empire";
+        return FeudalVassalService.IsInChain(a, b) ? "diplomacy_reason_chain" : null;
+    }
+
+    private static string Colonize(Realm a, Realm b, bool company)
+    {
+        if (FeudalVassalService.GetOverlord(b) != null) FeudalVassalService.Break(b);
+        if (b.HasTakenAlliance()) b.RemoveTakenAlliance();
+        if (CommodityMarketSystem.UnionOf(b) != null) CommodityMarketSystem.LeaveUnion(b);
+        ColonySystem.Annex(a, b, company);
+        return ColonySystem.MetropoleOf(b) == a ? null : "diplomacy_reason_failed";
+    }
+#endif
+
+    // ───────── 好感修正 ─────────
+    // 好感项 opinion_god_favor(见 EmpireCraftOpinionAddition)：main 对 target 的神力修正
+    // ───────── 剧本 ─────────
+    // 剧本开局按史实套外交关系(世界地图各时代，见 WorldMapScenario；用户 10-29 "新的市场系统和外交关系系统记得适配所有剧本")。
+    // kind：war(a 向 b 宣战，goal 定目标)、truce(停战)、alliance(结盟)、marriage(和亲联姻)、pact(通好)、protect(a 保护 b)、
+    // tribute(a 向帝国 b 称臣纳贡)、vassal(a 立 b 为附庸)、union(b 并入 a 的市场)、friend/feud(双方旧谊/宿怨，value 默认 ±30)。
+    // 走外交界面同一套操作与判定(做不了的返回原因键，不硬套)；成了返回 null
+    public static readonly Dictionary<string, string> ScenarioKinds = new()
+    {
+        ["war"] = "diplomacy_act_declare", ["truce"] = "diplomacy_act_truce", ["alliance"] = "diplomacy_act_ally",
+        ["marriage"] = "diplomacy_act_marry", ["pact"] = "diplomacy_act_pact", ["protect"] = "diplomacy_act_protect",
+        ["tribute"] = "diplomacy_act_tribute", ["vassal"] = "diplomacy_act_vassalize", ["union"] = "diplomacy_act_union_in"
+    };
+
+    private const int HistoryOpinionDefault = 30, HistoryOpinionMax = 60;
+    private const float HistoryFadeYears = 60f;
+
+#if EC_PENDING
+    public static string ApplyScenario(string kind, Realm a, Realm b, WarGoal goal = WarGoal.夺城, int value = 0, City aim = null)
+    {
+        if (!Valid(a, b)) return "diplomacy_reason_invalid";
+        if (kind is "friend" or "feud")
+        {
+            int amount = value != 0 ? Mathf.Abs(value) : HistoryOpinionDefault;
+            if (kind == "feud") amount = -amount;
+            double now = GameClock.Now;
+            foreach ((Realm main, Realm target) in new[] { (a, b), (b, a) })
+            {
+                var data = main.GetOrCreate();
+                data.history_opinion ??= new Dictionary<long, int>();
+                data.history_opinion[target.Key] = Mathf.Clamp(amount, -HistoryOpinionMax, HistoryOpinionMax);
+                data.history_opinion_at = now;
+            }
+            return null;
+        }
+        // a 立 b 为傀儡(伪满、蒙疆，见 PuppetStateSystem)：不在外交界面，只由剧本与剧情事件立
+        if (kind == "puppet") return PuppetStateSystem.Establish(a, b);
+        if (!ScenarioKinds.TryGetValue(kind ?? "", out string key)) return "diplomacy_reason_invalid";
+        Action action = Groups.SelectMany(group => group.actions).FirstOrDefault(item => item.key == key);
+        if (action == null) return "diplomacy_reason_invalid";
+        _applyingScenario = true;
+        _scenarioTarget = aim;
+        WarReach.ScenarioDeclaring = true;
+        try
+        {
+            return Do(action, a, b, goal);
+        }
+        finally
+        {
+            _applyingScenario = false;
+            _scenarioTarget = null;
+            WarReach.ScenarioDeclaring = false;
+        }
+    }
+#endif
+
+    // 旧谊、宿怨：开局的值从开局起 HistoryFadeYears 年里线性淡去
+    public static int HistoryOpinion(Realm main, Realm target)
+    {
+        if (main?.Record == null || target == null) return 0;
+        var data = main.GetOrCreate();
+        if (data.history_opinion == null || !data.history_opinion.TryGetValue(target.Key, out int value)) return 0;
+        float years = data.history_opinion_at < 0d ? 0f : GameClock.YearsSince(data.history_opinion_at);
+        return Mathf.RoundToInt(value * Mathf.Clamp01(1f - years / HistoryFadeYears));
+    }
+
+    public static int GodOpinion(Realm main, Realm target) =>
+        main?.Record != null && target != null && main.GetOrCreate().god_opinion is { } map && map.TryGetValue(target.Key, out int value)
+            ? value : 0;
+
+    private static string ShiftOpinion(Realm a, Realm b, int step)
+    {
+        foreach ((Realm main, Realm target) in new[] { (a, b), (b, a) })
+        {
+            var map = main.GetOrCreate().god_opinion ??= new Dictionary<long, int>();
+            int value = Mathf.Clamp(GodOpinion(main, target) + step, -OpinionMax, OpinionMax);
+            if (value == 0) map.Remove(target.Key);
+            else map[target.Key] = value;
+        }
+        return null;
+    }
+}
+}

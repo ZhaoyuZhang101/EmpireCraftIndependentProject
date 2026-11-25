@@ -1,0 +1,1672 @@
+// Ported from the EmpireCraft mod: Scripts/GeneralSystems/VirtualGenealogySystem.cs @ 64c66e30. Body kept line-for-line for three-way sync;
+// see Port/manifest.json and Tools/PortTool.
+using Time = EmpireCraft.Core.FrameClock;
+using System;
+using System.Collections.Generic;
+using System.Linq;
+
+namespace EmpireCraft.Core
+{
+
+// 虚拟族谱(无小人模式)：族谱里的人被并入人口数据时不记为死亡，而是转为"虚拟族人"——
+// 仍算在世，只保留人名、出生地、受封(爵位/封号)；继承、分封、作乱等需要这个人时，
+// 调用 PersonalClanIdentity.Realize() 当场在原来所在的城里落成实体(从该城背景人口里扣一人，总人口不变)。
+// 虚拟族人每年按世界法则结算寿命：真实年龄开启时按本人文化的科技时代定天年(见 RealisticAgeSystem)，关闭时使用原种族寿命，
+// 写入个人经历，并从所在城的背景人口里减去这一人。
+public static partial class VirtualGenealogySystem
+{
+    // 身故方式的概率：病逝、遇刺(其余为寿终)；有爵位或封号的人遇刺的概率加倍
+    private const float IllnessChance = 0.4f;
+    private const float AssassinationChance = 0.08f;
+
+    private static readonly HashSet<long> VirtualIds = new();
+    private static object _world;
+    private static double _lastDeathPass = -1d;
+
+#if EC_PENDING
+    public static void ResetWorldState()
+    {
+        VirtualIds.Clear();
+        ClanHeads.Clear();
+        Prominent.Clear();
+        Magnates.Clear();
+        MagnatesByCity.Clear();
+        HeadQueue.Cancel();
+        DeathQueue.Cancel();
+        _world = null;
+        _lastDeathPass = -1d;
+    }
+#endif
+
+    // 读档后从全局族谱索引里重建虚拟族人名单
+#if EC_PENDING
+    private static void EnsureIndex()
+    {
+        if (ReferenceEquals(_world, EmpireWorld.Current)) return;
+        _world = EmpireWorld.Current;
+        VirtualIds.Clear();
+        // 亲子年纪颠倒的先修(要赶在下面按年纪改生日之前，生日还能作证)
+        int ordered = RepairAgeOrder();
+        if (ordered > 0) LogService.LogInfo($"[EmpireCraft][虚拟族谱] 亲子年纪颠倒、几岁生养的改正 {ordered} 处");
+        int repaired = 0;
+        foreach (PersonalClanIdentity person in SpecificClanManager._globalPersonLookup.Values)
+        {
+            if (person == null) continue;
+            if (person.is_alive && person.is_virtual) VirtualIds.Add(person.id);
+            if (RepairBirthday(person)) repaired++;
+        }
+        if (repaired > 0) LogService.LogInfo($"[EmpireCraft][虚拟族谱] 校正生日 {repaired} 人(成年落地的人以前把落地日记成生日)");
+        // 落成时年龄没设上的(以前一律从零岁算起，见 SetAge)：实体比族谱生日算出的年纪小两岁以上的，按生日改回
+        int aged = 0;
+        double today = GameClock.Now;
+        foreach (PersonalClanIdentity person in SpecificClanManager._globalPersonLookup.Values.ToList())
+        {
+            if (person == null || !person.is_alive || person.is_virtual) continue;
+            Person actor = person._actor;
+            if (actor?.Record == null || actor.IsGone() || !HistoryDateFormatter.TryParseTime(person.birthday, out double born) || born > today)
+                continue;
+            int years = GameClock.YearsSince(born);
+            if (years - actor.Age() < 2) continue;
+            SetAge(actor, years);
+            aged++;
+        }
+        if (aged > 0) LogService.LogInfo($"[EmpireCraft][虚拟族谱] 落成时年龄没设上的按生日改回 {aged} 人");
+        // 族谱断开的修补：在世的实体族人没记父母、原版却记着的，接回去(以前入谱只认在世的实体父母)
+        int relinked = 0;
+        foreach (PersonalClanIdentity person in SpecificClanManager._globalPersonLookup.Values.ToList())
+        {
+            if (person == null || !person.is_alive || person.is_virtual || person.father > 0 && person.mother > 0) continue;
+            Person actor = person._actor;
+            if (actor?.Record == null || actor.IsGone()) continue;
+            if (SpecificClanManager.LinkRecordedParents(actor, person)) relinked++;
+        }
+        if (relinked > 0) LogService.LogInfo($"[EmpireCraft][虚拟族谱] 族谱接回父母 {relinked} 人(原版记着父母、族谱里断开的)");
+        var moved = new Dictionary<long, long>();
+        int maternal = SurnameInheritanceSystem.RepairMaternalClan(SpecificClanManager._globalPersonLookup.Values, moved);
+        // 原版氏族与宗族不一致的君主、储君(人物档案上"氏族""宗族"对不上)跟着宗族走
+        foreach (Realm kingdom in EmpireWorld.Current.LiveRealms)
+        {
+            if (kingdom?.Record == null || kingdom.IsGone()) continue;
+            if (kingdom.Ruler != null) SpecificClanManager.SyncVanillaClan(kingdom.Ruler);
+            Person heir = kingdom.HasHeir() ? kingdom.GetHeir() : null;
+            if (heir != null) SpecificClanManager.SyncVanillaClan(heir);
+        }
+        if (maternal > 0)
+        {
+            LogService.LogInfo($"[EmpireCraft][虚拟族谱] 华夏宗族误入母亲氏族的改回父族 {maternal} 人");
+            // 在位君主挪了族：国家与帝国记下的皇族跟着改，免得下次继位被当成篡位
+            foreach (Realm kingdom in EmpireWorld.Current.LiveRealms)
+            {
+                PersonalClanIdentity king = kingdom?.king?.GetPersonalIdentity();
+                if (king == null || !moved.TryGetValue(king.id, out long oldClan)) continue;
+                kingdom.SetSpecificClan(king._specificClan);
+                Empire empire = kingdom.IsEmpire() ? kingdom.GetEmpire() : null;
+                if (empire?.data != null && empire.data.empire_specific_clan == oldClan) empire.data.empire_specific_clan = king.specific_clan_id;
+            }
+        }
+        // 宗族名与这一族历来的姓对不上的改回(见 SurnameInheritanceSystem.RepairClanNames)
+        int renamed = SurnameInheritanceSystem.RepairClanNames(SpecificClanManager._specificClans);
+        if (renamed > 0) LogService.LogInfo($"[EmpireCraft][虚拟族谱] 宗族名与历来的姓对不上的改回 {renamed} 支");
+        int surnames = SurnameInheritanceSystem.RepairPatrilineal(SpecificClanManager._globalPersonLookup.Values);
+        if (surnames > 0) LogService.LogInfo($"[EmpireCraft][虚拟族谱] 华夏宗族随错姓的改回父姓 {surnames} 人");
+        int princes = PrinceLineage.Backfill(SpecificClanManager._globalPersonLookup.Values);
+        if (princes > 0) LogService.LogInfo($"[EmpireCraft][虚拟族谱] 按个人经历补记藩王王号 {princes} 人");
+        int princePosthumous = PrinceLineage.BackfillPosthumous(SpecificClanManager._globalPersonLookup.Values);
+        if (princePosthumous > 0) LogService.LogInfo($"[EmpireCraft][虚拟族谱] 补记已故藩王谥号 {princePosthumous} 人");
+        int clanSurnames = SurnameInheritanceSystem.RepairClanSurnames(SpecificClanManager._globalPersonLookup.Values);
+        if (clanSurnames > 0) LogService.LogInfo($"[EmpireCraft][虚拟族谱] 华夏宗族里不姓本族姓的改回 {clanSurnames} 人");
+        int vanillaNames = SpecificClanManager.SyncAllVanillaClanNames();
+        if (vanillaNames > 0) LogService.LogInfo($"[EmpireCraft][虚拟族谱] 原版氏族名跟随宗族、支脉改名 {vanillaNames} 个");
+    }
+#endif
+
+    // 亲子年纪的修补(用户 2026-10-26 "会出现儿子比父亲大，以及3岁就有儿子")：以前不满一岁的虚拟族人落成时年龄设不回零岁，
+    // 按平民落成成了二三十岁，再并回人口就记成这个岁数；原版几岁就算成年，几岁的人也生养(现在十六岁起，见
+    // RealisticAgeSystem.OldEnoughToParent)。读档时在世的人按年纪从小到大逐个和父母比，比父母小不到十六岁的：
+    //   · 自己的生日对得上(按生日比父母小十六岁以上)：年纪按生日改回(落成的婴儿多半生日还是对的)；
+    //   · 还比父母大：改成比父母小十八岁(至少零岁)；
+    //   · 仍小不到十六岁、父母在世(几岁就生养的那一代)：父母的年纪抬到比他大十八岁；父母已故的不动。
+    // 抬了年纪的父母轮到他时再和祖父母比
+    private const int ParentGapYears = RealisticAgeSystem.ParentAge, FixedGapYears = 18;
+
+#if EC_PENDING
+    private static int RepairAgeOrder()
+    {
+        if (EmpireWorld.Current == null) return 0;
+        double now = GameClock.Now;
+        int fixedCount = 0;
+        List<PersonalClanIdentity> living = SpecificClanManager._globalPersonLookup.Values
+            .Where(person => person != null && person.is_alive && (person.father > 0 || person.mother > 0))
+            .OrderBy(person => person.age).ToList();
+        foreach (PersonalClanIdentity child in living)
+        {
+            foreach (long parentId in new[] { child.father, child.mother })
+            {
+                PersonalClanIdentity parent = parentId > 0 ? SpecificClanManager.getPerson(parentId) : null;
+                if (parent == null || parent.id == child.id) continue;
+                double parentBorn = BornTime(parent, now), childBorn = BornTime(child, now);
+                if (double.IsNaN(parentBorn) || double.IsNaN(childBorn) ||
+                    childBorn - parentBorn >= (ParentGapYears - 1) * 60d) continue;
+                if (HistoryDateFormatter.TryParseTime(child.birthday, out double born) && born <= now &&
+                    born - parentBorn >= ParentGapYears * 60d && Math.Abs(born - childBorn) > 90d)
+                {
+                    SetPersonAge(child, GameClock.YearsSince(born), now);
+                    fixedCount++;
+                    continue;
+                }
+                if (childBorn <= parentBorn)
+                {
+                    SetPersonAge(child, Math.Max(0, (int)((now - parentBorn) / 60d) - FixedGapYears), now);
+                    fixedCount++;
+                    childBorn = BornTime(child, now);
+                    if (childBorn - parentBorn >= (ParentGapYears - 1) * 60d) continue;
+                }
+                if (!parent.is_alive) continue;
+                SetPersonAge(parent, Math.Max(0, (int)((now - childBorn) / 60d)) + FixedGapYears, now);
+                fixedCount++;
+            }
+        }
+        return fixedCount;
+    }
+#endif
+
+    // 出生时间：在世有实体的看实体，虚拟族人按眼下年纪倒推，已故的看生日(没有就卒年减享年)；算不出为 NaN
+#if EC_PENDING
+    private static double BornTime(PersonalClanIdentity person, double now)
+    {
+        Person actor = person.is_alive && !person.is_virtual ? person._actor : null;
+        if (actor?.Record != null && person.actor_id == actor.Key) return now - actor.Age() * 60d;
+        if (person.is_alive) return now - person.age * 60d;
+        if (HistoryDateFormatter.TryParseTime(person.birthday, out double born)) return born;
+        return person.recordedAge >= 0 && HistoryDateFormatter.TryParseTime(person.deathday, out double died)
+            ? died - person.recordedAge * 60d : double.NaN;
+    }
+#endif
+
+    // 改在世的人的年纪：有实体的改实体，虚拟族人改记下的年纪；生日跟着
+#if EC_PENDING
+    private static void SetPersonAge(PersonalClanIdentity person, int years, double now)
+    {
+        Person actor = person.is_virtual ? null : person._actor;
+        if (actor?.Record != null && person.actor_id == actor.Key && !actor.IsGone()) SetAge(actor, years);
+        else
+        {
+            person.recordedAge = years;
+            person.virtual_since = now;
+        }
+        person.birthday = Date.getDate(now - years * 60d);
+    }
+#endif
+
+    // 读档校正旧存档的生日：成年落地的人以前把落地日记成生日(见 ActorExtension.TrueBirthTime)，族谱上父母只比子女大
+    // 几个月。按年龄倒推出生时间：在世有实体的看实体，虚拟族人看族谱年龄，已故的看卒年减享年；比倒推的晚一年半以上
+    // 才改(虚拟族人出生时记零岁，与原版差一岁不算)。认不出的日期格式不动
+#if EC_PENDING
+    private static bool RepairBirthday(PersonalClanIdentity person)
+    {
+        if (!HistoryDateFormatter.TryParseTime(person.birthday, out double born)) return false;
+        double expected;
+        Person actor = person.is_alive && !person.is_virtual ? person._actor : null;
+        if (actor?.Record != null && person.actor_id == actor.Key)
+            expected = actor.TrueBirthTime();
+        else if (person.is_alive)
+        {
+            if (person.age <= 1) return false;
+            expected = GameClock.Now - (person.age - 1) * 60d;
+        }
+        else
+        {
+            if (person.recordedAge <= 1 || !HistoryDateFormatter.TryParseTime(person.deathday, out double died)) return false;
+            expected = died - (person.recordedAge - 1) * 60d;
+        }
+        if (born - expected <= 90d) return false;
+        person.birthday = Date.getDate(expected);
+        return true;
+    }
+
+    public static int Count
+    {
+        get
+        {
+            EnsureIndex();
+            return VirtualIds.Count;
+        }
+    }
+#endif
+
+    // 并入前调用：族谱里的人转为虚拟族人，并断开与即将移除的单位的联系(之后单位移除不会把他记为死亡)
+#if EC_PENDING
+    public static void Virtualize(Person actor, City city)
+    {
+        TryVirtualize(actor, city);
+    }
+#endif
+
+    // Cannot remove the entity unless its existing wallet has a durable owner.
+#if EC_PENDING
+    public static bool TryVirtualize(Person actor, City city)
+    {
+        if (actor?.Record == null || !actor.Alive || EmpireWorld.Current == null || city?.Record == null || city.IsGone()) return false;
+        PersonalClanIdentity person = actor?.GetPersonalIdentity();
+        if (person != null && (!person.is_alive || person.is_virtual || person.actor_id != actor.Key)) return false;
+        EnsureIndex();
+        if (person == null)
+        {
+            if (actor.money == 0 && actor.Record.loot == 0) return true;
+            CityPopulationData population = CityPopulationSystem.Get(city);
+            if (population == null) return false;
+            return WalletReserveTransfers.TryCapture(actor,
+                population.civilian_wallet_reserve ??= new WalletReserve());
+        }
+        try
+        {
+            person.recordAllInfo();
+        }
+        catch
+        {
+            // 记录官职、爵位等附加信息失败不影响转为虚拟族人
+        }
+        if (string.IsNullOrWhiteSpace(person.birthplace))
+            person.birthplace = city?.GetCityName() ?? actor.City?.GetCityName() ?? "";
+        person.recordedAge = actor.Age();
+        if (actor.money != 0 || actor.Record.loot != 0 || WalletReserveTransfers.HasAssets(person.wallet_reserve))
+            if (!WalletReserveTransfers.TryCapture(actor, person.wallet_reserve ??= new WalletReserve())) return false;
+        person.is_virtual = true;
+        person.virtual_city_id = city?.data?.id ?? actor.City?.data?.id ?? -1L;
+        person.virtual_since = GameClock.Now;
+        person.virtual_renown = Math.Max(0, actor.Record.renown);
+        RealisticAgeSystem.CaptureNativeLifetime(actor, person);
+        actor.RemovePersonalIdentity();
+        VirtualIds.Add(person.id);
+        return true;
+    }
+#endif
+
+    // 落成实体：在原来所在的城(城没了就找同文化、同物种还有人的城)生成一人，套上族人的名字、性别、文化，
+    // 并把族谱身份接回这个单位
+    // 试着落成：按顺序落成候选人，第一个合格的留下。原是虚拟族人、落成后又不合格的当场并回人口——
+    // 以前"挑一个成年皇子""挑一个声望够的子女"会把前面不合格的(多是孩子)全部落成并一直留在地图上，
+    // 皇族子女又算要紧贵族不会被并入，每查一次就多一批实体。最多试 maxRealized 个虚拟族人
+#if EC_PENDING
+    public static Person RealizeFirst(IEnumerable<PersonalClanIdentity> candidates, Func<Person, bool> accept,
+        int maxRealized = 6)
+    {
+        if (candidates == null) return null;
+        int realized = 0;
+        foreach (PersonalClanIdentity person in candidates)
+        {
+            if (person == null || !person.is_alive) continue;
+            bool wasVirtual = person.is_virtual;
+            if (wasVirtual && realized >= maxRealized) continue;
+            Person actor = person.Realize();
+            if (wasVirtual) realized++;
+            if (actor != null && (accept == null || accept(actor))) return actor;
+            if (wasVirtual) Unrealize(actor);
+        }
+        return null;
+    }
+#endif
+
+    // 落成所有合格者；原是虚拟族人又不合格的当场并回人口
+#if EC_PENDING
+    public static List<Person> RealizeAll(IEnumerable<PersonalClanIdentity> candidates, Func<Person, bool> accept)
+    {
+        var result = new List<Person>();
+        if (candidates == null) return result;
+        foreach (PersonalClanIdentity person in candidates)
+        {
+            if (person == null || !person.is_alive) continue;
+            bool wasVirtual = person.is_virtual;
+            Person actor = person.Realize();
+            if (actor != null && (accept == null || accept(actor))) result.Add(actor);
+            else if (wasVirtual) Unrealize(actor);
+        }
+        return result;
+    }
+#endif
+
+    // 虚拟族人眼下的名望：并回人口时的名望，按在人口里过了几年每年去一成(虚拟时没有身份年入)
+    public static int VirtualRenown(PersonalClanIdentity person)
+    {
+        if (person == null || person.virtual_renown <= 0) return 0;
+        double years = person.virtual_since >= 0d && EmpireWorld.Current != null ? Math.Max(0d, GameClock.YearsSince(person.virtual_since)) : 0d;
+        return (int)Math.Round(person.virtual_renown * Math.Pow(1d - RenownSystem.Decay, Math.Min(years, 200d)));
+    }
+
+#if EC_PENDING
+    private static void Unrealize(Person actor)
+    {
+        if (actor?.Record == null || actor.IsGone() || !actor.Alive || actor.IsRuler() || actor.IsCityLeader()) return;
+        City home = actor.City;
+        if (home != null) CityPopulationSystem.DisbandIntoPopulation(actor, home);
+    }
+
+    public static Person Realize(PersonalClanIdentity person)
+    {
+        if (person == null || !person.is_alive || EmpireWorld.Current == null) return person?._actor;
+        // An interrupted removal can leave the original entity alive. Reattach
+        // it instead of spawning a second entity for the same person.
+        if (person.is_virtual && person._actor?.Record != null && person._actor.Alive)
+            CancelVirtualization(person._actor, person);
+        if (!person.is_virtual)
+        {
+            Person existing = person._actor;
+            RestoreStoredWallet(existing);
+            return existing;
+        }
+        EnsureIndex();
+        City city = FindHomeCity(person);
+        if (city == null) return null;
+        Person actor = CityPopulationSystem.SpawnPerson(city, person.species, person.culture);
+        if (actor?.Record == null) return null;
+        if (!string.IsNullOrWhiteSpace(person.given_name)) actor.SetFirstName(person.given_name);
+        // 族谱没记姓的(旧档)：按名字里的姓、宗族名补上，不留落成时随手起的姓
+        if (string.IsNullOrWhiteSpace(person.surname)) person.surname = SurnameInheritanceSystem.SurnameOf(person);
+        if (!string.IsNullOrWhiteSpace(person.surname)) actor.SetFamilyName(person.surname);
+        if (!string.IsNullOrWhiteSpace(person.name)) actor.Name = person.name;
+        actor.Record.sex = person.sex;
+        int age = person.age;
+        long previousActorId = person.actor_id;
+        int renown = VirtualRenown(person);
+        actor.SetPersonalIdentity(person);
+        if (!string.IsNullOrWhiteSpace(person.given_name) && !string.IsNullOrWhiteSpace(person.surname))
+        {
+            if (string.IsNullOrWhiteSpace(person.name)) actor.GetModName().SetName(actor);
+            else actor.GetModName().RepairOrder(actor);
+        }
+        if (person.virtual_immortal) actor.addTrait("immortal");
+        person.actor_id = actor.Key;
+        person.is_virtual = false;
+        person.recordedAge = age;
+        person.virtual_since = -1d;
+        SpecificClanManager._actorToPersonLookup[actor.Key] = person;
+        VirtualIds.Remove(person.id);
+        WalletReserveTransfers.Restore(actor, person.wallet_reserve);
+        actor.Record.renown = Math.Max(actor.Record.renown, renown);
+        person.virtual_renown = 0;
+        // 年龄与族谱卡片一致；与有实体的亲人重新接上原版的家庭关系
+        SetAge(actor, age);
+        RestoreFamilyTies(actor, person, previousActorId);
+        // 原版氏族跟着族谱的宗族走(接回家庭关系时可能随了别的氏族)
+        SpecificClanManager.SyncVanillaClan(actor);
+        return actor;
+    }
+#endif
+
+    // Reuse the existing census pass in either population mode. A previously full
+    // wallet can receive its remaining owned balance when space becomes available.
+#if EC_PENDING
+    public static void RestoreStoredWallet(Person actor)
+    {
+        PersonalClanIdentity person = actor?.GetPersonalIdentity();
+        if (person?.is_alive == true && !person.is_virtual && person.actor_id == actor.Key && actor.Alive)
+            WalletReserveTransfers.Restore(actor, person.wallet_reserve);
+    }
+
+    public static void CancelVirtualization(Person actor, PersonalClanIdentity person)
+    {
+        if (actor?.Record == null || !actor.Alive || person == null || !person.is_alive ||
+            person.actor_id != actor.Key) return;
+        actor.SetPersonalIdentity(person);
+        person.is_virtual = false;
+        person.virtual_since = -1d;
+        VirtualIds.Remove(person.id);
+        RestoreStoredWallet(actor);
+    }
+#endif
+
+    // Only the reserve is inherited here. Native money/loot on a dying entity
+    // remains under native combat/removal rules and must not be copied twice.
+#if EC_PENDING
+    public static void SettleStoredEstate(PersonalClanIdentity person)
+    {
+        if (person == null || !WalletReserveTransfers.HasAssets(person.wallet_reserve)) return;
+        List<(ClanRelation rel, PersonalClanIdentity id)> relations = SpecificClanManager.FindAllRelations(person);
+        PersonalClanIdentity Choose(IEnumerable<PersonalClanIdentity> candidates) => candidates
+            .Where(candidate => candidate != null && candidate.CanHeir(person))
+            .OrderByDescending(candidate => candidate.age >= HeadMinAge)
+            .ThenByDescending(candidate => candidate.age).ThenBy(candidate => candidate.id).FirstOrDefault();
+        PersonalClanIdentity heir = null;
+        foreach (ClanRelation[] priority in HeirPriority)
+        {
+            heir = Choose(relations.Where(pair => priority.Contains(pair.rel)).Select(pair => pair.id));
+            if (heir != null) break;
+        }
+        heir ??= Choose(relations.Select(pair => pair.id));
+        heir ??= Choose(person._specificClan?.SnapshotPeople() ?? Array.Empty<PersonalClanIdentity>());
+        // No eligible heir (or no room in its long account): keep an unclaimed
+        // estate on the deceased identity; pruning protects this record.
+        if (heir == null || !WalletReserveTransfers.TryMove(person.wallet_reserve,
+                heir.wallet_reserve ??= new WalletReserve())) return;
+        if (!heir.is_virtual) RestoreStoredWallet(heir._actor);
+    }
+#endif
+
+    private static void PreserveDispersedWallet(PersonalClanIdentity person)
+    {
+        if (!WalletReserveTransfers.HasAssets(person?.wallet_reserve)) return;
+        City city = person.virtual_city_id > 0 ? EmpireWorld.Current.CityByKey(person.virtual_city_id) : null;
+        if (city?.Record == null || city.IsGone()) return;
+        CityPopulationData population = CityPopulationSystem.Get(city);
+        if (population == null) return;
+        WalletReserveTransfers.TryMove(person.wallet_reserve,
+            population.civilian_wallet_reserve ??= new WalletReserve());
+    }
+
+    #region 落成后的年龄与家庭关系
+    // 年龄(created_time、age_overgrowth)与父母(parent_id_1/2)在原版是属性：以前按字段名反射找不到，落成的人一律从零岁算起
+    // (成年的皇子落成后五岁就有子女，继位的新君记成一岁、被当成幼帝设辅政)，也没接上父母。改为直接读写属性；
+    // 原版的家庭、配偶方法仍按反射找，找不到的部分跳过
+
+    private static bool _vanillaResolved;
+    private static global::System.Reflection.MethodInfo _setFamily;
+    private static global::System.Reflection.MethodInfo _setLover;
+
+#if EC_PENDING
+    private static void ResolveVanilla(Person actor)
+    {
+        if (_vanillaResolved) return;
+        _vanillaResolved = true;
+        _setFamily = HarmonyLib.AccessTools.GetDeclaredMethods(typeof(Person))
+            .FirstOrDefault(method => method.Name == "setFamily" && method.GetParameters().Length >= 1 &&
+                                      method.GetParameters()[0].ParameterType == typeof(Family) &&
+                                      method.GetParameters().Skip(1).All(parameter => parameter.HasDefaultValue));
+        _setLover = HarmonyLib.AccessTools.GetDeclaredMethods(typeof(Person))
+            .FirstOrDefault(method => method.Name == "setLover" && method.GetParameters().Length >= 1 &&
+                                      method.GetParameters()[0].ParameterType == typeof(Person) &&
+                                      method.GetParameters().Skip(1).All(parameter => parameter.HasDefaultValue));
+        LogService.LogInfo($"[EmpireCraft][虚拟族谱] 家庭={(_setFamily != null ? "可用" : "不可用")} " +
+                           $"配偶={(_setLover != null ? "可用" : "不可用")}");
+    }
+#endif
+
+    private static object[] Args(global::System.Reflection.MethodInfo method, object first) =>
+        method.GetParameters().Select((parameter, index) => index == 0 ? first : parameter.DefaultValue).ToArray();
+
+    // 把单位的年龄调到 target：优先改"额外年龄"，否则把出生时间往前推(按实际 getAge() 结果二分查找，不依赖每年秒数)。
+    // 零岁也要设：不满一岁的虚拟族人落成时，以前跳过零岁，按平民落成成了二三十岁(见 CityPopulationSystem.SpawnFromGroup)，
+    // 再并回人口就记成这个岁数，族谱里儿子比父亲还大(用户 2026-10-26)
+#if EC_PENDING
+    public static void SetAge(Person actor, int target)
+    {
+        if (actor?.Record == null || target < 0) return;
+        try
+        {
+            // 原版年龄 = 出生至今的年数 + 额外年龄
+            actor.Record.age_overgrowth += target - actor.Age();
+            if (actor.Age() == target) return;
+            double born = actor.BirthStamp;
+            double step = 1d;
+            int guard = 0;
+            actor.BirthStamp = born - step;
+            while (actor.Age() < target && guard++ < 60)
+            {
+                step *= 2d;
+                actor.BirthStamp = born - step;
+            }
+            double low = 0d, high = step;
+            for (int i = 0; i < 50; i++)
+            {
+                double mid = (low + high) / 2d;
+                actor.BirthStamp = born - mid;
+                if (actor.Age() >= target) high = mid;
+                else low = mid;
+            }
+            actor.BirthStamp = born - high;
+        }
+        catch (Exception exception)
+        {
+            LogService.LogWarning($"[EmpireCraft][虚拟族谱] 同步年龄失败: {exception.Message}");
+        }
+        finally
+        {
+            RefreshAgeState(actor);
+        }
+    }
+
+    public static void RefreshAgeState(Person actor)
+    {
+        try
+        {
+            if (actor?.Record != null && !actor.IsGone()) actor.calcAgeStates();
+        }
+        catch (Exception exception)
+        {
+            LogService.LogWarning($"[EmpireCraft][虚拟族谱] 刷新成年状态失败: {exception.Message}");
+        }
+    }
+#endif
+
+    private static Person RealActor(long identityId)
+    {
+        PersonalClanIdentity relative = identityId > 0 ? SpecificClanManager.getPerson(identityId) : null;
+        if (relative == null || !relative.is_alive || relative.is_virtual) return null;
+        Person actor = relative._actor;
+        return actor?.Record != null && !actor.IsGone() && actor.Alive ? actor : null;
+    }
+
+    // 只接回与有实体的人之间的关系：父母、子女、配偶，以及他们所在的原版氏族与家庭
+#if EC_PENDING
+    private static void RestoreFamilyTies(Person actor, PersonalClanIdentity person, long previousActorId)
+    {
+        try
+        {
+            Person father = RealActor(person.father);
+            Person mother = RealActor(person.mother);
+            Person spouse = RealActor(person.lover.identity);
+            List<Person> children = (person.children ?? new List<long>()).Select(RealActor)
+                .Where(child => child != null).ToList();
+
+            // 亲子：新单位记上父母(父母已不在世也按原来的单位 id 记，族谱照样能查到)；子女那边原来指向旧单位的改指新单位
+            long fatherId = SpecificClanManager.getPerson(person.father)?.actor_id ?? -1L;
+            long motherId = SpecificClanManager.getPerson(person.mother)?.actor_id ?? -1L;
+            if (fatherId > 0) actor.Record.parent_id_1 = fatherId;
+            if (motherId > 0) actor.Record.parent_id_2 = motherId;
+            if (previousActorId > 0)
+                foreach (Person child in children)
+                {
+                    if (child.Record.parent_id_1 == previousActorId) child.Record.parent_id_1 = actor.Key;
+                    if (child.Record.parent_id_2 == previousActorId) child.Record.parent_id_2 = actor.Key;
+                }
+
+            // 氏族：随父亲；父亲不在了随本宗族里有实体的族人(以前接着就随了在世的母亲，皇子落成后进了母亲的氏族)，
+            // 再其次子女、配偶(嫁入的)、母亲
+            Clan clan = father?.Clan ??
+                        person._specificClan?.AllAliveMembers.Where(member => member != actor).Select(member => member.Clan)
+                            .FirstOrDefault(found => found != null) ??
+                        children.Select(child => child.Clan).FirstOrDefault(found => found != null) ??
+                        (person.is_main ? null : spouse?.Clan) ?? mother?.Clan;
+            if (clan != null && actor.Clan != clan) actor.setClan(clan);
+
+            // 配偶：对方有实体、还没有别的伴侣时重新结为伴侣，并进入对方的家庭
+            if (spouse != null && _setLover != null && (spouse.lover == null || spouse.lover.IsGone()))
+            {
+                _setLover.Invoke(actor, Args(_setLover, spouse));
+                if (spouse.lover != actor) _setLover.Invoke(spouse, Args(_setLover, actor));
+            }
+            // 家庭：配偶的家庭，其次(未成年时)父母的家庭，再次子女的家庭
+            Family family = spouse?.family ?? (actor.IsAdult() ? null : father?.family ?? mother?.family) ??
+                            children.Select(child => child.family).FirstOrDefault(found => found != null);
+            if (family != null && _setFamily != null && actor.family != family)
+                _setFamily.Invoke(actor, Args(_setFamily, family));
+        }
+        catch (Exception exception)
+        {
+            LogService.LogWarning($"[EmpireCraft][虚拟族谱] 接回家庭关系失败: {exception.Message}");
+        }
+    }
+#endif
+
+    #endregion
+
+#if EC_PENDING
+    private static City FindHomeCity(PersonalClanIdentity person)
+    {
+        City home = person.virtual_city_id > 0 ? EmpireWorld.Current.CityByKey(person.virtual_city_id) : null;
+        if (home?.Record != null && !home.IsGone() && home.Realm != null) return home;
+        // 原来的城没了：找同文化、同物种的城，人口最多的优先
+        City best = null;
+        float bestScore = -1f;
+        foreach (City city in EmpireWorld.Current.Cities)
+        {
+            if (city?.Record == null || city.IsGone() || city.Realm == null) continue;
+            float score = CityPopulationSystem.GetTotal(city);
+            if (CultureService.GetMainCulture(city) == person.culture) score += 10000f;
+            if (score > bestScore)
+            {
+                bestScore = score;
+                best = city;
+            }
+        }
+        return best;
+    }
+#endif
+
+    // 每年结算一次虚拟族人的身故、整理一遍族谱(由 CityPopulationSystem 每帧调用，年度到期才做)。
+    // 这两条线隔帧轮流，一条没活时当帧让给另一条，谁排在谁前面都会把后面的饿死：
+    //   · 以前瘦身排在身故前面，族谱大、游戏开得快时瘦身一轮做不完一年，做完又到期重来，身故检查轮不上，几十年才碰巧做一回
+    //     (用户 10-30 转群友截图：族人一两百岁、五百岁才寿终正寝；盛唐存档 237 年，在世的虚拟族人五百多个过了百岁，
+    //     身故隔几十年成批来一回)；
+    //   · 后来身故排最前又反过来：帧慢时身故一轮就要占掉一年的大半甚至全部，做完又到期，族长检查、瘦身排不上。
+    //     11-02 那局 1 万多虚拟族人、均帧两百毫秒，瘦身在世界时间 17800 之后再没做过，宗族从 1.2 万涨到 3.2 万，
+    //     族谱身份从 4.8 万涨到 14.9 万(存档 186 MB，族谱占 139 MB)，19458 个全死的宗族一直没人管
+#if EC_PENDING
+    public static void Tick()
+    {
+        if (EmpireWorld.Current == null) return;
+        EnsureIndex();
+        double now = GameClock.Now;
+        _upkeepTurn = !_upkeepTurn;
+        if (_upkeepTurn && TickUpkeep(now)) return;
+        if (TickDeaths(now)) return;
+        if (!_upkeepTurn) TickUpkeep(now);
+    }
+#endif
+
+    // 身故一线；这一帧做了事返回 true
+#if EC_PENDING
+    private static bool TickDeaths(double now)
+    {
+        // 上一轮还没检查完：接着分帧做(以前一帧检查全部虚拟族人，族谱大时一次卡几百毫秒)
+        if (DeathQueue.Active)
+        {
+            // 身故检查做完就接着检查各宗族的族长；瘦身做到一半的先让它做完，族长今年不查
+            if (DeathQueue.Tick() && CityPopulationSystem.AbstractPopulationEnabled && !HeadQueue.Active && !PruneQueue.Active)
+            {
+                ComputeMagnates();
+                HeadQueue.Start(SpecificClanManager._specificClans.Where(clan => clan != null).Select(clan => clan.id).ToList());
+            }
+            return true;
+        }
+        // 族谱还没载入(读档途中)不算一轮
+        if (SpecificClanManager._globalPersonLookup.Count > 0 &&
+            (_lastDeathPass < 0d || now < _lastDeathPass || GameClock.YearsSince(_lastDeathPass) >= 1))
+        {
+            _lastDeathPass = now;
+            // 名单每年按族谱重点一遍：读档时族谱还没进来、别处转成虚拟族人没登记的，以前一辈子不查身故
+            RebuildVirtualIds();
+            if (VirtualIds.Count > 0)
+            {
+                DeathQueue.Start(VirtualIds.ToList());
+                DeathQueue.Tick();
+                return true;
+            }
+        }
+        return false;
+    }
+#endif
+
+    // 族长检查、族谱瘦身一线；这一帧做了事返回 true
+#if EC_PENDING
+    private static bool TickUpkeep(double now)
+    {
+        if (HeadQueue.Active)
+        {
+            HeadQueue.Tick();
+            return true;
+        }
+        if (PruneQueue.Active)
+        {
+            if (PruneQueue.Tick()) FinishPrune();
+            return true;
+        }
+        // 世界还没载入完(宗族列表是空的)时不算一轮，免得开局空跑一次就要等一年
+        if (SpecificClanManager._specificClans.Count > 0 &&
+            (_lastPrunePass < 0d || now < _lastPrunePass || GameClock.YearsSince(_lastPrunePass) >= 1))
+        {
+            _lastPrunePass = now;
+            PrunedClans.Clear();
+            _prunedPeople = 0;
+            _trimmedRecords = 0;
+            _thinnedClans = 0;
+            CollectHistoryActors();
+            PruneQueue.Start(SpecificClanManager._specificClans.Where(clan => clan != null).Select(clan => clan.id).ToList());
+            return true;
+        }
+        return false;
+    }
+#endif
+
+    private static void RebuildVirtualIds()
+    {
+        VirtualIds.Clear();
+        foreach (PersonalClanIdentity person in SpecificClanManager._globalPersonLookup.Values)
+            if (person != null && person.is_alive && person.is_virtual) VirtualIds.Add(person.id);
+    }
+
+    #region 族谱瘦身
+    // 族谱里绝大多数是早已绝嗣的一人小宗族(以前每生成一个人就立一个宗族)和死者的生平记录，
+    // 存档几百 MB、内存几 GB、自动存档一卡一秒多。每年分帧整理一次：
+    //   - 死者的生平只留第一条和最后两条(出生、晚年、身故)；
+    //   - 绝嗣满 ExtinctYears 年的小宗族(不超过 SmallClanSize 人)整族从族谱里删掉，但以下的保留：
+    //     称过帝(有历史帝号)、是某个帝国的皇族、族人里有人封过爵/做过官/有过头衔、族人是在世者的父母或配偶。
+    private const int ExtinctYears = 30;
+    private const int SmallClanSize = 3;
+    private const int KeepHistoryHead = 1;
+    private const int KeepHistoryTail = 2;
+    private const int KeepHistoryMajor = 4;
+#if EC_PENDING
+    private static readonly EmpireCraft.Core.FrameBudgetQueue<long> PruneQueue =
+        new(1.5d, PruneClan, "族谱瘦身");
+#endif
+    private static readonly HashSet<long> PrunedClans = new();
+    private static double _lastPrunePass = -1d;
+    private static bool _upkeepTurn;
+    private static int _prunedPeople, _trimmedRecords, _thinnedClans;
+
+    // 绝嗣满百年的宗族只留要人(用户 2026-10-27 问答选"灭绝百年的只留要人"：存档 154MB，族谱占 112MB，3.37 万个宗族里
+    // 3.01 万个已绝嗣，读档、自动存档、读完那一下回收都跟它走)：
+    //   · 要人：做过君主、朝官或有自己地盘的一方诸侯，有爵位、头衔、谥号、王号的，名将名臣、史书(帝国史、在位记录)里提到的人、还有家产的，
+    //     连同他们在本族的祖先(父母一路往上，世系图、列传不断)；有要人的宗族连始祖也留(宗族的文化按始祖认)；
+    //   · 只做过普通地方官的不算(用户 2026-11-03 选"收窄要人"，见 LocalOfficeKeys)：11-02 那局 3.25 万个宗族里 2.9 万个是一人宗族，
+    //     多半是死去的市长、州长，一个都销不了；收窄后一轮能销 1.76 万族，族谱从 139 MB 减到约 69 MB；
+    //   · 子女在别的宗族的(分出去的支脉、嫁出去的女儿)也留，连同祖先——别的宗族的世系从这里接上来；
+    //   · 其余族人从族谱里删去；留下的人生平只留大事、不留罪案；一个要人都没有、没称过帝、也没有分出去的支脉的宗族整族销户
+    private const int CenturyYears = 100;
+    private static readonly HashSet<long> HistoryActors = new();
+    private static readonly HashSet<long> ParentClans = new();
+    private static readonly HashSet<string> LocalOfficeTitles = new();
+
+    // 普通地方官的官称：各政体 OfficialType.csv 里城一级和省一级行政区的长官。族谱只记了官名字符串(地名+官称，见 OfficeObject.SetActor)，只能按官称认。
+    // 没列的都还算要人：君主、朝官，有自己地盘的节度使、大名、总督、封建领主、羁縻土官，部落酋长(酋长也是阿拉伯酋长国的君主称号)
+    private static readonly string[] LocalOfficeKeys =
+    {
+        "Arabic_officiallevel_5", "Arabic_officiallevel_7",
+        "Bakufu_officiallevel_7", "Bakufu_officiallevel_8",
+        "ClassicalRepublic_officiallevel_2", "ClassicalRepublic_officiallevel_3",
+        "Colonial_officiallevel_2", "Company_officiallevel_2",
+        "Feudalism_officiallevel_8",
+        "LvLing_officiallevel_7", "LvLing_officiallevel_7_han", "LvLing_officiallevel_7_ming", "LvLing_officiallevel_7_japan",
+        "LvLing_officiallevel_8", "LvLing_officiallevel_8_han", "LvLing_officiallevel_8_tang", "LvLing_officiallevel_8_ming",
+        "LvLing_officiallevel_8_fu_tang", "LvLing_officiallevel_8_fu_ming", "LvLing_officiallevel_8_japan",
+        "Modern_officiallevel_5", "Modern_officiallevel_6",
+        "NomadFeudalism_officiallevel_3", "NomadFeudalism_officiallevel_5",
+        "Transmigrant_officiallevel_3", "Transmigrant_officiallevel_4", "Transmigrant_officiallevel_4_zone",
+        "YouMu_officiallevel_4", "YouMu_officiallevel_4_aztec", "YouMu_officiallevel_4_ojibwe",
+        "YouMu_officiallevel_5", "YouMu_officiallevel_5_aztec", "YouMu_officiallevel_5_ojibwe",
+        "YouMu_officiallevel_6", "YouMu_officiallevel_6_aztec", "YouMu_officiallevel_6_ojibwe",
+        "ZhouFeudalism_officiallevel_9", "ZhouFeudalism_officiallevel_9_zhou"
+    };
+
+    // 史书与在位记录里提到的人(按单位 id)：每轮瘦身开始时收一遍；官称跟着当前语言，也在这时取
+#if EC_PENDING
+    private static void CollectHistoryActors()
+    {
+        LocalOfficeTitles.Clear();
+        foreach (string key in LocalOfficeKeys)
+            if (LM.Has(key)) LocalOfficeTitles.Add(LM.Get(key));
+        ParentClans.Clear();
+        foreach (SpecificClan clan in SpecificClanManager._specificClans)
+            if (clan != null && clan.parent_clan_id >= 0) ParentClans.Add(clan.parent_clan_id);
+        HistoryActors.Clear();
+        foreach (List<EmpireCraftHistory> list in ModClass.ALL_HISTORY_DATA?.Values ?? Enumerable.Empty<List<EmpireCraftHistory>>())
+        foreach (EmpireCraftHistory history in list ?? new List<EmpireCraftHistory>())
+        foreach (HistoryDescription description in history?.descriptions ?? new List<HistoryDescription>())
+            if (description != null && description.actor_id > 0) HistoryActors.Add(description.actor_id);
+        if (ModClass.EMPIRE_MANAGER == null) return;
+        foreach (EmpireCraft.Core.Empire empire in ModClass.EMPIRE_MANAGER)
+        foreach (RegnalRecord record in empire?.data?.regnal_records ?? new List<RegnalRecord>())
+            if (record != null && record.actor_id > 0) HistoryActors.Add(record.actor_id);
+    }
+#endif
+
+    // 爵位记成"文化_等级"，没有爵位的也有值(peerages_6)
+    private static bool HasPeerage(PersonalClanIdentity person) =>
+        !string.IsNullOrEmpty(person.PeeragesLevel) && !person.PeeragesLevel.EndsWith("peerages_6", StringComparison.Ordinal);
+
+    // 朝官记成"国号 | 官名"；还没挂回所属城的地方官也这样记(官名就是官称本身)，所以带竖线的要整个官名对得上才算地方官
+    private static bool IsLocalOffice(string office)
+    {
+        int bar = office.LastIndexOf('|');
+        if (bar >= 0) return LocalOfficeTitles.Contains(office.Substring(bar + 1).Trim());
+        foreach (string title in LocalOfficeTitles)
+            if (office.EndsWith(title, StringComparison.Ordinal)) return true;
+        return false;
+    }
+
+    private static bool HeldHighOffice(PersonalClanIdentity person)
+    {
+        string office = string.IsNullOrEmpty(person.officeName) ? person.fullOfficeName : person.officeName;
+        return !string.IsNullOrEmpty(office) && !IsLocalOffice(office);
+    }
+
+    private static bool Notable(PersonalClanIdentity person) =>
+        HasPeerage(person) || HeldHighOffice(person) || person.ownedTitleNames?.Count > 0 ||
+        !string.IsNullOrEmpty(person.posthumous_name) || !string.IsNullOrEmpty(person.prince_title) ||
+        person.actor_id > 0 && (HistoryActors.Contains(person.actor_id) || FamousTalentSystem.OfActorId(person.actor_id) != null) ||
+        WalletReserveTransfers.HasAssets(person.wallet_reserve);
+
+    // 子女在别的宗族、或配偶子女还在世：别处的世系从这里接上来
+    private static bool LinksOut(PersonalClanIdentity person, SpecificClan clan)
+    {
+        if (person.lover.identity > 0 && SpecificClanManager.getPerson(person.lover.identity)?.is_alive == true) return true;
+        foreach (long id in person.children ?? new List<long>())
+            if (SpecificClanManager.getPerson(id) is PersonalClanIdentity child && (child.specific_clan_id != clan.id || child.is_alive))
+                return true;
+        return false;
+    }
+
+    // 只留要人与他们在本族的祖先；返回是否整族都可以销户
+    private static bool ThinCentury(SpecificClan clan, PersonalClanIdentity[] people)
+    {
+        var byId = new Dictionary<long, PersonalClanIdentity>();
+        foreach (PersonalClanIdentity person in people)
+            if (person != null) byId[person.id] = person;
+        var keep = new HashSet<long>();
+        var queue = new Queue<PersonalClanIdentity>();
+        foreach (PersonalClanIdentity person in byId.Values)
+            if ((Notable(person) || LinksOut(person, clan)) && keep.Add(person.id)) queue.Enqueue(person);
+        bool dynasty = clan.HasHistoryEmpire() || !string.IsNullOrEmpty(clan.empire_name) || ParentClans.Contains(clan.id);
+        if (keep.Count == 0 && !dynasty) return true;
+        if (byId.TryGetValue(clan.founder, out PersonalClanIdentity founder) && keep.Add(founder.id)) queue.Enqueue(founder);
+        while (queue.Count > 0)
+        {
+            PersonalClanIdentity person = queue.Dequeue();
+            foreach (long parent in new[] { person.father, person.mother })
+                if (parent > 0 && byId.TryGetValue(parent, out PersonalClanIdentity ancestor) && keep.Add(ancestor.id)) queue.Enqueue(ancestor);
+        }
+        int removed = 0;
+        foreach (PersonalClanIdentity person in byId.Values)
+        {
+            if (keep.Contains(person.id))
+            {
+                // 留下的人：生平只留大事，不留罪案
+                if (person.personal_history != null)
+                {
+                    int before = person.personal_history.Count;
+                    person.personal_history.RemoveAll(record => record == null || !record.major);
+                    _trimmedRecords += before - person.personal_history.Count;
+                }
+                person.crime_records?.Clear();
+                continue;
+            }
+            clan.removeActor(person);
+            removed++;
+        }
+        if (removed > 0) _thinnedClans++;
+        _prunedPeople += removed;
+        return false;
+    }
+
+#if EC_PENDING
+    private static void PruneClan(long clanId)
+    {
+        SpecificClan clan = SpecificClanManager.Get(clanId);
+        if (clan == null) return;
+        PersonalClanIdentity[] people = clan.SnapshotPeople();
+        bool anyAlive = false;
+        foreach (PersonalClanIdentity person in people)
+        {
+            if (person == null) continue;
+            if (person.is_alive)
+            {
+                anyAlive = true;
+                continue;
+            }
+            // 首条、末两条之外再留几件大事(见 BiographySystem.Trim)，一生的起落不至于删光
+            List<PersonalHistoryRecord> history = person.personal_history;
+            int cap = KeepHistoryHead + KeepHistoryTail + KeepHistoryMajor;
+            if (history == null || history.Count <= cap) continue;
+            _trimmedRecords += BiographySystem.Trim(history, cap, KeepHistoryTail, KeepHistoryMajor);
+        }
+        double now = GameClock.Now;
+        if (anyAlive)
+        {
+            clan.extinct_since = -1d;
+            return;
+        }
+        if (clan.extinct_since < 0d || now < clan.extinct_since)
+        {
+            // 老存档没有绝嗣时间：建族已满两倍年限的，按早已绝嗣处理(以建族时间计)，免得再等三十年
+            bool old = clan.established_timestamp >= 0d && now >= clan.established_timestamp &&
+                       GameClock.YearsSince(clan.established_timestamp) >= ExtinctYears * 2;
+            clan.extinct_since = old ? clan.established_timestamp : now;
+            if (!old) return;
+        }
+        // 绝嗣满百年：只留要人(见 ThinCentury)，一个要人都没有的整族销户
+        if (GameClock.YearsSince(clan.extinct_since) >= CenturyYears && !IsEmpireClan(clan))
+        {
+            if (!ThinCentury(clan, people)) return;
+            clan.dispose();
+            PrunedClans.Add(clan.id);
+            _prunedPeople += people.Length;
+            return;
+        }
+        if (GameClock.YearsSince(clan.extinct_since) < ExtinctYears || people.Length > SmallClanSize) return;
+        if (IsHistoricClan(clan, people)) return;
+        clan.dispose();
+        PrunedClans.Add(clan.id);
+        _prunedPeople += people.Length;
+    }
+#endif
+
+    // 现存帝国的皇族
+#if EC_PENDING
+    private static bool IsEmpireClan(SpecificClan clan)
+    {
+        if (ModClass.EMPIRE_MANAGER == null) return false;
+        foreach (EmpireCraft.Core.Empire empire in ModClass.EMPIRE_MANAGER)
+            if (empire?.data != null && empire.data.empire_specific_clan == clan.id) return true;
+        return false;
+    }
+
+    private static bool IsHistoricClan(SpecificClan clan, PersonalClanIdentity[] people)
+    {
+        if (clan.HasHistoryEmpire() || !string.IsNullOrEmpty(clan.empire_name)) return true;
+        if (ModClass.EMPIRE_MANAGER != null)
+            foreach (EmpireCraft.Core.Empire empire in ModClass.EMPIRE_MANAGER)
+                if (empire?.data != null && empire.data.empire_specific_clan == clan.id) return true;
+        foreach (PersonalClanIdentity person in people)
+        {
+            if (person == null) continue;
+            if (WalletReserveTransfers.HasAssets(person.wallet_reserve)) return true;
+            if (HasPeerage(person) || !string.IsNullOrEmpty(person.officeName) ||
+                !string.IsNullOrEmpty(person.fullOfficeName) || person.ownedTitleNames?.Count > 0) return true;
+            // 是在世者的父母或配偶：删了在世者的族谱就断了
+            foreach (long child in person.children ?? new List<long>())
+                if (SpecificClanManager.getPerson(child)?.is_alive == true) return true;
+            if (person.lover.identity > 0 && SpecificClanManager.getPerson(person.lover.identity)?.is_alive == true) return true;
+        }
+        return false;
+    }
+#endif
+
+    private static void FinishPrune()
+    {
+        if (PrunedClans.Count > 0)
+            SpecificClanManager.RemoveClans(PrunedClans);
+        LogService.LogInfo($"[EmpireCraft][族谱瘦身] 删去绝嗣宗族 {PrunedClans.Count} 个、绝嗣百年只留要人 {_thinnedClans} 个(共删 {_prunedPeople} 人)，" +
+                           $"精简死者生平 {_trimmedRecords} 条；现有宗族 {SpecificClanManager._specificClans.Count} 个、" +
+                           $"族谱身份 {SpecificClanManager._globalPersonLookup.Count} 人");
+        PrunedClans.Clear();
+    }
+
+    #endregion
+
+    #region 继承人(无小人模式)
+
+    // 王位空缺、实体族人里找不到继承人时(皇族多半已成了虚拟族人)：按继承顺序——子女 → 孙辈 → 其他族人——
+    // 在虚拟族人里挑一位能继承的(优先成年人)，当场落成实体。先君的子女、兄弟，再到整个世系(本宗和分出去的各支，
+    // 如受封的诸王一系)里的族人。都没有就是真的绝嗣(不再从百姓里认一位宗室远支，世系图上的人都要真有来历)
+    private static readonly ClanRelation[][] HeirPriority =
+    {
+        new[] { ClanRelation.CHILD },
+        new[] { ClanRelation.SSGB, ClanRelation.SSGG }
+    };
+
+#if EC_PENDING
+    public static Person RealizeHeir(Realm kingdom)
+    {
+        if (!CityPopulationSystem.AbstractPopulationEnabled || kingdom?.Record == null || kingdom.IsGone()) return null;
+        PersonalClanIdentity last = SpecificClanManager.getPerson(kingdom.GetOrCreate().last_ruler_identity_id);
+        SpecificClan clan = (kingdom.IsEmpire() ? kingdom.GetEmpire()?.EmpireSpecificClan : null) ?? last?._specificClan;
+        PersonalClanIdentity heir = null;
+        // 华夏一系不立女主(见 EmpireCraftKingdomBehCheckHeir.BarredBySex)：宗族不是男子优先的也只挑男子，不然挑出来又被退回、一直空着
+        bool maleOnly = EmpireCraft.Core.EmpireCraftKingdomBehCheckHeir.MaleOnlyThrone(kingdom);
+        if (last != null)
+        {
+            List<(ClanRelation rel, PersonalClanIdentity id)> relations = SpecificClanManager.FindAllRelations(last);
+            foreach (ClanRelation[] group in HeirPriority)
+            {
+                heir = PickHeir(relations.Where(pair => group.Contains(pair.rel)).Select(pair => pair.id), last, maleOnly);
+                if (heir != null) break;
+            }
+            heir ??= PickHeir(relations.Select(pair => pair.id), last, maleOnly);
+        }
+        // 整个世系里找：藩王一系优先(见 PrinceLineage)
+        if (heir == null && clan != null)
+        {
+            List<PersonalClanIdentity> lineage = SpecificClanManager.LineageClans(clan).SelectMany(member => member.SnapshotPeople()).ToList();
+            heir = PickHeir(lineage.Where(PrinceLineage.InLine), null, maleOnly) ?? PickHeir(lineage, null, maleOnly);
+        }
+        return heir?.Realize();
+    }
+#endif
+
+    // 宗室旁支入继：从都城人口中认一位宗室远支，编入皇族、改用皇族的姓
+#if EC_PENDING
+    public static Person SpawnCadet(Realm kingdom, SpecificClan clan)
+    {
+        if (kingdom?.Capital == null || clan == null) return null;
+        Person actor = CityPopulationSystem.SpawnOfficial(kingdom.Capital, kingdom);
+        if (actor == null) return null;
+        try
+        {
+            if (!string.IsNullOrWhiteSpace(clan.name))
+            {
+                actor.GetModName().familyName = clan.name;
+                actor.GetModName().SetName(actor);
+            }
+            clan.addActor(actor);
+            string text = string.Format(LM.Get("virtual_heir_cadet_history"), kingdom.GetKingdomName(), actor.FullName());
+            Empire empire = kingdom.IsEmpire() ? kingdom.GetEmpire() : null;
+            if (empire != null) EventRecorder.Record(empire, text, actor);
+            else EventRecorder.Record(kingdom, text, actor);
+        }
+        catch (Exception exception)
+        {
+            LogService.LogWarning($"[EmpireCraft][虚拟族谱] 宗室旁支入继失败: {exception.Message}");
+        }
+        return actor;
+    }
+
+    private static PersonalClanIdentity PickHeir(IEnumerable<PersonalClanIdentity> people, PersonalClanIdentity last, bool maleOnly) =>
+        people.Where(person => person != null && person.is_alive && person.is_virtual &&
+                               EmpireCraft.Core.EmpireCraftKingdomBehCheckHeir.SexEligible(person, last, maleOnly, false))
+            .OrderByDescending(person => person.age >= HeadMinAge)
+            .ThenByDescending(person => person.age)
+            .FirstOrDefault();
+#endif
+
+    // 和正在统治的宗族同一世系(分出去的诸王各支)：不销户、添丁不受宗族人数上限，皇统绝嗣时从这些真实支脉里找人
+    private static readonly HashSet<long> RulingRoots = new();
+    private static float _rulingRootsAt = -100f;
+
+#if EC_PENDING
+    private static bool IsRulingLineage(SpecificClan clan)
+    {
+        if (clan == null || EmpireWorld.Current?.LiveRealms == null) return false;
+        // 统治宗族的始祖宗族：几秒重算一次(逐个宗族检查时不必每次都扫一遍所有国家)
+        if (Time.realtimeSinceStartup - _rulingRootsAt > 5f)
+        {
+            _rulingRootsAt = Time.realtimeSinceStartup;
+            RulingRoots.Clear();
+            foreach (Realm kingdom in EmpireWorld.Current.LiveRealms)
+            {
+                if (kingdom?.Record == null || kingdom.IsGone()) continue;
+                SpecificClan ruling = kingdom.IsEmpire() ? kingdom.GetEmpire()?.EmpireSpecificClan : null;
+                ruling ??= kingdom.Ruler != null && !kingdom.Ruler.IsGone() ? kingdom.Ruler.GetSpecificClan() : null;
+                if (ruling != null) RulingRoots.Add(ruling.GetRootClan().id);
+            }
+        }
+        return RulingRoots.Contains(clan.GetRootClan().id);
+    }
+#endif
+
+    // 正在统治某个王国或帝国的宗族(永不销户)
+    // 各国的执政宗族，一帧只数一遍(见 FrameStamp)：以前每查一个宗族就把全图各国过一遍、各问一回君主的宗族，
+    // 三四百国时族长检查一项占主线程 6%
+    private static readonly HashSet<SpecificClan> RulingClans = new();
+    private static int _rulingClansFrame = -1;
+    private static EmpireWorld _rulingClansWorld;
+
+#if EC_PENDING
+    private static bool IsRulingClan(SpecificClan clan)
+    {
+        if (clan == null || EmpireWorld.Current?.LiveRealms == null) return false;
+        if (_rulingClansFrame != FrameStamp.Current || !ReferenceEquals(_rulingClansWorld, EmpireWorld.Current))
+        {
+            RulingClans.Clear();
+            foreach (Realm kingdom in EmpireWorld.Current.LiveRealms)
+            {
+                if (kingdom?.Record == null || kingdom.IsGone()) continue;
+                SpecificClan imperial = kingdom.IsEmpire() ? kingdom.GetEmpire()?.EmpireSpecificClan : null;
+                if (imperial != null) RulingClans.Add(imperial);
+                SpecificClan royal = kingdom.Ruler != null && !kingdom.Ruler.IsGone() ? kingdom.Ruler.GetSpecificClan() : null;
+                if (royal != null) RulingClans.Add(royal);
+            }
+            _rulingClansFrame = FrameStamp.Current;
+            _rulingClansWorld = EmpireWorld.Current;
+        }
+        bool ruling = RulingClans.Contains(clan);
+        if (CacheAudit.Sampled(16)) CacheAudit.Compare("执政宗族", ruling == ScanRulingClan(clan));
+        return ruling;
+    }
+#endif
+
+    // 老办法(逐国问一遍)，只在核对时用(见 CacheAudit)
+#if EC_PENDING
+    private static bool ScanRulingClan(SpecificClan clan)
+    {
+        foreach (Realm kingdom in EmpireWorld.Current.LiveRealms)
+        {
+            if (kingdom?.Record == null || kingdom.IsGone()) continue;
+            if (kingdom.IsEmpire() && kingdom.GetEmpire()?.EmpireSpecificClan == clan) return true;
+            if (kingdom.Ruler != null && !kingdom.Ruler.IsGone() && kingdom.Ruler.GetSpecificClan() == clan) return true;
+        }
+        return false;
+    }
+#endif
+
+    #endregion
+
+    #region 族长(无小人模式)
+
+    // 显赫宗族(统治家族，或有族人做官、有爵位封地、是地主、入了党派、有功名、当君主城主)保留一名实体族长：
+    // 族长不会被并入虚拟人口；整个宗族都成了虚拟族人时，每年从中挑一位成年人落成实体当族长。
+    // 地方豪强(每城族人最多的两个宗族)也保留实体族长；
+    // 其余平民宗族不留实体族长：族长和其他平民一样每月并回虚拟人口(每城每月最多并 10 人，几个月就清完)，
+    // 宗族照样留在族谱里，族人以后做了官就又成为显赫宗族；整族虚拟、沉寂 DormantYears 年仍无人出仕的平民宗族销户。
+    // 族长死于战乱或饥荒的宗族不再补族长；这样的宗族一个实体族人都不剩时销户——剩下的虚拟族人从族谱里注销，
+    // 变成所在城的普通百姓(人数不变)，宗族记录留在族谱里
+    private static readonly Dictionary<long, long> ClanHeads = new();
+#if EC_PENDING
+    private static readonly EmpireCraft.Core.FrameBudgetQueue<long> HeadQueue =
+        new(1.5d, CheckClanHead, "宗族族长检查");
+#endif
+    private const int HeadMinAge = 16;
+    private const int DormantYears = 30;
+    // 宗族是否显赫(每年检查族长时重算)；没算过的按显赫处理，读档后第一轮检查前不会误并族长
+    private static readonly Dictionary<long, bool> Prominent = new();
+
+    // 地方豪强：每座城族人最多的 MagnatesPerCity 个宗族，即使没人做官也保留实体族长
+    private const int MagnatesPerCity = 2;
+    private static readonly HashSet<long> Magnates = new();
+    private static readonly Dictionary<long, List<long>> MagnatesByCity = new();
+
+    // 某城的地方豪强宗族(族人多的在前)
+    public static List<SpecificClan> MagnatesOf(City city)
+    {
+        var list = new List<SpecificClan>();
+        if (city?.Record == null || !MagnatesByCity.TryGetValue(city.Key, out List<long> ids)) return list;
+        foreach (long id in ids)
+        {
+            SpecificClan clan = SpecificClanManager.Get(id);
+            if (clan != null) list.Add(clan);
+        }
+        return list;
+    }
+
+#if EC_PENDING
+    private static void ComputeMagnates()
+    {
+        Magnates.Clear();
+        MagnatesByCity.Clear();
+        var byCity = new Dictionary<long, List<(long clan, int size)>>();
+        foreach (SpecificClan clan in SpecificClanManager._specificClans)
+        {
+            if (clan == null) continue;
+            int size = 0;
+            long cityId = clan.ancestral_city_id;
+            foreach (PersonalClanIdentity person in clan.SnapshotPeople())
+            {
+                if (person == null || !person.is_alive) continue;
+                size++;
+                if (person._actor?.city?.data != null && !person.is_virtual) cityId = person._actor.City.Key;
+            }
+            if (size == 0 || cityId < 0) continue;
+            if (!byCity.TryGetValue(cityId, out List<(long, int)> list)) byCity[cityId] = list = new List<(long, int)>();
+            list.Add((clan.id, size));
+        }
+        foreach (KeyValuePair<long, List<(long clan, int size)>> pair in byCity)
+            foreach ((long clan, int _) in pair.Value.OrderByDescending(entry => entry.size).Take(MagnatesPerCity))
+            {
+                Magnates.Add(clan);
+                if (!MagnatesByCity.TryGetValue(pair.Key, out List<long> ids)) MagnatesByCity[pair.Key] = ids = new List<long>();
+                ids.Add(clan);
+            }
+    }
+#endif
+
+    public static bool IsMagnate(SpecificClan clan) => clan != null && Magnates.Contains(clan.id);
+
+    public static bool IsProminent(SpecificClan clan) =>
+        clan != null && (!Prominent.TryGetValue(clan.id, out bool prominent) || prominent);
+
+    // 族长人选：在世的实体族人里，符合本族继承性别的优先，其次正支，再取年长者
+#if EC_PENDING
+    private static PersonalClanIdentity PickHead(IEnumerable<PersonalClanIdentity> people) =>
+        people.OrderByDescending(person => person.IsHeirPriority())
+            .ThenByDescending(person => person.is_main)
+            .ThenByDescending(person => person.age)
+            .FirstOrDefault();
+
+    public static bool IsClanHead(Person actor)
+    {
+        if (!CityPopulationSystem.AbstractPopulationEnabled) return false;
+        PersonalClanIdentity identity = actor?.GetPersonalIdentity();
+        SpecificClan clan = identity?._specificClan;
+        if (clan == null || !IsProminent(clan)) return false;
+        if (ClanHeads.TryGetValue(clan.id, out long headId))
+        {
+            PersonalClanIdentity head = SpecificClanManager.getPerson(headId);
+            if (head != null && head.is_alive && !head.is_virtual && head._actor != null) return headId == identity.id;
+        }
+        PersonalClanIdentity chosen = PickHead(clan.SnapshotPeople()
+            .Where(person => person.is_alive && !person.is_virtual && person._actor != null));
+        if (chosen == null) return false;
+        ClanHeads[clan.id] = chosen.id;
+        return chosen.id == identity.id;
+    }
+#endif
+
+    // 实体族长死于战乱(战死、所在城正在打仗)或饥荒(饿死、所在城缺粮)：记下来，之后不再补族长
+#if EC_PENDING
+    public static void OnActorDied(Person actor, AttackType type)
+    {
+        if (!CityPopulationSystem.AbstractPopulationEnabled || actor?.Record == null || !IsClanHead(actor)) return;
+        SpecificClan clan = actor.GetPersonalIdentity()?._specificClan;
+        if (clan == null) return;
+        City city = actor.City;
+        CityPopulationData data = city == null ? null : CityPopulationSystem.Get(city);
+        bool calamity = type == AttackType.Weapon || type == AttackType.Starvation ||
+                        city != null && CityPopulationSystem.IsAtWar(city) || data != null && data.last_food_shortage > 0f;
+        if (calamity) clan.head_lost_to_calamity = true;
+        ClanHeads.Remove(clan.id);
+    }
+
+    private static void CheckClanHead(long clanId)
+    {
+        SpecificClan clan = SpecificClanManager.Get(clanId);
+        if (clan == null) return;
+        PersonalClanIdentity[] people = clan.SnapshotPeople();
+        List<PersonalClanIdentity> entities = people
+            .Where(person => person.is_alive && !person.is_virtual && person._actor != null && !person._actor.IsGone())
+            .ToList();
+        bool ruling = IsRulingClan(clan);
+        Prominent[clan.id] = ruling || IsMagnate(clan) ||
+                             entities.Any(person => CityPopulationSystem.IsNotable(person._actor, includeClanHead: false));
+        if (entities.Count > 0)
+        {
+            clan.head_lost_to_calamity = false;
+            clan.virtual_since = -1d;
+            return;
+        }
+        List<PersonalClanIdentity> virtuals = people.Where(person => person.is_alive && person.is_virtual).ToList();
+        if (virtuals.Count == 0) return;
+        // 统治家族(连同它分出去的诸王各支)永不销户
+        bool rulingLineage = ruling || IsRulingLineage(clan);
+        if (clan.head_lost_to_calamity && !rulingLineage)
+        {
+            Disperse(clan, virtuals);
+            return;
+        }
+        // 平民宗族：不落成族长；整族虚拟沉寂太久就销户(族人编入所在城的普通百姓)。地方豪强照常落成族长
+        if (!ruling && !IsMagnate(clan))
+        {
+            if (rulingLineage) return;
+            double now = GameClock.Now;
+            if (clan.virtual_since < 0d || now < clan.virtual_since) clan.virtual_since = now;
+            else if (GameClock.YearsSince(clan.virtual_since) >= DormantYears) Disperse(clan, virtuals, dormant: true);
+            return;
+        }
+        // 纯净地图模式(接近零实体)不为族长落成实体，宗族照常作为虚拟族谱存在；否则每年落成、每月又并回人口
+        if (PureMapMode.Enabled) return;
+        PersonalClanIdentity heir = PickHead(virtuals.Where(person => person.age >= HeadMinAge)) ?? PickHead(virtuals);
+        Person head = heir?.Realize();
+        if (head != null) ClanHeads[clan.id] = heir.id;
+    }
+
+    private static void Disperse(SpecificClan clan, List<PersonalClanIdentity> virtuals, bool dormant = false)
+    {
+        string date = Date.getDate(GameClock.Now);
+        foreach (PersonalClanIdentity person in virtuals)
+        {
+            // Clan deregistration leaves the people in the background population;
+            // it does not confiscate their money or trigger an estate inheritance.
+            PreserveDispersedWallet(person);
+            person.recordedAge = person.age;
+            person.is_alive = false;
+            person.is_virtual = false;
+            person.deathday = date;
+            if (!person.death_history_recorded)
+            {
+                person.death_history_recorded = true;
+                person.RecordPersonalHistory(LM.Get(dormant ? "virtual_person_clan_dormant" : "virtual_person_clan_dispersed"));
+            }
+            VirtualIds.Remove(person.id);
+        }
+        ClanHeads.Remove(clan.id);
+        Prominent.Remove(clan.id);
+        LogService.LogInfo(dormant
+            ? $"[EmpireCraft][虚拟族谱] 宗族 {clan.name} 沉寂 {DormantYears} 年无人出仕，销户编入民籍({virtuals.Count} 人)"
+            : $"[EmpireCraft][虚拟族谱] 宗族 {clan.name} 族长死于战乱饥荒、已无实体族人，销户({virtuals.Count} 人)");
+    }
+#endif
+
+    #endregion
+
+#if EC_PENDING
+    private static readonly EmpireCraft.Core.FrameBudgetQueue<long> DeathQueue = new(1.5d, CheckDeath, "虚拟族谱年度身故");
+
+    private static void CheckDeath(long id)
+    {
+        PersonalClanIdentity person = SpecificClanManager.getPerson(id);
+        if (person == null || !person.is_alive || !person.is_virtual)
+        {
+            VirtualIds.Remove(id);
+            return;
+        }
+        if (RealisticAgeSystem.IsVirtualAgeDeathDue(person))
+        {
+            Die(person);
+            return;
+        }
+        TryBirth(person);
+    }
+#endif
+
+    // ---- 虚拟族人生育 ----
+    // 虚拟族人也成家生子：宗族里继承一方性别(男系宗族看男子，女系看女子)的正支成年人，
+    // 18~40 岁每年有 BirthChance 的机会添一名虚拟子女(在世子女不超过 MaxChildren)，记入族谱；
+    // 孩子算在所在城的背景人口里(人口的生育已由人口数据层结算，这里只是给族谱记上名字)
+    private const int BirthMinAge = 18;
+    private const int BirthMaxAge = 40;
+    private const float BirthChance = 0.09f;
+    private const int MaxChildren = 4;
+    // 宗族在世人数(含虚拟族人)达到这个数就不再添丁，免得一代代按指数增长
+    private const int MaxClanAlive = 30;
+    // 统治世系的宗族(皇族本宗与诸王各支)上限放宽，支脉才能一代代传下去
+    private const int MaxRulingClanAlive = 80;
+    // 宗室(统治世系)多妻妾，生得多：每年机会、子女上限、生育年龄上限都放宽(各支再按 MaxRulingClanAlive 封顶，
+    // 人多了靠别子为祖、五服分支分出去，见 ClanBranchSystem)
+    private const float RoyalBirthChance = 0.16f;
+    private const int RoyalMaxChildren = 8, RoyalBirthMaxAge = 50;
+
+    // 世家(见 GentrySystem)：妻妾多、子嗣多，生育按宗室与平民之间(用户 2026-10-27："世家……经常绝嗣"——
+    // 平民的生法每代平均只留下约一个儿子，世家几代就断)
+    private const float GentryBirthChance = 0.14f;
+    private const int GentryMaxChildren = 6, GentryBirthMaxAge = 45, MaxGentryClanAlive = 50;
+
+#if EC_PENDING
+    private static void TryBirth(PersonalClanIdentity parent)
+    {
+        if (!CityPopulationSystem.AbstractPopulationEnabled || !parent.is_main || !parent.IsHeirPriority()) return;
+        SpecificClan clan = parent._specificClan;
+        if (clan == null) return;
+        bool royal = IsRulingLineage(clan);
+        bool gentry = !royal && clan.gentry;
+        int age = parent.age;
+        if (age < BirthMinAge || age > (royal ? RoyalBirthMaxAge : gentry ? GentryBirthMaxAge : BirthMaxAge) ||
+            EcRandom.value >= (royal ? RoyalBirthChance : gentry ? GentryBirthChance : BirthChance)) return;
+        int living = parent.children.Count(id => SpecificClanManager.getPerson(id)?.is_alive == true);
+        if (living >= (royal ? RoyalMaxChildren : gentry ? GentryMaxChildren : MaxChildren)) return;
+        int alive = clan.SnapshotPeople().Count(person => person.is_alive);
+        if (alive >= MaxRulingClanAlive || alive >= (gentry ? MaxGentryClanAlive : MaxClanAlive) && !royal) return;
+        double now = GameClock.Now;
+        var child = new PersonalClanIdentity
+        {
+            id = OverallHelperFunc.IdGenerator.NextId(),
+            specific_clan_id = clan.id,
+            actor_id = -1L,
+            is_alive = true,
+            is_virtual = true,
+            virtual_since = now,
+            virtual_city_id = parent.virtual_city_id,
+            recordedAge = 0,
+            birthday = Date.getDate(now),
+            sex = EcRandom.value < 0.5f ? ActorSex.Male : ActorSex.Female,
+            species = parent.species,
+            culture = parent.culture,
+            generation = parent.generation + 1,
+            is_main = true
+        };
+        if (parent.isMale()) child.father = parent.id;
+        else child.mother = parent.id;
+        child.name = ChildName(clan, child, parent);
+        clan.Upsert(child);
+        SpecificClanManager._globalPersonLookup[child.id] = child;
+        parent.children.Add(child.id);
+        VirtualIds.Add(child.id);
+    }
+#endif
+
+    // 过继(世家无男丁可承，见 GentrySystem.TryAdopt)：有支脉、旁系里未成年或年轻的男丁(不是本支的继承人)就把他过继过来，
+    // 记为养父之子(义父 father_in_law)；都没有就从族中远房记一位年轻的族子入谱。返回过继来的人
+#if EC_PENDING
+    public static PersonalClanIdentity AdoptHeir(SpecificClan clan, PersonalClanIdentity adopter, IEnumerable<SpecificClan> kin)
+    {
+        if (clan == null || adopter == null || EmpireWorld.Current == null) return null;
+        EnsureIndex();
+        PersonalClanIdentity heir = null;
+        foreach (SpecificClan branch in kin ?? Enumerable.Empty<SpecificClan>())
+        {
+            if (branch == null || branch == clan) continue;
+            List<PersonalClanIdentity> sons = branch.LivingPeople.Where(person => person.is_virtual && person.isMale() &&
+                                                                                 person.age >= 3 && person.age <= 25).ToList();
+            // 本支至少留一个男丁
+            if (sons.Count < 2) continue;
+            heir = sons.OrderBy(person => person.age).First();
+            SpecificClanManager.MoveToClan(heir, clan);
+            break;
+        }
+        if (heir == null)
+        {
+            double now = GameClock.Now;
+            int years = EcRandom.Range(6, 19);
+            heir = new PersonalClanIdentity
+            {
+                id = OverallHelperFunc.IdGenerator.NextId(),
+                specific_clan_id = clan.id,
+                actor_id = -1L,
+                is_alive = true,
+                is_virtual = true,
+                virtual_since = now,
+                virtual_city_id = adopter.virtual_city_id > 0 ? adopter.virtual_city_id : adopter._actor?.city?.data?.id ?? -1L,
+                recordedAge = years,
+                birthday = Date.getDate(now - years * 60d),
+                sex = ActorSex.Male,
+                species = adopter.species,
+                culture = adopter.culture,
+                generation = adopter.generation + 1,
+                is_main = true
+            };
+            heir.name = ChildName(clan, heir, adopter);
+            clan.Upsert(heir);
+            SpecificClanManager._globalPersonLookup[heir.id] = heir;
+            VirtualIds.Add(heir.id);
+        }
+        heir.father_in_law = adopter.id;
+        return heir;
+    }
+#endif
+
+    // 世家本宗凋尽而族众还在(见 GentrySystem.Revive)：族中远支记一位成年族人入谱为宗子，
+    // 照谱上辈分最晚的族人取姓、文化、物种、辈分，住郡望之城。返回入谱的人
+#if EC_PENDING
+    public static PersonalClanIdentity RecordKinsman(SpecificClan clan, City city)
+    {
+        if (clan == null || city?.Record == null || EmpireWorld.Current == null) return null;
+        EnsureIndex();
+        PersonalClanIdentity last = clan.SnapshotPeople().Where(person => person != null && person.is_main)
+            .OrderByDescending(person => person.generation).FirstOrDefault();
+        if (last == null) return null;
+        double now = GameClock.Now;
+        int years = EcRandom.Range(22, 41);
+        var kinsman = new PersonalClanIdentity
+        {
+            id = OverallHelperFunc.IdGenerator.NextId(),
+            specific_clan_id = clan.id,
+            actor_id = -1L,
+            is_alive = true,
+            is_virtual = true,
+            virtual_since = now,
+            virtual_city_id = city.Key,
+            recordedAge = years,
+            birthday = Date.getDate(now - years * 60d - EcRandom.Range(0, 12) * 5d),
+            sex = clan.isMalePriority() ? ActorSex.Male : ActorSex.Female,
+            species = last.species,
+            culture = last.culture,
+            generation = last.generation,
+            is_main = true
+        };
+        kinsman.name = ChildName(clan, kinsman, last);
+        clan.Upsert(kinsman);
+        SpecificClanManager._globalPersonLookup[kinsman.id] = kinsman;
+        VirtualIds.Add(kinsman.id);
+        return kinsman;
+    }
+#endif
+
+    // 宗室添丁(无小人、纯净地图模式，见 RoyalHouseSystem)：在位君主、储君的子女直接记入族谱为虚拟子嗣，不生出实体；
+    // 继位、分封等需要时再落成(见 RealizeHeir、EmpireCraftKingdomBehCheckHeir)。不受宗族在世人数上限限制
+#if EC_PENDING
+    public static bool AddRoyalChild(Person royal, Person consort)
+    {
+        PersonalClanIdentity parent = royal?.GetPersonalIdentity();
+        SpecificClan clan = parent?._specificClan;
+        if (parent == null || clan == null || EmpireWorld.Current == null) return false;
+        EnsureIndex();
+        double now = GameClock.Now;
+        City city = royal.City ?? royal.Realm?.Capital;
+        var child = new PersonalClanIdentity
+        {
+            id = OverallHelperFunc.IdGenerator.NextId(),
+            specific_clan_id = clan.id,
+            actor_id = -1L,
+            is_alive = true,
+            is_virtual = true,
+            virtual_since = now,
+            virtual_city_id = city?.data?.id ?? -1L,
+            recordedAge = 0,
+            birthday = Date.getDate(now),
+            sex = EcRandom.value < 0.5f ? ActorSex.Male : ActorSex.Female,
+            species = !string.IsNullOrEmpty(parent.species) ? parent.species : royal.asset?.id,
+            culture = parent.culture,
+            generation = parent.generation + 1,
+            is_main = true
+        };
+        PersonalClanIdentity other = consort?.GetPersonalIdentity();
+        if (royal.Record.sex == ActorSex.Female)
+        {
+            child.mother = parent.id;
+            if (other != null) child.father = other.id;
+        }
+        else
+        {
+            child.father = parent.id;
+            if (other != null) child.mother = other.id;
+        }
+        child.name = ChildName(clan, child, parent);
+        clan.Upsert(child);
+        SpecificClanManager._globalPersonLookup[child.id] = child;
+        parent.children.Add(child.id);
+        if (other != null && other != parent) other.children.Add(child.id);
+        VirtualIds.Add(child.id);
+        return true;
+    }
+#endif
+
+    // 开国之君的家室(无小人、纯净地图模式)：改朝换代的第一位皇帝多半是年过半百的权臣、宿将，族谱里却往往只有他一人
+    // (从人口里落成，或宗族刚为他新立)——身后"皇族已无可立之人"，群臣议立外姓，又换一朝(玩家日志里一百七十年换了
+    // 三十五次宗族，开国雄主的统一大业也跟着断)。开国时族里没有两个成年男丁的，按他的年纪补记几个已成年的儿子
+    // (年长的儿子膝下再补孙辈)，虚拟入谱，继位、分封时再落成
+    private const int FounderHeirMinAge = 36;
+
+#if EC_PENDING
+    public static int EnsureFounderHouse(Person founder)
+    {
+        if (!CityPopulationSystem.AbstractPopulationEnabled || founder?.Record == null || EmpireWorld.Current == null) return 0;
+        PersonalClanIdentity self = founder.GetPersonalIdentity();
+        SpecificClan clan = self?._specificClan;
+        int age = founder.Age();
+        if (self == null || clan == null || age < FounderHeirMinAge) return 0;
+        EnsureIndex();
+        int adults = clan.SnapshotPeople().Count(person => person != self && person.is_alive && person.isMale() && person.age >= 16);
+        if (adults >= 2) return 0;
+        double now = GameClock.Now;
+        City city = founder.City ?? founder.Realm?.Capital;
+        string species = !string.IsNullOrEmpty(self.species) ? self.species : founder.asset?.id;
+        int sons = age >= 50 ? 3 : 2, added = 0;
+        int fatherAge = 19 + EcRandom.Range(0, 8);
+        for (int i = 0; i < sons && fatherAge <= age - 16; i++)
+        {
+            int sonAge = age - fatherAge;
+            PersonalClanIdentity son = AddGrownChild(clan, self, sonAge, city, species, now);
+            added++;
+            int at = 20 + EcRandom.Range(0, 6);
+            for (int j = 0; j < 2 && sonAge >= 38 && at <= sonAge - 16; j++)
+            {
+                AddGrownChild(clan, son, sonAge - at, city, species, now);
+                added++;
+                at += 3 + EcRandom.Range(0, 4);
+            }
+            fatherAge += 2 + EcRandom.Range(0, 5);
+        }
+        if (added > 0) LogService.LogInfo($"[EmpireCraft][开国补嗣] {founder.FullName()}({age}岁) 族谱里没有成年男丁，补记子孙 {added} 人");
+        return added;
+    }
+#endif
+
+    // 剧本开局的年轻皇帝(用户 2026-11-04 转玩家"一开局皇帝就死了""国号也给换了")：剧本只写了本人的，够不上开国补嗣的年纪
+    // (FounderHeirMinAge)，族里只有他一个，身后皇族绝嗣、裂土换姓改国号(日志里遮娄其开局第 3 年、瞿折罗第 8 年)。
+    // 族里没有别的男丁的按他的年纪补记一两个未必成年的儿子，虚拟入谱
+#if EC_PENDING
+    public static int EnsureYoungRulerHouse(Person ruler)
+    {
+        if (!CityPopulationSystem.AbstractPopulationEnabled || ruler?.Record == null || EmpireWorld.Current == null) return 0;
+        PersonalClanIdentity self = ruler.GetPersonalIdentity();
+        SpecificClan clan = self?._specificClan;
+        int age = ruler.Age();
+        if (self == null || clan == null || age >= FounderHeirMinAge) return 0;
+        EnsureIndex();
+        if (clan.SnapshotPeople().Any(person => person != self && person.is_alive && person.isMale())) return 0;
+        double now = GameClock.Now;
+        City city = ruler.City ?? ruler.Realm?.Capital;
+        string species = !string.IsNullOrEmpty(self.species) ? self.species : ruler.asset?.id;
+        int added = 0;
+        for (int years = age - 18 - EcRandom.Range(0, 4); added < 2 && years >= 1; years -= 2 + EcRandom.Range(0, 4))
+        {
+            AddGrownChild(clan, self, years, city, species, now);
+            added++;
+        }
+        if (added > 0) LogService.LogInfo($"[EmpireCraft][开国补嗣] {ruler.FullName()}({age}岁) 剧本开局族里只有他一人，补记子嗣 {added} 人");
+        return added;
+    }
+
+    private static PersonalClanIdentity AddGrownChild(SpecificClan clan, PersonalClanIdentity parent, int years, City city,
+        string species, double now)
+    {
+        var child = new PersonalClanIdentity
+        {
+            id = OverallHelperFunc.IdGenerator.NextId(),
+            specific_clan_id = clan.id,
+            actor_id = -1L,
+            is_alive = true,
+            is_virtual = true,
+            virtual_since = now,
+            virtual_city_id = city?.data?.id ?? parent.virtual_city_id,
+            recordedAge = years,
+            // 一年 60 秒、一月 5 秒；生日落在 years 年前再往前几个月
+            birthday = Date.getDate(now - years * 60d - EcRandom.Range(0, 12) * 5d),
+            sex = ActorSex.Male,
+            species = species,
+            culture = parent.culture,
+            generation = parent.generation + 1,
+            is_main = true
+        };
+        if (parent.isMale()) child.father = parent.id;
+        else child.mother = parent.id;
+        child.name = ChildName(clan, child, parent);
+        clan.Upsert(child);
+        SpecificClanManager._globalPersonLookup[child.id] = child;
+        parent.children.Add(child.id);
+        VirtualIds.Add(child.id);
+        return child;
+    }
+
+    private static string ChildName(SpecificClan clan, PersonalClanIdentity child, PersonalClanIdentity parent)
+    {
+        // 字表偶尔起出空名(世系里只剩一个"曹")：换个种子再起几次
+        string given = "";
+        for (int attempt = 0; attempt < 5 && string.IsNullOrWhiteSpace(given); attempt++)
+        {
+            string generated = CultureService.GenerateCulturalName(MetaType.Unit, child.id + attempt, parent.culture, child.sex);
+            string[] parts = (generated ?? "").SplitNameParts();
+            given = parts.Length > 0 ? parts[parts.Length - 1] : generated ?? "";
+        }
+        child.given_name = given;
+        child.surname = SurnameInheritanceSystem.SurnameOf(parent);
+        if (string.IsNullOrWhiteSpace(child.surname)) child.surname = clan.name;
+        return string.IsNullOrWhiteSpace(child.surname) ? given
+            : OnomasticsRule.ALL_CULTURE_RULE.TryGetValue(parent.culture ?? "", out var rule) &&
+              rule?.Unit?.is_invert == true
+                ? OverallHelperFunc.JoinNameParts(given, child.surname)
+                : OverallHelperFunc.JoinNameParts(child.surname, given);
+    }
+
+    private static void Die(PersonalClanIdentity person)
+    {
+        SettleStoredEstate(person);
+        bool titled = person.ownedTitleNames?.Count > 0 || !string.IsNullOrWhiteSpace(person.officeName);
+        float roll = EcRandom.value;
+        float assassination = AssassinationChance * (titled ? 2f : 1f);
+        string cause = roll < assassination ? "assassinated" : roll < assassination + IllnessChance ? "illness" : "natural";
+        person.recordedAge = person.age;
+        person.is_alive = false;
+        person.is_virtual = false;
+        person.deathday = Date.getDate(GameClock.Now);
+        // 虚拟族人里的藩王身后定谥(遇刺算死于非命)
+        PrinceLineage.OnPrinceDied(person, cause == "assassinated");
+        if (!person.death_history_recorded)
+        {
+            person.death_history_recorded = true;
+            person.RecordPersonalHistory(string.Format(LM.Get($"virtual_person_death_{cause}"), person.recordedAge),
+                eventKey: BiographySystem.DeathKey, major: true);
+        }
+        VirtualIds.Remove(person.id);
+        // 这个人原本算在所在城的背景人口里
+        City city = person.virtual_city_id > 0 ? EmpireWorld.Current.CityByKey(person.virtual_city_id) : null;
+        if (city != null) CityPopulationSystem.RemovePerson(city, person.species, person.culture);
+        try
+        {
+            person._specificClan?.checkDispose();
+        }
+        catch (Exception exception)
+        {
+            LogService.LogWarning($"[EmpireCraft] 虚拟族人身故后整理宗族失败: {exception.Message}");
+        }
+    }
+#endif
+}
+}

@@ -1,0 +1,141 @@
+// Ported from the EmpireCraft mod: Scripts/GeneralSystems/ModernTitleCentralization.cs @ 64c66e30. Body kept line-for-line for three-way sync;
+// see Port/manifest.json and Tools/PortTool.
+using System.Collections.Generic;
+using System.Linq;
+
+namespace EmpireCraft.Core
+{
+
+// 现代国家的法理一律归中央：
+//   · 成员国(省、州、自治州)不持有王国法理，只受托管理其都城所在的法理(行政授权，见 KingdomExtension.SetAdministrativeTitle)，
+//     国名用该法理的省份名——无论这个成员国原先有没有法理；
+//   · 成员国原来的主法理、其首领名下的法理，全部转到中央元首名下；元首更替时随之转给新元首；
+//   · 成员国脱离(独立、叛乱)后不再是行政区，授权随之失效；它要取得那片法理，得按常规法理规则实际控制该地区。
+// 成员国在国内不能再取得主法理(SetMainTitle 拦下，见 BlocksMemberMainTitle)。
+// 每年由 ConstitutionalEconomySystem 的年度结算调用。
+public static class ModernTitleCentralization
+{
+    private static readonly HashSet<KingdomType> ModernDivisionTypes = new()
+        { KingdomType.Modern_province, KingdomType.Modern_state, KingdomType.Modern_autonomous_prefecture };
+
+#if EC_PENDING
+    public static bool IsModernState(Empire empire) =>
+        empire?.CoreKingdom != null && !empire.IsGone() && !empire.IsArchived() &&
+        empire.CoreKingdom.GetRegime()?.type == RegimeType.Modern;
+#endif
+
+    // 现代国家的成员国：王国法理归中央，自己只受托管理
+#if EC_PENDING
+    public static bool IsModernMember(Realm kingdom)
+    {
+        if (kingdom == null || kingdom.IsGone() || kingdom.IsEmpire() || !kingdom.IsInEmpire()) return false;
+        return IsModernState(kingdom.GetEmpire());
+    }
+#endif
+
+    // 省、州、自治州是现代国家的行政区(与律令制的道、节度使同类：受托管理法理，用法理的省份名)
+#if EC_PENDING
+    public static bool IsModernDivisionType(Realm kingdom) =>
+        IsModernMember(kingdom) && ModernDivisionTypes.Contains(kingdom.GetKingdomType());
+
+    public static bool BlocksMemberMainTitle(Realm kingdom) => IsModernMember(kingdom);
+
+    public static void Update(Empire empire)
+    {
+        if (!IsModernState(empire)) return;
+        Realm core = empire.CoreKingdom;
+        Person head = empire.Emperor ?? core.Ruler;
+        if (head == null || head.IsGone()) return;
+        var centralTitles = new HashSet<KingdomTitle>();
+        KingdomTitle coreTitle = core.GetMainTitle();
+        if (coreTitle != null) centralTitles.Add(coreTitle);
+
+        foreach (Realm member in empire.kingdoms_list.ToList())
+        {
+            if (member == null || member.IsGone() || member == core) continue;
+            // 成员国的主法理收归中央，改为受托管理
+            KingdomTitle held = member.GetMainTitle();
+            if (held != null && !held.IsGone())
+            {
+                member.RemoveMainTitle();
+                centralTitles.Add(held);
+                member.SetAdministrativeTitle(held);
+            }
+            // 成员国首领名下的其他法理也归中央
+            Person ruler = member.Ruler;
+            List<long> owned = ruler?.GetOwnedTitle();
+            if (owned != null)
+                foreach (long id in owned.ToList())
+                {
+                    KingdomTitle title = ModClass.KINGDOM_TITLE_MANAGER.get(id);
+                    if (title != null && !title.IsGone()) centralTitles.Add(title);
+                }
+            // 没有法理的成员国也受托管理都城所在的法理，国名用它的省份名
+            if (member.GetMainTitle() == null && member.GetAdministrativeTitle() == null)
+            {
+                KingdomTitle capitalTitle = member.GetCapitalDeJureTitle();
+                if (capitalTitle != null) member.SetAdministrativeTitle(capitalTitle);
+            }
+            KingdomTitle administered = member.GetAdministrativeTitle();
+            if (administered != null) centralTitles.Add(administered);
+        }
+        // 前任元首(仍在中央)名下的法理转给现任
+        foreach (KingdomTitle title in ModClass.KINGDOM_TITLE_MANAGER.list.ToList())
+        {
+            if (title == null || title.IsGone() || title.owner == null || title.owner == head) continue;
+            if (!title.owner.IsGone() && title.owner.Realm == core) centralTitles.Add(title);
+        }
+        foreach (KingdomTitle title in centralTitles) GiveToHead(title, head);
+        AssignUntitledCities(empire);
+    }
+#endif
+
+    // 现代国家里新建(或毁城后重建)的城市没有法理：成员国不能再建法理、中央主法理又常常满员，
+    // 这些城市会一直游离在法理之外。每年把它们编入所在行政区受托管理的法理(核心国编入主法理)，
+    // 满员或没有时编入相邻城市所在、仍有空位的法理(优先同国，其次同一国家的其他行政区)。
+    // 只收编无法理的城市，不改动已有法理的归属，因此冻结法理时同样适用。
+#if EC_PENDING
+    private static void AssignUntitledCities(Empire empire)
+    {
+        foreach (Realm kingdom in empire.kingdoms_list.ToList())
+        {
+            if (kingdom?.Cities == null || kingdom.IsGone()) continue;
+            KingdomTitle own = kingdom.GetMainTitle() ?? kingdom.GetAdministrativeTitle();
+            foreach (City city in kingdom.Cities.ToList())
+            {
+                if (city == null || city.IsGone() || city.hasTitle()) continue;
+                KingdomTitle target = own != null && !own.IsGone() && KingdomTitleManager.HasRoomFor(own)
+                    ? own
+                    : NeighbourTitle(city, kingdom, empire);
+                target?.addCity(city);
+            }
+        }
+    }
+
+    private static KingdomTitle NeighbourTitle(City city, Realm kingdom, Empire empire)
+    {
+        KingdomTitle fallback = null;
+        foreach (City neighbour in city.neighbours_cities.ToList())
+        {
+            if (neighbour == null || neighbour.IsGone() || !neighbour.hasTitle()) continue;
+            KingdomTitle title = neighbour.GetTitle();
+            if (title == null || title.IsGone() || !KingdomTitleManager.HasRoomFor(title)) continue;
+            if (neighbour.Realm == kingdom) return title;
+            if (fallback == null && neighbour.Realm != null && neighbour.Realm.GetEmpire() == empire)
+                fallback = title;
+        }
+        return fallback;
+    }
+#endif
+
+    // 只挪归属名单，不走 Person.removeTitle(那会连带改动旧主人所在王国的主法理、甚至脱离帝国)
+#if EC_PENDING
+    private static void GiveToHead(KingdomTitle title, Person head)
+    {
+        if (title == null || title.data == null || title.owner == head) return;
+        title.owner?.GetOwnedTitle()?.Remove(title.data.id);
+        head.AddOwnedTitle(title);
+    }
+#endif
+}
+}

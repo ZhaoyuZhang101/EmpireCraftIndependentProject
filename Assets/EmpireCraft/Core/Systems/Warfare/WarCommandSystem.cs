@@ -1,0 +1,334 @@
+// Ported from the EmpireCraft mod: Scripts/GeneralSystems/Warfare/WarCommandSystem.cs @ 64c66e30. Body kept line-for-line for three-way sync;
+// see Port/manifest.json and Tools/PortTool.
+using Mathf = EmpireCraft.Core.EcMath;
+using System.Collections.Generic;
+using System.Linq;
+
+namespace EmpireCraft.Core
+{
+
+// 战时临时职位：一国(帝国按中央算)谋划开战或卷入战争时拜统帅与粮草官，太平(不再交战、也不再谋划开战)时罢去——
+//   · 统帅：挑兵略最好的人(在任官员、宗室优先；君主兵略最好时御驾亲征)。本国各军攻守兵力按其兵略加成
+//     (兵略每点 +0.8%，最多 +20%，见 FrontSystem.ResolveCity)；就地征粮由统帅发起(见 LogisticsSystem)；
+//   · 粮草官：挑治事最好的人(不选君主与统帅)。补给按其治事加成(每点 +1%，最多 +20%)，军粮按其治事省一些(每点 0.8%，最多两成)。
+// 官名按时代、文化与这仗的性质定，写在 Locales 里，本文化没配的退回制度线(Huaxia、Roma、Arabic、Youmu)，再退回通用名(generic)：
+//   统帅 war_commander_<范围>_<类别>：古代 attack 出征、annex 吞并之战、defend 守土、rebellion 平叛(含讨伐不臣)、
+//        barbarian 征讨异族、raid 劫掠(annex、barbarian、raid 没配时按 attack)；现代 modern / modern_defend / modern_rebellion；
+//   粮草官 war_quartermaster_<范围>_<ancient 或 modern>。
+public static class WarCommandSystem
+{
+    private const float PerWarfare = 0.008f;
+    private const float MaxBonus = 0.2f;
+    private const float SupplyPerStewardship = 0.01f;
+    private const float SavingPerStewardship = 0.008f;
+
+    private static readonly HashSet<EmpireWarType> Rebellions = new()
+    {
+        EmpireWarType.派系叛乱, EmpireWarType.地方叛乱, EmpireWarType.民族叛乱, EmpireWarType.宗教叛乱,
+        EmpireWarType.地方独立, EmpireWarType.附庸独立, EmpireWarType.清君侧
+    };
+
+    // 讨伐不臣：中央是攻方，同样算平叛
+    private static readonly HashSet<EmpireWarType> Punitive = new() { EmpireWarType.伐不臣, EmpireWarType.不奉诏 };
+
+#if EC_PENDING
+    private static Realm ModRealm(Realm kingdom) => FrontSystem.Realm(kingdom);
+
+    private static Person Living(long id)
+    {
+        Person actor = id >= 0 ? EmpireWorld.Current?.units?.get(id) : null;
+        return actor?.Record != null && !actor.IsGone() && actor.Alive ? actor : null;
+    }
+
+    public static Person Commander(Realm kingdom)
+    {
+        Realm realm = ModRealm(kingdom);
+        return realm?.Record == null ? null : Living(realm.GetOrCreate().war_commander_id);
+    }
+
+    public static Person Quartermaster(Realm kingdom)
+    {
+        Realm realm = ModRealm(kingdom);
+        return realm?.Record == null ? null : Living(realm.GetOrCreate().war_quartermaster_id);
+    }
+
+    public static string TitleOf(Realm kingdom)
+    {
+        Realm realm = ModRealm(kingdom);
+        string key = realm?.Record == null ? null : realm.GetOrCreate().war_commander_title;
+        return string.IsNullOrEmpty(key) ? "" : LM.Get(key);
+    }
+
+    public static string QuartermasterTitleOf(Realm kingdom)
+    {
+        Realm realm = ModRealm(kingdom);
+        string key = realm?.Record == null ? null : realm.GetOrCreate().war_quartermaster_title;
+        return string.IsNullOrEmpty(key) ? "" : LM.Get(key);
+    }
+#endif
+
+    // 统帅对本国各军兵力的加成
+#if EC_PENDING
+    public static float Factor(Realm kingdom)
+    {
+        Person commander = Commander(kingdom);
+        return commander == null ? 1f : 1f + Mathf.Min(MaxBonus, Mathf.Max(0, commander.warfare) * PerWarfare);
+    }
+#endif
+
+    // 粮草官对补给的加成、对军粮的节省
+#if EC_PENDING
+    public static float QuartermasterSupply(Realm kingdom)
+    {
+        Person quartermaster = Quartermaster(kingdom);
+        return quartermaster == null ? 0f : Mathf.Min(MaxBonus, Mathf.Max(0, quartermaster.stewardship) * SupplyPerStewardship);
+    }
+
+    public static float QuartermasterSaving(Realm kingdom)
+    {
+        Person quartermaster = Quartermaster(kingdom);
+        return quartermaster == null ? 0f : Mathf.Min(MaxBonus, Mathf.Max(0, quartermaster.stewardship) * SavingPerStewardship);
+    }
+#endif
+
+    // 每月(CorpsSystem 月度结算里逐国调用；开战时 WarGoalSystem 也立即调一次)：交战或谋划开战、缺人的补拜；太平了罢去
+#if EC_PENDING
+    public static void MonthTick(Realm kingdom)
+    {
+        if (kingdom?.Record == null || kingdom.IsGone() || ModRealm(kingdom) != kingdom) return;
+        var data = kingdom.GetOrCreate();
+        bool war = kingdom.hasEnemies() || CityPopulationSystem.IsMobilizing(kingdom);
+        if (!war)
+        {
+            if (data.war_commander_id >= 0 || data.war_quartermaster_id >= 0) Dismiss(kingdom);
+            return;
+        }
+        Person commander = Living(data.war_commander_id);
+        if (commander == null || commander.Realm != kingdom) Appoint(kingdom);
+        Person quartermaster = Living(data.war_quartermaster_id);
+        if (quartermaster == null || quartermaster.Realm != kingdom || quartermaster.Key == data.war_commander_id)
+            AppointQuartermaster(kingdom);
+    }
+
+    public static void Appoint(Realm kingdom)
+    {
+        if (kingdom?.Record == null || kingdom.IsGone() || kingdom.units == null) return;
+        Person pick = Best(kingdom, actor => actor.warfare, -1L);
+        // 君主兵略最好(或无人可用)时御驾亲征；幼主、被挟制的不亲征，帝国的辅政权臣兵略够就由他挂帅
+        Person king = kingdom.Ruler;
+        Empire empire = kingdom.GetEmpire();
+        bool sidelined = RealisticAgeSystem.IsMinor(king) || empire?.CoreKingdom == kingdom && empire.data.is_been_controlled;
+        if (king?.Record != null && !king.IsGone() && king.Alive && !sidelined &&
+            (pick == null || king.warfare >= pick.warfare)) pick = king;
+        Person regent = sidelined && empire?.CoreKingdom == kingdom ? empire.GetPowerfulMinister() : null;
+        if (regent?.Record != null && !regent.IsGone() && regent.Alive && regent.Realm == kingdom && !RealisticAgeSystem.IsMinor(regent) &&
+            (pick == null || regent.warfare >= pick.warfare)) pick = regent;
+        if (pick == null) return;
+        var data = kingdom.GetOrCreate();
+        data.war_commander_id = pick.Key;
+        data.war_commander_title = TitleKey(kingdom, MainWar(kingdom));
+        Announce(kingdom, pick, LM.Get(data.war_commander_title), "war_commander_appointed");
+    }
+
+    private static void AppointQuartermaster(Realm kingdom)
+    {
+        if (kingdom?.Record == null || kingdom.IsGone() || kingdom.units == null) return;
+        var data = kingdom.GetOrCreate();
+        Person pick = Best(kingdom, actor => actor.stewardship, data.war_commander_id);
+        if (pick == null) return;
+        data.war_quartermaster_id = pick.Key;
+        data.war_quartermaster_title = QuartermasterKey(kingdom);
+        Announce(kingdom, pick, LM.Get(data.war_quartermaster_title), "war_quartermaster_appointed");
+    }
+#endif
+
+    // 本国成年人里某项能力最好的(在任官员 +3、贵族 +2)，不选君主与 exclude
+#if EC_PENDING
+    private static Person Best(Realm kingdom, global::System.Func<Person, int> skill, long exclude)
+    {
+        Person pick = null;
+        float best = float.MinValue;
+        foreach (Person actor in kingdom.units)
+        {
+            if (actor?.Record == null || actor.IsGone() || !actor.Alive || !actor.IsAdult() || actor.IsRuler() ||
+                actor.Key == exclude || actor.asset == null || !actor.asset.civ || CityPopulationSystem.IsVehicle(actor)) continue;
+            float score = skill(actor) + (actor.IsOnOffice() ? 3f : 0f) + (EmpireCaftActorJudgeClass.IsNoble(actor) ? 2f : 0f);
+            if (score <= best) continue;
+            best = score;
+            pick = actor;
+        }
+        return pick;
+    }
+#endif
+
+    // 同一个人再被拜同一职(战事停了又起、罢了又拜)不再报
+    private static readonly Dictionary<(long, string), long> Announced = new();
+
+#if EC_PENDING
+    private static void Announce(Realm kingdom, Person actor, string title, string logKey)
+    {
+        if (Announced.TryGetValue((kingdom.Key, logKey), out long last) && last == actor.Key) return;
+        if (Announced.Count > 2000) Announced.Clear();
+        Announced[(kingdom.Key, logKey)] = actor.Key;
+        TranslateHelper.LogEventOnly(string.Format(LM.Get(logKey), kingdom.GetKingdomName(), actor.FullName(), title), kingdom);
+        actor.RecordPersonalHistory(string.Format(LM.Get("personal_history_war_commander"), kingdom.GetKingdomName(), title));
+    }
+
+    private static void Dismiss(Realm kingdom)
+    {
+        var data = kingdom.GetOrCreate();
+        foreach ((long id, string title) in new[] { (data.war_commander_id, data.war_commander_title),
+                     (data.war_quartermaster_id, data.war_quartermaster_title) })
+        {
+            Person former = Living(id);
+            if (former != null && !string.IsNullOrEmpty(title))
+                former.RecordPersonalHistory(string.Format(LM.Get("personal_history_war_commander_dismissed"), LM.Get(title)));
+        }
+        data.war_commander_id = -1L;
+        data.war_commander_title = "";
+        data.war_quartermaster_id = -1L;
+        data.war_quartermaster_title = "";
+    }
+#endif
+
+    // 这国眼下主打的那场仗(主攻或主守优先)；只在谋划开战时为 null
+#if EC_PENDING
+    private static War MainWar(Realm kingdom)
+    {
+        War fallback = null;
+        foreach (War war in kingdom.getWars())
+        {
+            if (war?.data == null || war.hasEnded()) continue;
+            if (war.main_attacker == kingdom || war.main_defender == kingdom) return war;
+            fallback ??= war;
+        }
+        return fallback;
+    }
+
+    private static string Kind(Realm kingdom, War war)
+    {
+        bool attacking = war == null || war.isAttacker(kingdom);
+        EmpireWarType type = war?.GetEmpireWarType() ?? EmpireWarType.None;
+        bool rebellion = war != null && (!attacking && (war.getAsset() == WarTypeLibrary.rebellion || Rebellions.Contains(type)) ||
+                                         attacking && Punitive.Contains(type));
+        if (ModernStability.IsModern(kingdom))
+            return rebellion ? "modern_rebellion" : attacking ? "modern" : "modern_defend";
+        if (rebellion) return "rebellion";
+        if (!attacking) return "defend";
+        WarGoal goal = WarGoalSystem.Get(war);
+        if (goal == WarGoal.劫掠) return "raid";
+        Realm enemy = war == null ? CityPopulationSystem.EnemyOf(kingdom) : war.main_defender;
+        string ours = CultureService.GetRealmCulture(kingdom), theirs = CultureService.GetRealmCulture(enemy);
+        // 蛮夷之战按天下(见 CultureService.SameKin)不按制度线：同一线里的异族(法兰克打林地部族)也算，同一天下的不算
+        if (type == EmpireWarType.攘夷 || CultureService.IsValidCulture(ours) && CultureService.IsValidCulture(theirs) &&
+            !CultureService.SameKin(ours, theirs)) return "barbarian";
+        return goal == WarGoal.吞并 ? "annex" : "attack";
+    }
+#endif
+
+    // 凯旋受赏(群友 2026-11-22 "集结规模十万及以上主将为大元帅，获胜赐爵，可册封名将")：一场仗打赢了(议和不算)，
+    // 胜方主战之国的统帅——
+    //   · 记一笔军功名望(TriumphRenown，按军中兵数加到三倍)；
+    //   · 十万之师(WarMuster.GrandHost)的统帅：朝廷有空着的虚封爵位就赐一个(武爵在前)；这一国的名将不满 TriumphFamousCap 位、
+    //     他自己还不是名将的，册为名将(FamousTalentSystem.Bestow)。
+    // 君主亲征的不自封；已经有爵的不再赐。
+    private const float TriumphRenown = 30f;
+    private const int TriumphFamousCap = 3;
+
+#if EC_PENDING
+    public static void OnWarEnded(War war, WarWinner winner)
+    {
+        if (!CorpsSystem.Enabled || war?.data == null) return;
+        Realm main = winner == WarWinner.Attackers ? war.main_attacker : winner == WarWinner.Defenders ? war.main_defender : null;
+        if (main?.Record == null || main.IsGone()) return;
+        try
+        {
+            Realm realm = ModRealm(main) ?? main;
+            Person commander = Commander(realm);
+            if (commander == null || commander == realm.Ruler) return;
+            float host = Host(realm);
+            RenownSystem.OnBattle(commander, TriumphRenown * Mathf.Clamp(host / 20000f, 0.5f, 3f));
+            Realm foe = winner == WarWinner.Attackers ? war.main_defender : war.main_attacker;
+            string title = TitleOf(realm), foeName = foe?.GetKingdomName() ?? "";
+            if (host < WarMuster.GrandHost)
+            {
+                commander.RecordPersonalHistory(string.Format(LM.Get("personal_history_triumph"), title, foeName));
+                return;
+            }
+            string text = string.Format(LM.Get("war_triumph_history"), realm.GetKingdomName(), title, commander.FullName(), foeName);
+            Empire empire = realm.GetEmpire();
+            if (empire != null && !empire.IsGone() && !commander.HasHonoraryPeerage())
+                foreach (string key in (realm.GetRegime()?.virtual_honorary_peerages ?? new List<string>())
+                         .OrderBy(key => key.Contains("wujun") || key.Contains("zhongyong") ? 0 : 1))
+                    if (!empire.IsHonoraryPeerageReserved(key) && commander.GrantHonoraryPeerage(empire, key)) break;
+            long empireId = empire?.Key ?? -1L;
+            if (!FamousTalentSystem.IsFamous(commander) &&
+                FamousTalentSystem.Alive().Count(record => record.kind == TalentKind.General &&
+                                                           (empireId >= 0L ? record.empire_id == empireId : record.kingdom_id == realm.Key)) < TriumphFamousCap)
+                FamousTalentSystem.Bestow(commander, TalentKind.General);
+            commander.RecordPersonalHistory(string.Format(LM.Get("personal_history_triumph"), title, foeName));
+            EventRecorder.Record(realm, text, commander);
+        }
+        catch (global::System.Exception exception)
+        {
+            LogService.LogWarning($"[EmpireCraft][凯旋受赏] 结算失败: {exception.Message}");
+        }
+    }
+#endif
+
+    // 本国(帝国中央连同各成员国)军中的兵
+#if EC_PENDING
+    private static float Host(Realm kingdom)
+    {
+        Empire empire = kingdom.GetEmpire();
+        IEnumerable<Realm> sides = empire?.CoreKingdom == kingdom && empire.kingdoms_list != null
+            ? empire.kingdoms_list : new List<Realm> { kingdom };
+        float total = 0f;
+        foreach (Realm side in sides)
+        {
+            if (side?.Record == null || side.IsGone()) continue;
+            foreach (EmpireCraft.Core.CorpsData corps in CorpsSystem.Of(side))
+                if (!corps.militia) total += Mathf.Max(0f, corps.strength);
+        }
+        return total;
+    }
+
+    private static string TitleKey(Realm kingdom, War war)
+    {
+        string kind = Kind(kingdom, war);
+        // 十万之师(群友 2026-11-22 "集结规模十万及以上主将为大元帅")：寻常的进攻也用最高一档的官名
+        if (kind == "attack" && Host(kingdom) >= WarMuster.GrandHost) kind = "annex";
+        string[] kinds = kind switch
+        {
+            "annex" or "barbarian" or "raid" => new[] { kind, "attack" },
+            "modern_defend" or "modern_rebellion" => new[] { kind, "modern" },
+            _ => new[] { kind }
+        };
+        return Resolve(kingdom, "war_commander", kinds) ?? "war_commander_generic_attack";
+    }
+
+    private static string QuartermasterKey(Realm kingdom) =>
+        Resolve(kingdom, "war_quartermaster", new[] { ModernStability.IsModern(kingdom) ? "modern" : "ancient" }) ??
+        "war_quartermaster_generic_ancient";
+#endif
+
+    // 本文化 → 制度线 → 通用，找第一个配了的官名
+#if EC_PENDING
+    private static string Resolve(Realm kingdom, string prefix, string[] kinds)
+    {
+        string culture = CultureService.GetRealmCulture(kingdom);
+        string line = CultureService.IsValidCulture(culture) ? culture.GetInstitutionLine() : "";
+        foreach (string scope in new[] { culture, line, "generic" })
+        {
+            if (string.IsNullOrEmpty(scope)) continue;
+            foreach (string candidate in kinds)
+            {
+                string key = $"{prefix}_{scope}_{candidate}";
+                if (LM.Has(key)) return key;
+            }
+        }
+        return null;
+    }
+#endif
+}
+}

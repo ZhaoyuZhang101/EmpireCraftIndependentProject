@@ -519,10 +519,11 @@ def cmd_status(args):
     mod = mod_repo(args)
     manifest = load_manifest()
     now = head(mod)
-    behind = lines = 0
+    behind = lines = suspended = 0
     for entry in manifest["files"]:
         if entry.get("kind") != "data":
             lines += entry["lines"]
+            suspended += entry.get("suspended_lines", 0)
         path = entry["mod"].partition("#")[0]
         changed = changed_since(mod, entry, now)
         dirty = git(mod, "status", "--porcelain", "--", path).stdout.strip() != b""
@@ -533,8 +534,8 @@ def cmd_status(args):
         elif dirty:
             print("note   %s  has uncommitted edits in the mod working tree" % entry["mod"])
     sources = sum(1 for e in manifest["files"] if e.get("kind") != "data")
-    print("%d entries (%d source files, %d source lines, %d data files), %d behind mod HEAD %s" %
-          (len(manifest["files"]), sources, lines, len(manifest["files"]) - sources, behind, now[:8]))
+    print("%d entries (%d source files, %d source lines of which %d live and %d suspended, %d data files), %d behind mod HEAD %s" %
+          (len(manifest["files"]), sources, lines, lines - suspended, suspended, len(manifest["files"]) - sources, behind, now[:8]))
 
 
 def cmd_diff(args):
@@ -551,6 +552,7 @@ def cmd_sync(args):
     now = head(mod)
     targets = manifest["files"] if args.all else [find(manifest, p) for p in args.paths]
     conflicts = 0
+    regenerate = []
     for entry in targets:
         if entry is None:
             raise SystemExit("Not in the manifest; add it first.")
@@ -558,6 +560,10 @@ def cmd_sync(args):
             continue
         if not changed_since(mod, entry, now):
             entry["commit"] = now
+            continue
+        if entry.get("generated"):
+            # Written whole by members.py from the rules; never merged by hand.
+            regenerate.append(entry["mod"])
             continue
         if entry.get("kind") == "data":
             raw = git(mod, "show", "%s:%s" % (now, entry["mod"])).stdout
@@ -589,6 +595,8 @@ def cmd_sync(args):
         entry.update(commit=now, lines=source.count("\n"), sha256=hashlib.sha256(source.encode("utf-8")).hexdigest(),
                      ported=datetime.date.today().isoformat())
     save_manifest(manifest)
+    if regenerate:
+        print("%d generated file(s) changed in the mod; run Tools/PortTool/members.py to bring them up to date." % len(regenerate))
     if conflicts:
         raise SystemExit("%d file(s) need manual resolution." % conflicts)
 

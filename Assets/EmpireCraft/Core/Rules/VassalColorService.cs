@@ -1,0 +1,138 @@
+// Ported from the EmpireCraft mod: Scripts/GeneralSystems/VassalColorService.cs @ 64c66e30. Body kept line-for-line for three-way sync;
+// see Port/manifest.json and Tools/PortTool.
+using Time = EmpireCraft.Core.FrameClock;
+using Color = EmpireCraft.Core.EcColor;
+using ColorUtility = EmpireCraft.Core.EcColorUtility;
+using System.Collections.Generic;
+
+namespace EmpireCraft.Core
+{
+
+// 外部附属国(封建附庸、殖民地；朝贡国见下)：底色往宗主色靠一半(用户 2026-10-27 嫌"朝贡没换色"，选"底色混入宗主色"：
+// 以前只把边框换成宗主色，平滑国界下边框只有一格宽，远看看不出)，边框用宗主色，旗帜照旧是自己的：
+//   原版地图用 color_main 填色、color_main_2 描外边框(见 ZoneCalculator.drawZoneMeta)，
+//   所以给附属国一个"自己与宗主各半的 color_main + 宗主的 color_main_2 + 自己的旗帜"的合成颜色。
+//   合成颜色只放在运行时缓存 _cached_color 里，存档里的 color_id 仍是附属国自己的颜色；
+//   读档或被原版改色后由月度同步(FeudalVassalService.Sync)重新套上，独立时 KingdomColorService.Restore 清掉。
+// 朝贡国底色整个用帝国的颜色(用户 2026-10-29)，退出朝贡照样由 Restore 换回自己的颜色。
+// 殖民地(连同保护国、托管地、租借地)与傀儡也整个用宗主的颜色(用户 2026-11-10 伪满、日属朝鲜看不出是日本的)；傀儡放开时清掉。
+public static class VassalColorService
+{
+#if EC_PENDING
+    private static readonly Dictionary<string, ColorAsset> Composites = new();
+
+    public static void Apply(Realm subject, Realm lord)
+    {
+        if (subject?.Record == null || subject.IsGone() || lord?.Record == null || lord.IsGone() || subject == lord ||
+            AncientWarfareCompatibility.Owns(subject)) return;
+        var colors = subject.getColorLibrary()?.list;
+        if (colors == null || colors.Count == 0) return;
+        // 旧版把附庸整个染成宗主色：先换回自己原来的颜色
+        int own = subject.Record.color_id;
+        int original = subject.GetOrCreate().feudal_independent_color_id;
+        ColorAsset lordColor = lord.getColor();
+        if (lordColor == null) return;
+        if ((own < 0 || own >= colors.Count || colors[own] == lordColor) && original >= 0 && original < colors.Count &&
+            colors[original] != null && colors[original] != lordColor)
+        {
+            subject._cached_color = null;
+            subject.updateColor(colors[original]);
+            own = subject.Record.color_id;
+        }
+        if (own < 0 || own >= colors.Count || colors[own] == null) return;
+        // 朝贡国、殖民地、傀儡底色整个换成宗主的颜色(朝贡见用户 2026-10-29"退出朝贡才恢复")；封建附庸仍各半
+        bool full = subject.HasTakenAlliance() && subject.GetTakenAllianceEmpire()?.CoreKingdom == lord ||
+                    ColonySystem.MetropoleOf(subject) == lord || PuppetStateSystem.Master(subject) == lord;
+        ColorAsset composite = Composite(colors[own], lordColor, full ? 1f : LordBlend);
+        // 本身是帝国的傀儡(伪满)：帝国图层、帝国铭牌、帝国列表读的是帝国自己的颜色，一并换上(Empire 不改存档里的 color_id)
+        Empire empire = subject.IsEmpire() ? subject.GetEmpire() : null;
+        bool empireStale = empire != null && empire.CoreKingdom == subject && empire._cached_color != composite;
+        if (subject._cached_color == composite && !empireStale) return;
+        subject._cached_color = composite;
+        if (empireStale) empire._cached_color = composite;
+        EmpireWorld.Current?.zone_calculator?.dirtyAndClear();
+    }
+#endif
+
+    // 不再从属：去掉合成颜色，回到自己存档里的颜色
+#if EC_PENDING
+    public static void Clear(Realm subject)
+    {
+        if (subject?.Record == null) return;
+        Empire empire = subject.IsEmpire() ? subject.GetEmpire() : null;
+        bool empireComposite = empire != null && IsComposite(empire._cached_color);
+        if ((subject._cached_color == null || !IsComposite(subject._cached_color)) && !empireComposite) return;
+        if (IsComposite(subject._cached_color)) subject._cached_color = null;
+        if (empireComposite) empire._cached_color = null;
+        EmpireWorld.Current?.zone_calculator?.dirtyAndClear();
+    }
+
+    public static bool IsComposite(ColorAsset color) => color != null && Composites.ContainsValue(color);
+#endif
+
+    // 原版不少入口会重置国家颜色缓存(generateColor、读档、改色)，附庸描边会悄悄掉回原色，
+    // 等每月同步才恢复。这里每两秒轻量重申一次(国家只有几十个，挂在世界扫描轮转上)
+    private static float _nextReassert;
+
+#if EC_PENDING
+    public static void TickReassert()
+    {
+        float now = Time.unscaledTime;
+        if (now < _nextReassert || EmpireWorld.Current?.LiveRealms == null) return;
+        _nextReassert = now + 2f;
+        foreach (Realm subject in EmpireWorld.Current.LiveRealms)
+        {
+            if (subject?.Record == null || subject.IsGone()) continue;
+            Realm lord = FeudalVassalService.GetOverlord(subject);
+            if (lord == null && subject.HasTakenAlliance()) lord = subject.GetTakenAllianceEmpire()?.CoreKingdom;
+            lord ??= ColonySystem.MetropoleOf(subject);
+            lord ??= PuppetStateSystem.Master(subject);
+            if (lord == null || lord.IsGone()) continue;
+            // 已套着合成色的也再套一遍(Apply 里同一合成色直接返回)：附庸改为朝贡、朝贡改为附庸时深浅要跟着换
+            Apply(subject, lord);
+        }
+    }
+#endif
+
+    // 边框直接用宗主的主色(次色对比常常不明显)；宗主若本身也是合成颜色，主色仍是它自己的底色
+    // 底色往宗主色靠多少
+    private const float LordBlend = 0.5f;
+
+#if EC_PENDING
+    private static ColorAsset Composite(ColorAsset own, ColorAsset lord, float blend)
+    {
+        string key = own.color_main + "|" + lord.color_main + "|" + blend.ToString("0.##");
+        if (Composites.TryGetValue(key, out ColorAsset cached)) return cached;
+        var color = new ColorAsset
+        {
+            id = "vassal_" + key,
+            color_main = Blend(own.color_main, lord.color_main, blend),
+            color_main_2 = lord.color_main,
+            color_banner = own.color_banner,
+            color_text = own.color_text,
+            index_id = ColorAsset._create_last_index_id++
+        };
+        color.initColor();
+        Composites[key] = color;
+        return color;
+    }
+#endif
+
+    // 两种色值(#RRGGBB，可不带 #)按比例混合；读不出就用自己的
+#if EC_PENDING
+    private static string Blend(string own, string lord, float t)
+    {
+        if (!TryParse(own, out UnityEngine.Color a) || !TryParse(lord, out UnityEngine.Color b)) return own;
+        string mixed = UnityEngine.ColorUtility.ToHtmlStringRGB(UnityEngine.Color.Lerp(a, b, t));
+        return own.StartsWith("#") ? "#" + mixed : mixed;
+    }
+
+    private static bool TryParse(string hex, out UnityEngine.Color color)
+    {
+        color = default;
+        if (string.IsNullOrWhiteSpace(hex)) return false;
+        return UnityEngine.ColorUtility.TryParseHtmlString(hex.StartsWith("#") ? hex : "#" + hex, out color);
+    }
+#endif
+}
+}

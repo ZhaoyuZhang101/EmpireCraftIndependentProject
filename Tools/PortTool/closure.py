@@ -45,6 +45,10 @@ PROJECT = """<Project Sdk="Microsoft.NET.Sdk">
 """
 
 
+# Mod folders that keep a folder of their own in the core.
+FOLDERS = {"Layer": "Layer", "Regimes": "Regimes", "GameClassExtensions": "Extensions"}
+
+
 def destination(path):
     """Where a mod file goes below Assets/EmpireCraft/Core."""
     parts = path.split("/")            # Scripts/<Top>/[sub/...]/File.cs
@@ -55,6 +59,8 @@ def destination(path):
         folder = "Enums"
     elif top == "HelperFunc":
         folder = "Util"
+    elif top in FOLDERS:
+        folder = FOLDERS[top]
     else:
         stem = name[:-3]
         folder = "Systems" if stem.endswith("System") or "System." in stem else "Rules"
@@ -65,7 +71,7 @@ def find_set(args):
     mod = tool.mod_repo(args)
     commit = tool.git(mod, "rev-parse", "HEAD").stdout.decode().strip()
     manifest = tool.load_manifest()
-    ported = {e["mod"].partition("#")[0] for e in manifest["files"]}
+    ported = {e["mod"].partition("#")[0] for e in manifest["files"] if not e.get("generated")}
     listed = tool.git(mod, "ls-tree", "-r", "--name-only", commit, "--", *args.dirs).stdout.decode("utf-8").splitlines()
     candidates = [p for p in listed if p.endswith(".cs") and p not in ported]
     work = os.path.abspath(args.work or os.path.join(tempfile.gettempdir(), "ec_port_closure"))

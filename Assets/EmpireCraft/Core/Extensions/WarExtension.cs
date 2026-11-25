@@ -1,0 +1,347 @@
+// Ported from the EmpireCraft mod: Scripts/GameClassExtensions/WarExtension.cs @ 64c66e30. Body kept line-for-line for three-way sync;
+// see Port/manifest.json and Tools/PortTool.
+using Newtonsoft.Json.Converters;
+using Newtonsoft.Json;
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Text;
+using System.Threading.Tasks;
+#if EC_PENDING
+using NCMS.Extensions;
+#endif
+using static EmpireCraft.Core.ActorExtension;
+using static EmpireCraft.Core.ClanExtension;
+using static EmpireCraft.Core.KingdomExtension;
+
+namespace EmpireCraft.Core
+{
+public static class WarExtension
+{
+    public class WarExtraData: ExtraDataBase
+    {
+        public EmpireWarType empireWarType = EmpireWarType.None;
+        // 剧本点名的仗(开局外交、剧情事件)：头几年不因欠饷收场(见 WarGoalSystem.TrySueForPeace)
+        public bool scripted_war;
+        // 开战目标与开战时守方的都城(见 WarGoalSystem)
+        public WarGoal war_goal = WarGoal.None;
+        // 战争目标上次重算的时间，与「只升不降」(见 WarGoalSystem.Review)；locked = 玩家在外交面板点名的目标，不自动改
+        public double war_goal_reviewed_at = -1d;
+        public bool war_goal_locked;
+        // 议和台(见 PeaceTable)：上次两国自己议和的时间；那时双方打下来的本钱(得城 + 占城)，算"势头"用
+        public double peace_talks_at = -1d;
+        public int peace_momentum_attacker;
+        public int peace_momentum_defender;
+        public long war_goal_capital_id = -1L;
+#if EC_PENDING
+        public MetaType metaType = MetaType.None;
+#endif
+        public long metaID = -1L;
+        public FixedFaction belongingFaction = null;
+        // 各方参战时的城市数(帝国记帝国 id，独立王国记王国 id)：用于判断谁在这场仗里丢了城(见 WarSituation)
+        public Dictionary<long, int> initial_cities = new Dictionary<long, int>();
+        public bool history_declaration_recorded;
+        public bool history_end_recorded;
+        public RebellionCauseData rebellion_cause;
+        // 叛乱一方(攻方)最近的首领：兵败后落到朝廷手里的按律论处(见 LawEvents.OnWarEnded)；-1 = 不是叛乱或还没记
+        public long rebel_leader_id = -1L;
+        // 这场叛乱已记过叛逆的君主(主攻连同随攻的本朝诸国，见 LawEvents.TrackRebelLeader)；不是叛乱为空
+        public List<long> defiance_noted;
+        // 劫掠之战：盟主、出兵各部、抢够几城、战利品(见 NomadRaidSystem)；别的仗为空
+        public EmpireCraft.Core.RaidWarState raid;
+        // 争草场之战：两家与争的城(见 SteppeOrderSystem)；别的仗为空
+        public EmpireCraft.Core.PastureFeudState pasture;
+        // 清君侧(见 FactionPurgeSystem)：起兵的派系、要讨伐的独大派系、起兵时的京城
+        public string purge_faction_id = "";
+        public string purge_target_faction_id = "";
+        public long purge_capital_city_id = -1L;
+        public List<DefeatedEmpireHouse> attacker_empire_houses = new List<DefeatedEmpireHouse>();
+        public List<DefeatedEmpireHouse> defender_empire_houses = new List<DefeatedEmpireHouse>();
+        public List<long> defender_realm_title_ids = new List<long>();
+        public string defender_kingdom_name = "";
+        public bool royal_houses_recorded;
+        public long legitimacy_challenger_empire_id = -1L;
+        public long legitimacy_challenger_core_kingdom_id = -1L;
+        public long legitimacy_challenger_emperor_id = -1L;
+        public string legitimacy_challenger_empire_name = "";
+        public long legitimacy_defender_empire_id = -1L;
+        public long legitimacy_defender_core_id = -1L;
+        public long legitimacy_defender_core_kingdom_id = -1L;
+        public long legitimacy_defender_emperor_id = -1L;
+        public string legitimacy_defender_empire_name = "";
+        public List<long> legitimacy_defender_kingdom_ids = new List<long>();
+        public List<long> legitimacy_defender_city_ids = new List<long>();
+        public int legitimacy_initial_zone_count;
+        // 叛乱初起的集结期(月，-1 = 还没掷定)与是否已记"集结完毕"(见 MusterSystem)
+        public int muster_months = -1;
+        public bool muster_done;
+        // 制度改革叛乱快照。战争结束时即使政体/派系已经改变，仍能还原叛乱原因。
+        // 不奉诏战争：抗命的封国、它自立的嗣君、天子改立的人选。
+        public long investiture_vassal_kingdom_id = -1L;
+        public long investiture_heir_id = -1L;
+        public long investiture_replacement_id = -1L;
+        public long institution_reform_empire_id = -1L;
+        public string institution_reform_node_id = "";
+        public string institution_reform_reason_key = "";
+        public string institution_reform_sponsor_faction_id = "";
+        public string institution_reform_sponsor_name = "";
+        public string institution_reform_opposition_faction_id = "";
+        public string institution_reform_opposition_name = "";
+        public float institution_reform_support;
+        public float institution_reform_opposition;
+        public float institution_reform_radicalism;
+        public InstitutionReformStage institution_reform_stage = InstitutionReformStage.Debate;
+        public bool institution_reform_forced;
+        // 制度长期后果引发的阶层起义快照。与改革中的派系叛乱分开保存。
+        public long institution_social_rebellion_empire_id = -1L;
+        public SocialClass institution_social_rebellion_class = SocialClass.Peasant;
+        public string institution_social_rebellion_cause = "";
+        public float institution_social_rebellion_grievance;
+        public long republic_revolution_empire_id = -1L;
+        public string republic_revolution_party_id = "";
+        public string republic_revolution_party_name = "";
+        public PartyIdeology republic_revolution_ideology;
+        public long republic_revolution_leader_id = -1L;
+        public bool republic_revolution_split_realm;
+        public List<long> republic_revolution_allied_kingdom_ids = new List<long>();
+        public int republic_revolution_defected_soldiers;
+        // 旧党反扑(见 RepublicSystem.StartCounterRevolution)：冲着哪个帝国
+        public long counter_revolution_empire_id = -1L;
+        // Regional modernisation crisis: several imperial members form a defensive league,
+        // secede together and seek to found a separate republic rather than replace the centre.
+        public bool republic_regional_coalition;
+        public long republic_regional_leader_kingdom_id = -1L;
+        public long republic_regional_alliance_id = -1L;
+        // 正统崩溃时组成的互保同盟：打赢了不另立国家，而是逼原帝国退位、改行共和(辛亥式)
+        public bool republic_regional_forced_abdication;
+        // 土崩瓦解(见 ProvincialCollapseSystem)：各省陆续独立的革命战争；议和时三省以上就联合建立共和国
+        public bool republic_provincial;
+        // 圣战(见 PapacySystem.Crusade)：哪个宗教、目标类别、要收复的圣地
+        public long crusade_religion_id = -1L;
+        public int crusade_kind;
+        public long crusade_city_id = -1L;
+        // 现代革命：共和国里另一理念占主导、提前大选也没能上台的政党起兵推翻现政府(不是废君)
+        public bool republic_modern_revolution;
+        // A large industrial-era conflict is promoted to a world war once both
+        // sides contain several independent political blocs. These fields keep
+        // the announcement and settlement idempotent across saves.
+        public bool world_war;
+        // 纯净地图模式的核打击(见 NuclearDoctrineSystem.VirtualStrike)：这场战争里已挨过核弹的敌国，每国只用一次
+        public List<long> nuclear_struck_kingdom_ids = new List<long>();
+        public bool world_war_end_recorded;
+        // 万国公会议处过这场战事了(见 WorldOrderSystem.UpdateLeague)
+        public bool league_case;
+        // 这场战争里已经记过史书的空中大事(位：1 夺得制空权 2 战略轰炸 4 导弹袭击，见 AirPowerSystem)
+        public int air_noted;
+        public double world_war_last_check = -1d;
+        public int world_war_bloc_count;
+        public float world_war_power_share;
+        // 由土地兼并触发的农民起义独立于帝国制度，因此单一王国也能完整结算。
+        public bool peasant_land_rebellion;
+        public long peasant_land_rebellion_origin_kingdom_id = -1L;
+        public long peasant_land_rebellion_kingdom_id = -1L;
+        public long peasant_land_rebellion_origin_city_id = -1L;
+        public string peasant_land_rebellion_cause = "";
+        public float peasant_landless_ratio;
+        // 具体目标(见 WarObjective)：要的城、主城池(攻下即算拿到)、要的王国法理、争的资源、继承宣称者；拿到了没有
+        public List<long> goal_city_ids = new List<long>();
+        public long goal_main_city_id = -1L;
+        public long goal_title_id = -1L;
+        public string goal_resource = "";
+        public long goal_claimant_id = -1L;
+        public bool goal_achieved;
+        // 宣战已记进战报(见 WarChronicle.Declared)；战争名是按目标、类型起的(窗口里换目标时才跟着改名)
+        public bool declared;
+        public bool goal_named;
+        // 开战缘由(攘夷、帝国扩张、游牧扩张)与大势标签(统一天下、诸王之乱)，只作标签显示(见 WarCatalog)
+        public string war_cause = "";
+        public string war_label = "";
+        // 军团战死(军团制下原版的阵亡数不记军团，见 WarChronicle.Casualties)
+        public float attacker_losses;
+        public float defender_losses;
+        // 战报(旧的在前，至多 WarChronicle.Max 条)
+        public List<EmpireCraft.Core.WarChronicleEntry> chronicle = new List<EmpireCraft.Core.WarChronicleEntry>();
+    }
+
+    // 战争名里的国名与地图铭牌一致
+#if EC_PENDING
+    private static string DisplayName(Realm kingdom, string fallback)
+    {
+        string name = EmpireCraft.Core.EmpireCraftNamePlateLibrary.GetDisplayName(kingdom);
+        return string.IsNullOrWhiteSpace(name) ? fallback : name;
+    }
+
+    public static void SetEmpireWarType(this War w, EmpireWarType type, string pre="", Entity nanoObject = null, bool isRebelling = false, FixedFaction belongingFaction = null)
+    {
+        GetOrCreate(w).empireWarType = type;
+        Empire empire = w.main_attacker.GetEmpire();
+        if (empire != null)
+        {
+            w.data.name = DisplayName(empire.CoreKingdom, empire.Name) + type + (!isRebelling?"战争":"");
+        }
+        else
+        {
+            w.data.name = (string.IsNullOrEmpty(pre)?DisplayName(w.main_attacker, w.main_attacker?.name):pre) + type + (!isRebelling?"战争":"");
+        }
+        if (belongingFaction != null)
+        {
+            w.GetOrCreate().belongingFaction = belongingFaction;
+        }
+        if (nanoObject != null)
+        {
+            w.GetOrCreate().metaType = nanoObject.meta_type;
+            w.GetOrCreate().metaID = nanoObject.id;
+        }
+        switch (type)
+        {
+            case EmpireWarType.索取法理:
+                var title = (KingdomTitle)nanoObject;
+                w.data.name = $"{DisplayName(w.getMainAttacker(), w.getMainAttacker()?.name)}索取{title?.Name}法理战争";
+                Realm defender = w.getMainDefender();
+                defender?.SyncRealmTitlesFromRuler();
+                w.GetOrCreate().defender_realm_title_ids = defender?.GetRealmTitleIds()
+                    .Distinct().ToList() ?? new List<long>();
+                w.GetOrCreate().defender_kingdom_name = defender?.GetKingdomName() ?? defender?.Name ?? "";
+                break;
+        }
+    }
+
+    public static KingdomTitle GetTitleTarget(this War w)
+    {
+        var metaType = w.GetOrCreate().metaType;
+        switch (metaType)
+        {
+            case MetaTypeExtension.KingdomTitle:
+                return ModClass.KINGDOM_TITLE_MANAGER.get(w.GetOrCreate().metaID);
+        }
+        return null;
+    }
+
+    public static bool IsMainDefenderEliminated(this War war)
+    {
+        Realm defender = war?.getMainDefender();
+        return defender == null || defender.IsGone() || defender.Cities == null || defender.Cities.Count == 0;
+    }
+
+    public static bool AreAllDeJureTitleZonesControlledByAttackers(this War war,
+        KingdomTitle title)
+    {
+        if (war == null || title == null || title.IsGone()) return false;
+        var result = OccupationReadIndex.ReadControl(war, title, () => CountTitleControl(war, title),
+            () => OccupationReadIndex.Membership(title.getCities()));
+        return DeJureTitleClaimRules.ControlsAll(result.Controlled, result.Total);
+    }
+
+    private static OccupationReadIndex.Control CountTitleControl(War war, KingdomTitle title)
+    {
+        int controlled = 0;
+        int total = 0;
+        HashSet<int> seenZones = new HashSet<int>();
+        foreach (City city in title.getCities())
+        {
+            if (city == null || city.IsGone() || city.zones == null) continue;
+            foreach (TileZone zone in city.zones)
+            {
+                if (zone == null || zone.world_edge || zone.city != city || !seenZones.Add(zone.id)) continue;
+                total++;
+                Realm controller = city.Realm;
+                if (controller == null || !war._list_attackers.Contains(controller))
+                    controller = city.GetTileZoneOccupier(zone);
+                if (controller != null && war._list_attackers.Contains(controller)) controlled++;
+            }
+        }
+        return new OccupationReadIndex.Control(controlled, total);
+    }
+
+    public static void InitializeLegitimacyChallenge(this War war, Empire challenger, Empire defender)
+    {
+        if (war == null || challenger == null || defender == null) return;
+        WarExtraData data = war.GetOrCreate();
+        data.legitimacy_challenger_empire_id = challenger.Key;
+        data.legitimacy_challenger_core_kingdom_id = challenger.CoreKingdom?.Key ?? -1L;
+        data.legitimacy_challenger_emperor_id = challenger.Emperor?.Key ?? -1L;
+        data.legitimacy_challenger_empire_name = challenger.GetEmpireFullName();
+        data.legitimacy_defender_empire_id = defender.Key;
+        data.legitimacy_defender_core_id = EmpireCoreManager.Get(defender)?.id ?? -1L;
+        data.legitimacy_defender_core_kingdom_id = defender.CoreKingdom?.Key ?? -1L;
+        data.legitimacy_defender_emperor_id = defender.Emperor?.Key ?? -1L;
+        data.legitimacy_defender_empire_name = defender.GetEmpireFullName();
+        data.legitimacy_defender_kingdom_ids = defender.kingdoms_list
+            .Where(kingdom => kingdom != null && !kingdom.IsGone())
+            .Select(kingdom => kingdom.Key).Distinct().ToList();
+        data.legitimacy_defender_city_ids = defender.kingdoms_list
+            .Where(kingdom => kingdom != null && !kingdom.IsGone() && kingdom.Cities != null)
+            .SelectMany(kingdom => kingdom.Cities)
+            .Where(city => city != null && !city.IsGone())
+            .Select(city => city.Key)
+            .Distinct().ToList();
+
+        var zoneIds = new HashSet<int>();
+        foreach (long cityId in data.legitimacy_defender_city_ids)
+        {
+            City city = EmpireWorld.Current?.cities?.get(cityId);
+            if (city?.zones == null || city.IsGone()) continue;
+            foreach (TileZone zone in city.zones)
+                if (zone != null && !zone.world_edge && zone.city == city) zoneIds.Add(zone.id);
+        }
+        data.legitimacy_initial_zone_count = zoneIds.Count;
+    }
+
+    public static bool HasLegitimacyOccupationThreshold(this War war)
+    {
+        if (war == null) return false;
+        WarExtraData data = war.GetOrCreate();
+        if (data.legitimacy_initial_zone_count <= 0) return war.IsMainDefenderEliminated();
+
+        var result = OccupationReadIndex.ReadControl(war, data, () => CountLegitimacyControl(war, data),
+            () => OccupationReadIndex.Membership((data.legitimacy_defender_city_ids ?? new List<long>())
+                .Select(id => EmpireWorld.Current?.cities?.get(id))));
+        return ImperialLegitimacyRules.HasOccupiedThird(result.Controlled, data.legitimacy_initial_zone_count);
+    }
+
+    private static OccupationReadIndex.Control CountLegitimacyControl(War war, WarExtraData data)
+    {
+        int controlled = 0;
+        var seenZones = new HashSet<int>();
+        foreach (long cityId in data.legitimacy_defender_city_ids ?? new List<long>())
+        {
+            City city = EmpireWorld.Current?.cities?.get(cityId);
+            if (city?.zones == null || city.IsGone()) continue;
+            foreach (TileZone zone in city.zones)
+            {
+                if (zone == null || zone.world_edge || zone.city != city || !seenZones.Add(zone.id)) continue;
+                Realm controller = city.Realm;
+                if (controller == null || !war._list_attackers.Contains(controller))
+                    controller = city.GetTileZoneOccupier(zone);
+                if (controller != null && war._list_attackers.Contains(controller)) controlled++;
+            }
+        }
+        return new OccupationReadIndex.Control(controlled, seenZones.Count);
+    }
+
+    public static Empire GetEmpireTarget(this War w)
+    {
+        var metaType = w.GetOrCreate().metaType;
+        switch (metaType)
+        {
+            case MetaTypeExtension.Empire:
+                return ModClass.EMPIRE_MANAGER.get(w.GetOrCreate().metaID);
+        }
+        return null;
+    }
+    public static EmpireWarType GetEmpireWarType(this War w)
+    {
+        return GetOrCreate(w).empireWarType;
+    }
+    public static FixedFaction GetEmpireFaction(this War w)
+    {
+        return GetOrCreate(w).belongingFaction;
+    }
+    public static WarExtraData GetOrCreate(this War a, bool isSave = false)
+    {
+        var ed = a.GetOrCreate<War, WarExtraData>(isSave);
+        return ed;
+    }
+#endif
+}
+}

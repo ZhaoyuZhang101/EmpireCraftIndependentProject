@@ -1,0 +1,36 @@
+// Ported from the EmpireCraft mod: Scripts/HelperFunc/EmpirePopulation.cs @ 64c66e30. Body kept line-for-line for three-way sync;
+// see Port/manifest.json and Tools/PortTool.
+using System.Collections.Generic;
+using System.Linq;
+
+namespace EmpireCraft.Core
+{
+    internal static class EmpirePopulation
+    {
+#if EC_PENDING
+        public static IEnumerable<Person> Enumerate(IEnumerable<Realm> kingdoms)
+        {
+            if (kingdoms == null) yield break;
+            var visited = new HashSet<Realm>();
+            foreach (Realm kingdom in kingdoms.ToArray())
+            {
+                if (kingdom?.Record == null || kingdom.IsGone() || !visited.Add(kingdom) ||
+                    AncientWarfareCompatibility.Owns(kingdom)) continue;
+                List<Person> units = kingdom.units;
+                if (units == null) continue;
+                // Vanilla getUnits dereferences every slot before yielding. Sparse/stale
+                // membership lists must be checked here, without mutating another mod's index.
+                // A private snapshot also tolerates relocation/removal by the iterator's caller.
+                foreach (Person actor in units.ToArray())
+                {
+                    if (kingdom.Record == null || kingdom.IsGone()) break;
+                    if (actor?.Record == null || actor.asset == null || !actor.Alive ||
+                        actor.asset.is_boat || actor.Realm != kingdom ||
+                        AncientWarfareCompatibility.Owns(actor)) continue;
+                    yield return actor;
+                }
+            }
+        }
+#endif
+    }
+}

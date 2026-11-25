@@ -1,0 +1,190 @@
+// Ported from the EmpireCraft mod: Scripts/GeneralSystems/NameCultureRepair.cs @ 64c66e30. Body kept line-for-line for three-way sync;
+// see Port/manifest.json and Tools/PortTool.
+using System;
+using System.Collections.Generic;
+using System.IO;
+using System.Linq;
+
+namespace EmpireCraft.Core
+{
+
+// 国号、法理名要合本国文化(用户 2026-10-27 截图罗马城的教宗国叫"远江国"："远江国不是罗马的命名吧")：
+// 原版新立的国按立国者本人的原版文化起国号，模组随后才按立国之城的法理文化定国家文化——外来的官员、教宗在罗马自立，
+// 国号却是日本令制国名；立了法理，法理名也就叫"远江国"，此后的主人一并沿用。
+//   · 各文化的国名词库(文化配置 Realm 的各词库与 ancient_group)建一张"名字 → 出自哪些文化"的表；
+//   · 国号(没手动改名、没在起事)、法理名只出自不同族文化的词库、不在本文化词库里的，按本国(法理按法理文化)文化重起；
+//   · 新立之国定下文化后当场查(KingdomPatch.NewCivKingdom)，各国与各法理每年查一遍(年度扫描)；
+//   · 只在立国、立法理时核对改名；年检只给没核对过的(旧档)打上标记、不改名：用户 10-29 "为什么西方篡位会改国号""不要让他改"——
+//     法兰西被印度文化的人篡位、国家文化随之变了，年检以为"法兰西"不合本国文化，改称"达希纳"。定下来的国号以后文化变了也不改。
+public static class NameCultureRepair
+{
+    private static Dictionary<string, HashSet<string>> _owners;
+    private static double _lastYear = -1d;
+    private static object _world;
+    private const int Tries = 6;
+
+    // 名字(连同去掉"国"字的)出自哪些文化的国名词库
+    private static Dictionary<string, HashSet<string>> Owners()
+    {
+        if (_owners != null) return _owners;
+        var owners = new Dictionary<string, HashSet<string>>(StringComparer.Ordinal);
+        try
+        {
+            string root = Path.Combine(GameData.Folder, "Locales", "Cultures");
+            foreach (KeyValuePair<string, Setting> pair in OnomasticsRule.ALL_CULTURE_RULE)
+            {
+                KingdomSetting kingdom = pair.Value?.Kingdom;
+                if (kingdom == null) continue;
+                IEnumerable<string> groups = (kingdom.groups?.Values ?? Enumerable.Empty<string>())
+                    .Append(kingdom.ancient_group).Where(group => !string.IsNullOrWhiteSpace(group));
+                foreach (string group in groups)
+                {
+                    // 写作"别的文化:词库名"的借用别家词库
+                    string source = pair.Key, name = group.Trim();
+                    int colon = name.IndexOf(':');
+                    if (colon > 0)
+                    {
+                        source = name.Substring(0, colon).Trim();
+                        name = name.Substring(colon + 1).Trim();
+                    }
+                    string path = Path.Combine(root, $"Culture_{source}", $"{source}{name}.csv");
+                    if (!File.Exists(path)) continue;
+                    foreach (string key in OnomasticsHelper.getKeysFromPath(path))
+                    {
+                        string text = LM.Get(key);
+                        if (string.IsNullOrWhiteSpace(text) || text == key) continue;
+                        if (!owners.TryGetValue(text.Trim(), out HashSet<string> set))
+                            owners[text.Trim()] = set = new HashSet<string>(StringComparer.Ordinal);
+                        set.Add(pair.Key);
+                    }
+                }
+            }
+        }
+        catch (Exception exception)
+        {
+            LogService.LogWarning($"[EmpireCraft][国号文化] 国名词库读取失败: {exception.Message}");
+        }
+        _owners = owners;
+        return owners;
+    }
+
+    // 这个名字出自别的(不同族的)文化的国名词库，本文化词库里没有
+    public static bool Foreign(string name, string culture)
+    {
+        if (string.IsNullOrWhiteSpace(name) || !CultureService.IsValidCulture(culture)) return false;
+        Dictionary<string, HashSet<string>> owners = Owners();
+        string trimmed = name.Trim();
+        var cultures = new HashSet<string>(StringComparer.Ordinal);
+        foreach (string candidate in new[] { trimmed, trimmed.TrimEnd('国', '國') })
+            if (candidate.Length > 0 && owners.TryGetValue(candidate, out HashSet<string> set)) cultures.UnionWith(set);
+        // 同族(同一天下标识)或同一条文明线(制度线)的都算本家：罗马一系里法兰克、日耳曼、维京互相借名不改，同化过的老国名不动
+        string line = culture.GetInstitutionLine();
+        return cultures.Count > 0 && !cultures.Any(owner => CultureService.SameKin(owner, culture) ||
+                                                             line.Length > 0 && owner.GetInstitutionLine() == line);
+    }
+
+    // 这个名字出自某条文明线(制度线)的国名词库(连同去掉"国"字的)
+    public static bool FromLine(string name, string line)
+    {
+        if (string.IsNullOrWhiteSpace(name) || string.IsNullOrWhiteSpace(line)) return false;
+        Dictionary<string, HashSet<string>> owners = Owners();
+        string trimmed = name.Trim();
+        foreach (string candidate in new[] { trimmed, trimmed.TrimEnd('国', '國') })
+            if (candidate.Length > 0 && owners.TryGetValue(candidate, out HashSet<string> set) &&
+                set.Any(owner => owner.GetInstitutionLine() == line)) return true;
+        return false;
+    }
+
+    // 按这个文化的国号规则起一个合本文化的名字；起不出返回 null
+#if EC_PENDING
+    private static string Fresh(string culture)
+    {
+        Culture native = CultureService.GetNativeCultureObject(culture);
+        if (native?.data == null) return null;
+        for (int i = 0; i < Tries; i++)
+        {
+            string name;
+            try { name = native.getOnomasticData(MetaType.Kingdom)?.generateName()?.UseLocalizedNameSeparator(); }
+            catch { return null; }
+            if (!string.IsNullOrWhiteSpace(name) && !Foreign(name, culture)) return name.Trim();
+        }
+        return null;
+    }
+#endif
+
+    // 国号不合本国文化：按本国文化重起。founding 为假(年检)时只给没核对过的打标记、不改名
+#if EC_PENDING
+    public static bool RepairKingdom(Realm kingdom, bool founding = true)
+    {
+        if (kingdom?.Record == null || kingdom.IsGone() || kingdom.IsWild || kingdom.HasCustomCountryNaming() ||
+            kingdom.IsFactionRebelling() || kingdom.IsLocalRebelling() ||
+            AncientWarfareCompatibility.Owns(kingdom)) return false;
+        var checkedData = kingdom.GetOrCreate();
+        if (checkedData.name_culture_checked) return false;
+        checkedData.name_culture_checked = true;
+        if (!founding) return false;
+        string culture = CultureService.GetRealmCulture(kingdom);
+        string before = kingdom.EnsureKingdomCoreName();
+        if (!Foreign(before, culture)) return false;
+        string fresh = Fresh(culture);
+        if (fresh == null) return false;
+        kingdom.Name = fresh;
+        kingdom.RememberInitialRandomKingdomName(fresh, overwrite: true);
+        var data = kingdom.GetOrCreate();
+        data.core_name = "";
+        data.core_name_source = "";
+        kingdom.EnsureKingdomCoreName();
+        LogService.LogInfo($"[EmpireCraft][国号文化] {before}({culture}文化)国号出自别的文化，改称 {kingdom.GetKingdomName()}");
+        return true;
+    }
+#endif
+
+    // 法理名不合法理文化：按法理文化重起(原来带"国"字的照样带)。founding 为假(年检)时只打标记、不改名
+#if EC_PENDING
+    public static bool RepairTitle(KingdomTitle title, bool founding = true)
+    {
+        string name = title?.data?.name;
+        if (string.IsNullOrWhiteSpace(name) || title.IsGone() || title.data.name_culture_checked) return false;
+        title.data.name_culture_checked = true;
+        if (!founding) return false;
+        string culture = CultureService.GetEffectiveTitleCulture(title);
+        if (!Foreign(name, culture)) return false;
+        string fresh = Fresh(culture);
+        if (fresh == null) return false;
+        if ((name.EndsWith("国", StringComparison.Ordinal) || name.EndsWith("國", StringComparison.Ordinal)) &&
+            !fresh.EndsWith("国", StringComparison.Ordinal) && !fresh.EndsWith("國", StringComparison.Ordinal))
+            fresh += name[name.Length - 1];
+        title.data.name = fresh;
+        LogService.LogInfo($"[EmpireCraft][国号文化] 法理 {name}({culture}文化)名出自别的文化，改称 {fresh}");
+        return true;
+    }
+#endif
+
+    // 年度扫描(CityPatch.WorldYearlyScans)
+#if EC_PENDING
+    public static void TryYearlyScan()
+    {
+        if (EmpireWorld.Current?.LiveRealms == null || ModClass.IS_CLEAR) return;
+        if (!ReferenceEquals(_world, EmpireWorld.Current))
+        {
+            _world = EmpireWorld.Current;
+            _lastYear = -1d;
+        }
+        double now = GameClock.Now;
+        if (_lastYear >= 0d && now >= _lastYear && GameClock.YearsSince(_lastYear) < 1) return;
+        _lastYear = now;
+        try
+        {
+            foreach (KingdomTitle title in ModClass.KINGDOM_TITLE_MANAGER?.ToList() ?? new List<KingdomTitle>()) RepairTitle(title, false);
+            foreach (Realm kingdom in EmpireWorld.Current.LiveRealms.ToList()) RepairKingdom(kingdom, false);
+            // 原版按物种起的英文姓名、氏族名按文明重起(见 TemplateNameRepair)
+            TemplateNameRepair.RepairNames();
+        }
+        catch (Exception exception)
+        {
+            LogService.LogWarning($"[EmpireCraft][国号文化] 年度核对失败: {exception.Message}");
+        }
+    }
+#endif
+}
+}

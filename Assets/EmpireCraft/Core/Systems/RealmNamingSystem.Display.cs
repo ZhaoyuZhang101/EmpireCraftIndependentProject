@@ -1,0 +1,102 @@
+// Ported from the EmpireCraft mod: Scripts/GeneralSystems/RealmNamingSystem.Display.cs @ 64c66e30. Body kept line-for-line for three-way sync;
+// see Port/manifest.json and Tools/PortTool.
+using System.Collections.Generic;
+using System.Linq;
+
+namespace EmpireCraft.Core
+{
+
+// 天下之名的界面文字：帝国窗口档案栏的国号来源、各京与第二直隶；天下窗口改基名
+public static partial class RealmNamingSystem
+{
+    // 国号来源一行(旧规则定的不显示)
+#if EC_PENDING
+    public static string NameSourceLine(Empire empire)
+    {
+        if (empire?.data == null) return "";
+        if (empire.data.title_claim_yielded)
+            return string.Format(LM.Get("realm_name_source_yielded"), empire.data.title_claim_name);
+        switch (empire.data.name_source)
+        {
+            case SourceEmpireTitle:
+            {
+                string core = CoreName(EmpireCoreManager.Get(empire.data.named_core_id));
+                return string.IsNullOrWhiteSpace(core) ? "" : string.Format(LM.Get("realm_name_source_title"), core);
+            }
+            case SourceRestoration:
+                return string.Format(LM.Get("realm_name_source_restored"), empire.GetEmpireName(),
+                    LM.Get(string.IsNullOrWhiteSpace(empire.data.founding_prefix) ? RealmNameRules.Later : empire.data.founding_prefix));
+            case SourceGrandName:
+                return string.IsNullOrWhiteSpace(empire.data.name_place_title)
+                    ? LM.Get("realm_name_source_grand")
+                    : string.Format(LM.Get("realm_name_source_grand_place"), empire.data.name_place_title);
+            case SourceKingdomTitle:
+                return string.IsNullOrWhiteSpace(empire.data.name_blocked_core)
+                    ? string.Format(LM.Get("realm_name_source_own"), empire.GetEmpireName())
+                    : string.Format(LM.Get("realm_name_source_own_blocked"), empire.GetEmpireName(), empire.data.name_blocked_core);
+            case SourceScenario:
+                return LM.Get("realm_name_source_scenario");
+            case SourceRebelBanner:
+                return string.Format(LM.Get("realm_name_source_banner"), empire.GetEmpireName());
+            case SourceUsurper:
+                return string.Format(LM.Get("realm_name_source_usurper"), empire.GetEmpireName());
+            case SourceEnfeoffed:
+                return string.Format(LM.Get("realm_name_source_enfeoffed"), empire.GetEmpireName());
+            case SourceTianxia:
+            {
+                EmpireCore lead = NamedTianxia(empire);
+                return lead == null ? "" : string.Format(LM.Get("realm_name_source_tianxia"), TianxiaSystem.Name(lead));
+            }
+            default:
+                return "";
+        }
+    }
+#endif
+
+    // 各京一行：京师 某城 · 东京 某城……
+#if EC_PENDING
+    public static string JingLine(Empire empire)
+    {
+        List<JingRecord> records = empire?.data?.jing;
+        if (records == null || records.Count == 0) return "";
+        IEnumerable<string> parts = records.Where(record => record != null).Select(record =>
+            $"{MultiCapitalSystem.JingName(record)} {EmpireWorld.Current?.cities?.get(record.city_id)?.GetCityName() ?? ""}");
+        return string.Format(LM.Get("realm_jing_line"), string.Join(" · ", parts));
+    }
+#endif
+
+    // 第二直隶一行：国名(储君名 / 空缺)
+#if EC_PENDING
+    public static string ZhiliLine(Empire empire)
+    {
+        long id = empire?.data?.zhili_kingdom_id ?? -1L;
+        Realm zhili = id < 0 ? null : EmpireWorld.Current?.kingdoms?.get(id);
+        if (zhili == null || !MultiCapitalSystem.IsZhili(zhili)) return "";
+        string ruler = zhili.HasRuler() ? zhili.Ruler.FullName() : LM.Get("realm_zhili_vacant");
+        return string.Format(LM.Get("realm_zhili_line"), zhili.GetKingdomFullName(), ruler);
+    }
+#endif
+
+    // 天下窗口改天下基名：已以天下之名为号的(普世皇帝、唯一合法政府)跟着改
+#if EC_PENDING
+    public static void SetTianxiaBase(EmpireCore anyCore, string value)
+    {
+        EmpireCore lead = TianxiaSystem.Lead(anyCore);
+        if (lead == null) return;
+        lead.tianxia_base_name = value?.Trim() ?? "";
+        string baseName = TianxiaBaseName(lead);
+        if (string.IsNullOrWhiteSpace(baseName) || ModClass.EMPIRE_MANAGER == null) return;
+        foreach (Empire empire in ModClass.EMPIRE_MANAGER.ToList())
+        {
+            if (empire?.data == null || empire.IsGone() || empire.IsArchived()) continue;
+            var papal = PapacySystem.State(empire);
+            bool universal = papal != null && papal.universal_lead_id == lead.id && !papal.universal_suspended;
+            bool modern = empire.data.constitutional_economy?.named_after_tianxia_lead_id == lead.id;
+            if (!universal && !modern) continue;
+            empire.SetEmpireName(baseName, preserveEmpireType: true);
+            if (universal) papal.universal_name = empire.data.core_name ?? "";
+        }
+    }
+#endif
+}
+}

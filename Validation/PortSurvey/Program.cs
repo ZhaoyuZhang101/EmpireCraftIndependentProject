@@ -20,15 +20,19 @@ using Newtonsoft.Json.Linq;
 //     of two collapsed into one). Only accesses that do not resolve are touched, so
 //     a mod class with a member of the same name is left alone. Repeats until
 //     nothing changes, since one rename can give the next receiver its type.
+//
+//   PortSurvey suspend <sources> <report.json> <core folder> [<more source folders>...]
+//     Wraps the members that cannot compile yet in #if EC_PENDING (see Suspend.cs).
 public static class Program
 {
     static readonly CSharpParseOptions Options = new CSharpParseOptions(LanguageVersion.Latest);
 
     public static int Main(string[] args)
     {
-        if (args.Length < 4 || (args[0] != "survey" && args[0] != "fix"))
-        { Console.Error.WriteLine("PortSurvey survey|fix <sources> <report.json|members.json> <core folder> [more folders]"); return 2; }
+        if (args.Length < 4 || (args[0] != "survey" && args[0] != "fix" && args[0] != "suspend"))
+        { Console.Error.WriteLine("PortSurvey survey|fix|suspend <sources> <report.json|members.json> <core folder> [more folders]"); return 2; }
         string sources = Path.GetFullPath(args[1]);
+        if (args[0] == "suspend") return Suspend.Run(sources, args[2], args.Skip(3));
         var others = new List<SyntaxTree>();
         for (int i = 3; i < args.Length; i++)
             foreach (string file in Directory.EnumerateFiles(args[i], "*.cs", SearchOption.AllDirectories))

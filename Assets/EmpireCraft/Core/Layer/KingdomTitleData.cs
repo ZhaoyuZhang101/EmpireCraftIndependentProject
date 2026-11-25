@@ -1,0 +1,71 @@
+// Ported from the EmpireCraft mod: Scripts/Layer/KingdomTitleData.cs @ 64c66e30. Body kept line-for-line for three-way sync;
+// see Port/manifest.json and Tools/PortTool.
+using System;
+using System.Collections.Generic;
+using System.ComponentModel;
+using System.Linq;
+using System.Text;
+using System.Threading.Tasks;
+
+namespace EmpireCraft.Core
+{
+public class KingdomTitleJurisdictionRecord
+{
+    public long kingdom_id = -1L;
+    public string kingdom_name = "";
+    public string relation = "";
+    public double start_time = -1L;
+    public double end_time = -1L;
+}
+
+public class KingdomTitleData: RecordData
+{
+    public int banner_background_id { get; set; }
+    public int banner_icon_id { get; set; }
+    public string founder_actor_name { get; set; }
+    [DefaultValue(-1L)]
+    public long founder_actor_id { get; set; } = -1L;
+    public string founder_kingdom_name { get; set; }
+
+    [DefaultValue(-1L)]
+    public long founder_kingdom_id { get; set; } = -1L;
+    public string original_actor_asset;
+    public long title_capital = -1L;
+    public bool is_allow_to_inherit = false;
+
+    public double title_controlled_rate = 0.9;
+
+    public long owner = -1L;
+    public string province_name { get; set; }
+    // 名字照地名起的(城名、当时所属行政区的名字)：王国照旧可以这么叫，称帝时不拿它当帝国号(见 RealmNamingSystem.PlaceTitle)
+    public bool place_name;
+    // 法理名合不合法理文化已经核对过(见 NameCultureRepair)：只核对一次，以后法理文化变了名字也不改
+    public bool name_culture_checked;
+
+    public List<long> cities;
+    public List<string> history_emperrors;
+    public List<KingdomTitleJurisdictionRecord> jurisdiction_history = new List<KingdomTitleJurisdictionRecord>();
+    public long main_kingdom { get; set; } = -1L;
+    // 年度扫描上次看到的所属帝国法理(看换没换，见 DeJureShareSystem)
+    public long dejure_last_core = -1L;
+    public bool ShouldSerializedejure_last_core() => dejure_last_core >= 0;
+
+    public double timestamp_been_controlled;
+
+    public double timestamp_established_time;
+
+    // EmpireCraft culture key (for example Huaxia), not a vanilla species or Culture id.
+    public string culture = "";
+    // 初始文化(见 CultureService.GetInitialTitleCulture)：法理头衔最早的文化，供一键恢复；法理窗口里可以改
+    public string initial_culture = "";
+    public bool culture_explicit = false;
+    public bool culture_locked = false;
+    public double last_culture_check_timestamp = -1L;
+
+    // 每种文化在这个法理头衔/省份上出现过的名字：key 是文化 key。一旦某个文化记录过名字就
+    // 永久保留，只有玩家在法理界面手动删除才会清除，不会被文化转变逻辑自动覆盖或清空
+    // （见 CultureService.ResolveCulturalTitleName）。
+    public Dictionary<string, string> title_name_history = new Dictionary<string, string>();
+    public Dictionary<string, string> province_name_history = new Dictionary<string, string>();
+}
+}

@@ -1,0 +1,123 @@
+// Ported from the EmpireCraft mod: Scripts/GeneralSystems/LandKinds.cs @ 64c66e30. Body kept line-for-line for three-way sync;
+// see Port/manifest.json and Tools/PortTool.
+namespace EmpireCraft.Core
+{
+
+// 地形归类：村镇生计(LivelihoodSystem)、矿藏分布(MineralResourceSystem)、牧场(AnimalHusbandrySystem)共用一套，
+// 按原版格子种类(地面格、顶层格)判定，每种格子第一次见到时算一次(按 TileTypeBase.index_id，地面格顶层格共用编号)。
+//   · 水：液体(海、湖、冰面)。岩浆不算水、不算海岸，算地狱地貌；
+//   · 山石：山地、山巅、丘陵(连同冰封丘陵)、岩地；
+//   · 密林：桦树林、枫树林、魔法林、丛林；疏林：草地、冻土的高处(原版长橡树、松树)；
+//   · 草地：草地、冻土的低处(苔原)，花甸、三叶草地；
+//   · 旱地：荒漠、稀树草原、荒原；海滩沙地(连同雪滩)另记，算海岸，不放牧；
+//   · 湿地：沼泽、丛林；地狱：地狱地貌与岩浆；
+//   · 宜农：能耕的格子里除去山石、旱地、沙地；
+//   · 高原(模组的地面格，见 PlateauTerrain)：高寒高原、草原高原算旱地(牧地：村镇放牧、游牧在上面不算离草、毡帐立得住，见 ShuiTuSystem)，
+//     另记 Alpine、Steppe(草原高原能少量耕，收成另算，见 TerrainSystem)；黄土高原宜农，另记 Loess。
+// 纯净地图没有树，林地只能看生物群系。战线地形(TerrainSystem)另有一套，不走这里
+public static class LandKinds
+{
+    public const int Water = 1, Lava = 2, Rough = 4, Forest = 8, Woodland = 16, Grass = 32, Dry = 64, Sand = 128, Wet = 256,
+        Infernal = 512, Arable = 1024, Alpine = 2048, Loess = 4096, Steppe = 8192;
+
+    // 两张表放在一个对象里整个换：几个核同时来问(牧业数草场、以后的按城多核)时，读的一头不加锁，
+    // 拿到的总是配套的一对；要加大就另做一对填好了再换上去
+    private sealed class Table
+    {
+        public int[] Kinds = new int[0];
+#if EC_PENDING
+        public TileTypeBase[] Types = new TileTypeBase[0];
+#endif
+    }
+
+    private static volatile Table _table = new();
+    private static readonly object Gate = new();
+
+#if EC_PENDING
+    public static int Of(TileTypeBase type)
+    {
+        if (type == null) return 0;
+        int index = type.index_id;
+        if (index < 0) return Compute(type);
+        Table table = _table;
+        // 编号撞上别的格子(模板格不分编号)就照算，不串用
+        if (index < table.Types.Length && ReferenceEquals(table.Types[index], type)) return table.Kinds[index];
+        int kinds = Compute(type);
+        lock (Gate)
+        {
+            table = _table;
+            if (index >= table.Kinds.Length)
+            {
+                int size = global::System.Math.Max(index + 1, 256);
+                var larger = new Table { Kinds = new int[size], Types = new TileTypeBase[size] };
+                global::System.Array.Copy(table.Kinds, larger.Kinds, table.Kinds.Length);
+                global::System.Array.Copy(table.Types, larger.Types, table.Types.Length);
+                larger.Kinds[index] = kinds;
+                larger.Types[index] = type;
+                _table = larger;
+            }
+            else
+            {
+                // 先记类别再记是哪种格子：读的一头看到格子对上时，类别已经在了
+                table.Kinds[index] = kinds;
+                global::System.Threading.Volatile.Write(ref table.Types[index], type);
+            }
+        }
+        return kinds;
+    }
+
+    public static bool Is(TileTypeBase type, int kind) => (Of(type) & kind) != 0;
+
+    private static int Compute(TileTypeBase type)
+    {
+        if (type.lava) return Lava | Infernal;
+        if (type.liquid) return Water;
+        if (PlateauTerrain.IsPlateau(type))
+            return ReferenceEquals(type, PlateauTerrain.Alpine) ? Alpine | Dry : ReferenceEquals(type, PlateauTerrain.Steppe) ? Steppe | Dry : Loess | Arable;
+        string id = type.id ?? "";
+        string biome = type.biome_id ?? "";
+        int kinds = 0;
+        if (type.rocks || type.mountains || type.summit || id is "hills" or "snow_hills" ||
+            biome is "biome_hill" or "biome_rocklands")
+            kinds |= Rough;
+        bool high = type.biome_asset != null && id == type.biome_asset.tile_high;
+        switch (biome)
+        {
+            case "biome_birch":
+            case "biome_maple":
+            case "biome_enchanted":
+                kinds |= Forest;
+                break;
+            case "biome_jungle":
+                kinds |= Forest | Wet;
+                break;
+            case "biome_swamp":
+                kinds |= Wet;
+                break;
+            case "biome_grass":
+            case "biome_permafrost":
+                if (id == "snow_sand") kinds |= Sand;
+                else if ((kinds & Rough) == 0) kinds |= high ? Woodland : Grass;
+                break;
+            case "biome_flower":
+            case "biome_clover":
+                kinds |= Grass;
+                break;
+            case "biome_desert":
+            case "biome_savanna":
+            case "biome_wasteland":
+                kinds |= Dry;
+                break;
+            case "biome_sand":
+                kinds |= Sand;
+                break;
+            case "biome_infernal":
+                kinds |= Infernal;
+                break;
+        }
+        if ((type.can_be_farm || type.farm_field) && (kinds & (Rough | Dry | Sand)) == 0) kinds |= Arable;
+        return kinds;
+    }
+#endif
+}
+}

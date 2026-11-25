@@ -1,0 +1,294 @@
+// Ported from the EmpireCraft mod: Scripts/GeneralSystems/PuppetStateSystem.cs @ 64c66e30. Body kept line-for-line for three-way sync;
+// see Port/manifest.json and Tools/PortTool.
+using System;
+using System.Collections.Generic;
+using System.Linq;
+
+namespace EmpireCraft.Core
+{
+
+// 傀儡国(用户 2026-11-10 "剧情模式加上日军侵华剧本""现代政体如果要做的符合历史但是受限于机制的话优先完善机制")：
+// 伪满洲国、蒙疆、汪伪政府这类由占领者扶植、名义上自成一国的政权。和封建附庸、朝贡、殖民地都不同：
+//   · 主国替它定战和：傀儡不自行宣战(WarGate、WarTargetPatch)，主国(连同主国所在帝国的中央)的仗它每月补进同一方；
+//   · 主国与傀儡、同一主国的傀儡之间互不开战(WarGate.Forbidden)；
+//   · 傀儡不卷入现代建政、军阀时期与和平统一(ModernStateFormationSystem、NationalUnificationSystem)，政体照立国时定下的，
+//     不随本文化的废君、建政改走(满洲国称帝、汪伪称国民政府)；
+//   · 主国亡了就不再是傀儡(记一笔"失去依附")；剧情事件可把傀儡的城献给别国(cede)了结它；
+//   · 理念跟主国(用户 2026-11-10 "扶持傀儡政权只能扶持自己国家主导政党的同理念政府")：傀儡的元首与要员奉行主国执政党的理念，
+//     主国执政理念变了(日本 1940 改大政翼赞会)傀儡跟着变；近代占领挑领头人先挑当地同理念的(见 OccupationPuppetSystem)。
+// 只由剧本(关系 puppet)或剧情事件(puppet)扶立，AI 不自行扶植傀儡。
+public static class PuppetStateSystem
+{
+    public static bool IsPuppet(Realm kingdom) => Master(kingdom) != null;
+
+    public static Realm Master(Realm kingdom)
+    {
+        if (kingdom?.Record == null || kingdom.IsGone()) return null;
+        long id = kingdom.GetOrCreate().puppet_master_id;
+        if (id < 0 || EmpireWorld.Current?.LiveRealms == null) return null;
+        Realm master = EmpireWorld.Current.RealmByKey(id);
+        return master?.Record == null || master.IsGone() || master == kingdom ? null : master;
+    }
+
+    // 界面上的身份(帝国窗口左栏、国家概况、提示)："日本扶植的傀儡政权"；不是傀儡返回 null
+#if EC_PENDING
+    public static string StandingLine(Realm kingdom)
+    {
+        Realm master = Master(kingdom);
+        return master == null ? null : string.Format(LM.Get("puppet_standing"), master.GetKingdomName());
+    }
+
+    public static string StandingTooltip(Realm kingdom)
+    {
+        Realm master = Master(kingdom);
+        return master == null ? "" : string.Format(LM.Get("puppet_standing_tip"), master.GetKingdomName(), Years(kingdom));
+    }
+#endif
+
+    public static int Years(Realm puppet)
+    {
+        double since = puppet?.Record == null ? -1d : puppet.GetOrCreate().puppet_since;
+        return since < 0d ? 0 : Math.Max(0, (int)GameClock.YearsSince(since));
+    }
+
+    public static IEnumerable<Realm> PuppetsOf(Realm master) =>
+        master == null || EmpireWorld.Current?.LiveRealms == null ? Enumerable.Empty<Realm>()
+            : EmpireWorld.Current.LiveRealms.Where(kingdom => kingdom?.Record != null && kingdom.GetOrCreate().puppet_master_id == master.Key &&
+                                                         Master(kingdom) == master);
+
+    // 主国一方：主国在帝国里时按帝国中央(日本帝国的核心)，仗多半是中央在打
+#if EC_PENDING
+    private static Realm ModRealm(Realm kingdom)
+    {
+        Empire empire = kingdom?.GetEmpire();
+        return empire?.CoreKingdom != null && !empire.IsGone() ? empire.CoreKingdom : kingdom;
+    }
+
+    private static bool SameRealm(Realm a, Realm b) => a != null && b != null && (a == b || a.IsInSameEmpire(b));
+#endif
+
+    // 主国与傀儡、同一主国的两个傀儡：互不开战
+#if EC_PENDING
+    public static bool Bound(Realm a, Realm b)
+    {
+        if (a == null || b == null || a == b) return false;
+        Realm ma = Master(a), mb = Master(b);
+        if (ma != null && (SameRealm(ma, b) || mb != null && SameRealm(ma, mb))) return true;
+        return mb != null && SameRealm(mb, a);
+    }
+#endif
+
+    // 立为傀儡；做不了返回原因(语言键)
+#if EC_PENDING
+    public static string Establish(Realm master, Realm puppet, bool record = true)
+    {
+        if (master?.Record == null || puppet?.Record == null || master == puppet || master.IsGone() || puppet.IsGone())
+            return "diplomacy_reason_invalid";
+        // 帝国的成员(行政区、藩镇)由帝国管，不另作傀儡；傀儡不能再有傀儡
+        if (puppet.IsInEmpire() && !puppet.IsEmpire()) return "puppet_reason_member";
+        if (IsPuppet(master) || PuppetsOf(puppet).Any()) return "puppet_reason_chain";
+        if (SameRealm(master, puppet)) return "puppet_reason_member";
+        // 主国正从属于它的：先翻身(见 SubjectChain.Overturn)，解不开就不立
+        if (!SubjectChain.Overturn(master, puppet)) return "puppet_reason_chain";
+        DiplomacyActions.EndWars(master, puppet);
+        DiplomacyActions.EndWars(ModRealm(master), puppet);
+        KingdomExtension.KingdomExtraData data = puppet.GetOrCreate();
+        data.puppet_master_id = master.Key;
+        data.puppet_since = GameClock.Now;
+        // 政体照立国时的：不随本文化的政体同步、废君、建政改走(见 InstitutionSystem、RepublicSystem.CanAbolish)
+        data.regime_manually_selected = true;
+        data.scenario_monarchy = true;
+        SyncIdeology(puppet, master);
+        JoinWars(puppet, master);
+        // 地图上用宗主的颜色(见 VassalColorService)
+        VassalColorService.Apply(puppet, master);
+        if (record)
+        {
+            string text = string.Format(LM.Get("puppet_established_history"), puppet.GetKingdomName(), master.GetKingdomName());
+            EventRecorder.Record(master, text);
+            TranslateHelper.LogEventMessage(text, master);
+        }
+        LogService.LogInfo($"[EmpireCraft][傀儡] {master.GetKingdomName()} 立 {puppet.GetKingdomName()} 为傀儡");
+        return null;
+    }
+#endif
+
+    // 立一个傀儡政权：seat 作治所，leader 领头(另立门户，离了原来的官职)，cities 里别的城一并交过去，followers 随他改投；
+    // name 国号(锁定)；culture 写了改新国文化，否则取当地之俗。剧情事件(扶植傀儡政权)与近代占领(OccupationPuppetSystem)共用
+#if EC_PENDING
+    public static Realm Found(Realm master, City seat, IEnumerable<City> cities, Person leader, string name, string culture = null,
+        IEnumerable<Person> followers = null)
+    {
+        if (master?.Record == null || master.IsGone() || seat?.Record == null || seat.IsGone() || leader?.Record == null || leader.IsGone()) return null;
+        Detach(leader);
+        if (leader.City != seat) leader.joinCity(seat);
+        // 立傀儡(占领、剧本)：受命立国，不许自立的闸放行(见 SecessionGate)
+        Realm puppet = SecessionGate.Sanctioned(() => seat.makeOwnKingdom(leader, pRebellion: false));
+        if (puppet?.Record == null) return null;
+        if (puppet.IsInEmpire()) SecessionGate.Sanctioned(() => puppet.GetEmpire()?.leave(puppet, true, true));
+        if (CultureService.IsValidCulture(culture)) RealmCultureSystem.Convert(puppet, culture, wholeEmpire: false);
+        else CultureService.ApplyLocalCulture(puppet, seat);
+        puppet.ClearAdministrativeTitle();
+        puppet.SetKingdomType(KingdomType.default_country_post);
+        puppet.GetRegime()?.SetAllowDiplomacy(true);
+        puppet.GetRegime()?.SetAllowArmy(true);
+        puppet.GetRegime()?.SetAllowSupportCenterArmy(false);
+        foreach (City city in (cities ?? Enumerable.Empty<City>()).Where(city => city?.Record != null && !city.IsGone() && city != seat).ToList())
+            if (city.Realm != puppet) city.JoinRealm(puppet);
+        if (!string.IsNullOrWhiteSpace(name))
+        {
+            puppet.SetKingdomCoreName(name, name);
+            puppet.SetCustomCountryName(name);
+        }
+        foreach (Person follower in (followers ?? Enumerable.Empty<Person>())
+                 .Where(actor => actor?.Record != null && !actor.IsGone() && actor != leader && actor.IsAdult() && !actor.IsRuler()).ToList())
+        {
+            Detach(follower);
+            if (follower.Realm != puppet) follower.joinKingdom(puppet);
+            if (follower.City?.Realm != puppet) follower.joinCity(seat);
+        }
+        string failed = Establish(master, puppet, record: false);
+        if (failed != null) LogService.LogWarning($"[EmpireCraft][傀儡] {name} 立为 {master.GetKingdomName()} 的傀儡失败({failed})");
+        if (CorpsSystem.Enabled) CorpsSystem.Prefill(puppet);
+        return puppet;
+    }
+#endif
+
+    // 主国执政党的理念：有执政党按执政党；共和国按建国理念；君主国没有政党的按国家主理念；都没有按君主本人的
+#if EC_PENDING
+    public static PartyIdeology MasterIdeology(Realm master)
+    {
+        Empire empire = master?.GetEmpire();
+        if (empire != null && !empire.IsGone())
+        {
+            FixedFaction party = PartySystem.GetGovernmentParty(empire);
+            if (party != null) return party.Ideology;
+            return WarlordEraSystem.GovernmentIdeology(empire);
+        }
+        return master?.Ruler != null ? IdeologyPopulationSystem.Get(master.Ruler) : PartyIdeology.Centrism;
+    }
+#endif
+
+    // 傀儡奉行主国的理念：元首与京城的官员、名人随之改；傀儡自己有政党的，由这一理念的党一党执政
+#if EC_PENDING
+    public static void SyncIdeology(Realm puppet, Realm master)
+    {
+        if (puppet?.Record == null || master?.Record == null) return;
+        PartyIdeology ideology = MasterIdeology(master);
+        KingdomExtension.KingdomExtraData data = puppet.GetOrCreate();
+        if (data.puppet_ideology == ideology.ToString() && (puppet.Ruler == null || IdeologyPopulationSystem.Get(puppet.Ruler) == ideology)) return;
+        data.puppet_ideology = ideology.ToString();
+        if (puppet.Ruler != null) IdeologyPopulationSystem.Set(puppet.Ruler, ideology);
+        foreach (Person actor in puppet.Capital?.units?.ToList() ?? new List<Person>())
+            if (actor?.Record != null && !actor.IsGone() && actor.Alive && actor.Realm == puppet && CityPopulationSystem.IsNotable(actor))
+                IdeologyPopulationSystem.Set(actor, ideology);
+        Empire empire = puppet.GetEmpire();
+        if (empire != null && empire.CoreKingdom == puppet && PartySystem.IsActive(empire))
+        {
+            FixedFaction ruling = PartySystem.ScenarioFoundParty(empire, ideology, puppet.Ruler, null);
+            if (ruling != null) PartyBanSystem.Close(empire, ruling, Enumerable.Empty<FixedFaction>(), "party_ban_one_party_history");
+        }
+    }
+#endif
+
+    // 离了原来的官职、城主之位
+#if EC_PENDING
+    private static void Detach(Person actor)
+    {
+        if (actor.IsOnOffice())
+        {
+            actor.GetOffice()?.RemoveActor();
+            actor.EndOffice();
+        }
+        if (actor.IsCityLeader() && actor.City != null) actor.City.removeLeader();
+    }
+
+    public static void Release(Realm puppet, string historyKey)
+    {
+        if (puppet?.Record == null) return;
+        KingdomExtension.KingdomExtraData data = puppet.GetOrCreate();
+        if (data.puppet_master_id < 0) return;
+        Realm master = EmpireWorld.Current?.kingdoms?.get(data.puppet_master_id);
+        data.puppet_master_id = -1L;
+        data.puppet_since = -1d;
+        data.regime_manually_selected = false;
+        VassalColorService.Clear(puppet);
+        if (puppet.IsGone() || string.IsNullOrEmpty(historyKey)) return;
+        string text = string.Format(LM.Get(historyKey), puppet.GetKingdomName(), master?.data?.name ?? LM.Get("label_none"));
+        EventRecorder.Record(puppet, text);
+        TranslateHelper.LogEventOnly(text, puppet);
+    }
+#endif
+
+    // 主国(连同主国所在帝国的中央)正在打的仗：傀儡补进同一方
+#if EC_PENDING
+    private static void JoinWars(Realm puppet, Realm master)
+    {
+        var sides = new HashSet<Realm> { master, ModRealm(master) };
+        foreach (Realm side in sides.ToList())
+        {
+            if (side?.Record == null || side.IsGone()) continue;
+            foreach (War war in side.getWars().ToList())
+            {
+                if (war?.data == null || war.hasEnded() || war.hasKingdom(puppet)) continue;
+                try
+                {
+                    if (war.isAttacker(side)) war.joinAttackers(puppet);
+                    else if (war.isDefender(side)) war.joinDefenders(puppet);
+                }
+                catch (Exception exception)
+                {
+                    LogService.LogWarning($"[EmpireCraft][傀儡] {puppet.GetKingdomName()} 随主国参战失败: {exception.Message}");
+                }
+            }
+        }
+    }
+#endif
+
+    private static object _world;
+    private static double _lastMonth = -1d;
+
+    public static void ResetWorldState()
+    {
+        _world = null;
+        _lastMonth = -1d;
+    }
+
+    // 每月：主国还在的随主国参战，主国亡了的放开
+#if EC_PENDING
+    public static void Tick()
+    {
+        EmpireWorld world = EmpireWorld.Current;
+        if (world?.LiveRealms == null || ModClass.IS_CLEAR) return;
+        if (!ReferenceEquals(_world, world))
+        {
+            _world = world;
+            _lastMonth = -1d;
+        }
+        double now = world.Now();
+        if (_lastMonth >= 0d && now >= _lastMonth && GameClock.MonthsSince(_lastMonth) < 1) return;
+        _lastMonth = now;
+        foreach (Realm kingdom in world.LiveRealms.ToList())
+        {
+            if (kingdom?.Record == null || kingdom.IsGone() || kingdom.GetOrCreate().puppet_master_id < 0) continue;
+            try
+            {
+                Realm master = Master(kingdom);
+                if (master == null) Release(kingdom, "puppet_master_gone_history");
+                // 城都交出去了(并进别的傀儡、战后献城)：只剩个空名，不再随主国参战
+                else if ((kingdom.Cities?.Count ?? 0) == 0) Release(kingdom, null);
+                else
+                {
+                    SyncIdeology(kingdom, master);
+                    JoinWars(kingdom, master);
+                }
+            }
+            catch (Exception exception)
+            {
+                LogService.LogWarning($"[EmpireCraft][傀儡] {kingdom.Name} 月结失败: {exception.Message}");
+            }
+        }
+    }
+#endif
+}
+}

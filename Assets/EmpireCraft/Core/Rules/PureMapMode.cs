@@ -1,0 +1,220 @@
+// Ported from the EmpireCraft mod: Scripts/GeneralSystems/PureMapMode.cs @ 64c66e30. Body kept line-for-line for three-way sync;
+// see Port/manifest.json and Tools/PortTool.
+using Time = EmpireCraft.Core.FrameClock;
+using System.Collections.Generic;
+
+namespace EmpireCraft.Core
+{
+
+// 纯净地图模式(模组设置，下次启动生效，见 ConfigActions.PureMapCallBack)：地图上只留国家色块。
+//   · 开启后自动打开无小人模式与占领模式，关掉军团统领实体与小人社交(开着本模式时改回去也会被再改过来)；
+//   · 全图没有植物：树、灌木、花草、菌菇、庄稼分帧清掉，原版的植物蔓延、随机播种、生物群系蔓生停掉；
+//     木头改由伐木场按产能直接产出(见 IndustryBuildingSystem.HarvestTrees)，粮食按田里的种植位折算(见 FarmlandSystem)；
+//   · 除船以外不画任何人物(血条、头像、物品、旗帜、状态图标也不画)，人物要去哪里直接到位、不走路，鼠标也不再选中人物
+//     (见 PureMapPatch)；君主、官员、家族、谋划照常作为数据运作。船照常显示、航行，海军旗舰不随统领实体开关撤掉；
+//   · 不画任何建筑(建筑本体、仓库堆货、建筑阴影、城墙)；民居、仓库、风车、市集、寺庙、兵营、瞭望塔、水井、篝火只记在各城的
+//     建筑台账里(见 CityLedger，2026-11-11)，不再有原版的建筑实体；码头、带藏书的公所与图书馆仍是实体、照常作为数据运作；
+//     雕像、训练木桩、花园、喷泉等纯装饰建筑清掉、不再建造(见 PureMapPatch)，野外粪便一并清掉；
+//   · 国家色块任何缩放都填满，颜色、透明度同原版图层(半透明，露出原版地形)，水面不涂国色；
+//     城市平面图另成一层铺在色块之下(见 CityPlanOverlay)；
+//   · 实体一次清：读档后、积压时不是名人的普通人当场并回人口(几帧清完)，之后每 10 秒清一次零头，不等月度结算慢慢回收。
+public static class PureMapMode
+{
+#if EC_PENDING
+    public static bool Enabled => ModClass.PURE_MAP_MODE;
+#endif
+
+    // 本模式下打开的法则：无小人模式、占领模式(军团与战线这套虚拟军队要两者都开)
+    private static readonly string[] ForcedOnLaws = { "empirecraft_law_no_commoners", "empirecraft_law_switch_occupy_mode" };
+    // 本模式下关掉的法则：军团统领实体、小人社交
+    private static readonly string[] ForcedOffLaws = { "empirecraft_law_corps_general", "empirecraft_law_allow_social" };
+
+    // 原版会长出、散播植物的世界法则
+    private static readonly string[] FloraLaws =
+    {
+        "world_law_vegetation_random_seeds", "world_law_biome_overgrowth", "world_law_spread_trees",
+        "world_law_spread_fungi", "world_law_spread_plants", "world_law_spread_fast_trees",
+        "world_law_spread_fast_fungi", "world_law_spread_fast_plants"
+    };
+
+    // 不画的精灵层：人物的附属图层与建筑。人物本体与影子照常画(船要显示)，非船的人物由 PureMapPatch 设为不可见；
+    // 地图拉远时的君主、城主头像、收藏、军队、社交图标也不画(人物到处瞬移，头像跟着闪来闪去)。
+    // 谋划图标照常画，固定在参与者所在城市的城心上方(见 PureMapPatch.BeforeDrawPlotIcon)
+    private static readonly string[] HiddenSprites =
+    {
+        "draw_healthbars", "draw_units_avatars", "unit_items", "draw_unit_hit_effect",
+        "draw_parabolic_unload", "draw_unit_highlight_effect", "unit_banners", "selected_units",
+        "unit_metas", "happiness_icons", "task_icons", "family_species_icons", "status_effects",
+        "draw_buildings", "draw_building_stockpiles", "shadows_buildings", "draw_walls", "draw_light_walls_light_blobs",
+        "kings", "leaders", "favorites_map", "armies", "socialize", "magnet_units", "buildings_light_windows"
+    };
+
+    // 纯装饰建筑(按类型或资源 id)
+    private static readonly HashSet<string> DecorTypes = new() { "type_statue", "type_training_dummies", "type_poop" };
+    private static readonly HashSet<string> DecorIds = new() { "garden", "fountain" };
+
+    private const int SweepPerFrame = 400;
+    // 普通人一次清：每帧最多并入这么多人，清完后每隔 PurgeInterval 秒(真实时间)再扫一遍零头
+    private const int PurgePerFrame = 1500;
+    private const float PurgeInterval = 10f;
+    private static float _purgeAt;
+    private static int _purgedTotal;
+    private static bool _spritesOff;
+#if EC_PENDING
+    private static Building[] _sweep;
+#endif
+    private static int _cursor;
+    private static float _lawCheckAt;
+
+#if EC_PENDING
+    public static void Tick()
+    {
+        if (!Enabled || EmpireWorld.Current == null || !Config.game_loaded || SmoothLoader.isLoading()) return;
+        // 开局提示：建筑、植物、小人不见了是纯净地图模式(见 PureMapNoticeWindow)
+        EmpireCraft.Core.PureMapNoticeWindow.TryShow();
+        if (!_spritesOff) TurnOffSprites();
+        if (Time.unscaledTime >= _lawCheckAt)
+        {
+            _lawCheckAt = Time.unscaledTime + 2f;
+            SyncLaws();
+            // 原版(或别的模组)重建了绘制表、把建筑和小人的画法装回去了：再关一次
+            // (玩家反馈纯净地图下又看到了原版的村子建筑和篝火)
+            EnsureSpritesOff();
+        }
+        Sweep();
+        // 可记账的建筑实体(民居、仓库、市集……)并进各城的建筑台账、拆掉实体(见 CityLedger)
+        using (FrameProfiler.Measure("建筑台账·并入")) CityLedger.Tick();
+        Purge();
+    }
+#endif
+
+    // 不慢慢回收：读档后、积压时把不是名人的普通人一次并回人口(几帧清完，见 CityPopulationSystem.PurgeCommoners)
+#if EC_PENDING
+    private static void Purge()
+    {
+        if (Config.paused || Time.unscaledTime < _purgeAt) return;
+        int folded = CityPopulationSystem.PurgeCommoners(PurgePerFrame, out bool more);
+        _purgedTotal += folded;
+        if (more) return;
+        _purgeAt = Time.unscaledTime + PurgeInterval;
+        if (_purgedTotal >= 100)
+            LogService.LogInfo($"[EmpireCraft][纯净地图] 一次并入普通人 {_purgedTotal} 人，剩实体 {EmpireWorld.Current.Living.Count}");
+        _purgedTotal = 0;
+    }
+
+    public static bool IsDecor(BuildingAsset asset) =>
+        asset != null && (DecorTypes.Contains(asset.type ?? "") || DecorIds.Contains(asset.id ?? ""));
+#endif
+
+    // 植物、庄稼、装饰，连同改为村镇生计的矿场、伐木场、牧场、屠宰场(见 LivelihoodSystem.Replaces)
+#if EC_PENDING
+    private static bool ShouldClear(Building building) =>
+        building?.asset != null && (building.asset.flora || building.asset.wheat || IsDecor(building.asset) ||
+                                    LivelihoodSystem.Replaces(building.asset));
+#endif
+
+    // 原版的绘制委托类型是 QuantumSpriteUpdater(不是 Action)，否则赋不上 draw_call
+#if EC_PENDING
+    private static readonly QuantumSpriteUpdater NoDraw = _ => { };
+
+    private static void TurnOffSprites()
+    {
+        _spritesOff = true;
+        foreach (string id in HiddenSprites)
+        {
+            QuantumSpriteAsset asset = AssetManager.quantum_sprites?.get(id);
+            if (asset != null) asset.draw_call = NoDraw;
+        }
+        LogService.LogInfo("[EmpireCraft][纯净地图] 不再绘制人物与建筑");
+        // 远景小地图上已经画好的建筑色块：强制整张重画一次，按地表本色(见 BuildingMinimapPatch)
+        try
+        {
+            HarmonyLib.AccessTools.Method(typeof(EmpireWorld), "redrawMiniMap")?.Invoke(EmpireWorld.Current, new object[] { true });
+        }
+        catch (global::System.Exception exception)
+        {
+            LogService.LogWarning($"[EmpireCraft][纯净地图] 重画小地图失败: {exception.Message}");
+        }
+    }
+
+    private static void EnsureSpritesOff()
+    {
+        int restored = 0;
+        foreach (string id in HiddenSprites)
+        {
+            QuantumSpriteAsset asset = AssetManager.quantum_sprites?.get(id);
+            if (asset == null || ReferenceEquals(asset.draw_call, NoDraw)) continue;
+            asset.draw_call = NoDraw;
+            restored++;
+        }
+        if (restored > 0) LogService.LogInfo($"[EmpireCraft][纯净地图] 绘制表被重建，重新关掉 {restored} 项人物与建筑的绘制");
+    }
+
+    public static bool Visible(Person actor) => actor?.asset != null && actor.asset.is_boat;
+#endif
+
+    // 停掉植物蔓延类法则，打开无小人模式与占领模式，关掉军团统领实体与小人社交
+#if EC_PENDING
+    private static void SyncLaws()
+    {
+        var laws = EmpireWorld.Current.world_laws;
+        if (laws?.dict == null) return;
+        bool changed = false;
+        foreach (string id in FloraLaws)
+        {
+            if (!laws.dict.TryGetValue(id, out PlayerOptionData option) || !option.boolVal) continue;
+            option.boolVal = false;
+            changed = true;
+        }
+        foreach (string id in ForcedOnLaws)
+        {
+            if (!laws.dict.TryGetValue(id, out PlayerOptionData option) || option.boolVal) continue;
+            option.boolVal = true;
+            changed = true;
+            LogService.LogInfo($"[EmpireCraft][纯净地图] 已自动打开 {id}");
+        }
+        var switched = new List<(WorldLawAsset law, PlayerOptionData option)>();
+        foreach (string id in ForcedOffLaws)
+        {
+            if (!laws.dict.TryGetValue(id, out PlayerOptionData option) || !option.boolVal) continue;
+            option.boolVal = false;
+            changed = true;
+            switched.Add((AssetManager.world_laws_library.get(id), option));
+        }
+        if (changed) laws.updateCaches();
+        // 小人社交关掉时要把各人的社交行为撤掉(法则自带的切换处理)；统领实体的切换处理只是弹提示，不调
+        foreach ((WorldLawAsset law, PlayerOptionData option) in switched)
+            if (law?.id == "empirecraft_law_allow_social") law.on_state_change?.Invoke(option);
+    }
+#endif
+
+    // 分帧扫一遍全图建筑，把植物与装饰建筑清掉；扫完一遍再取新的快照(新长出的、地图生成的都会被扫到)
+#if EC_PENDING
+    private static void Sweep()
+    {
+        if (_sweep == null || _cursor >= _sweep.Length)
+        {
+            _sweep = EmpireWorld.Current.buildings.getSimpleArray();
+            _cursor = 0;
+            if (_sweep == null) return;
+        }
+        int end = global::System.Math.Min(_sweep.Length, _cursor + SweepPerFrame);
+        for (; _cursor < end; _cursor++)
+        {
+            Building building = _sweep[_cursor];
+            if (!ShouldClear(building) || building.IsGone() || building.isOnRemove()) continue;
+            building.startRemove();
+        }
+    }
+
+    public static void ResetWorldState()
+    {
+        _sweep = null;
+        _cursor = 0;
+        _lawCheckAt = 0f;
+        _purgeAt = 0f;
+        _purgedTotal = 0;
+    }
+#endif
+}
+}

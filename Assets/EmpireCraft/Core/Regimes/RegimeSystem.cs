@@ -1,0 +1,569 @@
+// Ported from the EmpireCraft mod: Scripts/Regimes/RegimeSystem.cs @ 64c66e30. Body kept line-for-line for three-way sync;
+// see Port/manifest.json and Tools/PortTool.
+using System;
+using System.Collections.Generic;
+using System.IO;
+using System.Linq;
+using Newtonsoft.Json;
+
+namespace EmpireCraft.Core
+{
+public enum KingdomType
+{
+    Arabic_caliphate,
+    Arabic_emirate,
+    Arabic_province,
+    Arabic_sultanate,
+    Feudalism_county,
+    Feudalism_duchy,
+    Feudalism_empire,
+    Feudalism_grand_duchy,
+    Feudalism_kingdom,
+    Feudalism_march,
+    Feudalism_papal_state,
+    LvLing_centre,
+    LvLing_duhufu,
+    LvLing_jiedushi,
+    LvLing_jimizhou,
+    LvLing_kingdom,
+    LvLing_province,
+    Modern_autonomous_prefecture,
+    Modern_centre,
+    Modern_province,
+    Modern_state,
+    Origin_centre,
+    Origin_kingdom,
+    YouMu_bu,
+    YouMu_centre,
+    YouMu_kingdom,
+    ZhouFeudalism_bo,
+    ZhouFeudalism_empire,
+    ZhouFeudalism_gong,
+    ZhouFeudalism_hou,
+    ZhouFeudalism_zi,
+    default_country_post,
+    ClassicalRepublic_centre,
+    ClassicalRepublic_city_state,
+    ZhouFeudalism_jun, // 郡国并行下分封制的郡(官员选拔的行政区)；追加在末尾以保持旧存档枚举值稳定
+    Feudalism_intendancy, // 中央集权君主制下西方封建制的辖区(官员选拔的行政区)
+    Feudalism_diocese, // 神权国家下西方封建制的教区(官员选拔的行政区)
+    Feudalism_free_city, // 封建制帝国的帝国自由城市(市议会推举执政，见 HolyRomanSystem.Members)
+    Feudalism_prince_bishopric, // 封建制帝国的教会诸侯(主教领，主教按叙任权任命)
+    Bakufu_shogunate, // 幕府：将军的直辖(见 BakufuSystem)；以下追加在末尾以保持旧存档枚举值稳定
+    Bakufu_han,       // 藩：世袭大名的领国
+    Bakufu_tenryo,    // 天领：幕府派奉行治理的直辖地
+    YouMu_province,   // 游牧行省：施行"行省制度"后打下的法理设行省、派官治理(见 Empire.IsNomadProvincial)
+    ClassicalRepublic_province, // 元首制的行省：总督由朝廷选任(见 Empire.IsPrincipate)
+    NomadFeudalism_centre, // 本族定居分封的汗庭；只追加，不改变旧档枚举值
+    NomadFeudalism_lordship,
+    LvLing_zhili, // 内阁阶段归储君的第二直隶(见 MultiCapitalSystem.Zhili)；只追加，不改变旧档枚举值
+    Transmigrant_senate, // 穿越政体的元老院国家(见 TransmigrantSystem)；只追加，不改变旧档枚举值
+    Colonial_governorate, // 殖民地政府的总督府(见 ColonySystem)；只追加
+    Company_charter, // 特许公司(见 ColonySystem)；只追加
+    Transmigrant_region, // 穿越政体的大区(早期叫特区，见 TransmigrantSystem.IsRegion)；只追加
+    OriginFeudalism_centre,
+    OriginFeudalism_tribe,
+}
+
+public enum ArmyOfficialType
+{
+    LvLing_army_yuling,
+    LvLing_army_dudu,
+    LvLing_army_zhenjiang,
+    LvLing_army_shuzhu,
+}
+public enum CityType
+{
+    Arabic_city,
+    Feudalism_city,
+    Feudalism_dirC,
+    Feudalism_religion_district,
+    LvLing_city,
+    LvLing_jimizhou,
+    Modern_city,
+    Origin_city,
+    YouMu_city,
+    ZhouFeudalism_city,
+    ClassicalRepublic_city,
+    Bakufu_city, // 城下町；追加在末尾以保持旧存档枚举值稳定
+    NomadFeudalism_city,
+    Transmigrant_city, // 穿越政体的县；只追加
+    Colonial_city, // 殖民地的城；只追加
+    Company_factory, // 特许公司的商馆；只追加
+    OriginFeudalism_city,
+}
+public enum TaxLevel
+{
+    None,  //无
+    Low,   //低
+    Medium,//中
+    High   //高
+}
+
+public enum LeaderSelectMethod
+{
+    Succession,  //世袭
+    Exam,        //考试
+    Vote,        //投票
+    Army,        //举能
+    Harem,       //妃子
+    Default
+}
+
+[Flags]
+public enum RegimeType
+{
+    LvLing,        //律令      - 唐
+    Feudalism,     //封建      - 神罗
+    ZhouFeudalism, //分封      - 周
+    Modern,      //共和      - 现代美国
+    Arabic,        //阿拉伯政体 - 阿拉伯世界
+    YouMu,         //游牧政体   - 蒙古汗国
+    Republic,
+    Origin,
+    ClassicalRepublic, //古典城邦共和；追加在末尾以保持旧存档枚举值稳定
+    Bakufu, //幕府：天皇为虚君、征夷大将军掌实权、大名世袭各藩(日本)
+    HuaxiaOrigin, //华夏原始政体：诸部议事、推举共主、禅让传贤(见 ShanrangSystem)，世袭王权以后家天下；追加在末尾
+    NomadFeudalism, // 本族定居后由部族领主分土世袭；不附带西方教廷、选帝侯与神罗制度
+    Transmigrant, // 穿越政体：元老院为最高权力、执委会主席由元老院选出，无君主天命(见 TransmigrantSystem)；追加在末尾
+    Colonial, // 殖民地政府：宗主国任免总督的海外附属政权(见 ColonySystem)；追加在末尾
+    Company, // 特许公司：金融以后宗主国特许设立，董事会选总督、利润分红给宗主国(见 ColonySystem)；追加在末尾
+    OriginFeudalism,
+}
+
+public enum ReligionLevel
+{
+    None,   //无国教-自由信仰
+    Low,    //有国教-自由信仰
+    Medium, //有国教-限制信仰
+    High    //政教合一
+}
+
+public class Regime
+{
+    public RegimeType type;
+    public string description;
+    public string icon_url;
+    public bool era_name;
+    [JsonIgnore]
+    public long control_kingdom_id;
+#if EC_PENDING
+    [JsonIgnore] 
+    public AutoHoriLayoutGroup FactionSpace;
+#endif
+    public LeaderSelectMethod leader_select_method; 
+    public bool centre_empire_separate;
+    // 政体行为开关(用户 2026-10-19 选"挪进配置"；以前写死在代码里)，各政体 SystemConfig.json 写明，读模板(GetTemplate)：
+    //   members_can_secede：成员能否"拥兵自立"；secede_member_types：只有这些国家类别的成员能(空 = 都能)；
+    //   secede_ignores_central_army：支援中央军的成员也能(游牧兀鲁思)；
+    //   indirect_rule：成员算间接统治(不因鞭长莫及失稳)；direct_member_types：其中按直辖算的国家类别；
+    //   partition_conquests：打下的法理划成行政区或分封(见 Empire.AutoEnfeoff)；
+    //   keep_member_roles：换成这个政体时成员保留原来的外交权与选任方式，成员君主入继大统时封国传给他的子女；
+    //   partition_chance_factor：遗诏分治的机会倍数(见 EmpirePartitionSystem)
+    public bool members_can_secede;
+    public List<KingdomType> secede_member_types = new();
+    public bool secede_ignores_central_army;
+    public bool indirect_rule;
+    public List<KingdomType> direct_member_types = new();
+    public bool partition_conquests;
+    public bool keep_member_roles;
+    public float partition_chance_factor = 1f;
+    public bool has_cabinet;
+    public int cabinet_number;
+    public KingdomType default_kingdom;
+    // 分封规则由体制配置决定，避免把律令制的虚封逻辑写死到通用帝国流程中。
+    public bool enfeoff_only_royal;
+    public bool enfeoff_virtual_only;
+    public bool enfeoff_virtual_can_use_empire_titles;
+    public bool enable_auto_honorary_peerages;
+    // 政体性质由配置声明，而不是在各个系统里罗列 RegimeType：
+    //   is_monarchy            君主制（可以推行君主立宪、可以有议会限制君权）
+    //   allows_landlord_class  允许出现地主阶层（封建/分封制土地归领主，没有自由的地主）
+    public bool is_monarchy;
+    public bool allows_landlord_class = true;
+    // 该政体的"内阁"实际上是选举君主的选帝侯团（如西方封建）。议会成立后这类内阁照常保留，
+    // 普通内阁则被议会与总理取代。
+    public bool cabinet_is_electoral_college;
+    public List<PeeragesLevel> virtual_peerages;
+    public List<string> virtual_peerage_names;
+    public List<string> virtual_honorary_peerages;
+    //宗教點數
+    public int religion_point = 0;
+    public FixedFaction CentreMind;
+    public List<FixedFaction> Factions;
+    public List<FixedFaction> PlayerFactions;
+    public Dictionary<string, int[]> options;
+    public BureauConfig bureau_config;
+    public List<LawType> laws;
+    // 制度科技树曾经挂在这里，现在已经搬到 InstitutionTrees/<线 id>.json：制度归属文化
+    // （进而归属科技线），跟政体不是一回事。政体配置只管"国家形态"，不再管制度。
+    public double FactionChangeBlockUntil = -1f;
+
+    public void BlockFactionChange(int years)
+    {
+        FactionChangeBlockUntil = GameClock.Now + years;
+    }
+
+    public bool IsFactionChangeBlocked()
+    {
+        return GameClock.Now < FactionChangeBlockUntil;
+    }
+
+#if EC_PENDING
+    public List<FixedFaction> GetPlayerFactions() =>
+        PlayerFactions ??= new List<FixedFaction>(
+            FactionManager.Config.PlayerRegimeFactions.TryGetValue(type, out List<FixedFaction> factions)
+                ? factions.Select(f => f.DeepClone()).ToList()
+                : Factions.Select(f => f.DeepClone()).ToList());
+
+    public Regime Clone(Realm kingdom)
+    {
+        if (kingdom?.Record == null || kingdom.IsGone()) return null;
+        var res = new Regime
+        {
+            type = this.type,
+            CentreMind = new FixedFaction()
+            {
+                _id = Guid.NewGuid().ToString(),
+            },
+            description = this.description,
+            control_kingdom_id = kingdom.Key,
+            options = (this.options ?? new Dictionary<string, int[]>()).ToDictionary(
+                entry => entry.Key,
+                entry => (int[])entry.Value.Clone()
+            ),
+            bureau_config = this.bureau_config,
+            laws = this.laws?.ToList() ?? new List<LawType>(),
+            era_name = this.era_name,
+            has_cabinet = this.has_cabinet,
+            cabinet_number = this.cabinet_number,
+            centre_empire_separate = this.centre_empire_separate,
+            default_kingdom = this.default_kingdom,
+            enfeoff_only_royal = this.enfeoff_only_royal,
+            enfeoff_virtual_only = this.enfeoff_virtual_only,
+            enfeoff_virtual_can_use_empire_titles = this.enfeoff_virtual_can_use_empire_titles,
+            enable_auto_honorary_peerages = this.enable_auto_honorary_peerages,
+            is_monarchy = this.is_monarchy,
+            allows_landlord_class = this.allows_landlord_class,
+            cabinet_is_electoral_college = this.cabinet_is_electoral_college,
+            virtual_peerages = this.virtual_peerages?.ToList() ?? new List<PeeragesLevel>(),
+            virtual_peerage_names = this.virtual_peerage_names?.ToList() ?? new List<string>(),
+            virtual_honorary_peerages = this.virtual_honorary_peerages?.ToList() ?? new List<string>(),
+            Factions = (this.Factions ?? new List<FixedFaction>()).Select(f => f.Clone()).ToList()
+        };
+        List<FixedFaction> factions = null;
+        var hasConfig = FactionManager.Config?.PlayerRegimeFactions != null &&
+                        FactionManager.Config.PlayerRegimeFactions.TryGetValue(type, out factions);
+        res.PlayerFactions = hasConfig
+            ? factions.Select(f => f.DeepClone()).ToList()
+            : res.Factions.Select(f => f.DeepClone()).ToList();
+        // 同一政体按文化另起派系名(印度走阿拉伯政体，不分逊尼派、什叶派，见 DynastyNaming.CultureVariant)
+        foreach (FixedFaction faction in res.Factions.Concat(res.PlayerFactions))
+            if (faction != null && DynastyNaming.CultureVariant(kingdom, $"faction_name_{type}_{faction.Type}") is string nameKey)
+                faction.Name = LM.Get(nameKey);
+        return res;
+    }
+
+    public void RecoverFactions()
+    {
+        PlayerFactions = Factions.Select(f => f.Clone()).ToList();
+        Realm kingdom = EmpireWorld.Current.RealmByKey(control_kingdom_id);
+        Empire empire = kingdom?.GetEmpire();
+        if (kingdom == null || empire == null || kingdom != empire.CoreKingdom) return;
+
+        foreach (FixedFaction faction in PlayerFactions)
+        {
+            faction.EmpireId = empire.Key;
+            faction.FixMissedTemporaryFactions();
+        }
+        kingdom.ReconcileFactionRatios(PlayerFactions);
+        PlayerFactions.ForEach(faction => faction.Update());
+    }
+
+    public FixedFaction GetDominateFaction()
+    {
+        if ((PlayerFactions?.Count??0)<=0) return null;
+        var force = PlayerFactions.Find(f => f.Force);
+        // 不在帝国里的独立王国(简化朝堂)：派系不挂帝国，CentralRatio 全是零，按本国占比排
+        Realm kingdom = EmpireWorld.Current?.kingdoms?.get(control_kingdom_id);
+        if (kingdom?.Record != null && !kingdom.IsGone() && kingdom.GetEmpire() == null)
+            return force ?? CliqueSystem.DominantClass(PlayerFactions) ??
+                PlayerFactions.OrderByDescending(faction => kingdom.GetFactionRatioValue(faction)).First();
+        // 朋党：主导的是权最大的阶级派系(学说朋党的占比并入它投靠的那家，见 CliqueSystem.Power)
+        return force ?? CliqueSystem.DominantClass(PlayerFactions) ??
+            PlayerFactions.OrderByDescending(faction => faction.CentralRatio).First();
+    }
+#endif
+
+    public List<Person> GetAllFactionMembers()
+    {
+        var res = new List<Person>();
+        foreach (var f in PlayerFactions)
+        {
+            res.AddRange(f.Members.Select(a=>EmpireWorld.Current.PersonByKey(a)));
+        }
+        return res;
+    }
+    public bool HasEraName()
+    {
+        return era_name;
+    }
+    // 税级能选到哪一档：配置 option_tax_level 是 [默认税级, 可选档数]，政体窗口按档数画按钮。汗国分封配成 2 档(无/低)，
+    // 游牧配成 3 档(无/低/中)；真游牧(游牧政体 + 游牧文化，见 KingdomExtension.IsTrueNomad)不论配置只到"低"(收税另打折，
+    // 见 KingdomExtension.NomadTaxFactorOf)。阿兹特克、林地部族挂在游牧线上、青铜后锁在游牧政体，却不逐水草而居，
+    // 能用到"中"(用户 2026-10-21 选"阿兹特克、奥吉布瓦不再吃游牧的亏")。制度改革、诏令要把税级提到中、高的，到这一档为止。
+    // 判文化用本政体的 type：换政体时新政体还没装到国家上(见 KingdomExtension.LoadRegime)
+#if EC_PENDING
+    public TaxLevel MaxTaxLevel()
+    {
+        TaxLevel max = TaxLevel.High;
+        if (options != null && options.TryGetValue("option_tax_level", out int[] tax) && tax != null && tax.Length >= 2)
+            max = (TaxLevel)Math.Max(0, Math.Min((int)TaxLevel.High, tax[1] - 1));
+        if (max > TaxLevel.Low && KingdomExtension.IsNomadTaxRegime(type) &&
+            KingdomExtension.IsTrueNomad(EmpireWorld.Current?.kingdoms?.get(control_kingdom_id), type))
+            max = TaxLevel.Low;
+        return max;
+    }
+    public TaxLevel GetTaxLevel()
+    {
+        return (TaxLevel)Math.Min(options["option_tax_level"][0], (int)MaxTaxLevel());
+    }
+    public void SetTaxLevel(TaxLevel level)
+    {
+        if (level > MaxTaxLevel()) level = MaxTaxLevel();
+        Realm kingdom = EmpireWorld.Current?.kingdoms?.get(control_kingdom_id);
+        if (kingdom != null && level != GetTaxLevel() &&
+            !ConstitutionalEconomySystem.CanChangeTax(kingdom.GetEmpire())) return;
+        options["option_tax_level"][0] = (int) level;
+    }
+#endif
+    // 存着的税级超过可选档数的压回最高一档(旧档里的游牧政体以前能设中、高)。直接写选项——议会掌握征税权时
+    // SetTaxLevel 会被否决，这是修补不是改税。返回是否改了
+#if EC_PENDING
+    public bool ClampTaxLevel()
+    {
+        if (options == null || !options.TryGetValue("option_tax_level", out int[] tax) || tax == null || tax.Length == 0)
+            return false;
+        int max = (int)MaxTaxLevel();
+        if (tax[0] <= max) return false;
+        tax[0] = max;
+        return true;
+    }
+#endif
+
+    public ReligionLevel GetReligionLevel()
+    {
+        return (ReligionLevel)options["option_religion_type"][0];
+    }
+
+    public void SetReligionLevel(ReligionLevel level)
+    {
+        options["option_religion_type"][0] = (int) level;
+    }
+
+    public LeaderSelectMethod GetLeaderSelectMethod()
+    {
+        return (LeaderSelectMethod)options["option_leader_select_method"][0];
+    }
+
+    public void SetLeaderSelectMethod(LeaderSelectMethod value)
+    {
+        options["option_leader_select_method"][0] = (int)value;
+    }
+
+    // 继承法的持久状态存在 KingdomExtraData.SuccessionLaw 上(regime 对象本身每次读档都会重新 Clone),
+    // 这里的 option 只是给 RegimeWindow 通用渲染用的镜像,读写都要和 KingdomExtraData 同步。
+    public SuccessionLawType GetSuccessionLaw()
+    {
+        return (SuccessionLawType)options["option_succession_law"][0];
+    }
+
+    public void SetSuccessionLaw(SuccessionLawType value)
+    {
+        options["option_succession_law"][0] = (int)value;
+        EmpireWorld.Current.RealmByKey(control_kingdom_id)?.SetSuccessionLaw(value);
+    }
+
+    public bool IsAllowDiplomacy()
+    {
+        return Convert.ToBoolean(options["toggle_allow_diplomacy"][0]);
+    }
+
+    public void SetAllowDiplomacy(bool value)
+    {
+        options["toggle_allow_diplomacy"][0] = value?1:0;
+    }
+
+    public bool IsAllowArmy()
+    {
+        return Convert.ToBoolean(options["toggle_allow_army"][0]);
+    }
+
+    public void SetAllowArmy(bool value)
+    {
+        options["toggle_allow_army"][0] = value?1:0;
+    }
+
+    public bool IsAllowSupportCenterArmy()
+    {
+        return Convert.ToBoolean(options["toggle_support_army_to_center"][0]);
+    }
+
+    public void SetAllowSupportCenterArmy(bool value)
+    {
+        options["toggle_support_army_to_center"][0] = value?1:0;
+    }
+}
+
+public static class RegimeManager
+{
+    public static Dictionary<RegimeType, Regime> regimes;
+
+    // 政体性质一律以模板为准：kingdom 身上的 regime 是克隆出来的，旧存档里的克隆没有这些字段。
+    // 模板缺失（例如配置里写了尚未实现的政体）时视为非君主制、允许地主。
+    public static Regime GetTemplate(RegimeType? type) =>
+        type.HasValue && regimes != null && regimes.TryGetValue(type.Value, out Regime regime) ? regime : null;
+
+    public static bool IsMonarchy(RegimeType? type) => GetTemplate(type)?.is_monarchy == true;
+
+    // 原始政体(各文化共用的原始政体与华夏原始政体)
+    public static bool IsPrimitive(RegimeType? type) => type is RegimeType.Origin or RegimeType.HuaxiaOrigin;
+
+    public static bool AllowsLandlordClass(RegimeType? type) => GetTemplate(type)?.allows_landlord_class ?? true;
+
+    public static bool IsCabinetElectoralCollege(RegimeType? type) =>
+        GetTemplate(type)?.cabinet_is_electoral_college == true;
+    private static string _folderPath = Path.Combine(GameData.Folder, "Scripts", "Regimes", "Configs");
+
+#if EC_PENDING
+    public static void init()
+    {
+        if (regimes != null) return;
+
+        regimes = new Dictionary<RegimeType, Regime>();
+
+        if (Directory.Exists(_folderPath))
+        {
+            // 遍历 Regimes 下所有子目录
+            var subDirs = Directory.GetDirectories(_folderPath);
+            foreach (var dir in subDirs)
+            {
+                LM.LoadLocales(Path.Combine(dir, "OfficialType.csv"));
+                var filePath = Path.Combine(dir, "SystemConfig.json");
+                if (File.Exists(filePath))
+                    LoadRegimeFile(filePath);
+                else
+                    LogService.LogInfo($"未发现政体配置文件: {filePath}");
+            }
+        }
+        else
+        {
+            LogService.LogInfo($"未发现政体目录: {_folderPath}");
+        }
+
+        // 制度科技线是独立的一套配置（InstitutionTrees/），跟政体目录互不依赖：
+        // 政体目录缺失也照样把制度线读进来，反之亦然。
+        InstitutionDefinitionRegistry.Load();
+    }
+#endif
+
+    // 一个文件里的政体逐个读，哪个读不了只跳过哪个：以前整个文件一次反序列化，政体编辑器新建的政体名
+    // 还没进 RegimeType 枚举就抛异常，排在它后面的政体和全部制度线都没读，别的文化跟着坏
+    private static void LoadRegimeFile(string filePath)
+    {
+        Newtonsoft.Json.Linq.JObject root;
+        try
+        {
+            root = Newtonsoft.Json.Linq.JObject.Parse(File.ReadAllText(filePath));
+        }
+        catch (Exception e)
+        {
+            LogService.LogWarning($"政体配置 {filePath} 格式有误，整个文件跳过: {e.Message}");
+            return;
+        }
+        foreach (var property in root.Properties())
+        {
+            if (!Enum.TryParse(property.Name, false, out RegimeType type) || !Enum.IsDefined(typeof(RegimeType), type))
+            {
+                LogService.LogWarning($"政体 {property.Name}({filePath})不在代码的 RegimeType 枚举里，已跳过。" +
+                                      "在政体编辑器点“同步代码枚举”后重启游戏");
+                continue;
+            }
+            try
+            {
+                Regime regime = property.Value.ToObject<Regime>(JsonSerializer.CreateDefault());
+                if (regime == null) continue;
+                regime.type = type;
+                NormalizeRegime(regime);
+                regimes[type] = regime; // 合并到总字典
+                LogService.LogInfo("加载政体完成: " + type + " 来自 " + filePath);
+            }
+            catch (Exception e)
+            {
+                // 多半是 bureau_config 里的国家类别、城市类别、军职名不在 KingdomType/CityType/ArmyOfficialType 枚举里
+                LogService.LogWarning($"政体 {property.Name}({filePath})读取失败，已跳过: {e.Message}。" +
+                                      "新的类别名要在政体编辑器点“同步代码枚举”后重启游戏");
+            }
+        }
+    }
+    private static void NormalizeRegime(Regime regime)
+    {
+        var bc = regime.bureau_config ?? new BureauConfig();
+        bc.cores ??= new List<BureauSetting>();
+        bc.division ??= new List<BureauSetting>();
+        bc.harems ??= new List<BureauSetting>();
+        bc.kingdoms ??= new Dictionary<KingdomType, BureauSetting>();
+        bc.cities ??= new Dictionary<CityType, BureauSetting>();
+        bc.armies ??= new Dictionary<ArmyOfficialType, BureauSetting>();
+        foreach (var s in bc.cores)
+        {
+            s.powers ??= new List<OfficerPowerType>();
+            s.require_traits ??= new List<string>();
+            s.condition ??= new List<string>();
+        }
+        foreach (var s in bc.division)
+        {
+            s.powers ??= new List<OfficerPowerType>();
+            s.require_traits ??= new List<string>();
+            s.condition ??= new List<string>();
+        }
+        foreach (var s in bc.harems)
+        {
+            s.powers ??= new List<OfficerPowerType>();
+            s.require_traits ??= new List<string>();
+            s.condition ??= new List<string>();
+        }
+        foreach (var kv in bc.kingdoms)
+        {
+            var s = kv.Value;
+            if (s == null) continue;
+            s.powers ??= new List<OfficerPowerType>();
+            s.require_traits ??= new List<string>();
+            s.condition ??= new List<string>();
+        }
+        foreach (var kv in bc.cities)
+        {
+            var s = kv.Value;
+            if (s == null) continue;
+            s.powers ??= new List<OfficerPowerType>();
+            s.require_traits ??= new List<string>();
+            s.condition ??= new List<string>();
+        }
+        foreach (var kv in bc.armies)
+        {
+            var s = kv.Value;
+            if (s == null) continue;
+            s.powers ??= new List<OfficerPowerType>();
+            s.require_traits ??= new List<string>();
+            s.condition ??= new List<string>();
+        }
+        regime.bureau_config = bc;
+        regime.options ??= new Dictionary<string, int[]>();
+        if (!regime.options.ContainsKey("option_succession_law"))
+        {
+            regime.options["option_succession_law"] = new[] { 0, Enum.GetValues(typeof(SuccessionLawType)).Length };
+        }
+        regime.laws ??= new List<LawType>();
+    }
+}
+}
