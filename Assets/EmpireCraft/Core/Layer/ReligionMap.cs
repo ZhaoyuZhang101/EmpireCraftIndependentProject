@@ -107,7 +107,7 @@ public static class ReligionMap
         Religion faith = city.HasReligion() ? city.Religion : null;
         tooltip.clear();
         tooltip.setTitle(city.GetCityName(), "religion_city_tooltip", "#FFFFFF");
-        if (kingdom?.Record != null) Line(tooltip, "religion_tip_kingdom", kingdom.GetKingdomName(), kingdom.getColor()?.color_text ?? Plain);
+        if (kingdom?.Record != null) Line(tooltip, "religion_tip_kingdom", kingdom.GetKingdomName(), kingdom.GetColor()?.HexText ?? Plain);
         if (faith == null)
         {
             Line(tooltip, "religion_tip_faith", LM.Get("religion_tip_no_faith"), "#8FA0A8");

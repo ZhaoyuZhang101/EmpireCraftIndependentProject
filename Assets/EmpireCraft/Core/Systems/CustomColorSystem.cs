@@ -12,9 +12,7 @@ namespace EmpireCraft.Core
 // 铭牌、旗帜仍是原版的颜色。改了以后整张图重画一遍。
 public static class CustomColorSystem
 {
-#if EC_PENDING
-    private static readonly Dictionary<string, ColorAsset> Assets = new();
-#endif
+    private static readonly Dictionary<string, Tint> Assets = new();
     private static int _count = -1;
     private static object _world;
 
@@ -43,8 +41,7 @@ public static class CustomColorSystem
     public static string Hex(Empire empire) => empire?.data?.custom_color ?? "";
 
     // 地图上这个国家、帝国用的自定义颜色(没定返回 null)
-#if EC_PENDING
-    public static ColorAsset Of(object meta)
+    public static Tint Of(object meta)
     {
         // 帝国的颜色就是核心王国的颜色：核心王国自己没定时，国家图层上也用帝国定的
         string hex = meta switch
@@ -55,13 +52,12 @@ public static class CustomColorSystem
             _ => ""
         };
         if (string.IsNullOrEmpty(hex)) return null;
-        if (Assets.TryGetValue(hex, out ColorAsset asset)) return asset;
-        asset = ColorAsset.tryMakeNewColorAsset(hex);
-        asset.initColor();
+        if (Assets.TryGetValue(hex, out Tint asset)) return asset;
+        asset = Tint.FromHex(hex);
+        asset.InitColor();
         Assets[hex] = asset;
         return asset;
     }
-#endif
 
     // 读输入：#RRGGBB 或 RRGGBB；留空为恢复原版颜色
     public static bool TryParse(string text, out string hex)

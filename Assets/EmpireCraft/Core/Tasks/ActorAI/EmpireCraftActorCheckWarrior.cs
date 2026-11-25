@@ -1044,7 +1044,7 @@ public class EmpireCraftActorCheckWarrior : GameAIActorBase
 
                             if (empire.CoreKingdom != null)
                             {
-                                pActor.setKingdom(
+                                pActor.SetRealm(
                                     empire.CoreKingdom);
                             }
                         }

@@ -33,6 +33,9 @@ namespace EmpireCraft.Core
         public bool IsNeutral()=>false;
         public bool IsCivilized()=>true;
 
+        // The realm's colours as the ported systems ask for them, from its map colour.
+        Tint _tint;uint _tintOf;
+        public Tint GetColor(){if(_tint==null||_tintOf!=Color){_tint=Tint.FromRgb(Color);_tintOf=Color;}return _tint;}
         public int CountCities()=>Cities.Count;
         public bool HasCities()=>Cities.Count>0;
         public int CountZones(){int total=0;foreach(var city in Cities)total+=city.Tiles.Count;return total;}
@@ -71,6 +74,7 @@ namespace EmpireCraft.Core
         public bool HasLeader()=>Leader!=null&&Leader.Alive;
         public void SetLeader(Person leader,bool announce=false){Leader=leader!=null&&leader.Alive?leader:null;}
         public void RemoveLeader(){Leader=null;}
+        public Tint GetColor()=>Realm==null?null:Realm.GetColor();   // a city wears its realm's colours
         public int CountZones()=>Tiles.Count;
         public bool IsCapital()=>Realm!=null&&Realm.Capital==this;
         public int PopulationCount()=>(int)System.Math.Min(int.MaxValue,Population);
@@ -196,6 +200,7 @@ namespace EmpireCraft.Core
         public bool HasSpouse()=>Spouse!=null;
         public bool HasDied()=>!Alive;
         public IEnumerable<Person> GetChildren()=>Children;
+        public Tint GetColor(){var realm=Realm;return realm==null?null:realm.GetColor();}
         // The faith and the culture held, if any; set by whichever system converts or assimilates.
         public Religion Religion;public Culture Culture;
         public bool HasReligion()=>Religion!=null&&Religion.Alive;

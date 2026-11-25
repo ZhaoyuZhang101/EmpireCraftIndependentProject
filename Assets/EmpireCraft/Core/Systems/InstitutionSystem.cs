@@ -2234,7 +2234,7 @@ public static partial class InstitutionSystem
             splitSeat ?? rebel?.Capital, "rebellion_reason_class",
             string.Format(LM.Get("rebellion_class_detail"), LM.Get($"class_{socialClass}"), grievance,
                 GetSocialGrievanceCause(empire, socialClass)));
-        if (splitSeat != null) rebel = splitSeat.makeOwnKingdom(splitLeader, pRebellion: true);
+        if (splitSeat != null) rebel = splitSeat.MakeOwnRealm(splitLeader, rebellion: true);
         if (rebel == null) return false;
 
         string originalName = rebel.Name;

@@ -244,7 +244,7 @@ public static class ReligiousTension
             .FirstOrDefault();
         if (leader == null) return false;
         RebellionCauseData cause = RebellionSystem.Capture(origin, city, reasonKey, detail);
-        Realm rebel = city.makeOwnKingdom(leader, pRebellion: true);
+        Realm rebel = city.MakeOwnRealm(leader, rebellion: true);
         if (rebel == null) return false;
         if (!rebel.StartLocalRebelling(EmpireWarType.宗教叛乱))
         {

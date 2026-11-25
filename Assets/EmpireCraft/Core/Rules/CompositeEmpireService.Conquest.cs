@@ -91,7 +91,7 @@ public static partial class CompositeEmpireService
                 EcRandom.value >= OldGuardChance) continue;
             string name = member.GetKingdomFullName();
             empire.leave(member);
-            War war = DiplomacyHelpers.wars.newWar(member, core, WarKinds.Normal);
+            War war = EmpireWorld.Current.LiveWars.newWar(member, core, WarKinds.Normal);
             war?.SetEmpireWarType(EmpireCraft.Core.EmpireWarType.地方独立);
             EventRecorder.Record(empire, actor: member.Ruler, logKingdom: member, text: string.Format(
                 LM.Get("composite_old_guard_history"), oldRuling.GetCultureTranslate(), empire.GetEmpireName(),

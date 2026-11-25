@@ -99,7 +99,7 @@ public static class GraceEdictService
     {
         if (city == null || city.IsGone() || EnfeoffmentHelper.IsRealmCapital(city)) return false;
         // 推恩：受命立国，不许自立的闸放行(见 SecessionGate)
-        Realm cityFief = SecessionGate.Sanctioned(() => city.makeOwnKingdom(son));
+        Realm cityFief = SecessionGate.Sanctioned(() => city.MakeOwnRealm(son));
         if (cityFief == null) return false;
         cityFief.SetRegimeType(parentRegime.type);
         cityFief.LoadRegime();

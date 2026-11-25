@@ -165,7 +165,7 @@ public static class ModernStateFormationSystem
         {
             FeudalVassalService.Break(subject);
             subject.GetOrCreate().ideology_country_suffix = "";
-            subject.updateColor(government.CoreKingdom.getColor());
+            subject.updateColor(government.CoreKingdom.GetColor());
             EmpireCraftKingdomBehCheckKingdomType.SyncKingdomStatus(subject);
             return true;
         }
@@ -200,7 +200,7 @@ public static class ModernStateFormationSystem
             if (member.GetEmpire() == government)
             {
                 member.GetOrCreate().ideology_country_suffix = "";
-                member.updateColor(government.CoreKingdom.getColor());
+                member.updateColor(government.CoreKingdom.GetColor());
                 EmpireCraftKingdomBehCheckKingdomType.SyncKingdomStatus(member);
             }
         }

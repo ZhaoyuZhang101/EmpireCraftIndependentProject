@@ -57,7 +57,7 @@ public static class CityDissolution
         CityTerritoryProtection.Dissolving.Add(city.Key);
         CityPopulationSystem.ClearBackground(city);
         foreach (Person unit in kingdom.People.ToList())
-            if (unit?.Record != null && !unit.IsGone() && unit.Alive) unit.die(true, DeathCause.Other, false, false);
+            if (unit?.Record != null && !unit.IsGone() && unit.Alive) unit.Die(true, DeathCause.Other, false, false);
         city.turnCityToNeutral();
         foreach (Cell zone in city.Zones.ToList()) city.RemoveZone(zone);
         CityPopulationSystem.InvalidateHouseholdCaches();

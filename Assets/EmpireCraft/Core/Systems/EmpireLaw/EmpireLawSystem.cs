@@ -387,7 +387,7 @@ public static partial class EmpireLawSystem
         try
         {
             context.ActorLogName = TranslateHelper.GetActorFullLogName(actor);
-            context.ActorColorText = actor.getColor()?._color_text;
+            context.ActorColorText = actor.GetColor()?.ColorText;
         }
         catch (Exception)
         {

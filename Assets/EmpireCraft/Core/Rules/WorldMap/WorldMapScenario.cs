@@ -1318,6 +1318,7 @@ public static class WorldMapScenario
         target.cities.Add(planned);
         return true;
     }
+#endif
 
     private static void RemoveFiller(PlannedPolity filler)
     {
@@ -1327,9 +1328,8 @@ public static class WorldMapScenario
         // 国家没有城、没有人就由原版移除
         if (gone?.People != null)
             foreach (Person unit in gone.People.ToList())
-                if (unit?.Record != null && !unit.IsGone() && unit.Alive) unit.die(true, DeathCause.Other, false, false);
+                if (unit?.Record != null && !unit.IsGone() && unit.Alive) unit.Die(true, DeathCause.Other, false, false);
     }
-#endif
 
     // 无人区划完：地块全成了碎片的补空小国不立国，能并给挨着的城的地并过去，并不了的留空(规则见 ScenarioFillerRules)
 #if EC_PENDING

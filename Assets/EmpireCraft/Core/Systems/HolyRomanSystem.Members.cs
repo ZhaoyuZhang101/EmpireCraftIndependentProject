@@ -127,7 +127,7 @@ public static partial class HolyRomanSystem
     {
         if (ruler.City != city) ruler.JoinCity(city);
         // 立为帝国成员：受命立国，不许自立的闸放行(见 SecessionGate)
-        Realm realm = SecessionGate.Sanctioned(() => city.makeOwnKingdom(ruler));
+        Realm realm = SecessionGate.Sanctioned(() => city.MakeOwnRealm(ruler));
         if (realm?.Record == null) return null;
         realm.SetRegimeType(RegimeType.Feudalism);
         realm.LoadRegime();

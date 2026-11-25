@@ -17,22 +17,22 @@ namespace EmpireCraft.Core
 // 经济圈选主城、城市格局的档位(见 EconomicCircleSystem)照旧按排名(Bucket)，不随图层显示模式变
 public sealed class WealthMapColor : RecordObject<IdeologyMapColorData>
 {
-#if EC_PENDING
-    private ColorAsset _color;
+    private Tint _color;
 
+#if EC_PENDING
     public override MetaType meta_type => MetaTypeExtension.Wealth;
     public override ColorLibrary getColorLibrary() => AssetManager.culture_colors_library;
-    public override ColorAsset getColor() => _color;
+#endif
+    public override Tint GetColor() => _color;
 
     public static WealthMapColor Create(int bucket, string hex)
     {
-        ColorAsset asset = ColorAsset.tryMakeNewColorAsset(hex);
-        asset.initColor();
+        Tint asset = Tint.FromHex(hex);
+        asset.InitColor();
         var color = new WealthMapColor { _color = asset };
         color.LoadData(new IdeologyMapColorData { name = "wealth_" + bucket });
         return color;
     }
-#endif
 }
 
 public static class WealthMap
@@ -106,13 +106,13 @@ public static class WealthMap
         float percentile = below / (float)_ranked.Length;
         return Mathf.Clamp(Mathf.FloorToInt(percentile * 5f), 0, 4);
     }
+#endif
 
     private static WealthMapColor ColorOf(int bucket)
     {
         _colors ??= BucketHex.Select((hex, i) => WealthMapColor.Create(i, hex)).ToArray();
         return _colors[bucket];
     }
-#endif
 
     private static bool Shown(City city) =>
         city != null && !city.IsGone() && !AncientWarfareCompatibility.OwnsObject(city) &&

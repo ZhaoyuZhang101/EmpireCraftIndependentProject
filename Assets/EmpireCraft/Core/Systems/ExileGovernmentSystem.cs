@@ -232,7 +232,7 @@ public static class ExileGovernmentSystem
         {
             try
             {
-                if (actor.Realm != exile) actor.setKingdom(exile);
+                if (actor.Realm != exile) actor.SetRealm(exile);
             }
             catch (Exception exception)
             {

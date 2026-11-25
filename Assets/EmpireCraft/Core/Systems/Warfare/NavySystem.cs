@@ -718,7 +718,6 @@ public static class NavySystem
 #endif
 
     // 关闭占领模式：舰队留着(船不是人口)，旗舰实体撤编
-#if EC_PENDING
     public static void RemoveAllFlagships()
     {
         foreach ((Realm _, FleetData fleet) in All().ToList()) RemoveFlagship(fleet);
@@ -729,7 +728,6 @@ public static class NavySystem
         RemoveFlagship(fleet);
         Of(kingdom).Remove(fleet);
     }
-#endif
 
     #endregion
 
@@ -877,6 +875,7 @@ public static class NavySystem
             LogService.LogWarning($"[EmpireCraft][海军] 旗舰下水失败: {exception.Message}");
         }
     }
+#endif
 
     private static void RemoveFlagship(FleetData fleet)
     {
@@ -885,10 +884,9 @@ public static class NavySystem
         FlagshipIndex.Remove(fleet.flagship_id);
         fleet.flagship_id = -1L;
         if (boat?.Record == null || boat.IsGone() || !boat.Alive) return;
-        try { boat.die(true, DeathCause.Other, false, false); }
+        try { boat.Die(true, DeathCause.Other, false, false); }
         catch (Exception exception) { LogService.LogWarning($"[EmpireCraft][海军] 旗舰撤编失败: {exception.Message}"); }
     }
-#endif
 
     // 旗舰沉没：组织度大挫，下个月补上
 #if EC_PENDING

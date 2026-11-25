@@ -102,7 +102,7 @@ public static class NationalUnificationSystem
             large.join(member, pForce: true, pLegitimacyTransfer: true);
             if (member.GetEmpire() != large) continue;
             member.GetOrCreate().ideology_country_suffix = "";
-            member.updateColor(large.CoreKingdom.getColor());
+            member.updateColor(large.CoreKingdom.GetColor());
             EmpireCraftKingdomBehCheckKingdomType.SyncKingdomStatus(member);
             joined++;
         }

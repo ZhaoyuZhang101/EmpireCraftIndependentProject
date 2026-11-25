@@ -357,7 +357,7 @@ public static class HarshRuleSystem
         if (leader == null) return false;
         RebellionCauseData cause = RebellionSystem.Capture(origin, city, "rebellion_reason_harsh_rule",
             string.Format(LM.Get("rebellion_harsh_detail"), Cause(causeKey), Mathf.RoundToInt(burden)));
-        Realm rebel = city.makeOwnKingdom(leader, pRebellion: true);
+        Realm rebel = city.MakeOwnRealm(leader, rebellion: true);
         if (rebel == null) return false;
         if (!rebel.StartLocalRebelling(EmpireWarType.地方叛乱))
         {

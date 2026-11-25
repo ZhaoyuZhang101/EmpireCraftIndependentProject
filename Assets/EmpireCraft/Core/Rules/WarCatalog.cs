@@ -193,7 +193,7 @@ public static class WarCatalog
         string main = WarObjective.Main(data)?.GetCityName() ?? war.MainDefender?.Capital?.GetCityName() ?? "";
         string key = "war_name_" + KindKey(war);
         // 没有这种仗的命名模板就不另起名；先查有没有(直接取，原版每次报一条 missing text，如 war_name_crusade_holy)
-        if (!LocalizedTextManager.stringExists(key)) return null;
+        if (!LM.Has(key)) return null;
         string template = LM.Get(key);
         if (template == key) return null;
         return string.Format(template, attacker, defender, main, TitleName(data), ResourceName(data.goal_resource));

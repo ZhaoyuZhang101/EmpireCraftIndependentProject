@@ -157,7 +157,6 @@ public static class NomadAppanageSystem
     }
 
     // 兄弟领帐：帐的头一座城由他自立为国，其余并入
-#if EC_PENDING
     private static Realm Found(Realm kingdom, List<City> cluster, Person brother)
     {
         City seed = cluster[0];
@@ -165,7 +164,7 @@ public static class NomadAppanageSystem
         try
         {
             if (brother.City != seed) brother.JoinCity(seed);
-            tent = seed.makeOwnKingdom(brother);
+            tent = seed.MakeOwnRealm(brother);
         }
         catch (Exception exception)
         {
@@ -177,6 +176,5 @@ public static class NomadAppanageSystem
             if (city?.Record != null && !city.IsGone() && city.Realm == kingdom) city.JoinRealm(tent);
         return tent;
     }
-#endif
 }
 }

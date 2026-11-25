@@ -987,7 +987,7 @@ public static class LandEconomySystem
         Realm origin = city.Realm;
         RebellionCauseData rebellionCause = RebellionSystem.Capture(origin, city, "rebellion_reason_land",
             string.Format(LM.Get("land_rebellion_cause"), city.GetCityName(), ratio * 100f));
-        Realm rebel = city.makeOwnKingdom(leader, pRebellion: true);
+        Realm rebel = city.MakeOwnRealm(leader, rebellion: true);
         if (rebel == null) return false;
         if (!rebel.StartLocalRebelling(EmpireWarType.地方叛乱))
         {
@@ -1047,7 +1047,7 @@ public static class LandEconomySystem
             ? string.Format(LM.Get("disaster_rebellion_cause"), city.GetCityName(), DisasterSystem.KindName(city), years)
             : string.Format(LM.Get("famine_rebellion_cause"), city.GetCityName(), years);
         RebellionCauseData rebellionCause = RebellionSystem.Capture(origin, city, "rebellion_reason_famine", cause);
-        Realm rebel = city.makeOwnKingdom(leader, pRebellion: true);
+        Realm rebel = city.MakeOwnRealm(leader, rebellion: true);
         if (rebel == null) return null;
         if (!rebel.StartLocalRebelling(EmpireWarType.地方叛乱))
         {
@@ -1092,7 +1092,7 @@ public static class LandEconomySystem
         if (war == null || war.HasEnded() || !war.IsDefender(origin)) return false;
         float grievance = FamineUnrestSystem.FervorFactor(origin);
         int years = city.GetOrCreate().famine_years;
-        city.JoinRealm(rebel, pCaptured: true, pRebellion: true);
+        city.JoinRealm(rebel, pCaptured: true, rebellion: true);
         if (city.Realm != rebel) return false;
         EnsureData(city).last_land_rebellion_timestamp = GameClock.Now;
         RebellionStartupService.RaiseUprisingMilitia(rebel, (0.2f + 0.05f * years) * grievance, new[] { city });
@@ -1132,7 +1132,7 @@ public static class LandEconomySystem
             }
             War war = EmpireWorld.Current?.WarByKey(rebelData.peasant_land_rebellion_war_id);
             if (war == null || war.HasEnded() || !war.IsDefender(city.Realm)) continue;
-            city.JoinRealm(rebel, pCaptured: true, pRebellion: true);
+            city.JoinRealm(rebel, pCaptured: true, rebellion: true);
             string history = string.Format(LM.Get("land_rebellion_city_joined_history"), city.GetCityName(),
                 ratio * 100f, rebel.GetKingdomName());
             RecordRebellionHistory(rebel, history);

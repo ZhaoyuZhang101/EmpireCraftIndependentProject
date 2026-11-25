@@ -104,7 +104,7 @@ public static class GuoyeSystem
             }
             else core.SetRuler(successor);
             former.JoinCity(refuge);
-            former.setKingdom(refuge.Realm);
+            former.SetRealm(refuge.Realm);
             content = string.Format(LM.Get("guoren_riot_exile_history"), formerName, refuge.GetCityName(), successor.FullName());
             successor.RecordPersonalHistory(content, relatedActorId: former.Key);
         }

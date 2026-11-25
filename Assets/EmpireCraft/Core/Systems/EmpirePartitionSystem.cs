@@ -221,7 +221,7 @@ public static class EmpirePartitionSystem
             ruler.removeFromArmy();
             // 新都所在的成员国：新都那座城自立为新朝核心，其余的城仍按划分随成员国走
             plan.CoreCities.Remove(seat);
-            newCore = seat.makeOwnKingdom(ruler);
+            newCore = seat.MakeOwnRealm(ruler);
             if (newCore == null) return null;
             newCore.SetCapital(seat);
             ruler.JoinCity(seat);
@@ -278,19 +278,19 @@ public static class EmpirePartitionSystem
     {
         try
         {
-            List<ColorAsset> colors = AssetManager.kingdom_colors_library?.list;
-            ColorAsset own = source.getColor();
+            List<Tint> colors = AssetManager.kingdom_colors_library?.list;
+            Tint own = source.GetColor();
             Realm core = twin.CoreKingdom;
             if (colors == null || colors.Count == 0 || own == null || core == null) return;
-            Color main = own.getColorMain();
-            var taken = new HashSet<ColorAsset>(ModClass.EMPIRE_MANAGER.Where(empire => empire?.data != null && empire != twin &&
-                !empire.IsGone()).Select(empire => empire.getColor()).Where(color => color != null));
-            float Distance(ColorAsset color)
+            Color main = own.GetColorMain();
+            var taken = new HashSet<Tint>(ModClass.EMPIRE_MANAGER.Where(empire => empire?.data != null && empire != twin &&
+                !empire.IsGone()).Select(empire => empire.GetColor()).Where(color => color != null));
+            float Distance(Tint color)
             {
-                Color other = color.getColorMain();
+                Color other = color.GetColorMain();
                 return Mathf.Abs(other.r - main.r) + Mathf.Abs(other.g - main.g) + Mathf.Abs(other.b - main.b);
             }
-            ColorAsset best = colors.Where(color => color != null && !taken.Contains(color)).OrderByDescending(Distance)
+            Tint best = colors.Where(color => color != null && !taken.Contains(color)).OrderByDescending(Distance)
                 .FirstOrDefault() ?? colors.Where(color => color != null).OrderByDescending(Distance).First();
             core.updateColor(best);
             twin.updateColor(best);
@@ -340,7 +340,7 @@ public static class EmpirePartitionSystem
             if (actor != null)
             {
                 actor.JoinCity(seat);
-                actor.setKingdom(newCore);
+                actor.SetRealm(newCore);
             }
             else person.virtual_city_id = seat.Key;
             moved++;

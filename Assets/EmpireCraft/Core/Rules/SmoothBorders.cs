@@ -906,7 +906,7 @@ public static partial class SmoothBorders
     private static int _rippleX, _rippleY;
 
 #if EC_PENDING
-    private static int ColorKey(ColorAsset color)
+    private static int ColorKey(Tint color)
     {
         if (color == null) return 0;
         Color32 a = color.getColorBorderInsideAlpha32(), b = color.getColorMainSecond32();
@@ -2453,7 +2453,7 @@ public static partial class SmoothBorders
         ColorsFrom(SafeColor(owner), clearInside, ref inside, ref outside);
     }
 
-    private static ColorAsset SafeColor(IMetaObject meta)
+    private static Tint SafeColor(IMetaObject meta)
     {
         if (meta == null) return null;
         try
@@ -2469,7 +2469,7 @@ public static partial class SmoothBorders
 
     // 城市精细层的底色也从当前图层、当前选项和实际控制方取，不能固定拿国家色或选项 0。
 #if EC_PENDING
-    internal static ColorAsset DisplayColor(Cell zone)
+    internal static Tint DisplayColor(Cell zone)
     {
         MetaTypeAsset layer = EmpireWorld.Current?.getCachedMapMetaAsset();
         if (zone == null || !Smoothable(layer)) return null;
@@ -2481,7 +2481,7 @@ public static partial class SmoothBorders
         return SafeColor(meta);
     }
 
-    private static void ColorsFrom(ColorAsset color, bool clearInside, ref Color32 inside, ref Color32 outside)
+    private static void ColorsFrom(Tint color, bool clearInside, ref Color32 inside, ref Color32 outside)
     {
         if (color == null) return;
         inside = clearInside ? new Color32(0, 0, 0, 0) : color.getColorBorderInsideAlpha32();

@@ -222,7 +222,7 @@ public static class SouthernGarrisonSystem
         EmpireCraft.Core.EmpireLawSystem.NoteSecession(garrison);
         // 归了入侵者，随那边的颜色
         garrison._cached_color = null;
-        garrison.updateColor(conqueror.getColor());
+        garrison.updateColor(conqueror.GetColor());
         EmpireCraftKingdomBehCheckKingdomType.SyncKingdomStatus(garrison);
         EmpireWorld.Current.Zones?.MarkDirty();
         string text = string.Format(LM.Get("southern_garrison_surrender_history"), garrison.GetKingdomName(), invader.GetKingdomName(),

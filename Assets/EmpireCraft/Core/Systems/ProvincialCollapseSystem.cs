@@ -502,7 +502,7 @@ public static class ProvincialCollapseSystem
         }
         else
         {
-            war = DiplomacyHelpers.wars.newWar(province, core, WarKinds.Normal);
+            war = EmpireWorld.Current.LiveWars.newWar(province, core, WarKinds.Normal);
             if (war == null) return false;
             empire.leave(province, true, true);
             war.SetEmpireWarType(EmpireWarType.地方独立);
@@ -582,7 +582,6 @@ public static class ProvincialCollapseSystem
 #endif
 
     // 近代：独立各省的城过半，朝廷无力回天，逼皇帝退位
-#if EC_PENDING
     private static void CheckAbdication(ConstitutionalEconomyState state, War war)
     {
         if (war == null || war.HasEnded() || state.collapse_origin_cities <= 0) return;
@@ -590,8 +589,7 @@ public static class ProvincialCollapseSystem
             .Where(kingdom => kingdom?.Record != null && !kingdom.IsGone() && kingdom.GetEmpire() == null)
             .Sum(kingdom => kingdom.Cities?.Count ?? 0);
         if (held < state.collapse_origin_cities * AbdicationShare) return;
-        DiplomacyHelpers.wars.endWar(war, WarOutcome.Attackers);
+        EmpireWorld.Current.EndWar(war, WarOutcome.Attackers);
     }
-#endif
 }
 }

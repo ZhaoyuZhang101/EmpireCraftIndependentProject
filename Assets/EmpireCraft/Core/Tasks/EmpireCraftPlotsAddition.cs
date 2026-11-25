@@ -1265,7 +1265,7 @@ namespace EmpireCraft.Core
                         {
                             RebellionCauseData cause = RebellionSystem.Capture(target, target.Capital,
                                 "rebellion_reason_crime", crime.ToString());
-                            var war = DiplomacyHelpers.wars.newWar(target, kingdom, WarKinds.Normal);
+                            var war = EmpireWorld.Current.LiveWars.newWar(target, kingdom, WarKinds.Normal);
                             if (war == null) return false;
                             war.SetEmpireWarType(EmpireWarType.地方叛乱, pre: kingdom.Name, nanoObject:empire, belongingFaction:target.Ruler?.GetFaction());
                             empire.leave(target, true, true);
@@ -1368,7 +1368,7 @@ namespace EmpireCraft.Core
                         var target = EmpireWorld.Current.LiveRealms.ToList().Find(k =>
                             !religion.Realms.Contains(k) && HolyWarNeighbour(kingdom, k));
                         if (target == null) return false;
-                        var war = DiplomacyHelpers.wars.newWar(kingdom, target, WarKinds.Normal);
+                        var war = EmpireWorld.Current.LiveWars.newWar(kingdom, target, WarKinds.Normal);
                         if (war == null) return false;
                         war.SetEmpireWarType(EmpireWarType.神圣, pre:religion.Name);
                         regime.religion_point -= 1000;
@@ -2853,7 +2853,7 @@ namespace EmpireCraft.Core
         {
             if (pInitiatorKingdom == null || !pInitiatorKingdom.Alive ||
                 EmpireWorld.Current?.LiveWars == null) return null;
-            using ListPool<Realm> neutral = DiplomacyHelpers.wars.getNeutralKingdoms(
+            using ListPool<Realm> neutral = EmpireWorld.Current.LiveWars.getNeutralKingdoms(
                 pInitiatorKingdom, false, false);
             return neutral.Where(target => IsValidModWarTarget(pInitiatorKingdom, target))
                 // 先收法理：占着本国法理城的邻国排在前面(见 DeJureAgenda)

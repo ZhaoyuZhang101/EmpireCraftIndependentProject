@@ -126,6 +126,17 @@ public static class Program
                         edits.Add(new TextChange(method.Identifier.Span, overridden));
                     continue;
                 }
+                // A member named in an object initializer: new News(kind) { kingdom = x } -> { Realm = x }.
+                if (node is IdentifierNameSyntax field && field.Parent is AssignmentExpressionSyntax assignment && assignment.Left == node &&
+                    assignment.Parent is InitializerExpressionSyntax initializer && initializer.IsKind(SyntaxKind.ObjectInitializerExpression) &&
+                    initializer.Parent is ObjectCreationExpressionSyntax creation)
+                {
+                    var known = model.GetSymbolInfo(field);
+                    if (known.Symbol == null && known.CandidateSymbols.Length == 0 && model.GetTypeInfo(creation).Type is ITypeSymbol made &&
+                        made.TypeKind != TypeKind.Error && Lookup(map, made, field.Identifier.Text, out string named) && named.Length > 0)
+                        edits.Add(new TextChange(field.Identifier.Span, named));
+                    continue;
+                }
                 // After a merged chain the left of `??` may be a plain number: x.units?.Count ?? 0 -> x.PopulationCount() ?? 0.
                 // A value that cannot be null needs no fallback; drop it.
                 if (node is BinaryExpressionSyntax coalesce && coalesce.IsKind(SyntaxKind.CoalesceExpression))

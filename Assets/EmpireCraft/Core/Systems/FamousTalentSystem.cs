@@ -257,11 +257,11 @@ public static class FamousTalentSystem
         record.kingdom_id = kingdom.Key;
         record.empire_id = empire?.Key ?? -1L;
         record.realm_name = empire != null ? empire.GetEmpireFullName() : kingdom.GetKingdomFullName();
-        ColorAsset color = empire?.getColor() ?? kingdom.getColor();
+        Tint color = empire?.GetColor() ?? kingdom.GetColor();
         if (color != null)
         {
-            record.realm_color = "#" + ColorUtility.ToHtmlStringRGB(color.getColorMain());
-            record.realm_text_color = "#" + ColorUtility.ToHtmlStringRGB(color._color_text);
+            record.realm_color = "#" + ColorUtility.ToHtmlStringRGB(color.GetColorMain());
+            record.realm_text_color = "#" + ColorUtility.ToHtmlStringRGB(color.ColorText);
         }
         record.post = PostOf(actor, kingdom);
     }

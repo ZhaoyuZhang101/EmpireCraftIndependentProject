@@ -18,9 +18,9 @@ namespace EmpireCraft.Core
 // 殖民地(连同保护国、托管地、租借地)与傀儡也整个用宗主的颜色(用户 2026-11-10 伪满、日属朝鲜看不出是日本的)；傀儡放开时清掉。
 public static class VassalColorService
 {
-#if EC_PENDING
-    private static readonly Dictionary<string, ColorAsset> Composites = new();
+    private static readonly Dictionary<string, Tint> Composites = new();
 
+#if EC_PENDING
     public static void Apply(Realm subject, Realm lord)
     {
         if (subject?.Record == null || subject.IsGone() || lord?.Record == null || lord.IsGone() || subject == lord ||
@@ -30,7 +30,7 @@ public static class VassalColorService
         // 旧版把附庸整个染成宗主色：先换回自己原来的颜色
         int own = subject.Record.color_id;
         int original = subject.GetOrCreate().feudal_independent_color_id;
-        ColorAsset lordColor = lord.getColor();
+        Tint lordColor = lord.GetColor();
         if (lordColor == null) return;
         if ((own < 0 || own >= colors.Count || colors[own] == lordColor) && original >= 0 && original < colors.Count &&
             colors[original] != null && colors[original] != lordColor)
@@ -43,7 +43,7 @@ public static class VassalColorService
         // 朝贡国、殖民地、傀儡底色整个换成宗主的颜色(朝贡见用户 2026-10-29"退出朝贡才恢复")；封建附庸仍各半
         bool full = subject.HasTakenAlliance() && subject.GetTakenAllianceEmpire()?.CoreKingdom == lord ||
                     ColonySystem.MetropoleOf(subject) == lord || PuppetStateSystem.Master(subject) == lord;
-        ColorAsset composite = Composite(colors[own], lordColor, full ? 1f : LordBlend);
+        Tint composite = Composite(colors[own], lordColor, full ? 1f : LordBlend);
         // 本身是帝国的傀儡(伪满)：帝国图层、帝国铭牌、帝国列表读的是帝国自己的颜色，一并换上(Empire 不改存档里的 color_id)
         Empire empire = subject.IsEmpire() ? subject.GetEmpire() : null;
         bool empireStale = empire != null && empire.CoreKingdom == subject && empire._cached_color != composite;
@@ -66,9 +66,9 @@ public static class VassalColorService
         if (empireComposite) empire._cached_color = null;
         EmpireWorld.Current?.Zones?.MarkDirty();
     }
-
-    public static bool IsComposite(ColorAsset color) => color != null && Composites.ContainsValue(color);
 #endif
+
+    public static bool IsComposite(Tint color) => color != null && Composites.ContainsValue(color);
 
     // 原版不少入口会重置国家颜色缓存(generateColor、读档、改色)，附庸描边会悄悄掉回原色，
     // 等每月同步才恢复。这里每两秒轻量重申一次(国家只有几十个，挂在世界扫描轮转上)
@@ -99,20 +99,20 @@ public static class VassalColorService
     private const float LordBlend = 0.5f;
 
 #if EC_PENDING
-    private static ColorAsset Composite(ColorAsset own, ColorAsset lord, float blend)
+    private static Tint Composite(Tint own, Tint lord, float blend)
     {
         string key = own.color_main + "|" + lord.color_main + "|" + blend.ToString("0.##");
-        if (Composites.TryGetValue(key, out ColorAsset cached)) return cached;
-        var color = new ColorAsset
+        if (Composites.TryGetValue(key, out Tint cached)) return cached;
+        var color = new Tint
         {
-            id = "vassal_" + key,
+            Id = "vassal_" + key,
             color_main = Blend(own.color_main, lord.color_main, blend),
             color_main_2 = lord.color_main,
             color_banner = own.color_banner,
-            color_text = own.color_text,
-            index_id = ColorAsset._create_last_index_id++
+            HexText = own.HexText,
+            index_id = Tint._create_last_index_id++
         };
-        color.initColor();
+        color.InitColor();
         Composites[key] = color;
         return color;
     }

@@ -120,7 +120,7 @@ public static class BiographySystem
         if (TransmigrantSystem.Shield(victim, DeathCause.Other, countDeath)) return;
         if (EmpireCraft.Core.ScenarioEventSystem.Shield(victim, countDeath)) return;
         NoteDeath(victim, causeText, killer, executed);
-        victim.die(destroy, DeathCause.Other, countDeath, countDeath);
+        victim.Die(destroy, DeathCause.Other, countDeath, countDeath);
     }
 #endif
 

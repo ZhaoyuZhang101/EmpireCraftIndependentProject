@@ -276,7 +276,6 @@ public static partial class WarlordEraSystem
     // 用词先查 provisional_region_<方位>_<文化>，没有就用通用的 provisional_region_<方位>；
     // 通用写法是"方位 + 法统名"(西法兰克、北罗马、东日本)，华夏/现代中国/山海经用专名(华北、西南……)，{0} 代入法统名。
     // 只按文化查、不按制度线：日本在华夏制度线上，但不该叫"华北"。
-#if EC_PENDING
     private static string RegionName(IEnumerable<City> own, List<City> coreCities, string coreName, string culture)
     {
         Vector2 center = Centroid(coreCities);
@@ -293,12 +292,11 @@ public static partial class WarlordEraSystem
         string key = "provisional_region_" + dir;
         foreach (string candidate in new[] { key + "_" + culture, key })
         {
-            if (candidate.EndsWith("_") || !LocalizedTextManager.stringExists(candidate)) continue;
+            if (candidate.EndsWith("_") || !LM.Has(candidate)) continue;
             return LM.Get(candidate).Replace("{0}", coreName);
         }
         return "";
     }
-#endif
 
     private static Vector2 Centroid(IEnumerable<City> cities)
     {

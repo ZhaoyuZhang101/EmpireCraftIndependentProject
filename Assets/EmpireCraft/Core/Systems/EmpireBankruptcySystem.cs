@@ -165,7 +165,7 @@ public static class EmpireBankruptcySystem
         foreach (City city in member.Cities.ToList().OrderBy(city => city == capital ? 1 : 0))
         {
             if (city == null || city.IsGone()) continue;
-            city.JoinRealm(rebel, pCaptured: true, pRebellion: true);
+            city.JoinRealm(rebel, pCaptured: true, rebellion: true);
             if (city.Realm == rebel) moved++;
         }
         if (moved == 0) return false;
@@ -180,7 +180,7 @@ public static class EmpireBankruptcySystem
     {
         if (!member.HasRuler()) return false;
         empire.leave(member);
-        War war = DiplomacyHelpers.wars.newWar(member, core, WarKinds.Normal);
+        War war = EmpireWorld.Current.LiveWars.newWar(member, core, WarKinds.Normal);
         war?.SetEmpireWarType(EmpireWarType.地方独立);
         EventRecorder.Record(empire, actor: member.Ruler, logKingdom: member, text: string.Format(
             LM.Get("bankruptcy_independence_history"), empire.GetEmpireFullName(), member.GetKingdomFullName()));

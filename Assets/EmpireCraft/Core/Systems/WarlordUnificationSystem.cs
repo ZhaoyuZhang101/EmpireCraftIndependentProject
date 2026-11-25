@@ -134,7 +134,7 @@ public static partial class WarlordEraSystem
             string cityName = city.GetCityName();
             if (neighbour != null)
             {
-                city.JoinRealm(neighbour, pCaptured: true, pRebellion: true);
+                city.JoinRealm(neighbour, pCaptured: true, rebellion: true);
                 EventRecorder.Record(neighbour, string.Format(LM.Get("warlord_defect_city_history"), cityName,
                     PartySystem.GetIdeologyName(ideology), target.GetBaseEmpireFullName()));
                 shifts++;
@@ -155,7 +155,7 @@ public static partial class WarlordEraSystem
             .OrderByDescending(actor => IdeologyPopulationSystem.Get(actor) == ideology)
             .ThenByDescending(actor => actor.Renown).FirstOrDefault();
         if (leader == null) return false;
-        Realm rebel = city.makeOwnKingdom(leader, pRebellion: true);
+        Realm rebel = city.MakeOwnRealm(leader, rebellion: true);
         if (rebel == null) return false;
         if (!rebel.StartLocalRebelling(EmpireWarType.地方叛乱))
         {
@@ -405,7 +405,7 @@ public static partial class WarlordEraSystem
                 Realm neighbour = AdjacentRealmKingdom(city, central);
                 if (neighbour == null) continue;
                 string cityName = city.GetCityName();
-                city.JoinRealm(neighbour, pCaptured: true, pRebellion: true);
+                city.JoinRealm(neighbour, pCaptured: true, rebellion: true);
                 defected++;
                 EventRecorder.Record(neighbour, string.Format(LM.Get("warlord_collapse_history"),
                     loser.GetBaseEmpireFullName(), cityName, central.GetBaseEmpireFullName()));
@@ -432,7 +432,7 @@ public static partial class WarlordEraSystem
         if (holder.GetEmpire() == central)
         {
             holder.GetOrCreate().ideology_country_suffix = "";
-            holder.updateColor(centralKingdom.getColor());
+            holder.updateColor(centralKingdom.GetColor());
             EmpireCraft.Core.EmpireCraftKingdomBehCheckKingdomType.SyncKingdomStatus(holder);
             return true;
         }

@@ -35,11 +35,11 @@ public static class KingdomColorService
         }
         var empire = member.GetEmpire();
         Realm core = empire.CoreKingdom;
-        ColorAsset current = member.getColor();
-        bool clash = current == null || current == core.getColor() || current == empire.getColor();
+        Tint current = member.GetColor();
+        bool clash = current == null || current == core.GetColor() || current == empire.GetColor();
         if (!clash)
             foreach (Realm other in empire.kingdoms_list)
-                if (other != null && other != member && !other.IsGone() && other.getColor() == current &&
+                if (other != null && other != member && !other.IsGone() && other.GetColor() == current &&
                     other.Key < member.Key)
                 {
                     clash = true;
@@ -49,15 +49,15 @@ public static class KingdomColorService
         var library = member.getColorLibrary();
         var colors = library?.list;
         if (colors == null || colors.Count == 0) return;
-        var used = new global::System.Collections.Generic.HashSet<ColorAsset> { core.getColor(), empire.getColor() };
+        var used = new global::System.Collections.Generic.HashSet<Tint> { core.GetColor(), empire.GetColor() };
         foreach (Realm other in empire.kingdoms_list)
-            if (other != null && other != member && !other.IsGone()) used.Add(other.getColor());
-        ColorAsset next = null;
+            if (other != null && other != member && !other.IsGone()) used.Add(other.GetColor());
+        Tint next = null;
         int original = member.Record.original_color_id;
         if (original >= 0 && original < colors.Count && colors[original] != null && !used.Contains(colors[original]))
             next = colors[original];
         if (next == null)
-            foreach (ColorAsset candidate in colors)
+            foreach (Tint candidate in colors)
                 if (candidate != null && !used.Contains(candidate))
                 {
                     next = candidate;
@@ -65,8 +65,8 @@ public static class KingdomColorService
                 }
         // 颜色用尽：至少与天子不同色
         if (next == null)
-            foreach (ColorAsset candidate in colors)
-                if (candidate != null && candidate != core.getColor() && candidate != empire.getColor())
+            foreach (Tint candidate in colors)
+                if (candidate != null && candidate != core.GetColor() && candidate != empire.GetColor())
                 {
                     next = candidate;
                     break;
@@ -156,34 +156,34 @@ public static class KingdomColorService
             .Where(kingdom => kingdom?.Record != null && !kingdom.IsGone() && kingdom != core && !AncientWarfareCompatibility.Owns(kingdom))
             .OrderBy(kingdom => kingdom.Key).ToList();
         if (vassals.Count == 0) return false;
-        List<ColorAsset> colors = core.getColorLibrary()?.list;
-        ColorAsset royal = sphere.getColor() ?? core.getColor();
+        List<Tint> colors = core.getColorLibrary()?.list;
+        Tint royal = sphere.GetColor() ?? core.GetColor();
         if (colors == null || colors.Count == 0 || royal == null) return false;
-        Color.RGBToHSV(royal.getColorMain(), out float hue, out float saturation, out float value);
+        Color.RGBToHSV(royal.GetColorMain(), out float hue, out float saturation, out float value);
         bool grayBase = saturation < GraySaturation || value < DarkValue;
-        var excluded = new HashSet<ColorAsset> { royal, core.getColor() };
+        var excluded = new HashSet<Tint> { royal, core.GetColor() };
         foreach ((Empire other, IEnumerable<Realm> otherMembers) in Families())
         {
             if (other == sphere) continue;
-            excluded.Add(other.getColor());
-            excluded.Add(other.CoreKingdom.getColor());
-            foreach (Realm kingdom in otherMembers) excluded.Add(kingdom?.getColor());
+            excluded.Add(other.GetColor());
+            excluded.Add(other.CoreKingdom.GetColor());
+            foreach (Realm kingdom in otherMembers) excluded.Add(kingdom?.GetColor());
         }
-        List<ColorAsset> family = colors.Where(color => color != null && !excluded.Contains(color))
+        List<Tint> family = colors.Where(color => color != null && !excluded.Contains(color))
             .OrderBy(color => Distance(color, hue, grayBase)).Take(vassals.Count).ToList();
-        var palette = new HashSet<ColorAsset>(family);
-        var kept = new HashSet<ColorAsset>();
+        var palette = new HashSet<Tint>(family);
+        var kept = new HashSet<Tint>();
         var pending = new List<Realm>();
         foreach (Realm vassal in vassals)
         {
-            ColorAsset current = vassal.getColor();
+            Tint current = vassal.GetColor();
             if (current != null && palette.Contains(current) && kept.Add(current)) continue;
             pending.Add(vassal);
         }
         bool changed = false;
         foreach (Realm vassal in pending)
         {
-            ColorAsset next = family.FirstOrDefault(color => !kept.Contains(color));
+            Tint next = family.FirstOrDefault(color => !kept.Contains(color));
             if (next == null) break;
             kept.Add(next);
             vassal._cached_color = null;
@@ -198,9 +198,9 @@ public static class KingdomColorService
 
     // 与基准色相的距离(0~0.5，按色环取近的一侧)；灰白黑排在最后(天子是灰色系时反过来)
 #if EC_PENDING
-    private static float Distance(ColorAsset color, float hue, bool grayBase)
+    private static float Distance(Tint color, float hue, bool grayBase)
     {
-        Color.RGBToHSV(color.getColorMain(), out float h, out float s, out float v);
+        Color.RGBToHSV(color.GetColorMain(), out float h, out float s, out float v);
         bool gray = s < GraySaturation || v < DarkValue;
         if (grayBase) return gray ? s : 1f + s;
         if (gray) return 2f;
@@ -213,7 +213,7 @@ public static class KingdomColorService
     // Resolve from persisted IDs and use updateColor so banners and map readers agree.
 #if EC_PENDING
     public static void Restore(Realm kingdom, int preferredColorId = -1,
-        ColorAsset formerOverlordColor = null, bool useOriginalColor = true)
+        Tint formerOverlordColor = null, bool useOriginalColor = true)
     {
         if (kingdom?.Record == null || kingdom.IsGone() || AncientWarfareCompatibility.Owns(kingdom)) return;
         var library = kingdom.getColorLibrary();
@@ -222,14 +222,14 @@ public static class KingdomColorService
         int index = preferredColorId;
         if (useOriginalColor && (index < 0 || index >= colors.Count || colors[index] == null))
             index = kingdom.Record.original_color_id;
-        ColorAsset next = index >= 0 && index < colors.Count ? colors[index] : null;
+        Tint next = index >= 0 && index < colors.Count ? colors[index] : null;
         if (next == null || next == formerOverlordColor)
         {
             next = library.getNextColor(kingdom.getActorAsset());
             if (next == null || next == formerOverlordColor)
             {
                 next = null;
-                foreach (ColorAsset candidate in colors)
+                foreach (Tint candidate in colors)
                     if (candidate != null && candidate != formerOverlordColor)
                     {
                         next = candidate;

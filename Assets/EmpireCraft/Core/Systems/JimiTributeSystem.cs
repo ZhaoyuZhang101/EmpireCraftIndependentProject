@@ -151,7 +151,7 @@ public static class JimiTributeSystem
             return true;
         }
         empire.leave(region);
-        War war = DiplomacyHelpers.wars.newWar(region, core, WarKinds.Normal);
+        War war = EmpireWorld.Current.LiveWars.newWar(region, core, WarKinds.Normal);
         if (war?.Record != null)
         {
             war.SetEmpireWarType(EmpireWarType.地方独立);

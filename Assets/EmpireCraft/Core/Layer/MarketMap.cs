@@ -16,18 +16,20 @@ namespace EmpireCraft.Core
 // 市场每年结算一次：读档后第一轮结算前，市场模式按宗主一系(RootOf)着色，缺口模式不上色
 public sealed class MarketMapColor : RecordObject<IdeologyMapColorData>
 {
-#if EC_PENDING
-    private ColorAsset _color;
+    private Tint _color;
 
+#if EC_PENDING
     public override MetaType meta_type => MetaTypeExtension.Market;
     public override ColorLibrary getColorLibrary() => AssetManager.culture_colors_library;
-    public override ColorAsset getColor() => _color;
+#endif
+    public override Tint GetColor() => _color;
 
+#if EC_PENDING
     public static MarketMapColor Create(int index, string hex)
     {
         // 原版 tryMakeNewColorAsset 新建的颜色不 initColor() 就是透明色
-        ColorAsset asset = ColorAsset.tryMakeNewColorAsset(hex);
-        asset.initColor();
+        Tint asset = Tint.FromHex(hex);
+        asset.InitColor();
         var color = new MarketMapColor { _color = asset };
         color.LoadData(new IdeologyMapColorData { name = "market_" + index, id = 7_200_000_000_000L + index });
         // 原版按哈希码判同一对象：不给的话各档都是 0，平滑国界会把它们当成同一片
@@ -315,7 +317,7 @@ public static class MarketMap
         Realm leader = LeaderOf(city?.Realm);
         if (leader == null) return;
         tooltip.clear();
-        tooltip.setTitle(Name(leader), "market_layer", leader.getColor()?.color_text ?? "#FFFFFF");
+        tooltip.setTitle(Name(leader), "market_layer", leader.GetColor()?.HexText ?? "#FFFFFF");
         CommodityMarketSystem.Market market = CommodityMarketSystem.MarketOf(city.Realm);
         if (market == null)
         {

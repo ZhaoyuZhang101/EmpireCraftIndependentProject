@@ -10,22 +10,20 @@ namespace EmpireCraft.Core
 // 帝国法理在法理图层上的着色对象：一个帝国法理一个，颜色取自 DeJureMap 的纹章色
 public sealed class DeJureCoreColor : RecordObject<IdeologyMapColorData>
 {
-#if EC_PENDING
-    private ColorAsset _color;
-#endif
+    private Tint _color;
     public EmpireCore core { get; private set; }
 
 #if EC_PENDING
     public override MetaType meta_type => MetaTypeExtension.KingdomTitle;
     public override ColorLibrary getColorLibrary() => AssetManager.kingdom_colors_library;
-    public override ColorAsset getColor() => _color;
 #endif
+    public override Tint GetColor() => _color;
 
     // 编号与真国家、真法理错开
     private const long UniqueIdBase = 7_000_000_000_000L;
 
 #if EC_PENDING
-    public static DeJureCoreColor Create(EmpireCore core, ColorAsset color)
+    public static DeJureCoreColor Create(EmpireCore core, Tint color)
     {
         var meta = new DeJureCoreColor { core = core, _color = color };
         // 原版按哈希码判同一对象(Entity.Equals)：不给自己的哈希码，各帝国法理都是 0，平滑国界与描边会把它们当成同一片
@@ -34,9 +32,9 @@ public sealed class DeJureCoreColor : RecordObject<IdeologyMapColorData>
         meta.setHash(hash);
         return meta;
     }
-
-    internal void SetColor(ColorAsset color) => _color = color;
 #endif
+
+    internal void SetColor(Tint color) => _color = color;
 }
 
 // 法理三层各用一套色(天下的设色见 TianxiaMap)：
@@ -60,9 +58,7 @@ public static class DeJureMap
         "#ff70b0", "#5ab8ff"
     };
 
-#if EC_PENDING
-    private static ColorAsset[] _titleColors, _coreColors;
-#endif
+    private static Tint[] _titleColors, _coreColors;
     private static readonly Dictionary<long, int> TitleIndex = new(), CoreIndex = new();
     private static readonly Dictionary<long, DeJureCoreColor> CoreMetas = new();
     private static object _world;
@@ -70,23 +66,21 @@ public static class DeJureMap
     // 归属几秒才变一次，按时重排即可(着色只看接壤，同样的局面排出来的颜色不变，不会无故闪色)
     private const float RecolorSeconds = 5f;
 
-#if EC_PENDING
-    private static ColorAsset[] Make(string[] palette) => palette.Select(hex =>
+    private static Tint[] Make(string[] palette) => palette.Select(hex =>
     {
         // 原版 tryMakeNewColorAsset 新建的颜色不 initColor() 就是透明色
-        ColorAsset asset = ColorAsset.tryMakeNewColorAsset(hex);
-        asset.initColor();
+        Tint asset = Tint.FromHex(hex);
+        asset.InitColor();
         return asset;
     }).ToArray();
 
-    public static ColorAsset TitleColor(KingdomTitle title)
+    public static Tint TitleColor(KingdomTitle title)
     {
         if (title?.data == null) return null;
         Refresh();
         _titleColors ??= Make(TitlePalette);
         return _titleColors[TitleIndex.TryGetValue(title.Key, out int index) ? index : Preferred(title.Key, TitlePalette.Length)];
     }
-#endif
 
     // 帝国法理在法理图层上的归属对象(颜色、内部不描边)；点击、悬停仍按城找帝国法理(见 EmpireCraftMetaTypeLibrary)
 #if EC_PENDING
@@ -94,21 +88,21 @@ public static class DeJureMap
     {
         if (core == null) return null;
         Refresh();
-        ColorAsset color = CoreColor(core);
+        Tint color = CoreColor(core);
         if (CoreMetas.TryGetValue(core.id, out DeJureCoreColor meta))
         {
-            if (!ReferenceEquals(meta.getColor(), color)) meta.SetColor(color);
+            if (!ReferenceEquals(meta.GetColor(), color)) meta.SetColor(color);
             return meta;
         }
         return CoreMetas[core.id] = DeJureCoreColor.Create(core, color);
     }
+#endif
 
-    private static ColorAsset CoreColor(EmpireCore core)
+    private static Tint CoreColor(EmpireCore core)
     {
         _coreColors ??= Make(CorePalette);
         return _coreColors[CoreIndex.TryGetValue(core.id, out int index) ? index : Preferred(core.id, CorePalette.Length)];
     }
-#endif
 
     // 城在帝国法理视图上属于哪个帝国法理：城的王国法理在帝国法理里才算
     public static EmpireCore CoreOf(City city)

@@ -119,7 +119,7 @@ public static class PuppetStateSystem
         Detach(leader);
         if (leader.City != seat) leader.JoinCity(seat);
         // 立傀儡(占领、剧本)：受命立国，不许自立的闸放行(见 SecessionGate)
-        Realm puppet = SecessionGate.Sanctioned(() => seat.makeOwnKingdom(leader, pRebellion: false));
+        Realm puppet = SecessionGate.Sanctioned(() => seat.MakeOwnRealm(leader, rebellion: false));
         if (puppet?.Record == null) return null;
         if (puppet.IsInEmpire()) SecessionGate.Sanctioned(() => puppet.GetEmpire()?.leave(puppet, true, true));
         if (CultureService.IsValidCulture(culture)) RealmCultureSystem.Convert(puppet, culture, wholeEmpire: false);

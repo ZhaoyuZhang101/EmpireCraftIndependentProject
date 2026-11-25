@@ -14,18 +14,20 @@ namespace EmpireCraft.Core
 // 悬停看各家占比——以前这些地方在图层上一片空白。
 public sealed class TianxiaMapColor : RecordObject<IdeologyMapColorData>
 {
-#if EC_PENDING
-    private ColorAsset _color;
+    private Tint _color;
 
+#if EC_PENDING
     public override MetaType meta_type => MetaTypeExtension.Tianxia;
     public override ColorLibrary getColorLibrary() => AssetManager.culture_colors_library;
-    public override ColorAsset getColor() => _color;
+#endif
+    public override Tint GetColor() => _color;
 
+#if EC_PENDING
     public static TianxiaMapColor Create(int index, string hex)
     {
         // 原版 tryMakeNewColorAsset 新建的颜色不 initColor() 就是透明色
-        ColorAsset asset = ColorAsset.tryMakeNewColorAsset(hex);
-        asset.initColor();
+        Tint asset = Tint.FromHex(hex);
+        asset.InitColor();
         var color = new TianxiaMapColor { _color = asset };
         color.LoadData(new IdeologyMapColorData { name = "tianxia_" + index, id = 7_100_000_000_000L + index });
         // 原版按哈希码判同一对象：不给的话各天下都是 0，平滑国界会把它们当成同一片
@@ -294,7 +296,7 @@ public static class TianxiaMap
             pLocalize: false);
         (Dictionary<Realm, int> held, int total) = TianxiaSystem.Holdings(lead);
         foreach (KeyValuePair<Realm, int> pair in held.OrderByDescending(pair => pair.Value).Take(5))
-            tooltip.addLineText(pair.Key.GetKingdomName(), $"{pair.Value / (float)total:P0}", pair.Key.getColor()?.color_text ?? "#FFFFFF",
+            tooltip.addLineText(pair.Key.GetKingdomName(), $"{pair.Value / (float)total:P0}", pair.Key.GetColor()?.HexText ?? "#FFFFFF",
                 pPercent: false, pLocalize: false);
         Realm owner = EmpireCoreControl.Sovereign(city.Realm);
         tooltip.addBottomDescription(string.Format(LM.Get("tianxia_tooltip_city"), city.GetCityName(), owner?.GetKingdomName() ?? ""));
@@ -312,7 +314,7 @@ public static class TianxiaMap
         Dictionary<Realm, int> held = EmpireCoreControl.CountHolders(realm);
         foreach (KeyValuePair<Realm, int> pair in held.OrderByDescending(pair => pair.Value).Take(5))
             tooltip.addLineText(pair.Key.GetKingdomName(), $"{pair.Value / (float)realm.Count:P0}",
-                pair.Key.getColor()?.color_text ?? "#FFFFFF", pPercent: false, pLocalize: false);
+                pair.Key.GetColor()?.HexText ?? "#FFFFFF", pPercent: false, pLocalize: false);
         Realm owner = EmpireCoreControl.Sovereign(city.Realm);
         tooltip.addBottomDescription(string.Format(LM.Get("tianxia_tooltip_city"), city.GetCityName(), owner?.GetKingdomName() ?? ""));
     }

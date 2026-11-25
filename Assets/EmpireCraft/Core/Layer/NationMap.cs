@@ -13,23 +13,23 @@ namespace EmpireCraft.Core
 //   2 异族统治地区：只显示主流文化与统治者不同的城市(独立运动的温床)，其余不上色。
 public sealed class NationMapColor : RecordObject<IdeologyMapColorData>
 {
-#if EC_PENDING
-    private ColorAsset _color;
+    private Tint _color;
 
+#if EC_PENDING
     public override MetaType meta_type => MetaTypeExtension.Nation;
     public override ColorLibrary getColorLibrary() => AssetManager.culture_colors_library;
-    public override ColorAsset getColor() => _color;
+#endif
+    public override Tint GetColor() => _color;
 
     public static NationMapColor Create(int bucket, string hex)
     {
         // 原版 tryMakeNewColorAsset 新建的颜色不会 initColor()，不手动初始化就全是透明色，图层什么也画不出来
-        ColorAsset asset = ColorAsset.tryMakeNewColorAsset(hex);
-        asset.initColor();
+        Tint asset = Tint.FromHex(hex);
+        asset.InitColor();
         var color = new NationMapColor { _color = asset };
         color.LoadData(new IdeologyMapColorData { name = "nation_" + bucket });
         return color;
     }
-#endif
 }
 
 public static class NationMap
@@ -45,13 +45,11 @@ public static class NationMap
     public static int Bucket(float sentiment) => sentiment >= 80f ? 4 : sentiment >= 60f ? 3 : sentiment >= 40f ? 2 :
         sentiment >= 20f ? 1 : 0;
 
-#if EC_PENDING
     private static NationMapColor ColorOf(int bucket)
     {
         _colors ??= BucketHex.Select((hex, i) => NationMapColor.Create(i, hex)).ToArray();
         return _colors[bucket];
     }
-#endif
 
     private static bool Shown(City city) =>
         city != null && !city.IsGone() && !AncientWarfareCompatibility.OwnsObject(city) &&

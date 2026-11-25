@@ -219,7 +219,7 @@ public static class PersonalUnionService
             if (!leader.HasRuler() || leader.Ruler == null || !leader.Ruler.Alive) return true;
             data.union_leader_kingdom_id = -1L;
             CrownInUnion(kingdom, leader.Ruler);
-            kingdom.updateColor(leader.getColor());
+            kingdom.updateColor(leader.GetColor());
             return true;
         }
         return false;
@@ -282,7 +282,7 @@ public static class PersonalUnionService
             }
             if (holder.Ruler?.City == seat) holder.kingFledCity();
             // 索取的法理另立一国由胜者兼领(战果)：不许自立的闸放行(见 SecessionGate)
-            Realm realm = SecessionGate.Sanctioned(() => seat.makeOwnKingdom(founder));
+            Realm realm = SecessionGate.Sanctioned(() => seat.MakeOwnRealm(founder));
             if (realm == null)
             {
                 remaining.Add(titleId);

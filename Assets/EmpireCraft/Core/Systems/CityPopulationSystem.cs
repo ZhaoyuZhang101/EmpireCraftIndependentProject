@@ -2031,7 +2031,7 @@ public static class CityPopulationSystem
         extra.legion_home_city_id = -1L;
         try
         {
-            actor.die(true, DeathCause.Other, false, false);
+            actor.Die(true, DeathCause.Other, false, false);
         }
         catch (Exception exception)
         {

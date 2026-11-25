@@ -1113,7 +1113,7 @@ public static partial class SmoothBorders
     private static void CanvasColors(IMetaObject meta, out Color32 inside, out Color32 outside)
     {
         ZoneGrid calc = EmpireWorld.Current.Zones;
-        ColorAsset color = SafeColor(meta);
+        Tint color = SafeColor(meta);
         if (color == null)
         {
             inside = outside = new Color32(0, 0, 0, 0);

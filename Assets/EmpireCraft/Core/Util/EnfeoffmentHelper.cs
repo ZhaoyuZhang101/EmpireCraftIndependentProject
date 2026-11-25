@@ -198,7 +198,7 @@ public static class EnfeoffmentHelper
         List<City> grantedCities = fief.getCities().ToList();
         if (grantedCities.Any(other => other == retainedCapital || other?.Key == retainedCapital?.Key)) return false;
         // 分封：受命立国，不许自立的闸放行(见 SecessionGate)
-        Realm kingdom = SecessionGate.Sanctioned(() => city.makeOwnKingdom(actor));
+        Realm kingdom = SecessionGate.Sanctioned(() => city.MakeOwnRealm(actor));
         if (kingdom == null) return false;
         // 整块法理一起封出去：法理首府立国之后，同一法理下仍归核心王国的城市随之划入封国
         foreach (City other in grantedCities)

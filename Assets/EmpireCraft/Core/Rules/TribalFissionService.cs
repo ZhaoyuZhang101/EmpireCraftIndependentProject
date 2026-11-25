@@ -272,7 +272,7 @@ public static class TribalFissionService
         try
         {
             string motherName = mother.GetKingdomName();
-            Realm tribe = city.makeOwnKingdom(leader);
+            Realm tribe = city.MakeOwnRealm(leader);
             if (tribe == null || tribe.IsGone()) return;
             // 新部落照母部落的政体(各文化的原始政体，或华夏原始政体)
             RegimeType primitive = mother.GetRegime()?.type == RegimeType.HuaxiaOrigin ? RegimeType.HuaxiaOrigin : RegimeType.Origin;

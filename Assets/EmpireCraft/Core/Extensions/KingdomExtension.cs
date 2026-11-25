@@ -1537,7 +1537,7 @@ public static class KingdomExtension
         if (core.GetMoney() <= 0) return;
         if (!empire.CanStartPunitiveWar(k)) return;
         if (!(possibility < 0.2f)) return;
-        var war = DiplomacyHelpers.wars.newWar(core, k, WarKinds.Normal);
+        var war = EmpireWorld.Current.LiveWars.newWar(core, k, WarKinds.Normal);
         war?.SetEmpireWarType(EmpireWarType.伐不臣);
     }
 
@@ -1945,7 +1945,7 @@ public static class KingdomExtension
                 kingdom.GetRegime().SetAllowArmy(true);
                 kingdom.GetRegime().SetAllowSupportCenterArmy(false);
                 kingdom.GetRegime().SetLeaderSelectMethod(LeaderSelectMethod.Succession);
-                kingdom.GetWars().ForEach(w=>DiplomacyHelpers.wars.endWar(w));
+                kingdom.GetWars().ForEach(w=>EmpireWorld.Current.EndWar(w));
                 var language = LM.Language;
                 if (language == "en")
                 {

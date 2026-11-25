@@ -217,7 +217,7 @@ public static partial class PapacySystem
         Realm former = Host(order);
         master.JoinCity(holy);
         // 圣战收复圣地(战果)：不许自立的闸放行(见 SecessionGate)
-        Realm state = SecessionGate.Sanctioned(() => holy.makeOwnKingdom(master, false, false));
+        Realm state = SecessionGate.Sanctioned(() => holy.MakeOwnRealm(master, false, false));
         if (state?.Record == null) return false;
         holy.SetReligion(religion);
         state.Name = order.name;

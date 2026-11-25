@@ -77,7 +77,7 @@ public static class RebellionSnowballSystem
             float loyaltyFactor = 1f + Mathf.Max(0f, 50f - city.getLoyalty()) / 50f;
             if (EcRandom.value >= DefectChance * intensity * loyaltyFactor) continue;
             string name = city.GetCityName();
-            city.JoinRealm(rebel, pCaptured: true, pRebellion: true);
+            city.JoinRealm(rebel, pCaptured: true, rebellion: true);
             if (city.Realm != rebel) continue;
             defected.Add(name);
             joined.Add(city);

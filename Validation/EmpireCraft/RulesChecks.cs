@@ -289,6 +289,21 @@ public static class RulesChecks
         Check(realm.CountCities() == realm.Cities.Count && realm.HasCities() && realm.CountZones() == realm.Cities.Sum(c => c.Tiles.Count) && capital.CountZones() == capital.Tiles.Count && Land.ZoneSize == 1, "a realm counts its cities and cells");
         capital.SetLeader(realm.Ruler); bool led = capital.HasLeader() && realm.Ruler.IsCityLeader(); capital.RemoveLeader();
         Check(led && !capital.HasLeader() && !realm.Ruler.IsCityLeader(), "a city's leader is set and removed");
+        var other = w.LiveRealms[1]; var subject = capital.People.FirstOrDefault(p => p != realm.Ruler);
+        if (subject != null)
+        {
+            subject.SetRealm(other); realm.Ruler.SetRealm(other);
+            Check(subject.Realm == other && subject.City == other.Capital && realm.Ruler.Realm == realm, "a subject goes over to another realm; a reigning ruler does not");
+            int realms = w.LiveRealms.Count; var seat = other.Capital; int annals = w.Annals.Entries.Count;
+            Check(seat.MakeOwnRealm(other.Ruler) == null && w.LiveRealms.Count == realms, "a reigning ruler founds no second realm");
+            var risen = seat.MakeOwnRealm(subject, rebellion: true);
+            Check(risen != null && risen.Ruler == subject && risen.Capital == seat && seat.Realm == risen && risen.Name == seat.Name && subject.Throne == risen && risen.World == w &&
+                  w.Annals.Entries.Skip(annals).Any(e => e.Kind == AnnalKind.Secession) && EmpireInvariants.Check(w).Count == 0, "a city stands up as its own realm");
+            subject.Die(true, DeathCause.Weapon, false, false); subject.Die();
+            Check(!subject.Alive && risen.Ruler == null && risen.PreviousRuler == subject && subject.DeathMonth == w.Month, "a person dies by a system's hand, once");
+            EmpireSimulation.Month(w);
+            Check(EmpireInvariants.Check(w).Count == 0 && (risen.Ruler != null || !risen.Alive), "the vacant throne is settled within the month");
+        }
         EmpireWorld.Current = null;
         Console.WriteLine("PASS host switches (" + checks + " checks)");
     }
@@ -320,6 +335,63 @@ public static class RulesChecks
         ReignRecordSystem.OnYear(empire);
         EmpireWorld.Current = null;
         Console.WriteLine("PASS first live entry (" + checks + " checks): income " + income + ", palace " + cost);
+    }
+
+    // World news: a kind's template filled with the message's texts, how loud it is, and the world's log.
+    public static void NewsChecks()
+    {
+        checks = 0;
+        LM.Clear(); LM.LoadFile(Path.Combine(DataFolder(), "Locales", "ch.json")); LM.Language = "ch";
+        Check(NewsKinds.All.Count >= 90 && NewsKinds.Get(WorldNews.GenericKind) == NewsKinds.empirecraft_event_log && NewsKinds.Get("nonsense") == null &&
+              NewsKinds.All.Select(k => k.Id).Distinct().Count() == NewsKinds.All.Count, "news kinds are found by id, each once");
+        int withText = NewsKinds.All.Count(k => LM.Has(k.Id));
+        Check(withText >= NewsKinds.All.Count * 9 / 10, "nearly every kind has a template in the language file (" + withText + "/" + NewsKinds.All.Count + ")");
+        Check(NewsKinds.become_new_empire_log.Major && NewsKinds.restore_historcial_empire.Major && NewsKinds.empire_crashed == null && !NewsKinds.change_city_name_log.Major && !NewsKinds.empirecraft_event_log.Major, "the big kinds are marked");
+        var map = FlatGenerator.Generate(256, 128, "EMPIRE-NEWS", TerrainPreset.Continents, default);
+        var w = Start(map); w.Activate();
+        var realm = w.LiveRealms[0];
+        var crowned = new News(NewsKinds.become_new_empire_log, "甲", "乙") { Realm = realm, Color1 = realm.GetColor().ColorText };
+        string line = crowned.Text();
+        Check(line.Contains("甲") && line.Contains("乙") && !line.Contains("$") && crowned.KindId == "become_new_empire_log" && crowned.GetKind().LocaleId() == "become_new_empire_log", "a template is filled with the message's texts: " + line);
+        crowned.Add();
+        var top = w.News.Items[w.News.Items.Count - 1];
+        Check(w.News.Items.Count == 1 && top.Text == line && top.Level == NewsLevel.Major && top.Public && top.OnScreen && top.RealmId == realm.Id && top.Month == w.Month && top.Group == "emperors", "a major kind is heard everywhere");
+        new News(NewsKinds.change_city_name_log, "甲", "旧", "新").Add();
+        top = w.News.Items[w.News.Items.Count - 1];
+        Check(top.Level == NewsLevel.History && !top.Public && !top.OnScreen && top.RealmId == -1, "an everyday kind goes on the log quietly");
+        WorldNews.Pending = NewsLevel.Minor; WorldNews.PendingRealm = realm;
+        new News(NewsKinds.empirecraft_event_log, "市面缺粮").Add();
+        top = w.News.Items[w.News.Items.Count - 1];
+        Check(top.Text == "市面缺粮" && top.Level == NewsLevel.Minor && !top.Public && !top.OnScreen && top.RealmId == realm.Id, "free text is as loud as the poster says");
+        WorldNews.Pending = NewsLevel.History;
+        bool small = WorldNews.OnScreen(new News(NewsKinds.empirecraft_event_log, "某事"));
+        var keep = WorldNews.MajorRealm; WorldNews.MajorRealm = r => r == realm;
+        bool big = WorldNews.OnScreen(new News(NewsKinds.empirecraft_event_log, "某事"));
+        WorldNews.MajorRealm = keep;
+        WorldNews.Pending = NewsLevel.Major; bool heard = WorldNews.IsPublic(new News(NewsKinds.empirecraft_event_log, "大事"));
+        WorldNews.Pending = NewsLevel.None; WorldNews.PendingRealm = null;
+        Check(!small && big && heard, "a realm's history flashes on screen only for a great realm; major free text is public");
+        new News(NewsKinds.empirecraft_event_log, " ").Add(); new News(null, "x").Add();
+        Check(w.News.Items.Count == 3, "empty lines are not posted");
+        int heardBy = 0; Action<News, NewsItem> listener = (message, item) => heardBy++; WorldNews.Posted += listener;
+        WorldNews.Pending = NewsLevel.Minor;
+        for (int i = 0; i < 600; i++) new News(NewsKinds.empirecraft_event_log, "第" + i + "件").Add();
+        WorldNews.Pending = NewsLevel.None; WorldNews.Posted -= listener;
+        Check(w.News.Items.Count == NewsLog.Cap && w.News.Posted == 603 && heardBy == 600 && w.News.Items[NewsLog.Cap - 1].Text == "第599件" && w.News.Items[0].Text == "第88件", "the log keeps the last lines only");
+        long posted = w.News.Posted;
+        TranslateHelper.LogEventOnly("转运使到任", realm); TranslateHelper.LogEventOnly("转运使到任", realm); TranslateHelper.LogMajor("天下大定", realm);
+        var last = w.News.Items[w.News.Items.Count - 1]; var prior = w.News.Items[w.News.Items.Count - 2];
+        Check(w.News.Posted == posted + 2 && prior.Text == "转运使到任" && prior.Level == NewsLevel.Minor && prior.RealmId == realm.Id && !prior.OnScreen &&
+              last.Text == "天下大定" && last.Level == NewsLevel.Major && last.Public && last.OnScreen && WorldNews.Pending == NewsLevel.None && WorldNews.PendingRealm == null,
+              "the ported helpers post through the same door; a line repeated within three years is posted once");
+        TranslateHelper.LogChangeCityName(realm.Ruler, realm.Capital, "旧名", "新名");
+        last = w.News.Items[w.News.Items.Count - 1];
+        Check(w.News.Posted == posted + 3 && last.KindId == "change_city_name_log" && last.Text.Contains("旧名") && last.Text.Contains("新名") && !last.Text.Contains("$") && last.Level == NewsLevel.History, "a ported announcement fills its own template: " + last.Text);
+        var tint = realm.GetColor();
+        Check(tint.Id == "#" + realm.Color.ToString("X6") && tint.Main.Rgb == realm.Color && realm.Capital.GetColor() == tint && realm.Ruler.GetColor() == tint && ReferenceEquals(realm.GetColor(), tint) &&
+              Tint.FromHex("#8a8a80").Id == "#8A8A80" && Tint.FromHex("not a colour") == null, "a realm's colours come from its map colour");
+        EmpireWorld.Current = null;
+        Console.WriteLine("PASS world news (" + checks + " checks): " + NewsKinds.All.Count + " kinds, " + NewsKinds.All.Count(k => k.Major) + " major");
     }
 
     // The grid as the ported systems see it: cells, terrain, a city's territory and neighbours.

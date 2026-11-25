@@ -822,7 +822,7 @@ public static class StateSettlementSystem
             // 复用城市立国入口，只拆新建城市，不把旧法理下的其它城市一起划走。
             Realm previous = city.Realm;
             // 新城立封国：受命立国，不许自立的闸放行(见 SecessionGate)
-            try { fief = SecessionGate.Sanctioned(() => city.makeOwnKingdom(leader)); }
+            try { fief = SecessionGate.Sanctioned(() => city.MakeOwnRealm(leader)); }
             finally
             {
                 if (fief == null && city.Realm != previous) fief = city.Realm;

@@ -171,7 +171,6 @@ public static partial class VirtualGenealogySystem
 #endif
 
     // 出生时间：在世有实体的看实体，虚拟族人按眼下年纪倒推，已故的看生日(没有就卒年减享年)；算不出为 NaN
-#if EC_PENDING
     private static double BornTime(PersonalClanIdentity person, double now)
     {
         Person actor = person.is_alive && !person.is_virtual ? person._actor : null;
@@ -181,7 +180,6 @@ public static partial class VirtualGenealogySystem
         return person.recordedAge >= 0 && HistoryDateFormatter.TryParseTime(person.deathday, out double died)
             ? died - person.recordedAge * 60d : double.NaN;
     }
-#endif
 
     // 改在世的人的年纪：有实体的改实体，虚拟族人改记下的年纪；生日跟着
 #if EC_PENDING

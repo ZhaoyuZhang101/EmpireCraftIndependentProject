@@ -9,7 +9,7 @@ namespace EmpireCraft.Core
 // 编年(用户 2026-11-16 "我作为管理员希望能看到世界历史")：世界上发出的每条世界消息(开战议和、换君、立国亡国、称帝篡位、
 // 各系统报的事)按发出时的文字记一笔，随模组存档。终端管理员页的「史」读它(见 TerminalHost.History)。
 //   · 文字在发出那一刻定下来(以后改国号、人死了不跟着变)，去掉颜色标记；
-//   · 大事 = 别国也听得到的事(ScreenFeedPatch.PublicNews)，管理员页可只看大事；
+//   · 大事 = 别国也听得到的事(WorldNews.IsPublic)，管理员页可只看大事；
 //   · 同一句话同一个月只记一次(同一件事几处一起报)；
 //   · 分类(用户 2026-11-16 "世界历史好歹分一下类啊""都挤在一起我怎么看")：战事、君位、兴亡、邦交、朝政、刑狱(判案拘捕，一年几十条，单列免得淹了朝政)、宗教、文教、民生、灾异、史事(预设剧本的剧情)、其他；
 //     原版和模组登记过的消息种类按种类定，模组通用事件按是哪个系统发的(调用栈上第一个模组类型的名字)定，见 Classify；
@@ -71,7 +71,7 @@ public static class WorldChronicle
 
     // 世界消息发出时(ScreenFeedPatch.BeforeNewHistory)
 #if EC_PENDING
-    public static void Note(WorldLogMessage message)
+    public static void Note(News message)
     {
         if (message == null || EmpireWorld.Current == null) return;
         try
@@ -85,13 +85,13 @@ public static class WorldChronicle
                 ThisMonth.Clear();
             }
             if (!ThisMonth.Add(text)) return;
-            bool modEvent = message.asset_id == EmpireCraftWorldLogLibrary.empirecraft_event_log?.id;
-            Realm about = modEvent ? ScreenFeedPatch.PendingKingdom ?? message.kingdom : message.kingdom;
-            bool major = ScreenFeedPatch.PublicNews(message);
+            bool modEvent = message.KindId == NewsKinds.empirecraft_event_log?.Id;
+            Realm about = modEvent ? WorldNews.PendingRealm ?? message.Realm : message.Realm;
+            bool major = WorldNews.IsPublic(message);
             _entries.Add(new ChronicleEntry
             {
                 t = GameClock.Now, text = text, major = major, kingdom = about?.Record != null ? about.Key : -1L,
-                kind = modEvent ? KindOfCaller() : KindOfAsset(message.asset_id)
+                kind = modEvent ? KindOfCaller() : KindOfAsset(message.KindId)
             });
             if (major) _majors++;
             if (_entries.Count > Cap) Trim();

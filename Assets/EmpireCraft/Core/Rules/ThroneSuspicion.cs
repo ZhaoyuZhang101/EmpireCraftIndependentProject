@@ -110,7 +110,7 @@ public static class ThroneSuspicion
         CorpsData corps = CorpsSystem.CorpsOf(actor);
         City seat = corps == null ? null : CorpsSystem.Home(corps);
         if (seat == null || seat.Realm != kingdom || seat == kingdom.Capital || !actor.CanFoundCivKingdom()) return false;
-        Realm rebel = seat.makeOwnKingdom(actor);
+        Realm rebel = seat.MakeOwnRealm(actor);
         if (rebel == null) return false;
         CultureService.ApplyLocalCulture(rebel, seat);
         rebel.ClearAdministrativeTitle();
@@ -119,7 +119,7 @@ public static class ThroneSuspicion
         rebel.GetRegime()?.SetAllowArmy(true);
         CorpsSystem.Transfer(corps, kingdom, rebel, seat);
         Realm target = empire?.CoreKingdom ?? kingdom;
-        War war = DiplomacyHelpers.wars.newWar(rebel, target, WarKinds.Normal);
+        War war = EmpireWorld.Current.LiveWars.newWar(rebel, target, WarKinds.Normal);
         war?.SetEmpireWarType(EmpireWarType.地方独立);
         Report(kingdom, empire, string.Format(LM.Get("overshadow_rebel_history"), actor.FullName(), ruler.FullName(), seat.GetCityName()), actor);
         BiographySystem.Note(actor, string.Format(LM.Get("bio_overshadow_rebel"), ruler.FullName(), seat.GetCityName()), ruler);

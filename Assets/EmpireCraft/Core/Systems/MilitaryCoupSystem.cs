@@ -146,7 +146,7 @@ public static class MilitaryCoupSystem
         PrinceStruggleSystem.Note(core, general, PrinceStruggleSystem.NoteMilitaryCoup);
         if (former != null && former.Key != general.Key) core.RemoveRuler();
         general.JoinCity(capital);
-        general.setKingdom(core);
+        general.SetRealm(core);
         // 军阀兵变禅让上位(赵匡胤式)：改朝换代按"减半"一档，王朝积弊、六弊减半，另加篡位的一笔
         // (用户 2026-10-26，见 DynasticCycleSystem.OnDynastyChanged)
         DynasticCycleSystem.Expect(empire, DynasticCycleSystem.Transition.Halve, () => core.SetRuler(general));

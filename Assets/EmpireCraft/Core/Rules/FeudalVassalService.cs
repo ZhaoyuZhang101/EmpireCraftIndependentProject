@@ -200,7 +200,7 @@ public static class FeudalVassalService
         var data = subject.GetOrCreate();
         if (data.feudal_overlord_kingdom_id < 0) return;
         Realm formerOverlord = GetOverlord(subject);
-        ColorAsset formerColor = formerOverlord?.getColor() ?? subject.getColor();
+        Tint formerColor = formerOverlord?.GetColor() ?? subject.GetColor();
         int independentColorId = data.feudal_independent_color_id;
         data.feudal_overlord_kingdom_id = -1L;
         data.feudal_vassal_level = 0;
@@ -427,7 +427,7 @@ public static class FeudalVassalService
         PersonalUnionService.CrownInUnion(subject, lord.Ruler);
         if (subject.Ruler != lord.Ruler) return false;
         Break(subject);
-        subject.updateColor(lord.getColor());
+        subject.updateColor(lord.GetColor());
         if (lord.IsInEmpire()) lord.GetEmpire()?.join(subject, pForce: true);
         else PersonalUnionService.JoinAlliance(lord, subject);
         return true;
@@ -498,7 +498,7 @@ public static class FeudalVassalService
         PersonalUnionService.CrownInUnion(subject, lord.Ruler);
         if (subject.Ruler != lord.Ruler) return false;
         Break(subject);
-        subject.updateColor(lord.getColor());
+        subject.updateColor(lord.GetColor());
         if (lord.IsInEmpire()) lord.GetEmpire()?.join(subject, pForce: true);
         else PersonalUnionService.JoinAlliance(lord, subject);
         return true;

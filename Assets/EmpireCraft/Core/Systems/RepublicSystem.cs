@@ -539,7 +539,7 @@ public static class RepublicSystem
             splitOrigin = splitSeat?.Realm;
             if (splitSeat == null) return false;
             cause = RebellionSystem.Capture(splitOrigin, splitSeat, "rebellion_reason_republic", party.Name);
-            rebel = splitSeat.makeOwnKingdom(leader, pRebellion: true);
+            rebel = splitSeat.MakeOwnRealm(leader, rebellion: true);
             if (rebel == null) return false;
         }
         if (splitSeat == null) rebel.StartFactionRebelling(party);
@@ -804,7 +804,7 @@ public static class RepublicSystem
         if (leader == null) return false;
         Realm origin = seat.Realm;
         var cause = RebellionSystem.Capture(origin, seat, "rebellion_reason_counter_revolution");
-        Realm rebel = seat.makeOwnKingdom(leader, pRebellion: true);
+        Realm rebel = seat.MakeOwnRealm(leader, rebellion: true);
         if (rebel == null) return false;
         if (!rebel.StartLocalRebelling(EmpireWarType.地方叛乱))
         {

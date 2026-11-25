@@ -137,7 +137,7 @@ public static class ImperialLegitimacyChallengeService
             if (falseCore != null) falseCore.false_core_against_empire_id = incumbent.Key;
         }
 
-        War war = DiplomacyHelpers.wars.newWar(challenger.CoreKingdom, incumbent.CoreKingdom,
+        War war = EmpireWorld.Current.LiveWars.newWar(challenger.CoreKingdom, incumbent.CoreKingdom,
             WarKinds.Normal);
         if (war == null)
         {
@@ -195,7 +195,7 @@ public static class ImperialLegitimacyChallengeService
         if (!SharesLandBorder(empire, rival)) return false;
         if (EcRandom.value > RivalryWarChance) return false;
 
-        War war = DiplomacyHelpers.wars.newWar(core, rivalCore, WarKinds.Normal);
+        War war = EmpireWorld.Current.LiveWars.newWar(core, rivalCore, WarKinds.Normal);
         if (war == null) return false;
         war.SetEmpireWarType(EmpireWarType.去帝号, nanoObject: rival);
         war.InitializeLegitimacyChallenge(empire, rival);
@@ -219,7 +219,7 @@ public static class ImperialLegitimacyChallengeService
         Realm core = claimant.CoreKingdom;
         Realm rivalCore = incumbent.CoreKingdom;
         if (!war || core.IsAtWarWith(rivalCore)) return;
-        War started = DiplomacyHelpers.wars.newWar(core, rivalCore, WarKinds.Normal);
+        War started = EmpireWorld.Current.LiveWars.newWar(core, rivalCore, WarKinds.Normal);
         if (started == null) return;
         started.SetEmpireWarType(EmpireWarType.去帝号, nanoObject: incumbent);
         started.InitializeLegitimacyChallenge(claimant, incumbent);
@@ -390,7 +390,7 @@ public static class ImperialLegitimacyChallengeService
             if (retirementCity != null)
             {
                 // 失位之君退守一城(帝号之争收场)：不许自立的闸放行(见 SecessionGate)
-                retirementKingdom = SecessionGate.Sanctioned(() => retirementCity.makeOwnKingdom(formerEmperor));
+                retirementKingdom = SecessionGate.Sanctioned(() => retirementCity.MakeOwnRealm(formerEmperor));
                 retirementKingdom?.SetCapital(retirementCity);
             }
         }

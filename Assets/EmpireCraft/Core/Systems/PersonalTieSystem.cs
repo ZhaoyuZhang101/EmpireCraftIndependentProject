@@ -253,7 +253,7 @@ public static class PersonalTieSystem
         BiographySystem.Note(actor, string.Format(LM.Get("bio_tie_defected"), ruler.FullName(), enemy.GetKingdomName()), ruler);
         Record(home, text, actor);
         actor.JoinCity(enemy.Capital);
-        actor.setKingdom(enemy);
+        actor.SetRealm(enemy);
         return true;
     }
 

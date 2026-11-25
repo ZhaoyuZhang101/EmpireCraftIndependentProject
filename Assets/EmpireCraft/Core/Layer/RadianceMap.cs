@@ -11,19 +11,21 @@ namespace EmpireCraft.Core
 // 教化图层、政令图层(用户 2026-10-16 要："加热力图层")的色块
 public sealed class RadianceMapColor : RecordObject<IdeologyMapColorData>
 {
+    private Tint _color;
 #if EC_PENDING
-    private ColorAsset _color;
     private MetaType _type;
 
     public override MetaType meta_type => _type;
     public override ColorLibrary getColorLibrary() => AssetManager.culture_colors_library;
-    public override ColorAsset getColor() => _color;
+#endif
+    public override Tint GetColor() => _color;
 
+#if EC_PENDING
     public static RadianceMapColor Create(MetaType type, string name, string hex)
     {
         // 原版 tryMakeNewColorAsset 新建的颜色要手动 initColor()，不然全是透明色
-        ColorAsset asset = ColorAsset.tryMakeNewColorAsset(hex);
-        asset.initColor();
+        Tint asset = Tint.FromHex(hex);
+        asset.InitColor();
         var color = new RadianceMapColor { _color = asset, _type = type };
         color.LoadData(new IdeologyMapColorData { name = name });
         return color;

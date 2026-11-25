@@ -606,7 +606,7 @@ public static class ScenarioEventSystem
         {
             Leave(leader);
             leader.JoinCity(seat);
-            rebel = seat.makeOwnKingdom(leader, pRebellion: true);
+            rebel = seat.MakeOwnRealm(leader, rebellion: true);
         }
         if (rebel == null) return "立国失败";
         if (empire != null && rebel.GetEmpire() == empire) empire.leave(rebel, true, true);
@@ -618,7 +618,7 @@ public static class ScenarioEventSystem
         rebel.GetRegime()?.SetAllowArmy(true);
         rebel.GetRegime()?.SetAllowSupportCenterArmy(false);
         foreach (City city in seats.Skip(1))
-            if (city.Realm != rebel && Ours(city.Realm) && !city.IsGone()) city.JoinRealm(rebel, pRebellion: true);
+            if (city.Realm != rebel && Ours(city.Realm) && !city.IsGone()) city.JoinRealm(rebel, rebellion: true);
         // 国号：新国没有法理，不定的话按都城叫(幽州)；照剧本定国号
         string name = Text(step.name);
         if (!string.IsNullOrEmpty(name))
@@ -649,7 +649,7 @@ public static class ScenarioEventSystem
                 .OrderByDescending(entry => entry.strength).FirstOrDefault();
             if (free != null) CorpsSystem.AssignGeneral(rebel, free, follower);
         }
-        War war = DiplomacyHelpers.wars.newWar(rebel, target, WarKinds.Normal);
+        War war = EmpireWorld.Current.LiveWars.newWar(rebel, target, WarKinds.Normal);
         if (war != null)
         {
             war.SetEmpireWarType(EmpireWarType.地方独立);

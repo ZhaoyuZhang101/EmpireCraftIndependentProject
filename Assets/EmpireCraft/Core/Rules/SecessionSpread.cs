@@ -43,7 +43,7 @@ public static class SecessionSpread
                 if (joined >= MaxCities) break;
                 if (next?.Record == null || next.IsGone() || !seen.Add(next) || next.Realm != former ||
                     next == former.Capital || next.GetTitle() != title || !CityStabilitySystem.Disaffected(next)) continue;
-                next.JoinRealm(rebel, pCaptured: false, pRebellion: rebellion);
+                next.JoinRealm(rebel, pCaptured: false, rebellion: rebellion);
                 if (next.Realm != rebel) continue;
                 joined++;
                 frontier.Enqueue(next);
@@ -95,7 +95,7 @@ public static class SecessionSpread
             foreach (City city in part)
             {
                 if (city.Realm != former) continue;
-                city.JoinRealm(rebel, pCaptured: false, pRebellion: rebellion);
+                city.JoinRealm(rebel, pCaptured: false, rebellion: rebellion);
                 if (city.Realm == rebel) names.Add(city.Name);
             }
         }

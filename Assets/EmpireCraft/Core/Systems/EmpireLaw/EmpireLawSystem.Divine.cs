@@ -72,7 +72,6 @@ public static partial class EmpireLawSystem
     }
 
     // 保释期间再犯(RecordCrime 调)：取保作废
-#if EC_PENDING
     private static void BreakBail(Person actor, PersonalClanIdentity identity)
     {
         if (identity?.law_bail == null || identity.law_bail.revoked) return;
@@ -80,7 +79,6 @@ public static partial class EmpireLawSystem
         if (actor?.Realm != null)
             TranslateHelper.LogEventOnly(string.Format(LM.Get("law_bail_revoked_log"), actor.FullName()), actor.Realm);
     }
-#endif
 
     #region 神力
 

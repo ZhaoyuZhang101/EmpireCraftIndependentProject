@@ -403,18 +403,16 @@ public static class AnimalHusbandrySystem
 #endif
 
     // 不计入死亡统计、不留尸体
-#if EC_PENDING
     private static void Remove(Person animal)
     {
         try
         {
-            animal.die(true, DeathCause.Other, false, false);
+            animal.Die(true, DeathCause.Other, false, false);
         }
         catch (Exception exception)
         {
             LogService.LogWarning($"[EmpireCraft][畜牧] 移除动物失败: {exception.Message}");
         }
     }
-#endif
 }
 }

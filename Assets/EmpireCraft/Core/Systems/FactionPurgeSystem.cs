@@ -92,7 +92,6 @@ public static class FactionPurgeSystem
         !string.IsNullOrEmpty(war.GetOrCreate().purge_target_faction_id);
 
     // 每月(FrontSystem.MonthTick)：判胜负
-#if EC_PENDING
     public static void MonthTick()
     {
         foreach (War war in EmpireWorld.Current.LiveWars.ToList())
@@ -101,7 +100,7 @@ public static class FactionPurgeSystem
             try
             {
                 WarOutcome? winner = Decide(war);
-                if (winner != null) DiplomacyHelpers.wars.endWar(war, winner.Value);
+                if (winner != null) EmpireWorld.Current.EndWar(war, winner.Value);
             }
             catch (Exception exception)
             {
@@ -109,7 +108,6 @@ public static class FactionPurgeSystem
             }
         }
     }
-#endif
 
     private static WarOutcome? Decide(War war)
     {

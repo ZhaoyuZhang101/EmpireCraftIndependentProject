@@ -241,6 +241,23 @@ namespace EmpireCraft.Core
             foreach(var near in cell.Neighbours)if(World.TileCity[near.Index]==city.Id){WorldOps.ClaimTile(World,city,cell.Index);return;}
         }
         public static void RemoveZone(this City city,Cell cell){if(city!=null&&cell!=null&&city.Alive&&cell.Index!=city.Tile&&World.TileCity[cell.Index]==city.Id)WorldOps.ReleaseTile(World,city,cell.Index);}
+        // A person dies by a system's hand. The cause is for whoever writes the biography.
+        public static void Die(this Person person,bool destroy=false,DeathCause cause=DeathCause.Other,bool countDeath=true,bool announce=true){if(person!=null&&person.Alive)WorldOps.Death(World,person);}
+        // A person goes over to another realm: home becomes its capital. A reigning ruler stays where the throne is.
+        public static void SetRealm(this Person person,Realm realm){if(person!=null&&person.Alive&&person.Throne==null&&!realm.IsGone()&&realm.Capital!=null&&person.Realm!=realm)person.City=realm.Capital;}
+        // A city stands up as a realm of its own under a leader who rules nothing yet; it is named after the city.
+        public static Realm MakeOwnRealm(this City city,Person leader,bool rebellion=false)
+        {
+            if(city==null||!city.Alive||leader==null||!leader.Alive||leader.Throne!=null)return null;
+            unchecked
+            {
+                uint h=(uint)city.Id*2654435761u^(uint)World.Realms.Count*40503u;
+                uint color=(((h&0x7F)+0x60)<<16)|((((h>>8)&0x7F)+0x60)<<8)|(((h>>16)&0x7F)+0x60);
+                var realm=WorldOps.FoundRealm(World,city.Name,color,city,leader);
+                leader.City=city;
+                return realm;
+            }
+        }
         public static void JoinCity(this Person person,City city){if(person!=null&&person.Alive&&(city==null||city.Alive))person.City=city;}
         public static void JoinRealm(this City city,Realm realm,bool captured=false,bool rebellion=false){if(city.Realm!=realm)WorldOps.TransferCity(World,city,realm);}
     }

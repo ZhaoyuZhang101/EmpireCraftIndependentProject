@@ -35,6 +35,8 @@ namespace EmpireCraft.Core
         public override bool Alive => !_removed && data != null;
         public string Name { get { return data == null ? null : data.name; } set { if (data != null) data.name = value; } }
         public virtual void LoadData(TData record) { data = record; }
+        // The colours of this object, for those that have any (an empire, a title).
+        public virtual Tint GetColor() => null;
         // Called by the store when the object leaves the world.
         public virtual void Dispose() { _removed = true; }
     }

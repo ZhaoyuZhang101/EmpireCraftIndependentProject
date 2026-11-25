@@ -102,7 +102,7 @@ public static class BattleDrama
             BiographySystem.Note(general, string.Format(LM.Get("bio_captured_defected"), place, captor.GetKingdomName()), victor);
             Report(kingdom, general, string.Format(LM.Get("battle_general_defected_log"), place, name, captor.GetKingdomName()));
             general.JoinCity(captor.Capital);
-            general.setKingdom(captor);
+            general.SetRealm(captor);
             return;
         }
         if (loyal || roll < DefectShare + RansomShare)

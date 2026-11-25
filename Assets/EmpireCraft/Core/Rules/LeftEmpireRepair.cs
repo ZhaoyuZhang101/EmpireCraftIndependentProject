@@ -33,7 +33,7 @@ public static class LeftEmpireRepair
                     !EmpireFormationService.IsSubject(kingdom))
                 {
                     int before = kingdom.Record.color_id;
-                    KingdomColorService.Restore(kingdom, -1, core.getColor());
+                    KingdomColorService.Restore(kingdom, -1, core.GetColor());
                     if (kingdom.Record.color_id != before) recolored++;
                 }
                 if (kingdom.IsAdministrativeKingdomType() || !string.IsNullOrWhiteSpace(data.admin_name) || StaleAdministrativeName(kingdom))

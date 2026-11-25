@@ -893,7 +893,7 @@ public static class ZhouEraSystem
             Person minister = seed.Leader ?? seed.People?.FirstOrDefault(actor => actor != null && actor.Alive &&
                                                                                 actor.IsAdult() && actor != vassal.Ruler);
             if (minister == null) continue;
-            Realm split = seed.makeOwnKingdom(minister);
+            Realm split = seed.MakeOwnRealm(minister);
             if (split == null) continue;
             foreach (City city in groups[seed])
                 if (city != seed && city.Realm == vassal) city.JoinRealm(split);

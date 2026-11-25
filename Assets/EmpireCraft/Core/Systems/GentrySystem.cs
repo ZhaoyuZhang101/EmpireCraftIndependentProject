@@ -316,7 +316,7 @@ public static partial class GentrySystem
             ?? living.FirstOrDefault(person => person.is_virtual && person.age >= 18 && person.virtual_city_id == seat.Key)?.Realize();
         if (head?.Record == null || head.IsRuler()) return false;
         if (head.IsCityLeader() && head.City != null && head.City != seat) head.City.RemoveLeader();
-        Realm own = seat.makeOwnKingdom(head);
+        Realm own = seat.MakeOwnRealm(head);
         if (own == null) return false;
         Record(seat, string.Format(LM.Get(key), JunWang(clan), seat.GetCityName(), former.GetKingdomName()), force: true);
         return true;

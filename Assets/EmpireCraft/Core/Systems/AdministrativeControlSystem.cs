@@ -802,7 +802,7 @@ public static class AdministrativeControlSystem
         Realm local;
         try
         {
-            local = seed.makeOwnKingdom(leader);
+            local = seed.MakeOwnRealm(leader);
         }
         catch (Exception error)
         {

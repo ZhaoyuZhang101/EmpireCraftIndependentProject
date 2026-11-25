@@ -40,7 +40,6 @@ public static class HistoryDateFormatter
 
     // 原版 GameClock.DateText 写出的日期("8,682年6月30日"、"30th of June, 8,682")换回世界时间(一年 60 秒、一月 5 秒、
     // 一月 30 天)；别的语言的格式认不出返回 false
-#if EC_PENDING
     public static bool TryParseTime(string date, out double time)
     {
         time = 0d;
@@ -60,7 +59,7 @@ public static class HistoryDateFormatter
             string name = match.Groups[2].Value.Trim();
             month = 0;
             for (int candidate = 1; candidate <= 12 && month == 0; candidate++)
-                if (string.Equals(LocalizedTextManager.getText("month_" + candidate), name, StringComparison.OrdinalIgnoreCase))
+                if (string.Equals(LM.Get("month_" + candidate), name, StringComparison.OrdinalIgnoreCase))
                     month = candidate;
             if (month == 0) return false;
         }
@@ -68,7 +67,6 @@ public static class HistoryDateFormatter
         time = (year - 1) * 60d + (month - 1) * 5d + (day - 0.5d) * 5d / 30d;
         return true;
     }
-#endif
 
     internal static HistoryDateParts SplitText(string date, string localizedYearLabel)
     {

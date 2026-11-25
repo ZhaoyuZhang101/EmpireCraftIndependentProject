@@ -21,6 +21,7 @@ namespace EmpireCraft.Core
         public readonly int[] TileCity;                        // city id per tile, -1 unclaimed
         public readonly Annals Annals=new Annals();
         public readonly RealmLedger Ledger=new RealmLedger();   // books kept by RealmAccounts
+        public readonly NewsLog News=new NewsLog();            // recent announcements of the ported systems (a feed, not saved)
         public readonly ulong Seed;
         public int StartYear=1;
         public int Month;                                     // months since the start, 0-based

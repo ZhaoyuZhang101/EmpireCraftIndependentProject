@@ -154,15 +154,15 @@ public static class SpeechFreedomSystem
     {
         Realm kingdom = author.Realm;
         if (kingdom == null) return;
-        Color color = kingdom.getColor()._color_text;
-        new WorldLogMessage(EmpireCraftWorldLogLibrary.ideology_treatise_log,
+        Color color = kingdom.GetColor().ColorText;
+        new News(NewsKinds.ideology_treatise_log,
             author.FullName(), book.name, PartySystem.GetIdeologyName(ideology))
         {
-            location = author.current_position,
-            color_special1 = color,
-            color_special2 = color,
-            color_special3 = color
-        }.add();
+            Location = author.current_position,
+            Color1 = color,
+            Color2 = color,
+            Color3 = color
+        }.Add();
     }
 #endif
 

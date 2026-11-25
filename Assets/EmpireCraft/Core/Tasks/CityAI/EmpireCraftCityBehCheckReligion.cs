@@ -41,7 +41,7 @@ public class EmpireCraftCityBehCheckReligion: GameAICityBase
                 // 由城主出面自立。以前取城里第一个实体：无小人模式下可能是船或路过的要人，城里没有实体时直接抛异常
                 Person theocrat = Theocrat(pCity);
                 if (theocrat == null) return BehResult.Continue;
-                var kingdom = pCity.makeOwnKingdom(theocrat);
+                var kingdom = pCity.MakeOwnRealm(theocrat);
                 if (kingdom == null) return BehResult.Continue;
                 Regime regime = kingdom.GetRegime();
                 regime.SetReligionLevel(ReligionLevel.High);

@@ -17,6 +17,9 @@ namespace EmpireCraft.Core
             w.Month++;
             Population(w);
             if(w.Month%12==0)Year(w);
+            // The year's step fills the thrones its own deaths empty. A throne emptied in mid-year by
+            // another system (an execution, a coup) is filled the same month.
+            else Thrones(w);
         }
 
         static void Population(EmpireWorld w)

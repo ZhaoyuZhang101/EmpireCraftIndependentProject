@@ -676,7 +676,7 @@ public static class CityStabilitySystem
                 founder = city.People?.FirstOrDefault(actor => actor.CanFoundCivKingdom() && actor.Alive && actor.IsAdult());
             founder ??= CityPopulationSystem.SpawnRebelLeader(city);
             if (founder == null) return;
-            independent = city.makeOwnKingdom(founder);
+            independent = city.MakeOwnRealm(founder);
             if (independent == null) return;
             // 据城自立的取当地之俗(见 CultureService.ApplyLocalCulture)
             CultureService.ApplyLocalCulture(independent, city);

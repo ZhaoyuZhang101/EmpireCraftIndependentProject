@@ -182,7 +182,7 @@ public static class CityStateService
     private static Realm SpinOff(City city, Person leader, Realm parent)
     {
         // 攻下的城立为城邦(战果)：不许自立的闸放行(见 SecessionGate)
-        Realm state = SecessionGate.Sanctioned(() => city.makeOwnKingdom(leader));
+        Realm state = SecessionGate.Sanctioned(() => city.MakeOwnRealm(leader));
         if (state == null) return null;
         // 同文化的殖民城邦先继承母邦现行制度，之后再由各国逐步完成封建化。
         if (parent != null && IsCityState(parent) &&
@@ -263,7 +263,7 @@ public static class CityStateService
     private static void ShareSovereign(Realm leader, Realm member)
     {
         if (leader == null || member == null || member.IsGone()) return;
-        member.updateColor(leader.getColor());
+        member.updateColor(leader.GetColor());
         Person sovereign = leader.Ruler;
         if (sovereign == null || sovereign.IsGone() || !sovereign.Alive) return;
         PersonalUnionService.CrownInUnion(member, sovereign);

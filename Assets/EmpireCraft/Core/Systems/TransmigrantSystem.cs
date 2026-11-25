@@ -144,9 +144,9 @@ public static partial class TransmigrantSystem
 
     private static void ApplyFlag(Realm kingdom)
     {
-        ColorAsset best = null;
+        Tint best = null;
         float bestScore = float.MaxValue;
-        foreach (ColorAsset asset in AssetManager.kingdom_colors_library.list)
+        foreach (Tint asset in AssetManager.kingdom_colors_library.list)
         {
             if (asset == null || !ColorUtility.TryParseHtmlString(asset.color_main_2, out Color field) ||
                 !ColorUtility.TryParseHtmlString(asset.color_banner, out Color ink)) continue;
@@ -576,7 +576,6 @@ public static partial class TransmigrantSystem
         actor == null ? null : state.seats.FirstOrDefault(seat => seat.actor_id == actor.Key);
 
     // 实体元老故去(见 ActorPatch.Die)：席位当场由子女继承
-#if EC_PENDING
     public static void OnActorDied(Person actor)
     {
         if (actor == null) return;
@@ -589,10 +588,8 @@ public static partial class TransmigrantSystem
             return;
         }
     }
-#endif
 
     // 席位继承：同姓的子女一人，十八到三十四岁；继承人不带原著职务
-#if EC_PENDING
     private static void Succeed(Realm kingdom, TransmigrantState state, SenatorSeat seat)
     {
         string deceased = FullName(seat);
@@ -609,7 +606,6 @@ public static partial class TransmigrantSystem
             TranslateHelper.LogEventOnly(string.Format(LM.Get("transmigrant_seat_inherited"), deceased,
                 string.IsNullOrEmpty(post) ? LM.Get("transmigrant_senator") : post, FullName(seat)), kingdom);
     }
-#endif
 
     // 元老的天年：原班穿越者是带着现代医药来的现代人，平均活到 FounderMeanAge；继承席位的子孙生在穿越政权治下，
     // 不低于 HeirMeanAge(本文化时代的平均天年更长就照本文化)。按"已经活到这个岁数"截尾取(原班按降临时的年纪，

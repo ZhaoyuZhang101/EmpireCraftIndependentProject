@@ -730,7 +730,7 @@ public class Empire : RecordObject<EmpireData>
         if (actor.IsRuler() && actor.Realm != core) actor.Realm.RemoveRuler();
         if (core.Ruler != null) core.RemoveRuler();
         actor.JoinCity(capital);
-        actor.setKingdom(core);
+        actor.SetRealm(core);
         _completingMinisterUsurpation = true;
         try { core.SetRuler(actor); }
         finally { _completingMinisterUsurpation = false; }
@@ -844,7 +844,7 @@ public class Empire : RecordObject<EmpireData>
                     if (clan.id == data.empire_specific_clan)
                     {
                         leave(k);
-                        DiplomacyHelpers.wars.newWar(k, CoreKingdom, WarKinds.Normal);
+                        EmpireWorld.Current.LiveWars.newWar(k, CoreKingdom, WarKinds.Normal);
                     }
                 }
                 bool restoredHouse = currentSpecificClan.HasHistoryEmpire();
@@ -870,7 +870,7 @@ public class Empire : RecordObject<EmpireData>
                 isNew = true;
                 data.history_emperrors.Clear();
                 CoreKingdom.updateColor(getColorLibrary().getNextColor(actor.getActorAsset()));
-                updateColor(CoreKingdom.getColor());
+                updateColor(CoreKingdom.GetColor());
                 foreach (var tk in taken_Kingdoms.ToList())
                 {
                     if (AncientWarfareCompatibility.Owns(tk)) continue;
@@ -1964,14 +1964,14 @@ public class Empire : RecordObject<EmpireData>
     // 附庸独立、同步帝国颜色等处一路报错(玩家日志 2026-10-16)。国家那边见 VanillaGuardPatch，这里是帝国：
     // 越界时用核心王国的颜色，并把编号修回色库里
 #if EC_PENDING
-    public override ColorAsset getColor()
+    public override Tint GetColor()
     {
         if (_cached_color != null) return _cached_color;
         var colors = getColorLibrary()?.list;
         if (data == null || colors == null || colors.Count == 0) return null;
-        if (data.color_id >= 0 && data.color_id < colors.Count) return base.getColor();
+        if (data.color_id >= 0 && data.color_id < colors.Count) return base.GetColor();
         Realm core = CoreKingdom;
-        ColorAsset coreColor = core?.Record != null && !core.IsGone() ? core.getColor() : null;
+        Tint coreColor = core?.Record != null && !core.IsGone() ? core.GetColor() : null;
         int index = coreColor != null ? colors.IndexOf(coreColor) : -1;
         if (index < 0 && coreColor != null)
         {
@@ -1982,7 +1982,7 @@ public class Empire : RecordObject<EmpireData>
         LogService.LogWarning($"[EmpireCraft] 帝国 {data.name}({data.id}) 的颜色编号 {data.color_id} 超出颜色库(共 {colors.Count} 种)，改用第 {index} 种");
         data.setColorID(index);
         if (data.original_color_id < 0 || data.original_color_id >= colors.Count) data.original_color_id = index;
-        return base.getColor();
+        return base.GetColor();
     }
 
     public override void generateBanner()
@@ -4196,7 +4196,7 @@ public class Empire : RecordObject<EmpireData>
         if (son.IsRuler() && formerKingdom != coreKingdom) formerKingdom.RemoveRuler();
         if (coreKingdom.Ruler?.Key == deposedEmperor.Key) coreKingdom.RemoveRuler();
         son.JoinCity(capital);
-        son.setKingdom(coreKingdom);
+        son.SetRealm(coreKingdom);
         // Palace deposition has its own outcome and must not trigger the generic dynasty-usurpation revolt.
         _completingMinisterUsurpation = true;
         try { coreKingdom.SetRuler(son); }
@@ -4249,7 +4249,7 @@ public class Empire : RecordObject<EmpireData>
         if (heir.IsRuler() && formerKingdom != core) formerKingdom.RemoveRuler();
         if (core.Ruler?.Key == deposed.Key) core.RemoveRuler();
         heir.JoinCity(capital);
-        heir.setKingdom(core);
+        heir.SetRealm(core);
         _completingMinisterUsurpation = true;
         try { core.SetRuler(heir); }
         finally { _completingMinisterUsurpation = false; }
@@ -4440,7 +4440,7 @@ public class Empire : RecordObject<EmpireData>
             if (rebels == null)
             {
                 leader.JoinCity(seat);
-                rebels = seat.makeOwnKingdom(leader, pRebellion: true);
+                rebels = seat.MakeOwnRealm(leader, rebellion: true);
             }
             if (rebels == null || rebels == CoreKingdom) continue;
             rebels.GetRegime()?.SetAllowArmy(true);
@@ -4494,7 +4494,7 @@ public class Empire : RecordObject<EmpireData>
             coreKingdom.RemoveRuler();
         }
         actor.JoinCity(capital);
-        actor.setKingdom(coreKingdom);
+        actor.SetRealm(coreKingdom);
         // This path has its own influence-based opposition, not the generic dynasty-change rebellion.
         _completingMinisterUsurpation = true;
         EmpireCraft.Core.PrinceStruggleSystem.Note(coreKingdom, actor, EmpireCraft.Core.PrinceStruggleSystem.NoteUsurp);
@@ -5091,13 +5091,13 @@ public class Empire : RecordObject<EmpireData>
         }
         // 改设行政区写"设某某，以某人主政"，封给非宗室写"封某人于某某"
         string division = kingdom?.GetKingdomFullName() ?? title?.data?.name ?? "";
-        new WorldLogMessage(administrative ? EmpireCraftWorldLogLibrary.empire_division_log
-            : EmpireCraftWorldLogLibrary.empire_fief_grant_log, name, division, ruler?.FullName() ?? LM.Get("label_none"))
+        new News(administrative ? NewsKinds.empire_division_log
+            : NewsKinds.empire_fief_grant_log, name, division, ruler?.FullName() ?? LM.Get("label_none"))
         {
-            location = CoreKingdom.location,
-            color_special1 = CoreKingdom.getColor().getColorText(),
-            color_special2 = kingdom?.getColor()?.getColorText() ?? CoreKingdom.getColor().getColorText(),
-            color_special3 = ruler?.getColor()?.getColorText() ?? CoreKingdom.getColor().getColorText()
+            Location = CoreKingdom.location,
+            Color1 = CoreKingdom.GetColor().GetColorText(),
+            Color2 = kingdom?.GetColor()?.GetColorText() ?? CoreKingdom.GetColor().GetColorText(),
+            Color3 = ruler?.GetColor()?.GetColorText() ?? CoreKingdom.GetColor().GetColorText()
         }.RecordNationalHistoryIntoEmpire(this, ruler, kingdom);
     }
 
@@ -5213,7 +5213,7 @@ public class Empire : RecordObject<EmpireData>
         capital.RemoveLeader();
         Realm kingdom = EmpireWorld.Current.LiveRealms.makeNewCivKingdom(king, pLog:false);
         kingdom.copyMetasFromOtherKingdom(pKingdom);
-        kingdom.updateColor(pKingdom.getColor());
+        kingdom.updateColor(pKingdom.GetColor());
         capital.newForceKingdomEvent(base.units, capital._boats, kingdom, null);
         capital.setKingdom(kingdom);
         capital.switchedKingdom();

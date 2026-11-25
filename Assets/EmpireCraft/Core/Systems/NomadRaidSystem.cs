@@ -93,7 +93,7 @@ public static partial class NomadRaidSystem
         _lastHard = hard;
         if (previous == null || previous == age.id || hard == wasHard && !hard) return;
         if (!EmpireWorld.Current.LiveRealms.Any(kingdom => Alive(kingdom) && IsNomad(kingdom))) return;
-        string name = LocalizedTextManager.getText(age.getLocaleID());
+        string name = LM.Get(age.getLocaleID());
         string key = hard ? age.flag_winter ? "steppe_era_notice_winter" : "steppe_era_notice_dark" : "steppe_era_notice_relief";
         string text = string.Format(LM.Get(key), name);
         TranslateHelper.LogMajor(text);

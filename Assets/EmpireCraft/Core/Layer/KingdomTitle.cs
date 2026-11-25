@@ -30,7 +30,7 @@ public class KingdomTitle : RecordObject<KingdomTitleData>
 
     public Person owner;
 #if EC_PENDING
-    public ColorAsset kingdomColor => getColor();
+    public Tint kingdomColor => getColor();
     public override MetaType meta_type => MetaTypeExtension.KingdomTitle;
 
     public void SetOwner(Person pActor)
@@ -123,10 +123,10 @@ public class KingdomTitle : RecordObject<KingdomTitleData>
     }
 
 #if EC_PENDING
-    public override ColorAsset getColor()
+    public override Tint GetColor()
     {
         // 王国法理用自己那套设色、接壤的不同色(见 DeJureMap)，不再与国家同一个色库
-        ColorAsset own = DeJureMap.TitleColor(this);
+        Tint own = DeJureMap.TitleColor(this);
         if (own != null) return own;
         if (_cached_color == null)
         {

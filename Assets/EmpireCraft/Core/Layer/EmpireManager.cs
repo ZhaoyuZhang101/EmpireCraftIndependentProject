@@ -435,10 +435,10 @@ public class EmpireManager : RecordStore<Empire, EmpireData>
             Realm kingdom = younger.CoreKingdom;
             ActorAsset asset = kingdom.Ruler?.asset ?? kingdom.People?.FirstOrDefault(unit => unit != null)?.asset;
             if (asset == null) return;
-            ColorAsset next = kingdom.getColorLibrary()?.getNextColor(asset);
+            Tint next = kingdom.getColorLibrary()?.getNextColor(asset);
             if (next == null) return;
             kingdom.updateColor(next);
-            younger.updateColor(kingdom.getColor());
+            younger.updateColor(kingdom.GetColor());
             return;
         }
     }
@@ -476,7 +476,7 @@ public class EmpireManager : RecordStore<Empire, EmpireData>
             return null;
         }
         empire.addFounder(pKingdom);
-        empire.updateColor(pKingdom.getColor());
+        empire.updateColor(pKingdom.GetColor());
         EnsureDistinctColor(empire);
         empire.data.timestamp_given_time = GameClock.Now;
         // 立国时间(开国气象 Empire.InFoundingGrace 用)
@@ -495,19 +495,19 @@ public class EmpireManager : RecordStore<Empire, EmpireData>
         // 用户选回调——每个汗国的开国之君身后都必乱，太频。袭掠成名、发动统一的雄主照旧记(见 NomadCycleSystem.RememberHero)
         if (!suppressFoundingLog && empire.data.has_year_name)
         {
-            new WorldLogMessage(EmpireCraftWorldLogLibrary.become_new_empire_log, pKingdom.Ruler.Name, empire.GetEmpireName())
+            new News(NewsKinds.become_new_empire_log, pKingdom.Ruler.Name, empire.GetEmpireName())
             {
-                location = pKingdom.location,
-                color_special1 = pKingdom.getColor().getColorText()
-            }.add();
+                Location = pKingdom.location,
+                Color1 = pKingdom.GetColor().GetColorText()
+            }.Add();
         }
         else if (!suppressFoundingLog)
         {
-            new WorldLogMessage(EmpireCraftWorldLogLibrary.become_new_empire_west_log, pKingdom.Ruler.Name, empire.GetEmpireName())
+            new News(NewsKinds.become_new_empire_west_log, pKingdom.Ruler.Name, empire.GetEmpireName())
             {
-                location = pKingdom.location,
-                color_special1 = pKingdom.getColor().getColorText()
-            }.add();
+                Location = pKingdom.location,
+                Color1 = pKingdom.GetColor().GetColorText()
+            }.Add();
         }
         
         return empire;

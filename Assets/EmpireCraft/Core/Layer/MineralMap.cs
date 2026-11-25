@@ -11,22 +11,22 @@ namespace EmpireCraft.Core
 
 public sealed class MineralMapColor : RecordObject<IdeologyMapColorData>
 {
-#if EC_PENDING
-    private ColorAsset _color;
+    private Tint _color;
 
+#if EC_PENDING
     public override MetaType meta_type => MetaTypeExtension.Mineral;
     public override ColorLibrary getColorLibrary() => AssetManager.culture_colors_library;
-    public override ColorAsset getColor() => _color;
+#endif
+    public override Tint GetColor() => _color;
 
     public static MineralMapColor Create(string name, string hex)
     {
-        ColorAsset asset = ColorAsset.tryMakeNewColorAsset(hex);
-        asset.initColor();
+        Tint asset = Tint.FromHex(hex);
+        asset.InitColor();
         var color = new MineralMapColor { _color = asset };
         color.LoadData(new IdeologyMapColorData { name = name });
         return color;
     }
-#endif
 }
 
 // 矿产图层(MetaTypeExtension.Mineral)：不画铭牌，每座城上方并排显示本城矿藏的图标(用资源原有图标)，
@@ -37,10 +37,8 @@ public static class MineralMap
 {
     private static MineralMapColor _withDeposits, _empty;
 
-#if EC_PENDING
     private static MineralMapColor WithDeposits => _withDeposits ??= MineralMapColor.Create("mineral_has", "#b08a4a");
     private static MineralMapColor Empty => _empty ??= MineralMapColor.Create("mineral_none", "#5a5a5a");
-#endif
 
     private static bool Shown(City city) =>
         city != null && !city.IsGone() && city.Realm != null && !AncientWarfareCompatibility.OwnsObject(city);

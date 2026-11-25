@@ -15,16 +15,14 @@ namespace EmpireCraft.Core
         {
             return LM.Get("default_" + pl.ToString());
         }
-#if EC_PENDING
         public static void LogNewEmpire(Empire empire)
         {
-            new WorldLogMessage(EmpireCraftWorldLogLibrary.become_new_empire_log, empire.CoreKingdom.Ruler.Name, empire.CoreKingdom.Name)
+            new News(NewsKinds.become_new_empire_log, empire.CoreKingdom.Ruler.Name, empire.CoreKingdom.Name)
             {
-                color_special1 = empire.CoreKingdom.getColor().getColorText(),
-                color_special2 = empire.CoreKingdom.getColor().getColorText(),
-            }.add();
+                Color1 = empire.CoreKingdom.GetColor().GetColorText(),
+                Color2 = empire.CoreKingdom.GetColor().GetColorText(),
+            }.Add();
         }
-#endif
         /// <summary>
         /// 检索所有输入字段的翻译并且拼接在一起
         /// </summary>
@@ -46,17 +44,15 @@ namespace EmpireCraft.Core
             }
             return result;
         }
-#if EC_PENDING
         public static void LogministerTryAqcuireEmpire(Person minister, Empire empire)
         {
-            new WorldLogMessage(EmpireCraftWorldLogLibrary.minister_try_aqcuire_empire_log, minister.GetTitle(), minister.Name, empire.Name)
+            new News(NewsKinds.minister_try_aqcuire_empire_log, minister.GetTitle(), minister.Name, empire.Name)
             {
-                color_special1 = minister.getColor()._color_text,
-                color_special2 = minister.getColor()._color_text,
-                color_special3 = empire.getColor()._color_text,
-            }.add();
+                Color1 = minister.GetColor().ColorText,
+                Color2 = minister.GetColor().ColorText,
+                Color3 = empire.GetColor().ColorText,
+            }.Add();
         }
-#endif
 
         /// <summary>
         /// 记录“大臣获封称号”
@@ -67,97 +63,99 @@ namespace EmpireCraft.Core
 #if EC_PENDING
         public static void LogPowerfulMinisterAcquireTitle(Person minister, Empire empire, string title)
         {
-            new WorldLogMessage(EmpireCraftWorldLogLibrary.empire_powerful_minister_aquire_title,
+            new News(NewsKinds.empire_powerful_minister_aquire_title,
                 minister.Name,
                 empire.GetEmpireName(),
                 title)
             {
-                color_special1 = minister.Realm.getColor()._color_text,
-                color_special2 = empire.CoreKingdom.getColor()._color_text
-            }.add();
+                Color1 = minister.Realm.GetColor().ColorText,
+                Color2 = empire.CoreKingdom.GetColor().ColorText
+            }.Add();
         }
 
         public static void LogPowerfulMinisterControlsCourt(Person minister, Empire empire)
         {
-            new WorldLogMessage(EmpireCraftWorldLogLibrary.powerful_minister_controls_court_log,
+            new News(NewsKinds.powerful_minister_controls_court_log,
                 minister.FullName(), empire.Emperor?.FullName() ?? "", empire.GetEmpireName())
             {
-                color_special1 = minister.getColor()._color_text,
-                color_special2 = empire.getColor()._color_text,
-                color_special3 = empire.getColor()._color_text
-            }.add();
+                Color1 = minister.GetColor().ColorText,
+                Color2 = empire.GetColor().ColorText,
+                Color3 = empire.GetColor().ColorText
+            }.Add();
         }
 
         public static void LogPowerfulMinisterNineBestowments(Person minister, Empire empire, string title)
         {
-            new WorldLogMessage(EmpireCraftWorldLogLibrary.powerful_minister_nine_bestowments_log,
+            new News(NewsKinds.powerful_minister_nine_bestowments_log,
                 minister.FullName(), title, empire.GetEmpireName())
             {
-                color_special1 = minister.getColor()._color_text,
-                color_special2 = minister.getColor()._color_text,
-                color_special3 = empire.getColor()._color_text
-            }.add();
+                Color1 = minister.GetColor().ColorText,
+                Color2 = minister.GetColor().ColorText,
+                Color3 = empire.GetColor().ColorText
+            }.Add();
         }
 
         public static void LogPowerfulMinisterUsurpation(Person minister, Empire empire, string newEmpireName)
         {
-            new WorldLogMessage(EmpireCraftWorldLogLibrary.powerful_minister_usurpation_log,
+            new News(NewsKinds.powerful_minister_usurpation_log,
                 minister.FullName(), empire.GetEmpireName(), newEmpireName)
             {
-                color_special1 = minister.getColor()._color_text,
-                color_special2 = empire.getColor()._color_text,
-                color_special3 = minister.getColor()._color_text
-            }.add();
+                Color1 = minister.GetColor().ColorText,
+                Color2 = empire.GetColor().ColorText,
+                Color3 = minister.GetColor().ColorText
+            }.Add();
         }
+#endif
 
         public static void LogEmpressDowagerInstallsSon(Person dowager, Person deposed, Person son)
         {
-            new WorldLogMessage(EmpireCraftWorldLogLibrary.empress_dowager_installs_son_log,
+            new News(NewsKinds.empress_dowager_installs_son_log,
                 dowager.FullName(), deposed.FullName(), son.FullName())
             {
-                color_special1 = dowager.getColor()._color_text,
-                color_special2 = deposed.getColor()._color_text,
-                color_special3 = son.getColor()._color_text
-            }.add();
+                Color1 = dowager.GetColor().ColorText,
+                Color2 = deposed.GetColor().ColorText,
+                Color3 = son.GetColor().ColorText
+            }.Add();
         }
         public static void LogCreateTitle(Realm kingdom, KingdomTitle title)
         {
-            new WorldLogMessage(EmpireCraftWorldLogLibrary.king_create_title_log,
+            new News(NewsKinds.king_create_title_log,
                 kingdom.Name,
                 kingdom.Ruler.Name,
                 title.data.name)
             {
-                color_special1 = kingdom.getColor()._color_text,
-                color_special2 = kingdom.getColor()._color_text,
-                color_special3 = title.getColor()._color_text
-            }.add();
+                Color1 = kingdom.GetColor().ColorText,
+                Color2 = kingdom.GetColor().ColorText,
+                Color3 = title.GetColor().ColorText
+            }.Add();
         }
+#if EC_PENDING
         public static void LogEmpireCoreAbsorbTitle(Empire empire, KingdomTitle title, EmpireCore core)
         {
             if (empire == null || title == null || core == null) return;
-            new WorldLogMessage(
-                EmpireCraftWorldLogLibrary.empire_core_absorb_title_log,
+            new News(
+                NewsKinds.empire_core_absorb_title_log,
                 empire.GetEmpireName(),
                 title.data?.name ?? "",
                 EmpireCoreManager.GetDisplayName(core))
             {
-                color_special1 = empire.getColor()._color_text,
-                color_special2 = title.getColor()._color_text,
-                color_special3 = empire.getColor()._color_text
+                Color1 = empire.GetColor().ColorText,
+                Color2 = title.GetColor().ColorText,
+                Color3 = empire.GetColor().ColorText
             }.RecordIntoEmpire(empire);
         }
         public static void LogEmpirePressureSurrender(Empire attacker, Empire defender, string targetName, bool cityOnly = false)
         {
             if (attacker == null || defender == null || string.IsNullOrWhiteSpace(targetName)) return;
-            new WorldLogMessage(
-                cityOnly ? EmpireCraftWorldLogLibrary.empire_pressure_surrender_city_log : EmpireCraftWorldLogLibrary.empire_pressure_surrender_log,
+            new News(
+                cityOnly ? NewsKinds.empire_pressure_surrender_city_log : NewsKinds.empire_pressure_surrender_log,
                 attacker.GetEmpireName(),
                 defender.GetEmpireName(),
                 targetName)
             {
-                color_special1 = attacker.getColor()._color_text,
-                color_special2 = defender.getColor()._color_text,
-                color_special3 = defender.getColor()._color_text
+                Color1 = attacker.GetColor().ColorText,
+                Color2 = defender.GetColor().ColorText,
+                Color3 = defender.GetColor().ColorText
             }.RecordIntoEmpire(attacker);
         }
 #endif
@@ -167,55 +165,57 @@ namespace EmpireCraft.Core
         public static void LogKingChooseHeir(Realm kingdom,string relation, Person pActor)
         {
             if (kingdom != null && pActor != null && (kingdom.IsEmpire() || kingdom.CountCities() >= 5))
-                new WorldLogMessage(EmpireCraftWorldLogLibrary.king_choose_heir_log,
+                new News(NewsKinds.king_choose_heir_log,
                     (kingdom.GetKingdomName() ?? "") + (kingdom.GetOffice()?.GetName() ?? ""),
                     relation,
                     pActor.Name)
                 {
-                    color_special1 = kingdom.getColor()._color_text,
-                    color_special3 = pActor.getColor()._color_text
+                    Color1 = kingdom.GetColor().ColorText,
+                    Color3 = pActor.GetColor().ColorText
                 }.RecordIntoEmpire(pActor.GetEmpire());
         }
+#endif
         
         public static void LogProvinceChangeToKingdom(Realm province, string name)
         {
-            new WorldLogMessage(EmpireCraftWorldLogLibrary.province_change_to_kingdom_log,
+            new News(NewsKinds.province_change_to_kingdom_log,
                 province.Name,
                 name
                 )
             {
-                color_special1 = province.getColor()._color_text,
-                color_special2 = province.getColor()._color_text
+                Color1 = province.GetColor().ColorText,
+                Color2 = province.GetColor().ColorText
 
             }.RecordIntoEmpire();
         }
+#if EC_PENDING
         public static void LogMinisterSelectEmpire(Empire empire, OfficeObject office, Realm kingdom, Person actor)
         {
-            new WorldLogMessage(EmpireCraftWorldLogLibrary.minister_select_emperor_log,
+            new News(NewsKinds.minister_select_emperor_log,
                 empire.data.name,
                 (office?.GetOfficeName(kingdom)??"")+" "+actor.Name
                 )
             {
-                color_special1 = empire.getColor()._color_text,
-                color_special2 = actor.getColor()._color_text
+                Color1 = empire.GetColor().ColorText,
+                Color2 = actor.GetColor().ColorText
 
             }.RecordIntoEmpire(empire);
         }
-        public static string GetEmpireHistoryFormatedText(this WorldLogMessage pMessage)
+        public static string GetEmpireHistoryFormatedText(this News pMessage)
         {
-            WorldLogAsset asset = pMessage.getAsset();
+            NewsKind asset = pMessage.GetKind();
             string localeId;
-            if (asset.random_ids > 0)
+            if (asset.Variants > 0)
             {
-                int pIndex = pMessage.timestamp % asset.random_ids + 1;
-                localeId = asset.getLocaleID(pIndex);
+                int pIndex = pMessage.Stamp % asset.Variants + 1;
+                localeId = asset.LocaleId(pIndex);
             }
             else
-                localeId = asset.getLocaleID();
-            string text = LocalizedTextManager.getText(localeId);
-            if (asset.text_replacer != null)
-                asset.text_replacer(pMessage, ref text);
-            return text.ColorString(pColor:asset.color);
+                localeId = asset.LocaleId();
+            string text = LM.Get(localeId);
+            if (asset.TextReplacer != null)
+                asset.TextReplacer(pMessage, ref text);
+            return text.ColorString(pColor:asset.Color);
         }
 #endif
         // 系统事件：发一条世界消息（不再弹屏幕中央提示）。记入史书由调用方负责——大部分调用点
@@ -225,7 +225,7 @@ namespace EmpireCraft.Core
         public static void LogEventMessage(string content, Realm kingdom = null)
         {
             // 进史书的：屏幕提示只上帝国、大国的(见 ScreenFeedPatch)
-            Log(content, kingdom, EmpireCraft.Core.ScreenFeedPatch.Level.History);
+            Log(content, kingdom, NewsLevel.History);
             if (string.IsNullOrWhiteSpace(content) || kingdom?.Record == null || kingdom.IsGone()) return;
             EmpireCraft.Core.Empire empire = kingdom.GetEmpire();
             if (empire?.data != null && !empire.IsGone()) empire.RecordHistory(directContent: content);
@@ -237,49 +237,47 @@ namespace EmpireCraft.Core
         private const float RepeatYears = 3f;
         private static readonly Dictionary<string, double> LastLogged = new();
 
-#if EC_PENDING
         public static void LogEventOnly(string content, Realm kingdom = null) =>
-            Log(content, kingdom, EmpireCraft.Core.ScreenFeedPatch.Level.Minor);
-#endif
+            Log(content, kingdom, NewsLevel.Minor);
 
         // 不论哪国都上屏的大事
-#if EC_PENDING
         public static void LogMajor(string content, Realm kingdom = null) =>
-            Log(content, kingdom, EmpireCraft.Core.ScreenFeedPatch.Level.Major);
+            Log(content, kingdom, NewsLevel.Major);
 
-        private static void Log(string content, Realm kingdom, EmpireCraft.Core.ScreenFeedPatch.Level level)
+        private static void Log(string content, Realm kingdom, NewsLevel level)
         {
             if (string.IsNullOrWhiteSpace(content)) return;
             double now = GameClock.Now;
             if (LastLogged.TryGetValue(content, out double last) && now >= last && GameClock.YearsSince(last) < RepeatYears) return;
             if (LastLogged.Count > 2000) LastLogged.Clear();
             LastLogged[content] = now;
-            EmpireCraft.Core.ScreenFeedPatch.Pending = level;
-            EmpireCraft.Core.ScreenFeedPatch.PendingKingdom = kingdom;
+            WorldNews.Pending = level;
+            WorldNews.PendingRealm = kingdom;
             try
             {
-                new WorldLogMessage(EmpireCraftWorldLogLibrary.empirecraft_event_log, content)
+                new News(NewsKinds.empirecraft_event_log, content)
                 {
-                    color_special1 = kingdom != null && !kingdom.IsGone()
-                        ? kingdom.getColor()._color_text
-                        : Toolbox.color_log_good
-                }.add();
+                    Color1 = kingdom != null && !kingdom.IsGone()
+                        ? kingdom.GetColor().ColorText
+                        : Tint.Good
+                }.Add();
             }
             finally
             {
-                EmpireCraft.Core.ScreenFeedPatch.Pending = EmpireCraft.Core.ScreenFeedPatch.Level.None;
-                EmpireCraft.Core.ScreenFeedPatch.PendingKingdom = null;
+                WorldNews.Pending = NewsLevel.None;
+                WorldNews.PendingRealm = null;
             }
         }
 
-        public static void RecordIntoEmpire(this WorldLogMessage worldLog, Empire pEmpire = null)
+        public static void RecordIntoEmpire(this News worldLog, Empire pEmpire = null)
         {
-            worldLog.add();
+            worldLog.Add();
         }
-        public static void RecordNationalHistoryIntoEmpire(this WorldLogMessage worldLog, Empire empire,
+#if EC_PENDING
+        public static void RecordNationalHistoryIntoEmpire(this News worldLog, Empire empire,
             Person actor = null, Realm kingdom = null)
         {
-            worldLog.add();
+            worldLog.Add();
             empire?.RecordHistory(directContent: worldLog.GetEmpireHistoryFormatedText(),
                 actorId: actor?.Key ?? -1L, kingdomId: kingdom?.Key ?? -1L);
         }
@@ -302,12 +300,12 @@ namespace EmpireCraft.Core
         public static void LogPeerageGranted(Person actor, Empire empire, string titleName)
         {
             if (actor == null || empire == null) return;
-            new WorldLogMessage(EmpireCraftWorldLogLibrary.honorary_peerage_granted_log,
+            new News(NewsKinds.honorary_peerage_granted_log,
                 empire.GetEmpireFullName(), GetActorFullLogName(actor), titleName)
             {
-                color_special1 = empire.CoreKingdom.getColor()._color_text,
-                color_special2 = actor.getColor()._color_text,
-                color_special3 = empire.CoreKingdom.getColor()._color_text
+                Color1 = empire.CoreKingdom.GetColor().ColorText,
+                Color2 = actor.GetColor().ColorText,
+                Color3 = empire.CoreKingdom.GetColor().ColorText
             }.RecordNationalHistoryIntoEmpire(empire, actor);
             actor.RecordPersonalHistory(string.Format(LM.Get("personal_history_peerage_granted"),
                 empire.GetEmpireFullName(), titleName), relatedActorId: empire.Emperor?.Key ?? -1L);
@@ -323,13 +321,13 @@ namespace EmpireCraft.Core
         {
             if (heir == null || empire == null) return;
             predecessorName = predecessor?.name ?? predecessorName ?? "";
-            new WorldLogMessage(EmpireCraftWorldLogLibrary.honorary_peerage_inherited_log,
+            new News(NewsKinds.honorary_peerage_inherited_log,
                 GetActorFullLogName(heir), predecessorName,
                 $"{titleName} ({empire.GetEmpireFullName()})")
             {
-                color_special1 = heir.getColor()._color_text,
-                color_special2 = empire.CoreKingdom.getColor()._color_text,
-                color_special3 = empire.CoreKingdom.getColor()._color_text
+                Color1 = heir.GetColor().ColorText,
+                Color2 = empire.CoreKingdom.GetColor().ColorText,
+                Color3 = empire.CoreKingdom.GetColor().ColorText
             }.RecordNationalHistoryIntoEmpire(empire, heir);
             heir.RecordPersonalHistory(string.Format(LM.Get("personal_history_peerage_inherited"),
                 titleName, predecessorName), relatedActorId: predecessorId,
@@ -357,16 +355,16 @@ namespace EmpireCraft.Core
             string reason = EmpireLawSystem.GetReasonText(context.ReasonKey);
             if (!string.IsNullOrEmpty(reason)) crimeDetailText = string.Format(LM.Get("empire_law_crime_with_reason"), crimeDetailText, reason);
             string punishmentText = GetPunishmentText(context);
-            UnityEngine.Color kingdomColor = kingdom.getColor()._color_text;
-            WorldLogMessage worldLog = new WorldLogMessage(
-                EmpireCraftWorldLogLibrary.empire_law_enforced_log,
+            UnityEngine.Color kingdomColor = kingdom.GetColor().ColorText;
+            News worldLog = new News(
+                NewsKinds.empire_law_enforced_log,
                 actorName,
                 crimeDetailText,
                 punishmentText)
             {
-                color_special1 = context.ActorColorText ?? kingdomColor,
-                color_special2 = kingdomColor,
-                color_special3 = kingdomColor
+                Color1 = context.ActorColorText ?? kingdomColor,
+                Color2 = kingdomColor,
+                Color3 = kingdomColor
             };
 
             if (empire != null && ShouldRecordLawEnforcementHistory(actor, empire))
@@ -375,7 +373,7 @@ namespace EmpireCraft.Core
                 return;
             }
 
-            worldLog.add();
+            worldLog.Add();
         }
 
         public static void LogLawArrest(Person actor, Realm kingdom, string crimeName, string crimeDate)
@@ -387,15 +385,15 @@ namespace EmpireCraft.Core
 
             string actorName = GetActorFullLogName(actor);
 
-            WorldLogMessage worldLog = new WorldLogMessage(
-                EmpireCraftWorldLogLibrary.empire_law_arrest_log,
+            News worldLog = new News(
+                NewsKinds.empire_law_arrest_log,
                 actorName,
                 string.IsNullOrEmpty(crimeDate) ? GameClock.DateText(GameClock.Now) : crimeDate,
                 EmpireLawSystem.LocalizeCrimeName(crimeName))
             {
-                color_special1 = actor.getColor()._color_text,
-                color_special2 = kingdom.getColor()._color_text,
-                color_special3 = kingdom.getColor()._color_text
+                Color1 = actor.GetColor().ColorText,
+                Color2 = kingdom.GetColor().ColorText,
+                Color3 = kingdom.GetColor().ColorText
             };
 
             if (empire != null && ShouldRecordLawEnforcementHistory(actor, empire))
@@ -404,7 +402,7 @@ namespace EmpireCraft.Core
                 return;
             }
 
-            worldLog.add();
+            worldLog.Add();
         }
 #endif
 
@@ -486,29 +484,29 @@ namespace EmpireCraft.Core
 #if EC_PENDING
         public static void LogOfficerJoinFaction(OfficeObject office, Person pActor, FixedFaction faction)
         {
-            new WorldLogMessage(EmpireCraftWorldLogLibrary.officer_join_faction,
+            new News(NewsKinds.officer_join_faction,
                 office?.GetOfficeName() ?? "",
                 pActor.Name,
                 faction.Name
             )
             {
-                color_special1 = pActor.getColor()._color_text,
-                color_special2 = pActor.getColor()._color_text,
-                color_special3 = pActor.getColor()._color_text
+                Color1 = pActor.GetColor().ColorText,
+                Color2 = pActor.GetColor().ColorText,
+                Color3 = pActor.GetColor().ColorText
 
             }.RecordIntoEmpire(faction.Empire);
         }
+#endif
 
-        private static WorldLogMessage CreateTemporaryFactionMessage(WorldLogAsset asset, Empire empire, string pSpecial1, string pSpecial2 = "", string pSpecial3 = "")
+        private static News CreateTemporaryFactionMessage(NewsKind asset, Empire empire, string pSpecial1, string pSpecial2 = "", string pSpecial3 = "")
         {
-            return new WorldLogMessage(asset, pSpecial1, pSpecial2, pSpecial3)
+            return new News(asset, pSpecial1, pSpecial2, pSpecial3)
             {
-                color_special1 = empire?.CoreKingdom?.getColor()?._color_text ?? Toolbox.color_log_good,
-                color_special2 = empire?.CoreKingdom?.getColor()?._color_text ?? Toolbox.color_log_good,
-                color_special3 = empire?.CoreKingdom?.getColor()?._color_text ?? Toolbox.color_log_good
+                Color1 = empire?.CoreKingdom?.GetColor()?.ColorText ?? Tint.Good,
+                Color2 = empire?.CoreKingdom?.GetColor()?.ColorText ?? Tint.Good,
+                Color3 = empire?.CoreKingdom?.GetColor()?.ColorText ?? Tint.Good
             };
         }
-#endif
 
         // 按帝国换称呼的诉求名(华夏原始政体：索取皇位 → 争为共主，见 DynastyNaming.Term)
 #if EC_PENDING
@@ -692,7 +690,7 @@ namespace EmpireCraft.Core
 
             if (!string.IsNullOrWhiteSpace(crimeName) && !string.IsNullOrWhiteSpace(targetName))
             {
-                CreateTemporaryFactionMessage(EmpireCraftWorldLogLibrary.temporary_faction_prepare_crime_log, empire,
+                CreateTemporaryFactionMessage(NewsKinds.temporary_faction_prepare_crime_log, empire,
                     targetName,
                     GetTemporaryFactionCrimeText(crimeName),
                     GetTemporaryFactionClaimText(claimName, empire)).RecordIntoEmpire(empire);
@@ -700,8 +698,8 @@ namespace EmpireCraft.Core
             }
 
             var asset = string.IsNullOrWhiteSpace(targetName)
-                ? EmpireCraftWorldLogLibrary.temporary_faction_prepare_no_target_log
-                : EmpireCraftWorldLogLibrary.temporary_faction_prepare_log;
+                ? NewsKinds.temporary_faction_prepare_no_target_log
+                : NewsKinds.temporary_faction_prepare_log;
 
             CreateTemporaryFactionMessage(asset, empire,
                 empire.GetEmpireName() ?? empire.data?.name ?? "",
@@ -719,7 +717,7 @@ namespace EmpireCraft.Core
 
             if (!string.IsNullOrWhiteSpace(outcome))
             {
-                CreateTemporaryFactionMessage(EmpireCraftWorldLogLibrary.temporary_faction_success_outcome_log,
+                CreateTemporaryFactionMessage(NewsKinds.temporary_faction_success_outcome_log,
                     empire, empire.GetEmpireName() ?? empire.data?.name ?? "",
                     GetTemporaryFactionClaimText(claimName, empire), outcome)
                     .RecordNationalHistoryIntoEmpire(empire, empire.Emperor);
@@ -728,7 +726,7 @@ namespace EmpireCraft.Core
 
             if (!string.IsNullOrWhiteSpace(crimeName) && !string.IsNullOrWhiteSpace(targetName))
             {
-                CreateTemporaryFactionMessage(EmpireCraftWorldLogLibrary.temporary_faction_success_crime_log, empire,
+                CreateTemporaryFactionMessage(NewsKinds.temporary_faction_success_crime_log, empire,
                     targetName,
                     GetTemporaryFactionCrimeText(crimeName),
                     GetTemporaryFactionClaimText(claimName, empire)).RecordIntoEmpire(empire);
@@ -736,8 +734,8 @@ namespace EmpireCraft.Core
             }
 
             var asset = string.IsNullOrWhiteSpace(targetName)
-                ? EmpireCraftWorldLogLibrary.temporary_faction_success_no_target_log
-                : EmpireCraftWorldLogLibrary.temporary_faction_success_log;
+                ? NewsKinds.temporary_faction_success_no_target_log
+                : NewsKinds.temporary_faction_success_log;
 
             CreateTemporaryFactionMessage(asset, empire,
                 empire.GetEmpireName() ?? empire.data?.name ?? "",
@@ -754,7 +752,7 @@ namespace EmpireCraft.Core
 
             if (!string.IsNullOrWhiteSpace(crimeName) && !string.IsNullOrWhiteSpace(targetName))
             {
-                CreateTemporaryFactionMessage(EmpireCraftWorldLogLibrary.temporary_faction_failed_crime_log, empire,
+                CreateTemporaryFactionMessage(NewsKinds.temporary_faction_failed_crime_log, empire,
                     targetName,
                     GetTemporaryFactionCrimeText(crimeName),
                     GetTemporaryFactionClaimText(claimName, empire)).RecordIntoEmpire(empire);
@@ -762,14 +760,15 @@ namespace EmpireCraft.Core
             }
 
             var asset = string.IsNullOrWhiteSpace(targetName)
-                ? EmpireCraftWorldLogLibrary.temporary_faction_failed_no_target_log
-                : EmpireCraftWorldLogLibrary.temporary_faction_failed_log;
+                ? NewsKinds.temporary_faction_failed_no_target_log
+                : NewsKinds.temporary_faction_failed_log;
 
             CreateTemporaryFactionMessage(asset, empire,
                 empire.GetEmpireName() ?? empire.data?.name ?? "",
                 GetTemporaryFactionClaimText(claimName, empire),
                 targetName ?? "").RecordIntoEmpire(empire);
         }
+#endif
 
         public static void LogTemporaryFactionOfficialFall(Empire empire, Person actor, string crimeName)
         {
@@ -778,52 +777,53 @@ namespace EmpireCraft.Core
                 return;
             }
 
-            new WorldLogMessage(EmpireCraftWorldLogLibrary.temporary_faction_official_fall_log,
+            new News(NewsKinds.temporary_faction_official_fall_log,
                 actor.FullName(),
                 EmpireLawSystem.LocalizeCrimeName(crimeName))
             {
-                color_special1 = actor.getColor()._color_text,
-                color_special2 = empire.CoreKingdom?.getColor()?._color_text ?? Toolbox.color_log_warning,
+                Color1 = actor.GetColor().ColorText,
+                Color2 = empire.CoreKingdom?.GetColor()?.ColorText ?? Tint.Warning,
             }.RecordIntoEmpire(empire);
         }
 
+#if EC_PENDING
         public static void LogTemporaryFactionReduceFeudatory(Empire empire, Realm kingdom)
         {
             if (empire == null || kingdom == null) return;
-            new WorldLogMessage(EmpireCraftWorldLogLibrary.temporary_faction_reduce_feudatory_log,
+            new News(NewsKinds.temporary_faction_reduce_feudatory_log,
                 kingdom.GetKingdomName())
             {
-                color_special1 = kingdom.getColor()._color_text
+                Color1 = kingdom.GetColor().ColorText
             }.RecordIntoEmpire(empire);
         }
 
         public static void LogTemporaryFactionRevokeWarRight(Empire empire, Realm kingdom)
         {
             if (empire == null || kingdom == null) return;
-            new WorldLogMessage(EmpireCraftWorldLogLibrary.temporary_faction_revoke_war_right_log,
+            new News(NewsKinds.temporary_faction_revoke_war_right_log,
                 kingdom.GetKingdomName())
             {
-                color_special1 = kingdom.getColor()._color_text
+                Color1 = kingdom.GetColor().ColorText
             }.RecordIntoEmpire(empire);
         }
 
         public static void LogTemporaryFactionRevokeMilitaryRegion(Empire empire, Realm kingdom)
         {
             if (empire == null || kingdom == null) return;
-            new WorldLogMessage(EmpireCraftWorldLogLibrary.temporary_faction_revoke_military_region_log,
+            new News(NewsKinds.temporary_faction_revoke_military_region_log,
                 kingdom.GetKingdomName())
             {
-                color_special1 = kingdom.getColor()._color_text
+                Color1 = kingdom.GetColor().ColorText
             }.RecordIntoEmpire(empire);
         }
 
         public static void LogTemporaryFactionRaiseTax(Empire empire)
         {
             if (empire == null) return;
-            new WorldLogMessage(EmpireCraftWorldLogLibrary.temporary_faction_raise_tax_log,
+            new News(NewsKinds.temporary_faction_raise_tax_log,
                 empire.GetEmpireName() ?? empire.data?.name ?? "")
             {
-                color_special1 = empire.CoreKingdom?.getColor()?._color_text ?? Toolbox.color_log_warning,
+                Color1 = empire.CoreKingdom?.GetColor()?.ColorText ?? Tint.Warning,
             }.RecordIntoEmpire(empire);
         }
 
@@ -843,188 +843,196 @@ namespace EmpireCraft.Core
                 resultText = resultLocaleKey;
             }
 
-            new WorldLogMessage(EmpireCraftWorldLogLibrary.occupation_capture_event_log,
+            new News(NewsKinds.occupation_capture_event_log,
                 capturerName,
                 victimName,
                 resultText)
             {
-                color_special1 = capturer?.getColor()._color_text ?? Toolbox.color_log_good,
-                color_special2 = victim.getColor()._color_text,
-                color_special3 = victim.Realm?.getColor()._color_text ?? Toolbox.color_log_warning
+                Color1 = capturer?.GetColor().ColorText ?? Tint.Good,
+                Color2 = victim.GetColor().ColorText,
+                Color3 = victim.Realm?.GetColor().ColorText ?? Tint.Warning
             }.RecordIntoEmpire(empire);
         }
+#endif
         
         public static void LogOfficerBecomeFactionLeader(Person pActor, FixedFaction faction)
         {
-            new WorldLogMessage(EmpireCraftWorldLogLibrary.officer_become_faction_leader,
+            new News(NewsKinds.officer_become_faction_leader,
                 pActor.FullName(),
                 faction.Name
             )
             {
-                color_special1 = new Color(1f, 0, 0.5f),
-                color_special2 = new Color(0.7f, 0.0f, 0.9f),
+                Color1 = new Color(1f, 0, 0.5f),
+                Color2 = new Color(0.7f, 0.0f, 0.9f),
 
             }.RecordIntoEmpire(faction.Empire);
         }
+#if EC_PENDING
         public static void LogNewJingShi(Empire empire, Person pActor)
         {
             // 现代国家的科举就是常规的公务员考试：照常选拔官员，但不再发"殿试已毕、授进士第"的世界提示
             if (empire?.CoreKingdom == null || pActor == null ||
                 empire.CoreKingdom.GetRegime()?.type == EmpireCraft.Core.RegimeType.Modern) return;
 
-            new WorldLogMessage(EmpireCraftWorldLogLibrary.new_jingshi_log,
+            new News(NewsKinds.new_jingshi_log,
                 empire.data.name,
                 pActor.Name
                 )
             {
-                color_special1 = empire.CoreKingdom.getColor()._color_text,
-                color_special2 = empire.CoreKingdom.getColor()._color_text
+                Color1 = empire.CoreKingdom.GetColor().ColorText,
+                Color2 = empire.CoreKingdom.GetColor().ColorText
 
                 }.RecordNationalHistoryIntoEmpire(pActor.GetEmpire(), pActor);
         }
+#endif
         public static void LogDestroyTitle(Realm kingdom, KingdomTitle title)
         {
-            new WorldLogMessage(EmpireCraftWorldLogLibrary.destroy_title_log,
+            new News(NewsKinds.destroy_title_log,
                 kingdom.Ruler.Name,
                 title.data.name)
             {
-                color_special1 = kingdom.getColor()._color_text,
-                color_special2 = title.getColor()._color_text
+                Color1 = kingdom.GetColor().ColorText,
+                Color2 = title.GetColor().ColorText
 
-            }.add();
+            }.Add();
         }
         public static void LogKingdomAcquireTitle(Realm attacker, Realm defender, KingdomTitle title)
         {
-            new WorldLogMessage(EmpireCraftWorldLogLibrary.history_kingdom_attack_for_title,
+            new News(NewsKinds.history_kingdom_attack_for_title,
                 attacker.Name,
                 defender.Name,
                 title.data.name)
             {
-                color_special1 = attacker.getColor()._color_text,
-                color_special2 = defender.getColor()._color_text,
-                color_special3 = title.getColor()._color_text
+                Color1 = attacker.GetColor().ColorText,
+                Color2 = defender.GetColor().ColorText,
+                Color3 = title.GetColor().ColorText
 
             }.RecordIntoEmpire(attacker.GetEmpire());
         }
         public static void LogReligionWarTransfer(City city, Religion religion)
         {
-            new WorldLogMessage(EmpireCraftWorldLogLibrary.religion_war_transfer_log,
+            new News(NewsKinds.religion_war_transfer_log,
                 city.Name,religion.data.name
                 )
             {
-                color_special1 = city.getColor()._color_text,
-                color_special2 = religion.getColor()._color_text
+                Color1 = city.GetColor().ColorText,
+                Color2 = religion.GetColor().ColorText
 
-            }.add();
+            }.Add();
         }
         public static void LogOfficeMove(Person actor, PeerageType type, int officeLevel)
         {
-            new WorldLogMessage(EmpireCraftWorldLogLibrary.官员品级调动,
+            new News(NewsKinds.官员品级调动,
                 actor.Name, LM.Get($"Huaxia_honoraryofficial_{type.ToString()}_{officeLevel}"), ""+(officeLevel+1)
                 )
             {
-                color_special1 = actor.getColor()._color_text,
-                color_special2 = actor.getColor()._color_text,
-                color_special3 = actor.getColor()._color_text
+                Color1 = actor.GetColor().ColorText,
+                Color2 = actor.GetColor().ColorText,
+                Color3 = actor.GetColor().ColorText
 
             }.RecordIntoEmpire();
         }
         public static void LogControlledEmpire(Person actor, Empire empire)
         {
-            new WorldLogMessage(EmpireCraftWorldLogLibrary.cotrolled_country_log,
+            new News(NewsKinds.cotrolled_country_log,
                 actor.Name,
                 empire.data.name
                 )
             {
-                color_special1 = empire.getColor()._color_text,
-                color_special2 = empire.getColor()._color_text
+                Color1 = empire.GetColor().ColorText,
+                Color2 = empire.GetColor().ColorText
 
-            }.add();
+            }.Add();
         }
+#if EC_PENDING
         public static void LogJoinEmpireWar(Realm kingdom, Empire empire)
         {
-            new WorldLogMessage(EmpireCraftWorldLogLibrary.join_empire_war_log,
+            new News(NewsKinds.join_empire_war_log,
                 kingdom.Name,
                 empire.data.name
                 )
             {
-                color_special1 = kingdom.getColor()._color_text,
-                color_special2 = empire.getColor()._color_text
+                Color1 = kingdom.GetColor().ColorText,
+                Color2 = empire.GetColor().ColorText
 
             }.RecordNationalHistoryIntoEmpire(empire);
         }
         public static void LogEmpireJoinWar(Empire empire, Realm kingdom)
         {
-            new WorldLogMessage(EmpireCraftWorldLogLibrary.join_empire_war_log,
+            new News(NewsKinds.join_empire_war_log,
                 empire.data.name,
                 kingdom.Name
                 )
             {
-                color_special1 = empire.getColor()._color_text,
-                color_special2 = kingdom.getColor()._color_text
+                Color1 = empire.GetColor().ColorText,
+                Color2 = kingdom.GetColor().ColorText
 
             }.RecordNationalHistoryIntoEmpire(empire);
         }
+#endif
         public static void LogJoinReligionWar(Realm kingdom, Religion religion)
         {
-            new WorldLogMessage(EmpireCraftWorldLogLibrary.join_religion_war_log,
+            new News(NewsKinds.join_religion_war_log,
                 kingdom.Name,
                 religion.data.name
                 )
             {
-                color_special1 = kingdom.getColor()._color_text,
-                color_special2 = religion.getColor()._color_text
+                Color1 = kingdom.GetColor().ColorText,
+                Color2 = religion.GetColor().ColorText
 
             }.RecordIntoEmpire(kingdom.GetEmpire());
         }
+#if EC_PENDING
         public static void LogJoinRebellionWar(Realm joiner, Realm beginner, Empire empire)
         {
             if (joiner?.Record == null || beginner?.Record == null || empire == null ||
-                EmpireCraftWorldLogLibrary.join_rebellion_war_log == null) return;
-            new WorldLogMessage(EmpireCraftWorldLogLibrary.join_rebellion_war_log,
+                NewsKinds.join_rebellion_war_log == null) return;
+            new News(NewsKinds.join_rebellion_war_log,
                 joiner.Name,
                 beginner.Name
                 )
             {
-                color_special1 = joiner.getColor()._color_text,
-                color_special2 = beginner.getColor()._color_text
+                Color1 = joiner.GetColor().ColorText,
+                Color2 = beginner.GetColor().ColorText
 
             }.RecordNationalHistoryIntoEmpire(empire);
         }
         public static void LogOfficerBuildSpecificClan(Person actor, SpecificClan sc)
         {
-            new WorldLogMessage(EmpireCraftWorldLogLibrary.officer_build_specific_clan,
+            new News(NewsKinds.officer_build_specific_clan,
                 actor.Name,
                 sc.name
                 )
             {
-                location = actor.current_position,
-                color_special1 = actor.Realm.getColor()._color_text,
-                color_special2 = actor.Clan.getColor()._color_text
+                Location = actor.current_position,
+                Color1 = actor.Realm.GetColor().ColorText,
+                Color2 = actor.Clan.getColor()._color_text
 
-            }.add();
+            }.Add();
         }
+#endif
         public static void LogKingdomChangeCapitalToTitle(Realm kingdom,KingdomTitle title)
         {
-            new WorldLogMessage(EmpireCraftWorldLogLibrary.history_kingdom_change_capital_to_title,
+            new News(NewsKinds.history_kingdom_change_capital_to_title,
                 kingdom.Name,
                 title.data.name,
                 kingdom.Capital.Name)
             {
-                color_special1 = kingdom.getColor()._color_text,
-                color_special2 = title.getColor()._color_text,
-                color_special3 = kingdom.getColor()._color_text
+                Color1 = kingdom.GetColor().ColorText,
+                Color2 = title.GetColor().ColorText,
+                Color3 = kingdom.GetColor().ColorText
 
             }.RecordIntoEmpire(kingdom.GetEmpire());
         }
+#if EC_PENDING
         public static void LogKingdomJoinEmpire(Realm kingdom,Empire empire)
         {
-            new WorldLogMessage(EmpireCraftWorldLogLibrary.history_kingdom_join_empire,
+            new News(NewsKinds.history_kingdom_join_empire,
                 kingdom.Name,
                 empire.data.name)
             {
-                color_special1 = kingdom.getColor()._color_text,
-                color_special2 = empire.getColor()._color_text
+                Color1 = kingdom.GetColor().ColorText,
+                Color2 = empire.GetColor().ColorText
 
             }.RecordNationalHistoryIntoEmpire(empire);
         }
@@ -1033,14 +1041,14 @@ namespace EmpireCraft.Core
             if (emperor == null || emperor.Record == null || emperor.Realm == null || city == null) return;
             var empire = emperor.GetEmpire();
             if (empire?.data == null) return;
-            new WorldLogMessage(EmpireCraftWorldLogLibrary.history_new_emperor,
+            new News(NewsKinds.history_new_emperor,
                 emperor.Name,
                 city.GetCityName(),
                 year_name)
             {
-                color_special1 = emperor.Realm.getColor()._color_text,
-                color_special2 = emperor.Realm.getColor()._color_text,
-                color_special3 = emperor.Realm.getColor()._color_text
+                Color1 = emperor.Realm.GetColor().ColorText,
+                Color2 = emperor.Realm.GetColor().ColorText,
+                Color3 = emperor.Realm.GetColor().ColorText
 
             }.RecordIntoEmpire(empire);
             if (empire.data.currentHistory != null)
@@ -1057,15 +1065,15 @@ namespace EmpireCraft.Core
         {
             if (emperor == null || empire == null || !empire.HasYearName()) return;
 
-            new WorldLogMessage(EmpireCraftWorldLogLibrary.history_emperor_new_year_name,
+            new News(NewsKinds.history_emperor_new_year_name,
                 empire.GetEmpireName(),
                 empire.data.year_name,
                 emperor.FullName())
             {
-                location = empire.CoreKingdom != null ? empire.CoreKingdom.location : emperor.current_position,
-                color_special1 = empire.getColor()._color_text,
-                color_special2 = empire.getColor()._color_text,
-                color_special3 = emperor.getColor()._color_text
+                Location = empire.CoreKingdom != null ? empire.CoreKingdom.location : emperor.current_position,
+                Color1 = empire.GetColor().ColorText,
+                Color2 = empire.GetColor().ColorText,
+                Color3 = emperor.GetColor().ColorText
             }.RecordIntoEmpire(empire);
 
             emperor.RecordPersonalHistory(string.Format(LM.Get("personal_history_new_year_name"), empire.data.year_name),
@@ -1079,12 +1087,12 @@ namespace EmpireCraft.Core
             string cityName = city?.Record != null && !city.IsGone()
                 ? city.GetCityName()
                 : emperor.Realm.Capital?.GetCityName() ?? "";
-            new WorldLogMessage(EmpireCraftWorldLogLibrary.history_new_emperor_west,
+            new News(NewsKinds.history_new_emperor_west,
                 emperor.Name,
                 cityName)
             {
-                color_special1 = emperor.Realm.getColor()._color_text,
-                color_special2 = emperor.Realm.getColor()._color_text
+                Color1 = emperor.Realm.GetColor().ColorText,
+                Color2 = emperor.Realm.GetColor().ColorText
 
             }.RecordIntoEmpire(empire);
             if (empire.data.currentHistory != null)
@@ -1099,19 +1107,17 @@ namespace EmpireCraft.Core
         /// </summary>
         /// <param name="kingdom">朝贡国</param>
         /// <param name="empire">宗主国</param>
-#if EC_PENDING
         public static void LogJoinTakenAlliance(Realm kingdom, Empire empire)
         {
-            new WorldLogMessage(EmpireCraftWorldLogLibrary.成为朝贡国,
+            new News(NewsKinds.成为朝贡国,
                 kingdom.Name,
                 empire.Name)
             {
-                color_special1 = kingdom.getColor()._color_text,
-                color_special2 = empire.CoreKingdom.getColor()._color_text
+                Color1 = kingdom.GetColor().ColorText,
+                Color2 = empire.CoreKingdom.GetColor().ColorText
 
-            }.add();
+            }.Add();
         }
-#endif
 
         /// <summary>
         /// 增加派系影响力
@@ -1119,34 +1125,32 @@ namespace EmpireCraft.Core
         /// <param name="invitor">邀请者</param>
         /// <param name="target">目标</param>
         /// <param name="faction">派系</param>
-#if EC_PENDING
         public static void LogInviteIntoFaction(Realm invitor, Realm target, FixedFaction faction)
         {
-            new WorldLogMessage(EmpireCraftWorldLogLibrary.邀请入派系,
+            new News(NewsKinds.邀请入派系,
                 invitor.Name,
                 target.Name,
                 faction.Name)
             {
-                color_special1 = invitor.getColor()._color_text,
-                color_special2 = target.getColor()._color_text,
-                color_special3 = invitor.getColor()._color_text,
+                Color1 = invitor.GetColor().ColorText,
+                Color2 = target.GetColor().ColorText,
+                Color3 = invitor.GetColor().ColorText,
 
-            }.add();
+            }.Add();
         }
 
         public static void LogFactionLeaderInfluenceLocalKingdom(Person actor, Realm target, FixedFaction faction)
         {
-            new WorldLogMessage(EmpireCraftWorldLogLibrary.faction_leader_influence_local_kingdom_log,
+            new News(NewsKinds.faction_leader_influence_local_kingdom_log,
                 actor.FullName(),
                 target.Name,
                 faction.Name)
             {
-                color_special1 = actor.Realm?.getColor()._color_text ?? Toolbox.color_log_good,
-                color_special2 = target.getColor()._color_text,
-                color_special3 = faction.Empire?.CoreKingdom?.getColor()._color_text ?? Toolbox.color_log_good
+                Color1 = actor.Realm?.GetColor().ColorText ?? Tint.Good,
+                Color2 = target.GetColor().ColorText,
+                Color3 = faction.Empire?.CoreKingdom?.GetColor().ColorText ?? Tint.Good
             }.RecordIntoEmpire(faction.Empire);
         }
-#endif
 
         /// <summary>
         /// 罪加罪行
@@ -1154,69 +1158,70 @@ namespace EmpireCraft.Core
         /// <param name="actor">执行者</param>
         /// <param name="victim">受害者</param>
         /// <param name="crime">罪行</param>
-#if EC_PENDING
         public static void LogExposeCrime(Realm actor, Realm victim, string crime)
         {
-            new WorldLogMessage(EmpireCraftWorldLogLibrary.追加罪行,
+            new News(NewsKinds.追加罪行,
                 actor.Name,
                 victim.Name,
                 EmpireLawSystem.LocalizeCrimeName(crime))
             {
-                color_special1 = actor.getColor()._color_text,
-                color_special2 = victim.getColor()._color_text,
-                color_special3 = victim.getColor()._color_text,
+                Color1 = actor.GetColor().ColorText,
+                Color2 = victim.GetColor().ColorText,
+                Color3 = victim.GetColor().ColorText,
 
             }.RecordIntoEmpire();
         }
         public static void LogCityAddToTitle(City city, KingdomTitle title)
         {
-            new WorldLogMessage(EmpireCraftWorldLogLibrary.city_add_to_title_log,
+            new News(NewsKinds.city_add_to_title_log,
                 city.Name,
                 title.data.name)
             {
-                color_special1 = city.getColor()._color_text,
-                color_special2 = title.getColor()._color_text
+                Color1 = city.GetColor().ColorText,
+                Color2 = title.GetColor().ColorText
 
-            }.add();
+            }.Add();
         }
 
         public static void LogKingTakeTitle(Realm kingdom,KingdomTitle title)
         {
-            new WorldLogMessage(EmpireCraftWorldLogLibrary.king_take_title_log,
+            new News(NewsKinds.king_take_title_log,
                 kingdom.Name,
                 kingdom.Ruler.FullName(),
                 title.data.name)
                 {
-                    color_special1 = kingdom.getColor()._color_text,
-                    color_special2 = kingdom.getColor()._color_text,
-                    color_special3 = title.getColor()._color_text
+                    Color1 = kingdom.GetColor().ColorText,
+                    Color2 = kingdom.GetColor().ColorText,
+                    Color3 = title.GetColor().ColorText
 
-                }.add();
+                }.Add();
         }
 
+#if EC_PENDING
         public static void LogTributaryTitleGranted(Realm kingdom, Empire empire, KingdomTitle title)
         {
             if (kingdom == null || empire == null || title == null) return;
-            new WorldLogMessage(EmpireCraftWorldLogLibrary.tributary_title_granted_log,
+            new News(NewsKinds.tributary_title_granted_log,
                 empire.GetEmpireFullName(), kingdom.GetKingdomFullName(), title.data.name)
             {
-                color_special1 = empire.CoreKingdom.getColor()._color_text,
-                color_special2 = kingdom.getColor()._color_text,
-                color_special3 = title.getColor()._color_text
+                Color1 = empire.CoreKingdom.GetColor().ColorText,
+                Color2 = kingdom.GetColor().ColorText,
+                Color3 = title.GetColor().ColorText
             }.RecordNationalHistoryIntoEmpire(empire, kingdom.Ruler, kingdom);
             kingdom.Ruler?.RecordPersonalHistory(string.Format(LM.Get("personal_history_tributary_title_granted"),
                 empire.GetEmpireFullName(), title.data.name), relatedActorId: empire.Emperor?.Key ?? -1L);
         }
+#endif
 
         public static void LogKingdomChangeMainTitle(Realm kingdom, KingdomTitle newTitle)
         {
             if (kingdom == null || newTitle == null) return;
-            new WorldLogMessage(EmpireCraftWorldLogLibrary.kingdom_change_main_title_log,
+            new News(NewsKinds.kingdom_change_main_title_log,
                 kingdom.Name,
                 newTitle.data.name)
             {
-                color_special1 = kingdom.getColor()._color_text,
-                color_special2 = kingdom.getColor()._color_text,
+                Color1 = kingdom.GetColor().ColorText,
+                Color2 = kingdom.GetColor().ColorText,
 
             }.RecordIntoEmpire(kingdom.GetEmpire());
         }
@@ -1225,19 +1230,20 @@ namespace EmpireCraft.Core
         {
             if (kingdom != null&&title!=null) 
             {
-                new WorldLogMessage(EmpireCraftWorldLogLibrary.become_kingdom_log,
+                new News(NewsKinds.become_kingdom_log,
                 kingdom.Ruler.Name,
                 title,
                 kingdom.Name)
                 {
-                    color_special1 = kingdom.getColor()._color_text,
-                    color_special2 = kingdom.getColor()._color_text,
-                    color_special3 = kingdom.getColor()._color_text
+                    Color1 = kingdom.GetColor().ColorText,
+                    Color2 = kingdom.GetColor().ColorText,
+                    Color3 = kingdom.GetColor().ColorText
 
                 }.RecordIntoEmpire(kingdom.GetEmpire());
             }
         }
 
+#if EC_PENDING
         public static void LogRoyalKingBecomeEmperor(Empire empire,KingdomTitle title, Person actor)
         {
             var language = LM.Language;
@@ -1250,66 +1256,66 @@ namespace EmpireCraft.Core
             {
                 text = (title?.Name??actor.Realm.Capital.GetCityName())+""+LM.Get("King") + " " + actor.Name;
             }
-            new WorldLogMessage(EmpireCraftWorldLogLibrary.royal_king_become_emperor_log,
+            new News(NewsKinds.royal_king_become_emperor_log,
                 text,
                 empire.data.name)
             {
-                color_special1 = actor.getColor()._color_text,
-                color_special2 = empire.getColor()._color_text
+                Color1 = actor.GetColor().ColorText,
+                Color2 = empire.GetColor().ColorText
 
             }.RecordIntoEmpire(empire);
         }
+#endif
 
         public static void LogEmpireTakeBackTitle(Person a, string titles, string crime)
         {
-            new WorldLogMessage(EmpireCraftWorldLogLibrary.empire_take_back_title_log,
+            new News(NewsKinds.empire_take_back_title_log,
                 a.Name,
                 EmpireLawSystem.LocalizeCrimeName(crime),
                 titles)
             {
-                color_special1 = a.getColor()._color_text,
-                color_special2 = a.getColor()._color_text,
-                color_special3 = a.getColor()._color_text
+                Color1 = a.GetColor().ColorText,
+                Color2 = a.GetColor().ColorText,
+                Color3 = a.GetColor().ColorText
 
             }.RecordIntoEmpire(a.GetEmpire());
         }
         public static void LogChangeCityName(Person pActor, City pCity, string beforeName, string afterName)
         {
-            new WorldLogMessage(EmpireCraftWorldLogLibrary.change_city_name_log,
+            new News(NewsKinds.change_city_name_log,
                 pActor.Name,
                 beforeName,
                 afterName)
             {
-                color_special1 = pActor.getColor()._color_text,
-                color_special2 = pCity.getColor()._color_text,
-                color_special3 = pCity.getColor()._color_text
+                Color1 = pActor.GetColor().ColorText,
+                Color2 = pCity.GetColor().ColorText,
+                Color3 = pCity.GetColor().ColorText
 
             }.RecordIntoEmpire();
         }
         public static void LogChangeKingdomName(Person pActor, Realm pKingdom, string beforeName, string afterName)
         {
-            new WorldLogMessage(EmpireCraftWorldLogLibrary.change_kingdom_name_log,
+            new News(NewsKinds.change_kingdom_name_log,
                 pActor.Name,
                 beforeName,
                 afterName)
             {
-                color_special1 = pActor.getColor()._color_text,
-                color_special2 = pKingdom.getColor()._color_text,
-                color_special3 = pKingdom.getColor()._color_text
+                Color1 = pActor.GetColor().ColorText,
+                Color2 = pKingdom.GetColor().ColorText,
+                Color3 = pKingdom.GetColor().ColorText
 
             }.RecordIntoEmpire();
         }
 
         public static void LogCombineKingdom(Person pActor)
         {
-            new WorldLogMessage(EmpireCraftWorldLogLibrary.combine_kingdom_log,
+            new News(NewsKinds.combine_kingdom_log,
                 pActor.Name)
             {
-                color_special1 = pActor.getColor()._color_text
+                Color1 = pActor.GetColor().ColorText
 
             }.RecordIntoEmpire(pActor.GetEmpire());
         }
-#endif
         /// <summary>
         /// 新年号
         ///     $empire$ → 帝国名
@@ -1319,13 +1325,13 @@ namespace EmpireCraft.Core
 #if EC_PENDING
         public static void LogEmperorCreateNewYearName(Person minister, Empire empire, string title)
         {
-            new WorldLogMessage(EmpireCraftWorldLogLibrary.empire_powerful_minister_aquire_title,
+            new News(NewsKinds.empire_powerful_minister_aquire_title,
                 minister.Name,
                 empire.GetEmpireName(),
                 title)
             {
-                color_special1 = minister.Realm.getColor()._color_text,
-                color_special2 = empire.CoreKingdom.getColor()._color_text
+                Color1 = minister.Realm.GetColor().ColorText,
+                Color2 = empire.CoreKingdom.GetColor().ColorText
 
             }.RecordIntoEmpire(empire);
         }
@@ -1340,13 +1346,13 @@ namespace EmpireCraft.Core
 #if EC_PENDING
         public static void LogministerAqcuireEmpire(Person minister, Empire new_empire)
         {
-            new WorldLogMessage(EmpireCraftWorldLogLibrary.minister_aqcuire_empire_log,
+            new News(NewsKinds.minister_aqcuire_empire_log,
                 minister.GetTitle(),
                 minister.Name,
                 new_empire.GetEmpireName())
             {
-                color_special1 = minister.Realm.getColor()._color_text,
-                color_special2 = new_empire.CoreKingdom.getColor()._color_text,
+                Color1 = minister.Realm.GetColor().ColorText,
+                Color2 = new_empire.CoreKingdom.GetColor().ColorText,
             }.RecordIntoEmpire(new_empire);
         }
 #endif
@@ -1358,11 +1364,11 @@ namespace EmpireCraft.Core
 #if EC_PENDING
         public static void LogRestoreHistoricalEmpire(Clan clan, Empire empire)
         {
-            new WorldLogMessage(EmpireCraftWorldLogLibrary.restore_historcial_empire,
+            new News(NewsKinds.restore_historcial_empire,
                 empire.Name)
             {
-                color_special1 = clan.getColor()._color_text,
-                color_special2 = empire.CoreKingdom.getColor()._color_text
+                Color1 = clan.getColor()._color_text,
+                Color2 = empire.CoreKingdom.GetColor().ColorText
             }.RecordIntoEmpire(empire);
         }
 #endif
@@ -1371,17 +1377,17 @@ namespace EmpireCraft.Core
         ///     $actor$ -> 在任皇帝
         ///     $name$ → 被追封人姓名
         /// </summary>
-#if EC_PENDING
         public static void LogEmpeorNamingPreviousEmperor(Person actor, string name)
         {
-            new WorldLogMessage(EmpireCraftWorldLogLibrary.emperor_posthumous_name,
+            new News(NewsKinds.emperor_posthumous_name,
                 actor.Name, name)
             {
-                color_special1 = actor.Realm.getColor()._color_text,
-                color_special2 = actor.Realm.getColor()._color_text
+                Color1 = actor.Realm.GetColor().ColorText,
+                Color2 = actor.Realm.GetColor().ColorText
             }.RecordIntoEmpire(actor.GetEmpire());
         }
 
+#if EC_PENDING
         public static void LogDeJureCultureChanged(KingdomTitle title, string oldCulture, string newCulture)
         {
             if (title?.data == null) return;
@@ -1389,17 +1395,17 @@ namespace EmpireCraft.Core
             string newName = CultureService.IsValidCulture(newCulture) ? newCulture.GetCultureTranslate() : newCulture;
             EmpireCore core = CultureService.GetInheritedEmpireCore(title);
             Empire empire = EmpireCoreManager.GetEmpires(core).FirstOrDefault();
-            WorldLogMessage message = new WorldLogMessage(EmpireCraftWorldLogLibrary.de_jure_culture_changed_log,
+            News message = new News(NewsKinds.de_jure_culture_changed_log,
                 title.data.name, oldName, newName)
             {
-                color_special1 = title.getColor()._color_text,
-                color_special2 = title.getColor()._color_text,
-                color_special3 = title.getColor()._color_text
+                Color1 = title.GetColor().ColorText,
+                Color2 = title.GetColor().ColorText,
+                Color3 = title.GetColor().ColorText
             };
             if (empire != null)
                 message.RecordNationalHistoryIntoEmpire(empire, title.owner, title.main_kingdom);
             else
-                message.add();
+                message.Add();
         }
 
         public static void LogCityCultureShift(City city, string oldCulture, string newCulture)
@@ -1407,12 +1413,12 @@ namespace EmpireCraft.Core
             if (city?.Record == null) return;
             string oldName = CultureService.IsValidCulture(oldCulture) ? oldCulture.GetCultureTranslate() : LM.Get("label_none");
             string newName = CultureService.IsValidCulture(newCulture) ? newCulture.GetCultureTranslate() : newCulture;
-            new WorldLogMessage(EmpireCraftWorldLogLibrary.city_culture_shift_log,
+            new News(NewsKinds.city_culture_shift_log,
                 city.Name, oldName, newName)
             {
-                color_special1 = city.getColor()._color_text,
-                color_special2 = city.getColor()._color_text,
-                color_special3 = city.getColor()._color_text
+                Color1 = city.GetColor().ColorText,
+                Color2 = city.GetColor().ColorText,
+                Color3 = city.GetColor().ColorText
             }.RecordNationalHistoryIntoEmpire(city.Realm?.GetEmpire(), kingdom: city.Realm);
         }
 
@@ -1421,12 +1427,12 @@ namespace EmpireCraft.Core
             if (city?.Record == null) return;
             string oldName = CultureService.IsValidCulture(oldCulture) ? oldCulture.GetCultureTranslate() : LM.Get("label_none");
             string newName = CultureService.IsValidCulture(newCulture) ? newCulture.GetCultureTranslate() : newCulture;
-            new WorldLogMessage(EmpireCraftWorldLogLibrary.foreign_culture_occupation_log,
+            new News(NewsKinds.foreign_culture_occupation_log,
                 city.Name, oldName, newName)
             {
-                color_special1 = city.getColor()._color_text,
-                color_special2 = city.getColor()._color_text,
-                color_special3 = city.getColor()._color_text
+                Color1 = city.GetColor().ColorText,
+                Color2 = city.GetColor().ColorText,
+                Color3 = city.GetColor().ColorText
             }.RecordNationalHistoryIntoEmpire(city.Realm?.GetEmpire(), kingdom: city.Realm);
         }
 
@@ -1434,11 +1440,11 @@ namespace EmpireCraft.Core
         {
             if (city?.Record == null) return;
             string cultureName = CultureService.IsValidCulture(culture) ? culture.GetCultureTranslate() : culture;
-            new WorldLogMessage(EmpireCraftWorldLogLibrary.culture_restoration_available_log,
+            new News(NewsKinds.culture_restoration_available_log,
                 city.Name, cultureName)
             {
-                color_special1 = city.getColor()._color_text,
-                color_special2 = city.getColor()._color_text
+                Color1 = city.GetColor().ColorText,
+                Color2 = city.GetColor().ColorText
             }.RecordNationalHistoryIntoEmpire(city.Realm?.GetEmpire(), kingdom: city.Realm);
         }
 
@@ -1447,12 +1453,12 @@ namespace EmpireCraft.Core
             if (city?.Record == null) return;
             string oldName = CultureService.IsValidCulture(oldCulture) ? oldCulture.GetCultureTranslate() : LM.Get("label_none");
             string newName = CultureService.IsValidCulture(newCulture) ? newCulture.GetCultureTranslate() : newCulture;
-            new WorldLogMessage(EmpireCraftWorldLogLibrary.city_culture_restored_log,
+            new News(NewsKinds.city_culture_restored_log,
                 city.Name, oldName, newName)
             {
-                color_special1 = city.getColor()._color_text,
-                color_special2 = city.getColor()._color_text,
-                color_special3 = city.getColor()._color_text
+                Color1 = city.GetColor().ColorText,
+                Color2 = city.GetColor().ColorText,
+                Color3 = city.GetColor().ColorText
             }.RecordNationalHistoryIntoEmpire(city.Realm?.GetEmpire(), kingdom: city.Realm);
         }
 #endif
@@ -1465,12 +1471,12 @@ namespace EmpireCraft.Core
         {
             if (city?.Record == null) return;
             string cultureName = CultureService.IsValidCulture(culture) ? culture.GetCultureTranslate() : culture;
-            new WorldLogMessage(EmpireCraftWorldLogLibrary.cultural_name_changed_log,
+            new News(NewsKinds.cultural_name_changed_log,
                 oldName, newName, cultureName)
             {
-                color_special1 = city.getColor()._color_text,
-                color_special2 = city.getColor()._color_text,
-                color_special3 = city.getColor()._color_text
+                Color1 = city.GetColor().ColorText,
+                Color2 = city.GetColor().ColorText,
+                Color3 = city.GetColor().ColorText
             }.RecordNationalHistoryIntoEmpire(city.Realm?.GetEmpire(), kingdom: city.Realm);
         }
 #endif
@@ -1483,12 +1489,12 @@ namespace EmpireCraft.Core
         {
             if (city?.Record == null) return;
             string cultureName = CultureService.IsValidCulture(culture) ? culture.GetCultureTranslate() : culture;
-            new WorldLogMessage(EmpireCraftWorldLogLibrary.cultural_name_restored_log,
+            new News(NewsKinds.cultural_name_restored_log,
                 oldName, newName, cultureName)
             {
-                color_special1 = city.getColor()._color_text,
-                color_special2 = city.getColor()._color_text,
-                color_special3 = city.getColor()._color_text
+                Color1 = city.GetColor().ColorText,
+                Color2 = city.GetColor().ColorText,
+                Color3 = city.GetColor().ColorText
             }.RecordNationalHistoryIntoEmpire(city.Realm?.GetEmpire(), kingdom: city.Realm);
         }
 #endif
@@ -1502,12 +1508,12 @@ namespace EmpireCraft.Core
         {
             if (title?.data == null) return;
             string cultureName = CultureService.IsValidCulture(culture) ? culture.GetCultureTranslate() : culture;
-            new WorldLogMessage(EmpireCraftWorldLogLibrary.cultural_name_changed_log,
+            new News(NewsKinds.cultural_name_changed_log,
                 oldName, newName, cultureName)
             {
-                color_special1 = title.getColor()._color_text,
-                color_special2 = title.getColor()._color_text,
-                color_special3 = title.getColor()._color_text
+                Color1 = title.GetColor().ColorText,
+                Color2 = title.GetColor().ColorText,
+                Color3 = title.GetColor().ColorText
             }.RecordNationalHistoryIntoEmpire(title.main_kingdom?.GetEmpire(), title.owner, title.main_kingdom);
         }
 #endif
@@ -1521,94 +1527,98 @@ namespace EmpireCraft.Core
         {
             if (title?.data == null) return;
             string cultureName = CultureService.IsValidCulture(culture) ? culture.GetCultureTranslate() : culture;
-            new WorldLogMessage(EmpireCraftWorldLogLibrary.cultural_name_restored_log,
+            new News(NewsKinds.cultural_name_restored_log,
                 oldName, newName, cultureName)
             {
-                color_special1 = title.getColor()._color_text,
-                color_special2 = title.getColor()._color_text,
-                color_special3 = title.getColor()._color_text
+                Color1 = title.GetColor().ColorText,
+                Color2 = title.GetColor().ColorText,
+                Color3 = title.GetColor().ColorText
             }.RecordNationalHistoryIntoEmpire(title.main_kingdom?.GetEmpire(), title.owner, title.main_kingdom);
         }
+#endif
 
         public static void LogCulturalAssimilationDuty(City city, string targetCulture, int influenceCost)
         {
             if (city?.Record == null) return;
             string cultureName = CultureService.IsValidCulture(targetCulture) ? targetCulture.GetCultureTranslate() : targetCulture;
-            new WorldLogMessage(EmpireCraftWorldLogLibrary.cultural_assimilation_duty_log,
+            new News(NewsKinds.cultural_assimilation_duty_log,
                 city.Name, cultureName, "" + influenceCost)
             {
-                color_special1 = city.getColor()._color_text,
-                color_special2 = city.getColor()._color_text,
-                color_special3 = city.getColor()._color_text
-            }.add();
+                Color1 = city.GetColor().ColorText,
+                Color2 = city.GetColor().ColorText,
+                Color3 = city.GetColor().ColorText
+            }.Add();
         }
 
+#if EC_PENDING
         public static void LogCulturalAssimilationDutyAssigned(Realm kingdom, string targetCulture)
         {
             if (kingdom?.Record == null) return;
             string cultureName = CultureService.IsValidCulture(targetCulture) ? targetCulture.GetCultureTranslate() : targetCulture;
-            new WorldLogMessage(EmpireCraftWorldLogLibrary.cultural_assimilation_duty_assigned_log,
+            new News(NewsKinds.cultural_assimilation_duty_assigned_log,
                 kingdom.GetKingdomName(), cultureName)
             {
-                color_special1 = kingdom.getColor()._color_text,
-                color_special2 = kingdom.getColor()._color_text
-            }.add();
+                Color1 = kingdom.GetColor().ColorText,
+                Color2 = kingdom.GetColor().ColorText
+            }.Add();
         }
 #endif
 
         // "文化同化"决议指定帝国直辖城市（而非整个行政区）时记录，与上面按
         // 行政区指定的版本是同一事件的两种触发路径，只是主体从王国换成了城市。
-#if EC_PENDING
         public static void LogCulturalAssimilationDutyAssignedCity(City city, string targetCulture)
         {
             if (city?.Record == null) return;
             string cultureName = CultureService.IsValidCulture(targetCulture) ? targetCulture.GetCultureTranslate() : targetCulture;
-            new WorldLogMessage(EmpireCraftWorldLogLibrary.cultural_assimilation_duty_assigned_city_log,
+            new News(NewsKinds.cultural_assimilation_duty_assigned_city_log,
                 city.Name, cultureName)
             {
-                color_special1 = city.getColor()._color_text,
-                color_special2 = city.getColor()._color_text
-            }.add();
+                Color1 = city.GetColor().ColorText,
+                Color2 = city.GetColor().ColorText
+            }.Add();
         }
 
+#if EC_PENDING
         public static void LogCulturalAssimilationDutyCompleted(Realm kingdom, string targetCulture)
         {
             if (kingdom?.Record == null) return;
             LogCulturalAssimilationDutyCompleted(kingdom.GetKingdomName(),
-                kingdom.getColor()._color_text, targetCulture);
+                kingdom.GetColor().ColorText, targetCulture);
         }
+#endif
 
         public static void LogCulturalAssimilationDutyCompleted(City city, string targetCulture)
         {
             if (city?.Record == null) return;
-            LogCulturalAssimilationDutyCompleted(city.Name, city.getColor()._color_text, targetCulture);
+            LogCulturalAssimilationDutyCompleted(city.Name, city.GetColor().ColorText, targetCulture);
         }
 
         private static void LogCulturalAssimilationDutyCompleted(string targetName, Color color,
             string targetCulture)
         {
             string cultureName = CultureService.IsValidCulture(targetCulture) ? targetCulture.GetCultureTranslate() : targetCulture;
-            new WorldLogMessage(EmpireCraftWorldLogLibrary.cultural_assimilation_duty_completed_log,
+            new News(NewsKinds.cultural_assimilation_duty_completed_log,
                 targetName, cultureName)
             {
-                color_special1 = color,
-                color_special2 = color
-            }.add();
+                Color1 = color,
+                Color2 = color
+            }.Add();
         }
 
+#if EC_PENDING
         public static void LogCultureReform(Realm kingdom, Empire empire, Person king, string culture, string surname)
         {
             if (kingdom?.Record == null) return;
             string cultureName = CultureService.IsValidCulture(culture) ? culture.GetCultureTranslate() : culture;
             bool renamed = !string.IsNullOrWhiteSpace(surname);
             var message = renamed
-                ? new WorldLogMessage(EmpireCraftWorldLogLibrary.culture_reform_surname_log, kingdom.GetKingdomName(), cultureName, surname)
-                : new WorldLogMessage(EmpireCraftWorldLogLibrary.culture_reform_log, kingdom.GetKingdomName(), cultureName);
-            message.color_special1 = kingdom.getColor()._color_text;
-            message.color_special2 = kingdom.getColor()._color_text;
-            message.color_special3 = kingdom.getColor()._color_text;
+                ? new News(NewsKinds.culture_reform_surname_log, kingdom.GetKingdomName(), cultureName, surname)
+                : new News(NewsKinds.culture_reform_log, kingdom.GetKingdomName(), cultureName);
+            message.Color1 = kingdom.GetColor().ColorText;
+            message.Color2 = kingdom.GetColor().ColorText;
+            message.Color3 = kingdom.GetColor().ColorText;
             if (empire != null) message.RecordNationalHistoryIntoEmpire(empire, king, kingdom);
-            else message.add();
+            else message.Add();
             king?.RecordPersonalHistory(renamed
                 ? string.Format(LM.Get("personal_history_culture_reform_surname"), cultureName, surname)
                 : string.Format(LM.Get("personal_history_culture_reform"), cultureName));
@@ -1619,13 +1629,13 @@ namespace EmpireCraft.Core
             if (kingdom?.Record == null) return;
             string oldName = GetRegimeDisplayName(oldRegime);
             string newName = GetRegimeDisplayName(newRegime);
-            new WorldLogMessage(EmpireCraftWorldLogLibrary.kingdom_regime_conversion_log,
+            new News(NewsKinds.kingdom_regime_conversion_log,
                 kingdom.GetKingdomName(), oldName, newName)
             {
-                color_special1 = kingdom.getColor()._color_text,
-                color_special2 = kingdom.getColor()._color_text,
-                color_special3 = kingdom.getColor()._color_text
-            }.add();
+                Color1 = kingdom.GetColor().ColorText,
+                Color2 = kingdom.GetColor().ColorText,
+                Color3 = kingdom.GetColor().ColorText
+            }.Add();
         }
 
         public static void LogCompositeEmpireAdoptionStarted(Empire empire,
@@ -1638,12 +1648,12 @@ namespace EmpireCraft.Core
             string institutionalName = CultureService.IsValidCulture(status.InstitutionalCulture)
                 ? status.InstitutionalCulture.GetCultureTranslate()
                 : status.InstitutionalCulture;
-            new WorldLogMessage(EmpireCraftWorldLogLibrary.composite_empire_adoption_started_log,
+            new News(NewsKinds.composite_empire_adoption_started_log,
                 empire.GetEmpireFullName(), rulingName, institutionalName)
             {
-                color_special1 = empire.getColor()._color_text,
-                color_special2 = empire.getColor()._color_text,
-                color_special3 = empire.getColor()._color_text
+                Color1 = empire.GetColor().ColorText,
+                Color2 = empire.GetColor().ColorText,
+                Color3 = empire.GetColor().ColorText
             }.RecordNationalHistoryIntoEmpire(empire, empire.Emperor, empire.CoreKingdom);
         }
 
@@ -1657,12 +1667,12 @@ namespace EmpireCraft.Core
             string institutionalName = CultureService.IsValidCulture(institutionalCulture)
                 ? institutionalCulture.GetCultureTranslate()
                 : institutionalCulture;
-            new WorldLogMessage(EmpireCraftWorldLogLibrary.composite_empire_adopted_log,
+            new News(NewsKinds.composite_empire_adopted_log,
                 empire.GetEmpireFullName(), rulingName, institutionalName)
             {
-                color_special1 = empire.getColor()._color_text,
-                color_special2 = empire.getColor()._color_text,
-                color_special3 = empire.getColor()._color_text
+                Color1 = empire.GetColor().ColorText,
+                Color2 = empire.GetColor().ColorText,
+                Color3 = empire.GetColor().ColorText
             }.RecordNationalHistoryIntoEmpire(empire, empire.Emperor, empire.CoreKingdom);
         }
 
@@ -1672,12 +1682,12 @@ namespace EmpireCraft.Core
             if (empire?.CoreKingdom == null) return;
             string oldName = LM.Get($"composite_empire_stage_{oldStage}");
             string newName = LM.Get($"composite_empire_stage_{newStage}");
-            new WorldLogMessage(EmpireCraftWorldLogLibrary.composite_empire_stage_changed_log,
+            new News(NewsKinds.composite_empire_stage_changed_log,
                 empire.GetEmpireFullName(), oldName, newName)
             {
-                color_special1 = empire.getColor()._color_text,
-                color_special2 = empire.getColor()._color_text,
-                color_special3 = empire.getColor()._color_text
+                Color1 = empire.GetColor().ColorText,
+                Color2 = empire.GetColor().ColorText,
+                Color3 = empire.GetColor().ColorText
             }.RecordNationalHistoryIntoEmpire(empire, empire.Emperor, empire.CoreKingdom);
         }
 
@@ -1687,12 +1697,12 @@ namespace EmpireCraft.Core
             string cultureName = CultureService.IsValidCulture(culture)
                 ? culture.GetCultureTranslate()
                 : culture;
-            new WorldLogMessage(EmpireCraftWorldLogLibrary.composite_empire_cultural_name_adopted_log,
+            new News(NewsKinds.composite_empire_cultural_name_adopted_log,
                 empire.GetEmpireFullName(), newName, cultureName)
             {
-                color_special1 = empire.getColor()._color_text,
-                color_special2 = empire.getColor()._color_text,
-                color_special3 = empire.getColor()._color_text
+                Color1 = empire.GetColor().ColorText,
+                Color2 = empire.GetColor().ColorText,
+                Color3 = empire.GetColor().ColorText
             }.RecordNationalHistoryIntoEmpire(empire, empire.Emperor, empire.CoreKingdom);
         }
 #endif

@@ -608,7 +608,7 @@ public static class DeJureShareSystem
     private static Color32? Opaque(object meta)
     {
         if (meta == null) return null;
-        ColorAsset color = CustomColorSystem.Of(meta) ?? (meta as IMetaObject)?.getColor();
+        Tint color = CustomColorSystem.Of(meta) ?? (meta as IMetaObject)?.getColor();
         if (color == null) return null;
         Color32 fill = color.getColorBorderInsideAlpha32();
         fill.a = byte.MaxValue;
