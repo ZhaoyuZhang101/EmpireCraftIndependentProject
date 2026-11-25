@@ -18,6 +18,7 @@ namespace Orbis.Flat
         WorldData world;
         int boundTerrainRevision = -1;
         Material material;
+        FlatSkyRenderer sky;
         Texture2D texture, previousTexture;
         bool useHalfFormat;
         float presentationBlend = 1f;
@@ -31,6 +32,8 @@ namespace Orbis.Flat
         int startX = -1000, startY = -1000;
         float age, weatherCheckAge;
         double lastAutoTriggerDay = -1000.0;
+        double lastLiveCalendarDay = double.NaN;
+        double pendingLiveCalendarDays;
         bool stopped, ripple;
 
         readonly ushort[] workerHalfBuffer = new ushort[Resolution * Resolution * 4];
@@ -42,6 +45,10 @@ namespace Orbis.Flat
         public FlatHazardKind ActiveKind => activeSession != null ? activeSession.Kind : FlatHazardKind.None;
         public int ActiveFocusTile => activeSession != null ? activeSession.FocusTile : -1;
         public FlatHazardMetrics LastMetrics { get; private set; }
+        public double LastSampledCalendarDay { get; private set; } = double.NaN;
+        public long? LastPrecipitationStep { get; private set; }
+        public float LastSurfacePrecipKgM2Per6h { get; private set; }
+        public bool LastPrecipitationFromSkySnapshot { get; private set; }
         public double LastWorkerStepMs { get; private set; }
         public double LastUploadMs { get; private set; }
         public string Status { get; private set; } = "局部 SWE 64×64：待命（可在地形页触发洪水/风暴潮/海啸，或等待实时台风登陆）";
@@ -57,18 +64,25 @@ namespace Orbis.Flat
             public double MassError, WorkerMs;
         }
 
-        public void Initialize(WorldData source, Material target)
+        public void Initialize(WorldData source, Material target, FlatSkyRenderer skyProvider = null)
         {
             sessionEpoch++;
             world = source;
             boundTerrainRevision = source != null ? source.TerrainRevision : -1;
             material = target;
+            sky = skyProvider ? skyProvider : GetComponent<FlatSkyRenderer>();
             activeSession = null;
             passiveSolver = null;
             published = false;
             hasPrevious = false;
             stopped = false;
             lastAutoTriggerDay = -1000.0;
+            lastLiveCalendarDay = double.NaN;
+            pendingLiveCalendarDays = 0.0;
+            LastSampledCalendarDay = double.NaN;
+            LastPrecipitationStep = null;
+            LastSurfacePrecipKgM2Per6h = 0f;
+            LastPrecipitationFromSkySnapshot = false;
 
             useHalfFormat = SystemInfo.SupportsTextureFormat(TextureFormat.RGBAHalf);
             TextureFormat fmt = useHalfFormat ? TextureFormat.RGBAHalf : TextureFormat.RGBAFloat;
@@ -111,14 +125,39 @@ namespace Orbis.Flat
             stopped = false;
         }
 
-        public int StartHazard(FlatHazardKind kind, int preferredTile = -1, bool liveWeather = false)
+        public void BindSky(FlatSkyRenderer skyProvider) => sky = skyProvider;
+
+        public int StartLiveStormHazard(int coastalTile, double calendarDay = double.NaN) =>
+            StartHazard(FlatHazardKind.TyphoonSurge, coastalTile, liveWeather: true, calendarDay: calendarDay);
+
+        public int StartHazard(FlatHazardKind kind, int preferredTile = -1, bool liveWeather = false) =>
+            StartHazard(kind, preferredTile, liveWeather, double.NaN);
+
+        public int StartHazard(FlatHazardKind kind, int preferredTile, bool liveWeather, double calendarDay)
         {
             if (world == null || kind == FlatHazardKind.None) return -1;
+            if (!sky) sky = GetComponent<FlatSkyRenderer>();
             sessionEpoch++;
             stopped = false;
             boundTerrainRevision = world.TerrainRevision;
-            activeSession = FlatWaterHazardSession.Create(world, kind, preferredTile, liveWeather, applyInitialForcing: true);
+            double initDay = FlatSkyCalendar.ResolveDay(calendarDay, world.Day);
+            var (_, _, resolvedFocus) = FlatWaterHazardSession.FindBestSite(world, kind, preferredTile, Span);
+            double initSkyRain6h = -1.0;
+            if (liveWeather && kind != FlatHazardKind.Tsunami && resolvedFocus >= 0 && sky != null)
+            {
+                double uF = FlatScrollMath.Wrap(((resolvedFocus % world.Width) + 0.5) / world.Width, 1.0);
+                double vF = FMath.Clamp((float)(((resolvedFocus / world.Width) + 0.5) / world.Height), 0.001f, 0.999f);
+                long expectedTick = FlatCycloneWeather.StepAt(initDay);
+                if (sky.TrySampleRegionalPrecipitationForTick(world, expectedTick, uF, vF, out var skyDiag))
+                    initSkyRain6h = skyDiag.SurfacePrecipKgM2Per6h;
+            }
+            activeSession = FlatWaterHazardSession.Create(
+                world, kind, preferredTile, liveWeather,
+                applyInitialForcing: true, initialCalendarDay: initDay, initialSurfaceRainKgM2Per6h: initSkyRain6h);
             passiveSolver = null;
+            lastLiveCalendarDay = initDay;
+            pendingLiveCalendarDays = 0.0;
+            SyncPrecipitationTelemetry(activeSession);
             LastMetrics = activeSession.CaptureMetrics();
             startX = activeSession.PatchX;
             startY = activeSession.PatchY;
@@ -151,6 +190,12 @@ namespace Orbis.Flat
             activeSession = null;
             passiveSolver = null;
             LastMetrics = default;
+            lastLiveCalendarDay = double.NaN;
+            pendingLiveCalendarDays = 0.0;
+            LastSampledCalendarDay = double.NaN;
+            LastPrecipitationStep = null;
+            LastSurfacePrecipKgM2Per6h = 0f;
+            LastPrecipitationFromSkySnapshot = false;
             published = false;
             hasPrevious = false;
             stopped = false;
@@ -158,14 +203,81 @@ namespace Orbis.Flat
             Status = "局部 SWE 已清理并恢复基准河湖海状态。";
         }
 
+        void SyncPrecipitationTelemetry(FlatWaterHazardSession session)
+        {
+            if (session == null || !session.LiveWeatherDriven || session.Kind == FlatHazardKind.Tsunami)
+            {
+                LastSampledCalendarDay = double.NaN;
+                LastPrecipitationStep = null;
+                LastSurfacePrecipKgM2Per6h = 0f;
+                LastPrecipitationFromSkySnapshot = false;
+                return;
+            }
+            LastSampledCalendarDay = session.LastCalendarDay;
+            LastPrecipitationStep = session.LastPrecipitationTick >= 0 ? (long?)session.LastPrecipitationTick : null;
+            LastSurfacePrecipKgM2Per6h = session.LastSurfacePrecipKgM2Per6h;
+            LastPrecipitationFromSkySnapshot = session.LastPrecipitationFromPublishedSnapshot;
+        }
+
+        double QueryMatchingSkyPrecipitation(FlatWaterHazardSession session, double sampleDay)
+        {
+            if (session == null || !session.LiveWeatherDriven || session.Kind == FlatHazardKind.Tsunami || world == null)
+                return -1.0;
+            if (!sky) sky = GetComponent<FlatSkyRenderer>();
+            if (sky != null)
+            {
+                long expectedTick = FlatCycloneWeather.StepAt(sampleDay);
+                if (sky.TrySampleRegionalPrecipitationForTick(world, expectedTick, session.FocusU, session.FocusV, out var diag))
+                    return diag.SurfacePrecipKgM2Per6h;
+            }
+            return -1.0;
+        }
+
+        /// <summary>
+        /// Advances an active live-weather hazard synchronously along the game calendar up to <paramref name="targetCalendarDay"/>
+        /// in bounded &lt;=6h slices, coupling cyclone track, same-world 6h surface precipitation, and SWE hydrodynamics.
+        /// </summary>
+        public FlatHazardMetrics AdvanceLiveCalendarSynchronous(double targetCalendarDay)
+        {
+            if (world == null || activeSession == null) return default;
+            if (!activeSession.LiveWeatherDriven || activeSession.Kind == FlatHazardKind.Tsunami)
+                return StepHazardSynchronous(0.0, targetCalendarDay);
+
+            if (double.IsNaN(lastLiveCalendarDay))
+                lastLiveCalendarDay = FlatSkyCalendar.ResolveDay(activeSession.LastCalendarDay, world.Day);
+            if (targetCalendarDay < lastLiveCalendarDay - 1e-7)
+            {
+                StartHazard(activeSession.Kind, activeSession.FocusTile, liveWeather: true, calendarDay: targetCalendarDay);
+                return LastMetrics;
+            }
+
+            double cur = lastLiveCalendarDay;
+            FlatHazardMetrics last = LastMetrics;
+            while (cur + 1e-7 < targetCalendarDay && activeSession != null && activeSession.CurrentPhase != FlatHazardPhase.Complete)
+            {
+                double sliceDays = Math.Min(0.25, targetCalendarDay - cur);
+                cur += sliceDays;
+                last = StepHazardSynchronous(sliceDays * FlatWaterHazardSession.LiveSweSecondsPerCalendarDay, cur);
+            }
+            lastLiveCalendarDay = targetCalendarDay;
+            return last;
+        }
+
         // Synchronous stepping entry for deterministic PlayMode/Editor multi-frame QA & timing benchmarks.
         public FlatHazardMetrics StepHazardSynchronous(double simSeconds, double calendarDay = double.NaN)
         {
             if (world == null || activeSession == null) return default;
             long t0 = Stopwatch.GetTimestamp();
-            FlatCycloneTrack track = SampleRelevantCyclone(world, activeSession.FocusTile, double.IsNaN(calendarDay) ? world.Day : calendarDay);
+            double sampleDay = FlatSkyCalendar.ResolveDay(calendarDay, world.Day);
+            var stormsSnapshot = FlatWaterHazardSession.CaptureCycloneSnapshotForDay(world, sampleDay);
+            FlatCycloneTrack track = FlatWaterHazardSession.SampleRelevantCycloneFromState(stormsSnapshot, world, activeSession.FocusTile, sampleDay);
+            double skyRain6h = QueryMatchingSkyPrecipitation(activeSession, sampleDay);
             if (simSeconds > 0)
-                activeSession.Step(simSeconds, track, maxSubsteps: 48);
+                activeSession.StepWithCalendar(simSeconds, sampleDay, track, stormsSnapshot, skyRain6h, maxSubsteps: 48);
+            else if (activeSession.LiveWeatherDriven && activeSession.Kind != FlatHazardKind.Tsunami)
+                activeSession.StepWithCalendar(0.0, sampleDay, track, stormsSnapshot, skyRain6h, maxSubsteps: 48);
+            lastLiveCalendarDay = sampleDay;
+            SyncPrecipitationTelemetry(activeSession);
             var metrics = activeSession.CaptureMetrics();
             activeSession.PackHalfRgba(workerHalfBuffer);
             LastWorkerStepMs = (Stopwatch.GetTimestamp() - t0) * 1000.0 / Stopwatch.Frequency;
@@ -260,6 +372,7 @@ namespace Orbis.Flat
                         if (f.HazardSession != null)
                         {
                             activeSession = f.HazardSession;
+                            SyncPrecipitationTelemetry(activeSession);
                             LastMetrics = f.Metrics;
                             material.SetVector("_SWEParams", new Vector4((int)activeSession.Kind, activeSession.ShaderTurbidity, (float)activeSession.CellMeters, 1f));
                             Status = f.Metrics.FormatStatus();
@@ -297,7 +410,7 @@ namespace Orbis.Flat
                     if (FlatWaterHazardSession.TryDetectLiveWeatherHazard(world, focusX, focusY, flatWaterVisible, out var liveKind, out int liveTile))
                     {
                         lastAutoTriggerDay = nowDay;
-                        StartHazard(liveKind, liveTile, liveWeather: true);
+                        StartHazard(liveKind, liveTile, liveWeather: true, calendarDay: nowDay);
                     }
                 }
             }
@@ -317,6 +430,41 @@ namespace Orbis.Flat
                 {
                     Status = LastMetrics.FormatStatus() + "\n（当前在星球视角；返回二维地表即可查看锚定灾区）";
                 }
+                double sampleDay = FlatSkyCalendar.ResolveDay(calendarDay, world.Day);
+                if (activeSession.LiveWeatherDriven && activeSession.Kind != FlatHazardKind.Tsunami)
+                {
+                    if (double.IsNaN(lastLiveCalendarDay))
+                        lastLiveCalendarDay = sampleDay;
+                    double deltaDays = sampleDay - lastLiveCalendarDay;
+                    lastLiveCalendarDay = sampleDay;
+                    if (deltaDays < -1e-7)
+                    {
+                        // Calendar rewound: re-anchor cleanly at the rewound date without stranding future floodwater.
+                        StartHazard(activeSession.Kind, activeSession.FocusTile, liveWeather: true, calendarDay: sampleDay);
+                        return;
+                    }
+                    if (deltaDays > 0.0)
+                        pendingLiveCalendarDays = Math.Min(2.0, pendingLiveCalendarDays + deltaDays);
+
+                    if (pending != null || !animate) return;
+                    if (activeSession.CurrentPhase == FlatHazardPhase.Complete) return;
+                    age += dt;
+                    if (age < 0.085f || pendingLiveCalendarDays <= 1e-7) return;
+                    double sliceDays = Math.Min(0.25, pendingLiveCalendarDays);
+                    pendingLiveCalendarDays -= sliceDays;
+                    age = 0f;
+                    double stepEndDay = sampleDay - pendingLiveCalendarDays;
+                    double simStepLive = sliceDays * FlatWaterHazardSession.LiveSweSecondsPerCalendarDay;
+                    int capturedEpochLive = sessionEpoch;
+                    var sessionLiveRef = activeSession;
+                    var stormsSnapshot = FlatWaterHazardSession.CaptureCycloneSnapshotForDay(world, stepEndDay);
+                    FlatCycloneTrack cycloneLive = FlatWaterHazardSession.SampleRelevantCycloneFromState(stormsSnapshot, world, sessionLiveRef.FocusTile, stepEndDay);
+                    double skyRain6h = QueryMatchingSkyPrecipitation(sessionLiveRef, stepEndDay);
+                    pending = Task.Run(() => SolveHazardStep(
+                        capturedEpochLive, sessionLiveRef, simStepLive, stepEndDay, cycloneLive, stormsSnapshot, skyRain6h, workerHalfBuffer, maxSubsteps: 48));
+                    return;
+                }
+
                 if (pending != null || !animate) return;
                 if (activeSession.CurrentPhase == FlatHazardPhase.Complete) return;
                 age += dt;
@@ -326,9 +474,9 @@ namespace Orbis.Flat
                 double simStep = realStep * SimSecondsPerRealSecond;
                 int capturedEpoch = sessionEpoch;
                 var sessionRef = activeSession;
-                double sampleDay = double.IsNaN(calendarDay) ? world.Day : calendarDay;
                 FlatCycloneTrack cyclone = SampleRelevantCyclone(world, sessionRef.FocusTile, sampleDay);
-                pending = Task.Run(() => SolveHazardStep(capturedEpoch, sessionRef, simStep, cyclone, workerHalfBuffer));
+                pending = Task.Run(() => SolveHazardStep(
+                    capturedEpoch, sessionRef, simStep, double.NaN, cyclone, null, -1.0, workerHalfBuffer, maxSubsteps: 24));
                 return;
             }
 
@@ -358,10 +506,16 @@ namespace Orbis.Flat
             pending = Task.Run(() => SolvePassiveStep(passiveEpoch, source, current, x, y, step, disturbance, workerHalfBuffer));
         }
 
-        static Frame SolveHazardStep(int epoch, FlatWaterHazardSession session, double simDt, FlatCycloneTrack cyclone, ushort[] halfOut)
+        static Frame SolveHazardStep(
+            int epoch, FlatWaterHazardSession session, double simDt, double calendarDay,
+            FlatCycloneTrack cyclone, FlatCycloneWeather stormsSnapshot, double publishedSurfaceRain6h,
+            ushort[] halfOut, int maxSubsteps = 24)
         {
             long t0 = Stopwatch.GetTimestamp();
-            session.Step(simDt, cyclone, maxSubsteps: 24);
+            if (!double.IsNaN(calendarDay))
+                session.StepWithCalendar(simDt, calendarDay, cyclone, stormsSnapshot, publishedSurfaceRain6h, maxSubsteps);
+            else
+                session.Step(simDt, cyclone, maxSubsteps);
             var metrics = session.CaptureMetrics();
             session.PackHalfRgba(halfOut);
             double ms = (Stopwatch.GetTimestamp() - t0) * 1000.0 / Stopwatch.Frequency;

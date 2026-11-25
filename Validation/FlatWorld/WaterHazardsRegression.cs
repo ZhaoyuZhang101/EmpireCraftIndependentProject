@@ -54,8 +54,11 @@ public static class WaterHazardsRegression
         //    coupled end-to-end with real-time cyclone position/intensity/rainfall 64x64 SWE (pre-landfall -> peak -> recession, no-storm rest)
         TestReproducibleEarthStormScenariosAndLiveSwe(resFolder, report);
 
+        // 7. Same-world 6h regional snapshot surface precipitation -> SWE injection & shared FlatSolarClock calendar lockstep (1x, 20x, pause)
+        TestSameWorldSnapshotPrecipitationAndSharedCalendar(resFolder, report);
+
         string summary = string.Format(inv,
-            "PASS WaterHazardsRegression: {0} assertions passed (hydrostatic rest, levee non-breach, tsunami sqrt(g*h), 3 scenarios advance/recede, ECS & North Atlantic real-time storm surge/flood coupling, mass ledger & save compatibility).",
+            "PASS WaterHazardsRegression: {0} assertions passed (hydrostatic rest, levee non-breach, tsunami sqrt(g*h), 3 scenarios advance/recede, ECS & North Atlantic real-time storm surge/flood coupling, 6h snapshot precip & calendar lockstep, mass ledger & save compatibility).",
             assertions);
         report.AppendLine(summary);
         Console.Write(report.ToString());
@@ -680,7 +683,7 @@ public static class WaterHazardsRegression
                 Check(endDryWater < peakDryWaterSum * 0.65 && endMetrics.InundatedDryCells < peakInundated && endMetrics.BoundaryOutflowVolumeM3 > 0.0,
                     $"{scenario} Earth{width} SWE failed post-storm recession: peakCells={peakInundated} -> endCells={endMetrics.InundatedDryCells}, dryVolRatio={endDryWater / Math.Max(1e-6, peakDryWaterSum):P1}");
 
-                log.AppendLine(string.Format(inv,
+                    log.AppendLine(string.Format(inv,
                     "PASS [6] Earth{0} {1,-22}: Start D{2:F2}({3:F2},{4:F2} {5:F1}m/s) -> OceanPeak {6:F1}m/s -> MainlandLandfall D{7:F2}({8:F2},{9:F2} tile={10}) {11:F1}->{12:F1}->24h:{13:F1}m/s | " +
                     "SWE Pre={14}c({15:F2}m) -> Peak={16}c({17:F2}km2, {18:F2}m) -> Recede={19}c(vol -{20:P0}) | NoStorm=0c | MaxRelMassErr={21:E2}",
                     width, scenario, plan.StartDay, plan.StartLonDeg, plan.StartLatDeg, windAtStart,
@@ -690,5 +693,173 @@ public static class WaterHazardsRegression
                     endMetrics.InundatedDryCells, 1.0 - endDryWater / Math.Max(1e-6, peakDryWaterSum), worstRelMassErr));
             }
         }
+    }
+
+    static void TestSameWorldSnapshotPrecipitationAndSharedCalendar(string resFolder, StringBuilder log)
+    {
+        var inv = CultureInfo.InvariantCulture;
+        byte[] Asset(string name) => File.ReadAllBytes(resFolder + name + ".bytes");
+        var surface = FlatGeographicSurface.Read(
+            Asset("EarthGlobalStraitShore"), Asset("EarthOceanShore"),
+            Asset("EarthMajorLakes"), Asset("EarthLakeDetail"), Asset("EarthPolarCoast"));
+        var baseEarth = FlatGenerator.Generate(
+            512, 256, FlatStormScenarios.CanonicalEarthSeed, TerrainPreset.Earth, default,
+            Asset("Earth512"), Asset("EarthWater512"), Asset("EarthRivers"));
+        surface.Attach(baseEarth);
+
+        // A. Verify FlatRegionalSnapshotPool strictly enforces same-world reference, exact 6h tick, and cyclone state
+        FlatStormScenarios.TryCreateScenarioWorld(baseEarth, FlatStormScenario.EastChinaSeaLandfall, out var worldA, out int coastTile, out _);
+        var otherWorldClone = worldA.Clone(); // Shares worldA.Moisture and TerrainRevision, but is a distinct WorldData instance!
+        var pool = new FlatRegionalSnapshotPool();
+        var budget = new FlatMoistureCloudBudget();
+        var halfBuf = new ushort[FlatMoistureCloudBudget.Count * 4];
+        var dummyCloud = new byte[FlatMoistureCloudBudget.Count * 4];
+
+        double testDay = worldA.Day + 0.75; // Landfall 6h window D262.75
+        var simProbe = new FlatSimulation(worldA.Clone());
+        for (int k = 0; k < 3; k++) simProbe.Step(0.25f);
+        long tickLf = FlatCycloneWeather.StepAt(testDay);
+        budget.Solve(simProbe.World, testDay, simProbe.World.Cyclones);
+        budget.PackPrecipitationHalf(halfBuf, out float sR, out float sS, out float nR, out float nS);
+
+        int slotIdx = pool.AcquireUploadSlot();
+        var slot = pool.GetSlot(slotIdx);
+        Buffer.BlockCopy(halfBuf, 0, slot.PrecipHalf, 0, halfBuf.Length * sizeof(ushort));
+        pool.CommitUpload(
+            simProbe.World, slotIdx, tickLf, simProbe.World.TerrainRevision, simProbe.World.Moisture,
+            true, false,
+            in simProbe.World.Cyclones.North, in simProbe.World.Cyclones.South,
+            in simProbe.World.Cyclones.PreviousNorth, in simProbe.World.Cyclones.PreviousSouth,
+            0f, 0f, 0f, 0f, sR, sS, nR, nS);
+        pool.BeginStageForStrip(simProbe.World, tickLf);
+        pool.CommitStagedStrip();
+
+        double uFocus = ((coastTile % 512) + 0.5) / 512.0;
+        double vFocus = ((coastTile / 512) + 0.5) / 256.0;
+        Check(pool.TrySamplePrecipitationForTick(simProbe.World, tickLf, uFocus, vFocus, out var exactDiag) && exactDiag.SurfacePrecipKgM2Per6h > 1.5f,
+            "Expected published 6h snapshot to serve positive surface precipitation at landfall tick");
+        Check(!pool.TrySamplePrecipitationForTick(otherWorldClone, tickLf, uFocus, vFocus, out _),
+            "Snapshot pool must reject precipitation query from a different WorldData instance");
+        Check(!pool.TrySamplePrecipitationForTick(simProbe.World, tickLf + 1, uFocus, vFocus, out _) &&
+              !pool.TrySamplePrecipitationForTick(simProbe.World, tickLf - 1, uFocus, vFocus, out _),
+            "Snapshot pool must reject stale or future 6h tick queries");
+
+        // Verify actual 6h snapshot surface precipitation increases SWE rain/channel ledger vs dry-virga (0 kg/m^2/6h) snapshot
+        var sweWithSnap = FlatWaterHazardSession.Create(simProbe.World, FlatHazardKind.RainFlood, -1, liveWeatherDriven: true, applyInitialForcing: true,
+            initialCalendarDay: testDay, initialSurfaceRainKgM2Per6h: 5.2);
+        var sweVirgaZero = FlatWaterHazardSession.Create(simProbe.World, FlatHazardKind.RainFlood, -1, liveWeatherDriven: true, applyInitialForcing: true,
+            initialCalendarDay: testDay, initialSurfaceRainKgM2Per6h: 0.0);
+        sweWithSnap.StepWithCalendar(120.0, testDay, default, null, publishedSurfaceRainKgM2Per6h: 5.2, maxSubsteps: 32);
+        sweVirgaZero.StepWithCalendar(120.0, testDay, default, null, publishedSurfaceRainKgM2Per6h: 0.0, maxSubsteps: 32);
+        var mWet = sweWithSnap.CaptureMetrics();
+        var mDry = sweVirgaZero.CaptureMetrics();
+        Check(sweWithSnap.LastPrecipitationFromPublishedSnapshot && sweWithSnap.LastPrecipitationTick == tickLf,
+            "StepWithCalendar failed to record published 6h snapshot tick");
+        Check(mWet.RainInputVolumeM3 > 0.0 && mWet.ChannelInflowVolumeM3 > 0.0 && mDry.RainInputVolumeM3 == 0.0 && mDry.ChannelInflowVolumeM3 == 0.0,
+            $"6h surface precipitation vs virga=0 ledger mismatch: wetRain={mWet.RainInputVolumeM3:E2}, dryRain={mDry.RainInputVolumeM3:E2}");
+
+        // B. Shared FlatSolarClock calendar progression across 1x speed, pause, and 20x speed (3.0 simulated days):
+        //    cyclone track, 6h snapshot tick, rainfall ledger, flood peak, and recession must advance along the same CalendarDay.
+        (int peakCells, int endCells, double rainVol, double endElapsed, long endTick) RunCalendarCoupled(double speedMultiplier)
+        {
+            FlatStormScenarios.TryCreateScenarioWorld(baseEarth, FlatStormScenario.EastChinaSeaLandfall, out var wRun, out int cTile, out _);
+            var simRun = new FlatSimulation(wRun);
+            var clock = new FlatSolarClock();
+            var snapPool = new FlatRegionalSnapshotPool();
+            var snapBudget = new FlatMoistureCloudBudget();
+            var snapHalf = new ushort[FlatMoistureCloudBudget.Count * 4];
+            long uploadedTick = long.MinValue;
+
+            void PublishSnapshotIfNeeded(double calDay)
+            {
+                long t = FlatCycloneWeather.StepAt(calDay);
+                if (t == uploadedTick) return;
+                var stormsSnap = FlatWaterHazardSession.CaptureCycloneSnapshotForDay(wRun, calDay);
+                snapBudget.Solve(wRun, calDay, stormsSnap);
+                snapBudget.PackPrecipitationHalf(snapHalf, out float sr, out float ss, out float nr, out float ns);
+                int idx = snapPool.AcquireUploadSlot();
+                Buffer.BlockCopy(snapHalf, 0, snapPool.GetSlot(idx).PrecipHalf, 0, snapHalf.Length * sizeof(ushort));
+                FlatCycloneTrack nTr = stormsSnap != null ? stormsSnap.North : default;
+                FlatCycloneTrack sTr = stormsSnap != null ? stormsSnap.South : default;
+                FlatCycloneTrack pnTr = stormsSnap != null ? stormsSnap.PreviousNorth : default;
+                FlatCycloneTrack psTr = stormsSnap != null ? stormsSnap.PreviousSouth : default;
+                bool spin = stormsSnap != null && wRun.Cyclones != null && stormsSnap.StepIndex != wRun.Cyclones.StepIndex;
+                // Bind to current wRun state at tick t
+                snapPool.CommitUpload(wRun, idx, t, wRun.TerrainRevision, wRun.Moisture, stormsSnap != null, spin,
+                    in nTr, in sTr, in pnTr, in psTr, 0f, 0f, 0f, 0f, sr, ss, nr, ns);
+                snapPool.BeginStageForStrip(wRun, t);
+                snapPool.CommitStagedStrip();
+                uploadedTick = t;
+            }
+
+            double startCalDay = clock.RenderDay(wRun.Day);
+            PublishSnapshotIfNeeded(startCalDay);
+            snapPool.TrySamplePrecipitationForTick(wRun, FlatCycloneWeather.StepAt(startCalDay), uFocus, vFocus, out var d0);
+            var swe = FlatWaterHazardSession.Create(wRun, FlatHazardKind.TyphoonSurge, cTile, liveWeatherDriven: true,
+                applyInitialForcing: true, initialCalendarDay: startCalDay, initialSurfaceRainKgM2Per6h: d0.SurfacePrecipKgM2Per6h);
+
+            double lastCalDay = startCalDay;
+            double pendingDays = 0.0;
+            int peak = 0;
+            const double targetSimDays = 3.0;
+            const double realDt = 0.10; // 10 Hz worker cadence
+            int totalRealTicks = (int)Math.Ceiling(targetSimDays * 120.0 / (speedMultiplier * realDt));
+
+            for (int r = 0; r < totalRealTicks; r++)
+            {
+                // Insert a 10-frame pause mid-storm to prove zero drift across cyclone, precip tick, and SWE!
+                if (r == totalRealTicks / 4)
+                {
+                    double pausedDayBefore = clock.RenderDay(wRun.Day);
+                    double pausedVolBefore = swe.Solver.Volume();
+                    long pausedTickBefore = swe.LastPrecipitationTick;
+                    for (int p = 0; p < 10; p++)
+                        clock.Advance(realDt, speedMultiplier, 120.0, halted: true, simRun.Step);
+                    Check(Math.Abs(clock.RenderDay(wRun.Day) - pausedDayBefore) < 1e-12 &&
+                          Math.Abs(swe.Solver.Volume() - pausedVolBefore) < 1e-12 &&
+                          swe.LastPrecipitationTick == pausedTickBefore,
+                        "Pause failed to hold calendar, precipitation tick, and SWE state identically");
+                }
+
+                clock.Advance(realDt, speedMultiplier, 120.0, halted: false, simRun.Step);
+                double calNow = clock.RenderDay(wRun.Day);
+                pendingDays += calNow - lastCalDay;
+                lastCalDay = calNow;
+
+                while (pendingDays > 1e-7)
+                {
+                    double slice = Math.Min(0.25, pendingDays);
+                    pendingDays -= slice;
+                    double stepDay = calNow - pendingDays;
+                    long stepTick = FlatCycloneWeather.StepAt(stepDay);
+                    PublishSnapshotIfNeeded(stepDay);
+                    var stormsSnap = FlatWaterHazardSession.CaptureCycloneSnapshotForDay(wRun, stepDay);
+                    var cyc = FlatWaterHazardSession.SampleRelevantCycloneFromState(stormsSnap, wRun, swe.FocusTile, stepDay);
+                    double pubRain = snapPool.TrySamplePrecipitationForTick(wRun, stepTick, swe.FocusU, swe.FocusV, out var pd)
+                        ? pd.SurfacePrecipKgM2Per6h : -1.0;
+                    swe.StepWithCalendar(slice * FlatWaterHazardSession.LiveSweSecondsPerCalendarDay, stepDay, cyc, stormsSnap, pubRain, maxSubsteps: 48);
+                    Check(swe.LastPrecipitationTick == stepTick, $"SWE precipitation tick {swe.LastPrecipitationTick} lagged calendar tick {stepTick}");
+                    var m = swe.CaptureMetrics();
+                    Check(m.RelativeMassError < 1e-11, $"Calendar-coupled mass error={m.RelativeMassError:E3} at {speedMultiplier}x");
+                    if (m.InundatedDryCells > peak) peak = m.InundatedDryCells;
+                }
+            }
+            var endM = swe.CaptureMetrics();
+            return (peak, endM.InundatedDryCells, endM.RainInputVolumeM3, swe.Solver.Elapsed, swe.LastPrecipitationTick);
+        }
+
+        var run1x = RunCalendarCoupled(1.0);
+        var run20x = RunCalendarCoupled(20.0);
+        Check(Math.Abs(run1x.endElapsed - 1800.0) < 0.05 && Math.Abs(run20x.endElapsed - 1800.0) < 0.05 && run1x.endTick == run20x.endTick,
+            $"1x vs 20x calendar hydrodynamic time mismatch: 1x={run1x.endElapsed:F4}s (tick {run1x.endTick}) vs 20x={run20x.endElapsed:F4}s (tick {run20x.endTick})");
+        Check(run1x.peakCells >= 120 && run20x.peakCells >= 120 && run1x.endCells <= run1x.peakCells / 4 && run20x.endCells <= run20x.peakCells / 4,
+            $"1x/20x calendar-coupled surge or recession failed: 1x({run1x.peakCells}->{run1x.endCells}), 20x({run20x.peakCells}->{run20x.endCells})");
+        Check(run1x.rainVol > 1e4 && run20x.rainVol > 1e4,
+            $"Expected positive 6h surface rainfall volume in both 1x ({run1x.rainVol:E2}) and 20x ({run20x.rainVol:E2})");
+
+        log.AppendLine(string.Format(inv,
+            "PASS [7] Same-world 6h snapshot precip -> SWE & shared calendar lockstep: 1x({0}->{1}c, rain={2:E2}m3, {3:F0}s) vs 20x({4}->{5}c, rain={6:E2}m3, {7:F0}s), pause drift=0",
+            run1x.peakCells, run1x.endCells, run1x.rainVol, run1x.endElapsed,
+            run20x.peakCells, run20x.endCells, run20x.rainVol, run20x.endElapsed));
     }
 }

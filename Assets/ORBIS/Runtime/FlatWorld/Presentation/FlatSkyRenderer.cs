@@ -55,6 +55,16 @@ namespace Orbis.Flat
             diagnostic = default;
             return false;
         }
+        public bool TrySampleRegionalPrecipitationForTick(
+            WorldData expectedWorld, long expectedTick, double u, double v,
+            out RegionalPrecipitationDiagnostic diagnostic)
+        {
+            if (expectedWorld != null && ReferenceEquals(world, expectedWorld) && regionalClimate != null &&
+                regionalClimate.TrySamplePrecipitationForTick(expectedWorld, expectedTick, u, v, out diagnostic))
+                return true;
+            diagnostic = default;
+            return false;
+        }
 #if UNITY_EDITOR
         // A locked weather phase isolates climate inputs in the editor's paired captures.
         internal double? CaptureWeatherTimeOverride { get; set; }

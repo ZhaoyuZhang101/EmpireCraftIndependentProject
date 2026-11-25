@@ -113,6 +113,12 @@ namespace Orbis.Flat
         public const int DefaultResolution = 64;
         public const int DefaultSpanTiles = 16;
         public const double DefaultCellMeters = 120.0;
+        /// <summary>
+        /// Hydrodynamic SWE seconds advanced per 1.0 simulated game calendar day (<c>150.0 s</c> per 6-hour synoptic tick)
+        /// for <see cref="LiveWeatherDriven"/> hazards so cyclone track, 6h surface precipitation, flood peak, and recession
+        /// evolve in lockstep along the shared game calendar across pause and 1x..20x speed multipliers.
+        /// </summary>
+        public const double LiveSweSecondsPerCalendarDay = 600.0;
 
         public readonly FlatHazardKind Kind;
         public readonly bool LiveWeatherDriven;
@@ -122,6 +128,8 @@ namespace Orbis.Flat
         public readonly double CellMeters, DurationSeconds;
         public readonly FlatShallowWater Solver;
 
+        readonly WorldData boundWorld;
+        readonly FlatMoistureCloudBudget fallbackPrecipBudget;
         readonly bool[] isMarineCell, isRiverCell, isCatchmentSlope;
         readonly int[] upstreamEntryCells;
         readonly double[] tsunamiTargetDeltaBed;
@@ -135,8 +143,17 @@ namespace Orbis.Flat
         double currentForcingStrength;
         double peakForcingStrength;
         bool hadSignificantStormForcing;
+        double lastActiveForcingSimTime;
+
+        public double FocusU => FlatScrollMath.Wrap(((FocusTile % WorldWidth) + 0.5) / WorldWidth, 1.0);
+        public double FocusV => FMath.Clamp((float)(((FocusTile / WorldWidth) + 0.5) / WorldHeight), 0.001f, 0.999f);
+        public double LastCalendarDay { get; private set; } = double.NaN;
+        public long LastPrecipitationTick { get; private set; } = long.MinValue;
+        public float LastSurfacePrecipKgM2Per6h { get; private set; }
+        public bool LastPrecipitationFromPublishedSnapshot { get; private set; }
 
         FlatWaterHazardSession(
+            WorldData world,
             FlatHazardKind kind, bool liveWeatherDriven,
             int worldWidth, int worldHeight, int patchX, int patchY, int spanTiles, int focusTile,
             int resolution, double cellMeters, double durationSeconds,
@@ -146,6 +163,8 @@ namespace Orbis.Flat
             double seaDirX, double seaDirY, int hemiSpin,
             float rainScale, float dischargeScale)
         {
+            boundWorld = world;
+            fallbackPrecipBudget = liveWeatherDriven && kind != FlatHazardKind.Tsunami ? new FlatMoistureCloudBudget() : null;
             Kind = kind;
             LiveWeatherDriven = liveWeatherDriven;
             WorldWidth = worldWidth;
@@ -182,12 +201,13 @@ namespace Orbis.Flat
                 double t = Solver.Elapsed;
                 if (LiveWeatherDriven && Kind != FlatHazardKind.Tsunami)
                 {
-                    const double maxLiveSeconds = 7200.0;
-                    if (t >= maxLiveSeconds) return FlatHazardPhase.Complete;
+                    const double unforcedMaxSeconds = 28800.0;
+                    if (t >= unforcedMaxSeconds && currentForcingStrength < 0.03)
+                        return FlatHazardPhase.Complete;
                     int curDry = CountInundatedDryCells();
                     if (hadSignificantStormForcing && currentForcingStrength < 0.03)
                     {
-                        if (t >= 120.0 && curDry <= 2)
+                        if (t >= 120.0 && (curDry <= 2 || (t - lastActiveForcingSimTime) >= 2400.0))
                             return FlatHazardPhase.Complete;
                         return FlatHazardPhase.Receding;
                     }
@@ -433,17 +453,18 @@ namespace Orbis.Flat
             targetTile = -1;
             if (world == null || world.Facts == null) return false;
 
-            // 1. Landfalling tropical cyclone -> TyphoonSurge
+            // 1. Landfalling tropical cyclone -> TyphoonSurge (prefer continental mainland coasts over tiny offshore islands when in range)
             if (world.Cyclones != null)
             {
+                bool[] mainlandMask = null;
                 foreach (bool north in new[] { true, false })
                 {
                     var track = world.Cyclones.Sample(north, world.Day);
                     if (!track.Tracked || track.WindSpeed < 24.0 || track.PressureDeficit < 16.0) continue;
                     int cx = FMath.Wrap((int)Math.Floor(track.U * world.Width), world.Width);
                     int cy = FMath.Clamp((int)Math.Floor(track.V * world.Height), 0, world.Height - 1);
-                    int bestCoast = -1;
-                    int bestDistSq = int.MaxValue;
+                    int bestMainlandCoast = -1, bestMainlandDistSq = int.MaxValue;
+                    int bestAnyCoast = -1, bestAnyDistSq = int.MaxValue;
                     int searchRadius = Math.Max(4, world.Width / 64);
                     for (int dy = -searchRadius; dy <= searchRadius; dy++)
                     for (int dx = -searchRadius; dx <= searchRadius; dx++)
@@ -451,16 +472,22 @@ namespace Orbis.Flat
                         int ny = cy + dy;
                         if (ny < 2 || ny >= world.Height - 2) continue;
                         int tile = world.Index(cx + dx, ny);
-                        if (world.CoastDistance[tile] == 1 && !FlatTerrainAnalysis.Ocean(world.Water[tile]) && world.Elevation[tile] <= 160)
+                        if (world.CoastDistance[tile] == 1 && !FlatTerrainAnalysis.Ocean(world.Water[tile]) && world.Elevation[tile] <= 180)
                         {
+                            if (mainlandMask == null) mainlandMask = FlatStormScenarios.BuildContinentalMainlandMask(world);
                             int d2 = dx * dx + dy * dy;
-                            if (d2 < bestDistSq) { bestDistSq = d2; bestCoast = tile; }
+                            if (mainlandMask[tile])
+                            {
+                                if (d2 < bestMainlandDistSq) { bestMainlandDistSq = d2; bestMainlandCoast = tile; }
+                            }
+                            if (d2 < bestAnyDistSq) { bestAnyDistSq = d2; bestAnyCoast = tile; }
                         }
                     }
-                    if (bestCoast >= 0)
+                    int chosenCoast = bestMainlandCoast >= 0 ? bestMainlandCoast : bestAnyCoast;
+                    if (chosenCoast >= 0)
                     {
                         kind = FlatHazardKind.TyphoonSurge;
-                        targetTile = bestCoast;
+                        targetTile = chosenCoast;
                         return true;
                     }
                 }
@@ -503,19 +530,20 @@ namespace Orbis.Flat
 
         public static FlatWaterHazardSession Create(
             WorldData world, FlatHazardKind kind, int preferredTile = -1, bool liveWeatherDriven = false,
-            bool applyInitialForcing = true)
+            bool applyInitialForcing = true, double initialCalendarDay = double.NaN, double initialSurfaceRainKgM2Per6h = -1.0)
         {
             if (world == null) throw new ArgumentNullException(nameof(world));
             if (kind == FlatHazardKind.None) throw new ArgumentException("Specify a non-empty hazard kind.", nameof(kind));
             if (world.Facts == null) FlatTerrainAnalysis.Build(world, default, false);
 
             var (patchX, patchY, focusTile) = FindBestSite(world, kind, preferredTile, DefaultSpanTiles);
-            return CreateAtPatch(world, kind, patchX, patchY, focusTile, liveWeatherDriven, applyInitialForcing);
+            return CreateAtPatch(world, kind, patchX, patchY, focusTile, liveWeatherDriven, applyInitialForcing, initialCalendarDay, initialSurfaceRainKgM2Per6h);
         }
 
         public static FlatWaterHazardSession CreateAtPatch(
             WorldData world, FlatHazardKind kind, int patchX, int patchY, int focusTile = -1,
-            bool liveWeatherDriven = false, bool applyInitialForcing = true)
+            bool liveWeatherDriven = false, bool applyInitialForcing = true,
+            double initialCalendarDay = double.NaN, double initialSurfaceRainKgM2Per6h = -1.0)
         {
             if (world == null) throw new ArgumentNullException(nameof(world));
             if (world.Facts == null) FlatTerrainAnalysis.Build(world, default, false);
@@ -723,24 +751,67 @@ namespace Orbis.Flat
             float dischargeScale = FMath.Clamp((float)Math.Sqrt(maxRunoff / 35.0), 0.75f, 2.1f);
 
             var session = new FlatWaterHazardSession(
-                kind, liveWeatherDriven, world.Width, world.Height,
+                world, kind, liveWeatherDriven, world.Width, world.Height,
                 patchX, patchY, span, focusTile, res, DefaultCellMeters, duration,
                 solver, marine, river, catchment, upstreamEntries, tsunamiDelta, retention,
                 dirX, dirY, spin, rainScale, dischargeScale);
 
             if (applyInitialForcing)
             {
+                double startDay = FlatSkyCalendar.ResolveDay(initialCalendarDay, world.Day);
                 FlatCycloneTrack initialCyclone = default;
+                FlatCycloneWeather initialStorms = null;
                 if (liveWeatherDriven && world.Cyclones != null)
                 {
-                    bool northHemi = world.Latitude(focusTile) >= 0f;
-                    initialCyclone = world.Cyclones.Sample(northHemi, world.Day);
-                    if (!initialCyclone.Tracked)
-                        initialCyclone = world.Cyclones.Sample(!northHemi, world.Day);
+                    initialStorms = CaptureCycloneSnapshotForDay(world, startDay);
+                    initialCyclone = SampleRelevantCycloneFromState(initialStorms, world, focusTile, startDay);
                 }
-                session.UpdateForcing(0.0, initialCyclone);
+                double sfcRain6h = initialSurfaceRainKgM2Per6h;
+                if (liveWeatherDriven && kind != FlatHazardKind.Tsunami)
+                {
+                    session.LastCalendarDay = startDay;
+                    session.LastPrecipitationTick = FlatCycloneWeather.StepAt(startDay);
+                    if (sfcRain6h >= 0.0)
+                    {
+                        session.LastPrecipitationFromPublishedSnapshot = true;
+                        session.LastSurfacePrecipKgM2Per6h = (float)sfcRain6h;
+                    }
+                    else if (session.fallbackPrecipBudget != null)
+                    {
+                        session.fallbackPrecipBudget.Solve(world, startDay, initialStorms);
+                        sfcRain6h = session.fallbackPrecipBudget.SamplePrecipitation(session.FocusU, session.FocusV).SurfacePrecipKgM2Per6h;
+                        session.LastPrecipitationFromPublishedSnapshot = false;
+                        session.LastSurfacePrecipKgM2Per6h = (float)sfcRain6h;
+                    }
+                }
+                session.UpdateForcing(0.0, initialCyclone, sfcRain6h);
             }
             return session;
+        }
+
+        /// <summary>
+        /// Captures an immutable, thread-safe snapshot of <paramref name="world"/>'s cyclone state at <paramref name="calendarDay"/>
+        /// on the main thread (handles both uncommitted <see cref="FlatSolarClock.PendingDays"/> and calendar rewinds without mutating <paramref name="world"/>).
+        /// </summary>
+        public static FlatCycloneWeather CaptureCycloneSnapshotForDay(WorldData world, double calendarDay)
+        {
+            if (world?.Cyclones == null) return null;
+            long targetStep = FlatCycloneWeather.StepAt(calendarDay);
+            if (targetStep < world.Cyclones.StepIndex - 1)
+                return FlatCycloneWeather.SpinUpAt(world, calendarDay);
+            var clone = world.Cyclones.Clone();
+            if (targetStep > clone.StepIndex)
+                clone.AdvanceTo(world, calendarDay);
+            return clone;
+        }
+
+        public static FlatCycloneTrack SampleRelevantCycloneFromState(FlatCycloneWeather state, WorldData world, int focusTile, double calendarDay)
+        {
+            if (state == null || world == null || focusTile < 0 || focusTile >= world.Count) return default;
+            bool north = world.Latitude(focusTile) >= 0f;
+            var primary = state.Sample(north, calendarDay);
+            if (primary.Tracked) return primary;
+            return state.Sample(!north, calendarDay);
         }
 
         static WaterKind FindNearestAreaWaterKind(WorldData world, int tx, int ty, out short level)
@@ -1049,6 +1120,39 @@ namespace Orbis.Flat
         public void Step(double dtSimSeconds, FlatCycloneTrack liveCyclone = default, int maxSubsteps = 24) =>
             Step(dtSimSeconds, liveCyclone, maxSubsteps, externalSurfaceRainKgM2Per6h: -1.0);
 
+        /// <summary>
+        /// Steps a hazard session synchronized to <paramref name="calendarDay"/>, injecting either the already-published
+        /// 6-hour snapshot surface precipitation (<paramref name="publishedSurfaceRainKgM2Per6h"/> &gt;= 0) for the exact
+        /// <c>(World, StepAt(calendarDay))</c>, or computing the matching 6-hour <see cref="FlatMoistureCloudBudget"/> surface
+        /// precipitation on the worker thread using an immutable <paramref name="immutableStormsSnapshot"/>.
+        /// </summary>
+        public void StepWithCalendar(
+            double dtSimSeconds, double calendarDay, FlatCycloneTrack liveCyclone,
+            FlatCycloneWeather immutableStormsSnapshot = null,
+            double publishedSurfaceRainKgM2Per6h = -1.0,
+            int maxSubsteps = 24)
+        {
+            double sfcRain6h = publishedSurfaceRainKgM2Per6h;
+            if (LiveWeatherDriven && Kind != FlatHazardKind.Tsunami && !double.IsNaN(calendarDay))
+            {
+                LastCalendarDay = calendarDay;
+                LastPrecipitationTick = FlatCycloneWeather.StepAt(calendarDay);
+                if (sfcRain6h >= 0.0)
+                {
+                    LastPrecipitationFromPublishedSnapshot = true;
+                    LastSurfacePrecipKgM2Per6h = (float)sfcRain6h;
+                }
+                else if (fallbackPrecipBudget != null && boundWorld != null)
+                {
+                    fallbackPrecipBudget.Solve(boundWorld, calendarDay, immutableStormsSnapshot);
+                    sfcRain6h = fallbackPrecipBudget.SamplePrecipitation(FocusU, FocusV).SurfacePrecipKgM2Per6h;
+                    LastPrecipitationFromPublishedSnapshot = false;
+                    LastSurfacePrecipKgM2Per6h = (float)sfcRain6h;
+                }
+            }
+            Step(dtSimSeconds, liveCyclone, maxSubsteps, sfcRain6h);
+        }
+
         public void Step(double dtSimSeconds, FlatCycloneTrack liveCyclone, int maxSubsteps, double externalSurfaceRainKgM2Per6h)
         {
             if (dtSimSeconds <= 0) return;
@@ -1212,19 +1316,27 @@ namespace Orbis.Flat
 
         void UpdateLiveWeatherForcing(FlatCycloneTrack liveCyclone, double externalSurfaceRainKgM2Per6h)
         {
-            double extRainMmPerHour = externalSurfaceRainKgM2Per6h > 0.0 ? externalSurfaceRainKgM2Per6h / 6.0 : 0.0;
+            // Convert coarse 64x32 (~620 km) 6h surface precipitation (kg/m^2/6h = mm/6h) above soil-infiltration
+            // retention (1.35 mm/6h) into mesoscale rainband intensity (mm/h); light/fair background drizzle <= 1.35 mm/6h
+            // produces strictly 0 flood rain so post-storm recession drains cleanly.
+            bool hasPublishedSurfaceDiag = externalSurfaceRainKgM2Per6h >= 0.0;
+            double synExcess6h = hasPublishedSurfaceDiag ? Math.Max(0.0, externalSurfaceRainKgM2Per6h - 1.35) : 0.0;
+            double synMesoscaleRainMmH = synExcess6h > 0.0 ? Math.Min(36.0, 2.5 + synExcess6h * 3.6) : 0.0;
+            bool pureVirgaDrySurface = hasPublishedSurfaceDiag && externalSurfaceRainKgM2Per6h <= 0.05;
 
             if (Kind == FlatHazardKind.RainFlood)
             {
                 double uCenter = FlatScrollMath.Wrap((PatchX + SpanTiles * 0.5) / WorldWidth, 1.0);
                 double vCenter = FMath.Clamp((float)((PatchY + SpanTiles * 0.5) / WorldHeight), 0.001f, 0.999f);
                 var cycCenter = FlatCycloneWeather.SampleSurfaceWindFromTrack(in liveCyclone, hemisphereSpin, uCenter, vCenter);
-                double rainMmPerHour = Math.Max(cycCenter.RainRateMmPerHour, extRainMmPerHour);
-                double excessMmH = Math.Max(0.0, rainMmPerHour - 3.5);
-                double stormStrength = FMath.Clamp((float)(excessMmH / 32.0), 0f, 1.5f);
+                double cycRainMmH = pureVirgaDrySurface && cycCenter.RadiusKm > 180f ? 0.0 : cycCenter.RainRateMmPerHour;
+                double rainMmPerHour = Math.Max(cycRainMmH, synMesoscaleRainMmH);
+                double excessMmH = Math.Max(0.0, rainMmPerHour - 2.5);
+                double stormStrength = FMath.Clamp((float)(excessMmH / 28.0), 0f, 1.5f);
                 currentForcingStrength = stormStrength;
                 if (stormStrength > peakForcingStrength) peakForcingStrength = stormStrength;
                 if (stormStrength >= 0.12) hadSignificantStormForcing = true;
+                if (stormStrength >= 0.03) lastActiveForcingSimTime = Solver.Elapsed;
 
                 if (stormStrength > 1e-3)
                 {
@@ -1252,7 +1364,8 @@ namespace Orbis.Flat
 
             // LiveWeatherDriven TyphoonSurge:
             // Strictly driven by real cyclone position, tangential/inflow wind stress, inverse-barometer pressure deficit,
-            // onshore continental-shelf wind setup, and dimensional rainfall/runoff. Zero storm => zero tide & zero water injection.
+            // onshore continental-shelf wind setup, and same-world 6h surface precipitation + eyewall rainfall/runoff.
+            // Zero storm & sub-threshold 6h surface rain => zero tide & zero water injection.
             double maxPatchWindMs = 0.0;
             double maxPatchDeficitHpa = 0.0;
             double sumLandRainMmH = 0.0;
@@ -1265,8 +1378,8 @@ namespace Orbis.Flat
             const double shelfLengthOverGh = 112000.0 / (FlatShallowWater.Gravity * 15.5); // ~737 s^2/m
             double onshoreDirX = -seawardDirX, onshoreDirY = -seawardDirY;
 
-            double uFocus = FlatScrollMath.Wrap(((FocusTile % WorldWidth) + 0.5) / WorldWidth, 1.0);
-            double vFocus = FMath.Clamp((float)(((FocusTile / WorldWidth) + 0.5) / WorldHeight), 0.001f, 0.999f);
+            double uFocus = FocusU;
+            double vFocus = FocusV;
             double cosFocus = Math.Max(0.15, Math.Cos((vFocus - 0.5) * Math.PI));
             double invLonKm = 1.0 / (40030.2 * cosFocus);
             const double invLatKm = 1.0 / 20015.1;
@@ -1284,9 +1397,10 @@ namespace Orbis.Flat
                     double uCell = FlatScrollMath.Wrap(uFocus + dxKm * invLonKm, 1.0);
 
                     var sample = FlatCycloneWeather.SampleSurfaceWindFromTrack(in liveCyclone, hemisphereSpin, uCell, vCell);
-                    double localRainMmH = sample.RainRateMmPerHour;
-                    if (extRainMmPerHour > 3.5 && (sample.Active || extRainMmPerHour > 6.5))
-                        localRainMmH = Math.Max(localRainMmH, extRainMmPerHour);
+                    double cycRainMmH = pureVirgaDrySurface && sample.RadiusKm > 180f ? 0.0 : sample.RainRateMmPerHour;
+                    double localRainMmH = cycRainMmH;
+                    if (synMesoscaleRainMmH > 0.0 && (sample.Active || synExcess6h >= 2.2))
+                        localRainMmH = Math.Max(localRainMmH, synMesoscaleRainMmH);
 
                     if (sample.Active)
                     {
@@ -1355,6 +1469,7 @@ namespace Orbis.Flat
             currentForcingStrength = Math.Max(Math.Max(windNorm * windNorm, dpNorm), rainNorm);
             if (currentForcingStrength > peakForcingStrength) peakForcingStrength = currentForcingStrength;
             if (currentForcingStrength >= 0.12) hadSignificantStormForcing = true;
+            if (currentForcingStrength >= 0.03) lastActiveForcingSimTime = Solver.Elapsed;
         }
 
         public int CountInundatedDryCells(double threshold = FlatShallowWater.VisibleFloodThreshold)
