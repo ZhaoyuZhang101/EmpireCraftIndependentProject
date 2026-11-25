@@ -153,7 +153,6 @@ public static class FrontCollapse
 #endif
 
     // 这场仗里丢了都城(开战时的都城归了对方，或现在都城的城池被对方占着)、或丢了三分之一的城：返回说明，没有返回 null
-#if EC_PENDING
     private static string Lost(Realm foe, Realm victor, War war)
     {
         City seat = EmpireWorld.Current?.CityByKey(war.GetOrCreate().war_goal_capital_id);
@@ -167,7 +166,6 @@ public static class FrontCollapse
         int before = lost + WarSituation.SideCities(foe);
         return lost >= before * LostCitiesShare ? string.Format(LM.Get("front_collapse_cities"), lost) : null;
     }
-#endif
 
     // 久战疲敝：这座城所属的一方正被统一、被雄主讨伐，按打得最久的那场仗算
 #if EC_PENDING

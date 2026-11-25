@@ -781,7 +781,6 @@ public static class ScenarioWilderness
     // 城心按 2° 一格分桶(开发度按离最近的城多远算，远过几度就当没有)
     private static int SeatCell(float lon, float lat) => Mathf.FloorToInt(lon / 2f) * 1000 + Mathf.FloorToInt(lat / 2f);
 
-#if EC_PENDING
     private static float SeatDistance(Dictionary<int, List<Vector2>> seats, float lon, float lat)
     {
         float squeeze = Mathf.Cos(lat * Mathf.Deg2Rad), best = float.MaxValue;
@@ -798,7 +797,6 @@ public static class ScenarioWilderness
         }
         return best == float.MaxValue ? float.MaxValue : Mathf.Sqrt(best);
     }
-#endif
 
     #endregion
 

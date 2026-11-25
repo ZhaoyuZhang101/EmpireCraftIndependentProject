@@ -200,7 +200,6 @@ public static class CityStateService
 #endif
 
     // 本地领袖：优先贵族阶层，其次城中其他成年人，按威望取最高者
-#if EC_PENDING
     internal static Person FindLocalLeader(City city, Person exclude)
     {
         List<Person> locals = (city.People ?? new List<Person>()).ToList()
@@ -208,10 +207,11 @@ public static class CityStateService
                             actor.IsAdult() && !actor.IsRuler() && actor.IsFitToRule())
             .ToList();
         return locals.Where(actor => actor.GetOrCreate().socialClass == SocialClass.Noble)
-                   .OrderByDescending(actor => actor.Renown ?? 0).FirstOrDefault()
-               ?? locals.OrderByDescending(actor => actor.Renown ?? 0).FirstOrDefault();
+                   .OrderByDescending(actor => actor.Renown).FirstOrDefault()
+               ?? locals.OrderByDescending(actor => actor.Renown).FirstOrDefault();
     }
 
+#if EC_PENDING
     public static bool TryCrownLocalRuler(Realm realm)
     {
         City city = realm?.Capital;

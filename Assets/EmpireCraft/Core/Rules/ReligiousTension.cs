@@ -240,7 +240,7 @@ public static class ReligiousTension
         Person leader = CityPopulationSystem.AbstractPopulationEnabled ? CityPopulationSystem.SpawnRebelLeader(city) : null;
         leader ??= city.People?.Where(actor => actor != null && !actor.IsGone() && actor.Alive && actor.IsAdult() &&
                                               !actor.IsRuler() && actor.CanFoundCivKingdom())
-            .OrderByDescending(actor => actor.Religion == faith).ThenByDescending(actor => actor.Renown ?? 0)
+            .OrderByDescending(actor => actor.Religion == faith).ThenByDescending(actor => actor.Renown)
             .FirstOrDefault();
         if (leader == null) return false;
         RebellionCauseData cause = RebellionSystem.Capture(origin, city, reasonKey, detail);

@@ -142,9 +142,11 @@ namespace EmpireCraft.Core
                     plot.action = pActor => !IsVanillaAllianceBlocked() && action(pActor);
             }
         }
+#endif
 
         private static bool IsVanillaAllianceBlocked() => ModAllianceService.IsVanillaAllianceBanned();
 
+#if EC_PENDING
         private static void GuardAllPlotAssets()
         {
             foreach (var asset in AssetManager.plots_library.getList())
@@ -2259,7 +2261,7 @@ namespace EmpireCraft.Core
 				    {
 					    return false;
 				    }
-				    if (kingdom.countCities() == 1&&!kingdom.IsInEmpire())
+				    if (kingdom.CountCities() == 1&&!kingdom.IsInEmpire())
 				    {
 					    return false;
 				    }
@@ -2317,7 +2319,7 @@ namespace EmpireCraft.Core
 						    return false;
 					    }
 				    }
-				    int num5 = kingdom.countCities();
+				    int num5 = kingdom.CountCities();
                     if (!kingdom.IsInEmpire())
                     {
                         int maxCities = kingdom.getMaxCities();
@@ -2365,7 +2367,7 @@ namespace EmpireCraft.Core
                     {
                         return false;
                     }
-				    return kingdom.countCities() != 1&&!kingdom.IsInEmpire();
+				    return kingdom.CountCities() != 1&&!kingdom.IsInEmpire();
 			    },
 			    check_should_continue = delegate(Person pActor)
 			    {
@@ -2878,7 +2880,7 @@ namespace EmpireCraft.Core
             if (TribalFissionService.Bound(initiator, target)) return false;
             if (initiator?.Capital == null || target?.Capital == null || initiator == target ||
                 !target.Alive ||
-                !target.hasCities() || target.getAge() < SimGlobals.m.minimum_kingdom_age_for_attack ||
+                !target.HasCities() || target.getAge() < SimGlobals.m.minimum_kingdom_age_for_attack ||
                 !initiator.Capital.reachableFrom(target.Capital) && !StraitReach.Across(initiator, target))
                 return false;
             double lastWarEnded = DiplomacyHelpers.diplomacy?.getRelation(initiator, target)
@@ -2929,7 +2931,7 @@ namespace EmpireCraft.Core
             if (!kingdom.IsEmpire()) return DiplomacyHelpers.isWarNeeded(kingdom);
             Empire empire = kingdom.GetEmpire();
             if (empire == null || empire.IsArchived() || empire.IsGone() ||
-                !kingdom.hasCities() || !kingdom.HasCapital()) return false;
+                !kingdom.HasCities() || !kingdom.HasCapital()) return false;
             if (kingdom.Record.timestamp_last_war != -1d &&
                 GameClock.YearsSince(kingdom.Record.timestamp_last_war) <= SimGlobals.m.diplomacy_years_war_timeout)
                 return false;

@@ -327,7 +327,6 @@ public static class SettlementNaming
     // 只取与本城文化同一文化圈的(见 SurnameInheritanceSystem.SameSphere)：始祖、本支开基的人、在世族人记下的文化都要对得上，
     // 一处都没记的不取。群友反馈 2026-10-21：日本、游牧、印第安的地图上冒出华夏的姓"卓"——以前不看文化，华夏宗族在那里开基
     // (征服者的宗室分支、外放的官员)，村镇就随了华夏的姓；本城没有合适的宗族时照旧取本文化的姓氏词库
-#if EC_PENDING
     private static List<string> LocalSurnames(City city, string culture)
     {
         if (city?.Record == null) return new List<string>();
@@ -354,10 +353,8 @@ public static class SettlementNaming
         }
         return names;
     }
-#endif
 
     // 这一族记下的文化：根宗族的始祖、本支开基的人、一位在世族人(姓随始祖来，人可能已随本城改了俗，都要看)
-#if EC_PENDING
     private static string[] ClanCultures(SpecificClan clan)
     {
         var cultures = new List<string>();
@@ -370,7 +367,6 @@ public static class SettlementNaming
         Add(clan.LivingPeople?.FirstOrDefault(person => CultureService.IsValidCulture(person?.culture))?.culture);
         return cultures.ToArray();
     }
-#endif
 
     #region 旧名迁移
 

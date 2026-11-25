@@ -1,4 +1,4 @@
-// Ported from the EmpireCraft mod: Scripts/GeneralSystems/IdeologyFamilies.cs @ 55d6d4f8. Body kept line-for-line for three-way sync;
+// Generated from the EmpireCraft mod: Scripts/GeneralSystems/IdeologyFamilies.cs. Do not edit by hand: Tools/PortTool/members.py rewrites it;
 // see Port/manifest.json and Tools/PortTool.
 
 namespace EmpireCraft.Core
@@ -41,7 +41,6 @@ public static class IdeologyFamilies
     public static bool IsIdentityStance(PartyIdeology ideology) =>
         ideology is PartyIdeology.ImperialPower or PartyIdeology.GreatClans || IsCourtOnly(ideology);
 
-#if EC_PENDING // needs FixedFaction, PartySystem, CultureDoctrines (port phase 4)
     // 派系卡片第二行：身份立场写"代表某某"，诸子百家写"宗某之学"(学说渊源)，其余写"倾向某理念"。
     // culture：派系所在的文化——古代学说按文化线换说法(西方写"属经院正统"，见 CultureDoctrines)；空则用华夏原名
     public static string FactionLeaning(PartyIdeology ideology, string culture = null)
@@ -58,6 +57,7 @@ public static class IdeologyFamilies
         faction != null && (faction.IsParty || faction.IsClique || faction.IdeologyChosen);
 
     // culture 不给就按派系所在帝国的文化(派系库里的、不挂帝国的按华夏原名)
+#if EC_PENDING
     public static string FactionLeaning(FixedFaction faction, string culture = null)
     {
         if (faction == null) return LM.Get("faction_stance_无");
@@ -85,19 +85,19 @@ public static class IdeologyFamilies
     public static bool IsAuthoritarian(PartyIdeology ideology) =>
         ideology is PartyIdeology.Authoritarianism or PartyIdeology.Fascism;
 
-#if EC_PENDING // needs Kingdom/Empire identities, PartySystem, RepublicSystem, IdeologyPopulationSystem (port phases 4 and 6)
     // 政权信奉的理念，回退顺序：执政党 → 共和国建国理念 → 元首本人的信念 → 首都主流理念 → 中间派
-    public static PartyIdeology StateIdeology(Kingdom kingdom)
+#if EC_PENDING
+    public static PartyIdeology StateIdeology(Realm kingdom)
     {
-        if (kingdom == null || kingdom.isRekt()) return PartyIdeology.Centrism;
+        if (kingdom == null || kingdom.IsGone()) return PartyIdeology.Centrism;
         Empire empire = kingdom.IsEmpire() ? kingdom.GetEmpire() : null;
         FixedFaction party = empire == null ? null : PartySystem.GetGovernmentParty(empire);
         if (party != null) return party.Ideology;
         if (empire != null && RepublicSystem.IsRepublic(empire) && empire.data?.constitutional_economy != null)
             return empire.data.constitutional_economy.republic_ideology;
-        if (kingdom.king != null && !kingdom.king.isRekt()) return IdeologyPopulationSystem.Get(kingdom.king);
-        return kingdom.capital != null && !kingdom.capital.isRekt()
-            ? IdeologyPopulationSystem.GetDominant(kingdom.capital)
+        if (kingdom.Ruler != null && !kingdom.Ruler.IsGone()) return IdeologyPopulationSystem.Get(kingdom.Ruler);
+        return kingdom.Capital != null && !kingdom.Capital.IsGone()
+            ? IdeologyPopulationSystem.GetDominant(kingdom.Capital)
             : PartyIdeology.Centrism;
     }
 

@@ -346,7 +346,7 @@ public static partial class EmpireLawSystem
             reason_key = reasonKey ?? "",
             count = released
         });
-        if (empire != null || realm.countCities() >= SmallRealmCities)
+        if (empire != null || realm.CountCities() >= SmallRealmCities)
             TranslateHelper.LogEventMessage(string.Format(LM.Get("law_amnesty_log"), RealmName(realm),
                 GetReasonText(reasonKey), released), realm);
         return true;

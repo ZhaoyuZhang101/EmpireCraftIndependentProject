@@ -679,7 +679,6 @@ public static class ConnectivitySystem
     private static readonly HashSet<string> InactiveTechs = new(StringComparer.Ordinal)
         { "writing", "printing", "masonry", "architecture", "postal_roads", "coastal_pilotage" };
 
-#if EC_PENDING
     public static ConnectivityTravel TravelOf(string culture, ConnectivityMode mode)
     {
         Func<string, bool> has = TechnologySystem.IsActiveFor(culture)
@@ -693,6 +692,7 @@ public static class ConnectivitySystem
         return Build(mode, has, habit, CultureService.IsValidCulture(culture) && TianxiaSystem.IsArchipelago(culture), open, -1);
     }
 
+#if EC_PENDING
     public static ConnectivityTravel TravelOf(Realm kingdom, ConnectivityMode mode)
     {
         Realm realm = RealmOf(kingdom);
@@ -869,7 +869,6 @@ public static class ConnectivitySystem
         return Ready && city?.Record != null && _result.NodeOfCity.TryGetValue(city.Key, out node);
     }
 
-#if EC_PENDING
     private static ConnectivityTravel TravelAt(int node, ConnectivityMode mode)
     {
         int realm = _result.Nodes[node].Realm;
@@ -893,20 +892,16 @@ public static class ConnectivitySystem
         CityPathOrder.Enqueue((node, modeKey));
         return paths;
     }
-#endif
 
     // a 城(按所在政权的本事)走到 b 城的成本；+∞ 为走不到或远得不必算，-1 为还没算
-#if EC_PENDING
     public static float Cost(City a, City b, ConnectivityMode mode = ConnectivityMode.People)
     {
         if (!TryNode(a, out int x) || !TryNode(b, out int y)) return -1f;
         if (x == y) return 0f;
         return PathsFrom(x, mode).TryGetValue(y, out float cost) ? cost : float.PositiveInfinity;
     }
-#endif
 
     // 相邻两城之间的强度(直接相连的边，不必做最短路；没有直接相连时按最短路)；还没算返回 -1
-#if EC_PENDING
     public static float NeighbourStrength(City a, City b, ConnectivityMode mode = ConnectivityMode.Ideas)
     {
         if (!TryNode(a, out int x) || !TryNode(b, out int y)) return -1f;
@@ -925,10 +920,8 @@ public static class ConnectivitySystem
         else cost = PathsFrom(x, mode).TryGetValue(y, out float path) ? path : float.PositiveInfinity;
         return ConnectivityRules.Strength(cost, travel.Length, Config);
     }
-#endif
 
     // 附近的城(按成本由近到远，至多 count 座，不含自己)；人员、货物口径直接查本轮记下的表
-#if EC_PENDING
     public static List<(City city, float cost)> Near(City city, ConnectivityMode mode = ConnectivityMode.People, int count = 12)
     {
         var list = new List<(City, float)>();
@@ -955,7 +948,6 @@ public static class ConnectivitySystem
         }
         return list;
     }
-#endif
 
     #region 二档：查表(主线程不按次寻路)
 
@@ -996,7 +988,6 @@ public static class ConnectivitySystem
 
     // 这些城里离 from 成本最低、走得到的一座(先查近邻表，没有再按需算一次最短路——只给难民、殖民这类偶发的用)；
     // 一座也走不到返回 null；还没算返回 null 且 cost 为 -1
-#if EC_PENDING
     public static City ClosestOf(City from, IEnumerable<City> candidates, ConnectivityMode mode, out float cost)
     {
         cost = -1f;
@@ -1026,7 +1017,6 @@ public static class ConnectivitySystem
             }
         return best;
     }
-#endif
 
     // 从 from 出发走了 cost 的强度(按 from 所在政权的衰减长度)
 #if EC_PENDING
@@ -1101,7 +1091,6 @@ public static class ConnectivitySystem
     // 本城在本轮图上直接相连的城(陆路、海路)及通达：outbound 按本城所在政权的本事走出去，inbound 为对方按它自己的本事走过来
     // (传教、传书看传过来的一方)；走不了的边(没有航海渡不过的海)不列；同一座城既有陆路又有海路的取强的。
     // 还没算(或这座城不在本轮图上)返回 null
-#if EC_PENDING
     public static List<ConnectivityLink> Links(City city, ConnectivityMode mode, bool inbound = false)
     {
         if (!TryNode(city, out int node)) return null;
@@ -1124,7 +1113,6 @@ public static class ConnectivitySystem
         }
         return list;
     }
-#endif
 
     #endregion
 
@@ -1189,7 +1177,6 @@ public static class ConnectivitySystem
     // 教化(CultureRadiation)用：本轮的图、某文化(消息口径)走各条边的成本
     internal static ConnectivityResult Graph => Ready ? _result : null;
 
-#if EC_PENDING
     internal static float[] EdgeCostsFor(ConnectivityResult result, string culture)
     {
         ConnectivityTravel travel = culture != null && result.CultureIndex.TryGetValue(culture, out int index)
@@ -1197,7 +1184,6 @@ public static class ConnectivitySystem
             : TravelOf(culture ?? "", ConnectivityMode.Ideas);
         return result.Costs(travel).cost;
     }
-#endif
 
     #endregion
 

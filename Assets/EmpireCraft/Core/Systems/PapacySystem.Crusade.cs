@@ -112,12 +112,12 @@ public static partial class PapacySystem
     private static Realm ModRealm(Realm kingdom) => kingdom?.GetEmpire()?.CoreKingdom ?? kingdom;
 
     // 本宗教最强的国家(帝国按中央)
-#if EC_PENDING
     private static Realm Strongest(Religion religion) =>
         EmpireWorld.Current.LiveRealms.Where(kingdom => kingdom?.Record != null && !kingdom.IsGone() && !kingdom.IsWild &&
                                               kingdom.Religion == religion && ModRealm(kingdom) == kingdom)
             .OrderByDescending(kingdom => kingdom.GetEmpire()?.countCities() ?? kingdom.Cities.Count).FirstOrDefault();
 
+#if EC_PENDING
     private static void Declare(Religion religion, Realm caller, Realm target, int kind)
     {
         // 远距离不开战：发起国(帝国按全体成员)与目标接壤或隔海相望才发(见 StraitReach.Within)

@@ -342,10 +342,8 @@ public static class AdministrativeControlSystem
 
     // 赋税、征兵能收上来几成(满控全收，最低一半)
     // 世家筑了坞堡的城再打折(见 GentrySystem.Fortress)
-#if EC_PENDING
     public static float Yield(City city) =>
         (Known(city) ? MinYield + (1f - MinYield) * Get(city) : 1f) * GentrySystem.YieldFactor(city) * NaturalizationSystem.YieldFactor(city);
-#endif
 
     public static string Describe(City city)
     {
@@ -363,7 +361,7 @@ public static class AdministrativeControlSystem
     public static void Tick()
     {
         if (EmpireWorld.Current?.LiveRealms == null || ModClass.IS_CLEAR) return;
-        if (GameClock.Running && !SmoothLoader.isLoading()) EmpireCraft.Core.CityExpansionPatch.CheckAbandonOnLoad();
+        if (GameClock.Running && !GameClock.Loading) EmpireCraft.Core.CityExpansionPatch.CheckAbandonOnLoad();
         if (!SimulationFrameBudget.HasTime) return;
         if (Pending.Count == 0) Refill();
         if (Pending.Count == 0) return;
@@ -397,7 +395,6 @@ public static class AdministrativeControlSystem
 #endif
 
     // 一次排进最多 16 国，轮着来
-#if EC_PENDING
     private static void Refill()
     {
         var list = EmpireWorld.Current.LiveRealms;
@@ -407,10 +404,9 @@ public static class AdministrativeControlSystem
         {
             Realm kingdom = list[_cursor];
             _cursor = (_cursor + 1) % list.Count;
-            if (Valid(kingdom) && ModRealm(kingdom) == kingdom && kingdom.hasCities()) Pending.Enqueue(kingdom.Key);
+            if (Valid(kingdom) && ModRealm(kingdom) == kingdom && kingdom.HasCities()) Pending.Enqueue(kingdom.Key);
         }
     }
-#endif
 
     private static List<City> Cities(Realm realm)
     {
@@ -826,6 +822,7 @@ public static class AdministrativeControlSystem
         form = place != null ? place(local) : Subordinate(realm, local);
         return local;
     }
+#endif
 
     private static Person LocalLeader(City city)
     {
@@ -836,9 +833,8 @@ public static class AdministrativeControlSystem
             .Where(actor => actor != null && !actor.IsGone() && actor.Alive && actor.IsAdult() && !actor.IsRuler() &&
                             actor.IsFitToRule())
             .OrderByDescending(actor => actor.GetOrCreate().socialClass == SocialClass.Noble)
-            .ThenByDescending(actor => actor.Renown ?? 0).FirstOrDefault();
+            .ThenByDescending(actor => actor.Renown).FirstOrDefault();
     }
-#endif
 
     // 周制天下、部落联盟或青铜时代及以前的帝国 → 分封诸侯、附从的部落(帝国成员)；施行羁縻的帝国 → 羁縻州；
     // 封建政体或不是帝国 → 附庸诸侯；其余帝国 → 朝贡国

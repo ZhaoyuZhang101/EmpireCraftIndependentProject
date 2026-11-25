@@ -43,6 +43,12 @@ namespace EmpireCraft.Core
     public static class EcMath
     {
         public const float PI = (float)Math.PI;
+        public const float Deg2Rad = PI / 180f, Rad2Deg = 180f / PI;
+        public static float Sin(float value) => (float)Math.Sin(value);
+        public static float Cos(float value) => (float)Math.Cos(value);
+        public static float Tan(float value) => (float)Math.Tan(value);
+        public static float Atan2(float y, float x) => (float)Math.Atan2(y, x);
+        public static float Log10(float value) => (float)Math.Log10(value);
         public static float Clamp(float value, float min, float max) => value < min ? min : value > max ? max : value;
         public static int Clamp(int value, int min, int max) => value < min ? min : value > max ? max : value;
         public static float Clamp01(float value) => value < 0f ? 0f : value > 1f ? 1f : value;
@@ -189,6 +195,8 @@ namespace EmpireCraft.Core
         // Integers in [min, max); floats in [min, max).
         public static int Range(int min, int max) => max <= min ? min : min + (int)(Next() % (ulong)(max - min));
         public static float Range(float min, float max) => min + (max - min) * value;
+        // True with the given probability (0 never, 1 always).
+        public static bool Chance(float probability) => value < probability;
     }
 
     // The mod asks here whether a realm or person belongs to another mod it coexists with.

@@ -71,6 +71,10 @@ REWRITES = [
 # Identity rewrite (opt-in per file, `--identity`): the WorldBox polity objects become this
 # repository's entities, one identifier for one identifier so the line structure survives.
 # The target members live on the entities (Core/Entities) and on GameClock (Core/Host).
+def pascal(name):
+    return "".join(part[:1].upper() + part[1:] for part in name.split("_") if part)
+
+
 # Only names WorldBox alone uses are rewritten as text. Plain member names (id, data, king,
 # capital, cities ...) are renamed by the type of their receiver instead, see semantic_fix;
 # `--keep` remains for the odd case text rules still get wrong.
@@ -87,6 +91,15 @@ IDENTITY = [
     (r"(?<![.\w])MapBox\.width\b", "EmpireWorld.Current.Width"),
     (r"(?<![.\w])MapBox\.height\b", "EmpireWorld.Current.Height"),
     (r"(?<![.\w])MapBox\b", "EmpireWorld"),
+    # World laws: the mod's own and the base game's it reads are switches of this game (Core/Host/WorldLaws.cs).
+    (r"\bEmpireCraftWorldLawLibrary\.empirecraft_law_(\w+)", lambda found: "WorldLaws." + pascal(found.group(1))),
+    (r"(?<![.\w])WorldLawLibrary\.world_law_(\w+)", lambda found: "WorldLaws." + pascal(found.group(1))),
+    (r"(?<![.\w])WorldLawAsset\b", "WorldLaw"),
+    (r"(?<![.\w])SmoothLoader\.isLoading\(\)", "GameClock.Loading"),
+    (r"(?<![.\w])AttackType\b", "DeathCause"),
+    (r"(?<![.\w])Randy\.randomChance\b", "EcRandom.Chance"),
+    (r"(?<![.\w])Randy\.random(Int|Float)\b", "EcRandom.Range"),
+    (r"(?<![.\w])Config\.CITY_ZONE_SIZE\b", "Land.ZoneSize"),
     (r"\bToolbox\.SquaredDistTile\b", "Land.SquaredDist"),
     (r"\bToolbox\.DistTile\b", "Land.Dist"),
     # Files that named the engine's random stream themselves get the host's through the alias above.

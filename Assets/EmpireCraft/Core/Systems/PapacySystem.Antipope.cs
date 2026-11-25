@@ -115,7 +115,6 @@ public static partial class PapacySystem
         FollowsAntipope(empire) ? AntipopeSeeCity(religion) : HolyCity(religion);
 
     // 奉某教的国(独立王国与帝国中央)按服从分两边
-#if EC_PENDING
     public static (List<Realm> rome, List<Realm> antipope) Obediences(Religion religion)
     {
         var rome = new List<Realm>();
@@ -131,7 +130,6 @@ public static partial class PapacySystem
         antipope.Sort((a, b) => SchismCities(b).CompareTo(SchismCities(a)));
         return (rome, antipope);
     }
-#endif
 
     // 对立一边的城占全教的比例(各国按所在帝国中央的服从)
     public static float AntipopeShare(Religion religion)
@@ -177,13 +175,13 @@ public static partial class PapacySystem
 
     private static bool SchismAlive(Realm kingdom) => kingdom?.Record != null && !kingdom.IsGone() && !kingdom.IsWild;
 
-#if EC_PENDING
     private static int SchismCities(Realm realm)
     {
         Empire empire = realm?.GetEmpire();
         return empire != null && empire.CoreKingdom == realm ? empire.countCities() : realm?.Cities?.Count ?? 0;
     }
 
+#if EC_PENDING
     private static bool SchismAllied(Realm a, Realm b) =>
         a != null && b != null && a != b && a.hasAlliance() && b.hasAlliance() && a.getAlliance() == b.getAlliance();
 #endif

@@ -558,7 +558,6 @@ public static partial class TransmigrantSystem
     // 落成实体的元老(读档后、每次查时重记；落成时记上，见 Bind)：每死一个人都要问是不是元老，先查这张表
     private static readonly HashSet<long> SenatorIds = new();
 
-#if EC_PENDING
     private static void KeepSenatorsHome()
     {
         SenatorIds.Clear();
@@ -577,11 +576,10 @@ public static partial class TransmigrantSystem
             Realm at = actor.Realm;
             if (at == kingdom || at != null && ColonySystem.MetropoleOf(at) == kingdom) continue;
             if (at != null && actor.IsRuler()) at.RemoveRuler();
-            if (actor.IsCityLeader() && actor.City != null) actor.City.removeLeader();
+            if (actor.IsCityLeader() && actor.City != null) actor.City.RemoveLeader();
             actor.JoinCity(home);
         }
     }
-#endif
 
     // 刚掷到"真死"的元老：接下来那一次死不再掷第二回(处决、刺杀先在 BiographySystem.Kill 掷过)
     private static long _doomed = -1L;
@@ -604,9 +602,9 @@ public static partial class TransmigrantSystem
 
     // 挡下这次死亡：寿终、化回人口(不计死亡)不挡；其余只有 KillChance 的机会真死
 #if EC_PENDING
-    public static bool Shield(Person actor, AttackType type, bool countDeath)
+    public static bool Shield(Person actor, DeathCause type, bool countDeath)
     {
-        if (!countDeath || type == AttackType.Age || !IsSenator(actor)) return false;
+        if (!countDeath || type == DeathCause.Age || !IsSenator(actor)) return false;
         if (_doomed == actor.Key)
         {
             _doomed = -1L;

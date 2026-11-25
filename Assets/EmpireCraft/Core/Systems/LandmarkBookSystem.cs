@@ -103,7 +103,6 @@ public static class LandmarkBookSystem
     public static IEnumerable<(LandmarkBookConfig book, float fraction)> BooksForTech(string techId) =>
         Books.Where(book => book.techs.ContainsKey(techId)).Select(book => (book, book.techs[techId]));
 
-#if EC_PENDING
     private static bool IsTriggered(string culture, LandmarkBookConfig book)
     {
         bool ideological = TryGetIdeology(book, out PartyIdeology ideology);
@@ -117,12 +116,10 @@ public static class LandmarkBookSystem
         if (!primary || book.required_techs.Any(tech => !TechnologySystem.HasTech(culture, tech))) return false;
         return !ideological || TechnologySystem.AreFeatureTechsMet(culture, IdeologySpreadSystem.FeatureKey(ideology));
     }
-#endif
 
     #region 写书
 
     // 读档后第一次见到这个文化：已经达到的阶段直接记为写过、读过，不补写(否则旧存档会一下冒出一堆书)
-#if EC_PENDING
     public static void MarkExisting(string culture, CultureTechState state)
     {
         state.landmark_books ??= new List<string>();
@@ -137,6 +134,7 @@ public static class LandmarkBookSystem
         }
     }
 
+#if EC_PENDING
     public static void YearlyCheck(string culture, List<City> cities, CultureTechState state)
     {
         state.landmark_books ??= new List<string>();
@@ -374,7 +372,6 @@ public static class LandmarkBookSystem
 #endif
 
     // 写出这部名著的文化(没写出来过返回 null)
-#if EC_PENDING
     private static string OriginCulture(LandmarkBookConfig config)
     {
         foreach (string culture in CultureService.CultureKeys)
@@ -382,7 +379,6 @@ public static class LandmarkBookSystem
                 TechnologySystem.GetState(culture)?.landmark_books?.Contains(config.id) == true) return culture;
         return null;
     }
-#endif
 
     // 理念的奠基名著(资本论之于共产主义、国富论之于资本主义……)：LandmarkBooks.json 里标了该理念的名著
     public static LandmarkBookConfig FoundingBook(PartyIdeology ideology) =>

@@ -165,7 +165,6 @@ public static class MembershipCooldown
 #endif
 
     // 危急：正被别国(不是 former 帝国的)攻打，这场仗已丢了 DesperateLostShare 以上的城，或敌方兵力是自己的 DesperateStrength 倍以上
-#if EC_PENDING
     public static bool Desperate(Realm kingdom, Empire former)
     {
         if (kingdom?.Record == null || kingdom.IsGone()) return false;
@@ -181,10 +180,8 @@ public static class MembershipCooldown
         }
         return false;
     }
-#endif
 
     // 自愿归附、自愿称臣纳贡(由它自己发起)：神力放出的保护期内、自己离开不到 RejoinYears 年，都不回去，危急时除外
-#if EC_PENDING
     public static bool BlocksVoluntary(Realm kingdom, Empire empire)
     {
         if (GodActing || kingdom?.Record == null || empire == null) return false;
@@ -193,7 +190,6 @@ public static class MembershipCooldown
         bool recent = left >= 0 && left < RejoinYears;
         return (released || recent) && !Desperate(kingdom, empire);
     }
-#endif
 
     // 并入帝国(不论自愿还是强制)：神力放出的保护期内拦下，打仗打下来的、自己危急来投的除外。会记日志
 #if EC_PENDING

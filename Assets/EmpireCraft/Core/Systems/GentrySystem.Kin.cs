@@ -40,9 +40,7 @@ public static partial class GentrySystem
     #region 族众
 
     // 族人：族众与谱上在世的取大(没另记族众的就是谱上在世的)
-#if EC_PENDING
     public static int Members(SpecificClan clan) => clan == null ? 0 : Members(clan, clan.Count);
-#endif
 
     public static int Members(SpecificClan clan, int named) => Mathf.Max(named, Mathf.RoundToInt(clan?.gentry_kin ?? 0f));
 
@@ -115,7 +113,6 @@ public static partial class GentrySystem
             ? Mathf.Max(0f, share) : 0f;
 
     // 族人在任官(在任官员、城主、君主)：在京城的算一人、在外的半人；谱上记着官职的虚拟族人算半人
-#if EC_PENDING
     public static float Officials(SpecificClan clan)
     {
         float count = 0f;
@@ -133,7 +130,6 @@ public static partial class GentrySystem
         }
         return count;
     }
-#endif
 
     // 京城：所在帝国核心的都城(不在帝国里的按本国都城)
     private static bool IsCapital(City city)
@@ -257,11 +253,9 @@ public static partial class GentrySystem
             : Mathf.Clamp(clan.gentry_kin * RetainersPerKin / (people * CityPopulationSystem.MilitiaTurnout), RetainerMin, RetainerMax);
 
     // 坞堡随族众加大：百人 0、千人 1
-#if EC_PENDING
     private static float FortressScale(SpecificClan clan) =>
         clan == null || clan.gentry_kin <= FortressKin ? 0f
             : Mathf.Clamp01(Mathf.Log10(clan.gentry_kin / FortressKin) / Mathf.Log10(FortressKinFull / FortressKin));
-#endif
 
     #endregion
 

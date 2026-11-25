@@ -33,6 +33,9 @@ namespace EmpireCraft.Core
         public bool IsNeutral()=>false;
         public bool IsCivilized()=>true;
 
+        public int CountCities()=>Cities.Count;
+        public bool HasCities()=>Cities.Count>0;
+        public int CountZones(){int total=0;foreach(var city in Cities)total+=city.Tiles.Count;return total;}
         // The world this realm is in; set when it is founded or loaded.
         public EmpireWorld World;
         // The faith and the culture held, if any; set by whichever system converts or assimilates.
@@ -66,6 +69,9 @@ namespace EmpireCraft.Core
         // The local governor. Not saved yet: nothing appoints one until the office systems are ported.
         public Person Leader;
         public bool HasLeader()=>Leader!=null&&Leader.Alive;
+        public void SetLeader(Person leader,bool announce=false){Leader=leader!=null&&leader.Alive?leader:null;}
+        public void RemoveLeader(){Leader=null;}
+        public int CountZones()=>Tiles.Count;
         public bool IsCapital()=>Realm!=null&&Realm.Capital==this;
         public int PopulationCount()=>(int)System.Math.Min(int.MaxValue,Population);
         // The faith and the culture held, if any; set by whichever system converts or assimilates.

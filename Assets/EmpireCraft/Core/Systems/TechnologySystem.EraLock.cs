@@ -36,9 +36,7 @@ public static partial class TechnologySystem
     public static bool EraLockBlocksModern => _eraLock > 0 && _eraLock < IndustrialTier;
 
     // 不许新走近代化：禁止近代化开着，或时代锁在工业时代以前
-#if EC_PENDING
     public static bool NoNewModern => PremodernLocked || EraLockBlocksModern;
-#endif
 
     public static bool BeyondEraLock(TechNodeConfig tech) => _eraLock > 0 && tech != null && tech.tier > _eraLock;
 
@@ -49,16 +47,12 @@ public static partial class TechnologySystem
          node.requires_techs != null && node.requires_techs.Any(id => TryGetTech(id, out TechNodeConfig tech) && tech.tier > _eraLock));
 
     // 近代制度不许新行(禁止近代化)，或时代锁定拦着
-#if EC_PENDING
     public static bool ModernInstitutionBlocked(InstitutionNodeConfig node) =>
         PremodernLocked && IsModernInstitution(node) || InstitutionBeyondEraLock(node);
-#endif
 
     // 拦着的原因(本地化键)：禁止近代化在先
-#if EC_PENDING
     public static string ModernInstitutionReason(InstitutionNodeConfig node) =>
         PremodernLocked && IsModernInstitution(node) ? "institution_reform_premodern" : "institution_reform_era_lock";
-#endif
 
     // 某一档时代的名字(0 = 原始)
     public static string EraNameOfTier(int tier)

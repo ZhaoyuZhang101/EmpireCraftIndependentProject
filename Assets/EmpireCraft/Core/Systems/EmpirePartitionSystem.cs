@@ -217,7 +217,7 @@ public static class EmpirePartitionSystem
         {
             // 原来是别国君主、城主的先卸下
             if (ruler.IsRuler() && ruler.Realm != null) ruler.Realm.RemoveRuler();
-            if (ruler.IsCityLeader() && ruler.City != null) ruler.City.removeLeader();
+            if (ruler.IsCityLeader() && ruler.City != null) ruler.City.RemoveLeader();
             ruler.removeFromArmy();
             // 新都所在的成员国：新都那座城自立为新朝核心，其余的城仍按划分随成员国走
             plan.CoreCities.Remove(seat);
@@ -863,7 +863,6 @@ public static class EmpirePartitionSystem
     private enum Flee { Escaped, Counter, Deposed }
 
     // 出奔的结局：成功出奔四成、反杀权臣三成、事泄被废三成；明君更能反杀，庸弱昏聩更易被废，权臣挟制已深的更易被废
-#if EC_PENDING
     private static Flee FleeOutcome(Empire empire, Person emperor)
     {
         float escaped = 0.4f, counter = 0.3f, deposed = 0.3f;
@@ -882,7 +881,6 @@ public static class EmpirePartitionSystem
         float roll = EcRandom.value * (escaped + counter + deposed);
         return roll < escaped ? Flee.Escaped : roll < escaped + counter ? Flee.Counter : Flee.Deposed;
     }
-#endif
 
     // 反杀：皇帝与近臣谋诛权臣，抄没家产，亲政
 #if EC_PENDING
@@ -970,7 +968,7 @@ public static class EmpirePartitionSystem
     {
         Realm core = empire.CoreKingdom;
         PrinceStruggleSystem.Note(core, successor, note);
-        if (successor.IsCityLeader() && successor.City != null) successor.City.removeLeader();
+        if (successor.IsCityLeader() && successor.City != null) successor.City.RemoveLeader();
         successor.removeFromArmy();
         OfficeObject office = core.GetOffice();
         if (office != null)

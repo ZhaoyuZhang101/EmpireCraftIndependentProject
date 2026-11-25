@@ -373,7 +373,6 @@ public static partial class IdeologyPopulationSystem
 
     // 外来理念从哪座外国邻城来。通达层算好后(用户 2026-11-06，见 ConnectivitySystem)：挑通达最强的外国邻城，
     // 再按强度掷一次——隔着雪山大漠的邻城多半传不过来，那就按本城自己的主流理念算
-#if EC_PENDING
     private static City ForeignContact(City city)
     {
         if (city.NeighbourCities == null) return null;
@@ -394,6 +393,7 @@ public static partial class IdeologyPopulationSystem
         return best != null && EcRandom.value < strongest ? best : null;
     }
 
+#if EC_PENDING
     private static void ContactCity(City city)
     {
         if (city?.People == null || city.IsGone()) return;
@@ -561,7 +561,6 @@ public static partial class IdeologyPopulationSystem
     private const int BackgroundContactSamples = 8;
     private const float BackgroundAdultShare = 0.7f;
 
-#if EC_PENDING
     private static void ContactBackground(City city, ContactDecision decide)
     {
         if (!CityPopulationSystem.AbstractPopulationEnabled) return;
@@ -590,7 +589,6 @@ public static partial class IdeologyPopulationSystem
         }
         if (moves.Count > 0) DominantCache.Remove(city);
     }
-#endif
 
     // 繁荣度对理念的影响：繁荣城市里接触自由主义思想的概率、改信自由主义的加成、改信传统理念的折扣
     private const float ProsperityLiberalContact = 0.2f;
@@ -760,6 +758,7 @@ public static partial class IdeologyPopulationSystem
             if ((roll -= weights[index]) <= 0f) return choices[index];
         return choices[choices.Length - 1];
     }
+#endif
 
     public static void RegisterIdea(string culture, PartyIdeology ideology)
     {
@@ -771,7 +770,6 @@ public static partial class IdeologyPopulationSystem
         string key = ideology.ToString();
         if (!state.discovered_ideologies.Contains(key)) state.discovered_ideologies.Add(key);
     }
-#endif
 
     // 理念要靠书传开：开放党禁带来的基本理念、启蒙科技带来的自由主义以外，本文化要先有这个理念的奠基名著
     // (自己写出来，或书从外面传进来、被读到，见 LandmarkBookSystem)才会有人信奉
@@ -780,7 +778,6 @@ public static partial class IdeologyPopulationSystem
         LandmarkBookSystem.FoundingBook(ideology) == null ||
         LandmarkBookSystem.HasFoundingBook(culture, ideology);
 
-#if EC_PENDING
     public static bool IsIdeaAvailable(string culture, PartyIdeology ideology) =>
         CultureService.IsValidCulture(culture) &&
         TechnologySystem.AreFeatureTechsMet(culture, IdeologySpreadSystem.FeatureKey(ideology)) &&
@@ -808,7 +805,6 @@ public static partial class IdeologyPopulationSystem
             foreach (PartyIdeology ideology in PartySystem.BaseIdeologies) choices.Add(ideology);
         return choices;
     }
-#endif
 
     // 开放党禁以前民间流传的理念(用户 2026-10-16："古代理念也要改革不能全是保守，需要细分")：
     //   · 泛灵论：各文化有文字以前都信；有了文字就不再流传，信众按本文化改信(玩家建议"搞个最早的理念……后面再根据各自的文化进行分支")；
@@ -818,7 +814,6 @@ public static partial class IdeologyPopulationSystem
     //   · 皇权、门阀、外戚、宦官是身份立场，不在民间流传(派系按身份招人，见 CliqueSystem.IdentityStance)；
     //     旧存档里信皇权、门阀的人照"本地已不流传"的规则逐年改信。
     // 本文化不按科技走(科技系统关闭)时，当作文字、印刷术都已具备。
-#if EC_PENDING
     private static void AddPremodern(string culture, HashSet<PartyIdeology> choices)
     {
         bool huaxia;
@@ -846,7 +841,6 @@ public static partial class IdeologyPopulationSystem
         if (Has("printing"))
             foreach (PartyIdeology ideology in PartySystem.BaseIdeologies) choices.Add(ideology);
     }
-#endif
 
     // 解锁节点只给尚无人信奉的新思想补充传播起点，不再次改写已经出现过的思想分布。
 #if EC_PENDING
@@ -932,11 +926,11 @@ public static partial class IdeologyPopulationSystem
     }
 
     // 与 Introduce 相同的改信概率，按期望值作用在背景人口上(无小人模式)
-#if EC_PENDING
     private static int IntroduceToBackground(City city, PartyIdeology ideology, float intensity) =>
         CityPopulationSystem.ConvertBackground(city, ideology, socialClass =>
             Mathf.Clamp01(intensity) * Mathf.Clamp01((PartySystem.GetAffinity(ideology, socialClass) + 100f) / 200f));
 
+#if EC_PENDING
     private static int Introduce(IEnumerable<Person> actors, PartyIdeology ideology, float intensity)
     {
         int changed = 0;

@@ -193,15 +193,13 @@ public static class LawEvents
 #endif
 
     // 守方胜；或者议和、作罢时叛军已经灭亡(没有城了)
-#if EC_PENDING
     private static bool RebelsLost(War war, WarOutcome winner)
     {
         if (winner == WarOutcome.Defenders) return true;
         if (winner != WarOutcome.Nobody) return false;
         Realm rebel = war.GetMainAttacker();
-        return rebel?.Record == null || rebel.IsGone() || !rebel.Alive || rebel.countCities() == 0;
+        return rebel?.Record == null || rebel.IsGone() || !rebel.Alive || rebel.CountCities() == 0;
     }
-#endif
 
     // 落到朝廷手里：还活着，人在胜方(或胜方所在帝国)境内，不再是一国之君(还据着一国的不算被擒)
     private static bool Captive(Person actor, Realm victor)

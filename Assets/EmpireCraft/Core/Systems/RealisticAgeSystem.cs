@@ -11,14 +11,11 @@ namespace EmpireCraft.Core
 // leaves an age-related death mark/risk behind after the law is disabled.
 public static class RealisticAgeSystem
 {
-#if EC_PENDING
-    public static bool Enabled => EmpireCraftWorldLawLibrary.empirecraft_law_realistic_age?.isEnabled() == true;
-    public static bool OldAgeEnabled => WorldLawLibrary.world_law_old_age?.isEnabled() == true;
-#endif
+    public static bool Enabled => WorldLaws.RealisticAge?.IsEnabled() == true;
+    public static bool OldAgeEnabled => WorldLaws.OldAge?.IsEnabled() == true;
 
     // 开着真实年龄时老死全归年度检查(RoyalHouseSystem.OnBirthday → AgeDeathDue)，原版空闲时的老死检查不再跑：
     // 它查得频繁，超龄错开(见 Due)每查一次掷一次就错不开了
-#if EC_PENDING
     public static bool CheckNaturalDeath(Person actor, ref bool result)
     {
         if (!Enabled || actor?.Record == null || !actor.IsSapient() ||
@@ -26,7 +23,6 @@ public static class RealisticAgeSystem
         result = false;
         return false;
     }
-#endif
 
     #region 天年随科技时代
 
@@ -44,13 +40,13 @@ public static class RealisticAgeSystem
     private const float NoTechMean = 54f;
     private const int DeathAgeFloor = 30, DeathAgeCap = 100;
 
-#if EC_PENDING
     public static float MeanDeathAge(string culture)
     {
         int tier = EraTier(culture);
         return tier < 0 ? NoTechMean : EraMean[Math.Min(tier, EraMean.Length - 1)];
     }
 
+#if EC_PENDING
     public static float MeanDeathAge(Person actor) => MeanDeathAge(CultureOf(actor));
 #endif
 
@@ -91,7 +87,6 @@ public static class RealisticAgeSystem
     private static readonly Dictionary<string, (int year, int tier)> EraCache = new(StringComparer.Ordinal);
     private static object _eraWorld;
 
-#if EC_PENDING
     private static int EraTier(string culture)
     {
         if (string.IsNullOrEmpty(culture) || !TechnologySystem.IsActiveFor(culture)) return -1;
@@ -106,7 +101,6 @@ public static class RealisticAgeSystem
         EraCache[culture] = (year, tier);
         return tier;
     }
-#endif
 
     // 每年过生日查一次(RoyalHouseSystem.OnBirthday)：到了天年就寿终
 #if EC_PENDING
@@ -138,7 +132,6 @@ public static class RealisticAgeSystem
     // 智慧种族十六岁起：开着真实年龄一律按人类；关着按物种寿命折算(同 CityPopulationSystem.AssignAdultAge)
     public const int ParentAge = 16;
 
-#if EC_PENDING
     public static int MinParentAge(Person actor)
     {
         if (actor?.Record == null || !actor.IsSapient()) return 0;
@@ -146,18 +139,14 @@ public static class RealisticAgeSystem
         float lifespan = actor.Stats?["lifespan"] ?? 0f;
         return lifespan > 0f && lifespan < 80f ? Math.Max(1, (int)Math.Round(ParentAge * lifespan / 80f)) : ParentAge;
     }
-#endif
 
     // 没有这个人(单亲生育、对方空着)算够
-#if EC_PENDING
     public static bool OldEnoughToParent(Person actor) => actor?.Record == null || actor.Age() >= MinParentAge(actor);
-#endif
 
     // 生养的最高年纪：母亲不过 MotherAgeMax、父亲不过 FatherAgeMax(同 RoyalHouseSystem 宗室添丁)；关着真实年龄时按物种寿命折算。
     // 君主无子强制生育、司生育的女官以前只看下限，六七十岁照样生
     public const int MotherAgeMax = 45, FatherAgeMax = 60;
 
-#if EC_PENDING
     public static bool YoungEnoughToParent(Person actor)
     {
         if (actor?.Record == null || !actor.IsSapient()) return true;
@@ -166,13 +155,10 @@ public static class RealisticAgeSystem
         if (!Enabled && lifespan > 0f) max = Math.Max(MinParentAge(actor) + 1, (int)Math.Round(max * lifespan / 80f));
         return actor.Age() <= max;
     }
-#endif
 
     // 君主未成年(亲政的年纪同生养，见 MinParentAge)。原版 isAdult 按亚种的成年年龄，几岁就算成年：七岁的皇帝没人辅政、
     // 亲征当统帅、战功全记在自己头上(用户 2026-10-27 转玩家截图"幼儿即位应权臣太后主政""威权也应该涨权臣的")
-#if EC_PENDING
     public static bool IsMinor(Person actor) => actor?.Record != null && (!actor.IsAdult() || actor.Age() < MinParentAge(actor));
-#endif
 
     #region 宗室天年：成为君主、储君时的年纪
 
@@ -233,7 +219,6 @@ public static class RealisticAgeSystem
     // 过了保底照常按 Settle 定天年，也不是人人只活到保底
     private const int ScenarioMinYears = 10, ScenarioSpreadYears = 8;
 
-#if EC_PENDING
     public static void OnScenarioStart(Person actor)
     {
         if (!Enabled || actor?.Record == null || !actor.Alive || !actor.IsSapient() || actor.HasTrait("immortal")) return;
@@ -245,6 +230,7 @@ public static class RealisticAgeSystem
         data.royal_seen_at = EmpireWorld.Current?.Now() ?? 0d;
     }
 
+#if EC_PENDING
     private static void Anchor(Person actor, bool crowned)
     {
         var data = actor.GetOrCreate();
@@ -347,7 +333,6 @@ public static class RealisticAgeSystem
     // 有小人的普通模式原版自己查得到，不另掷。每年至多 NativeYearlyCap：旧档里早已活过寿命一大截的不在头一年成批老死
     private const float NativeYearlyCap = 0.35f;
 
-#if EC_PENDING
     public static bool NativeAgeDeathDue(Person actor)
     {
         if (Enabled || !OldAgeEnabled || actor?.Record == null || !actor.IsSapient() || actor.HasTrait("immortal")) return false;
@@ -355,7 +340,6 @@ public static class RealisticAgeSystem
         float lifespan = actor.Stats?["lifespan"] ?? 0f;
         return Math.Min(NativeYearlyCap, NativeDeathChance(actor.Age(), lifespan)) > EcRandom.value;
     }
-#endif
 
     #endregion
 

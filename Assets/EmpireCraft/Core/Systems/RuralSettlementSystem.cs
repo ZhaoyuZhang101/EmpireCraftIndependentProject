@@ -203,24 +203,20 @@ public static class RuralSettlementSystem
     private static readonly List<(long city, int settlement, int gateX, int gateY, float far)> Pending = new();
 
     // 固定城乡格局(世界法则)：村镇只听手动
-#if EC_PENDING
-    public static bool Fixed => EmpireCraftWorldLawLibrary.empirecraft_law_fixed_settlements?.isEnabled() == true;
-#endif
+    public static bool Fixed => WorldLaws.FixedSettlements?.IsEnabled() == true;
 
     // 这座城这会儿能不能新建村镇：固定城乡格局时不建；打仗时不建(地块在交战双方之间易手，丢了地的城数目一少就补，
     // 收回来又多出一份，用户 2026-10-17 "每次战线变化的时候就重复刷新消失和生成新的村镇")
-#if EC_PENDING
     public static bool MayGrow(City city) =>
         !Fixed && city?.Record != null && !city.IsGone() && (city.Realm == null || !city.Realm.HasEnemies()) &&
         !FrontSystem.Battles.ContainsKey(city.Key);
-#endif
 
     // 这座城这会儿能不能在城外新建村镇
 #if EC_PENDING
     public static bool MayFound(City city)
     {
         if (!MayGrow(city) || city.Realm == null || ModClass.IS_CLEAR ||
-            !WorldLawLibrary.world_law_kingdom_expansion.isEnabled() ||
+            !WorldLaws.KingdomExpansion.IsEnabled() ||
             AncientWarfareCompatibility.OwnsObject(city) || CityExpansionPatch.AtLimit(city))
             return false;
         return !LastFounded.TryGetValue(city.Key, out double last) || GameClock.YearsSince(last) >= FoundYears;
@@ -838,7 +834,7 @@ public static class RuralSettlementSystem
     public static RuralSettlement LeaveOldSeat(City city, Cell zone, bool walled)
     {
         if (city?.Record == null || city.IsGone() || zone?.Tiles == null || zone.City != city) return null;
-        int gx = zone.X * Config.CITY_ZONE_SIZE + 4, gy = zone.Y * Config.CITY_ZONE_SIZE + 4;
+        int gx = zone.X * Land.ZoneSize + 4, gy = zone.Y * Land.ZoneSize + 4;
         bool yurtCity = YurtCity(city);
         int tier = walled && !yurtCity ? 2 : 1;
         RuralSettlement kept = InZone(zone).Where(settlement => !settlement.fort)
@@ -902,7 +898,6 @@ public static class RuralSettlementSystem
     public static bool Sparing;
 
     // 敌军占下一块地(CityExtension.AddOccupiedTileZone)
-#if EC_PENDING
     public static void OnZoneOccupied(City city, Realm occupier, Cell zone)
     {
         if (Sparing || Fixed || All.Count == 0 || city?.Realm == null || occupier == null || occupier == city.Realm) return;
@@ -923,7 +918,6 @@ public static class RuralSettlementSystem
             Revision++;
         }
     }
-#endif
 
     // 每月：在原址重建(见 PureMapPatch.RefreshUrbanSlice)；新建村镇的划地每次都办
 #if EC_PENDING

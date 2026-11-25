@@ -20,9 +20,7 @@ public static partial class FrontSystem
     private const float SmoothZonesPerMonth = 2f, SecondsPerMonth = 5f;
     private const int PaintSteps = 24;
 
-#if EC_PENDING
     public static bool SmoothActive => SmoothBorders.Enabled && CorpsSystem.Enabled;
-#endif
 
     private sealed class Push
     {
@@ -330,10 +328,10 @@ public static partial class FrontSystem
         }
         if (push.Max - push.Min < 0.01f) push.Max = push.Min + 1f;
     }
+#endif
 
     private static Vector2 ZoneCenter(Cell zone) =>
-        new((zone.X + 0.5f) * Config.CITY_ZONE_SIZE, (zone.Y + 0.5f) * Config.CITY_ZONE_SIZE);
-#endif
+        new((zone.X + 0.5f) * Land.ZoneSize, (zone.Y + 0.5f) * Land.ZoneSize);
 
     #endregion
 

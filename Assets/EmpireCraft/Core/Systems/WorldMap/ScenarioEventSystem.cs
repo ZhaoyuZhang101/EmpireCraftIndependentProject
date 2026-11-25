@@ -750,7 +750,6 @@ public static class ScenarioEventSystem
 #endif
 
     // 一国(帝国连同成员)现有几城，顺手记下见过的最多城数
-#if EC_PENDING
     private static int RealmCities(Realm kingdom)
     {
         Empire empire = kingdom.GetEmpire();
@@ -759,7 +758,6 @@ public static class ScenarioEventSystem
         if (cities > data.peak_realm_cities) data.peak_realm_cities = cities;
         return cities;
     }
-#endif
 
     // 走投无路(见 ScenarioPlotRules.Desperate)：正和入侵者交战、兵力差两倍以上，入侵者已打到南方(占同族之城一半)或自己丢了一半的城。
     // 也给南明来投用(见 SouthernRetreatSystem)
@@ -775,7 +773,6 @@ public static class ScenarioEventSystem
 #endif
 
     // 每年记下剧本各国见过的最多城数(顺、西打下北方以后再丢一半，才算被逼得没退路)
-#if EC_PENDING
     private static void NotePeaks()
     {
         foreach (long id in _state.realms.Values.Distinct().ToList())
@@ -784,7 +781,6 @@ public static class ScenarioEventSystem
             if (kingdom?.Record != null && !kingdom.IsGone()) RealmCities(kingdom);
         }
     }
-#endif
 
     // 起兵的领头人还在世、还领着这个国(李自成、张献忠)：不会奉表归附。大顺余部、大西军都是领头人死后才联明抗清
     // (用户 2026-11-10 "清军才拿下北京而已, 顺就投了?")；号召归附、南明来投都看它
@@ -964,7 +960,7 @@ public static class ScenarioEventSystem
             if (home != null && cities.Contains(home) && home.Leader == null)
             {
                 home.GetOffice()?.SetActor(person);
-                if (home.Leader != person) home.setLeader(person, true);
+                if (home.Leader != person) home.SetLeader(person, true);
             }
             BiographySystem.Note(person, string.Format(LM.Get("scenario_cede_bio"), to.GetKingdomName()), origin.Ruler);
         }
@@ -1008,7 +1004,7 @@ public static class ScenarioEventSystem
             actor.GetOffice()?.RemoveActor();
             actor.EndOffice();
         }
-        if (actor.IsCityLeader() && actor.City != null) actor.City.removeLeader();
+        if (actor.IsCityLeader() && actor.City != null) actor.City.RemoveLeader();
     }
 #endif
 

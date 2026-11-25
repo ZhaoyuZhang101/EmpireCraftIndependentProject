@@ -333,8 +333,8 @@ public static class DecisionSystem
 #if EC_PENDING
     private static void RefreshLaws()
     {
-        bool diplomacy = WorldLawLibrary.world_law_diplomacy?.isEnabled() != false;
-        bool rebellion = WorldLawLibrary.world_law_rebellions?.isEnabled() != false;
+        bool diplomacy = WorldLaws.Diplomacy?.IsEnabled() != false;
+        bool rebellion = WorldLaws.Rebellions?.IsEnabled() != false;
         foreach (DecisionScale.DefInfo info in DefInfos)
         {
             PlotAsset def = Initiable[info.index];
@@ -370,7 +370,7 @@ public static class DecisionSystem
                 if (!NextConsider.TryGetValue(id, out double due))
                 {
                     // 头一回见到：错开到往后一段里的某个时候，免得读档后大家同一个月一齐想
-                    NextConsider[id] = due = now + Randy.randomFloat(0f, (float)interval);
+                    NextConsider[id] = due = now + EcRandom.Range(0f, (float)interval);
                 }
                 if (due >= now + month) continue;
                 NextConsider[id] = Math.Max(due, now) + interval;
@@ -745,7 +745,7 @@ public static class DecisionSystem
             Track(new DecisionCase
             {
                 plot = plot.data.id, def = def.id, initiator = author.Key, started = now,
-                next = now + Randy.randomFloat(0f, GameClock.MonthLength),
+                next = now + EcRandom.Range(0f, GameClock.MonthLength),
                 effort = Math.Max(MinEffort, def.progress_needed), progress = Math.Max(0f, plot.data.progress_current)
             });
         }
@@ -801,7 +801,7 @@ public static class DecisionSystem
             }
             kept++;
             double now = GameClock.Now;
-            if (item.next < now || item.next > now + GameClock.MonthLength) item.next = now + Randy.randomFloat(0f, GameClock.MonthLength);
+            if (item.next < now || item.next > now + GameClock.MonthLength) item.next = now + EcRandom.Range(0f, GameClock.MonthLength);
             Track(item);
             Show(item, plot, now);
         }

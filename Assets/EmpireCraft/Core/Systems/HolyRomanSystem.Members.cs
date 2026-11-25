@@ -222,7 +222,6 @@ public static partial class HolyRomanSystem
     // 封不出主教领的缘由(年度诊断也用)，能封时为 null。以前要中央五城以上——选帝制下中央就是当选者的自家领国，
     // 多半一到三城，从来封不出(玩家日志 0 次)。现在中央三城以上(封后还剩两城)、帝国合计六城以上即可；
     // 每四家成员至多一家主教领(至少一家、至多三家)
-#if EC_PENDING
     public static string ChurchBlocker(Empire empire)
     {
         Realm core = empire.CoreKingdom;
@@ -236,6 +235,7 @@ public static partial class HolyRomanSystem
         return ChurchCandidate(empire) == null ? "中央没有可封的非都城" : null;
     }
 
+#if EC_PENDING
     public static Realm ActEndowChurch(Empire empire)
     {
         City city = HasDiet(empire) && empire.CoreKingdom.Cities.Count >= 2 ? ChurchCandidate(empire) : null;

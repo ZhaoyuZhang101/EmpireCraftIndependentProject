@@ -269,16 +269,12 @@ public static class CultureReformSystem
     }
 
     // 这一支有族人在 scope 之外的国家(别国的君主、官员、百姓)
-#if EC_PENDING
     private static bool Spans(SpecificClan clan, HashSet<Realm> scope) =>
         clan.LivingPeople.Any(person => KingdomOf(person) is Realm where && !scope.Contains(where));
-#endif
 
     // 这一支有族人在 scope 里的国家
-#if EC_PENDING
     private static bool Touches(SpecificClan clan, HashSet<Realm> scope) =>
         clan.LivingPeople.Any(person => KingdomOf(person) is Realm where && scope.Contains(where));
-#endif
 
     private static SpecificClan Root(SpecificClan clan)
     {

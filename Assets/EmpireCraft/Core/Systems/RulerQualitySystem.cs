@@ -35,7 +35,6 @@ public static class RulerQualitySystem
     private static readonly string[] Bad = { Weak, Fatuous, Dissolute, Tyrant };
     private const float PalaceSpending = 0.15f;
 
-#if EC_PENDING
     public static Grade Of(Person ruler)
     {
         if (ruler?.Record == null) return Grade.Average;
@@ -47,19 +46,14 @@ public static class RulerQualitySystem
         if (ruler.HasTrait(Wise)) return Grade.Wise;
         return Grade.Average;
     }
-#endif
 
     public static bool IsBad(Person ruler) => ruler?.Record != null && Bad.Any(ruler.HasTrait);
 
     // 怠政：昏聩(不理朝政)
-#if EC_PENDING
     public static bool Neglects(Person ruler) => Of(ruler) == Grade.Fatuous;
-#endif
 
     // 不整顿吏治：昏聩、荒淫
-#if EC_PENDING
     public static bool Indulgent(Person ruler) => Of(ruler) is Grade.Fatuous or Grade.Dissolute;
-#endif
 
     private static string TraitOf(Grade grade) => grade switch
     {
@@ -153,7 +147,6 @@ public static class RulerQualitySystem
 
     #region 效果
 
-#if EC_PENDING
     public static double CorruptionDelta(Person ruler) => Of(ruler) switch
     {
         Grade.Wise => -0.03d,
@@ -163,10 +156,8 @@ public static class RulerQualitySystem
         Grade.Tyrant => 0.015d,
         _ => 0d
     };
-#endif
 
     // 正统里"君主在位"一项
-#if EC_PENDING
     public static (string key, int value) LegitimacyItem(Person ruler) => Of(ruler) switch
     {
         Grade.Minor => ("mandate_ruler_minor", 3),
@@ -179,7 +170,6 @@ public static class RulerQualitySystem
     };
 
     public static float StrainDelta(Person ruler) => StrainDelta(Of(ruler));
-#endif
 
     public static float StrainDelta(Grade grade) => grade switch
     {
@@ -192,23 +182,18 @@ public static class RulerQualitySystem
     };
 
     // 苛政：暴虐之君
-#if EC_PENDING
     public static float TyrannyBurden(Person ruler) => Of(ruler) == Grade.Tyrant ? 15f : 0f;
-#endif
 
     // 权臣(与外戚)控制度每月多涨
-#if EC_PENDING
     public static int MinisterBonus(Person ruler) => Of(ruler) switch
     {
         Grade.Weak or Grade.Fatuous => 2,
         Grade.Dissolute => 1,
         _ => 0
     };
-#endif
 
     // 帝国主动谋划开战的意愿(每年有多大可能动这个念头)：开国雄主、中兴雄主、明君、暴君不打折，中主七成，庸弱四成，
     // 昏聩、荒淫、幼主两成。问鼎天下的统一战争、朝堂奏议不走这里(奏议看 Stance)
-#if EC_PENDING
     private static float WarWill(Person ruler)
     {
         if (ruler.HasTrait(RulerTraitSystem.Founder) || ruler.HasTrait(RulerTraitSystem.GreatRestorer)) return 1f;
@@ -220,10 +205,8 @@ public static class RulerQualitySystem
             _ => 0.2f
         };
     }
-#endif
 
     // 同一位君主同一年结果一样：开战谋划一年要查很多次，每次掷机会等于没有门槛
-#if EC_PENDING
     public static bool WillsWarThisYear(Person ruler)
     {
         if (ruler?.Record == null) return true;
@@ -235,10 +218,8 @@ public static class RulerQualitySystem
         mix ^= mix >> 32;
         return (mix & 0xFFFF) / 65536f < will;
     }
-#endif
 
     // 皇帝本人对议题的立场：荒淫、暴虐之君偏好加税，不肯赈济、整顿吏治；暴君好战，昏聩荒淫不愿对外用兵
-#if EC_PENDING
     public static float Stance(Person ruler, TemporaryFactionType issue)
     {
         Grade grade = Of(ruler);
@@ -253,10 +234,8 @@ public static class RulerQualitySystem
             _ => 0f
         };
     }
-#endif
 
     // 每年(ConstitutionalEconomySystem 年度结算)：荒淫之君的宫廷开支
-#if EC_PENDING
     public static void Yearly(Empire empire)
     {
         Realm core = empire?.CoreKingdom;
@@ -265,7 +244,6 @@ public static class RulerQualitySystem
         int cost = (int)Math.Min(Math.Max(0L, core.GetMoney()), (long)(StateDebtSystem.AnnualStableIncome(core) * PalaceSpending));
         if (cost > 0) core.SubMoney(cost, TreasuryCategory.Palace);
     }
-#endif
 
     #endregion
 }

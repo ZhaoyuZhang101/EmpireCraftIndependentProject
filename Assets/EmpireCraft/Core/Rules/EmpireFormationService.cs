@@ -80,7 +80,7 @@ public static class EmpireFormationService
         if (ModernStateFormationSystem.TryClaimSeatTitle(kingdom)) return true;
         // 首府根本未立过法理时，达到通常称帝规模的国家可先立首府头衔，再照常筹备；不覆盖既有法理。
         if (kingdom.Capital.hasTitle() || Population(kingdom) < MinimumPopulation || kingdom.Cities.Count < MinimumCities ||
-            ModClass.KINGDOM_TITLE_MANAGER == null || EmpireCraftWorldLawLibrary.empirecraft_law_ban_empire.isEnabled()) return false;
+            ModClass.KINGDOM_TITLE_MANAGER == null || WorldLaws.BanEmpire.IsEnabled()) return false;
         KingdomTitle title = ModClass.KINGDOM_TITLE_MANAGER.newKingdomTitle(kingdom.Capital);
         if (title == null) return false;
         title.owner = kingdom.Ruler;
@@ -495,7 +495,7 @@ public static class EmpireFormationService
         if (AncientWarfareCompatibility.BlocksEmpireFormation(kingdom)) return "古战兼容不许称帝";
         if (ZhouEraSystem.IsDetachedVassal(kingdom)) return "战国周诸侯(只称王)";
         if (TribalFissionService.IsTribal(kingdom)) return "原始政体的部落(只能打赢收部结成部落联盟)";
-        if (EmpireCraftWorldLawLibrary.empirecraft_law_ban_empire.isEnabled()) return "世界法则禁止称帝";
+        if (WorldLaws.BanEmpire.IsEnabled()) return "世界法则禁止称帝";
         if (!HasImperialRule(kingdom))
             return string.Format(LM.Get("empire_need_imperial_institution"),
                 InstitutionSystem.GetNodeName(ImperialNode(CultureService.GetInstitutionCulture(kingdom))));
@@ -556,7 +556,7 @@ public static class EmpireFormationService
         // (见 TribalFissionService.Incorporate)。以前每个部落本来就是帝国，碰不到这里；如今是一城的国，
         // 本文化百年无帝国时(见下 overdue)一城的部落也够得上称帝
         if (TribalFissionService.IsTribal(kingdom)) return false;
-        if (EmpireCraftWorldLawLibrary.empirecraft_law_ban_empire.isEnabled()) return false;
+        if (WorldLaws.BanEmpire.IsEnabled()) return false;
         // 称帝要先推行本文明的称帝制度(见 HasImperialRule)
         if (!HasImperialRule(kingdom)) return false;
         if (requireNonNegativeTreasury && kingdom.GetMoney() < 0) return false;

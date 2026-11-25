@@ -126,6 +126,15 @@ public static class Program
                         edits.Add(new TextChange(method.Identifier.Span, overridden));
                     continue;
                 }
+                // After a merged chain the left of `??` may be a plain number: x.units?.Count ?? 0 -> x.PopulationCount() ?? 0.
+                // A value that cannot be null needs no fallback; drop it.
+                if (node is BinaryExpressionSyntax coalesce && coalesce.IsKind(SyntaxKind.CoalesceExpression))
+                {
+                    var left = model.GetTypeInfo(coalesce.Left).Type;
+                    if (left != null && left.IsValueType && left.TypeKind != TypeKind.Error && left.OriginalDefinition.SpecialType != SpecialType.System_Nullable_T)
+                        edits.Add(new TextChange(TextSpan.FromBounds(coalesce.Left.Span.End, coalesce.Right.Span.End), ""));
+                    continue;
+                }
                 if (!Unresolved(model, node, out string owner, out var member, out var receiverType)) continue;
                 string name = member.Identifier.Text;
                 // A chain of two collapsed into one member: x.data.color_id -> x.ColorId.

@@ -514,14 +514,12 @@ public static class WildernessSystem
 #endif
 
     // 世界加载完、不在建图开局里(还地、补记都只在这时做)
-#if EC_PENDING
     private static bool InWorld()
     {
         EmpireWorld world = EmpireWorld.Current;
-        return world?.Zones?.All != null && world.Cities != null && GameClock.Running && !SmoothLoader.isLoading() &&
+        return world?.Zones?.All != null && world.Cities != null && GameClock.Running && !GameClock.Loading &&
                !ModClass.IS_CLEAR && !WorldMapGenerator.Generating && !WorldMapScenario.AfterLoadPending;
     }
-#endif
 
     // 眼下的无人区里记着划出来源的地块
     private static List<(Cell zone, City city)> CarvedBack()
@@ -774,7 +772,6 @@ public static class WildernessSystem
     // 法则开着读档、中途打开法则各还一次；关掉法则不动(下次划区照常按地形划走)。永久中立的、那座城没了的、地块已归了别的城的不还
     private static bool _claimsLocked;
 
-#if EC_PENDING
     private static bool RestoreClaimsDue()
     {
         bool locked = CityTerritoryProtection.BordersFixed && WorldMapWilderness.HasCityClaims;
@@ -783,6 +780,7 @@ public static class WildernessSystem
         return locked;
     }
 
+#if EC_PENDING
     private static int RestoreClaims()
     {
         var touched = new HashSet<City>();
@@ -824,7 +822,7 @@ public static class WildernessSystem
             return;
         }
         EmpireWorld world = EmpireWorld.Current;
-        if (world?.Zones?.All == null || world.Cities == null || !GameClock.Running || SmoothLoader.isLoading() ||
+        if (world?.Zones?.All == null || world.Cities == null || !GameClock.Running || GameClock.Loading ||
             ModClass.IS_CLEAR || WorldMapGenerator.Generating || WorldMapScenario.AfterLoadPending) return;
         float now = Time.realtimeSinceStartup;
         if (now < _retryAt) return;
@@ -1787,7 +1785,7 @@ public static class WildernessSystem
         if (pending.Count == 0) return false;
         bool earth = WorldMapWilderness.OnEarth;
         List<(int x, int y, string culture)> seats = Seats(out string common);
-        float reach = earth ? float.MaxValue : NameReach * Config.CITY_ZONE_SIZE;
+        float reach = earth ? float.MaxValue : NameReach * Land.ZoneSize;
         bool changed = false;
         foreach (WildRegion region in pending)
         {

@@ -24,9 +24,7 @@ public static class StateDebtSystem
     private const int MinimumLoan = 10;
     private static double _lastScan = -1d;
 
-#if EC_PENDING
     private static bool Active => CityPopulationSystem.AbstractPopulationEnabled;
-#endif
 
     public static List<StateBond> Bonds(Realm kingdom) => kingdom?.Record == null ? null : kingdom.GetOrCreate().state_bonds;
 

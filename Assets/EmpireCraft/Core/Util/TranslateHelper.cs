@@ -166,7 +166,7 @@ namespace EmpireCraft.Core
 #if EC_PENDING
         public static void LogKingChooseHeir(Realm kingdom,string relation, Person pActor)
         {
-            if (kingdom != null && pActor != null && (kingdom.IsEmpire() || kingdom.countCities() >= 5))
+            if (kingdom != null && pActor != null && (kingdom.IsEmpire() || kingdom.CountCities() >= 5))
                 new WorldLogMessage(EmpireCraftWorldLogLibrary.king_choose_heir_log,
                     (kingdom.GetKingdomName() ?? "") + (kingdom.GetOffice()?.GetName() ?? ""),
                     relation,

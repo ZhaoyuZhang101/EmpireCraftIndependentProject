@@ -82,7 +82,7 @@ public static class MapWallSystem
     public static void Tick()
     {
         EmpireWorld world = EmpireWorld.Current;
-        if (world?.Zones == null || !GameClock.Running || SmoothLoader.isLoading()) return;
+        if (world?.Zones == null || !GameClock.Running || GameClock.Loading) return;
         if (!ReferenceEquals(_world, world))
         {
             _world = world;

@@ -41,7 +41,7 @@ public class EmpireCraftCityBehCheckJoinRebellion: GameAICityBase
         });
         if (target == null) return BehResult.Continue;
         var targetKingdom = target.Realm;
-        if (targetKingdom.countCities()>=targetKingdom.getMaxCities()*2) return BehResult.Continue;
+        if (targetKingdom.CountCities()>=targetKingdom.getMaxCities()*2) return BehResult.Continue;
         pCity.JoinRealm(target.Realm);
         return  BehResult.Continue;
     }

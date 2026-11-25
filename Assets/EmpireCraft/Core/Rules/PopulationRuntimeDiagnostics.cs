@@ -17,7 +17,7 @@ public static class PopulationRuntimeDiagnostics
     {
         // 性能诊断日志关着时不记(见 FrameProfiler.Enabled)
         if (!CityPopulationSystem.AbstractPopulationEnabled || !FrameProfiler.Enabled) { _active = false; return; }
-        if (EmpireWorld.Current?.Cities == null || !GameClock.Running || GameClock.Paused || SmoothLoader.isLoading()) return;
+        if (EmpireWorld.Current?.Cities == null || !GameClock.Running || GameClock.Paused || GameClock.Loading) return;
         bool started = !_active || !ReferenceEquals(_world, EmpireWorld.Current) || Time.unscaledTime < _at;
         if (started)
         {

@@ -109,11 +109,11 @@ public static class RulerTraitSystem
 #endif
 
     // 功绩称号不等于当前资质；幼主、荒淫昏暴之君不能靠旧称号继续获得治国加成。
-#if EC_PENDING
     public static bool HasActiveTrait(Person actor, string trait) =>
         actor?.Record != null && actor.Alive && !RealisticAgeSystem.IsMinor(actor) && !RulerQualitySystem.IsBad(actor) &&
         (trait == Restorer ? actor.HasTrait(Restorer) || actor.HasTrait(GreatRestorer) : actor.HasTrait(trait));
 
+#if EC_PENDING
     public static bool ReignedBy(Realm kingdom, string trait)
     {
         Empire empire = kingdom?.GetEmpire();

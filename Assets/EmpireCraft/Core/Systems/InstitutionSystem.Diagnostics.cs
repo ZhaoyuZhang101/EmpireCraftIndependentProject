@@ -150,7 +150,6 @@ public static partial class InstitutionSystem
     }
 
     // 前沿：前置已齐、本文化还没施行、也没被取代的本线节点(理念车道、要复合帝国的、互斥的、禁止近代化挡住的不算)
-#if EC_PENDING
     private static bool IsFrontierNode(string culture, CultureInstitutionState state, InstitutionNodeConfig node) =>
         node != null && InstitutionDefinitionRegistry.IsValid(node) && node.branch != IdeologyBranch &&
         !IdeologyInstitutionPaths.TryGetIdeology(node.branch, out _) && !node.requires_composite_empire &&
@@ -159,7 +158,6 @@ public static partial class InstitutionSystem
         InstitutionDefinitionRegistry.ArePrerequisitesMet(node, id => IsPrerequisiteHeld(state, id)) &&
         !node.exclusive_with.Any(state.enacted_node_ids.Contains) &&
         !TechnologySystem.ModernInstitutionBlocked(node);
-#endif
 
     // 每年每个文化一行(见 TryYearlyCultureDrift)，记过的数随即清零
 #if EC_PENDING

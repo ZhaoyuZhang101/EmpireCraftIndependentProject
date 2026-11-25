@@ -177,6 +177,7 @@ public static class PartialEnfeoffment
         }
         return result;
     }
+#endif
 
     public static bool IsEligiblePrince(Person actor, Empire empire)
     {
@@ -186,7 +187,6 @@ public static class PartialEnfeoffment
         if (actor.Key == (core.GetHeir()?.Key ?? -1L) || core.GetOrCreate()?.scripted_heirs?.Contains(actor.Key) == true) return false;
         return !actor.HasVirtualEnfeoff(empire) && actor.Realm?.GetEmpire() == empire;
     }
-#endif
 
     // 附庸王国的王：法理首府(没有就头一座城)的城主，其次城里的成年人；不要宗室、不要别国君主
 #if EC_PENDING
@@ -201,6 +201,7 @@ public static class PartialEnfeoffment
         if (seat.HasLeader() && Fit(seat.Leader)) return seat.Leader;
         return seat.getUnits()?.FirstOrDefault(Fit);
     }
+#endif
 
     private static Regime ClientRegime(string culture)
     {
@@ -209,7 +210,6 @@ public static class PartialEnfeoffment
             regime != null && ClientRegimeAllowed(type)) return regime;
         return RegimeManager.regimes.TryGetValue(RegimeType.Feudalism, out Regime feudal) ? feudal : null;
     }
-#endif
 
     // 边地：这片有城挨着帝国以外的国(无人区不算)
     private static bool Frontier(Empire empire, List<City> region) =>

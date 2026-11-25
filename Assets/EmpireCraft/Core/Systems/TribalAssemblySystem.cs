@@ -161,7 +161,7 @@ public static class TribalAssemblySystem
     {
         int money = Math.Max(0, tribe.GetMoney());
         if (money <= 0) return 0;
-        int households = CityPopulationSystem.AbstractPopulationEnabled ? CityPopulationSystem.Households(tribe) : tribe.PopulationCount() ?? 0;
+        int households = CityPopulationSystem.AbstractPopulationEnabled ? CityPopulationSystem.Households(tribe) : tribe.PopulationCount();
         int cap = Math.Max(TributeCap, households / 2);
         return Math.Min(money, Math.Min(cap, Math.Max(money / 10, TributeFloor)));
     }

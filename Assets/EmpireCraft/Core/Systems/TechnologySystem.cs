@@ -277,20 +277,16 @@ public static partial class TechnologySystem
     public static IEnumerable<TechMaterialConfig> Materials => Config.materials;
 
     // "禁止近代化"：不管科技树开没开，都锁死近代以后的技术、制度和兼容模组的现代内容
-#if EC_PENDING
     public static bool PremodernLocked =>
-        EmpireCraftWorldLawLibrary.empirecraft_law_premodern?.isEnabled() == true;
-#endif
+        WorldLaws.Premodern?.IsEnabled() == true;
 
     public static int PremodernMaxTier => Config.premodern_max_tier;
 
     // 卡口是否需要工作：科技树开着，或者禁止近代化开着
-#if EC_PENDING
     public static bool GatesActive => IsEnabled || PremodernLocked;
 
     public static bool IsBeyondPremodern(string techId) =>
         PremodernLocked && TryGetTech(techId, out TechNodeConfig tech) && tech.tier > PremodernMaxTier;
-#endif
 
     // 近代制度：政党政治、普选、废除君主制、各理念、机械化生产
     public static bool IsModernInstitution(InstitutionNodeConfig node) =>
@@ -299,11 +295,9 @@ public static partial class TechnologySystem
              pair.Key == "abolish_monarchy" || pair.Key.StartsWith("ideology:", StringComparison.Ordinal) ||
              pair.Key == InstitutionFeatures.UrbanProductionStage && pair.Value >= 3f));
 
-#if EC_PENDING
     public static bool IsEnabled =>
-        EmpireCraftWorldLawLibrary.empirecraft_law_tech_tree == null ||
-        EmpireCraftWorldLawLibrary.empirecraft_law_tech_tree.isEnabled();
-#endif
+        WorldLaws.TechTree == null ||
+        WorldLaws.TechTree.IsEnabled();
 
     #region 加载
 
@@ -530,14 +524,12 @@ public static partial class TechnologySystem
     }
 
     // 本文化是否已经在用科技树(读档后第一次结算前还没按现有装备补齐，这段时间不拦，免得把旧装备扒掉)
-#if EC_PENDING
     public static bool IsActiveFor(string culture) =>
         IsEnabled && CultureService.IsValidCulture(culture) &&
         _states.TryGetValue(culture, out CultureTechState state) && state.bootstrapped;
 
     public static bool CanUse(string culture, string techId) =>
         techId == null || !IsBeyondPremodern(techId) && (!IsActiveFor(culture) || HasTech(culture, techId));
-#endif
 
     // ---- 国家采纳 ----
     // 科技由文化发明(研究进度归文化)，但每个国家(在帝国里按帝国算)要自己采纳才算拥有：
@@ -839,10 +831,8 @@ public static partial class TechnologySystem
     private static TechCalendarSave _calendar;
     private static List<(int tier, int? opens)> _eraOpenings;
 
-#if EC_PENDING
     public static bool CalendarActive => _calendar != null && IsEnabled &&
-                                         EmpireCraftWorldLawLibrary.empirecraft_law_tech_calendar?.isEnabled() != false;
-#endif
+                                         WorldLaws.TechCalendar?.IsEnabled() != false;
 
     public static TechCalendarSave ExportCalendar() => _calendar;
 
@@ -863,17 +853,13 @@ public static partial class TechnologySystem
     public static int CalendarYear() => _calendar == null ? 0
         : TechCalendarRules.YearAfter(_calendar.year, GameClock.YearsSince(_calendar.started));
 
-#if EC_PENDING
     public static int CalendarMaxTier() => !CalendarActive ? TechCalendarRules.NoLimit
         : TechCalendarRules.MaxTier(CalendarYear(), _calendar.floor, EraOpenings());
-#endif
 
     // 年代未到的科技：穿越者自带的知识不受限；接触到的文化已经掌握的可以学过来，年代只拦自己发明
-#if EC_PENDING
     public static bool BeyondCalendar(string culture, TechNodeConfig tech) =>
         tech != null && tech.tier > CalendarMaxTier() && culture != TransmigrantSystem.Culture &&
         CountContactsKnowing(culture, tech.id) == 0;
-#endif
 
     // 这一档开放的年份(科技窗口写明)：往下数到第一个写了年份的时代
     public static int? CalendarOpenYear(int tier)
@@ -1278,7 +1264,6 @@ public static partial class TechnologySystem
     public static IEnumerable<InstitutionNodeConfig> InstitutionsRequiring(string techId) =>
         InstitutionDefinitionRegistry.All.Where(node => node.requires_techs != null && node.requires_techs.Contains(techId));
 
-#if EC_PENDING
     public static bool AreInstitutionTechsMet(string culture, InstitutionNodeConfig node, out List<string> missing)
     {
         missing = new List<string>();
@@ -1286,18 +1271,14 @@ public static partial class TechnologySystem
         missing = GetInstitutionRequiredTechs(node).Where(id => !HasTech(culture, id)).ToList();
         return missing.Count == 0;
     }
-#endif
 
     // 按特性(不经过具体节点)判断技术基础是否具备，比如外来理念能否在本文化落地
-#if EC_PENDING
     public static bool AreFeatureTechsMet(string culture, string feature, float value = 1f) =>
         !IsActiveFor(culture) || Config.institution_links
             .Where(link => link.feature == feature && value >= link.min_value)
             .SelectMany(link => link.requires_techs).All(id => HasTech(culture, id));
-#endif
 
     // 已掌握的技术对这个制度的推动力(改革进度倍率 - 1)
-#if EC_PENDING
     public static float GetInstitutionPush(string culture, InstitutionNodeConfig node)
     {
         if (!IsEnabled || !CultureService.IsValidCulture(culture)) return 0f;
@@ -1307,7 +1288,6 @@ public static partial class TechnologySystem
             if (HasTech(culture, driver.Key)) push += driver.Value;
         return push + LandmarkBookSystem.GetInstitutionPush(node, GetState(culture));
     }
-#endif
 
     // 某项技术会推动/解锁哪些制度特性(科技窗口里显示)
     public static IEnumerable<(TechInstitutionLink link, bool gate, float push)> GetInstitutionEffects(string techId)
@@ -1335,7 +1315,6 @@ public static partial class TechnologySystem
     }
 
     // 制度节点提示里的一行："技术基础：✔印刷术 ✘工业化 · 技术推动 +30%"；跟技术无关的节点返回 null
-#if EC_PENDING
     public static string DescribeInstitutionTechLine(string culture, InstitutionNodeConfig node)
     {
         if (!IsEnabled || node == null) return null;
@@ -1353,15 +1332,16 @@ public static partial class TechnologySystem
     public static bool CanCapitalistBud(string culture) =>
         !IsActiveFor(culture) || Config.industry.capitalist_budding_techs.All(id => HasTech(culture, id));
 
+#if EC_PENDING
     public static bool IsFactory(BuildingAsset asset) =>
         asset != null && Config.industry.factory_types.Contains(asset.type);
+#endif
 
     public static float GetEmploymentCapBonus(string culture)
     {
         if (!IsEnabled || !CultureService.IsValidCulture(culture)) return 0f;
         return Config.industry.employment_cap_bonus.Where(pair => HasTech(culture, pair.Key)).Sum(pair => pair.Value);
     }
-#endif
 
     #endregion
 

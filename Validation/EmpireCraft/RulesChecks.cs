@@ -270,6 +270,58 @@ public static class RulesChecks
         Console.WriteLine("PASS population and beliefs (" + checks + " checks)");
     }
 
+    // Small things the entry points of the ported systems ask the host: world laws, the loading flag, chance.
+    public static void HostSwitches()
+    {
+        checks = 0;
+        WorldLaws.Reset();
+        Check(WorldLaws.All.Count >= 30 && WorldLaws.Get("ban_empire") == WorldLaws.BanEmpire && WorldLaws.Get("nonsense") == null && WorldLaws.All.Select(l => l.Id).Distinct().Count() == WorldLaws.All.Count, "world laws are found by id, each once");
+        Check(WorldLaws.Rebellions.IsEnabled() && WorldLaws.Diplomacy.IsEnabled() && WorldLaws.CivArmy.IsEnabled() && !WorldLaws.BanEmpire.IsEnabled() && !WorldLaws.BanAiWar.IsEnabled(), "the defaults: the world plays, nothing is banned");
+        WorldLaws.BanEmpire.Toggle(true); bool on = WorldLaws.BanEmpire.IsEnabled(); WorldLaws.Reset();
+        Check(on && !WorldLaws.BanEmpire.IsEnabled() && WorldLaws.All.All(l => l.Enabled == l.Default), "a law is switched and reset");
+        Check(!GameClock.Loading, "no world is loading");
+        EcRandom.Seed(42, 1); int hits = 0; for (int i = 0; i < 4000; i++) if (EcRandom.Chance(0.25f)) hits++;
+        Check(hits > 850 && hits < 1150 && !EcRandom.Chance(0f) && EcRandom.Chance(1f), "chance follows its probability");
+        Check(Near(EcMath.Sin(EcMath.PI / 2f), 1.0, 1e-5) && Near(EcMath.Cos(0f), 1.0) && Near(EcMath.Log10(1000f), 3.0, 1e-5) && Near(EcMath.Atan2(1f, 1f) * EcMath.Rad2Deg, 45.0, 1e-4), "the maths the ported code asks for");
+        var map = FlatGenerator.Generate(256, 128, "EMPIRE-HOST", TerrainPreset.Continents, default);
+        var w = Start(map); w.Activate();
+        var realm = w.LiveRealms[0]; var capital = realm.Capital;
+        Check(realm.CountCities() == realm.Cities.Count && realm.HasCities() && realm.CountZones() == realm.Cities.Sum(c => c.Tiles.Count) && capital.CountZones() == capital.Tiles.Count && Land.ZoneSize == 1, "a realm counts its cities and cells");
+        capital.SetLeader(realm.Ruler); bool led = capital.HasLeader() && realm.Ruler.IsCityLeader(); capital.RemoveLeader();
+        Check(led && !capital.HasLeader() && !realm.Ruler.IsCityLeader(), "a city's leader is set and removed");
+        EmpireWorld.Current = null;
+        Console.WriteLine("PASS host switches (" + checks + " checks)");
+    }
+
+    // The first yearly entry point of a ported system that compiles whole: a dissolute ruler's palace
+    // spends part of the realm's yearly income. Run here by hand on the mod's own books; the
+    // simulation does not call it yet (nothing forms empires or grades rulers).
+    public static void FirstEntry()
+    {
+        checks = 0;
+        var map = FlatGenerator.Generate(256, 128, "EMPIRE-ENTRY", TerrainPreset.Continents, default);
+        var w = Start(map); w.Activate();
+        var realm = w.LiveRealms[0]; var ruler = realm.Ruler;
+        var empire = w.Empires.NewObject(); empire.CoreKingdom = realm;
+        Check(empire.Emperor == ruler && w.Empires.Get(empire.Key) == empire, "an empire on record with its core realm and emperor");
+        for (int month = 0; month < 12; month++) { EmpireSimulation.Month(w); realm.AddMoney(1000, TreasuryCategory.LandTax); }
+        long income = StateDebtSystem.AnnualStableIncome(realm); int before = realm.GetMoney();
+        Check(before == 12000 && income > 0, "a year of land tax on the realm's own books");
+        Check(RulerQualitySystem.Of(ruler) == RulerQualitySystem.Grade.Average, "an ungraded ruler is average");
+        RulerQualitySystem.Yearly(empire);
+        Check(realm.GetMoney() == before, "an average ruler's palace costs nothing extra");
+        ruler.AddTrait("dissoluteRuler");
+        Check(RulerQualitySystem.Of(ruler) == RulerQualitySystem.Grade.Dissolute && RulerQualitySystem.IsBad(ruler) && RulerQualitySystem.Indulgent(ruler), "a trait makes the grade");
+        RulerQualitySystem.Yearly(empire);
+        int cost = before - realm.GetMoney();
+        Check(cost > 0 && cost == (int)Math.Min(before, (long)(income * 0.15f)), "a dissolute ruler's palace spends 15% of the yearly income");
+        var report = TreasurySystem.Report(realm);
+        Check(report != null && report.months > 0, "the spending is on the books");
+        ReignRecordSystem.OnYear(empire);
+        EmpireWorld.Current = null;
+        Console.WriteLine("PASS first live entry (" + checks + " checks): income " + income + ", palace " + cost);
+    }
+
     // The grid as the ported systems see it: cells, terrain, a city's territory and neighbours.
     public static void Grid()
     {

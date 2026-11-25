@@ -383,7 +383,7 @@ public static partial class ShuiTuSystem
 #if EC_PENDING
     public static void Tick()
     {
-        if (EmpireWorld.Current?.LiveRealms == null || ModClass.IS_CLEAR || !GameClock.Running || SmoothLoader.isLoading()) return;
+        if (EmpireWorld.Current?.LiveRealms == null || ModClass.IS_CLEAR || !GameClock.Running || GameClock.Loading) return;
         if (!SimulationFrameBudget.HasTime) return;
         if (Pending.Count == 0) Refill();
         if (Pending.Count == 0) return;
@@ -416,7 +416,7 @@ public static partial class ShuiTuSystem
         {
             Realm kingdom = list[_cursor];
             _cursor = (_cursor + 1) % list.Count;
-            if (Valid(kingdom) && kingdom.hasCities() && UnitOf(kingdom) == kingdom && Due(kingdom)) Pending.Enqueue(kingdom.Key);
+            if (Valid(kingdom) && kingdom.HasCities() && UnitOf(kingdom) == kingdom && Due(kingdom)) Pending.Enqueue(kingdom.Key);
         }
     }
 #endif

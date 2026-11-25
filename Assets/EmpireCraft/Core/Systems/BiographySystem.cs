@@ -117,10 +117,10 @@ public static class BiographySystem
     {
         if (victim?.Record == null || victim.IsGone() || !victim.Alive) return;
         // 穿越政权的元老几乎杀不死(见 TransmigrantSystem.Shield)：挡下的不登记死因
-        if (TransmigrantSystem.Shield(victim, AttackType.Other, countDeath)) return;
+        if (TransmigrantSystem.Shield(victim, DeathCause.Other, countDeath)) return;
         if (EmpireCraft.Core.ScenarioEventSystem.Shield(victim, countDeath)) return;
         NoteDeath(victim, causeText, killer, executed);
-        victim.die(destroy, AttackType.Other, countDeath, countDeath);
+        victim.die(destroy, DeathCause.Other, countDeath, countDeath);
     }
 #endif
 
@@ -129,7 +129,7 @@ public static class BiographySystem
 
     // 写进生平的死因(ActorPatch.Die)：先看登记的，没有就按原版死因与最后的攻击者
 #if EC_PENDING
-    public static string DeathText(Person actor, AttackType type, out Person killer)
+    public static string DeathText(Person actor, DeathCause type, out Person killer)
     {
         killer = null;
         int age = actor?.Record == null ? 0 : Math.Max(0, (int)Math.Round((double)actor.Age()));
@@ -141,21 +141,21 @@ public static class BiographySystem
         }
         string place = Place(actor);
         if (actor?.attackedBy is BaseSimObject by && !by.IsGone() && by.isActor() && by.a != actor &&
-            type is AttackType.Weapon or AttackType.Explosion or AttackType.Fire or AttackType.Poison)
+            type is DeathCause.Weapon or DeathCause.Explosion or DeathCause.Fire or DeathCause.Poison)
         {
             killer = by.a;
             return string.Format(LM.Get("death_killed"), place, Who(killer), age);
         }
         string key = type switch
         {
-            AttackType.Age => "death_age",
-            AttackType.Weapon or AttackType.Explosion => "death_battle",
-            AttackType.Plague or AttackType.Infection or AttackType.Tumor or AttackType.AshFever => "death_illness",
-            AttackType.Starvation => "death_starved",
-            AttackType.Poison => "death_poison",
-            AttackType.Fire or AttackType.Acid => "death_fire",
-            AttackType.Drowning or AttackType.Water => "death_drowned",
-            AttackType.Eaten => "death_eaten",
+            DeathCause.Age => "death_age",
+            DeathCause.Weapon or DeathCause.Explosion => "death_battle",
+            DeathCause.Plague or DeathCause.Infection or DeathCause.Tumor or DeathCause.AshFever => "death_illness",
+            DeathCause.Starvation => "death_starved",
+            DeathCause.Poison => "death_poison",
+            DeathCause.Fire or DeathCause.Acid => "death_fire",
+            DeathCause.Drowning or DeathCause.Water => "death_drowned",
+            DeathCause.Eaten => "death_eaten",
             _ => "death_other"
         };
         return string.Format(LM.Get(key), place, age);

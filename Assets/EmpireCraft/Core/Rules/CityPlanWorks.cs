@@ -535,7 +535,7 @@ public static class CityPlanWorks
     {
         PureMapPatch.PlanFacts facts = PureMapPatch.FactsOf(city);
         HashSet<int> built = PureMapPatch.BuiltZones(city);
-        int size = Config.CITY_ZONE_SIZE;
+        int size = Land.ZoneSize;
         int minX = int.MaxValue, minY = int.MaxValue, maxX = int.MinValue, maxY = int.MinValue;
         foreach (Cell zone in city.Zones)
         {

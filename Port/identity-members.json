@@ -244,5 +244,15 @@
   "Person.hasReligion": "HasReligion",
   "Person.hasCulture": "HasCulture",
   "Person.setReligion": "SetReligion",
-  "Person.setCulture": "SetCulture"
+  "Person.setCulture": "SetCulture",
+  "WorldLaw.isEnabled": "IsEnabled",
+  "WorldLaw.toggle": "Toggle",
+  "WorldLaw.id": "Id",
+  "WorldLaw.default_state": "Default",
+  "Realm.countCities": "CountCities",
+  "Realm.hasCities": "HasCities",
+  "Realm.countZones": "CountZones",
+  "City.countZones": "CountZones",
+  "City.setLeader": "SetLeader",
+  "City.removeLeader": "RemoveLeader"
 }

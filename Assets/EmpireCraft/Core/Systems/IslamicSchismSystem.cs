@@ -1090,14 +1090,12 @@ public static class IslamicSchismSystem
     #region 内部
 
     // 一国的城数(帝国中央按全境)
-#if EC_PENDING
     private static int Cities(Realm realm)
     {
         if (!Alive(realm)) return 0;
         Empire empire = realm.GetEmpire();
         return empire != null && empire.CoreKingdom == realm ? empire.countCities() : realm.Cities.Count;
     }
-#endif
 
     // 一国治下的城(帝国中央按全体成员)
     private static IEnumerable<City> RealmCities(Realm realm)

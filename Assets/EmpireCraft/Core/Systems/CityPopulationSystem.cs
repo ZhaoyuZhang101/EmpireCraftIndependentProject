@@ -405,7 +405,6 @@ public static class CityPopulationSystem
 #endif
 
     // 按背景人口加权抽一座本国城市(兵源从哪座城出、退伍回哪座城)
-#if EC_PENDING
     public static City DrawKingdomCity(Realm kingdom, Func<City, bool> filter = null)
     {
         if (kingdom?.Cities == null) return null;
@@ -423,7 +422,6 @@ public static class CityPopulationSystem
         }
         return chosen;
     }
-#endif
 
     #endregion
 
@@ -521,10 +519,8 @@ public static class CityPopulationSystem
     private static bool? _populationMode;
 
     // 无小人模式开关(世界法则)。关闭时背景人口始终为 0，数据层只是实体单位的统计镜像
-#if EC_PENDING
     public static bool AbstractPopulationEnabled =>
-        EmpireCraft.Core.EmpireCraftWorldLawLibrary.empirecraft_law_no_commoners?.isEnabled() == true;
-#endif
+        EmpireCraft.Core.WorldLaws.NoCommoners?.IsEnabled() == true;
 
     // 最近一次年度结算的统计，用于日志和性能验证
     public static int LastPassCities { get; private set; }
@@ -587,7 +583,7 @@ public static class CityPopulationSystem
     public static void Tick()
     {
         EmpireWorld world = EmpireWorld.Current;
-        if (world?.Cities == null || !GameClock.Running || GameClock.Paused || SmoothLoader.isLoading()) return;
+        if (world?.Cities == null || !GameClock.Running || GameClock.Paused || GameClock.Loading) return;
         if (!ReferenceEquals(_world, world)) ResetWorldState();
 
         double now = world.Now();
@@ -703,7 +699,6 @@ public static class CityPopulationSystem
     private const int MaxHomelessFoldsPerYear = 400;
     private static int _homelessRemaining, _homelessCursor, _homelessFolded;
 
-#if EC_PENDING
     private static void FoldHomeless()
     {
         if (!AbstractPopulationEnabled || EmpireWorld.Current?.Living == null) return;
@@ -713,6 +708,7 @@ public static class CityPopulationSystem
         _homelessFolded = 0;
     }
 
+#if EC_PENDING
     private static void TickHomeless()
     {
         if (!AbstractPopulationEnabled || _homelessRemaining <= 0 || EmpireWorld.Current?.Living == null) return;
@@ -1436,7 +1432,7 @@ public static class CityPopulationSystem
     public static void TickFoldsOnly()
     {
         EmpireWorld world = EmpireWorld.Current;
-        if (world?.Cities == null || !GameClock.Running || GameClock.Paused || SmoothLoader.isLoading() ||
+        if (world?.Cities == null || !GameClock.Running || GameClock.Paused || GameClock.Loading ||
             !ReferenceEquals(_world, world) || !AbstractPopulationEnabled) return;
         TickFolds(world, world.Now());
     }
@@ -1831,12 +1827,12 @@ public static class CityPopulationSystem
 
         long tClassify = Stopwatch.GetTimestamp();
         // 城主由士兵兼任(城里只剩征召兵时原版会这样选)：卸任城主，另行补位，士兵留在军中
-        if (city.Leader != null && !city.Leader.IsGone() && IsSoldier(city.Leader)) city.removeLeader();
+        if (city.Leader != null && !city.Leader.IsGone() && IsSoldier(city.Leader)) city.RemoveLeader();
         // 城主空缺：从人口中当场生成一人出任(总人口不变)
         if (city.Leader == null || city.Leader.IsGone() || !city.Leader.Alive)
         {
             Person leader = SpawnOfficial(city);
-            if (leader != null) city.setLeader(leader, true);
+            if (leader != null) city.SetLeader(leader, true);
         }
 
         long tLeader = Stopwatch.GetTimestamp();
@@ -2035,7 +2031,7 @@ public static class CityPopulationSystem
         extra.legion_home_city_id = -1L;
         try
         {
-            actor.die(true, AttackType.Other, false, false);
+            actor.die(true, DeathCause.Other, false, false);
         }
         catch (Exception exception)
         {
@@ -2768,7 +2764,6 @@ public static class CityPopulationSystem
     #region 背景人口的理念变化
 
     // 外力说服(藏书、思想引入)对背景人口的作用：每个阶层按 chance 的比例改信 target。返回改信的人数
-#if EC_PENDING
     public static int ConvertBackground(City city, PartyIdeology target, Func<SocialClass, float> chance)
     {
         if (!AbstractPopulationEnabled || chance == null) return 0;
@@ -2791,7 +2786,6 @@ public static class CityPopulationSystem
         }
         return Mathf.RoundToInt(moved);
     }
-#endif
 
     // 背景人口向同阶层名人的理念分布靠拢：按(阶层, 文化, 物种)分桶，桶内背景总人数不变，
     // 只按 rate 的比例把理念构成换成该阶层名人的构成。没有名人的阶层保持原样
@@ -2943,7 +2937,7 @@ public static class CityPopulationSystem
     {
         if (!AbstractPopulationEnabled || city?.Record == null || city.IsGone() || city.Realm == null ||
             city.Realm.IsWild || city.HasLeader()) return;
-        if (EmpireWorld.Current == null || !GameClock.Running || SmoothLoader.isLoading()) return;
+        if (EmpireWorld.Current == null || !GameClock.Running || GameClock.Loading) return;
         double now = GameClock.Now;
         if (LeaderRetryAt.TryGetValue(city, out double retry) && now >= 0d && now < retry) return;
         LeaderRetryAt[city] = now + LeaderRetrySeconds;
@@ -2956,11 +2950,11 @@ public static class CityPopulationSystem
                 office.Select(city.Realm, "城市");
                 if (city.HasLeader() && !IsSoldier(city.Leader)) return;
                 // 选中的是征召兵(城里只剩士兵时)：不让军团统领兼任城主
-                if (city.HasLeader()) city.removeLeader();
+                if (city.HasLeader()) city.RemoveLeader();
             }
             EnsureFloor(city);
             Person leader = SpawnOfficial(city);
-            if (leader != null && !city.HasLeader()) city.setLeader(leader, true);
+            if (leader != null && !city.HasLeader()) city.SetLeader(leader, true);
         }
         catch (Exception exception)
         {
@@ -3061,10 +3055,8 @@ public static class CityPopulationSystem
     }
 
     // 城里的背景人口(没开无小人模式时为 0)
-#if EC_PENDING
     public static int BackgroundCount(City city) =>
         AbstractPopulationEnabled ? Mathf.RoundToInt(GetBackgroundTotal(city) + (Get(city)?.levied ?? 0f)) : 0;
-#endif
 
     // 一个住房位住多少人(没开无小人模式时为 1)
 #if EC_PENDING
@@ -3194,7 +3186,6 @@ public static class CityPopulationSystem
     }
 
     // 把这些城市的背景人口按 keyOf 分类后加进按实体单位数出来的 counts。没开无小人模式时什么都不做
-#if EC_PENDING
     public static void AddBackgroundCounts<TKey>(IEnumerable<City> cities, Dictionary<TKey, int> counts,
         Func<PopGroup, TKey> keyOf, Func<PopGroup, bool> filter = null)
     {
@@ -3229,7 +3220,6 @@ public static class CityPopulationSystem
         if (city == null || !AbstractPopulationEnabled) return;
         AddBackgroundCounts(new[] { city }, counts, keyOf, filter);
     }
-#endif
 
     #endregion
 

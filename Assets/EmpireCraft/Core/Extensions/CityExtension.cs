@@ -293,7 +293,7 @@ public static class CityExtension
 #if EC_PENDING
     public static void TryYearlyOccupationSpread(this City city)
     {
-        if (!EmpireCraft.Core.EmpireCraftWorldLawLibrary.empirecraft_law_switch_occupy_mode.isEnabled())
+        if (!EmpireCraft.Core.WorldLaws.SwitchOccupyMode.IsEnabled())
             return;
         // 虚拟部队(军团)模式：战线只随军团一格一格推进，占领区不自行扩散(见 FrontSystem)
         if (EmpireCraft.Core.CorpsSystem.Enabled) return;
@@ -1491,7 +1491,7 @@ public static class CityExtension
             capturer.GetIdentity().TotalPerformance += performanceReward;
         }
 
-        int capturedInfluence = victim.Renown ?? 0;
+        int capturedInfluence = victim.Renown;
         if (capturer.Record != null && capturedInfluence > 0)
         {
             capturer.Renown += capturedInfluence;

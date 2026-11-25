@@ -388,7 +388,7 @@ public static class RoyalHouseSystem
             if (fate == Fate.Age)
             {
                 if (IsRoyal(actor)) RealisticAgeSystem.LogRoyalDeath(actor, "年度检查");
-                actor.getHitFullHealth(AttackType.Age);
+                actor.getHitFullHealth(DeathCause.Age);
                 // 寿终而没有册立储君：诸子也可能相争
                 if (emperor && !designated && !actor.Alive) PrinceStruggleSystem.QueueContest(empire, 0.6f);
                 continue;

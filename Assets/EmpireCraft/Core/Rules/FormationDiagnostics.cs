@@ -95,7 +95,7 @@ public static class FormationDiagnostics
                     ? EmpireCraft.Core.NoCommonersPatch.WarNeedPopulation(kingdom)
                     : kingdom.PopulationCount();
                 float possible = kingdom.getPopulationTotalPossible();
-                return $"原版判定不需要打仗(兵{warriors}、人口{people:0}/{possible:0}、城{kingdom.countCities()}；" +
+                return $"原版判定不需要打仗(兵{warriors}、人口{people:0}/{possible:0}、城{kingdom.CountCities()}；" +
                        "兵太少，或不到四城且没住满六成)";
             }
             // 选对象前先看打不打得起(WarTargetPatch 打不起就不给对象)，免得记成"找不到开战对象"

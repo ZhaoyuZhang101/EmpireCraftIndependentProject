@@ -64,7 +64,7 @@ public class EmpireCraftActorCheckWarriorMoveAdvanced : GameAIActorBase
     public override BehResult execute(Person pActor)
     {
         return BehResult.Continue;
-        if (!EmpireCraftWorldLawLibrary.empirecraft_law_switch_occupy_mode.isEnabled())
+        if (!WorldLaws.SwitchOccupyMode.IsEnabled())
         {
             pActor?.ClearFrontLineMoveTarget();
             return BehResult.Continue;

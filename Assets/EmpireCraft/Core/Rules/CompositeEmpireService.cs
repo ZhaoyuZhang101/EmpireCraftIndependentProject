@@ -31,9 +31,7 @@ public static partial class CompositeEmpireService
         public int Mandate;
         // 统治族群是游牧，或被征服文化比本族先进(见 MoreAdvanced)：才走得上复合帝国这条路
         public bool RulerIsNomadic;
-#if EC_PENDING
         public bool Applicable => RulerIsNomadic || HasInstitutionalTarget && MoreAdvanced(InstitutionalCulture, RulingCulture);
-#endif
         // 离草的游牧(见 ShuiTuSystem)：采纳定居文化的制度，控制法理的门槛从一半按档降到三分之一、四分之一、五分之一，
         // 天命门槛每档低 5(ControlDivisor 是所选制度文化的门槛分母)
         public int OffGrassTier;
@@ -218,7 +216,6 @@ public static partial class CompositeEmpireService
     // 征服王朝采纳某文化的制度时换成的政体(复查 2026-10-17)：按这个文化制度树实际走到的(TryResolveCultureRegime)，
     // 解析不出才用文化配置——以前一律用配置里的静态政体：征服日本、印度、阿兹特克成了原始政体(一城一部落地拆)，
     // 征服"中国"成了共和，征服西方成了城邦被拆城。原始、城邦、现代政体一律不采纳
-#if EC_PENDING
     public static bool AdoptableRegime(string culture, out RegimeType regimeType)
     {
         regimeType = RegimeType.Feudalism;
@@ -229,7 +226,6 @@ public static partial class CompositeEmpireService
         return !RegimeManager.IsPrimitive(regimeType) && regimeType != RegimeType.ClassicalRepublic &&
                regimeType != RegimeType.Modern;
     }
-#endif
 
     public static string GetRegimeName(RegimeType regimeType)
     {
@@ -361,7 +357,6 @@ public static partial class CompositeEmpireService
     }
 
     // 被征服文化比本族先进：科技时代更晚，或同一时代文明等级更高
-#if EC_PENDING
     public static bool MoreAdvanced(string conquered, string ruling)
     {
         if (!CultureService.IsValidCulture(conquered) || !CultureService.IsValidCulture(ruling)) return false;
@@ -373,6 +368,7 @@ public static partial class CompositeEmpireService
         return InstitutionSystem.GetCultureLevel(conquered) > InstitutionSystem.GetCultureLevel(ruling);
     }
 
+#if EC_PENDING
     private static bool HoldsMoreAdvancedCulture(Empire empire, string ruling)
     {
         var seen = new HashSet<string>(StringComparer.Ordinal);
@@ -489,7 +485,6 @@ public static partial class CompositeEmpireService
                (setting.regime == RegimeType.YouMu || culture.IsNomadCulture());
     }
 
-#if EC_PENDING
     public static bool TryGetCultureRegime(string culture, out RegimeType regimeType, out Regime regime)
     {
         regimeType = RegimeType.Feudalism;
@@ -503,6 +498,7 @@ public static partial class CompositeEmpireService
         return true;
     }
 
+#if EC_PENDING
     public static string ResolveRegionalInstitutionCulture(Realm member)
     {
         if (member?.Record == null || member.IsGone()) return "";

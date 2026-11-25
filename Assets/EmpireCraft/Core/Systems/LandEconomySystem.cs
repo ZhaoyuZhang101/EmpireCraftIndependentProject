@@ -445,13 +445,13 @@ public static class LandEconomySystem
             .Distinct().Count();
         return HouseholdBaseShare * Math.Max(1, households);
     }
+#endif
 
     private static Person SelectRepresentative(IEnumerable<Person> members)
     {
         return members?.Where(IsLivingResident).OrderByDescending(actor => actor.Money)
-            .ThenByDescending(actor => actor.Renown ?? 0).FirstOrDefault();
+            .ThenByDescending(actor => actor.Renown).FirstOrDefault();
     }
-#endif
 
     // 宗族人多，原来"有一个人是官员/贵族就整户不授田"会让一个大宗族因为出了一个官就全族无地，
     // 改成过半成员是特权阶层才整族不授田(这部分由贵族份额覆盖)。
@@ -464,7 +464,6 @@ public static class LandEconomySystem
         return privileged * 2 > list.Count;
     }
 
-#if EC_PENDING
     private static void UpdateMerchantHouseholds(Dictionary<string, List<Person>> households)
     {
         // Read each actor's income once; reuse totals for the median and qualification.
@@ -512,12 +511,10 @@ public static class LandEconomySystem
             if (representative != null && merchant) representative.GetOrCreate().is_economic_merchant = true;
         }
     }
-#endif
 
     // 绝户田：宗族在世族人都没了，它在本城的私田归同一世系在本城有田的一支(田多的先承)，没有就归上头还有人的本宗，
     // 都没有就退给背景农民(私田里实体家户没占的归背景人口，见 BackgroundLandPool)。以前绝户的份额一直挂着
     // (玩家 10-30 存档：有私田的 710 族里在世的只有 37 族)，活着的宗族、世家没地可置
-#if EC_PENDING
     private static void ReleaseExtinctLand(City city, CityExtension.CityExtraData data)
     {
         List<(string key, SpecificClan clan)> extinct = null;
@@ -554,6 +551,7 @@ public static class LandEconomySystem
         }
     }
 
+#if EC_PENDING
     private static void EnsureInitialHouseholdShares(City city,
         Dictionary<string, List<Person>> households = null)
     {
@@ -982,7 +980,7 @@ public static class LandEconomySystem
             GameClock.YearsSince(data.last_land_rebellion_timestamp) < RebellionCooldownYears) return false;
         Person leader = city.People?.Where(actor => IsLivingResident(actor) && IsAgrarianCommoner(actor) &&
                                                   actor.CanFoundCivKingdom())
-            .OrderByDescending(actor => actor.Renown ?? 0).FirstOrDefault();
+            .OrderByDescending(actor => actor.Renown).FirstOrDefault();
         // 无小人模式：城里没有农民实体，从背景人口里生成带头的人
         leader ??= CityPopulationSystem.SpawnRebelLeader(city);
         if (leader == null) return false;
@@ -1038,7 +1036,7 @@ public static class LandEconomySystem
             GameClock.YearsSince(data.last_land_rebellion_timestamp) < cooldown) return null;
         Person leader = city.People?.Where(actor => IsLivingResident(actor) && IsAgrarianCommoner(actor) &&
                                                   actor.CanFoundCivKingdom())
-            .OrderByDescending(actor => actor.Renown ?? 0).FirstOrDefault();
+            .OrderByDescending(actor => actor.Renown).FirstOrDefault();
         leader ??= CityPopulationSystem.SpawnRebelLeader(city);
         if (leader == null) return null;
         Realm origin = city.Realm;
@@ -1182,7 +1180,6 @@ public static class LandEconomySystem
             : null;
     }
 
-#if EC_PENDING
     private static string ResolveHouseholdName(City city, string key)
     {
         CityExtension.CityExtraData data = EnsureData(city);
@@ -1198,7 +1195,6 @@ public static class LandEconomySystem
             return representative.Clan.Name;
         return representative?.FullName() ?? LM.Get("city_land_unknown_household");
     }
-#endif
 
     private static string GetCrownName(City city)
     {

@@ -13,7 +13,7 @@ public class EmpireCraftActorCheckCity:GameAIActorBase
     {
         if (!pActor.IsFitToRule()) return BehResult.Continue;
         if (pActor.Realm.IsNeutral()) return BehResult.Continue;
-        if (!EmpireCraftWorldLawLibrary.empirecraft_law_prevent_city_destroy.isEnabled()) return BehResult.Continue;
+        if (!WorldLaws.PreventCityDestroy.IsEnabled()) return BehResult.Continue;
         if (pActor.current_zone.hasCity())
         {
             City city = pActor.current_zone.city;

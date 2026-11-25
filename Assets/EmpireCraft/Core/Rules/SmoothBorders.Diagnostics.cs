@@ -40,6 +40,7 @@ public static partial class SmoothBorders
         CountCanvas(zone, out int land, out int blank);
         return land > 0 && blank * 2 > land;
     }
+#endif
 
     private static void CountCanvas(Cell zone, out int land, out int blank)
     {
@@ -54,6 +55,5 @@ public static partial class SmoothBorders
             if (_owner[t] == 0) blank++;
         }
     }
-#endif
 }
 }

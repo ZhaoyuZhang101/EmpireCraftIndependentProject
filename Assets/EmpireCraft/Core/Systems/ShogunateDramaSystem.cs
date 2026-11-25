@@ -200,7 +200,7 @@ public static class ShogunateDramaSystem
     {
         Realm core = empire.CoreKingdom;
         List<Realm> realms = empire.kingdoms_list.Where(kingdom => kingdom?.Record != null && !kingdom.IsGone() && kingdom != core &&
-                                                                     kingdom.hasCities()).ToList();
+                                                                     kingdom.HasCities()).ToList();
         if (!SengokuDue(daimyo.CentralRatio, shogunal.CentralRatio, realms.Count)) return false;
         if (!Chance(SengokuChance) || UpheavalGuard.Blocked(empire, out _) || SecessionGate.Forbids()) return false;
         string name = empire.GetEmpireName();

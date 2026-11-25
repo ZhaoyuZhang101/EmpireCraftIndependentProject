@@ -257,7 +257,7 @@ public static class PrivyPurse
         Credit(realm, Taken, taken);
         EmpireLawSystem.AddCrimeAmount(king, LawType.贪污, taken);
         double chance = 0.3d + 0.6d * (1d - Math.Max(0d, Math.Min(1d, realm.GetCorruptionRate())));
-        if (Randy.randomFloat(0f, 1f) >= chance) return null;
+        if (EcRandom.Range(0f, 1f) >= chance) return null;
         exposed = true;
         Empire empire = realm.GetEmpire();
         if (empire != null && empire.CoreKingdom == realm)

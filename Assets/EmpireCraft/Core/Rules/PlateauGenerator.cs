@@ -90,7 +90,7 @@ public static class PlateauGenerator
             string name = kind == PlateauTerrain.Alpine ? "高寒" : kind == PlateauTerrain.Steppe ? "草原" : "黄土";
             LogService.LogInfo($"[EmpireCraft][高原] 随机图第 {k + 1} 片高原：{name}，原平均高度 {mean:0}，{piece.Count} 格");
         }
-        if (made > 0) PlateauShaper.Shape(null, Randy.randomInt(1, 1 << 30));
+        if (made > 0) PlateauShaper.Shape(null, EcRandom.Range(1, 1 << 30));
     }
 #endif
 

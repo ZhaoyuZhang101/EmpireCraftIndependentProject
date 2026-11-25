@@ -64,7 +64,7 @@ public static class LayerDiagnostics
     {
         EmpireWorld world = EmpireWorld.Current;
         if (!PureMapMode.Enabled && !SmoothBorders.Enabled || world?.Zones?.All == null || !GameClock.Running ||
-            SmoothLoader.isLoading()) return;
+            GameClock.Loading) return;
         if (!ReferenceEquals(_world, world))
         {
             _world = world;

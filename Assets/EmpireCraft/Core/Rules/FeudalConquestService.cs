@@ -74,10 +74,10 @@ public static class FeudalConquestService
         if (conquered.GetEmpire() != null && !RealmDiplomacySystem.CanChooseOverlord(conquered)) return false;
         // 一城小国(只剩都城)：不论集权与否都不再留作附庸，照普通攻城易主——这座城就是它的全部，等于整国并入，
         // 民心、天命、新征服城的治理度照普通攻城算(用户 2026-10-21 选"西欧能整合、帝国能倒")
-        if (western && conquered.countCities() <= 1) return false;
+        if (western && conquered.CountCities() <= 1) return false;
         // 中央集权以后(direct_administration，如中央集权君主制)：攻下五城以内(见 CentralizedAnnexMaxCities)小国的都城
         // 整国并入——以前西方封建攻城永远只收附庸，整合太慢(复查 2026-10-17)
-        if (western && conquered.countCities() <= CentralizedAnnexMaxCities &&
+        if (western && conquered.CountCities() <= CentralizedAnnexMaxCities &&
             InstitutionSystem.GetFeature(CultureService.GetInstitutionCulture(captor), InstitutionFeatures.DirectAdministration) > 0f)
         {
             foreach (City part in conquered.Cities.ToList())
@@ -211,8 +211,8 @@ public static class FeudalConquestService
                             !actor.IsRuler() && actor != formerKing && actor.IsFitToRule())
             .ToList();
         Person noble = locals.Where(actor => actor.GetOrCreate().socialClass == SocialClass.Noble)
-                          .OrderByDescending(actor => actor.Renown ?? 0).FirstOrDefault()
-                      ?? locals.OrderByDescending(actor => actor.Renown ?? 0).FirstOrDefault();
+                          .OrderByDescending(actor => actor.Renown).FirstOrDefault()
+                      ?? locals.OrderByDescending(actor => actor.Renown).FirstOrDefault();
         if (noble == null) return;
         GraceEdictService.Crown(conquered, noble);
         if (conquered.Ruler != noble) return;
@@ -243,7 +243,7 @@ public static class FeudalConquestService
         if (formerKing != null && !formerKing.IsGone() && formerKing.Alive && royalDomain != null)
         {
             formerKing.removeFromArmy();
-            if (formerKing.IsCityLeader()) formerKing.City.removeLeader();
+            if (formerKing.IsCityLeader()) formerKing.City.RemoveLeader();
             formerKing.JoinCity(royalDomain);
             if (royalDomain._city_tile != null) formerKing.goTo(royalDomain._city_tile);
         }

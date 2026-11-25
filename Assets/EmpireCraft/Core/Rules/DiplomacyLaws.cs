@@ -17,19 +17,17 @@ public static class DiplomacyLaws
     public enum Kind { War, Alliance, Vassal, Tribute, Marriage, Pact }
 
     // 世界还没建好时取不到法则对象，按没开算
-#if EC_PENDING
-    private static bool On(WorldLawAsset law)
+    private static bool On(WorldLaw law)
     {
         try
         {
-            return law?.isEnabled() == true;
+            return law?.IsEnabled() == true;
         }
         catch
         {
             return false;
         }
     }
-#endif
 
     // 玩家用神力把一条诉求当场推到施行(见 CourtSystem.GodHasten)：这一步里开的仗、结的关系算玩家强制的。
     // 单独一个标记，不借 MembershipCooldown.ByGod——那个还会记"神力放出、拉入"的保护期
@@ -45,49 +43,35 @@ public static class DiplomacyLaws
     // 正在神力推满的诉求里(不许自立的闸也放行，见 SecessionGate)
     public static bool Forced => _forced > 0;
 
-#if EC_PENDING
     public static bool Blocked(Kind kind)
     {
         // 玩家强制的一律放行
         if (MembershipCooldown.GodActing || _forced > 0) return false;
-        if (On(EmpireCraftWorldLawLibrary.empirecraft_law_ban_diplomacy)) return true;
+        if (On(WorldLaws.BanDiplomacy)) return true;
         return On(kind switch
         {
-            Kind.War => EmpireCraftWorldLawLibrary.empirecraft_law_ban_ai_war,
-            Kind.Alliance => EmpireCraftWorldLawLibrary.empirecraft_law_ban_ai_alliance,
-            Kind.Vassal => EmpireCraftWorldLawLibrary.empirecraft_law_ban_ai_vassal,
-            Kind.Tribute => EmpireCraftWorldLawLibrary.empirecraft_law_ban_ai_tribute,
-            Kind.Marriage => EmpireCraftWorldLawLibrary.empirecraft_law_ban_ai_marriage,
-            Kind.Pact => EmpireCraftWorldLawLibrary.empirecraft_law_ban_ai_pact,
+            Kind.War => WorldLaws.BanAiWar,
+            Kind.Alliance => WorldLaws.BanAiAlliance,
+            Kind.Vassal => WorldLaws.BanAiVassal,
+            Kind.Tribute => WorldLaws.BanAiTribute,
+            Kind.Marriage => WorldLaws.BanAiMarriage,
+            Kind.Pact => WorldLaws.BanAiPact,
             _ => null
         });
     }
-#endif
 
     // 宣战：模组各系统经 WarGate.CanDeclare，原版 AI 挑目标经 WarTargetPatch；没经这两处、直接开战的在开战总入口兜底
     // (见 WarReach.LawForbids，起兵内乱不算、归「禁止叛乱」管)
-#if EC_PENDING
     public static bool WarBlocked => Blocked(Kind.War);
-#endif
     // 结盟：原版 Alliance.canJoin(见 AlliancePatch)，建盟与入盟都走它
-#if EC_PENDING
     public static bool AllianceBlocked => Blocked(Kind.Alliance);
-#endif
     // 归附：小国望风归附(见 SmallStateSubmissionSystem)
-#if EC_PENDING
     public static bool VassalBlocked => Blocked(Kind.Vassal);
-#endif
     // 朝贡：称臣纳贡(见 TributaryRelations.Submit)
-#if EC_PENDING
     public static bool TributeBlocked => Blocked(Kind.Tribute);
-#endif
     // 和亲：议婚(见 RoyalMarriageSystem.Monthly)
-#if EC_PENDING
     public static bool MarriageBlocked => Blocked(Kind.Marriage);
-#endif
     // 通好：跨文明大国通好(见 GreatPowerDiplomacy)
-#if EC_PENDING
     public static bool PactBlocked => Blocked(Kind.Pact);
-#endif
 }
 }

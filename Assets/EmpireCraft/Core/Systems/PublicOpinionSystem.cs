@@ -305,7 +305,6 @@ public static class PublicOpinionSystem
 #endif
 
     // 百姓最想要的理念：信众占比 + 外来压力；必须比执政理念的信众更多，且本文化有相应的技术基础
-#if EC_PENDING
     private static PartyIdeology? PickPreferred(Dictionary<PartyIdeology, int> counts, int total,
         List<IdeologyPressureSource> pressure, PartyIdeology governing, string culture)
     {
@@ -325,6 +324,7 @@ public static class PublicOpinionSystem
         return best;
     }
 
+#if EC_PENDING
     private static void ApplyConsequences(Empire empire, ConstitutionalEconomyState state, int level,
         PartyIdeology? preferred)
     {

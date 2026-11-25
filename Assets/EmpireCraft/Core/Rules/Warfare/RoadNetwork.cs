@@ -879,14 +879,16 @@ public static class RoadNetwork
         for (int pass = 0; pass < 2; pass++) points = Chaikin(points);
         return points;
     }
+#endif
 
     public static Vector2 Jittered(Cell zone)
     {
         uint hash = (uint)(zone.Index * 2654435761L);
-        return new Vector2(zone.X * Config.CITY_ZONE_SIZE + 4 + (int)(hash % 5) - 2,
-            zone.Y * Config.CITY_ZONE_SIZE + 4 + (int)((hash >> 8) % 5) - 2);
+        return new Vector2(zone.X * Land.ZoneSize + 4 + (int)(hash % 5) - 2,
+            zone.Y * Land.ZoneSize + 4 + (int)((hash >> 8) % 5) - 2);
     }
 
+#if EC_PENDING
     private static List<Vector2> Chaikin(List<Vector2> points)
     {
         if (points.Count < 3) return points;

@@ -1357,7 +1357,6 @@ public static class UnificationSystem
 #endif
 
     // 一家的正规军(帝国连同各成员国)：现有兵力与满编；没有军团制时按士兵与历来最多的士兵
-#if EC_PENDING
     private static (float strength, float full) Army(Realm sovereign)
     {
         IEnumerable<Realm> members = sovereign.GetEmpire()?.kingdoms_list?.Where(Alive) ?? new[] { sovereign };
@@ -1368,7 +1367,6 @@ public static class UnificationSystem
         }
         return (members.Sum(member => member.Warriors()), members.Sum(member => member.GetOrCreate().peak_warriors));
     }
-#endif
 
     // 帝国换了中央(中央灭亡或丢光城池改立别国、继承人带着封国入继……)：统一战争与统一后的开国气象记在旧中央上，
     // 跟着挪到新中央。以前留在旧中央，新中央不算统一者，年底被当成"天下散了"无声清掉

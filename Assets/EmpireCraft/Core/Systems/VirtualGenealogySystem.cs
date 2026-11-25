@@ -1023,6 +1023,7 @@ public static partial class VirtualGenealogySystem
         }
         return actor;
     }
+#endif
 
     private static PersonalClanIdentity PickHeir(IEnumerable<PersonalClanIdentity> people, PersonalClanIdentity last, bool maleOnly) =>
         people.Where(person => person != null && person.is_alive && person.is_virtual &&
@@ -1030,7 +1031,6 @@ public static partial class VirtualGenealogySystem
             .OrderByDescending(person => person.age >= HeadMinAge)
             .ThenByDescending(person => person.age)
             .FirstOrDefault();
-#endif
 
     // 和正在统治的宗族同一世系(分出去的诸王各支)：不销户、添丁不受宗族人数上限，皇统绝嗣时从这些真实支脉里找人
     private static readonly HashSet<long> RulingRoots = new();
@@ -1170,7 +1170,6 @@ public static partial class VirtualGenealogySystem
         clan != null && (!Prominent.TryGetValue(clan.id, out bool prominent) || prominent);
 
     // 族长人选：在世的实体族人里，符合本族继承性别的优先，其次正支，再取年长者
-#if EC_PENDING
     private static PersonalClanIdentity PickHead(IEnumerable<PersonalClanIdentity> people) =>
         people.OrderByDescending(person => person.IsHeirPriority())
             .ThenByDescending(person => person.is_main)
@@ -1194,23 +1193,22 @@ public static partial class VirtualGenealogySystem
         ClanHeads[clan.id] = chosen.id;
         return chosen.id == identity.id;
     }
-#endif
 
     // 实体族长死于战乱(战死、所在城正在打仗)或饥荒(饿死、所在城缺粮)：记下来，之后不再补族长
-#if EC_PENDING
-    public static void OnActorDied(Person actor, AttackType type)
+    public static void OnActorDied(Person actor, DeathCause type)
     {
         if (!CityPopulationSystem.AbstractPopulationEnabled || actor?.Record == null || !IsClanHead(actor)) return;
         SpecificClan clan = actor.GetPersonalIdentity()?._specificClan;
         if (clan == null) return;
         City city = actor.City;
         CityPopulationData data = city == null ? null : CityPopulationSystem.Get(city);
-        bool calamity = type == AttackType.Weapon || type == AttackType.Starvation ||
+        bool calamity = type == DeathCause.Weapon || type == DeathCause.Starvation ||
                         city != null && CityPopulationSystem.IsAtWar(city) || data != null && data.last_food_shortage > 0f;
         if (calamity) clan.head_lost_to_calamity = true;
         ClanHeads.Remove(clan.id);
     }
 
+#if EC_PENDING
     private static void CheckClanHead(long clanId)
     {
         SpecificClan clan = SpecificClanManager.Get(clanId);

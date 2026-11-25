@@ -146,7 +146,7 @@ public class EmpireCraftActorCheckWarrior : GameAIActorBase
 
         if (pKingdom.GetRegime() == null) return BehResult.Continue;
         if (!pKingdom.GetRegime().IsAllowArmy()) return BehResult.Continue;
-        if (!WorldLawLibrary.world_law_civ_army.isEnabled()) return BehResult.Continue;
+        if (!WorldLaws.CivArmy.IsEnabled()) return BehResult.Continue;
 
         // 平时征兵：保留原逻辑，不改成高频强征。
         TryNormalRecruit(pActor);

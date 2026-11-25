@@ -474,10 +474,8 @@ public static partial class HolyRomanSystem
 #endif
 
     // 成员国现有兵力：军团模式按各军团兵力，否则按原版计兵
-#if EC_PENDING
     private static float Troops(Realm kingdom) =>
         CorpsSystem.Enabled ? CorpsSystem.Of(kingdom).Sum(corps => corps.strength) : kingdom.Warriors();
-#endif
 
     // 不听调遣：家族领地薄弱时比中央大的诸侯一概不理；投了反对票的有三成抗命，投赞成的偶尔也赖掉；
     // 帝国权威高则少抗命(×1.5 − 权威/100，夹 0.5~1.5)

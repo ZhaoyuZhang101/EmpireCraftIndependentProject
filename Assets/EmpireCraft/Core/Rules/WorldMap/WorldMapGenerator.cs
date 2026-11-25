@@ -108,7 +108,7 @@ public static class WorldMapGenerator
             world.map_stats = new MapStats();
             world.map_stats.initNewWorld();
             world.map_stats.name = era.Name;
-            Randy.resetSeed(Randy.randomInt(1, 555555555));
+            Randy.resetSeed(EcRandom.Range(1, 555555555));
         }, "World Map: Stats");
         if (!Config.disable_db)
         {

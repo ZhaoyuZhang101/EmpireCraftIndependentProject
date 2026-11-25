@@ -16,7 +16,7 @@ public static class ModernStateFormationSystem
     public static bool TryUpdate(Realm kingdom)
     {
         // 一座城都没有的残余政权：谈不上组建政府，也不用改名、认领法理，等它收复城池或者君主寿终
-        if (kingdom == null || kingdom.IsGone() || !kingdom.hasCities() || kingdom.GetRegime()?.type != RegimeType.Modern ||
+        if (kingdom == null || kingdom.IsGone() || !kingdom.HasCities() || kingdom.GetRegime()?.type != RegimeType.Modern ||
             kingdom.GetAdministrativeTitle() != null)
             return false;
         // 傀儡(汪伪、蒙疆)、殖民地、宗主国不在图上的剧本属地不自行建政、不认领法理，国号照定下的(见 WarlordEraSystem.Dependent)
@@ -85,7 +85,7 @@ public static class ModernStateFormationSystem
     {
         if (kingdom == null || kingdom.IsGone() || !kingdom.HasRuler() || kingdom.IsEmpire() || kingdom.IsInEmpire() ||
             AncientWarfareCompatibility.BlocksEmpireFormation(kingdom) ||
-            EmpireCraftWorldLawLibrary.empirecraft_law_ban_empire.isEnabled()) return null;
+            WorldLaws.BanEmpire.IsEnabled()) return null;
         kingdom.GetOrCreate().ideology_country_suffix = "";
         EmpireCore contestedCore = EmpireCoreManager.GetRiseCandidateCore(kingdom);
         Empire empire = ModClass.EMPIRE_MANAGER?.NewEmpire(kingdom, allowCultureRival: true,

@@ -92,12 +92,10 @@ public static class CultureDoctrines
     public static bool HasIn(string culture, PartyIdeology ideology) => Has(SetOf(culture), ideology);
 
     // 学说是否已在本文化出现：随科技(TechTree.json 的 ideology:<理念>)陆续出现；文化取不到时不拦
-#if EC_PENDING
     public static bool Emerged(string culture, PartyIdeology ideology) =>
         !IdeologyFamilies.IsSchool(ideology) || !CultureService.IsValidCulture(culture) ||
         PartySystem.IsResearched(culture, ideology) ||
         TechnologySystem.AreFeatureTechsMet(culture, IdeologySpreadSystem.FeatureKey(ideology));
-#endif
 
     #region 取文化
 

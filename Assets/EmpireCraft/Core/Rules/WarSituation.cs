@@ -20,17 +20,14 @@ public static class WarSituation
         return empire != null && !empire.IsGone() ? empire.Key : kingdom?.Key ?? -1L;
     }
 
-#if EC_PENDING
     public static int SideCities(Realm kingdom)
     {
         Empire empire = kingdom?.GetEmpire();
         if (empire != null && !empire.IsGone()) return empire.countCities();
         return kingdom?.Cities?.Count ?? 0;
     }
-#endif
 
     // 一方的兵力：原版士兵数，军团模式再加各军团兵力(兵在军团里只是数据，原版数不到)；帝国算中央连同各成员国
-#if EC_PENDING
     public static int SideWarriors(Realm kingdom)
     {
         Empire empire = kingdom?.GetEmpire();
@@ -42,7 +39,6 @@ public static class WarSituation
     private static int CorpsSoldiers(Realm kingdom) =>
         !CorpsSystem.Enabled || kingdom?.Record == null || kingdom.IsGone() ? 0
             : Mathf.RoundToInt(CorpsSystem.Of(kingdom).Sum(corps => Mathf.Max(0f, corps.strength)));
-#endif
 
     // 主动开战比的实力：国力(人口、财力、军力综合，见 GetNationalPower)，平时军团只留常备兵、按兵数比不出谁强谁弱；
     // 帝国算中央连同各成员国
@@ -66,6 +62,7 @@ public static class WarSituation
     public static bool Overstretched(Realm kingdom) =>
         kingdom?.Record == null || kingdom.IsGone() ||
         kingdom.GetWars().Count(war => war?.Record != null && !war.HasEnded()) >= 2 || WarGoalSystem.FightingForSurvival(kingdom);
+#endif
 
     public static void RecordParticipant(War war, Realm kingdom)
     {
@@ -74,7 +71,6 @@ public static class WarSituation
         long key = SideKey(kingdom);
         if (key >= 0 && !initial.ContainsKey(key)) initial[key] = SideCities(kingdom);
     }
-#endif
 
     // 我方(core)与 enemy 交战中的战争(双方分属攻守两边)
     public static War FindWar(Realm core, Realm enemy)
@@ -88,23 +84,19 @@ public static class WarSituation
         war?.Record == null ? 0f : GameClock.YearsSince(war.StartedStamp);
 
     // 这场仗里我方丢了多少城；没记录(旧存档里开打的战争)返回 -1
-#if EC_PENDING
     public static int CitiesLost(War war, Realm core)
     {
         Dictionary<long, int> initial = war?.GetOrCreate().initial_cities;
         if (initial == null || !initial.TryGetValue(SideKey(core), out int before)) return -1;
         return before - SideCities(core);
     }
-#endif
 
     // 兵力对比：敌方 / 我方(我方没兵时视为极大)
-#if EC_PENDING
     public static float StrengthRatio(Realm core, Realm enemy)
     {
         int ours = SideWarriors(core);
         int theirs = SideWarriors(enemy);
         return ours <= 0 ? (theirs > 0 ? 99f : 1f) : (float)theirs / ours;
     }
-#endif
 }
 }

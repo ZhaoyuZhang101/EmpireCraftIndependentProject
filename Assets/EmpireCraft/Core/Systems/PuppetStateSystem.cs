@@ -196,7 +196,7 @@ public static class PuppetStateSystem
             actor.GetOffice()?.RemoveActor();
             actor.EndOffice();
         }
-        if (actor.IsCityLeader() && actor.City != null) actor.City.removeLeader();
+        if (actor.IsCityLeader() && actor.City != null) actor.City.RemoveLeader();
     }
 
     public static void Release(Realm puppet, string historyKey)

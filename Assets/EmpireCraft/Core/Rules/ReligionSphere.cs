@@ -233,7 +233,7 @@ public static class ReligionSphere
 #if EC_PENDING
     private static void Refresh(bool force)
     {
-        if (EmpireWorld.Current?.Cities == null || EmpireWorld.Current.Religions == null || SmoothLoader.isLoading()) return;
+        if (EmpireWorld.Current?.Cities == null || EmpireWorld.Current.Religions == null || GameClock.Loading) return;
         double now = GameClock.Now;
         if (!force && _refreshedAt >= 0d && now >= _refreshedAt && GameClock.YearsSince(_refreshedAt) < 1) return;
         _refreshedAt = now;

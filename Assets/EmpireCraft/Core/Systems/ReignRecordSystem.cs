@@ -22,6 +22,7 @@ public static class ReignRecordSystem
         reign.max_cities = cities;
         reign.start_mandate = empire.Mandate;
     }
+#endif
 
     public static void OnYear(Empire empire)
     {
@@ -31,6 +32,7 @@ public static class ReignRecordSystem
         if (empire.data.is_been_controlled) reign.was_controlled = true;
     }
 
+#if EC_PENDING
     public static void OnReignEnd(Empire empire, Person emperor)
     {
         EmpireCraftHistory reign = empire?.data?.currentHistory;

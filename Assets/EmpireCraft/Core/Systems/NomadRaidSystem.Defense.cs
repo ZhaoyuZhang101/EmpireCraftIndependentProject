@@ -79,7 +79,6 @@ public static partial class NomadRaidSystem
 #endif
 
     // 关隘折损：出兵各部正在进攻的军
-#if EC_PENDING
     private static void WallLosses(War war, RaidWarState state)
     {
         if (state.defense <= 0f || !CorpsSystem.Enabled) return;
@@ -92,7 +91,6 @@ public static partial class NomadRaidSystem
                     CorpsSystem.Casualties(corps, corps.strength * WallAttrition * state.defense);
         }
     }
-#endif
 
     #region 买和
 
@@ -108,7 +106,7 @@ public static partial class NomadRaidSystem
         bool otherWars = payer.GetWars().Any(other => other?.Record != null && other != war && !other.HasEnded());
         if (EcRandom.value >= SteppeRules.BuyOffChance(state.sacked, ratio, otherWars)) return;
         int funds = StateSettlementSystem.DiscretionaryFunds(payer);
-        int households = CityPopulationSystem.AbstractPopulationEnabled ? CityPopulationSystem.Households(target) : target.PopulationCount() ?? 0;
+        int households = CityPopulationSystem.AbstractPopulationEnabled ? CityPopulationSystem.Households(target) : target.PopulationCount();
         int ransom = Math.Max(MinRansom, Math.Max(households / 4, payer.GetMoney() / 10));
         Realm leader = LiveKingdom(state.leader_id);
         Empire empire = payer.IsEmpire() ? payer.GetEmpire() : null;

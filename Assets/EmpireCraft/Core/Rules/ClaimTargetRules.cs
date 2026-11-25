@@ -563,7 +563,6 @@ public static class ClaimTargetRules
 #endif
 
     // 战事吃紧(提供岁币)：打了一年以上，丢了城且敌强两成，或敌强八成，或敌强五成又打了三年
-#if EC_PENDING
     public static bool LosingWar(Realm core, Realm enemy)
     {
         War war = WarSituation.FindWar(core, enemy);
@@ -574,10 +573,8 @@ public static class ClaimTargetRules
         float ratio = WarSituation.StrengthRatio(core, enemy);
         return lost >= 1 && ratio >= 1.2f || ratio >= 1.8f || ratio >= 1.5f && years >= 3f;
     }
-#endif
 
     // 战事危急(割让城池)：比岁币的门槛高——打了一年以上，丢两城且敌强两成，或丢一城且敌强八成，或敌强三倍
-#if EC_PENDING
     public static bool LosingWarBadly(Realm core, Realm enemy)
     {
         War war = WarSituation.FindWar(core, enemy);
@@ -589,7 +586,6 @@ public static class ClaimTargetRules
         if (lost < 0) return ratio >= 2.5f && years >= 2f;
         return lost >= 2 && ratio >= 1.2f || lost >= 1 && ratio >= 1.8f || ratio >= 3f;
     }
-#endif
 
     // 割给敌国的城(割让城池)：与敌国接壤、人口最少的非都城城市
     public static City CedeCity(Empire empire, Realm enemy) => empire?.cities_list?

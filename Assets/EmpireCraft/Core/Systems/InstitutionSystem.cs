@@ -345,7 +345,6 @@ public static partial class InstitutionSystem
 
     // 外来节点能否进入本文化的吸收流程：别的线的、允许吸收、本文化还没有同源制度、
     // 而且本线自己的树上也没有同源实例（本线有的就该按本线前置自己研究）。
-#if EC_PENDING
     private static bool IsForeignCandidate(InstitutionNodeConfig node, string targetLine,
         CultureInstitutionState target, string targetCulture)
     {
@@ -357,7 +356,6 @@ public static partial class InstitutionSystem
         return !InstitutionDefinitionRegistry.GetForLine(targetLine).Any(own =>
             string.Equals(own.equivalence_key, node.equivalence_key, StringComparison.Ordinal));
     }
-#endif
 
     #endregion
 
@@ -502,7 +500,6 @@ public static partial class InstitutionSystem
         return true;
     }
 
-#if EC_PENDING
     public static bool TryResolveCultureRegime(string culture, out RegimeType regime)
     {
         regime = default;
@@ -531,7 +528,6 @@ public static partial class InstitutionSystem
         if (best != null && InstitutionDefinitionRegistry.TryGetNodeRegime(best, out regime)) return true;
         return InstitutionDefinitionRegistry.TryGetRootRegime(line, out regime);
     }
-#endif
 
     // 文化掌握封建化只代表具备改制条件；未主持改革的旧城邦按本国节奏过渡。
     // 各国逐个跟上本文化的政体(用户 2026-10-19 选"各线通用逐国跟进"；以前只有罗马线的城邦→封建化会跟，别的线第二个帝国
@@ -1714,7 +1710,6 @@ public static partial class InstitutionSystem
 
     // 与帝国改革同样的门槛(本线、未确立、未被取代、前置、技术、互斥、禁止近代化)，
     // 意识形态车道与需要复合帝国的制度除外——那些必须由政权推动
-#if EC_PENDING
     private static bool IsDriftCandidate(string culture, CultureInstitutionState state, InstitutionNodeConfig node)
     {
         if (node == null || !InstitutionDefinitionRegistry.IsValid(node)) return false;
@@ -1726,7 +1721,6 @@ public static partial class InstitutionSystem
         if (TechnologySystem.ModernInstitutionBlocked(node)) return false;
         return TechnologySystem.AreInstitutionTechsMet(culture, node, out _);
     }
-#endif
 
     #endregion
 
@@ -2229,7 +2223,7 @@ public static partial class InstitutionSystem
                                 actor.City.Realm != null && actor.City != actor.City.Realm.Capital &&
                                 RebellionSystem.CanAttempt(actor.City.Realm) && CityStabilitySystem.CanRise(actor.City) &&
                                 actor.GetOrCreate().socialClass == socialClass)
-                .OrderByDescending(actor => actor.Renown ?? 0).FirstOrDefault();
+                .OrderByDescending(actor => actor.Renown).FirstOrDefault();
             // 无小人模式里该阶层多半没有实体人物：从虚拟人口里推举
             leader ??= SocialCrisisSystem.SpawnClassLeader(sourceKingdoms, socialClass);
             splitSeat = leader?.City;
@@ -2338,7 +2332,7 @@ public static partial class InstitutionSystem
         int count = (int)Math.Round(candidates.Count * fraction);
         if (count <= 0) return 0;
         return TransferDefectingSoldiers(core, rebel,
-            candidates.OrderBy(_ => Randy.randomFloat(0f, 1f)).Take(count));
+            candidates.OrderBy(_ => EcRandom.Range(0f, 1f)).Take(count));
     }
 
     public static int TransferDefectingSoldiers(Realm source, Realm rebel, IEnumerable<Person> soldiers)
@@ -2351,7 +2345,7 @@ public static partial class InstitutionSystem
             if (soldier == null || soldier.IsGone() || !soldier.Alive || !soldier.IsWarrior() ||
                 soldier.IsRuler() || soldier.Realm != source) continue;
             soldier.removeFromArmy();
-            if (soldier.IsCityLeader()) soldier.City.removeLeader();
+            if (soldier.IsCityLeader()) soldier.City.RemoveLeader();
             soldier.JoinCity(destination);
             transferred++;
         }

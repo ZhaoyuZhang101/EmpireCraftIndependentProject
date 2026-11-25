@@ -168,7 +168,6 @@ public static class ClaimPolicySystem
 #endif
 
     // 输出革命：邻国(另一个帝国或独立王国)边城平民转向革命理念，所属帝国劳工农民怨气上升。返回受影响的国家
-#if EC_PENDING
     public static Realm ExportRevolution(Empire empire, Realm target, PartyIdeology ideology)
     {
         if (empire == null || target == null || target.IsGone()) return null;
@@ -187,7 +186,6 @@ public static class ClaimPolicySystem
         }
         return target;
     }
-#endif
 
     public static void AddGrievance(Empire empire, SocialClass socialClass, float delta)
     {

@@ -50,12 +50,10 @@ public static class KinRoster
                 .Select(group => group.First()).ToList();
 
     // 世系里在世的族人(本宗和分出去的各支，见 SpecificClanManager.LineageClans)
-#if EC_PENDING
     public static IEnumerable<PersonalClanIdentity> Lineage(SpecificClan clan) =>
         clan == null ? Enumerable.Empty<PersonalClanIdentity>()
             : SpecificClanManager.LineageClans(clan).SelectMany(member => member.LivingPeople)
                 .Where(person => person != null && person.is_alive);
-#endif
 
     // 在地图上(有活着的单位)
     public static bool OnMap(PersonalClanIdentity person) =>

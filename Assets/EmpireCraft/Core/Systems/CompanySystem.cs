@@ -294,7 +294,6 @@ public static class CompanySystem
     private static readonly Dictionary<long, List<SpecificClan>> ClansByCity = new();
     private static int _clansYear = int.MinValue;
 
-#if EC_PENDING
     private static SpecificClan PickOwner(Empire empire, City city, long seed)
     {
         int year = GameClock.Year;
@@ -319,7 +318,6 @@ public static class CompanySystem
         SpecificClan leader = city.Leader != null && !city.Leader.IsGone() ? city.Leader.GetSpecificClan() : null;
         return leader != null && leader.id != royal ? leader : null;
     }
-#endif
 
     private static void Remove(CompanyData company)
     {

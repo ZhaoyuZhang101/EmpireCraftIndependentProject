@@ -354,7 +354,6 @@ public static class WorldMapDevelopment
     }
 
     // 离最近的城心几度(经向按纬度折算)；没有城为无穷远(只按腹地的数)
-#if EC_PENDING
     private static float SeatDistance(Cell center, float lat, float degrees, List<Vector2Int> seats)
     {
         float squeeze = Mathf.Cos(lat * Mathf.Deg2Rad), best = float.MaxValue;
@@ -365,7 +364,6 @@ public static class WorldMapDevelopment
         }
         return best == float.MaxValue ? float.MaxValue : Mathf.Sqrt(best) * degrees;
     }
-#endif
 
     // 这块地改不改：陆地够 MinLand 格；没有房屋(城里的建筑，开局按人口盖的房不压在丛林里)；
     // 改完丛林、沼泽格(连原有的)能占到陆地一半(成得了无人区)

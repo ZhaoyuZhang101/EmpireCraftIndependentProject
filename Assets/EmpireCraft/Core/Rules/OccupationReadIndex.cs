@@ -114,7 +114,6 @@ public static class OccupationReadIndex
     public static long ControlBuilds { get; private set; }
     public static long ControlHits { get; private set; }
 
-#if EC_PENDING
     public static Control ReadControl(War war, object scope, Func<Control> calculate, Func<long> membership = null)
     {
         if (!CityPopulationSystem.AbstractPopulationEnabled) return calculate();
@@ -135,7 +134,6 @@ public static class OccupationReadIndex
         entry.Value = value; ControlBuilds++;
         return value;
     }
-#endif
 
     public static long Membership(IEnumerable<City> cities)
     {

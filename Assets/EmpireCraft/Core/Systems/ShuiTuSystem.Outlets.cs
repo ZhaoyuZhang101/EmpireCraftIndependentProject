@@ -207,7 +207,7 @@ public static partial class ShuiTuSystem
                 if (NomadicCity(next)) return true;
         }
         foreach (Realm other in EmpireWorld.Current.LiveRealms)
-            if (other != unit && Valid(other) && other.hasCities() &&
+            if (other != unit && Valid(other) && other.HasCities() &&
                 CompositeEmpireService.IsNomadicCulture(CultureService.GetRealmCulture(other)) && StraitReach.Near(unit, other))
                 return true;
         return false;

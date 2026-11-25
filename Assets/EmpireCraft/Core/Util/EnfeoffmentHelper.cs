@@ -153,6 +153,7 @@ public static class EnfeoffmentHelper
         }
         return null;
     }
+#endif
 
     public static bool IsEligibleSibling(Person actor, Empire empire)
     {
@@ -168,7 +169,6 @@ public static class EnfeoffmentHelper
         return SpecificClanManager.GetSiblingsWithRelation(emperorIdentity)
             .Any(item => item.Item2?.id == actorIdentity.id);
     }
-#endif
 
     // 把 actor 分封为附庸国国王；调用方需要自行保证 actor 已经通过 IsEligibleSibling 校验，
     // 这里只重新做一次城池/政体防御性检查(跟 TempFac_分封.Execute 完全一致)。
@@ -238,7 +238,6 @@ public static class EnfeoffmentHelper
     // 分割继承法在没有城池可分/政体不支持真实分封(如 enfeoff_virtual_only)时的退路:
     // 数一数有几个兄弟本来"够资格"分到一份(除了缺地之外没有别的理由被排除)，
     // 好让调用方用头衔/俸禄+正统性做补偿，而不是直接假装分割继承法没发生。
-#if EC_PENDING
     public static int CountCompensableSiblings(Empire empire)
     {
         PersonalClanIdentity emperorIdentity = empire?.Emperor?.GetPersonalIdentity();
@@ -250,7 +249,6 @@ public static class EnfeoffmentHelper
                       KinRoster.KingdomOf(person)?.GetEmpire() == empire,
             actor => IsEligibleSibling(actor, empire)));
     }
-#endif
 
     // 兀鲁思(用户 2026-10-17 转群友"游牧太强了几乎不会分封"，选"汗死诸子分兀鲁思")：游牧政体的大汗死了、
     // 汗国的核心有 UlusMinCities 座城以上，新汗的兄弟(先汗诸子)各分一块法理做兀鲁思(成员国)，同分割继承法；
@@ -265,7 +263,7 @@ public static class EnfeoffmentHelper
     public static bool UlusPartition(Empire empire) =>
         empire?.CoreKingdom?.GetRegime()?.type == RegimeType.YouMu &&
         EmpireCraft.Core.KingdomExtension.IsTrueNomad(empire.CoreKingdom) &&
-        empire.CoreKingdom.countCities() >= UlusMinCities;
+        empire.CoreKingdom.CountCities() >= UlusMinCities;
 #endif
 
     // 新皇帝即位(不论是立储继承、选举还是拥立)时由 KingdomPatch 的 setKing 补丁调用：

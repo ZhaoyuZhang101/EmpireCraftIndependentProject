@@ -46,7 +46,7 @@ public static class EmpireCraftStrategicScheduler
     public static void Tick()
     {
         EmpireWorld currentWorld = EmpireWorld.Current;
-        if (currentWorld == null || !GameClock.Running || SmoothLoader.isLoading()) return;
+        if (currentWorld == null || !GameClock.Running || GameClock.Loading) return;
         if (!ReferenceEquals(_boundWorld, currentWorld)) Reset(currentWorld);
         // 世界地图剧本进世界后的安排(行政区、多京、殖民地、兵力、名人……)，等各国的城表就绪再做(见 WorldMapScenario.TickAfterLoad)；
         // 加载界面等它做完才揭开，暂停着也照做
@@ -197,6 +197,7 @@ public static class EmpireCraftStrategicScheduler
         while ((processed < forcedKingdoms || SimulationFrameBudget.HasTime) && EmpireCraftFrameSchedulingRules.CanContinue(
             processed, minimumKingdoms, maximumKingdoms, ElapsedMilliseconds(started), budgetMilliseconds));
     }
+#endif
 
     public static void Reset()
     {
@@ -219,7 +220,6 @@ public static class EmpireCraftStrategicScheduler
         EmpireStates.Clear();
         FaultRetryTimes.Clear();
     }
-#endif
 
     private static void PruneStaleStates(IList<Realm> kingdoms, IList<Empire> empires)
     {

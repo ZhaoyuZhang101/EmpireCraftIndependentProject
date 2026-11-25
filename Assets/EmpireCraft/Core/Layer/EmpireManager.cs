@@ -571,7 +571,7 @@ public class EmpireManager : RecordStore<Empire, EmpireData>
         fallbackKing.removeFromArmy();
         if (fallbackKing.IsCityLeader() && fallbackKing.City != null)
         {
-            fallbackKing.City.removeLeader();
+            fallbackKing.City.RemoveLeader();
         }
         kingdom.SetRuler(fallbackKing);
         if (kingdom.Capital != null)

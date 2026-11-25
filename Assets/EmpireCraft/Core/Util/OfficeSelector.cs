@@ -68,7 +68,7 @@ public static class OfficeSelector
                 actor = TryGetStrongerLeader(office, pKingdom)??TryGetProfessionOfficer(pKingdom, office);
                 break;
             case LeaderSelectMethod.Harem:
-                if (!EmpireCraftWorldLawLibrary.empirecraft_law_allow_harem.isEnabled())
+                if (!WorldLaws.AllowHarem.IsEnabled())
                 {
                     break;
                 }

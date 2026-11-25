@@ -57,7 +57,7 @@ public static class CityDissolution
         CityTerritoryProtection.Dissolving.Add(city.Key);
         CityPopulationSystem.ClearBackground(city);
         foreach (Person unit in kingdom.People.ToList())
-            if (unit?.Record != null && !unit.IsGone() && unit.Alive) unit.die(true, AttackType.Other, false, false);
+            if (unit?.Record != null && !unit.IsGone() && unit.Alive) unit.die(true, DeathCause.Other, false, false);
         city.turnCityToNeutral();
         foreach (Cell zone in city.Zones.ToList()) city.RemoveZone(zone);
         CityPopulationSystem.InvalidateHouseholdCaches();
@@ -70,7 +70,7 @@ public static class CityDissolution
     {
         if (!CityPopulationSystem.AbstractPopulationEnabled || city?.Record == null || city.IsGone() ||
             city.Realm == null || city.Realm.IsWild) return false;
-        if (EmpireCraftWorldLawLibrary.empirecraft_law_prevent_city_destroy?.isEnabled() == true) return false;
+        if (WorldLaws.PreventCityDestroy?.IsEnabled() == true) return false;
         if (city.getPopulationMaximum() > 0 || GameClock.YearsSince(city.FoundedStamp) < 3) return false;
         if (city.buildings?.Any(building => building != null && building.isUnderConstruction()) == true) return false;
         if (CityLedger.Pending(city) != null) return false;
@@ -90,16 +90,16 @@ public static class CityDissolution
                                                     !CityTerritoryProtection.Dissolving.Contains(other.Key))
             .OrderBy(other => Vector2.SqrMagnitude(other.Center - center)).FirstOrDefault();
     }
+#endif
 
     private static void MoveUnits(City city, City destination)
     {
         foreach (Person unit in city.People.ToList())
         {
             if (unit?.Record == null || unit.IsGone() || !unit.Alive) continue;
-            if (unit.IsCityLeader() && unit.City == city) city.removeLeader();
+            if (unit.IsCityLeader() && unit.City == city) city.RemoveLeader();
             unit.JoinCity(destination);
         }
     }
-#endif
 }
 }

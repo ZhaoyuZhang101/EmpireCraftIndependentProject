@@ -27,8 +27,8 @@ internal static class CityResettlementSystem
 
     private static readonly Dictionary<long, Work> Works = new();
     private static readonly Queue<long> Pending = new();
-#if EC_PENDING
     private static bool Enabled => CityPopulationSystem.AbstractPopulationEnabled && !ModClass.IS_CLEAR;
+#if EC_PENDING
     private static bool Valid(City city) => city?.Record != null && !city.IsGone() &&
         city.Realm != null && !city.Realm.IsGone() && !city.Realm.IsWild &&
         !AncientWarfareCompatibility.OwnsObject(city) && !AncientWarfareCompatibility.Owns(city.Realm) &&

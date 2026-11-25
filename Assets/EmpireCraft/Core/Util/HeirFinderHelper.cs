@@ -28,7 +28,6 @@ public class HeirFinderHelper
     /// <summary>
     /// 入口1：在调用线程取关系快照，再并行计算（如需，确保此方法在主线程调用）
     /// </summary>
-#if EC_PENDING
     public async Task<(ClanRelation rel, Person actor)> FindHeirAsync(
         PersonalClanIdentity personal,
         Action onStart = null,
@@ -51,12 +50,10 @@ public class HeirFinderHelper
 
         return result;
     }
-#endif
 
     /// <summary>
     /// 入口2：已提供关系快照，直接并行计算（最安全，后台无 Unity 访问）
     /// </summary>
-#if EC_PENDING
     public Task<(ClanRelation, Person)> FindHeirAsyncDir(
         PersonalClanIdentity personal,
         IReadOnlyList<(ClanRelation rel, PersonalClanIdentity id)> relationsSnapshot,
@@ -113,7 +110,6 @@ public class HeirFinderHelper
             return (default, (Person)null);
         }, ct);
     }
-#endif
 
     // 你的校验逻辑（不要调用 UnityEngine API；如果会，请把校验放回主线程执行）
     private bool IsValid(PersonalClanIdentity id)

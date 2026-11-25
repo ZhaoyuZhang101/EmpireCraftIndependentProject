@@ -237,10 +237,10 @@ public static class ZhouEraSystem
     {
         if (empire?.data == null) return Enumerable.Empty<Realm>();
         IEnumerable<Realm> members = empire.kingdoms_list?.Where(kingdom => kingdom?.Record != null && !kingdom.IsGone() &&
-            kingdom != empire.CoreKingdom && kingdom.hasCities()) ?? Enumerable.Empty<Realm>();
+            kingdom != empire.CoreKingdom && kingdom.HasCities()) ?? Enumerable.Empty<Realm>();
         if (!Applies(empire) || State(empire).era < Warring || EmpireWorld.Current?.LiveRealms == null) return members;
         IEnumerable<Realm> detached = EmpireWorld.Current.LiveRealms.Where(kingdom => kingdom?.Record != null && !kingdom.IsGone() &&
-            kingdom.hasCities() && kingdom.GetEmpire() == null && kingdom.GetOrCreate().zhou_sphere_id == empire.Key);
+            kingdom.HasCities() && kingdom.GetEmpire() == null && kingdom.GetOrCreate().zhou_sphere_id == empire.Key);
         return members.Concat(detached).ToList();
     }
 #endif
@@ -250,7 +250,7 @@ public static class ZhouEraSystem
     public static List<Realm> DetachedVassals(Empire empire)
     {
         if (!Applies(empire) || State(empire).era < Warring || EmpireWorld.Current?.LiveRealms == null) return new List<Realm>();
-        return EmpireWorld.Current.LiveRealms.Where(kingdom => kingdom?.Record != null && !kingdom.IsGone() && kingdom.hasCities() &&
+        return EmpireWorld.Current.LiveRealms.Where(kingdom => kingdom?.Record != null && !kingdom.IsGone() && kingdom.HasCities() &&
                                                      kingdom.GetEmpire() == null &&
                                                      kingdom.GetOrCreate().zhou_sphere_id == empire.Key).ToList();
     }
@@ -919,12 +919,12 @@ public static class ZhouEraSystem
     {
         if ((vassal.Cities?.Count ?? 0) < 4 || vassal.Capital == null || Random.value > 0.015f) return;
         City seat = vassal.Cities.Where(city => city != null && !city.IsGone() && city != vassal.Capital && city.Leader != null)
-            .OrderByDescending(city => city.PopulationCount() ?? 0).FirstOrDefault();
+            .OrderByDescending(city => city.PopulationCount()).FirstOrDefault();
         Person usurper = seat?.Leader;
         Person ruler = vassal.Ruler;
         if (usurper == null || usurper.IsGone() || !usurper.Alive || ruler == null ||
             SpecificClanManager.SameLineage(usurper.GetSpecificClan(), ruler.GetSpecificClan())) return;
-        seat.removeLeader();
+        seat.RemoveLeader();
         vassal.SetRuler(usurper);
         usurper.setCity(vassal.Capital);
         Announce(empire, string.Format(LM.Get("zhou_log_usurp"), usurper.FullName(), vassal.GetKingdomName()), vassal, history: true);

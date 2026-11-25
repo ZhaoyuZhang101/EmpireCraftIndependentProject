@@ -20,12 +20,12 @@ public static class CityTerritoryProtection
         if (_founding > 0) _founding--;
     }
 
-#if EC_PENDING
-    public static bool BordersFixed => EmpireCraftWorldLawLibrary.empirecraft_law_fixed_city_borders?.isEnabled() == true;
+    public static bool BordersFixed => WorldLaws.FixedCityBorders?.IsEnabled() == true;
 
-    public static bool BordersLocked => BordersFixed && !ModClass.IS_CLEAR && GameClock.Running && !SmoothLoader.isLoading() &&
+    public static bool BordersLocked => BordersFixed && !ModClass.IS_CLEAR && GameClock.Running && !GameClock.Loading &&
                                         !WorldMapGenerator.Generating && !WorldMapScenario.AfterLoadPending;
 
+#if EC_PENDING
     private static bool ManualChange => CityExpansionPatch.ManualClaim || CityPlacementSystem.Placing;
 
     public static bool LocksAdd(City city) => BordersLocked && !ManualChange && _founding == 0 && city?.Zones?.Count > 0;
@@ -35,28 +35,26 @@ public static class CityTerritoryProtection
 #endif
 
     // 战争、临时占领都不能触发自动缩界或弃地；只保护辖区，不阻挡整城换国。
-#if EC_PENDING
     public static bool PreserveWarLayout(City city)
     {
-        if (ModClass.IS_CLEAR || !GameClock.Running || SmoothLoader.isLoading() || city?.Record == null || city.IsGone() ||
+        if (ModClass.IS_CLEAR || !GameClock.Running || GameClock.Loading || city?.Record == null || city.IsGone() ||
             AncientWarfareCompatibility.OwnsObject(city) || Dissolving.Contains(city.Key)) return false;
         return city.Realm?.HasEnemies() == true || city.GetOrCreate().OccupiedStatus?.Count > 0;
     }
-#endif
 
     // World teardown marks cities dead before disposal. Only protect live cities
     // that still own territory, so loading another map can clear the old world.
-#if EC_PENDING
     public static bool ShouldPreventDestruction(City city)
     {
         if (city?.Record == null || city.IsGone() || city.Zones.Count == 0 ||
             AncientWarfareCompatibility.OwnsObject(city) || Dissolving.Contains(city.Key)) return false;
-        return EmpireCraftWorldLawLibrary.empirecraft_law_prevent_city_destroy?.isEnabled() == true ||
+        return WorldLaws.PreventCityDestroy?.IsEnabled() == true ||
                CityPopulationSystem.AbstractPopulationEnabled &&
                (CityPopulationSystem.GetBackgroundTotal(city) > 0f ||
                 CityPopulationSystem.Get(city)?.levied > 0f);
     }
 
+#if EC_PENDING
     public static bool ShouldKeepVirtualOwner(City city)
     {
         if (!CityPopulationSystem.AbstractPopulationEnabled || city?.Realm == null ||

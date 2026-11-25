@@ -362,7 +362,6 @@ public static class ScenarioEditing
     // ownRegion(用户 2026-11-14 转群友"可以放城市的时候原地生成一个王国法理，而不是立马并入旁边的王国法理")：新城自成一个王国法理
     // (名取城名、城作法理首都，文化照选的、没选照本来要并入的那块)；本来要并入的那块在哪个帝国法理里，新法理也留在那个帝国法理里，
     // 省得放一座就掉出帝国法理一座。因文化不同另立的照旧不进帝国法理
-#if EC_PENDING
     public static string AddCity(float lon, float lat, string culture = null, string species = null, bool ownRegion = false)
     {
         if (Era == null) return null;
@@ -421,12 +420,10 @@ public static class ScenarioEditing
         Changed();
         return id;
     }
-#endif
 
     // 新城的地区：几度内有城跟它；再远(空白剧本放下第一座城、跨到另一片大陆)按内置城表看这里当年属哪个地区，文化才对得上
     private const float NearCityDegrees = 6f;
 
-#if EC_PENDING
     private static string RegionForNewCity(WorldMapCity near, float lon, float lat)
     {
         if (near != null)
@@ -449,7 +446,6 @@ public static class ScenarioEditing
         }
         return near?.region ?? Regions.FirstOrDefault()?.id ?? "";
     }
-#endif
 
     private static string CultureOfRegion(string region) => Regions.FirstOrDefault(entry => entry.id == region)?.culture;
 
@@ -584,7 +580,6 @@ public static class ScenarioEditing
         return LM.Get("scenario_editor_cities_cleared");
     }
 
-#if EC_PENDING
     public static WorldMapCity Nearest(float lon, float lat, Func<WorldMapCity, bool> filter)
     {
         WorldMapCity best = null;
@@ -600,7 +595,6 @@ public static class ScenarioEditing
         }
         return best;
     }
-#endif
 
     #endregion
 
@@ -1603,7 +1597,6 @@ public static class ScenarioEditing
         Changed();
     }
 
-#if EC_PENDING
     public static int AddPass(float lon, float lat)
     {
         if (Era == null) return -1;
@@ -1616,7 +1609,6 @@ public static class ScenarioEditing
         Changed();
         return Era.passes.Count - 1;
     }
-#endif
 
     public static void DeletePass(int index)
     {
@@ -1882,7 +1874,6 @@ public static class ScenarioEditing
     public static WorldMapTribes TribesOf(int index) => Era?.tribes != null && index >= 0 && index < Era.tribes.Count ? Era.tribes[index] : null;
 
     // 画一个部落圈：文化取圈心最近那城所在法理的文化
-#if EC_PENDING
     public static int AddTribes(float lon, float lat, float radius)
     {
         if (Era == null || radius <= 0f) return -1;
@@ -1898,7 +1889,6 @@ public static class ScenarioEditing
         Changed();
         return Era.tribes.Count - 1;
     }
-#endif
 
     public static void DeleteTribes(int index)
     {

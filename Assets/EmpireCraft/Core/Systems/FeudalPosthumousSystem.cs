@@ -14,7 +14,7 @@ namespace EmpireCraft.Core
 public static class FeudalPosthumousSystem
 {
 #if EC_PENDING
-    public static void OnRulerDied(Person ruler, Realm realm, AttackType cause)
+    public static void OnRulerDied(Person ruler, Realm realm, DeathCause cause)
     {
         if (ruler?.Record == null || realm?.Record == null || realm.IsGone() || realm.Ruler != ruler) return;
         try
@@ -31,7 +31,7 @@ public static class FeudalPosthumousSystem
             var realmData = realm.GetOrCreate();
             var used = new HashSet<string>(realmData.posthumous_used ??= new List<string>());
             int years = realm.Record.timestamp_king_rule >= 0d ? GameClock.YearsSince(realm.Record.timestamp_king_rule) : -1;
-            bool killed = cause is AttackType.Weapon or AttackType.Explosion or AttackType.Poison;
+            bool killed = cause is DeathCause.Weapon or DeathCause.Explosion or DeathCause.Poison;
             int cities = realm.Cities?.Count ?? 0;
             var decision = PosthumousNameGenerator.DecideVassal(years, ruler.Age(), killed, cities, used);
             string shi = LM.Get(decision.shi);

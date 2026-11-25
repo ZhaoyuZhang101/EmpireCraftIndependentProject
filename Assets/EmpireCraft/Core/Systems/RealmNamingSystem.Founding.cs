@@ -339,10 +339,9 @@ public static partial class RealmNamingSystem
     //   · 其余一律先算方位(新都相对前朝都城，四方位)；同都、或方位算不出，才加"后"。
     // 以前法则没开(默认就没开)时直接返回"后"，方位压根不算，于是前朝用过的国号一律变成"后某"
     // (玩家 2026-11-07"能不能把这个后字去掉，改成东西也行")
-#if EC_PENDING
     private static string ReusePrefix(Realm kingdom, (string surname, City capital) former)
     {
-        if (EmpireCraftWorldLawLibrary.empirecraft_law_surname_dynasty?.isEnabled() == true)
+        if (WorldLaws.SurnameDynasty?.IsEnabled() == true)
         {
             string surname = kingdom.Ruler?.GetSpecificClan()?.name?.Trim() ?? "";
             if (!string.IsNullOrWhiteSpace(surname) && !string.Equals(surname, former.surname?.Trim(), StringComparison.Ordinal))
@@ -353,7 +352,6 @@ public static partial class RealmNamingSystem
         return RealmNameRules.Direction4(former.capital.Center.x, former.capital.Center.y,
             mine.Center.x, mine.Center.y) ?? RealmNameRules.Later;
     }
-#endif
 
     // ③ 起义军：起事时打了前朝旗号的，称帝用前朝号；本天下有人在用同号按复国规则加方位或"后"
 #if EC_PENDING

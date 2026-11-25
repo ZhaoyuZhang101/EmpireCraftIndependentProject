@@ -153,7 +153,7 @@ public class EmpireCraftActorCheckWarriorMove : GameAIActorBase
         // Warrior 生育已经彻底移到 EmpireCraftActorCheckWarrior
         // 并由 ArmyManager.update 独立驱动，不再依赖这个军事 Behaviour
         // 在和平时期是否会被 AI 调度。
-        if (!EmpireCraftWorldLawLibrary.empirecraft_law_switch_occupy_mode.isEnabled() ||
+        if (!WorldLaws.SwitchOccupyMode.IsEnabled() ||
             EmpireCraft.Core.CorpsSystem.Enabled)
         {
             ClearActorMoveState(pActor);
@@ -266,7 +266,7 @@ public class EmpireCraftActorCheckWarriorMove : GameAIActorBase
             return;
         }
 
-        if (!EmpireCraftWorldLawLibrary.empirecraft_law_switch_occupy_mode.isEnabled())
+        if (!WorldLaws.SwitchOccupyMode.IsEnabled())
             return;
 
         // 开战时刷新一次该国前线缓存，之后所有士兵共享。

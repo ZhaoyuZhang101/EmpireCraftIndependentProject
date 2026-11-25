@@ -471,6 +471,7 @@ public static class WorldMapWilderness
         _unitById = _units.GroupBy(unit => unit.id).ToDictionary(group => group.Key, group => group.First());
         return _units.Count > 0;
     }
+#endif
 
     private static void Measure(WorldMapWildUnit unit)
     {
@@ -506,10 +507,8 @@ public static class WorldMapWilderness
         unit.CenterLon = parts > 0 ? sumLon / parts : 0f;
         unit.CenterLat = parts > 0 ? sumLat / parts : 0f;
     }
-#endif
 
     // 这个经纬度在不在单元的范围里
-#if EC_PENDING
     private static bool Covers(WorldMapWildUnit unit, float lon, float lat)
     {
         if (lon < unit.West || lon > unit.East || lat < unit.South || lat > unit.North) return false;
@@ -524,10 +523,8 @@ public static class WorldMapWilderness
         }
         return false;
     }
-#endif
 
     // 离单元范围几度(在范围里为 0)
-#if EC_PENDING
     private static float DistanceTo(WorldMapWildUnit unit, float lon, float lat)
     {
         float squeeze = Mathf.Cos(lat * Mathf.Deg2Rad), best = float.MaxValue;
@@ -545,7 +542,6 @@ public static class WorldMapWilderness
         }
         return best;
     }
-#endif
 
     private static string KindKey(WildKind kind) => kind switch
     {
@@ -745,7 +741,6 @@ public static class WorldMapWilderness
 #endif
 
     // 东西南北：经向按纬度折算后取差得多的那个方向；离得太近不分
-#if EC_PENDING
     private static string Direction(float dLon, float dLat, float lat)
     {
         float dx = dLon * Mathf.Cos(lat * Mathf.Deg2Rad);
@@ -753,7 +748,6 @@ public static class WorldMapWilderness
         if (Mathf.Abs(dx) >= Mathf.Abs(dLat)) return dx > 0f ? "east" : "west";
         return dLat > 0f ? "north" : "south";
     }
-#endif
 
     // 候选名字，先后：起名文化的叫法 → 开局年份的旧称 → 现代名
     private static List<string> Names(WorldMapWildUnit unit, string culture)

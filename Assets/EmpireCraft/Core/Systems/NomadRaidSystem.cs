@@ -151,10 +151,8 @@ public static partial class NomadRaidSystem
         at < 0d || GameClock.Now < at ? float.MaxValue : GameClock.YearsSince(at);
 
     // 本国(不连帝国成员)的兵：原版士兵 + 各军团
-#if EC_PENDING
     private static float Troops(Realm kingdom) =>
         kingdom.Warriors() + (CorpsSystem.Enabled ? CorpsSystem.Of(kingdom).Sum(corps => Mathf.Max(0f, corps.strength)) : 0f);
-#endif
 
     // 劫掠时拼的国力：帝国核心算整个帝国，帝国的边地成员只算它自己(中央不为劫掠出兵，见 MemberWarAid)
 #if EC_PENDING
@@ -456,7 +454,7 @@ public static partial class NomadRaidSystem
     private static double Wealth(Realm target)
     {
         double food = target.Cities.Where(city => city?.Record != null && !city.IsGone()).Sum(city => (double)city.getTotalFood());
-        int households = CityPopulationSystem.AbstractPopulationEnabled ? CityPopulationSystem.Households(target) : target.PopulationCount() ?? 0;
+        int households = CityPopulationSystem.AbstractPopulationEnabled ? CityPopulationSystem.Households(target) : target.PopulationCount();
         return Math.Max(0d, target.GetMoney()) + food + households;
     }
 #endif

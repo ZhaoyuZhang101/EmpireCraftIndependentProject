@@ -158,7 +158,7 @@ public static class EthnicRankSystem
         Empire empire = kingdom?.GetEmpire();
         if (empire == null || empire.CoreKingdom != kingdom) return false;
         Scheme scheme = SchemeOf(empire);
-        return scheme != Scheme.None && EthnicRankRules.FavorsRuling(scheme, Randy.randomFloat(0f, 1f));
+        return scheme != Scheme.None && EthnicRankRules.FavorsRuling(scheme, EcRandom.Range(0f, 1f));
     }
 #endif
 

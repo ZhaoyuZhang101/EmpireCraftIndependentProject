@@ -49,7 +49,7 @@ public static class RealmAuthority
         if (corruption != 0) items.Add(("mandate_corruption", corruption));
         int misrule = RealmAuthorityRules.Misrule(HarshRuleSystem.GetBurden(kingdom));
         if (misrule != 0) items.Add(("mandate_misrule", misrule));
-        int prestige = reigning ? RealmAuthorityRules.Prestige(ruler.Renown ?? 0) : 0;
+        int prestige = reigning ? RealmAuthorityRules.Prestige(ruler.Renown) : 0;
         if (prestige != 0) items.Add(("realm_authority_prestige", prestige));
         // 受着某个天下的天命(天下共主，见 TianxiaSystem)
         if (TianxiaSystem.MandateOf(kingdom) != null) items.Add(("mandate_tianxia_holder", RealmAuthorityRules.MandateHolder));

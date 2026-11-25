@@ -241,6 +241,7 @@ public class KingdomTitle : RecordObject<KingdomTitleData>
         if (recoveredAsset != null && data != null) data.original_actor_asset = recoveredAsset.id;
         return recoveredAsset;
     }
+#endif
 
 
     public int countZones()
@@ -250,11 +251,12 @@ public class KingdomTitle : RecordObject<KingdomTitleData>
         for (int i = 0; i < tCities.Count; i++)
         {
             City tCity = tCities[i];
-            tResult += tCity.countZones();
+            tResult += tCity.CountZones();
         }
         return tResult;
     }
 
+#if EC_PENDING
     public override ColorLibrary getColorLibrary()
     {
         return AssetManager.kingdom_colors_library;

@@ -39,7 +39,6 @@ public static partial class GentrySystem
 
     public static bool HasFortress(City city) => FortressOf(city)?.gentry == true;
 
-#if EC_PENDING
     public static float FortressFactor(City city)
     {
         SpecificClan clan = FortressOf(city);
@@ -51,7 +50,6 @@ public static partial class GentrySystem
         SpecificClan clan = FortressOf(city);
         return clan?.gentry == true ? FortressYield - FortressYieldMore * FortressScale(clan) : 1f;
     }
-#endif
 
     // 自然稳定度加成(见 CityStabilitySystem.LocalPressures)：坞堡 +3~+5，世家赈济过的两年里再 +6
 #if EC_PENDING

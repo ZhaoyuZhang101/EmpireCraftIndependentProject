@@ -63,14 +63,10 @@ public static class BackgroundReligionSystem
     // 通达：强度到这个数算"紧密"不打折；圣地加成要的强度；跨天下的民族宗教衰减长度的倍数
     public const float HolyReachMin = 0.3f, EthnicLengthFactor = 0.6f;
 
-#if EC_PENDING
     public static bool Active => CityPopulationSystem.AbstractPopulationEnabled;
-#endif
 
     // 原版创教谋划(new_religion)在无小人模式下停用，改由这里按人口创教
-#if EC_PENDING
     public static bool ReplacesVanillaPlot(string plotId) => plotId == "new_religion" && Active;
-#endif
 
     private static bool Valid(City city) => city?.Record != null && !city.IsGone() && city.Realm?.Record != null &&
                                            !city.Realm.IsWild && !AncientWarfareCompatibility.OwnsObject(city);
@@ -199,13 +195,11 @@ public static class BackgroundReligionSystem
 #endif
 
     // 圣地加成只给通达到 HolyReachMin 的邻城(通达层没算好、这两城没算进去时照旧给)
-#if EC_PENDING
     private static bool HolyReach(City holy, City city)
     {
         float strength = ConnectivitySystem.NeighbourStrength(holy, city, ConnectivityMode.Ideas);
         return strength < 0f || strength >= HolyReachMin;
     }
-#endif
 
     // 国教势能按政令控制力打折(还没算过控制力的城不打折)
     public static float ControlFactor(City city) =>

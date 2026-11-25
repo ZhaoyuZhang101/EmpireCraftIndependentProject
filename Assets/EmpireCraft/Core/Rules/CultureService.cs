@@ -45,12 +45,12 @@ public static class CultureService
         return true;
     }
 
-#if EC_PENDING
     public static bool IsFixedDeJureCultureEnabled()
     {
-        return EmpireCraftWorldLawLibrary.empirecraft_law_fixed_de_jure_culture?.isEnabled() == true;
+        return WorldLaws.FixedDeJureCulture?.IsEnabled() == true;
     }
 
+#if EC_PENDING
     public static string GetActorCulture(Person actor)
     {
         return actor == null ? "" : CulturePatch.GetInjectedCultureName(actor.GetCulture());
@@ -955,7 +955,6 @@ public static class CultureService
     /// 人口迁徙或 culture_shares。世界法则"固定法理文化"开着时不论有没有法理一律锁住
     /// (以前没归进法理的城不受影响，开局、新拓的城大多还没有法理，照样改从别的文化)。
     /// </summary>
-#if EC_PENDING
     public static bool IsCityMainCultureLocked(City city)
     {
         if (city?.Record == null) return false;
@@ -963,7 +962,6 @@ public static class CultureService
         KingdomTitle title = city.GetTitle();
         return title?.data != null && !title.IsGone() && title.data.culture_locked;
     }
-#endif
 
     /// <summary>
     /// 检查某座城市是否存在一个挑战文化，其占比已经超过阈值，可以由城主发起“改变城市主流文化”的决议。

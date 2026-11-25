@@ -578,6 +578,7 @@ namespace EmpireCraft.Core
             }
             return actorsPool;
         }
+#endif
 
         public static bool HasChangeToGiveBirth(Person pMotherTarget, Person pFatherTarget)
         {
@@ -586,7 +587,7 @@ namespace EmpireCraft.Core
             float num2 = 0.5f;
             for (int i = 0; i < (mNum+fNum)/2; i++)
             {
-                if (!Randy.randomChance(num2))
+                if (!EcRandom.Chance(num2))
                 {
                     return true;
                 };
@@ -594,6 +595,7 @@ namespace EmpireCraft.Core
             }
             return false;
         }
+#if EC_PENDING
     public static List<(ClanRelation, PersonalClanIdentity)> SearchPersonalClanIdentityHelper(string content, List<(ClanRelation, PersonalClanIdentity)> cIdentities)
         {
             List<(ClanRelation, PersonalClanIdentity)> identityPool = new List<(ClanRelation, PersonalClanIdentity)>();

@@ -22,9 +22,9 @@ internal static class OfficeCandidateRoster
     private static long _revision;
     public static long Builds { get; private set; }
     public static long Hits { get; private set; }
-#if EC_PENDING
     public static void Invalidate() { if (CityPopulationSystem.AbstractPopulationEnabled) _revision++; }
 
+#if EC_PENDING
     public static IEnumerable<Person> Empire(IEnumerable<Realm> kingdoms)
     {
         if (kingdoms == null) yield break;

@@ -350,7 +350,7 @@ public static class HarshRuleSystem
         Realm origin = city.Realm;
         Person leader = city.People?.Where(actor => actor != null && !actor.IsGone() && actor.Alive &&
                                                   actor.IsAdult() && !actor.IsRuler() && actor.CanFoundCivKingdom())
-            .OrderByDescending(actor => actor.Renown ?? 0).FirstOrDefault();
+            .OrderByDescending(actor => actor.Renown).FirstOrDefault();
         // 无小人模式：民变由百姓带头，不由城里的官员、城主带头
         if (CityPopulationSystem.AbstractPopulationEnabled)
             leader = CityPopulationSystem.SpawnRebelLeader(city) ?? leader;

@@ -587,19 +587,18 @@ public static class WildernessPlotSystem
 
     private static float WaterShare(Cell zone)
     {
-        int size = Config.CITY_ZONE_SIZE * Config.CITY_ZONE_SIZE;
+        int size = Land.ZoneSize * Land.ZoneSize;
         return Mathf.Clamp01(1f - zone.GroundTiles / (float)size);
     }
 #endif
 
     // a、b 交界(四邻)两边贴着的格子对里，不是两边都是干地平地(水面、山地山巅、阻挡格都算挡)的占几成(同 TerrainSystem.Crossable 数路口)
-#if EC_PENDING
     private static float Barrier(Cell a, Cell b)
     {
         if (a == null || b == null) return 1f;
         int dx = b.X - a.X, dy = b.Y - a.Y;
         if (Math.Abs(dx) + Math.Abs(dy) != 1) return 0f;
-        int size = Config.CITY_ZONE_SIZE, ox = a.X * size, oy = a.Y * size, open = 0;
+        int size = Land.ZoneSize, ox = a.X * size, oy = a.Y * size, open = 0;
         for (int i = 0; i < size; i++)
         {
             int x = dx > 0 ? ox + size - 1 : dx < 0 ? ox : ox + i;
@@ -608,7 +607,6 @@ public static class WildernessPlotSystem
         }
         return 1f - open / (float)size;
     }
-#endif
 
     private static bool Dry(Cell tile)
     {
@@ -1166,7 +1164,7 @@ public static class WildernessPlotSystem
             if (string.IsNullOrEmpty(plot.name)) (pending ??= new List<WildPlot>()).Add(plot);
         if (pending == null) return;
         bool earth = WorldMapWilderness.OnEarth;
-        float reach = earth ? float.MaxValue : NameReach * Config.CITY_ZONE_SIZE;
+        float reach = earth ? float.MaxValue : NameReach * Land.ZoneSize;
         var seats = new List<(int x, int y, string culture)>();
         var used = new HashSet<string>();
         foreach (City city in EmpireWorld.Current.Cities)

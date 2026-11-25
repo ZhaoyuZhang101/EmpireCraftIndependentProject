@@ -18,7 +18,7 @@ public static class ImperialLegitimacyChallengeService
         if (kingdom == null || kingdom.IsGone() || !kingdom.HasRuler() || kingdom.Ruler == null ||
             kingdom.Ruler.IsGone() || kingdom.IsInEmpire() || kingdom.IsEmpire() || kingdom.HasEnemies() ||
             kingdom.GetMoney() < 0 || AncientWarfareCompatibility.BlocksEmpireFormation(kingdom) ||
-            EmpireCraftWorldLawLibrary.empirecraft_law_ban_empire.isEnabled()) return false;
+            WorldLaws.BanEmpire.IsEnabled()) return false;
         // 现代政体没有僭越称帝：政权只能组建政府(见 ModernStateFormationSystem)
         if (kingdom.GetRegime()?.type == RegimeType.Modern) return false;
         // 别国的从属(附庸、朝贡国、属地、傀儡)不僭越称帝(见 EmpireFormationService.IsSubject)

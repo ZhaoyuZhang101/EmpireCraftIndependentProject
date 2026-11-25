@@ -237,7 +237,7 @@ public static class AnimalHusbandrySystem
     public static void Tick()
     {
         EmpireWorld world = EmpireWorld.Current;
-        if (world?.Cities == null || GameClock.Paused || !GameClock.Running || SmoothLoader.isLoading()) return;
+        if (world?.Cities == null || GameClock.Paused || !GameClock.Running || GameClock.Loading) return;
         if (!ReferenceEquals(_world, world)) ResetWorldState();
         double now = world.Now();
         if (Pending.Count == 0 && _groupCities == null)
@@ -408,7 +408,7 @@ public static class AnimalHusbandrySystem
     {
         try
         {
-            animal.die(true, AttackType.Other, false, false);
+            animal.die(true, DeathCause.Other, false, false);
         }
         catch (Exception exception)
         {

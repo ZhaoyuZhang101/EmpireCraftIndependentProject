@@ -80,13 +80,11 @@ namespace EmpireCraft.Core
         {
             ModClass.PERFORMANCE_HIGH_POPULATION_MODE = on;
         }
-#if EC_PENDING
         public static void AdaptiveThroughputPerformanceCallBack(bool on)
         {
             ModClass.PERFORMANCE_ADAPTIVE_THROUGHPUT_MODE = on;
             EmpireCraft.Core.EmpireCraftStrategicScheduler.Reset();
         }
-#endif
         public static void HiddenVisualsPerformanceCallBack(bool on)
         {
             ModClass.PERFORMANCE_SKIP_HIDDEN_VISUALS = on;

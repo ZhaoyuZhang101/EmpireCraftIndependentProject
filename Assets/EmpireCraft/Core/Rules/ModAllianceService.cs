@@ -19,10 +19,10 @@ public static class ModAllianceService
 
     public static bool IsModAlliance(Alliance alliance) =>
         alliance != null && ModClass.MOD_ALLIANCE_IDS.Contains(alliance.id);
+#endif
 
     public static bool IsVanillaAllianceBanned() =>
-        EmpireCraftWorldLawLibrary.empirecraft_law_ban_vanilla_alliance?.isEnabled() == true;
-#endif
+        WorldLaws.BanVanillaAlliance?.IsEnabled() == true;
 
     // 旧存档里模组同盟还没有标记：成员中有两国同属一位君主的(共主联盟、城邦同盟)视为模组同盟并补上标记
 #if EC_PENDING

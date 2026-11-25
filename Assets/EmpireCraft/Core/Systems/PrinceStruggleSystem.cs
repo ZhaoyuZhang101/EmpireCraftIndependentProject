@@ -78,6 +78,7 @@ public static class PrinceStruggleSystem
 #if EC_PENDING
     private static List<Person> Princes(Empire empire, Person emperor) =>
         KinRoster.Realize(PrincePeople(empire, emperor), son => IsPrince(son, empire));
+#endif
 
     private static float Mood(Person emperor) => RulerQualitySystem.Of(emperor) switch
     {
@@ -86,6 +87,7 @@ public static class PrinceStruggleSystem
         _ => 1f
     };
 
+#if EC_PENDING
     public static void Yearly(Empire empire)
     {
         Person emperor = empire?.Emperor;

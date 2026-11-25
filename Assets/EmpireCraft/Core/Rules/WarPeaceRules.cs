@@ -18,7 +18,6 @@ public static class WarPeaceRules
 {
     public const int MinWarYears = 3;
 
-#if EC_PENDING
     public static bool MayNegotiate(War war)
     {
         if (war?.Record == null || war.HasEnded()) return true;
@@ -32,6 +31,5 @@ public static class WarPeaceRules
         if (WarSituation.SideCities(attacker) <= 0 || WarSituation.SideCities(defender) <= 0) return true;
         return WarSituation.WarYears(war) >= MinWarYears;
     }
-#endif
 }
 }

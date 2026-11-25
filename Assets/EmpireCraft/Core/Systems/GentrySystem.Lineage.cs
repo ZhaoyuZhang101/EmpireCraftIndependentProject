@@ -21,11 +21,11 @@ public static partial class GentrySystem
     private const float BranchPedigreeShare = 0.9f;
 
     // 同一世系里别的支(不是皇族)，族人多的在前
-#if EC_PENDING
     private static IEnumerable<SpecificClan> Kin(SpecificClan clan) =>
         SpecificClanManager.LineageClans(clan).Where(other => other != null && other != clan && !Ruling.Contains(other))
             .OrderByDescending(other => other.LivingPeople.Count);
 
+#if EC_PENDING
     private static void TryAdopt(SpecificClan clan, List<PersonalClanIdentity> living)
     {
         if (!CityPopulationSystem.AbstractPopulationEnabled ||

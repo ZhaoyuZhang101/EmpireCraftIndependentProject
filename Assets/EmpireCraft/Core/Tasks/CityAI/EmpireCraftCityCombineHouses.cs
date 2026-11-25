@@ -30,7 +30,7 @@ public class EmpireCraftCityCombineHouses: GameAICityBase
         {
             // 世界法则关掉合并时保留原版民居(modernmod 的 6~11 级民居也是民居，合并会把它们全拆掉)；
             // 已经住进 modernmod 高级民居的城市也不再合并
-            if (EmpireCraftWorldLawLibrary.empirecraft_law_combine_houses?.isEnabled() == false) return BehResult.Continue;
+            if (WorldLaws.CombineHouses?.IsEnabled() == false) return BehResult.Continue;
             if (pCity.buildings.Any(b => b.asset.type == "type_house" && b.asset.id.EndsWith("_modernmod")))
                 return BehResult.Continue;
             if (population > 80) Combine(pCity, population);

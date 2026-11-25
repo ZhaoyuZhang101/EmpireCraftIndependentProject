@@ -69,7 +69,6 @@ public static partial class GentrySystem
 #endif
 
     // 立场：1 亲附、0 中立、-1 离心
-#if EC_PENDING
     public static int Stance(SpecificClan clan, Empire empire)
     {
         float score = Favor(empire) + Mathf.Min(StanceOfficeCap, InOffice(clan) * StanceOffice);
@@ -79,7 +78,6 @@ public static partial class GentrySystem
     private static int InOffice(SpecificClan clan) =>
         clan.LivingPeople.Count(person => !person.is_virtual && person._actor?.Record != null && !person._actor.IsGone() &&
                                           (person._actor.IsOnOffice() || person._actor.IsCityLeader()));
-#endif
 
     // 改革阻力(见 InstitutionSystem.CalculatePoliticalBalance)：返回要加的支持、反对
 #if EC_PENDING

@@ -1501,7 +1501,7 @@ public static class KingdomExtension
         if (fiscal) k.GetOrCreate().last_taken_time = GameClock.Now;
         // 贡金按人口(无小人模式按户，和单位个数同一量级)
         bool abstracted = CityPopulationSystem.AbstractPopulationEnabled;
-        int population = abstracted ? CityPopulationSystem.Households(k) : k.PopulationCount() ?? 0;
+        int population = abstracted ? CityPopulationSystem.Households(k) : k.PopulationCount();
         var value = population / 2;
         if (fiscal) value = Math.Min(value, Math.Max(0, k.GetMoney()));
         k.SubMoney(value, TreasuryCategory.Tribute);

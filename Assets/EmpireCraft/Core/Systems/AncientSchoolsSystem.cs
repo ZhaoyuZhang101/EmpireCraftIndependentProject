@@ -76,13 +76,11 @@ public static class AncientSchoolsSystem
             .SelectMany(link => link.requires_techs).Distinct().Select(TechnologySystem.GetTechName).ToList() ?? new List<string>();
     }
 
-#if EC_PENDING
     private static List<PartyIdeology> Available(string culture) =>
         Enum.GetValues(typeof(PartyIdeology)).Cast<PartyIdeology>()
             .Where(ideology => IdeologyFamilies.IsSchool(ideology) &&
                                TechnologySystem.AreFeatureTechsMet(culture, IdeologySpreadSystem.FeatureKey(ideology)))
             .ToList();
-#endif
 
     // 每年(帝国例行检查，见 EmpireCraftEmpireBehCheckMandate)
 #if EC_PENDING

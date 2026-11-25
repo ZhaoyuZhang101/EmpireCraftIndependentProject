@@ -100,7 +100,7 @@ public static class CivMusic
     private static void Update(float dt)
     {
         bool on = SwitchCivMusicButton.On && MusicBox.music_on;
-        bool world = EmpireWorld.Current != null && GameClock.Running && !SmoothLoader.isLoading() && EmpireWorld.Current.camera != null;
+        bool world = EmpireWorld.Current != null && GameClock.Running && !GameClock.Loading && EmpireWorld.Current.camera != null;
         if (!on && Voices.Count == 0 && _vanilla >= 1f) return;
         if (!EnsureLoaded()) return;
 

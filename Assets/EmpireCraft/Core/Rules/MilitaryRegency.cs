@@ -376,7 +376,7 @@ public static class MilitaryRegency
         return empire.CoreKingdom.People?
             .Where(actor => Eligible(empire, actor) && Fresh(actor) && actor.HasOfficeIdentity() &&
                             actor.GetIdentity()?.officialLevel is >= 9 and <= 12)
-            .OrderBy(actor => actor.GetIdentity().officialLevel).ThenByDescending(actor => actor.Renown ?? 0)
+            .OrderBy(actor => actor.GetIdentity().officialLevel).ThenByDescending(actor => actor.Renown)
             .FirstOrDefault();
     }
 #endif

@@ -41,7 +41,6 @@ public static partial class ParliamentSystem
     #region 查询
 
     // 本届议会的议席数(下次大选生效)
-#if EC_PENDING
     public static int SeatCount(Empire empire)
     {
         int baseSeats = Math.Max(1, Config.parliament_seats);
@@ -55,7 +54,6 @@ public static partial class ParliamentSystem
         if (seats % 2 == 0) seats += seats + 1 > MaxSeats ? -1 : 1;
         return Math.Max(1, seats);
     }
-#endif
 
     // 执政党控制内阁：责任政府(共和国、君主立宪的责任内阁阶段)才由议会多数派出任部长
 #if EC_PENDING

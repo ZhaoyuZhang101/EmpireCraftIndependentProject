@@ -885,7 +885,7 @@ public static class NavySystem
         FlagshipIndex.Remove(fleet.flagship_id);
         fleet.flagship_id = -1L;
         if (boat?.Record == null || boat.IsGone() || !boat.Alive) return;
-        try { boat.die(true, AttackType.Other, false, false); }
+        try { boat.die(true, DeathCause.Other, false, false); }
         catch (Exception exception) { LogService.LogWarning($"[EmpireCraft][海军] 旗舰撤编失败: {exception.Message}"); }
     }
 #endif

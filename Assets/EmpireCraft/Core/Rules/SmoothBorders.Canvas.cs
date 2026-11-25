@@ -214,7 +214,7 @@ public static partial class SmoothBorders
     private static bool DrawCanvas(ZoneGrid calc)
     {
         MetaTypeAsset layer = calc?._mode_asset;
-        if (!Enabled || calc?.pixels == null || layer == null || EmpireWorld.Current == null || !GameClock.Running || SmoothLoader.isLoading())
+        if (!Enabled || calc?.pixels == null || layer == null || EmpireWorld.Current == null || !GameClock.Running || GameClock.Loading)
         {
             if (_canvasLayer != null) CanvasRelease();
             return false;
@@ -759,7 +759,6 @@ public static partial class SmoothBorders
 #endif
 
     // 一块地各格是不是水；变了返回 true
-#if EC_PENDING
     private static bool RefreshWater(int id)
     {
         int zx = id % _zonesX, zy = id / _zonesX;
@@ -775,7 +774,6 @@ public static partial class SmoothBorders
         }
         return changed;
     }
-#endif
 
     #endregion
 

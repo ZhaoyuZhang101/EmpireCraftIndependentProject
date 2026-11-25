@@ -43,7 +43,7 @@ public static class CityLedgerSupply
         {
             if (!city.HasCulture()) return BehResult.Stop;
             Realm kingdom = city.Realm;
-            if (kingdom?.Cities == null || kingdom.countCities() == 1) return BehResult.Stop;
+            if (kingdom?.Cities == null || kingdom.CountCities() == 1) return BehResult.Stop;
             if (city.Record.timer_supply > 0f) return BehResult.Stop;
             List<ResourceAsset> surplus = Surplus(city.GetOrCreate().population?.settlement_supplies);
             if (surplus.Count == 0) return BehResult.Stop;

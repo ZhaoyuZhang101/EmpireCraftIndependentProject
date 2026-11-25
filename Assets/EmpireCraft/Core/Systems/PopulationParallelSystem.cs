@@ -92,6 +92,7 @@ public static class PopulationParallelSystem
         var input = new PopulationNumericInput(CopyGroups(data), perSlot, production);
         Workforce[city] = new Request { Owner = city.Realm, Data = data, Input = input, Job = Submit(input) };
     }
+#endif
 
     public static PopulationNumericResult GetWorkforce(City city, CityPopulationData data, float perSlot, PopulationProductionInput production = null)
     {
@@ -112,6 +113,7 @@ public static class PopulationParallelSystem
         return PopulationMathWorkers.Compute(new PopulationNumericInput(CopyGroups(data), perSlot, production));
     }
 
+#if EC_PENDING
     private static PopulationNumericInput GrowthInput(City city, CityPopulationData data, float years)
     {
         CityPopulationSystem.GrowthFactors factors = CityPopulationSystem.GetGrowthFactors(city, data);

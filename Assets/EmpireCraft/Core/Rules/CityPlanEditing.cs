@@ -648,7 +648,7 @@ public static class CityPlanEditing
         PreviewCropped = false;
         PreviewNote = null;
         if (!Editable(city, out _)) return null;
-        int size = Config.CITY_ZONE_SIZE;
+        int size = Land.ZoneSize;
         int minX = int.MaxValue, minY = int.MaxValue, maxX = int.MinValue, maxY = int.MinValue;
         foreach (Cell zone in city.Zones)
         {

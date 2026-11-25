@@ -134,7 +134,7 @@ public static class OfficeManager
 #if EC_PENDING
     public static void Tick()
     {
-        if (EmpireWorld.Current == null || !GameClock.Running || SmoothLoader.isLoading() || Time.unscaledTime < _pruneAt) return;
+        if (EmpireWorld.Current == null || !GameClock.Running || GameClock.Loading || Time.unscaledTime < _pruneAt) return;
         _pruneAt = Time.unscaledTime + 60f;
         Prune();
     }
@@ -415,7 +415,7 @@ public class OfficeObject
         {
             case MetaType.City:
                 City city =  (City)meta_object;
-                city.setLeader(actor, true);
+                city.SetLeader(actor, true);
                 actor.JoinCity(city);
                 if (city?._city_tile != null)
                 {

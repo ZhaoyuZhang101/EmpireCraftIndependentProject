@@ -123,14 +123,12 @@ public static class CityRelocationSystem
 #endif
 
     // 新城址在旧城的哪一方：0 东、1 东北、2 北、3 西北、4 西、5 西南、6 南、7 东南(地图上 y 往上是北)
-#if EC_PENDING
     private static int Bearing(Cell from, Cell to)
     {
         float angle = Mathf.Atan2(to.Y - from.Y, to.X - from.X) * Mathf.Rad2Deg;
         if (angle < 0f) angle += 360f;
         return Mathf.RoundToInt(angle / 45f) % 8;
     }
-#endif
 
     // 开小人时原版篝火是城的心(人在那里闲坐、聚会，篝火产粮)：在新城心附近本城的地上找一处放得下的空地点一座新的，
     // 再拆掉旧的；放不下就不搬(城心照样迁，见 CityCenterPatch)。纯净地图下的虚拟城市多半没有篝火，没有就不管

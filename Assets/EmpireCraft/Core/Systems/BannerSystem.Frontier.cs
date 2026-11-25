@@ -49,7 +49,7 @@ public static partial class BannerSystem
     private static void LeagueYearly(Empire empire)
     {
         Realm core = empire.CoreKingdom;
-        if (!Randy.randomChance(LeagueMarriageChance)) return;
+        if (!EcRandom.Chance(LeagueMarriageChance)) return;
         double now = GameClock.Now;
         Realm league = LeaguesOf(empire).ToList()
             .Where(member => !core.GetOrCreate().marriage_pacts.TryGetValue(member.Key, out double at) ||
@@ -57,7 +57,7 @@ public static partial class BannerSystem
             .OrderBy(member => member.Key).FirstOrDefault();
         if (league == null) return;
         // 两头都嫁：宗女下嫁外藩，外藩之女入宫
-        Person bride = Randy.randomChance(0.5f) ? RoyalMarriageSystem.ArrangeHeqin(core, league) : RoyalMarriageSystem.ArrangeHeqin(league, core);
+        Person bride = EcRandom.Chance(0.5f) ? RoyalMarriageSystem.ArrangeHeqin(core, league) : RoyalMarriageSystem.ArrangeHeqin(league, core);
         bride ??= RoyalMarriageSystem.ArrangeHeqin(core, league) ?? RoyalMarriageSystem.ArrangeHeqin(league, core);
         if (bride == null) return;
         string text = string.Format(LM.Get("banner_league_marriage_history"), empire.GetEmpireName(), league.GetKingdomName(), bride.FullName());

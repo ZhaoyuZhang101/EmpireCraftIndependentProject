@@ -13,6 +13,8 @@ namespace EmpireCraft.Core
         // A world is loaded and being simulated; the host may pause it.
         public static bool Running => EmpireWorld.Current != null;
         public static bool Paused;
+        // True while the host is still building or reading a world; the per-frame entries of the systems wait.
+        public static bool Loading;
         public static int MonthsSince(double stamp) => (int)Math.Floor(Now - stamp);
         public static int YearsSince(double stamp) => (int)Math.Floor((Now - stamp) / 12d);
         // How much a timestamp grows in a month: stamps are world months.

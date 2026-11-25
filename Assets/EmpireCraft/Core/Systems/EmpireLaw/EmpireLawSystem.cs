@@ -209,9 +209,7 @@ public static partial class EmpireLawSystem
     public static EmpireLawEraConfig Eras { get; set; } = EmpireLawEraConfig.Defaults();
 
     // 世界法则「执行律法」(默认开)：关了不再自动定罪量刑，揭发罪行也定不了罪
-#if EC_PENDING
-    public static bool Enabled => EmpireCraftWorldLawLibrary.empirecraft_law_enforce_laws?.isEnabled() == true;
-#endif
+    public static bool Enabled => WorldLaws.EnforceLaws?.IsEnabled() == true;
 
     // 2026-04 起这里没人调用(律法表一直是空的，所有定罪都直接跳过)；11-05 恢复，读不进来也不拖垮模组初始化
     public static void init()
@@ -397,7 +395,7 @@ public static partial class EmpireLawSystem
         }
         // 年审查出的寻常案子：独立的小国(不到 SmallRealmCities 城)不上公屏，免得刷屏
         context.Broadcast = TranslateHelper.ShouldBroadcastLawActor(actor) &&
-                            (kingdom.IsInEmpire() || kingdom.countCities() >= SmallRealmCities);
+                            (kingdom.IsInEmpire() || kingdom.CountCities() >= SmallRealmCities);
         return context;
     }
 #endif
@@ -924,7 +922,7 @@ public static partial class EmpireLawSystem
 
             Person emperor = empire.Emperor;
             int emperorInfluence = emperor != null && emperor.Record != null ? emperor.Renown : 0;
-            int actorInfluence = actor.Renown ?? 0;
+            int actorInfluence = actor.Renown;
             return emperor != null && emperorInfluence > actorInfluence && actorInfluence > 0;
         }
 

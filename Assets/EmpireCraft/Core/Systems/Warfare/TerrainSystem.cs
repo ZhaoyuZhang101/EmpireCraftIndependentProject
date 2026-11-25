@@ -236,7 +236,7 @@ public static class TerrainSystem
 #if EC_PENDING
     private static int OpenPairs(Cell a, int dx, int dy)
     {
-        int size = Config.CITY_ZONE_SIZE, ox = a.X * size, oy = a.Y * size, count = 0;
+        int size = Land.ZoneSize, ox = a.X * size, oy = a.Y * size, count = 0;
         for (int i = 0; i < size; i++)
         {
             int x = dx > 0 ? ox + size - 1 : dx < 0 ? ox : ox + i;
@@ -616,7 +616,7 @@ public static class TerrainSystem
         side = LowlandSide;
         float livableSum = 0f;
         // 地块里哪些格走得了(不是山地、山巅)，看山以外的地连不连得过去(见 Crossable)
-        int size = Config.CITY_ZONE_SIZE, ox = zone.X * size, oy = zone.Y * size;
+        int size = Land.ZoneSize, ox = zone.X * size, oy = zone.Y * size;
         var open = new bool[size * size];
         void Open(Cell at, bool walkable)
         {

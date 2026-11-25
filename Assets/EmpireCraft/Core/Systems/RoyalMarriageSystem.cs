@@ -235,7 +235,7 @@ public static class RoyalMarriageSystem
             mover.GetOffice()?.RemoveActor();
             mover.EndOffice();
         }
-        if (mover.IsCityLeader() && mover.City != null) mover.City.removeLeader();
+        if (mover.IsCityLeader() && mover.City != null) mover.City.RemoveLeader();
         mover.removeFromArmy();
         mover.joinKingdom(destination);
         mover.JoinCity(destination.Capital);

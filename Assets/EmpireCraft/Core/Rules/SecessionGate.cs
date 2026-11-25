@@ -35,22 +35,17 @@ public static class SecessionGate
     private static readonly HashSet<string> Reported = new(StringComparer.Ordinal);
 
     // 开关开着(不论放不放行)：法则说明、日志用
-#if EC_PENDING
-    public static bool Banned() => Decide(On(EmpireCraftWorldLawLibrary.empirecraft_law_ban_diplomacy),
-        On(EmpireCraftWorldLawLibrary.empirecraft_law_ban_ai_war), On(EmpireCraftWorldLawLibrary.empirecraft_law_ban_rebellion),
-        !Off(WorldLawLibrary.world_law_diplomacy), !Off(WorldLawLibrary.world_law_rebellions), exempt: false);
-#endif
+    public static bool Banned() => Decide(On(WorldLaws.BanDiplomacy),
+        On(WorldLaws.BanAiWar), On(WorldLaws.BanRebellion),
+        !Off(WorldLaws.Diplomacy), !Off(WorldLaws.Rebellions), exempt: false);
 
     public static bool Exempt => _sanctioned > 0 || _scenario > 0 || _god > 0 || MembershipCooldown.GodActing ||
                                  DiplomacyLaws.Forced || WarReach.ScenarioDeclaring || WorldMapScenario.Building;
 
     // 这一刻不许自立
-#if EC_PENDING
     public static bool Forbids() => !Exempt && Banned();
-#endif
 
     // 拦下时记一笔(同一来处同一对象只记一次)
-#if EC_PENDING
     public static bool Forbids(string what, string subject)
     {
         if (!Forbids()) return false;
@@ -59,7 +54,6 @@ public static class SecessionGate
             LogService.LogInfo($"{LogTag} 拦下{what}：{subject}(来自 {caller})");
         return true;
     }
-#endif
 
     // 受命立国、战后安置：这一步里的立国、离开帝国照常
     public static T Sanctioned<T>(Func<T> action)
@@ -93,34 +87,30 @@ public static class SecessionGate
     }
 
     // 模组法则：世界还没建好时取不到法则对象，按没开算
-#if EC_PENDING
-    private static bool On(WorldLawAsset law)
+    private static bool On(WorldLaw law)
     {
         try
         {
-            return law?.isEnabled() == true;
+            return law?.IsEnabled() == true;
         }
         catch
         {
             return false;
         }
     }
-#endif
 
     // 原版法则：取不到时按开着(默认)算
-#if EC_PENDING
-    private static bool Off(WorldLawAsset law)
+    private static bool Off(WorldLaw law)
     {
         try
         {
-            return law != null && !law.isEnabled();
+            return law != null && !law.IsEnabled();
         }
         catch
         {
             return false;
         }
     }
-#endif
 
     private static string Caller()
     {

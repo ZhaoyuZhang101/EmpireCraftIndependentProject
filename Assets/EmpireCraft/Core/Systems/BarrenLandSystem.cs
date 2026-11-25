@@ -43,7 +43,7 @@ public static class BarrenLandSystem
 
     public static void TryMonthlyScan()
     {
-        if (EmpireWorld.Current?.Cities == null || ModClass.IS_CLEAR || !GameClock.Running || SmoothLoader.isLoading()) return;
+        if (EmpireWorld.Current?.Cities == null || ModClass.IS_CLEAR || !GameClock.Running || GameClock.Loading) return;
         double now = GameClock.Now;
         if (_lastScan >= 0d && now >= _lastScan && GameClock.MonthsSince(_lastScan) < 1) return;
         _lastScan = now;

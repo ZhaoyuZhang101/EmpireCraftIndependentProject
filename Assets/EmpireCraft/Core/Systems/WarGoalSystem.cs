@@ -354,19 +354,17 @@ public static class WarGoalSystem
         SpecificClan clan = defender?.Ruler?.GetSpecificClan();
         bool Fit(Person actor) => actor?.Record != null && !actor.IsGone() && actor.Alive && actor.IsAdult() &&
                                  actor != defender.Ruler && !actor.IsRuler() && actor.Realm == defender && actor.IsFitToRule();
-        Person pick = clan?.AllAliveMembers?.Where(Fit).OrderByDescending(actor => actor.Renown ?? 0).FirstOrDefault();
+        Person pick = clan?.AllAliveMembers?.Where(Fit).OrderByDescending(actor => actor.Renown).FirstOrDefault();
         return pick ?? (realize ? KinRoster.RealizeFirst(VirtualInstallCandidates(defender, clan), Fit, 2) : null);
     }
 #endif
 
     // 对方宗室在本国的成年虚拟族人(纯净地图下宗室多不在地图上；以前只数地图上的，宗室在世也"无人可扶立")，年长的在前
-#if EC_PENDING
     private static IEnumerable<PersonalClanIdentity> VirtualInstallCandidates(Realm defender, SpecificClan clan) =>
         clan == null ? Enumerable.Empty<PersonalClanIdentity>()
             : clan.LivingPeople.Where(person => KinRoster.Virtual(person) && person.age >= KinRoster.AdultAge &&
                                                 !person.is_concubine && !person.disinherited && KinRoster.KingdomOf(person) == defender)
                 .OrderByDescending(person => person.age).ThenBy(person => person.id);
-#endif
 
     // 有没有人可扶立(连虚拟族人一起看，不落成)
 #if EC_PENDING
@@ -574,7 +572,6 @@ public static class WarGoalSystem
 #endif
 
     // 攻守双方在这场仗里各得几城：对方参战以来少了的城 + 己方占了一半以上地块的对方城市
-#if EC_PENDING
     public static (int attackerGain, int defenderGain) Gains(War war)
     {
         Realm attacker = war.MainAttacker, defender = war.MainDefender;
@@ -583,7 +580,6 @@ public static class WarGoalSystem
         return (defenderLost + HeldCities(war, war.Defenders, war.Attackers).Count,
             attackerLost + HeldCities(war, war.Attackers, war.Defenders).Count);
     }
-#endif
 
     // owners 的城里被 occupiers 一方占了一半以上地块的：城 → 占得最多的那国
     private static List<(City city, Realm holder)> HeldCities(War war, IEnumerable<Realm> owners, IEnumerable<Realm> occupiers)

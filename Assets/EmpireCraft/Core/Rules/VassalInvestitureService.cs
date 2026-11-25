@@ -114,8 +114,8 @@ public static class VassalInvestitureService
             : 100f * coreStrength / (coreStrength + vassalStrength);
 
         int empireCities = empire.kingdoms_list.Where(kingdom => kingdom != null && !kingdom.IsGone())
-            .Sum(kingdom => kingdom.countCities());
-        float sizeShare = empireCities <= 0 ? 0f : 100f * vassal.countCities() / empireCities;
+            .Sum(kingdom => kingdom.CountCities());
+        float sizeShare = empireCities <= 0 ? 0f : 100f * vassal.CountCities() / empireCities;
 
         double fiefTimestamp = vassal.GetFiedTimestamp();
         float tenure = fiefTimestamp < 0 ? 0f : GameClock.YearsSince(fiefTimestamp) * 2f;
@@ -190,13 +190,11 @@ public static class VassalInvestitureService
 #endif
 
     // 请封：封国越占上风，天子越不敢驳回。差值 0~20 时驳回概率约 25%~50%，更大则更低。
-#if EC_PENDING
     private static bool RefusesPetition(float authority, float autonomy)
     {
         float chance = Mathf.Clamp((40f - (autonomy - authority)) / 80f, 0.05f, 0.5f);
-        return Randy.randomChance(chance);
+        return EcRandom.Chance(chance);
     }
-#endif
 
     // 自立：只有核心王国自己有兵、有钱养兵、天命尚在，且有效兵力达到封国 1.5 倍时才敢兴兵，否则只能追认。
 #if EC_PENDING
@@ -207,7 +205,7 @@ public static class VassalInvestitureService
         if (ZhouEraSystem.Era(empire) >= ZhouEraSystem.Warring) return false;
         float core = GetMilitaryStrength(empire.CoreKingdom, empire);
         if (core <= 0f) return false;
-        return core >= GetMilitaryStrength(vassal) * 1.5f && Randy.randomChance(0.6f);
+        return core >= GetMilitaryStrength(vassal) * 1.5f && EcRandom.Chance(0.6f);
     }
 
     private static void PunishRefusal(Empire empire)
@@ -221,7 +219,7 @@ public static class VassalInvestitureService
     {
         if (vassal == null || vassal.IsGone() || replacement == null || replacement.IsGone()) return false;
         replacement.removeFromArmy();
-        if (replacement.IsCityLeader()) replacement.City.removeLeader();
+        if (replacement.IsCityLeader()) replacement.City.RemoveLeader();
         if (vassal.Capital != null && !vassal.Capital.IsGone() && replacement.City != vassal.Capital)
             replacement.JoinCity(vassal.Capital);
         OfficeObject office = vassal.GetOffice();
@@ -335,7 +333,7 @@ public static class VassalInvestitureService
     {
         if (empire?.CoreKingdom == null || title == null || branchHeir == null) return branchHeir;
         int empireCities = empire.kingdoms_list.Where(kingdom => kingdom != null && !kingdom.IsGone())
-            .Sum(kingdom => kingdom.countCities());
+            .Sum(kingdom => kingdom.CountCities());
         int titleCities = title.getCities().Count(city => city != null && !city.IsGone());
         float sizeShare = empireCities <= 0 ? 0f : 100f * titleCities / empireCities;
         float coreShare = 100f - sizeShare;
@@ -349,7 +347,7 @@ public static class VassalInvestitureService
         // 请封与自立在律令制下没有军队可恃，驳回时一律直接改立
         bool refuse = mode == InvestitureMode.Petition
             ? RefusesPetition(authority, autonomy)
-            : empire.Mandate >= 40 && Randy.randomChance(0.6f);
+            : empire.Mandate >= 40 && EcRandom.Chance(0.6f);
         if (!refuse || crownCandidate == null)
         {
             string key = mode == InvestitureMode.Petition

@@ -109,6 +109,7 @@ public static class FactionPurgeSystem
             }
         }
     }
+#endif
 
     private static WarOutcome? Decide(War war)
     {
@@ -116,7 +117,7 @@ public static class FactionPurgeSystem
         City capital = EmpireWorld.Current.CityByKey(data.purge_capital_city_id);
         List<Realm> attackers = war.Attackers.Where(kingdom => kingdom?.Record != null && !kingdom.IsGone()).ToList();
         if (capital?.Realm != null && attackers.Contains(capital.Realm)) return WarOutcome.Attackers;
-        if (attackers.Count == 0 || attackers.All(kingdom => kingdom.Capital == null || !kingdom.hasCities())) return WarOutcome.Defenders;
+        if (attackers.Count == 0 || attackers.All(kingdom => kingdom.Capital == null || !kingdom.HasCities())) return WarOutcome.Defenders;
         if (GameClock.YearsSince(war.StartedStamp) < StalemateYears) return null;
         float attack = attackers.Sum(Strength);
         float defend = war.Defenders.Where(kingdom => kingdom?.Record != null && !kingdom.IsGone()).Sum(Strength);
@@ -125,7 +126,6 @@ public static class FactionPurgeSystem
 
     private static float Strength(Realm kingdom) =>
         CorpsSystem.Enabled ? CorpsSystem.Of(kingdom).Sum(corps => corps.strength) : kingdom.Warriors();
-#endif
 
     // 战争结束(WarPatch)：结算清君侧
 #if EC_PENDING

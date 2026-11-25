@@ -499,7 +499,7 @@ public static class FamousTalentSystem
     #region 陨落
 
 #if EC_PENDING
-    public static void OnActorDied(Person actor, AttackType type)
+    public static void OnActorDied(Person actor, DeathCause type)
     {
         if (actor?.Record == null || !ByActor.TryGetValue(actor.Key, out TalentRecord record) || !record.alive) return;
         if (record.rank < TalentRank.Fine)
@@ -511,8 +511,8 @@ public static class FamousTalentSystem
         // 赐死、处决的(见 BiographySystem.NoteDeath)记"伏诛"
         TalentFall fall = BiographySystem.WasExecuted(actor) ? TalentFall.Executed : type switch
         {
-            AttackType.Age => TalentFall.Age,
-            AttackType.Weapon or AttackType.Explosion => TalentFall.Battle,
+            DeathCause.Age => TalentFall.Age,
+            DeathCause.Weapon or DeathCause.Explosion => TalentFall.Battle,
             _ => TalentFall.Illness
         };
         Fall(record, actor, fall);

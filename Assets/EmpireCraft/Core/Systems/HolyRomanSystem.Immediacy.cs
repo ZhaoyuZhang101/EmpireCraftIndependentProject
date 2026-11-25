@@ -165,7 +165,7 @@ public static partial class HolyRomanSystem
             if (ruler?.Record != null && ruler.Alive && !ruler.IsGone() && !ruler.IsRuler() && ruler.Realm == lord)
             {
                 if (ruler.City != seat) ruler.JoinCity(seat);
-                seat.setLeader(ruler, true);
+                seat.SetLeader(ruler, true);
             }
         }
         catch (Exception exception)

@@ -57,7 +57,6 @@ public static class CityStabilitySystem
     private static EmpireWorld _countWorld;
     private static bool _countVirtual;
 
-#if EC_PENDING
     public static void ResetWorldState()
     {
         _world = EmpireWorld.Current; _virtual = CityPopulationSystem.AbstractPopulationEnabled; _cursor = 0;
@@ -68,6 +67,7 @@ public static class CityStabilitySystem
         FiscalBudgetPlanner.ResetWorldState();
     }
 
+#if EC_PENDING
     public static void Tick()
     {
         if (ModClass.IS_CLEAR || EmpireWorld.Current == null) { ResetWorldState(); return; }
@@ -205,7 +205,7 @@ public static class CityStabilitySystem
         float grievance = empire == null ? 0f : InstitutionSystem.GetClassGrievances(empire).Values.DefaultIfEmpty(0f).Max();
         var state = city.GetOrCreate().stability;
         return new CityStabilityInput(city.CountLivingPopulation(), households, loyalty, legitimacy, corruption,
-            sentiment, landless, grievance, famine, WorldLawLibrary.world_law_civ_army.isEnabled(),
+            sentiment, landless, grievance, famine, WorldLaws.CivArmy.IsEnabled(),
             state?.governance_policy ?? -1, state?.garrison_policy ?? -1,
             CityPopulationSystem.AbstractPopulationEnabled ? CityPopulationSystem.PeoplePerSlot(city) : 1f);
     }
@@ -457,7 +457,7 @@ public static class CityStabilitySystem
 
     private static void Recruit(City city, int needed)
     {
-        if (needed <= 0 || !WorldLawLibrary.world_law_civ_army.isEnabled()) return;
+        if (needed <= 0 || !WorldLaws.CivArmy.IsEnabled()) return;
         if (CorpsSystem.NoMilitaryUnits)
         {
             CorpsSystem.RecruitVirtualGarrison(city, needed);

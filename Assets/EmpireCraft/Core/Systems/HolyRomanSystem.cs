@@ -68,13 +68,13 @@ public static partial class HolyRomanSystem
 #endif
 
     // 家族领地：中央(皇帝自家领国)的城占帝国城数的比例
-#if EC_PENDING
     public static float HouseShare(Empire empire)
     {
         int total = empire?.countCities() ?? 0;
         return total <= 0 ? 1f : (empire.CoreKingdom?.Cities?.Count ?? 0) / (float)total;
     }
 
+#if EC_PENDING
     public static IEnumerable<(string key, int value)> LegitimacyItems(Empire empire)
     {
         if (IsElective(empire))

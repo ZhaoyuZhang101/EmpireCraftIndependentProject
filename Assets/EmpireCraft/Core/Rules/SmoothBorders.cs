@@ -23,9 +23,7 @@ namespace EmpireCraft.Core
 // ZoneGrid.applyMetaColorsToZone 的前缀调用(PureMapPatch)：画好这块地的每个像素后跳过原版。
 public static partial class SmoothBorders
 {
-#if EC_PENDING
-    private const int ZoneSize = Config.CITY_ZONE_SIZE;
-#endif
+    private const int ZoneSize = Land.ZoneSize;
     private const float NoiseAmplitude = 0.28f, NoiseCell = 6f;
     internal const int ZoneReach = 1;
 #if EC_PENDING
@@ -421,7 +419,7 @@ public static partial class SmoothBorders
     public static void FrameTick()
     {
         // 初次进图：读档完、地图画得出来时来一遍全图换色(读档时分帧画上的颜色可能还不全、不对)
-        if (_entryPending && Enabled && GameClock.Running && !SmoothLoader.isLoading() &&
+        if (_entryPending && Enabled && GameClock.Running && !GameClock.Loading &&
             EmpireWorld.Current?.getCachedMapMetaAsset() != null && EmpireWorld.Current.Zones?._mode_asset != null)
         {
             _entryPending = false;
@@ -555,8 +553,8 @@ public static partial class SmoothBorders
     #region 上色
 
     // 这块地连外面一圈(10×10 格)的归属，画时查表，不对每格和它的四邻反复计算
-#if EC_PENDING
     private const int Window = ZoneSize + 2;
+#if EC_PENDING
     private static readonly IMetaObject[] Owners = new IMetaObject[Window * Window];
 #endif
     private static int _ox, _oy;
@@ -1520,13 +1518,13 @@ public static partial class SmoothBorders
         return flip != null && zone != null &&
                flip.view.Contains(new Vector2(zone.X * ZoneSize + ZoneSize / 2f, zone.Y * ZoneSize + ZoneSize / 2f));
     }
+#endif
 
     private static float WaveDistance(LayerFlip flip, Cell zone)
     {
         float dx = zone.X * ZoneSize + ZoneSize / 2f - flip.cx, dy = zone.Y * ZoneSize + ZoneSize / 2f - flip.cy;
         return Mathf.Sqrt(dx * dx + dy * dy);
     }
-#endif
 
     // 有地块等着画新样子好一起翻：原版不一定每帧巡检一轮，这期间每帧都巡检(见 ZonePaintBudget.BeforeRedraw、LayerTick)
     public static bool WantsEveryRound =>
@@ -1600,6 +1598,7 @@ public static partial class SmoothBorders
         }
         return transition;
     }
+#endif
 
     private static void Schedule(Transition transition, Cell zone, float cx, float cy, float at, float speed, float now)
     {
@@ -1608,7 +1607,6 @@ public static partial class SmoothBorders
         transition.flipAt = Mathf.Max(now, at + Mathf.Sqrt(dx * dx + dy * dy) / speed + (FrontNoise(zone.X * 7, zone.Y * 7) - 0.5f) * 0.06f);
         Orient(transition, dx, dy, zone);
     }
-#endif
 
     // 原版巡检完一轮(见 ZonePaintBudget.AfterRedraw)：deferredInView 是这一轮范围里因预算没画的块，
     // pending 是换色以来延后过、还没画上新样子的块。范围里一块不差就是算齐了：起翻，转去补画镜头外
@@ -1660,7 +1658,7 @@ public static partial class SmoothBorders
         if (flip.Computing)
         {
             if (now - flip.start >= LayerComputeMaxSeconds + 0.5f) Computed(flip, now, 0);
-            else if (calc != null && GameClock.Running && !SmoothLoader.isLoading()) ZonePaintBudget.ForceRound(calc);
+            else if (calc != null && GameClock.Running && !GameClock.Loading) ZonePaintBudget.ForceRound(calc);
         }
         float dt = Mathf.Clamp(now - flip.lastTick, 0f, 0.1f);
         flip.lastTick = now;

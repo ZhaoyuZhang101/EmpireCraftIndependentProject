@@ -484,7 +484,6 @@ public static class NomadCycleSystem
 #endif
 
     // 汗国(连同各成员)在眼下这些仗里丢了开战时几成的城(取丢得最多的一场)
-#if EC_PENDING
     public static float LostShare(Realm core)
     {
         if (core?.Record == null || core.IsGone()) return 0f;
@@ -499,7 +498,6 @@ public static class NomadCycleSystem
         }
         return share;
     }
-#endif
 
     #endregion
 

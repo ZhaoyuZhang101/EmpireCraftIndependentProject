@@ -30,18 +30,14 @@ public static class CorpsSystem
     // 陆上行军每个世界秒走几块地块：一个月 5 秒，步兵每月 0.5 块(各兵种再乘倍数，见 CorpsArmSystem.Speed)
     private const float MarchZonesPerSecond = 0.1f;
 
-#if EC_PENDING
     public static bool Enabled => CityPopulationSystem.AbstractPopulationEnabled &&
-                                  EmpireCraftWorldLawLibrary.empirecraft_law_switch_occupy_mode?.isEnabled() == true;
+                                  WorldLaws.SwitchOccupyMode?.IsEnabled() == true;
 
-    public static bool GeneralUnits => EmpireCraftWorldLawLibrary.empirecraft_law_corps_general?.isEnabled() != false;
-#endif
+    public static bool GeneralUnits => WorldLaws.CorpsGeneral?.IsEnabled() != false;
 
     // 关闭「军团统领实体」：地图上不留任何军人实体——没有统领、城里的治安守兵只是人数、不再组建原版城市军队
     // (羽林大将军、都督、镇将、戍主等军职空缺)；被拉去当兵的名人恢复文职。城主、刺史等地方官不受影响
-#if EC_PENDING
     public static bool NoMilitaryUnits => Enabled && !GeneralUnits;
-#endif
 
     private static readonly List<CorpsData> Empty = new();
 
@@ -98,7 +94,6 @@ public static class CorpsSystem
     public static CorpsData CommandOf(Person general) =>
         general?.Record != null && GeneralIndex.TryGetValue(general.Key, out var key) ? Find(EmpireWorld.Current?.RealmByKey(key.kingdom), key.corps) : null;
 
-#if EC_PENDING
     public static float LeviedAt(City city)
     {
         if (city == null || !Enabled) return 0f;
@@ -107,7 +102,6 @@ public static class CorpsSystem
             if (corps.home_city_id == city.Key) total += corps.strength;
         return total;
     }
-#endif
 
     private static void RebuildIndex()
     {
@@ -273,18 +267,16 @@ public static class CorpsSystem
     private static bool _monthFirst;
 
     // 只在独立核心里用(见 TerminalPatch.AfterElapsed)：月结没结完，世界时间走到月界就停住等
-#if EC_PENDING
     internal static float LimitMonthElapsed(float elapsed)
     {
         if (!SimulationFrameBudget.ServerMilliseconds.HasValue || _monthPhase == MonthPhase.Idle || _lastMonth < 0d || elapsed <= 0f ||
-            !ReferenceEquals(_world, EmpireWorld.Current) || !GameClock.Running || GameClock.Paused || SmoothLoader.isLoading()) return elapsed;
+            !ReferenceEquals(_world, EmpireWorld.Current) || !GameClock.Running || GameClock.Paused || GameClock.Loading) return elapsed;
 
         double now = GameClock.Now;
         if (now < _lastMonth) return elapsed;
         // 保留到月界的时间。卡在月界时仍然逐帧结算，Idle 后世界自然继续走。
         return (float)Math.Min(elapsed, Math.Max(0d, _lastMonth + GameClock.MonthLength - now));
     }
-#endif
 
     private static void ResetMonthCycle()
     {
@@ -1724,7 +1716,6 @@ public static class CorpsSystem
     }
 
     // 守兵超出需要(或重新打开统领实体、改回实体守兵)时退回人口
-#if EC_PENDING
     public static void SyncVirtualGarrison(City city, CityStabilityData state)
     {
         if (city?.Record == null || state == null || state.virtual_garrison <= 0f) return;
@@ -1748,7 +1739,6 @@ public static class CorpsSystem
         state.virtual_garrison = keep;
         CityPopulationSystem.InvalidateHouseholdCaches();
     }
-#endif
 
     // 城市军队解散：军职空缺，统领(多是被拉去带兵的名人)恢复文职
 #if EC_PENDING
@@ -2768,7 +2758,7 @@ public static class CorpsSystem
     {
         Cell start = from.Center, goal = to.Center;
         if (start == null || goal == null || EmpireWorld.Current == null) return NoLine;
-        int size = Config.CITY_ZONE_SIZE;
+        int size = Land.ZoneSize;
         int x0 = Math.Min(from.X, to.X) * size, y0 = Math.Min(from.Y, to.Y) * size;
         int w = (Math.Abs(from.X - to.X) + 1) * size, h = (Math.Abs(from.Y - to.Y) + 1) * size;
         if (w > size * 2 || h > size * 2) return NoLine;

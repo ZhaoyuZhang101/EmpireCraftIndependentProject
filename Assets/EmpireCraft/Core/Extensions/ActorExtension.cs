@@ -557,7 +557,7 @@ public static class ActorExtension
             return false;
         }
 
-        if (!EmpireCraftWorldLawLibrary.empirecraft_law_switch_occupy_mode.isEnabled())
+        if (!WorldLaws.SwitchOccupyMode.IsEnabled())
         {
             return false;
         }

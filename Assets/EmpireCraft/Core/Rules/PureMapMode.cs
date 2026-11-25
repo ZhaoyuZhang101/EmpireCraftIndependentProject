@@ -67,7 +67,7 @@ public static class PureMapMode
 #if EC_PENDING
     public static void Tick()
     {
-        if (!Enabled || EmpireWorld.Current == null || !GameClock.Running || SmoothLoader.isLoading()) return;
+        if (!Enabled || EmpireWorld.Current == null || !GameClock.Running || GameClock.Loading) return;
         // 开局提示：建筑、植物、小人不见了是纯净地图模式(见 PureMapNoticeWindow)
         EmpireCraft.Core.PureMapNoticeWindow.TryShow();
         if (!_spritesOff) TurnOffSprites();
@@ -171,7 +171,7 @@ public static class PureMapMode
             changed = true;
             LogService.LogInfo($"[EmpireCraft][纯净地图] 已自动打开 {id}");
         }
-        var switched = new List<(WorldLawAsset law, PlayerOptionData option)>();
+        var switched = new List<(WorldLaw law, PlayerOptionData option)>();
         foreach (string id in ForcedOffLaws)
         {
             if (!laws.dict.TryGetValue(id, out PlayerOptionData option) || !option.boolVal) continue;
@@ -181,8 +181,8 @@ public static class PureMapMode
         }
         if (changed) laws.updateCaches();
         // 小人社交关掉时要把各人的社交行为撤掉(法则自带的切换处理)；统领实体的切换处理只是弹提示，不调
-        foreach ((WorldLawAsset law, PlayerOptionData option) in switched)
-            if (law?.id == "empirecraft_law_allow_social") law.on_state_change?.Invoke(option);
+        foreach ((WorldLaw law, PlayerOptionData option) in switched)
+            if (law?.Id == "empirecraft_law_allow_social") law.on_state_change?.Invoke(option);
     }
 #endif
 

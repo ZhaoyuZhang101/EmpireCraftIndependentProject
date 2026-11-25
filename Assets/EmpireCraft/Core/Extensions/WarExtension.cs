@@ -288,6 +288,7 @@ public static class WarExtension
         }
         data.legitimacy_initial_zone_count = zoneIds.Count;
     }
+#endif
 
     public static bool HasLegitimacyOccupationThreshold(this War war)
     {
@@ -300,7 +301,6 @@ public static class WarExtension
                 .Select(id => EmpireWorld.Current?.CityByKey(id))));
         return ImperialLegitimacyRules.HasOccupiedThird(result.Controlled, data.legitimacy_initial_zone_count);
     }
-#endif
 
     private static OccupationReadIndex.Control CountLegitimacyControl(War war, WarExtraData data)
     {

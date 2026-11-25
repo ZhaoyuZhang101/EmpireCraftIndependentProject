@@ -123,6 +123,7 @@ public class EmpireCraftKingdomBehCheckPlots : GameAIKingdomBase
         }
         
     }
+#endif
 
     private static bool TryEndExclaveRebellionWar(Realm rebels, War war,
         KingdomExtension.KingdomExtraData rebelData)
@@ -139,11 +140,12 @@ public class EmpireCraftKingdomBehCheckPlots : GameAIKingdomBase
             Total = rebelData.rebellion_origin_city_value,
             IsIsolated = true
         };
-        float chance = CityValueRules.GetExclaveDisengagementChance(origin, rebels.countCities());
-        if (chance <= 0f || !Randy.randomChance(chance)) return false;
+        float chance = CityValueRules.GetExclaveDisengagementChance(origin, rebels.CountCities());
+        if (chance <= 0f || !EcRandom.Chance(chance)) return false;
         EmpireWorld.Current.EndWar(war, WarOutcome.Peace);
         return true;
     }
+#if EC_PENDING
     public void CheckJoinReligionWar(Realm pKingdom)
     {
         if (!pKingdom.HasReligion()) return;

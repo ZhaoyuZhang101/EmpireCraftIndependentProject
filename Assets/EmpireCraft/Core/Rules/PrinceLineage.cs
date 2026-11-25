@@ -179,7 +179,6 @@ public static class PrinceLineage
     // 藩王身后定谥(用户 2026-10-16："藩王去世后也有谥号的")：王号里的地名 + 单字谥 + 王，如"湘献王"；
     // 用字同封国国君(见 PosthumousNameGenerator.DecideVassal：早夭殇、冲、悼，死于非命烈、愍、庄，其余孝、恭、惠……)，
     // 同一王号先前的藩王用过的谥加"后"区别。在位的帝王、封国国君另有谥法，不走这里
-#if EC_PENDING
     public static void OnPrinceDied(PersonalClanIdentity person, bool killed)
         => AssignPosthumous(person, killed, recordHistory: true);
 
@@ -212,7 +211,6 @@ public static class PrinceLineage
         if (recordHistory)
             person.RecordPersonalHistory(string.Format(LM.Get("feudal_posthumous_history"), posthumous, LM.Get(decision.reason)));
     }
-#endif
 
     // 旧档补王号发生在身故之后，不能再等死亡回调。只补未定谥的已故藩王，帝王仍由帝国史书定谥。
     // 修复不追加一条发生在读档当天的“薨”记事，也不改已有谥号。

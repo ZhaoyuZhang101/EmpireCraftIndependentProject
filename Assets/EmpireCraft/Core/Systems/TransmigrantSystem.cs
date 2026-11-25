@@ -517,7 +517,7 @@ public static partial class TransmigrantSystem
         state.chairman_elected_at = GameClock.Now;
         state.chairman_terms = 1;
         Person commander = Realize(kingdom, state, state.seats[1], city);
-        if (commander != null && city.Leader == null) city.setLeader(commander, true);
+        if (commander != null && city.Leader == null) city.SetLeader(commander, true);
         foreach ((int index, TalentKind kind) in new[] { (2, TalentKind.Minister), (5, TalentKind.Minister), (8, TalentKind.General) })
         {
             Person actor = Realize(kingdom, state, state.seats[index], city);
@@ -616,7 +616,6 @@ public static partial class TransmigrantSystem
     // 继承人按继承时的年纪)，不会降临头几年就有年纪大的成批故去
     private const float FounderMeanAge = 78f, HeirMeanAge = 72f;
 
-#if EC_PENDING
     private static int DeathAge(Realm kingdom, TransmigrantState state, SenatorSeat seat)
     {
         long seed = kingdom.Key * 7919L + seat.seat * 104729L + seat.generation * 15485863L;
@@ -625,14 +624,12 @@ public static partial class TransmigrantSystem
         int anchor = seat.generation <= 1 ? state.landed_year - seat.birth_year : InheritAge(kingdom, seat);
         return RealisticAgeSystem.SurvivorDeathAge(seed, mean, Mathf.Max(0, anchor));
     }
-#endif
 
     // 继承时的年纪(十八到三十四，见 Succeed)
     private static int InheritAge(Realm kingdom, SenatorSeat seat) =>
         18 + (int)(Unit(kingdom.Key, seat.seat, seat.generation * 41) * 17d);
 
     // 落成实体的元老(主席、阁员、总督、名将)寿终也按席位的天年(见 RealisticAgeSystem.AgeDeathDue)
-#if EC_PENDING
     public static bool SenatorDeathAge(Person actor, out int deathAge)
     {
         deathAge = 0;
@@ -646,7 +643,6 @@ public static partial class TransmigrantSystem
     }
 
     private static bool AgesOut => RealisticAgeSystem.Enabled || RealisticAgeSystem.OldAgeEnabled;
-#endif
 
     private static bool Alive(SenatorSeat seat, out Person actor)
     {
@@ -719,7 +715,7 @@ public static partial class TransmigrantSystem
     public static void InstallRuler(Realm kingdom, Person actor)
     {
         if (actor == null || kingdom.Ruler == actor) return;
-        if (actor.IsCityLeader() && actor.City != null) actor.City.removeLeader();
+        if (actor.IsCityLeader() && actor.City != null) actor.City.RemoveLeader();
         if (kingdom.HasRuler()) kingdom.RemoveRuler();
         OfficeObject office = kingdom.GetOffice();
         if (office != null)
@@ -1085,7 +1081,7 @@ public static partial class TransmigrantSystem
 #if EC_PENDING
     private static void TryRandomArrival()
     {
-        if (EmpireCraft.Core.EmpireCraftWorldLawLibrary.empirecraft_law_transmigrant_arrival?.isEnabled() != true) return;
+        if (EmpireCraft.Core.WorldLaws.TransmigrantArrival?.IsEnabled() != true) return;
         if (Active() != null || EcRandom.value >= ArrivalChance) return;
         if (!EmpireWorld.Current.LiveRealms.Any(kingdom => kingdom?.Record != null && !kingdom.IsGone() &&
                 TechnologySystem.GetEraTier(TechnologySystem.GetCultureOf(kingdom)) >= ArrivalEra)) return;

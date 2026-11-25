@@ -87,11 +87,11 @@ public static class StateSettlementSystem
 
     private static bool AllCitiesAtLimit(Realm payer) => ModClass.CITY_MAX_ZONES <= 0 ||
         ExpansionCities(payer).All(city => StateSettlementRules.AtZoneLimit(city.Zones.Count, ModClass.CITY_MAX_ZONES));
+#endif
 
     private static bool PopulationMode => CityPopulationSystem.AbstractPopulationEnabled && !ModClass.IS_CLEAR;
     private static bool Enabled => PopulationMode &&
-        WorldLawLibrary.world_law_kingdom_expansion.isEnabled();
-#endif
+        WorldLaws.KingdomExpansion.IsEnabled();
 
     private static Person Founder(Realm owner, City source)
     {

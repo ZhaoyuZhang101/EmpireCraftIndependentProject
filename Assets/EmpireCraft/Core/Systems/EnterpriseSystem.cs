@@ -38,16 +38,16 @@ public static class EnterpriseSystem
     public const float PrivateFundingThreshold = 300f;
     public const string StateEnterpriseFeature = "state_enterprise";
 
-#if EC_PENDING
     private static bool Active => CityPopulationSystem.AbstractPopulationEnabled;
 
+#if EC_PENDING
     public static bool IsEnterprise(BuildingAsset asset) =>
         asset != null && (IndustryBuildingSystem.IsMine(asset) || IndustryBuildingSystem.IsLumber(asset) ||
                           asset.type == AnimalHusbandrySystem.PastureType ||
                           asset.type == AnimalHusbandrySystem.SlaughterhouseType || TechnologySystem.IsFactory(asset));
+#endif
 
     public static float Pool(City city) => Active && city?.Record != null ? CityPopulationSystem.Get(city)?.investment_pool ?? 0f : 0f;
-#endif
 
     // ---- 1. 财政支出回流 ----
     // 工钱是收入：按居民税率交工资所得税(独立税基，不是产值，不与生产税重复)，税后进本城民间资产

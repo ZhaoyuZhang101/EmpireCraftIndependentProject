@@ -139,7 +139,7 @@ public static class BattleSound
     private static void Update(float dt)
     {
         bool want = SwitchBattleSoundButton.On && MusicBox.sounds_on && EmpireWorld.Current != null && GameClock.Running &&
-                    !SmoothLoader.isLoading() && EmpireWorld.Current.camera != null;
+                    !GameClock.Loading && EmpireWorld.Current.camera != null;
         if (!want)
         {
             if (_active) FadeOutAndStop(dt);

@@ -14,9 +14,7 @@ namespace EmpireCraft.Core
 // 占着本国一方有宣称的城的(宣称口径见 WarGoalSystem.ClaimsTitle)→ 占着本国所在帝国法理里城的(见 HoldsCoreOf)→ 原版就近。
 public static class DeJureAgenda
 {
-#if EC_PENDING
-    public static bool Enabled => EmpireCraftWorldLawLibrary.empirecraft_law_dejure_first?.isEnabled() == true;
-#endif
+    public static bool Enabled => WorldLaws.DejureFirst?.IsEnabled() == true;
 
     // target 占着 initiator 一方法理的城
 #if EC_PENDING
@@ -26,7 +24,6 @@ public static class DeJureAgenda
 #endif
 
     // target 占着 initiator 所在帝国法理里的城(在帝国里的按本帝国的帝国法理，不在的按本国都城所在的帝国法理，兼属的也算)
-#if EC_PENDING
     public static bool HoldsCoreOf(Realm initiator, Realm target)
     {
         if (!Enabled || initiator?.Record == null || target?.Cities == null || initiator == target) return false;
@@ -41,6 +38,5 @@ public static class DeJureAgenda
                 if (cores.Contains(core)) return true;
         return false;
     }
-#endif
 }
 }

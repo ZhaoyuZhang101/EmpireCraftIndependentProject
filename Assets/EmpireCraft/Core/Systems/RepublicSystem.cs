@@ -352,7 +352,7 @@ public static class RepublicSystem
     public static bool TryRegionalRepublicCoalition(Empire empire, bool mandateCollapse = false)
     {
         if (!CanAbolish(empire) || IsRepublic(empire) || HasActiveRevolutionWar(empire) ||
-            EmpireCraftWorldLawLibrary.empirecraft_law_ban_empire.isEnabled()) return false;
+            WorldLaws.BanEmpire.IsEnabled()) return false;
         // 正统崩溃时正在打仗的省份也会倒戈，只排除已经在造反的
         List<Realm> members = empire.kingdoms_list.Where(kingdom => kingdom != null && !kingdom.IsGone() &&
             kingdom != empire.CoreKingdom && kingdom.HasRuler() && kingdom.HasMainTitle() &&

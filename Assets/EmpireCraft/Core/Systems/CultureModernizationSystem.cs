@@ -60,7 +60,7 @@ public static class CultureModernizationSystem
             return new CultureModernizationResult(0, 0, 0, 0);
 
         if (TechnologySystem.PremodernLocked)
-            EmpireCraftWorldLawLibrary.empirecraft_law_premodern?.toggle(false);
+            WorldLaws.Premodern?.Toggle(false);
 
         InstitutionSystem.ForceEnactAll(culture);
         var cultureState = InstitutionSystem.GetOrCreateCultureState(culture);

@@ -251,18 +251,15 @@ public class EmpireCraftKingdomBehCheckHeir : GameAIKingdomBase
     private static bool InLine(PersonalClanIdentity person, PersonalClanIdentity parent) =>
         SpecificClanManager.SameLineage(person?._specificClan, parent?._specificClan);
 
-#if EC_PENDING
     private static bool IsEligibleRelative(PersonalClanIdentity person, PersonalClanIdentity parent, bool allowFemale,
         bool maleOnly) =>
         person != null && person.id != parent?.id && person.is_alive && !person.is_concubine &&
         person._specificClan != null && SexEligible(person, parent, maleOnly, allowFemale);
-#endif
 
     // 按性别、主次能不能继位。不立女主的国(maleOnly，见 MaleOnlyThrone)只认男子，不看宗族是男子优先还是女子优先：
     // 宗族的偏好按始祖的文化定，国按本国文化定，两边对不上时(异族宗族入主、母系氏族阶段、旧档里女子优先的宗族)
     // 以前只挑得出女子，挑出来即位时又被退回，君位一直空着。女子优先的宗族里成了婚的男子记作入赘(is_main 为假)，
     // 生在本族的照样算，嫁入、入赘来的外姓人不算。其余的国照宗族的偏好，允许女子继承的再放开女子
-#if EC_PENDING
     public static bool SexEligible(PersonalClanIdentity person, PersonalClanIdentity parent, bool maleOnly, bool allowFemale)
     {
         if (person == null) return false;
@@ -270,7 +267,6 @@ public class EmpireCraftKingdomBehCheckHeir : GameAIKingdomBase
         return person.sex == Sex.Male && !person.disinherited && person.id != parent?.id &&
                (person.is_main || BornInLine(person));
     }
-#endif
 
     // 生在本族：父亲或母亲和本人同一世系
     private static bool BornInLine(PersonalClanIdentity person)

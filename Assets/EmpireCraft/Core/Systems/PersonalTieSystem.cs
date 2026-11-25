@@ -245,7 +245,7 @@ public static class PersonalTieSystem
         Realm enemy = home?.GetWars().Where(war => war?.Record != null && !war.HasEnded())
             .SelectMany(war => war.IsAttacker(home) ? war.Defenders : war.Attackers)
             .Where(kingdom => kingdom?.Record != null && !kingdom.IsGone() && kingdom.Capital?.Record != null && !kingdom.Capital.IsGone())
-            .OrderByDescending(kingdom => kingdom.countCities()).FirstOrDefault();
+            .OrderByDescending(kingdom => kingdom.CountCities()).FirstOrDefault();
         if (enemy == null) return false;
         CorpsSystem.LoseGeneral(actor);
         actor.GetOffice()?.RemoveActor();

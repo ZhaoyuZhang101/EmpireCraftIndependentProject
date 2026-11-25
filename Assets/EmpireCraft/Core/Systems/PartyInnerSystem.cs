@@ -98,7 +98,7 @@ public static class PartyInnerSystem
         Person leader = party.GetLeader();
         List<Person> expelled = LivingMembers(party)
             .Where(actor => actor != leader && PartySystem.IdeologyDistance(IdeologyPopulationSystem.Get(actor), party.Ideology) >= ExpelDistance)
-            .OrderBy(actor => actor.Renown ?? 0).Take(ExpelPerYear).ToList();
+            .OrderBy(actor => actor.Renown).Take(ExpelPerYear).ToList();
         foreach (Person actor in expelled) actor.RemoveFaction();
         if (expelled.Count > 0)
             Record(empire, string.Format(LM.Get("party_expel_history"), party.Name, string.Join("、", expelled.Select(actor => actor.FullName()))),
@@ -120,7 +120,7 @@ public static class PartyInnerSystem
         Person leader = party.GetLeader();
         List<Person> purged = LivingMembers(party)
             .Where(actor => actor != leader && IdeologyPopulationSystem.Get(actor) == wing)
-            .OrderBy(actor => actor.Renown ?? 0).Take(PurgeMax).ToList();
+            .OrderBy(actor => actor.Renown).Take(PurgeMax).ToList();
         if (purged.Count == 0) return;
         foreach (Person actor in purged) actor.RemoveFaction();
         party.Discipline = Mathf.Min(100f, party.Discipline + 10f);
@@ -146,7 +146,7 @@ public static class PartyInnerSystem
     // 候选人分：名望 + 政绩/5 + 在任官职 100
 #if EC_PENDING
     private static float Score(Person actor) =>
-        (actor.Renown ?? 0) + (float)((actor.GetIdentity()?.TotalPerformance ?? 0d) / 5d) + (actor.IsOnOffice() ? 100f : 0f);
+        (actor.Renown) + (float)((actor.GetIdentity()?.TotalPerformance ?? 0d) / 5d) + (actor.IsOnOffice() ? 100f : 0f);
 
     public static void HoldCongress(Empire empire, FixedFaction party, bool defeat)
     {

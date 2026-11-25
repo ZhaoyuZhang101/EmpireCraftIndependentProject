@@ -1988,9 +1988,9 @@ public class Empire : RecordObject<EmpireData>
     public override void generateBanner()
     {
         Sprite[] tBgs = EmpireWorld.Current.alliances.getBackgroundsList();
-        this.data.banner_background_id = Randy.randomInt(0, tBgs.Length);
+        this.data.banner_background_id = EcRandom.Range(0, tBgs.Length);
         Sprite[] tIcons = EmpireWorld.Current.alliances.getIconsList();
-        this.data.banner_icon_id = Randy.randomInt(0, tIcons.Length);
+        this.data.banner_icon_id = EcRandom.Range(0, tIcons.Length);
     }
 
     public void addFounder(Realm pKingdom)
@@ -2983,6 +2983,7 @@ public class Empire : RecordObject<EmpireData>
         }
         return tResult;
     }
+#endif
 
 
     public int countZones()
@@ -2992,11 +2993,10 @@ public class Empire : RecordObject<EmpireData>
         for (int i = 0; i < tKingdoms.Count; i++)
         {
             Realm tKingdom = tKingdoms[i];
-            tResult += tKingdom.countZones();
+            tResult += tKingdom.CountZones();
         }
         return tResult;
     }
-#endif
 
     public List<Cell> allZones()
     {
@@ -3083,7 +3083,6 @@ public class Empire : RecordObject<EmpireData>
     }
 
 
-#if EC_PENDING
     public int countCities()
     {
         int tResult = 0;
@@ -3091,11 +3090,10 @@ public class Empire : RecordObject<EmpireData>
         for (int i = 0; i < tKingdoms.Count; i++)
         {
             Realm tKingdom = tKingdoms[i];
-            tResult += tKingdom.countCities();
+            tResult += tKingdom.CountCities();
         }
         return tResult;
     }
-#endif
 
     // Token: 0x06001131 RID: 4401 RVA: 0x000C7E41 File Offset: 0x000C6041
     public int countKingdoms()
@@ -4112,13 +4110,11 @@ public class Empire : RecordObject<EmpireData>
 #endif
 
     // 宗室里在本帝国的成年男子(虚拟族人)，年长的在前
-#if EC_PENDING
     private IEnumerable<PersonalClanIdentity> VirtualDynastMen(long excludeActor) =>
         KinRoster.Lineage(EmpireSpecificClan)
             .Where(person => KinRoster.Virtual(person) && person.sex == Sex.Male && person.age >= 18 &&
                              person.actor_id != excludeActor && KinRoster.KingdomOf(person)?.GetEmpire() == this)
             .OrderByDescending(person => person.age).ThenBy(person => person.id);
-#endif
 
     // 后宫干政(用户 2026-10-15："为什么会存在妃子篡位""她们无法篡位，唯一能做的就是废立皇帝")：
     // 掌权的是女子(皇后、妃嫔、太后)。华夏一系里她们不能封公、加九锡、篡位，权势到顶只能废立——
@@ -5214,7 +5210,7 @@ public class Empire : RecordObject<EmpireData>
             EnfeoffmentHelper.IsRealmCapital(capital) || !king.CanFoundCivKingdom()) return null;
         king.ClearDisposedKingdom();
         capital.removeFromCurrentKingdom();
-        capital.removeLeader();
+        capital.RemoveLeader();
         Realm kingdom = EmpireWorld.Current.LiveRealms.makeNewCivKingdom(king, pLog:false);
         kingdom.copyMetasFromOtherKingdom(pKingdom);
         kingdom.updateColor(pKingdom.getColor());

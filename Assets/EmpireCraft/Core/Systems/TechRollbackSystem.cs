@@ -285,7 +285,7 @@ public static class TechRollbackSystem
     public static void Tick()
     {
         if (_buildings == null && CityQueue.Count == 0 && Pending.Count == 0) return;
-        if (EmpireWorld.Current == null || !global::GameClock.Running || SmoothLoader.isLoading()) return;
+        if (EmpireWorld.Current == null || !global::GameClock.Running || GameClock.Loading) return;
         using (FrameProfiler.Measure("后台·科技回退"))
         {
             var watch = global::System.Diagnostics.Stopwatch.StartNew();

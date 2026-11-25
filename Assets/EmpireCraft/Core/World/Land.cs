@@ -31,6 +31,8 @@ namespace EmpireCraft.Core
     {
         // Elevation bands in metres. The summit line is where ORBIS stops calling land habitable.
         public const int HillHeight = 1000, MountainHeight = 2000, SummitHeight = 3520;
+        // Cells along the side of a zone. The mod's zones were blocks of small tiles; here a zone is one cell.
+        public const int ZoneSize = 1;
         static readonly Dictionary<int, TerrainKind> Kinds = new Dictionary<int, TerrainKind>();
 
         // Distance between two cells in cells, the short way round: the map wraps east-west.

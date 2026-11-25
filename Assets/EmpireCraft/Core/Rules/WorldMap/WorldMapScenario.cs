@@ -241,6 +241,7 @@ public static class WorldMapScenario
         _polities.RemoveAll(polity => polity.capital == null);
         LogService.LogInfo($"[EmpireCraft][世界地图] {era.id}：{_cities.Count} 城，{_polities.Count} 国");
     }
+#endif
 
     private static float Distance(WorldMapCity a, WorldMapCity b)
     {
@@ -249,7 +250,6 @@ public static class WorldMapScenario
         float dy = a.lat - b.lat;
         return dx * dx + dy * dy;
     }
-#endif
 
     #endregion
 
@@ -648,7 +648,7 @@ public static class WorldMapScenario
                             if (actor.Realm != city.Realm) actor.joinKingdom(city.Realm);
                             actor.JoinCity(city);
                             city.GetOffice()?.SetActor(actor);
-                            if (city.Leader != actor) city.setLeader(actor, true);
+                            if (city.Leader != actor) city.SetLeader(actor, true);
                             break;
                         }
                     }
@@ -774,7 +774,7 @@ public static class WorldMapScenario
     {
         if (person != null && person.Female) actor.Sex = Sex.Female;
         else if (monarch || person != null) actor.Sex = Sex.Male;
-        int age = person != null && person.age >= 0 ? person.age : monarch ? Randy.randomInt(28, 50) : -1;
+        int age = person != null && person.age >= 0 ? person.age : monarch ? EcRandom.Range(28, 50) : -1;
         if (age >= 0) actor.Record.age_overgrowth = age;
     }
 #endif
@@ -1327,7 +1327,7 @@ public static class WorldMapScenario
         // 国家没有城、没有人就由原版移除
         if (gone?.People != null)
             foreach (Person unit in gone.People.ToList())
-                if (unit?.Record != null && !unit.IsGone() && unit.Alive) unit.die(true, AttackType.Other, false, false);
+                if (unit?.Record != null && !unit.IsGone() && unit.Alive) unit.die(true, DeathCause.Other, false, false);
     }
 #endif
 
@@ -1467,7 +1467,7 @@ public static class WorldMapScenario
             int want = area.count > 0 ? area.count : Mathf.Clamp(Mathf.RoundToInt(candidates.Count / 25f), 1, 12);
             for (int i = candidates.Count - 1; i > 0; i--)
             {
-                int j = Randy.randomInt(0, i + 1);
+                int j = EcRandom.Range(0, i + 1);
                 (candidates[i], candidates[j]) = (candidates[j], candidates[i]);
             }
             int placed = 0;

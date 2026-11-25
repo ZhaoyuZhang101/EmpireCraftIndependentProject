@@ -113,6 +113,7 @@ public static class CorpsArmSystem
         Realm kingdom = EmpireWorld.Current?.RealmByKey(corps.kingdom_id);
         return kingdom == null ? "" : TechnologySystem.GetCultureOf(kingdom) ?? "";
     }
+#endif
 
     private static bool Has(string culture, string tech) =>
         !string.IsNullOrEmpty(culture) && TechnologySystem.IsActiveFor(culture) && TechnologySystem.HasTech(culture, tech);
@@ -144,10 +145,8 @@ public static class CorpsArmSystem
         Mixes[culture] = entry;
         return entry;
     }
-#endif
 
     // 本文化的装备能把这一兵种换成什么(换不了返回原兵种)
-#if EC_PENDING
     public static Arm Upgrade(Arm arm, string culture)
     {
         switch (arm)
@@ -167,7 +166,6 @@ public static class CorpsArmSystem
                 return arm;
         }
     }
-#endif
 
     // 换装要的物资(军械、硝石、钢、石油、橡胶)本国市场缺过一半就换不了(见 CommodityMarketSystem.CanEquip)
 #if EC_PENDING

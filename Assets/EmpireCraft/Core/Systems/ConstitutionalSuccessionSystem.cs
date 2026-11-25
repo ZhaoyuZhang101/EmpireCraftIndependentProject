@@ -52,7 +52,6 @@ public static class ConstitutionalSuccessionSystem
     private const float AliveCacheSeconds = 5f;
     private static readonly Dictionary<long, (float at, long clan, bool alive)> AliveCache = new();
 
-#if EC_PENDING
     private static bool DynastyAlive(Empire empire)
     {
         float now = Time.realtimeSinceStartup;
@@ -64,6 +63,7 @@ public static class ConstitutionalSuccessionSystem
         return alive;
     }
 
+#if EC_PENDING
     public static bool IsProtected(Empire empire)
     {
         ConstitutionalEconomyState state = empire?.data?.constitutional_economy;
@@ -81,7 +81,6 @@ public static class ConstitutionalSuccessionSystem
         empire?.EmpireSpecificClan != null &&
         SpecificClanManager.SameLineage(actor.GetSpecificClan(), empire.EmpireSpecificClan);
 
-#if EC_PENDING
     private static List<Person> LivingDynasty(Empire empire)
     {
         SpecificClan royal = empire?.EmpireSpecificClan;
@@ -93,7 +92,6 @@ public static class ConstitutionalSuccessionSystem
             .Where(actor => actor != null && !actor.IsGone() && actor.Alive)
             .GroupBy(actor => actor.Key).Select(group => group.First()).ToList();
     }
-#endif
 
     // 皇室在世的虚拟族人(无小人模式下并入人口数据、需要时再落成实体的宗室)
     private static List<PersonalClanIdentity> VirtualDynasty(Empire empire)
@@ -107,9 +105,7 @@ public static class ConstitutionalSuccessionSystem
             .GroupBy(person => person.id).Select(group => group.First()).ToList();
     }
 
-#if EC_PENDING
     public static bool HasLivingDynasty(Empire empire) => LivingDynasty(empire).Count > 0 || VirtualDynasty(empire).Count > 0;
-#endif
 
     // 有实体的宗室优先(按政绩、治理、声望)；都没有就从虚拟宗室里挑最年长的成年人落成实体
 #if EC_PENDING

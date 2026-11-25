@@ -1080,7 +1080,6 @@ public static class PartySystem
     // 限制选举时只有有选举权的阶层投票
     private const float BackgroundAdultShare = 0.7f;
 
-#if EC_PENDING
     private static void AddBackgroundVotes(Dictionary<FixedFaction, float> votes, List<FixedFaction> parties,
         IEnumerable<City> cities, bool universal)
     {
@@ -1107,7 +1106,6 @@ public static class PartySystem
             }
         }
     }
-#endif
 
     // ---- 政党组织规模(无小人模式) ----
     // 实体党员很少(只有名人)，按实体党员算，政党会被误判"名存实亡"、代表大会席位近乎随机。

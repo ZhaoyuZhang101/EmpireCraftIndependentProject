@@ -140,7 +140,7 @@ public static class EnclaveFill
     public static void Tick()
     {
         EmpireWorld world = EmpireWorld.Current;
-        if (world?.Zones?.All == null || !GameClock.Running || SmoothLoader.isLoading()) return;
+        if (world?.Zones?.All == null || !GameClock.Running || GameClock.Loading) return;
         Install();
         if (!ReferenceEquals(_world, world))
         {

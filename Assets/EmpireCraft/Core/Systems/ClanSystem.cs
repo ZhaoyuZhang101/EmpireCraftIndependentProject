@@ -71,12 +71,10 @@ public class SpecificClan
                                                              !string.IsNullOrEmpty(person.species))?.species ?? "");
 #endif
     // 在世族人(含虚拟族人)
-#if EC_PENDING
     [JsonIgnore]
     public List<PersonalClanIdentity> LivingPeople =>
         CityPopulationSystem.AbstractPopulationEnabled ? LivingSnapshot().ToList() :
             SnapshotPeople().Where(person => person != null && person.is_alive).ToList();
-#endif
     public long founder { get; set; }
     public SpecificClanType clan_sex_priority { get; set; }
 #if EC_PENDING
@@ -154,7 +152,6 @@ public class SpecificClan
     }
 
     // 作为"姓"的那一层：姓氏合一前是始祖宗族；合一后是离本支最近的有氏的支脉(没有就是始祖宗族)
-#if EC_PENDING
     public SpecificClan SurnameRoot()
     {
         SpecificClan root = GetRootClan();
@@ -168,12 +165,10 @@ public class SpecificClan
         }
         return root;
     }
-#endif
 
     private static string SurnameOfRoot(SpecificClan root) => !string.IsNullOrEmpty(root.shi) ? root.shi : root.name;
 
     // 人物档案的"姓氏"一行：合一前"姬姓·鲁氏"，合一后"鲁氏(出自姬姓)"；非华夏照旧"谈氏(本宗)""谈氏·越国支"
-#if EC_PENDING
     public string SurnameLine()
     {
         SpecificClan top = GetRootClan();
@@ -190,7 +185,6 @@ public class SpecificClan
             ? line
             : string.Format(LM.Get("clan_branch_display"), line, branch_label);
     }
-#endif
 
     private string PremergeName(SpecificClan top)
     {
@@ -202,12 +196,9 @@ public class SpecificClan
 
     // 原版氏族显示的名字(不带"氏"字)：华夏有氏的支脉(及其再分的郡望、房支)写氏，其余写宗族的姓。
     // 族人的姓不从这里取(见 ClanExtension.GetMemberSurname)
-#if EC_PENDING
     public string VanillaClanName() => HuaxiaLine() && NearestShi() is string shiName ? shiName : name;
-#endif
 
     // 显示名：始祖宗族是"谈宗族"，分支是"谈宗族·越国支"；华夏合一前"姬姓·鲁氏"，合一后"鲁宗族·清河支"
-#if EC_PENDING
     public string GetDisplayName()
     {
         if (HuaxiaLine())
@@ -225,7 +216,6 @@ public class SpecificClan
             ? clanName
             : string.Format(LM.Get("clan_branch_display"), clanName, branch_label);
     }
-#endif
 
     // 顺着 parent_clan_id 找到始祖宗族(分支链断了就停在能找到的最上面一支)
     public SpecificClan GetRootClan()
@@ -251,7 +241,6 @@ public class SpecificClan
             return removed;
         }
     }
-#if EC_PENDING
     [JsonIgnore]
     public List<PersonalClanIdentity> all_valid_members => CityPopulationSystem.AbstractPopulationEnabled
         ? LivingSnapshot().Where(i => i.CanHeir()).ToList() : SnapshotPeople().ToList().FindAll(i=>i.CanHeir());
@@ -260,7 +249,6 @@ public class SpecificClan
     public List<Person> AllAliveMembers => (CityPopulationSystem.AbstractPopulationEnabled ? LivingSnapshot() : SnapshotPeople())
         .Where(i => i.is_alive && !i.is_virtual)
         .Select(i=>i._actor).Where(actor => actor != null).ToList();
-#endif
     [JsonIgnore]
     private readonly object _cacheLock = new();
     public Dictionary<long, PersonalClanIdentity> _cache = new();
@@ -268,12 +256,10 @@ public class SpecificClan
     private PersonalClanIdentity[] _livingSnapshot;
     private long _peopleRevision, _livingRevision = -1;
     private int _peopleCount = -1;
-#if EC_PENDING
     [JsonIgnore]
     public int Count => CityPopulationSystem.AbstractPopulationEnabled ? LivingSnapshot().Length : SnapshotPeople().ToList().FindAll(i=>i.is_alive).Count;
     public int CountTotal { get { if (!CityPopulationSystem.AbstractPopulationEnabled) return SnapshotPeople().ToList().Count;
         lock (_cacheLock) return _cache.Count; } }
-#endif
 
     public void InvalidatePeople() { lock (_cacheLock) _peopleRevision++; }
 
@@ -406,24 +392,19 @@ public class SpecificClan
     // 华夏一系(制度线属华夏的文化)宗法父系，只传男(用户 2026-10-14："不会存在女帝，尤其是华夏，至少继承法不会支持")：
     // 不论原版文化有没有长出"母系"特质(原版特质随机，以前华夏宗族也会成了女性优先，女儿即位成了女帝、儿子反倒不能继承)。
     // 按始祖(没有就按任一族人)的文化认，算一次记下；旧档里已是女性优先的华夏宗族读档后同样按父系
-#if EC_PENDING
     public bool isMalePriority()
     {
         if (Patrilineal()) return true;
         return clan_sex_priority == SpecificClanType.MalePriority;
     }
-#endif
 
     [JsonIgnore] private bool? _patrilineal;
     [JsonIgnore] private string _lineCulture;
 
     // 华夏一系宗法父系(见 isMalePriority、SurnameInheritanceSystem)；本文化还在母系氏族阶段时不算(见 Matrilineal)
-#if EC_PENDING
     public bool Patrilineal() => HuaxiaLine() && !PrehistoricClanSystem.IsMatrilineal(_lineCulture);
-#endif
 
     // 华夏一系的母系氏族阶段：孩子入母亲的氏族、随母姓(见 PrehistoricClanSystem)
-#if EC_PENDING
     public bool Matrilineal() => HuaxiaLine() && PrehistoricClanSystem.IsMatrilineal(_lineCulture);
 
     private bool HuaxiaLine()
@@ -443,6 +424,7 @@ public class SpecificClan
         }
         return _patrilineal.Value;
     }
+#if EC_PENDING
     public void addActor(Person actor, bool is_concubines= false)
     {
         if (actor == null || actor.IsWarMachine()) return;
@@ -1737,7 +1719,6 @@ public class PersonalClanIdentity
         return deathday;
     }
     
-#if EC_PENDING
     public bool IsHeirPriority()
     {
         return (_specificClan.isMalePriority() && this.sex == Sex.Male) || (!_specificClan.isMalePriority() && this.sex == Sex.Female);
@@ -1748,6 +1729,7 @@ public class PersonalClanIdentity
         return is_main&&IsHeirPriority()&&is_alive&&identity?.id!=id&&!disinherited;
     }
 
+#if EC_PENDING
     public void setLover(Person actor, bool isCus = false, bool recordHistory = true)
     {
         if (actor == null) return;

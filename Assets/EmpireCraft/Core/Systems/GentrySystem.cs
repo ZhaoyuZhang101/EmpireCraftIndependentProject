@@ -112,7 +112,6 @@ public static partial class GentrySystem
 #endif
 
     // 郡望在本帝国的世家，门第从高到低
-#if EC_PENDING
     public static List<SpecificClan> Of(Empire empire)
     {
         if (empire?.data == null) return new List<SpecificClan>();
@@ -120,7 +119,6 @@ public static partial class GentrySystem
             .Where(clan => clan != null && clan.gentry && clan.Count > 0 && RealmOf(Seat(clan)) == empire)
             .OrderByDescending(clan => clan.gentry_pedigree).ToList();
     }
-#endif
 
     private static Empire RealmOf(City city)
     {
@@ -172,7 +170,6 @@ public static partial class GentrySystem
     private static readonly Dictionary<long, (double at, List<long> clans)> Registry = new();
 
     // 本帝国郡望在册的世家(门第从高到低，一年一更)
-#if EC_PENDING
     private static List<SpecificClan> Registered(Empire empire)
     {
         double now = GameClock.Now;
@@ -183,7 +180,6 @@ public static partial class GentrySystem
         }
         return cached.clans.Select(SpecificClanManager.Get).Where(clan => clan != null && clan.gentry).ToList();
     }
-#endif
 
     // 官缺补人(OfficeSelector.Select)：按机会挑一位世家子弟，没挑上返回空
 #if EC_PENDING
@@ -319,7 +315,7 @@ public static partial class GentrySystem
             .OrderByDescending(actor => actor.Renown).FirstOrDefault()
             ?? living.FirstOrDefault(person => person.is_virtual && person.age >= 18 && person.virtual_city_id == seat.Key)?.Realize();
         if (head?.Record == null || head.IsRuler()) return false;
-        if (head.IsCityLeader() && head.City != null && head.City != seat) head.City.removeLeader();
+        if (head.IsCityLeader() && head.City != null && head.City != seat) head.City.RemoveLeader();
         Realm own = seat.makeOwnKingdom(head);
         if (own == null) return false;
         Record(seat, string.Format(LM.Get(key), JunWang(clan), seat.GetCityName(), former.GetKingdomName()), force: true);
@@ -416,10 +412,8 @@ public static partial class GentrySystem
     private static bool Due(double at, int years) =>
         at < 0d || GameClock.Now < at || GameClock.YearsSince(at) >= years;
 
-#if EC_PENDING
     public static bool CanReviseRegister(Empire empire) =>
         empire?.data != null && Due(empire.data.gentry_register_at, RegisterYears) && Of(empire).Count >= 3;
-#endif
 
     // 修氏族志：族中有人在朝的世家门第上升(每人 5，至多 15)，没人出仕的降 15；返回升、降的家数
 #if EC_PENDING
@@ -448,11 +442,11 @@ public static partial class GentrySystem
         empire.RecordHistory(directContent: string.Format(LM.Get("gentry_register_history"), empire.GetEmpireFullName(), raised, lowered));
         return (raised, lowered);
     }
+#endif
 
     public static bool CanCurbMagnates(Empire empire) =>
         empire?.data != null && Due(empire.data.gentry_curbed_at, CurbYears) &&
         Of(empire).Any(clan => Grade(clan.gentry_pedigree) <= 2);
-#endif
 
     // 抑豪强：门第最高三家的田产减半(空出的田归民田)、家财入国库(每家 150，族众每人再 0.5)、门第 -10、族众折三成；
     // 返回家数、入库钱数
@@ -728,7 +722,6 @@ public static partial class GentrySystem
         return common?.Record != null && !common.IsGone() ? common : null;
     }
 
-#if EC_PENDING
     private static float Target(SpecificClan clan, List<PersonalClanIdentity> living)
     {
         float office = 0f, marriage = 0f;
@@ -767,7 +760,6 @@ public static partial class GentrySystem
         score += Mathf.Min(8f, marriage);
         return Mathf.Clamp(score, 0f, 100f);
     }
-#endif
 
     private const float AncestorOffice = 5f, AncestorTitle = 3f, AncestorFade = 0.7f, AncestryCap = 20f, SizeCap = 15f;
 

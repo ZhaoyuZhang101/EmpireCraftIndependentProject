@@ -497,7 +497,7 @@ public static class WildernessDevelopmentSystem
 #if EC_PENDING
     private static void Hand(Cell zone, long by)
     {
-        if (zone == null || zone.City != null || EmpireWorld.Current == null || !GameClock.Running || SmoothLoader.isLoading()) return;
+        if (zone == null || zone.City != null || EmpireWorld.Current == null || !GameClock.Running || GameClock.Loading) return;
         try
         {
             if (WildernessPlotSystem.Claim(zone)) return;
