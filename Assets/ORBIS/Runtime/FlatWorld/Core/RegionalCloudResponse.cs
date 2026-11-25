@@ -235,7 +235,7 @@ namespace Orbis.Flat
 
         readonly float[] qv = new float[Count], qcLow = new float[Count], qcHigh = new float[Count];
         readonly float[] qvTmp = new float[Count], qcLowTmp = new float[Count], qcHighTmp = new float[Count];
-        readonly float[] sfcTempK = new float[Count], slpTempC = new float[Count], rhClim = new float[Count], rainClim = new float[Count];
+        readonly float[] sfcTempK = new float[Count], slpTempC = new float[Count], rhClim = new float[Count], rawRhClim = new float[Count], rainClim = new float[Count];
         readonly float[] slpClim = new float[Count], zonalSlp = new float[Height], baseWindE = new float[Count], baseWindN = new float[Count];
         readonly float[] soilAvail = new float[Count], elevM = new float[Count], scShield = new float[Count], qSatNeutralArr = new float[Count], qvClimEquil = new float[Count];
         readonly float[] eddyNx = new float[Count], eddyNy = new float[Count];
@@ -327,19 +327,76 @@ namespace Orbis.Flat
                     float u = (x + 0.5f) / Width;
                     int wx = FMath.Wrap((int)(u * world.Width), world.Width);
                     int tile = wy * world.Width + wx;
-                    int o12 = tile * 12;
 
                     year.Offsets(PosX[i], PosY[i], PosZ[i], out float dTemp, out float dRain);
-                    float tC = season.Sample(world.Temperature, o12) + dTemp;
-                    float rMm = Math.Max(0f, season.Sample(world.Precipitation, o12, ClimateRange.Nonnegative) * (1f + dRain));
-                    float el = Math.Max(0f, (float)world.Elevation[tile]);
-                    float isSea = FlatTerrainAnalysis.Ocean(world.Water[tile]) ? 1f : 0f;
+
+                    // 4x4 sub-cell footprint sampling separates sea-level coastal MBL tiles from steep inland mountain peaks
+                    // inside coarse 5.625-deg cells (e.g. Peruvian coast + Andes at 56% ocean), avoiding combining mountain-top
+                    // cold saturation with open-ocean evaporation.
+                    float sumSeaTC = 0f, sumSeaR = 0f, sumLandTC = 0f, sumLandR = 0f, sumLandEl = 0f;
+                    int seaN = 0, landN = 0;
+                    for (int sy = 0; sy < 4; sy++)
+                    {
+                        int swy = FMath.Clamp((int)(((y + (sy + 0.5f) * 0.25f) / Height) * world.Height), 0, world.Height - 1);
+                        int rowOffW = swy * world.Width;
+                        for (int sx = 0; sx < 4; sx++)
+                        {
+                            int swx = FMath.Wrap((int)(((x + (sx + 0.5f) * 0.25f) / Width) * world.Width), world.Width);
+                            int st = rowOffW + swx;
+                            int so12 = st * 12;
+                            float stC = season.Sample(world.Temperature, so12) + dTemp;
+                            float srMm = Math.Max(0f, season.Sample(world.Precipitation, so12, ClimateRange.Nonnegative) * (1f + dRain));
+                            if (FlatTerrainAnalysis.Ocean(world.Water[st]))
+                            {
+                                sumSeaTC += stC;
+                                sumSeaR += srMm;
+                                seaN++;
+                            }
+                            else
+                            {
+                                sumLandTC += stC;
+                                sumLandR += srMm;
+                                sumLandEl += Math.Max(0f, (float)world.Elevation[st]);
+                                landN++;
+                            }
+                        }
+                    }
+
+                    float isSea = seaN * (1f / 16f);
                     if (gleba != null) isSea = gleba.SampleStatic(gleba.OceanFraction, u, v);
 
-                    float rh = moisture != null
+                    float tC, rMm, el;
+                    if (seaN > 0 && landN > 0)
+                    {
+                        float seaTC = sumSeaTC / seaN, seaR = sumSeaR / seaN;
+                        float landTC = sumLandTC / landN, landR = sumLandR / landN, landEl = sumLandEl / landN;
+                        float marineThermWeight = FMath.Clamp(isSea * 1.45f, 0f, 1f);
+                        tC = FMath.Lerp(landTC, seaTC, marineThermWeight);
+                        el = landEl * (1f - marineThermWeight);
+                        rMm = FMath.Lerp(landR, seaR, isSea);
+                    }
+                    else if (seaN > 0)
+                    {
+                        tC = sumSeaTC / seaN;
+                        rMm = sumSeaR / seaN;
+                        el = 0f;
+                    }
+                    else
+                    {
+                        tC = sumLandTC / Math.Max(1, landN);
+                        rMm = sumLandR / Math.Max(1, landN);
+                        el = sumLandEl / Math.Max(1, landN);
+                    }
+
+                    float rawRh = moisture != null
                         ? season.Sample(moisture, moisture.Humidity, u, v, ClimateRange.Fraction)
-                        : FMath.Clamp((isSea > 0.5f ? 0.75f : 0.30f) + rMm / 240f, 0f, 1f);
-                    rh = FMath.Clamp(rh * (1f + 0.25f * dRain), 0f, 1f);
+                        : FMath.Clamp(FMath.Lerp(0.30f, 0.75f, isSea) + rMm / 240f, 0f, 1f);
+                    rawRh = FMath.Clamp(rawRh * (1f + 0.25f * dRain), 0f, 1f);
+                    // In active monsoon/ITCZ rainy seasons (e.g. Bengal, Western Ghats, Bolivia/Chaco), monthly moisture.Humidity can be
+                    // post-rainout residual even when monthly moisture convergence (rMm) is 140-350 mm/mo; couple rainy-season
+                    // boundary-layer moisture supply without altering hyper-arid deserts (Sahara/Atacama rMm < 10 mm/mo) or dry tests (rMm=0).
+                    float rainRhSupply = FMath.Clamp((rMm - 26f) / 185f, 0f, 0.80f);
+                    float rh = Math.Max(rawRh, rainRhSupply);
 
                     float we = moisture != null ? season.Sample(moisture, moisture.East, u, v) : 0f;
                     float wn = moisture != null ? season.Sample(moisture, moisture.North, u, v) : 0f;
@@ -359,6 +416,7 @@ namespace Orbis.Flat
 
                     sfcTempK[i] = FMath.Clamp(tC + 273.15f, 200f, 325f);
                     slpTempC[i] = tC + 0.0065f * el;
+                    rawRhClim[i] = rawRh;
                     rhClim[i] = rh;
                     rainClim[i] = rMm;
                     slpClim[i] = slp;
@@ -367,9 +425,10 @@ namespace Orbis.Flat
                     baseWindN[i] = wn * FlatCycloneWeather.ClimateWindMetresPerSecond;
                     elevM[i] = el;
                     OceanMask[i] = isSea;
-                    soilAvail[i] = isSea > 0.5f
-                        ? FMath.Clamp(1f + 0.14f * FMath.Clamp(sstAnom, -1.5f, 2.5f), 0.75f, 1.35f)
-                        : FMath.Clamp(0.10f + 0.55f * (0.45f * shallowSoil + 0.55f * deepSoil) + 0.45f * FMath.Clamp(rMm / 160f, 0f, 1f), 0.02f, 0.95f) * FMath.Clamp(rh / 0.22f, 0f, 1f);
+                    float seaSoil = FMath.Clamp(1f + 0.14f * FMath.Clamp(sstAnom, -1.5f, 2.5f), 0.75f, 1.35f);
+                    float landSoil = FMath.Clamp(0.10f + 0.55f * (0.45f * shallowSoil + 0.55f * deepSoil) + 0.45f * FMath.Clamp(rMm / 160f, 0f, 1f), 0.02f, 0.95f)
+                                   * FMath.Clamp(rh / 0.22f, 0f, 1f);
+                    soilAvail[i] = FMath.Lerp(landSoil, seaSoil, isSea);
 
                     // Cold eastern-boundary marine stratocumulus inversion shield (matches BuildCloudSynopticFields eastCoastal + cold SST;
                     // protects Peru/Benguela/California coastal upwelling decks while keeping open Azores/Pacific gyres clear):
@@ -386,11 +445,13 @@ namespace Orbis.Flat
                     float qSat0 = AirColumnMassKgM2 * (float)OrbisAtmosphereCore.Saturation(colTempK, MidLayerPressurePa);
                     qSatNeutralArr[i] = qSat0;
                     // Map column-mean Humidity + rainfall moisture supply onto boundary-layer LCL saturation fraction
-                    // (accounting for dry free-tropospheric trade-inversion air above persistent non-Sc subtropical highs):
+                    // (accounting for dry free-tropospheric trade-inversion air above persistent non-Sc subtropical highs,
+                    // while supporting moist boundary-layer plumes in active warm wet-season monsoon/ITCZ belts):
                     float anticycloneDry = FMath.Clamp((slp - 1016f) / 10f, 0f, 1f) * (1f - FMath.Clamp(rMm / 45f, 0f, 1f)) * (1f - scShield[i]);
+                    float wetConvMoist = FMath.Clamp((rMm - 55f) / 145f, 0f, 1f) * FMath.Clamp((tC - 14f) / 10f, 0f, 1f);
                     float blSatFrac = rh <= 0.02f
                         ? 0f
-                        : FMath.Clamp(0.76f * FMath.Clamp(rh / 0.58f, 0f, 1.18f) + 0.18f * FMath.Clamp(rMm / 180f, 0f, 1f) - 0.15f * anticycloneDry, 0.02f, 0.96f);
+                        : FMath.Clamp(0.76f * FMath.Clamp(rh / 0.58f, 0f, 1.18f) + 0.18f * FMath.Clamp(rMm / 180f, 0f, 1f) + 0.14f * wetConvMoist - 0.15f * anticycloneDry, 0.02f, 0.96f);
                     qvClimEquil[i] = qSat0 * blSatFrac;
                     float initScLwp = scShield[i] > 0.38f ? Math.Min(qSat0 * blSatFrac * 0.08f, 1.05f * scShield[i]) : 0f;
                     qv[i] = qvClimEquil[i] - initScLwp;
@@ -553,12 +614,33 @@ namespace Orbis.Flat
                     float ve = FMath.Clamp((hemi * dPdx * 1.65f - 0.52f * dPdy) / coriolisScale, -11f, 11f);
                     uEddyMs[i] = ue;
                     vEddyMs[i] = ve;
-                    uLowMs[i] = FMath.Clamp(baseWindE[i] + ue, -28f, 28f);
-                    vLowMs[i] = FMath.Clamp(baseWindN[i] + ve, -28f, 28f);
+                    float uTot = FMath.Clamp(baseWindE[i] + ue, -28f, 28f);
+                    float vTot = FMath.Clamp(baseWindN[i] + ve, -28f, 28f);
+
+                    // Low-Froude-number topographic blocking of upslope boundary-layer flow under marine inversions (scShield)
+                    // or synoptic/subtropical high-pressure ridges; deflects blocked marine air alongshore while leaving
+                    // storm-trough upslope flow and leeward downslope foehn winds unblocked.
+                    float gx = (elevM[iE] - elevM[iW]) * 0.5f;
+                    float gy = (elevM[iN] - elevM[iS]) * 0.5f;
+                    float gradSq = gx * gx + gy * gy;
+                    float upslopeDot = uTot * gx + vTot * gy;
+                    if (upslopeDot > 0f && gradSq > 40000f)
+                    {
+                        float gradMag = (float)Math.Sqrt(gradSq);
+                        float invCap = Math.Max(scShield[i], Math.Max(scShield[iW], scShield[iE]));
+                        float ridgeCap = FMath.Clamp((slpSyn[i] + 1.6f) / 5.0f, 0f, 1f) + 0.50f * FMath.Clamp((slpClim[i] - 1015f) / 10f, 0f, 1f);
+                        float barrierScale = FMath.Clamp((gradMag - 180f) / 850f, 0f, 1f);
+                        float blockFrac = FMath.Clamp((0.88f * invCap + 0.78f * ridgeCap) * barrierScale, 0f, 0.90f);
+                        float proj = (upslopeDot / gradSq) * blockFrac;
+                        uTot -= proj * gx;
+                        vTot -= proj * gy;
+                    }
+                    uLowMs[i] = uTot;
+                    vLowMs[i] = vTot;
                 }
 
                 // 2c. Mass-conserving spherical semi-Lagrangian horizontal advection of (Qv, QcLow) by low wind and QcHigh by upper wind.
-                AdvectPairConserving(qv, qcLow, qvTmp, qcLowTmp, uLowMs, vLowMs);
+                AdvectPairConserving(qv, qcLow, qvTmp, qcLowTmp, uLowMs, vLowMs, elevM);
                 AdvectSingleConserving(qcHigh, qcHighTmp, uUpMs, vUpMs);
                 Array.Copy(qvTmp, qv, Count);
                 Array.Copy(qcLowTmp, qcLow, Count);
@@ -600,28 +682,60 @@ namespace Orbis.Flat
                         storms.SampleCloudFootprint(uCoord, vCoord, calendarDay, out cycCore, out cycMoat, out _, out _);
                     }
 
-                    // Pure zero-mean synoptic vertical velocity (troughs/ridges/WPSH pulses/eddy warm-cold advection)
+                    // Propagating tropical easterly-wave + MJO + monsoon-depression convective plume coupling (|lat| < 32 deg):
+                    // lifts humid rainy-season monsoon & equatorial boundary-layer air across LFC on passing wave phases while
+                    // suppressed wave phases provide natural inter-storm dry breaks, leaving dry seasons and deserts untouched.
+                    float absLatCellDeg = Math.Abs(LatRad[i]) * (180f / (float)Math.PI);
+                    float lowLatConvBand = 1f - FMath.Clamp((absLatCellDeg - 26f) / 6.5f, 0f, 1f);
+                    float wTropPlume = 0f;
+                    if (lowLatConvBand > 0.001f && !tidallyLocked)
+                    {
+                        float convSupply = lowLatConvBand
+                                         * FMath.Clamp((rainClim[i] - 34f) / 95f, 0f, 1f)
+                                         * FMath.Clamp((slpTempC[i] - 16f) / 8f, 0f, 1f)
+                                         * FMath.Clamp((rhClim[i] - 0.24f) / 0.28f, 0f, 1f)
+                                         * (1f - 0.85f * scShield[i]);
+                        if (convSupply > 0.001f)
+                        {
+                            double lonCell = LonRad[i];
+                            double cWave = 0.110 + 0.014 * FMath.Clamp(-baseWindE[i] / 9f, -0.4f, 1.2f);
+                            float ewCell = (float)(0.58 * Math.Cos(7.0 * (lonCell + stepDay * cWave) + phEwA)
+                                                 + 0.42 * Math.Cos(9.0 * (lonCell + stepDay * cWave * 1.09) + phEwB));
+                            float wavePulse = 0.62f * ewCell + 0.38f * mjoCol[i % Width];
+                            float monsoonTrough = FMath.Clamp((1008f - slpClim[i]) / 30f, 0f, 0.28f) * Math.Max(0f, wavePulse + 0.20f);
+                            float warmSstHold = OceanMask[i] > 0.5f ? FMath.Clamp((soilAvail[i] - 1.02f) / 0.16f, 0f, 1f) : 0f;
+                            float negWave = 0.30f * (1f - warmSstHold);
+                            wTropPlume = convSupply * ((wavePulse >= 0f ? 0.82f * wavePulse : negWave * wavePulse) + monsoonTrough);
+                        }
+                    }
+
+                    // Pure zero-mean synoptic vertical velocity (troughs/ridges/WPSH pulses/eddy warm-cold advection + tropical wave plumes)
                     float wTransient = FMath.Clamp(
-                        0.60f * synTroughLift + 0.36f * convEddy + 0.30f * eddyWarmAdv + 0.85f * cycCore - 0.62f * cycMoat,
+                        0.60f * synTroughLift + 0.36f * convEddy + 0.30f * eddyWarmAdv + wTropPlume + 0.85f * cycCore - 0.62f * cycMoat,
                         -1.10f, 1.15f);
-                    // Full vertical velocity for prognostic moisture condensation (synoptic waves + eddy/orographic convergence - mild static high lid)
+                    // Static orographic/mean-convergence lift yields when a synoptic ridge (wTransient < 0) or marine inversion stabilizes the barrier
+                    // (low Froude number flow blocking), preventing 360-day non-stop mountain rain/overcast lockups while preserving storm-passage upslope peaks.
+                    float synUnblockGate = FMath.Clamp((wTransient + 0.16f) / 0.34f, 0f, 1f) * (1f - 0.85f * scShield[i]);
+                    float staticLift = (0.22f * convTot + 0.16f * warmAdv
+                                      + 0.14f * frontGrad * Math.Max(0f, convTot + 0.25f)
+                                      + 0.26f * orogW) * synUnblockGate;
                     float wSyn = FMath.Clamp(
-                        wTransient + 0.22f * convTot + 0.16f * warmAdv
-                        + 0.14f * frontGrad * Math.Max(0f, convTot + 0.25f)
-                        + 0.28f * orogW - 0.18f * climSubside,
+                        wTransient + staticLift - 0.18f * climSubside,
                         -1.10f, 1.15f);
 
                     // Bulk aerodynamic surface evaporation (~2.2-day marine recharge timescale; heavy rain-out P > E genuinely depletes Qv):
                     float qSatNeutral = qSatNeutralArr[i];
                     float qvEquil = qvClimEquil[i];
                     float windSpdMs = (float)Math.Sqrt(uLowMs[i] * uLowMs[i] + vLowMs[i] * vLowMs[i] + 9.0);
-                    float evapTransfer = (OceanMask[i] > 0.5f ? 0.122f : 0.078f) * (windSpdMs / 8.5f) * soilAvail[i] * (1f - 0.62f * Math.Max(0f, -wTransient));
+                    float baseEvapCoef = FMath.Lerp(0.078f, 0.122f, OceanMask[i]);
+                    float evapTransfer = baseEvapCoef * (windSpdMs / 8.5f) * soilAvail[i] * (1f - 0.62f * Math.Max(0f, -wTransient));
                     float evapKgM2 = Math.Max(0f, qvEquil - qv[i]) * FMath.Clamp(evapTransfer, 0f, 0.30f);
                     if (wSyn > 0.05f && rhClim[i] > 0.28f)
                     {
-                        // Moisture convergence recharge scales down once column condensate is heavy (rain-out downdrafts stabilize boundary layer)
+                        // Moisture convergence recharge scales with climatological moisture transport and scales down once column condensate is heavy
                         float precipStabilize = 1f - 0.68f * FMath.Clamp((qcLow[i] + qcHigh[i]) / Math.Max(0.55f, 0.048f * qSatNeutral), 0f, 1f);
-                        float convFlux = qSatNeutral * 0.081f * wSyn * soilAvail[i] * precipStabilize * FMath.Clamp((rhClim[i] - 0.24f) / 0.48f, 0f, 1f);
+                        float climMoistCap = FMath.Clamp(0.16f + 0.86f * (rainClim[i] / 155f), 0.10f, 1.35f);
+                        float convFlux = qSatNeutral * 0.082f * wSyn * soilAvail[i] * climMoistCap * precipStabilize * FMath.Clamp((rhClim[i] - 0.24f) / 0.48f, 0f, 1f);
                         evapKgM2 += convFlux;
                     }
                     qv[i] += evapKgM2;
@@ -685,10 +799,11 @@ namespace Orbis.Flat
                             0f, 1f);
                     }
 
-                    // Bergeron-Findeisen temperature-scaled autoconversion & precipitation fallout:
+                    // Bergeron-Findeisen & warm-convective coalescence autoconversion + precipitation fallout:
                     // removes condensed water from column (preventing cold-ocean ice pile-up and creating genuine post-rain drying).
                     float warmLiqScale = FMath.Clamp(qSatNeutral / 46f, 0.12f, 1.10f);
-                    float qCritLow = 0.68f * warmLiqScale + 2.25f * scShield[i];
+                    float convCoalesce = (1f - scShield[i]) * FMath.Clamp((wSyn - 0.16f) / 0.45f, 0f, 1f) * FMath.Clamp((sfcTempK[i] - 290f) / 10f, 0f, 1f);
+                    float qCritLow = (0.68f - 0.22f * convCoalesce) * warmLiqScale + 2.25f * scShield[i];
                     float qCritHigh = 0.38f * warmLiqScale;
                     float rainLow = Math.Max(0f, qcLow[i] - qCritLow) * (0.66f + 0.22f * Math.Max(0f, wSyn));
                     float rainHigh = Math.Max(0f, qcHigh[i] - qCritHigh) * 0.55f;
@@ -717,13 +832,15 @@ namespace Orbis.Flat
                         CloudRainOutKgM2Per6h[i] = totRainOut;
                         HighIceFalloutShare[i] = totRainOut > 1e-5f ? FMath.Clamp(rainHigh / totRainOut, 0f, 1f) : 0f;
 
+                        float isSea = OceanMask[i];
                         float blSatRatio = FMath.Clamp(qv[i] / Math.Max(0.35f, qSatNeutral), 0f, 1f);
-                        float subCloudRh = OceanMask[i] > 0.5f
-                            ? FMath.Clamp(0.35f * rhClim[i] + 0.65f * blSatRatio, 0f, 1f)
-                            : FMath.Clamp(0.68f * rhClim[i] + 0.20f * soilAvail[i] + 0.12f * blSatRatio, 0f, 1f);
-                        float lclThresh = OceanMask[i] > 0.5f ? 0.76f : 0.85f;
+                        float landSubRhBase = Math.Max(rawRhClim[i], FMath.Clamp((rainClim[i] - 90f) / 360f, 0f, 0.42f));
+                        float seaSubRh = FMath.Clamp(0.35f * rhClim[i] + 0.65f * blSatRatio, 0f, 1f);
+                        float landSubRh = FMath.Clamp(0.68f * landSubRhBase + 0.20f * soilAvail[i] + 0.12f * blSatRatio, 0f, 1f);
+                        float subCloudRh = FMath.Lerp(landSubRh, seaSubRh, isSea);
+                        float lclThresh = FMath.Lerp(0.85f, 0.76f, isSea);
                         float subCloudDry = FMath.Clamp((lclThresh - subCloudRh) / 0.48f, 0f, 1f);
-                        float virgaFrac = FMath.Clamp(subCloudDry * (OceanMask[i] > 0.5f ? 0.34f : 0.88f) + 0.24f * Evaporation[i], 0f, 0.92f);
+                        float virgaFrac = FMath.Clamp(subCloudDry * FMath.Lerp(0.88f, 0.34f, isSea) + 0.24f * Evaporation[i], 0f, 0.92f);
                         float virgaLoss = totRainOut * virgaFrac;
                         VirgaLossKgM2Per6h[i] = virgaLoss;
                         SurfacePrecipKgM2Per6h[i] = Math.Max(0f, totRainOut - virgaLoss);
@@ -902,11 +1019,12 @@ namespace Orbis.Flat
         static float Bilerp(float[] a, int c00, int c10, int c01, int c11, float tx, float ty)
             => FMath.Lerp(FMath.Lerp(a[c00], a[c10], tx), FMath.Lerp(a[c01], a[c11], tx), ty);
 
-        // Fast trig-free tangent-grid semi-Lagrangian advection with exact spherical area-mass conservation.
-        static void AdvectPairConserving(float[] srcA, float[] srcB, float[] dstA, float[] dstB, float[] uMs, float[] vMs)
+        // Fast trig-free tangent-grid semi-Lagrangian advection with hydrostatic terrain-step scaling and exact spherical area-mass conservation.
+        static void AdvectPairConserving(float[] srcA, float[] srcB, float[] dstA, float[] dstB, float[] uMs, float[] vMs, float[] elev)
         {
             const float cellsPerMeterLon = (float)(SecondsPerStep * Width / (2.0 * Math.PI * EarthRadiusM));
             const float cellsPerMeterLat = (float)(SecondsPerStep * Height / (Math.PI * EarthRadiusM));
+            const double invVaporScaleHeightM = 1.0 / 2260.0;
             double beforeA = 0.0, afterA = 0.0, beforeB = 0.0, afterB = 0.0;
             for (int y = 0; y < Height; y++)
             {
@@ -928,6 +1046,17 @@ namespace Orbis.Flat
 
                     float valA = Bilerp(srcA, c00, c10, c01, c11, tx, ty);
                     float valB = Bilerp(srcB, c00, c10, c01, c11, tx, ty);
+                    float elevSrc = Bilerp(elev, c00, c10, c01, c11, tx, ty);
+                    float dhRise = elev[i] - elevSrc;
+                    if (dhRise > 10f)
+                    {
+                        // Match terrain-following qSatNeutral(z) hydrostatic scale height so sea-level column vapor
+                        // below an escarpment does not artificially supersaturate high terrain during subsiding ridges
+                        // (dynamical upslope cooling is handled explicitly by orogW in wSyn).
+                        float colScale = (float)Math.Exp(-dhRise * invVaporScaleHeightM);
+                        valA *= colScale;
+                        valB *= colScale;
+                    }
                     dstA[i] = valA;
                     dstB[i] = valB;
                     afterA += valA * wArea;
