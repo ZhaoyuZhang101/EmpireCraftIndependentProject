@@ -1,0 +1,126 @@
+{
+    "name": "Japan",
+    "color": "#BC002D",
+    "translate_cz": "日本",
+    "setting": {
+        "regime": "Origin",
+        "institution_line": "Japan",
+        "tianxia": "Tenka",
+        // 列岛天下：隔着海峡(在水师辐射里)的天下、帝国法理也能相并，列岛不再拆成几个不足八城、没有天命的小天下
+        "archipelago": true,
+        // 开局阶段：写日本线的一个制度节点(如 "japan_yamato_kingship" 从大和王权开局)，留空从绳文部落起步
+        "start_institution": "",
+        // 姓氏演变：绳文、弥生无姓 → 大和起贵族、武士有氏(苗字)、平民无姓 → 明治维新后百姓皆有苗字
+        "surname_evolution": true,
+        // 宪法：名称词库(name_group / provisional_name_group)与本文化的制宪倾向(clauses，覆盖各党主张)
+        "Constitution": {
+            "clauses": { "territory": "Unitary" }
+        },
+        // 现代政权称呼(见 Locales/Cultures/README.md 政党一节)：未组建政府的势力 / 临时政府；没配的理念用默认称呼
+        "Party": {
+            "untitled_groups": {
+                "Libertarianism": "UntitledLibertarianism",
+                "Centrism": "UntitledCentrism",
+                "Socialism": "UntitledSocialism",
+                "Communism": "UntitledCommunism",
+                "ReligiousDemocracy": "UntitledReligiousDemocracy",
+                "Conservatism": "UntitledConservatism",
+                "Fascism": "UntitledFascism"
+            },
+            "provisional_groups": {
+                "Conservatism": "ProvisionalConservatism"
+            }
+        },
+        "traits": ["patriarchy"],
+        // 村镇命名(见 Locales/Cultures/README.md 村镇一节)：苗字村(田中村)、地势(高山村)、字库(中野村)
+        "Settlement": {
+            "village_modes": { "surname": 2, "terrain": 2, "words": 2 },
+            "town_modes": { "terrain": 1, "words": 2 },
+            "fort_modes": { "terrain": 1, "words": 1 },
+            "village_words": "VillageWords",
+            "village_suffix": "VillageSuffix",
+            "surname_suffix": "SurnameSuffix",
+            "town_words": "VillageWords",
+            "town_suffix": "TownSuffix",
+            "fort_words": "VillageWords",
+            "fort_suffix": "FortSuffix",
+            "terrain_prefix": "TerrainPrefix",
+            "terrain_suffix": "TerrainSuffix",
+            "terrain": { "mountain": "TerrainMountain", "hill": "TerrainHill", "water": "TerrainWater", "coast": "TerrainCoast", "forest": "TerrainForest", "plain": "TerrainPlain", "desert": "TerrainDesert", "swamp": "TerrainSwamp" }
+        },
+        // 无人区命名(见 Locales/Cultures/README.md 无人区一节)：地名 + 类型后缀，飞驒山脉、鸟取沙丘、知床冻原、屋久岛雨林、钏路湿原
+        "Wilderness": {
+            "words": { "mountain": "WildMountain", "desert": "WildDesert", "tundra": "WildTundra", "jungle": "WildJungle", "swamp": "WildSwamp" },
+            "suffix": { "mountain": "WildMountainSuffix", "desert": "WildDesertSuffix", "tundra": "WildTundraSuffix", "jungle": "WildJungleSuffix", "swamp": "WildSwampSuffix" }
+        },
+        "City": {
+            "groups": {
+                "group_1": "CityNames1",
+                "group_2": "CityNames2",
+                "group_3": "CityNames3"
+            },
+            "rule": [ "group_1", "group_2" ],
+            "name_pos": 0
+        },
+        "Clan": {
+            "groups": {
+                "group_1": "ClanNames",
+                "group_2": "Clan",
+                "group_3": "\u200A"
+            },
+            "rule": [ "group_1", "group_3", "group_2" ],
+            "name_pos": 0,
+            "has_sex_post": false,
+            "use_local_as_lastname": false,
+            "sex_post_Male": ["", "", ""],
+            "sex_post_Female": ["", "", ""]
+        },
+        "Family": {
+            "groups": {
+                "group_1": "FamilyNames",
+                "group_2": "Family",
+                "group_3": "\u200A"
+            },
+            "rule": [ "group_1", "group_3", "group_2" ],
+            "name_pos": 0,
+            "has_sex_post": false,
+            "use_local_as_lastname": false
+        },
+        "Unit": {
+            "groups": {
+                "group_1": "UnitNamesMale1",
+                "group_2": "UnitNamesMale2",
+                "group_3": "UnitNamesFemale1",
+                "group_4": "UnitNamesFemale2"
+            },
+            "rule": [
+                "group_1",
+                "sex_male",
+                "group_2",
+                "sex_male",
+                "coin_flip",
+                "group_3",
+                "sex_female",
+                "group_4",
+                "sex_female",
+                "coin_flip"
+            ],
+            "name_pos": 1,
+            "is_invert": false
+        },
+        "Kingdom": {
+            "groups": {
+                "group_1": "CountryNames"
+            },
+            "rule": [ "group_1" ],
+            "name_pos": 0,
+            "english_type_prefix": false,
+            // 绳文、弥生的国号(JapanAncientKuni.csv)
+            "ancient_group": "AncientKuni"
+        }
+    },
+    "beaurau_config": {
+        "CoreOffice": [],
+        "Divisions": []
+    }
+}

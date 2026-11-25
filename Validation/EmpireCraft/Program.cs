@@ -6,7 +6,7 @@ using EmpireCraft.Core;
 using Orbis.Flat;
 
 // EmpireCraft skeleton checks. Run from the repository root:
-//   dotnet run --project Validation/EmpireCraft -c Release            (ops, determinism, saves; 256 world)
+//   dotnet run --project Validation/EmpireCraft -c Release            (ops, determinism, saves, ported rules, data, books; 256 world)
 //   dotnet run --project Validation/EmpireCraft -c Release -- --empire-smoke [width] [years] [outDir]
 public static class Program
 {
@@ -20,7 +20,7 @@ public static class Program
                 int width=args.Length>1?int.Parse(args[1]):1024,years=args.Length>2?int.Parse(args[2]):200;
                 Smoke(width,years,args.Length>3?args[3]:null);
             }
-            else{Operations();Skeleton();}
+            else{Operations();Skeleton();RulesChecks.Rules();RulesChecks.Scheduling();RulesChecks.Data();RulesChecks.Accounts();RulesChecks.Runner();}
             return 0;
         }
         catch(Exception e){Console.Error.WriteLine(e);return 1;}
@@ -81,6 +81,11 @@ public static class Program
     {
         for(int m=0;m<years*12;m++){SkeletonRules.Month(w);if(w.Month%12==0)yearly?.Invoke(w);}
     }
+    // The full step: skeleton rules plus the books kept by the ported rule sets.
+    static void RunAll(EmpireWorld w,int years,Action<EmpireWorld> yearly=null)
+    {
+        for(int m=0;m<years*12;m++){EmpireSimulation.Month(w);if(w.Month%12==0)yearly?.Invoke(w);}
+    }
 
     // Deterministic, consistent and save-stable on a small world.
     static void Skeleton()
@@ -110,17 +115,21 @@ public static class Program
         Consistent(w,"opening");
         if(outDir!=null)MapImage.Write(w,Path.Combine(outDir,"realms_year0.png"));
         var yearMs=new System.Collections.Generic.List<double>();var yearClock=new Stopwatch();
+        FrameProfiler.Reset();FrameProfiler.Enabled=true;
         yearClock.Start();
-        Run(w,years,x=>{yearMs.Add(yearClock.Elapsed.TotalMilliseconds);Consistent(x,"year "+x.Year);yearClock.Restart();});
+        RunAll(w,years,x=>{yearMs.Add(yearClock.Elapsed.TotalMilliseconds);Consistent(x,"year "+x.Year);yearClock.Restart();});
         var bytes=EmpireSave.Encode(w);var loaded=EmpireSave.Decode(bytes,w.Map);
         Check(EmpireSave.Encode(loaded).SequenceEqual(bytes),"save round trip");
-        Run(w,10);Run(loaded,10);
+        FrameProfiler.Enabled=false;
+        RunAll(w,10);RunAll(loaded,10);
         Check(EmpireSave.Encode(w).SequenceEqual(EmpireSave.Encode(loaded)),"loaded world continues identically");
         if(outDir!=null)MapImage.Write(w,Path.Combine(outDir,"realms_year"+years+".png"));
         yearMs.Sort();
         int claimed=w.TileCity.Count(c=>c>=0);
         Console.WriteLine($"{width}x{width/2}: generation {generation} ms, seeding {seeding} ms, year median {yearMs[yearMs.Count/2]:F2} ms, p95 {yearMs[yearMs.Count*95/100]:F2} ms, max {yearMs[^1]:F2} ms");
         Console.WriteLine($"after {years}+10 years: {w.Realms.Count(r=>r.Alive)}/{w.Realms.Count} realms alive, {w.Cities.Count} cities, {claimed} tiles held, {w.Living.Count}/{w.People.Count} people living, save {bytes.Length/1024} KiB");
+        Console.WriteLine("books: "+RulesChecks.Summary(w));
+        Console.WriteLine($"per simulated year: skeleton {FrameProfiler.Milliseconds("empire.skeleton")/years:F2} ms, monthly books {FrameProfiler.Milliseconds("empire.accounts.month")/years:F2} ms, yearly close {FrameProfiler.Milliseconds("empire.accounts.year")/years:F3} ms");
         foreach(var e in w.Annals.Entries.Where(e=>e.Kind!=AnnalKind.CityFounded).Take(6))Console.WriteLine("  "+Annals.Format(w,e));
         Console.WriteLine("  ...");
         foreach(var e in w.Annals.Entries.Skip(Math.Max(0,w.Annals.Entries.Count-6)))Console.WriteLine("  "+Annals.Format(w,e));

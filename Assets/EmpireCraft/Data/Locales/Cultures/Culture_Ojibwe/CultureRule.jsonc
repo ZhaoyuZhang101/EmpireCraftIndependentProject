@@ -1,0 +1,81 @@
+{
+    "name": "Ojibwe",
+    "color": "#2D6A4F",
+    "translate_cz": "奥吉布瓦",
+    "setting": {
+        "regime": "Origin",
+        "institution_line": "Origins",
+        // 天下标识(用户 2026-10-21 定"补天下标识")：本文化自成一个天下；明写了，相邻的同文化帝国法理才会自动并成一个天下
+        // (没写的一个帝国法理一个天下，常常凑不满 8 城、没有天命，见 TianxiaSystem.AutoArrange)
+        "tianxia": "Ojibwe",
+        "traits": ["patriarchy"],
+        // 无人区命名(见 Locales/Cultures/README.md 无人区一节)：地名 + 类型后缀，米萨比山脉、霍皮沙漠、努纳武特冻原、马斯基格沼泽；雨林引用阿兹特克的
+        "Wilderness": {
+            "words": { "mountain": "WildMountain", "desert": "WildDesert", "tundra": "WildTundra", "jungle": "Aztec:WildJungle", "swamp": "WildSwamp" }
+        },
+        "City": {
+            "groups": {
+                "group_1": "CityNames1",
+                "group_2": "CityNames2"
+            },
+            "rule": [ "group_1", "group_2" ],
+            "name_pos": 0
+        },
+        "Clan": {
+            "groups": {
+                "group_1": "ClanNames",
+                "group_2": "\u200A",
+                "group_3": "Clan"
+            },
+            "rule": [
+                "group_1", "group_2", "group_3"
+            ],
+            "name_pos": 0,
+            "has_sex_post": false,
+            "use_local_as_lastname": false
+        },
+        "Family": {
+            "groups": {
+                "group_1": "FamilyNames",
+                "group_2": "\u200A"
+            },
+            "rule": [ "group_1", "group_2", "group_3" ],
+            "name_pos": 0,
+            "has_sex_post": false,
+            "use_local_as_lastname": false
+        },
+        "Unit": {
+            "groups": {
+                "group_1": "UnitNamesRootword",
+                "group_2": "UnitNamesMale1",
+                "group_3": "UnitNamesFemale1"
+            },
+            "rule": [
+                "group_1",
+                "coin_flip",
+                "group_2",
+                "sex_male",
+                "group_1",
+                "coin_flip",
+                "group_3",
+                "sex_female",
+                "space"
+            ],
+            "name_pos": 0,
+            "is_invert": true,
+            "sex_post_Male": ["", "", ""],
+            "sex_post_Female": ["", "", ""]
+        },
+        "Kingdom": {
+            "groups": {
+                "group_1": "CountryNames"
+            },
+            "rule": [ "group_1" ],
+            "name_pos": 0
+        }
+    },
+    "beaurau_config": {
+        "CoreOffice": [],
+        "Divisions": []
+    }
+}

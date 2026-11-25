@@ -1,5 +1,1181 @@
 {
-  "about": "EmpireCraft files ported from the WorldBox mod. One entry per ported file: mod path, the mod commit it was copied from, the port date, the destination and what changed. Phase 0 code is new and has no entries.",
+  "about": "EmpireCraft files ported from the WorldBox mod, written by Tools/PortTool/port_tool.py. One entry per ported file: mod path (\"path#Type\" when only single declarations were lifted out of a larger file), the mod commit it was copied from, the port date, the destination, what the tool changed and what was changed by hand (notes). kind is source, extract or data. Code written new for this repository (entities, world operations, host layer, RealmAccounts) has no entries.",
   "modRepository": "EmpireCraft (WorldBox mod)",
-  "files": []
+  "files": [
+    {
+      "mod": "ClaimRules.json",
+      "commit": "55d6d4f84409c0e7fea375169d9687724dabce69",
+      "ported": "2026-11-25",
+      "dest": "Assets/EmpireCraft/Data/ClaimRules.json",
+      "lines": 1297,
+      "sha256": "fdee1d97bcd2091c2d68c314a02901809a2204b18e0ae2c934dbeab03c39ecb4",
+      "kind": "data",
+      "changes": [
+        "copied unchanged"
+      ]
+    },
+    {
+      "mod": "ConstitutionTemplates.json",
+      "commit": "55d6d4f84409c0e7fea375169d9687724dabce69",
+      "ported": "2026-11-25",
+      "dest": "Assets/EmpireCraft/Data/ConstitutionTemplates.json",
+      "lines": 126,
+      "sha256": "3cc56aaa3f677b4fe3fcbf74f75871f50a3ca2bffb66dc3a717cd4b5bf8d10b4",
+      "kind": "data",
+      "changes": [
+        "copied unchanged"
+      ]
+    },
+    {
+      "mod": "IdeologyBureaus.json",
+      "commit": "55d6d4f84409c0e7fea375169d9687724dabce69",
+      "ported": "2026-11-25",
+      "dest": "Assets/EmpireCraft/Data/IdeologyBureaus.json",
+      "lines": 1518,
+      "sha256": "564e43d40fdd52ae23d1e27c654f8c02a6e9be1ce094104351cddbb67aa7a08f",
+      "kind": "data",
+      "changes": [
+        "copied unchanged"
+      ]
+    },
+    {
+      "mod": "InstitutionTrees/Aosong.json",
+      "commit": "55d6d4f84409c0e7fea375169d9687724dabce69",
+      "ported": "2026-11-25",
+      "dest": "Assets/EmpireCraft/Data/InstitutionTrees/Aosong.json",
+      "lines": 367,
+      "sha256": "c52fed196288aeef4a515180de8210e1321ac2dd5b1e73744e0b0fcf0efed769",
+      "kind": "data",
+      "changes": [
+        "copied unchanged"
+      ]
+    },
+    {
+      "mod": "InstitutionTrees/Arabic.json",
+      "commit": "55d6d4f84409c0e7fea375169d9687724dabce69",
+      "ported": "2026-11-25",
+      "dest": "Assets/EmpireCraft/Data/InstitutionTrees/Arabic.json",
+      "lines": 1023,
+      "sha256": "b9686b0847fb7a0bc7f09061de3e1411d02f16d237ec1624e82b91b83ad9816d",
+      "kind": "data",
+      "changes": [
+        "copied unchanged"
+      ]
+    },
+    {
+      "mod": "InstitutionTrees/Common/Templates.json",
+      "commit": "55d6d4f84409c0e7fea375169d9687724dabce69",
+      "ported": "2026-11-25",
+      "dest": "Assets/EmpireCraft/Data/InstitutionTrees/Common/Templates.json",
+      "lines": 574,
+      "sha256": "81be7da6efcbccac8c5884915f578200024283b2c8461fc5f47a3544fafce6d8",
+      "kind": "data",
+      "changes": [
+        "copied unchanged"
+      ]
+    },
+    {
+      "mod": "InstitutionTrees/Huaxia.json",
+      "commit": "55d6d4f84409c0e7fea375169d9687724dabce69",
+      "ported": "2026-11-25",
+      "dest": "Assets/EmpireCraft/Data/InstitutionTrees/Huaxia.json",
+      "lines": 1844,
+      "sha256": "88caaf3a8d11581b0a0b999e38ea97f7efb12c9a73abb4c9e373fb729be908a2",
+      "kind": "data",
+      "changes": [
+        "copied unchanged"
+      ]
+    },
+    {
+      "mod": "InstitutionTrees/Japan.json",
+      "commit": "55d6d4f84409c0e7fea375169d9687724dabce69",
+      "ported": "2026-11-25",
+      "dest": "Assets/EmpireCraft/Data/InstitutionTrees/Japan.json",
+      "lines": 146,
+      "sha256": "b62540dd2047688b5ddce44d9737d4b5ea569a17315cea320128a29005835135",
+      "kind": "data",
+      "changes": [
+        "copied unchanged"
+      ]
+    },
+    {
+      "mod": "InstitutionTrees/Origins.json",
+      "commit": "55d6d4f84409c0e7fea375169d9687724dabce69",
+      "ported": "2026-11-25",
+      "dest": "Assets/EmpireCraft/Data/InstitutionTrees/Origins.json",
+      "lines": 627,
+      "sha256": "156cb89e77d0df8b3be7613bbc7220d1d317d1ed2c69a498e41d6db2a7f3be36",
+      "kind": "data",
+      "changes": [
+        "copied unchanged"
+      ]
+    },
+    {
+      "mod": "InstitutionTrees/README.md",
+      "commit": "55d6d4f84409c0e7fea375169d9687724dabce69",
+      "ported": "2026-11-25",
+      "dest": "Assets/EmpireCraft/Data/InstitutionTrees/README.md",
+      "lines": 89,
+      "sha256": "4ac530d4a4a5d375aece4f1164888f15f7f312befd4be7a58c71f66b46e37340",
+      "kind": "data",
+      "changes": [
+        "copied unchanged"
+      ]
+    },
+    {
+      "mod": "InstitutionTrees/Roma.json",
+      "commit": "55d6d4f84409c0e7fea375169d9687724dabce69",
+      "ported": "2026-11-25",
+      "dest": "Assets/EmpireCraft/Data/InstitutionTrees/Roma.json",
+      "lines": 1647,
+      "sha256": "919b86b57e8843db62f8451d0ae49ee8cc7c2a2ebcf8dd618f035ff400c1d5aa",
+      "kind": "data",
+      "changes": [
+        "copied unchanged"
+      ]
+    },
+    {
+      "mod": "InstitutionTrees/Settings.json",
+      "commit": "55d6d4f84409c0e7fea375169d9687724dabce69",
+      "ported": "2026-11-25",
+      "dest": "Assets/EmpireCraft/Data/InstitutionTrees/Settings.json",
+      "lines": 104,
+      "sha256": "bf9129d33f9f4fec964e6b62a9dcde753d5a52a06d03f9c8d53977275d6c1b8b",
+      "kind": "data",
+      "changes": [
+        "copied unchanged"
+      ]
+    },
+    {
+      "mod": "InstitutionTrees/Youmu.json",
+      "commit": "55d6d4f84409c0e7fea375169d9687724dabce69",
+      "ported": "2026-11-25",
+      "dest": "Assets/EmpireCraft/Data/InstitutionTrees/Youmu.json",
+      "lines": 1176,
+      "sha256": "b79a13a68d08ec6e20e67c506220acde22c557627f4dd55abef7b351278d37dc",
+      "kind": "data",
+      "changes": [
+        "copied unchanged"
+      ]
+    },
+    {
+      "mod": "Locales/Cultures/Culture_Aosong/CultureRule.jsonc",
+      "commit": "55d6d4f84409c0e7fea375169d9687724dabce69",
+      "ported": "2026-11-25",
+      "dest": "Assets/EmpireCraft/Data/Locales/Cultures/Culture_Aosong/CultureRule.jsonc",
+      "lines": 100,
+      "sha256": "66f60b4471b5518b0d05c713982ab7444e10347f24533a4b9059936c00df9592",
+      "kind": "data",
+      "changes": [
+        "copied unchanged"
+      ]
+    },
+    {
+      "mod": "Locales/Cultures/Culture_Arab/CultureRule.jsonc",
+      "commit": "55d6d4f84409c0e7fea375169d9687724dabce69",
+      "ported": "2026-11-25",
+      "dest": "Assets/EmpireCraft/Data/Locales/Cultures/Culture_Arab/CultureRule.jsonc",
+      "lines": 91,
+      "sha256": "76dcf2c63576e43b3e2eeb10415e0b994544baefe525f5ec93e203944f5924ea",
+      "kind": "data",
+      "changes": [
+        "copied unchanged"
+      ]
+    },
+    {
+      "mod": "Locales/Cultures/Culture_Aztec/CultureRule.jsonc",
+      "commit": "55d6d4f84409c0e7fea375169d9687724dabce69",
+      "ported": "2026-11-25",
+      "dest": "Assets/EmpireCraft/Data/Locales/Cultures/Culture_Aztec/CultureRule.jsonc",
+      "lines": 88,
+      "sha256": "e1cd763be36412ac8dcd15e3f3fc05a8f22c65b1bcc4140224a34b63aeab332f",
+      "kind": "data",
+      "changes": [
+        "copied unchanged"
+      ]
+    },
+    {
+      "mod": "Locales/Cultures/Culture_Bantu/CultureRule.jsonc",
+      "commit": "55d6d4f84409c0e7fea375169d9687724dabce69",
+      "ported": "2026-11-25",
+      "dest": "Assets/EmpireCraft/Data/Locales/Cultures/Culture_Bantu/CultureRule.jsonc",
+      "lines": 119,
+      "sha256": "089b0d5b84beccfdb065c1d491575f86f8c3069263b90e672dc410d549ed8930",
+      "kind": "data",
+      "changes": [
+        "copied unchanged"
+      ]
+    },
+    {
+      "mod": "Locales/Cultures/Culture_China/CultureRule.jsonc",
+      "commit": "55d6d4f84409c0e7fea375169d9687724dabce69",
+      "ported": "2026-11-25",
+      "dest": "Assets/EmpireCraft/Data/Locales/Cultures/Culture_China/CultureRule.jsonc",
+      "lines": 125,
+      "sha256": "d352069c5933bb252e404b7039c448311fcdb5389f439d046c4f14c034009e91",
+      "kind": "data",
+      "changes": [
+        "copied unchanged"
+      ]
+    },
+    {
+      "mod": "Locales/Cultures/Culture_Corporate/CultureRule.jsonc",
+      "commit": "55d6d4f84409c0e7fea375169d9687724dabce69",
+      "ported": "2026-11-25",
+      "dest": "Assets/EmpireCraft/Data/Locales/Cultures/Culture_Corporate/CultureRule.jsonc",
+      "lines": 87,
+      "sha256": "9cbdac6a04323910125e7f0d082acb38eb0e5f58c1ff097268fe5561688c6257",
+      "kind": "data",
+      "changes": [
+        "copied unchanged"
+      ]
+    },
+    {
+      "mod": "Locales/Cultures/Culture_Egypt/CultureRule.jsonc",
+      "commit": "55d6d4f84409c0e7fea375169d9687724dabce69",
+      "ported": "2026-11-25",
+      "dest": "Assets/EmpireCraft/Data/Locales/Cultures/Culture_Egypt/CultureRule.jsonc",
+      "lines": 89,
+      "sha256": "9bedef76a0f08475d33b417d81d4c91290480c3bbba4416d87598a9de9e93909",
+      "kind": "data",
+      "changes": [
+        "copied unchanged"
+      ]
+    },
+    {
+      "mod": "Locales/Cultures/Culture_ElfFancy/CultureRule.jsonc",
+      "commit": "55d6d4f84409c0e7fea375169d9687724dabce69",
+      "ported": "2026-11-25",
+      "dest": "Assets/EmpireCraft/Data/Locales/Cultures/Culture_ElfFancy/CultureRule.jsonc",
+      "lines": 78,
+      "sha256": "3005baf7031be5113d76f7a737fb86b4f1f86111e40e0ca733c4d1bfdfc9b3cb",
+      "kind": "data",
+      "changes": [
+        "copied unchanged"
+      ]
+    },
+    {
+      "mod": "Locales/Cultures/Culture_Emperor/CultureRule.jsonc",
+      "commit": "55d6d4f84409c0e7fea375169d9687724dabce69",
+      "ported": "2026-11-25",
+      "dest": "Assets/EmpireCraft/Data/Locales/Cultures/Culture_Emperor/CultureRule.jsonc",
+      "lines": 79,
+      "sha256": "ddeaa8a254ffd8fdbb635d0c9a65bc14c354c62f0c8341984b904c9688beb7c4",
+      "kind": "data",
+      "changes": [
+        "copied unchanged"
+      ]
+    },
+    {
+      "mod": "Locales/Cultures/Culture_Frankish/CultureRule.jsonc",
+      "commit": "55d6d4f84409c0e7fea375169d9687724dabce69",
+      "ported": "2026-11-25",
+      "dest": "Assets/EmpireCraft/Data/Locales/Cultures/Culture_Frankish/CultureRule.jsonc",
+      "lines": 117,
+      "sha256": "eee90fa252c291e77ac707fd0d30b90cda93bf28d05f02e7a8e2aa2356a55d7a",
+      "kind": "data",
+      "changes": [
+        "copied unchanged"
+      ]
+    },
+    {
+      "mod": "Locales/Cultures/Culture_Germanic/CultureRule.jsonc",
+      "commit": "55d6d4f84409c0e7fea375169d9687724dabce69",
+      "ported": "2026-11-25",
+      "dest": "Assets/EmpireCraft/Data/Locales/Cultures/Culture_Germanic/CultureRule.jsonc",
+      "lines": 112,
+      "sha256": "50fe344194c401d4352b960e7626f1d98967df0227fbccfda0516f6d1479d35f",
+      "kind": "data",
+      "changes": [
+        "copied unchanged"
+      ]
+    },
+    {
+      "mod": "Locales/Cultures/Culture_Huaxia/CultureRule.jsonc",
+      "commit": "55d6d4f84409c0e7fea375169d9687724dabce69",
+      "ported": "2026-11-25",
+      "dest": "Assets/EmpireCraft/Data/Locales/Cultures/Culture_Huaxia/CultureRule.jsonc",
+      "lines": 185,
+      "sha256": "0c2b6512fc7df2da4a1ea638d0b0a8c13610ab8bb298718ef83d59611f94bf53",
+      "kind": "data",
+      "changes": [
+        "copied unchanged"
+      ]
+    },
+    {
+      "mod": "Locales/Cultures/Culture_India/CultureRule.jsonc",
+      "commit": "55d6d4f84409c0e7fea375169d9687724dabce69",
+      "ported": "2026-11-25",
+      "dest": "Assets/EmpireCraft/Data/Locales/Cultures/Culture_India/CultureRule.jsonc",
+      "lines": 90,
+      "sha256": "0d19fc8e76b04100bba9b7b0ae5bea2f9da3fe5217b612200404fef386ac32a8",
+      "kind": "data",
+      "changes": [
+        "copied unchanged"
+      ]
+    },
+    {
+      "mod": "Locales/Cultures/Culture_Japan/CultureRule.jsonc",
+      "commit": "55d6d4f84409c0e7fea375169d9687724dabce69",
+      "ported": "2026-11-25",
+      "dest": "Assets/EmpireCraft/Data/Locales/Cultures/Culture_Japan/CultureRule.jsonc",
+      "lines": 126,
+      "sha256": "56adce7f4dfa58c90bd0ec2182e40ccf59a41fba373cc435d4ed7654d8a32810",
+      "kind": "data",
+      "changes": [
+        "copied unchanged"
+      ]
+    },
+    {
+      "mod": "Locales/Cultures/Culture_Kosher/CultureRule.jsonc",
+      "commit": "55d6d4f84409c0e7fea375169d9687724dabce69",
+      "ported": "2026-11-25",
+      "dest": "Assets/EmpireCraft/Data/Locales/Cultures/Culture_Kosher/CultureRule.jsonc",
+      "lines": 89,
+      "sha256": "a9bcd34060171604bfb0659ce2ca36a2513f6f3574ae8cf41fcc25925c507ec0",
+      "kind": "data",
+      "changes": [
+        "copied unchanged"
+      ]
+    },
+    {
+      "mod": "Locales/Cultures/Culture_Manzhou/CultureRule.jsonc",
+      "commit": "55d6d4f84409c0e7fea375169d9687724dabce69",
+      "ported": "2026-11-25",
+      "dest": "Assets/EmpireCraft/Data/Locales/Cultures/Culture_Manzhou/CultureRule.jsonc",
+      "lines": 156,
+      "sha256": "636bae7c57e14cd31726274613806783aaeff39aaa2c1d7b8b80478ede1a02f7",
+      "kind": "data",
+      "changes": [
+        "copied unchanged"
+      ]
+    },
+    {
+      "mod": "Locales/Cultures/Culture_Ojibwe/CultureRule.jsonc",
+      "commit": "55d6d4f84409c0e7fea375169d9687724dabce69",
+      "ported": "2026-11-25",
+      "dest": "Assets/EmpireCraft/Data/Locales/Cultures/Culture_Ojibwe/CultureRule.jsonc",
+      "lines": 81,
+      "sha256": "b886838fecf8e353e35d1218723603d9ae205cff4565782d14c46b5c72003c20",
+      "kind": "data",
+      "changes": [
+        "copied unchanged"
+      ]
+    },
+    {
+      "mod": "Locales/Cultures/Culture_Persepolis/CultureRule.jsonc",
+      "commit": "55d6d4f84409c0e7fea375169d9687724dabce69",
+      "ported": "2026-11-25",
+      "dest": "Assets/EmpireCraft/Data/Locales/Cultures/Culture_Persepolis/CultureRule.jsonc",
+      "lines": 87,
+      "sha256": "a34874ee379775d78b00b43c21fd96bfbb83d163b6fb9d9cbad267a8f47ef03e",
+      "kind": "data",
+      "changes": [
+        "copied unchanged"
+      ]
+    },
+    {
+      "mod": "Locales/Cultures/Culture_Roma/CultureRule.jsonc",
+      "commit": "55d6d4f84409c0e7fea375169d9687724dabce69",
+      "ported": "2026-11-25",
+      "dest": "Assets/EmpireCraft/Data/Locales/Cultures/Culture_Roma/CultureRule.jsonc",
+      "lines": 88,
+      "sha256": "2371d25a11c38289f91507f62431746aae7f493617062e5809d35ddd5b82b686",
+      "kind": "data",
+      "changes": [
+        "copied unchanged"
+      ]
+    },
+    {
+      "mod": "Locales/Cultures/Culture_Shanhai/CultureRule.jsonc",
+      "commit": "55d6d4f84409c0e7fea375169d9687724dabce69",
+      "ported": "2026-11-25",
+      "dest": "Assets/EmpireCraft/Data/Locales/Cultures/Culture_Shanhai/CultureRule.jsonc",
+      "lines": 121,
+      "sha256": "9a6db999def182dfeb000950d5da0ded5472fe4fc0b79652a44ebd98924b7143",
+      "kind": "data",
+      "changes": [
+        "copied unchanged"
+      ]
+    },
+    {
+      "mod": "Locales/Cultures/Culture_Slavonic/CultureRule.jsonc",
+      "commit": "55d6d4f84409c0e7fea375169d9687724dabce69",
+      "ported": "2026-11-25",
+      "dest": "Assets/EmpireCraft/Data/Locales/Cultures/Culture_Slavonic/CultureRule.jsonc",
+      "lines": 105,
+      "sha256": "4c1cf8a128a2645f27a792d702ea0868c5b56a67b2407c142d1af101a10d81d5",
+      "kind": "data",
+      "changes": [
+        "copied unchanged"
+      ]
+    },
+    {
+      "mod": "Locales/Cultures/Culture_Swahili/CultureRule.jsonc",
+      "commit": "55d6d4f84409c0e7fea375169d9687724dabce69",
+      "ported": "2026-11-25",
+      "dest": "Assets/EmpireCraft/Data/Locales/Cultures/Culture_Swahili/CultureRule.jsonc",
+      "lines": 119,
+      "sha256": "8ec4b5308489117d0861cd12ebf27526285b100ba82107c0e6416138586edd50",
+      "kind": "data",
+      "changes": [
+        "copied unchanged"
+      ]
+    },
+    {
+      "mod": "Locales/Cultures/Culture_Viking/CultureRule.jsonc",
+      "commit": "55d6d4f84409c0e7fea375169d9687724dabce69",
+      "ported": "2026-11-25",
+      "dest": "Assets/EmpireCraft/Data/Locales/Cultures/Culture_Viking/CultureRule.jsonc",
+      "lines": 106,
+      "sha256": "16f86e084b0339c9f499a15156395d6878e0dd3a1eeafd1c8a845280c30a1f14",
+      "kind": "data",
+      "changes": [
+        "copied unchanged"
+      ]
+    },
+    {
+      "mod": "Locales/Cultures/Culture_Western/CultureRule.jsonc",
+      "commit": "55d6d4f84409c0e7fea375169d9687724dabce69",
+      "ported": "2026-11-25",
+      "dest": "Assets/EmpireCraft/Data/Locales/Cultures/Culture_Western/CultureRule.jsonc",
+      "lines": 116,
+      "sha256": "47a938a255f4a860af8cdbcf6abff2bb9fd7baee4920572f51d0d88a843097cc",
+      "kind": "data",
+      "changes": [
+        "copied unchanged"
+      ]
+    },
+    {
+      "mod": "Locales/Cultures/Culture_Xizang/CultureRule.jsonc",
+      "commit": "55d6d4f84409c0e7fea375169d9687724dabce69",
+      "ported": "2026-11-25",
+      "dest": "Assets/EmpireCraft/Data/Locales/Cultures/Culture_Xizang/CultureRule.jsonc",
+      "lines": 140,
+      "sha256": "54f2732b3ef5d733da5f62b2b8621169c767c256c284ce3085041aaadcd3c48d",
+      "kind": "data",
+      "changes": [
+        "copied unchanged"
+      ]
+    },
+    {
+      "mod": "Locales/Cultures/Culture_Youmu/CultureRule.jsonc",
+      "commit": "55d6d4f84409c0e7fea375169d9687724dabce69",
+      "ported": "2026-11-25",
+      "dest": "Assets/EmpireCraft/Data/Locales/Cultures/Culture_Youmu/CultureRule.jsonc",
+      "lines": 101,
+      "sha256": "69f5719ed4c2d28906e7872ed3743b96d1fe664da721fecea8c0be0721380cd9",
+      "kind": "data",
+      "changes": [
+        "copied unchanged"
+      ]
+    },
+    {
+      "mod": "Locales/Cultures/Culture_Zulu/CultureRule.jsonc",
+      "commit": "55d6d4f84409c0e7fea375169d9687724dabce69",
+      "ported": "2026-11-25",
+      "dest": "Assets/EmpireCraft/Data/Locales/Cultures/Culture_Zulu/CultureRule.jsonc",
+      "lines": 118,
+      "sha256": "875656a215c585c21747540d0aeb4724b80c57b95cd94d7eed08db11d6cb3451",
+      "kind": "data",
+      "changes": [
+        "copied unchanged"
+      ]
+    },
+    {
+      "mod": "Locales/ch.json",
+      "commit": "55d6d4f84409c0e7fea375169d9687724dabce69",
+      "ported": "2026-11-25",
+      "dest": "Assets/EmpireCraft/Data/Locales/ch.json",
+      "lines": 13618,
+      "sha256": "9627d43c56a687c464283a3586b38f85173812e6cc1331d6b60384f33456a8c5",
+      "kind": "data",
+      "changes": [
+        "copied unchanged"
+      ]
+    },
+    {
+      "mod": "Locales/cz.json",
+      "commit": "55d6d4f84409c0e7fea375169d9687724dabce69",
+      "ported": "2026-11-25",
+      "dest": "Assets/EmpireCraft/Data/Locales/cz.json",
+      "lines": 13626,
+      "sha256": "8e0bf7cb5b9f1bc6df22311f3574347b0eb27fdfc8ac5a7205d989ee3fc98632",
+      "kind": "data",
+      "changes": [
+        "copied unchanged"
+      ]
+    },
+    {
+      "mod": "Locales/en.json",
+      "commit": "55d6d4f84409c0e7fea375169d9687724dabce69",
+      "ported": "2026-11-25",
+      "dest": "Assets/EmpireCraft/Data/Locales/en.json",
+      "lines": 13612,
+      "sha256": "a17c17a5fd6de85529da7dfd2487663e2fc2e848f92b19802d80859f855ea522",
+      "kind": "data",
+      "changes": [
+        "copied unchanged"
+      ]
+    },
+    {
+      "mod": "ReligionTenets.json",
+      "commit": "55d6d4f84409c0e7fea375169d9687724dabce69",
+      "ported": "2026-11-25",
+      "dest": "Assets/EmpireCraft/Data/ReligionTenets.json",
+      "lines": 67,
+      "sha256": "6809e5547f488839b4662cf659ff2097da4aef389b257a429ef9a460b712864f",
+      "kind": "data",
+      "changes": [
+        "copied unchanged"
+      ]
+    },
+    {
+      "mod": "Scripts/Data/CityPopulationData.cs",
+      "commit": "55d6d4f84409c0e7fea375169d9687724dabce69",
+      "ported": "2026-11-25",
+      "dest": "Assets/EmpireCraft/Core/State/CityPopulationData.cs",
+      "lines": 148,
+      "sha256": "25c2ead48b16aad25e804e6a7680cb0c262b60f87389db263375cfa99f5da955",
+      "kind": "source",
+      "changes": [
+        "file-scoped namespace opened as a block (body not re-indented)",
+        "namespace EmpireCraft.Core"
+      ]
+    },
+    {
+      "mod": "Scripts/Data/CultureRules.cs",
+      "commit": "55d6d4f84409c0e7fea375169d9687724dabce69",
+      "ported": "2026-11-25",
+      "dest": "Assets/EmpireCraft/Core/State/CultureRules.cs",
+      "lines": 368,
+      "sha256": "5d481b42c8fa051d0373309d68fdf85ca6831f1e682976c89d7348c0d6534860",
+      "kind": "source",
+      "changes": [
+        "file-scoped namespace opened as a block (body not re-indented)",
+        "namespace EmpireCraft.Core",
+        "Mathf -> EmpireCraft.Core.EcMath (using alias)",
+        "Color -> EmpireCraft.Core.EcColor (using alias)",
+        "ColorUtility -> EmpireCraft.Core.EcColorUtility (using alias)",
+        "dropped using NeoModLoader",
+        "dropped using UnityEngine",
+        "ModClass._declare.FolderPath -> EmpireData.Folder",
+        "PlayerConfig.dict[\"language\"].stringVal -> LM.Language"
+      ],
+      "notes": [
+        "The species -> culture defaults (ConfigData.speciesCulturePair) are inside #if EC_PENDING: species ids are WorldBox assets."
+      ]
+    },
+    {
+      "mod": "Scripts/Data/InstitutionConfig.cs",
+      "commit": "55d6d4f84409c0e7fea375169d9687724dabce69",
+      "ported": "2026-11-25",
+      "dest": "Assets/EmpireCraft/Core/State/InstitutionConfig.cs",
+      "lines": 475,
+      "sha256": "c9dfd83b319901098d28ad9b3d46e8a0e90058db6263698c53d578fee7a3887c",
+      "kind": "source",
+      "changes": [
+        "file-scoped namespace opened as a block (body not re-indented)",
+        "namespace EmpireCraft.Core"
+      ]
+    },
+    {
+      "mod": "Scripts/Data/InstitutionState.cs",
+      "commit": "55d6d4f84409c0e7fea375169d9687724dabce69",
+      "ported": "2026-11-25",
+      "dest": "Assets/EmpireCraft/Core/State/InstitutionState.cs",
+      "lines": 187,
+      "sha256": "bdf1e543a55bc68386506cdf0dcf88fe24a81950870e7a54676d1982e35a25ea",
+      "kind": "source",
+      "changes": [
+        "file-scoped namespace opened as a block (body not re-indented)",
+        "namespace EmpireCraft.Core"
+      ]
+    },
+    {
+      "mod": "Scripts/Data/PopulationSettlementRules.cs",
+      "commit": "55d6d4f84409c0e7fea375169d9687724dabce69",
+      "ported": "2026-11-25",
+      "dest": "Assets/EmpireCraft/Core/Rules/PopulationSettlementRules.cs",
+      "lines": 23,
+      "sha256": "fbba32ea24a8a1e56be3d4e8127f21eb441b5cea931055f0bffac9b8c2bf9504",
+      "kind": "source",
+      "changes": [
+        "file-scoped namespace opened as a block (body not re-indented)",
+        "namespace EmpireCraft.Core"
+      ]
+    },
+    {
+      "mod": "Scripts/Data/TreasuryData.cs",
+      "commit": "55d6d4f84409c0e7fea375169d9687724dabce69",
+      "ported": "2026-11-25",
+      "dest": "Assets/EmpireCraft/Core/State/TreasuryData.cs",
+      "lines": 21,
+      "sha256": "9639eb973e307e5fac3ea3f5c134d414d30f30339c016a8880fa16bd42277759",
+      "kind": "source",
+      "changes": [
+        "file-scoped namespace opened as a block (body not re-indented)",
+        "namespace EmpireCraft.Core"
+      ]
+    },
+    {
+      "mod": "Scripts/Data/WalletReserve.cs",
+      "commit": "55d6d4f84409c0e7fea375169d9687724dabce69",
+      "ported": "2026-11-25",
+      "dest": "Assets/EmpireCraft/Core/State/WalletReserve.cs",
+      "lines": 9,
+      "sha256": "2d7604140412484efc27bcbe92a67a5500c017d41cc445b79ad9bee4b02eaeab",
+      "kind": "source",
+      "changes": [
+        "file-scoped namespace opened as a block (body not re-indented)",
+        "namespace EmpireCraft.Core"
+      ]
+    },
+    {
+      "mod": "Scripts/Enums/CustomDataType.cs",
+      "commit": "55d6d4f84409c0e7fea375169d9687724dabce69",
+      "ported": "2026-11-25",
+      "dest": "Assets/EmpireCraft/Core/Enums/CustomDataType.cs",
+      "lines": 13,
+      "sha256": "dea0ded13aa173dbc2e79bcbbb2b7b9e7effd8e6c98e04dba0ffc32091c0f231",
+      "kind": "source",
+      "changes": [
+        "namespace EmpireCraft.Core"
+      ]
+    },
+    {
+      "mod": "Scripts/Enums/EmpireCraftMapMode.cs",
+      "commit": "55d6d4f84409c0e7fea375169d9687724dabce69",
+      "ported": "2026-11-25",
+      "dest": "Assets/EmpireCraft/Core/Enums/EmpireCraftMapMode.cs",
+      "lines": 15,
+      "sha256": "f76454709c32574745183b9c4363dc6603652fa2ed86f6b02e96238f82ec22e0",
+      "kind": "source",
+      "changes": [
+        "namespace EmpireCraft.Core"
+      ]
+    },
+    {
+      "mod": "Scripts/Enums/EmpireExamLevel.cs",
+      "commit": "55d6d4f84409c0e7fea375169d9687724dabce69",
+      "ported": "2026-11-25",
+      "dest": "Assets/EmpireCraft/Core/Enums/EmpireExamLevel.cs",
+      "lines": 16,
+      "sha256": "c75c8bdd19be2e3429633ee892adc7ddbff65b1993a78db4243a35a34d4b1939",
+      "kind": "source",
+      "changes": [
+        "namespace EmpireCraft.Core"
+      ]
+    },
+    {
+      "mod": "Scripts/Enums/EmpireHeirLawType.cs",
+      "commit": "55d6d4f84409c0e7fea375169d9687724dabce69",
+      "ported": "2026-11-25",
+      "dest": "Assets/EmpireCraft/Core/Enums/EmpireHeirLawType.cs",
+      "lines": 19,
+      "sha256": "c54c9524efce97ef9e1763f54cb7a63f4a77d4d64f18c0b3a8e4b857f78e15ad",
+      "kind": "source",
+      "changes": [
+        "namespace EmpireCraft.Core"
+      ]
+    },
+    {
+      "mod": "Scripts/Enums/EmpireHistoryType.cs",
+      "commit": "55d6d4f84409c0e7fea375169d9687724dabce69",
+      "ported": "2026-11-25",
+      "dest": "Assets/EmpireCraft/Core/Enums/EmpireHistoryType.cs",
+      "lines": 28,
+      "sha256": "897db828f97cf6277717f1d24859fad243ee3276f43c29e479caa9a263cb218e",
+      "kind": "source",
+      "changes": [
+        "file-scoped namespace opened as a block (body not re-indented)",
+        "namespace EmpireCraft.Core"
+      ]
+    },
+    {
+      "mod": "Scripts/Enums/EmpirePeriod.cs",
+      "commit": "55d6d4f84409c0e7fea375169d9687724dabce69",
+      "ported": "2026-11-25",
+      "dest": "Assets/EmpireCraft/Core/Enums/EmpirePeriod.cs",
+      "lines": 15,
+      "sha256": "a6c7184ef0970d688a3916b4e48184339c759eb0e1c52d406e9eac2aa4e4b791",
+      "kind": "source",
+      "changes": [
+        "file-scoped namespace opened as a block (body not re-indented)",
+        "namespace EmpireCraft.Core"
+      ]
+    },
+    {
+      "mod": "Scripts/Enums/OnomasticsType.cs",
+      "commit": "55d6d4f84409c0e7fea375169d9687724dabce69",
+      "ported": "2026-11-25",
+      "dest": "Assets/EmpireCraft/Core/Enums/OnomasticsType.cs",
+      "lines": 91,
+      "sha256": "8c0bd789c07ba428576eeeb9d47d7b65738da3bf1b30e43b006cad5f756e23cf",
+      "kind": "source",
+      "changes": [
+        "file-scoped namespace opened as a block (body not re-indented)",
+        "namespace EmpireCraft.Core"
+      ]
+    },
+    {
+      "mod": "Scripts/Enums/PeeragesLevel.cs",
+      "commit": "55d6d4f84409c0e7fea375169d9687724dabce69",
+      "ported": "2026-11-25",
+      "dest": "Assets/EmpireCraft/Core/Enums/PeeragesLevel.cs",
+      "lines": 29,
+      "sha256": "b1992589c4d1d1792105952365aefc3f08a301fe8844d42e7f7d6cafc7489fe0",
+      "kind": "source",
+      "changes": [
+        "file-scoped namespace opened as a block (body not re-indented)",
+        "namespace EmpireCraft.Core"
+      ]
+    },
+    {
+      "mod": "Scripts/Enums/SuccessionLawType.cs",
+      "commit": "55d6d4f84409c0e7fea375169d9687724dabce69",
+      "ported": "2026-11-25",
+      "dest": "Assets/EmpireCraft/Core/Enums/SuccessionLawType.cs",
+      "lines": 17,
+      "sha256": "28aedf78196aa085ebd0452f6698fc353c35976377180234a0709340322116f5",
+      "kind": "source",
+      "changes": [
+        "namespace EmpireCraft.Core"
+      ]
+    },
+    {
+      "mod": "Scripts/Enums/WarType.cs",
+      "commit": "55d6d4f84409c0e7fea375169d9687724dabce69",
+      "ported": "2026-11-25",
+      "dest": "Assets/EmpireCraft/Core/Enums/WarType.cs",
+      "lines": 66,
+      "sha256": "fa9759eb26577081ce681c0c9f21a02bd59c0f6d3123bb10930e32d92b42b862",
+      "kind": "source",
+      "changes": [
+        "namespace EmpireCraft.Core"
+      ]
+    },
+    {
+      "mod": "Scripts/GeneralSystems/CityStabilityMath.cs",
+      "commit": "55d6d4f84409c0e7fea375169d9687724dabce69",
+      "ported": "2026-11-25",
+      "dest": "Assets/EmpireCraft/Core/Rules/CityStabilityMath.cs",
+      "lines": 63,
+      "sha256": "b23d3ba59adeacb6c28f4b26a10d6c42490b044173d8232e7a4a9c7e65ef770b",
+      "kind": "source",
+      "changes": [
+        "file-scoped namespace opened as a block (body not re-indented)",
+        "namespace EmpireCraft.Core"
+      ]
+    },
+    {
+      "mod": "Scripts/GeneralSystems/CityStabilityRules.cs",
+      "commit": "55d6d4f84409c0e7fea375169d9687724dabce69",
+      "ported": "2026-11-25",
+      "dest": "Assets/EmpireCraft/Core/Rules/CityStabilityRules.cs",
+      "lines": 44,
+      "sha256": "79290d95625a7bd363249627d57316a7bc3c82881e96468181cb93a48ffe2535",
+      "kind": "source",
+      "changes": [
+        "file-scoped namespace opened as a block (body not re-indented)",
+        "namespace EmpireCraft.Core"
+      ]
+    },
+    {
+      "mod": "Scripts/GeneralSystems/ClassSystem.cs",
+      "commit": "55d6d4f84409c0e7fea375169d9687724dabce69",
+      "ported": "2026-11-25",
+      "dest": "Assets/EmpireCraft/Core/Rules/ClassSystem.cs",
+      "lines": 31,
+      "sha256": "07cd23bfea99b4d364f36cdab848d3eb76e151b264e9cd11f0febad28c45e68a",
+      "kind": "source",
+      "changes": [
+        "file-scoped namespace opened as a block (body not re-indented)",
+        "namespace EmpireCraft.Core",
+        "dropped using NeoModLoader"
+      ]
+    },
+    {
+      "mod": "Scripts/GeneralSystems/CorruptionRules.cs",
+      "commit": "55d6d4f84409c0e7fea375169d9687724dabce69",
+      "ported": "2026-11-25",
+      "dest": "Assets/EmpireCraft/Core/Rules/CorruptionRules.cs",
+      "lines": 22,
+      "sha256": "0d2b665a7c9fea2612366b4908b8489ec06c29dbfa598884d0648c7a57b5b99d",
+      "kind": "source",
+      "changes": [
+        "file-scoped namespace opened as a block (body not re-indented)",
+        "namespace EmpireCraft.Core"
+      ]
+    },
+    {
+      "mod": "Scripts/GeneralSystems/CourtCrisisRules.cs",
+      "commit": "55d6d4f84409c0e7fea375169d9687724dabce69",
+      "ported": "2026-11-25",
+      "dest": "Assets/EmpireCraft/Core/Rules/CourtCrisisRules.cs",
+      "lines": 16,
+      "sha256": "78ec626b49c3502d39cd7f5a7721092b36923e3de216f88c94f7d20bdc7ad026",
+      "kind": "source",
+      "changes": [
+        "file-scoped namespace opened as a block (body not re-indented)",
+        "namespace EmpireCraft.Core"
+      ]
+    },
+    {
+      "mod": "Scripts/GeneralSystems/DynasticCycleRules.cs",
+      "commit": "55d6d4f84409c0e7fea375169d9687724dabce69",
+      "ported": "2026-11-25",
+      "dest": "Assets/EmpireCraft/Core/Rules/DynasticCycleRules.cs",
+      "lines": 161,
+      "sha256": "b41baf621cbf2adfcd4d7ab93314d3298e8116d9dcafe95d90401d3ac7011ad2",
+      "kind": "source",
+      "changes": [
+        "file-scoped namespace opened as a block (body not re-indented)",
+        "namespace EmpireCraft.Core"
+      ]
+    },
+    {
+      "mod": "Scripts/GeneralSystems/DynasticCycleSystem.cs#DynasticCycleSystem.Transition",
+      "commit": "55d6d4f84409c0e7fea375169d9687724dabce69",
+      "ported": "2026-11-25",
+      "dest": "Assets/EmpireCraft/Core/Enums/DynasticCycleSystem.Transition.cs",
+      "lines": 18,
+      "sha256": "48d12e1c9995d71ad84151840f9ad4921b4522b937e11a77f799d94a7c634402",
+      "kind": "extract",
+      "changes": [
+        "file-scoped namespace opened as a block (body not re-indented)",
+        "namespace EmpireCraft.Core"
+      ],
+      "notes": [
+        "Lifted alone; remove this entry when DynasticCycleSystem.cs is ported whole (phase 4)."
+      ]
+    },
+    {
+      "mod": "Scripts/GeneralSystems/IdeologyFamilies.cs",
+      "commit": "55d6d4f84409c0e7fea375169d9687724dabce69",
+      "ported": "2026-11-25",
+      "dest": "Assets/EmpireCraft/Core/Rules/IdeologyFamilies.cs",
+      "lines": 102,
+      "sha256": "4097f00d2ab48b7185d7b3aa1ba305445b46f0e5455be16e9dd2370ef7c8b803",
+      "kind": "source",
+      "changes": [
+        "file-scoped namespace opened as a block (body not re-indented)",
+        "namespace EmpireCraft.Core",
+        "NeoModLoader.General.LM. -> LM."
+      ],
+      "notes": [
+        "FactionLeaning, HasExplicitIdeology and StateIdeology are inside #if EC_PENDING until FixedFaction, PartySystem, CultureDoctrines and the realm identities are ported (phases 4 and 6)."
+      ]
+    },
+    {
+      "mod": "Scripts/GeneralSystems/IdeologyInstitutionPaths.cs",
+      "commit": "55d6d4f84409c0e7fea375169d9687724dabce69",
+      "ported": "2026-11-25",
+      "dest": "Assets/EmpireCraft/Core/Rules/IdeologyInstitutionPaths.cs",
+      "lines": 187,
+      "sha256": "d9ffd1d44eefd2dbad4f6b60af31ef377d42bd7fd6d74c6017db7dd5b814fe07",
+      "kind": "source",
+      "changes": [
+        "file-scoped namespace opened as a block (body not re-indented)",
+        "namespace EmpireCraft.Core"
+      ]
+    },
+    {
+      "mod": "Scripts/GeneralSystems/IdeologySpreadSystem.cs#IdeologySpreadSystem.FeatureKey",
+      "commit": "55d6d4f84409c0e7fea375169d9687724dabce69",
+      "ported": "2026-11-25",
+      "dest": "Assets/EmpireCraft/Core/Rules/IdeologySpreadSystem.FeatureKey.cs",
+      "lines": 9,
+      "sha256": "f8d1737040b8f9266c2176974c76f4619ce6cc6e0d4d56513f769b0aebfbd005",
+      "kind": "extract",
+      "changes": [
+        "file-scoped namespace opened as a block (body not re-indented)",
+        "namespace EmpireCraft.Core"
+      ]
+    },
+    {
+      "mod": "Scripts/GeneralSystems/InstitutionDefinitionRegistry.cs",
+      "commit": "55d6d4f84409c0e7fea375169d9687724dabce69",
+      "ported": "2026-11-25",
+      "dest": "Assets/EmpireCraft/Core/Rules/InstitutionDefinitionRegistry.cs",
+      "lines": 485,
+      "sha256": "fcf0dc3a517cb0ca0749bf0a1815fe4a05959d5d6cd85eb44e8140c86cb0a02e",
+      "kind": "source",
+      "changes": [
+        "file-scoped namespace opened as a block (body not re-indented)",
+        "namespace EmpireCraft.Core",
+        "dropped using NeoModLoader",
+        "ModClass._declare.FolderPath -> EmpireData.Folder"
+      ]
+    },
+    {
+      "mod": "Scripts/GeneralSystems/InstitutionRules.cs",
+      "commit": "55d6d4f84409c0e7fea375169d9687724dabce69",
+      "ported": "2026-11-25",
+      "dest": "Assets/EmpireCraft/Core/Rules/InstitutionRules.cs",
+      "lines": 82,
+      "sha256": "d5549288c2d18b9127f5ece7a0cb59aa82d1b89505df2fc9ed216ea55db01c9e",
+      "kind": "source",
+      "changes": [
+        "file-scoped namespace opened as a block (body not re-indented)",
+        "namespace EmpireCraft.Core"
+      ]
+    },
+    {
+      "mod": "Scripts/GeneralSystems/InstitutionSystem.cs#InstitutionNodeStatus,InstitutionNodeView",
+      "commit": "55d6d4f84409c0e7fea375169d9687724dabce69",
+      "ported": "2026-11-25",
+      "dest": "Assets/EmpireCraft/Core/State/InstitutionNodeStatus.cs",
+      "lines": 33,
+      "sha256": "ac9892a6e347e88c656c0cc0c1c683ff981cc752f715e58e4373a2ae7dc63978",
+      "kind": "extract",
+      "changes": [
+        "file-scoped namespace opened as a block (body not re-indented)",
+        "namespace EmpireCraft.Core"
+      ]
+    },
+    {
+      "mod": "Scripts/GeneralSystems/MaladySystem.cs#MaladySystem.EarlyYears,MaladySystem.EarlyPace,MaladySystem.PaceAt",
+      "commit": "55d6d4f84409c0e7fea375169d9687724dabce69",
+      "ported": "2026-11-25",
+      "dest": "Assets/EmpireCraft/Core/Rules/MaladySystem.EarlyYears.cs",
+      "lines": 22,
+      "sha256": "2ad754566b5af8a8ba90c4aeeab094ee6eb492bf7eda50896d85d7057acfc33a",
+      "kind": "extract",
+      "changes": [
+        "file-scoped namespace opened as a block (body not re-indented)",
+        "namespace EmpireCraft.Core"
+      ],
+      "notes": [
+        "Lifted alone; remove this entry when MaladySystem.cs is ported whole."
+      ]
+    },
+    {
+      "mod": "Scripts/GeneralSystems/OfficialRankRules.cs",
+      "commit": "55d6d4f84409c0e7fea375169d9687724dabce69",
+      "ported": "2026-11-25",
+      "dest": "Assets/EmpireCraft/Core/Rules/OfficialRankRules.cs",
+      "lines": 205,
+      "sha256": "661d96cf1115bbdc8d57169b22d5f6f9defdeede3c8d36577f181f689011e11e",
+      "kind": "source",
+      "changes": [
+        "file-scoped namespace opened as a block (body not re-indented)",
+        "namespace EmpireCraft.Core"
+      ]
+    },
+    {
+      "mod": "Scripts/GeneralSystems/PartyOpeningRules.cs",
+      "commit": "55d6d4f84409c0e7fea375169d9687724dabce69",
+      "ported": "2026-11-25",
+      "dest": "Assets/EmpireCraft/Core/Rules/PartyOpeningRules.cs",
+      "lines": 40,
+      "sha256": "2df04deb48906e1af48eddaafc7f69823318ae792dc04354cc143f597eb1ca00",
+      "kind": "source",
+      "changes": [
+        "file-scoped namespace opened as a block (body not re-indented)",
+        "namespace EmpireCraft.Core"
+      ]
+    },
+    {
+      "mod": "Scripts/GeneralSystems/PartySystem.cs#PartyIdeology",
+      "commit": "55d6d4f84409c0e7fea375169d9687724dabce69",
+      "ported": "2026-11-25",
+      "dest": "Assets/EmpireCraft/Core/Enums/PartyIdeology.cs",
+      "lines": 44,
+      "sha256": "180c8585385eb0c763d8873c97a33e3a2f611a33ce1da25e425b0651467bb4de",
+      "kind": "extract",
+      "changes": [
+        "file-scoped namespace opened as a block (body not re-indented)",
+        "namespace EmpireCraft.Core"
+      ]
+    },
+    {
+      "mod": "Scripts/GeneralSystems/PartySystem.cs#PartySystem.FeaturePartyPolitics",
+      "commit": "55d6d4f84409c0e7fea375169d9687724dabce69",
+      "ported": "2026-11-25",
+      "dest": "Assets/EmpireCraft/Core/Rules/PartySystem.FeaturePartyPolitics.cs",
+      "lines": 9,
+      "sha256": "1005519385b67c358a060c87d29fd0ec87524e61c7b875ccfec95836a5317241",
+      "kind": "extract",
+      "changes": [
+        "file-scoped namespace opened as a block (body not re-indented)",
+        "namespace EmpireCraft.Core"
+      ]
+    },
+    {
+      "mod": "Scripts/GeneralSystems/PopulationEconomyAccounts.cs",
+      "commit": "55d6d4f84409c0e7fea375169d9687724dabce69",
+      "ported": "2026-11-25",
+      "dest": "Assets/EmpireCraft/Core/State/PopulationEconomyAccounts.cs",
+      "lines": 41,
+      "sha256": "6d7bce5fe4a0120f35ff1b07f11b457e7caf452fef0386ad070120da5b137fd6",
+      "kind": "source",
+      "changes": [
+        "file-scoped namespace opened as a block (body not re-indented)",
+        "namespace EmpireCraft.Core"
+      ]
+    },
+    {
+      "mod": "Scripts/GeneralSystems/ProductionInstitutionPaths.cs",
+      "commit": "55d6d4f84409c0e7fea375169d9687724dabce69",
+      "ported": "2026-11-25",
+      "dest": "Assets/EmpireCraft/Core/Rules/ProductionInstitutionPaths.cs",
+      "lines": 62,
+      "sha256": "886dc1f5d2db91261af3fd34f26411dce43a67eba95081939d45039d6a49fbf3",
+      "kind": "source",
+      "changes": [
+        "file-scoped namespace opened as a block (body not re-indented)",
+        "namespace EmpireCraft.Core"
+      ]
+    },
+    {
+      "mod": "Scripts/GeneralSystems/TreasuryRules.cs",
+      "commit": "55d6d4f84409c0e7fea375169d9687724dabce69",
+      "ported": "2026-11-25",
+      "dest": "Assets/EmpireCraft/Core/Rules/TreasuryRules.cs",
+      "lines": 324,
+      "sha256": "621eb0b93f5c1d1b1ecd30fd1308ba6b78677e9736b2f7a7c75fb84518878014",
+      "kind": "source",
+      "changes": [
+        "file-scoped namespace opened as a block (body not re-indented)",
+        "namespace EmpireCraft.Core"
+      ]
+    },
+    {
+      "mod": "Scripts/GeneralSystems/WildernessNaming.cs#WildernessSetting",
+      "commit": "55d6d4f84409c0e7fea375169d9687724dabce69",
+      "ported": "2026-11-25",
+      "dest": "Assets/EmpireCraft/Core/State/WildernessSetting.cs",
+      "lines": 19,
+      "sha256": "dcb33795e663b76e4e256fd57aaad700626bdd2ed1b2e8c51904972a26757b8c",
+      "kind": "extract",
+      "changes": [
+        "file-scoped namespace opened as a block (body not re-indented)",
+        "namespace EmpireCraft.Core"
+      ]
+    },
+    {
+      "mod": "Scripts/HelperFunc/FrameJobs.cs",
+      "commit": "55d6d4f84409c0e7fea375169d9687724dabce69",
+      "ported": "2026-11-25",
+      "dest": "Assets/EmpireCraft/Core/Scheduling/FrameJobs.cs",
+      "lines": 104,
+      "sha256": "a2b3319b7b09e54588f042709b856e2145977801d63b9d86152d602247cc9f1c",
+      "kind": "source",
+      "changes": [
+        "file-scoped namespace opened as a block (body not re-indented)",
+        "namespace EmpireCraft.Core",
+        "Time -> EmpireCraft.Core.FrameClock (using alias)",
+        "dropped using UnityEngine"
+      ]
+    },
+    {
+      "mod": "Scripts/HelperFunc/SimulationFrameBudget.cs",
+      "commit": "55d6d4f84409c0e7fea375169d9687724dabce69",
+      "ported": "2026-11-25",
+      "dest": "Assets/EmpireCraft/Core/Scheduling/SimulationFrameBudget.cs",
+      "lines": 142,
+      "sha256": "f46db88bdb1d27bdd26d8378ffcb3157a9a077a91b8052d534428c0c80cfb1f2",
+      "kind": "source",
+      "changes": [
+        "file-scoped namespace opened as a block (body not re-indented)",
+        "namespace EmpireCraft.Core",
+        "Mathf -> EmpireCraft.Core.EcMath (using alias)",
+        "Time -> EmpireCraft.Core.FrameClock (using alias)",
+        "dropped using NeoModLoader",
+        "dropped using UnityEngine",
+        "Config.time_scale_asset?.multiplier ?? 1f -> FrameClock.SpeedFactor"
+      ],
+      "notes": [
+        "The PerformanceTraceFile line is inside #if EC_PENDING: the mod's diagnostics are not ported."
+      ]
+    },
+    {
+      "mod": "Scripts/Layer/PeerageSuccessionRules.cs",
+      "commit": "55d6d4f84409c0e7fea375169d9687724dabce69",
+      "ported": "2026-11-25",
+      "dest": "Assets/EmpireCraft/Core/Rules/PeerageSuccessionRules.cs",
+      "lines": 32,
+      "sha256": "2af472e3c732af7065201feeb5d8989acdae15d9cf5b9cd11f5be05c909e58d6",
+      "kind": "source",
+      "changes": [
+        "namespace EmpireCraft.Core"
+      ]
+    },
+    {
+      "mod": "Scripts/Regimes/FixedFaction.cs#FactionType",
+      "commit": "55d6d4f84409c0e7fea375169d9687724dabce69",
+      "ported": "2026-11-25",
+      "dest": "Assets/EmpireCraft/Core/Enums/FactionType.cs",
+      "lines": 27,
+      "sha256": "93590431a9e41239e08fe4acddbdadfd4b7f708289398d179a303b3b137bced3",
+      "kind": "extract",
+      "changes": [
+        "file-scoped namespace opened as a block (body not re-indented)",
+        "namespace EmpireCraft.Core"
+      ]
+    },
+    {
+      "mod": "Scripts/Regimes/RegimeSystem.cs#RegimeType",
+      "commit": "55d6d4f84409c0e7fea375169d9687724dabce69",
+      "ported": "2026-11-25",
+      "dest": "Assets/EmpireCraft/Core/Enums/RegimeType.cs",
+      "lines": 25,
+      "sha256": "5c6cf69e8ffd22fb2682fb8dbca1a833676e4e22df76034dd2d8f3566d397e0e",
+      "kind": "extract",
+      "changes": [
+        "file-scoped namespace opened as a block (body not re-indented)",
+        "namespace EmpireCraft.Core"
+      ]
+    },
+    {
+      "mod": "Scripts/Regimes/TemporaryFactions/TemporaryFactionType.cs",
+      "commit": "55d6d4f84409c0e7fea375169d9687724dabce69",
+      "ported": "2026-11-25",
+      "dest": "Assets/EmpireCraft/Core/Enums/TemporaryFactionType.cs",
+      "lines": 187,
+      "sha256": "68f98b0b65dafd50710b0d33ebc01a095b999e447d36a66be1eba50a0f34df1f",
+      "kind": "source",
+      "changes": [
+        "file-scoped namespace opened as a block (body not re-indented)",
+        "namespace EmpireCraft.Core"
+      ]
+    },
+    {
+      "mod": "Technology/Commodities.json",
+      "commit": "55d6d4f84409c0e7fea375169d9687724dabce69",
+      "ported": "2026-11-25",
+      "dest": "Assets/EmpireCraft/Data/Technology/Commodities.json",
+      "lines": 89,
+      "sha256": "09945da22e9d9a754bf4d3b07c24b6b923cb1961dac7c9a6304958db9a7e76c0",
+      "kind": "data",
+      "changes": [
+        "copied unchanged"
+      ]
+    },
+    {
+      "mod": "Technology/LandmarkBooks.json",
+      "commit": "55d6d4f84409c0e7fea375169d9687724dabce69",
+      "ported": "2026-11-25",
+      "dest": "Assets/EmpireCraft/Data/Technology/LandmarkBooks.json",
+      "lines": 33,
+      "sha256": "fba667d123f27800763cf2bcd69a97c7b2fefc762d57c2ec7745d9cfcd6b57f1",
+      "kind": "data",
+      "changes": [
+        "copied unchanged"
+      ]
+    },
+    {
+      "mod": "Technology/TechTree.json",
+      "commit": "55d6d4f84409c0e7fea375169d9687724dabce69",
+      "ported": "2026-11-25",
+      "dest": "Assets/EmpireCraft/Data/Technology/TechTree.json",
+      "lines": 264,
+      "sha256": "70c5ca35164f21ed0abf8061908f4edd0af9a80f568b3ab5b471b534d4da2cd5",
+      "kind": "data",
+      "changes": [
+        "copied unchanged"
+      ]
+    }
+  ]
 }

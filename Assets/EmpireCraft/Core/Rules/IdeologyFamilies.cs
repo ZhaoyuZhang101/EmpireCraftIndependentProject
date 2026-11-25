@@ -1,0 +1,107 @@
+// Ported from the EmpireCraft mod: Scripts/GeneralSystems/IdeologyFamilies.cs @ 55d6d4f8. Body kept line-for-line for three-way sync;
+// see Port/manifest.json and Tools/PortTool.
+
+namespace EmpireCraft.Core
+{
+
+// 理念的归类与"一个政权信奉什么理念"的统一口径。
+// 以前各系统各写一份(三种"社会主义"定义、五种取政权理念的回退顺序)，结果同一个国家在军阀时期、
+// 朝贡废除、革命滚雪球、元首称号里被当成不同的理念。
+public static class IdeologyFamilies
+{
+    // 社会主义本体：社会主义、共产主义(统一战线由它领导、立国即一党专政)
+    public static bool IsSocialist(PartyIdeology ideology) =>
+        ideology is PartyIdeology.Socialism or PartyIdeology.Communism;
+
+    // 工人运动：社会主义本体 + 社会民主主义(工业城市吸引的对象)
+    public static bool IsLabourMovement(PartyIdeology ideology) =>
+        IsSocialist(ideology) || ideology == PartyIdeology.SocialDemocracy;
+
+    // 左翼：工人运动 + 无政府主义(阶级怨气、农民革命政府的倾向)
+    public static bool IsLeft(PartyIdeology ideology) =>
+        IsLabourMovement(ideology) || ideology == PartyIdeology.Anarchism;
+
+    // 农民革命：无地农民倒向的激进左翼
+    public static bool IsAgrarianRadical(PartyIdeology ideology) =>
+        IsSocialist(ideology) || ideology == PartyIdeology.Anarchism;
+
+    // 自由主义：繁荣商业城市的倾向；占优后各种主义都会冒出来
+    public static bool IsLiberal(PartyIdeology ideology) => ideology is PartyIdeology.SocialLiberalism or
+        PartyIdeology.ConservativeLiberalism or PartyIdeology.Libertarianism or PartyIdeology.Capitalism;
+
+    // 古代理念(诸子百家与古代政治立场，见 PartySystem.PartyIdeology)
+    public static bool IsAncient(PartyIdeology ideology) => ideology >= PartyIdeology.Confucianism;
+
+    // 诸子百家(华夏)；别的文化线同一格是本文化的学说(西方的经院正统、法学派……见 CultureDoctrines)
+    public static bool IsSchool(PartyIdeology ideology) =>
+        ideology is >= PartyIdeology.Confucianism and <= PartyIdeology.YinYang;
+
+    // 身份立场(用户 2026-10-17："要不要把皇权和诸侯派信的东西改一改，应该是他们本身代表这些阶级")：
+    // 皇权(宗室与寒门近臣)、门阀(贵族与世家)、外戚、宦官、宗亲、军功(将领与武职)——不是民间流传的学说，派系按人的身份招人(见 CliqueSystem.IdentityStance)
+    public static bool IsIdentityStance(PartyIdeology ideology) =>
+        ideology is PartyIdeology.ImperialPower or PartyIdeology.GreatClans || IsCourtOnly(ideology);
+
+#if EC_PENDING // needs FixedFaction, PartySystem, CultureDoctrines (port phase 4)
+    // 派系卡片第二行：身份立场写"代表某某"，诸子百家写"宗某之学"(学说渊源)，其余写"倾向某理念"。
+    // culture：派系所在的文化——古代学说按文化线换说法(西方写"属经院正统"，见 CultureDoctrines)；空则用华夏原名
+    public static string FactionLeaning(PartyIdeology ideology, string culture = null)
+    {
+        if (IsIdentityStance(ideology))
+            return LM.Get(CultureDoctrines.Key("faction_represents_" + ideology, culture));
+        string key = IsSchool(ideology) ? CultureDoctrines.Key("faction_school_doctrine", culture) : "faction_ideology_leaning";
+        return string.Format(LM.Get(key), PartySystem.GetIdeologyName(ideology, culture));
+    }
+
+    // 固定派系按政策立场命名，不把用于配色的光谱近似值写成实际学说。
+    // 真正的朋党、政党及玩家手选的理念仍显示其实际信念。
+    public static bool HasExplicitIdeology(FixedFaction faction) =>
+        faction != null && (faction.IsParty || faction.IsClique || faction.IdeologyChosen);
+
+    // culture 不给就按派系所在帝国的文化(派系库里的、不挂帝国的按华夏原名)
+    public static string FactionLeaning(FixedFaction faction, string culture = null)
+    {
+        if (faction == null) return LM.Get("faction_stance_无");
+        if (!HasExplicitIdeology(faction)) return LM.Get("faction_stance_" + faction.Type);
+        PartyIdeology ideology = PartySystem.LeaningOf(faction);
+        culture ??= CultureDoctrines.CultureOf(faction);
+        return faction.IsParty ? PartySystem.GetIdeologyName(ideology) : FactionLeaning(ideology, culture);
+    }
+#endif
+
+    // 只在朝堂里的立场(外戚、宦官、宗亲、军功)：不在民间流传
+    public static bool IsCourtOnly(PartyIdeology ideology) =>
+        ideology is PartyIdeology.ConsortKin or PartyIdeology.Eunuchs or PartyIdeology.RoyalKin or PartyIdeology.MilitaryMerit;
+
+    // 传统理念：繁荣城市里式微；古代理念都算传统(不靠印行的书报传播)
+    public static bool IsTraditional(PartyIdeology ideology) => ideology is PartyIdeology.Conservatism or
+        PartyIdeology.ReligiousDemocracy or PartyIdeology.Authoritarianism || IsAncient(ideology);
+
+    // 乡土传统：有地小农守着的理念
+    public static bool IsAgrarianTraditional(PartyIdeology ideology) =>
+        ideology is PartyIdeology.Conservatism or PartyIdeology.ReligiousDemocracy or PartyIdeology.Agrarianism or
+            PartyIdeology.HuangLao;
+
+    // 威权：占满议席即一党专政
+    public static bool IsAuthoritarian(PartyIdeology ideology) =>
+        ideology is PartyIdeology.Authoritarianism or PartyIdeology.Fascism;
+
+#if EC_PENDING // needs Kingdom/Empire identities, PartySystem, RepublicSystem, IdeologyPopulationSystem (port phases 4 and 6)
+    // 政权信奉的理念，回退顺序：执政党 → 共和国建国理念 → 元首本人的信念 → 首都主流理念 → 中间派
+    public static PartyIdeology StateIdeology(Kingdom kingdom)
+    {
+        if (kingdom == null || kingdom.isRekt()) return PartyIdeology.Centrism;
+        Empire empire = kingdom.IsEmpire() ? kingdom.GetEmpire() : null;
+        FixedFaction party = empire == null ? null : PartySystem.GetGovernmentParty(empire);
+        if (party != null) return party.Ideology;
+        if (empire != null && RepublicSystem.IsRepublic(empire) && empire.data?.constitutional_economy != null)
+            return empire.data.constitutional_economy.republic_ideology;
+        if (kingdom.king != null && !kingdom.king.isRekt()) return IdeologyPopulationSystem.Get(kingdom.king);
+        return kingdom.capital != null && !kingdom.capital.isRekt()
+            ? IdeologyPopulationSystem.GetDominant(kingdom.capital)
+            : PartyIdeology.Centrism;
+    }
+
+    public static PartyIdeology StateIdeology(Empire empire) => StateIdeology(empire?.CoreKingdom);
+#endif
+}
+}

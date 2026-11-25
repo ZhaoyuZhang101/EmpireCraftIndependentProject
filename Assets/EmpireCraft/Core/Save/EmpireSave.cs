@@ -10,7 +10,7 @@ namespace EmpireCraft.Core
     // a bed fingerprint. Derived indices (tile owners, living list) are rebuilt.
     public static class EmpireSave
     {
-        public const int Version=1;
+        public const int Version=2;
         const uint Magic=0x44574345; // "ECWD"
         const int MaxEntities=4_000_000,MaxString=256;
 
@@ -26,10 +26,12 @@ namespace EmpireCraft.Core
             }
         }
 
-        public static byte[] Encode(EmpireWorld w)
+        // `version` below the current one writes that older layout (used to check old sections still load).
+        public static byte[] Encode(EmpireWorld w,int version=Version)
         {
             using var stream=new MemoryStream();using var b=new BinaryWriter(stream,Encoding.UTF8);
-            b.Write(Magic);b.Write(Version);
+            if(version<1||version>Version)throw new ArgumentOutOfRangeException(nameof(version));
+            b.Write(Magic);b.Write(version);
             b.Write(w.Map.Seed??"");b.Write(w.Map.Width);b.Write(w.Map.Height);b.Write(MapFingerprint(w.Map));
             b.Write(w.Seed);b.Write(w.StartYear);b.Write(w.Month);
             b.Write(w.Clans.Count);
@@ -56,6 +58,17 @@ namespace EmpireCraft.Core
             }
             b.Write(w.Annals.Entries.Count);
             foreach(var e in w.Annals.Entries){b.Write(e.Month);b.Write((byte)e.Kind);b.Write(e.A);b.Write(e.B);b.Write(e.C);}
+            if(version<2){b.Flush();return stream.ToArray();}
+            // Version 2: the books kept by RealmAccounts, one account per city and realm id.
+            w.Ledger.Ensure(w.Cities.Count,w.Realms.Count);
+            foreach(var c in w.Ledger.Cities){b.Write(c.Stability);b.Write(c.Corruption);b.Write(c.TaxCarry);b.Write(c.GovernanceCarry);b.Write(c.GarrisonCarry);b.Write(c.Garrison);b.Write(c.UnrestMonths);}
+            foreach(var r in w.Ledger.Realms)
+            {
+                b.Write(r.Treasury);b.Write(r.Dynasty);b.Write(r.DynastyStart);b.Write(r.Pressure);b.Write(r.SaturatedYears);b.Write(r.Corruption);
+                b.Write(r.Legitimacy);b.Write(r.InArrears);b.Write(r.Unpaid);
+                b.Write(r.Books.started);var periods=r.Books.periods??new System.Collections.Generic.List<TreasuryPeriod>();b.Write(periods.Count);
+                foreach(var p in periods){b.Write(p.timestamp);Amounts(b,p.income);Amounts(b,p.expense);Amounts(b,p.tax_transfer_income);}
+            }
             b.Flush();return stream.ToArray();
         }
 
@@ -99,6 +112,22 @@ namespace EmpireCraft.Core
                 int month=b.ReadInt32();byte kind=b.ReadByte();Check(kind<=(byte)AnnalKind.NewDynasty,"Unknown annal kind");
                 w.Annals.Entries.Add(new AnnalEntry(month,(AnnalKind)kind,b.ReadInt32(),b.ReadInt32(),b.ReadInt32()));
             }
+            if(version>=2)
+            {
+                w.Ledger.Ensure(cities,realms);
+                foreach(var c in w.Ledger.Cities){c.Stability=b.ReadSingle();c.Corruption=b.ReadSingle();c.TaxCarry=b.ReadDouble();c.GovernanceCarry=b.ReadDouble();c.GarrisonCarry=b.ReadDouble();c.Garrison=b.ReadInt32();c.UnrestMonths=b.ReadInt32();}
+                foreach(var r in w.Ledger.Realms)
+                {
+                    r.Treasury=b.ReadInt64();r.Dynasty=b.ReadInt32();r.DynastyStart=b.ReadInt32();r.Pressure=b.ReadSingle();r.SaturatedYears=b.ReadSingle();r.Corruption=b.ReadSingle();
+                    r.Legitimacy=b.ReadInt32();r.InArrears=b.ReadBoolean();r.Unpaid=b.ReadInt64();
+                    r.Books.started=b.ReadDouble();int periods=Count(b);Check(periods<=64,"Too many treasury periods");
+                    for(int k=0;k<periods;k++)
+                    {
+                        var p=new TreasuryPeriod{timestamp=b.ReadDouble()};Amounts(b,p.income);Amounts(b,p.expense);Amounts(b,p.tax_transfer_income);
+                        r.Books.periods.Add(p);
+                    }
+                }
+            }
             Check(stream.Position==stream.Length,"Trailing bytes in EmpireCraft section");
             var errors=EmpireInvariants.Check(w,1);
             Check(errors.Count==0,"Inconsistent EmpireCraft section: "+(errors.Count>0?errors[0]:""));
@@ -106,6 +135,18 @@ namespace EmpireCraft.Core
         }
 
         static void Check(bool ok,string message){if(!ok)throw new InvalidDataException(message);}
+        // Category totals in key order, so equal books always encode to equal bytes.
+        static void Amounts(BinaryWriter b,System.Collections.Generic.Dictionary<string,long> amounts)
+        {
+            if(amounts==null){b.Write(0);return;}
+            var keys=new System.Collections.Generic.List<string>(amounts.Keys);keys.Sort(StringComparer.Ordinal);
+            b.Write(keys.Count);foreach(string key in keys){b.Write(key);b.Write(amounts[key]);}
+        }
+        static void Amounts(BinaryReader b,System.Collections.Generic.Dictionary<string,long> amounts)
+        {
+            int n=Count(b);Check(n<=256,"Too many treasury categories");
+            for(int i=0;i<n;i++){string key=Text(b);amounts[key]=b.ReadInt64();}
+        }
         static int Count(BinaryReader b){int n=b.ReadInt32();Check(n>=0&&n<=MaxEntities,"Invalid count "+n);return n;}
         static int Id(BinaryReader b,int bound){int n=b.ReadInt32();Check(n>=0&&n<bound,"Invalid reference "+n);return n;}
         static string Text(BinaryReader b){string s=b.ReadString();Check(s.Length<=MaxString,"String too long");return s;}

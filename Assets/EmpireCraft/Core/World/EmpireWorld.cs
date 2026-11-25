@@ -17,6 +17,7 @@ namespace EmpireCraft.Core
         public readonly List<int> Living=new List<int>();   // living person ids, insertion order
         public readonly int[] TileCity;                        // city id per tile, -1 unclaimed
         public readonly Annals Annals=new Annals();
+        public readonly RealmLedger Ledger=new RealmLedger();   // books kept by RealmAccounts
         public readonly ulong Seed;
         public int StartYear=1;
         public int Month;                                     // months since the start, 0-based

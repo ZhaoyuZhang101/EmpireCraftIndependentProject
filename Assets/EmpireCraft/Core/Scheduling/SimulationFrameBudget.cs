@@ -1,0 +1,148 @@
+// Ported from the EmpireCraft mod: Scripts/HelperFunc/SimulationFrameBudget.cs @ 55d6d4f8. Body kept line-for-line for three-way sync;
+// see Port/manifest.json and Tools/PortTool.
+using Mathf = EmpireCraft.Core.EcMath;
+using Time = EmpireCraft.Core.FrameClock;
+using System;
+using System.Diagnostics;
+
+namespace EmpireCraft.Core
+{
+
+// 所有后台队列共用预算。40 FPS = 25 ms，给原版模拟与绘制留出大部分时间。
+// 以前只在无小人模式下管(平常模式 HasTime 一律为真，挂在这里的二十来个系统不限时地跑)；现在两种模式都管，
+// 各系统的每帧入口按档排队见 FrameJobs(用户 2026-11-11 第一档③)。
+// 快进放宽只在帧不慢时给(2026-11-24 群友"11/5 那版更流畅，之后越来越卡")：11-11 起快进一律按倍数放宽到三倍(3~12 毫秒)，
+// 帧一慢预算本来就按帧时长涨，再乘三倍，越卡后台干得越多。现在上一帧慢于目标(25 毫秒)时不放宽，照 1~4 毫秒；
+// 帧还有余量时快进按倍数放宽(至多两倍)，且不超过离目标帧长的余量的六成——流畅时后台跟得上快进，卡的时候不添乱。
+// 真算不过来时的追赶不靠这里，靠各系统自己"落后了才加码"(战略调度的 Behind、决议的逾期、人口收尾的积压)
+public static class SimulationFrameBudget
+{
+    private static bool Enabled => true;
+    // 快进至多放宽到两倍，而且只用余量的六成：帧长 15 毫秒时给 6 毫秒(以前 12)，20 毫秒时给 3 毫秒
+    private const float MaxSpeedFactor = 2f;
+    private const double HeadroomShare = 0.6d;
+    public static double BudgetMilliseconds => _budget;
+    // 独立服务器(不带游戏的开服工具)：没有画面要画，每一步给后台的时间由它定(按世界流速放宽)；游戏里不设，照下面按帧算
+    public static double? ServerMilliseconds;
+    public const double TargetFramesPerSecond = 40d;
+    public const double TargetFrameMilliseconds = 1000d / TargetFramesPerSecond;
+    private static int _frame = -1;
+    private static long _started;
+    private static double _budget;
+    private static double _spent;
+    private static int _depth;
+    private static int _sampleFrames, _slowFrames;
+    private static double _sampleSeconds, _worstFrame;
+    private const int MaximumFrameSamples = 8192;
+    private static readonly double[] FrameSamples = new double[MaximumFrameSamples];
+    private static readonly double[] SortedSamples = new double[MaximumFrameSamples];
+    private static int _sampleCursor, _storedSamples;
+    public static double LastMeasuredFramesPerSecond { get; private set; }
+    public static double LastP95Milliseconds { get; private set; }
+    public static double LastP99Milliseconds { get; private set; }
+
+    // 慢帧(上一帧超过 25 ms)：按上一帧的 4% 给(1~4 ms)。以前一律 0.5 ms，帧越慢后台越排不上——
+    // 并入普通人这类本来能减负的活也被饿着，实体越积越多，帧更慢(实测 3~10 fps 时一座城几分钟才轮到一次月度结算)
+    public static double ResolveMilliseconds(double previousFrameMilliseconds) =>
+        previousFrameMilliseconds >= TargetFrameMilliseconds
+            ? Math.Max(1d, Math.Min(4d, previousFrameMilliseconds * 0.04d))
+            : Math.Max(1d, Math.Min(4d, (TargetFrameMilliseconds - previousFrameMilliseconds) * 0.5d));
+
+    public static void BeginFrame()
+    {
+        if (!Enabled) { Reset(); return; }
+        if (_frame == Time.frameCount) return;
+        _frame = Time.frameCount;
+        _spent = 0d;
+        _depth = 0;
+        double frameMilliseconds = Math.Max(0d, Time.unscaledDeltaTime * 1000d);
+        double basic = ResolveMilliseconds(frameMilliseconds);
+        if (frameMilliseconds < TargetFrameMilliseconds)
+        {
+            float speed = Mathf.Clamp(FrameClock.SpeedFactor, 1f, MaxSpeedFactor);
+            basic = Math.Max(basic, Math.Min(basic * speed, (TargetFrameMilliseconds - frameMilliseconds) * HeadroomShare));
+        }
+        _budget = ServerMilliseconds ?? basic;
+        double seconds = Math.Max(0d, Time.unscaledDeltaTime);
+        _sampleSeconds += seconds;
+        _sampleFrames++;
+        FrameSamples[_sampleCursor] = seconds * 1000d;
+        _sampleCursor = (_sampleCursor + 1) % MaximumFrameSamples;
+        _storedSamples = Math.Min(MaximumFrameSamples, _storedSamples + 1);
+        _worstFrame = Math.Max(_worstFrame, seconds * 1000d);
+        if (seconds * 1000d > TargetFrameMilliseconds) _slowFrames++;
+        if (_sampleSeconds >= 30d)
+        {
+            LastMeasuredFramesPerSecond = _sampleFrames / _sampleSeconds;
+            // Bounded, reusable buffers; no allocations or sorting during ordinary frames.
+            Array.Copy(FrameSamples, SortedSamples, _storedSamples);
+            Array.Sort(SortedSamples, 0, _storedSamples);
+            LastP95Milliseconds = SortedSamples[(int)Math.Ceiling(_storedSamples * 0.95d) - 1];
+            LastP99Milliseconds = SortedSamples[(int)Math.Ceiling(_storedSamples * 0.99d) - 1];
+            string report = $"[EmpireCraft][帧率] 最近 {_sampleSeconds:0} 秒平均 {LastMeasuredFramesPerSecond:0.0} FPS；" +
+                $"平均帧耗时 {_sampleSeconds * 1000d / _sampleFrames:0.0} ms；" +
+                $"P95 {LastP95Milliseconds:0.0} ms，P99 {LastP99Milliseconds:0.0} ms（最近 {_storedSamples} 帧样本）；" +
+                $"最慢帧 {_worstFrame:0.0} ms；超过 25 ms 的帧 {_slowFrames}/{_sampleFrames}；目标 40 FPS";
+            LogService.LogInfo(report);
+#if EC_PENDING // the mod's diagnostics trace file is not ported; the line above already logs the report
+            EmpireCraft.Core.PerformanceTraceFile.Record(report);
+#endif
+            _sampleSeconds = _worstFrame = 0d;
+            _sampleFrames = _slowFrames = 0;
+            _sampleCursor = _storedSamples = 0;
+        }
+    }
+
+    // 这一帧的预算里前 share 成还有没有余量(FrameJobs 按档用：低档只用前六成)
+    public static bool HasShare(double share)
+    {
+        if (!Enabled) return true;
+        BeginFrame();
+        double running = _depth > 0 ? (Stopwatch.GetTimestamp() - _started) * 1000d / Stopwatch.Frequency : 0d;
+        return _spent + running < _budget * share;
+    }
+
+    public static bool HasTime
+    {
+        get
+        {
+            if (!Enabled) return true;
+            BeginFrame();
+            double running = _depth > 0 ? (Stopwatch.GetTimestamp() - _started) * 1000d / Stopwatch.Frequency : 0d;
+            return _spent + running < _budget;
+        }
+    }
+
+    public static void Reset()
+    {
+        _frame = -1;
+        _depth = 0;
+        _spent = 0d;
+        _sampleSeconds = _worstFrame = LastMeasuredFramesPerSecond = 0d;
+        _sampleFrames = _slowFrames = 0;
+        _sampleCursor = _storedSamples = 0;
+        LastP95Milliseconds = LastP99Milliseconds = 0d;
+    }
+
+    // 只计入模组工作，原版模拟经过的时间不会让后调用的队列永远没机会运行；嵌套也不会重复记账。
+    public static WorkScope Measure()
+    {
+        if (!Enabled) return new WorkScope();
+        BeginFrame();
+        if (_depth++ == 0) _started = Stopwatch.GetTimestamp();
+        return new WorkScope(true);
+    }
+
+    public readonly struct WorkScope : IDisposable
+    {
+        private readonly bool _measured;
+        internal WorkScope(bool measured) { _measured = measured; }
+        public void Dispose()
+        {
+            if (!_measured || !Enabled) return;
+            if (_depth <= 0) return;
+            if (--_depth == 0) _spent += (Stopwatch.GetTimestamp() - _started) * 1000d / Stopwatch.Frequency;
+        }
+    }
+}
+}
