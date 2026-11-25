@@ -130,6 +130,34 @@ namespace EmpireCraft.Core
         public static string ToHtmlStringRGB(EcColor color) => color.Rgb.ToString("X6");
     }
 
+    // The random stream of the ported systems. It is reseeded from the world seed and month before
+    // every simulation step, so a world replays the same draws whether it ran through or was loaded.
+    public static class EcRandom
+    {
+        static ulong _state = 0x9E3779B97F4A7C15UL;
+        public static void Seed(ulong seed, int step)
+        {
+            unchecked { _state = seed ^ ((ulong)(uint)step * 0xBF58476D1CE4E5B9UL) ^ 0x94D049BB133111EBUL; }
+            if (_state == 0) _state = 0x9E3779B97F4A7C15UL;
+        }
+        static ulong Next()
+        {
+            unchecked { _state ^= _state << 13; _state ^= _state >> 7; _state ^= _state << 17; return _state * 0x2545F4914F6CDD1DUL; }
+        }
+        // Uniform in [0, 1).
+        public static float value => (Next() >> 40) * (1f / 16777216f);
+        // Integers in [min, max); floats in [min, max).
+        public static int Range(int min, int max) => max <= min ? min : min + (int)(Next() % (ulong)(max - min));
+        public static float Range(float min, float max) => min + (max - min) * value;
+    }
+
+    // The mod probes its call depth here to catch runaway recursion; a host may hook it.
+    public static class StackGuard
+    {
+        public static System.Action Hook;
+        public static void Probe() { Hook?.Invoke(); }
+    }
+
     public enum LogLevel : byte { Info, Warning, Error }
 
     public static class LogService

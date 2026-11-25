@@ -180,6 +180,8 @@ namespace EmpireCraft.Core
     {
         public static void Month(EmpireWorld w)
         {
+            EmpireWorld.Current = w;
+            EcRandom.Seed(w.Seed, w.Month + 1);
             using (FrameProfiler.Measure("empire.skeleton")) SkeletonRules.Month(w);
             using (FrameProfiler.Measure("empire.accounts.month")) RealmAccounts.Month(w);
             if (w.Month % 12 == 0)

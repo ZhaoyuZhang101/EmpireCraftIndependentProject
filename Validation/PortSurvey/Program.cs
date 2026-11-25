@@ -64,9 +64,20 @@ public static class Program
     }
 
     // The receiver type's name and the member asked of it, when the access does not resolve.
-    static bool Unresolved(SemanticModel model, SyntaxNode node, out string owner, out SimpleNameSyntax member)
+    static bool Unresolved(SemanticModel model, SyntaxNode node, out string owner, out SimpleNameSyntax member) =>
+        Unresolved(model, node, out owner, out member, out _);
+
+    // A map entry for the member on the type or on any type it derives from (RecordObject.id serves Empire.id).
+    static bool Lookup(Dictionary<string, string> map, ITypeSymbol type, string suffix, out string target)
     {
-        owner = null; member = null;
+        for (var current = type; current != null; current = current.BaseType)
+            if (!string.IsNullOrEmpty(current.Name) && map.TryGetValue(current.Name + "." + suffix, out target)) return true;
+        target = null; return false;
+    }
+
+    static bool Unresolved(SemanticModel model, SyntaxNode node, out string owner, out SimpleNameSyntax member, out ITypeSymbol type)
+    {
+        owner = null; member = null; type = null;
         ExpressionSyntax receiver;
         if (node is MemberAccessExpressionSyntax access) { member = access.Name; receiver = access.Expression; }
         else if (node is MemberBindingExpressionSyntax binding)
@@ -78,7 +89,7 @@ public static class Program
         else return false;
         var info = model.GetSymbolInfo(node);
         if (info.Symbol != null || info.CandidateSymbols.Length > 0) return false;
-        var type = model.GetTypeInfo(receiver).Type;
+        type = model.GetTypeInfo(receiver).Type;
         if (type == null || string.IsNullOrEmpty(type.Name)) return false;
         owner = type.Name;
         return true;
@@ -94,13 +105,22 @@ public static class Program
             var edits = new List<TextChange>();
             foreach (var node in tree.GetRoot().DescendantNodes())
             {
-                if (!Unresolved(model, node, out string owner, out var member)) continue;
+                // An override whose base has the method under another name: rename the declaration.
+                if (node is MethodDeclarationSyntax method && method.Modifiers.Any(SyntaxKind.OverrideKeyword))
+                {
+                    var declared = model.GetDeclaredSymbol(method);
+                    if (declared != null && declared.OverriddenMethod == null && declared.ContainingType != null &&
+                        Lookup(map, declared.ContainingType.BaseType, method.Identifier.Text, out string overridden) && overridden.Length > 0)
+                        edits.Add(new TextChange(method.Identifier.Span, overridden));
+                    continue;
+                }
+                if (!Unresolved(model, node, out string owner, out var member, out var receiverType)) continue;
                 string name = member.Identifier.Text;
                 // A chain of two collapsed into one member: x.data.color_id -> x.ColorId.
                 if (node.Parent is MemberAccessExpressionSyntax outer && outer.Expression == node &&
-                    map.TryGetValue(owner + "." + name + "." + outer.Name.Identifier.Text, out string collapsed))
+                    Lookup(map, receiverType, name + "." + outer.Name.Identifier.Text, out string collapsed))
                 { edits.Add(new TextChange(TextSpan.FromBounds(member.SpanStart, outer.Name.Span.End), collapsed)); continue; }
-                if (!map.TryGetValue(owner + "." + name, out string renamed)) continue;
+                if (!Lookup(map, receiverType, name, out string renamed)) continue;
                 if (renamed.Length > 0) { edits.Add(new TextChange(member.Identifier.Span, renamed)); continue; }
                 // An empty target drops the access, dot included: cities.list -> cities.
                 if (node is MemberAccessExpressionSyntax plain)

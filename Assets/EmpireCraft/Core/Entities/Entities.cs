@@ -10,7 +10,7 @@ namespace EmpireCraft.Core
     //
     // The members below the core fields are what the ported systems ask of an
     // entity (see Port/identity-members.json for the mod name each one answers to).
-    public sealed class Realm
+    public sealed class Realm : Entity
     {
         public int Id;
         public string Name;
@@ -22,9 +22,9 @@ namespace EmpireCraft.Core
         public int FoundedMonth;
         public int EndedMonth=-1;
         public readonly List<City> Cities=new List<City>();
-        public bool Alive=>EndedMonth<0;
+        public override bool Alive=>EndedMonth<0;
 
-        public long Key=>Id;                        // stable key for tables and saves of ported systems
+        public override long Key=>Id;               // stable key for tables and saves of ported systems
         public Realm Record=>this;                  // "has a record": null only when the realm itself is
         public double FoundedStamp=>FoundedMonth;   // GameClock timestamp of the founding
         // Every realm here is a settled polity; unclaimed land is not a realm.
@@ -33,7 +33,7 @@ namespace EmpireCraft.Core
         public bool IsCivilized()=>true;
     }
 
-    public sealed class City
+    public sealed class City : Entity
     {
         public int Id;
         public string Name;
@@ -43,9 +43,9 @@ namespace EmpireCraft.Core
         public int FoundedMonth;
         public int EndedMonth=-1;
         public readonly List<int> Tiles=new List<int>();
-        public bool Alive=>EndedMonth<0;
+        public override bool Alive=>EndedMonth<0;
 
-        public long Key=>Id;
+        public override long Key=>Id;
         public City Record=>this;
         public double FoundedStamp=>FoundedMonth;
         // The local governor. Not saved yet: nothing appoints one until the office systems are ported.
@@ -55,7 +55,7 @@ namespace EmpireCraft.Core
         public int PopulationCount()=>(int)System.Math.Min(int.MaxValue,Population);
     }
 
-    public sealed class Person
+    public sealed class Person : Entity
     {
         public const int AdultAge=16;
         public int Id;
@@ -67,9 +67,9 @@ namespace EmpireCraft.Core
         public Clan Clan;
         public City City;
         public readonly List<Person> Children=new List<Person>();
-        public bool Alive=>DeathMonth<0;
+        public override bool Alive=>DeathMonth<0;
 
-        public long Key=>Id;
+        public override long Key=>Id;
         public Person Record=>this;
         public double BirthStamp=>BirthMonth;
         // The realm this person reigns over, kept by WorldOps (not saved; rebuilt on load).
@@ -85,14 +85,15 @@ namespace EmpireCraft.Core
         public bool IsAdult()=>Age()>=AdultAge;
     }
 
-    public sealed class Clan
+    public sealed class Clan : Entity
     {
         public int Id;
         public string Surname;
         public Person Founder;
         public int FoundedMonth;
 
-        public long Key=>Id;
+        public override long Key=>Id;
+        public override bool Alive=>true;   // a house is never struck from the record
         public Clan Record=>this;
         public string Name=>Surname;
     }
@@ -105,10 +106,7 @@ namespace EmpireCraft.Core
         public static int IdOf(this Person x)=>x==null?-1:x.Id;
         public static int IdOf(this Clan x)=>x==null?-1:x.Id;
         // Safe on null: true for no entity and for one that has ended.
-        public static bool IsGone(this Realm x)=>x==null||!x.Alive;
-        public static bool IsGone(this City x)=>x==null||!x.Alive;
-        public static bool IsGone(this Person x)=>x==null||!x.Alive;
-        public static bool IsGone(this Clan x)=>x==null;
+        public static bool IsGone(this Entity x)=>x==null||!x.Alive;
         public static bool HasRuler(this Realm x)=>x.Ruler!=null;
         public static bool HasCapital(this Realm x)=>x.Capital!=null;
     }

@@ -61,12 +61,16 @@ REWRITES = [
     ("NeoModLoader.services.LogService.", "LogService."),
     ('PlayerConfig.dict["language"].stringVal', "LM.Language"),
     ("Config.time_scale_asset?.multiplier ?? 1f", "FrameClock.SpeedFactor"),
+    ("UnityEngine.Random.", "EcRandom."),
+    ("UnityEngine.Mathf.", "Mathf."),
+    ("UnityEngine.Time.", "Time."),
 ]
 # Identity rewrite (opt-in per file, `--identity`): the WorldBox polity objects become this
 # repository's entities, one identifier for one identifier so the line structure survives.
 # The target members live on the entities (Core/Entities) and on GameClock (Core/Host).
-# A mod class of its own may use one of the plain member names too (`title.capital`,
-# `mapData.cities`); list such receivers under `--keep` to leave them alone in that file.
+# Only names WorldBox alone uses are rewritten as text. Plain member names (id, data, king,
+# capital, cities ...) are renamed by the type of their receiver instead, see semantic_fix;
+# `--keep` remains for the odd case text rules still get wrong.
 IDENTITY = [
     # A few mod files declare a helper type of their own called Realm; it gives way to the entity.
     (r"(?<![.\w])Realm\b", "ModRealm"),
@@ -75,24 +79,24 @@ IDENTITY = [
     (r"(?<![.\w])Kingdom\b", "Realm"),
     (r"(?<![.\w])Actor\b", "Person"),
     (r"(?<![.\w])MapBox\b", "EmpireWorld"),
+    # The mod's own layer objects derive from these; see Core/Entities/Records.cs.
+    (r"(?<![.\w])MetaObject<", "RecordObject<"),
+    (r"(?<![.\w])MetaObjectData\b", "RecordData"),
+    (r"(?<![.\w])MetaSystemManager<", "RecordStore<"),
+    (r"(?<![.\w])NanoObject\b", "Entity"),
+    (r"\bEmpireCraft\.Core\.StackGuard\b", "StackGuard"),
     (r"\.isRekt\(\)", ".IsGone()"),
     (r"\.isAlive\(\)", ".Alive"),
     (r"\.hasKing\(\)", ".HasRuler()"),
     (r"\.hasCapital\(\)", ".HasCapital()"),
     (r"\.getID\(\)", ".Key"),
-    (r"\.data\.name\b", ".Name"),
-    (r"\.data\.id\b", ".Key"),
-    (r"\.king\b", ".Ruler"),
-    (r"\.capital\b", ".Capital"),
-    (r"\.cities\b", ".Cities"),
-    (r"\.kingdom\b", ".Realm"),
     (r"\bDate\.getMonthsSince\b", "GameClock.MonthsSince"),
     (r"\bDate\.getYearsSince\b", "GameClock.YearsSince"),
     (r"\bDate\.getCurrentYear\(\)", "GameClock.Year"),
     (r"\bDate\.getCurrentMonth\(\)", "GameClock.Month"),
 ]
 IDENTITY = [(re.compile(pattern), replacement) for pattern, replacement in IDENTITY]
-DROPPED_USINGS = ("UnityEngine", "NeoModLoader", "HarmonyLib", "ai")
+DROPPED_USINGS = ("UnityEngine", "NeoModLoader", "HarmonyLib", "ai", "EpPathFinding")
 
 
 def git(mod, *args, check=True):
@@ -314,7 +318,13 @@ def transform(text, key, commit, namespaces, identity=False, keep=()):
             for index, kept in enumerate(keep):
                 line = line.replace("\x00%d\x00" % index, kept)
         out.append(line)
-    if file_scoped:
+    if not any(line.startswith("namespace ") for line in out):
+        # A file in the global namespace: open the core namespace after its using lines.
+        last_using = max([i for i, line in enumerate(out) if line.startswith("using ")] or [-1])
+        out[last_using + 1:last_using + 1] = ["namespace " + NAMESPACE, "{"]
+        out.append("}")
+        changes.append("global namespace wrapped into " + NAMESPACE)
+    elif file_scoped:
         out.append("}")
         changes.append("file-scoped namespace opened as a block (body not re-indented)")
     changes.append("namespace " + NAMESPACE)
