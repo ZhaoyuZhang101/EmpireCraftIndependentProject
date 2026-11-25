@@ -434,15 +434,19 @@ OrbisVolumeResult OrbisMarchRayFootprint(float3 ro,float3 rd,float endDistance,f
    float minCap=lerp(.00004,actualSlab/28.0,nearCam);
    float cap=min(max(cursor*.125,minCap),lerp(slab/16,slab/2,pow(saturate((cursor-crustStart)/.08),2)));
    float rProbe=length(ro+rd*cursor);
-   // Rapid stride across empty upper stratosphere above 1.026 saves budget for real troposphere clouds & shafts
-   bool highEmpty=!prevHit&&rProbe>1.026;
-   float emptyCap=highEmpty?max(ds*1.5,minStep):((grazing>.01&&!prevHit)?min(ds,actualSlab*lerp(.22,.11,grazing)):ds);
-   if(!prevHit&&nearCam>.10&&_GodRays>.5&&rProbe<1.015)emptyCap=min(emptyCap,actualSlab*.08);
-   float emptyFloor=(sampleIndex<sampleCount-10)?lerp(minStep,min(minStep,actualSlab*.12),insideShell):minStep;
-   float large=min(segmentEnd-cursor,max(highEmpty?emptyCap:min(emptyCap,cap),emptyFloor));
-   // Use far-edge probe on orbital/nadir rays (nearCam < 0.25) so thin 2 km marine Sc decks are never skipped,
-   // and centered midpoint probe near/inside the cloud layer (nearCam >= 0.25) for smooth cloud passage & crisp shafts!
-   float probeOffset=(!prevHit&&nearCam<.25&&large<=.0028)?large:(large*.5);
+   // Smooth stratosphere transition across 1.012..1.032 (replaces binary rProbe>1.026 / rProbe<1.015 cliffs
+   // that stamped a faint concave-up clear-sky arc in upward MRT transmittance).
+   float hiWeight=prevHit?0.0:smoothstep(1.022,1.032,rProbe);
+   float lowEmpty=(grazing>.01&&!prevHit)?min(ds,actualSlab*lerp(.22,.09,grazing)):ds;
+   if(!prevHit&&nearCam>.10&&_GodRays>.5)
+    lowEmpty=lerp(lowEmpty,min(lowEmpty,actualSlab*.08),1.0-smoothstep(1.012,1.020,rProbe));
+   float emptyCap=lerp(lowEmpty,max(ds*1.5,minStep),hiWeight);
+   // Smooth budget tail instead of a hard step cliff at sampleCount-10; probe far-edge on empty
+   // spans so upward/oblique rays never skip half a step past the LCL cloud base into concentric arcs.
+   float emptyTail=smoothstep((float)sampleCount-14.0,(float)sampleCount-6.0,(float)sampleIndex);
+   float emptyFloor=lerp(lerp(minStep,min(minStep,actualSlab*.09),insideShell),minStep,emptyTail);
+   float large=min(segmentEnd-cursor,max(lerp(min(emptyCap,cap),emptyCap,hiWeight),emptyFloor));
+   float probeOffset=(!prevHit&&large<=actualSlab*.16)?large:(large*.5);
    float probeFoot=(cursor+probeOffset)*pixelAngle;
    float2 probe=OrbisCloudDensitiesMip(ro+rd*(cursor+probeOffset),true,probeFoot);
    bool hitProbe=(probe.x+probe.y)>.0005;
@@ -450,14 +454,17 @@ OrbisVolumeResult OrbisMarchRayFootprint(float3 ro,float3 rd,float endDistance,f
    {
     if(!prevHit){crustStart=cursor;prevHit=true;}
     float refine=clamp(_CloudRefinement,1,4);
-    if(_CloudLightSimple>.5)refine=lerp(1.0,refine,smoothstep(.16,.62,maxTrans));
+    if(_CloudLightSimple>.5)refine=lerp(lerp(1.0,refine,insideShell*.5),refine,smoothstep(.08,.56,maxTrans));
     float baseFine=min(ds,cap)*rcp(refine);
     float crustBoost=grazing*smoothstep(.22,.82,maxTrans);
     float crustCap=lerp(actualSlab/24.0,actualSlab/4.0,pow(saturate((cursor-crustStart)/.034),1.4));
     float fineStep=min(baseFine,lerp(baseFine,crustCap,crustBoost));
-    float safeMinStep=((crustBoost>.05||insideShell>.5)&&sampleIndex<sampleCount-8)?0.0:minStep;
+    float fineTail=smoothstep((float)sampleCount-14.0,(float)sampleCount-4.0,(float)sampleIndex);
+    float allowFine=saturate(max(smoothstep(.02,.15,crustBoost),insideShell));
+    float safeMinStep=minStep*lerp(1.0,fineTail,allowFine);
     stepSize=min(segmentEnd-cursor,max(fineStep,safeMinStep));
-    bool skipDetail=_CloudLightSimple>.5&&maxTrans<.16;
+    // Keep primary view-ray density model continuous (never flip to simpleMode at maxTrans<0.16,
+    // which stamped sharp flat-sheet cutouts into upward/oblique clouds). LightField keeps _CloudLightSimple fast.
     float sampleDistance=cursor+stepSize*.5;
     float sampleFoot=sampleDistance*pixelAngle;
     // Body noise changes about 3.6 times faster vertically than horizontally.
@@ -465,8 +472,7 @@ OrbisVolumeResult OrbisMarchRayFootprint(float3 ro,float3 rd,float endDistance,f
     float radialRate=dot(ro,rd)+sampleDistance;
     float stretchedStride=max(ds,stepSize)*sqrt(1.0+11.6*radialRate*radialRate);
     float rayFoot=min(actualSlab*.40,2.0*stretchedStride)*smoothstep(.12,.70,grazing);
-    if(skipDetail&&abs(stepSize-large)<1e-6)density=probe;
-    else density=OrbisCloudDensitiesMip(ro+rd*sampleDistance,skipDetail,sampleFoot,rayFoot);
+    density=OrbisCloudDensitiesMip(ro+rd*sampleDistance,false,sampleFoot,rayFoot);
    }
    else
    {
