@@ -40,7 +40,7 @@ namespace Orbis.Flat
 
         public static FlatCycloneWeather SpinUp(WorldData world) => SpinUpAt(world, world.Day);
 
-        internal static FlatCycloneWeather SpinUpAt(WorldData world, double day)
+        public static FlatCycloneWeather SpinUpAt(WorldData world, double day)
         {
             // Integrate a preview from still air over the same spin-up window used for new worlds.
             var weather = new FlatCycloneWeather { StepIndex = StepAt(day) - SpinUpSteps };
