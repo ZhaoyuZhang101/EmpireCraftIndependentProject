@@ -542,7 +542,7 @@ namespace Orbis.Flat
                 }
 
                 if (regionalClimate == null) regionalClimate = new FlatRegionalCloudField(world);
-                double regionalDay = Math.Min(world.Day, effectiveDay);
+                double regionalDay = effectiveDay;
                 bool fieldReady = regionalClimate.Prepare(regionalDay, out bool changed);
 
                 // Never publish an incomplete or segment-mismatched cloud bake while the matching

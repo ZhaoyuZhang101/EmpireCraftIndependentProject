@@ -94,9 +94,26 @@ namespace Orbis.Flat
             workerTick = tick;
             workerRevision = world.TerrainRevision;
             workerMoisture = world.Moisture;
-            var storms = world.Cyclones?.Clone();
-            workerHadStorms = storms != null;
-            workerSpinUpAtTick = storms != null && storms.StepIndex != tick;
+            var liveCyclones = world.Cyclones;
+            workerHadStorms = liveCyclones != null;
+            workerSpinUpAtTick = liveCyclones != null && liveCyclones.StepIndex != tick;
+            FlatCycloneWeather storms = null;
+            if (liveCyclones != null)
+            {
+                if (tick < liveCyclones.StepIndex)
+                {
+                    storms = liveCyclones.Clone(); // Calculate() spins up at capturedTick * 0.25 on worker thread
+                }
+                else
+                {
+                    storms = liveCyclones.Clone();
+                    if (tick > storms.StepIndex)
+                    {
+                        storms.AdvanceTo(world, tick * .25);
+                        workerSpinUpAtTick = false;
+                    }
+                }
+            }
             if (storms != null && !workerSpinUpAtTick)
             {
                 workerNorth = storms.North;
