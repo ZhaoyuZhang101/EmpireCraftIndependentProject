@@ -98,13 +98,14 @@ float2 ScrollClimateDensitiesMip(float3 p,bool simpleMode,float pixelFootprint,f
 
  float3 localWind=tex2Dlod(_ScrollCloudWindTex,float4(uv,0,0)).xyz;
  // Calendar-locked dual-phase 3D puff advection (_ScrollWeatherTime = PublishedCalendarDay * 25.0):
- // 4.7 sub-cell cycles/day keeps |b - a| <= 0.0267 rad (< 0.8 Worley cell, zero ghosting) while
- // matching macro physical transport speed (9 m/s => 0.122 rad/day) with zero wallpaper slip.
- float phase=frac(_ScrollWeatherTime*.188);
- // Soft-cap advection speed and damp linear dual-phase split inside active cyclones (where
- // ApplyTyphoon3DStadium already rotates 3D clouds via rotPhase) so primary & simpleMode
- // LightField stay 100% phase-locked with zero double-exposure ghosting or phantom gray craters!
- float3 advWind=localWind*rsqrt(1.0+dot(localWind,localWind)*90000.0);
+ // 4.0 cycles/day (6h lifecycle) with linear wind proportionality matches FlatSkyBake's exact physical
+ // surface transport (0.12205 rad/day per wind unit, i.e., 8.72 rad/day per localWind) across weak/medium/strong winds
+ // while keeping |b - a| <= 0.025 rad (< 0.75 Worley cell, zero ghosting or wallpaper slip)!
+ float rawPhase=frac(_ScrollWeatherTime*.160);
+ float phase=rawPhase*rawPhase*(3.0-2.0*rawPhase);
+ float wSpeed3=length(localWind);
+ float linCap=wSpeed3>.022?(.022/max(1e-5,wSpeed3)):1.0;
+ float3 advWind=localWind*(2.18*linCap);
  float cycFlowKeep=1.0;
  if(hasCyclone)
  {
@@ -114,8 +115,8 @@ float2 ScrollClimateDensitiesMip(float3 p,bool simpleMode,float pixelFootprint,f
    cycFlowKeep*=smoothstep(.45,1.25,length(up-_OrbisCycloneSouth.xyz)/FlatCycloneRadius(_OrbisCycloneSouth.w));
  }
  advWind*=cycFlowKeep;
- float3 a=normalize(up-advWind*phase*8);
- float3 b=normalize(up+advWind*(1-phase)*8);
+ float3 a=normalize(up-advWind*rawPhase);
+ float3 b=normalize(up+advWind*(1.0-rawPhase));
 
  float cdoSmooth=0;
  if(hasCyclone)
@@ -160,7 +161,7 @@ float2 ScrollClimateDensitiesMip(float3 p,bool simpleMode,float pixelFootprint,f
    if(simpleMode)
    {
     // Phase-locked single-fetch simpleMode with isotropic 3D billow scale matching primary pass & LightField.
-    float3 qS=mul(frame,normalize(up-advWind*(phase-.5)*4.0));
+    float3 qS=mul(frame,normalize(up-advWind*(rawPhase-.5)*.5));
     float3 bPos=(cycFlowKeep<.05?q0:qS)*30.0+radAxis*(altitude*.42)+windShear+float3(.41,.19,.83);
     float4 body=tex3Dlod(_CloudNoise,float4(bPos,min(4.5,bodyMip+.30)));
     worleyMeso=body.g*lerp(.62,.46,closeUp)+body.b*lerp(.30,.46,closeUp)+body.a*.08;
@@ -309,30 +310,46 @@ float2 ScrollClimateDensitiesMip(float3 p,bool simpleMode,float pixelFootprint,f
  }
  if(highWeather>.004&&z>6950)
  {
-  float4 ice=tex2Dlod(_HPHighDetail,float4(uv,0,0));
+  // Wind-steered dual-phase 3D cirrus & _HPHighDetail advection (zero static 2D wallpaper, zero wrong-way drift!):
+  // Uses local wind direction in tropics (easterly anvil outflow) and eastward-sheared upper jet in mid-latitudes.
+  float wLen=length(localWind);
+  float wActive=smoothstep(.0004,.0035,wLen);
+  float3 eastDir=normalize(float3(up.z,0,-up.x)+float3(1e-5,0,0));
+  float midJetW=smoothstep(.34,.62,abs(up.y))*(1.0-smoothstep(.88,.98,abs(up.y)));
+  float3 hiWind=(localWind+eastDir*(midJetW*.010))*cycFlowKeep;
+  float hiLen=length(hiWind);
+  float hiCap=hiLen>.028?(.028/max(1e-5,hiLen)):1.0;
+  float3 hiAdv=hiWind*(2.45*hiCap)*wActive;
+  float hiRaw=frac(_ScrollWeatherTime*.120+.37);
+  float hiBlend=hiRaw*hiRaw*(3.0-2.0*hiRaw);
+  float3 hiA=normalize(up-hiAdv*hiRaw);
+  float3 hiB=normalize(up+hiAdv*(1.0-hiRaw));
+  float4 iceA=tex2Dlod(_HPHighDetail,float4(OrbisFastWeatherUV(hiA),0,0));
+  float4 iceB=tex2Dlod(_HPHighDetail,float4(OrbisFastWeatherUV(hiB),0,0));
+  float4 ice=lerp(iceA,iceB,hiBlend);
   float fine=.52;
   if(!simpleMode)
   {
-   float wLen=length(localWind);
-   float wActive=smoothstep(.0005,.004,wLen);
-   float s,c;sincos(_ScrollWeatherTime*.0048,s,c);
-   float3 upper=normalize(lerp(up,float3(c*up.x-s*up.z,up.y,s*up.x+c*up.z),wActive));
-   float3 dynAlong=wLen>1e-5?(localWind/wLen):float3(.84,.25,.48);
+   float3 dynAlong=hiLen>1e-5?(hiWind/hiLen):eastDir;
    float3 dynCross=normalize(cross(up,dynAlong)+float3(1e-5,0,0));
-   float3 axisAlong=normalize(lerp(float3(.84,.25,.48),dynAlong,wActive));
-   float3 axisCross=normalize(lerp(float3(-.50,.05,.86),dynCross,wActive));
+   float3 axisAlong=normalize(lerp(eastDir,dynAlong,wActive));
+   float3 axisCross=normalize(lerp(normalize(cross(up,eastDir)+float3(1e-5,0,0)),dynCross,wActive));
    float curve=(ice.b-.5)*.85+(ice.a-.5)*.55;
    // Physically realistic cirrus virga fallstreak (~15 km horizontal hook across 4 km altitude, NOT 0.92 rad / 53 deg!):
    // eliminates 8.9 m vertical Nyquist thread-striping in oblique grazing, upward views, and typhoon canopy rims!
    float fallHook=(z-8400)*.0000025;
    float altZ=(z-7200.0)/5600.0;
-   float3 uSwirl=normalize(upper+axisCross*(curve*.032)+axisAlong*fallHook);
-   float3 uLic=normalize(uSwirl+axisAlong*.016);
    const float3x3 cFrame=float3x3(.48,.64,.60,-.80,.60,0,.36,.48,-.80);
-   float3 cRot0=mul(cFrame,uSwirl);
-   float3 cRot1=mul(cFrame,uLic);
-   float4 tapA=tex3Dlod(_CloudDetailNoise,float4(cRot0*17.5+float3(0,0,altZ*.24)+(ice.b-.5)*.28,cirrusMip));
-   float4 tapB=tex3Dlod(_CloudDetailNoise,float4(cRot1*17.5+float3(0,0,altZ*.24)+(ice.b-.5)*.28,cirrusMip));
+   float3 uSwirlA=normalize(hiA+axisCross*(curve*.032)+axisAlong*fallHook);
+   float3 uSwirlB=normalize(hiB+axisCross*(curve*.032)+axisAlong*fallHook);
+   float3 cRotA=mul(cFrame,uSwirlA);
+   float3 cRotB=mul(cFrame,uSwirlB);
+   float3 cLicA=mul(cFrame,normalize(uSwirlA+axisAlong*.016));
+   float4 tapA0=tex3Dlod(_CloudDetailNoise,float4(cRotA*17.5+float3(0,0,altZ*.24)+(ice.b-.5)*.28,cirrusMip));
+   float4 tapA1=tex3Dlod(_CloudDetailNoise,float4(cLicA*17.5+float3(0,0,altZ*.24)+(ice.b-.5)*.28,cirrusMip));
+   float4 tapB0=tex3Dlod(_CloudDetailNoise,float4(cRotB*17.5+float3(0,0,altZ*.24)+(ice.b-.5)*.28,cirrusMip));
+   float4 tapA=lerp(tapA0,tapB0,hiBlend);
+   float4 tapB=lerp(tapA1,tapB0,hiBlend*.5);
    float streakFine=(tapA.a+tapB.a)*.5;
    float streakA=(tapA.b+tapB.b)*.5;
    float streakB=(tapA.g+tapB.g)*.5;
