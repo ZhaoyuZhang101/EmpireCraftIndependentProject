@@ -710,22 +710,29 @@ Shader "ORBIS/FlatWorld/SkyBake"
 
      // Unified physical dissipation / evaporation survival gates (applied BEFORE thresholding AND to ALL max() branches
      // so dry air, subsidence, post-rain depletion, or Regional.a evaporation can NEVER be refilled into solid overcast!).
+     // When _RegionalEvapReady>0.5, CPU GlebaGeographySupplement already applies effEvap/blanketDryShutoff to synLift/leeShadow
+     // and publishes the same budEvap into both Regional.g (-Cover) and Regional.a (Evaporation): de-overlap with max(),
+     // disable redundant synthetic GPU monsoonBreak, and match CPU scShield (1 - 0.82*scProtect) for cold-upwelling Sc decks.
+     float hasCpuEvap=step(.5,_RegionalEvapReady);
      float regSuppress=max(0.0,-response.x);
      float regBoost=max(0.0,response.x);
+     float regDry=max(regEvap,regSuppress*.85)*(1.0-.82*scProtect);
      float moistSlack=saturate(1.0-smoothstep(.32,.82,moistEnv)*.55);
-     float monsoonBreak=smoothstep(.56,.84,synLift)*synWaveDry*moistSlack*(1.0-.85*scProtect);
-     float dryDispersal=saturate(regEvap*.58+regSuppress*.65+parcelSubside*.85+postRainDecay*.95*(1.0-.75*scProtect)+monsoonBreak*.52);
-     float highDispersal=saturate(regEvap*.54+regSuppress*.55+parcelSubside*.55+postRainDecay*.55+monsoonBreak*.54);
+     float monsoonBreak=smoothstep(.56,.84,synLift)*synWaveDry*moistSlack*(1.0-.85*scProtect)*(1.0-hasCpuEvap);
+     float dryDispersal=saturate(regDry*lerp(.65,.46,hasCpuEvap)+parcelSubside*lerp(.85,.45,hasCpuEvap)+
+                                 postRainDecay*lerp(.95,.25,hasCpuEvap)*(1.0-.75*scProtect)+monsoonBreak*.52);
+     float highDispersal=saturate(regDry*lerp(.55,.42,hasCpuEvap)+parcelSubside*lerp(.55,.35,hasCpuEvap)+
+                                  postRainDecay*lerp(.55,.18,hasCpuEvap)+monsoonBreak*.54);
      float lowSurvive=saturate(1.0-dryDispersal);
      float highSurvive=saturate(1.0-highDispersal);
 
      // ISCCP joint optical-depth partition matching 79e6fa2 natural clear/veil/core balance + Lagrangian parcel lifecycle:
      float highShare=saturate(.58*itczConv+.52*stormTrack+.26*moistEnv)*(1.0-.78*marineSc)*(1.0-.66*leeShadow);
      float climBaseLift=synLift+.18*regBoost*(1.0-.50*lowLee)+parcelCondense+parcelCarry;
-     float climTarget=saturate(climBaseLift*(1.0-.62*dryDispersal)-.10*regEvap-.14*regSuppress);
+     float climTarget=saturate(climBaseLift*(1.0-lerp(.62,.36,hasCpuEvap)*dryDispersal)-.14*regSuppress*(1.0-hasCpuEvap));
      float lowTarget=saturate(climTarget*(1.0-.35*highShare));
      float highRawTarget=(climTarget-lowTarget)/max(.14,1.0-lowTarget)+.22*highShare*climTarget+.12*upperAnvilAdv*(1.0-.65*leeShadow);
-     float highTarget=saturate(highRawTarget*(1.0-.60*highDispersal)-.09*regEvap);
+     float highTarget=saturate(highRawTarget*(1.0-lerp(.60,.36,hasCpuEvap)*highDispersal));
 
      // Five authentic NASA DSCOVR EPIC & VIIRS continuous morphological regimes:
      // Very gentle synCluster preserves 79e6fa2 unbroken sweeping band continuity without carving bald gaps!
@@ -769,8 +776,8 @@ Shader "ORBIS/FlatWorld/SkyBake"
      float blanketRelief=smoothstep(.60,.88,lowTarget)*synWaveDry*(1.0-.45*sharpOrg);
      float scCapWeight=scProtect*(1.0-stormWeight)*(1.0-saturate(itczConv*1.5))*(1.0-saturate(orogCrest*1.5));
      float baseLowTarget=lerp(lowTarget,lerp(.12,.40,scStrength),scCapWeight);
-     float scTargetTerm=.12*scStrength*smoothstep(.24,.70,honeycomb)*saturate(1.0-regEvap*.75-regSuppress*.65);
-     float effLowTarget=saturate(min(.86,baseLowTarget*(1.0-.58*polarDryCarve-.24*blanketRelief)+scTargetTerm+
+     float scTargetTerm=.12*scStrength*smoothstep(.24,.70,honeycomb)*saturate(1.0-regDry*.55);
+     float effLowTarget=saturate(min(.86,baseLowTarget*(1.0-.58*polarDryCarve-lerp(.24,.08,hasCpuEvap)*blanketRelief)+scTargetTerm+
                            .18*orogCrest*orogMoist*(1.0-.70*leeShadow)*lowSurvive)+.045*smoothstep(.24,.60,climTarget)*(1.0-lowLee)*lowSurvive);
      float veilTarget=saturate(min(.86,effLowTarget*1.28+.102*dryGuard)*(1.0-.62*polarDryCarve));
      float wVeil=max(1e-4,min(.44,min(veilTarget,1.0-veilTarget)+.09));
@@ -789,7 +796,7 @@ Shader "ORBIS/FlatWorld/SkyBake"
      float frontDirect=stormWeight*smoothstep(.24,.72,frontalLow)*(1.0-.85*frontalDry)*smoothstep(.10,.38,climTarget+.12*midLatBoost)*.84*parcelLifecycle;
      float postWakeLace=stormWeight*postFrontCells*smoothstep(.08,.40,climTarget+.12*midLatBoost)*.82*lowSurvive;
      // Localized eastern-boundary marine stratocumulus sheet (closed-cell cobbles nearshore -> open-cell POCs seaward!)
-     float scEvapKeep=saturate(1.0-regEvap*.75-regSuppress*.65-parcelSubside*.55);
+     float scEvapKeep=saturate(1.0-regDry*.50-parcelSubside*.30);
      float scDeckDirect=scProtect*lerp(.16,.68,scStrength)*smoothstep(.24,.70,honeycomb)*
                         smoothstep(.18,.52,moistEnv+.28*scStrength)*(1.0-.72*leeShadow*(1.0-.55*scStrength))*scEvapKeep;
      float oceanTradeGate=smoothstep(.16,.42,climTarget)*smoothstep(.28,.58,moistEnv)*(1.0-.88*lowLee)*lowSurvive;
@@ -801,7 +808,10 @@ Shader "ORBIS/FlatWorld/SkyBake"
      float orogDirectCap=orogCrest*smoothstep(.16,.52,moistEnv)*(1.0-.78*leeShadow)*(.44+.56*smoothstep(.20,.78,flowBands*.55+mesoCells*.45))*.76*lowSurvive;
      float lowRaw=saturate(max(max(veilLayer,bodyLayer),max(max(max(denseCore,frontDirect),max(postWakeLace,orogDirectCap)),max(max(marineTapestry,scDeckDirect),itczDirectLift)))+
                   .04*regBoost*smoothstep(.02,.18,rawVeil+.15*climTarget));
-     low=lowRaw*(1.0-smoothstep(.04,1.0,regEvap+regSuppress*.48+postRainDecay*.42*(1.0-.75*scProtect)+monsoonBreak*.32));
+     float finalEvapCutLow=hasCpuEvap>.5
+      ?.44*smoothstep(.28,1.0,regDry)
+      :smoothstep(.04,1.0,regEvap+regSuppress*.48+postRainDecay*.42*(1.0-.75*scProtect)+monsoonBreak*.32);
+     low=lowRaw*(1.0-finalEvapCutLow);
 
      // Explicit 5-tier cloud altitude classification in convection (weather.b):
      // Route BOTH eastern-boundary marineSc AND post-frontal cold-air open cells cleanly into low cellular regime!
@@ -841,8 +851,11 @@ Shader "ORBIS/FlatWorld/SkyBake"
      float rawHigh=smoothstep(1.0-highEnvTarget-wHigh,1.0-highEnvTarget+wHigh,uHigh);
      float highSilk=.34+.66*smoothstep(.18,.84,wisps*.64+fineGrain*.36);
      float anvilOutflow=saturate(max(smoothstep(.16,.56,itczConv)*anvilShield*.70*itczMoistScale,upperAnvilAdv*anvilShield*.74))*highSurvive;
+     float finalEvapCutHigh=hasCpuEvap>.5
+      ?.42*smoothstep(.28,1.0,regDry)
+      :smoothstep(.04,1.0,regEvap+regSuppress*.44+monsoonBreak*.36);
      high=smoothstep(.05,.92,saturate(max(rawHigh*highSilk*1.13*lerp(.35,1.0,highSurvive),anvilOutflow)))*
-          (1.0-.78*tropBelt*leeShadow)*(1.0-smoothstep(.04,1.0,regEvap+regSuppress*.44+monsoonBreak*.36));
+          (1.0-.78*tropBelt*leeShadow)*(1.0-finalEvapCutHigh);
     }
     else
     {
