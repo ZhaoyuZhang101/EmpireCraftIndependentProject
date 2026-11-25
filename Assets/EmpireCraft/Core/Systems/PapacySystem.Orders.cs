@@ -28,19 +28,17 @@ public static partial class PapacySystem
 
     public static float OrderFactor(CorpsData corps) => corps != null && corps.order_id >= 0 ? OrderStrength : 1f;
 
-#if EC_PENDING
     public static IEnumerable<KnightOrderData> Orders(Religion religion) =>
         religion?.data == null ? Enumerable.Empty<KnightOrderData>()
             : (religion.GetOrCreate().Orders ??= new List<KnightOrderData>()).Where(order => !order.dissolved);
 
     public static KnightOrderData FindOrder(long id)
     {
-        foreach (Religion religion in EmpireWorld.Current.religions)
+        foreach (Religion religion in EmpireWorld.Current.Religions)
             foreach (KnightOrderData order in Orders(religion))
                 if (order.id == id) return order;
         return null;
     }
-#endif
 
     // 圣战告捷后成立骑士团
 #if EC_PENDING
@@ -73,7 +71,7 @@ public static partial class PapacySystem
     private static void PickGrandMaster(KnightOrderData order, Realm host)
     {
         Person best = null;
-        foreach (Person actor in host.units)
+        foreach (Person actor in host.People)
         {
             if (actor?.Record == null || actor.IsGone() || !actor.Alive || !actor.IsAdult() || actor.IsRuler() ||
                 actor.asset == null || !actor.asset.civ || CityPopulationSystem.IsVehicle(actor)) continue;
@@ -103,10 +101,8 @@ public static partial class PapacySystem
     }
 
     // 驻在国有骑士团时响应圣战更积极
-#if EC_PENDING
     private static float OrderHostBonus(Realm kingdom, Religion religion) =>
         Orders(religion).Any(order => Host(order) is Realm host && ModRealm(host) == ModRealm(kingdom)) ? 0.4f : 0f;
-#endif
 
     // 每年(随教权结算)：大团长、捐献、养军、镇压
 #if EC_PENDING
@@ -129,7 +125,7 @@ public static partial class PapacySystem
     {
         if (SecularizeOrderState(order)) return;
         Realm host = Host(order);
-        if (host == null || host.religion != religion)
+        if (host == null || host.Religion != religion)
         {
             Realm papacy = Papacy(religion);
             if (papacy == null || papacy == host)
@@ -144,7 +140,7 @@ public static partial class PapacySystem
         // 捐献
         foreach (Realm kingdom in EmpireWorld.Current.LiveRealms)
         {
-            if (kingdom?.Record == null || kingdom.IsGone() || kingdom.IsWild || kingdom.religion != religion ||
+            if (kingdom?.Record == null || kingdom.IsGone() || kingdom.IsWild || kingdom.Religion != religion ||
                 ModRealm(kingdom) != kingdom) continue;
             float rate = kingdom.GetRegime()?.GetReligionLevel() switch
             {
@@ -223,7 +219,7 @@ public static partial class PapacySystem
         // 圣战收复圣地(战果)：不许自立的闸放行(见 SecessionGate)
         Realm state = SecessionGate.Sanctioned(() => holy.makeOwnKingdom(master, false, false));
         if (state?.Record == null) return false;
-        holy.setReligion(religion);
+        holy.SetReligion(religion);
         state.Name = order.name;
         order.state_kingdom_id = state.Key;
         foreach (CorpsData item in OrderCorps(order)) CorpsSystem.Disband(former, item);

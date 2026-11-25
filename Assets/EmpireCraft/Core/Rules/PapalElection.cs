@@ -26,8 +26,8 @@ public static class PapalElection
         try
         {
             if (kingdom?.Record == null || kingdom.IsGone() || kingdom.HasRuler() || kingdom.Capital == null || kingdom.IsEmpire() ||
-                kingdom.GetKingdomType() != KingdomType.Feudalism_papal_state || !kingdom.hasReligion()) return false;
-            Religion religion = kingdom.religion;
+                kingdom.GetKingdomType() != KingdomType.Feudalism_papal_state || !kingdom.HasReligion()) return false;
+            Religion religion = kingdom.Religion;
             if (!ReligionFaith.IsPapal(religion) || PapacySystem.Papacy(religion) != kingdom) return false;
             Empire patron = Patron(kingdom);
             bool imposed = patron?.CoreKingdom?.Capital != null && EcRandom.value < ImposeChance;
@@ -44,7 +44,7 @@ public static class PapalElection
             GraceEdictService.Crown(kingdom, pick);
             if (kingdom.Ruler != pick) return false;
             if (!pick.HasTrait("cleric")) pick.AddTrait("cleric");
-            if (pick.religion != religion) pick.setReligion(religion);
+            if (pick.Religion != religion) pick.SetReligion(religion);
             ReligionExtension.ReligionExtraData data = religion.GetOrCreate();
             data.LeaderID = pick.Key;
             data.PopeChosenBy = imposed ? ByImposition : ByConclave;
@@ -52,12 +52,12 @@ public static class PapalElection
             ReligionHeads.Note(religion);
             string text = imposed
                 ? string.Format(LM.Get("pope_imposed_history"), patron.Emperor?.FullName() ?? patron.GetEmpireName(), pick.FullName(),
-                    religion.name)
-                : string.Format(LM.Get("pope_elected_history"), kingdom.Capital.GetCityName(), pick.FullName(), religion.name);
+                    religion.Name)
+                : string.Format(LM.Get("pope_elected_history"), kingdom.Capital.GetCityName(), pick.FullName(), religion.Name);
             ReligionChronicle.Record(religion, ReligionChronicle.KindPapacy, text);
             TranslateHelper.LogEventMessage(text, kingdom);
             pick.RecordPersonalHistory(text);
-            LogService.LogInfo($"[EmpireCraft][教廷] {religion.name} 新教宗 {pick.FullName()}({(imposed ? "世俗强立" : "枢机推举")})");
+            LogService.LogInfo($"[EmpireCraft][教廷] {religion.Name} 新教宗 {pick.FullName()}({(imposed ? "世俗强立" : "枢机推举")})");
             return true;
         }
         catch (Exception exception)
@@ -80,19 +80,16 @@ public static class PapalElection
 #endif
 
     // 枢机所在：教宗国都城与本教各主教领的都城
-#if EC_PENDING
     private static IEnumerable<City> Conclave(Realm papacy, Religion religion)
     {
         yield return papacy.Capital;
         foreach (Realm kingdom in EmpireWorld.Current.LiveRealms.ToList())
-            if (kingdom?.Record != null && !kingdom.IsGone() && kingdom != papacy && kingdom.religion == religion &&
+            if (kingdom?.Record != null && !kingdom.IsGone() && kingdom != papacy && kingdom.Religion == religion &&
                 kingdom.Capital != null && HolyRomanSystem.IsChurchEstate(kingdom) && !PapacySystem.FollowsAntipope(kingdom))
                 yield return kingdom.Capital;
     }
-#endif
 
     // 对立一线推举也用(见 PapacySystem.Antipope)
-#if EC_PENDING
     internal static Person PickCandidate(IEnumerable<City> cities, Person patron) => Pick(cities, patron);
 
     private static Person Pick(IEnumerable<City> cities, Person patron) =>
@@ -102,10 +99,9 @@ public static class PapalElection
             .ThenByDescending(actor => actor.Renown).FirstOrDefault();
 
     private static IEnumerable<Person> Candidates(City city) =>
-        (city?.units ?? new List<Person>()).ToList().Where(actor => actor?.data != null && !actor.IsGone() && actor.Alive &&
-                                                                    actor.isAdult() && !actor.isKing() && !actor.isCityLeader() &&
-                                                                    actor.isUnitFitToRule());
-#endif
+        (city?.People ?? new List<Person>()).ToList().Where(actor => actor?.Record != null && !actor.IsGone() && actor.Alive &&
+                                                                    actor.IsAdult() && !actor.IsRuler() && !actor.IsCityLeader() &&
+                                                                    actor.IsFitToRule());
 
     private static bool SameHouse(Person a, Person b) =>
         a?.Record != null && b?.Record != null && SpecificClanManager.SameLineage(a.GetSpecificClan(), b.GetSpecificClan());

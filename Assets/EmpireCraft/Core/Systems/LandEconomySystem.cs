@@ -288,7 +288,6 @@ public static class LandEconomySystem
 #endif
 
     // 分家时按迁出人数的比例把原宗族在该城的土地分给分支
-#if EC_PENDING
     public static void TransferClanLand(City city, SpecificClan from, SpecificClan to, float ratio)
     {
         if (city == null || city.IsGone() || from == null || to == null || ratio <= 0f) return;
@@ -299,12 +298,13 @@ public static class LandEconomySystem
         float moved = share * Mathf.Clamp01(ratio);
         data.household_land_shares[fromKey] = Mathf.Max(0f, share - moved);
         data.household_land_shares[toKey] = GetHouseholdShare(city, toKey) + moved;
-        Person representative = city.units?.Where(IsLivingResident)
+        Person representative = city.People?.Where(IsLivingResident)
             .Where(actor => actor.GetSpecificClan() == to)
-            .OrderByDescending(actor => actor.money).FirstOrDefault();
+            .OrderByDescending(actor => actor.Money).FirstOrDefault();
         if (representative != null) data.household_land_representatives[toKey] = representative.Key;
     }
 
+#if EC_PENDING
     public static SocialClass GetFamilyEconomicClass(Family family)
     {
         List<Person> members = family?.units?.Where(IsLivingResident).ToList() ?? new List<Person>();
@@ -405,11 +405,10 @@ public static class LandEconomySystem
         }
     }
 
-#if EC_PENDING
     private static Dictionary<string, List<Person>> BuildHouseholds(City city)
     {
         var result = new Dictionary<string, List<Person>>();
-        foreach (Person actor in city.units?.Where(IsLivingResident).ToList() ?? new List<Person>())
+        foreach (Person actor in city.People?.Where(IsLivingResident).ToList() ?? new List<Person>())
         {
             string key = GetHouseholdKey(actor);
             if (!result.TryGetValue(key, out List<Person> members))
@@ -421,7 +420,6 @@ public static class LandEconomySystem
         }
         return result;
     }
-#endif
 
     private static bool IsLivingResident(Person actor)
     {
@@ -728,7 +726,7 @@ public static class LandEconomySystem
 
     private static void RefreshClasses(City city)
     {
-        foreach (Person actor in city.units?.Where(IsLivingResident).ToList() ?? new List<Person>())
+        foreach (Person actor in city.People?.Where(IsLivingResident).ToList() ?? new List<Person>())
             actor.SetSocialClass(ActorAI.EmpireCaftActorJudgeClass.JudgeClass(actor));
     }
 #endif
@@ -755,7 +753,7 @@ public static class LandEconomySystem
 
     private static float ComputeLandlessRatio(City city)
     {
-        List<Person> population = city.units?.Where(IsLivingResident).ToList() ?? new List<Person>();
+        List<Person> population = city.People?.Where(IsLivingResident).ToList() ?? new List<Person>();
         float landless = population.Count(actor => IsAgrarianCommoner(actor) &&
                                                    GetHouseholdShare(city, GetHouseholdKey(actor)) <= 0f);
         float total = population.Count;
@@ -982,9 +980,9 @@ public static class LandEconomySystem
         CityExtension.CityExtraData data = EnsureData(city);
         if (data.last_land_rebellion_timestamp >= 0d &&
             GameClock.YearsSince(data.last_land_rebellion_timestamp) < RebellionCooldownYears) return false;
-        Person leader = city.units?.Where(actor => IsLivingResident(actor) && IsAgrarianCommoner(actor) &&
+        Person leader = city.People?.Where(actor => IsLivingResident(actor) && IsAgrarianCommoner(actor) &&
                                                   actor.CanFoundCivKingdom())
-            .OrderByDescending(actor => actor.data?.renown ?? 0).FirstOrDefault();
+            .OrderByDescending(actor => actor.Renown ?? 0).FirstOrDefault();
         // 无小人模式：城里没有农民实体，从背景人口里生成带头的人
         leader ??= CityPopulationSystem.SpawnRebelLeader(city);
         if (leader == null) return false;
@@ -1038,9 +1036,9 @@ public static class LandEconomySystem
         int cooldown = disaster ? DisasterRebellionCooldownYears : RebellionCooldownYears;
         if (data.last_land_rebellion_timestamp >= 0d &&
             GameClock.YearsSince(data.last_land_rebellion_timestamp) < cooldown) return null;
-        Person leader = city.units?.Where(actor => IsLivingResident(actor) && IsAgrarianCommoner(actor) &&
+        Person leader = city.People?.Where(actor => IsLivingResident(actor) && IsAgrarianCommoner(actor) &&
                                                   actor.CanFoundCivKingdom())
-            .OrderByDescending(actor => actor.data?.renown ?? 0).FirstOrDefault();
+            .OrderByDescending(actor => actor.Renown ?? 0).FirstOrDefault();
         leader ??= CityPopulationSystem.SpawnRebelLeader(city);
         if (leader == null) return null;
         Realm origin = city.Realm;

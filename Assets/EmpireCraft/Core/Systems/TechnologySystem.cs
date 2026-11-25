@@ -1981,7 +1981,7 @@ public static partial class TechnologySystem
             int cityLevels = city.buildings.Where(b => b?.asset != null && b.asset.id.StartsWith("city_", StringComparison.Ordinal))
                 .Sum(b => b.asset.upgrade_level);
             // 庙宇科研按本城之教的教义(僧团寺院 +50%，见 ReligionTenets.TempleResearchFactor，用户 2026-11-06)
-            float perTemple = research.per_temple * ReligionTenets.TempleResearchFactor(city.hasReligion() ? city.religion : null);
+            float perTemple = research.per_temple * ReligionTenets.TempleResearchFactor(city.HasReligion() ? city.Religion : null);
             float citySchools = city.countBuildingsType("type_library") * research.per_library +
                                 cityLevels * (research.per_library + perTemple) +
                                 city.countBuildingsType("type_temple") * perTemple +
@@ -1992,7 +1992,7 @@ public static partial class TechnologySystem
                 // 兵荒马乱读书少，但打仗本身逼出新技术
                 cityBasis *= 1f - research.war_penalty;
                 citySchools *= 1f - research.war_penalty;
-                war += city.units.Count(actor => actor != null && actor.Alive && actor.isWarrior()) *
+                war += city.PopulationCount()(actor => actor != null && actor.Alive && actor.isWarrior()) *
                        research.per_warrior_at_war;
             }
             basis += cityBasis;
@@ -2197,7 +2197,7 @@ public static partial class TechnologySystem
             Realm kingdom = city.Realm;
             if (kingdom == null || kingdom.IsGone()) continue;
             int done = 0;
-            foreach (Person actor in city.units.ToList())
+            foreach (Person actor in city.People.ToList())
             {
                 if (done >= perCity) break;
                 if (actor == null || !actor.Alive || !actor.IsWarrior() || actor.equipment == null ||

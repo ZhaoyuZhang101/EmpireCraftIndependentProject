@@ -55,7 +55,6 @@ public static class ReignRecordSystem
     private const double SecondsPerYear = 60d;
 
     // 旧核心直接清空死亡君主的王位，史册可能丢页。用同一帝国的登基经历补页，不按姓氏推测继承。
-#if EC_PENDING
     internal static void RecoverMissingAccessions()
     {
         const string accessionKey = "personal_history_became_emperor";
@@ -103,13 +102,13 @@ public static class ReignRecordSystem
                 };
                 reign.descriptions.Add(new HistoryDescription
                 {
-                    actor_id = person.actor_id, timestamp = accession.timestamp, time = Date.getDate(accession.timestamp),
+                    actor_id = person.actor_id, timestamp = accession.timestamp, time = GameClock.DateText(accession.timestamp),
                     description = accession.content
                 });
                 if (death != null)
                     reign.descriptions.Add(new HistoryDescription
                     {
-                        actor_id = person.actor_id, timestamp = death.timestamp, time = Date.getDate(death.timestamp),
+                        actor_id = person.actor_id, timestamp = death.timestamp, time = GameClock.DateText(death.timestamp),
                         description = death.content
                     });
                 recovered.Add(reign);
@@ -124,6 +123,7 @@ public static class ReignRecordSystem
         }
     }
 
+#if EC_PENDING
     public static void RepairLegacyTenure(Empire empire)
     {
         List<EmpireCraftHistory> history = empire?.data?.history;

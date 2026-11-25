@@ -123,13 +123,13 @@ public static partial class HolyRomanSystem
                 if (foe != null)
                 {
                     score += 0.35f;
-                    if (foe.hasReligion() && core.hasReligion() && foe.religion != core.religion) score += 0.15f;
+                    if (foe.HasReligion() && core.HasReligion() && foe.Religion != core.Religion) score += 0.15f;
                 }
                 if (voter.college == CollegeCities) score += 0.1f;
                 break;
             case AgendaWar when subject != null:
                 score += 0.05f;
-                if (subject.hasReligion() && core.hasReligion() && subject.religion != core.religion) score += 0.3f;
+                if (subject.HasReligion() && core.HasReligion() && subject.Religion != core.Religion) score += 0.3f;
                 if (CoreWarWith(empire, subject)?.IsDefender(core) == true) score += 0.3f;
                 if (realm != core && realm.IsNeighbourWith(subject)) score += 0.15f;
                 if (realm.IsAtWarWith(subject)) score += 0.4f;
@@ -476,7 +476,7 @@ public static partial class HolyRomanSystem
     // 成员国现有兵力：军团模式按各军团兵力，否则按原版计兵
 #if EC_PENDING
     private static float Troops(Realm kingdom) =>
-        CorpsSystem.Enabled ? CorpsSystem.Of(kingdom).Sum(corps => corps.strength) : kingdom.countTotalWarriors();
+        CorpsSystem.Enabled ? CorpsSystem.Of(kingdom).Sum(corps => corps.strength) : kingdom.Warriors();
 #endif
 
     // 不听调遣：家族领地薄弱时比中央大的诸侯一概不理；投了反对票的有三成抗命，投赞成的偶尔也赖掉；
@@ -501,22 +501,22 @@ public static partial class HolyRomanSystem
 #if EC_PENDING
     private static Realm Executor(Empire empire, Realm target)
     {
-        int strength = target.countTotalWarriors();
+        int strength = target.Warriors();
         bool Eligible(Realm kingdom) => kingdom != target && !kingdom.IsAtWarWith(target) && !Allied(kingdom, target) &&
                                           !SameHouse(kingdom.Ruler, target.Ruler) && kingdom.HasRuler() &&
-                                          kingdom.countTotalWarriors() >= strength * 0.8f;
+                                          kingdom.Warriors() >= strength * 0.8f;
         HolyRomanState state = State(empire);
         if (ReformEnacted(empire) && state.circles != null && state.circles.TryGetValue(target.Key, out int circle))
         {
             Realm director = Members(empire).Where(kingdom => state.circles.TryGetValue(kingdom.Key, out int other) && other == circle)
-                .Where(Eligible).OrderByDescending(kingdom => kingdom.countTotalWarriors()).FirstOrDefault();
+                .Where(Eligible).OrderByDescending(kingdom => kingdom.Warriors()).FirstOrDefault();
             if (director != null) return director;
         }
         Realm neighbour = Members(empire).Where(kingdom => kingdom.IsNeighbourWith(target)).Where(Eligible)
-            .OrderByDescending(kingdom => kingdom.countTotalWarriors()).FirstOrDefault();
+            .OrderByDescending(kingdom => kingdom.Warriors()).FirstOrDefault();
         if (neighbour != null) return neighbour;
         Realm core = empire.CoreKingdom;
-        return core.countTotalWarriors() >= strength && !core.IsAtWarWith(target) ? core : null;
+        return core.Warriors() >= strength && !core.IsAtWarWith(target) ? core : null;
     }
 #endif
 

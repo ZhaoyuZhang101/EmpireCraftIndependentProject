@@ -62,8 +62,8 @@ public static class ReligionSchismSystem
 #if EC_PENDING
     public static void YearlyPass()
     {
-        if (EmpireWorld.Current?.religions == null || ModClass.IS_CLEAR) return;
-        foreach (Religion religion in EmpireWorld.Current.religions.ToList())
+        if (EmpireWorld.Current?.Religions == null || ModClass.IS_CLEAR) return;
+        foreach (Religion religion in EmpireWorld.Current.Religions.ToList())
         {
             if (religion?.data == null || religion.IsGone() || !ReligionFaith.IsPapal(religion)) continue;
             TryGreatSchism(religion);
@@ -84,10 +84,10 @@ public static class ReligionSchismSystem
         foreach (Empire empire in ModClass.EMPIRE_MANAGER?.ToList() ?? new List<Empire>())
         {
             Realm core = empire?.CoreKingdom;
-            if (empire?.data == null || empire.IsGone() || empire.IsArchived() || !Alive(core) || !core.hasReligion() ||
+            if (empire?.data == null || empire.IsGone() || empire.IsArchived() || !Alive(core) || !core.HasReligion() ||
                 core.Capital == null || empire.Emperor?.Record == null || !empire.Emperor.Alive ||
                 AncientWarfareCompatibility.Owns(core) || empire.countCities() < SchismMinCities) continue;
-            Religion current = core.religion;
+            Religion current = core.Religion;
             string sphere = ReligionSphere.SphereOfCulture(CultureService.GetRealmCulture(core));
             if (sphere.Length == 0 || ReligionSphere.SphereOf(current) == sphere) continue;
             // 握着本教圣地的不改
@@ -116,14 +116,14 @@ public static class ReligionSchismSystem
         Person head = empire.Emperor;
         City capital = core.Capital;
         if (head.City != capital) head.JoinCity(capital);
-        Religion church = EmpireWorld.Current.religions.newReligion(head, false);
+        Religion church = EmpireWorld.Current.Religions.NewReligion(head, false);
         if (church?.data == null) return;
         string culture = CultureService.GetRealmCulture(core);
         string people = CultureService.IsValidCulture(culture) ? culture.GetCultureTranslate() : core.GetKingdomName();
         FaithType faith = ReligionFaith.Of(old);
         church.data.name = faith == FaithType.Church
             ? string.Format(LM.Get("national_church_name_church"), people)
-            : string.Format(LM.Get("national_branch_name"), people, old.name);
+            : string.Format(LM.Get("national_branch_name"), people, old.Name);
         church.SetCity(capital);
         double now = GameClock.Now;
         var data = church.GetOrCreate();
@@ -133,17 +133,17 @@ public static class ReligionSchismSystem
         data.Faith = faith.ToString();
         data.Sphere = sphere;
         foreach (Realm kingdom in empire.kingdoms_list.ToList())
-            if (Alive(kingdom) && kingdom.religion == old) ConvertKingdom(kingdom, old, church);
-        if (core.religion != church) ConvertKingdom(core, core.religion, church);
+            if (Alive(kingdom) && kingdom.Religion == old) ConvertKingdom(kingdom, old, church);
+        if (core.Religion != church) ConvertKingdom(core, core.Religion, church);
         empire.Religion = church;
         core.GetOrCreate().religion_converted_at = now;
         if (PapacySystem.Papacy(old) != null) PapacySystem.AddAuthority(old, -5f);
-        string text = string.Format(LM.Get("national_church_log"), empire.GetEmpireFullName(), old.name, capital.GetCityName(),
-            church.name);
+        string text = string.Format(LM.Get("national_church_log"), empire.GetEmpireFullName(), old.Name, capital.GetCityName(),
+            church.Name);
         EventRecorder.Record(empire, text, head);
         ReligionChronicle.Clear(church);
         ReligionChronicle.Record(old, church, ReligionChronicle.KindSchism, text);
-        LogService.LogInfo($"[EmpireCraft][宗教] {empire.GetEmpireName()}(天下 {sphere})不奉外来的{old.name}，另立{church.name}");
+        LogService.LogInfo($"[EmpireCraft][宗教] {empire.GetEmpireName()}(天下 {sphere})不奉外来的{old.Name}，另立{church.Name}");
     }
 #endif
 
@@ -156,7 +156,7 @@ public static class ReligionSchismSystem
     {
         var data = religion.GetOrCreate();
         if (data.EasternSplit || !ReligionSphere.IsNative(religion) || ReligionSphere.IsLocalChurch(religion) ||
-            religion.getAge() < SchismMinAge) return;
+            religion.Age() < SchismMinAge) return;
         Realm papacy = PapacySystem.Papacy(religion);
         City holy = PapacySystem.HolyCity(religion);
         if (papacy == null || holy == null) return;
@@ -215,7 +215,7 @@ public static class ReligionSchismSystem
         var cultures = new Dictionary<string, int>();
         foreach (City city in EmpireWorld.Current.Cities)
         {
-            if (city?.Record == null || city.IsGone() || city.religion != religion || !Alive(city.Realm)) continue;
+            if (city?.Record == null || city.IsGone() || city.Religion != religion || !Alive(city.Realm)) continue;
             Realm realm = ModRealm(city.Realm);
             if (realm == core) continue;
             if (!members.TryGetValue(realm, out bool member)) members[realm] = member = InPapalBloc(realm, see, patron);
@@ -266,7 +266,7 @@ public static class ReligionSchismSystem
         City capital = core.Capital;
         if (head?.Record == null || !head.Alive || capital == null) return false;
         if (head.City != capital) head.JoinCity(capital);
-        Religion church = EmpireWorld.Current.religions.newReligion(head, false);
+        Religion church = EmpireWorld.Current.Religions.NewReligion(head, false);
         if (church?.data == null) return false;
         church.data.name = ReligionFaith.PickName("orthodox", 3) ?? church.data.name;
         church.SetCity(capital);
@@ -283,14 +283,14 @@ public static class ReligionSchismSystem
         foreach (Realm kingdom in empire.kingdoms_list.ToList())
             if (Alive(kingdom)) ConvertKingdom(kingdom, old, church);
         empire.Religion = church;
-        if (head.religion != church) head.setReligion(church);
+        if (head.Religion != church) head.SetReligion(church);
         // 就近的同教独立国、帝国中央随之(帝国中央改宗后成员国陆续随之，见 ReligionConversionSystem.FollowRealm)
         string culture = CultureService.GetRealmCulture(core);
         Realm see = ModRealm(PapacySystem.Papacy(old));
         var followers = new List<Realm>();
         foreach (Realm kingdom in EmpireWorld.Current.LiveRealms.ToList())
         {
-            if (!Alive(kingdom) || ModRealm(kingdom) != kingdom || kingdom == core || kingdom.religion != old || kingdom.Capital == null ||
+            if (!Alive(kingdom) || ModRealm(kingdom) != kingdom || kingdom == core || kingdom.Religion != old || kingdom.Capital == null ||
                 kingdom.IsAtWarWith(core) || PapacySystem.HoldsHolyCity(kingdom) || kingdom == see) continue;
             float near = Vector2.Distance(kingdom.Capital.Center, capital.Center);
             float far = Vector2.Distance(kingdom.Capital.Center, oldHoly.Center);
@@ -309,7 +309,7 @@ public static class ReligionSchismSystem
             followers.Add(kingdom);
         }
         PapacySystem.AddAuthority(old, -10f);
-        string text = string.Format(LM.Get("great_schism_log"), empire.GetEmpireFullName(), oldHoly.GetCityName(), church.name);
+        string text = string.Format(LM.Get("great_schism_log"), empire.GetEmpireFullName(), oldHoly.GetCityName(), church.Name);
         TranslateHelper.LogEventMessage(text, core);
         ReligionChronicle.Clear(church);
         ReligionChronicle.Record(old, church, ReligionChronicle.KindSchism, text);
@@ -317,11 +317,11 @@ public static class ReligionSchismSystem
         if (followers.Count > 0)
         {
             string names = string.Join("、", followers.Take(4).Select(kingdom => kingdom.GetKingdomName()));
-            string follow = string.Format(LM.Get("great_schism_followers_log"), names, followers.Count, church.name);
+            string follow = string.Format(LM.Get("great_schism_followers_log"), names, followers.Count, church.Name);
             TranslateHelper.LogEventMessage(follow, followers[0]);
             ReligionChronicle.Record(old, church, ReligionChronicle.KindSchism, follow);
         }
-        LogService.LogInfo($"[EmpireCraft][宗教] 东西教会大分裂：{empire.GetEmpireName()} 以 {capital.GetCityName()} 为圣地另立{church.name}，" +
+        LogService.LogInfo($"[EmpireCraft][宗教] 东西教会大分裂：{empire.GetEmpireName()} 以 {capital.GetCityName()} 为圣地另立{church.Name}，" +
                            $"随之 {followers.Count} 国");
         return true;
     }
@@ -339,8 +339,8 @@ public static class ReligionSchismSystem
     public static void OnSuccessionContest(Empire empire, int kind, Realm claimant, List<Realm> followers)
     {
         if (kind != SchismSystem.Caliph && kind != SchismSystem.Sultan || !Alive(claimant)) return;
-        Religion old = empire?.CoreKingdom?.religion;
-        if (old?.data == null || !ReligionFaith.IsCaliphal(old) || claimant.religion != old) return;
+        Religion old = empire?.CoreKingdom?.Religion;
+        if (old?.data == null || !ReligionFaith.IsCaliphal(old) || claimant.Religion != old) return;
         if (IslamicSchismSystem.IsShia(old))
         {
             Religion ismaili = IslamicSchismSystem.OnShiaContest(old, claimant, followers, out string split);
@@ -356,12 +356,12 @@ public static class ReligionSchismSystem
             if (existing == null || EcRandom.value >= IslamicSchismSystem.ContestJoinShiaChance) return;
             ConvertKingdom(claimant, old, existing);
             foreach (Realm follower in followers ?? new List<Realm>())
-                if (Alive(follower) && follower.religion == old) ConvertKingdom(follower, old, existing);
-            string joined = string.Format(LM.Get("shia_contest_join_log"), claimant.GetKingdomName(), existing.name, old.name);
+                if (Alive(follower) && follower.Religion == old) ConvertKingdom(follower, old, existing);
+            string joined = string.Format(LM.Get("shia_contest_join_log"), claimant.GetKingdomName(), existing.Name, old.Name);
             TranslateHelper.LogEventMessage(joined, claimant);
             ReligionChronicle.Record(old, existing, ReligionChronicle.KindSchism, joined);
             if (empire.data != null) empire.RecordHistory(directContent: joined, actorId: claimant.Ruler?.Key ?? -1L, kingdomId: claimant.Key);
-            LogService.LogInfo($"[EmpireCraft][宗教] {claimant.GetKingdomName()} 争位，投向{existing.name}");
+            LogService.LogInfo($"[EmpireCraft][宗教] {claimant.GetKingdomName()} 争位，投向{existing.Name}");
             return;
         }
         if (EcRandom.value >= ShiaChance) return;
@@ -369,7 +369,7 @@ public static class ReligionSchismSystem
         City capital = claimant.Capital;
         if (head?.Record == null || !head.Alive || capital == null) return;
         if (head.City != capital) head.JoinCity(capital);
-        Religion shia = EmpireWorld.Current.religions.newReligion(head, false);
+        Religion shia = EmpireWorld.Current.Religions.NewReligion(head, false);
         if (shia?.data == null) return;
         shia.data.name = ReligionFaith.PickName("shia", 1) ?? shia.data.name;
         shia.SetCity(capital);
@@ -382,13 +382,13 @@ public static class ReligionSchismSystem
         IslamicSchismSystem.MarkShia(old, shia);
         ConvertKingdom(claimant, old, shia);
         foreach (Realm follower in followers ?? new List<Realm>())
-            if (Alive(follower) && follower.religion == old) ConvertKingdom(follower, old, shia);
-        string text = string.Format(LM.Get("shia_split_log"), claimant.GetKingdomName(), shia.name, old.name);
+            if (Alive(follower) && follower.Religion == old) ConvertKingdom(follower, old, shia);
+        string text = string.Format(LM.Get("shia_split_log"), claimant.GetKingdomName(), shia.Name, old.Name);
         TranslateHelper.LogEventMessage(text, claimant);
         ReligionChronicle.Clear(shia);
         ReligionChronicle.Record(old, shia, ReligionChronicle.KindSchism, text);
         if (empire.data != null) empire.RecordHistory(directContent: text, actorId: head.Key, kingdomId: claimant.Key);
-        LogService.LogInfo($"[EmpireCraft][宗教] {claimant.GetKingdomName()} 争位，另奉{shia.name}(分自{old.name})");
+        LogService.LogInfo($"[EmpireCraft][宗教] {claimant.GetKingdomName()} 争位，另奉{shia.Name}(分自{old.Name})");
     }
 #endif
 
@@ -414,10 +414,10 @@ public static class ReligionSchismSystem
 #if EC_PENDING
     private static void ConvertKingdom(Realm kingdom, Religion old, Religion church)
     {
-        kingdom.setReligion(church);
-        if (kingdom.Ruler?.Record != null && kingdom.Ruler.Alive && kingdom.Ruler.religion == old) kingdom.Ruler.setReligion(church);
+        kingdom.SetReligion(church);
+        if (kingdom.Ruler?.Record != null && kingdom.Ruler.Alive && kingdom.Ruler.Religion == old) kingdom.Ruler.SetReligion(church);
         foreach (City city in kingdom.Cities.ToList())
-            if (city?.Record != null && !city.IsGone() && city.religion == old) BackgroundReligionSystem.Convert(city, church, old);
+            if (city?.Record != null && !city.IsGone() && city.Religion == old) BackgroundReligionSystem.Convert(city, church, old);
     }
 #endif
 }

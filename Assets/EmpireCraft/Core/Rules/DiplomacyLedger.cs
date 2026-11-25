@@ -279,7 +279,6 @@ public static class DiplomacyLedger
     private static int GodOpinionOf(Realm a, Realm b) =>
         a?.Record != null && b != null && a.GetOrCreate().god_opinion is { } map && map.TryGetValue(b.Key, out int value) ? value : 0;
 
-#if EC_PENDING
     public static string TermText(Tie tie)
     {
         var parts = new List<string>();
@@ -291,7 +290,6 @@ public static class DiplomacyLedger
         }
         return parts.Count == 0 ? "—" : string.Join(" · ", parts);
     }
-#endif
 
     // ───────── 态度 ─────────
 #if EC_PENDING
@@ -340,7 +338,7 @@ public static class DiplomacyLedger
             result.navy += NavySystem.Of(member).Sum(fleet => fleet.warships);
             result.cities += member.Cities.Count;
             result.population += CityPopulationSystem.AbstractPopulationEnabled
-                ? CityPopulationSystem.KingdomBackground(member) : member.getPopulationPeople();
+                ? CityPopulationSystem.KingdomBackground(member) : member.PopulationCount();
             result.money += member.GetMoney();
         }
         return result;

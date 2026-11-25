@@ -96,7 +96,7 @@ public static class BackgroundReligionSystem
         var spheres = new Dictionary<City, string>();
         foreach (City city in cities)
         {
-            faith[city] = city.hasReligion() ? city.religion : null;
+            faith[city] = city.HasReligion() ? city.Religion : null;
             people[city] = Mathf.Max(1, city.CountLivingPopulation());
             spheres[city] = ReligionSphere.SphereOfCity(city);
         }
@@ -234,7 +234,7 @@ public static class BackgroundReligionSystem
         string sphere)
     {
         var pressure = new Dictionary<Religion, float>();
-        Religion state = city.Realm.hasReligion() ? city.Realm.religion : null;
+        Religion state = city.Realm.HasReligion() ? city.Realm.Religion : null;
         if (state != null)
             Add(pressure, state, StateWeight * StateFactor(city.Realm) * ReligionFaith.Mission(state) *
                                  ReligionSphere.CrossFactor(state, sphere) * Mathf.Sqrt(people[city]) * ControlFactor(city) *
@@ -276,9 +276,7 @@ public static class BackgroundReligionSystem
 #endif
 
     // 各教的圣地所在与辐射半径(格)，年度结算开头清空
-#if EC_PENDING
     private static readonly Dictionary<Religion, (Cell at, float radius)> Ranges = new();
-#endif
 
     // 辐射圈(见 ReligionReachRules)：出了本天下的城按离圣地(教派、地方教会按自己的中心)远近给势能打折；
     // 本天下之内、没有圣地的宗教不折
@@ -306,6 +304,7 @@ public static class BackgroundReligionSystem
         if (range.at == null || tile == null) return 1f;
         return ReligionReachRules.Factor(Mathf.Sqrt(Land.SquaredDist(range.at, tile)), range.radius);
     }
+#endif
 
     private static void Add(Dictionary<Religion, float> pressure, Religion religion, float weight)
     {
@@ -323,51 +322,46 @@ public static class BackgroundReligionSystem
         }
         return pressure.Keys.LastOrDefault();
     }
-#endif
 
     // 圣地守本教；奉国教的都城随朝廷，不被邻城带走
-#if EC_PENDING
     private static bool Anchored(City city, Religion current) =>
-        current.GetCity() == city || city.IsCapital() && city.Realm.religion == current;
-#endif
+        current.GetCity() == city || city.IsCapital() && city.Realm.Religion == current;
 
     // 城改信：城主等本城实体一并改信(君主除外，国教由他定)；没有国教的国家都城改信即立为国教
 #if EC_PENDING
     public static void Convert(City city, Religion religion, Religion old)
     {
         if (city?.Record == null || religion?.data == null) return;
-        city.setReligion(religion);
-        if (city.units != null)
-            foreach (Person actor in city.units.ToList())
+        city.SetReligion(religion);
+        if (city.People != null)
+            foreach (Person actor in city.People.ToList())
             {
                 if (!Alive(actor) || actor.IsRuler() || CityPopulationSystem.IsVehicle(actor)) continue;
-                if (actor == city.Leader || !actor.hasReligion() || actor.religion == old) actor.setReligion(religion);
+                if (actor == city.Leader || !actor.HasReligion() || actor.Religion == old) actor.SetReligion(religion);
             }
         Realm kingdom = city.Realm;
-        if (kingdom?.Record == null || kingdom.Capital != city || kingdom.hasReligion()) return;
-        kingdom.setReligion(religion);
-        if (Alive(kingdom.Ruler) && !kingdom.Ruler.hasReligion()) kingdom.Ruler.setReligion(religion);
+        if (kingdom?.Record == null || kingdom.Capital != city || kingdom.HasReligion()) return;
+        kingdom.SetReligion(religion);
+        if (Alive(kingdom.Ruler) && !kingdom.Ruler.HasReligion()) kingdom.Ruler.SetReligion(religion);
     }
 #endif
 
     // 君主与国教：无教的君主随都城之教；没有国教的国家，君主或都城有教即立为国教
     // (原版国教跟君主走，可从人口里补上来的君主以前不带宗教)
-#if EC_PENDING
     private static void SyncRulers()
     {
         foreach (Realm kingdom in EmpireWorld.Current.LiveRealms.ToList())
         {
             if (kingdom?.Record == null || kingdom.IsGone() || kingdom.IsWild || AncientWarfareCompatibility.Owns(kingdom)) continue;
             City capital = kingdom.Capital;
-            Religion local = capital?.Record != null && !capital.IsGone() && capital.hasReligion() ? capital.religion : null;
+            Religion local = capital?.Record != null && !capital.IsGone() && capital.HasReligion() ? capital.Religion : null;
             Person king = kingdom.Ruler;
-            if (Alive(king) && !king.hasReligion() && local != null) king.setReligion(local);
-            if (kingdom.hasReligion()) continue;
-            Religion faith = Alive(king) && king.hasReligion() ? king.religion : local;
-            if (faith != null) kingdom.setReligion(faith);
+            if (Alive(king) && !king.HasReligion() && local != null) king.SetReligion(local);
+            if (kingdom.HasReligion()) continue;
+            Religion faith = Alive(king) && king.HasReligion() ? king.Religion : local;
+            if (faith != null) kingdom.SetReligion(faith);
         }
     }
-#endif
 
     #endregion
 
@@ -380,8 +374,8 @@ public static class BackgroundReligionSystem
         Dictionary<Religion, float> households = null;
         foreach (Realm kingdom in EmpireWorld.Current.LiveRealms)
         {
-            if (kingdom?.Record == null || kingdom.IsGone() || kingdom.IsWild || !kingdom.hasReligion() || kingdom.Capital == null) continue;
-            Religion religion = kingdom.religion;
+            if (kingdom?.Record == null || kingdom.IsGone() || kingdom.IsWild || !kingdom.HasReligion() || kingdom.Capital == null) continue;
+            Religion religion = kingdom.Religion;
             if (religion.GetCity() != kingdom.Capital) continue;
             Regime regime = kingdom.GetRegime();
             if (regime == null || regime.type != RegimeType.Feudalism || regime.GetReligionLevel() != ReligionLevel.High) continue;
@@ -389,7 +383,7 @@ public static class BackgroundReligionSystem
             {
                 households = new Dictionary<Religion, float>();
                 foreach (City city in cities)
-                    if (city.hasReligion()) Add(households, city.religion, CityPopulationSystem.FiscalHouseholds(city));
+                    if (city.HasReligion()) Add(households, city.Religion, CityPopulationSystem.FiscalHouseholds(city));
             }
             households.TryGetValue(religion, out float believers);
             gained.TryGetValue(religion, out float converts);
@@ -400,7 +394,6 @@ public static class BackgroundReligionSystem
 
     #endregion
 
-#if EC_PENDING
     private static void LogDiagnostics(List<City> cities, Dictionary<City, float> people, int adopted, int converted, int crossed)
     {
         var believers = new Dictionary<Religion, float>();
@@ -409,18 +402,17 @@ public static class BackgroundReligionSystem
         foreach (City city in cities)
         {
             total += people[city];
-            if (!city.hasReligion()) continue;
+            if (!city.HasReligion()) continue;
             faithful += people[city];
-            Add(believers, city.religion, people[city]);
-            counts.TryGetValue(city.religion, out int count);
-            counts[city.religion] = count + 1;
+            Add(believers, city.Religion, people[city]);
+            counts.TryGetValue(city.Religion, out int count);
+            counts[city.Religion] = count + 1;
         }
         KeyValuePair<Religion, float> top = believers.OrderByDescending(pair => pair.Value).FirstOrDefault();
-        string largest = top.Key == null ? "无" : $"{top.Key.name} {counts[top.Key]} 城 {top.Value:0} 人";
+        string largest = top.Key == null ? "无" : $"{top.Key.Name} {counts[top.Key]} 城 {top.Value:0} 人";
         LogService.LogInfo($"[EmpireCraft][宗教诊断] 各城所奉宗教 {believers.Count} 种；" +
                            $"有教之城 {counts.Values.Sum()}/{cities.Count}，信众 {faithful:0}/{total:0} 人；" +
                            $"本年无教之城改信 {adopted}、改宗 {converted}(其中跨天下 {crossed})；最大：{largest}");
     }
-#endif
 }
 }

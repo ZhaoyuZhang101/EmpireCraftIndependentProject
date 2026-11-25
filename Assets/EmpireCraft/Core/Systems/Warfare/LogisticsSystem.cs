@@ -45,14 +45,12 @@ public static class LogisticsSystem
     // 战力：补给满时不打折，补给线被切断时只剩三成五
     public static float AttackFactor(CorpsData corps) => 0.35f + 0.65f * Mathf.Clamp01(corps?.supply ?? 1f);
 
-#if EC_PENDING
     public static bool Foraging(Realm kingdom)
     {
-        Realm realm = FrontSystem.Realm(kingdom);
+        Realm realm = FrontSystem.ModRealm(kingdom);
         double until = realm?.Record == null ? -1d : realm.GetOrCreate().forage_until;
         return until > 0d && EmpireWorld.Current != null && GameClock.Now < until;
     }
-#endif
 
     // 一国一月的补给结算里：各控制方与本国的关系(友、敌、都不是、许本国借道)只判一次；同一块地、同样走不走海路的补给线只找一次
     // (几支军常挤在同一块地上)。都只在这一国这一次结算里有效。许借道的地运粮按本方的地折损，但不是粮源(见 MilitaryAccessSystem)
@@ -60,7 +58,6 @@ public static class LogisticsSystem
     private static readonly Dictionary<long, sbyte> Relations = new();
     private static readonly Dictionary<int, float> SupplyByZone = new();
 
-#if EC_PENDING
     private static sbyte Relation(Realm kingdom, Realm other)
     {
         if (other == null) return RelationNeither;
@@ -71,7 +68,6 @@ public static class LogisticsSystem
         Relations[other.Key] = relation;
         return relation;
     }
-#endif
 
     // months：降频时一回结几个月(见 CorpsSystem.DueMonths)——补给线找一次，被围、粮耗、损耗按月补跑
 #if EC_PENDING
@@ -101,7 +97,7 @@ public static class LogisticsSystem
             Feed(kingdom, list, foraging);
             Attrition(kingdom, list);
         }
-        if (FrontSystem.Realm(kingdom) == kingdom) TryForage(kingdom);
+        if (FrontSystem.ModRealm(kingdom) == kingdom) TryForage(kingdom);
     }
 
     private static float Supply(Realm kingdom, CorpsData corps, bool foraging)
@@ -304,7 +300,7 @@ public static class LogisticsSystem
         float supplied = 0f;
         if (remaining > 0f && GranarySystem.Enabled(kingdom))
         {
-            Realm realm = GranarySystem.Realm(kingdom);
+            Realm realm = GranarySystem.ModRealm(kingdom);
             var data = realm.GetOrCreate();
             float take = Mathf.Min(data.granary, remaining);
             data.granary -= take;
@@ -403,7 +399,7 @@ public static class LogisticsSystem
 #if EC_PENDING
     public static bool CanForage(Person actor, bool needy)
     {
-        Realm realm = FrontSystem.Realm(actor?.Realm);
+        Realm realm = FrontSystem.ModRealm(actor?.Realm);
         if (realm?.Record == null || realm.IsGone() || WarCommandSystem.Commander(realm) != actor ||
             !realm.HasEnemies() || Foraging(realm)) return false;
         return !needy || ForageWanted(realm);
@@ -412,7 +408,7 @@ public static class LogisticsSystem
     public static bool Forage(Person actor)
     {
         if (!CanForage(actor, needy: false)) return false;
-        Realm realm = FrontSystem.Realm(actor.Realm);
+        Realm realm = FrontSystem.ModRealm(actor.Realm);
         realm.GetOrCreate().forage_until = GameClock.Now + ForageMonths * SecondsPerMonth;
         TranslateHelper.LogEventMessage(string.Format(LM.Get("war_forage_ordered"), realm.GetKingdomName(),
             WarCommandSystem.TitleOf(realm), actor.FullName()), realm);

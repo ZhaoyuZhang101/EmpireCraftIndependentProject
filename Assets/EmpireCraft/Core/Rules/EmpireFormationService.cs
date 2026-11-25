@@ -530,7 +530,7 @@ public static class EmpireFormationService
     // 无小人、纯净地图(独立服务器也是)下谁都够不上人口 200，天下几十年没人称帝
 #if EC_PENDING
     public static int Population(Realm kingdom) =>
-        kingdom?.Record == null ? 0 : CityPopulationSystem.AbstractPopulationEnabled ? CityPopulationSystem.Households(kingdom) : kingdom.countUnits();
+        kingdom?.Record == null ? 0 : CityPopulationSystem.AbstractPopulationEnabled ? CityPopulationSystem.Households(kingdom) : kingdom.PopulationCount();
 #endif
 
     public static bool IsSubject(Realm kingdom) =>

@@ -58,7 +58,7 @@ public static partial class CourtSystem
                 kingdom != core && kingdom.Capital != null && kingdom.Ruler != null && supporters.Contains(kingdom.Ruler.GetFaction()) &&
                 !kingdom.IsFactionRebelling() && !kingdom.IsLocalRebelling() && RebellionSystem.CanAttempt(kingdom) &&
                 !kingdom.GetWars().Any(war => war != null && !war.HasEnded()))
-            .OrderByDescending(kingdom => kingdom.countTotalWarriors()).ToList();
+            .OrderByDescending(kingdom => kingdom.Warriors()).ToList();
         if (provinces.Count > 0)
         {
             Realm leader = provinces[0];

@@ -304,7 +304,7 @@ public static class AnimalHusbandrySystem
     {
             if (actor?.Record == null || actor.IsGone() || !actor.Alive || actor.asset == null) return;
             if (actor.isFavorite() || actor.isCameraFollowingUnit()) return;
-            Cell tile = actor.current_tile;
+            Cell tile = actor.Cell;
             City owner = tile?.Zone?.City;
             if (owner == null) return;
             // 无小人模式没有农民赶虫：农田(田地、规划农耕区)上的害虫由城市每月清除
@@ -324,7 +324,7 @@ public static class AnimalHusbandrySystem
     {
         if (PestsByCity.TryGetValue(city, out List<Person> pestList))
             foreach (Person pest in pestList)
-                if (pest != null && !pest.IsGone() && pest.Alive && pest.current_tile?.zone?.city == city) Remove(pest);
+                if (pest != null && !pest.IsGone() && pest.Alive && pest.Cell?.Zone?.City == city) Remove(pest);
         CityPopulationData data = CityPopulationSystem.Get(city);
         if (data == null) return;
         float pastures = Pastures(city);
@@ -334,7 +334,7 @@ public static class AnimalHusbandrySystem
         if (data.herd > capacity) data.herd = capacity;
         AnimalsByCity.TryGetValue(city, out List<Person> animals);
         animals?.RemoveAll(animal => animal?.asset == null || animal.IsGone() || !animal.Alive ||
-            animal.current_tile?.zone?.city != city);
+            animal.Cell?.Zone?.City != city);
         float meat = 0f, leather = 0f, bones = 0f;
 
         // 牧场：圈进家畜

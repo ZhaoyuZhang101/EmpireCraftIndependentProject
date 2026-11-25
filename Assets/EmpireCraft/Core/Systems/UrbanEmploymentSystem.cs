@@ -190,11 +190,11 @@ public static class UrbanEmploymentSystem
             (voyage.origin_city_id == city.Key || voyage.destination_city_id == city.Key)) ?? 0;
     }
 
-#if EC_PENDING
-    private static List<Person> GetAdults(City city) => city.units?
-        .Where(actor => actor != null && !actor.IsGone() && actor.Alive && actor.isAdult() &&
-                        actor.city == city).ToList() ?? new List<Person>();
+    private static List<Person> GetAdults(City city) => city.People?
+        .Where(actor => actor != null && !actor.IsGone() && actor.Alive && actor.IsAdult() &&
+                        actor.City == city).ToList() ?? new List<Person>();
 
+#if EC_PENDING
     private static bool IsEligibleWorker(Person actor) => actor != null && !actor.IsOnOffice() &&
         !actor.IsWarrior() && !EmpireCaftActorJudgeClass.IsManualWorkerJob(actor) &&
         !LandEconomySystem.IsLandlord(actor) &&

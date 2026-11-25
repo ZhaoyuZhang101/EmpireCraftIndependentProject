@@ -53,7 +53,7 @@ public static class ReligiousPersecution
         if (EmpireWorld.Current?.LiveRealms == null || ModClass.IS_CLEAR) return;
         foreach (Realm realm in EmpireWorld.Current.LiveRealms.ToList())
         {
-            if (!Alive(realm) || ModRealm(realm) != realm || !realm.hasReligion() ||
+            if (!Alive(realm) || ModRealm(realm) != realm || !realm.HasReligion() ||
                 EmpireCraft.Core.AncientWarfareCompatibility.Owns(realm)) continue;
             var data = realm.GetOrCreate();
             if (data.persecution_at >= 0d && GameClock.Now >= data.persecution_at &&
@@ -61,7 +61,7 @@ public static class ReligiousPersecution
             List<City> all = Cities(realm);
             List<City> heterodox = all.Where(ReligiousTension.IsHeterodox).ToList();
             if (heterodox.Count == 0) continue;
-            IGrouping<Religion, City> target = heterodox.GroupBy(city => city.religion).OrderByDescending(group => group.Count()).First();
+            IGrouping<Religion, City> target = heterodox.GroupBy(city => city.Religion).OrderByDescending(group => group.Count()).First();
             if (target.Count() < MinCities && target.Count() < all.Count * MinShare) continue;
             ReligiousTension.Policy policy = ReligiousTension.PolicyOf(realm);
             float chance = policy switch
@@ -70,11 +70,11 @@ public static class ReligiousPersecution
                 ReligiousTension.Policy.PollTax => PollTaxChance,
                 _ => Strapped(realm) ? PurgeChance : 0f
             };
-            bool homeland = Homeland(realm.religion, target.Key, target.ToList());
+            bool homeland = Homeland(realm.Religion, target.Key, target.ToList());
             if (homeland) chance *= HomelandChanceFactor;
             if (EcRandom.value >= chance) continue;
             data.persecution_at = GameClock.Now;
-            bool expel = !homeland && policy == ReligiousTension.Policy.Intolerant && ReligionFaith.IsExclusive(realm.religion) &&
+            bool expel = !homeland && policy == ReligiousTension.Policy.Intolerant && ReligionFaith.IsExclusive(realm.Religion) &&
                          EcRandom.value < 0.5f;
             if (expel) Expel(realm, target.Key, target.ToList());
             else Persecute(realm, target.Key, target.ToList(), homeland ? HomelandConvertShare : ConvertShare);
@@ -120,7 +120,7 @@ public static class ReligiousPersecution
         foreach (City city in cities)
         {
             seized += (long)CityPopulationSystem.FiscalHouseholds(city) * ConfiscatePerHousehold;
-            Religion state = city.Realm.religion;
+            Religion state = city.Realm.Religion;
             if (EcRandom.value < convertShare && state != null)
             {
                 BackgroundReligionSystem.Convert(city, state, faith);
@@ -135,10 +135,10 @@ public static class ReligiousPersecution
         LawEvents.HereticLeaders(realm, faith, kept);
         ReligionDiagnostics.Add(ReligionDiagnostics.Persecuted, converted);
         if (seized > 0) realm.AddMoney((int)Mathf.Min(int.MaxValue, seized), TreasuryCategory.RecoveredFunds);
-        string text = string.Format(LM.Get("persecution_log"), realm.GetKingdomName(), faith.name, MoneyDisplay.Format(seized), converted);
+        string text = string.Format(LM.Get("persecution_log"), realm.GetKingdomName(), faith.Name, MoneyDisplay.Format(seized), converted);
         TranslateHelper.LogEventMessage(text, realm);
-        ReligionChronicle.Record(faith, realm.religion, ReligionChronicle.KindConversion, text);
-        LogService.LogInfo($"[EmpireCraft][宗教] {realm.GetKingdomName()} 迫害{faith.name}：{cities.Count} 城，没收 {seized}，改宗 {converted} 城");
+        ReligionChronicle.Record(faith, realm.Religion, ReligionChronicle.KindConversion, text);
+        LogService.LogInfo($"[EmpireCraft][宗教] {realm.GetKingdomName()} 迫害{faith.Name}：{cities.Count} 城，没收 {seized}，改宗 {converted} 城");
     }
 #endif
 
@@ -151,19 +151,20 @@ public static class ReligiousPersecution
         foreach (City city in cities)
         {
             if (CityPopulationSystem.AbstractPopulationEnabled) moved |= Emigrate(city, faith, realm, empire);
-            Religion state = city.Realm.religion;
+            Religion state = city.Realm.Religion;
             if (state != null) BackgroundReligionSystem.Convert(city, state, faith);
         }
         if (moved) CityPopulationSystem.InvalidateHouseholdCaches();
         ReligionDiagnostics.Add(ReligionDiagnostics.Expelled, cities.Count);
         foreach (Realm other in EmpireWorld.Current.LiveRealms.ToList())
-            if (Alive(other) && other != realm && ModRealm(other) == other && other.religion == faith)
+            if (Alive(other) && other != realm && ModRealm(other) == other && other.Religion == faith)
                 MigrationRelations.Expelled(other, realm);
-        string text = string.Format(LM.Get("expulsion_log"), realm.GetKingdomName(), faith.name, cities.Count);
+        string text = string.Format(LM.Get("expulsion_log"), realm.GetKingdomName(), faith.Name, cities.Count);
         TranslateHelper.LogEventMessage(text, realm);
-        ReligionChronicle.Record(faith, realm.religion, ReligionChronicle.KindConversion, text);
-        LogService.LogInfo($"[EmpireCraft][宗教] {realm.GetKingdomName()} 驱逐{faith.name}信众：{cities.Count} 城");
+        ReligionChronicle.Record(faith, realm.Religion, ReligionChronicle.KindConversion, text);
+        LogService.LogInfo($"[EmpireCraft][宗教] {realm.GetKingdomName()} 驱逐{faith.Name}信众：{cities.Count} 城");
     }
+#endif
 
     private static bool Emigrate(City city, Religion faith, Realm realm, Empire empire)
     {
@@ -171,7 +172,7 @@ public static class ReligiousPersecution
         if (data?.groups == null) return false;
         List<City> abroad = city.NeighbourCities?.Where(other => other?.Record != null && !other.IsGone() && other.Realm != null &&
             !other.Realm.IsWild && ModRealm(other.Realm) != realm).ToList() ?? new List<City>();
-        City home = abroad.FirstOrDefault(other => other.religion == faith);
+        City home = abroad.FirstOrDefault(other => other.Religion == faith);
         City refuge = home ?? abroad.FirstOrDefault();
         PopulationParallelSystem.Discard(city);
         if (refuge != null) PopulationParallelSystem.Discard(refuge);
@@ -188,6 +189,5 @@ public static class ReligiousPersecution
         if (moved && refuge != null && home == null) MigrationRelations.TakeRefugees(refuge);
         return moved;
     }
-#endif
 }
 }

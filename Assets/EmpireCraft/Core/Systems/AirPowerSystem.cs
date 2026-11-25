@@ -131,7 +131,7 @@ public static class AirPowerSystem
         if (target == null) return;
         float intensity = Mathf.Clamp01(power / FullBombers) * effect;
         float cut = BombBase * effect + BombPerIntensity * intensity;
-        Bombed[target.Key] = (now + 12d * Date.getMonthTime(), Mathf.Max(cut, Bombed.TryGetValue(target.Key, out var old) ? old.cut : 0f));
+        Bombed[target.Key] = (now + 12d * GameClock.MonthLength, Mathf.Max(cut, Bombed.TryGetValue(target.Key, out var old) ? old.cut : 0f));
         if (target.Realm?.GetEmpire() is { } victim)
         {
             ClaimPolicySystem.AddGrievance(victim, SocialClass.Labour, 3f * intensity);

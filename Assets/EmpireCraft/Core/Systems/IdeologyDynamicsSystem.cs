@@ -179,7 +179,7 @@ public static class IdeologyDynamicsSystem
         foreach (City city in empire.kingdoms_list.Where(kingdom => kingdom?.Cities != null && !kingdom.IsGone())
                      .SelectMany(kingdom => kingdom.Cities).Distinct().ToList())
         {
-            if (city?.units == null || city.IsGone()) continue;
+            if (city?.People == null || city.IsGone()) continue;
             string culture = CultureService.GetMainCulture(city);
             // 爆发允许产生科技基础已经成熟的新思潮，不局限于已经占有人口的旧派别。
             List<PartyIdeology> targets = IdeologyPopulationSystem.GetAvailableIdeologies(culture, empire, true)
@@ -187,9 +187,9 @@ public static class IdeologyDynamicsSystem
             if (targets.Count == 0) continue;
             Dictionary<PartyIdeology, int> local = IdeologyPopulationSystem.GetCityCounts(city);
             List<PartyIdeology> emerging = targets.Where(ideology => !local.ContainsKey(ideology)).ToList();
-            List<Person> conformists = city.units.Where(actor => actor != null && !actor.IsGone() && actor.Alive &&
-                    actor.isAdult() &&
-                    !actor.isKing() && !actor.isCityLeader() && actor.GetFaction()?.IsParty != true &&
+            List<Person> conformists = city.People.Where(actor => actor != null && !actor.IsGone() && actor.Alive &&
+                    actor.IsAdult() &&
+                    !actor.IsRuler() && !actor.IsCityLeader() && actor.GetFaction()?.IsParty != true &&
                     IdeologyPopulationSystem.Get(actor) == founding)
                 .ToList();
             int quota = conformists.Count == 0 ? 0 : Mathf.Max(1, Mathf.RoundToInt(conformists.Count * share));
@@ -443,9 +443,9 @@ public static class IdeologyDynamicsSystem
         foreach (City city in empire.kingdoms_list.Where(kingdom => kingdom?.Cities != null && !kingdom.IsGone())
                      .SelectMany(kingdom => kingdom.Cities).ToList())
         {
-            if (city?.units == null || city.IsGone()) continue;
-            List<Person> candidates = city.units.Where(actor => actor != null && !actor.IsGone() && actor.Alive &&
-                    !actor.isKing() && !actor.isCityLeader() && actor.GetFaction()?.IsParty != true &&
+            if (city?.People == null || city.IsGone()) continue;
+            List<Person> candidates = city.People.Where(actor => actor != null && !actor.IsGone() && actor.Alive &&
+                    !actor.IsRuler() && !actor.IsCityLeader() && actor.GetFaction()?.IsParty != true &&
                     IdeologyPopulationSystem.Get(actor) != to &&
                     (!from.HasValue || IdeologyPopulationSystem.Get(actor) == from.Value))
                 .ToList();

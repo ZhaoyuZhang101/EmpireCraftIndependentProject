@@ -551,7 +551,7 @@ public static partial class EmpireLawSystem
         if (TryCheckActor(city.GetOffice()?.GetActor())) return true;
         if (city.IsCapital() && TryCheckActor(kingdom.Ruler)) return true;
 
-        foreach (Person actor in city.units)
+        foreach (Person actor in city.People)
         {
             if (TryCheckActor(actor))
             {
@@ -588,7 +588,7 @@ public static partial class EmpireLawSystem
 
         int empireWarriors = empire.countWarriors();
         if (empireWarriors <= 0) return;
-        if (kingdom.countTotalWarriors() * 2 < empireWarriors) return;
+        if (kingdom.Warriors() * 2 < empireWarriors) return;
 
         int emperorInfluence = emperor.Record != null ? emperor.Renown : 0;
         int leaderInfluence = leader.Record != null ? leader.Renown : 0;
@@ -723,7 +723,7 @@ public static partial class EmpireLawSystem
             // 不在帝国里的国家记 -1(按国论处，见 InJurisdiction)
             empire_id = kingdom.IsInEmpire() ? kingdom.GetEmpireID() : -1L,
             crime_timestamp = now,
-            crime_date = Date.getDate(now),
+            crime_date = GameClock.DateText(now),
             amount = Math.Max(0, amount)
         };
         records.Add(record);
@@ -810,7 +810,7 @@ public static partial class EmpireLawSystem
 
         record.discovered = true;
         record.discovered_timestamp = GameClock.Now;
-        record.discovered_date = Date.getDate(record.discovered_timestamp);
+        record.discovered_date = GameClock.DateText(record.discovered_timestamp);
 
         LawType lawType = (LawType)record.law_type;
         string lawName = GetLawName(lawType);
@@ -853,7 +853,7 @@ public static partial class EmpireLawSystem
 
             record.discovered = true;
             record.discovered_timestamp = GameClock.Now;
-            record.discovered_date = Date.getDate(record.discovered_timestamp);
+            record.discovered_date = GameClock.DateText(record.discovered_timestamp);
 
             LawType lawType = (LawType)record.law_type;
             LawEnforcementContext context = TryEnforceLaw(actor, lawType, kingdom, ApplyRecordedOptionalPunishments, record.crime_date,
@@ -920,7 +920,7 @@ public static partial class EmpireLawSystem
             Empire empire = kingdom.GetEmpire();
             if (empire == null || empire.IsGone() || empire.IsArchived()) return false;
             if (kingdom == empire.CoreKingdom) return false;
-            if (kingdom.countTotalWarriors() * 2 < empire.countWarriors()) return false;
+            if (kingdom.Warriors() * 2 < empire.countWarriors()) return false;
 
             Person emperor = empire.Emperor;
             int emperorInfluence = emperor != null && emperor.Record != null ? emperor.Renown : 0;

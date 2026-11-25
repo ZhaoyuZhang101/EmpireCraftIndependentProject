@@ -184,9 +184,9 @@ public static class ExileGovernmentSystem
     private static List<Person> Entourage(Realm exile)
     {
         Person king = exile.Ruler, heir = exile.GetHeir();
-        return exile.units.ToList()
-            .Where(actor => actor?.data != null && !actor.IsGone() && actor.Alive && actor.asset?.civ == true && !actor.asset.is_boat &&
-                            actor.kingdom == exile)
+        return exile.People.ToList()
+            .Where(actor => actor?.Record != null && !actor.IsGone() && actor.Alive && actor.asset?.civ == true && !actor.asset.is_boat &&
+                            actor.Realm == exile)
             .Select(actor => (actor, rank: actor == king ? 0 : actor == heir ? 1 :
                 king?.Clan != null && actor.clan == king.Clan ? 2 : actor == king?.Spouse ? 2 :
                 CityPopulationSystem.IsNotable(actor) ? 3 : 9))
@@ -338,8 +338,8 @@ public static class ExileGovernmentSystem
         SpecificClan royal = SpecificClanManager.getPerson(exile.GetOrCreate().last_ruler_identity_id)?._specificClan;
         Person heir = exile.GetHeir();
         Person next = heir != null && heir.Alive && heir.Realm == exile && heir.IsAdult() ? heir
-            : exile.units.Where(actor => actor?.data != null && !actor.IsGone() && actor.Alive && actor.isAdult() &&
-                                         actor.asset?.civ == true && !actor.asset.is_boat && actor.kingdom == exile)
+            : exile.People.Where(actor => actor?.Record != null && !actor.IsGone() && actor.Alive && actor.IsAdult() &&
+                                         actor.asset?.civ == true && !actor.asset.is_boat && actor.Realm == exile)
                 // 宗室在先(随行的近亲，见 BringRoyalKin)，以前只按声望，元首一死常由外人接任
                 .OrderByDescending(actor => royal != null && SpecificClanManager.SameLineage(actor.GetSpecificClan(), royal))
                 .ThenByDescending(actor => actor.renown).FirstOrDefault();
@@ -400,7 +400,7 @@ public static class ExileGovernmentSystem
         if (seat != null && seat.Realm == exile)
         {
             exile.SetCapital(seat);
-            foreach (Person actor in exile.units.ToList())
+            foreach (Person actor in exile.People.ToList())
                 if (actor?.Record != null && !actor.IsGone() && actor.Alive && actor.City == null && actor.Realm == exile &&
                     actor.asset?.civ == true && !actor.asset.is_boat)
                     actor.JoinCity(seat);
@@ -424,7 +424,7 @@ public static class ExileGovernmentSystem
         data.exile_city_ids = null;
         City refuge = host?.Capital;
         if (refuge == null || refuge.IsGone()) return;
-        foreach (Person actor in exile.units.ToList())
+        foreach (Person actor in exile.People.ToList())
             if (actor?.Record != null && !actor.IsGone() && actor.Alive && actor.City == null && actor.asset?.civ == true && !actor.asset.is_boat)
                 actor.JoinCity(refuge);
     }

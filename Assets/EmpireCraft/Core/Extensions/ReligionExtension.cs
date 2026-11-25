@@ -97,42 +97,35 @@ public static class ReligionExtension
         public int kind;
         public string text = "";
     }
-#if EC_PENDING
     public static ReligionExtraData GetOrCreate(this Religion a, bool isSave = false)
     {
         var ed = a.GetOrCreate<Religion, ReligionExtraData>(isSave);
         return ed;
     }
-#endif
     /// <summary>
     /// 获取教皇
     /// </summary>
     /// <param name="r"></param>
     /// <returns></returns>
-#if EC_PENDING
     public static Person GetLeader(this Religion r)
     {
         return EmpireWorld.Current.PersonByKey(r.GetOrCreate().LeaderID);
     }
-#endif
     /// <summary>
     /// 更换教皇人选
     /// </summary>
     /// <param name="r"></param>
     /// <param name="actor"></param>
-#if EC_PENDING
     public static void SetLeader(this Religion r, Person actor)
     {
         r.GetOrCreate().LeaderID = actor.Key;
     }
-#endif
 
     /// <summary>
     /// 设置圣地
     /// </summary>
     /// <param name="r"></param>
     /// <param name="city"></param>
-#if EC_PENDING
     public static void SetCity(this Religion r, City city)
     {
         if (city != null)
@@ -140,18 +133,15 @@ public static class ReligionExtension
             r.GetOrCreate().CityID = city.Key;
         }
     }
-#endif
 
     /// <summary>
     /// 获取圣地
     /// </summary>
     /// <param name="r"></param>
     /// <returns></returns>
-#if EC_PENDING
     public static City GetCity(this Religion r)
     {
         return EmpireWorld.Current.CityByKey(r.GetOrCreate().CityID);
     }
-#endif
 }
 }

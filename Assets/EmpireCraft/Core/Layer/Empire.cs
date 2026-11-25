@@ -56,8 +56,8 @@ public class Empire : RecordObject<EmpireData>
     //朝贡国
     public List<Realm> taken_Kingdoms = new List<Realm>();
     
-#if EC_PENDING
     public Religion Religion = null;
+#if EC_PENDING
     private TemporaryFaction _runningTemporaryFaction;
 #endif
 
@@ -863,7 +863,7 @@ public class Empire : RecordObject<EmpireData>
                 else if (CoreKingdom.GetRegime().type == RegimeType.LvLing)
                 {
                     data.directPre = "";
-                    nameEmpire = actor.culture.getOnomasticData(MetaType.Kingdom).generateName();
+                    nameEmpire = actor.Culture.getOnomasticData(MetaType.Kingdom).generateName();
                     SetEmpireName(nameEmpire);
                     currentSpecificClan.RecordHistoryEmpire(this, CoreKingdom.Capital);
                 }
@@ -1670,7 +1670,7 @@ public class Empire : RecordObject<EmpireData>
                     if (SpecificClanManager.SameLineage(kingdom.Ruler.GetSpecificClan(), EmpireSpecificClan))
                     {
                         if (heirEmpire == null || heirEmpire.IsGone() ||
-                            kingdom.countTotalWarriors() > heirEmpire.countTotalWarriors())
+                            kingdom.Warriors() > heirEmpire.Warriors())
                         {
                             heirEmpire = kingdom;
                         }
@@ -1698,6 +1698,7 @@ public class Empire : RecordObject<EmpireData>
             ModClass.EMPIRE_MANAGER.dissolveEmpire(this);
         }
     }
+#endif
 
     public Realm GetMostPowerfulKingdom()
     {
@@ -1708,14 +1709,13 @@ public class Empire : RecordObject<EmpireData>
             {
                 kingdom = k;
             }
-            if (k.countTotalWarriors() >= kingdom.countTotalWarriors())
+            if (k.Warriors() >= kingdom.Warriors())
             {
                 kingdom = k;
             }
         }
         return kingdom;
     }
-#endif
 
     // 返回是否成功由 newKingdom 接续为新帝国（成功时本帝国会被解散）
     // 选帝制(神圣罗马式)：当选的诸侯带着自家领国成为帝国中央，帝都随之搬迁；原中央降为普通诸侯国、仍归原皇族。
@@ -2389,8 +2389,8 @@ public class Empire : RecordObject<EmpireData>
                 .OrderByDescending(k => k.Key == preferredCoreId)
                 .ThenByDescending(k => k == currentCore)
                 .ThenByDescending(k => k.IsEmpire())
-                .ThenByDescending(k => k.countTotalWarriors())
-                .ThenByDescending(k => k.cities.Count)
+                .ThenByDescending(k => k.Warriors())
+                .ThenByDescending(k => k.Cities.Count)
                 .FirstOrDefault();
 
             if (candidate != null)
@@ -2493,7 +2493,7 @@ public class Empire : RecordObject<EmpireData>
 
         if (Religion == null || Religion.IsGone())
         {
-            Religion = EmpireWorld.Current.religions.get(data.Religion);
+            Religion = EmpireWorld.Current.Religions.Get(data.Religion);
         }
 
         given_Kingdoms = given_Kingdoms.Where(k => k != null && !k.IsGone()).Distinct().ToList();
@@ -2568,7 +2568,7 @@ public class Empire : RecordObject<EmpireData>
                         if (k == CoreKingdom) continue;
                         if (k.IsGone()) continue;
                         if (k.Cities.Count <= 0) continue;
-                        int warriors = k.countTotalWarriors();
+                        int warriors = k.Warriors();
                         if (warriors >= maxWarriors)
                         {
                             maxWarriors = warriors;
@@ -2753,7 +2753,7 @@ public class Empire : RecordObject<EmpireData>
             }
         }
 
-        this.data.Religion = Religion?.id ?? -1L;
+        this.data.Religion = Religion?.Key ?? -1L;
         foreach (var k in this.given_Kingdoms)
         {
             this.data.given_Kingdoms.Add(k.Key);
@@ -2786,7 +2786,7 @@ public class Empire : RecordObject<EmpireData>
         if (pData.archived)
         {
             this.EmpireClan = EmpireWorld.Current.ClanByKey(pData.empire_clan);
-            this.Religion = EmpireWorld.Current.religions.get(pData.Religion);
+            this.Religion = EmpireWorld.Current.Religions.Get(pData.Religion);
             this.OriginalCapital = EmpireWorld.Current.CityByKey(pData.original_capital);
             this.CoreKingdom = EmpireWorld.Current.RealmByKey(pData.empire);
             if (this.CoreKingdom == null || this.CoreKingdom.IsGone())
@@ -2834,7 +2834,7 @@ public class Empire : RecordObject<EmpireData>
             taken_Kingdoms.Add(EmpireWorld.Current.RealmByKey(k));
         }
 
-        this.Religion = EmpireWorld.Current.religions.get(pData.Religion);
+        this.Religion = EmpireWorld.Current.Religions.Get(pData.Religion);
         this.CoreKingdom = EmpireWorld.Current.RealmByKey(pData.empire);
         if (!EmpireMembershipService.BelongsTo(this, CoreKingdom))
         {

@@ -368,7 +368,7 @@ public static class LawEvents
         {
             if (charged >= PersecutionMax) break;
             Person leader = city?.Record == null || city.IsGone() ? null : city.Leader;
-            if (!Living(leader) || leader.IsRuler() || leader.religion != faith || !Within(leader.Realm, realm)) continue;
+            if (!Living(leader) || leader.IsRuler() || leader.Religion != faith || !Within(leader.Realm, realm)) continue;
             if (EcRandom.value >= PersecutionChance) continue;
             if (Prosecute(leader, LawType.宣扬异端, realm, "law_reason_persecution")) charged++;
         }

@@ -1437,7 +1437,6 @@ public static class CityExtension
         return 0f;
     }
 
-#if EC_PENDING
     private static Person FindOccupationCaptureTarget(this City city, Cell zone, bool zoneOccupationMode)
     {
         if (city == null || city.Realm == null)
@@ -1448,7 +1447,7 @@ public static class CityExtension
         Person emperor = city.Realm.GetEmpire()?.Emperor;
         if (emperor != null && !emperor.IsGone() && emperor.Alive)
         {
-            if (!zoneOccupationMode || emperor.current_tile?.zone == zone)
+            if (!zoneOccupationMode || emperor.Cell?.Zone == zone)
             {
                 return emperor;
             }
@@ -1457,7 +1456,7 @@ public static class CityExtension
         Person king = city.Realm.Ruler;
         if (king != null && !king.IsGone() && king.Alive)
         {
-            if (!zoneOccupationMode || king.current_tile?.zone == zone)
+            if (!zoneOccupationMode || king.Cell?.Zone == zone)
             {
                 return king;
             }
@@ -1466,7 +1465,7 @@ public static class CityExtension
         Person leader = city.HasLeader() ? city.Leader : null;
         if (leader != null && !leader.IsGone() && leader.Alive)
         {
-            if (!zoneOccupationMode || leader.current_tile?.zone == zone)
+            if (!zoneOccupationMode || leader.Cell?.Zone == zone)
             {
                 return leader;
             }
@@ -1475,6 +1474,7 @@ public static class CityExtension
         return null;
     }
 
+#if EC_PENDING
     private static void ApplyOccupationCaptureRewards(this City city, Person capturer, Person victim)
     {
         if (capturer == null || capturer.IsGone() || victim == null || victim.IsGone())
@@ -2052,7 +2052,7 @@ public static class CityExtension
                 Person collapseLeader = otherCity.Leader;
                 if (collapseLeader == null || collapseLeader.IsGone())
                 {
-                    collapseLeader = otherCity.units?.FirstOrDefault(actor => actor != null && !actor.IsGone());
+                    collapseLeader = otherCity.People?.FirstOrDefault(actor => actor != null && !actor.IsGone());
                 }
 
                 if (collapseLeader == null)
@@ -2257,7 +2257,6 @@ public static class CityExtension
 
     public static long GetTreasuryBalance(this City c) => c.GetOrCreate().Money;
 
-#if EC_PENDING
     public static CityValueSnapshot GetCityStrategicValue(this City city)
     {
         if (city == null || city.IsGone() || city.Realm == null) return default;
@@ -2279,7 +2278,7 @@ public static class CityExtension
         Vector2 capitalPosition = GetCityValuePosition(kingdom.Capital);
         float distanceToCore = Mathf.Min(Vector2.Distance(cityPosition, capitalPosition),
             Vector2.Distance(cityPosition, qualityCenter));
-        CityValueSnapshot value = CityValueRules.Evaluate(city.countUnits(), city.GetMoney(), distanceToCore,
+        CityValueSnapshot value = CityValueRules.Evaluate(city.PopulationCount(), city.GetMoney(), distanceToCore,
             coreRadius, !city.IsConnectedToKingdomCapital());
         data.city_value = value.Total;
         data.city_value_distance_to_core = value.DistanceToCore;
@@ -2287,7 +2286,6 @@ public static class CityExtension
         data.last_city_value_timestamp = EmpireWorld.Current?.Now() ?? -1L;
         return value;
     }
-#endif
 
     public static void InvalidateCityStrategicValue(this City city)
     {
@@ -2327,7 +2325,6 @@ public static class CityExtension
         return false;
     }
 
-#if EC_PENDING
     private static void GetCityValueContext(Realm kingdom, out Vector2 qualityCenter, out float coreRadius)
     {
         var data = kingdom.GetOrCreate();
@@ -2344,7 +2341,7 @@ public static class CityExtension
         foreach (City candidate in kingdom.Cities)
         {
             if (candidate == null || candidate.IsGone()) continue;
-            float weight = 1f + Mathf.Sqrt(Mathf.Max(0, candidate.countUnits())) +
+            float weight = 1f + Mathf.Sqrt(Mathf.Max(0, candidate.PopulationCount())) +
                            Mathf.Sqrt(Mathf.Max(0, candidate.GetMoney())) * 0.25f;
             total += GetCityValuePosition(candidate) * weight;
             totalWeight += weight;
@@ -2355,7 +2352,7 @@ public static class CityExtension
         foreach (City candidate in kingdom.Cities)
         {
             if (candidate == null || candidate.IsGone()) continue;
-            float weight = 1f + Mathf.Sqrt(Mathf.Max(0, candidate.countUnits())) +
+            float weight = 1f + Mathf.Sqrt(Mathf.Max(0, candidate.PopulationCount())) +
                            Mathf.Sqrt(Mathf.Max(0, candidate.GetMoney())) * 0.25f;
             weightedDistance += Vector2.Distance(GetCityValuePosition(candidate), qualityCenter) * weight;
         }
@@ -2364,7 +2361,6 @@ public static class CityExtension
         data.city_value_core_radius = coreRadius;
         data.last_city_value_context_timestamp = EmpireWorld.Current?.Now() ?? -1L;
     }
-#endif
 
     private static Vector2 GetCityValuePosition(City city)
     {
@@ -2416,15 +2412,15 @@ public static class CityExtension
     public static int CountLivingPopulation(this City city)
     {
         if (city == null) return 0;
-        if (city.units == null)
+        if (city.People == null)
         {
             return CityPopulationSystem.BackgroundCount(city);
         }
 
         int count = 0;
-        for (int i = 0; i < city.units.Count; i++)
+        for (int i = 0; i < city.PopulationCount(); i++)
         {
-            Person actor = city.units[i];
+            Person actor = city.People[i];
             if (actor == null || actor.IsGone()) continue;
             if (!actor.Alive) continue;
             // 载具不是人，不计人口
@@ -2435,18 +2431,19 @@ public static class CityExtension
         // 无小人模式：没有实体单位的背景人口也是城里的居民
         return count + CityPopulationSystem.BackgroundCount(city);
     }
+#endif
 
     public static int CountLivingWarriors(this City city)
     {
-        if (city == null || city.units == null)
+        if (city == null || city.People == null)
         {
             return 0;
         }
 
         int count = 0;
-        for (int i = 0; i < city.units.Count; i++)
+        for (int i = 0; i < city.PopulationCount(); i++)
         {
-            Person actor = city.units[i];
+            Person actor = city.People[i];
             if (actor == null || actor.IsGone()) continue;
             if (!actor.Alive) continue;
             if (!actor.IsWarrior()) continue;
@@ -2455,7 +2452,6 @@ public static class CityExtension
 
         return count;
     }
-#endif
 
     public static bool IsBorderCity(this City city)
     {

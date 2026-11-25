@@ -81,13 +81,13 @@ public static class CityPlacementSystem
         Person founder = CityPopulationSystem.AbstractPopulationEnabled ? CityPopulationSystem.SpawnOfficial(source, owner) : null;
         // 新落成的建城人随国家文化，原版按他的文化给新城起名
         if (founder != null && !founder.IsGone() && CultureService.GetNativeCultureObject(culture) is Culture native &&
-            founder.culture != native)
-            founder.setCulture(native);
+            founder.Culture != native)
+            founder.SetCulture(native);
         // 建城人：落成的官员，没有就本城城主、本国君主、本国随便一位活着的人
         bool Fits(Person actor) => actor != null && !actor.IsGone() && actor.Alive && actor.Realm == owner;
         if (!Fits(founder)) founder = source.Leader;
         if (!Fits(founder)) founder = owner.Ruler;
-        if (!Fits(founder)) founder = owner.units?.FirstOrDefault(Fits);
+        if (!Fits(founder)) founder = owner.People?.FirstOrDefault(Fits);
         if (!Fits(founder))
         {
             error = LM.Get("city_place_no_founder");

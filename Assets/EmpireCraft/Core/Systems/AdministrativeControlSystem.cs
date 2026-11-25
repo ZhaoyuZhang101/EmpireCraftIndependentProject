@@ -832,11 +832,11 @@ public static class AdministrativeControlSystem
         Person current = city.Leader;
         if (current != null && !current.IsGone() && current.Alive && current.IsAdult() && !current.IsRuler() &&
             current.IsFitToRule()) return current;
-        return (city.units ?? new List<Person>()).ToList()
-            .Where(actor => actor != null && !actor.IsGone() && actor.Alive && actor.isAdult() && !actor.isKing() &&
-                            actor.isUnitFitToRule())
+        return (city.People ?? new List<Person>()).ToList()
+            .Where(actor => actor != null && !actor.IsGone() && actor.Alive && actor.IsAdult() && !actor.IsRuler() &&
+                            actor.IsFitToRule())
             .OrderByDescending(actor => actor.GetOrCreate().socialClass == SocialClass.Noble)
-            .ThenByDescending(actor => actor.data?.renown ?? 0).FirstOrDefault();
+            .ThenByDescending(actor => actor.Renown ?? 0).FirstOrDefault();
     }
 #endif
 

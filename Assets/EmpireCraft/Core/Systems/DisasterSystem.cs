@@ -110,11 +110,9 @@ public static class DisasterSystem
     }
 
     // 政权的头：帝国的核心王国、不在帝国里的王国
-#if EC_PENDING
     private static bool IsRealmHead(Realm kingdom) =>
         kingdom?.Record != null && !kingdom.IsGone() && !kingdom.IsWild && kingdom.IsCivilized() && kingdom.Cities != null &&
-        kingdom.Cities.Count > 0 && !AncientWarfareCompatibility.Owns(kingdom) && GranarySystem.Realm(kingdom) == kingdom;
-#endif
+        kingdom.Cities.Count > 0 && !AncientWarfareCompatibility.Owns(kingdom) && GranarySystem.ModRealm(kingdom) == kingdom;
 
     // 计时从现在起算：第一轮在一到五年后，五十年、两百年的保底也从现在算
     private static void Begin(KingdomExtension.KingdomExtraData data, double now)

@@ -372,7 +372,7 @@ public static class WorldMapScenario
                 {
                     actor.joinKingdom(polity.kingdom);
                     if (founder?.language != null) actor.setLanguage(founder.language);
-                    if (founder?.religion != null) actor.setReligion(founder.religion);
+                    if (founder?.Religion != null) actor.SetReligion(founder.Religion);
                     planned.city = EmpireWorld.Current.Cities.buildNewCity(actor, zone);
                     actor.JoinCity(planned.city);
                     PrepareName(actor, planned.culture);
@@ -413,7 +413,7 @@ public static class WorldMapScenario
             Person actor = null;
             try
             {
-                actor = Spawn(RulerSpecies(polity), seat?.SeatCell() ?? founder.current_tile);
+                actor = Spawn(RulerSpecies(polity), seat?.SeatCell() ?? founder.Cell);
                 if (actor != null && person.Spouse)
                 {
                     SetSexAge(actor, person, false);
@@ -569,7 +569,7 @@ public static class WorldMapScenario
         {
             try
             {
-                Person actor = Spawn(RulerSpecies(polity), seat?.SeatCell() ?? founder.current_tile);
+                Person actor = Spawn(RulerSpecies(polity), seat?.SeatCell() ?? founder.Cell);
                 if (actor == null) continue;
                 SetSexAge(actor, person.AsPerson(), false);
                 actor.joinKingdom(polity.kingdom);
@@ -788,7 +788,7 @@ public static class WorldMapScenario
         if (name == null) return;
         name.firstName = null;
         name.familyName = null;
-        if (native != null && actor.culture != native) actor.setCulture(native);
+        if (native != null && actor.Culture != native) actor.SetCulture(native);
         actor.initializeActorName();
         // 中文界面：原版按种族起的名(兽人的"Zoko Bak")混进来就成了"Zoko Bak乌吉斯古楞"，拉丁字母的名、姓都不要，
         // 名按本国文化重起，姓随后取自家族(见 BuildPolity)
@@ -839,7 +839,7 @@ public static class WorldMapScenario
         if (!CultureService.IsValidCulture(culture)) return null;
         Culture native = CultureService.GetNativeCultureObject(culture);
         if (native != null || founder?.City == null) return native;
-        native = EmpireWorld.Current.cultures.newCulture(founder, true);
+        native = EmpireWorld.Current.Cultures.NewCulture(founder, true);
         if (native != null) CulturePatch.insertCultureTemplate(native, culture);
         return native;
     }
@@ -1002,7 +1002,7 @@ public static class WorldMapScenario
         if (native == null) return;
         native.joinKingdom(polity.kingdom);
         if (founder.language != null) native.setLanguage(founder.language);
-        if (founder.religion != null) native.setReligion(founder.religion);
+        if (founder.Religion != null) native.SetReligion(founder.Religion);
         native.JoinCity(planned.city);
         PrepareName(native, planned.culture);
         native.GetModName().SetName(native);
@@ -1325,8 +1325,8 @@ public static class WorldMapScenario
         filler.cities.Clear();
         _polities.Remove(filler);
         // 国家没有城、没有人就由原版移除
-        if (gone?.units != null)
-            foreach (Person unit in gone.units.ToList())
+        if (gone?.People != null)
+            foreach (Person unit in gone.People.ToList())
                 if (unit?.Record != null && !unit.IsGone() && unit.Alive) unit.die(true, AttackType.Other, false, false);
     }
 #endif
@@ -3059,7 +3059,7 @@ public static class WorldMapScenario
                     HashSet<long> kept = empire.GetProtectedDirectCityIds();
                     LogService.LogWarning($"[EmpireCraft][世界地图] {empire.GetEmpireName()} 设 {data.Name} 没成：{region.Count} 城，" +
                                           $"京畿留着的 {region.Count(city => kept.Contains(city.Key))} 城，战时 {empire.HasTerritorialWar()}，" +
-                                          $"政体 {empire.CoreKingdom.GetRegime()?.type}，城里可任官的人 {region.Sum(city => city.units?.Count(unit => unit != null && unit.Alive && unit.isAdult() && !unit.isKing()) ?? 0)}");
+                                          $"政体 {empire.CoreKingdom.GetRegime()?.type}，城里可任官的人 {region.Sum(city => city.PopulationCount()(unit => unit != null && unit.Alive && unit.isAdult() && !unit.isKing()) ?? 0)}");
                     continue;
                 }
                 _divided = true;

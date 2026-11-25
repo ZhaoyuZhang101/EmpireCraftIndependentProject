@@ -194,7 +194,7 @@ public static partial class VirtualGenealogySystem
             person.recordedAge = years;
             person.virtual_since = now;
         }
-        person.birthday = Date.getDate(now - years * 60d);
+        person.birthday = GameClock.DateText(now - years * 60d);
     }
 #endif
 
@@ -220,7 +220,7 @@ public static partial class VirtualGenealogySystem
             expected = died - (person.recordedAge - 1) * 60d;
         }
         if (born - expected <= 90d) return false;
-        person.birthday = Date.getDate(expected);
+        person.birthday = GameClock.DateText(expected);
         return true;
     }
 
@@ -1252,10 +1252,11 @@ public static partial class VirtualGenealogySystem
         Person head = heir?.Realize();
         if (head != null) ClanHeads[clan.id] = heir.id;
     }
+#endif
 
     private static void Disperse(SpecificClan clan, List<PersonalClanIdentity> virtuals, bool dormant = false)
     {
-        string date = Date.getDate(GameClock.Now);
+        string date = GameClock.DateText(GameClock.Now);
         foreach (PersonalClanIdentity person in virtuals)
         {
             // Clan deregistration leaves the people in the background population;
@@ -1278,7 +1279,6 @@ public static partial class VirtualGenealogySystem
             ? $"[EmpireCraft][虚拟族谱] 宗族 {clan.name} 沉寂 {DormantYears} 年无人出仕，销户编入民籍({virtuals.Count} 人)"
             : $"[EmpireCraft][虚拟族谱] 宗族 {clan.name} 族长死于战乱饥荒、已无实体族人，销户({virtuals.Count} 人)");
     }
-#endif
 
     #endregion
 
@@ -1350,7 +1350,7 @@ public static partial class VirtualGenealogySystem
             virtual_since = now,
             virtual_city_id = parent.virtual_city_id,
             recordedAge = 0,
-            birthday = Date.getDate(now),
+            birthday = GameClock.DateText(now),
             sex = EcRandom.value < 0.5f ? Sex.Male : Sex.Female,
             species = parent.species,
             culture = parent.culture,
@@ -1400,7 +1400,7 @@ public static partial class VirtualGenealogySystem
                 virtual_since = now,
                 virtual_city_id = adopter.virtual_city_id > 0 ? adopter.virtual_city_id : adopter._actor?.City?.Key ?? -1L,
                 recordedAge = years,
-                birthday = Date.getDate(now - years * 60d),
+                birthday = GameClock.DateText(now - years * 60d),
                 sex = Sex.Male,
                 species = adopter.species,
                 culture = adopter.culture,
@@ -1439,7 +1439,7 @@ public static partial class VirtualGenealogySystem
             virtual_since = now,
             virtual_city_id = city.Key,
             recordedAge = years,
-            birthday = Date.getDate(now - years * 60d - EcRandom.Range(0, 12) * 5d),
+            birthday = GameClock.DateText(now - years * 60d - EcRandom.Range(0, 12) * 5d),
             sex = clan.isMalePriority() ? Sex.Male : Sex.Female,
             species = last.species,
             culture = last.culture,
@@ -1475,7 +1475,7 @@ public static partial class VirtualGenealogySystem
             virtual_since = now,
             virtual_city_id = city?.Key ?? -1L,
             recordedAge = 0,
-            birthday = Date.getDate(now),
+            birthday = GameClock.DateText(now),
             sex = EcRandom.value < 0.5f ? Sex.Male : Sex.Female,
             species = !string.IsNullOrEmpty(parent.species) ? parent.species : royal.asset?.id,
             culture = parent.culture,
@@ -1584,7 +1584,7 @@ public static partial class VirtualGenealogySystem
             virtual_city_id = city?.Key ?? parent.virtual_city_id,
             recordedAge = years,
             // 一年 60 秒、一月 5 秒；生日落在 years 年前再往前几个月
-            birthday = Date.getDate(now - years * 60d - EcRandom.Range(0, 12) * 5d),
+            birthday = GameClock.DateText(now - years * 60d - EcRandom.Range(0, 12) * 5d),
             sex = Sex.Male,
             species = species,
             culture = parent.culture,
@@ -1631,7 +1631,7 @@ public static partial class VirtualGenealogySystem
         person.recordedAge = person.age;
         person.is_alive = false;
         person.is_virtual = false;
-        person.deathday = Date.getDate(GameClock.Now);
+        person.deathday = GameClock.DateText(GameClock.Now);
         // 虚拟族人里的藩王身后定谥(遇刺算死于非命)
         PrinceLineage.OnPrinceDied(person, cause == "assassinated");
         if (!person.death_history_recorded)

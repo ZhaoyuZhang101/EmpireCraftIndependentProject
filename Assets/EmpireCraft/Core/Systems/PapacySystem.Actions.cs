@@ -108,15 +108,15 @@ public static partial class PapacySystem
     {
         Religion best = null;
         (int, int, double, long) rank = default;
-        if (EmpireWorld.Current?.religions == null) return null;
-        foreach (Religion religion in EmpireWorld.Current.religions.list)
+        if (EmpireWorld.Current?.Religions == null) return null;
+        foreach (Religion religion in EmpireWorld.Current.Religions.list)
         {
             if (religion?.data == null || !ReligionFaith.IsPapal(religion) || !HasSee(religion)) continue;
             City city = HolyCity(religion);
             if (city == null) continue;
             bool romanSphere = ReligionSphere.SphereOf(religion) == Line;
             if (!romanSphere && InstitutionSystem.GetCultureLine(CultureService.GetMainCulture(city, initialize: false)) != Line) continue;
-            (int, int, double, long) mine = (romanSphere ? 0 : 1, religion.GetOrCreate().ParentReligionId >= 0 ? 1 : 0, religion.data.created_time, religion.id);
+            (int, int, double, long) mine = (romanSphere ? 0 : 1, religion.GetOrCreate().ParentReligionId >= 0 ? 1 : 0, religion.data.created_time, religion.Key);
             if (best != null && mine.CompareTo(rank) >= 0) continue;
             best = religion;
             rank = mine;

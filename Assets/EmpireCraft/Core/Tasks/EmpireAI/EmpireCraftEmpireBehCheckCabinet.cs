@@ -147,7 +147,7 @@ public class EmpireCraftEmpireBehCheckCabinet : GameAIEmpireBase
             : activeKingdoms.FindAll(k => k.HasRuler() && k.Ruler?.Record != null && !k.IsEmpire()
                     && k.GetRegime()?.GetReligionLevel() != ReligionLevel.High && !HolyRomanSystem.IsBanned(k) &&
                     HolyRomanSystem.Estate(k) == HolyRomanSystem.EstateNone)
-                .OrderByDescending(k => k.countTotalWarriors()).Select(k => k.king.id).Take(4).ToList();
+                .OrderByDescending(k => k.Warriors()).Select(k => k.Ruler.Key).Take(4).ToList();
         // 教会席位：主教领的主教优先(见 HolyRomanSystem.ChurchElectors)
         religionLeaderList.AddRange(HolyRomanSystem.ChurchElectors(empire));
         if (empire.Religion != null && !empire.Religion.IsGone())
@@ -160,10 +160,10 @@ public class EmpireCraftEmpireBehCheckCabinet : GameAIEmpireBase
                 if (religionLeaderList.Count >= 3) continue;
                 var religionAreas = kingdom.Cities
                     .Where(c => c?.Record != null && !c.IsGone())
-                    .OrderByDescending(c => c.countWarriors());
+                    .OrderByDescending(c => c.Warriors());
                 religionLeaderList.AddRange(from area in religionAreas
-                    where area.hasLeader() && area.leader?.data != null
-                    select area.leader.id);
+                    where area.HasLeader() && area.Leader?.Record != null
+                    select area.Leader.Key);
             }
         }
         religionLeaderList = religionLeaderList.Distinct().Take(3).ToList();

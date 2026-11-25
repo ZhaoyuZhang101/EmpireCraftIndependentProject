@@ -18,8 +18,10 @@ public static class ReligionMap
     public const string TooltipType = "empirecraft_religion_city";
 #if EC_PENDING
     private static readonly Dictionary<long, TerritoryLabelStyle> Styles = new();
+#endif
     private static readonly Dictionary<Religion, List<City>> Groups = new();
 
+#if EC_PENDING
     public static void ResetWorldState() => Styles.Clear();
 #endif
 
@@ -51,16 +53,16 @@ public static class ReligionMap
         Groups.Clear();
         foreach (City city in EmpireWorld.Current.Cities)
         {
-            if (city?.Record == null || city.IsGone() || !city.hasReligion() ||
+            if (city?.Record == null || city.IsGone() || !city.HasReligion() ||
                 EmpireCraft.Core.AncientWarfareCompatibility.OwnsObject(city)) continue;
-            if (!Groups.TryGetValue(city.religion, out List<City> cities)) Groups[city.religion] = cities = new List<City>();
+            if (!Groups.TryGetValue(city.Religion, out List<City> cities)) Groups[city.Religion] = cities = new List<City>();
             cities.Add(city);
         }
         Religion hovered = EmpireWorld.Current?.getMouseTilePosCachedFrame()?.zone_city?.religion;
         foreach (KeyValuePair<Religion, List<City>> pair in Groups)
         {
             if (!ReligionDisplay.Alive(pair.Key)) continue;
-            TerritoryLabelRenderer.SubmitCities($"religion:{pair.Key.data.id}", pair.Key.name, pair.Value, StyleOf(pair.Key),
+            TerritoryLabelRenderer.SubmitCities($"religion:{pair.Key.data.id}", pair.Key.Name, pair.Value, StyleOf(pair.Key),
                 pair.Key == hovered);
         }
     }
@@ -102,7 +104,7 @@ public static class ReligionMap
         City city = data?.city;
         if (city?.Record == null || city.IsGone()) return;
         Realm kingdom = city.Realm;
-        Religion faith = city.hasReligion() ? city.religion : null;
+        Religion faith = city.HasReligion() ? city.Religion : null;
         tooltip.clear();
         tooltip.setTitle(city.GetCityName(), "religion_city_tooltip", "#FFFFFF");
         if (kingdom?.Record != null) Line(tooltip, "religion_tip_kingdom", kingdom.GetKingdomName(), kingdom.getColor()?.color_text ?? Plain);
@@ -115,8 +117,8 @@ public static class ReligionMap
             // 圣地一个天下一处；教派、地方教会自己那座城只是中心(见 ReligionSphere"教派与圣地")
             bool holy = ReligionSphere.HolySite(faith) == city;
             bool center = !holy && ReligionSphere.Center(faith) == city;
-            string label = holy ? string.Format(LM.Get("religion_tip_holy"), faith.name)
-                : center ? string.Format(LM.Get("religion_tip_center"), faith.name) : faith.name;
+            string label = holy ? string.Format(LM.Get("religion_tip_holy"), faith.Name)
+                : center ? string.Format(LM.Get("religion_tip_center"), faith.Name) : faith.Name;
             Line(tooltip, "religion_tip_faith", label, ReligionDisplay.TextHex(faith));
             if (holy && PapacySystem.Pope(faith) is Person head)
                 Line(tooltip, "religion_tip_head", $"{ReligionDisplay.HeadTitle(faith)} {head.FullName()}", "#F3C34A");
@@ -132,22 +134,22 @@ public static class ReligionMap
             }
         }
         // 别教的圣战目标(耶路撒冷之于天主教会)
-        foreach (Religion religion in EmpireWorld.Current.religions)
+        foreach (Religion religion in EmpireWorld.Current.Religions)
         {
             if (!ReligionDisplay.Alive(religion) || religion == faith || religion.GetOrCreate().CrusadeCityId != city.Key ||
                 !PapacySystem.CallsHolyWar(religion)) continue;
-            Line(tooltip, "religion_crusade_city", religion.name, ReligionDisplay.TextHex(religion));
+            Line(tooltip, "religion_crusade_city", religion.Name, ReligionDisplay.TextHex(religion));
         }
         if (kingdom?.Record != null && !kingdom.IsWild)
         {
             ReligiousTension.Policy policy = ReligiousTension.PolicyOf(kingdom);
             string policyHex = policy == ReligiousTension.Policy.Tolerant ? Good : policy == ReligiousTension.Policy.PollTax ? "#E9A85B" : Bad;
             Line(tooltip, "religion_tip_state", string.Format(LM.Get("religion_tip_state_value"),
-                kingdom.hasReligion() ? kingdom.religion.name : LM.Get("label_none"), LM.Get("religion_policy_" + policy)), policyHex);
+                kingdom.HasReligion() ? kingdom.Religion.Name : LM.Get("label_none"), LM.Get("religion_policy_" + policy)), policyHex);
             // 国教在这城的推行：跨天下折扣 × 政令控制力(山后、隔无人区的边地不随朝廷改宗)
-            if (kingdom.hasReligion() && kingdom.religion != faith)
+            if (kingdom.HasReligion() && kingdom.Religion != faith)
             {
-                float cross = ReligionSphere.CrossFactor(kingdom.religion, ReligionSphere.SphereOfCity(city));
+                float cross = ReligionSphere.CrossFactor(kingdom.Religion, ReligionSphere.SphereOfCity(city));
                 float control = BackgroundReligionSystem.ControlFactor(city);
                 Line(tooltip, "religion_tip_push", string.Format(LM.Get("religion_tip_push_value"), cross * control, cross, control),
                     cross * control >= 0.5f ? Plain : "#E9A85B");
@@ -163,7 +165,7 @@ public static class ReligionMap
             }
             if (SectUprisingSystem.AtRisk(city)) Line(tooltip, "religion_tip_folk", LM.Get("religion_tip_sect"), "#E9A85B");
         }
-        if (faith != null) tooltip.addBottomDescription(string.Format(LM.Get("religion_tip_click"), faith.name));
+        if (faith != null) tooltip.addBottomDescription(string.Format(LM.Get("religion_tip_click"), faith.Name));
     }
 #endif
 
@@ -174,7 +176,7 @@ public static class ReligionMap
         Religion religion = data?.religion;
         if (!ReligionDisplay.Alive(religion)) return;
         tooltip.clear();
-        tooltip.setTitle(religion.name, "religion", ReligionDisplay.TextHex(religion));
+        tooltip.setTitle(religion.Name, "religion", ReligionDisplay.TextHex(religion));
         (string standing, string standingHex) = ReligionDisplay.Standing(religion);
         Line(tooltip, "religion_tip_type", $"{ReligionDisplay.FaithName(religion)} · {ReligionDisplay.SphereName(religion)}");
         Line(tooltip, "religion_tip_standing", standing, standingHex);
@@ -188,7 +190,7 @@ public static class ReligionMap
             Line(tooltip, "religion_center_city", $"{center.GetCityName()}({center.Realm?.GetKingdomName() ?? ""})");
         if (PapacySystem.CallsHolyWar(religion) && PapacySystem.CrusadeCity(religion) is City target && target != holy)
             Line(tooltip, "religion_crusade_city", $"{target.GetCityName()}({target.Realm?.GetKingdomName() ?? ""})",
-                target.Realm?.religion == religion ? Plain : Bad);
+                target.Realm?.Religion == religion ? Plain : Bad);
         if (ReligionFaith.HasHierarchy(religion) && !PapacySystem.HasSee(religion))
             Line(tooltip, "religion_tip_head", ReligionDisplay.HierarchyValue(religion), Plain);
         if (PapacySystem.HasSee(religion))
@@ -201,18 +203,18 @@ public static class ReligionMap
             float authority = PapacySystem.Authority(religion);
             Line(tooltip, "papacy_authority", $"{authority:0}", authority >= 60f ? Good : authority >= 35f ? Plain : Bad);
         }
-        List<City> cities = religion.cities?.Where(city => city?.data != null && !city.IsGone()).ToList() ?? new List<City>();
+        List<City> cities = religion.Cities?.Where(city => city?.Record != null && !city.IsGone()).ToList() ?? new List<City>();
         float people = cities.Sum(city => (float)city.CountLivingPopulation());
         int states = EmpireWorld.Current.LiveRealms.Count(kingdom => kingdom?.Record != null && !kingdom.IsGone() && !kingdom.IsWild &&
-                                                                 kingdom.religion == religion);
+                                                                 kingdom.Religion == religion);
         Line(tooltip, "religion_tip_followers", string.Format(LM.Get("religion_tip_followers_value"), UIHelper.ShortCount(people),
             cities.Count, states));
         if (PapacySystem.ActiveCrusade(religion) is War crusade) Line(tooltip, "religion_row_crusade", crusade.Name, Bad);
         List<Religion> children = ReligionDisplay.Children(religion);
         if (children.Count > 0)
-            Line(tooltip, "religion_tip_children", string.Join("、", children.Select(child => child.name)), ReligionDisplay.Purple);
+            Line(tooltip, "religion_tip_children", string.Join("、", children.Select(child => child.Name)), ReligionDisplay.Purple);
         tooltip.addBottomDescription(string.Format(LM.Get("religion_tip_footer"), ReligionDisplay.ExclusiveName(religion),
-            ReligionDisplay.MissionName(religion), religion.getAge()));
+            ReligionDisplay.MissionName(religion), religion.Age()));
     }
 #endif
 }

@@ -50,7 +50,7 @@ public static partial class PapacySystem
         {
             data.CaptiveSince = now;
             Realm captor = ModRealm(Papacy(religion));
-            string text = string.Format(LM.Get("papal_captivity_log"), religion.name, captor?.GetKingdomName() ?? "");
+            string text = string.Format(LM.Get("papal_captivity_log"), religion.Name, captor?.GetKingdomName() ?? "");
             TranslateHelper.LogEventMessage(text, captor);
             ReligionChronicle.Record(religion, ReligionChronicle.KindPapacy, text);
             return;
@@ -111,7 +111,7 @@ public static partial class PapacySystem
         City capital = empire.CoreKingdom.Capital;
         if (head == null || capital == null) return false;
         head.JoinCity(capital);
-        Religion church = EmpireWorld.Current.religions.newReligion(head, false);
+        Religion church = EmpireWorld.Current.Religions.NewReligion(head, false);
         if (church?.data == null) return false;
         church.data.name = string.Format(LM.Get("national_church_name"), empire.GetEmpireName());
         church.SetCity(capital);
@@ -127,20 +127,20 @@ public static partial class PapacySystem
         foreach (Realm kingdom in empire.kingdoms_list.ToList())
         {
             if (kingdom?.Record == null || kingdom.IsGone()) continue;
-            kingdom.setReligion(church);
+            kingdom.SetReligion(church);
             foreach (City city in kingdom.Cities.ToList())
             {
                 if (city?.Record == null || city.IsGone()) continue;
-                city.setReligion(church);
-                foreach (Person actor in city.units.ToList())
-                    if (actor?.Record != null && !actor.IsGone() && actor.religion == old) actor.setReligion(church);
+                city.SetReligion(church);
+                foreach (Person actor in city.People.ToList())
+                    if (actor?.Record != null && !actor.IsGone() && actor.Religion == old) actor.SetReligion(church);
             }
         }
         empire.Religion = church;
         long lands = (long)(StateDebtSystem.AnnualStableIncome(empire.CoreKingdom) * ChurchLandsYears);
         if (lands > 0) empire.CoreKingdom.AddMoney((int)Math.Min(int.MaxValue, lands), TreasuryCategory.RecoveredFunds);
         AddAuthority(old, -8f);
-        string text = string.Format(LM.Get("papal_reformation_history"), empire.GetEmpireFullName(), old.name, church.name,
+        string text = string.Format(LM.Get("papal_reformation_history"), empire.GetEmpireFullName(), old.Name, church.Name,
             MoneyDisplay.Format(lands));
         Record(empire, text);
         ReligionChronicle.Clear(church);
@@ -156,7 +156,7 @@ public static partial class PapacySystem
         var data = religion.GetOrCreate();
         double now = GameClock.Now;
         if (now < data.ReligiousPeaceUntil) return null;
-        foreach (Religion other in EmpireWorld.Current.religions)
+        foreach (Religion other in EmpireWorld.Current.Religions)
         {
             if (other?.data == null || other == religion) continue;
             var split = other.GetOrCreate();
@@ -165,7 +165,7 @@ public static partial class PapacySystem
             // 只讨伐整个政权改宗的(国教会)；帝国诸侯另立的新教会归帝国内的宗教战争(见 HolyRomanSystem.Leagues)，
             // 不然教廷会去讨伐仍奉旧教的皇帝
             Realm head = Papacy(other);
-            if (head != null && ModRealm(head).religion == other) return ModRealm(head);
+            if (head != null && ModRealm(head).Religion == other) return ModRealm(head);
         }
         return null;
     }
@@ -176,7 +176,7 @@ public static partial class PapacySystem
     public static void ReligiousPeace(Religion religion)
     {
         religion.GetOrCreate().ReligiousPeaceUntil = GameClock.Now + ReligiousPeaceYears * SecondsPerYear;
-        TranslateHelper.LogEventMessage(string.Format(LM.Get("papal_religious_peace_log"), religion.name), Papacy(religion));
+        TranslateHelper.LogEventMessage(string.Format(LM.Get("papal_religious_peace_log"), religion.Name), Papacy(religion));
     }
 #endif
 

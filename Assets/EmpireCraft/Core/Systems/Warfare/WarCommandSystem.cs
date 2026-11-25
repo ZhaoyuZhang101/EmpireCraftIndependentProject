@@ -31,9 +31,7 @@ public static class WarCommandSystem
     // 讨伐不臣：中央是攻方，同样算平叛
     private static readonly HashSet<EmpireWarType> Punitive = new() { EmpireWarType.伐不臣, EmpireWarType.不奉诏 };
 
-#if EC_PENDING
-    private static Realm ModRealm(Realm kingdom) => FrontSystem.Realm(kingdom);
-#endif
+    private static Realm ModRealm(Realm kingdom) => FrontSystem.ModRealm(kingdom);
 
     private static Person Living(long id)
     {
@@ -41,7 +39,6 @@ public static class WarCommandSystem
         return actor?.Record != null && !actor.IsGone() && actor.Alive ? actor : null;
     }
 
-#if EC_PENDING
     public static Person Commander(Realm kingdom)
     {
         Realm realm = ModRealm(kingdom);
@@ -67,19 +64,15 @@ public static class WarCommandSystem
         string key = realm?.Record == null ? null : realm.GetOrCreate().war_quartermaster_title;
         return string.IsNullOrEmpty(key) ? "" : LM.Get(key);
     }
-#endif
 
     // 统帅对本国各军兵力的加成
-#if EC_PENDING
     public static float Factor(Realm kingdom)
     {
         Person commander = Commander(kingdom);
         return commander == null ? 1f : 1f + Mathf.Min(MaxBonus, Mathf.Max(0, commander.Warfare) * PerWarfare);
     }
-#endif
 
     // 粮草官对补给的加成、对军粮的节省
-#if EC_PENDING
     public static float QuartermasterSupply(Realm kingdom)
     {
         Person quartermaster = Quartermaster(kingdom);
@@ -91,7 +84,6 @@ public static class WarCommandSystem
         Person quartermaster = Quartermaster(kingdom);
         return quartermaster == null ? 0f : Mathf.Min(MaxBonus, Mathf.Max(0, quartermaster.Stewardship) * SavingPerStewardship);
     }
-#endif
 
     // 每月(CorpsSystem 月度结算里逐国调用；开战时 WarGoalSystem 也立即调一次)：交战或谋划开战、缺人的补拜；太平了罢去
 #if EC_PENDING
@@ -114,7 +106,7 @@ public static class WarCommandSystem
 
     public static void Appoint(Realm kingdom)
     {
-        if (kingdom?.Record == null || kingdom.IsGone() || kingdom.units == null) return;
+        if (kingdom?.Record == null || kingdom.IsGone() || kingdom.People == null) return;
         Person pick = Best(kingdom, actor => actor.Warfare, -1L);
         // 君主兵略最好(或无人可用)时御驾亲征；幼主、被挟制的不亲征，帝国的辅政权臣兵略够就由他挂帅
         Person king = kingdom.Ruler;
@@ -134,7 +126,7 @@ public static class WarCommandSystem
 
     private static void AppointQuartermaster(Realm kingdom)
     {
-        if (kingdom?.Record == null || kingdom.IsGone() || kingdom.units == null) return;
+        if (kingdom?.Record == null || kingdom.IsGone() || kingdom.People == null) return;
         var data = kingdom.GetOrCreate();
         Person pick = Best(kingdom, actor => actor.Stewardship, data.war_commander_id);
         if (pick == null) return;
@@ -150,7 +142,7 @@ public static class WarCommandSystem
     {
         Person pick = null;
         float best = float.MinValue;
-        foreach (Person actor in kingdom.units)
+        foreach (Person actor in kingdom.People)
         {
             if (actor?.Record == null || actor.IsGone() || !actor.Alive || !actor.IsAdult() || actor.IsRuler() ||
                 actor.Key == exclude || actor.asset == null || !actor.asset.civ || CityPopulationSystem.IsVehicle(actor)) continue;

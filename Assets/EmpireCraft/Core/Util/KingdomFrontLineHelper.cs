@@ -738,7 +738,6 @@ public static class KingdomFrontLineHelper
     /// 统计 zone 内同阵营士兵数量。
     /// 用于判断某个前线 zone 是否已经被友军填满。
     /// </summary>
-#if EC_PENDING
     public static int CountFriendlyWarriorsInZone(Cell zone, Realm actorKingdom)
     {
         if (zone == null || actorKingdom == null)
@@ -760,7 +759,7 @@ public static class KingdomFrontLineHelper
                 continue;
             }
 
-            if (actor.current_tile == null || actor.current_tile.zone != zone)
+            if (actor.Cell == null || actor.Cell.Zone != zone)
             {
                 continue;
             }
@@ -773,7 +772,6 @@ public static class KingdomFrontLineHelper
 
         return count;
     }
-#endif
 
     /// <summary>
     /// 调试用：打印并标记该王国面对所有敌人的前线。

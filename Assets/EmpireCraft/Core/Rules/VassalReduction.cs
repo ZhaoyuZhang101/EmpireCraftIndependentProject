@@ -52,18 +52,16 @@ public static class VassalReduction
     private static bool Alive(Realm kingdom) => kingdom?.Record != null && !kingdom.IsGone() && !kingdom.IsWild;
 
     // 正跟朝廷打着的起义军(叛乱之战里的攻方)
-#if EC_PENDING
     public static bool IsRebelOf(Realm realm, Realm other)
     {
         if (!Alive(realm) || !Alive(other) || realm == other) return false;
         foreach (War war in other.GetWars())
         {
             if (war?.Record == null || war.HasEnded() || !MusterSystem.IsRebellion(war) || war.MainAttacker != other) continue;
-            if (FrontSystem.Realm(war.MainDefender) == realm) return true;
+            if (FrontSystem.ModRealm(war.MainDefender) == realm) return true;
         }
         return false;
     }
-#endif
 
     // 这一国对朝廷算哪一类；-1 = 不在可以谈的对象里
 #if EC_PENDING
@@ -215,8 +213,8 @@ public static class VassalReduction
     {
         double now = GameClock.Now;
         foreach (War war in other.GetWars().ToList())
-            if (war?.Record != null && !war.HasEnded() && (war.HasRealm(realm) || FrontSystem.Realm(war.MainDefender) == realm ||
-                                                         FrontSystem.Realm(war.MainAttacker) == realm))
+            if (war?.Record != null && !war.HasEnded() && (war.HasRealm(realm) || FrontSystem.ModRealm(war.MainDefender) == realm ||
+                                                         FrontSystem.ModRealm(war.MainAttacker) == realm))
                 EmpireWorld.Current.EndWar(war, WarOutcome.Peace);
         Empire empire = realm.GetEmpire();
         List<City> cities = (other.Cities ?? new List<City>()).Where(city => city?.Record != null && !city.IsGone()).ToList();

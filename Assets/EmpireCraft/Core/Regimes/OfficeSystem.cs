@@ -366,7 +366,7 @@ public class OfficeObject
             return;
         }
         bool isReappointment = history_officers.Contains(actor.Name);
-        if(!actor.hasCulture())
+        if(!actor.HasCulture())
         {
             CultureService.SyncActorToCityMainCulture(actor, actor.City ?? actor.Realm?.Capital);
         }
@@ -648,18 +648,18 @@ public class CenterOffice
         }
         return count > 0;
     }
+#endif
 
     public List<Person> GetAllOfficers(Empire empire)
     {
         List<Person> officers = new List<Person>();
         foreach (Realm kingdom in empire.kingdoms_list)
         {
-            officers.AddRange(kingdom.units.ToList().FindAll(a => a.hasTrait("officer")));
+            officers.AddRange(kingdom.People.ToList().FindAll(a => a.HasTrait("officer")));
         }
 
         return officers;
     }
-#endif
 
     public List<OfficeObject> GetAllOffices(Empire empire)
     {

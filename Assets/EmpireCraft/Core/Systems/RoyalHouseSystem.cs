@@ -255,8 +255,8 @@ public static class RoyalHouseSystem
     private static Person FindConsort(Realm kingdom, Person royal)
     {
         Person best = null;
-        if (kingdom.units == null) return null;
-        foreach (Person candidate in kingdom.units)
+        if (kingdom.People == null) return null;
+        foreach (Person candidate in kingdom.People)
         {
             if (candidate?.Record == null || candidate == royal || candidate.IsGone() || !candidate.Alive ||
                 candidate.IsRuler() || candidate.Spouse != null && !candidate.Spouse.IsGone() && candidate.Spouse.Alive ||
@@ -500,7 +500,7 @@ public static class RoyalHouseSystem
         {
             City fief = Fief(prince, kingdom) ?? kingdom.Cities
                 .Where(city => city?.Record != null && !city.IsGone() && city != capital && city.SeatCell() != null)
-                .OrderBy(city => city.units?.Count(unit => unit != null && unit.Alive && unit.getParents().Contains(king)) ?? 0)
+                .OrderBy(city => city.PopulationCount()(unit => unit != null && unit.Alive && unit.getParents().Contains(king)) ?? 0)
                 .ThenByDescending(CityPopulationSystem.GetBackgroundTotal).FirstOrDefault();
             if (fief == null) continue;
             prince.JoinCity(fief);

@@ -496,7 +496,7 @@ public static class RepublicSystem
                            IdeologyPopulationSystem.GetKingdomShare(kingdom, party.Ideology) >= 0.2f))
         .OrderByDescending(kingdom => IdeologyPopulationSystem.GetKingdomShare(kingdom, party.Ideology))
         .ThenByDescending(kingdom => party.AllMembers.Count(actor => actor?.Realm == kingdom))
-        .ThenByDescending(kingdom => kingdom.countTotalWarriors()).FirstOrDefault();
+        .ThenByDescending(kingdom => kingdom.Warriors()).FirstOrDefault();
 
     private static Person FindSplitLeader(Empire empire, FixedFaction party) => party.AllMembers
         .Concat(EmpirePopulation.Enumerate(empire.kingdoms_hashset))
@@ -637,10 +637,10 @@ public static class RepublicSystem
         int total = 0;
         foreach (Realm source in empire.kingdoms_list.ToList())
         {
-            if (source?.units == null || source == rebel || source.IsGone() ||
+            if (source?.People == null || source == rebel || source.IsGone() ||
                 !war.Defenders.Contains(source)) continue;
-            List<Person> soldiers = source.units.ToList().Where(actor => actor != null && !actor.IsGone() &&
-                actor.Alive && actor.isWarrior() && !actor.isKing()).ToList();
+            List<Person> soldiers = source.People.ToList().Where(actor => actor != null && !actor.IsGone() &&
+                actor.Alive && actor.IsWarrior() && !actor.IsRuler()).ToList();
             int limit = Mathf.CeilToInt(soldiers.Count * 0.45f);
             List<Person> defectors = new();
             foreach (Person soldier in soldiers.OrderByDescending(actor => actor.City == capital))
@@ -665,18 +665,18 @@ public static class RepublicSystem
     private static int RaiseRevolutionaryMilitia(Empire empire, Realm rebel, PartyIdeology ideology, bool splitRealm)
     {
         City capital = rebel.Capital;
-        if (capital == null || capital.IsGone() || capital.units == null) return 0;
+        if (capital == null || capital.IsGone() || capital.People == null) return 0;
         float organization = InstitutionSystem.GetFeature(InstitutionSystem.GetPrimaryCulture(empire),
             IdeologyInstitutionPaths.StageFeature(ideology, 3)) > 0f
             ? IdeologyInstitutionPaths.GetProfile(ideology).MilitiaMultiplier : 1f;
-        int target = Mathf.Clamp(Mathf.CeilToInt(empire.CoreKingdom.countTotalWarriors() * 0.3f * organization), 8, 52);
-        int needed = Mathf.Max(0, target - rebel.countTotalWarriors());
+        int target = Mathf.Clamp(Mathf.CeilToInt(empire.CoreKingdom.Warriors() * 0.3f * organization), 8, 52);
+        int needed = Mathf.Max(0, target - rebel.Warriors());
         if (splitRealm) needed = Mathf.Max(8, needed);
         int raised = 0;
         // 无小人模式：从都城背景人口里武装革命军
         if (CityPopulationSystem.AbstractPopulationEnabled)
             raised += CityPopulationSystem.RaiseMilitia(capital, needed, 0.1f);
-        foreach (Person resident in capital.units.ToList())
+        foreach (Person resident in capital.People.ToList())
         {
             if (raised >= needed) break;
             if (resident == null || resident.IsGone() || !resident.Alive || resident.IsWarrior() ||
@@ -689,14 +689,14 @@ public static class RepublicSystem
 
     private static void OrganizeRevolutionaryGarrison(City capital, Realm rebel)
     {
-        if (capital == null || capital.IsGone() || capital.units == null) return;
+        if (capital == null || capital.IsGone() || capital.People == null) return;
         capital.checkArmyExistence();
         if (!capital.hasArmy()) EmpireCraftCityBehCheckArmy.CreateNewArmy(capital);
         Army army = capital.army;
         if (army != null && army._captain?.kingdom == rebel)
         {
-            foreach (Person warrior in capital.units.ToList().Where(actor => actor != null && actor.Alive &&
-                         actor.isWarrior() && actor.kingdom == rebel && !actor.hasArmy()))
+            foreach (Person warrior in capital.People.ToList().Where(actor => actor != null && actor.Alive &&
+                         actor.IsWarrior() && actor.Realm == rebel && !actor.hasArmy()))
             {
                 if (army.units.Count >= army._captain.warfare) break;
                 warrior.setArmy(army);
@@ -1054,10 +1054,10 @@ public static class RepublicSystem
         if (party?.IsParty != true)
             party = PartySystem.GetParties(empire).OrderByDescending(candidate => candidate.CentralRatio).FirstOrDefault();
         leader ??= party?.GetLeader();
-        leader ??= empire.CoreKingdom.units?.Where(actor => actor != null && !actor.IsGone() &&
-            actor.Alive && actor.isAdult() && actor.isUnitFitToRule())
+        leader ??= empire.CoreKingdom.People?.Where(actor => actor != null && !actor.IsGone() &&
+            actor.Alive && actor.IsAdult() && actor.IsFitToRule())
             .OrderByDescending(actor => actor.GetIdentity()?.TotalPerformance ?? 0d)
-            .ThenByDescending(actor => actor.stewardship).ThenByDescending(actor => actor.renown).FirstOrDefault();
+            .ThenByDescending(actor => actor.Stewardship).ThenByDescending(actor => actor.Renown).FirstOrDefault();
         PartyIdeology ideology = party?.Ideology ?? IdeologyFamilies.StateIdeology(empire);
         Establish(empire, party, ideology, leader, false, "constitutional_dynasty_extinct_history");
         ConstitutionalEconomyState state = State(empire);
@@ -1267,9 +1267,9 @@ public static class RepublicSystem
         {
             head = PartySystem.GetParties(empire).Select(party => party.GetLeader())
                        .FirstOrDefault(leader => leader != null && !leader.IsGone() && leader.Alive)
-                   ?? empire.CoreKingdom.units?.Where(actor => actor != null && !actor.IsGone() && actor.Alive &&
-                                                                actor.isAdult() && actor.isUnitFitToRule())
-                       .OrderByDescending(actor => actor.renown).FirstOrDefault();
+                   ?? empire.CoreKingdom.People?.Where(actor => actor != null && !actor.IsGone() && actor.Alive &&
+                                                                actor.IsAdult() && actor.IsFitToRule())
+                       .OrderByDescending(actor => actor.Renown).FirstOrDefault();
         }
         if (head == null || head.IsGone() || head.Key == empire.Emperor?.Key) return;
         string previous = empire.Emperor?.FullName() ?? LM.Get("label_none");
@@ -1533,8 +1533,8 @@ public static class RepublicSystem
             Person successor = PartySystem.GetParties(empire)
                                   .FirstOrDefault(party => party.Ideology == State(empire).republic_ideology)
                                   ?.GetLeader()
-                              ?? empire.CoreKingdom.units?.Where(actor => actor != null && !actor.IsGone() &&
-                                  actor.Alive && actor.isAdult()).OrderByDescending(actor => actor.renown)
+                              ?? empire.CoreKingdom.People?.Where(actor => actor != null && !actor.IsGone() &&
+                                  actor.Alive && actor.IsAdult()).OrderByDescending(actor => actor.Renown)
                                   .FirstOrDefault();
             if (successor != null && empire.InstallHeadOfState(successor))
                 Record(empire, HeadOfStateHistory(empire, successor, head?.FullName() ?? LM.Get("label_none")), successor);

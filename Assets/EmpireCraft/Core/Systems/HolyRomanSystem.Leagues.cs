@@ -41,17 +41,17 @@ public static partial class HolyRomanSystem
     private static void LeaguesYearly(Empire empire, HolyRomanState state)
     {
         Realm core = empire.CoreKingdom;
-        if (!core.hasReligion()) return;
+        if (!core.HasReligion()) return;
         SeedReformation(empire);
         PrincelyReformation(empire);
         if (state.sovereign_princes) return;
-        List<Realm> dissenters = Members(empire).Where(member => member.hasReligion() && Schismatic(member.religion, core.religion))
+        List<Realm> dissenters = Members(empire).Where(member => member.HasReligion() && Schismatic(member.Religion, core.Religion))
             .ToList();
         if (state.league_leader_id < 0)
         {
             if (dissenters.Count < 2 || EcRandom.value >= LeagueChance) return;
             if (dissenters.Sum(member => member.Cities.Count) < empire.countCities() * LeagueCityShare) return;
-            Realm leader = dissenters.OrderByDescending(member => member.countTotalWarriors()).First();
+            Realm leader = dissenters.OrderByDescending(member => member.Warriors()).First();
             state.league_leader_id = leader.Key;
             state.league_member_ids = dissenters.Select(member => member.Key).ToList();
             state.league_name = string.Format(LM.Get("hre_league_name"), leader.Capital?.GetCityName() ?? leader.GetKingdomName());
@@ -61,10 +61,10 @@ public static partial class HolyRomanSystem
             return;
         }
         Realm head = EmpireWorld.Current.RealmByKey(state.league_leader_id);
-        if (head?.Record == null || head.IsGone() || head.GetEmpire() != empire || !head.hasReligion() ||
-            !Schismatic(head.religion, core.religion))
+        if (head?.Record == null || head.IsGone() || head.GetEmpire() != empire || !head.HasReligion() ||
+            !Schismatic(head.Religion, core.Religion))
         {
-            head = dissenters.OrderByDescending(member => member.countTotalWarriors()).FirstOrDefault();
+            head = dissenters.OrderByDescending(member => member.Warriors()).FirstOrDefault();
             if (head == null)
             {
                 DissolveLeague(state);
@@ -88,11 +88,9 @@ public static partial class HolyRomanSystem
     }
 
     // 两教有分合关系：一方是从另一方分出去的(宗教改革另立的新教会与它的母宗教)
-#if EC_PENDING
     public static bool Schismatic(Religion a, Religion b) =>
         a?.data != null && b?.data != null && a != b &&
         (a.GetOrCreate().ParentReligionId == b.data.id || b.GetOrCreate().ParentReligionId == a.data.id);
-#endif
 
     // 选帝制帝国的皇帝不随本文化的宗教改革脱离罗马(见 PapacySystem.BrokeWithRome、TryBreakWithRome)：宗教改革由诸侯开头，
     // 皇帝与奉旧教的诸侯对抗新教同盟。已另立过国教会的(如改回世袭时脱离过)照旧算脱离
@@ -108,13 +106,13 @@ public static partial class HolyRomanSystem
 #if EC_PENDING
     private static void SeedReformation(Empire empire)
     {
-        Religion old = empire.CoreKingdom.religion;
+        Religion old = empire.CoreKingdom.Religion;
         if (!KeepsOldFaith(empire) || !InstitutionSystem.IsEnacted(empire, PapacySystem.NodeReformation) ||
             PapacySystem.Reformations(old).Count > 0 || EcRandom.value >= ReformationSeedChance) return;
         Realm founder = Members(empire)
-            .Where(member => SecularPrince(member) && member.HasRuler() && member.Capital != null && member.religion == old &&
+            .Where(member => SecularPrince(member) && member.HasRuler() && member.Capital != null && member.Religion == old &&
                              !SameHouse(member.Ruler, empire.Emperor))
-            .OrderBy(member => Opinion(member, empire.CoreKingdom)).ThenByDescending(member => member.cities.Count).FirstOrDefault();
+            .OrderBy(member => Opinion(member, empire.CoreKingdom)).ThenByDescending(member => member.Cities.Count).FirstOrDefault();
         if (founder == null) return;
         PapacySystem.FoundReformedChurch(old, founder.Capital, founder.Ruler, PapacySystem.OriginPrince);
     }
@@ -125,14 +123,14 @@ public static partial class HolyRomanSystem
     private static void PrincelyReformation(Empire empire)
     {
         Realm core = empire.CoreKingdom;
-        Religion old = core.religion;
+        Religion old = core.Religion;
         // 只算宗教改革分出的(含剧本带的新教)，东正、科普特这类古来的分支不算
         List<Religion> churches = PapacySystem.Reformations(old);
         if (churches.Count == 0) return;
         foreach (Realm member in Members(empire))
         {
-            if (!member.hasReligion() || member.religion != old || IsChurchEstate(member) || member.Capital == null) continue;
-            Religion church = churches.OrderByDescending(item => member.Cities.Count(city => city?.Record != null && city.religion == item))
+            if (!member.HasReligion() || member.Religion != old || IsChurchEstate(member) || member.Capital == null) continue;
+            Religion church = churches.OrderByDescending(item => member.Cities.Count(city => city?.Record != null && city.Religion == item))
                 .ThenByDescending(item => NeighbourFaith(member, item)).First();
             float floor = ConvertChance * 0.25f * (PapacySystem.Party(member) == PapacySystem.PartyPope ? 0.3f : 1f);
             float chance = Mathf.Max(floor, PapacySystem.PrinceReformChance(member, old, church));
@@ -140,23 +138,25 @@ public static partial class HolyRomanSystem
             PapacySystem.AdoptReformation(member, church, old);
         }
     }
+#endif
 
     private static bool NeighbourFaith(Realm kingdom, Religion religion) =>
-        EmpireWorld.Current.LiveRealms.Any(other => other?.Record != null && !other.IsGone() && other != kingdom && other.religion == religion &&
+        EmpireWorld.Current.LiveRealms.Any(other => other?.Record != null && !other.IsGone() && other != kingdom && other.Religion == religion &&
                                           other.IsNeighbourWith(kingdom));
 
     private static void Convert(Realm kingdom, Religion from, Religion to)
     {
-        kingdom.setReligion(to);
+        kingdom.SetReligion(to);
         foreach (City city in kingdom.Cities.ToList())
         {
             if (city?.Record == null || city.IsGone()) continue;
-            city.setReligion(to);
-            foreach (Person actor in city.units.ToList())
-                if (actor?.Record != null && !actor.IsGone() && (from == null || actor.religion == from)) actor.setReligion(to);
+            city.SetReligion(to);
+            foreach (Person actor in city.People.ToList())
+                if (actor?.Record != null && !actor.IsGone() && (from == null || actor.Religion == from)) actor.SetReligion(to);
         }
     }
 
+#if EC_PENDING
     private static void DeclareReligiousWar(Empire empire, HolyRomanState state, Realm head, List<Realm> dissenters)
     {
         Realm core = empire.CoreKingdom;
@@ -169,7 +169,7 @@ public static partial class HolyRomanSystem
         foreach (Realm member in dissenters)
             if (member != head && !war.HasRealm(member) && !member.IsAtWarWith(head)) war.JoinAttackers(member);
         foreach (Realm member in Members(empire))
-            if (!war.HasRealm(member) && member.religion == core.religion && !IsBanned(member) &&
+            if (!war.HasRealm(member) && member.Religion == core.Religion && !IsBanned(member) &&
                 EcRandom.value < CatholicLeagueChance) war.JoinDefenders(member);
         Record(empire, string.Format(LM.Get("hre_religious_war_history"), state.league_name, head.GetKingdomName(),
             empire.Emperor?.FullName() ?? core.GetKingdomName()));
@@ -180,12 +180,12 @@ public static partial class HolyRomanSystem
         state.league_war_id = -1L;
         Realm core = empire.CoreKingdom;
         List<Realm> members = LeagueMembers(empire);
-        if (defendersWon && core.hasReligion())
+        if (defendersWon && core.HasReligion())
         {
-            foreach (Realm member in members) Convert(member, member.religion, core.religion);
+            foreach (Realm member in members) Convert(member, member.Religion, core.Religion);
             empire.AddMandate(LeagueCrushedLegitimacy);
             ChangeAuthority(empire, AuthLeagueCrushed, "hre_auth_league_crushed", state.league_name);
-            Record(empire, string.Format(LM.Get("hre_league_crushed_history"), state.league_name, core.religion.name));
+            Record(empire, string.Format(LM.Get("hre_league_crushed_history"), state.league_name, core.Religion.Name));
             DissolveLeague(state);
             return;
         }
@@ -205,7 +205,7 @@ public static partial class HolyRomanSystem
             regime.SetAllowDiplomacy(true);
             regime.SetAllowSupportCenterArmy(false);
         }
-        if (core.hasReligion()) PapacySystem.ReligiousPeace(core.religion);
+        if (core.HasReligion()) PapacySystem.ReligiousPeace(core.Religion);
         empire.AddMandate(PeaceLegitimacy);
         ChangeAuthority(empire, AuthReligiousPeace, "hre_auth_religious_peace", state.peace_name);
         Record(empire, string.Format(LM.Get("hre_peace_history"), state.peace_name, empire.GetEmpireFullName()));

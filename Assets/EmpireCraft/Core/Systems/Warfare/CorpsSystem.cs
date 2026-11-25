@@ -248,13 +248,12 @@ public static class CorpsSystem
     private static float _framesPerMonth = 30f;
     private static int _monthStartFrame = -1;
 
-#if EC_PENDING
     private static double MonthSlice()
     {
         if (SimulationFrameBudget.ServerMilliseconds.HasValue) return ServerMonthSliceLimit;
         double limit = GameMonthSliceLimit;
         // 拖过月界几个月了(小数)
-        double late = (GameClock.Now - _lastMonth) / Math.Max(0.001d, Date.getMonthTime()) - 1d;
+        double late = (GameClock.Now - _lastMonth) / Math.Max(0.001d, GameClock.MonthLength) - 1d;
         if (late >= 0d) return limit + (LateMonthSliceLimit - limit) * Math.Min(1d, late);
         int remaining = _monthPhase switch
         {
@@ -268,7 +267,6 @@ public static class CorpsSystem
         double wanted = remaining * _stepMs / framesLeft;
         return Math.Min(limit, Math.Max(MonthSliceMilliseconds, wanted));
     }
-#endif
     private static MonthPhase _monthPhase = MonthPhase.Idle;
     private static readonly Queue<Realm> MonthQueue = new();
     private static double _monthAt;
@@ -284,7 +282,7 @@ public static class CorpsSystem
         double now = GameClock.Now;
         if (now < _lastMonth) return elapsed;
         // 保留到月界的时间。卡在月界时仍然逐帧结算，Idle 后世界自然继续走。
-        return (float)Math.Min(elapsed, Math.Max(0d, _lastMonth + Date.getMonthTime() - now));
+        return (float)Math.Min(elapsed, Math.Max(0d, _lastMonth + GameClock.MonthLength - now));
     }
 #endif
 
@@ -421,7 +419,7 @@ public static class CorpsSystem
             span = Mathf.Clamp(since, 1, MaxCatchUpMonths);
             // 记到结清的那个月为止，不足一个月的零头留给下回：月结拖过月界时(见 MonthSlice)两回隔一个多月，
             // 记成"现在"就每回都丢掉那截零头，军饷、补员越结越少
-            if (since >= 1 && since <= MaxCatchUpMonths) at = Math.Min(now, last.at + since * (double)Date.getMonthTime());
+            if (since >= 1 && since <= MaxCatchUpMonths) at = Math.Min(now, last.at + since * (double)GameClock.MonthLength);
         }
         LastMonthTick[kingdom.Key] = (at, war);
         return span;
@@ -660,16 +658,16 @@ public static class CorpsSystem
     private static void Defect(Realm kingdom, List<CorpsData> list, float grievance)
     {
         if (grievance < DefectGrievance || EmpireWorld.Current == null) return;
-        Realm realm = FrontSystem.Realm(kingdom);
+        Realm realm = FrontSystem.ModRealm(kingdom);
         foreach (CorpsData corps in list.OrderBy(_ => EcRandom.value).ToList())
         {
             if (corps.militia || corps.order_id >= 0 || corps.embarked || corps.parent_id >= 0 || corps.strength < 1f) continue;
             if (corps.task is not ("attack" or "defend") ||
                 !FrontSystem.Battles.TryGetValue(corps.sector_city_id, out FrontSystem.BattleView battle)) continue;
             Realm attacker = EmpireWorld.Current.RealmByKey(battle.attacker_id), defender = EmpireWorld.Current.RealmByKey(battle.defender_id);
-            bool weAttack = FrontSystem.Realm(attacker) == realm;
-            Realm enemy = weAttack ? defender : FrontSystem.Realm(defender) == realm ? attacker : null;
-            if (enemy?.Record == null || enemy.IsGone() || FrontSystem.Realm(enemy) == realm || !PaysWell(enemy)) continue;
+            bool weAttack = FrontSystem.ModRealm(attacker) == realm;
+            Realm enemy = weAttack ? defender : FrontSystem.ModRealm(defender) == realm ? attacker : null;
+            if (enemy?.Record == null || enemy.IsGone() || FrontSystem.ModRealm(enemy) == realm || !PaysWell(enemy)) continue;
             // 打不过才投：这一段对面占优
             float enemyEdge = weAttack ? 1f - battle.ratio : battle.ratio;
             if (enemyEdge < DefectLosing) continue;
@@ -734,7 +732,7 @@ public static class CorpsSystem
     {
         // 集结的那几个月也算(见 WarMuster)：定了策就开始征，集结完兵也差不多征齐了
         int months = WarMuster.Months(kingdom);
-        foreach (Realm side in new[] { kingdom, FrontSystem.Realm(kingdom) })
+        foreach (Realm side in new[] { kingdom, FrontSystem.ModRealm(kingdom) })
         {
             if (side?.Record == null || side.IsGone()) continue;
             foreach (War war in side.GetWars())
@@ -813,7 +811,6 @@ public static class CorpsSystem
 
     // 养不起兵时留着不裁的军镇(见 GarrisonCutRules)：京畿(本势力的都城、陪都)、边境(邻城里有本势力以外的国，
     // 蛮荒不算)、驰援(战时本城或邻城正在交战)
-#if EC_PENDING
     private static bool KeepsStrength(Realm kingdom, Realm centre, City city, bool war)
     {
         if (city == centre.Capital) return true;
@@ -826,11 +823,10 @@ public static class CorpsSystem
             Realm other = next?.Realm;
             if (next?.Record == null || next.IsGone() || other?.Record == null) continue;
             if (war && FrontSystem.Battles.ContainsKey(next.Key)) return true;
-            if (other != kingdom && !other.IsWild && (FrontSystem.Realm(other) ?? other) != centre) return true;
+            if (other != kingdom && !other.IsWild && (FrontSystem.ModRealm(other) ?? other) != centre) return true;
         }
         return false;
     }
-#endif
 
     // 本国各军按兵种的平均饷银倍数(装备越先进越贵，见 CorpsArmSystem.Upkeep)；入关前的禁旅八旗只领行粮(见 BannerSystem.PayFactor)
 #if EC_PENDING
@@ -940,11 +936,11 @@ public static class CorpsSystem
         // 量入为出：按人口该有的兵额超出养得起的，每个军团按比例缩编
         float budget = BudgetFactor(kingdom, war, totalSlots * legionSize);
         // 校验平衡用：打仗的游牧、阿拉伯国家或与之交战的国家，兵源、军费系数、征兵比例、积弊(限频，见 WarBalanceDiagnostics)
-        if (war) WarBalanceDiagnostics.Realm(kingdom, background, pool, budget, doctrine.LevyShare * levyShare);
+        if (war) WarBalanceDiagnostics.ModRealm(kingdom, background, pool, budget, doctrine.LevyShare * levyShare);
         bool limited = budget < 0.999f;
         // 养不起时先裁内地：京畿、边境、邻城正打着仗的军镇先配足，剩下的才给内地(见 GarrisonCutRules)；
         // 以前各军镇一律按同一个成数缩编
-        Realm centre = FrontSystem.Realm(kingdom) ?? kingdom;
+        Realm centre = FrontSystem.ModRealm(kingdom) ?? kingdom;
         bool realmStrained = centre != kingdom && CannotFundWar(centre);
         var kept = new HashSet<City>();
         float keepFactor = 1f, inlandFactor = 1f;
@@ -1071,7 +1067,7 @@ public static class CorpsSystem
 #if EC_PENDING
     private static bool PaysWell(Realm kingdom)
     {
-        Realm realm = FrontSystem.Realm(kingdom) ?? kingdom;
+        Realm realm = FrontSystem.ModRealm(kingdom) ?? kingdom;
         return !Unpaid(kingdom) && !Unpaid(realm) && !BannerSystem.SelfSupplied(kingdom) && !Insurgent(kingdom) &&
                DynasticCycleSystem.PayArrears(kingdom) < UnpaidShortfall && realm.GetTreasuryBalance() > 0;
     }
@@ -1290,7 +1286,7 @@ public static class CorpsSystem
 #if EC_PENDING
     public static bool IsAtWar(Realm kingdom) =>
         kingdom != null && (kingdom.HasEnemies() || CityPopulationSystem.IsMobilizing(kingdom) ||
-                            FrontSystem.Realm(kingdom) is Realm realm && realm != kingdom && realm.HasEnemies());
+                            FrontSystem.ModRealm(kingdom) is Realm realm && realm != kingdom && realm.HasEnemies());
 #endif
 
     // 开局即有兵(世界地图剧本，见 WorldMapScenario)：照常按军制定各军镇的兵额、编军，编好的当场补满。返回全国兵力
@@ -1653,12 +1649,12 @@ public static class CorpsSystem
         int absorbed = 0;
         foreach (City city in kingdom.Cities.ToList())
         {
-            if (city?.units == null || city.IsGone()) continue;
+            if (city?.People == null || city.IsGone()) continue;
             int guards = NoMilitaryUnits ? 0 : CityStabilitySystem.FundedSlots(city);
-            var soldiers = city.units.Where(actor => actor?.data != null && !actor.IsGone() && actor.Alive &&
-                                                     actor.city == city && CityPopulationSystem.IsSoldier(actor) &&
+            var soldiers = city.People.Where(actor => actor?.Record != null && !actor.IsGone() && actor.Alive &&
+                                                     actor.City == city && CityPopulationSystem.IsSoldier(actor) &&
                                                      !CityPopulationSystem.IsVehicle(actor) && !IsGeneral(actor) &&
-                                                     !actor.isKing() && !actor.isCityLeader() && !actor.isFavorite() &&
+                                                     !actor.IsRuler() && !actor.IsCityLeader() && !actor.isFavorite() &&
                                                      actor.GetOrCreate().legion_size > 1f).ToList();
             if (soldiers.Count <= guards) continue;
             CorpsData target = Of(kingdom).Where(corps => !corps.militia)
@@ -2119,7 +2115,7 @@ public static class CorpsSystem
     private static City PortFor(Realm kingdom, Cell at)
     {
         if (kingdom == null) return null;
-        Realm realm = FrontSystem.Realm(kingdom);
+        Realm realm = FrontSystem.ModRealm(kingdom);
         IEnumerable<City> ports = NavySystem.Ports(kingdom);
         if (realm != null && realm != kingdom) ports = ports.Concat(NavySystem.Ports(realm));
         City best = null;
@@ -2643,9 +2639,9 @@ public static class CorpsSystem
         Cell zone = Zone(corps);
         if (zone == null) return Vector3.zero;
         Person general = corps.general_id >= 0 ? EmpireWorld.Current.PersonByKey(corps.general_id) : null;
-        if (general?.Record != null && !general.IsGone() && general.Alive && general.current_tile?.zone != null &&
-            ZoneDistance(general.current_tile.zone, zone) <= FollowZones)
-            return general.current_tile.posV;
+        if (general?.Record != null && !general.IsGone() && general.Alive && general.Cell?.Zone != null &&
+            ZoneDistance(general.Cell.Zone, zone) <= FollowZones)
+            return general.Cell.PosV;
         return DrawPosition(corps);
     }
 #endif
@@ -2929,11 +2925,11 @@ public static class CorpsSystem
         Person general = EmpireWorld.Current.PersonByKey(corps.general_id);
         Cell zone = Zone(corps);
         if (general?.Record == null || general.IsGone() || !general.Alive || zone?.Center == null ||
-            general.current_tile == null) return;
+            general.Cell == null) return;
         float now = Time.unscaledTime;
         if (GeneralMoves.TryGetValue(general.Key, out float next) && now < next) return;
         GeneralMoves[general.Key] = now + GeneralMoveInterval;
-        if (general.current_tile.zone == zone) return;
+        if (general.Cell.Zone == zone) return;
         try { general.goTo(zone.Center); }
         catch (Exception exception) { LogService.LogWarning($"[EmpireCraft][军团] 统领行军失败: {exception.Message}"); }
     }

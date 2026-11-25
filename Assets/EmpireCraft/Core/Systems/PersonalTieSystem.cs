@@ -66,7 +66,6 @@ public static class PersonalTieSystem
 #endif
 
     // 要人被杀：死者在世的子与兄弟(至多三人)与凶手结下杀亲之仇
-#if EC_PENDING
     public static void OnKinKilled(Person victim, Person killer)
     {
         PersonalClanIdentity dead = victim?.GetPersonalIdentity();
@@ -86,7 +85,6 @@ public static class PersonalTieSystem
             count++;
         }
     }
-#endif
 
     public static PersonalTie TieOf(PersonalClanIdentity owner, long otherId) =>
         owner?.ties?.FirstOrDefault(tie => tie != null && tie.other == otherId);

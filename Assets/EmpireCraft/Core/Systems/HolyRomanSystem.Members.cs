@@ -111,9 +111,9 @@ public static partial class HolyRomanSystem
 #if EC_PENDING
     private static Person Burgher(City city, Person exclude)
     {
-        List<Person> locals = (city.units ?? new List<Person>()).ToList()
-            .Where(actor => actor?.data != null && actor != exclude && !actor.IsGone() && actor.Alive && actor.isAdult() &&
-                            !actor.isKing() && actor.isUnitFitToRule()).ToList();
+        List<Person> locals = (city.People ?? new List<Person>()).ToList()
+            .Where(actor => actor?.Record != null && actor != exclude && !actor.IsGone() && actor.Alive && actor.IsAdult() &&
+                            !actor.IsRuler() && actor.IsFitToRule()).ToList();
         return locals.Where(actor => actor.GetOrCreate().socialClass == SocialClass.Merchant)
                    .OrderByDescending(actor => actor.Renown).FirstOrDefault()
                ?? locals.OrderByDescending(actor => actor.Renown).FirstOrDefault()
@@ -226,7 +226,7 @@ public static partial class HolyRomanSystem
     public static string ChurchBlocker(Empire empire)
     {
         Realm core = empire.CoreKingdom;
-        if (!core.hasReligion()) return "中央没有国教";
+        if (!core.HasReligion()) return "中央没有国教";
         int coreCities = core.Cities?.Count ?? 0, total = empire.countCities();
         if (coreCities < ChurchMinCoreCities) return $"中央{coreCities}城，要{ChurchMinCoreCities}城";
         if (total < ChurchMinEmpireCities) return $"帝国共{total}城，要{ChurchMinEmpireCities}城";
@@ -332,12 +332,12 @@ public static partial class HolyRomanSystem
         }
         return pick ?? CityPopulationSystem.SpawnOfficial(seat, seat.Realm);
     }
+#endif
 
     private static IEnumerable<Person> Candidates(City city) =>
-        (city?.units ?? new List<Person>()).ToList().Where(actor => actor?.data != null && !actor.IsGone() && actor.Alive &&
-                                                                    actor.isAdult() && !actor.isKing() && !actor.isCityLeader() &&
-                                                                    actor.isUnitFitToRule());
-#endif
+        (city?.People ?? new List<Person>()).ToList().Where(actor => actor?.Record != null && !actor.IsGone() && actor.Alive &&
+                                                                    actor.IsAdult() && !actor.IsRuler() && !actor.IsCityLeader() &&
+                                                                    actor.IsFitToRule());
 
     // 选帝侯团的教会席位：主教领的主教优先(最多三席)
     public static List<long> ChurchElectors(Empire empire) =>

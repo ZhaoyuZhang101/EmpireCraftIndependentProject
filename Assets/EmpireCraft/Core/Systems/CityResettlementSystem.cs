@@ -48,7 +48,7 @@ internal static class CityResettlementSystem
 
 #if EC_PENDING
     private static bool Empty(City city) => Valid(city) && CityPopulationSystem.GetTotal(city) < 1f &&
-        city.units?.Any(actor => actor != null && actor.city == city && !actor.IsGone() && actor.Alive) != true &&
+        city.People?.Any(actor => actor != null && actor.City == city && !actor.IsGone() && actor.Alive) != true &&
         !StateSettlementSystem.AwaitingPopulation(city) && Due(city) &&
         !(city.GetOrCreate().OccupiedStatus?.Count > 0) &&
         city.Zones.Any(zone => zone.GroundTiles > 0);
@@ -73,7 +73,7 @@ internal static class CityResettlementSystem
     private static float Migrants(City source, City target)
     {
         if (!Valid(source) || !Due(source) || source == target ||
-            source.units?.Any(actor => actor != null && !actor.IsGone() && actor.Alive && actor.hasTrait("plague")) == true)
+            source.People?.Any(actor => actor != null && !actor.IsGone() && actor.Alive && actor.HasTrait("plague")) == true)
             return 0f;
         float civilians = CityPopulationSystem.CivilianBackground(source);
         float people = Math.Max(0f, Math.Min(civilians * 0.05f, civilians - CityPopulationSystem.PeoplePerSlot(source)));

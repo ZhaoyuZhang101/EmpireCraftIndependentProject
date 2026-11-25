@@ -19,7 +19,7 @@ public class EmpireCraftCityBehCheckReligion: GameAICityBase
         if (!CultureService.IsValidCulture(culture)) culture = "Western";
         // 圣城神权自立：罗马一线(教会与王权分立的传统)；以前查文化配置的政体是不是封建，西方(古典城邦起步)漏了
         if (InstitutionSystem.GetCultureLine(culture) != "Roma") return BehResult.Continue;
-        if (pCity.hasReligion())
+        if (pCity.HasReligion())
         {
             Religion pReligion = pCity.getReligion();
             // 没有教阶的宗教、地方教会(同天下的本土小教)、分出去的教派没有教廷，圣城(中心)不神权自立(见 PapacySystem.HasSee)
@@ -68,7 +68,7 @@ public class EmpireCraftCityBehCheckReligion: GameAICityBase
         static bool Fit(Person actor) => actor?.Record != null && !actor.IsGone() && actor.Alive && actor.IsAdult() &&
                                         !actor.IsRuler() && !CityPopulationSystem.IsVehicle(actor);
         if (Fit(city.Leader)) return city.Leader;
-        return city.units?.FirstOrDefault(Fit);
+        return city.People?.FirstOrDefault(Fit);
     }
 #endif
 }

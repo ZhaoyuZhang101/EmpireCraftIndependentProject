@@ -146,7 +146,7 @@ public class EmpireCraftKingdomBehCheckPlots : GameAIKingdomBase
     }
     public void CheckJoinReligionWar(Realm pKingdom)
     {
-        if (!pKingdom.hasReligion()) return;
+        if (!pKingdom.HasReligion()) return;
         if (pKingdom.HasEnemies()) return;
         if (pKingdom.GetWars().Count()>0) return;
         foreach (var war in DiplomacyHelpers.wars)
@@ -157,13 +157,13 @@ public class EmpireCraftKingdomBehCheckPlots : GameAIKingdomBase
             if (war.getAttackers().Contains(pKingdom)) continue;
             if (war.GetEmpireWarType() == EmpireWarType.神圣)
             {
-                if (pKingdom.religion == war.main_attacker?.religion)
+                if (pKingdom.Religion == war.main_attacker?.religion)
                 {
                     // 圣战加上限与距离(见 ReligiousTension.CanJoinHolyWar)
                     if (pKingdom.isOpinionTowardsKingdomGood(war.main_attacker) && ReligiousTension.CanJoinHolyWar(pKingdom, war))
                     {
                         war.joinAttackers(pKingdom);
-                        TranslateHelper.LogJoinReligionWar(pKingdom, pKingdom.religion);
+                        TranslateHelper.LogJoinReligionWar(pKingdom, pKingdom.Religion);
                         return;
                     }
                 }

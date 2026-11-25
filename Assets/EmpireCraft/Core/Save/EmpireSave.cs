@@ -10,7 +10,7 @@ namespace EmpireCraft.Core
     // a bed fingerprint. Derived indices (tile owners, living list) are rebuilt.
     public static class EmpireSave
     {
-        public const int Version=4;
+        public const int Version=5;
         const uint Magic=0x44574345; // "ECWD"
         const int MaxEntities=4_000_000,MaxString=256;
 
@@ -86,6 +86,22 @@ namespace EmpireCraft.Core
                 var traits=new System.Collections.Generic.List<string>(p.Traits);traits.Sort(StringComparer.Ordinal);
                 b.Write(traits.Count);foreach(string trait in traits)b.Write(trait);
             }
+            if(version<5){b.Flush();return stream.ToArray();}
+            // Version 5: faiths and cultures, and who holds which. A holder of one that is gone is written as holding none.
+            b.Write(w.Religions.Count);
+            foreach(var x in w.Religions.list){b.Write(x.data.id);b.Write(x.data.name??"");b.Write(x.data.created_time);b.Write(x.data.creator_id);b.Write(x.data.creator_kingdom_id);}
+            b.Write(w.Religions.NextKey);
+            b.Write(w.Cultures.Count);
+            foreach(var x in w.Cultures.list)
+            {
+                b.Write(x.data.id);b.Write(x.data.name??"");b.Write(x.data.created_time);b.Write(x.data.creator_id);b.Write(x.data.creator_kingdom_id);
+                var traits=new System.Collections.Generic.List<string>(x.Traits);traits.Sort(StringComparer.Ordinal);
+                b.Write(traits.Count);foreach(string trait in traits)b.Write(trait);
+            }
+            b.Write(w.Cultures.NextKey);
+            foreach(var r in w.Realms){b.Write(Held(r.Religion));b.Write(Held(r.Culture));}
+            foreach(var c in w.Cities){b.Write(Held(c.Religion));b.Write(Held(c.Culture));}
+            foreach(var p in w.People){b.Write(Held(p.Religion));b.Write(Held(p.Culture));}
             b.Flush();return stream.ToArray();
         }
 
@@ -122,7 +138,7 @@ namespace EmpireCraft.Core
             int realms=Count(b);
             for(int i=0;i<realms;i++)
             {
-                var r=new Realm{Id=i,Name=Text(b),Color=b.ReadUInt32()};
+                var r=new Realm{Id=i,World=w,Name=Text(b),Color=b.ReadUInt32()};
                 int capital=Ref(b,cities),ruler=Ref(b,people),house=Ref(b,clans),previous=Ref(b,people);
                 r.Capital=capital<0?null:w.Cities[capital];r.Ruler=ruler<0?null:w.People[ruler];
                 r.RulingClan=house<0?null:w.Clans[house];r.PreviousRuler=previous<0?null:w.People[previous];
@@ -187,6 +203,28 @@ namespace EmpireCraft.Core
                     int traits=Count(b);Check(traits<=4096,"Too many traits");
                     for(int k=0;k<traits;k++)p.AddTrait(Text(b));
                 }
+            if(version>=5)
+            {
+                int faiths=Count(b);
+                for(int i=0;i<faiths;i++)
+                {
+                    long key=b.ReadInt64();Check(key>0&&!w.Religions.Has(key),"Invalid religion key");
+                    var x=w.Religions.NewObjectFromKey(key);x.data.name=Text(b);x.data.created_time=b.ReadDouble();x.data.creator_id=b.ReadInt64();x.data.creator_kingdom_id=b.ReadInt64();
+                }
+                w.Religions.RestoreNextKey(b.ReadInt64());
+                int cultures=Count(b);
+                for(int i=0;i<cultures;i++)
+                {
+                    long key=b.ReadInt64();Check(key>0&&!w.Cultures.Has(key),"Invalid culture key");
+                    var x=w.Cultures.NewObjectFromKey(key);x.data.name=Text(b);x.data.created_time=b.ReadDouble();x.data.creator_id=b.ReadInt64();x.data.creator_kingdom_id=b.ReadInt64();
+                    int traits=Count(b);Check(traits<=4096,"Too many traits");
+                    for(int k=0;k<traits;k++)x.AddTrait(Text(b));
+                }
+                w.Cultures.RestoreNextKey(b.ReadInt64());
+                foreach(var r in w.Realms){r.Religion=Faith(b,w);r.Culture=Folk(b,w);}
+                foreach(var c in w.Cities){c.Religion=Faith(b,w);c.Culture=Folk(b,w);}
+                foreach(var p in w.People){p.Religion=Faith(b,w);p.Culture=Folk(b,w);}
+            }
             Check(stream.Position==stream.Length,"Trailing bytes in EmpireCraft section");
             var errors=EmpireInvariants.Check(w,1);
             Check(errors.Count==0,"Inconsistent EmpireCraft section: "+(errors.Count>0?errors[0]:""));
@@ -194,6 +232,10 @@ namespace EmpireCraft.Core
         }
 
         static void Check(bool ok,string message){if(!ok)throw new InvalidDataException(message);}
+        // The key a holder is saved with: none for nothing held and for a faith or culture that has left the record.
+        static long Held(Entity x)=>x==null||!x.Alive?-1L:x.Key;
+        static Religion Faith(BinaryReader b,EmpireWorld w){long key=b.ReadInt64();if(key<0)return null;var x=w.Religions.Get(key);Check(x!=null,"Unknown religion "+key);return x;}
+        static Culture Folk(BinaryReader b,EmpireWorld w){long key=b.ReadInt64();if(key<0)return null;var x=w.Cultures.Get(key);Check(x!=null,"Unknown culture "+key);return x;}
         // Category totals in key order, so equal books always encode to equal bytes.
         static void Amounts(BinaryWriter b,System.Collections.Generic.Dictionary<string,long> amounts)
         {

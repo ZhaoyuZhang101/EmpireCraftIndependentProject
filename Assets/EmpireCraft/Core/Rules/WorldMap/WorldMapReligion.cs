@@ -145,14 +145,14 @@ public static class WorldMapReligion
         // 各城改信
         foreach ((City city, string id) in faithOf)
             if (made.TryGetValue(id, out Religion religion))
-                BackgroundReligionSystem.Convert(city, religion, city.religion);
+                BackgroundReligionSystem.Convert(city, religion, city.Religion);
         // 国教随都城(莫卧儿的都城阿格拉奉伊斯兰，治下多是印度教的城)
         foreach ((Realm kingdom, City capital, Empire empire) in realms)
         {
             if (kingdom?.Record == null || kingdom.IsGone() || capital?.Record == null) continue;
             if (!faithOf.TryGetValue(capital, out string id) || !made.TryGetValue(id, out Religion religion)) continue;
-            kingdom.setReligion(religion);
-            if (kingdom.Ruler != null && !kingdom.Ruler.IsGone()) kingdom.Ruler.setReligion(religion);
+            kingdom.SetReligion(religion);
+            if (kingdom.Ruler != null && !kingdom.Ruler.IsGone()) kingdom.Ruler.SetReligion(religion);
             if (empire != null && empire.CoreKingdom == kingdom)
             {
                 empire.Religion = religion;
@@ -170,7 +170,7 @@ public static class WorldMapReligion
         Person founder = holy.Leader;
         if (founder == null || founder.IsGone() || founder.subspecies == null) founder = holy.Realm?.Ruler;
         if (founder == null || founder.IsGone() || founder.subspecies == null || founder.Realm == null) return null;
-        Religion religion = EmpireWorld.Current.religions.newReligion(founder, false);
+        Religion religion = EmpireWorld.Current.Religions.NewReligion(founder, false);
         if (religion?.data == null) return null;
         string name = WorldMapData.PickParts(AtYear(definition.n, year));
         if (!string.IsNullOrWhiteSpace(name)) religion.data.name = name;

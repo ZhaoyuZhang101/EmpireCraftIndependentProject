@@ -137,11 +137,11 @@ public static class CityStabilitySystem
     private static bool Due(CityStabilityData state) => state != null &&
         (state.last_update < 0d || GameClock.MonthsSince(state.last_update) >= 1);
 
-#if EC_PENDING
     private static bool CanRetire(Person actor, City city) => actor != null && actor.Alive && actor.IsWarrior() &&
-        !actor.IsRuler() && !actor.IsCityLeader() && actor.City == city && actor.current_tile?.zone_city == city &&
+        !actor.IsRuler() && !actor.IsCityLeader() && actor.City == city && actor.Cell?.City == city &&
         actor.Realm != null && (actor.Realm == city.Realm || actor.Realm.IsInSameEmpire(city.Realm));
 
+#if EC_PENDING
     private static void DrainRetirements()
     {
         if (Retirements.Count == 0) return;
@@ -151,14 +151,14 @@ public static class CityStabilitySystem
             !ReferenceEquals(city.GetOrCreate().stability, work.State) || !work.State.withdrawn)
         { Retiring.Remove(city); return; }
         int visited = 0, retired = 0;
-        while (work.Cursor < city.units.Count && visited < 16 && retired < 4 && SimulationFrameBudget.HasTime)
+        while (work.Cursor < city.PopulationCount() && visited < 16 && retired < 4 && SimulationFrameBudget.HasTime)
         {
-            Person soldier = city.units[work.Cursor++]; visited++;
+            Person soldier = city.People[work.Cursor++]; visited++;
             if (!CanRetire(soldier, city)) continue;
             CityPopulationSystem.DemobilizeSoldier(soldier, city); retired++;
         }
         GuardCounts.Remove(city);
-        if (work.Cursor < city.units.Count) { Retirements.Enqueue(work); return; }
+        if (work.Cursor < city.PopulationCount()) { Retirements.Enqueue(work); return; }
         Retiring.Remove(city);
         CityStabilityBudget budget = CityStabilityMath.Compute(CaptureInput(city));
         ReviewWithdrawal(city, work.State, budget.GuardMonthly + budget.GovernanceAnnual / 12d);
@@ -396,14 +396,14 @@ public static class CityStabilitySystem
         if (city != null && !refresh && GuardCounts.TryGetValue(city, out GuardCount cached))
         { assigned = cached.Assigned; present = cached.Present; return; }
         double all = 0d, local = 0d;
-        if (city?.units == null) { assigned = present = 0; return; }
-        foreach (Person actor in city.units)
+        if (city?.People == null) { assigned = present = 0; return; }
+        foreach (Person actor in city.People)
         {
             if (actor == null || actor.IsGone() || !actor.Alive || !actor.IsWarrior() || actor.Realm == null || actor.City != city ||
                 actor.Realm != city.Realm && !actor.Realm.IsInSameEmpire(city.Realm)) continue;
             double people = CityPopulationSystem.AbstractPopulationEnabled ? CityPopulationSystem.LegionAlive(actor) : 1d;
             all += people;
-            if (actor.current_tile?.zone_city == city) local += people;
+            if (actor.Cell?.City == city) local += people;
         }
         // 不留军人实体时，守兵只是城里的人数
         if (CorpsSystem.NoMilitaryUnits)
@@ -472,16 +472,16 @@ public static class CityStabilitySystem
             CityPopulationSystem.RaiseMilitia(city, units, people / pool, garrison: true);
             return;
         }
-        if (city.units == null || city.units.Count == 0) return;
+        if (city.People == null || city.PopulationCount() == 0) return;
         int filled = 0, visited = 0;
         RecruitCursors.TryGetValue(city, out int cursor);
         // 不复制整城单位表；未轮到的居民留到下月继续，单城征募最多检查 64 人、补 4 人。
-        while (visited < Math.Min(64, city.units.Count))
+        while (visited < Math.Min(64, city.PopulationCount()))
         {
             if (visited > 0 && !SimulationFrameBudget.HasTime) break;
             if (filled >= Math.Min(4, needed)) break;
-            if (cursor >= city.units.Count) cursor = 0;
-            Person actor = city.units[cursor++]; visited++;
+            if (cursor >= city.PopulationCount()) cursor = 0;
+            Person actor = city.People[cursor++]; visited++;
             if (actor == null || actor.IsGone() || !actor.Alive || !actor.IsAdult() || actor.IsWarrior() ||
                 actor.IsRuler() || actor.IsCityLeader() || actor.equipment == null || !actor.CanFoundCivKingdom()) continue;
             city.makeWarrior(actor);
@@ -650,7 +650,7 @@ public static class CityStabilitySystem
         state.suppression = 0f;
         state.garrison_funding = 0f;
         if (Retiring.Contains(city)) return;
-        if (city.units.Any(actor => CanRetire(actor, city)))
+        if (city.People.Any(actor => CanRetire(actor, city)))
         {
             Retiring.Add(city);
             Retirements.Enqueue(new Retirement { City = city, Owner = origin, State = state });
@@ -673,7 +673,7 @@ public static class CityStabilitySystem
         {
             Person founder = city.Leader;
             if (founder?.CanFoundCivKingdom() != true)
-                founder = city.units?.FirstOrDefault(actor => actor.CanFoundCivKingdom() && actor.Alive && actor.isAdult());
+                founder = city.People?.FirstOrDefault(actor => actor.CanFoundCivKingdom() && actor.Alive && actor.IsAdult());
             founder ??= CityPopulationSystem.SpawnRebelLeader(city);
             if (founder == null) return;
             independent = city.makeOwnKingdom(founder);

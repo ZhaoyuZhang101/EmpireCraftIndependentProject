@@ -54,7 +54,7 @@ public static class ExamSystem
             for (int i = 0; i < examinees; i++)
                 if (CityPopulationSystem.SpawnScholar(city) == null) break;
         }
-        foreach(Person actor in city.units.ToList())
+        foreach(Person actor in city.People.ToList())
         {
             double mark = 0;
             if (!actor.IsAdult()) continue;
@@ -114,7 +114,7 @@ public static class ExamSystem
         Dictionary<Person, double> MarksData = new Dictionary<Person, double>();
         foreach(City city in province.Cities)
         {
-            foreach (Person actor in city.units.FindAll(a => a != null && !a.IsGone() && a.hasTrait("juren")))
+            foreach (Person actor in city.People.FindAll(a => a != null && !a.IsGone() && a.HasTrait("juren")))
             {
                 // 只记中榜，不记每次赴考：屡试不第的考生每次都记一条，存档会膨胀到几百 MB
                 double mark = actor.startProvinceExam();

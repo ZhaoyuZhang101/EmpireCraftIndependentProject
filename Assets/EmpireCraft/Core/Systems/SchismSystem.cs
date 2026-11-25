@@ -501,11 +501,9 @@ public static class SchismSystem
     }
 
     // 一方(连同随它参战的成员)眼下的兵力
-#if EC_PENDING
     private static int SideWarriors(War war, bool attackers) =>
         (attackers ? war.Attackers : war.Defenders)
-        .Where(kingdom => kingdom?.Record != null && !kingdom.IsGone()).Sum(kingdom => kingdom.countTotalWarriors());
-#endif
+        .Where(kingdom => kingdom?.Record != null && !kingdom.IsGone()).Sum(kingdom => kingdom.Warriors());
 
     // 战争结束(WarPatch.end_war，在神罗的结算之后)：记中央打赢一仗(化解用)；争位之战的结局
 #if EC_PENDING

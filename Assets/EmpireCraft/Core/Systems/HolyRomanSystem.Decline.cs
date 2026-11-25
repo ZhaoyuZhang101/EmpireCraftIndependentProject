@@ -124,7 +124,7 @@ public static partial class HolyRomanSystem
         return true;
     }
 
-    private static bool IsPapacy(Realm kingdom) => kingdom.hasReligion() && PapacySystem.Papacy(kingdom.religion) == kingdom;
+    private static bool IsPapacy(Realm kingdom) => kingdom.HasReligion() && PapacySystem.Papacy(kingdom.Religion) == kingdom;
 #endif
 
     // 能拉走的成员：对皇帝好感不到 10、或改奉别教、或有自主外交
@@ -136,7 +136,7 @@ public static partial class HolyRomanSystem
         // 新入帝国十年内、神力拉入未满期的不被拉走(入帝国就得了自主外交，以前一入帝国就算"不满"，见 MembershipCooldown)
         if (!MembershipCooldown.Settled(member)) return false;
         return Opinion(member, core) < DepartOpinion ||
-               member.hasReligion() && core.hasReligion() && member.religion != core.religion ||
+               member.HasReligion() && core.HasReligion() && member.Religion != core.Religion ||
                member.GetRegime()?.IsAllowDiplomacy() == true;
     }
 #endif
@@ -156,7 +156,7 @@ public static partial class HolyRomanSystem
                               (kingdom.GetEmpire() == null || kingdom.IsEmpire()) && !IsPapacy(kingdom) &&
                               !kingdom.IsAtWarWith(core) && discontent.Any(member => member.IsNeighbourWith(kingdom)) &&
                               WarSituation.Power(kingdom) >= central * ProtectorPower)
-            .OrderByDescending(kingdom => kingdom.hasReligion() && kingdom.religion == core.religion)
+            .OrderByDescending(kingdom => kingdom.HasReligion() && kingdom.Religion == core.Religion)
             .ThenByDescending(kingdom => WarSituation.Power(kingdom));
         foreach (Realm protector in protectors)
         {

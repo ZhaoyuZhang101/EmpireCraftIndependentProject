@@ -80,7 +80,7 @@ public static partial class IdeologyPopulationSystem
             for(int i=0;i<ideas.Length;i++)affinity[(int)c,i]=PartySystem.GetAffinity(ideas[i],c);
         }
         var subjects=new List<ContactSubject>();var actors=new List<Person>();
-        foreach(Person actor in city.units)
+        foreach(Person actor in city.People)
         {
             if(actor?.Record==null||actor.IsGone()||!actor.Alive||!actor.IsAdult())continue;
             // 外戚、宦官的立场只在朝堂里，不随民间交往改变(见 CliqueSystem)

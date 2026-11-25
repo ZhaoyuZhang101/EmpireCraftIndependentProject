@@ -421,9 +421,9 @@ public static class MarketSystem
         if (IdeologyPopulationSystem.GetDominant(buyer) != ideology)
             IdeologyPopulationSystem.InfluenceCity(buyer, ideology, Mathf.Min(0.05f, IdeologyInfluencePerTrade * volume) * reach);
         float chance = Mathf.Min(MaxReligionChance, ReligionChancePerVolume * volume) * reach;
-        if (seller.religion != null && buyer.religion != seller.religion && !buyer.hasBuildingType("type_temple") &&
+        if (seller.Religion != null && buyer.Religion != seller.Religion && !buyer.hasBuildingType("type_temple") &&
             EcRandom.value < chance)
-            buyer.setReligion(seller.religion);
+            buyer.SetReligion(seller.Religion);
         if (foreign && seller.language != null && buyer.language != seller.language && EcRandom.value < chance)
             buyer.setLanguage(seller.language);
     }

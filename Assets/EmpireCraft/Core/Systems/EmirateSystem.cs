@@ -217,11 +217,11 @@ public static class EmirateSystem
             if (Secede(empire, kingdom, legitimacy, chance)) return;
         }
     }
+#endif
 
     private static float Might(Realm kingdom) =>
         kingdom?.Record == null || kingdom.IsGone() ? 0f
-            : kingdom.countTotalWarriors() + (kingdom.Cities ?? new List<City>()).Sum(city => CorpsSystem.EquivalentAt(city));
-#endif
+            : kingdom.Warriors() + (kingdom.Cities ?? new List<City>()).Sum(city => CorpsSystem.EquivalentAt(city));
 
     // 正统 PeacefulLegitimacy(65)以上和平脱离(朝贡、附庸或自立)，不到 65 举兵自立
 #if EC_PENDING

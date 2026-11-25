@@ -153,7 +153,7 @@ public static class EmpireCraftOpinionAddition
                 int result = 0;
                 if (!pMain.IsInSameEmpire(pTarget))
                 {
-                    if (!pMain.IsInEmpire() && pTarget.IsEmpire()&&pMain.countTotalWarriors()*2<=pTarget.GetEmpire().countWarriors())
+                    if (!pMain.IsInEmpire() && pTarget.IsEmpire()&&pMain.Warriors()*2<=pTarget.GetEmpire().countWarriors())
                     {
                         result = pTarget.GetEmpire().Additions.addition[OfficerPowerType.礼仪] * 5;
                     }
@@ -220,11 +220,11 @@ public static class EmpireCraftOpinionAddition
                 int result = 0;
                 // 圣地只让外国景仰；同一帝国的成员对坐拥圣地的朝廷不另加(以前另加 200~300，成员永远自立不了)
                 if (pMain.IsInSameEmpire(pTarget)) return result;
-                if (pMain.hasReligion()&&pMain.GetRegime()!=null)
+                if (pMain.HasReligion()&&pMain.GetRegime()!=null)
                 {
-                    Religion religion = pMain.religion;
+                    Religion religion = pMain.Religion;
                     // 教派那座城只是中心，不算圣地(见 ReligionSphere"教派与圣地")
-                    if (religion.GetCity() == pTarget.Capital && pTarget.religion == religion && !ReligionSphere.IsBranch(religion))
+                    if (religion.GetCity() == pTarget.Capital && pTarget.Religion == religion && !ReligionSphere.IsBranch(religion))
                     {
                         result = 100*(int)pMain.GetRegime().GetReligionLevel();
                     }
@@ -241,7 +241,7 @@ public static class EmpireCraftOpinionAddition
                 int result = 0;
                 if (pMain.IsInSameEmpire(pTarget))
                 {
-                    if (!pMain.IsEmpire()&&pTarget.IsEmpire()&&(pMain.countTotalWarriors()>pMain.GetEmpire().countWarriors()- pMain.countTotalWarriors()))
+                    if (!pMain.IsEmpire()&&pTarget.IsEmpire()&&(pMain.Warriors()>pMain.GetEmpire().countWarriors()- pMain.Warriors()))
                     {
                         result = -50;
                     }
@@ -260,7 +260,7 @@ public static class EmpireCraftOpinionAddition
                 {
                     if (!pMain.IsEmpire()&&pTarget.IsEmpire())
                     {
-                        if (pMain.GetCorruptionRate()>0.8f&&pMain.countTotalWarriors()>=pTarget.countTotalWarriors())
+                        if (pMain.GetCorruptionRate()>0.8f&&pMain.Warriors()>=pTarget.Warriors())
                             result = -999;
                     }
                 }

@@ -201,8 +201,8 @@ public class EmpireManager : RecordStore<Empire, EmpireData>
             if (!EmpireMembershipService.BelongsTo(e, k)) continue;
             var ked = KingdomExtension.GetOrCreate(k);
             ked.last_cached_timestamp = -1L;
-            int kp = k.getPopulationPeople();
-            int kw = k.countTotalWarriors();
+            int kp = k.PopulationCount();
+            int kw = k.Warriors();
             int km = k.countWarriorsMax();
             pop += kp;
             warriors += kw;
@@ -433,7 +433,7 @@ public class EmpireManager : RecordStore<Empire, EmpireData>
                 ? other
                 : empire;
             Realm kingdom = younger.CoreKingdom;
-            ActorAsset asset = kingdom.Ruler?.asset ?? kingdom.units?.FirstOrDefault(unit => unit != null)?.asset;
+            ActorAsset asset = kingdom.Ruler?.asset ?? kingdom.People?.FirstOrDefault(unit => unit != null)?.asset;
             if (asset == null) return;
             ColorAsset next = kingdom.getColorLibrary()?.getNextColor(asset);
             if (next == null) return;
@@ -581,6 +581,7 @@ public class EmpireManager : RecordStore<Empire, EmpireData>
         fallbackKing.joinKingdom(kingdom);
         return kingdom.HasRuler() && kingdom.Ruler != null && !kingdom.Ruler.IsGone();
     }
+#endif
 
     private static Person FindFallbackKingCandidate(Realm kingdom)
     {
@@ -589,13 +590,13 @@ public class EmpireManager : RecordStore<Empire, EmpireData>
             for (int i = 0; i < kingdom.Cities.Count; i++)
             {
                 City city = kingdom.Cities[i];
-                if (city == null || city.IsGone() || city.units == null)
+                if (city == null || city.IsGone() || city.People == null)
                 {
                     continue;
                 }
-                for (int j = 0; j < city.units.Count; j++)
+                for (int j = 0; j < city.PopulationCount(); j++)
                 {
-                    Person actor = city.units[j];
+                    Person actor = city.People[j];
                     if (IsValidFallbackKingCandidate(actor))
                     {
                         return actor;
@@ -604,11 +605,11 @@ public class EmpireManager : RecordStore<Empire, EmpireData>
             }
         }
 
-        if (kingdom?.units != null)
+        if (kingdom?.People != null)
         {
-            for (int i = 0; i < kingdom.units.Count; i++)
+            for (int i = 0; i < kingdom.PopulationCount(); i++)
             {
-                Person actor = kingdom.units[i];
+                Person actor = kingdom.People[i];
                 if (IsValidFallbackKingCandidate(actor))
                 {
                     return actor;
@@ -618,7 +619,6 @@ public class EmpireManager : RecordStore<Empire, EmpireData>
 
         return null;
     }
-#endif
 
     private static bool IsValidFallbackKingCandidate(Person actor)
     {

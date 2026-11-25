@@ -47,15 +47,13 @@ public static class WarMuster
     public static bool Wide(Realm kingdom) => Mustering(kingdom) && kingdom.GetOrCreate().muster_wide;
 
     // 集结了几个月(随中央集结的成员按中央的算)：征兵从平时的成数往全征爬(见 CorpsSystem.WarLevyShare)
-#if EC_PENDING
     public static int Months(Realm kingdom)
     {
         if (!Alive(kingdom)) return 0;
-        Realm lead = Mustering(kingdom) ? kingdom : Following(kingdom) ? FrontSystem.Realm(kingdom) : null;
+        Realm lead = Mustering(kingdom) ? kingdom : Following(kingdom) ? FrontSystem.ModRealm(kingdom) : null;
         double since = lead?.Record == null ? -1d : lead.GetOrCreate().muster_since;
         return since < 0d || GameClock.Now < since ? 0 : GameClock.MonthsSince(since);
     }
-#endif
 
     // 定策的国、目标、随同动员的成员(见 CityPopulationSystem.IsMobilizing)
     public static IEnumerable<(Realm author, Realm target, List<Realm> followers)> Entries()
@@ -202,11 +200,10 @@ public static class WarMuster
 #endif
 
     // 对方举国之兵(连同它的宗主中央)
-#if EC_PENDING
     private static float Strength(Realm target)
     {
         float total = 0f;
-        foreach (Realm side in new[] { target, FrontSystem.Realm(target) }.Distinct())
+        foreach (Realm side in new[] { target, FrontSystem.ModRealm(target) }.Distinct())
         {
             if (!Alive(side)) continue;
             foreach (CorpsData corps in CorpsSystem.Of(side))
@@ -214,7 +211,6 @@ public static class WarMuster
         }
         return total;
     }
-#endif
 
     // 每月(各国月结，征兵之前)
 #if EC_PENDING

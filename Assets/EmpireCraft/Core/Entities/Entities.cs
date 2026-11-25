@@ -32,6 +32,20 @@ namespace EmpireCraft.Core
         public bool IsWild=>false;
         public bool IsNeutral()=>false;
         public bool IsCivilized()=>true;
+
+        // The world this realm is in; set when it is founded or loaded.
+        public EmpireWorld World;
+        // The faith and the culture held, if any; set by whichever system converts or assimilates.
+        public Religion Religion;public Culture Culture;
+        public bool HasReligion()=>Religion!=null&&Religion.Alive;
+        public bool HasCulture()=>Culture!=null&&Culture.Alive;
+        public void SetReligion(Religion faith){Religion=faith;}
+        public void SetCulture(Culture culture){Culture=culture;}
+        // The population is counted, not tracked: headcount and troops are numbers summed over the cities.
+        public int PopulationCount(){double total=0;foreach(var city in Cities)if(city.Alive)total+=city.Population;return (int)System.Math.Min(int.MaxValue,total);}
+        public int Warriors(){long total=0;foreach(var city in Cities)total+=city.Warriors();return (int)System.Math.Min(int.MaxValue,total);}
+        // The persons on record who belong here (rulers, their houses, office holders). Not the population.
+        public List<Person> People{get{var found=new List<Person>();if(World!=null)foreach(var person in World.Living)if(person.Realm==this)found.Add(person);return found;}}
     }
 
     public sealed class City : Entity
@@ -54,6 +68,16 @@ namespace EmpireCraft.Core
         public bool HasLeader()=>Leader!=null&&Leader.Alive;
         public bool IsCapital()=>Realm!=null&&Realm.Capital==this;
         public int PopulationCount()=>(int)System.Math.Min(int.MaxValue,Population);
+        // The faith and the culture held, if any; set by whichever system converts or assimilates.
+        public Religion Religion;public Culture Culture;
+        public bool HasReligion()=>Religion!=null&&Religion.Alive;
+        public bool HasCulture()=>Culture!=null&&Culture.Alive;
+        public void SetReligion(Religion faith){Religion=faith;}
+        public void SetCulture(Culture culture){Culture=culture;}
+        // Troops are counted too: the guards the books paid for this month.
+        public int Warriors()=>World==null||Id>=World.Ledger.Cities.Count||!Alive?0:World.Ledger.Cities[Id].Garrison;
+        // The persons on record whose home is here. Not the population, which is the number above.
+        public List<Person> People{get{var found=new List<Person>();if(World!=null)foreach(var person in World.Living)if(person.City==this)found.Add(person);return found;}}
 
         // The world this city stands in; set when it is founded or loaded.
         public EmpireWorld World;
@@ -166,6 +190,14 @@ namespace EmpireCraft.Core
         public bool HasSpouse()=>Spouse!=null;
         public bool HasDied()=>!Alive;
         public IEnumerable<Person> GetChildren()=>Children;
+        // The faith and the culture held, if any; set by whichever system converts or assimilates.
+        public Religion Religion;public Culture Culture;
+        public bool HasReligion()=>Religion!=null&&Religion.Alive;
+        public bool HasCulture()=>Culture!=null&&Culture.Alive;
+        public void SetReligion(Religion faith){Religion=faith;}
+        public void SetCulture(Culture culture){Culture=culture;}
+        // Where the person is: the seat of the home city, for a ruler without one the capital's.
+        public Cell Cell{get{var home=City??Throne?.Capital;return home?.SeatCell();}}
         public IEnumerable<Person> GetParents(){if(Father!=null)yield return Father;if(Mother!=null)yield return Mother;}
     }
 

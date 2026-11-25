@@ -45,9 +45,9 @@ public static class TemplateNameRepair
 #if EC_PENDING
     public static void RepairCultures()
     {
-        if (EmpireWorld.Current?.cultures == null) return;
+        if (EmpireWorld.Current?.Cultures == null) return;
         int repaired = 0;
-        foreach (Culture culture in EmpireWorld.Current.cultures)
+        foreach (Culture culture in EmpireWorld.Current.Cultures)
         {
             if (culture?.data == null || !HasRawTemplate(culture)) continue;
             string name = CulturePatch.GetInjectedCultureName(culture);
@@ -167,7 +167,7 @@ public static class TemplateNameRepair
             }
             else
             {
-                OnomasticsData names = CulturePatch.GetOnomasticDataSafe(member.culture, MetaType.Family);
+                OnomasticsData names = CulturePatch.GetOnomasticDataSafe(member.Culture, MetaType.Family);
                 name = Generate(() => names?.generateName()?.UseLocalizedNameSeparator());
                 if (string.IsNullOrEmpty(name)) continue;
                 family.data.name = name;
@@ -193,7 +193,7 @@ public static class TemplateNameRepair
             if (name == null) continue;
             bool first = IsRaw(name.firstName), family = IsRaw(name.familyName);
             if (!first && !family && !IsRaw(actor.Name)) continue;
-            Culture culture = actor.culture ?? CultureService.GetNativeCultureObject(CultureService.GetActorCulture(actor));
+            Culture culture = actor.Culture ?? CultureService.GetNativeCultureObject(CultureService.GetActorCulture(actor));
             if (first)
             {
                 OnomasticsData names = CulturePatch.GetOnomasticDataSafe(culture, MetaType.Unit);

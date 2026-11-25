@@ -185,7 +185,7 @@ public static class SouthernGarrisonSystem
     {
         Realm former = EmpireWorld.Current.RealmByKey(empire.data.southern_ming_invader);
         if (!Alive(former)) return;
-        Realm invader = FrontSystem.Realm(former) ?? former;
+        Realm invader = FrontSystem.ModRealm(former) ?? former;
         Empire conqueror = invader.GetEmpire();
         if (conqueror == null || conqueror == empire || conqueror.IsGone() || conqueror.IsArchived() || conqueror.CoreKingdom != invader)
             return;
@@ -203,11 +203,11 @@ public static class SouthernGarrisonSystem
 #endif
 
     // 与入侵者(连同其帝国成员)的城相邻
-#if EC_PENDING
     private static bool Borders(Realm kingdom, Realm invader) =>
         kingdom.Cities?.Any(city => city?.NeighbourCities != null && city.NeighbourCities.Any(other =>
-            other?.Realm != null && !other.IsGone() && FrontSystem.Realm(other.Realm) == invader)) == true;
+            other?.Realm != null && !other.IsGone() && FrontSystem.ModRealm(other.Realm) == invader)) == true;
 
+#if EC_PENDING
     private static void Defect(Empire empire, Realm garrison, Realm invader, Empire conqueror, float pressure)
     {
         // 退出与入侵者一方的仗(只退自己，南明与入侵者的大仗照打；DiplomacyActions.EndWars 会把整场仗收掉)

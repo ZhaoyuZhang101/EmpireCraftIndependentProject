@@ -598,7 +598,7 @@ public static class FeudalVassalService
     {
         if (subject?.Record == null) return 0L;
         int households = CityPopulationSystem.AbstractPopulationEnabled
-            ? CityPopulationSystem.Households(subject) : subject.units?.Count ?? 0;
+            ? CityPopulationSystem.Households(subject) : subject.PopulationCount() ?? 0;
         int level = Math.Min(3, Math.Max(1, subject.GetOrCreate().feudal_vassal_level));
         return households / (level == 1 ? 6 : level == 2 ? 4 : 2);
     }

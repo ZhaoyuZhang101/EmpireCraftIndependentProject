@@ -16,13 +16,13 @@ namespace EmpireCraft.Core
 // 由帝国的内阁检查行为定期调用。
 public static class SenateSystem
 {
-#if EC_PENDING
     public static int SeatsFor(Realm state)
     {
-        long population = Math.Max(1L, state?.getPopulationPeople() ?? 1);
+        long population = Math.Max(1L, state?.PopulationCount() ?? 1);
         return Mathf.Clamp((int)Math.Floor(Math.Log10(population)) - 2, 1, 4);
     }
 
+#if EC_PENDING
     public static void Maintain(Empire empire)
     {
         Realm core = empire?.CoreKingdom;
@@ -38,7 +38,7 @@ public static class SenateSystem
         var senators = new List<long>();
         foreach (Realm state in empire.kingdoms_list
                      .Where(kingdom => kingdom != null && !kingdom.IsGone() && kingdom != core)
-                     .OrderByDescending(kingdom => kingdom.countTotalWarriors()).ToList())
+                     .OrderByDescending(kingdom => kingdom.Warriors()).ToList())
         {
             int seats = SeatsFor(state);
             var chosen = new List<Person>();
@@ -49,11 +49,11 @@ public static class SenateSystem
             }
             if (state.HasRuler()) Take(state.Ruler);
             foreach (long id in previous) Take(EmpireWorld.Current.PersonByKey(id));
-            if (chosen.Count < seats && state.units != null)
-                foreach (Person actor in state.units.ToList()
+            if (chosen.Count < seats && state.People != null)
+                foreach (Person actor in state.People.ToList()
                              .Where(actor => Eligible(actor, core))
                              .OrderByDescending(actor => actor.GetOrCreate().socialClass == SocialClass.Noble)
-                             .ThenByDescending(actor => actor.renown))
+                             .ThenByDescending(actor => actor.Renown))
                     Take(actor);
             senators.AddRange(chosen.Select(actor => actor.Key));
         }

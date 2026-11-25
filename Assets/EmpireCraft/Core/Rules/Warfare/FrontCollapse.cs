@@ -44,13 +44,10 @@ public static class FrontCollapse
         Weariness.Clear();
     }
 
-#if EC_PENDING
-    private static Realm ModRealm(Realm kingdom) => FrontSystem.Realm(kingdom);
-#endif
+    private static Realm ModRealm(Realm kingdom) => FrontSystem.ModRealm(kingdom);
 
     private static bool Alive(Realm kingdom) => kingdom?.Record != null && !kingdom.IsGone();
 
-#if EC_PENDING
     public static bool Collapsing(Realm foe, Realm victor)
     {
         Realm a = ModRealm(foe), b = ModRealm(victor);
@@ -62,7 +59,6 @@ public static class FrontCollapse
     public static float Militia(Realm owner, Realm attacker) => Collapsed.Count > 0 && Collapsing(owner, attacker) ? MilitiaFactor : 1f;
 
     public static float Capture(Realm owner, Realm attacker) => Collapsed.Count > 0 && Collapsing(owner, attacker) ? CaptureBonus : 1f;
-#endif
 
     // 每月对一场仗查一次：victor 是不是把 foe 打垮了
 #if EC_PENDING
@@ -118,7 +114,6 @@ public static class FrontCollapse
 
     // 游牧统一者失了雄主、统一中辍(见 UnificationSystem 游牧难一统)：它打出来的兵败如山倒随之作罢——
     // 不再是统一战争，每月不再查，留着就一直崩到停战
-#if EC_PENDING
     public static void Release(Realm victor)
     {
         Realm b = ModRealm(victor);
@@ -126,7 +121,6 @@ public static class FrontCollapse
         foreach (long id in Collapsed.Where(pair => pair.Value == b.Key).Select(pair => pair.Key).ToList())
             Collapsed.Remove(id);
     }
-#endif
 
     private static IEnumerable<Realm> Members(Realm realm) =>
         realm.GetEmpire()?.kingdoms_list?.Where(Alive) ?? new[] { realm };
@@ -140,7 +134,7 @@ public static class FrontCollapse
             var regular = Members(realm).SelectMany(CorpsSystem.Of).Where(corps => !corps.militia && corps.order_id < 0).ToList();
             return (regular.Sum(corps => Mathf.Max(0f, corps.strength)), regular.Sum(corps => Mathf.Max(0f, corps.full)));
         }
-        return (Members(realm).Sum(member => member.countTotalWarriors() + CityPopulationSystem.MobilizableReserve(member)),
+        return (Members(realm).Sum(member => member.Warriors() + CityPopulationSystem.MobilizableReserve(member)),
             Members(realm).Sum(member => member.GetOrCreate().peak_warriors));
     }
 

@@ -51,11 +51,13 @@ public static class NationMap
         _colors ??= BucketHex.Select((hex, i) => NationMapColor.Create(i, hex)).ToArray();
         return _colors[bucket];
     }
+#endif
 
     private static bool Shown(City city) =>
         city != null && !city.IsGone() && !AncientWarfareCompatibility.OwnsObject(city) &&
-        city.units != null && city.units.Count > 0;
+        city.People != null && city.PopulationCount() > 0;
 
+#if EC_PENDING
     public static void Configure(MetaTypeAsset asset)
     {
         asset.draw_zones = (MetaZoneDrawAction)(meta =>
@@ -99,6 +101,7 @@ public static class NationMap
         };
         asset.click_action_zone = new MetaZoneClickAction((tile, power) => false);
     }
+#endif
 
     private static bool IsBorder(int mode, Cell neighbour, City city, int bucket)
     {
@@ -106,7 +109,6 @@ public static class NationMap
         if (mode != 0) return other != city;
         return !Shown(other) || Bucket(NationalSentimentSystem.GetCity(other)) != bucket;
     }
-#endif
 
     // 悬停提示：民族情绪、档位、城市文化与统治者文化、当前处境
 #if EC_PENDING

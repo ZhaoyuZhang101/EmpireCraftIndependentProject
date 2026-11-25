@@ -393,16 +393,16 @@ public static class MineralResourceSystem
     private static readonly Dictionary<Realm, Dictionary<string, int>> Depleted = new();
     private static double _digestAt = -1d;
 
-#if EC_PENDING
     private static void RecordDepletion(City city, string id)
     {
-        Realm realm = FrontSystem.Realm(city?.Realm);
+        Realm realm = FrontSystem.ModRealm(city?.Realm);
         if (realm?.Record == null || realm.IsGone()) return;
         if (!Depleted.TryGetValue(realm, out Dictionary<string, int> counts)) Depleted[realm] = counts = new Dictionary<string, int>();
         counts.TryGetValue(id, out int count);
         counts[id] = count + 1;
     }
 
+#if EC_PENDING
     private static void FlushDigest()
     {
         if (EmpireWorld.Current == null) return;

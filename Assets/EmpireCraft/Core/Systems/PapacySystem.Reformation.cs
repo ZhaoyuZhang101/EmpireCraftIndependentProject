@@ -53,7 +53,6 @@ public static partial class PapacySystem
     #region 查询
 
     // 宗教改革分出的新教会(改革者、诸侯、国教会)
-#if EC_PENDING
     public static bool IsReformedChurch(Religion religion)
     {
         SplitOriginData origin = religion?.data == null ? null : religion.GetOrCreate().SplitOrigin;
@@ -61,15 +60,12 @@ public static partial class PapacySystem
     }
 
     public static SplitOriginData SplitOrigin(Religion religion) => religion?.data == null ? null : religion.GetOrCreate().SplitOrigin;
-#endif
 
     // 从某教分出、还在的教会
-#if EC_PENDING
     private static List<Religion> ChildChurches(Religion old) =>
         old?.data == null ? new List<Religion>()
-            : EmpireWorld.Current.religions.Where(religion => religion?.data != null && !religion.IsGone() && religion != old &&
+            : EmpireWorld.Current.Religions.Where(religion => religion?.data != null && !religion.IsGone() && religion != old &&
                                                       religion.GetOrCreate().ParentReligionId == old.data.id).ToList();
-#endif
 
     // 宗教改革分出的教会(按分出先后)：本功能起头的(改革者、诸侯、国教会)，加上剧本带的新教(圣地所在文化施行了宗教改革)
 #if EC_PENDING
@@ -102,7 +98,7 @@ public static partial class PapacySystem
             {
                 if (city?.Record == null || city.IsGone()) continue;
                 total++;
-                Religion faith = city.hasReligion() ? city.religion : null;
+                Religion faith = city.HasReligion() ? city.Religion : null;
                 if (faith?.data == null || faith == old) continue;
                 if (!reformed.TryGetValue(faith, out bool counted))
                     reformed[faith] = counted = faith.GetOrCreate().ParentReligionId == old.data.id &&
@@ -135,7 +131,7 @@ public static partial class PapacySystem
         }
         catch (Exception exception)
         {
-            LogService.LogWarning($"[EmpireCraft][宗教改革] {religion?.name} 结算失败: {exception.Message}");
+            LogService.LogWarning($"[EmpireCraft][宗教改革] {religion?.Name} 结算失败: {exception.Message}");
         }
     }
 #endif
@@ -160,13 +156,13 @@ public static partial class PapacySystem
         bool anyEnacted = false;
         foreach (Realm kingdom in EmpireWorld.Current.LiveRealms)
         {
-            if (!SchismAlive(kingdom) || kingdom.religion != religion || ModRealm(kingdom) == see || !ReformableRealm(kingdom)) continue;
+            if (!SchismAlive(kingdom) || kingdom.Religion != religion || ModRealm(kingdom) == see || !ReformableRealm(kingdom)) continue;
             bool enacted = InstitutionSystem.IsEnacted(CultureService.GetInstitutionCulture(kingdom), NodeReformation);
             if (!enacted && !early) continue;
             anyEnacted |= enacted;
             foreach (City city in kingdom.Cities)
             {
-                if (city?.Record == null || city.IsGone() || city.religion != religion || city == holy) continue;
+                if (city?.Record == null || city.IsGone() || city.Religion != religion || city == holy) continue;
                 float far = holy != null ? Vector2.Distance(city.Center, holy.Center) / mapSize * 2f : 0f;
                 float score = Mathf.Sqrt(Mathf.Max(1, city.CountLivingPopulation())) * (enacted ? 2f : 1f) * (1f + far) *
                               EcRandom.Range(0.5f, 1.5f);
@@ -178,10 +174,10 @@ public static partial class PapacySystem
         if (best == null || EcRandom.value >= (anyEnacted ? SparkChance : EarlySparkChance)) return;
         Realm host = best.Realm;
         int kind = OriginPriest;
-        Person reformer = (best.units ?? new List<Person>()).ToList()
-            .Where(actor => actor?.data != null && !actor.IsGone() && actor.Alive && actor.isAdult() && !actor.isKing() &&
-                            actor.hasTrait("cleric"))
-            .OrderByDescending(actor => actor.data.renown).FirstOrDefault();
+        Person reformer = (best.People ?? new List<Person>()).ToList()
+            .Where(actor => actor?.Record != null && !actor.IsGone() && actor.Alive && actor.IsAdult() && !actor.IsRuler() &&
+                            actor.HasTrait("cleric"))
+            .OrderByDescending(actor => actor.Renown).FirstOrDefault();
         // 西方帝国的皇帝不在此出面(君主率国改宗另见 TryBreakWithRome)
         Empire realm = host.GetEmpire();
         bool princeMay = realm == null || realm.CoreKingdom != host || !IsWestern(realm);
@@ -208,7 +204,7 @@ public static partial class PapacySystem
     {
         if (old?.data == null || city?.Record == null || city.IsGone() || founder?.Record == null || !founder.Alive) return null;
         if (founder.City != city && !founder.IsRuler()) founder.JoinCity(city);
-        Religion church = EmpireWorld.Current.religions.newReligion(founder, false);
+        Religion church = EmpireWorld.Current.Religions.NewReligion(founder, false);
         if (church?.data == null) return null;
         church.data.name = string.Format(LM.Get("hre_reformed_church_name"), city.GetCityName());
         church.SetCity(city);
@@ -223,21 +219,21 @@ public static partial class PapacySystem
             kind = kind, founder_id = founder.Key, founder_name = founder.FullName(), city_id = city.Key,
             city_name = city.GetCityName(), at = now
         };
-        if (city.religion != church) BackgroundReligionSystem.Convert(city, church, city.religion);
-        if (founder.religion != church) founder.setReligion(church);
+        if (city.Religion != church) BackgroundReligionSystem.Convert(city, church, city.Religion);
+        if (founder.Religion != church) founder.SetReligion(church);
         Realm host = city.Realm;
-        if (kind == OriginPrince && host?.Record != null && host.religion == old) ConvertState(host, church);
+        if (kind == OriginPrince && host?.Record != null && host.Religion == old) ConvertState(host, church);
         AddAuthority(old, -3f);
         string text = kind == OriginPrince
-            ? string.Format(LM.Get("hre_reformation_founded_history"), host?.GetKingdomName() ?? "", church.name, old.name)
-            : string.Format(LM.Get("reformation_sparked_log"), founder.FullName(), city.GetCityName(), old.name, church.name);
+            ? string.Format(LM.Get("hre_reformation_founded_history"), host?.GetKingdomName() ?? "", church.Name, old.Name)
+            : string.Format(LM.Get("reformation_sparked_log"), founder.FullName(), city.GetCityName(), old.Name, church.Name);
         TranslateHelper.LogEventMessage(text, host);
         RecordRealm(host, text, founder);
         founder.RecordPersonalHistory(text);
         ReligionChronicle.Clear(church);
         ReligionChronicle.Record(old, church, ReligionChronicle.KindSchism, text);
         LogService.LogInfo($"[EmpireCraft][宗教改革] {founder.FullName()}({(kind == OriginPrince ? "诸侯" : "教士")})在 {city.GetCityName()} " +
-                           $"立{church.name}，分自{old.name}");
+                           $"立{church.Name}，分自{old.Name}");
         return church;
     }
 #endif
@@ -259,18 +255,18 @@ public static partial class PapacySystem
         foreach (City city in EmpireWorld.Current.Cities)
         {
             if (city?.Record == null || city.IsGone()) continue;
-            if (city.religion == church)
+            if (city.Religion == church)
             {
                 own++;
                 continue;
             }
             Realm owner = city.Realm;
-            if (city.religion != old || city == holy || !SchismAlive(owner) || ModRealm(owner) == see || !ReformableRealm(owner)) continue;
-            int reformed = city.NeighbourCities?.Count(neighbour => neighbour?.Record != null && neighbour.religion == church) ?? 0;
-            bool state = owner.religion == church;
+            if (city.Religion != old || city == holy || !SchismAlive(owner) || ModRealm(owner) == see || !ReformableRealm(owner)) continue;
+            int reformed = city.NeighbourCities?.Count(neighbour => neighbour?.Record != null && neighbour.Religion == church) ?? 0;
+            bool state = owner.Religion == church;
             if (reformed == 0 && !state) continue;
             float chance = CityChance * Mathf.Min(3, reformed) + (state ? StateCityChance : 0f);
-            if (owner.religion == old)
+            if (owner.Religion == old)
             {
                 chance *= city.IsCapital() ? 0.3f : 0.5f;
                 if (ReligiousTension.PolicyOf(owner) == ReligiousTension.Policy.Intolerant) chance *= 0.5f;
@@ -286,7 +282,7 @@ public static partial class PapacySystem
             converted++;
         }
         // 诸侯择教
-        var reformedRealms = new HashSet<Realm>(EmpireWorld.Current.LiveRealms.Where(kingdom => SchismAlive(kingdom) && kingdom.religion == church));
+        var reformedRealms = new HashSet<Realm>(EmpireWorld.Current.LiveRealms.Where(kingdom => SchismAlive(kingdom) && kingdom.Religion == church));
         int princes = 0;
         foreach (Realm kingdom in EmpireWorld.Current.LiveRealms.ToList())
         {
@@ -299,7 +295,7 @@ public static partial class PapacySystem
             princes++;
         }
         if (converted > 0 || princes > 0)
-            LogService.LogInfo($"[EmpireCraft][宗教改革] {church.name} 本年改奉 {converted} 城、{princes} 国(已有 {own} 城)");
+            LogService.LogInfo($"[EmpireCraft][宗教改革] {church.Name} 本年改奉 {converted} 城、{princes} 国(已有 {own} 城)");
     }
 #endif
 
@@ -308,7 +304,7 @@ public static partial class PapacySystem
 #if EC_PENDING
     private static bool PrinceMayChoose(Realm kingdom, Religion old, Realm see)
     {
-        if (!SchismAlive(kingdom) || kingdom.religion != old || kingdom.Capital == null || kingdom.Ruler?.Record == null ||
+        if (!SchismAlive(kingdom) || kingdom.Religion != old || kingdom.Capital == null || kingdom.Ruler?.Record == null ||
             !kingdom.Ruler.Alive || ModRealm(kingdom) == see || !ReformableRealm(kingdom)) return false;
         Empire empire = kingdom.GetEmpire();
         if (empire == null) return true;
@@ -322,10 +318,10 @@ public static partial class PapacySystem
     public static float PrinceReformChance(Realm kingdom, Religion old, Religion church, ICollection<Realm> reformedRealms = null)
     {
         if (kingdom?.Record == null || kingdom.Cities.Count == 0) return 0f;
-        float share = kingdom.Cities.Count(city => city?.Record != null && city.religion == church) / (float)kingdom.Cities.Count;
+        float share = kingdom.Cities.Count(city => city?.Record != null && city.Religion == church) / (float)kingdom.Cities.Count;
         int neighbours = reformedRealms != null
             ? reformedRealms.Count(other => other != kingdom && other.IsNeighbourWith(kingdom))
-            : EmpireWorld.Current.LiveRealms.Count(other => SchismAlive(other) && other != kingdom && other.religion == church &&
+            : EmpireWorld.Current.LiveRealms.Count(other => SchismAlive(other) && other != kingdom && other.Religion == church &&
                                                        other.IsNeighbourWith(kingdom));
         float weight = Mathf.Min(2f, share * 2f + neighbours * 0.5f);
         return weight <= 0f ? 0f : PrinceChance * weight * PrinceFactor(kingdom, old);
@@ -350,7 +346,7 @@ public static partial class PapacySystem
         if (see != null && realm.IsAtWarWith(see)) factor *= 1.5f;
         if (empire != null && empire.CoreKingdom != kingdom)
         {
-            if (empire.CoreKingdom.religion == old && DiplomacyLedger.Opinion(kingdom, empire.CoreKingdom) < 0) factor *= 1.5f;
+            if (empire.CoreKingdom.Religion == old && DiplomacyLedger.Opinion(kingdom, empire.CoreKingdom) < 0) factor *= 1.5f;
             if (Party(kingdom) == PartyPope) factor *= 0.3f;
         }
         Person king = kingdom.Ruler;
@@ -375,7 +371,7 @@ public static partial class PapacySystem
     public static void AdoptReformation(Realm kingdom, Religion church, Religion old)
     {
         ConvertState(kingdom, church);
-        string text = string.Format(LM.Get("hre_prince_converted_history"), kingdom.GetKingdomName(), church.name, old.name);
+        string text = string.Format(LM.Get("hre_prince_converted_history"), kingdom.GetKingdomName(), church.Name, old.Name);
         TranslateHelper.LogEventMessage(text, kingdom);
         RecordRealm(kingdom, text, kingdom.Ruler);
         ReligionChronicle.Record(church, old, ReligionChronicle.KindConversion, text);
@@ -384,11 +380,11 @@ public static partial class PapacySystem
     private static void ConvertState(Realm kingdom, Religion church)
     {
         Person king = kingdom.Ruler;
-        if (king?.Record != null && king.Alive && king.religion != church) king.setReligion(church);
-        kingdom.setReligion(church);
+        if (king?.Record != null && king.Alive && king.Religion != church) king.SetReligion(church);
+        kingdom.SetReligion(church);
         City capital = kingdom.Capital;
-        if (capital?.Record != null && !capital.IsGone() && capital.religion != church)
-            BackgroundReligionSystem.Convert(capital, church, capital.religion);
+        if (capital?.Record != null && !capital.IsGone() && capital.Religion != church)
+            BackgroundReligionSystem.Convert(capital, church, capital.Religion);
         kingdom.GetOrCreate().religion_converted_at = GameClock.Now;
         Empire empire = kingdom.GetEmpire();
         if (empire == null || empire.CoreKingdom != kingdom) return;
@@ -407,7 +403,7 @@ public static partial class PapacySystem
         if (lands > 0) core.AddMoney((int)Math.Min(int.MaxValue, lands), TreasuryCategory.RecoveredFunds);
         AddAuthority(old, -6f);
         string text = string.Format(LM.Get("papal_realm_reformation_history"), empire.Emperor?.FullName() ?? core.Ruler?.FullName() ?? "",
-            empire.GetEmpireFullName(), old.name, church.name, MoneyDisplay.Format(lands));
+            empire.GetEmpireFullName(), old.Name, church.Name, MoneyDisplay.Format(lands));
         Record(empire, text);
         empire.Emperor?.RecordPersonalHistory(text);
         ReligionChronicle.Record(old, church, ReligionChronicle.KindConversion, text);
@@ -418,10 +414,10 @@ public static partial class PapacySystem
 #if EC_PENDING
     private static void ConvertWhole(Realm kingdom, Religion old, Religion church)
     {
-        kingdom.setReligion(church);
-        if (kingdom.Ruler?.Record != null && kingdom.Ruler.Alive && kingdom.Ruler.religion == old) kingdom.Ruler.setReligion(church);
+        kingdom.SetReligion(church);
+        if (kingdom.Ruler?.Record != null && kingdom.Ruler.Alive && kingdom.Ruler.Religion == old) kingdom.Ruler.SetReligion(church);
         foreach (City city in kingdom.Cities.ToList())
-            if (city?.Record != null && !city.IsGone() && city.religion == old) BackgroundReligionSystem.Convert(city, church, old);
+            if (city?.Record != null && !city.IsGone() && city.Religion == old) BackgroundReligionSystem.Convert(city, church, old);
     }
 #endif
 
@@ -439,16 +435,16 @@ public static partial class PapacySystem
         foreach (Empire empire in ModClass.EMPIRE_MANAGER?.ToList() ?? new List<Empire>())
         {
             Realm core = empire?.CoreKingdom;
-            if (empire?.data == null || empire.IsGone() || empire.IsArchived() || !SchismAlive(core) || core.religion != old ||
+            if (empire?.data == null || empire.IsGone() || empire.IsArchived() || !SchismAlive(core) || core.Religion != old ||
                 HolyRomanSystem.HasDiet(empire)) continue;
             PapalRelationState state = State(empire);
             if (state.reform_revolt_at >= 0d && now >= state.reform_revolt_at && GameClock.YearsSince(state.reform_revolt_at) < RevoltGapYears)
                 continue;
             Realm rebel = empire.kingdoms_list.ToList()
-                .Where(member => SchismAlive(member) && member != core && member.hasReligion() && IsReformedChurch(member.religion) &&
-                                 member.religion.GetOrCreate().ParentReligionId == old.data.id && MembershipCooldown.Settled(member) &&
+                .Where(member => SchismAlive(member) && member != core && member.HasReligion() && IsReformedChurch(member.Religion) &&
+                                 member.Religion.GetOrCreate().ParentReligionId == old.data.id && MembershipCooldown.Settled(member) &&
                                  !member.HasEnemies())
-                .OrderByDescending(member => member.cities.Count).FirstOrDefault();
+                .OrderByDescending(member => member.Cities.Count).FirstOrDefault();
             if (rebel == null) continue;
             float chance = RevoltChance * (ReligiousTension.PolicyOf(core) == ReligiousTension.Policy.Intolerant ? 1.5f : 1f);
             if (EcRandom.value >= chance) continue;
@@ -457,10 +453,10 @@ public static partial class PapacySystem
             empire.leave(rebel, true, true);
             war.SetEmpireWarType(EmpireWarType.地方独立);
             state.reform_revolt_at = now;
-            string text = string.Format(LM.Get("reformation_revolt_log"), rebel.GetKingdomName(), rebel.religion.name,
-                empire.GetEmpireFullName(), old.name);
+            string text = string.Format(LM.Get("reformation_revolt_log"), rebel.GetKingdomName(), rebel.Religion.Name,
+                empire.GetEmpireFullName(), old.Name);
             Record(empire, text);
-            ReligionChronicle.Record(rebel.religion, old, ReligionChronicle.KindHolyWar, text);
+            ReligionChronicle.Record(rebel.Religion, old, ReligionChronicle.KindHolyWar, text);
         }
     }
 #endif

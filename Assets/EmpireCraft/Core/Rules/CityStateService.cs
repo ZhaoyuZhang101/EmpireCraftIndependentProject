@@ -203,9 +203,9 @@ public static class CityStateService
 #if EC_PENDING
     internal static Person FindLocalLeader(City city, Person exclude)
     {
-        List<Person> locals = (city.units ?? new List<Person>()).ToList()
+        List<Person> locals = (city.People ?? new List<Person>()).ToList()
             .Where(actor => actor != null && actor != exclude && !actor.IsGone() && actor.Alive &&
-                            actor.isAdult() && !actor.isKing() && actor.isUnitFitToRule())
+                            actor.IsAdult() && !actor.IsRuler() && actor.IsFitToRule())
             .ToList();
         return locals.Where(actor => actor.GetOrCreate().socialClass == SocialClass.Noble)
                    .OrderByDescending(actor => actor.Renown ?? 0).FirstOrDefault()

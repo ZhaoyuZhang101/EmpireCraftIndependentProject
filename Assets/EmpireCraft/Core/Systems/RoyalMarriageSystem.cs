@@ -119,7 +119,7 @@ public static class RoyalMarriageSystem
                 float score = realm + opinion / 50f + EcRandom.Range(0f, 1.5f) + rank;
                 if (contact >= 0f) score += ConnectivitySystem.Config.marriage_bonus * contact;
                 else if (StraitReach.Near(kingdom, other)) score += 1.5f;
-                if (kingdom.religion != null && kingdom.religion == other.religion) score += 1f;
+                if (kingdom.Religion != null && kingdom.Religion == other.Religion) score += 1f;
                 if (CultureService.GetRealmCulture(kingdom) == CultureService.GetRealmCulture(other)) score += 0.5f;
                 return score;
             }

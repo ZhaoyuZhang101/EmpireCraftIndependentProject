@@ -492,12 +492,12 @@ public static partial class HolyRomanSystem
         if (LeagueWar(empire) != null) return $"{state.league_name}宗教战争进行中";
         if (state.league_leader_id >= 0) return $"{state.league_name}已结成({LeagueMembers(empire).Count}家)，每年一成二可能开战";
         Realm core = empire.CoreKingdom;
-        if (!core.hasReligion()) return "中央没有国教";
+        if (!core.HasReligion()) return "中央没有国教";
         bool reformation = InstitutionSystem.IsEnacted(empire, PapacySystem.NodeReformation);
-        if (PapacySystem.Reformations(core.religion).Count == 0)
+        if (PapacySystem.Reformations(core.Religion).Count == 0)
             return !reformation ? "本文化未施行宗教改革，也没有从皇帝所奉宗教分出的新教会"
                 : KeepsOldFaith(empire) ? "待改革者发端或诸侯另立新教会(每年一成五)" : "非选帝制，待改革者发端或皇帝率国改宗";
-        List<Realm> reformed = Members(empire).Where(member => member.hasReligion() && Schismatic(member.religion, core.religion)).ToList();
+        List<Realm> reformed = Members(empire).Where(member => member.HasReligion() && Schismatic(member.Religion, core.Religion)).ToList();
         int total = Math.Max(1, empire.countCities());
         return $"改奉新教会{reformed.Count}家、占{reformed.Sum(member => member.Cities.Count) / (float)total:P0}城(要两家、两成)";
     }

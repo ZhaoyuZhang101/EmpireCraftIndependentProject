@@ -20,9 +20,7 @@ public sealed class ClaimTargetOption
     public City City;
     public Person Person;
     public KingdomTitle Title;
-#if EC_PENDING
     public Religion Religion;
-#endif
     public bool Selectable = true;
     // 可选的写缘由(有法理宣称、宿怨……)，不可选的写哪条没过；已是当前语言的文字
     public string Why = "";
@@ -36,7 +34,7 @@ public sealed class ClaimTargetOption
     public long Id => Type == MetaType.Kingdom ? Realm?.Key ?? -1L
         : Type == MetaType.City ? City?.Key ?? -1L
         : Type == MetaType.Unit ? Person?.Key ?? -1L
-        : Type == MetaType.Religion ? Religion?.id ?? -1L
+        : Type == MetaType.Religion ? Religion?.Key ?? -1L
         : Title?.Key ?? -1L;
 
     public string Name => Type == MetaType.Kingdom ? Realm?.GetKingdomName()
@@ -394,7 +392,7 @@ public static class ClaimTargetRules
             }
             if (failed == null && (spec.ArmyShareMin > 0f || spec.ArmyShareMax > 0f))
             {
-                float share = subject.countTotalWarriors() / c.Army;
+                float share = subject.Warriors() / c.Army;
                 if (spec.ArmyShareMin > 0f && share < spec.ArmyShareMin) failed = "army_share_min";
                 else if (spec.ArmyShareMax > 0f && share > spec.ArmyShareMax) failed = "army_share_max";
             }
@@ -466,7 +464,7 @@ public static class ClaimTargetRules
                 CultureService.UpdateCulturalAssimilationDuty(k);
                 return !k.GetOrCreate().cultural_assimilation_duty;
             case "needs_assimilation": return CultureService.AdministrationNeedsCulturalAssimilation(k, c.Culture);
-            case "other_religion": return k.religion != c.Empire.Religion;
+            case "other_religion": return k.Religion != c.Empire.Religion;
             // 封建帝国的诸侯
             case "has_king": return k.HasRuler();
             case "secular_prince": return HolyRomanSystem.SecularPrince(k);
@@ -538,10 +536,10 @@ public static class ClaimTargetRules
                     score += weight * (k.Cities?.Count ?? 0);
                     break;
                 case "army":
-                    score += weight * k.countTotalWarriors();
+                    score += weight * k.Warriors();
                     break;
                 case "population_total":
-                    score += weight * k.getPopulationTotal();
+                    score += weight * k.PopulationCount();
                     break;
                 case "appointed":
                     if (k.GetRegime()?.GetLeaderSelectMethod() == LeaderSelectMethod.Succession) break;
@@ -690,7 +688,7 @@ public static class ClaimTargetRules
         {
             Realm kingdom = other?.Realm;
             if (kingdom != null && !kingdom.IsGone() && kingdom != city.Realm &&
-                kingdom.GetKingdomType() == KingdomType.Feudalism_papal_state && kingdom.religion == empire.Religion) return kingdom;
+                kingdom.GetKingdomType() == KingdomType.Feudalism_papal_state && kingdom.Religion == empire.Religion) return kingdom;
         }
         return null;
     }

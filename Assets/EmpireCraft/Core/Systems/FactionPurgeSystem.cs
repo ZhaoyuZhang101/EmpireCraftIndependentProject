@@ -41,7 +41,7 @@ public static class FactionPurgeSystem
                 kingdom != core && kingdom.Capital != null && kingdom.Ruler?.GetFaction() == rebels &&
                 !kingdom.IsFactionRebelling() && !kingdom.IsLocalRebelling() && !kingdom.GetWars().Any() &&
                 RebellionSystem.CanAttempt(kingdom))
-            .OrderByDescending(kingdom => kingdom.countTotalWarriors()).ToList();
+            .OrderByDescending(kingdom => kingdom.Warriors()).ToList();
         if (provinces.Count == 0) return;
         float chance = 0.1f + (FactionBalanceSystem.Imbalance(empire) - PurgeImbalance) / 200f + (grievance - PurgeGrievance) / 200f;
         if (RulerQualitySystem.Of(empire.Emperor) == RulerQualitySystem.Grade.Wise) chance *= 0.5f;
@@ -124,7 +124,7 @@ public static class FactionPurgeSystem
     }
 
     private static float Strength(Realm kingdom) =>
-        CorpsSystem.Enabled ? CorpsSystem.Of(kingdom).Sum(corps => corps.strength) : kingdom.countTotalWarriors();
+        CorpsSystem.Enabled ? CorpsSystem.Of(kingdom).Sum(corps => corps.strength) : kingdom.Warriors();
 #endif
 
     // 战争结束(WarPatch)：结算清君侧

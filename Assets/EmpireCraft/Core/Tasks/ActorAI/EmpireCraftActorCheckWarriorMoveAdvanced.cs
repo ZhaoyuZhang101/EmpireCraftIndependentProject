@@ -80,7 +80,7 @@ public class EmpireCraftActorCheckWarriorMoveAdvanced : GameAIActorBase
             return BehResult.Continue;
         }
 
-        if (pActor.current_tile == null || pActor.current_tile.zone == null)
+        if (pActor.Cell == null || pActor.Cell.Zone == null)
         {
             pActor.ClearFrontLineMoveTarget();
             return BehResult.Continue;
@@ -120,7 +120,7 @@ public class EmpireCraftActorCheckWarriorMoveAdvanced : GameAIActorBase
         // 3. 保守模式下，如果已经站在有效前线，就不要乱跑
         if (!AggressiveMode && ShouldHoldCurrentFrontZone(pActor))
         {
-            pActor.SetFrontLineMoveTarget(pActor.current_tile);
+            pActor.SetFrontLineMoveTarget(pActor.Cell);
             return BehResult.Continue;
         }
 
@@ -174,7 +174,7 @@ public class EmpireCraftActorCheckWarriorMoveAdvanced : GameAIActorBase
                 continue;
             }
 
-            Cell zone = actor.current_tile?.zone;
+            Cell zone = actor.Cell?.Zone;
             if (zone == null)
             {
                 continue;
@@ -203,7 +203,7 @@ public class EmpireCraftActorCheckWarriorMoveAdvanced : GameAIActorBase
 
     private static Cell FindTargetZoneForActor(Person actor)
     {
-        if (actor == null || actor.Realm == null || actor.current_tile == null || actor.current_tile.zone == null)
+        if (actor == null || actor.Realm == null || actor.Cell == null || actor.Cell.Zone == null)
         {
             return null;
         }
@@ -216,7 +216,7 @@ public class EmpireCraftActorCheckWarriorMoveAdvanced : GameAIActorBase
             _targetZoneCache.Clear();
         }
 
-        var cacheKey = (actor.Realm, actor.current_tile.zone);
+        var cacheKey = (actor.Realm, actor.Cell.Zone);
         if (_targetZoneCache.TryGetValue(cacheKey, out Cell cachedTarget))
         {
             return cachedTarget;
@@ -278,13 +278,13 @@ public class EmpireCraftActorCheckWarriorMoveAdvanced : GameAIActorBase
 
     private static Cell FindNearbyRetakeZoneForActor(Person actor)
     {
-        if (actor == null || actor.Realm == null || actor.current_tile == null || actor.current_tile.zone == null)
+        if (actor == null || actor.Realm == null || actor.Cell == null || actor.Cell.Zone == null)
         {
             return null;
         }
 
         Realm actorKingdom = actor.Realm;
-        Cell currentZone = actor.current_tile.zone;
+        Cell currentZone = actor.Cell.Zone;
 
         _nearbyRetakeCandidates.Clear();
         List<Cell> candidates = _nearbyRetakeCandidates;
@@ -402,7 +402,7 @@ public class EmpireCraftActorCheckWarriorMoveAdvanced : GameAIActorBase
 
     private static Cell FindBestRetakeZoneForActor(Person actor)
     {
-        if (actor == null || actor.Realm == null || actor.current_tile == null || actor.current_tile.zone == null)
+        if (actor == null || actor.Realm == null || actor.Cell == null || actor.Cell.Zone == null)
         {
             return null;
         }
@@ -436,7 +436,7 @@ public class EmpireCraftActorCheckWarriorMoveAdvanced : GameAIActorBase
             }
 
             int enemyCount = CountEnemyWarriorsInZone(zone, actorKingdom);
-            float distance = KingdomFrontLineHelper.GetZoneDistanceSqr(actor.current_tile.zone, zone);
+            float distance = KingdomFrontLineHelper.GetZoneDistanceSqr(actor.Cell.Zone, zone);
 
             int score = 0;
 
@@ -571,7 +571,7 @@ public class EmpireCraftActorCheckWarriorMoveAdvanced : GameAIActorBase
 
     private static Cell FindTargetFrontZoneForActor(Person actor)
     {
-        if (actor == null || actor.Realm == null || actor.current_tile == null || actor.current_tile.zone == null)
+        if (actor == null || actor.Realm == null || actor.Cell == null || actor.Cell.Zone == null)
         {
             return null;
         }
@@ -628,7 +628,7 @@ public class EmpireCraftActorCheckWarriorMoveAdvanced : GameAIActorBase
 
     private static Cell FindAggressiveTargetZone(Person actor, List<Cell> zones)
     {
-        if (actor == null || actor.Realm == null || actor.current_tile == null || actor.current_tile.zone == null)
+        if (actor == null || actor.Realm == null || actor.Cell == null || actor.Cell.Zone == null)
         {
             return null;
         }
@@ -645,7 +645,7 @@ public class EmpireCraftActorCheckWarriorMoveAdvanced : GameAIActorBase
             }
 
             int friendlyCount = CountFriendlyWarriorsInZone(zone, actor.Realm);
-            float distance = KingdomFrontLineHelper.GetZoneDistanceSqr(actor.current_tile.zone, zone);
+            float distance = KingdomFrontLineHelper.GetZoneDistanceSqr(actor.Cell.Zone, zone);
 
             // 激进模式：
             // 先填空 zone，避免所有士兵挤一个点；
@@ -668,7 +668,7 @@ public class EmpireCraftActorCheckWarriorMoveAdvanced : GameAIActorBase
 
     private static Cell FindConservativeTargetZone(Person actor, List<Cell> zones)
     {
-        if (actor == null || actor.Realm == null || actor.current_tile == null || actor.current_tile.zone == null)
+        if (actor == null || actor.Realm == null || actor.Cell == null || actor.Cell.Zone == null)
         {
             return null;
         }
@@ -692,7 +692,7 @@ public class EmpireCraftActorCheckWarriorMoveAdvanced : GameAIActorBase
             int friendlyOccupiedNeighbours = CountFriendlyOccupiedNeighbours(actor.Realm, zone);
             int enemyNeighbours = CountEnemyNeighbours(actor.Realm, zone);
 
-            float distance = KingdomFrontLineHelper.GetZoneDistanceSqr(actor.current_tile.zone, zone);
+            float distance = KingdomFrontLineHelper.GetZoneDistanceSqr(actor.Cell.Zone, zone);
 
             int score = 0;
 
@@ -740,7 +740,7 @@ public class EmpireCraftActorCheckWarriorMoveAdvanced : GameAIActorBase
     }
     public static Cell TryGetFrontLineMoveTileForActor(Person actor)
     {
-        if (actor == null || actor.Realm == null || actor.current_tile == null || actor.current_tile.zone == null)
+        if (actor == null || actor.Realm == null || actor.Cell == null || actor.Cell.Zone == null)
         {
             return null;
         }
@@ -766,12 +766,12 @@ public class EmpireCraftActorCheckWarriorMoveAdvanced : GameAIActorBase
     }
     private static bool ShouldHoldCurrentFrontZone(Person actor)
     {
-        if (actor == null || actor.Realm == null || actor.current_tile == null || actor.current_tile.zone == null)
+        if (actor == null || actor.Realm == null || actor.Cell == null || actor.Cell.Zone == null)
         {
             return false;
         }
 
-        Cell currentZone = actor.current_tile.zone;
+        Cell currentZone = actor.Cell.Zone;
 
         if (!KingdomFrontLineHelper.IsValidZone(currentZone))
         {
@@ -821,7 +821,7 @@ public class EmpireCraftActorCheckWarriorMoveAdvanced : GameAIActorBase
 
     private static bool TryEngageNearbyEnemy(Person actor)
     {
-        if (actor == null || actor.Realm == null || actor.current_tile?.zone == null)
+        if (actor == null || actor.Realm == null || actor.Cell?.Zone == null)
         {
             return false;
         }
@@ -832,10 +832,10 @@ public class EmpireCraftActorCheckWarriorMoveAdvanced : GameAIActorBase
             return false;
         }
 
-        if (enemy.current_tile != null)
+        if (enemy.Cell != null)
         {
-            actor.SetFrontLineMoveTarget(enemy.current_tile);
-            actor.goTo(enemy.current_tile);
+            actor.SetFrontLineMoveTarget(enemy.Cell);
+            actor.goTo(enemy.Cell);
         }
         actor.setAttackTarget(enemy);
         return true;
@@ -843,7 +843,7 @@ public class EmpireCraftActorCheckWarriorMoveAdvanced : GameAIActorBase
 
     private static Person FindNearbyEnemyWarrior(Person actor)
     {
-        Cell currentZone = actor?.current_tile?.zone;
+        Cell currentZone = actor?.Cell?.Zone;
         if (currentZone == null)
         {
             return null;
@@ -900,7 +900,7 @@ public class EmpireCraftActorCheckWarriorMoveAdvanced : GameAIActorBase
 
     private static Cell FindBestFriendlyRetreatZone(Person actor)
     {
-        Cell currentZone = actor?.current_tile?.zone;
+        Cell currentZone = actor?.Cell?.Zone;
         Realm actorKingdom = actor?.Realm;
         if (currentZone == null || actorKingdom == null || currentZone.NeighboursAll == null)
         {
@@ -910,7 +910,7 @@ public class EmpireCraftActorCheckWarriorMoveAdvanced : GameAIActorBase
         Cell bestZone = null;
         int bestScore = int.MinValue;
         float bestDistance = float.MaxValue;
-        Vector3 capitalCenter = actorKingdom.Capital?.Center ?? actor.current_tile.posV3;
+        Vector3 capitalCenter = actorKingdom.Capital?.Center ?? actor.Cell.posV3;
 
         foreach (Cell neighbour in currentZone.NeighboursAll)
         {
@@ -979,12 +979,12 @@ public class EmpireCraftActorCheckWarriorMoveAdvanced : GameAIActorBase
 
     public static void HandleCurrentZoneWarState(Person actor)
     {
-        if (actor == null || actor.Realm == null || actor.current_tile == null || actor.current_tile.zone == null)
+        if (actor == null || actor.Realm == null || actor.Cell == null || actor.Cell.Zone == null)
         {
             return;
         }
 
-        Cell zone = actor.current_tile.zone;
+        Cell zone = actor.Cell.Zone;
         City city = zone.City;
 
         if (city == null || city.Realm == null)

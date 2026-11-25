@@ -35,9 +35,9 @@ public static class NativeFaithSystem
 
     private static bool Alive(Person actor) => actor?.Record != null && !actor.IsGone() && actor.Alive;
 
-#if EC_PENDING
     private static bool Alive(Religion religion) => religion?.data != null && !religion.IsGone();
 
+#if EC_PENDING
     public static void YearlyPass()
     {
         if (EmpireWorld.Current?.Cities == null || ModClass.IS_CLEAR) return;
@@ -55,8 +55,8 @@ public static class NativeFaithSystem
             if (orthodox == null) continue;
             foreach (City city in pair.Value)
             {
-                if (!city.hasReligion()) continue;
-                Religion current = city.religion;
+                if (!city.HasReligion()) continue;
+                Religion current = city.Religion;
                 if (current == orthodox || ReligionFaith.IsUniversal(current) || current.GetCity() == city) continue;
                 if (ReligionSphere.SphereOf(current) == pair.Key) continue;
                 if (EcRandom.value >= ReturnChance) continue;
@@ -111,14 +111,14 @@ public static class NativeFaithSystem
     private static bool TryFound(string sphere, List<City> cities)
     {
         // 本天下人口最多的城(别教的圣地不算)
-        City seat = cities.Where(city => !(city.hasReligion() && city.religion.GetCity() == city))
+        City seat = cities.Where(city => !(city.HasReligion() && city.Religion.GetCity() == city))
             .OrderByDescending(city => city.CountLivingPopulation()).FirstOrDefault();
         if (seat == null) return false;
         string culture = CultureService.GetMainCulture(seat, initialize: false);
         FaithType type = ReligionFaith.OfCulture(culture);
         bool oldGods = OldGodsFirst(type);
         if (!Ready(cities, oldGods ? FaithType.Folk : type)) return false;
-        Religion old = seat.hasReligion() ? seat.religion : null;
+        Religion old = seat.HasReligion() ? seat.Religion : null;
         Religion dormant = Dormant(sphere);
         if (dormant != null)
         {
@@ -139,7 +139,7 @@ public static class NativeFaithSystem
 #if EC_PENDING
     private static Religion Dormant(string sphere)
     {
-        foreach (Religion religion in EmpireWorld.Current.religions.list)
+        foreach (Religion religion in EmpireWorld.Current.Religions.list)
             if (religion?.data != null && !religion.IsGone() && ReligionSphere.IsNative(religion) &&
                 ReligionSphere.SphereOf(religion) == sphere) return religion;
         return null;
@@ -155,7 +155,7 @@ public static class NativeFaithSystem
         Religion religion;
         try
         {
-            religion = EmpireWorld.Current.religions.newReligion(founder, pAddDefaultTraits: true);
+            religion = EmpireWorld.Current.Religions.NewReligion(founder, withDefaults: true);
         }
         catch (Exception exception)
         {
@@ -172,11 +172,11 @@ public static class NativeFaithSystem
             ReligionChronicle.Clear(religion);
             ReligionTenets.Invalidate();
         }
-        founder.setReligion(religion);
+        founder.SetReligion(religion);
         // 圣地就是立教之城(ReligionPatch 按创教者当时所在的城设，人可能不在城里)
         religion.SetCity(city);
         BackgroundReligionSystem.Convert(city, religion, old);
-        string text = string.Format(LM.Get("religion_founded_log"), founder.FullName(), city.GetCityName(), religion.name);
+        string text = string.Format(LM.Get("religion_founded_log"), founder.FullName(), city.GetCityName(), religion.Name);
         TranslateHelper.LogEventMessage(text, city.Realm);
         if (asType != null) ReligionChronicle.Record(religion, ReligionChronicle.KindFounding, text);
         return religion;
@@ -200,21 +200,21 @@ public static class NativeFaithSystem
     private static Person Founder(City city)
     {
         Person leader = city.Leader;
-        if (Alive(leader) && leader.hasCulture() && leader.City == city) return leader;
+        if (Alive(leader) && leader.HasCulture() && leader.City == city) return leader;
         Person official = CityPopulationSystem.SpawnOfficial(city, city.Realm);
-        if (Alive(official) && official.hasCulture()) return official;
+        if (Alive(official) && official.HasCulture()) return official;
         Person king = city.IsCapital() ? city.Realm.Ruler : null;
-        return Alive(king) && king.hasCulture() ? king : null;
+        return Alive(king) && king.HasCulture() ? king : null;
     }
 
     private static void Announce(Religion religion, City city, string key)
     {
         if (key == null)
         {
-            LogService.LogInfo($"[EmpireCraft][宗教] {city.GetCityName()} 立本土大教 {religion.name}");
+            LogService.LogInfo($"[EmpireCraft][宗教] {city.GetCityName()} 立本土大教 {religion.Name}");
             return;
         }
-        string text = string.Format(LM.Get(key), religion.name, city.GetCityName());
+        string text = string.Format(LM.Get(key), religion.Name, city.GetCityName());
         TranslateHelper.LogEventMessage(text, city.Realm);
         ReligionChronicle.Record(religion, ReligionChronicle.KindFounding, text);
         LogService.LogInfo($"[EmpireCraft][宗教] {text}");
@@ -227,10 +227,10 @@ public static class NativeFaithSystem
 #if EC_PENDING
     public static Religion RevealedOf(string sphere)
     {
-        if (string.IsNullOrEmpty(sphere) || EmpireWorld.Current?.religions == null || !ReligionTenets.Revelation.enabled) return null;
+        if (string.IsNullOrEmpty(sphere) || EmpireWorld.Current?.Religions == null || !ReligionTenets.Revelation.enabled) return null;
         Religion orthodox = ReligionSphere.OrthodoxOf(sphere);
         if (orthodox == null) return null;
-        foreach (Religion religion in EmpireWorld.Current.religions.list)
+        foreach (Religion religion in EmpireWorld.Current.Religions.list)
         {
             if (!Alive(religion) || religion == orthodox || religion.GetOrCreate().RevealedAt < 0d) continue;
             if (ReligionSphere.SphereOf(religion) == sphere && ReligionSphere.InRevelationGrace(religion, orthodox)) return religion;
@@ -256,18 +256,18 @@ public static class NativeFaithSystem
         FaithType type = ReligionFaith.OfCulture(culture);
         if (!ReligionFaith.IsLateFaith(type) || ReligionFaith.Of(orthodox) == type) return false;
         // 本天下已经有这一类宗教(启示过的、剧本带的、哈里发立的伊斯兰——它记了古神作母宗教)就不再立
-        foreach (Religion religion in EmpireWorld.Current.religions.list)
+        foreach (Religion religion in EmpireWorld.Current.Religions.list)
             if (Alive(religion) && ReligionSphere.SphereOf(religion) == sphere && ReligionFaith.Of(religion) == type) return false;
         if (!Ready(cities, type)) return false;
         // 剧本(科技年历开着)按史实年份：没到不立，到了就不必再等古神满 min_years 年(117、230 年开局的古神是开局才立的)
         int year = 0;
         bool dated = TechnologySystem.CalendarActive && ReligionTenets.Revelation.calendar_year.TryGetValue(type.ToString(), out year);
         if (dated && TechnologySystem.CalendarYear() < year) return false;
-        if (!dated && orthodox.getAge() < ReligionTenets.Revelation.min_years) return false;
+        if (!dated && orthodox.Age() < ReligionTenets.Revelation.min_years) return false;
         if (EcRandom.value >= ReligionTenets.Revelation.chance) return false;
         City seat = RevelationSeat(cities);
         if (seat == null) return false;
-        Religion old = seat.hasReligion() ? seat.religion : null;
+        Religion old = seat.HasReligion() ? seat.Religion : null;
         Religion revealed = Found(seat, old);
         if (revealed == null) return false;
         ReligionFaith.Record(revealed, type);
@@ -278,9 +278,9 @@ public static class NativeFaithSystem
         Announce(revealed, seat, "religion_revealed_log");
         // 立在一国都城：君主率国改奉(此后四十年国教势能加倍、按皈依冷却)
         Realm kingdom = seat.Realm;
-        if (seat.IsCapital() && kingdom?.Record != null && !kingdom.IsWild && kingdom.religion != revealed && Alive(kingdom.Ruler) &&
+        if (seat.IsCapital() && kingdom?.Record != null && !kingdom.IsWild && kingdom.Religion != revealed && Alive(kingdom.Ruler) &&
             CaliphateFaith.MayAdopt(kingdom, revealed))
-            ReligionConversionSystem.Convert(kingdom, revealed, kingdom.religion, "revelation_ruler_log");
+            ReligionConversionSystem.Convert(kingdom, revealed, kingdom.Religion, "revelation_ruler_log");
         return true;
     }
 #endif
@@ -290,10 +290,10 @@ public static class NativeFaithSystem
     private static City RevelationSeat(List<City> cities)
     {
         City capital = cities.Where(city => city.IsCapital() && city.Realm?.Record != null && city.Realm.GetEmpire() == null &&
-                                            !(city.hasReligion() && city.religion.GetCity() == city))
-            .OrderBy(city => city.kingdom.cities.Count).ThenByDescending(city => city.CountLivingPopulation()).FirstOrDefault();
+                                            !(city.HasReligion() && city.Religion.GetCity() == city))
+            .OrderBy(city => city.Realm.Cities.Count).ThenByDescending(city => city.CountLivingPopulation()).FirstOrDefault();
         if (capital != null) return capital;
-        List<City> ranked = cities.Where(city => !(city.hasReligion() && city.religion.GetCity() == city))
+        List<City> ranked = cities.Where(city => !(city.HasReligion() && city.Religion.GetCity() == city))
             .OrderByDescending(city => city.CountLivingPopulation()).ToList();
         return ranked.Count == 0 ? null : ranked[ranked.Count / 2];
     }

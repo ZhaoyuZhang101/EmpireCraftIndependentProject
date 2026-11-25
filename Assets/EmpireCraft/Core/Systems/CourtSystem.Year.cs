@@ -340,7 +340,7 @@ public static partial class CourtSystem
                                   kingdom.Ruler?.GetFaction() == faction && RebellionSystem.CanAttempt(kingdom) &&
                                   kingdom.Capital != null && CityStabilitySystem.CanRise(kingdom.Capital) &&
                                   !kingdom.IsFactionRebelling() && !kingdom.GetWars().Any())
-                .OrderByDescending(kingdom => kingdom.countTotalWarriors()).FirstOrDefault();
+                .OrderByDescending(kingdom => kingdom.Warriors()).FirstOrDefault();
             if (rebel == null)
             {
                 // 只剩京畿(没有成员国)才在都城逼宫；有成员国只是眼下起不了兵的，等以后
@@ -483,7 +483,7 @@ public static partial class CourtSystem
     {
         Realm core = empire.CoreKingdom;
         IEnumerable<Person> pool = (core.GetRegime()?.GetAllFactionMembers() ?? new List<Person>())
-            .Concat(core.units?.ToList() ?? new List<Person>());
+            .Concat(core.People?.ToList() ?? new List<Person>());
         return pool.Where(actor => actor?.Record != null && !actor.IsGone() && actor.Alive && actor.IsAdult() &&
                                    actor != empire.Emperor && !actor.IsWarMachine() && actor.HasOfficeIdentity() &&
                                    actor.CanServeOffice(core))

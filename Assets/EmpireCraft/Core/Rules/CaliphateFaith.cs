@@ -60,9 +60,9 @@ public static class CaliphateFaith
 #if EC_PENDING
     public static bool Attracts(Realm kingdom)
     {
-        if (kingdom?.Record == null || !kingdom.hasReligion() || !ReligionFaith.IsCaliphal(kingdom.religion)) return false;
+        if (kingdom?.Record == null || !kingdom.HasReligion() || !ReligionFaith.IsCaliphal(kingdom.Religion)) return false;
         Empire empire = kingdom.GetEmpire();
-        return IsCaliphate(empire) && PapacySystem.ReligionOf(empire) == kingdom.religion;
+        return IsCaliphate(empire) && PapacySystem.ReligionOf(empire) == kingdom.Religion;
     }
 
     public static float StateFactor(Realm kingdom) => Attracts(kingdom) ? AttractionFactor : 1f;
@@ -95,7 +95,7 @@ public static class CaliphateFaith
         foreach (Empire empire in ModClass.EMPIRE_MANAGER.ToList())
         {
             if (empire?.data == null) continue;
-            if (empire.data.pre_caliphate_faith && ReligionFaith.IsCaliphal(empire.CoreKingdom?.religion))
+            if (empire.data.pre_caliphate_faith && ReligionFaith.IsCaliphal(empire.CoreKingdom?.Religion))
                 SetPreIslamic(empire, false);
             TrySettle(empire);
         }
@@ -129,7 +129,7 @@ public static class CaliphateFaith
         if (!Bound(empire)) return;
         Realm core = empire.CoreKingdom;
         if (AncientWarfareCompatibility.Owns(core)) return;
-        Religion current = core.hasReligion() ? core.religion : null;
+        Religion current = core.HasReligion() ? core.Religion : null;
         if (ReligionFaith.IsCaliphal(current))
         {
             // 帝国国教还记着旧教时跟上：宗教同化别把成员推回去
@@ -162,11 +162,11 @@ public static class CaliphateFaith
     {
         var people = new Dictionary<Religion, float>();
         foreach (City city in empire.getCities())
-            if (city?.Record != null && !city.IsGone() && city.hasReligion() && ReligionFaith.IsCaliphal(city.religion))
-                Add(people, city.religion, Mathf.Max(1, city.CountLivingPopulation()));
+            if (city?.Record != null && !city.IsGone() && city.HasReligion() && ReligionFaith.IsCaliphal(city.Religion))
+                Add(people, city.Religion, Mathf.Max(1, city.CountLivingPopulation()));
         foreach (Realm member in empire.kingdoms_list)
-            if (member?.Record != null && !member.IsGone() && member.hasReligion() && ReligionFaith.IsCaliphal(member.religion))
-                Add(people, member.religion, 1f);
+            if (member?.Record != null && !member.IsGone() && member.HasReligion() && ReligionFaith.IsCaliphal(member.Religion))
+                Add(people, member.Religion, 1f);
         return Top(people);
     }
 #endif
@@ -180,12 +180,12 @@ public static class CaliphateFaith
         if (ReligionFaith.IsCaliphal(orthodox)) return orthodox;
         var people = new Dictionary<Religion, float>();
         foreach (City city in EmpireWorld.Current.Cities)
-            if (city?.Record != null && !city.IsGone() && city.hasReligion() && ReligionFaith.IsCaliphal(city.religion) &&
-                ReligionSphere.SphereOf(city.religion) == sphere)
-                Add(people, city.religion, Mathf.Max(1, city.CountLivingPopulation()));
+            if (city?.Record != null && !city.IsGone() && city.HasReligion() && ReligionFaith.IsCaliphal(city.Religion) &&
+                ReligionSphere.SphereOf(city.Religion) == sphere)
+                Add(people, city.Religion, Mathf.Max(1, city.CountLivingPopulation()));
         Religion followed = Top(people);
         if (followed != null) return followed;
-        foreach (Religion religion in EmpireWorld.Current.religions.list)
+        foreach (Religion religion in EmpireWorld.Current.Religions.list)
         {
             if (religion?.data == null || religion.IsGone() || !ReligionFaith.IsCaliphal(religion) ||
                 ReligionSphere.SphereOf(religion) != sphere) continue;
@@ -200,10 +200,10 @@ public static class CaliphateFaith
 #if EC_PENDING
     private static Religion Found(Person ruler, City capital, string sphere)
     {
-        bool first = !EmpireWorld.Current.religions.list.Any(religion => religion?.data != null && !religion.IsGone() && ReligionFaith.IsCaliphal(religion));
+        bool first = !EmpireWorld.Current.Religions.list.Any(religion => religion?.data != null && !religion.IsGone() && ReligionFaith.IsCaliphal(religion));
         Religion parent = ReligionSphere.OrthodoxOf(sphere);
         if (ruler.City != capital) ruler.JoinCity(capital);
-        Religion sect = EmpireWorld.Current.religions.newReligion(ruler, false);
+        Religion sect = EmpireWorld.Current.Religions.NewReligion(ruler, false);
         if (sect?.data == null) return null;
         sect.data.name = (first ? ReligionFaith.PickName(FaithType.Islam) : null) ??
                          string.Format(LM.Get("caliph_sect_name"), capital.GetCityName());
@@ -218,12 +218,13 @@ public static class CaliphateFaith
         }
         // 创教时(ReligionPatch)记下的那条用的是改名前的名字，换成真名
         ReligionChronicle.Clear(sect);
-        string text = string.Format(LM.Get("religion_founded_log"), ruler.FullName(), capital.GetCityName(), sect.name);
+        string text = string.Format(LM.Get("religion_founded_log"), ruler.FullName(), capital.GetCityName(), sect.Name);
         if (parent?.data != null && parent != sect) ReligionChronicle.Record(parent, sect, ReligionChronicle.KindSchism, text);
         else ReligionChronicle.Record(sect, ReligionChronicle.KindFounding, text);
-        LogService.LogInfo($"[EmpireCraft][宗教] {capital.GetCityName()} 立{sect.name}(母宗教 {parent?.name ?? "无"})");
+        LogService.LogInfo($"[EmpireCraft][宗教] {capital.GetCityName()} 立{sect.Name}(母宗教 {parent?.Name ?? "无"})");
         return sect;
     }
+#endif
 
     private static void Add(Dictionary<Religion, float> people, Religion religion, float count)
     {
@@ -233,6 +234,5 @@ public static class CaliphateFaith
 
     private static Religion Top(Dictionary<Religion, float> people) =>
         people.Count == 0 ? null : people.OrderByDescending(pair => pair.Value).ThenBy(pair => pair.Key.data.id).First().Key;
-#endif
 }
 }

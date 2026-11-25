@@ -72,14 +72,12 @@ public static class MilitaryAccessSystem
         host != null && guest != null && Index.TryGetValue((host.Key, guest.Key), out MilitaryAccessGrant grant) ? grant : null;
 
     // host 许 guest 借道(帝国的约管到整个帝国)；到期的、两国交战中的不算
-#if EC_PENDING
     public static bool Grants(Realm host, Realm guest)
     {
         if (Index.Count == 0 || host?.Record == null || guest?.Record == null || host == guest) return false;
-        Realm hostRealm = FrontSystem.Realm(host), guestRealm = FrontSystem.Realm(guest);
+        Realm hostRealm = FrontSystem.ModRealm(host), guestRealm = FrontSystem.ModRealm(guest);
         return Live(host, guest) || Live(hostRealm, guest) || Live(host, guestRealm) || Live(hostRealm, guestRealm);
     }
-#endif
 
     private static bool Live(Realm host, Realm guest) =>
         Find(host, guest) is { } grant && Now() < grant.until && !host.IsAtWarWith(guest);
@@ -132,26 +130,24 @@ public static class MilitaryAccessSystem
     public static void NoteCrossing(Realm side, List<int> path)
     {
         if (side?.Record == null || path == null || path.Count < 3 || Demand.Count >= MaxDemand) return;
-        Realm guest = FrontSystem.Realm(side);
+        Realm guest = FrontSystem.ModRealm(side);
         Crossed.Clear();
         for (int i = 1; i < path.Count - 1; i++)
         {
             Realm owner = FrontSystem.Controller(CorpsSystem.ZoneById(path[i]));
             if (owner?.Record == null || owner.IsWild || !Crossed.Add(owner.Key)) continue;
             if (FrontSystem.Friendly(side, owner) || FrontSystem.Hostile(side, owner)) continue;
-            AddDemand(guest, FrontSystem.Realm(owner));
+            AddDemand(guest, FrontSystem.ModRealm(owner));
         }
     }
 #endif
 
     // 交战时近处的敌城走陆路到不了(见 FrontSystem.LandRoute)：年底看是不是被第三国隔着
-#if EC_PENDING
     public static void NoteBlocked(Realm side, City target)
     {
         if (side?.Record == null || target?.Record == null || Blocked.Count >= MaxBlocked) return;
-        Blocked.Add((FrontSystem.Realm(side).id, target.Key));
+        Blocked.Add((FrontSystem.ModRealm(side).Key, target.Key));
     }
-#endif
 
     private static void AddDemand(Realm guest, Realm host)
     {
@@ -176,7 +172,7 @@ public static class MilitaryAccessSystem
             foreach (Realm between in city.NeighbourRealms)
             {
                 if (between?.Record == null || between.IsGone() || between.IsWild) continue;
-                Realm host = FrontSystem.Realm(between);
+                Realm host = FrontSystem.ModRealm(between);
                 if (!neighbours.Contains(between) && !neighbours.Contains(host)) continue;
                 if (FrontSystem.Friendly(side, between) || FrontSystem.Hostile(side, between) || Grants(between, side)) continue;
                 AddDemand(side, host);
@@ -289,7 +285,7 @@ public static class MilitaryAccessSystem
 
     private static float PowerBonus(Realm host, Realm guest)
     {
-        double mine = Power(FrontSystem.Realm(host)), theirs = Power(FrontSystem.Realm(guest));
+        double mine = Power(FrontSystem.ModRealm(host)), theirs = Power(FrontSystem.ModRealm(guest));
         if (mine <= 0d) return PowerCap;
         return Mathf.Clamp(((float)(theirs / mine) - 1f) * PowerWeight, PowerFloor, PowerCap);
     }

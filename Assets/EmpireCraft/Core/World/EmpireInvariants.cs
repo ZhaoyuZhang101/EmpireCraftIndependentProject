@@ -69,6 +69,12 @@ namespace EmpireCraft.Core
                 if(p.Clan==null||p.Clan.Id>=w.Clans.Count||w.Clans[p.Clan.Id]!=p.Clan)Fail("person "+p.Id+" without clan");
             }
             if(living!=w.Living.Count)Fail("living index "+w.Living.Count+" != "+living);
+            // A faith or culture held is either on this world's record or has left it; never another world's.
+            bool Foreign(Religion x)=>x!=null&&x.Alive&&w.Religions.Get(x.Key)!=x;
+            bool Alien(Culture x)=>x!=null&&x.Alive&&w.Cultures.Get(x.Key)!=x;
+            foreach(var r in w.Realms)if(Foreign(r.Religion)||Alien(r.Culture))Fail("realm "+r.Id+" holds a faith that is not on this world's record");
+            foreach(var c in w.Cities)if(Foreign(c.Religion)||Alien(c.Culture))Fail("city "+c.Id+" holds a faith that is not on this world's record");
+            foreach(var p in w.People)if(Foreign(p.Religion)||Alien(p.Culture))Fail("person "+p.Id+" holds a faith that is not on this world's record");
             return errors;
         }
     }

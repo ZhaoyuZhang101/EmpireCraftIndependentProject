@@ -83,17 +83,17 @@ public static class FormationDiagnostics
             if (king.Warfare < war.min_warfare) return $"君主武略 {king.Warfare} < {war.min_warfare}";
         }
         if (!war.isAllowedByWorldLaws()) return "世界法则关了外交";
-        if (king.HasTrait("pacifist") || king.hasCulture() && king.culture.hasTrait("serenity_now")) return "君主或文化好和平";
+        if (king.HasTrait("pacifist") || king.HasCulture() && king.Culture.HasTrait("serenity_now")) return "君主或文化好和平";
         CityPopulationSystem.EnterVanillaScale();
         try
         {
             if (!DiplomacyHelpers.isWarNeeded(kingdom))
             {
-                int warriors = kingdom.countTotalWarriors();
+                int warriors = kingdom.Warriors();
                 // 人口与 isWarNeeded 同一口径(古代每户 100 人，见 NoCommonersPatch.WarNeedPopulation)
                 float people = CityPopulationSystem.AbstractPopulationEnabled
                     ? EmpireCraft.Core.NoCommonersPatch.WarNeedPopulation(kingdom)
-                    : kingdom.getPopulationPeople();
+                    : kingdom.PopulationCount();
                 float possible = kingdom.getPopulationTotalPossible();
                 return $"原版判定不需要打仗(兵{warriors}、人口{people:0}/{possible:0}、城{kingdom.countCities()}；" +
                        "兵太少，或不到四城且没住满六成)";
@@ -102,7 +102,7 @@ public static class FormationDiagnostics
             if (CorpsSystem.CannotFundWar(kingdom)) return "打不起仗(欠饷，或国库不到安全储备四分之一且连月亏损)";
             Realm target = DiplomacyHelpers.getWarTarget(kingdom);
             if (target == null)
-                return $"找不到开战对象(兵{kingdom.countTotalWarriors()}；对象要兵不比自己多、走得到、关系不好、上次停战已满年限)";
+                return $"找不到开战对象(兵{kingdom.Warriors()}；对象要兵不比自己多、走得到、关系不好、上次停战已满年限)";
             return $"条件都满足(对象 {target.GetKingdomName()})，等原版剧情掷骰";
         }
         finally

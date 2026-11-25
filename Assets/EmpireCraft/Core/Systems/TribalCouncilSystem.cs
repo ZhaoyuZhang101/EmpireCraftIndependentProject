@@ -92,10 +92,10 @@ public static class TribalCouncilSystem
                 if (taken >= seats) break;
                 Take(EmpireWorld.Current.PersonByKey(id));
             }
-            if (taken < seats && tribe.units != null)
-                foreach (Person actor in tribe.units.ToList().Where(Eligible)
+            if (taken < seats && tribe.People != null)
+                foreach (Person actor in tribe.People.ToList().Where(Eligible)
                              .OrderByDescending(actor => actor.GetOrCreate().socialClass == SocialClass.Noble)
-                             .ThenByDescending(actor => actor.renown))
+                             .ThenByDescending(actor => actor.Renown))
                 {
                     if (taken >= seats) break;
                     Take(actor);

@@ -134,7 +134,7 @@ public static class ProvincialPoliticsSystem
         {
             string party = Get(empire, province)?.governing_party_id;
             if (string.IsNullOrEmpty(party)) continue;
-            float population = Mathf.Max(1, province.getPopulationPeople());
+            float population = Mathf.Max(1, province.PopulationCount());
             total += population;
             if (coalition.Contains(party)) held += population;
         }

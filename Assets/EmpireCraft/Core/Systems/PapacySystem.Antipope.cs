@@ -57,7 +57,6 @@ public static partial class PapacySystem
     #region 查询
 
     // 进行中的大分裂(没有对立教宗的旧档标记不算)
-#if EC_PENDING
     public static PapalSchismData ActiveSchism(Religion religion)
     {
         if (religion?.data == null) return null;
@@ -72,10 +71,8 @@ public static partial class PapacySystem
         Person pope = schism != null && schism.pope_id >= 0 ? EmpireWorld.Current.PersonByKey(schism.pope_id) : null;
         return pope?.Record != null && !pope.IsGone() && pope.Alive ? pope : null;
     }
-#endif
 
     // 对立教廷(扶立者，帝国按中央)与所在城
-#if EC_PENDING
     public static Realm AntipopeSee(Religion religion)
     {
         PapalSchismData schism = ActiveSchism(religion);
@@ -89,14 +86,12 @@ public static partial class PapacySystem
         City city = schism != null && schism.see_city_id >= 0 ? EmpireWorld.Current.CityByKey(schism.see_city_id) : null;
         return city?.Record != null && !city.IsGone() ? city : null;
     }
-#endif
 
     // 一国(按所在帝国中央)奉哪位教宗：没有大分裂时 PapalObedienceNone
-#if EC_PENDING
     public static int PapalObedience(Realm kingdom)
     {
-        if (kingdom?.Record == null || kingdom.IsGone() || !kingdom.hasReligion()) return PapalObedienceNone;
-        PapalSchismData schism = ActiveSchism(kingdom.religion);
+        if (kingdom?.Record == null || kingdom.IsGone() || !kingdom.HasReligion()) return PapalObedienceNone;
+        PapalSchismData schism = ActiveSchism(kingdom.Religion);
         if (schism == null) return PapalObedienceNone;
         Realm realm = ModRealm(kingdom);
         return schism.obedience.Contains(realm.Key) ? PapalObedienceAntipope : PapalObedienceRome;
@@ -105,7 +100,6 @@ public static partial class PapacySystem
     public static bool FollowsAntipope(Realm kingdom) => PapalObedience(kingdom) == PapalObedienceAntipope;
 
     public static bool FollowsAntipope(Empire empire) => empire?.CoreKingdom != null && FollowsAntipope(empire.CoreKingdom);
-#endif
 
     // 本帝国服从的教廷与教宗(对立一边是扶立者与对立教宗)
 #if EC_PENDING
@@ -117,10 +111,8 @@ public static partial class PapacySystem
 #endif
 
     // 本帝国服从的教廷所在城(加冕、悔罪的地方)
-#if EC_PENDING
     public static City ObeyedSeeCity(Empire empire, Religion religion) =>
         FollowsAntipope(empire) ? AntipopeSeeCity(religion) : HolyCity(religion);
-#endif
 
     // 奉某教的国(独立王国与帝国中央)按服从分两边
 #if EC_PENDING
@@ -132,7 +124,7 @@ public static partial class PapacySystem
         if (schism == null) return (rome, antipope);
         foreach (Realm kingdom in EmpireWorld.Current.LiveRealms)
         {
-            if (!SchismAlive(kingdom) || ModRealm(kingdom) != kingdom || kingdom.religion != religion) continue;
+            if (!SchismAlive(kingdom) || ModRealm(kingdom) != kingdom || kingdom.Religion != religion) continue;
             (schism.obedience.Contains(kingdom.Key) ? antipope : rome).Add(kingdom);
         }
         rome.Sort((a, b) => SchismCities(b).CompareTo(SchismCities(a)));
@@ -142,7 +134,6 @@ public static partial class PapacySystem
 #endif
 
     // 对立一边的城占全教的比例(各国按所在帝国中央的服从)
-#if EC_PENDING
     public static float AntipopeShare(Religion religion)
     {
         PapalSchismData schism = ActiveSchism(religion);
@@ -150,17 +141,15 @@ public static partial class PapacySystem
         int total = 0, rival = 0;
         foreach (Realm kingdom in EmpireWorld.Current.LiveRealms)
         {
-            if (!SchismAlive(kingdom) || kingdom.religion != religion) continue;
+            if (!SchismAlive(kingdom) || kingdom.Religion != religion) continue;
             int cities = kingdom.Cities.Count;
             total += cities;
             if (schism.obedience.Contains(ModRealm(kingdom).Key)) rival += cities;
         }
         return total == 0 ? 0f : rival / (float)total;
     }
-#endif
 
     // 两帝并立：另一家奉本教、本朝皇帝受(原)教宗加冕的帝国(东西教会大分裂的隔阂之一，见 ReligionSchismSystem)
-#if EC_PENDING
     public static Empire RivalEmperor(Empire empire, Religion religion)
     {
         foreach (Empire other in ModClass.EMPIRE_MANAGER?.ToList() ?? new List<Empire>())
@@ -172,7 +161,6 @@ public static partial class PapacySystem
         }
         return null;
     }
-#endif
 
     // 庇护或控制教廷的国(帝国按中央)：教廷在帝国之内的是帝国中央；保护约期内的保护人(见 HolyRomanSystem.ProtectedBy)；宗主
     public static Realm PapalPatron(Realm papacy)
@@ -239,7 +227,7 @@ public static partial class PapacySystem
         data.PapalSchism = schism;
         data.Schism = true;
         SeatAntipope(religion, schism, pope, now);
-        string text = string.Format(LM.Get("antipope_schism_log"), religion.name, LM.Get("antipope_cause_" + cause),
+        string text = string.Format(LM.Get("antipope_schism_log"), religion.Name, LM.Get("antipope_cause_" + cause),
             patron.GetKingdomName(), pope.FullName(), schism.see_city_name, HolyCity(religion)?.GetCityName() ?? "",
             Pope(religion)?.FullName() ?? LM.Get("label_none"));
         TranslateHelper.LogEventMessage(text, patron);
@@ -247,7 +235,7 @@ public static partial class PapacySystem
         pope.RecordPersonalHistory(text);
         RecordRealm(patron, text, pope);
         UpdateObedience(religion, schism, initial: true);
-        LogService.LogInfo($"[EmpireCraft][教廷] {religion.name} 大分裂：{patron.GetKingdomName()} 在 {schism.see_city_name} 扶立对立教宗 " +
+        LogService.LogInfo($"[EmpireCraft][教廷] {religion.Name} 大分裂：{patron.GetKingdomName()} 在 {schism.see_city_name} 扶立对立教宗 " +
                            $"{pope.FullName()}(起因 {cause})，对立一边 {schism.obedience.Count} 国");
         return true;
     }
@@ -263,7 +251,7 @@ public static partial class PapacySystem
         float bestScore = 0f;
         foreach (Realm kingdom in EmpireWorld.Current.LiveRealms.ToList())
         {
-            if (!SchismAlive(kingdom) || ModRealm(kingdom) != kingdom || kingdom == see || kingdom.religion != religion ||
+            if (!SchismAlive(kingdom) || ModRealm(kingdom) != kingdom || kingdom == see || kingdom.Religion != religion ||
                 kingdom.Capital == null || kingdom.Ruler?.Record == null || !kingdom.Ruler.Alive || HoldsHolyCity(kingdom)) continue;
             int cities = SchismCities(kingdom);
             if (cities < RivalMinCities) continue;
@@ -290,7 +278,7 @@ public static partial class PapacySystem
     {
         var cities = new List<City> { patron.Capital };
         foreach (Realm kingdom in EmpireWorld.Current.LiveRealms)
-            if (SchismAlive(kingdom) && kingdom.religion == religion && kingdom.Capital != null && HolyRomanSystem.IsChurchEstate(kingdom) &&
+            if (SchismAlive(kingdom) && kingdom.Religion == religion && kingdom.Capital != null && HolyRomanSystem.IsChurchEstate(kingdom) &&
                 (ModRealm(kingdom) == patron || schism.obedience.Contains(ModRealm(kingdom).Key)))
                 cities.Add(kingdom.Capital);
         Person rome = Pope(religion);
@@ -298,20 +286,20 @@ public static partial class PapacySystem
         if (pick == rome) pick = null;
         return pick ?? CityPopulationSystem.SpawnOfficial(patron.Capital, patron);
     }
+#endif
 
     private static void SeatAntipope(Religion religion, PapalSchismData schism, Person pope, double now)
     {
         City see = EmpireWorld.Current.CityByKey(schism.see_city_id);
         if (see?.Record != null && !see.IsGone() && pope.City != see) pope.JoinCity(see);
         if (!pope.HasTrait("cleric")) pope.AddTrait("cleric");
-        if (pope.religion != religion) pope.setReligion(religion);
+        if (pope.Religion != religion) pope.SetReligion(religion);
         CloseAntipopeRecord(schism, now);
         schism.pope_id = pope.Key;
         schism.line ??= new List<RivalPopeRecord>();
         schism.line.Add(new RivalPopeRecord { actor_id = pope.Key, name = pope.FullName(), from = now });
         if (schism.line.Count > RivalLineMax) schism.line.RemoveRange(0, schism.line.Count - RivalLineMax);
     }
-#endif
 
     private static void CloseAntipopeRecord(PapalSchismData schism, double now)
     {
@@ -351,13 +339,13 @@ public static partial class PapacySystem
             if (patron == null)
             {
                 Finish(religion, schism, SchismEndExtinct, schism.see_city_name, ReligionChronicle.KindPapacy,
-                    string.Format(LM.Get("antipope_extinct_log"), schism.see_city_name, religion.name, SchismAge(schism)));
+                    string.Format(LM.Get("antipope_extinct_log"), schism.see_city_name, religion.Name, SchismAge(schism)));
                 return;
             }
             if (Antipope(religion) == null && !ElectSuccessor(religion, schism, patron))
             {
                 Finish(religion, schism, SchismEndExtinct, schism.see_city_name, ReligionChronicle.KindPapacy,
-                    string.Format(LM.Get("antipope_extinct_log"), schism.see_city_name, religion.name, SchismAge(schism)));
+                    string.Format(LM.Get("antipope_extinct_log"), schism.see_city_name, religion.Name, SchismAge(schism)));
                 return;
             }
             UpdateObedience(religion, schism, initial: false);
@@ -400,7 +388,7 @@ public static partial class PapacySystem
         if (IsCaptive(religion) ||
             PopeLegitimacy.Applies(religion) && PopeLegitimacy.Get(religion, countSchism: false) < PopeLegitimacy.HealedAt) return;
         data.Schism = false;
-        string ended = string.Format(LM.Get("papal_schism_ended_log"), religion.name);
+        string ended = string.Format(LM.Get("papal_schism_ended_log"), religion.Name);
         TranslateHelper.LogEventMessage(ended, Papacy(religion));
         ReligionChronicle.Record(religion, ReligionChronicle.KindPapacy, ended);
     }
@@ -413,7 +401,7 @@ public static partial class PapacySystem
         Realm rome = ModRealm(Papacy(religion));
         City see = EmpireWorld.Current.CityByKey(schism.see_city_id);
         Realm holder = see?.Record != null && !see.IsGone() && see.Realm != null && !see.Realm.IsWild ? ModRealm(see.Realm) : null;
-        if (SchismAlive(holder) && holder.religion == religion && holder != rome && religion.GetCity() != see &&
+        if (SchismAlive(holder) && holder.Religion == religion && holder != rome && religion.GetCity() != see &&
             (holder.Key == schism.patron_id || schism.obedience.Contains(holder.Key)))
         {
             schism.patron_id = holder.Key;
@@ -421,7 +409,7 @@ public static partial class PapacySystem
             return holder;
         }
         Realm next = schism.obedience.Select(id => EmpireWorld.Current.RealmByKey(id))
-            .Where(kingdom => SchismAlive(kingdom) && ModRealm(kingdom) == kingdom && kingdom != rome && kingdom.religion == religion &&
+            .Where(kingdom => SchismAlive(kingdom) && ModRealm(kingdom) == kingdom && kingdom != rome && kingdom.Religion == religion &&
                               kingdom.Capital != null && !HoldsHolyCity(kingdom))
             .OrderByDescending(SchismCities).FirstOrDefault();
         if (next == null) return null;
@@ -472,7 +460,7 @@ public static partial class PapacySystem
         var rivalMajors = new List<string>();
         foreach (Realm kingdom in EmpireWorld.Current.LiveRealms.ToList())
         {
-            if (!SchismAlive(kingdom) || ModRealm(kingdom) != kingdom || kingdom.religion != religion) continue;
+            if (!SchismAlive(kingdom) || ModRealm(kingdom) != kingdom || kingdom.Religion != religion) continue;
             bool was = before.Contains(kingdom.Key);
             bool rival;
             if (kingdom == patron) rival = true;
@@ -565,14 +553,14 @@ public static partial class PapacySystem
     {
         Realm rome = ModRealm(Papacy(religion));
         Realm host = EmpireWorld.Current.LiveRealms
-            .Where(kingdom => SchismAlive(kingdom) && ModRealm(kingdom) == kingdom && kingdom.religion == religion && kingdom.Capital != null &&
+            .Where(kingdom => SchismAlive(kingdom) && ModRealm(kingdom) == kingdom && kingdom.Religion == religion && kingdom.Capital != null &&
                               kingdom.Key != schism.patron_id && kingdom != rome)
             .OrderByDescending(SchismCities).FirstOrDefault() ?? rome;
         string venue = host?.Capital?.GetCityName() ?? HolyCity(religion)?.GetCityName() ?? "";
         Person antipope = Antipope(religion);
         string name = antipope?.FullName() ?? schism.line?.LastOrDefault()?.name ?? LM.Get("label_none");
         string text = string.Format(LM.Get(outcome == SchismEndCollapse ? "antipope_collapse_log" : "antipope_council_log"), venue, name,
-            religion.name, SchismAge(schism));
+            religion.Name, SchismAge(schism));
         AddAuthority(religion, 5f);
         antipope?.RecordPersonalHistory(text);
         Finish(religion, schism, outcome, venue, ReligionChronicle.KindPapacy, text);
@@ -588,7 +576,7 @@ public static partial class PapacySystem
         if (!SchismAlive(patron) || see?.Record == null || see.IsGone() || see.Realm == null || ModRealm(see.Realm) != patron) return false;
         Person founder = Antipope(religion) ?? patron.Ruler;
         if (founder?.Record == null || !founder.Alive) return false;
-        Religion church = EmpireWorld.Current.religions.newReligion(founder, false);
+        Religion church = EmpireWorld.Current.Religions.NewReligion(founder, false);
         if (church?.data == null) return false;
         church.data.name = string.Format(LM.Get("antipope_church_name"), see.GetCityName());
         church.SetCity(see);
@@ -609,17 +597,17 @@ public static partial class PapacySystem
         var converted = new List<Realm>();
         foreach (Realm kingdom in EmpireWorld.Current.LiveRealms.ToList())
         {
-            if (!SchismAlive(kingdom) || kingdom.religion != religion || !schism.obedience.Contains(ModRealm(kingdom).Key)) continue;
+            if (!SchismAlive(kingdom) || kingdom.Religion != religion || !schism.obedience.Contains(ModRealm(kingdom).Key)) continue;
             ConvertWhole(kingdom, religion, church);
             Empire empire = kingdom.GetEmpire();
             if (empire != null && empire.CoreKingdom == kingdom) empire.Religion = church;
             if (ModRealm(kingdom) == kingdom) converted.Add(kingdom);
         }
-        if (founder.religion != church) founder.setReligion(church);
+        if (founder.Religion != church) founder.SetReligion(church);
         AddAuthority(religion, -10f);
         string names = converted.Count == 0 ? patron.GetKingdomName()
             : string.Join("、", converted.OrderByDescending(SchismCities).Take(4).Select(kingdom => kingdom.GetKingdomName()));
-        string text = string.Format(LM.Get("antipope_separated_log"), SchismAge(schism), patron.GetKingdomName(), church.name,
+        string text = string.Format(LM.Get("antipope_separated_log"), SchismAge(schism), patron.GetKingdomName(), church.Name,
             see.GetCityName(), names, Math.Max(1, converted.Count));
         ReligionChronicle.Clear(church);
         ReligionChronicle.Record(church, ReligionChronicle.KindSchism, text);
@@ -648,7 +636,7 @@ public static partial class PapacySystem
         }
         TranslateHelper.LogEventMessage(text, Papacy(religion));
         ReligionChronicle.Record(religion, kind, text);
-        LogService.LogInfo($"[EmpireCraft][教廷] {religion.name} 大分裂收场(结局 {outcome})：{text}");
+        LogService.LogInfo($"[EmpireCraft][教廷] {religion.Name} 大分裂收场(结局 {outcome})：{text}");
     }
 #endif
 

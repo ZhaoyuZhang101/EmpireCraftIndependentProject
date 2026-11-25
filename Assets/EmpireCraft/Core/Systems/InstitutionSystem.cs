@@ -2327,12 +2327,12 @@ public static partial class InstitutionSystem
     private static int DefectCoreSoldiers(Empire empire, Realm rebel, SocialClass socialClass, float grievance)
     {
         Realm core = empire?.CoreKingdom;
-        if (core?.units == null || rebel?.Capital == null || rebel.Capital.IsGone()) return 0;
+        if (core?.People == null || rebel?.Capital == null || rebel.Capital.IsGone()) return 0;
         float fraction = Math.Max(0.3f, Math.Min(0.7f, grievance / 100f * 0.7f));
         if (socialClass is SocialClass.Noble or SocialClass.Army) fraction = Math.Min(0.85f, fraction * 1.3f);
 
-        List<Person> candidates = core.units.ToList().Where(actor =>
-                actor != null && !actor.IsGone() && actor.Alive && actor.isWarrior() && !actor.isKing() &&
+        List<Person> candidates = core.People.ToList().Where(actor =>
+                actor != null && !actor.IsGone() && actor.Alive && actor.IsWarrior() && !actor.IsRuler() &&
                 actor.GetOrCreate().socialClass == socialClass)
             .ToList();
         int count = (int)Math.Round(candidates.Count * fraction);
@@ -2570,7 +2570,7 @@ public static partial class InstitutionSystem
                                                               CityStabilitySystem.CanRise(kingdom.Capital) &&
                                                               !kingdom.IsFactionRebelling() &&
                                                               !kingdom.GetWars().Any())
-            .OrderByDescending(kingdom => kingdom.countTotalWarriors()).FirstOrDefault();
+            .OrderByDescending(kingdom => kingdom.Warriors()).FirstOrDefault();
         if (opposition == null || rebel == null) return false;
         var cause = RebellionSystem.Capture(rebel, rebel.Capital, "rebellion_reason_reform",
             GetNodeName(empire, node) + "：" + GetResistanceReason(node));

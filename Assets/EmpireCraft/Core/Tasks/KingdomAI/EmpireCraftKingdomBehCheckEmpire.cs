@@ -72,10 +72,10 @@ public class EmpireCraftKingdomBehCheckEmpire:GameAIKingdomBase
         }
         if (string.IsNullOrEmpty(empire.GetEmpireName()))
         {
-            if (pKingdom.HasRuler()&&pKingdom.Ruler.hasCulture())
+            if (pKingdom.HasRuler()&&pKingdom.Ruler.HasCulture())
             {
                 empire.data.directPre = "";
-                var nameEmpire = pKingdom.Ruler.culture.getOnomasticData(MetaType.Kingdom).generateName();
+                var nameEmpire = pKingdom.Ruler.Culture.getOnomasticData(MetaType.Kingdom).generateName();
                 empire.SetEmpireName(nameEmpire);
                 // 有宗族编号不等于宗族还在(旧档里身份上的宗族可能已经没了)
                 pKingdom.Ruler.GetSpecificClan()?.RecordHistoryEmpire(empire, pKingdom.Capital);
@@ -164,7 +164,7 @@ public class EmpireCraftKingdomBehCheckEmpire:GameAIKingdomBase
             if (jiedushis.Any())
             {
                 //军府维护金
-                var junfuMoney = jiedushis.Sum(k => k.countTotalWarriors());
+                var junfuMoney = jiedushis.Sum(k => k.Warriors());
                 core.SubMoney(junfuMoney, TreasuryCategory.Military);
             }
         }

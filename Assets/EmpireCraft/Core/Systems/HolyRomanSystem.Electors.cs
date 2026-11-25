@@ -80,7 +80,7 @@ public static partial class HolyRomanSystem
     private static IEnumerable<Realm> StrongestPrinces(Empire empire, List<long> seated) =>
         Members(empire).Where(realm => SecularSeatEligible(empire, realm) && realm.HasRuler() && !IsBanned(realm) &&
                                        !seated.Contains(realm.Key))
-            .OrderByDescending(realm => realm.countTotalWarriors());
+            .OrderByDescending(realm => realm.Warriors());
 
     private static void ElectorLog(Empire empire, HolyRomanState state, string text, bool history)
     {

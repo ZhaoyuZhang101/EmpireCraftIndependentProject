@@ -134,8 +134,8 @@ public static class CultureReformSystem
             previousInstitutionCulture: previousInstitution, activeReform: true);
         if (core) InstitutionSystem.ResyncCulture(empire);
 
-        Culture native = string.Equals(CulturePatch.GetInjectedCultureName(kingdom.culture), target, StringComparison.Ordinal)
-            ? kingdom.culture
+        Culture native = string.Equals(CulturePatch.GetInjectedCultureName(kingdom.Culture), target, StringComparison.Ordinal)
+            ? kingdom.Culture
             : CultureService.GetNativeCultureObject(target);
         var taken = new HashSet<string>(SpecificClanManager._specificClans.Where(c => c != null && !string.IsNullOrWhiteSpace(c.name))
             .Select(c => c.name), StringComparer.Ordinal);
@@ -170,8 +170,8 @@ public static class CultureReformSystem
         if (kingdom?.Record == null || kingdom.IsGone() || !CultureService.IsValidCulture(target)) return null;
         var within = new HashSet<Realm>(scope ?? Enumerable.Empty<Realm>()) { kingdom };
         Person king = kingdom.Ruler != null && !kingdom.Ruler.IsGone() && kingdom.Ruler.Alive ? kingdom.Ruler : null;
-        Culture native = string.Equals(CulturePatch.GetInjectedCultureName(kingdom.culture), target, StringComparison.Ordinal)
-            ? kingdom.culture
+        Culture native = string.Equals(CulturePatch.GetInjectedCultureName(kingdom.Culture), target, StringComparison.Ordinal)
+            ? kingdom.Culture
             : CultureService.GetNativeCultureObject(target);
         var taken = new HashSet<string>(SpecificClanManager._specificClans.Where(c => c != null && !string.IsNullOrWhiteSpace(c.name))
             .Select(c => c.name), StringComparer.Ordinal);
@@ -189,7 +189,7 @@ public static class CultureReformSystem
                 else Convert(royal, target, native, null, within, home: true);
             }
         }
-        foreach (Person actor in kingdom.units.ToList())
+        foreach (Person actor in kingdom.People.ToList())
         {
             if (actor?.Record == null || actor.IsGone() || !actor.IsOnOffice() ||
                 string.Equals(CultureService.GetActorCulture(actor), target, StringComparison.Ordinal)) continue;
@@ -226,7 +226,7 @@ public static class CultureReformSystem
     {
         var done = new HashSet<long>();
         if (royal != null) done.Add(Root(royal).id);
-        foreach (Person actor in kingdom.units.ToList())
+        foreach (Person actor in kingdom.People.ToList())
         {
             if (actor?.Record == null || actor.IsGone() || !actor.IsOnOffice() ||
                 !string.Equals(CultureService.GetActorCulture(actor), previous, StringComparison.Ordinal)) continue;
@@ -352,7 +352,7 @@ public static class CultureReformSystem
 
     private static void Convert(Person actor, string target, Culture native, string surname)
     {
-        if (native != null && actor.culture != native) actor.setCulture(native);
+        if (native != null && actor.Culture != native) actor.SetCulture(native);
         PersonalClanIdentity identity = actor.GetPersonalIdentity();
         if (identity != null) identity.culture = target;
         Name name = actor.GetModName();

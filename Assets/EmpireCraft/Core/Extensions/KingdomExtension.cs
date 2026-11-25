@@ -1268,19 +1268,19 @@ public static class KingdomExtension
         return GameClock.YearsSince(kingdom.GetOrCreate().last_system_change_timestamp);
     }
 
-#if EC_PENDING
     public static void CacheData(this Realm kingdom)
     {
         var ed = kingdom.GetOrCreate();
         if (ed.last_cached_timestamp <= 0 || GameClock.YearsSince(ed.last_cached_timestamp) >= 1)
         {
             ed.last_cached_timestamp = -1L;
-            ed.cached_population = kingdom.getPopulationPeople();
-            ed.cached_warriors = kingdom.countTotalWarriors();
+            ed.cached_population = kingdom.PopulationCount();
+            ed.cached_warriors = kingdom.Warriors();
             ed.last_cached_timestamp = GameClock.Now;
         }
     }
 
+#if EC_PENDING
     public static void RefreshNationalPower(this Realm kingdom, bool force = false)
     {
         if (kingdom == null || kingdom.IsGone()) return;
@@ -1294,9 +1294,9 @@ public static class KingdomExtension
         // 按户计：无小人模式下真实人数可达几百万，直接相加会让人口压过军力和经济
         data.annual_power_population = Math.Max(0, CityPopulationSystem.AbstractPopulationEnabled
             ? CityPopulationSystem.Households(kingdom)
-            : kingdom.getPopulationPeople());
+            : kingdom.PopulationCount());
         // 无小人模式：太平时只留少数将领，军力按战时能动员的兵力算
-        data.annual_power_military = Math.Max(0, Math.Max(kingdom.countTotalWarriors(),
+        data.annual_power_military = Math.Max(0, Math.Max(kingdom.Warriors(),
             CityPopulationSystem.WarPotential(kingdom)));
         data.annual_power_economy = Math.Max(0, kingdom.GetMoney());
         data.annual_power_index = NationalPowerRules.Calculate(data.annual_power_population,
@@ -1501,7 +1501,7 @@ public static class KingdomExtension
         if (fiscal) k.GetOrCreate().last_taken_time = GameClock.Now;
         // 贡金按人口(无小人模式按户，和单位个数同一量级)
         bool abstracted = CityPopulationSystem.AbstractPopulationEnabled;
-        int population = abstracted ? CityPopulationSystem.Households(k) : k.units?.Count ?? 0;
+        int population = abstracted ? CityPopulationSystem.Households(k) : k.PopulationCount() ?? 0;
         var value = population / 2;
         if (fiscal) value = Math.Min(value, Math.Max(0, k.GetMoney()));
         k.SubMoney(value, TreasuryCategory.Tribute);
@@ -1574,6 +1574,7 @@ public static class KingdomExtension
         }
         return false;
     }
+#endif
 
     private static long CountCurrentEmpireWarriors(Empire empire)
     {
@@ -1583,14 +1584,15 @@ public static class KingdomExtension
         {
             Realm member = empire.kingdoms_list[i];
             if (member?.Record == null || member.IsGone()) continue;
-            total += Math.Max(0, member.countTotalWarriors());
+            total += Math.Max(0, member.Warriors());
         }
         return total;
     }
 
+#if EC_PENDING
     private static long CountEffectiveDefenderWarriors(Realm target, Empire attackingEmpire)
     {
-        long strength = Math.Max(0, target.countTotalWarriors());
+        long strength = Math.Max(0, target.Warriors());
         if (target.hasAlliance())
         {
             Alliance alliance = target.getAlliance();
@@ -1919,7 +1921,7 @@ public static class KingdomExtension
                 if (!kingdom.HasRuler()) return false;
                 if (!SpecificClanManager.SameLineage(kingdom.Ruler.GetSpecificClan(), empire.EmpireSpecificClan))
                 {
-                    var preKing = kingdom.units.Find(a=>SpecificClanManager.SameLineage(a.GetSpecificClan(), empire.EmpireSpecificClan));
+                    var preKing = kingdom.People.Find(a=>SpecificClanManager.SameLineage(a.GetSpecificClan(), empire.EmpireSpecificClan));
                     // 纯净地图下宗室多是虚拟族人：本国地图上没有就从皇族世系里落成一位在本国的成年人(以前直接作罢)
                     preKing ??= EmpireCraft.Core.KinRoster.RealizeAdultKin(empire.EmpireSpecificClan,
                         realm => realm == kingdom, a => a.Alive && !a.IsRuler() && a.IsAdult() && a.Realm == kingdom);
@@ -2128,7 +2130,7 @@ public static class KingdomExtension
         {
             try
             {
-                candidate = kingdom.culture?.getOnomasticData(MetaType.Kingdom)?.generateName();
+                candidate = kingdom.Culture?.getOnomasticData(MetaType.Kingdom)?.generateName();
             }
             catch
             {
@@ -2692,12 +2694,10 @@ public static class KingdomExtension
         return ed?.IndependentValue ?? 100;
     }
 
-#if EC_PENDING
     public static List<Person> AllGongshi(this Realm k)
     {
-        return k.units.FindAll(a => a.hasTrait("gongshi"));
+        return k.People.FindAll(a => a.HasTrait("gongshi"));
     }
-#endif
     public static bool CalcHeirFinished(this Realm k)
     {
         var ed = k.GetOrCreate();
@@ -3568,13 +3568,13 @@ public static class KingdomExtension
         if (Math.Abs(candidatePower - incumbentPower) > 0.0001d)
             return candidatePower > incumbentPower;
 
-        int candidatePopulation = EmpireFormationService.GetBlocMembers(candidate).Sum(member => member.getPopulationPeople());
-        int incumbentPopulation = EmpireFormationService.GetBlocMembers(incumbent).Sum(member => member.getPopulationPeople());
+        int candidatePopulation = EmpireFormationService.GetBlocMembers(candidate).Sum(member => member.PopulationCount());
+        int incumbentPopulation = EmpireFormationService.GetBlocMembers(incumbent).Sum(member => member.PopulationCount());
         if (candidatePopulation != incumbentPopulation)
             return candidatePopulation > incumbentPopulation;
 
-        int candidateMilitary = EmpireFormationService.GetBlocMembers(candidate).Sum(member => member.countTotalWarriors());
-        int incumbentMilitary = EmpireFormationService.GetBlocMembers(incumbent).Sum(member => member.countTotalWarriors());
+        int candidateMilitary = EmpireFormationService.GetBlocMembers(candidate).Sum(member => member.Warriors());
+        int incumbentMilitary = EmpireFormationService.GetBlocMembers(incumbent).Sum(member => member.Warriors());
         if (candidateMilitary != incumbentMilitary)
             return candidateMilitary > incumbentMilitary;
 

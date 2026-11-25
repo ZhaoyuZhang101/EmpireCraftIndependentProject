@@ -230,6 +230,46 @@ public static class RulesChecks
         Console.WriteLine("PASS people (" + checks + " checks)");
     }
 
+    // The population is a number; only persons on record are entities. Faiths and cultures are records held by realms, cities and persons.
+    public static void Beliefs()
+    {
+        checks = 0;
+        var map = FlatGenerator.Generate(256, 128, "EMPIRE-BELIEFS", TerrainPreset.Continents, default);
+        var w = Start(map); w.Activate();
+        Run(w, 2);
+        var realm = w.LiveRealms[0]; var other = w.LiveRealms[1]; var capital = realm.Capital; var ruler = realm.Ruler;
+        Check(capital.People.Contains(ruler) && capital.People.All(p => p.Alive && p.City == capital) && capital.PopulationCount() > capital.People.Count, "a city's people on record are a handful; its population is a number");
+        Check(realm.People.Contains(ruler) && realm.People.All(p => p.Realm == realm) && !realm.People.Intersect(other.People).Any() && realm.PopulationCount() == (int)realm.Cities.Sum(c => c.Population), "a realm's headcount is the sum of its cities");
+        Check(realm.Warriors() == realm.Cities.Sum(c => w.Ledger.City(c.Id).Garrison) && w.LiveRealms.Sum(r => (long)r.Warriors()) > 0 && capital.Warriors() == w.Ledger.City(capital.Id).Garrison, "troops are the guards on the books");
+        Check(ruler.Cell == capital.SeatCell() && new Person().Cell == null, "a person is at the seat of the home city");
+        var heir = capital.People.FirstOrDefault(p => p != ruler);
+        if (heir != null) { WorldOps.Death(w, heir); Check(!capital.People.Contains(heir) && !realm.People.Contains(heir), "the dead leave the record of the living"); }
+
+        Check(w.Religions.Count == 0 && !realm.HasReligion() && !capital.HasReligion() && !ruler.HasReligion() && !realm.HasCulture(), "nobody holds a faith or a culture until a system gives one");
+        var faith = w.Religions.NewReligion(ruler); faith.Name = "Sun";
+        Check(faith.Key == 1 && faith.Alive && faith.data.creator_id == ruler.Key && faith.data.creator_kingdom_id == realm.Key && faith.Age() == 0 && !ruler.HasReligion() && w.Religions.Get(1) == faith, "a new faith is on record and followed by nobody");
+        realm.SetReligion(faith); capital.SetReligion(faith); ruler.SetReligion(faith);
+        Check(realm.HasReligion() && faith.Realms.SequenceEqual(new[] { realm }) && faith.Cities.SequenceEqual(new[] { capital }) && faith.Followers() == (long)capital.Population && !other.HasReligion(), "a faith's following is the headcount of the cities that hold it");
+        var sect = w.Religions.NewReligion(other.Ruler); sect.Name = "Moon"; other.Capital.SetReligion(sect);
+        w.Religions.RemoveObject(sect);
+        Check(sect.Key == 2 && !sect.Alive && sect.IsGone() && !other.Capital.HasReligion() && w.Religions.Get(2) == null && w.Religions.Count == 1, "a faith struck from the record is held by nobody");
+        var folk = w.Cultures.NewCulture(ruler); folk.Name = "River"; realm.SetCulture(folk); capital.SetCulture(folk);
+        Check(folk.AddTrait("farming") && !folk.AddTrait("farming") && folk.AddTrait("bronze") && folk.HasTrait("farming") && folk.RemoveTrait("bronze") && folk.TraitCount == 1 && folk.Cities.Count == 1 && realm.HasCulture() && capital.Culture == folk, "a culture carries traits and is held like a faith");
+        Run(w, 3);
+        Check(faith.Age() == 3 && EmpireInvariants.Check(w).Count == 0, "a faith ages with the world");
+        Check(GameClock.MonthOf(0) == 1 && GameClock.MonthOf(23.5) == 12 && GameClock.YearOf(24) == w.StartYear + 2 && GameClock.DateText(13) == (w.StartYear + 1) + "年2月" && GameClock.Now + GameClock.MonthLength == w.Month + 1, "a timestamp is a world month");
+
+        var bytes = EmpireSave.Encode(w); var loaded = EmpireSave.Decode(bytes, w.Map);
+        var again = loaded.Realms[realm.Id];
+        Check(EmpireSave.Encode(loaded).SequenceEqual(bytes) && again.Religion != null && again.Religion.Name == "Sun" && again.Religion.Key == 1 && again.Capital.Religion == again.Religion && loaded.People[ruler.Id].Religion == again.Religion &&
+              again.Culture.Name == "River" && again.Culture.HasTrait("farming") && again.Culture.TraitCount == 1 && again.World == loaded && again.Religion.World == loaded, "faiths, cultures and their holders survive the save");
+        Check(loaded.Cities[other.Capital.Id].Religion == null && loaded.Religions.Count == 1 && loaded.Religions.NewReligion(null).Key == 3, "a struck faith is not saved and its key is not handed out again");
+        var old = EmpireSave.Decode(EmpireSave.Encode(w, 4), w.Map);
+        Check(old.Religions.Count == 0 && old.Cultures.Count == 0 && !old.Realms[realm.Id].HasReligion() && old.Realms[realm.Id].World == old, "a version-4 section loads without faiths");
+        EmpireWorld.Current = null;
+        Console.WriteLine("PASS population and beliefs (" + checks + " checks)");
+    }
+
     // The grid as the ported systems see it: cells, terrain, a city's territory and neighbours.
     public static void Grid()
     {

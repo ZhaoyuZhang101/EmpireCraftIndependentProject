@@ -123,8 +123,8 @@ public static class OfficeSelector
     private static Person MaleRuler(OfficeObject office, Realm kingdom)
     {
         Person best = null;
-        if (kingdom?.units == null) return null;
-        foreach (Person unit in kingdom.units)
+        if (kingdom?.People == null) return null;
+        foreach (Person unit in kingdom.People)
         {
             if (unit == null || unit.IsGone() || !unit.Alive || !unit.IsMale() || !unit.IsAdult() || unit.IsRuler() ||
                 !unit.IsFitToRule() || !unit.CanServeOffice(kingdom) || unit.IsSkeleton() || !office.Accepts(unit)) continue;
@@ -238,7 +238,7 @@ public static class OfficeSelector
             .OrderByDescending(item => item.votes)
             .ThenByDescending(item => IsPreferredOfficeCandidate(item.candidate, pKingdom))
             .ThenByDescending(item => item.candidate.Renown)
-            .ThenByDescending(item => item.candidate.Realm?.countTotalWarriors() ?? 0)
+            .ThenByDescending(item => item.candidate.Realm?.Warriors() ?? 0)
             .ToList();
     }
 #endif
@@ -253,8 +253,8 @@ public static class OfficeSelector
             .Where(kingdom => kingdom != null && !kingdom.IsGone() && kingdom.HasRuler() &&
                               kingdom.Ruler.CanServeOffice(pKingdom))
             .OrderByDescending(kingdom => IsPreferredOfficeCandidate(kingdom.Ruler, pKingdom))
-            .ThenByDescending(kingdom => kingdom.countTotalWarriors())
-            .Select(kingdom => kingdom.king).ToList();
+            .ThenByDescending(kingdom => kingdom.Warriors())
+            .Select(kingdom => kingdom.Ruler).ToList();
     }
 
     private static Person TryGetStrongerLeader(OfficeObject pOffice, Realm pKingdom)
@@ -268,17 +268,17 @@ public static class OfficeSelector
             foreach (var k in empire.kingdoms_list)
             {
                 if (!k.HasRuler() || !k.Ruler.CanServeOffice(pKingdom)) continue;
-                if (k.countTotalWarriors() >= currentWarriors)
+                if (k.Warriors() >= currentWarriors)
                 {
                     kingdom = k;
-                    currentWarriors = k.countTotalWarriors();
+                    currentWarriors = k.Warriors();
                 }
             }
             Person preferred = empire.kingdoms_list
                 .Where(k => k != null && !k.IsGone() && k.HasRuler() && k.Ruler.CanServeOffice(pKingdom) &&
                             IsPreferredOfficeCandidate(k.Ruler, pKingdom))
-                .OrderByDescending(k => k.countTotalWarriors())
-                .Select(k => k.king).FirstOrDefault();
+                .OrderByDescending(k => k.Warriors())
+                .Select(k => k.Ruler).FirstOrDefault();
             return preferred ?? kingdom?.Ruler;
         }
         return null;
@@ -304,8 +304,8 @@ public static class OfficeSelector
         if (pOffice.select_from_local)
         {
             targetPool = pOffice.meta_object.meta_type == MetaType.City
-                ? ((City)pOffice.meta_object).units
-                : ((Realm)pOffice.meta_object).units;
+                ? ((City)pOffice.meta_object).People
+                : ((Realm)pOffice.meta_object).People;
         }
         else
         {
@@ -320,8 +320,8 @@ public static class OfficeSelector
             else
             {
                 targetPool = pOffice.meta_object.meta_type == MetaType.City
-                    ? ((City)pOffice.meta_object).units
-                    : ((Realm)pOffice.meta_object).units;
+                    ? ((City)pOffice.meta_object).People
+                    : ((Realm)pOffice.meta_object).People;
             }
         }
 
@@ -332,7 +332,7 @@ public static class OfficeSelector
             {
                 if (unit.IsSkeleton()) continue;
                 if (!pOffice.Accepts(unit)) continue;
-                if (unit.HasOfficeIdentity()&&unit.isActor()&&unit.hasCulture())
+                if (unit.HasOfficeIdentity()&&unit.isActor()&&unit.HasCulture())
                 {
                     var flag1 = false;
                     var flag2 = false;
@@ -358,7 +358,7 @@ public static class OfficeSelector
     }
     private static Person TryGetProfessionOfficer(Realm pKingdom, OfficeObject office = null)
     {
-        if (pKingdom == null || pKingdom.IsGone() || pKingdom.units == null)
+        if (pKingdom == null || pKingdom.IsGone() || pKingdom.People == null)
         {
             return null;
         }
@@ -367,7 +367,7 @@ public static class OfficeSelector
         int num = 0;
         Person fallback = null;
         int fallbackScore = 0;
-        foreach (Person unit in pKingdom.units)
+        foreach (Person unit in pKingdom.People)
         {
             if (unit == null || unit.IsGone())
             {
@@ -415,7 +415,7 @@ public static class OfficeSelector
         using ListPool<Person> listPool2 = new ListPool<Person>();
         foreach (City city in pKingdom.Cities)
         {
-            foreach (Person unit in city.units)
+            foreach (Person unit in city.People)
             {
                 if (unit.IsFitToRule() && unit.IsAdult() && unit.CanServeOffice(pKingdom) && !unit.IsRuler() && !unit.IsCityLeader() && unit.HasClan()&&!unit.IsOnOffice() && !unit.IsSkeleton() &&
                     (office == null || office.Accepts(unit)))
@@ -461,8 +461,8 @@ public static class OfficeSelector
                 if (EthnicRankSystem.IsUpper(kingdom, unit)) upper.Add(unit);
             if (upper.Any()) candidates = upper;
         }
-        if (kingdom.hasCulture())
-            return ListSorters.getUnitSortedByAgeAndTraits(candidates, kingdom.culture);
+        if (kingdom.HasCulture())
+            return ListSorters.getUnitSortedByAgeAndTraits(candidates, kingdom.Culture);
         candidates.Sort(ListSorters.sortUnitByAgeOldFirst);
         return candidates.ElementAt(0);
     }

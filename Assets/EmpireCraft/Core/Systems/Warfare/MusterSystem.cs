@@ -41,7 +41,7 @@ public static class MusterSystem
         var data = war.GetOrCreate();
         if (data.muster_months >= 0) return data.muster_months;
         int months = 1 + (int)(Math.Abs(war.Key * 7919L) % 3);
-        Realm rebel = war.MainAttacker, loyal = FrontSystem.Realm(war.MainDefender);
+        Realm rebel = war.MainAttacker, loyal = FrontSystem.ModRealm(war.MainDefender);
         if (rebel?.Capital != null && loyal?.Capital != null &&
             Vector2.Distance(rebel.Capital.Center, loyal.Capital.Center) > FarDistance) months++;
         if (loyal?.GetEmpire() is Empire empire && empire.Mandate < WeakMandate) months++;
@@ -60,7 +60,7 @@ public static class MusterSystem
     public static bool Mustering(Realm loyal, Realm rebel)
     {
         if (loyal?.Record == null || rebel?.Record == null || loyal == rebel) return false;
-        Realm realm = FrontSystem.Realm(loyal);
+        Realm realm = FrontSystem.ModRealm(loyal);
         foreach (War war in rebel.GetWars())
         {
             if (!Underway(war)) continue;
@@ -85,7 +85,7 @@ public static class MusterSystem
         {
             if (war?.Record == null || !war.Alive || war.HasEnded() || !IsRebellion(war)) continue;
             var data = war.GetOrCreate();
-            Realm rebel = war.MainAttacker, loyal = FrontSystem.Realm(war.MainDefender);
+            Realm rebel = war.MainAttacker, loyal = FrontSystem.ModRealm(war.MainDefender);
             if (rebel?.Record == null || loyal?.Record == null) continue;
             bool fresh = data.muster_months < 0;
             int months = Months(war);

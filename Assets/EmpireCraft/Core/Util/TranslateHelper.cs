@@ -390,7 +390,7 @@ namespace EmpireCraft.Core
             WorldLogMessage worldLog = new WorldLogMessage(
                 EmpireCraftWorldLogLibrary.empire_law_arrest_log,
                 actorName,
-                string.IsNullOrEmpty(crimeDate) ? Date.getDate(GameClock.Now) : crimeDate,
+                string.IsNullOrEmpty(crimeDate) ? GameClock.DateText(GameClock.Now) : crimeDate,
                 EmpireLawSystem.LocalizeCrimeName(crimeName))
             {
                 color_special1 = actor.getColor()._color_text,
@@ -668,7 +668,7 @@ namespace EmpireCraft.Core
                 case MetaType.City:
                     return EmpireWorld.Current?.CityByKey(targetId)?.GetCityName();
                 case MetaType.Religion:
-                    return EmpireWorld.Current?.religions?.get(targetId)?.data?.name;
+                    return EmpireWorld.Current?.Religions?.Get(targetId)?.data?.name;
                 case MetaType.Unit:
                     return GetActorFullLogName(EmpireWorld.Current?.PersonByKey(targetId));
                 case MetaType.None:

@@ -277,7 +277,7 @@ public static class CityPopulationSystem
             // 已经察觉的不再看漏；没察觉的要对方的兵到得够多才看得见(吏治败坏的察觉得晚，见 WarReadinessSystem.Spotted)
             if (target?.Record == null || target.IsGone() ||
                 !(Alerted.Contains(target) ? WarReadinessSystem.Massing(author) : WarReadinessSystem.Spotted(author, target))) continue;
-            foreach (Realm side in new[] { target, FrontSystem.Realm(target) }.Distinct())
+            foreach (Realm side in new[] { target, FrontSystem.ModRealm(target) }.Distinct())
             {
                 if (side?.Record == null || side.IsGone() || side == author || Mobilizing.Contains(side) && !Alerted.Contains(side))
                     continue;
@@ -369,10 +369,10 @@ public static class CityPopulationSystem
     {
         if (!AbstractPopulationEnabled || CorpsSystem.Enabled || city?.army == null || !OnWarFooting(city)) return;
         Person captain = city.army.getCaptain();
-        if (captain == null || captain.IsGone() || !captain.Alive || captain.current_tile == null) return;
+        if (captain == null || captain.IsGone() || !captain.Alive || captain.Cell == null) return;
         Cell front = FrontTile(city.Realm);
         if (front == null) return;
-        if (Land.SquaredDist(captain.current_tile, front) <= FrontHoldDistance * FrontHoldDistance) return;
+        if (Land.SquaredDist(captain.Cell, front) <= FrontHoldDistance * FrontHoldDistance) return;
         try
         {
             captain.goTo(front);
@@ -910,11 +910,11 @@ public static class CityPopulationSystem
     {
         var counted = new Dictionary<(SocialClass, string, string, PartyIdeology), int>();
         int named = 0;
-        if (city.units != null)
+        if (city.People != null)
         {
-            for (int i = 0; i < city.units.Count; i++)
+            for (int i = 0; i < city.PopulationCount(); i++)
             {
-                Person actor = city.units[i];
+                Person actor = city.People[i];
                 if (actor?.Record == null || actor.IsGone() || !actor.Alive || IsVehicle(actor)) continue;
                 VirtualGenealogySystem.RestoreStoredWallet(actor);
                 SocialClass socialClass = EmpireCaftActorJudgeClass.JudgeClass(actor);
@@ -1090,12 +1090,11 @@ public static class CityPopulationSystem
     private const float PlagueDeathPerShare = 0.04f;
     private const float PlagueMaxDeath = 0.05f;
 
-#if EC_PENDING
     private static void Plague(City city, CityPopulationData data)
     {
-        if (data?.groups == null || city.units == null || city.units.Count == 0) return;
+        if (data?.groups == null || city.People == null || city.PopulationCount() == 0) return;
         int infected = 0, alive = 0;
-        foreach (Person actor in city.units)
+        foreach (Person actor in city.People)
         {
             if (actor == null || actor.IsGone() || !actor.Alive) continue;
             alive++;
@@ -1105,7 +1104,6 @@ public static class CityPopulationSystem
         float rate = Mathf.Min(PlagueMaxDeath, PlagueBaseDeath + PlagueDeathPerShare * infected / alive);
         foreach (PopGroup group in data.groups) RemoveBackground(group, group.Background * rate);
     }
-#endif
 
     // 城市建设：按上次结算以来的秒数推进施工(见 CityConstructionSystem)
 #if EC_PENDING
@@ -1758,10 +1756,10 @@ public static class CityPopulationSystem
     {
         if (limit == MaxKeptJuren && PopulationJurenRanking.TryIsKept(actor, out bool kept)) return kept;
         City city = actor.City;
-        if (city?.units == null) return true;
+        if (city?.People == null) return true;
         double mine = actor.GetIdentity()?.TotalPerformance ?? 0d;
         int better = 0;
-        foreach (Person other in city.units)
+        foreach (Person other in city.People)
         {
             if (other == null || other == actor || other.IsGone() || !other.Alive || !other.HasTrait("juren")) continue;
             double theirs = other.GetIdentity()?.TotalPerformance ?? 0d;
@@ -1783,7 +1781,7 @@ public static class CityPopulationSystem
 #if EC_PENDING
     public static int FoldCommoners(City city)
     {
-        if (!AbstractPopulationEnabled || city?.units == null || city.units.Count == 0) return 0;
+        if (!AbstractPopulationEnabled || city?.People == null || city.PopulationCount() == 0) return 0;
         using var timing = FrameProfiler.Measure("虚拟人口·实体并入");
         PopulationJurenRanking.BeginPass(city);
         try { return FoldCommonersPass(city); }
@@ -1802,17 +1800,17 @@ public static class CityPopulationSystem
         // 分段计时：整段超过 8 ms 时在日志里列出各段耗时，定位月度结算的大头
         long t0 = Stopwatch.GetTimestamp();
         // 积压多时(旧存档刚转成虚拟人口)每次多鉴别一些，否则每月只认出十几人、并入跟不上
-        int recomputes = Mathf.Max(MaxNotableRecomputes, Mathf.Min(MaxBacklogFoldsPerPass, city.units.Count / 3));
-        cache.Warm(city.units.Count, recomputes, index =>
+        int recomputes = Mathf.Max(MaxNotableRecomputes, Mathf.Min(MaxBacklogFoldsPerPass, city.PopulationCount() / 3));
+        cache.Warm(city.PopulationCount(), recomputes, index =>
         {
-            Person actor = city.units[index];
+            Person actor = city.People[index];
             if (actor?.Record == null || actor.IsGone() || !actor.Alive || actor.City != city ||
                 actor.asset == null || IsVehicle(actor) || ImmediatelyProtected(actor)) return false;
             if (cache.TryGet(actor.Key, now, GameClock.MonthsSince, out _)) return false;
             cache.Set(actor.Key, now, IsNotable(actor));
             return true;
         }, () => PureMapMode.Enabled || SimulationFrameBudget.HasTime);
-        foreach (Person actor in city.units)
+        foreach (Person actor in city.People)
         {
             if (actor?.Record == null || actor.IsGone() || !actor.Alive || actor.City != city) continue;
             if (actor.asset == null || IsVehicle(actor)) continue;
@@ -1843,7 +1841,7 @@ public static class CityPopulationSystem
 
         long tLeader = Stopwatch.GetTimestamp();
         // 留在地图上的人不用吃饭、不用睡觉：饥饿值补满，正在睡的叫醒
-        foreach (Person actor in city.units)
+        foreach (Person actor in city.People)
             if (actor?.Record != null && !actor.IsGone() && actor.Alive)
             {
                 KeepFedAndAwake(actor);
@@ -1898,7 +1896,7 @@ public static class CityPopulationSystem
         long tEnd = Stopwatch.GetTimestamp();
         double Ms(long a, long b) => (b - a) * 1000d / Stopwatch.Frequency;
         if (Ms(t0, tEnd) >= 8d)
-            LogService.LogWarning($"[EmpireCraft][性能] 并入分段({city.Name}) 单位 {city.units.Count}：" +
+            LogService.LogWarning($"[EmpireCraft][性能] 并入分段({city.Name}) 单位 {city.PopulationCount()}：" +
                                   $"分类 {Ms(t0, tClassify):0.0} / 城主补位 {Ms(tClassify, tLeader):0.0} / " +
                                   $"喂饱叫醒 {Ms(tLeader, tCare):0.0} / 并入 {folded} 人 {Ms(tCare, tFold):0.0} / " +
                                   $"军团 {Ms(tFold, tEnd):0.0} ms");
@@ -2321,9 +2319,9 @@ public static class CityPopulationSystem
     public static void UpdateLegions(City city)
     {
         CityPopulationData data = Get(city);
-        if (data == null || city.units == null) return;
+        if (data == null || city.People == null) return;
         float levied = 0f;
-        foreach (Person actor in city.units)
+        foreach (Person actor in city.People)
         {
             if (actor?.Record == null || actor.IsGone() || !actor.Alive) continue;
             ActorExtension.ActorExtraData extra = actor.GetOrCreate();
@@ -2348,12 +2346,12 @@ public static class CityPopulationSystem
         Person actor = CreateUnit(group.species, tile, city);
         if (actor?.Record == null) return null;
         Culture culture = CultureService.GetNativeCultureObject(group.culture);
-        if (culture != null) actor.setCulture(culture);
+        if (culture != null) actor.SetCulture(culture);
         actor.joinKingdom(city.Realm);
         actor.JoinCity(city);
         // 背景人口信本城的宗教(见 BackgroundReligionSystem)，落成的人也带着。以前不带，补上来的城主、君主都无教，
         // 原版的城教、国教跟着城主、君主走，就跟不上人口的信仰
-        if (!actor.hasReligion() && city.hasReligion()) actor.setReligion(city.religion);
+        if (!actor.HasReligion() && city.HasReligion()) actor.SetReligion(city.Religion);
         IdeologyPopulationSystem.Set(actor, group.ideology);
         // 从人口里落成的都是成年人：士兵 18~35 岁(服役年龄)，平民(补位城主、官员) 25~55 岁；
         // 寿命短的物种按寿命折算，并保证已经成年
@@ -2488,8 +2486,8 @@ public static class CityPopulationSystem
         if (actor == null) return null;
         RemoveBackground(group, 1f);
         if (actor.language == null && city.language != null) actor.setLanguage(city.language);
-        if (actor.culture == null && city.culture != null) actor.setCulture(city.culture);
-        if (actor.religion == null && city.religion != null) actor.setReligion(city.religion);
+        if (actor.Culture == null && city.Culture != null) actor.SetCulture(city.Culture);
+        if (actor.Religion == null && city.Religion != null) actor.SetReligion(city.Religion);
         return actor;
     }
 #endif
@@ -2871,7 +2869,7 @@ public static class CityPopulationSystem
         if (data == null) return;
         if (data.spontaneous_settlement) return;
         // 真正的空城等待真实移民。刚开启模式、尚未校准但仍有实体居民的城市继续原有初始化。
-        if (GetTotal(city) < 1f && city.units?.Any(actor => actor != null && actor.city == city &&
+        if (GetTotal(city) < 1f && city.People?.Any(actor => actor != null && actor.City == city &&
             !actor.IsGone() && actor.Alive) != true) return;
         float floor = MinimumHouseholds * PeoplePerSlot(city);
         float background = GetBackgroundTotal(city);
@@ -2915,7 +2913,7 @@ public static class CityPopulationSystem
             !EmpireCraft.Core.AncientWarfareCompatibility.OwnsObject(city)).ToList();
         if (cities.Count == 0) return 0;
         foreach (City city in cities)
-            if (GetTotal(city) >= 1f || city.units?.Any(actor => actor != null && !actor.IsGone() && actor.Alive) == true)
+            if (GetTotal(city) >= 1f || city.People?.Any(actor => actor != null && !actor.IsGone() && actor.Alive) == true)
                 return 0;
         int seeded = 0;
         foreach (City city in cities)
@@ -3053,16 +3051,14 @@ public static class CityPopulationSystem
     public static void InvalidateHouseholdCaches() => _frameCacheFrame = -1;
 
     // 军团兵力(真实人数)：本国各城征召在外的军团人数 + 实体士兵
-#if EC_PENDING
     public static int LegionPeople(Realm kingdom)
     {
         if (kingdom?.Cities == null) return 0;
-        float total = kingdom.countTotalWarriors();
+        float total = kingdom.Warriors();
         foreach (City city in kingdom.Cities)
             if (city != null && !city.IsGone()) total += Get(city)?.levied ?? 0f;
         return Mathf.RoundToInt(total);
     }
-#endif
 
     // 城里的背景人口(没开无小人模式时为 0)
 #if EC_PENDING
@@ -3108,8 +3104,8 @@ public static class CityPopulationSystem
         EnsureFrameCache();
         if (CityHouseholdsCache.TryGetValue(city, out int cached)) return cached;
         int units = 0;
-        if (city.units != null)
-            foreach (Person actor in city.units)
+        if (city.People != null)
+            foreach (Person actor in city.People)
                 if (actor != null && !actor.IsGone() && actor.Alive) units++;
         int result = units + BackgroundHouseholds(city);
         CityHouseholdsCache[city] = result;
@@ -3127,8 +3123,8 @@ public static class CityPopulationSystem
         if (!AbstractPopulationEnabled) return Households(city);
         if (city == null) return 0;
         int units = 0;
-        if (city.units != null)
-            foreach (Person actor in city.units)
+        if (city.People != null)
+            foreach (Person actor in city.People)
                 if (actor != null && !actor.IsGone() && actor.Alive) units++;
         return units + Mathf.CeilToInt(GetBackgroundTotal(city) / FiscalPeoplePerHousehold);
     }

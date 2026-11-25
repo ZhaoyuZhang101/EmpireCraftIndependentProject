@@ -96,9 +96,7 @@ public static class WarScopeSystem
 
     private static War Alive(War war) => war?.Record != null && war.Alive && !war.HasEnded() ? war : null;
 
-#if EC_PENDING
-    private static bool AtWar(Realm kingdom) => kingdom.HasEnemies() || FrontSystem.Realm(kingdom).hasEnemies();
-#endif
+    private static bool AtWar(Realm kingdom) => kingdom.HasEnemies() || FrontSystem.ModRealm(kingdom).HasEnemies();
 
     private static bool Occupied(City city) =>
         city?.Record != null && !city.IsGone() && city.GetOrCreate().OccupiedStatus?.Any(pair => pair.Value?.Count > 0) == true;
@@ -117,7 +115,7 @@ public static class WarScopeSystem
         ByRealm.Clear();
         foreach (Realm kingdom in warring)
         {
-            Realm realm = FrontSystem.Realm(kingdom);
+            Realm realm = FrontSystem.ModRealm(kingdom);
             if (!ByRealm.TryGetValue(realm, out List<Realm> members)) ByRealm[realm] = members = new List<Realm>();
             members.Add(kingdom);
         }
@@ -207,11 +205,10 @@ public static class WarScopeSystem
     // 这一国的敌方(在打仗的国里同它敌对的)：同逐个问 FrontSystem.Hostile 是一个结果，只是从本国与本帝国核心的敌国名单出发找——
     // 敌国名单里的国、敌国名单里某个帝国核心名下在打仗的成员。以前四百国各把三百多个在打仗的国问一遍(十几万次)，
     // 重算一回五毫秒，一个月要重算四五回
-#if EC_PENDING
     private static void CollectHostiles(Realm kingdom, HashSet<Realm> warring)
     {
         Hostiles.Clear();
-        Realm realm = FrontSystem.Realm(kingdom);
+        Realm realm = FrontSystem.ModRealm(kingdom);
         // 本国自己的敌人：不论同不同帝国都算；敌人是别的帝国的核心，那个帝国在打仗的成员也算
         foreach (Realm enemy in kingdom.GetEnemies())
         {
@@ -225,13 +222,14 @@ public static class WarScopeSystem
         foreach (Realm enemy in realm.GetEnemies())
         {
             if (enemy?.Record == null || enemy == kingdom || enemy.IsGone()) continue;
-            if (warring.Contains(enemy) && FrontSystem.Realm(enemy) != realm) Hostiles.Add(enemy);
+            if (warring.Contains(enemy) && FrontSystem.ModRealm(enemy) != realm) Hostiles.Add(enemy);
             if (enemy != realm && ByRealm.TryGetValue(enemy, out List<Realm> members))
                 foreach (Realm member in members)
                     if (member != kingdom) Hostiles.Add(member);
         }
     }
 
+#if EC_PENDING
     private static void VerifyAgainstScan(Realm kingdom, HashSet<Realm> warring)
     {
         HostileChecks++;
@@ -330,7 +328,6 @@ public static class WarScopeSystem
 
     // 攻不动(用户 2026-11-16 "大量的士兵都没有进攻欲望"：以前只有本国吃紧才扩大动员，打顺风仗、僵持着的时候后方的军永远不上来)：
     // 有军在进攻，战果(本国城数 ×1000 + 本国或宗主名下占着的敌方地块数)却连着 StallMonths 个月没再创新高
-#if EC_PENDING
     private static bool Stalled(Realm kingdom, KingdomExtension.KingdomExtraData data)
     {
         bool attacking = false;
@@ -346,7 +343,7 @@ public static class WarScopeSystem
             return false;
         }
         int gain = (kingdom.Cities?.Count ?? 0) * 1000;
-        Realm realm = FrontSystem.Realm(kingdom);
+        Realm realm = FrontSystem.ModRealm(kingdom);
         foreach (Realm other in EmpireWorld.Current.LiveRealms)
         {
             if (other?.Record == null || other.IsGone() || other.Cities == null || !FrontSystem.Hostile(kingdom, other)) continue;
@@ -368,7 +365,6 @@ public static class WarScopeSystem
         if (++data.war_stall_months == StallMonths) data.war_gain_peak = gain;
         return data.war_stall_months >= StallMonths;
     }
-#endif
 
     private const int StallMonths = 6;
 

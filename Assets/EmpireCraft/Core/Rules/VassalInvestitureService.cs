@@ -99,7 +99,7 @@ public static class VassalInvestitureService
     private static float GetMilitaryStrength(Realm kingdom, Empire empireOfCore = null)
     {
         if (kingdom == null || kingdom.IsGone()) return 0f;
-        float strength = Math.Max(0, kingdom.countTotalWarriors());
+        float strength = Math.Max(0, kingdom.Warriors());
         if (kingdom.GetMoney() <= 0) strength *= 0.7f;
         if (empireOfCore != null) strength *= 0.5f + 0.5f * Mathf.Clamp(empireOfCore.Mandate, 0, 100) / 100f;
         return strength;

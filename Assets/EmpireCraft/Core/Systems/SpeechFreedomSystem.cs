@@ -67,7 +67,7 @@ public static class SpeechFreedomSystem
         if (clauses == null) return;
         List<City> cities = empire.kingdoms_list.Where(kingdom => kingdom?.Cities != null && !kingdom.IsGone())
             .SelectMany(kingdom => kingdom.Cities)
-            .Where(city => city != null && !city.IsGone() && city.units != null && city.hasBookSlots()).ToList();
+            .Where(city => city != null && !city.IsGone() && city.People != null && city.hasBookSlots()).ToList();
         if (cities.Count == 0) return;
         // 不到 4 城的小国按城数折算出版的机会(现代小国林立时，以前每国每年都至少出一本，书多到卡)
         if (cities.Count < 4 && EcRandom.value > cities.Count / 4f) return;
@@ -101,16 +101,16 @@ public static class SpeechFreedomSystem
     private static bool Publish(City city, ConstitutionClauses clauses, bool announce)
     {
         if (city == null || city.IsGone() || !city.hasBookSlots()) return false;
-        List<Person> writers = city.units.Where(actor => actor != null && actor.Alive && actor.isAdult() &&
-                                                         actor.city == city && actor.language != null &&
-                                                         actor.culture != null && !actor.IsWarMachine())
+        List<Person> writers = city.People.Where(actor => actor != null && actor.Alive && actor.IsAdult() &&
+                                                         actor.City == city && actor.language != null &&
+                                                         actor.Culture != null && !actor.IsWarMachine())
             .OrderByDescending(actor => actor.stats["intelligence"]).Take(5).ToList();
         // 无小人模式：实体单位只剩名人，从人口里请几位读书人执笔(他们的理念取自人口，著作反映民间思潮)
         if (CityPopulationSystem.AbstractPopulationEnabled)
             for (int i = writers.Count; i < 3; i++)
             {
                 Person scholar = CityPopulationSystem.SpawnScholar(city);
-                if (scholar == null || scholar.language == null || scholar.culture == null) break;
+                if (scholar == null || scholar.language == null || scholar.Culture == null) break;
                 writers.Add(scholar);
             }
         if (writers.Count == 0) return false;

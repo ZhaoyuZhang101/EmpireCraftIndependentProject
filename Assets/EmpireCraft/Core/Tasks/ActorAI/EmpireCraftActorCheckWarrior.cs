@@ -436,7 +436,7 @@ public class EmpireCraftActorCheckWarrior : GameAIActorBase
 
         try
         {
-            int current = state.city.countWarriors();
+            int current = state.city.Warriors();
             int maximum = state.city.getMaxWarriors();
             state.need = Math.Max(0, maximum - current);
         }
@@ -449,7 +449,7 @@ public class EmpireCraftActorCheckWarrior : GameAIActorBase
         // 只在轮到这座城市时才 snapshot，
         // 不在宣战那一帧把全国所有 city.units 一口气 ToList。
         var source =
-            state.city.units?.ToList() ?? new List<Person>();
+            state.city.People?.ToList() ?? new List<Person>();
 
         // 人口保护：
         // pregnant 永远不参与这次紧急征召。

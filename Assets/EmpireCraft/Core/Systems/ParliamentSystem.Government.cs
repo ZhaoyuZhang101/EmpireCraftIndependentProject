@@ -451,11 +451,11 @@ public static partial class ParliamentSystem
         Realm core = empire?.CoreKingdom;
         if (core == null || party == null) return null;
         Person recruit = CityPopulationSystem.SpawnForOffice(office, core) ??
-                        core.Capital?.units?
-                            .Where(actor => IsValidMember(empire, actor) && !used.Contains(actor.id) && !actor.HasFaction() &&
-                                            !actor.IsOnOffice() && !actor.isKing() && !actor.isCityLeader() &&
+                        core.Capital?.People?
+                            .Where(actor => IsValidMember(empire, actor) && !used.Contains(actor.Key) && !actor.HasFaction() &&
+                                            !actor.IsOnOffice() && !actor.IsRuler() && !actor.IsCityLeader() &&
                                             actor.CanServeOffice(core) && office.Accepts(actor))
-                            .OrderByDescending(actor => actor.renown).FirstOrDefault();
+                            .OrderByDescending(actor => actor.Renown).FirstOrDefault();
         if (recruit == null) return null;
         if (party.IsParty || party.IsClique) IdeologyPopulationSystem.Set(recruit, party.Ideology);
         recruit.SetFaction(party);

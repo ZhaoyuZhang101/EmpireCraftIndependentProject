@@ -24,7 +24,7 @@ public static partial class PapacySystem
 #if EC_PENDING
     public static Religion PopeOf(Realm realm)
     {
-        Religion religion = realm?.religion;
+        Religion religion = realm?.Religion;
         if (religion?.data == null || realm.Ruler == null) return null;
         return Papacy(religion) == realm && Pope(religion) == realm.Ruler && HolyCity(religion) != null ? religion : null;
     }

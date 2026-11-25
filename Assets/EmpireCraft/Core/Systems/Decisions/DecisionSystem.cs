@@ -123,7 +123,7 @@ public static class DecisionSystem
         double now = GameClock.Now;
         Track(new DecisionCase
         {
-            plot = plot.data.id, def = asset.id, initiator = author.Key, started = now, next = now + Date.getMonthTime(),
+            plot = plot.data.id, def = asset.id, initiator = author.Key, started = now, next = now + GameClock.MonthLength,
             effort = Math.Max(MinEffort, asset.progress_needed)
         });
         Started++;
@@ -178,7 +178,7 @@ public static class DecisionSystem
                 continue;
             }
             steps++;
-            item.next = now + Date.getMonthTime();
+            item.next = now + GameClock.MonthLength;
             Plot plot = EmpireWorld.Current.plots.get(item.plot);
             bool closed;
             try
@@ -351,7 +351,7 @@ public static class DecisionSystem
         if (DefInfos.Count != Initiable.Count) BuildDefInfos();
         RefreshLaws();
         double now = GameClock.Now;
-        double month = Date.getMonthTime();
+        double month = GameClock.MonthLength;
         var snapshots = new List<DecisionScale.Snapshot>();
         var dues = new List<double>();
         var official = new List<bool>();
@@ -446,14 +446,14 @@ public static class DecisionSystem
     {
         if (ReadyList.Count == 0) return;
         double now = GameClock.Now;
-        double stale = now - 2d * Date.getMonthTime();
+        double stale = now - 2d * GameClock.MonthLength;
         // 到了时候的有几个：每帧至少办掉四分之一、至多 MustPerTick 个(快进时一个月只有十来帧，光按时限会越积越多)，其余按时限。
         // 2026-11-24 群友"11/5 那版更流畅，之后越来越卡"：以前这四分之一不封顶，月初到期几十上百人时头几帧不看时限连办几十件，
         // 每件都在主线程跑决议自己的条件(开战类还要搜目标)；积着没轮到的过两个月自己作废(见下 stale)，不会越积越多
         int due = 0;
         for (int i = _readyCursor; i < ReadyList.Count && ReadyList[i].due <= now; i++) due++;
         // 欠得久了才放开：排在最前的已经逾期半个月以上，照旧办四分之一、不封顶，免得一直卡着时到期的总办不上、两个月后成批作废
-        bool overdue = _readyCursor < ReadyList.Count && ReadyList[_readyCursor].due < now - 0.5d * Date.getMonthTime();
+        bool overdue = _readyCursor < ReadyList.Count && ReadyList[_readyCursor].due < now - 0.5d * GameClock.MonthLength;
         int must = overdue ? (due + 3) / 4 : Math.Min((due + 3) / 4, MustPerTick);
         for (int n = 0; _readyCursor < ReadyList.Count; n++)
         {
@@ -619,7 +619,7 @@ public static class DecisionSystem
         if (DefInfos.Count != Initiable.Count) BuildDefInfos();
         RefreshLaws();
         double now = GameClock.Now;
-        DecisionScale.Snapshot snapshot = Take(actor, actor.Realm, now, Date.getMonthTime(), new Dictionary<long, DecisionScale.Snapshot>(), BusyByRealm());
+        DecisionScale.Snapshot snapshot = Take(actor, actor.Realm, now, GameClock.MonthLength, new Dictionary<long, DecisionScale.Snapshot>(), BusyByRealm());
         foreach (DecisionScale.Option option in DecisionScale.Weigh(snapshot, DefInfos, all: true))
         {
             PlotAsset def = Initiable[option.def];
@@ -745,7 +745,7 @@ public static class DecisionSystem
             Track(new DecisionCase
             {
                 plot = plot.data.id, def = def.id, initiator = author.Key, started = now,
-                next = now + Randy.randomFloat(0f, Date.getMonthTime()),
+                next = now + Randy.randomFloat(0f, GameClock.MonthLength),
                 effort = Math.Max(MinEffort, def.progress_needed), progress = Math.Max(0f, plot.data.progress_current)
             });
         }
@@ -801,7 +801,7 @@ public static class DecisionSystem
             }
             kept++;
             double now = GameClock.Now;
-            if (item.next < now || item.next > now + Date.getMonthTime()) item.next = now + Randy.randomFloat(0f, Date.getMonthTime());
+            if (item.next < now || item.next > now + GameClock.MonthLength) item.next = now + Randy.randomFloat(0f, GameClock.MonthLength);
             Track(item);
             Show(item, plot, now);
         }

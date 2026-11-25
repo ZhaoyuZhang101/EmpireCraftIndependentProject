@@ -394,7 +394,7 @@ public static class PeaceTable
 #if EC_PENDING
     private static List<City> CityOptions(War war, Realm giver, Realm receiver, bool receiverAttacks, bool nearOnly)
     {
-        Realm realm = FrontSystem.Realm(receiver) ?? receiver;
+        Realm realm = FrontSystem.ModRealm(receiver) ?? receiver;
         return giver.Cities.Where(city => city?.Record != null && !city.IsGone())
             .Select(city => (city, held: PeaceTermRules.OccupiedShare(war, city, receiverAttacks), near: Borders(city, realm)))
             .Where(entry => !nearOnly || entry.held > 0f || entry.near)
@@ -402,14 +402,14 @@ public static class PeaceTable
             .ThenByDescending(entry => PeaceTermRules.CityValue(entry.city))
             .Select(entry => entry.city).ToList();
     }
+#endif
 
     private static bool Borders(City city, Realm realm)
     {
         foreach (City next in (IEnumerable<City>)city.NeighbourCities ?? Array.Empty<City>())
-            if (next?.Record != null && !next.IsGone() && next.Realm != null && FrontSystem.Realm(next.Realm) == realm) return true;
+            if (next?.Record != null && !next.IsGone() && next.Realm != null && FrontSystem.ModRealm(next.Realm) == realm) return true;
         return false;
     }
-#endif
 
     // 出的一方有、收的一方没有的矿，挑最值钱的几种
 #if EC_PENDING
@@ -952,7 +952,7 @@ public static class PeaceTable
             case PeaceTermKind.Trade:
                 return (LM.Get("peace_term_trade"), null, null);
             case PeaceTermKind.Convert:
-                return (string.Format(LM.Get("peace_term_convert"), receiver?.religion?.name ?? ""), null, null);
+                return (string.Format(LM.Get("peace_term_convert"), receiver?.Religion?.Name ?? ""), null, null);
         }
         return ("—", null, null);
     }

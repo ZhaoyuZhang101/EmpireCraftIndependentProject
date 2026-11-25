@@ -150,10 +150,10 @@ public static partial class WarlordEraSystem
 
     private static bool TryUprising(City city, Realm ruler, PartyIdeology ideology)
     {
-        Person leader = city.units?.Where(actor => actor != null && !actor.IsGone() && actor.Alive &&
-                                                  actor.isAdult() && actor.CanFoundCivKingdom())
+        Person leader = city.People?.Where(actor => actor != null && !actor.IsGone() && actor.Alive &&
+                                                  actor.IsAdult() && actor.CanFoundCivKingdom())
             .OrderByDescending(actor => IdeologyPopulationSystem.Get(actor) == ideology)
-            .ThenByDescending(actor => actor.renown).FirstOrDefault();
+            .ThenByDescending(actor => actor.Renown).FirstOrDefault();
         if (leader == null) return false;
         Realm rebel = city.makeOwnKingdom(leader, pRebellion: true);
         if (rebel == null) return false;

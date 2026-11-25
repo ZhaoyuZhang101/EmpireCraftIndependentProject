@@ -174,12 +174,12 @@ public static class LandmarkBookSystem
         foreach (City city in cities.OrderBy(_ => EcRandom.value))
         {
             if (budget <= 0) return;
-            if (city == null || city.IsGone() || city.units == null || !city.hasBookSlots()) continue;
+            if (city == null || city.IsGone() || city.People == null || !city.hasBookSlots()) continue;
             // 先掷骰：概率最高 30%，掷不中就不必统计全城人口(概率分布与先算后掷相同)
             float roll = EcRandom.value;
             if (roll >= ScholarMaxChance) continue;
-            List<Person> adults = city.units.Where(actor => actor != null && actor.Alive && actor.isAdult() &&
-                                                           actor.city == city && !actor.IsWarMachine()).ToList();
+            List<Person> adults = city.People.Where(actor => actor != null && actor.Alive && actor.IsAdult() &&
+                                                           actor.City == city && !actor.IsWarMachine()).ToList();
             // 无小人模式：城里的人口与识字人口按户计(实体单位只剩名人)
             bool abstracted = CityPopulationSystem.AbstractPopulationEnabled;
             int population = abstracted ? CityPopulationSystem.Households(city) : adults.Count;
@@ -188,7 +188,7 @@ public static class LandmarkBookSystem
                                                         (abstracted ? CityPopulationSystem.LiterateHouseholds(city) : 0));
             float chance = Math.Min(ScholarMaxChance, ScholarBaseChance + ScholarChancePerLiterate * literate);
             if (roll >= chance) continue;
-            Person author = adults.Where(actor => actor.language != null && actor.culture != null)
+            Person author = adults.Where(actor => actor.language != null && actor.Culture != null)
                 .OrderByDescending(actor => actor.stats["intelligence"]).FirstOrDefault();
             // 没有实体执笔人：从人口里请一位读书人
             if (author == null && abstracted) author = CityPopulationSystem.SpawnScholar(city);
@@ -280,7 +280,7 @@ public static class LandmarkBookSystem
         foreach (City city in cities)
         {
             if (city == null || city.IsGone() || city.getBuildingWithBookSlot() == null) continue;
-            foreach (Person actor in city.units)
+            foreach (Person actor in city.People)
             {
                 if (actor == null || !actor.Alive || !actor.IsAdult() || actor.language == null ||
                     actor.IsWarMachine()) continue;
@@ -408,8 +408,8 @@ public static class LandmarkBookSystem
             return false;
         string environment = config.environment?.Trim().ToLowerInvariant() ?? "";
         if (string.IsNullOrEmpty(environment)) return true;
-        List<Person> adults = city.units?.Where(actor => actor != null && !actor.IsGone() && actor.Alive &&
-            actor.isAdult() && actor.city == city).ToList() ?? new List<Person>();
+        List<Person> adults = city.People?.Where(actor => actor != null && !actor.IsGone() && actor.Alive &&
+            actor.IsAdult() && actor.City == city).ToList() ?? new List<Person>();
         if (adults.Count == 0) return false;
         UrbanEmploymentReport employment = UrbanEmploymentSystem.GetReport(city);
         bool prosperous = adults.Count >= 30 && city.Realm.GetMoney() >= 0 &&
@@ -595,7 +595,7 @@ public static class LandmarkBookSystem
 
     private static void InfluenceFromCity(City city)
     {
-        if (city == null || city.IsGone() || city.units == null || city.units.Count == 0) return;
+        if (city == null || city.IsGone() || city.People == null || city.PopulationCount() == 0) return;
         Dictionary<PartyIdeology, float> influences = GetCityBookInfluences(city);
         // 手抄本出不了城，雕版印刷开始外溢到邻城，机械印刷外溢更广(见 MediaSystem)；
         // 通达层算好后(用户 2026-11-06，见 ConnectivitySystem)外溢到每座邻城再乘两城之间的通达强度：隔山隔江的邻城读到得少
@@ -608,7 +608,7 @@ public static class LandmarkBookSystem
             if (radiance <= 0f) continue;
             foreach (City neighbour in city.NeighbourCities ?? Enumerable.Empty<City>())
             {
-                if (neighbour == null || neighbour.IsGone() || neighbour.units == null) continue;
+                if (neighbour == null || neighbour.IsGone() || neighbour.People == null) continue;
                 float reach = ConnectivitySystem.NeighbourStrength(city, neighbour);
                 float amount = radiance * (reach < 0f ? 1f : reach);
                 if (amount <= 0f) continue;

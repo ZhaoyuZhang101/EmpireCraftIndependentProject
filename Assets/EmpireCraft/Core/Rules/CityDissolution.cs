@@ -56,7 +56,7 @@ public static class CityDissolution
     {
         CityTerritoryProtection.Dissolving.Add(city.Key);
         CityPopulationSystem.ClearBackground(city);
-        foreach (Person unit in kingdom.units.ToList())
+        foreach (Person unit in kingdom.People.ToList())
             if (unit?.Record != null && !unit.IsGone() && unit.Alive) unit.die(true, AttackType.Other, false, false);
         city.turnCityToNeutral();
         foreach (Cell zone in city.Zones.ToList()) city.RemoveZone(zone);
@@ -93,7 +93,7 @@ public static class CityDissolution
 
     private static void MoveUnits(City city, City destination)
     {
-        foreach (Person unit in city.units.ToList())
+        foreach (Person unit in city.People.ToList())
         {
             if (unit?.Record == null || unit.IsGone() || !unit.Alive) continue;
             if (unit.IsCityLeader() && unit.City == city) city.removeLeader();

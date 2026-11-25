@@ -190,14 +190,14 @@ public static class WarObjective
 #if EC_PENDING
     private static WarGoal Conquest(War war, Realm attacker, Realm defender, WarExtension.WarExtraData data)
     {
-        Realm realm = FrontSystem.Realm(attacker);
+        Realm realm = FrontSystem.ModRealm(attacker);
         List<City> border = BorderCities(war, attacker, defender);
         // 割地不要对方都城(要都城的是吞并、臣服)；只挨着都城的改求赔款
         border.RemoveAll(city => city == defender.Capital);
         if (border.Count == 0) return WarGoal.赔款;
         var defenders = new HashSet<Realm>(war.Defenders.Where(kingdom => kingdom?.Record != null));
         // 争法理(同属一个帝国的两家，法理都算在帝国名下，不争)
-        bool sameRealm = FrontSystem.Realm(defender) == realm;
+        bool sameRealm = FrontSystem.ModRealm(defender) == realm;
         KingdomTitle bestTitle = null;
         List<City> bestCities = null;
         foreach (KingdomTitle title in border.Select(city => city.GetTitle()).Where(title => !sameRealm && title != null && !title.IsGone())
@@ -257,10 +257,10 @@ public static class WarObjective
     private static List<City> BorderCities(War war, Realm attacker, Realm defender)
     {
         var result = new List<City>();
-        Realm realm = FrontSystem.Realm(attacker);
-        bool sameRealm = realm != null && FrontSystem.Realm(defender) == realm;
+        Realm realm = FrontSystem.ModRealm(attacker);
+        bool sameRealm = realm != null && FrontSystem.ModRealm(defender) == realm;
         bool Ours(Realm kingdom) => kingdom != null && (war.Attackers.Contains(kingdom) ||
-                                                          !sameRealm && FrontSystem.Realm(kingdom) == realm);
+                                                          !sameRealm && FrontSystem.ModRealm(kingdom) == realm);
         foreach (City city in defender.Cities ?? new List<City>())
         {
             if (city?.Record == null || city.IsGone()) continue;

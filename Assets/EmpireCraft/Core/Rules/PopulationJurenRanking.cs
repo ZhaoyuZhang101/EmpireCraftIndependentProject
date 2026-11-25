@@ -33,7 +33,7 @@ public static class PopulationJurenRanking
     private static PopulationRankValue[] Capture(City city)
     {
         var values = new List<PopulationRankValue>();
-        foreach (Person actor in city.units)
+        foreach (Person actor in city.People)
             if (actor?.Record != null && !actor.IsGone() && actor.Alive && actor.HasTrait("juren"))
                 values.Add(new PopulationRankValue(actor.Key, actor.GetIdentity()?.TotalPerformance ?? 0d));
         return values.ToArray();
@@ -46,7 +46,7 @@ public static class PopulationJurenRanking
         foreach (City city in cities)
         {
             if (++visited > 4 || !SimulationFrameBudget.HasTime) break;
-            if (city?.Record == null || city.IsGone() || city.units == null || city.Realm == null ||
+            if (city?.Record == null || city.IsGone() || city.People == null || city.Realm == null ||
                 EmpireCraft.Core.AncientWarfareCompatibility.OwnsObject(city) ||
                 Requests.TryGetValue(city, out _)) continue;
             var input = new PopulationNumericInput(Capture(city), 5);
@@ -58,7 +58,7 @@ public static class PopulationJurenRanking
     public static void BeginPass(City city)
     {
         EndPass();
-        if (!CityPopulationSystem.AbstractPopulationEnabled || city?.units == null) return;
+        if (!CityPopulationSystem.AbstractPopulationEnabled || city?.People == null) return;
         using var timing = FrameProfiler.Measure("虚拟人口·举人排名");
         PopulationRankValue[] current = Capture(city);
         PopulationNumericResult result = null;

@@ -24,9 +24,7 @@ namespace EmpireCraft.Core
 //   · 史书、宗教大事记(融合类)记"某教吸收某教的某教义"；宗教窗口概况页有教义卡、融合进度卡。
 public static class SyncretismSystem
 {
-#if EC_PENDING
     private static bool Alive(Religion religion) => religion?.data != null && !religion.IsGone();
-#endif
 
     private static Realm ModRealm(Realm kingdom) => kingdom?.GetEmpire()?.CoreKingdom ?? kingdom;
 
@@ -34,7 +32,7 @@ public static class SyncretismSystem
     public static void YearlyPass()
     {
         ReligionSyncretismConfig config = ReligionTenets.Syncretism;
-        if (!config.enabled || EmpireWorld.Current?.Cities == null || EmpireWorld.Current.religions == null || ModClass.IS_CLEAR) return;
+        if (!config.enabled || EmpireWorld.Current?.Cities == null || EmpireWorld.Current.Religions == null || ModClass.IS_CLEAR) return;
         var contacts = new Dictionary<(Religion learner, Religion source), float>();
 
         void Link(Religion learner, Religion source, float weight)
@@ -47,8 +45,8 @@ public static class SyncretismSystem
         foreach (City city in EmpireWorld.Current.Cities)
         {
             if (city?.Record == null || city.IsGone() || city.Realm?.Record == null || city.Realm.IsWild) continue;
-            Religion local = city.hasReligion() ? city.religion : null;
-            Religion state = city.Realm.hasReligion() ? city.Realm.religion : null;
+            Religion local = city.HasReligion() ? city.Religion : null;
+            Religion state = city.Realm.HasReligion() ? city.Realm.Religion : null;
             if (local != null && state != null && local != state)
             {
                 Link(local, state, config.ruled_weight);
@@ -63,9 +61,9 @@ public static class SyncretismSystem
             if (local == null) continue;
             foreach (City other in BackgroundReligionSystem.Contacts(city))
             {
-                if (other?.Record == null || other.IsGone() || !other.hasReligion() || other.religion == local) continue;
-                float reach = BackgroundReligionSystem.Reach(other, city, other.religion, ReligionSphere.SphereOfCity(city));
-                if (reach > 0f) Link(local, other.religion, config.neighbour_weight * reach);
+                if (other?.Record == null || other.IsGone() || !other.HasReligion() || other.Religion == local) continue;
+                float reach = BackgroundReligionSystem.Reach(other, city, other.Religion, ReligionSphere.SphereOfCity(city));
+                if (reach > 0f) Link(local, other.Religion, config.neighbour_weight * reach);
             }
         }
         foreach (HashSet<Religion> set in realmFaiths.Values)
@@ -87,23 +85,23 @@ public static class SyncretismSystem
         foreach (Empire empire in ModClass.EMPIRE_MANAGER?.ToList() ?? new List<Empire>())
         {
             Realm core = empire?.CoreKingdom;
-            if (empire?.data == null || empire.IsGone() || empire.IsArchived() || core?.Record == null || !core.hasReligion()) continue;
+            if (empire?.data == null || empire.IsGone() || empire.IsArchived() || core?.Record == null || !core.HasReligion()) continue;
             foreach (long id in (empire.data.taken_Kingdoms ?? new List<long>()).Concat(empire.data.given_Kingdoms ?? new List<long>()))
             {
                 Realm other = EmpireWorld.Current.RealmByKey(id);
-                if (other?.Record == null || other.IsGone() || !other.hasReligion()) continue;
-                link(core.religion, other.religion, weight);
-                link(other.religion, core.religion, weight);
+                if (other?.Record == null || other.IsGone() || !other.HasReligion()) continue;
+                link(core.Religion, other.Religion, weight);
+                link(other.Religion, core.Religion, weight);
             }
         }
         var alliances = new Dictionary<Alliance, List<Religion>>();
         foreach (Realm kingdom in EmpireWorld.Current.LiveRealms)
         {
-            if (kingdom?.Record == null || kingdom.IsGone() || kingdom.IsWild || !kingdom.hasReligion() || !kingdom.hasAlliance()) continue;
+            if (kingdom?.Record == null || kingdom.IsGone() || kingdom.IsWild || !kingdom.HasReligion() || !kingdom.hasAlliance()) continue;
             Alliance alliance = kingdom.getAlliance();
             if (alliance == null) continue;
             if (!alliances.TryGetValue(alliance, out List<Religion> list)) alliances[alliance] = list = new List<Religion>();
-            list.Add(kingdom.religion);
+            list.Add(kingdom.Religion);
         }
         foreach (List<Religion> list in alliances.Values)
             for (int i = 0; i < list.Count; i++)
@@ -140,7 +138,7 @@ public static class SyncretismSystem
             if (!touched.TryGetValue(learner, out HashSet<long> set)) touched[learner] = set = new HashSet<long>();
             set.Add(id);
         }
-        foreach (Religion religion in EmpireWorld.Current.religions.list.ToList())
+        foreach (Religion religion in EmpireWorld.Current.Religions.list.ToList())
         {
             if (!Alive(religion)) continue;
             ReligionExtension.ReligionExtraData data = religion.GetOrCreate();
@@ -149,7 +147,7 @@ public static class SyncretismSystem
             touched.TryGetValue(religion, out HashSet<long> hit);
             foreach (long id in data.Contact.Keys.ToList())
             {
-                if (!Alive(EmpireWorld.Current.religions.get(id)))
+                if (!Alive(EmpireWorld.Current.Religions.Get(id)))
                 {
                     Forget(data, id);
                     continue;
@@ -187,7 +185,7 @@ public static class SyncretismSystem
             if (pair.Value < config.min_exposure) break;
             data.ContactYears.TryGetValue(pair.Key, out int years);
             if (years < config.min_years) continue;
-            Religion source = EmpireWorld.Current.religions.get(pair.Key);
+            Religion source = EmpireWorld.Current.Religions.Get(pair.Key);
             if (!Alive(source)) continue;
             List<ReligionTenetDef> candidates = ReligionTenets.Candidates(religion, source);
             if (candidates.Count == 0) continue;
@@ -202,13 +200,13 @@ public static class SyncretismSystem
         string sphere = def.kind == ReligionTenets.KindSaint ? ReligionSphere.SphereOf(source) : "";
         ReligionTenets.Absorbed(religion).Add(new SyncreticTenetData
         {
-            tenet = def.id, from_id = source.data.id, from_root = ReligionTenets.RootId(source), from_name = source.name, sphere = sphere,
+            tenet = def.id, from_id = source.data.id, from_root = ReligionTenets.RootId(source), from_name = source.Name, sphere = sphere,
             at = now
         });
         Forget(data, source.data.id);
         data.LastSyncretismAt = now;
         ReligionTenets.Invalidate();
-        string text = string.Format(LM.Get("syncretism_log"), religion.name, source.name, TenetName(def.id, sphere));
+        string text = string.Format(LM.Get("syncretism_log"), religion.Name, source.Name, TenetName(def.id, sphere));
         TranslateHelper.LogEventMessage(text, PapacySystem.HolyCity(religion)?.Realm);
         ReligionChronicle.Record(religion, source, ReligionChronicle.KindSyncretism, text);
         ReligionDiagnostics.Add(ReligionDiagnostics.Syncretism);
@@ -262,7 +260,6 @@ public static class SyncretismSystem
     #endregion
 
     // 融合进度(宗教窗口)：接触度最高的几个来源
-#if EC_PENDING
     public static List<(Religion source, float exposure, int years)> Progress(Religion religion, int count)
     {
         var list = new List<(Religion, float, int)>();
@@ -271,7 +268,7 @@ public static class SyncretismSystem
         if (data.Contact == null) return list;
         foreach (KeyValuePair<long, float> pair in data.Contact.OrderByDescending(pair => pair.Value))
         {
-            Religion source = EmpireWorld.Current.religions.get(pair.Key);
+            Religion source = EmpireWorld.Current.Religions.Get(pair.Key);
             if (!Alive(source)) continue;
             int years = data.ContactYears != null && data.ContactYears.TryGetValue(pair.Key, out int value) ? value : 0;
             list.Add((source, pair.Value, years));
@@ -279,6 +276,5 @@ public static class SyncretismSystem
         }
         return list;
     }
-#endif
 }
 }

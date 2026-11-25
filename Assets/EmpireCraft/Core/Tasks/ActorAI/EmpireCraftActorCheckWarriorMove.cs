@@ -161,8 +161,8 @@ public class EmpireCraftActorCheckWarriorMove : GameAIActorBase
         }
 
         if (pActor.Realm == null ||
-            pActor.current_tile == null ||
-            pActor.current_tile.zone == null)
+            pActor.Cell == null ||
+            pActor.Cell.Zone == null)
         {
             ClearActorMoveState(pActor);
             return BehResult.Continue;
@@ -196,7 +196,7 @@ public class EmpireCraftActorCheckWarriorMove : GameAIActorBase
 
         Person localEnemy = FindEnemyWarriorInZone(
             pActor,
-            pActor.current_tile.zone);
+            pActor.Cell.Zone);
 
         if (localEnemy != null)
         {
@@ -233,7 +233,7 @@ public class EmpireCraftActorCheckWarriorMove : GameAIActorBase
         if (targetTile == null)
             return BehResult.Continue;
 
-        if (pActor.current_tile.zone == targetTile.Zone)
+        if (pActor.Cell.Zone == targetTile.Zone)
         {
             pActor.ClearFrontLineMoveTarget();
             state.targetTile = null;
@@ -241,7 +241,7 @@ public class EmpireCraftActorCheckWarriorMove : GameAIActorBase
             return BehResult.Continue;
         }
 
-        if (!pActor.current_tile.isSameIsland(targetTile))
+        if (!pActor.Cell.IsSameIsland(targetTile))
         {
             HandleCrossIsland(pActor, targetTile, state);
             return BehResult.Continue;
@@ -433,7 +433,7 @@ public class EmpireCraftActorCheckWarriorMove : GameAIActorBase
 
             if (!actor.Alive || !actor.IsWarrior() ||
                 actor.Realm == null || !actor.Realm.HasEnemies() ||
-                actor.current_tile?.zone == null)
+                actor.Cell?.Zone == null)
             {
                 ClearActorMoveState(actorId, actor);
                 continue;
@@ -452,13 +452,13 @@ public class EmpireCraftActorCheckWarriorMove : GameAIActorBase
                 continue;
             }
 
-            if (actor.current_tile.zone == target.Zone)
+            if (actor.Cell.Zone == target.Zone)
             {
                 ClearActorMoveState(actorId, actor);
                 continue;
             }
 
-            if (!actor.current_tile.isSameIsland(target))
+            if (!actor.Cell.IsSameIsland(target))
             {
                 HandleCrossIsland(actor, target, state);
                 continue;
@@ -516,8 +516,8 @@ public class EmpireCraftActorCheckWarriorMove : GameAIActorBase
             // 只在这一名士兵真正轮到开战动员时 cancel 一次。
             IssueFrontLineMove(actor, target, true);
 
-            if (actor.current_tile != null &&
-                !actor.current_tile.isSameIsland(target))
+            if (actor.Cell != null &&
+                !actor.Cell.IsSameIsland(target))
             {
                 QueueTaxi(actor, target);
             }
@@ -586,12 +586,12 @@ public class EmpireCraftActorCheckWarriorMove : GameAIActorBase
                 !actor.Alive ||
                 actor.Realm == null ||
                 !actor.Realm.HasEnemies() ||
-                actor.current_tile == null)
+                actor.Cell == null)
             {
                 continue;
             }
 
-            if (actor.current_tile.isSameIsland(target))
+            if (actor.Cell.IsSameIsland(target))
                 continue;
 
             try
@@ -664,9 +664,9 @@ public class EmpireCraftActorCheckWarriorMove : GameAIActorBase
 
         state.lastCheckFrame = frame;
 
-        if (actor.current_tile != state.lastObservedTile)
+        if (actor.Cell != state.lastObservedTile)
         {
-            state.lastObservedTile = actor.current_tile;
+            state.lastObservedTile = actor.Cell;
             state.lastProgressFrame = frame;
             state.recoveryCount = 0;
             return;
@@ -679,7 +679,7 @@ public class EmpireCraftActorCheckWarriorMove : GameAIActorBase
 
         // 真正卡住才 reset 一次。
         IssueFrontLineMove(actor, target, true);
-        state.lastObservedTile = actor.current_tile;
+        state.lastObservedTile = actor.Cell;
         state.lastProgressFrame = frame;
 
         if (state.recoveryCount >= HardRecoveryAfter &&
@@ -771,7 +771,6 @@ public class EmpireCraftActorCheckWarriorMove : GameAIActorBase
             _frontZoneCache.Remove(kingdom);
     }
 
-#if EC_PENDING
     public static Cell FindTargetZone(Person pActor)
     {
         return FindTargetZone(pActor, null);
@@ -783,7 +782,7 @@ public class EmpireCraftActorCheckWarriorMove : GameAIActorBase
     {
         if (pActor == null ||
             pActor.Realm == null ||
-            pActor.current_tile == null)
+            pActor.Cell == null)
         {
             return null;
         }
@@ -866,7 +865,7 @@ public class EmpireCraftActorCheckWarriorMove : GameAIActorBase
         int friendlyCount)
     {
         float score = Land.SquaredDist(
-            actor.current_tile,
+            actor.Cell,
             zone.Center);
 
         score += friendlyCount * WarriorCrowdingPenalty;
@@ -878,7 +877,6 @@ public class EmpireCraftActorCheckWarriorMove : GameAIActorBase
 
         return score;
     }
-#endif
 
     private static bool IsValidEnemyFrontZone(
         Realm kingdom,
@@ -960,7 +958,6 @@ public class EmpireCraftActorCheckWarriorMove : GameAIActorBase
     // 当前 Zone Warrior 缓存
     // ============================================================
 
-#if EC_PENDING
     private static void EnsureZoneWarriorCache()
     {
         int frame = HighPopulationPerformance.GetFrontLineCacheKey();
@@ -977,7 +974,7 @@ public class EmpireCraftActorCheckWarriorMove : GameAIActorBase
             if (!IsOccupyArmyGroupMember(actor))
                 continue;
 
-            Cell zone = actor.current_tile?.zone;
+            Cell zone = actor.Cell?.Zone;
 
             if (zone == null)
                 continue;
@@ -1010,7 +1007,6 @@ public class EmpireCraftActorCheckWarriorMove : GameAIActorBase
             }
         }
     }
-#endif
 
     private static int GetWarriorCount(
         Cell zone,
@@ -1033,7 +1029,6 @@ public class EmpireCraftActorCheckWarriorMove : GameAIActorBase
             : 0;
     }
 
-#if EC_PENDING
     public static Person FindEnemyWarriorInZone(
         Person actor,
         Cell zone)
@@ -1076,8 +1071,8 @@ public class EmpireCraftActorCheckWarriorMove : GameAIActorBase
             }
 
             float distance = Land.SquaredDist(
-                actor.current_tile,
-                other.current_tile);
+                actor.Cell,
+                other.Cell);
 
             if (distance < bestDistance)
             {
@@ -1088,7 +1083,6 @@ public class EmpireCraftActorCheckWarriorMove : GameAIActorBase
 
         return nearest;
     }
-#endif
 
     private static bool IsOccupyArmyGroupMember(Person actor)
     {
@@ -1101,7 +1095,6 @@ public class EmpireCraftActorCheckWarriorMove : GameAIActorBase
     // State
     // ============================================================
 
-#if EC_PENDING
     private static ActorMoveState GetState(Person actor)
     {
         long id = actor.Key;
@@ -1113,7 +1106,7 @@ public class EmpireCraftActorCheckWarriorMove : GameAIActorBase
             state = new ActorMoveState
             {
                 actor = actor,
-                lastObservedTile = actor.current_tile,
+                lastObservedTile = actor.Cell,
                 lastProgressFrame = Time.frameCount,
                 lastCheckFrame = Time.frameCount
             };
@@ -1132,7 +1125,7 @@ public class EmpireCraftActorCheckWarriorMove : GameAIActorBase
         Cell target)
     {
         state.targetTile = target;
-        state.lastObservedTile = actor.current_tile;
+        state.lastObservedTile = actor.Cell;
         state.lastProgressFrame = Time.frameCount;
         state.lastCheckFrame = Time.frameCount;
         state.recoveryCount = 0;
@@ -1142,12 +1135,11 @@ public class EmpireCraftActorCheckWarriorMove : GameAIActorBase
         Person actor,
         ActorMoveState state)
     {
-        state.lastObservedTile = actor.current_tile;
+        state.lastObservedTile = actor.Cell;
         state.lastProgressFrame = Time.frameCount;
         state.lastCheckFrame = Time.frameCount;
         state.recoveryCount = 0;
     }
-#endif
 
     private static void ClearActorMoveState(Person actor)
     {

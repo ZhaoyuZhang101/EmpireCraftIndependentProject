@@ -155,8 +155,8 @@ public static partial class IdeologyPopulationSystem
     {
         if (city == null) return PartyIdeology.Conservatism;
         int[] counts = new int[ParsedIdeologies.Count];
-        if (city.units != null)
-            foreach (Person actor in city.units)
+        if (city.People != null)
+            foreach (Person actor in city.People)
             {
                 if (actor == null || actor.IsGone() || !actor.Alive) continue;
                 counts[(int)Get(actor)]++;
@@ -203,8 +203,8 @@ public static partial class IdeologyPopulationSystem
     {
         var counts = new Dictionary<PartyIdeology, int>();
         if (city == null) return counts;
-        if (city.units != null)
-            foreach (Person actor in city.units)
+        if (city.People != null)
+            foreach (Person actor in city.People)
             {
                 if (actor == null || actor.IsGone() || !actor.Alive) continue;
                 PartyIdeology ideology = Get(actor);
@@ -238,8 +238,8 @@ public static partial class IdeologyPopulationSystem
         if (kingdom == null) return 0f;
         int population = 0;
         int supporters = 0;
-        if (kingdom.units != null)
-            foreach (Person actor in kingdom.units)
+        if (kingdom.People != null)
+            foreach (Person actor in kingdom.People)
             {
                 if (actor == null || actor.IsGone() || !actor.Alive) continue;
                 population++;
@@ -303,9 +303,9 @@ public static partial class IdeologyPopulationSystem
         int changed = 0;
         foreach (City city in EmpireWorld.Current.Cities)
         {
-            if (city?.units == null || city.IsGone() ||
+            if (city?.People == null || city.IsGone() ||
                 CultureService.GetMainCulture(city) != culture) continue;
-            changed += Introduce(city.units, ideology, intensity);
+            changed += Introduce(city.People, ideology, intensity);
             changed += IntroduceToBackground(city, ideology, intensity);
             DominantCache.Remove(city);
         }
@@ -318,12 +318,12 @@ public static partial class IdeologyPopulationSystem
 #if EC_PENDING
     public static int InfluenceCity(City city, PartyIdeology ideology, float intensity)
     {
-        if (city?.units == null || city.IsGone() || intensity <= 0f) return 0;
+        if (city?.People == null || city.IsGone() || intensity <= 0f) return 0;
         if (!TechnologySystem.AreFeatureTechsMet(CultureService.GetMainCulture(city),
                 IdeologySpreadSystem.FeatureKey(ideology))) return 0;
         // 与民间交往一样受城市经济形态影响：繁荣城市更易接受自由主义、难被传统理念说服；工业城市更易接受社会主义
         intensity *= EconomyFactor(ideology, CachedEconomy(city));
-        int changed = Introduce(city.units.ToList(), ideology, intensity) +
+        int changed = Introduce(city.People.ToList(), ideology, intensity) +
                       IntroduceToBackground(city, ideology, intensity);
         if (changed > 0)
         {
@@ -379,12 +379,12 @@ public static partial class IdeologyPopulationSystem
         if (city.NeighbourCities == null) return null;
         if (!ConnectivitySystem.Ready)
             return city.NeighbourCities.FirstOrDefault(neighbour => neighbour != null && neighbour.Realm != city.Realm &&
-                                                                   neighbour.units?.Count > 0);
+                                                                   neighbour.PopulationCount() > 0);
         City best = null;
         float strongest = -1f;
         foreach (City neighbour in city.NeighbourCities)
         {
-            if (neighbour == null || neighbour.Realm == city.Realm || !(neighbour.units?.Count > 0)) continue;
+            if (neighbour == null || neighbour.Realm == city.Realm || !(neighbour.PopulationCount() > 0)) continue;
             float strength = ConnectivitySystem.NeighbourStrength(neighbour, city);
             if (strength < 0f) strength = 1f;
             if (strength <= strongest) continue;
@@ -396,10 +396,10 @@ public static partial class IdeologyPopulationSystem
 
     private static void ContactCity(City city)
     {
-        if (city?.units == null || city.IsGone()) return;
+        if (city?.People == null || city.IsGone()) return;
         Dictionary<PartyIdeology, int> localCounts = GetCityCounts(city);
         if (localCounts.Count == 0) return;
-        var organizers = city.units.Where(actor => actor != null && !actor.IsGone() && actor.Alive &&
+        var organizers = city.People.Where(actor => actor != null && !actor.IsGone() && actor.Alive &&
                 actor.GetFaction()?.IsParty == true)
             .GroupBy(actor => actor.GetFaction().Ideology)
             .ToDictionary(group => group.Key, group => group.Count());
@@ -459,7 +459,7 @@ public static partial class IdeologyPopulationSystem
             StartParallelContact(city,localCounts,organizers,available,grievances,culture,settings);
             return;
         }
-        foreach (Person actor in city.units)
+        foreach (Person actor in city.People)
         {
             if (actor == null || actor.IsGone() || !actor.Alive || !actor.IsAdult()) continue;
             ActorExtension.ActorExtraData data = actor.GetOrCreate();
@@ -650,9 +650,9 @@ public static partial class IdeologyPopulationSystem
 #if EC_PENDING
     public static CityEconomyProfile CityEconomy(City city)
     {
-        if (city?.units == null) return default;
+        if (city?.People == null) return default;
         int adults = 0, burghers = 0, workers = 0, peasants = 0;
-        foreach (Person actor in city.units)
+        foreach (Person actor in city.People)
         {
             if (actor == null || actor.IsGone() || !actor.Alive || !actor.IsAdult()) continue;
             adults++;
@@ -853,7 +853,7 @@ public static partial class IdeologyPopulationSystem
     private static void EnsureUnlockedIdeologiesSeeded()
     {
         foreach (IGrouping<string, City> cultureCities in EmpireWorld.Current.Cities
-                     .Where(city => city != null && !city.IsGone() && city.units != null)
+                     .Where(city => city != null && !city.IsGone() && city.People != null)
                      .GroupBy(city => CultureService.GetMainCulture(city))
                      .Where(group => CultureService.IsValidCulture(group.Key)))
         {
@@ -866,8 +866,8 @@ public static partial class IdeologyPopulationSystem
                     TechnologySystem.AreFeatureTechsMet(culture, IdeologySpreadSystem.FeatureKey(ideology)) &&
                     !state.seeded_ideologies.Contains(ideology.ToString())).ToList();
             if (pending.Count == 0) continue;
-            List<Person> adults = cultureCities.SelectMany(city => city.units)
-                .Where(actor => actor != null && !actor.IsGone() && actor.Alive && actor.isAdult())
+            List<Person> adults = cultureCities.SelectMany(city => city.People)
+                .Where(actor => actor != null && !actor.IsGone() && actor.Alive && actor.IsAdult())
                 .Distinct().ToList();
             if (adults.Count == 0) continue; // 暂时没有读者时，下次年度检查继续尝试。
             HashSet<PartyIdeology> present = new(adults.Select(Get));
@@ -956,7 +956,7 @@ public static partial class IdeologyPopulationSystem
 
     public static int TriggerLandRevolution(Realm kingdom)
     {
-        if (kingdom?.units == null) return 0;
+        if (kingdom?.People == null) return 0;
         string culture = CultureService.GetRealmCulture(kingdom);
         PartyIdeology[] priority =
         {
@@ -972,7 +972,7 @@ public static partial class IdeologyPopulationSystem
             break;
         }
         if (!ideology.HasValue) return 0;
-        int changed = Introduce(kingdom.units, ideology.Value, 0.55f);
+        int changed = Introduce(kingdom.People, ideology.Value, 0.55f);
         foreach (City city in kingdom.Cities ?? Enumerable.Empty<City>()) DominantCache.Remove(city);
         return changed;
     }

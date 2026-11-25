@@ -1017,8 +1017,8 @@ public static class PartySystem
     public static Dictionary<FixedFaction, float> CountProvinceVotes(Empire empire, Realm province,
         List<FixedFaction> parties)
     {
-        List<Person> voters = province?.units?.Where(actor => actor != null && !actor.IsGone() && actor.Alive &&
-                                                            actor.isAdult() && actor.id != empire.Emperor?.Key)
+        List<Person> voters = province?.People?.Where(actor => actor != null && !actor.IsGone() && actor.Alive &&
+                                                            actor.IsAdult() && actor.Key != empire.Emperor?.Key)
             .ToList() ?? new List<Person>();
         return ApplyOpinionSwing(empire, CountVotes(parties, voters, HasUniversalSuffrage(empire),
             InstitutionSystem.GetPrimaryCulture(empire), CityPopulationSystem.CitiesOf(new[] { province })));

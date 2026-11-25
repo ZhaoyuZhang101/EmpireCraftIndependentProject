@@ -86,7 +86,7 @@ public static partial class EmpireLawSystem
         else context.Outcome = LawCaseOutcome.定罪;
 
         double now = EmpireWorld.Current != null ? GameClock.Now : 0d;
-        string date = EmpireWorld.Current != null ? Date.getDate(now) : "";
+        string date = EmpireWorld.Current != null ? GameClock.DateText(now) : "";
         PersonalClanIdentity identity = context.Identity ?? context.Actor?.GetPersonalIdentity();
         var notes = new List<string>(context.Notes ?? new List<string>());
         if (context.FinePaid > 0) notes.Add("law_note_fine|" + context.FinePaid);
@@ -337,7 +337,7 @@ public static partial class EmpireLawSystem
         AddCase(realm, new LawCaseRecord
         {
             timestamp = now,
-            date = Date.getDate(now),
+            date = GameClock.DateText(now),
             actor_id = ruler?.Record != null ? ruler.Key : -1L,
             identity_id = ruler?.GetPersonalIdentity()?.id ?? -1L,
             actor_name = ruler?.FullName() ?? "",

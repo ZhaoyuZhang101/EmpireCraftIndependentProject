@@ -36,7 +36,7 @@ public static class WarSituation
         Empire empire = kingdom?.GetEmpire();
         if (empire != null && !empire.IsGone())
             return empire.countWarriors() + (empire.kingdoms_list?.Sum(member => CorpsSoldiers(member)) ?? 0);
-        return (kingdom?.countTotalWarriors() ?? 0) + CorpsSoldiers(kingdom);
+        return (kingdom?.Warriors() ?? 0) + CorpsSoldiers(kingdom);
     }
 
     private static int CorpsSoldiers(Realm kingdom) =>

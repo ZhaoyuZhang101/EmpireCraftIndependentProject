@@ -241,13 +241,13 @@ public static class HistoryRecordSystem
     }
 
     // 空位期间没有年号纪年：沿用先帝年号，记"某年号某年(空位)"之后的时间
-#if EC_PENDING
     private static string VacancyTime(EmpireCraftHistory page)
     {
         string last = page.descriptions.LastOrDefault(description => !string.IsNullOrEmpty(description?.time))?.time;
-        return string.IsNullOrEmpty(last) ? Date.getDate(GameClock.Now) : last;
+        return string.IsNullOrEmpty(last) ? GameClock.DateText(GameClock.Now) : last;
     }
 
+#if EC_PENDING
     public static void RecordNewEmperorHistory(this Empire empire, bool isNew)
     {
         // 即位过程中(篡位后果、分裂等)已经为新君写下的记事：并进新开的一页，不随旧页丢掉

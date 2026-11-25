@@ -163,7 +163,7 @@ public static class BiographySystem
 
     private static string Place(Person actor)
     {
-        City city = actor?.current_tile?.zone_city ?? actor?.City;
+        City city = actor?.Cell?.City ?? actor?.City;
         string name = city?.Record != null && !city.IsGone() ? city.GetCityName() : "";
         return string.IsNullOrWhiteSpace(name) ? LM.Get("death_place_wild") : name;
     }

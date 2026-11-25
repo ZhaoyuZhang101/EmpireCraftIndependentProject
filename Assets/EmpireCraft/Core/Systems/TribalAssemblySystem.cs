@@ -66,7 +66,6 @@ public static class TribalAssemblySystem
 #endif
 
     // 到期：上次会盟满 11 个月、又到了本部落联盟的会盟之月(按帝国编号错开)；错过了(一帧跨过几个月)的满 13 个月补开
-#if EC_PENDING
     private static bool Due(Empire overlord, KingdomExtension.KingdomExtraData data, double now)
     {
         // 读了更早的档：从头算
@@ -75,9 +74,10 @@ public static class TribalAssemblySystem
         int since = last < 0d ? int.MaxValue : GameClock.MonthsSince(last);
         if (since < 11) return false;
         int slot = (int)(Math.Abs(overlord.Key) % 12L);
-        return Date.getMonth(now) % 12 == slot || last >= 0d && since >= 13;
+        return GameClock.MonthOf(now) % 12 == slot || last >= 0d && since >= 13;
     }
 
+#if EC_PENDING
     private static void Assemble(Empire overlord, Realm core, List<Realm> tribes, double now)
     {
         KingdomExtension.KingdomExtraData record = core.GetOrCreate();
@@ -161,7 +161,7 @@ public static class TribalAssemblySystem
     {
         int money = Math.Max(0, tribe.GetMoney());
         if (money <= 0) return 0;
-        int households = CityPopulationSystem.AbstractPopulationEnabled ? CityPopulationSystem.Households(tribe) : tribe.units?.Count ?? 0;
+        int households = CityPopulationSystem.AbstractPopulationEnabled ? CityPopulationSystem.Households(tribe) : tribe.PopulationCount() ?? 0;
         int cap = Math.Max(TributeCap, households / 2);
         return Math.Min(money, Math.Min(cap, Math.Max(money / 10, TributeFloor)));
     }

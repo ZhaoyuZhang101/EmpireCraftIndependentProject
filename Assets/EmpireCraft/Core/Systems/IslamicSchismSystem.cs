@@ -86,9 +86,7 @@ public static class IslamicSchismSystem
 
     private static bool Alive(Realm kingdom) => kingdom?.Record != null && !kingdom.IsGone() && !kingdom.IsWild;
 
-#if EC_PENDING
     private static bool Alive(Religion religion) => religion?.data != null && !religion.IsGone();
-#endif
 
     private static bool Alive(Person actor) => actor?.Record != null && !actor.IsGone() && actor.Alive;
 
@@ -113,7 +111,6 @@ public static class IslamicSchismSystem
     private static float Span => Mathf.Max(1f, Mathf.Max(EmpireWorld.Current.Width, EmpireWorld.Current.Height));
 
     // 本教的伊斯兰分裂数据(没有就建)
-#if EC_PENDING
     public static IslamicSchismState State(Religion religion)
     {
         if (religion?.data == null) return null;
@@ -124,10 +121,8 @@ public static class IslamicSchismSystem
         data.Islamic.movements ??= new List<ReformMovementData>();
         return data.Islamic;
     }
-#endif
 
     // 只读(没有不建)
-#if EC_PENDING
     private static IslamicSchismState Peek(Religion religion) => religion?.data == null ? null : religion.GetOrCreate().Islamic;
 
     public static List<RivalCaliphateData> AllRivals(Religion religion) =>
@@ -135,7 +130,6 @@ public static class IslamicSchismSystem
 
     public static List<RivalCaliphateData> ActiveRivals(Religion religion) =>
         AllRivals(religion).Where(rival => rival.ended_at < 0d).ToList();
-#endif
 
     // 对立哈里发座所在之国(已终结、已亡返回空；是否仍奉本教每年核，见 Ending)
     public static Realm Seat(RivalCaliphateData rival) => rival == null || rival.ended_at >= 0d ? null : LiveKingdom(rival.seat_kingdom_id);
@@ -147,7 +141,6 @@ public static class IslamicSchismSystem
     }
 
     // 这个帝国奉的对立哈里发(奉圣地哈里发返回空)
-#if EC_PENDING
     public static RivalCaliphateData ObedienceOf(Empire empire, Religion religion)
     {
         if (empire?.data == null || religion?.data == null) return null;
@@ -157,7 +150,6 @@ public static class IslamicSchismSystem
             if (rival != null && rival.ended_at < 0d && rival.adherents != null && rival.adherents.Contains(empire.Key)) return rival;
         return null;
     }
-#endif
 
     // 这个帝国所奉哈里发的座(对立哈里发之国或圣地之国)
 #if EC_PENDING
@@ -166,15 +158,13 @@ public static class IslamicSchismSystem
         RivalCaliphateData rival = ObedienceOf(empire, religion);
         if (rival == null) return PapacySystem.Papacy(religion);
         Realm seat = Seat(rival);
-        return seat != null && seat.religion == religion ? seat : null;
+        return seat != null && seat.Religion == religion ? seat : null;
     }
 #endif
 
     // 以 realm 为座的对立哈里发
-#if EC_PENDING
     public static RivalCaliphateData RivalSeatedIn(Religion religion, Realm realm) =>
         realm == null ? null : ActiveRivals(religion).FirstOrDefault(rival => Seat(rival) is Realm seat && ModRealm(seat) == realm);
-#endif
 
     // 本教是怎么分出来的(BranchShia / BranchIsmaili / BranchRival，本教或未记为 "")
 #if EC_PENDING
@@ -184,7 +174,7 @@ public static class IslamicSchismSystem
         string branch = Peek(religion)?.branch;
         if (!string.IsNullOrEmpty(branch)) return branch;
         long parentId = religion.GetOrCreate().ParentReligionId;
-        Religion parent = parentId >= 0 ? EmpireWorld.Current.religions.get(parentId) : null;
+        Religion parent = parentId >= 0 ? EmpireWorld.Current.Religions.Get(parentId) : null;
         return Alive(parent) && parent != religion && ShiaOf(parent) == religion ? BranchShia : "";
     }
 
@@ -202,7 +192,7 @@ public static class IslamicSchismSystem
         {
             Religion legacy = null;
             double legacyAt = double.MaxValue;
-            foreach (Religion religion in EmpireWorld.Current.religions.list)
+            foreach (Religion religion in EmpireWorld.Current.Religions.list)
             {
                 if (!Alive(religion) || religion == parent || !ReligionFaith.IsCaliphal(religion)) continue;
                 ReligionExtension.ReligionExtraData data = religion.GetOrCreate();
@@ -217,7 +207,7 @@ public static class IslamicSchismSystem
             state.shia_id = legacy?.data.id ?? -2L;
             if (legacy != null) State(legacy).branch = BranchShia;
         }
-        Religion shia = state.shia_id >= 0 ? EmpireWorld.Current.religions.get(state.shia_id) : null;
+        Religion shia = state.shia_id >= 0 ? EmpireWorld.Current.Religions.Get(state.shia_id) : null;
         return Alive(shia) ? shia : null;
     }
 #endif
@@ -241,7 +231,6 @@ public static class IslamicSchismSystem
 #endif
 
     // 圣战响应(见 PapacySystem.Crusade.Rally)：号召者是圣地哈里发时，奉对立哈里发的帝国响应减半，对立哈里发本国不响应；没有对立哈里发为 1
-#if EC_PENDING
     public static float RallyFactor(Realm kingdom, Religion religion, Realm caller)
     {
         if (!Alive(kingdom) || religion?.data == null || ActiveRivals(religion).Count == 0) return 1f;
@@ -252,7 +241,6 @@ public static class IslamicSchismSystem
         if (rival == null) return 1f;
         return Seat(rival) is Realm seat && ModRealm(seat) == ModRealm(caller) ? 1f : 0.5f;
     }
-#endif
 
     #endregion
 
@@ -262,11 +250,11 @@ public static class IslamicSchismSystem
 #if EC_PENDING
     public static void YearlyPass()
     {
-        if (EmpireWorld.Current?.religions == null || ModClass.IS_CLEAR || ModClass.EMPIRE_MANAGER == null) return;
+        if (EmpireWorld.Current?.Religions == null || ModClass.IS_CLEAR || ModClass.EMPIRE_MANAGER == null) return;
         double now = GameClock.Now;
         if (_lastPass >= 0d && now >= _lastPass && GameClock.YearsSince(_lastPass) < 1) return;
         _lastPass = now;
-        List<Religion> faiths = EmpireWorld.Current.religions.list.Where(religion => Alive(religion) && ReligionFaith.IsCaliphal(religion)).ToList();
+        List<Religion> faiths = EmpireWorld.Current.Religions.list.Where(religion => Alive(religion) && ReligionFaith.IsCaliphal(religion)).ToList();
         foreach (Religion religion in faiths)
         {
             Step("哈里发世系", religion, NoteCaliphHouse);
@@ -285,6 +273,7 @@ public static class IslamicSchismSystem
             LogService.LogWarning($"{Tag} 什叶派结算失败: {exception.Message}");
         }
     }
+#endif
 
     private static void Step(string name, Religion religion, Action<Religion> step)
     {
@@ -294,10 +283,9 @@ public static class IslamicSchismSystem
         }
         catch (Exception exception)
         {
-            LogService.LogWarning($"{Tag} {religion?.name} {name}结算失败: {exception.Message}");
+            LogService.LogWarning($"{Tag} {religion?.Name} {name}结算失败: {exception.Message}");
         }
     }
-#endif
 
     // 记下现任哈里发(圣地之主)的宗族
 #if EC_PENDING
@@ -320,7 +308,7 @@ public static class IslamicSchismSystem
     private static void TryProclaimRival(Religion religion)
     {
         Realm orthodox = PapacySystem.Papacy(religion);
-        if (orthodox == null || ReligionSphere.IsLocalChurch(religion) || religion.getAge() < RivalMinAge) return;
+        if (orthodox == null || ReligionSphere.IsLocalChurch(religion) || religion.Age() < RivalMinAge) return;
         IslamicSchismState state = Peek(religion);
         if (state != null && (ActiveRivals(religion).Count >= MaxRivals || Within(state.last_rival_end_at, RivalCooldownYears))) return;
         Realm see = ModRealm(orthodox);
@@ -369,9 +357,9 @@ public static class IslamicSchismSystem
     {
         try
         {
-            Religion religion = claimant?.religion;
+            Religion religion = claimant?.Religion;
             if (!Alive(claimant) || ModRealm(claimant) != claimant || !ReligionFaith.IsCaliphal(religion) ||
-                religion != empire?.CoreKingdom?.religion || ReligionSphere.IsLocalChurch(religion)) return;
+                religion != empire?.CoreKingdom?.Religion || ReligionSphere.IsLocalChurch(religion)) return;
             Realm orthodox = PapacySystem.Papacy(religion);
             if (orthodox == null || ModRealm(orthodox) == claimant || ActiveRivals(religion).Count >= MaxRivals ||
                 EcRandom.value >= ContestRivalChance) return;
@@ -390,7 +378,7 @@ public static class IslamicSchismSystem
     {
         Person ruler = seat?.Ruler;
         City capital = seat?.Capital;
-        if (!Alive(seat) || !Alive(ruler) || capital?.Record == null || capital.IsGone() || seat.religion != religion) return null;
+        if (!Alive(seat) || !Alive(ruler) || capital?.Record == null || capital.IsGone() || seat.Religion != religion) return null;
         IslamicSchismState state = State(religion);
         Empire empire = seat.GetEmpire();
         if (empire != null && empire.CoreKingdom != seat) empire = null;
@@ -420,11 +408,11 @@ public static class IslamicSchismSystem
         state.rivals.Add(rival);
         PapacySystem.AddAuthority(religion, -RivalAuthorityLoss);
         string holy = PapacySystem.HolyCity(religion)?.GetCityName() ?? LM.Get("papacy_see_lost");
-        string text = string.Format(LM.Get(logKey), rival.realm_name, ruler.FullName(), capital.GetCityName(), holy, religion.name, extra);
+        string text = string.Format(LM.Get(logKey), rival.realm_name, ruler.FullName(), capital.GetCityName(), holy, religion.Name, extra);
         EventRecorder.Record(seat, text, ruler);
         ruler.RecordPersonalHistory(text);
         ReligionChronicle.Record(religion, ReligionChronicle.KindSchism, text);
-        LogService.LogInfo($"{Tag} {rival.realm_name} 的 {ruler.FullName()} 以 {rival.seat_name} 自称哈里发(本教 {religion.name}，" +
+        LogService.LogInfo($"{Tag} {rival.realm_name} 的 {ruler.FullName()} 以 {rival.seat_name} 自称哈里发(本教 {religion.Name}，" +
                            $"圣地 {holy}，现有对立哈里发 {ActiveRivals(religion).Count} 位)");
         return rival;
     }
@@ -467,11 +455,11 @@ public static class IslamicSchismSystem
         if (capital?.Record == null || !Alive(ruler)) return false;
         ConvertRealm(core, old, shia, null, FollowerShare);
         shia.SetCity(capital);
-        string text = string.Format(LM.Get("imamate_restored_log"), empire.GetEmpireFullName(), ruler.FullName(), shia.name,
-            capital.GetCityName(), old.name);
+        string text = string.Format(LM.Get("imamate_restored_log"), empire.GetEmpireFullName(), ruler.FullName(), shia.Name,
+            capital.GetCityName(), old.Name);
         EventRecorder.Record(empire, text, ruler);
         ReligionChronicle.Record(shia, old, ReligionChronicle.KindSchism, text);
-        LogService.LogInfo($"{Tag} {empire.GetEmpireName()} 改奉{shia.name}，伊玛目之座迁到 {capital.GetCityName()}");
+        LogService.LogInfo($"{Tag} {empire.GetEmpireName()} 改奉{shia.Name}，伊玛目之座迁到 {capital.GetCityName()}");
         return true;
     }
 #endif
@@ -533,7 +521,7 @@ public static class IslamicSchismSystem
         if (seat == null) return "fallen";
         // 争位者自立的王国后来称了帝：记下帝国
         if (seat.GetEmpire() is Empire own && own.CoreKingdom == seat) rival.seat_empire_id = own.Key;
-        if (seat.religion != religion) return "faith";
+        if (seat.Religion != religion) return "faith";
         if (ModRealm(seat) != seat) return "submitted";
         City old = rival.seat_city_id >= 0 ? EmpireWorld.Current.CityByKey(rival.seat_city_id) : null;
         if (old?.Record != null && !old.IsGone() && old.Realm != null && !old.Realm.IsWild && ModRealm(old.Realm) != seat) return "conquered";
@@ -583,7 +571,7 @@ public static class IslamicSchismSystem
                            $"历 {Mathf.Max(0, GameClock.YearsSince(rival.proclaimed_at))} 年，奉之者 {count} 国");
         if (!announce) return;
         string text = string.Format(LM.Get("rival_caliph_end_" + end), rival.realm_name, rival.seat_name,
-            PapacySystem.HolyCity(religion)?.GetCityName() ?? LM.Get("papacy_see_lost"), religion.name);
+            PapacySystem.HolyCity(religion)?.GetCityName() ?? LM.Get("papacy_see_lost"), religion.Name);
         Realm seat = LiveKingdom(rival.seat_kingdom_id);
         if (seat != null) EventRecorder.Record(seat, text);
         else TranslateHelper.LogEventMessage(text, PapacySystem.Papacy(religion));
@@ -599,7 +587,7 @@ public static class IslamicSchismSystem
         if (seat == null) return;
         List<Empire> adherents = (rival.adherents ?? new List<long>()).Select(LiveEmpire)
             .Where(empire => empire != null && empire.CoreKingdom != seat && Alive(empire.CoreKingdom) &&
-                             empire.CoreKingdom.religion == religion && Alive(empire.CoreKingdom.Ruler)).ToList();
+                             empire.CoreKingdom.Religion == religion && Alive(empire.CoreKingdom.Ruler)).ToList();
         Religion branch = FoundBranch(religion, seat, BranchRival, "rival_caliph_branch_log", null, 1f, out _);
         if (branch == null) return;
         foreach (Empire adherent in adherents)
@@ -688,6 +676,7 @@ public static class IslamicSchismSystem
             if (chosen != current) Switch(empire, religion, current, chosen);
         }
     }
+#endif
 
     private static RivalCaliphateData Choose(Empire empire, Religion religion, List<RivalCaliphateData> active,
         RivalCaliphateData current, Realm orthodox)
@@ -708,17 +697,14 @@ public static class IslamicSchismSystem
         }
         return best;
     }
-#endif
 
     // 奉得了：奉本教、不与本国交战、不是分立相争的另一朝
-#if EC_PENDING
     private static bool Acceptable(Empire empire, Religion religion, Realm seat)
     {
-        if (!Alive(seat) || seat.religion != religion || seat.IsAtWarWith(empire.CoreKingdom)) return false;
+        if (!Alive(seat) || seat.Religion != religion || seat.IsAtWarWith(empire.CoreKingdom)) return false;
         Empire twin = EmpirePartitionSystem.Twin(empire);
         return twin == null || empire.data.partition_amity || seat.GetEmpire() != twin;
     }
-#endif
 
     private static float Distance(Realm from, Realm to)
     {
@@ -767,8 +753,8 @@ public static class IslamicSchismSystem
     {
         foreach (Realm realm in EmpireWorld.Current.LiveRealms.ToList())
         {
-            if (!Alive(realm) || ModRealm(realm) != realm || !realm.hasReligion() || AncientWarfareCompatibility.Owns(realm)) continue;
-            Religion faith = realm.religion;
+            if (!Alive(realm) || ModRealm(realm) != realm || !realm.HasReligion() || AncientWarfareCompatibility.Owns(realm)) continue;
+            Religion faith = realm.Religion;
             Person king = realm.Ruler;
             if (!ReligionFaith.IsCaliphal(faith) || !ReligionSphere.IsNative(faith) || ReligionSphere.IsLocalChurch(faith) ||
                 !Alive(king) || !king.IsAdult() || realm.Capital == null || !RegimeManager.IsMonarchy(realm.GetRegime()?.type) ||
@@ -792,7 +778,7 @@ public static class IslamicSchismSystem
 #if EC_PENDING
     private static void TryEstablishShia(Realm realm, Religion faith, Realm orthodox)
     {
-        if (faith.getAge() < ShiaMinAge || Cities(realm) < ShiaMinCities) return;
+        if (faith.Age() < ShiaMinAge || Cities(realm) < ShiaMinCities) return;
         bool alid = Alid(faith, realm.Ruler);
         bool hostile = orthodox != null && realm.IsAtWarWith(ModRealm(orthodox));
         if (!alid && !hostile) return;
@@ -815,19 +801,17 @@ public static class IslamicSchismSystem
         if (chance <= 0f && orthodox != null && realm.IsAtWarWith(ModRealm(orthodox)) && Alid(faith, realm.Ruler)) chance = ShiaAdoptClaimChance;
         if (chance <= 0f || EcRandom.value >= chance) return;
         ReligionConversionSystem.Convert(realm, shia, faith, "shia_adopt_log");
-        LogService.LogInfo($"{Tag} {realm.GetKingdomName()} 改奉{shia.name}(治下奉之者 {share:P0})");
+        LogService.LogInfo($"{Tag} {realm.GetKingdomName()} 改奉{shia.Name}(治下奉之者 {share:P0})");
     }
 #endif
 
     // 争位分出的什叶派(见 ReligionSchismSystem.OnSuccessionContest)：记下分支，此后同一母宗教不再另立
-#if EC_PENDING
     public static void MarkShia(Religion parent, Religion shia)
     {
         if (!Alive(parent) || !Alive(shia)) return;
         State(shia).branch = BranchShia;
         State(parent).shia_id = shia.data.id;
     }
-#endif
 
     // 什叶派的争位(见 ReligionSchismSystem.OnSuccessionContest)：争位者另立伊斯玛仪派，随攻方的成员同改
 #if EC_PENDING
@@ -853,9 +837,9 @@ public static class IslamicSchismSystem
         Person head = realm?.Ruler;
         City capital = realm?.Capital;
         if (!Alive(parent) || !Alive(realm) || !Alive(head) || capital?.Record == null || capital.IsGone()) return null;
-        Religion old = realm.hasReligion() ? realm.religion : parent;
+        Religion old = realm.HasReligion() ? realm.Religion : parent;
         if (head.City != capital) head.JoinCity(capital);
-        Religion faith = EmpireWorld.Current.religions.newReligion(head, false);
+        Religion faith = EmpireWorld.Current.Religions.NewReligion(head, false);
         if (faith?.data == null) return null;
         faith.data.name = branch == BranchRival
             ? string.Format(LM.Get("caliph_sect_name"), capital.GetCityName())
@@ -879,14 +863,14 @@ public static class IslamicSchismSystem
         if (branch != BranchRival) PapacySystem.AddAuthority(old, -SplitAuthorityLoss);
         Empire empire = realm.GetEmpire();
         string name = empire != null && empire.CoreKingdom == realm ? empire.GetEmpireFullName() : realm.GetKingdomName();
-        text = string.Format(LM.Get(logKey), name, head.FullName(), capital.GetCityName(), faith.name, old.name);
+        text = string.Format(LM.Get(logKey), name, head.FullName(), capital.GetCityName(), faith.Name, old.Name);
         EventRecorder.Record(realm, text, head);
         head.RecordPersonalHistory(text);
         // 创教时(ReligionPatch)记下的那条用的是改名前的名字，由分裂这条起头
         ReligionChronicle.Clear(faith);
         ReligionChronicle.Record(parent, faith, ReligionChronicle.KindSchism, text);
         if (old != parent) ReligionChronicle.Record(old, ReligionChronicle.KindSchism, text);
-        LogService.LogInfo($"{Tag} {name} 另立{faith.name}({branch}，分自{parent.name}，原奉{old.name})，改奉 {converted.Count} 国");
+        LogService.LogInfo($"{Tag} {name} 另立{faith.Name}({branch}，分自{parent.Name}，原奉{old.Name})，改奉 {converted.Count} 国");
         return faith;
     }
 #endif
@@ -903,14 +887,14 @@ public static class IslamicSchismSystem
             empire.Religion = faith;
             foreach (Realm member in empire.kingdoms_list.ToList())
             {
-                if (!Alive(member) || member == realm || member.religion != old || EcRandom.value >= memberShare) continue;
+                if (!Alive(member) || member == realm || member.Religion != old || EcRandom.value >= memberShare) continue;
                 ConvertKingdom(member, old, faith);
                 converted.Add(member);
             }
         }
         foreach (Realm follower in followers ?? Enumerable.Empty<Realm>())
         {
-            if (!Alive(follower) || converted.Contains(follower) || follower.religion != old) continue;
+            if (!Alive(follower) || converted.Contains(follower) || follower.Religion != old) continue;
             ConvertKingdom(follower, old, faith);
             converted.Add(follower);
         }
@@ -920,11 +904,11 @@ public static class IslamicSchismSystem
 
     private static void ConvertKingdom(Realm kingdom, Religion old, Religion faith)
     {
-        kingdom.setReligion(faith);
+        kingdom.SetReligion(faith);
         Person king = kingdom.Ruler;
-        if (Alive(king) && (king.religion == old || !king.hasReligion())) king.setReligion(faith);
+        if (Alive(king) && (king.Religion == old || !king.HasReligion())) king.SetReligion(faith);
         foreach (City city in kingdom.Cities.ToList())
-            if (city?.Record != null && !city.IsGone() && city.religion == old) BackgroundReligionSystem.Convert(city, faith, old);
+            if (city?.Record != null && !city.IsGone() && city.Religion == old) BackgroundReligionSystem.Convert(city, faith, old);
     }
 #endif
 
@@ -940,11 +924,11 @@ public static class IslamicSchismSystem
                                          Within(state.last_movement_at, MovementCooldownYears))) return;
         foreach (Realm realm in EmpireWorld.Current.LiveRealms.ToList())
         {
-            if (!Alive(realm) || ModRealm(realm) != realm || realm.religion != religion || AncientWarfareCompatibility.Owns(realm) ||
+            if (!Alive(realm) || ModRealm(realm) != realm || realm.Religion != religion || AncientWarfareCompatibility.Owns(realm) ||
                 !Lax(realm, religion)) continue;
             foreach (City city in RealmCities(realm).ToList())
             {
-                if (city.religion != religion || !ReligiousTension.CanRevolt(city) || EcRandom.value >= MovementChance) continue;
+                if (city.Religion != religion || !ReligiousTension.CanRevolt(city) || EcRandom.value >= MovementChance) continue;
                 if (StartMovement(religion, realm, city)) return;
             }
         }
@@ -966,7 +950,7 @@ public static class IslamicSchismSystem
         foreach (City city in RealmCities(realm))
         {
             total++;
-            if (city.hasReligion() && city.religion != religion) other++;
+            if (city.HasReligion() && city.Religion != religion) other++;
         }
         return total > 0 && other >= total * LaxMinorityShare;
     }
@@ -1000,7 +984,7 @@ public static class IslamicSchismSystem
                          .OrderBy(movement => movement.ended_at).Take(ended - MaxMovementRecords).ToList())
                 state.movements.Remove(old);
         ReligionChronicle.Record(religion, ReligionChronicle.KindSchism, history);
-        LogService.LogInfo($"{Tag} {realm.GetKingdomName()} {cityName} {name}起事(本教 {religion.name})");
+        LogService.LogInfo($"{Tag} {realm.GetKingdomName()} {cityName} {name}起事(本教 {religion.Name})");
         return true;
     }
 
@@ -1017,7 +1001,7 @@ public static class IslamicSchismSystem
                 continue;
             }
             // 改了宗、归附了别国：运动就此散去
-            if (rebel.religion != religion || ModRealm(rebel) != rebel)
+            if (rebel.Religion != religion || ModRealm(rebel) != rebel)
             {
                 EndMovement(religion, movement, null, null);
                 continue;
@@ -1051,7 +1035,7 @@ public static class IslamicSchismSystem
         Regime regime = state.GetRegime();
         if (regime?.options != null && regime.options.ContainsKey("option_religion_type") && regime.GetReligionLevel() < ReligionLevel.High)
             regime.SetReligionLevel(ReligionLevel.High);
-        string text = string.Format(LM.Get("reform_jihad_state_log"), state.GetKingdomName(), movement.name, religion.name);
+        string text = string.Format(LM.Get("reform_jihad_state_log"), state.GetKingdomName(), movement.name, religion.Name);
         EventRecorder.Record(state, text);
         ReligionChronicle.Record(religion, ReligionChronicle.KindHolyWar, text);
         LogService.LogInfo($"{Tag} {movement.name}起事告成，{state.GetKingdomName()} 成圣战之国");
@@ -1068,8 +1052,8 @@ public static class IslamicSchismSystem
         int rank = int.MaxValue, size = -1;
         foreach (Realm kingdom in EmpireWorld.Current.LiveRealms.ToList())
         {
-            if (!Alive(kingdom) || ModRealm(kingdom) != kingdom || kingdom == state || !kingdom.hasReligion()) continue;
-            int order = !ReligionFaith.IsCaliphal(kingdom.religion) ? 0 : kingdom.religion != religion ? 1 : kingdom == origin ? 2 : -1;
+            if (!Alive(kingdom) || ModRealm(kingdom) != kingdom || kingdom == state || !kingdom.HasReligion()) continue;
+            int order = !ReligionFaith.IsCaliphal(kingdom.Religion) ? 0 : kingdom.Religion != religion ? 1 : kingdom == origin ? 2 : -1;
             if (order < 0 || order > rank) continue;
             int cities = Cities(kingdom);
             if (cities > own * JihadTargetRatio || order == rank && cities <= size || !StraitReach.Within(state, kingdom)) continue;
@@ -1080,7 +1064,7 @@ public static class IslamicSchismSystem
         if (target == null) return;
         War war = EmpireWorld.Current.StartWar(state, target, WarKinds.Normal);
         if (war?.Record == null) return;
-        war.SetEmpireWarType(EmpireWarType.神圣, pre: religion.name);
+        war.SetEmpireWarType(EmpireWarType.神圣, pre: religion.Name);
         WarGoalSystem.Preset(war, WarGoal.割地);
         war.Name = string.Format(LM.Get("reform_jihad_war_name"), movement.name, target.GetKingdomName());
         movement.jihads++;
@@ -1137,7 +1121,7 @@ public static class IslamicSchismSystem
         {
             float people = Mathf.Max(1, city.CountLivingPopulation());
             total += people;
-            if (city.religion == faith) followers += people;
+            if (city.Religion == faith) followers += people;
         }
         return total <= 0f ? 0f : followers / total;
     }
@@ -1199,21 +1183,19 @@ public static class IslamicSchismSystem
 #endif
 
     // 已终结的对立哈里发一行："{国号}(都 {城}) · {起}—{止} · {缘由}"
-#if EC_PENDING
     public static string RivalEndedSummary(RivalCaliphateData rival) =>
         string.Format(LM.Get("rival_caliph_ended_row"), rival.realm_name, rival.seat_name, HistoryDateFormatter.GetYear(rival.proclaimed_at),
             HistoryDateFormatter.GetYear(rival.ended_at), LM.Get("rival_caliph_end_label_" + rival.end));
-#endif
 
     // 复古运动一行："{名}(起于 {城}) · {阶段} · 圣战 {n} 次"
 #if EC_PENDING
     public static string MovementSummary(ReformMovementData movement) =>
         string.Format(LM.Get("reform_movement_row"), movement.name, movement.city_name, LM.Get("reform_movement_stage_" + movement.stage),
             movement.jihads, LiveKingdom(movement.kingdom_id)?.GetKingdomName() ?? LM.Get("label_none"));
+#endif
 
     public static List<ReformMovementData> Movements(Religion religion) =>
         Peek(religion)?.movements?.Where(movement => movement != null).ToList() ?? new List<ReformMovementData>();
-#endif
 
     #endregion
 }

@@ -27,7 +27,7 @@ public static partial class SteppeOrderSystem
     public static bool PeacetimeWarAllowed(Realm initiator, Realm target)
     {
         if (initiator?.Record == null || target?.Record == null) return true;
-        Realm realm = FrontSystem.Realm(initiator);
+        Realm realm = FrontSystem.ModRealm(initiator);
         if (!NomadRaidSystem.IsNomad(realm) || TribalFissionService.IsTribal(initiator) || RulerTraitSystem.FounderReigns(realm) ||
             BannerSystem.Organized(realm))
             return true;

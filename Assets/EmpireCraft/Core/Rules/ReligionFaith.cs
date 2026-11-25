@@ -70,18 +70,18 @@ public static class ReligionFaith
         ReligionExtension.ReligionExtraData data = religion.GetOrCreate();
         if (!string.IsNullOrEmpty(data.Faith) && Enum.TryParse(data.Faith, out FaithType stored)) return stored;
         FaithType type;
-        Religion parent = data.ParentReligionId >= 0 && depth < 8 ? EmpireWorld.Current.religions.get(data.ParentReligionId) : null;
+        Religion parent = data.ParentReligionId >= 0 && depth < 8 ? EmpireWorld.Current.Religions.Get(data.ParentReligionId) : null;
         if (parent?.data != null && parent != religion) type = Of(parent, depth + 1);
         else type = OfCulture(ReligionSphere.OriginCulture(religion));
         data.Faith = type.ToString();
         return type;
     }
+#endif
 
     public static void Record(Religion religion, FaithType type)
     {
         if (religion?.data != null) religion.GetOrCreate().Faith = type.ToString();
     }
-#endif
 
     // 教廷(教宗)、哈里发座
 #if EC_PENDING

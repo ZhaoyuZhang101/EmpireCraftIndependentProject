@@ -511,7 +511,7 @@ public static class ImperialLegitimacyChallengeService
         if (history.descriptions.Any(item => item?.description == content)) return;
         history.descriptions.Add(new HistoryDescription
         {
-            time = Date.getDate(GameClock.Now),
+            time = GameClock.DateText(GameClock.Now),
             timestamp = GameClock.Now,
             description = content,
             actor_id = actorId,

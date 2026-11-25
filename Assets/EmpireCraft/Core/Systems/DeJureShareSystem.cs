@@ -372,24 +372,22 @@ public static class DeJureShareSystem
     }
 
     // 兼属方的帝国里有攻方一方(帝国按整个帝国算)、城又不在攻方手里：开战时算收复(见 WarGoalSystem.Claimed)
-#if EC_PENDING
     public static bool ClaimedBy(City city, Realm realm)
     {
-        if (realm == null || !Valid(city) || !Any || city.Realm != null && FrontSystem.Realm(city.Realm) == realm) return false;
+        if (realm == null || !Valid(city) || !Any || city.Realm != null && FrontSystem.ModRealm(city.Realm) == realm) return false;
         foreach (KingdomTitle title in SharedTitles(city))
         {
             Realm holder = title.main_kingdom ?? title.owner?.Realm;
-            if (holder?.Record != null && !holder.IsGone() && FrontSystem.Realm(holder) == realm) return true;
+            if (holder?.Record != null && !holder.IsGone() && FrontSystem.ModRealm(holder) == realm) return true;
         }
         List<EmpireCore> cores = CoresOf(city);
         for (int i = 1; i < cores.Count; i++)
             foreach (Empire empire in EmpireCoreManager.GetEmpires(cores[i]))
                 if (empire?.CoreKingdom != null && !empire.IsGone() && !empire.IsArchived() &&
-                    FrontSystem.Realm(empire.CoreKingdom) == realm)
+                    FrontSystem.ModRealm(empire.CoreKingdom) == realm)
                     return true;
         return false;
     }
-#endif
 
     #endregion
 

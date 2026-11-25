@@ -16,7 +16,7 @@ namespace EmpireCraft.Core
             {
                 if (kingdom?.Record == null || kingdom.IsGone() || !visited.Add(kingdom) ||
                     AncientWarfareCompatibility.Owns(kingdom)) continue;
-                List<Person> units = kingdom.units;
+                List<Person> units = kingdom.People;
                 if (units == null) continue;
                 // Vanilla getUnits dereferences every slot before yielding. Sparse/stale
                 // membership lists must be checked here, without mutating another mod's index.

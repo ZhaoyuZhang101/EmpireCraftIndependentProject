@@ -111,8 +111,8 @@ public static class StateSettlementSystem
         if (spontaneous) return null;
         if (city.Realm.HasEnemies() ||
             city.GetOrCreate().OccupiedStatus?.Count > 0) return "unsafe";
-        if (city.units?.Any(actor => actor != null && !actor.IsGone() && actor.Alive &&
-                actor.hasTrait("plague")) == true) return "unsafe";
+        if (city.People?.Any(actor => actor != null && !actor.IsGone() && actor.Alive &&
+                actor.HasTrait("plague")) == true) return "unsafe";
         return CityPopulationSystem.GetGrowthFactors(city).Famine ? "famine" : null;
     }
 
@@ -557,7 +557,7 @@ public static class StateSettlementSystem
         int food = (int)Math.Ceiling(project.people / targetScale * ModClass.SETTLEMENT_FOOD_YEARS);
         ResourceAsset[] foods = AssetManager.resources.list.Where(resource => resource.type == ResType.Food).ToArray();
         // 自主藩国不会使用帝国核心的粮仓。没有粮仓制度时直接用城市余粮。
-        if (GranarySystem.Realm(payer) == payer && GranarySystem.Enabled(payer) && foods.Length > 0)
+        if (GranarySystem.ModRealm(payer) == payer && GranarySystem.Enabled(payer) && foods.Length > 0)
         {
             project.granary_food = Math.Min(food, (int)Math.Max(0f, payer.GetOrCreate().granary));
             project.granary_resource = foods[0].id;

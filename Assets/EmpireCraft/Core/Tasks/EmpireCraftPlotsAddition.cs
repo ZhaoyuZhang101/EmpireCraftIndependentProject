@@ -64,7 +64,7 @@ namespace EmpireCraft.Core
             return empire.kingdoms_list
                 .Where(target => CanFactionLeaderInfluenceLocalKingdom(actor, target))
                 .OrderBy(target => target.GetFactionRatioValue(faction))
-                .ThenByDescending(target => target.getPopulationPeople())
+                .ThenByDescending(target => target.PopulationCount())
                 .FirstOrDefault();
         }
 
@@ -1252,7 +1252,7 @@ namespace EmpireCraft.Core
                         double rebellingPossibility = 0.2f;
                         if (!target.isOpinionTowardsKingdomGood(empire.CoreKingdom))
                         {
-                            rebellingPossibility = Math.Min(1d, target.countTotalWarriors() /
+                            rebellingPossibility = Math.Min(1d, target.Warriors() /
                                 (double)Math.Max(1, empire.countWarriors())) * 0.5d +
                                 Math.Max(0d, 100d - empire.Legitimacy) / 200d;
                         }
@@ -1341,13 +1341,13 @@ namespace EmpireCraft.Core
                     }
                     if (regime.type != RegimeType.Feudalism || regime.GetReligionLevel() != ReligionLevel.High)
                         return false;
-                    if (kingdom.hasReligion() && kingdom.religion.GetCity() == kingdom.Capital && !ReligionSphere.IsBranch(kingdom.religion))
+                    if (kingdom.HasReligion() && kingdom.Religion.GetCity() == kingdom.Capital && !ReligionSphere.IsBranch(kingdom.Religion))
                     {
-                        Religion religion = kingdom.religion;
+                        Religion religion = kingdom.Religion;
                         
                         // 圣战对象要与本国(或本国所在帝国)接壤：以前只要与任一同教国家接壤就行，会隔着半张地图开战
                         if (EmpireWorld.Current.LiveRealms.ToList().Any(k =>
-                                !religion.kingdoms.Contains(k) && HolyWarNeighbour(kingdom, k))) return true;
+                                !religion.Realms.Contains(k) && HolyWarNeighbour(kingdom, k))) return true;
                     }
                     return false;
                 },
@@ -1359,16 +1359,16 @@ namespace EmpireCraft.Core
                     if (regime == null) return false;
                     if (regime.type != RegimeType.Feudalism || regime.GetReligionLevel() != ReligionLevel.High)
                         return false;
-                    if (kingdom.hasReligion() && kingdom.religion.GetCity() == kingdom.Capital && !ReligionSphere.IsBranch(kingdom.religion))
+                    if (kingdom.HasReligion() && kingdom.Religion.GetCity() == kingdom.Capital && !ReligionSphere.IsBranch(kingdom.Religion))
                     {
-                        Religion religion = kingdom.religion;
+                        Religion religion = kingdom.Religion;
 
                         var target = EmpireWorld.Current.LiveRealms.ToList().Find(k =>
-                            !religion.kingdoms.Contains(k) && HolyWarNeighbour(kingdom, k));
+                            !religion.Realms.Contains(k) && HolyWarNeighbour(kingdom, k));
                         if (target == null) return false;
                         var war = DiplomacyHelpers.wars.newWar(kingdom, target, WarKinds.Normal);
                         if (war == null) return false;
-                        war.SetEmpireWarType(EmpireWarType.神圣, pre:religion.name);
+                        war.SetEmpireWarType(EmpireWarType.神圣, pre:religion.Name);
                         regime.religion_point -= 1000;
                         return true;
                     }
@@ -2297,8 +2297,8 @@ namespace EmpireCraft.Core
                     }
                     if (!kingdom.IsInEmpire())
                     {
-                        float num = city.countWarriors();
-                        float num2 = kingdom.Capital.countWarriors();
+                        float num = city.Warriors();
+                        float num2 = kingdom.Capital.Warriors();
                         if (num < (float)SimGlobals.m.rebellions_min_warriors)
                         {
                             return false;
@@ -2765,7 +2765,7 @@ namespace EmpireCraft.Core
             if (kingdom.IsEmpire() && !RulerQualitySystem.WillsWarThisYear(actor)) return false;
             Regime regime = kingdom.GetRegime();
             if (regime == null || !regime.IsAllowDiplomacy()) return false;
-            if (actor.hasCulture() && actor.culture.hasTrait("serenity_now") ||
+            if (actor.HasCulture() && actor.Culture.HasTrait("serenity_now") ||
                 actor.HasTrait("pacifist")) return false;
             sharedWarPlot ??= AssetManager.plots_library.get("empirecraft_war");
             if (kingdom.hasAlliance())

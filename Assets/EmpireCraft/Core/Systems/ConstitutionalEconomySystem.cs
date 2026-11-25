@@ -570,7 +570,7 @@ public static class ConstitutionalEconomySystem
                      .Where(city => city != null && !city.IsGone()))
         {
             bool foundMerchant = false;
-            foreach (Person actor in city.units ?? Enumerable.Empty<Person>())
+            foreach (Person actor in city.People ?? Enumerable.Empty<Person>())
             {
                 if (actor == null || actor.IsGone() || !actor.Alive || actor.City != city) continue;
                 string key = actor.hasFamily() ? $"f:{actor.family.id}" : $"a:{actor.Key}";

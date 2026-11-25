@@ -211,12 +211,12 @@ public static class OccupationPuppetSystem
     {
         string culture = CultureService.GetMainCulture(seat, initialize: false);
         PartyIdeology ideology = PuppetStateSystem.MasterIdeology(occupier);
-        Person local = (seat.units ?? new List<Person>())
-            .Where(actor => actor?.data != null && !actor.IsGone() && actor.Alive && actor.isAdult() && !actor.isKing() &&
+        Person local = (seat.People ?? new List<Person>())
+            .Where(actor => actor?.Record != null && !actor.IsGone() && actor.Alive && actor.IsAdult() && !actor.IsRuler() &&
                             actor.CanFoundCivKingdom() &&
                             CultureService.SameKin(CultureService.GetActorCulture(actor), culture))
             .OrderByDescending(actor => IdeologyPopulationSystem.Get(actor) == ideology ? 1 : 0)
-            .ThenByDescending(actor => CityPopulationSystem.IsNotable(actor) ? 1 : 0).ThenByDescending(actor => actor.renown)
+            .ThenByDescending(actor => CityPopulationSystem.IsNotable(actor) ? 1 : 0).ThenByDescending(actor => actor.Renown)
             .FirstOrDefault();
         return local ?? (CityPopulationSystem.AbstractPopulationEnabled ? CityPopulationSystem.SpawnScholar(seat) : null);
     }

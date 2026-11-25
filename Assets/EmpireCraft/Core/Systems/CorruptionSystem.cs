@@ -45,7 +45,7 @@ public static class CorruptionSystem
     {
         if (kingdom == null || kingdom.IsGone()) return 0d;
         var rates = LocalRates(kingdom, new[] { kingdom }, null);
-        return CorruptionRules.Realm(kingdom.GetCorruptionRate(), rates.provinces, rates.cities);
+        return CorruptionRules.ModRealm(kingdom.GetCorruptionRate(), rates.provinces, rates.cities);
     }
 
     private static (double provinces, double cities) LocalRates(Realm core, IEnumerable<Realm> realms,

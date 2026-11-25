@@ -59,18 +59,18 @@ public static class ReligiousTension
         ReligionDiagnostics.Reset();
     }
 
-#if EC_PENDING
     public static bool IsHeterodox(City city)
     {
         if (city?.Record == null || city.IsGone() || city.Realm?.Record == null || city.Realm.IsWild) return false;
-        Religion state = city.Realm.religion, local = city.religion;
+        Religion state = city.Realm.Religion, local = city.Religion;
         return state != null && local != null && state != local;
     }
 
+#if EC_PENDING
     public static Policy PolicyOf(Realm kingdom)
     {
         // 国教不排他(多神、萨满、三教、法教、神道，见 ReligionFaith)向来宽容；宗教选项在自由信仰及以下的也宽容(见 TempFac_自由信仰)
-        if (kingdom?.Record != null && kingdom.hasReligion() && !ReligionFaith.IsExclusive(kingdom.religion)) return Policy.Tolerant;
+        if (kingdom?.Record != null && kingdom.HasReligion() && !ReligionFaith.IsExclusive(kingdom.Religion)) return Policy.Tolerant;
         if (FreeBelief(kingdom)) return Policy.Tolerant;
         string culture = CultureService.GetRealmCulture(kingdom);
         // 宽容、人头税是制度特性，照制度文化(旧制犹存的照旧制，见 LegacyInstitutionSystem)；法教传统是文化本身的
@@ -110,7 +110,7 @@ public static class ReligiousTension
         };
 
     public static string Describe(City city) =>
-        string.Format(LM.Get("stability_religion_detail"), city.religion?.name ?? "", LM.Get("religion_policy_" + PolicyOf(city.Realm)));
+        string.Format(LM.Get("stability_religion_detail"), city.Religion?.Name ?? "", LM.Get("religion_policy_" + PolicyOf(city.Realm)));
 #endif
 
     // 每年一次：人头税、宗教叛乱
@@ -210,7 +210,7 @@ public static class ReligiousTension
         StartRevolt(city, "rebellion_reason_religion", Describe(city),
             string.Format(LM.Get("religious_revolt_kingdom_name"), cityName),
             string.Format(LM.Get("religious_revolt_war_name"), cityName),
-            string.Format(LM.Get("religious_revolt_history"), cityName, city.religion?.name ?? ""));
+            string.Format(LM.Get("religious_revolt_history"), cityName, city.Religion?.Name ?? ""));
     }
 #endif
 
@@ -236,11 +236,11 @@ public static class ReligiousTension
     public static bool StartRevolt(City city, string reasonKey, string detail, string kingdomName, string warName, string history)
     {
         Realm origin = city.Realm;
-        Religion faith = city.religion;
+        Religion faith = city.Religion;
         Person leader = CityPopulationSystem.AbstractPopulationEnabled ? CityPopulationSystem.SpawnRebelLeader(city) : null;
-        leader ??= city.units?.Where(actor => actor != null && !actor.IsGone() && actor.Alive && actor.isAdult() &&
-                                              !actor.isKing() && actor.CanFoundCivKingdom())
-            .OrderByDescending(actor => actor.religion == faith).ThenByDescending(actor => actor.data?.renown ?? 0)
+        leader ??= city.People?.Where(actor => actor != null && !actor.IsGone() && actor.Alive && actor.IsAdult() &&
+                                              !actor.IsRuler() && actor.CanFoundCivKingdom())
+            .OrderByDescending(actor => actor.Religion == faith).ThenByDescending(actor => actor.Renown ?? 0)
             .FirstOrDefault();
         if (leader == null) return false;
         RebellionCauseData cause = RebellionSystem.Capture(origin, city, reasonKey, detail);
@@ -251,7 +251,7 @@ public static class ReligiousTension
             RebellionStartupService.RollbackCitySplit(city, origin, rebel);
             return false;
         }
-        if (faith != null) rebel.setReligion(faith);
+        if (faith != null) rebel.SetReligion(faith);
         rebel.Name = kingdomName;
         War war = EmpireWorld.Current.StartWar(rebel, origin, WarKinds.Rebellion);
         if (war == null)

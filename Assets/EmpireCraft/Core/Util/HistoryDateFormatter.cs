@@ -19,7 +19,6 @@ public static class HistoryDateFormatter
     private static readonly Regex NumericDate = new Regex(@"^\s*(?<year>\d+)(?<rest>\s*[/,.-]\s*.*)$",
         RegexOptions.Compiled);
 
-#if EC_PENDING
     public static string GetYear(double timestamp, string fallbackDate = "")
     {
         return Split(timestamp, fallbackDate).year;
@@ -32,15 +31,14 @@ public static class HistoryDateFormatter
 
     public static HistoryDateParts Split(double timestamp, string fallbackDate = "")
     {
-        string date = timestamp >= 0 ? Date.getDate(timestamp) : fallbackDate;
+        string date = timestamp >= 0 ? GameClock.DateText(timestamp) : fallbackDate;
         return SplitText(date, LM.Get("Year"));
     }
-#endif
 
     private static readonly Regex ChineseFullDate = new Regex(@"([\d,]+)\s*年\s*(\d+)\s*月\s*(\d+)\s*日", RegexOptions.Compiled);
     private static readonly Regex EnglishFullDate = new Regex(@"(\d+)\D*?\s+of\s+(.+?),\s*([\d,]+)", RegexOptions.Compiled);
 
-    // 原版 Date.getDate 写出的日期("8,682年6月30日"、"30th of June, 8,682")换回世界时间(一年 60 秒、一月 5 秒、
+    // 原版 GameClock.DateText 写出的日期("8,682年6月30日"、"30th of June, 8,682")换回世界时间(一年 60 秒、一月 5 秒、
     // 一月 30 天)；别的语言的格式认不出返回 false
 #if EC_PENDING
     public static bool TryParseTime(string date, out double time)

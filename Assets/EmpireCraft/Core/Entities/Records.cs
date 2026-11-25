@@ -50,6 +50,8 @@ namespace EmpireCraft.Core
         long _nextKey = 1;
         public int Count => list.Count;
         public long NextKey => _nextKey;
+        // A loaded store goes on numbering where the saved one stopped, so a removed object's key is not handed out again.
+        public void RestoreNextKey(long key) { if (key > _nextKey) _nextKey = key; }
 
         public TObject Get(long key) => _byKey.TryGetValue(key, out TObject found) ? found : null;
         public bool Has(long key) => _byKey.ContainsKey(key);

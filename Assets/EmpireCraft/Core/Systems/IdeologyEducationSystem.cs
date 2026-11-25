@@ -58,11 +58,11 @@ public static class IdeologyEducationSystem
         float share = counts.TryGetValue(ideology, out int own) ? (float)own / total : 0f;
         if (share >= consolidated) return;
         int quota = Math.Max(1, Mathf.RoundToInt(total * push));
-        List<Person> pupils = city.units?
-            .Where(actor => actor != null && !actor.IsGone() && actor.Alive && !actor.isKing() &&
-                            !actor.isCityLeader() && IdeologyPopulationSystem.Get(actor) != ideology &&
+        List<Person> pupils = city.People?
+            .Where(actor => actor != null && !actor.IsGone() && actor.Alive && !actor.IsRuler() &&
+                            !actor.IsCityLeader() && IdeologyPopulationSystem.Get(actor) != ideology &&
                             actor.GetFaction()?.IsParty != true)
-            .OrderBy(actor => actor.getAge())
+            .OrderBy(actor => actor.Age())
             .Take(quota).ToList() ?? new List<Person>();
         foreach (Person pupil in pupils) IdeologyPopulationSystem.Set(pupil, ideology);
         // 无小人模式：背景人口按同样的强度接受国民教育(年轻人为主，这里按全体折算)

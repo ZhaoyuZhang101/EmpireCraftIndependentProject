@@ -78,7 +78,7 @@ public static class SouthernRetreatSystem
             if (Rallied.TryGetValue(empire.Key, out double rallied) && now >= rallied && GameClock.YearsSince(rallied) < 1) return;
             Rallied[empire.Key] = now;
             Realm former = EmpireWorld.Current.RealmByKey(data.southern_ming_invader);
-            if (Alive(former)) Rally(empire, FrontSystem.Realm(former) ?? former);
+            if (Alive(former)) Rally(empire, FrontSystem.ModRealm(former) ?? former);
             return;
         }
         City capital = EmpireCoreManager.Get(empire)?.GetCoreCapital();
@@ -86,7 +86,7 @@ public static class SouthernRetreatSystem
         bool holdsCapital = false, holdsThird = false;
         if (capital?.Realm != null && !capital.IsGone() && capital.Realm.GetEmpire() != empire)
         {
-            Realm holder = FrontSystem.Realm(capital.Realm);
+            Realm holder = FrontSystem.ModRealm(capital.Realm);
             if (Alien(holder, culture))
             {
                 invader = holder;
@@ -149,7 +149,7 @@ public static class SouthernRetreatSystem
             if (!Alive(kingdom) || !kingdom.IsCivilized() || kingdom == courtCore || kingdom == invader || kingdom.Capital == null) continue;
             // 起兵的领头人还在世的不来(见 ScenarioEventSystem.LedByRebelFounder)
             if (ScenarioEventSystem.LedByRebelFounder(kingdom)) continue;
-            if (FrontSystem.Realm(kingdom) != kingdom || kingdom.GetEmpire() == court) continue;
+            if (FrontSystem.ModRealm(kingdom) != kingdom || kingdom.GetEmpire() == court) continue;
             if (invaderEmpire != null && (kingdom.GetEmpire() == invaderEmpire || kingdom.GetTakenAllianceEmpire() == invaderEmpire ||
                                           kingdom.GetGivenAllianceEmpire() == invaderEmpire)) continue;
             if (alliance != null && kingdom.hasAlliance() && kingdom.getAlliance() == alliance) continue;

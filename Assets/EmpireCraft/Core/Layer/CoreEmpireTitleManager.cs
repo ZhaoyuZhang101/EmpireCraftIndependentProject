@@ -199,7 +199,7 @@ public static class EmpireCoreManager
         {
             id = OverallHelperFunc.IdGenerator.NextId(),
             empire_id = empire.Key,
-            culture = empire.CoreKingdom.culture.id,
+            culture = empire.CoreKingdom.Culture.Key,
             default_culture = CultureService.GetRealmCulture(empire.CoreKingdom),
             name = NormalizeCoreName(string.IsNullOrWhiteSpace(coreName) ? empire.GetEmpireName() : coreName),
             create_timestamp = empire.data.created_time,
@@ -449,7 +449,7 @@ public static class EmpireCoreManager
         {
             return core.default_culture.GetCultureTranslate();
         }
-        Culture culture = EmpireWorld.Current.cultures.get(core.culture);
+        Culture culture = EmpireWorld.Current.Cultures.Get(core.culture);
         if (culture != null && !string.IsNullOrWhiteSpace(culture.data?.name))
         {
             return culture.data.name;
@@ -761,7 +761,7 @@ public static class EmpireCoreManager
         {
             id = OverallHelperFunc.IdGenerator.NextId(),
             empire_id = -1L,
-            culture = kingdom?.culture?.id ?? -1L,
+            culture = kingdom?.Culture?.Key ?? -1L,
             default_culture = CultureService.GetRealmCulture(kingdom),
             name = NormalizeCoreName(string.IsNullOrWhiteSpace(title.data?.name)
                 ? (kingdom?.Name ?? capital.GetCityName())

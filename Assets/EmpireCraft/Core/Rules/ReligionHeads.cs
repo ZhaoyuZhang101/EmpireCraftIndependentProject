@@ -46,14 +46,14 @@ public static class ReligionHeads
 
     public static void YearlyPass()
     {
-        if (EmpireWorld.Current?.religions == null) return;
-        foreach (Religion religion in EmpireWorld.Current.religions.list)
+        if (EmpireWorld.Current?.Religions == null) return;
+        foreach (Religion religion in EmpireWorld.Current.Religions.list)
             Note(religion);
     }
+#endif
 
     public static List<ReligionExtension.ReligionHeadRecord> Of(Religion religion) =>
         religion?.data == null ? new List<ReligionExtension.ReligionHeadRecord>()
             : religion.GetOrCreate().Heads ?? new List<ReligionExtension.ReligionHeadRecord>();
-#endif
 }
 }

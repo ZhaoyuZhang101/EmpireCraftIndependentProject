@@ -166,7 +166,7 @@ public static class NavySystem
     {
         if (kingdom == null) return 0f;
         float capacity = Of(kingdom).Sum(fleet => fleet.transports) * ShipCapacity(kingdom);
-        Realm realm = FrontSystem.Realm(kingdom);
+        Realm realm = FrontSystem.ModRealm(kingdom);
         if (realm != null && realm != kingdom)
             capacity += Of(realm).Sum(fleet => fleet.transports) * ShipCapacity(realm);
         return capacity;
@@ -257,27 +257,23 @@ public static class NavySystem
     public static bool IsHostile(Realm side, SeaRegionSystem.Region region) => HostileControl(side, region);
 
     // 本国(连同宗主中央)有战舰在这片海区：运兵船有护航
-#if EC_PENDING
     public static bool Escorted(Realm side, SeaRegionSystem.Region region)
     {
         if (side == null || region == null) return false;
-        Realm realm = FrontSystem.Realm(side);
+        Realm realm = FrontSystem.ModRealm(side);
         return Of(side).Any(fleet => fleet.region_id == region.Id && fleet.warships > 0) ||
                realm != null && realm != side && Of(realm).Any(fleet => fleet.region_id == region.Id && fleet.warships > 0);
     }
-#endif
 
     // 本国(连同宗主中央)战舰总数
-#if EC_PENDING
     public static int Warships(Realm kingdom)
     {
         if (kingdom == null) return 0;
         int total = Of(kingdom).Sum(fleet => fleet.warships);
-        Realm realm = FrontSystem.Realm(kingdom);
+        Realm realm = FrontSystem.ModRealm(kingdom);
         if (realm != null && realm != kingdom) total += Of(realm).Sum(fleet => fleet.warships);
         return total;
     }
-#endif
 
     // 港口被封锁：港外任一海区在敌方手里
 #if EC_PENDING
@@ -293,7 +289,7 @@ public static class NavySystem
     public static List<SeaRegionSystem.Region> HomeWaters(Realm kingdom)
     {
         var result = new List<SeaRegionSystem.Region>();
-        Realm realm = FrontSystem.Realm(kingdom);
+        Realm realm = FrontSystem.ModRealm(kingdom);
         foreach (Realm side in realm != null && realm != kingdom ? new[] { kingdom, realm } : new[] { kingdom })
             foreach (City port in Ports(side))
                 result.AddRange(SeaRegionSystem.RegionsAround(port));
@@ -526,7 +522,7 @@ public static class NavySystem
                 fleet.task = "retreat";
                 FrontSystem.Log(kingdom, string.Format(LM.Get("navy_log_retreat"), Name(fleet)));
             }
-        bool war = kingdom.HasEnemies() || FrontSystem.Realm(kingdom)?.hasEnemies() == true;
+        bool war = kingdom.HasEnemies() || FrontSystem.ModRealm(kingdom)?.HasEnemies() == true;
         var ready = list.Where(fleet => fleet.task != "retreat" && fleet.warships > 0).ToList();
         foreach (FleetData fleet in list.Where(fleet => fleet.task == "retreat"))
         {
@@ -715,7 +711,7 @@ public static class NavySystem
             if (entries.Any(entry => FrontSystem.Hostile(lead.kingdom, entry.kingdom))) continue;
             SeaRegionSystem.Region region = SeaRegionSystem.Get(group.Key);
             if (region == null) continue;
-            region.ControllerId = FrontSystem.Realm(lead.kingdom)?.id ?? lead.kingdom.Key;
+            region.ControllerId = FrontSystem.ModRealm(lead.kingdom)?.Key ?? lead.kingdom.Key;
             region.ControlledAt = now;
         }
     }
@@ -913,11 +909,11 @@ public static class NavySystem
         if (fleet.flagship_id < 0) return;
         Person boat = EmpireWorld.Current.PersonByKey(fleet.flagship_id);
         Cell zone = CorpsSystem.ZoneById(fleet.zone_id);
-        if (boat?.Record == null || boat.IsGone() || !boat.Alive || zone?.Center == null || boat.current_tile == null) return;
+        if (boat?.Record == null || boat.IsGone() || !boat.Alive || zone?.Center == null || boat.Cell == null) return;
         float now = Time.unscaledTime;
         if (FlagshipMoves.TryGetValue(boat.Key, out float next) && now < next) return;
         FlagshipMoves[boat.Key] = now + FlagshipMoveInterval;
-        if (boat.current_tile.zone == zone) return;
+        if (boat.Cell.Zone == zone) return;
         try { boat.goTo(zone.Center, pPathOnWater: true); }
         catch (Exception exception) { LogService.LogWarning($"[EmpireCraft][海军] 旗舰航行失败: {exception.Message}"); }
     }

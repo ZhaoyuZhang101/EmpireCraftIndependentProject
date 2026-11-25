@@ -29,6 +29,7 @@ namespace EmpireCraft.Core
         {
             Map=map??throw new ArgumentNullException(nameof(map));Seed=seed;
             TileCity=new int[map.Count];for(int i=0;i<TileCity.Length;i++)TileCity[i]=-1;
+            Religions=new ReligionStore(this);Cultures=new CultureStore(this);
         }
 
         public int Year=>StartYear+Month/12;
@@ -45,6 +46,8 @@ namespace EmpireCraft.Core
         // The record stores of the ported layer objects, one set per world.
         public readonly EmpireManager Empires=new EmpireManager();
         public readonly KingdomTitleManager Titles=new KingdomTitleManager();
+        public readonly ReligionStore Religions;                // faiths on record (see Beliefs.cs)
+        public readonly CultureStore Cultures;
         // Makes this the world the static ported systems act on.
         public void Activate(){Current=this;ModClass.EMPIRE_MANAGER=Empires;ModClass.KINGDOM_TITLE_MANAGER=Titles;ModClass.IS_CLEAR=false;}
 

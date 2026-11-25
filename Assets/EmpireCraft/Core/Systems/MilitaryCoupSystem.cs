@@ -84,7 +84,6 @@ public static class MilitaryCoupSystem
         !SpecificClanManager.SameLineage(actor.GetSpecificClan(), empire.EmpireSpecificClan);
 
     // 兵权最重的大将、他的兵权占比、驻地
-#if EC_PENDING
     private static (Person general, float share, City seat) Strongest(Empire empire)
     {
         Realm core = empire.CoreKingdom;
@@ -128,6 +127,7 @@ public static class MilitaryCoupSystem
         return (best, bestShare, seat);
     }
 
+#if EC_PENDING
     private static void Execute(Empire empire, ConstitutionalEconomyState state, Person general, City seat)
     {
         Realm core = empire.CoreKingdom;

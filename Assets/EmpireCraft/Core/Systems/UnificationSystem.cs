@@ -1366,7 +1366,7 @@ public static class UnificationSystem
             var regular = members.SelectMany(member => CorpsSystem.Of(member)).Where(corps => !corps.militia && corps.order_id < 0).ToList();
             return (regular.Sum(corps => Mathf.Max(0f, corps.strength)), regular.Sum(corps => Mathf.Max(0f, corps.full)));
         }
-        return (members.Sum(member => member.countTotalWarriors()), members.Sum(member => member.GetOrCreate().peak_warriors));
+        return (members.Sum(member => member.Warriors()), members.Sum(member => member.GetOrCreate().peak_warriors));
     }
 #endif
 

@@ -110,9 +110,7 @@ public static partial class NomadRaidSystem
     private static bool IsRealm(Realm kingdom) =>
         Alive(kingdom) && (kingdom.GetEmpire() is not Empire empire || empire.CoreKingdom == kingdom);
 
-#if EC_PENDING
-    private static Realm ModRealm(Realm kingdom) => FrontSystem.Realm(kingdom);
-#endif
+    private static Realm ModRealm(Realm kingdom) => FrontSystem.ModRealm(kingdom);
 
     // 游牧：本国文化逐水草而居；帝国看主体文化与统治族群(复合帝国)
 #if EC_PENDING
@@ -155,7 +153,7 @@ public static partial class NomadRaidSystem
     // 本国(不连帝国成员)的兵：原版士兵 + 各军团
 #if EC_PENDING
     private static float Troops(Realm kingdom) =>
-        kingdom.countTotalWarriors() + (CorpsSystem.Enabled ? CorpsSystem.Of(kingdom).Sum(corps => Mathf.Max(0f, corps.strength)) : 0f);
+        kingdom.Warriors() + (CorpsSystem.Enabled ? CorpsSystem.Of(kingdom).Sum(corps => Mathf.Max(0f, corps.strength)) : 0f);
 #endif
 
     // 劫掠时拼的国力：帝国核心算整个帝国，帝国的边地成员只算它自己(中央不为劫掠出兵，见 MemberWarAid)
@@ -251,7 +249,6 @@ public static partial class NomadRaidSystem
 #endif
 
     // 买和开的互市(期内照常通市，见 FrontierRelations.Market)
-#if EC_PENDING
     public static bool MarketTreaty(Realm a, Realm b)
     {
         if (a?.Record == null || b?.Record == null) return false;
@@ -262,7 +259,6 @@ public static partial class NomadRaidSystem
         }
         return false;
     }
-#endif
 
     #endregion
 
@@ -460,13 +456,12 @@ public static partial class NomadRaidSystem
     private static double Wealth(Realm target)
     {
         double food = target.Cities.Where(city => city?.Record != null && !city.IsGone()).Sum(city => (double)city.getTotalFood());
-        int households = CityPopulationSystem.AbstractPopulationEnabled ? CityPopulationSystem.Households(target) : target.units?.Count ?? 0;
+        int households = CityPopulationSystem.AbstractPopulationEnabled ? CityPopulationSystem.Households(target) : target.PopulationCount() ?? 0;
         return Math.Max(0d, target.GetMoney()) + food + households;
     }
 #endif
 
     // 断了盟里哪部的岁币、互市的那家
-#if EC_PENDING
     private static bool Grievance(List<Realm> members, Realm target)
     {
         long realm = ModRealm(target)?.Key ?? -1L;
@@ -478,7 +473,6 @@ public static partial class NomadRaidSystem
         }
         return false;
     }
-#endif
 
     #endregion
 

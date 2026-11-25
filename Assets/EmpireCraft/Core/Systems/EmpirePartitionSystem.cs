@@ -110,11 +110,9 @@ public static class EmpirePartitionSystem
             .SelectMany(kingdom => kingdom.Cities ?? new List<City>())
             .Where(city => city?.Record != null && !city.IsGone()).Distinct().ToList();
 
-#if EC_PENDING
     private static float Might(Realm kingdom) =>
         kingdom == null || kingdom.IsGone() ? 0f
-            : kingdom.countTotalWarriors() + (kingdom.Cities ?? new List<City>()).Sum(city => CorpsSystem.EquivalentAt(city));
-#endif
+            : kingdom.Warriors() + (kingdom.Cities ?? new List<City>()).Sum(city => CorpsSystem.EquivalentAt(city));
 
     // 两朝都城的相对方位：东西相距远就分东西，南北相距远就分南北
     private static string Side(Vector2 seat, Vector2 capital)

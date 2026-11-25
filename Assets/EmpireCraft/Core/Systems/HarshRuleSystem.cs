@@ -112,7 +112,7 @@ public static class HarshRuleSystem
         int population = realms.Sum(kingdom => CityPopulationSystem.Households(kingdom));
         if (core.GetWars().Any() && population > 0)
         {
-            float soldiers = realms.Sum(kingdom => kingdom.countTotalWarriors()) / (float)population;
+            float soldiers = realms.Sum(kingdom => kingdom.Warriors()) / (float)population;
             Add("harsh_war", Mathf.Clamp(5f + Mathf.Max(0f, soldiers - 0.1f) * 150f, 0f, 25f));
         }
         if (population > 0 && realms.Sum(kingdom => kingdom.countTotalFood()) < population * 0.5f)
@@ -348,9 +348,9 @@ public static class HarshRuleSystem
     private static bool StartUprising(Empire empire, City city, float burden, string causeKey)
     {
         Realm origin = city.Realm;
-        Person leader = city.units?.Where(actor => actor != null && !actor.IsGone() && actor.Alive &&
-                                                  actor.isAdult() && !actor.isKing() && actor.CanFoundCivKingdom())
-            .OrderByDescending(actor => actor.data?.renown ?? 0).FirstOrDefault();
+        Person leader = city.People?.Where(actor => actor != null && !actor.IsGone() && actor.Alive &&
+                                                  actor.IsAdult() && !actor.IsRuler() && actor.CanFoundCivKingdom())
+            .OrderByDescending(actor => actor.Renown ?? 0).FirstOrDefault();
         // 无小人模式：民变由百姓带头，不由城里的官员、城主带头
         if (CityPopulationSystem.AbstractPopulationEnabled)
             leader = CityPopulationSystem.SpawnRebelLeader(city) ?? leader;

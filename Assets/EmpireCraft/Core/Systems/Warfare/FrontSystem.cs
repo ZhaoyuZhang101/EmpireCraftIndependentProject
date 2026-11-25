@@ -1388,7 +1388,7 @@ public static partial class FrontSystem
     {
         if (kingdom == null) return 1f;
         if (FirepowerCache.TryGetValue(kingdom.Key, out float value)) return value;
-        int vehicles = (kingdom.units?.Count(actor => actor?.data != null && !actor.IsGone() && actor.Alive &&
+        int vehicles = (kingdom.PopulationCount()(actor => actor?.data != null && !actor.IsGone() && actor.Alive &&
                                                       CityPopulationSystem.IsVehicle(actor)) ?? 0) +
                        WarBoxCompatibility.VirtualVehicles(kingdom);
         value = 1f + Mathf.Min(0.6f, vehicles * 0.04f);

@@ -184,8 +184,8 @@ public static class ZhouEraSystem
             .Concat(EmpireWorld.Current.LiveRealms.Where(kingdom => Unsubmitted(empire, kingdom) && StraitReach.Across(empire.CoreKingdom, kingdom)))
             .Distinct()
             .Where(kingdom => Unsubmitted(empire, kingdom) && !kingdom.IsLocalRebelling() && !kingdom.IsFactionRebelling() &&
-                              !kingdom.IsAtWarWith(empire.CoreKingdom) && kingdom.countTotalWarriors() < royal)
-            .OrderBy(kingdom => kingdom.countTotalWarriors()).FirstOrDefault();
+                              !kingdom.IsAtWarWith(empire.CoreKingdom) && kingdom.Warriors() < royal)
+            .OrderBy(kingdom => kingdom.Warriors()).FirstOrDefault();
     }
 #endif
 
@@ -262,7 +262,7 @@ public static class ZhouEraSystem
         (empire?.countCities() ?? 0) + DetachedVassals(empire).Sum(kingdom => kingdom.Cities?.Count ?? 0);
 
     public static int SpherePopulation(Empire empire) =>
-        (empire?.CountPopulation() ?? 0) + DetachedVassals(empire).Sum(kingdom => kingdom.getPopulationPeople());
+        (empire?.CountPopulation() ?? 0) + DetachedVassals(empire).Sum(kingdom => kingdom.PopulationCount());
 #endif
 
     // 战国：诸侯(郡除外)离开帝国，记下所属周室；爵位(国家类别)照旧
@@ -292,10 +292,10 @@ public static class ZhouEraSystem
     // 周室归属变了：整图重画，外框跟着变(原版只在地块所属国或邻接变化时重画)
     private static void RedrawMap() => EmpireWorld.Current?.Zones?.MarkDirty();
 
-#if EC_PENDING
     public static int Power(Realm kingdom) =>
-        kingdom?.Record == null || kingdom.IsGone() ? 0 : (kingdom.Cities?.Count ?? 0) * 4 + kingdom.countTotalWarriors();
+        kingdom?.Record == null || kingdom.IsGone() ? 0 : (kingdom.Cities?.Count ?? 0) * 4 + kingdom.Warriors();
 
+#if EC_PENDING
     public static bool IsHegemon(Realm kingdom) =>
         SphereOf(kingdom) is Empire empire && State(empire).hegemon_id == kingdom.Key;
 
@@ -663,10 +663,10 @@ public static class ZhouEraSystem
         if (state.era_since >= 0d && GameClock.Now >= state.era_since &&
             GameClock.YearsSince(state.era_since) < RoyalGraceYears) return false;
         List<Realm> vassals = Vassals(empire).ToList();
-        int royal = empire.CoreKingdom.countTotalWarriors() +
-                    vassals.Where(vassal => vassal.GetKingdomType() == KingdomType.ZhouFeudalism_jun).Sum(vassal => vassal.countTotalWarriors());
+        int royal = empire.CoreKingdom.Warriors() +
+                    vassals.Where(vassal => vassal.GetKingdomType() == KingdomType.ZhouFeudalism_jun).Sum(vassal => vassal.Warriors());
         return empire.Mandate < (Knows(empire, WarringTech) ? 70 : 60) ||
-               vassals.Any(vassal => vassal.GetKingdomType() != KingdomType.ZhouFeudalism_jun && vassal.countTotalWarriors() > royal);
+               vassals.Any(vassal => vassal.GetKingdomType() != KingdomType.ZhouFeudalism_jun && vassal.Warriors() > royal);
     }
 
     public static void EnterSpring(Empire empire, ZhouEraState state)
@@ -890,8 +890,8 @@ public static class ZhouEraSystem
         var heirs = new List<string>();
         foreach (City seed in new[] { second, third })
         {
-            Person minister = seed.Leader ?? seed.units?.FirstOrDefault(actor => actor != null && actor.Alive &&
-                                                                                actor.isAdult() && actor != vassal.Ruler);
+            Person minister = seed.Leader ?? seed.People?.FirstOrDefault(actor => actor != null && actor.Alive &&
+                                                                                actor.IsAdult() && actor != vassal.Ruler);
             if (minister == null) continue;
             Realm split = seed.makeOwnKingdom(minister);
             if (split == null) continue;
@@ -919,7 +919,7 @@ public static class ZhouEraSystem
     {
         if ((vassal.Cities?.Count ?? 0) < 4 || vassal.Capital == null || Random.value > 0.015f) return;
         City seat = vassal.Cities.Where(city => city != null && !city.IsGone() && city != vassal.Capital && city.Leader != null)
-            .OrderByDescending(city => city.units?.Count ?? 0).FirstOrDefault();
+            .OrderByDescending(city => city.PopulationCount() ?? 0).FirstOrDefault();
         Person usurper = seat?.Leader;
         Person ruler = vassal.Ruler;
         if (usurper == null || usurper.IsGone() || !usurper.Alive || ruler == null ||

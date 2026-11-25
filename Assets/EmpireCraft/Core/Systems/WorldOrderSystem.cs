@@ -515,9 +515,9 @@ public static class WorldOrderSystem
 
     #region 冷战
 
-#if EC_PENDING
-    private static double Years(int years) => years * 12d * Date.getMonthTime();
+    private static double Years(int years) => years * 12d * GameClock.MonthLength;
 
+#if EC_PENDING
     private static void UpdateColdWars(Dictionary<long, double> power, double now)
     {
         // 理念相左、盟主够得着对方的两个阵营：冷战

@@ -222,7 +222,7 @@ public static partial class EmpireLawSystem
             if (!CanResolveCrimeRecord(actor, kingdom, record)) continue;
             record.discovered = true;
             record.discovered_timestamp = GameClock.Now;
-            record.discovered_date = Date.getDate(record.discovered_timestamp);
+            record.discovered_date = GameClock.DateText(record.discovered_timestamp);
             LawEnforcementContext context = TryEnforceLaw(actor, (LawType)record.law_type, kingdom, ApplyRecordedOptionalPunishments,
                 record.crime_date, record.amount);
             if (context == null) continue;

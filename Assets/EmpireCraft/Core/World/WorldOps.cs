@@ -76,7 +76,7 @@ namespace EmpireCraft.Core
         {
             Live(w,city);Live(w,ruler);
             foreach(var other in w.Realms)Require(!(other.Alive&&other.Ruler==ruler),"Ruler already rules a realm");
-            var r=new Realm{Id=w.Realms.Count,Name=name,Color=color,FoundedMonth=w.Month};
+            var r=new Realm{Id=w.Realms.Count,World=w,Name=name,Color=color,FoundedMonth=w.Month};
             w.Realms.Add(r);w.LiveRealms.Add(r);
             Realm previous=city.Realm;
             if(previous!=null)Detach(city);
@@ -92,7 +92,7 @@ namespace EmpireCraft.Core
         {
             Require(tile>=0&&tile<w.TileCity.Length&&w.Settleable(tile)&&w.TileCity[tile]<0,"Realm seat must be free settleable land");
             Live(w,ruler);
-            var r=new Realm{Id=w.Realms.Count,Name=name,Color=color,FoundedMonth=w.Month,Ruler=ruler,RulingClan=ruler.Clan};
+            var r=new Realm{Id=w.Realms.Count,World=w,Name=name,Color=color,FoundedMonth=w.Month,Ruler=ruler,RulingClan=ruler.Clan};
             w.Realms.Add(r);w.LiveRealms.Add(r);ruler.Throne=r;
             var c=new City{Id=w.Cities.Count,World=w,Name=cityName,Tile=tile,Realm=r,FoundedMonth=w.Month,Population=200};
             w.Cities.Add(c);w.TerritoryRevision++;c.Tiles.Add(tile);w.TileCity[tile]=c.Id;r.Cities.Add(c);r.Capital=c;

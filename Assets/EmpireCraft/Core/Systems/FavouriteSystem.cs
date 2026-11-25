@@ -63,10 +63,10 @@ public static class FavouriteSystem
             _ => 0.08f
         };
         if (EcRandom.value >= chance) return;
-        Person favourite = core.units.Where(actor => actor?.data != null && !actor.IsGone() && actor.Alive && actor != emperor &&
+        Person favourite = core.People.Where(actor => actor?.Record != null && !actor.IsGone() && actor.Alive && actor != emperor &&
                                                     actor.IsOnOffice() && !(core.HasHeir() && core.GetHeir() == actor))
-            .OrderByDescending(actor => (actor.hasTrait("greedy") ? 2f : 0f) + (actor.hasTrait("ambitious") ? 1f : 0f) +
-                                        EcRandom.value * 2f - Mathf.Min(actor.renown, 100f) / 100f)
+            .OrderByDescending(actor => (actor.HasTrait("greedy") ? 2f : 0f) + (actor.HasTrait("ambitious") ? 1f : 0f) +
+                                        EcRandom.value * 2f - Mathf.Min(actor.Renown, 100f) / 100f)
             .FirstOrDefault();
         if (favourite == null) return;
         empire.data.favourite_id = favourite.Key;

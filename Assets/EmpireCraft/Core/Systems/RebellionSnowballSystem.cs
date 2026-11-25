@@ -104,11 +104,11 @@ public static class RebellionSnowballSystem
     {
         if (rebel.Capital == null || rebel.Capital.IsGone()) return;
         List<Person> loyal = empire.kingdoms_list.Where(kingdom => kingdom != null && !kingdom.IsGone())
-            .SelectMany(kingdom => kingdom.units ?? new List<Person>())
-            .Where(actor => actor != null && !actor.IsGone() && actor.Alive && actor.isWarrior() && !actor.isKing())
+            .SelectMany(kingdom => kingdom.People ?? new List<Person>())
+            .Where(actor => actor != null && !actor.IsGone() && actor.Alive && actor.IsWarrior() && !actor.IsRuler())
             .ToList();
         if (loyal.Count == 0) return;
-        int rebelSoldiers = rebel.units?.Count(actor => actor != null && actor.Alive && actor.isWarrior()) ?? 0;
+        int rebelSoldiers = rebel.PopulationCount()(actor => actor != null && actor.Alive && actor.isWarrior()) ?? 0;
         float balance = rebelSoldiers / (float)(rebelSoldiers + loyal.Count);
         float fraction = Mathf.Min(ArmyDefectMax, intensity * (ArmyDefectBase + ArmyDefectMomentum * balance));
         int count = Mathf.RoundToInt(loyal.Count * fraction);

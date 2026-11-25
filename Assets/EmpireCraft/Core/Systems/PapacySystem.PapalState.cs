@@ -27,8 +27,8 @@ public static partial class PapacySystem
 #if EC_PENDING
     public static bool HoldsHolyCity(Realm kingdom)
     {
-        if (kingdom?.Record == null || kingdom.IsGone() || !kingdom.hasReligion() || !HasSee(kingdom.religion)) return false;
-        City holy = kingdom.religion.GetCity();
+        if (kingdom?.Record == null || kingdom.IsGone() || !kingdom.HasReligion() || !HasSee(kingdom.Religion)) return false;
+        City holy = kingdom.Religion.GetCity();
         return holy?.Record != null && !holy.IsGone() && holy.Realm == kingdom;
     }
 #endif
@@ -56,14 +56,14 @@ public static partial class PapacySystem
 #if EC_PENDING
     public static void TryYearlyDiagnose()
     {
-        if (EmpireWorld.Current?.religions == null || ModClass.IS_CLEAR) return;
+        if (EmpireWorld.Current?.Religions == null || ModClass.IS_CLEAR) return;
         double now = GameClock.Now;
         if (_lastDiagnose >= 0d && now >= _lastDiagnose && GameClock.YearsSince(_lastDiagnose) < 1) return;
         _lastDiagnose = now;
         try
         {
             var parts = new List<string>();
-            foreach (Religion religion in EmpireWorld.Current.religions)
+            foreach (Religion religion in EmpireWorld.Current.Religions)
             {
                 // 只看有教廷的(教派、地方教会那座城只是中心，立不了教宗国)
                 if (religion?.data == null || religion.IsGone() || !HasSee(religion)) continue;
@@ -74,7 +74,7 @@ public static partial class PapacySystem
                                holder?.Record != null && InstitutionSystem.GetCultureLine(CultureService.GetRealmCulture(holder)) == Line;
                 if (!western) continue;
                 string owner = holder?.Record == null || holder.IsWild ? "无主" : holder.GetKingdomFullName();
-                parts.Add($"{religion.name} 圣地{holy.GetCityName()}(归{owner})：{PapalStateBlocker(religion, holy, holder)}");
+                parts.Add($"{religion.Name} 圣地{holy.GetCityName()}(归{owner})：{PapalStateBlocker(religion, holy, holder)}");
             }
             LogService.LogInfo(parts.Count == 0
                 ? "[EmpireCraft][教廷诊断] 还没有以西方城为圣地的宗教"
@@ -92,7 +92,7 @@ public static partial class PapacySystem
     private static string PapalStateBlocker(Religion religion, City holy, Realm holder)
     {
         if (holder?.Record == null || holder.IsWild || holder.IsGone()) return "圣地无主";
-        if (holder.religion != religion) return $"圣地之主改奉{(holder.hasReligion() ? holder.religion.name : "无")}，教廷无所寄";
+        if (holder.Religion != religion) return $"圣地之主改奉{(holder.HasReligion() ? holder.Religion.Name : "无")}，教廷无所寄";
         if (holder.GetKingdomType() == KingdomType.Feudalism_papal_state) return "已是教宗国";
         Empire empire = holder.IsInEmpire() || holder.IsEmpire() ? holder.GetEmpire() : null;
         if (holder.IsEmpire())

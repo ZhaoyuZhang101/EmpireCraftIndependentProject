@@ -35,9 +35,7 @@ public static class ReligionSphere
         _refreshedAt = -1d;
     }
 
-#if EC_PENDING
     private static bool Alive(Religion religion) => religion?.data != null && !religion.IsGone();
-#endif
 
     public static string SphereOfCulture(string culture) =>
         CultureService.IsValidCulture(culture) ? culture.GetTianxiaId() : "";
@@ -56,7 +54,7 @@ public static class ReligionSphere
         string sphere = "";
         if (data.ParentReligionId >= 0 && depth < 8)
         {
-            Religion parent = EmpireWorld.Current.religions.get(data.ParentReligionId);
+            Religion parent = EmpireWorld.Current.Religions.Get(data.ParentReligionId);
             if (parent != null && parent != religion) sphere = SphereOf(parent, depth + 1);
         }
         if (sphere.Length == 0) sphere = SphereOfCulture(OriginCulture(religion));
@@ -78,7 +76,6 @@ public static class ReligionSphere
 #endif
 
     // 创教时记下(见 ReligionPatch)
-#if EC_PENDING
     public static void Record(Religion religion, string culture)
     {
         string sphere = SphereOfCulture(culture);
@@ -86,7 +83,6 @@ public static class ReligionSphere
     }
 
     public static bool IsNative(Religion religion) => religion?.data != null && religion.GetOrCreate().ParentReligionId < 0;
-#endif
 
     #region 教派与圣地
 
@@ -103,7 +99,7 @@ public static class ReligionSphere
     {
         if (!Alive(religion) || !ReligionFaith.HasHierarchy(religion)) return null;
         long id = religion.GetOrCreate().ParentReligionId;
-        Religion parent = id >= 0 ? EmpireWorld.Current.religions.get(id) : null;
+        Religion parent = id >= 0 ? EmpireWorld.Current.Religions.Get(id) : null;
         return Alive(parent) && parent != religion && ReligionFaith.Of(parent) == ReligionFaith.Of(religion) ? parent : null;
     }
 
@@ -170,7 +166,7 @@ public static class ReligionSphere
         if (string.IsNullOrEmpty(sphere)) return null;
         Refresh(false);
         if (!Orthodox.TryGetValue(sphere, out long id)) return null;
-        Religion religion = EmpireWorld.Current.religions.get(id);
+        Religion religion = EmpireWorld.Current.Religions.Get(id);
         return Alive(religion) ? religion : null;
     }
 #endif
@@ -203,8 +199,8 @@ public static class ReligionSphere
         var spheres = new HashSet<string>(StringComparer.Ordinal);
         foreach (City city in cities)
         {
-            if (city?.Record == null || city.IsGone() || !city.hasReligion() || !IsNative(city.religion)) continue;
-            string sphere = SphereOf(city.religion);
+            if (city?.Record == null || city.IsGone() || !city.HasReligion() || !IsNative(city.Religion)) continue;
+            string sphere = SphereOf(city.Religion);
             if (sphere.Length > 0) spheres.Add(sphere);
         }
         return spheres;
@@ -225,9 +221,9 @@ public static class ReligionSphere
         var believers = new Dictionary<Religion, float>();
         foreach (City city in EmpireWorld.Current.Cities)
         {
-            if (city?.Record == null || city.IsGone() || !city.hasReligion() || !IsNative(city.religion)) continue;
-            believers.TryGetValue(city.religion, out float people);
-            believers[city.religion] = people + Mathf.Max(1, city.CountLivingPopulation());
+            if (city?.Record == null || city.IsGone() || !city.HasReligion() || !IsNative(city.Religion)) continue;
+            believers.TryGetValue(city.Religion, out float people);
+            believers[city.Religion] = people + Mathf.Max(1, city.CountLivingPopulation());
         }
         return believers;
     }
@@ -237,7 +233,7 @@ public static class ReligionSphere
 #if EC_PENDING
     private static void Refresh(bool force)
     {
-        if (EmpireWorld.Current?.Cities == null || EmpireWorld.Current.religions == null || SmoothLoader.isLoading()) return;
+        if (EmpireWorld.Current?.Cities == null || EmpireWorld.Current.Religions == null || SmoothLoader.isLoading()) return;
         double now = GameClock.Now;
         if (!force && _refreshedAt >= 0d && now >= _refreshedAt && GameClock.YearsSince(_refreshedAt) < 1) return;
         _refreshedAt = now;
@@ -258,7 +254,7 @@ public static class ReligionSphere
             // 现任正教还有人奉着、没被超过两成五就留任，免得教宗年年换
             if (Orthodox.TryGetValue(pair.Key, out long incumbentId) && incumbentId != pair.Value.religion.data.id)
             {
-                Religion incumbent = EmpireWorld.Current.religions.get(incumbentId);
+                Religion incumbent = EmpireWorld.Current.Religions.Get(incumbentId);
                 if (Alive(incumbent) && believers.TryGetValue(incumbent, out float held) &&
                     pair.Value.people <= held * OrthodoxSwitchMargin) continue;
             }
@@ -271,10 +267,10 @@ public static class ReligionSphere
 #if EC_PENDING
     public static void RelocateHolyCity(Religion religion, City excluded)
     {
-        if (!Alive(religion) || religion.cities == null) return;
+        if (!Alive(religion) || religion.Cities == null) return;
         City best = null;
         float most = -1f;
-        foreach (City city in religion.cities.ToList())
+        foreach (City city in religion.Cities.ToList())
         {
             if (city?.Record == null || city.IsGone() || city == excluded) continue;
             float people = city.CountLivingPopulation();
@@ -294,7 +290,7 @@ public static class ReligionSphere
         City old = religion.GetCity();
         religion.SetCity(city);
         string from = old?.Record != null && !old.IsGone() ? old.GetCityName() : LM.Get("label_none");
-        string text = string.Format(LM.Get("religion_holy_city_moved_log"), religion.name, from, city.GetCityName());
+        string text = string.Format(LM.Get("religion_holy_city_moved_log"), religion.Name, from, city.GetCityName());
         ReligionChronicle.Record(religion, ReligionChronicle.KindPapacy, text);
         LogService.LogInfo($"[EmpireCraft][宗教] {text}");
     }
@@ -311,13 +307,13 @@ public static class ReligionSphere
         var cities = new Dictionary<Religion, int>();
         foreach (City city in EmpireWorld.Current.Cities)
         {
-            if (city?.Record == null || city.IsGone() || !city.hasReligion()) continue;
-            cities.TryGetValue(city.religion, out int count);
-            cities[city.religion] = count + 1;
+            if (city?.Record == null || city.IsGone() || !city.HasReligion()) continue;
+            cities.TryGetValue(city.Religion, out int count);
+            cities[city.Religion] = count + 1;
         }
         var candidates = new HashSet<Religion>(cities.Keys);
         foreach (Realm kingdom in EmpireWorld.Current.LiveRealms)
-            if (kingdom?.Record != null && !kingdom.IsGone() && kingdom.hasReligion()) candidates.Add(kingdom.religion);
+            if (kingdom?.Record != null && !kingdom.IsGone() && kingdom.HasReligion()) candidates.Add(kingdom.Religion);
         foreach (Religion religion in candidates.ToList())
         {
             if (!IsLocalChurch(religion)) continue;
@@ -325,7 +321,7 @@ public static class ReligionSphere
             if (ReligionFaith.IsCaliphal(religion) && !ReligionFaith.IsCaliphal(OrthodoxOf(SphereOf(religion)))) continue;
             cities.TryGetValue(religion, out int count);
             City holy = PapacySystem.HolyCity(religion);
-            bool holyLost = holy == null || holy.religion != religion;
+            bool holyLost = holy == null || holy.Religion != religion;
             if (!holyLost && count > MergeMaxCities) continue;
             Absorb(religion, OrthodoxOf(SphereOf(religion)));
         }
@@ -340,26 +336,26 @@ public static class ReligionSphere
         Realm witness = null;
         foreach (City city in EmpireWorld.Current.Cities.ToList())
         {
-            if (city?.Record == null || city.IsGone() || city.religion != local) continue;
+            if (city?.Record == null || city.IsGone() || city.Religion != local) continue;
             BackgroundReligionSystem.Convert(city, orthodox, local);
             witness ??= city.Realm;
         }
         foreach (Realm kingdom in EmpireWorld.Current.LiveRealms.ToList())
         {
-            if (kingdom?.Record == null || kingdom.IsGone() || kingdom.religion != local) continue;
-            kingdom.setReligion(orthodox);
+            if (kingdom?.Record == null || kingdom.IsGone() || kingdom.Religion != local) continue;
+            kingdom.SetReligion(orthodox);
             witness ??= kingdom;
         }
         foreach (Person actor in EmpireWorld.Current.Living.ToList())
-            if (actor?.Record != null && !actor.IsGone() && actor.Alive && actor.religion == local) actor.setReligion(orthodox);
-        string text = string.Format(LM.Get("religion_merged_log"), local.name, orthodox.name);
+            if (actor?.Record != null && !actor.IsGone() && actor.Alive && actor.Religion == local) actor.SetReligion(orthodox);
+        string text = string.Format(LM.Get("religion_merged_log"), local.Name, orthodox.Name);
         TranslateHelper.LogEventMessage(text, witness);
         ReligionChronicle.Record(orthodox, local, ReligionChronicle.KindConversion, text);
         ReligionExtension.ReligionExtraData data = orthodox.GetOrCreate();
         data.Absorbed ??= new List<ReligionExtension.ReligionEventData>();
         data.Absorbed.Add(new ReligionExtension.ReligionEventData
-            { at = GameClock.Now, kind = ReligionChronicle.KindConversion, text = local.name });
-        LogService.LogInfo($"[EmpireCraft][宗教] {local.name} 并入本天下正教 {orthodox.name}");
+            { at = GameClock.Now, kind = ReligionChronicle.KindConversion, text = local.Name });
+        LogService.LogInfo($"[EmpireCraft][宗教] {local.Name} 并入本天下正教 {orthodox.Name}");
     }
 #endif
 

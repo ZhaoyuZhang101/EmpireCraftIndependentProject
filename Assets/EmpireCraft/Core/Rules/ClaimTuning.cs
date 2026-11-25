@@ -82,7 +82,7 @@ public static class ClaimTuning
     {
         int households = localPayer != null
             ? CityPopulationSystem.AbstractPopulationEnabled ? CityPopulationSystem.FiscalHouseholds(localPayer)
-                : localPayer.getPopulationTotal()
+                : localPayer.PopulationCount()
             : empire == null ? 0
                 : CityPopulationSystem.AbstractPopulationEnabled ? CityPopulationSystem.FiscalHouseholds(empire)
                     : empire.CountPopulation();

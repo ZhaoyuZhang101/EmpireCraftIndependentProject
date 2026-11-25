@@ -126,7 +126,7 @@ public static class FrontierRelations
         InstitutionSystem.HasFeature(CultureService.GetInstitutionCulture(kingdom), CaravanFeature);
 
     private static int Population(Realm kingdom) =>
-        CityPopulationSystem.AbstractPopulationEnabled ? CityPopulationSystem.Households(kingdom) : kingdom.units?.Count ?? 0;
+        CityPopulationSystem.AbstractPopulationEnabled ? CityPopulationSystem.Households(kingdom) : kingdom.PopulationCount() ?? 0;
 #endif
 
     private static bool RaidedWithin(Realm kingdom, int years)

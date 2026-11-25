@@ -108,7 +108,7 @@ public static partial class NomadRaidSystem
         bool otherWars = payer.GetWars().Any(other => other?.Record != null && other != war && !other.HasEnded());
         if (EcRandom.value >= SteppeRules.BuyOffChance(state.sacked, ratio, otherWars)) return;
         int funds = StateSettlementSystem.DiscretionaryFunds(payer);
-        int households = CityPopulationSystem.AbstractPopulationEnabled ? CityPopulationSystem.Households(target) : target.units?.Count ?? 0;
+        int households = CityPopulationSystem.AbstractPopulationEnabled ? CityPopulationSystem.Households(target) : target.PopulationCount() ?? 0;
         int ransom = Math.Max(MinRansom, Math.Max(households / 4, payer.GetMoney() / 10));
         Realm leader = LiveKingdom(state.leader_id);
         Empire empire = payer.IsEmpire() ? payer.GetEmpire() : null;

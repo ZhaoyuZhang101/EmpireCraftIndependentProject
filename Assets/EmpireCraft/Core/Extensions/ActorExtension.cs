@@ -49,12 +49,10 @@ public class Name
     {
         return !string.IsNullOrEmpty(firstName);
     }
-#if EC_PENDING
     public bool hasCulture(Person actor)
     {
-        return actor.hasCulture();
+        return actor.HasCulture();
     }
-#endif
 
     public void Initialize(Setting setting, string culture)
     {
@@ -95,9 +93,9 @@ public class Name
                     cityName = actor.City.Name;
                 } else
                 {
-                    if (actor.current_tile.hasCity())
+                    if (actor.Cell.hasCity())
                     {
-                        cityName = actor.current_tile.zone_city.name;
+                        cityName = actor.Cell.City.Name;
                     } else
                     {
                         if (actor.GetParents().Count()>0) 
@@ -608,12 +606,12 @@ public static class ActorExtension
 
     public static bool HasNearbyEnemyAttackOpportunity(this Person a)
     {
-        if (a == null || a.Realm == null || a.current_tile?.zone == null)
+        if (a == null || a.Realm == null || a.Cell?.Zone == null)
         {
             return false;
         }
 
-        Cell currentZone = a.current_tile.zone;
+        Cell currentZone = a.Cell.Zone;
         if (HasEnemyArmyInZone(a, currentZone))
         {
             return true;
@@ -638,7 +636,7 @@ public static class ActorExtension
 
     private static bool IsNearbyEnemyAttackTarget(this Person a, Cell requestedTile)
     {
-        Cell currentZone = a?.current_tile?.zone;
+        Cell currentZone = a?.Cell?.Zone;
         Cell requestedZone = requestedTile?.Zone;
         if (currentZone == null || requestedZone == null)
         {
@@ -659,15 +657,15 @@ public static class ActorExtension
         }
 
         City city = zone.City;
-        if (city?.units == null)
+        if (city?.People == null)
         {
             return false;
         }
 
-        for (int i = 0; i < city.units.Count; i++)
+        for (int i = 0; i < city.PopulationCount(); i++)
         {
-            Person other = city.units[i];
-            if (other == null || other == actor || !other.hasArmy() || other.current_tile?.zone != zone)
+            Person other = city.People[i];
+            if (other == null || other == actor || !other.hasArmy() || other.Cell?.Zone != zone)
             {
                 continue;
             }
@@ -987,18 +985,18 @@ public static class ActorExtension
             return;
         }
 
-        if (a.current_tile == null)
+        if (a.Cell == null)
         {
             return;
         }
 
-        float dist = Land.SquaredDist(a.current_tile, pTileTarget);
+        float dist = Land.SquaredDist(a.Cell, pTileTarget);
 
         LogService.LogInfo("士兵移动距离: " + dist);
 
         a.setIsMoving();
 
-        if (pTileTarget.isOnFire() && !a.current_tile.isOnFire() && !a.isImmuneToFire())
+        if (pTileTarget.isOnFire() && !a.Cell.isOnFire() && !a.isImmuneToFire())
         {
             a.cancelAllBeh();
             return;
@@ -1013,7 +1011,7 @@ public static class ActorExtension
         }
 
         a.setCurrentTile(a._next_step_tile);
-        a.checkStepActionForTile(a.current_tile);
+        a.checkStepActionForTile(a.Cell);
         a.next_step_position = new Vector3(pTileTarget.posV3.x, pTileTarget.posV3.y);
 
         LogService.LogInfo("士兵移动成功");
@@ -1079,14 +1077,13 @@ public static class ActorExtension
             TrimPersonalHistory(person);
     }
 
-#if EC_PENDING
     public static void RecordPersonalHistory(this PersonalClanIdentity identity, string content, string historyDate = null,
         string kingdomName = "", long empireId = -1L, string eventKey = "", long relatedActorId = -1L,
         long relatedPersonalIdentityId = -1L, bool major = false)
     {
         if (identity == null || EmpireWorld.Current == null || ModClass.IS_CLEAR || string.IsNullOrWhiteSpace(content)) return;
         double now = GameClock.Now;
-        if (string.IsNullOrWhiteSpace(historyDate)) historyDate = Date.getDate(now);
+        if (string.IsNullOrWhiteSpace(historyDate)) historyDate = GameClock.DateText(now);
         identity.personal_history ??= new List<PersonalHistoryRecord>();
         var record = new PersonalHistoryRecord
         {
@@ -1108,7 +1105,6 @@ public static class ActorExtension
             : relatedActorId > 0 ? EmpireWorld.Current.PersonByKey(relatedActorId)?.GetPersonalIdentity() : null;
         relatedIdentity?.AddRelatedHistoryRecord(record);
     }
-#endif
     public static void RemoveSpecificClan(this Person a)
     {
         if (a == null) return;
@@ -1135,7 +1131,7 @@ public static class ActorExtension
     public static double TrueBirthTime(this Person a) =>
         a?.Record == null ? 0d : a.BirthStamp - Math.Max(0, a.Record.age_overgrowth - 1) * 60d;
 
-    public static string TrueBirthday(this Person a) => Date.getDate(a.TrueBirthTime());
+    public static string TrueBirthday(this Person a) => GameClock.DateText(a.TrueBirthTime());
 
     public static PersonalClanIdentity InitialPersonalIdentity(this Person a, SpecificClan clan)
     {
@@ -1153,29 +1149,29 @@ public static class ActorExtension
         }
         return pci;
     }
+#endif
 
     public static Culture GetCulture(this Person a)
     {
         if (a == null) return null;
-        if (a.hasCulture())
+        if (a.HasCulture())
         {
-            return a.culture;
+            return a.Culture;
         } else
         {
             if (a.GetParents().Any())
             {
                 foreach(Person parent in a.GetParents())
                 {
-                    if (parent.hasCulture())
+                    if (parent.HasCulture())
                     {
-                        return parent.culture;
+                        return parent.Culture;
                     }
                 }
             }
         }
         return null;
     }
-#endif
 
     public static bool HasSpecificClan(this Person a)
     {

@@ -129,7 +129,7 @@ public static class PrinceLineage
         son.personal_history.Add(new PersonalHistoryRecord
         {
             timestamp = GameClock.Now,
-            date = Date.getDate(GameClock.Now),
+            date = GameClock.DateText(GameClock.Now),
             content = string.Format(LM.Get("personal_history_peerage_granted"), empire.GetEmpireFullName(), title),
             kingdom_name = empire.CoreKingdom?.GetKingdomName() ?? "",
             empire_id = empire.Key,

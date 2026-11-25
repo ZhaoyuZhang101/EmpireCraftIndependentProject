@@ -20,7 +20,7 @@ public class EmpireCraftKingdomBehCheckReligionKingdom: GameAIKingdomBase
         var regime = pKingdom.GetRegime();
         if (regime == null) return BehResult.Continue;
         if (pKingdom.GetKingdomType() != KingdomType.Feudalism_papal_state) return BehResult.Continue;
-        var saintCity = pKingdom.religion?.GetCity();
+        var saintCity = pKingdom.Religion?.GetCity();
         if (saintCity == null)
         {
             regime.SetReligionLevel(ReligionLevel.Medium);
@@ -30,7 +30,7 @@ public class EmpireCraftKingdomBehCheckReligionKingdom: GameAIKingdomBase
 
         if (pKingdom.Cities.Contains(saintCity))
         {
-            if (!saintCity.isCapitalCity())
+            if (!saintCity.IsCapital())
             {
                 pKingdom.SetCapital(saintCity);
             }

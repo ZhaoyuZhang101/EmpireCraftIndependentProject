@@ -190,7 +190,7 @@ public static class PeaceTermRules
         Realm side = attackers ? war?.MainAttacker : war?.MainDefender, foe = attackers ? war?.MainDefender : war?.MainAttacker;
         if (war?.Record == null || side?.Record == null || side.IsGone()) return result;
         int value = RealmValue(side);
-        Realm realm = FrontSystem.Realm(side) ?? side;
+        Realm realm = FrontSystem.ModRealm(side) ?? side;
         var data = realm.GetOrCreate();
         result.yearCount = (int)WarSituation.WarYears(war);
         result.unpaidMonths = Math.Max(0, data.corps_unpaid_months);

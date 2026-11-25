@@ -526,7 +526,7 @@ public static class NomadCycleSystem
 #if EC_PENDING
     public static float HomesickLevy(Realm kingdom, int months)
     {
-        if (!Homesick(FrontSystem.Realm(kingdom))) return 1f;
+        if (!Homesick(FrontSystem.ModRealm(kingdom))) return 1f;
         float years = months / 12f;
         return years <= HomesickGraceYears ? 1f
             : Mathf.Max(HomesickLevyFloor, 1f - HomesickLevyPerYear * (years - HomesickGraceYears));
@@ -538,7 +538,7 @@ public static class NomadCycleSystem
     public static float HomesickLevy(Realm kingdom)
     {
         int months = 0;
-        foreach (Realm side in new[] { kingdom, FrontSystem.Realm(kingdom) })
+        foreach (Realm side in new[] { kingdom, FrontSystem.ModRealm(kingdom) })
         {
             if (side?.Record == null || side.IsGone()) continue;
             foreach (War war in side.GetWars())

@@ -45,13 +45,11 @@ public static partial class PapacySystem
         return empire.data.papal ??= new PapalRelationState();
     }
 
-#if EC_PENDING
     public static Religion ReligionOf(Empire empire)
     {
         Realm core = empire?.CoreKingdom;
-        return core != null && core.hasReligion() ? core.religion : null;
+        return core != null && core.HasReligion() ? core.Religion : null;
     }
-#endif
 
     // 奉不奉教廷是宗教亲和，照风俗文化(旧制犹存不改口径，见 InstitutionSystem.GetCustomsCulture)
 #if EC_PENDING
@@ -67,13 +65,13 @@ public static partial class PapacySystem
         !empire.CoreKingdom.IsGone() && IsWestern(empire) && !RepublicSystem.IsRepublic(empire) &&
         RegimeManager.IsMonarchy(empire.CoreKingdom.GetRegime()?.type) && HolyCity(ReligionOf(empire)) != null &&
         ReligionFaith.IsPapal(ReligionOf(empire)) && !ReligionSphere.IsLocalChurch(ReligionOf(empire));
+#endif
 
     public static City HolyCity(Religion religion)
     {
         City city = religion?.GetCity();
         return city?.Record != null && !city.IsGone() && city.Realm != null && !city.Realm.IsWild ? city : null;
     }
-#endif
 
     // 有教廷(教宗、哈里发座)：普世教会、伊斯兰的本宗(见 ReligionFaith)。同天下的地方教会、分出去的教派都没有——
     // 一个天下一处圣地、一位教宗，号召力在本宗(见 ReligionSphere"教派与圣地")。
@@ -97,7 +95,7 @@ public static partial class PapacySystem
     {
         if (!HasSee(religion)) return null;
         Realm holder = HolyCity(religion)?.Realm;
-        return holder?.Record != null && !holder.IsGone() && holder.religion == religion ? holder : null;
+        return holder?.Record != null && !holder.IsGone() && holder.Religion == religion ? holder : null;
     }
 
     public static Person Pope(Religion religion)
@@ -133,6 +131,7 @@ public static partial class PapacySystem
         City holy = HolyCity(religion);
         return holy != null && Papacy(religion) == core && core.Capital == holy;
     }
+#endif
 
     public static float Authority(Religion religion) => religion?.data == null ? 0f : religion.GetOrCreate().PapalAuthority;
 
@@ -142,7 +141,6 @@ public static partial class PapacySystem
         var data = religion.GetOrCreate();
         data.PapalAuthority = Mathf.Clamp(data.PapalAuthority + delta, 0f, 100f);
     }
-#endif
 
     // 脱离罗马(宗教改革)或世俗化：施行了世俗化；另立过国教会或君主率国改奉了新教会(national_church_id)；所奉就是宗教改革分出的新教会；
     // 本文化施行了宗教改革而所奉已不是有教廷的本土普世教会(剧本里的路德宗、正教会等)。
@@ -267,10 +265,10 @@ public static partial class PapacySystem
     {
         if (string.IsNullOrEmpty(culture) || EmpireWorld.Current?.LiveRealms == null) return null;
         foreach (Realm kingdom in EmpireWorld.Current.LiveRealms)
-            if (kingdom?.Record != null && !kingdom.IsGone() && kingdom.hasReligion() &&
+            if (kingdom?.Record != null && !kingdom.IsGone() && kingdom.HasReligion() &&
                 string.Equals(CultureService.GetRealmCulture(kingdom), culture, StringComparison.Ordinal) &&
-                HolyCity(kingdom.religion) != null)
-                return kingdom.religion;
+                HolyCity(kingdom.Religion) != null)
+                return kingdom.Religion;
         return null;
     }
 #endif

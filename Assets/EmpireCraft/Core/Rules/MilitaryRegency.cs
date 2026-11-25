@@ -373,10 +373,10 @@ public static class MilitaryRegency
             .ThenByDescending(kingdom => kingdom.Cities?.Count ?? 0)
             .Select(kingdom => kingdom.Ruler).FirstOrDefault();
         if (lord != null) return lord;
-        return empire.CoreKingdom.units?
+        return empire.CoreKingdom.People?
             .Where(actor => Eligible(empire, actor) && Fresh(actor) && actor.HasOfficeIdentity() &&
                             actor.GetIdentity()?.officialLevel is >= 9 and <= 12)
-            .OrderBy(actor => actor.GetIdentity().officialLevel).ThenByDescending(actor => actor.data?.renown ?? 0)
+            .OrderBy(actor => actor.GetIdentity().officialLevel).ThenByDescending(actor => actor.Renown ?? 0)
             .FirstOrDefault();
     }
 #endif

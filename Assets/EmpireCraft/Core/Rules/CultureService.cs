@@ -93,7 +93,7 @@ public static class CultureService
         if (IsValidCulture(data.realm_culture)) return data.realm_culture;
 
         // 旧档缺少 realm_culture 时先恢复国家已有的绑定，不能让外文化的新君主改写国家身份。
-        string culture = CulturePatch.GetInjectedCultureName(kingdom.culture);
+        string culture = CulturePatch.GetInjectedCultureName(kingdom.Culture);
         if (!IsValidCulture(culture)) culture = GetActorCulture(kingdom.Ruler);
         if (!IsValidCulture(culture) && kingdom.Capital != null)
         {
@@ -153,7 +153,7 @@ public static class CultureService
         string own = GetActorCulture(ruler);
         if (!IsValidCulture(culture) || string.Equals(own, culture, StringComparison.Ordinal)) return;
         Culture native = GetNativeCultureObject(culture);
-        if (native != null && ruler.culture != native) ruler.setCulture(native);
+        if (native != null && ruler.Culture != native) ruler.SetCulture(native);
         var identity = ruler.GetPersonalIdentity();
         if (identity != null) identity.culture = culture;
         ruler.GetModName()?.SetName(ruler);
@@ -197,7 +197,7 @@ public static class CultureService
         if (nativeCulture != null)
         {
             CulturePatch.SyncCultureDisplayName(nativeCulture, culture);
-            if (kingdom.culture != nativeCulture) kingdom.setCulture(nativeCulture);
+            if (kingdom.Culture != nativeCulture) kingdom.SetCulture(nativeCulture);
         }
         if (updatePoliticalSystem && !keepLegacy) ApplyCulturePoliticalSystem(kingdom, culture);
         return changed;
@@ -693,7 +693,7 @@ public static class CultureService
 #if EC_PENDING
     public static bool ApplyPopulationPressure(City city, bool force = false)
     {
-        if (city?.Record == null || city.IsGone() || city.units == null) return false;
+        if (city?.Record == null || city.IsGone() || city.People == null) return false;
         CityExtension.CityExtraData data = city.GetOrCreate();
         data.culture_shares ??= new Dictionary<string, float>();
         if (!HasValidShares(data.culture_shares)) return false;
@@ -707,9 +707,9 @@ public static class CultureService
 
         Dictionary<string, int> counts = new Dictionary<string, int>();
         int recognizedPopulation = 0;
-        for (int i = 0; i < city.units.Count; i++)
+        for (int i = 0; i < city.PopulationCount(); i++)
         {
-            Person actor = city.units[i];
+            Person actor = city.People[i];
             if (actor == null || actor.IsGone() || !actor.Alive) continue;
             string culture = GetActorCulture(actor);
             if (!IsValidCulture(culture)) continue;
@@ -899,9 +899,9 @@ public static class CultureService
     public static void MigrateWorldCultureData()
     {
         if (EmpireWorld.Current == null) return;
-        if (EmpireWorld.Current.cultures != null)
+        if (EmpireWorld.Current.Cultures != null)
         {
-            foreach (Culture culture in EmpireWorld.Current.cultures)
+            foreach (Culture culture in EmpireWorld.Current.Cultures)
                 CulturePatch.SyncCultureDisplayName(culture);
         }
         foreach (EmpireCore core in EmpireCoreManager.EmpireCores.Values)
@@ -1069,9 +1069,9 @@ public static class CultureService
 #endif
 
     // 按模组文化名找原版文化对象要逐个比对全部文化，决策检查里每个君主、城主都会调：记十秒
-#if EC_PENDING
     private static readonly Dictionary<string, (Culture culture, float at)> NativeCultureCache = new(StringComparer.Ordinal);
 
+#if EC_PENDING
     private static Culture CachedNativeCulture(string culture)
     {
         float now = global::Time.unscaledTime;
@@ -1090,10 +1090,10 @@ public static class CultureService
     {
         if (kingdom?.Record == null || kingdom.IsGone()) return;
         string realm = kingdom.GetOrCreate().realm_culture;
-        if (!IsValidCulture(realm) || string.Equals(CulturePatch.GetInjectedCultureName(kingdom.culture), realm, StringComparison.Ordinal))
+        if (!IsValidCulture(realm) || string.Equals(CulturePatch.GetInjectedCultureName(kingdom.Culture), realm, StringComparison.Ordinal))
             return;
         Culture native = CachedNativeCulture(realm);
-        if (native != null) kingdom.setCulture(native);
+        if (native != null) kingdom.SetCulture(native);
     }
 #endif
 
@@ -1103,12 +1103,12 @@ public static class CultureService
     {
         if (city?.Record == null || city.IsGone()) return;
         string main = city.GetOrCreate().main_culture;
-        if (!IsValidCulture(main) || string.Equals(CulturePatch.GetInjectedCultureName(city.culture), main, StringComparison.Ordinal))
+        if (!IsValidCulture(main) || string.Equals(CulturePatch.GetInjectedCultureName(city.Culture), main, StringComparison.Ordinal))
             return;
         Culture native = CachedNativeCulture(main);
-        if (native == null || city.culture == native) return;
-        city.culture = native;
-        EmpireWorld.Current?.cultures?.setDirtyCities();
+        if (native == null || city.Culture == native) return;
+        city.Culture = native;
+        EmpireWorld.Current?.Cultures?.setDirtyCities();
     }
 #endif
 
@@ -1118,7 +1118,7 @@ public static class CultureService
     public static bool AllowLeaderCityCulture(Person actor)
     {
         City city = actor?.City;
-        if (city?.Record == null || city.IsGone() || actor.culture == null ||
+        if (city?.Record == null || city.IsGone() || actor.Culture == null ||
             EmpireCraft.Core.AncientWarfareCompatibility.OwnsObject(city)) return true;
         if (IsCityMainCultureLocked(city))
         {
@@ -1127,7 +1127,7 @@ public static class CultureService
         }
         string leaderCulture = GetActorCulture(actor);
         return !IsValidCulture(leaderCulture) ||
-               !string.Equals(leaderCulture, CulturePatch.GetInjectedCultureName(city.culture), StringComparison.Ordinal);
+               !string.Equals(leaderCulture, CulturePatch.GetInjectedCultureName(city.Culture), StringComparison.Ordinal);
     }
 #endif
 
@@ -1201,14 +1201,14 @@ public static class CultureService
         if (city?.Record == null || city.IsGone() || !IsValidCulture(culture)) return false;
         CityExtension.CityExtraData data = city.GetOrCreate();
         string previousCulture = GetMainCulture(city);
-        Person template = city.Leader ?? city.Realm?.Ruler ?? city.units?.FirstOrDefault(actor =>
+        Person template = city.Leader ?? city.Realm?.Ruler ?? city.People?.FirstOrDefault(actor =>
             actor != null && !actor.IsGone() && actor.Alive);
         Culture nativeCulture = ResolveNativeCulture(culture, template, createIfMissing: true);
         if (nativeCulture != null)
-            foreach (Person resident in city.units?.Where(actor => actor?.data != null && !actor.IsGone() && actor.Alive).ToList() ??
+            foreach (Person resident in city.People?.Where(actor => actor?.Record != null && !actor.IsGone() && actor.Alive).ToList() ??
                                        new List<Person>())
                 if (!string.Equals(GetActorCulture(resident), culture, StringComparison.Ordinal))
-                    resident.setCulture(nativeCulture);
+                    resident.SetCulture(nativeCulture);
         CityPopulationSystem.ConvertBackgroundCulture(city, culture);
         data.culture_shares ??= new Dictionary<string, float>();
         data.culture_shares.Clear();
@@ -1219,10 +1219,10 @@ public static class CultureService
         data.occupation_pressure_culture = "";
         data.last_culture_share_sync_timestamp = EmpireWorld.Current?.Now() ?? -1d;
         if (!string.Equals(previousCulture, culture, StringComparison.Ordinal)) ApplyCulturalCityRename(city, previousCulture, culture);
-        if (nativeCulture != null && city.culture != nativeCulture)
+        if (nativeCulture != null && city.Culture != nativeCulture)
         {
-            city.culture = nativeCulture;
-            EmpireWorld.Current?.cultures?.setDirtyCities();
+            city.Culture = nativeCulture;
+            EmpireWorld.Current?.Cultures?.setDirtyCities();
         }
         EmpireCraftNamePlateLibrary.RequestRefresh();
         return true;
@@ -1233,18 +1233,18 @@ public static class CultureService
         if (!FindCultureRestorationCandidate(city, controller, out string culture)) return false;
         CityExtension.CityExtraData data = city.GetOrCreate();
         string previousCulture = GetMainCulture(city);
-        Person template = city.Leader ?? controller.Ruler ?? city.units?.FirstOrDefault(actor =>
+        Person template = city.Leader ?? controller.Ruler ?? city.People?.FirstOrDefault(actor =>
             actor != null && !actor.IsGone() && actor.Alive);
         Culture nativeCulture = ResolveNativeCulture(culture, template, createIfMissing: true);
         if (nativeCulture == null) return false;
 
-        List<Person> residents = city.units?
-            .Where(actor => actor?.data != null && !actor.IsGone() && actor.Alive)
+        List<Person> residents = city.People?
+            .Where(actor => actor?.Record != null && !actor.IsGone() && actor.Alive)
             .ToList() ?? new List<Person>();
         foreach (Person resident in residents)
         {
             if (!string.Equals(GetActorCulture(resident), culture, StringComparison.Ordinal))
-                resident.setCulture(nativeCulture);
+                resident.SetCulture(nativeCulture);
         }
         CityPopulationSystem.ConvertBackgroundCulture(city, culture);
 
@@ -1259,10 +1259,10 @@ public static class CultureService
         data.culture_restoration_available = false;
         data.last_culture_share_sync_timestamp = EmpireWorld.Current?.Now() ?? -1d;
         ApplyCulturalCityRename(city, previousCulture, culture);
-        if (city.culture != nativeCulture)
+        if (city.Culture != nativeCulture)
         {
-            city.culture = nativeCulture;
-            EmpireWorld.Current?.cultures?.setDirtyCities();
+            city.Culture = nativeCulture;
+            EmpireWorld.Current?.Cultures?.setDirtyCities();
         }
         EmpireCraftNamePlateLibrary.RequestRefresh();
         TranslateHelper.LogCityCultureRestored(city, previousCulture, culture);
@@ -1972,7 +1972,7 @@ public static class CultureService
         string target = GetMainCulture(city);
         if (!IsValidCulture(target) || GetActorCulture(actor) == target) return;
         Culture nativeCulture = ResolveNativeCulture(target, actor, createIfMissing);
-        if (nativeCulture != null) actor.setCulture(nativeCulture);
+        if (nativeCulture != null) actor.SetCulture(nativeCulture);
     }
 #endif
 
@@ -1993,13 +1993,13 @@ public static class CultureService
 
     private static Culture ResolveNativeCulture(string target, Person founder, bool createIfMissing = true)
     {
-        if (!IsValidCulture(target) || EmpireWorld.Current?.cultures == null) return null;
-        foreach (Culture culture in EmpireWorld.Current.cultures)
+        if (!IsValidCulture(target) || EmpireWorld.Current?.Cultures == null) return null;
+        foreach (Culture culture in EmpireWorld.Current.Cultures)
         {
             if (CulturePatch.GetInjectedCultureName(culture) == target) return culture;
         }
         if (!createIfMissing || founder?.Record == null || founder.IsGone() || founder.City?.Record == null) return null;
-        Culture created = EmpireWorld.Current.cultures.newCulture(founder, true);
+        Culture created = EmpireWorld.Current.Cultures.NewCulture(founder, true);
         if (created != null) CulturePatch.insertCultureTemplate(created, target);
         return created;
     }

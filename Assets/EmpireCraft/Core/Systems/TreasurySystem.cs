@@ -24,14 +24,13 @@ public static class TreasurySystem
     private const double MonthLength = 5d;
 
     // 近 12 个月逐月流水，从 11 个月前排到本月；没有记账的月份为空
-#if EC_PENDING
     public static List<TreasuryMonth> MonthlyFlows(Realm kingdom)
     {
         var result = new List<TreasuryMonth>();
         if (!Enabled(kingdom)) return result;
         double now = GameClock.Now;
         for (int ago = 11; ago >= 0; ago--)
-            result.Add(new TreasuryMonth { months_ago = ago, month = Date.getMonth(now - ago * MonthLength) });
+            result.Add(new TreasuryMonth { months_ago = ago, month = GameClock.MonthOf(now - ago * MonthLength) });
         List<TreasuryPeriod> periods = kingdom.GetOrCreate().treasury?.periods;
         if (periods == null) return result;
         foreach (TreasuryPeriod period in periods)
@@ -46,7 +45,6 @@ public static class TreasurySystem
         }
         return result;
     }
-#endif
 
     private static void Merge(Dictionary<string, long> into, Dictionary<string, long> amounts)
     {

@@ -51,21 +51,21 @@ public static class WarBalanceDiagnostics
         logged.TryGetValue(id, out double at) && GameClock.Now >= at && GameClock.MonthsSince(at) < CooldownMonths;
 
 #if EC_PENDING
-    private static bool Nomad(Realm kingdom) => FrontierRelations.IsNomadRealm(FrontSystem.Realm(kingdom));
+    private static bool Nomad(Realm kingdom) => FrontierRelations.IsNomadRealm(FrontSystem.ModRealm(kingdom));
 #endif
 
     // 阿拉伯政体：本国或所在帝国的核心
 #if EC_PENDING
     private static bool Arabic(Realm kingdom) =>
         kingdom?.Record != null && !kingdom.IsGone() &&
-        (kingdom.GetRegime()?.type == RegimeType.Arabic || FrontSystem.Realm(kingdom)?.GetRegime()?.type == RegimeType.Arabic);
+        (kingdom.GetRegime()?.type == RegimeType.Arabic || FrontSystem.ModRealm(kingdom)?.GetRegime()?.type == RegimeType.Arabic);
 #endif
 
     // 文化线(帝国按核心)：罗马线(西方各文化默认走罗马线)、华夏线
 #if EC_PENDING
     private static string Line(Realm kingdom)
     {
-        Realm realm = FrontSystem.Realm(kingdom);
+        Realm realm = FrontSystem.ModRealm(kingdom);
         return realm?.Record == null || realm.IsGone() ? "" : InstitutionSystem.GetCultureLine(CultureService.GetRealmCulture(realm));
     }
 
@@ -82,11 +82,10 @@ public static class WarBalanceDiagnostics
 #endif
 
     // 本国(连同所在帝国的核心)在跟某类国家打仗，或自己就是
-#if EC_PENDING
     private static bool AtWarWith(Realm kingdom, global::System.Func<Realm, bool> watched)
     {
         if (watched(kingdom)) return true;
-        foreach (Realm side in new[] { kingdom, FrontSystem.Realm(kingdom) })
+        foreach (Realm side in new[] { kingdom, FrontSystem.ModRealm(kingdom) })
         {
             if (side?.Record == null || side.IsGone()) continue;
             foreach (War war in side.GetWars())
@@ -98,7 +97,6 @@ public static class WarBalanceDiagnostics
         }
         return false;
     }
-#endif
 
     // 记哪一路：游牧优先，其次阿拉伯、罗马、华夏；都不是返回 -1
 #if EC_PENDING
@@ -141,7 +139,7 @@ public static class WarBalanceDiagnostics
                 var (cityShare, localShare, centralShare) = TreasurySystem.TaxShares(kingdom);
                 text.Append($"类别{kingdom.GetKingdomType()} 分成{cityShare}/{localShare}/{centralShare} " +
                             $"年入{StateDebtSystem.AnnualStableIncome(kingdom)} 国库{kingdom.GetMoney()}");
-                if (channel != ArabicChannel) text.Append($" 政体{FrontSystem.Realm(kingdom)?.GetRegime()?.type}");
+                if (channel != ArabicChannel) text.Append($" 政体{FrontSystem.ModRealm(kingdom)?.GetRegime()?.type}");
             }
             LogService.LogInfo(text.ToString());
         }

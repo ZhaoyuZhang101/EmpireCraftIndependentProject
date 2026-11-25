@@ -29,9 +29,7 @@ public static class NativeDefenseSystem
     // 号召过的入侵之战 → 号召的时间
     private static readonly Dictionary<long, double> Rallied = new();
 
-#if EC_PENDING
-    private static Realm ModRealm(Realm kingdom) => FrontSystem.Realm(kingdom);
-#endif
+    private static Realm ModRealm(Realm kingdom) => FrontSystem.ModRealm(kingdom);
 
     private static bool Alive(Realm kingdom) => kingdom?.Record != null && !kingdom.IsGone();
 

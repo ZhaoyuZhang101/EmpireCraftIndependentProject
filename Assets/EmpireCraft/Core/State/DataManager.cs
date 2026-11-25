@@ -128,7 +128,7 @@ public static class DataManager
         var cityById = EmpireWorld.Current.Cities.ToDictionary(c => c.Key);
         var clanById = EmpireWorld.Current.clans.ToDictionary(c => c.Key);
         var warById = EmpireWorld.Current.LiveWars.ToDictionary(w => w.Key);
-        var religionById = EmpireWorld.Current.religions.ToDictionary(r => r.Key);
+        var religionById = EmpireWorld.Current.Religions.ToDictionary(r => r.Key);
         CulturePatch.ImportCultureBindings(saveData.cultureBindings);
         // 没记绑定的旧档里混进字表名的起名模板重套(见 TemplateNameRepair)
         Guarded("起名模板修复", TemplateNameRepair.RepairCultures);
@@ -552,7 +552,7 @@ public static class DataManager
         SaveData saveData = new SaveData();
         saveData.actorsExtraData = EmpireWorld.Current.Living.Select(a=>a.GetExtraData<Person, ActorExtraData>(true)).Where(ed=>ed!=null).ToList();
         saveData.cityExtraData = EmpireWorld.Current.Cities.Select(a => a.GetExtraData<City, CityExtraData>(true)).Where(ed => ed != null).ToList();
-        saveData.religionExtraData = EmpireWorld.Current.religions.Select(a => a.GetExtraData<Religion, ReligionExtension.ReligionExtraData>(true)).Where(ed => ed != null).ToList();
+        saveData.religionExtraData = EmpireWorld.Current.Religions.Select(a => a.GetExtraData<Religion, ReligionExtension.ReligionExtraData>(true)).Where(ed => ed != null).ToList();
         // 派系与政党随王国一起存(政体对象本身不存，见 KingdomExtraData.saved_factions)；
         // 读档后还没建过政体的王国保留读进来的那份
         foreach (Realm kingdom in EmpireWorld.Current.LiveRealms)

@@ -206,9 +206,9 @@ public static class FeudalConquestService
     private static void InstallLocalNoble(Empire empire, Realm conquered)
     {
         Person formerKing = conquered.Ruler;
-        List<Person> locals = (conquered.units ?? new List<Person>()).ToList()
-            .Where(actor => actor != null && !actor.IsGone() && actor.Alive && actor.isAdult() &&
-                            !actor.isKing() && actor != formerKing && actor.isUnitFitToRule())
+        List<Person> locals = (conquered.People ?? new List<Person>()).ToList()
+            .Where(actor => actor != null && !actor.IsGone() && actor.Alive && actor.IsAdult() &&
+                            !actor.IsRuler() && actor != formerKing && actor.IsFitToRule())
             .ToList();
         Person noble = locals.Where(actor => actor.GetOrCreate().socialClass == SocialClass.Noble)
                           .OrderByDescending(actor => actor.Renown ?? 0).FirstOrDefault()

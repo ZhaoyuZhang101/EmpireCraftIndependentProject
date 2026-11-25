@@ -2513,7 +2513,7 @@ public static partial class SmoothBorders
         foreach (Realm kingdom in EmpireWorld.Current.LiveRealms)
         {
             if (kingdom?.Record == null || kingdom.IsGone() ||
-                !realms.Contains(kingdom.Key) && !realms.Contains(FrontSystem.Realm(kingdom).id)) continue;
+                !realms.Contains(kingdom.Key) && !realms.Contains(FrontSystem.ModRealm(kingdom).Key)) continue;
             foreach (City city in kingdom.Cities ?? new List<City>())
                 foreach (Cell zone in city?.Zones ?? new List<Cell>())
                 {

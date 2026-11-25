@@ -32,7 +32,7 @@ internal static class OfficeCandidateRoster
         foreach (Realm kingdom in kingdoms.ToArray())
         {
             if (kingdom?.Record == null || kingdom.IsGone() || !seen.Add(kingdom) || AncientWarfareCompatibility.Owns(kingdom)) continue;
-            var units = kingdom.units;
+            var units = kingdom.People;
             if (units == null) continue;
             Entry entry = Entries.GetOrCreateValue(kingdom);
             if (entry.Actors == null || entry.Frame != Time.frameCount || entry.Revision != _revision ||

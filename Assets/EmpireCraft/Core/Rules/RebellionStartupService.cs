@@ -28,7 +28,7 @@ public static class RebellionStartupService
         int raised = 0;
         foreach (City city in (cities ?? rebel.Cities).ToList())
         {
-            if (city == null || city.IsGone() || city.units == null || city.Realm != rebel) continue;
+            if (city == null || city.IsGone() || city.People == null || city.Realm != rebel) continue;
             // 无小人模式：城里几乎没有平民实体，从背景人口里武装义军(每个兵代表一支义军)
             if (CityPopulationSystem.AbstractPopulationEnabled)
             {
@@ -36,14 +36,14 @@ public static class RebellionStartupService
                     (int)Math.Ceiling(CityPopulationSystem.Households(city) * share * 0.3f)));
                 raised += CityPopulationSystem.RaiseMilitia(city, militia, share);
             }
-            var candidates = city.units.Where(actor => actor != null && actor.Alive && actor.isAdult() &&
-                                                       actor.kingdom == rebel && !actor.isWarrior() &&
-                                                       !actor.isKing() && !actor.isCityLeader() &&
+            var candidates = city.People.Where(actor => actor != null && actor.Alive && actor.IsAdult() &&
+                                                       actor.Realm == rebel && !actor.IsWarrior() &&
+                                                       !actor.IsRuler() && !actor.IsCityLeader() &&
                                                        actor.equipment != null && actor.CanFoundCivKingdom())
                 .OrderByDescending(actor => actor.stats["health"]).ToList();
-            int adults = city.units.Count(actor => actor != null && actor.Alive && actor.isAdult());
+            int adults = city.PopulationCount()(actor => actor != null && actor.Alive && actor.isAdult());
             // 只补足到目标人数：已有守军的封国起兵时不会再额外叠加
-            int garrison = city.units.Count(actor => actor != null && actor.Alive && actor.isWarrior());
+            int garrison = city.PopulationCount()(actor => actor != null && actor.Alive && actor.isWarrior());
             int target = Math.Min(candidates.Count,
                 Math.Max(0, Math.Max(MinMilitia, (int)Math.Ceiling(adults * share)) - garrison));
             for (int i = 0; i < target; i++)

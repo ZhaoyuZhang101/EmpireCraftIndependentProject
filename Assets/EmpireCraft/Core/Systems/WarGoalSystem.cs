@@ -279,8 +279,8 @@ public static class WarGoalSystem
         TranslateHelper.LogEventMessage(string.Format(LM.Get("war_goal_declared"), attacker.GetKingdomName(),
             defender.GetKingdomName(), WarCatalog.GoalText(war)), attacker);
         // 开打即拜统帅(谋划开战时已拜的不变，见 WarCommandSystem)
-        WarCommandSystem.MonthTick(FrontSystem.Realm(attacker));
-        WarCommandSystem.MonthTick(FrontSystem.Realm(defender));
+        WarCommandSystem.MonthTick(FrontSystem.ModRealm(attacker));
+        WarCommandSystem.MonthTick(FrontSystem.ModRealm(defender));
     }
 #endif
 
@@ -309,8 +309,8 @@ public static class WarGoalSystem
             : WarGoal.赔款;
 
     internal static bool Convertible(Realm attacker, Realm defender) =>
-        attacker?.religion != null && defender?.Record != null && !defender.IsGone() && defender.religion != attacker.religion &&
-        CaliphateFaith.MayAdopt(defender, attacker.religion);
+        attacker?.Religion != null && defender?.Record != null && !defender.IsGone() && defender.Religion != attacker.Religion &&
+        CaliphateFaith.MayAdopt(defender, attacker.Religion);
 #endif
 
     // 改宗：对方国教、君主、都城改奉攻方的宗教；其余的城只当场改与该教同天下的(或无教的)，外天下的城改走国教推行
@@ -320,28 +320,28 @@ public static class WarGoalSystem
     internal static bool Convert(Realm defender, Realm attacker)
     {
         if (!Convertible(attacker, defender)) return false;
-        Religion faith = attacker.religion;
-        Religion old = defender.religion;
-        defender.setReligion(faith);
-        if (defender.Ruler?.Record != null && defender.Ruler.Alive) defender.Ruler.setReligion(faith);
+        Religion faith = attacker.Religion;
+        Religion old = defender.Religion;
+        defender.SetReligion(faith);
+        if (defender.Ruler?.Record != null && defender.Ruler.Alive) defender.Ruler.SetReligion(faith);
         if ((defender.GetEmpire()?.CoreKingdom ?? defender) == defender) defender.GetOrCreate().religion_converted_at = GameClock.Now;
         int converted = 0, spared = 0;
         foreach (City city in defender.Cities.ToList())
         {
-            if (city?.Record == null || city.IsGone() || city.religion == faith) continue;
-            if (city != defender.Capital && city.hasReligion() && !ReligionTenets.AtHome(faith, ReligionSphere.SphereOfCity(city)))
+            if (city?.Record == null || city.IsGone() || city.Religion == faith) continue;
+            if (city != defender.Capital && city.HasReligion() && !ReligionTenets.AtHome(faith, ReligionSphere.SphereOfCity(city)))
             {
                 spared++;
                 continue;
             }
-            BackgroundReligionSystem.Convert(city, faith, city.religion);
+            BackgroundReligionSystem.Convert(city, faith, city.Religion);
             converted++;
         }
         ReligionDiagnostics.Add(ReligionDiagnostics.HolyWar, converted);
         ReligionDiagnostics.Add(ReligionDiagnostics.HolyWarSpared, spared);
         if (old != null) SyncretismSystem.NoteConversion(old, faith);
         TranslateHelper.LogEventMessage(string.Format(LM.Get("war_peace_converted"), defender.GetKingdomName(),
-            attacker.GetKingdomName(), faith.name), attacker);
+            attacker.GetKingdomName(), faith.Name), attacker);
         return true;
     }
 #endif
@@ -490,11 +490,11 @@ public static class WarGoalSystem
     internal static List<City> Claimed(Realm claimant, IEnumerable<City> cities)
     {
         var result = new List<City>();
-        Realm realm = FrontSystem.Realm(claimant);
+        Realm realm = FrontSystem.ModRealm(claimant);
         if (cities == null || realm == null) return result;
         foreach (City city in cities)
         {
-            if (city?.Record == null || city.IsGone() || city.Realm != null && FrontSystem.Realm(city.Realm) == realm) continue;
+            if (city?.Record == null || city.IsGone() || city.Realm != null && FrontSystem.ModRealm(city.Realm) == realm) continue;
             // 兼属：这座城兼属的王国法理、帝国法理在攻方一方，也算收复(见 DeJureShareSystem)
             if (DeJureShareSystem.ClaimedBy(city, realm))
             {
@@ -516,16 +516,16 @@ public static class WarGoalSystem
     {
         if (realm == null || title == null || title.IsGone()) return false;
         Realm holder = title.main_kingdom ?? title.owner?.Realm;
-        if (holder?.Record != null && !holder.IsGone() && FrontSystem.Realm(holder) == realm) return true;
-        if (AdminHolder(title) is Realm admin && FrontSystem.Realm(admin) == realm) return true;
+        if (holder?.Record != null && !holder.IsGone() && FrontSystem.ModRealm(holder) == realm) return true;
+        if (AdminHolder(title) is Realm admin && FrontSystem.ModRealm(admin) == realm) return true;
         City capital = title.title_capital;
-        if (capital?.Realm != null && !capital.IsGone() && FrontSystem.Realm(capital.Realm) == realm) return true;
+        if (capital?.Realm != null && !capital.IsGone() && FrontSystem.ModRealm(capital.Realm) == realm) return true;
         int total = 0, ours = 0;
         foreach (City city in title.getCities())
         {
             if (city?.Record == null || city.IsGone()) continue;
             total++;
-            if (city.Realm != null && FrontSystem.Realm(city.Realm) == realm) ours++;
+            if (city.Realm != null && FrontSystem.ModRealm(city.Realm) == realm) ours++;
         }
         return ours * 2 > total;
     }
@@ -898,11 +898,11 @@ public static class WarGoalSystem
 #if EC_PENDING
     private static int CompleteTitles(War war, Realm attacker, List<(City city, Realm holder)> held)
     {
-        Realm realm = FrontSystem.Realm(attacker);
+        Realm realm = FrontSystem.ModRealm(attacker);
         if (realm == null || held.Count == 0) return 0;
         var ceded = new HashSet<long>(held.Select(entry => entry.city.Key));
         var defenders = new HashSet<Realm>(war.Defenders.Where(kingdom => kingdom?.Record != null));
-        bool Ours(City city) => ceded.Contains(city.Key) || city.Realm != null && FrontSystem.Realm(city.Realm) == realm;
+        bool Ours(City city) => ceded.Contains(city.Key) || city.Realm != null && FrontSystem.ModRealm(city.Realm) == realm;
         int added = 0;
         foreach (KingdomTitle title in held.Select(entry => entry.city.GetTitle()).Where(title => title != null && !title.IsGone())
                      .Distinct().ToList())

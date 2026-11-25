@@ -703,18 +703,16 @@ public static partial class GentrySystem
     }
 
     // 宗族大事记一条(宗族窗口大事记用)
-#if EC_PENDING
     private static void NoteClan(SpecificClan clan, string key, string content)
     {
         clan.clan_history ??= new List<PersonalHistoryRecord>();
         clan.clan_history.Add(new PersonalHistoryRecord
         {
-            timestamp = GameClock.Now, date = Date.getDate(GameClock.Now),
+            timestamp = GameClock.Now, date = GameClock.DateText(GameClock.Now),
             content = content, event_key = key, major = true
         });
         if (clan.clan_history.Count > ClanHistoryCap) clan.clan_history.RemoveAt(0);
     }
-#endif
 
     // 郡望：田产最多的城；没有田产按祖籍；再没有按族人最多的城
     private static City FindSeat(SpecificClan clan, List<PersonalClanIdentity> living)

@@ -524,7 +524,7 @@ public static class ScenarioEventSystem
                 if (a.GetEmpire() == target) return null;
                 Realm enemy = string.IsNullOrEmpty(step.c) ? null : ModRealm(step.c);
                 // 走投无路才来投；没到这步每年再试(见 ScenarioPlotRules.Desperate)
-                if (enemy != null && !Desperate(a, enemy, ConquestPressure(FrontSystem.Realm(enemy) ?? enemy, CultureService.GetRealmCulture(court))))
+                if (enemy != null && !Desperate(a, enemy, ConquestPressure(FrontSystem.ModRealm(enemy) ?? enemy, CultureService.GetRealmCulture(court))))
                     return ScenarioPlotRules.NotDesperate;
                 Empire own = a.GetEmpire();
                 List<Realm> members = own == null || own.CoreKingdom != a ? new List<Realm>()
@@ -767,7 +767,7 @@ public static class ScenarioEventSystem
     internal static bool Desperate(Realm kingdom, Realm invader, float pressure)
     {
         if (kingdom?.Record == null || kingdom.IsGone() || invader?.Record == null || invader.IsGone()) return false;
-        Realm realm = FrontSystem.Realm(invader) ?? invader;
+        Realm realm = FrontSystem.ModRealm(invader) ?? invader;
         int cities = RealmCities(kingdom);
         return ScenarioPlotRules.Desperate(FrontSystem.Hostile(kingdom, realm), WarSituation.Power(realm), WarSituation.Power(kingdom),
             pressure, cities, kingdom.GetOrCreate().peak_realm_cities);

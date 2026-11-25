@@ -40,7 +40,7 @@ public static class MassacreSystem
 #if EC_PENDING
     public static bool WillMassacre(Person attacker, Person target) =>
         !IsCivilian(attacker) && IsCivilian(target) && attacker.hasXenophobic() &&
-        !(attacker.culture == target.culture && attacker.asset == target.asset);
+        !(attacker.Culture == target.Culture && attacker.asset == target.asset);
 
     public static void OnCivilianKilled(Person victim, Person killer)
     {
@@ -48,7 +48,7 @@ public static class MassacreSystem
         Realm killerKingdom = killer.Realm;
         if (killerKingdom == null || victim.Realm == null || !killer.isKingdomCiv() || !victim.isKingdomCiv() ||
             !killerKingdom.IsEnemy(victim.Realm)) return;
-        City city = victim.City ?? victim.current_tile?.zone_city;
+        City city = victim.City ?? victim.Cell?.City;
         if (city == null || city.IsGone()) return;
         CityExtension.CityExtraData data = city.GetOrCreate();
         double now = GameClock.Now;

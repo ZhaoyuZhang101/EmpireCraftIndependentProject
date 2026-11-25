@@ -16,7 +16,6 @@ public static class ReligionChronicle
     // 教义融合(见 SyncretismSystem，用户 2026-11-06)
     public const int KindSyncretism = 5;
 
-#if EC_PENDING
     public static void Record(Religion religion, int kind, string text)
     {
         if (religion?.data == null || religion.IsGone() || string.IsNullOrWhiteSpace(text) || EmpireWorld.Current == null) return;
@@ -25,19 +24,15 @@ public static class ReligionChronicle
         data.Chronicle.Add(new ReligionExtension.ReligionEventData { at = GameClock.Now, kind = kind, text = text });
         if (data.Chronicle.Count > MaxEvents) data.Chronicle.RemoveRange(0, data.Chronicle.Count - MaxEvents);
     }
-#endif
 
     // 同一件事记进两个宗教(分裂、改宗、并入)
-#if EC_PENDING
     public static void Record(Religion first, Religion second, int kind, string text)
     {
         Record(first, kind, text);
         if (second != first) Record(second, kind, text);
     }
-#endif
 
     // 分出来的教会：创教时(ReligionPatch)记下的"某某创立"用的是改名前的名字，改完名清掉，由分裂那条起头
-#if EC_PENDING
     public static void Clear(Religion religion)
     {
         if (religion?.data != null) religion.GetOrCreate().Chronicle?.Clear();
@@ -45,6 +40,5 @@ public static class ReligionChronicle
 
     public static List<ReligionExtension.ReligionEventData> Events(Religion religion) =>
         religion?.data == null ? new List<ReligionExtension.ReligionEventData>() : religion.GetOrCreate().Chronicle ?? new List<ReligionExtension.ReligionEventData>();
-#endif
 }
 }

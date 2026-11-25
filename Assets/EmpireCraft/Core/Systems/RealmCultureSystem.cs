@@ -137,7 +137,7 @@ public static class RealmCultureSystem
             foreach (Person actor in EmpireWorld.Current.Living.ToList())
                 if (actor?.Record != null && !actor.IsGone() && actor.Alive &&
                     string.Equals(CultureService.GetActorCulture(actor), from, StringComparison.Ordinal))
-                    actor.setCulture(native);
+                    actor.SetCulture(native);
         // 沿用 from 旧制的国家：旧制作罢，照本国文化之制(帝国核心由制度系统重算)
         foreach (Realm kingdom in EmpireWorld.Current.LiveRealms.ToList())
         {

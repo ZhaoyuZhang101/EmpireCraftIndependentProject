@@ -56,14 +56,12 @@ public static class ReligionConversionSystem
         at >= 0d && GameClock.Now >= at && GameClock.YearsSince(at) < years;
 
     // 本国(帝国按中央)近年皈依、而且本国仍奉中央皈依的宗教
-#if EC_PENDING
     public static bool RecentlyConverted(Realm kingdom)
     {
         Realm realm = ModRealm(kingdom);
-        return Alive(realm) && kingdom.hasReligion() && kingdom.religion == realm.religion &&
+        return Alive(realm) && kingdom.HasReligion() && kingdom.Religion == realm.Religion &&
                Within(realm.GetOrCreate().religion_converted_at, ConversionPushYears);
     }
-#endif
 
     private static List<Realm> Members(Realm realm)
     {
@@ -101,7 +99,7 @@ public static class ReligionConversionSystem
     {
         Person king = realm.Ruler;
         if (king?.Record == null || !king.Alive || Within(realm.GetOrCreate().religion_converted_at, CooldownYears)) return;
-        Religion current = realm.hasReligion() ? realm.religion : null;
+        Religion current = realm.HasReligion() ? realm.Religion : null;
         string sphere = ReligionSphere.SphereOfCulture(CultureService.GetRealmCulture(realm));
         bool holdsHoly = PapacySystem.HoldsHolyCity(realm);
         List<Realm> members = Members(realm);
@@ -110,7 +108,7 @@ public static class ReligionConversionSystem
         bool weighted = ConnectivitySystem.Ready;
         foreach (Realm other in realms)
         {
-            if (other == realm || !other.hasReligion() || other.religion == current || !Candidate(other.religion, sphere) ||
+            if (other == realm || !other.HasReligion() || other.Religion == current || !Candidate(other.Religion, sphere) ||
                 realm.IsAtWarWith(other)) continue;
             // 帝国中央的 IsNeighbourWith 已按全体成员的城算
             bool adjacent = Members(other).Any(realm.IsNeighbourWith);
@@ -130,16 +128,16 @@ public static class ReligionConversionSystem
             }
             else if (!adjacent) continue;
             if (reach <= 0f) continue;
-            Add(weights, other.religion, Mathf.Min(MaxStrengthRatio, Cities(other) / (float)own) * reach);
+            Add(weights, other.Religion, Mathf.Min(MaxStrengthRatio, Cities(other) / (float)own) * reach);
         }
         // 境内的少数派
         var minorities = new Dictionary<Religion, int>();
         foreach (Realm member in members)
         foreach (City city in member.Cities)
-            if (city?.Record != null && city.hasReligion() && city.religion != current && Candidate(city.religion, sphere))
+            if (city?.Record != null && city.HasReligion() && city.Religion != current && Candidate(city.Religion, sphere))
             {
-                minorities.TryGetValue(city.religion, out int count);
-                minorities[city.religion] = count + 1;
+                minorities.TryGetValue(city.Religion, out int count);
+                minorities[city.Religion] = count + 1;
             }
         foreach (KeyValuePair<Religion, int> pair in minorities) Add(weights, pair.Key, MinorityWeight * pair.Value / own);
         // 两段式：启示宗教还没成正教时，拉本天下奉古神的君主(不必接壤)
@@ -192,7 +190,7 @@ public static class ReligionConversionSystem
     private static bool TryReturnToNative(Realm realm)
     {
         Person king = realm.Ruler;
-        Religion current = realm.hasReligion() ? realm.religion : null;
+        Religion current = realm.HasReligion() ? realm.Religion : null;
         if (king?.Record == null || !king.Alive || current == null || !ReligionFaith.IsUniversal(current) ||
             PapacySystem.HoldsHolyCity(realm) || Within(realm.GetOrCreate().religion_converted_at, CooldownYears)) return false;
         string sphere = ReligionSphere.SphereOfCulture(CultureService.GetRealmCulture(realm));
@@ -206,7 +204,7 @@ public static class ReligionConversionSystem
             if (city?.Record == null || city.IsGone()) continue;
             float count = Mathf.Max(1, city.CountLivingPopulation());
             total += count;
-            if (city.religion == native) faithful += count;
+            if (city.Religion == native) faithful += count;
         }
         if (total <= 0f || faithful * 2f < total || EcRandom.value >= NativeReturnChance) return false;
         Convert(realm, native, current, "native_revert_log");
@@ -219,7 +217,7 @@ public static class ReligionConversionSystem
     private static bool TryAdoptSubjectsFaith(Realm realm)
     {
         Person king = realm.Ruler;
-        Religion current = realm.hasReligion() ? realm.religion : null;
+        Religion current = realm.HasReligion() ? realm.Religion : null;
         if (king?.Record == null || !king.Alive || current == null || ReligionFaith.IsUniversal(current) ||
             PapacySystem.HoldsHolyCity(realm)) return false;
         var people = new Dictionary<Religion, float>();
@@ -230,9 +228,9 @@ public static class ReligionConversionSystem
             if (city?.Record == null || city.IsGone()) continue;
             float count = Mathf.Max(1, city.CountLivingPopulation());
             total += count;
-            if (!city.hasReligion()) continue;
-            people.TryGetValue(city.religion, out float sum);
-            people[city.religion] = sum + count;
+            if (!city.HasReligion()) continue;
+            people.TryGetValue(city.Religion, out float sum);
+            people[city.Religion] = sum + count;
         }
         if (people.Count == 0) return false;
         KeyValuePair<Religion, float> top = people.OrderByDescending(pair => pair.Value).First();
@@ -257,27 +255,27 @@ public static class ReligionConversionSystem
             ReligionSphere.SphereOf(religion) != realmSphere) return false;
         return ReligionSphere.OrthodoxOf(realmSphere) == religion || ReligionTenets.IsOrganized(religion) && !ReligionSphere.IsLocalChurch(religion);
     }
+#endif
 
     private static void Add(Dictionary<Religion, float> weights, Religion religion, float weight)
     {
         weights.TryGetValue(religion, out float current);
         weights[religion] = current + weight;
     }
-#endif
 
     // 君主率国皈依(异文明帝国复归本土大教也走这里，见 ReligionSchismSystem.TryNativeTurns)
 #if EC_PENDING
     internal static void Convert(Realm realm, Religion faith, Religion old, string textKey = "ruler_conversion_log")
     {
         Person king = realm.Ruler;
-        king.setReligion(faith);
-        realm.setReligion(faith);
-        if (realm.Capital?.Record != null && !realm.Capital.IsGone() && realm.Capital.religion != faith)
-            BackgroundReligionSystem.Convert(realm.Capital, faith, realm.Capital.religion);
+        king.SetReligion(faith);
+        realm.SetReligion(faith);
+        if (realm.Capital?.Record != null && !realm.Capital.IsGone() && realm.Capital.Religion != faith)
+            BackgroundReligionSystem.Convert(realm.Capital, faith, realm.Capital.Religion);
         Empire empire = realm.GetEmpire();
         if (empire != null && empire.CoreKingdom == realm) empire.Religion = faith;
         realm.GetOrCreate().religion_converted_at = GameClock.Now;
-        string text = string.Format(LM.Get(textKey), king.FullName(), realm.GetKingdomName(), faith.name);
+        string text = string.Format(LM.Get(textKey), king.FullName(), realm.GetKingdomName(), faith.Name);
         TranslateHelper.LogEventMessage(text, realm);
         king.RecordPersonalHistory(text);
         ReligionChronicle.Record(faith, old, ReligionChronicle.KindConversion, text);
@@ -289,7 +287,7 @@ public static class ReligionConversionSystem
             "native_revert_log" => ReligionDiagnostics.NativeRevert,
             _ => ReligionDiagnostics.OtherRealm
         });
-        LogService.LogInfo($"[EmpireCraft][宗教] {realm.GetKingdomName()} 由{old?.name ?? "无教"}皈依{faith.name}");
+        LogService.LogInfo($"[EmpireCraft][宗教] {realm.GetKingdomName()} 由{old?.Name ?? "无教"}皈依{faith.Name}");
     }
 #endif
 
@@ -297,17 +295,17 @@ public static class ReligionConversionSystem
 #if EC_PENDING
     private static void FollowRealm(Realm realm)
     {
-        if (!Within(realm.GetOrCreate().religion_converted_at, ConversionPushYears) || !realm.hasReligion()) return;
+        if (!Within(realm.GetOrCreate().religion_converted_at, ConversionPushYears) || !realm.HasReligion()) return;
         Empire empire = realm.GetEmpire();
         if (empire == null || empire.CoreKingdom != realm) return;
         foreach (Realm member in empire.kingdoms_list.ToList())
         {
-            if (!Alive(member) || member == realm || member.religion == realm.religion ||
+            if (!Alive(member) || member == realm || member.Religion == realm.Religion ||
                 EcRandom.value >= MemberFollowChance) continue;
-            member.setReligion(realm.religion);
-            if (member.Ruler?.Record != null && member.Ruler.Alive) member.Ruler.setReligion(realm.religion);
-            if (member.Capital?.Record != null && !member.Capital.IsGone() && member.Capital.religion != realm.religion)
-                BackgroundReligionSystem.Convert(member.Capital, realm.religion, member.Capital.religion);
+            member.SetReligion(realm.Religion);
+            if (member.Ruler?.Record != null && member.Ruler.Alive) member.Ruler.SetReligion(realm.Religion);
+            if (member.Capital?.Record != null && !member.Capital.IsGone() && member.Capital.Religion != realm.Religion)
+                BackgroundReligionSystem.Convert(member.Capital, realm.Religion, member.Capital.Religion);
         }
     }
 #endif
@@ -323,21 +321,21 @@ public static class ReligionConversionSystem
             if (chance <= 0f) continue;
             foreach (Realm member in Members(realm))
             {
-                if (!member.hasReligion() || member.religion != realm.religion) continue;
+                if (!member.HasReligion() || member.Religion != realm.Religion) continue;
                 foreach (City city in member.Cities.ToList())
                 {
-                    if (city?.Record == null || city.IsGone() || city.religion == member.religion ||
-                        city.hasReligion() && city.religion.GetCity() == city) continue;
+                    if (city?.Record == null || city.IsGone() || city.Religion == member.Religion ||
+                        city.HasReligion() && city.Religion.GetCity() == city) continue;
                     // 外天下的宗教按跨天下折扣，本城奉本天下宗教的再减半，融过它的教义的再折(2026-11-06)
                     string sphere = ReligionSphere.SphereOfCity(city);
-                    float local = chance * ReligionSphere.CrossFactor(member.religion, sphere);
-                    if (city.hasReligion())
+                    float local = chance * ReligionSphere.CrossFactor(member.Religion, sphere);
+                    if (city.HasReligion())
                     {
-                        if (ReligionTenets.AtHome(city.religion, sphere) && !ReligionTenets.AtHome(member.religion, sphere)) local *= 0.5f;
-                        local *= ReligionTenets.Pull(city.religion, member.religion);
+                        if (ReligionTenets.AtHome(city.Religion, sphere) && !ReligionTenets.AtHome(member.Religion, sphere)) local *= 0.5f;
+                        local *= ReligionTenets.Pull(city.Religion, member.Religion);
                     }
                     if (EcRandom.value >= local) continue;
-                    BackgroundReligionSystem.Convert(city, member.religion, city.religion);
+                    BackgroundReligionSystem.Convert(city, member.Religion, city.Religion);
                     ReligionDiagnostics.Add(ReligionDiagnostics.Manual);
                 }
             }

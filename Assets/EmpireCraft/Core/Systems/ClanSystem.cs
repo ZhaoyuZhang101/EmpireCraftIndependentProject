@@ -385,23 +385,23 @@ public class SpecificClan
         color = ColorSelector.NextColor();
         RecordAncestralCity(SpecificClanManager.GetOriginCity(actor));
     }
+#endif
 
     private bool judgeMalePriority(Person actor)
     {
-        if (actor.hasCulture())
+        if (actor.HasCulture())
         {
-            if (actor.culture.hasTrait("patriarchy"))
+            if (actor.Culture.HasTrait("patriarchy"))
             {
                 return true;
             }
-            if (actor.culture.hasTrait("matriarchy"))
+            if (actor.Culture.HasTrait("matriarchy"))
             {
                 return false;
             }
         }
         return true;
     }
-#endif
 
     // 华夏一系(制度线属华夏的文化)宗法父系，只传男(用户 2026-10-14："不会存在女帝，尤其是华夏，至少继承法不会支持")：
     // 不论原版文化有没有长出"母系"特质(原版特质随机，以前华夏宗族也会成了女性优先，女儿即位成了女帝、儿子反倒不能继承)。
@@ -745,7 +745,7 @@ public static class SpecificClanManager
     {
         if (actor == null) return null;
         if (actor.HasCity()) return actor.City;
-        if (actor.current_tile != null && actor.current_tile.hasCity()) return actor.current_tile.zone_city;
+        if (actor.Cell != null && actor.Cell.hasCity()) return actor.Cell.City;
         if (actor.GetParents().Any())
         {
             foreach (var parent in actor.GetParents())
@@ -1912,6 +1912,7 @@ public class PersonalClanIdentity
             owner_personal_identity_id = id
         });
     }
+#endif
 
     public void BackfillChildBirthHistoryNames()
     {
@@ -1960,7 +1961,6 @@ public class PersonalClanIdentity
             }
         }
     }
-#endif
 
     private static bool IsUnnamedChildBirthRecord(PersonalHistoryRecord record)
     {
@@ -1986,7 +1986,6 @@ public class PersonalClanIdentity
         return actor?.GetModName()?.has_whole_name(actor) == true ? actor.FullName() : "";
     }
 
-#if EC_PENDING
     private static string GetHistoryDay(double timestamp)
     {
         return HistoryDateFormatter.GetMonthDay(timestamp);
@@ -1997,6 +1996,7 @@ public class PersonalClanIdentity
         return HistoryDateFormatter.GetMonthDay(-1, formattedDate);
     }
 
+#if EC_PENDING
     public void addChild(Person actor, bool isNeedSetParentBoth=true, bool recordHistory = true)
     {
         PersonalClanIdentity existingIdentity = actor.GetPersonalIdentity();

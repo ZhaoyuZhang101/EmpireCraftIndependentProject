@@ -77,6 +77,8 @@ REWRITES = [
 IDENTITY = [
     # A few mod files declare a helper type of their own called Realm; it gives way to the entity.
     (r"(?<![.\w])Realm\b", "ModRealm"),
+    # Several systems also have a helper method of that name; calls through the class follow the declaration.
+    (r"(?<=\.)Realm(?=\()", "ModRealm"),
     (r"\bWorld\.world\.getCurWorldTime\(\)", "GameClock.Now"),
     (r"\bWorld\.world\b", "EmpireWorld.Current"),
     (r"(?<![.\w])Kingdom\b", "Realm"),
@@ -118,6 +120,10 @@ IDENTITY = [
     (r"\.hasCapital\(\)", ".HasCapital()"),
     (r"\.getID\(\)", ".Key"),
     (r"\bDate\.getMonthsSince\b", "GameClock.MonthsSince"),
+    (r"\bDate\.getMonthTime\(\)", "GameClock.MonthLength"),
+    (r"\bDate\.getMonth\b", "GameClock.MonthOf"),
+    (r"\bDate\.getDate\b", "GameClock.DateText"),
+    (r"\bpAddDefaultTraits:", "withDefaults:"),
     (r"\bDate\.getYearsSince\b", "GameClock.YearsSince"),
     (r"\bDate\.getCurrentYear\(\)", "GameClock.Year"),
     (r"\bDate\.getCurrentMonth\(\)", "GameClock.Month"),

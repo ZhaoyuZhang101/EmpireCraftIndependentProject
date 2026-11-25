@@ -175,7 +175,7 @@ public static class PuppetStateSystem
         if (data.puppet_ideology == ideology.ToString() && (puppet.Ruler == null || IdeologyPopulationSystem.Get(puppet.Ruler) == ideology)) return;
         data.puppet_ideology = ideology.ToString();
         if (puppet.Ruler != null) IdeologyPopulationSystem.Set(puppet.Ruler, ideology);
-        foreach (Person actor in puppet.Capital?.units?.ToList() ?? new List<Person>())
+        foreach (Person actor in puppet.Capital?.People?.ToList() ?? new List<Person>())
             if (actor?.Record != null && !actor.IsGone() && actor.Alive && actor.Realm == puppet && CityPopulationSystem.IsNotable(actor))
                 IdeologyPopulationSystem.Set(actor, ideology);
         Empire empire = puppet.GetEmpire();

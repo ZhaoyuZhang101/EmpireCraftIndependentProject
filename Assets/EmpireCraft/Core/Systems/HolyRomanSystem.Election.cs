@@ -73,7 +73,7 @@ public static partial class HolyRomanSystem
         FixedFaction faction = elector.GetFaction();
         if (faction != null && faction == candidate.GetFaction()) score += 0.3f;
         if (from != null && realm != null && from != realm) score += Mathf.Clamp(Opinion(from, realm) / 100f, -0.3f, 0.3f);
-        if (from?.hasReligion() == true && realm?.hasReligion() == true) score += from.religion == realm.religion ? 0.1f : -0.4f;
+        if (from?.HasReligion() == true && realm?.HasReligion() == true) score += from.Religion == realm.Religion ? 0.1f : -0.4f;
         if (maxPower > 0d && realm != null) score += 0.25f * (float)Math.Min(1d, realm.GetNationalPower() / maxPower);
         if (state.house_terms >= 2 && SpecificClanManager.Get(state.house_clan_id) is SpecificClan house &&
             SpecificClanManager.SameLineage(house, candidate.GetSpecificClan())) score += 0.15f;

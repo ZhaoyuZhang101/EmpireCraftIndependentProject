@@ -146,7 +146,6 @@ public static class ReligionTenets
 #endif
 
     // 融来的教义；分出的教会头一次查时照抄母宗教的(宗教改革的改革者、诸侯分出的"正本清源"，不抄仪轨与本地圣徒)
-#if EC_PENDING
     public static List<SyncreticTenetData> Absorbed(Religion religion) => Absorbed(religion, 0);
 
     private static List<SyncreticTenetData> Absorbed(Religion religion, int depth)
@@ -155,7 +154,7 @@ public static class ReligionTenets
         ReligionExtension.ReligionExtraData data = religion.GetOrCreate();
         if (data.Syncretic != null) return data.Syncretic;
         var list = new List<SyncreticTenetData>();
-        Religion parent = data.ParentReligionId >= 0 && depth < 8 ? EmpireWorld.Current?.religions?.get(data.ParentReligionId) : null;
+        Religion parent = data.ParentReligionId >= 0 && depth < 8 ? EmpireWorld.Current?.Religions?.Get(data.ParentReligionId) : null;
         if (parent?.data != null && parent != religion && !parent.IsGone())
         {
             int origin = data.SplitOrigin?.kind ?? 0;
@@ -176,6 +175,7 @@ public static class ReligionTenets
         return list;
     }
 
+#if EC_PENDING
     public static bool Has(Religion religion, string tenet) =>
         Innate(religion).Contains(tenet) || Absorbed(religion).Any(entry => entry.tenet == tenet);
 #endif
@@ -291,7 +291,6 @@ public static class ReligionTenets
 #endif
 
     // 以融合御同化：absorber 从 source 一系(同一宗系之首)融了 n 条，source 对它的势能与皈依意愿 ×0.85ⁿ，至多 ×0.55
-#if EC_PENDING
     public static float Pull(Religion absorber, Religion source)
     {
         if (absorber?.data == null || source?.data == null || absorber == source) return 1f;
@@ -303,23 +302,20 @@ public static class ReligionTenets
         ReligionSyncretismConfig config = Syncretism;
         return Mathf.Max(config.pull_floor, Mathf.Pow(config.pull_factor, count));
     }
-#endif
 
     // 宗系之首：沿母宗教往上(母宗教亡了就停在这一辈)
-#if EC_PENDING
     public static long RootId(Religion religion)
     {
         Religion current = religion;
         for (int depth = 0; depth < 8 && current?.data != null; depth++)
         {
             long parentId = current.GetOrCreate().ParentReligionId;
-            Religion parent = parentId >= 0 ? EmpireWorld.Current?.religions?.get(parentId) : null;
+            Religion parent = parentId >= 0 ? EmpireWorld.Current?.Religions?.Get(parentId) : null;
             if (parent?.data == null || parent == current || parent.IsGone()) return current.data.id;
             current = parent;
         }
         return current?.data?.id ?? -1L;
     }
-#endif
 
     // 升格：民族宗教(民间、腾格里、神道)融到 organized_min 条以上、其中有"经典"或"仿效教阶"，在本天下内可当皈依候选，传教另加
 #if EC_PENDING
@@ -339,7 +335,7 @@ public static class ReligionTenets
         if (religion?.data == null || EmpireWorld.Current?.LiveRealms == null) return false;
         foreach (Realm kingdom in EmpireWorld.Current.LiveRealms)
         {
-            if (kingdom?.Record == null || kingdom.IsGone() || kingdom.IsWild || kingdom.religion != religion) continue;
+            if (kingdom?.Record == null || kingdom.IsGone() || kingdom.IsWild || kingdom.Religion != religion) continue;
             if (InstitutionSystem.HasFeature(CultureService.GetInstitutionCulture(kingdom), ReligiousTension.ToleranceFeature)) return true;
         }
         return false;
@@ -406,23 +402,23 @@ public static class ReligionTenets
 #if EC_PENDING
     public static float ConcordBonus(City city)
     {
-        if (city?.Record == null || city.IsGone() || city.Realm?.Record == null || city.Realm.IsWild || !city.hasReligion() ||
-            city.Realm.religion != city.religion) return 0f;
-        Religion faith = city.religion;
+        if (city?.Record == null || city.IsGone() || city.Realm?.Record == null || city.Realm.IsWild || !city.HasReligion() ||
+            city.Realm.Religion != city.Religion) return 0f;
+        Religion faith = city.Religion;
         float bonus = Of(faith).Concord;
         if (AtHome(faith, ReligionSphere.SphereOfCity(city))) bonus += Home.concord;
         return bonus;
     }
 
     public static string DescribeConcord(City city) =>
-        string.Format(LM.Get("stability_faith_concord"), city?.religion?.name ?? "", ConcordBonus(city));
+        string.Format(LM.Get("stability_faith_concord"), city?.Religion?.Name ?? "", ConcordBonus(city));
 #endif
 
     // 本土御侮：side 的国教在这座城的天下是本土宗教，又有"神国"之类的教义
 #if EC_PENDING
     public static float DefenseFactor(Realm side, City city)
     {
-        Religion faith = side?.Record != null && side.hasReligion() ? side.religion : null;
+        Religion faith = side?.Record != null && side.HasReligion() ? side.Religion : null;
         if (faith == null || city?.Record == null) return 1f;
         float bonus = Of(faith).Defense;
         return bonus > 0f && AtHome(faith, ReligionSphere.SphereOfCity(city)) ? 1f + bonus : 1f;
@@ -434,8 +430,8 @@ public static class ReligionTenets
     public static IEnumerable<(string key, int value)> LegitimacyItems(Empire empire)
     {
         Realm core = empire?.CoreKingdom;
-        if (empire?.data == null || core?.Record == null || core.IsGone() || !core.hasReligion()) yield break;
-        Religion faith = core.religion;
+        if (empire?.data == null || core?.Record == null || core.IsGone() || !core.HasReligion()) yield break;
+        Religion faith = core.Religion;
         float share = Share(empire, core, faith);
         string sphere = ReligionSphere.SphereOfCulture(CultureService.GetRealmCulture(core));
         if (Home.legitimacy != 0 && sphere.Length > 0 && ReligionSphere.OrthodoxOf(sphere) == faith && share >= Home.legitimacy_share)
@@ -465,7 +461,7 @@ public static class ReligionTenets
                 if (city?.Record == null || city.IsGone()) continue;
                 float people = Mathf.Max(1, city.CountLivingPopulation());
                 total += people;
-                if (city.religion == faith) same += people;
+                if (city.Religion == faith) same += people;
             }
         }
         float share = total > 0f ? same / total : 0f;

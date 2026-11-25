@@ -40,10 +40,10 @@ public static class PersonalUnionService
 
     public static bool CrownLocalVassal(Realm realm, Realm overlord)
     {
-        Person local = (realm?.units ?? new List<Person>()).ToList()
-            .Where(actor => actor != null && !actor.IsGone() && actor.Alive && actor.isAdult() &&
-                            !actor.isKing() && actor.isUnitFitToRule())
-            .OrderByDescending(actor => actor.data?.renown ?? 0).FirstOrDefault();
+        Person local = (realm?.People ?? new List<Person>()).ToList()
+            .Where(actor => actor != null && !actor.IsGone() && actor.Alive && actor.IsAdult() &&
+                            !actor.IsRuler() && actor.IsFitToRule())
+            .OrderByDescending(actor => actor.Renown ?? 0).FirstOrDefault();
         // 无小人模式：藩国里没有合适的实体，从其都城人口中生成一人
         if (local == null && realm?.Capital != null) local = CityPopulationSystem.SpawnOfficial(realm.Capital, realm);
         if (local == null || !FeudalVassalService.CanBind(overlord, realm)) return false;
@@ -271,10 +271,10 @@ public static class PersonalUnionService
                 continue;
             }
             Realm holder = seat.Realm;
-            Person founder = (seat.units ?? new List<Person>()).ToList()
+            Person founder = (seat.People ?? new List<Person>()).ToList()
                 .Where(actor => actor != null && actor != holder.Ruler && !actor.IsGone() && actor.Alive &&
-                                actor.isAdult() && !actor.isKing() && actor.isUnitFitToRule())
-                .OrderByDescending(actor => actor.data?.renown ?? 0).FirstOrDefault();
+                                actor.IsAdult() && !actor.IsRuler() && actor.IsFitToRule())
+                .OrderByDescending(actor => actor.Renown ?? 0).FirstOrDefault();
             if (founder == null)
             {
                 remaining.Add(titleId);
