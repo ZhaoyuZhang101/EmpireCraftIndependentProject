@@ -52,8 +52,9 @@ public static class CloudForcingRegression
         VerifyCacheContinuityRegionalCycloneAndSave(earth, fictional);
         VerifyAsyncSchedulerPerformanceAndRaces(earth, fictional);
         VerifySynopticWeatherEvolutionAndRegimePersistence(earth);
+        VerifyRegionalSnapshotStripSyncAndInvariants(earth);
 
-        Console.WriteLine("PASS cloud-forcing regression: Earth + fictional world synoptic dynamics, CAPE/humidity/soil convection, wind/front/orography, cold/warm SST Sc, 1x vs 0.45x rotation belts, cache cadence, seasonal/interannual continuity, regional/cyclone wiring, save compatibility, synoptic weather lifecycle, and async background forcing scheduler (zero-alloc, coalescing, race safety).");
+        Console.WriteLine("PASS cloud-forcing regression: Earth + fictional world synoptic dynamics, CAPE/humidity/soil convection, wind/front/orography, cold/warm SST Sc, 1x vs 0.45x rotation belts, cache cadence, seasonal/interannual continuity, regional/cyclone wiring, save compatibility, synoptic weather lifecycle, atomic 4-strip regional snapshot buffering, and async background forcing scheduler (zero-alloc, coalescing, race safety).");
     }
 
     static WorldData BuildEarth256()
@@ -1124,6 +1125,209 @@ public static class CloudForcingRegression
             $"Transient midlatitude storm track lacked moist-uplift/post-rain cloud lifecycle span: {maxTransient - minTransient:F3}");
         Check(meanAzores <= 0.18 && maxAzores <= 0.30 && meanMonsoon >= meanAzores + 0.35,
             $"Climate regime contrast degraded: AzoresMean={meanAzores:F3} (max={maxAzores:F3}), MonsoonMean={meanMonsoon:F3}");
+    }
+
+    static void VerifyRegionalSnapshotStripSyncAndInvariants(WorldData earthBase)
+    {
+        var w = earthBase.Clone();
+        w.Day = 195.0;
+        w.Cyclones = FlatCycloneWeather.SpinUpAt(w, 195.0);
+        var stats = new FlatClimateStatistics(w, default, FlatRegionalSnapshotPool.Width, atmosphereOnly: true);
+        var budget = new FlatMoistureCloudBudget();
+        var pool = new FlatRegionalSnapshotPool();
+
+        static byte ToRespByte(float unit) => (byte)(unit * 255f + 0.5f);
+        ulong UploadSnapshotForDay(double targetDay, long? overrideWorkerTick = null)
+        {
+            long calcTick = overrideWorkerTick ?? FlatCycloneWeather.StepAt(targetDay);
+            double calcDay = calcTick * 0.25;
+            bool spinUp = w.Cyclones == null || w.Cyclones.StepIndex != calcTick;
+            var storms = w.Cyclones == null ? null : (spinUp ? FlatCycloneWeather.SpinUpAt(w, calcDay) : w.Cyclones.Clone());
+            stats.Refresh(calcDay, storms, default);
+            budget.Solve(w, calcDay, storms);
+
+            int slotIdx = pool.AcquireUploadSlot();
+            var slot = pool.GetSlot(slotIdx);
+            budget.PackPrecipitationHalf(slot.PrecipHalf, out float sRain, out float sSfc, out float nRain, out float nSfc);
+            for (int i = 0; i < FlatRegionalSnapshotPool.PixelCount; i++)
+            {
+                var r = RegionalCloudResponse.FromSynoptic(stats.Cells[i], i, budget, storms, calcDay);
+                int p4 = i * 4;
+                slot.CloudRgba[p4] = ToRespByte(Math.Max(0f, r.Cover));
+                slot.CloudRgba[p4 + 1] = ToRespByte(Math.Max(0f, -r.Cover));
+                slot.CloudRgba[p4 + 2] = ToRespByte(r.Convection);
+                slot.CloudRgba[p4 + 3] = ToRespByte(r.Evaporation);
+            }
+            FlatRegionalSnapshotPool.ComputeCloudPoles(slot.CloudRgba, out float csX, out float csY, out float cnX, out float cnY);
+            FlatCycloneTrack tn = storms != null && !spinUp ? storms.North : default;
+            FlatCycloneTrack ts = storms != null && !spinUp ? storms.South : default;
+            FlatCycloneTrack tpn = storms != null && !spinUp ? storms.PreviousNorth : default;
+            FlatCycloneTrack tps = storms != null && !spinUp ? storms.PreviousSouth : default;
+            return pool.CommitUpload(
+                slotIdx, calcTick, w.TerrainRevision, w.Moisture,
+                w.Cyclones != null, spinUp, in tn, in ts, in tpn, in tps,
+                csX, csY, cnX, cnY, sRain, sSfc, nRain, nSfc);
+        }
+
+        // 10a. Initial fallback state before any 6h regional snapshot is published (_RegionalPrecipReady = 0)
+        Check(!pool.HasPublishedFor(w) && pool.GetPublishedTick(w) == null &&
+              !pool.TrySamplePublishedPrecipitation(w, 0.85, 0.67, out _),
+            "Unpublished pool must report invalid fallback (Ready=false)");
+        Check(pool.BeginStageForStrip(w, 736) == -1 && pool.CommitStagedStrip() == -1 &&
+              !pool.HasPublishedFor(w) && !pool.TrySamplePublishedPrecipitation(w, 0.85, 0.67, out _),
+            "Committing fallback monthly 4-strip bake without regional data must remain identifiably unpublished");
+
+        // Locate East China Sea cell (54, 21) -> wet storm at Day 184.0 (tick 736) vs post-rain dry subsidence at Day 189.0 (tick 756)
+        const double dayWet = 184.0, dayDry = 189.0;
+        long tickWet = FlatCycloneWeather.StepAt(dayWet), tickDry = FlatCycloneWeather.StepAt(dayDry);
+        int ecsCell = FlatMoistureCloudBudget.CellIndexAtLonLat(126.56, 30.94);
+        double uEcs = (ecsCell % FlatRegionalSnapshotPool.Width + 0.5) / FlatRegionalSnapshotPool.Width;
+        double vEcs = (ecsCell / FlatRegionalSnapshotPool.Width + 0.5) / FlatRegionalSnapshotPool.Height;
+
+        // Publish wet snapshot across 4 strips
+        UploadSnapshotForDay(dayWet);
+        int stagedWet = pool.BeginStageForStrip(w, tickWet);
+        Check(stagedWet >= 0 && !pool.HasPublishedFor(w), "Strip 0 before first publish must keep HasPublishedFor=false during strips 0..2");
+        pool.CommitStagedStrip();
+        Check(pool.HasPublishedFor(w) && pool.GetPublishedTick(w) == tickWet, "Strip 3 commit must publish wet snapshot");
+        Check(pool.TrySamplePublishedPrecipitation(w, uEcs, vEcs, out var wetCpu) &&
+              wetCpu.CloudRainOutKgM2Per6h > 0.50f && wetCpu.SurfacePrecipKgM2Per6h > 0.45f,
+            $"Expected active ECS rain-out at Day 184.0, got cloud={wetCpu.CloudRainOutKgM2Per6h:F3}, sfc={wetCpu.SurfacePrecipKgM2Per6h:F3}");
+
+        int pubWetSlotIdx = pool.PublishedIndex;
+        var wetCloudCopy = (byte[])pool.GetSlot(pubWetSlotIdx).CloudRgba.Clone();
+        var wetPrecipCopy = (ushort[])pool.GetSlot(pubWetSlotIdx).PrecipHalf.Clone();
+        float wetSouthRain = pool.GetSlot(pubWetSlotIdx).PrecipSouthRain, wetNorthRain = pool.GetSlot(pubWetSlotIdx).PrecipNorthRain;
+
+        // 10b. Wet -> Dry transition: upload dry Day 189.0 and run strips 0, 1, 2 BEFORE strip 3 commits
+        pool.InvalidateLatestIfIncompatible(w, tickDry);
+        UploadSnapshotForDay(dayDry);
+        int stagedDry = pool.BeginStageForStrip(w, tickDry);
+        Check(stagedDry >= 0 && stagedDry != pubWetSlotIdx, "Dry staging slot must be distinct from published wet slot");
+        var stagedDryDiag = FlatMoistureCloudBudget.SamplePackedPrecipitationHalf(pool.GetSlot(stagedDry).PrecipHalf, uEcs, vEcs);
+        Check(stagedDryDiag.CloudRainOutKgM2Per6h == 0f && stagedDryDiag.SurfacePrecipKgM2Per6h == 0f,
+            $"Expected dry ECS staging data at Day 189.0, got {stagedDryDiag.CloudRainOutKgM2Per6h:F4}");
+
+        for (int strip = 0; strip < 3; strip++)
+        {
+            Check(pool.PublishedIndex == pubWetSlotIdx && pool.GetPublishedTick(w) == tickWet,
+                $"Published index/tick mutated prematurely on strip {strip}");
+            Check(pool.GetSlot(pubWetSlotIdx).CloudRgba.AsSpan().SequenceEqual(wetCloudCopy) &&
+                  pool.GetSlot(pubWetSlotIdx).PrecipHalf.AsSpan().SequenceEqual(wetPrecipCopy) &&
+                  pool.GetSlot(pubWetSlotIdx).PrecipSouthRain == wetSouthRain &&
+                  pool.GetSlot(pubWetSlotIdx).PrecipNorthRain == wetNorthRain,
+                $"Published GPU texture backing mutated in-place during strip {strip}");
+            Check(pool.TrySamplePublishedPrecipitation(w, uEcs, vEcs, out var midCpu) &&
+                  midCpu.CloudRainOutKgM2Per6h == wetCpu.CloudRainOutKgM2Per6h &&
+                  midCpu.SurfacePrecipKgM2Per6h == wetCpu.SurfacePrecipKgM2Per6h,
+                $"CPU TrySamplePublishedPrecipitation leaked uncommitted dry staging data during strip {strip}");
+        }
+
+        // 10c. Mid-strip cancellation / abort after strip 2 must NOT leak staging data into published state
+        pool.AbortStagedStrip();
+        Check(pool.StagedIndex == -1 && pool.PublishedIndex == pubWetSlotIdx && pool.GetPublishedTick(w) == tickWet,
+            "AbortStagedStrip altered published slot or tick");
+        Check(pool.TrySamplePublishedPrecipitation(w, uEcs, vEcs, out var afterAbortCpu) &&
+              afterAbortCpu.SurfacePrecipKgM2Per6h == wetCpu.SurfacePrecipKgM2Per6h &&
+              pool.GetSlot(pubWetSlotIdx).PrecipHalf.AsSpan().SequenceEqual(wetPrecipCopy),
+            "Aborted strip leaked staging precipitation into published GPU/CPU buffers");
+
+        // 10d. Consecutive Prepare uploads while a strip is active must overwrite neither PublishedIndex nor StagedIndex
+        stagedDry = pool.BeginStageForStrip(w, tickDry);
+        var stagedDryPrecipCopy = (ushort[])pool.GetSlot(stagedDry).PrecipHalf.Clone();
+        UploadSnapshotForDay(dayDry + 0.25);
+        UploadSnapshotForDay(dayDry + 0.50);
+        UploadSnapshotForDay(dayDry + 0.75);
+        Check(pool.GetSlot(pubWetSlotIdx).PrecipHalf.AsSpan().SequenceEqual(wetPrecipCopy) &&
+              pool.GetSlot(stagedDry).PrecipHalf.AsSpan().SequenceEqual(stagedDryPrecipCopy),
+            "Consecutive background uploads overwrote published or in-flight staged slot");
+
+        // Complete strip 3 of stagedDry (tickDry = 756): atomic switch of GPU buffer, CPU query, and tick!
+        pool.CommitStagedStrip();
+        Check(pool.PublishedIndex == stagedDry && pool.StagedIndex == -1 && pool.GetPublishedTick(w) == tickDry,
+            "CommitStagedStrip did not atomically switch PublishedIndex and PublishedTick");
+        Check(pool.TrySamplePublishedPrecipitation(w, uEcs, vEcs, out var dryCpu) &&
+              dryCpu.CloudRainOutKgM2Per6h == 0f && dryCpu.SurfacePrecipKgM2Per6h == 0f,
+            "Published dry snapshot must return TrySample=true with genuine G=0 surface precipitation");
+
+        // Verify virga semantics (R > 0, G = 0 or G < R) in published packed RGBAHalf buffer
+        int freeVirga = pool.AcquireUploadSlot();
+        var virgaSlot = pool.GetSlot(freeVirga);
+        Array.Clear(virgaSlot.PrecipHalf, 0, virgaSlot.PrecipHalf.Length);
+        int v4 = ecsCell * 4;
+        virgaSlot.PrecipHalf[v4] = FlatMoistureCloudBudget.FloatToHalfBits(1.75f);     // R > 0 in-cloud rain-out
+        virgaSlot.PrecipHalf[v4 + 1] = FlatMoistureCloudBudget.FloatToHalfBits(0f);    // G = 0 total sub-cloud virga evaporation
+        virgaSlot.PrecipHalf[v4 + 2] = FlatMoistureCloudBudget.FloatToHalfBits(0.4f);
+        virgaSlot.PrecipHalf[v4 + 3] = FlatMoistureCloudBudget.FloatToHalfBits(0.9f);
+        FlatCycloneTrack emptyTrack = default;
+        pool.CommitUpload(freeVirga, tickDry + 1, w.TerrainRevision, w.Moisture, false, false,
+            in emptyTrack, in emptyTrack, in emptyTrack, in emptyTrack, 0, 0, 0, 0, 0, 0, 0, 0);
+        pool.BeginStageForStrip(w, tickDry + 1);
+        pool.CommitStagedStrip();
+        Check(pool.TrySamplePublishedPrecipitation(w, uEcs, vEcs, out var virgaDiag) &&
+              Math.Abs(virgaDiag.CloudRainOutKgM2Per6h - 1.75f) < 0.01f &&
+              virgaDiag.SurfacePrecipKgM2Per6h == 0f &&
+              Math.Abs(virgaDiag.VirgaLossKgM2Per6h - 1.75f) < 0.01f,
+            "Virga cell (R>0, G=0) failed exact published sampling");
+
+        // 10e. Coalescing provenance: worker finishes tick 760 while playback has already reached tick 763
+        UploadSnapshotForDay(190.75, overrideWorkerTick: 760);
+        int stagedCoalesced = pool.BeginStageForStrip(w, targetTick: 763);
+        Check(stagedCoalesced >= 0 && pool.GetSlot(stagedCoalesced).Tick == 760,
+            "Coalesced worker upload must preserve its own 6h workerTick (760) instead of spoofing targetTick (763)");
+        pool.CommitStagedStrip();
+        Check(pool.GetPublishedTick(w) == 760, $"Published RegionalClimateStep spoofed wrong tick: {pool.GetPublishedTick(w)} != 760");
+
+        // 10f. TerrainRevision / Moisture invalidation & Resize reset must be identifiably invalid (Ready=false)
+        w.TerrainRevision++;
+        pool.InvalidateLatestIfIncompatible(w, 760);
+        Check(!pool.HasPublishedFor(w) && pool.GetPublishedTick(w) == null &&
+              !pool.TrySamplePublishedPrecipitation(w, uEcs, vEcs, out _),
+            "TerrainRevision increment must immediately invalidate published regional readout (fallback Ready=false)");
+        w.TerrainRevision--;
+
+        // 10g. Rewind to Day 184.0 (tickWet = 736): invalidates future staging, keeps previous frame until strip 3 commits, bit-exact match
+        pool.InvalidateLatestIfIncompatible(w, tickWet);
+        Check(pool.LatestUploadedIndex == -1 && pool.GetPublishedTick(w) == 760,
+            "Rewind must drop future LatestUploadedIndex while keeping current published frame immutable until rewound bake commits");
+        UploadSnapshotForDay(dayWet);
+        int rewStaged = pool.BeginStageForStrip(w, tickWet);
+        Check(pool.GetPublishedTick(w) == 760, "Rewound bake must still show previous published frame during strips 0..2");
+        pool.CommitStagedStrip();
+        Check(pool.GetPublishedTick(w) == tickWet &&
+              pool.GetSlot(pool.PublishedIndex).CloudRgba.AsSpan().SequenceEqual(wetCloudCopy) &&
+              pool.GetSlot(pool.PublishedIndex).PrecipHalf.AsSpan().SequenceEqual(wetPrecipCopy) &&
+              pool.TrySamplePublishedPrecipitation(w, uEcs, vEcs, out var rewoundWetCpu) &&
+              rewoundWetCpu.CloudRainOutKgM2Per6h == wetCpu.CloudRainOutKgM2Per6h &&
+              rewoundWetCpu.SurfacePrecipKgM2Per6h == wetCpu.SurfacePrecipKgM2Per6h,
+            "Rewind back to Day 184.0 failed bit-for-bit regional cloud/precipitation identity");
+
+        // Resize reset: clears PublishedIndex while preserving LatestUploadedIndex for zero-worker 4-strip re-bake
+        pool.ResetPublished();
+        Check(!pool.HasPublishedFor(w) && pool.HasValidLatestFor(w, tickWet),
+            "ResetPublished (Resize) must clear published state while keeping uploaded slot ready for immediate re-stage");
+        pool.BeginStageForStrip(w, tickWet);
+        pool.CommitStagedStrip();
+        Check(pool.GetPublishedTick(w) == tickWet, "Post-resize 4-strip re-bake failed to restore published tick");
+
+        // 10h. Zero steady-state heap allocations across 200 upload/stage/strip/sample cycles
+        long alloc0 = GC.GetAllocatedBytesForCurrentThread();
+        for (int iter = 0; iter < 200; iter++)
+        {
+            int sIdx = pool.AcquireUploadSlot();
+            pool.CommitUpload(sIdx, tickWet + iter, w.TerrainRevision, w.Moisture, false, false,
+                in emptyTrack, in emptyTrack, in emptyTrack, in emptyTrack, 0, 0, 0, 0, 0, 0, 0, 0);
+            pool.BeginStageForStrip(w, tickWet + iter);
+            pool.TrySamplePublishedPrecipitation(w, uEcs, vEcs, out _);
+            pool.CommitStagedStrip();
+            pool.TrySamplePublishedPrecipitation(w, uEcs, vEcs, out _);
+        }
+        long allocDelta = GC.GetAllocatedBytesForCurrentThread() - alloc0;
+        Check(allocDelta == 0, $"FlatRegionalSnapshotPool steady-state cycle allocated {allocDelta} bytes (expected 0 B)");
+
+        Console.WriteLine($"[10. Atomic 4-Strip Regional Snapshot Sync] ECS Wet(184.0)=({wetCpu.CloudRainOutKgM2Per6h:F2}/{wetCpu.SurfacePrecipKgM2Per6h:F2}) -> " +
+            $"Strips0..2=ImmutableWet -> Abort=NoLeak -> Strip3=AtomicDry({dryCpu.CloudRainOutKgM2Per6h:F2}/{dryCpu.SurfacePrecipKgM2Per6h:F2}) | " +
+            $"Virga(1.75/0.00)=EXACT | CoalesceTick(760!=763)=EXACT | Rewind184.0=BitExact | SteadyAlloc(200x)={allocDelta} B");
     }
 
     // ---- Helpers: World Perturbation, Site Selection & Faithful CPU Mirror of FlatSkyBake + OrbisCloudVerticalSpan ----

@@ -32,20 +32,24 @@ namespace Orbis.Flat
         bool rendered, failed;
         double stagedClock, stagingCalendarDay = double.NaN, stagingWeatherTime;
         Vector4 pendingNorth, pendingSouth, pendingPhase, visibleNorth, visibleSouth, visiblePhase;
-        Texture2D pendingPrecipTex, visiblePrecipTex;
-        Vector4 pendingPrecipPoles, visiblePrecipPoles;
         FlatRegionalCloudField regionalClimate;
         FlatCycloneWeather rewindCycloneCache;
         int rewindCycloneRevision = -1;
         long rewindCycloneTargetStep = long.MinValue;
         long? stagingClimateStep;
+        ulong stagingRegionalGeneration;
         int stagingRevision;
-        public long? RegionalClimateStep { get; private set; }
+        FlatMoistureState stagingMoisture;
+        public long? RegionalClimateStep => Ready && regionalClimate != null ? regionalClimate.GetPublishedTick(world) : null;
         public double PublishedCalendarDay { get; private set; } = double.NaN;
-        public Texture2D RegionalPrecipitationTexture { get { return Ready && visiblePrecipTex ? visiblePrecipTex : null; } }
+        public bool RegionalPrecipitationReady => Ready && regionalClimate != null && regionalClimate.HasPublishedFor(world);
+        public Texture2D RegionalPrecipitationTexture =>
+            Ready && regionalClimate != null && regionalClimate.TryGetPublishedPrecipitation(world, out var tex, out _) ? tex : null;
+        public Vector4 RegionalPrecipitationPoles =>
+            Ready && regionalClimate != null && regionalClimate.TryGetPublishedPrecipitation(world, out _, out var poles) ? poles : Vector4.zero;
         public bool TrySampleRegionalPrecipitation(double u, double v, out RegionalPrecipitationDiagnostic diagnostic)
         {
-            if (Ready && regionalClimate != null && regionalClimate.TrySampleUploadedPrecipitation(u, v, out diagnostic))
+            if (Ready && regionalClimate != null && regionalClimate.TrySamplePublishedPrecipitation(world, u, v, out diagnostic))
                 return true;
             diagnostic = default;
             return false;
@@ -76,8 +80,9 @@ namespace Orbis.Flat
             stagingUpperWind = false;
             regionalClimate?.Dispose();
             regionalClimate = null;
-            pendingPrecipTex = visiblePrecipTex = null;
-            pendingPrecipPoles = visiblePrecipPoles = Vector4.zero;
+            stagingClimateStep = null;
+            stagingRegionalGeneration = 0;
+            stagingMoisture = null;
             rewindCycloneCache = null;
             rewindCycloneRevision = -1;
             rewindCycloneTargetStep = long.MinValue;
@@ -139,11 +144,20 @@ namespace Orbis.Flat
             bake.SetTexture("_CloudSynopticAuxTex", glebaAux);
             bake.SetTexture("_UpperWindTex", glebaUpperWind);
             bake.SetFloat("_GlebaCloudEnable", 1f);
+            bake.SetTexture("_RegionalCloudResponse", Texture2D.blackTexture);
+            bake.SetFloat("_RegionalEvapReady", 0f);
+            bake.SetVector("_RegionalCloudPoles", Vector4.zero);
+            bake.SetTexture("_RegionalPrecipDiagTex", Texture2D.blackTexture);
+            bake.SetVector("_RegionalPrecipPoles", Vector4.zero);
+            bake.SetFloat("_RegionalPrecipReady", 0f);
             hpColumn.SetTexture("_ScrollCloudWindTex", wind);
             hpColumn.SetTexture("_ScrollUpperWindTex", Texture2D.blackTexture);
             hpColumn.SetFloat("_ScrollUpperWindReady", 0f);
             hpColumn.SetFloat("_ScrollMonthBlend", publishedMonthBlend);
             hpColumn.SetTexture("_ClimateTex", climate);
+            hpColumn.SetTexture("_RegionalPrecipDiagTex", Texture2D.blackTexture);
+            hpColumn.SetVector("_RegionalPrecipPoles", Vector4.zero);
+            hpColumn.SetFloat("_RegionalPrecipReady", 0f);
             try
             {
                 Resize(512);
@@ -209,7 +223,10 @@ namespace Orbis.Flat
             rendered = false;
             pendingForcingBake = forcingScheduler.HasPublished;
             debt = 1;
-            RegionalClimateStep = null;
+            regionalClimate?.ResetPublishedOnResize(bake, hpColumn);
+            stagingClimateStep = null;
+            stagingRegionalGeneration = 0;
+            stagingMoisture = null;
             PublishedCalendarDay = double.NaN;
             stagingCalendarDay = double.NaN;
         }
@@ -285,16 +302,22 @@ namespace Orbis.Flat
             visibleNorth = pendingNorth;
             visibleSouth = pendingSouth;
             visiblePhase = pendingPhase;
-            visiblePrecipTex = pendingPrecipTex;
-            visiblePrecipPoles = pendingPrecipPoles;
             Shader.SetGlobalVector("_OrbisCycloneNorth", visibleNorth);
             Shader.SetGlobalVector("_OrbisCycloneSouth", visibleSouth);
             Shader.SetGlobalVector("_OrbisCyclonePhase", visiblePhase);
-            RegionalClimateStep = stagingClimateStep;
+            regionalClimate?.CommitStagedStrip();
             pendingStrip = -1;
             rendered = true;
             Status = "云层 " + Texture.width + "×" + Texture.height + " · 云影和雨雪 " + CacheWidth + "×" + (CacheWidth / 2) +
                 (RegionalClimateStep.HasValue ? " · 区域气候统计" : " · 月气候");
+        }
+
+        void AbortPendingStrip()
+        {
+            pendingStrip = -1;
+            stagingUpperWind = false;
+            if (bake) bake.SetTexture("_UpperWindTex", glebaUpperWind ? glebaUpperWind : Texture2D.blackTexture);
+            regionalClimate?.AbortStagedStrip(world, bake, hpColumn);
         }
 
         void ApplySeasonalWindPixels(float[] windRgba)
@@ -475,22 +498,19 @@ namespace Orbis.Flat
                 bool resumed = weatherWasHidden;
                 if (resumed)
                 {
-                    pendingStrip = -1;
-                    stagingUpperWind = false;
-                    bake.SetTexture("_UpperWindTex", glebaUpperWind);
+                    AbortPendingStrip();
                     weatherWasHidden = false;
                     forcingScheduler.NotifyCloudsResumed();
                 }
                 if (pendingStrip >= 0 && (stagingRevision != world.TerrainRevision ||
+                    !ReferenceEquals(stagingMoisture, world.Moisture) ||
                     double.IsNaN(stagingCalendarDay) ||
                     effectiveDay < stagingCalendarDay - 1e-7 ||
                     (effectiveDay - stagingCalendarDay) > 0.5 ||
                     (!animate && Math.Abs(effectiveDay - stagingCalendarDay) > 1e-7) ||
                     forcingScheduler.ShouldAbortPendingStrip(world, effectiveDay)))
                 {
-                    pendingStrip = -1;
-                    stagingUpperWind = false;
-                    bake.SetTexture("_UpperWindTex", glebaUpperWind);
+                    AbortPendingStrip();
                 }
                 if (pendingStrip >= 0)
                 {
@@ -520,7 +540,7 @@ namespace Orbis.Flat
 
                 // Hold when paused, rewound, or terrain-invalidated until the matching regional step finishes,
                 // while allowing continuous intra-day cloud advection across forward 6-hour steps.
-                if (!fieldReady && rendered && (!animate || !regionalClimate.HasValidField)) return;
+                if (!fieldReady && rendered && (!animate || !regionalClimate.HasValidLatestFor(world, regionalDay))) return;
 
                 SampleCyclones(effectiveDay, out var nextNorth, out var nextSouth, out var nextPhase);
                 bool cycloneChanged = nextNorth != visibleNorth || nextSouth != visibleSouth || nextPhase != visiblePhase;
@@ -532,7 +552,9 @@ namespace Orbis.Flat
                 bool forcingChanged = pendingForcingBake || upperWindStagingPending ||
                     world.TerrainRevision != cache.VisibleWindRevision ||
                     cache.WindUploadGeneration != cache.VisibleWindGeneration;
-                bool regionalChanged = changed || (fieldReady && RegionalClimateStep != regionalClimate.Step);
+                bool regionalChanged = changed ||
+                    (regionalClimate.HasValidLatestFor(world, regionalDay) &&
+                     regionalClimate.GetPublishedGeneration(world) != regionalClimate.LatestUploadedGeneration);
                 double minBakeDays = animate ? FlatSkyCalendar.MinBakeStepDays : 1e-7;
                 bool calendarMoved = double.IsNaN(PublishedCalendarDay) ||
                     Math.Abs(effectiveDay - PublishedCalendarDay) >= minBakeDays;
@@ -555,13 +577,9 @@ namespace Orbis.Flat
                 }
                 debt = 0;
                 pendingForcingBake = false;
-                regionalClimate.Bind(bake);
-                regionalClimate.BindPrecipitation(hpColumn);
-                pendingPrecipTex = regionalClimate.PrecipitationTexture;
-                pendingPrecipPoles = regionalClimate.PrecipitationPoles;
-                stagingClimateStep = regionalClimate.Step ?? RegionalClimateStep;
-                if (!regionalClimate.HasValidField) stagingClimateStep = null;
+                regionalClimate.StageAndBind(world, regionalDay, bake, hpColumn, out stagingClimateStep, out stagingRegionalGeneration);
                 stagingRevision = world.TerrainRevision;
+                stagingMoisture = world.Moisture;
                 stagingCalendarDay = effectiveDay;
                 stagingWeatherTime = weatherTime;
                 stagingUpperWind = upperWindStagingPending;
@@ -610,8 +628,13 @@ namespace Orbis.Flat
             target.SetFloat("_VegetationWindBlend", windBlend);
             target.SetVector("_CycloneNorth", visibleNorth);
             target.SetVector("_CycloneSouth", visibleSouth);
-            target.SetTexture("_RegionalPrecipDiagTex", Ready && visiblePrecipTex ? visiblePrecipTex : Texture2D.blackTexture);
-            target.SetVector("_RegionalPrecipPoles", Ready && visiblePrecipTex ? visiblePrecipPoles : Vector4.zero);
+            Texture2D pubPrecipTex = null;
+            Vector4 pubPrecipPoles = Vector4.zero;
+            bool precipValid = Ready && regionalClimate != null &&
+                regionalClimate.TryGetPublishedPrecipitation(world, out pubPrecipTex, out pubPrecipPoles) && pubPrecipTex;
+            target.SetTexture("_RegionalPrecipDiagTex", precipValid ? pubPrecipTex : Texture2D.blackTexture);
+            target.SetVector("_RegionalPrecipPoles", precipValid ? pubPrecipPoles : Vector4.zero);
+            target.SetFloat("_RegionalPrecipReady", precipValid ? 1f : 0f);
             target.SetFloat("_FlatCloudShadows", shadows ? 1 : 0);
             target.SetFloat("_FlatAtmosphere", atmosphere ? 1 : 0);
             target.SetFloat("_FlatDayNight", dayNight ? 1 : 0);

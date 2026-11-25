@@ -233,10 +233,159 @@ namespace Orbis.Editor
     Publish();
     sim.Step(.25f);sky.Tick(.6f,true,true,false,512,world.Day);
     world.Day=savedDay;world.Cyclones=savedStorms;world.TerrainRevision++;
+    CheckRenderState(report,!sky.RegionalPrecipitationReady && !sky.TrySampleRegionalPrecipitation(.5,.5,out _),
+     "terrain revision immediately invalidates stale regional precipitation readout until rebuilt strips commit");
     Publish();
     CheckRenderState(report,sky.Ready,"paused resume and rewind discard stale regional work and publish complete weather/column pairs");
+    ValidateRegionalPrecipitationStripSync(world,sky,report);
    }
    finally {UnityEngine.Object.DestroyImmediate(root);}
+  }
+
+  static void ValidateRegionalPrecipitationStripSync(Flat.WorldData world,Flat.FlatSkyRenderer sky,List<string> report)
+  {
+   const System.Reflection.BindingFlags priv=System.Reflection.BindingFlags.Instance|System.Reflection.BindingFlags.NonPublic;
+   var pendingStripField=typeof(Flat.FlatSkyRenderer).GetField("pendingStrip",priv);
+   var hpColumnField=typeof(Flat.FlatSkyRenderer).GetField("hpColumn",priv);
+   var bakeField=typeof(Flat.FlatSkyRenderer).GetField("bake",priv);
+   var hpMat=(Material)hpColumnField.GetValue(sky);
+   var bakeMat=(Material)bakeField.GetValue(sky);
+   var surfaceProbe=new Material(Shader.Find("Hidden/Internal-Colored"));
+   var gpuRt=RenderTexture.GetTemporary(64,32,0,RenderTextureFormat.ARGBFloat,RenderTextureReadWrite.Linear);
+   var gpuRead=new Texture2D(64,32,TextureFormat.RGBAFloat,false,true);
+   var prevRt=RenderTexture.active;bool prevSrgb=GL.sRGBWrite;
+   try
+   {
+    Color SampleGpuTexel(Texture tex,int x,int y)
+    {
+     GL.sRGBWrite=false;Graphics.Blit(tex,gpuRt);RenderTexture.active=gpuRt;
+     gpuRead.ReadPixels(new Rect(0,0,64,32),0,0);gpuRead.Apply(false,false);
+     return gpuRead.GetPixel(x,y);
+    }
+    void PublishAt(double day)
+    {
+     world.Day=day;
+     long targetStep=(long)Math.Floor(day*4);
+     var sw=System.Diagnostics.Stopwatch.StartNew();
+     while((sky.RegionalClimateStep!=targetStep || (int)pendingStripField.GetValue(sky)>=0 || Math.Abs(sky.PublishedCalendarDay-day)>1e-6) && sw.Elapsed.TotalSeconds<10)
+     {
+      var w0=sky.Texture;var c0=sky.ColumnTexture;var p0=sky.RegionalPrecipitationTexture;
+      sky.Tick(0,true,false,false,512,day);
+      bool skySwapped=sky.Texture!=w0;
+      if(skySwapped!=(sky.ColumnTexture!=c0))throw new Exception("Weather and HP column swapped on different ticks");
+      if((sky.RegionalPrecipitationTexture!=p0 && p0!=null && sky.RegionalPrecipitationTexture!=null) && !skySwapped)
+       throw new Exception("Published precipitation texture changed before final HP column strip swapped");
+      System.Threading.Thread.Sleep(1);
+     }
+     if(sky.RegionalClimateStep!=targetStep)throw new Exception("Timed out publishing step "+targetStep);
+    }
+
+    // Deterministically pick a natural cell transitioning from active rain-out (wetDay) to dry G=0 (dryDay) within segment [0, 15)
+    var budget=new Flat.FlatMoistureCloudBudget();
+    double wetDay=2.0,dryDay=6.5;
+    int pickCell=-1;
+    for(int dOff=0;dOff<18 && pickCell<0;dOff++)
+    {
+     double candWet=1.0+dOff*0.5,candDry=candWet+4.0;
+     budget.Solve(world,candWet,Flat.FlatCycloneWeather.SpinUpAt(world,candWet));
+     var wetRain=(float[])budget.CloudRainOutKgM2Per6h.Clone();
+     var wetSfc=(float[])budget.SurfacePrecipKgM2Per6h.Clone();
+     budget.Solve(world,candDry,Flat.FlatCycloneWeather.SpinUpAt(world,candDry));
+     for(int i=64;i<Flat.FlatMoistureCloudBudget.Count-64;i++)
+     {
+      if(wetRain[i]>0.5f && wetSfc[i]>0.35f && budget.CloudRainOutKgM2Per6h[i]==0f && budget.SurfacePrecipKgM2Per6h[i]==0f)
+      {
+       pickCell=i;wetDay=candWet;dryDay=candDry;break;
+      }
+     }
+    }
+    if(pickCell<0)throw new Exception("Could not locate natural wet->dry 6h transition cell on test world");
+    int bx=pickCell%64,by=pickCell/64;
+    double u=(bx+0.5)/64.0,v=(by+0.5)/32.0;
+    long stepWet=(long)Math.Floor(wetDay*4),stepDry=(long)Math.Floor(dryDay*4);
+
+    PublishAt(wetDay);
+    var texWet=sky.Texture;var colWet=sky.ColumnTexture;var precipTexWet=sky.RegionalPrecipitationTexture;
+    var rawWetBytes=(byte[])precipTexWet.GetRawTextureData().Clone();
+    sky.Bind(surfaceProbe,Vector3.forward,true,true,true,true,true,false,false,1f);
+    CheckRenderState(report,hpMat.GetFloat("_RegionalPrecipReady")==1f && surfaceProbe.GetFloat("_RegionalPrecipReady")==1f,
+     "published regional precipitation binds _RegionalPrecipReady=1 on both HP column and surface materials");
+    var gpuWet=SampleGpuTexel(surfaceProbe.GetTexture("_RegionalPrecipDiagTex"),bx,by);
+    bool hasWetCpu=sky.TrySampleRegionalPrecipitation(u,v,out var cpuWet);
+    CheckRenderState(report,hasWetCpu && gpuWet.g>0.3f && Mathf.Abs(gpuWet.g-cpuWet.SurfacePrecipKgM2Per6h)<0.02f,
+     $"wet snapshot GPU/CPU precipitation match at ({bx},{by}): gpuG={gpuWet.g:F3}, cpuG={cpuWet.SurfacePrecipKgM2Per6h:F3}");
+
+    // Advance to dryDay and step until strip 0 begins (pendingStrip == 1 after Tick)
+    world.Day=dryDay;
+    var swStage=System.Diagnostics.Stopwatch.StartNew();
+    while((int)pendingStripField.GetValue(sky)<0 && swStage.Elapsed.TotalSeconds<10)
+    {
+     sky.Tick(0,true,false,false,512,dryDay);
+     if((int)pendingStripField.GetValue(sky)<0)
+     {
+      sky.Bind(surfaceProbe,Vector3.forward,true,true,true,true,true,false,false,1f);
+      var holdGpu=SampleGpuTexel(surfaceProbe.GetTexture("_RegionalPrecipDiagTex"),bx,by);
+      sky.TrySampleRegionalPrecipitation(u,v,out var holdCpu);
+      if(Mathf.Abs(holdGpu.g-gpuWet.g)>1e-4f || Mathf.Abs(holdCpu.SurfacePrecipKgM2Per6h-cpuWet.SurfacePrecipKgM2Per6h)>1e-4f)
+       throw new Exception("Published precipitation mutated while background worker was computing");
+      System.Threading.Thread.Sleep(1);
+     }
+    }
+    if((int)pendingStripField.GetValue(sky)!=1)throw new Exception("Expected pendingStrip==1 right after strip 0");
+
+    // Strips 0, 1, 2 (pendingStrip == 1, 2, 3): hpColumn already stages dry texture, while published GPU & CPU stay immutable wet!
+    for(int stripAfter=1;stripAfter<=3;stripAfter++)
+    {
+     if(stripAfter>1)sky.Tick(0,true,false,false,512,dryDay);
+     if((int)pendingStripField.GetValue(sky)!=stripAfter)throw new Exception("Unexpected pendingStrip "+pendingStripField.GetValue(sky));
+     var stagedHpGpu=SampleGpuTexel(hpMat.GetTexture("_RegionalPrecipDiagTex"),bx,by);
+     sky.Bind(surfaceProbe,Vector3.forward,true,true,true,true,true,false,false,1f);
+     var pubSurfGpu=SampleGpuTexel(surfaceProbe.GetTexture("_RegionalPrecipDiagTex"),bx,by);
+     bool okMid=sky.TrySampleRegionalPrecipitation(u,v,out var midCpu);
+     if(hpMat.GetFloat("_RegionalPrecipReady")!=1f || stagedHpGpu.g>1e-4f)
+      throw new Exception($"HP column staging did not bind dry regional precipitation on strip {stripAfter-1}");
+     if(!okMid || sky.RegionalClimateStep!=stepWet || sky.Texture!=texWet || sky.ColumnTexture!=colWet ||
+        sky.RegionalPrecipitationTexture!=precipTexWet || Mathf.Abs(pubSurfGpu.g-gpuWet.g)>1e-4f ||
+        Mathf.Abs(midCpu.SurfacePrecipKgM2Per6h-cpuWet.SurfacePrecipKgM2Per6h)>1e-4f)
+      throw new Exception($"Published GPU/CPU regional snapshot leaked dry staging data before final strip (strip {stripAfter-1})");
+    }
+    report.Add("PASS strips 0..2 keep published GPU _RegionalPrecipDiagTex, CPU query and RegionalClimateStep immutable while hpColumn stages new 6h data");
+
+    // Cancel / abort before strip 3 by rewinding calendar back to wetDay: verify zero leak
+    world.Day=wetDay;
+    sky.Tick(0,true,false,false,512,wetDay);
+    sky.Bind(surfaceProbe,Vector3.forward,true,true,true,true,true,false,false,1f);
+    var abortGpu=SampleGpuTexel(surfaceProbe.GetTexture("_RegionalPrecipDiagTex"),bx,by);
+    sky.TrySampleRegionalPrecipitation(u,v,out var abortCpu);
+    CheckRenderState(report,(int)pendingStripField.GetValue(sky)==-1 && sky.RegionalClimateStep==stepWet &&
+     Mathf.Abs(abortGpu.g-gpuWet.g)<1e-4f && abortCpu.SurfacePrecipKgM2Per6h==cpuWet.SurfacePrecipKgM2Per6h &&
+     bakeMat.GetTexture("_RegionalPrecipDiagTex")==precipTexWet,
+     "aborting an incomplete 4-strip bake restores staging materials and leaks nothing into published GPU/CPU state");
+
+    // Complete all 4 strips to dryDay and verify atomic switch on strip 3
+    PublishAt(dryDay);
+    sky.Bind(surfaceProbe,Vector3.forward,true,true,true,true,true,false,false,1f);
+    var gpuDry=SampleGpuTexel(surfaceProbe.GetTexture("_RegionalPrecipDiagTex"),bx,by);
+    bool hasDryCpu=sky.TrySampleRegionalPrecipitation(u,v,out var cpuDry);
+    CheckRenderState(report,hasDryCpu && sky.RegionalClimateStep==stepDry && surfaceProbe.GetFloat("_RegionalPrecipReady")==1f &&
+     gpuDry.g==0f && cpuDry.SurfacePrecipKgM2Per6h==0f && sky.Texture!=texWet && sky.ColumnTexture!=colWet,
+     "completing strip 3 atomically publishes dry G=0 regional precipitation alongside ColumnTexture and Weather");
+
+    // Rewind back to wetDay: verify bit-for-bit identical raw RGBAHalf texture bytes and CPU diagnostic
+    PublishAt(wetDay);
+    var rewoundBytes=sky.RegionalPrecipitationTexture.GetRawTextureData();
+    sky.TrySampleRegionalPrecipitation(u,v,out var cpuRewound);
+    bool bytesIdentical=rewoundBytes.Length==rawWetBytes.Length;
+    for(int b=0;bytesIdentical && b<rawWetBytes.Length;b++)bytesIdentical&=rewoundBytes[b]==rawWetBytes[b];
+    CheckRenderState(report,bytesIdentical && cpuRewound.CloudRainOutKgM2Per6h==cpuWet.CloudRainOutKgM2Per6h &&
+     cpuRewound.SurfacePrecipKgM2Per6h==cpuWet.SurfacePrecipKgM2Per6h,
+     "rewinding back to same calendar day reproduces bit-exact RGBAHalf GPU texture and CPU regional precipitation");
+   }
+   finally
+   {
+    RenderTexture.active=prevRt;GL.sRGBWrite=prevSrgb;
+    RenderTexture.ReleaseTemporary(gpuRt);UnityEngine.Object.DestroyImmediate(gpuRead);UnityEngine.Object.DestroyImmediate(surfaceProbe);
+   }
   }
 
   static void ValidateRegionalAtmosphere(Material cloud,Func<Material,Color[]> render,List<string> report)
