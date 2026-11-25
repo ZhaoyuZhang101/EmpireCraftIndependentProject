@@ -32,7 +32,7 @@ namespace Orbis.Flat
         {
             public WorldData World;
             public int Selected,ActiveNation;
-            public bool WasFlat,WasPaused;
+            public bool WasFlat,WasPaused,WasClouds;
             public Vector2 CenterTile;
             public float Speed;
             public MapLayer Layer;
@@ -42,6 +42,9 @@ namespace Orbis.Flat
         WorldData pendingDemoWorld;
         int pendingDemoFocusTile=-1;
         FlatHazardKind pendingDemoHazard=FlatHazardKind.None;
+        bool pendingDemoLiveWeather;
+        FlatStormScenarioPlan? pendingDemoPlan;
+        public FlatStormScenarioPlan? ActiveDemoScenarioPlan { get; private set; }
         public bool IsDemoWorldActive => savedSession!=null&&!ReferenceEquals(World,savedSession.World);
         TextField seedField,pathField;DropdownField sizeField,presetField,layerField,toolField,heightField,brushField;
         int[] playerWidths;
@@ -217,6 +220,8 @@ namespace Orbis.Flat
             Bind("hazardTyphoon",()=>TriggerHazard(FlatHazardKind.TyphoonSurge));
             Bind("hazardTsunami",()=>TriggerHazard(FlatHazardKind.Tsunami));
             Bind("hazardFocus",FocusActiveHazard);
+            Bind("hazardDemoEastChinaSea",()=>StartEarthStormScenario(FlatStormScenario.EastChinaSeaLandfall));
+            Bind("hazardDemoNorthAtlantic",()=>StartEarthStormScenario(FlatStormScenario.NorthAtlanticLandfall));
             Bind("hazardClear",()=>{if(map&&map.LocalWater){map.LocalWater.ClearHazard();navigation?.SyncMaterials();UpdateHUD();SetStatus("已清理局部水灾并恢复基准河湖海材质。");}});
             returnOriginalButton=root.Q<Button>("hazardReturnOriginal");
             if(returnOriginalButton!=null)
@@ -255,33 +260,92 @@ namespace Orbis.Flat
             SetStatus("已定位至当前锚定灾区（Tile "+focusTile+"）。");
         }
         /// <summary>
+        /// Launches one of the reproducible Earth meteorological disaster scenarios (East China Sea typhoon or
+        /// North Atlantic hurricane landfall) via <see cref="FlatStormScenarios.TryCreateScenarioWorld"/> inside an
+        /// isolated demo session driven by the shared simulation calendar and live-weather 64x64 SWE.
+        /// </summary>
+        public bool StartEarthStormScenario(FlatStormScenario scenario)
+        {
+            if(World==null||Busy){SetStatus("世界就绪后可启动地球气象灾害演示。");return false;}
+            string label=scenario==FlatStormScenario.EastChinaSeaLandfall?"东海台风登陆":"北大西洋飓风登陆";
+            WorldData earthSource=(IsDemoWorldActive&&savedSession?.World!=null&&savedSession.World.Preset==TerrainPreset.Earth&&savedSession.World.Moisture!=null)
+                ?savedSession.World
+                :(World.Preset==TerrainPreset.Earth&&World.Moisture!=null?World:null);
+            if(earthSource!=null)
+            {
+                if(!FlatStormScenarios.TryCreateScenarioWorld(earthSource,scenario,out var scenarioWorld,out int coastalTile,out var plan))
+                {
+                    SetStatus("无法在当前地球数据上初始化「"+label+"」情景。");
+                    return false;
+                }
+                EnterIsolatedDemoWorld(scenarioWorld,coastalTile,label,FlatHazardKind.TyphoonSurge,liveWeather:true,scenarioPlan:plan);
+                return true;
+            }
+
+            // Active world is a random non-Earth campaign: generate an isolated Earth512 base asynchronously
+            // without mutating the player's campaign world, calendar, or save file.
+            const int demoWidth=512;
+            var demAsset=Resources.Load<TextAsset>("ORBIS/FlatWorld/Earth"+demoWidth);
+            var waterAsset=Resources.Load<TextAsset>("ORBIS/FlatWorld/EarthWater"+demoWidth);
+            var riversAsset=Resources.Load<TextAsset>("ORBIS/FlatWorld/EarthRivers");
+            if(!demAsset||!waterAsset||!riversAsset)
+            {
+                SetStatus("无法加载内置 512×256 地球资料以启动「"+label+"」。");
+                return false;
+            }
+            byte[] heights=demAsset.bytes,basins=waterAsset.bytes,lines=riversAsset.bytes;
+            CaptureSavedSessionIfNeeded();
+            pendingDemoWorld=null;
+            pendingDemoLabel=label;
+            pendingDemoFocusTile=-1;
+            pendingDemoHazard=FlatHazardKind.TyphoonSurge;
+            pendingDemoLiveWeather=true;
+            pendingDemoPlan=null;
+            Queue(c=>{
+                var earthBase=FlatGenerator.Generate(demoWidth,demoWidth/2,FlatStormScenarios.CanonicalEarthSeed,TerrainPreset.Earth,c,heights,basins,lines);
+                c.ThrowIfCancellationRequested();
+                if(!FlatStormScenarios.TryCreateScenarioWorld(earthBase,scenario,out var scenarioWorld,out int coastalTile,out var plan))
+                    throw new InvalidOperationException("无法初始化地球气象灾害情景："+label);
+                pendingDemoWorld=scenarioWorld;
+                pendingDemoFocusTile=coastalTile;
+                pendingDemoPlan=plan;
+                return scenarioWorld;
+            },"正在创建隔离地球情景「"+label+"」（不改动原局与存档）…",false);
+            return true;
+        }
+        void CaptureSavedSessionIfNeeded()
+        {
+            if(savedSession!=null||World==null)return;
+            solarClock.Flush(simulationStep);
+            savedSession=new SavedSessionSnapshot
+            {
+                World=World,
+                Selected=selected,
+                ActiveNation=activeNation,
+                WasFlat=navigation&&navigation.IsFlat,
+                WasPaused=paused,
+                WasClouds=cloudToggle==null||cloudToggle.value,
+                CenterTile=navigation?navigation.CenterTile:Vector2.zero,
+                Speed=speed,
+                Layer=map?map.Layer:MapLayer.Natural
+            };
+        }
+        /// <summary>
         /// Switches to an isolated demo WorldData (clone or standalone Earth scenario) without mutating the player's
         /// live world, calendar day, or save file. Call <see cref="ExitIsolatedDemoWorld"/> to restore the original session.
         /// </summary>
-        public void EnterIsolatedDemoWorld(WorldData demoWorld,int focusTile=-1,string demoLabel="地球气象灾害演示",FlatHazardKind autoHazard=FlatHazardKind.None)
+        public void EnterIsolatedDemoWorld(WorldData demoWorld,int focusTile=-1,string demoLabel="地球气象灾害演示",FlatHazardKind autoHazard=FlatHazardKind.None,bool liveWeather=false,FlatStormScenarioPlan? scenarioPlan=null)
         {
             if(demoWorld==null||Busy||ReferenceEquals(demoWorld,World))return;
             var priorSnapshot=savedSession;
             string priorLabel=activeDemoLabel;
-            if(savedSession==null&&World!=null)
-            {
-                solarClock.Flush(simulationStep);
-                savedSession=new SavedSessionSnapshot
-                {
-                    World=World,
-                    Selected=selected,
-                    ActiveNation=activeNation,
-                    WasFlat=navigation&&navigation.IsFlat,
-                    WasPaused=paused,
-                    CenterTile=navigation?navigation.CenterTile:Vector2.zero,
-                    Speed=speed,
-                    Layer=map?map.Layer:MapLayer.Natural
-                };
-            }
+            CaptureSavedSessionIfNeeded();
             pendingDemoWorld=demoWorld;
             pendingDemoLabel=string.IsNullOrWhiteSpace(demoLabel)?"地球气象灾害演示":demoLabel;
             pendingDemoFocusTile=focusTile;
             pendingDemoHazard=autoHazard;
+            pendingDemoLiveWeather=liveWeather;
+            pendingDemoPlan=scenarioPlan;
             seedOnInstall=false;
             try
             {
@@ -289,7 +353,7 @@ namespace Orbis.Flat
             }
             catch
             {
-                pendingDemoWorld=null;pendingDemoLabel=null;pendingDemoFocusTile=-1;pendingDemoHazard=FlatHazardKind.None;
+                pendingDemoWorld=null;pendingDemoLabel=null;pendingDemoFocusTile=-1;pendingDemoHazard=FlatHazardKind.None;pendingDemoLiveWeather=false;pendingDemoPlan=null;
                 if(priorSnapshot==null&&savedSession!=null&&ReferenceEquals(World,savedSession.World))
                 {
                     savedSession=null;activeDemoLabel=priorLabel;
@@ -302,7 +366,7 @@ namespace Orbis.Flat
         {
             if(savedSession==null||Busy)return false;
             // Preserve savedSession and return button until Install(original) succeeds!
-            pendingDemoWorld=null;pendingDemoLabel=null;pendingDemoFocusTile=-1;pendingDemoHazard=FlatHazardKind.None;
+            pendingDemoWorld=null;pendingDemoLabel=null;pendingDemoFocusTile=-1;pendingDemoHazard=FlatHazardKind.None;pendingDemoLiveWeather=false;pendingDemoPlan=null;
             seedOnInstall=false;
             Install(savedSession.World);
             return savedSession==null;
@@ -313,11 +377,21 @@ namespace Orbis.Flat
             {
                 int focusTile=pendingDemoFocusTile;
                 var autoHazard=pendingDemoHazard;
+                bool liveWeather=pendingDemoLiveWeather;
+                var plan=pendingDemoPlan;
                 activeDemoLabel=string.IsNullOrWhiteSpace(pendingDemoLabel)?"地球气象灾害演示":pendingDemoLabel;
-                pendingDemoWorld=null;pendingDemoLabel=null;pendingDemoFocusTile=-1;pendingDemoHazard=FlatHazardKind.None;
+                ActiveDemoScenarioPlan=plan;
+                pendingDemoWorld=null;pendingDemoLabel=null;pendingDemoFocusTile=-1;pendingDemoHazard=FlatHazardKind.None;pendingDemoLiveWeather=false;pendingDemoPlan=null;
+                if(liveWeather)
+                {
+                    paused=false;
+                    if(cloudToggle!=null)cloudToggle.SetValueWithoutNotify(true);
+                }
                 if(autoHazard!=FlatHazardKind.None&&map&&map.LocalWater)
                 {
-                    int hzTile=map.LocalWater.StartHazard(autoHazard,focusTile,liveWeather:false);
+                    int hzTile=liveWeather
+                        ?map.LocalWater.StartLiveStormHazard(focusTile,CalendarDay)
+                        :map.LocalWater.StartHazard(autoHazard,focusTile,liveWeather:false);
                     if(hzTile>=0)focusTile=hzTile;
                 }
                 if(focusTile>=0&&focusTile<World.Count&&navigation&&map)
@@ -330,18 +404,20 @@ namespace Orbis.Flat
                 }
                 if(returnOriginalButton!=null)returnOriginalButton.EnableInClassList("is-hidden",!IsDemoWorldActive);
                 UpdateHUD();
-                SetStatus("已进入隔离演示「"+activeDemoLabel+"」（原局时间与存档均受保护，点击「返回原局」可随时恢复）。");
+                string summary=plan.HasValue?(" · "+plan.Value.FormatSummary()):string.Empty;
+                SetStatus("已进入隔离演示「"+activeDemoLabel+"」（同一日历自然演进，原局时间与存档均受保护，点击「返回原局」可随时恢复）"+summary);
                 return;
             }
             if(savedSession!=null&&ReferenceEquals(installed,savedSession.World))
             {
                 var snap=savedSession;
-                savedSession=null;activeDemoLabel=null;
-                pendingDemoWorld=null;pendingDemoLabel=null;pendingDemoFocusTile=-1;pendingDemoHazard=FlatHazardKind.None;
+                savedSession=null;activeDemoLabel=null;ActiveDemoScenarioPlan=null;
+                pendingDemoWorld=null;pendingDemoLabel=null;pendingDemoFocusTile=-1;pendingDemoHazard=FlatHazardKind.None;pendingDemoLiveWeather=false;pendingDemoPlan=null;
                 paused=snap.WasPaused;
                 speed=snap.Speed;
                 selected=snap.Selected;
                 activeNation=snap.ActiveNation;
+                if(cloudToggle!=null)cloudToggle.SetValueWithoutNotify(snap.WasClouds);
                 ChooseLayer(snap.Layer);
                 if(map&&selected>=0)map.Select(selected);
                 if(navigation)
@@ -363,9 +439,9 @@ namespace Orbis.Flat
         }
         void RecoverDemoIsolationOnAsyncAbort()
         {
-            bool abortedInitialEntry=pendingDemoWorld!=null&&savedSession!=null&&ReferenceEquals(World,savedSession.World);
-            pendingDemoWorld=null;pendingDemoLabel=null;pendingDemoFocusTile=-1;pendingDemoHazard=FlatHazardKind.None;
-            if(abortedInitialEntry){savedSession=null;activeDemoLabel=null;}
+            bool abortedInitialEntry=savedSession!=null&&ReferenceEquals(World,savedSession.World);
+            pendingDemoWorld=null;pendingDemoLabel=null;pendingDemoFocusTile=-1;pendingDemoHazard=FlatHazardKind.None;pendingDemoLiveWeather=false;pendingDemoPlan=null;
+            if(abortedInitialEntry){savedSession=null;activeDemoLabel=null;ActiveDemoScenarioPlan=null;}
             // When still on a demo world (!ReferenceEquals(World, savedSession.World)), preserve savedSession & return button!
             if(returnOriginalButton!=null)returnOriginalButton.EnableInClassList("is-hidden",!IsDemoWorldActive);
         }

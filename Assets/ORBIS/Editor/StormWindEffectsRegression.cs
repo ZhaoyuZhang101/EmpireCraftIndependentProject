@@ -1,11 +1,14 @@
 using System;
 using System.Collections.Generic;
+using System.Globalization;
 using System.IO;
 using System.Reflection;
 using System.Text;
+using System.Threading;
 using System.Threading.Tasks;
 using Orbis.Flat;
 using UnityEditor;
+using UnityEditor.SceneManagement;
 using UnityEngine;
 using UnityEngine.Rendering;
 using UnityEngine.UIElements;
@@ -22,9 +25,21 @@ namespace Orbis.Editor
     ///   4) Wildlife GPU pose &amp; shadow: crouched silhouette, pinned feet, lowered cast shadow, calm convergence;
     ///   5) CPU FlatWildlifePresenter.SamplePublishedCycloneWind chirality &amp; eyewall profile parity with GPU.
     /// </summary>
+    [InitializeOnLoad]
     public static class StormWindEffectsRegression
     {
         const int Resolution = 128;
+        const string LiveScenePath = "Assets/ORBIS/Scenes/Orbis2DWorld.unity";
+        const string KeyLiveActive = "Orbis.StormLiveVerify.Active";
+        const string KeyLiveExit = "Orbis.StormLiveVerify.Exit";
+
+        static StormWindEffectsRegression()
+        {
+            if (SessionState.GetBool(KeyLiveActive, false))
+                EditorApplication.update += StepLiveScenarioPlayMode;
+            if (SessionState.GetInt(KeyLiveExit, -1) >= 0)
+                EditorApplication.update += ExitLiveScenarioAfterPlay;
+        }
 
         [MenuItem("Tools/ORBIS/Storm Hazards/Validate Storm Wind Effects (D3D11)")]
         public static void Run()
@@ -435,7 +450,7 @@ namespace Orbis.Editor
         public static void VerifyDemoIsolationFailureAndCancel(FlatWorldApp app, WorldData expectedDemoWorld, List<string> report = null)
         {
             const BindingFlags Private = BindingFlags.NonPublic | BindingFlags.Instance;
-            var localReport = report ?? new List<string>();
+            var localReport = new List<string>();
             var appType = typeof(FlatWorldApp);
             var returnBtn = appType.GetField("returnOriginalButton", Private)?.GetValue(app) as Button;
             Require(localReport, app != null && app.IsDemoWorldActive && ReferenceEquals(app.World, expectedDemoWorld),
@@ -499,8 +514,354 @@ namespace Orbis.Editor
                 else if (existingSaveBytes != null) { try { File.WriteAllBytes(savePath, existingSaveBytes); } catch { } }
             }
 
+            if (report != null) report.AddRange(localReport);
             if (localReport.Exists(l => l.StartsWith("FAIL", StringComparison.Ordinal)))
                 throw new InvalidOperationException(string.Join("\n", localReport.FindAll(l => l.StartsWith("FAIL", StringComparison.Ordinal))));
+        }
+
+        [MenuItem("Tools/ORBIS/Storm Hazards/Verify Live Earth Storm Scenarios End-to-End (D3D11)")]
+        public static void RunLiveScenarioEndToEnd()
+        {
+            SessionState.SetBool(KeyLiveActive, true);
+            SessionState.SetInt(KeyLiveExit, -1);
+            if (!EditorApplication.isPlaying)
+                EditorSceneManager.OpenScene(LiveScenePath);
+            EditorApplication.update -= StepLiveScenarioPlayMode;
+            EditorApplication.update += StepLiveScenarioPlayMode;
+            if (!EditorApplication.isPlaying)
+                EditorApplication.EnterPlaymode();
+        }
+
+        static void ExitLiveScenarioAfterPlay()
+        {
+            int code = SessionState.GetInt(KeyLiveExit, -1);
+            if (code < 0) { EditorApplication.update -= ExitLiveScenarioAfterPlay; return; }
+            if (EditorApplication.isPlaying) return;
+            SessionState.SetInt(KeyLiveExit, -1);
+            EditorApplication.update -= ExitLiveScenarioAfterPlay;
+            if (Application.isBatchMode) EditorApplication.Exit(code);
+        }
+
+        static void StepLiveScenarioPlayMode()
+        {
+            if (!SessionState.GetBool(KeyLiveActive, false))
+            {
+                EditorApplication.update -= StepLiveScenarioPlayMode;
+                return;
+            }
+            if (!EditorApplication.isPlaying) return;
+            var app = UnityEngine.Object.FindFirstObjectByType<FlatWorldApp>();
+            if (!app || app.Busy || app.World == null) return;
+
+            SessionState.SetBool(KeyLiveActive, false);
+            EditorApplication.update -= StepLiveScenarioPlayMode;
+
+            int exitCode = 0;
+            try
+            {
+                ExecuteLiveScenarioEndToEnd(app);
+            }
+            catch (Exception ex)
+            {
+                exitCode = 1;
+                Debug.LogException(ex);
+            }
+            finally
+            {
+                SessionState.SetInt(KeyLiveExit, exitCode);
+                EditorApplication.update -= ExitLiveScenarioAfterPlay;
+                EditorApplication.update += ExitLiveScenarioAfterPlay;
+                EditorApplication.ExitPlaymode();
+            }
+        }
+
+        static void ExecuteLiveScenarioEndToEnd(FlatWorldApp app)
+        {
+            const BindingFlags Private = BindingFlags.NonPublic | BindingFlags.Instance;
+            const int CaptureW = 1280, CaptureH = 720;
+            string outDir = "ValidationOutput/StormEffects_20261125/LiveScenarioFlow";
+            Directory.CreateDirectory(outDir);
+            var report = new List<string>();
+            var inv = CultureInfo.InvariantCulture;
+            bool savedAsync = ShaderUtil.allowAsyncCompilation;
+            bool savedEditorAsync = EditorSettings.asyncShaderCompilation;
+            ShaderUtil.allowAsyncCompilation = false;
+            EditorSettings.asyncShaderCompilation = false;
+
+            RenderTexture rt = null;
+            Texture2D readTex = null;
+            var prevActive = RenderTexture.active;
+            try
+            {
+                var demAsset = Resources.Load<TextAsset>("ORBIS/FlatWorld/Earth512");
+                var waterAsset = Resources.Load<TextAsset>("ORBIS/FlatWorld/EarthWater512");
+                var riversAsset = Resources.Load<TextAsset>("ORBIS/FlatWorld/EarthRivers");
+                Require(report, demAsset && waterAsset && riversAsset, "Earth512 resources available");
+
+                var earthCampaign = FlatGenerator.Generate(
+                    512, 256, FlatStormScenarios.CanonicalEarthSeed, TerrainPreset.Earth,
+                    CancellationToken.None, demAsset.bytes, waterAsset.bytes, riversAsset.bytes);
+                earthCampaign.Day = 42.5;
+                var seedSim = new FlatSimulation(earthCampaign);
+                seedSim.SeedNations(4);
+
+                var appType = typeof(FlatWorldApp);
+                var updateMethod = appType.GetMethod("Update", Private);
+                var installMethod = appType.GetMethod("Install", Private);
+                var bindSkyMethod = appType.GetMethod("BindSky", Private);
+                var applyWaterMethod = appType.GetMethod("ApplyWaterSettings", Private);
+                var rootEl = appType.GetField("root", Private)?.GetValue(app) as VisualElement;
+                var cloudToggle = appType.GetField("cloudToggle", Private)?.GetValue(app) as Toggle;
+                var returnBtn = appType.GetField("returnOriginalButton", Private)?.GetValue(app) as Button;
+
+                void DrainAsync(double maxSeconds = 120.0)
+                {
+                    var sw = System.Diagnostics.Stopwatch.StartNew();
+                    while (app.Busy && sw.Elapsed.TotalSeconds < maxSeconds)
+                    {
+                        Thread.Sleep(25);
+                        updateMethod.Invoke(app, null);
+                    }
+                    Require(report, !app.Busy, $"async world operation settled within {maxSeconds:F0}s");
+                }
+
+                // Pause before installing Earth campaign so DrainAsync's Update() never advances solarClock on earthCampaign.
+                appType.GetField("paused", Private)?.SetValue(app, true);
+                if (cloudToggle != null) cloudToggle.SetValueWithoutNotify(false);
+
+                // Install our Earth campaign at Day 42.5 inside the real Orbis2DWorld scene.
+                installMethod.Invoke(app, new object[] { earthCampaign });
+                DrainAsync(120.0);
+
+                // Verify distinct campaign state to confirm exact restoration on ExitIsolatedDemoWorld().
+                Require(report, ReferenceEquals(app.World, earthCampaign) && Math.Abs(app.World.Day - 42.5) < 1e-6,
+                    $"Earth campaign installed cleanly at Day={app.World?.Day:F6}");
+
+                // Verify normal game menu buttons in FlatWorld.uxml.
+                var ecsBtn = rootEl?.Q<Button>("hazardDemoEastChinaSea");
+                var natlBtn = rootEl?.Q<Button>("hazardDemoNorthAtlantic");
+                Require(report, ecsBtn != null && ecsBtn.text == "东海台风登陆", "UI button hazardDemoEastChinaSea present");
+                Require(report, natlBtn != null && natlBtn.text == "北大西洋飓风登陆", "UI button hazardDemoNorthAtlantic present");
+                Require(report, returnBtn != null && returnBtn.ClassListContains("is-hidden"),
+                    "hazardReturnOriginal hidden before entering demo");
+
+                rt = RenderTexture.GetTemporary(CaptureW, CaptureH, 24, RenderTextureFormat.ARGB32, RenderTextureReadWrite.sRGB);
+                readTex = new Texture2D(CaptureW, CaptureH, TextureFormat.RGBA32, false, false);
+
+                void SyncAndRenderFrame(string pngName)
+                {
+                    var map = appType.GetField("map", Private)?.GetValue(app) as FlatMapRenderer;
+                    var nav = app.Navigation;
+                    var globe = appType.GetField("globe", Private)?.GetValue(app) as FlatGlobePresenter;
+                    var wildlife = appType.GetField("wildlife", Private)?.GetValue(app) as FlatWildlifePresenter;
+                    var cam = appType.GetField("viewCamera", Private)?.GetValue(app) as Camera;
+                    double calDay = app.CalendarDay;
+
+                    nav.SetViewport(new Rect(0, 0, CaptureW, CaptureH));
+                    for (int k = 0; k < 25 && !nav.IsFlat; k++) nav.Tick(0.15f, calDay);
+                    nav.Tick(0.05f, calDay);
+
+                    Vector3 sun = map.Sky.Sun(180f, calDay, true);
+                    map.Configure(false, nav.PixelsPerTile, (float)calDay * 4f);
+                    map.SetVegetationDay(calDay);
+                    long expectedStep = FlatCycloneWeather.StepAt(calDay);
+                    var swSky = System.Diagnostics.Stopwatch.StartNew();
+                    for (int k = 0; k < 200; k++)
+                    {
+                        map.Sky.Tick(0.1f, true, true, false, 512, calDay, nav.CenterTile, true);
+                        if (map.Sky.Ready && map.Sky.RegionalClimateStep.HasValue && map.Sky.RegionalClimateStep.Value == expectedStep &&
+                            !double.IsNaN(map.Sky.PublishedCalendarDay) && Math.Abs(map.Sky.PublishedCalendarDay - calDay) < 0.05)
+                            break;
+                        Thread.Sleep(15);
+                        if (swSky.Elapsed.TotalSeconds > 20.0) break;
+                    }
+
+                    map.LocalWater.Tick(0.02f, nav.CenterTile.x, nav.CenterTile.y, true, false, calDay);
+                    bindSkyMethod.Invoke(app, new object[] { map.Material, sun });
+                    applyWaterMethod.Invoke(app, new object[] { map.Material });
+                    nav.SyncMaterials();
+                    var terrainRend = typeof(FlatScrollNavigator).GetField("terrain", Private)?.GetValue(nav) as MeshRenderer;
+                    if (terrainRend && terrainRend.sharedMaterial && terrainRend.sharedMaterial.IsKeywordEnabled("ORBIS_PREVIEW"))
+                        throw new InvalidOperationException("Live scenario render unexpectedly used ORBIS_PREVIEW fallback instead of full LocalSurface.");
+                    if (wildlife) wildlife.Tick(0.05f, calDay, sun, true, 0.05f);
+                    if (globe) globe.TickScroll(0.05f, calDay * 25.0, calDay, nav.DisplaySpin, nav.Morph, true, true, true, true, sun, true);
+
+                    cam.targetTexture = rt;
+                    cam.pixelRect = new Rect(0, 0, CaptureW, CaptureH);
+                    cam.Render();
+                    RenderTexture.active = rt;
+                    readTex.ReadPixels(new Rect(0, 0, CaptureW, CaptureH), 0, 0);
+                    readTex.Apply(false, false);
+                    cam.targetTexture = null;
+                    File.WriteAllBytes(Path.Combine(outDir, pngName), readTex.EncodeToPNG());
+                }
+
+                void RunScenarioLifecycle(FlatStormScenario scenario, string prefix, bool runIsolationAudit)
+                {
+                    bool launched = app.StartEarthStormScenario(scenario);
+                    Require(report, launched, $"{prefix}: StartEarthStormScenario returned true");
+                    DrainAsync(120.0);
+
+                    Require(report, app.IsDemoWorldActive && !ReferenceEquals(app.World, earthCampaign),
+                        $"{prefix}: isolated demo active on distinct WorldData clone");
+                    Require(report, Math.Abs(earthCampaign.Day - 42.5) < 1e-6,
+                        $"{prefix}: original campaign Day=42.5 unmutated (actual={earthCampaign.Day:F6})");
+                    Require(report, app.ActiveDemoScenarioPlan.HasValue,
+                        $"{prefix}: ActiveDemoScenarioPlan populated");
+                    Require(report, !(bool)appType.GetField("paused", Private).GetValue(app) && cloudToggle != null && cloudToggle.value,
+                        $"{prefix}: demo starts unpaused with clouds enabled");
+
+                    var plan = app.ActiveDemoScenarioPlan.Value;
+                    var map = appType.GetField("map", Private)?.GetValue(app) as FlatMapRenderer;
+                    var localWater = map.LocalWater;
+                    var sessionObj = typeof(FlatLocalWater).GetField("activeSession", Private)?.GetValue(localWater) as FlatWaterHazardSession;
+                    Require(report, localWater.HasActiveHazard && sessionObj != null && sessionObj.LiveWeatherDriven,
+                        $"{prefix}: anchored 64x64 SWE running in liveWeather=true mode (tile={localWater.ActiveFocusTile})");
+
+                    if (runIsolationAudit)
+                    {
+                        VerifyDemoIsolationFailureAndCancel(app, app.World, report);
+                        report.Add($"PASS {prefix}: VerifyDemoIsolationFailureAndCancel passed on live scenario");
+                    }
+
+                    SyncAndRenderFrame($"{prefix}_01_approach.png");
+
+                    var csv = new StringBuilder();
+                    csv.AppendLine("step,day,cyc_tracked,cyc_lon,cyc_lat,cyc_wind_ms,cyc_strength,shader_cyc_w,focus_wind_ms,sky_step,swe_precip_6h,from_sky_snap,inundated_cells,inundated_km2,max_flood_m,max_speed_ms,rain_vol_m3,outflow_m3,phase");
+
+                    double startDay = app.World.Day;
+                    double targetEndDay = Math.Max(plan.ExpectedDecayDay + 1.25, plan.ExpectedLandfallDay + 3.25);
+                    double dtDay = 0.125;
+                    int totalSteps = (int)Math.Ceiling((targetEndDay - startDay) / dtDay);
+                    double focusU = ((localWater.ActiveFocusTile % app.World.Width) + 0.5) / app.World.Width;
+                    double focusV = ((localWater.ActiveFocusTile / app.World.Width) + 0.5) / app.World.Height;
+
+                    double peakWindMs = 0, endWindMs = 0, peakAreaKm2 = 0, endAreaKm2 = 0, peakFloodM = 0, peakRainVol = 0, landfallLon = double.NaN;
+                    int peakInundated = 0, endInundated = 0;
+                    double peakInundatedDay = startDay;
+                    bool capturedLandfall = false, sawSkySnapshot = false, sawShaderCyclone = false;
+
+                    for (int s = 0; s <= totalSteps; s++)
+                    {
+                        if (s > 0) app.Simulation.Step((float)dtDay);
+                        double calDay = app.CalendarDay;
+                        long expectedStep = FlatCycloneWeather.StepAt(calDay);
+
+                        var swSky = System.Diagnostics.Stopwatch.StartNew();
+                        for (int k = 0; k < 160; k++)
+                        {
+                            map.Sky.Tick(0.1f, true, true, false, 512, calDay, app.Navigation.CenterTile, true);
+                            if (map.Sky.Ready && map.Sky.RegionalClimateStep.HasValue && map.Sky.RegionalClimateStep.Value == expectedStep &&
+                                !double.IsNaN(map.Sky.PublishedCalendarDay) && Math.Abs(map.Sky.PublishedCalendarDay - calDay) < 0.05)
+                                break;
+                            Thread.Sleep(10);
+                            if (swSky.Elapsed.TotalSeconds > 15.0) break;
+                        }
+
+                        var metrics = localWater.AdvanceLiveCalendarSynchronous(calDay);
+                        var track = app.World.Cyclones != null ? app.World.Cyclones.Sample(true, calDay) : default;
+                        double lon = track.Tracked ? (track.U - 0.5) * 360.0 : double.NaN;
+                        double lat = track.Tracked ? (track.V - 0.5) * 180.0 : double.NaN;
+                        var surfWind = FlatStormScenarios.SampleSurfaceWind(app.World, focusU, focusV, calDay);
+                        Vector4 pubCyc = map.Sky.PublishedCycloneNorth;
+                        if (pubCyc.w > 0.2f) sawShaderCyclone = true;
+                        if (localWater.LastPrecipitationFromSkySnapshot) sawSkySnapshot = true;
+
+                        if (track.Tracked && track.WindSpeed > peakWindMs) peakWindMs = track.WindSpeed;
+                        endWindMs = track.Tracked ? track.WindSpeed : 0.0;
+                        if (metrics.RainInputVolumeM3 > peakRainVol) peakRainVol = metrics.RainInputVolumeM3;
+                        if (metrics.InundatedAreaKm2 > peakAreaKm2)
+                        {
+                            peakAreaKm2 = metrics.InundatedAreaKm2;
+                            peakInundatedDay = calDay;
+                        }
+                        if (metrics.MaxFloodDepthMeters > peakFloodM) peakFloodM = metrics.MaxFloodDepthMeters;
+                        if (metrics.InundatedDryCells > peakInundated) peakInundated = metrics.InundatedDryCells;
+                        endInundated = metrics.InundatedDryCells;
+                        endAreaKm2 = metrics.InundatedAreaKm2;
+
+                        csv.AppendLine(string.Format(inv,
+                            "{0},{1:F3},{2},{3:F3},{4:F3},{5:F2},{6:F3},{7:F3},{8:F2},{9},{10:F3},{11},{12},{13:F3},{14:F3},{15:F3},{16:E3},{17:E3},{18}",
+                            s, calDay, track.Tracked ? 1 : 0, lon, lat, track.WindSpeed, track.Strength, pubCyc.w,
+                            surfWind.SpeedMs, map.Sky.RegionalClimateStep?.ToString(inv) ?? "-1",
+                            localWater.LastSurfacePrecipKgM2Per6h, localWater.LastPrecipitationFromSkySnapshot ? 1 : 0,
+                            metrics.InundatedDryCells, metrics.InundatedAreaKm2, metrics.MaxFloodDepthMeters, metrics.MaxSpeedMs,
+                            metrics.RainInputVolumeM3, metrics.BoundaryOutflowVolumeM3, metrics.Phase));
+
+                        if (!capturedLandfall && calDay >= plan.ExpectedLandfallDay - 1e-4)
+                        {
+                            capturedLandfall = true;
+                            landfallLon = lon;
+                            SyncAndRenderFrame($"{prefix}_02_landfall.png");
+                        }
+                        else if (capturedLandfall && Math.Abs(calDay - (plan.ExpectedLandfallDay + 0.25)) < dtDay * 0.6)
+                        {
+                            SyncAndRenderFrame($"{prefix}_03_peak_inundation.png");
+                        }
+                    }
+
+                    SyncAndRenderFrame($"{prefix}_04_recession.png");
+                    File.WriteAllText(Path.Combine(outDir, $"{prefix}_metrics.csv"), csv.ToString(), new UTF8Encoding(false));
+
+                    Require(report, sawShaderCyclone, $"{prefix}: published cyclone bound to sky & surface wind shader");
+                    Require(report, sawSkySnapshot, $"{prefix}: same-world 6h sky precipitation snapshot coupled into SWE");
+                    Require(report, peakWindMs >= 30.0 && endWindMs < peakWindMs * 0.75,
+                        $"{prefix}: natural storm wind intensification & post-landfall decay (peak={peakWindMs:F1} m/s -> end={endWindMs:F1} m/s)");
+                    Require(report, !double.IsNaN(landfallLon) && Math.Abs(landfallLon - plan.LandfallLonDeg) < 1.5,
+                        $"{prefix}: natural track reached mainland landfall longitude (actual={landfallLon:F2} vs plan={plan.LandfallLonDeg:F2})");
+                    Require(report, peakInundated >= 8 && peakAreaKm2 > 0.25 && peakRainVol > 0.0,
+                        $"{prefix}: live SWE coastal inundation & rain buildup (peakCells={peakInundated}, peakArea={peakAreaKm2:F2} km2, maxDepth={peakFloodM:F2} m, peakDay={peakInundatedDay:F2}, rainVol={peakRainVol:E2})");
+                    Require(report, endInundated < peakInundated && endAreaKm2 < peakAreaKm2 * 0.88,
+                        $"{prefix}: post-landfall floodwater recession (cells {peakInundated}->{endInundated}, area {peakAreaKm2:F2}->{endAreaKm2:F2} km2)");
+                }
+
+                // 1. East China Sea Typhoon Landfall (with demo isolation & cancel/failure audit)
+                RunScenarioLifecycle(FlatStormScenario.EastChinaSeaLandfall, "ecs", runIsolationAudit: true);
+
+                // 2. Direct switch to North Atlantic Hurricane Landfall (verifies original campaign stays preserved)
+                RunScenarioLifecycle(FlatStormScenario.NorthAtlanticLandfall, "natl", runIsolationAudit: false);
+
+                // 3. Return to original Earth campaign and verify exact restoration.
+                bool exited = app.ExitIsolatedDemoWorld();
+                DrainAsync(120.0);
+                var mapRestored = appType.GetField("map", Private)?.GetValue(app) as FlatMapRenderer;
+                Require(report, exited && !app.IsDemoWorldActive && ReferenceEquals(app.World, earthCampaign),
+                    "ExitIsolatedDemoWorld restored original Earth campaign WorldData");
+                Require(report, Math.Abs(app.World.Day - 42.5) < 1e-6,
+                    $"original campaign calendar Day restored exactly ({app.World.Day:F2})");
+                Require(report, (bool)appType.GetField("paused", Private).GetValue(app) && cloudToggle != null && !cloudToggle.value,
+                    "original campaign pause=true and clouds=false restored exactly");
+                Require(report, returnBtn != null && returnBtn.ClassListContains("is-hidden") && !mapRestored.LocalWater.HasActiveHazard,
+                    "return button hidden and local SWE cleared after returning to original campaign");
+
+                // 4. Verify launching from a random non-Earth world builds isolated Earth512 demo and restores cleanly.
+                var randomWorld = FlatGenerator.Generate(128, 64, "RANDOM-CAMPAIGN-TEST", TerrainPreset.Continents, CancellationToken.None);
+                randomWorld.Day = 17.25;
+                installMethod.Invoke(app, new object[] { randomWorld });
+                DrainAsync(120.0);
+                Require(report, ReferenceEquals(app.World, randomWorld), "random non-Earth campaign installed");
+                bool launchedFromRandom = app.StartEarthStormScenario(FlatStormScenario.EastChinaSeaLandfall);
+                Require(report, launchedFromRandom, "StartEarthStormScenario accepted from non-Earth random world");
+                DrainAsync(120.0);
+                Require(report, app.IsDemoWorldActive && app.World.Preset == TerrainPreset.Earth && app.World.Width == 512 && Math.Abs(randomWorld.Day - 17.25) < 1e-6,
+                    "isolated Earth512 scenario launched asynchronously from random world without mutating random world");
+                bool exitedRandom = app.ExitIsolatedDemoWorld();
+                DrainAsync(120.0);
+                Require(report, exitedRandom && !app.IsDemoWorldActive && ReferenceEquals(app.World, randomWorld) && Math.Abs(randomWorld.Day - 17.25) < 1e-6,
+                    "ExitIsolatedDemoWorld restored random non-Earth campaign exactly");
+            }
+            finally
+            {
+                RenderTexture.active = prevActive;
+                if (rt) RenderTexture.ReleaseTemporary(rt);
+                if (readTex) UnityEngine.Object.DestroyImmediate(readTex);
+                EditorSettings.asyncShaderCompilation = savedEditorAsync;
+                ShaderUtil.allowAsyncCompilation = savedAsync;
+                File.WriteAllLines(Path.Combine(outDir, "live-scenario-report.txt"), report, new UTF8Encoding(false));
+            }
+
+            if (report.Exists(l => l.StartsWith("FAIL", StringComparison.Ordinal)))
+                throw new InvalidOperationException(string.Join("\n", report.FindAll(l => l.StartsWith("FAIL", StringComparison.Ordinal))));
         }
 
         static void Require(List<string> report, bool ok, string label) => report.Add((ok ? "PASS " : "FAIL ") + label);

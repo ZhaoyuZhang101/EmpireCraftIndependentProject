@@ -55,6 +55,7 @@
      <ui:Foldout text="局部水灾与海啸 (64×64 SWE)" value="true">
       <ui:VisualElement class="row"><ui:Button name="hazardRainFlood" text="降雨漫堤洪水" class="grow"/><ui:Button name="hazardTyphoon" text="台风风暴潮" class="grow"/></ui:VisualElement>
       <ui:VisualElement class="row"><ui:Button name="hazardTsunami" text="海床位移海啸" class="grow accent"/><ui:Button name="hazardFocus" text="定位灾区" class="grow"/></ui:VisualElement>
+      <ui:VisualElement class="row"><ui:Button name="hazardDemoEastChinaSea" text="东海台风登陆" class="grow accent"/><ui:Button name="hazardDemoNorthAtlantic" text="北大西洋飓风登陆" class="grow accent"/></ui:VisualElement>
       <ui:Toggle name="hazardLiveWeather" text="接通实时台风与暴雨事件" value="true"/>
       <ui:Button name="hazardClear" text="清理退水"/>
       <ui:Button name="hazardReturnOriginal" text="返回原局" class="accent is-hidden"/>
