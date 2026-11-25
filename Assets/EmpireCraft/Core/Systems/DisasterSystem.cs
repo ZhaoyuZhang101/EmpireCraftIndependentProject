@@ -79,7 +79,7 @@ public static class DisasterSystem
 #if EC_PENDING
     public static void Monthly()
     {
-        if (EmpireWorld.Current?.kingdoms?.list == null) return;
+        if (EmpireWorld.Current?.LiveRealms == null) return;
         EnsureWorld();
         double now = GameClock.Now;
         var due = new List<Realm>();

@@ -924,7 +924,7 @@ public static partial class EmpireLawSystem
 
             Person emperor = empire.Emperor;
             int emperorInfluence = emperor != null && emperor.Record != null ? emperor.Renown : 0;
-            int actorInfluence = actor.Record?.Renown ?? 0;
+            int actorInfluence = actor.Renown ?? 0;
             return emperor != null && emperorInfluence > actorInfluence && actorInfluence > 0;
         }
 

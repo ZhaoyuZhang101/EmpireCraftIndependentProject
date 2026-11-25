@@ -717,20 +717,20 @@ public static partial class GentrySystem
 #endif
 
     // 郡望：田产最多的城；没有田产按祖籍；再没有按族人最多的城
-#if EC_PENDING
     private static City FindSeat(SpecificClan clan, List<PersonalClanIdentity> living)
     {
         if (Land.TryGetValue(clan.id, out var held) && EmpireWorld.Current.CityByKey(held.city) is City landed && landed.Record != null &&
             !landed.IsGone()) return landed;
         City ancestral = clan.ancestral_city_id > 0 ? EmpireWorld.Current.CityByKey(clan.ancestral_city_id) : null;
         if (ancestral?.Record != null && !ancestral.IsGone()) return ancestral;
-        long cityId = living.Select(person => person.is_virtual ? person.virtual_city_id : person._actor?.city?.data?.id ?? -1L)
+        long cityId = living.Select(person => person.is_virtual ? person.virtual_city_id : person._actor?.City?.Key ?? -1L)
             .Where(cityIdOf => cityIdOf > 0).GroupBy(cityIdOf => cityIdOf).OrderByDescending(group => group.Count())
             .Select(group => group.Key).FirstOrDefault();
         City common = cityId > 0 ? EmpireWorld.Current.CityByKey(cityId) : null;
         return common?.Record != null && !common.IsGone() ? common : null;
     }
 
+#if EC_PENDING
     private static float Target(SpecificClan clan, List<PersonalClanIdentity> living)
     {
         float office = 0f, marriage = 0f;

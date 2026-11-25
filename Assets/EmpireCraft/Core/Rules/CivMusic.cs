@@ -323,8 +323,8 @@ public static class CivMusic
 
     private static void Vote(float x, float y, int weight)
     {
-        WorldTile tile = EmpireWorld.Current.GetTile(Mathf.FloorToInt(x), Mathf.FloorToInt(y));
-        City city = tile?.zone?.city;
+        Cell tile = EmpireWorld.Current.CellAt(Mathf.FloorToInt(x), Mathf.FloorToInt(y));
+        City city = tile?.Zone?.City;
         if (city?.Record == null || city.IsGone()) return;
         string culture = CultureService.GetMainCulture(city, initialize: false);
         if (!CultureService.IsValidCulture(culture) && city.Realm != null) culture = CultureService.GetRealmCulture(city.Realm);

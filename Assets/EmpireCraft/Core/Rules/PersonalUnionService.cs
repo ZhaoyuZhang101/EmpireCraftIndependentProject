@@ -122,7 +122,7 @@ public static class PersonalUnionService
                         .Where(person => person != null && person.is_alive)
                         .OrderBy(person => person.rank),
                     child => !child.IsGone() && child.Alive && child.IsFitToRule() &&
-                             (child.Record?.Renown ?? 0) >= 200);
+                             (child.Renown ?? 0) >= 200);
 
             if (!partitionUnlocked && qualifiedChild == null)
                 DissolveCityStateUnion(cityRealms);
@@ -339,7 +339,7 @@ public static class PersonalUnionService
         if (alliance == null) return;
         string name = CityStateService.IsCityState(leader) && leader.Capital != null && !leader.Capital.IsGone()
             ? leader.Capital.GetCityName()
-            : leader.Record?.Name;
+            : leader.Name;
         if (!string.IsNullOrWhiteSpace(name)) alliance.setName(name);
     }
 #endif

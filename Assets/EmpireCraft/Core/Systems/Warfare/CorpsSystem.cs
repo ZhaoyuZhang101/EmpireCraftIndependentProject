@@ -2,6 +2,7 @@
 // see Port/manifest.json and Tools/PortTool.
 using Mathf = EmpireCraft.Core.EcMath;
 using Time = EmpireCraft.Core.FrameClock;
+using Vector2 = EmpireCraft.Core.EcVector2;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -65,15 +66,15 @@ public static class CorpsSystem
 
     public static CorpsData Find(Realm kingdom, long id) => Of(kingdom).FirstOrDefault(corps => corps.id == id);
 
-#if EC_PENDING
-    public static City Home(CorpsData corps) => EmpireWorld.Current?.cities?.get(corps.home_city_id) is City city &&
+    public static City Home(CorpsData corps) => EmpireWorld.Current?.CityByKey(corps.home_city_id) is City city &&
                                                 city.Record != null && !city.IsGone() ? city : null;
 
-    public static TileZone Zone(CorpsData corps) => ZoneById(corps?.zone_id ?? -1);
+#if EC_PENDING
+    public static Cell Zone(CorpsData corps) => ZoneById(corps?.zone_id ?? -1);
 
-    public static TileZone ZoneById(int id) =>
-        id >= 0 && EmpireWorld.Current?.zone_calculator != null &&
-        EmpireWorld.Current.zone_calculator._zones_dict_id.TryGetValue(id, out TileZone zone) ? zone : null;
+    public static Cell ZoneById(int id) =>
+        id >= 0 && EmpireWorld.Current?.Zones != null &&
+        EmpireWorld.Current.Zones._zones_dict_id.TryGetValue(id, out Cell zone) ? zone : null;
 #endif
 
     // 折合旧制军团数(按现有兵力)
@@ -94,10 +95,10 @@ public static class CorpsSystem
 
     public static bool IsGeneral(Person actor) => actor?.Record != null && GeneralIndex.ContainsKey(actor.Key);
 
-#if EC_PENDING
     public static CorpsData CommandOf(Person general) =>
-        general?.Record != null && GeneralIndex.TryGetValue(general.Key, out var key) ? Find(EmpireWorld.Current?.kingdoms?.get(key.kingdom), key.corps) : null;
+        general?.Record != null && GeneralIndex.TryGetValue(general.Key, out var key) ? Find(EmpireWorld.Current?.RealmByKey(key.kingdom), key.corps) : null;
 
+#if EC_PENDING
     public static float LeviedAt(City city)
     {
         if (city == null || !Enabled) return 0f;
@@ -257,8 +258,8 @@ public static class CorpsSystem
         if (late >= 0d) return limit + (LateMonthSliceLimit - limit) * Math.Min(1d, late);
         int remaining = _monthPhase switch
         {
-            MonthPhase.Kingdoms => MonthQueue.Count + (EmpireWorld.Current?.kingdoms?.Count ?? 0) + 3,
-            MonthPhase.Navy or MonthPhase.FrontBegin => (EmpireWorld.Current?.kingdoms?.Count ?? 0) + 2,
+            MonthPhase.Kingdoms => MonthQueue.Count + (EmpireWorld.Current?.LiveRealms?.Count ?? 0) + 3,
+            MonthPhase.Navy or MonthPhase.FrontBegin => (EmpireWorld.Current?.LiveRealms?.Count ?? 0) + 2,
             MonthPhase.FrontAssign => MonthQueue.Count + 1,
             _ => 1
         };
@@ -521,10 +522,8 @@ public static class CorpsSystem
         return value;
     }
 
-#if EC_PENDING
     public static float InsurgentFactor(CorpsData corps) =>
-        corps != null && Insurgent(EmpireWorld.Current?.kingdoms?.get(corps.kingdom_id)) ? InsurgentPower : 1f;
-#endif
+        corps != null && Insurgent(EmpireWorld.Current?.RealmByKey(corps.kingdom_id)) ? InsurgentPower : 1f;
 
     // 军饷发足了(欠饷不到一成半)
     public static bool WellPaid(Realm kingdom) =>
@@ -680,10 +679,10 @@ public static class CorpsSystem
             CaptureCorps(kingdom, corps, enemy);
             // 退回对方都城整编，照对方的兵额养(不当手动组建的军)，不留在敌后
             corps.manual = false;
-            if (enemy.Capital?.getTile()?.zone is TileZone seat)
+            if (enemy.Capital?.SeatCell()?.Zone is Cell seat)
             {
-                corps.zone_id = seat.id;
-                corps.target_zone_id = seat.id;
+                corps.zone_id = seat.Index;
+                corps.target_zone_id = seat.Index;
             }
             string text = string.Format(LM.Get("corps_defected_history"), kingdom.GetKingdomName(), name, men, enemy.GetKingdomName());
             FrontSystem.Log(kingdom, text);
@@ -821,8 +820,8 @@ public static class CorpsSystem
         foreach (City aux in MultiCapitalSystem.AuxiliaryCities(centre))
             if (aux == city) return true;
         if (war && FrontSystem.Battles.ContainsKey(city.Key)) return true;
-        if (city.neighbours_cities == null) return false;
-        foreach (City next in city.neighbours_cities)
+        if (city.NeighbourCities == null) return false;
+        foreach (City next in city.NeighbourCities)
         {
             Realm other = next?.Realm;
             if (next?.Record == null || next.IsGone() || other?.Record == null) continue;
@@ -888,7 +887,7 @@ public static class CorpsSystem
             }
             // 先锋营打着仗不并回(见 EnsureVanguard)，仗打完同先遣军一样并回原军
             if (part.vanguard && war) continue;
-            bool back = part.task == "reserve" && !part.embarked && Zone(part) is TileZone at && at == Home(part)?.getTile()?.zone;
+            bool back = part.task == "reserve" && !part.embarked && Zone(part) is Cell at && at == Home(part)?.SeatCell()?.Zone;
             if (back || !war && part.task is not ("attack" or "defend")) Rejoin(kingdom, parent, part);
         }
         FormationSystem.EnsureAll(kingdom, list);
@@ -1079,24 +1078,20 @@ public static class CorpsSystem
 #endif
 
     // 驻地划给了同一帝国里的别国(行政区、封国)：正规军随驻地过去；正在攻守的、渡海先遣、手动组建、义军、骑士团的不动
-#if EC_PENDING
     private static bool FollowsHome(Realm kingdom, CorpsData corps, City home)
     {
-        if (home?.kingdom?.data == null || home.IsGone() || home.Realm == kingdom || home.Realm.IsGone()) return false;
+        if (home?.Realm?.Record == null || home.IsGone() || home.Realm == kingdom || home.Realm.IsGone()) return false;
         if (corps.militia || corps.manual || corps.order_id >= 0 || corps.parent_id >= 0 || corps.embarked) return false;
         if (corps.task is "attack" or "defend") return false;
         EmpireCraft.Core.Empire empire = kingdom.GetEmpire();
         return empire != null && home.Realm.GetEmpire() == empire;
     }
-#endif
 
     // 一支新军的满编：本国现有正规军的平均满编，没有就取驻地背景人口的二十分之一(五十到两千)；
     // 每人一次性花一成国库(折合)；一国手动组建的军至多 1 + 城数/4 支
     private const float ManualShareOfCity = 0.05f, ManualMin = 50f, ManualMax = 2000f, ManualCostPerPerson = 0.1f;
 
-#if EC_PENDING
-    public static int ManualLimit(Realm kingdom) => 1 + (kingdom?.cities?.Count ?? 0) / 4;
-#endif
+    public static int ManualLimit(Realm kingdom) => 1 + (kingdom?.Cities?.Count ?? 0) / 4;
 
     public static int ManualCount(Realm kingdom) => Of(kingdom).Count(corps => corps.manual);
 
@@ -1253,7 +1248,7 @@ public static class CorpsSystem
     public static CorpsData MergeTarget(Realm kingdom, CorpsData corps)
     {
         if (!Enabled || kingdom?.Record == null || kingdom.IsGone() || !Mergeable(kingdom, corps)) return null;
-        TileZone at = Zone(corps);
+        Cell at = Zone(corps);
         if (at == null) return null;
         CorpsData best = null;
         float nearest = float.MaxValue;
@@ -1330,7 +1325,7 @@ public static class CorpsSystem
             id = OverallHelperFunc.IdGenerator.NextId(), serial = militia ? 0 : NextSerial(kingdom),
             kingdom_id = kingdom.Key, home_city_id = home.Key, legions = Mathf.Max(1, legions), full = people,
             post = (int)CityPopulationSystem.PostOf(home, CityPopulationSystem.DoctrineOf(kingdom)),
-            zone_id = home.getTile()?.zone?.id ?? -1, raised_at = now, militia = militia, manual = manual, order_id = orderId
+            zone_id = home.SeatCell()?.Zone?.Index ?? -1, raised_at = now, militia = militia, manual = manual, order_id = orderId
         };
         // 建制先定，兵源资格要看它；番号等成了军再编，成不了军不占号
         corps.formation = formation ?? FormationSystem.Resolve(kingdom, corps);
@@ -1365,15 +1360,14 @@ public static class CorpsSystem
 
     // 本国离 at 最近的 count 座城(按地块距离，一样近的按城的先后)，与 OrderBy(距离).Take(count) 同序。
     // 补员、调粮每支军都要挑一次，以前每次把全国的城排一遍序
-#if EC_PENDING
-    public static List<City> NearestCities(Realm kingdom, TileZone at, int count)
+    public static List<City> NearestCities(Realm kingdom, Cell at, int count)
     {
         var result = new List<City>(count);
         if (kingdom?.Cities == null || at == null || count <= 0) return result;
         var distances = new List<float>(count);
         foreach (City city in kingdom.Cities)
         {
-            TileZone zone = city?.Record != null && !city.IsGone() ? city.getTile()?.zone : null;
+            Cell zone = city?.Record != null && !city.IsGone() ? city.SeatCell()?.Zone : null;
             if (zone == null) continue;
             float distance = ZoneDistance(zone, at);
             if (result.Count == count && distance >= distances[count - 1]) continue;
@@ -1390,7 +1384,6 @@ public static class CorpsSystem
         }
         return result;
     }
-#endif
 
     // 募兵：从指定的城(可以是别国的城)招人补进这支军，来源随军记着，退伍时还回去(见 TransmigrantSystem.Recruit)
 #if EC_PENDING
@@ -1421,11 +1414,11 @@ public static class CorpsSystem
         if (deficit < 1f || amount <= 0f) return;
         float need = Mathf.Min(Mathf.Max(1f, amount), deficit);
         float taken = 0f;
-        TileZone at = Zone(corps);
+        Cell at = Zone(corps);
         List<City> nearby = only != null || at == null ? new List<City>() : NearestCities(kingdom, at, NearbySources);
         if (nearby.Count > 0)
         {
-            float distance = ZoneDistance(nearby[0].getTile().zone, at);
+            float distance = ZoneDistance(nearby[0].SeatCell().Zone, at);
             need = Mathf.Max(1f, need * ReinforceDistanceHalf / (ReinforceDistanceHalf + distance));
         }
         bool near = only == null && WarScopeSystem.InScope(Home(corps) ?? EmpireWorld.Current.CityByKey(corps.home_city_id));
@@ -1467,7 +1460,6 @@ public static class CorpsSystem
 #endif
 
     // 退伍：按来源还回人口
-#if EC_PENDING
     private static void Demobilize(Realm kingdom, CorpsData corps, float amount)
     {
         amount = Mathf.Min(amount, corps.strength);
@@ -1496,7 +1488,6 @@ public static class CorpsSystem
         corps.strength = Mathf.Max(0f, corps.strength - amount);
         CityPopulationSystem.InvalidateHouseholdCaches();
     }
-#endif
 
     // 能不能分出渡海先遣军：义军、骑士团的军、先遣军自己、已在船上的不分
     public static bool CanDetach(CorpsData corps) =>
@@ -1869,7 +1860,7 @@ public static class CorpsSystem
         {
             // 兵种定行军速度；山地、沼泽、丛林按兵种减速，离开道路再按兵种减速，飞机不受地形影响(见 CorpsArmSystem、RoadNetwork)
             CorpsArmSystem.Arm arm = CorpsArmSystem.Of(corps);
-            float SpeedIn(TileZone zone)
+            float SpeedIn(Cell zone)
             {
                 float value = MarchZonesPerSecond * CorpsArmSystem.Speed(arm);
                 if (TerrainSystem.SlowsMarch(zone) || WarWeather.SlowsMarch(zone)) value *= CorpsArmSystem.Rough(arm);
@@ -1878,7 +1869,7 @@ public static class CorpsSystem
             }
             float speed = SpeedIn(Zone(corps));
             corps.march_progress += speed * beats;
-            int target = FrontSystem.TargetZone(corps)?.id ?? -1;
+            int target = FrontSystem.TargetZone(corps)?.Index ?? -1;
             bool blocked = MarchBlocked.TryGetValue(corps.id, out int blockedAt) && blockedAt == target;
             if (!blocked) MarchBlocked.Remove(corps.id);
             if (blocked) MarchRates.Remove(corps.id);
@@ -1961,7 +1952,7 @@ public static class CorpsSystem
     private static void RemoveGeneral(CorpsData corps)
     {
         if (corps.general_id < 0) return;
-        Person general = EmpireWorld.Current?.units?.get(corps.general_id);
+        Person general = EmpireWorld.Current?.PersonByKey(corps.general_id);
         OfficialRankSystem.OnCommandEnded(general, corps);
         GeneralIndex.Remove(corps.general_id);
         corps.general_id = -1L;
@@ -2051,12 +2042,12 @@ public static class CorpsSystem
         }
         // 被围的军走不出去，只能就地打或突围(见 EncirclementSystem)
         if (corps.pocket_months > 0) return;
-        TileZone target = FrontSystem.TargetZone(corps);
+        Cell target = FrontSystem.TargetZone(corps);
         if (target == null) return;
-        TileZone current = Zone(corps);
+        Cell current = Zone(corps);
         if (current == null)
         {
-            corps.zone_id = target.id;
+            corps.zone_id = target.Index;
             return;
         }
         if (current == target) return;
@@ -2064,14 +2055,14 @@ public static class CorpsSystem
         if (CorpsArmSystem.Flies(corps))
         {
             Paths.Remove(corps.id);
-            TileZone hop = FlyStep(current, target);
-            if (hop != null) corps.zone_id = hop.id;
+            Cell hop = FlyStep(current, target);
+            if (hop != null) corps.zone_id = hop.Index;
             return;
         }
         // 旧存档里不在船上却停在海面的军(以前陆军直接走海面)：直接上岸到目标
         if (SeaRegionSystem.IsSea(current))
         {
-            corps.zone_id = target.id;
+            corps.zone_id = target.Index;
             return;
         }
         // 目标在另一片陆地上，或同一片陆地上隔着第三国走不过去(登陆战线，见 FrontSystem.MustSail)：先开到本国港口，在港口上船(见 Embark、Sail)；
@@ -2081,10 +2072,10 @@ public static class CorpsSystem
         {
             Realm kingdom = EmpireWorld.Current.RealmByKey(corps.kingdom_id);
             City port = PortFor(kingdom, current);
-            TileZone portZone = port?.getTile()?.zone;
+            Cell portZone = port?.SeatCell()?.Zone;
             if (portZone != null)
             {
-                if (current == portZone || current.city == port)
+                if (current == portZone || current.City == port)
                 {
                     Embark(kingdom, corps, target, SeaRegionSystem.RegionsAround(port));
                     return;
@@ -2093,8 +2084,8 @@ public static class CorpsSystem
             }
             else
             {
-                if (SameLand(current, Home(corps)?.getTile()?.zone)) return;
-                TileZone shore = SeaLanding.Shores(current).FirstOrDefault();
+                if (SameLand(current, Home(corps)?.SeatCell()?.Zone)) return;
+                Cell shore = SeaLanding.Shores(current).FirstOrDefault();
                 if (shore == null) return;
                 if (current == shore)
                 {
@@ -2104,30 +2095,28 @@ public static class CorpsSystem
                 target = shore;
             }
         }
-        TileZone next = NextStep(corps, current, target);
-        if (next != null) corps.zone_id = next.id;
+        Cell next = NextStep(corps, current, target);
+        if (next != null) corps.zone_id = next.Index;
     }
 #endif
 
     // 两块地是否在同一片陆地上(有城的取城心，野地取地块中心)；拿不准时当作同一片
-#if EC_PENDING
-    public static bool SameLand(TileZone a, TileZone b)
+    public static bool SameLand(Cell a, Cell b)
     {
-        WorldTile ta = LandTile(a), tb = LandTile(b);
-        return ta == null || tb == null || ta.isSameIsland(tb);
+        Cell ta = LandTile(a), tb = LandTile(b);
+        return ta == null || tb == null || ta.IsSameIsland(tb);
     }
 
-    private static WorldTile LandTile(TileZone zone)
+    private static Cell LandTile(Cell zone)
     {
         if (zone == null) return null;
-        WorldTile tile = zone.city?.data != null && !zone.city.IsGone() ? zone.city.getTile() : zone.centerTile;
-        return tile?.Type?.ground == true ? tile : null;
+        Cell tile = zone.City?.Record != null && !zone.City.IsGone() ? zone.City.SeatCell() : zone.Center;
+        return tile?.Type?.Ground == true ? tile : null;
     }
-#endif
 
     // 上船的港口：本国(连同宗主中央)在这片陆地上、离得最近的港口城
 #if EC_PENDING
-    private static City PortFor(Realm kingdom, TileZone at)
+    private static City PortFor(Realm kingdom, Cell at)
     {
         if (kingdom == null) return null;
         Realm realm = FrontSystem.Realm(kingdom);
@@ -2137,7 +2126,7 @@ public static class CorpsSystem
         float bestDistance = float.MaxValue;
         foreach (City port in ports)
         {
-            TileZone zone = port.getTile()?.zone;
+            Cell zone = port.SeatCell()?.Zone;
             if (zone == null || !SameLand(at, zone)) continue;
             float distance = ZoneDistance(at, zone);
             if (distance >= bestDistance) continue;
@@ -2151,14 +2140,14 @@ public static class CorpsSystem
     // 这支军渡海从哪里上船(与 StepTowardTarget 一致)：这片陆地上本国(连同宗主中央)最近的港口；已在海外、这片陆地上没有
     // 本国港口的，就近的岸边；本土没有港口(出不了海)返回空。已在船上、在海面的就是所在地块(FrontSystem 挑渡海的军用)
 #if EC_PENDING
-    public static TileZone EmbarkZone(Realm kingdom, CorpsData corps)
+    public static Cell EmbarkZone(Realm kingdom, CorpsData corps)
     {
-        TileZone at = Zone(corps);
+        Cell at = Zone(corps);
         if (kingdom == null || at == null) return null;
         if (corps.embarked || SeaRegionSystem.IsSea(at)) return at;
-        TileZone port = PortFor(kingdom, at)?.getTile()?.zone;
+        Cell port = PortFor(kingdom, at)?.SeatCell()?.Zone;
         if (port != null) return port;
-        if (SameLand(at, Home(corps)?.getTile()?.zone)) return null;
+        if (SameLand(at, Home(corps)?.SeatCell()?.Zone)) return null;
         return SeaLanding.Shores(at).FirstOrDefault();
     }
 #endif
@@ -2171,12 +2160,12 @@ public static class CorpsSystem
     // 上岸后走陆路开往目标；航线不经敌方制海、在舰种航程内。从这里出海走不了就按本国别的出海口算，再不行就原地等。
     // 以前船只开到目标城外的海区，内陆的城求不出航线，军在港口等一辈子(玩家反馈殖民地"要等陆地连上了才打得动")
 #if EC_PENDING
-    private static void Embark(Realm kingdom, CorpsData corps, TileZone target, List<SeaRegionSystem.Region> start)
+    private static void Embark(Realm kingdom, CorpsData corps, Cell target, List<SeaRegionSystem.Region> start)
     {
         if (kingdom == null || target == null) return;
         float clock = Time.unscaledTime;
         if (EmbarkRetry.TryGetValue(corps.id, out float retryAt) && clock < retryAt) return;
-        TileZone shore = null;
+        Cell shore = null;
         List<SeaRegionSystem.Region> route = null;
         if (start != null && start.Count > 0) (shore, route) = SeaLanding.Beachhead(kingdom, target, start);
         if (shore == null) (shore, route) = SeaLanding.Beachhead(kingdom, target);
@@ -2187,26 +2176,26 @@ public static class CorpsSystem
         }
         EmbarkRetry.Remove(corps.id);
         corps.embarked = true;
-        corps.landing_zone_id = shore.id;
+        corps.landing_zone_id = shore.Index;
         corps.sea_route = route.Select(region => region.Id).ToList();
         corps.sea_step = 0;
         corps.sea_tick = 0;
         corps.sea_path = Voyage(corps, Zone(corps), shore);
         // 寻不到海上路线：照旧从第一个海区出发，按海区走
-        if (corps.sea_path.Count == 0 && route[0].Center != null) corps.zone_id = route[0].Center.id;
+        if (corps.sea_path.Count == 0 && route[0].Center != null) corps.zone_id = route[0].Center.Index;
         Paths.Remove(corps.id);
     }
 #endif
 
     // 船走的路线：只走登陆航线上的海区(不进敌方制海的海区)，海面上尽量沿航线(见 RoadNetwork.SeaPath)；寻不到返回空表
 #if EC_PENDING
-    private static List<int> Voyage(CorpsData corps, TileZone from, TileZone landing)
+    private static List<int> Voyage(CorpsData corps, Cell from, Cell landing)
     {
         if (from == null || landing == null || corps.sea_route == null) return new List<int>();
         var regions = new HashSet<int>(corps.sea_route);
-        List<TileZone> path = RoadNetwork.SeaPath(from, landing, from.city, landing.city,
+        List<Cell> path = RoadNetwork.SeaPath(from, landing, from.City, landing.City,
             zone => SeaRegionSystem.Of(zone) is { } region && regions.Contains(region.Id));
-        return path == null || path.Count < 2 ? new List<int>() : path.Select(zone => zone.id).ToList();
+        return path == null || path.Count < 2 ? new List<int>() : path.Select(zone => zone.Index).ToList();
     }
 #endif
 
@@ -2223,7 +2212,7 @@ public static class CorpsSystem
             return;
         }
         corps.sea_path ??= Voyage(corps, Zone(corps), ZoneById(corps.landing_zone_id) ??
-            FrontSystem.TargetZone(corps) ?? EmpireWorld.Current.CityByKey(corps.sector_city_id)?.getTile()?.zone);
+            FrontSystem.TargetZone(corps) ?? EmpireWorld.Current.CityByKey(corps.sector_city_id)?.SeatCell()?.Zone);
         if (corps.sea_path.Count > 0)
         {
             SailAlong(corps);
@@ -2238,7 +2227,7 @@ public static class CorpsSystem
             return;
         }
         SeaRegionSystem.Region region = SeaRegionSystem.Get(corps.sea_route[corps.sea_step]);
-        if (region?.Center != null) corps.zone_id = region.Center.id;
+        if (region?.Center != null) corps.zone_id = region.Center.Index;
         Intercept(corps, region);
     }
 
@@ -2252,9 +2241,9 @@ public static class CorpsSystem
                 return;
             }
             corps.sea_path.RemoveAt(0);
-            TileZone zone = ZoneById(corps.sea_path[0]);
+            Cell zone = ZoneById(corps.sea_path[0]);
             if (zone == null) continue;
-            corps.zone_id = zone.id;
+            corps.zone_id = zone.Index;
             SeaRegionSystem.Region region = SeaRegionSystem.Of(zone);
             int index = region == null ? -1 : corps.sea_route.IndexOf(region.Id);
             if (index <= corps.sea_step) continue;
@@ -2271,16 +2260,16 @@ public static class CorpsSystem
         corps.sea_step = 0;
         corps.sea_tick = 0;
         // 在上船时选好的海滩靠岸，上岸后走陆路开往目标；船还在海上时目标改到了别的陆地(仗打完回驻地等)就直接到目标
-        TileZone target = FrontSystem.TargetZone(corps);
-        TileZone landing = ZoneById(corps.landing_zone_id);
+        Cell target = FrontSystem.TargetZone(corps);
+        Cell landing = ZoneById(corps.landing_zone_id);
         if (landing == null || SeaRegionSystem.IsSea(landing) ||
             target != null && !SeaRegionSystem.IsSea(target) && !SameLand(landing, target))
             landing = target;
         if (landing == null || SeaRegionSystem.IsSea(landing))
-            landing = EmpireWorld.Current.CityByKey(corps.sector_city_id)?.getTile()?.zone;
-        if (landing != null) corps.zone_id = landing.id;
+            landing = EmpireWorld.Current.CityByKey(corps.sector_city_id)?.SeatCell()?.Zone;
+        if (landing != null) corps.zone_id = landing.Index;
         // 记着在哪靠的岸(下次上船时换掉)：隔着第三国的登陆战线据此认定已上岸，不再回头坐船(见 FrontSystem.Landed)
-        corps.landing_zone_id = landing != null && !SeaRegionSystem.IsSea(landing) ? landing.id : -1;
+        corps.landing_zone_id = landing != null && !SeaRegionSystem.IsSea(landing) ? landing.Index : -1;
         SeaLandingDiagnostics.Landed(corps.kingdom_id);
         // 渡海去打仗的在纪事里记一笔：攻方"某军渡海在某城登岸"，守方"敌军渡海在某城登岸"
         City city = EmpireWorld.Current.CityByKey(corps.sector_city_id);
@@ -2342,13 +2331,13 @@ public static class CorpsSystem
         _pathTicksThisTick * 1000d / global::System.Diagnostics.Stopwatch.Frequency < PathTickMilliseconds * _pathScale;
 
 #if EC_PENDING
-    private static TileZone NextStep(CorpsData corps, TileZone current, TileZone target)
+    private static Cell NextStep(CorpsData corps, Cell current, Cell target)
     {
         Realm side = EmpireWorld.Current.RealmByKey(corps.kingdom_id);
-        if (Paths.TryGetValue(corps.id, out var cached) && cached.target == target.id && cached.path.Count >= 2 &&
-            cached.path[0] == current.id)
+        if (Paths.TryGetValue(corps.id, out var cached) && cached.target == target.Index && cached.path.Count >= 2 &&
+            cached.path[0] == current.Index)
         {
-            TileZone next = ZoneById(cached.path[1]);
+            Cell next = ZoneById(cached.path[1]);
             // 下一步隔着城墙走不过去了(关门不再放行、新画了城墙)、进了过不去的无人区(新划的区、路荒了)：重寻
             if (next != null && (side == null || !WallPassage.Blocks(current, next, side) &&
                                  (next == target || !WildBlocks(current, next, side))))
@@ -2359,7 +2348,7 @@ public static class CorpsSystem
             Paths.Remove(corps.id);
         }
         double now = GameClock.Now;
-        if (PathFailures.TryGetValue(corps.id, out var failed) && failed.target == target.id &&
+        if (PathFailures.TryGetValue(corps.id, out var failed) && failed.target == target.Index &&
             now < failed.retryAt && now >= failed.retryAt - PathRetrySeconds)
         {
             Paths.Remove(corps.id);
@@ -2379,28 +2368,27 @@ public static class CorpsSystem
         {
             Paths.Remove(corps.id);
             if (PathFailures.Count > 4096) PathFailures.Clear();
-            PathFailures[corps.id] = (target.id, now + PathRetrySeconds);
+            PathFailures[corps.id] = (target.Index, now + PathRetrySeconds);
             return Nearer(current, target, side);
         }
         PathFailures.Remove(corps.id);
         // 要穿过的第三国记下，年底向它借道
         if (side != null) MilitaryAccessSystem.NoteCrossing(side, path);
         path.RemoveAt(0);
-        Paths[corps.id] = (target.id, path);
+        Paths[corps.id] = (target.Index, path);
         return ZoneById(path[0]);
     }
 #endif
 
     // 飞行：八方向里离目标最近的一块，不管地形与海面
-#if EC_PENDING
-    private static TileZone FlyStep(TileZone current, TileZone target)
+    private static Cell FlyStep(Cell current, Cell target)
     {
-        TileZone best = null;
+        Cell best = null;
         int bestDistance = int.MaxValue;
-        foreach (TileZone neighbour in current.neighbours_all ?? Array.Empty<TileZone>())
+        foreach (Cell neighbour in current.NeighboursAll ?? Array.Empty<Cell>())
         {
             if (neighbour == null) continue;
-            int dx = neighbour.x - target.x, dy = neighbour.y - target.y;
+            int dx = neighbour.X - target.X, dy = neighbour.Y - target.Y;
             int distance = dx * dx + dy * dy;
             if (distance >= bestDistance) continue;
             bestDistance = distance;
@@ -2408,7 +2396,6 @@ public static class CorpsSystem
         }
         return best;
     }
-#endif
 
     // 按代价寻路(八方向)：路上的地块代价 1，路外按兵种加价(OffRoad 的倒数)，山地、沼泽、丛林再按兵种加价(Rough 的倒数)，
     // 斜走乘 1.41；不可通行的地块与海面不进，终点除外。给了 side 时不相干的第三国的地加重八倍(能绕就绕，见 FrontSystem.Passable；
@@ -2426,17 +2413,15 @@ public static class CorpsSystem
     // (围城：城被一圈城墙围着、关门在敌方手里，攻城的军每次寻路都要搜满 MaxPathSearch)
     private const int EnclosureSearch = 512;
     private static readonly HashSet<int> EnclosureSeen = new();
-#if EC_PENDING
-    private static readonly Queue<TileZone> EnclosureQueue = new();
-#endif
+    private static readonly Queue<Cell> EnclosureQueue = new();
 
     // way：side 的无人区走法(见 WildernessPassage.Way)，0 不看无人区(困在无人区里的军，好往外走)
 #if EC_PENDING
-    private static bool Enclosed(TileZone from, TileZone to, Realm side, int way)
+    private static bool Enclosed(Cell from, Cell to, Realm side, int way)
     {
         EnclosureSeen.Clear();
         EnclosureQueue.Clear();
-        EnclosureSeen.Add(to.id);
+        EnclosureSeen.Add(to.Index);
         EnclosureQueue.Enqueue(to);
         bool enclosed = true;
         while (EnclosureQueue.Count > 0 && enclosed)
@@ -2446,10 +2431,10 @@ public static class CorpsSystem
                 enclosed = false;
                 break;
             }
-            TileZone zone = EnclosureQueue.Dequeue();
-            foreach (TileZone next in zone.neighbours_all ?? Array.Empty<TileZone>())
+            Cell zone = EnclosureQueue.Dequeue();
+            foreach (Cell next in zone.NeighboursAll ?? Array.Empty<Cell>())
             {
-                if (next == null || EnclosureSeen.Contains(next.id)) continue;
+                if (next == null || EnclosureSeen.Contains(next.Index)) continue;
                 if (WallPassage.BlocksKnown(next, zone, side))
                 {
                     _wallBlocked++;
@@ -2462,7 +2447,7 @@ public static class CorpsSystem
                 }
                 if (TerrainSystem.Impassable(next) || SeaRegionSystem.IsSea(next) || !TerrainSystem.Crossable(zone, next)) continue;
                 if (!WildernessPassage.Open(next, way)) continue;
-                EnclosureSeen.Add(next.id);
+                EnclosureSeen.Add(next.Index);
                 EnclosureQueue.Enqueue(next);
             }
         }
@@ -2470,7 +2455,7 @@ public static class CorpsSystem
         return enclosed;
     }
 
-    private static List<int> FindPath(TileZone from, TileZone to, CorpsArmSystem.Arm arm, Realm side = null)
+    private static List<int> FindPath(Cell from, Cell to, CorpsArmSystem.Arm arm, Realm side = null)
     {
         List<int> path = SearchPath(from, to, arm, side, ForeignStep, EnemyStep, 1f);
         // 第三国、敌占区每步加重好几倍，估价跟不上，隔着四五十块就搜不到头。以前到这里就只剩朝目标方向贴着走，
@@ -2483,14 +2468,14 @@ public static class CorpsSystem
 
     // 还要走多远的估价：一块至少 1，斜走 1.41(以前只算直走，斜着的路估低了，要多搜很多块)。
     // 略放大一点，一样远的路先走离目标近的，不把一大片等价的路线都搜一遍
-#if EC_PENDING
-    private static float PathEstimate(TileZone a, TileZone b)
+    private static float PathEstimate(Cell a, Cell b)
     {
-        int dx = Mathf.Abs(a.x - b.x), dy = Mathf.Abs(a.y - b.y);
+        int dx = Mathf.Abs(a.X - b.X), dy = Mathf.Abs(a.Y - b.Y);
         return (Mathf.Max(dx, dy) + 0.41f * Mathf.Min(dx, dy)) * 1.001f;
     }
 
-    private static List<int> SearchPath(TileZone from, TileZone to, CorpsArmSystem.Arm arm, Realm side, float foreignStep, float enemyStep, float estimate)
+#if EC_PENDING
+    private static List<int> SearchPath(Cell from, Cell to, CorpsArmSystem.Arm arm, Realm side, float foreignStep, float enemyStep, float estimate)
     {
         _pathExhausted = false;
         var passable = new Dictionary<long, bool>();
@@ -2498,7 +2483,7 @@ public static class CorpsSystem
         bool wild = side != null && WildernessPassage.Active;
         int way = wild ? WildernessPassage.Way(side) : 0;
         bool stranded = wild && !WildernessPassage.Open(from, way);
-        bool Foreign(TileZone zone)
+        bool Foreign(Cell zone)
         {
             if (side == null) return false;
             // 过不去的无人区(只有困在里面的才走到这里)另按 ForeignStep 加重，不拿它判这一家让不让过
@@ -2510,7 +2495,7 @@ public static class CorpsSystem
         }
         // 敌占区能走但要绕：一头扎进去容易被围(见 EncirclementSystem)
         var hostile = new Dictionary<long, bool>();
-        bool Enemy(TileZone zone)
+        bool Enemy(Cell zone)
         {
             if (side == null) return false;
             Realm owner = FrontSystem.Controller(zone);
@@ -2530,13 +2515,13 @@ public static class CorpsSystem
         PathOpen.Add((0f, from));
         while (PathOpen.Count > 0 && _pathClosedCount < MaxPathSearch)
         {
-            TileZone zone = PopMin(PathOpen);
+            Cell zone = PopMin(PathOpen);
             if (zone == to) break;
             if (PathClosed(zone)) continue;
-            _pathClosed[zone.id] = _pathPass;
+            _pathClosed[zone.Index] = _pathPass;
             _pathClosedCount++;
-            float here = _pathCost[zone.id];
-            foreach (TileZone neighbour in zone.neighbours_all ?? Array.Empty<TileZone>())
+            float here = _pathCost[zone.Index];
+            foreach (Cell neighbour in zone.NeighboursAll ?? Array.Empty<Cell>())
             {
                 if (neighbour == null || PathClosed(neighbour)) continue;
                 // 陆军不走海面(跨海见 Embark)
@@ -2557,10 +2542,10 @@ public static class CorpsSystem
                 if (neighbour != to && Foreign(neighbour)) step *= foreignStep;
                 if (neighbour != to && Enemy(neighbour)) step *= enemyStep;
                 if (wilderness) step *= ForeignStep;
-                if (neighbour.x != zone.x && neighbour.y != zone.y) step *= 1.41f;
+                if (neighbour.X != zone.X && neighbour.Y != zone.Y) step *= 1.41f;
                 float total = here + step;
-                if (PathSeen(neighbour) && _pathCost[neighbour.id] <= total) continue;
-                PathReach(neighbour, total, zone.id);
+                if (PathSeen(neighbour) && _pathCost[neighbour.Index] <= total) continue;
+                PathReach(neighbour, total, zone.Index);
                 PushHeap(PathOpen, (total + estimate * PathEstimate(neighbour, to), neighbour));
             }
         }
@@ -2571,7 +2556,7 @@ public static class CorpsSystem
             return null;
         }
         var path = new List<int>();
-        for (int id = to.id; id != -1; id = _pathPrevious[id]) path.Add(id);
+        for (int id = to.Index; id != -1; id = _pathPrevious[id]) path.Add(id);
         path.Reverse();
         return path;
     }
@@ -2581,12 +2566,11 @@ public static class CorpsSystem
     private static int _pathPass, _pathClosedCount;
     private static int[] _pathSeen = new int[0], _pathClosed = new int[0], _pathPrevious = new int[0];
     private static float[] _pathCost = new float[0];
-#if EC_PENDING
-    private static readonly List<(float key, TileZone zone)> PathOpen = new();
+    private static readonly List<(float key, Cell zone)> PathOpen = new();
 
     private static void BeginPathPass()
     {
-        int size = EmpireWorld.Current?.zone_calculator?.zones?.Count ?? 0;
+        int size = EmpireWorld.Current?.Zones?.All?.Count ?? 0;
         if (_pathSeen.Length < size) GrowPath(size);
         _pathClosedCount = 0;
         PathOpen.Clear();
@@ -2595,7 +2579,6 @@ public static class CorpsSystem
         Array.Clear(_pathClosed, 0, _pathClosed.Length);
         _pathPass = 1;
     }
-#endif
 
     private static void GrowPath(int size)
     {
@@ -2605,20 +2588,19 @@ public static class CorpsSystem
         Array.Resize(ref _pathCost, size);
     }
 
-#if EC_PENDING
-    private static void PathReach(TileZone zone, float cost, int previous)
+    private static void PathReach(Cell zone, float cost, int previous)
     {
-        if (zone.id >= _pathSeen.Length) GrowPath(zone.id + 1);
-        _pathSeen[zone.id] = _pathPass;
-        _pathCost[zone.id] = cost;
-        _pathPrevious[zone.id] = previous;
+        if (zone.Index >= _pathSeen.Length) GrowPath(zone.Index + 1);
+        _pathSeen[zone.Index] = _pathPass;
+        _pathCost[zone.Index] = cost;
+        _pathPrevious[zone.Index] = previous;
     }
 
-    private static bool PathSeen(TileZone zone) => zone.id < _pathSeen.Length && _pathSeen[zone.id] == _pathPass;
+    private static bool PathSeen(Cell zone) => zone.Index < _pathSeen.Length && _pathSeen[zone.Index] == _pathPass;
 
-    private static bool PathClosed(TileZone zone) => zone.id < _pathClosed.Length && _pathClosed[zone.id] == _pathPass;
+    private static bool PathClosed(Cell zone) => zone.Index < _pathClosed.Length && _pathClosed[zone.Index] == _pathPass;
 
-    public static void PushHeap(List<(float key, TileZone zone)> heap, (float key, TileZone zone) item)
+    public static void PushHeap(List<(float key, Cell zone)> heap, (float key, Cell zone) item)
     {
         heap.Add(item);
         int i = heap.Count - 1;
@@ -2631,9 +2613,9 @@ public static class CorpsSystem
         }
     }
 
-    public static TileZone PopMin(List<(float key, TileZone zone)> heap)
+    public static Cell PopMin(List<(float key, Cell zone)> heap)
     {
-        TileZone top = heap[0].zone;
+        Cell top = heap[0].zone;
         int last = heap.Count - 1;
         heap[0] = heap[last];
         heap.RemoveAt(last);
@@ -2648,7 +2630,6 @@ public static class CorpsSystem
         }
         return top;
     }
-#endif
 
     // 军牌画在哪(游戏里的兵牌、手机舆图共用一个口径；用户 2026-11-18 "为什么原版士兵移动这么快网页端却看起来很慢""可是原版的军牌也很快啊"
     // →"改成一样")：统领(原版小人，按原版速度赶到军团所在的地块)在军团 FollowZones 块以内就画在统领所在的格子，同游戏里的兵牌
@@ -2659,7 +2640,7 @@ public static class CorpsSystem
 #if EC_PENDING
     public static Vector3 ShownPosition(CorpsData corps)
     {
-        TileZone zone = Zone(corps);
+        Cell zone = Zone(corps);
         if (zone == null) return Vector3.zero;
         Person general = corps.general_id >= 0 ? EmpireWorld.Current.PersonByKey(corps.general_id) : null;
         if (general?.Record != null && !general.IsGone() && general.Alive && general.current_tile?.zone != null &&
@@ -2681,47 +2662,47 @@ public static class CorpsSystem
     public static Vector3 DrawPosition(CorpsData corps, out bool moving)
     {
         moving = false;
-        TileZone zone = Zone(corps);
-        Vector3 here = zone?.centerTile?.posV ?? Vector3.zero;
+        Cell zone = Zone(corps);
+        Vector3 here = zone?.Center?.PosV ?? Vector3.zero;
         if (zone == null) return here;
         if (corps.embarked)
         {
             // 船上：沿海上路线每拍走 SailZones 块(见 SailAlong)，同样按这一拍过了几成插值
             List<int> sea = corps.sea_path;
-            if (sea == null || sea.Count < 2 || sea[0] != zone.id) return here;
+            if (sea == null || sea.Count < 2 || sea[0] != zone.Index) return here;
             float sailed = SailZones * TickFraction();
             int index = Mathf.Min(Mathf.FloorToInt(sailed), sea.Count - 1);
-            TileZone from = ZoneById(sea[index]);
-            if (from?.centerTile == null) return here;
-            TileZone to = index + 1 < sea.Count ? ZoneById(sea[index + 1]) : null;
-            if (to?.centerTile == null) return from.centerTile.posV;
+            Cell from = ZoneById(sea[index]);
+            if (from?.Center == null) return here;
+            Cell to = index + 1 < sea.Count ? ZoneById(sea[index + 1]) : null;
+            if (to?.Center == null) return from.Center.PosV;
             moving = true;
-            return Vector3.Lerp(from.centerTile.posV, to.centerTile.posV, sailed - index);
+            return Vector3.Lerp(from.Center.PosV, to.Center.PosV, sailed - index);
         }
-        TileZone next = null, after = null;
+        Cell next = null, after = null;
         bool predicting = MarchRates.TryGetValue(corps.id, out float rate) && rate > 0f;
         if (CorpsArmSystem.Flies(corps))
         {
-            TileZone target = FrontSystem.TargetZone(corps);
+            Cell target = FrontSystem.TargetZone(corps);
             if (target != null && target != zone)
             {
                 next = FlyStep(zone, target);
                 if (predicting && next != null && next != target) after = FlyStep(next, target);
             }
         }
-        else if (Paths.TryGetValue(corps.id, out var cached) && cached.path.Count >= 2 && cached.path[0] == zone.id)
+        else if (Paths.TryGetValue(corps.id, out var cached) && cached.path.Count >= 2 && cached.path[0] == zone.Index)
         {
             next = ZoneById(cached.path[1]);
             if (cached.path.Count >= 3) after = ZoneById(cached.path[2]);
         }
-        else if (predicting && FrontSystem.TargetZone(corps) is TileZone target && target != zone)
+        else if (predicting && FrontSystem.TargetZone(corps) is Cell target && target != zone)
         {
             // 没有缓存路线(寻路失败、本拍寻路排满)时照 NextStep 的退路，朝目标就近挪(不穿墙)
             Realm side = EmpireWorld.Current.RealmByKey(corps.kingdom_id);
             next = Nearer(zone, target, side);
             if (next != null && next != target) after = Nearer(next, target, side);
         }
-        if (next?.centerTile == null) return here;
+        if (next?.Center == null) return here;
         float progress = corps.march_progress;
         if (predicting)
         {
@@ -2731,7 +2712,7 @@ public static class CorpsSystem
         // 这一拍会跨进下一块的：过了下一块中心接着往再下一块走，免得停在中心等结算、结算后再往前一跳。
         // 两块之间不走直线：有路沿路走，没路顺着地形绕开山、水(见 MarchLine)；飞机照旧直飞
         bool flies = CorpsArmSystem.Flies(corps);
-        if (progress > 1f && after?.centerTile != null) return Along(next, after, Mathf.Clamp01(progress - 1f), flies);
+        if (progress > 1f && after?.Center != null) return Along(next, after, Mathf.Clamp01(progress - 1f), flies);
         return Along(zone, next, Mathf.Clamp01(progress), flies);
     }
 #endif
@@ -2742,19 +2723,15 @@ public static class CorpsSystem
     // 在这两块地(斜着相邻的连同夹着的两块)的格子里找一条最省的格子路，路最省、平地次之、林地丘陵沼泽再贵，山、水、岩浆不走
     // (见 TerrainSystem.StepCost)；找不到(两块之间是山脊、整片是水)才照旧画直线。按两块地缓存，路网换了版本整表重算；
     // 地形改了不跟着重算(画在哪而已)，表大了清掉重来
-#if EC_PENDING
     private static readonly Dictionary<long, Vector2[]> MarchLines = new(PackedKeyComparer.Instance);
-#endif
     private static int _marchLineRoads = int.MinValue;
-#if EC_PENDING
     private static readonly Vector2[] NoLine = new Vector2[0];
-#endif
     private const int MaxMarchLines = 8192;
 
 #if EC_PENDING
-    private static Vector3 Along(TileZone from, TileZone to, float t, bool flies)
+    private static Vector3 Along(Cell from, Cell to, float t, bool flies)
     {
-        Vector3 a = from.centerTile.posV, b = to.centerTile.posV;
+        Vector3 a = from.Center.PosV, b = to.Center.PosV;
         Vector2[] line = flies ? NoLine : MarchLine(from, to);
         if (line.Length < 2) return Vector3.Lerp(a, b, t);
         float total = 0f;
@@ -2774,14 +2751,14 @@ public static class CorpsSystem
         return b;
     }
 
-    private static Vector2[] MarchLine(TileZone from, TileZone to)
+    private static Vector2[] MarchLine(Cell from, Cell to)
     {
         if (_marchLineRoads != RoadNetwork.Version || MarchLines.Count > MaxMarchLines)
         {
             MarchLines.Clear();
             _marchLineRoads = RoadNetwork.Version;
         }
-        long key = (long)from.id << 32 | (uint)to.id;
+        long key = (long)from.Index << 32 | (uint)to.Index;
         if (MarchLines.TryGetValue(key, out Vector2[] line)) return line;
         line = TraceMarchLine(from, to);
         MarchLines[key] = line;
@@ -2791,15 +2768,15 @@ public static class CorpsSystem
 
     // 两块地中心之间按格找最省的路(八方向，斜走 ×1.41，两边都挡着的斜角不钻)。范围是两块地的外框，至多 16×16 格
 #if EC_PENDING
-    private static Vector2[] TraceMarchLine(TileZone from, TileZone to)
+    private static Vector2[] TraceMarchLine(Cell from, Cell to)
     {
-        WorldTile start = from.centerTile, goal = to.centerTile;
+        Cell start = from.Center, goal = to.Center;
         if (start == null || goal == null || EmpireWorld.Current == null) return NoLine;
         int size = Config.CITY_ZONE_SIZE;
-        int x0 = Math.Min(from.x, to.x) * size, y0 = Math.Min(from.y, to.y) * size;
-        int w = (Math.Abs(from.x - to.x) + 1) * size, h = (Math.Abs(from.y - to.y) + 1) * size;
+        int x0 = Math.Min(from.X, to.X) * size, y0 = Math.Min(from.Y, to.Y) * size;
+        int w = (Math.Abs(from.X - to.X) + 1) * size, h = (Math.Abs(from.Y - to.Y) + 1) * size;
         if (w > size * 2 || h > size * 2) return NoLine;
-        int n = w * h, mapW = EmpireWorld.width, mapH = EmpireWorld.height;
+        int n = w * h, mapW = EmpireWorld.Current.Width, mapH = EmpireWorld.Current.Height;
         var cost = new float[n];
         var dist = new float[n];
         var parent = new int[n];
@@ -2807,12 +2784,12 @@ public static class CorpsSystem
         for (int i = 0; i < n; i++)
         {
             int tx = x0 + i % w, ty = y0 + i / w;
-            WorldTile tile = tx >= 0 && ty >= 0 && tx < mapW && ty < mapH ? EmpireWorld.Current.GetTileSimple(tx, ty) : null;
+            Cell tile = tx >= 0 && ty >= 0 && tx < mapW && ty < mapH ? EmpireWorld.Current.CellAt(tx, ty) : null;
             cost[i] = tile == null ? -1f : TerrainSystem.StepCost(tile);
             dist[i] = float.MaxValue;
             parent[i] = -1;
         }
-        int s = (start.y - y0) * w + (start.x - x0), g = (goal.y - y0) * w + (goal.x - x0);
+        int s = (start.Y - y0) * w + (start.X - x0), g = (goal.Y - y0) * w + (goal.X - x0);
         if (s < 0 || g < 0 || s >= n || g >= n) return NoLine;
         // 起止两格就是两块地的中心，挡着也从那儿走(兵牌停着时就画在那)
         if (cost[s] < 0f) cost[s] = 1f;
@@ -2875,18 +2852,18 @@ public static class CorpsSystem
 
     // 别的系统借用军团的寻路(按兵种代价，优先走路，见 FindPath)，如皇帝出行(EmperorTourSystem)
 #if EC_PENDING
-    public static List<int> PathFor(TileZone from, TileZone to, CorpsArmSystem.Arm arm = CorpsArmSystem.Arm.Cavalry) =>
+    public static List<int> PathFor(Cell from, Cell to, CorpsArmSystem.Arm arm = CorpsArmSystem.Arm.Cavalry) =>
         from == null || to == null ? null : FindPath(from, to, arm);
 #endif
 
     // 朝目标就近挪一块(不进高山、海面；给了 side 时不穿城墙、不进过不去的无人区，见 WallPassage、WildBlocks)
 #if EC_PENDING
-    private static TileZone Nearer(TileZone current, TileZone target, Realm side = null)
+    private static Cell Nearer(Cell current, Cell target, Realm side = null)
     {
-        TileZone best = null;
+        Cell best = null;
         float bestDistance = ZoneDistance(current, target);
         bool walls = side != null && WallPassage.Active;
-        foreach (TileZone neighbour in current.neighbours_all ?? Array.Empty<TileZone>())
+        foreach (Cell neighbour in current.NeighboursAll ?? Array.Empty<Cell>())
         {
             if (neighbour == null || neighbour != target && (TerrainSystem.Impassable(neighbour) || SeaRegionSystem.IsSea(neighbour)))
                 continue;
@@ -2907,7 +2884,7 @@ public static class CorpsSystem
     // 从 from 走进相邻的 to 被无人区挡住：to 是 side 过不去的无人区，from 不是(困在无人区里的可以接着在里面走，好走出去)；
     // 不给 side 的不看(同城墙)
 #if EC_PENDING
-    private static bool WildBlocks(TileZone from, TileZone to, Realm side) =>
+    private static bool WildBlocks(Cell from, Cell to, Realm side) =>
         side != null && !WildernessPassage.Passable(to, side) && WildernessPassage.Passable(from, side);
 #endif
 
@@ -2919,12 +2896,12 @@ public static class CorpsSystem
         if (now < _wallLoggedAt + 5f && now >= _wallLoggedAt) return;
         _wallLoggedAt = now;
         string result = path == null || path.Count < 2 ? "找不到路，就近挪到墙边" : $"绕行，路线 {path.Count - 1} 块";
-        LogService.LogInfo($"[EmpireCraft][城墙隔断] {side?.data?.name} {Name(corps)} 寻路时 {blocked} 处被城墙挡住：{result}");
+        LogService.LogInfo($"[EmpireCraft][城墙隔断] {side?.Name} {Name(corps)} 寻路时 {blocked} 处被城墙挡住：{result}");
     }
-
-    public static float ZoneDistance(TileZone a, TileZone b) =>
-        a == null || b == null ? float.MaxValue : Mathf.Max(Mathf.Abs(a.x - b.x), Mathf.Abs(a.y - b.y));
 #endif
+
+    public static float ZoneDistance(Cell a, Cell b) =>
+        a == null || b == null ? float.MaxValue : Mathf.Max(Mathf.Abs(a.X - b.X), Mathf.Abs(a.Y - b.Y));
 
     // 还要几个月走到目标(手机上的军队条子；用户 2026-11-16 "要是能看到这些士兵的当前任务和预计到达时间就好了")：
     // 有缓存的路线按路线的块数，没有按直线块数；速度取这一拍的行军速度(停着的按兵种的平地速度)；一个月 5 秒世界时长。
@@ -2933,9 +2910,9 @@ public static class CorpsSystem
     public static int EtaMonths(CorpsData corps)
     {
         if (corps == null || corps.embarked || corps.pocket_months > 0) return -1;
-        TileZone here = Zone(corps), target = FrontSystem.TargetZone(corps);
+        Cell here = Zone(corps), target = FrontSystem.TargetZone(corps);
         if (here == null || target == null || here == target) return -1;
-        float left = Paths.TryGetValue(corps.id, out var cached) && cached.target == target.id && cached.path.Count >= 2 && cached.path[0] == here.id
+        float left = Paths.TryGetValue(corps.id, out var cached) && cached.target == target.Index && cached.path.Count >= 2 && cached.path[0] == here.Index
             ? cached.path.Count - 1
             : ZoneDistance(here, target);
         float rate = MarchRates.TryGetValue(corps.id, out float now) && now > 0f
@@ -2950,14 +2927,14 @@ public static class CorpsSystem
     {
         if (corps.general_id < 0) return;
         Person general = EmpireWorld.Current.PersonByKey(corps.general_id);
-        TileZone zone = Zone(corps);
-        if (general?.Record == null || general.IsGone() || !general.Alive || zone?.centerTile == null ||
+        Cell zone = Zone(corps);
+        if (general?.Record == null || general.IsGone() || !general.Alive || zone?.Center == null ||
             general.current_tile == null) return;
         float now = Time.unscaledTime;
         if (GeneralMoves.TryGetValue(general.Key, out float next) && now < next) return;
         GeneralMoves[general.Key] = now + GeneralMoveInterval;
         if (general.current_tile.zone == zone) return;
-        try { general.goTo(zone.centerTile); }
+        try { general.goTo(zone.Center); }
         catch (Exception exception) { LogService.LogWarning($"[EmpireCraft][军团] 统领行军失败: {exception.Message}"); }
     }
 #endif

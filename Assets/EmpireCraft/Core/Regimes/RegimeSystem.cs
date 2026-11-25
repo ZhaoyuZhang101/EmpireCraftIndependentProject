@@ -285,7 +285,7 @@ public class Regime
         if ((PlayerFactions?.Count??0)<=0) return null;
         var force = PlayerFactions.Find(f => f.Force);
         // 不在帝国里的独立王国(简化朝堂)：派系不挂帝国，CentralRatio 全是零，按本国占比排
-        Realm kingdom = EmpireWorld.Current?.kingdoms?.get(control_kingdom_id);
+        Realm kingdom = EmpireWorld.Current?.RealmByKey(control_kingdom_id);
         if (kingdom?.Record != null && !kingdom.IsGone() && kingdom.GetEmpire() == null)
             return force ?? CliqueSystem.DominantClass(PlayerFactions) ??
                 PlayerFactions.OrderByDescending(faction => kingdom.GetFactionRatioValue(faction)).First();
@@ -320,7 +320,7 @@ public class Regime
         if (options != null && options.TryGetValue("option_tax_level", out int[] tax) && tax != null && tax.Length >= 2)
             max = (TaxLevel)Math.Max(0, Math.Min((int)TaxLevel.High, tax[1] - 1));
         if (max > TaxLevel.Low && KingdomExtension.IsNomadTaxRegime(type) &&
-            KingdomExtension.IsTrueNomad(EmpireWorld.Current?.kingdoms?.get(control_kingdom_id), type))
+            KingdomExtension.IsTrueNomad(EmpireWorld.Current?.RealmByKey(control_kingdom_id), type))
             max = TaxLevel.Low;
         return max;
     }
@@ -331,7 +331,7 @@ public class Regime
     public void SetTaxLevel(TaxLevel level)
     {
         if (level > MaxTaxLevel()) level = MaxTaxLevel();
-        Realm kingdom = EmpireWorld.Current?.kingdoms?.get(control_kingdom_id);
+        Realm kingdom = EmpireWorld.Current?.RealmByKey(control_kingdom_id);
         if (kingdom != null && level != GetTaxLevel() &&
             !ConstitutionalEconomySystem.CanChangeTax(kingdom.GetEmpire())) return;
         options["option_tax_level"][0] = (int) level;

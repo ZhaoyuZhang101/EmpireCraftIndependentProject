@@ -2,6 +2,7 @@
 // see Port/manifest.json and Tools/PortTool.
 using Mathf = EmpireCraft.Core.EcMath;
 using Time = EmpireCraft.Core.FrameClock;
+using Vector2 = EmpireCraft.Core.EcVector2;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -19,7 +20,7 @@ namespace EmpireCraft.Core
 // 水面不归任何国家：领土只涂陆地，国界贴着海岸走，海岸本身不画边框(以前一块地里的水也算这国的，国界画在离岸几格的水上)。
 // 悬停、选中的高亮：原版给那国的每块地叠一张整块的半透明方片(QuantumSpriteLibrary.colorZones)，平滑后仍是方块；
 // 这里改为上色时把归它的像素提亮，形状与国界一致；高亮对象变了才重画相关的地块。
-// ZoneCalculator.applyMetaColorsToZone 的前缀调用(PureMapPatch)：画好这块地的每个像素后跳过原版。
+// ZoneGrid.applyMetaColorsToZone 的前缀调用(PureMapPatch)：画好这块地的每个像素后跳过原版。
 public static partial class SmoothBorders
 {
 #if EC_PENDING
@@ -59,7 +60,7 @@ public static partial class SmoothBorders
         ZoneFlipOverlay.Hide();
         // 画法变了而重画指纹不变(纯净地图开着时)：各块都要重画
         EmpireCraft.Core.ZonePaintBudget.RepaintEverything();
-        EmpireWorld.Current?.zone_calculator?.dirtyAndClear();
+        EmpireWorld.Current?.Zones?.MarkDirty();
     }
 #endif
 
@@ -87,8 +88,8 @@ public static partial class SmoothBorders
     // 正在逐格推进的块：吃下的格子归谁(推进方，或收复时的原主)
 #if EC_PENDING
     private static readonly IMetaObject[] PushMetas = new IMetaObject[25];
-    private static readonly TileZone[] Zones = new TileZone[25];
 #endif
+    private static readonly Cell[] Zones = new Cell[25];
     // 城界是国家/帝国的几何底图：先确定属于哪座城，再映射政治归属，不能合并国家权重后另算一套边。
 #if EC_PENDING
     private static readonly IMetaObject[] CityMetas = new IMetaObject[25];
@@ -98,7 +99,7 @@ public static partial class SmoothBorders
 
     // 图层本来的归属(原版按它算颜色、选中高亮)
 #if EC_PENDING
-    private static IMetaObject LayerMeta(MetaTypeAsset layer, int option, TileZone zone)
+    private static IMetaObject LayerMeta(MetaTypeAsset layer, int option, Cell zone)
     {
         if (zone == null) return null;
         // 文化图层(按城市那几档)按模组记的主流文化取归属，同它的 draw_zones(见 EmpireCraftNamePlateLibrary)：原版按城市
@@ -106,12 +107,12 @@ public static partial class SmoothBorders
         if (layer.map_mode == MetaType.Culture && !layer.isMetaZoneOptionSelectedFluid() &&
             EmpireCraft.Core.EmpireCraftNamePlateLibrary.TryCultureLayerMeta(zone, out IMetaObject culture))
             return culture;
-        IMetaObject meta = layer.map_mode == MetaType.City ? zone.city
+        IMetaObject meta = layer.map_mode == MetaType.City ? zone.City
             : layer.map_mode == MetaType.Alliance ? AllianceMeta(zone, option)
             : layer.tile_get_metaobject?.Invoke(zone, option);
         // 帝国图层上没被哪个帝国(或同盟视图)覆盖的王国：模组按本国颜色补画(见 EmpireCraftMetaTypeLibrary)，这里也按本国归属
         if ((meta == null || !meta.Alive) && layer.map_mode == MetaTypeExtension.Empire &&
-            zone.city?.kingdom is Realm kingdom && kingdom.Alive && !kingdom.IsWild)
+            zone.City?.Realm is Realm kingdom && kingdom.Alive && !kingdom.IsWild)
             meta = kingdom;
         return meta != null && meta.Alive ? meta : null;
     }
@@ -120,9 +121,9 @@ public static partial class SmoothBorders
     // 联盟图层(原版没有按地块取归属的函数，结盟的国家按联盟画、没结盟的按城画，见 MetaTypeLibrary.alliance.draw_zones)：
     // 同样的规则逐格平滑(用户 2026-10-17 "明明是平滑地图模式我选择联盟图层居然还是原版的")
 #if EC_PENDING
-    private static IMetaObject AllianceMeta(TileZone zone, int option)
+    private static IMetaObject AllianceMeta(Cell zone, int option)
     {
-        City city = zone.city;
+        City city = zone.City;
         if (city?.Record == null || city.IsGone()) return null;
         Alliance alliance = zone.getAllianceOnZone(option);
         return alliance != null && alliance.Alive ? alliance : city;
@@ -156,31 +157,31 @@ public static partial class SmoothBorders
 
     // 实际控制方：国家、帝国图层上被敌军占着的地算占领方的
 #if EC_PENDING
-    private static IMetaObject RealMetaOf(MetaTypeAsset layer, int option, TileZone zone)
+    private static IMetaObject RealMetaOf(MetaTypeAsset layer, int option, Cell zone)
     {
         IMetaObject meta = LayerMeta(layer, option, zone);
-        if (!ControlLayer(layer) || zone?.city?.kingdom == null) return meta;
-        Realm owner = zone.city.kingdom;
-        Realm occupier = zone.city.GetTileZoneOccupier(zone);
+        if (!ControlLayer(layer) || zone?.City?.Realm == null) return meta;
+        Realm owner = zone.City.Realm;
+        Realm occupier = zone.City.GetTileZoneOccupier(zone);
         if (occupier?.Record == null || occupier.IsGone() || occupier == owner || occupier.IsOnSameSide(owner) ||
             !FrontSystem.Hostile(owner, occupier)) return meta;
         return RealmMeta(layer, occupier) ?? meta;
     }
 
-    private static IMetaObject PushMetaOf(MetaTypeAsset layer, TileZone zone)
+    private static IMetaObject PushMetaOf(MetaTypeAsset layer, Cell zone)
     {
-        if (!ControlLayer(layer) || zone?.city?.kingdom == null || !FrontSystem.SmoothPushOn(zone, out Realm side, out bool retake))
+        if (!ControlLayer(layer) || zone?.City?.Realm == null || !FrontSystem.SmoothPushOn(zone, out Realm side, out bool retake))
             return null;
-        return retake ? RealmMeta(layer, zone.city.kingdom) : RealmMeta(layer, side);
+        return retake ? RealmMeta(layer, zone.City.Realm) : RealmMeta(layer, side);
     }
 
-    private static bool Fill(MetaTypeAsset layer, TileZone center)
+    private static bool Fill(MetaTypeAsset layer, Cell center)
     {
         if (!Smoothable(layer)) return false;
-        ZoneCalculator calc = EmpireWorld.Current.zone_calculator;
+        ZoneGrid calc = EmpireWorld.Current.Zones;
         int option = layer.getZoneOptionState();
-        _cx = center.x;
-        _cy = center.y;
+        _cx = center.X;
+        _cy = center.Y;
         _controlGeometry = ControlLayer(layer);
         _cityGeometry = _controlGeometry || layer.map_mode == MetaType.City;
         _hover = HoveredProvince(layer, option);
@@ -188,9 +189,9 @@ public static partial class SmoothBorders
         for (int dx = -2; dx <= 2; dx++)
         {
             int index = (dy + 2) * 5 + dx + 2;
-            TileZone zone = calc.getZone(_cx + dx, _cy + dy);
+            Cell zone = calc.Get(_cx + dx, _cy + dy);
             Zones[index] = zone;
-            CityMetas[index] = zone?.city is City city && city.Alive ? city : null;
+            CityMetas[index] = zone?.City is City city && city.Alive ? city : null;
             Metas[index] = MetaOf(layer, option, zone);
             Shades[index] = ShadeOf(zone, Metas[index]);
             PushMetas[index] = PushMetaOf(layer, zone);
@@ -234,19 +235,19 @@ public static partial class SmoothBorders
         _hoverChangedAt = Time.unscaledTime;
     }
 
-    public static bool HoverUrgent(TileZone zone)
+    public static bool HoverUrgent(Cell zone)
     {
         if (!Enabled || zone == null || Time.unscaledTime - _hoverChangedAt > HoverUrgentSeconds) return false;
         for (int dy = -ZoneReach; dy <= ZoneReach; dy++)
         for (int dx = -ZoneReach; dx <= ZoneReach; dx++)
         {
-            Realm kingdom = WildernessTerritory.KingdomAt(dx == 0 && dy == 0 ? zone : EmpireWorld.Current.zone_calculator.getZone(zone.x + dx, zone.y + dy));
+            Realm kingdom = WildernessTerritory.KingdomAt(dx == 0 && dy == 0 ? zone : EmpireWorld.Current.Zones.Get(zone.X + dx, zone.Y + dy));
             if (kingdom != null && (kingdom == _hoverNow || kingdom == _hoverBefore)) return true;
         }
         return false;
     }
 
-    private static IMetaObject ShadeOf(TileZone zone, IMetaObject real)
+    private static IMetaObject ShadeOf(Cell zone, IMetaObject real)
     {
         IMetaObject shade = WildernessTerritory.ProvinceShade(zone, real, _hover);
         if (shade != real) _hoverRealm = real;
@@ -317,14 +318,14 @@ public static partial class SmoothBorders
         }
         return best;
     }
+#endif
 
     private static bool IsWater(int x, int y)
     {
-        WorldTile tile = EmpireWorld.Current.GetTile(x, y);
-        TileTypeBase type = tile?.Type;
-        return type != null && (type.ocean || type.liquid && !type.lava);
+        Cell tile = EmpireWorld.Current.CellAt(x, y);
+        TerrainKind type = tile?.Type;
+        return type != null && (type.Ocean || type.Liquid && !type.Lava);
     }
-#endif
 
     // 逐格占领推进线边缘的起伏(见 FrontSystem.Smooth)
     public static float FrontNoise(int x, int y) => Noise(x, y, 7919);
@@ -377,7 +378,7 @@ public static partial class SmoothBorders
     // QuantumSpriteLibrary.colorZones 的前缀：记下这一帧要高亮哪些地块(及其归属)，不画方片。
     // 高亮的地块按城成串传进来：归属只看城的图层上，同一座城的地块只取一次归属
 #if EC_PENDING
-    public static bool Highlight(IEnumerable<TileZone> zones)
+    public static bool Highlight(IEnumerable<Cell> zones)
     {
         if (!Enabled || EmpireWorld.Current == null || zones == null) return false;
         MetaTypeAsset layer = EmpireWorld.Current.getCachedMapMetaAsset();
@@ -392,10 +393,10 @@ public static partial class SmoothBorders
         bool byCity = CityKeyed(layer, option);
         City lastCity = null;
         IMetaObject lastMeta = null, lastAdded = null;
-        foreach (TileZone zone in zones)
+        foreach (Cell zone in zones)
         {
-            if (zone == null || !CollectZones.Add(zone.id)) continue;
-            City city = zone.city;
+            if (zone == null || !CollectZones.Add(zone.Index)) continue;
+            City city = zone.City;
             IMetaObject meta;
             if (byCity && city != null)
             {
@@ -421,7 +422,7 @@ public static partial class SmoothBorders
     {
         // 初次进图：读档完、地图画得出来时来一遍全图换色(读档时分帧画上的颜色可能还不全、不对)
         if (_entryPending && Enabled && GameClock.Running && !SmoothLoader.isLoading() &&
-            EmpireWorld.Current?.getCachedMapMetaAsset() != null && EmpireWorld.Current.zone_calculator?._mode_asset != null)
+            EmpireWorld.Current?.getCachedMapMetaAsset() != null && EmpireWorld.Current.Zones?._mode_asset != null)
         {
             _entryPending = false;
             // 整图画布接手的图层自己整张画(见 CanvasDraw)
@@ -447,10 +448,10 @@ public static partial class SmoothBorders
         // 高亮的城跟着的无人区也一起亮(见 WildernessTerritory.AddClaimed)
         WildernessTerritory.AddClaimed(CollectZones);
         bool same = CollectMetas.SetEquals(ActiveMetas) && CollectZones.SetEquals(ActiveZones);
-        if (!same && EmpireWorld.Current?.zone_calculator != null)
+        if (!same && EmpireWorld.Current?.Zones != null)
         {
             using var timing = FrameProfiler.Measure("平滑国界·高亮重算");
-            ZoneCalculator calc = EmpireWorld.Current.zone_calculator;
+            ZoneGrid calc = EmpireWorld.Current.Zones;
             ActiveMetas.Clear();
             ActiveMetas.UnionWith(CollectMetas);
             // 新旧两组互换：before 是旧的高亮地块，下面一起改色后随 CollectZones 清空
@@ -468,7 +469,7 @@ public static partial class SmoothBorders
                 foreach (int id in before) changed |= LiftAround(calc, pixels, id, stamp);
                 foreach (int id in ActiveZones) changed |= LiftAround(calc, pixels, id, stamp);
             }
-            if (changed) calc.setDirty();
+            if (changed) calc.MarkDirty();
         }
         CollectMetas.Clear();
         CollectZones.Clear();
@@ -477,16 +478,16 @@ public static partial class SmoothBorders
 
     // 这块地连同周围八块按当前高亮重新提亮或还原(这一轮已经改过的块跳过)
 #if EC_PENDING
-    private static bool LiftAround(ZoneCalculator calc, Color32[] pixels, int zoneId, int stamp)
+    private static bool LiftAround(ZoneGrid calc, Color32[] pixels, int zoneId, int stamp)
     {
-        if (!calc._zones_dict_id.TryGetValue(zoneId, out TileZone zone) || zone == null) return false;
+        if (!calc._zones_dict_id.TryGetValue(zoneId, out Cell zone) || zone == null) return false;
         bool changed = false;
         for (int dy = -ZoneReach; dy <= ZoneReach; dy++)
         for (int dx = -ZoneReach; dx <= ZoneReach; dx++)
         {
-            TileZone near = calc.getZone(zone.x + dx, zone.y + dy);
-            if (near?.tiles == null || near.id < 0 || near.id >= _zoneMark.Length || _zoneMark[near.id] == stamp) continue;
-            _zoneMark[near.id] = stamp;
+            Cell near = calc.Get(zone.X + dx, zone.Y + dy);
+            if (near?.Tiles == null || near.Index < 0 || near.Index >= _zoneMark.Length || _zoneMark[near.Index] == stamp) continue;
+            _zoneMark[near.Index] = stamp;
             int[] ids = PixelIds(near);
             for (int i = 0; i < ids.Length; i++)
             {
@@ -504,10 +505,9 @@ public static partial class SmoothBorders
     private static int[] _zoneMark = Array.Empty<int>();
     private static int _markStamp;
 
-#if EC_PENDING
-    private static int NextMark(ZoneCalculator calc)
+    private static int NextMark(ZoneGrid calc)
     {
-        int count = calc.zones?.Count ?? 0;
+        int count = calc.All?.Count ?? 0;
         if (_zoneMark.Length < count) _zoneMark = new int[count];
         if (_markStamp == int.MaxValue)
         {
@@ -516,22 +516,21 @@ public static partial class SmoothBorders
         }
         return ++_markStamp;
     }
-#endif
 
     // 每块地各格的像素编号(按 zone.id 存，第一次用到时建；地块的格子数组换了就重建)：
     // 逐格循环里不再每格 tiles[i].data.tile_id 两次间接取值
     private static int[][] _pixelIds = Array.Empty<int[]>();
-#if EC_PENDING
-    private static WorldTile[][] _pixelIdsOf = Array.Empty<WorldTile[]>();
+    private static Cell[][] _pixelIdsOf = Array.Empty<Cell[]>();
 
-    private static int[] PixelIds(TileZone zone)
+#if EC_PENDING
+    private static int[] PixelIds(Cell zone)
     {
-        WorldTile[] tiles = zone.tiles;
-        int index = zone.id;
+        Cell[] tiles = zone.Tiles;
+        int index = zone.Index;
         if (index < 0) return BuildPixelIds(tiles);
         if (index >= _pixelIds.Length)
         {
-            int size = Mathf.Max(index + 1, EmpireWorld.Current?.zone_calculator?.zones?.Count ?? 0);
+            int size = Mathf.Max(index + 1, EmpireWorld.Current?.Zones?.All?.Count ?? 0);
             Array.Resize(ref _pixelIds, size);
             Array.Resize(ref _pixelIdsOf, size);
         }
@@ -542,14 +541,14 @@ public static partial class SmoothBorders
         _pixelIdsOf[index] = tiles;
         return ids;
     }
+#endif
 
-    private static int[] BuildPixelIds(WorldTile[] tiles)
+    private static int[] BuildPixelIds(Cell[] tiles)
     {
         var ids = new int[tiles.Length];
-        for (int i = 0; i < tiles.Length; i++) ids[i] = tiles[i]?.data?.tile_id ?? -1;
+        for (int i = 0; i < tiles.Length; i++) ids[i] = tiles[i]?.Index ?? -1;
         return ids;
     }
-#endif
 
     #endregion
 
@@ -668,9 +667,9 @@ public static partial class SmoothBorders
 
     // 画这块地；返回 false 时(图层不支持、地图未就绪)照原版画
 #if EC_PENDING
-    public static bool Paint(ZoneCalculator calc, TileZone zone, Color32 inside, Color32 outside)
+    public static bool Paint(ZoneGrid calc, Cell zone, Color32 inside, Color32 outside)
     {
-        if (!Enabled || zone?.tiles == null || calc?.pixels == null || EmpireWorld.Current == null) return false;
+        if (!Enabled || zone?.Tiles == null || calc?.pixels == null || EmpireWorld.Current == null) return false;
         MetaTypeAsset layer = EmpireWorld.Current.getCachedMapMetaAsset();
         if (layer == null || !Fill(layer, zone)) return false;
         // 同样的上色输入画过：直接拷回(见"上色缓存")
@@ -683,8 +682,8 @@ public static partial class SmoothBorders
             return true;
         }
         _pendingKey = key;
-        _ox = zone.x * ZoneSize - 1;
-        _oy = zone.y * ZoneSize - 1;
+        _ox = zone.X * ZoneSize - 1;
+        _oy = zone.Y * ZoneSize - 1;
         // 整个采样窗口同属一方、没有逐格推进：平滑不会改变国色，也画不出边框，跳过逐格计算。
         bool uniform = UniformWindow();
         for (int gy = 0; gy < Window; gy++)
@@ -700,11 +699,11 @@ public static partial class SmoothBorders
         bool goldLayer = layer.map_mode == MetaType.Kingdom;
         bool frontLayer = CorpsSystem.Enabled && (layer.map_mode == MetaType.Kingdom || layer.map_mode == MetaTypeExtension.Empire);
         Hostility.Clear();
-        int width = EmpireWorld.width, height = EmpireWorld.height;
-        foreach (WorldTile tile in zone.tiles)
+        int width = EmpireWorld.Current.Width, height = EmpireWorld.Current.Height;
+        foreach (Cell tile in zone.Tiles)
         {
-            int id = tile.data.tile_id;
-            int x = tile.x, y = tile.y;
+            int id = tile.Index;
+            int x = tile.X, y = tile.Y;
             IMetaObject owner = OwnerCached(x, y);
             bool foreign = !ReferenceEquals(owner, own) && !(ReferenceEquals(owner, _hover) && ReferenceEquals(Metas[12], _hoverRealm)) &&
                            !(ReferenceEquals(own, _hover) && ReferenceEquals(owner, _hoverRealm));
@@ -732,24 +731,24 @@ public static partial class SmoothBorders
                 color = EmpireGold;
             pixels[id] = Marked(id, color);
         }
-        _paintedZone = zone.id;
-        calc.setDirty();
+        _paintedZone = zone.Index;
+        calc.MarkDirty();
         return true;
     }
 #endif
 
     // 这块地画完(地形调色、城市平面图之后)：记下底色，再按当前高亮提亮；不是这里逐像素画的(原版画的)就作废底色
 #if EC_PENDING
-    public static void Finish(Color32[] pixels, TileZone zone)
+    public static void Finish(Color32[] pixels, Cell zone)
     {
         // 原版刚给这块地上过色(colorZone、applyMetaColorsToZone[Full] 之后都调这里)：记下所在的块(地块 8×8 落在一个上传块里，见 SmoothBorders.Upload)
-        if (zone?.tiles != null && zone.tiles.Length > 0 && zone.tiles[0]?.data != null) MarkPixel(zone.tiles[0].data.tile_id);
-        if (Enabled && zone?.tiles != null && pixels != null && _paintedZone != zone.id &&
-            Transitions.TryGetValue(zone.id, out Transition raw) && raw.raw)
+        if (zone?.Tiles != null && zone.Tiles.Length > 0 && zone.Tiles[0]?.data != null) MarkPixel(zone.Tiles[0].Index);
+        if (Enabled && zone?.Tiles != null && pixels != null && _paintedZone != zone.Index &&
+            Transitions.TryGetValue(zone.Index, out Transition raw) && raw.raw)
             ApplyRaw(pixels, zone, raw);
-        if (zone?.tiles == null || pixels == null || pixels.Length != _base.Length) return;
+        if (zone?.Tiles == null || pixels == null || pixels.Length != _base.Length) return;
         int[] ids = PixelIds(zone);
-        if (!Enabled || _paintedZone != zone.id)
+        if (!Enabled || _paintedZone != zone.Index)
         {
             foreach (int id in ids)
                 if (id >= 0) _hasBase[id] = false;
@@ -775,7 +774,7 @@ public static partial class SmoothBorders
 #if EC_PENDING
     public static void Retint(params object[] metas)
     {
-        ZoneCalculator calc = EmpireWorld.Current?.zone_calculator;
+        ZoneGrid calc = EmpireWorld.Current?.Zones;
         Color32[] pixels = calc?.pixels;
         if (!Enabled || pixels == null || pixels.Length != _base.Length) return;
         using var timing = FrameProfiler.Measure("平滑国界·高亮重算");
@@ -805,7 +804,7 @@ public static partial class SmoothBorders
             pixels[id] = Marked(id, Lifted(id));
             changed = true;
         }
-        if (changed) calc.setDirty();
+        if (changed) calc.MarkDirty();
     }
 #endif
 
@@ -844,7 +843,7 @@ public static partial class SmoothBorders
 
     // 这块地眼下的样子(实际控制方)与不算占领的归属
 #if EC_PENDING
-    private static ShownState StateOf(MetaTypeAsset layer, int option, TileZone zone, IMetaObject real)
+    private static ShownState StateOf(MetaTypeAsset layer, int option, Cell zone, IMetaObject real)
     {
         IMetaObject owner = LayerMeta(layer, option, zone);
         return new ShownState
@@ -939,7 +938,7 @@ public static partial class SmoothBorders
 #if EC_PENDING
     private static void SettleFaces()
     {
-        ZoneCalculator calc = EmpireWorld.Current?.zone_calculator;
+        ZoneGrid calc = EmpireWorld.Current?.Zones;
         Color32[] pixels = calc?.pixels;
         if (pixels == null || Transitions.Count == 0) return;
         bool wrote = false;
@@ -948,8 +947,8 @@ public static partial class SmoothBorders
             Transition transition = pair.Value;
             if (transition.phase is not (1 or 2)) continue;
             Color32[] face = transition.phase == 1 ? transition.oldPixels : transition.newPixels;
-            TileZone zone = calc.getZoneByID(pair.Key);
-            if (face == null || zone?.tiles == null) continue;
+            Cell zone = calc.ById(pair.Key);
+            if (face == null || zone?.Tiles == null) continue;
             int[] ids = PixelIds(zone);
             BeginLift();
             for (int i = 0; i < ids.Length && i < face.Length; i++)
@@ -966,7 +965,7 @@ public static partial class SmoothBorders
             }
             wrote = true;
         }
-        if (wrote) calc.setDirty();
+        if (wrote) calc.MarkDirty();
     }
 #endif
 
@@ -987,7 +986,7 @@ public static partial class SmoothBorders
         Array.Clear(_outline, 0, _outline.Length);
         Array.Clear(_foreign, 0, _foreign.Length);
         _pixelIds = Array.Empty<int[]>();
-        _pixelIdsOf = Array.Empty<WorldTile[]>();
+        _pixelIdsOf = Array.Empty<Cell[]>();
         _zoneMark = Array.Empty<int>();
         _paintedZone = _restoredZone = -1;
         _pendingKey = 0L;
@@ -1000,19 +999,19 @@ public static partial class SmoothBorders
 
     // 真实归属；顺带看这块地换主了没有，换了就记下它原来的样子、排进扫描
 #if EC_PENDING
-    private static IMetaObject MetaOf(MetaTypeAsset layer, int option, TileZone zone)
+    private static IMetaObject MetaOf(MetaTypeAsset layer, int option, Cell zone)
     {
         IMetaObject real = RealMetaOf(layer, option, zone);
         if (zone == null || !Enabled) return real;
         CheckLayer(layer, option);
         int realKey = ColorKey(SafeColor(real));
-        if (Shown.TryGetValue(zone.id, out ShownState shown) && ReferenceEquals(shown.meta, real) && shown.colorKey == realKey)
+        if (Shown.TryGetValue(zone.Index, out ShownState shown) && ReferenceEquals(shown.meta, real) && shown.colorKey == realKey)
             return real;
         bool known = shown != null;
         ShownState state = StateOf(layer, option, zone, real);
-        Shown[zone.id] = state;
+        Shown[zone.Index] = state;
         if (!known || !PoliticalChange(shown, state)) return real;
-        Queue(zone, zone.x != _cx || zone.y != _cy, ReferenceEquals(shown.owner, state.owner));
+        Queue(zone, zone.X != _cx || zone.Y != _cy, ReferenceEquals(shown.owner, state.owner));
         ScanView(layer, option);
         return real;
     }
@@ -1038,7 +1037,7 @@ public static partial class SmoothBorders
 
     // 在原版决定清图之前统一观察图层，所有模式都走同一次全图换色，不等某块地开始上色才发现切换。
 #if EC_PENDING
-    public static bool PrepareLayerSwitch(ZoneCalculator calc)
+    public static bool PrepareLayerSwitch(ZoneGrid calc)
     {
         if (!Enabled || calc?.pixels == null || EmpireWorld.Current == null) return false;
         EnsurePixelState(calc.pixels);
@@ -1084,12 +1083,12 @@ public static partial class SmoothBorders
 
     // 原版画法的图层(没有逐格归属的，如教化、政令这类热力图层)：上色前记下旧样子，画完(Finish)再翻
 #if EC_PENDING
-    public static void CaptureRaw(TileZone zone)
+    public static void CaptureRaw(Cell zone)
     {
-        if (!Enabled || zone?.tiles == null || EmpireWorld.Current == null) return;
+        if (!Enabled || zone?.Tiles == null || EmpireWorld.Current == null) return;
         MetaTypeAsset layer = EmpireWorld.Current.getCachedMapMetaAsset();
         if (layer == null) return;
-        EnsurePixelState(EmpireWorld.Current.zone_calculator?.pixels);
+        EnsurePixelState(EmpireWorld.Current.Zones?.pixels);
         CheckLayer(layer, layer.getZoneOptionState());
         Transition transition = CaptureLayerFlip(zone);
         if (transition != null) transition.raw = true;
@@ -1100,22 +1099,22 @@ public static partial class SmoothBorders
     // 否则它等不到新样子，渐变作废后一直留着旧颜色。
     // 镜头外(外扩一块)的地块不翻(同换图层)：看不见，直接画成新样子——大国整片换色时不必给几千块地记旧样子、逐帧写翻牌
 #if EC_PENDING
-    private static void Queue(TileZone zone, bool repaint, bool self)
+    private static void Queue(Cell zone, bool repaint, bool self)
     {
         if (!InFlipView(zone))
         {
-            Transitions.Remove(zone.id);
-            PendingSweep.Remove(zone.id);
+            Transitions.Remove(zone.Index);
+            PendingSweep.Remove(zone.Index);
             if (repaint) zone.resetRenderHelpers();
             return;
         }
         Transition transition = Capture(zone);
         if (transition == null) return;
         transition.self = self;
-        Transitions[zone.id] = transition;
-        PendingFollow.Remove(zone.id);
+        Transitions[zone.Index] = transition;
+        PendingFollow.Remove(zone.Index);
         if (PendingSweep.Count == 0 && PendingFollow.Count == 0) _pendingSince = Time.unscaledTime;
-        PendingSweep.Add(zone.id);
+        PendingSweep.Add(zone.Index);
         if (repaint) zone.resetRenderHelpers();
         Follow(zone);
     }
@@ -1125,22 +1124,22 @@ public static partial class SmoothBorders
     // 新颜色就先从边上渗出来、国界先挪了位置，牌却还没翻(大片换色一道扫描要几秒)。邻块也先记下旧样子，
     // 等挨着的换主地块翻到一半时直接换成新样子(不画牌)；新旧一样的(内陆的邻块)画好时就丢掉
 #if EC_PENDING
-    private static void Follow(TileZone zone)
+    private static void Follow(Cell zone)
     {
-        ZoneCalculator calc = EmpireWorld.Current?.zone_calculator;
+        ZoneGrid calc = EmpireWorld.Current?.Zones;
         if (calc == null) return;
         for (int dy = -ZoneReach; dy <= ZoneReach; dy++)
         for (int dx = -ZoneReach; dx <= ZoneReach; dx++)
         {
             if (dx == 0 && dy == 0) continue;
-            TileZone near = calc.getZone(zone.x + dx, zone.y + dy);
+            Cell near = calc.Get(zone.X + dx, zone.Y + dy);
             // 只跟画过的块(原版不画的空地、海上不归谁的块不会重画，等不到新样子)
-            if (near == null || Transitions.ContainsKey(near.id) || !LastMeta.ContainsKey(near.id) || !InFlipView(near)) continue;
+            if (near == null || Transitions.ContainsKey(near.Index) || !LastMeta.ContainsKey(near.Index) || !InFlipView(near)) continue;
             Transition transition = Capture(near);
             if (transition == null) continue;
             transition.follow = true;
-            Transitions[near.id] = transition;
-            PendingFollow.Add(near.id);
+            Transitions[near.Index] = transition;
+            PendingFollow.Add(near.Index);
             near.resetRenderHelpers();
         }
     }
@@ -1166,10 +1165,10 @@ public static partial class SmoothBorders
 
     // 这块地在镜头里(镜头外扩一块地)
 #if EC_PENDING
-    private static bool InFlipView(TileZone zone)
+    private static bool InFlipView(Cell zone)
     {
         Rect view = FlipView();
-        float x0 = zone.x * ZoneSize, y0 = zone.y * ZoneSize;
+        float x0 = zone.X * ZoneSize, y0 = zone.Y * ZoneSize;
         return x0 + ZoneSize >= view.xMin && x0 <= view.xMax && y0 + ZoneSize >= view.yMin && y0 <= view.yMax;
     }
 #endif
@@ -1190,12 +1189,12 @@ public static partial class SmoothBorders
         float now = Time.unscaledTime;
         if (now >= _scannedAt && now - _scannedAt < ScanCooldown) return;
         _scannedAt = now;
-        ZoneCalculator calc = EmpireWorld.Current?.zone_calculator;
+        ZoneGrid calc = EmpireWorld.Current?.Zones;
         if (calc == null || layer == null) return;
         using var timing = FrameProfiler.Measure("平滑国界·换主找齐");
         Rect view = FlipView();
-        int x0 = Mathf.Max(0, Mathf.FloorToInt(view.xMin / ZoneSize)), x1 = Mathf.Min(calc.zones_total_x - 1, Mathf.FloorToInt(view.xMax / ZoneSize));
-        int y0 = Mathf.Max(0, Mathf.FloorToInt(view.yMin / ZoneSize)), y1 = Mathf.Min(calc.zones_total_y - 1, Mathf.FloorToInt(view.yMax / ZoneSize));
+        int x0 = Mathf.Max(0, Mathf.FloorToInt(view.xMin / ZoneSize)), x1 = Mathf.Min(calc.Width - 1, Mathf.FloorToInt(view.xMax / ZoneSize));
+        int y0 = Mathf.Max(0, Mathf.FloorToInt(view.yMin / ZoneSize)), y1 = Mathf.Min(calc.Height - 1, Mathf.FloorToInt(view.yMax / ZoneSize));
         bool byCity = CityKeyed(layer, option), control = ControlLayer(layer);
         ScanCityMetas.Clear();
         IMetaObject lastMeta = null;
@@ -1203,12 +1202,12 @@ public static partial class SmoothBorders
         for (int y = y0; y <= y1; y++)
         for (int x = x0; x <= x1; x++)
         {
-            TileZone zone = calc.getZone(x, y);
+            Cell zone = calc.Get(x, y);
             // 正在画的这块自己会查(见 MetaOf)，这里再让它重画一遍就白画了
             // 没画过的块(原版不画的空地等)屏幕上没有东西可翻，等它画的时候自己查
-            if (zone == null || x == _cx && y == _cy || PendingSweep.Contains(zone.id) || !LastMeta.ContainsKey(zone.id) ||
-                !Shown.TryGetValue(zone.id, out ShownState shown)) continue;
-            City city = zone.city;
+            if (zone == null || x == _cx && y == _cy || PendingSweep.Contains(zone.Index) || !LastMeta.ContainsKey(zone.Index) ||
+                !Shown.TryGetValue(zone.Index, out ShownState shown)) continue;
+            City city = zone.City;
             IMetaObject real;
             if (byCity && city != null && !(control && city.Realm != null && city.HasOccupiedZones()))
             {
@@ -1222,7 +1221,7 @@ public static partial class SmoothBorders
             }
             if (ReferenceEquals(shown.meta, real) && shown.colorKey == lastKey) continue;
             ShownState state = StateOf(layer, option, zone, real);
-            Shown[zone.id] = state;
+            Shown[zone.Index] = state;
             // 只是战线上被占、收复：不翻，原版重画时直接换
             if (!PoliticalChange(shown, state)) continue;
             Queue(zone, true, ReferenceEquals(shown.owner, state.owner));
@@ -1233,56 +1232,56 @@ public static partial class SmoothBorders
 
     // 原版把这块地清空了(不再归任何对象，如城没了)：忘掉记下的底色、渐变与缓存，免得之后高亮、渐变又把旧颜色写回去
 #if EC_PENDING
-    public static void Cleared(TileZone zone)
+    public static void Cleared(Cell zone)
     {
-        if (zone?.tiles == null) return;
+        if (zone?.Tiles == null) return;
         // 新图层不覆盖的地块也参与同一道全图换色；清理旧归属时不能把这段退场动画一并删掉。
-        bool layerClear = _layerFlip?.seen.Contains(zone.id) == true &&
-                          Transitions.TryGetValue(zone.id, out Transition clearing) && clearing.raw && clearing.newPixels != null;
+        bool layerClear = _layerFlip?.seen.Contains(zone.Index) == true &&
+                          Transitions.TryGetValue(zone.Index, out Transition clearing) && clearing.raw && clearing.newPixels != null;
         foreach (int id in PixelIds(zone))
         {
             if (id < 0 || id >= _hasBase.Length) continue;
             _hasBase[id] = false;
             _owner[id] = 0;
         }
-        if (!layerClear) Transitions.Remove(zone.id);
-        PendingSweep.Remove(zone.id);
-        PendingFollow.Remove(zone.id);
-        if (!layerClear) _layerFlip?.seen.Remove(zone.id);
-        Shown.Remove(zone.id);
-        NativeShown.Remove(zone.id);
-        LastMeta.Remove(zone.id);
-        Snapshots.Remove(zone.id);
+        if (!layerClear) Transitions.Remove(zone.Index);
+        PendingSweep.Remove(zone.Index);
+        PendingFollow.Remove(zone.Index);
+        if (!layerClear) _layerFlip?.seen.Remove(zone.Index);
+        Shown.Remove(zone.Index);
+        NativeShown.Remove(zone.Index);
+        LastMeta.Remove(zone.Index);
+        Snapshots.Remove(zone.Index);
     }
 #endif
 
     // 本色变了而归属的颜色没变(=临时换色，如悬停某省)：从鼠标处起一圈波纹
 #if EC_PENDING
-    private static void TrackNative(TileZone zone, IMetaObject meta, Color32 inside, Color32 outside, int shade)
+    private static void TrackNative(Cell zone, IMetaObject meta, Color32 inside, Color32 outside, int shade)
     {
         int metaKey = ColorKey(SafeColor(meta)) ^ (meta == null ? 0 : global::System.Runtime.CompilerServices.RuntimeHelpers.GetHashCode(meta));
         var now = (Rgb(inside), Rgb(outside), metaKey, shade);
-        bool known = NativeShown.TryGetValue(zone.id, out var last);
-        NativeShown[zone.id] = now;
+        bool known = NativeShown.TryGetValue(zone.Index, out var last);
+        NativeShown[zone.Index] = now;
         if (!known || last.meta != metaKey || last.inside == now.Item1 && last.outside == now.Item2 && last.shade == shade) return;
         Transition transition = Capture(zone);
         if (transition == null) return;
         float time = Time.unscaledTime;
         if (time - _rippleStart > RippleGroupSeconds)
         {
-            WorldTile mouse = EmpireWorld.Current?.getMouseTilePosCachedFrame();
+            Cell mouse = EmpireWorld.Current?.getMouseTilePosCachedFrame();
             _rippleStart = time;
-            _rippleX = mouse?.x ?? zone.x * ZoneSize + ZoneSize / 2;
-            _rippleY = mouse?.y ?? zone.y * ZoneSize + ZoneSize / 2;
+            _rippleX = mouse?.X ?? zone.X * ZoneSize + ZoneSize / 2;
+            _rippleY = mouse?.Y ?? zone.Y * ZoneSize + ZoneSize / 2;
         }
-        float dx = zone.x * ZoneSize + ZoneSize / 2f - _rippleX, dy = zone.y * ZoneSize + ZoneSize / 2f - _rippleY;
+        float dx = zone.X * ZoneSize + ZoneSize / 2f - _rippleX, dy = zone.Y * ZoneSize + ZoneSize / 2f - _rippleY;
         transition.planned = true;
         transition.flipAt = _rippleStart + Mathf.Sqrt(dx * dx + dy * dy) / RippleSpeed;
         transition.duration = HoverFlipSeconds;
         Orient(transition, dx, dy, zone);
-        Transitions[zone.id] = transition;
-        PendingSweep.Remove(zone.id);
-        PendingFollow.Remove(zone.id);
+        Transitions[zone.Index] = transition;
+        PendingSweep.Remove(zone.Index);
+        PendingFollow.Remove(zone.Index);
     }
 #endif
 
@@ -1306,16 +1305,16 @@ public static partial class SmoothBorders
 
     // 记下这块地眼下画着的样子(还没画过的块不做渐变)
 #if EC_PENDING
-    private static Transition Capture(TileZone zone)
+    private static Transition Capture(Cell zone)
     {
-        if (zone?.tiles == null) return null;
-        if (Transitions.TryGetValue(zone.id, out Transition running) && running.oldPixels?.Length == zone.tiles.Length)
+        if (zone?.Tiles == null) return null;
+        if (Transitions.TryGetValue(zone.Index, out Transition running) && running.oldPixels?.Length == zone.Tiles.Length)
         {
             // 正在翻(或等着翻)的块又要变：旧样子是眼下看到的那一面，不是底下压暗的缝
             Color32[] face = running.phase >= 2 && running.newPixels != null ? running.newPixels : running.oldPixels;
             return new Transition { oldPixels = (Color32[])face.Clone(), created = Time.unscaledTime };
         }
-        Color32[] shown = EmpireWorld.Current?.zone_calculator?.pixels;
+        Color32[] shown = EmpireWorld.Current?.Zones?.pixels;
         int[] ids = PixelIds(zone);
         var old = new Color32[ids.Length];
         for (int i = 0; i < ids.Length; i++)
@@ -1332,28 +1331,28 @@ public static partial class SmoothBorders
     // 逐格推进吃下的块：推进本身已经是渐变，换主时直接显示。已经画好新样子、还在按旧样子显示的(等着扫描)，
     // 当场换成新样子——以前直接丢掉渐变，这块地就一直留着旧颜色(它已经画过，原版不会再重画)
 #if EC_PENDING
-    public static void Settle(TileZone zone)
+    public static void Settle(Cell zone)
     {
         // 整图画布：这块地这一轮直接换，不翻牌
         if (CanvasActive && zone != null)
         {
-            Transitions.Remove(zone.id);
-            CanvasNoFlip.Add(zone.id);
+            Transitions.Remove(zone.Index);
+            CanvasNoFlip.Add(zone.Index);
             CanvasMark(zone);
             return;
         }
         MetaTypeAsset layer = EmpireWorld.Current?.getCachedMapMetaAsset();
         // 战线推进只处理国家/帝国的显示；不能撤销城市图层的状态或写回别的图层留下的颜色。
         if (zone == null || layer == null || !ControlLayer(layer) || !ReferenceEquals(layer, _sweepLayer)) return;
-        Shown.Remove(zone.id);
-        PendingSweep.Remove(zone.id);
-        PendingFollow.Remove(zone.id);
-        if (!Transitions.TryGetValue(zone.id, out Transition transition)) return;
-        Transitions.Remove(zone.id);
-        ZoneCalculator calc = EmpireWorld.Current?.zone_calculator;
+        Shown.Remove(zone.Index);
+        PendingSweep.Remove(zone.Index);
+        PendingFollow.Remove(zone.Index);
+        if (!Transitions.TryGetValue(zone.Index, out Transition transition)) return;
+        Transitions.Remove(zone.Index);
+        ZoneGrid calc = EmpireWorld.Current?.Zones;
         Color32[] pixels = calc?.pixels;
-        if (transition.newPixels == null || zone.tiles == null || pixels == null || pixels.Length != _base.Length ||
-            transition.newPixels.Length != zone.tiles.Length) return;
+        if (transition.newPixels == null || zone.Tiles == null || pixels == null || pixels.Length != _base.Length ||
+            transition.newPixels.Length != zone.Tiles.Length) return;
         int[] ids = PixelIds(zone);
         BeginLift();
         for (int i = 0; i < ids.Length; i++)
@@ -1363,31 +1362,31 @@ public static partial class SmoothBorders
             _base[id] = transition.newPixels[i];
             pixels[id] = Marked(id, Lifted(id));
         }
-        calc.setDirty();
+        calc.MarkDirty();
     }
 #endif
 
     // 朝哪边翻：绕和来向垂直的轴翻，挨着来向的那一边先翘起来；没有来向(从块心起)随块定
-#if EC_PENDING
-    private static void Orient(Transition transition, float dirX, float dirY, TileZone zone)
+    private static void Orient(Transition transition, float dirX, float dirY, Cell zone)
     {
         if (Mathf.Abs(dirX) < 0.01f && Mathf.Abs(dirY) < 0.01f)
         {
-            transition.vertical = (zone.x + zone.y) % 2 == 0;
-            transition.lift = zone.x % 2 == 0 ? 1f : -1f;
+            transition.vertical = (zone.X + zone.Y) % 2 == 0;
+            transition.lift = zone.X % 2 == 0 ? 1f : -1f;
             return;
         }
         transition.vertical = Mathf.Abs(dirY) > Mathf.Abs(dirX);
         transition.lift = -Mathf.Sign(transition.vertical ? dirY : dirX);
     }
 
+#if EC_PENDING
     private static Color32 Slot(Color32 color) =>
         new((byte)(color.r * SlotShade), (byte)(color.g * SlotShade), (byte)(color.b * SlotShade), color.a);
 #endif
 
     // 原版画法的块刚画好：新样子取色块上的颜色
 #if EC_PENDING
-    private static void ApplyRaw(Color32[] pixels, TileZone zone, Transition transition)
+    private static void ApplyRaw(Color32[] pixels, Cell zone, Transition transition)
     {
         int[] ids = PixelIds(zone);
         var fresh = new Color32[ids.Length];
@@ -1402,7 +1401,7 @@ public static partial class SmoothBorders
         }
         if (same)
         {
-            Transitions.Remove(zone.id);
+            Transitions.Remove(zone.Index);
             return;
         }
         transition.newPixels = fresh;
@@ -1413,9 +1412,9 @@ public static partial class SmoothBorders
 
     // 这块地刚画好新样子：记下来；新旧一样就不翻
 #if EC_PENDING
-    private static void ApplyTransition(Color32[] pixels, TileZone zone)
+    private static void ApplyTransition(Color32[] pixels, Cell zone)
     {
-        if (!Transitions.TryGetValue(zone.id, out Transition transition)) return;
+        if (!Transitions.TryGetValue(zone.Index, out Transition transition)) return;
         int[] ids = PixelIds(zone);
         var fresh = new Color32[ids.Length];
         bool same = transition.oldPixels.Length == fresh.Length;
@@ -1430,9 +1429,9 @@ public static partial class SmoothBorders
         }
         if (same)
         {
-            Transitions.Remove(zone.id);
-            PendingSweep.Remove(zone.id);
-            PendingFollow.Remove(zone.id);
+            Transitions.Remove(zone.Index);
+            PendingSweep.Remove(zone.Index);
+            PendingFollow.Remove(zone.Index);
             return;
         }
         transition.newPixels = fresh;
@@ -1444,7 +1443,7 @@ public static partial class SmoothBorders
     // 按翻到哪一步写底下的色块：没翻是旧样子，翻着是压暗的旧(前半)、新(后半)样子，翻完是新样子；步子变了才写。
     // 跟着邻块换的(follow)不翻，到时候直接换成新样子
 #if EC_PENDING
-    private static bool WriteFlip(Color32[] pixels, TileZone zone, Transition transition, float now)
+    private static bool WriteFlip(Color32[] pixels, Cell zone, Transition transition, float now)
     {
         int phase = !transition.planned || transition.newPixels == null || now < transition.flipAt ? 0
             : transition.follow || now >= transition.flipAt + transition.duration ? 3
@@ -1515,16 +1514,16 @@ public static partial class SmoothBorders
 
     // 这块地在全图换色要一起翻的范围里(块心在内)
 #if EC_PENDING
-    public static bool InLayerView(TileZone zone)
+    public static bool InLayerView(Cell zone)
     {
         LayerFlip flip = _layerFlip;
         return flip != null && zone != null &&
-               flip.view.Contains(new Vector2(zone.x * ZoneSize + ZoneSize / 2f, zone.y * ZoneSize + ZoneSize / 2f));
+               flip.view.Contains(new Vector2(zone.X * ZoneSize + ZoneSize / 2f, zone.Y * ZoneSize + ZoneSize / 2f));
     }
 
-    private static float WaveDistance(LayerFlip flip, TileZone zone)
+    private static float WaveDistance(LayerFlip flip, Cell zone)
     {
-        float dx = zone.x * ZoneSize + ZoneSize / 2f - flip.cx, dy = zone.y * ZoneSize + ZoneSize / 2f - flip.cy;
+        float dx = zone.X * ZoneSize + ZoneSize / 2f - flip.cx, dy = zone.Y * ZoneSize + ZoneSize / 2f - flip.cy;
         return Mathf.Sqrt(dx * dx + dy * dy);
     }
 #endif
@@ -1540,7 +1539,7 @@ public static partial class SmoothBorders
 #if EC_PENDING
     public static void RepaintAll(string reason, bool invalidate = true)
     {
-        ZoneCalculator calc = EmpireWorld.Current?.zone_calculator;
+        ZoneGrid calc = EmpireWorld.Current?.Zones;
         MetaTypeAsset layer = EmpireWorld.Current?.getCachedMapMetaAsset();
         if (!Enabled || calc?.pixels == null || layer == null) return;
         EnsurePixelState(calc.pixels);
@@ -1554,7 +1553,7 @@ public static partial class SmoothBorders
         {
             calc.setDrawnZonesDirty();
             QuietResets++;
-            foreach (TileZone zone in calc._current_drawn_zones) zone.resetRenderHelpers();
+            foreach (Cell zone in calc._current_drawn_zones) zone.resetRenderHelpers();
             QuietResets--;
             calc.clearAllRedrawTimers();
         }
@@ -1584,16 +1583,16 @@ public static partial class SmoothBorders
 
     // 全图换色后这块地头一次重画：记下旧样子，等那道波推过来；算齐后才进镜头(镜头在动)、头一次画上新样子的当场翻；不在范围里的直接换
 #if EC_PENDING
-    private static Transition CaptureLayerFlip(TileZone zone)
+    private static Transition CaptureLayerFlip(Cell zone)
     {
         LayerFlip flip = _layerFlip;
-        if (flip == null || Transitions.ContainsKey(zone.id)) return null;
+        if (flip == null || Transitions.ContainsKey(zone.Index)) return null;
         if (!InLayerView(zone) && !(!flip.Computing && zone.visible && ZonePaintBudget.FirstLayerPaint(zone))) return null;
-        if (!flip.seen.Add(zone.id)) return null;
+        if (!flip.seen.Add(zone.Index)) return null;
         Transition transition = Capture(zone);
         if (transition == null) return null;
-        Transitions[zone.id] = transition;
-        if (flip.Computing) flip.waiting.Add(zone.id);
+        Transitions[zone.Index] = transition;
+        if (flip.Computing) flip.waiting.Add(zone.Index);
         else
         {
             flip.late++;
@@ -1602,11 +1601,11 @@ public static partial class SmoothBorders
         return transition;
     }
 
-    private static void Schedule(Transition transition, TileZone zone, float cx, float cy, float at, float speed, float now)
+    private static void Schedule(Transition transition, Cell zone, float cx, float cy, float at, float speed, float now)
     {
-        float dx = zone.x * ZoneSize + ZoneSize / 2f - cx, dy = zone.y * ZoneSize + ZoneSize / 2f - cy;
+        float dx = zone.X * ZoneSize + ZoneSize / 2f - cx, dy = zone.Y * ZoneSize + ZoneSize / 2f - cy;
         transition.planned = true;
-        transition.flipAt = Mathf.Max(now, at + Mathf.Sqrt(dx * dx + dy * dy) / speed + (FrontNoise(zone.x * 7, zone.y * 7) - 0.5f) * 0.06f);
+        transition.flipAt = Mathf.Max(now, at + Mathf.Sqrt(dx * dx + dy * dy) / speed + (FrontNoise(zone.X * 7, zone.Y * 7) - 0.5f) * 0.06f);
         Orient(transition, dx, dy, zone);
     }
 #endif
@@ -1657,7 +1656,7 @@ public static partial class SmoothBorders
     {
         LayerFlip flip = _layerFlip;
         if (flip == null) return;
-        ZoneCalculator calc = EmpireWorld.Current?.zone_calculator;
+        ZoneGrid calc = EmpireWorld.Current?.Zones;
         if (flip.Computing)
         {
             if (now - flip.start >= LayerComputeMaxSeconds + 0.5f) Computed(flip, now, 0);
@@ -1671,7 +1670,7 @@ public static partial class SmoothBorders
             for (int i = flip.waiting.Count - 1; i >= 0; i--)
             {
                 int id = flip.waiting[i];
-                TileZone zone = calc.getZoneByID(id);
+                Cell zone = calc.ById(id);
                 if (zone == null || !Transitions.TryGetValue(id, out Transition transition) || transition.planned)
                 {
                     flip.waiting.RemoveAt(i);
@@ -1679,8 +1678,8 @@ public static partial class SmoothBorders
                 }
                 if (transition.newPixels == null || WaveDistance(flip, zone) > flip.wave) continue;
                 transition.planned = true;
-                transition.flipAt = now + FrontNoise(zone.x * 7, zone.y * 7) * 0.04f;
-                Orient(transition, zone.x * ZoneSize + ZoneSize / 2f - flip.cx, zone.y * ZoneSize + ZoneSize / 2f - flip.cy, zone);
+                transition.flipAt = now + FrontNoise(zone.X * 7, zone.Y * 7) * 0.04f;
+                Orient(transition, zone.X * ZoneSize + ZoneSize / 2f - flip.cx, zone.Y * ZoneSize + ZoneSize / 2f - flip.cy, zone);
                 flip.waiting.RemoveAt(i);
                 flip.lastPlanned = now;
             }
@@ -1695,7 +1694,7 @@ public static partial class SmoothBorders
 #if EC_PENDING
     private static void SweepTick()
     {
-        if (!Enabled || EmpireWorld.Current?.zone_calculator == null)
+        if (!Enabled || EmpireWorld.Current?.Zones == null)
         {
             ZoneFlipOverlay.Hide();
             return;
@@ -1718,7 +1717,7 @@ public static partial class SmoothBorders
             ZoneFlipOverlay.Hide(false);
             return;
         }
-        ZoneCalculator calc = EmpireWorld.Current.zone_calculator;
+        ZoneGrid calc = EmpireWorld.Current.Zones;
         Color32[] pixels = calc.pixels;
         if (pixels == null || pixels.Length != _base.Length) return;
         long started = global::System.Diagnostics.Stopwatch.GetTimestamp();
@@ -1728,8 +1727,8 @@ public static partial class SmoothBorders
         foreach (KeyValuePair<int, Transition> pair in Transitions)
         {
             Transition transition = pair.Value;
-            TileZone zone = calc.getZoneByID(pair.Key);
-            if (zone?.tiles == null || transition.newPixels == null && now - transition.created > StaleSeconds)
+            Cell zone = calc.ById(pair.Key);
+            if (zone?.Tiles == null || transition.newPixels == null && now - transition.created > StaleSeconds)
             {
                 // 一直没画到：作废，并让原版重画它(直接显示新样子)，不留旧颜色
                 zone?.resetRenderHelpers();
@@ -1755,7 +1754,7 @@ public static partial class SmoothBorders
         ZoneFlipOverlay.End();
         if (done != null)
             foreach (int id in done) Transitions.Remove(id);
-        if (wrote) calc.setDirty();
+        if (wrote) calc.MarkDirty();
         FrameProfiler.Record("平滑国界·换色翻牌", global::System.Diagnostics.Stopwatch.GetTimestamp() - started);
     }
 
@@ -1771,12 +1770,12 @@ public static partial class SmoothBorders
 
     // 这块地正在换色、还没画出新样子：上色时优先(见 ZonePaintBudget)
 #if EC_PENDING
-    public static bool Awaiting(TileZone zone) =>
-        zone != null && Transitions.TryGetValue(zone.id, out Transition transition) && transition.newPixels == null;
+    public static bool Awaiting(Cell zone) =>
+        zone != null && Transitions.TryGetValue(zone.Index, out Transition transition) && transition.newPixels == null;
 
     private static void PlanSweeps()
     {
-        ZoneCalculator calc = EmpireWorld.Current.zone_calculator;
+        ZoneGrid calc = EmpireWorld.Current.Zones;
         MetaTypeAsset layer = _sweepLayer;
         if (layer == null)
         {
@@ -1785,43 +1784,43 @@ public static partial class SmoothBorders
             return;
         }
         // 按变成谁(新主人、新颜色)分组，各组从挨着新主人的块起一圈圈往里翻；整组都是自己变的从都城那块往外
-        var groups = new Dictionary<(IMetaObject meta, int color), List<TileZone>>();
+        var groups = new Dictionary<(IMetaObject meta, int color), List<Cell>>();
         var others = new HashSet<(IMetaObject meta, int color)>();
         foreach (int id in PendingSweep)
         {
-            TileZone zone = calc.getZoneByID(id);
+            Cell zone = calc.ById(id);
             if (zone == null || !Transitions.ContainsKey(id)) continue;
             IMetaObject real = RealMetaOf(layer, _sweepOption, zone);
             var key = (real, ColorKey(SafeColor(real)));
-            if (!groups.TryGetValue(key, out List<TileZone> list)) groups[key] = list = new List<TileZone>();
+            if (!groups.TryGetValue(key, out List<Cell> list)) groups[key] = list = new List<Cell>();
             list.Add(zone);
             if (!Transitions[id].self) others.Add(key);
         }
         PendingSweep.Clear();
         float now = Time.unscaledTime;
-        foreach (KeyValuePair<(IMetaObject meta, int color), List<TileZone>> group in groups)
+        foreach (KeyValuePair<(IMetaObject meta, int color), List<Cell>> group in groups)
         {
-            List<TileZone> zones = group.Value;
-            var members = new HashSet<int>(zones.Select(zone => zone.id));
+            List<Cell> zones = group.Value;
+            var members = new HashSet<int>(zones.Select(zone => zone.Index));
             // 同一次换主、晚几帧才画到的块：接着正在扫的那道往下排(扫过了的从眼下的前沿起)
             bool extend = Plans.TryGetValue(group.Key, out SweepPlan plan) && now <= plan.end;
             if (!extend) plan = new SweepPlan { start = now, step = SweepStep };
             int floor = extend ? Mathf.Max(0, Mathf.CeilToInt((now - plan.start) / plan.step)) : 0;
             var best = new Dictionary<int, (int distance, float dirX, float dirY)>();
-            var open = new SortedDictionary<int, List<TileZone>>();
-            void Offer(TileZone zone, int distance, float dirX, float dirY)
+            var open = new SortedDictionary<int, List<Cell>>();
+            void Offer(Cell zone, int distance, float dirX, float dirY)
             {
-                if (best.TryGetValue(zone.id, out var known) && known.distance <= distance) return;
-                best[zone.id] = (distance, dirX, dirY);
-                if (!open.TryGetValue(distance, out List<TileZone> list)) open[distance] = list = new List<TileZone>();
+                if (best.TryGetValue(zone.Index, out var known) && known.distance <= distance) return;
+                best[zone.Index] = (distance, dirX, dirY);
+                if (!open.TryGetValue(distance, out List<Cell> list)) open[distance] = list = new List<Cell>();
                 list.Add(zone);
             }
             if (extend)
-                foreach (TileZone zone in zones)
+                foreach (Cell zone in zones)
                 foreach ((int dx, int dy) in Sides)
                 {
-                    TileZone from = calc.getZone(zone.x - dx, zone.y - dy);
-                    if (from != null && plan.distances.TryGetValue(from.id, out int distance))
+                    Cell from = calc.Get(zone.X - dx, zone.Y - dy);
+                    if (from != null && plan.distances.TryGetValue(from.Index, out int distance))
                         Offer(zone, Mathf.Max(floor, distance + 1), dx, dy);
                 }
             // 起点：挨着本来就归新主人(同色)的块；没有就挨着新主人的宗主、同一帝国的块；再没有(或是自己变)就是离都城最近的块(从块心往外)
@@ -1832,7 +1831,7 @@ public static partial class SmoothBorders
                              shown => Related(shown.meta, group.Key.meta)
                          })
                 {
-                    foreach (TileZone zone in zones)
+                    foreach (Cell zone in zones)
                     {
                         (float dirX, float dirY, bool touches) = Facing(calc, zone, members, test);
                         if (touches) Offer(zone, floor, dirX, dirY);
@@ -1841,12 +1840,12 @@ public static partial class SmoothBorders
                 }
             if (best.Count == 0)
             {
-                TileZone seat = SeatOf(group.Key.meta);
-                TileZone first = seat == null ? zones[0]
-                    : zones.OrderBy(zone => (zone.x - seat.x) * (zone.x - seat.x) + (zone.y - seat.y) * (zone.y - seat.y)).First();
+                Cell seat = SeatOf(group.Key.meta);
+                Cell first = seat == null ? zones[0]
+                    : zones.OrderBy(zone => (zone.X - seat.X) * (zone.X - seat.X) + (zone.Y - seat.Y) * (zone.Y - seat.Y)).First();
                 Offer(first, floor, 0f, 0f);
             }
-            var seeds = best.Select(pair => (zone: calc.getZoneByID(pair.Key), pair.Value.distance))
+            var seeds = best.Select(pair => (zone: calc.ById(pair.Key), pair.Value.distance))
                 .Where(entry => entry.zone != null).ToList();
             // 由近及远一圈圈排(起点圈数不一，按圈数从小到大展开)
             void Spread()
@@ -1854,15 +1853,15 @@ public static partial class SmoothBorders
                 while (open.Count > 0)
                 {
                     int distance = open.Keys.First();
-                    List<TileZone> ring = open[distance];
+                    List<Cell> ring = open[distance];
                     open.Remove(distance);
-                    foreach (TileZone zone in ring)
+                    foreach (Cell zone in ring)
                     {
-                        if (best[zone.id].distance != distance) continue;
+                        if (best[zone.Index].distance != distance) continue;
                         foreach ((int dx, int dy) in Sides)
                         {
-                            TileZone neighbour = calc.getZone(zone.x + dx, zone.y + dy);
-                            if (neighbour != null && members.Contains(neighbour.id)) Offer(neighbour, distance + 1, dx, dy);
+                            Cell neighbour = calc.Get(zone.X + dx, zone.Y + dy);
+                            if (neighbour != null && members.Contains(neighbour.Index)) Offer(neighbour, distance + 1, dx, dy);
                         }
                     }
                 }
@@ -1872,13 +1871,13 @@ public static partial class SmoothBorders
             // 和主体一起扫完(以前排在整道扫描最后，主体变完了还剩几块等一下才变)
             if (best.Count < members.Count && seeds.Count > 0)
             {
-                foreach (TileZone zone in zones)
+                foreach (Cell zone in zones)
                 {
-                    if (best.ContainsKey(zone.id)) continue;
+                    if (best.ContainsKey(zone.Index)) continue;
                     float nearest = float.MaxValue, dirX = 0f, dirY = 0f;
-                    foreach ((TileZone seed, int distance) in seeds)
+                    foreach ((Cell seed, int distance) in seeds)
                     {
-                        float dx = zone.x - seed.x, dy = zone.y - seed.y, length = Mathf.Sqrt(dx * dx + dy * dy);
+                        float dx = zone.X - seed.X, dy = zone.Y - seed.Y, length = Mathf.Sqrt(dx * dx + dy * dy);
                         if (distance + length >= nearest) continue;
                         nearest = distance + length;
                         dirX = length > 0f ? dx / length : 0f;
@@ -1890,14 +1889,14 @@ public static partial class SmoothBorders
             }
             int farthest = best.Count == 0 ? floor : best.Values.Max(entry => entry.distance);
             if (!extend) plan.step = Mathf.Min(SweepStep, MaxSweepSeconds / Mathf.Max(1, farthest + 1));
-            foreach (TileZone zone in zones)
+            foreach (Cell zone in zones)
             {
-                if (!Transitions.TryGetValue(zone.id, out Transition transition)) continue;
-                (int distance, float dirX, float dirY) = best.TryGetValue(zone.id, out var entry) ? entry : (farthest + 1, 0f, 0f);
-                transition.flipAt = plan.start + (distance + 0.3f * (FrontNoise(zone.x * 5, zone.y * 5) - 0.5f)) * plan.step;
+                if (!Transitions.TryGetValue(zone.Index, out Transition transition)) continue;
+                (int distance, float dirX, float dirY) = best.TryGetValue(zone.Index, out var entry) ? entry : (farthest + 1, 0f, 0f);
+                transition.flipAt = plan.start + (distance + 0.3f * (FrontNoise(zone.X * 5, zone.Y * 5) - 0.5f)) * plan.step;
                 Orient(transition, dirX, dirY, zone);
                 transition.planned = true;
-                plan.distances[zone.id] = distance;
+                plan.distances[zone.Index] = distance;
             }
             plan.end = Mathf.Max(plan.end, plan.start + plan.step * (farthest + 3f));
             Plans[group.Key] = plan;
@@ -1907,20 +1906,19 @@ public static partial class SmoothBorders
 #endif
 
     // 跟着邻块换的块：挨着的换主地块里最早翻到一半的那一刻换；挨着的都不用翻了(新旧一样)就当场换
-#if EC_PENDING
-    private static void PlanFollowers(ZoneCalculator calc, float now)
+    private static void PlanFollowers(ZoneGrid calc, float now)
     {
         foreach (int id in PendingFollow)
         {
             if (!Transitions.TryGetValue(id, out Transition follower) || !follower.follow) continue;
-            TileZone zone = calc.getZoneByID(id);
+            Cell zone = calc.ById(id);
             float at = float.MaxValue;
             if (zone != null)
                 for (int dy = -ZoneReach; dy <= ZoneReach; dy++)
                 for (int dx = -ZoneReach; dx <= ZoneReach; dx++)
                 {
-                    TileZone near = dx == 0 && dy == 0 ? null : calc.getZone(zone.x + dx, zone.y + dy);
-                    if (near != null && Transitions.TryGetValue(near.id, out Transition lead) && !lead.follow && lead.planned)
+                    Cell near = dx == 0 && dy == 0 ? null : calc.Get(zone.X + dx, zone.Y + dy);
+                    if (near != null && Transitions.TryGetValue(near.Index, out Transition lead) && !lead.follow && lead.planned)
                         at = Mathf.Min(at, lead.flipAt + lead.duration / 2f);
                 }
             follower.flipAt = at == float.MaxValue ? now : at;
@@ -1928,13 +1926,11 @@ public static partial class SmoothBorders
         }
         PendingFollow.Clear();
     }
-#endif
 
     private static readonly (int dx, int dy)[] Sides = { (1, 0), (-1, 0), (0, 1), (0, -1) };
 
     // 这块挨着的新主人那边在哪个方向(扫描从那边来)
-#if EC_PENDING
-    private static (float dirX, float dirY, bool touches) Facing(ZoneCalculator calc, TileZone zone, HashSet<int> members,
+    private static (float dirX, float dirY, bool touches) Facing(ZoneGrid calc, Cell zone, HashSet<int> members,
         Func<ShownState, bool> test)
     {
         float sumX = 0f, sumY = 0f;
@@ -1943,8 +1939,8 @@ public static partial class SmoothBorders
         for (int dx = -1; dx <= 1; dx++)
         {
             if (dx == 0 && dy == 0) continue;
-            TileZone neighbour = calc.getZone(zone.x + dx, zone.y + dy);
-            if (neighbour == null || members.Contains(neighbour.id) || !Shown.TryGetValue(neighbour.id, out ShownState shown) ||
+            Cell neighbour = calc.Get(zone.X + dx, zone.Y + dy);
+            if (neighbour == null || members.Contains(neighbour.Index) || !Shown.TryGetValue(neighbour.Index, out ShownState shown) ||
                 !test(shown)) continue;
             touches = true;
             sumX -= dx;
@@ -1953,7 +1949,6 @@ public static partial class SmoothBorders
         float length = Mathf.Sqrt(sumX * sumX + sumY * sumY);
         return length < 0.01f ? (0f, 0f, touches) : (sumX / length, sumY / length, touches);
     }
-#endif
 
     // 宗主、附庸、同一帝国
 #if EC_PENDING
@@ -1967,10 +1962,10 @@ public static partial class SmoothBorders
         return empire != null && empire == b.GetEmpire();
     }
 
-    private static TileZone SeatOf(IMetaObject meta)
+    private static Cell SeatOf(IMetaObject meta)
     {
         Realm kingdom = meta as Realm ?? (meta as Empire)?.CoreKingdom;
-        return kingdom?.capital?.getTile()?.zone;
+        return kingdom?.Capital?.SeatCell()?.Zone;
     }
 #endif
 
@@ -2003,21 +1998,21 @@ public static partial class SmoothBorders
     private static int _restoredZone = -1;
 
     // 这块地刚从缓存拷回(地形调色、城市平面图已经在里面了，PureMapPatch 不再画)
-#if EC_PENDING
-    public static bool Restored(TileZone zone)
+    public static bool Restored(Cell zone)
     {
-        if (zone == null || _restoredZone != zone.id) return false;
+        if (zone == null || _restoredZone != zone.Index) return false;
         _restoredZone = -1;
         return true;
     }
 
-    private static long KeyOf(MetaTypeAsset layer, TileZone zone, Color32 inside, Color32 outside)
+#if EC_PENDING
+    private static long KeyOf(MetaTypeAsset layer, Cell zone, Color32 inside, Color32 outside)
     {
         unchecked
         {
             long key = -3750763034362895579L;
             void Add(long value) => key = (key ^ value) * 1099511628211L;
-            Add(zone.id);
+            Add(zone.Index);
             Add(inside.r | inside.g << 8 | inside.b << 16 | inside.a << 24);
             Add(outside.r | outside.g << 8 | outside.b << 16 | outside.a << 24);
             Add(layer.GetHashCode());
@@ -2037,7 +2032,7 @@ public static partial class SmoothBorders
             Add((CorpsSystem.Enabled ? 1 : 0) | (PureMapMode.Enabled ? 2 : 0));
             Add(CorpsSystem.Enabled && ControlLayer(layer) ? FrontSignature() : 0);
             // 兼属的斜纹(见 DeJureShareSystem)：兼属方或它的颜色变了要重画
-            Add(DeJureShareSystem.StripeKey(zone.city));
+            Add(DeJureShareSystem.StripeKey(zone.City));
             return key == 0L ? 1L : key;
         }
     }
@@ -2069,14 +2064,14 @@ public static partial class SmoothBorders
         }
     }
 
-    private static bool Restore(Color32[] pixels, TileZone zone, long key)
+    private static bool Restore(Color32[] pixels, Cell zone, long key)
     {
-        if (!Snapshots.TryGetValue(zone.id, out Snapshot[] slots) || pixels.Length != _base.Length) return false;
+        if (!Snapshots.TryGetValue(zone.Index, out Snapshot[] slots) || pixels.Length != _base.Length) return false;
         float now = Time.unscaledTime;
         foreach (Snapshot shot in slots)
         {
             if (shot == null || shot.key != key || now - shot.at > CacheSeconds || now < shot.at ||
-                shot.pixels.Length != zone.tiles.Length) continue;
+                shot.pixels.Length != zone.Tiles.Length) continue;
             int[] ids = PixelIds(zone);
             BeginLift();
             for (int i = 0; i < ids.Length; i++)
@@ -2093,22 +2088,22 @@ public static partial class SmoothBorders
             // 记下画成谁要同重画一样按显示的一方(悬停的省按本省)：以前记实际归属，悬停的省从缓存拷回时
             // 记下的没变，四邻不跟着重画，省界留在邻块上成了残线(图层诊断"多余的边框"，修过仍在)
             Remember(zone, Shades[12]);
-            _restoredZone = zone.id;
-            EmpireWorld.Current.zone_calculator.setDirty();
+            _restoredZone = zone.Index;
+            EmpireWorld.Current.Zones.MarkDirty();
             return true;
         }
         return false;
     }
 
-    private static void Store(TileZone zone, long key)
+    private static void Store(Cell zone, long key)
     {
         if (Snapshots.Count > MaxCached) Snapshots.Clear();
-        if (!Snapshots.TryGetValue(zone.id, out Snapshot[] slots)) Snapshots[zone.id] = slots = new Snapshot[2];
+        if (!Snapshots.TryGetValue(zone.Index, out Snapshot[] slots)) Snapshots[zone.Index] = slots = new Snapshot[2];
         // 换掉同样输入的旧版，否则换掉较旧的一版
         int slot = slots[0] == null || slots[0].key == key ? 0 : slots[1] == null || slots[1].key == key ? 1 :
             slots[0].at <= slots[1].at ? 0 : 1;
         Snapshot shot = slots[slot] ??= new Snapshot();
-        int count = zone.tiles.Length;
+        int count = zone.Tiles.Length;
         if (shot.pixels == null || shot.pixels.Length != count)
         {
             shot.pixels = new Color32[count];
@@ -2134,26 +2129,24 @@ public static partial class SmoothBorders
     public static void ClearCache() => Snapshots.Clear();
 
     // 这块地的水陆变了(见 ZonePaintBudget.TerrainChanged)：缓存的输入不含地形，丢掉，下次重画按眼下的水面画
-#if EC_PENDING
-    public static void ForgetSnapshot(TileZone zone)
+    public static void ForgetSnapshot(Cell zone)
     {
-        if (zone != null && Snapshots.Count > 0) Snapshots.Remove(zone.id);
+        if (zone != null && Snapshots.Count > 0) Snapshots.Remove(zone.Index);
     }
-#endif
 
     // 这一格记为边框，四邻的陆地格记下的归属却都同它一样：残留的边框(国界早该没了，见 LayerDiagnostics)
 #if EC_PENDING
-    public static bool StaleOutline(WorldTile tile)
+    public static bool StaleOutline(Cell tile)
     {
-        int id = tile?.data?.tile_id ?? -1;
+        int id = tile?.Index ?? -1;
         if (!Enabled || id < 0 || id >= _outline.Length || !_outline[id] || !_hasBase[id]) return false;
         int owner = _owner[id];
         if (owner == 0) return false;
-        foreach (WorldTile next in new[] { tile.tile_up, tile.tile_down, tile.tile_left, tile.tile_right })
+        foreach (Cell next in new[] { tile.Up, tile.Down, tile.Left, tile.Right })
         {
             if (next?.data == null) return false;
-            int other = next.data.tile_id;
-            if (IsWater(next.x, next.y)) continue;
+            int other = next.Index;
+            if (IsWater(next.X, next.Y)) continue;
             if (other < 0 || other >= _owner.Length || _owner[other] != owner) return false;
         }
         return true;
@@ -2162,7 +2155,7 @@ public static partial class SmoothBorders
 
     // 归属/战线变化或残留边框：丢掉本块与周围八块的缓存，包含平滑轮廓伸入的斜对角。
     // 重画指纹(用户 2026-10-19 转玩家反馈"平滑模式下色块不刷新"，问答选"补全重画指纹")：原版决定一块地要不要重画
-    // (TileZone.checkShouldReRender)只比归属对象与调色板编号(城市图层连编号都不比)，自定义色、附庸描边色、被谁占着、
+    // (Cell.checkShouldReRender)只比归属对象与调色板编号(城市图层连编号都不比)，自定义色、附庸描边色、被谁占着、
     // 所属帝国(金边)变了它都看不出来，那片地停在旧颜色。别的游戏的做法是画的时候比对全部输入的指纹，不靠定时扫描事后补：
     // 这里把实际控制方、实际颜色值、所属帝国折进原版比对的那个数(见 ZonePaintBudget.BeforeCheck)，变了下一轮巡检就重画、照常翻牌
     // 每轮巡检每块地都要算一次指纹：按帧记下——各方的样子(AppearanceKeys)；归属只看城的图层上(见 CityKeyed)，
@@ -2186,7 +2179,7 @@ public static partial class SmoothBorders
 #if EC_PENDING
     private static IMetaObject _fpReal;
 
-    internal static int Fingerprint(TileZone zone)
+    internal static int Fingerprint(Cell zone)
     {
         _fpZone = -1;
         if (zone == null || EmpireWorld.Current == null) return 0;
@@ -2196,7 +2189,7 @@ public static partial class SmoothBorders
             _fingerprintFrame = frame;
             // 按原版这一轮实际在画的图层算(换图层那一帧原版还按旧图层画一轮，setMode 在这之后)：
             // 以前取已经换好的新图层，旧图层这一轮里每块地的指纹都变了，五千多块全按旧图层白画一遍
-            _fingerprintLayer = EmpireWorld.Current.zone_calculator?._mode_asset ?? EmpireWorld.Current.getCachedMapMetaAsset();
+            _fingerprintLayer = EmpireWorld.Current.Zones?._mode_asset ?? EmpireWorld.Current.getCachedMapMetaAsset();
             _fingerprintOption = _fingerprintLayer?.getZoneOptionState() ?? 0;
             _fingerprintSmooth = _fingerprintLayer != null && Smoothable(_fingerprintLayer);
             _fingerprintByCity = _fingerprintSmooth && CityKeyed(_fingerprintLayer, _fingerprintOption);
@@ -2207,7 +2200,7 @@ public static partial class SmoothBorders
         }
         if (!_fingerprintSmooth) return 0;
         IMetaObject real;
-        City city = zone.city;
+        City city = zone.City;
         if (_fingerprintByCity && city != null)
         {
             if (!ReferenceEquals(city, _fingerprintCity))
@@ -2219,7 +2212,7 @@ public static partial class SmoothBorders
             real = _fingerprintCityOccupied ? RealMetaOf(_fingerprintLayer, _fingerprintOption, zone) : _fingerprintCityMeta;
         }
         else real = RealMetaOf(_fingerprintLayer, _fingerprintOption, zone);
-        _fpZone = zone.id;
+        _fpZone = zone.Index;
         _fpReal = real;
         _fpAppearance = 0;
         if (real == null) return 0;
@@ -2242,10 +2235,10 @@ public static partial class SmoothBorders
     // 这种不画就一直是错色(帝国解散、成员离开、城换了主……)，上色排队时优先(见 ZonePaintBudget)；
     // 只是四邻变了、城市平面图变了、全图重画之类的重画不算
 #if EC_PENDING
-    internal static bool OwnChanged(TileZone zone)
+    internal static bool OwnChanged(Cell zone)
     {
-        if (!Enabled || zone == null || zone.id != _fpZone) return false;
-        if (!LastMeta.TryGetValue(zone.id, out var last)) return _fpReal != null;
+        if (!Enabled || zone == null || zone.Index != _fpZone) return false;
+        if (!LastMeta.TryGetValue(zone.Index, out var last)) return _fpReal != null;
         return !ReferenceEquals(last.meta, _fpReal) || last.color != _fpAppearance;
     }
 #endif
@@ -2264,21 +2257,21 @@ public static partial class SmoothBorders
     // (重画指纹漏了的变动)；正在翻牌、排着翻的不算，悬停省份临时换成本省颜色的不算。
     // 还没画过的块：眼下有归属，色块却是空的也算
 #if EC_PENDING
-    internal static bool StaleOwner(MetaTypeAsset layer, TileZone zone, Color32[] pixels, out string detail)
+    internal static bool StaleOwner(MetaTypeAsset layer, Cell zone, Color32[] pixels, out string detail)
     {
         detail = null;
         // 整图画布不排队：变了的块下一帧就画(不记 LastMeta)
         if (CanvasActive) return false;
-        if (!Enabled || layer == null || zone?.tiles == null || !Smoothable(layer) || Transitions.ContainsKey(zone.id) ||
-            PendingSweep.Contains(zone.id)) return false;
+        if (!Enabled || layer == null || zone?.Tiles == null || !Smoothable(layer) || Transitions.ContainsKey(zone.Index) ||
+            PendingSweep.Contains(zone.Index)) return false;
         IMetaObject real = RealMetaOf(layer, layer.getZoneOptionState(), zone);
-        if (!LastMeta.TryGetValue(zone.id, out var last))
+        if (!LastMeta.TryGetValue(zone.Index, out var last))
         {
             if (real == null || pixels == null || !ControlLayer(layer) && layer.map_mode != MetaType.City) return false;
-            foreach (WorldTile tile in zone.tiles)
+            foreach (Cell tile in zone.Tiles)
             {
-                int id = tile?.data?.tile_id ?? -1;
-                if (id < 0 || id >= pixels.Length || IsWater(tile.x, tile.y)) continue;
+                int id = tile?.Index ?? -1;
+                if (id < 0 || id >= pixels.Length || IsWater(tile.X, tile.Y)) continue;
                 if (pixels[id].a != 0) return false;
                 detail = $"没画过，眼下归 {NameOf(real)}";
                 return true;
@@ -2286,7 +2279,7 @@ public static partial class SmoothBorders
             return false;
         }
         if (ReferenceEquals(last.meta, real) && last.color == AppearanceKey(real)) return false;
-        if (real is Empire && zone.city?.kingdom is Realm province && ReferenceEquals(last.meta, province)) return false;
+        if (real is Empire && zone.City?.Realm is Realm province && ReferenceEquals(last.meta, province)) return false;
         detail = $"画成 {NameOf(last.meta as IMetaObject)}，眼下归 {NameOf(real)}" +
                  (ReferenceEquals(last.meta, real) ? "(颜色变了)" : "");
         return true;
@@ -2314,15 +2307,15 @@ public static partial class SmoothBorders
         }
     }
 
-    public static void Repaint(TileZone zone)
+    public static void Repaint(Cell zone)
     {
         if (zone == null) return;
-        Snapshots.Remove(zone.id);
+        Snapshots.Remove(zone.Index);
         zone.resetRenderHelpers();
-        foreach (TileZone next in zone.neighbours_all ?? Array.Empty<TileZone>())
+        foreach (Cell next in zone.NeighboursAll ?? Array.Empty<Cell>())
         {
             if (next == null) continue;
-            Snapshots.Remove(next.id);
+            Snapshots.Remove(next.Index);
             next.resetRenderHelpers();
         }
     }
@@ -2392,7 +2385,7 @@ public static partial class SmoothBorders
         if (!LitCache.TryGetValue(owner, out bool lit))
         {
             IMetaObject realm = ReferenceEquals(owner, _hover) && _hoverRealm != null ? _hoverRealm : owner;
-            ZoneCalculator calc = EmpireWorld.Current?.zone_calculator;
+            ZoneGrid calc = EmpireWorld.Current?.Zones;
             lit = ActiveMetas.Count > 0 && (ActiveMetas.Contains(owner) || ActiveMetas.Contains(realm)) ||
                   calc != null && calc._cached_check_animation && calc.shouldShowSelectionFor(realm);
             LitCache[owner] = lit;
@@ -2478,14 +2471,14 @@ public static partial class SmoothBorders
 
     // 城市精细层的底色也从当前图层、当前选项和实际控制方取，不能固定拿国家色或选项 0。
 #if EC_PENDING
-    internal static ColorAsset DisplayColor(TileZone zone)
+    internal static ColorAsset DisplayColor(Cell zone)
     {
         MetaTypeAsset layer = EmpireWorld.Current?.getCachedMapMetaAsset();
         if (zone == null || !Smoothable(layer)) return null;
         int option = layer.getZoneOptionState();
         IMetaObject meta = RealMetaOf(layer, option, zone);
         Realm hover = HoveredProvince(layer, option);
-        if (meta is Empire empire && hover == zone.city?.kingdom && hover != null && EmpireMembershipService.MapEmpire(hover) == empire)
+        if (meta is Empire empire && hover == zone.City?.Realm && hover != null && EmpireMembershipService.MapEmpire(hover) == empire)
             meta = hover;
         return SafeColor(meta);
     }
@@ -2506,7 +2499,7 @@ public static partial class SmoothBorders
         if (!Enabled || war == null) return;
         foreach (Realm kingdom in war.GetAttackers().Concat(war.GetDefenders()))
             foreach (City city in kingdom?.Cities ?? new List<City>())
-                foreach (TileZone zone in city?.zones ?? new List<TileZone>())
+                foreach (Cell zone in city?.Zones ?? new List<Cell>())
                     zone?.resetRenderHelpers();
     }
 #endif
@@ -2522,14 +2515,14 @@ public static partial class SmoothBorders
             if (kingdom?.Record == null || kingdom.IsGone() ||
                 !realms.Contains(kingdom.Key) && !realms.Contains(FrontSystem.Realm(kingdom).id)) continue;
             foreach (City city in kingdom.Cities ?? new List<City>())
-                foreach (TileZone zone in city?.zones ?? new List<TileZone>())
+                foreach (Cell zone in city?.Zones ?? new List<Cell>())
                 {
-                    if (zone?.neighbours_all == null) continue;
+                    if (zone?.NeighboursAll == null) continue;
                     bool border = false;
-                    foreach (TileZone next in zone.neighbours_all)
-                        if (next?.city?.kingdom != null && next.city.kingdom != kingdom) { border = true; break; }
+                    foreach (Cell next in zone.NeighboursAll)
+                        if (next?.City?.Realm != null && next.City.Realm != kingdom) { border = true; break; }
                     if (!border) continue;
-                    Snapshots.Remove(zone.id);
+                    Snapshots.Remove(zone.Index);
                     zone.resetRenderHelpers();
                 }
         }
@@ -2542,18 +2535,18 @@ public static partial class SmoothBorders
     private const int RememberRadius = 2;
 
 #if EC_PENDING
-    private static void Remember(TileZone zone, IMetaObject meta)
+    private static void Remember(Cell zone, IMetaObject meta)
     {
         // 自定义色可能共用同一个调色板编号，必须比较实际色值；所属帝国变了四邻的金边也要重画
         int color = AppearanceKey(meta);
-        if (LastMeta.TryGetValue(zone.id, out var last) && ReferenceEquals(last.meta, meta) && last.color == color) return;
-        bool first = !LastMeta.ContainsKey(zone.id);
-        LastMeta[zone.id] = (meta, color);
+        if (LastMeta.TryGetValue(zone.Index, out var last) && ReferenceEquals(last.meta, meta) && last.color == color) return;
+        bool first = !LastMeta.ContainsKey(zone.Index);
+        LastMeta[zone.Index] = (meta, color);
         if (first) return;
-        ZoneCalculator calc = EmpireWorld.Current.zone_calculator;
+        ZoneGrid calc = EmpireWorld.Current.Zones;
         for (int dy = -RememberRadius; dy <= RememberRadius; dy++)
         for (int dx = -RememberRadius; dx <= RememberRadius; dx++)
-            if (dx != 0 || dy != 0) calc.getZone(zone.x + dx, zone.y + dy)?.resetRenderHelpers();
+            if (dx != 0 || dy != 0) calc.Get(zone.X + dx, zone.Y + dy)?.resetRenderHelpers();
     }
 #endif
 

@@ -1,6 +1,7 @@
 // Generated from the EmpireCraft mod: Scripts/GeneralSystems/BannerSystem.Conquest.cs. Do not edit by hand: Tools/PortTool/members.py rewrites it;
 // see Port/manifest.json and Tools/PortTool.
 using Mathf = EmpireCraft.Core.EcMath;
+using Vector2 = EmpireCraft.Core.EcVector2;
 using System.Collections.Generic;
 using System.Linq;
 
@@ -91,12 +92,12 @@ public static partial class BannerSystem
         City capital = core.Capital;
         if (capital?.Record == null) return new List<City>();
         string institutional = CompositeEmpireService.GetInstitutionalCulture(empire);
-        Vector2 at = capital.city_center;
+        Vector2 at = capital.Center;
         return (core.Cities ?? new List<City>())
             .Where(city => city?.Record != null && !city.IsGone() && !city.GetOrCreate().banner_home &&
                            city.GetOrCreate().banner_land < BannerRules.EnclosureCap &&
                            CultureService.SameKin(CultureService.GetMainCulture(city, initialize: false), institutional))
-            .OrderBy(city => (city.city_center - at).sqrMagnitude)
+            .OrderBy(city => (city.Center - at).sqrMagnitude)
             .Take(BannerRules.EnclosureCities)
             .ToList();
     }
@@ -121,7 +122,7 @@ public static partial class BannerSystem
 #if EC_PENDING
     public static float QueueStabilityLoss(City city)
     {
-        Empire empire = city?.kingdom?.GetEmpire();
+        Empire empire = city?.Realm?.GetEmpire();
         if (empire == null || !Practices(empire)) return 0f;
         double at = empire.CoreKingdom.GetOrCreate().banner_queue_at;
         if (at < 0d) return 0f;

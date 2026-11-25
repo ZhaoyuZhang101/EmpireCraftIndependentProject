@@ -54,6 +54,41 @@ namespace EmpireCraft.Core
         public bool HasLeader()=>Leader!=null&&Leader.Alive;
         public bool IsCapital()=>Realm!=null&&Realm.Capital==this;
         public int PopulationCount()=>(int)System.Math.Min(int.MaxValue,Population);
+
+        // The world this city stands in; set when it is founded or loaded.
+        public EmpireWorld World;
+        List<Cell> _zones;HashSet<City> _nearCities;HashSet<Realm> _nearRealms;int _zonesAt=-1,_nearAt=-1;
+        // The cells of its territory, the seat first.
+        public IReadOnlyList<Cell> Zones
+        {
+            get
+            {
+                if(World==null)return System.Array.Empty<Cell>();
+                if(_zones!=null&&_zonesAt==World.TerritoryRevision&&_zones.Count==Tiles.Count)return _zones;
+                var cells=new List<Cell>(Tiles.Count);foreach(int tile in Tiles)cells.Add(World.CellAt(tile));
+                _zones=cells;_zonesAt=World.TerritoryRevision;return cells;
+            }
+        }
+        public Cell SeatCell()=>World==null?null:World.CellAt(Tile);
+        public EcVector2 Center=>World==null?default(EcVector2):new EcVector2(Tile%World.Width,Tile/World.Width);
+        // Cities and foreign realms whose land touches this city's.
+        public HashSet<City> NeighbourCities{get{Near();return _nearCities;}}
+        public HashSet<Realm> NeighbourRealms{get{Near();return _nearRealms;}}
+        void Near()
+        {
+            if(_nearCities!=null&&World!=null&&_nearAt==World.TerritoryRevision)return;
+            _nearCities=new HashSet<City>();_nearRealms=new HashSet<Realm>();
+            if(World==null)return;
+            foreach(int tile in Tiles)
+                for(int d=0;d<4;d++)
+                {
+                    int n=World.Map.Neighbor(tile,d);if(n<0)continue;
+                    int owner=World.TileCity[n];if(owner<0||owner==Id)continue;
+                    var other=World.Cities[owner];_nearCities.Add(other);
+                    if(other.Realm!=null&&other.Realm!=Realm)_nearRealms.Add(other.Realm);
+                }
+            _nearAt=World.TerritoryRevision;
+        }
     }
 
     public sealed class Person : Entity

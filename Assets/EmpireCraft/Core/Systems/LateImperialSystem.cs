@@ -112,7 +112,7 @@ public static class LateImperialSystem
     private static bool BordersDirectRule(Empire empire, Realm member)
     {
         foreach (City city in member.Cities ?? new List<City>())
-        foreach (City other in city?.neighbours_cities ?? new HashSet<City>())
+        foreach (City other in city?.NeighbourCities ?? new HashSet<City>())
         {
             Realm owner = other?.Realm;
             if (owner == null || owner == member || owner.GetEmpire() != empire) continue;

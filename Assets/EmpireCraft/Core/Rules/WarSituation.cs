@@ -25,7 +25,7 @@ public static class WarSituation
     {
         Empire empire = kingdom?.GetEmpire();
         if (empire != null && !empire.IsGone()) return empire.countCities();
-        return kingdom?.cities?.Count ?? 0;
+        return kingdom?.Cities?.Count ?? 0;
     }
 #endif
 

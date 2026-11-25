@@ -106,8 +106,8 @@ public static class StateModernization
         int unrest = kingdom.Cities.Count(city => CityStabilitySystem.Disaffected(city));
         var neighbours = new HashSet<Realm>();
         foreach (City city in kingdom.Cities)
-            if (city?.neighbours_kingdoms != null)
-                foreach (Realm other in city.neighbours_kingdoms)
+            if (city?.NeighbourRealms != null)
+                foreach (Realm other in city.NeighbourRealms)
                     if (other?.Record != null && other != kingdom && !other.IsGone() && !other.IsWild) neighbours.Add(other);
         float republicanNeighbours = neighbours.Count == 0 ? 0f : neighbours.Count(IsModern) / (float)neighbours.Count;
         return ModernizationRules.RevolutionChance(Math.Min(1f, republican), unrest / (float)kingdom.Cities.Count, republicanNeighbours,
@@ -204,8 +204,8 @@ public static class StateModernization
         bool pioneer = ConstitutionalEconomySystem.IsCultureConstitutional(empire);
         var neighbours = new HashSet<Realm>();
         foreach (City city in empire.cities_list ?? core.Cities ?? new List<City>())
-            if (city?.neighbours_kingdoms != null)
-                foreach (Realm other in city.neighbours_kingdoms)
+            if (city?.NeighbourRealms != null)
+                foreach (Realm other in city.NeighbourRealms)
                     if (other?.Record != null && !other.IsGone() && !other.IsWild && other.GetEmpire() != empire) neighbours.Add(other);
         int modern = neighbours.Select(other => other.GetEmpire()?.CoreKingdom ?? other).Distinct().Count(other =>
             IsModern(other) || other.GetEmpire() is Empire state && ConstitutionalEconomySystem.HasConstitution(state));

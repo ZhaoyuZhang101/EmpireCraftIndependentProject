@@ -50,10 +50,10 @@ public static class CityGeographySystem
     private static Geo Compute(City city)
     {
         var geo = new Geo();
-        List<TileZone> zones = city.zones?.Where(zone => zone != null).ToList() ?? new List<TileZone>();
+        List<Cell> zones = city.Zones?.Where(zone => zone != null).ToList() ?? new List<Cell>();
         if (zones.Count == 0) return geo;
         int rough = 0, arid = 0, wet = 0;
-        foreach (TileZone zone in zones)
+        foreach (Cell zone in zones)
         {
             switch (TerrainSystem.Of(zone))
             {
@@ -72,7 +72,7 @@ public static class CityGeographySystem
                     wet++;
                     break;
             }
-            if (zone.tiles_with_liquid > 4 && !SeaRegionSystem.IsSea(zone)) wet++;
+            if (zone.LiquidTiles > 4 && !SeaRegionSystem.IsSea(zone)) wet++;
         }
         float n = zones.Count;
         float coast = SeaRegionSystem.RegionsAround(city).Count > 0 ? 1f : 0f;

@@ -33,13 +33,12 @@ public static class PettyRebellion
 #endif
 
     // 还是不是分封制下的小乱(原主亡了、停战满一年就不算了)
-#if EC_PENDING
     public static bool IsPetty(Realm rebel)
     {
         if (rebel?.Record == null || rebel.IsGone()) return false;
         var data = rebel.GetOrCreate();
         if (data.petty_rebel_origin < 0) return false;
-        Realm origin = EmpireWorld.Current?.kingdoms?.get(data.petty_rebel_origin);
+        Realm origin = EmpireWorld.Current?.RealmByKey(data.petty_rebel_origin);
         bool settled = origin?.Record == null || origin.IsGone() ||
                        data.petty_rebel_since >= 0d && GameClock.YearsSince(data.petty_rebel_since) >= 1 && !rebel.IsAtWarWith(origin);
         if (!settled) return true;
@@ -47,10 +46,8 @@ public static class PettyRebellion
         data.petty_rebel_since = -1d;
         return false;
     }
-#endif
 
     // 这座城该不该归这支叛军：满两座城了、或是原主的都城，就不行
-#if EC_PENDING
     public static bool Blocks(Realm rebel, City city)
     {
         if (city?.Record == null || city.Realm == rebel || !IsPetty(rebel)) return false;
@@ -58,6 +55,5 @@ public static class PettyRebellion
         Realm origin = EmpireWorld.Current.RealmByKey(rebel.GetOrCreate().petty_rebel_origin);
         return origin?.Record != null && origin.Capital == city;
     }
-#endif
 }
 }

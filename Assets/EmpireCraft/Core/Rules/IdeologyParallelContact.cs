@@ -157,7 +157,7 @@ public static partial class IdeologyPopulationSystem
             catch(Exception exception)
             {
                 PendingContact.Remove(pair.Key);
-                LogService.LogWarning($"[EmpireCraft] 多核理念写回失败({r.City?.data?.name}): {exception.Message}");
+                LogService.LogWarning($"[EmpireCraft] 多核理念写回失败({r.City?.Name}): {exception.Message}");
             }
         }
     }

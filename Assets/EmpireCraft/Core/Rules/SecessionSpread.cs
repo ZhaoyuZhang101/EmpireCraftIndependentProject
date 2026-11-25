@@ -38,7 +38,7 @@ public static class SecessionSpread
         while (frontier.Count > 0 && joined < MaxCities)
         {
             City city = frontier.Dequeue();
-            foreach (City next in (IEnumerable<City>)city.neighbours_cities ?? Array.Empty<City>())
+            foreach (City next in (IEnumerable<City>)city.NeighbourCities ?? Array.Empty<City>())
             {
                 if (joined >= MaxCities) break;
                 if (next?.Record == null || next.IsGone() || !seen.Add(next) || next.Realm != former ||
@@ -57,16 +57,14 @@ public static class SecessionSpread
 
     private static Realm ModRealm(Realm kingdom) => kingdom?.GetEmpire()?.CoreKingdom ?? kingdom;
 
-#if EC_PENDING
-    private static IEnumerable<City> Neighbours(City city) => (IEnumerable<City>)city.neighbours_cities ?? Array.Empty<City>();
-#endif
+    private static IEnumerable<City> Neighbours(City city) => (IEnumerable<City>)city.NeighbourCities ?? Array.Empty<City>();
 
     // 被起事隔断的城：从原主都城沿本国(帝国按整个帝国)相邻的城走不到、与都城同在一块陆地、所在那一片挨着起事一方的，转入起事一方
 #if EC_PENDING
     private static int CutOff(Realm rebel, Realm former, bool rebellion)
     {
         City capital = former.Capital;
-        WorldTile seat = capital?.getTile();
+        Cell seat = capital?.SeatCell();
         if (seat == null || capital.Realm != former || rebel.IsGone()) return 0;
         Realm realm = ModRealm(former);
         var reached = new HashSet<City> { capital };
@@ -77,7 +75,7 @@ public static class SecessionSpread
                 if (next?.Record != null && !next.IsGone() && next.Realm?.Record != null && ModRealm(next.Realm) == realm && reached.Add(next))
                     queue.Enqueue(next);
         var stranded = new HashSet<City>(former.Cities.Where(city => city?.Record != null && !city.IsGone() && !reached.Contains(city) &&
-                                                                     city.getTile() is WorldTile at && at.isSameIsland(seat)));
+                                                                     city.SeatCell() is Cell at && at.IsSameIsland(seat)));
         if (stranded.Count == 0) return 0;
         var done = new HashSet<City>();
         var names = new List<string>();

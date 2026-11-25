@@ -17,15 +17,12 @@ public static class PlateauPaintLedger
 {
     private readonly struct Placed
     {
-#if EC_PENDING
-        public readonly TileType BeforeMain;
-        public readonly TopTileType BeforeTop;
-#endif
+        public readonly TerrainKind BeforeMain;
+        public readonly TerrainKind BeforeTop;
         public readonly int BeforeHeight;
-#if EC_PENDING
-        public readonly TileType After;
+        public readonly TerrainKind After;
 
-        public Placed(TileType beforeMain, TopTileType beforeTop, int beforeHeight, TileType after)
+        public Placed(TerrainKind beforeMain, TerrainKind beforeTop, int beforeHeight, TerrainKind after)
         {
             BeforeMain = beforeMain;
             BeforeTop = beforeTop;
@@ -33,8 +30,7 @@ public static class PlateauPaintLedger
             After = after;
         }
 
-        public Placed With(TileType after) => new(BeforeMain, BeforeTop, BeforeHeight, after);
-#endif
+        public Placed With(TerrainKind after) => new(BeforeMain, BeforeTop, BeforeHeight, after);
     }
 
     private static readonly HashSet<int> Painted = new(), Openings = new(), Kept = new(), Passes = new();
@@ -42,9 +38,7 @@ public static class PlateauPaintLedger
     private static int _width, _height;
 
     // 改格子(运行时换成原版改地形，压到的建筑照原版拆；回归测试里直接设格)
-#if EC_PENDING
-    public static Action<WorldTile, TileType, TopTileType> Writer;
-#endif
+    public static Action<Cell, TerrainKind, TerrainKind> Writer;
 
     // 外缘起伏的种子：固定，同一处每次重算结果一样
     public const int Seed = 20261111;
@@ -70,7 +64,7 @@ public static class PlateauPaintLedger
     {
         EmpireWorld world = EmpireWorld.Current;
         if (world == null || grown == null || grown.Count == 0) return 0;
-        int w = EmpireWorld.width, h = EmpireWorld.height;
+        int w = EmpireWorld.Current.Width, h = EmpireWorld.Current.Height;
         if (w != _width || h != _height)
         {
             Reset();
@@ -113,16 +107,15 @@ public static class PlateauPaintLedger
 #endif
 
     // 清账：铺下的外缘格被改过(地面格不是铺的那样了；积雪这类顶层变化不算)的不再归外缘管
-#if EC_PENDING
     private static void Settle(EmpireWorld world, int w)
     {
         List<int> gone = null;
         foreach (KeyValuePair<int, Placed> pair in Rim)
         {
-            WorldTile tile = world.GetTileSimple(pair.Key % w, pair.Key / w);
-            if (tile == null || ReferenceEquals(tile.main_type, pair.Value.After)) continue;
+            Cell tile = world.CellAt(pair.Key % w, pair.Key / w);
+            if (tile == null || ReferenceEquals(tile.MainType, pair.Value.After)) continue;
             (gone ??= new List<int>()).Add(pair.Key);
-            if (PlateauTerrain.IsPlateau(tile.main_type)) continue;
+            if (PlateauTerrain.IsPlateau(tile.MainType)) continue;
             if (PlateauTerrain.IsPlateau(pair.Value.BeforeMain)) Openings.Add(pair.Key);
             else Kept.Add(pair.Key);
         }
@@ -130,35 +123,36 @@ public static class PlateauPaintLedger
             foreach (int g in gone) Rim.Remove(g);
     }
 
-    private static void Put(EmpireWorld world, int w, int g, TileType main, TopTileType top)
+#if EC_PENDING
+    private static void Put(EmpireWorld world, int w, int g, TerrainKind main, TerrainKind top)
     {
-        WorldTile tile = world.GetTileSimple(g % w, g / w);
+        Cell tile = world.CellAt(g % w, g / w);
         if (tile == null || main == null) return;
         if (Rim.TryGetValue(g, out Placed placed))
         {
-            if (ReferenceEquals(placed.After, main) && ReferenceEquals(tile.main_type, main)) return;
+            if (ReferenceEquals(placed.After, main) && ReferenceEquals(tile.MainType, main)) return;
             Rim[g] = placed.With(main);
         }
         else
         {
-            if (ReferenceEquals(tile.main_type, main)) return;
-            Rim[g] = new Placed(tile.main_type, tile.top_type, tile.Height, main);
+            if (ReferenceEquals(tile.MainType, main)) return;
+            Rim[g] = new Placed(tile.MainType, tile.TopType, tile.Height, main);
         }
         Write(tile, main, top);
-        tile.Height = main.height_min;
+        tile.Height = main.HeightMin;
     }
 
     private static void Clear(EmpireWorld world, int w, int g)
     {
         if (!Rim.TryGetValue(g, out Placed placed)) return;
         Rim.Remove(g);
-        WorldTile tile = world.GetTileSimple(g % w, g / w);
+        Cell tile = world.CellAt(g % w, g / w);
         if (tile == null || placed.BeforeMain == null) return;
         Write(tile, placed.BeforeMain, placed.BeforeTop);
         tile.Height = placed.BeforeHeight;
     }
 
-    private static void Write(WorldTile tile, TileType main, TopTileType top)
+    private static void Write(Cell tile, TerrainKind main, TerrainKind top)
     {
         if (Writer != null) Writer(tile, main, top);
         else tile.setTileTypes(main, top);

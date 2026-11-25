@@ -45,14 +45,14 @@ public static partial class TransmigrantSystem
         foreach (City city in kingdom.Cities.ToList())
         {
             if (city?.Record == null || city.IsGone() || NavySystem.Port(city) != null ||
-                !city.zones.Any(zone => zone != null && zone.tiles_with_liquid > 0)) continue;
+                !city.Zones.Any(zone => zone != null && zone.LiquidTiles > 0)) continue;
             try
             {
                 Building dock = city.getBuildingOfType("type_docks", pCountOnlyFinished: false, pRandom: false);
                 if (dock == null)
                 {
                     BuildingAsset asset = city.getActorAsset()?.getBuildingDockAsset();
-                    WorldTile tile = asset == null ? null : ai.behaviours.CityBehBuild.getDockTile(city);
+                    Cell tile = asset == null ? null : ai.behaviours.CityBehBuild.getDockTile(city);
                     if (tile == null) continue;
                     dock = EmpireWorld.Current.buildings.addBuilding(asset, tile);
                 }

@@ -17,9 +17,7 @@ public static class MapWallSystem
 {
     // 格编号 → 原版城墙种类(顶层格 id)，随存档保存(SaveData.map_walls)
     private static Dictionary<int, string> _walls = new();
-#if EC_PENDING
-    private static readonly Queue<WorldTile> Pending = new();
-#endif
+    private static readonly Queue<Cell> Pending = new();
     private static object _world;
     private static bool _synced, _converting, _dirty;
     // 普通地图下这一帧画了原版城墙(下一帧看要不要给关门让开)
@@ -39,20 +37,21 @@ public static class MapWallSystem
     public static bool Contains(int tileId) => _walls.Count > 0 && _walls.ContainsKey(tileId);
 
 #if EC_PENDING
-    public static bool Contains(WorldTile tile) => tile?.data != null && Contains(tile.data.tile_id);
+    public static bool Contains(Cell tile) => tile?.data != null && Contains(tile.Index);
 #endif
 
     // 挡路的城墙格(原版城墙或图层城墙)：关城压着的关门不挡(见 WallGateSystem)
 #if EC_PENDING
-    public static bool Blocks(WorldTile tile) =>
-        tile?.Type != null && (tile.Type.wall || Contains(tile)) && !WallGateSystem.IsGate(tile);
+    public static bool Blocks(Cell tile) =>
+        tile?.Type != null && (tile.Type.Wall || Contains(tile)) && !WallGateSystem.IsGate(tile);
 #endif
 
     // 斜着走一步夹在两格城墙中间：城墙只斜着相连时墙身照样画成连着的(见 MapWallOverlay 的转角砖)，
     // 从这里斜插过去就是穿墙(以前路、小路都能从斜接的城墙缝里钻过去)
 #if EC_PENDING
     public static bool CutsCorner(int x0, int y0, int x1, int y1) =>
-        x0 != x1 && y0 != y1 && Blocks(EmpireWorld.Current?.GetTile(x1, y0)) && Blocks(EmpireWorld.Current?.GetTile(x0, y1));
+        x0 != x1 && y0 != y1 && Blocks(EmpireWorld.Current?.CellAt(x1, y0)) && Blocks(EmpireWorld.Current?.CellAt(x0, y1));
+#endif
 
     public static void ResetWorldState()
     {
@@ -75,7 +74,6 @@ public static class MapWallSystem
         Revision++;
         CityPlanWorks.ResetWorldState();
     }
-#endif
 
     public static Dictionary<int, string> Save() => _walls;
 
@@ -84,7 +82,7 @@ public static class MapWallSystem
     public static void Tick()
     {
         EmpireWorld world = EmpireWorld.Current;
-        if (world?.tiles_list == null || !GameClock.Running || SmoothLoader.isLoading()) return;
+        if (world?.Zones == null || !GameClock.Running || SmoothLoader.isLoading()) return;
         if (!ReferenceEquals(_world, world))
         {
             _world = world;
@@ -125,28 +123,28 @@ public static class MapWallSystem
     // 纯净地图下原版的城墙格早已清掉，炸弹、地震、擦除、画别的地形、灌水灌岩浆落在这一格时，原版找不到城墙可毁，
     // 这里跟着把图层城墙去掉(见 MapWallPatch)。草木自己长回来不算；神力再画城墙照常转换。一帧里毁掉的一起重画
 #if EC_PENDING
-    public static void OnTerraform(WorldTile tile, TileType main, TopTileType top, TerraformOptions options)
+    public static void OnTerraform(Cell tile, TerrainKind main, TerrainKind top, TerraformOptions options)
     {
-        if (_converting || _walls.Count == 0 || tile?.data == null || !_walls.ContainsKey(tile.data.tile_id)) return;
-        if (top != null && top.wall) return;
+        if (_converting || _walls.Count == 0 || tile?.data == null || !_walls.ContainsKey(tile.Index)) return;
+        if (top != null && top.Wall) return;
         bool destroy = options != null && (options.destroy_buildings || options.remove_top_tile || options.explode_tile ||
                                            options.damage_buildings || options.transform_to_wasteland || options.id == "draw");
-        if (!destroy && !(main != null && (main.liquid || main.lava))) return;
+        if (!destroy && !(main != null && (main.Liquid || main.Lava))) return;
         Remove(tile);
     }
 #endif
 
     // 拆除工具看不到已转为图层数据的实体墙，需直接删除存档数据并作废寻路缓存。
 #if EC_PENDING
-    public static bool Remove(WorldTile tile)
+    public static bool Remove(Cell tile)
     {
-        if (_converting || tile?.data == null || !_walls.Remove(tile.data.tile_id)) return false;
+        if (_converting || tile?.data == null || !_walls.Remove(tile.Index)) return false;
         Revision++;
         _dirty = true;
-        if (tile.zone != null)
+        if (tile.Zone != null)
         {
-            TerrainSystem.Invalidate(tile.zone);
-            TerrainResistance.InvalidateWall(tile.zone);
+            TerrainSystem.Invalidate(tile.Zone);
+            TerrainResistance.InvalidateWall(tile.Zone);
         }
         return true;
     }
@@ -155,17 +153,17 @@ public static class MapWallSystem
     // 筑一格图层城墙(城池全图筑城墙，见 CityPlanWorks.SyncWalls)：只在纯净地图下(普通地图下城墙是原版的格子，读档时才转换)；
     // 水、岩浆上不筑，已有城墙(图层的或原版的)的格不动；筑上了返回 true。同 Remove，路网、关门、城墙阻力与军团过墙下一帧跟着重算
 #if EC_PENDING
-    public static bool Add(WorldTile tile, string type)
+    public static bool Add(Cell tile, string type)
     {
-        if (_converting || !PureMapMode.Enabled || tile?.data == null || tile.Type == null || tile.Type.liquid || tile.Type.lava ||
-            tile.Type.wall || string.IsNullOrEmpty(type) || _walls.ContainsKey(tile.data.tile_id)) return false;
-        _walls[tile.data.tile_id] = type;
+        if (_converting || !PureMapMode.Enabled || tile?.data == null || tile.Type == null || tile.Type.Liquid || tile.Type.Lava ||
+            tile.Type.Wall || string.IsNullOrEmpty(type) || _walls.ContainsKey(tile.Index)) return false;
+        _walls[tile.Index] = type;
         Revision++;
         _dirty = true;
-        if (tile.zone != null)
+        if (tile.Zone != null)
         {
-            TerrainSystem.Invalidate(tile.zone);
-            TerrainResistance.InvalidateWall(tile.zone);
+            TerrainSystem.Invalidate(tile.Zone);
+            TerrainResistance.InvalidateWall(tile.Zone);
         }
         return true;
     }
@@ -173,22 +171,22 @@ public static class MapWallSystem
 
     // 神力新画的城墙：原版设好顶层格之后排队，下一帧转换(不在原版设格的过程中改格子)；
     // 普通地图下不转换，但画过关城的原版城墙要让出关门(见 SyncVanillaGates)，关门跟着重算
-#if EC_PENDING
-    public static void OnTopTileSet(WorldTile tile, TopTileType type)
+    public static void OnTopTileSet(Cell tile, TerrainKind type)
     {
-        if (_converting || type?.wall != true || tile == null) return;
+        if (_converting || type?.Wall != true || tile == null) return;
         Revision++;
         if (PureMapMode.Enabled) Pending.Enqueue(tile);
         else _vanillaDrawn = true;
     }
 
+#if EC_PENDING
     private static void ConvertAll()
     {
         int converted = 0;
-        foreach (TopTileType type in AssetManager.top_tiles?.list ?? new List<TopTileType>())
+        foreach (TerrainKind type in AssetManager.top_tiles?.list ?? new List<TerrainKind>())
         {
-            if (type?.wall != true) continue;
-            foreach (WorldTile tile in type.getCurrentTiles().ToList())
+            if (type?.Wall != true) continue;
+            foreach (Cell tile in type.getCurrentTiles().ToList())
                 if (Convert(tile)) converted++;
         }
         if (converted <= 0) return;
@@ -196,15 +194,15 @@ public static class MapWallSystem
         Changed();
     }
 
-    private static bool Convert(WorldTile tile)
+    private static bool Convert(Cell tile)
     {
-        if (tile?.data == null || tile.top_type == null || !tile.top_type.wall) return false;
-        _walls[tile.data.tile_id] = tile.top_type.id;
+        if (tile?.data == null || tile.TopType == null || !tile.TopType.Wall) return false;
+        _walls[tile.Index] = tile.TopType.Id;
         Revision++;
         _converting = true;
         try
         {
-            tile.setTileTypes(tile.main_type, null);
+            tile.setTileTypes(tile.MainType, null);
         }
         finally
         {
@@ -229,17 +227,17 @@ public static class MapWallSystem
 #if EC_PENDING
     private static void SyncVanillaGates()
     {
-        WorldTile[] tiles = EmpireWorld.Current?.tiles_list;
+        Cell[] tiles = EmpireWorld.Current?.Zones;
         if (tiles == null) return;
         _converting = true;
         try
         {
             foreach (int id in new List<int>(WallGateSystem.GateTiles))
             {
-                WorldTile tile = id >= 0 && id < tiles.Length ? tiles[id] : null;
-                if (tile?.top_type == null || !tile.top_type.wall) continue;
-                _walls[id] = tile.top_type.id;
-                tile.setTileTypes(tile.main_type, null);
+                Cell tile = id >= 0 && id < tiles.Length ? tiles[id] : null;
+                if (tile?.TopType == null || !tile.TopType.Wall) continue;
+                _walls[id] = tile.TopType.Id;
+                tile.setTileTypes(tile.MainType, null);
             }
         }
         finally
@@ -254,7 +252,7 @@ public static class MapWallSystem
 #if EC_PENDING
     private static int RestoreExceptGates()
     {
-        WorldTile[] tiles = EmpireWorld.Current.tiles_list;
+        Cell[] tiles = EmpireWorld.Current.Zones;
         int restored = 0, removed = 0;
         _converting = true;
         try
@@ -264,10 +262,10 @@ public static class MapWallSystem
                 if (WallGateSystem.IsGate(pair.Key)) continue;
                 _walls.Remove(pair.Key);
                 removed++;
-                WorldTile tile = pair.Key >= 0 && pair.Key < tiles.Length ? tiles[pair.Key] : null;
-                TopTileType type = AssetManager.top_tiles?.get(pair.Value);
-                if (tile == null || type == null || tile.top_type != null || tile.Type?.liquid == true) continue;
-                tile.setTileTypes(tile.main_type, type);
+                Cell tile = pair.Key >= 0 && pair.Key < tiles.Length ? tiles[pair.Key] : null;
+                TerrainKind type = AssetManager.top_tiles?.get(pair.Value);
+                if (tile == null || type == null || tile.TopType != null || tile.Type?.Liquid == true) continue;
+                tile.setTileTypes(tile.MainType, type);
                 restored++;
             }
         }

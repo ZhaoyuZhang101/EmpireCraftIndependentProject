@@ -35,9 +35,7 @@ public static class WallPassage
         // 城墙格(含关门)、主体
         public ulong Wall, Main;
         // 各座关城(所在地块)压在这块地上的关门
-#if EC_PENDING
-        public List<(TileZone keeper, ulong gates)> Gates;
-#endif
+        public List<(Cell keeper, ulong gates)> Gates;
     }
 
     private static readonly Mask NoWall = new() { Wall = 0UL, Main = ulong.MaxValue };
@@ -46,18 +44,12 @@ public static class WallPassage
     // 地块对(地块编号 × 9 + (dx + 1) × 3 + dy + 1)
     private static byte[] _pairs = new byte[0];
     // 隔墙有关门的地块对：哪几座关城开门就过得去(按关城所在地块)
-#if EC_PENDING
-    private static readonly Dictionary<int, TileZone[]> Keepers = new();
-#endif
+    private static readonly Dictionary<int, Cell[]> Keepers = new();
     // 地块里有没有城墙格；待重查的地块
     private static bool[] _walled = new bool[0], _dirty = new bool[0];
-#if EC_PENDING
-    private static readonly List<TileZone> Dirty = new();
-#endif
+    private static readonly List<Cell> Dirty = new();
     private static readonly Dictionary<int, Mask> Masks = new();
-#if EC_PENDING
-    private static List<(int x, int y, int reach, City city, TileZone zone)> _forts;
-#endif
+    private static List<(int x, int y, int reach, City city, Cell zone)> _forts;
     private static object _world;
     private static int _version = int.MinValue, _revision = int.MinValue, _walledZones = -1;
     private static bool _any;
@@ -66,9 +58,8 @@ public static class WallPassage
     // 判定用的工作行(窗口最大 2×2 块 = 16×16 格，一行一个 uint)
     private static readonly uint[] OpenRows = new uint[16], TryRows = new uint[16], StartRows = new uint[16],
         GoalRows = new uint[16], ReachRows = new uint[16];
-#if EC_PENDING
-    private static readonly TileZone[] Window = new TileZone[4];
-    private static readonly List<TileZone> Candidates = new(), Found = new();
+    private static readonly Cell[] Window = new Cell[4];
+    private static readonly List<Cell> Candidates = new(), Found = new();
 
     public static void ResetWorldState()
     {
@@ -84,7 +75,6 @@ public static class WallPassage
         _walledZones = -1;
         _any = false;
     }
-#endif
 
     // 地图上有城墙(读档、改了城墙后按需重算)：没有就不必逐对查
 #if EC_PENDING
@@ -93,23 +83,21 @@ public static class WallPassage
 
     // 原版城墙格被改、被毁(见 TerrainResistance.InvalidateWall)：那块地原本有城墙才作废，下次查时重查
     // (新画的城墙经 MapWallSystem.Revision 整张重算)
-#if EC_PENDING
-    public static void InvalidateZone(TileZone zone)
+    public static void InvalidateZone(Cell zone)
     {
-        if (zone == null || zone.id < 0 || zone.id >= _walled.Length || !_walled[zone.id] || _dirty[zone.id]) return;
-        _dirty[zone.id] = true;
+        if (zone == null || zone.Index < 0 || zone.Index >= _walled.Length || !_walled[zone.Index] || _dirty[zone.Index]) return;
+        _dirty[zone.Index] = true;
         Dirty.Add(zone);
     }
-#endif
 
     // 从 from 走进相邻的 to 被城墙挡住：隔墙，且没有对 side 开着的关门(side 为空当外人，关门不开)
 #if EC_PENDING
-    public static bool Blocks(TileZone from, TileZone to, Realm side) => Ensure() && BlocksKnown(from, to, side);
+    public static bool Blocks(Cell from, Cell to, Realm side) => Ensure() && BlocksKnown(from, to, side);
 #endif
 
     // 同 Blocks，调用方已确认过 Active(寻路里逐邻查，省掉每次的版本比对)
 #if EC_PENDING
-    public static bool BlocksKnown(TileZone from, TileZone to, Realm side)
+    public static bool BlocksKnown(Cell from, Cell to, Realm side)
     {
         byte state = State(from, to, out int slot);
         if (state == Open) return false;
@@ -119,24 +107,24 @@ public static class WallPassage
 
     private static bool Opens(int slot, Realm side)
     {
-        if (side?.Record == null || !Keepers.TryGetValue(slot, out TileZone[] keepers)) return false;
-        foreach (TileZone keeper in keepers)
+        if (side?.Record == null || !Keepers.TryGetValue(slot, out Cell[] keepers)) return false;
+        foreach (Cell keeper in keepers)
             if (WallGateSystem.LetsThrough(keeper, side)) return true;
         return false;
     }
 
-    private static byte State(TileZone from, TileZone to, out int slot)
+    private static byte State(Cell from, Cell to, out int slot)
     {
         slot = -1;
         if (from == null || to == null || from == to) return Open;
-        int dx = to.x - from.x, dy = to.y - from.y;
+        int dx = to.X - from.X, dy = to.Y - from.Y;
         if (dx < -1 || dx > 1 || dy < -1 || dy > 1) return Open;
-        slot = from.id * 9 + (dx + 1) * 3 + dy + 1;
-        int mirror = to.id * 9 + (1 - dx) * 3 + 1 - dy;
+        slot = from.Index * 9 + (dx + 1) * 3 + dy + 1;
+        int mirror = to.Index * 9 + (1 - dx) * 3 + 1 - dy;
         if (slot < 0 || slot >= _pairs.Length || mirror < 0 || mirror >= _pairs.Length) return Open;
         byte state = _pairs[slot];
         if (state != Unknown) return state;
-        state = Compute(from, to, dx, dy, out TileZone[] keepers);
+        state = Compute(from, to, dx, dy, out Cell[] keepers);
         _pairs[slot] = state;
         _pairs[mirror] = state;
         if (state == Gated)
@@ -150,7 +138,7 @@ public static class WallPassage
     private static bool Ensure()
     {
         EmpireWorld world = EmpireWorld.Current;
-        if (world?.zone_calculator?.zones == null || world.tiles_list == null) return false;
+        if (world?.Zones?.All == null || world.Zones == null) return false;
         if (ReferenceEquals(_world, world) && _version == MapWallSystem.Version && _revision == MapWallSystem.Revision)
         {
             if (Dirty.Count > 0) Refresh();
@@ -169,7 +157,7 @@ public static class WallPassage
         _world = world;
         _version = MapWallSystem.Version;
         _revision = MapWallSystem.Revision;
-        int size = world.zone_calculator.zones.Count;
+        int size = world.Zones.All.Count;
         if (_walled.Length != size)
         {
             _walled = new bool[size];
@@ -187,13 +175,13 @@ public static class WallPassage
         Keepers.Clear();
         _forts = null;
         int count = 0;
-        WorldTile[] tiles = world.tiles_list;
+        Cell[] tiles = world.Zones;
         foreach (int id in MapWallSystem.Walls.Keys)
-            if (id >= 0 && id < tiles.Length) count += Mark(tiles[id]?.zone);
-        foreach (TopTileType type in AssetManager.top_tiles?.list ?? new List<TopTileType>())
+            if (id >= 0 && id < tiles.Length) count += Mark(tiles[id]?.Zone);
+        foreach (TerrainKind type in AssetManager.top_tiles?.list ?? new List<TerrainKind>())
         {
-            if (type?.wall != true) continue;
-            foreach (WorldTile tile in type.getCurrentTiles()) count += Mark(tile?.zone);
+            if (type?.Wall != true) continue;
+            foreach (Cell tile in type.getCurrentTiles()) count += Mark(tile?.Zone);
         }
         _any = count > 0;
         if (count == _walledZones) return;
@@ -204,69 +192,69 @@ public static class WallPassage
         LogService.LogInfo($"[EmpireCraft][城墙隔断] 有城墙的地块 {count} 块、关门 {WallGateSystem.GateTiles.Count} 格：" +
                            "军团寻路把城墙当障碍，只从对本方开着的关门过");
     }
+#endif
 
-    private static int Mark(TileZone zone)
+    private static int Mark(Cell zone)
     {
-        if (zone == null || zone.id < 0 || zone.id >= _walled.Length || _walled[zone.id]) return 0;
-        _walled[zone.id] = true;
+        if (zone == null || zone.Index < 0 || zone.Index >= _walled.Length || _walled[zone.Index]) return 0;
+        _walled[zone.Index] = true;
         return 1;
     }
-#endif
 
     // 原版城墙格改了的地块：重查有没有城墙，它与四周八块的地块对作废(斜向的 2×2 窗口也只落在这一圈里)
 #if EC_PENDING
     private static void Refresh()
     {
-        ZoneCalculator zones = EmpireWorld.Current.zone_calculator;
-        foreach (TileZone zone in Dirty)
+        ZoneGrid zones = EmpireWorld.Current.Zones;
+        foreach (Cell zone in Dirty)
         {
-            if (zone.id < 0 || zone.id >= _walled.Length) continue;
-            _dirty[zone.id] = false;
+            if (zone.Index < 0 || zone.Index >= _walled.Length) continue;
+            _dirty[zone.Index] = false;
             bool walled = false;
-            foreach (WorldTile tile in zone.tiles)
+            foreach (Cell tile in zone.Tiles)
                 if (IsWall(tile))
                 {
                     walled = true;
                     break;
                 }
-            _walled[zone.id] = walled;
+            _walled[zone.Index] = walled;
             if (walled) _any = true;
-            Masks.Remove(zone.id);
+            Masks.Remove(zone.Index);
             for (int dy = -1; dy <= 1; dy++)
             for (int dx = -1; dx <= 1; dx++)
-                if (zones.getZone(zone.x + dx, zone.y + dy) is TileZone near && near.id >= 0 && near.id * 9 + 9 <= _pairs.Length)
-                    Array.Clear(_pairs, near.id * 9, 9);
+                if (zones.Get(zone.X + dx, zone.Y + dy) is Cell near && near.Index >= 0 && near.Index * 9 + 9 <= _pairs.Length)
+                    Array.Clear(_pairs, near.Index * 9, 9);
         }
         Dirty.Clear();
         _forts = null;
     }
 
-    private static bool IsWall(WorldTile tile) => tile != null && (tile.Type?.wall == true || MapWallSystem.Contains(tile));
+    private static bool IsWall(Cell tile) => tile != null && (tile.Type?.Wall == true || MapWallSystem.Contains(tile));
 #endif
 
     // 两块相邻地块之间：窗口里先只走非城墙格，走不到再逐座关城开门试
 #if EC_PENDING
-    private static byte Compute(TileZone a, TileZone b, int dx, int dy, out TileZone[] keepers)
+    private static byte Compute(Cell a, Cell b, int dx, int dy, out Cell[] keepers)
     {
         keepers = null;
-        ZoneCalculator zones = EmpireWorld.Current.zone_calculator;
-        int ox = Math.Min(a.x, b.x), oy = Math.Min(a.y, b.y);
+        ZoneGrid zones = EmpireWorld.Current.Zones;
+        int ox = Math.Min(a.X, b.X), oy = Math.Min(a.Y, b.Y);
         int columns = dx != 0 ? 2 : 1, rows = dy != 0 ? 2 : 1, height = rows * Side;
         bool walled = false;
         for (int i = 0; i < Window.Length; i++) Window[i] = null;
         for (int zy = 0; zy < rows; zy++)
         for (int zx = 0; zx < columns; zx++)
         {
-            TileZone zone = zones.getZone(ox + zx, oy + zy);
+            Cell zone = zones.Get(ox + zx, oy + zy);
             Window[zy * 2 + zx] = zone;
-            if (zone != null && zone.id >= 0 && zone.id < _walled.Length && _walled[zone.id]) walled = true;
+            if (zone != null && zone.Index >= 0 && zone.Index < _walled.Length && _walled[zone.Index]) walled = true;
         }
         if (!walled) return Open;
         // 窗口里有哪几座关城的关门
         Candidates.Clear();
-        foreach (TileZone zone in Window)
+        foreach (Cell zone in Window)
         {
-            List<(TileZone keeper, ulong gates)> gates = zone == null ? null : MaskOf(zone).Gates;
+            List<(Cell keeper, ulong gates)> gates = zone == null ? null : MaskOf(zone).Gates;
             if (gates == null) continue;
             foreach (var group in gates)
                 if (!Candidates.Contains(group.keeper)) Candidates.Add(group.keeper);
@@ -289,22 +277,22 @@ public static class WallPassage
             for (int zy = 0; zy < rows; zy++)
             for (int zx = 0; zx < columns; zx++)
             {
-                TileZone zone = Window[zy * 2 + zx];
+                Cell zone = Window[zy * 2 + zx];
                 Mask mask = MaskOf(zone);
                 Place(OpenRows, ~mask.Wall, zx, zy);
                 if (zone == a) Place(StartRows, mask.Main, zx, zy);
                 if (zone == b) Place(GoalRows, mask.Main, zx, zy);
             }
             if (Reaches(OpenRows, height)) return Open;
-            foreach (TileZone keeper in Candidates)
+            foreach (Cell keeper in Candidates)
             {
                 Array.Copy(OpenRows, TryRows, OpenRows.Length);
                 for (int zy = 0; zy < rows; zy++)
                 for (int zx = 0; zx < columns; zx++)
                 {
-                    List<(TileZone keeper, ulong gates)> gates = MaskOf(Window[zy * 2 + zx]).Gates;
+                    List<(Cell keeper, ulong gates)> gates = MaskOf(Window[zy * 2 + zx]).Gates;
                     if (gates == null) continue;
-                    foreach ((TileZone owner, ulong bits) in gates)
+                    foreach ((Cell owner, ulong bits) in gates)
                         if (owner == keeper) Place(TryRows, bits, zx, zy);
                 }
                 if (Reaches(TryRows, height)) Found.Add(keeper);
@@ -350,25 +338,25 @@ public static class WallPassage
     }
 
 #if EC_PENDING
-    private static Mask MaskOf(TileZone zone)
+    private static Mask MaskOf(Cell zone)
     {
         if (zone == null) return Outside;
-        if (zone.id < 0 || zone.id >= _walled.Length || !_walled[zone.id]) return NoWall;
-        if (Masks.TryGetValue(zone.id, out Mask mask)) return mask;
+        if (zone.Index < 0 || zone.Index >= _walled.Length || !_walled[zone.Index]) return NoWall;
+        if (Masks.TryGetValue(zone.Index, out Mask mask)) return mask;
         mask = new Mask();
-        int left = zone.x * Side, bottom = zone.y * Side;
+        int left = zone.X * Side, bottom = zone.Y * Side;
         ulong present = 0UL;
-        foreach (WorldTile tile in zone.tiles)
+        foreach (Cell tile in zone.Tiles)
         {
             if (tile == null) continue;
-            int lx = tile.x - left, ly = tile.y - bottom;
+            int lx = tile.X - left, ly = tile.Y - bottom;
             if (lx < 0 || lx >= Side || ly < 0 || ly >= Side) continue;
             ulong bit = 1UL << (ly * Side + lx);
             present |= bit;
             if (!IsWall(tile)) continue;
             mask.Wall |= bit;
-            if (!WallGateSystem.IsGate(tile) || KeeperOf(tile) is not TileZone keeper) continue;
-            mask.Gates ??= new List<(TileZone keeper, ulong gates)>();
+            if (!WallGateSystem.IsGate(tile) || KeeperOf(tile) is not Cell keeper) continue;
+            mask.Gates ??= new List<(Cell keeper, ulong gates)>();
             int index = mask.Gates.FindIndex(group => group.keeper == keeper);
             if (index < 0) mask.Gates.Add((keeper, bit));
             else mask.Gates[index] = (keeper, mask.Gates[index].gates | bit);
@@ -376,7 +364,7 @@ public static class WallPassage
         // 缺的格当墙(不会有，保险)
         mask.Wall |= ~present;
         mask.Main = MainOf(~mask.Wall);
-        Masks[zone.id] = mask;
+        Masks[zone.Index] = mask;
         return mask;
     }
 #endif
@@ -384,26 +372,26 @@ public static class WallPassage
     // 关门归哪座关城：方城(中心起 WallGateSystem.Reach 格)盖着它、同一座城的那座(同 WallGateSystem 的算法)；返回关城所在地块。
     // 城池全图筑的城门没有关城，返回城门所在的地块
 #if EC_PENDING
-    private static TileZone KeeperOf(WorldTile tile)
+    private static Cell KeeperOf(Cell tile)
     {
         if (_forts == null)
         {
-            _forts = new List<(int x, int y, int reach, City city, TileZone zone)>();
+            _forts = new List<(int x, int y, int reach, City city, Cell zone)>();
             foreach (RuralSettlement fort in RuralSettlementSystem.Forts())
             {
                 if (fort.ruined_at >= 0d) continue;
-                TileZone zone = EmpireWorld.Current.GetTile(fort.x, fort.y)?.zone;
-                City city = zone?.city;
+                Cell zone = EmpireWorld.Current.CellAt(fort.x, fort.y)?.Zone;
+                City city = zone?.City;
                 if (city?.Record == null || city.IsGone()) continue;
                 _forts.Add((fort.x, fort.y, WallGateSystem.Reach(fort), city, zone));
             }
         }
-        City at = tile.zone?.city;
+        City at = tile.Zone?.City;
         if (at == null) return null;
-        foreach ((int x, int y, int reach, City city, TileZone zone) in _forts)
-            if (city == at && Math.Abs(tile.x - x) <= reach && Math.Abs(tile.y - y) <= reach) return zone;
+        foreach ((int x, int y, int reach, City city, Cell zone) in _forts)
+            if (city == at && Math.Abs(tile.X - x) <= reach && Math.Abs(tile.Y - y) <= reach) return zone;
         // 城池全图筑的城墙上的城门(见 CityPlanWorks)：守门的是城门所在那块地(被敌军占着就归占领者)
-        return WallGateSystem.IsCityGate(tile) ? tile.zone : null;
+        return WallGateSystem.IsCityGate(tile) ? tile.Zone : null;
     }
 #endif
 

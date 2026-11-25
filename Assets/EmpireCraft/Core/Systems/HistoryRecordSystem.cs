@@ -8,7 +8,6 @@ namespace EmpireCraft.Core
 {
 public static class HistoryRecordSystem
 {
-#if EC_PENDING
     private static long FindRecordActorId(Empire empire, Dictionary<string, string> recordInfo)
     {
         if (recordInfo != null && recordInfo.TryGetValue("actor_id", out string actorIdText) &&
@@ -20,11 +19,10 @@ public static class HistoryRecordSystem
         {
             return empire.Emperor.Key;
         }
-        Person actor = EmpireWorld.Current?.units?.FirstOrDefault(unit => unit != null &&
-            (unit.getName() == actorName || unit.data.name == actorName));
+        Person actor = EmpireWorld.Current?.Living?.FirstOrDefault(unit => unit != null &&
+            (unit.FullName() == actorName || unit.Name == actorName));
         return actor?.Key ?? -1L;
     }
-#endif
 
     private static List<string> GetPreviousFinalCities(this Empire empire)
     {

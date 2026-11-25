@@ -1,6 +1,7 @@
 // Generated from the EmpireCraft mod: Scripts/GeneralSystems/NomadAppanageSystem.cs. Do not edit by hand: Tools/PortTool/members.py rewrites it;
 // see Port/manifest.json and Tools/PortTool.
 using Mathf = EmpireCraft.Core.EcMath;
+using Vector2 = EmpireCraft.Core.EcVector2;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -73,7 +74,7 @@ public static class NomadAppanageSystem
             RulerTraitSystem.FounderShield(kingdom)) return false;
         double last = kingdom.GetOrCreate().nomad_split_at;
         if (last >= 0d && GameClock.Now >= last && GameClock.YearsSince(last) < CooldownYears) return false;
-        float scale = cities + kingdom.Cities.Sum(city => city?.zones?.Count ?? 0) / (float)ZonesPerCity;
+        float scale = cities + kingdom.Cities.Sum(city => city?.Zones?.Count ?? 0) / (float)ZonesPerCity;
         return EcRandom.value < Mathf.Min(MaxChance, BaseChance + PerCity * (scale - MinCities));
     }
 
@@ -86,13 +87,13 @@ public static class NomadAppanageSystem
         if (splits <= 0) return;
         int share = Mathf.Max(1, total / (splits + 1));
         City seat = kingdom.Capital;
-        Vector2 home = seat.getTile()?.posV ?? Vector2.zero;
+        Vector2 home = seat.SeatCell()?.PosV ?? Vector2.zero;
         RegimeType? regime = kingdom.GetRegime()?.type;
         var made = new List<Realm>();
         for (int i = 0; i < splits && kingdom.Cities.Count > keep; i++)
         {
             City seed = kingdom.Cities.Where(city => city?.Record != null && !city.IsGone() && city != seat)
-                .OrderByDescending(city => Vector2.Distance(home, city.getTile()?.posV ?? home)).FirstOrDefault();
+                .OrderByDescending(city => Vector2.Distance(home, city.SeatCell()?.PosV ?? home)).FirstOrDefault();
             if (seed == null) break;
             int room = Mathf.Min(share, kingdom.Cities.Count - keep);
             List<City> cluster = Cluster(kingdom, seed, seat, room);
@@ -141,13 +142,12 @@ public static class NomadAppanageSystem
 #endif
 
     // 帐：seed 连同挨着的本国城，至多 room 座，不带汗帐的都城
-#if EC_PENDING
     private static List<City> Cluster(Realm kingdom, City seed, City seat, int room)
     {
         var cluster = new List<City> { seed };
         var seen = new HashSet<City> { seed, seat };
         for (int i = 0; i < cluster.Count && cluster.Count < room; i++)
-            foreach (City next in (IEnumerable<City>)cluster[i].neighbours_cities ?? Array.Empty<City>())
+            foreach (City next in (IEnumerable<City>)cluster[i].NeighbourCities ?? Array.Empty<City>())
             {
                 if (cluster.Count >= room) break;
                 if (next?.Record == null || next.IsGone() || !seen.Add(next) || next.Realm != kingdom) continue;
@@ -155,7 +155,6 @@ public static class NomadAppanageSystem
             }
         return cluster;
     }
-#endif
 
     // 兄弟领帐：帐的头一座城由他自立为国，其余并入
 #if EC_PENDING

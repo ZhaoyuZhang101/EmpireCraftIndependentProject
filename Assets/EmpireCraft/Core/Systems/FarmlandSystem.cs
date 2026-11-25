@@ -36,13 +36,11 @@ public static class FarmlandSystem
     private const int WindmillRangeSquared = 81;
     // 农田半径随城市规模扩大(无小人模式的自动耕作)：基础 9 格，每 12 块领土 +1 格，最多 16 格。
     // 大城不再被固定半径卡死粮食上限；普通小人模式沿用原版的 9 格耕作逻辑
-#if EC_PENDING
     private static int RangeSquared(City city)
     {
-        int radius = 9 + global::System.Math.Min(7, (city?.zones?.Count ?? 0) / 12);
+        int radius = 9 + global::System.Math.Min(7, (city?.Zones?.Count ?? 0) / 12);
         return radius * radius;
     }
-#endif
     private const int MaxRetiredFieldsPerSettle = 64;
     // 一个区块至少有这么多可耕地才值得划为农田
     private const int MinFarmableTilesInZone = 8;
@@ -119,32 +117,32 @@ public static class FarmlandSystem
     }
 
     // 纯净地图的田只属于农村(见 LivelihoodSystem)，原来划的农耕区不再起作用(护田、条田、不盖民居都不算)
-#if EC_PENDING
-    public static bool IsPlanned(City city, TileZone zone) =>
-        !PureMapMode.Enabled && city?.Record != null && zone != null && zone.city == city && Zones(city).Contains(zone.id);
-#endif
+    public static bool IsPlanned(City city, Cell zone) =>
+        !PureMapMode.Enabled && city?.Record != null && zone != null && zone.City == city && Zones(city).Contains(zone.Index);
 
     // 原版 CityBehCheckFarms 使用本城的 type_windmill，距离平方不超过 81。
 #if EC_PENDING
-    public static bool IsWithinWindmillRange(City city, WorldTile tile) =>
+    public static bool IsWithinWindmillRange(City city, Cell tile) =>
         InRange(city, tile, city?.getBuildingOfType("type_windmill")?.current_tile);
+#endif
 
-    private static bool InRange(City city, WorldTile tile, WorldTile windmill)
+    private static bool InRange(City city, Cell tile, Cell windmill)
     {
-        if (city == null || tile?.zone?.city != city) return false;
+        if (city == null || tile?.Zone?.City != city) return false;
         if (PureMapMode.Enabled) return true;
         if (windmill == null) return false;
-        int dx = tile.x - windmill.x, dy = tile.y - windmill.y;
+        int dx = tile.X - windmill.X, dy = tile.Y - windmill.Y;
         return dx * dx + dy * dy <= RangeSquared(city);
     }
 
-    public static bool HasFarmArea(City city, TileZone zone)
+#if EC_PENDING
+    public static bool HasFarmArea(City city, Cell zone)
     {
-        if (zone?.tiles == null || zone.city != city) return false;
-        WorldTile windmill = city?.getBuildingOfType("type_windmill")?.current_tile;
-        foreach (WorldTile tile in zone.tiles)
+        if (zone?.Tiles == null || zone.City != city) return false;
+        Cell windmill = city?.getBuildingOfType("type_windmill")?.current_tile;
+        foreach (Cell tile in zone.Tiles)
             if (InRange(city, tile, windmill) && tile.Type != null &&
-                (tile.Type.farm_field || CanPlanField(tile))) return true;
+                (tile.Type.FarmField || CanPlanField(tile))) return true;
         return false;
     }
 #endif
@@ -156,26 +154,24 @@ public static class FarmlandSystem
         return data.retired_farm_zones;
     }
 
-#if EC_PENDING
-    public static bool IsRetired(City city, TileZone zone) =>
-        city?.Record != null && zone != null && RetiredZones(city).Contains(zone.id);
-#endif
+    public static bool IsRetired(City city, Cell zone) =>
+        city?.Record != null && zone != null && RetiredZones(city).Contains(zone.Index);
 
     // 划入/退耕，返回划入后的状态。退耕：取消规划、拆掉庄稼、田地恢复成周围的草地(见 RetireZone)
 #if EC_PENDING
-    public static bool TogglePlanned(City city, TileZone zone)
+    public static bool TogglePlanned(City city, Cell zone)
     {
-        if (city?.Record == null || zone == null || zone.city != city) return false;
+        if (city?.Record == null || zone == null || zone.City != city) return false;
         List<int> zones = Zones(city);
-        if (zones.Remove(zone.id))
+        if (zones.Remove(zone.Index))
         {
             RetireZone(zone);
-            if (!RetiredZones(city).Contains(zone.id)) RetiredZones(city).Add(zone.id);
+            if (!RetiredZones(city).Contains(zone.Index)) RetiredZones(city).Add(zone.Index);
             return false;
         }
         if (!HasFarmArea(city, zone)) return false;
-        zones.Add(zone.id);
-        RetiredZones(city).Remove(zone.id);
+        zones.Add(zone.Index);
+        RetiredZones(city).Remove(zone.Index);
         ClearHousing(city, zone);
         return true;
     }
@@ -183,28 +179,28 @@ public static class FarmlandSystem
 
     // 退耕还草：区块里的庄稼拆掉，田地换回相邻地块最常见的地表(草地、林地等)；周围也都是田就退成裸土
 #if EC_PENDING
-    public static int RetireZone(TileZone zone)
+    public static int RetireZone(Cell zone)
         => RetireFields(zone, null, int.MaxValue);
 
-    private static int RetireFields(TileZone zone, Func<WorldTile, bool> filter, int limit)
+    private static int RetireFields(Cell zone, Func<Cell, bool> filter, int limit)
     {
-        if (zone?.tiles == null) return 0;
+        if (zone?.Tiles == null) return 0;
         int count = 0;
-        var counts = new Dictionary<TopTileType, int>();
-        foreach (WorldTile tile in zone.tiles)
+        var counts = new Dictionary<TerrainKind, int>();
+        foreach (Cell tile in zone.Tiles)
         {
             if (count >= limit) break;
-            if (tile?.Type == null || !tile.Type.farm_field || filter != null && !filter(tile)) continue;
+            if (tile?.Type == null || !tile.Type.FarmField || filter != null && !filter(tile)) continue;
             Building crop = tile.building;
             if (crop?.asset != null && crop.asset.wheat) crop.startDestroyBuilding();
             counts.Clear();
-            TopTileType best = null;
+            TerrainKind best = null;
             int bestCount = 0;
-            if (tile.neighboursAll != null)
-                foreach (WorldTile neighbour in tile.neighboursAll)
+            if (tile.NeighboursAll != null)
+                foreach (Cell neighbour in tile.NeighboursAll)
                 {
-                    TopTileType top = neighbour?.top_type;
-                    if (top == null || top.farm_field) continue;
+                    TerrainKind top = neighbour?.TopType;
+                    if (top == null || top.FarmField) continue;
                     int n = counts.TryGetValue(top, out int c) ? c + 1 : 1;
                     counts[top] = n;
                     if (n > bestCount)
@@ -215,7 +211,7 @@ public static class FarmlandSystem
                 }
             // 不闪白点(见 QuietTerraform)
             if (best != null) MapAction.terraformTop(tile, best, QuietTerraform);
-            else MapAction.terraformTile(tile, tile.main_type, null, QuietTerraform);
+            else MapAction.terraformTile(tile, tile.MainType, null, QuietTerraform);
             count++;
         }
         return count;
@@ -227,41 +223,39 @@ public static class FarmlandSystem
     private static void ConstrainPlannedFields(City city)
     {
         List<int> ids = Zones(city);
-        if (city.zones == null || ids.Count == 0) return;
-        WorldTile windmill = city.getBuildingOfType("type_windmill")?.current_tile;
+        if (city.Zones == null || ids.Count == 0) return;
+        Cell windmill = city.getBuildingOfType("type_windmill")?.current_tile;
         int remaining = MaxRetiredFieldsPerSettle;
         var owned = new HashSet<int>();
-        foreach (TileZone zone in city.zones)
+        foreach (Cell zone in city.Zones)
         {
-            if (zone?.city != city) continue;
-            owned.Add(zone.id);
-            if (!ids.Contains(zone.id) || zone.tiles == null) continue;
+            if (zone?.City != city) continue;
+            owned.Add(zone.Index);
+            if (!ids.Contains(zone.Index) || zone.Tiles == null) continue;
             remaining -= RetireFields(zone, tile => !InRange(city, tile, windmill), remaining);
             bool outsideFields = false;
-            foreach (WorldTile tile in zone.tiles)
-                if (tile?.Type != null && tile.Type.farm_field && !InRange(city, tile, windmill))
+            foreach (Cell tile in zone.Tiles)
+                if (tile?.Type != null && tile.Type.FarmField && !InRange(city, tile, windmill))
                 {
                     outsideFields = true;
                     break;
                 }
             // 尚未退完的区块留在存档记录里，下一月继续，不丢失清理进度。
-            if (!outsideFields && !HasFarmArea(city, zone)) ids.Remove(zone.id);
+            if (!outsideFields && !HasFarmArea(city, zone)) ids.Remove(zone.Index);
         }
         ids.RemoveAll(id => !owned.Contains(id));
     }
 #endif
 
     // 本城现在还归它的规划农田区
-#if EC_PENDING
-    public static IEnumerable<TileZone> PlannedZones(City city)
+    public static IEnumerable<Cell> PlannedZones(City city)
     {
-        if (city?.zones == null) yield break;
+        if (city?.Zones == null) yield break;
         List<int> ids = Zones(city);
         if (ids.Count == 0) yield break;
-        foreach (TileZone zone in city.zones)
-            if (zone != null && ids.Contains(zone.id)) yield return zone;
+        foreach (Cell zone in city.Zones)
+            if (zone != null && ids.Contains(zone.Index)) yield return zone;
     }
-#endif
 
     // 每月结算：补划红线、收割、播种、开田。返回收获的粮食(户数尺度)
 #if EC_PENDING
@@ -275,7 +269,7 @@ public static class FarmlandSystem
         }
         catch (Exception exception)
         {
-            LogService.LogWarning($"[EmpireCraft][农田] 结算失败({city.Record?.Name}): {exception.Message}");
+            LogService.LogWarning($"[EmpireCraft][农田] 结算失败({city.Name}): {exception.Message}");
         }
         return food;
     }
@@ -296,14 +290,14 @@ public static class FarmlandSystem
                     break;
                 }
                 ConstrainPlannedFields(city);
-                foreach (TileZone zone in PlannedZones(city)) ClearHousing(city, zone);
+                foreach (Cell zone in PlannedZones(city)) ClearHousing(city, zone);
                 break;
             case 1: CityBehCheckFarms.check(city); EnsureRedLine(city, data); break;
             case 2: return Harvest(city, data);
             case 3: Plant(city); break;
             case 4:
                 if (!PureMapMode.Enabled)
-                    foreach (TileZone zone in PlannedZones(city)) CultivateZone(city, zone, MaxTilesPerSettle);
+                    foreach (Cell zone in PlannedZones(city)) CultivateZone(city, zone, MaxTilesPerSettle);
                 MakeVanillaFields(city);
                 break;
         }
@@ -318,14 +312,14 @@ public static class FarmlandSystem
     private const int MaxTilesPerSettle = 256;
 
 #if EC_PENDING
-    private static Dictionary<TileZone, List<WorldTile>> FieldsByZone(City city)
+    private static Dictionary<Cell, List<Cell>> FieldsByZone(City city)
     {
-        var result = new Dictionary<TileZone, List<WorldTile>>();
-        var seen = new HashSet<WorldTile>();
-        foreach (WorldTile tile in FarmTiles(city))
+        var result = new Dictionary<Cell, List<Cell>>();
+        var seen = new HashSet<Cell>();
+        foreach (Cell tile in FarmTiles(city))
         {
-            if (tile?.zone == null || !seen.Add(tile)) continue;
-            if (!result.TryGetValue(tile.zone, out List<WorldTile> list)) result[tile.zone] = list = new List<WorldTile>();
+            if (tile?.Zone == null || !seen.Add(tile)) continue;
+            if (!result.TryGetValue(tile.Zone, out List<Cell> list)) result[tile.Zone] = list = new List<Cell>();
             list.Add(tile);
         }
         CityPopulationData population = CityPopulationSystem.Get(city);
@@ -345,13 +339,13 @@ public static class FarmlandSystem
         }
         float food = 0f;
         int count = 0;
-        foreach (KeyValuePair<TileZone, List<WorldTile>> pair in FieldsByZone(city))
+        foreach (KeyValuePair<Cell, List<Cell>> pair in FieldsByZone(city))
         {
             if (count >= MaxTilesPerSettle) break;
             if (ScorchedEarthSystem.IsOccupiedZone(city, pair.Key)) continue;
             // 整块的庄稼都熟了才一起收
             bool anyCrop = false, allRipe = true;
-            foreach (WorldTile tile in pair.Value)
+            foreach (Cell tile in pair.Value)
             {
                 Building crop = tile.building;
                 if (crop?.asset == null || !crop.asset.wheat) continue;
@@ -363,7 +357,7 @@ public static class FarmlandSystem
                 }
             }
             if (!anyCrop || !allRipe) continue;
-            foreach (WorldTile tile in pair.Value)
+            foreach (Cell tile in pair.Value)
             {
                 Building crop = tile.building;
                 if (crop?.asset == null || !crop.asset.wheat) continue;
@@ -408,21 +402,21 @@ public static class FarmlandSystem
 #if EC_PENDING
     private static float ArableFactor(City city)
     {
-        if (city?.zones == null) return 1f;
-        var fields = new HashSet<TileZone>();
-        void Around(TileZone zone)
+        if (city?.Zones == null) return 1f;
+        var fields = new HashSet<Cell>();
+        void Around(Cell zone)
         {
             if (zone == null) return;
             fields.Add(zone);
-            foreach (TileZone next in zone.neighbours ?? Array.Empty<TileZone>())
-                if (next != null && next.city == city) fields.Add(next);
+            foreach (Cell next in zone.Neighbours ?? Array.Empty<Cell>())
+                if (next != null && next.City == city) fields.Add(next);
         }
-        Around(city.getTile()?.zone);
+        Around(city.SeatCell()?.Zone);
         foreach (RuralSettlement settlement in RuralSettlementSystem.InCity(city))
             if (settlement.ruined_at < 0d && !settlement.fort && LivelihoodSystem.Of(settlement) == LivelihoodSystem.Farm)
-                Around(EmpireWorld.Current.GetTile(settlement.x, settlement.y)?.zone);
+                Around(EmpireWorld.Current.CellAt(settlement.x, settlement.y)?.Zone);
         int land = 0, arable = 0, loess = 0, steppe = 0;
-        foreach (TileZone zone in fields)
+        foreach (Cell zone in fields)
         {
             (int zoneLand, int zoneArable) = TerrainSystem.ArableCounts(zone);
             land += zoneLand;
@@ -443,7 +437,7 @@ public static class FarmlandSystem
 #if EC_PENDING
     private static void RetirePlannedZones(City city)
     {
-        foreach (TileZone zone in PlannedZones(city).ToList()) TogglePlanned(city, zone);
+        foreach (Cell zone in PlannedZones(city).ToList()) TogglePlanned(city, zone);
     }
 #endif
 
@@ -453,10 +447,10 @@ public static class FarmlandSystem
     private static float VirtualHarvest(City city)
     {
         int spots = 0;
-        foreach (KeyValuePair<TileZone, List<WorldTile>> pair in FieldsByZone(city))
+        foreach (KeyValuePair<Cell, List<Cell>> pair in FieldsByZone(city))
         {
             if (ScorchedEarthSystem.IsOccupiedZone(city, pair.Key)) continue;
-            foreach (WorldTile tile in pair.Value)
+            foreach (Cell tile in pair.Value)
                 if (tile.Type == TopTileLibrary.field && IsCropSpot(tile, pair.Key)) spots++;
         }
         if (spots == 0) return 0f;
@@ -477,13 +471,13 @@ public static class FarmlandSystem
     {
         if (PureMapMode.Enabled) return;
         int count = 0;
-        foreach (KeyValuePair<TileZone, List<WorldTile>> pair in FieldsByZone(city))
+        foreach (KeyValuePair<Cell, List<Cell>> pair in FieldsByZone(city))
         {
             if (count >= MaxTilesPerSettle) break;
             // 敌占区块不能耕种
             if (ScorchedEarthSystem.IsOccupiedZone(city, pair.Key)) continue;
             int empty = 0, fields = 0;
-            foreach (WorldTile tile in pair.Value)
+            foreach (Cell tile in pair.Value)
             {
                 if (tile.Type != TopTileLibrary.field || !IsCropSpot(tile, pair.Key)) continue;
                 fields++;
@@ -491,7 +485,7 @@ public static class FarmlandSystem
             }
             // 大部分田空着才整块一起播种，庄稼同时生长
             if (fields == 0 || empty < fields * PlantWhenEmptyShare) continue;
-            foreach (WorldTile tile in pair.Value)
+            foreach (Cell tile in pair.Value)
             {
                 if (tile.Type != TopTileLibrary.field || tile.hasBuilding() || !IsCropSpot(tile, pair.Key)) continue;
                 EmpireWorld.Current.buildings.addBuilding("wheat", tile);
@@ -501,10 +495,8 @@ public static class FarmlandSystem
     }
 #endif
 
-    // 隔行播种，保持原有每株折算两格田的产量；不缓存可被原版复用的 TileZone。
-#if EC_PENDING
-    private static bool IsCropSpot(WorldTile tile, TileZone zone) => (tile.y & 1) == 1;
-#endif
+    // 隔行播种，保持原有每株折算两格田的产量；不缓存可被原版复用的 Cell。
+    private static bool IsCropSpot(Cell tile, Cell zone) => (tile.Y & 1) == 1;
 
     // 开田、退耕不闪白点：原版 terraformTop 默认按"闪一下"处理，每格变地表都闪一个白点；每月结算各城一齐开几百格田，
     // 满地农田一片白点(用户 2026-10-16 "有时候整个地图都会出现这个白色雪花""他们只出现在农田")
@@ -514,13 +506,13 @@ public static class FarmlandSystem
 
     // 规划区也只能在原版风车范围内开田。
 #if EC_PENDING
-    public static int CultivateZone(City city, TileZone zone, int limit)
+    public static int CultivateZone(City city, Cell zone, int limit)
     {
-        if (zone?.tiles == null || zone.city != city || !CanFarmZone(city, zone) ||
+        if (zone?.Tiles == null || zone.City != city || !CanFarmZone(city, zone) ||
             ScorchedEarthSystem.IsOccupiedZone(city, zone)) return 0;
-        WorldTile windmill = city?.getBuildingOfType("type_windmill")?.current_tile;
+        Cell windmill = city?.getBuildingOfType("type_windmill")?.current_tile;
         int count = 0;
-        foreach (WorldTile tile in zone.tiles)
+        foreach (Cell tile in zone.Tiles)
         {
             if (count >= limit) break;
             if (!InRange(city, tile, windmill) || !CanMakeField(tile)) continue;
@@ -537,12 +529,12 @@ public static class FarmlandSystem
     {
         if (PureMapMode.Enabled) return;
         int count = 0;
-        WorldTile windmill = city.getBuildingOfType("type_windmill")?.current_tile;
-        foreach (WorldTile tile in city.calculated_place_for_farms)
+        Cell windmill = city.getBuildingOfType("type_windmill")?.current_tile;
+        foreach (Cell tile in city.calculated_place_for_farms)
         {
             if (count >= MaxFieldsPerSettle) break;
-            if (!InRange(city, tile, windmill) || !CanFarmZone(city, tile.zone) || !CanMakeField(tile) || IsRetired(city, tile.zone) ||
-                ScorchedEarthSystem.IsOccupiedZone(city, tile.zone)) continue;
+            if (!InRange(city, tile, windmill) || !CanFarmZone(city, tile.Zone) || !CanMakeField(tile) || IsRetired(city, tile.Zone) ||
+                ScorchedEarthSystem.IsOccupiedZone(city, tile.Zone)) continue;
             MapAction.terraformTop(tile, TopTileLibrary.field, QuietTerraform);
             count++;
         }
@@ -551,38 +543,38 @@ public static class FarmlandSystem
 
     // 图层城墙下的格不开田(见 MapWallSystem)
 #if EC_PENDING
-    private static bool CanMakeField(WorldTile tile) =>
-        tile?.Type != null && tile.Type.can_be_farm && !tile.Type.farm_field && !MapWallSystem.Contains(tile) &&
+    private static bool CanMakeField(Cell tile) =>
+        tile?.Type != null && tile.Type.CanBeFarm && !tile.Type.FarmField && !MapWallSystem.Contains(tile) &&
         (!tile.hasBuilding() || tile.building.canRemoveForFarms());
 #endif
 
     // 规划时住房可以让位；真正开田仍要等原版拆除释放地块。
 #if EC_PENDING
-    private static bool CanPlanField(WorldTile tile) => CanMakeField(tile) ||
-        tile?.Type != null && tile.Type.can_be_farm && IsHousing(tile.building?.asset);
+    private static bool CanPlanField(Cell tile) => CanMakeField(tile) ||
+        tile?.Type != null && tile.Type.CanBeFarm && IsHousing(tile.building?.asset);
 #endif
 
     // 功能区规划已撤(只剩耕地)：本城的地块都能耕
-#if EC_PENDING
-    private static bool CanFarmZone(City city, TileZone zone) => zone != null && zone.city == city;
+    private static bool CanFarmZone(City city, Cell zone) => zone != null && zone.City == city;
 
+#if EC_PENDING
     private static bool IsHousing(BuildingAsset asset) => asset != null && (asset.type == "type_house" || asset.hasHousingSlots());
 #endif
 
     // 规划农田区里风车范围内的民居让位给田(只拆到剩下的住房仍够住为止；不拆城心与外国建筑)
 #if EC_PENDING
-    private static int ClearHousing(City city, TileZone zone)
+    private static int ClearHousing(City city, Cell zone)
     {
-        if (zone?.city != city || zone.tiles == null || city?.status == null) return 0;
+        if (zone?.City != city || zone.Tiles == null || city?.status == null) return 0;
         int spare = city.status.housing_total - CityPopulationSystem.Households(city);
         if (spare <= 0) return 0;
         var houses = new HashSet<Building>();
-        foreach (WorldTile tile in zone.tiles)
+        foreach (Cell tile in zone.Tiles)
         {
             Building building = tile?.building;
             if (building?.asset == null || building.city != city || building.isOnRemove() || !IsHousing(building.asset) ||
                 building.asset.id.StartsWith("city_")) continue;
-            if (!IsWithinWindmillRange(city, tile) || tile.Type == null || !tile.Type.can_be_farm && !tile.Type.farm_field) continue;
+            if (!IsWithinWindmillRange(city, tile) || tile.Type == null || !tile.Type.CanBeFarm && !tile.Type.FarmField) continue;
             houses.Add(building);
         }
         int cleared = 0;
@@ -599,17 +591,17 @@ public static class FarmlandSystem
 
     // 无论农田来自原版还是规划，都核对风车范围和归属。
 #if EC_PENDING
-    private static IEnumerable<WorldTile> FarmTiles(City city)
+    private static IEnumerable<Cell> FarmTiles(City city)
     {
-        WorldTile windmill = city.getBuildingOfType("type_windmill")?.current_tile;
+        Cell windmill = city.getBuildingOfType("type_windmill")?.current_tile;
         if (!PureMapMode.Enabled)
-            foreach (WorldTile tile in city.calculated_farm_fields)
-                if (InRange(city, tile, windmill) && CanFarmZone(city, tile.zone) && tile.Type?.farm_field == true) yield return tile;
-        foreach (TileZone zone in PlannedZones(city))
+            foreach (Cell tile in city.calculated_farm_fields)
+                if (InRange(city, tile, windmill) && CanFarmZone(city, tile.Zone) && tile.Type?.FarmField == true) yield return tile;
+        foreach (Cell zone in PlannedZones(city))
         {
-            if (zone.tiles == null) continue;
-            foreach (WorldTile tile in zone.tiles)
-                if (InRange(city, tile, windmill) && tile.Type?.farm_field == true) yield return tile;
+            if (zone.Tiles == null) continue;
+            foreach (Cell tile in zone.Tiles)
+                if (InRange(city, tile, windmill) && tile.Type?.FarmField == true) yield return tile;
         }
     }
 #endif
@@ -619,27 +611,27 @@ public static class FarmlandSystem
     private static void EnsureRedLine(City city, CityPopulationData data)
     {
         // 纯净地图：田是村镇的田，AI 不划农耕区
-        if (PureMapMode.Enabled || city.zones == null || city.zones.Count == 0) return;
+        if (PureMapMode.Enabled || city.Zones == null || city.Zones.Count == 0) return;
         int planned = 0;
-        foreach (TileZone zone in PlannedZones(city))
+        foreach (Cell zone in PlannedZones(city))
             if (HasFarmArea(city, zone)) planned++;
-        int cap = PureMapMode.Enabled ? Mathf.Max(MaxAutoPlannedZones, city.zones.Count / 2) : MaxAutoPlannedZones;
-        int required = Mathf.Min(cap, Mathf.CeilToInt(city.zones.Count * RedLineShare(city)));
+        int cap = PureMapMode.Enabled ? Mathf.Max(MaxAutoPlannedZones, city.Zones.Count / 2) : MaxAutoPlannedZones;
+        int required = Mathf.Min(cap, Mathf.CeilToInt(city.Zones.Count * RedLineShare(city)));
         bool hungry = data != null && data.last_food_shortage > 0f;
-        if (planned >= required && !(hungry && planned < cap && planned * 2 < city.zones.Count)) return;
-        TileZone best = null;
+        if (planned >= required && !(hungry && planned < cap && planned * 2 < city.Zones.Count)) return;
+        Cell best = null;
         int bestScore = MinFarmableTilesInZone - 1;
-        WorldTile center = city.getTile();
-        WorldTile windmill = city.getBuildingOfType("type_windmill")?.current_tile;
+        Cell center = city.SeatCell();
+        Cell windmill = city.getBuildingOfType("type_windmill")?.current_tile;
         if (windmill == null && !PureMapMode.Enabled) return;
-        foreach (TileZone zone in city.zones)
+        foreach (Cell zone in city.Zones)
         {
-            if (zone?.tiles == null || !CanFarmZone(city, zone) || IsPlanned(city, zone) || IsRetired(city, zone) ||
-                center != null && center.zone == zone) continue;
+            if (zone?.Tiles == null || !CanFarmZone(city, zone) || IsPlanned(city, zone) || IsRetired(city, zone) ||
+                center != null && center.Zone == zone) continue;
             int score = 0;
-            foreach (WorldTile tile in zone.tiles)
+            foreach (Cell tile in zone.Tiles)
                 if (InRange(city, tile, windmill) && tile.Type != null &&
-                    (tile.Type.farm_field || CanPlanField(tile))) score++;
+                    (tile.Type.FarmField || CanPlanField(tile))) score++;
             if (score <= bestScore) continue;
             bestScore = score;
             best = zone;

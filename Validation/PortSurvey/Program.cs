@@ -48,7 +48,7 @@ public static class Program
 
         var map = JObject.Parse(File.ReadAllText(args[2])).Properties().ToDictionary(p => p.Name, p => (string)p.Value);
         int total = 0;
-        for (int pass = 1; pass <= 6; pass++)
+        for (int pass = 1; pass <= 24; pass++)
         {
             int changed = Fix(texts, others, references, map);
             Console.WriteLine("pass " + pass + ": " + changed + " renames");
@@ -87,7 +87,10 @@ public static class Program
         else if (node is MemberBindingExpressionSyntax binding)
         {
             member = binding.Name;
-            receiver = binding.Ancestors().OfType<ConditionalAccessExpressionSyntax>().FirstOrDefault()?.Expression;
+            // In a?.b?.c the member .b is itself the expression of the inner conditional access; its receiver is
+            // the expression of the nearest conditional access that holds it on the not-null side.
+            receiver = binding.Ancestors().OfType<ConditionalAccessExpressionSyntax>()
+                .FirstOrDefault(conditional => conditional.WhenNotNull.Span.Contains(binding.Span))?.Expression;
             if (receiver == null) return false;
         }
         else return false;
@@ -98,6 +101,11 @@ public static class Program
         owner = type.Name;
         return true;
     }
+
+    // The member asked right after the question mark: .b in a?.b, a?.b(), a?.b.c and a?.b?.c.
+    static MemberBindingExpressionSyntax LeadingBinding(ExpressionSyntax whenNotNull) =>
+        whenNotNull.DescendantNodesAndSelf().OfType<MemberBindingExpressionSyntax>()
+            .FirstOrDefault(binding => binding.SpanStart == whenNotNull.SpanStart);
 
     static int Fix(Dictionary<string, string> texts, List<SyntaxTree> others, List<MetadataReference> references, Dictionary<string, string> map)
     {
@@ -124,6 +132,11 @@ public static class Program
                 if (node.Parent is MemberAccessExpressionSyntax outer && outer.Expression == node &&
                     Lookup(map, receiverType, name + "." + outer.Name.Identifier.Text, out string collapsed))
                 { edits.Add(new TextChange(TextSpan.FromBounds(member.SpanStart, outer.Name.Span.End), collapsed)); continue; }
+                // The same chain with a question mark in the middle: x.cities?.get(id) -> x.CityByKey(id).
+                if (node.Parent is ConditionalAccessExpressionSyntax asked && asked.Expression == node &&
+                    LeadingBinding(asked.WhenNotNull) is MemberBindingExpressionSyntax next &&
+                    Lookup(map, receiverType, name + "." + next.Name.Identifier.Text, out string joined) && joined.Length > 0)
+                { edits.Add(new TextChange(TextSpan.FromBounds(member.SpanStart, next.Name.Span.End), joined)); continue; }
                 if (!Lookup(map, receiverType, name, out string renamed)) continue;
                 if (renamed.Length > 0) { edits.Add(new TextChange(member.Identifier.Span, renamed)); continue; }
                 // An empty target drops the access, dot included: cities.list -> cities.

@@ -13,7 +13,6 @@ namespace EmpireCraft.Core
 //   · 流通券：国库不够发饷时从民间存款筹，账上单记一项，不算经常收入，也不再向百姓举债(见 StateDebtSystem.TryBorrow)。
 public static partial class TransmigrantSystem
 {
-#if EC_PENDING
     public static List<City> MonthlySettledCities()
     {
         var cities = new List<City>();
@@ -28,7 +27,6 @@ public static partial class TransmigrantSystem
         // 都城先结，其次元老院的城
         return cities.OrderByDescending(city => city == senate.Capital).ThenByDescending(city => city.Realm == senate).ToList();
     }
-#endif
 
     // 澳宋各国不向百姓举债，缺钱走流通券
     public static bool IssuesScrip(Realm kingdom) => NavalState(kingdom) != null;

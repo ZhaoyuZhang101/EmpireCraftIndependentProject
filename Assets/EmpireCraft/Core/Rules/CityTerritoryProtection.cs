@@ -28,7 +28,7 @@ public static class CityTerritoryProtection
 
     private static bool ManualChange => CityExpansionPatch.ManualClaim || CityPlacementSystem.Placing;
 
-    public static bool LocksAdd(City city) => BordersLocked && !ManualChange && _founding == 0 && city?.zones?.Count > 0;
+    public static bool LocksAdd(City city) => BordersLocked && !ManualChange && _founding == 0 && city?.Zones?.Count > 0;
 
     public static bool LocksRemove(City city) => BordersLocked && !ManualChange && city?.Record != null && !city.IsGone() &&
                                                  !Dissolving.Contains(city.Key);
@@ -49,7 +49,7 @@ public static class CityTerritoryProtection
 #if EC_PENDING
     public static bool ShouldPreventDestruction(City city)
     {
-        if (city?.Record == null || city.IsGone() || city.zones.Count == 0 ||
+        if (city?.Record == null || city.IsGone() || city.Zones.Count == 0 ||
             AncientWarfareCompatibility.OwnsObject(city) || Dissolving.Contains(city.Key)) return false;
         return EmpireCraftWorldLawLibrary.empirecraft_law_prevent_city_destroy?.isEnabled() == true ||
                CityPopulationSystem.AbstractPopulationEnabled &&
@@ -62,15 +62,15 @@ public static class CityTerritoryProtection
         if (!CityPopulationSystem.AbstractPopulationEnabled || city?.Realm == null ||
             city.Realm.IsWild || city.Realm.IsGone()) return false;
         return ShouldPreventDestruction(city) || city.Record != null && !city.IsGone() &&
-               city.zones.Count > 0 && !AncientWarfareCompatibility.OwnsObject(city) &&
+               city.Zones.Count > 0 && !AncientWarfareCompatibility.OwnsObject(city) &&
                StateSettlementSystem.AwaitingPopulation(city);
     }
 
-    public static bool CanRemoveZone(City city, TileZone zone)
+    public static bool CanRemoveZone(City city, Cell zone)
     {
         if (city == null || zone == null) return false;
-        if (city.zones.Contains(zone) && LocksRemove(city)) return false;
-        return !city.zones.Contains(zone) || city.zones.Count > 1 ||
+        if (city.Zones.Contains(zone) && LocksRemove(city)) return false;
+        return !city.Zones.Contains(zone) || city.Zones.Count > 1 ||
                !ShouldPreventDestruction(city);
     }
 #endif

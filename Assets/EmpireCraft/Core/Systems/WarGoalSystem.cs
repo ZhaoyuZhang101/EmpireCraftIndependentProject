@@ -351,10 +351,10 @@ public static class WarGoalSystem
 #if EC_PENDING
     internal static Person InstallCandidate(Realm defender, bool realize = false)
     {
-        SpecificClan clan = defender?.king?.GetSpecificClan();
+        SpecificClan clan = defender?.Ruler?.GetSpecificClan();
         bool Fit(Person actor) => actor?.Record != null && !actor.IsGone() && actor.Alive && actor.IsAdult() &&
                                  actor != defender.Ruler && !actor.IsRuler() && actor.Realm == defender && actor.IsFitToRule();
-        Person pick = clan?.AllAliveMembers?.Where(Fit).OrderByDescending(actor => actor.Record?.Renown ?? 0).FirstOrDefault();
+        Person pick = clan?.AllAliveMembers?.Where(Fit).OrderByDescending(actor => actor.Renown ?? 0).FirstOrDefault();
         return pick ?? (realize ? KinRoster.RealizeFirst(VirtualInstallCandidates(defender, clan), Fit, 2) : null);
     }
 #endif
@@ -372,7 +372,7 @@ public static class WarGoalSystem
 #if EC_PENDING
     internal static bool HasInstallCandidate(Realm defender) =>
         InstallCandidate(defender) != null ||
-        VirtualInstallCandidates(defender, defender?.king?.GetSpecificClan()).Any();
+        VirtualInstallCandidates(defender, defender?.Ruler?.GetSpecificClan()).Any();
 #endif
 
     // 继承之战兼领不成时退为扶立(见 WarObjective.SettleWin)
@@ -475,7 +475,7 @@ public static class WarGoalSystem
         var data = war.GetOrCreate();
         int index = Array.IndexOf(Cycle, Coarse(data.war_goal));
         data.war_goal = Cycle[(index + 1) % Cycle.Length];
-        if (data.war_goal_capital_id < 0 && war.MainDefender?.capital?.data != null)
+        if (data.war_goal_capital_id < 0 && war.MainDefender?.Capital?.Record != null)
             data.war_goal_capital_id = war.MainDefender.Capital.Key;
         Realm attacker = war.MainAttacker, defender = war.MainDefender;
         if (attacker?.Record == null || defender?.Record == null || attacker.IsGone() || defender.IsGone()) return;
@@ -586,7 +586,6 @@ public static class WarGoalSystem
 #endif
 
     // owners 的城里被 occupiers 一方占了一半以上地块的：城 → 占得最多的那国
-#if EC_PENDING
     private static List<(City city, Realm holder)> HeldCities(War war, IEnumerable<Realm> owners, IEnumerable<Realm> occupiers)
     {
         var result = new List<(City, Realm)>();
@@ -596,7 +595,7 @@ public static class WarGoalSystem
             if (owner?.Cities == null || owner.IsGone()) continue;
             foreach (City city in owner.Cities)
             {
-                if (city?.Record == null || city.IsGone() || city.zones == null || city.zones.Count == 0) continue;
+                if (city?.Record == null || city.IsGone() || city.Zones == null || city.Zones.Count == 0) continue;
                 int total = 0, best = 0;
                 Realm holder = null;
                 foreach (Realm kingdom in side)
@@ -610,12 +609,11 @@ public static class WarGoalSystem
                         holder = kingdom;
                     }
                 }
-                if (holder != null && total >= city.zones.Count * HeldShare) result.Add((city, holder));
+                if (holder != null && total >= city.Zones.Count * HeldShare) result.Add((city, holder));
             }
         }
         return result;
     }
-#endif
 
     // 战争收尾时(WarPatch.end_war，清掉占领之前)：判胜负、按目标结算
 #if EC_PENDING
@@ -750,7 +748,6 @@ public static class WarGoalSystem
     // 2026-10-21 核对(封建能吞小国)：按兵力定的吞并、迫使附庸现在都要攻方两倍以上，死战落在被两倍兵力压着的国家身上，照旧合理；
     // 行分封的攻方兵力一倍半到两倍之间改求割地，对方只在都城或半数城被占时才死战，不再一开打就困兽犹斗。
     // 没动的：扶立仍是一倍半；过度扩张改迫使附庸、战国诸侯兼并、跨海吞并照旧
-#if EC_PENDING
     private static bool Excessive(War war, Realm defender)
     {
         WarGoal goal = Get(war);
@@ -764,7 +761,6 @@ public static class WarGoalSystem
         int cities = defender.Cities?.Count ?? 0;
         return held.Exists(entry => entry.city == defender.Capital) || held.Count * 2 >= Math.Max(1, cities);
     }
-#endif
 
     // 正被全面侵略：作为主守方的仗求不了和(对方条件过分，或是叛乱、独立、争位这类)，或在打全面战争，
     // 或是本土帝国(连同成员)抵御异族入侵。欠饷也困兽犹斗
@@ -855,7 +851,6 @@ public static class WarGoalSystem
     // 割地只要连片的城(用户 2026-10-27 嫌版图太碎、问答选"割地只要连片的城")：占了的城挨着受让一方(按宗主、帝国中央算)
     // 本来的城、或挨着已经割过去的城，才割；不在受让一方都城那片陆地上的(跨海征服，够不够得着归水师辐射管)照割。
     // 连不上的(深入腹地、东一座西一座的)退还原主，由调用方改求赔款——以前占了哪座割哪座，和约一签就是一地飞地
-#if EC_PENDING
     private static List<(City city, Realm holder)> Contiguous(List<(City city, Realm holder)> held, out int dropped)
     {
         var accepted = new List<(City city, Realm holder)>();
@@ -884,20 +879,19 @@ public static class WarGoalSystem
     private static bool Overseas(Realm kingdom, City city)
     {
         Realm realm = EmpireCoreControl.Sovereign(kingdom) ?? kingdom;
-        return realm?.capital?.getTile() is WorldTile seat && city.getTile() is WorldTile at && !at.isSameIsland(seat);
+        return realm?.Capital?.SeatCell() is Cell seat && city.SeatCell() is Cell at && !at.IsSameIsland(seat);
     }
 
     private static bool Joined(City city, Realm realm, HashSet<City> taken)
     {
-        if (realm?.capital?.getTile() is WorldTile seat && city.getTile() is WorldTile at && !at.isSameIsland(seat)) return true;
-        foreach (City next in (IEnumerable<City>)city.neighbours_cities ?? Array.Empty<City>())
+        if (realm?.Capital?.SeatCell() is Cell seat && city.SeatCell() is Cell at && !at.IsSameIsland(seat)) return true;
+        foreach (City next in (IEnumerable<City>)city.NeighbourCities ?? Array.Empty<City>())
         {
             if (next?.Record == null || next.IsGone()) continue;
             if (taken.Contains(next) || next.Realm != null && EmpireCoreControl.Sovereign(next.Realm) == realm) return true;
         }
         return false;
     }
-#endif
 
     // 割地把法理补完整(用户 2026-10-26 问答选"占了的照割，法理城优先")：割完以后攻方一方握着哪个王国法理的都城、或占了它过半的城，
     // 守方一方手里这个法理余下的城一并割给主攻方。返回多割了几座

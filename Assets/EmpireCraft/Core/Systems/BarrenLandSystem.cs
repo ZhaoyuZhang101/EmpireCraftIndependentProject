@@ -28,18 +28,18 @@ public static class BarrenLandSystem
 
     // 这块地是纯沙漠(1)、纯冻土(2)还是都不是(0)；城心那一块不算
 #if EC_PENDING
-    public static int KindOf(TileZone zone)
+    public static int KindOf(Cell zone)
     {
         if (zone == null) return None;
         int kind = TerrainSystem.BarrenKind(zone);
         if (kind == None) return None;
-        City city = zone.city;
-        return city != null && city.getTile()?.zone == zone ? None : kind;
+        City city = zone.City;
+        return city != null && city.SeatCell()?.Zone == zone ? None : kind;
     }
 
-    public static bool Barren(TileZone zone) => KindOf(zone) != None;
+    public static bool Barren(Cell zone) => KindOf(zone) != None;
 
-    public static bool BarrenAt(int x, int y) => Barren(EmpireWorld.Current?.GetTile(x, y)?.zone);
+    public static bool BarrenAt(int x, int y) => Barren(EmpireWorld.Current?.CellAt(x, y)?.Zone);
 
     public static void TryMonthlyScan()
     {
@@ -88,7 +88,7 @@ public static class BarrenLandSystem
             // 建筑台账里记在这种地块上的(手动城区，见 CityLedger)一并销掉；没定地块的不管，由民居上限按宜居度管着
             List<(string id, int zone, int n)> gone = null;
             foreach (EmpireCraft.Core.WorkLot lot in CityLedger.Lots(city))
-                if (lot != null && lot.n > 0 && lot.zone >= 0 && EmpireWorld.Current.zone_calculator.getZoneByID(lot.zone) is TileZone zone && Barren(zone))
+                if (lot != null && lot.n > 0 && lot.zone >= 0 && EmpireWorld.Current.Zones.ById(lot.zone) is Cell zone && Barren(zone))
                     (gone ??= new List<(string id, int zone, int n)>()).Add((lot.id, lot.zone, lot.n));
             if (gone == null) continue;
             foreach ((string id, int zone, int n) in gone)

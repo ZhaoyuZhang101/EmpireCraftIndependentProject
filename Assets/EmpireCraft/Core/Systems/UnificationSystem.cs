@@ -592,7 +592,7 @@ public static class UnificationSystem
     }
 
 #if EC_PENDING
-    private static object IslandOf(WorldTile tile) => tile?.region?.island;
+    private static object IslandOf(Cell tile) => tile?.region?.island;
 #endif
 
     // 天下(一个文化圈里连成一片的城)：各家占的城；members = 都城在这片里的各家(天下的人)
@@ -650,7 +650,7 @@ public static class UnificationSystem
     {
         var score = new Dictionary<EmpireCore, int>();
         foreach (City city in group)
-            foreach (City next in city.neighbours_cities ?? new HashSet<City>())
+            foreach (City next in city.NeighbourCities ?? new HashSet<City>())
             {
                 EmpireCore lead = TianxiaSystem.CoreLeadOf(next);
                 if (lead == null || !byLead.ContainsKey(lead) || !SameLine(lead, line)) continue;
@@ -702,7 +702,7 @@ public static class UnificationSystem
                 cored.Add(city);
                 continue;
             }
-            if (IslandOf(city.getTile()) == null) continue;
+            if (IslandOf(city.SeatCell()) == null) continue;
             string line = LineOf(CultureService.GetMainCulture(city, false));
             if (line == null) continue;
             if (!byLine.TryGetValue(line, out List<City> list)) byLine[line] = list = new List<City>();
@@ -792,10 +792,10 @@ public static class UnificationSystem
     private static bool Linked(City a, City b)
     {
         // 不跨海(用户："跨大陆跨海洋就算了")：隔海接壤的也不连
-        WorldTile ta = a.getTile(), tb = b.getTile();
+        Cell ta = a.SeatCell(), tb = b.SeatCell();
         if (ta == null || tb == null || IslandOf(ta) != IslandOf(tb)) return false;
-        if (a.neighbours_cities != null && a.neighbours_cities.Contains(b)) return true;
-        return Toolbox.SquaredDistTile(ta, tb) <= LinkTiles * LinkTiles;
+        if (a.NeighbourCities != null && a.NeighbourCities.Contains(b)) return true;
+        return Land.SquaredDist(ta, tb) <= LinkTiles * LinkTiles;
     }
 #endif
 
@@ -1152,10 +1152,10 @@ public static class UnificationSystem
 #if EC_PENDING
     private static List<Realm> Opponents(Realm unifier, ModRealm realm)
     {
-        WorldTile home = unifier.Capital?.getTile();
+        Cell home = unifier.Capital?.SeatCell();
         return realm.members.Where(holder => holder != unifier && !Exempt(holder))
-            .OrderBy(holder => home == null || holder.Capital?.getTile() == null ? float.MaxValue
-                : Toolbox.SquaredDistTile(home, holder.Capital.getTile()))
+            .OrderBy(holder => home == null || holder.Capital?.SeatCell() == null ? float.MaxValue
+                : Land.SquaredDist(home, holder.Capital.SeatCell()))
             .ToList();
     }
 #endif
@@ -1264,7 +1264,7 @@ public static class UnificationSystem
     {
         // 手上已有两场仗(不论什么仗，统一、平定之战至多 MaxWars 场自然在内)、正在死战、打不起：这一回作罢
         if (WarSituation.TooBusyForWar(holder) || CorpsSystem.CannotFundWar(holder)) return;
-        WorldTile home = holder.Capital?.getTile();
+        Cell home = holder.Capital?.SeatCell();
         string dynasty = empire.GetEmpireName();
         double ours = WarSituation.Power(holder);
         List<Realm> targets = realm.members
@@ -1273,8 +1273,8 @@ public static class UnificationSystem
                              !EmpireCraft.Core.AncientWarfareCompatibility.Owns(member) &&
                              WarGate.CanDeclare(holder, member, ownTributary: true) && WarReach.Reachable(holder, member) &&
                              TributaryBlock(holder, member, empire) == null)
-            .OrderBy(member => home == null || member.Capital?.getTile() == null ? float.MaxValue
-                : Toolbox.SquaredDistTile(home, member.Capital.getTile()))
+            .OrderBy(member => home == null || member.Capital?.SeatCell() == null ? float.MaxValue
+                : Land.SquaredDist(home, member.Capital.SeatCell()))
             .ToList();
         string mode = monthly ? "，动荡期按月" : "";
         foreach (Realm target in targets)

@@ -37,14 +37,14 @@ public static class WarReadinessSystem
         foreach (Realm side in sides)
         {
             if (side?.Record == null || side.IsGone()) continue;
-            IReadOnlyList<TileZone> front = CityPopulationSystem.FrontZones(side);
+            IReadOnlyList<Cell> front = CityPopulationSystem.FrontZones(side);
             if (front.Count == 0) continue;
             foreach (CorpsData corps in CorpsSystem.Of(side))
             {
                 if (corps.militia || corps.order_id >= 0 || corps.task == "retreat" || !WarScopeSystem.InScope(CorpsSystem.Home(corps))) continue;
                 full += corps.full;
                 strength += corps.strength;
-                if (CorpsSystem.Zone(corps) is TileZone at && front.Any(zone => CorpsSystem.ZoneDistance(zone, at) <= MassedZones))
+                if (CorpsSystem.Zone(corps) is Cell at && front.Any(zone => CorpsSystem.ZoneDistance(zone, at) <= MassedZones))
                     massed += corps.strength;
             }
         }
@@ -61,13 +61,13 @@ public static class WarReadinessSystem
         if (!Massing(author)) return false;
         float blind = Mathf.Clamp(MaladySystem.Average(target?.GetEmpire()) / 100f, 0f, 0.6f);
         if (blind <= 0.05f) return true;
-        IReadOnlyList<TileZone> front = CityPopulationSystem.FrontZones(author);
+        IReadOnlyList<Cell> front = CityPopulationSystem.FrontZones(author);
         float strength = 0f, massed = 0f;
         foreach (CorpsData corps in CorpsSystem.Of(author))
         {
             if (corps.militia || corps.order_id >= 0 || !WarScopeSystem.InScope(CorpsSystem.Home(corps))) continue;
             strength += corps.strength;
-            if (CorpsSystem.Zone(corps) is TileZone at && front.Any(zone => CorpsSystem.ZoneDistance(zone, at) <= MassedZones))
+            if (CorpsSystem.Zone(corps) is Cell at && front.Any(zone => CorpsSystem.ZoneDistance(zone, at) <= MassedZones))
                 massed += corps.strength;
         }
         return strength <= 0f || massed >= strength * blind;
@@ -110,10 +110,10 @@ public static class WarReadinessSystem
     public static bool Massing(Realm kingdom)
     {
         if (!CorpsSystem.Enabled || kingdom?.Record == null) return false;
-        IReadOnlyList<TileZone> front = CityPopulationSystem.FrontZones(kingdom);
+        IReadOnlyList<Cell> front = CityPopulationSystem.FrontZones(kingdom);
         if (front.Count == 0) return false;
         return CorpsSystem.Of(kingdom).Any(corps => corps.task == "march" && corps.strength >= 1f &&
-                                                    CorpsSystem.Zone(corps) is TileZone at &&
+                                                    CorpsSystem.Zone(corps) is Cell at &&
                                                     front.Any(zone => CorpsSystem.ZoneDistance(zone, at) <= MassedZones));
     }
 #endif
@@ -129,8 +129,8 @@ public static class WarReadinessSystem
         float full = list.Sum(corps => corps.full), strength = list.Sum(corps => corps.strength);
         if (strength <= 0f) return true;
         if (full > 0f && strength < full * FilledShare) return false;
-        IReadOnlyList<TileZone> front = CityPopulationSystem.FrontZones(kingdom);
-        float massed = list.Where(corps => CorpsSystem.Zone(corps) is TileZone at &&
+        IReadOnlyList<Cell> front = CityPopulationSystem.FrontZones(kingdom);
+        float massed = list.Where(corps => CorpsSystem.Zone(corps) is Cell at &&
                                            front.Any(zone => CorpsSystem.ZoneDistance(zone, at) <= MassedZones))
             .Sum(corps => corps.strength);
         return massed >= strength * MassedShare;

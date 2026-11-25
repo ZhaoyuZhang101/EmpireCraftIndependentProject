@@ -205,8 +205,8 @@ public static class SouthernGarrisonSystem
     // 与入侵者(连同其帝国成员)的城相邻
 #if EC_PENDING
     private static bool Borders(Realm kingdom, Realm invader) =>
-        kingdom.Cities?.Any(city => city?.neighbours_cities != null && city.neighbours_cities.Any(other =>
-            other?.kingdom != null && !other.IsGone() && FrontSystem.Realm(other.kingdom) == invader)) == true;
+        kingdom.Cities?.Any(city => city?.NeighbourCities != null && city.NeighbourCities.Any(other =>
+            other?.Realm != null && !other.IsGone() && FrontSystem.Realm(other.Realm) == invader)) == true;
 
     private static void Defect(Empire empire, Realm garrison, Realm invader, Empire conqueror, float pressure)
     {
@@ -224,7 +224,7 @@ public static class SouthernGarrisonSystem
         garrison._cached_color = null;
         garrison.updateColor(conqueror.getColor());
         EmpireCraftKingdomBehCheckKingdomType.SyncKingdomStatus(garrison);
-        EmpireWorld.Current.zone_calculator?.dirtyAndClear();
+        EmpireWorld.Current.Zones?.MarkDirty();
         string text = string.Format(LM.Get("southern_garrison_surrender_history"), garrison.GetKingdomName(), invader.GetKingdomName(),
             empire.GetEmpireName());
         EventRecorder.Record(empire, text, garrison.Ruler, garrison);

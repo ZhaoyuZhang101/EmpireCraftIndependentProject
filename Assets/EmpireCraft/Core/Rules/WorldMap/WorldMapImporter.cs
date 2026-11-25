@@ -1,6 +1,7 @@
 // Generated from the EmpireCraft mod: Scripts/GeneralSystems/WorldMap/WorldMapImporter.cs. Do not edit by hand: Tools/PortTool/members.py rewrites it;
 // see Port/manifest.json and Tools/PortTool.
 using Mathf = EmpireCraft.Core.EcMath;
+using Vector2Int = EmpireCraft.Core.EcVector2Int;
 using System;
 using System.Collections.Generic;
 using System.IO;
@@ -105,7 +106,6 @@ public static class WorldMapImporter
 #endif
 
     // 还没放图时编辑器里显示的一片海
-#if EC_PENDING
     public static Loaded Blank()
     {
         int deep = Math.Max(0, EarthTerrain.CodeOf("deep_ocean"));
@@ -113,10 +113,8 @@ public static class WorldMapImporter
         for (int i = 0; i < grid.Length; i++) grid[i] = (byte)deep;
         return new Loaded { grid = grid, cols = BlankWidth, rows = BlankHeight, frame = FrameOf(BlankWidth, BlankHeight), key = "blank" };
     }
-#endif
 
     // 范围：经度 0 起、纬度 0 起(左下角)；三档大小按一像素合几格，宽按区块取整，高随宽的比例
-#if EC_PENDING
     private static WorldMapFrame FrameOf(int cols, int rows)
     {
         var sizes = new Vector2Int[Scales.Length];
@@ -129,6 +127,7 @@ public static class WorldMapImporter
         return new WorldMapFrame { id = "imported", west = 0f, east = cols * Step, top = rows * Step, sizes = sizes };
     }
 
+#if EC_PENDING
     private static List<(Color32 color, byte code)> Palette()
     {
         var list = new List<(Color32, byte)>();

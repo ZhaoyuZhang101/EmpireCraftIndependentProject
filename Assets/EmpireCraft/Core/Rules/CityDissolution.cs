@@ -1,5 +1,6 @@
 // Generated from the EmpireCraft mod: Scripts/GeneralSystems/CityDissolution.cs. Do not edit by hand: Tools/PortTool/members.py rewrites it;
 // see Port/manifest.json and Tools/PortTool.
+using Vector2 = EmpireCraft.Core.EcVector2;
 using System.Linq;
 
 namespace EmpireCraft.Core
@@ -43,7 +44,7 @@ public static class CityDissolution
         }
         else CityPopulationSystem.ClearBackground(city);
         city.turnCityToNeutral();
-        foreach (TileZone zone in city.zones.ToList()) city.removeZone(zone);
+        foreach (Cell zone in city.Zones.ToList()) city.RemoveZone(zone);
         CityPopulationSystem.InvalidateHouseholdCaches();
         return null;
     }
@@ -58,7 +59,7 @@ public static class CityDissolution
         foreach (Person unit in kingdom.units.ToList())
             if (unit?.Record != null && !unit.IsGone() && unit.Alive) unit.die(true, AttackType.Other, false, false);
         city.turnCityToNeutral();
-        foreach (TileZone zone in city.zones.ToList()) city.removeZone(zone);
+        foreach (Cell zone in city.Zones.ToList()) city.RemoveZone(zone);
         CityPopulationSystem.InvalidateHouseholdCaches();
     }
 #endif
@@ -84,10 +85,10 @@ public static class CityDissolution
 
     private static City Nearest(City city)
     {
-        Vector2 center = city.city_center;
-        return city.Realm?.cities?.Where(other => other != null && other != city && !other.IsGone() &&
-                                                    !CityTerritoryProtection.Dissolving.Contains(other.id))
-            .OrderBy(other => Vector2.SqrMagnitude(other.city_center - center)).FirstOrDefault();
+        Vector2 center = city.Center;
+        return city.Realm?.Cities?.Where(other => other != null && other != city && !other.IsGone() &&
+                                                    !CityTerritoryProtection.Dissolving.Contains(other.Key))
+            .OrderBy(other => Vector2.SqrMagnitude(other.Center - center)).FirstOrDefault();
     }
 
     private static void MoveUnits(City city, City destination)

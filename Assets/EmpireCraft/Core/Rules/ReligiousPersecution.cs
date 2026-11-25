@@ -169,8 +169,8 @@ public static class ReligiousPersecution
     {
         CityPopulationData data = CityPopulationSystem.Get(city);
         if (data?.groups == null) return false;
-        List<City> abroad = city.neighbours_cities?.Where(other => other?.data != null && !other.IsGone() && other.kingdom != null &&
-            !other.kingdom.wild && ModRealm(other.kingdom) != realm).ToList() ?? new List<City>();
+        List<City> abroad = city.NeighbourCities?.Where(other => other?.Record != null && !other.IsGone() && other.Realm != null &&
+            !other.Realm.IsWild && ModRealm(other.Realm) != realm).ToList() ?? new List<City>();
         City home = abroad.FirstOrDefault(other => other.religion == faith);
         City refuge = home ?? abroad.FirstOrDefault();
         PopulationParallelSystem.Discard(city);

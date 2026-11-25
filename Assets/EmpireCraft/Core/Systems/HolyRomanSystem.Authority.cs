@@ -308,14 +308,12 @@ public static partial class HolyRomanSystem
 #endif
 
     // 太平：本年没有禁令战、宗教战，没有成员叛乱，也没失城
-#if EC_PENDING
     private static bool Tranquil(Empire empire, HolyRomanState state, int citiesLost)
     {
         if (citiesLost > 0 || state.year_turmoil || BanWar(empire) != null || LeagueWar(empire) != null) return false;
         return !empire.kingdoms_list.Any(kingdom => kingdom?.Record != null && !kingdom.IsGone() && kingdom.GetEmpire() == empire &&
                                                      (kingdom.IsFactionRebelling() || kingdom.IsLocalRebelling()));
     }
-#endif
 
     // 年度诊断的权威一段；说完清掉本年计数
     private static string AuthorityStatus(Empire empire, HolyRomanState state)

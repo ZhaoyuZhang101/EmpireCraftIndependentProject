@@ -446,7 +446,7 @@ public static partial class RealmNamingSystem
 #if EC_PENDING
     public static void ResolveCoerceWar(War war, WarOutcome winner)
     {
-        Empire empire = war?.getMainAttacker()?.GetEmpire();
+        Empire empire = war?.GetMainAttacker()?.GetEmpire();
         if (empire?.data == null || empire.IsGone() || empire.IsArchived()) return;
         if (winner == WarOutcome.Attackers)
         {

@@ -143,7 +143,7 @@ public static class SouthernRetreatSystem
         double courtPower = WarSituation.Power(courtCore);
         Empire invaderEmpire = invader.GetEmpire();
         Alliance alliance = invader.hasAlliance() ? invader.getAlliance() : null;
-        float? invaderY = invader.Capital != null && !invader.Capital.IsGone() ? invader.Capital.city_center.y : null;
+        float? invaderY = invader.Capital != null && !invader.Capital.IsGone() ? invader.Capital.Center.y : null;
         foreach (Realm kingdom in EmpireWorld.Current.LiveRealms.ToList())
         {
             if (!Alive(kingdom) || !kingdom.IsCivilized() || kingdom == courtCore || kingdom == invader || kingdom.Capital == null) continue;
@@ -155,7 +155,7 @@ public static class SouthernRetreatSystem
             if (alliance != null && kingdom.hasAlliance() && kingdom.getAlliance() == alliance) continue;
             if (!CultureService.SameKin(CultureService.GetRealmCulture(kingdom), culture)) continue;
             if (!kingdom.HasRebelledAgainst(court) && kingdom.GetOrCreate().left_empire_id != court.Key) continue;
-            if (!SouthernRetreatRules.South(kingdom.Capital.city_center.y, invaderY)) continue;
+            if (!SouthernRetreatRules.South(kingdom.Capital.Center.y, invaderY)) continue;
             if (WarSituation.Power(kingdom) >= courtPower || !WarReach.Reachable(courtCore, kingdom)) continue;
             // 走投无路才来投(见 ScenarioEventSystem.Desperate)
             if (!ScenarioEventSystem.Desperate(kingdom, invader, pressure)) continue;

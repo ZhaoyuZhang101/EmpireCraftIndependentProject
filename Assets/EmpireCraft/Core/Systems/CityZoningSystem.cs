@@ -57,26 +57,24 @@ public static class CityZoningSystem
         extra.plan_blocks switch { 1 => SlotsDense, 2 => SlotsSparse, _ => SlotsNormal };
 
     // 本城的城区地块：表里归本城的(丢了的地不算，回来了又算)，连同城心那块；自动的城为 null
-#if EC_PENDING
     public static HashSet<int> UrbanSet(City city)
     {
         List<int> list = city?.Record != null && !city.IsGone() ? city.GetOrCreate().plan_urban : null;
         if (list == null) return null;
         var set = new HashSet<int>();
-        ZoneCalculator calc = EmpireWorld.Current?.zone_calculator;
+        ZoneGrid calc = EmpireWorld.Current?.Zones;
         if (calc != null)
             foreach (int id in list)
-                if (calc.getZoneByID(id) is TileZone zone && zone.city == city) set.Add(id);
-        TileZone center = city.getTile()?.zone;
-        if (center != null && center.city == city) set.Add(center.id);
+                if (calc.ById(id) is Cell zone && zone.City == city) set.Add(id);
+        Cell center = city.SeatCell()?.Zone;
+        if (center != null && center.City == city) set.Add(center.Index);
         return set;
     }
 
-    public static bool InUrban(City city, TileZone zone) => city?.Record != null && InUrban(city, zone, city.GetOrCreate());
+    public static bool InUrban(City city, Cell zone) => city?.Record != null && InUrban(city, zone, city.GetOrCreate());
 
-    private static bool InUrban(City city, TileZone zone, CityExtension.CityExtraData extra) =>
-        zone != null && zone.city == city && extra.plan_urban != null && (extra.plan_urban.Contains(zone.id) || zone == city.getTile()?.zone);
-#endif
+    private static bool InUrban(City city, Cell zone, CityExtension.CityExtraData extra) =>
+        zone != null && zone.City == city && extra.plan_urban != null && (extra.plan_urban.Contains(zone.Index) || zone == city.SeatCell()?.Zone);
 
     // 管不管这座建筑(占建筑位、城区外要挪要拆)
 #if EC_PENDING
@@ -98,7 +96,7 @@ public static class CityZoningSystem
 
     // 这块地上本城管的建筑
 #if EC_PENDING
-    public static List<Building> InZone(City city, TileZone zone)
+    public static List<Building> InZone(City city, Cell zone)
     {
         var result = new List<Building>();
         if (city?.buildings == null || zone == null) return result;
@@ -126,14 +124,14 @@ public static class CityZoningSystem
 
     // 这块地上本城占建筑位的建筑(实体连同建筑台账里的)，一座一项
 #if EC_PENDING
-    public static List<BuildingAsset> AssetsIn(City city, TileZone zone)
+    public static List<BuildingAsset> AssetsIn(City city, Cell zone)
     {
         var result = new List<BuildingAsset>();
         if (city == null || zone == null) return result;
         foreach (Building building in InZone(city, zone)) result.Add(building.asset);
         foreach (WorkLot lot in CityLedger.Lots(city))
         {
-            BuildingAsset asset = lot == null || lot.n <= 0 || lot.zone != zone.id ? null : CityLedger.Asset(lot.id);
+            BuildingAsset asset = lot == null || lot.n <= 0 || lot.zone != zone.Index ? null : CityLedger.Asset(lot.id);
             if (!Slotted(asset)) continue;
             for (int i = 0; i < lot.n; i++) result.Add(asset);
         }
@@ -174,29 +172,29 @@ public static class CityZoningSystem
     public static int FreeZone(City city)
     {
         HashSet<int> urban = UrbanSet(city);
-        if (urban == null || city.zones == null) return -1;
+        if (urban == null || city.Zones == null) return -1;
         int cap = SlotsPerZone(city);
-        TileZone center = city.getTile()?.zone, best = null;
-        foreach (TileZone zone in city.zones)
+        Cell center = city.SeatCell()?.Zone, best = null;
+        foreach (Cell zone in city.Zones)
         {
-            if (zone == null || !urban.Contains(zone.id) || BarrenLandSystem.Barren(zone)) continue;
-            if (OccupiedIn(city, zone.id) + Reserved(city, zone.id) >= cap) continue;
+            if (zone == null || !urban.Contains(zone.Index) || BarrenLandSystem.Barren(zone)) continue;
+            if (OccupiedIn(city, zone.Index) + Reserved(city, zone.Index) >= cap) continue;
             if (best == null || center != null && Distance(zone, center) < Distance(best, center)) best = zone;
         }
-        return best?.id ?? -1;
+        return best?.Index ?? -1;
     }
 #endif
 
     // 原版营建(见 NoCommonersPatch.AfterPlanAllowsBuilding)：手动城区的城只在城区里、还有空位的地块上放新建筑。
     // 原版找地方时一块块地问，各地块占了几个位每帧按城数一次
 #if EC_PENDING
-    public static bool AllowsBuilding(City city, TileZone zone)
+    public static bool AllowsBuilding(City city, Cell zone)
     {
         if (city?.Record == null || zone == null) return true;
         CityExtension.CityExtraData extra = city.GetOrCreate();
         if (extra.plan_urban == null) return true;
         if (!InUrban(city, zone, extra)) return false;
-        return OccupiedIn(city, zone.id) + Reserved(city, zone.id) < SlotsPerZone(extra);
+        return OccupiedIn(city, zone.Index) + Reserved(city, zone.Index) < SlotsPerZone(extra);
     }
 #endif
 
@@ -271,25 +269,25 @@ public static class CityZoningSystem
 #endif
 
     // 这块地有能停船的水(码头)
-#if EC_PENDING
-    public static bool HasWater(TileZone zone)
+    public static bool HasWater(Cell zone)
     {
-        if (zone?.tiles == null) return false;
-        foreach (WorldTile tile in zone.tiles)
-            if (tile?.Type != null && tile.Type.ocean) return true;
+        if (zone?.Tiles == null) return false;
+        foreach (Cell tile in zone.Tiles)
+            if (tile?.Type != null && tile.Type.Ocean) return true;
         return false;
     }
 
-    private static bool Fits(City city, WorldTile tile, BuildingAsset asset) =>
+#if EC_PENDING
+    private static bool Fits(City city, Cell tile, BuildingAsset asset) =>
         tile?.Type != null && tile.canBuildOn(asset) && EmpireWorld.Current.buildings.canBuildFrom(tile, asset, city);
 #endif
 
     // 这块地里头一处放得下的格(同迁城搬篝火，见 CityRelocationSystem.MoveBonfire)
 #if EC_PENDING
-    private static WorldTile FindSpot(City city, TileZone zone, BuildingAsset asset)
+    private static Cell FindSpot(City city, Cell zone, BuildingAsset asset)
     {
-        if (zone?.tiles == null || asset == null) return null;
-        foreach (WorldTile tile in zone.tiles)
+        if (zone?.Tiles == null || asset == null) return null;
+        foreach (Cell tile in zone.Tiles)
             if (Fits(city, tile, asset)) return tile;
         return null;
     }
@@ -297,7 +295,7 @@ public static class CityZoningSystem
 
     // 当场盖一座(放下就建成，同繁荣神力推进施工的写法，见 CityConstructionSystem.Advance)
 #if EC_PENDING
-    private static Building Put(City city, BuildingAsset asset, WorldTile tile)
+    private static Building Put(City city, BuildingAsset asset, Cell tile)
     {
         Building building = EmpireWorld.Current.buildings.addBuilding(asset, tile);
         if (building?.asset == null) return null;
@@ -313,17 +311,17 @@ public static class CityZoningSystem
     // 在这块地上盖民居，盖到 want 座或放不下为止；盖起的记进 here。一块地只顺着扫一遍(放下一座，前面放不下的格往后也放不下)。
     // 纯沙漠、纯冻土住不了人，盖了也会被拆(见 BarrenLandSystem)，不盖
 #if EC_PENDING
-    private static int FillHouses(City city, TileZone zone, BuildingAsset house, int want, List<Building> here)
+    private static int FillHouses(City city, Cell zone, BuildingAsset house, int want, List<Building> here)
     {
-        if (want <= 0 || house == null || zone?.tiles == null || BarrenLandSystem.Barren(zone)) return 0;
+        if (want <= 0 || house == null || zone?.Tiles == null || BarrenLandSystem.Barren(zone)) return 0;
         // 记台账的民居(见 CityLedger)：只记数，不看地形放不放得下
         if (CityLedger.Uses(city) && CityLedger.Virtual(house))
         {
-            CityLedger.Add(city, house, zone.id, want);
+            CityLedger.Add(city, house, zone.Index, want);
             return want;
         }
         int built = 0;
-        foreach (WorldTile tile in zone.tiles)
+        foreach (Cell tile in zone.Tiles)
         {
             if (built >= want) break;
             if (!Fits(city, tile, house) || Put(city, house, tile) is not Building fresh) continue;
@@ -398,9 +396,9 @@ public static class CityZoningSystem
         foreach (Building building in new List<Building>(city.buildings))
         {
             if (!Managed(building)) continue;
-            TileZone zone = building.current_tile.zone;
-            if (zone.city != city) continue;
-            if (urban.Contains(zone.id)) Here(byZone, zone.id).Add(building);
+            Cell zone = building.current_tile.zone;
+            if (zone.City != city) continue;
+            if (urban.Contains(zone.Index)) Here(byZone, zone.Index).Add(building);
             else outside.Add(building);
         }
         return byZone;
@@ -410,26 +408,26 @@ public static class CityZoningSystem
     // 挪进城区(同迁城搬篝火：新地方盖一座一样的、拆旧的)：离它最近、还有空位的城区地块放得下就放；
     // 都满了就找放得下、又拆得出一座民居的地块，先放下再拆那座民居；纯沙漠、纯冻土不挪过去；挪不下返回 false
 #if EC_PENDING
-    private static bool Move(City city, Building building, List<TileZone> zones, Dictionary<int, List<Building>> byZone, int cap)
+    private static bool Move(City city, Building building, List<Cell> zones, Dictionary<int, List<Building>> byZone, int cap)
     {
-        TileZone from = building.current_tile?.zone;
+        Cell from = building.current_tile?.zone;
         BuildingAsset asset = building.asset;
         if (from == null || asset == null || zones.Count == 0) return false;
-        var order = new List<TileZone>(zones);
+        var order = new List<Cell>(zones);
         order.Sort((a, b) => Distance(a, from).CompareTo(Distance(b, from)));
         for (int pass = 0; pass < 2; pass++)
         {
             int tries = 0;
-            foreach (TileZone zone in order)
+            foreach (Cell zone in order)
             {
                 if (tries >= MoveTries) break;
                 if (zone == from || BarrenLandSystem.Barren(zone)) continue;
-                List<Building> here = Here(byZone, zone.id);
-                if (pass == 0 ? Used(city, zone.id, here) >= cap : !HasHouse(here) && !HasLedgerHouse(city, zone.id)) continue;
+                List<Building> here = Here(byZone, zone.Index);
+                if (pass == 0 ? Used(city, zone.Index, here) >= cap : !HasHouse(here) && !HasLedgerHouse(city, zone.Index)) continue;
                 tries++;
-                WorldTile spot = FindSpot(city, zone, asset);
+                Cell spot = FindSpot(city, zone, asset);
                 if (spot == null || Put(city, asset, spot) is not Building fresh) continue;
-                if (pass == 1) RemoveAnyHouse(city, zone.id, here);
+                if (pass == 1) RemoveAnyHouse(city, zone.Index, here);
                 here.Add(fresh);
                 building.startRemove();
                 return true;
@@ -437,9 +435,11 @@ public static class CityZoningSystem
         }
         return false;
     }
+#endif
 
-    private static int Distance(TileZone a, TileZone b) => (a.x - b.x) * (a.x - b.x) + (a.y - b.y) * (a.y - b.y);
+    private static int Distance(Cell a, Cell b) => (a.X - b.X) * (a.X - b.X) + (a.Y - b.Y) * (a.Y - b.Y);
 
+#if EC_PENDING
     private static bool HasLedgerHouse(City city, int zoneId)
     {
         foreach (WorkLot lot in CityLedger.Lots(city))
@@ -453,7 +453,7 @@ public static class CityZoningSystem
     //   · 还没定地块的民居(自动的城刚转手动，账上的民居本来没有位置)：原样记进有空位的城区地块，等级不变，放不下的才销；
     //   · 记在城区外地块上的民居(那块地划出去了)：销掉，城区里随后补满。
 #if EC_PENDING
-    private static void SyncLedger(City city, HashSet<int> urban, List<TileZone> zones, Dictionary<int, List<Building>> byZone, int cap,
+    private static void SyncLedger(City city, HashSet<int> urban, List<Cell> zones, Dictionary<int, List<Building>> byZone, int cap,
         ref Outcome outcome)
     {
         var loose = new List<(BuildingAsset asset, int zone, int n)>();
@@ -475,18 +475,18 @@ public static class CityZoningSystem
             }
             for (int i = 0; i < n; i++)
             {
-                TileZone target = null, crowded = null;
-                foreach (TileZone candidate in zones)
+                Cell target = null, crowded = null;
+                foreach (Cell candidate in zones)
                 {
                     if (BarrenLandSystem.Barren(candidate)) continue;
-                    if (Used(city, candidate.id, Here(byZone, candidate.id)) < cap)
+                    if (Used(city, candidate.Index, Here(byZone, candidate.Index)) < cap)
                     {
                         target = candidate;
                         break;
                     }
-                    if (!house && crowded == null && HasLedgerHouse(city, candidate.id)) crowded = candidate;
+                    if (!house && crowded == null && HasLedgerHouse(city, candidate.Index)) crowded = candidate;
                 }
-                if (target == null && crowded != null && RemoveLedgerHouse(city, crowded.id))
+                if (target == null && crowded != null && RemoveLedgerHouse(city, crowded.Index))
                 {
                     target = crowded;
                     outcome.Razed++;
@@ -494,7 +494,7 @@ public static class CityZoningSystem
                 if (target != null)
                 {
                     // 民居只是定了地块，不算挪
-                    if (CityLedger.Move(city, asset.id, zone, target.id) > 0 && !house) outcome.Moved++;
+                    if (CityLedger.Move(city, asset.id, zone, target.Index) > 0 && !house) outcome.Moved++;
                 }
                 else if (!IsCore(asset))
                 {
@@ -510,7 +510,7 @@ public static class CityZoningSystem
 
     // 这块地上的村镇(关城除外)并进城里(同迁城，见 RuralSettlementSystem.Absorb)，记下名字
 #if EC_PENDING
-    private static void Absorb(TileZone zone, ref List<string> names)
+    private static void Absorb(Cell zone, ref List<string> names)
     {
         List<RuralSettlement> here = RuralSettlementSystem.InZone(zone);
         if (here.Count == 0) return;
@@ -537,7 +537,7 @@ public static class CityZoningSystem
         }
         catch (Exception exception)
         {
-            LogService.LogWarning($"[EmpireCraft][手动城区] 重算住房失败({city.Record?.Name}): {exception.Message}");
+            LogService.LogWarning($"[EmpireCraft][手动城区] 重算住房失败({city.Name}): {exception.Message}");
         }
     }
 #endif
@@ -563,8 +563,8 @@ public static class CityZoningSystem
         CityExtension.CityExtraData extra = city.GetOrCreate();
         if (extra.plan_urban != null) return false;
         List<int> ids = PureMapPatch.TownZoneIds(city);
-        TileZone center = city.getTile()?.zone;
-        if (center != null && center.city == city && !ids.Contains(center.id)) ids.Add(center.id);
+        Cell center = city.SeatCell()?.Zone;
+        if (center != null && center.City == city && !ids.Contains(center.Index)) ids.Add(center.Index);
         extra.plan_urban = ids;
         // 以前的并入、划出已经算进表里
         extra.plan_zones_in = null;
@@ -582,13 +582,13 @@ public static class CityZoningSystem
     {
         var outcome = new Outcome();
         HashSet<int> urban = UrbanSet(city);
-        if (urban == null || city.zones == null || city.buildings == null) return outcome;
+        if (urban == null || city.Zones == null || city.buildings == null) return outcome;
         try
         {
             int cap = SlotsPerZone(city);
-            var zones = new List<TileZone>();
-            foreach (TileZone zone in city.zones)
-                if (zone != null && urban.Contains(zone.id)) zones.Add(zone);
+            var zones = new List<Cell>();
+            foreach (Cell zone in city.Zones)
+                if (zone != null && urban.Contains(zone.Index)) zones.Add(zone);
             Dictionary<int, List<Building>> byZone = ByZone(city, urban, out List<Building> outside);
             var movers = new List<Building>();
             foreach (Building building in outside)
@@ -602,14 +602,14 @@ public static class CityZoningSystem
                 outcome.Razed++;
             }
             // 城区地块离城心近的在前(台账里的建筑没有位置，先往城心放)
-            TileZone seat = city.getTile()?.zone;
+            Cell seat = city.SeatCell()?.Zone;
             if (seat != null) zones.Sort((a, b) => Distance(a, seat).CompareTo(Distance(b, seat)));
             SyncLedger(city, urban, zones, byZone, cap, ref outcome);
-            foreach (TileZone zone in zones)
+            foreach (Cell zone in zones)
             {
-                List<Building> here = Here(byZone, zone.id);
-                int over = Used(city, zone.id, here) - cap;
-                while (over > 0 && RemoveAnyHouse(city, zone.id, here))
+                List<Building> here = Here(byZone, zone.Index);
+                int over = Used(city, zone.Index, here) - cap;
+                while (over > 0 && RemoveAnyHouse(city, zone.Index, here))
                 {
                     over--;
                     outcome.Razed++;
@@ -625,16 +625,16 @@ public static class CityZoningSystem
                 }
             }
             BuildingAsset house = BestAsset(city, HouseType);
-            foreach (TileZone zone in zones)
+            foreach (Cell zone in zones)
             {
-                List<Building> here = Here(byZone, zone.id);
-                outcome.Built += FillHouses(city, zone, house, cap - Used(city, zone.id, here), here);
+                List<Building> here = Here(byZone, zone.Index);
+                outcome.Built += FillHouses(city, zone, house, cap - Used(city, zone.Index, here), here);
             }
-            foreach (TileZone zone in zones) Absorb(zone, ref outcome.Absorbed);
+            foreach (Cell zone in zones) Absorb(zone, ref outcome.Absorbed);
         }
         catch (Exception exception)
         {
-            LogService.LogWarning($"[EmpireCraft][手动城区] 对账失败({city.Record?.Name}): {exception.Message}");
+            LogService.LogWarning($"[EmpireCraft][手动城区] 对账失败({city.Name}): {exception.Message}");
         }
         RefreshStatus(city);
         return outcome;
@@ -643,19 +643,19 @@ public static class CityZoningSystem
 
     // 并入一块地(手动城区的城)：村镇并进城里，当场盖满民居(原来就有一堆建筑、超出建筑位的拆民居)
 #if EC_PENDING
-    public static Outcome ZoneIn(City city, TileZone zone)
+    public static Outcome ZoneIn(City city, Cell zone)
     {
         var outcome = new Outcome();
-        if (city?.Record == null || zone == null || zone.city != city) return outcome;
+        if (city?.Record == null || zone == null || zone.City != city) return outcome;
         CityExtension.CityExtraData extra = city.GetOrCreate();
         if (extra.plan_urban == null) return outcome;
-        if (!extra.plan_urban.Contains(zone.id)) extra.plan_urban.Add(zone.id);
+        if (!extra.plan_urban.Contains(zone.Index)) extra.plan_urban.Add(zone.Index);
         try
         {
             Absorb(zone, ref outcome.Absorbed);
             List<Building> here = InZone(city, zone);
-            int room = SlotsPerZone(extra) - Used(city, zone.id, here);
-            while (room < 0 && RemoveAnyHouse(city, zone.id, here))
+            int room = SlotsPerZone(extra) - Used(city, zone.Index, here);
+            while (room < 0 && RemoveAnyHouse(city, zone.Index, here))
             {
                 room++;
                 outcome.Razed++;
@@ -664,7 +664,7 @@ public static class CityZoningSystem
         }
         catch (Exception exception)
         {
-            LogService.LogWarning($"[EmpireCraft][手动城区] 并入失败({city.Record?.Name}): {exception.Message}");
+            LogService.LogWarning($"[EmpireCraft][手动城区] 并入失败({city.Name}): {exception.Message}");
         }
         RefreshStatus(city);
         Later(city);
@@ -674,17 +674,17 @@ public static class CityZoningSystem
 
     // 划出一块地(手动城区的城)：地上的原版建筑当场拆掉(按建筑所在格的地块算)；城心的公所、篝火挪进别的城区地块，挪不下留着
 #if EC_PENDING
-    public static Outcome ZoneOut(City city, TileZone zone)
+    public static Outcome ZoneOut(City city, Cell zone)
     {
         var outcome = new Outcome();
         if (city?.Record == null || zone == null) return outcome;
         CityExtension.CityExtraData extra = city.GetOrCreate();
         if (extra.plan_urban == null) return outcome;
-        extra.plan_urban.Remove(zone.id);
-        Waits.RemoveAll(wait => wait.City == city && wait.Zone == zone.id);
+        extra.plan_urban.Remove(zone.Index);
+        Waits.RemoveAll(wait => wait.City == city && wait.Zone == zone.Index);
         try
         {
-            List<TileZone> zones = null;
+            List<Cell> zones = null;
             Dictionary<int, List<Building>> byZone = null;
             foreach (Building building in InZone(city, zone))
             {
@@ -697,9 +697,9 @@ public static class CityZoningSystem
                 if (zones == null)
                 {
                     HashSet<int> urban = UrbanSet(city);
-                    zones = new List<TileZone>();
-                    foreach (TileZone other in city.zones)
-                        if (other != null && urban.Contains(other.id)) zones.Add(other);
+                    zones = new List<Cell>();
+                    foreach (Cell other in city.Zones)
+                        if (other != null && urban.Contains(other.Index)) zones.Add(other);
                     byZone = ByZone(city, urban, out _);
                 }
                 if (Move(city, building, zones, byZone, SlotsPerZone(extra))) outcome.Moved++;
@@ -707,17 +707,17 @@ public static class CityZoningSystem
             // 建筑台账里记在这块地上的：一并销掉；篝火留着，不再定地块
             var gone = new List<(BuildingAsset asset, int n)>();
             foreach (WorkLot lot in CityLedger.Lots(city))
-                if (lot != null && lot.n > 0 && lot.zone == zone.id && CityLedger.Asset(lot.id) is BuildingAsset asset && Slotted(asset))
+                if (lot != null && lot.n > 0 && lot.zone == zone.Index && CityLedger.Asset(lot.id) is BuildingAsset asset && Slotted(asset))
                     gone.Add((asset, lot.n));
             foreach ((BuildingAsset asset, int n) in gone)
             {
-                if (IsCore(asset)) CityLedger.Move(city, asset.id, zone.id, -1, n);
-                else outcome.Razed += CityLedger.Remove(city, asset.id, zone.id, n);
+                if (IsCore(asset)) CityLedger.Move(city, asset.id, zone.Index, -1, n);
+                else outcome.Razed += CityLedger.Remove(city, asset.id, zone.Index, n);
             }
         }
         catch (Exception exception)
         {
-            LogService.LogWarning($"[EmpireCraft][手动城区] 划出失败({city.Record?.Name}): {exception.Message}");
+            LogService.LogWarning($"[EmpireCraft][手动城区] 划出失败({city.Name}): {exception.Message}");
         }
         RefreshStatus(city);
         Later(city);
@@ -730,39 +730,39 @@ public static class CityZoningSystem
     // 在城区里这块地上当场盖一座(调用方已核过是城区、建筑是本城建造单里的)：放得下就盖，建筑位满了拆一座民居；
     // 放不下就拆一座民居腾地方，等原版收走了再盖(Waits)；没有民居可拆返回 NoRoom
 #if EC_PENDING
-    public static Placed Place(City city, TileZone zone, BuildingAsset asset)
+    public static Placed Place(City city, Cell zone, BuildingAsset asset)
     {
         if (city?.Record == null || zone == null || asset == null) return Placed.NoRoom;
         Placed result = Placed.NoRoom;
         try
         {
             List<Building> here = InZone(city, zone);
-            int used = Used(city, zone.id, here);
+            int used = Used(city, zone.Index, here);
             // 记台账的(见 CityLedger)：只记数；建筑位满了挤掉一座民居，没有民居可挤就盖不了
             if (CityLedger.Uses(city) && CityLedger.Virtual(asset))
             {
                 bool full = used + 1 > SlotsPerZone(city);
-                if (!full || RemoveAnyHouse(city, zone.id, here))
+                if (!full || RemoveAnyHouse(city, zone.Index, here))
                 {
-                    CityLedger.Add(city, asset, zone.id);
+                    CityLedger.Add(city, asset, zone.Index);
                     result = full ? Placed.Swapped : Placed.Built;
                 }
                 if (result == Placed.NoRoom) return result;
                 RefreshStatus(city);
                 return result;
             }
-            WorldTile spot = FindSpot(city, zone, asset);
+            Cell spot = FindSpot(city, zone, asset);
             if (spot != null && Put(city, asset, spot) != null)
-                result = used + 1 > SlotsPerZone(city) && RemoveAnyHouse(city, zone.id, here) ? Placed.Swapped : Placed.Built;
+                result = used + 1 > SlotsPerZone(city) && RemoveAnyHouse(city, zone.Index, here) ? Placed.Swapped : Placed.Built;
             else if (RemoveHouse(here))
             {
-                Waits.Add(new Waiting { City = city, Zone = zone.id, Asset = asset, Until = Time.unscaledTime + WaitSeconds });
+                Waits.Add(new Waiting { City = city, Zone = zone.Index, Asset = asset, Until = Time.unscaledTime + WaitSeconds });
                 result = Placed.Waiting;
             }
         }
         catch (Exception exception)
         {
-            LogService.LogWarning($"[EmpireCraft][手动城区] 盖建筑失败({city.Record?.Name}): {exception.Message}");
+            LogService.LogWarning($"[EmpireCraft][手动城区] 盖建筑失败({city.Name}): {exception.Message}");
         }
         if (result == Placed.NoRoom) return result;
         RefreshStatus(city);
@@ -773,11 +773,11 @@ public static class CityZoningSystem
 
     // 拆掉这块地上的功能建筑(非民居；城心的公所、篝火不拆)，空出的位补民居(地方腾出来以前放不下的，一秒后对账时补)；返回拆掉的
 #if EC_PENDING
-    public static List<BuildingAsset> Demolish(City city, TileZone zone)
+    public static List<BuildingAsset> Demolish(City city, Cell zone)
     {
         var removed = new List<BuildingAsset>();
         if (city?.Record == null || zone == null) return removed;
-        Waits.RemoveAll(wait => wait.City == city && wait.Zone == zone.id);
+        Waits.RemoveAll(wait => wait.City == city && wait.Zone == zone.Index);
         try
         {
             List<Building> here = InZone(city, zone);
@@ -793,21 +793,21 @@ public static class CityZoningSystem
             // 建筑台账里记在这块地上的功能建筑
             var gone = new List<(BuildingAsset asset, int n)>();
             foreach (WorkLot lot in CityLedger.Lots(city))
-                if (lot != null && lot.n > 0 && lot.zone == zone.id && CityLedger.Asset(lot.id) is BuildingAsset asset &&
+                if (lot != null && lot.n > 0 && lot.zone == zone.Index && CityLedger.Asset(lot.id) is BuildingAsset asset &&
                     Slotted(asset) && !IsHouse(asset) && !IsCore(asset))
                     gone.Add((asset, lot.n));
             foreach ((BuildingAsset asset, int n) in gone)
             {
-                int count = CityLedger.Remove(city, asset.id, zone.id, n);
+                int count = CityLedger.Remove(city, asset.id, zone.Index, n);
                 for (int i = 0; i < count; i++) removed.Add(asset);
             }
             if (removed.Count == 0) return removed;
             if (InUrban(city, zone))
-                FillHouses(city, zone, BestAsset(city, HouseType), SlotsPerZone(city) - Used(city, zone.id, here), here);
+                FillHouses(city, zone, BestAsset(city, HouseType), SlotsPerZone(city) - Used(city, zone.Index, here), here);
         }
         catch (Exception exception)
         {
-            LogService.LogWarning($"[EmpireCraft][手动城区] 拆建筑失败({city.Record?.Name}): {exception.Message}");
+            LogService.LogWarning($"[EmpireCraft][手动城区] 拆建筑失败({city.Name}): {exception.Message}");
         }
         RefreshStatus(city);
         Later(city);
@@ -847,9 +847,7 @@ public static class CityZoningSystem
         if (city?.Record != null) Due[city] = Time.unscaledTime + SyncDelay;
     }
 
-#if EC_PENDING
-    private static bool Alive(City city) => city?.Record != null && !city.IsGone() && city.zones != null;
-#endif
+    private static bool Alive(City city) => city?.Record != null && !city.IsGone() && city.Zones != null;
 
     // 每帧(纯净地图，见 PureMapPatch.RefreshUrbanSlice)：等着的功能建筑腾出地方就盖；到点的城对一次账，有变化就重画
 #if EC_PENDING
@@ -860,13 +858,13 @@ public static class CityZoningSystem
         for (int i = Waits.Count - 1; i >= 0; i--)
         {
             Waiting wait = Waits[i];
-            TileZone zone = Alive(wait.City) ? EmpireWorld.Current?.zone_calculator?.getZoneByID(wait.Zone) : null;
-            bool done = zone == null || zone.city != wait.City || !Manual(wait.City);
+            Cell zone = Alive(wait.City) ? EmpireWorld.Current?.Zones?.ById(wait.Zone) : null;
+            bool done = zone == null || zone.City != wait.City || !Manual(wait.City);
             if (!done)
             {
                 try
                 {
-                    WorldTile spot = FindSpot(wait.City, zone, wait.Asset);
+                    Cell spot = FindSpot(wait.City, zone, wait.Asset);
                     done = spot != null && Put(wait.City, wait.Asset, spot) != null;
                 }
                 catch (Exception exception)

@@ -4,7 +4,7 @@ namespace EmpireCraft.Core
 {
 
 // 地形归类：村镇生计(LivelihoodSystem)、矿藏分布(MineralResourceSystem)、牧场(AnimalHusbandrySystem)共用一套，
-// 按原版格子种类(地面格、顶层格)判定，每种格子第一次见到时算一次(按 TileTypeBase.index_id，地面格顶层格共用编号)。
+// 按原版格子种类(地面格、顶层格)判定，每种格子第一次见到时算一次(按 TerrainKind.index_id，地面格顶层格共用编号)。
 //   · 水：液体(海、湖、冰面)。岩浆不算水、不算海岸，算地狱地貌；
 //   · 山石：山地、山巅、丘陵(连同冰封丘陵)、岩地；
 //   · 密林：桦树林、枫树林、魔法林、丛林；疏林：草地、冻土的高处(原版长橡树、松树)；
@@ -25,16 +25,14 @@ public static class LandKinds
     private sealed class Table
     {
         public int[] Kinds = new int[0];
-#if EC_PENDING
-        public TileTypeBase[] Types = new TileTypeBase[0];
-#endif
+        public TerrainKind[] Types = new TerrainKind[0];
     }
 
     private static volatile Table _table = new();
     private static readonly object Gate = new();
 
 #if EC_PENDING
-    public static int Of(TileTypeBase type)
+    public static int Of(TerrainKind type)
     {
         if (type == null) return 0;
         int index = type.index_id;
@@ -49,7 +47,7 @@ public static class LandKinds
             if (index >= table.Kinds.Length)
             {
                 int size = global::System.Math.Max(index + 1, 256);
-                var larger = new Table { Kinds = new int[size], Types = new TileTypeBase[size] };
+                var larger = new Table { Kinds = new int[size], Types = new TerrainKind[size] };
                 global::System.Array.Copy(table.Kinds, larger.Kinds, table.Kinds.Length);
                 global::System.Array.Copy(table.Types, larger.Types, table.Types.Length);
                 larger.Kinds[index] = kinds;
@@ -66,18 +64,18 @@ public static class LandKinds
         return kinds;
     }
 
-    public static bool Is(TileTypeBase type, int kind) => (Of(type) & kind) != 0;
+    public static bool Is(TerrainKind type, int kind) => (Of(type) & kind) != 0;
 
-    private static int Compute(TileTypeBase type)
+    private static int Compute(TerrainKind type)
     {
-        if (type.lava) return Lava | Infernal;
-        if (type.liquid) return Water;
+        if (type.Lava) return Lava | Infernal;
+        if (type.Liquid) return Water;
         if (PlateauTerrain.IsPlateau(type))
             return ReferenceEquals(type, PlateauTerrain.Alpine) ? Alpine | Dry : ReferenceEquals(type, PlateauTerrain.Steppe) ? Steppe | Dry : Loess | Arable;
-        string id = type.id ?? "";
-        string biome = type.biome_id ?? "";
+        string id = type.Id ?? "";
+        string biome = type.BiomeId ?? "";
         int kinds = 0;
-        if (type.rocks || type.mountains || type.summit || id is "hills" or "snow_hills" ||
+        if (type.Rocks || type.Mountains || type.Summit || id is "hills" or "snow_hills" ||
             biome is "biome_hill" or "biome_rocklands")
             kinds |= Rough;
         bool high = type.biome_asset != null && id == type.biome_asset.tile_high;
@@ -115,7 +113,7 @@ public static class LandKinds
                 kinds |= Infernal;
                 break;
         }
-        if ((type.can_be_farm || type.farm_field) && (kinds & (Rough | Dry | Sand)) == 0) kinds |= Arable;
+        if ((type.CanBeFarm || type.FarmField) && (kinds & (Rough | Dry | Sand)) == 0) kinds |= Arable;
         return kinds;
     }
 #endif

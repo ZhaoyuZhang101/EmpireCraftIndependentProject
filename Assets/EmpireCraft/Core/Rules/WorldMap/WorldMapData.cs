@@ -1,5 +1,6 @@
 // Generated from the EmpireCraft mod: Scripts/GeneralSystems/WorldMap/WorldMapData.cs. Do not edit by hand: Tools/PortTool/members.py rewrites it;
 // see Port/manifest.json and Tools/PortTool.
+using Vector2Int = EmpireCraft.Core.EcVector2Int;
 using System;
 using System.Collections.Generic;
 using System.IO;

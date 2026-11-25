@@ -114,7 +114,6 @@ public static class TribalCouncilSystem
 
     // 推举计票：每位议事投本部参选的首领(本部几位参选的投分数最高的)；本部的人选不到最贤者分数七成、或本部没人参选的投最贤者。
     // 得票多的在前，票同比禅让的分数
-#if EC_PENDING
     public static List<(Person actor, Realm tribe, int votes)> Tally(Empire empire, List<(Person actor, Realm tribe)> candidates)
     {
         var result = new List<(Person actor, Realm tribe, int votes)>();
@@ -136,6 +135,5 @@ public static class TribalCouncilSystem
             .OrderByDescending(candidate => candidate.Item3)
             .ThenByDescending(candidate => ShanrangSystem.Score(candidate.actor, candidate.tribe)).ToList();
     }
-#endif
 }
 }

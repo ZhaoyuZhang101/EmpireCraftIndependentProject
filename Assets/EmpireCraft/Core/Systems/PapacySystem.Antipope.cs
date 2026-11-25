@@ -1,6 +1,7 @@
 // Generated from the EmpireCraft mod: Scripts/GeneralSystems/PapacySystem.Antipope.cs. Do not edit by hand: Tools/PortTool/members.py rewrites it;
 // see Port/manifest.json and Tools/PortTool.
 using Mathf = EmpireCraft.Core.EcMath;
+using Vector2 = EmpireCraft.Core.EcVector2;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -192,7 +193,7 @@ public static partial class PapacySystem
     private static int SchismCities(Realm realm)
     {
         Empire empire = realm?.GetEmpire();
-        return empire != null && empire.CoreKingdom == realm ? empire.countCities() : realm?.cities?.Count ?? 0;
+        return empire != null && empire.CoreKingdom == realm ? empire.countCities() : realm?.Cities?.Count ?? 0;
     }
 
     private static bool SchismAllied(Realm a, Realm b) =>
@@ -257,7 +258,7 @@ public static partial class PapacySystem
     private static Realm PickPatron(Religion religion, Realm see)
     {
         City holy = HolyCity(religion);
-        float mapSize = Mathf.Max(1f, Mathf.Max(EmpireWorld.width, EmpireWorld.height));
+        float mapSize = Mathf.Max(1f, Mathf.Max(EmpireWorld.Current.Width, EmpireWorld.Current.Height));
         Realm best = null;
         float bestScore = 0f;
         foreach (Realm kingdom in EmpireWorld.Current.LiveRealms.ToList())
@@ -273,7 +274,7 @@ public static partial class PapacySystem
             if (see != null && DiplomacyLedger.Opinion(kingdom, see) < 0) grievance += 0.5f;
             if (SchismAllied(kingdom, see)) grievance -= 0.8f;
             if (holy != null)
-                grievance += 0.5f * Mathf.Min(1f, Vector2.Distance(kingdom.Capital.city_center, holy.city_center) / (mapSize * 0.25f));
+                grievance += 0.5f * Mathf.Min(1f, Vector2.Distance(kingdom.Capital.Center, holy.Center) / (mapSize * 0.25f));
             float score = cities * Mathf.Max(0.1f, grievance);
             if (score <= bestScore) continue;
             best = kingdom;
@@ -515,8 +516,8 @@ public static partial class PapacySystem
             score += Mathf.Clamp((DiplomacyLedger.Opinion(kingdom, patron) - DiplomacyLedger.Opinion(kingdom, rome)) / 50f, -1.5f, 1.5f);
         if (kingdom.Capital != null && holy != null && rivalSee?.Record != null)
         {
-            float toHoly = Vector2.Distance(kingdom.Capital.city_center, holy.city_center);
-            float toRival = Vector2.Distance(kingdom.Capital.city_center, rivalSee.city_center);
+            float toHoly = Vector2.Distance(kingdom.Capital.Center, holy.Center);
+            float toRival = Vector2.Distance(kingdom.Capital.Center, rivalSee.Center);
             score += (toHoly - toRival) / Mathf.Max(1f, Mathf.Max(toHoly, toRival)) * 1.5f;
         }
         if (core && IsCrowned(empire) && !state.self_crowned && !state.crowned_by_rival) score -= 0.5f;
@@ -567,7 +568,7 @@ public static partial class PapacySystem
             .Where(kingdom => SchismAlive(kingdom) && ModRealm(kingdom) == kingdom && kingdom.religion == religion && kingdom.Capital != null &&
                               kingdom.Key != schism.patron_id && kingdom != rome)
             .OrderByDescending(SchismCities).FirstOrDefault() ?? rome;
-        string venue = host?.capital?.GetCityName() ?? HolyCity(religion)?.GetCityName() ?? "";
+        string venue = host?.Capital?.GetCityName() ?? HolyCity(religion)?.GetCityName() ?? "";
         Person antipope = Antipope(religion);
         string name = antipope?.FullName() ?? schism.line?.LastOrDefault()?.name ?? LM.Get("label_none");
         string text = string.Format(LM.Get(outcome == SchismEndCollapse ? "antipope_collapse_log" : "antipope_council_log"), venue, name,

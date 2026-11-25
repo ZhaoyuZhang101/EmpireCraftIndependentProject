@@ -1,6 +1,7 @@
 // Generated from the EmpireCraft mod: Scripts/GeneralSystems/NomadCycleSystem.cs. Do not edit by hand: Tools/PortTool/members.py rewrites it;
 // see Port/manifest.json and Tools/PortTool.
 using Mathf = EmpireCraft.Core.EcMath;
+using Random = EmpireCraft.Core.EcRandom;
 using System.Collections.Generic;
 using System.Linq;
 
@@ -445,7 +446,6 @@ public static class NomadCycleSystem
 #endif
 
     // 自主几档：入伙几代 × (1 + 离汗廷几个 DriftDistanceRef) × (1 + 多出的城 × DriftPerCity)
-#if EC_PENDING
     private static float Autonomy(Realm core, Realm member)
     {
         double joined = member.GetTimestampEmpire();
@@ -455,11 +455,9 @@ public static class NomadCycleSystem
     }
 
     private static float Distance(Realm core, Realm member) =>
-        core?.Capital == null || member?.Capital == null ? 0f : (core.Capital.city_center - member.Capital.city_center).magnitude;
-#endif
+        core?.Capital == null || member?.Capital == null ? 0f : (core.Capital.Center - member.Capital.Center).magnitude;
 
     // 离汗廷远(争位兵败时远的不复归，见 SchismSystem.Settle)：都城相距超过各成员的中位数，且至少 FarMinTiles 格
-#if EC_PENDING
     public static bool FarFromCourt(Empire empire, Realm member)
     {
         Realm core = empire?.CoreKingdom;
@@ -470,7 +468,6 @@ public static class NomadCycleSystem
         float own = Distance(core, member);
         return own >= FarMinTiles && (distances.Count == 0 || own > distances[distances.Count / 2]);
     }
-#endif
 
     #endregion
 

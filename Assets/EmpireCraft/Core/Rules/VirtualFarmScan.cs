@@ -21,7 +21,7 @@ public static class VirtualFarmScan
         city.calculated_grown_wheat.Clear();
         city.calculated_farm_fields.Clear();
         city.calculated_crops.Clear();
-        WorldTile mill = city.getBuildingOfType("type_windmill")?.current_tile;
+        Cell mill = city.getBuildingOfType("type_windmill")?.current_tile;
         if (mill?.region != null)
         {
             var chunks = new HashSet<MapChunk> { mill.region.chunk };
@@ -31,10 +31,10 @@ public static class VirtualFarmScan
                 {
                     if (dx * dx + dy * dy > 81) continue;
                     TileChecks++;
-                    WorldTile tile = EmpireWorld.Current.GetTile(mill.x + dx, mill.y + dy);
-                    if (tile?.zone?.city != city || !chunks.Contains(tile.chunk)) continue;
-                    if (tile.Type.can_be_farm) city.calculated_place_for_farms.Add(tile);
-                    if (!tile.Type.farm_field) continue;
+                    Cell tile = EmpireWorld.Current.CellAt(mill.X + dx, mill.Y + dy);
+                    if (tile?.Zone?.City != city || !chunks.Contains(tile.chunk)) continue;
+                    if (tile.Type.CanBeFarm) city.calculated_place_for_farms.Add(tile);
+                    if (!tile.Type.FarmField) continue;
                     city.calculated_farm_fields.Add(tile);
                     Building crop = tile.building;
                     if (crop?.asset?.wheat != true) continue;

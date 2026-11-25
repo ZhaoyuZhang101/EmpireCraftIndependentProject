@@ -94,16 +94,14 @@ public static partial class HolyRomanSystem
     }
 
     // holder 手里属于 claimant 法理的非都城(与 claimant 接壤的在前)
-#if EC_PENDING
     private static List<City> ClaimedFrom(Realm claimant, Realm holder)
     {
         List<long> titles = claimant.GetRealmTitleIds();
         return holder.Cities.Where(city => city?.Record != null && !city.IsGone() && city != holder.Capital &&
                                            !EnfeoffmentHelper.IsRealmCapital(city) && ClaimsCity(claimant, titles, city))
-            .OrderByDescending(city => city.neighbours_cities.Any(other => other?.kingdom == claimant))
-            .ThenBy(city => city.zones?.Count ?? 0).ToList();
+            .OrderByDescending(city => city.NeighbourCities.Any(other => other?.Realm == claimant))
+            .ThenBy(city => city.Zones?.Count ?? 0).ToList();
     }
-#endif
 
     private static bool FeudCooling(HolyRomanState state, Realm a, Realm b) =>
         state.private_wars.Any(record => record.ended_at >= 0d &&
@@ -249,8 +247,8 @@ public static partial class HolyRomanSystem
             }
             if (attacker == null) continue;
             if (city.Realm == attacker) taken.Add(city.GetCityName());
-            else if (city.Realm == defender && city.zones != null && city.zones.Count > 0 &&
-                     city.GetOccupiedTileZoneCount(attacker) >= city.zones.Count * FeudHeldShare)
+            else if (city.Realm == defender && city.Zones != null && city.Zones.Count > 0 &&
+                     city.GetOccupiedTileZoneCount(attacker) >= city.Zones.Count * FeudHeldShare)
             {
                 WarGoalSystem.QueueCession(city, attacker);
                 taken.Add(city.GetCityName());
@@ -328,7 +326,6 @@ public static partial class HolyRomanSystem
 #endif
 
     // 告谁、告哪座城：别家手里自己法理的非都城，接壤的在前；同一座城不重复立案
-#if EC_PENDING
     private static (Realm defendant, City city) SuitTarget(HolyRomanState state, Realm plaintiff, List<Realm> realms)
     {
         foreach (Realm holder in realms.OrderByDescending(kingdom => plaintiff.IsNeighbourWith(kingdom)))
@@ -340,6 +337,7 @@ public static partial class HolyRomanSystem
         return (null, null);
     }
 
+#if EC_PENDING
     private static void File(Empire empire, HolyRomanState state, Realm plaintiff, Realm defendant, City city)
     {
         Realm core = empire.CoreKingdom;

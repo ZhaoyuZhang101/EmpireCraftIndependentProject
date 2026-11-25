@@ -33,11 +33,9 @@ public static class DiplomacyLedger
     private const double Year = 60d;
 
     // ───────── 名单与筛选 ─────────
-#if EC_PENDING
     public static IEnumerable<Realm> Realms() =>
-        EmpireWorld.Current?.kingdoms?.list?.Where(kingdom => kingdom?.data != null && !kingdom.IsGone() && kingdom.isCiv() && !kingdom.wild)
+        EmpireWorld.Current?.LiveRealms?.Where(kingdom => kingdom?.Record != null && !kingdom.IsGone() && kingdom.IsCivilized() && !kingdom.IsWild)
         ?? Enumerable.Empty<Realm>();
-#endif
 
     // 接壤的国家。帝国看整个帝国，别的国家看自己；城的地块相接，或只隔着走得通的无人区(同宣战的邻国，见 WarReach.WalkableWildNeighbours)。
     // 挨着别国帝国的成员，那个帝国也算接壤；帝国自己的成员不算，它们在"本帝国"筛选里
@@ -57,8 +55,8 @@ public static class DiplomacyLedger
             foreach (City city in member.Cities)
             {
                 if (city?.Record == null) continue;
-                if (city.neighbours_kingdoms != null)
-                    foreach (Realm next in city.neighbours_kingdoms)
+                if (city.NeighbourRealms != null)
+                    foreach (Realm next in city.NeighbourRealms)
                         Touch(near, next, focus, own, whole);
                 foreach (City other in WarReach.WalkableWildNeighbours(city))
                     Touch(near, other.Realm, focus, own, whole);

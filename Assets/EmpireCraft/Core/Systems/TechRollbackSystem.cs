@@ -80,8 +80,8 @@ public static class TechRollbackSystem
     private sealed class Placement
     {
         public City City;
+        public Cell Tile;
 #if EC_PENDING
-        public WorldTile Tile;
         public BuildingAsset Asset;
 #endif
         public float Since;
@@ -210,7 +210,7 @@ public static class TechRollbackSystem
         job.Institutions += result.institutions;
         if (queueCities)
         {
-            foreach (City city in EmpireWorld.Current?.cities?.list ?? new List<City>())
+            foreach (City city in EmpireWorld.Current?.Cities ?? new List<City>())
                 if (city?.Record != null && !city.IsGone() &&
                     string.Equals(TechnologySystem.GetCultureOf(city), culture, StringComparison.Ordinal) && Enqueue(city, culture))
                     result.cities++;
@@ -352,7 +352,7 @@ public static class TechRollbackSystem
         }
         catch (Exception exception)
         {
-            LogService.LogWarning($"[EmpireCraft][科技回退] {city.Record?.Name} 的建筑台账降级失败: {exception.Message}");
+            LogService.LogWarning($"[EmpireCraft][科技回退] {city.Name} 的建筑台账降级失败: {exception.Message}");
         }
         return true;
     }
@@ -407,7 +407,7 @@ public static class TechRollbackSystem
         }
         catch (Exception exception)
         {
-            LogService.LogWarning($"[EmpireCraft][科技回退] {_city?.data?.name} 的建筑降级失败: {exception.Message}");
+            LogService.LogWarning($"[EmpireCraft][科技回退] {_city?.Name} 的建筑降级失败: {exception.Message}");
             _index = _buildings.Count;
         }
         if (_index < _buildings.Count) return;
@@ -462,9 +462,9 @@ public static class TechRollbackSystem
             job.Kept++;
             return;
         }
-        WorldTile origin = building.current_tile;
+        Cell origin = building.current_tile;
         // 民居先在同一块地上找空处盖低一级的、再拆旧的(住房不留空档)
-        if (lower != null && house && origin?.zone != null && origin.zone.city == city && FindSpot(city, origin.zone, lower) is WorldTile spot &&
+        if (lower != null && house && origin?.Zone != null && origin.Zone.City == city && FindSpot(city, origin.Zone, lower) is Cell spot &&
             Put(city, lower, spot))
         {
             Remove(city, building);
@@ -545,21 +545,21 @@ public static class TechRollbackSystem
     private static bool Place(Placement placement)
     {
         City city = placement.City;
-        WorldTile tile = placement.Tile;
-        if (tile?.zone != null && tile.zone.city == city && Fits(city, tile, placement.Asset))
+        Cell tile = placement.Tile;
+        if (tile?.Zone != null && tile.Zone.City == city && Fits(city, tile, placement.Asset))
             return Put(city, placement.Asset, tile);
         if (_clock - placement.Since < SpotSeconds) return false;
         bool house = CityZoningSystem.IsHouse(placement.Asset);
-        if (tile?.zone != null && tile.zone.city == city && FindSpot(city, tile.zone, placement.Asset) is WorldTile near)
+        if (tile?.Zone != null && tile.Zone.City == city && FindSpot(city, tile.Zone, placement.Asset) is Cell near)
             return Put(city, placement.Asset, near);
-        if (city.zones == null) return false;
+        if (city.Zones == null) return false;
         int tries = 0;
-        foreach (TileZone zone in city.zones)
+        foreach (Cell zone in city.Zones)
         {
             if (tries >= MaxZoneTries) break;
-            if (zone == null || zone == tile?.zone || house && BarrenLandSystem.Barren(zone)) continue;
+            if (zone == null || zone == tile?.Zone || house && BarrenLandSystem.Barren(zone)) continue;
             tries++;
-            if (FindSpot(city, zone, placement.Asset) is WorldTile spot) return Put(city, placement.Asset, spot);
+            if (FindSpot(city, zone, placement.Asset) is Cell spot) return Put(city, placement.Asset, spot);
         }
         return false;
     }
@@ -567,13 +567,13 @@ public static class TechRollbackSystem
 
     // 同 CityZoningSystem 的放置：格子放得下、原版允许本城在这里建
 #if EC_PENDING
-    private static bool Fits(City city, WorldTile tile, BuildingAsset asset) =>
+    private static bool Fits(City city, Cell tile, BuildingAsset asset) =>
         tile?.Type != null && tile.canBuildOn(asset) && EmpireWorld.Current.buildings.canBuildFrom(tile, asset, city);
 
-    private static WorldTile FindSpot(City city, TileZone zone, BuildingAsset asset)
+    private static Cell FindSpot(City city, Cell zone, BuildingAsset asset)
     {
-        if (zone?.tiles == null || asset == null) return null;
-        foreach (WorldTile tile in zone.tiles)
+        if (zone?.Tiles == null || asset == null) return null;
+        foreach (Cell tile in zone.Tiles)
             if (Fits(city, tile, asset)) return tile;
         return null;
     }
@@ -581,7 +581,7 @@ public static class TechRollbackSystem
 
     // 当场盖一座建成的(同 CityZoningSystem.Put)
 #if EC_PENDING
-    private static bool Put(City city, BuildingAsset asset, WorldTile tile)
+    private static bool Put(City city, BuildingAsset asset, Cell tile)
     {
         Building building = EmpireWorld.Current.buildings.addBuilding(asset, tile);
         if (building?.asset == null) return false;

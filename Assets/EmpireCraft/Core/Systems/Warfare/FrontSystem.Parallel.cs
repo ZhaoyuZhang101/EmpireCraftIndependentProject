@@ -65,9 +65,9 @@ public static partial class FrontSystem
 #if EC_PENDING
     public static void ParallelTick()
     {
-        if (!ParallelSectors || EmpireWorld.Current?.zone_calculator?.zones == null) return;
+        if (!ParallelSectors || EmpireWorld.Current?.Zones?.All == null) return;
         if (_atWar.Count == 0) return;
-        List<TileZone> zones = EmpireWorld.Current.zone_calculator.zones;
+        List<Cell> zones = EmpireWorld.Current.Zones.All;
         double now = GameClock.Now;
         if (!ReferenceEquals(_layerWorld, EmpireWorld.Current) || _layerZoneCount != zones.Count ||
             _layerTouchedAt >= 0d && (now < _layerTouchedAt || now - _layerTouchedAt > LayerIdleSeconds))
@@ -84,13 +84,13 @@ public static partial class FrontSystem
         using (FrameProfiler.Measure("战线段·地形层")) StepTerrainLayer(zones, SimulationFrameBudget.ServerMilliseconds.HasValue ? 6d : 1.5d);
     }
 
-    private static void StepTerrainLayer(List<TileZone> zones, double budget)
+    private static void StepTerrainLayer(List<Cell> zones, double budget)
     {
         if (_nextFlags == null)
         {
             int size = 0;
-            foreach (TileZone zone in zones)
-                if (zone != null && zone.id >= size) size = zone.id + 1;
+            foreach (Cell zone in zones)
+                if (zone != null && zone.Index >= size) size = zone.Index + 1;
             _layerSize = size;
             _nextFlags = new byte[size];
             _nextCross4 = new byte[size];
@@ -101,16 +101,16 @@ public static partial class FrontSystem
         _cycleFrames++;
         while (_layerCursor < zones.Count)
         {
-            TileZone zone = zones[_layerCursor++];
-            if (zone != null && zone.id >= 0 && zone.id < _layerSize)
+            Cell zone = zones[_layerCursor++];
+            if (zone != null && zone.Index >= 0 && zone.Index < _layerSize)
             {
-                int id = zone.id;
+                int id = zone.Index;
                 byte flags = 0;
                 if (TerrainSystem.ImpassableTerrain(zone)) flags |= FlagImpassable;
                 if (SeaRegionSystem.IsSea(zone)) flags |= FlagSea;
                 _nextFlags[id] = flags;
-                _nextCross4[id] = CrossMask(zone, zone.neighbours);
-                _nextCross8[id] = CrossMask(zone, zone.neighbours_all);
+                _nextCross4[id] = CrossMask(zone, zone.Neighbours);
+                _nextCross8[id] = CrossMask(zone, zone.NeighboursAll);
             }
             if ((_layerCursor & 63) == 0 && watch.Elapsed.TotalMilliseconds >= budget)
             {
@@ -135,7 +135,7 @@ public static partial class FrontSystem
     // 第 i 位：只看地形，邻块 i 走得过来(TerrainSystem.CrossableTerrain(邻块, 本块)，同 TargetZones、LandRoute 的问法)；城心每批另取(见 _seat)，路线现查；
     // 邻块多于 8 的不会有
 #if EC_PENDING
-    private static byte CrossMask(TileZone zone, TileZone[] around)
+    private static byte CrossMask(Cell zone, Cell[] around)
     {
         if (around == null) return 0;
         byte mask = 0;
@@ -153,17 +153,13 @@ public static partial class FrontSystem
     {
         public City City;
         public long CityId;
-#if EC_PENDING
-        public List<TileZone> Zones;
-#endif
+        public List<Cell> Zones;
         public bool InHome, AdjacentHome, WildAdjacent, HasTile;
         public object Island;
         public int X, Y;
         // 结果：0 不算、1 算一段、2 要看水师辐射(主线程补)
         public byte State;
-#if EC_PENDING
-        public List<TileZone> Targets;
-#endif
+        public List<Cell> Targets;
     }
 
     private sealed class SideJob
@@ -183,9 +179,7 @@ public static partial class FrontSystem
     // 工作线程各自的搜索用表
     [ThreadStatic] private static int[] _kernelSeen;
     [ThreadStatic] private static int _kernelStamp;
-#if EC_PENDING
-    [ThreadStatic] private static Queue<TileZone> _kernelQueue;
-#endif
+    [ThreadStatic] private static Queue<Cell> _kernelQueue;
 
     // 同一帧分派只调整军团命令，多批搜索可以共用地块归属快照。
     private static int _snapshotFrame = -1;
@@ -286,7 +280,6 @@ public static partial class FrontSystem
 #endif
 
     // 每块地眼下归谁控制(同 Controller)：没被占的城整城归城主，有占领区的城逐块问
-#if EC_PENDING
     private static void BuildOwners()
     {
         if (_owner.Length != _layerSize) _owner = new int[_layerSize];
@@ -294,8 +287,8 @@ public static partial class FrontSystem
         if (_seat.Length != _layerSize) _seat = new bool[_layerSize];
         else Array.Clear(_seat, 0, _seat.Length);
         foreach (City city in EmpireWorld.Current.Cities)
-            if (city?.getTile()?.zone is TileZone center && center.city == city && center.id >= 0 && center.id < _seat.Length)
-                _seat[center.id] = true;
+            if (city?.SeatCell()?.Zone is Cell center && center.City == city && center.Index >= 0 && center.Index < _seat.Length)
+                _seat[center.Index] = true;
         Slots.Clear();
         SlotOf.Clear();
         SlotRealm.Clear();
@@ -303,18 +296,17 @@ public static partial class FrontSystem
         foreach (Realm kingdom in EmpireWorld.Current.LiveRealms) Slot(kingdom);
         foreach (City city in EmpireWorld.Current.Cities)
         {
-            if (city?.Record == null || city.IsGone() || city.zones == null) continue;
+            if (city?.Record == null || city.IsGone() || city.Zones == null) continue;
             var data = city.GetOrCreate();
             bool occupied = data.OccupiedZoneOwners?.Count > 0 || data.OccupiedStatus?.Count > 0;
             int owner = Slot(city.Realm);
-            foreach (TileZone zone in city.zones)
+            foreach (Cell zone in city.Zones)
             {
-                if (zone == null || zone.city != city || zone.id < 0 || zone.id >= _owner.Length) continue;
-                _owner[zone.id] = occupied ? Slot(Controller(zone)) : owner;
+                if (zone == null || zone.City != city || zone.Index < 0 || zone.Index >= _owner.Length) continue;
+                _owner[zone.Index] = occupied ? Slot(Controller(zone)) : owner;
             }
         }
     }
-#endif
 
     private static int Slot(Realm kingdom)
     {
@@ -359,7 +351,7 @@ public static partial class FrontSystem
         HashSet<City> home = HomeCities(side);
         var homeTiles = new List<(object, int, int)>(home.Count);
         foreach (City own in home)
-            if (own.getTile() is WorldTile at) homeTiles.Add((IslandOf(at), at.x, at.y));
+            if (own.SeatCell() is Cell at) homeTiles.Add((IslandOf(at), at.X, at.Y));
         job.Home = homeTiles.ToArray();
         var hostiles = new List<Realm>();
         foreach (Realm other in _atWar)
@@ -371,9 +363,9 @@ public static partial class FrontSystem
         void Add(City city)
         {
             if (city?.Record == null || city.IsGone() || !seen.Add(city)) return;
-            var candidate = new Candidate { City = city, CityId = city.Key, Zones = city.zones, InHome = home.Contains(city) };
-            if (!candidate.InHome && city.neighbours_cities != null)
-                foreach (City next in city.neighbours_cities)
+            var candidate = new Candidate { City = city, CityId = city.Key, Zones = city.Zones, InHome = home.Contains(city) };
+            if (!candidate.InHome && city.NeighbourCities != null)
+                foreach (City next in city.NeighbourCities)
                     if (next != null && home.Contains(next))
                     {
                         candidate.AdjacentHome = true;
@@ -388,12 +380,12 @@ public static partial class FrontSystem
                         candidate.WildAdjacent = true;
                         break;
                     }
-                if (city.getTile() is WorldTile tile)
+                if (city.SeatCell() is Cell tile)
                 {
                     candidate.HasTile = true;
                     candidate.Island = IslandOf(tile);
-                    candidate.X = tile.x;
-                    candidate.Y = tile.y;
+                    candidate.X = tile.X;
+                    candidate.Y = tile.Y;
                 }
             }
             job.Candidates.Add(candidate);
@@ -412,11 +404,11 @@ public static partial class FrontSystem
     }
 #endif
 
-    // 同 WorldTile.isSameIsland 的比法(独立服务器上先让它把岛屿算好)
+    // 同 Cell.isSameIsland 的比法(独立服务器上先让它把岛屿算好)
 #if EC_PENDING
-    private static object IslandOf(WorldTile tile)
+    private static object IslandOf(Cell tile)
     {
-        tile.isSameIsland(tile);
+        tile.IsSameIsland(tile);
         return tile.region?.island;
     }
 #endif
@@ -463,72 +455,62 @@ public static partial class FrontSystem
                     }
                 }
             }
-            List<TileZone> targets = Targets(job, candidate.Zones);
+            List<Cell> targets = Targets(job, candidate.Zones);
             candidate.State = targets.Count > 0 ? (byte)1 : (byte)0;
             candidate.Targets = targets;
         }
     }
-
-    private static int OwnerOf(TileZone zone) => zone.id >= 0 && zone.id < _owner.Length ? _owner[zone.id] : -1;
 #endif
+
+    private static int OwnerOf(Cell zone) => zone.Index >= 0 && zone.Index < _owner.Length ? _owner[zone.Index] : -1;
 
     private static bool Has(SideJob job, int slot, byte relation) => slot >= 0 && (job.Relation[slot] & relation) != 0;
 
-#if EC_PENDING
-    private static bool Seat(TileZone zone) => zone.id >= 0 && zone.id < _seat.Length && _seat[zone.id];
-#endif
+    private static bool Seat(Cell zone) => zone.Index >= 0 && zone.Index < _seat.Length && _seat[zone.Index];
 
     // 同 TerrainSystem.Impassable(路线的地块表只在主线程改，这时主线程在等，读得)
-#if EC_PENDING
-    private static bool Blocked(TileZone zone) =>
-        zone.id >= 0 && zone.id < _terrainFlags.Length && (_terrainFlags[zone.id] & FlagImpassable) != 0 && !Seat(zone) && !RoadNetwork.IsTrail(zone);
+    private static bool Blocked(Cell zone) =>
+        zone.Index >= 0 && zone.Index < _terrainFlags.Length && (_terrainFlags[zone.Index] & FlagImpassable) != 0 && !Seat(zone) && !RoadNetwork.IsTrail(zone);
 
-    private static bool Sea(TileZone zone) => zone.id >= 0 && zone.id < _terrainFlags.Length && (_terrainFlags[zone.id] & FlagSea) != 0;
-#endif
+    private static bool Sea(Cell zone) => zone.Index >= 0 && zone.Index < _terrainFlags.Length && (_terrainFlags[zone.Index] & FlagSea) != 0;
 
     // 同 WildernessPassage.Passable
-#if EC_PENDING
-    private static bool WildOpen(TileZone zone, int way)
+    private static bool WildOpen(Cell zone, int way)
     {
         byte[] block = _wildBlock;
-        if (block == null || zone.id < 0 || zone.id >= block.Length) return true;
-        byte bits = block[zone.id];
-        return bits == 0 || zone.city != null || (bits & way) == 0;
+        if (block == null || zone.Index < 0 || zone.Index >= block.Length) return true;
+        byte bits = block[zone.Index];
+        return bits == 0 || zone.City != null || (bits & way) == 0;
     }
-#endif
 
     // 同 TerrainSystem.Crossable(邻块, 本块)
-#if EC_PENDING
-    private static bool CrossesInto(byte[] masks, TileZone zone, TileZone neighbour, int index) =>
+    private static bool CrossesInto(byte[] masks, Cell zone, Cell neighbour, int index) =>
         Seat(zone) || Seat(neighbour) || RoadNetwork.Spans(neighbour, zone) ||
-        zone.id < 0 || zone.id >= masks.Length || index >= 8 || (masks[zone.id] & (1 << index)) != 0;
-#endif
+        zone.Index < 0 || zone.Index >= masks.Length || index >= 8 || (masks[zone.Index] & (1 << index)) != 0;
 
     // 同 Passable
-#if EC_PENDING
-    private static bool Walk(SideJob job, TileZone zone)
+    private static bool Walk(SideJob job, Cell zone)
     {
         if (Blocked(zone) || Sea(zone) || !WildOpen(zone, job.Way)) return false;
         int owner = OwnerOf(zone);
         return owner < 0 || Has(job, owner, RelWild | RelFriendly | RelHostile | RelGrants);
     }
-#endif
 
     // 同 TargetZones
 #if EC_PENDING
-    private static List<TileZone> Targets(SideJob job, List<TileZone> zones)
+    private static List<Cell> Targets(SideJob job, List<Cell> zones)
     {
-        var result = new List<TileZone>();
+        var result = new List<Cell>();
         if (zones == null) return result;
-        foreach (TileZone zone in zones)
+        foreach (Cell zone in zones)
         {
             if (zone == null || !Has(job, OwnerOf(zone), RelHostile) || Blocked(zone) || !WildOpen(zone, job.Way)) continue;
-            TileZone[] around = zone.neighbours;
+            Cell[] around = zone.Neighbours;
             if (around == null) continue;
             for (int i = 0; i < around.Length; i++)
             {
-                TileZone neighbour = around[i];
-                if (neighbour == null || neighbour.world_edge || Blocked(neighbour) || !CrossesInto(_cross4, zone, neighbour, i) ||
+                Cell neighbour = around[i];
+                if (neighbour == null || neighbour.OnEdge || Blocked(neighbour) || !CrossesInto(_cross4, zone, neighbour, i) ||
                     !WildOpen(neighbour, job.Way)) continue;
                 if (!Has(job, OwnerOf(neighbour), RelFriendly)) continue;
                 result.Add(zone);
@@ -568,7 +550,7 @@ public static partial class FrontSystem
         }
         int[] seen = _kernelSeen;
         int stamp = _kernelStamp, count = 0;
-        Queue<TileZone> queue = _kernelQueue ??= new Queue<TileZone>();
+        Queue<Cell> queue = _kernelQueue ??= new Queue<Cell>();
         queue.Clear();
         bool Visit(int id)
         {
@@ -583,18 +565,18 @@ public static partial class FrontSystem
             count++;
             return true;
         }
-        foreach (TileZone zone in target.Zones)
-            if (zone != null && Visit(zone.id)) queue.Enqueue(zone);
+        foreach (Cell zone in target.Zones)
+            if (zone != null && Visit(zone.Index)) queue.Enqueue(zone);
         bool found = false;
         while (queue.Count > 0 && count < LandRouteSearch && !found)
         {
-            TileZone zone = queue.Dequeue();
-            TileZone[] around = zone.neighbours_all;
+            Cell zone = queue.Dequeue();
+            Cell[] around = zone.NeighboursAll;
             if (around == null) continue;
             for (int i = 0; i < around.Length; i++)
             {
-                TileZone next = around[i];
-                if (next == null || !Visit(next.id)) continue;
+                Cell next = around[i];
+                if (next == null || !Visit(next.Index)) continue;
                 if (Has(job, OwnerOf(next), RelFriendly) && !Blocked(next) && CrossesInto(_cross8, zone, next, i) && WildOpen(next, job.Way))
                 {
                     found = true;
@@ -621,7 +603,7 @@ public static partial class FrontSystem
         var sectors = new List<Sector>();
         foreach (Candidate candidate in job.Candidates)
         {
-            List<TileZone> targets = candidate.State switch
+            List<Cell> targets = candidate.State switch
             {
                 1 => candidate.Targets,
                 2 when StraitReach.Reaches(job.Side, candidate.City) => TargetZones(job.Side, candidate.City),

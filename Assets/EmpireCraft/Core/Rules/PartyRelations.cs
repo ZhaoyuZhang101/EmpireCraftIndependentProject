@@ -22,7 +22,6 @@ public static class PartyRelations
     private const float MemoryCap = 60f, MemoryDecay = 0.1f;
     private const float RallyPressure = 12f;
 
-#if EC_PENDING
     public static float Relation(FixedFaction a, FixedFaction b)
     {
         if (a == null || b == null) return 0f;
@@ -31,7 +30,6 @@ public static class PartyRelations
         float memory = a.PartyMemory != null && a.PartyMemory.TryGetValue(b.GetID(), out float value) ? value : 0f;
         return Mathf.Clamp(baseline + memory, -100f, 100f);
     }
-#endif
 
     private static void Remember(FixedFaction a, FixedFaction b, float delta)
     {
@@ -70,16 +68,14 @@ public static class PartyRelations
             }
         }
     }
+#endif
 
     public static bool RefusesCoalition(FixedFaction formateur, FixedFaction partner) =>
         formateur != null && partner != null && formateur.IsParty && partner.IsParty && Relation(partner, formateur) < RefuseCoalition;
-#endif
 
     // 倒阁表决：联盟里对首相党好感为负的友党多一成倒戈
-#if EC_PENDING
     public static float NoConfidenceBias(FixedFaction partner, FixedFaction leader) =>
         partner?.IsParty == true && leader?.IsParty == true && Relation(partner, leader) < 0f ? 0.1f : 0f;
-#endif
 
     #region 每年
 

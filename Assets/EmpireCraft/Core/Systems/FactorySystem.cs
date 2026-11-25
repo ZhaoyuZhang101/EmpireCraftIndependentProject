@@ -106,7 +106,6 @@ public static class FactorySystem
 
     public static List<FactorySite> Save() => All.Values.ToList();
 
-#if EC_PENDING
     private static Dictionary<int, List<FactorySite>> ByZone()
     {
         if (_byZone != null) return _byZone;
@@ -114,9 +113,9 @@ public static class FactorySystem
         if (EmpireWorld.Current == null) return index;
         foreach (FactorySite site in All.Values)
         {
-            TileZone zone = EmpireWorld.Current.GetTile(site.x, site.y)?.zone;
+            Cell zone = EmpireWorld.Current.CellAt(site.x, site.y)?.Zone;
             if (zone == null) continue;
-            if (!index.TryGetValue(zone.id, out List<FactorySite> list)) index[zone.id] = list = new List<FactorySite>();
+            if (!index.TryGetValue(zone.Index, out List<FactorySite> list)) index[zone.Index] = list = new List<FactorySite>();
             list.Add(site);
         }
         _byZone = index;
@@ -126,27 +125,22 @@ public static class FactorySystem
     public static List<FactorySite> InCity(City city)
     {
         var result = new List<FactorySite>();
-        if (city?.zones == null || All.Count == 0) return result;
+        if (city?.Zones == null || All.Count == 0) return result;
         Dictionary<int, List<FactorySite>> index = ByZone();
-        foreach (TileZone zone in city.zones)
-            if (zone != null && index.TryGetValue(zone.id, out List<FactorySite> list)) result.AddRange(list);
+        foreach (Cell zone in city.Zones)
+            if (zone != null && index.TryGetValue(zone.Index, out List<FactorySite> list)) result.AddRange(list);
         return result;
     }
-#endif
 
     // 本城有几片厂区
-#if EC_PENDING
     public static int Count(City city) => All.Count == 0 ? 0 : InCity(city).Count;
-#endif
 
     public static FactorySite ById(int id) => All.TryGetValue(id, out FactorySite site) ? site : null;
 
     // 全部厂区(公司的账要逐片过，见 CompanySystem)
     public static IEnumerable<FactorySite> AllSites => All.Values;
 
-#if EC_PENDING
-    public static City CityOf(FactorySite site) => site == null ? null : EmpireWorld.Current?.GetTile(site.x, site.y)?.zone?.city;
-#endif
+    public static City CityOf(FactorySite site) => site == null ? null : EmpireWorld.Current?.CellAt(site.x, site.y)?.Zone?.City;
 
     // 厂区占的格(左下角、边长)
     public static (int x0, int y0, int side) Footprint(FactorySite site)
@@ -162,7 +156,6 @@ public static class FactorySystem
     }
 
     // 厂区压着的地块(一片边长至多 8 格，至多压着四块地)：留给城，无人区在它们周围断开(见 WildernessSystem)
-#if EC_PENDING
     public static HashSet<int> CoveredZones()
     {
         var result = new HashSet<int>();
@@ -173,56 +166,51 @@ public static class FactorySystem
             int x1 = x0 + side - 1, y1 = y0 + side - 1;
             foreach ((int x, int y) in new[] { (x0, y0), (x1, y0), (x0, y1), (x1, y1) })
             {
-                TileZone zone = EmpireWorld.Current.GetTile(x, y)?.zone;
-                if (zone != null) result.Add(zone.id);
+                Cell zone = EmpireWorld.Current.CellAt(x, y)?.Zone;
+                if (zone != null) result.Add(zone.Index);
             }
         }
         return result;
     }
-#endif
 
     // (x, y) 落在哪片厂区(连同四周 margin 格)里：村镇选址、立村、建城避开(见 UrbanFabric、RuralSettlementSystem、CityPlacementSystem)
-#if EC_PENDING
     public static bool Near(int x, int y, int margin)
     {
         if (All.Count == 0) return false;
-        TileZone zone = EmpireWorld.Current?.GetTile(x, y)?.zone;
+        Cell zone = EmpireWorld.Current?.CellAt(x, y)?.Zone;
         if (zone == null) return false;
         Dictionary<int, List<FactorySite>> index = ByZone();
-        var seen = new HashSet<TileZone> { zone };
-        foreach (TileZone around in Around(zone))
+        var seen = new HashSet<Cell> { zone };
+        foreach (Cell around in Around(zone))
         {
-            if (index.TryGetValue(around.id, out List<FactorySite> list) && list.Exists(site => Covers(site, x, y, margin))) return true;
-            foreach (TileZone far in around.neighbours_all ?? Array.Empty<TileZone>())
-                if (far != null && seen.Add(far) && index.TryGetValue(far.id, out List<FactorySite> more) &&
+            if (index.TryGetValue(around.Index, out List<FactorySite> list) && list.Exists(site => Covers(site, x, y, margin))) return true;
+            foreach (Cell far in around.NeighboursAll ?? Array.Empty<Cell>())
+                if (far != null && seen.Add(far) && index.TryGetValue(far.Index, out List<FactorySite> more) &&
                     more.Exists(site => Covers(site, x, y, margin))) return true;
         }
         return false;
     }
-#endif
 
     // 这一格落在哪片厂区里
-#if EC_PENDING
-    public static FactorySite At(WorldTile tile)
+    public static FactorySite At(Cell tile)
     {
-        TileZone zone = tile?.zone;
+        Cell zone = tile?.Zone;
         if (zone == null || All.Count == 0) return null;
         Dictionary<int, List<FactorySite>> index = ByZone();
-        foreach (TileZone around in Around(zone))
-            if (index.TryGetValue(around.id, out List<FactorySite> list))
+        foreach (Cell around in Around(zone))
+            if (index.TryGetValue(around.Index, out List<FactorySite> list))
                 foreach (FactorySite site in list)
-                    if (Covers(site, tile.x, tile.y)) return site;
+                    if (Covers(site, tile.X, tile.Y)) return site;
         return null;
     }
 
-    private static IEnumerable<TileZone> Around(TileZone zone)
+    private static IEnumerable<Cell> Around(Cell zone)
     {
         yield return zone;
-        if (zone.neighbours_all == null) yield break;
-        foreach (TileZone neighbour in zone.neighbours_all)
+        if (zone.NeighboursAll == null) yield break;
+        foreach (Cell neighbour in zone.NeighboursAll)
             if (neighbour != null) yield return neighbour;
     }
-#endif
 
     #region 门类
 
@@ -453,18 +441,18 @@ public static class FactorySystem
             return;
         }
         // 不够数：城区边上(离城心由近及远、不在城区里)新建一片小厂区
-        WorldTile center = city.getTile();
+        Cell center = city.SeatCell();
         HashSet<int> built = PureMapPatch.BuiltZones(city);
         if (center == null || built == null) return;
         // 新建一片小厂区(两座厂)：先看出不出得起，建成了再按国策定谁出钱
         int cost = SiteCost + Capacity(1) * Mathf.RoundToInt((float)unlocked.Average(type => UnitCost(type, 1)));
         if (!EnterpriseSystem.CanFund(city, cost)) return;
         int tries = 0;
-        foreach (TileZone zone in city.zones.Where(zone => zone?.centerTile != null && !built.Contains(zone.id) && zone != center.zone)
-                     .OrderBy(zone => Toolbox.SquaredDistTile(zone.centerTile, center)).ToList())
+        foreach (Cell zone in city.Zones.Where(zone => zone?.Center != null && !built.Contains(zone.Index) && zone != center.Zone)
+                     .OrderBy(zone => Land.SquaredDist(zone.Center, center)).ToList())
         {
             if (++tries > 16) break;
-            Place(zone.centerTile, 1, out FactorySite placed);
+            Place(zone.Center, 1, out FactorySite placed);
             if (placed == null) continue;
             if (EnterpriseSystem.Fund(city, cost, false, out bool state)) placed.state = state;
             else Remove(placed);
@@ -490,18 +478,18 @@ public static class FactorySystem
 #if EC_PENDING
     internal static FactorySite FoundBranch(City city, string type)
     {
-        if (!PureMapMode.Enabled || city?.zones == null || TypeIndex(type) < 0) return null;
-        WorldTile center = city.getTile();
+        if (!PureMapMode.Enabled || city?.Zones == null || TypeIndex(type) < 0) return null;
+        Cell center = city.SeatCell();
         HashSet<int> built = PureMapPatch.BuiltZones(city);
         if (center == null) return null;
         // 城区平面图还没算过(独立核心不画图，从来不算)：不知道哪些地块是城区，就让开城心四周那一圈
         int tries = 0;
-        foreach (TileZone zone in city.zones.Where(zone => zone?.centerTile != null && zone != center.zone &&
-                     (built != null ? !built.Contains(zone.id) : Toolbox.SquaredDistTile(zone.centerTile, center) >= 200))
-                     .OrderBy(zone => Toolbox.SquaredDistTile(zone.centerTile, center)).ToList())
+        foreach (Cell zone in city.Zones.Where(zone => zone?.Center != null && zone != center.Zone &&
+                     (built != null ? !built.Contains(zone.Index) : Land.SquaredDist(zone.Center, center) >= 200))
+                     .OrderBy(zone => Land.SquaredDist(zone.Center, center)).ToList())
         {
             if (++tries > 16) break;
-            Place(zone.centerTile, 1, out FactorySite placed);
+            Place(zone.Center, 1, out FactorySite placed);
             if (placed == null) continue;
             foreach (FactoryUnit unit in placed.units) unit.type = type;
             placed.state = false;
@@ -514,31 +502,31 @@ public static class FactorySystem
 
     // 放一片厂区：返回提示文字。manual 为神力手动放的(不设限，见上)
 #if EC_PENDING
-    public static string Place(WorldTile tile, int size, out FactorySite placed, bool manual = false)
+    public static string Place(Cell tile, int size, out FactorySite placed, bool manual = false)
     {
         placed = null;
         if (!PureMapMode.Enabled) return LM.Get("settlement_need_pure_map");
-        City city = tile?.zone?.city;
-        bool claim = manual && city == null && tile?.zone != null;
-        if (claim) city = RuralSettlementSystem.NearestCity(tile.zone, tile);
+        City city = tile?.Zone?.City;
+        bool claim = manual && city == null && tile?.Zone != null;
+        if (claim) city = RuralSettlementSystem.NearestCity(tile.Zone, tile);
         if (city?.Record == null || city.IsGone()) return LM.Get("factory_place_no_city");
         // 纯沙漠、纯冻土建不了东西(见 BarrenLandSystem)
-        if (BarrenLandSystem.Barren(tile.zone)) return LM.Get("settlement_place_barren");
+        if (BarrenLandSystem.Barren(tile.Zone)) return LM.Get("settlement_place_barren");
         List<string> unlocked = manual ? AllTypes() : Unlocked(city);
         if (unlocked.Count == 0) return string.Format(LM.Get("factory_place_no_tech"), city.GetCityName());
         if (!manual) unlocked = Preferred(unlocked);
-        string refusal = manual ? CheckManual(tile.x, tile.y, size, null) : CheckFootprint(city, tile.x, tile.y, size, null);
+        string refusal = manual ? CheckManual(tile.X, tile.Y, size, null) : CheckFootprint(city, tile.X, tile.Y, size, null);
         if (refusal != null) return refusal;
         // 无人区里也能放(神力手动不设限)：那一块地归城、退出无人区(见 WildernessSystem.Settle)
         if (claim)
         {
             using (CityExpansionPatch.Manual())
             using (WildernessSystem.Settle())
-                city.addZone(tile.zone);
-            if (tile.zone.city != city) return LM.Get("factory_place_no_city");
+                city.AddZone(tile.Zone);
+            if (tile.Zone.City != city) return LM.Get("factory_place_no_city");
             CityDistricts.Reset();
         }
-        placed = new FactorySite { id = _nextId++, x = tile.x, y = tile.y, size = Math.Max(1, Math.Min(MaxSize, size)),
+        placed = new FactorySite { id = _nextId++, x = tile.X, y = tile.Y, size = Math.Max(1, Math.Min(MaxSize, size)),
             founded = GameClock.Now, manual = manual };
         // 一整片成品：从已解锁的门类里随机挑满，尽量不重样
         var pool = new List<string>(unlocked);
@@ -550,10 +538,10 @@ public static class FactorySystem
             placed.units.Add(new FactoryUnit { type = type, level = EcRandom.value < 0.35f ? 2 : 1 });
         }
         All[placed.id] = placed;
-        TileZone zone = tile.zone;
+        Cell zone = tile.Zone;
         if (_byZone != null)
         {
-            if (!_byZone.TryGetValue(zone.id, out List<FactorySite> list)) _byZone[zone.id] = list = new List<FactorySite>();
+            if (!_byZone.TryGetValue(zone.Index, out List<FactorySite> list)) _byZone[zone.Index] = list = new List<FactorySite>();
             list.Add(placed);
         }
         Changed(placed);
@@ -568,20 +556,20 @@ public static class FactorySystem
         var probe = new FactorySite { x = cx, y = cy, size = size };
         (int x0, int y0, int side) = Footprint(probe);
         HashSet<int> built = PureMapPatch.BuiltZones(city);
-        TileZone center = city.getTile()?.zone;
+        Cell center = city.SeatCell()?.Zone;
         int land = 0;
         for (int y = y0; y < y0 + side; y++)
         for (int x = x0; x < x0 + side; x++)
         {
-            WorldTile at = EmpireWorld.Current.GetTile(x, y);
-            if (at?.zone == null) return LM.Get("factory_place_no_room");
-            if (at.zone == center || built != null && built.Contains(at.zone.id))
+            Cell at = EmpireWorld.Current.CellAt(x, y);
+            if (at?.Zone == null) return LM.Get("factory_place_no_room");
+            if (at.Zone == center || built != null && built.Contains(at.Zone.Index))
                 return string.Format(LM.Get("settlement_place_urban"), city.GetCityName());
             // AI 自建、扩建不伸进无人区(见 WildernessSystem)
-            if (WildernessSystem.IsWild(at.zone)) return LM.Get("factory_place_no_room");
+            if (WildernessSystem.IsWild(at.Zone)) return LM.Get("factory_place_no_room");
             FactorySite other = At(at);
             if (MapWallSystem.Contains(at) || other != null && other != self) return LM.Get("factory_place_no_room");
-            if (at.zone.city == city && at.Type != null && !at.Type.liquid && !at.Type.mountains) land++;
+            if (at.Zone.City == city && at.Type != null && !at.Type.Liquid && !at.Type.Mountains) land++;
         }
         if (land * 10 < side * side * 7) return LM.Get("factory_place_no_room");
         foreach (RuralSettlement settlement in RuralSettlementSystem.InCity(city))
@@ -597,24 +585,24 @@ public static class FactorySystem
 #endif
 
     // 手动放、扩建的占地：中心不在水里、不落在别的厂区里，整片在地图里
-#if EC_PENDING
     private static string CheckManual(int cx, int cy, int size, FactorySite self)
     {
-        WorldTile center = EmpireWorld.Current.GetTile(cx, cy);
-        if (center?.Type == null || center.Type.liquid) return LM.Get("factory_place_no_room");
+        Cell center = EmpireWorld.Current.CellAt(cx, cy);
+        if (center?.Type == null || center.Type.Liquid) return LM.Get("factory_place_no_room");
         FactorySite other = At(center);
         if (other != null && other != self) return LM.Get("factory_place_no_room");
         (int x0, int y0, int side) = Footprint(new FactorySite { x = cx, y = cy, size = size });
-        if (EmpireWorld.Current.GetTile(x0, y0) == null || EmpireWorld.Current.GetTile(x0 + side - 1, y0 + side - 1) == null)
+        if (EmpireWorld.Current.CellAt(x0, y0) == null || EmpireWorld.Current.CellAt(x0 + side - 1, y0 + side - 1) == null)
             return LM.Get("factory_place_no_room");
         return null;
     }
 
+#if EC_PENDING
     public static string Remove(FactorySite site)
     {
         if (site == null || !All.Remove(site.id)) return null;
-        TileZone zone = EmpireWorld.Current?.GetTile(site.x, site.y)?.zone;
-        if (_byZone != null && zone != null && _byZone.TryGetValue(zone.id, out List<FactorySite> list)) list.Remove(site);
+        Cell zone = EmpireWorld.Current?.CellAt(site.x, site.y)?.Zone;
+        if (_byZone != null && zone != null && _byZone.TryGetValue(zone.Index, out List<FactorySite> list)) list.Remove(site);
         Changed(site);
         return string.Format(LM.Get("factory_removed"), Label(site));
     }

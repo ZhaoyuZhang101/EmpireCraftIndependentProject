@@ -25,7 +25,7 @@ public static class FactionRebelNaming
         string title = Chinese() ? Title(kingdom) : null;
         if (!string.IsNullOrWhiteSpace(title)) return title;
         string front = kingdom.GetKingdomName();
-        if (string.IsNullOrWhiteSpace(front)) front = kingdom.Capital?.GetCityName() ?? kingdom.Record?.Name ?? "";
+        if (string.IsNullOrWhiteSpace(front)) front = kingdom.Capital?.GetCityName() ?? kingdom.Name ?? "";
         return string.Format(LM.Get("faction_rebel_army_name"), front);
     }
 #endif

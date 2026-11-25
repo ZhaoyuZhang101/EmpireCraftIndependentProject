@@ -470,7 +470,7 @@ public static class RoyalHouseSystem
         }
         empire.AddMandate(-Mathf.RoundToInt(4f * severity));
         Realm core = empire.CoreKingdom;
-        foreach (City city in core?.cities?.ToList() ?? new List<City>())
+        foreach (City city in core?.Cities?.ToList() ?? new List<City>())
         {
             CityStabilityData state = city?.Record == null ? null : CityStabilitySystem.State(city);
             if (state != null) state.stability = Mathf.Max(0f, state.stability - 8f * severity);
@@ -499,13 +499,13 @@ public static class RoyalHouseSystem
         foreach (Person prince in princes)
         {
             City fief = Fief(prince, kingdom) ?? kingdom.Cities
-                .Where(city => city?.Record != null && !city.IsGone() && city != capital && city.getTile() != null)
+                .Where(city => city?.Record != null && !city.IsGone() && city != capital && city.SeatCell() != null)
                 .OrderBy(city => city.units?.Count(unit => unit != null && unit.Alive && unit.getParents().Contains(king)) ?? 0)
                 .ThenByDescending(CityPopulationSystem.GetBackgroundTotal).FirstOrDefault();
             if (fief == null) continue;
             prince.JoinCity(fief);
-            if (PureMapMode.Enabled) prince.setCurrentTilePosition(fief.getTile());
-            else prince.goTo(fief.getTile());
+            if (PureMapMode.Enabled) prince.setCurrentTilePosition(fief.SeatCell());
+            else prince.goTo(fief.SeatCell());
         }
         // 虚拟族人里的成年皇子(纯净地图下多是这样，以前一直记在京城)：族谱上改记到封地，不落成。
         // 封地同上：有爵位封地的(族谱上看不出，留给落成后再走上面那步)以外，挑皇子最少、人口最多的城
@@ -533,7 +533,6 @@ public static class RoyalHouseSystem
 #endif
 
     // 封地：有实封或虚封的爵位，取那块封地的治所(还在本国的)
-#if EC_PENDING
     private static City Fief(Person prince, Realm kingdom)
     {
         var data = prince.GetOrCreate();
@@ -541,12 +540,11 @@ public static class RoyalHouseSystem
         if (data.virtual_enfeoff) titles = titles.Append(data.virtual_enfeoff_title_id);
         foreach (long id in titles)
         {
-            City seat = ModClass.KINGDOM_TITLE_MANAGER?.get(id)?.title_capital;
+            City seat = ModClass.KINGDOM_TITLE_MANAGER?.Get(id)?.title_capital;
             if (seat?.Record != null && !seat.IsGone() && seat.Realm == kingdom && seat != kingdom.Capital) return seat;
         }
         return null;
     }
-#endif
 
     #endregion
 }

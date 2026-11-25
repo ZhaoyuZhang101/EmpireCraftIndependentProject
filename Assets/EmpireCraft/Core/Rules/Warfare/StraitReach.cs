@@ -1,6 +1,7 @@
 // Generated from the EmpireCraft mod: Scripts/GeneralSystems/Warfare/StraitReach.cs. Do not edit by hand: Tools/PortTool/members.py rewrites it;
 // see Port/manifest.json and Tools/PortTool.
 using Time = EmpireCraft.Core.FrameClock;
+using Vector2 = EmpireCraft.Core.EcVector2;
 using System.Collections.Generic;
 using System.Linq;
 
@@ -17,9 +18,9 @@ public static class StraitReach
     // 各国(帝国按核心)的水师港口与辐射半径，缓存一秒(真实时间)：宣战、诉求挑目标时要对每个国家问一遍
     private const float CacheSeconds = 1f;
     // 港口：圆心取码头所在的格(没有就取城心)，及港外海区所在的水域
-#if EC_PENDING
     private static readonly Dictionary<long, (float at, List<(Vector2 port, HashSet<int> basins)> ports, float radius)> PortCache = new();
 
+#if EC_PENDING
     public static bool Across(Realm initiator, Realm target)
     {
         if (initiator?.Record == null || target?.Record == null || initiator == target || initiator.IsGone() || target.IsGone())
@@ -57,7 +58,7 @@ public static class StraitReach
     }
 
     private static Vector2 PortAt(City city) =>
-        NavySystem.Port(city)?.current_tile is WorldTile tile ? new Vector2(tile.x, tile.y) : city.city_center;
+        NavySystem.Port(city)?.current_tile is Cell tile ? new Vector2(tile.X, tile.Y) : city.Center;
 #endif
 
     // 这座临海城在本国(或所在帝国)水师的辐射范围里：本城某处海岸离某个水师港口(码头)不过辐射半径、同一片水域
@@ -73,7 +74,7 @@ public static class StraitReach
         float limit = radius * radius, rough = (radius + shore.Offset) * (radius + shore.Offset);
         foreach (var (port, basins) in ports)
         {
-            if ((port - target.city_center).sqrMagnitude > rough) continue;
+            if ((port - target.Center).sqrMagnitude > rough) continue;
             foreach (var (at, basin) in shore.Points)
                 if (basins.Contains(basin) && (port - at).sqrMagnitude <= limit) return true;
         }

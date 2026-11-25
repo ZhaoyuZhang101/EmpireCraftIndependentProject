@@ -132,8 +132,7 @@ public static class CityPlanEditing
                           extra.plan_palace_zone >= 0 || extra.plan_walls >= 0 || extra.plan_moat >= 0 || extra.plan_axis >= 0 ||
                           extra.plan_axis_x != int.MinValue || extra.plan_blocks != 0 || extra.plan_seed_offset != 0L);
 
-#if EC_PENDING
-    private static bool Alive(City city) => city?.Record != null && !city.IsGone() && city.zones != null && city.zones.Count > 0;
+    private static bool Alive(City city) => city?.Record != null && !city.IsGone() && city.Zones != null && city.Zones.Count > 0;
 
     public static bool Editable(City city, out string reason)
     {
@@ -151,7 +150,6 @@ public static class CityPlanEditing
         reason = null;
         return true;
     }
-#endif
 
     public static bool IsManual(City city) => city?.Record != null && HasOverrides(city.GetOrCreate());
 
@@ -189,14 +187,12 @@ public static class CityPlanEditing
 #endif
 
     // 这块地能不能并入/划出：本城的地、不是城心
-#if EC_PENDING
-    public static bool ZoneEditable(City city, TileZone zone) =>
-        Alive(city) && PureMapMode.Enabled && zone != null && zone.city == city && zone != city.getTile()?.zone;
-#endif
+    public static bool ZoneEditable(City city, Cell zone) =>
+        Alive(city) && PureMapMode.Enabled && zone != null && zone.City == city && zone != city.SeatCell()?.Zone;
 
     // 这块地眼下画成城区
 #if EC_PENDING
-    public static bool InTown(City city, TileZone zone) => Alive(city) && PureMapMode.Enabled && PureMapPatch.ZoneInTown(city, zone);
+    public static bool InTown(City city, Cell zone) => Alive(city) && PureMapMode.Enabled && PureMapPatch.ZoneInTown(city, zone);
 #endif
 
     // 平面图的指纹(见 PureMapPatch.Stamp)：城市自己长大、改建，平面图按轮重算变了样也会变，界面可据此重画预览(没有为 0)
@@ -234,7 +230,7 @@ public static class CityPlanEditing
         }
         catch (global::System.Exception exception)
         {
-            LogService.LogWarning($"[EmpireCraft][城池全图] 城墙没跟上({city.Record?.Name}): {exception.Message}");
+            LogService.LogWarning($"[EmpireCraft][城池全图] 城墙没跟上({city.Name}): {exception.Message}");
         }
         return outcome;
     }
@@ -265,11 +261,11 @@ public static class CityPlanEditing
     // 并入、划出城区(手动城区：并入当场盖满民居、村镇并进城里，划出当场拆掉地上的建筑，见 CityZoningSystem)。
     // 头一回改(还是自动的城)先按眼下画成城区的地块进入手动城区，并入、划出之后整城对一次账
 #if EC_PENDING
-    public static string ToggleZone(City city, TileZone zone)
+    public static string ToggleZone(City city, Cell zone)
     {
         if (!Editable(city, out string reason)) return reason;
-        if (zone == null || zone.city != city) return NotOwn();
-        if (zone == city.getTile()?.zone) return LM.Get("city_plan_zone_center");
+        if (zone == null || zone.City != city) return NotOwn();
+        if (zone == city.SeatCell()?.Zone) return LM.Get("city_plan_zone_center");
         CityExtension.CityExtraData extra = city.GetOrCreate();
         bool entered;
         if (PureMapPatch.ZoneInTown(city, zone))
@@ -277,7 +273,7 @@ public static class CityPlanEditing
             if (PureMapPatch.LandmarkZone(city, zone)) return LM.Get("city_plan_zone_palace");
             // 手动挪过的中轴交点在这块地上：先挪中轴
             if (extra.plan_axis_x != int.MinValue && Facts(city) is PureMapPatch.PlanFacts facts && facts.GateX == extra.plan_axis_x &&
-                facts.GateY == extra.plan_axis_y && EmpireWorld.Current.GetTile(facts.GateX, facts.GateY)?.zone == zone)
+                facts.GateY == extra.plan_axis_y && EmpireWorld.Current.CellAt(facts.GateX, facts.GateY)?.Zone == zone)
                 return LM.Get("city_plan_zone_axis");
             Push(city, extra);
             entered = EnterManual(city);
@@ -302,7 +298,7 @@ public static class CityPlanEditing
 
     // 宫城挪到这块地(并入城区；不是都城也照画)；zone 为 null：宫城交还规矩
 #if EC_PENDING
-    public static string MovePalace(City city, TileZone zone)
+    public static string MovePalace(City city, Cell zone)
     {
         if (!Editable(city, out string reason)) return reason;
         CityExtension.CityExtraData extra = city.GetOrCreate();
@@ -315,15 +311,15 @@ public static class CityPlanEditing
             Changed(city, back);
             return WithManualNote(LM.Get("city_plan_palace_auto"), back);
         }
-        if (zone.city != city) return NotOwn();
+        if (zone.City != city) return NotOwn();
         PureMapPatch.PlanFacts facts = Facts(city);
         if (facts == null) return LM.Get("city_plan_city_gone");
         if (facts.Tribal) return LM.Get("city_plan_tribal");
-        if (facts.PalaceZone == zone.id) return LM.Get("city_plan_palace_same");
+        if (facts.PalaceZone == zone.Index) return LM.Get("city_plan_palace_same");
         Push(city, extra);
         bool entered = EnterManual(city);
-        extra.plan_palace_zone = zone.id;
-        extra.plan_zones_out?.Remove(zone.id);
+        extra.plan_palace_zone = zone.Index;
+        extra.plan_zones_out?.Remove(zone.Index);
         // 宫城那块地并入城区(村镇并进城里、盖满民居)
         if (!CityZoningSystem.InUrban(city, zone)) CityZoningSystem.ZoneIn(city, zone);
         Changed(city, entered);
@@ -402,8 +398,8 @@ public static class CityPlanEditing
         if (facts == null) return LM.Get("city_plan_city_gone");
         if (facts.Tribal) return LM.Get("city_plan_tribal");
         if (facts.Camp) return LM.Get("city_plan_axis_camp");
-        WorldTile tile = EmpireWorld.Current.GetTile(tileX, tileY);
-        if (tile?.zone == null || tile.zone.city != city) return NotOwn();
+        Cell tile = EmpireWorld.Current.CellAt(tileX, tileY);
+        if (tile?.Zone == null || tile.Zone.City != city) return NotOwn();
         if (!PureMapPatch.TileInTown(city, tile)) return LM.Get("city_plan_axis_outside");
         CityExtension.CityExtraData extra = city.GetOrCreate();
         if (extra.plan_axis == 1 && extra.plan_axis_x == tileX && extra.plan_axis_y == tileY) return null;
@@ -478,7 +474,7 @@ public static class CityPlanEditing
         }
         catch (global::System.Exception exception)
         {
-            LogService.LogWarning($"[EmpireCraft][城池全图] 交还规矩后重算民居上限失败({city.Record?.Name}): {exception.Message}");
+            LogService.LogWarning($"[EmpireCraft][城池全图] 交还规矩后重算民居上限失败({city.Name}): {exception.Message}");
         }
     }
 #endif
@@ -501,9 +497,9 @@ public static class CityPlanEditing
 
     // 能不能在这块地盖这种功能建筑(界面高亮用)：本城画成城区的地、本城建造单里有这一类(科技许可)；码头要这块地临水
 #if EC_PENDING
-    public static bool BuildingAllowed(City city, TileZone zone, string kind)
+    public static bool BuildingAllowed(City city, Cell zone, string kind)
     {
-        if (!Alive(city) || !PureMapMode.Enabled || zone == null || zone.city != city) return false;
+        if (!Alive(city) || !PureMapMode.Enabled || zone == null || zone.City != city) return false;
         string type = CityZoningSystem.TypeOf(kind);
         if (type == null || CityZoningSystem.BestAsset(city, type) == null) return false;
         if (kind == "docks" && !CityZoningSystem.HasWater(zone)) return false;
@@ -515,10 +511,10 @@ public static class CityPlanEditing
     // 本城种族建造单里这一类、科技许可的最高一级，不花钱、不看钱和科技以外的限制(用户 2026-10-20 "手动放置建筑时候不要有任何限制")；
     // 这块地建筑位满了先拆一座民居腾位；还是自动的城先进入手动城区(不记撤销：建筑撤销不了)
 #if EC_PENDING
-    public static string PlaceBuilding(City city, TileZone zone, string kind)
+    public static string PlaceBuilding(City city, Cell zone, string kind)
     {
         if (!Editable(city, out string reason)) return reason;
-        if (zone == null || zone.city != city) return NotOwn();
+        if (zone == null || zone.City != city) return NotOwn();
         string type = CityZoningSystem.TypeOf(kind), name = KindName(kind);
         BuildingAsset asset = type == null ? null : CityZoningSystem.BestAsset(city, type);
         if (asset == null) return string.Format(LM.Get("city_plan_build_no_asset"), name);
@@ -542,10 +538,10 @@ public static class CityPlanEditing
 
     // 拆这块地上的功能建筑(民居、城心的公所篝火不拆)，空出的位当场补民居
 #if EC_PENDING
-    public static string Demolish(City city, TileZone zone)
+    public static string Demolish(City city, Cell zone)
     {
         if (!Editable(city, out string reason)) return reason;
-        if (zone == null || zone.city != city) return NotOwn();
+        if (zone == null || zone.City != city) return NotOwn();
         bool any = false;
         foreach (BuildingAsset asset in CityZoningSystem.AssetsIn(city, zone))
             if (!CityZoningSystem.IsHouse(asset) && asset.type != "type_hall" && asset.type != "type_bonfire")
@@ -593,11 +589,11 @@ public static class CityPlanEditing
 
     // 这块地是什么(悬停提示用)：城区(手动城区带建筑位用了几个)：民居3、市集1 / 宫城 / 城郊：某村 / 别城的地 / 无主之地
 #if EC_PENDING
-    public static string ZoneInfo(City city, TileZone zone)
+    public static string ZoneInfo(City city, Cell zone)
     {
         if (!Alive(city) || zone == null) return null;
-        if (zone.city == null) return LM.Get("city_plan_info_wild");
-        if (zone.city != city) return string.Format(LM.Get("city_plan_info_other_city"), zone.city.GetCityName());
+        if (zone.City == null) return LM.Get("city_plan_info_wild");
+        if (zone.City != city) return string.Format(LM.Get("city_plan_info_other_city"), zone.City.GetCityName());
         List<BuildingAsset> here = CityZoningSystem.AssetsIn(city, zone);
         string contents = here.Count > 0 ? Contents(here) : null;
         if (PureMapMode.Enabled && PureMapPatch.ZoneInTown(city, zone))
@@ -654,13 +650,13 @@ public static class CityPlanEditing
         if (!Editable(city, out _)) return null;
         int size = Config.CITY_ZONE_SIZE;
         int minX = int.MaxValue, minY = int.MaxValue, maxX = int.MinValue, maxY = int.MinValue;
-        foreach (TileZone zone in city.zones)
+        foreach (Cell zone in city.Zones)
         {
             if (zone == null) continue;
-            minX = Mathf.Min(minX, zone.x * size);
-            minY = Mathf.Min(minY, zone.y * size);
-            maxX = Mathf.Max(maxX, zone.x * size + size - 1);
-            maxY = Mathf.Max(maxY, zone.y * size + size - 1);
+            minX = Mathf.Min(minX, zone.X * size);
+            minY = Mathf.Min(minY, zone.Y * size);
+            maxX = Mathf.Max(maxX, zone.X * size + size - 1);
+            maxY = Mathf.Max(maxY, zone.Y * size + size - 1);
         }
         if (minX == int.MaxValue) return null;
         minX -= PreviewMargin;
@@ -668,8 +664,8 @@ public static class CityPlanEditing
         maxX += PreviewMargin;
         maxY += PreviewMargin;
         // 太大：以城心为中截一块
-        WorldTile center = city.getTile();
-        int cx = center?.x ?? (minX + maxX) / 2, cy = center?.y ?? (minY + maxY) / 2;
+        Cell center = city.SeatCell();
+        int cx = center?.X ?? (minX + maxX) / 2, cy = center?.Y ?? (minY + maxY) / 2;
         bool cropped = false;
         if (maxX - minX + 1 > MaxPreviewTiles)
         {
@@ -685,8 +681,8 @@ public static class CityPlanEditing
         }
         minX = Mathf.Max(0, minX);
         minY = Mathf.Max(0, minY);
-        maxX = Mathf.Min(EmpireWorld.width - 1, maxX);
-        maxY = Mathf.Min(EmpireWorld.height - 1, maxY);
+        maxX = Mathf.Min(EmpireWorld.Current.Width - 1, maxX);
+        maxY = Mathf.Min(EmpireWorld.Current.Height - 1, maxY);
         if (maxX < minX || maxY < minY) return null;
         int w = maxX - minX + 1, h = maxY - minY + 1, pw = w * scale, ph = h * scale;
         var pixels = new Color32[pw * ph];
@@ -696,11 +692,11 @@ public static class CityPlanEditing
         for (int ty = 0; ty < h; ty++)
         for (int tx = 0; tx < w; tx++)
         {
-            WorldTile tile = EmpireWorld.Current.GetTile(minX + tx, minY + ty);
+            Cell tile = EmpireWorld.Current.CellAt(minX + tx, minY + ty);
             Color32 color = PureMapPatch.TerrainColor(tile);
-            bool mine = tile?.zone != null && tile.zone.city == city;
+            bool mine = tile?.Zone != null && tile.Zone.City == city;
             own[ty * w + tx] = mine;
-            if (mine && tile.Type != null && !tile.Type.liquid)
+            if (mine && tile.Type != null && !tile.Type.Liquid)
             {
                 sumR += color.r;
                 sumG += color.g;
@@ -750,7 +746,7 @@ public static class CityPlanEditing
         }
         catch (global::System.Exception exception)
         {
-            LogService.LogWarning($"[EmpireCraft][城池全图] 预览里的路、城墙没画上({city.Record?.Name}): {exception.Message}");
+            LogService.LogWarning($"[EmpireCraft][城池全图] 预览里的路、城墙没画上({city.Name}): {exception.Message}");
         }
         // ③ 本城领地以外稍压暗；领地外沿(四邻不归本城的那一边)画红色虚线
         for (int ty = 0; ty < h; ty++)

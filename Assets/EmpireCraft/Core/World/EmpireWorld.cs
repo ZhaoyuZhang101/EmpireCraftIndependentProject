@@ -54,6 +54,17 @@ namespace EmpireCraft.Core
         public Person PersonByKey(long key){var x=key>=0&&key<People.Count?People[(int)key]:null;return x!=null&&x.Alive?x:null;}
         public Clan ClanByKey(long key)=>key>=0&&key<Clans.Count?Clans[(int)key]:null;
         public double Now()=>Month;   // GameClock timestamp of this world
+
+        // The grid as the ported systems see it (see Land.cs). Cells are made on first use.
+        public int Width=>Map.Width;
+        public int Height=>Map.Height;
+        public int TerritoryRevision;   // counts every change of who holds which tile or city; caches key on it
+        Cell[] _cells;ZoneGrid _grid;int[] _landmass;
+        public Cell CellAt(int index){if(index<0||index>=TileCity.Length)return null;var cells=_cells??(_cells=new Cell[TileCity.Length]);return cells[index]??(cells[index]=new Cell(this,index));}
+        public Cell CellAt(int x,int y){int index=Map.Index(x,y);return index<0?null:CellAt(index);}
+        public ZoneGrid Zones=>_grid??(_grid=new ZoneGrid(this));
+        // Which stretch of connected land a tile is on; -1 for sea. Worked out once per world.
+        public int LandmassOf(int tile){if(_landmass==null)_landmass=EmpireBootstrap.Landmasses(this);return tile<0||tile>=_landmass.Length?-1:_landmass[tile];}
         public War WarByKey(long key){var x=key>=0&&key<Wars.Count?Wars[(int)key]:null;return x!=null&&x.Alive?x:null;}
         public bool HasWars()=>LiveWars.Count>0;
         public War StartWar(Realm attacker,Realm defender,WarKind kind=null,bool log=true)=>WorldOps.StartWar(this,attacker,defender,kind);

@@ -1067,7 +1067,7 @@ public static partial class InstitutionSystem
         InstitutionReformState reform = state.active_reform;
         if (reform.resistance_war_id > 0)
         {
-            War resistanceWar = EmpireWorld.Current?.wars?.get(reform.resistance_war_id);
+            War resistanceWar = EmpireWorld.Current?.WarByKey(reform.resistance_war_id);
             if (resistanceWar != null && !resistanceWar.HasEnded()) return;
             reform.resistance_war_id = -1L;
         }
@@ -1209,9 +1209,9 @@ public static partial class InstitutionSystem
         foreach (Realm member in members.Where(kingdom => kingdom != null && !kingdom.IsGone()))
         {
             foreach (City city in (member.Cities ?? Enumerable.Empty<City>()).Where(city =>
-                         city != null && !city.IsGone() && (city.neighbours_kingdoms != null || archipelago)))
+                         city != null && !city.IsGone() && (city.NeighbourRealms != null || archipelago)))
             {
-                IEnumerable<Realm> bordering = city.neighbours_kingdoms ?? Enumerable.Empty<Realm>();
+                IEnumerable<Realm> bordering = city.NeighbourRealms ?? Enumerable.Empty<Realm>();
                 if (archipelago)
                     bordering = bordering.Concat(TechnologySystem.CitiesAcrossStrait(city)
                         .Where(across => !across.IsGone()).Select(across => across.Realm));
@@ -1598,8 +1598,8 @@ public static partial class InstitutionSystem
         }
         // 本文化的王国：推着的改革已点亮或被取代就结束，补上持久效果(政体由 TryAdvanceRegimeTransition 逐国跟进)
         SyncCultureKingdoms(culture, nodeId => IsEnacted(culture, nodeId) || IsSuperseded(culture, nodeId));
-        messageKingdom ??= EmpireWorld.Current?.kingdoms?.FirstOrDefault(kingdom => kingdom != null && !kingdom.IsGone() &&
-            kingdom.isCiv() && string.Equals(CultureService.GetRealmCulture(kingdom), culture, StringComparison.Ordinal));
+        messageKingdom ??= EmpireWorld.Current?.LiveRealms?.FirstOrDefault(kingdom => kingdom != null && !kingdom.IsGone() &&
+            kingdom.IsCivilized() && string.Equals(CultureService.GetRealmCulture(kingdom), culture, StringComparison.Ordinal));
         EmpireCraft.Core.TranslateHelper.LogEventMessage(content, messageKingdom);
     }
 #endif
@@ -1764,7 +1764,7 @@ public static partial class InstitutionSystem
     {
         if (realm == null) return false;
         if (realm.IsEmpire) return PartyBanSystem.PassesModernizationGate(realm.Empire);
-        List<City> cities = realm.Core?.cities?.Where(city => city != null && !city.IsGone()).ToList();
+        List<City> cities = realm.Core?.Cities?.Where(city => city != null && !city.IsGone()).ToList();
         return cities != null && cities.Count > 0 &&
                cities.Average(IdeologyPopulationSystem.CityProsperity) >= PartyBanSystem.ModernizationProsperityFloor;
     }
@@ -2121,7 +2121,7 @@ public static partial class InstitutionSystem
 
         if (state.social_rebellion_war_id > 0)
         {
-            War activeWar = EmpireWorld.Current?.wars?.get(state.social_rebellion_war_id);
+            War activeWar = EmpireWorld.Current?.WarByKey(state.social_rebellion_war_id);
             if (activeWar != null && !activeWar.HasEnded()) { state.social_quiet_reason = "at_war"; return; }
             state.social_rebellion_war_id = -1L;
         }
@@ -2229,7 +2229,7 @@ public static partial class InstitutionSystem
                                 actor.City.Realm != null && actor.City != actor.City.Realm.Capital &&
                                 RebellionSystem.CanAttempt(actor.City.Realm) && CityStabilitySystem.CanRise(actor.City) &&
                                 actor.GetOrCreate().socialClass == socialClass)
-                .OrderByDescending(actor => actor.Record?.Renown ?? 0).FirstOrDefault();
+                .OrderByDescending(actor => actor.Renown ?? 0).FirstOrDefault();
             // 无小人模式里该阶层多半没有实体人物：从虚拟人口里推举
             leader ??= SocialCrisisSystem.SpawnClassLeader(sourceKingdoms, socialClass);
             splitSeat = leader?.City;
@@ -2243,7 +2243,7 @@ public static partial class InstitutionSystem
         if (splitSeat != null) rebel = splitSeat.makeOwnKingdom(splitLeader, pRebellion: true);
         if (rebel == null) return false;
 
-        string originalName = rebel.Record?.Name;
+        string originalName = rebel.Name;
         if (!rebel.StartLocalRebelling(EmpireWarType.地方叛乱))
         {
             if (splitSeat != null) RebellionStartupService.RollbackCitySplit(splitSeat, splitOrigin, rebel);
@@ -2384,7 +2384,7 @@ public static partial class InstitutionSystem
             string.IsNullOrWhiteSpace(warData.institution_social_rebellion_cause)
                 ? LM.Get("institution_social_cause_general")
                 : warData.institution_social_rebellion_cause);
-        empire.RecordHistory(directContent: history, actorId: war.GetMainAttacker()?.king?.id ?? -1L,
+        empire.RecordHistory(directContent: history, actorId: war.GetMainAttacker()?.Ruler?.Key ?? -1L,
             kingdomId: war.GetMainAttacker()?.Key ?? -1L);
         EmpireCraft.Core.TranslateHelper.LogEventMessage(history, empire.CoreKingdom);
     }
@@ -2819,9 +2819,9 @@ public static partial class InstitutionSystem
             string ownerCulture = CultureService.GetRealmCulture(owner);
             string cityCulture = CultureService.GetMainCulture(city);
             LinkBoth(ownerCulture, cityCulture, rule.occupied_city_weight);
-            if (city.neighbours_kingdoms != null)
+            if (city.NeighbourRealms != null)
             {
-                foreach (Realm neighbour in city.neighbours_kingdoms)
+                foreach (Realm neighbour in city.NeighbourRealms)
                 {
                     if (neighbour == null || neighbour.IsGone() || neighbour == owner) continue;
                     string neighbourCulture = CultureService.GetRealmCulture(neighbour);

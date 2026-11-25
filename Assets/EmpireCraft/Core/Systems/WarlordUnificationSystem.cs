@@ -1,6 +1,7 @@
 // Generated from the EmpireCraft mod: Scripts/GeneralSystems/WarlordUnificationSystem.cs. Do not edit by hand: Tools/PortTool/members.py rewrites it;
 // see Port/manifest.json and Tools/PortTool.
 using Mathf = EmpireCraft.Core.EcMath;
+using Random = EmpireCraft.Core.EcRandom;
 using System.Collections.Generic;
 using System.Linq;
 
@@ -337,8 +338,8 @@ public static partial class WarlordEraSystem
             int zones = 0, lost = 0;
             foreach (City city in rival.Cities)
             {
-                if (city?.zones == null) continue;
-                foreach (TileZone zone in city.zones)
+                if (city?.Zones == null) continue;
+                foreach (Cell zone in city.Zones)
                 {
                     if (zone == null) continue;
                     zones++;
@@ -347,7 +348,7 @@ public static partial class WarlordEraSystem
                 }
             }
             float share = zones == 0 ? 0f : lost / (float)zones;
-            TileZone seat = rival.Capital?.getTile()?.zone;
+            Cell seat = rival.Capital?.SeatCell()?.Zone;
             Realm seatHolder = seat == null ? null : rival.Capital.GetTileZoneOccupier(seat);
             bool capitalFallen = rival.Capital == null || seatHolder != null && (seatHolder == founderKingdom || seatHolder.GetEmpire() == founder);
             float chance = 0.04f + 0.6f * share + (capitalFallen ? 0.3f : 0f);
@@ -377,12 +378,10 @@ public static partial class WarlordEraSystem
 #endif
 
     // 与这个帝国接壤：本国有城市与帝国的城市相邻
-#if EC_PENDING
     private static bool Borders(Realm kingdom, Empire empire) =>
         kingdom?.Cities != null && kingdom.Cities.Any(city =>
-            city?.neighbours_cities != null && city.neighbours_cities.Any(neighbour =>
-                neighbour?.kingdom != null && neighbour.kingdom.GetEmpire() == empire));
-#endif
+            city?.NeighbourCities != null && city.NeighbourCities.Any(neighbour =>
+                neighbour?.Realm != null && neighbour.Realm.GetEmpire() == empire));
 
     // 6. 兵败如山倒
 #if EC_PENDING
@@ -451,10 +450,8 @@ public static partial class WarlordEraSystem
         (kingdom == government.CoreKingdom || kingdom.GetEmpire() == government ||
          FeudalVassalService.GetOverlord(kingdom) == government.CoreKingdom);
 
-#if EC_PENDING
     private static Realm AdjacentRealmKingdom(City city, Empire government) =>
-        city.neighbours_cities?.FirstOrDefault(neighbour => neighbour != null && !neighbour.IsGone() &&
-                                                             InRealm(neighbour.kingdom, government))?.kingdom;
-#endif
+        city.NeighbourCities?.FirstOrDefault(neighbour => neighbour != null && !neighbour.IsGone() &&
+                                                             InRealm(neighbour.Realm, government))?.Realm;
 }
 }

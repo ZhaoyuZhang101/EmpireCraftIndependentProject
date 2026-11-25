@@ -83,7 +83,7 @@ public static class RealisticAgeSystem
     private static string CultureOf(PersonalClanIdentity person)
     {
         if (TechnologySystem.IsActiveFor(person.culture)) return person.culture;
-        return person.virtual_city_id < 0 ? "" : TechnologySystem.GetCultureOf(EmpireWorld.Current?.cities?.get(person.virtual_city_id));
+        return person.virtual_city_id < 0 ? "" : TechnologySystem.GetCultureOf(EmpireWorld.Current?.CityByKey(person.virtual_city_id));
     }
 #endif
 

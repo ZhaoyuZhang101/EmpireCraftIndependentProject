@@ -62,7 +62,7 @@ public static class CityLedgerSupply
         }
         catch (Exception exception)
         {
-            LogService.LogWarning($"[EmpireCraft][建筑台账] 城间转运失败({city?.data?.name}): {exception.Message}");
+            LogService.LogWarning($"[EmpireCraft][建筑台账] 城间转运失败({city?.Name}): {exception.Message}");
             return BehResult.Stop;
         }
     }

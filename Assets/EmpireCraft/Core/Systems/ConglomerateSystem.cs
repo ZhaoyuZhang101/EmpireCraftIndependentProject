@@ -221,7 +221,6 @@ public static class ConglomerateSystem
         (State(empire).antitrust_at < 0d || GameClock.YearsSince(State(empire).antitrust_at) >= AntitrustCooldownYears);
 
     // 反托拉斯：拆掉最大的一家，返回它的字号(没有可拆的返回 null)
-#if EC_PENDING
     public static string Break(Empire empire)
     {
         ConstitutionalEconomyState state = State(empire);
@@ -236,7 +235,6 @@ public static class ConglomerateSystem
         ClaimPolicySystem.AddGrievance(empire, SocialClass.Merchant, -3f);
         return house.name;
     }
-#endif
 
     // 国有化：各家财阀收归国有
 #if EC_PENDING

@@ -1,6 +1,7 @@
 // Generated from the EmpireCraft mod: Scripts/GeneralSystems/HolyRomanSystem.Reform.cs. Do not edit by hand: Tools/PortTool/members.py rewrites it;
 // see Port/manifest.json and Tools/PortTool.
 using Mathf = EmpireCraft.Core.EcMath;
+using Vector2 = EmpireCraft.Core.EcVector2;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -87,7 +88,6 @@ public static partial class HolyRomanSystem
 #endif
 
     // 按都城位置分区(简单 k 均值，种子按国号顺序取，结果稳定)
-#if EC_PENDING
     private static void AssignCircles(HolyRomanState state, List<Realm> members)
     {
         state.circles.Clear();
@@ -96,13 +96,13 @@ public static partial class HolyRomanSystem
         int k = Mathf.Clamp(Mathf.RoundToInt(members.Count / (float)MembersPerCircle), 1, MaxCircles);
         List<Realm> ordered = members.OrderBy(member => member.Key).ToList();
         var centers = new List<Vector2>();
-        for (int i = 0; i < k; i++) centers.Add(ordered[i * ordered.Count / k].Capital.city_center);
+        for (int i = 0; i < k; i++) centers.Add(ordered[i * ordered.Count / k].Capital.Center);
         var assignment = new Dictionary<Realm, int>();
         for (int round = 0; round < 6; round++)
         {
             foreach (Realm member in ordered)
             {
-                Vector2 at = member.Capital.city_center;
+                Vector2 at = member.Capital.Center;
                 int best = 0;
                 for (int i = 1; i < k; i++)
                     if ((centers[i] - at).sqrMagnitude < (centers[best] - at).sqrMagnitude) best = i;
@@ -110,13 +110,12 @@ public static partial class HolyRomanSystem
             }
             for (int i = 0; i < k; i++)
             {
-                List<Vector2> points = assignment.Where(pair => pair.Value == i).Select(pair => pair.Key.Capital.city_center).ToList();
+                List<Vector2> points = assignment.Where(pair => pair.Value == i).Select(pair => pair.Key.Capital.Center).ToList();
                 if (points.Count > 0) centers[i] = new Vector2(points.Average(p => p.x), points.Average(p => p.y));
             }
         }
         foreach (var pair in assignment) state.circles[pair.Key.Key] = pair.Value;
     }
-#endif
 
     // 分割继承(GraceEdictService.TryHandleVacancy 调用，每次出缺只掷一次)；掷中后还要有两个以上的儿子、都城外有城才分
 #if EC_PENDING

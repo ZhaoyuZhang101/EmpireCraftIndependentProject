@@ -68,7 +68,7 @@ public static class EthnicRankSystem
     public static float[] Shares(City city, out Scheme scheme)
     {
         var shares = new float[Count];
-        Empire empire = city?.kingdom?.GetEmpire();
+        Empire empire = city?.Realm?.GetEmpire();
         scheme = SchemeOf(empire);
         if (scheme == Scheme.None || city?.Record == null || city.IsGone()) return shares;
         CityPopulationData data = CityPopulationSystem.Get(city);

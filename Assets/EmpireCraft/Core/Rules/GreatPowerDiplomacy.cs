@@ -1,5 +1,6 @@
 // Generated from the EmpireCraft mod: Scripts/GeneralSystems/GreatPowerDiplomacy.cs. Do not edit by hand: Tools/PortTool/members.py rewrites it;
 // see Port/manifest.json and Tools/PortTool.
+using Vector2 = EmpireCraft.Core.EcVector2;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -62,7 +63,7 @@ public static class GreatPowerDiplomacy
                 : isolation >= config.rivalry_mid_isolation ? config.rivalry_mid
                 : config.rivalry_near;
         }
-        float distance = Vector2.Distance(a.Capital.city_center, b.Capital.city_center);
+        float distance = Vector2.Distance(a.Capital.Center, b.Capital.Center);
         return distance > 300f ? -5 : distance > 150f ? -20 : -50;
     }
 #endif

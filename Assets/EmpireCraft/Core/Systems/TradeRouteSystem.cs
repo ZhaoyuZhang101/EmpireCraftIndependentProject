@@ -1,6 +1,7 @@
 // Generated from the EmpireCraft mod: Scripts/GeneralSystems/TradeRouteSystem.cs. Do not edit by hand: Tools/PortTool/members.py rewrites it;
 // see Port/manifest.json and Tools/PortTool.
 using Mathf = EmpireCraft.Core.EcMath;
+using Vector2 = EmpireCraft.Core.EcVector2;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -53,7 +54,7 @@ public static class TradeRouteSystem
 #if EC_PENDING
     public static string Describe(City city)
     {
-        City partner = EmpireWorld.Current?.cities?.get(PartnerOf(city));
+        City partner = EmpireWorld.Current?.CityByKey(PartnerOf(city));
         if (partner?.Record == null || partner.IsGone() || city?.Realm == null || partner.Realm == null) return null;
         if (city.Realm.IsAtWarWith(partner.Realm))
             return string.Format(LM.Get("trade_route_embargo"), partner.GetCityName());
@@ -119,7 +120,7 @@ public static class TradeRouteSystem
                 float range = ConnectivityRules.RouteRange(band, config);
                 bestDistance = range > 0f ? range * range : float.MaxValue;
             }
-            Vector2 from = city.city_center;
+            Vector2 from = city.Center;
             object sea = seas[city];
             // 被迫开港的先与胜者的港口配对
             Realm partner = TreatyPartner(city.Realm);
@@ -130,7 +131,7 @@ public static class TradeRouteSystem
                 if (other == city || other.Realm == city.Realm) continue;
                 if (partnerReachable && other.Realm != partner) continue;
                 if (sea != null && seas[other] != null && seas[other] != sea) continue;
-                Vector2 to = other.city_center;
+                Vector2 to = other.Center;
                 float distance = (to - from).sqrMagnitude;
                 if (distance >= bestDistance) continue;
                 bestDistance = distance;
@@ -151,11 +152,11 @@ public static class TradeRouteSystem
     private static object SeaOf(City city)
     {
         Building docks = city.getBuildingOfType("type_docks", pCountOnlyFinished: true, pRandom: false);
-        WorldTile tile = docks?.current_tile;
+        Cell tile = docks?.current_tile;
         if (tile == null) return null;
-        if (tile.Type?.ocean == true && tile.region?.island != null) return tile.region.island;
-        foreach (WorldTile next in tile.neighboursAll ?? Array.Empty<WorldTile>())
-            if (next?.Type?.ocean == true && next.region?.island != null) return next.region.island;
+        if (tile.Type?.Ocean == true && tile.region?.island != null) return tile.region.island;
+        foreach (Cell next in tile.NeighboursAll ?? Array.Empty<Cell>())
+            if (next?.Type?.Ocean == true && next.region?.island != null) return next.region.island;
         return null;
     }
 #endif
@@ -165,7 +166,7 @@ public static class TradeRouteSystem
     // 有能通商的港口(海上商路只在无小人模式开着，见 TryMonthlyScan)
 #if EC_PENDING
     public static bool HasPort(Realm kingdom) =>
-        CityPopulationSystem.AbstractPopulationEnabled && kingdom?.cities?.Any(Tradeable) == true;
+        CityPopulationSystem.AbstractPopulationEnabled && kingdom?.Cities?.Any(Tradeable) == true;
 #endif
 
     // 和约逼开港：二十年里与胜者通商(锁国也开)

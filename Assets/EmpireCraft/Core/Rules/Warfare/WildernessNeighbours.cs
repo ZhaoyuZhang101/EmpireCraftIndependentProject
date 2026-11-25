@@ -21,15 +21,12 @@ public static class WildernessNeighbours
     private static readonly Dictionary<long, List<City>> Links = new();
     private static readonly HashSet<(long, long)> Seen = new();
     private static readonly List<City> None = new();
-#if EC_PENDING
-    private static readonly List<TileZone> Wild = new();
-#endif
+    private static readonly List<Cell> Wild = new();
     private static City[] _origin = new City[0];
     private static object _world;
     private static int _version = int.MinValue;
     private static float _builtAt = float.NegativeInfinity;
 
-#if EC_PENDING
     public static void ResetWorldState()
     {
         Links.Clear();
@@ -41,6 +38,7 @@ public static class WildernessNeighbours
         _builtAt = float.NegativeInfinity;
     }
 
+#if EC_PENDING
     public static IReadOnlyList<City> Of(City city)
     {
         if (city?.Record == null) return None;
@@ -51,7 +49,7 @@ public static class WildernessNeighbours
     private static void Ensure()
     {
         EmpireWorld world = EmpireWorld.Current;
-        if (world?.zone_calculator?.zones == null) return;
+        if (world?.Zones?.All == null) return;
         float age = Time.unscaledTime - _builtAt;
         bool fresh = ReferenceEquals(_world, world) && age >= 0f &&
                      age < (_version == WildernessSystem.Version ? RefreshSeconds : ChangedSeconds);
@@ -59,35 +57,35 @@ public static class WildernessNeighbours
         _world = world;
         _version = WildernessSystem.Version;
         _builtAt = Time.unscaledTime;
-        Rebuild(world.zone_calculator.zones);
+        Rebuild(world.Zones.All);
     }
 
-    private static void Rebuild(List<TileZone> zones)
+    private static void Rebuild(List<Cell> zones)
     {
         Links.Clear();
         Seen.Clear();
         Wild.Clear();
         int size = zones.Count;
-        foreach (TileZone zone in zones)
-            if (zone != null && zone.id >= size) size = zone.id + 1;
+        foreach (Cell zone in zones)
+            if (zone != null && zone.Index >= size) size = zone.Index + 1;
         if (_origin.Length != size) _origin = new City[size];
         else global::System.Array.Clear(_origin, 0, size);
-        foreach (TileZone zone in zones)
+        foreach (Cell zone in zones)
         {
-            if (zone == null || zone.id < 0 || zone.city != null || !WildernessSystem.IsWild(zone) || WildernessSystem.IsNeutral(zone))
+            if (zone == null || zone.Index < 0 || zone.City != null || !WildernessSystem.IsWild(zone) || WildernessSystem.IsNeutral(zone))
                 continue;
             City origin = WildernessSystem.OriginOf(zone);
             if (origin?.Record == null || origin.IsGone()) continue;
-            _origin[zone.id] = origin;
+            _origin[zone.Index] = origin;
             Wild.Add(zone);
         }
-        foreach (TileZone zone in Wild)
+        foreach (Cell zone in Wild)
         {
-            City own = _origin[zone.id];
-            foreach (TileZone next in zone.neighbours_all ?? global::System.Array.Empty<TileZone>())
+            City own = _origin[zone.Index];
+            foreach (Cell next in zone.NeighboursAll ?? global::System.Array.Empty<Cell>())
             {
-                if (next == null || next.id < 0 || next.id >= size) continue;
-                City other = next.city ?? _origin[next.id];
+                if (next == null || next.Index < 0 || next.Index >= size) continue;
+                City other = next.City ?? _origin[next.Index];
                 if (other?.Record == null || other == own || other.IsGone()) continue;
                 long a = own.Key, b = other.Key;
                 if (!Seen.Add(a < b ? (a, b) : (b, a))) continue;

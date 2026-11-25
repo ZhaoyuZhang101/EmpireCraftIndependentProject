@@ -1,6 +1,7 @@
 // Generated from the EmpireCraft mod: Scripts/GeneralSystems/IslamicSchismSystem.cs. Do not edit by hand: Tools/PortTool/members.py rewrites it;
 // see Port/manifest.json and Tools/PortTool.
 using Mathf = EmpireCraft.Core.EcMath;
+using Vector2 = EmpireCraft.Core.EcVector2;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -109,9 +110,7 @@ public static class IslamicSchismSystem
 
     private static bool Within(double at, int years) => at >= 0d && Now >= at && GameClock.YearsSince(at) < years;
 
-#if EC_PENDING
-    private static float Span => Mathf.Max(1f, Mathf.Max(EmpireWorld.width, EmpireWorld.height));
-#endif
+    private static float Span => Mathf.Max(1f, Mathf.Max(EmpireWorld.Current.Width, EmpireWorld.Current.Height));
 
     // 本教的伊斯兰分裂数据(没有就建)
 #if EC_PENDING
@@ -359,7 +358,7 @@ public static class IslamicSchismSystem
                   seeEmpire != null && seeEmpire.CoreKingdom == see && (SchismSystem.Active(seeEmpire) || seeEmpire.Legitimacy < DeclineLegitimacy) ||
                   twin != null && !empire.data.partition_amity && seeEmpire == twin;
         City holy = PapacySystem.HolyCity(religion);
-        bool far = holy != null && Vector2.Distance(capital.city_center, holy.city_center) >= Span * RivalFarShare;
+        bool far = holy != null && Vector2.Distance(capital.Center, holy.Center) >= Span * RivalFarShare;
         return hostile || far;
     }
 #endif
@@ -719,13 +718,13 @@ public static class IslamicSchismSystem
         Empire twin = EmpirePartitionSystem.Twin(empire);
         return twin == null || empire.data.partition_amity || seat.GetEmpire() != twin;
     }
+#endif
 
     private static float Distance(Realm from, Realm to)
     {
         City a = from?.Capital, b = to?.Capital;
-        return a == null || b == null ? 1f : Vector2.Distance(a.city_center, b.city_center) / Span;
+        return a == null || b == null ? 1f : Vector2.Distance(a.Center, b.Center) / Span;
     }
-#endif
 
     // 改奉：从原哈里发名下移到新的；先前的册封作废(自立者本国当场算受册封)；史书、世界日志、本教大事记各记一笔
 #if EC_PENDING
@@ -753,7 +752,7 @@ public static class IslamicSchismSystem
         // 圣地在本帝国：就地受封(见 PapacySystem.CaliphalYear)，不另记
         if (home) return;
         string text = string.Format(LM.Get("caliph_obedience_log"), empire.GetEmpireFullName(),
-            seat?.capital?.GetCityName() ?? to?.seat_name ?? LM.Get("papacy_see_lost"), seat?.king?.getName() ?? LM.Get("label_none"));
+            seat?.Capital?.GetCityName() ?? to?.seat_name ?? LM.Get("papacy_see_lost"), seat?.Ruler?.FullName() ?? LM.Get("label_none"));
         EventRecorder.Record(empire, text);
         ReligionChronicle.Record(religion, ReligionChronicle.KindPapacy, text);
     }
@@ -1183,7 +1182,7 @@ public static class IslamicSchismSystem
         if (rival == null) return LM.Get("caliph_obedience_orthodox");
         Realm seat = Seat(rival);
         if (seat != null && seat == empire.CoreKingdom) return LM.Get("caliph_obedience_self");
-        return string.Format(LM.Get("caliph_obedience_rival"), seat?.capital?.GetCityName() ?? rival.seat_name);
+        return string.Format(LM.Get("caliph_obedience_rival"), seat?.Capital?.GetCityName() ?? rival.seat_name);
     }
 #endif
 
@@ -1195,7 +1194,7 @@ public static class IslamicSchismSystem
         string realm = seat == null ? rival.realm_name
             : seat.GetEmpire() is Empire empire && empire.CoreKingdom == seat ? empire.GetEmpireFullName() : seat.GetKingdomName();
         return string.Format(LM.Get("rival_caliph_row"), realm, Caliph(rival)?.FullName() ?? LM.Get("label_none"),
-            HistoryDateFormatter.GetYear(rival.proclaimed_at), rival.adherents?.Count ?? 0, seat?.capital?.GetCityName() ?? rival.seat_name);
+            HistoryDateFormatter.GetYear(rival.proclaimed_at), rival.adherents?.Count ?? 0, seat?.Capital?.GetCityName() ?? rival.seat_name);
     }
 #endif
 

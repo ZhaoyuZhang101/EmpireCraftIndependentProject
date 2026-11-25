@@ -1,6 +1,7 @@
 // Generated from the EmpireCraft mod: Scripts/GeneralSystems/ClanBranchSystem.cs. Do not edit by hand: Tools/PortTool/members.py rewrites it;
 // see Port/manifest.json and Tools/PortTool.
 using Mathf = EmpireCraft.Core.EcMath;
+using Vector2 = EmpireCraft.Core.EcVector2;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -162,7 +163,7 @@ public static class ClanBranchSystem
             City city = group.Key;
             if (city == ancestral || city == chiefCity) continue;
             bool far = city.Realm != ancestral.Realm ||
-                       Vector2.Distance(city.city_center, ancestral.city_center) >= MigrationDistance;
+                       Vector2.Distance(city.Center, ancestral.Center) >= MigrationDistance;
             if (!far) continue;
             if (!clan.city_settle_since.TryGetValue(city.Key, out double since) ||
                 GameClock.YearsSince(since) < MigrationYears) continue;

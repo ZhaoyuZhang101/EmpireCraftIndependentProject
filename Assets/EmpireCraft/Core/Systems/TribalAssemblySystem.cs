@@ -165,13 +165,13 @@ public static class TribalAssemblySystem
         int cap = Math.Max(TributeCap, households / 2);
         return Math.Min(money, Math.Min(cap, Math.Max(money / 10, TributeFloor)));
     }
+#endif
 
     private static float Distance(Realm core, Realm tribe)
     {
-        WorldTile seat = core?.capital?.getTile(), there = tribe?.capital?.getTile();
-        return seat == null || there == null ? 0f : Mathf.Sqrt(Toolbox.SquaredDistTile(seat, there));
+        Cell seat = core?.Capital?.SeatCell(), there = tribe?.Capital?.SeatCell();
+        return seat == null || there == null ? 0f : Mathf.Sqrt(Land.SquaredDist(seat, there));
     }
-#endif
 
     // 换了共主：以前的来朝、不朝记录作废
     private static void Forget(KingdomExtension.KingdomExtraData data, long lord)
@@ -219,7 +219,7 @@ public static class TribalAssemblySystem
                 EmpireCraft.Core.AncientWarfareCompatibility.OwnsObject(tribe) ||
                 WarSituation.TooBusyForWar(core) || CorpsSystem.CannotFundWar(core) || !WarGate.CanDeclare(core, tribe) ||
                 !WarReach.Reachable(core, tribe)) continue;
-            War war = EmpireWorld.Current.diplomacy?.startWar(core, tribe, WarKinds.Normal);
+            War war = EmpireWorld.Current.StartWar(core, tribe, WarKinds.Normal);
             if (war?.Record == null) continue;
             busy.Add(overlord.Key);
             string lord = TribalFissionService.OverlordName(overlord);
@@ -255,7 +255,7 @@ public static class TribalAssemblySystem
         string content = string.Format(LM.Get("tribal_defiant_free_history"), winner.GetKingdomName(),
             TribalFissionService.OverlordName(overlord));
         EventRecorder.Record(overlord, content, logKingdom: winner);
-        EmpireWorld.Current?.zone_calculator?.dirtyAndClear();
+        EmpireWorld.Current?.Zones?.MarkDirty();
     }
 #endif
 

@@ -42,13 +42,11 @@ public static class ScorchedEarthSystem
         return owners == null || owners.Count == 0 ? null : owners;
     }
 
-#if EC_PENDING
-    public static bool IsOccupiedZone(City city, TileZone zone)
+    public static bool IsOccupiedZone(City city, Cell zone)
     {
         Dictionary<int, long> owners = OccupiedZones(city);
-        return owners != null && zone != null && owners.ContainsKey(zone.id);
+        return owners != null && zone != null && owners.ContainsKey(zone.Index);
     }
-#endif
 
     // ---- 城破(无小人模式) ----
     // 城市被攻占时：破城伤亡 SackDeathRate(会纵兵烧杀的再加 SackScorchDeathRate，记入屠城之恨)；
@@ -96,7 +94,7 @@ public static class ScorchedEarthSystem
                 foreach (City other in oldKingdom.Cities)
                 {
                     if (other == null || other == city || other.IsGone()) continue;
-                    float distance = (other.city_center - city.city_center).sqrMagnitude;
+                    float distance = (other.Center - city.Center).sqrMagnitude;
                     if (distance >= best) continue;
                     best = distance;
                     refuge = other;
@@ -109,7 +107,7 @@ public static class ScorchedEarthSystem
         }
         catch (Exception exception)
         {
-            LogService.LogWarning($"[EmpireCraft][城破] 结算失败({city.Record?.Name}): {exception.Message}");
+            LogService.LogWarning($"[EmpireCraft][城破] 结算失败({city.Name}): {exception.Message}");
         }
     }
 #endif
@@ -118,7 +116,7 @@ public static class ScorchedEarthSystem
 #if EC_PENDING
     public static void Settle(City city)
     {
-        if (!CityPopulationSystem.AbstractPopulationEnabled || city?.zones == null || city.zones.Count == 0) return;
+        if (!CityPopulationSystem.AbstractPopulationEnabled || city?.Zones == null || city.Zones.Count == 0) return;
         Dictionary<int, long> owners = OccupiedZones(city);
         if (owners == null) return;
         try
@@ -130,7 +128,7 @@ public static class ScorchedEarthSystem
                 Realm occupier = EmpireWorld.Current.RealmByKey(pair.Key);
                 if (occupier == null || occupier.IsGone() || !occupier.IsEnemy(city.Realm) || !WillScorch(occupier, city))
                     continue;
-                float share = Mathf.Clamp01(pair.Value / (float)city.zones.Count);
+                float share = Mathf.Clamp01(pair.Value / (float)city.Zones.Count);
                 int killed = Kill(city, KillRatePerMonth * share);
                 BurnCrops(city, owners, pair.Key);
                 Plunder(city, PlunderRate * share);
@@ -139,7 +137,7 @@ public static class ScorchedEarthSystem
         }
         catch (Exception exception)
         {
-            LogService.LogWarning($"[EmpireCraft][烧杀] 结算失败({city.Record?.Name}): {exception.Message}");
+            LogService.LogWarning($"[EmpireCraft][烧杀] 结算失败({city.Name}): {exception.Message}");
         }
     }
 #endif
@@ -157,10 +155,10 @@ public static class ScorchedEarthSystem
 #if EC_PENDING
     private static void BurnCrops(City city, Dictionary<int, long> owners, long occupierId)
     {
-        foreach (TileZone zone in city.zones)
+        foreach (Cell zone in city.Zones)
         {
-            if (zone?.tiles == null || !owners.TryGetValue(zone.id, out long id) || id != occupierId) continue;
-            foreach (WorldTile tile in zone.tiles)
+            if (zone?.Tiles == null || !owners.TryGetValue(zone.Index, out long id) || id != occupierId) continue;
+            foreach (Cell tile in zone.Tiles)
             {
                 Building crop = tile?.building;
                 if (crop?.asset != null && crop.asset.wheat) crop.startDestroyBuilding();

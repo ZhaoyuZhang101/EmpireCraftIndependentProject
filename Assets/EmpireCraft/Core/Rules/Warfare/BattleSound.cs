@@ -221,18 +221,18 @@ public static class BattleSound
             }
             foreach (FrontSystem.BattleView battle in FrontSystem.Battles.Values)
             {
-                TileZone zone = CorpsSystem.ZoneById(battle.zone_id);
-                if (zone?.centerTile == null) continue;
-                Spot spot = TakeSpot(zone.centerTile.posV);
+                Cell zone = CorpsSystem.ZoneById(battle.zone_id);
+                if (zone?.Center == null) continue;
+                Spot spot = TakeSpot(zone.Center.PosV);
                 Land(spot, battle);
                 Spots.Add(spot);
             }
         }
         foreach (NavySystem.BattleView battle in NavySystem.Battles.Values)
         {
-            TileZone zone = CorpsSystem.ZoneById(battle.zone_id);
-            if (zone?.centerTile == null) continue;
-            Spot spot = TakeSpot(zone.centerTile.posV);
+            Cell zone = CorpsSystem.ZoneById(battle.zone_id);
+            if (zone?.Center == null) continue;
+            Spot spot = TakeSpot(zone.Center.PosV);
             Sea(spot, battle);
             Spots.Add(spot);
         }
@@ -338,9 +338,11 @@ public static class BattleSound
         KingdomEras[kingdom.Key] = era;
         return era;
     }
+#endif
 
-    private static Realm KingdomOf(long id) => id < 0 ? null : EmpireWorld.Current?.kingdoms?.get(id);
+    private static Realm KingdomOf(long id) => id < 0 ? null : EmpireWorld.Current?.RealmByKey(id);
 
+#if EC_PENDING
     private static void Land(Spot spot, FrontSystem.BattleView battle)
     {
         float cold, fire, modern, art, archers, riders, armor, size;

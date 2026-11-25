@@ -1,6 +1,7 @@
 // Generated from the EmpireCraft mod: Scripts/GeneralSystems/WorldMap/WorldMapGenerator.cs. Do not edit by hand: Tools/PortTool/members.py rewrites it;
 // see Port/manifest.json and Tools/PortTool.
 using Mathf = EmpireCraft.Core.EcMath;
+using Vector2Int = EmpireCraft.Core.EcVector2Int;
 using System;
 
 namespace EmpireCraft.Core
@@ -130,7 +131,7 @@ public static class WorldMapGenerator
         // 纯净地图模式本就清植物；其余照原版撒一遍草木与浆果
         if (!PureMapMode.Enabled)
         {
-            int spread = world.tiles_list.Length / 20;
+            int spread = world.Zones.Length / 20;
             for (int i = 0; i < 12; i++) Step(() => MapGenerator.spawnVegetation(spread), "World Map: Vegetation");
             Step(MapGenerator.spawnResources, "World Map: Resources");
         }
@@ -161,8 +162,8 @@ public static class WorldMapGenerator
         Camera camera = EmpireWorld.Current.camera;
         if (camera == null) return;
         Vector3 position = camera.transform.position;
-        position.x = Mathf.Clamp(tile.x, 0, EmpireWorld.width);
-        position.y = Mathf.Clamp(tile.y, 0, EmpireWorld.height);
+        position.x = Mathf.Clamp(tile.x, 0, EmpireWorld.Current.Width);
+        position.y = Mathf.Clamp(tile.y, 0, EmpireWorld.Current.Height);
         camera.transform.position = position;
     }
 #endif

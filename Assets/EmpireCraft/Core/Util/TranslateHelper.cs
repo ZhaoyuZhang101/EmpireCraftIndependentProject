@@ -664,13 +664,13 @@ namespace EmpireCraft.Core
             switch (targetType)
             {
                 case MetaType.Kingdom:
-                    return EmpireWorld.Current?.kingdoms?.get(targetId)?.GetKingdomName();
+                    return EmpireWorld.Current?.RealmByKey(targetId)?.GetKingdomName();
                 case MetaType.City:
-                    return EmpireWorld.Current?.cities?.get(targetId)?.GetCityName();
+                    return EmpireWorld.Current?.CityByKey(targetId)?.GetCityName();
                 case MetaType.Religion:
                     return EmpireWorld.Current?.religions?.get(targetId)?.data?.name;
                 case MetaType.Unit:
-                    return GetActorFullLogName(EmpireWorld.Current?.units?.get(targetId));
+                    return GetActorFullLogName(EmpireWorld.Current?.PersonByKey(targetId));
                 case MetaType.None:
                     return null;
                 default:

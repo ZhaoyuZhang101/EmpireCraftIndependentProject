@@ -212,12 +212,10 @@ public static class PartialEnfeoffment
 #endif
 
     // 边地：这片有城挨着帝国以外的国(无人区不算)
-#if EC_PENDING
     private static bool Frontier(Empire empire, List<City> region) =>
-        region.Any(city => city.neighbours_cities?.Any(other =>
-            other?.kingdom != null && !other.IsGone() && !other.kingdom.wild && !other.kingdom.IsGone() &&
-            other.kingdom.GetEmpire() != empire) == true);
-#endif
+        region.Any(city => city.NeighbourCities?.Any(other =>
+            other?.Realm != null && !other.IsGone() && !other.Realm.IsWild && !other.Realm.IsGone() &&
+            other.Realm.GetEmpire() != empire) == true);
 
     public static int RealmCities(Empire empire) =>
         empire?.kingdoms_list?.Where(kingdom => kingdom != null && !kingdom.IsGone())

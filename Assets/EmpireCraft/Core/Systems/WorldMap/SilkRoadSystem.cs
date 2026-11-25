@@ -1,6 +1,7 @@
 // Generated from the EmpireCraft mod: Scripts/GeneralSystems/WorldMap/SilkRoadSystem.cs. Do not edit by hand: Tools/PortTool/members.py rewrites it;
 // see Port/manifest.json and Tools/PortTool.
 using Mathf = EmpireCraft.Core.EcMath;
+using Vector2Int = EmpireCraft.Core.EcVector2Int;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -107,8 +108,7 @@ public static class SilkRoadSystem
         }
     }
 
-#if EC_PENDING
-    private static bool Inside(Vector2Int tile) => tile.x >= 1 && tile.y >= 1 && tile.x < EmpireWorld.width - 1 && tile.y < EmpireWorld.height - 1;
+    private static bool Inside(Vector2Int tile) => tile.x >= 1 && tile.y >= 1 && tile.x < EmpireWorld.Current.Width - 1 && tile.y < EmpireWorld.Current.Height - 1;
 
     private static City NearestCity(Vector2Int tile)
     {
@@ -116,50 +116,49 @@ public static class SilkRoadSystem
         long bestDistance = (long)StopTiles * StopTiles;
         foreach (City city in EmpireWorld.Current.Cities)
         {
-            WorldTile seat = city?.Record == null || city.IsGone() ? null : city.getTile();
+            Cell seat = city?.Record == null || city.IsGone() ? null : city.SeatCell();
             if (seat == null) continue;
-            long dx = seat.x - tile.x, dy = seat.y - tile.y, distance = dx * dx + dy * dy;
+            long dx = seat.X - tile.x, dy = seat.Y - tile.y, distance = dx * dx + dy * dy;
             if (distance > bestDistance) continue;
             bestDistance = distance;
             best = city;
         }
         return best;
     }
-#endif
 
     // 一段路铺上：等级照所在国家的科技(无主之地土路)
 #if EC_PENDING
-    private static int Lay(List<WorldTile> path)
+    private static int Lay(List<Cell> path)
     {
         int laid = 0;
-        foreach (WorldTile tile in path)
+        foreach (Cell tile in path)
         {
-            Realm owner = tile?.zone_city?.kingdom;
+            Realm owner = tile?.City?.Realm;
             int grade = owner?.Record != null && !owner.IsGone() && !owner.IsWild ? Mathf.Max(1, RoadBuildingSystem.GradeFor(owner)) : 1;
             if (RoadPaintSystem.Lay(tile, grade)) laid++;
         }
         return laid;
     }
 
-    private static bool Passable(WorldTile tile, bool climb = false) =>
-        tile?.Type != null && !tile.Type.ocean && !tile.Type.lava && (climb || !tile.Type.mountains && !tile.Type.summit) &&
-        !(tile.Type.block && !tile.Type.wall && !tile.Type.mountains && !tile.Type.summit) && !MapWallSystem.Blocks(tile);
+    private static bool Passable(Cell tile, bool climb = false) =>
+        tile?.Type != null && !tile.Type.Ocean && !tile.Type.Lava && (climb || !tile.Type.Mountains && !tile.Type.Summit) &&
+        !(tile.Type.Block && !tile.Type.Wall && !tile.Type.Mountains && !tile.Type.Summit) && !MapWallSystem.Blocks(tile);
 #endif
 
     // 开山口：准翻山再找一回，翻过的山格平成丘陵(雪山平成雪丘)，路铺得上、人马走得过
 #if EC_PENDING
-    private static List<WorldTile> Pass(Vector2Int a, Vector2Int b)
+    private static List<Cell> Pass(Vector2Int a, Vector2Int b)
     {
-        List<WorldTile> path = Route(a, b, true);
+        List<Cell> path = Route(a, b, true);
         int opened = 0;
-        foreach (WorldTile tile in path)
+        foreach (Cell tile in path)
         {
-            TileTypeBase type = tile?.Type;
-            if (type == null || !type.mountains && !type.summit) continue;
-            TopTileType snow = type.summit ? AssetManager.top_tiles.get("snow_hills") : null;
+            TerrainKind type = tile?.Type;
+            if (type == null || !type.Mountains && !type.Summit) continue;
+            TerrainKind snow = type.Summit ? AssetManager.top_tiles.get("snow_hills") : null;
             if (snow != null) tile.setTileTypes("hills", snow);
             else tile.setTileType("hills");
-            tile.Height = tile.Type.height_min;
+            tile.Height = tile.Type.HeightMin;
             opened++;
         }
         if (opened > 0) LogService.LogInfo($"[EmpireCraft][丝绸之路] 开山口 {opened} 格({a} → {b})");
@@ -168,33 +167,31 @@ public static class SilkRoadSystem
 #endif
 
     // 走一格的代价：平地 1，沙地、丘陵、林沼贵一些，过河(浅水)要架桥更贵；城心少穿；开山口时山、雪山很贵
-#if EC_PENDING
-    private static float Cost(WorldTile tile)
+    private static float Cost(Cell tile)
     {
-        TileTypeBase type = tile.Type;
-        float cost = type.summit ? SummitCost
-            : type.mountains ? MountainCost
-            : type.liquid ? WaterCost
-            : type.id == "hills" || type.id == "snow_hills" || tile.main_type?.id == "hills" || type.rocks ? HillCost
-            : type.id.Contains("swamp") || type.id.Contains("jungle") ? WetCost
-            : type.id.Contains("sand") || type.id.Contains("desert") ? SandCost
+        TerrainKind type = tile.Type;
+        float cost = type.Summit ? SummitCost
+            : type.Mountains ? MountainCost
+            : type.Liquid ? WaterCost
+            : type.Id == "hills" || type.Id == "snow_hills" || tile.MainType?.Id == "hills" || type.Rocks ? HillCost
+            : type.Id.Contains("swamp") || type.Id.Contains("jungle") ? WetCost
+            : type.Id.Contains("sand") || type.Id.Contains("desert") ? SandCost
             : 1f;
-        return tile.zone?.city is City city && city.getTile()?.zone == tile.zone ? cost + CityCost : cost;
+        return tile.Zone?.City is City city && city.SeatCell()?.Zone == tile.Zone ? cost + CityCost : cost;
     }
-#endif
 
     // 两站之间的走廊里找路(四邻，路连得上)：山、城墙(关门除外)、海不走；走不通的这一段不修
     // climb：准翻山(开山口用，见 Pass)
 #if EC_PENDING
-    private static List<WorldTile> Route(Vector2Int a, Vector2Int b, bool climb)
+    private static List<Cell> Route(Vector2Int a, Vector2Int b, bool climb)
     {
-        var path = new List<WorldTile>();
+        var path = new List<Cell>();
         int margin = Mathf.Max(CorridorMin, Mathf.CeilToInt(Vector2Int.Distance(a, b) * CorridorShare));
-        int x0 = Mathf.Max(0, Mathf.Min(a.x, b.x) - margin), x1 = Mathf.Min(EmpireWorld.width - 1, Mathf.Max(a.x, b.x) + margin);
-        int y0 = Mathf.Max(0, Mathf.Min(a.y, b.y) - margin), y1 = Mathf.Min(EmpireWorld.height - 1, Mathf.Max(a.y, b.y) + margin);
+        int x0 = Mathf.Max(0, Mathf.Min(a.x, b.x) - margin), x1 = Mathf.Min(EmpireWorld.Current.Width - 1, Mathf.Max(a.x, b.x) + margin);
+        int y0 = Mathf.Max(0, Mathf.Min(a.y, b.y) - margin), y1 = Mathf.Min(EmpireWorld.Current.Height - 1, Mathf.Max(a.y, b.y) + margin);
         int width = x1 - x0 + 1, count = width * (y1 - y0 + 1);
         int Index(int x, int y) => (y - y0) * width + (x - x0);
-        WorldTile start = Snap(a), goal = Snap(b);
+        Cell start = Snap(a), goal = Snap(b);
         if (start == null || goal == null) return path;
         var best = new float[count];
         var from = new int[count];
@@ -203,7 +200,7 @@ public static class SilkRoadSystem
             best[i] = float.MaxValue;
             from[i] = -1;
         }
-        int first = Index(start.x, start.y), last = Index(goal.x, goal.y);
+        int first = Index(start.X, start.Y), last = Index(goal.X, goal.Y);
         best[first] = 0f;
         var heap = new WorldMapZones.MinHeap();
         heap.Push(0f, first);
@@ -217,7 +214,7 @@ public static class SilkRoadSystem
             {
                 int nx = x + (k == 0 ? 1 : k == 1 ? -1 : 0), ny = y + (k == 2 ? 1 : k == 3 ? -1 : 0);
                 if (nx < x0 || ny < y0 || nx > x1 || ny > y1) continue;
-                WorldTile tile = EmpireWorld.Current.GetTileSimple(nx, ny);
+                Cell tile = EmpireWorld.Current.CellAt(nx, ny);
                 if (!Passable(tile, climb)) continue;
                 float next = key + Cost(tile);
                 int neighbour = Index(nx, ny);
@@ -230,7 +227,7 @@ public static class SilkRoadSystem
         if (from[last] < 0 && last != first) return path;
         for (int index = last; index >= 0; index = from[index])
         {
-            path.Add(EmpireWorld.Current.GetTileSimple(x0 + index % width, y0 + index / width));
+            path.Add(EmpireWorld.Current.CellAt(x0 + index % width, y0 + index / width));
             if (index == first) break;
         }
         path.Reverse();
@@ -240,15 +237,15 @@ public static class SilkRoadSystem
 
     // 站落在山上、水里时就近挪到走得了的格(至多 8 格)
 #if EC_PENDING
-    private static WorldTile Snap(Vector2Int at)
+    private static Cell Snap(Vector2Int at)
     {
         for (int radius = 0; radius <= 8; radius++)
             for (int dy = -radius; dy <= radius; dy++)
             for (int dx = -radius; dx <= radius; dx++)
             {
                 if (Mathf.Max(Mathf.Abs(dx), Mathf.Abs(dy)) != radius) continue;
-                WorldTile tile = EmpireWorld.Current.GetTile(at.x + dx, at.y + dy);
-                if (Passable(tile) && !tile.Type.liquid) return tile;
+                Cell tile = EmpireWorld.Current.CellAt(at.x + dx, at.y + dy);
+                if (Passable(tile) && !tile.Type.Liquid) return tile;
             }
         return null;
     }

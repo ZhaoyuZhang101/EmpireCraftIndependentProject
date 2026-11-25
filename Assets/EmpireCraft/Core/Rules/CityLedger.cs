@@ -461,7 +461,7 @@ public static class CityLedger
             }
             catch (Exception exception)
             {
-                LogService.LogWarning($"[EmpireCraft][建筑台账] 并入失败({city.Record?.Name}): {exception.Message}");
+                LogService.LogWarning($"[EmpireCraft][建筑台账] 并入失败({city.Name}): {exception.Message}");
             }
         }
         return folded;

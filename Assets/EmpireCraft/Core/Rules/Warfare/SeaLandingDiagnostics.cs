@@ -76,7 +76,7 @@ public static class SeaLandingDiagnostics
         if (wanted != null) pair.Wanted = wanted.GetCityName();
         // 找不到海滩：一年里头一回查一下为什么
         if (target == null && wanted != null && pair.NoRoute == null)
-            pair.NoRoute = SeaLanding.WhyNoBeachhead(side, wanted.getTile()?.zone);
+            pair.NoRoute = SeaLanding.WhyNoBeachhead(side, wanted.SeatCell()?.Zone);
     }
 #endif
 

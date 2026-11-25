@@ -151,7 +151,7 @@ public static class TribalWarSystem
                 if (occupier == null || occupier != winner && !FrontSystem.Friendly(winner, occupier)) continue;
                 foreach (int zoneId in status[occupierId]?.ToList() ?? new List<int>())
                 {
-                    TileZone zone = own.zones?.FirstOrDefault(candidate => candidate != null && candidate.id == zoneId);
+                    Cell zone = own.Zones?.FirstOrDefault(candidate => candidate != null && candidate.Index == zoneId);
                     if (zone != null) own.RemoveOccupiedTileZone(occupier, zone);
                 }
             }

@@ -300,9 +300,7 @@ public static class CityPopulationSystem
     // ---- 陈兵边境 ----
     // 动员的兵直接生成在本国朝向敌国的边境上(KingdomFrontLineHelper 算出的前沿地块)，
     // 战备期间各军镇的军团统领每月开往边境，原版士兵跟着统领走
-#if EC_PENDING
-    private static readonly Dictionary<Realm, (double at, List<TileZone> zones)> FrontCache = new();
-#endif
+    private static readonly Dictionary<Realm, (double at, List<Cell> zones)> FrontCache = new();
 
     // 兵锋所向：谋划开战的目标国，其次是正在交战的主要敌国
 #if EC_PENDING
@@ -328,23 +326,23 @@ public static class CityPopulationSystem
 
     // 本国朝向敌国的整条边境(地块)；没有接壤或算不出来时为空
 #if EC_PENDING
-    public static IReadOnlyList<TileZone> FrontZones(Realm kingdom)
+    public static IReadOnlyList<Cell> FrontZones(Realm kingdom)
     {
-        if (FrontTile(kingdom) == null) return Array.Empty<TileZone>();
-        return FrontCache.TryGetValue(kingdom, out var cached) ? cached.zones : (IReadOnlyList<TileZone>)Array.Empty<TileZone>();
+        if (FrontTile(kingdom) == null) return Array.Empty<Cell>();
+        return FrontCache.TryGetValue(kingdom, out var cached) ? cached.zones : (IReadOnlyList<Cell>)Array.Empty<Cell>();
     }
 #endif
 
     // 本国朝向敌国的边境上的一个地块；没有接壤或算不出来时返回 null
 #if EC_PENDING
-    public static WorldTile FrontTile(Realm kingdom)
+    public static Cell FrontTile(Realm kingdom)
     {
         Realm enemy = EnemyOf(kingdom);
         if (enemy == null || EmpireWorld.Current == null) return null;
         double now = GameClock.Now;
         if (!FrontCache.TryGetValue(kingdom, out var cached) || now < cached.at || now - cached.at >= 5d)
         {
-            List<TileZone> zones;
+            List<Cell> zones;
             try
             {
                 zones = KingdomFrontLineHelper.GetFriendlyFrontSourceZonesFacingEnemy(kingdom, enemy)
@@ -353,13 +351,13 @@ public static class CityPopulationSystem
             catch (Exception exception)
             {
                 LogService.LogWarning($"[EmpireCraft] 无小人模式边境计算失败: {exception.Message}");
-                zones = new List<TileZone>();
+                zones = new List<Cell>();
             }
             cached = (now, zones);
             FrontCache[kingdom] = cached;
         }
         if (cached.zones.Count == 0) return null;
-        return cached.zones[EcRandom.Range(0, cached.zones.Count)]?.centerTile;
+        return cached.zones[EcRandom.Range(0, cached.zones.Count)]?.Center;
     }
 #endif
 
@@ -372,9 +370,9 @@ public static class CityPopulationSystem
         if (!AbstractPopulationEnabled || CorpsSystem.Enabled || city?.army == null || !OnWarFooting(city)) return;
         Person captain = city.army.getCaptain();
         if (captain == null || captain.IsGone() || !captain.Alive || captain.current_tile == null) return;
-        WorldTile front = FrontTile(city.Realm);
+        Cell front = FrontTile(city.Realm);
         if (front == null) return;
-        if (Toolbox.SquaredDistTile(captain.current_tile, front) <= FrontHoldDistance * FrontHoldDistance) return;
+        if (Land.SquaredDist(captain.current_tile, front) <= FrontHoldDistance * FrontHoldDistance) return;
         try
         {
             captain.goTo(front);
@@ -403,7 +401,7 @@ public static class CityPopulationSystem
           ReligiousTension.LevyFactor(city) * AdministrativeControlSystem.Yield(city) * ShuiTuSystem.LevyFactor(city);
 
     public static float KingdomLevyBackground(Realm kingdom) =>
-        kingdom?.cities?.Sum(LevyBackground) ?? 0f;
+        kingdom?.Cities?.Sum(LevyBackground) ?? 0f;
 #endif
 
     // 按背景人口加权抽一座本国城市(兵源从哪座城出、退伍回哪座城)
@@ -512,7 +510,7 @@ public static class CityPopulationSystem
             }
             catch (Exception exception)
             {
-                LogService.LogWarning($"[EmpireCraft] 无小人模式并入普通人失败({city.Record?.Name}，增长收尾): {exception.Message}");
+                LogService.LogWarning($"[EmpireCraft] 无小人模式并入普通人失败({city.Name}，增长收尾): {exception.Message}");
             }
         }
     }
@@ -665,7 +663,7 @@ public static class CityPopulationSystem
             }
             catch (Exception exception)
             {
-                LogService.LogWarning($"[EmpireCraft] 城市人口数据层结算失败({city.Record?.Name}): {exception.Message}");
+                LogService.LogWarning($"[EmpireCraft] 城市人口数据层结算失败({city.Name}): {exception.Message}");
             }
         }
         _passMilliseconds += watch.Elapsed.TotalMilliseconds;
@@ -1444,6 +1442,7 @@ public static class CityPopulationSystem
             !ReferenceEquals(_world, world) || !AbstractPopulationEnabled) return;
         TickFolds(world, world.Now());
     }
+#endif
 
     private static void EnqueuePriorityFolds(double now)
     {
@@ -1452,7 +1451,6 @@ public static class CityPopulationSystem
         foreach (City city in TransmigrantSystem.MonthlySettledCities())
             if (city != _foldCity && !PriorityFolds.Contains(city)) PriorityFolds.Enqueue(city);
     }
-#endif
 
     // 纯净地图下城市月结每一步的时间片。游戏里是固定的 4 毫秒；独立核心按这一步跨了多少世界时间给(后台预算的六成，
     // 见 SimulationFrameBudget.ServerMilliseconds)：以前流速调快了还是每步 4 毫秒，全图一遍从一个月拖到好几年
@@ -1522,7 +1520,7 @@ public static class CityPopulationSystem
                 bool finished = ExecuteFoldPhase(city, Get(city), _foldNow, _foldPhase++);
                 // 性能诊断开着时月结各步分开计时(看哪一步是大头)
                 if (FrameProfiler.Enabled) FrameProfiler.Record(FoldPhaseLabel(phase), Stopwatch.GetTimestamp() - phaseStarted);
-                if (PerfTimer.Slow(phaseStarted, out double phaseMs)) PerfTimer.Warn($"城市月度步骤 {phase} ({city.Record?.Name})", phaseMs);
+                if (PerfTimer.Slow(phaseStarted, out double phaseMs)) PerfTimer.Warn($"城市月度步骤 {phase} ({city.Name})", phaseMs);
                 if (finished) _foldCity = null;
                 if (_waitingForMath) break;
             }
@@ -1533,7 +1531,7 @@ public static class CityPopulationSystem
                 string where = string.Join(" <- ", (exception.StackTrace ?? "").Split('\n')
                     .Select(line => line.Trim()).Where(line => line.Length > 0).Take(3));
                 LogService.LogWarning(
-                    $"[EmpireCraft] 无小人模式并入普通人失败({city.Record?.Name}，步骤 {_foldPhase - 1}): {exception.Message} @ {where}");
+                    $"[EmpireCraft] 无小人模式并入普通人失败({city.Name}，步骤 {_foldPhase - 1}): {exception.Message} @ {where}");
             }
         }
     }
@@ -1900,7 +1898,7 @@ public static class CityPopulationSystem
         long tEnd = Stopwatch.GetTimestamp();
         double Ms(long a, long b) => (b - a) * 1000d / Stopwatch.Frequency;
         if (Ms(t0, tEnd) >= 8d)
-            LogService.LogWarning($"[EmpireCraft][性能] 并入分段({city.Record?.Name}) 单位 {city.units.Count}：" +
+            LogService.LogWarning($"[EmpireCraft][性能] 并入分段({city.Name}) 单位 {city.units.Count}：" +
                                   $"分类 {Ms(t0, tClassify):0.0} / 城主补位 {Ms(tClassify, tLeader):0.0} / " +
                                   $"喂饱叫醒 {Ms(tLeader, tCare):0.0} / 并入 {folded} 人 {Ms(tCare, tFold):0.0} / " +
                                   $"军团 {Ms(tFold, tEnd):0.0} ms");
@@ -2345,7 +2343,7 @@ public static class CityPopulationSystem
     public static Person SpawnFromGroup(City city, PopGroup group, bool soldier)
     {
         // 征召兵直接在朝向敌国的边境集结，找不到边境就在城里
-        WorldTile tile = (soldier ? FrontTile(city.Realm) : null) ?? PickTile(city);
+        Cell tile = (soldier ? FrontTile(city.Realm) : null) ?? PickTile(city);
         if (tile == null) return null;
         Person actor = CreateUnit(group.species, tile, city);
         if (actor?.Record == null) return null;
@@ -2641,22 +2639,20 @@ public static class CityPopulationSystem
         RemoveBackground(group, 1f);
     }
 
-#if EC_PENDING
-    private static WorldTile PickTile(City city)
+    private static Cell PickTile(City city)
     {
-        if (city.zones == null || city.zones.Count == 0) return null;
+        if (city.Zones == null || city.Zones.Count == 0) return null;
         for (int attempt = 0; attempt < 5; attempt++)
         {
-            TileZone zone = city.zones[EcRandom.Range(0, city.zones.Count)];
-            if (zone?.centerTile != null) return zone.centerTile;
+            Cell zone = city.Zones[EcRandom.Range(0, city.Zones.Count)];
+            if (zone?.Center != null) return zone.Center;
         }
         return null;
     }
-#endif
 
     // 优先用带亚种参数的 createNewUnit 重载，给新兵用本城的主要亚种(否则原版可能为每个新兵新建亚种)
 #if EC_PENDING
-    private static Person CreateUnit(string species, WorldTile tile, City city)
+    private static Person CreateUnit(string species, Cell tile, City city)
     {
         EntitySpawnStats.RecordCaller();
         ResolveSpawn();
@@ -2680,7 +2676,7 @@ public static class CityPopulationSystem
                 {
                     Type type = parameters[i].ParameterType;
                     if (type == typeof(string) && !idSet) { args[i] = species; idSet = true; }
-                    else if (type == typeof(WorldTile) && !tileSet) { args[i] = tile; tileSet = true; }
+                    else if (type == typeof(Cell) && !tileSet) { args[i] = tile; tileSet = true; }
                     else if (type == typeof(Subspecies)) args[i] = subspecies;
                     else if (parameters[i].HasDefaultValue) args[i] = parameters[i].DefaultValue;
                     else args[i] = type.IsValueType ? Activator.CreateInstance(type) : null;
@@ -2708,7 +2704,7 @@ public static class CityPopulationSystem
             foreach (ParameterInfo parameter in parameters)
             {
                 if (parameter.ParameterType == typeof(Subspecies)) hasSubspecies = true;
-                if (parameter.ParameterType == typeof(WorldTile)) hasTile = true;
+                if (parameter.ParameterType == typeof(Cell)) hasTile = true;
             }
             if (hasSubspecies && hasTile)
             {
@@ -2970,7 +2966,7 @@ public static class CityPopulationSystem
         }
         catch (Exception exception)
         {
-            LogService.LogWarning($"[EmpireCraft] 无小人模式城主补位失败({city.Record?.Name}): {exception.Message}");
+            LogService.LogWarning($"[EmpireCraft] 无小人模式城主补位失败({city.Name}): {exception.Message}");
         }
     }
 #endif

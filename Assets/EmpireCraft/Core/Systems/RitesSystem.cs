@@ -1,6 +1,7 @@
 // Generated from the EmpireCraft mod: Scripts/GeneralSystems/RitesSystem.cs. Do not edit by hand: Tools/PortTool/members.py rewrites it;
 // see Port/manifest.json and Tools/PortTool.
 using Mathf = EmpireCraft.Core.EcMath;
+using Random = EmpireCraft.Core.EcRandom;
 
 namespace EmpireCraft.Core
 {
@@ -19,7 +20,7 @@ public static class RitesSystem
         CultureService.IsValidCulture(culture) && InstitutionSystem.GetFeature(culture, feature) > 0f;
 
 #if EC_PENDING
-    private static string RulerName(Realm kingdom) => kingdom?.king?.getName() ?? kingdom?.GetKingdomName() ?? "";
+    private static string RulerName(Realm kingdom) => kingdom?.Ruler?.FullName() ?? kingdom?.GetKingdomName() ?? "";
 #endif
 
     // 每年(帝国例行检查，见 EmpireCraftEmpireBehCheckMandate)

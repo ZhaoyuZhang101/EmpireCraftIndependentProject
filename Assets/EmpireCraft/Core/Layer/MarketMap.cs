@@ -120,7 +120,7 @@ public static class MarketMap
         data.intVal = GoodMode;
         PowerLibrary.disableAllOtherMapModes(power.id);
         PlayerConfig.saveData();
-        EmpireWorld.Current?.zone_calculator?.dirtyAndClear();
+        EmpireWorld.Current?.Zones?.MarkDirty();
         ScrollWindow.hideAllEvent();
     }
 #endif
@@ -233,12 +233,12 @@ public static class MarketMap
                 if (MetaOf(city, mode) is not IMetaObject owner) continue;
                 Realm leader = LeaderOf(city.Realm);
                 RecordData ownerData = owner is Realm kingdom ? kingdom.Record : ((MarketMapColor)owner).data;
-                foreach (TileZone zone in city.zones)
+                foreach (Cell zone in city.Zones)
                 {
                     EmpireCraftMetaTypeLibrary.zone_manager.drawBegin();
                     EmpireCraftMetaTypeLibrary.zone_manager.drawZoneMeta(owner, zone,
-                        Border(zone.zone_up, leader), Border(zone.zone_down, leader),
-                        Border(zone.zone_left, leader), Border(zone.zone_right, leader), ownerData, meta);
+                        Border(zone.Up, leader), Border(zone.Down, leader),
+                        Border(zone.Left, leader), Border(zone.Right, leader), ownerData, meta);
                     EmpireCraftMetaTypeLibrary.zone_manager.drawEnd(zone);
                 }
             }
@@ -249,7 +249,7 @@ public static class MarketMap
             if (!Shown(hovered)) return;
             if (!Grouped().TryGetValue(LeaderOf(hovered.Realm).Key, out List<City> cities)) return;
             QuantumSpriteLibrary.colorZones(highlight, cities.Where(city => city != null && !city.IsGone())
-                .SelectMany(city => city.zones).ToList(), highlight.color);
+                .SelectMany(city => city.Zones).ToList(), highlight.color);
         });
         // 按地块取归属：平滑国界(整图画布)要它才画得出来(见 SmoothBorders.Smoothable)
         asset.tile_get_metaobject = (zone, option) => MetaOf(zone?.city, option);
@@ -281,13 +281,13 @@ public static class MarketMap
 #endif
 
     // 市场之间描边(两种模式都按市场分片，缺口模式同档的相邻市场也分得开)
-#if EC_PENDING
-    private static bool Border(TileZone neighbour, Realm leader)
+    private static bool Border(Cell neighbour, Realm leader)
     {
-        City other = neighbour?.city;
+        City other = neighbour?.City;
         return !Shown(other) || LeaderOf(other.Realm) != leader;
     }
 
+#if EC_PENDING
     public static string Name(Realm leader) => string.Format(LM.Get("market_layer_name"), leader.GetKingdomName());
 #endif
 

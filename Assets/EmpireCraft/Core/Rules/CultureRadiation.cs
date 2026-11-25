@@ -57,11 +57,9 @@ public static class CultureRadiation
     private static Dictionary<long, float> _intensity = new();
     // 各城教化最盛的文化(图层每帧要问，推算完就记下)
     private static Dictionary<long, (string culture, float share)> _dominant = new();
-#if EC_PENDING
-    private static readonly MinHeap<TileZone> ZoneHeap = new();
-    private static readonly Dictionary<TileZone, float> ZoneCost = new();
-    private static readonly HashSet<TileZone> ZoneDone = new();
-#endif
+    private static readonly MinHeap<Cell> ZoneHeap = new();
+    private static readonly Dictionary<Cell, float> ZoneCost = new();
+    private static readonly HashSet<Cell> ZoneDone = new();
     private static readonly MinHeap<long> CityHeap = new();
     private static readonly Dictionary<long, float> CityDone = new();
     // 本轮用的通达层城际图(为空时自己寻路)；各文化走各条边的成本；最短路的工作数组
@@ -164,10 +162,10 @@ public static class CultureRadiation
             _phase = Phase.Idle;
         }
     }
+#endif
 
     private static bool Valid(City city) => city?.Record != null && !city.IsGone() && city.Realm != null && !city.Realm.IsWild &&
-                                           city.zones != null && city.zones.Count > 0 && !AncientWarfareCompatibility.OwnsObject(city);
-#endif
+                                           city.Zones != null && city.Zones.Count > 0 && !AncientWarfareCompatibility.OwnsObject(city);
 
     private static Realm ModRealm(Realm kingdom) => kingdom?.GetEmpire()?.CoreKingdom ?? kingdom;
 
@@ -183,7 +181,7 @@ public static class CultureRadiation
         Fields.Clear();
         foreach (City city in EmpireWorld.Current.Cities)
         {
-            if (!Valid(city) || city.getTile() == null) continue;
+            if (!Valid(city) || city.SeatCell() == null) continue;
             Cities.Add(city);
             ById[city.Key] = city;
         }
@@ -213,16 +211,16 @@ public static class CultureRadiation
         var grid = new Dictionary<(int, int), List<City>>();
         foreach (City city in Cities)
         {
-            WorldTile tile = city.getTile();
-            (int, int) cell = (tile.x / LinkTiles, tile.y / LinkTiles);
+            Cell tile = city.SeatCell();
+            (int, int) cell = (tile.X / LinkTiles, tile.Y / LinkTiles);
             if (!grid.TryGetValue(cell, out List<City> list)) grid[cell] = list = new List<City>();
             list.Add(city);
         }
         foreach (City city in Cities)
         {
-            foreach (City neighbour in city.neighbours_cities) Link(city, neighbour);
-            WorldTile tile = city.getTile();
-            int cx = tile.x / LinkTiles, cy = tile.y / LinkTiles;
+            foreach (City neighbour in city.NeighbourCities) Link(city, neighbour);
+            Cell tile = city.SeatCell();
+            int cx = tile.X / LinkTiles, cy = tile.Y / LinkTiles;
             for (int dx = -1; dx <= 1; dx++)
                 for (int dy = -1; dy <= 1; dy++)
                 {
@@ -230,8 +228,8 @@ public static class CultureRadiation
                     foreach (City other in list)
                     {
                         if (other == city || other.Key < city.Key) continue;
-                        WorldTile at = other.getTile();
-                        if (Toolbox.SquaredDistTile(tile, at) <= LinkTiles * LinkTiles && tile.isSameIsland(at)) Link(city, other);
+                        Cell at = other.SeatCell();
+                        if (Land.SquaredDist(tile, at) <= LinkTiles * LinkTiles && tile.IsSameIsland(at)) Link(city, other);
                     }
                 }
         }
@@ -279,7 +277,7 @@ public static class CultureRadiation
 
     // 两城城心之间最省力那条路的阻力(A*，按地块；找不到返回 -1)。城墙上的关门(见 WallGateSystem)两城所属的国都放行才不加城墙阻力
 #if EC_PENDING
-    private static float LandCost(TileZone from, TileZone to, Realm fromKingdom, Realm toKingdom)
+    private static float LandCost(Cell from, Cell to, Realm fromKingdom, Realm toKingdom)
     {
         if (from == null || to == null) return -1f;
         if (from == to) return 0f;
@@ -291,12 +289,12 @@ public static class CultureRadiation
         int expanded = 0;
         while (ZoneHeap.Count > 0 && expanded < MaxExpand)
         {
-            TileZone zone = ZoneHeap.Pop().item;
+            Cell zone = ZoneHeap.Pop().item;
             if (!ZoneDone.Add(zone)) continue;
             expanded++;
             float cost = ZoneCost[zone];
             if (zone == to) return cost;
-            foreach (TileZone next in zone.neighbours ?? Array.Empty<TileZone>())
+            foreach (Cell next in zone.Neighbours ?? Array.Empty<Cell>())
             {
                 if (next == null || ZoneDone.Contains(next)) continue;
                 float step = TerrainResistance.Step(next, fromKingdom, toKingdom);
@@ -309,9 +307,9 @@ public static class CultureRadiation
         }
         return -1f;
     }
-
-    private static float Estimate(TileZone a, TileZone b) => (Mathf.Abs(a.x - b.x) + Mathf.Abs(a.y - b.y)) * TerrainResistance.RoadFactor;
 #endif
+
+    private static float Estimate(Cell a, Cell b) => (Mathf.Abs(a.X - b.X) + Mathf.Abs(a.Y - b.Y)) * TerrainResistance.RoadFactor;
 
     // 海路：港口之间，在出发一方水师辐射内、同一片水域
 #if EC_PENDING
@@ -331,7 +329,7 @@ public static class CultureRadiation
             foreach (var to in ports)
             {
                 if (to.city == from.city) continue;
-                float distance = (from.city.city_center - to.city.city_center).magnitude;
+                float distance = (from.city.Center - to.city.Center).magnitude;
                 if (distance > radius || !from.basins.Overlaps(to.basins)) continue;
                 if (!Sea.TryGetValue(from.city.Key, out List<(long, float)> list)) Sea[from.city.Key] = list = new List<(long, float)>();
                 list.Add((to.city.Key, SeaEmbark + distance / SeaTilesPerCost));
@@ -366,7 +364,6 @@ public static class CultureRadiation
 #endif
 
     // 从一座城向外辐射(有界的最短路)
-#if EC_PENDING
     private static void Radiate(long sourceId, string culture, float strength, float length)
     {
         float cutoff = length * CutoffLengths;
@@ -396,7 +393,6 @@ public static class CultureRadiation
             }
         }
     }
-#endif
 
     // 走通达层的城际图从一座城向外辐射(有界的最短路)：边的成本按施教一方的科技(见类头)，跨入别国照旧 +1
 #if EC_PENDING

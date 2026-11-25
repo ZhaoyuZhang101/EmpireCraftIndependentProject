@@ -64,9 +64,9 @@ public static class RebellionSnowballSystem
         int budget = Math.Max(1, Mathf.CeilToInt(rebelCities.Count * GrowthPerYear * intensity));
         bool unbound = DynasticCycleSystem.UprisingsUnbound(empire);
         List<City> frontier = rebelCities
-            .SelectMany(city => (IEnumerable<City>)city.neighbours_cities ?? Enumerable.Empty<City>())
-            .Where(city => city != null && !city.IsGone() && city.kingdom != null && city.kingdom.GetEmpire() == empire &&
-                           city != core.Capital && RebellionSystem.CanAttempt(city.kingdom) &&
+            .SelectMany(city => (IEnumerable<City>)city.NeighbourCities ?? Enumerable.Empty<City>())
+            .Where(city => city != null && !city.IsGone() && city.Realm != null && city.Realm.GetEmpire() == empire &&
+                           city != core.Capital && RebellionSystem.CanAttempt(city.Realm) &&
                            (unbound || CityStabilitySystem.CanRise(city)))
             .Distinct().OrderBy(_ => EcRandom.value).ToList();
         var defected = new List<string>();

@@ -872,7 +872,7 @@ public static class DataManager
             data.title_capital > 0 &&
             cityById.TryGetValue(data.title_capital, out City capital))
         {
-            data.original_actor_asset = capital.Realm?.king?.asset?.id ?? capital.Realm?.asset?.id ?? capital.getSpecies();
+            data.original_actor_asset = capital.Realm?.Ruler?.asset?.id ?? capital.Realm?.asset?.id ?? capital.getSpecies();
         }
     }
 
@@ -908,7 +908,7 @@ public static class DataManager
             string name = capital?.SelectKingdomName();
             if (string.IsNullOrWhiteSpace(name))
             {
-                name = capital?.kingdom?.GetKingdomName() ?? capital?.GetCityName() ?? "";
+                name = capital?.Realm?.GetKingdomName() ?? capital?.GetCityName() ?? "";
             }
 
             result.Add(new KingdomTitleData
@@ -918,11 +918,11 @@ public static class DataManager
                 title_capital = capitalId,
                 province_name = capital?.GetCityName(),
                 name = name,
-                original_actor_asset = capital?.kingdom?.king?.asset?.id ?? capital?.kingdom?.asset?.id ?? capital?.getSpecies(),
-                banner_background_id = capital?.kingdom?.data?.banner_background_id ?? 0,
-                banner_icon_id = capital?.kingdom?.data?.banner_icon_id ?? 0,
-                founder_kingdom_id = capital?.kingdom?.id ?? -1L,
-                founder_kingdom_name = capital?.kingdom?.name
+                original_actor_asset = capital?.Realm?.Ruler?.asset?.id ?? capital?.Realm?.asset?.id ?? capital?.getSpecies(),
+                banner_background_id = capital?.Realm?.Record?.banner_background_id ?? 0,
+                banner_icon_id = capital?.Realm?.Record?.banner_icon_id ?? 0,
+                founder_kingdom_id = capital?.Realm?.Key ?? -1L,
+                founder_kingdom_name = capital?.Realm?.Name
             });
         }
 

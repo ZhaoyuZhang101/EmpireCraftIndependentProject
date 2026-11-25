@@ -189,12 +189,12 @@ public static class MineralResourceSystem
         if (Terrain.TryGetValue(city, out TerrainProfile cached) && now >= cached.At && GameClock.YearsSince(cached.At) < 1)
             return cached;
         int land = 0, water = 0, rocky = 0, desert = 0, wet = 0, infernal = 0, trees = 0, forest = 0, woodland = 0;
-        if (city.zones != null)
-            foreach (TileZone zone in city.zones)
+        if (city.Zones != null)
+            foreach (Cell zone in city.Zones)
             {
-                if (zone?.tiles == null) continue;
+                if (zone?.Tiles == null) continue;
                 trees += zone.getHashset(BuildingList.Trees)?.Count ?? 0;
-                foreach (WorldTile tile in zone.tiles)
+                foreach (Cell tile in zone.Tiles)
                 {
                     if (tile?.Type == null) continue;
                     // 地形归类见 LandKinds：岩浆不算水(不算海岸)，算地狱地貌；冰封丘陵也算山石
@@ -213,7 +213,7 @@ public static class MineralResourceSystem
                     else if ((kinds & LandKinds.Woodland) != 0) woodland++;
                 }
             }
-        int zones = Mathf.Max(1, city.zones?.Count ?? 1);
+        int zones = Mathf.Max(1, city.Zones?.Count ?? 1);
         float share(int n) => land == 0 ? 0f : Mathf.Clamp01(n * 3f / land);
         // 林木：数领地里的树；纯净地图没有树，按林地生物群系折算(疏林算四成)
         float woods = land == 0 ? 0f : Mathf.Clamp01((forest + 0.4f * woodland) * 1.5f / land);

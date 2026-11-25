@@ -664,6 +664,7 @@ public class EmpireCraftActorCheckWarrior : GameAIActorBase
             TrySoldierPregnancyIndependent(actor);
         }
     }
+#endif
 
     private static void PruneFertilityScheduleIfNeeded()
     {
@@ -680,7 +681,7 @@ public class EmpireCraftActorCheckWarrior : GameAIActorBase
             Person actor = null;
             try
             {
-                actor = EmpireWorld.Current?.units?.get(pair.Key);
+                actor = EmpireWorld.Current?.PersonByKey(pair.Key);
             }
             catch
             {
@@ -708,6 +709,7 @@ public class EmpireCraftActorCheckWarrior : GameAIActorBase
         }
     }
 
+#if EC_PENDING
     private static void RefreshFertilityArmySnapshotIfNeeded()
     {
         int frame = Time.frameCount;

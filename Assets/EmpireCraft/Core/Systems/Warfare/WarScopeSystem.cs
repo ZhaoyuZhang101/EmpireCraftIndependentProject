@@ -1,6 +1,7 @@
 // Generated from the EmpireCraft mod: Scripts/GeneralSystems/Warfare/WarScopeSystem.cs. Do not edit by hand: Tools/PortTool/members.py rewrites it;
 // see Port/manifest.json and Tools/PortTool.
 using Mathf = EmpireCraft.Core.EcMath;
+using Vector2 = EmpireCraft.Core.EcVector2;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -31,9 +32,7 @@ public static class WarScopeSystem
 
     private static readonly HashSet<long> Scope = new();
     private static readonly HashSet<long> Shortfall = new();
-#if EC_PENDING
     private static readonly List<Vector2> HostileCenters = new();
-#endif
     private static double _builtAt = -1d;
     private static EmpireWorld _world;
 
@@ -176,24 +175,21 @@ public static class WarScopeSystem
 #endif
 
     // 这座城离那一国最近的城有多远(格，按城心)；那国没有城时为极大
-#if EC_PENDING
     public static float DistanceTo(City city, Realm target)
     {
         float best = float.MaxValue;
         if (city?.Record == null || target?.Cities == null) return best;
-        Vector2 at = city.city_center;
+        Vector2 at = city.Center;
         foreach (City other in target.Cities)
         {
             if (other?.Record == null || other.IsGone()) continue;
-            float distance = (other.city_center - at).sqrMagnitude;
+            float distance = (other.Center - at).sqrMagnitude;
             if (distance < best) best = distance;
         }
         return best == float.MaxValue ? best : Mathf.Sqrt(best);
     }
-#endif
 
     // 这一国有城在那一国的就近范围里(随中央集结的成员按这个挑，见 WarMuster)
-#if EC_PENDING
     public static bool Near(Realm kingdom, Realm target)
     {
         if (kingdom?.Cities == null || target?.Cities == null) return false;
@@ -201,7 +197,6 @@ public static class WarScopeSystem
             if (city?.Record != null && !city.IsGone() && DistanceTo(city, target) <= NearDistance) return true;
         return false;
     }
-#endif
 
     private static readonly Dictionary<Realm, List<Realm>> ByRealm = new();
     private static readonly HashSet<Realm> Hostiles = new();
@@ -252,18 +247,19 @@ public static class WarScopeSystem
         if (HostileMismatches++ < 5)
             LogService.LogWarning($"[EmpireCraft][就近动员] 核对不上：{kingdom.GetKingdomName()} 逐个问得 {scanned} 国，按名单找得 {Hostiles.Count} 国");
     }
+#endif
 
     private static void AddCenters(Realm kingdom)
     {
         if (kingdom?.Cities == null || kingdom.IsGone()) return;
         foreach (City city in kingdom.Cities)
-            if (city?.Record != null && !city.IsGone()) HostileCenters.Add(city.city_center);
+            if (city?.Record != null && !city.IsGone()) HostileCenters.Add(city.Center);
     }
 
     private static float Nearest(City city, float radiusSquared)
     {
         float best = float.MaxValue;
-        Vector2 at = city.city_center;
+        Vector2 at = city.Center;
         foreach (Vector2 center in HostileCenters)
         {
             float distance = (center - at).sqrMagnitude;
@@ -272,7 +268,6 @@ public static class WarScopeSystem
         }
         return best;
     }
-#endif
 
     private static bool LeadsWar(Realm kingdom) =>
         kingdom.GetWars().Any(war => Alive(war) != null && (war.MainAttacker == kingdom || war.MainDefender == kingdom));

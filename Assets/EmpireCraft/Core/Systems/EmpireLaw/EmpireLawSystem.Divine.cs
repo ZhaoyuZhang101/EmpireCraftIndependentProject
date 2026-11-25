@@ -27,7 +27,6 @@ public static partial class EmpireLawSystem
         RedeemMercy = 1.3f, RevokedGuilt = 1.5f, GuarantorLostGuilt = 1.15f;
 
     // 天平上加神力的砝码与保释(GetScale 调)
-#if EC_PENDING
     private static void AddDivineWeights(PersonalClanIdentity identity, List<LawFactor> guilt, List<LawFactor> mercy)
     {
         if (identity == null) return;
@@ -68,10 +67,9 @@ public static partial class EmpireLawSystem
 
     private static bool NotableGuarantor(PersonalClanIdentity guarantor)
     {
-        Person actor = guarantor.actor_id >= 0 ? EmpireWorld.Current?.units?.get(guarantor.actor_id) : null;
+        Person actor = guarantor.actor_id >= 0 ? EmpireWorld.Current?.PersonByKey(guarantor.actor_id) : null;
         return actor?.Record != null && !actor.IsGone() && (actor.IsOnOffice() || IsRoyalKin(actor, actor.Realm) || actor.IsRuler());
     }
-#endif
 
     // 保释期间再犯(RecordCrime 调)：取保作废
 #if EC_PENDING

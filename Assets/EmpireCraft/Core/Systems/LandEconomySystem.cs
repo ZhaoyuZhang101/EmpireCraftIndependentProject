@@ -2,6 +2,7 @@
 // see Port/manifest.json and Tools/PortTool.
 using Mathf = EmpireCraft.Core.EcMath;
 using Time = EmpireCraft.Core.FrameClock;
+using Vector2 = EmpireCraft.Core.EcVector2;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -235,7 +236,7 @@ public static class LandEconomySystem
     public static List<FamilyLandHoldingView> GetFamilyHoldings(Family family)
     {
         var result = new List<FamilyLandHoldingView>();
-        if (family == null || EmpireWorld.Current?.cities?.list == null) return result;
+        if (family == null || EmpireWorld.Current?.Cities == null) return result;
         // 土地记在宗族名下：家庭窗口显示的是这个家庭所属宗族(没有宗族则氏族/个人)的持有
         List<Person> members = (family.units ?? new List<Person>()).Where(IsLivingResident).ToList();
         var householdKeys = new HashSet<string>(members.Select(GetHouseholdKey));
@@ -266,7 +267,7 @@ public static class LandEconomySystem
     public static List<ClanLandHoldingView> GetSpecificClanHoldings(SpecificClan clan)
     {
         var result = new List<ClanLandHoldingView>();
-        if (clan == null || EmpireWorld.Current?.cities?.list == null) return result;
+        if (clan == null || EmpireWorld.Current?.Cities == null) return result;
         string key = $"s:{clan.id}";
         foreach (City city in EmpireWorld.Current.Cities.Where(city => city != null && !city.IsGone()))
         {
@@ -347,14 +348,14 @@ public static class LandEconomySystem
         if (war == null) return;
         WarExtension.WarExtraData warData = war.GetOrCreate();
         if (!warData.peasant_land_rebellion) return;
-        Realm rebel = war.GetMainAttacker() ?? EmpireWorld.Current?.kingdoms?.get(warData.peasant_land_rebellion_kingdom_id);
+        Realm rebel = war.GetMainAttacker() ?? EmpireWorld.Current?.RealmByKey(warData.peasant_land_rebellion_kingdom_id);
         bool won = winner == WarOutcome.Attackers && rebel != null && !rebel.IsGone();
         if (won)
         {
             OpenPrivateLandMarket(rebel, redistribute: true, revolutionary: true);
             string victory = string.Format(LM.Get("land_rebellion_victory_history"), rebel.GetKingdomName());
             RecordRebellionHistory(rebel, victory);
-            Realm origin = EmpireWorld.Current?.kingdoms?.get(warData.peasant_land_rebellion_origin_kingdom_id);
+            Realm origin = EmpireWorld.Current?.RealmByKey(warData.peasant_land_rebellion_origin_kingdom_id);
             Empire originEmpire = origin?.GetEmpire();
             if (originEmpire != null && originEmpire != rebel.GetEmpire())
                 originEmpire.RecordHistory(directContent: victory, actorId: rebel.Ruler?.Key ?? -1L,
@@ -370,6 +371,7 @@ public static class LandEconomySystem
             rebelData.peasant_land_rebellion_origin_kingdom_id = -1L;
         }
     }
+#endif
 
     private static CityExtension.CityExtraData EnsureData(City city)
     {
@@ -380,13 +382,11 @@ public static class LandEconomySystem
             MigrateLegacyFamilyKeys(data);
         return data;
     }
-#endif
 
     // 旧存档按家庭(f:)记的份额：按当年记下的代表人并入他现在所属的宗族；代表人已不在的份额作废，
     // 由下一次年度结算按宗族重新分配。
     private const string LegacyFamilyKeyPrefix = "f:";
 
-#if EC_PENDING
     private static void MigrateLegacyFamilyKeys(CityExtension.CityExtraData data)
     {
         foreach (string key in data.household_land_shares.Keys
@@ -405,6 +405,7 @@ public static class LandEconomySystem
         }
     }
 
+#if EC_PENDING
     private static Dictionary<string, List<Person>> BuildHouseholds(City city)
     {
         var result = new Dictionary<string, List<Person>>();
@@ -446,13 +447,13 @@ public static class LandEconomySystem
             .Distinct().Count();
         return HouseholdBaseShare * Math.Max(1, households);
     }
-#endif
 
     private static Person SelectRepresentative(IEnumerable<Person> members)
     {
         return members?.Where(IsLivingResident).OrderByDescending(actor => actor.Money)
-            .ThenByDescending(actor => actor.Record?.Renown ?? 0).FirstOrDefault();
+            .ThenByDescending(actor => actor.Renown ?? 0).FirstOrDefault();
     }
+#endif
 
     // 宗族人多，原来"有一个人是官员/贵族就整户不授田"会让一个大宗族因为出了一个官就全族无地，
     // 改成过半成员是特权阶层才整族不授田(这部分由贵族份额覆盖)。
@@ -465,6 +466,7 @@ public static class LandEconomySystem
         return privileged * 2 > list.Count;
     }
 
+#if EC_PENDING
     private static void UpdateMerchantHouseholds(Dictionary<string, List<Person>> households)
     {
         // Read each actor's income once; reuse totals for the median and qualification.
@@ -512,6 +514,7 @@ public static class LandEconomySystem
             if (representative != null && merchant) representative.GetOrCreate().is_economic_merchant = true;
         }
     }
+#endif
 
     // 绝户田：宗族在世族人都没了，它在本城的私田归同一世系在本城有田的一支(田多的先承)，没有就归上头还有人的本宗，
     // 都没有就退给背景农民(私田里实体家户没占的归背景人口，见 BackgroundLandPool)。以前绝户的份额一直挂着
@@ -718,7 +721,7 @@ public static class LandEconomySystem
                 !candidate.IsGone() && IsLandMarketOpen(candidate.Realm) &&
                 EnsureData(candidate).household_land_shares.Values.Sum() + HouseholdBaseShare <=
                 GetPrivateLandCapacity(candidate))
-            .OrderBy(candidate => Vector2.SqrMagnitude(candidate.city_center - city.city_center)).FirstOrDefault();
+            .OrderBy(candidate => Vector2.SqrMagnitude(candidate.Center - city.Center)).FirstOrDefault();
         if (destination == null) return;
         foreach (Person actor in landless.Value.ToList()) actor.JoinCity(destination);
     }
@@ -903,7 +906,7 @@ public static class LandEconomySystem
         Empire empire = city.Realm?.GetEmpire();
         if (empire == null || empire.IsGone() || empire.IsArchived()) return;
         long founderId = empire.data.dynasty_founder_actor_id;
-        bool founderReigning = founderId > 0 && empire.Emperor?.data?.id == founderId;
+        bool founderReigning = founderId > 0 && empire.Emperor?.Key == founderId;
         if (!empire.InFoundingGrace && !founderReigning) return;
         string key = empire.Key + ":" + founderId;
         CityExtension.CityExtraData data = EnsureData(city);
@@ -1089,7 +1092,7 @@ public static class LandEconomySystem
             !RebellionSystem.CanAttempt(origin) || !CityStabilitySystem.CanRise(city)) return false;
         KingdomExtension.KingdomExtraData rebelData = rebel.GetOrCreate();
         if (!rebelData.is_famine_rebellion || rebelData.peasant_land_rebellion_war_id <= 0) return false;
-        War war = EmpireWorld.Current?.wars?.get(rebelData.peasant_land_rebellion_war_id);
+        War war = EmpireWorld.Current?.WarByKey(rebelData.peasant_land_rebellion_war_id);
         if (war == null || war.HasEnded() || !war.IsDefender(origin)) return false;
         float grievance = FamineUnrestSystem.FervorFactor(origin);
         int years = city.GetOrCreate().famine_years;
@@ -1107,7 +1110,7 @@ public static class LandEconomySystem
 
     private static bool TryJoinAdjacentPeasantRebellion(City city, float ratio)
     {
-        if (city == null || city.neighbours_cities == null ||
+        if (city == null || city.NeighbourCities == null ||
             !RebellionSystem.CanAttempt(city.Realm) || !CityStabilitySystem.CanRise(city)) return false;
         bool landless = ratio >= ContagionLandlessThreshold;
         // 饥民军也拉连荒的邻城入伙(见 FamineUnrestSystem 的合流)：本城连荒、不是都城、本国今年卷入饥民起义的城还没到上限
@@ -1115,7 +1118,7 @@ public static class LandEconomySystem
                       FamineUnrestSystem.RoomLeft(city.Realm) > 0;
         if (!landless && !hungry) return false;
         bool? starving = null;
-        foreach (City neighbour in city.neighbours_cities)
+        foreach (City neighbour in city.NeighbourCities)
         {
             Realm rebel = neighbour?.Realm;
             KingdomExtension.KingdomExtraData rebelData = rebel?.GetOrCreate();
@@ -1131,7 +1134,7 @@ public static class LandEconomySystem
                 FamineUnrestSystem.CountRebelCities(origin, 1);
                 return true;
             }
-            War war = EmpireWorld.Current?.wars?.get(rebelData.peasant_land_rebellion_war_id);
+            War war = EmpireWorld.Current?.WarByKey(rebelData.peasant_land_rebellion_war_id);
             if (war == null || war.HasEnded() || !war.IsDefender(city.Realm)) continue;
             city.JoinRealm(rebel, pCaptured: true, pRebellion: true);
             string history = string.Format(LM.Get("land_rebellion_city_joined_history"), city.GetCityName(),
@@ -1154,9 +1157,7 @@ public static class LandEconomySystem
 #endif
 
     // 某宗族在这座城占的私田(点数，同土地买卖的口径)；内帑的皇庄用(见 PrivyPurse)
-#if EC_PENDING
     public static float ClanShare(City city, SpecificClan clan) => clan == null ? 0f : GetHouseholdShare(city, $"s:{clan.id}");
-#endif
 
     // 买 points 点背景私田的价钱
     public static float LandPrice(float points) => points * BackgroundLandPrice;
@@ -1168,6 +1169,7 @@ public static class LandEconomySystem
         CityPopulationData population = CityPopulationSystem.Get(city);
         if (population != null && paid > 0f) ReceiveLandSale(city, population, paid);
     }
+#endif
 
     private static float GetHouseholdShare(City city, string key)
     {
@@ -1178,10 +1180,11 @@ public static class LandEconomySystem
     private static Person ResolveRepresentative(CityExtension.CityExtraData data, string key)
     {
         return data.household_land_representatives.TryGetValue(key, out long id)
-            ? EmpireWorld.Current?.units?.get(id)
+            ? EmpireWorld.Current?.PersonByKey(id)
             : null;
     }
 
+#if EC_PENDING
     private static string ResolveHouseholdName(City city, string key)
     {
         CityExtension.CityExtraData data = EnsureData(city);
@@ -1193,19 +1196,19 @@ public static class LandEconomySystem
             if (!string.IsNullOrWhiteSpace(clan?.name)) return clan.GetDisplayName();
         }
         if (key.StartsWith("c:", StringComparison.Ordinal) &&
-            !string.IsNullOrWhiteSpace(representative?.clan?.data?.name))
+            !string.IsNullOrWhiteSpace(representative?.Clan?.Name))
             return representative.Clan.Name;
         return representative?.FullName() ?? LM.Get("city_land_unknown_household");
     }
+#endif
 
     private static string GetCrownName(City city)
     {
-        Person ruler = city?.kingdom?.GetEmpire()?.Emperor ?? city?.kingdom?.king;
+        Person ruler = city?.Realm?.GetEmpire()?.Emperor ?? city?.Realm?.Ruler;
         return ruler == null
             ? LM.Get("city_land_crown")
             : string.Format(LM.Get("city_land_crown_holder"), ruler.FullName());
     }
-#endif
 
     private static float GetCrownShare(City city)
     {

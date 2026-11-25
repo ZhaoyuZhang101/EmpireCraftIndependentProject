@@ -62,9 +62,7 @@ public static class ConnectivitySystem
     private static bool _forcePass;
     // 快照的工作状态
     private static int _cursor;
-#if EC_PENDING
-    private static List<TileZone> _zones;
-#endif
+    private static List<Cell> _zones;
     private static bool _zonesChanged, _needNeighbours;
     private static int[][] _nbrBuild;
     private static readonly List<City> PassCities = new();
@@ -113,7 +111,6 @@ public static class ConnectivitySystem
 
     private static ConnectivityConfig _fallback;
 
-#if EC_PENDING
     public static void ResetWorldState()
     {
         _job?.Cancel();
@@ -137,7 +134,6 @@ public static class ConnectivitySystem
         Volatile.Write(ref _queued, null);
         Version++;
     }
-#endif
 
     private static void ClearPass()
     {
@@ -164,7 +160,7 @@ public static class ConnectivitySystem
     public static void Tick()
     {
         EmpireWorld world = EmpireWorld.Current;
-        if (world?.cities?.list == null || world.zone_calculator?.zones == null || ModClass.IS_CLEAR) return;
+        if (world?.Cities == null || world.Zones?.All == null || ModClass.IS_CLEAR) return;
         if (!ReferenceEquals(_world, world))
         {
             ResetWorldState();
@@ -238,10 +234,10 @@ public static class ConnectivitySystem
         _cityCount = world.Cities.Count;
         ClearPass();
         _snapshotMs = 0d;
-        _zones = world.zone_calculator.zones;
+        _zones = world.Zones.All;
         int size = 0;
-        foreach (TileZone zone in _zones)
-            if (zone != null && zone.id >= size) size = zone.id + 1;
+        foreach (Cell zone in _zones)
+            if (zone != null && zone.Index >= size) size = zone.Index + 1;
         _needNeighbours = _grid.Resize(size) || _grid.Nbr.Length == 0;
         _nbrBuild = _needNeighbours ? new int[size][] : null;
         _zonesChanged = false;
@@ -299,12 +295,12 @@ public static class ConnectivitySystem
         }
     }
 
-    private static void SnapshotZone(TileZone zone)
+    private static void SnapshotZone(Cell zone)
     {
-        if (zone == null || zone.id < 0 || zone.id >= _grid.Count) return;
-        int id = zone.id;
+        if (zone == null || zone.Index < 0 || zone.Index >= _grid.Count) return;
+        int id = zone.Index;
         byte cls;
-        if (zone.world_edge || SeaRegionSystem.IsSea(zone)) cls = ConnectivityRules.Blocked;
+        if (zone.OnEdge || SeaRegionSystem.IsSea(zone)) cls = ConnectivityRules.Blocked;
         else
         {
             FrontTerrain terrain = TerrainSystem.Of(zone, out bool impassable);
@@ -315,7 +311,7 @@ public static class ConnectivitySystem
         byte wall = wallLevel == 2 ? (byte)2 : wallLevel == 1 ? (byte)1 : (byte)0;
         byte wild = 0;
         int region = -1;
-        if (zone.city == null && !WildernessPassage.PassableByRoad(zone))
+        if (zone.City == null && !WildernessPassage.PassableByRoad(zone))
         {
             WildKind kind = WildernessSystem.KindOf(zone);
             if (kind != WildKind.None)
@@ -334,14 +330,14 @@ public static class ConnectivitySystem
             _grid.WildRegion[id] = region;
             _zonesChanged = true;
         }
-        _grid.X[id] = (short)zone.x;
-        _grid.Y[id] = (short)zone.y;
+        _grid.X[id] = (short)zone.X;
+        _grid.Y[id] = (short)zone.Y;
         if (_nbrBuild == null) return;
-        TileZone[] neighbours = zone.neighbours ?? Array.Empty<TileZone>();
+        Cell[] neighbours = zone.Neighbours ?? Array.Empty<Cell>();
         var list = new int[neighbours.Length];
         int count = 0;
-        foreach (TileZone next in neighbours)
-            if (next != null && next.id >= 0 && next.id < _grid.Count) list[count++] = next.id;
+        foreach (Cell next in neighbours)
+            if (next != null && next.Index >= 0 && next.Index < _grid.Count) list[count++] = next.Index;
         if (count != list.Length) Array.Resize(ref list, count);
         _nbrBuild[id] = list;
     }
@@ -377,16 +373,16 @@ public static class ConnectivitySystem
         _zonesChanged = true;
     }
 
-#if EC_PENDING
     private static bool ValidCity(City city) =>
         city?.Record != null && !city.IsGone() && city.Realm?.Record != null && !city.Realm.IsGone() && !city.Realm.IsWild &&
-        city.zones != null && city.zones.Count > 0 && city.getTile() != null && !AncientWarfareCompatibility.OwnsObject(city);
+        city.Zones != null && city.Zones.Count > 0 && city.SeatCell() != null && !AncientWarfareCompatibility.OwnsObject(city);
 
+#if EC_PENDING
     private static void SnapshotCity(City city)
     {
         if (!ValidCity(city)) return;
-        TileZone center = AdministrativeControlSystem.CenterZone(city);
-        if (center == null || center.id < 0 || center.id >= _grid.Count) return;
+        Cell center = AdministrativeControlSystem.CenterZone(city);
+        if (center == null || center.Index < 0 || center.Index >= _grid.Count) return;
         Realm realm = RealmOf(city.Realm);
         if (realm == null) return;
         if (!PassRealmIndex.TryGetValue(realm.Key, out int realmIndex))
@@ -405,8 +401,8 @@ public static class ConnectivitySystem
         }
         var node = new ConnectivityNode
         {
-            City = city.Key, Zone = center.id, ModRealm = realmIndex, Culture = cultureIndex,
-            X = city.city_center.x, Y = city.city_center.y,
+            City = city.Key, Zone = center.Index, ModRealm = realmIndex, Culture = cultureIndex,
+            X = city.Center.x, Y = city.Center.y,
             PortLevel = NavySystem.Port(city)?.asset?.upgrade_level ?? -1
         };
         if (node.PortLevel > Config.max_port_level) node.PortLevel = Config.max_port_level;
@@ -426,9 +422,9 @@ public static class ConnectivitySystem
         }
         PassNodes.Add(node);
         PassNodeCities.Add(city);
-        WorldTile tile = city.getTile();
+        Cell tile = city.SeatCell();
         float cell = Math.Max(8f, Config.link_tiles);
-        var key = ((int)(tile.x / cell), (int)(tile.y / cell));
+        var key = ((int)(tile.X / cell), (int)(tile.Y / cell));
         if (!PassGrid.TryGetValue(key, out List<int> list)) PassGrid[key] = list = new List<int>();
         list.Add(PassNodes.Count - 1);
     }
@@ -440,12 +436,12 @@ public static class ConnectivitySystem
     {
         City city = PassNodeCities[index];
         if (!ValidCity(city)) return;
-        if (city.neighbours_cities != null)
-            foreach (City other in city.neighbours_cities) AddLink(index, other);
+        if (city.NeighbourCities != null)
+            foreach (City other in city.NeighbourCities) AddLink(index, other);
         foreach (City other in WildernessNeighbours.Of(city)) AddLink(index, other);
-        WorldTile tile = city.getTile();
+        Cell tile = city.SeatCell();
         float cell = Math.Max(8f, Config.link_tiles), limit = Config.link_tiles * Config.link_tiles;
-        int cx = (int)(tile.x / cell), cy = (int)(tile.y / cell);
+        int cx = (int)(tile.X / cell), cy = (int)(tile.Y / cell);
         for (int dx = -1; dx <= 1; dx++)
         for (int dy = -1; dy <= 1; dy++)
         {
@@ -454,10 +450,10 @@ public static class ConnectivitySystem
             {
                 if (other <= index) continue;
                 City near = PassNodeCities[other];
-                WorldTile at = near.getTile();
+                Cell at = near.SeatCell();
                 if (at == null) continue;
-                float ox = at.x - tile.x, oy = at.y - tile.y;
-                if (ox * ox + oy * oy <= limit && tile.isSameIsland(at)) AddLink(index, near);
+                float ox = at.X - tile.X, oy = at.Y - tile.Y;
+                if (ox * ox + oy * oy <= limit && tile.IsSameIsland(at)) AddLink(index, near);
             }
         }
     }
@@ -619,14 +615,14 @@ public static class ConnectivitySystem
         LogSummary(r);
         ClearPass();
     }
+#endif
 
     private static City[] ResolveCities(ConnectivityResult result)
     {
         var cities = new City[result.Nodes.Length];
-        for (int i = 0; i < cities.Length; i++) cities[i] = EmpireWorld.Current?.cities?.get(result.Nodes[i].City);
+        for (int i = 0; i < cities.Length; i++) cities[i] = EmpireWorld.Current?.CityByKey(result.Nodes[i].City);
         return cities;
     }
-#endif
 
     // 日志：政权之间(消息口径)的往来等级、主障碍分布，及城最多的政权往来最密的几家
 #if EC_PENDING
@@ -952,7 +948,7 @@ public static class ConnectivitySystem
         foreach (KeyValuePair<int, float> pair in order)
         {
             if (pair.Key == node) continue;
-            City other = EmpireWorld.Current?.cities?.get(_result.Nodes[pair.Key].City);
+            City other = EmpireWorld.Current?.CityByKey(_result.Nodes[pair.Key].City);
             if (other?.Record == null || other.IsGone()) continue;
             list.Add((other, pair.Value));
             if (list.Count >= count) break;
@@ -1064,17 +1060,14 @@ public static class ConnectivitySystem
     public static float Freight(float cost, string tier, float techFactor) => ConnectivityRules.Freight(cost, tier, techFactor, Config);
 
     // from 一方(按它的本事、绕开它的敌国)运货到 to 的路线；没有记下(远过 goods_max_cost、或被战争封死)时 Known 为假
-#if EC_PENDING
     public static ConnectivityRoute GoodsRoute(Realm from, Realm to)
     {
         if (!TryRealms(from, to, out int a, out int b, out bool same)) return default;
         if (same) return new ConnectivityRoute(RealmOf(to), 0f, false, null);
         return _result.RealmGoodsOut[a].TryGetValue(b, out ConnectivityPair pair) ? Route(b, pair) : default;
     }
-#endif
 
     // from 一方的全部货物路线(商品市场每年连通时用)
-#if EC_PENDING
     public static List<ConnectivityRoute> GoodsRoutes(Realm from)
     {
         var list = new List<ConnectivityRoute>();
@@ -1090,7 +1083,7 @@ public static class ConnectivitySystem
 
     private static ConnectivityRoute Route(int target, in ConnectivityPair pair)
     {
-        Realm to = EmpireWorld.Current?.kingdoms?.get(_result.Realms[target]);
+        Realm to = EmpireWorld.Current?.RealmByKey(_result.Realms[target]);
         if (to?.Record == null || to.IsGone()) return default;
         long[] third = null;
         if (pair.Third != null)
@@ -1100,7 +1093,6 @@ public static class ConnectivitySystem
         }
         return new ConnectivityRoute(to, pair.Cost, pair.Has(ConnectivityPair.BySea), third);
     }
-#endif
 
     #endregion
 

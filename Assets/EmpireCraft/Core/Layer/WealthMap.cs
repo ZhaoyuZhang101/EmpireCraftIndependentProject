@@ -98,7 +98,7 @@ public static class WealthMap
         if (now - _rankedAt >= 2f || now < _rankedAt)
         {
             _rankedAt = now;
-            _ranked = EmpireWorld.Current?.cities?.list?.Where(Shown).Select(Score).OrderBy(value => value).ToArray() ?? new float[0];
+            _ranked = EmpireWorld.Current?.Cities?.Where(Shown).Select(Score).OrderBy(value => value).ToArray() ?? new float[0];
         }
         if (_ranked.Length < 5) return AbsoluteBucket(score);
         int below = global::System.Array.BinarySearch(_ranked, score);
@@ -129,12 +129,12 @@ public static class WealthMap
                 if (!Shown(city)) continue;
                 int bucket = BucketFor(mode, Score(city));
                 WealthMapColor color = ColorOf(bucket);
-                foreach (TileZone zone in city.zones)
+                foreach (Cell zone in city.Zones)
                 {
                     EmpireCraftMetaTypeLibrary.zone_manager.drawBegin();
                     EmpireCraftMetaTypeLibrary.zone_manager.drawZoneMeta(color, zone,
-                        IsBorder(mode, zone.zone_up, city, bucket), IsBorder(mode, zone.zone_down, city, bucket),
-                        IsBorder(mode, zone.zone_left, city, bucket), IsBorder(mode, zone.zone_right, city, bucket),
+                        IsBorder(mode, zone.Up, city, bucket), IsBorder(mode, zone.Down, city, bucket),
+                        IsBorder(mode, zone.Left, city, bucket), IsBorder(mode, zone.Right, city, bucket),
                         color.data, meta);
                     EmpireCraftMetaTypeLibrary.zone_manager.drawEnd(zone);
                 }
@@ -144,7 +144,7 @@ public static class WealthMap
         {
             City hovered = tile?.zone?.city;
             if (!Shown(hovered)) return;
-            QuantumSpriteLibrary.colorZones(highlight, hovered.zones, highlight.color);
+            QuantumSpriteLibrary.colorZones(highlight, hovered.Zones, highlight.color);
         });
         asset.check_tile_has_meta = (MetaZoneTooltipAction)((zone, meta, option) => Shown(zone?.city));
         asset.check_cursor_tooltip = (zone, meta, option) =>
@@ -166,9 +166,9 @@ public static class WealthMap
 
     // 城市边界模式每座城描边；贫富热度、固定档位只描档位交界
 #if EC_PENDING
-    private static bool IsBorder(int mode, TileZone neighbour, City city, int bucket)
+    private static bool IsBorder(int mode, Cell neighbour, City city, int bucket)
     {
-        City other = neighbour?.city;
+        City other = neighbour?.City;
         if (mode == 1) return other != city;
         return !Shown(other) || BucketFor(mode, Score(other)) != bucket;
     }

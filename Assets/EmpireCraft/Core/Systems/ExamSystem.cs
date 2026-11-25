@@ -22,7 +22,7 @@ public static class ExamSystem
 #if EC_PENDING
     private static string PassedText(Person actor, string level)
     {
-        bool modern = actor?.kingdom?.GetRegime()?.type == EmpireCraft.Core.RegimeType.Modern;
+        bool modern = actor?.Realm?.GetRegime()?.type == EmpireCraft.Core.RegimeType.Modern;
         return LM.Get(modern ? $"personal_history_civil_exam_{level}_passed" : $"personal_history_exam_{level}_passed");
     }
 

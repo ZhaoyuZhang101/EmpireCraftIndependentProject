@@ -1,6 +1,7 @@
 // Generated from the EmpireCraft mod: Scripts/GeneralSystems/Warfare/MusterSystem.cs. Do not edit by hand: Tools/PortTool/members.py rewrites it;
 // see Port/manifest.json and Tools/PortTool.
 using Mathf = EmpireCraft.Core.EcMath;
+using Vector2 = EmpireCraft.Core.EcVector2;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -42,7 +43,7 @@ public static class MusterSystem
         int months = 1 + (int)(Math.Abs(war.Key * 7919L) % 3);
         Realm rebel = war.MainAttacker, loyal = FrontSystem.Realm(war.MainDefender);
         if (rebel?.Capital != null && loyal?.Capital != null &&
-            Vector2.Distance(rebel.Capital.city_center, loyal.Capital.city_center) > FarDistance) months++;
+            Vector2.Distance(rebel.Capital.Center, loyal.Capital.Center) > FarDistance) months++;
         if (loyal?.GetEmpire() is Empire empire && empire.Mandate < WeakMandate) months++;
         if (loyal != null && WarScopeSystem.Level(loyal) >= WarScopeSystem.Total) months--;
         data.muster_months = Mathf.Clamp(months, 0, MaxMonths);

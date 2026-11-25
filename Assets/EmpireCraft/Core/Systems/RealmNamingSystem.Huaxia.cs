@@ -151,11 +151,11 @@ public static partial class RealmNamingSystem
         EmpireCore newTitle = dominion ?? (IsFormalCore(riseCore) ? riseCore : null);
         City ancestralSeat = ancestral == null ? null : EmpireCoreManager.GetRepresentativeCity(ancestral);
         City newSeat = (newTitle == null ? null : EmpireCoreManager.GetRepresentativeCity(newTitle)) ?? kingdom.Capital;
-        float ax = ancestralSeat != null ? ancestralSeat.city_center.x : house.capital_city_pos_x;
-        float ay = ancestralSeat != null ? ancestralSeat.city_center.y : house.capital_city_pos_y;
+        float ax = ancestralSeat != null ? ancestralSeat.Center.x : house.capital_city_pos_x;
+        float ay = ancestralSeat != null ? ancestralSeat.Center.y : house.capital_city_pos_y;
         if (newSeat == null) return null;
         bool sameTitle = newTitle != null && ancestral != null && newTitle == ancestral;
-        string prefix = RealmNameRules.RestorationPrefix(sameTitle, ax, ay, newSeat.city_center.x, newSeat.city_center.y);
+        string prefix = RealmNameRules.RestorationPrefix(sameTitle, ax, ay, newSeat.Center.x, newSeat.Center.y);
         empire.data.directPre = prefix;
         empire.data.founding_prefix = prefix;
         empire.data.name_source = SourceRestoration;

@@ -89,10 +89,10 @@ public static class NavySystem
         }
     }
 
-#if EC_PENDING
-    public static City Home(FleetData fleet) => EmpireWorld.Current?.cities?.get(fleet.home_city_id) is City city &&
+    public static City Home(FleetData fleet) => EmpireWorld.Current?.CityByKey(fleet.home_city_id) is City city &&
                                                 city.Record != null && !city.IsGone() ? city : null;
 
+#if EC_PENDING
     public static Building Port(City city) => SettlementSeaSearch.Port(city);
 
     public static IEnumerable<City> Ports(Realm kingdom) =>
@@ -310,7 +310,7 @@ public static class NavySystem
         List<SeaRegionSystem.Region> start = HomeWaters(side);
         if (start.Count == 0) return null;
         List<SeaRegionSystem.Region> goal = SeaRegionSystem.RegionsAround(target);
-        if (goal.Count == 0) return SeaLanding.Beachhead(side, target.getTile()?.zone, start).route;
+        if (goal.Count == 0) return SeaLanding.Beachhead(side, target.SeatCell()?.Zone, start).route;
         return SeaRegionSystem.Route(start, goal, region => HostileControl(side, region));
     }
 #endif
@@ -321,9 +321,9 @@ public static class NavySystem
     public static bool IsCutOff(Realm kingdom, CorpsData corps)
     {
         if (!CorpsSystem.Enabled || kingdom == null || corps == null || corps.embarked) return false;
-        TileZone zone = CorpsSystem.Zone(corps);
+        Cell zone = CorpsSystem.Zone(corps);
         City home = CorpsSystem.Home(corps);
-        if (zone == null || home == null || SeaRegionSystem.IsSea(zone) || CorpsSystem.SameLand(zone, home.getTile()?.zone))
+        if (zone == null || home == null || SeaRegionSystem.IsSea(zone) || CorpsSystem.SameLand(zone, home.SeatCell()?.Zone))
             return false;
         Dictionary<int, int> reach = SeaLanding.Reachable(kingdom);
         return !SeaLanding.Shores(zone).Take(12).Any(shore => SeaLanding.Waters(shore).Any(region => reach.ContainsKey(region.Id)));
@@ -337,7 +337,7 @@ public static class NavySystem
         List<SeaRegionSystem.Region> start = HomeWaters(side);
         List<SeaRegionSystem.Region> goal = SeaRegionSystem.RegionsAround(target);
         if (goal.Count == 0)
-            goal = SeaLanding.Shores(target?.getTile()?.zone).Select(SeaLanding.Waters).FirstOrDefault(waters => waters.Count > 0) ??
+            goal = SeaLanding.Shores(target?.SeatCell()?.Zone).Select(SeaLanding.Waters).FirstOrDefault(waters => waters.Count > 0) ??
                    new List<SeaRegionSystem.Region>();
         return start.Count == 0 || goal.Count == 0 ? null : SeaRegionSystem.Route(start, goal);
     }
@@ -426,7 +426,7 @@ public static class NavySystem
             {
                 id = OverallHelperFunc.IdGenerator.NextId(), serial = ++kingdom.GetOrCreate().fleet_serial,
                 kingdom_id = kingdom.Key, home_city_id = port.Key, region_id = water.Id, target_region_id = water.Id,
-                zone_id = water.Center?.id ?? -1
+                zone_id = water.Center?.Index ?? -1
             });
         }
     }
@@ -605,7 +605,7 @@ public static class NavySystem
                 SeaRegionSystem.Region home = HomeRegion(fleet);
                 if (home == null) continue;
                 fleet.region_id = home.Id;
-                fleet.zone_id = home.Center?.id ?? -1;
+                fleet.zone_id = home.Center?.Index ?? -1;
                 continue;
             }
             if (target == null || target == current) continue;
@@ -657,7 +657,7 @@ public static class NavySystem
             SeaRegionSystem.Region region = SeaRegionSystem.Get(group.Key);
             Battles[group.Key] = new BattleView
             {
-                region_id = group.Key, zone_id = region?.Center?.id ?? -1, attacker_id = lead.kingdom.Key,
+                region_id = group.Key, zone_id = region?.Center?.Index ?? -1, attacker_id = lead.kingdom.Key,
                 defender_id = foe.kingdom.Key, ratio = ratio, attacker_ships = shipsA, defender_ships = shipsB,
                 sunk_attacker = sunkA, sunk_defender = sunkB, time = now
             };
@@ -695,7 +695,7 @@ public static class NavySystem
     {
         foreach (CorpsData corps in CorpsSystem.Of(kingdom))
         {
-            TileZone zone = CorpsSystem.Zone(corps);
+            Cell zone = CorpsSystem.Zone(corps);
             if (corps.task != "attack" || !SeaRegionSystem.IsSea(zone)) continue;
             CorpsSystem.Casualties(corps, corps.strength * Mathf.Clamp01(share) * 0.5f);
             corps.org = Mathf.Max(0f, corps.org - 20f);
@@ -772,40 +772,40 @@ public static class NavySystem
     public static Vector3 DrawPosition(FleetData fleet, out bool sailing)
     {
         sailing = false;
-        TileZone current = CorpsSystem.ZoneById(fleet.zone_id);
-        Vector3 here = current?.centerTile?.posV ?? Vector3.zero;
+        Cell current = CorpsSystem.ZoneById(fleet.zone_id);
+        Vector3 here = current?.Center?.PosV ?? Vector3.zero;
         if (current == null || !Courses.TryGetValue(fleet.id, out var course) || course.path == null ||
-            course.path.Count < 2 || course.path[0] != current.id ||
-            SeaRegionSystem.Get(fleet.region_id)?.Center?.id != course.target)
+            course.path.Count < 2 || course.path[0] != current.Index ||
+            SeaRegionSystem.Get(fleet.region_id)?.Center?.Index != course.target)
             return here;
         float steps = FleetZonesPerSecond * CorpsSystem.TickFraction();
         int index = Mathf.Min(Mathf.FloorToInt(steps), course.path.Count - 1);
-        TileZone from = CorpsSystem.ZoneById(course.path[index]);
-        if (from?.centerTile == null) return here;
-        if (index + 1 >= course.path.Count) return from.centerTile.posV;
-        TileZone to = CorpsSystem.ZoneById(course.path[index + 1]);
-        if (to?.centerTile == null) return from.centerTile.posV;
+        Cell from = CorpsSystem.ZoneById(course.path[index]);
+        if (from?.Center == null) return here;
+        if (index + 1 >= course.path.Count) return from.Center.PosV;
+        Cell to = CorpsSystem.ZoneById(course.path[index + 1]);
+        if (to?.Center == null) return from.Center.PosV;
         sailing = true;
-        return Vector3.Lerp(from.centerTile.posV, to.centerTile.posV, steps - index);
+        return Vector3.Lerp(from.Center.PosV, to.Center.PosV, steps - index);
     }
 
     private static void StepZone(FleetData fleet)
     {
         SeaRegionSystem.Region region = SeaRegionSystem.Get(fleet.region_id);
-        TileZone target = region?.Center;
+        Cell target = region?.Center;
         if (target == null) return;
-        TileZone current = CorpsSystem.ZoneById(fleet.zone_id);
+        Cell current = CorpsSystem.ZoneById(fleet.zone_id);
         if (current == null || !SeaRegionSystem.IsSea(current))
         {
-            fleet.zone_id = target.id;
+            fleet.zone_id = target.Index;
             Courses.Remove(fleet.id);
             return;
         }
         if (current == target) return;
-        if (!Courses.TryGetValue(fleet.id, out var course) || course.target != target.id ||
-            course.path != null && (course.path.Count < 2 || course.path[0] != current.id))
+        if (!Courses.TryGetValue(fleet.id, out var course) || course.target != target.Index ||
+            course.path != null && (course.path.Count < 2 || course.path[0] != current.Index))
         {
-            course = (target.id, RoadNetwork.SeaPath(current, target)?.Select(zone => zone.id).ToList());
+            course = (target.Index, RoadNetwork.SeaPath(current, target)?.Select(zone => zone.Index).ToList());
             Courses[fleet.id] = course;
         }
         if (course.path != null && course.path.Count >= 2)
@@ -816,9 +816,9 @@ public static class NavySystem
         }
         for (int step = 0; step < FleetZonesPerSecond && current != target; step++)
         {
-            TileZone best = null;
+            Cell best = null;
             float bestDistance = CorpsSystem.ZoneDistance(current, target);
-            foreach (TileZone next in current.neighbours_all ?? Array.Empty<TileZone>())
+            foreach (Cell next in current.NeighboursAll ?? Array.Empty<Cell>())
             {
                 if (!SeaRegionSystem.IsSea(next)) continue;
                 float distance = CorpsSystem.ZoneDistance(next, target);
@@ -838,7 +838,7 @@ public static class NavySystem
             }
             current = best;
         }
-        fleet.zone_id = current.id;
+        fleet.zone_id = current.Index;
     }
 
     private static void EnsureFlagship(Realm kingdom, FleetData fleet)
@@ -885,7 +885,7 @@ public static class NavySystem
     private static void RemoveFlagship(FleetData fleet)
     {
         if (fleet.flagship_id < 0) return;
-        Person boat = EmpireWorld.Current?.units?.get(fleet.flagship_id);
+        Person boat = EmpireWorld.Current?.PersonByKey(fleet.flagship_id);
         FlagshipIndex.Remove(fleet.flagship_id);
         fleet.flagship_id = -1L;
         if (boat?.Record == null || boat.IsGone() || !boat.Alive) return;
@@ -912,13 +912,13 @@ public static class NavySystem
     {
         if (fleet.flagship_id < 0) return;
         Person boat = EmpireWorld.Current.PersonByKey(fleet.flagship_id);
-        TileZone zone = CorpsSystem.ZoneById(fleet.zone_id);
-        if (boat?.Record == null || boat.IsGone() || !boat.Alive || zone?.centerTile == null || boat.current_tile == null) return;
+        Cell zone = CorpsSystem.ZoneById(fleet.zone_id);
+        if (boat?.Record == null || boat.IsGone() || !boat.Alive || zone?.Center == null || boat.current_tile == null) return;
         float now = Time.unscaledTime;
         if (FlagshipMoves.TryGetValue(boat.Key, out float next) && now < next) return;
         FlagshipMoves[boat.Key] = now + FlagshipMoveInterval;
         if (boat.current_tile.zone == zone) return;
-        try { boat.goTo(zone.centerTile, pPathOnWater: true); }
+        try { boat.goTo(zone.Center, pPathOnWater: true); }
         catch (Exception exception) { LogService.LogWarning($"[EmpireCraft][海军] 旗舰航行失败: {exception.Message}"); }
     }
 #endif

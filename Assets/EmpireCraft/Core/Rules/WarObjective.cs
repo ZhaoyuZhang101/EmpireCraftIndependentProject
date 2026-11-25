@@ -169,9 +169,7 @@ public static class WarObjective
         .Where(kingdom => kingdom?.Cities != null && !kingdom.IsGone())
         .SelectMany(kingdom => kingdom.Cities).Where(city => city?.Record != null && !city.IsGone()).Distinct().ToList();
 
-#if EC_PENDING
-    private static int Size(City city) => (city.zones?.Count ?? 0) + (city.IsCapital() ? 1000 : 0);
-#endif
+    private static int Size(City city) => (city.Zones?.Count ?? 0) + (city.IsCapital() ? 1000 : 0);
 
     // 收复：对方一边手里本方法理的城；主城池是其中的法理都城，否则最大的一座
 #if EC_PENDING
@@ -244,17 +242,15 @@ public static class WarObjective
 #endif
 
     // 头一座挑最大的，第二座挑挨着它的(没有就挑次大的)
-#if EC_PENDING
     private static void Pick(WarExtension.WarExtraData data, List<City> preferred, List<City> border)
     {
         City first = preferred.OrderByDescending(Size).First();
         data.goal_city_ids.Add(first.Key);
         SetMain(data, first);
-        City second = border.Where(city => city != first && first.neighbours_cities.Contains(city)).OrderByDescending(Size).FirstOrDefault() ??
+        City second = border.Where(city => city != first && first.NeighbourCities.Contains(city)).OrderByDescending(Size).FirstOrDefault() ??
                       preferred.Where(city => city != first).OrderByDescending(Size).FirstOrDefault();
         if (second != null && data.goal_city_ids.Count < MaxTargets) data.goal_city_ids.Add(second.Key);
     }
-#endif
 
     // 对方挨着攻方一边的城(攻方是帝国中央、两边不同属一个帝国时，帝国成员的城也算挨着)；跨海够不着的挑离攻方都城最近的两座
 #if EC_PENDING
@@ -268,7 +264,7 @@ public static class WarObjective
         foreach (City city in defender.Cities ?? new List<City>())
         {
             if (city?.Record == null || city.IsGone()) continue;
-            foreach (City next in city.neighbours_cities)
+            foreach (City next in city.NeighbourCities)
                 if (Ours(next?.Realm))
                 {
                     result.Add(city);
@@ -277,7 +273,7 @@ public static class WarObjective
         }
         if (result.Count > 0 || attacker.Capital?.Record == null) return result;
         return (defender.Cities ?? new List<City>()).Where(city => city?.Record != null && !city.IsGone())
-            .OrderBy(city => Toolbox.DistVec2Float(city.city_center, attacker.Capital.city_center)).Take(MaxTargets).ToList();
+            .OrderBy(city => Toolbox.DistVec2Float(city.Center, attacker.Capital.Center)).Take(MaxTargets).ToList();
     }
 #endif
 
@@ -325,10 +321,8 @@ public static class WarObjective
         "coal" => 4, "sulfur" => 4, "copper" => 3, _ => 2
     };
 
-#if EC_PENDING
     internal static int Pastures(City city) =>
         RuralSettlementSystem.InCity(city).Count(settlement => settlement.trade == LivelihoodSystem.Pasture);
-#endif
 
     private static IEnumerable<City> RealmCities(Realm realm)
     {
@@ -343,24 +337,20 @@ public static class WarObjective
     #region 攻下主城池
 
     // 城归攻方一边，或攻方一边占了它过半地块。只认这场仗里的两边：帝国里的叛乱、伐不臣两边同属一个帝国，按帝国比会把京城当成已到手
-#if EC_PENDING
     public static bool Held(War war, City city) => HeldShareOf(war, city) >= HeldShare;
-#endif
 
     // 攻方一边占了这座城几成(城已归攻方一边为 1)
-#if EC_PENDING
     public static float HeldShareOf(War war, City city)
     {
         if (war?.Record == null || city?.Record == null || city.IsGone()) return 0f;
         if (city.Realm != null && war.Attackers.Contains(city.Realm)) return 1f;
-        int total = city.zones?.Count ?? 0;
+        int total = city.Zones?.Count ?? 0;
         if (total == 0) return 0f;
         int held = 0;
         foreach (Realm kingdom in war.Attackers)
             if (kingdom?.Record != null && !kingdom.IsGone()) held += city.GetOccupiedTileZoneCount(kingdom);
         return Math.Min(1f, held / (float)total);
     }
-#endif
 
     // 每场仗约每月一次(WarPatch.update)
 #if EC_PENDING
@@ -434,14 +424,12 @@ public static class WarObjective
 #endif
 
     // 叛乱要攻的京城：开战时记下的(见 WarPatch.update)，没记的按眼下的
-#if EC_PENDING
     public static City RebelTarget(War war)
     {
         long id = war.GetOrCreate().war_goal_capital_id;
-        City city = id >= 0 ? EmpireWorld.Current?.cities?.get(id) : null;
+        City city = id >= 0 ? EmpireWorld.Current?.CityByKey(id) : null;
         return city?.Record != null && !city.IsGone() ? city : war.MainDefender?.Capital;
     }
-#endif
 
     public static bool RebelWar(War war) => war?.Record != null &&
                                             war.GetEmpireWarType() is EmpireWarType.派系叛乱 or EmpireWarType.地方叛乱;
@@ -490,10 +478,10 @@ public static class WarObjective
         }
         return false;
     }
+#endif
 
     public static City Main(WarExtension.WarExtraData data) =>
-        data == null || data.goal_main_city_id < 0 ? null : EmpireWorld.Current?.cities?.get(data.goal_main_city_id);
-#endif
+        data == null || data.goal_main_city_id < 0 ? null : EmpireWorld.Current?.CityByKey(data.goal_main_city_id);
 
     // 目标城里还在对方一边手里的(落到第三家、已单独议和的盟国手里的不算)
     public static List<City> Targets(War war, WarExtension.WarExtraData data) =>

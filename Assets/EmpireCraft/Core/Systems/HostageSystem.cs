@@ -20,26 +20,21 @@ public static class HostageSystem
 
     private static bool Alive(Realm kingdom) => kingdom?.Record != null && !kingdom.IsGone();
 
-#if EC_PENDING
     private static Person Living(long id)
     {
-        Person actor = id >= 0 ? EmpireWorld.Current?.units?.get(id) : null;
+        Person actor = id >= 0 ? EmpireWorld.Current?.PersonByKey(id) : null;
         return actor?.Record != null && !actor.IsGone() && actor.Alive ? actor : null;
     }
-#endif
 
     // 眼下的宗主：封建附庸的领主，或朝贡的那个帝国的中央
     private static Realm Lord(Realm subject) =>
         FeudalVassalService.GetOverlord(subject) ?? subject.GetTakenAllianceEmpire()?.CoreKingdom;
 
     // 在别国为质的这个人是谁的质子(界面、个人提示用)；不是为 null
-#if EC_PENDING
     public static Person HostageOf(Realm subject) =>
         Alive(subject) ? Living(subject.GetOrCreate().hostage_actor_id) : null;
-#endif
 
     // 质约还管着这一国：质子在宗主那里，或质子回国即位不满 AmityYears 年
-#if EC_PENDING
     public static bool Binds(Realm subject)
     {
         if (!Alive(subject) || EmpireWorld.Current == null) return false;
@@ -50,7 +45,6 @@ public static class HostageSystem
         double crowned = data.hostage_crowned_at;
         return crowned >= 0d && GameClock.Now >= crowned && GameClock.YearsSince(crowned) < AmityYears;
     }
-#endif
 
     // 称臣时送质子；送成了返回 true
 #if EC_PENDING
@@ -62,8 +56,8 @@ public static class HostageSystem
         Person king = subject.Ruler;
         Person hostage = subject.HasHeir() ? subject.GetHeir() : null;
         if (hostage?.Record == null || hostage.IsGone() || !hostage.Alive || hostage == king)
-            hostage = king?.getChildren(false)?.Where(child => child?.data != null && !child.IsGone() && child.Alive && child != king)
-                .OrderByDescending(child => child.getAge()).FirstOrDefault();
+            hostage = king?.GetChildren(false)?.Where(child => child?.Record != null && !child.IsGone() && child.Alive && child != king)
+                .OrderByDescending(child => child.Age()).FirstOrDefault();
         if (hostage == null) return false;
         data.hostage_actor_id = hostage.Key;
         data.hostage_holder_id = lord.Key;

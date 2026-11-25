@@ -385,8 +385,8 @@ public static class SchismSystem
         data.schism_claimant_name = claimant.Ruler?.FullName() ?? "";
         data.schism_claimant_realm = claimant.GetKingdomName();
         data.schism_war_id = war.Key;
-        data.schism_core_capital_id = core.Capital?.data?.id ?? -1L;
-        data.schism_claimant_capital_id = claimant.Capital?.data?.id ?? -1L;
+        data.schism_core_capital_id = core.Capital?.Key ?? -1L;
+        data.schism_claimant_capital_id = claimant.Capital?.Key ?? -1L;
         EnterStage(data, Contest, 0, GameClock.Now);
         // 其余割据成员各八成随攻方；没割据的成员各六成随守方(见文件头)，别的观望
         var followers = new List<Realm>();
@@ -552,7 +552,7 @@ public static class SchismSystem
         }
         Realm claimant = LiveKingdom(data.schism_claimant_id);
         bool present = claimant != null && claimant.GetEmpire() == empire && claimant != empire.CoreKingdom;
-        string person = !string.IsNullOrEmpty(data.schism_claimant_name) ? data.schism_claimant_name : claimant?.king?.getName() ?? "";
+        string person = !string.IsNullOrEmpty(data.schism_claimant_name) ? data.schism_claimant_name : claimant?.Ruler?.FullName() ?? "";
         string realm = claimant?.GetKingdomName() ?? data.schism_claimant_realm;
         string name = empire.GetEmpireName(), title = Title(empire, kind);
         int years = Mathf.Max(1, Mathf.FloorToInt(WarSituation.WarYears(war)));
@@ -794,7 +794,6 @@ public static class SchismSystem
     public static string StageLabel(Empire empire) => LM.Get("schism_stage_" + StageOf(empire));
 
     // 时限：预警、割据还剩几个月；争位打了几年；首义以来几个月
-#if EC_PENDING
     public static string TimeLabel(Empire empire)
     {
         if (!Active(empire) || EmpireWorld.Current == null) return "";
@@ -814,7 +813,6 @@ public static class SchismSystem
             default: return "";
         }
     }
-#endif
 
     // 争位者："某国·某人"(争位阶段)
 #if EC_PENDING
@@ -822,7 +820,7 @@ public static class SchismSystem
     {
         if (StageOf(empire) != Contest) return null;
         EmpireData data = empire.data;
-        string war = LiveWar(data.schism_war_id)?.data?.name;
+        string war = LiveWar(data.schism_war_id)?.Name;
         return $"{LiveKingdom(data.schism_claimant_id)?.GetKingdomName() ?? data.schism_claimant_realm}·{data.schism_claimant_name}" +
                (string.IsNullOrEmpty(war) ? "" : $"  ({war})");
     }
@@ -1005,13 +1003,11 @@ public static class SchismSystem
         return kingdom?.Record != null && !kingdom.IsGone() ? kingdom : null;
     }
 
-#if EC_PENDING
     private static War LiveWar(long id)
     {
-        War war = id >= 0 ? EmpireWorld.Current?.wars?.get(id) : null;
+        War war = id >= 0 ? EmpireWorld.Current?.WarByKey(id) : null;
         return war?.Record != null && war.Alive && !war.HasEnded() ? war : null;
     }
-#endif
 
     #endregion
 }

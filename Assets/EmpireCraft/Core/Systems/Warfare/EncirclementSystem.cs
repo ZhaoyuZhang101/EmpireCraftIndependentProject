@@ -32,28 +32,26 @@ public static class EncirclementSystem
     public static bool Encircled(CorpsData corps) => corps != null && corps.pocket_months > 0;
 
     private static readonly HashSet<int> Seen = new();
-#if EC_PENDING
-    private static readonly Queue<TileZone> Frontier = new();
-#endif
+    private static readonly Queue<Cell> Frontier = new();
 
     // 军所在的这块地是不是被围住了；算完 Seen 里是围内的地块(突围要用)
 #if EC_PENDING
-    private static bool InPocket(Realm kingdom, TileZone start)
+    private static bool InPocket(Realm kingdom, Cell start)
     {
         Seen.Clear();
         Frontier.Clear();
-        Seen.Add(start.id);
+        Seen.Add(start.Index);
         Frontier.Enqueue(start);
         bool enemy = false;
         while (Frontier.Count > 0)
         {
-            TileZone zone = Frontier.Dequeue();
-            City city = zone.city;
-            if (city?.Record != null && !city.IsGone() && city.getTile()?.zone == zone && FrontSystem.Friendly(kingdom, city.Realm))
+            Cell zone = Frontier.Dequeue();
+            City city = zone.City;
+            if (city?.Record != null && !city.IsGone() && city.SeatCell()?.Zone == zone && FrontSystem.Friendly(kingdom, city.Realm))
                 return false;
-            foreach (TileZone next in zone.neighbours_all ?? Array.Empty<TileZone>())
+            foreach (Cell next in zone.NeighboursAll ?? Array.Empty<Cell>())
             {
-                if (next == null || Seen.Contains(next.id) || SeaRegionSystem.IsSea(next) || TerrainSystem.Impassable(next) ||
+                if (next == null || Seen.Contains(next.Index) || SeaRegionSystem.IsSea(next) || TerrainSystem.Impassable(next) ||
                     !TerrainSystem.Crossable(zone, next)) continue;
                 Realm controller = FrontSystem.Controller(next);
                 if (controller != null && FrontSystem.Hostile(kingdom, controller))
@@ -61,7 +59,7 @@ public static class EncirclementSystem
                     enemy = true;
                     continue;
                 }
-                Seen.Add(next.id);
+                Seen.Add(next.Index);
                 if (Seen.Count > PocketZones) return false;
                 Frontier.Enqueue(next);
             }
@@ -80,7 +78,7 @@ public static class EncirclementSystem
         bool war = CorpsSystem.IsAtWar(kingdom);
         foreach (CorpsData corps in list.ToList())
         {
-            TileZone zone = CorpsSystem.Zone(corps);
+            Cell zone = CorpsSystem.Zone(corps);
             bool pocket = war && zone != null && !Exempt(kingdom, corps) && corps.supply < SupplyWatch && !SeaBorne(corps, zone) &&
                           InPocket(kingdom, zone);
             if (!pocket)
@@ -106,17 +104,17 @@ public static class EncirclementSystem
 #endif
 
     // 海外的军海路还通：滩头被围也有粮，不算(见 LogisticsSystem.SupplyLine)
-#if EC_PENDING
-    private static bool SeaBorne(CorpsData corps, TileZone zone)
+    private static bool SeaBorne(CorpsData corps, Cell zone)
     {
         City home = CorpsSystem.Home(corps);
-        return corps.supply > 0f && home != null && !CorpsSystem.SameLand(zone, home.getTile()?.zone);
+        return corps.supply > 0f && home != null && !CorpsSystem.SameLand(zone, home.SeatCell()?.Zone);
     }
 
-    private static string Place(TileZone zone) => zone?.city?.data != null && !zone.city.IsGone()
-        ? zone.city.GetCityName() : LM.Get("corps_pocket_wilds");
+#if EC_PENDING
+    private static string Place(Cell zone) => zone?.City?.Record != null && !zone.City.IsGone()
+        ? zone.City.GetCityName() : LM.Get("corps_pocket_wilds");
 
-    private static void Announce(Realm kingdom, CorpsData corps, TileZone zone)
+    private static void Announce(Realm kingdom, CorpsData corps, Cell zone)
     {
         string name = CorpsSystem.Name(corps), place = Place(zone);
         FrontSystem.Log(kingdom, string.Format(LM.Get("corps_log_pocket"), name, place));
@@ -130,37 +128,37 @@ public static class EncirclementSystem
 
     // 围住这支军的敌国：所在地的控制者；不是敌国就看四周
 #if EC_PENDING
-    private static Realm Captor(Realm kingdom, TileZone zone)
+    private static Realm Captor(Realm kingdom, Cell zone)
     {
         Realm own = FrontSystem.Controller(zone);
         if (own != null && FrontSystem.Hostile(kingdom, own)) return own;
         foreach (int id in Seen)
         {
-            TileZone inside = CorpsSystem.ZoneById(id);
-            foreach (TileZone next in inside?.neighbours_all ?? Array.Empty<TileZone>())
+            Cell inside = CorpsSystem.ZoneById(id);
+            foreach (Cell next in inside?.NeighboursAll ?? Array.Empty<Cell>())
                 if (next != null && FrontSystem.Controller(next) is Realm holder && FrontSystem.Hostile(kingdom, holder))
                     return holder;
         }
         return null;
     }
 
-    private static bool TryBreakout(Realm kingdom, CorpsData corps, TileZone zone)
+    private static bool TryBreakout(Realm kingdom, CorpsData corps, Cell zone)
     {
         if (corps.org < BreakoutOrg) return false;
         Person general = corps.general_id >= 0 ? EmpireWorld.Current.PersonByKey(corps.general_id) : null;
         float chance = BreakoutChance + (general != null && FamousTalentSystem.IsFamous(general) ? FamousBonus : 0f);
         if (EcRandom.value >= chance) return false;
-        TileZone exit = NearestFriendly(kingdom, zone);
+        Cell exit = NearestFriendly(kingdom, zone);
         if (exit == null) return false;
         float lost = corps.strength * BreakoutLoss;
         CorpsSystem.Casualties(corps, lost);
         corps.org = Mathf.Max(5f, corps.org - BreakoutOrgLoss);
-        corps.zone_id = exit.id;
+        corps.zone_id = exit.Index;
         corps.pocket_months = 0;
         corps.march_progress = 0f;
         corps.task = "retreat";
         corps.sector_city_id = -1L;
-        corps.target_zone_id = CorpsSystem.Home(corps)?.getTile()?.zone?.id ?? exit.id;
+        corps.target_zone_id = CorpsSystem.Home(corps)?.SeatCell()?.Zone?.Index ?? exit.Index;
         string text = string.Format(LM.Get("corps_log_breakout"), CorpsSystem.Name(corps), Place(zone), CorpsSystem.ShortStrength(lost));
         FrontSystem.Log(kingdom, text);
         WarChronicle.RecordFor(kingdom, WarChronicle.Commander, text);
@@ -170,19 +168,19 @@ public static class EncirclementSystem
 
     // 围外最近的己方地块(BreakoutReach 步以内，可以穿敌占区)；Seen 是这支军的围内
 #if EC_PENDING
-    private static TileZone NearestFriendly(Realm kingdom, TileZone start)
+    private static Cell NearestFriendly(Realm kingdom, Cell start)
     {
-        var visited = new HashSet<int> { start.id };
-        var level = new List<TileZone> { start };
+        var visited = new HashSet<int> { start.Index };
+        var level = new List<Cell> { start };
         for (int depth = 0; depth < BreakoutReach && level.Count > 0; depth++)
         {
-            var next = new List<TileZone>();
-            foreach (TileZone zone in level)
-                foreach (TileZone neighbour in zone.neighbours_all ?? Array.Empty<TileZone>())
+            var next = new List<Cell>();
+            foreach (Cell zone in level)
+                foreach (Cell neighbour in zone.NeighboursAll ?? Array.Empty<Cell>())
                 {
-                    if (neighbour == null || !visited.Add(neighbour.id) || SeaRegionSystem.IsSea(neighbour) ||
+                    if (neighbour == null || !visited.Add(neighbour.Index) || SeaRegionSystem.IsSea(neighbour) ||
                         TerrainSystem.Impassable(neighbour) || !TerrainSystem.Crossable(zone, neighbour)) continue;
-                    if (!Seen.Contains(neighbour.id) && FrontSystem.Controller(neighbour) is Realm holder &&
+                    if (!Seen.Contains(neighbour.Index) && FrontSystem.Controller(neighbour) is Realm holder &&
                         FrontSystem.Friendly(kingdom, holder))
                         return neighbour;
                     next.Add(neighbour);
@@ -192,7 +190,7 @@ public static class EncirclementSystem
         return null;
     }
 
-    private static void TrySurrender(Realm kingdom, CorpsData corps, TileZone zone)
+    private static void TrySurrender(Realm kingdom, CorpsData corps, Cell zone)
     {
         if (corps.pocket_months < SurrenderFrom) return;
         float chance = SurrenderStep * (corps.pocket_months - 1) + (corps.org <= LowOrg ? LowOrgBonus : 0f) +
@@ -201,12 +199,12 @@ public static class EncirclementSystem
         Surrender(kingdom, corps, zone);
     }
 
-    private static void Surrender(Realm kingdom, CorpsData corps, TileZone zone)
+    private static void Surrender(Realm kingdom, CorpsData corps, Cell zone)
     {
         Realm captor = Captor(kingdom, zone);
         string name = CorpsSystem.Name(corps), place = Place(zone);
         float men = corps.strength;
-        City city = zone.city?.data != null && !zone.city.IsGone() ? zone.city : null;
+        City city = zone.City?.Record != null && !zone.City.IsGone() ? zone.City : null;
         // 围城的军记战功、统领落到谁手里
         List<(Realm kingdom, CorpsData corps)> besiegers = captor == null ? new List<(Realm, CorpsData)>()
             : CorpsSystem.All().Where(entry => entry.kingdom == captor && entry.corps.strength >= 1f &&
@@ -247,10 +245,10 @@ public static class EncirclementSystem
         foreach (CorpsData corps in list)
         {
             if (corps.pocket_months <= 0) continue;
-            TileZone zone = CorpsSystem.Zone(corps);
+            Cell zone = CorpsSystem.Zone(corps);
             if (zone == null) continue;
-            City city = zone.city?.data != null && !zone.city.IsGone() ? zone.city : null;
-            corps.target_zone_id = zone.id;
+            City city = zone.City?.Record != null && !zone.City.IsGone() ? zone.City : null;
+            corps.target_zone_id = zone.Index;
             corps.sector_city_id = city?.Key ?? -1L;
             corps.task = city != null && FrontSystem.Hostile(kingdom, city.Realm) ? "attack" : "defend";
         }
@@ -266,7 +264,7 @@ public static class EncirclementSystem
         PocketCities.Clear();
         foreach ((Realm kingdom, CorpsData corps) in CorpsSystem.All())
         {
-            if (corps.pocket_months <= 0 || CorpsSystem.Zone(corps)?.city is not City city || city.Record == null) continue;
+            if (corps.pocket_months <= 0 || CorpsSystem.Zone(corps)?.City is not City city || city.Record == null) continue;
             if (!PocketCities.TryGetValue(city.Key, out List<Realm> list)) PocketCities[city.Key] = list = new List<Realm>();
             list.Add(kingdom);
         }

@@ -151,13 +151,13 @@ public static partial class SmoothBorders
 #endif
 
     // 一块地要重画(原版各处让它重画的信号，见 Stamp)：画布建好了才记(没建好的整张画时一起画)
-#if EC_PENDING
-    private static void CanvasMark(TileZone zone)
+    private static void CanvasMark(Cell zone)
     {
-        if (zone == null || !_geometryReady || zone.id < 0 || zone.id >= _zoneSeen.Length) return;
-        CanvasDirty.Add(zone.id);
+        if (zone == null || !_geometryReady || zone.Index < 0 || zone.Index >= _zoneSeen.Length) return;
+        CanvasDirty.Add(zone.Index);
     }
 
+#if EC_PENDING
     private static int CityOf(City city)
     {
         if (city == null || !city.Alive) return 0;
@@ -194,7 +194,7 @@ public static partial class SmoothBorders
 
     // 原版巡检之前(ZonePaintBudget.BeforeRedraw)：画布接手的图层在这里画，返回 true 时跳过原版巡检
 #if EC_PENDING
-    internal static bool CanvasDraw(ZoneCalculator calc)
+    internal static bool CanvasDraw(ZoneGrid calc)
     {
         if (_canvasBroken) return false;
         try
@@ -211,7 +211,7 @@ public static partial class SmoothBorders
         }
     }
 
-    private static bool DrawCanvas(ZoneCalculator calc)
+    private static bool DrawCanvas(ZoneGrid calc)
     {
         MetaTypeAsset layer = calc?._mode_asset;
         if (!Enabled || calc?.pixels == null || layer == null || EmpireWorld.Current == null || !GameClock.Running || SmoothLoader.isLoading())
@@ -229,8 +229,8 @@ public static partial class SmoothBorders
         // 无人区的轮廓：先对上这一帧的(变了的块记进 CanvasDirty，下面一起画)
         WildernessShape.Tick();
         EnsurePixelState(calc.pixels);
-        if (!ReferenceEquals(_canvasWorld, EmpireWorld.Current) || _canvasW != EmpireWorld.width || _canvasH != EmpireWorld.height ||
-            _zonesX != calc.zones_total_x || _zonesY != calc.zones_total_y)
+        if (!ReferenceEquals(_canvasWorld, EmpireWorld.Current) || _canvasW != EmpireWorld.Current.Width || _canvasH != EmpireWorld.Current.Height ||
+            _zonesX != calc.Width || _zonesY != calc.Height)
         {
             CanvasReset();
             _canvasWorld = EmpireWorld.Current;
@@ -254,13 +254,13 @@ public static partial class SmoothBorders
 
     // 整张画：换到画布接手的图层、进图、画布作废后。城的轮廓没建过才建(换图层不重算)
 #if EC_PENDING
-    private static void CanvasBuild(ZoneCalculator calc, MetaTypeAsset layer, int option)
+    private static void CanvasBuild(ZoneGrid calc, MetaTypeAsset layer, int option)
     {
         long started = Stopwatch.GetTimestamp();
-        _canvasW = EmpireWorld.width;
-        _canvasH = EmpireWorld.height;
-        _zonesX = calc.zones_total_x;
-        _zonesY = calc.zones_total_y;
+        _canvasW = EmpireWorld.Current.Width;
+        _canvasH = EmpireWorld.Current.Height;
+        _zonesX = calc.Width;
+        _zonesY = calc.Height;
         int tiles = _canvasW * _canvasH, zones = _zonesX * _zonesY;
         if (_tileCity.Length != tiles)
         {
@@ -343,7 +343,7 @@ public static partial class SmoothBorders
         for (int zx = 0; zx < _zonesX; zx++)
             ColorZone(calc.pixels, zx, zy);
         _canvasReady = true;
-        calc.setDirty();
+        calc.MarkDirty();
         // 无人区图层看画布上各格归了谁(并进国土、挨着国土不描边)：整张画过，有无人区格的那些块都重画
         if (WildernessShape.Active) WildernessOverlay.CanvasRebuilt();
         double ms = (Stopwatch.GetTimestamp() - started) * 1000d / Stopwatch.Frequency;
@@ -388,7 +388,7 @@ public static partial class SmoothBorders
 
     // 选中、只看收藏、近看清空内部这些原版的整体显示设置：变了就整张重涂(只查色，不重算形状)
 #if EC_PENDING
-    private static void CanvasPalette(ZoneCalculator calc)
+    private static void CanvasPalette(ZoneGrid calc)
     {
         int stamp = PaletteStamp(calc);
         if (stamp == _paletteStamp) return;
@@ -401,16 +401,16 @@ public static partial class SmoothBorders
         if (Transitions.Count > 0)
             foreach (KeyValuePair<int, Transition> pair in Transitions)
             {
-                TileZone zone = calc.getZone(pair.Key % _zonesX, pair.Key / _zonesX);
+                Cell zone = calc.Get(pair.Key % _zonesX, pair.Key / _zonesX);
                 if (zone == null) continue;
                 pair.Value.newPixels = BaseFace(zone);
                 pair.Value.phase = -1;
                 WriteFlip(calc.pixels, zone, pair.Value, Time.unscaledTime);
             }
-        calc.setDirty();
+        calc.MarkDirty();
     }
 
-    private static int PaletteStamp(ZoneCalculator calc)
+    private static int PaletteStamp(ZoneGrid calc)
     {
         unchecked
         {
@@ -427,13 +427,13 @@ public static partial class SmoothBorders
 
     // 找变动：各块的城(每帧全图比一遍，只比引用)、各城的归属与样子(几帧轮一遍)、悬停的省、逐格推进的块
 #if EC_PENDING
-    private static void CanvasScan(ZoneCalculator calc, MetaTypeAsset layer, int option)
+    private static void CanvasScan(ZoneGrid calc, MetaTypeAsset layer, int option)
     {
-        List<TileZone> zones = calc.zones;
-        foreach (TileZone zone in zones)
+        List<Cell> zones = calc.All;
+        foreach (Cell zone in zones)
         {
-            int id = zone.id;
-            City city = zone.city;
+            int id = zone.Index;
+            City city = zone.City;
             int known = _zoneCity[id];
             if (known == 0 ? city == null || !city.Alive : ReferenceEquals(CityTable[known], city) && city.Alive) continue;
             CanvasDirty.Add(id);
@@ -455,7 +455,7 @@ public static partial class SmoothBorders
             {
                 if (_zoneCursor >= total) _zoneCursor = 0;
                 int id = _zoneCursor++;
-                TileZone zone = calc.getZone(id % _zonesX, id / _zonesX);
+                Cell zone = calc.Get(id % _zonesX, id / _zonesX);
                 ZoneMetas(layer, option, zone, out IMetaObject owner, out IMetaObject shade);
                 if (IndexOf(shade) != _zoneShade[id] || IndexOf(owner) != _zoneOwner[id] ||
                     CanvasOwnerKey(layer, owner) != _zoneOwnerKey[id]) CanvasDirty.Add(id);
@@ -470,7 +470,7 @@ public static partial class SmoothBorders
             {
                 if (_cityCursor >= cities.Count) _cityCursor = 0;
                 City city = cities[_cityCursor++];
-                if (city?.zones == null || city.zones.Count == 0 || !city.Alive) continue;
+                if (city?.Zones == null || city.Zones.Count == 0 || !city.Alive) continue;
                 ScanCity(layer, option, city);
             }
         }
@@ -492,8 +492,8 @@ public static partial class SmoothBorders
                     continue;
                 }
                 _fillCursor++;
-                TileZone zone = calc.getZone(id % _zonesX, id / _zonesX);
-                if (zone == null || zone.city != null) continue;
+                Cell zone = calc.Get(id % _zonesX, id / _zonesX);
+                if (zone == null || zone.City != null) continue;
                 IMetaObject fill = ShadeOf(zone, LayerMeta(layer, option, zone));
                 if (IndexOf(fill) != _zoneFill[id] || CanvasOwnerKey(layer, fill) != _zoneFillKey[id]) CanvasDirty.Add(id);
             }
@@ -504,7 +504,7 @@ public static partial class SmoothBorders
         foreach (int id in PushIds)
         {
             if (id < 0 || id >= _zonePush.Length) continue;
-            TileZone zone = calc.getZone(id % _zonesX, id / _zonesX);
+            Cell zone = calc.Get(id % _zonesX, id / _zonesX);
             if (IndexOf(PushMetaOf(layer, zone)) != _zonePush[id]) CanvasDirty.Add(id);
         }
     }
@@ -517,11 +517,11 @@ public static partial class SmoothBorders
     {
         if (kingdom?.Cities == null) return;
         foreach (City city in kingdom.Cities)
-            if (city?.zones != null)
-                foreach (TileZone zone in city.zones)
-                    if (zone != null) CanvasDirty.Add(zone.id);
-        foreach (TileZone zone in WildernessTerritory.ZonesOf(kingdom))
-            if (zone != null) CanvasDirty.Add(zone.id);
+            if (city?.Zones != null)
+                foreach (Cell zone in city.Zones)
+                    if (zone != null) CanvasDirty.Add(zone.Index);
+        foreach (Cell zone in WildernessTerritory.ZonesOf(kingdom))
+            if (zone != null) CanvasDirty.Add(zone.Index);
     }
 #endif
 
@@ -531,7 +531,7 @@ public static partial class SmoothBorders
     {
         int index = CityOf(city);
         if (index == 0) return;
-        TileZone first = city.zones[0];
+        Cell first = city.Zones[0];
         IMetaObject owner = LayerMeta(layer, option, first);
         int ownerIndex = IndexOf(owner), ownerKey = CanvasOwnerKey(layer, owner);
         bool contested = ControlLayer(layer) && city.Realm != null && city.HasOccupiedZones();
@@ -540,17 +540,17 @@ public static partial class SmoothBorders
         if (!changed && contested)
         {
             // 被占的城：各块的实际控制方逐块比
-            foreach (TileZone zone in city.zones)
+            foreach (Cell zone in city.Zones)
             {
                 if (zone == null) continue;
-                if (IndexOf(ShadeOf(zone, RealMetaOf(layer, option, zone))) == _zoneShade[zone.id]) continue;
+                if (IndexOf(ShadeOf(zone, RealMetaOf(layer, option, zone))) == _zoneShade[zone.Index]) continue;
                 changed = true;
                 break;
             }
         }
         if (!changed) return;
-        foreach (TileZone zone in city.zones)
-            if (zone != null) CanvasDirty.Add(zone.id);
+        foreach (Cell zone in city.Zones)
+            if (zone != null) CanvasDirty.Add(zone.Index);
     }
 #endif
 
@@ -578,7 +578,7 @@ public static partial class SmoothBorders
 #if EC_PENDING
     private static readonly Dictionary<int, Color32[]> OldFaces = new();
 
-    private static void CanvasProcess(ZoneCalculator calc, MetaTypeAsset layer, int option)
+    private static void CanvasProcess(ZoneGrid calc, MetaTypeAsset layer, int option)
     {
         if (CanvasDirty.Count == 0) return;
         _canvasPass++;
@@ -630,7 +630,7 @@ public static partial class SmoothBorders
         if (flips)
             foreach (int id in PaintZones)
             {
-                TileZone zone = calc.getZone(id % _zonesX, id / _zonesX);
+                Cell zone = calc.Get(id % _zonesX, id / _zonesX);
                 if (zone == null || !InFlipView(zone)) continue;
                 Color32[] face = CanvasFace(zone);
                 if (face != null) OldFaces[id] = face;
@@ -643,30 +643,30 @@ public static partial class SmoothBorders
         foreach (int id in PaintZones)
         {
             if (!Transitions.TryGetValue(id, out Transition running)) continue;
-            TileZone zone = calc.getZone(id % _zonesX, id / _zonesX);
+            Cell zone = calc.Get(id % _zonesX, id / _zonesX);
             if (zone == null) continue;
             running.newPixels = BaseFace(zone);
             running.phase = -1;
             WriteFlip(calc.pixels, zone, running, Time.unscaledTime);
         }
         if (flips) PlanCanvasFlips(calc);
-        calc.setDirty();
+        calc.MarkDirty();
         // 无人区图层看画布上各格归了谁：重画过的块里有无人区格的跟着重画(挨着的块有变时它们也在 PaintZones 里)
         if (WildernessShape.Active)
             foreach (int id in PaintZones)
-                if (WildernessShape.ZoneTouched(id)) WildernessOverlay.MarkZone(calc.getZone(id % _zonesX, id / _zonesX));
+                if (WildernessShape.ZoneTouched(id)) WildernessOverlay.MarkZone(calc.Get(id % _zonesX, id / _zonesX));
     }
 #endif
 
     // 这块地眼下看到的样子(正在翻的取看到的那一面)
 #if EC_PENDING
-    private static Color32[] CanvasFace(TileZone zone) =>
-        Transitions.ContainsKey(zone.id) ? Capture(zone)?.oldPixels : BaseFace(zone);
+    private static Color32[] CanvasFace(Cell zone) =>
+        Transitions.ContainsKey(zone.Index) ? Capture(zone)?.oldPixels : BaseFace(zone);
 #endif
 
     // 这块地刚画好的样子(不提亮的底色)
 #if EC_PENDING
-    private static Color32[] BaseFace(TileZone zone)
+    private static Color32[] BaseFace(Cell zone)
     {
         int[] ids = PixelIds(zone);
         var face = new Color32[ids.Length];
@@ -681,11 +681,11 @@ public static partial class SmoothBorders
 
     // 一块地的城、归属：变了说明要重算(城变了重算轮廓；本来的归属或它的样子变了是换主，要翻牌)
 #if EC_PENDING
-    private static void RefreshZone(ZoneCalculator calc, MetaTypeAsset layer, int option, int id, out bool cityChanged,
+    private static void RefreshZone(ZoneGrid calc, MetaTypeAsset layer, int option, int id, out bool cityChanged,
         out bool shadeChanged, out bool political)
     {
-        TileZone zone = calc.getZone(id % _zonesX, id / _zonesX);
-        int city = CityOf(zone?.city);
+        Cell zone = calc.Get(id % _zonesX, id / _zonesX);
+        int city = CityOf(zone?.City);
         int owner = 0, ownerKey = 0, shade = 0, push = 0;
         if (!_canvasCityKeyed)
         {
@@ -705,7 +705,7 @@ public static partial class SmoothBorders
         }
         // 不归城的块：国家、帝国图层(按城池归属那一档)上图层补的归属(见 FillAt)
         int fill = 0, fillKey = 0;
-        if (_canvasCityKeyed && zone != null && zone.city == null && ControlLayer(layer))
+        if (_canvasCityKeyed && zone != null && zone.City == null && ControlLayer(layer))
         {
             IMetaObject meta = ShadeOf(zone, LayerMeta(layer, option, zone));
             fill = IndexOf(meta);
@@ -735,7 +735,7 @@ public static partial class SmoothBorders
 
     // 不按城的图层：一块地本来的归属与显示成谁(国家、帝国图层别的档按实际控制方，被占的算占领方)
 #if EC_PENDING
-    private static void ZoneMetas(MetaTypeAsset layer, int option, TileZone zone, out IMetaObject owner, out IMetaObject shade)
+    private static void ZoneMetas(MetaTypeAsset layer, int option, Cell zone, out IMetaObject owner, out IMetaObject shade)
     {
         owner = zone == null ? null : LayerMeta(layer, option, zone);
         shade = zone == null ? null : ShadeOf(zone, ControlLayer(layer) ? RealMetaOf(layer, option, zone) : owner);
@@ -744,7 +744,7 @@ public static partial class SmoothBorders
 
     // 城池归属的图层：一座城的归属、显示成谁、有没有被占的块，一轮只取一次
 #if EC_PENDING
-    private static void RefreshCity(MetaTypeAsset layer, int option, int city, TileZone zone)
+    private static void RefreshCity(MetaTypeAsset layer, int option, int city, Cell zone)
     {
         if (_cityPass[city] == _canvasPass) return;
         _cityPass[city] = _canvasPass;
@@ -870,7 +870,7 @@ public static partial class SmoothBorders
         }
         bool control = ControlLayer(_canvasLayer);
         int zoneId = zy * _zonesX + zx;
-        TileZone zone = EmpireWorld.Current.zone_calculator.getZone(zx, zy);
+        Cell zone = EmpireWorld.Current.Zones.Get(zx, zy);
         int push = _zonePush[zoneId], zoneCity = _zoneCity[zoneId];
         for (int y = zy * ZoneSize; y < zy * ZoneSize + ZoneSize; y++)
         for (int x = zx * ZoneSize; x < zx * ZoneSize + ZoneSize; x++)
@@ -1114,7 +1114,7 @@ public static partial class SmoothBorders
 
     private static void CanvasColors(IMetaObject meta, out Color32 inside, out Color32 outside)
     {
-        ZoneCalculator calc = EmpireWorld.Current.zone_calculator;
+        ZoneGrid calc = EmpireWorld.Current.Zones;
         ColorAsset color = SafeColor(meta);
         if (color == null)
         {
@@ -1239,27 +1239,27 @@ public static partial class SmoothBorders
 
     // 镜头里换了主的块按新主人分组，各组从挨着新主人的块起一圈圈翻(同 PlanSweeps)；挨着它们、样子也变了的块翻到一半时跟着换
 #if EC_PENDING
-    private static void PlanCanvasFlips(ZoneCalculator calc)
+    private static void PlanCanvasFlips(ZoneGrid calc)
     {
         float now = Time.unscaledTime;
         var leads = new Dictionary<int, Transition>();
-        var groups = new Dictionary<(int owner, int key), List<TileZone>>();
+        var groups = new Dictionary<(int owner, int key), List<Cell>>();
         foreach (int id in LeadZones)
         {
             if (!OldFaces.TryGetValue(id, out Color32[] old)) continue;
-            TileZone zone = calc.getZone(id % _zonesX, id / _zonesX);
+            Cell zone = calc.Get(id % _zonesX, id / _zonesX);
             Color32[] fresh = zone == null ? null : BaseFace(zone);
             if (fresh == null || Same(old, fresh)) continue;
             leads[id] = new Transition { oldPixels = old, newPixels = fresh, created = now };
             var key = (_zoneOwner[id], _zoneOwnerKey[id]);
-            if (!groups.TryGetValue(key, out List<TileZone> list)) groups[key] = list = new List<TileZone>();
+            if (!groups.TryGetValue(key, out List<Cell> list)) groups[key] = list = new List<Cell>();
             list.Add(zone);
         }
-        foreach (KeyValuePair<(int owner, int key), List<TileZone>> group in groups)
+        foreach (KeyValuePair<(int owner, int key), List<Cell>> group in groups)
             PlanCanvasGroup(calc, group.Key.owner, group.Key.key, group.Value, leads, now);
         foreach (KeyValuePair<int, Transition> pair in leads)
         {
-            TileZone zone = calc.getZone(pair.Key % _zonesX, pair.Key / _zonesX);
+            Cell zone = calc.Get(pair.Key % _zonesX, pair.Key / _zonesX);
             Transitions[pair.Key] = pair.Value;
             WriteFlip(calc.pixels, zone, pair.Value, now);
         }
@@ -1268,13 +1268,13 @@ public static partial class SmoothBorders
         {
             int id = pair.Key;
             if (leads.ContainsKey(id)) continue;
-            TileZone zone = calc.getZone(id % _zonesX, id / _zonesX);
+            Cell zone = calc.Get(id % _zonesX, id / _zonesX);
             if (zone == null) continue;
             float at = float.MaxValue;
             for (int dy = -ZoneReach; dy <= ZoneReach; dy++)
             for (int dx = -ZoneReach; dx <= ZoneReach; dx++)
             {
-                int nx = zone.x + dx, ny = zone.y + dy;
+                int nx = zone.X + dx, ny = zone.Y + dy;
                 if (nx < 0 || nx >= _zonesX || ny < 0 || ny >= _zonesY) continue;
                 if (leads.TryGetValue(ny * _zonesX + nx, out Transition lead)) at = Mathf.Min(at, lead.flipAt + lead.duration / 2f);
             }
@@ -1288,25 +1288,25 @@ public static partial class SmoothBorders
         OldFaces.Clear();
     }
 
-    private static void PlanCanvasGroup(ZoneCalculator calc, int owner, int ownerKey, List<TileZone> zones,
+    private static void PlanCanvasGroup(ZoneGrid calc, int owner, int ownerKey, List<Cell> zones,
         Dictionary<int, Transition> leads, float now)
     {
         var members = new HashSet<int>();
-        foreach (TileZone zone in zones) members.Add(zone.id);
+        foreach (Cell zone in zones) members.Add(zone.Index);
         var best = new Dictionary<int, (int distance, float dirX, float dirY)>();
-        var open = new SortedDictionary<int, List<TileZone>>();
-        void Offer(TileZone zone, int distance, float dirX, float dirY)
+        var open = new SortedDictionary<int, List<Cell>>();
+        void Offer(Cell zone, int distance, float dirX, float dirY)
         {
-            if (best.TryGetValue(zone.id, out var known) && known.distance <= distance) return;
-            best[zone.id] = (distance, dirX, dirY);
-            if (!open.TryGetValue(distance, out List<TileZone> list)) open[distance] = list = new List<TileZone>();
+            if (best.TryGetValue(zone.Index, out var known) && known.distance <= distance) return;
+            best[zone.Index] = (distance, dirX, dirY);
+            if (!open.TryGetValue(distance, out List<Cell> list)) open[distance] = list = new List<Cell>();
             list.Add(zone);
         }
         IMetaObject target = OwnerTable[owner];
         // 起点：挨着本来就归新主人(同样子)的块；没有就挨着新主人的宗主、同一帝国的块；再没有(或是自己变色)就是离都城最近的块
         foreach (bool related in new[] { false, true })
         {
-            foreach (TileZone zone in zones)
+            foreach (Cell zone in zones)
             {
                 float sumX = 0f, sumY = 0f;
                 bool touches = false;
@@ -1314,7 +1314,7 @@ public static partial class SmoothBorders
                 for (int dx = -1; dx <= 1; dx++)
                 {
                     if (dx == 0 && dy == 0) continue;
-                    int nx = zone.x + dx, ny = zone.y + dy;
+                    int nx = zone.X + dx, ny = zone.Y + dy;
                     if (nx < 0 || nx >= _zonesX || ny < 0 || ny >= _zonesY) continue;
                     int near = ny * _zonesX + nx;
                     if (members.Contains(near) || _zoneOwner[near] == 0) continue;
@@ -1334,14 +1334,14 @@ public static partial class SmoothBorders
         }
         if (best.Count == 0)
         {
-            TileZone seat = SeatOf(target);
-            TileZone first = zones[0];
+            Cell seat = SeatOf(target);
+            Cell first = zones[0];
             if (seat != null)
             {
                 int bestDistance = int.MaxValue;
-                foreach (TileZone zone in zones)
+                foreach (Cell zone in zones)
                 {
-                    int d = (zone.x - seat.x) * (zone.x - seat.x) + (zone.y - seat.y) * (zone.y - seat.y);
+                    int d = (zone.X - seat.X) * (zone.X - seat.X) + (zone.Y - seat.Y) * (zone.Y - seat.Y);
                     if (d >= bestDistance) continue;
                     bestDistance = d;
                     first = zone;
@@ -1349,9 +1349,9 @@ public static partial class SmoothBorders
             }
             Offer(first, 0, 0f, 0f);
         }
-        var seeds = new List<(TileZone zone, int distance)>();
+        var seeds = new List<(Cell zone, int distance)>();
         foreach (KeyValuePair<int, (int distance, float dirX, float dirY)> pair in best)
-            seeds.Add((calc.getZone(pair.Key % _zonesX, pair.Key / _zonesX), pair.Value.distance));
+            seeds.Add((calc.Get(pair.Key % _zonesX, pair.Key / _zonesX), pair.Value.distance));
         void Spread()
         {
             while (open.Count > 0)
@@ -1362,16 +1362,16 @@ public static partial class SmoothBorders
                     distance = key;
                     break;
                 }
-                List<TileZone> ring = open[distance];
+                List<Cell> ring = open[distance];
                 open.Remove(distance);
-                foreach (TileZone zone in ring)
+                foreach (Cell zone in ring)
                 {
-                    if (best[zone.id].distance != distance) continue;
+                    if (best[zone.Index].distance != distance) continue;
                     foreach ((int dx, int dy) in Sides)
                     {
-                        int nx = zone.x + dx, ny = zone.y + dy;
+                        int nx = zone.X + dx, ny = zone.Y + dy;
                         if (nx < 0 || nx >= _zonesX || ny < 0 || ny >= _zonesY || !members.Contains(ny * _zonesX + nx)) continue;
-                        Offer(calc.getZone(nx, ny), distance + 1, dx, dy);
+                        Offer(calc.Get(nx, ny), distance + 1, dx, dy);
                     }
                 }
             }
@@ -1380,14 +1380,14 @@ public static partial class SmoothBorders
         // 不连着的几片(海岛、飞地)：按离最近起点的直线距离接着排
         if (best.Count < members.Count)
         {
-            foreach (TileZone zone in zones)
+            foreach (Cell zone in zones)
             {
-                if (best.ContainsKey(zone.id)) continue;
+                if (best.ContainsKey(zone.Index)) continue;
                 float nearest = float.MaxValue, dirX = 0f, dirY = 0f;
-                foreach ((TileZone seed, int distance) in seeds)
+                foreach ((Cell seed, int distance) in seeds)
                 {
                     if (seed == null) continue;
-                    float dx = zone.x - seed.x, dy = zone.y - seed.y, length = Mathf.Sqrt(dx * dx + dy * dy);
+                    float dx = zone.X - seed.X, dy = zone.Y - seed.Y, length = Mathf.Sqrt(dx * dx + dy * dy);
                     if (distance + length >= nearest) continue;
                     nearest = distance + length;
                     dirX = length > 0f ? dx / length : 0f;
@@ -1400,11 +1400,11 @@ public static partial class SmoothBorders
         int farthest = 0;
         foreach ((int distance, float _, float _) in best.Values) farthest = Mathf.Max(farthest, distance);
         float step = Mathf.Min(SweepStep, MaxSweepSeconds / Mathf.Max(1, farthest + 1));
-        foreach (TileZone zone in zones)
+        foreach (Cell zone in zones)
         {
-            if (!leads.TryGetValue(zone.id, out Transition transition)) continue;
-            (int distance, float dirX, float dirY) = best.TryGetValue(zone.id, out var entry) ? entry : (farthest + 1, 0f, 0f);
-            transition.flipAt = now + (distance + 0.3f * (FrontNoise(zone.x * 5, zone.y * 5) - 0.5f)) * step;
+            if (!leads.TryGetValue(zone.Index, out Transition transition)) continue;
+            (int distance, float dirX, float dirY) = best.TryGetValue(zone.Index, out var entry) ? entry : (farthest + 1, 0f, 0f);
+            transition.flipAt = now + (distance + 0.3f * (FrontNoise(zone.X * 5, zone.Y * 5) - 0.5f)) * step;
             Orient(transition, dirX, dirY, zone);
             transition.planned = true;
         }

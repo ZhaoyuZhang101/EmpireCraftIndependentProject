@@ -3,6 +3,7 @@
 using Mathf = EmpireCraft.Core.EcMath;
 using Time = EmpireCraft.Core.FrameClock;
 using Color = EmpireCraft.Core.EcColor;
+using Vector2 = EmpireCraft.Core.EcVector2;
 using System.Collections.Generic;
 
 namespace EmpireCraft.Core
@@ -54,7 +55,7 @@ public static class MineralMap
     {
         if (!Cache.TryGetValue(city, out var cached) || Time.unscaledTime - cached.at > 1f)
         {
-            if (Cache.Count > (EmpireWorld.Current?.cities?.Count ?? 0) * 2) Cache.Clear();
+            if (Cache.Count > (EmpireWorld.Current?.Cities?.Count ?? 0) * 2) Cache.Clear();
             Cache[city] = cached = (Time.unscaledTime, MineralResourceSystem.Deposits(city));
         }
         List<(string id, bool minable, float remaining, int cooldown)> all = cached.list;
@@ -74,12 +75,12 @@ public static class MineralMap
             {
                 if (!Shown(city)) continue;
                 MineralMapColor color = Visible(city, mode).Count > 0 ? WithDeposits : Empty;
-                foreach (TileZone zone in city.zones)
+                foreach (Cell zone in city.Zones)
                 {
                     EmpireCraftMetaTypeLibrary.zone_manager.drawBegin();
                     EmpireCraftMetaTypeLibrary.zone_manager.drawZoneMeta(color, zone,
-                        zone.zone_up?.city != city, zone.zone_down?.city != city,
-                        zone.zone_left?.city != city, zone.zone_right?.city != city, color.data, meta);
+                        zone.Up?.City != city, zone.Down?.City != city,
+                        zone.Left?.City != city, zone.Right?.City != city, color.data, meta);
                     EmpireCraftMetaTypeLibrary.zone_manager.drawEnd(zone);
                 }
             }
@@ -88,7 +89,7 @@ public static class MineralMap
         {
             City hovered = tile?.zone?.city;
             if (!Shown(hovered)) return;
-            QuantumSpriteLibrary.colorZones(highlight, hovered.zones, highlight.color);
+            QuantumSpriteLibrary.colorZones(highlight, hovered.Zones, highlight.color);
         });
         asset.check_tile_has_meta = (MetaZoneTooltipAction)((zone, meta, option) => Shown(zone?.city));
         // 悬停：本城每种矿藏的剩余储量、能否开采、枯竭冷却还剩几年
@@ -204,7 +205,7 @@ public static class MineralIconRenderer
         {
             if (cities >= MaxCities) break;
             if (city == null || city.IsGone() || city.Realm == null) continue;
-            Vector3 screen = camera.WorldToScreenPoint(city.city_center);
+            Vector3 screen = camera.WorldToScreenPoint(city.Center);
             if (screen.z < 0f || screen.x < -40f || screen.y < -40f || screen.x > Screen.width + 40f ||
                 screen.y > Screen.height + 40f) continue;
             List<(string id, bool minable, float remaining, int cooldown)> deposits = MineralMap.Visible(city, mode);

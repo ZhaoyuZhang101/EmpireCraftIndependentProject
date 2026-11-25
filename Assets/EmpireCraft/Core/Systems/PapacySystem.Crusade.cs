@@ -1,5 +1,6 @@
 // Generated from the EmpireCraft mod: Scripts/GeneralSystems/PapacySystem.Crusade.cs. Do not edit by hand: Tools/PortTool/members.py rewrites it;
 // see Port/manifest.json and Tools/PortTool.
+using Vector2 = EmpireCraft.Core.EcVector2;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -133,7 +134,7 @@ public static partial class PapacySystem
         snapshot.crusade_religion_id = religion.data.id;
         snapshot.crusade_kind = kind;
         City holyLand = CrusadeCity(religion);
-        snapshot.crusade_city_id = holyLand?.data?.id ?? -1L;
+        snapshot.crusade_city_id = holyLand?.Key ?? -1L;
         WarGoalSystem.Preset(war, WarGoal.割地);
         war.Name = string.Format(LM.Get("crusade_war_name"), data.CrusadeCount, religion.name);
         string goal = kind switch
@@ -178,7 +179,7 @@ public static partial class PapacySystem
             // 两位哈里发并立：对立哈里发本国不应圣地哈里发之召，奉对立哈里发的减半(见 IslamicSchismSystem)
             chance *= IslamicSchismSystem.RallyFactor(kingdom, religion, caller);
             if (seat != null && kingdom.Capital != null)
-                chance -= Vector2.Distance(kingdom.Capital.city_center, seat.city_center) / 8f / 20f * 0.05f;
+                chance -= Vector2.Distance(kingdom.Capital.Center, seat.Center) / 8f / 20f * 0.05f;
             if (EcRandom.value >= chance) continue;
             war.JoinAttackers(kingdom);
             joined++;
@@ -269,7 +270,7 @@ public static partial class PapacySystem
     private static Realm LeadingCrusader(War war, Religion religion)
     {
         Realm papacy = Papacy(religion), best = null;
-        foreach (Realm kingdom in war?._list_attackers?.ToList() ?? new List<Realm>())
+        foreach (Realm kingdom in war?.Attackers?.ToList() ?? new List<Realm>())
         {
             if (kingdom?.Record == null || kingdom.IsGone() || kingdom.IsWild || kingdom == papacy || kingdom.religion != religion) continue;
             if (best == null || kingdom.Cities.Count > best.Cities.Count) best = kingdom;

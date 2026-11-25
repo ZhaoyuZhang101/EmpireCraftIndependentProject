@@ -429,10 +429,12 @@ public static class RevolutionSystem
         // 没打起来(和平转了、让步了，或者找不到起事的地方)：这把火烧过去了
         state.revolution_tension = Mathf.Max(0f, state.revolution_tension - 8f);
     }
+#endif
 
-    private static War RevolutionWar(Empire empire) => empire?.CoreKingdom?.getWars()
-        ?.FirstOrDefault(war => war != null && !war.hasEnded() && RepublicSystem.IsRevolutionWar(war));
+    private static War RevolutionWar(Empire empire) => empire?.CoreKingdom?.GetWars()
+        ?.FirstOrDefault(war => war != null && !war.HasEnded() && RepublicSystem.IsRevolutionWar(war));
 
+#if EC_PENDING
     private static void BeginUprising(Empire empire, ConstitutionalEconomyState state)
     {
         state.revolution_stage = Uprising;

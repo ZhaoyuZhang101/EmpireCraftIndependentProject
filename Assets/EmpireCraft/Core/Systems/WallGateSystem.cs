@@ -68,15 +68,15 @@ public static class WallGateSystem
         return _gates.Count > 0 && _gates.Contains(tileId);
     }
 
-    public static bool IsGate(WorldTile tile) => tile?.data != null && IsGate(tile.data.tile_id);
+    public static bool IsGate(Cell tile) => tile?.data != null && IsGate(tile.Index);
 #endif
 
     // 城池全图筑的城墙上的城门(不是关城压着的关门；守门的是这一格所在的地块，见 WallPassage)
 #if EC_PENDING
-    public static bool IsCityGate(WorldTile tile)
+    public static bool IsCityGate(Cell tile)
     {
         Ensure();
-        return tile?.data != null && _cityGates.Count > 0 && _cityGates.Contains(tile.data.tile_id);
+        return tile?.data != null && _cityGates.Count > 0 && _cityGates.Contains(tile.Index);
     }
 #endif
 
@@ -90,7 +90,7 @@ public static class WallGateSystem
         const int far = RuralSettlementSystem.FortReach;
         for (int dy = -far; dy <= far; dy++)
         for (int dx = -far; dx <= far; dx++)
-            if (EmpireWorld.Current.GetTile(x + dx, y + dy)?.data is WorldTileData data && _gates.Contains(data.tile_id)) count++;
+            if (EmpireWorld.Current.CellAt(x + dx, y + dy)?.data is WorldTileData data && _gates.Contains(data.tile_id)) count++;
         return count;
     }
 #endif
@@ -108,19 +108,19 @@ public static class WallGateSystem
     // 关城画在山格上照画，见 PureMapPatch.Fort)；优先落在点的那座城的地上。城池全图筑的城墙(城区外沿那一圈，自有城门，见 CityPlanWorks)
     // 不吸：在城外贴着城墙筑关，关城落在点的地方。没有返回 null
 #if EC_PENDING
-    public static WorldTile SnapToWall(WorldTile tile)
+    public static Cell SnapToWall(Cell tile)
     {
-        if (tile?.zone == null || MapWallSystem.Walls.Count == 0) return null;
-        City clicked = tile.zone.city;
-        WorldTile best = null;
+        if (tile?.Zone == null || MapWallSystem.Walls.Count == 0) return null;
+        City clicked = tile.Zone.City;
+        Cell best = null;
         float bestScore = float.MaxValue;
         for (int dy = -Snap; dy <= Snap; dy++)
         for (int dx = -Snap; dx <= Snap; dx++)
         {
-            WorldTile wall = EmpireWorld.Current.GetTile(tile.x + dx, tile.y + dy);
-            if (wall?.zone == null || !MapWallSystem.Contains(wall) || wall.Type == null || wall.Type.liquid ||
-                CityPlanWorks.Planned(wall.data.tile_id)) continue;
-            float score = dx * dx + dy * dy + (clicked != null && wall.zone.city != clicked ? 1000f : 0f);
+            Cell wall = EmpireWorld.Current.CellAt(tile.X + dx, tile.Y + dy);
+            if (wall?.Zone == null || !MapWallSystem.Contains(wall) || wall.Type == null || wall.Type.Liquid ||
+                CityPlanWorks.Planned(wall.Index)) continue;
+            float score = dx * dx + dy * dy + (clicked != null && wall.Zone.City != clicked ? 1000f : 0f);
             if (score >= bestScore) continue;
             bestScore = score;
             best = wall;
@@ -132,9 +132,9 @@ public static class WallGateSystem
     // 关城的城墙阻力(见 TerrainResistance)：这块地的关门放不放 visitor 过去——关在谁手里(被敌军占着就归占领者)，
     // 谁与同一势力、并肩作战的友邦、同盟才放
 #if EC_PENDING
-    public static bool LetsThrough(TileZone zone, Realm visitor)
+    public static bool LetsThrough(Cell zone, Realm visitor)
     {
-        City city = zone?.city;
+        City city = zone?.City;
         if (city?.Record == null || city.IsGone() || visitor?.Record == null) return false;
         Realm keeper = city.GetTileZoneOccupier(zone) ?? city.Realm;
         if (keeper?.Record == null) return false;
@@ -178,11 +178,11 @@ public static class WallGateSystem
         var covered = new HashSet<int>();
         var centers = new List<(int x, int y)>();
         EmpireWorld world = EmpireWorld.Current;
-        if (world?.tiles_list != null)
+        if (world?.Zones != null)
             foreach (RuralSettlement fort in RuralSettlementSystem.Forts())
             {
                 if (fort.ruined_at >= 0d) continue;
-                City city = world.GetTile(fort.x, fort.y)?.zone?.city;
+                City city = world.CellAt(fort.x, fort.y)?.Zone?.City;
                 if (city?.Record == null || city.IsGone()) continue;
                 int reach = Reach(fort);
                 bool onWall = false;
@@ -190,12 +190,12 @@ public static class WallGateSystem
                 for (int dy = -reach; dy <= reach; dy++)
                 for (int dx = -reach; dx <= reach; dx++)
                 {
-                    WorldTile tile = world.GetTile(fort.x + dx, fort.y + dy);
-                    if (tile?.data == null || tile.zone?.city != city) continue;
-                    area.Add(tile.data.tile_id);
+                    Cell tile = world.CellAt(fort.x + dx, fort.y + dy);
+                    if (tile?.data == null || tile.Zone?.City != city) continue;
+                    area.Add(tile.Index);
                     // 这里不能用 MapWallSystem.Blocks(它要问关门，会绕回来)
-                    if (!MapWallSystem.Contains(tile) && tile.Type?.wall != true) continue;
-                    gates.Add(tile.data.tile_id);
+                    if (!MapWallSystem.Contains(tile) && tile.Type?.Wall != true) continue;
+                    gates.Add(tile.Index);
                     onWall = true;
                 }
                 if (!onWall) continue;
@@ -203,11 +203,11 @@ public static class WallGateSystem
                 centers.Add((fort.x, fort.y));
             }
         // 城池全图筑的城墙上的城门：城墙还在(图层的或原版的)才算
-        if (world?.tiles_list != null)
+        if (world?.Zones != null)
             foreach (int id in CityPlanWorks.PlannedGates)
             {
-                WorldTile tile = id >= 0 && id < world.tiles_list.Length ? world.tiles_list[id] : null;
-                if (tile?.data == null || !MapWallSystem.Contains(tile) && tile.Type?.wall != true) continue;
+                Cell tile = id >= 0 && id < world.Zones.Length ? world.Zones[id] : null;
+                if (tile?.data == null || !MapWallSystem.Contains(tile) && tile.Type?.Wall != true) continue;
                 cityGates.Add(id);
                 gates.Add(id);
             }

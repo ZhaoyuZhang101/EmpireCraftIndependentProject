@@ -456,7 +456,7 @@ public static class EmpireCoreManager
         }
 
         City city = GetRepresentativeCity(core);
-        return city?.kingdom?.GetEmpireCraftCulture(true) ?? "";
+        return city?.Realm?.GetEmpireCraftCulture(true) ?? "";
     }
 
     public static string GetDisplayName(EmpireCore core)
@@ -699,8 +699,8 @@ public static class EmpireCoreManager
         // 不跨大陆(用户 2026-10-17："哪怕我不开固定，也不应该形成横跨好几个大陆好几个文化和核心的超级大国")：
         // 王国法理的治所要和帝国法理的治所在同一块陆地上(标了天下标识的文化也不跨海)；
         // 列岛文化(文化配置标了 archipelago，用户 2026-10-21 选"列岛天下")隔着海峡、有城在本帝国水师辐射里的法理也收(见 StraitReach)
-        object home = core.GetCoreCapital()?.getTile()?.region?.island ?? empire.CoreKingdom.Capital?.getTile()?.region?.island;
-        object there = title.title_capital?.getTile()?.region?.island;
+        object home = core.GetCoreCapital()?.SeatCell()?.region?.island ?? empire.CoreKingdom.Capital?.SeatCell()?.region?.island;
+        object there = title.title_capital?.SeatCell()?.region?.island;
         if (home != null && there != null && !ReferenceEquals(home, there) &&
             !(TianxiaSystem.IsArchipelago(empireCulture) && AcrossStrait(empire, title))) return false;
         int cost = GetAssimilationCost(empire, title);

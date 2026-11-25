@@ -95,7 +95,6 @@ public static partial class FrontSystem
     // 战线动过几回：哪个月有交战(地块可能易手)就加一。手机舆图见它变了就提早重发总图，不等满平时的间隔(见 TerminalHost.SightDue)
     public static int TerritoryStamp { get; private set; }
 
-#if EC_PENDING
     public static void ResetWorldState()
     {
         Battles.Clear();
@@ -121,7 +120,6 @@ public static partial class FrontSystem
         ResetLandings();
         ResetParallel();
     }
-#endif
 
     #region 敌我
 
@@ -187,14 +185,12 @@ public static partial class FrontSystem
         return realm != null && realm != side && (realm.IsAtWarWith(owner) || realm.IsAtWarWith(ModRealm(owner))) ? realm : side;
     }
 
-#if EC_PENDING
-    public static Realm Controller(TileZone zone)
+    public static Realm Controller(Cell zone)
     {
-        City city = zone?.city;
+        City city = zone?.City;
         if (city?.Record == null || city.IsGone()) return null;
         return city.GetTileZoneOccupier(zone) ?? city.Realm;
     }
-#endif
 
     #endregion
 
@@ -203,9 +199,7 @@ public static partial class FrontSystem
     private sealed class Sector
     {
         public City City;
-#if EC_PENDING
-        public readonly List<TileZone> Targets = new();
-#endif
+        public readonly List<Cell> Targets = new();
         public bool Landing;
         // 登陆战线的城从本方控制的地块走陆路走得到(不穿第三国，见 LandRoute)；走不到的，同一片陆地上的军也要坐船(见 FrontSystem.Landing)
         public bool Overland = true;
@@ -214,17 +208,17 @@ public static partial class FrontSystem
     // 敌城里可以下手的地块：敌控、且与己方控制的地块相邻；不可通行的高山、本方过不去的无人区两边都不算
     // (见 TerrainSystem.Impassable、WildernessPassage)
 #if EC_PENDING
-    private static List<TileZone> TargetZones(Realm side, City city)
+    private static List<Cell> TargetZones(Realm side, City city)
     {
-        var result = new List<TileZone>();
-        if (city?.zones == null) return result;
-        foreach (TileZone zone in city.zones)
+        var result = new List<Cell>();
+        if (city?.Zones == null) return result;
+        foreach (Cell zone in city.Zones)
         {
             if (zone == null || !Hostile(side, Controller(zone)) || TerrainSystem.Impassable(zone) ||
                 !WildernessPassage.Passable(zone, side)) continue;
-            foreach (TileZone neighbour in zone.neighbours ?? Array.Empty<TileZone>())
+            foreach (Cell neighbour in zone.Neighbours ?? Array.Empty<Cell>())
             {
-                if (neighbour == null || neighbour.world_edge || TerrainSystem.Impassable(neighbour) ||
+                if (neighbour == null || neighbour.OnEdge || TerrainSystem.Impassable(neighbour) ||
                     !TerrainSystem.Crossable(neighbour, zone) || !WildernessPassage.Passable(neighbour, side)) continue;
                 Realm controller = Controller(neighbour);
                 if (controller == null || !Friendly(side, controller)) continue;
@@ -238,15 +232,15 @@ public static partial class FrontSystem
 
     // 登陆点：敌城外缘(邻接无主地块或海)的地块
 #if EC_PENDING
-    private static List<TileZone> LandingZones(City city)
+    private static List<Cell> LandingZones(City city)
     {
-        var result = new List<TileZone>();
-        if (city?.zones == null) return result;
-        foreach (TileZone zone in city.zones)
+        var result = new List<Cell>();
+        if (city?.Zones == null) return result;
+        foreach (Cell zone in city.Zones)
         {
             if (zone == null || TerrainSystem.Impassable(zone)) continue;
-            if ((zone.neighbours ?? Array.Empty<TileZone>()).Any(neighbour => neighbour != null && !neighbour.world_edge &&
-                                                                              neighbour.city == null))
+            if ((zone.Neighbours ?? Array.Empty<Cell>()).Any(neighbour => neighbour != null && !neighbour.OnEdge &&
+                                                                              neighbour.City == null))
                 result.Add(zone);
         }
         return result;
@@ -259,17 +253,17 @@ public static partial class FrontSystem
     // 算"陆路走得通"、不按登陆结算，军坐船到了城下却一块也占不了(群友 2026-11-16 截图：胜算 95%~100%、
     // 几万人对一千，已占地块一直 0/89)；同一片陆地上隔着无主地的远征也一样
 #if EC_PENDING
-    private static List<TileZone> AttackZones(Realm attacker, City city, List<CorpsData> spearheads)
+    private static List<Cell> AttackZones(Realm attacker, City city, List<CorpsData> spearheads)
     {
-        List<TileZone> targets = TargetZones(attacker, city);
+        List<Cell> targets = TargetZones(attacker, city);
         if (targets.Count == 0)
-            foreach (TileZone zone in LandingZones(city))
+            foreach (Cell zone in LandingZones(city))
                 if (Hostile(attacker, Controller(zone))) targets.Add(zone);
         if (spearheads == null) return targets;
         foreach (CorpsData corps in spearheads)
         {
-            TileZone at = CorpsSystem.Zone(corps);
-            if (at == null || at.city != city || targets.Contains(at) || TerrainSystem.Impassable(at) ||
+            Cell at = CorpsSystem.Zone(corps);
+            if (at == null || at.City != city || targets.Contains(at) || TerrainSystem.Impassable(at) ||
                 !Hostile(attacker, Controller(at))) continue;
             targets.Add(at);
         }
@@ -334,8 +328,8 @@ public static partial class FrontSystem
     {
         if (home.Contains(city)) return true;
         // 逐个看(以前 Any(home.Contains) 每次新建委托，月初每国对每座敌城各两次)
-        if (city.neighbours_cities != null)
-            foreach (City next in city.neighbours_cities)
+        if (city.NeighbourCities != null)
+            foreach (City next in city.NeighbourCities)
                 if (next != null && home.Contains(next)) return true;
         bool wildNeighbour = false;
         IReadOnlyList<City> wild = WildernessNeighbours.Of(city);
@@ -346,13 +340,13 @@ public static partial class FrontSystem
                 break;
             }
         if (wildNeighbour && LandRoute(side, city)) return true;
-        WorldTile tile = city.getTile();
+        Cell tile = city.SeatCell();
         if (tile == null) return false;
         float limit = LandReachTiles * LandReachTiles;
         foreach (City own in home)
         {
-            WorldTile at = own.getTile();
-            if (at != null && at.isSameIsland(tile) && Toolbox.SquaredDistTile(at, tile) <= limit && LandRoute(side, city)) return true;
+            Cell at = own.SeatCell();
+            if (at != null && at.IsSameIsland(tile) && Land.SquaredDist(at, tile) <= limit && LandRoute(side, city)) return true;
         }
         return StraitReach.Reaches(side, city);
     }
@@ -369,9 +363,7 @@ public static partial class FrontSystem
     // 月初各国对近处每座敌城各搜一回，是「战线·分派」分配的大头
     private static int[] _routeSeen = new int[0];
     private static int _routeStamp, _routeSeenCount;
-#if EC_PENDING
-    private static readonly Queue<TileZone> RouteQueue = new();
-#endif
+    private static readonly Queue<Cell> RouteQueue = new();
 
     private static bool RouteVisit(int id)
     {
@@ -386,7 +378,7 @@ public static partial class FrontSystem
     // 能走的地块：陆地、不是高山、不是本方过不去的无人区(见 WildernessPassage)，归属无主或本方、盟友、交战敌国、
     // 许本方借道的国家(见 MilitaryAccessSystem)；不相干的第三国不走
 #if EC_PENDING
-    public static bool Passable(Realm side, TileZone zone)
+    public static bool Passable(Realm side, Cell zone)
     {
         if (zone == null || TerrainSystem.Impassable(zone) || SeaRegionSystem.IsSea(zone) ||
             !WildernessPassage.Passable(zone, side)) return false;
@@ -396,7 +388,7 @@ public static partial class FrontSystem
 
     private static bool LandRoute(Realm side, City target)
     {
-        if (target?.zones == null || target.Record == null) return false;
+        if (target?.Zones == null || target.Record == null) return false;
         var key = (ModRealm(side).Key, target.Key);
         double now = GameClock.Now;
         if (LandRoutes.TryGetValue(key, out var known) && known.signature == _routeSignature && now >= known.at &&
@@ -408,17 +400,17 @@ public static partial class FrontSystem
             _routeStamp = 1;
         }
         _routeSeenCount = 0;
-        Queue<TileZone> queue = RouteQueue;
+        Queue<Cell> queue = RouteQueue;
         queue.Clear();
-        foreach (TileZone zone in target.zones)
-            if (zone != null && RouteVisit(zone.id)) queue.Enqueue(zone);
+        foreach (Cell zone in target.Zones)
+            if (zone != null && RouteVisit(zone.Index)) queue.Enqueue(zone);
         bool found = false;
         while (queue.Count > 0 && _routeSeenCount < LandRouteSearch && !found)
         {
-            TileZone zone = queue.Dequeue();
-            foreach (TileZone next in zone.neighbours_all ?? Array.Empty<TileZone>())
+            Cell zone = queue.Dequeue();
+            foreach (Cell next in zone.NeighboursAll ?? Array.Empty<Cell>())
             {
-                if (next == null || !RouteVisit(next.id)) continue;
+                if (next == null || !RouteVisit(next.Index)) continue;
                 if (Controller(next) is Realm owner && Friendly(side, owner) && !TerrainSystem.Impassable(next) &&
                     TerrainSystem.Crossable(next, zone) && WildernessPassage.Passable(next, side))
                 {
@@ -449,7 +441,7 @@ public static partial class FrontSystem
             bool reach;
             using (FrameProfiler.Measure("战线段·够不够得着")) reach = InReach(side, city, home);
             if (!reach) return;
-            List<TileZone> targets;
+            List<Cell> targets;
             using (FrameProfiler.Measure("战线段·可下手地块")) targets = TargetZones(side, city);
             if (targets.Count == 0) return;
             var sector = new Sector { City = city };
@@ -478,7 +470,7 @@ public static partial class FrontSystem
 #if EC_PENDING
     private static List<Sector> WithLandings(Realm side, List<Sector> land)
     {
-        WorldTile origin = side.Capital?.getTile();
+        Cell origin = side.Capital?.SeatCell();
         var hostiles = _atWar.Where(other => Hostile(side, other)).ToList();
         if (hostiles.Count == 0 || origin == null) return land;
         long signature = ModRealm(side).Key;
@@ -502,7 +494,7 @@ public static partial class FrontSystem
         }
         int fronts = 0;
         foreach (Realm hostile in hostiles.Where(hostile => !contact.Contains(hostile.Key))
-                     .OrderBy(hostile => hostile.Capital?.getTile() is WorldTile at ? Toolbox.SquaredDistTile(at, origin) : float.MaxValue))
+                     .OrderBy(hostile => hostile.Capital?.SeatCell() is Cell at ? Land.SquaredDist(at, origin) : float.MaxValue))
         {
             if (fronts >= MaxLandingFronts) break;
             Sector beachhead = LandingSector(side, hostile, home, origin, out City wanted, out int route);
@@ -510,7 +502,7 @@ public static partial class FrontSystem
             City desired = beachhead != null && route > 0 ? beachhead.City : wanted;
             if (desired != null && !NavySystem.DesiredLanding.ContainsKey(side.Key)) NavySystem.DesiredLanding[side.Key] = desired.Key;
             SeaLandingDiagnostics.Pair(side, hostile, beachhead?.City, wanted, route,
-                beachhead != null && route > 0 && beachhead.City.getTile().isSameIsland(origin));
+                beachhead != null && route > 0 && beachhead.City.SeatCell().IsSameIsland(origin));
             if (beachhead == null || sectors.ContainsKey(beachhead.City)) continue;
             sectors[beachhead.City] = beachhead;
             fronts++;
@@ -528,28 +520,28 @@ public static partial class FrontSystem
     // 只从临海的地块登陆，同一片陆地上的军也坐船沿海绕过去(见 FrontSystem.Landing)；以前这种城当作陆路，军从第三国的地上穿过去。
     // wanted：第一座够得着的跨海的城(航线不通也算，舰队据此去打通航线)；route：选中那座城的航线经过几个海区(不跨海为 0)
 #if EC_PENDING
-    private static Sector LandingSector(Realm side, Realm hostile, HashSet<City> home, WorldTile origin, out City wanted,
+    private static Sector LandingSector(Realm side, Realm hostile, HashSet<City> home, Cell origin, out City wanted,
         out int route)
     {
         wanted = null;
         route = 0;
         int tries = 0;
         foreach (City city in (hostile.Cities ?? new List<City>())
-                     .Where(city => city?.Record != null && !city.IsGone() && city.getTile() != null)
-                     .OrderBy(city => Toolbox.SquaredDistTile(city.getTile(), origin)).ToList())
+                     .Where(city => city?.Record != null && !city.IsGone() && city.SeatCell() != null)
+                     .OrderBy(city => Land.SquaredDist(city.SeatCell(), origin)).ToList())
         {
             if (!InReach(side, city, home)) continue;
-            List<TileZone> landing = LandingZones(city);
+            List<Cell> landing = LandingZones(city);
             if (landing.Count == 0) continue;
-            bool sameIsland = city.getTile().isSameIsland(origin);
+            bool sameIsland = city.SeatCell().IsSameIsland(origin);
             bool overland = LandRoute(side, city);
             if (!sameIsland || !overland)
             {
                 wanted ??= city;
                 if (++tries > MaxLandingTries) break;
-                var (shore, path) = SeaLanding.Beachhead(side, city.getTile().zone);
+                var (shore, path) = SeaLanding.Beachhead(side, city.SeatCell().Zone);
                 if (shore == null) continue;
-                List<TileZone> coastal = landing.Where(zone => SeaLanding.Waters(zone).Count > 0).ToList();
+                List<Cell> coastal = landing.Where(zone => SeaLanding.Waters(zone).Count > 0).ToList();
                 if (coastal.Count > 0) landing = coastal;
                 else if (sameIsland) continue;
                 route = path.Count;
@@ -621,7 +613,7 @@ public static partial class FrontSystem
                 if (!pressure.TryGetValue(corps.sector_city_id, out var list))
                     pressure[corps.sector_city_id] = list = new List<(Realm, float)>();
                 // 离那座城越远，攻势越虚：四块地以内全算、十块以内算一半、更远算四分之一
-                TileZone target = EmpireWorld.Current.CityByKey(corps.sector_city_id)?.getTile()?.zone;
+                Cell target = EmpireWorld.Current.CityByKey(corps.sector_city_id)?.SeatCell()?.Zone;
                 float distance = target == null ? 0f : CorpsSystem.ZoneDistance(CorpsSystem.Zone(corps), target);
                 list.Add((attacker, corps.strength * (distance <= 4f ? 1f : distance <= 10f ? 0.5f : 0.25f)));
             }
@@ -723,8 +715,8 @@ public static partial class FrontSystem
         {
             NoteLandingWays(kingdom, null);
             // 战备：动员范围里的军开往朝向目标国的边境(离自己最近的一段，见 WarReadinessSystem)；太平：回驻地
-            IReadOnlyList<TileZone> border = CityPopulationSystem.IsMobilizing(kingdom)
-                ? CityPopulationSystem.FrontZones(kingdom) : Array.Empty<TileZone>();
+            IReadOnlyList<Cell> border = CityPopulationSystem.IsMobilizing(kingdom)
+                ? CityPopulationSystem.FrontZones(kingdom) : Array.Empty<Cell>();
             var borderLoad = new Dictionary<int, int>();
             Dictionary<long, int> stations = Stations(kingdom, list);
             foreach (CorpsData corps in list)
@@ -732,18 +724,18 @@ public static partial class FrontSystem
                 corps.sector_city_id = -1L;
                 if (corps.task == "retreat") { corps.target_zone_id = HomeZone(corps); continue; }
                 // 手令：太平时开到指的那座城驻着(见 CorpsDirectOrders)
-                if (CorpsDirectOrders.Target(kingdom, corps) is City post && !kingdom.IsAtWarWith(post.Realm) && post.getTile()?.zone is TileZone postZone)
+                if (CorpsDirectOrders.Target(kingdom, corps) is City post && !kingdom.IsAtWarWith(post.Realm) && post.SeatCell()?.Zone is Cell postZone)
                 {
                     corps.task = "reserve";
-                    corps.target_zone_id = postZone.id;
+                    corps.target_zone_id = postZone.Index;
                     continue;
                 }
                 bool marching = border.Count > 0 && WarScopeSystem.InScope(CorpsSystem.Home(corps));
                 corps.task = marching ? "march" : "reserve";
-                TileZone at = CorpsSystem.Zone(corps);
+                Cell at = CorpsSystem.Zone(corps);
                 // 在离自己最近的几块边境地块里散开站，不挤在同一块
                 corps.target_zone_id = marching
-                    ? Spread(corps, border.OrderBy(zone => CorpsSystem.ZoneDistance(zone, at)).Take(SpreadNearest).ToList(), borderLoad)?.id ?? HomeZone(corps)
+                    ? Spread(corps, border.OrderBy(zone => CorpsSystem.ZoneDistance(zone, at)).Take(SpreadNearest).ToList(), borderLoad)?.Index ?? HomeZone(corps)
                     : StationZone(corps, stations);
             }
             return;
@@ -791,21 +783,21 @@ public static partial class FrontSystem
                 // 不是敌城就是自家的城(本国的、同一帝国里的)：去驻守
                 if (!kingdom.IsAtWarWith(goal.Realm))
                 {
-                    TileZone anchor = DefenseZone(kingdom, goal);
+                    Cell anchor = DefenseZone(kingdom, goal);
                     if (!Walkable(kingdom, corps, anchor)) continue;
                     if (corps.task != "defend" || corps.sector_city_id != goal.Key) corps.entrench = 0f;
                     corps.task = "defend";
                     corps.sector_city_id = goal.Key;
-                    List<TileZone> line = DefenseLine(kingdom, goal);
+                    List<Cell> line = DefenseLine(kingdom, goal);
                     if (!orderedLoad.TryGetValue(goal.Key, out Dictionary<int, int> load)) orderedLoad[goal.Key] = load = new Dictionary<int, int>();
-                    corps.target_zone_id = (line.Count > 0 ? Spread(corps, line, load)?.id : anchor?.id) ?? HomeZone(corps);
+                    corps.target_zone_id = (line.Count > 0 ? Spread(corps, line, load)?.Index : anchor?.Index) ?? HomeZone(corps);
                     assigned.Add(corps);
                     continue;
                 }
                 if (sectors.Count == 0) continue;
-                TileZone far = goal.getTile()?.zone;
+                Cell far = goal.SeatCell()?.Zone;
                 Sector sector = sectors.FirstOrDefault(found => found.City == goal) ?? sectors.OrderBy(found =>
-                    far == null || found.City.getTile()?.zone == null ? 0f : CorpsSystem.ZoneDistance(found.City.getTile().zone, far)).First();
+                    far == null || found.City.SeatCell()?.Zone == null ? 0f : CorpsSystem.ZoneDistance(found.City.SeatCell().Zone, far)).First();
                 orderedAttack[corps] = sector;
             }
         // ① 守城：本国受攻的城按攻势分兵(就近)
@@ -839,13 +831,13 @@ public static partial class FrontSystem
                                         Raider(city) is Realm raider && Militia(city, raider) >= Threat(city) * MilitiaCover;
         threatened.RemoveAll(MilitiaHolds);
         var counterOf = new Dictionary<CorpsData, City>();
-        void Garrison(CorpsData corps, City city, TileZone anchor, List<TileZone> line, Dictionary<int, int> load)
+        void Garrison(CorpsData corps, City city, Cell anchor, List<Cell> line, Dictionary<int, int> load)
         {
             if (corps.task != "defend" || corps.sector_city_id != city.Key) corps.entrench = 0f;
             corps.task = "defend";
             corps.sector_city_id = city.Key;
             // 铺满防线：本城贴着敌占区的地块每块先放一支，放满了再叠
-            corps.target_zone_id = (line.Count > 0 ? Spread(corps, line, load)?.id : anchor?.id) ?? HomeZone(corps);
+            corps.target_zone_id = (line.Count > 0 ? Spread(corps, line, load)?.Index : anchor?.Index) ?? HomeZone(corps);
             assigned.Add(corps);
         }
         // 守军不够分：按各城攻势比例分，不让攻势最大的一座城把军全拿走
@@ -856,8 +848,8 @@ public static partial class FrontSystem
         foreach (City city in threatened)
         {
             float need = city == hold ? holdNeed : Threat(city) * DefendShare * shareOfNeed, have = 0f;
-            TileZone anchor = DefenseZone(kingdom, city);
-            List<TileZone> line = DefenseLine(kingdom, city);
+            Cell anchor = DefenseZone(kingdom, city);
+            List<Cell> line = DefenseLine(kingdom, city);
             var lineLoad = new Dictionary<int, int>();
             bool surprised = Surprised(city), closeEnough = false;
             bool mayCounter = city != hold && !surprised && sectors.Count > 0;
@@ -893,7 +885,7 @@ public static partial class FrontSystem
         {
             Sector retake = sectors.FirstOrDefault(sector => sector.City == guarded && !sector.Landing);
             if (retake != null && reachable(retake)) return retake;
-            TileZone at = guarded.getTile()?.zone;
+            Cell at = guarded.SeatCell()?.Zone;
             if (at == null || !pressure.TryGetValue(guarded.Key, out var entries)) return null;
             Sector best = null;
             float nearest = CounterReach;
@@ -915,11 +907,11 @@ public static partial class FrontSystem
         Sector focus = null;
         if (strike != null && sectors.Count > 0)
         {
-            TileZone goal = strike.getTile()?.zone;
+            Cell goal = strike.SeatCell()?.Zone;
             focus = sectors.FirstOrDefault(sector => sector.City == strike) ?? sectors.OrderBy(sector =>
-                goal == null || sector.City.getTile()?.zone == null ? 0f : CorpsSystem.ZoneDistance(sector.City.getTile().zone, goal)).First();
+                goal == null || sector.City.SeatCell()?.Zone == null ? 0f : CorpsSystem.ZoneDistance(sector.City.SeatCell().Zone, goal)).First();
         }
-        FocusSectors[kingdom.Key] = focus?.City?.data?.id ?? -1L;
+        FocusSectors[kingdom.Key] = focus?.City?.Key ?? -1L;
         var attackOn = new Dictionary<Sector, float>();
         var attackLoad = new Dictionary<int, int>();
         // 渡海登陆先抽兵(守城不吃紧、有航线与运力时，见 FrontSystem.Landing)，余下的再按胜算挑陆上攻势
@@ -942,7 +934,7 @@ public static partial class FrontSystem
             {
                 if (!FormationSystem.WithinReach(corps, sector.City)) return false;
                 if (!sector.Landing || Ashore(corps, sector))
-                    return Walkable(kingdom, corps, sector.Targets.Count > 0 ? sector.Targets[0] : sector.City.getTile()?.zone);
+                    return Walkable(kingdom, corps, sector.Targets.Count > 0 ? sector.Targets[0] : sector.City.SeatCell()?.Zone);
                 return corps.embarked || FormationSystem.MayEmbark(corps) && Shippable(corps, shipping) > 0f && EmbarkPoint(kingdom, corps) != null;
             }
             if (keep != null && (!Boardable(keep) || focus != null && keep != focus)) keep = null;
@@ -985,8 +977,8 @@ public static partial class FrontSystem
             corps.sector_city_id = choice.City.Key;
             // 在这一段的目标地块之间平均分(不挤在离自己最近的同一块)
             // 这一段没有可推进的地块、军团又不在任何地块上时 Spread 返回空(玩家日志 2026-10-17 军团月度结算空引用)：回驻地
-            TileZone target = Spread(corps, choice.Targets, attackLoad);
-            corps.target_zone_id = target?.id ?? HomeZone(corps);
+            Cell target = Spread(corps, choice.Targets, attackLoad);
+            corps.target_zone_id = target?.Index ?? HomeZone(corps);
             corps.entrench = 0f;
             assigned.Add(corps);
         }
@@ -1007,7 +999,7 @@ public static partial class FrontSystem
 
     // 这支军从所在地块走陆路绕得过、或沿路穿得过本方过不去的无人区到得了 goal(见 WildernessPassage.Reachable；隔海的不归这里管)
 #if EC_PENDING
-    private static bool Walkable(Realm kingdom, CorpsData corps, TileZone goal) =>
+    private static bool Walkable(Realm kingdom, CorpsData corps, Cell goal) =>
         corps.embarked || WildernessPassage.Reachable(CorpsSystem.Zone(corps), goal, kingdom);
 #endif
 
@@ -1045,16 +1037,14 @@ public static partial class FrontSystem
     // 抄后路(见 EncirclementSystem)：敌军所在地块的四周先拿；ResolveCity 每处交战开头记下守军所在的地块
     private static readonly HashSet<int> FlankZones = new();
 
-#if EC_PENDING
-    private static int FlankOrder(TileZone candidate)
+    private static int FlankOrder(Cell candidate)
     {
-        if (FlankZones.Count == 0 || FlankZones.Contains(candidate.id)) return 0;
+        if (FlankZones.Count == 0 || FlankZones.Contains(candidate.Index)) return 0;
         int count = 0;
-        foreach (TileZone neighbour in candidate.neighbours_all ?? Array.Empty<TileZone>())
-            if (neighbour != null && FlankZones.Contains(neighbour.id)) count++;
+        foreach (Cell neighbour in candidate.NeighboursAll ?? Array.Empty<Cell>())
+            if (neighbour != null && FlankZones.Contains(neighbour.Index)) count++;
         return count;
     }
-#endif
 
     // 已在登陆战线所在的那片陆地上、走陆路去(不必上船)；不是登陆战线也算。
     // 同一片陆地上隔着第三国走不过去的，还没上岸也要坐船(见 FrontSystem.Landing 的 SailsAround)
@@ -1062,8 +1052,8 @@ public static partial class FrontSystem
     private static bool Ashore(CorpsData corps, Sector sector)
     {
         if (!sector.Landing) return true;
-        TileZone zone = CorpsSystem.Zone(corps);
-        if (corps.embarked || zone == null || SeaRegionSystem.IsSea(zone) || !CorpsSystem.SameLand(zone, sector.City.getTile()?.zone))
+        Cell zone = CorpsSystem.Zone(corps);
+        if (corps.embarked || zone == null || SeaRegionSystem.IsSea(zone) || !CorpsSystem.SameLand(zone, sector.City.SeatCell()?.Zone))
             return false;
         return !SailsAround(corps, zone, sector.City, sector.Overland);
     }
@@ -1079,9 +1069,7 @@ public static partial class FrontSystem
         return CorpsSystem.CanDetach(corps) && shipping >= Mathf.Min(MinVanguard, corps.strength * 0.5f) ? shipping : 0f;
     }
 
-#if EC_PENDING
-    private static int HomeZone(CorpsData corps) => CorpsSystem.Home(corps)?.getTile()?.zone?.id ?? corps.zone_id;
-#endif
+    private static int HomeZone(CorpsData corps) => CorpsSystem.Home(corps)?.SeatCell()?.Zone?.Index ?? corps.zone_id;
 
     // 军令集中攻打时这个月投的那一段(城 id，没有为 -1)
     private static readonly Dictionary<long, long> FocusSectors = new();
@@ -1121,7 +1109,7 @@ public static partial class FrontSystem
     {
         var result = new Dictionary<long, int>();
         // 城池易主时旧国的城表可能还没更新。按实际归属筛选，和 StationPieces 的分组口径一致。
-        List<City> cities = kingdom.Cities?.Where(city => city?.Record != null && city.Realm == kingdom && !city.IsGone() && city.getTile()?.zone != null)
+        List<City> cities = kingdom.Cities?.Where(city => city?.Record != null && city.Realm == kingdom && !city.IsGone() && city.SeatCell()?.Zone != null)
             .ToList() ?? new List<City>();
         if (cities.Count == 0) return result;
         // 边防看邻国(群友 2026-11-22 "边防驻军的数量应该与接壤国家的好感度挂钩")：以前只分"挨着外国"与否，盟友、附庸的边上
@@ -1155,8 +1143,8 @@ public static partial class FrontSystem
             turns.TryGetValue(piece, out int turn);
             turns[piece] = turn + 1;
             List<City> group = groups[piece];
-            TileZone station = group[turn % group.Count].getTile().zone;
-            result[entry.id] = Walkable(kingdom, entry, station) ? station.id : NearestStation(kingdom, entry, order);
+            Cell station = group[turn % group.Count].SeatCell().Zone;
+            result[entry.id] = Walkable(kingdom, entry, station) ? station.Index : NearestStation(kingdom, entry, order);
         }
         Garrison(kingdom, corps, gravest, result);
         return result;
@@ -1168,10 +1156,10 @@ public static partial class FrontSystem
     private static float CityThreat(Realm kingdom, City city)
     {
         float worst = -1f;
-        foreach (TileZone zone in city.zones)
-            foreach (TileZone next in zone?.neighbours_all ?? Array.Empty<TileZone>())
+        foreach (Cell zone in city.Zones)
+            foreach (Cell next in zone?.NeighboursAll ?? Array.Empty<Cell>())
             {
-                Realm other = next?.city?.kingdom;
+                Realm other = next?.City?.Realm;
                 if (other?.Record == null || other == kingdom) continue;
                 worst = Mathf.Max(worst, BorderThreat(kingdom, other));
             }
@@ -1202,15 +1190,15 @@ public static partial class FrontSystem
         var seen = new HashSet<Realm>();
         foreach (City city in kingdom.Cities)
         {
-            if (city?.Record == null || city.IsGone() || city.neighbours_cities == null) continue;
-            foreach (City next in city.neighbours_cities)
+            if (city?.Record == null || city.IsGone() || city.NeighbourCities == null) continue;
+            foreach (City next in city.NeighbourCities)
             {
                 Realm province = next?.Realm;
                 if (province?.Record == null || province == kingdom || province.IsGone() || province.Cities == null ||
                     province.GetEmpire() != empire || !seen.Add(province)) continue;
                 foreach (City border in province.Cities)
                 {
-                    if (border?.Record == null || border.IsGone() || border.Realm != province || border.getTile()?.zone == null) continue;
+                    if (border?.Record == null || border.IsGone() || border.Realm != province || border.SeatCell()?.Zone == null) continue;
                     float threat = CityThreat(province, border);
                     if (threat < worst) continue;
                     worst = threat;
@@ -1227,7 +1215,7 @@ public static partial class FrontSystem
     {
         if (gravest >= GuestCalm || _atWar.Contains(kingdom) || CityPopulationSystem.IsMobilizing(kingdom)) return;
         City post = GuestPost(kingdom);
-        TileZone station = post?.getTile()?.zone;
+        Cell station = post?.SeatCell()?.Zone;
         if (station == null) return;
         List<CorpsData> movable = corps.Where(entry => !entry.militia && entry.order_id < 0 && entry.parent_id < 0 && !entry.manual &&
                                                         !FormationSystem.LocalCommand(entry) && !CorpsDirectOrders.Has(entry))
@@ -1235,7 +1223,7 @@ public static partial class FrontSystem
         // 留一支看家；只有一支的要本省完全不挨外国才派
         int send = movable.Count >= 2 ? movable.Count - 1 : movable.Count == 1 && gravest < 0f ? 1 : 0;
         foreach (CorpsData entry in movable.Skip(movable.Count - send))
-            if (Walkable(kingdom, entry, station)) result[entry.id] = station.id;
+            if (Walkable(kingdom, entry, station)) result[entry.id] = station.Index;
     }
 #endif
 
@@ -1254,7 +1242,7 @@ public static partial class FrontSystem
             if (!friendly.TryGetValue(next.Realm.Key, out bool ok))
                 friendly[next.Realm.Key] = ok = Friendly(kingdom, next.Realm) || MilitaryAccessSystem.Grants(next.Realm, kingdom);
             if (!ok) return;
-            TileZone a = from.getTile()?.zone, b = next.getTile()?.zone;
+            Cell a = from.SeatCell()?.Zone, b = next.SeatCell()?.Zone;
             if (a == null || b == null || !CorpsSystem.SameLand(a, b) || !WildernessPassage.Walks(a, b, kingdom)) return;
             seen.Add(next.Key);
             queue.Enqueue(next);
@@ -1268,7 +1256,7 @@ public static partial class FrontSystem
             {
                 City city = queue.Dequeue();
                 if (city.Realm == kingdom) pieces[city.Key] = piece;
-                foreach (City next in (IEnumerable<City>)city.neighbours_cities ?? Array.Empty<City>()) Visit(city, next);
+                foreach (City next in (IEnumerable<City>)city.NeighbourCities ?? Array.Empty<City>()) Visit(city, next);
                 foreach (City next in WildernessNeighbours.Of(city)) Visit(city, next);
             }
             piece++;
@@ -1281,60 +1269,60 @@ public static partial class FrontSystem
 #if EC_PENDING
     private static int NearestStation(Realm kingdom, CorpsData corps, List<City> cities)
     {
-        TileZone at = CorpsSystem.Zone(corps), best = null;
+        Cell at = CorpsSystem.Zone(corps), best = null;
         float nearest = float.MaxValue;
         foreach (City city in cities)
         {
-            TileZone zone = city.getTile().zone;
+            Cell zone = city.SeatCell().Zone;
             if (!Walkable(kingdom, corps, zone)) continue;
             float distance = CorpsSystem.ZoneDistance(at, zone);
             if (distance >= nearest) continue;
             nearest = distance;
             best = zone;
         }
-        return best?.id ?? at?.id ?? HomeZone(corps);
+        return best?.Index ?? at?.Index ?? HomeZone(corps);
     }
+#endif
 
     private static int StationZone(CorpsData corps, Dictionary<long, int> stations) =>
         stations.TryGetValue(corps.id, out int zone) ? zone : HomeZone(corps);
-#endif
 
     // 散开站：在几块候选地块里挑放的军最少的(一样少的取最近的)；原来就在其中一块、那块还没别的军的，留在原地(免得每月换位)
     private const int SpreadNearest = 6;
 
     // 候选都空、军团又不在任何地块上时返回 null，调用处要兜底
 #if EC_PENDING
-    private static TileZone Spread(CorpsData corps, IReadOnlyList<TileZone> candidates, Dictionary<int, int> load)
+    private static Cell Spread(CorpsData corps, IReadOnlyList<Cell> candidates, Dictionary<int, int> load)
     {
-        TileZone current = CorpsSystem.Zone(corps);
-        TileZone best = null;
+        Cell current = CorpsSystem.Zone(corps);
+        Cell best = null;
         float bestScore = float.MaxValue;
-        foreach (TileZone zone in candidates)
+        foreach (Cell zone in candidates)
         {
             if (zone == null) continue;
-            load.TryGetValue(zone.id, out int used);
-            float score = used * 1000f + CorpsSystem.ZoneDistance(zone, current) - (zone.id == corps.target_zone_id ? 0.5f : 0f);
+            load.TryGetValue(zone.Index, out int used);
+            float score = used * 1000f + CorpsSystem.ZoneDistance(zone, current) - (zone.Index == corps.target_zone_id ? 0.5f : 0f);
             if (score >= bestScore) continue;
             best = zone;
             bestScore = score;
         }
         if (best == null) return current;
-        load[best.id] = load.TryGetValue(best.id, out int count) ? count + 1 : 1;
+        load[best.Index] = load.TryGetValue(best.Index, out int count) ? count + 1 : 1;
         return best;
     }
 #endif
 
     // 守城的防线：本城与敌控地块相邻的地块(按离城心远近；本方过不去的无人区不算)；没有就空
 #if EC_PENDING
-    private static List<TileZone> DefenseLine(Realm kingdom, City city)
+    private static List<Cell> DefenseLine(Realm kingdom, City city)
     {
-        var line = new List<TileZone>();
-        if (city?.zones == null) return line;
-        foreach (TileZone zone in city.zones)
+        var line = new List<Cell>();
+        if (city?.Zones == null) return line;
+        foreach (Cell zone in city.Zones)
         {
             if (zone == null || !Friendly(kingdom, Controller(zone)) || TerrainSystem.Impassable(zone) ||
                 !WildernessPassage.Passable(zone, kingdom)) continue;
-            if ((zone.neighbours ?? Array.Empty<TileZone>()).Any(neighbour =>
+            if ((zone.Neighbours ?? Array.Empty<Cell>()).Any(neighbour =>
                     Hostile(kingdom, Controller(neighbour)) && TerrainSystem.Crossable(zone, neighbour)))
                 line.Add(zone);
         }
@@ -1344,18 +1332,18 @@ public static partial class FrontSystem
 
     // 守城的落脚地块：本城与敌控地块相邻的地块，没有就城中心
 #if EC_PENDING
-    private static TileZone DefenseZone(Realm kingdom, City city)
+    private static Cell DefenseZone(Realm kingdom, City city)
     {
-        if (city?.zones != null)
-            foreach (TileZone zone in city.zones)
+        if (city?.Zones != null)
+            foreach (Cell zone in city.Zones)
             {
                 if (zone == null || !Friendly(kingdom, Controller(zone)) || TerrainSystem.Impassable(zone) ||
                     !WildernessPassage.Passable(zone, kingdom)) continue;
-                if ((zone.neighbours ?? Array.Empty<TileZone>()).Any(neighbour =>
+                if ((zone.Neighbours ?? Array.Empty<Cell>()).Any(neighbour =>
                         Hostile(kingdom, Controller(neighbour)) && TerrainSystem.Crossable(zone, neighbour)))
                     return zone;
             }
-        return city?.getTile()?.zone;
+        return city?.SeatCell()?.Zone;
     }
 
     private static void Retreat(Realm kingdom, CorpsData corps)
@@ -1369,11 +1357,11 @@ public static partial class FrontSystem
 
     // 军团该往哪块地走
 #if EC_PENDING
-    public static TileZone TargetZone(CorpsData corps) => CorpsSystem.ZoneById(corps.target_zone_id);
+    public static Cell TargetZone(CorpsData corps) => CorpsSystem.ZoneById(corps.target_zone_id);
 
     private static bool Arrived(CorpsData corps)
     {
-        TileZone zone = CorpsSystem.Zone(corps), target = TargetZone(corps);
+        Cell zone = CorpsSystem.Zone(corps), target = TargetZone(corps);
         return zone != null && target != null && CorpsSystem.ZoneDistance(zone, target) <= ArriveDistance;
     }
 #endif
@@ -1425,9 +1413,9 @@ public static partial class FrontSystem
 #if EC_PENDING
     private static float HeldShare(City city)
     {
-        if (city?.zones == null || city.Realm == null) return 1f;
+        if (city?.Zones == null || city.Realm == null) return 1f;
         int total = 0, held = 0;
-        foreach (TileZone zone in city.zones)
+        foreach (Cell zone in city.Zones)
         {
             if (zone == null || TerrainSystem.Impassable(zone)) continue;
             total++;
@@ -1450,7 +1438,7 @@ public static partial class FrontSystem
 
     // 攻方(与 side 交战的一方)有军团在这块地上或紧挨着看守：不打赢收不回来
 #if EC_PENDING
-    private static bool Guarded(Realm side, TileZone zone)
+    private static bool Guarded(Realm side, Cell zone)
     {
         foreach ((Realm kingdom, CorpsData corps) in CorpsSystem.All())
             if (corps.strength >= 1f && Hostile(side, kingdom) && CorpsSystem.ZoneDistance(CorpsSystem.Zone(corps), zone) <= 1f)
@@ -1563,7 +1551,7 @@ public static partial class FrontSystem
         FlankZones.Clear();
         foreach (var entry in holders) FlankZones.Add(entry.corps.zone_id);
         // 地形：攻方要推进的那块地(城中心那块是城池)；时令叠在地形上(见 WarWeather)
-        TileZone battleZone = FrontZone(city, attacker, spearheads);
+        Cell battleZone = FrontZone(city, attacker, spearheads);
         FrontTerrain terrain = TerrainSystem.OfBattle(city, battleZone);
         TerrainEffect ground = WarWeather.Apply(TerrainSystem.Effect(terrain), terrain, attacker);
         // 水土：离草的游牧在非旱地、不服水土的定居政权在旱地上交战，攻守都打折(按那块地的格子构成，见 ShuiTuSystem.CombatFactor)
@@ -1613,7 +1601,7 @@ public static partial class FrontSystem
         // 关城守御：攻方军团够得着的地(同 Advance 挑的)里有关城那一片的，守方按等级加成；红夷大炮破城时只剩一半
         // (见 RuralSettlementSystem.FortFactor)
         float fort = 1f;
-        foreach (TileZone target in AttackZones(attacker, city, spearheads))
+        foreach (Cell target in AttackZones(attacker, city, spearheads))
             if (Beside(spearheads, target)) fort = Mathf.Max(fort, RuralSettlementSystem.FortFactor(city, target));
         if (fort > 1f) defend *= breach ? 1f + (fort - 1f) * 0.5f : fort;
         // 世家坞堡：郡望之城守势加成，破城时只剩一半(见 GentrySystem.Fortress)
@@ -1717,15 +1705,15 @@ public static partial class FrontSystem
 
     // 先挑攻方军团挨着的(Advance 只推这些)，城池放后，不隔城墙的在先(见 FrontSystem.Wall)
 #if EC_PENDING
-    private static TileZone FrontZone(City city, Realm attacker, List<CorpsData> spearheads)
+    private static Cell FrontZone(City city, Realm attacker, List<CorpsData> spearheads)
     {
-        List<TileZone> targets = AttackZones(attacker, city, spearheads);
-        TileZone center = city.getTile()?.zone;
+        List<Cell> targets = AttackZones(attacker, city, spearheads);
+        Cell center = city.SeatCell()?.Zone;
         return targets.OrderBy(candidate => spearheads == null || Beside(spearheads, candidate) ? 0 : 1)
             .ThenBy(candidate => candidate == center ? 1 : 0)
             .ThenBy(candidate => WallBetween(attacker, candidate, spearheads) ? 1 : 0)
             .ThenByDescending(FlankOrder)
-            .ThenByDescending(candidate => (candidate.neighbours ?? Array.Empty<TileZone>())
+            .ThenByDescending(candidate => (candidate.Neighbours ?? Array.Empty<Cell>())
                 .Count(neighbour => Friendly(attacker, Controller(neighbour)))).FirstOrDefault() ?? center;
     }
 #endif
@@ -1738,19 +1726,19 @@ public static partial class FrontSystem
         int taken = 0;
         for (int i = 0; i < count && city.Realm == owner; i++)
         {
-            List<TileZone> targets = AttackZones(attacker, city, spearheads)
+            List<Cell> targets = AttackZones(attacker, city, spearheads)
                 .Where(candidate => Beside(spearheads, candidate)).ToList();
             if (targets.Count == 0) break;
             int remaining = CityDistricts.Count(city, zone => !Friendly(attacker, Controller(zone)) && !TerrainSystem.Impassable(zone));
             if (defended && remaining <= 1) break;
-            TileZone center = city.getTile()?.zone;
+            Cell center = city.SeatCell()?.Zone;
             targets = Outskirts(city, attacker, targets, center, defended);
             if (targets.Count == 0) break;
             // 不隔城墙的先推(见 FrontSystem.Wall)
-            TileZone zone = targets.OrderBy(candidate => CenterOrder(city, candidate, center, defended))
+            Cell zone = targets.OrderBy(candidate => CenterOrder(city, candidate, center, defended))
                 .ThenBy(candidate => WallBetween(attacker, candidate, spearheads) ? 1 : 0)
                 .ThenByDescending(FlankOrder)
-                .ThenByDescending(candidate => (candidate.neighbours ?? Array.Empty<TileZone>())
+                .ThenByDescending(candidate => (candidate.Neighbours ?? Array.Empty<Cell>())
                     .Count(neighbour => Friendly(attacker, Controller(neighbour)))).First();
             Realm occupier = Belligerent(attacker, owner);
             Realm current = city.GetTileZoneOccupier(zone);
@@ -1765,7 +1753,7 @@ public static partial class FrontSystem
                 .ThenByDescending(corps => corps.strength).FirstOrDefault();
             if (lead != null)
             {
-                lead.zone_id = zone.id;
+                lead.zone_id = zone.Index;
                 lead.march_progress = 0f;
             }
         }
@@ -1776,22 +1764,22 @@ public static partial class FrontSystem
 
     // 地块紧挨着(或就是)其中一支军团的所在地
 #if EC_PENDING
-    private static bool Beside(IEnumerable<CorpsData> corps, TileZone zone) =>
+    private static bool Beside(IEnumerable<CorpsData> corps, Cell zone) =>
         zone != null && corps != null && corps.Any(entry => CorpsSystem.ZoneDistance(CorpsSystem.Zone(entry), zone) <= 1f);
 #endif
 
     // 挑推进的地块：守军还在时城池(城区那片)放到最后，守军溃散后先取城池
 #if EC_PENDING
-    private static int CenterOrder(City city, TileZone candidate, TileZone center, bool defended) =>
+    private static int CenterOrder(City city, Cell candidate, Cell center, bool defended) =>
         !CityDistricts.SameDistrict(city, candidate, center) ? 1 : defended ? 2 : 0;
 #endif
 
     // 守军还在、城外还有别的片没打下：城区那片(主城池)先不打，只打城外
 #if EC_PENDING
-    private static List<TileZone> Outskirts(City city, Realm attacker, List<TileZone> targets, TileZone center, bool defended)
+    private static List<Cell> Outskirts(City city, Realm attacker, List<Cell> targets, Cell center, bool defended)
     {
         if (!defended || center == null) return targets;
-        bool outsideLeft = city.zones.Any(zone => zone != null && !Friendly(attacker, Controller(zone)) &&
+        bool outsideLeft = city.Zones.Any(zone => zone != null && !Friendly(attacker, Controller(zone)) &&
                                                   !TerrainSystem.Impassable(zone) && !CityDistricts.SameDistrict(city, zone, center));
         return outsideLeft ? targets.Where(zone => !CityDistricts.SameDistrict(city, zone, center)).ToList() : targets;
     }
@@ -1799,10 +1787,10 @@ public static partial class FrontSystem
 
     // 拿下一块地：它那一片里还不归攻方的地块一并占下(平滑国界下直接翻过去)
 #if EC_PENDING
-    private static void OccupyDistrict(City city, Realm attacker, Realm owner, TileZone taken)
+    private static void OccupyDistrict(City city, Realm attacker, Realm owner, Cell taken)
     {
         Realm occupier = Belligerent(attacker, owner);
-        foreach (TileZone part in CityDistricts.ZonesOf(city, taken))
+        foreach (Cell part in CityDistricts.ZonesOf(city, taken))
         {
             if (part == taken || city.Realm != owner || Friendly(attacker, Controller(part))) continue;
             Realm current = city.GetTileZoneOccupier(part);
@@ -1814,9 +1802,9 @@ public static partial class FrontSystem
 
     // 收复一块地：它那一片里被敌军占着的一并收回；free(没有攻方来争、不打仗收复)时攻方军团看守着的不收(见 Guarded)
 #if EC_PENDING
-    private static void RetakeDistrict(City city, Realm side, TileZone retaken, bool free = false)
+    private static void RetakeDistrict(City city, Realm side, Cell retaken, bool free = false)
     {
-        foreach (TileZone part in CityDistricts.ZonesOf(city, retaken))
+        foreach (Cell part in CityDistricts.ZonesOf(city, retaken))
         {
             if (part == retaken || !(city.GetTileZoneOccupier(part) is Realm occupier) || !Hostile(side, occupier)) continue;
             if (free && Guarded(side, part)) continue;
@@ -1829,11 +1817,11 @@ public static partial class FrontSystem
     [ThreadStatic] private static bool _surrendering;
 
 #if EC_PENDING
-    public static void OnZoneTaken(City city, Realm occupier, TileZone zone)
+    public static void OnZoneTaken(City city, Realm occupier, Cell zone)
     {
         Realm owner = city?.Realm;
         if (_surrendering || owner == null || zone == null || !Hostile(occupier, owner)) return;
-        if (!CityDistricts.SameDistrict(city, zone, city.getTile()?.zone)) return;
+        if (!CityDistricts.SameDistrict(city, zone, city.SeatCell()?.Zone)) return;
         Surrender(city, occupier, owner);
     }
 #endif
@@ -1842,7 +1830,7 @@ public static partial class FrontSystem
 #if EC_PENDING
     private static void Surrender(City city, Realm attacker, Realm owner)
     {
-        if (city?.zones == null || city.Realm != owner || _surrendering) return;
+        if (city?.Zones == null || city.Realm != owner || _surrendering) return;
         // 守城统领殉国、被俘或出走(见 BattleDrama)
         BattleDrama.CityFell(city, attacker, owner);
         Realm occupier = Belligerent(attacker, owner);
@@ -1852,7 +1840,7 @@ public static partial class FrontSystem
         _surrendering = true;
         try
         {
-            foreach (TileZone zone in city.zones.Where(zone => zone != null && !Friendly(attacker, Controller(zone))).ToList())
+            foreach (Cell zone in city.Zones.Where(zone => zone != null && !Friendly(attacker, Controller(zone))).ToList())
             {
                 if (city.Realm != owner) break;
                 Realm current = city.GetTileZoneOccupier(zone);
@@ -1873,11 +1861,11 @@ public static partial class FrontSystem
 #if EC_PENDING
     private static void SweepImpassable(City city, Realm attacker, Realm owner)
     {
-        if (city.Realm != owner || city.zones == null) return;
-        var rest = city.zones.Where(zone => zone != null && !Friendly(attacker, Controller(zone))).ToList();
+        if (city.Realm != owner || city.Zones == null) return;
+        var rest = city.Zones.Where(zone => zone != null && !Friendly(attacker, Controller(zone))).ToList();
         if (rest.Count == 0 || rest.Any(zone => !TerrainSystem.Impassable(zone))) return;
         Realm occupier = Belligerent(attacker, owner);
-        foreach (TileZone zone in rest)
+        foreach (Cell zone in rest)
         {
             if (city.Realm != owner) break;
             Realm current = city.GetTileZoneOccupier(zone);
@@ -1896,10 +1884,10 @@ public static partial class FrontSystem
         List<CorpsData> troops = near?.ToList() ?? new List<CorpsData>();
         for (int i = 0; i < count; i++)
         {
-            TileZone zone = city.zones?.FirstOrDefault(candidate => candidate != null &&
+            Cell zone = city.Zones?.FirstOrDefault(candidate => candidate != null &&
                 city.GetTileZoneOccupier(candidate) is Realm occupier && Hostile(side, occupier) &&
                 Beside(troops, candidate) && (!free || !Guarded(side, candidate)) &&
-                (candidate.neighbours ?? Array.Empty<TileZone>()).Any(neighbour => Friendly(side, Controller(neighbour))));
+                (candidate.Neighbours ?? Array.Empty<Cell>()).Any(neighbour => Friendly(side, Controller(neighbour))));
             if (zone == null) break;
             if (!city.RemoveOccupiedTileZone(city.GetTileZoneOccupier(zone), zone)) break;
             retaken++;
@@ -1914,12 +1902,12 @@ public static partial class FrontSystem
 #if EC_PENDING
     private static void Record(City city, Realm attacker, Realm defender, float ratio, float attack, float defend,
         int taken, double now, FrontTerrain terrain = FrontTerrain.Plains, bool wall = false, bool breach = false,
-        bool landing = false, TileZone at = null)
+        bool landing = false, Cell at = null)
     {
-        TileZone marker = (landing ? at : null) ?? TargetZones(attacker, city).FirstOrDefault() ?? at ?? city.getTile()?.zone;
+        Cell marker = (landing ? at : null) ?? TargetZones(attacker, city).FirstOrDefault() ?? at ?? city.SeatCell()?.Zone;
         Battles[city.Key] = new BattleView
         {
-            city_id = city.Key, zone_id = marker?.id ?? -1, ratio = ratio, attack = attack, defend = defend,
+            city_id = city.Key, zone_id = marker?.Index ?? -1, ratio = ratio, attack = attack, defend = defend,
             attacker_id = attacker?.Key ?? -1L, defender_id = defender?.Key ?? -1L, taken = taken, time = now,
             terrain = terrain, wall = wall, wall_breach = wall && breach, landing = landing
         };
@@ -1945,14 +1933,12 @@ public static partial class FrontSystem
 
     #region 地图：交战地块边界
 
-#if EC_PENDING
-    private static readonly List<(TileZone a, TileZone b)> _contested = new();
-#endif
+    private static readonly List<(Cell a, Cell b)> _contested = new();
     private static int _contestedAt = -1;
 
     // 交战双方控制区相接的地块边(画战线用)，每秒最多重算一次
 #if EC_PENDING
-    public static IReadOnlyList<(TileZone a, TileZone b)> ContestedEdges()
+    public static IReadOnlyList<(Cell a, Cell b)> ContestedEdges()
     {
         int second = Mathf.FloorToInt(Time.unscaledTime);
         if (_contestedAt == second) return _contested;
@@ -1961,14 +1947,14 @@ public static partial class FrontSystem
         if (!CorpsSystem.Enabled || EmpireWorld.Current?.Cities == null) return _contested;
         foreach (City city in EmpireWorld.Current.Cities)
         {
-            if (city?.Record == null || city.IsGone() || city.zones == null || city.Realm == null) continue;
+            if (city?.Record == null || city.IsGone() || city.Zones == null || city.Realm == null) continue;
             if (!city.Realm.HasEnemies() && !ModRealm(city.Realm).HasEnemies()) continue;
-            foreach (TileZone zone in city.zones)
+            foreach (Cell zone in city.Zones)
             {
                 Realm controller = Controller(zone);
                 if (controller == null) continue;
                 // 交战的两块地都属于参战国的城，只看右、上两个方向，每条边记一次
-                foreach (TileZone neighbour in new[] { zone.zone_right, zone.zone_up })
+                foreach (Cell neighbour in new[] { zone.Right, zone.Up })
                 {
                     if (neighbour == null) continue;
                     Realm other = Controller(neighbour);

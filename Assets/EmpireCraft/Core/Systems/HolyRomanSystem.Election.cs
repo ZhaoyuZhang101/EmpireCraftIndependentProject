@@ -260,7 +260,7 @@ public static partial class HolyRomanSystem
                       ?? Members(empire).Where(realm => realm.HasRuler() && Estate(realm) == EstateNone && !IsBanned(realm))
                           .OrderByDescending(realm => realm.GetNationalPower()).Select(realm => realm.Ruler).FirstOrDefault();
         state.vicar_id = vicar?.Key ?? -1L;
-        state.vicar_realm_id = vicar?.kingdom?.id ?? -1L;
+        state.vicar_realm_id = vicar?.Realm?.Key ?? -1L;
         state.vicar_name = vicar == null ? LM.Get("label_none") : $"{vicar.FullName()}({vicar.Realm?.GetKingdomName()})";
     }
 #endif
@@ -322,9 +322,9 @@ public static partial class HolyRomanSystem
         LogService.LogInfo($"[EmpireCraft][神罗] {empire.GetEmpireFullName()} 双重选举：{emperor.FullName()}即位，" +
                            $"{rival.FullName()}({realm.GetKingdomName()})自立为对立国王，开{war.Name}");
     }
+#endif
 
     public static War ContestWar(Empire empire) => LiveWar(State(empire)?.anti_king_war_id ?? -1L);
-#endif
 
     // 争位之战里攻下中央都城(CityPatch 用)：正统只扣 10
     public static bool InContest(Realm a, Realm b)

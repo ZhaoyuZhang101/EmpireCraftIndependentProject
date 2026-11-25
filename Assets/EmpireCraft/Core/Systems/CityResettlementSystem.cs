@@ -32,7 +32,7 @@ internal static class CityResettlementSystem
     private static bool Valid(City city) => city?.Record != null && !city.IsGone() &&
         city.Realm != null && !city.Realm.IsGone() && !city.Realm.IsWild &&
         !AncientWarfareCompatibility.OwnsObject(city) && !AncientWarfareCompatibility.Owns(city.Realm) &&
-        city.getTile()?.region?.island != null;
+        city.SeatCell()?.region?.island != null;
 
     private static bool Managed(Realm payer, City city)
     {
@@ -51,7 +51,7 @@ internal static class CityResettlementSystem
         city.units?.Any(actor => actor != null && actor.city == city && !actor.IsGone() && actor.Alive) != true &&
         !StateSettlementSystem.AwaitingPopulation(city) && Due(city) &&
         !(city.GetOrCreate().OccupiedStatus?.Count > 0) &&
-        city.zones.Any(zone => zone.tiles_with_ground > 0);
+        city.Zones.Any(zone => zone.GroundTiles > 0);
 
     public static bool Request(Realm payer, StateSettlementData state)
     {
@@ -103,18 +103,20 @@ internal static class CityResettlementSystem
 #if EC_PENDING
     private static bool LandReach(City source, City target)
     {
-        if (!source.getTile().isSameIsland(target.getTile())) return false;
+        if (!source.SeatCell().IsSameIsland(target.SeatCell())) return false;
         float cost = LandCost(source, target);
         if (cost >= 0f) return !float.IsPositiveInfinity(cost);
-        return Distance(source, target) <= 192L * 192L && target.getTile().reachableFrom(source.getTile());
+        return Distance(source, target) <= 192L * 192L && target.SeatCell().reachableFrom(source.SeatCell());
     }
+#endif
 
     private static long Distance(City a, City b)
     {
-        long dx = (long)a.getTile().x - b.getTile().x, dy = (long)a.getTile().y - b.getTile().y;
+        long dx = (long)a.SeatCell().X - b.SeatCell().X, dy = (long)a.SeatCell().Y - b.SeatCell().Y;
         return dx * dx + dy * dy;
     }
 
+#if EC_PENDING
     public static void Tick()
     {
         if (!Enabled || Pending.Count == 0 || !SimulationFrameBudget.HasTime) return;
@@ -161,7 +163,7 @@ internal static class CityResettlementSystem
             if (people < 1f) continue;
             work.unavailable = "resettlement_unreachable";
             long distance = Distance(source, target);
-            if (source.getTile().isSameIsland(target.getTile()))
+            if (source.SeatCell().IsSameIsland(target.SeatCell()))
             {
                 if (!LandReach(source, target)) continue;
                 // 通达层算好后同等规模按陆路成本比远近(成本放大成整数，同直线距离一样比较)
@@ -202,8 +204,8 @@ internal static class CityResettlementSystem
         {
             var landing = work.sea.NextLanding();
             if (landing == null) break;
-            if (!target.getTile().isSameIsland(landing.landfall) || !target.getTile().reachableFrom(landing.landfall) ||
-                landing.zone.city != target) continue;
+            if (!target.SeatCell().IsSameIsland(landing.landfall) || !target.SeatCell().reachableFrom(landing.landfall) ||
+                landing.zone.City != target) continue;
             work.sea.Accept(landing).Apply(plan.journey);
             plan.source = sailor.Key;
             plan.journey.started = GameClock.Now;
@@ -238,13 +240,13 @@ internal static class CityResettlementSystem
         { Cancel(payer, state, "changed"); return; }
         if (plan.journey.overseas)
         {
-            if (!SettlementSeaSearch.Validate(plan.journey, source, out WorldTile shore, out string reason, target))
+            if (!SettlementSeaSearch.Validate(plan.journey, source, out Cell shore, out string reason, target))
             {
                 Cancel(payer, state, reason == "overseas_tech" || reason == "navigation" || reason == "port"
                     ? "resettlement_" + reason : "resettlement_unreachable");
                 return;
             }
-            if (!target.getTile().isSameIsland(shore) || !target.getTile().reachableFrom(shore))
+            if (!target.SeatCell().IsSameIsland(shore) || !target.SeatCell().reachableFrom(shore))
             { Cancel(payer, state, "resettlement_unreachable"); return; }
             if (GameClock.MonthsSince(plan.journey.started) < SettlementSeaSearch.TravelMonths(plan.journey.sea_route.Count, source))
             { state.status = "resettlement_sailing"; return; }

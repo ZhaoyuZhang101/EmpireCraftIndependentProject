@@ -68,19 +68,19 @@ public static partial class FrontSystem
     };
 
     // 推进线为什么失效了
-#if EC_PENDING
     private static PushEnd WhyInvalid(Push push)
     {
         City city = EmpireWorld.Current.CityByKey(push.City);
         if (city?.Record == null || city.IsGone()) return PushEnd.CityDestroyed;
         Realm side = EmpireWorld.Current.RealmByKey(push.Side);
         if (side?.Record == null || side.IsGone()) return PushEnd.SideDestroyed;
-        if (EmpireWorld.Current.zone_calculator.getZoneByID(push.Zone)?.city != city) return PushEnd.ZoneLeftCity;
+        if (EmpireWorld.Current.Zones.ById(push.Zone)?.City != city) return PushEnd.ZoneLeftCity;
         if ((city.Realm?.Key ?? -1L) != push.Owner) return PushEnd.CityChangedHands;
-        if (push.Retake && city.GetTileZoneOccupier(EmpireWorld.Current.zone_calculator.getZoneByID(push.Zone)) == null) return PushEnd.OccupationCleared;
+        if (push.Retake && city.GetTileZoneOccupier(EmpireWorld.Current.Zones.ById(push.Zone)) == null) return PushEnd.OccupationCleared;
         return PushEnd.AtPeace;
     }
 
+#if EC_PENDING
     private static void NotePushHandOver(Push push, Realm heir)
     {
         _pushHandOvers++;
@@ -121,7 +121,7 @@ public static partial class FrontSystem
         try
         {
             City city = EmpireWorld.Current.CityByKey(push.City);
-            TileZone zone = EmpireWorld.Current.zone_calculator.getZoneByID(push.Zone);
+            Cell zone = EmpireWorld.Current.Zones.ById(push.Zone);
             return $"城 {(city?.Record == null ? "无" : city.GetCityName())}#{push.City} 城主 {KingdomLabel(city?.Realm)} 地块 {push.Zone} 归城 {ZoneCityLabel(zone)} " +
                    $"占领者 {KingdomLabel(zone == null ? null : city?.GetTileZoneOccupier(zone))} 推进方 {KingdomLabel(EmpireWorld.Current.RealmByKey(push.Side))} " +
                    $"收复 {(push.Retake ? "是" : "否")} 不打仗 {(push.Free ? "是" : "否")} 方向 {push.Direction} 进度 {push.Progress:0.00} 显示 {SmoothBorders.DescribeDisplay(zone)}";
@@ -132,8 +132,8 @@ public static partial class FrontSystem
         }
     }
 
-    private static string ZoneCityLabel(TileZone zone) =>
-        zone?.city?.data == null ? "无" : $"{zone.city.GetCityName()}#{zone.city.id}";
+    private static string ZoneCityLabel(Cell zone) =>
+        zone?.City?.Record == null ? "无" : $"{zone.City.GetCityName()}#{zone.City.Key}";
 #endif
 
     // 一年一行合计
@@ -185,14 +185,14 @@ public static partial class FrontSystem
 #if EC_PENDING
     private static void ProbeZone(int zoneId, long cityId, PushEnd why)
     {
-        TileZone zone = EmpireWorld.Current?.zone_calculator?.getZoneByID(zoneId);
+        Cell zone = EmpireWorld.Current?.Zones?.ById(zoneId);
         if (zone == null) return;
         bool blank = SmoothBorders.CanvasBlank(zone);
-        bool moved = zone.city?.id != cityId;
+        bool moved = zone.City?.Key != cityId;
         if (!blank && !moved) return;
-        string kind = blank ? "城和归属都在、画布空了(绘制缺口)" : zone.city == null ? "地块已不归任何城(实际领土变动)" : "地块改归别城(实际领土变动)";
+        string kind = blank ? "城和归属都在、画布空了(绘制缺口)" : zone.City == null ? "地块已不归任何城(实际领土变动)" : "地块改归别城(实际领土变动)";
         LogService.LogInfo($"[EmpireCraft][版图缺口] 推进撤销({PushEndLabel(why)})后回看：{kind}；地块 {zoneId} 原城#{cityId} 现归 {ZoneCityLabel(zone)} " +
-                           $"城主 {KingdomLabel(zone.city?.kingdom)} 占领者 {KingdomLabel(zone.city?.GetTileZoneOccupier(zone))} 显示 {SmoothBorders.DescribeDisplay(zone)}");
+                           $"城主 {KingdomLabel(zone.City?.Realm)} 占领者 {KingdomLabel(zone.City?.GetTileZoneOccupier(zone))} 显示 {SmoothBorders.DescribeDisplay(zone)}");
     }
 #endif
 
@@ -207,12 +207,12 @@ public static partial class FrontSystem
         {
             _gapCursor = (_gapCursor + 1) % ids.Count;
             City city = EmpireWorld.Current.CityByKey(ids[_gapCursor]);
-            if (city?.zones == null || city.IsGone()) continue;
-            foreach (TileZone zone in city.zones)
+            if (city?.Zones == null || city.IsGone()) continue;
+            foreach (Cell zone in city.Zones)
             {
                 if (zone == null || !SmoothBorders.CanvasBlank(zone)) continue;
                 lines++;
-                LogService.LogInfo($"[EmpireCraft][版图缺口] 战中抽查：城 {city.GetCityName()}#{city.Key} 城主 {KingdomLabel(city.Realm)} 地块 {zone.id} " +
+                LogService.LogInfo($"[EmpireCraft][版图缺口] 战中抽查：城 {city.GetCityName()}#{city.Key} 城主 {KingdomLabel(city.Realm)} 地块 {zone.Index} " +
                                    $"占领者 {KingdomLabel(city.GetTileZoneOccupier(zone))} 显示 {SmoothBorders.DescribeDisplay(zone)}");
                 break;
             }

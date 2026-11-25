@@ -175,7 +175,6 @@ public static class ProvincialCollapseSystem
 #endif
 
     // 与京畿接壤：省里有城是陪都，或挨着核心王国的城、陪都
-#if EC_PENDING
     private static bool NearCapital(Empire empire, Realm province)
     {
         Realm core = empire.CoreKingdom;
@@ -184,21 +183,19 @@ public static class ProvincialCollapseSystem
         {
             if (city?.Record == null) continue;
             if (jing.Contains(city)) return true;
-            foreach (City neighbour in city.neighbours_cities)
+            foreach (City neighbour in city.NeighbourCities)
                 if (neighbour?.Record != null && (neighbour.Realm == core || jing.Contains(neighbour))) return true;
         }
         return false;
     }
-#endif
 
     // 边疆：省里有城挨着帝国以外的国家；本帝国的朝贡国、附庸不算
-#if EC_PENDING
     private static bool Frontier(Empire empire, Realm province)
     {
         foreach (City city in province.Cities)
         {
             if (city?.Record == null) continue;
-            foreach (City neighbour in city.neighbours_cities)
+            foreach (City neighbour in city.NeighbourCities)
             {
                 Realm other = neighbour?.Realm;
                 if (other?.Record == null || other.IsGone() || other.IsWild || other.GetEmpire() == empire ||
@@ -209,6 +206,7 @@ public static class ProvincialCollapseSystem
         return false;
     }
 
+#if EC_PENDING
     private static float Disaffection(Empire empire, Realm province, bool modern, PartyIdeology ideology)
     {
         float control = province.Cities.Average(AdministrativeControlSystem.Get);

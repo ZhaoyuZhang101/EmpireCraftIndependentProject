@@ -85,7 +85,7 @@ public static class CityFragmentSystem
     public static int RestoreAll()
     {
         Resolve();
-        ZoneCalculator calc = EmpireWorld.Current?.zone_calculator;
+        ZoneGrid calc = EmpireWorld.Current?.Zones;
         if (Moved.Count == 0 || calc == null)
         {
             Moved.Clear();
@@ -95,11 +95,11 @@ public static class CityFragmentSystem
         int count = 0;
         foreach (KeyValuePair<int, (City from, City to)> pair in Moved.OrderBy(pair => pair.Key).ToList())
         {
-            TileZone zone = calc.getZoneByID(pair.Key);
+            Cell zone = calc.ById(pair.Key);
             (City from, City to) = pair.Value;
-            if (zone == null || !Restorable(zone.city == to, from?.Record != null && !from.IsGone())) continue;
-            using (CityExpansionPatch.Manual()) from.addZone(zone);
-            if (zone.city != from) continue;
+            if (zone == null || !Restorable(zone.City == to, from?.Record != null && !from.IsGone())) continue;
+            using (CityExpansionPatch.Manual()) from.AddZone(zone);
+            if (zone.City != from) continue;
             touched.Add(from);
             touched.Add(to);
             count++;
@@ -141,12 +141,12 @@ public static class CityFragmentSystem
     private static void Run()
     {
         EmpireWorld world = EmpireWorld.Current;
-        if (world?.zone_calculator?.zones == null || world.Cities == null) return;
+        if (world?.Zones?.All == null || world.Cities == null) return;
         _lastRun = world.Now();
         if (CityTerritoryProtection.BordersLocked) return;
         Resolve();
         var report = new List<string>();
-        int moved = Transfer(world.zone_calculator.zones, world.Cities, report);
+        int moved = Transfer(world.Zones.All, world.Cities, report);
         if (moved <= 0) return;
         LogService.LogInfo($"[EmpireCraft][城地碎块] 交出 {report.Count} 处 {moved} 块：" + string.Join("；", report.Take(12)) +
                            (report.Count > 12 ? $" 等" : ""));
@@ -155,10 +155,10 @@ public static class CityFragmentSystem
 
     // 地块跟着哪座城：城的地块归那座城；无人区跟着 OriginOf 那座城(永久中立的不算)；别的为 null
 #if EC_PENDING
-    private static City HolderOf(TileZone zone)
+    private static City HolderOf(Cell zone)
     {
         if (zone == null) return null;
-        City city = zone.city;
+        City city = zone.City;
         if (city != null) return Alive(city) ? city : null;
         if (!WildernessSystem.IsWild(zone) || WildernessSystem.IsNeutral(zone)) return null;
         City origin = WildernessSystem.OriginOf(zone);
@@ -177,82 +177,80 @@ public static class CityFragmentSystem
     private static bool Occupied(City city) => city.GetOrCreate().OccupiedStatus?.Any(pair => pair.Value?.Count > 0) == true;
 
     // 这块地正被战线逐格推进
-#if EC_PENDING
-    private static bool Pushed(TileZone zone) => FrontSystem.SmoothPushOn(zone, out _, out _);
-#endif
+    private static bool Pushed(Cell zone) => FrontSystem.SmoothPushOn(zone, out _, out _);
 
     private static bool AtWar(Realm a, Realm b) => a != b && a.IsAtWarWith(b);
 
     // 返回交出的城地块数；report 记每一处"城 → 城 几块"
 #if EC_PENDING
-    private static int Transfer(List<TileZone> zones, List<City> cities, List<string> report)
+    private static int Transfer(List<Cell> zones, List<City> cities, List<string> report)
     {
         int size = 0;
-        foreach (TileZone zone in zones)
-            if (zone != null && zone.id >= size) size = zone.id + 1;
-        var byId = new TileZone[size];
+        foreach (Cell zone in zones)
+            if (zone != null && zone.Index >= size) size = zone.Index + 1;
+        var byId = new Cell[size];
         var holder = new City[size];
-        var ownWild = new Dictionary<City, List<TileZone>>();
-        foreach (TileZone zone in zones)
+        var ownWild = new Dictionary<City, List<Cell>>();
+        foreach (Cell zone in zones)
         {
-            if (zone == null || zone.id < 0) continue;
-            byId[zone.id] = zone;
+            if (zone == null || zone.Index < 0) continue;
+            byId[zone.Index] = zone;
             City city = HolderOf(zone);
-            holder[zone.id] = city;
-            if (city == null || zone.city != null) continue;
-            if (!ownWild.TryGetValue(city, out List<TileZone> list)) ownWild[city] = list = new List<TileZone>();
+            holder[zone.Index] = city;
+            if (city == null || zone.City != null) continue;
+            if (!ownWild.TryGetValue(city, out List<Cell> list)) ownWild[city] = list = new List<Cell>();
             list.Add(zone);
         }
         var mark = new int[size];
         int stamp = 0, total = 0;
-        var pieces = new List<List<TileZone>>();
-        var queue = new List<TileZone>();
+        var pieces = new List<List<Cell>>();
+        var queue = new List<Cell>();
         foreach (City city in cities.ToList())
         {
-            if (city?.zones == null || city.zones.Count < 2 || !Usable(city)) continue;
+            if (city?.Zones == null || city.Zones.Count < 2 || !Usable(city)) continue;
             // 城地连同跟着它的无人区，按四邻连成片
             stamp++;
             pieces.Clear();
-            IEnumerable<TileZone> starts = ownWild.TryGetValue(city, out List<TileZone> wild) ? city.zones.Concat(wild) : city.zones;
-            foreach (TileZone start in starts.ToList())
+            IEnumerable<Cell> starts = ownWild.TryGetValue(city, out List<Cell> wild) ? city.Zones.Concat(wild) : city.Zones;
+            foreach (Cell start in starts.ToList())
             {
-                if (start == null || start.id < 0 || start.id >= size || mark[start.id] == stamp || holder[start.id] != city) continue;
-                var piece = new List<TileZone> { start };
-                mark[start.id] = stamp;
+                if (start == null || start.Index < 0 || start.Index >= size || mark[start.Index] == stamp || holder[start.Index] != city) continue;
+                var piece = new List<Cell> { start };
+                mark[start.Index] = stamp;
                 for (int i = 0; i < piece.Count; i++)
                 {
-                    TileZone[] near = piece[i].neighbours;
+                    Cell[] near = piece[i].Neighbours;
                     if (near == null) continue;
-                    foreach (TileZone next in near)
+                    foreach (Cell next in near)
                     {
-                        if (next == null || next.id < 0 || next.id >= size || mark[next.id] == stamp || holder[next.id] != city) continue;
-                        mark[next.id] = stamp;
+                        if (next == null || next.Index < 0 || next.Index >= size || mark[next.Index] == stamp || holder[next.Index] != city) continue;
+                        mark[next.Index] = stamp;
                         piece.Add(next);
                     }
                 }
                 pieces.Add(piece);
             }
             if (pieces.Count < 2) continue;
-            TileZone seat = city.getTile()?.zone;
-            List<TileZone> body = seat != null && seat.city == city ? pieces.FirstOrDefault(piece => piece.Contains(seat)) : null;
+            Cell seat = city.SeatCell()?.Zone;
+            List<Cell> body = seat != null && seat.City == city ? pieces.FirstOrDefault(piece => piece.Contains(seat)) : null;
             body ??= pieces.OrderByDescending(piece => piece.Count).First();
-            foreach (List<TileZone> piece in pieces)
+            foreach (List<Cell> piece in pieces)
             {
                 if (ReferenceEquals(piece, body) || piece.Count >= WildernessSystem.MinZones) continue;
                 List<City> receivers = Receivers(city, piece, byId, holder, size);
                 if (receivers == null || receivers.Count == 0) continue;
                 int given = 0;
                 City first = null;
-                foreach (TileZone zone in piece)
+                foreach (Cell zone in piece)
                 {
-                    if (zone.city != city || Pushed(zone)) continue;
-                    if (Moved.TryGetValue(zone.id, out (City from, City to) before) && before.to == city) continue;
+                    if (zone.City != city || Pushed(zone)) continue;
+                    if (Moved.TryGetValue(zone.Index, out (City from, City to) before) && before.to == city) continue;
                     foreach (City receiver in receivers)
                     {
-                        receiver.addZone(zone);
-                        if (zone.city != receiver) continue;
-                        Note(zone.id, city, receiver);
-                        holder[zone.id] = receiver;
+                        receiver.AddZone(zone);
+                        if (zone.City != receiver) continue;
+                        Note(zone.Index, city, receiver);
+                        holder[zone.Index] = receiver;
                         first ??= receiver;
                         given++;
                         break;
@@ -269,24 +267,24 @@ public static class CityFragmentSystem
 
     // 这一片交给谁(按先后试)：片外四邻每一块都得有主，否则 null(海岛、海外领地、挨着无主地的不动)
 #if EC_PENDING
-    private static List<City> Receivers(City city, List<TileZone> piece, TileZone[] byId, City[] holder, int size)
+    private static List<City> Receivers(City city, List<Cell> piece, Cell[] byId, City[] holder, int size)
     {
-        var inside = new HashSet<TileZone>(piece);
+        var inside = new HashSet<Cell>(piece);
         var edges = new Dictionary<City, int>();
         var kingdoms = new Dictionary<Realm, int>();
-        foreach (TileZone zone in piece)
+        foreach (Cell zone in piece)
         {
-            TileZone[] near = zone.neighbours;
+            Cell[] near = zone.Neighbours;
             // 地图边上的块(四邻不全)
             if (near == null || near.Length < 4) return null;
-            foreach (TileZone next in near)
+            foreach (Cell next in near)
             {
                 if (next == null || inside.Contains(next)) continue;
-                City other = next.id >= 0 && next.id < size ? holder[next.id] : null;
+                City other = next.Index >= 0 && next.Index < size ? holder[next.Index] : null;
                 if (other == null || other == city) return null;
                 // 无人区按显示的归属算哪国挨着；并成别国碎块的(显示的国不是它跟着的城所在的国)只算那国挨着，
                 // 它跟着的城不收(收了又是一块飞地)
-                Realm shown = next.city == null ? WildernessSystem.OwnerOf(next) : other.Realm;
+                Realm shown = next.City == null ? WildernessSystem.OwnerOf(next) : other.Realm;
                 if (shown == null) return null;
                 kingdoms.TryGetValue(shown, out int sum);
                 kingdoms[shown] = sum + 1;

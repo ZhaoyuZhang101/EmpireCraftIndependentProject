@@ -39,16 +39,13 @@ public static partial class MultiCapitalSystem
 #endif
 
     // 这座城是京(京师或陪京)
-#if EC_PENDING
     public static bool IsJing(City city)
     {
-        Empire empire = city?.kingdom?.GetEmpire();
+        Empire empire = city?.Realm?.GetEmpire();
         return empire?.data?.jing != null && empire.data.jing.Any(record => record != null && record.city_id == city.Key);
     }
-#endif
 
     // 陪京(不含京师)：行政治所用
-#if EC_PENDING
     public static IEnumerable<City> AuxiliaryCities(Realm realm)
     {
         Empire empire = realm?.GetEmpire();
@@ -56,20 +53,18 @@ public static partial class MultiCapitalSystem
         foreach (JingRecord record in empire.data.jing)
         {
             if (record == null || string.IsNullOrEmpty(record.direction)) continue;
-            City city = EmpireWorld.Current?.cities?.get(record.city_id);
+            City city = EmpireWorld.Current?.CityByKey(record.city_id);
             if (city?.Record != null && !city.IsGone()) yield return city;
         }
     }
-#endif
 
     public static string JingName(JingRecord record) =>
         record == null ? "" : string.IsNullOrEmpty(record.direction) ? LM.Get("jing_capital") : LM.Get("jing_name_" + record.direction);
 
     // 这座城的京名(不是京返回空)
-#if EC_PENDING
     public static string JingNameOf(City city)
     {
-        Empire empire = city?.kingdom?.GetEmpire();
+        Empire empire = city?.Realm?.GetEmpire();
         JingRecord record = empire?.data?.jing?.FirstOrDefault(r => r != null && r.city_id == city.Key);
         return record == null ? "" : JingName(record);
     }
@@ -77,7 +72,6 @@ public static partial class MultiCapitalSystem
     public static float StabilityBonus(City city) => IsJing(city) ? JingStability : 0f;
 
     public static string DescribeStability(City city) => string.Format(LM.Get("jing_stability_detail"), JingNameOf(city), JingStability);
-#endif
 
     // 每年(RealmNamingSystem.Yearly)
 #if EC_PENDING
@@ -122,7 +116,7 @@ public static partial class MultiCapitalSystem
         City main = empire.CoreKingdom.Capital;
         if (lead == null || main == null) return new List<(EmpireCore, City)>();
         // 迁过都的(明成祖迁北京)：本帝国法理的旧都留作陪京，排在最前(南京)
-        City old = own == null || own.former_capital < 0 ? null : EmpireWorld.Current?.cities?.get(own.former_capital);
+        City old = own == null || own.former_capital < 0 ? null : EmpireWorld.Current?.CityByKey(own.former_capital);
         if (old?.Record != null && !old.IsGone() && old != main && old.Realm?.GetEmpire() == empire)
             result.Add((own, old, int.MaxValue));
         foreach (EmpireCore core in TianxiaSystem.Members(lead))
@@ -149,8 +143,8 @@ public static partial class MultiCapitalSystem
         if (picks.Count > 0)
         {
             string[] dirs = RealmNameRules.AssignDirections(
-                picks.Select(pick => pick.city.city_center.x - main.city_center.x).ToList(),
-                picks.Select(pick => pick.city.city_center.y - main.city_center.y).ToList());
+                picks.Select(pick => pick.city.Center.x - main.Center.x).ToList(),
+                picks.Select(pick => pick.city.Center.y - main.Center.y).ToList());
             double now = GameClock.Now;
             records.Add(Keep(empire, main.Key, EmpireCoreManager.Get(empire)?.id ?? -1L, "", now));
             for (int i = 0; i < picks.Count; i++)
@@ -165,14 +159,14 @@ public static partial class MultiCapitalSystem
         foreach (JingRecord gone in old.Where(r => r != null && !string.IsNullOrEmpty(r.direction) &&
                                                    !records.Any(n => n.city_id == r.city_id && n.direction == r.direction)).ToList())
         {
-            City city = EmpireWorld.Current?.cities?.get(gone.city_id);
+            City city = EmpireWorld.Current?.CityByKey(gone.city_id);
             EventRecorder.Record(empire, string.Format(LM.Get("jing_removed_history"), empire.GetEmpireFullName(), JingName(gone),
                 city?.GetCityName() ?? "", LM.Get(reasonKey)));
         }
         foreach (JingRecord added in records.Where(r => !string.IsNullOrEmpty(r.direction) &&
                                                         !old.Any(o => o != null && o.city_id == r.city_id && o.direction == r.direction)))
         {
-            City city = EmpireWorld.Current?.cities?.get(added.city_id);
+            City city = EmpireWorld.Current?.CityByKey(added.city_id);
             if (city?.Record == null) continue;
             EventRecorder.Record(empire, string.Format(LM.Get("jing_added_history"), empire.GetEmpireFullName(), city.GetCityName(),
                 JingName(added), RealmNamingSystem.CoreName(EmpireCoreManager.Get(added.core_id))));
@@ -186,7 +180,7 @@ public static partial class MultiCapitalSystem
         AdministrativeControlSystem.Refresh(empire.CoreKingdom);
         LogService.LogInfo($"[EmpireCraft][多京] {empire.GetEmpireFullName()} " +
                            (records.Count == 0 ? "罢多京" : string.Join("；", records.Select(r =>
-                               $"{JingName(r)} {EmpireWorld.Current?.cities?.get(r.city_id)?.GetCityName()}(据 {RealmNamingSystem.CoreName(EmpireCoreManager.Get(r.core_id))})"))));
+                               $"{JingName(r)} {EmpireWorld.Current?.CityByKey(r.city_id)?.GetCityName()}(据 {RealmNamingSystem.CoreName(EmpireCoreManager.Get(r.core_id))})"))));
     }
 #endif
 

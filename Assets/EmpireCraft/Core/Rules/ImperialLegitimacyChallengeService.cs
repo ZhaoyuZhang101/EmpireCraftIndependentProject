@@ -58,6 +58,7 @@ public static class ImperialLegitimacyChallengeService
         }
         return false;
     }
+#endif
 
     private static bool SharesLandBorder(Realm challenger, Empire incumbent)
     {
@@ -79,14 +80,14 @@ public static class ImperialLegitimacyChallengeService
 
     private static bool SharesLandBorder(City city, Empire incumbent)
     {
-        if (city == null || city.IsGone() || city.zones == null) return false;
+        if (city == null || city.IsGone() || city.Zones == null) return false;
         // 读取当前区域归属，避免城市易主后旧邻国缓存仍判定接壤；四向相邻才有共同边界。
-        foreach (TileZone zone in city.zones)
+        foreach (Cell zone in city.Zones)
         {
-            if (zone == null || zone.city != city || zone.neighbours == null) continue;
-            foreach (TileZone neighbour in zone.neighbours)
+            if (zone == null || zone.City != city || zone.Neighbours == null) continue;
+            foreach (Cell neighbour in zone.Neighbours)
             {
-                City neighbouringCity = neighbour?.city;
+                City neighbouringCity = neighbour?.City;
                 if (neighbouringCity != null && neighbouringCity != city && !neighbouringCity.IsGone() &&
                     EmpireMembershipService.BelongsTo(incumbent, neighbouringCity.Realm))
                     return true;
@@ -95,6 +96,7 @@ public static class ImperialLegitimacyChallengeService
         return false;
     }
 
+#if EC_PENDING
     public static bool CanChallenge(Person actor)
     {
         return actor != null && !actor.IsGone() && actor.IsRuler() && actor.Realm?.Ruler == actor &&
@@ -336,9 +338,9 @@ public static class ImperialLegitimacyChallengeService
         bool challengerWasClaimant = challenger.data.legitimacy_challenger;
         WarExtension.WarExtraData warData = war.GetOrCreate();
         Person challengerEmperor = challenger.Emperor;
-        Person formerEmperor = incumbent?.Emperor ?? EmpireWorld.Current?.units?.get(warData.legitimacy_defender_emperor_id);
+        Person formerEmperor = incumbent?.Emperor ?? EmpireWorld.Current?.PersonByKey(warData.legitimacy_defender_emperor_id);
         Realm formerCore = incumbent?.CoreKingdom ??
-                             EmpireWorld.Current?.kingdoms?.get(warData.legitimacy_defender_core_kingdom_id);
+                             EmpireWorld.Current?.RealmByKey(warData.legitimacy_defender_core_kingdom_id);
         Realm newCore = challenger.CoreKingdom;
         string oldEmpireName = incumbent?.GetEmpireFullName() ?? warData.legitimacy_defender_empire_name ?? "";
         string newEmpireName = challenger.GetEmpireFullName();
@@ -361,7 +363,7 @@ public static class ImperialLegitimacyChallengeService
         IEnumerable<Realm> formerMembers = incumbent != null && !incumbent.IsArchived()
             ? incumbent.kingdoms_list
             : (warData.legitimacy_defender_kingdom_ids ?? new List<long>())
-                .Select(id => EmpireWorld.Current?.kingdoms?.get(id));
+                .Select(id => EmpireWorld.Current?.RealmByKey(id));
         foreach (Realm administration in formerMembers
                      .Where(member => member != null && member != formerCore && !member.IsGone()).ToList())
         {
@@ -383,7 +385,7 @@ public static class ImperialLegitimacyChallengeService
         else if (formerEmperor != null && !formerEmperor.IsGone())
         {
             retirementCity = (warData.legitimacy_defender_city_ids ?? new List<long>())
-                .Select(id => EmpireWorld.Current?.cities?.get(id))
+                .Select(id => EmpireWorld.Current?.CityByKey(id))
                 .FirstOrDefault(city => city != null && !city.IsGone());
             if (retirementCity != null)
             {
@@ -473,9 +475,9 @@ public static class ImperialLegitimacyChallengeService
         if (war == null) return;
         WarExtension.WarExtraData data = war.GetOrCreate();
         Person challengerEmperor = challenger?.Emperor ??
-                                   EmpireWorld.Current?.units?.get(data.legitimacy_challenger_emperor_id);
+                                   EmpireWorld.Current?.PersonByKey(data.legitimacy_challenger_emperor_id);
         Person incumbentEmperor = incumbent?.Emperor ??
-                                  EmpireWorld.Current?.units?.get(data.legitimacy_defender_emperor_id);
+                                  EmpireWorld.Current?.PersonByKey(data.legitimacy_defender_emperor_id);
         string content = string.Format(LM.Get("history_legitimacy_challenge_failed"),
             challenger?.GetEmpireFullName() ?? data.legitimacy_challenger_empire_name ?? "",
             incumbent?.GetEmpireFullName() ?? data.legitimacy_defender_empire_name ?? "");

@@ -24,7 +24,6 @@ public static partial class MultiCapitalSystem
         city?.Record != null && !city.IsGone() && city.Realm != null && !city.Realm.IsGone() && city.Realm.GetEmpire() == empire;
 
     // 奉诏设的陪京里眼下还作数的(城还在本帝国手里、不是京师)；不作数的从诏令里除掉
-#if EC_PENDING
     private static List<(EmpireCore core, City city)> DecreedCapitals(Empire empire)
     {
         var result = new List<(EmpireCore core, City city)>();
@@ -34,7 +33,7 @@ public static partial class MultiCapitalSystem
         EmpireCore own = EmpireCoreManager.Get(empire);
         for (int i = ids.Count - 1; i >= 0; i--)
         {
-            City city = EmpireWorld.Current?.cities?.get(ids[i]);
+            City city = EmpireWorld.Current?.CityByKey(ids[i]);
             if (!Holds(empire, city))
             {
                 ids.RemoveAt(i);
@@ -52,7 +51,6 @@ public static partial class MultiCapitalSystem
         if (result.Count > MaxCapitals - 1) result.RemoveRange(MaxCapitals - 1, result.Count - (MaxCapitals - 1));
         return result;
     }
-#endif
 
     // 奉诏的在前、自动挑的在后，同一座城只算一回，连京师至多 MaxCapitals 京
     private static List<(EmpireCore core, City city)> Merge(List<(EmpireCore core, City city)> decreed, List<(EmpireCore core, City city)> picks)
@@ -84,7 +82,6 @@ public static partial class MultiCapitalSystem
 #endif
 
     // 可以奉诏设为陪京的城：本帝国(连成员)手里的城，不是京师、还不是京、没被占着、不在代管里；人口多的在前
-#if EC_PENDING
     public static List<City> DecreeCandidates(Empire empire, int limit)
     {
         var result = new List<City>();
@@ -102,22 +99,19 @@ public static partial class MultiCapitalSystem
         }
         return result.OrderByDescending(city => CityPopulationSystem.GetTotal(city)).ThenBy(city => city.Key).Take(limit).ToList();
     }
-#endif
 
     // 奉诏设的、眼下还是京的陪京(撤陪京只撤这些)
-#if EC_PENDING
     public static List<City> DecreedCities(Empire empire)
     {
         var result = new List<City>();
         if (empire?.data?.decreed_jing == null) return result;
         foreach (long id in empire.data.decreed_jing)
         {
-            City city = EmpireWorld.Current?.cities?.get(id);
+            City city = EmpireWorld.Current?.CityByKey(id);
             if (Holds(empire, city) && IsJing(city)) result.Add(city);
         }
         return result;
     }
-#endif
 
     // 可以奉诏设直隶的陪京：本朝是律令制；那座陪京在中央直辖或行政区(省)手里，还不是直隶
 #if EC_PENDING

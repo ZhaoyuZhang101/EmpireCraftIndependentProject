@@ -21,27 +21,27 @@ public static class EarthBeaches
     internal static int Migrate()
     {
         EmpireWorld world = EmpireWorld.Current;
-        WorldTile[] tiles = world?.tiles_list;
+        Cell[] tiles = world?.Zones;
         if (tiles == null || tiles.Length == 0) return 0;
-        int width = EmpireWorld.width, height = EmpireWorld.height;
+        int width = EmpireWorld.Current.Width, height = EmpireWorld.Current.Height;
         if (width <= 0 || height <= 0 || tiles.Length < width * height) return 0;
         bool any = false;
-        foreach (WorldTile tile in tiles)
+        foreach (Cell tile in tiles)
             if (Sand(tile))
             {
                 any = true;
                 break;
             }
         if (!any) return 0;
-        TopTileType desert = AssetManager.top_tiles?.get("desert_low");
+        TerrainKind desert = AssetManager.top_tiles?.get("desert_low");
         if (desert == null) return 0;
         // 离水几格：从水面往外一圈圈走到 Reach 为止(八方向)
         var distance = new byte[width * height];
         var queue = new Queue<int>();
         for (int i = 0; i < width * height; i++)
         {
-            TileTypeBase type = tiles[i]?.Type;
-            if (type != null && type.liquid)
+            TerrainKind type = tiles[i]?.Type;
+            if (type != null && type.Liquid)
             {
                 distance[i] = 1;
                 queue.Enqueue(i);
@@ -67,11 +67,11 @@ public static class EarthBeaches
         int changed = 0;
         for (int i = 0; i < width * height; i++)
         {
-            WorldTile tile = tiles[i];
+            Cell tile = tiles[i];
             if (distance[i] != 0 || !Sand(tile)) continue;
             // 同 WorldMapScenario.MakeOasis 改地表：低地荒漠，高度取那一种的下限
             tile.setTileTypes("soil_low", desert);
-            tile.Height = tile.Type.height_min;
+            tile.Height = tile.Type.HeightMin;
             changed++;
         }
         if (changed > 0) LogService.LogInfo($"[EmpireCraft][世界地图] 旧档大漠腹地的沙地 {changed} 格改成荒漠(沙地只算沙滩)");
@@ -80,8 +80,6 @@ public static class EarthBeaches
 #endif
 
     // 没有地表的沙地(沙滩那一种)
-#if EC_PENDING
-    private static bool Sand(WorldTile tile) => tile?.main_type != null && tile.main_type.sand && tile.top_type == null;
-#endif
+    private static bool Sand(Cell tile) => tile?.MainType != null && tile.MainType.Sand && tile.TopType == null;
 }
 }

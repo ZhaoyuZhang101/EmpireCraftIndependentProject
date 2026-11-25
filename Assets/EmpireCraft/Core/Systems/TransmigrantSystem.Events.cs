@@ -65,13 +65,13 @@ public static partial class TransmigrantSystem
     private static City BaseCity(Realm kingdom, TransmigrantState state) =>
         EmpireWorld.Current.CityByKey(state.base_city_id) is City city && city.Record != null && !city.IsGone() && city.Realm == kingdom ? city : kingdom.Capital;
 
-#if EC_PENDING
     private static void HardenFubo(Realm kingdom, float veterancy)
     {
         CorpsData fubo = Fubo(kingdom);
         if (fubo != null) fubo.veterancy = Mathf.Min(FormationSystem.VeteranCap(fubo), fubo.veterancy + veterancy);
     }
 
+#if EC_PENDING
     private static void ShiftStability(City city, float amount)
     {
         CityStabilityData data = city == null ? null : CityStabilitySystem.State(city);
@@ -234,14 +234,14 @@ public static partial class TransmigrantSystem
     private static bool HomelandClear(Realm kingdom, TransmigrantState state)
     {
         City home = BaseCity(kingdom, state);
-        if (home?.getTile() == null || (kingdom.Cities?.Count ?? 0) < HomelandMinCities) return false;
-        object island = home.getTile().region?.island;
+        if (home?.SeatCell() == null || (kingdom.Cities?.Count ?? 0) < HomelandMinCities) return false;
+        object island = home.SeatCell().region?.island;
         object title = home.GetTitle();
         bool islandClear = island != null, titleClear = title != null;
         foreach (City city in EmpireWorld.Current.Cities)
         {
             if (city?.Record == null || city.IsGone() || city.Realm == kingdom) continue;
-            if (islandClear && ReferenceEquals(city.getTile()?.region?.island, island)) islandClear = false;
+            if (islandClear && ReferenceEquals(city.SeatCell()?.region?.island, island)) islandClear = false;
             if (titleClear && ReferenceEquals(city.GetTitle(), title)) titleClear = false;
             if (!islandClear && !titleClear) return false;
         }
@@ -261,16 +261,14 @@ public static partial class TransmigrantSystem
 
     #region 发动机行动
 
-#if EC_PENDING
     private static bool Coastal(City city)
     {
-        if (city?.zones == null) return false;
-        foreach (TileZone zone in city.zones)
-            foreach (WorldTile tile in zone?.tiles ?? Array.Empty<WorldTile>())
-                if (tile?.Type?.ocean == true) return true;
+        if (city?.Zones == null) return false;
+        foreach (Cell zone in city.Zones)
+            foreach (Cell tile in zone?.Tiles ?? Array.Empty<Cell>())
+                if (tile?.Type?.Ocean == true) return true;
         return false;
     }
-#endif
 
     private static List<City> EngineHomes(Realm kingdom)
     {

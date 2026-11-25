@@ -97,7 +97,7 @@ public static partial class VirtualGenealogySystem
             // 在位君主挪了族：国家与帝国记下的皇族跟着改，免得下次继位被当成篡位
             foreach (Realm kingdom in EmpireWorld.Current.LiveRealms)
             {
-                PersonalClanIdentity king = kingdom?.king?.GetPersonalIdentity();
+                PersonalClanIdentity king = kingdom?.Ruler?.GetPersonalIdentity();
                 if (king == null || !moved.TryGetValue(king.id, out long oldClan)) continue;
                 kingdom.SetSpecificClan(king._specificClan);
                 Empire empire = kingdom.IsEmpire() ? kingdom.GetEmpire() : null;
@@ -272,7 +272,7 @@ public static partial class VirtualGenealogySystem
         if (actor.Money != 0 || actor.Record.loot != 0 || WalletReserveTransfers.HasAssets(person.wallet_reserve))
             if (!WalletReserveTransfers.TryCapture(actor, person.wallet_reserve ??= new WalletReserve())) return false;
         person.is_virtual = true;
-        person.virtual_city_id = city?.data?.id ?? actor.City?.data?.id ?? -1L;
+        person.virtual_city_id = city?.Key ?? actor.City?.Key ?? -1L;
         person.virtual_since = GameClock.Now;
         person.virtual_renown = Math.Max(0, actor.Renown);
         RealisticAgeSystem.CaptureNativeLifetime(actor, person);
@@ -1135,7 +1135,6 @@ public static partial class VirtualGenealogySystem
         return list;
     }
 
-#if EC_PENDING
     private static void ComputeMagnates()
     {
         Magnates.Clear();
@@ -1150,7 +1149,7 @@ public static partial class VirtualGenealogySystem
             {
                 if (person == null || !person.is_alive) continue;
                 size++;
-                if (person._actor?.city?.data != null && !person.is_virtual) cityId = person._actor.City.Key;
+                if (person._actor?.City?.Record != null && !person.is_virtual) cityId = person._actor.City.Key;
             }
             if (size == 0 || cityId < 0) continue;
             if (!byCity.TryGetValue(cityId, out List<(long, int)> list)) byCity[cityId] = list = new List<(long, int)>();
@@ -1164,7 +1163,6 @@ public static partial class VirtualGenealogySystem
                 ids.Add(clan);
             }
     }
-#endif
 
     public static bool IsMagnate(SpecificClan clan) => clan != null && Magnates.Contains(clan.id);
 
@@ -1400,7 +1398,7 @@ public static partial class VirtualGenealogySystem
                 is_alive = true,
                 is_virtual = true,
                 virtual_since = now,
-                virtual_city_id = adopter.virtual_city_id > 0 ? adopter.virtual_city_id : adopter._actor?.city?.data?.id ?? -1L,
+                virtual_city_id = adopter.virtual_city_id > 0 ? adopter.virtual_city_id : adopter._actor?.City?.Key ?? -1L,
                 recordedAge = years,
                 birthday = Date.getDate(now - years * 60d),
                 sex = Sex.Male,
@@ -1475,7 +1473,7 @@ public static partial class VirtualGenealogySystem
             is_alive = true,
             is_virtual = true,
             virtual_since = now,
-            virtual_city_id = city?.data?.id ?? -1L,
+            virtual_city_id = city?.Key ?? -1L,
             recordedAge = 0,
             birthday = Date.getDate(now),
             sex = EcRandom.value < 0.5f ? Sex.Male : Sex.Female,
@@ -1583,7 +1581,7 @@ public static partial class VirtualGenealogySystem
             is_alive = true,
             is_virtual = true,
             virtual_since = now,
-            virtual_city_id = city?.data?.id ?? parent.virtual_city_id,
+            virtual_city_id = city?.Key ?? parent.virtual_city_id,
             recordedAge = years,
             // 一年 60 秒、一月 5 秒；生日落在 years 年前再往前几个月
             birthday = Date.getDate(now - years * 60d - EcRandom.Range(0, 12) * 5d),

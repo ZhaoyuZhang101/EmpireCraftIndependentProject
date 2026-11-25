@@ -53,6 +53,9 @@ ALIASES = [
     (r"\bTime\.", "Time", "EmpireCraft.Core.FrameClock"),
     (r"\bColor\b", "Color", "EmpireCraft.Core.EcColor"),
     (r"\bColorUtility\.", "ColorUtility", "EmpireCraft.Core.EcColorUtility"),
+    (r"\bVector2Int\b", "Vector2Int", "EmpireCraft.Core.EcVector2Int"),
+    (r"\bVector2\b", "Vector2", "EmpireCraft.Core.EcVector2"),
+    (r"(?<![.\w])Random\.(value|Range)\b", "Random", "EmpireCraft.Core.EcRandom"),
 ]
 # Fixed text swaps applied to every line (the same on both sides of a sync).
 REWRITES = [
@@ -78,7 +81,15 @@ IDENTITY = [
     (r"\bWorld\.world\b", "EmpireWorld.Current"),
     (r"(?<![.\w])Kingdom\b", "Realm"),
     (r"(?<![.\w])Actor\b", "Person"),
+    # The map's size was a static of the world class; here it belongs to the world in play.
+    (r"(?<![.\w])MapBox\.width\b", "EmpireWorld.Current.Width"),
+    (r"(?<![.\w])MapBox\.height\b", "EmpireWorld.Current.Height"),
     (r"(?<![.\w])MapBox\b", "EmpireWorld"),
+    (r"\bToolbox\.SquaredDistTile\b", "Land.SquaredDist"),
+    (r"\bToolbox\.DistTile\b", "Land.Dist"),
+    # Files that named the engine's random stream themselves get the host's through the alias above.
+    (r"^using Random = UnityEngine\.Random;", "// using Random: the host's stream, by the alias above"),
+    (r"\bUnityEngine\.Random\b", "EcRandom"),
     # The mod's own layer objects derive from these; see Core/Entities/Records.cs.
     (r"(?<![.\w])MetaObject<", "RecordObject<"),
     (r"(?<![.\w])MetaObjectData\b", "RecordData"),
@@ -86,6 +97,13 @@ IDENTITY = [
     (r"(?<![.\w])NanoObject\b", "Entity"),
     (r"\bEmpireCraft\.Core\.StackGuard\b", "StackGuard"),
     (r"(?<![.\w])ActorSex\b", "Sex"),
+    # The map: a zone and a tile are both one grid cell here (Core/World/Land.cs).
+    (r"(?<![.\w])TileZone\b", "Cell"),
+    (r"(?<![.\w])WorldTile\b", "Cell"),
+    (r"(?<![.\w])ZoneCalculator\b", "ZoneGrid"),
+    (r"(?<![.\w])TileTypeBase\b", "TerrainKind"),
+    (r"(?<![.\w])TopTileType\b", "TerrainKind"),
+    (r"(?<![.\w])TileType\b", "TerrainKind"),
     (r"(?<![.\w])WarWinner\b", "WarOutcome"),
     (r"(?<![.\w])WarTypeLibrary\b", "WarKinds"),
     (r"(?<![.\w])WarTypeAsset\b", "WarKind"),
@@ -370,7 +388,8 @@ def semantic_fix(sources, core):
                              "fix", sources, MEMBERS, core, orbis], capture_output=True, text=True, encoding="utf-8", errors="replace")
     if result.returncode != 0:
         raise SystemExit(result.stdout[-2000:] + result.stderr[-4000:])
-    return result.stdout.strip().splitlines()[-1]
+    passes = [line.split(": ")[1].split()[0] for line in result.stdout.splitlines() if line.startswith("pass ")]
+    return result.stdout.strip().splitlines()[-1] + " (per pass: " + ", ".join(passes) + ")"
 
 
 # ---- manifest --------------------------------------------------------------

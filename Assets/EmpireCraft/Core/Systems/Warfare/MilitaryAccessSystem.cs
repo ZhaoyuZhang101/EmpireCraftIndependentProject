@@ -169,11 +169,11 @@ public static class MilitaryAccessSystem
         {
             Realm side = Alive(sideId);
             City city = EmpireWorld.Current.CityByKey(cityId);
-            if (side == null || city?.Record == null || city.IsGone() || city.neighbours_kingdoms == null ||
+            if (side == null || city?.Record == null || city.IsGone() || city.NeighbourRealms == null ||
                 !FrontSystem.Hostile(side, city.Realm)) continue;
             if (!near.TryGetValue(sideId, out HashSet<Realm> neighbours))
                 near[sideId] = neighbours = DiplomacyLedger.NeighboursOf(side);
-            foreach (Realm between in city.neighbours_kingdoms)
+            foreach (Realm between in city.NeighbourRealms)
             {
                 if (between?.Record == null || between.IsGone() || between.IsWild) continue;
                 Realm host = FrontSystem.Realm(between);

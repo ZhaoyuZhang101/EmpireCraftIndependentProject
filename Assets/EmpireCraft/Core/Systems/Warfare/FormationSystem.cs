@@ -312,7 +312,7 @@ public static class FormationSystem
         }
         FormationDef def = Def(corps.formation);
         if (def == null || corps.formation_serial <= 0) return null;
-        Realm kingdom = EmpireWorld.Current?.kingdoms?.get(corps.kingdom_id);
+        Realm kingdom = EmpireWorld.Current?.RealmByKey(corps.kingdom_id);
         bool modern = !string.IsNullOrEmpty(def.modern_template) && kingdom?.Record != null &&
                       TechnologySystem.GetEraTier(TechnologySystem.GetCultureOf(kingdom)) >= ModernNamingTier;
         bool ordinal = LM.Get("corps_name").StartsWith("{0}");
@@ -356,13 +356,13 @@ public static class FormationSystem
         string name = kingdom.GetKingdomName();
         return string.IsNullOrEmpty(name) ? "" : spaced ? name + " " : name;
     }
+#endif
 
     private static CorpsData FindParent(CorpsData corps)
     {
-        Realm kingdom = EmpireWorld.Current?.kingdoms?.get(corps.kingdom_id);
+        Realm kingdom = EmpireWorld.Current?.RealmByKey(corps.kingdom_id);
         return kingdom == null ? null : CorpsSystem.Of(kingdom).FirstOrDefault(other => other.id == corps.parent_id);
     }
-#endif
 
     public static string DisplayName(FormationDef def) =>
         def == null ? "" : LM.Get(string.IsNullOrEmpty(def.name) ? "formation_" + def.id : def.name);
@@ -382,22 +382,20 @@ public static class FormationSystem
 
     public static float RaiseFactor(CorpsData corps) => RulesOf(corps).raise;
     public static float TrainingFactor(CorpsData corps) => RulesOf(corps).training;
-#if EC_PENDING
     public static float VeteranCap(CorpsData corps)
     {
         float cap = RulesOf(corps).veteran_cap;
         if (!BannerSource(corps)) return cap;
         // 八旗老兵封顶随八旗战力(见 BannerSystem)
-        return Mathf.Min(cap, BannerSystem.Vigor(EmpireWorld.Current?.kingdoms?.get(corps.kingdom_id)));
+        return Mathf.Min(cap, BannerSystem.Vigor(EmpireWorld.Current?.RealmByKey(corps.kingdom_id)));
     }
-#endif
 
     // 禁旅八旗只收旗人(见 BannerSystem.MayRecruit)
     public static bool BannerSource(CorpsData corps) => RulesOf(corps).source == "banner";
     // 禁旅八旗入关前只领行粮(见 BannerSystem.PayFactor)
 #if EC_PENDING
     public static float UpkeepFactor(CorpsData corps) =>
-        RulesOf(corps).upkeep * (BannerSource(corps) ? BannerSystem.PayFactor(EmpireWorld.Current?.kingdoms?.get(corps.kingdom_id)) : 1f);
+        RulesOf(corps).upkeep * (BannerSource(corps) ? BannerSystem.PayFactor(EmpireWorld.Current?.RealmByKey(corps.kingdom_id)) : 1f);
 #endif
 
     public static bool AllowsArm(CorpsData corps, CorpsArmSystem.Arm arm) => !RulesOf(corps).denied_arms.Contains(arm.ToString());
@@ -422,15 +420,13 @@ public static class FormationSystem
     };
 
     // 能不能打到这座城：配置了 reach 的不离驻地太远
-#if EC_PENDING
     public static bool WithinReach(CorpsData corps, City city)
     {
         float reach = RulesOf(corps).reach;
         if (reach <= 0f) return true;
-        TileZone home = CorpsSystem.Home(corps)?.getTile()?.zone, target = city?.getTile()?.zone;
+        Cell home = CorpsSystem.Home(corps)?.SeatCell()?.Zone, target = city?.SeatCell()?.Zone;
         return home == null || target == null || CorpsSystem.ZoneDistance(home, target) <= reach;
     }
-#endif
 
     // 不渡海：配置了 reach 的不出远门
     public static bool MayEmbark(CorpsData corps) => RulesOf(corps).reach <= 0f;

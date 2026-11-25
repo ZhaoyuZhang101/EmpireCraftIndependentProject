@@ -110,10 +110,10 @@ public static partial class TransmigrantSystem
             SyncEmpireName(kingdom);
         }
     }
+#endif
 
     public static Realm Active() =>
-        EmpireWorld.Current?.kingdoms?.list?.FirstOrDefault(kingdom => kingdom != null && !kingdom.IsGone() && Of(kingdom) != null);
-#endif
+        EmpireWorld.Current?.LiveRealms?.FirstOrDefault(kingdom => kingdom != null && !kingdom.IsGone() && Of(kingdom) != null);
 
     #region 权能与旗帜
 
@@ -124,7 +124,7 @@ public static partial class TransmigrantSystem
         AssetManager.powers.add(new GodPower { id = PowerId, name = PowerId, click_action = OnClick });
     }
 
-    private static bool OnClick(WorldTile tile, string power)
+    private static bool OnClick(Cell tile, string power)
     {
         string error = Land(tile, out Realm kingdom);
         WorldTip.showNow(error == null ? string.Format(LM.Get("transmigrant_landed_tip"), kingdom.GetKingdomFullName()) : LM.Get(error),
@@ -173,20 +173,20 @@ public static partial class TransmigrantSystem
     #region 降临
 
 #if EC_PENDING
-    public static string Land(WorldTile tile, out Realm kingdom)
+    public static string Land(Cell tile, out Realm kingdom)
     {
         kingdom = null;
-        if (tile?.zone == null || EmpireWorld.Current == null) return "transmigrant_error_tile";
+        if (tile?.Zone == null || EmpireWorld.Current == null) return "transmigrant_error_tile";
         if (Active() != null) return "transmigrant_error_once";
-        TileZone zone = FindLandingZone(tile.zone, out City carveFrom);
+        Cell zone = FindLandingZone(tile.Zone, out City carveFrom);
         if (zone == null) return "transmigrant_error_no_coast";
         if (carveFrom != null)
             using (CityExpansionPatch.Manual())
-                carveFrom.removeZone(zone);
+                carveFrom.RemoveZone(zone);
         (string lingao, bool native) = LingaoNear(zone);
         string baseName = native ? LM.Get("transmigrant_bairen") : lingao;
 
-        Person founder = EmpireWorld.Current.Living.createNewUnit(Species, zone.centerTile, pAdultAge: true);
+        Person founder = EmpireWorld.Current.Living.createNewUnit(Species, zone.Center, pAdultAge: true);
         if (founder == null) return "transmigrant_error_tile";
         founder.ClearDisposedKingdom();
         City city;
@@ -252,57 +252,57 @@ public static partial class TransmigrantSystem
 
     // 从点选处向外找最近的空海岸(地块够大、没有城、可以建城)；找不到就从别人城里切一块不是城中心的岸边地块
 #if EC_PENDING
-    private static TileZone FindLandingZone(TileZone start, out City carveFrom)
+    private static Cell FindLandingZone(Cell start, out City carveFrom)
     {
         carveFrom = null;
-        var seen = new HashSet<TileZone> { start };
-        var queue = new Queue<TileZone>();
+        var seen = new HashSet<Cell> { start };
+        var queue = new Queue<Cell>();
         queue.Enqueue(start);
-        TileZone fallback = null;
+        Cell fallback = null;
         City fallbackCity = null;
         int visited = 0;
         while (queue.Count > 0 && visited++ < 2500)
         {
-            TileZone zone = queue.Dequeue();
+            Cell zone = queue.Dequeue();
             if (Coastal(zone))
             {
-                if (zone.city == null && zone.canStartCityHere()) return zone;
-                if (fallback == null && zone.city != null && !zone.city.IsGone() && zone.city.zones.Count > 4 &&
-                    zone.city.getTile()?.zone != zone && zone.tiles_with_ground >= 48)
+                if (zone.City == null && zone.canStartCityHere()) return zone;
+                if (fallback == null && zone.City != null && !zone.City.IsGone() && zone.City.Zones.Count > 4 &&
+                    zone.City.SeatCell()?.Zone != zone && zone.GroundTiles >= 48)
                 {
                     fallback = zone;
-                    fallbackCity = zone.city;
+                    fallbackCity = zone.City;
                 }
             }
-            foreach (TileZone next in zone.neighbours_all)
+            foreach (Cell next in zone.NeighboursAll)
                 if (next != null && seen.Add(next)) queue.Enqueue(next);
         }
         carveFrom = fallbackCity;
         return fallback;
     }
 
-    private static bool Coastal(TileZone zone) =>
-        zone != null && zone.tiles_with_ground >= 32 && SeaLanding.Waters(zone).Any();
+    private static bool Coastal(Cell zone) =>
+        zone != null && zone.GroundTiles >= 32 && SeaLanding.Waters(zone).Any();
 #endif
 
     // 地图上落脚处附近的临高(城或村镇)；没有就用临高这个名字给自己的城
-#if EC_PENDING
-    private static (string name, bool native) LingaoNear(TileZone zone)
+    private static (string name, bool native) LingaoNear(Cell zone)
     {
         string lingao = LM.Get("transmigrant_lingao");
         bool IsLingao(string name) => !string.IsNullOrEmpty(name) &&
                                      (name.StartsWith(lingao) || name.StartsWith("临高") || name.StartsWith("臨高"));
-        bool Near(TileZone other) => other != null && Mathf.Abs(other.x - zone.x) + Mathf.Abs(other.y - zone.y) <= LingaoReach;
+        bool Near(Cell other) => other != null && Mathf.Abs(other.X - zone.X) + Mathf.Abs(other.Y - zone.Y) <= LingaoReach;
         foreach (City city in EmpireWorld.Current.Cities)
-            if (city?.Record != null && !city.IsGone() && IsLingao(city.Name) && Near(city.getTile()?.zone))
+            if (city?.Record != null && !city.IsGone() && IsLingao(city.Name) && Near(city.SeatCell()?.Zone))
                 return (lingao, true);
         foreach (RuralSettlement settlement in RuralSettlementSystem.Save())
             if (settlement != null && !settlement.cleared && settlement.ruined_at < 0d && IsLingao(settlement.name) &&
-                Near(EmpireWorld.Current.GetTile(settlement.x, settlement.y)?.zone))
+                Near(EmpireWorld.Current.CellAt(settlement.x, settlement.y)?.Zone))
                 return (lingao, true);
         return (lingao, false);
     }
 
+#if EC_PENDING
     private static void RenameCity(City city, string name)
     {
         city.Name = name;
@@ -353,12 +353,12 @@ public static partial class TransmigrantSystem
         try
         {
             BuildingAsset dock = city.getActorAsset()?.getBuildingDockAsset();
-            WorldTile dockTile = dock == null ? null : ai.behaviours.CityBehBuild.getDockTile(city);
+            Cell dockTile = dock == null ? null : ai.behaviours.CityBehBuild.getDockTile(city);
             if (dockTile != null) EmpireWorld.Current.buildings.addBuilding(dock, dockTile);
             CityConstructionSystem.Flourish(city);
-            TileZone center = city.getTile()?.zone;
-            TileZone yard = city.zones.FirstOrDefault(zone => zone != center && zone.tiles_with_ground >= 48);
-            if (yard != null) FactorySystem.Place(yard.centerTile, 2, out _, manual: true);
+            Cell center = city.SeatCell()?.Zone;
+            Cell yard = city.Zones.FirstOrDefault(zone => zone != center && zone.GroundTiles >= 48);
+            if (yard != null) FactorySystem.Place(yard.Center, 2, out _, manual: true);
             var extra = city.GetOrCreate();
             extra.urban_peak_progress = Mathf.Max(extra.urban_peak_progress, 1f);
             extra.urban_peak_housing = Math.Max(extra.urban_peak_housing, 6);
@@ -379,7 +379,7 @@ public static partial class TransmigrantSystem
         data.fleets.Add(new FleetData
         {
             id = OverallHelperFunc.IdGenerator.NextId(), serial = ++data.fleet_serial, kingdom_id = kingdom.Key,
-            home_city_id = city.Key, region_id = water.Id, target_region_id = water.Id, zone_id = water.Center?.id ?? -1,
+            home_city_id = city.Key, region_id = water.Id, target_region_id = water.Id, zone_id = water.Center?.Index ?? -1,
             warships = AosongNavyRules.FloorWarships(1), transports = AosongNavyRules.FloorTransports(1)
         });
     }
@@ -580,7 +580,7 @@ public static partial class TransmigrantSystem
     public static void OnActorDied(Person actor)
     {
         if (actor == null) return;
-        foreach (Realm kingdom in EmpireWorld.Current?.kingdoms?.list ?? new List<Realm>())
+        foreach (Realm kingdom in EmpireWorld.Current?.LiveRealms ?? new List<Realm>())
         {
             TransmigrantState state = Of(kingdom);
             SenatorSeat seat = state == null ? null : SeatOf(state, actor);
@@ -840,7 +840,7 @@ public static partial class TransmigrantSystem
     {
         int age = year - state.landed_year;
         int cities = (kingdom.GetEmpire()?.kingdoms_hashset ?? new HashSet<Realm> { kingdom })
-            .Sum(member => member?.cities?.Count ?? 0);
+            .Sum(member => member?.Cities?.Count ?? 0);
         bool Enacted(string node) => InstitutionSystem.IsEnacted(Culture, node);
         Realm lord = state.disguise_lord_id >= 0 ? EmpireWorld.Current.RealmByKey(state.disguise_lord_id) : null;
         var due = new List<string>();
@@ -1089,32 +1089,34 @@ public static partial class TransmigrantSystem
         if (Active() != null || EcRandom.value >= ArrivalChance) return;
         if (!EmpireWorld.Current.LiveRealms.Any(kingdom => kingdom?.Record != null && !kingdom.IsGone() &&
                 TechnologySystem.GetEraTier(TechnologySystem.GetCultureOf(kingdom)) >= ArrivalEra)) return;
-        WorldTile target = LingaoTile() ?? HuaxiaCoast();
+        Cell target = LingaoTile() ?? HuaxiaCoast();
         if (target == null) return;
         string error = Land(target, out Realm kingdom);
         if (error != null) LogService.LogInfo($"[EmpireCraft][穿越] 随机降临没成：{LM.Get(error)}");
     }
+#endif
 
-    private static WorldTile LingaoTile()
+    private static Cell LingaoTile()
     {
         foreach (City city in EmpireWorld.Current.Cities)
-            if (city?.data?.name != null && !city.IsGone() && (city.Name.StartsWith("临高") || city.Name.StartsWith("臨高")))
-                return city.getTile();
+            if (city?.Name != null && !city.IsGone() && (city.Name.StartsWith("临高") || city.Name.StartsWith("臨高")))
+                return city.SeatCell();
         foreach (RuralSettlement settlement in RuralSettlementSystem.Save())
             if (settlement != null && !settlement.cleared && settlement.ruined_at < 0d && settlement.name != null &&
                 (settlement.name.StartsWith("临高") || settlement.name.StartsWith("臨高")))
-                return EmpireWorld.Current.GetTile(settlement.x, settlement.y);
+                return EmpireWorld.Current.CellAt(settlement.x, settlement.y);
         return null;
     }
 
-    private static WorldTile HuaxiaCoast()
+#if EC_PENDING
+    private static Cell HuaxiaCoast()
     {
         List<City> coast = EmpireWorld.Current.Cities
-            .Where(city => city?.Realm != null && !city.IsGone() && city.zones.Any(zone => SeaLanding.Waters(zone).Count > 0))
+            .Where(city => city?.Realm != null && !city.IsGone() && city.Zones.Any(zone => SeaLanding.Waters(zone).Count > 0))
             .ToList();
         List<City> huaxia = coast.Where(city => OnomasticsRule.GetTianxiaId(CultureService.GetMainCulture(city)) == "Huaxia").ToList();
         List<City> pool = huaxia.Count > 0 ? huaxia : coast;
-        return pool.Count == 0 ? null : pool[EcRandom.Range(0, pool.Count)].getTile();
+        return pool.Count == 0 ? null : pool[EcRandom.Range(0, pool.Count)].SeatCell();
     }
 #endif
 

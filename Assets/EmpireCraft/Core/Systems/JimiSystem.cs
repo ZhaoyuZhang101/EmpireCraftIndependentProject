@@ -137,26 +137,24 @@ public static class JimiSystem
         war.Defenders != null && war.Defenders.Contains(kingdom);
 
     // 本政区是否与这场战争的敌方阵营接壤
-#if EC_PENDING
     private static bool BordersSide(Realm region, War war, bool enemyIsAttacker)
     {
         List<Realm> enemies = enemyIsAttacker ? war.Attackers : war.Defenders;
         if (enemies == null || enemies.Count == 0) return false;
         foreach (City city in region.Cities)
         {
-            if (city?.zones == null || city.IsGone()) continue;
-            foreach (TileZone zone in city.zones)
+            if (city?.Zones == null || city.IsGone()) continue;
+            foreach (Cell zone in city.Zones)
             {
-                if (zone?.neighbours == null) continue;
-                foreach (TileZone neighbour in zone.neighbours)
+                if (zone?.Neighbours == null) continue;
+                foreach (Cell neighbour in zone.Neighbours)
                 {
-                    Realm other = neighbour?.city?.kingdom;
+                    Realm other = neighbour?.City?.Realm;
                     if (other != null && other != region && enemies.Contains(other)) return true;
                 }
             }
         }
         return false;
     }
-#endif
 }
 }

@@ -262,28 +262,25 @@ public static class VassalInvestitureService
 #endif
 
     // 帝国一方控制了抗命封国都城过半的区块，就算王师平定。
-#if EC_PENDING
     public static bool IsDefiantCapitalTaken(War war)
     {
         Realm vassal = war?.GetMainDefender();
         City capital = vassal?.Capital;
-        if (capital?.zones == null || capital.IsGone()) return false;
+        if (capital?.Zones == null || capital.IsGone()) return false;
         if (war.Attackers.Contains(capital.Realm)) return true;
         int total = 0;
         int controlled = 0;
-        foreach (TileZone zone in capital.zones)
+        foreach (Cell zone in capital.Zones)
         {
-            if (zone == null || zone.world_edge || zone.city != capital) continue;
+            if (zone == null || zone.OnEdge || zone.City != capital) continue;
             total++;
             Realm occupier = capital.GetTileZoneOccupier(zone);
             if (occupier != null && war.Attackers.Contains(occupier)) controlled++;
         }
         return total > 0 && controlled * 2 >= total;
     }
-#endif
 
     // 由 WarPatch.update 每帧调用：封国被灭/都城失守→帝国胜；坚持满 5 年→封国胜。
-#if EC_PENDING
     public static void CheckDefianceWar(War war)
     {
         if (war == null || war.HasEnded()) return;
@@ -293,6 +290,7 @@ public static class VassalInvestitureService
             EmpireWorld.Current.EndWar(war, WarOutcome.Defenders);
     }
 
+#if EC_PENDING
     public static void ResolveDefianceWar(War war, WarOutcome winner)
     {
         WarExtension.WarExtraData data = war.GetOrCreate();

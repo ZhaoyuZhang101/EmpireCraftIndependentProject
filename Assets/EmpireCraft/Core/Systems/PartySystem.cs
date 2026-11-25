@@ -1,6 +1,8 @@
 // Generated from the EmpireCraft mod: Scripts/GeneralSystems/PartySystem.cs. Do not edit by hand: Tools/PortTool/members.py rewrites it;
 // see Port/manifest.json and Tools/PortTool.
 using Mathf = EmpireCraft.Core.EcMath;
+using Vector2 = EmpireCraft.Core.EcVector2;
+using Random = EmpireCraft.Core.EcRandom;
 using System;
 using System.Collections.Generic;
 using System.IO;
@@ -105,7 +107,6 @@ public static class PartySystem
     private const float OrganisationVotesPerMember = 0.3f;
 
     // 光谱坐标：x 经济(-100 左 ~ 100 右)，y 权力(100 自由 ~ -100 极权)
-#if EC_PENDING
     private static readonly Dictionary<PartyIdeology, Vector2> IdeologyPositions = new()
     {
         { PartyIdeology.Anarchism, new Vector2(-80f, 85f) },
@@ -137,10 +138,8 @@ public static class PartySystem
         { PartyIdeology.RoyalKin, new Vector2(25f, -80f) },
         { PartyIdeology.MilitaryMerit, new Vector2(15f, -70f) }
     };
-#endif
 
     // 各阶层在光谱上的立场
-#if EC_PENDING
     private static readonly Dictionary<SocialClass, Vector2> ClassPositions = new()
     {
         { SocialClass.Labour, new Vector2(-70f, 20f) },
@@ -157,7 +156,6 @@ public static class PartySystem
         { SocialClass.Yeren, new Vector2(-50f, -15f) },
         { SocialClass.Banner, new Vector2(35f, -60f) }
     };
-#endif
 
     // 政党沿用派系类型(制度立场、立宪态度按类型算)，理念 → 最接近的派系类型
     private static readonly Dictionary<PartyIdeology, FactionType> IdeologyFactionTypes = new()
@@ -332,9 +330,7 @@ public static class PartySystem
     public static FactionType FactionTypeOf(PartyIdeology ideology) => IdeologyFactionTypes[ideology];
 
     // 理念在光谱上的坐标：x 经济(-100 左 ~ 100 右)，y 权力(100 自由 ~ -100 极权)
-#if EC_PENDING
     public static Vector2 GetPosition(PartyIdeology ideology) => IdeologyPositions[ideology];
-#endif
 
     public static string GetRouteName(IdeologyRoute route) => LM.Get($"ideology_route_{route}");
 
@@ -433,7 +429,6 @@ public static class PartySystem
 #endif
 
     // 理念对某阶层的吸引力(-100~100)：两者在光谱上越近越高
-#if EC_PENDING
     public static float GetAffinity(PartyIdeology ideology, SocialClass socialClass) =>
         Mathf.Clamp(100f - Vector2.Distance(IdeologyPositions[ideology], ClassPositions[socialClass]) * 0.9f,
             -100f, 100f);
@@ -446,7 +441,6 @@ public static class PartySystem
     private static PartyIdeology NearestIdeology(Vector2 position, Func<PartyIdeology, bool> filter = null) =>
         IdeologyPositions.Where(pair => filter == null || filter(pair.Key))
             .OrderBy(pair => Vector2.Distance(pair.Value, position)).First().Key;
-#endif
 
     private static SocialClass ClassOf(Person actor) => actor.GetOrCreate().socialClass;
 
@@ -565,7 +559,6 @@ public static class PartySystem
 #endif
 
     // 派系偏向的各阶层立场的加权中心；没有偏向任何阶层时返回空
-#if EC_PENDING
     public static Vector2? ClassCenter(FixedFaction faction)
     {
         if (faction?.ClassAffinities == null) return null;
@@ -580,6 +573,7 @@ public static class PartySystem
         return total > 0f ? weighted / total : null;
     }
 
+#if EC_PENDING
     private static void ConvertToParty(Empire empire, FixedFaction faction, PartyIdeology ideology, string name)
     {
         faction.IsParty = true;

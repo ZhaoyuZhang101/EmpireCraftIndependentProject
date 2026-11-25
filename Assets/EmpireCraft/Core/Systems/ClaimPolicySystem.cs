@@ -75,13 +75,12 @@ public static class ClaimPolicySystem
                 .SelectMany(kingdom => kingdom.Cities).Where(city => city?.Record != null && !city.IsGone());
 
     // 与外国接壤的城市：本国城市 → 相邻的外国城市
-#if EC_PENDING
     public static IEnumerable<(City own, City foreign)> ForeignBorders(Empire empire)
     {
         foreach (City city in Cities(empire).ToList())
         {
-            if (city.neighbours_cities == null) continue;
-            foreach (City neighbour in city.neighbours_cities)
+            if (city.NeighbourCities == null) continue;
+            foreach (City neighbour in city.NeighbourCities)
             {
                 if (neighbour?.Record == null || neighbour.IsGone() || neighbour.Realm == null) continue;
                 if (neighbour.Realm.GetEmpire() == empire) continue;
@@ -92,6 +91,7 @@ public static class ClaimPolicySystem
 
     public static bool HasForeignBorder(Empire empire) => ForeignBorders(empire).Any();
 
+#if EC_PENDING
     private static void OpenBorders(Empire empire)
     {
         if (!CityPopulationSystem.AbstractPopulationEnabled) return;
@@ -138,8 +138,8 @@ public static class ClaimPolicySystem
                     !string.IsNullOrEmpty(group.culture) && !CultureService.SameKin(group.culture, main) &&
                     !CultureService.SameKin(group.culture, ruling)).ToList();
             if (foreigners.Count == 0) continue;
-            List<City> abroad = city.neighbours_cities?.Where(other => other?.data != null && !other.IsGone() &&
-                other.kingdom != null && other.kingdom.GetEmpire() != empire).ToList() ?? new List<City>();
+            List<City> abroad = city.NeighbourCities?.Where(other => other?.Record != null && !other.IsGone() &&
+                other.Realm != null && other.Realm.GetEmpire() != empire).ToList() ?? new List<City>();
             // 通达层算好后：被赶的人先往走得过去的邻国城去(人员通达强的在前)
             if (ConnectivitySystem.Ready && abroad.Count > 1)
                 abroad = abroad.OrderByDescending(other => ConnectivitySystem.NeighbourStrength(city, other, ConnectivityMode.People)).ToList();

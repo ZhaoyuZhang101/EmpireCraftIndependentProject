@@ -150,7 +150,7 @@ public class KingdomTitleManager : RecordStore<KingdomTitle, KingdomTitleData>
         else
         {
             checkLists();
-            int population = EmpireWorld.Current?.units?.Count ?? 0;
+            int population = EmpireWorld.Current?.Living?.Count ?? 0;
             int budget = EmpireCraftFrameSchedulingRules.ResolveMaximumTitles(
                 ModClass.PERFORMANCE_HIGH_POPULATION_MODE,
                 ModClass.PERFORMANCE_ADAPTIVE_THROUGHPUT_MODE, population,

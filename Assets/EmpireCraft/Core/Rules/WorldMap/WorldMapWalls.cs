@@ -1,6 +1,8 @@
 // Generated from the EmpireCraft mod: Scripts/GeneralSystems/WorldMap/WorldMapWalls.cs. Do not edit by hand: Tools/PortTool/members.py rewrites it;
 // see Port/manifest.json and Tools/PortTool.
 using Mathf = EmpireCraft.Core.EcMath;
+using Vector2Int = EmpireCraft.Core.EcVector2Int;
+using Vector2 = EmpireCraft.Core.EcVector2;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -60,8 +62,8 @@ internal static class WorldMapWalls
             foreach (List<int> path in paths)
             {
                 foreach (int id in path)
-                    if (Tile(id)?.zone is TileZone zone) PlannedZones.Add(zone.id);
-                List<Vector2> line = Simplify(path.Select(id => new Vector2(id % EmpireWorld.width, id / EmpireWorld.width)).ToList(), SimplifyTiles);
+                    if (Tile(id)?.Zone is Cell zone) PlannedZones.Add(zone.Index);
+                List<Vector2> line = Simplify(path.Select(id => new Vector2(id % EmpireWorld.Current.Width, id / EmpireWorld.Current.Width)).ToList(), SimplifyTiles);
                 if (line.Count >= 2) lines.Add(line);
             }
         return lines;
@@ -69,14 +71,14 @@ internal static class WorldMapWalls
 #endif
 
     // 这块地压着开局定下的墙
-#if EC_PENDING
-    public static bool OnPlanned(TileZone zone) => zone != null && PlannedZones.Contains(zone.id);
+    public static bool OnPlanned(Cell zone) => zone != null && PlannedZones.Contains(zone.Index);
 
+#if EC_PENDING
     public static void Build(WorldMapEra era, WorldMapFrame frame, Vector2Int size)
     {
         _keepLine = era?.exact == true;
         if (era == null || frame == null || EmpireWorld.Current == null) return;
-        TopTileType vanilla = WallType();
+        TerrainKind vanilla = WallType();
         if (vanilla == null) return;
         // 开局定下的走向(分两边用的就是它)；没定过的现算
         List<(string name, List<List<int>> paths)> routes = _planned != null && _plannedEra == era.id ? _planned : Routes(era, frame, size, Seats());
@@ -133,9 +135,9 @@ internal static class WorldMapWalls
                     path = new List<int>();
                     continue;
                 }
-                foreach (WorldTile tile in Leg(from, to, corridor))
+                foreach (Cell tile in Leg(from, to, corridor))
                 {
-                    int id = tile.y * EmpireWorld.width + tile.x;
+                    int id = tile.Y * EmpireWorld.Current.Width + tile.X;
                     if (path.Count == 0 || path[path.Count - 1] != id) path.Add(id);
                 }
             }
@@ -149,14 +151,12 @@ internal static class WorldMapWalls
     // 剧本一段(两点连线)的走廊：带宽、带里的城；墙的点与路都要它放行
     private sealed class Corridor
     {
-#if EC_PENDING
         private readonly Vector2 _origin, _dir;
         public readonly Vector2 normal;
-#endif
         private readonly float _margin;
-#if EC_PENDING
         private readonly List<(Vector2 seat, float u, float v)> _cities = new();
 
+#if EC_PENDING
         public Corridor(Vector2Int a, Vector2Int b, List<Vector2> seats)
         {
             _origin = a;
@@ -220,7 +220,7 @@ internal static class WorldMapWalls
                 foreach (float share in new[] { 1f, 0.5f })
                 {
                     Vector2Int moved = Vector2Int.RoundToInt(at + corridor.normal * (offset * share));
-                    if (!Inside(moved) || !Passable(EmpireWorld.Current.GetTileSimple(moved.x, moved.y)) || !corridor.Allows(moved.x, moved.y)) continue;
+                    if (!Inside(moved) || !Passable(EmpireWorld.Current.CellAt(moved.x, moved.y)) || !corridor.Allows(moved.x, moved.y)) continue;
                     chosen = moved;
                     break;
                 }
@@ -236,12 +236,12 @@ internal static class WorldMapWalls
 
     // 相邻两点之间的最短路(八邻，限在走廊里)；走不通(隔着水)时照直线连，水面上的格子铺不上自然断开
 #if EC_PENDING
-    private static List<WorldTile> Leg(Vector2Int a, Vector2Int b, Corridor corridor)
+    private static List<Cell> Leg(Vector2Int a, Vector2Int b, Corridor corridor)
     {
-        var path = new List<WorldTile>();
+        var path = new List<Cell>();
         int margin = Mathf.Max(4, Mathf.CeilToInt(Vector2Int.Distance(a, b) * 0.5f));
-        int x0 = Mathf.Max(0, Mathf.Min(a.x, b.x) - margin), x1 = Mathf.Min(EmpireWorld.width - 1, Mathf.Max(a.x, b.x) + margin);
-        int y0 = Mathf.Max(0, Mathf.Min(a.y, b.y) - margin), y1 = Mathf.Min(EmpireWorld.height - 1, Mathf.Max(a.y, b.y) + margin);
+        int x0 = Mathf.Max(0, Mathf.Min(a.x, b.x) - margin), x1 = Mathf.Min(EmpireWorld.Current.Width - 1, Mathf.Max(a.x, b.x) + margin);
+        int y0 = Mathf.Max(0, Mathf.Min(a.y, b.y) - margin), y1 = Mathf.Min(EmpireWorld.Current.Height - 1, Mathf.Max(a.y, b.y) + margin);
         int width = x1 - x0 + 1, count = width * (y1 - y0 + 1);
         int Index(int x, int y) => (y - y0) * width + (x - x0);
         var best = new float[count];
@@ -272,7 +272,7 @@ internal static class WorldMapWalls
                 int neighbour = Index(nx, ny);
                 if (cost[neighbour] < 0f)
                 {
-                    WorldTile tile = EmpireWorld.Current.GetTileSimple(nx, ny);
+                    Cell tile = EmpireWorld.Current.CellAt(nx, ny);
                     cost[neighbour] = Passable(tile) && (neighbour == goal || corridor.Allows(nx, ny)) ? Cost(tile) : float.PositiveInfinity;
                 }
                 if (float.IsPositiveInfinity(cost[neighbour])) continue;
@@ -286,75 +286,75 @@ internal static class WorldMapWalls
         if (from[goal] < 0 && goal != start) return Straight(a, b);
         for (int index = goal; index >= 0; index = from[index])
         {
-            path.Add(EmpireWorld.Current.GetTileSimple(x0 + index % width, y0 + index / width));
+            path.Add(EmpireWorld.Current.CellAt(x0 + index % width, y0 + index / width));
             if (index == start) break;
         }
         path.Reverse();
         return path;
     }
+#endif
 
     private static List<Vector2> Seats()
     {
         var seats = new List<Vector2>();
-        foreach (City city in EmpireWorld.Current?.cities?.list ?? new List<City>())
+        foreach (City city in EmpireWorld.Current?.Cities ?? new List<City>())
         {
-            WorldTile tile = city?.Record == null || city.IsGone() ? null : city.getTile();
-            if (tile != null) seats.Add(new Vector2(tile.x, tile.y));
+            Cell tile = city?.Record == null || city.IsGone() ? null : city.SeatCell();
+            if (tile != null) seats.Add(new Vector2(tile.X, tile.Y));
         }
         return seats;
     }
 
-    private static WorldTile Tile(int id)
+#if EC_PENDING
+    private static Cell Tile(int id)
     {
-        WorldTile[] tiles = EmpireWorld.Current?.tiles_list;
+        Cell[] tiles = EmpireWorld.Current?.Zones;
         return tiles != null && id >= 0 && id < tiles.Length ? tiles[id] : null;
     }
 
-    private static TopTileType WallType()
+    private static TerrainKind WallType()
     {
-        TopTileType fallback = null;
-        foreach (TopTileType type in AssetManager.top_tiles?.list ?? new List<TopTileType>())
+        TerrainKind fallback = null;
+        foreach (TerrainKind type in AssetManager.top_tiles?.list ?? new List<TerrainKind>())
         {
-            if (type?.wall != true) continue;
-            if (type.id == "wall_order") return type;
+            if (type?.Wall != true) continue;
+            if (type.Id == "wall_order") return type;
             fallback ??= type;
         }
         return fallback;
     }
-
-    private static bool Inside(Vector2Int point) =>
-        point.x >= 2 && point.y >= 2 && point.x < EmpireWorld.width - 2 && point.y < EmpireWorld.height - 2;
-
-    private static bool Passable(WorldTile tile) => tile?.Type != null && !tile.Type.liquid && !tile.Type.lava;
-
-    private static bool CityCore(WorldTile tile) =>
-        tile.zone?.city is City city && city.getTile()?.zone == tile.zone;
-
-    private static float Cost(WorldTile tile)
-    {
-        TileTypeBase type = tile.Type;
-        float cost = type.mountains || type.summit ? MountainCost
-            : type.rocks || type.id == "hills" || type.id == "snow_hills" || tile.main_type?.id == "hills" ? HillCost : 1f;
-        if (NearWater(tile)) cost *= RiverSide;
-        cost *= 0.5f + Wiggle(tile.x, tile.y);
-        return CityCore(tile) ? cost + CityCost : cost;
-    }
 #endif
 
+    private static bool Inside(Vector2Int point) =>
+        point.x >= 2 && point.y >= 2 && point.x < EmpireWorld.Current.Width - 2 && point.y < EmpireWorld.Current.Height - 2;
+
+    private static bool Passable(Cell tile) => tile?.Type != null && !tile.Type.Liquid && !tile.Type.Lava;
+
+    private static bool CityCore(Cell tile) =>
+        tile.Zone?.City is City city && city.SeatCell()?.Zone == tile.Zone;
+
+    private static float Cost(Cell tile)
+    {
+        TerrainKind type = tile.Type;
+        float cost = type.Mountains || type.Summit ? MountainCost
+            : type.Rocks || type.Id == "hills" || type.Id == "snow_hills" || tile.MainType?.Id == "hills" ? HillCost : 1f;
+        if (NearWater(tile)) cost *= RiverSide;
+        cost *= 0.5f + Wiggle(tile.X, tile.Y);
+        return CityCore(tile) ? cost + CityCost : cost;
+    }
+
     // 两格内有水(河谷、湖边)
-#if EC_PENDING
-    private static bool NearWater(WorldTile tile)
+    private static bool NearWater(Cell tile)
     {
         for (int dx = -2; dx <= 2; dx++)
         for (int dy = -2; dy <= 2; dy++)
         {
             if (dx == 0 && dy == 0) continue;
-            WorldTile near = EmpireWorld.Current.GetTile(tile.x + dx, tile.y + dy);
-            if (near?.Type != null && near.Type.liquid) return true;
+            Cell near = EmpireWorld.Current.CellAt(tile.X + dx, tile.Y + dy);
+            if (near?.Type != null && near.Type.Liquid) return true;
         }
         return false;
     }
-#endif
 
     // 两层值噪声(0~1)：大弯折叠小起伏
     private static float Wiggle(int x, int y) => 0.65f * ValueNoise(x, y, _seed, WiggleCell) + 0.35f * ValueNoise(x, y, _seed + 7919, WiggleFine);
@@ -381,22 +381,19 @@ internal static class WorldMapWalls
         }
     }
 
-#if EC_PENDING
-    private static List<WorldTile> Straight(Vector2Int a, Vector2Int b)
+    private static List<Cell> Straight(Vector2Int a, Vector2Int b)
     {
-        var path = new List<WorldTile>();
+        var path = new List<Cell>();
         int steps = Mathf.Max(Mathf.Abs(b.x - a.x), Mathf.Abs(b.y - a.y));
         for (int i = 0; i <= steps; i++)
         {
             float t = steps == 0 ? 0f : i / (float)steps;
-            path.Add(EmpireWorld.Current.GetTileSimple(Mathf.RoundToInt(Mathf.Lerp(a.x, b.x, t)), Mathf.RoundToInt(Mathf.Lerp(a.y, b.y, t))));
+            path.Add(EmpireWorld.Current.CellAt(Mathf.RoundToInt(Mathf.Lerp(a.x, b.x, t)), Mathf.RoundToInt(Mathf.Lerp(a.y, b.y, t))));
         }
         return path;
     }
-#endif
 
     // 折线化简(道格拉斯-普克)：偏离连线不到 tolerance 格的点去掉
-#if EC_PENDING
     private static List<Vector2> Simplify(List<Vector2> points, float tolerance)
     {
         if (points.Count < 3) return points;
@@ -427,12 +424,13 @@ internal static class WorldMapWalls
         return points.Where((_, i) => keep[i]).ToList();
     }
 
-    private static bool Lay(WorldTile tile, TopTileType vanilla)
+#if EC_PENDING
+    private static bool Lay(Cell tile, TerrainKind vanilla)
     {
-        if (!Passable(tile) || tile.Type.wall || CityCore(tile)) return false;
-        if (PureMapMode.Enabled) return MapWallSystem.Add(tile, vanilla.id);
-        if (tile.top_type?.wall == true || tile.Type.mountains || tile.Type.summit || tile.hasBuilding()) return false;
-        tile.setTileTypes(tile.main_type, vanilla);
+        if (!Passable(tile) || tile.Type.Wall || CityCore(tile)) return false;
+        if (PureMapMode.Enabled) return MapWallSystem.Add(tile, vanilla.Id);
+        if (tile.TopType?.Wall == true || tile.Type.Mountains || tile.Type.Summit || tile.hasBuilding()) return false;
+        tile.setTileTypes(tile.MainType, vanilla);
         return true;
     }
 #endif
@@ -442,19 +440,19 @@ internal static class WorldMapWalls
     private static RuralSettlement Fort(Vector2Int at)
     {
         if (!Inside(at)) return null;
-        WorldTile origin = EmpireWorld.Current.GetTileSimple(at.x, at.y);
+        Cell origin = EmpireWorld.Current.CellAt(at.x, at.y);
         if (origin == null) return null;
         for (int radius = 0; radius <= PassSearch; radius++)
             for (int dx = -radius; dx <= radius; dx++)
             for (int dy = -radius; dy <= radius; dy++)
             {
                 if (Mathf.Max(Mathf.Abs(dx), Mathf.Abs(dy)) != radius) continue;
-                WorldTile tile = EmpireWorld.Current.GetTileSimple(at.x + dx, at.y + dy);
+                Cell tile = EmpireWorld.Current.CellAt(at.x + dx, at.y + dy);
                 if (tile == null) continue;
-                WorldTile target = WallGateSystem.SnapToWall(tile) ?? tile;
-                if (RuralSettlementSystem.At(target.x, target.y) is RuralSettlement existing) return existing.fort ? existing : null;
+                Cell target = WallGateSystem.SnapToWall(tile) ?? tile;
+                if (RuralSettlementSystem.At(target.X, target.Y) is RuralSettlement existing) return existing.fort ? existing : null;
                 RuralSettlementSystem.Place(target, town: false, fort: true);
-                if (RuralSettlementSystem.At(target.x, target.y) is RuralSettlement made) return made;
+                if (RuralSettlementSystem.At(target.X, target.Y) is RuralSettlement made) return made;
             }
         return null;
     }

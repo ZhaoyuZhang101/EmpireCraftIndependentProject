@@ -64,8 +64,8 @@ namespace EmpireCraft.Core
         {
             Require(tile>=0&&tile<w.TileCity.Length&&w.Settleable(tile)&&w.TileCity[tile]<0,"City site must be free settleable land");
             Live(w,r);
-            var c=new City{Id=w.Cities.Count,Name=name,Tile=tile,Realm=r,FoundedMonth=w.Month,Population=200};
-            w.Cities.Add(c);c.Tiles.Add(tile);w.TileCity[tile]=c.Id;r.Cities.Add(c);
+            var c=new City{Id=w.Cities.Count,World=w,Name=name,Tile=tile,Realm=r,FoundedMonth=w.Month,Population=200};
+            w.Cities.Add(c);w.TerritoryRevision++;c.Tiles.Add(tile);w.TileCity[tile]=c.Id;r.Cities.Add(c);
             if(r.Capital==null)r.Capital=c;
             w.Annals.Add(w,AnnalKind.CityFounded,c.Id,r.Id);
             return c;
@@ -80,7 +80,7 @@ namespace EmpireCraft.Core
             w.Realms.Add(r);w.LiveRealms.Add(r);
             Realm previous=city.Realm;
             if(previous!=null)Detach(city);
-            city.Realm=r;r.Cities.Add(city);r.Capital=city;
+            city.Realm=r;r.Cities.Add(city);r.Capital=city;w.TerritoryRevision++;
             r.Ruler=ruler;ruler.Throne=r;r.RulingClan=ruler.Clan;
             w.Annals.Add(w,previous!=null?AnnalKind.Secession:AnnalKind.RealmFounded,r.Id,previous!=null?city.Id:ruler.Id,previous!=null?previous.Id:city.Id);
             if(previous!=null)AfterLoss(w,previous);
@@ -94,8 +94,8 @@ namespace EmpireCraft.Core
             Live(w,ruler);
             var r=new Realm{Id=w.Realms.Count,Name=name,Color=color,FoundedMonth=w.Month,Ruler=ruler,RulingClan=ruler.Clan};
             w.Realms.Add(r);w.LiveRealms.Add(r);ruler.Throne=r;
-            var c=new City{Id=w.Cities.Count,Name=cityName,Tile=tile,Realm=r,FoundedMonth=w.Month,Population=200};
-            w.Cities.Add(c);c.Tiles.Add(tile);w.TileCity[tile]=c.Id;r.Cities.Add(c);r.Capital=c;
+            var c=new City{Id=w.Cities.Count,World=w,Name=cityName,Tile=tile,Realm=r,FoundedMonth=w.Month,Population=200};
+            w.Cities.Add(c);w.TerritoryRevision++;c.Tiles.Add(tile);w.TileCity[tile]=c.Id;r.Cities.Add(c);r.Capital=c;
             if(ruler.City==null)ruler.City=c;
             w.Annals.Add(w,AnnalKind.RealmFounded,r.Id,ruler.Id,c.Id);
             return r;
@@ -106,7 +106,7 @@ namespace EmpireCraft.Core
             Live(w,c);Live(w,to);
             Require(c.Realm!=to,"City already belongs to that realm");
             Realm from=c.Realm;Detach(c);
-            c.Realm=to;to.Cities.Add(c);if(to.Capital==null)to.Capital=c;
+            c.Realm=to;to.Cities.Add(c);if(to.Capital==null)to.Capital=c;w.TerritoryRevision++;
             w.Annals.Add(w,AnnalKind.CityTransferred,c.Id,from.IdOf(),to.Id);
             AfterLoss(w,from);
         }
@@ -126,7 +126,16 @@ namespace EmpireCraft.Core
             bool adjacent=false;
             for(int d=0;d<4&&!adjacent;d++){int n=w.Map.Neighbor(tile,d);adjacent=n>=0&&w.TileCity[n]==c.Id;}
             Require(adjacent,"A city grows only into tiles adjacent to its territory");
-            w.TileCity[tile]=c.Id;c.Tiles.Add(tile);
+            w.TileCity[tile]=c.Id;c.Tiles.Add(tile);w.TerritoryRevision++;
+        }
+
+        // A city gives up a tile of its territory, never its seat.
+        public static void ReleaseTile(EmpireWorld w,City c,int tile)
+        {
+            Live(w,c);
+            Require(tile>=0&&tile<w.TileCity.Length&&w.TileCity[tile]==c.Id,"Tile is not this city's");
+            Require(tile!=c.Tile,"A city keeps its seat");
+            w.TileCity[tile]=-1;c.Tiles.Remove(tile);w.TerritoryRevision++;
         }
 
         // The ruler steps down or is removed; the throne stays empty until SetRuler.
@@ -225,6 +234,13 @@ namespace EmpireCraft.Core
         public static void JoinAttackers(this War war,Realm realm){if(war.Alive&&!realm.IsGone()&&!war.HasRealm(realm))WorldOps.JoinWar(World,war,realm,true);}
         public static void JoinDefenders(this War war,Realm realm){if(war.Alive&&!realm.IsGone()&&!war.HasRealm(realm))WorldOps.JoinWar(World,war,realm,false);}
         public static void Leave(this War war,Realm realm){if(war.Alive&&war.HasRealm(realm))WorldOps.LeaveWar(World,war,realm);}
+        // Territory by cell. A cell that is not free land next to the city is left alone.
+        public static void AddZone(this City city,Cell cell)
+        {
+            if(city==null||cell==null||!city.Alive||World.TileCity[cell.Index]>=0||!World.Claimable(cell.Index))return;
+            foreach(var near in cell.Neighbours)if(World.TileCity[near.Index]==city.Id){WorldOps.ClaimTile(World,city,cell.Index);return;}
+        }
+        public static void RemoveZone(this City city,Cell cell){if(city!=null&&cell!=null&&city.Alive&&cell.Index!=city.Tile&&World.TileCity[cell.Index]==city.Id)WorldOps.ReleaseTile(World,city,cell.Index);}
         public static void JoinCity(this Person person,City city){if(person!=null&&person.Alive&&(city==null||city.Alive))person.City=city;}
         public static void JoinRealm(this City city,Realm realm,bool captured=false,bool rebellion=false){if(city.Realm!=realm)WorldOps.TransferCity(World,city,realm);}
     }

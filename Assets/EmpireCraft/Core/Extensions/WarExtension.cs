@@ -241,10 +241,10 @@ public static class WarExtension
         HashSet<int> seenZones = new HashSet<int>();
         foreach (City city in title.getCities())
         {
-            if (city == null || city.IsGone() || city.zones == null) continue;
-            foreach (TileZone zone in city.zones)
+            if (city == null || city.IsGone() || city.Zones == null) continue;
+            foreach (Cell zone in city.Zones)
             {
-                if (zone == null || zone.world_edge || zone.city != city || !seenZones.Add(zone.id)) continue;
+                if (zone == null || zone.OnEdge || zone.City != city || !seenZones.Add(zone.Index)) continue;
                 total++;
                 Realm controller = city.Realm;
                 if (controller == null || !war.Attackers.Contains(controller))
@@ -281,10 +281,10 @@ public static class WarExtension
         var zoneIds = new HashSet<int>();
         foreach (long cityId in data.legitimacy_defender_city_ids)
         {
-            City city = EmpireWorld.Current?.cities?.get(cityId);
-            if (city?.zones == null || city.IsGone()) continue;
-            foreach (TileZone zone in city.zones)
-                if (zone != null && !zone.world_edge && zone.city == city) zoneIds.Add(zone.id);
+            City city = EmpireWorld.Current?.CityByKey(cityId);
+            if (city?.Zones == null || city.IsGone()) continue;
+            foreach (Cell zone in city.Zones)
+                if (zone != null && !zone.OnEdge && zone.City == city) zoneIds.Add(zone.Index);
         }
         data.legitimacy_initial_zone_count = zoneIds.Count;
     }
@@ -297,9 +297,10 @@ public static class WarExtension
 
         var result = OccupationReadIndex.ReadControl(war, data, () => CountLegitimacyControl(war, data),
             () => OccupationReadIndex.Membership((data.legitimacy_defender_city_ids ?? new List<long>())
-                .Select(id => EmpireWorld.Current?.cities?.get(id))));
+                .Select(id => EmpireWorld.Current?.CityByKey(id))));
         return ImperialLegitimacyRules.HasOccupiedThird(result.Controlled, data.legitimacy_initial_zone_count);
     }
+#endif
 
     private static OccupationReadIndex.Control CountLegitimacyControl(War war, WarExtraData data)
     {
@@ -307,11 +308,11 @@ public static class WarExtension
         var seenZones = new HashSet<int>();
         foreach (long cityId in data.legitimacy_defender_city_ids ?? new List<long>())
         {
-            City city = EmpireWorld.Current?.cities?.get(cityId);
-            if (city?.zones == null || city.IsGone()) continue;
-            foreach (TileZone zone in city.zones)
+            City city = EmpireWorld.Current?.CityByKey(cityId);
+            if (city?.Zones == null || city.IsGone()) continue;
+            foreach (Cell zone in city.Zones)
             {
-                if (zone == null || zone.world_edge || zone.city != city || !seenZones.Add(zone.id)) continue;
+                if (zone == null || zone.OnEdge || zone.City != city || !seenZones.Add(zone.Index)) continue;
                 Realm controller = city.Realm;
                 if (controller == null || !war.Attackers.Contains(controller))
                     controller = city.GetTileZoneOccupier(zone);
@@ -321,6 +322,7 @@ public static class WarExtension
         return new OccupationReadIndex.Control(controlled, seenZones.Count);
     }
 
+#if EC_PENDING
     public static Empire GetEmpireTarget(this War w)
     {
         var metaType = w.GetOrCreate().metaType;

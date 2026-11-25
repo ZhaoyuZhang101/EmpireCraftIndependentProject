@@ -61,9 +61,9 @@ public static class TianxiaMap
         _colors ??= Palette.Select((hex, i) => TianxiaMapColor.Create(i, hex)).ToArray();
         return _colors[IndexOf(lead)];
     }
+#endif
 
     public static string HexOf(EmpireCore lead) => Palette[IndexOf(lead)];
-#endif
 
     // 着色：先照主核心编号取，与接壤的天下撞色就换一个(以前只按编号轮，相邻的天下常常同色)；每年随天下结算重排
     private static readonly Dictionary<long, int> ColorIndex = new();
@@ -72,7 +72,6 @@ public static class TianxiaMap
 
     private static int Preferred(EmpireCore lead) => (int)((lead.id % Palette.Length + Palette.Length) % Palette.Length);
 
-#if EC_PENDING
     private static int IndexOf(EmpireCore lead)
     {
         if (lead == null) return 0;
@@ -91,8 +90,8 @@ public static class TianxiaMap
         foreach (City city in EmpireWorld.Current.Cities)
         {
             EmpireCore lead = TianxiaSystem.LeadOf(city);
-            if (lead == null || city.neighbours_cities == null) continue;
-            foreach (City next in city.neighbours_cities)
+            if (lead == null || city.NeighbourCities == null) continue;
+            foreach (City next in city.NeighbourCities)
             {
                 EmpireCore other = TianxiaSystem.LeadOf(next);
                 if (other == null || other == lead) continue;
@@ -111,7 +110,6 @@ public static class TianxiaMap
             ColorIndex[lead.id] = pick;
         }
     }
-#endif
 
     private static bool Shown(City city) =>
         city != null && !city.IsGone() && !AncientWarfareCompatibility.OwnsObject(city) &&
@@ -133,20 +131,20 @@ public static class TianxiaMap
                     DrawUncored(city, mode, holder, meta);
                     continue;
                 }
-                foreach (TileZone zone in city.zones)
+                foreach (Cell zone in city.Zones)
                 {
                     EmpireCraftMetaTypeLibrary.zone_manager.drawBegin();
                     if (mode == 1 && holder != null)
                         EmpireCraftMetaTypeLibrary.zone_manager.drawZoneMeta(holder, zone,
-                            HolderBorder(zone.zone_up, lead, holder), HolderBorder(zone.zone_down, lead, holder),
-                            HolderBorder(zone.zone_left, lead, holder), HolderBorder(zone.zone_right, lead, holder),
+                            HolderBorder(zone.Up, lead, holder), HolderBorder(zone.Down, lead, holder),
+                            HolderBorder(zone.Left, lead, holder), HolderBorder(zone.Right, lead, holder),
                             holder.Record, meta);
                     else
                     {
                         TianxiaMapColor color = ColorOf(lead);
                         EmpireCraftMetaTypeLibrary.zone_manager.drawZoneMeta(color, zone,
-                            TianxiaBorder(zone.zone_up, lead), TianxiaBorder(zone.zone_down, lead),
-                            TianxiaBorder(zone.zone_left, lead), TianxiaBorder(zone.zone_right, lead), color.data, meta);
+                            TianxiaBorder(zone.Up, lead), TianxiaBorder(zone.Down, lead),
+                            TianxiaBorder(zone.Left, lead), TianxiaBorder(zone.Right, lead), color.data, meta);
                     }
                     EmpireCraftMetaTypeLibrary.zone_manager.drawEnd(zone);
                 }
@@ -158,7 +156,7 @@ public static class TianxiaMap
             List<City> cities = lead != null ? TianxiaSystem.Cities(lead) : UnificationSystem.UncoredRealmOf(tile?.zone?.city);
             if (cities == null) return;
             QuantumSpriteLibrary.colorZones(highlight, cities.Where(city => city != null && !city.IsGone())
-                .SelectMany(city => city.zones).ToList(), highlight.color);
+                .SelectMany(city => city.Zones).ToList(), highlight.color);
         });
         // 按地块取归属：平滑国界(整图画布)要它才画得出来(见 SmoothBorders.Smoothable)——以前没给，平滑国界下天下图层只有铭牌、没有颜色
         asset.tile_get_metaobject = (zone, option) => MetaOf(zone?.city, option);
@@ -196,26 +194,28 @@ public static class TianxiaMap
         EmpireCore lead = TianxiaSystem.LeadOf(city);
         return lead == null ? UncoredColor() : ColorOf(lead);
     }
+#endif
 
-    private static bool TianxiaBorder(TileZone neighbour, EmpireCore lead) => TianxiaSystem.LeadOf(neighbour?.city) != lead;
+    private static bool TianxiaBorder(Cell neighbour, EmpireCore lead) => TianxiaSystem.LeadOf(neighbour?.City) != lead;
 
+#if EC_PENDING
     private static void DrawUncored(City city, int mode, Realm holder, MetaTypeAsset meta)
     {
         List<City> realm = UnificationSystem.UncoredRealmOf(city);
-        bool Border(TileZone neighbour) => TianxiaSystem.LeadOf(neighbour?.city) != null ||
-                                          UnificationSystem.UncoredRealmOf(neighbour?.city) != realm ||
-                                          mode == 1 && EmpireCoreControl.Sovereign(neighbour.city.kingdom) != holder;
-        foreach (TileZone zone in city.zones)
+        bool Border(Cell neighbour) => TianxiaSystem.LeadOf(neighbour?.City) != null ||
+                                          UnificationSystem.UncoredRealmOf(neighbour?.City) != realm ||
+                                          mode == 1 && EmpireCoreControl.Sovereign(neighbour.City.Realm) != holder;
+        foreach (Cell zone in city.Zones)
         {
             EmpireCraftMetaTypeLibrary.zone_manager.drawBegin();
             if (mode == 1 && holder != null)
-                EmpireCraftMetaTypeLibrary.zone_manager.drawZoneMeta(holder, zone, Border(zone.zone_up), Border(zone.zone_down),
-                    Border(zone.zone_left), Border(zone.zone_right), holder.Record, meta);
+                EmpireCraftMetaTypeLibrary.zone_manager.drawZoneMeta(holder, zone, Border(zone.Up), Border(zone.Down),
+                    Border(zone.Left), Border(zone.Right), holder.Record, meta);
             else
             {
                 TianxiaMapColor color = UncoredColor();
-                EmpireCraftMetaTypeLibrary.zone_manager.drawZoneMeta(color, zone, Border(zone.zone_up), Border(zone.zone_down),
-                    Border(zone.zone_left), Border(zone.zone_right), color.data, meta);
+                EmpireCraftMetaTypeLibrary.zone_manager.drawZoneMeta(color, zone, Border(zone.Up), Border(zone.Down),
+                    Border(zone.Left), Border(zone.Right), color.data, meta);
             }
             EmpireCraftMetaTypeLibrary.zone_manager.drawEnd(zone);
         }
@@ -246,13 +246,13 @@ public static class TianxiaMap
             .Select(group => group.Key).FirstOrDefault();
         return string.Format(LM.Get("tianxia_uncored_name"), culture?.GetCultureTranslate() ?? "");
     }
+#endif
 
-    private static bool HolderBorder(TileZone neighbour, EmpireCore lead, Realm holder)
+    private static bool HolderBorder(Cell neighbour, EmpireCore lead, Realm holder)
     {
-        City other = neighbour?.city;
+        City other = neighbour?.City;
         return TianxiaSystem.LeadOf(other) != lead || EmpireCoreControl.Sovereign(other.Realm) != holder;
     }
-#endif
 
     // 铭牌：每个天下一枚，沿用帝国的简易纯文字样式，只写天下名称。
 #if EC_PENDING

@@ -10,7 +10,7 @@ namespace EmpireCraft.Core
 
 // 外部附属国(封建附庸、殖民地；朝贡国见下)：底色往宗主色靠一半(用户 2026-10-27 嫌"朝贡没换色"，选"底色混入宗主色"：
 // 以前只把边框换成宗主色，平滑国界下边框只有一格宽，远看看不出)，边框用宗主色，旗帜照旧是自己的：
-//   原版地图用 color_main 填色、color_main_2 描外边框(见 ZoneCalculator.drawZoneMeta)，
+//   原版地图用 color_main 填色、color_main_2 描外边框(见 ZoneGrid.drawZoneMeta)，
 //   所以给附属国一个"自己与宗主各半的 color_main + 宗主的 color_main_2 + 自己的旗帜"的合成颜色。
 //   合成颜色只放在运行时缓存 _cached_color 里，存档里的 color_id 仍是附属国自己的颜色；
 //   读档或被原版改色后由月度同步(FeudalVassalService.Sync)重新套上，独立时 KingdomColorService.Restore 清掉。
@@ -50,7 +50,7 @@ public static class VassalColorService
         if (subject._cached_color == composite && !empireStale) return;
         subject._cached_color = composite;
         if (empireStale) empire._cached_color = composite;
-        EmpireWorld.Current?.zone_calculator?.dirtyAndClear();
+        EmpireWorld.Current?.Zones?.MarkDirty();
     }
 #endif
 
@@ -64,7 +64,7 @@ public static class VassalColorService
         if ((subject._cached_color == null || !IsComposite(subject._cached_color)) && !empireComposite) return;
         if (IsComposite(subject._cached_color)) subject._cached_color = null;
         if (empireComposite) empire._cached_color = null;
-        EmpireWorld.Current?.zone_calculator?.dirtyAndClear();
+        EmpireWorld.Current?.Zones?.MarkDirty();
     }
 
     public static bool IsComposite(ColorAsset color) => color != null && Composites.ContainsValue(color);

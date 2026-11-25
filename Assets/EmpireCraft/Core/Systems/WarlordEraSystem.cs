@@ -2,6 +2,7 @@
 // see Port/manifest.json and Tools/PortTool.
 using Mathf = EmpireCraft.Core.EcMath;
 using Time = EmpireCraft.Core.FrameClock;
+using Vector2 = EmpireCraft.Core.EcVector2;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -280,7 +281,7 @@ public static partial class WarlordEraSystem
     {
         Vector2 center = Centroid(coreCities);
         Vector2 offset = Centroid(own) - center;
-        float radius = coreCities.Average(city => (city.city_center - center).magnitude);
+        float radius = coreCities.Average(city => (city.Center - center).magnitude);
         string dir;
         if (radius <= 0f || offset.magnitude < radius * CentralRadius) dir = "c";
         else
@@ -297,6 +298,7 @@ public static partial class WarlordEraSystem
         }
         return "";
     }
+#endif
 
     private static Vector2 Centroid(IEnumerable<City> cities)
     {
@@ -304,12 +306,11 @@ public static partial class WarlordEraSystem
         int count = 0;
         foreach (City city in cities)
         {
-            sum += city.city_center;
+            sum += city.Center;
             count++;
         }
         return count > 0 ? sum / count : Vector2.zero;
     }
-#endif
 
     private static string TitleName(Realm kingdom) =>
         kingdom?.GetMainTitle()?.data?.name?.Trim().Trim(ModClass.NARROW_SPACE.ToCharArray()).Trim() ?? "";
@@ -675,7 +676,7 @@ public static partial class WarlordEraSystem
     private static bool TryRecognizeStandoff(EmpireCore core, HashSet<Empire> representatives, Realm strongest, double now)
     {
         bool quiet = representatives.Count > 1 && representatives.All(Formalized) &&
-                     !representatives.Any(government => government.CoreKingdom?.getWars()?.Any(IsCivilWar) == true);
+                     !representatives.Any(government => government.CoreKingdom?.GetWars()?.Any(IsCivilWar) == true);
         if (!quiet)
         {
             core.standoff_since = -1d;
@@ -1119,10 +1120,10 @@ public static partial class WarlordEraSystem
         if (kingdom == null || kingdom.IsGone() || !kingdom.HasRuler()) return false;
         return ModernStateFormationSystem.TryClaimSeatTitle(kingdom);
     }
-
-    private static War FindActiveWar(Realm first, Realm second) => first?.getWars()
-        ?.FirstOrDefault(war => war != null && war.Alive && !war.hasEnded() && war.hasKingdom(second));
 #endif
+
+    private static War FindActiveWar(Realm first, Realm second) => first?.GetWars()
+        ?.FirstOrDefault(war => war != null && war.Alive && !war.HasEnded() && war.HasRealm(second));
 
 
     #endregion

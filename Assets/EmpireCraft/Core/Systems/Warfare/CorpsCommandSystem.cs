@@ -68,12 +68,10 @@ public static class CorpsCommandSystem
 #endif
 
     // 军事页：这支军是不是正在奉令(固守或攻打军令所指的城)
-#if EC_PENDING
     public static bool Ordered(Realm kingdom, CorpsData corps) =>
         corps != null && corps.sector_city_id >= 0 &&
-        (corps.task == "defend" && HoldCity(kingdom)?.data?.id == corps.sector_city_id ||
+        (corps.task == "defend" && HoldCity(kingdom)?.Key == corps.sector_city_id ||
          corps.task == "attack" && (AttackCity(kingdom) is City target &&
                                     (target.Key == corps.sector_city_id || FrontSystem.FocusSector(kingdom) == corps.sector_city_id)));
-#endif
 }
 }

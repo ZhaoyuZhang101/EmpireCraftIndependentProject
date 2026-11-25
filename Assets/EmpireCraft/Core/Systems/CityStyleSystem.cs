@@ -132,9 +132,9 @@ public static class CityStyleSystem
     //   · 城貌手动选定的(见 SetByHand)不改
 #if EC_PENDING
     private static List<City> Stale(Realm kingdom) =>
-        kingdom?.cities?.Where(city =>
+        kingdom?.Cities?.Where(city =>
         {
-            if (city?.data == null || city.IsGone()) return false;
+            if (city?.Record == null || city.IsGone()) return false;
             var data = city.GetOrCreate();
             if (!string.IsNullOrEmpty(data.map_style_target) || data.map_style_by_hand) return false;
             string established = Established(city), current = CurrentFamily(city);

@@ -301,7 +301,7 @@ public static class LegacyInstitutionSystem
             }
             catch (Exception exception)
             {
-                LogService.LogWarning($"{Tag} {kingdom.Record?.Name} 旧制结算失败: {exception.Message}");
+                LogService.LogWarning($"{Tag} {kingdom.Name} 旧制结算失败: {exception.Message}");
             }
         }
     }

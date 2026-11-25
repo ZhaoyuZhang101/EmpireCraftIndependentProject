@@ -18,9 +18,9 @@ public static class FrontLineCleanup
 {
     private const int PocketZones = 24;
     private static readonly HashSet<int> Seen = new();
-#if EC_PENDING
-    private static readonly Queue<TileZone> Frontier = new();
+    private static readonly Queue<Cell> Frontier = new();
 
+#if EC_PENDING
     public static void Monthly()
     {
         if (EmpireWorld.Current?.Cities == null || !CorpsSystem.Enabled) return;
@@ -50,40 +50,40 @@ public static class FrontLineCleanup
     private static void Tidy(City city, Dictionary<int, List<Realm>> troops)
     {
         Realm owner = city.Realm;
-        if (owner?.Record == null || owner.IsGone() || city.zones == null) return;
-        TileZone seat = city.getTile()?.zone;
+        if (owner?.Record == null || owner.IsGone() || city.Zones == null) return;
+        Cell seat = city.SeatCell()?.Zone;
         // 各块地的控制者
-        var byController = new Dictionary<Realm, List<TileZone>>();
-        foreach (TileZone zone in city.zones)
+        var byController = new Dictionary<Realm, List<Cell>>();
+        foreach (Cell zone in city.Zones)
         {
             if (zone == null) continue;
             Realm controller = FrontSystem.Controller(zone);
             if (controller?.Record == null) continue;
-            if (!byController.TryGetValue(controller, out List<TileZone> list)) byController[controller] = list = new List<TileZone>();
+            if (!byController.TryGetValue(controller, out List<Cell> list)) byController[controller] = list = new List<Cell>();
             list.Add(zone);
         }
         int returned = 0, taken = 0;
         // 占领者的孤块还给城主
-        foreach (KeyValuePair<Realm, List<TileZone>> pair in byController.Where(pair => pair.Key != owner).ToList())
+        foreach (KeyValuePair<Realm, List<Cell>> pair in byController.Where(pair => pair.Key != owner).ToList())
         {
             Realm occupier = pair.Key;
-            foreach (List<TileZone> piece in Pieces(pair.Value))
+            foreach (List<Cell> piece in Pieces(pair.Value))
             {
                 if (!Cut(occupier, piece, troops)) continue;
-                foreach (TileZone zone in piece)
+                foreach (Cell zone in piece)
                     if (city.RemoveOccupiedTileZone(occupier, zone)) returned++;
             }
         }
         // 城主的孤块(城池那片不算)归围住它的占领者
-        if (byController.TryGetValue(owner, out List<TileZone> held))
+        if (byController.TryGetValue(owner, out List<Cell> held))
         {
-            foreach (List<TileZone> piece in Pieces(held))
+            foreach (List<Cell> piece in Pieces(held))
             {
                 if (seat != null && piece.Contains(seat)) continue;
                 if (!Cut(owner, piece, troops)) continue;
                 Realm besieger = Surrounder(piece, owner);
                 if (besieger == null) continue;
-                foreach (TileZone zone in piece)
+                foreach (Cell zone in piece)
                     if (city.AddOccupiedTileZone(besieger, zone)) taken++;
             }
         }
@@ -93,22 +93,21 @@ public static class FrontLineCleanup
 #endif
 
     // 同一座城里同一控制者的地块，按相邻连成几片
-#if EC_PENDING
-    private static List<List<TileZone>> Pieces(List<TileZone> zones)
+    private static List<List<Cell>> Pieces(List<Cell> zones)
     {
-        var left = new HashSet<TileZone>(zones);
-        var pieces = new List<List<TileZone>>();
+        var left = new HashSet<Cell>(zones);
+        var pieces = new List<List<Cell>>();
         while (left.Count > 0)
         {
-            TileZone start = left.First();
+            Cell start = left.First();
             left.Remove(start);
-            var piece = new List<TileZone> { start };
-            var queue = new Queue<TileZone>();
+            var piece = new List<Cell> { start };
+            var queue = new Queue<Cell>();
             queue.Enqueue(start);
             while (queue.Count > 0)
             {
-                TileZone zone = queue.Dequeue();
-                foreach (TileZone next in zone.neighbours_all ?? Array.Empty<TileZone>())
+                Cell zone = queue.Dequeue();
+                foreach (Cell next in zone.NeighboursAll ?? Array.Empty<Cell>())
                 {
                     if (next == null || !left.Remove(next)) continue;
                     piece.Add(next);
@@ -119,30 +118,29 @@ public static class FrontLineCleanup
         }
         return pieces;
     }
-#endif
 
     // 这片地断了后路：往外不穿敌控的地，走不到 side 一方的城池，PocketZones 块以内就走完了；走到的地方也没有 side 一方的军
 #if EC_PENDING
-    private static bool Cut(Realm side, List<TileZone> piece, Dictionary<int, List<Realm>> troops)
+    private static bool Cut(Realm side, List<Cell> piece, Dictionary<int, List<Realm>> troops)
     {
         Seen.Clear();
         Frontier.Clear();
-        foreach (TileZone zone in piece)
+        foreach (Cell zone in piece)
         {
-            Seen.Add(zone.id);
+            Seen.Add(zone.Index);
             Frontier.Enqueue(zone);
         }
         bool enemy = false;
         while (Frontier.Count > 0)
         {
-            TileZone zone = Frontier.Dequeue();
-            if (troops.TryGetValue(zone.id, out List<Realm> here) && here.Any(kingdom => FrontSystem.Friendly(side, kingdom))) return false;
-            City city = zone.city;
-            if (city?.Record != null && !city.IsGone() && city.getTile()?.zone == zone && FrontSystem.Friendly(side, FrontSystem.Controller(zone)))
+            Cell zone = Frontier.Dequeue();
+            if (troops.TryGetValue(zone.Index, out List<Realm> here) && here.Any(kingdom => FrontSystem.Friendly(side, kingdom))) return false;
+            City city = zone.City;
+            if (city?.Record != null && !city.IsGone() && city.SeatCell()?.Zone == zone && FrontSystem.Friendly(side, FrontSystem.Controller(zone)))
                 return false;
-            foreach (TileZone next in zone.neighbours_all ?? Array.Empty<TileZone>())
+            foreach (Cell next in zone.NeighboursAll ?? Array.Empty<Cell>())
             {
-                if (next == null || Seen.Contains(next.id) || SeaRegionSystem.IsSea(next) || TerrainSystem.Impassable(next) ||
+                if (next == null || Seen.Contains(next.Index) || SeaRegionSystem.IsSea(next) || TerrainSystem.Impassable(next) ||
                     !TerrainSystem.Crossable(zone, next)) continue;
                 Realm controller = FrontSystem.Controller(next);
                 if (controller != null && FrontSystem.Hostile(side, controller))
@@ -150,7 +148,7 @@ public static class FrontLineCleanup
                     enemy = true;
                     continue;
                 }
-                Seen.Add(next.id);
+                Seen.Add(next.Index);
                 if (Seen.Count > PocketZones) return false;
                 Frontier.Enqueue(next);
             }
@@ -160,12 +158,11 @@ public static class FrontLineCleanup
 #endif
 
     // 围住这片地的敌方：四周挨着的敌控地块最多的那一国
-#if EC_PENDING
-    private static Realm Surrounder(List<TileZone> piece, Realm owner)
+    private static Realm Surrounder(List<Cell> piece, Realm owner)
     {
         var count = new Dictionary<Realm, int>();
-        foreach (TileZone zone in piece)
-        foreach (TileZone next in zone.neighbours_all ?? Array.Empty<TileZone>())
+        foreach (Cell zone in piece)
+        foreach (Cell next in zone.NeighboursAll ?? Array.Empty<Cell>())
         {
             Realm controller = FrontSystem.Controller(next);
             if (controller?.Record == null || !FrontSystem.Hostile(owner, controller)) continue;
@@ -173,6 +170,5 @@ public static class FrontLineCleanup
         }
         return count.Count == 0 ? null : count.OrderByDescending(pair => pair.Value).First().Key;
     }
-#endif
 }
 }

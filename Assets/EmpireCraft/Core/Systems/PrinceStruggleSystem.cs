@@ -271,7 +271,7 @@ public static class PrinceStruggleSystem
             LawEvents.FailedUsurper(rival, empire.CoreKingdom, "law_reason_failed_strife");
             BiographySystem.Kill(rival, BiographySystem.Format("death_cause_strife_lost", emperor.FullName()), emperor, executed: true);
         }
-        foreach (City city in empire.CoreKingdom?.cities?.ToList() ?? new List<City>())
+        foreach (City city in empire.CoreKingdom?.Cities?.ToList() ?? new List<City>())
         {
             CityStabilityData state = city?.Record == null ? null : CityStabilitySystem.State(city);
             if (state != null) state.stability = Mathf.Max(0f, state.stability - 6f);

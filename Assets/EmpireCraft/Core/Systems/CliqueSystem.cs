@@ -1,6 +1,7 @@
 // Generated from the EmpireCraft mod: Scripts/GeneralSystems/CliqueSystem.cs. Do not edit by hand: Tools/PortTool/members.py rewrites it;
 // see Port/manifest.json and Tools/PortTool.
 using Mathf = EmpireCraft.Core.EcMath;
+using Random = EmpireCraft.Core.EcRandom;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -376,7 +377,7 @@ public static class CliqueSystem
     private static string Hometown(Person actor)
     {
         string place = actor?.GetPersonalIdentity()?.birthplace;
-        if (string.IsNullOrWhiteSpace(place)) place = actor?.city?.GetCityName();
+        if (string.IsNullOrWhiteSpace(place)) place = actor?.City?.GetCityName();
         return string.IsNullOrWhiteSpace(place) ? "" : place.Substring(0, 1);
     }
 #endif

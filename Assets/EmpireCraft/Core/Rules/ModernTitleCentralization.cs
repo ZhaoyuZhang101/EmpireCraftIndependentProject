@@ -115,7 +115,7 @@ public static class ModernTitleCentralization
     private static KingdomTitle NeighbourTitle(City city, Realm kingdom, Empire empire)
     {
         KingdomTitle fallback = null;
-        foreach (City neighbour in city.neighbours_cities.ToList())
+        foreach (City neighbour in city.NeighbourCities.ToList())
         {
             if (neighbour == null || neighbour.IsGone() || !neighbour.hasTitle()) continue;
             KingdomTitle title = neighbour.GetTitle();

@@ -1,5 +1,6 @@
 // Generated from the EmpireCraft mod: Scripts/GeneralSystems/CultureDoctrines.cs. Do not edit by hand: Tools/PortTool/members.py rewrites it;
 // see Port/manifest.json and Tools/PortTool.
+using Vector2 = EmpireCraft.Core.EcVector2;
 using System;
 using System.Collections.Generic;
 using System.Linq;

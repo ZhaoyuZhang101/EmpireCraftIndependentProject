@@ -71,18 +71,14 @@ public static class CompanySystem
     public static CompanyData ById(int id) => id > 0 && Index.TryGetValue(id, out CompanyData company) ? company : null;
     public static CompanyData Of(FactorySite site) => site == null ? null : ById(site.company_id);
 
-#if EC_PENDING
     public static City Home(CompanyData company)
     {
-        City city = company == null || company.city_id < 0 ? null : EmpireWorld.Current?.cities?.get(company.city_id);
+        City city = company == null || company.city_id < 0 ? null : EmpireWorld.Current?.CityByKey(company.city_id);
         return city?.Record == null || city.IsGone() ? null : city;
     }
-#endif
 
     // 公司的国籍：总部那座城眼下归谁
-#if EC_PENDING
-    public static Empire RealmOf(CompanyData company) => Home(company)?.kingdom?.GetEmpire();
-#endif
+    public static Empire RealmOf(CompanyData company) => Home(company)?.Realm?.GetEmpire();
 
     private static Empire Living(long id)
     {
@@ -92,7 +88,6 @@ public static class CompanySystem
 
     public static Empire ForeignOwner(CompanyData company) => company == null ? null : Living(company.foreign_empire_id);
 
-#if EC_PENDING
     public static List<FactorySite> Sites(CompanyData company)
     {
         var list = new List<FactorySite>();
@@ -103,7 +98,6 @@ public static class CompanySystem
                 if (site.company_id == company.id) list.Add(site);
         return list;
     }
-#endif
 
     private static int ScaleOf(FactorySite site) => site.units.Sum(unit => Math.Max(1, unit.level));
     private static float ValueOf(FactorySite site) => site.units.Sum(FactorySystem.ValueOf);
@@ -238,7 +232,7 @@ public static class CompanySystem
     public static void Reassign(FactorySite site)
     {
         City city = FactorySystem.CityOf(site);
-        Empire empire = city?.kingdom?.GetEmpire();
+        Empire empire = city?.Realm?.GetEmpire();
         ConstitutionalEconomyState state = empire?.data?.constitutional_economy;
         if (state == null || !ModernPolicySystem.Industrial(empire) || !site.units.Any(unit => FactorySystem.IsModern(unit.type))) return;
         state.seizures ??= new Dictionary<long, double>();
@@ -341,7 +335,6 @@ public static class CompanySystem
     }
 
     // 一年的账：规模、产值、盈利、资本、声誉
-#if EC_PENDING
     private static void Account(Empire empire, ConstitutionalEconomyState state, CompanyData company, List<FactorySite> sites)
     {
         company.scale = sites.Sum(ScaleOf);
@@ -373,7 +366,6 @@ public static class CompanySystem
         if (crisis && !company.state) gain = -6f;
         company.reputation = Mathf.Clamp(company.reputation + gain, 5f, 100f);
     }
-#endif
 
     // 谁说了算：财阀旗下的并作一家算，外资按控股国并，其余各算各的
     private static long ControllerKey(CompanyData company) =>
@@ -549,13 +541,10 @@ public static class CompanySystem
 
     #region 财阀
 
-#if EC_PENDING
     public static List<CompanyData> GroupCompanies(Empire empire, long clanId) => clanId < 0 ? new List<CompanyData>()
         : _book.companies.Where(company => company.group_clan_id == clanId && RealmOf(company) == empire).ToList();
-#endif
 
     // 这个财阀占本国工业几成(本国还没有公司返回 -1，财阀照旧按抽象的份额算)
-#if EC_PENDING
     public static float GroupShare(Empire empire, long clanId)
     {
         int total = 0, held = 0;
@@ -567,22 +556,17 @@ public static class CompanySystem
         }
         return total <= 0 ? -1f : held / (float)total;
     }
-#endif
 
     // 财阀起家的那家公司：规模最大、有东家的独立私企(见 ConglomerateSystem.Found)
-#if EC_PENDING
     public static CompanyData FlagshipCandidate(Empire empire, ICollection<long> taken, long royal) =>
         _book.companies.Where(company => Independent(company) && company.clan_id >= 0 && company.clan_id != royal &&
                                          !taken.Contains(company.clan_id) && company.scale >= MinGroupScale && RealmOf(company) == empire)
             .OrderByDescending(company => company.scale).FirstOrDefault();
-#endif
 
     // 世家出资办实业：买下最大的一家独立私企
-#if EC_PENDING
     public static CompanyData LargestIndependent(Empire empire) =>
         _book.companies.Where(company => Independent(company) && RealmOf(company) == empire)
             .OrderByDescending(company => company.scale).FirstOrDefault();
-#endif
 
     public static void JoinGroup(CompanyData company, long clanId, string groupName)
     {
@@ -592,7 +576,6 @@ public static class CompanySystem
     }
 
     // 反托拉斯、财阀垮台：旗下公司各自独立。返回放出来几家
-#if EC_PENDING
     public static int ReleaseGroup(Empire empire, long clanId, string groupName)
     {
         List<CompanyData> held = GroupCompanies(empire, clanId);
@@ -603,7 +586,6 @@ public static class CompanySystem
         }
         return held.Count;
     }
-#endif
 
     // 财阀跨行业收购：拿旗下的资本买别的行业里最大的独立私企(控股，不并名号)
 #if EC_PENDING
@@ -823,7 +805,6 @@ public static class CompanySystem
 #endif
 
     // 减持：办不成返回原因键
-#if EC_PENDING
     public static string SellStake(CompanyData company, float share = StakeStep)
     {
         Empire realm = RealmOf(company);
@@ -838,7 +819,6 @@ public static class CompanySystem
         Note(company, string.Format(LM.Get("company_note_stake_sold"), Mathf.RoundToInt(company.state_share * 100f)));
         return null;
     }
-#endif
 
     // 外国来收购：东道国不信自由放任、国库又宽裕(三倍于入股款)的，入股三成挡下
 #if EC_PENDING
@@ -875,7 +855,6 @@ public static class CompanySystem
 #endif
 
     // 这座城的私营厂区里国家的股份折成几份官营(见 EnterpriseSystem.TakePublicProfit)
-#if EC_PENDING
     public static float StateStake(City city)
     {
         if (_book.companies.Count == 0 || city == null) return 0f;
@@ -884,7 +863,6 @@ public static class CompanySystem
             if (!site.state && Of(site) is { state_share: > 0f } company) stake += site.units.Count * company.state_share;
         return stake;
     }
-#endif
 
     #endregion
 
@@ -894,17 +872,15 @@ public static class CompanySystem
         Markups.TryGetValue(empireId, out Dictionary<string, float> table) && table.TryGetValue(sector ?? "", out float value) ? value : 0f;
 
     // 一座厂的产值(见 FactorySystem.Produce)：公司的声誉、垄断加价或价格战、外资把利润汇走
-#if EC_PENDING
     public static float OutputFactor(City city, FactorySite site, string type)
     {
         CompanyData company = Of(site);
         if (company == null) return 1f;
         float factor = 1f + (company.state ? 0.06f : 0.12f) * company.reputation / 100f;
         if (company.foreign_empire_id >= 0) factor *= 0.9f;
-        Empire empire = city?.kingdom?.GetEmpire();
+        Empire empire = city?.Realm?.GetEmpire();
         return empire == null ? factor : factor * (1f + Markup(empire.Key, type));
     }
-#endif
 
     // 阶层怨气的目标值加减(见 InstitutionSystem)：垄断抬价；命脉操于外人之手
     public static float GrievanceShift(Empire empire, SocialClass socialClass)

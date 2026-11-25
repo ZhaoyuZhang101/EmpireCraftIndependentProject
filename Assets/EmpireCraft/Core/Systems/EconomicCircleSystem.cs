@@ -121,7 +121,7 @@ public static class EconomicCircleSystem
         if (EmpireWorld.Current?.Cities == null) return;
         var cities = EmpireWorld.Current.Cities
             .Where(city => city?.Record != null && !city.IsGone() && city.Realm != null && !city.Realm.IsWild &&
-                           city.getTile() != null)
+                           city.SeatCell() != null)
             .Select(city => (city, weight: Weight(city)))
             .OrderByDescending(pair => pair.weight)
             .ToList();
@@ -133,7 +133,7 @@ public static class EconomicCircleSystem
         float limit = ConnectivitySystem.Config.circle_max_cost * WorldMapScale.ReachFactor;
         foreach ((City city, _) in cities)
         {
-            WorldTile tile = city.getTile();
+            Cell tile = city.SeatCell();
             City nearest = null;
             if (reach && ConnectivitySystem.NearCities(city, CircleNear, limit) >= 0)
             {
@@ -151,8 +151,8 @@ public static class EconomicCircleSystem
                 foreach (City core in cores)
                 {
                     if (!SameRealm(city, core)) continue;
-                    WorldTile there = core.getTile();
-                    float dx = there.x - tile.x, dy = there.y - tile.y, d = dx * dx + dy * dy;
+                    Cell there = core.SeatCell();
+                    float dx = there.X - tile.X, dy = there.Y - tile.Y, d = dx * dx + dy * dy;
                     if (d >= best) continue;
                     best = d;
                     nearest = core;

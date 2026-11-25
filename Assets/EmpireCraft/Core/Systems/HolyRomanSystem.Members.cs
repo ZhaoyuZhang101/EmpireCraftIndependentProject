@@ -244,16 +244,16 @@ public static partial class HolyRomanSystem
 #endif
 
     // 中央的非都城里挑一座不大不小的(最小的那座留给中央)
-#if EC_PENDING
     private static City ChurchCandidate(Empire empire)
     {
         Realm core = empire.CoreKingdom;
         List<City> cities = core.Cities.Where(item => item?.Record != null && !item.IsGone() && item != core.Capital &&
                                                       !EnfeoffmentHelper.IsRealmCapital(item))
-            .OrderBy(item => item.zones?.Count ?? 0).ToList();
+            .OrderBy(item => item.Zones?.Count ?? 0).ToList();
         return cities.Count > 1 ? cities[1] : cities.FirstOrDefault();
     }
 
+#if EC_PENDING
     public static Realm EndowChurch(Empire empire, City city)
     {
         if (city?.Realm == null || city.Realm.GetEmpire() != empire || city == city.Realm.Capital) return null;

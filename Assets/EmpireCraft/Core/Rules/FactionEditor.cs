@@ -220,6 +220,7 @@ public static class FactionEditor
         faction.Update();
         return true;
     }
+#endif
 
     private static void Apply(FixedFaction faction, PartyIdeology ideology)
     {
@@ -237,7 +238,6 @@ public static class FactionEditor
         foreach (SocialClass socialClass in Enum.GetValues(typeof(SocialClass)).Cast<SocialClass>())
             faction.ClassAffinities[socialClass] = PartySystem.GetAffinity(ideology, socialClass);
     }
-#endif
 
     #region 起名
 

@@ -100,7 +100,6 @@ public static class FrontCollapse
 #endif
 
     // 两家不再交战、灭了国的从表里清掉(每月一次)
-#if EC_PENDING
     public static void Prune()
     {
         if (CheckedAt.Count > 256 && EmpireWorld.Current != null)
@@ -112,11 +111,10 @@ public static class FrontCollapse
         if (Collapsed.Count == 0) return;
         foreach (long id in Collapsed.Keys.ToList())
         {
-            Realm foe = EmpireWorld.Current?.kingdoms?.get(id), victor = EmpireWorld.Current?.kingdoms?.get(Collapsed[id]);
+            Realm foe = EmpireWorld.Current?.RealmByKey(id), victor = EmpireWorld.Current?.RealmByKey(Collapsed[id]);
             if (!Alive(foe) || !Alive(victor) || !FrontSystem.Hostile(foe, victor)) Collapsed.Remove(id);
         }
     }
-#endif
 
     // 游牧统一者失了雄主、统一中辍(见 UnificationSystem 游牧难一统)：它打出来的兵败如山倒随之作罢——
     // 不再是统一战争，每月不再查，留着就一直崩到停战
@@ -164,9 +162,9 @@ public static class FrontCollapse
 #if EC_PENDING
     private static string Lost(Realm foe, Realm victor, War war)
     {
-        City seat = EmpireWorld.Current?.cities?.get(war.GetOrCreate().war_goal_capital_id);
+        City seat = EmpireWorld.Current?.CityByKey(war.GetOrCreate().war_goal_capital_id);
         bool capital = seat?.Record != null && !seat.IsGone() && seat.Realm != null && ModRealm(seat.Realm) == victor;
-        if (!capital && foe.Capital?.Record != null && foe.Capital.getTile()?.zone is TileZone center &&
+        if (!capital && foe.Capital?.Record != null && foe.Capital.SeatCell()?.Zone is Cell center &&
             foe.Capital.GetTileZoneOccupier(center) is Realm occupier && ModRealm(occupier) == victor)
             capital = true;
         if (capital) return LM.Get("front_collapse_capital");

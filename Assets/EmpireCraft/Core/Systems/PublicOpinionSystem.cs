@@ -249,9 +249,9 @@ public static class PublicOpinionSystem
         var borders = new HashSet<Empire>();
         foreach (Realm kingdom in empire.kingdoms_hashset.Where(k => k != null && !k.IsGone()))
         foreach (City city in kingdom.Cities.Where(c => c != null && !c.IsGone()))
-        foreach (City neighbour in (IEnumerable<City>)city.neighbours_cities ?? Array.Empty<City>())
+        foreach (City neighbour in (IEnumerable<City>)city.NeighbourCities ?? Array.Empty<City>())
         {
-            Empire other = neighbour?.kingdom?.GetEmpire();
+            Empire other = neighbour?.Realm?.GetEmpire();
             if (other != null && other != empire && !other.IsGone() && !other.IsArchived()) borders.Add(other);
         }
         var geography = new Dictionary<Empire, float>();

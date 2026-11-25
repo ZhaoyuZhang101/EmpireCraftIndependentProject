@@ -1,6 +1,7 @@
 // Generated from the EmpireCraft mod: Scripts/GeneralSystems/ZhouEraSystem.cs. Do not edit by hand: Tools/PortTool/members.py rewrites it;
 // see Port/manifest.json and Tools/PortTool.
 using Mathf = EmpireCraft.Core.EcMath;
+using Random = EmpireCraft.Core.EcRandom;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -289,9 +290,9 @@ public static class ZhouEraSystem
 #endif
 
     // 周室归属变了：整图重画，外框跟着变(原版只在地块所属国或邻接变化时重画)
-#if EC_PENDING
-    private static void RedrawMap() => EmpireWorld.Current?.zone_calculator?.dirtyAndClear();
+    private static void RedrawMap() => EmpireWorld.Current?.Zones?.MarkDirty();
 
+#if EC_PENDING
     public static int Power(Realm kingdom) =>
         kingdom?.Record == null || kingdom.IsGone() ? 0 : (kingdom.Cities?.Count ?? 0) * 4 + kingdom.countTotalWarriors();
 
@@ -876,8 +877,8 @@ public static class ZhouEraSystem
         cities ??= vassal.Cities?.Where(city => city != null && !city.IsGone()).ToList() ?? new List<City>();
         City capital = vassal.Capital;
         if (capital == null || cities.Count < 3) return false;
-        WorldTile Tile(City city) => city.getTile();
-        float Distance(City a, City b) => Tile(a) == null || Tile(b) == null ? 0f : Toolbox.SquaredDistTile(Tile(a), Tile(b));
+        Cell Tile(City city) => city.SeatCell();
+        float Distance(City a, City b) => Tile(a) == null || Tile(b) == null ? 0f : Land.SquaredDist(Tile(a), Tile(b));
         City second = cities.Where(city => city != capital).OrderByDescending(city => Distance(city, capital)).First();
         City third = cities.Where(city => city != capital && city != second)
             .OrderByDescending(city => Mathf.Min(Distance(city, capital), Distance(city, second))).First();
@@ -1090,7 +1091,7 @@ public static class ZhouEraSystem
         var realms = Vassals(empire).Append(empire.CoreKingdom).Distinct()
             .Where(kingdom => kingdom?.Cities != null && !kingdom.IsGone()).ToList();
         int total = realms.Sum(kingdom => kingdom.Cities.Count);
-        int core = empire.CoreKingdom?.cities?.Count ?? 0;
+        int core = empire.CoreKingdom?.Cities?.Count ?? 0;
         int rival = realms.Where(kingdom => kingdom != empire.CoreKingdom).Select(kingdom => kingdom.Cities.Count)
             .DefaultIfEmpty(0).Max();
         if (total <= 0 || core * 2 < total && (core * 3 < total || rival * 3 > core)) return;
@@ -1235,7 +1236,7 @@ public static class ZhouEraSystem
         if (!Applies(empire) || State(empire).era > Spring) return result;
         var seen = new HashSet<long>();
         foreach (Realm member in Vassals(empire).Append(empire.CoreKingdom).ToList())
-            foreach (War war in member?.getWars()?.ToList() ?? new List<War>())
+            foreach (War war in member?.GetWars()?.ToList() ?? new List<War>())
             {
                 if (war == null || war.HasEnded() || !war.IsDefender(member)) continue;
                 Realm attacker = war.MainAttacker;

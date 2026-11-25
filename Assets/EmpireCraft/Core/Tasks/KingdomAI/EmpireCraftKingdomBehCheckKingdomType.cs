@@ -320,7 +320,7 @@ public class EmpireCraftKingdomBehCheckKingdomType: GameAIKingdomBase
     public static void SyncKingdomStatus(Realm pKingdom, bool afterIndependence = false)
     {
         var originalKingdomType = pKingdom.GetKingdomType();
-        string nameBefore = pKingdom.Record?.Name;
+        string nameBefore = pKingdom.Name;
         //计算当前国家类别
         KingdomType newkingdomType = CalcKingdomType(pKingdom);
         pKingdom.SetKingdomType(newkingdomType);
@@ -436,7 +436,6 @@ public class EmpireCraftKingdomBehCheckKingdomType: GameAIKingdomBase
     private static int _nameIndexFrame = -1;
     private static object _nameIndexWorld;
 
-#if EC_PENDING
     private static void EnsureNameIndex()
     {
         int frame = Time.frameCount;
@@ -447,7 +446,7 @@ public class EmpireCraftKingdomBehCheckKingdomType: GameAIKingdomBase
         foreach (Realm other in EmpireWorld.Current.LiveRealms)
         {
             if (other == null || other.IsGone()) continue;
-            string name = other.Record?.name?.UseLocalizedNameSeparator();
+            string name = other.Name?.UseLocalizedNameSeparator();
             if (name == null) continue;
             NameIndex[name] = NameIndex.TryGetValue(name, out (int count, Realm one) entry) ? (entry.count + 1, entry.one) : (1, other);
         }
@@ -459,7 +458,6 @@ public class EmpireCraftKingdomBehCheckKingdomType: GameAIKingdomBase
         EnsureNameIndex();
         return NameIndex.TryGetValue(normalized, out (int count, Realm one) entry) && (entry.count > 1 || entry.one != kingdom);
     }
-#endif
 
     // 省名的正主：控制着所用法理(托管的或自持的)首府的那个政权
 #if EC_PENDING

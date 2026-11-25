@@ -53,7 +53,7 @@ public static class PeaceTermRules
 #if EC_PENDING
     public static int AverageCityValue(Realm kingdom)
     {
-        int cities = kingdom?.cities?.Count ?? 0;
+        int cities = kingdom?.Cities?.Count ?? 0;
         return cities <= 0 ? 0 : Math.Max(1, RealmValue(kingdom) / cities);
     }
 #endif
@@ -158,20 +158,18 @@ public static class PeaceTermRules
 #endif
 
     // 攻方一边(attackers)或守方一边占了这座城几成地块
-#if EC_PENDING
     public static float OccupiedShare(War war, City city, bool attackers)
     {
         if (attackers) return WarObjective.HeldShareOf(war, city);
         if (war?.Record == null || city?.Record == null || city.IsGone()) return 0f;
         if (city.Realm != null && war.Defenders.Contains(city.Realm)) return 1f;
-        int total = city.zones?.Count ?? 0;
+        int total = city.Zones?.Count ?? 0;
         if (total == 0) return 0f;
         int held = 0;
         foreach (Realm kingdom in war.Defenders)
             if (kingdom?.Record != null && !kingdom.IsGone()) held += city.GetOccupiedTileZoneCount(kingdom);
         return Math.Min(1f, held / (float)total);
     }
-#endif
 
     #endregion
 

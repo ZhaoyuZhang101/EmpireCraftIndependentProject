@@ -117,7 +117,7 @@ public static class AnimalHusbandrySystem
 
     private static (double at, float range, float wild) TerrainOf(City city)
     {
-        if (city?.zones == null || city.zones.Count == 0) return (0d, 0f, 0f);
+        if (city?.Zones == null || city.Zones.Count == 0) return (0d, 0f, 0f);
         double now = GameClock.Now;
         if (Terrain.TryGetValue(city, out (double at, float range, float wild) cached) && now >= cached.at &&
             GameClock.MonthsSince(cached.at) < 1) return cached;
@@ -141,7 +141,7 @@ public static class AnimalHusbandrySystem
         ParallelWork.For(cities.Count, index =>
         {
             City city = cities[index];
-            if (city?.Record == null || city.zones == null || city.zones.Count == 0) return;
+            if (city?.Record == null || city.Zones == null || city.Zones.Count == 0) return;
             try
             {
                 (float range, float wild) = MeasureTerrain(city);
@@ -163,31 +163,31 @@ public static class AnimalHusbandrySystem
     {
         int tiles = 0, trees = 0;
         float open = 0f;
-        foreach (TileZone zone in city.zones)
+        foreach (Cell zone in city.Zones)
         {
-            if (zone?.tiles == null) continue;
+            if (zone?.Tiles == null) continue;
             trees += zone.getHashset(BuildingList.Trees)?.Count ?? 0;
-            foreach (WorldTile tile in zone.tiles)
+            foreach (Cell tile in zone.Tiles)
             {
-                if (tile?.Type == null || tile.Type.liquid) continue;
+                if (tile?.Type == null || tile.Type.Liquid) continue;
                 tiles++;
                 // 可放牧：能耕(草地、荒漠、稀树草原……)又没开成田、没盖房的空地；山石(连同岩地、冰封丘陵)不算，同 LandKinds。
                 // 按水草算：草地一整格，稀树草原、林地八成，沼泽四成，荒原两成五，沙漠一成五，沙地一成
                 // 高寒高原不能耕，是草甸牧场(牦牛)，照样算可放牧
-                bool alpine = PlateauTerrain.IsAlpine(tile) && !tile.Type.farm_field;
-                if ((tile.Type.can_be_farm || alpine) && !tile.Type.farm_field && !tile.hasBuilding() && !LandKinds.Is(tile.Type, LandKinds.Rough))
-                    open += Grazing(alpine ? tile.main_type : tile.Type);
+                bool alpine = PlateauTerrain.IsAlpine(tile) && !tile.Type.FarmField;
+                if ((tile.Type.CanBeFarm || alpine) && !tile.Type.FarmField && !tile.hasBuilding() && !LandKinds.Is(tile.Type, LandKinds.Rough))
+                    open += Grazing(alpine ? tile.MainType : tile.Type);
             }
         }
-        return (tiles == 0 ? 0f : open / tiles, Mathf.Clamp01(trees / (city.zones.Count * 8f)));
+        return (tiles == 0 ? 0f : open / tiles, Mathf.Clamp01(trees / (city.Zones.Count * 8f)));
     }
 
-    private static float Grazing(TileTypeBase type)
+    private static float Grazing(TerrainKind type)
     {
         // 高寒草甸六成，黄土高原八成，草原高原一整格
         if (PlateauTerrain.IsPlateau(type))
             return ReferenceEquals(type, PlateauTerrain.Alpine) ? 0.6f : ReferenceEquals(type, PlateauTerrain.Steppe) ? 1f : 0.8f;
-        switch (type.biome_id)
+        switch (type.BiomeId)
         {
             case "biome_desert": return 0.15f;
             case "biome_wasteland": return 0.25f;
@@ -285,7 +285,7 @@ public static class AnimalHusbandrySystem
             }
             catch (Exception exception)
             {
-                LogService.LogWarning($"[EmpireCraft][畜牧] 结算失败({city.Record?.Name}): {exception.Message}");
+                LogService.LogWarning($"[EmpireCraft][畜牧] 结算失败({city.Name}): {exception.Message}");
             }
         }
         if (Pending.Count == 0)
@@ -304,12 +304,12 @@ public static class AnimalHusbandrySystem
     {
             if (actor?.Record == null || actor.IsGone() || !actor.Alive || actor.asset == null) return;
             if (actor.isFavorite() || actor.isCameraFollowingUnit()) return;
-            WorldTile tile = actor.current_tile;
-            City owner = tile?.zone?.city;
+            Cell tile = actor.current_tile;
+            City owner = tile?.Zone?.City;
             if (owner == null) return;
             // 无小人模式没有农民赶虫：农田(田地、规划农耕区)上的害虫由城市每月清除
             if (_pestControl && IsPest(actor.asset) &&
-                (tile.Type != null && tile.Type.farm_field || FarmlandSystem.IsPlanned(owner, tile.zone)))
+                (tile.Type != null && tile.Type.FarmField || FarmlandSystem.IsPlanned(owner, tile.Zone)))
             {
                 if (!PestsByCity.TryGetValue(owner, out List<Person> pests)) PestsByCity[owner] = pests = new List<Person>();
                 if (pests.Count < PestsPerCity) pests.Add(actor);

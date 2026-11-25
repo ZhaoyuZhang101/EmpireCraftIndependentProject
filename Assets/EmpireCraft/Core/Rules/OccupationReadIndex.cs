@@ -15,10 +15,8 @@ public static class OccupationReadIndex
     public sealed class Group
     {
         public readonly Realm Occupier;
-#if EC_PENDING
-        public readonly IReadOnlyList<TileZone> Zones;
-        internal Group(Realm occupier, List<TileZone> zones) { Occupier = occupier; Zones = zones.AsReadOnly(); }
-#endif
+        public readonly IReadOnlyList<Cell> Zones;
+        internal Group(Realm occupier, List<Cell> zones) { Occupier = occupier; Zones = zones.AsReadOnly(); }
     }
     private sealed class Entry
     {
@@ -33,7 +31,7 @@ public static class OccupationReadIndex
     private static bool _active;
 
 #if EC_PENDING
-    public static void Invalidate(City city, TileZone zone = null)
+    public static void Invalidate(City city, Cell zone = null)
     {
         if (city == null) return;
         Repaint(city, zone);
@@ -48,7 +46,7 @@ public static class OccupationReadIndex
     // 有占领时(各处"清空占领"是在改动前调这里的)：太平城市的 AI 会定时清空(本来就空的)占领，以前每次都整城重画，
     // 几十座城一起把每帧的上色预算吃光，切图层后整图迟迟画不完
 #if EC_PENDING
-    private static void Repaint(City city, TileZone zone)
+    private static void Repaint(City city, Cell zone)
     {
         if (!PureMapMode.Enabled && !SmoothBorders.Enabled) return;
         if (zone != null)
@@ -57,8 +55,8 @@ public static class OccupationReadIndex
             else zone.resetRenderHelpers();
             return;
         }
-        if (city.zones == null || city.GetOrCreate().OccupiedStatus?.Any(pair => pair.Value?.Count > 0) != true) return;
-        foreach (TileZone each in city.zones)
+        if (city.Zones == null || city.GetOrCreate().OccupiedStatus?.Any(pair => pair.Value?.Count > 0) != true) return;
+        foreach (Cell each in city.Zones)
             if (SmoothBorders.Enabled) SmoothBorders.Repaint(each);
             else each?.resetRenderHelpers();
     }
@@ -71,7 +69,6 @@ public static class OccupationReadIndex
         ControlBuilds = ControlHits = 0; _active = false;
     }
 
-#if EC_PENDING
     public static IReadOnlyList<Group> Read(City city)
     {
         var data = city.GetOrCreate();
@@ -86,10 +83,10 @@ public static class OccupationReadIndex
             {
                 Realm kingdom = EmpireWorld.Current.RealmByKey(pair.Key);
                 if (kingdom == null || pair.Value == null) continue;
-                var zones = new List<TileZone>(pair.Value.Count);
+                var zones = new List<Cell>(pair.Value.Count);
                 foreach (int id in pair.Value)
                 {
-                    TileZone zone = EmpireWorld.Current.zone_calculator.getZoneByID(id);
+                    Cell zone = EmpireWorld.Current.Zones.ById(id);
                     if (zone != null) zones.Add(zone);
                 }
                 groups.Add(new Group(kingdom, zones));
@@ -98,7 +95,6 @@ public static class OccupationReadIndex
         entry.Groups = groups.AsReadOnly(); Builds++;
         return entry.Groups;
     }
-#endif
 
     public readonly struct Control
     {
@@ -139,6 +135,7 @@ public static class OccupationReadIndex
         entry.Value = value; ControlBuilds++;
         return value;
     }
+#endif
 
     public static long Membership(IEnumerable<City> cities)
     {
@@ -149,11 +146,10 @@ public static class OccupationReadIndex
                 {
                     hash = hash * 31 + (city == null ? 0 : RuntimeHelpers.GetHashCode(city));
                     hash = hash * 31 + (city?.Realm == null ? 0 : RuntimeHelpers.GetHashCode(city.Realm));
-                    hash = hash * 31 + (city?.zones?.Count ?? 0);
+                    hash = hash * 31 + (city?.Zones?.Count ?? 0);
                     hash = hash * 31 + (city?.IsGone() == true ? 1 : 0);
                 }
         return hash;
     }
-#endif
 }
 }

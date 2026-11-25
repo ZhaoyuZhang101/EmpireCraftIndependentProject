@@ -331,7 +331,7 @@ public static class LandmarkBookSystem
         foreach (KeyValuePair<string, float> pair in config.techs)
             TechnologySystem.AddTechProgressFraction(culture, pair.Key, pair.Value * techFactor);
         PushActiveReforms(culture, config);
-        List<City> cities = EmpireWorld.Current?.cities?.Where(city => city != null && !city.IsGone() &&
+        List<City> cities = EmpireWorld.Current?.Cities?.Where(city => city != null && !city.IsGone() &&
             CultureService.GetMainCulture(city) == culture).ToList() ?? new List<City>();
         TryApplyIdeologyEffect(culture, cities, state, config, techFactor, title);
     }
@@ -344,7 +344,7 @@ public static class LandmarkBookSystem
     {
         LandmarkBookConfig config = FoundingBook(ideology);
         if (config == null || HasFoundingBook(culture, ideology)) return true;
-        List<City> cities = EmpireWorld.Current?.cities?.Where(city => city != null && !city.IsGone() &&
+        List<City> cities = EmpireWorld.Current?.Cities?.Where(city => city != null && !city.IsGone() &&
                                                                CultureService.GetMainCulture(city) == culture &&
                                                                city.getBuildingWithBookSlot() != null).ToList();
         if (cities == null || cities.Count == 0) return false;
@@ -606,7 +606,7 @@ public static class LandmarkBookSystem
                              Math.Min(1f, IdeologyPopulationSystem.GetCityShare(city, pair.Key) / SaturationShare);
             IdeologyPopulationSystem.InfluenceCity(city, pair.Key, Damped(city, pair.Key, pair.Value));
             if (radiance <= 0f) continue;
-            foreach (City neighbour in city.neighbours_cities ?? Enumerable.Empty<City>())
+            foreach (City neighbour in city.NeighbourCities ?? Enumerable.Empty<City>())
             {
                 if (neighbour == null || neighbour.IsGone() || neighbour.units == null) continue;
                 float reach = ConnectivitySystem.NeighbourStrength(city, neighbour);

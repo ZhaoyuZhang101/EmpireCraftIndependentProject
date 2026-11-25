@@ -1,6 +1,7 @@
 // Generated from the EmpireCraft mod: Scripts/GeneralSystems/ParliamentBillSystem.cs. Do not edit by hand: Tools/PortTool/members.py rewrites it;
 // see Port/manifest.json and Tools/PortTool.
 using Mathf = EmpireCraft.Core.EcMath;
+using Random = EmpireCraft.Core.EcRandom;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -94,7 +95,6 @@ public static class ParliamentBillSystem
 #endif
 
     // 诉求出自哪几种理念的纲领：离其中最近的那一种越近越赞成(相距 0 加 10，100 不加，200 减 10)
-#if EC_PENDING
     public static float IdeologyLean(PartyIdeology ideology, TemporaryFactionType issue)
     {
         float best = float.MinValue;
@@ -106,7 +106,6 @@ public static class ParliamentBillSystem
         }
         return best == float.MinValue ? 0f : Mathf.Clamp(best, -1f, 1f) * IdeologyLeanWeight;
     }
-#endif
 
     // 各党怎么投：提案的党赞成；执政联盟守党纪；在野党按立场
 #if EC_PENDING

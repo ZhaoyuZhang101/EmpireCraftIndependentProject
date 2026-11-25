@@ -1,6 +1,7 @@
 // Generated from the EmpireCraft mod: Scripts/GeneralSystems/CapitalLossNamingSystem.cs. Do not edit by hand: Tools/PortTool/members.py rewrites it;
 // see Port/manifest.json and Tools/PortTool.
 using Mathf = EmpireCraft.Core.EcMath;
+using Vector2 = EmpireCraft.Core.EcVector2;
 using System;
 
 namespace EmpireCraft.Core
@@ -72,7 +73,7 @@ public static class CapitalLossNamingSystem
         if (RealmNamingSystem.KeepsFoundingPrefix(empire)) return;
         string before = empire.GetEmpireFullName();
         data.capital_loss_previous_prefix = Array.IndexOf(Directions, data.directPre) >= 0 ? "" : data.directPre ?? "";
-        data.directPre = DirectionFrom(oldCapital.city_center, core.Capital.city_center);
+        data.directPre = DirectionFrom(oldCapital.Center, core.Capital.Center);
         data.capital_loss_prefix_applied = true;
         FiscalDiagnostics.Count("失都改称");
         TranslateHelper.LogEventMessage(string.Format(LM.Get("capital_loss_renamed"), before, oldCapital.GetCityName(),
@@ -81,7 +82,6 @@ public static class CapitalLossNamingSystem
 #endif
 
     // 南明结成(见 SouthernRetreatSystem)：京师已失、朝廷在别处，不等五十年当场冠方位；收复京师照旧去掉(见 Check)
-#if EC_PENDING
     public static bool ApplyNow(Empire empire)
     {
         if (empire?.data == null || empire.IsGone() || empire.IsArchived()) return false;
@@ -95,11 +95,10 @@ public static class CapitalLossNamingSystem
             return false;
         if (data.core_capital_lost_since < 0d) data.core_capital_lost_since = GameClock.Now;
         data.capital_loss_previous_prefix = Array.IndexOf(Directions, data.directPre) >= 0 ? "" : data.directPre ?? "";
-        data.directPre = DirectionFrom(oldCapital.city_center, core.Capital.city_center);
+        data.directPre = DirectionFrom(oldCapital.Center, core.Capital.Center);
         data.capital_loss_prefix_applied = true;
         return true;
     }
-#endif
 
     // 行在：华夏王朝的核心王国(直隶)在核心首都失陷期间(不必满五十年)，类别改称"行在"
 #if EC_PENDING
@@ -117,13 +116,11 @@ public static class CapitalLossNamingSystem
 #endif
 
     // 新都在旧都的哪个方向(地图 y 轴朝北)
-#if EC_PENDING
     private static string DirectionFrom(Vector2 oldPos, Vector2 newPos)
     {
         float dx = newPos.x - oldPos.x, dy = newPos.y - oldPos.y;
         if (Mathf.Abs(dx) > Mathf.Abs(dy)) return dx > 0f ? "Eastern" : "Western";
         return dy > 0f ? "Northern" : "Southern";
     }
-#endif
 }
 }

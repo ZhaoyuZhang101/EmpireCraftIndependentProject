@@ -208,8 +208,8 @@ public static class CityStateService
                             actor.isAdult() && !actor.isKing() && actor.isUnitFitToRule())
             .ToList();
         return locals.Where(actor => actor.GetOrCreate().socialClass == SocialClass.Noble)
-                   .OrderByDescending(actor => actor.Record?.Renown ?? 0).FirstOrDefault()
-               ?? locals.OrderByDescending(actor => actor.Record?.Renown ?? 0).FirstOrDefault();
+                   .OrderByDescending(actor => actor.Renown ?? 0).FirstOrDefault()
+               ?? locals.OrderByDescending(actor => actor.Renown ?? 0).FirstOrDefault();
     }
 
     public static bool TryCrownLocalRuler(Realm realm)

@@ -78,10 +78,10 @@ public static class SmallStateSubmissionSystem
         var contacts = new Dictionary<Realm, int>();
         int total = 0;
         foreach (City city in small.Cities)
-            foreach (TileZone zone in city?.border_zones ?? new HashSet<TileZone>())
-                foreach (TileZone next in zone?.neighbours ?? Array.Empty<TileZone>())
+            foreach (Cell zone in city?.border_zones ?? new HashSet<Cell>())
+                foreach (Cell next in zone?.Neighbours ?? Array.Empty<Cell>())
                 {
-                    Realm other = next?.city?.kingdom;
+                    Realm other = next?.City?.Realm;
                     if (!Alive(other) || other == small || other.IsWild) continue;
                     Realm top = EmpireCoreControl.Sovereign(other);
                     if (!Alive(top)) continue;

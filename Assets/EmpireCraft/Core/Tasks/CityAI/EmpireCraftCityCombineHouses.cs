@@ -1,5 +1,6 @@
 // Generated from the EmpireCraft mod: Scripts/AI/CityAI/EmpireCraftCityCombineHouses.cs. Do not edit by hand: Tools/PortTool/members.py rewrites it;
 // see Port/manifest.json and Tools/PortTool.
+using Vector2 = EmpireCraft.Core.EcVector2;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -100,13 +101,13 @@ public class EmpireCraftCityCombineHouses: GameAICityBase
 #if EC_PENDING
     private static Building Place(City city, BuildingAsset asset)
     {
-        if (city.zones == null) return null;
-        Vector2 center = city.city_center;
-        foreach (TileZone zone in city.zones.ToList()
-                     .Where(zone => zone?.tiles != null && zone.city == city && !FarmlandSystem.IsPlanned(city, zone))
-                     .OrderBy(zone => Vector2.SqrMagnitude(new Vector2(zone.centerTile.x, zone.centerTile.y) - center)))
+        if (city.Zones == null) return null;
+        Vector2 center = city.Center;
+        foreach (Cell zone in city.Zones.ToList()
+                     .Where(zone => zone?.Tiles != null && zone.City == city && !FarmlandSystem.IsPlanned(city, zone))
+                     .OrderBy(zone => Vector2.SqrMagnitude(new Vector2(zone.Center.X, zone.Center.Y) - center)))
         {
-            foreach (WorldTile tile in zone.tiles)
+            foreach (Cell tile in zone.Tiles)
                 if (EmpireWorld.Current.buildings.canBuildFrom(tile, asset, city))
                     return EmpireWorld.Current.buildings.addBuilding(asset, tile);
         }

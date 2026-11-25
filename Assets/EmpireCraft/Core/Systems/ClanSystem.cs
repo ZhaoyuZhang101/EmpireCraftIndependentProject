@@ -1,6 +1,7 @@
 // Generated from the EmpireCraft mod: Scripts/GeneralSystems/ClanSystem.cs. Do not edit by hand: Tools/PortTool/members.py rewrites it;
 // see Port/manifest.json and Tools/PortTool.
 using Color = EmpireCraft.Core.EcColor;
+using Vector2 = EmpireCraft.Core.EcVector2;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -321,8 +322,8 @@ public class SpecificClan
         // 称帝那一刻帝国还没绑帝国法理，绑完再补记(见 EmpireManager.NewEmpire)
         history_empire_core_id = EmpireCoreManager.Get(empire)?.id ?? -1L;
         capital_city_id = capital.Key;
-        capital_city_pos_x = capital.city_center.x;
-        capital_city_pos_y = capital.city_center.y;
+        capital_city_pos_x = capital.Center.x;
+        capital_city_pos_y = capital.Center.y;
     }
 #endif
     public void RecordAncestralCity(City city)
@@ -344,7 +345,6 @@ public class SpecificClan
     {
         return GetAncestralCity() != null;
     }
-#if EC_PENDING
     public (string name, Vector2 pos, City city) GetHistoryEmpire()
     {
         var empireName = empire_name;
@@ -352,7 +352,6 @@ public class SpecificClan
         var city = EmpireWorld.Current.CityByKey(capital_city_id);
         return (empireName, pos, city);
     }
-#endif
     public bool HasHistoryEmpire()
     {
         return !string.IsNullOrEmpty(empire_name);
@@ -1228,7 +1227,7 @@ public static class SpecificClanManager
         int changed = 0;
         foreach (Clan clan in EmpireWorld.Current.clans.list.ToList())
         {
-            string before = clan?.data?.name;
+            string before = clan?.Name;
             SyncVanillaClanName(clan);
             if (clan?.Record != null && clan.Name != before) changed++;
         }

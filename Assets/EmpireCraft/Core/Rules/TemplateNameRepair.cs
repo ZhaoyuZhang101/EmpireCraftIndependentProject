@@ -161,7 +161,7 @@ public static class TemplateNameRepair
             string name;
             if (!string.IsNullOrEmpty(surname) && !IsRaw(surname))
             {
-                name = OverallHelperFunc.JoinNameParts(member.City?.data?.name ?? "", surname, LM.Get("Family"));
+                name = OverallHelperFunc.JoinNameParts(member.City?.Name ?? "", surname, LM.Get("Family"));
                 family.data.name = name;
                 family.SetFamilyCityPre(member.City?.Record != null);
             }

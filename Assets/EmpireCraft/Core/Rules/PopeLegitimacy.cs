@@ -37,7 +37,7 @@ public static class PopeLegitimacy
         if (chosen == PapalElection.ByConclave) items.Add(("pope_legit_conclave", Conclave));
         else if (chosen == PapalElection.ByImposition) items.Add(("pope_legit_imposed", Imposed));
         Realm see = PapacySystem.Papacy(religion);
-        double since = see?.data?.timestamp_king_rule ?? -1d;
+        double since = see?.Record?.timestamp_king_rule ?? -1d;
         int tenure = since >= 0d ? Mathf.Min(TenureCap, GameClock.YearsSince(since) / TenureYearsPerPoint) : 0;
         if (tenure > 0) items.Add(("pope_legit_tenure", tenure));
         int active = PapacySystem.ActiveCrusade(religion) != null ? 1 : 0;

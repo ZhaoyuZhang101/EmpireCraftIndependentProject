@@ -133,11 +133,10 @@ public static class PrivyPurse
 #endif
 
     // 皇庄：本宗在本国各城的私田，每 1 点每月 RentPerPoint 两(零头累计)
-#if EC_PENDING
     public static float RoyalLand(Realm realm, out List<(City city, float share)> holdings)
     {
         holdings = new List<(City, float)>();
-        SpecificClan clan = realm?.king?.GetSpecificClan();
+        SpecificClan clan = realm?.Ruler?.GetSpecificClan();
         if (clan == null || realm.Cities == null) return 0f;
         float total = 0f;
         foreach (City city in realm.Cities)
@@ -164,7 +163,6 @@ public static class PrivyPurse
         RentCarry[realm.Key] = carry - whole;
         Credit(realm, Estates, whole);
     }
-#endif
 
     // ───────── 君主下令(手机上照政令一个月后办) ─────────
     public static string SetTier(Realm realm, int tier)
@@ -180,7 +178,7 @@ public static class PrivyPurse
 
 #if EC_PENDING
     public static bool CanBuyLand(Realm realm, City city) =>
-        city?.Record != null && !city.IsGone() && city.Realm == realm && realm?.king?.GetSpecificClan() != null &&
+        city?.Record != null && !city.IsGone() && city.Realm == realm && realm?.Ruler?.GetSpecificClan() != null &&
         CityPopulationSystem.AbstractPopulationEnabled && LandEconomySystem.IsLandMarketOpen(realm);
 
     public static string BuyLand(Realm realm, City city)

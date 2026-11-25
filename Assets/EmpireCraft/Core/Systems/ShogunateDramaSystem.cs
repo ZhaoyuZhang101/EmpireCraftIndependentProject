@@ -172,10 +172,10 @@ public static class ShogunateDramaSystem
         if (rivalDaimyo != null) Boost(rival, rivalDaimyo, SplitBoost);
         MilitaryRegency.EstablishNow(rival);
         string text = string.Format(LM.Get("shogunate_split_history"), name, emperorName, rival.Emperor?.FullName() ?? "",
-            rival.CoreKingdom?.capital?.GetCityName() ?? "");
+            rival.CoreKingdom?.Capital?.GetCityName() ?? "");
         Record(empire, text, major: true);
         rival.RecordHistory(directContent: text, kingdomId: rival.CoreKingdom?.Key ?? -1L);
-        LogService.LogInfo($"{Tag} {name} 南北朝分立：{rival.GetEmpireFullName()} 立于 {rival.CoreKingdom?.capital?.GetCityName()}");
+        LogService.LogInfo($"{Tag} {name} 南北朝分立：{rival.GetEmpireFullName()} 立于 {rival.CoreKingdom?.Capital?.GetCityName()}");
     }
 #endif
 
@@ -223,7 +223,6 @@ public static class ShogunateDramaSystem
 #endif
 
     // 自立的大名之间：城挨着城的互相开战，每家至多 SengokuWarsEach 处(家数多时两两全开要几十上百场)
-#if EC_PENDING
     private static int Feuds(List<Realm> realms)
     {
         var set = new HashSet<Realm>(realms);
@@ -234,8 +233,8 @@ public static class ShogunateDramaSystem
             if (realm.IsGone() || realm.Cities == null) continue;
             foreach (City city in realm.Cities.ToList())
             {
-                if (city?.neighbours_cities == null) continue;
-                foreach (City next in city.neighbours_cities)
+                if (city?.NeighbourCities == null) continue;
+                foreach (City next in city.NeighbourCities)
                 {
                     Realm other = next?.Realm;
                     if (other == null || other == realm || !set.Contains(other) || other.IsGone() || realm.IsAtWarWith(other)) continue;
@@ -260,7 +259,6 @@ public static class ShogunateDramaSystem
         }
         return wars;
     }
-#endif
 
     // 记进史书；大事不论哪国都上屏(见 TranslateHelper.LogMajor)，其余照寻常的世界消息
 #if EC_PENDING

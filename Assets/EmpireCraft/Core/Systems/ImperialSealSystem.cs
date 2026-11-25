@@ -212,7 +212,7 @@ public static class ImperialSealSystem
         state.imperial_seal_item_id = item.Key;
         state.imperial_seal_empire_id = empire.data.id;
         state.imperial_seal_kingdom_id = -1L;
-        state.imperial_seal_city_id = empire.CoreKingdom?.capital?.data?.id ?? state.imperial_seal_city_id;
+        state.imperial_seal_city_id = empire.CoreKingdom?.Capital?.Key ?? state.imperial_seal_city_id;
         state.imperial_seal_lost_since = -1d;
         // 得了传国玉玺，受命宝不再用
         Item lesser = ItemOf(empire.data.imperial_seal_lesser_item_id);
@@ -236,7 +236,7 @@ public static class ImperialSealSystem
         state.imperial_seal_item_id = item.Key;
         state.imperial_seal_empire_id = -1L;
         state.imperial_seal_kingdom_id = kingdom.Key;
-        state.imperial_seal_city_id = kingdom.Capital?.data?.id ?? state.imperial_seal_city_id;
+        state.imperial_seal_city_id = kingdom.Capital?.Key ?? state.imperial_seal_city_id;
         state.imperial_seal_lost_since = -1d;
         if (announce && changed)
         {

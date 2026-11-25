@@ -190,7 +190,7 @@ public static class WarReach
             foreach (City city in x.Cities)
             {
                 if (city?.Record == null || city.IsGone()) continue;
-                if (Walks(city, city.neighbours_cities, others) || Walks(city, WildernessNeighbours.Of(city), others)) return true;
+                if (Walks(city, city.NeighbourCities, others) || Walks(city, WildernessNeighbours.Of(city), others)) return true;
             }
         }
         return false;
@@ -202,7 +202,7 @@ public static class WarReach
         foreach (City other in nearby)
         {
             if (other?.Realm == null || !others.Contains(other.Realm)) continue;
-            TileZone from = city.getTile()?.zone, to = other.getTile()?.zone;
+            Cell from = city.SeatCell()?.Zone, to = other.SeatCell()?.Zone;
             if (WildernessPassage.Walks(from, to, city.Realm) || WildernessPassage.Walks(from, to, other.Realm)) return true;
         }
         return false;
@@ -216,12 +216,12 @@ public static class WarReach
     public static IEnumerable<City> WalkableNeighbours(City city)
     {
         if (city?.Record == null) yield break;
-        TileZone from = city.getTile()?.zone;
-        if (city.neighbours_cities != null)
-            foreach (City other in city.neighbours_cities)
+        Cell from = city.SeatCell()?.Zone;
+        if (city.NeighbourCities != null)
+            foreach (City other in city.NeighbourCities)
             {
                 if (other?.Realm == null || other.IsGone()) continue;
-                TileZone to = other.getTile()?.zone;
+                Cell to = other.SeatCell()?.Zone;
                 if (WildernessPassage.Walks(from, to, city.Realm) || WildernessPassage.Walks(from, to, other.Realm)) yield return other;
             }
         foreach (City other in WalkableWildNeighbours(city)) yield return other;
@@ -253,11 +253,11 @@ public static class WarReach
     public static IEnumerable<City> WalkableWildNeighbours(City city)
     {
         if (city?.Record == null) yield break;
-        TileZone from = city.getTile()?.zone;
+        Cell from = city.SeatCell()?.Zone;
         foreach (City other in WildernessNeighbours.Of(city))
         {
             if (other?.Realm == null) continue;
-            TileZone to = other.getTile()?.zone;
+            Cell to = other.SeatCell()?.Zone;
             if (WildernessPassage.Walks(from, to, city.Realm) || WildernessPassage.Walks(from, to, other.Realm)) yield return other;
         }
     }
@@ -290,13 +290,13 @@ public static class WarReach
         float limit = LandTiles * LandTiles;
         foreach (City x in mine)
         {
-            WorldTile at = x.getTile();
+            Cell at = x.SeatCell();
             if (at == null) continue;
             foreach (City y in others)
             {
-                if ((x.city_center - y.city_center).sqrMagnitude > limit) continue;
-                WorldTile tile = y.getTile();
-                if (tile != null && at.isSameIsland(tile) && WildernessPassage.Reachable(at.zone, tile.zone, x.Realm) &&
+                if ((x.Center - y.Center).sqrMagnitude > limit) continue;
+                Cell tile = y.SeatCell();
+                if (tile != null && at.IsSameIsland(tile) && WildernessPassage.Reachable(at.Zone, tile.Zone, x.Realm) &&
                     LandCostWithin(x, y, at, tile)) return true;
             }
         }
@@ -306,11 +306,11 @@ public static class WarReach
 
     // 两城之间陆路的地形阻力不过 LandCost(见类头)
 #if EC_PENDING
-    private static bool LandCostWithin(City x, City y, WorldTile at, WorldTile tile)
+    private static bool LandCostWithin(City x, City y, Cell at, Cell tile)
     {
         float cost = ConnectivitySystem.NearLandCost(x, y, LandCost);
         if (cost >= 0f) return cost <= LandCost;
-        return TerrainResistance.LineCost(at.zone, tile.zone, x.Realm) <= LandCost;
+        return TerrainResistance.LineCost(at.Zone, tile.Zone, x.Realm) <= LandCost;
     }
 #endif
 

@@ -1,6 +1,7 @@
 // Generated from the EmpireCraft mod: Scripts/GeneralSystems/WorldMap/WorldMapDevelopment.cs. Do not edit by hand: Tools/PortTool/members.py rewrites it;
 // see Port/manifest.json and Tools/PortTool.
 using Mathf = EmpireCraft.Core.EcMath;
+using Vector2Int = EmpireCraft.Core.EcVector2Int;
 using System;
 using System.Collections.Generic;
 using System.IO;
@@ -70,9 +71,7 @@ public static class WorldMapDevelopment
     // 改了格子的一块地：在哪一片(刷的不在哪一片里为 -1)、要设的开发度、是不是刷的、改过的格子在 changed/original 两张表里的起止
     private struct Plot
     {
-#if EC_PENDING
-        public TileZone Zone;
-#endif
+        public Cell Zone;
         public int Area;
         public float Dev;
         public bool Painted;
@@ -213,7 +212,7 @@ public static class WorldMapDevelopment
         if (!earth && painted.Count == 0) return;
         // 无人区关着：没有雨林大泽可开发，地形也不改
         if (!WildernessSystem.Enabled) return;
-        List<TileZone> zones = EmpireWorld.Current?.zone_calculator?.zones;
+        List<Cell> zones = EmpireWorld.Current?.Zones?.All;
         if (zones == null) return;
         bool areas = earth && EnsureAreas();
         // 自定剧本按来源时代的表
@@ -226,8 +225,8 @@ public static class WorldMapDevelopment
             any |= values[i] >= 0f && values[i] < WildernessDevelopmentSystem.Full;
         }
         if (!any) return;
-        TopTileType jungleLow = AssetManager.top_tiles.get("jungle_low"), jungleHigh = AssetManager.top_tiles.get("jungle_high");
-        TopTileType swampLow = AssetManager.top_tiles.get("swamp_low"), swampHigh = AssetManager.top_tiles.get("swamp_high");
+        TerrainKind jungleLow = AssetManager.top_tiles.get("jungle_low"), jungleHigh = AssetManager.top_tiles.get("jungle_high");
+        TerrainKind swampLow = AssetManager.top_tiles.get("swamp_low"), swampHigh = AssetManager.top_tiles.get("swamp_high");
         if (jungleLow == null || jungleHigh == null || swampLow == null || swampHigh == null)
         {
             LogService.LogWarning("[EmpireCraft][世界地图] 找不到丛林、沼泽的顶层格，雨林大泽开发度不设");
@@ -238,15 +237,15 @@ public static class WorldMapDevelopment
         HashSet<int> kept = KeptZones();
         List<Vector2Int> seats = Seats();
         var plots = new List<Plot>();
-        var changed = new List<WorldTile>();
-        var original = new List<TopTileType>();
+        var changed = new List<Cell>();
+        var original = new List<TerrainKind>();
 
         // 一、改地形
-        foreach (TileZone zone in zones)
+        foreach (Cell zone in zones)
         {
-            WorldTile center = zone?.centerTile;
-            if (center == null || zone.tiles == null || zone.id < 0 || kept.Contains(zone.id)) continue;
-            float lon = frame.west + (center.x + 0.5f) * degrees, lat = bottom + (center.y + 0.5f) * degrees;
+            Cell center = zone?.Center;
+            if (center == null || zone.Tiles == null || zone.Index < 0 || kept.Contains(zone.Index)) continue;
+            float lon = frame.west + (center.X + 0.5f) * degrees, lat = bottom + (center.Y + 0.5f) * degrees;
             int index = areas ? AreaAt(lon, lat) : -1;
             float dev;
             bool swamp;
@@ -274,13 +273,13 @@ public static class WorldMapDevelopment
                 if (dev >= WildernessDevelopmentSystem.Full) continue;
                 swamp = _areas[index].Swamp;
             }
-            TopTileType low = swamp ? swampLow : jungleLow, high = swamp ? swampHigh : jungleHigh;
+            TerrainKind low = swamp ? swampLow : jungleLow, high = swamp ? swampHigh : jungleHigh;
             int start = changed.Count;
-            foreach (WorldTile tile in zone.tiles)
+            foreach (Cell tile in zone.Tiles)
             {
                 if (!Vegetated(tile, out bool upland)) continue;
                 changed.Add(tile);
-                original.Add(tile.top_type);
+                original.Add(tile.TopType);
                 // 同 WildernessDevelopmentSystem.Clear 改回草地：不闪白点，地面格不动(高地仍是高地)
                 MapAction.terraformTop(tile, upland ? high : low, TerraformLibrary.nothing);
             }
@@ -312,8 +311,8 @@ public static class WorldMapDevelopment
             }
             for (int i = plot.Start; i < plot.Start + plot.Count; i++)
             {
-                WorldTile tile = changed[i];
-                if (original[i] != null && IsWet(tile.top_type)) MapAction.terraformTop(tile, original[i], TerraformLibrary.nothing);
+                Cell tile = changed[i];
+                if (original[i] != null && IsWet(tile.TopType)) MapAction.terraformTop(tile, original[i], TerraformLibrary.nothing);
             }
             if (plot.Count > 0) restored++;
         }
@@ -327,45 +326,41 @@ public static class WorldMapDevelopment
 #endif
 
     // 无人区只从无城地块划出，提前跳过城地，省去临时改地形再还原。
-#if EC_PENDING
     private static HashSet<int> KeptZones()
     {
         var kept = new HashSet<int>();
         foreach (City city in EmpireWorld.Current.Cities)
         {
             if (city?.Record == null || city.IsGone()) continue;
-            foreach (TileZone zone in city.zones)
-                if (zone != null) kept.Add(zone.id);
+            foreach (Cell zone in city.Zones)
+                if (zone != null) kept.Add(zone.Index);
         }
         foreach (int id in RuralSettlementSystem.SettledZones()) kept.Add(id);
         foreach (int id in FactorySystem.CoveredZones()) kept.Add(id);
         return kept;
     }
-#endif
 
     // 各城城心(格子坐标)：开发度按离最近的城多远算
-#if EC_PENDING
     private static List<Vector2Int> Seats()
     {
         var seats = new List<Vector2Int>();
         foreach (City city in EmpireWorld.Current.Cities)
         {
             if (city?.Record == null || city.IsGone()) continue;
-            WorldTile seat = city.getTile();
-            if (seat != null) seats.Add(new Vector2Int(seat.x, seat.y));
+            Cell seat = city.SeatCell();
+            if (seat != null) seats.Add(new Vector2Int(seat.X, seat.Y));
         }
         return seats;
     }
-#endif
 
     // 离最近的城心几度(经向按纬度折算)；没有城为无穷远(只按腹地的数)
 #if EC_PENDING
-    private static float SeatDistance(WorldTile center, float lat, float degrees, List<Vector2Int> seats)
+    private static float SeatDistance(Cell center, float lat, float degrees, List<Vector2Int> seats)
     {
         float squeeze = Mathf.Cos(lat * Mathf.Deg2Rad), best = float.MaxValue;
         foreach (Vector2Int seat in seats)
         {
-            float dx = (seat.x - center.x) * squeeze, dy = seat.y - center.y;
+            float dx = (seat.x - center.X) * squeeze, dy = seat.y - center.Y;
             best = Mathf.Min(best, dx * dx + dy * dy);
         }
         return best == float.MaxValue ? float.MaxValue : Mathf.Sqrt(best) * degrees;
@@ -375,54 +370,50 @@ public static class WorldMapDevelopment
     // 这块地改不改：陆地够 MinLand 格；没有房屋(城里的建筑，开局按人口盖的房不压在丛林里)；
     // 改完丛林、沼泽格(连原有的)能占到陆地一半(成得了无人区)
 #if EC_PENDING
-    private static bool Convertible(TileZone zone)
+    private static bool Convertible(Cell zone)
     {
         int land = 0, wet = 0;
-        foreach (WorldTile tile in zone.tiles)
+        foreach (Cell tile in zone.Tiles)
         {
-            TileTypeBase type = tile?.Type;
-            if (type == null || type.liquid || type.lava) continue;
+            TerrainKind type = tile?.Type;
+            if (type == null || type.Liquid || type.Lava) continue;
             land++;
             Building building = tile.building;
             if (building?.asset != null && building.asset.building_type == BuildingType.Building_Civ) return false;
-            if (IsWet(tile.top_type) || Vegetated(tile, out _)) wet++;
+            if (IsWet(tile.TopType) || Vegetated(tile, out _)) wet++;
         }
         return land >= MinLand && wet >= land * WetShare;
     }
 #endif
 
     // 有草木的平地格(草地、稀树草原、桦林、枫林，高低两种)；upland：高地那一种
-#if EC_PENDING
-    private static bool Vegetated(WorldTile tile, out bool upland)
+    private static bool Vegetated(Cell tile, out bool upland)
     {
         upland = false;
-        TopTileType top = tile?.top_type;
-        TileTypeBase type = tile?.Type;
-        if (top == null || type == null || type.liquid || type.lava) return false;
-        string id = top.id ?? "";
+        TerrainKind top = tile?.TopType;
+        TerrainKind type = tile?.Type;
+        if (top == null || type == null || type.Liquid || type.Lava) return false;
+        string id = top.Id ?? "";
         upland = id.EndsWith("_high", StringComparison.Ordinal);
         if (!upland && !id.EndsWith("_low", StringComparison.Ordinal)) return false;
-        return top.biome_id is "biome_grass" or "biome_savanna" or "biome_birch" or "biome_maple";
+        return top.BiomeId is "biome_grass" or "biome_savanna" or "biome_birch" or "biome_maple";
     }
 
-    private static bool IsWet(TopTileType top) => top != null && top.biome_id is "biome_jungle" or "biome_swamp";
-#endif
+    private static bool IsWet(TerrainKind top) => top != null && top.BiomeId is "biome_jungle" or "biome_swamp";
 
     // 地块里原有的丛林、沼泽格哪样多(swamp 为沼泽多)；一格都没有返回 false
-#if EC_PENDING
-    private static bool WetKindOf(TileZone zone, out bool swamp)
+    private static bool WetKindOf(Cell zone, out bool swamp)
     {
         int jungle = 0, marsh = 0;
-        foreach (WorldTile tile in zone.tiles)
+        foreach (Cell tile in zone.Tiles)
         {
-            string biome = tile?.top_type?.biome_id;
+            string biome = tile?.TopType?.BiomeId;
             if (biome == "biome_jungle") jungle++;
             else if (biome == "biome_swamp") marsh++;
         }
         swamp = marsh > jungle;
         return jungle + marsh > 0;
     }
-#endif
 
     #endregion
 }

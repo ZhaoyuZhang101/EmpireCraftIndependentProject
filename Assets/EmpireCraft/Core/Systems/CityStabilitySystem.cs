@@ -660,7 +660,7 @@ public static class CityStabilitySystem
         if (authority.GetOrCreate().last_stability_release >= 0d &&
             GameClock.YearsSince(authority.GetOrCreate().last_stability_release) < 1) return;
         // 不许自立(见 SecessionGate)：撤守之城不据城自立、成员国不离开(不记叛离，Empire.leave 那道门拦不到)
-        if (SecessionGate.Forbids("撤守自立", city.Record?.Name)) return;
+        if (SecessionGate.Forbids("撤守自立", city.Name)) return;
         Realm independent;
         if (city == origin.Capital)
         {

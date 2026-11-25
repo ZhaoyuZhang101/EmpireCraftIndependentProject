@@ -708,10 +708,10 @@ public static class RepublicSystem
     public static bool IsRevolutionWar(War war) =>
         war != null && war.GetOrCreate().republic_revolution_empire_id > 0;
 
-#if EC_PENDING
-    public static bool HasActiveRevolutionWar(Empire empire) => empire?.CoreKingdom?.getWars()
-        ?.Any(war => war != null && !war.hasEnded() && IsRevolutionWar(war)) == true;
+    public static bool HasActiveRevolutionWar(Empire empire) => empire?.CoreKingdom?.GetWars()
+        ?.Any(war => war != null && !war.HasEnded() && IsRevolutionWar(war)) == true;
 
+#if EC_PENDING
     public static void ResolveRevolutionWar(War war, WarOutcome winner)
     {
         if (!IsRevolutionWar(war)) return;
@@ -723,14 +723,14 @@ public static class RepublicSystem
         }
         foreach (long kingdomId in snapshot.republic_revolution_allied_kingdom_ids ?? new List<long>())
         {
-            Realm ally = EmpireWorld.Current.LiveRealms?.get(kingdomId);
+            Realm ally = EmpireWorld.Current.RealmByKey(kingdomId);
             if (ally != null && !ally.IsGone()) ally.EndFactionRebelling();
         }
         Empire empire = ModClass.EMPIRE_MANAGER?.Get(snapshot.republic_revolution_empire_id);
         if (empire?.CoreKingdom == null || empire.IsArchived()) return;
         FixedFaction party = PartySystem.GetParties(empire)
             .FirstOrDefault(candidate => candidate.GetID() == snapshot.republic_revolution_party_id);
-        Person leader = EmpireWorld.Current.Living?.get(snapshot.republic_revolution_leader_id);
+        Person leader = EmpireWorld.Current.PersonByKey(snapshot.republic_revolution_leader_id);
         if (leader == null || leader.IsGone() || !leader.Alive) leader = war.GetMainAttacker()?.Ruler;
         Realm rebelKingdom = war.GetMainAttacker();
         // 打成僵局、被强制停战：立宪收场或各据一方(见 RevolutionSystem.OnPeace)
@@ -893,11 +893,11 @@ public static class RepublicSystem
         WarExtension.WarExtraData snapshot)
     {
         Empire origin = ModClass.EMPIRE_MANAGER?.Get(snapshot.republic_revolution_empire_id);
-        Realm leaderRealm = EmpireWorld.Current.LiveRealms?.get(snapshot.republic_regional_leader_kingdom_id) ??
+        Realm leaderRealm = EmpireWorld.Current.RealmByKey(snapshot.republic_regional_leader_kingdom_id) ??
                               war.GetMainAttacker();
         List<Realm> coalition = new[] { leaderRealm }.Concat(
                 (snapshot.republic_revolution_allied_kingdom_ids ?? new List<long>())
-                .Select(id => EmpireWorld.Current.LiveRealms?.get(id)))
+                .Select(id => EmpireWorld.Current.RealmByKey(id)))
             .Where(kingdom => kingdom != null && !kingdom.IsGone()).Distinct().ToList();
         Alliance alliance = EmpireWorld.Current.alliances?.get(snapshot.republic_regional_alliance_id);
         // 正统崩溃时的互保同盟打赢了：不另立国家，逼皇帝退位，各省回归，原帝国改行共和
@@ -912,7 +912,7 @@ public static class RepublicSystem
             }
             FixedFaction party = PartySystem.GetParties(origin)
                 .FirstOrDefault(candidate => candidate.GetID() == snapshot.republic_revolution_party_id);
-            Person leader = party?.GetLeader() ?? EmpireWorld.Current.Living?.get(snapshot.republic_revolution_leader_id) ??
+            Person leader = party?.GetLeader() ?? EmpireWorld.Current.PersonByKey(snapshot.republic_revolution_leader_id) ??
                            leaderRealm?.Ruler;
             Establish(origin, party, snapshot.republic_revolution_ideology, leader, false,
                 "regional_republic_abdication_history");
@@ -958,7 +958,7 @@ public static class RepublicSystem
             party?.BanFaction();
             string text = string.Format(LM.Get("regional_republic_failed_history"),
                 snapshot.republic_revolution_party_name, origin.GetEmpireFullName());
-            Record(origin, text, EmpireWorld.Current.Living?.get(snapshot.republic_revolution_leader_id));
+            Record(origin, text, EmpireWorld.Current.PersonByKey(snapshot.republic_revolution_leader_id));
         }
         if (alliance != null && alliance.Alive) EmpireWorld.Current.alliances.dissolveAlliance(alliance);
     }

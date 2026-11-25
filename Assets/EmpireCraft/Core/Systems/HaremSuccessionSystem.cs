@@ -70,10 +70,10 @@ public static class HaremSuccessionSystem
             LogService.LogWarning($"[EmpireCraft][后宫] 争储失败: {exception.Message}");
         }
     }
+#endif
 
     private static Person Mother(Person child) =>
-        child?.getParents()?.FirstOrDefault(parent => parent?.data != null && !parent.IsGone() && parent.isSexFemale());
-#endif
+        child?.GetParents()?.FirstOrDefault(parent => parent?.Record != null && !parent.IsGone() && parent.IsFemale());
 
     // 族谱里的生母(在世的，含虚拟族人)
     private static PersonalClanIdentity MotherOf(PersonalClanIdentity child)

@@ -50,21 +50,19 @@ public static partial class SmoothBorders
     internal static int QuietResets;
     private static bool _layerRestored;
 
-    // 一块地被要求重画(TileZone.resetRenderHelpers 的后缀，见 ZonePaintBudget)
-#if EC_PENDING
-    internal static void Stamp(TileZone zone)
+    // 一块地被要求重画(Cell.resetRenderHelpers 的后缀，见 ZonePaintBudget)
+    internal static void Stamp(Cell zone)
     {
         if (QuietResets > 0 || zone == null) return;
         // 整图画布：记成要重画的块(下一帧画)
         CanvasMark(zone);
         if (LayerImages.Count == 0) return;
-        int id = zone.id;
+        int id = zone.Index;
         if (id < 0) return;
         if (id >= _resetStamp.Length)
-            Array.Resize(ref _resetStamp, Mathf.Max(id + 1, EmpireWorld.Current?.zone_calculator?.zones?.Count ?? 0));
+            Array.Resize(ref _resetStamp, Mathf.Max(id + 1, EmpireWorld.Current?.Zones?.All?.Count ?? 0));
         _resetStamp[id] = ++_resetSerial;
     }
-#endif
 
     // 这次换图层是不是从快照拷回的(问过就清)：拷回的不再让全图各块重画(见 ZonePaintBudget.BeforeClearAll)
     internal static bool TakeLayerRestored()
@@ -93,11 +91,11 @@ public static partial class SmoothBorders
 
     // 换走眼下的图层之前存下整张图。还在算色(镜头里没算齐)的不存：屏上还是上一层的颜色
 #if EC_PENDING
-    private static void SaveLayerImage(ZoneCalculator calc)
+    private static void SaveLayerImage(ZoneGrid calc)
     {
         MetaTypeAsset layer = _sweepLayer;
         Color32[] pixels = calc?.pixels;
-        List<TileZone> zones = calc?.zones;
+        List<Cell> zones = calc?.All;
         if (!Enabled || layer == null || !Smoothable(layer) || pixels == null || zones == null || pixels.Length != _base.Length ||
             _layerFlip != null && _layerFlip.Computing || CanvasHandles(layer, _sweepOption)) return;
         // 正翻到一半的块按眼下那一面写回不压暗的样子(这些块拷回时照样重画)
@@ -136,9 +134,9 @@ public static partial class SmoothBorders
             image.drawnColor = new int[zoneCount];
             image.animated = new sbyte[zoneCount];
         }
-        foreach (TileZone zone in zones)
+        foreach (Cell zone in zones)
         {
-            int id = zone?.id ?? -1;
+            int id = zone?.Index ?? -1;
             if (id < 0 || id >= zoneCount) continue;
             // 正翻到一半的块：屏上不一定是新样子，拷回时重画
             bool flipping = Transitions.ContainsKey(id);
@@ -161,11 +159,11 @@ public static partial class SmoothBorders
 
     // 换到存过快照的图层：整张拷回，按眼下的悬停、选中提亮；存下以后被要求重画过的块清掉指纹，下一轮照常重画
 #if EC_PENDING
-    private static bool RestoreLayerImage(ZoneCalculator calc, MetaTypeAsset layer, int option)
+    private static bool RestoreLayerImage(ZoneGrid calc, MetaTypeAsset layer, int option)
     {
         LayerImage image = FindImage(layer, option);
         Color32[] pixels = calc?.pixels;
-        List<TileZone> zones = calc?.zones;
+        List<Cell> zones = calc?.All;
         if (image == null || pixels == null || zones == null) return false;
         if (!ReferenceEquals(image.world, EmpireWorld.Current) || image.epoch != _ownerEpoch || image.corps != CorpsSystem.Enabled ||
             image.face.Length != pixels.Length || pixels.Length != _base.Length || image.drawnId.Length != zones.Count)
@@ -201,9 +199,9 @@ public static partial class SmoothBorders
         QuietResets++;
         try
         {
-            foreach (TileZone zone in zones)
+            foreach (Cell zone in zones)
             {
-                int id = zone?.id ?? -1;
+                int id = zone?.Index ?? -1;
                 if (id < 0 || id >= image.drawnId.Length) continue;
                 if (id < _resetStamp.Length && _resetStamp[id] > image.serial)
                 {
@@ -224,7 +222,7 @@ public static partial class SmoothBorders
         LastMeta.Clear();
         foreach (KeyValuePair<int, (object meta, int color)> pair in image.lastMeta) LastMeta[pair.Key] = pair.Value;
         image.usedAt = Time.unscaledTime;
-        calc.setDirty();
+        calc.MarkDirty();
         calc.clearAllRedrawTimers();
         _layerRestored = true;
         double ms = (global::System.Diagnostics.Stopwatch.GetTimestamp() - started) * 1000d / global::System.Diagnostics.Stopwatch.Frequency;

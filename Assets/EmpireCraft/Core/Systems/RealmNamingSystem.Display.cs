@@ -60,7 +60,7 @@ public static partial class RealmNamingSystem
         List<JingRecord> records = empire?.data?.jing;
         if (records == null || records.Count == 0) return "";
         IEnumerable<string> parts = records.Where(record => record != null).Select(record =>
-            $"{MultiCapitalSystem.JingName(record)} {EmpireWorld.Current?.cities?.get(record.city_id)?.GetCityName() ?? ""}");
+            $"{MultiCapitalSystem.JingName(record)} {EmpireWorld.Current?.CityByKey(record.city_id)?.GetCityName() ?? ""}");
         return string.Format(LM.Get("realm_jing_line"), string.Join(" · ", parts));
     }
 #endif
@@ -70,7 +70,7 @@ public static partial class RealmNamingSystem
     public static string ZhiliLine(Empire empire)
     {
         long id = empire?.data?.zhili_kingdom_id ?? -1L;
-        Realm zhili = id < 0 ? null : EmpireWorld.Current?.kingdoms?.get(id);
+        Realm zhili = id < 0 ? null : EmpireWorld.Current?.RealmByKey(id);
         if (zhili == null || !MultiCapitalSystem.IsZhili(zhili)) return "";
         string ruler = zhili.HasRuler() ? zhili.Ruler.FullName() : LM.Get("realm_zhili_vacant");
         return string.Format(LM.Get("realm_zhili_line"), zhili.GetKingdomFullName(), ruler);

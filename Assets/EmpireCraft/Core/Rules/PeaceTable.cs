@@ -405,7 +405,7 @@ public static class PeaceTable
 
     private static bool Borders(City city, Realm realm)
     {
-        foreach (City next in (IEnumerable<City>)city.neighbours_cities ?? Array.Empty<City>())
+        foreach (City next in (IEnumerable<City>)city.NeighbourCities ?? Array.Empty<City>())
             if (next?.Record != null && !next.IsGone() && next.Realm != null && FrontSystem.Realm(next.Realm) == realm) return true;
         return false;
     }

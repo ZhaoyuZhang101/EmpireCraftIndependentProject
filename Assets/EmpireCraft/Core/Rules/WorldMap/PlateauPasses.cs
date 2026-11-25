@@ -1,6 +1,8 @@
 // Generated from the EmpireCraft mod: Scripts/GeneralSystems/WorldMap/PlateauPasses.cs. Do not edit by hand: Tools/PortTool/members.py rewrites it;
 // see Port/manifest.json and Tools/PortTool.
 using Mathf = EmpireCraft.Core.EcMath;
+using Vector2Int = EmpireCraft.Core.EcVector2Int;
+using Vector2 = EmpireCraft.Core.EcVector2;
 using System;
 using System.Collections.Generic;
 using System.IO;
@@ -21,9 +23,7 @@ public static class PlateauPasses
     private sealed class Pass
     {
         public string Id, Name;
-#if EC_PENDING
         public Vector2 From, To;
-#endif
         // 路线朝高原那头要接进高原(默认)；关中东出潼关这类只是别被坡地堵上的写 "enter": false
         public bool Enter = true;
     }
@@ -67,7 +67,7 @@ public static class PlateauPasses
         if (!EarthTerrain.Imported && frame != null)
         {
             frame.Bounds(size, out float bottom, out float degrees);
-            int w = EmpireWorld.width, h = EmpireWorld.height;
+            int w = EmpireWorld.Current.Width, h = EmpireWorld.Current.Height;
             foreach (Pass pass in Load())
             {
                 Vector2Int a = Tile(pass.From), b = Tile(pass.To);

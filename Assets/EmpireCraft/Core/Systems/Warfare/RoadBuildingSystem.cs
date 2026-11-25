@@ -166,7 +166,7 @@ public static class RoadBuildingSystem
             // 隔着无人区的两城不铺(用户 2026-11-04 问答定小径只放军队)：修通的路政令也走得通，一铺就把剧本开局的控制力、养路账都改了；
             // 军队走小径(见 RoadNetwork.IsTrail)，要修路的以后自己修
             City first = EmpireWorld.Current.CityByKey(pair.Key.Item1), second = EmpireWorld.Current.CityByKey(pair.Key.Item2);
-            if (first?.neighbours_cities != null && second != null && !first.neighbours_cities.Contains(second)) continue;
+            if (first?.NeighbourCities != null && second != null && !first.NeighbourCities.Contains(second)) continue;
             Realm owner = first?.Realm;
             int grade = GradeFor(owner);
             while (grade > 0 && !pair.Value.Buildable(grade)) grade--;
@@ -212,7 +212,7 @@ public static class RoadBuildingSystem
                 }
             // 统一了的帝国：中央的工程数按全帝国的城数算
             int cities = CenterOf(kingdom) is Empire center
-                ? center.kingdoms_list.Sum(member => member?.cities?.Count ?? 0) : kingdom.Cities.Count;
+                ? center.kingdoms_list.Sum(member => member?.Cities?.Count ?? 0) : kingdom.Cities.Count;
             // 好大喜功之君多开一项工程(见 CorveeSystem)
             int slots = 1 + cities / CitiesPerProject + CorveeSystem.ExtraRoadProjects(kingdom);
             if (active < slots && candidates.TryGetValue(kingdom, out List<(long, long)> plans))
@@ -302,7 +302,7 @@ public static class RoadBuildingSystem
         City capital = kingdom.Capital;
         // 把不连通的连通：已经由修通的路连到都城的城(帝国用帝国核心的都城)；同一都城这个月只算一遍
         City from = kingdom.GetEmpire()?.CoreKingdom?.Capital ?? capital;
-        long fromId = from?.data?.id ?? -1L;
+        long fromId = from?.Key ?? -1L;
         if (!reachedBy.TryGetValue(fromId, out HashSet<long> reached)) reachedBy[fromId] = reached = Reached(from, graph);
         (long, long) best = default;
         float bestScore = float.MinValue;

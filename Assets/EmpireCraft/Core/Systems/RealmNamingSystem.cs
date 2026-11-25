@@ -119,7 +119,7 @@ public static partial class RealmNamingSystem
         EmpireCore byName = EmpireCoreManager.EmpireCores.Values.FirstOrDefault(core =>
             IsFormalCore(core) && string.Equals(CoreName(core), name, StringComparison.Ordinal));
         if (byName != null) return byName;
-        City capital = EmpireWorld.Current?.cities?.get(clan.capital_city_id);
+        City capital = EmpireWorld.Current?.CityByKey(clan.capital_city_id);
         EmpireCore byCity = capital == null || capital.IsGone() ? null : capital.GetEmpireCore();
         return IsFormalCore(byCity) ? byCity : null;
     }

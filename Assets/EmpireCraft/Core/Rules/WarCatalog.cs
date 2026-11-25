@@ -138,11 +138,9 @@ public static class WarCatalog
         return text == "war_outcome_" + key ? "" : text;
     }
 
-#if EC_PENDING
     public static List<City> Cities(WarExtension.WarExtraData data) =>
-        (data?.goal_city_ids ?? new List<long>()).Select(id => EmpireWorld.Current?.cities?.get(id))
-        .Where(city => city?.data != null && !city.IsGone()).ToList();
-#endif
+        (data?.goal_city_ids ?? new List<long>()).Select(id => EmpireWorld.Current?.CityByKey(id))
+        .Where(city => city?.Record != null && !city.IsGone()).ToList();
 
     public static string TitleName(WarExtension.WarExtraData data)
     {
@@ -192,7 +190,7 @@ public static class WarCatalog
         if (kun != null) return kun;
         WarExtension.WarExtraData data = war.GetOrCreate();
         string attacker = Display(war.MainAttacker), defender = Display(war.MainDefender);
-        string main = WarObjective.Main(data)?.GetCityName() ?? war.MainDefender?.capital?.GetCityName() ?? "";
+        string main = WarObjective.Main(data)?.GetCityName() ?? war.MainDefender?.Capital?.GetCityName() ?? "";
         string key = "war_name_" + KindKey(war);
         // 没有这种仗的命名模板就不另起名；先查有没有(直接取，原版每次报一条 missing text，如 war_name_crusade_holy)
         if (!LocalizedTextManager.stringExists(key)) return null;

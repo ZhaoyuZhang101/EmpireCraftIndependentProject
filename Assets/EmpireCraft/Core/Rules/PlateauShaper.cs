@@ -1,6 +1,7 @@
 // Generated from the EmpireCraft mod: Scripts/GeneralSystems/PlateauShaper.cs. Do not edit by hand: Tools/PortTool/members.py rewrites it;
 // see Port/manifest.json and Tools/PortTool.
 using Mathf = EmpireCraft.Core.EcMath;
+using Vector2Int = EmpireCraft.Core.EcVector2Int;
 using System;
 using System.Collections.Generic;
 
@@ -38,15 +39,11 @@ public static class PlateauShaper
     {
         public int ScanX0, ScanY0, ScanX1, ScanY1, ApplyX0, ApplyY0, ApplyX1, ApplyY1;
         // 以前画高原铺的外缘：这格铺之前的地面格(没铺过为 null，按现在的算)
-#if EC_PENDING
-        public Func<int, TileType> Base;
-#endif
+        public Func<int, TerrainKind> Base;
         // 画出来的高原格(只有它们起山脊)；缺口(铺好的山脊被擦掉的格：不算外面，背后不再起山)；不再铺坡地的格；以前开的山口
         public Func<int, bool> Painted, Opening, Keep, Pass;
         // 这格该是这样的外缘(记账再改)；这格不该有外缘(以前铺过的还原)
-#if EC_PENDING
-        public Action<int, TileType, TopTileType> Put;
-#endif
+        public Action<int, TerrainKind, TerrainKind> Put;
         public Action<int> Clear;
         // 这一笔新开的山口谷道
         public readonly List<int> Carved = new();
@@ -55,13 +52,10 @@ public static class PlateauShaper
     public readonly struct Route
     {
         public readonly string Name;
-#if EC_PENDING
         public readonly Vector2Int From, To;
-#endif
         // To 那头要通进高原(没落在高原上就接到最近的高原格)；关中东出潼关这类只是别被坡地堵上的路线为假
         public readonly bool Enter;
 
-#if EC_PENDING
         public Route(string name, Vector2Int from, Vector2Int to, bool enter = true)
         {
             Name = name;
@@ -69,7 +63,6 @@ public static class PlateauShaper
             To = to;
             Enter = enter;
         }
-#endif
     }
 
     // 山脊宽(格)：至少 MinRidge(两格，八方向翻不过)，细噪声加到 RidgeSpread、粗噪声(几十格一个起伏)再加 RidgeSwell；
@@ -96,9 +89,7 @@ public static class PlateauShaper
     private const float DigCost = 5f;
 
     private static int _w, _h;
-#if EC_PENDING
-    private static WorldTile[] _tiles;
-#endif
+    private static Cell[] _tiles;
     private static bool[] _region, _water, _narrow, _lava, _block, _walk, _corridor, _opened;
     private static float[] _dIn, _dOut;
     // 高原本地半宽、到丘陵的距离(没有成片丘陵为 null)；窄缝(不铺坡地)；人画的高原格(窄缝、丘陵两条只对它放宽)
@@ -106,10 +97,8 @@ public static class PlateauShaper
     private static bool[] _thin, _lenient;
     private static Func<int, bool> _drawn;
     // 铺什么(null 为不铺：画高原时还原)、顶层、哪一类(Ridge/Slope/Opened)
-#if EC_PENDING
-    private static TileType[] _plan;
-    private static TopTileType[] _planTop;
-#endif
+    private static TerrainKind[] _plan;
+    private static TerrainKind[] _planTop;
     private static byte[] _kind;
     private const byte KindNone = 0, KindRidge = 1, KindSlope = 2, KindOpened = 3;
     private static int[] _comp;
@@ -118,9 +107,7 @@ public static class PlateauShaper
     // 窗口在图上的左下角(整图为 0)；画高原时的账、只算画出来的格、不当外面的缺口、不铺坡地的格、各片的情况
     private static int _ox, _oy;
     private static Painting _paint;
-#if EC_PENDING
-    private static TileType[] _main;
-#endif
+    private static TerrainKind[] _main;
     private static bool[] _eligible, _noSource, _noSlope;
     private static bool[] _compPainted, _compOld;
     private static List<int> _carved;
@@ -137,8 +124,8 @@ public static class PlateauShaper
         _ox = _oy = 0;
         _paint = null;
         _drawn = painted;
-        _w = EmpireWorld.width;
-        _h = EmpireWorld.height;
+        _w = EmpireWorld.Current.Width;
+        _h = EmpireWorld.Current.Height;
         _seed = seed;
         int n = _w * _h;
         if (n <= 0) return 0;
@@ -167,6 +154,7 @@ public static class PlateauShaper
             Release();
         }
     }
+#endif
 
     private static void Release()
     {
@@ -187,7 +175,6 @@ public static class PlateauShaper
         _paint = null;
         _ox = _oy = 0;
     }
-#endif
 
     // 神力画完一笔(见 PlateauPaintLedger)：只在 Scan 窗口里算、只改 Apply 窗口里的格。画出来的一片高原(没连着原有高原)
     // 窗口里还没有通到外面的山口，就在新画的边上挑 1~5 处；最后照样查一遍围死的(不碰窗口边的)挖通
@@ -197,7 +184,7 @@ public static class PlateauShaper
         EmpireWorld world = EmpireWorld.Current;
         if (world == null || paint == null || PlateauTerrain.Alpine == null || PlateauTerrain.Loess == null) return 0;
         int x0 = Math.Max(0, paint.ScanX0), y0 = Math.Max(0, paint.ScanY0);
-        int x1 = Math.Min(EmpireWorld.width - 1, paint.ScanX1), y1 = Math.Min(EmpireWorld.height - 1, paint.ScanY1);
+        int x1 = Math.Min(EmpireWorld.Current.Width - 1, paint.ScanX1), y1 = Math.Min(EmpireWorld.Current.Height - 1, paint.ScanY1);
         if (x1 - x0 < 3 || y1 - y0 < 3) return 0;
         _ox = x0;
         _oy = y0;
@@ -237,9 +224,7 @@ public static class PlateauShaper
 #endif
 
     // 窗口里的格号 → 图上的格号
-#if EC_PENDING
-    private static int Global(int i) => (i / _w + _oy) * EmpireWorld.width + i % _w + _ox;
-#endif
+    private static int Global(int i) => (i / _w + _oy) * EmpireWorld.Current.Width + i % _w + _ox;
 
     private static bool InApply(int x, int y, int inset = 0)
     {
@@ -250,7 +235,7 @@ public static class PlateauShaper
 
     // 写格：整图生成直接改；画高原时交给账(记下原样，以后能退)
 #if EC_PENDING
-    private static void Put(int i, WorldTile tile, TileType main, TopTileType top)
+    private static void Put(int i, Cell tile, TerrainKind main, TerrainKind top)
     {
         if (_paint == null) Set(tile, main, top);
         else _paint.Put(Global(i), main, top);
@@ -258,8 +243,8 @@ public static class PlateauShaper
 
     private static bool Scan(EmpireWorld world, int n)
     {
-        _tiles = new WorldTile[n];
-        _main = new TileType[n];
+        _tiles = new Cell[n];
+        _main = new TerrainKind[n];
         var plateau = new bool[n];
         _water = new bool[n];
         _lava = new bool[n];
@@ -274,9 +259,9 @@ public static class PlateauShaper
         for (int x = 0; x < _w; x++)
         {
             int i = y * _w + x;
-            WorldTile tile = world.GetTileSimple(x + _ox, y + _oy);
+            Cell tile = world.CellAt(x + _ox, y + _oy);
             _tiles[i] = tile;
-            TileType main = tile?.main_type;
+            TerrainKind main = tile?.MainType;
             if (painting && tile != null)
             {
                 // 以前画高原铺的外缘按铺之前的样子算
@@ -290,9 +275,9 @@ public static class PlateauShaper
             plateau[i] = PlateauTerrain.IsPlateau(main);
             if (painting) _eligible[i] = plateau[i] && _paint.Painted(Global(i));
             any |= painting ? _eligible[i] : plateau[i];
-            _lava[i] = main.lava;
-            _water[i] = main.liquid && !main.lava;
-            _block[i] = main.block || main.mountains || main.summit;
+            _lava[i] = main.Lava;
+            _water[i] = main.Liquid && !main.Lava;
+            _block[i] = main.Block || main.Mountains || main.Summit;
             _walk[i] = !_water[i] && !_lava[i] && !_block[i];
         }
         if (!any) return false;
@@ -457,13 +442,11 @@ public static class PlateauShaper
     private static bool HillSide(int i) => _dHill != null && _lenient[i] && _dHill[i] <= _dIn[i] + HillMargin;
 
     // 荒漠、沙地(地表是荒漠，或地面是沙)：不对着它铺山脊
-#if EC_PENDING
-    private static bool Desert(WorldTile tile)
+    private static bool Desert(Cell tile)
     {
-        TileTypeBase type = tile?.Type;
-        return type != null && (type.biome_id == "biome_desert" || type.sand || tile.main_type != null && tile.main_type.sand);
+        TerrainKind type = tile?.Type;
+        return type != null && (type.BiomeId == "biome_desert" || type.Sand || tile.MainType != null && tile.MainType.Sand);
     }
-#endif
 
     // 窄水面：5×5 里陆地占 NarrowLand 以上
     private static bool[] Narrow()
@@ -590,7 +573,6 @@ public static class PlateauShaper
     private static float SlopeWidth(int x, int y) => MinSlope + SlopeSpread * Noise.Fbm((x + _ox) / 9f, (y + _oy) / 9f, _seed + 17);
 
     // 路线朝高原那头：落在高原上就是它，否则接到 EnterSearch 格内最近的高原格(不是水)
-#if EC_PENDING
     private static Vector2Int IntoRegion(Vector2Int to)
     {
         int x = Mathf.Clamp(to.x, 1, _w - 2), y = Mathf.Clamp(to.y, 1, _h - 2);
@@ -598,22 +580,18 @@ public static class PlateauShaper
         int? hit = Nearest(x, y, i => _region[i] && !_water[i], EnterSearch);
         return hit == null ? to : new Vector2Int(hit.Value % _w, hit.Value / _w);
     }
-#endif
 
     // 找路：一格的代价(走不了为 Inf)
-#if EC_PENDING
     private static float StepCost(int i)
     {
         if (_lava[i]) return Inf;
         if (_water[i]) return _narrow[i] ? 4f : Inf;
         if (_block[i]) return 8f;
-        TileType main = _main[i];
-        return main != null && main.rocks ? 1.6f : 1f;
+        TerrainKind main = _main[i];
+        return main != null && main.Rocks ? 1.6f : 1f;
     }
-#endif
 
     // 沿最省的路开一条山口；谷道经过的高原外缘(山脊带)记给那一片高原(passed)
-#if EC_PENDING
     private static bool Carve(Vector2Int from, Vector2Int to, HashSet<int> passed)
     {
         int fx = Mathf.Clamp(from.x, 1, _w - 2), fy = Mathf.Clamp(from.y, 1, _h - 2);
@@ -643,10 +621,8 @@ public static class PlateauShaper
         }
         return true;
     }
-#endif
 
     // 两格之间最省的一条路(八方向，代价见 StepCost)，经过的格(图上编号，从终点到起点)；走不通为 null
-#if EC_PENDING
     private static List<int> FindPath(int fx, int fy, int tx, int ty)
     {
         int margin = 8 + (Math.Abs(fx - tx) + Math.Abs(fy - ty)) / 4;
@@ -696,7 +672,6 @@ public static class PlateauShaper
         }
         return path;
     }
-#endif
 
     // 铺完之后：高原格所在的那一片能走的地(八方向)里，高原以外能走的格不到 SealedMin 的算围死了(只剩山口接不出去的高原小块)，
     // 沿最省的路挖到 UnsealSearch 格内最近的、连着外面大片平地的那一片，路上的山改成丘陵(宽 3 格左右)
@@ -708,9 +683,9 @@ public static class PlateauShaper
         {
             for (int i = 0; i < n; i++)
             {
-                TileType main = _tiles[i]?.main_type;
+                TerrainKind main = _tiles[i]?.MainType;
                 if (main == null) continue;
-                _block[i] = main.block || main.mountains || main.summit;
+                _block[i] = main.Block || main.Mountains || main.Summit;
                 _walk[i] = !_water[i] && !_lava[i] && !_block[i];
             }
             int[] part = Label(_walk, out List<int> sizes);
@@ -725,7 +700,7 @@ public static class PlateauShaper
             {
                 int c = part[i];
                 if (c < 0) continue;
-                if (PlateauTerrain.IsPlateau(_tiles[i].main_type))
+                if (PlateauTerrain.IsPlateau(_tiles[i].MainType))
                 {
                     plateauIn[c]++;
                     if (first[c] < 0) first[c] = i;
@@ -795,7 +770,6 @@ public static class PlateauShaper
 
     // 一片高原没有路线经过：挑 2~5 处山口(沿边每 160 格一处)，先挑外面能走的地最近(山最薄)的边，之后挑离已挑的最远的；
     // 画高原时只在画出来、离 Apply 窗口边够远的边上挑，1~5 处
-#if EC_PENDING
     private static int AutoPasses(int comp, HashSet<int> passed)
     {
         var edge = new List<int>();
@@ -857,7 +831,6 @@ public static class PlateauShaper
         }
         return made;
     }
-#endif
 
     private static bool PassSite(int i) => _paint == null || _eligible[i] && InApply(i % _w, i / _w, PaintInset);
 
@@ -895,8 +868,8 @@ public static class PlateauShaper
     private static (int ridge, int slope, int opened, int linked) Apply()
     {
         int n = _w * _h;
-        _plan = new TileType[n];
-        _planTop = new TopTileType[n];
+        _plan = new TerrainKind[n];
+        _planTop = new TerrainKind[n];
         _kind = new byte[n];
         for (int y = 1; y < _h - 1; y++)
         for (int x = 1; x < _w - 1; x++)
@@ -911,7 +884,7 @@ public static class PlateauShaper
         for (int x = 1; x < _w - 1; x++)
         {
             int i = y * _w + x;
-            WorldTile tile = _tiles[i];
+            Cell tile = _tiles[i];
             if (tile == null || !InApply(x, y)) continue;
             if (_plan[i] == null)
             {
@@ -928,21 +901,21 @@ public static class PlateauShaper
         }
         return (ridge, slope, opened, linked);
     }
+#endif
 
-    private static void Mark(int i, TileType main, TopTileType top, byte kind)
+    private static void Mark(int i, TerrainKind main, TerrainKind top, byte kind)
     {
         _plan[i] = main;
         _planTop[i] = top;
         _kind[i] = kind;
     }
-#endif
 
     // 一格该不该是外缘，该就记下铺什么
 #if EC_PENDING
-    private static void Plan(int i, int x, int y, WorldTile tile)
+    private static void Plan(int i, int x, int y, Cell tile)
     {
-        TileType mountains = TileLibrary.mountains, summit = TileLibrary.summit, hills = TileLibrary.hills;
-        TopTileType snowBlock = TopTileLibrary.snow_block, snowSummit = TopTileLibrary.snow_summit;
+        TerrainKind mountains = TileLibrary.mountains, summit = TileLibrary.summit, hills = TileLibrary.hills;
+        TerrainKind snowBlock = TopTileLibrary.snow_block, snowSummit = TopTileLibrary.snow_summit;
         int wx = x + _ox, wy = y + _oy;
         if (_corridor[i])
         {
@@ -983,24 +956,20 @@ public static class PlateauShaper
 #endif
 
     // 这格最后是什么地：铺之前(画高原时以前铺的外缘按铺之前算)、铺之后；Apply 窗口外、图边一圈不改，照现在的
-#if EC_PENDING
     private static bool Planned(int i)
     {
         int x = i % _w, y = i / _w;
         return x >= 1 && y >= 1 && x < _w - 1 && y < _h - 1 && _tiles[i] != null && InApply(x, y);
     }
 
-    private static TileType Before(int i) => Planned(i) ? _main[i] : _tiles[i]?.main_type;
-    private static TileType After(int i) => Planned(i) ? _plan[i] ?? _main[i] : _tiles[i]?.main_type;
+    private static TerrainKind Before(int i) => Planned(i) ? _main[i] : _tiles[i]?.MainType;
+    private static TerrainKind After(int i) => Planned(i) ? _plan[i] ?? _main[i] : _tiles[i]?.MainType;
 
-    private static bool Walkable(TileType type) =>
-        type != null && !type.liquid && !type.lava && !type.block && !type.mountains && !type.summit;
-#endif
+    private static bool Walkable(TerrainKind type) =>
+        type != null && !type.Liquid && !type.Lava && !type.Block && !type.Mountains && !type.Summit;
 
     // 自己铺的山(山脊、山嘴、坡地里的孤山)：挖得动
-#if EC_PENDING
-    private static bool Diggable(int i) => _plan[i] != null && (_plan[i].block || _plan[i].mountains || _plan[i].summit) && Planned(i);
-#endif
+    private static bool Diggable(int i) => _plan[i] != null && (_plan[i].Block || _plan[i].Mountains || _plan[i].Summit) && Planned(i);
 
     // 铺完核对(群友 2026-11-17 "出不去进不来")：铺之前四邻连着的能走的地(同 TerrainSystem.Crossable 按四邻判通不通)，铺之后被
     // 自己铺的山隔成了几块的，小块(不到 TinyPocket 格)是高原碎格就填成山，其余沿最省的路把山挖开 3 格宽接回最大那块。
@@ -1113,11 +1082,10 @@ public static class PlateauShaper
     // 画高原时碰着窗口边的一块：出窗口(按图上现在的格)四邻走，走得回窗口里目标那一片(或走过 EscapeCap 格，当作连着外面大片)就算连着
     private const int EscapeCap = 200_000;
 
-#if EC_PENDING
     private static bool Escapes(int[] cells, int from, int to, int[] postComp, Func<int, int> find, int goal)
     {
         EmpireWorld world = EmpireWorld.Current;
-        int mw = EmpireWorld.width, mh = EmpireWorld.height;
+        int mw = EmpireWorld.Current.Width, mh = EmpireWorld.Current.Height;
         var seen = new HashSet<int>();
         var queue = new Queue<int>();
         for (int k = from; k < to; k++)
@@ -1144,7 +1112,7 @@ public static class PlateauShaper
                 int jx = nx - _ox, jy = ny - _oy;
                 bool walk = jx >= 0 && jy >= 0 && jx < _w && jy < _h
                     ? Walkable(After(jy * _w + jx))
-                    : Walkable(world.GetTileSimple(nx, ny)?.main_type);
+                    : Walkable(world.CellAt(nx, ny)?.MainType);
                 if (!walk) continue;
                 seen.Add(ng);
                 queue.Enqueue(ng);
@@ -1152,7 +1120,6 @@ public static class PlateauShaper
         }
         return false;
     }
-#endif
 
     // 被围住的高原碎格(整块都是这回能铺的高原格)填成山
 #if EC_PENDING
@@ -1176,7 +1143,6 @@ public static class PlateauShaper
 
     // 从这一块出发(四邻)，走能走的格代价 1、挖自己铺的山代价 DigCost，到目标那一片(并查集的根为 goal)最省的一条路；
     // 经过的格从终点到起点；找不到为 null
-#if EC_PENDING
     private static List<int> DigPath(int[] cells, int from, int to, int[] postComp, Func<int, int> find, int goal)
     {
         var cost = new Dictionary<int, float>();
@@ -1219,7 +1185,6 @@ public static class PlateauShaper
         }
         return null;
     }
-#endif
 
     // 四邻连片
     private static int[] Label4(bool[] mask, out List<int> sizes)
@@ -1265,7 +1230,6 @@ public static class PlateauShaper
         return 1f - Math.Abs(2f * v - 1f) > 0.86f;
     }
 
-#if EC_PENDING
     private static bool NearAlpine(int x, int y)
     {
         for (int dy = -1; dy <= 1; dy++)
@@ -1276,19 +1240,18 @@ public static class PlateauShaper
         }
         return false;
     }
-#endif
 
     // 坡地只铺在平地上(土、草)：沙滩、丘陵、山、高原、水不动
-#if EC_PENDING
-    private static bool SoftLand(TileType main) =>
-        main != null && main.ground && !main.rocks && !main.block && !main.liquid && !main.lava && !main.sand &&
-        !PlateauTerrain.IsPlateau(main) && main.id != "sand";
+    private static bool SoftLand(TerrainKind main) =>
+        main != null && main.Ground && !main.Rocks && !main.Block && !main.Liquid && !main.Lava && !main.Sand &&
+        !PlateauTerrain.IsPlateau(main) && main.Id != "sand";
 
-    private static void Set(WorldTile tile, TileType main, TopTileType top)
+#if EC_PENDING
+    private static void Set(Cell tile, TerrainKind main, TerrainKind top)
     {
         if (main == null) return;
         tile.setTileTypes(main, top);
-        tile.Height = main.height_min;
+        tile.Height = main.HeightMin;
     }
 #endif
 

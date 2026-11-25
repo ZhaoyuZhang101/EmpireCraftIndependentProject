@@ -75,7 +75,6 @@ public static class TerrainSystem
     private const int RefreshMonths = 48, RefreshSpreadMonths = 24;
     private static Entry[] _cache = new Entry[0];
 
-#if EC_PENDING
     public static void ResetWorldState()
     {
         Edges.Clear();
@@ -84,15 +83,13 @@ public static class TerrainSystem
         _cache = new Entry[0];
         CityLivable.Clear();
         _marks = new int[0];
-        _markTypes = new TileTypeBase[0];
+        _markTypes = new TerrainKind[0];
     }
-#endif
 
     // 地块里有格子改了：下次用到时重判
-#if EC_PENDING
-    public static void Invalidate(TileZone zone)
+    public static void Invalidate(Cell zone)
     {
-        if (zone != null && zone.id >= 0 && zone.id < _cache.Length) _cache[zone.id].Known = false;
+        if (zone != null && zone.Index >= 0 && zone.Index < _cache.Length) _cache[zone.Index].Known = false;
         // 交界的路口跟着重判(地形难得改，整表清掉)
         Edges.Clear();
         // 山地、河上只看本块的格子：只清这一块(草木蔓生时时改格子，整表清掉等于没缓存，城市扩张每看一块地都要重数四邻的格子)
@@ -102,14 +99,13 @@ public static class TerrainSystem
             RiverZones.Clear();
             return;
         }
-        MountainZones.Remove(zone.id);
-        RiverZones.Remove(zone.id);
+        MountainZones.Remove(zone.Index);
+        RiverZones.Remove(zone.Index);
     }
-#endif
 
     // 地面格水陆变了(挖河、填海)：水体大小跟着变，别处的地块算不算河上也可能变，整表清掉(见 MapWallPatch.AfterSetTileType)
 #if EC_PENDING
-    public static void GroundChanged(TileTypeBase before, TileTypeBase after)
+    public static void GroundChanged(TerrainKind before, TerrainKind after)
     {
         bool wasWater = before != null && (Marks(before) & MarkWater) != 0;
         bool isWater = after != null && (Marks(after) & MarkWater) != 0;
@@ -125,15 +121,15 @@ public static class TerrainSystem
     private static readonly Dictionary<int, bool> RiverZones = new();
 
 #if EC_PENDING
-    public static bool RiverZone(TileZone zone)
+    public static bool RiverZone(Cell zone)
     {
-        if (zone?.tiles == null) return false;
-        if (RiverZones.TryGetValue(zone.id, out bool cached)) return cached;
+        if (zone?.Tiles == null) return false;
+        if (RiverZones.TryGetValue(zone.Index, out bool cached)) return cached;
         int total = 0, water = 0;
         bool big = false;
-        foreach (WorldTile tile in zone.tiles)
+        foreach (Cell tile in zone.Tiles)
         {
-            TileTypeBase type = tile?.Type;
+            TerrainKind type = tile?.Type;
             if (type == null) continue;
             total++;
             if ((Marks(type) & MarkWater) == 0) continue;
@@ -142,7 +138,7 @@ public static class TerrainSystem
         }
         bool result = !big && total > 0 && water >= total * RiverShare;
         if (RiverZones.Count > 100_000) RiverZones.Clear();
-        RiverZones[zone.id] = result;
+        RiverZones[zone.Index] = result;
         return result;
     }
 #endif
@@ -152,22 +148,22 @@ public static class TerrainSystem
     private static readonly Dictionary<int, bool> MountainZones = new();
 
 #if EC_PENDING
-    public static bool Mountainous(TileZone zone)
+    public static bool Mountainous(Cell zone)
     {
-        if (zone?.tiles == null) return false;
-        if (MountainZones.TryGetValue(zone.id, out bool cached)) return cached;
+        if (zone?.Tiles == null) return false;
+        if (MountainZones.TryGetValue(zone.Index, out bool cached)) return cached;
         int total = 0, mountain = 0;
-        foreach (WorldTile tile in zone.tiles)
+        foreach (Cell tile in zone.Tiles)
         {
-            TileTypeBase type = tile?.Type;
+            TerrainKind type = tile?.Type;
             if (type == null) continue;
             total++;
-            int marks = Marks(type) | (tile.main_type != null ? Marks(tile.main_type) : 0);
+            int marks = Marks(type) | (tile.MainType != null ? Marks(tile.MainType) : 0);
             if ((marks & MarkMountain) != 0) mountain++;
         }
         bool result = total > 0 && mountain >= total * MountainShare;
         if (MountainZones.Count > 100_000) MountainZones.Clear();
-        MountainZones[zone.id] = result;
+        MountainZones[zone.Index] = result;
         return result;
     }
 #endif
@@ -182,14 +178,14 @@ public static class TerrainSystem
     // 上限按地图大小：每块地 8 条交界(四条直、四条斜，两边共用一半)，城心另记一份。以前固定 20 万，第 2 档大图(4.7 万块)
     // 交界就有近 19 万条，稍多一点就整表清掉重算，战线段地形层一轮要多花几倍(2026-11-14 实测)
     public static int EdgeFlushes;
-#if EC_PENDING
-    private static int EdgeCap() => Math.Max(200_000, (EmpireWorld.Current?.zone_calculator?.zones?.Count ?? 0) * 10);
+    private static int EdgeCap() => Math.Max(200_000, (EmpireWorld.Current?.Zones?.All?.Count ?? 0) * 10);
 
-    public static bool Crossable(TileZone a, TileZone b, bool seatOpen = true)
+#if EC_PENDING
+    public static bool Crossable(Cell a, Cell b, bool seatOpen = true)
     {
         if (a == null || b == null) return false;
         if (a == b) return true;
-        int dx = b.x - a.x, dy = b.y - a.y;
+        int dx = b.X - a.X, dy = b.Y - a.Y;
         if (Math.Abs(dx) > 1 || Math.Abs(dy) > 1) return true;
         if (seatOpen && (Seat(a) || Seat(b) || RoadNetwork.Spans(a, b))) return true;
         // 不看城心时，城心那块的交界另记一份(与总能进的那份分开)
@@ -201,11 +197,11 @@ public static class TerrainSystem
     // 只看地形的 Crossable(seatOpen 为真)：城心随占领挪动、路线随路网改，多核快照另按当时的补上(见 FrontSystem.Parallel)。
     // Crossable(a, b) = 有一头是城心 || 路线跨过这条交界(RoadNetwork.Spans) || CrossableTerrain(a, b)
 #if EC_PENDING
-    internal static bool CrossableTerrain(TileZone a, TileZone b)
+    internal static bool CrossableTerrain(Cell a, Cell b)
     {
         if (a == null || b == null) return false;
         if (a == b) return true;
-        int dx = b.x - a.x, dy = b.y - a.y;
+        int dx = b.X - a.X, dy = b.Y - a.Y;
         if (Math.Abs(dx) > 1 || Math.Abs(dy) > 1) return true;
         return EdgeOpen(a, b, dx, dy, true, false);
     }
@@ -213,21 +209,21 @@ public static class TerrainSystem
 
     // 只看地形的 Impassable(同上)：Impassable(zone) = ImpassableTerrain(zone) && 不是城心 && 不是路线(RoadNetwork.IsTrail)
 #if EC_PENDING
-    internal static bool ImpassableTerrain(TileZone zone) => zone != null && Lookup(zone).Impassable;
+    internal static bool ImpassableTerrain(Cell zone) => zone != null && Lookup(zone).Impassable;
 #endif
 
     // 交界查表(没有就按格子算出来记下)
 #if EC_PENDING
-    private static bool EdgeOpen(TileZone a, TileZone b, int dx, int dy, bool seatOpen, bool seat)
+    private static bool EdgeOpen(Cell a, Cell b, int dx, int dy, bool seatOpen, bool seat)
     {
-        long key = (a.id < b.id ? (long)a.id * 1_000_000L + b.id : (long)b.id * 1_000_000L + a.id) * (seat ? -1L : 1L);
+        long key = (a.Index < b.Index ? (long)a.Index * 1_000_000L + b.Index : (long)b.Index * 1_000_000L + a.Index) * (seat ? -1L : 1L);
         if (Edges.TryGetValue(key, out bool cached)) return cached;
         bool open;
         if (dx != 0 && dy != 0)
         {
-            ZoneCalculator zones = EmpireWorld.Current.zone_calculator;
-            bool Via(TileZone side) => side != null && !Impassable(side) && Crossable(a, side, seatOpen) && Crossable(side, b, seatOpen);
-            open = Via(zones.getZone(a.x + dx, a.y)) || Via(zones.getZone(a.x, a.y + dy));
+            ZoneGrid zones = EmpireWorld.Current.Zones;
+            bool Via(Cell side) => side != null && !Impassable(side) && Crossable(a, side, seatOpen) && Crossable(side, b, seatOpen);
+            open = Via(zones.Get(a.X + dx, a.Y)) || Via(zones.Get(a.X, a.Y + dy));
         }
         else open = OpenPairs(a, dx, dy) >= MinPass;
         if (Edges.Count > EdgeCap()) { EdgeFlushes++; Edges.Clear(); }
@@ -238,14 +234,14 @@ public static class TerrainSystem
 
     // a 朝 (dx, dy) 那一边的交界上，两边都不是阻挡格的格子对数
 #if EC_PENDING
-    private static int OpenPairs(TileZone a, int dx, int dy)
+    private static int OpenPairs(Cell a, int dx, int dy)
     {
-        int size = Config.CITY_ZONE_SIZE, ox = a.x * size, oy = a.y * size, count = 0;
+        int size = Config.CITY_ZONE_SIZE, ox = a.X * size, oy = a.Y * size, count = 0;
         for (int i = 0; i < size; i++)
         {
             int x = dx > 0 ? ox + size - 1 : dx < 0 ? ox : ox + i;
             int y = dy > 0 ? oy + size - 1 : dy < 0 ? oy : oy + i;
-            if (!Blocks(EmpireWorld.Current.GetTile(x, y)) && !Blocks(EmpireWorld.Current.GetTile(x + dx, y + dy))) count++;
+            if (!Blocks(EmpireWorld.Current.CellAt(x, y)) && !Blocks(EmpireWorld.Current.CellAt(x + dx, y + dy))) count++;
         }
         return count;
     }
@@ -254,15 +250,15 @@ public static class TerrainSystem
     // 军牌在两块地之间按格走一步的代价(见 CorpsSystem.MarchLine；只管画在哪，行军快慢照旧按地块算)：
     // 修通的路最省(桥也是路，过得了河)；平地 1；林地、丛林 1.4；丘陵、沼泽 2；山地、山巅、水面、岩浆走不了，返回负数
 #if EC_PENDING
-    internal static float StepCost(WorldTile tile)
+    internal static float StepCost(Cell tile)
     {
-        TileTypeBase type = tile?.Type;
+        TerrainKind type = tile?.Type;
         if (type == null) return -1f;
         if (RoadNetwork.IsRoadTile(tile)) return 0.5f;
-        if (type.lava) return -1f;
+        if (type.Lava) return -1f;
         int marks = Marks(type);
         if ((marks & MarkWater) != 0) return -1f;
-        int under = tile.main_type != null ? Marks(tile.main_type) : 0;
+        int under = tile.MainType != null ? Marks(tile.MainType) : 0;
         if (((marks | under) & MarkBlock) != 0) return -1f;
         if ((marks & (MarkHills | MarkSnowHills | MarkSwamp)) != 0 || (under & MarkHills) != 0) return 2f;
         if ((marks & (MarkJungle | MarkWoods)) != 0) return 1.4f;
@@ -272,13 +268,13 @@ public static class TerrainSystem
 
     // 一格挡不挡路：原版的阻挡格(山地、山巅)，看地面层与顶层(同 ClassifyTiles)
 #if EC_PENDING
-    private static bool Blocks(WorldTile tile)
+    private static bool Blocks(Cell tile)
     {
-        TileTypeBase type = tile?.Type;
+        TerrainKind type = tile?.Type;
         if (type == null) return true;
         int marks = Marks(type);
         if ((marks & MarkWater) != 0) return false;
-        int under = tile.main_type != null ? Marks(tile.main_type) : 0;
+        int under = tile.MainType != null ? Marks(tile.MainType) : 0;
         return ((marks | under) & MarkBlock) != 0;
     }
 #endif
@@ -287,12 +283,12 @@ public static class TerrainSystem
         Effects.TryGetValue(terrain, out TerrainEffect effect) ? effect : Effects[FrontTerrain.Plains];
 
 #if EC_PENDING
-    public static FrontTerrain Of(TileZone zone) => Lookup(zone).Terrain;
+    public static FrontTerrain Of(Cell zone) => Lookup(zone).Terrain;
 #endif
 
     // 地形与能否通行一次取出(地形阻力两样都要，免得查两遍缓存)
 #if EC_PENDING
-    public static FrontTerrain Of(TileZone zone, out bool impassable)
+    public static FrontTerrain Of(Cell zone, out bool impassable)
     {
         Entry entry = Lookup(zone);
         impassable = zone != null && entry.Impassable && !Seat(zone);
@@ -302,12 +298,12 @@ public static class TerrainSystem
 
     // 不可通行(见类头)：军团绕行、战线不从这里推进；城心那一块总能进，路线经过的地块也能进(见 RoadNetwork.IsTrail)
 #if EC_PENDING
-    public static bool Impassable(TileZone zone) => zone != null && Lookup(zone).Impassable && !Seat(zone) && !RoadNetwork.IsTrail(zone);
+    public static bool Impassable(Cell zone) => zone != null && Lookup(zone).Impassable && !Seat(zone) && !RoadNetwork.IsTrail(zone);
 #endif
 
     // 只看地形的不可通行(路线找路用：不认路线自己，免得走过一回的绝路下回就算通了)
 #if EC_PENDING
-    public static bool ImpassableGround(TileZone zone) => zone != null && Lookup(zone).Impassable && !Seat(zone);
+    public static bool ImpassableGround(Cell zone) => zone != null && Lookup(zone).Impassable && !Seat(zone);
 #endif
 
     // 山脉无人区里其实是丘陵的地块(用户 2026-11-04 转群友"还有丘陵能走军团，哪怕他是无人区里的"，问答定"山格不到四分之一")：
@@ -315,19 +311,19 @@ public static class TerrainSystem
     private const float HillyRockShare = 0.25f;
 
 #if EC_PENDING
-    public static bool Hilly(TileZone zone)
+    public static bool Hilly(Cell zone)
     {
         if (zone == null) return false;
         Entry entry = Lookup(zone);
         return !entry.Impassable && entry.Rock < entry.Land * HillyRockShare;
     }
-
-    private static bool Seat(TileZone zone) => zone.city != null && zone.city.getTile()?.zone == zone;
 #endif
+
+    private static bool Seat(Cell zone) => zone.City != null && zone.City.SeatCell()?.Zone == zone;
 
     // 地块里的陆地格数与旱地格数(水土，见 ShuiTuSystem)
 #if EC_PENDING
-    public static (int land, int dry) DryCounts(TileZone zone)
+    public static (int land, int dry) DryCounts(Cell zone)
     {
         if (zone == null) return (0, 0);
         Entry entry = Lookup(zone);
@@ -337,7 +333,7 @@ public static class TerrainSystem
 
     // 旱地地块：陆地里一半以上是旱地
 #if EC_PENDING
-    public static bool IsDry(TileZone zone)
+    public static bool IsDry(Cell zone)
     {
         (int land, int dry) = DryCounts(zone);
         return land > 0 && dry * 2 > land;
@@ -349,7 +345,7 @@ public static class TerrainSystem
     // 纯沙漠、纯冻土(城心那块除外)住不了人，为零(见 BarrenLandSystem)
     // 雨林全开发(见 WildernessSystem.JungleDeveloped)：丛林格按草地住人，这里现算不进缓存，开关一改就生效，剧本不受影响
 #if EC_PENDING
-    public static float Livability(TileZone zone)
+    public static float Livability(Cell zone)
     {
         if (zone == null || BarrenLandSystem.Barren(zone)) return 0f;
         Entry entry = Lookup(zone);
@@ -360,7 +356,7 @@ public static class TerrainSystem
 
     // 地块里的陆地格数与其中的高寒高原格数
 #if EC_PENDING
-    public static (int land, int alpine) AlpineCounts(TileZone zone)
+    public static (int land, int alpine) AlpineCounts(Cell zone)
     {
         if (zone == null) return (0, 0);
         Entry entry = Lookup(zone);
@@ -370,7 +366,7 @@ public static class TerrainSystem
 
     // 可耕格里有几格在黄土高原、草原高原上(收成各打八折、五折，见 FarmlandSystem)
 #if EC_PENDING
-    public static (int loess, int steppe) PlateauArable(TileZone zone)
+    public static (int loess, int steppe) PlateauArable(Cell zone)
     {
         if (zone == null) return (0, 0);
         Entry entry = Lookup(zone);
@@ -382,18 +378,18 @@ public static class TerrainSystem
 
     // 这块地在哪种高原上(见类头)：0 平地、1 高寒、2 黄土、3 草原、255 外缘
 #if EC_PENDING
-    public static byte PlateauSide(TileZone zone) => zone == null ? LowlandSide : Lookup(zone).Side;
+    public static byte PlateauSide(Cell zone) => zone == null ? LowlandSide : Lookup(zone).Side;
 #endif
 
     // 陆地全是沙地、荒漠为 1(纯沙漠)，全是冻土(连冻住的沙地)为 2(纯冻土)，混着别的地、没有陆地为 0。
     // 只看地形；城心那块不算的口径见 BarrenLandSystem.KindOf
 #if EC_PENDING
-    public static int BarrenKind(TileZone zone) => zone == null ? 0 : Lookup(zone).Barren;
+    public static int BarrenKind(Cell zone) => zone == null ? 0 : Lookup(zone).Barren;
 #endif
 
     // 陆地格数与其中的可耕格数(城郊收成按可耕比例折算，见 FarmlandSystem)
 #if EC_PENDING
-    public static (int land, int arable) ArableCounts(TileZone zone)
+    public static (int land, int arable) ArableCounts(Cell zone)
     {
         if (zone == null) return (0, 0);
         Entry entry = Lookup(zone);
@@ -414,11 +410,11 @@ public static class TerrainSystem
 #if EC_PENDING
     public static float CityLivability(City city)
     {
-        if (city?.zones == null) return 0f;
+        if (city?.Zones == null) return 0f;
         float now = Time.realtimeSinceStartup;
         if (CityLivable.TryGetValue(city, out var hit) && now - hit.at < 5f && now >= hit.at) return hit.value;
         float sum = 0f;
-        foreach (TileZone zone in city.zones) sum += Livability(zone);
+        foreach (Cell zone in city.Zones) sum += Livability(zone);
         if (CityLivable.Count > 4096) CityLivable.Clear();
         CityLivable[city] = (sum, now);
         return sum;
@@ -428,7 +424,7 @@ public static class TerrainSystem
     // 一格地能住多少人(相对草地)：草地、可耕地 1，林地 0.8，黄土高原 0.7，丛林 0.6，稀树草原 0.5，沼泽 0.4，冻土、高寒高原 0.3，
     // 丘陵山石、沙地 0.2，荒原 0.2，沙漠 0.15，地狱 0.05，水、岩浆 0
 #if EC_PENDING
-    public static float LivableWeight(TileTypeBase type)
+    public static float LivableWeight(TerrainKind type)
     {
         if (type == null) return 0f;
         if (PlateauTerrain.IsPlateau(type))
@@ -437,7 +433,7 @@ public static class TerrainSystem
         if ((kinds & (LandKinds.Water | LandKinds.Lava)) != 0) return 0f;
         if ((kinds & LandKinds.Infernal) != 0) return 0.05f;
         if ((kinds & LandKinds.Rough) != 0) return 0.2f;
-        switch (type.biome_id)
+        switch (type.BiomeId)
         {
             case "biome_desert": return 0.15f;
             case "biome_wasteland": return 0.2f;
@@ -452,13 +448,13 @@ public static class TerrainSystem
         return 0.5f;
     }
 
-    private static Entry Lookup(TileZone zone)
+    private static Entry Lookup(Cell zone)
     {
-        if (zone?.tiles == null || EmpireWorld.Current == null) return new Entry { Terrain = FrontTerrain.Plains };
-        int id = zone.id;
+        if (zone?.Tiles == null || EmpireWorld.Current == null) return new Entry { Terrain = FrontTerrain.Plains };
+        int id = zone.Index;
         if (id < 0) return Classify(zone);
         if (id >= _cache.Length)
-            Array.Resize(ref _cache, Math.Max(id + 1, EmpireWorld.Current.zone_calculator?.zones?.Count ?? 0));
+            Array.Resize(ref _cache, Math.Max(id + 1, EmpireWorld.Current.Zones?.All?.Count ?? 0));
         double now = GameClock.Now;
         ref Entry hit = ref _cache[id];
         if (hit.Known && now >= hit.At && GameClock.MonthsSince(hit.At) < RefreshMonths + id % RefreshSpreadMonths)
@@ -473,10 +469,10 @@ public static class TerrainSystem
 
     // 交战地形：城中心那块地是城池
 #if EC_PENDING
-    public static FrontTerrain OfBattle(City city, TileZone zone) =>
-        zone != null && city?.getTile()?.zone == zone ? FrontTerrain.Urban : Of(zone);
+    public static FrontTerrain OfBattle(City city, Cell zone) =>
+        zone != null && city?.SeatCell()?.Zone == zone ? FrontTerrain.Urban : Of(zone);
 
-    public static bool SlowsMarch(TileZone zone) => zone != null && Effect(Of(zone)).SlowMarch;
+    public static bool SlowsMarch(Cell zone) => zone != null && Effect(Of(zone)).SlowMarch;
 #endif
 
     public static string Name(FrontTerrain terrain) => LM.Get("terrain_" + terrain.ToString().ToLowerInvariant());
@@ -499,15 +495,15 @@ public static class TerrainSystem
         return parts.Count == 0 ? LM.Get("terrain_effect_none") : string.Join(LM.Get("terrain_effect_separator"), parts);
     }
 
-    // 格子种类的地形标记(按 TileTypeBase.index_id：原版地面格与顶层格共用一套编号)。判地形每块地 64 格，
+    // 格子种类的地形标记(按 TerrainKind.index_id：原版地面格与顶层格共用一套编号)。判地形每块地 64 格，
     // 以前逐格比 id、生物群系的字符串；现在每种格子第一次见到时算一次标记，逐格只取标记
     private const int MarkWater = 1, MarkBlock = 2, MarkMountain = 4, MarkHills = 8, MarkSnowHills = 16, MarkSwamp = 32,
         MarkJungle = 64, MarkWoods = 128, MarkDesert = 256, MarkSnow = 512;
     private static int[] _marks = new int[0];
-#if EC_PENDING
-    private static TileTypeBase[] _markTypes = new TileTypeBase[0];
+    private static TerrainKind[] _markTypes = new TerrainKind[0];
 
-    private static int Marks(TileTypeBase type)
+#if EC_PENDING
+    private static int Marks(TerrainKind type)
     {
         int index = type.index_id;
         if (index < 0) return ComputeMarks(type);
@@ -524,17 +520,18 @@ public static class TerrainSystem
         _markTypes[index] = type;
         return marks;
     }
+#endif
 
-    private static int ComputeMarks(TileTypeBase type)
+    private static int ComputeMarks(TerrainKind type)
     {
         int marks = 0;
-        if (type.liquid && !type.lava) marks |= MarkWater;
-        if (type.block) marks |= MarkBlock;
-        if (type.mountains || type.summit) marks |= MarkMountain;
-        string id = type.id ?? "";
+        if (type.Liquid && !type.Lava) marks |= MarkWater;
+        if (type.Block) marks |= MarkBlock;
+        if (type.Mountains || type.Summit) marks |= MarkMountain;
+        string id = type.Id ?? "";
         if (id == "hills") marks |= MarkHills;
         else if (id == "snow_hills") marks |= MarkSnowHills;
-        switch (type.biome_id)
+        switch (type.BiomeId)
         {
             case "biome_swamp": marks |= MarkSwamp; break;
             case "biome_jungle": marks |= MarkJungle; break;
@@ -543,11 +540,10 @@ public static class TerrainSystem
             // 沙地是沙滩，不算沙漠(用户 2026-11-02 "沙滩不是沙漠"，同 WildernessSystem.ComputeMarks)
             case "biome_desert": marks |= MarkDesert; break;
         }
-        if (type.biome_id == "biome_permafrost" || id.StartsWith("snow", StringComparison.Ordinal) ||
+        if (type.BiomeId == "biome_permafrost" || id.StartsWith("snow", StringComparison.Ordinal) ||
             id.StartsWith("frozen", StringComparison.Ordinal)) marks |= MarkSnow;
         return marks;
     }
-#endif
 
     // 山间小块：不到这么多格的一片不算(碰着边也不算把地块隔开)
     private const int PocketCells = 4;
@@ -596,7 +592,7 @@ public static class TerrainSystem
     // 按地块里 64 格的构成判定：山多为山地，山与丘陵多为丘陵，其次沼泽、水网(河湖)、丛林、森林、沙漠、雪原，都不够为平原。
     // 门槛按本地大地图实测：城市地块里平原约四成，丛林、雪原、水网、山地、丘陵各占一到两成(视地图而定)
 #if EC_PENDING
-    private static Entry Classify(TileZone zone)
+    private static Entry Classify(Cell zone)
     {
         (FrontTerrain terrain, bool impassable, int land, int dry, int livable, int arable, int barren, int jungle, int rock) =
             ClassifyTiles(zone, out int alpine, out int loessArable, out int steppeArable, out byte side);
@@ -612,7 +608,7 @@ public static class TerrainSystem
     }
 
     private static (FrontTerrain terrain, bool impassable, int land, int dry, int livable, int arable, int barren, int jungle, int rock) ClassifyTiles(
-        TileZone zone, out int alpine, out int loessArable, out int steppeArable, out byte side)
+        Cell zone, out int alpine, out int loessArable, out int steppeArable, out byte side)
     {
         int total = 0, water = 0, mountain = 0, hills = 0, trees = 0, woods = 0, swamp = 0, jungle = 0, desert = 0, snow = 0,
             blocked = 0, land = 0, dry = 0, arable = 0, sandy = 0, frozen = 0, snowHills = 0, plateau = 0, loess = 0, steppe = 0;
@@ -620,22 +616,22 @@ public static class TerrainSystem
         side = LowlandSide;
         float livableSum = 0f;
         // 地块里哪些格走得了(不是山地、山巅)，看山以外的地连不连得过去(见 Crossable)
-        int size = Config.CITY_ZONE_SIZE, ox = zone.x * size, oy = zone.y * size;
+        int size = Config.CITY_ZONE_SIZE, ox = zone.X * size, oy = zone.Y * size;
         var open = new bool[size * size];
-        void Open(WorldTile at, bool walkable)
+        void Open(Cell at, bool walkable)
         {
-            int lx = at.x - ox, ly = at.y - oy;
+            int lx = at.X - ox, ly = at.Y - oy;
             if (lx >= 0 && ly >= 0 && lx < size && ly < size) open[ly * size + lx] = walkable;
         }
-        foreach (WorldTile tile in zone.tiles)
+        foreach (Cell tile in zone.Tiles)
         {
-            TileTypeBase type = tile?.Type;
+            TerrainKind type = tile?.Type;
             if (type == null) continue;
             total++;
             // 高原格(地面格是高原)：冻上、修了路的照样按高原算(看底下的地面)；开了田的按田算可耕
-            TileTypeBase high = PlateauTerrain.IsPlateau(tile.main_type) ? tile.main_type : null;
+            TerrainKind high = PlateauTerrain.IsPlateau(tile.MainType) ? tile.MainType : null;
             // 水土：陆地(不含水、岩浆)与其中的旱地
-            int kinds = LandKinds.Of(high != null && !type.farm_field ? high : type);
+            int kinds = LandKinds.Of(high != null && !type.FarmField ? high : type);
             if ((kinds & (LandKinds.Water | LandKinds.Lava)) == 0)
             {
                 land++;
@@ -661,11 +657,11 @@ public static class TerrainSystem
                 }
                 // 纯沙漠、纯冻土(见 BarrenLandSystem)：荒漠(沙地是沙滩，不算——海边一圈沙滩的地块以前算成纯荒地)；冻土(冻住的沙地也是冻土)。
                 // 路、田、墙铺在上面的看底下的地面(沙漠里修了路、开过田也还是沙漠)；高原格不算(冻上了也是高原)
-                TileTypeBase ground = (type.road || type.farm_field || type.wall) && tile.main_type != null ? tile.main_type : type;
+                TerrainKind ground = (type.Road || type.FarmField || type.Wall) && tile.MainType != null ? tile.MainType : type;
                 if (high == null)
                 {
-                    if (ground.biome_id == "biome_permafrost") frozen++;
-                    else if (ground.biome_id == "biome_desert") sandy++;
+                    if (ground.BiomeId == "biome_permafrost") frozen++;
+                    else if (ground.BiomeId == "biome_desert") sandy++;
                 }
             }
             int marks = Marks(type);
@@ -676,7 +672,7 @@ public static class TerrainSystem
                 continue;
             }
             // 底下的地面格只看阻挡、山地，丘陵只认 hills
-            TileTypeBase main = tile.main_type;
+            TerrainKind main = tile.MainType;
             int under = main != null ? Marks(main) : 0;
             bool block = ((marks | under) & MarkBlock) != 0;
             if (block) blocked++;

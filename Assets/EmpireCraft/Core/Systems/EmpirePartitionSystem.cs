@@ -2,6 +2,7 @@
 // see Port/manifest.json and Tools/PortTool.
 using Mathf = EmpireCraft.Core.EcMath;
 using Color = EmpireCraft.Core.EcColor;
+using Vector2 = EmpireCraft.Core.EcVector2;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -86,6 +87,7 @@ public static class EmpirePartitionSystem
         double since = empire.data.partition_time;
         return since < 0d || GameClock.YearsSince(since) >= CooldownYears;
     }
+#endif
 
     private static float Span(IEnumerable<City> cities, out bool horizontal)
     {
@@ -93,7 +95,7 @@ public static class EmpirePartitionSystem
         foreach (City city in cities)
         {
             if (city?.Record == null) continue;
-            Vector2 at = city.city_center;
+            Vector2 at = city.Center;
             minX = Mathf.Min(minX, at.x);
             maxX = Mathf.Max(maxX, at.x);
             minY = Mathf.Min(minY, at.y);
@@ -102,7 +104,6 @@ public static class EmpirePartitionSystem
         horizontal = maxX - minX >= maxY - minY;
         return minX > maxX ? 0f : Mathf.Max(maxX - minX, maxY - minY);
     }
-#endif
 
     private static List<City> Cities(Empire empire) =>
         empire.kingdoms_list.Where(kingdom => kingdom != null && !kingdom.IsGone())
@@ -116,14 +117,12 @@ public static class EmpirePartitionSystem
 #endif
 
     // 两朝都城的相对方位：东西相距远就分东西，南北相距远就分南北
-#if EC_PENDING
     private static string Side(Vector2 seat, Vector2 capital)
     {
         float dx = seat.x - capital.x, dy = seat.y - capital.y;
         if (Mathf.Abs(dx) >= Mathf.Abs(dy)) return dx > 0f ? "Eastern" : "Western";
         return dy > 0f ? "Northern" : "Southern";
     }
-#endif
 
     private static string Opposite(string side) => side switch
     {
@@ -146,14 +145,13 @@ public static class EmpirePartitionSystem
     }
 
     // 以京城、新都为两极：离新都近的成员国整国划走，京畿的城逐城划分
-#if EC_PENDING
     private static Plan Divide(Empire source, City capital, City seat)
     {
         var plan = new Plan();
         Realm core = source.CoreKingdom;
-        Vector2 a = capital.city_center, b = seat.city_center;
+        Vector2 a = capital.Center, b = seat.Center;
         bool Nearer(City city) => city != null && (city == seat ||
-                                                   (city.city_center - b).sqrMagnitude < (city.city_center - a).sqrMagnitude);
+                                                   (city.Center - b).sqrMagnitude < (city.Center - a).sqrMagnitude);
         foreach (Realm kingdom in source.kingdoms_list.ToList())
         {
             if (kingdom == null || kingdom.IsGone() || kingdom == core) continue;
@@ -175,19 +173,17 @@ public static class EmpirePartitionSystem
         if (seat.Realm != null && seat.Realm != core && !plan.Members.Contains(seat.Realm)) plan.Moved++;
         return plan;
     }
-#endif
 
     // 新都：离京城最远的那一部分城里最大的(地块最多)，且划分后新朝占的比例在给定范围内
-#if EC_PENDING
     private static City FarSeat(Empire source, Vector2 from, float minShare, float maxShare, out Plan plan)
     {
         plan = null;
         City capital = source.CoreKingdom.Capital;
         List<City> cities = Cities(source).Where(city => city != capital).ToList();
         if (cities.Count < 3) return null;
-        foreach (City seat in cities.OrderByDescending(city => (city.city_center - from).sqrMagnitude)
+        foreach (City seat in cities.OrderByDescending(city => (city.Center - from).sqrMagnitude)
                      .Take(Mathf.Max(3, cities.Count / 2))
-                     .OrderByDescending(city => city.zones?.Count ?? 0))
+                     .OrderByDescending(city => city.Zones?.Count ?? 0))
         {
             Plan candidate = Divide(source, capital, seat);
             if (candidate.Share < minShare || candidate.Share > maxShare) continue;
@@ -196,7 +192,6 @@ public static class EmpirePartitionSystem
         }
         return null;
     }
-#endif
 
     #endregion
 
@@ -212,7 +207,7 @@ public static class EmpirePartitionSystem
         if (ruler?.Record == null || ruler.IsGone() || !ruler.Alive || seat?.Record == null || capital == null) return null;
         // 不许自立(见 SecessionGate)：分立先动了君主、城主，在这里先问
         if (SecessionGate.Forbids("东西分立", source.GetEmpireFullName())) return null;
-        string side = Side(seat.city_center, capital.city_center);
+        string side = Side(seat.Center, capital.Center);
         Realm newCore;
         if (ownKingdom != null)
         {
@@ -274,7 +269,7 @@ public static class EmpirePartitionSystem
         GentrySystem.ChooseSides(new[] { source, twin });
         twin.recalculate();
         source.recalculate();
-        EmpireWorld.Current.zone_calculator?.dirtyAndClear();
+        EmpireWorld.Current.Zones?.MarkDirty();
         return twin;
     }
 #endif
@@ -336,7 +331,7 @@ public static class EmpirePartitionSystem
             Person actor = person.is_virtual ? null : person._actor;
             if (actor != null && (actor.IsRuler() || actor.IsEmperor() || actor.IsCityLeader() || actor.IsOnOffice())) continue;
             bool sibling = self.father > 0 && person.father == self.father || self.mother > 0 && person.mother == self.mother;
-            long cityId = actor?.city?.data?.id ?? person.virtual_city_id;
+            long cityId = actor?.City?.Key ?? person.virtual_city_id;
             bool atCourt = court?.Record != null && cityId == court.Key;
             bool follows = family.Contains(person.id) ||
                            sibling && EcRandom.value < SiblingFollowShare ||
@@ -489,14 +484,14 @@ public static class EmpirePartitionSystem
         // 汗庭直辖里管不到的城：从离汗庭最远的起，挨着的至多 ScatterChunkCities 座一片，交给当地首领各自为汗
         // (以前整片连着的算一块，常比一次的上限还大，整片作罢，管不到的城一座没走)
         RegimeType? regime = core.GetRegime()?.type;
-        Vector2 court = capital.city_center;
+        Vector2 court = capital.Center;
         while (farCore.Count > 0 && !budget.Capped)
         {
-            City seed = farCore.OrderByDescending(city => (city.city_center - court).sqrMagnitude).First();
+            City seed = farCore.OrderByDescending(city => (city.Center - court).sqrMagnitude).First();
             var cluster = new List<City> { seed };
             farCore.Remove(seed);
             for (int i = 0; i < cluster.Count && cluster.Count < ScatterChunkCities; i++)
-                foreach (City next in cluster[i].neighbours_cities?.ToList() ?? new List<City>())
+                foreach (City next in cluster[i].NeighbourCities?.ToList() ?? new List<City>())
                 {
                     if (cluster.Count >= ScatterChunkCities) break;
                     if (next != null && farCore.Remove(next)) cluster.Add(next);
@@ -579,7 +574,7 @@ public static class EmpirePartitionSystem
         }
         if (ruler == null)
         {
-            seat = FarSeat(empire, capital.city_center, KhanSplitMin, KhanSplitMax, out plan);
+            seat = FarSeat(empire, capital.Center, KhanSplitMin, KhanSplitMax, out plan);
             ruler = seat == null ? null : PickRoyal(empire, khan, preferYoung: false);
         }
         if (ruler == null || seat == null || plan == null) return false;
@@ -674,7 +669,7 @@ public static class EmpirePartitionSystem
         List<City> cities = Cities(empire);
         if (cities.Count < WillMinCities) return;
         float span = Span(cities, out _);
-        float mapSize = Mathf.Max(EmpireWorld.width, EmpireWorld.height);
+        float mapSize = Mathf.Max(EmpireWorld.Current.Width, EmpireWorld.Current.Height);
         if (mapSize <= 0f || span < mapSize * WillSpanShare) return;
         bool allowFemale = PersonalUnionService.AllowsFemaleSuccession(core);
         bool Fit(Person child) => child?.Record != null && !child.IsGone() && child.Alive && child.IsAdult() &&
@@ -735,7 +730,7 @@ public static class EmpirePartitionSystem
         if (ruler == null)
         {
             ruler = sons.Where(son => son != heir && !son.IsRuler()).OrderByDescending(son => son.Renown).FirstOrDefault();
-            seat = ruler == null ? null : FarSeat(empire, capital.city_center, 0.25f, 0.6f, out plan);
+            seat = ruler == null ? null : FarSeat(empire, capital.Center, 0.25f, 0.6f, out plan);
         }
         if (ruler == null || seat == null || plan == null) return;
         string emperorName = emperor.FullName(), heirName = heir.FullName(), seatName = seat.GetCityName();
@@ -807,7 +802,7 @@ public static class EmpirePartitionSystem
             .Where(kingdom => kingdom != null && !kingdom.IsGone() && kingdom != core && kingdom.Capital != null &&
                               kingdom.Ruler?.Record != null && kingdom.Ruler.Alive && kingdom.Ruler.IsAdult() &&
                               kingdom.Ruler != minister && (ministerFaction == null || kingdom.Ruler.GetFaction() != ministerFaction) &&
-                              Vector2.Distance(kingdom.Capital.city_center, capital.city_center) >= span * StrongmanDistanceShare &&
+                              Vector2.Distance(kingdom.Capital.Center, capital.Center) >= span * StrongmanDistanceShare &&
                               (Might(kingdom) >= total * StrongmanMightShare || CorpsSystem.IsGeneral(kingdom.Ruler) ||
                                kingdom.GetKingdomType() is KingdomType.LvLing_jiedushi or KingdomType.LvLing_duhufu ||
                                EmirateSystem.IsHereditaryEmir(empire, kingdom)))
@@ -1043,7 +1038,7 @@ public static class EmpirePartitionSystem
         }
         else
         {
-            seat = FarSeat(usurper, capital.city_center, 0.15f, 0.5f, out plan);
+            seat = FarSeat(usurper, capital.Center, 0.15f, 0.5f, out plan);
             EmpireCraftHistory lastReign = usurper.data.history?.LastOrDefault(history =>
                 history != null && history.id > 0 && history.royal_surname == clan.name);
             PersonalClanIdentity last = lastReign == null ? null
@@ -1088,10 +1083,9 @@ public static class EmpirePartitionSystem
     // 宗室另立一次带走的城不超过篡位帝国总城数(含成员)的三分之一(见 UpheavalGuard，用户 2026-10-21 选)：
     // 照划分的远近，离新都近的先走(成员国整国、京畿逐城)，下一处放进来就超过上限时就停。
     // 新都本是帝国的城(不是叛离在外的宗室诸王自带的国)时先算它一座；它都放不下就不另立(返回 false)
-#if EC_PENDING
     private static bool Trim(Plan plan, City seat, Realm ownKingdom, UpheavalGuard.Budget budget)
     {
-        Vector2 at = seat.city_center;
+        Vector2 at = seat.Center;
         if (ownKingdom == null)
         {
             if (!budget.Fits(1)) return false;
@@ -1104,10 +1098,10 @@ public static class EmpirePartitionSystem
             City anchor = member.Capital ?? member.Cities?.FirstOrDefault();
             // 新都所在的成员国：新都那座上面已算过
             int count = (member.Cities?.Count ?? 0) - (ownKingdom == null && seat.Realm == member ? 1 : 0);
-            parts.Add((anchor == null ? 0f : (anchor.city_center - at).sqrMagnitude, member, null, Mathf.Max(0, count)));
+            parts.Add((anchor == null ? 0f : (anchor.Center - at).sqrMagnitude, member, null, Mathf.Max(0, count)));
         }
         foreach (City city in plan.CoreCities)
-            if (city?.Record != null && city != seat) parts.Add(((city.city_center - at).sqrMagnitude, null, city, 1));
+            if (city?.Record != null && city != seat) parts.Add(((city.Center - at).sqrMagnitude, null, city, 1));
         var members = new List<Realm>();
         var coreCities = new List<City>();
         foreach (var part in parts.OrderBy(item => item.distance))
@@ -1121,7 +1115,6 @@ public static class EmpirePartitionSystem
         plan.CoreCities = coreCities;
         return true;
     }
-#endif
 
     #endregion
 
@@ -1138,7 +1131,7 @@ public static class EmpirePartitionSystem
         City capital = source.CoreKingdom?.Capital;
         Person emperor = source.Emperor;
         if (capital == null || emperor?.Record == null) return null;
-        City seat = FarSeat(source, capital.city_center, 0.25f, 0.6f, out Plan plan);
+        City seat = FarSeat(source, capital.Center, 0.25f, 0.6f, out Plan plan);
         Person royal = seat == null ? null : PickRoyal(source, emperor, preferYoung: true);
         if (royal == null) return null;
         Empire twin = Split(source, royal, seat, plan, KindShogunate, PrinceStruggleSystem.NoteRaised, source.data.core_name,
@@ -1173,7 +1166,7 @@ public static class EmpirePartitionSystem
         foreach (Realm kingdom in vacant.kingdoms_list.ToList())
             if (kingdom != null && kingdom != oldCore && !kingdom.IsGone())
                 heir.join(kingdom, pRecalc: false, pForce: true, pLegitimacyTransfer: true);
-        List<City> cities = oldCore?.cities?.ToList() ?? new List<City>();
+        List<City> cities = oldCore?.Cities?.ToList() ?? new List<City>();
         if (!vacant.IsArchived()) ModClass.EMPIRE_MANAGER.dissolveEmpire(vacant);
         foreach (City city in cities)
             if (city?.Record != null && !city.IsGone() && heir.CoreKingdom != null) city.JoinRealm(heir.CoreKingdom);
@@ -1187,7 +1180,7 @@ public static class EmpirePartitionSystem
         heir.RecordHistory(directContent: text, actorId: heir.Emperor?.Key ?? -1L);
         if (major) TranslateHelper.LogMajor(text, heir.CoreKingdom);
         else TranslateHelper.LogEventOnly(text, heir.CoreKingdom);
-        EmpireWorld.Current.zone_calculator?.dirtyAndClear();
+        EmpireWorld.Current.Zones?.MarkDirty();
         return true;
     }
 #endif

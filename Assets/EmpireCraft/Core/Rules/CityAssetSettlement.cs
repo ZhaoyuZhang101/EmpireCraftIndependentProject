@@ -39,13 +39,13 @@ public static class CityAssetSettlement
     {
         if (old == null || old.arrears <= 0 && old.governance_arrears <= 0 && old.garrison_arrears <= 0 &&
             old.military_arrears <= 0) return;
-        Realm debtor = old.owner_id >= 0 ? EmpireWorld.Current?.kingdoms?.get(old.owner_id) : null;
+        Realm debtor = old.owner_id >= 0 ? EmpireWorld.Current?.RealmByKey(old.owner_id) : null;
         City capital = debtor != null && !debtor.IsGone() ? debtor.Capital : null;
         CityStabilityData target = capital != null && capital != city && !capital.IsGone() && capital.Realm == debtor
             ? CityStabilitySystem.State(capital) : null;
         if (target == null)
         {
-            LogService.LogInfo($"[EmpireCraft][财政] {city?.data?.name} 原属政权({old.owner_id})已无首都可承接，" +
+            LogService.LogInfo($"[EmpireCraft][财政] {city?.Name} 原属政权({old.owner_id})已无首都可承接，" +
                                $"欠款 {old.governance_arrears + old.garrison_arrears + old.military_arrears} 记为违约");
             return;
         }

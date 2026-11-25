@@ -2,6 +2,7 @@
 // see Port/manifest.json and Tools/PortTool.
 using Mathf = EmpireCraft.Core.EcMath;
 using Time = EmpireCraft.Core.FrameClock;
+using Vector2 = EmpireCraft.Core.EcVector2;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -126,7 +127,7 @@ public static class RoadNetwork
 #if EC_PENDING
     public static void RefreshNow()
     {
-        if (EmpireWorld.Current?.tiles_list == null) return;
+        if (EmpireWorld.Current?.Zones == null) return;
         _dirty = false;
         CollectRoads();
         Version++;
@@ -156,32 +157,24 @@ public static class RoadNetwork
     }
 
     // 有路的地块：干道经过的，以及城心
-#if EC_PENDING
-    public static bool IsRoad(TileZone zone) =>
-        zone != null && (RoadZones.Contains(zone.id) || zone.city?.data != null && zone.city.getTile()?.zone == zone);
-#endif
+    public static bool IsRoad(Cell zone) =>
+        zone != null && (RoadZones.Contains(zone.Index) || zone.City?.Record != null && zone.City.SeatCell()?.Zone == zone);
 
     // 小径(见类头)：规划路线经过的地块，修没修都算。无人区里军队走得过去(见 WildernessPassage.Blocking)，地形上也进得去(见 TerrainSystem.Impassable)
-#if EC_PENDING
-    public static bool IsTrail(TileZone zone) => zone != null && TrailZones.Contains(zone.id);
-#endif
+    public static bool IsTrail(Cell zone) => zone != null && TrailZones.Contains(zone.Index);
 
     // 规划路线跨过这两块地的交界：按格走得过去，山脊上一格宽的缺口也算(见 TerrainSystem.Crossable)
-#if EC_PENDING
-    public static bool Spans(TileZone a, TileZone b) => a != null && b != null && TrailEdges.Contains(EdgeKey(a.id, b.id));
-#endif
+    public static bool Spans(Cell a, Cell b) => a != null && b != null && TrailEdges.Contains(EdgeKey(a.Index, b.Index));
 
     private static long EdgeKey(int a, int b) => a < b ? (long)a << 32 | (uint)b : (long)b << 32 | (uint)a;
 
     // 地块上最好的路的等级(没有路为 0；城心按驿道算)
-#if EC_PENDING
-    public static int RoadGrade(TileZone zone)
+    public static int RoadGrade(Cell zone)
     {
         if (zone == null) return 0;
-        if (ZoneGrades.TryGetValue(zone.id, out int grade)) return grade;
-        return zone.city?.data != null && zone.city.getTile()?.zone == zone ? 2 : 0;
+        if (ZoneGrades.TryGetValue(zone.Index, out int grade)) return grade;
+        return zone.City?.Record != null && zone.City.SeatCell()?.Zone == zone ? 2 : 0;
     }
-#endif
 
     public static void ResetWorldState()
     {
@@ -211,7 +204,7 @@ public static class RoadNetwork
 #if EC_PENDING
     public static void Tick()
     {
-        if (EmpireWorld.Current?.Cities == null || EmpireWorld.Current.zone_calculator == null) return;
+        if (EmpireWorld.Current?.Cities == null || EmpireWorld.Current.Zones == null) return;
         if (!ReferenceEquals(_world, EmpireWorld.Current))
         {
             ResetWorldState();
@@ -318,9 +311,9 @@ public static class RoadNetwork
         // 神力画的路(见 RoadPaintSystem)：按格并进来
         foreach (var pair in RoadPaintSystem.Tiles)
         {
-            WorldTile tile = RoadPaintSystem.TileOf(pair.Key);
-            if (tile?.zone == null || pair.Value.grade <= 0) continue;
-            int grade = pair.Value.grade, zone = tile.zone.id;
+            Cell tile = RoadPaintSystem.TileOf(pair.Key);
+            if (tile?.Zone == null || pair.Value.grade <= 0) continue;
+            int grade = pair.Value.grade, zone = tile.Zone.Index;
             RoadTiles.Add(pair.Key);
             RoadZones.Add(zone);
             BuildingTiles.Remove(pair.Key);
@@ -340,30 +333,30 @@ public static class RoadNetwork
 #if EC_PENDING
     private static void ConnectCorners()
     {
-        if (EmpireWorld.Current?.tiles_list == null || TileGrades.Count == 0) return;
+        if (EmpireWorld.Current?.Zones == null || TileGrades.Count == 0) return;
         var joints = new Dictionary<int, int>();
         foreach (var pair in TileGrades)
         {
-            WorldTile tile = EmpireWorld.Current.tiles_list[pair.Key];
+            Cell tile = EmpireWorld.Current.Zones[pair.Key];
             if (tile == null) continue;
             // 每对斜邻只看一次(右上、右下)
             for (int dy = -1; dy <= 1; dy += 2)
             {
-                WorldTile corner = EmpireWorld.Current.GetTile(tile.x + 1, tile.y + dy);
-                if (corner?.data == null || !TileGrades.TryGetValue(corner.data.tile_id, out int other)) continue;
-                WorldTile side = EmpireWorld.Current.GetTile(tile.x + 1, tile.y), across = EmpireWorld.Current.GetTile(tile.x, tile.y + dy);
-                if (IsRoadTile(side) || IsRoadTile(across) || side != null && joints.ContainsKey(side.data.tile_id) ||
-                    across != null && joints.ContainsKey(across.data.tile_id)) continue;
+                Cell corner = EmpireWorld.Current.CellAt(tile.X + 1, tile.Y + dy);
+                if (corner?.data == null || !TileGrades.TryGetValue(corner.Index, out int other)) continue;
+                Cell side = EmpireWorld.Current.CellAt(tile.X + 1, tile.Y), across = EmpireWorld.Current.CellAt(tile.X, tile.Y + dy);
+                if (IsRoadTile(side) || IsRoadTile(across) || side != null && joints.ContainsKey(side.Index) ||
+                    across != null && joints.ContainsKey(across.Index)) continue;
                 int grade = Math.Min(pair.Value, other);
-                WorldTile joint = JointTile(side, grade) ?? JointTile(across, grade);
-                if (joint == null && JointTile(side, grade, water: true) is WorldTile wet) joint = wet;
+                Cell joint = JointTile(side, grade) ?? JointTile(across, grade);
+                if (joint == null && JointTile(side, grade, water: true) is Cell wet) joint = wet;
                 else if (joint == null) joint = JointTile(across, grade, water: true);
-                if (joint != null) joints[joint.data.tile_id] = grade;
+                if (joint != null) joints[joint.Index] = grade;
             }
         }
         foreach (var pair in joints)
         {
-            WorldTile tile = EmpireWorld.Current.tiles_list[pair.Key];
+            Cell tile = EmpireWorld.Current.Zones[pair.Key];
             RoadTiles.Add(pair.Key);
             BuildingTiles.Remove(pair.Key);
             TileGrades[pair.Key] = pair.Value;
@@ -373,15 +366,15 @@ public static class RoadNetwork
 
     // 这一格上有没有修通的路(各国修的干道、神力画的路)；军牌沿路走也用(见 CorpsSystem.MarchLine、TerrainSystem.StepCost)
 #if EC_PENDING
-    internal static bool IsRoadTile(WorldTile tile) => tile?.data != null && TileGrades.ContainsKey(tile.data.tile_id);
+    internal static bool IsRoadTile(Cell tile) => tile?.data != null && TileGrades.ContainsKey(tile.Index);
 #endif
 
     // 能补成接头的格：走得了(不是山、城墙、岩浆)；water 为假时只要陆地，为真时水面要能架桥的等级
 #if EC_PENDING
-    private static WorldTile JointTile(WorldTile tile, int grade, bool water = false)
+    private static Cell JointTile(Cell tile, int grade, bool water = false)
     {
-        if (tile?.data == null || tile.zone == null || tile.Type.ocean || TileStep(tile) < 0f) return null;
-        bool wet = tile.Type.liquid;
+        if (tile?.data == null || tile.Zone == null || tile.Type.Ocean || TileStep(tile) < 0f) return null;
+        bool wet = tile.Type.Liquid;
         if (!water) return wet ? null : tile;
         return wet && grade >= BridgeGrade ? tile : null;
     }
@@ -410,12 +403,12 @@ public static class RoadNetwork
         bool pending = false;
         foreach (City city in EmpireWorld.Current.Cities)
         {
-            WorldTile from = city?.getTile();
+            Cell from = city?.SeatCell();
             if (from == null || city.IsGone() || CityStyleSystem.Roadless(city)) continue;
-            foreach (City other in city.neighbours_cities)
+            foreach (City other in city.NeighbourCities)
             {
-                WorldTile to = other?.getTile();
-                if (to == null || other.IsGone() || other.Key <= city.Key || !from.isSameIsland(to) ||
+                Cell to = other?.SeatCell();
+                if (to == null || other.IsGone() || other.Key <= city.Key || !from.IsSameIsland(to) ||
                     CityStyleSystem.Roadless(other)) continue;
                 if (Bypassed(city, other, from, to)) continue;
                 pending |= Plan((city.Key, other.Key), from, to, now, budget, wanted);
@@ -427,29 +420,29 @@ public static class RoadNetwork
             if (wanted.Contains(key)) continue;
             City first = EmpireWorld.Current.CityByKey(key.Item1), second = EmpireWorld.Current.CityByKey(key.Item2);
             if (CityStyleSystem.Roadless(first) || CityStyleSystem.Roadless(second)) continue;
-            WorldTile from = first?.getTile(), to = second?.getTile();
+            Cell from = first?.SeatCell(), to = second?.SeatCell();
             if (from != null && to != null) pending |= Plan(key, from, to, now, budget, wanted);
         }
         RoadPlansComplete = !pending;
         // 小径：游牧营地连着的路线、只隔着无人区的两城(修路的算完了才轮到它们)
         foreach (City city in EmpireWorld.Current.Cities)
         {
-            WorldTile from = city?.getTile();
+            Cell from = city?.SeatCell();
             if (from == null || city.IsGone()) continue;
             bool roadless = CityStyleSystem.Roadless(city);
-            foreach (City other in city.neighbours_cities)
+            foreach (City other in city.NeighbourCities)
             {
-                WorldTile to = other?.getTile();
-                if (to == null || other.IsGone() || other.Key <= city.Key || !from.isSameIsland(to) ||
+                Cell to = other?.SeatCell();
+                if (to == null || other.IsGone() || other.Key <= city.Key || !from.IsSameIsland(to) ||
                     !roadless && !CityStyleSystem.Roadless(other)) continue;
                 if (Bypassed(city, other, from, to)) continue;
                 pending |= Plan((city.Key, other.Key), from, to, now, budget, wanted);
             }
             foreach (City other in WildernessNeighbours.Of(city))
             {
-                WorldTile to = other?.getTile();
-                if (to == null || other.IsGone() || other.Key <= city.Key || !from.isSameIsland(to) ||
-                    city.neighbours_cities.Contains(other)) continue;
+                Cell to = other?.SeatCell();
+                if (to == null || other.IsGone() || other.Key <= city.Key || !from.IsSameIsland(to) ||
+                    city.NeighbourCities.Contains(other)) continue;
                 if (BypassedAcross(city, other, from, to)) continue;
                 pending |= Plan((city.Key, other.Key), from, to, now, budget, wanted);
             }
@@ -463,7 +456,7 @@ public static class RoadNetwork
 
     // 规划一条路(已修的路线不再重算，免得路自己挪地方)；返回是不是因为本次时间用完还没算
 #if EC_PENDING
-    private static bool Plan((long, long) key, WorldTile from, WorldTile to, float now,
+    private static bool Plan((long, long) key, Cell from, Cell to, float now,
         global::System.Diagnostics.Stopwatch budget, HashSet<(long, long)> wanted)
     {
         wanted.Add(key);
@@ -484,91 +477,91 @@ public static class RoadNetwork
 #endif
 
     // 两城之间另有一座城比它们彼此都近：经那座城走，不另修直路
-#if EC_PENDING
-    private static bool Bypassed(City a, City b, WorldTile ta, WorldTile tb)
+    private static bool Bypassed(City a, City b, Cell ta, Cell tb)
     {
         float ab = Squared(ta, tb);
-        foreach (City c in a.neighbours_cities.Concat(b.neighbours_cities))
+        foreach (City c in a.NeighbourCities.Concat(b.NeighbourCities))
         {
-            WorldTile tc = c?.getTile();
-            if (tc == null || c == a || c == b || c.IsGone() || !tc.isSameIsland(ta)) continue;
+            Cell tc = c?.SeatCell();
+            if (tc == null || c == a || c == b || c.IsGone() || !tc.IsSameIsland(ta)) continue;
             if (Squared(ta, tc) < ab && Squared(tc, tb) < ab) return true;
         }
         return false;
     }
-#endif
 
     // 隔着无人区的两城：另有一座城(地块相接的或也隔着无人区的)比它们彼此都近，就经那座城走，走廊不至于铺满一片无人区
 #if EC_PENDING
-    private static bool BypassedAcross(City a, City b, WorldTile ta, WorldTile tb)
+    private static bool BypassedAcross(City a, City b, Cell ta, Cell tb)
     {
         if (Bypassed(a, b, ta, tb)) return true;
         float ab = Squared(ta, tb);
         foreach (City c in WildernessNeighbours.Of(a).Concat(WildernessNeighbours.Of(b)))
         {
-            WorldTile tc = c?.getTile();
-            if (tc == null || c == a || c == b || c.IsGone() || !tc.isSameIsland(ta)) continue;
+            Cell tc = c?.SeatCell();
+            if (tc == null || c == a || c == b || c.IsGone() || !tc.IsSameIsland(ta)) continue;
             if (Squared(ta, tc) < ab && Squared(tc, tb) < ab) return true;
         }
         return false;
     }
+#endif
 
-    private static float Squared(WorldTile a, WorldTile b) => (a.x - b.x) * (a.x - b.x) + (a.y - b.y) * (a.y - b.y);
+    private static float Squared(Cell a, Cell b) => (a.X - b.X) * (a.X - b.X) + (a.Y - b.Y) * (a.Y - b.Y);
 
-    private static RoadPlan BuildRoad(WorldTile from, WorldTile to, float now)
+#if EC_PENDING
+    private static RoadPlan BuildRoad(Cell from, Cell to, float now)
     {
         var route = new RoadPlan { at = now };
-        TileZone goal = to.zone;
-        List<TileZone> path = FindZones(from.zone, goal, zone => RoadStep(zone, goal), RoadCost);
+        Cell goal = to.Zone;
+        List<Cell> path = FindZones(from.Zone, goal, zone => RoadStep(zone, goal), RoadCost);
         if (path == null) return route;
         // 地形代价(翻山、穿沼泽丛林、大河、大绕路都高)：最高等级的路也修不通的不规划
         float terrain = 0f;
         for (int i = 1; i < path.Count; i++)
-            terrain += Terrain(path[i]) * (path[i].x != path[i - 1].x && path[i].y != path[i - 1].y ? 1.41f : 1f);
+            terrain += Terrain(path[i]) * (path[i].X != path[i - 1].X && path[i].Y != path[i - 1].Y ? 1.41f : 1f);
         route.terrain = Mathf.Max(1f, terrain);
-        route.straight = Mathf.Max(1f, Distance(from.zone, goal));
+        route.straight = Mathf.Max(1f, Distance(from.Zone, goal));
         if (route.terrain > route.straight * RoadBuildingSystem.DetourLimit(RoadBuildingSystem.MaxGrade)) return route;
         // 格子一级：走廊里绕不过山的不修。城池全图筑了城墙的城只从城门进出(见 CityPlanWorks)，大城的城门可能在走廊三圈以外，
         // 再把两头城的地全算进走廊找一回
-        List<WorldTile> tiles = FindTiles(from, to, Corridor(path, 1)) ?? FindTiles(from, to, Corridor(path, WideCorridor));
-        if (tiles == null && (CityPlanWorks.Walled(from.zone?.city) || CityPlanWorks.Walled(to.zone?.city)))
+        List<Cell> tiles = FindTiles(from, to, Corridor(path, 1)) ?? FindTiles(from, to, Corridor(path, WideCorridor));
+        if (tiles == null && (CityPlanWorks.Walled(from.Zone?.City) || CityPlanWorks.Walled(to.Zone?.City)))
             tiles = FindTiles(from, to, WithCities(Corridor(path, WideCorridor), from, to));
         if (tiles == null) return new RoadPlan { at = now };
         for (int i = 1; i < tiles.Count; i++)
         {
-            TileZone a = tiles[i - 1].zone, b = tiles[i].zone;
-            if (a != null && b != null && a != b) route.edges.Add(EdgeKey(a.id, b.id));
+            Cell a = tiles[i - 1].Zone, b = tiles[i].Zone;
+            if (a != null && b != null && a != b) route.edges.Add(EdgeKey(a.Index, b.Index));
         }
-        foreach (WorldTile tile in tiles)
-            if (tile.zone != null && (route.zones.Count == 0 || route.zones[route.zones.Count - 1] != tile.zone.id) &&
-                !route.zones.Contains(tile.zone.id))
-                route.zones.Add(tile.zone.id);
+        foreach (Cell tile in tiles)
+            if (tile.Zone != null && (route.zones.Count == 0 || route.zones[route.zones.Count - 1] != tile.Zone.Index) &&
+                !route.zones.Contains(tile.Zone.Index))
+                route.zones.Add(tile.Zone.Index);
         DrawRoad(tiles, route.tiles);
         return route;
     }
 
-    private static float RoadStep(TileZone zone, TileZone goal)
+    private static float RoadStep(Cell zone, Cell goal)
     {
         if (zone != goal && (TerrainSystem.ImpassableGround(zone) || SeaRegionSystem.IsSea(zone) ||
                              MountainShare(zone) >= MountainZoneShare)) return -1f;
-        return (RoadZones.Contains(zone.id) ? RoadCost : 1f) * Terrain(zone);
+        return (RoadZones.Contains(zone.Index) ? RoadCost : 1f) * Terrain(zone);
     }
 #endif
 
     // 地块里山、高峰格子占几成(地形少变，算一次记下)
 #if EC_PENDING
-    private static float MountainShare(TileZone zone)
+    private static float MountainShare(Cell zone)
     {
-        if (MountainShares.TryGetValue(zone.id, out float share)) return share;
+        if (MountainShares.TryGetValue(zone.Index, out float share)) return share;
         int mountains = 0, total = 0;
-        foreach (WorldTile tile in zone.tiles ?? Array.Empty<WorldTile>())
+        foreach (Cell tile in zone.Tiles ?? Array.Empty<Cell>())
         {
             if (tile?.Type == null) continue;
             total++;
-            if (Mountain(tile) && !tile.Type.wall && !MapWallSystem.Contains(tile)) mountains++;
+            if (Mountain(tile) && !tile.Type.Wall && !MapWallSystem.Contains(tile)) mountains++;
         }
         share = total == 0 ? 0f : mountains / (float)total;
-        MountainShares[zone.id] = share;
+        MountainShares[zone.Index] = share;
         return share;
     }
 #endif
@@ -576,92 +569,89 @@ public static class RoadNetwork
     // 山、高峰、原版城墙与图层城墙(见 MapWallSystem)：路不走；丘陵可以。城墙不算进地块的山地占比(一格宽的线，绕过去就行)。
     // 关城压着的关门(见 WallGateSystem)照走：以前城墙格一律当山，关挨着墙筑也过不去
 #if EC_PENDING
-    private static bool Mountain(WorldTile tile) => tile.Type != null &&
-        (tile.Type.mountains || tile.Type.block && !tile.Type.wall || MapWallSystem.Blocks(tile));
+    private static bool Mountain(Cell tile) => tile.Type != null &&
+        (tile.Type.Mountains || tile.Type.Block && !tile.Type.Wall || MapWallSystem.Blocks(tile));
 #endif
 
     // 走进这一格的代价：山不走，丘陵加倍，水面是桥，已有的路便宜
 #if EC_PENDING
-    private static float TileStep(WorldTile tile)
+    private static float TileStep(Cell tile)
     {
-        if (tile?.Type == null || Mountain(tile) || tile.Type.lava) return -1f;
-        float cost = tile.Type.liquid ? BridgeTileCost : tile.Type.rocks ? HillTileCost : 1f;
-        return RoadTiles.Contains(tile.data.tile_id) ? cost * RoadCost : cost;
+        if (tile?.Type == null || Mountain(tile) || tile.Type.Lava) return -1f;
+        float cost = tile.Type.Liquid ? BridgeTileCost : tile.Type.Rocks ? HillTileCost : 1f;
+        return RoadTiles.Contains(tile.Index) ? cost * RoadCost : cost;
     }
 #endif
 
     // 走廊：地块路线经过的地块及其周围 ring 圈
-#if EC_PENDING
-    private static HashSet<int> Corridor(List<TileZone> path, int ring)
+    private static HashSet<int> Corridor(List<Cell> path, int ring)
     {
         var corridor = new HashSet<int>();
-        ZoneCalculator zones = EmpireWorld.Current.zone_calculator;
-        foreach (TileZone zone in path)
+        ZoneGrid zones = EmpireWorld.Current.Zones;
+        foreach (Cell zone in path)
             for (int dx = -ring; dx <= ring; dx++)
                 for (int dy = -ring; dy <= ring; dy++)
-                    if (zones.getZone(zone.x + dx, zone.y + dy) is TileZone next) corridor.Add(next.id);
+                    if (zones.Get(zone.X + dx, zone.Y + dy) is Cell next) corridor.Add(next.Index);
         return corridor;
     }
-#endif
 
     // 走廊加上两头城的全部地块(城门落在本城的地上)
-#if EC_PENDING
-    private static HashSet<int> WithCities(HashSet<int> corridor, WorldTile from, WorldTile to)
+    private static HashSet<int> WithCities(HashSet<int> corridor, Cell from, Cell to)
     {
-        foreach (WorldTile end in new[] { from, to })
+        foreach (Cell end in new[] { from, to })
         {
-            City city = end?.zone?.city;
-            if (city?.zones == null) continue;
-            foreach (TileZone zone in city.zones)
-                if (zone != null) corridor.Add(zone.id);
+            City city = end?.Zone?.City;
+            if (city?.Zones == null) continue;
+            foreach (Cell zone in city.Zones)
+                if (zone != null) corridor.Add(zone.Index);
         }
         return corridor;
     }
-#endif
 
     // 格子一级的 A*(八方向，斜走乘 1.41)，只走走廊里的格子；两端是城心
 #if EC_PENDING
-    private static List<WorldTile> FindTiles(WorldTile from, WorldTile to, HashSet<int> corridor)
+    private static List<Cell> FindTiles(Cell from, Cell to, HashSet<int> corridor)
     {
         if (from == null || to == null) return null;
-        int start = from.data.tile_id, goal = to.data.tile_id;
+        int start = from.Index, goal = to.Index;
         var cost = new Dictionary<int, float> { [start] = 0f };
-        var previous = new Dictionary<int, WorldTile>();
+        var previous = new Dictionary<int, Cell>();
         var closed = new HashSet<int>();
-        var open = new List<(float key, WorldTile tile)> { (0f, from) };
+        var open = new List<(float key, Cell tile)> { (0f, from) };
         while (open.Count > 0 && closed.Count < MaxTileSearch)
         {
-            WorldTile tile = PopTile(open);
-            int id = tile.data.tile_id;
+            Cell tile = PopTile(open);
+            int id = tile.Index;
             if (id == goal) break;
             if (!closed.Add(id)) continue;
             float here = cost[id];
-            foreach (WorldTile next in tile.neighboursAll ?? Array.Empty<WorldTile>())
+            foreach (Cell next in tile.NeighboursAll ?? Array.Empty<Cell>())
             {
-                if (next?.zone == null || closed.Contains(next.data.tile_id) || !corridor.Contains(next.zone.id)) continue;
-                float enter = next.data.tile_id == goal ? 1f : TileStep(next);
-                if (enter < 0f || MapWallSystem.CutsCorner(tile.x, tile.y, next.x, next.y)) continue;
-                if (next.x != tile.x && next.y != tile.y) enter *= 1.41f;
+                if (next?.Zone == null || closed.Contains(next.Index) || !corridor.Contains(next.Zone.Index)) continue;
+                float enter = next.Index == goal ? 1f : TileStep(next);
+                if (enter < 0f || MapWallSystem.CutsCorner(tile.X, tile.Y, next.X, next.Y)) continue;
+                if (next.X != tile.X && next.Y != tile.Y) enter *= 1.41f;
                 float total = here + enter;
-                if (cost.TryGetValue(next.data.tile_id, out float known) && known <= total) continue;
-                cost[next.data.tile_id] = total;
-                previous[next.data.tile_id] = tile;
-                float dx = next.x - to.x, dy = next.y - to.y;
+                if (cost.TryGetValue(next.Index, out float known) && known <= total) continue;
+                cost[next.Index] = total;
+                previous[next.Index] = tile;
+                float dx = next.X - to.X, dy = next.Y - to.Y;
                 PushTile(open, (total + Mathf.Sqrt(dx * dx + dy * dy) * RoadCost, next));
             }
         }
         if (!previous.ContainsKey(goal)) return null;
-        var path = new List<WorldTile>();
-        for (WorldTile tile = to; tile != null; tile = previous.TryGetValue(tile.data.tile_id, out WorldTile back) ? back : null)
+        var path = new List<Cell>();
+        for (Cell tile = to; tile != null; tile = previous.TryGetValue(tile.Index, out Cell back) ? back : null)
         {
             path.Add(tile);
-            if (tile.data.tile_id == start) break;
+            if (tile.Index == start) break;
         }
         path.Reverse();
         return path;
     }
+#endif
 
-    private static void PushTile(List<(float key, WorldTile tile)> heap, (float key, WorldTile tile) item)
+    private static void PushTile(List<(float key, Cell tile)> heap, (float key, Cell tile) item)
     {
         heap.Add(item);
         int i = heap.Count - 1;
@@ -674,9 +664,9 @@ public static class RoadNetwork
         }
     }
 
-    private static WorldTile PopTile(List<(float key, WorldTile tile)> heap)
+    private static Cell PopTile(List<(float key, Cell tile)> heap)
     {
-        WorldTile top = heap[0].tile;
+        Cell top = heap[0].tile;
         int last = heap.Count - 1;
         heap[0] = heap[last];
         heap.RemoveAt(last);
@@ -692,21 +682,20 @@ public static class RoadNetwork
         }
         return top;
     }
-#endif
 
     // 格子路线落成路：拉直成几段(拉直的线不压山、不比原路贵)，削角平滑两遍；平滑后压到山就用拉直的线，
     // 再不行用原路。过水处照画(桥)
 #if EC_PENDING
-    private static void DrawRoad(List<WorldTile> path, List<int> tiles)
+    private static void DrawRoad(List<Cell> path, List<int> tiles)
     {
         var prefix = new float[path.Count];
         for (int i = 1; i < path.Count; i++)
         {
             float step = Mathf.Max(0f, TileStep(path[i]));
-            if (path[i].x != path[i - 1].x && path[i].y != path[i - 1].y) step *= 1.41f;
+            if (path[i].X != path[i - 1].X && path[i].Y != path[i - 1].Y) step *= 1.41f;
             prefix[i] = prefix[i - 1] + step;
         }
-        var pulled = new List<Vector2> { new(path[0].x, path[0].y) };
+        var pulled = new List<Vector2> { new(path[0].X, path[0].Y) };
         int anchor = 0;
         while (anchor < path.Count - 1)
         {
@@ -716,14 +705,14 @@ public static class RoadNetwork
                 float line = LineCost(path[anchor], path[j]);
                 if (line >= 0f && line <= (prefix[j] - prefix[anchor]) * 1.1f + 0.5f) best = j;
             }
-            pulled.Add(new Vector2(path[best].x, path[best].y));
+            pulled.Add(new Vector2(path[best].X, path[best].Y));
             anchor = best;
         }
-        List<WorldTile> drawn = Raster(Chaikin(Chaikin(pulled))) ?? Raster(pulled) ?? path;
+        List<Cell> drawn = Raster(Chaikin(Chaikin(pulled))) ?? Raster(pulled) ?? path;
         int last = -1;
-        foreach (WorldTile tile in drawn)
+        foreach (Cell tile in drawn)
         {
-            int id = tile.data.tile_id;
+            int id = tile.Index;
             if (id == last) continue;
             tiles.Add(id);
             last = id;
@@ -733,10 +722,10 @@ public static class RoadNetwork
 
     // 两格之间的直线(不含起点)的代价；压到山返回 -1
 #if EC_PENDING
-    private static float LineCost(WorldTile a, WorldTile b)
+    private static float LineCost(Cell a, Cell b)
     {
         float total = 0f;
-        int x0 = a.x, y0 = a.y, x1 = b.x, y1 = b.y;
+        int x0 = a.X, y0 = a.Y, x1 = b.X, y1 = b.Y;
         int dx = Math.Abs(x1 - x0), dy = -Math.Abs(y1 - y0), sx = x0 < x1 ? 1 : -1, sy = y0 < y1 ? 1 : -1, err = dx + dy;
         int px = x0, py = y0;
         for (int guard = 0; guard < 512 && (x0 != x1 || y0 != y1); guard++)
@@ -744,7 +733,7 @@ public static class RoadNetwork
             int e2 = 2 * err;
             if (e2 >= dy) { err += dy; x0 += sx; }
             if (e2 <= dx) { err += dx; y0 += sy; }
-            WorldTile tile = EmpireWorld.Current.GetTile(x0, y0);
+            Cell tile = EmpireWorld.Current.CellAt(x0, y0);
             float step = tile == b ? 1f : TileStep(tile);
             if (step < 0f || MapWallSystem.CutsCorner(px, py, x0, y0)) return -1f;
             total += x0 != px && y0 != py ? step * 1.41f : step;
@@ -757,12 +746,12 @@ public static class RoadNetwork
 
     // 折线落到格子上(不分水陆)；压到山返回 null
 #if EC_PENDING
-    private static List<WorldTile> Raster(List<Vector2> points)
+    private static List<Cell> Raster(List<Vector2> points)
     {
-        var result = new List<WorldTile>();
+        var result = new List<Cell>();
         if (points.Count == 0) return result;
-        WorldTile first = EmpireWorld.Current.GetTile(Mathf.RoundToInt(points[0].x), Mathf.RoundToInt(points[0].y));
-        WorldTile end = EmpireWorld.Current.GetTile(Mathf.RoundToInt(points[points.Count - 1].x), Mathf.RoundToInt(points[points.Count - 1].y));
+        Cell first = EmpireWorld.Current.CellAt(Mathf.RoundToInt(points[0].x), Mathf.RoundToInt(points[0].y));
+        Cell end = EmpireWorld.Current.CellAt(Mathf.RoundToInt(points[points.Count - 1].x), Mathf.RoundToInt(points[points.Count - 1].y));
         for (int i = 0; i + 1 < points.Count; i++)
         {
             int x0 = Mathf.RoundToInt(points[i].x), y0 = Mathf.RoundToInt(points[i].y);
@@ -770,13 +759,13 @@ public static class RoadNetwork
             int dx = Math.Abs(x1 - x0), dy = -Math.Abs(y1 - y0), sx = x0 < x1 ? 1 : -1, sy = y0 < y1 ? 1 : -1, err = dx + dy;
             for (int guard = 0; guard < 4096; guard++)
             {
-                WorldTile tile = EmpireWorld.Current.GetTile(x0, y0);
+                Cell tile = EmpireWorld.Current.CellAt(x0, y0);
                 if (tile == null) return null;
                 if (result.Count == 0 || result[result.Count - 1] != tile)
                 {
                     if (Mountain(tile) && tile != first && tile != end) return null;
-                    WorldTile previous = result.Count == 0 ? null : result[result.Count - 1];
-                    if (previous != null && MapWallSystem.CutsCorner(previous.x, previous.y, tile.x, tile.y)) return null;
+                    Cell previous = result.Count == 0 ? null : result[result.Count - 1];
+                    if (previous != null && MapWallSystem.CutsCorner(previous.X, previous.Y, tile.X, tile.Y)) return null;
                     result.Add(tile);
                 }
                 if (x0 == x1 && y0 == y1) break;
@@ -791,11 +780,11 @@ public static class RoadNetwork
 
     // 地形代价：平地 1，山地沼泽丛林乘 RoughCost，多水的地块(大河、湖)乘 RiverCost
 #if EC_PENDING
-    private static float Terrain(TileZone zone)
+    private static float Terrain(Cell zone)
     {
         float cost = 1f;
         if (TerrainSystem.SlowsMarch(zone)) cost *= RoughCost;
-        if (zone.tiles_with_liquid * 4 > zone.tiles_with_ground + zone.tiles_with_liquid) cost *= RiverCost;
+        if (zone.LiquidTiles * 4 > zone.GroundTiles + zone.LiquidTiles) cost *= RiverCost;
         return cost;
     }
 #endif
@@ -812,20 +801,20 @@ public static class RoadNetwork
             _nextPorts = now + PortSeconds;
             PortCities.Clear();
             PortCities.AddRange(EmpireWorld.Current.Cities.Where(city =>
-                city?.Record != null && !city.IsGone() && city.getTile() != null && NavySystem.Port(city) != null));
+                city?.Record != null && !city.IsGone() && city.SeatCell() != null && NavySystem.Port(city) != null));
         }
         var wanted = new HashSet<(long, long)>();
         foreach (City port in PortCities)
         {
             if (port?.Record == null || port.IsGone()) continue;
-            TileZone at = port.getTile()?.zone;
+            Cell at = port.SeatCell()?.Zone;
             if (at == null) continue;
-            WorldTile island = port.getTile();
+            Cell island = port.SeatCell();
             var nearest = PortCities.Where(other => other != port && other?.Record != null && !other.IsGone())
-                .Select(other => (other, distance: CorpsSystem.ZoneDistance(at, other.getTile()?.zone)))
+                .Select(other => (other, distance: CorpsSystem.ZoneDistance(at, other.SeatCell()?.Zone)))
                 .Where(entry => entry.distance <= LaneMaxZones).OrderBy(entry => entry.distance).ToList();
             var picks = nearest.Take(LaneNeighbours).Select(entry => entry.other).ToList();
-            City overseas = nearest.Select(entry => entry.other).FirstOrDefault(other => !other.getTile().isSameIsland(island));
+            City overseas = nearest.Select(entry => entry.other).FirstOrDefault(other => !other.SeatCell().IsSameIsland(island));
             if (overseas != null && !picks.Contains(overseas)) picks.Add(overseas);
             foreach (City other in picks)
             {
@@ -841,11 +830,11 @@ public static class RoadNetwork
     private static RoadPlan BuildLane(City from, City to, float now)
     {
         var route = new RoadPlan { at = now };
-        TileZone a = from.getTile().zone, b = to.getTile().zone;
-        List<TileZone> path = SeaPath(a, b, from, to);
+        Cell a = from.SeatCell().Zone, b = to.SeatCell().Zone;
+        List<Cell> path = SeaPath(a, b, from, to);
         if (path == null || path.Count > CorpsSystem.ZoneDistance(a, b) * LaneDetour + 6) return route;
-        route.zones.AddRange(path.Select(zone => zone.id));
-        Draw(Smooth(path, from.getTile(), to.getTile()), route.tiles, liquid: true, dashed: true);
+        route.zones.AddRange(path.Select(zone => zone.Index));
+        Draw(Smooth(path, from.SeatCell(), to.SeatCell()), route.tiles, liquid: true, dashed: true);
         return route;
     }
 #endif
@@ -853,19 +842,19 @@ public static class RoadNetwork
     // 海上寻路(航线、运兵船、舰队共用)：海面代价 1，航线上 0.6，近岸与海峡 3，两端港口城(登陆城)的地块 2，陆地不走。
     // allowed：额外限制能走的海面(运兵只走航线上的海区)；ports：两端可以穿过的城
 #if EC_PENDING
-    public static List<TileZone> SeaPath(TileZone from, TileZone to, City fromCity = null, City toCity = null,
-        Func<TileZone, bool> allowed = null)
+    public static List<Cell> SeaPath(Cell from, Cell to, City fromCity = null, City toCity = null,
+        Func<Cell, bool> allowed = null)
     {
         if (from == null || to == null) return null;
         return FindZones(from, to, zone =>
         {
             if (zone == to || zone == from) return HarbourCost;
-            City owner = zone.city;
+            City owner = zone.City;
             bool harbour = owner != null && (owner == fromCity || owner == toCity);
             if (SeaRegionSystem.IsSea(zone))
-                return allowed != null && !allowed(zone) ? -1f : LaneZones.Contains(zone.id) ? RoadCost : 1f;
-            if (zone.world_edge) return -1f;
-            if (zone.tiles_with_liquid >= 16) return CoastCost;
+                return allowed != null && !allowed(zone) ? -1f : LaneZones.Contains(zone.Index) ? RoadCost : 1f;
+            if (zone.OnEdge) return -1f;
+            if (zone.LiquidTiles >= 16) return CoastCost;
             return harbour ? HarbourCost : -1f;
         }, RoadCost);
     }
@@ -877,25 +866,25 @@ public static class RoadNetwork
 
     // 地块中心各偏开一两格，两端是城心(或给定的格)，再削角平滑两遍；返回格坐标(世界坐标与格坐标一致)
 #if EC_PENDING
-    public static List<Vector2> Smooth(IReadOnlyList<TileZone> path, WorldTile start = null, WorldTile end = null)
+    public static List<Vector2> Smooth(IReadOnlyList<Cell> path, Cell start = null, Cell end = null)
     {
         var points = new List<Vector2>();
         if (path == null || path.Count == 0) return points;
         for (int i = 0; i < path.Count; i++)
         {
-            if (i == 0 && start != null) { points.Add(new Vector2(start.x, start.y)); continue; }
-            if (i == path.Count - 1 && end != null) { points.Add(new Vector2(end.x, end.y)); continue; }
+            if (i == 0 && start != null) { points.Add(new Vector2(start.X, start.Y)); continue; }
+            if (i == path.Count - 1 && end != null) { points.Add(new Vector2(end.X, end.Y)); continue; }
             points.Add(Jittered(path[i]));
         }
         for (int pass = 0; pass < 2; pass++) points = Chaikin(points);
         return points;
     }
 
-    public static Vector2 Jittered(TileZone zone)
+    public static Vector2 Jittered(Cell zone)
     {
-        uint hash = (uint)(zone.id * 2654435761L);
-        return new Vector2(zone.x * Config.CITY_ZONE_SIZE + 4 + (int)(hash % 5) - 2,
-            zone.y * Config.CITY_ZONE_SIZE + 4 + (int)((hash >> 8) % 5) - 2);
+        uint hash = (uint)(zone.Index * 2654435761L);
+        return new Vector2(zone.X * Config.CITY_ZONE_SIZE + 4 + (int)(hash % 5) - 2,
+            zone.Y * Config.CITY_ZONE_SIZE + 4 + (int)((hash >> 8) % 5) - 2);
     }
 
     private static List<Vector2> Chaikin(List<Vector2> points)
@@ -914,7 +903,6 @@ public static class RoadNetwork
 #endif
 
     // 折线落到格子上：陆路只落在陆地格，海路只落在水格；虚线按走过的格数断开
-#if EC_PENDING
     private static void Draw(List<Vector2> points, List<int> tiles, bool liquid, bool dashed)
     {
         int walked = 0, lastX = int.MinValue, lastY = int.MinValue;
@@ -929,11 +917,11 @@ public static class RoadNetwork
                 {
                     lastX = x0;
                     lastY = y0;
-                    WorldTile tile = EmpireWorld.Current.GetTile(x0, y0);
-                    bool water = tile?.Type?.liquid == true;
+                    Cell tile = EmpireWorld.Current.CellAt(x0, y0);
+                    bool water = tile?.Type?.Liquid == true;
                     if (tile != null && water == liquid)
                     {
-                        if (!dashed || walked % (DashOn + DashOff) < DashOn) tiles.Add(tile.data.tile_id);
+                        if (!dashed || walked % (DashOn + DashOff) < DashOn) tiles.Add(tile.Index);
                         walked++;
                     }
                 }
@@ -944,44 +932,42 @@ public static class RoadNetwork
             }
         }
     }
-#endif
 
     #endregion
 
     #region 寻路
 
     // 地块一级的 A*(八方向，斜走乘 1.41)；step 返回进入这块的代价，负数为不可走；minStep 是最低的单步代价(估价用)
-#if EC_PENDING
-    private static List<TileZone> FindZones(TileZone from, TileZone to, Func<TileZone, float> step, float minStep)
+    private static List<Cell> FindZones(Cell from, Cell to, Func<Cell, float> step, float minStep)
     {
         if (from == null || to == null) return null;
-        if (from == to) return new List<TileZone> { from };
-        var cost = new Dictionary<int, float> { [from.id] = 0f };
-        var previous = new Dictionary<int, TileZone>();
+        if (from == to) return new List<Cell> { from };
+        var cost = new Dictionary<int, float> { [from.Index] = 0f };
+        var previous = new Dictionary<int, Cell>();
         var closed = new HashSet<int>();
-        var open = new List<(float key, TileZone zone)> { (0f, from) };
+        var open = new List<(float key, Cell zone)> { (0f, from) };
         while (open.Count > 0 && closed.Count < MaxSearch)
         {
-            TileZone zone = CorpsSystem.PopMin(open);
+            Cell zone = CorpsSystem.PopMin(open);
             if (zone == to) break;
-            if (!closed.Add(zone.id)) continue;
-            float here = cost[zone.id];
-            foreach (TileZone next in zone.neighbours_all ?? Array.Empty<TileZone>())
+            if (!closed.Add(zone.Index)) continue;
+            float here = cost[zone.Index];
+            foreach (Cell next in zone.NeighboursAll ?? Array.Empty<Cell>())
             {
-                if (next == null || closed.Contains(next.id)) continue;
+                if (next == null || closed.Contains(next.Index)) continue;
                 float enter = step(next);
                 if (enter < 0f) continue;
-                if (next.x != zone.x && next.y != zone.y) enter *= 1.41f;
+                if (next.X != zone.X && next.Y != zone.Y) enter *= 1.41f;
                 float total = here + enter;
-                if (cost.TryGetValue(next.id, out float known) && known <= total) continue;
-                cost[next.id] = total;
-                previous[next.id] = zone;
+                if (cost.TryGetValue(next.Index, out float known) && known <= total) continue;
+                cost[next.Index] = total;
+                previous[next.Index] = zone;
                 CorpsSystem.PushHeap(open, (total + Distance(next, to) * minStep, next));
             }
         }
-        if (!previous.ContainsKey(to.id)) return null;
-        var path = new List<TileZone>();
-        for (TileZone zone = to; zone != null; zone = previous.TryGetValue(zone.id, out TileZone back) ? back : null)
+        if (!previous.ContainsKey(to.Index)) return null;
+        var path = new List<Cell>();
+        for (Cell zone = to; zone != null; zone = previous.TryGetValue(zone.Index, out Cell back) ? back : null)
         {
             path.Add(zone);
             if (zone == from) break;
@@ -990,9 +976,8 @@ public static class RoadNetwork
         return path;
     }
 
-    private static float Distance(TileZone a, TileZone b) =>
-        Mathf.Sqrt((a.x - b.x) * (a.x - b.x) + (a.y - b.y) * (a.y - b.y));
-#endif
+    private static float Distance(Cell a, Cell b) =>
+        Mathf.Sqrt((a.X - b.X) * (a.X - b.X) + (a.Y - b.Y) * (a.Y - b.Y));
 
     #endregion
 }

@@ -110,7 +110,7 @@ public static class CorpsArmSystem
 
     private static string Culture(CorpsData corps)
     {
-        Realm kingdom = EmpireWorld.Current?.kingdoms?.get(corps.kingdom_id);
+        Realm kingdom = EmpireWorld.Current?.RealmByKey(corps.kingdom_id);
         return kingdom == null ? "" : TechnologySystem.GetCultureOf(kingdom) ?? "";
     }
 
@@ -176,7 +176,7 @@ public static class CorpsArmSystem
         if (corps == null || corps.militia) return Arm.Militia;
         Arm current = Of(corps), next = Upgrade(current, Culture(corps));
         if (next == current || !FormationSystem.AllowsArm(corps, next)) return current;
-        Realm kingdom = EmpireWorld.Current?.kingdoms?.get(corps.kingdom_id);
+        Realm kingdom = EmpireWorld.Current?.RealmByKey(corps.kingdom_id);
         return CommodityMarketSystem.CanEquip(kingdom, next.ToString()) ? next : current;
     }
 

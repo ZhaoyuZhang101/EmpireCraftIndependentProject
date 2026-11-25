@@ -58,36 +58,36 @@ public static class RoadPaintSystem
     public static Dictionary<int, PaintedRoad> Save() => _tiles;
 
 #if EC_PENDING
-    public static WorldTile TileOf(int id)
+    public static Cell TileOf(int id)
     {
-        WorldTile[] list = EmpireWorld.Current?.tiles_list;
+        Cell[] list = EmpireWorld.Current?.Zones;
         return list != null && id >= 0 && id < list.Length ? list[id] : null;
     }
 #endif
 
     // 这一格画路画几等(画不上为 0)：画路与城池全图一键连路的寻路(见 CityPlanWorks.ConnectAll)同一个规矩
 #if EC_PENDING
-    public static int GradeAt(WorldTile tile)
+    public static int GradeAt(Cell tile)
     {
-        if (tile?.data == null || tile.Type == null || tile.Type.ocean || Blocked(tile)) return 0;
-        City city = tile.zone_city;
+        if (tile?.data == null || tile.Type == null || tile.Type.Ocean || Blocked(tile)) return 0;
+        City city = tile.City;
         // 不修路的城(游牧营地等)的领地上不画，同修路的规矩(见 RoadBuildingSystem.Refresh)
         if (city?.Record != null && !city.IsGone() && CityStyleSystem.Roadless(city)) return 0;
         int cap = city?.Record != null && !city.IsGone() ? CityStyleSystem.RoadGradeCap(city) : RoadBuildingSystem.MaxGrade;
         int grade = Mathf.Min(city?.Realm != null && !city.Realm.IsWild ? RoadBuildingSystem.GradeFor(city.Realm) : 1, cap);
         if (grade <= 0) return 0;
         // 河湖浅水：能架桥的等级才画得过去
-        return tile.Type.liquid && grade < BridgeGrade ? 0 : grade;
+        return tile.Type.Liquid && grade < BridgeGrade ? 0 : grade;
     }
 #endif
 
     // 画一格；画上了(或升了等级)返回 true
 #if EC_PENDING
-    public static bool Paint(WorldTile tile)
+    public static bool Paint(Cell tile)
     {
         int grade = GradeAt(tile);
         if (grade <= 0) return false;
-        int id = tile.data.tile_id;
+        int id = tile.Index;
         if (_tiles.TryGetValue(id, out PaintedRoad road) && road.grade >= grade) return false;
         _tiles[id] = new PaintedRoad { grade = grade };
         _pending = true;
@@ -99,11 +99,11 @@ public static class RoadPaintSystem
     // 丝绸之路的一格(见 SilkRoadSystem)：山、高峰、城墙(关门照走)上不铺，过河的至少架桥那一等；已有更高等级的不降，
     // 记作丝路。铺上了(或升了等级)返回 true
 #if EC_PENDING
-    public static bool Lay(WorldTile tile, int grade)
+    public static bool Lay(Cell tile, int grade)
     {
-        if (tile?.data == null || tile.Type == null || tile.Type.ocean || Blocked(tile) || grade <= 0) return false;
-        if (tile.Type.liquid) grade = Mathf.Max(grade, BridgeGrade);
-        int id = tile.data.tile_id;
+        if (tile?.data == null || tile.Type == null || tile.Type.Ocean || Blocked(tile) || grade <= 0) return false;
+        if (tile.Type.Liquid) grade = Mathf.Max(grade, BridgeGrade);
+        int id = tile.Index;
         if (_tiles.TryGetValue(id, out PaintedRoad road))
         {
             road.silk = true;
@@ -120,9 +120,9 @@ public static class RoadPaintSystem
     public static bool IsSilk(int tileId) => _tiles.TryGetValue(tileId, out PaintedRoad road) && road.silk;
 
 #if EC_PENDING
-    public static bool Erase(WorldTile tile)
+    public static bool Erase(Cell tile)
     {
-        if (tile?.data == null || !_tiles.Remove(tile.data.tile_id)) return false;
+        if (tile?.data == null || !_tiles.Remove(tile.Index)) return false;
         _pending = true;
         RoadNetwork.MarkDirty();
         return true;
@@ -131,8 +131,8 @@ public static class RoadPaintSystem
 
     // 山、高峰、城墙(同路网寻路，见 RoadNetwork.Mountain；关城的关门照走)、岩浆
 #if EC_PENDING
-    private static bool Blocked(WorldTile tile) =>
-        tile.Type.mountains || tile.Type.block && !tile.Type.wall || MapWallSystem.Blocks(tile) || tile.Type.lava;
+    private static bool Blocked(Cell tile) =>
+        tile.Type.Mountains || tile.Type.Block && !tile.Type.Wall || MapWallSystem.Blocks(tile) || tile.Type.Lava;
 #endif
 
     // 路网变了要马上重画(神力连路，见 RoadBuildingSystem.ConnectByPower)
@@ -158,7 +158,7 @@ public static class RoadPaintSystem
         bool changed = false;
         foreach (int id in _tiles.Keys.ToList())
         {
-            City city = TileOf(id)?.zone_city;
+            City city = TileOf(id)?.City;
             if (city?.Record != null && FrontSystem.Battles.ContainsKey(city.Key)) changed |= Damage(id, amount);
         }
         return changed;
@@ -174,7 +174,7 @@ public static class RoadPaintSystem
         var unkept = new List<int>();
         foreach (var pair in _tiles)
         {
-            Realm owner = TileOf(pair.Key)?.zone_city?.kingdom;
+            Realm owner = TileOf(pair.Key)?.City?.Realm;
             if (owner?.Record == null || owner.IsGone() || owner.IsWild)
             {
                 unkept.Add(pair.Key);

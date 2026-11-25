@@ -25,7 +25,7 @@ public static class PersonRef
     public static Person Resolve(ref long actorId, ref long identityId, bool realize = true)
     {
         if (actorId <= 0 && identityId <= 0 || EmpireWorld.Current == null) return null;
-        Person actor = actorId > 0 ? EmpireWorld.Current.Living?.get(actorId) : null;
+        Person actor = actorId > 0 ? EmpireWorld.Current.PersonByKey(actorId) : null;
         if (Alive(actor))
         {
             identityId = actor.GetPersonalIdentity()?.id ?? identityId;
@@ -55,7 +55,6 @@ public static class PersonRef
 #endif
 
     // 记着族谱身份的要角留在地图上：名将名臣、权臣、君主(储君)的生父母与配偶妃嫔、先君遗孀(太后)
-#if EC_PENDING
     public static bool Keeps(Person actor)
     {
         if (actor?.Record == null || actor.IsGone()) return false;
@@ -82,7 +81,6 @@ public static class PersonRef
                 if (lord?.GetPersonalIdentity()?.concubines?.Exists(pair => pair.Item2 == me.id) == true) return true;
         return false;
     }
-#endif
 
     // 在位的君主或储君(在地图上)
     private static bool Ruling(PersonalClanIdentity person)

@@ -357,7 +357,7 @@ public static partial class NomadRaidSystem
             Realm from = queue.Dequeue();
             var candidates = new List<Realm>();
             foreach (City city in from.Cities)
-                foreach (Realm next in city?.neighbours_kingdoms ?? new HashSet<Realm>())
+                foreach (Realm next in city?.NeighbourRealms ?? new HashSet<Realm>())
                     if (next != null && !candidates.Contains(next)) candidates.Add(next);
             if (from == leader && own?.CoreKingdom == leader)
                 foreach (Realm member in own.kingdoms_list)
@@ -419,7 +419,7 @@ public static partial class NomadRaidSystem
         var found = new List<(Realm target, double score)>();
         foreach (Realm member in members)
             foreach (City city in member.Cities)
-                foreach (Realm target in city?.neighbours_kingdoms ?? new HashSet<Realm>())
+                foreach (Realm target in city?.NeighbourRealms ?? new HashSet<Realm>())
                 {
                     if (!seen.Add(target) || !Raidable(leader, members, target)) continue;
                     double theirs = Math.Max(1d, PowerOf(target));

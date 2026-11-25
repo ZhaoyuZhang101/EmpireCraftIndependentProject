@@ -28,22 +28,20 @@ public static class ExileGovernmentSystem
     public static bool IsExiled(Realm kingdom) =>
         kingdom?.Record != null && !kingdom.IsGone() && kingdom.GetOrCreate().exile_since >= 0d;
 
-#if EC_PENDING
     public static Realm Host(Realm exile)
     {
         if (exile?.Record == null) return null;
         long id = exile.GetOrCreate().exile_host_id;
-        Realm host = id < 0 ? null : EmpireWorld.Current?.kingdoms?.get(id);
+        Realm host = id < 0 ? null : EmpireWorld.Current?.RealmByKey(id);
         return host?.Record == null || host.IsGone() ? null : host;
     }
 
     private static Realm Enemy(Realm exile)
     {
         long id = exile?.Record == null ? -1L : exile.GetOrCreate().exile_enemy_id;
-        Realm enemy = id < 0 ? null : EmpireWorld.Current?.kingdoms?.get(id);
+        Realm enemy = id < 0 ? null : EmpireWorld.Current?.RealmByKey(id);
         return enemy?.Record == null || enemy.IsGone() ? null : enemy;
     }
-#endif
 
     #region 关系判定
 
@@ -156,7 +154,7 @@ public static class ExileGovernmentSystem
         }
         catch (Exception exception)
         {
-            LogService.LogWarning($"[EmpireCraft][流亡政府] {loser?.data?.name} 流亡失败: {exception.Message}");
+            LogService.LogWarning($"[EmpireCraft][流亡政府] {loser?.Name} 流亡失败: {exception.Message}");
         }
     }
 #endif
@@ -168,7 +166,7 @@ public static class ExileGovernmentSystem
         KingdomExtension.KingdomExtraData data = exile.GetOrCreate();
         data.exile_host_id = host.Key;
         data.exile_since = GameClock.Now;
-        data.exile_enemy_id = enemy?.data?.id ?? -1L;
+        data.exile_enemy_id = enemy?.Key ?? -1L;
         data.exile_returned_at = -1d;
         data.exile_city_ids = (data.exile_city_ids ?? new List<long>()).Concat(claims ?? Enumerable.Empty<long>()).Distinct().ToList();
         Evacuate(exile, leaving, host);
@@ -199,7 +197,7 @@ public static class ExileGovernmentSystem
 
     private static void Evacuate(Realm exile, City leaving, Realm host)
     {
-        WorldTile at = host?.capital?.getTile();
+        Cell at = host?.Capital?.SeatCell();
         BringRoyalKin(exile, leaving);
         foreach (Person actor in Entourage(exile))
         {
@@ -224,7 +222,7 @@ public static class ExileGovernmentSystem
 #if EC_PENDING
     private static void BringRoyalKin(Realm exile, City leaving)
     {
-        PersonalClanIdentity ruler = exile?.king?.GetPersonalIdentity();
+        PersonalClanIdentity ruler = exile?.Ruler?.GetPersonalIdentity();
         if (ruler == null) return;
         var kin = KinRoster.Children(ruler).Concat(KinRoster.Siblings(ruler))
             .Where(person => KinRoster.Virtual(person) && person.age >= KinRoster.AdultAge && !person.is_concubine &&

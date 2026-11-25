@@ -291,7 +291,7 @@ public static class ClaimAgendaSystem
 #if EC_PENDING
     private static float GetLandlessUrgency(Empire empire)
     {
-        var cities = empire.CoreKingdom?.cities?.Where(city => city != null && !city.IsGone()).ToList();
+        var cities = empire.CoreKingdom?.Cities?.Where(city => city != null && !city.IsGone()).ToList();
         return cities == null || cities.Count == 0 ? 0f :
             Mathf.Clamp((float)cities.Average(city => LandEconomySystem.GetReport(city).LandlessPopulationRatio) * 100f,
                 0f, 30f);

@@ -35,17 +35,17 @@ public static partial class NomadRaidSystem
         bool fort = false;
         foreach (City city in target.Cities)
         {
-            if (city?.Record == null || city.IsGone() || city.neighbours_kingdoms == null ||
-                !city.neighbours_kingdoms.Any(raiders.Contains)) continue;
+            if (city?.Record == null || city.IsGone() || city.NeighbourRealms == null ||
+                !city.NeighbourRealms.Any(raiders.Contains)) continue;
             if (!fort && RuralSettlementSystem.InCity(city).Any(settlement => settlement.fort && !settlement.cleared &&
                                                                              settlement.ruined_at < 0d)) fort = true;
-            foreach (TileZone zone in city.border_zones)
+            foreach (Cell zone in city.border_zones)
             {
                 if (zone == null) continue;
                 bool facing = false, wall = TerrainResistance.HasWall(zone);
-                foreach (TileZone next in zone.neighbours ?? Array.Empty<TileZone>())
+                foreach (Cell next in zone.Neighbours ?? Array.Empty<Cell>())
                 {
-                    if (next?.city?.kingdom == null || !raiders.Contains(next.city.kingdom)) continue;
+                    if (next?.City?.Realm == null || !raiders.Contains(next.City.Realm)) continue;
                     facing = true;
                     if (!wall && TerrainResistance.HasWall(next)) wall = true;
                 }
@@ -59,18 +59,18 @@ public static partial class NomadRaidSystem
 #endif
 
     // 屯田实边的边城：所在帝国二十年内施行过屯田实边，城与外国接壤
-#if EC_PENDING
     private static bool Steadfast(City city)
     {
-        Empire empire = city?.kingdom?.GetEmpire();
+        Empire empire = city?.Realm?.GetEmpire();
         // 修筑城防同屯田实边(见 TempFac_修筑城防)(用户 2026-11-11 "增加更多的议题，比如开战，或者其他的符合利益的"，问答全选)
         bool Recent(TemporaryFactionType type) => empire.data.claim_done_at.TryGetValue(type.ToString(), out double at) &&
                                                   YearsSince(at) < TuntianYears;
         if (empire?.data?.claim_done_at == null || !Recent(TemporaryFactionType.屯田实边) && !Recent(TemporaryFactionType.修筑城防))
             return false;
-        return city.neighbours_cities?.Any(other => other?.kingdom != null && other.kingdom.GetEmpire() != empire) == true;
+        return city.NeighbourCities?.Any(other => other?.Realm != null && other.Realm.GetEmpire() != empire) == true;
     }
 
+#if EC_PENDING
     static partial void MonthlyCourse(War war, RaidWarState state)
     {
         WallLosses(war, state);

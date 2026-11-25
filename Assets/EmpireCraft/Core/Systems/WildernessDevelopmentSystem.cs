@@ -120,11 +120,9 @@ public static class WildernessDevelopmentSystem
     // 诏令的候选(按国家编号缓存一个月)、神力上回刷到各块的时间
     private static readonly Dictionary<long, (double at, int region, float pressure)> Candidates = new();
     private static readonly Dictionary<int, float> LastBrush = new();
-#if EC_PENDING
-    private static readonly List<WorldTile> Wet = new();
-    private static readonly List<WorldTile> Anchors = new();
-    private static TopTileType _grassLow, _grassHigh;
-#endif
+    private static readonly List<Cell> Wet = new();
+    private static readonly List<Cell> Anchors = new();
+    private static TerrainKind _grassLow, _grassHigh;
 
     // 有地块过半、开满(或改回)时 +1(通行据此重算，见 WildernessPassage)
     public static int Version { get; private set; }
@@ -147,19 +145,13 @@ public static class WildernessDevelopmentSystem
     private static WildDevelopmentZone Get(int id) => _data.zones.TryGetValue(id, out WildDevelopmentZone state) ? state : null;
 
     // 开发度(0~100；没开发过为 0)
-#if EC_PENDING
-    public static float DevelopmentOf(TileZone zone) => zone == null ? 0f : Get(zone.id)?.dev ?? 0f;
-#endif
+    public static float DevelopmentOf(Cell zone) => zone == null ? 0f : Get(zone.Index)?.dev ?? 0f;
 
     // 过半：军队能走(见 WildernessPassage.Blocking)
-#if EC_PENDING
-    public static bool Passable(TileZone zone) => DevelopmentOf(zone) >= Half;
-#endif
+    public static bool Passable(Cell zone) => DevelopmentOf(zone) >= Half;
 
     // 谁在开发(最近一回涨开发度的国家编号；没开发过、神力刷的、剧本设的为 -1)：县址按它定谁设县(见 WildernessPlotSystem)
-#if EC_PENDING
-    public static long DeveloperOf(TileZone zone) => zone == null ? -1L : Get(zone.id)?.by ?? -1L;
-#endif
+    public static long DeveloperOf(Cell zone) => zone == null ? -1L : Get(zone.Index)?.by ?? -1L;
 
     // 开发中(没开满)的地块照开发时的类型留在无人区(见 WildernessSystem.Reclassify)；不是为 None
     public static WildKind HeldKind(int id)
@@ -176,13 +168,11 @@ public static class WildernessDevelopmentSystem
     }
 
     // 图层底色的不透明度系数：没开发 1，开满 FadeAtFull
-#if EC_PENDING
-    public static float Fade(TileZone zone)
+    public static float Fade(Cell zone)
     {
         float dev = DevelopmentOf(zone);
         return dev <= 0f ? 1f : 1f - (1f - FadeAtFull) * Mathf.Min(dev, Full) / Full;
     }
-#endif
 
     private static bool Civil(Realm kingdom) => kingdom?.Record != null && !kingdom.IsGone() && !kingdom.IsWild && kingdom.IsCivilized();
 
@@ -251,15 +241,15 @@ public static class WildernessDevelopmentSystem
     public static void Tick()
     {
         EmpireWorld world = EmpireWorld.Current;
-        if (world?.zone_calculator == null) return;
+        if (world?.Zones == null) return;
         try
         {
             // 县址：划区后维护补划、每帧至多设一县、给没名的县址起名(自己兜着出错，见 WildernessPlotSystem.Tick)
             WildernessPlotSystem.Tick();
-            ReclaimStep(world.zone_calculator);
+            ReclaimStep(world.Zones);
             if (_work != null)
             {
-                Advance(world.zone_calculator);
+                Advance(world.Zones);
                 return;
             }
             double now = world.Now();
@@ -289,8 +279,8 @@ public static class WildernessDevelopmentSystem
         // 开满了还空着的地块归城(见 Hand)
         foreach (int id in DevelopedZones().ToList())
         {
-            TileZone zone = EmpireWorld.Current.zone_calculator.getZoneByID(id);
-            if (zone != null && zone.city == null && !WildernessSystem.IsWild(zone)) Hand(zone, Get(id)?.by ?? -1L);
+            Cell zone = EmpireWorld.Current.Zones.ById(id);
+            if (zone != null && zone.City == null && !WildernessSystem.IsWild(zone)) Hand(zone, Get(id)?.by ?? -1L);
         }
         Realms.Clear();
         Cities.Clear();
@@ -304,22 +294,22 @@ public static class WildernessDevelopmentSystem
         _cursor = 0;
     }
 
-    private static void Advance(ZoneCalculator calc)
+    private static void Advance(ZoneGrid calc)
     {
         int end = Math.Min(_work.Count, _cursor + ZonesPerFrame);
-        for (; _cursor < end; _cursor++) Grow(calc.getZoneByID(_work[_cursor]));
+        for (; _cursor < end; _cursor++) Grow(calc.ById(_work[_cursor]));
         if (_cursor >= _work.Count) _work = null;
     }
 #endif
 
     // 一块地这一年的开发：前沿上有够格的国家就按它的速度涨(几国都够格的取最快的)
 #if EC_PENDING
-    private static void Grow(TileZone zone)
+    private static void Grow(Cell zone)
     {
-        if (zone == null || zone.city != null) return;
+        if (zone == null || zone.City != null) return;
         WildRegion region = WildernessSystem.RegionOf(zone);
         if (region == null || WildernessSystem.IsNeutral(zone) || !Develops(region.Kind)) return;
-        WildDevelopmentZone state = Get(zone.id);
+        WildDevelopmentZone state = Get(zone.Index);
         if (state != null && state.dev >= Full) return;
         Pick pick = Evaluate(zone, region, true);
         if (pick.Kingdom == null) return;
@@ -347,24 +337,24 @@ public static class WildernessDevelopmentSystem
     // 挨着的城(本国的城)、挨着的开发过半的地块(开发它的国家)都是候选；归了别国的、科技不够的不算。
     // pass：一年推进里(用这一年的缓存，并记下各国挨着这一片的城里最大的人口压力)；提示里现算
 #if EC_PENDING
-    private static Pick Evaluate(TileZone zone, WildRegion region, bool pass)
+    private static Pick Evaluate(Cell zone, WildRegion region, bool pass)
     {
         var pick = new Pick();
-        if (zone?.neighbours == null) return pick;
+        if (zone?.Neighbours == null) return pick;
         Realm owner = WildernessSystem.OwnerOf(zone);
         bool road = RoadNetwork.IsRoad(zone);
-        foreach (TileZone next in zone.neighbours)
+        foreach (Cell next in zone.Neighbours)
             if (!road && next != null && RoadNetwork.IsRoad(next)) road = true;
-        foreach (TileZone next in zone.neighbours)
+        foreach (Cell next in zone.Neighbours)
         {
             if (next == null) continue;
-            City city = next.city;
+            City city = next.City;
             Realm kingdom;
             if (city?.Record != null && !city.IsGone()) kingdom = city.Realm;
             else
             {
                 city = null;
-                WildDevelopmentZone near = Get(next.id);
+                WildDevelopmentZone near = Get(next.Index);
                 if (near == null || near.dev < Half || near.by < 0) continue;
                 kingdom = EmpireWorld.Current.RealmByKey(near.by);
             }
@@ -473,24 +463,22 @@ public static class WildernessDevelopmentSystem
 
     #region 涨开发度、改格子
 
-#if EC_PENDING
-    private static WildDevelopmentZone Start(TileZone zone, WildKind kind)
+    private static WildDevelopmentZone Start(Cell zone, WildKind kind)
     {
         var state = new WildDevelopmentZone { kind = (int)kind, wet = CountWet(zone) };
-        _data.zones[zone.id] = state;
+        _data.zones[zone.Index] = state;
         return state;
     }
-#endif
 
     // 涨开发度：排进改格子的队；过半、开满时通行与划区跟着变；诏令期间开满的记一块
 #if EC_PENDING
-    private static void Raise(TileZone zone, WildDevelopmentZone state, float amount)
+    private static void Raise(Cell zone, WildDevelopmentZone state, float amount)
     {
         float before = state.dev;
         state.dev = Mathf.Min(Full, before + amount);
         if (before < Half != state.dev < Half) Version++;
         if ((int)(before / 10f) != (int)(state.dev / 10f)) WildernessOverlay.MarkAround(zone);
-        Queue(zone.id);
+        Queue(zone.Index);
         if (state.dev < Full || before >= Full) return;
         Version++;
         WildernessSystem.OnDeveloped(zone);
@@ -507,9 +495,9 @@ public static class WildernessDevelopmentSystem
     // 每年开头也把开满了还空着的地块过一遍(读档前开满的、剧本开局设满的，见 BeginYear)。
     // 划进县址的先由县址管(WildernessPlotSystem.Claim)：县城挨着就领进，没设县、挨不着的空着留给县城，不归别的城、不另立新城
 #if EC_PENDING
-    private static void Hand(TileZone zone, long by)
+    private static void Hand(Cell zone, long by)
     {
-        if (zone == null || zone.city != null || EmpireWorld.Current == null || !GameClock.Running || SmoothLoader.isLoading()) return;
+        if (zone == null || zone.City != null || EmpireWorld.Current == null || !GameClock.Running || SmoothLoader.isLoading()) return;
         try
         {
             if (WildernessPlotSystem.Claim(zone)) return;
@@ -519,10 +507,10 @@ public static class WildernessDevelopmentSystem
             KingdomTitle title = WildernessSystem.TitleOf(zone);
             City best = null, full = null, any = null;
             float bestDistance = float.MaxValue;
-            foreach (TileZone next in zone.neighbours_all ?? Array.Empty<TileZone>())
+            foreach (Cell next in zone.NeighboursAll ?? Array.Empty<Cell>())
             {
-                City city = next?.city;
-                WorldTile seat = city?.Record == null || city.IsGone() ? null : city.getTile();
+                City city = next?.City;
+                Cell seat = city?.Record == null || city.IsGone() ? null : city.SeatCell();
                 if (seat == null || city.Realm == null || city.Realm.IsGone() || city.Realm.IsWild) continue;
                 any ??= city;
                 if (owner != null && city.Realm != owner && (owner.GetEmpire() == null || owner.GetEmpire() != city.Realm.GetEmpire()))
@@ -537,25 +525,25 @@ public static class WildernessDevelopmentSystem
                     full ??= city;
                     continue;
                 }
-                float distance = Toolbox.SquaredDistTile(seat, zone.centerTile);
+                float distance = Land.SquaredDist(seat, zone.Center);
                 if (distance >= bestDistance) continue;
                 bestDistance = distance;
                 best = city;
             }
             if (best != null)
             {
-                using (WildernessSystem.Settle()) best.addZone(zone);
+                using (WildernessSystem.Settle()) best.AddZone(zone);
                 return;
             }
             owner ??= full?.Realm ?? any?.Realm;
             if (owner == null) return;
-            City source = full ?? owner.Cities?.Where(city => city?.getTile() != null && !city.IsGone())
-                .OrderBy(city => Toolbox.SquaredDistTile(city.getTile(), zone.centerTile)).FirstOrDefault();
+            City source = full ?? owner.Cities?.Where(city => city?.SeatCell() != null && !city.IsGone())
+                .OrderBy(city => Land.SquaredDist(city.SeatCell(), zone.Center)).FirstOrDefault();
             // any 可能是被归属检查排除的外国城市；新城不能因此挂上邻国的法理。
             title ??= (full ?? source)?.GetTitle();
-            WorldTile ground = zone.centerTile != null && UrbanFabric.ManualGround(zone.centerTile)
-                ? zone.centerTile
-                : zone.tiles?.FirstOrDefault(tile => UrbanFabric.ManualGround(tile));
+            Cell ground = zone.Center != null && UrbanFabric.ManualGround(zone.Center)
+                ? zone.Center
+                : zone.Tiles?.FirstOrDefault(tile => UrbanFabric.ManualGround(tile));
             if (source == null || ground == null) return;
             City founded = CityPlacementSystem.Found(zone, owner, source, null, out _);
             if (founded == null) return;
@@ -576,7 +564,7 @@ public static class WildernessDevelopmentSystem
 
     // 每帧改一批格子：至多 TilesPerFrame 格、看 ReclaimZonesPerFrame 块地，每块地每回至多 TilesPerVisit 格(一批批改，看得出从城那边往里推)
 #if EC_PENDING
-    private static void ReclaimStep(ZoneCalculator calc)
+    private static void ReclaimStep(ZoneGrid calc)
     {
         int budget = TilesPerFrame;
         for (int visits = 0; visits < ReclaimZonesPerFrame && budget > 0 && Pending.Count > 0; visits++)
@@ -584,7 +572,7 @@ public static class WildernessDevelopmentSystem
             int id = Pending.Dequeue();
             Queued.Remove(id);
             WildDevelopmentZone state = Get(id);
-            TileZone zone = state == null ? null : calc.getZoneByID(id);
+            Cell zone = state == null ? null : calc.ById(id);
             if (zone == null) continue;
             int limit = Math.Min(TilesPerVisit, budget);
             int done = Reclaim(zone, state, limit);
@@ -597,24 +585,24 @@ public static class WildernessDevelopmentSystem
 
     // 丛林、沼泽格改成草地，改到剩下的不多于 起头时的格数 × (1 − 开发度)；先改挨着已开发一侧的。返回改了几格
 #if EC_PENDING
-    private static int Reclaim(TileZone zone, WildDevelopmentZone state, int limit)
+    private static int Reclaim(Cell zone, WildDevelopmentZone state, int limit)
     {
-        if (zone?.tiles == null || state.wet <= 0 || limit <= 0) return 0;
+        if (zone?.Tiles == null || state.wet <= 0 || limit <= 0) return 0;
         int keep = Mathf.RoundToInt(state.wet * (1f - Mathf.Clamp(state.dev, 0f, Full) / Full));
         Wet.Clear();
-        foreach (WorldTile tile in zone.tiles)
+        foreach (Cell tile in zone.Tiles)
             if (IsWet(tile)) Wet.Add(tile);
         int count = Math.Min(Wet.Count - keep, limit);
         if (count <= 0) return 0;
         // 已开发的一侧：挨着的城、开发过半的、不是无人区的陆地；都没有(神力刷在当中)从这块地当中往外改
         Anchors.Clear();
-        foreach (TileZone next in zone.neighbours_all ?? Array.Empty<TileZone>())
+        foreach (Cell next in zone.NeighboursAll ?? Array.Empty<Cell>())
         {
-            if (next?.centerTile == null) continue;
-            if (next.city != null || DevelopmentOf(next) >= Half || next.tiles_with_ground > 0 && !WildernessSystem.IsWild(next))
-                Anchors.Add(next.centerTile);
+            if (next?.Center == null) continue;
+            if (next.City != null || DevelopmentOf(next) >= Half || next.GroundTiles > 0 && !WildernessSystem.IsWild(next))
+                Anchors.Add(next.Center);
         }
-        if (Anchors.Count == 0 && zone.centerTile != null) Anchors.Add(zone.centerTile);
+        if (Anchors.Count == 0 && zone.Center != null) Anchors.Add(zone.Center);
         if (Anchors.Count > 0) Wet.Sort((a, b) => Near(a).CompareTo(Near(b)));
         int changed = 0;
         for (int i = 0; i < count; i++)
@@ -622,61 +610,57 @@ public static class WildernessDevelopmentSystem
         Wet.Clear();
         return changed;
     }
+#endif
 
-    private static int Near(WorldTile tile)
+    private static int Near(Cell tile)
     {
         int best = int.MaxValue;
-        foreach (WorldTile anchor in Anchors)
+        foreach (Cell anchor in Anchors)
         {
-            int dx = tile.x - anchor.x, dy = tile.y - anchor.y;
+            int dx = tile.X - anchor.X, dy = tile.Y - anchor.Y;
             best = Math.Min(best, dx * dx + dy * dy);
         }
         return best;
     }
-#endif
 
     // 丛林、沼泽格(顶层格是这两个生物群系的，不算水面)
-#if EC_PENDING
-    private static bool IsWet(WorldTile tile)
+    private static bool IsWet(Cell tile)
     {
-        TileTypeBase type = tile?.Type;
-        if (type == null || type.liquid || type.lava || tile.top_type == null) return false;
-        return type.biome_id is "biome_jungle" or "biome_swamp";
+        TerrainKind type = tile?.Type;
+        if (type == null || type.Liquid || type.Lava || tile.TopType == null) return false;
+        return type.BiomeId is "biome_jungle" or "biome_swamp";
     }
 
-    private static int CountWet(TileZone zone)
+    private static int CountWet(Cell zone)
     {
         int count = 0;
-        if (zone?.tiles != null)
-            foreach (WorldTile tile in zone.tiles)
+        if (zone?.Tiles != null)
+            foreach (Cell tile in zone.Tiles)
                 if (IsWet(tile)) count++;
         return count;
     }
-#endif
 
     // 这块地丛林、沼泽哪样多(剧本还没划区时用)；都没有为 None
-#if EC_PENDING
-    private static WildKind WetKind(TileZone zone)
+    private static WildKind WetKind(Cell zone)
     {
         int jungle = 0, swamp = 0;
-        foreach (WorldTile tile in zone.tiles)
+        foreach (Cell tile in zone.Tiles)
         {
             if (!IsWet(tile)) continue;
-            if (tile.Type.biome_id == "biome_jungle") jungle++;
+            if (tile.Type.BiomeId == "biome_jungle") jungle++;
             else swamp++;
         }
         return jungle + swamp == 0 ? WildKind.None : jungle >= swamp ? WildKind.Jungle : WildKind.Swamp;
     }
-#endif
 
     // 改成同一高度的草地(地面格不动：高地仍是高地、丘陵仍是丘陵)，林木伐去；不闪白点(同 FarmlandSystem 开田)
 #if EC_PENDING
-    private static bool Clear(WorldTile tile)
+    private static bool Clear(Cell tile)
     {
-        bool high = (tile.top_type?.id ?? "").EndsWith("_high", StringComparison.Ordinal);
+        bool high = (tile.TopType?.Id ?? "").EndsWith("_high", StringComparison.Ordinal);
         _grassLow ??= AssetManager.top_tiles.get("grass_low");
         _grassHigh ??= AssetManager.top_tiles.get("grass_high");
-        TopTileType grass = high && _grassHigh != null ? _grassHigh : _grassLow;
+        TerrainKind grass = high && _grassHigh != null ? _grassHigh : _grassLow;
         if (grass == null) return false;
         Building building = tile.building;
         if (building?.asset != null && building.asset.building_type == BuildingType.Building_Tree) building.startDestroyBuilding();
@@ -693,11 +677,11 @@ public static class WildernessDevelopmentSystem
     // 还没划区(剧本开局)的按格子里丛林、沼泽哪样多记类型，划区时开发中的照这一类留在无人区；
     // 设低了只改数，改掉的格子不复原。不是雨林、大泽(也没有丛林、沼泽格)的不记
 #if EC_PENDING
-    public static void SetDevelopment(TileZone zone, float value)
+    public static void SetDevelopment(Cell zone, float value)
     {
-        if (zone?.tiles == null || zone.id < 0) return;
+        if (zone?.Tiles == null || zone.Index < 0) return;
         value = Mathf.Clamp(value, 0f, Full);
-        WildDevelopmentZone state = Get(zone.id);
+        WildDevelopmentZone state = Get(zone.Index);
         if (state == null)
         {
             if (value <= 0f) return;
@@ -718,10 +702,10 @@ public static class WildernessDevelopmentSystem
     // 设县(见 WildernessPlotSystem)：县治那块当即算开满(治所先开：伐林筑城)，丛林、沼泽格照常一批批改成草地(见 ReclaimStep)；
     // 城已落在这块地上，开满后不再归城(见 Hand)。kind 是县址所在那一片的类型(这块地没开发过时记下)，by 记设县的国家
 #if EC_PENDING
-    public static void Establish(TileZone zone, WildKind kind, long by)
+    public static void Establish(Cell zone, WildKind kind, long by)
     {
-        if (zone?.tiles == null || zone.id < 0) return;
-        WildDevelopmentZone state = Get(zone.id);
+        if (zone?.Tiles == null || zone.Index < 0) return;
+        WildDevelopmentZone state = Get(zone.Index);
         if (state == null)
         {
             if (!Develops(kind)) kind = WetKind(zone);
@@ -737,17 +721,17 @@ public static class WildernessDevelopmentSystem
     // 神力「开发」(见 SettlementPowers)：刷到的雨林、大泽无人区地块开发度涨 BrushStep(同一块隔 BrushInterval 秒)，
     // 不看科技与归属(永久中立区也刷得动)；刷了返回 true
 #if EC_PENDING
-    public static bool Brush(TileZone zone)
+    public static bool Brush(Cell zone)
     {
-        if (zone == null || zone.city != null) return false;
+        if (zone == null || zone.City != null) return false;
         WildRegion region = WildernessSystem.RegionOf(zone);
         if (region == null || !Develops(region.Kind)) return false;
-        WildDevelopmentZone state = Get(zone.id);
+        WildDevelopmentZone state = Get(zone.Index);
         if (state != null && state.dev >= Full) return false;
         float now = Time.unscaledTime;
-        if (LastBrush.TryGetValue(zone.id, out float last) && now - last < BrushInterval && now >= last) return true;
+        if (LastBrush.TryGetValue(zone.Index, out float last) && now - last < BrushInterval && now >= last) return true;
         if (LastBrush.Count > 512) LastBrush.Clear();
-        LastBrush[zone.id] = now;
+        LastBrush[zone.Index] = now;
         state ??= Start(zone, region.Kind);
         Raise(zone, state, BrushStep);
         return true;
@@ -823,14 +807,14 @@ public static class WildernessDevelopmentSystem
         var pressures = new Dictionary<WildRegion, float>();
         foreach (City city in kingdom.Cities ?? new List<City>())
         {
-            if (city?.zones == null || city.IsGone()) continue;
+            if (city?.Zones == null || city.IsGone()) continue;
             float cityPressure = -1f;
-            foreach (TileZone own in city.zones)
+            foreach (Cell own in city.Zones)
             {
-                if (own?.neighbours == null) continue;
-                foreach (TileZone next in own.neighbours)
+                if (own?.Neighbours == null) continue;
+                foreach (Cell next in own.Neighbours)
                 {
-                    if (next == null || next.city != null) continue;
+                    if (next == null || next.City != null) continue;
                     WildRegion region = WildernessSystem.RegionOf(next);
                     if (region == null || WildernessSystem.IsNeutral(next) || !Develops(region.Kind)) continue;
                     if ((region.Kind == WildKind.Jungle ? realm.Jungle : realm.Swamp) <= 0f || DevelopmentOf(next) >= Full) continue;
@@ -891,7 +875,7 @@ public static class WildernessDevelopmentSystem
 
     // 悬停提示(见 WildernessOverlay.ShowTooltip)：雨林、大泽才有；value 为"35%"，status 为谁在开发、缺什么科技、诏令、能不能走
 #if EC_PENDING
-    public static bool Describe(TileZone zone, out string value, out string status)
+    public static bool Describe(Cell zone, out string value, out string status)
     {
         value = status = "";
         WildRegion region = zone == null ? null : WildernessSystem.RegionOf(zone);
@@ -926,7 +910,7 @@ public static class WildernessDevelopmentSystem
 
     // 提示换没换(悬停时每帧比一次，见 WildernessOverlay.Hover)：开发度的整数与状态
 #if EC_PENDING
-    public static int TipKey(TileZone zone)
+    public static int TipKey(Cell zone)
     {
         WildRegion region = zone == null ? null : WildernessSystem.RegionOf(zone);
         if (region == null || !Develops(region.Kind)) return -1;
@@ -936,7 +920,7 @@ public static class WildernessDevelopmentSystem
 
     // 0 没人开发、1 有国开发、2 奉诏开发、3 缺科技、4 归了别国、5 永久中立
 #if EC_PENDING
-    private static int StatusOf(TileZone zone, WildRegion region, out Pick pick)
+    private static int StatusOf(Cell zone, WildRegion region, out Pick pick)
     {
         pick = default;
         if (WildernessSystem.IsNeutral(zone)) return 5;

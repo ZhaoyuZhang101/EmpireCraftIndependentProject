@@ -1,6 +1,7 @@
 // Generated from the EmpireCraft mod: Scripts/GeneralSystems/ReligionSchismSystem.cs. Do not edit by hand: Tools/PortTool/members.py rewrites it;
 // see Port/manifest.json and Tools/PortTool.
 using Mathf = EmpireCraft.Core.EcMath;
+using Vector2 = EmpireCraft.Core.EcVector2;
 using System.Collections.Generic;
 using System.Linq;
 
@@ -162,17 +163,17 @@ public static class ReligionSchismSystem
         Realm see = ModRealm(papacy);
         Realm patron = PapacySystem.PapalPatron(papacy);
         string reference = CultureService.GetRealmCulture(patron ?? see);
-        float mapSize = Mathf.Max(EmpireWorld.width, EmpireWorld.height);
+        float mapSize = Mathf.Max(EmpireWorld.Current.Width, EmpireWorld.Current.Height);
         float floor = Mathf.Max(SchismMinTiles, mapSize * SchismMinShare);
         foreach (Empire empire in ModClass.EMPIRE_MANAGER?.ToList() ?? new List<Empire>())
         {
             if (!EasternCandidate(empire, religion, papacy, patron)) continue;
             Realm core = empire.CoreKingdom;
-            Vector2 toCapital = core.Capital.city_center - holy.city_center;
+            Vector2 toCapital = core.Capital.Center - holy.Center;
             float distance = toCapital.magnitude;
             if (distance < floor) continue;
             (Vector2 centroid, int blocCities, string blocCulture) = PapalBloc(religion, core, see, patron);
-            Vector2 toBloc = blocCities > 0 ? centroid - holy.city_center : Vector2.zero;
+            Vector2 toBloc = blocCities > 0 ? centroid - holy.Center : Vector2.zero;
             if (toBloc.magnitude >= floor * 0.25f && Vector2.Dot(toBloc.normalized, toCapital.normalized) > OppositeCos) continue;
             string culture = CultureService.GetRealmCulture(core);
             int divergence = (culture != reference ? 1 : 0) + (culture != blocCulture ? 1 : 0) +
@@ -219,7 +220,7 @@ public static class ReligionSchismSystem
             if (realm == core) continue;
             if (!members.TryGetValue(realm, out bool member)) members[realm] = member = InPapalBloc(realm, see, patron);
             if (!member) continue;
-            sum += city.city_center;
+            sum += city.Center;
             count++;
             string culture = CultureService.GetMainCulture(city, initialize: false);
             if (!CultureService.IsValidCulture(culture)) continue;
@@ -291,8 +292,8 @@ public static class ReligionSchismSystem
         {
             if (!Alive(kingdom) || ModRealm(kingdom) != kingdom || kingdom == core || kingdom.religion != old || kingdom.Capital == null ||
                 kingdom.IsAtWarWith(core) || PapacySystem.HoldsHolyCity(kingdom) || kingdom == see) continue;
-            float near = Vector2.Distance(kingdom.Capital.city_center, capital.city_center);
-            float far = Vector2.Distance(kingdom.Capital.city_center, oldHoly.city_center);
+            float near = Vector2.Distance(kingdom.Capital.Center, capital.Center);
+            float far = Vector2.Distance(kingdom.Capital.Center, oldHoly.Center);
             if (near >= far) continue;
             float chance = FollowChance;
             string own = CultureService.GetRealmCulture(kingdom);

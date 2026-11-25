@@ -15,19 +15,13 @@ public static class StateSettlementSystem
 {
     private sealed class Search
     {
-#if EC_PENDING
-        public readonly Queue<(TileZone zone, int depth)> queue = new();
-#endif
+        public readonly Queue<(Cell zone, int depth)> queue = new();
         public readonly HashSet<int> seen = new();
         // 按成本的最短路(见类头)：待走的地块与已知最低成本；weighted 为假时照旧按层数
-#if EC_PENDING
-        public readonly MinHeap<TileZone> open = new();
-#endif
+        public readonly MinHeap<Cell> open = new();
         public readonly Dictionary<int, float> best = new();
         public bool weighted;
-#if EC_PENDING
-        public readonly List<(TileZone zone, int score)> candidates = new();
-#endif
+        public readonly List<(Cell zone, int score)> candidates = new();
         public readonly Dictionary<int, int> terrainScores = new();
         public SettlementSeaSearch sea;
         public readonly Dictionary<int, SettlementSeaSearch.Candidate> seaCandidates = new();
@@ -68,10 +62,12 @@ public static class StateSettlementSystem
                 if (ValidCity(city) && city.Realm == member) yield return city;
         }
     }
+#endif
 
     private static bool ValidCity(City city) => city?.Record != null && !city.IsGone() &&
-        !AncientWarfareCompatibility.OwnsObject(city) && city.getTile() != null;
+        !AncientWarfareCompatibility.OwnsObject(city) && city.SeatCell() != null;
 
+#if EC_PENDING
     internal static IEnumerable<City> ExpansionCities(Realm payer)
     {
         Empire empire = payer.GetEmpire();
@@ -90,7 +86,7 @@ public static class StateSettlementSystem
     }
 
     private static bool AllCitiesAtLimit(Realm payer) => ModClass.CITY_MAX_ZONES <= 0 ||
-        ExpansionCities(payer).All(city => StateSettlementRules.AtZoneLimit(city.zones.Count, ModClass.CITY_MAX_ZONES));
+        ExpansionCities(payer).All(city => StateSettlementRules.AtZoneLimit(city.Zones.Count, ModClass.CITY_MAX_ZONES));
 
     private static bool PopulationMode => CityPopulationSystem.AbstractPopulationEnabled && !ModClass.IS_CLEAR;
     private static bool Enabled => PopulationMode &&
@@ -178,7 +174,7 @@ public static class StateSettlementSystem
             if (project.spontaneous && !Prepare(payer, project, source, null, out string migrationReason))
             { Cancel(payer, state, migrationReason); return; }
             if (project.zone < 0) { QueueSearch(payer, source); return; }
-            TileZone target = EmpireWorld.Current.zone_calculator.getZoneByID(project.zone);
+            Cell target = EmpireWorld.Current.Zones.ById(project.zone);
             if (!ValidSite(project, target, source, Founder(landOwner, source), out string siteReason))
             { Cancel(payer, state, siteReason); return; }
             if (!Ready(project))
@@ -207,7 +203,7 @@ public static class StateSettlementSystem
         { ReserveForProject(state, 0); state.status = "cooldown"; return; }
         List<City> cities = Cities(payer).ToList();
         List<City> sources = cities.Where(city => NeedsSettlement(city, payer, state))
-            .OrderByDescending(city => city.zones.Count).ToList();
+            .OrderByDescending(city => city.Zones.Count).ToList();
         state.status = "idle";
         if (sources.Count == 0) { ReserveForProject(state, 0); return; }
         int baseCost = StateSettlementRules.AdministrativeCost(cities.Count,
@@ -255,7 +251,7 @@ public static class StateSettlementSystem
         long projectReserve = Enabled && state?.project?.paid != true
             ? Math.Max(0L, state?.reserved_project_gold ?? 0) : 0;
         if (Enabled && (state == null || state.last_checked < 0d) && FundingRealm(kingdom) == kingdom && AllCitiesAtLimit(kingdom) && kingdom.Cities.Any(city =>
-                ValidCity(city) && StateSettlementRules.AtZoneLimit(city.zones.Count, ModClass.CITY_MAX_ZONES)))
+                ValidCity(city) && StateSettlementRules.AtZoneLimit(city.Zones.Count, ModClass.CITY_MAX_ZONES)))
             projectReserve = Math.Max(projectReserve, StateSettlementRules.AdministrativeCost(
                 kingdom.Cities.Count, ModClass.SETTLEMENT_BASE_GOLD, ModClass.SETTLEMENT_PER_CITY_GOLD));
         return TreasuryRules.AvailableBalance(money, reserve, projectReserve);
@@ -263,7 +259,7 @@ public static class StateSettlementSystem
 
     private static bool NeedsSettlement(City city, Realm payer, StateSettlementData state)
     {
-        if (StateSettlementRules.AtZoneLimit(city.zones.Count, ModClass.CITY_MAX_ZONES)) return true;
+        if (StateSettlementRules.AtZoneLimit(city.Zones.Count, ModClass.CITY_MAX_ZONES)) return true;
         CityPopulationData population = CityPopulationSystem.Get(city);
         var growth = CityPopulationSystem.GetGrowthFactors(city, population);
         bool pressure = growth.Capacity <= 0f || growth.Total >= growth.Capacity * 0.9f ||
@@ -294,11 +290,11 @@ public static class StateSettlementSystem
     {
         Person actor = Founder(city.Realm, city);
         if (actor == null) return false;
-        foreach (TileZone border in city.border_zones)
-            foreach (TileZone zone in border.neighbours)
-                if (zone?.city == null && zone?.centerTile != null && zone.tiles_with_ground > 0 &&
+        foreach (Cell border in city.border_zones)
+            foreach (Cell zone in border.Neighbours)
+                if (zone?.City == null && zone?.Center != null && zone.GroundTiles > 0 &&
                     zone.canBeClaimedByCity(city) && zone.checkCanSettleInThisBiomes(actor.subspecies) &&
-                    zone.centerTile.isSameIsland(city.getTile()) && zone.centerTile.reachableFrom(city.getTile())) return true;
+                    zone.Center.IsSameIsland(city.SeatCell()) && zone.Center.reachableFrom(city.SeatCell())) return true;
         return false;
     }
 
@@ -308,16 +304,16 @@ public static class StateSettlementSystem
         var search = new Search(unchecked((int)(payer.Key * 397L ^ source.Key ^
             BitConverter.DoubleToInt64Bits(GameClock.Now))));
         search.weighted = ConnectivitySystem.Config.enabled;
-        foreach (TileZone zone in source.border_zones)
+        foreach (Cell zone in source.border_zones)
         {
             if (zone == null) continue;
             if (search.weighted)
             {
-                if (search.best.ContainsKey(zone.id)) continue;
-                search.best[zone.id] = 0f;
+                if (search.best.ContainsKey(zone.Index)) continue;
+                search.best[zone.Index] = 0f;
                 search.open.Push(0f, zone);
             }
-            else if (search.seen.Add(zone.id)) search.queue.Enqueue((zone, 0));
+            else if (search.seen.Add(zone.Index)) search.queue.Enqueue((zone, 0));
         }
         Searches[payer.Key] = search;
         StateSettlementProject project = Data(payer).project;
@@ -363,13 +359,13 @@ public static class StateSettlementSystem
         else
             for (int steps = 0; steps < 8 && search.queue.Count > 0 && SimulationFrameBudget.HasTime; steps++)
             {
-                (TileZone zone, int depth) = search.queue.Dequeue();
+                (Cell zone, int depth) = search.queue.Dequeue();
                 if (depth >= (project.spontaneous ? 2 : 5) && GoodSite(zone, source, actor, project.spontaneous))
                     search.candidates.Add((zone, SiteScore(zone, depth, source, actor, search)));
                 if (depth >= 8) continue;
-                foreach (TileZone neighbour in zone.neighbours)
-                    if (neighbour?.centerTile != null && (neighbour.city == null || neighbour.city == source) &&
-                        neighbour.centerTile.isSameIsland(source.getTile()) && search.seen.Add(neighbour.id))
+                foreach (Cell neighbour in zone.Neighbours)
+                    if (neighbour?.Center != null && (neighbour.City == null || neighbour.City == source) &&
+                        neighbour.Center.IsSameIsland(source.SeatCell()) && search.seen.Add(neighbour.Index))
                         search.queue.Enqueue((neighbour, depth + 1));
             }
         if (search.queue.Count > 0 || search.open.Count > 0 || !SimulationFrameBudget.HasTime)
@@ -397,7 +393,7 @@ public static class StateSettlementSystem
                 if (landing == null) break;
                 if (!GoodSite(landing.zone, source, actor, project.spontaneous, landing.landfall, true)) continue;
                 SettlementSeaSearch.Candidate candidate = search.sea.Accept(landing);
-                search.seaCandidates[landing.zone.id] = candidate;
+                search.seaCandidates[landing.zone.Index] = candidate;
                 search.candidates.Add((landing.zone, SiteScore(landing.zone, candidate.distance / 8 + landing.depth,
                     source, actor, search, landing.landfall)));
             }
@@ -409,12 +405,12 @@ public static class StateSettlementSystem
         for (int i = 0; i < search.candidates.Count; i++)
             if (StateSettlementRules.NearBestSite(search.candidates[i].score, best) && search.random.Next(++matches) == 0)
                 chosen = i;
-        TileZone target = search.candidates[chosen].zone;
-        if (search.seaCandidates.TryGetValue(target.id, out SettlementSeaSearch.Candidate seaCandidate))
+        Cell target = search.candidates[chosen].zone;
+        if (search.seaCandidates.TryGetValue(target.Index, out SettlementSeaSearch.Candidate seaCandidate))
             seaCandidate.Apply(project);
         if (!ValidSite(project, target, source, actor, out _))
         { search.candidates.RemoveAt(chosen); PendingSearches.Enqueue(id); return; }
-        project.zone = target.id;
+        project.zone = target.Index;
         project.started = GameClock.Now;
         state.status = project.overseas ? "sailing" : project.spontaneous ? "spontaneous_settling" : "planning";
         if (project.overseas)
@@ -436,80 +432,80 @@ public static class StateSettlementSystem
         float near = project.spontaneous ? config.settle_min_cost_spontaneous : config.settle_min_cost;
         for (int steps = 0; steps < 8 && search.open.Count > 0 && SimulationFrameBudget.HasTime; steps++)
         {
-            (float cost, TileZone zone) = search.open.Pop();
-            if (!search.seen.Add(zone.id)) continue;
-            if (search.best.TryGetValue(zone.id, out float known) && cost > known) continue;
+            (float cost, Cell zone) = search.open.Pop();
+            if (!search.seen.Add(zone.Index)) continue;
+            if (search.best.TryGetValue(zone.Index, out float known) && cost > known) continue;
             if (cost >= near && GoodSite(zone, source, actor, project.spontaneous))
                 search.candidates.Add((zone, SiteScore(zone, (int)Math.Round(cost), source, actor, search)));
             if (cost >= config.settle_budget) continue;
-            foreach (TileZone neighbour in zone.neighbours ?? Array.Empty<TileZone>())
+            foreach (Cell neighbour in zone.Neighbours ?? Array.Empty<Cell>())
             {
-                if (neighbour?.centerTile == null || neighbour.city != null && neighbour.city != source ||
-                    search.seen.Contains(neighbour.id) || !neighbour.centerTile.isSameIsland(source.getTile())) continue;
+                if (neighbour?.Center == null || neighbour.City != null && neighbour.City != source ||
+                    search.seen.Contains(neighbour.Index) || !neighbour.Center.IsSameIsland(source.SeatCell())) continue;
                 float step = TerrainResistance.Step(neighbour, payer);
                 if (step < 0f) continue;
                 float total = cost + step;
-                if (search.best.TryGetValue(neighbour.id, out float old) && old <= total) continue;
-                search.best[neighbour.id] = total;
+                if (search.best.TryGetValue(neighbour.Index, out float old) && old <= total) continue;
+                search.best[neighbour.Index] = total;
                 search.open.Push(total, neighbour);
             }
         }
     }
 
-    private static int SiteScore(TileZone zone, int depth, City source, Person actor, Search search, WorldTile landOrigin = null)
+    private static int SiteScore(Cell zone, int depth, City source, Person actor, Search search, Cell landOrigin = null)
     {
         int score = TerrainScore(zone, source, actor, search, landOrigin);
-        foreach (TileZone neighbour in zone.neighbours_all ?? zone.neighbours)
+        foreach (Cell neighbour in zone.NeighboursAll ?? zone.Neighbours)
             score += TerrainScore(neighbour, source, actor, search, landOrigin);
         return Math.Max(1, score - depth * 16);
     }
 
-    private static int TerrainScore(TileZone zone, City source, Person actor, Search search, WorldTile landOrigin)
+    private static int TerrainScore(Cell zone, City source, Person actor, Search search, Cell landOrigin)
     {
         if (zone == null) return 0;
-        WorldTile origin = landOrigin ?? source.getTile();
-        if (zone.city != null || zone.centerTile == null || zone.tiles_with_ground <= 0 ||
-            !zone.centerTile.isSameIsland(origin) || !zone.centerTile.reachableFrom(origin) ||
+        Cell origin = landOrigin ?? source.SeatCell();
+        if (zone.City != null || zone.Center == null || zone.GroundTiles <= 0 ||
+            !zone.Center.IsSameIsland(origin) || !zone.Center.reachableFrom(origin) ||
             !zone.checkCanSettleInThisBiomes(actor.subspecies)) return 0;
-        if (search.terrainScores.TryGetValue(zone.id, out int score)) return score;
+        if (search.terrainScores.TryGetValue(zone.Index, out int score)) return score;
         int fields = 0;
-        if (zone.tiles != null)
-            foreach (WorldTile tile in zone.tiles)
-                if (tile?.Type?.can_be_farm == true) fields++;
+        if (zone.Tiles != null)
+            foreach (Cell tile in zone.Tiles)
+                if (tile?.Type?.CanBeFarm == true) fields++;
         // 周围能建设/耕作的土地优先，木石加分设上限，避免一片矿石压过安置条件。
-        score = zone.tiles_with_ground + fields * 2 + (zone.canStartCityHere() ? 32 : 0) +
+        score = zone.GroundTiles + fields * 2 + (zone.canStartCityHere() ? 32 : 0) +
             Math.Min(12, zone.getHashset(BuildingList.Trees)?.Count ?? 0) * 3 +
             Math.Min(4, zone.getHashset(BuildingList.Minerals)?.Count ?? 0) * 8;
-        search.terrainScores[zone.id] = score;
+        search.terrainScores[zone.Index] = score;
         return score;
     }
 
-    private static bool GoodSite(TileZone zone, City source, Person actor, bool spontaneous = false,
-        WorldTile landOrigin = null, bool overseas = false)
+    private static bool GoodSite(Cell zone, City source, Person actor, bool spontaneous = false,
+        Cell landOrigin = null, bool overseas = false)
     {
-        WorldTile origin = landOrigin ?? source.getTile();
-        if (zone?.centerTile == null || actor == null || zone.city != null || !zone.canStartCityHere() ||
+        Cell origin = landOrigin ?? source.SeatCell();
+        if (zone?.Center == null || actor == null || zone.City != null || !zone.canStartCityHere() ||
             !zone.checkCanSettleInThisBiomes(actor.subspecies) ||
-            zone.centerTile.region?.island == null || !spontaneous && !overseas && zone.centerTile.region.island.getTileCount() < 300 ||
-            !zone.centerTile.isSameIsland(origin) || !zone.centerTile.reachableFrom(origin)) return false;
+            zone.Center.region?.island == null || !spontaneous && !overseas && zone.Center.region.island.getTileCount() < 300 ||
+            !zone.Center.IsSameIsland(origin) || !zone.Center.reachableFrom(origin)) return false;
         // 自发聚落可以靠近原居地，不沿用官办城市的四层留白。
-        var queue = new Queue<(TileZone zone, int depth)>();
-        var seen = new HashSet<int> { zone.id };
+        var queue = new Queue<(Cell zone, int depth)>();
+        var seen = new HashSet<int> { zone.Index };
         queue.Enqueue((zone, 0));
         while (queue.Count > 0)
         {
-            (TileZone near, int depth) = queue.Dequeue();
-            if (near.city != null) return false;
+            (Cell near, int depth) = queue.Dequeue();
+            if (near.City != null) return false;
             if (depth >= (spontaneous ? 1 : 4)) continue;
-            foreach (TileZone neighbour in near.neighbours)
-                if (neighbour != null && seen.Add(neighbour.id)) queue.Enqueue((neighbour, depth + 1));
+            foreach (Cell neighbour in near.Neighbours)
+                if (neighbour != null && seen.Add(neighbour.Index)) queue.Enqueue((neighbour, depth + 1));
         }
         return true;
     }
 
-    private static bool ValidSite(StateSettlementProject project, TileZone target, City source, Person actor, out string reason)
+    private static bool ValidSite(StateSettlementProject project, Cell target, City source, Person actor, out string reason)
     {
-        WorldTile landfall = null;
+        Cell landfall = null;
         reason = "land";
         if (project.overseas && !SettlementSeaSearch.Validate(project, source, out landfall, out reason)) return false;
         reason = "land";
@@ -529,15 +525,15 @@ public static class StateSettlementSystem
         GameClock.Now >= project.started && GameClock.MonthsSince(project.started) >=
         PreparationMonths(project) +
         (project.overseas ? SettlementSeaSearch.TravelMonths(project.sea_route?.Count ?? 0,
-            EmpireWorld.Current?.cities?.get(project.embarkation_city)) : 0);
+            EmpireWorld.Current?.CityByKey(project.embarkation_city)) : 0);
 
-    private static bool Prepare(Realm payer, StateSettlementProject project, City source, TileZone target, out string reason)
+    private static bool Prepare(Realm payer, StateSettlementProject project, City source, Cell target, out string reason)
     {
         if (project.spontaneous) return PrepareSpontaneous(project, source, out reason);
         reason = "people";
         List<City> all = Cities(payer).ToList();
         List<City> donors = all.Where(city => city.Realm == source.Realm && SafeCity(city) &&
-                city.getTile().isSameIsland(source.getTile()) && city.getTile().reachableFrom(source.getTile()))
+                city.SeatCell().IsSameIsland(source.SeatCell()) && city.SeatCell().reachableFrom(source.SeatCell()))
             .OrderBy(city => city == source ? 0 : 1).ThenBy(city => city.id).ToList();
         project.migrants.Clear(); project.cargo.Clear(); project.granary_food = 0;
         int targetScale = CityPopulationSystem.PeoplePerSlot(source);
@@ -654,7 +650,7 @@ public static class StateSettlementSystem
     private static void Complete(Realm payer, StateSettlementData state)
     {
         StateSettlementProject project = state.project;
-        TileZone target = EmpireWorld.Current.zone_calculator.getZoneByID(project.zone);
+        Cell target = EmpireWorld.Current.Zones.ById(project.zone);
         City source = EmpireWorld.Current.CityByKey(project.source);
         Realm owner = EmpireWorld.Current.RealmByKey(project.owner);
         City city = EmpireWorld.Current.CityByKey(project.city);
@@ -684,7 +680,7 @@ public static class StateSettlementSystem
                 {
                     CreatingCity = false;
                     // 原版建城在注册城市后可能抛错，保留该城 ID，下次只补完安置。
-                    if (city == null && target.city?.kingdom == owner) city = target.city;
+                    if (city == null && target.City?.Realm == owner) city = target.City;
                     if (city != null) project.city = city.Key;
                 }
                 if (city == null) { Cancel(payer, state, "land"); return; }

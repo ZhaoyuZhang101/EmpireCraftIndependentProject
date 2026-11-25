@@ -30,7 +30,7 @@ public static class CultureReformSystem
 
 #if EC_PENDING
     public static bool CanReform(Person actor) =>
-        actor?.kingdom?.king == actor && FindCandidate(actor.Realm, out _, out _);
+        actor?.Realm?.Ruler == actor && FindCandidate(actor.Realm, out _, out _);
 
     public static bool FindCandidate(Realm kingdom, out string target, out string previous)
     {

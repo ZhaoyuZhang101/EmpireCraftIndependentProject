@@ -120,7 +120,6 @@ public static class DeJureMap
 
     private static int Preferred(long id, int count) => (int)((id % count + count) % count);
 
-#if EC_PENDING
     private static void Refresh()
     {
         if (ReferenceEquals(_world, EmpireWorld.Current) && Time.realtimeSinceStartup < _nextRecolor) return;
@@ -131,10 +130,8 @@ public static class DeJureMap
         Recolor(TitleIndex, TitlePalette.Length, city => city.hasTitle() ? city.GetTitle() : null, title => title.Key);
         Recolor(CoreIndex, CorePalette.Length, CoreOf, core => core.id);
     }
-#endif
 
     // 贪心着色：按编号排，先取按编号定的那一色，与已排的接壤者撞色就往后换
-#if EC_PENDING
     private static void Recolor<T>(Dictionary<long, int> result, int count, global::System.Func<City, T> of, global::System.Func<T, long> idOf)
         where T : class
     {
@@ -147,8 +144,8 @@ public static class DeJureMap
             if (own == null) continue;
             long id = idOf(own);
             if (!adjacent.TryGetValue(id, out HashSet<long> near)) adjacent[id] = near = new HashSet<long>();
-            if (city.neighbours_cities == null) continue;
-            foreach (City next in city.neighbours_cities)
+            if (city.NeighbourCities == null) continue;
+            foreach (City next in city.NeighbourCities)
             {
                 if (next?.Record == null || next.IsGone()) continue;
                 T other = of(next);
@@ -165,6 +162,5 @@ public static class DeJureMap
             result[id] = pick;
         }
     }
-#endif
 }
 }

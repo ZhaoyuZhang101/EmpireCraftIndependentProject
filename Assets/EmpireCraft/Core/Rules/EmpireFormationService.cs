@@ -273,16 +273,16 @@ public static class EmpireFormationService
 #endif
 
     // 够得着：与开国者接壤，或同属一个天下；天下算不出来时退回"都城在同一块陆地"
-#if EC_PENDING
     private static bool WithinProclamationReach(Realm other, Realm founder, EmpireCore realm,
         HashSet<Realm> neighbours)
     {
         if (neighbours.Contains(other)) return true;
         if (realm != null) return other.Capital != null && TianxiaSystem.LeadOf(other.Capital) == realm;
-        return founder.Capital?.getTile() is WorldTile seat && other.Capital?.getTile() is WorldTile theirs &&
-               theirs.isSameIsland(seat);
+        return founder.Capital?.SeatCell() is Cell seat && other.Capital?.SeatCell() is Cell theirs &&
+               theirs.IsSameIsland(seat);
     }
 
+#if EC_PENDING
     private static List<Realm> GetSameCultureIndependents(Realm kingdom, string culture)
     {
         HashSet<Realm> bloc = GetBlocMembers(kingdom).ToHashSet();
@@ -433,7 +433,7 @@ public static class EmpireFormationService
     {
         KingdomTitle title = kingdom?.GetMainTitle();
         EmpireCore core = title == null
-            ? CityStateService.IsCityState(kingdom) ? kingdom?.capital?.GetEmpireCore() : null
+            ? CityStateService.IsCityState(kingdom) ? kingdom?.Capital?.GetEmpireCore() : null
             : EmpireCoreManager.GetRiseCandidateCore(kingdom);
         if (title != null)
         {
@@ -727,6 +727,7 @@ public static class EmpireFormationService
                 string.Join("、", group.Select(kingdom => kingdom.GetKingdomName())), empire.GetEmpireName()));
         }
     }
+#endif
 
     private static IEnumerable<Realm> GetLandNeighbours(Realm kingdom)
     {
@@ -734,12 +735,11 @@ public static class EmpireFormationService
         var seen = new HashSet<Realm>();
         foreach (City city in kingdom.Cities)
         {
-            if (city?.neighbours_kingdoms == null) continue;
-            foreach (Realm neighbour in city.neighbours_kingdoms)
+            if (city?.NeighbourRealms == null) continue;
+            foreach (Realm neighbour in city.NeighbourRealms)
                 if (neighbour != null && neighbour != kingdom && seen.Add(neighbour)) yield return neighbour;
         }
     }
-#endif
 
     // 好感修正 opinion_empire_proclamation_grudge：对称帝不服的国家，对那个帝国的核心王国好感下降，
     // 二十年内线性恢复

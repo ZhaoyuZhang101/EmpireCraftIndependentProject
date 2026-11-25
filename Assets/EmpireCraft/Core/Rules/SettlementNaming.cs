@@ -283,7 +283,6 @@ public static class SettlementNaming
     }
 
     // 村子四周的地势：山、丘岗、海边、河湖、林、沙漠、沼泽，都不突出算平原
-#if EC_PENDING
     public static string TerrainOf(int x, int y)
     {
         int land = 0, mountain = 0, hill = 0, forest = 0, desert = 0, swamp = 0, sea = 0, lake = 0;
@@ -291,18 +290,18 @@ public static class SettlementNaming
         for (int dx = -TerrainRadius; dx <= TerrainRadius; dx++)
         {
             if (dx * dx + dy * dy > TerrainRadius * TerrainRadius) continue;
-            TileTypeBase type = EmpireWorld.Current?.GetTile(x + dx, y + dy)?.Type;
+            TerrainKind type = EmpireWorld.Current?.CellAt(x + dx, y + dy)?.Type;
             if (type == null) continue;
-            if (type.liquid || type.ocean)
+            if (type.Liquid || type.Ocean)
             {
-                if (type.ocean) sea++;
+                if (type.Ocean) sea++;
                 else lake++;
                 continue;
             }
             land++;
-            string biome = type.biome_id ?? "";
-            if (type.mountains || type.block) mountain++;
-            else if (type.rocks || type.id == "hills" || biome is "biome_hill" or "biome_rocklands") hill++;
+            string biome = type.BiomeId ?? "";
+            if (type.Mountains || type.Block) mountain++;
+            else if (type.Rocks || type.Id == "hills" || biome is "biome_hill" or "biome_rocklands") hill++;
             if (biome is "biome_birch" or "biome_maple" or "biome_forest" or "biome_pine" or "biome_enchanted" or "biome_jungle") forest++;
             // 沙地是沙滩，不算沙漠
             if (biome == "biome_desert") desert++;
@@ -318,7 +317,6 @@ public static class SettlementNaming
         if (swamp / ground >= 0.3f) return "swamp";
         return "plain";
     }
-#endif
 
     // 本城的宗族(以本城为郡望/祖籍的)的姓，连同这一族的文化：按城缓存一分钟
     private static readonly Dictionary<long, (float at, List<(string name, string[] cultures)> clans)> Surnames = new();

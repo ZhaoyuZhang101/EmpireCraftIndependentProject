@@ -107,15 +107,15 @@ public static class LogisticsSystem
     private static float Supply(Realm kingdom, CorpsData corps, bool foraging)
     {
         if (corps.embarked) return AtSea;
-        TileZone zone = CorpsSystem.Zone(corps);
+        Cell zone = CorpsSystem.Zone(corps);
         if (zone == null) return 1f;
         // 海外：补给走海路，从这片陆地上本国船到得了的岸边卸粮(见 SupplyLine、SeaLanding.Reachable)。
         // 以前看军脚下那座城临不临海，海外的军一进内陆城的地块就算断了补给(玩家反馈"殖民地要等陆地连上了才打得动")
         City home = CorpsSystem.Home(corps);
         Dictionary<int, int> sea = null;
-        if (home != null && !CorpsSystem.SameLand(zone, home.getTile()?.zone)) sea = SeaLanding.Reachable(kingdom);
+        if (home != null && !CorpsSystem.SameLand(zone, home.SeatCell()?.Zone)) sea = SeaLanding.Reachable(kingdom);
         // 补给线只看起点与走不走海路(海路、航程每国一样)
-        int key = zone.id * 2 + (sea != null ? 1 : 0);
+        int key = zone.Index * 2 + (sea != null ? 1 : 0);
         if (!SupplyByZone.TryGetValue(key, out float supply))
         {
             supply = SupplyLine(kingdom, zone, sea, NavySystem.MaxRange(kingdom));
@@ -132,12 +132,11 @@ public static class LogisticsSystem
     private static int _pass, _closedCount;
     private static int[] _seen = new int[0], _closed = new int[0], _steps = new int[0];
     private static float[] _cost = new float[0];
-#if EC_PENDING
-    private static readonly List<(float key, TileZone zone)> Open = new();
+    private static readonly List<(float key, Cell zone)> Open = new();
 
     private static void BeginPass()
     {
-        int size = EmpireWorld.Current?.zone_calculator?.zones?.Count ?? 0;
+        int size = EmpireWorld.Current?.Zones?.All?.Count ?? 0;
         if (_seen.Length < size) Grow(size);
         _closedCount = 0;
         Open.Clear();
@@ -146,7 +145,6 @@ public static class LogisticsSystem
         Array.Clear(_closed, 0, _closed.Length);
         _pass = 1;
     }
-#endif
 
     private static void Grow(int size)
     {
@@ -156,29 +154,27 @@ public static class LogisticsSystem
         Array.Resize(ref _cost, size);
     }
 
-#if EC_PENDING
-    private static void Reach(TileZone zone, float cost, int steps)
+    private static void Reach(Cell zone, float cost, int steps)
     {
-        if (zone.id >= _seen.Length) Grow(zone.id + 1);
-        _seen[zone.id] = _pass;
-        _cost[zone.id] = cost;
-        _steps[zone.id] = steps;
+        if (zone.Index >= _seen.Length) Grow(zone.Index + 1);
+        _seen[zone.Index] = _pass;
+        _cost[zone.Index] = cost;
+        _steps[zone.Index] = steps;
     }
 
-    private static bool Closed(TileZone zone) => zone.id < _closed.Length && _closed[zone.id] == _pass;
-#endif
+    private static bool Closed(Cell zone) => zone.Index < _closed.Length && _closed[zone.Index] == _pass;
 
     // 补给线：从军所在的地块往后方找折损最小的运粮路线，到最近的己方(含友军)城为止(海外还可以到沿岸，按海路封顶)；
     // 返回沿途剩下的几成，找不到为 0(被切断)。按每块折损取对数做最短路。
     // 海外(sea 不为空：本国的船能到的海区 → 航线经过几个海区)：卸粮的岸边要是己方控制、无主地，或军脚下的那片海滩，
     // 外面的海区本国的船到得了；航线在舰种航程内七成五，超出只剩四成
 #if EC_PENDING
-    private static float SupplyLine(Realm kingdom, TileZone start, Dictionary<int, int> sea, int range)
+    private static float SupplyLine(Realm kingdom, Cell start, Dictionary<int, int> sea, int range)
     {
-        float Source(TileZone zone)
+        float Source(Cell zone)
         {
-            City city = zone.city;
-            if (city?.Record != null && !city.IsGone() && city.getTile()?.zone == zone &&
+            City city = zone.City;
+            if (city?.Record != null && !city.IsGone() && city.SeatCell()?.Zone == zone &&
                 Relation(kingdom, city.Realm) == RelationFriendly)
                 return 1f;
             if (sea == null || sea.Count == 0) return 0f;
@@ -187,7 +183,7 @@ public static class LogisticsSystem
             // 岸外的海区(同 SeaLanding.Waters，不另建列表)
             if (SeaRegionSystem.IsSea(zone)) return 0f;
             int hops = int.MaxValue;
-            foreach (TileZone next in zone.neighbours_all ?? Array.Empty<TileZone>())
+            foreach (Cell next in zone.NeighboursAll ?? Array.Empty<Cell>())
                 if (SeaRegionSystem.Of(next) is { } region && sea.TryGetValue(region.Id, out int count) && count < hops)
                     hops = count;
             return hops == int.MaxValue ? 0f : hops <= range ? OverseasCap : OutOfRange;
@@ -203,14 +199,14 @@ public static class LogisticsSystem
         float best = here;
         while (Open.Count > 0 && _closedCount < MaxSupplySearch)
         {
-            (float key, TileZone zone) = (Open[0].key, CorpsSystem.PopMin(Open));
+            (float key, Cell zone) = (Open[0].key, CorpsSystem.PopMin(Open));
             // 再往外走剩下的不会比已找到的多
             if (Mathf.Exp(-key) <= best) break;
             if (Closed(zone)) continue;
-            if (zone.id >= _closed.Length) Grow(zone.id + 1);
-            _closed[zone.id] = _pass;
+            if (zone.Index >= _closed.Length) Grow(zone.Index + 1);
+            _closed[zone.Index] = _pass;
             _closedCount++;
-            int depth = _steps[zone.id];
+            int depth = _steps[zone.Index];
             if (zone != start)
             {
                 float source = Source(zone);
@@ -221,7 +217,7 @@ public static class LogisticsSystem
                 }
             }
             if (depth >= MaxSupplyDepth) continue;
-            foreach (TileZone next in zone.neighbours_all ?? Array.Empty<TileZone>())
+            foreach (Cell next in zone.NeighboursAll ?? Array.Empty<Cell>())
             {
                 if (next == null || Closed(next) || SeaRegionSystem.IsSea(next) || TerrainSystem.Impassable(next) ||
                     !TerrainSystem.Crossable(zone, next)) continue;
@@ -229,7 +225,7 @@ public static class LogisticsSystem
                 float loss = Loss(kingdom, next, depth + 1);
                 if (loss >= 1f) continue;
                 float total = key - Mathf.Log(1f - loss);
-                if (next.id < _seen.Length && _seen[next.id] == _pass && _cost[next.id] <= total) continue;
+                if (next.Index < _seen.Length && _seen[next.Index] == _pass && _cost[next.Index] <= total) continue;
                 Reach(next, total, depth + 1);
                 CorpsSystem.PushHeap(Open, (total, next));
             }
@@ -241,7 +237,7 @@ public static class LogisticsSystem
 
     // 运粮经过这块地折损几成；敌占的地块只有阵地前沿几块能穿过(否则返回 1，走不通)
 #if EC_PENDING
-    private static float Loss(Realm kingdom, TileZone zone, int depth)
+    private static float Loss(Realm kingdom, Cell zone, int depth)
     {
         Realm controller = FrontSystem.Controller(zone);
         float loss;
@@ -279,7 +275,7 @@ public static class LogisticsSystem
             corps.rations = 1f;
             if (need <= 0f) continue;
             // 就地征粮：在敌城的军先从所在城征
-            City city = foraging && !corps.embarked ? CorpsSystem.Zone(corps)?.city : null;
+            City city = foraging && !corps.embarked ? CorpsSystem.Zone(corps)?.City : null;
             if (city?.Record != null && !city.IsGone() && FrontSystem.Hostile(kingdom, city.Realm))
             {
                 int taken = PopulationEconomySystem.TakeFood(city, Mathf.CeilToInt(need));
@@ -292,7 +288,7 @@ public static class LogisticsSystem
             }
             if (need <= 0f) continue;
             // 就近调粮：离这支军最近的几座本国城的余粮
-            TileZone at = CorpsSystem.Zone(corps);
+            Cell at = CorpsSystem.Zone(corps);
             if (at != null && kingdom.Cities != null)
                 foreach (City near in CorpsSystem.NearestCities(kingdom, at, NearbyGranaries))
                 {
@@ -348,7 +344,7 @@ public static class LogisticsSystem
                 CorpsSystem.Casualties(corps, dead);
                 frozen += dead;
                 exposed++;
-                if (CorpsSystem.Zone(corps) is TileZone at) worst = WarWeather.KindOf(TerrainSystem.Of(at));
+                if (CorpsSystem.Zone(corps) is Cell at) worst = WarWeather.KindOf(TerrainSystem.Of(at));
             }
             float hunger = 1f - Mathf.Clamp01(corps.rations);
             float cut = corps.supply < 0.3f ? (0.3f - corps.supply) / 0.3f : 0f;
@@ -397,7 +393,7 @@ public static class LogisticsSystem
         if (realm.GetOrCreate().war_food_short > 0f) return true;
         List<CorpsData> list = CorpsSystem.Of(realm);
         if (list.Count == 0) return false;
-        int abroad = list.Count(corps => CorpsSystem.Zone(corps) is TileZone zone &&
+        int abroad = list.Count(corps => CorpsSystem.Zone(corps) is Cell zone &&
                                          FrontSystem.Controller(zone) is Realm controller && FrontSystem.Hostile(realm, controller));
         return abroad * 3 >= list.Count;
     }

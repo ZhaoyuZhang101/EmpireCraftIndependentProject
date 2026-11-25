@@ -121,7 +121,7 @@ public static class WarWeather
             ground.DefenderOrg + hardship.ExtraOrg * 0.5f, advance, ground.SlowMarch);
     }
 
-    public static bool SlowsMarch(TileZone zone) => zone != null && HardshipOf(TerrainSystem.Of(zone)).Slow;
+    public static bool SlowsMarch(Cell zone) => zone != null && HardshipOf(TerrainSystem.Of(zone)).Slow;
 #endif
 
     // 这种地形眼下有多难打(0~1)：AI 挑战线时打折
@@ -134,7 +134,7 @@ public static class WarWeather
     public static float AttritionRate(Realm kingdom, CorpsData corps)
     {
         if (corps == null || corps.embarked || corps.task is not ("attack" or "defend" or "march")) return 0f;
-        TileZone zone = CorpsSystem.Zone(corps);
+        Cell zone = CorpsSystem.Zone(corps);
         if (zone == null) return 0f;
         FrontTerrain terrain = TerrainSystem.Of(zone);
         float rate = HardshipOf(terrain).Attrition;

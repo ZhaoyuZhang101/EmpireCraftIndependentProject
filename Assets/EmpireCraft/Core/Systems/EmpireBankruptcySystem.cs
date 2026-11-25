@@ -146,12 +146,12 @@ public static class EmpireBankruptcySystem
     {
         if (rebels.Count == 0 || member.Cities == null) return null;
         Realm bordering = rebels.FirstOrDefault(rebel => !rebel.IsGone() && member.Cities.Any(city =>
-            city?.neighbours_cities != null && city.neighbours_cities.Any(other => other?.kingdom == rebel)));
+            city?.NeighbourCities != null && city.NeighbourCities.Any(other => other?.Realm == rebel)));
         if (bordering != null) return bordering;
-        WorldTile home = member.Capital?.getTile(false);
+        Cell home = member.Capital?.SeatCell(false);
         if (home == null) return null;
-        return rebels.Where(rebel => !rebel.IsGone() && rebel.Capital?.getTile(false) != null)
-            .Select(rebel => (rebel, distance: Toolbox.DistTile(home, rebel.capital.getTile(false))))
+        return rebels.Where(rebel => !rebel.IsGone() && rebel.Capital?.SeatCell(false) != null)
+            .Select(rebel => (rebel, distance: Land.Dist(home, rebel.capital.getTile(false))))
             .Where(pair => pair.distance <= NearbyRebelDistance)
             .OrderBy(pair => pair.distance).Select(pair => pair.rebel).FirstOrDefault();
     }

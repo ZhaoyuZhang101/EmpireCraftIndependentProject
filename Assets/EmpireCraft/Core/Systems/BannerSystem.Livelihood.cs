@@ -89,7 +89,7 @@ public static partial class BannerSystem
 #if EC_PENDING
     private static bool MayEnroll(City city, PopGroup group)
     {
-        Empire empire = city?.kingdom?.GetEmpire();
+        Empire empire = city?.Realm?.GetEmpire();
         if (empire == null || !Practices(empire) || !empire.CoreKingdom.GetOrCreate().banner_hanjun_released) return true;
         return !CultureService.SameKin(group.culture, CompositeEmpireService.GetInstitutionalCulture(empire));
     }

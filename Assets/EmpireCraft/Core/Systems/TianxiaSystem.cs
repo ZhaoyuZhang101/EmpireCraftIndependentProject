@@ -305,13 +305,13 @@ public static class TianxiaSystem
         var pairs = new HashSet<(long, long)>();
         foreach (City city in EmpireWorld.Current.Cities)
         {
-            if (city?.Record == null || city.IsGone() || city.neighbours_cities == null) continue;
+            if (city?.Record == null || city.IsGone() || city.NeighbourCities == null) continue;
             EmpireCore a = LeadOf(city);
             if (a == null) continue;
-            object island = city.getTile()?.region?.island;
-            foreach (City next in city.neighbours_cities)
+            object island = city.SeatCell()?.region?.island;
+            foreach (City next in city.NeighbourCities)
             {
-                if (next?.Record == null || next.IsGone() || island == null || !ReferenceEquals(island, next.getTile()?.region?.island)) continue;
+                if (next?.Record == null || next.IsGone() || island == null || !ReferenceEquals(island, next.SeatCell()?.region?.island)) continue;
                 EmpireCore b = LeadOf(next);
                 if (b == null || b == a) continue;
                 pairs.Add(a.id < b.id ? (a.id, b.id) : (b.id, a.id));

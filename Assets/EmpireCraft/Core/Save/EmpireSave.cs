@@ -113,7 +113,7 @@ namespace EmpireCraft.Core
             int cities=Count(b);var owners=new int[cities];
             for(int i=0;i<cities;i++)
             {
-                var c=new City{Id=i,Name=Text(b),Tile=b.ReadInt32()};owners[i]=b.ReadInt32();
+                var c=new City{Id=i,World=w,Name=Text(b),Tile=b.ReadInt32()};owners[i]=b.ReadInt32();
                 c.Population=b.ReadDouble();c.FoundedMonth=b.ReadInt32();c.EndedMonth=b.ReadInt32();
                 int tiles=Count(b);
                 for(int k=0;k<tiles;k++){int t=Id(b,map.Count);Check(w.TileCity[t]<0,"Tile claimed twice");w.TileCity[t]=i;c.Tiles.Add(t);}

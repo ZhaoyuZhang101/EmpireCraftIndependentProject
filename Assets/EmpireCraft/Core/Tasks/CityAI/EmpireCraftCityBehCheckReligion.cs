@@ -57,7 +57,7 @@ public class EmpireCraftCityBehCheckReligion: GameAICityBase
                 KingdomTitle title = ModClass.KINGDOM_TITLE_MANAGER.newKingdomTitle(pCity);
                 if (title == null) return BehResult.Continue;
                 pCity.Realm?.SetMainTitle(title);
-                pCity.Realm?.king?.AddOwnedTitle(title);
+                pCity.Realm?.Ruler?.AddOwnedTitle(title);
             }
         }
         return BehResult.Continue;

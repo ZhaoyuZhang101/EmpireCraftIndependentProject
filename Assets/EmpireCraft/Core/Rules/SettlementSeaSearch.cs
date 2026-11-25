@@ -12,9 +12,7 @@ internal sealed class SettlementSeaSearch
 {
     internal sealed class SeaNode
     {
-#if EC_PENDING
-        public WorldTile tile;
-#endif
+        public Cell tile;
         public SeaNode parent;
         public City portCity;
         public int distance;
@@ -23,10 +21,8 @@ internal sealed class SettlementSeaSearch
 
     internal sealed class Candidate
     {
-#if EC_PENDING
-        public TileZone zone;
-        public WorldTile landfall;
-#endif
+        public Cell zone;
+        public Cell landfall;
         internal SeaNode sea;
         public int distance => sea.distance;
 
@@ -43,27 +39,23 @@ internal sealed class SettlementSeaSearch
             project.sea_route.Reverse();
             project.travel_months = TravelMonths(project.sea_route.Count, sea.portCity);
         }
+#endif
 
-        private static Candidate Create(TileZone zone, WorldTile landfall, SeaNode sea) =>
+        private static Candidate Create(Cell zone, Cell landfall, SeaNode sea) =>
             new() { zone = zone, landfall = landfall, sea = sea };
         internal static Candidate FromLanding(Landing landing) => Create(landing.zone, landing.landfall, landing.sea);
-#endif
     }
 
     internal sealed class Landing
     {
-#if EC_PENDING
-        public TileZone zone;
-        public WorldTile landfall;
-#endif
+        public Cell zone;
+        public Cell landfall;
         internal SeaNode sea;
         public int depth;
 
-#if EC_PENDING
-        internal static Landing Create(TileZone zone, WorldTile landfall, SeaNode sea, int depth) =>
+        internal static Landing Create(Cell zone, Cell landfall, SeaNode sea, int depth) =>
             new() { zone = zone, landfall = landfall, sea = sea, depth = depth };
-        internal Landing Next(TileZone next) => Create(next, landfall, sea, depth + 1);
-#endif
+        internal Landing Next(Cell next) => Create(next, landfall, sea, depth + 1);
     }
 
     private const int MaxVisitedTiles = 80000;
@@ -78,9 +70,7 @@ internal sealed class SettlementSeaSearch
     internal const string OceanNavigationTech = "ocean_navigation";
     private readonly Queue<SeaNode> seaQueue = new();
     private readonly Queue<Landing> landQueue = new();
-#if EC_PENDING
-    private readonly Dictionary<WorldTile, int> seaSeen = new();
-#endif
+    private readonly Dictionary<Cell, int> seaSeen = new();
     private readonly HashSet<int> landSeen = new();
     private int shortlistDistance = int.MaxValue;
     private bool oceanAvailable;
@@ -105,7 +95,7 @@ internal sealed class SettlementSeaSearch
             int range = Range(city, port);
             oceanAvailable |= range > NearSeaRange;
             if (range > IndustrialSeaRange / 2) maxVisited = LongRangeVisitedTiles;
-            foreach (WorldTile tile in port.component_docks.tiles_ocean)
+            foreach (Cell tile in port.component_docks.tiles_ocean)
                 if (Navigable(tile) && Visit(tile, range))
                     seaQueue.Enqueue(new SeaNode { tile = tile, portCity = city, range = range });
             if (++count >= 4) break;
@@ -123,7 +113,7 @@ internal sealed class SettlementSeaSearch
             if (!oceanAvailable && node.distance >= node.range && node.range == NearSeaRange && Navigable(node.tile))
                 unavailable = "overseas_tech";
             if (node.distance >= node.range || node.distance - 16 > shortlistDistance || !Navigable(node.tile)) continue;
-            foreach (WorldTile tile in node.tile.neighbours ?? Array.Empty<WorldTile>())
+            foreach (Cell tile in node.tile.Neighbours ?? Array.Empty<Cell>())
             {
                 if (Navigable(tile))
                 {
@@ -131,15 +121,16 @@ internal sealed class SettlementSeaSearch
                         seaQueue.Enqueue(new SeaNode { tile = tile, parent = node, portCity = node.portCity,
                             distance = node.distance + 1, range = node.range });
                 }
-                else if (tile?.Type?.ground == true && tile.region?.island != null &&
-                    !tile.isSameIsland(source.getTile()) && tile.zone != null &&
-                    (tile.zone.city == null || tile.zone.city == existingTarget) && landSeen.Add(tile.zone.id))
-                    landQueue.Enqueue(Landing.Create(tile.zone, tile, node, 0));
+                else if (tile?.Type?.Ground == true && tile.region?.island != null &&
+                    !tile.IsSameIsland(source.SeatCell()) && tile.Zone != null &&
+                    (tile.Zone.City == null || tile.Zone.City == existingTarget) && landSeen.Add(tile.Zone.Index))
+                    landQueue.Enqueue(Landing.Create(tile.Zone, tile, node, 0));
             }
         }
     }
+#endif
 
-    private bool Visit(WorldTile tile, int remaining)
+    private bool Visit(Cell tile, int remaining)
     {
         if (seaSeen.TryGetValue(tile, out int previous) ? remaining <= previous : seaSeen.Count >= maxVisited)
             return false;
@@ -147,17 +138,19 @@ internal sealed class SettlementSeaSearch
         return true;
     }
 
+#if EC_PENDING
     public Landing NextLanding()
     {
         if (landQueue.Count == 0) return null;
         Landing landing = landQueue.Dequeue();
         if (landing.depth < 4)
-            foreach (TileZone next in landing.zone.neighbours ?? Array.Empty<TileZone>())
-                if (next?.centerTile != null && (next.city == null || next.city == existingTarget) &&
-                    next.centerTile.isSameIsland(landing.landfall) && next.centerTile.reachableFrom(landing.landfall) &&
-                    landSeen.Add(next.id)) landQueue.Enqueue(landing.Next(next));
+            foreach (Cell next in landing.zone.Neighbours ?? Array.Empty<Cell>())
+                if (next?.Center != null && (next.City == null || next.City == existingTarget) &&
+                    next.Center.IsSameIsland(landing.landfall) && next.Center.reachableFrom(landing.landfall) &&
+                    landSeen.Add(next.Index)) landQueue.Enqueue(landing.Next(next));
         return landing;
     }
+#endif
 
     public Candidate Accept(Landing landing)
     {
@@ -165,14 +158,15 @@ internal sealed class SettlementSeaSearch
         return Candidate.FromLanding(landing);
     }
 
-    private static SettlementRoutePoint Point(WorldTile tile) => new() { x = tile.x, y = tile.y };
-    internal static bool Navigable(WorldTile tile) => tile?.Type != null && tile.isGoodForBoat();
+    private static SettlementRoutePoint Point(Cell tile) => new() { x = tile.X, y = tile.Y };
+#if EC_PENDING
+    internal static bool Navigable(Cell tile) => tile?.Type != null && tile.isGoodForBoat();
     internal static Building Port(City city) => city?.getBuildingOfType("type_docks", pCountOnlyFinished: true, pRandom: false);
 
     private static bool EligiblePortCity(City city, City source) => city?.Record != null && !city.IsGone() &&
-        !AncientWarfareCompatibility.OwnsObject(city) && city.getTile() != null &&
+        !AncientWarfareCompatibility.OwnsObject(city) && city.SeatCell() != null &&
         StateSettlementSystem.FundingRealm(city.Realm) == StateSettlementSystem.FundingRealm(source.Realm) &&
-        city.getTile().isSameIsland(source.getTile()) && city.getTile().reachableFrom(source.getTile());
+        city.SeatCell().IsSameIsland(source.SeatCell()) && city.SeatCell().reachableFrom(source.SeatCell());
 
     private static bool CanTransport(City city, Building port)
     {
@@ -224,7 +218,7 @@ internal sealed class SettlementSeaSearch
         ? 50 + (project.sea_route.Count + 7) / 8 * 5 : 0;
 
 #if EC_PENDING
-    internal static bool Validate(StateSettlementProject project, City source, out WorldTile landfall, out string reason,
+    internal static bool Validate(StateSettlementProject project, City source, out Cell landfall, out string reason,
         City existingTarget = null)
     {
         landfall = null;
@@ -242,22 +236,22 @@ internal sealed class SettlementSeaSearch
         if (route.Count > NearSeaRange && !HasOceanNavigation(embarkation)) return false;
         reason = "route";
         if (route.Count > Range(embarkation, port)) return false;
-        WorldTile previous = null;
+        Cell previous = null;
         foreach (SettlementRoutePoint point in route)
         {
             if (point == null) return false;
-            WorldTile tile = EmpireWorld.Current.GetTile(point.x, point.y);
+            Cell tile = EmpireWorld.Current.CellAt(point.x, point.y);
             if (!Navigable(tile) || previous != null && !Adjacent(previous, tile)) return false;
             if (previous == null && !port.component_docks.tiles_ocean.Contains(tile)) return false;
             previous = tile;
         }
-        landfall = EmpireWorld.Current.GetTile(project.landfall.x, project.landfall.y);
-        return landfall?.Type?.ground == true && landfall.zone != null &&
-            (landfall.zone.city == null || landfall.zone.city == existingTarget) && landfall.region?.island != null &&
-            !landfall.isSameIsland(source.getTile()) && Adjacent(previous, landfall);
+        landfall = EmpireWorld.Current.CellAt(project.landfall.x, project.landfall.y);
+        return landfall?.Type?.Ground == true && landfall.Zone != null &&
+            (landfall.Zone.City == null || landfall.Zone.City == existingTarget) && landfall.region?.island != null &&
+            !landfall.IsSameIsland(source.SeatCell()) && Adjacent(previous, landfall);
     }
-
-    private static bool Adjacent(WorldTile a, WorldTile b) => a?.neighbours?.Contains(b) == true;
 #endif
+
+    private static bool Adjacent(Cell a, Cell b) => a?.Neighbours?.Contains(b) == true;
 }
 }

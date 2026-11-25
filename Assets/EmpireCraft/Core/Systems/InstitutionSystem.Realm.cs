@@ -86,7 +86,7 @@ public static partial class InstitutionSystem
             }
             catch (Exception exception)
             {
-                LogService.LogWarning($"[EmpireCraft] 王国制度结算失败({kingdom.Record?.Name}): {exception.Message}");
+                LogService.LogWarning($"[EmpireCraft] 王国制度结算失败({kingdom.Name}): {exception.Message}");
             }
         }
         // 一轮扫完：记下这一轮用了几年(诊断用，见 InstitutionSystem.Diagnostics.cs)

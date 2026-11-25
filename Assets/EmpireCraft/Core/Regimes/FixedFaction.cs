@@ -798,7 +798,7 @@ public class FixedFaction
                 Person preferredMember = Members.Select(id => EmpireWorld.Current.PersonByKey(id))
                     .Where(actor => IsEligibleLeader(actor) && actor.IsOnOffice() && actor.HasOfficeIdentity() &&
                                     OfficeSelector.IsPreferredOfficeCandidate(actor, Empire.CoreKingdom))
-                    .OrderByDescending(actor => actor.Record?.Renown ?? 0)
+                    .OrderByDescending(actor => actor.Renown ?? 0)
                     .ThenByDescending(actor => actor.GetIdentity()?.TotalPerformance ?? 0d)
                     .FirstOrDefault();
                 if (preferredMember != null) SetLeader(preferredMember);
@@ -808,16 +808,16 @@ public class FixedFaction
         Person candidate = Members.Select(id => EmpireWorld.Current.PersonByKey(id))
             .Where(IsEligibleLeader)
             .OrderByDescending(actor => OfficeSelector.IsPreferredOfficeCandidate(actor, Empire.CoreKingdom))
-            .ThenByDescending(actor => actor.Record?.Renown ?? 0)
+            .ThenByDescending(actor => actor.Renown ?? 0)
             .ThenByDescending(actor => actor.GetIdentity()?.TotalPerformance ?? 0d)
             .FirstOrDefault();
         candidate ??= Empire.getUnits().Where(actor => IsEligibleLeader(actor) && !actor.HasFaction() &&
                 actor.IsOnOffice() && actor.HasOfficeIdentity())
             .OrderByDescending(actor => OfficeSelector.IsPreferredOfficeCandidate(actor, Empire.CoreKingdom))
-            .ThenByDescending(actor => actor.Record?.Renown ?? 0).FirstOrDefault();
+            .ThenByDescending(actor => actor.Renown ?? 0).FirstOrDefault();
         candidate ??= Empire.getUnits().Where(actor => IsEligibleLeader(actor) && !actor.HasFaction())
             .OrderByDescending(actor => OfficeSelector.IsPreferredOfficeCandidate(actor, Empire.CoreKingdom))
-            .ThenByDescending(actor => actor.Record?.Renown ?? 0).FirstOrDefault();
+            .ThenByDescending(actor => actor.Renown ?? 0).FirstOrDefault();
         if (candidate == null) return;
         if (candidate.GetFaction() != this) candidate.SetFaction(this);
         else SetLeader(candidate);

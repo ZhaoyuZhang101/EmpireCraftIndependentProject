@@ -1,5 +1,6 @@
 // Generated from the EmpireCraft mod: Scripts/GeneralSystems/GuoyeSystem.cs. Do not edit by hand: Tools/PortTool/members.py rewrites it;
 // see Port/manifest.json and Tools/PortTool.
+using Random = EmpireCraft.Core.EcRandom;
 using System.Collections.Generic;
 using System.Linq;
 
@@ -131,7 +132,6 @@ public static class GuoyeSystem
 #endif
 
     // 出奔之地：离国都最近的别国城邑(本帝国诸侯国的都城优先)，没有就本国别的城
-#if EC_PENDING
     private static City Refuge(Empire empire, Realm core)
     {
         City capital = core.Capital;
@@ -139,9 +139,8 @@ public static class GuoyeSystem
         IEnumerable<City> abroad = empire.kingdoms_list.Where(kingdom => kingdom != null && !kingdom.IsGone() && kingdom != core)
             .Select(kingdom => kingdom.Capital).Where(city => city != null && !city.IsGone());
         IEnumerable<City> home = core.Cities.Where(city => city != null && !city.IsGone() && city != capital);
-        return abroad.OrderBy(city => (city.city_center - capital.city_center).sqrMagnitude).FirstOrDefault() ??
-               home.OrderBy(city => (city.city_center - capital.city_center).sqrMagnitude).FirstOrDefault();
+        return abroad.OrderBy(city => (city.Center - capital.Center).sqrMagnitude).FirstOrDefault() ??
+               home.OrderBy(city => (city.Center - capital.Center).sqrMagnitude).FirstOrDefault();
     }
-#endif
 }
 }

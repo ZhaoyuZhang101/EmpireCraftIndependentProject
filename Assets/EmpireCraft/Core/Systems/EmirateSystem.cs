@@ -1,6 +1,7 @@
 // Generated from the EmpireCraft mod: Scripts/GeneralSystems/EmirateSystem.cs. Do not edit by hand: Tools/PortTool/members.py rewrites it;
 // see Port/manifest.json and Tools/PortTool.
 using Mathf = EmpireCraft.Core.EcMath;
+using Vector2 = EmpireCraft.Core.EcVector2;
 using System.Collections.Generic;
 using System.Linq;
 
@@ -319,9 +320,9 @@ public static class EmirateSystem
     private static UnityEngine.Vector2? SeatOf(Realm kingdom)
     {
         City capital = kingdom?.Capital;
-        if (capital?.Record == null || capital.IsGone() || capital.zones == null || capital.zones.Count == 0) return null;
-        TileZone zone = AdministrativeControlSystem.CenterZone(capital);
-        return zone == null ? null : new UnityEngine.Vector2(zone.x, zone.y);
+        if (capital?.Record == null || capital.IsGone() || capital.Zones == null || capital.Zones.Count == 0) return null;
+        Cell zone = AdministrativeControlSystem.CenterZone(capital);
+        return zone == null ? null : new UnityEngine.Vector2(zone.X, zone.Y);
     }
 #endif
 }

@@ -203,7 +203,7 @@ public static partial class ShuiTuSystem
         foreach (City city in cities)
         {
             if (NomadicCity(city)) return true;
-            foreach (City next in (IEnumerable<City>)city.neighbours_cities ?? Array.Empty<City>())
+            foreach (City next in (IEnumerable<City>)city.NeighbourCities ?? Array.Empty<City>())
                 if (NomadicCity(next)) return true;
         }
         foreach (Realm other in EmpireWorld.Current.LiveRealms)
@@ -302,7 +302,7 @@ public static partial class ShuiTuSystem
                 List<City> own = member.Cities?.Where(Valid).ToList() ?? new List<City>();
                 if (own.Count == 0 || own.Count(IsDryCity) * 2 >= own.Count) continue;
                 // 不许自立(见 SecessionGate)：农地成员不脱离(不记叛离，Empire.leave 那道门拦不到)
-                if (SecessionGate.Forbids("北归脱离", member.Record?.Name)) continue;
+                if (SecessionGate.Forbids("北归脱离", member.Name)) continue;
                 empire.leave(member);
                 left++;
             }
@@ -346,13 +346,12 @@ public static partial class ShuiTuSystem
     #region 定居入草
 
     // 连成一片的城(从 seed 起沿邻城走，至多 ClusterMax 座)
-#if EC_PENDING
     private static List<City> Cluster(City seed, Func<City, bool> member)
     {
         var cluster = new List<City> { seed };
         var seen = new HashSet<City> { seed };
         for (int i = 0; i < cluster.Count && cluster.Count < ClusterMax; i++)
-            foreach (City next in (IEnumerable<City>)cluster[i].neighbours_cities ?? Array.Empty<City>())
+            foreach (City next in (IEnumerable<City>)cluster[i].NeighbourCities ?? Array.Empty<City>())
             {
                 if (cluster.Count >= ClusterMax) break;
                 if (next == null || !seen.Add(next) || !Valid(next) || !member(next)) continue;
@@ -361,6 +360,7 @@ public static partial class ShuiTuSystem
         return cluster;
     }
 
+#if EC_PENDING
     private static List<City> UnfitCluster(List<City> unfit)
     {
         City seed = unfit.OrderByDescending(UnfitTier).ThenBy(city => city.Key).First();
@@ -472,7 +472,7 @@ public static partial class ShuiTuSystem
         foreach (City city in cluster)
         {
             Count(city, 2);
-            foreach (City next in (IEnumerable<City>)city.neighbours_cities ?? Array.Empty<City>()) Count(next, 1);
+            foreach (City next in (IEnumerable<City>)city.NeighbourCities ?? Array.Empty<City>()) Count(next, 1);
         }
         // 附近没有游牧文化就不改从游牧(以前找本文化制度线上的游牧文化顶上)
         return counts.Count > 0

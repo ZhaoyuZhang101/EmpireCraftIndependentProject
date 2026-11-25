@@ -24,35 +24,31 @@ public static class PlateauTerrain
     private const string AlpineColor = "#8F9070", LoessColor = "#B99A68", SteppeColor = "#9DA455";
     private const int LoessHeight = 160, SteppeHeight = 170, AlpineHeight = 180;
 
-#if EC_PENDING
-    public static TileType Alpine { get; private set; }
-    public static TileType Loess { get; private set; }
-    public static TileType Steppe { get; private set; }
-#endif
+    public static TerrainKind Alpine { get; private set; }
+    public static TerrainKind Loess { get; private set; }
+    public static TerrainKind Steppe { get; private set; }
 
     // 地面格是不是高原(顶层盖了冻土、田、路也照样看底下)
-#if EC_PENDING
-    public static bool IsPlateau(TileTypeBase type) =>
+    public static bool IsPlateau(TerrainKind type) =>
         type != null && (ReferenceEquals(type, Alpine) || ReferenceEquals(type, Loess) || ReferenceEquals(type, Steppe));
-#endif
 
     // 战线地形、教化政令按高原算的两种(草原高原面是开阔草原，不算)
+    public static bool IsRugged(TerrainKind type) => type != null && (ReferenceEquals(type, Alpine) || ReferenceEquals(type, Loess));
+
+    public static bool IsSteppe(Cell tile) => tile != null && Steppe != null && ReferenceEquals(tile.MainType, Steppe);
+
+    public static bool IsPlateau(Cell tile) => tile != null && IsPlateau(tile.MainType);
+
+    public static bool IsAlpine(Cell tile) => tile != null && Alpine != null && ReferenceEquals(tile.MainType, Alpine);
+
+    public static bool IsLoess(Cell tile) => tile != null && Loess != null && ReferenceEquals(tile.MainType, Loess);
+
 #if EC_PENDING
-    public static bool IsRugged(TileTypeBase type) => type != null && (ReferenceEquals(type, Alpine) || ReferenceEquals(type, Loess));
-
-    public static bool IsSteppe(WorldTile tile) => tile != null && Steppe != null && ReferenceEquals(tile.main_type, Steppe);
-
-    public static bool IsPlateau(WorldTile tile) => tile != null && IsPlateau(tile.main_type);
-
-    public static bool IsAlpine(WorldTile tile) => tile != null && Alpine != null && ReferenceEquals(tile.main_type, Alpine);
-
-    public static bool IsLoess(WorldTile tile) => tile != null && Loess != null && ReferenceEquals(tile.main_type, Loess);
-
     public static void Register()
     {
         TileLibrary library = AssetManager.tiles;
         if (library == null) return;
-        if (!library.dict.TryGetValue("soil_high", out TileType soilHigh) || !library.dict.TryGetValue("hills", out TileType hills))
+        if (!library.dict.TryGetValue("soil_high", out TerrainKind soilHigh) || !library.dict.TryGetValue("hills", out TerrainKind hills))
         {
             LogService.LogWarning("[EmpireCraft][高原] 原版没有 soil_high/hills 地面格，高原不注册");
             return;
@@ -64,9 +60,9 @@ public static class PlateauTerrain
         Link(soilHigh, Loess);
         Link(Loess, Alpine);
         Link(Alpine, hills);
-        Steppe.decrease_to_id = soilHigh.id;
+        Steppe.decrease_to_id = soilHigh.Id;
         Steppe.decrease_to = soilHigh;
-        Steppe.increase_to_id = Alpine.id;
+        Steppe.increase_to_id = Alpine.Id;
         Steppe.increase_to = Alpine;
         // 列表照高度从低到高排(原版按高度取格子时取列表里最后一个够得着的)：排到高地后面
         Place(library, Loess, soilHigh);
@@ -75,24 +71,24 @@ public static class PlateauTerrain
         LogService.LogInfo("[EmpireCraft][高原] 已注册高寒高原、黄土高原、草原高原三种地面格");
     }
 
-    private static TileType Make(TileLibrary library, string id, string color, int height, TileType from, bool farm)
+    private static TerrainKind Make(TileLibrary library, string id, string color, int height, TerrainKind from, bool farm)
     {
-        if (library.dict.TryGetValue(id, out TileType existing)) return existing;
+        if (library.dict.TryGetValue(id, out TerrainKind existing)) return existing;
         // 原版 clone 照抄公开字段(集合另建一份)，排进列表、编号、按编号的格子表都在 add 里做了
-        TileType type = library.clone(id, from.id);
+        TerrainKind type = library.clone(id, from.Id);
         type.hashset = new HashSetWorldTile();
         type.color_hex = color;
         type.color = Toolbox.makeColor(color);
-        type.height_min = height;
+        type.HeightMin = height;
         type.additional_height = from.additional_height == null ? null : (int[])from.additional_height.Clone();
         type.used_in_generator = false;
         type.can_be_biome = false;
         type.biome_tags = null;
         type.has_biome_tags = false;
         type.biome_build_check = false;
-        type.biome_id = string.Empty;
+        type.BiomeId = string.Empty;
         type.biome_asset = null;
-        type.can_be_farm = farm;
+        type.CanBeFarm = farm;
         type.can_build_on = true;
         type.freeze_to_id = "frozen_high";
         type.cost = from.cost + 10;
@@ -113,15 +109,15 @@ public static class PlateauTerrain
         return sprites;
     }
 
-    private static void Link(TileType lower, TileType upper)
+    private static void Link(TerrainKind lower, TerrainKind upper)
     {
-        lower.increase_to_id = upper.id;
+        lower.increase_to_id = upper.Id;
         lower.increase_to = upper;
-        upper.decrease_to_id = lower.id;
+        upper.decrease_to_id = lower.Id;
         upper.decrease_to = lower;
     }
 
-    private static void Place(TileLibrary library, TileType type, TileType after)
+    private static void Place(TileLibrary library, TerrainKind type, TerrainKind after)
     {
         int at = library.list.IndexOf(after);
         if (at < 0) return;

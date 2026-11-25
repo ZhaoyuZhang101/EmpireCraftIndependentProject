@@ -1,6 +1,8 @@
 // Generated from the EmpireCraft mod: Scripts/GeneralSystems/WorldMap/WorldMapWilderness.cs. Do not edit by hand: Tools/PortTool/members.py rewrites it;
 // see Port/manifest.json and Tools/PortTool.
 using Mathf = EmpireCraft.Core.EcMath;
+using Vector2Int = EmpireCraft.Core.EcVector2Int;
+using Vector2 = EmpireCraft.Core.EcVector2;
 using System;
 using System.Collections.Generic;
 using System.IO;
@@ -145,9 +147,7 @@ public static class WorldMapWilderness
 
     // 玩家在剧本编辑器里刷给城的地块(见 SetCityClaims)：城市边界固定开着时锁定，无人区不划走、划走了的还回去(见 WildernessSystem.RestoreClaims)；
     // 不论法则，划成无人区的也照样归那座城的国，不受版图远近限制(见 WildernessSystem.Assigned)
-#if EC_PENDING
-    internal static bool CityClaim(TileZone zone) => zone != null && _cityClaims?.ContainsKey(zone.id) == true;
-#endif
+    internal static bool CityClaim(Cell zone) => zone != null && _cityClaims?.ContainsKey(zone.Index) == true;
     internal static bool HasCityClaims => _cityClaims is { Count: > 0 };
     internal static IEnumerable<KeyValuePair<int, long>> CityClaims =>
         _cityClaims ?? (IEnumerable<KeyValuePair<int, long>>)Array.Empty<KeyValuePair<int, long>>();
@@ -189,10 +189,8 @@ public static class WorldMapWilderness
         _state.bounded_anchors = bounded == null ? null : new HashSet<int>(bounded);
     }
 
-#if EC_PENDING
-    internal static bool BoundedAnchor(TileZone zone) => zone != null &&
-        (_cityClaims?.ContainsKey(zone.id) == true || _state?.bounded_anchors?.Contains(zone.id) == true);
-#endif
+    internal static bool BoundedAnchor(Cell zone) => zone != null &&
+        (_cityClaims?.ContainsKey(zone.Index) == true || _state?.bounded_anchors?.Contains(zone.Index) == true);
     internal static bool NeedsBoundaryRepair => Active && _state.boundary_revision < 1;
     internal static void MarkBoundaryRepaired() { if (_state != null) _state.boundary_revision = 1; }
     internal static bool NeedsMountainRepair => Active && _state.mountain_revision < 1;
@@ -201,12 +199,11 @@ public static class WorldMapWilderness
     internal static void MarkSurfaceRepaired() { if (_state != null) _state.surface_revision = 1; }
 
     // 连通修补同时更新推算锚点，防止 OriginOf 下一次查询又把修好的省界改回远处旧省。
-#if EC_PENDING
-    internal static void FollowAnchor(TileZone zone, City city)
+    internal static void FollowAnchor(Cell zone, City city)
     {
         if (zone == null || city?.Record == null || city.IsGone() || BoundedAnchor(zone) || _state?.anchors == null ||
-            !_state.anchors.ContainsKey(zone.id)) return;
-        _state.anchors[zone.id] = city.Key;
+            !_state.anchors.ContainsKey(zone.Index)) return;
+        _state.anchors[zone.Index] = city.Key;
     }
 
     internal static void CaptureTerritory(IEnumerable<City> cities)
@@ -214,42 +211,41 @@ public static class WorldMapWilderness
         if (!Active || cities == null) return;
         foreach (City city in cities)
         {
-            if (city?.Record == null || city.IsGone() || city.zones == null) continue;
+            if (city?.Record == null || city.IsGone() || city.Zones == null) continue;
             KingdomTitle title = city.GetTitle();
-            foreach (TileZone zone in city.zones)
-                if (zone?.city == city) RememberTerritory(zone, title, city, false);
+            foreach (Cell zone in city.Zones)
+                if (zone?.City == city) RememberTerritory(zone, title, city, false);
         }
     }
 
-    internal static void RememberTerritory(TileZone zone, KingdomTitle title, City city, bool neutral, bool pinned = false)
+    internal static void RememberTerritory(Cell zone, KingdomTitle title, City city, bool neutral, bool pinned = false)
     {
-        if (!Active || zone == null || zone.id < 0) return;
+        if (!Active || zone == null || zone.Index < 0) return;
         if (neutral)
         {
-            _state.territory?.Remove(zone.id);
+            _state.territory?.Remove(zone.Index);
             return;
         }
         long cityId = city?.Record != null && !city.IsGone() ? city.Key : -1L;
         long titleId = title != null && !title.IsGone() ? title.Key : -1L;
         if (cityId < 0 && titleId < 0) return;
         _state.territory ??= new();
-        if (_state.territory.TryGetValue(zone.id, out ScenarioLandOrigin old) && old.city == cityId && old.title == titleId && old.pinned == pinned) return;
-        _state.territory[zone.id] = new ScenarioLandOrigin { city = cityId, title = titleId, pinned = pinned };
+        if (_state.territory.TryGetValue(zone.Index, out ScenarioLandOrigin old) && old.city == cityId && old.title == titleId && old.pinned == pinned) return;
+        _state.territory[zone.Index] = new ScenarioLandOrigin { city = cityId, title = titleId, pinned = pinned };
     }
-#endif
 
     internal static IEnumerable<int> KnownTerritory() => Active && WildernessSystem.Enabled && _state.territory != null
         ? _state.territory.Keys : Enumerable.Empty<int>();
 
 #if EC_PENDING
-    private static bool LandOrigin(TileZone zone, out City city, out KingdomTitle title)
+    private static bool LandOrigin(Cell zone, out City city, out KingdomTitle title)
     {
         city = null;
         title = null;
         // 有实体城市或仍属无人区时，分别由城市／无人区处理；只兜底已经退出的、有明确来源的陆地。
-        if (!Active || !WildernessSystem.Enabled || zone == null || zone.city != null || zone.tiles_with_ground <= 0 || WildernessSystem.IsWild(zone) ||
-            _state.territory == null || !_state.territory.TryGetValue(zone.id, out ScenarioLandOrigin land)) return false;
-        city = land.city >= 0 ? EmpireWorld.Current?.cities?.get(land.city) : null;
+        if (!Active || !WildernessSystem.Enabled || zone == null || zone.City != null || zone.GroundTiles <= 0 || WildernessSystem.IsWild(zone) ||
+            _state.territory == null || !_state.territory.TryGetValue(zone.Index, out ScenarioLandOrigin land)) return false;
+        city = land.city >= 0 ? EmpireWorld.Current?.CityByKey(land.city) : null;
         if (city?.Record == null || city.IsGone()) city = null;
         // 退出无人区的山谷也沿用城市现在的行政法理，不能由开局缓存把旧辖境重新画回来。
         if (!land.pinned && city != null)
@@ -265,7 +261,7 @@ public static class WorldMapWilderness
         return city != null || title != null;
     }
 
-    internal static Realm KnownOwner(TileZone zone)
+    internal static Realm KnownOwner(Cell zone)
     {
         if (!LandOrigin(zone, out City city, out KingdomTitle title)) return null;
         Realm local = city?.Realm;
@@ -276,7 +272,7 @@ public static class WorldMapWilderness
         return local != null && (local == holder || local.GetEmpire() is Empire empire && empire == holder.GetEmpire()) ? local : holder;
     }
 
-    internal static City KnownCity(TileZone zone)
+    internal static City KnownCity(Cell zone)
     {
         if (!LandOrigin(zone, out City city, out _) || city == null) return null;
         Realm owner = KnownOwner(zone);
@@ -325,17 +321,15 @@ public static class WorldMapWilderness
 #endif
 
     // 这块地按州府锚点归哪座城(没有、城没了为 null)：无人区挂它的王国法理，跟着它的行政区(见 WildernessSystem.Attach)
-#if EC_PENDING
-    internal static City AnchorCity(TileZone zone)
+    internal static City AnchorCity(Cell zone)
     {
         if (zone == null) return null;
         // 照原图归城的地块先认原来那座城
-        if ((_cityClaims == null || !_cityClaims.TryGetValue(zone.id, out long id)) &&
-            (_state?.anchors == null || !_state.anchors.TryGetValue(zone.id, out id))) return null;
-        City city = EmpireWorld.Current?.cities?.get(id);
+        if ((_cityClaims == null || !_cityClaims.TryGetValue(zone.Index, out long id)) &&
+            (_state?.anchors == null || !_state.anchors.TryGetValue(zone.Index, out id))) return null;
+        City city = EmpireWorld.Current?.CityByKey(id);
         return city?.Record != null && city.Alive ? city : null;
     }
-#endif
 
     // 剧本摆好时(WorldMapScenario.Finish)：记下范围、大小、时代，史实归属先记都城
 #if EC_PENDING
@@ -363,6 +357,7 @@ public static class WorldMapWilderness
         _plan = null;
         if (_state?.regional is { Count: > 0 }) WildernessSystem.RequestReattach();
     }
+#endif
 
     public static void Load(WorldMapWildSave saved)
     {
@@ -384,7 +379,6 @@ public static class WorldMapWilderness
         Bind();
         if (_painted != null || _neutral != null || _state?.regional is { Count: > 0 } || NeedsBoundaryRepair) WildernessSystem.RequestReattach();
     }
-#endif
 
     public static WorldMapWildSave Save()
     {
@@ -423,7 +417,6 @@ public static class WorldMapWilderness
         _cityClaims = null;
     }
 
-#if EC_PENDING
     private static void Bind()
     {
         _frame = EarthTerrain.Frames.FirstOrDefault(frame => frame.id == _state?.frame);
@@ -435,7 +428,6 @@ public static class WorldMapWilderness
         }
         _frame.Bounds(new Vector2Int(_state.w, _state.h), out _bottom, out _degrees);
     }
-#endif
 
     // 旧档没存长城(见 FrontierWalls)：按存档的时代、范围与大小补算这一时代的长城；不是世界地图、时代找不到为 null
 #if EC_PENDING
@@ -574,22 +566,20 @@ public static class WorldMapWilderness
     // (至多一块半地，几块地一个起伏)，归属照史实，只是边不再沿经纬线切成一块块方的
     private const float JitterZones = 1.5f;
 
-#if EC_PENDING
-    private static void Jitter(TileZone zone, ref float lon, ref float lat)
+    private static void Jitter(Cell zone, ref float lon, ref float lat)
     {
         float reach = JitterZones * 8f * _degrees;
-        lon += (SmoothBorders.BorderNoise(zone.x * 4, zone.y * 4, 7717) - 0.5f) * 2f * reach;
-        lat += (SmoothBorders.BorderNoise(zone.x * 4, zone.y * 4, 8831) - 0.5f) * 2f * reach;
+        lon += (SmoothBorders.BorderNoise(zone.X * 4, zone.Y * 4, 7717) - 0.5f) * 2f * reach;
+        lat += (SmoothBorders.BorderNoise(zone.X * 4, zone.Y * 4, 8831) - 0.5f) * 2f * reach;
     }
 
-    private static void LonLat(TileZone zone, out float lon, out float lat)
+    private static void LonLat(Cell zone, out float lon, out float lat)
     {
-        WorldTile tile = zone.centerTile;
-        float x = tile != null ? tile.x : zone.x * 8 + 4, y = tile != null ? tile.y : zone.y * 8 + 4;
+        Cell tile = zone.Center;
+        float x = tile != null ? tile.X : zone.X * 8 + 4, y = tile != null ? tile.Y : zone.Y * 8 + 4;
         lon = _frame.west + (x + 0.5f) * _degrees;
         lat = _bottom + (y + 0.5f) * _degrees;
     }
-#endif
 
     #endregion
 
@@ -621,11 +611,11 @@ public static class WorldMapWilderness
         if (_plan != null && ReferenceEquals(_plan.list, regions) && _plan.version == WildernessSystem.Version) return _plan;
         var plan = new Plan { list = regions, version = WildernessSystem.Version };
         _plan = plan;
-        List<TileZone> all = EmpireWorld.Current?.zone_calculator?.zones;
+        List<Cell> all = EmpireWorld.Current?.Zones?.All;
         if (all == null || !EnsureUnits()) return plan;
-        var zoneById = new Dictionary<int, TileZone>(all.Count);
-        foreach (TileZone zone in all)
-            if (zone != null) zoneById[zone.id] = zone;
+        var zoneById = new Dictionary<int, Cell>(all.Count);
+        foreach (Cell zone in all)
+            if (zone != null) zoneById[zone.Index] = zone;
         var points = new List<Vector2>();
         // 一块地在地图上占几平方度(单元范围折成块数用)
         float zoneArea = Mathf.Max(1e-6f, 64f * _degrees * _degrees);
@@ -639,7 +629,7 @@ public static class WorldMapWilderness
             float sumLon = 0f, sumLat = 0f;
             foreach (int id in region.Zones)
             {
-                if (!zoneById.TryGetValue(id, out TileZone zone)) continue;
+                if (!zoneById.TryGetValue(id, out Cell zone)) continue;
                 LonLat(zone, out float lon, out float lat);
                 points.Add(new Vector2(lon, lat));
                 sumLon += lon;
@@ -829,17 +819,17 @@ public static class WorldMapWilderness
         _painted = null;
         _neutral = null;
         Dictionary<int, string> cells = ScenarioCells.ToMap(era?.paint);
-        List<TileZone> zones = EmpireWorld.Current?.zone_calculator?.zones;
+        List<Cell> zones = EmpireWorld.Current?.Zones?.All;
         if (cells.Count == 0 || frame == null || zones == null || size.x <= 0 || size.y <= 0) return;
         frame.Bounds(size, out float bottom, out float degrees);
         var keys = new Dictionary<int, string>();
-        foreach (TileZone zone in zones)
+        foreach (Cell zone in zones)
         {
-            WorldTile tile = zone?.centerTile;
-            if (tile == null || zone.id < 0) continue;
-            float lon = frame.west + (tile.x + 0.5f) * degrees, lat = bottom + (tile.y + 0.5f) * degrees;
+            Cell tile = zone?.Center;
+            if (tile == null || zone.Index < 0) continue;
+            float lon = frame.west + (tile.X + 0.5f) * degrees, lat = bottom + (tile.Y + 0.5f) * degrees;
             if (!ScenarioBrush.ZoneValue(cells, lon, lat, degrees * 8f, ScenarioCells.LandStep, ScenarioBrush.NotExact, out string key)) continue;
-            if (key == "n" || key.Length > 2 && key[1] == ':' && key[0] is 'p' or 'r') keys[zone.id] = key;
+            if (key == "n" || key.Length > 2 && key[1] == ':' && key[0] is 'p' or 'r') keys[zone.Index] = key;
         }
         if (keys.Count == 0) return;
         _paintKeys = keys;
@@ -877,16 +867,14 @@ public static class WorldMapWilderness
     }
 
     // 这块无人区按剧本刷的挂哪个法理(没刷、法理没了为 null)
-#if EC_PENDING
-    internal static KingdomTitle PaintedTitle(TileZone zone)
+    internal static KingdomTitle PaintedTitle(Cell zone)
     {
         ResolvePaint();
         if (zone == null) return null;
-        if (_painted == null || !_painted.TryGetValue(zone.id, out long id)) return null;
+        if (_painted == null || !_painted.TryGetValue(zone.Index, out long id)) return null;
         KingdomTitle title = ModClass.KINGDOM_TITLE_MANAGER?.Get(id);
         return title == null || title.IsGone() ? null : title;
     }
-#endif
 
     // 只在无人区已经划好后应用中立笔刷；查询法理不能提前消费尚未落地的中立设置。
     internal static void PreparePaint()
@@ -953,7 +941,7 @@ public static class WorldMapWilderness
     // 这块无人区挂哪个法理(WildernessSystem.Attach 里问)：剧本刷的先(导入地图也认)，再是史实归属；都没有、法理没了的为 null，
     // 照旧挂最近的。永久中立由挂接阶段的 PreparePaint 应用，查询不改世界。
 #if EC_PENDING
-    public static KingdomTitle TitleFor(TileZone zone)
+    public static KingdomTitle TitleFor(Cell zone)
     {
         if (zone == null) return null;
         KingdomTitle painted = PaintedTitle(zone);
@@ -964,7 +952,7 @@ public static class WorldMapWilderness
 
     // 明确的地区设置与编辑器笔刷高于自动州府锚点；普通国家级设置仍走原来的本地城市分配。
 #if EC_PENDING
-    internal static KingdomTitle FixedTitle(TileZone zone) => PaintedTitle(zone) ??
+    internal static KingdomTitle FixedTitle(Cell zone) => PaintedTitle(zone) ??
         (_state?.regional is { Count: > 0 } ? HistoricalTitle(zone, true) : null);
 #endif
 
@@ -976,7 +964,7 @@ public static class WorldMapWilderness
     }
 
 #if EC_PENDING
-    private static KingdomTitle HistoricalTitle(TileZone zone, bool fixedOnly)
+    private static KingdomTitle HistoricalTitle(Cell zone, bool fixedOnly)
     {
         if (zone == null) return null;
         if (!Active) return null;

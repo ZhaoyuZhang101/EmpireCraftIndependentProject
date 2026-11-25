@@ -131,7 +131,6 @@ public static class ModernPolicySystem
 #endif
 
     // 本文化研究点的加成(见 TechnologySystem)：各国教育档按城数加权
-#if EC_PENDING
     public static float ResearchBonus(List<City> cities)
     {
         if (cities == null || cities.Count == 0) return 0f;
@@ -140,11 +139,10 @@ public static class ModernPolicySystem
         {
             if (State(city?.Realm) is { education_funded: true } state) total += state.education_level;
             // 航天竞赛每走完一步再多一点(见 SpaceRaceSystem)
-            space += SpaceRaceSystem.Level(city?.kingdom?.GetEmpire());
+            space += SpaceRaceSystem.Level(city?.Realm?.GetEmpire());
         }
         return total / cities.Count * ResearchPerLevel + space / cities.Count * SpaceRaceSystem.ResearchPerLevel;
     }
-#endif
 
     #endregion
 

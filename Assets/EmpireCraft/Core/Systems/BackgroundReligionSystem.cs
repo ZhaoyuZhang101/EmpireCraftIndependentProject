@@ -169,12 +169,12 @@ public static class BackgroundReligionSystem
                 if (link.Strength > 0f) yield return link.City;
             yield break;
         }
-        if (city?.neighbours_cities != null)
-            foreach (City neighbour in city.neighbours_cities)
+        if (city?.NeighbourCities != null)
+            foreach (City neighbour in city.NeighbourCities)
                 if (neighbour != null) yield return neighbour;
         if (!ConnectivitySystem.Ready) yield break;
         foreach (City other in WildernessNeighbours.Of(city))
-            if (other != null && (city.neighbours_cities == null || !city.neighbours_cities.Contains(other))) yield return other;
+            if (other != null && (city.NeighbourCities == null || !city.NeighbourCities.Contains(other))) yield return other;
     }
 #endif
 
@@ -277,7 +277,7 @@ public static class BackgroundReligionSystem
 
     // 各教的圣地所在与辐射半径(格)，年度结算开头清空
 #if EC_PENDING
-    private static readonly Dictionary<Religion, (WorldTile at, float radius)> Ranges = new();
+    private static readonly Dictionary<Religion, (Cell at, float radius)> Ranges = new();
 #endif
 
     // 辐射圈(见 ReligionReachRules)：出了本天下的城按离圣地(教派、地方教会按自己的中心)远近给势能打折；
@@ -288,23 +288,23 @@ public static class BackgroundReligionSystem
         if (religion?.data == null || city == null) return 1f;
         string own = ReligionSphere.SphereOf(religion);
         if (!string.IsNullOrEmpty(own) && own == citySphere) return 1f;
-        if (!Ranges.TryGetValue(religion, out (WorldTile at, float radius) range))
+        if (!Ranges.TryGetValue(religion, out (Cell at, float radius) range))
         {
             City source = ReligionSphere.Center(religion) ?? ReligionSphere.HolySite(religion) ?? religion.GetCity();
-            WorldTile at = source?.Record != null && !source.IsGone() ? source.getTile() : null;
+            Cell at = source?.Record != null && !source.IsGone() ? source.SeatCell() : null;
             float radius = 0f;
             if (at != null)
             {
                 string culture = CultureService.GetMainCulture(source, initialize: false);
                 int era = CultureService.IsValidCulture(culture) ? TechnologySystem.GetEraTier(culture) : 1;
-                float diagonal = Mathf.Sqrt((float)EmpireWorld.width * EmpireWorld.width + (float)EmpireWorld.height * EmpireWorld.height);
+                float diagonal = Mathf.Sqrt((float)EmpireWorld.Current.Width * EmpireWorld.Current.Width + (float)EmpireWorld.Current.Height * EmpireWorld.Current.Height);
                 radius = ReligionReachRules.Radius(diagonal, ReligionFaith.IsUniversal(religion), era, TechnologySystem.MaxEraTier);
             }
             Ranges[religion] = range = (at, radius);
         }
-        WorldTile tile = city.getTile();
+        Cell tile = city.SeatCell();
         if (range.at == null || tile == null) return 1f;
-        return ReligionReachRules.Factor(Mathf.Sqrt(Toolbox.SquaredDistTile(range.at, tile)), range.radius);
+        return ReligionReachRules.Factor(Mathf.Sqrt(Land.SquaredDist(range.at, tile)), range.radius);
     }
 
     private static void Add(Dictionary<Religion, float> pressure, Religion religion, float weight)

@@ -62,7 +62,7 @@ public static class ColonySystem
     // 可租的港口城：有船坞或临海、不是都城，挑户数最多的
 #if EC_PENDING
     public static City LeaseTarget(Realm kingdom) =>
-        kingdom?.cities?.Where(city => city?.data != null && !city.IsGone() && city != kingdom.Capital && Port(city))
+        kingdom?.Cities?.Where(city => city?.Record != null && !city.IsGone() && city != kingdom.Capital && Port(city))
             .OrderByDescending(PeaceTermRules.CityValue).FirstOrDefault();
 
     public static bool Port(City city)
@@ -70,16 +70,16 @@ public static class ColonySystem
         if (city?.Record == null || city.IsGone()) return false;
         if (city.getBuildingOfType("type_docks", pCountOnlyFinished: true, pRandom: false) != null) return true;
         // 临不临海要逐格看，内陆大城上万格：同一座城、地块数没变的一年内照旧(议和台每场仗每年给每座城问一遍)
-        int count = city.zones?.Count ?? 0, year = GameClock.Year;
+        int count = city.Zones?.Count ?? 0, year = GameClock.Year;
         if (PortCache.TryGetValue(city.Key, out (City city, int zones, int year, bool port) hit) &&
             ReferenceEquals(hit.city, city) && hit.zones == count && hit.year == year)
             return hit.port;
         bool port = false;
-        if (city.zones != null)
-            foreach (TileZone zone in city.zones)
+        if (city.Zones != null)
+            foreach (Cell zone in city.Zones)
             {
-                foreach (WorldTile tile in zone?.tiles ?? Array.Empty<WorldTile>())
-                    if (tile?.Type?.ocean == true)
+                foreach (Cell tile in zone?.Tiles ?? Array.Empty<Cell>())
+                    if (tile?.Type?.Ocean == true)
                     {
                         port = true;
                         break;
@@ -222,7 +222,7 @@ public static class ColonySystem
         kingdom?.Capital != null && !kingdom.IsGone() && kingdom.IsCivilized() && !IsColony(kingdom) &&
         (!kingdom.IsInEmpire() || kingdom.IsEmpire()) && TechnologySystem.RealmHasTech(kingdom, OceanTech);
 
-    private static object IslandOf(City city) => city?.getTile()?.region?.island;
+    private static object IslandOf(City city) => city?.SeatCell()?.region?.island;
 #endif
 
     // 离都城够远的海外：通达层算好后(用户 2026-11-06 同意"先信息类、再贸易迁徙"，见 ConnectivitySystem)按人员从都城走海路过去的成本，
@@ -237,13 +237,13 @@ public static class ColonySystem
         }
         return Distance(city, capital) >= ColonyDistance;
     }
+#endif
 
     private static int Distance(City a, City b)
     {
-        TileZone za = a?.getTile()?.zone, zb = b?.getTile()?.zone;
-        return za == null || zb == null ? 0 : Mathf.Abs(za.x - zb.x) + Mathf.Abs(za.y - zb.y);
+        Cell za = a?.SeatCell()?.Zone, zb = b?.SeatCell()?.Zone;
+        return za == null || zb == null ? 0 : Mathf.Abs(za.X - zb.X) + Mathf.Abs(za.Y - zb.Y);
     }
-#endif
 
     #endregion
 
@@ -313,7 +313,7 @@ public static class ColonySystem
         string result = Setup(kingdom, metropole, kind, place);
         if (kind == ColonyState.Lease && Of(kingdom) is ColonyState state)
         {
-            state.lessor_id = lessor?.data?.id ?? -1L;
+            state.lessor_id = lessor?.Key ?? -1L;
             state.lease_until = GameClock.Now + Math.Max(1, leaseYears > 0 ? leaseYears : LeaseYears) * 60d;
         }
         return result;
@@ -852,11 +852,11 @@ public static class ColonySystem
         if (data.colonial_voyage_at >= 0d && now < data.colonial_voyage_at) return;
         if (realm.HasEnemies() || realm.GetMoney() < VoyageCost * 2 ||
             CityPopulationSystem.GetBackgroundTotal(realm.Capital) < VoyageMinCapital || EcRandom.value >= VoyageChance) return;
-        TileZone target = FindSite(realm, out int distance);
+        Cell target = FindSite(realm, out int distance);
         data.colonial_voyage_at = now + VoyageCooldownYears * 60d;
         if (target == null) return;
         realm.SubMoney(VoyageCost, TreasuryCategory.Construction);
-        data.colonial_voyage_zone = target.id;
+        data.colonial_voyage_zone = target.Index;
         data.colonial_voyage_arrive = now + (6 + distance / 40) * 5d;
         TranslateHelper.LogEventOnly(string.Format(LM.Get("colony_voyage_departed"), realm.GetKingdomFullName(),
             realm.Capital.GetCityName()), realm);
@@ -865,20 +865,20 @@ public static class ColonySystem
 
     // 海路够得着(本国港口出发、不穿敌方制海、在航程以内)的别的岛上的无主海岸，按地力挑
 #if EC_PENDING
-    private static TileZone FindSite(Realm realm, out int distance)
+    private static Cell FindSite(Realm realm, out int distance)
     {
         distance = 0;
         Dictionary<int, int> reach = SeaLanding.Reachable(realm);
         if (reach == null || reach.Count == 0) return null;
         int range = NavySystem.MaxRange(realm);
         object home = IslandOf(realm.Capital);
-        TileZone capital = realm.Capital.getTile()?.zone;
-        var options = new List<(TileZone zone, float score, int distance)>();
-        foreach (TileZone zone in EmpireWorld.Current.zone_calculator.zones)
+        Cell capital = realm.Capital.SeatCell()?.Zone;
+        var options = new List<(Cell zone, float score, int distance)>();
+        foreach (Cell zone in EmpireWorld.Current.Zones.All)
         {
-            if (zone == null || zone.city != null || zone.tiles_with_ground < 48 || !zone.canStartCityHere()) continue;
-            if (zone.centerTile?.region?.island == home) continue;
-            int far = capital == null ? 0 : Mathf.Abs(zone.x - capital.x) + Mathf.Abs(zone.y - capital.y);
+            if (zone == null || zone.City != null || zone.GroundTiles < 48 || !zone.canStartCityHere()) continue;
+            if (zone.Center?.region?.island == home) continue;
+            int far = capital == null ? 0 : Mathf.Abs(zone.X - capital.X) + Mathf.Abs(zone.Y - capital.Y);
             if (far < ColonyDistance / 2) continue;
             bool reachable = false;
             foreach (SeaRegionSystem.Region water in SeaLanding.Waters(zone))
@@ -887,8 +887,8 @@ public static class ColonySystem
                     reachable = true;
                     break;
                 }
-            if (!reachable || zone.neighbours_all.Any(next => next?.city != null)) continue;
-            float score = zone.tiles_with_ground + MarketDemand(realm, zone) * 40f + EcRandom.value * 20f;
+            if (!reachable || zone.NeighboursAll.Any(next => next?.City != null)) continue;
+            float score = zone.GroundTiles + MarketDemand(realm, zone) * 40f + EcRandom.value * 20f;
             options.Add((zone, score, far));
         }
         if (options.Count == 0) return null;
@@ -899,14 +899,14 @@ public static class ColonySystem
 #endif
 
     // 本国市场缺、这块地出的物资(0~1，见 CommodityMarketSystem.ColonyDemand)：殖民就有了去处
-#if EC_PENDING
-    private static float MarketDemand(Realm realm, TileZone zone) => CommodityMarketSystem.ColonyDemand(realm, zone);
+    private static float MarketDemand(Realm realm, Cell zone) => CommodityMarketSystem.ColonyDemand(realm, zone);
 
+#if EC_PENDING
     private static void Arrive(Realm realm, KingdomExtension.KingdomExtraData data)
     {
-        TileZone zone = EmpireWorld.Current.zone_calculator.getZoneByID(data.colonial_voyage_zone);
+        Cell zone = EmpireWorld.Current.Zones.ById(data.colonial_voyage_zone);
         data.colonial_voyage_zone = -1;
-        if (zone == null || zone.city != null || !zone.canStartCityHere() || realm.Capital == null) return;
+        if (zone == null || zone.City != null || !zone.canStartCityHere() || realm.Capital == null) return;
         Person founder = realm.Capital.Leader ?? realm.Ruler;
         if (founder == null) return;
         City city;

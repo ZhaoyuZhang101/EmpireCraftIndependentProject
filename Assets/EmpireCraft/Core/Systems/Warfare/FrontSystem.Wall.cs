@@ -27,13 +27,13 @@ public static partial class FrontSystem
 
     // 攻方 side 推进 target 要隔城墙攻坚吗(spearheads：攻方挨着它的军团，从它们所在的地块过去也算)
 #if EC_PENDING
-    public static bool WallBetween(Realm side, TileZone target, IEnumerable<CorpsData> spearheads = null)
+    public static bool WallBetween(Realm side, Cell target, IEnumerable<CorpsData> spearheads = null)
     {
         if (side?.Record == null || target == null || !WallPassage.Active) return false;
         bool approached = false;
-        foreach (TileZone neighbour in target.neighbours_all ?? Array.Empty<TileZone>())
+        foreach (Cell neighbour in target.NeighboursAll ?? Array.Empty<Cell>())
         {
-            if (neighbour == null || neighbour.world_edge || TerrainSystem.Impassable(neighbour) ||
+            if (neighbour == null || neighbour.OnEdge || TerrainSystem.Impassable(neighbour) ||
                 !TerrainSystem.Crossable(neighbour, target)) continue;
             Realm controller = Controller(neighbour);
             if (controller == null || !Friendly(side, controller)) continue;
@@ -43,7 +43,7 @@ public static partial class FrontSystem
         if (spearheads != null)
             foreach (CorpsData corps in spearheads)
             {
-                TileZone at = CorpsSystem.Zone(corps);
+                Cell at = CorpsSystem.Zone(corps);
                 if (at == null || CorpsSystem.ZoneDistance(at, target) > 1f) continue;
                 if (at == target) return false;
                 approached = true;
@@ -63,7 +63,7 @@ public static partial class FrontSystem
 
     // 平滑国界逐格推进 zone 的速度倍数
 #if EC_PENDING
-    private static float WallPaceOf(Realm side, TileZone zone, List<CorpsData> spearheads) =>
+    private static float WallPaceOf(Realm side, Cell zone, List<CorpsData> spearheads) =>
         WallBetween(side, zone, spearheads) ? WallPaceFactor(spearheads != null && spearheads.Any(CorpsArmSystem.Breaches)) : 1f;
 #endif
 

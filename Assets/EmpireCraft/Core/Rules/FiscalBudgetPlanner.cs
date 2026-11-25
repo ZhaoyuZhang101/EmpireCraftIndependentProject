@@ -58,7 +58,6 @@ public static class FiscalBudgetPlanner
         return plan;
     }
 
-#if EC_PENDING
     public static bool IsPriority(City city, Realm payer)
     {
         if (city?.Record == null || city.IsGone()) return false;
@@ -66,15 +65,13 @@ public static class FiscalBudgetPlanner
         if (city == payer.Capital || city == owner?.Capital || city == owner?.GetEmpire()?.CoreKingdom?.Capital) return true;
         var state = city.GetOrCreate().stability;
         if (state != null && state.stability < CityStabilityRules.RebellionThreshold) return true;
-        if (owner == null || !owner.HasEnemies() || city.neighbours_kingdoms == null) return false;
-        foreach (Realm neighbour in city.neighbours_kingdoms)
+        if (owner == null || !owner.HasEnemies() || city.NeighbourRealms == null) return false;
+        foreach (Realm neighbour in city.NeighbourRealms)
             if (neighbour != null && !neighbour.IsGone() && owner.IsAtWarWith(neighbour)) return true;
         return false;
     }
-#endif
 
     // 付到 payer 这一级时，本城这笔账最多能从 payer 拿多少(remaining 为此时还差的钱)
-#if EC_PENDING
     public static int Allowance(City city, Realm payer, int remaining)
     {
         if (remaining <= 0 || payer == null) return 0;
@@ -87,7 +84,6 @@ public static class FiscalBudgetPlanner
         plan.NormalNeed = FiscalBudgetRules.SafeAdd(plan.NormalNeed, remaining);
         return FiscalBudgetRules.Allowance(remaining, plan.NormalRatio);
     }
-#endif
 
     // 界面：一般地方本月的拨付比例(1 = 足额)
     public static double NormalRatio(Realm payer) =>

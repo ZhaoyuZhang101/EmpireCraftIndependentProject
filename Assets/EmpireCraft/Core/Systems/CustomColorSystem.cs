@@ -19,7 +19,6 @@ public static class CustomColorSystem
     private static object _world;
 
     // 有没有任何国家、帝国定了自定义颜色(没有就不必每块地都查)
-#if EC_PENDING
     public static bool Any
     {
         get
@@ -31,7 +30,7 @@ public static class CustomColorSystem
             }
             if (_count >= 0) return _count > 0;
             _count = 0;
-            foreach (Realm kingdom in EmpireWorld.Current?.kingdoms?.list ?? new List<Realm>())
+            foreach (Realm kingdom in EmpireWorld.Current?.LiveRealms ?? new List<Realm>())
                 if (!string.IsNullOrEmpty(kingdom?.Record == null ? null : kingdom.GetOrCreate().custom_color)) _count++;
             if (ModClass.EMPIRE_MANAGER != null)
                 foreach (Empire empire in ModClass.EMPIRE_MANAGER)
@@ -39,7 +38,6 @@ public static class CustomColorSystem
             return _count > 0;
         }
     }
-#endif
 
     public static string Hex(Realm kingdom) => kingdom?.Record == null ? "" : kingdom.GetOrCreate().custom_color ?? "";
     public static string Hex(Empire empire) => empire?.data?.custom_color ?? "";
@@ -76,7 +74,6 @@ public static class CustomColorSystem
         return true;
     }
 
-#if EC_PENDING
     public static bool Set(Realm kingdom, string text)
     {
         if (kingdom?.Record == null || !TryParse(text, out string hex)) return false;
@@ -96,8 +93,7 @@ public static class CustomColorSystem
     private static void Changed()
     {
         _count = -1;
-        EmpireWorld.Current?.zone_calculator?.dirtyAndClear();
+        EmpireWorld.Current?.Zones?.MarkDirty();
     }
-#endif
 }
 }

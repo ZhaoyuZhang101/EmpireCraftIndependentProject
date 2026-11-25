@@ -1,5 +1,6 @@
 // Generated from the EmpireCraft mod: Scripts/GeneralSystems/ReligiousTension.cs. Do not edit by hand: Tools/PortTool/members.py rewrites it;
 // see Port/manifest.json and Tools/PortTool.
+using Vector2 = EmpireCraft.Core.EcVector2;
 using System;
 using System.Linq;
 
@@ -135,7 +136,7 @@ public static class ReligiousTension
             }
             catch (Exception exception)
             {
-                LogService.LogWarning($"[EmpireCraft][宗教] {city?.data?.name} 结算失败: {exception.Message}");
+                LogService.LogWarning($"[EmpireCraft][宗教] {city?.Name} 结算失败: {exception.Message}");
             }
         }
         // 无小人模式：按背景人口创教、传教(见 BackgroundReligionSystem)
@@ -271,14 +272,12 @@ public static class ReligiousTension
 #endif
 
     // 圣战参战：没满员、不与被攻者同属一个帝国、都城离被攻者都城不太远
-#if EC_PENDING
     public static bool CanJoinHolyWar(Realm kingdom, War war)
     {
         Realm defender = war?.MainDefender;
         if (kingdom?.Capital == null || defender?.Capital == null || defender.IsGone()) return false;
         if (war.Attackers.Count >= MaxHolyWarAttackers || kingdom.IsInSameEmpire(defender)) return false;
-        return Vector2.Distance(kingdom.Capital.city_center, defender.Capital.city_center) <= HolyWarReach;
+        return Vector2.Distance(kingdom.Capital.Center, defender.Capital.Center) <= HolyWarReach;
     }
-#endif
 }
 }

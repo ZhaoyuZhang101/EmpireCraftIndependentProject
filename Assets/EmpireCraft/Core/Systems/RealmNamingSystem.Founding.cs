@@ -1,5 +1,6 @@
 // Generated from the EmpireCraft mod: Scripts/GeneralSystems/RealmNamingSystem.Founding.cs. Do not edit by hand: Tools/PortTool/members.py rewrites it;
 // see Port/manifest.json and Tools/PortTool.
+using Vector2 = EmpireCraft.Core.EcVector2;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -349,8 +350,8 @@ public static partial class RealmNamingSystem
         }
         City mine = kingdom.Capital;
         if (mine == null || former.capital == null || former.capital == mine) return RealmNameRules.Later;
-        return RealmNameRules.Direction4(former.capital.city_center.x, former.capital.city_center.y,
-            mine.city_center.x, mine.city_center.y) ?? RealmNameRules.Later;
+        return RealmNameRules.Direction4(former.capital.Center.x, former.capital.Center.y,
+            mine.Center.x, mine.Center.y) ?? RealmNameRules.Later;
     }
 #endif
 
@@ -371,8 +372,8 @@ public static partial class RealmNamingSystem
             EmpireCore here = kingdom.Capital?.GetEmpireCore();
             prefix = here != null && here == bannerCore || seat == null || kingdom.Capital == null
                 ? RealmNameRules.Later
-                : RealmNameRules.Direction4(seat.city_center.x, seat.city_center.y,
-                    kingdom.Capital.city_center.x, kingdom.Capital.city_center.y) ?? RealmNameRules.Later;
+                : RealmNameRules.Direction4(seat.Center.x, seat.Center.y,
+                    kingdom.Capital.Center.x, kingdom.Capital.Center.y) ?? RealmNameRules.Later;
         }
         empire.data.directPre = prefix;
         empire.data.founding_prefix = prefix;
@@ -491,7 +492,7 @@ public static partial class RealmNamingSystem
         if (origins.Count == 0) return "";
         City anchor = origins[0];
         IEnumerable<City> nearby = (pool ?? Enumerable.Empty<City>()).Where(city => city?.Record != null && !city.IsGone())
-            .OrderBy(city => UnityEngine.Vector2.Distance(city.city_center, anchor.city_center));
+            .OrderBy(city => UnityEngine.Vector2.Distance(city.Center, anchor.Center));
         var seen = new HashSet<long>();
         foreach (City city in origins.Concat(nearby))
         {
@@ -507,7 +508,6 @@ public static partial class RealmNamingSystem
 #endif
 
     // 籍贯与驻地：宗族郡望(世家的郡望之城，否则族人最早定居的城)、本人所在的城、本国都城
-#if EC_PENDING
     private static List<City> BaseCities(Person actor, Realm kingdom)
     {
         var result = new List<City>();
@@ -520,11 +520,10 @@ public static partial class RealmNamingSystem
             if (seat >= 0 && EmpireWorld.Current.CityByKey(seat) is City home) result.Add(home);
         }
         if (actor?.City != null) result.Add(actor.City);
-        if (actor?.kingdom?.capital != null) result.Add(actor.Realm.Capital);
+        if (actor?.Realm?.Capital != null) result.Add(actor.Realm.Capital);
         if (kingdom?.Capital != null) result.Add(kingdom.Capital);
         return result;
     }
-#endif
 
     // 外族入主采纳中原制度(兼用、从俗，见 CompositeEmpireService.TryAdoptInstitutionalCultureName)：改用美号
 #if EC_PENDING

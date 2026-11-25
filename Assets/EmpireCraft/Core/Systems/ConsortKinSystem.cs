@@ -77,13 +77,11 @@ public static class ConsortKinSystem
     // 各帝国眼下的外戚首领(单位编号；不存档，读档后头一回挑首领时补上)：留在地图上不并回人口
     private static readonly Dictionary<long, long> Chiefs = new();
 
-#if EC_PENDING
     public static bool IsChief(Person actor)
     {
-        Empire empire = actor?.kingdom?.GetEmpire();
+        Empire empire = actor?.Realm?.GetEmpire();
         return empire?.data != null && Chiefs.TryGetValue(empire.data.id, out long id) && id == actor.Key;
     }
-#endif
 
     // 幼主：外戚首领以大将军辅政(名望不低于朝中辅政人选的一半)
 #if EC_PENDING

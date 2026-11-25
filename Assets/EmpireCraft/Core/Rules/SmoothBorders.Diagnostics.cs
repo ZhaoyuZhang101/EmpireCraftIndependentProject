@@ -9,7 +9,7 @@ namespace EmpireCraft.Core
 public static partial class SmoothBorders
 {
 #if EC_PENDING
-    internal static string DescribeDisplay(TileZone zone)
+    internal static string DescribeDisplay(Cell zone)
     {
         if (zone == null) return "无";
         try
@@ -18,9 +18,9 @@ public static partial class SmoothBorders
             if (layer == null) return "无图层";
             int option = layer.getZoneOptionState();
             string text = $"图层 {layer.id} 归属 {MetaLabel(LayerMeta(layer, option, zone))} 控制方 {MetaLabel(RealMetaOf(layer, option, zone))} 推进方 {MetaLabel(PushMetaOf(layer, zone))}";
-            if (!CanvasActive || !ReferenceEquals(layer, _canvasLayer) || zone.id < 0 || zone.id >= _zoneCity.Length) return text + " 画布 未接手";
+            if (!CanvasActive || !ReferenceEquals(layer, _canvasLayer) || zone.Index < 0 || zone.Index >= _zoneCity.Length) return text + " 画布 未接手";
             CountCanvas(zone, out int land, out int blank);
-            return text + $" 画布 城{_zoneCity[zone.id]} 控制{_zoneShade[zone.id]} 推进{_zonePush[zone.id]} 空格{blank}/{land}";
+            return text + $" 画布 城{_zoneCity[zone.Index]} 控制{_zoneShade[zone.Index]} 推进{_zonePush[zone.Index]} 空格{blank}/{land}";
         }
         catch (Exception exception)
         {
@@ -33,18 +33,18 @@ public static partial class SmoothBorders
 
     // 这块地归城、在按城归属的图层上，画布却有一大半陆地格没有归属，且不是这一帧刚要重画的
 #if EC_PENDING
-    internal static bool CanvasBlank(TileZone zone)
+    internal static bool CanvasBlank(Cell zone)
     {
-        if (zone?.city == null || !CanvasActive || !_canvasCityKeyed || zone.id < 0 || zone.id >= _zoneCity.Length || CanvasDirty.Contains(zone.id))
+        if (zone?.City == null || !CanvasActive || !_canvasCityKeyed || zone.Index < 0 || zone.Index >= _zoneCity.Length || CanvasDirty.Contains(zone.Index))
             return false;
         CountCanvas(zone, out int land, out int blank);
         return land > 0 && blank * 2 > land;
     }
 
-    private static void CountCanvas(TileZone zone, out int land, out int blank)
+    private static void CountCanvas(Cell zone, out int land, out int blank)
     {
         land = blank = 0;
-        int zx = zone.id % _zonesX, zy = zone.id / _zonesX;
+        int zx = zone.Index % _zonesX, zy = zone.Index / _zonesX;
         for (int y = zy * ZoneSize; y < zy * ZoneSize + ZoneSize; y++)
         for (int x = zx * ZoneSize; x < zx * ZoneSize + ZoneSize; x++)
         {

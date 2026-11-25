@@ -91,7 +91,7 @@ public static class CityConstructionSystem
         {
             // 算不出繁荣度按 0
         }
-        int zones = city.zones?.Count ?? 0;
+        int zones = city.Zones?.Count ?? 0;
         float population, output = 0f, assets = 0f, raw;
         CityPopulationData data = CityPopulationSystem.AbstractPopulationEnabled ? CityPopulationSystem.Get(city) : null;
         float households = data == null ? 0f : CityPopulationSystem.GetBackgroundTotal(city) / CityPopulationSystem.FiscalPeoplePerHousehold;
@@ -192,8 +192,8 @@ public static class CityConstructionSystem
 #if EC_PENDING
     private static bool AbandonLedgerHouse(City city)
     {
-        if (!CityLedger.Uses(city) || city.zones == null || city.zones.Count == 0) return false;
-        if (TerrainSystem.CityLivability(city) / city.zones.Count >= 0.5f) return false;
+        if (!CityLedger.Uses(city) || city.Zones == null || city.Zones.Count == 0) return false;
+        if (TerrainSystem.CityLivability(city) / city.Zones.Count >= 0.5f) return false;
         BuildingAsset lowest = null;
         foreach (WorkLot lot in CityLedger.Lots(city))
         {
@@ -224,7 +224,7 @@ public static class CityConstructionSystem
         }
         catch (Exception exception)
         {
-            LogService.LogWarning($"[EmpireCraft][城市建设] 拓荒采集失败({city.Record?.Name}): {exception.Message}");
+            LogService.LogWarning($"[EmpireCraft][城市建设] 拓荒采集失败({city.Name}): {exception.Message}");
         }
     }
 
@@ -379,43 +379,43 @@ public static class CityConstructionSystem
     private const int RoadPlansPerMonth = 3;
     private const int MaxRoadPath = 60;
     private const int MaxRoadReach = 40;
-#if EC_PENDING
-    private static readonly List<WorldTile> RoadPath = new();
+    private static readonly List<Cell> RoadPath = new();
 
-    private static WorldTile Door(Building building) => building.door_tile ?? building.current_tile;
+#if EC_PENDING
+    private static Cell Door(Building building) => building.door_tile ?? building.current_tile;
 #endif
 
     // 自己规划连路(不依赖原版“20 格以内、路网岛”那几个条件)：从这座建筑门口修到最近一座还没连上同一片路网的建筑
 #if EC_PENDING
     private static void PlanRoad(City city, Building building)
     {
-        WorldTile from = Door(building);
-        if (from?.Type == null || from.Type.liquid) { StatRoadNoTarget++; return; }
+        Cell from = Door(building);
+        if (from?.Type == null || from.Type.Liquid) { StatRoadNoTarget++; return; }
         Building target = null;
         int best = MaxRoadReach * MaxRoadReach;
         foreach (Building other in city.buildings)
         {
             if (other == building || other?.asset == null || !other.asset.build_road_to || other.isUnderConstruction()) continue;
-            WorldTile door = Door(other);
-            if (door == null || door.Type == null || door.Type.liquid || !door.isSameIsland(from)) continue;
+            Cell door = Door(other);
+            if (door == null || door.Type == null || door.Type.Liquid || !door.IsSameIsland(from)) continue;
             if (from.road_island != null && from.road_island == door.road_island) continue;
-            int dx = door.x - from.x, dy = door.y - from.y, distance = dx * dx + dy * dy;
+            int dx = door.X - from.X, dy = door.Y - from.Y, distance = dx * dx + dy * dy;
             if (distance >= best || distance == 0) continue;
             best = distance;
             target = other;
         }
         if (target == null) { StatRoadNoTarget++; return; }
-        WorldTile to = Door(target);
+        Cell to = Door(target);
         RoadPath.Clear();
         EmpireWorld.Current.pathfinding_param.resetParam();
         EmpireWorld.Current.pathfinding_param.roads = true;
         EmpireWorld.Current.calcPath(from, to, RoadPath);
         if (RoadPath.Count == 0) { StatRoadPathFail++; return; }
         if (RoadPath.Count > MaxRoadPath) { StatRoadTooLong++; return; }
-        var tiles = new List<WorldTile>();
-        foreach (WorldTile tile in RoadPath)
+        var tiles = new List<Cell>();
+        foreach (Cell tile in RoadPath)
         {
-            if (tile?.Type == null || tile.Type.liquid || tile.Type.road || tile.Type.block || tile.building != null) continue;
+            if (tile?.Type == null || tile.Type.Liquid || tile.Type.Road || tile.Type.Block || tile.building != null) continue;
             tiles.Add(tile);
         }
         if (tiles.Count == 0) { StatRoadFiltered++; return; }
@@ -442,21 +442,21 @@ public static class CityConstructionSystem
             int limit = RoadTilesPerMonth + Mathf.FloorToInt(rate);
             for (int i = 0; i < limit; i++)
             {
-                WorldTile tile = city.getRoadTileToBuild(null);
+                Cell tile = city.getRoadTileToBuild(null);
                 if (tile == null) break;
-                if (tile.Type == null || tile.Type.liquid || tile.Type.road)
+                if (tile.Type == null || tile.Type.Liquid || tile.Type.Road)
                 {
                     city.road_tiles_to_build.Remove(tile);
                     continue;
                 }
                 MapAction.createRoadTile(tile);
                 city.road_tiles_to_build.Remove(tile);
-                if (tile.Type != null && tile.Type.road) StatRoadBuilt++;
+                if (tile.Type != null && tile.Type.Road) StatRoadBuilt++;
             }
         }
         catch (Exception exception)
         {
-            LogService.LogWarning($"[EmpireCraft][城市建设] 修路失败({city.Record?.Name}): {exception.Message}");
+            LogService.LogWarning($"[EmpireCraft][城市建设] 修路失败({city.Name}): {exception.Message}");
         }
     }
 #endif
@@ -468,11 +468,11 @@ public static class CityConstructionSystem
 #if EC_PENDING
     private static void ClearRuins(City city, float rate)
     {
-        if (city.zones == null) return;
+        if (city.Zones == null) return;
         int limit = 2 + Mathf.FloorToInt(rate / 5f);
         Realm kingdom = city.Realm;
         var ruins = new List<Building>();
-        foreach (TileZone zone in city.zones)
+        foreach (Cell zone in city.Zones)
         {
             HashSet<Building> set = zone?.getHashset(BuildingList.Ruins);
             if (set == null) continue;
@@ -507,7 +507,7 @@ public static class CityConstructionSystem
             ruin.startDestroyBuilding();
             cleared++;
         }
-        if (LastRuinsCleared.Count > (EmpireWorld.Current?.cities?.Count ?? 0) * 2) LastRuinsCleared.Clear();
+        if (LastRuinsCleared.Count > (EmpireWorld.Current?.Cities?.Count ?? 0) * 2) LastRuinsCleared.Clear();
         LastRuinsCleared[city] = cleared;
     }
 #endif
@@ -519,8 +519,8 @@ public static class CityConstructionSystem
     public static int CountRuins(City city)
     {
         int count = 0;
-        if (city?.zones == null) return 0;
-        foreach (TileZone zone in city.zones) count += zone?.getHashset(BuildingList.Ruins)?.Count ?? 0;
+        if (city?.Zones == null) return 0;
+        foreach (Cell zone in city.Zones) count += zone?.getHashset(BuildingList.Ruins)?.Count ?? 0;
         return count;
     }
 
@@ -557,7 +557,7 @@ public static class CityConstructionSystem
         }
         catch (Exception exception)
         {
-            LogService.LogWarning($"[EmpireCraft][城市建设] 推进施工失败({city.Record?.Name}): {exception.Message}");
+            LogService.LogWarning($"[EmpireCraft][城市建设] 推进施工失败({city.Name}): {exception.Message}");
         }
         return used;
     }
@@ -580,7 +580,7 @@ public static class CityConstructionSystem
         }
         catch (Exception exception)
         {
-            LogService.LogWarning($"[EmpireCraft][城市建设] 开工失败({city.Record?.Name}): {exception}");
+            LogService.LogWarning($"[EmpireCraft][城市建设] 开工失败({city.Name}): {exception}");
         }
     }
 
@@ -645,7 +645,7 @@ public static class CityConstructionSystem
         }
         catch (Exception exception)
         {
-            LogService.LogWarning($"[EmpireCraft][城市建设] 繁荣失败({city.Record?.Name}): {exception.Message}");
+            LogService.LogWarning($"[EmpireCraft][城市建设] 繁荣失败({city.Name}): {exception.Message}");
         }
         return (built, upgraded);
     }

@@ -700,7 +700,7 @@ public static partial class TechnologySystem
     {
         string tech = GetRequiredTechForItem(asset);
         if (tech == null) return true;
-        Realm kingdom = actor?.Realm != null && !actor.Realm.IsGone() && actor.Realm.IsCivilized() ? actor.Realm : actor?.city?.kingdom;
+        Realm kingdom = actor?.Realm != null && !actor.Realm.IsGone() && actor.Realm.IsCivilized() ? actor.Realm : actor?.City?.Realm;
         return kingdom != null && !kingdom.IsGone() ? CanUseIn(kingdom, tech) : CanUse(GetCultureOf(actor), tech);
     }
 
@@ -1539,7 +1539,7 @@ public static partial class TechnologySystem
         foreach (KeyValuePair<string, List<City>> pair in citiesByCulture)
         foreach (City city in pair.Value)
         {
-            foreach (City neighbour in (IEnumerable<City>)city.neighbours_cities ?? Array.Empty<City>())
+            foreach (City neighbour in (IEnumerable<City>)city.NeighbourCities ?? Array.Empty<City>())
             {
                 if (neighbour == null || neighbour.IsGone()) continue;
                 string other = GetCultureOf(neighbour);
@@ -1678,7 +1678,7 @@ public static partial class TechnologySystem
                 if (shore.Points.Count == 0) continue;
                 // 先按城心粗筛(两边海岸离各自城心最远的那一处加上半径)，再逐处量海岸
                 float rough = ArchipelagoStraitRadius + own.Offset + shore.Offset;
-                if ((other.city_center - city.city_center).sqrMagnitude > rough * rough) continue;
+                if ((other.Center - city.Center).sqrMagnitude > rough * rough) continue;
                 if (ShoresFacing(own, shore, limit)) result.Add(other);
             }
         }
@@ -1689,7 +1689,6 @@ public static partial class TechnologySystem
 #endif
 
     // 两城的海岸有一处同在一片水域、相距不过 sqrt(limit) 格
-#if EC_PENDING
     private static bool ShoresFacing(SeaRegionSystem.Shore a, SeaRegionSystem.Shore b, float limit)
     {
         foreach (var (at, basin) in a.Points)
@@ -1697,7 +1696,6 @@ public static partial class TechnologySystem
             if (basin == otherBasin && (at - other).sqrMagnitude <= limit) return true;
         return false;
     }
-#endif
 
     private static void Link(Dictionary<string, HashSet<string>> map, string a, string b)
     {
@@ -1764,7 +1762,7 @@ public static partial class TechnologySystem
 
 #if EC_PENDING
     private static List<City> CitiesOf(string culture) =>
-        EmpireWorld.Current?.cities?.list?.Where(city => city != null && !city.IsGone() && GetCultureOf(city) == culture)
+        EmpireWorld.Current?.Cities?.Where(city => city != null && !city.IsGone() && GetCultureOf(city) == culture)
             .ToList() ?? new List<City>();
 
     private static void CheckBoosts(string culture, List<City> cities)

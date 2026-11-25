@@ -200,8 +200,8 @@ public static class FamineUnrestSystem
         while (frontier.Count > 0 && RoomLeft(origin) > 0)
         {
             City from = frontier.Dequeue();
-            if (from?.neighbours_cities == null) continue;
-            foreach (City next in from.neighbours_cities.ToList())
+            if (from?.NeighbourCities == null) continue;
+            foreach (City next in from.NeighbourCities.ToList())
             {
                 if (RoomLeft(origin) <= 0) break;
                 if (next?.Record == null || !seen.Add(next) || next.IsGone() || next.Realm != origin || next == origin.Capital ||

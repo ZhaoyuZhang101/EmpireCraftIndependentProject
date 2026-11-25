@@ -1,5 +1,6 @@
 // Generated from the EmpireCraft mod: Scripts/GeneralSystems/CompositeEmpireService.cs. Do not edit by hand: Tools/PortTool/members.py rewrites it;
 // see Port/manifest.json and Tools/PortTool.
+using Vector2 = EmpireCraft.Core.EcVector2;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -350,16 +351,14 @@ public static partial class CompositeEmpireService
     }
 
     // 据有剧本记的那座城(北京)：算入关
-#if EC_PENDING
     private static bool ScriptedConquestReady(Empire empire)
     {
         if (ScriptedConquestName(empire) == null) return false;
         long id = empire.CoreKingdom.GetOrCreate().scripted_conquest_city_id;
-        City city = id < 0 ? null : EmpireWorld.Current?.cities?.get(id);
-        return city?.kingdom?.data != null && !city.IsGone() &&
+        City city = id < 0 ? null : EmpireWorld.Current?.CityByKey(id);
+        return city?.Realm?.Record != null && !city.IsGone() &&
                (city.Realm == empire.CoreKingdom || city.Realm.GetEmpire() == empire);
     }
-#endif
 
     // 被征服文化比本族先进：科技时代更晚，或同一时代文明等级更高
 #if EC_PENDING
@@ -460,7 +459,7 @@ public static partial class CompositeEmpireService
         foreach (long founderId in founderIds.Distinct())
         {
             if (founderId <= 0) continue;
-            Person founder = EmpireWorld.Current?.units?.get(founderId);
+            Person founder = EmpireWorld.Current?.PersonByKey(founderId);
             string founderCulture = CultureService.GetActorCulture(founder);
             if (CultureService.IsValidCulture(founderCulture)) return founderCulture;
         }
@@ -1052,7 +1051,7 @@ public static partial class CompositeEmpireService
     private static float DistanceFromSeat(City seat, City target)
     {
         if (seat == null || seat.IsGone() || target == null || target.IsGone()) return float.MaxValue;
-        return UnityEngine.Vector2.Distance(seat.city_center, target.city_center);
+        return UnityEngine.Vector2.Distance(seat.Center, target.Center);
     }
 #endif
 

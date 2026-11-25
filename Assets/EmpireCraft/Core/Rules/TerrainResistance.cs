@@ -1,6 +1,7 @@
 // Generated from the EmpireCraft mod: Scripts/GeneralSystems/TerrainResistance.cs. Do not edit by hand: Tools/PortTool/members.py rewrites it;
 // see Port/manifest.json and Tools/PortTool.
 using Mathf = EmpireCraft.Core.EcMath;
+using Vector2 = EmpireCraft.Core.EcVector2;
 using System;
 
 namespace EmpireCraft.Core
@@ -27,7 +28,6 @@ public static class TerrainResistance
     private static sbyte[] _walls = new sbyte[0];
     private static int _wallVersion = -1;
 
-#if EC_PENDING
     public static void ResetWorldState()
     {
         _walls = new sbyte[0];
@@ -35,16 +35,13 @@ public static class TerrainResistance
         WallPassage.ResetWorldState();
         WildernessPassage.ResetWorldState();
     }
-#endif
 
     // 地块里有格子改了：城墙下次用到时重查(军团过城墙的地块对也跟着作废，见 WallPassage)
-#if EC_PENDING
-    public static void InvalidateWall(TileZone zone)
+    public static void InvalidateWall(Cell zone)
     {
         WallPassage.InvalidateZone(zone);
-        if (zone != null && zone.id >= 0 && zone.id < _walls.Length) _walls[zone.id] = 0;
+        if (zone != null && zone.Index >= 0 && zone.Index < _walls.Length) _walls[zone.Index] = 0;
     }
-#endif
 
     public static float Base(FrontTerrain terrain) => terrain switch
     {
@@ -61,16 +58,16 @@ public static class TerrainResistance
     // 两头都给的要两国都放才算，例如两城之间的教化；不给的当外人，关门不开，无人区按定居的判)
     // 只看地形的阻力(不看无人区、城墙、路)：本国的无人区里传政令按它的几倍算(见 AdministrativeControlSystem)
 #if EC_PENDING
-    public static float TerrainStep(TileZone zone)
+    public static float TerrainStep(Cell zone)
     {
-        if (zone == null || zone.world_edge || SeaRegionSystem.IsSea(zone)) return -1f;
+        if (zone == null || zone.OnEdge || SeaRegionSystem.IsSea(zone)) return -1f;
         FrontTerrain terrain = TerrainSystem.Of(zone, out bool impassable);
         return impassable ? Ridge : Base(terrain);
     }
 
-    public static float Step(TileZone zone, Realm traveller = null, Realm other = null)
+    public static float Step(Cell zone, Realm traveller = null, Realm other = null)
     {
-        if (zone == null || zone.world_edge || SeaRegionSystem.IsSea(zone)) return -1f;
+        if (zone == null || zone.OnEdge || SeaRegionSystem.IsSea(zone)) return -1f;
         if (!WildernessPassage.CivilPassable(zone, traveller)) return -1f;
         FrontTerrain terrain = TerrainSystem.Of(zone, out bool impassable);
         float cost = impassable ? Ridge : Base(terrain);
@@ -90,19 +87,19 @@ public static class TerrainResistance
     public const float SeaStep = 1f;
 
 #if EC_PENDING
-    public static float LineCost(TileZone from, TileZone to, Realm traveller = null)
+    public static float LineCost(Cell from, Cell to, Realm traveller = null)
     {
         if (from == null || to == null) return 0f;
         if (from == to) return 0f;
-        ZoneCalculator calculator = EmpireWorld.Current?.zone_calculator;
-        if (calculator == null) return Vector2.Distance(new Vector2(from.x, from.y), new Vector2(to.x, to.y));
-        float dx = to.x - from.x, dy = to.y - from.y;
+        ZoneGrid calculator = EmpireWorld.Current?.Zones;
+        if (calculator == null) return Vector2.Distance(new Vector2(from.X, from.Y), new Vector2(to.X, to.Y));
+        float dx = to.X - from.X, dy = to.Y - from.Y;
         int steps = Mathf.Max(1, Mathf.CeilToInt(Mathf.Sqrt(dx * dx + dy * dy)));
         float total = 0f;
         for (int i = 1; i <= steps; i++)
         {
             float t = (float)i / steps;
-            TileZone zone = i == steps ? to : calculator.getZone(Mathf.RoundToInt(from.x + dx * t), Mathf.RoundToInt(from.y + dy * t));
+            Cell zone = i == steps ? to : calculator.Get(Mathf.RoundToInt(from.X + dx * t), Mathf.RoundToInt(from.Y + dy * t));
             // 同一块地取到两次(斜着走)照样算一步：一步就是一块地的长度
             if (zone != null && !WildernessPassage.CivilPassable(zone, traveller))
             {
@@ -116,38 +113,38 @@ public static class TerrainResistance
         return total;
     }
 
-    public static bool HasWall(TileZone zone) => WallState(zone) > 0;
+    public static bool HasWall(Cell zone) => WallState(zone) > 0;
 #endif
 
     // 城墙情况(通达层取快照用，见 ConnectivitySystem)：-1 没有、1 有城墙、2 有城墙且有关门
 #if EC_PENDING
-    public static int WallLevel(TileZone zone) => WallState(zone);
+    public static int WallLevel(Cell zone) => WallState(zone);
 #endif
 
     // -1 没有城墙、1 有城墙、2 有城墙且有关门(缓存里 0 是还没查过)
 #if EC_PENDING
-    private static sbyte WallState(TileZone zone)
+    private static sbyte WallState(Cell zone)
     {
-        if (zone?.tiles == null) return -1;
+        if (zone?.Tiles == null) return -1;
         if (_wallVersion != MapWallSystem.Version)
         {
             Array.Clear(_walls, 0, _walls.Length);
             _wallVersion = MapWallSystem.Version;
         }
-        int id = zone.id;
+        int id = zone.Index;
         if (id < 0) return ScanWall(zone);
         if (id >= _walls.Length)
-            Array.Resize(ref _walls, Mathf.Max(id + 1, EmpireWorld.Current?.zone_calculator?.zones?.Count ?? 0));
+            Array.Resize(ref _walls, Mathf.Max(id + 1, EmpireWorld.Current?.Zones?.All?.Count ?? 0));
         if (_walls[id] != 0) return _walls[id];
         return _walls[id] = ScanWall(zone);
     }
 
-    private static sbyte ScanWall(TileZone zone)
+    private static sbyte ScanWall(Cell zone)
     {
         sbyte state = -1;
-        foreach (WorldTile tile in zone.tiles)
+        foreach (Cell tile in zone.Tiles)
         {
-            if (tile?.Type == null || !tile.Type.wall && !MapWallSystem.Contains(tile)) continue;
+            if (tile?.Type == null || !tile.Type.Wall && !MapWallSystem.Contains(tile)) continue;
             if (WallGateSystem.IsGate(tile)) return 2;
             state = 1;
         }

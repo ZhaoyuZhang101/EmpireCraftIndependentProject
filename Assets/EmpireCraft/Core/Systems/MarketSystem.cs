@@ -12,7 +12,8 @@ namespace EmpireCraft.Core
 //   市场：同一国家(帝国则是整个帝国)的城市组成国内市场；有市场或码头的城还能和相邻、未交战的外国城市通商。
 //   商品：粮食、木材、石料、金属。每城按户数算出应有储备(粮食一年口粮；木石按建设；金属按打造装备，交战时多备)。
 //   交换：每月，储备不足的城向市场里有余量(超出储备一半以上)的城买进，按价格付钱
-//        (粮食由民间存款付，木石金属由城市国库付，卖方的货是百姓的，见 PopulationEconomySystem.Savings)，
+//        (粮食由民间存款付，木石金属由城市国库付，卖方的货是百姓的，见 PopulationEconomySystem.Savings；
+//        百姓的货卖出去收到的是真钱，见 EnterpriseSystem.SaleCash)，
 //        卖方收九成(一成是商人的利润，归卖方城里的背景商人；
 //        卖粮的钱里租地收成那部分归地主，见 LandEconomySystem.AddBackgroundIncome)；每月能买卖多少受商贸能力限制(商人越多、有市场码头越多)。
 //   价格：按市场总需求 ÷ 总供给在基础价的 0.25~4 倍之间浮动。
@@ -128,7 +129,7 @@ public static class MarketSystem
         if (city == null || city.IsGone()) return true;
         if (city.isGettingCaptured()) return true;
         Dictionary<int, long> occupied = ScorchedEarthSystem.OccupiedZones(city);
-        return occupied != null && city.zones != null && city.zones.Count > 0 && occupied.Count * 2 >= city.zones.Count;
+        return occupied != null && city.Zones != null && city.Zones.Count > 0 && occupied.Count * 2 >= city.Zones.Count;
     }
 #endif
 
@@ -213,8 +214,8 @@ public static class MarketSystem
                 if (!domestic || !seen.Add(other)) continue;
                 sellers.Add((other, near.Cost));
             }
-            if ((city.hasBuildingType("type_market") || city.hasBuildingType("type_docks")) && city.neighbours_cities != null)
-                foreach (City other in city.neighbours_cities)
+            if ((city.hasBuildingType("type_market") || city.hasBuildingType("type_docks")) && city.NeighbourCities != null)
+                foreach (City other in city.NeighbourCities)
                 {
                     if (other?.Realm == null || other.IsGone() || other.Realm.IsWild || seen.Contains(other)) continue;
                     if (other.Realm == city.Realm || Embargoed(city.Realm, other.Realm) || Blockaded(other)) continue;
@@ -239,8 +240,8 @@ public static class MarketSystem
             if (other != null && other != city && !other.IsGone() && !Blockaded(other) &&
                 !Embargoed(city.Realm, other.Realm)) sellers.Add(other);
         if (!city.hasBuildingType("type_market") && !city.hasBuildingType("type_docks")) return sellers;
-        if (city.neighbours_cities == null) return sellers;
-        foreach (City other in city.neighbours_cities)
+        if (city.NeighbourCities == null) return sellers;
+        foreach (City other in city.NeighbourCities)
         {
             if (other?.Realm == null || other.IsGone() || sellers.Contains(other) || other.Realm.IsWild) continue;
             if (other.Realm == city.Realm || Embargoed(city.Realm, other.Realm) || Blockaded(other)) continue;
@@ -351,6 +352,8 @@ public static class MarketSystem
                     int rent = good == Good.Food
                         ? Mathf.FloorToInt(sellerGets * LandEconomySystem.BackgroundRentShare(seller)) : 0;
                     LandEconomySystem.AddBackgroundIncome(seller, privateValue - sellerGets, rent);
+                    // 百姓的货卖出去收的是真钱(见 EnterpriseSystem.SaleCash)：公家买的由买方国库付的钱里出，百姓买的粮由买方百姓的现钱付
+                    EnterpriseSystem.SaleCash(buyer, data, seller, sellerGets, good == Good.Food);
                     need -= moved;
                     capacity -= moved;
                     bought += value;
@@ -365,7 +368,7 @@ public static class MarketSystem
         }
         catch (Exception exception)
         {
-            LogService.LogWarning($"[EmpireCraft][市场] 交换失败({buyer.Record?.Name}): {exception.Message}");
+            LogService.LogWarning($"[EmpireCraft][市场] 交换失败({buyer.Name}): {exception.Message}");
         }
     }
 #endif

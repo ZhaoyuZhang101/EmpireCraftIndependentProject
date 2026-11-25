@@ -1,5 +1,6 @@
 // Generated from the EmpireCraft mod: Scripts/GeneralSystems/ShanrangSystem.cs. Do not edit by hand: Tools/PortTool/members.py rewrites it;
 // see Port/manifest.json and Tools/PortTool.
+using Random = EmpireCraft.Core.EcRandom;
 using System.Collections.Generic;
 using System.Linq;
 
@@ -130,15 +131,13 @@ public static class ShanrangSystem
 #endif
 
     // 推举的分数：威望、所在之部的城数，正当壮年加分、年过七十减分
-#if EC_PENDING
     internal static float Score(Person actor, Realm tribe)
     {
         if (actor?.Record == null) return 0f;
         int age = actor.Age();
-        return actor.Renown + PerCity * (tribe?.cities?.Count ?? 0) + (age >= PrimeMin && age <= PrimeMax ? 10f : 0f) -
+        return actor.Renown + PerCity * (tribe?.Cities?.Count ?? 0) + (age >= PrimeMin && age <= PrimeMax ? 10f : 0f) -
                (age >= OldAge ? 25f : 0f);
     }
-#endif
 
     private static bool Fit(Person actor) =>
         actor?.Record != null && !actor.IsGone() && actor.Alive && actor.IsAdult() && actor.IsFitToRule();

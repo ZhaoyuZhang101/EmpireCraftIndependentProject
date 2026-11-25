@@ -123,12 +123,10 @@ namespace EmpireCraft.Core
         }
 #endif
         // 雨林全开发：玩家自己的图上雨林算开发完毕、不划无人区，世界地图剧本不受影响(见 WildernessSystem.JungleDeveloped)；设置里没有这一项时默认开
-#if EC_PENDING
         public static void WildernessJungleDevelopedCallBack(bool on)
         {
             EmpireCraft.Core.WildernessSystem.SetJungleDeveloped(on);
         }
-#endif
         // 随机地图生成高原(默认开)：新开随机地图时挑一两片成片高地抬成高原、外缘铺山脊坡地留山口(见 PlateauGenerator)；已有的图不动
         public static void PlateauRandomMapCallBack(bool on)
         {

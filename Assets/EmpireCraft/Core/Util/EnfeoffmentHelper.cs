@@ -36,13 +36,12 @@ public static class EnfeoffmentHelper
 #endif
 
     // 前线：城里有敌军占着的地块，或挨着与帝国核心(或本城所属成员国)交战之国的城
-#if EC_PENDING
     public static bool IsFrontCity(City city, Realm core)
     {
-        if (city?.Record == null || city.IsGone() || city.neighbours_cities == null) return false;
+        if (city?.Record == null || city.IsGone() || city.NeighbourCities == null) return false;
         if (city.HasOccupiedZones()) return true;
         Realm owner = city.Realm;
-        foreach (City other in city.neighbours_cities)
+        foreach (City other in city.NeighbourCities)
         {
             Realm enemy = other?.Realm;
             if (enemy == null || other.IsGone() || enemy == core || enemy == owner) continue;
@@ -51,15 +50,12 @@ public static class EnfeoffmentHelper
         }
         return false;
     }
-#endif
 
     // 划行政区、设行省、分封打下的地时先不动的城(用户 2026-10-19 选"所有政体都改")：
     // 以前帝国里任何一国有敌人，这些就整个挂起等停战；阿拉伯、封建、周制、幕府年年在打，打下的地从来设不成行省、封不出去。
     // 现在战时照样划分，只跳过前线的城、战时代管等战后分配的城(见 WartimeCustodySystem)、正与中央交战的成员的城；停战后照旧
-#if EC_PENDING
     public static bool DeferCity(City city, Realm core, bool atWar) =>
         atWar && (WartimeCustodySystem.InCustody(city) || Contested(city?.Realm, core) || IsFrontCity(city, core));
-#endif
 
     // 正在叛乱、或与中央交战的成员：战时不从它那里划城，也不往它那里划
     public static bool Contested(Realm kingdom, Realm core) =>
@@ -84,7 +80,6 @@ public static class EnfeoffmentHelper
 #endif
 
     // 成员国有一座城在前线就算前线(周制战时改封皇子用，见 FeudalConquestService)
-#if EC_PENDING
     public static bool KingdomAtFront(Realm kingdom, Realm core)
     {
         if (kingdom?.Cities == null || kingdom.IsGone()) return false;
@@ -92,7 +87,6 @@ public static class EnfeoffmentHelper
             if (IsFrontCity(city, core)) return true;
         return false;
     }
-#endif
 
     private static bool InRealm(City city, Realm core)
     {

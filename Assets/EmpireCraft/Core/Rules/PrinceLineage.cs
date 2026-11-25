@@ -157,11 +157,11 @@ public static class PrinceLineage
     private static string NextPlace(Empire empire, HashSet<string> used)
     {
         Realm core = empire.CoreKingdom;
-        string capitalTitle = core?.capital?.GetTitle()?.data?.name;
+        string capitalTitle = core?.Capital?.GetTitle()?.data?.name;
         if (ModClass.KINGDOM_TITLE_MANAGER != null)
             foreach (KingdomTitle title in ModClass.KINGDOM_TITLE_MANAGER
-                         .Where(title => title?.data != null && !title.IsGone() && title.title_capital?.kingdom?.GetEmpire() == empire)
-                         .OrderByDescending(title => title.getCities().Count()).ThenBy(title => title.id))
+                         .Where(title => title?.data != null && !title.IsGone() && title.title_capital?.Realm?.GetEmpire() == empire)
+                         .OrderByDescending(title => title.getCities().Count()).ThenBy(title => title.Key))
             {
                 string name = title.data.name;
                 if (!string.IsNullOrWhiteSpace(name) && name != capitalTitle && !used.Contains(name)) return name;

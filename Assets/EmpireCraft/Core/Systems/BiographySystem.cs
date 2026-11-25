@@ -136,7 +136,7 @@ public static class BiographySystem
         if (actor?.Record != null && PendingDeaths.TryGetValue(actor.Key, out Pending pending))
         {
             PendingDeaths.Remove(actor.Key);
-            killer = pending.Killer >= 0 ? EmpireWorld.Current?.units?.get(pending.Killer) : null;
+            killer = pending.Killer >= 0 ? EmpireWorld.Current?.PersonByKey(pending.Killer) : null;
             return string.Format(LM.Get("death_custom"), pending.Text, age);
         }
         string place = Place(actor);
@@ -171,7 +171,7 @@ public static class BiographySystem
     private static string Who(Person actor)
     {
         string name = actor?.FullName() ?? "";
-        string realm = actor?.kingdom?.data != null && actor.Realm.IsCivilized() ? actor.Realm.GetKingdomName() : "";
+        string realm = actor?.Realm?.Record != null && actor.Realm.IsCivilized() ? actor.Realm.GetKingdomName() : "";
         return string.IsNullOrEmpty(realm) ? name : string.Format(LM.Get("death_killer_of"), realm, name);
     }
 #endif

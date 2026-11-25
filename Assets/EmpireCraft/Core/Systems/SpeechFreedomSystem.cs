@@ -35,10 +35,9 @@ public static class SpeechFreedomSystem
     private const string LibraryName = "IdeologyBooks";
 
     // 这本宣扬 ideology 的书在该城的流传程度(言论自由决定)
-#if EC_PENDING
     public static float BookReach(City city, PartyIdeology ideology)
     {
-        Empire empire = city?.kingdom?.GetEmpire();
+        Empire empire = city?.Realm?.GetEmpire();
         if (empire == null) return 1f;
         // 思想解放期(见 IdeologyDynamicsSystem)：各种理念书籍的影响力最多翻倍
         float liberation = 1f + IdeologyDynamicsSystem.GetLiberation(empire);
@@ -51,7 +50,6 @@ public static class SpeechFreedomSystem
             _ => 1f
         };
     }
-#endif
 
     // 意识形态疲劳的年增量修正
     public static float FatigueModifier(Empire empire) => ConstitutionSystem.GetSpeech(empire) switch

@@ -27,11 +27,11 @@ public static class SeaLanding
 
     // 陆上地块外面相邻的海区
 #if EC_PENDING
-    public static List<SeaRegionSystem.Region> Waters(TileZone zone)
+    public static List<SeaRegionSystem.Region> Waters(Cell zone)
     {
         var result = new List<SeaRegionSystem.Region>();
         if (zone == null || SeaRegionSystem.IsSea(zone)) return result;
-        foreach (TileZone next in zone.neighbours_all ?? Array.Empty<TileZone>())
+        foreach (Cell next in zone.NeighboursAll ?? Array.Empty<Cell>())
             if (SeaRegionSystem.Of(next) is { } region && !result.Contains(region))
                 result.Add(region);
         return result;
@@ -73,20 +73,20 @@ public static class SeaLanding
 
     // 沿陆路由近及远的临海地块：同一片陆地，不进海面与不可通行的高山(起点本身临海也算)
 #if EC_PENDING
-    public static IEnumerable<TileZone> Shores(TileZone from)
+    public static IEnumerable<Cell> Shores(Cell from)
     {
         if (from == null) yield break;
-        var seen = new HashSet<int> { from.id };
-        var queue = new Queue<TileZone>();
+        var seen = new HashSet<int> { from.Index };
+        var queue = new Queue<Cell>();
         queue.Enqueue(from);
         while (queue.Count > 0)
         {
-            TileZone zone = queue.Dequeue();
+            Cell zone = queue.Dequeue();
             if ((zone == from || !TerrainSystem.Impassable(zone)) && Waters(zone).Count > 0) yield return zone;
             if (seen.Count >= MaxSearchZones) continue;
-            foreach (TileZone next in zone.neighbours_all ?? Array.Empty<TileZone>())
+            foreach (Cell next in zone.NeighboursAll ?? Array.Empty<Cell>())
             {
-                if (next == null || next.world_edge || !seen.Add(next.id)) continue;
+                if (next == null || next.OnEdge || !seen.Add(next.Index)) continue;
                 if (SeaRegionSystem.IsSea(next) || TerrainSystem.Impassable(next) || !CorpsSystem.SameLand(next, from)) continue;
                 queue.Enqueue(next);
             }
@@ -97,7 +97,7 @@ public static class SeaLanding
     // 海滩：from 所在那片陆地上沿陆路最近、能靠岸的临海地块与航线——航线从 start(空则本方全部出海口)出发、
     // 不经敌方制海、不超过舰种航程(见 NavySystem.MaxRange)。找不到返回 (null, null)
 #if EC_PENDING
-    public static (TileZone shore, List<SeaRegionSystem.Region> route) Beachhead(Realm side, TileZone from,
+    public static (Cell shore, List<SeaRegionSystem.Region> route) Beachhead(Realm side, Cell from,
         IEnumerable<SeaRegionSystem.Region> start = null)
     {
         if (side?.Record == null || side.IsGone() || from == null) return (null, null);
@@ -106,7 +106,7 @@ public static class SeaLanding
         int range = NavySystem.MaxRange(side);
         var tried = new HashSet<int>();
         int tries = 0;
-        foreach (TileZone zone in Shores(from))
+        foreach (Cell zone in Shores(from))
         {
             List<SeaRegionSystem.Region> waters = Waters(zone).Where(region => !tried.Contains(region.Id)).ToList();
             if (waters.Count == 0) continue;
@@ -122,7 +122,7 @@ public static class SeaLanding
     // 诊断(见 SeaLandingDiagnostics)：from 那片陆地上为什么找不到能靠岸的海滩——没有出海口、海路不通(隔着大陆)、
     // 敌方制海截断、超出舰种航程。试的岸与 Beachhead 一样
 #if EC_PENDING
-    public static string WhyNoBeachhead(Realm side, TileZone from)
+    public static string WhyNoBeachhead(Realm side, Cell from)
     {
         if (side?.Record == null || side.IsGone() || from == null) return "目标不可达";
         List<SeaRegionSystem.Region> origin = NavySystem.HomeWaters(side);
@@ -130,7 +130,7 @@ public static class SeaLanding
         int range = NavySystem.MaxRange(side), shortest = int.MaxValue, tries = 0;
         bool open = false, cut = false;
         var tried = new HashSet<int>();
-        foreach (TileZone zone in Shores(from))
+        foreach (Cell zone in Shores(from))
         {
             var waters = new List<SeaRegionSystem.Region>();
             foreach (SeaRegionSystem.Region region in Waters(zone))

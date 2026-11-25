@@ -32,7 +32,6 @@ public static class LayerCityCache
 
         public Cache(Func<City, T> compute) => _compute = compute;
 
-#if EC_PENDING
         public T Get(City city)
         {
             Tick();
@@ -42,14 +41,12 @@ public static class LayerCityCache
             _values[city] = value;
             return value;
         }
-#endif
 
         public void Invalidate(City city)
         {
             if (city != null) _values.Remove(city);
         }
 
-#if EC_PENDING
         private void Tick()
         {
             if (!ReferenceEquals(_world, EmpireWorld.Current))
@@ -61,7 +58,7 @@ public static class LayerCityCache
             int frame = Time.frameCount;
             if (frame == _lastFrame) return;
             _lastFrame = frame;
-            List<City> cities = EmpireWorld.Current?.cities?.list;
+            List<City> cities = EmpireWorld.Current?.Cities;
             if (cities == null || cities.Count == 0) return;
             int budget = Math.Max(MinRefreshPerFrame, (cities.Count + FramesPerFullRefresh - 1) / FramesPerFullRefresh);
             for (int i = 0; i < budget && i < cities.Count; i++)
@@ -76,7 +73,6 @@ public static class LayerCityCache
                 _values[city] = _compute(city);
             }
         }
-#endif
 
         private void PruneDeadCities()
         {

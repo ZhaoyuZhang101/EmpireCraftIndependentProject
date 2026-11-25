@@ -76,9 +76,9 @@ public static partial class HolyRomanSystem
         if (LeagueWar(empire) != null || EcRandom.value >= ReligiousWarChance) return;
         DeclareReligiousWar(empire, state, head, dissenters);
     }
+#endif
 
     public static War LeagueWar(Empire empire) => LiveWar(State(empire)?.league_war_id ?? -1L);
-#endif
 
     public static List<Realm> LeagueMembers(Empire empire)
     {

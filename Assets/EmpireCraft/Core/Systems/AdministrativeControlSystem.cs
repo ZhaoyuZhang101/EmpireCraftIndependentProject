@@ -1,6 +1,7 @@
 // Generated from the EmpireCraft mod: Scripts/GeneralSystems/AdministrativeControlSystem.cs. Do not edit by hand: Tools/PortTool/members.py rewrites it;
 // see Port/manifest.json and Tools/PortTool.
 using Mathf = EmpireCraft.Core.EcMath;
+using Vector2 = EmpireCraft.Core.EcVector2;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -111,11 +112,9 @@ public static class AdministrativeControlSystem
     private static bool Valid(Realm kingdom) => kingdom?.Record != null && !kingdom.IsGone() && !kingdom.IsWild &&
                                                   !AncientWarfareCompatibility.Owns(kingdom);
 
-#if EC_PENDING
-    private static bool Valid(City city) => city?.Record != null && !city.IsGone() && city.zones != null &&
-                                            city.zones.Count > 0 && Valid(city.Realm) &&
+    private static bool Valid(City city) => city?.Record != null && !city.IsGone() && city.Zones != null &&
+                                            city.Zones.Count > 0 && Valid(city.Realm) &&
                                             !AncientWarfareCompatibility.OwnsObject(city);
-#endif
 
     // 尚未算过的城当作满控
     public static float Get(City city)
@@ -289,26 +288,26 @@ public static class AdministrativeControlSystem
     {
         Realm realm = ModRealm(kingdom);
         if (!Valid(realm) || target?.Record == null || target.IsGone()) return false;
-        TileZone goal = CenterZone(target);
+        Cell goal = CenterZone(target);
         if (goal == null) return false;
         // 先按直线挑最近的几座，再按地形阻力细算；隔着无人区的城(路程记作 CutOff)不当出发点，
         // 与目标之间隔着本国过不去、绕不过去的无人区的城够不着(见 WildernessPassage)
-        var near = new List<(float rough, float admin, TileZone from)>();
+        var near = new List<(float rough, float admin, Cell from)>();
         bool known = false;
         foreach (City city in Cities(realm))
         {
             if (!Known(city)) continue;
-            TileZone from = CenterZone(city);
+            Cell from = CenterZone(city);
             if (from == null) continue;
             float admin = city.GetOrCreate().admin_distance;
             if (admin < 0f) continue;
             known = true;
             if (!WildernessPassage.CivilReachable(from, goal, realm)) continue;
-            near.Add((admin + Vector2.Distance(new Vector2(from.x, from.y), new Vector2(goal.x, goal.y)), admin, from));
+            near.Add((admin + Vector2.Distance(new Vector2(from.X, from.Y), new Vector2(goal.X, goal.Y)), admin, from));
         }
         if (!known) return false;
         float best = float.MaxValue;
-        foreach ((float _, float admin, TileZone from) in near.OrderBy(entry => entry.rough).Take(LineCandidates))
+        foreach ((float _, float admin, Cell from) in near.OrderBy(entry => entry.rough).Take(LineCandidates))
             best = Mathf.Min(best, admin + TerrainResistance.LineCost(from, goal, realm) * LineDetour);
         // 都够不着(best 还是最大值)：控制力按最低算，判在范围之外
         return Control(best, Reach(realm)) < HardLimit;
@@ -322,7 +321,7 @@ public static class AdministrativeControlSystem
     {
         Realm realm = ModRealm(kingdom);
         if (!Valid(realm) || realm.Capital == null || target?.Record == null || target.IsGone()) return false;
-        TileZone from = CenterZone(realm.Capital), goal = CenterZone(target);
+        Cell from = CenterZone(realm.Capital), goal = CenterZone(target);
         if (from == null || goal == null) return false;
         if (!WildernessPassage.CivilReachable(from, goal, realm)) return true;
         return Control(TerrainResistance.LineCost(from, goal, realm) * LineDetour, Reach(realm)) < HardLimit;
@@ -411,6 +410,7 @@ public static class AdministrativeControlSystem
             if (Valid(kingdom) && ModRealm(kingdom) == kingdom && kingdom.hasCities()) Pending.Enqueue(kingdom.Key);
         }
     }
+#endif
 
     private static List<City> Cities(Realm realm)
     {
@@ -422,20 +422,17 @@ public static class AdministrativeControlSystem
                 result.AddRange(member.Cities.Where(Valid));
         return result;
     }
-#endif
 
     #region 控制力
 
-#if EC_PENDING
-    public static TileZone CenterZone(City city)
+    public static Cell CenterZone(City city)
     {
-        TileZone zone = city.getTile()?.zone;
-        if (zone != null && zone.city == city) return zone;
-        WorldTile tile = EmpireWorld.Current.GetTile((int)city.city_center.x, (int)city.city_center.y - 2);
-        if (tile?.zone != null && tile.zone.city == city) return tile.zone;
-        return city.zones.Count > 0 ? city.zones[0] : null;
+        Cell zone = city.SeatCell()?.Zone;
+        if (zone != null && zone.City == city) return zone;
+        Cell tile = EmpireWorld.Current.CellAt((int)city.Center.x, (int)city.Center.y - 2);
+        if (tile?.Zone != null && tile.Zone.City == city) return tile.Zone;
+        return city.Zones.Count > 0 ? city.Zones[0] : null;
     }
-#endif
 
     // 满控路程：时代 + 本国已采纳的交通通信科技，按政体、君主折算
     private static readonly (string tech, float reach)[] ReachTechs =
@@ -517,9 +514,7 @@ public static class AdministrativeControlSystem
 
     // 最短路的工作数组(按地块编号，记的是第几趟，不必每趟清空)：本国领土、已走到(路程、是否走过海路)、本趟算过的地形阻力。
     // 以前每趟新建以地块为键的 HashSet、Dictionary，大国一趟几千块地
-#if EC_PENDING
-    private static readonly MinHeap<(TileZone zone, bool sea)> Heap = new();
-#endif
+    private static readonly MinHeap<(Cell zone, bool sea)> Heap = new();
     private static int _pass;
     private static int[] _member = new int[0], _done = new int[0], _stepPass = new int[0], _wildPass = new int[0];
     private static float[] _cost = new float[0], _step = new float[0];
@@ -527,10 +522,9 @@ public static class AdministrativeControlSystem
     // 这一趟算的是哪国(本国的无人区按它判，见 OwnWild)
     private static Realm _passRealm;
 
-#if EC_PENDING
     private static void BeginPass()
     {
-        int size = EmpireWorld.Current?.zone_calculator?.zones?.Count ?? 0;
+        int size = EmpireWorld.Current?.Zones?.All?.Count ?? 0;
         if (_member.Length < size) GrowPass(size);
         if (++_pass < int.MaxValue) return;
         Array.Clear(_member, 0, _member.Length);
@@ -539,7 +533,6 @@ public static class AdministrativeControlSystem
         Array.Clear(_wildPass, 0, _wildPass.Length);
         _pass = 1;
     }
-#endif
 
     private static void GrowPass(int size)
     {
@@ -553,16 +546,14 @@ public static class AdministrativeControlSystem
         Array.Resize(ref _ownWild, size);
     }
 
-#if EC_PENDING
-    private static bool Member(TileZone zone) => zone.id >= 0 && zone.id < _member.Length && _member[zone.id] == _pass;
-#endif
+    private static bool Member(Cell zone) => zone.Index >= 0 && zone.Index < _member.Length && _member[zone.Index] == _pass;
 
     // 本国的无人区(挂在本国连同本帝国成员的法理上，见 WildernessSystem.OwnerOf；用户 2026-10-29 追加"取得这个法理的国家
     // 就把这些无人区算作本国范围")：算本国的地，一趟里每块只问一次
 #if EC_PENDING
-    private static bool OwnWild(TileZone zone)
+    private static bool OwnWild(Cell zone)
     {
-        int id = zone.id;
+        int id = zone.Index;
         if (id < 0 || !WildernessSystem.Enabled) return false;
         if (id >= _wildPass.Length) GrowPass(id + 1);
         if (_wildPass[id] == _pass) return _ownWild[id];
@@ -574,16 +565,16 @@ public static class AdministrativeControlSystem
 
     // 本国的地：本国(连同本帝国成员)城的地块、本国的无人区
 #if EC_PENDING
-    private static bool Land(TileZone zone) => Member(zone) || OwnWild(zone);
-
-    private static bool Reached(TileZone zone) => zone.id >= 0 && zone.id < _done.Length && _done[zone.id] == _pass;
+    private static bool Land(Cell zone) => Member(zone) || OwnWild(zone);
 #endif
+
+    private static bool Reached(Cell zone) => zone.Index >= 0 && zone.Index < _done.Length && _done[zone.Index] == _pass;
 
     // 一趟只算一国(realm)，城墙上的关门放本国与友邦过(见 TerrainResistance、WallGateSystem)
 #if EC_PENDING
-    private static float Step(TileZone zone, Realm realm)
+    private static float Step(Cell zone, Realm realm)
     {
-        int id = zone.id;
+        int id = zone.Index;
         if (_stepPass[id] == _pass) return _step[id];
         float step = TerrainResistance.Step(zone, realm);
         _step[id] = step;
@@ -595,21 +586,21 @@ public static class AdministrativeControlSystem
     // 从都城那块起，经本国(连同本帝国成员)的地、本国水师辐射内港口间的海路走得到的地块。
     // 本国的无人区算本国的地，过不过得去都算连着(只隔着它的不算飞地、成员国的治所照样连得上都城)；路程另按过得去的算
 #if EC_PENDING
-    private static HashSet<int> Linked(TileZone home, Dictionary<TileZone, (City city, HashSet<int> basins)> ports, float radius)
+    private static HashSet<int> Linked(Cell home, Dictionary<Cell, (City city, HashSet<int> basins)> ports, float radius)
     {
-        var seen = new HashSet<int> { home.id };
-        var frontier = new Queue<TileZone>();
+        var seen = new HashSet<int> { home.Index };
+        var frontier = new Queue<Cell>();
         frontier.Enqueue(home);
         while (frontier.Count > 0)
         {
-            TileZone zone = frontier.Dequeue();
-            foreach (TileZone next in zone.neighbours ?? Array.Empty<TileZone>())
-                if (next != null && Land(next) && seen.Add(next.id)) frontier.Enqueue(next);
+            Cell zone = frontier.Dequeue();
+            foreach (Cell next in zone.Neighbours ?? Array.Empty<Cell>())
+                if (next != null && Land(next) && seen.Add(next.Index)) frontier.Enqueue(next);
             if (ports.Count == 0 || !ports.TryGetValue(zone, out var from)) continue;
-            foreach (KeyValuePair<TileZone, (City city, HashSet<int> basins)> to in ports)
+            foreach (KeyValuePair<Cell, (City city, HashSet<int> basins)> to in ports)
             {
-                if (to.Key == zone || seen.Contains(to.Key.id) || !from.basins.Overlaps(to.Value.basins)) continue;
-                if ((from.city.city_center - to.Value.city.city_center).magnitude <= radius && seen.Add(to.Key.id))
+                if (to.Key == zone || seen.Contains(to.Key.Index) || !from.basins.Overlaps(to.Value.basins)) continue;
+                if ((from.city.Center - to.Value.city.Center).magnitude <= radius && seen.Add(to.Key.Index))
                     frontier.Enqueue(to.Key);
             }
         }
@@ -621,43 +612,43 @@ public static class AdministrativeControlSystem
         BeginPass();
         _passRealm = realm;
         foreach (City city in cities)
-            foreach (TileZone zone in city.zones)
-                if (zone != null && zone.id >= 0)
+            foreach (Cell zone in city.Zones)
+                if (zone != null && zone.Index >= 0)
                 {
-                    if (zone.id >= _member.Length) GrowPass(zone.id + 1);
-                    _member[zone.id] = _pass;
+                    if (zone.Index >= _member.Length) GrowPass(zone.Index + 1);
+                    _member[zone.Index] = _pass;
                 }
         // 港口(本国水师辐射内互通海路)：城心块 → 港口城、所在水域
         float radius = StraitReach.Radius(realm);
-        var ports = new Dictionary<TileZone, (City city, HashSet<int> basins)>();
+        var ports = new Dictionary<Cell, (City city, HashSet<int> basins)>();
         if (radius > 0f)
             foreach (City city in cities)
             {
                 if (NavySystem.Port(city) == null) continue;
-                TileZone zone = CenterZone(city);
+                Cell zone = CenterZone(city);
                 var basins = new HashSet<int>(SeaRegionSystem.RegionsAround(city).Select(region => region.Basin));
                 if (zone != null && basins.Count > 0) ports[zone] = (city, basins);
             }
         // 治所：都城从 0 起；成员国都城、陪京要与都城连得上(陆路经本国连同本帝国的地、本国的无人区，或本国水师辐射内的海路)才算——
         // 隔着别国的远方成员以前从自己的都城起算，控制力照样满(用户 2026-10-27 问"怎么判断的控制力高于0.45，
         // 首先他们就不接壤，然后中间还隔了那么大的国家")，现在按陆路不通的飞地折算
-        TileZone home = realm.Capital != null && cities.Contains(realm.Capital) ? CenterZone(realm.Capital) : null;
+        Cell home = realm.Capital != null && cities.Contains(realm.Capital) ? CenterZone(realm.Capital) : null;
         HashSet<int> linked = home != null ? Linked(home, ports, radius) : null;
-        var seats = new List<(TileZone zone, float offset)>();
+        var seats = new List<(Cell zone, float offset)>();
         foreach (City city in cities)
         {
             Realm owner = city.Realm;
             if (owner.Capital != city) continue;
-            TileZone zone = CenterZone(city);
-            if (zone == null || owner != realm && linked != null && !linked.Contains(zone.id)) continue;
+            Cell zone = CenterZone(city);
+            if (zone == null || owner != realm && linked != null && !linked.Contains(zone.Index)) continue;
             // 成员国(行政区、封国)的治所比都城远一截：至少 MemberSeatOffset，半径大时按半径的四成
             seats.Add((zone, owner == realm ? 0 : Mathf.Max(MemberSeatOffset, 0.4f * Reach(realm))));
         }
         // 陪京(见 MultiCapitalSystem)：与都城同起点
         foreach (City jing in MultiCapitalSystem.AuxiliaryCities(realm))
         {
-            TileZone zone = jing.Realm != null && cities.Contains(jing) ? CenterZone(jing) : null;
-            if (zone != null && (linked == null || linked.Contains(zone.id))) seats.Add((zone, 0));
+            Cell zone = jing.Realm != null && cities.Contains(jing) ? CenterZone(jing) : null;
+            if (zone != null && (linked == null || linked.Contains(zone.Index))) seats.Add((zone, 0));
         }
         if (seats.Count == 0) return;
         // 多源最短路(按地形阻力)：都城从 0 起、成员国都城从 4 起；记下路上有没有走过海路。
@@ -666,16 +657,16 @@ public static class AdministrativeControlSystem
         bool wild = WildernessPassage.Active;
         int way = WildernessPassage.CivilWay(realm);
         Heap.Clear();
-        foreach ((TileZone zone, float offset) in seats) Heap.Push(offset, (zone, false));
+        foreach ((Cell zone, float offset) in seats) Heap.Push(offset, (zone, false));
         while (Heap.Count > 0)
         {
-            (float cost, (TileZone zone, bool sea)) = Heap.Pop();
-            if (zone.id < 0 || Reached(zone)) continue;
-            if (zone.id >= _member.Length) GrowPass(zone.id + 1);
-            _done[zone.id] = _pass;
-            _cost[zone.id] = cost;
-            _sea[zone.id] = sea;
-            foreach (TileZone neighbour in zone.neighbours ?? Array.Empty<TileZone>())
+            (float cost, (Cell zone, bool sea)) = Heap.Pop();
+            if (zone.Index < 0 || Reached(zone)) continue;
+            if (zone.Index >= _member.Length) GrowPass(zone.Index + 1);
+            _done[zone.Index] = _pass;
+            _cost[zone.Index] = cost;
+            _sea[zone.Index] = sea;
+            foreach (Cell neighbour in zone.Neighbours ?? Array.Empty<Cell>())
             {
                 if (neighbour == null || !Land(neighbour) || Reached(neighbour)) continue;
                 float step;
@@ -692,10 +683,10 @@ public static class AdministrativeControlSystem
                 Heap.Push(cost + (step < 0f ? WaterStep : step), (neighbour, sea));
             }
             if (ports.Count == 0 || !ports.TryGetValue(zone, out var from)) continue;
-            foreach (KeyValuePair<TileZone, (City city, HashSet<int> basins)> to in ports)
+            foreach (KeyValuePair<Cell, (City city, HashSet<int> basins)> to in ports)
             {
                 if (to.Key == zone || Reached(to.Key) || !from.basins.Overlaps(to.Value.basins)) continue;
-                float span = (from.city.city_center - to.Value.city.city_center).magnitude;
+                float span = (from.city.Center - to.Value.city.Center).magnitude;
                 if (span <= radius) Heap.Push(cost + SeaEmbark + span / SeaTilesPerCost, (to.Key, true));
             }
         }
@@ -705,14 +696,14 @@ public static class AdministrativeControlSystem
         foreach (City city in cities)
         {
             var data = city.GetOrCreate();
-            TileZone center = CenterZone(city);
+            Cell center = CenterZone(city);
             if (center == null) continue;
             if (Reached(center))
             {
-                float reachedCost = _cost[center.id];
+                float reachedCost = _cost[center.Index];
                 // 走海路才到、又与各治所不在同一块陆地上的，是隔海的城
-                bool across = _sea[center.id] && !seats.Any(seat => seat.zone.centerTile != null && center.centerTile != null &&
-                                                                     seat.zone.centerTile.isSameIsland(center.centerTile));
+                bool across = _sea[center.Index] && !seats.Any(seat => seat.zone.Center != null && center.Center != null &&
+                                                                     seat.zone.Center.IsSameIsland(center.Center));
                 data.admin_distance = Mathf.RoundToInt(reachedCost);
                 data.admin_exclave = false;
                 data.admin_overseas = across;
@@ -723,15 +714,15 @@ public static class AdministrativeControlSystem
             // 陆路不通：按到最近几处治所沿直线过去的地形阻力折算(雪山、大漠照实算，见 TerrainResistance.LineCost)。
             // 只隔着本国过不去的无人区(经本国的地、本国的无人区连得上都城)的不算飞地，照样折算、不加飞地的那 8；
             // 同一片陆地上与各治所都隔着绕不过、也没路穿过去的无人区(见 WildernessPassage)：隔着无人区，控制力按最低算
-            bool own = linked != null && linked.Contains(center.id);
+            bool own = linked != null && linked.Contains(center.Index);
             bool overseas = true;
-            foreach ((TileZone seat, float _) in seats)
-                if (seat.centerTile != null && center.centerTile != null && seat.centerTile.isSameIsland(center.centerTile))
+            foreach ((Cell seat, float _) in seats)
+                if (seat.Center != null && center.Center != null && seat.Center.IsSameIsland(center.Center))
                     overseas = false;
             float best = float.MaxValue;
-            foreach ((TileZone seat, float offset) in seats
+            foreach ((Cell seat, float offset) in seats
                          .Where(entry => WildernessPassage.CivilReachable(entry.zone, center, realm))
-                         .OrderBy(entry => Vector2.Distance(new Vector2(entry.zone.x, entry.zone.y), new Vector2(center.x, center.y)) +
+                         .OrderBy(entry => Vector2.Distance(new Vector2(entry.zone.X, entry.zone.Y), new Vector2(center.X, center.Y)) +
                                            entry.offset)
                          .Take(LineCandidates))
                 best = Mathf.Min(best, TerrainResistance.LineCost(seat, center, realm) * LineDetour + offset);
@@ -782,7 +773,7 @@ public static class AdministrativeControlSystem
         var cluster = new List<City> { seed };
         var seen = new HashSet<City> { seed };
         for (int i = 0; i < cluster.Count && cluster.Count < ReleaseClusterMax; i++)
-            foreach (City next in (IEnumerable<City>)cluster[i].neighbours_cities ?? Array.Empty<City>())
+            foreach (City next in (IEnumerable<City>)cluster[i].NeighbourCities ?? Array.Empty<City>())
             {
                 if (cluster.Count >= ReleaseClusterMax) break;
                 if (next == null || !seen.Add(next) || next.Realm != former || !Overreached(realm, next, limit)) continue;
@@ -918,7 +909,7 @@ public static class AdministrativeControlSystem
         var cluster = new List<City> { seed };
         var seen = new HashSet<City> { seed };
         for (int i = 0; i < cluster.Count && cluster.Count < ReleaseClusterMax; i++)
-            foreach (City next in (IEnumerable<City>)cluster[i].neighbours_cities ?? Array.Empty<City>())
+            foreach (City next in (IEnumerable<City>)cluster[i].NeighbourCities ?? Array.Empty<City>())
             {
                 if (cluster.Count >= ReleaseClusterMax) break;
                 if (next == null || !seen.Add(next) || next.Realm != former || next.Realm.Capital == next ||

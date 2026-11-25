@@ -306,7 +306,7 @@ public static class PopulationEconomySystem
 #if EC_PENDING
     private static (string, float)[] OutputsFor(City city, CitizenJobAsset job, (string, float)[] outputs)
     {
-        if (job != CitizenJobLibrary.miner_deposit || city?.zones == null) return outputs;
+        if (job != CitizenJobLibrary.miner_deposit || city?.Zones == null) return outputs;
         if (!ReferenceEquals(_oreWorld, EmpireWorld.Current))
         {
             _oreWorld = EmpireWorld.Current;
@@ -317,7 +317,7 @@ public static class PopulationEconomySystem
             return cached.outputs;
         var sums = new Dictionary<string, float>();
         int ores = 0;
-        foreach (TileZone zone in city.zones)
+        foreach (Cell zone in city.Zones)
         {
             HashSet<Building> minerals = zone?.getHashset(BuildingList.Minerals);
             if (minerals == null) continue;
@@ -628,7 +628,7 @@ public static class PopulationEconomySystem
                 if (building.asset.type == "type_house") continue;
                 buildings++;
             }
-        int zones = city.zones?.Count ?? 0;
+        int zones = city.Zones?.Count ?? 0;
         return buildings * JobsPerBuilding + zones * FarmJobsPerZone;
     }
 #endif

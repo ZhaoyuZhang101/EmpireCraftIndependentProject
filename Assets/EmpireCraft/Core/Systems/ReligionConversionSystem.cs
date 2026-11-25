@@ -91,7 +91,7 @@ public static class ReligionConversionSystem
             }
             catch (Exception exception)
             {
-                LogService.LogWarning($"[EmpireCraft][宗教] {realm.Record?.Name} 皈依结算失败: {exception.Message}");
+                LogService.LogWarning($"[EmpireCraft][宗教] {realm.Name} 皈依结算失败: {exception.Message}");
             }
         }
         if (!BackgroundReligionSystem.Active) ManualCityConversion(realms);

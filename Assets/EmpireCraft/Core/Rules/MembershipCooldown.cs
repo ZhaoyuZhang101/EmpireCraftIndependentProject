@@ -111,7 +111,6 @@ public static class MembershipCooldown
 
     // 神力放出后 TruceYears 年内，原帝国(核心与各成员)、原宗主(连同宗主所在的帝国)不对它开战(见 WarGate.Forbidden)；
     // 它自己去打原主不拦。保护期因战事、危急并回或神力放回而作废的，这一条随之作废
-#if EC_PENDING
     public static bool TruceForbids(Realm attacker, Realm target)
     {
         if (attacker?.Record == null || target?.Record == null || attacker == target || EmpireWorld.Current == null) return false;
@@ -122,10 +121,9 @@ public static class MembershipCooldown
         if (data.manual_release_empire_id >= 0 && empireId == data.manual_release_empire_id) return true;
         if (data.manual_release_lord_id < 0) return false;
         if (attacker.Key == data.manual_release_lord_id) return true;
-        Realm lord = EmpireWorld.Current.LiveRealms?.get(data.manual_release_lord_id);
+        Realm lord = EmpireWorld.Current.RealmByKey(data.manual_release_lord_id);
         return empireId >= 0 && lord?.Record != null && !lord.IsGone() && lord.GetEmpireID() == empireId;
     }
-#endif
 
     // 神力拉入、仍在原处、未满 JoinYears 年(帝国核心不算)
     public static bool ManualJoinActive(Realm kingdom)

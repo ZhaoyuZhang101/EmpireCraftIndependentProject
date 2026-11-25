@@ -27,9 +27,9 @@ public static class PlateauGenerator
         MapGenTemplate template = MapGenerator.template;
         if (template == null || template.special_anthill || template.special_checkerboard || template.special_cubicles ||
             template.values == null || template.values.remove_mountains) return;
-        int w = EmpireWorld.width, h = EmpireWorld.height, n = w * h;
+        int w = EmpireWorld.Current.Width, h = EmpireWorld.Current.Height, n = w * h;
         if (n <= 0) return;
-        var tiles = new WorldTile[n];
+        var tiles = new Cell[n];
         var land = new bool[n];
         var wet = new bool[n];
         var heights = new float[n];
@@ -38,12 +38,12 @@ public static class PlateauGenerator
         for (int x = 0; x < w; x++)
         {
             int i = y * w + x;
-            WorldTile tile = EmpireWorld.Current.GetTileSimple(x, y);
+            Cell tile = EmpireWorld.Current.CellAt(x, y);
             tiles[i] = tile;
-            TileType main = tile?.main_type;
+            TerrainKind main = tile?.MainType;
             if (main == null) continue;
-            wet[i] = main.liquid;
-            land[i] = !main.liquid;
+            wet[i] = main.Liquid;
+            land[i] = !main.Liquid;
             heights[i] = tile.Height;
             if (land[i]) landCount++;
         }
@@ -74,17 +74,17 @@ public static class PlateauGenerator
             float mean = 0f;
             foreach (int i in piece) mean += heights[i];
             mean /= piece.Count;
-            TileType kind = k > 0 ? PlateauTerrain.Loess : mean >= AlpineHeight ? PlateauTerrain.Alpine : PlateauTerrain.Steppe;
+            TerrainKind kind = k > 0 ? PlateauTerrain.Loess : mean >= AlpineHeight ? PlateauTerrain.Alpine : PlateauTerrain.Steppe;
             var inside = new bool[n];
             foreach (int i in piece) inside[i] = true;
             FillHoles(inside, land, w, h);
             for (int i = 0; i < n; i++)
             {
                 if (!inside[i] || !land[i]) continue;
-                TileType main = tiles[i].main_type;
-                if (main == null || main.block || main.mountains || main.summit || main.lava) continue;
+                TerrainKind main = tiles[i].MainType;
+                if (main == null || main.Block || main.Mountains || main.Summit || main.Lava) continue;
                 tiles[i].setTileTypes(kind, null);
-                tiles[i].Height = kind.height_min;
+                tiles[i].Height = kind.HeightMin;
                 made++;
             }
             string name = kind == PlateauTerrain.Alpine ? "高寒" : kind == PlateauTerrain.Steppe ? "草原" : "黄土";

@@ -463,14 +463,12 @@ public static class DeJureShareSystem
     }
 
     // 本城有地块挨着这个王国法理(本来的城)
-#if EC_PENDING
     private static bool Borders(City city, KingdomTitle title)
     {
         foreach (City other in Neighbours(city))
             if (other.GetTitleID() == title.Key) return true;
         return false;
     }
-#endif
 
     // 王国法理有城挨着这个帝国法理(城本来记的核心)
 #if EC_PENDING
@@ -481,18 +479,18 @@ public static class DeJureShareSystem
                 if (other.GetEmpireCoreID() == core.id) return true;
         return false;
     }
+#endif
 
     private static IEnumerable<City> Neighbours(City city)
     {
-        if (city?.zones == null) yield break;
-        foreach (TileZone zone in city.zones)
-            foreach (TileZone next in new[] { zone.zone_up, zone.zone_down, zone.zone_left, zone.zone_right })
+        if (city?.Zones == null) yield break;
+        foreach (Cell zone in city.Zones)
+            foreach (Cell next in new[] { zone.Up, zone.Down, zone.Left, zone.Right })
             {
-                City other = next?.city;
+                City other = next?.City;
                 if (other != null && other != city && !other.IsGone()) yield return other;
             }
     }
-#endif
 
     // 读档后：旧存档的争议地带宣称折成兼属——城兼属宣称方帝国法理里挨着它(没有就离它最近)的王国法理
 #if EC_PENDING
@@ -513,7 +511,7 @@ public static class DeJureShareSystem
                 List<KingdomTitle> titles = EmpireCoreManager.GetTitles(core).Where(title => title != null && !title.IsGone()).ToList();
                 KingdomTitle pick = titles.FirstOrDefault(title => Borders(city, title)) ??
                                     titles.Where(title => title.title_capital != null && !title.title_capital.IsGone())
-                                        .OrderBy(title => Toolbox.SquaredDistTile(title.title_capital.getTile(), city.getTile()))
+                                        .OrderBy(title => Land.SquaredDist(title.title_capital.SeatCell(), city.SeatCell()))
                                         .FirstOrDefault();
                 if (pick != null && ShareTitle(city, pick, claim.manual, claim.since)) converted++;
             }
@@ -531,7 +529,7 @@ public static class DeJureShareSystem
 #if EC_PENDING
     private static void Touch(City city)
     {
-        foreach (TileZone zone in city?.zones ?? new List<TileZone>()) zone?.resetRenderHelpers();
+        foreach (Cell zone in city?.Zones ?? new List<Cell>()) zone?.resetRenderHelpers();
     }
 
     private static void Touch(KingdomTitle title)
@@ -559,7 +557,7 @@ public static class DeJureShareSystem
     public static Color32[] StripeColors(City city)
     {
         if (EmpireWorld.Current == null || !Involved(city)) return null;
-        MetaTypeAsset layer = EmpireWorld.Current.zone_calculator?._mode_asset ?? EmpireWorld.Current.getCachedMapMetaAsset();
+        MetaTypeAsset layer = EmpireWorld.Current.Zones?._mode_asset ?? EmpireWorld.Current.getCachedMapMetaAsset();
         if (layer == null) return null;
         if (_stripeFrame != Time.frameCount || !ReferenceEquals(_stripeLayer, layer))
         {
@@ -636,9 +634,7 @@ public static class DeJureShareSystem
 #endif
 
     // 斜纹：每两格换一种颜色，本色与另画的颜色轮流；0 = 本色，k = 第 k 种另画的颜色
-#if EC_PENDING
-    public static int Band(WorldTile tile, int extra) => (tile.x + tile.y) / 2 % (extra + 1);
-#endif
+    public static int Band(Cell tile, int extra) => (tile.X + tile.Y) / 2 % (extra + 1);
 
     #endregion
 }

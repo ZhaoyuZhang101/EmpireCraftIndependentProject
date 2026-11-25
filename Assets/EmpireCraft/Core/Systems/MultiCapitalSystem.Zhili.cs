@@ -26,11 +26,10 @@ public static partial class MultiCapitalSystem
     public static bool IsVacantZhili(Realm kingdom) => IsZhili(kingdom) && !kingdom.HasRuler();
 
     // 名号前缀：南北两京照明制称"南直隶""北直隶"(用户 10-29 "我大明的南直隶呢"，文本 zhili_front_方位)；东西两京仍是京名(东京直隶)
-#if EC_PENDING
     public static string ZhiliFront(Realm kingdom)
     {
         if (!IsZhili(kingdom)) return null;
-        long seat = kingdom.Capital?.data?.id ?? -1L;
+        long seat = kingdom.Capital?.Key ?? -1L;
         EmpireCraft.Core.JingRecord record = kingdom.GetEmpire()?.data?.jing?.FirstOrDefault(r => r != null && r.city_id == seat);
         string key = record == null || string.IsNullOrEmpty(record.direction) ? null : "zhili_front_" + record.direction;
         return key != null && LM.Has(key) ? LM.Get(key) : JingNameOf(kingdom.Capital);
@@ -39,10 +38,11 @@ public static partial class MultiCapitalSystem
     private static Realm CurrentZhili(Empire empire)
     {
         long id = empire?.data?.zhili_kingdom_id ?? -1L;
-        Realm kingdom = id < 0 ? null : EmpireWorld.Current?.kingdoms?.get(id);
+        Realm kingdom = id < 0 ? null : EmpireWorld.Current?.RealmByKey(id);
         return kingdom != null && IsZhili(kingdom) && kingdom.GetEmpire() == empire ? kingdom : null;
     }
 
+#if EC_PENDING
     private static void SyncZhili(Empire empire, (EmpireCore core, City city) pick)
     {
         Realm zhili = CurrentZhili(empire);

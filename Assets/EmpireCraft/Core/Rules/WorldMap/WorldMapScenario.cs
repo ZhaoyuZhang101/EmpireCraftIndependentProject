@@ -2,6 +2,8 @@
 // see Port/manifest.json and Tools/PortTool.
 using Mathf = EmpireCraft.Core.EcMath;
 using Time = EmpireCraft.Core.FrameClock;
+using Vector2Int = EmpireCraft.Core.EcVector2Int;
+using Vector2 = EmpireCraft.Core.EcVector2;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -43,9 +45,7 @@ public static class WorldMapScenario
         public string culture;
         // 单设的原版物种(剧本 species 表，或补空城随最近剧本城)；空的随所在国家，再照文化(见 CitySpecies)
         public string species;
-#if EC_PENDING
         public Vector2Int tile;
-#endif
         public PlannedPolity owner;
         public City city;
         // 补空立的随机小国：没有史料，城名国名按本地文化随机起
@@ -55,9 +55,7 @@ public static class WorldMapScenario
         public WorldMapRegion home;
         public PlannedPolity homeOwner;
         // 城心那块地；建城时原版顺手领的一圈退过了没有(见 ReleaseFoundingRings)
-#if EC_PENDING
-        public TileZone seat;
-#endif
+        public Cell seat;
         public bool ringReleased;
     }
 
@@ -86,9 +84,7 @@ public static class WorldMapScenario
     private static WorldMapEra _era;
     // 这张图的经纬框与区块数(长城、关隘按经纬度落格，见 WorldMapWalls)
     private static WorldMapFrame _frame;
-#if EC_PENDING
     private static Vector2Int _size;
-#endif
     private static int _sizeIndex;
     private static int _fillerStart;
     private static List<PlannedCity> _cities = new();
@@ -97,8 +93,10 @@ public static class WorldMapScenario
     private static readonly List<PlannedPolity> _exiles = new();
 #if EC_PENDING
     private static readonly Dictionary<string, Subspecies> _subspecies = new();
-    private static readonly HashSet<TileZone> _usedZones = new();
+#endif
+    private static readonly HashSet<Cell> _usedZones = new();
 
+#if EC_PENDING
     public static void Schedule(WorldMapFrame frame, Vector2Int size, int sizeIndex, WorldMapEra era,
         Action<Action, string, bool> step)
     {
@@ -330,12 +328,12 @@ public static class WorldMapScenario
             WorldMapPerson ruler = polity.data?.ruler;
             foreach (PlannedCity planned in polity.cities)
             {
-                TileZone zone = FindZone(planned.tile, planned.random && !polity.tribe);
+                Cell zone = FindZone(planned.tile, planned.random && !polity.tribe);
                 if (zone == null) continue;
                 _usedZones.Add(zone);
                 MakeOasis(zone);
                 MakeValley(zone);
-                WorldTile tile = LandTile(zone);
+                Cell tile = LandTile(zone);
                 string species = polity.kingdom == null ? RulerSpecies(polity) : CitySpecies(planned, polity);
                 Person actor = Spawn(species, tile);
                 if (actor == null) continue;
@@ -415,7 +413,7 @@ public static class WorldMapScenario
             Person actor = null;
             try
             {
-                actor = Spawn(RulerSpecies(polity), seat?.getTile() ?? founder.current_tile);
+                actor = Spawn(RulerSpecies(polity), seat?.SeatCell() ?? founder.current_tile);
                 if (actor != null && person.Spouse)
                 {
                     SetSexAge(actor, person, false);
@@ -571,7 +569,7 @@ public static class WorldMapScenario
         {
             try
             {
-                Person actor = Spawn(RulerSpecies(polity), seat?.getTile() ?? founder.current_tile);
+                Person actor = Spawn(RulerSpecies(polity), seat?.SeatCell() ?? founder.current_tile);
                 if (actor == null) continue;
                 SetSexAge(actor, person.AsPerson(), false);
                 actor.joinKingdom(polity.kingdom);
@@ -852,14 +850,13 @@ public static class WorldMapScenario
     // 克什米尔谷地这类被山夹着的城常落在山坡上；现在在找到的那一圈再往外看两圈，按平地多少、山多少、离史实位置多远挑
     private const int MinFlat = 16;
 
-#if EC_PENDING
-    private static TileZone FindZone(Vector2Int tile, bool filler = false)
+    private static Cell FindZone(Vector2Int tile, bool filler = false)
     {
         int zx = tile.x / 8, zy = tile.y / 8;
         for (int pass = 0; pass < 2; pass++)
         {
             int limit = pass == 0 ? 3 : 6;
-            TileZone best = null;
+            Cell best = null;
             int bestScore = int.MinValue, stopAt = int.MaxValue;
             for (int radius = 0; radius <= limit && radius <= stopAt; radius++)
             {
@@ -867,21 +864,21 @@ public static class WorldMapScenario
                 for (int dy = -radius; dy <= radius; dy++)
                 {
                     if (Mathf.Max(Mathf.Abs(dx), Mathf.Abs(dy)) != radius) continue;
-                    TileZone zone = ZoneAt(zx + dx, zy + dy);
-                    if (zone == null || zone.city != null || _usedZones.Contains(zone)) continue;
+                    Cell zone = ZoneAt(zx + dx, zy + dy);
+                    if (zone == null || zone.City != null || _usedZones.Contains(zone)) continue;
                     if (filler && !_fillerSites.Contains(WorldMapZones.IndexOf(zone))) continue;
-                    if (pass == 0 && zone.neighbours_all.Any(near => near.city != null)) continue;
+                    if (pass == 0 && zone.NeighboursAll.Any(near => near.City != null)) continue;
                     int land = 0, flat = 0, rough = 0;
-                    foreach (WorldTile t in zone.tiles)
+                    foreach (Cell t in zone.Tiles)
                     {
                         if (Buildable(t))
                         {
                             land++;
                             if (Flat(t)) flat++;
                         }
-                        else if (t?.Type != null && (t.Type.mountains || t.Type.summit)) rough++;
+                        else if (t?.Type != null && (t.Type.Mountains || t.Type.Summit)) rough++;
                     }
-                    if (land < 32 || !Buildable(zone.centerTile)) continue;
+                    if (land < 32 || !Buildable(zone.Center)) continue;
                     int score = flat * 3 + land - rough * 2 - (Mathf.Abs(dx) + Mathf.Abs(dy)) * 30 - (flat < MinFlat ? 120 : 0);
                     if (score > bestScore)
                     {
@@ -895,67 +892,64 @@ public static class WorldMapScenario
         }
         return null;
     }
-#endif
 
     // 平地：能建、不是丘陵雪丘碎石
-#if EC_PENDING
-    private static bool Flat(WorldTile tile) =>
-        Buildable(tile) && !tile.Type.rocks && tile.Type.id != "hills" && tile.Type.id != "snow_hills" && tile.main_type?.id != "hills";
-#endif
+    private static bool Flat(Cell tile) =>
+        Buildable(tile) && !tile.Type.Rocks && tile.Type.Id != "hills" && tile.Type.Id != "snow_hills" && tile.MainType?.Id != "hills";
 
     // 城心一带仍是山坡(四面是山的谷地城)：城心四五格内的山、丘陵平成河谷台地，城建在平地上
 #if EC_PENDING
-    private static void MakeValley(TileZone zone)
+    private static void MakeValley(Cell zone)
     {
-        WorldTile center = zone?.centerTile;
-        if (center == null || zone.tiles.Count(Flat) >= MinFlat * 2) return;
-        TopTileType grass = AssetManager.top_tiles.get("grass_high") ?? AssetManager.top_tiles.get("grass_low");
+        Cell center = zone?.Center;
+        if (center == null || zone.Tiles.Count(Flat) >= MinFlat * 2) return;
+        TerrainKind grass = AssetManager.top_tiles.get("grass_high") ?? AssetManager.top_tiles.get("grass_low");
         if (grass == null) return;
         for (int dx = -6; dx <= 6; dx++)
         for (int dy = -6; dy <= 6; dy++)
         {
             float r = 4.2f + 0.9f * Mathf.Sin(dx * 1.7f + dy * 0.9f);
             if (dx * dx + dy * dy > r * r) continue;
-            WorldTile tile = EmpireWorld.Current.GetTileSimple(center.x + dx, center.y + dy);
-            TileTypeBase type = tile?.Type;
-            if (type == null || type.liquid || type.lava || Flat(tile)) continue;
-            if (!(type.mountains || type.summit || type.rocks || type.id == "hills" || type.id == "snow_hills")) continue;
+            Cell tile = EmpireWorld.Current.CellAt(center.X + dx, center.Y + dy);
+            TerrainKind type = tile?.Type;
+            if (type == null || type.Liquid || type.Lava || Flat(tile)) continue;
+            if (!(type.Mountains || type.Summit || type.Rocks || type.Id == "hills" || type.Id == "snow_hills")) continue;
             tile.setTileTypes("soil_high", grass);
-            tile.Height = tile.Type.height_min;
+            tile.Height = tile.Type.HeightMin;
         }
     }
+#endif
 
-    private static TileZone ZoneAt(int zx, int zy)
+    private static Cell ZoneAt(int zx, int zy)
     {
         int x = zx * 8 + 4, y = zy * 8 + 4;
-        if (x < 0 || y < 0 || x >= EmpireWorld.width || y >= EmpireWorld.height) return null;
-        return EmpireWorld.Current.GetTileSimple(x, y)?.zone;
+        if (x < 0 || y < 0 || x >= EmpireWorld.Current.Width || y >= EmpireWorld.Current.Height) return null;
+        return EmpireWorld.Current.CellAt(x, y)?.Zone;
     }
 
-    private static bool Buildable(WorldTile tile)
+    private static bool Buildable(Cell tile)
     {
-        TileTypeBase type = tile?.Type;
-        return type != null && type.ground && !type.liquid && !type.mountains && !type.summit && !type.lava;
+        TerrainKind type = tile?.Type;
+        return type != null && type.Ground && !type.Liquid && !type.Mountains && !type.Summit && !type.Lava;
     }
 
-    private static WorldTile LandTile(TileZone zone) =>
-        Buildable(zone.centerTile) ? zone.centerTile : zone.tiles.FirstOrDefault(Buildable) ?? zone.centerTile;
-#endif
+    private static Cell LandTile(Cell zone) =>
+        Buildable(zone.Center) ? zone.Center : zone.Tiles.FirstOrDefault(Buildable) ?? zone.Center;
 
     // 城心那一块若是纯沙漠(麦加、敦煌、帕尔米拉这类绿洲城)，改成草地：整块全是沙漠的地方本模组按住不了人的荒地算
 #if EC_PENDING
-    private static void MakeOasis(TileZone zone)
+    private static void MakeOasis(Cell zone)
     {
-        TopTileType grass = AssetManager.top_tiles.get("grass_low");
-        foreach (WorldTile tile in zone.tiles)
+        TerrainKind grass = AssetManager.top_tiles.get("grass_low");
+        foreach (Cell tile in zone.Tiles)
         {
-            if (tile?.Type == null || tile.Type.liquid) continue;
-            string biome = tile.Type.biome_id;
+            if (tile?.Type == null || tile.Type.Liquid) continue;
+            string biome = tile.Type.BiomeId;
             // 只改荒漠，沙滩留着(沙地是沙滩，不算荒漠，见 WildernessSystem.ComputeMarks)
             if (biome != "biome_desert") continue;
-            if (tile.Type.mountains || tile.Type.rocks) continue;
+            if (tile.Type.Mountains || tile.Type.Rocks) continue;
             tile.setTileTypes("soil_low", grass);
-            tile.Height = tile.Type.height_min;
+            tile.Height = tile.Type.HeightMin;
         }
     }
 #endif
@@ -1002,7 +996,7 @@ public static class WorldMapScenario
     // 都城单设的种族与君主不同：城里落一户本城种族的百姓(入国入城、照本城文化起名)，原版的城才有这个种族的人；
     // 无小人模式下背景人口另按本城种族记(见 SettleRealms)
 #if EC_PENDING
-    private static void SettleNative(PlannedCity planned, PlannedPolity polity, Person founder, WorldTile tile)
+    private static void SettleNative(PlannedCity planned, PlannedPolity polity, Person founder, Cell tile)
     {
         Person native = Spawn(planned.species, tile);
         if (native == null) return;
@@ -1014,7 +1008,7 @@ public static class WorldMapScenario
         native.GetModName().SetName(native);
     }
 
-    private static Person Spawn(string species, WorldTile tile)
+    private static Person Spawn(string species, Cell tile)
     {
         _subspecies.TryGetValue(species, out Subspecies subspecies);
         if (subspecies != null && subspecies.IsGone()) subspecies = null;
@@ -1216,11 +1210,11 @@ public static class WorldMapScenario
             var around = new HashSet<PlannedPolity>();
             foreach (PlannedCity planned in filler.cities)
             {
-                if (planned.city?.zones == null) continue;
-                foreach (TileZone zone in planned.city.zones)
-                    foreach (TileZone next in zone.neighbours_all ?? global::System.Array.Empty<TileZone>())
+                if (planned.city?.Zones == null) continue;
+                foreach (Cell zone in planned.city.Zones)
+                    foreach (Cell next in zone.NeighboursAll ?? global::System.Array.Empty<Cell>())
                     {
-                        Realm other = next?.city?.kingdom;
+                        Realm other = next?.City?.Realm;
                         if (other != null && other != filler.kingdom && byKingdom.TryGetValue(other, out PlannedPolity polity)) around.Add(polity);
                     }
             }
@@ -1233,7 +1227,7 @@ public static class WorldMapScenario
                 MergeFiller(pair.Key, pair.Value);
                 merged++;
             });
-        EmpireWorld.Current.zone_calculator?.setDrawnZonesDirty();
+        EmpireWorld.Current.Zones?.setDrawnZonesDirty();
         LogService.LogInfo($"[EmpireCraft][世界地图] 补空小国并入大国 {merged} 个");
     }
 #endif
@@ -1268,7 +1262,7 @@ public static class WorldMapScenario
             }
             RemoveFiller(filler);
         }
-        EmpireWorld.Current.zone_calculator?.setDrawnZonesDirty();
+        EmpireWorld.Current.Zones?.setDrawnZonesDirty();
         LogService.LogInfo($"[EmpireCraft][世界地图] 全图分给剧本国：补空 {fillers.Count} 国 {moved} 城一城一城并入(按地区认领 {byRegion} 城)");
     }
 #endif
@@ -1341,28 +1335,28 @@ public static class WorldMapScenario
 #if EC_PENDING
     private static void DissolveShatteredFillers(List<Realm> fillers)
     {
-        int zonesWide = EmpireWorld.width / 8, gone = 0;
+        int zonesWide = EmpireWorld.Current.Width / 8, gone = 0;
         foreach (Realm kingdom in fillers)
         {
             if (kingdom?.Record == null || kingdom.IsGone() || kingdom.Cities == null || kingdom.Cities.Count == 0) continue;
-            List<TileZone> zones = kingdom.Cities.Where(city => city?.zones != null).SelectMany(city => city.zones).ToList();
-            if (!ScenarioFillerRules.Shattered(zones.Select(zone => zone.id), zonesWide)) continue;
+            List<Cell> zones = kingdom.Cities.Where(city => city?.Zones != null).SelectMany(city => city.Zones).ToList();
+            if (!ScenarioFillerRules.Shattered(zones.Select(zone => zone.Index), zonesWide)) continue;
             List<KingdomTitle> titles = kingdom.Cities.Select(city => city.GetTitle()).Where(title => title != null).Distinct().ToList();
             foreach (City city in kingdom.Cities.ToList()) CityDissolution.Dissolve(city, wipeKingdom: true);
             foreach (KingdomTitle title in titles)
                 if (!title.IsGone() && !title.getCities().Any(city => city?.Record != null && !city.IsGone())) ModClass.KINGDOM_TITLE_MANAGER.dissolveTitle(title);
             using (CityExpansionPatch.Manual())
-                foreach (TileZone zone in zones)
+                foreach (Cell zone in zones)
                 {
-                    if (zone.city != null) continue;
-                    City next = zone.neighbours_all?.Select(other => other?.city).FirstOrDefault(city => city?.data != null && !city.IsGone());
-                    next?.addZone(zone);
+                    if (zone.City != null) continue;
+                    City next = zone.NeighboursAll?.Select(other => other?.City).FirstOrDefault(city => city?.Record != null && !city.IsGone());
+                    next?.AddZone(zone);
                 }
             gone++;
         }
         if (gone == 0) return;
         WildernessSystem.RequestReattach();
-        EmpireWorld.Current.zone_calculator?.setDrawnZonesDirty();
+        EmpireWorld.Current.Zones?.setDrawnZonesDirty();
         LogService.LogInfo($"[EmpireCraft][世界地图] 被切碎的补空小国不立国 {gone} 个");
     }
 
@@ -1396,16 +1390,16 @@ public static class WorldMapScenario
         // 原始部落圈里不另补小国(圈里只有部落)，补空时离部落也要够远
         List<int> gaps = WorldMapZones.Gaps(GapCost, MaxFillers[Mathf.Clamp(_sizeIndex, 0, MaxFillers.Length - 1)], index =>
         {
-            TileZone zone = WorldMapZones.Zone(index);
-            return _fillerSites.Contains(index) && zone?.centerTile != null && !_usedZones.Contains(zone) && !_tribeArea.Contains(index) && Buildable(zone.centerTile) &&
-                   zone.tiles.Count(Buildable) >= 32 && BarrenLandSystem.KindOf(zone) == BarrenLandSystem.None &&
+            Cell zone = WorldMapZones.Zone(index);
+            return _fillerSites.Contains(index) && zone?.Center != null && !_usedZones.Contains(zone) && !_tribeArea.Contains(index) && Buildable(zone.Center) &&
+                   zone.Tiles.Count(Buildable) >= 32 && BarrenLandSystem.KindOf(zone) == BarrenLandSystem.None &&
                    !WorldMapWalls.OnPlanned(zone);
         }, _tribeSeeds);
         var fillers = new List<PlannedPolity>();
         foreach (int index in gaps)
         {
-            TileZone zone = WorldMapZones.Zone(index);
-            var tile = new Vector2Int(zone.centerTile.x, zone.centerTile.y);
+            Cell zone = WorldMapZones.Zone(index);
+            var tile = new Vector2Int(zone.Center.X, zone.Center.Y);
             int from = index >= 0 && index < reach.Length ? reach[index] : -1;
             var nearest = centers.OrderBy(center => (center.x - tile.x) * (center.x - tile.x) + (center.y - tile.y) * (center.y - tile.y)).First();
             string culture = from >= 0 ? anchors[from].culture : nearest.culture;
@@ -1450,13 +1444,13 @@ public static class WorldMapScenario
         _tribeSeeds.Clear();
         if (_era?.tribes == null || _era.tribes.Count == 0 || _frame == null) return;
         _frame.Bounds(_size, out float bottom, out float degrees);
-        int zw = EmpireWorld.width / 8, zh = EmpireWorld.height / 8;
+        int zw = EmpireWorld.Current.Width / 8, zh = EmpireWorld.Current.Height / 8;
         var taken = _cities.Select(city => city.tile).ToList();
         int made = 0;
         foreach (WorldMapTribes area in _era.tribes)
         {
             if (area?.at == null || area.at.Length < 2 || area.radius <= 0f || !CultureService.IsValidCulture(area.culture)) continue;
-            var candidates = new List<(TileZone zone, Vector2Int tile)>();
+            var candidates = new List<(Cell zone, Vector2Int tile)>();
             for (int zy = 0; zy < zh; zy++)
             for (int zx = 0; zx < zw; zx++)
             {
@@ -1464,10 +1458,10 @@ public static class WorldMapScenario
                 float lon = _frame.west + tile.x * degrees, lat = bottom + tile.y * degrees;
                 float dx = (lon - area.at[0]) * Mathf.Cos(lat * Mathf.Deg2Rad), dy = lat - area.at[1];
                 if (dx * dx + dy * dy > area.radius * area.radius) continue;
-                TileZone zone = ZoneAt(zx, zy);
+                Cell zone = ZoneAt(zx, zy);
                 if (zone != null) _tribeArea.Add(WorldMapZones.IndexOf(zone));
-                if (zone?.centerTile == null || zone.city != null || _usedZones.Contains(zone) || !Buildable(zone.centerTile) ||
-                    zone.tiles.Count(Buildable) < 32) continue;
+                if (zone?.Center == null || zone.City != null || _usedZones.Contains(zone) || !Buildable(zone.Center) ||
+                    zone.Tiles.Count(Buildable) < 32) continue;
                 candidates.Add((zone, tile));
             }
             int want = area.count > 0 ? area.count : Mathf.Clamp(Mathf.RoundToInt(candidates.Count / 25f), 1, 12);
@@ -1477,7 +1471,7 @@ public static class WorldMapScenario
                 (candidates[i], candidates[j]) = (candidates[j], candidates[i]);
             }
             int placed = 0;
-            foreach ((TileZone zone, Vector2Int tile) in candidates)
+            foreach ((Cell zone, Vector2Int tile) in candidates)
             {
                 if (placed >= want) break;
                 if (taken.Any(other => (other - tile).sqrMagnitude < TribeSpacing * 8 * TribeSpacing * 8)) continue;
@@ -1529,10 +1523,10 @@ public static class WorldMapScenario
     private static Dictionary<int, long> PaintedCityOwners()
     {
         var owners = new Dictionary<int, long>();
-        List<TileZone> zones = EmpireWorld.Current?.zone_calculator?.zones;
+        List<Cell> zones = EmpireWorld.Current?.Zones?.All;
         if (zones == null) return owners;
-        foreach (TileZone zone in zones)
-            if (zone != null && PaintedCityZones.Contains(zone.id) && zone.city?.data != null) owners[zone.id] = zone.city.data.id;
+        foreach (Cell zone in zones)
+            if (zone != null && PaintedCityZones.Contains(zone.Index) && zone.City?.Record != null) owners[zone.Index] = zone.City.Key;
         return owners;
     }
 
@@ -1552,7 +1546,7 @@ public static class WorldMapScenario
                 (byPolity.TryGetValue(city.owner.data.id, out var list) ? list : byPolity[city.owner.data.id] = new List<PlannedCity>()).Add(city);
             (byRegion.TryGetValue(city.region.id, out var members) ? members : byRegion[city.region.id] = new List<PlannedCity>()).Add(city);
         }
-        int zw = EmpireWorld.width / 8, zh = EmpireWorld.height / 8, claimed = 0;
+        int zw = EmpireWorld.Current.Width / 8, zh = EmpireWorld.Current.Height / 8, claimed = 0;
         var owner = new PlannedCity[zw * zh];
         var exact = new bool[zw * zh];
         for (int zy = 0; zy < zh; zy++)
@@ -1565,10 +1559,10 @@ public static class WorldMapScenario
             List<PlannedCity> owners = key.StartsWith("p:") ? byPolity.TryGetValue(key.Substring(2), out var p) ? p : null
                 : key.StartsWith("r:") ? byRegion.TryGetValue(key.Substring(2), out var r) ? r : null
                 : exactCity ? byCity.TryGetValue(key.Substring(2), out var c) ? c : null : null;
-            TileZone zone = ZoneAt(zx, zy);
+            Cell zone = ZoneAt(zx, zy);
             // 照原图归城的地块：水面多的(原图里城也领着的港湾)也归它
-            if (owners == null || owners.Count == 0 || zone?.centerTile == null || zone.city != null ||
-                !exactCity && zone.centerTile.Type?.liquid == true) continue;
+            if (owners == null || owners.Count == 0 || zone?.Center == null || zone.City != null ||
+                !exactCity && zone.Center.Type?.Liquid == true) continue;
             owner[zy * zw + zx] = owners.OrderBy(city => (city.tile - tile).sqrMagnitude).First();
             exact[zy * zw + zx] = exactCity;
         }
@@ -1578,9 +1572,9 @@ public static class WorldMapScenario
         {
             PlannedCity city = owner[zy * zw + zx];
             if (city == null) continue;
-            TileZone zone = ZoneAt(zx, zy);
-            city.city.addZone(zone);
-            if (exact[zy * zw + zx]) PaintedCityZones.Add(zone.id);
+            Cell zone = ZoneAt(zx, zy);
+            city.city.AddZone(zone);
+            if (exact[zy * zw + zx]) PaintedCityZones.Add(zone.Index);
             claimed++;
         }
         if (claimed > 0) LogService.LogInfo($"[EmpireCraft][世界地图] 剧本刷的地块归属 {claimed} 块");
@@ -1656,13 +1650,13 @@ public static class WorldMapScenario
             WorldMapZones.Build();
             WorldMapZones.Fill(seeds, (city, zone) =>
             {
-                city.addZone(zone);
+                city.AddZone(zone);
                 claimed++;
             });
         }
         WorldMapZones.Build();
-        claimed += WorldMapZones.FillAll((city, zone) => city.addZone(zone));
-        EmpireWorld.Current.zone_calculator?.setDrawnZonesDirty();
+        claimed += WorldMapZones.FillAll((city, zone) => city.AddZone(zone));
+        EmpireWorld.Current.Zones?.setDrawnZonesDirty();
         LogService.LogInfo($"[EmpireCraft][世界地图] 铺满又分了 {claimed} 块");
         AnchorWilderness();
         _cityTerrainReach.Clear();
@@ -1676,7 +1670,6 @@ public static class WorldMapScenario
     // 后面按地形代价、每块地代价互不相干(TerritoryGrain)的铺辖地、铺满已经无地可分，开局版图就是一格格方块，城界横平竖直。
     // 退掉以后从城心往外铺，城界顺着地势弯；剧本刷的、历史行政范围先分，也不再被邻城的方块挡住。
     // 照原图分地的(exact)只按刷的分，不退。剧本编辑器的预览本来就从城心往外铺(见 ScenarioPreviewRules)，退了以后开局与预览更一致
-#if EC_PENDING
     private static void ReleaseFoundingRings()
     {
         if (_era?.exact == true) return;
@@ -1685,23 +1678,22 @@ public static class WorldMapScenario
         {
             if (planned.ringReleased || planned.city == null || planned.city.IsGone() || planned.seat == null) continue;
             planned.ringReleased = true;
-            if (planned.seat.city != planned.city) continue;
-            foreach (TileZone zone in planned.city.zones.ToList())
+            if (planned.seat.City != planned.city) continue;
+            foreach (Cell zone in planned.city.Zones.ToList())
             {
                 if (zone == planned.seat) continue;
-                planned.city.removeZone(zone);
-                if (zone.city == null) released++;
+                planned.city.RemoveZone(zone);
+                if (zone.City == null) released++;
             }
         }
         if (released > 0) LogService.LogInfo($"[EmpireCraft][世界地图] 退回建城时领的一圈 {released} 块");
     }
-#endif
 
     // 开局辖地：各城按地形代价同时往外铺，国界停在山脊、大漠、海峡上(见 WorldMapZones.Fill)
     // 开局定下的长城走向(化简成格坐标折线，见 WorldMapWalls.Plan)：铺辖地、分行政区都按它分两边，随存档(见 FrontierWalls)
-#if EC_PENDING
     private static List<List<Vector2>> _wallLines;
 
+#if EC_PENDING
     private static void SpreadTerritory()
     {
         using CityExpansionPatch.ManualScope manual = CityExpansionPatch.Manual();
@@ -1722,7 +1714,7 @@ public static class WorldMapScenario
         // 照原图分地(从当前世界导入的剧本)：只按刷的分，不再往外铺
         if (_era?.exact == true)
         {
-            EmpireWorld.Current.zone_calculator?.setDrawnZonesDirty();
+            EmpireWorld.Current.Zones?.setDrawnZonesDirty();
             LogService.LogInfo($"[EmpireCraft][世界地图] 照原图分地 {claimed} 块");
             return;
         }
@@ -1733,10 +1725,10 @@ public static class WorldMapScenario
         claimed += AnchorTerritory();
         WorldMapZones.Fill(seeds, (city, zone) =>
         {
-            city.addZone(zone);
+            city.AddZone(zone);
             claimed++;
         });
-        EmpireWorld.Current.zone_calculator?.setDrawnZonesDirty();
+        EmpireWorld.Current.Zones?.setDrawnZonesDirty();
         LogService.LogInfo($"[EmpireCraft][世界地图] 开局辖地铺了 {claimed} 块");
     }
 #endif
@@ -1779,7 +1771,6 @@ public static class WorldMapScenario
     }
 
     // 所有的城连同锚点作起点；城、锚点各能走多远
-#if EC_PENDING
     private static AnchorPlan PlanAnchors(Func<PlannedCity, float> cityBudget, float seatBudget)
     {
         var plan = new AnchorPlan();
@@ -1810,14 +1801,13 @@ public static class WorldMapScenario
             }
         return plan;
     }
-#endif
 
     // 同行政区内按可定居陆路的地形距离分给城市；不可达的地不跨山、跨海硬挂给直线最近的城市。
     // 无人区的行政锚点沿用原有距离规则；明确历史范围可用它记录虚拟行政归属，不强迫城市收地。
     private static readonly Dictionary<string, int[]> _cityTerrainReach = new();
 
 #if EC_PENDING
-    private static PlannedCity NearestOf(List<PlannedCity> cities, TileZone zone, int index, bool terrain = true)
+    private static PlannedCity NearestOf(List<PlannedCity> cities, Cell zone, int index, bool terrain = true)
     {
         if (terrain)
         {
@@ -1833,16 +1823,16 @@ public static class WorldMapScenario
             if (index < 0 || index >= owners.Length || owners[index] < 0 || owners[index] >= available.Count) return null;
             return available[owners[index]];
         }
-        var at = new Vector2Int(zone.centerTile.x, zone.centerTile.y);
+        var at = new Vector2Int(zone.Center.X, zone.Center.Y);
         return cities.Where(city => !WorldMapZones.Behind(Seat(city), index)).OrderBy(city => (city.tile - at).sqrMagnitude).FirstOrDefault();
     }
+#endif
 
     private static Vector2Int Seat(PlannedCity city)
     {
-        WorldTile tile = city.city?.getTile();
-        return tile == null ? city.tile : new Vector2Int(tile.x, tile.y);
+        Cell tile = city.city?.SeatCell();
+        return tile == null ? city.tile : new Vector2Int(tile.X, tile.Y);
     }
-#endif
 
     // 锚点分给某行政区、可那个行政区的城都在长城那边的地块(用户 10-30 "这个行政区都跨长城了"：盛唐关内道墙南的延、庆、鄜、坊诸州锚点
     // 分到的地，道里只有墙北的丰州、灵州，以前一股脑归了灵州，行政区跨过秦长城伸到长安北面)：归本国在墙这一侧、按地形走得到的最近的城
@@ -1877,18 +1867,18 @@ public static class WorldMapScenario
         for (int i = 0; i < owner.Length; i++)
         {
             List<PlannedCity> cities = plan.CitiesOf(owner[i]);
-            TileZone zone = WorldMapZones.Zone(i);
-            if (cities == null || zone?.centerTile == null || zone.city != null) continue;
+            Cell zone = WorldMapZones.Zone(i);
+            if (cities == null || zone?.Center == null || zone.City != null) continue;
             PlannedCity city = NearestOf(cities, zone, i);
             if (city == null) { stray.Add(i); continue; }
-            city.city.addZone(zone);
+            city.city.AddZone(zone);
             claimed++;
         }
         foreach (KeyValuePair<int, PlannedCity> pair in SameSide(plan, owner, stray, false))
         {
-            TileZone zone = WorldMapZones.Zone(pair.Key);
-            if (zone == null || zone.city != null) continue;
-            pair.Value.city.addZone(zone);
+            Cell zone = WorldMapZones.Zone(pair.Key);
+            if (zone == null || zone.City != null) continue;
+            pair.Value.city.AddZone(zone);
             claimed++;
         }
         LogService.LogInfo($"[EmpireCraft][世界地图] 州府治所锚点：{plan.anchored.Count} 国，分了 {claimed} 块");
@@ -1929,12 +1919,12 @@ public static class WorldMapScenario
                 float lat = bottom + (i / WorldMapZones.Width * 8 + 4) * degrees;
                 if (lon < west || lon > east || lat < south || lat > north) continue;
                 if (!AdministrativeBoundaryRules.Contains(polygons, lon, lat)) continue;
-                TileZone zone = WorldMapZones.Zone(i);
-                if (zone?.centerTile == null || zone.tiles_with_ground < 16) continue;
-                if (zone.city != null)
+                Cell zone = WorldMapZones.Zone(i);
+                if (zone?.Center == null || zone.GroundTiles < 16) continue;
+                if (zone.City != null)
                 {
                     // 手绘地块、已有城心优先于默认值。
-                    if (existingCities.TryGetValue(zone.city, out PlannedCity existing)) _defaultAdministrativeCities[i] = existing;
+                    if (existingCities.TryGetValue(zone.City, out PlannedCity existing)) _defaultAdministrativeCities[i] = existing;
                     continue;
                 }
                 PlannedCity reachable = NearestOf(cities, zone, i);
@@ -1943,8 +1933,8 @@ public static class WorldMapScenario
                 _defaultAdministrativeCities[i] = nearest;
                 if (reachable != null && WorldMapZones.SettledLand(i))
                 {
-                    nearest.city.addZone(zone);
-                    if (zone.city == nearest.city) claimed++;
+                    nearest.city.AddZone(zone);
+                    if (zone.City == nearest.city) claimed++;
                 }
             }
         }
@@ -1969,20 +1959,21 @@ public static class WorldMapScenario
             for (int i = 0; i < owner.Length; i++)
             {
                 List<PlannedCity> cities = plan.CitiesOf(owner[i]);
-                TileZone zone = WorldMapZones.Zone(i);
-                if (cities == null || zone?.centerTile == null || zone.city != null && !WorldMapZones.Rough(i)) continue;
+                Cell zone = WorldMapZones.Zone(i);
+                if (cities == null || zone?.Center == null || zone.City != null && !WorldMapZones.Rough(i)) continue;
                 PlannedCity nearest = NearestOf(cities, zone, i, false);
                 if (nearest == null) stray.Add(i);
-                else if (nearest.city?.Record != null) _wildAnchors[zone.id] = nearest.city.Key;
+                else if (nearest.city?.Record != null) _wildAnchors[zone.Index] = nearest.city.Key;
             }
             foreach (KeyValuePair<int, PlannedCity> pair in SameSide(plan, owner, stray, true))
-                if (pair.Value.city?.Record != null && WorldMapZones.Zone(pair.Key) is TileZone zone) _wildAnchors[zone.id] = pair.Value.city.Key;
+                if (pair.Value.city?.Record != null && WorldMapZones.Zone(pair.Key) is Cell zone) _wildAnchors[zone.Index] = pair.Value.city.Key;
         }
         foreach (KeyValuePair<int, PlannedCity> pair in _defaultAdministrativeCities)
-            if (pair.Value.city?.Record != null && WorldMapZones.Zone(pair.Key) is TileZone zone)
-                _wildAnchors[zone.id] = pair.Value.city.Key;
+            if (pair.Value.city?.Record != null && WorldMapZones.Zone(pair.Key) is Cell zone)
+                _wildAnchors[zone.Index] = pair.Value.city.Key;
         LogService.LogInfo($"[EmpireCraft][世界地图] 无人区默认归属：{_wildAnchors.Count} 块");
     }
+#endif
 
     private static void AddSeats(List<(int index, int label, float budget)> seeds, List<float[]> seats, int label, float budget)
     {
@@ -1992,11 +1983,10 @@ public static class WorldMapScenario
             if (seat == null || seat.Length < 2) continue;
             // 范围外的锚点不要(IndexOf 会把它夹到地图边上)
             Vector2Int tile = EarthTerrain.TileOf(_frame, _size, seat[0], seat[1]);
-            if (tile.x < 0 || tile.y < 0 || tile.x >= EmpireWorld.width || tile.y >= EmpireWorld.height) continue;
+            if (tile.x < 0 || tile.y < 0 || tile.x >= EmpireWorld.Current.Width || tile.y >= EmpireWorld.Current.Height) continue;
             seeds.Add((WorldMapZones.IndexOf(tile), label, budget));
         }
     }
-#endif
 
     // 城属于这个国家的第几个行政区(都城与不在任何行政区的城为 -1)
     // 共用省界(近代剧本：中国现行省级区划、苏联 1983 年州一级，见 Tools/WorldMap/modern_administration_source.py；
@@ -2040,32 +2030,30 @@ public static class WorldMapScenario
                     float lat = bottom + (i / WorldMapZones.Width * 8 + 4) * degrees;
                     if (lon < west || lon > east || lat < south || lat > north || !AdministrativeBoundaryRules.Contains(area.polygons, lon, lat))
                         continue;
-                    TileZone zone = WorldMapZones.Zone(i);
-                    if (zone?.centerTile == null || zone.tiles_with_ground < 16) continue;
-                    City holder = zone.city;
-                    if (holder != null && (own.Contains(holder) || holder.getTile()?.zone == zone)) continue;
+                    Cell zone = WorldMapZones.Zone(i);
+                    if (zone?.Center == null || zone.GroundTiles < 16) continue;
+                    City holder = zone.City;
+                    if (holder != null && (own.Contains(holder) || holder.SeatCell()?.Zone == zone)) continue;
                     if (holder == null && !WorldMapZones.SettledLand(i)) continue;
                     PlannedCity target = NearestOf(inside, zone, i) ?? NearestOf(inside, zone, i, false);
                     if (target?.city == null) continue;
-                    target.city.addZone(zone);
-                    if (zone.city == target.city) moved++;
+                    target.city.AddZone(zone);
+                    if (zone.City == target.city) moved++;
                 }
             }
         int divisions = SharedDivisions(areaOf);
-        EmpireWorld.Current.zone_calculator?.setDrawnZonesDirty();
+        EmpireWorld.Current.Zones?.setDrawnZonesDirty();
         LogService.LogInfo($"[EmpireCraft][世界地图] 共用省界：{bounds.Count} 块，{areaOf.Count} 城落在界内，地块归位 {moved} 块，按省设行政区 {divisions} 个");
     }
 #endif
 
     // 城在哪儿(判它落在哪一省)：剧本城照经纬度(港澳的城心在图上挪到了旁边的陆地，也还算港澳)，补空的城照城心那格
-#if EC_PENDING
     private static (float lon, float lat) LonLatOf(PlannedCity planned, float bottom, float degrees)
     {
         if (planned.data != null && (planned.data.lon != 0f || planned.data.lat != 0f)) return (planned.data.lon, planned.data.lat);
         Vector2Int tile = Seat(planned);
         return (_frame.west + (tile.x + 0.5f) * degrees, bottom + (tile.y + 0.5f) * degrees);
     }
-#endif
 
     // 都城落在共用省界里的帝国(中华民国、伪满、苏联……)：都城那一省是京畿，别的有本国城的省(州)各设一个行政区，名称照省名
     // (江苏省、克拉斯诺亚尔斯克边疆区)；只按同一片(中国、苏联)的省界设，日本这类都城在界外的不设；剧本自己写了 divisions 的照剧本
@@ -2314,7 +2302,6 @@ public static class WorldMapScenario
     private const float FillerCoreTiles = 420f;
 
     // 这一时代的长城、边墙(格坐标的折线；也给旧档补算，见 WorldMapWilderness.ScenarioWalls)
-#if EC_PENDING
     internal static List<List<Vector2>> WallLines(WorldMapEra era, WorldMapFrame frame, Vector2Int size)
     {
         var lines = new List<List<Vector2>>();
@@ -2326,7 +2313,6 @@ public static class WorldMapScenario
         }
         return lines;
     }
-#endif
 
     private static void Guard(string what, Func<bool> action) => Guard(what, () => { action(); });
 
@@ -2584,7 +2570,7 @@ public static class WorldMapScenario
             .Where(polity => polity.data != null && polity.capital?.city != null && !polity.capital.city.IsGone())
             .GroupBy(polity => polity.data.id).ToDictionary(group => group.Key, group => group.First().capital.city), _titleByRegion));
         if (!EarthTerrain.Imported) Guard("无人区的行政区", () => WorldMapWilderness.SetAnchors(_wildAnchors,
-            _defaultAdministrativeCities.Keys.Select(index => WorldMapZones.Zone(index)?.id ?? -1).Where(id => id >= 0)));
+            _defaultAdministrativeCities.Keys.Select(index => WorldMapZones.Zone(index)?.Index ?? -1).Where(id => id >= 0)));
         // 长城随存档留着：之后设行政区、重组行政区都以它为界(见 FrontierWalls)
         Guard("长城为界", () => FrontierWalls.Set(_wallLines ?? WallLines(_era, _frame, _size)));
         // 剧情事件：记下剧本里的国、城、地区各对上了哪个国家、城、王国法理，剧本人物的名字对上了哪个人(见 ScenarioEventSystem)
@@ -2642,7 +2628,7 @@ public static class WorldMapScenario
             }
             polity.culture ??= host.culture;
             WorldMapPerson ruler = polity.data.ruler;
-            Person founder = Spawn(RulerSpecies(polity), seat.getTile());
+            Person founder = Spawn(RulerSpecies(polity), seat.SeatCell());
             if (founder == null) continue;
             SetSexAge(founder, ruler, true);
             polity.kingdom = EmpireWorld.Current.LiveRealms.makeNewCivKingdom(founder, null, false);
@@ -2712,7 +2698,7 @@ public static class WorldMapScenario
             if (kingdom == null || kingdom.IsGone() || empire?.data == null || empire.IsGone() || empire.IsArchived()) continue;
             if (kingdom.GetEmpireID() == empire.Key && empire.CoreKingdom == kingdom && kingdom.GetOrCreate().isEmpire) continue;
             LogService.LogWarning($"[EmpireCraft][世界地图]({when}) {empire.GetEmpireName()} 的核心国归属不对：" +
-                                  $"帝国编号 {kingdom.GetEmpireID()}(应为 {empire.Key})，核心国 {empire.CoreKingdom?.data?.name}，" +
+                                  $"帝国编号 {kingdom.GetEmpireID()}(应为 {empire.Key})，核心国 {empire.CoreKingdom?.Name}，" +
                                   $"中央标记 {kingdom.GetOrCreate().isEmpire}；已改回");
             kingdom.SetEmpireID(empire.Key);
             kingdom.GetOrCreate().isEmpire = true;
@@ -2887,9 +2873,9 @@ public static class WorldMapScenario
         {
             foreach (KeyValuePair<int, PlannedCity> pair in _defaultAdministrativeCities)
             {
-                TileZone zone = WorldMapZones.Zone(pair.Key);
+                Cell zone = WorldMapZones.Zone(pair.Key);
                 City city = pair.Value.city;
-                if (zone?.city == null && city?.Record != null && !city.IsGone())
+                if (zone?.City == null && city?.Record != null && !city.IsGone())
                     WorldMapWilderness.RememberTerritory(zone, city.GetTitle(), city, false);
             }
         }));
@@ -2955,7 +2941,7 @@ public static class WorldMapScenario
             }
             catch (Exception exception)
             {
-                LogService.LogWarning($"[EmpireCraft][世界地图] {city.Record?.Name} 开局发展失败: {exception.Message}");
+                LogService.LogWarning($"[EmpireCraft][世界地图] {city.Name} 开局发展失败: {exception.Message}");
             }
         }
     }
@@ -3242,7 +3228,7 @@ public static class WorldMapScenario
 #if EC_PENDING
     private static void LandTransmigrants(City site)
     {
-        WorldTile tile = site?.getTile();
+        Cell tile = site?.SeatCell();
         if (tile == null) return;
         string error = TransmigrantSystem.Land(tile, out Realm _);
         if (error != null) LogService.LogWarning($"[EmpireCraft][世界地图] 穿越者没能降临: {LM.Get(error)}");

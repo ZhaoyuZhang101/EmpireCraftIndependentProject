@@ -110,10 +110,10 @@ public static class MemberWarAid
     }
 
     public static bool RequestContinues(Person actor) =>
-        actor?.kingdom?.king == actor && RequestValid(actor.Realm, actor.plot?.target_war);
+        actor?.Realm?.Ruler == actor && RequestValid(actor.Realm, actor.plot?.target_war);
 
     public static bool NeighbourContinues(Person actor) =>
-        actor?.kingdom?.king == actor && NeighbourValid(actor.Realm, actor.plot?.target_war, actor.plot?.target_kingdom);
+        actor?.Realm?.Ruler == actor && NeighbourValid(actor.Realm, actor.plot?.target_war, actor.plot?.target_kingdom);
 #endif
 
     // 求援决议通过：中央加入守方，并为这场仗出征(京师禁军与扩大范围的兵开往成员那里，见 WarScopeSystem)
@@ -194,7 +194,7 @@ public static class MemberWarAid
     }
 
     public static bool CenterContinues(Person actor) =>
-        actor?.kingdom?.king == actor && CenterValid(actor.Realm, actor.plot?.target_war, needy: false);
+        actor?.Realm?.Ruler == actor && CenterValid(actor.Realm, actor.plot?.target_war, needy: false);
 #endif
 
     // 勤王决议通过：没参战的加入中央一方，为这场仗出征

@@ -52,8 +52,7 @@ public static class WildernessPassage
     // 连地形的连片：上回连的时候(真实时间)、路网版本
     private static readonly float[] _terrainAt = new float[PartCount - TerrainPart];
     private static readonly int[] _terrainRoad = new int[PartCount - TerrainPart];
-#if EC_PENDING
-    private static readonly Queue<TileZone> Fill = new();
+    private static readonly Queue<Cell> Fill = new();
 
     public static void ResetWorldState()
     {
@@ -70,7 +69,6 @@ public static class WildernessPassage
         _lastKingdom = null;
         WildernessNeighbours.ResetWorldState();
     }
-#endif
 
     // 地图上有过不去的无人区(开关关掉、还没划区时为假)：为假时处处能走，寻路里不必逐块查
 #if EC_PENDING
@@ -80,13 +78,13 @@ public static class WildernessPassage
     // traveller 走不走得进这块地：不是无人区、无人区里有路、或这国惯走这一类(见 Habit)。
     // 归了城的地块不是无人区(同 WildernessSystem：神力立村设镇放行给城的那一块，到下次重划之前也算城的)
 #if EC_PENDING
-    public static bool Passable(TileZone zone, Realm traveller)
+    public static bool Passable(Cell zone, Realm traveller)
     {
         if (zone == null || !Ensure()) return true;
-        int id = zone.id;
+        int id = zone.Index;
         if (id < 0 || id >= _block.Length) return true;
         byte block = _block[id];
-        return block == 0 || zone.city != null || (block & (1 << Habit(traveller))) == 0;
+        return block == 0 || zone.City != null || (block & (1 << Habit(traveller))) == 0;
     }
 #endif
 
@@ -98,23 +96,23 @@ public static class WildernessPassage
 
     // 政令走得进这块地：同 Passable，小径、丘陵不算(见类头)
 #if EC_PENDING
-    public static bool CivilPassable(TileZone zone, Realm traveller)
+    public static bool CivilPassable(Cell zone, Realm traveller)
     {
         if (zone == null || !Ensure()) return true;
-        int id = zone.id;
+        int id = zone.Index;
         if (id < 0 || id >= _block.Length) return true;
         byte block = _block[id];
-        return block == 0 || zone.city != null || (block & CivilWay(traveller)) == 0;
+        return block == 0 || zone.City != null || (block & CivilWay(traveller)) == 0;
     }
 #endif
 
     // 不分国家：不是无人区，或无人区里有路
 #if EC_PENDING
-    public static bool PassableByRoad(TileZone zone)
+    public static bool PassableByRoad(Cell zone)
     {
         if (zone == null || !Ensure()) return true;
-        int id = zone.id;
-        return id < 0 || id >= _block.Length || _block[id] == 0 || zone.city != null;
+        int id = zone.Index;
+        return id < 0 || id >= _block.Length || _block[id] == 0 || zone.City != null;
     }
 #endif
 
@@ -126,15 +124,15 @@ public static class WildernessPassage
     // 政令的走法(同样交给 Open)
 #if EC_PENDING
     public static int CivilWay(Realm traveller) => 1 << (Habit(traveller) + CivilShift);
-
-    public static bool Open(TileZone zone, int way) =>
-        zone == null || zone.id < 0 || zone.id >= _block.Length || (_block[zone.id] & way) == 0 || zone.city != null;
 #endif
+
+    public static bool Open(Cell zone, int way) =>
+        zone == null || zone.Index < 0 || zone.Index >= _block.Length || (_block[zone.Index] & way) == 0 || zone.City != null;
 
     // 两块地之间绕得过、或沿路穿得过 traveller 过不去的无人区：同一片陆地上被这种无人区隔成两片的为假；
     // 不在同一片陆地上(隔海)的不归这里管，算真。自己就是过不去的无人区的地块，按挨着的能走的地块算
 #if EC_PENDING
-    public static bool Reachable(TileZone a, TileZone b, Realm traveller)
+    public static bool Reachable(Cell a, Cell b, Realm traveller)
     {
         if (a == null || b == null || a == b || !Ensure()) return true;
         int[] land = Parts(Land);
@@ -145,7 +143,7 @@ public static class WildernessPassage
 
     // 政令绕得过、或沿修通的路穿得过(同 Reachable，小径、丘陵不算)
 #if EC_PENDING
-    public static bool CivilReachable(TileZone a, TileZone b, Realm traveller)
+    public static bool CivilReachable(Cell a, Cell b, Realm traveller)
     {
         if (a == null || b == null || a == b || !Ensure()) return true;
         int[] land = Parts(Land);
@@ -157,7 +155,7 @@ public static class WildernessPassage
     // 军队从 a 真走得到 b(开战闸门用，见 WarReach)：无人区之外还看高山与山脊(TerrainSystem.Impassable、Crossable)；
     // 隔海的、走不了的都算不通(同 Reachable 相反，隔海的另由水师判)。地图上没有过不去的无人区时不查，照以前按接壤算
 #if EC_PENDING
-    public static bool Walks(TileZone a, TileZone b, Realm traveller)
+    public static bool Walks(Cell a, Cell b, Realm traveller)
     {
         if (a == null || b == null || a == b || !Ensure()) return true;
         return SharesPart(TerrainParts(TerrainPart + Habit(traveller)), a, b);
@@ -166,7 +164,7 @@ public static class WildernessPassage
     private static bool Ensure()
     {
         EmpireWorld world = EmpireWorld.Current;
-        List<TileZone> zones = world?.zone_calculator?.zones;
+        List<Cell> zones = world?.Zones?.All;
         if (zones == null) return false;
         bool enabled = WildernessSystem.Enabled;
         if (ReferenceEquals(_world, world) && enabled == _enabled && _wildVersion == WildernessSystem.Version &&
@@ -179,7 +177,7 @@ public static class WildernessPassage
 
     // 整张重算：每块地是什么无人区、有没有路(都是 O(1) 的查询)；只有真变了才作废连片
 #if EC_PENDING
-    private static void Rebuild(EmpireWorld world, List<TileZone> zones, bool enabled)
+    private static void Rebuild(EmpireWorld world, List<Cell> zones, bool enabled)
     {
         bool changed = false;
         if (!ReferenceEquals(_world, world) || _zoneCount != zones.Count || enabled != _enabled ||
@@ -198,28 +196,28 @@ public static class WildernessPassage
         _devVersion = WildernessDevelopmentSystem.Version;
         _zoneCount = zones.Count;
         int size = zones.Count;
-        foreach (TileZone zone in zones)
-            if (zone != null && zone.id >= size) size = zone.id + 1;
+        foreach (Cell zone in zones)
+            if (zone != null && zone.Index >= size) size = zone.Index + 1;
         if (_block.Length != size)
         {
             _block = new byte[size];
             changed = true;
         }
         bool any = false;
-        foreach (TileZone zone in zones)
+        foreach (Cell zone in zones)
         {
-            if (zone == null || zone.id < 0) continue;
+            if (zone == null || zone.Index < 0) continue;
             byte block = enabled ? Blocking(zone) : (byte)0;
             if (block != 0) any = true;
-            if (_block[zone.id] == block) continue;
-            _block[zone.id] = block;
+            if (_block[zone.Index] == block) continue;
+            _block[zone.Index] = block;
             changed = true;
         }
         _any = any;
         if (changed) _blockRevision++;
     }
 
-    private static byte Blocking(TileZone zone)
+    private static byte Blocking(Cell zone)
     {
         WildKind kind = WildernessSystem.KindOf(zone);
         if (kind == WildKind.None || RoadNetwork.IsRoad(zone) || WildernessDevelopmentSystem.Passable(zone)) return 0;
@@ -240,9 +238,9 @@ public static class WildernessPassage
 
     // 悬停提示：这块无人区军队怎么走(语言键)；不是无人区、归了城、开发过半的(开发度那行写着)不写
 #if EC_PENDING
-    public static string TipKey(TileZone zone)
+    public static string TipKey(Cell zone)
     {
-        if (zone == null || zone.city != null) return null;
+        if (zone == null || zone.City != null) return null;
         WildKind kind = WildernessSystem.KindOf(zone);
         if (kind == WildKind.None || WildernessDevelopmentSystem.Passable(zone)) return null;
         if (RoadNetwork.IsRoad(zone)) return "wild_passage_road";
@@ -325,33 +323,33 @@ public static class WildernessPassage
         if (parts == null || parts.Length != _block.Length) parts = new int[_block.Length];
         for (int i = 0; i < parts.Length; i++) parts[i] = Unvisited;
         int next = 0;
-        foreach (TileZone start in EmpireWorld.Current.zone_calculator.zones)
+        foreach (Cell start in EmpireWorld.Current.Zones.All)
         {
-            if (start == null || start.id < 0 || start.id >= parts.Length || parts[start.id] != Unvisited) continue;
+            if (start == null || start.Index < 0 || start.Index >= parts.Length || parts[start.Index] != Unvisited) continue;
             if (!Walkable(start, mask) || terrain && TerrainSystem.Impassable(start))
             {
-                parts[start.id] = Blocked;
+                parts[start.Index] = Blocked;
                 continue;
             }
             int part = next++;
-            parts[start.id] = part;
+            parts[start.Index] = part;
             Fill.Clear();
             Fill.Enqueue(start);
             while (Fill.Count > 0)
             {
-                TileZone zone = Fill.Dequeue();
-                foreach (TileZone neighbour in zone.neighbours_all ?? Array.Empty<TileZone>())
+                Cell zone = Fill.Dequeue();
+                foreach (Cell neighbour in zone.NeighboursAll ?? Array.Empty<Cell>())
                 {
-                    if (neighbour == null || neighbour.id < 0 || neighbour.id >= parts.Length || parts[neighbour.id] != Unvisited)
+                    if (neighbour == null || neighbour.Index < 0 || neighbour.Index >= parts.Length || parts[neighbour.Index] != Unvisited)
                         continue;
                     if (!Walkable(neighbour, mask) || terrain && TerrainSystem.Impassable(neighbour))
                     {
-                        parts[neighbour.id] = Blocked;
+                        parts[neighbour.Index] = Blocked;
                         continue;
                     }
                     // 这条交界是山脊：不标记，留给别的交界走过来
                     if (terrain && !TerrainSystem.Crossable(zone, neighbour)) continue;
-                    parts[neighbour.id] = part;
+                    parts[neighbour.Index] = part;
                     Fill.Enqueue(neighbour);
                 }
             }
@@ -360,38 +358,34 @@ public static class WildernessPassage
         _parts[way] = parts;
     }
 
-    private static bool Walkable(TileZone zone, int mask) =>
-        !zone.world_edge && !SeaRegionSystem.IsSea(zone) && (_block[zone.id] & mask) == 0;
-
-    private static int PartOf(int[] parts, TileZone zone) =>
-        zone != null && zone.id >= 0 && zone.id < parts.Length ? parts[zone.id] : Blocked;
+    private static bool Walkable(Cell zone, int mask) =>
+        !zone.OnEdge && !SeaRegionSystem.IsSea(zone) && (_block[zone.Index] & mask) == 0;
 #endif
 
+    private static int PartOf(int[] parts, Cell zone) =>
+        zone != null && zone.Index >= 0 && zone.Index < parts.Length ? parts[zone.Index] : Blocked;
+
     // a、b 在同一片(走不了的一头按挨着的几片算)
-#if EC_PENDING
-    private static bool SharesPart(int[] parts, TileZone a, TileZone b)
+    private static bool SharesPart(int[] parts, Cell a, Cell b)
     {
         int own = PartOf(parts, a);
         if (own >= 0) return Touches(parts, b, own);
-        foreach (TileZone neighbour in a.neighbours_all ?? Array.Empty<TileZone>())
+        foreach (Cell neighbour in a.NeighboursAll ?? Array.Empty<Cell>())
         {
             int part = PartOf(parts, neighbour);
             if (part >= 0 && Touches(parts, b, part)) return true;
         }
         return false;
     }
-#endif
 
     // zone 在 part 这一片，或自己走不了而挨着这一片
-#if EC_PENDING
-    private static bool Touches(int[] parts, TileZone zone, int part)
+    private static bool Touches(int[] parts, Cell zone, int part)
     {
         int own = PartOf(parts, zone);
         if (own >= 0) return own == part;
-        foreach (TileZone neighbour in zone.neighbours_all ?? Array.Empty<TileZone>())
+        foreach (Cell neighbour in zone.NeighboursAll ?? Array.Empty<Cell>())
             if (PartOf(parts, neighbour) == part) return true;
         return false;
     }
-#endif
 }
 }

@@ -1,6 +1,7 @@
 // Generated from the EmpireCraft mod: Scripts/GeneralSystems/PapacySystem.Reformation.cs. Do not edit by hand: Tools/PortTool/members.py rewrites it;
 // see Port/manifest.json and Tools/PortTool.
 using Mathf = EmpireCraft.Core.EcMath;
+using Vector2 = EmpireCraft.Core.EcVector2;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -153,7 +154,7 @@ public static partial class PapacySystem
                      schism != null && GameClock.YearsSince(schism.started_at) >= SchismSparkYears;
         Realm see = ModRealm(Papacy(religion));
         City holy = HolyCity(religion);
-        float mapSize = Mathf.Max(1f, Mathf.Max(EmpireWorld.width, EmpireWorld.height));
+        float mapSize = Mathf.Max(1f, Mathf.Max(EmpireWorld.Current.Width, EmpireWorld.Current.Height));
         City best = null;
         float bestScore = 0f;
         bool anyEnacted = false;
@@ -166,7 +167,7 @@ public static partial class PapacySystem
             foreach (City city in kingdom.Cities)
             {
                 if (city?.Record == null || city.IsGone() || city.religion != religion || city == holy) continue;
-                float far = holy != null ? Vector2.Distance(city.city_center, holy.city_center) / mapSize * 2f : 0f;
+                float far = holy != null ? Vector2.Distance(city.Center, holy.Center) / mapSize * 2f : 0f;
                 float score = Mathf.Sqrt(Mathf.Max(1, city.CountLivingPopulation())) * (enacted ? 2f : 1f) * (1f + far) *
                               EcRandom.Range(0.5f, 1.5f);
                 if (score <= bestScore) continue;
@@ -265,7 +266,7 @@ public static partial class PapacySystem
             }
             Realm owner = city.Realm;
             if (city.religion != old || city == holy || !SchismAlive(owner) || ModRealm(owner) == see || !ReformableRealm(owner)) continue;
-            int reformed = city.neighbours_cities?.Count(neighbour => neighbour?.data != null && neighbour.religion == church) ?? 0;
+            int reformed = city.NeighbourCities?.Count(neighbour => neighbour?.Record != null && neighbour.religion == church) ?? 0;
             bool state = owner.religion == church;
             if (reformed == 0 && !state) continue;
             float chance = CityChance * Mathf.Min(3, reformed) + (state ? StateCityChance : 0f);

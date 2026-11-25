@@ -90,21 +90,19 @@ public static class FamousTalentSystem
     };
 
     // 名册里存的人名坏了(stale 判定，见 TemplateNameRepair)而人还在世的，跟着人物现在的名字改
-#if EC_PENDING
     public static int RefreshNames(Func<string, bool> stale)
     {
         int count = 0;
         foreach (TalentRecord record in Records)
         {
             if (record == null || !stale(record.name)) continue;
-            Person actor = EmpireWorld.Current?.units?.get(record.actor_id);
+            Person actor = EmpireWorld.Current?.PersonByKey(record.actor_id);
             if (actor?.Record == null || actor.IsGone() || stale(actor.FullName())) continue;
             record.name = actor.FullName();
             count++;
         }
         return count;
     }
-#endif
 
     public static IEnumerable<TalentRecord> Alive() =>
         Records.Where(record => record.alive && record.rank >= TalentRank.Fine);

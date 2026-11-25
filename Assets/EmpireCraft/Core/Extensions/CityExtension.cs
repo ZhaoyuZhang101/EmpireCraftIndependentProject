@@ -1,6 +1,7 @@
 // Generated from the EmpireCraft mod: Scripts/GameClassExtensions/CityExtension.cs. Do not edit by hand: Tools/PortTool/members.py rewrites it;
 // see Port/manifest.json and Tools/PortTool.
 using Mathf = EmpireCraft.Core.EcMath;
+using Vector2 = EmpireCraft.Core.EcVector2;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -282,12 +283,10 @@ public static class CityExtension
         public bool ShouldSerializeworks() => works != null && (works.lots.Count > 0 || works.building != null);
     }
     
-#if EC_PENDING
-    private static int GetZoneId(TileZone zone)
+    private static int GetZoneId(Cell zone)
     {
-        return zone?.id ?? -1;
+        return zone?.Index ?? -1;
     }
-#endif
     // 地块占领模式(所有时期)：被占的地块守方迟迟不夺回，占领区每年向四周扩散一层——
     // 每个仍在交战的占领者，其每块占领地向相邻的本城地块各扩一块(规则同正统扩张：须连着己方前线、不抢友军)。
     // 城里出现占领区时开始计时，满一年结算一次；全城被占即按正常流程完成占领。
@@ -319,11 +318,11 @@ public static class CityExtension
         {
             Realm occupier = EmpireWorld.Current.RealmByKey(pair.Key);
             if (occupier == null || occupier.IsGone() || !occupier.IsAtWarWith(owner) || pair.Value == null) continue;
-            List<TileZone> held = pair.Value.Select(GetZoneById).Where(zone => zone != null).ToList();
-            foreach (TileZone zone in held)
+            List<Cell> held = pair.Value.Select(GetZoneById).Where(zone => zone != null).ToList();
+            foreach (Cell zone in held)
             {
-                if (zone.neighbours_all == null) continue;
-                foreach (TileZone neighbour in zone.neighbours_all)
+                if (zone.NeighboursAll == null) continue;
+                foreach (Cell neighbour in zone.NeighboursAll)
                 {
                     if (city.IsValidAutoSpreadOccupyZone(occupier, neighbour))
                         city.AddOccupiedTileZoneByMandateSpread(occupier, neighbour);
@@ -333,17 +332,17 @@ public static class CityExtension
             if (city.IsGone() || city.Realm != owner) return;
         }
     }
+#endif
 
-    private static TileZone GetZoneById(int zoneId)
+    private static Cell GetZoneById(int zoneId)
     {
-        if (zoneId < 0 || EmpireWorld.Current?.zone_calculator == null)
+        if (zoneId < 0 || EmpireWorld.Current?.Zones == null)
         {
             return null;
         }
 
-        return EmpireWorld.Current.zone_calculator.getZoneByID(zoneId);
+        return EmpireWorld.Current.Zones.ById(zoneId);
     }
-#endif
     private static Dictionary<int, long> GetOccupiedZoneOwnerMap(this City city)
     {
         if (city == null)
@@ -379,7 +378,7 @@ public static class CityExtension
         return data.OccupiedZoneOwners;
     }
 #if EC_PENDING
-    public static void TrySpreadOccupiedZonesByMandate(this City city, Realm occupier, TileZone startZone)
+    public static void TrySpreadOccupiedZonesByMandate(this City city, Realm occupier, Cell startZone)
     {
         if (city == null || occupier == null || startZone == null)
         {
@@ -457,11 +456,11 @@ public static class CityExtension
 
     // 从 startZone 向外按层扩张占领，最多 spreadDepth 层、spreadLimit 块
 #if EC_PENDING
-    private static void SpreadOccupation(this City city, Realm occupier, TileZone startZone, int spreadDepth,
+    private static void SpreadOccupation(this City city, Realm occupier, Cell startZone, int spreadDepth,
         int spreadLimit)
     {
-        HashSet<TileZone> visited = new HashSet<TileZone>();
-        Queue<(TileZone zone, int depth)> queue = new Queue<(TileZone zone, int depth)>();
+        HashSet<Cell> visited = new HashSet<Cell>();
+        Queue<(Cell zone, int depth)> queue = new Queue<(Cell zone, int depth)>();
 
         visited.Add(startZone);
         queue.Enqueue((startZone, 0));
@@ -471,7 +470,7 @@ public static class CityExtension
         while (queue.Count > 0)
         {
             var item = queue.Dequeue();
-            TileZone currentZone = item.zone;
+            Cell currentZone = item.zone;
             int currentDepth = item.depth;
 
             if (currentZone == null || currentDepth >= spreadDepth)
@@ -479,12 +478,12 @@ public static class CityExtension
                 continue;
             }
 
-            if (currentZone.neighbours_all == null)
+            if (currentZone.NeighboursAll == null)
             {
                 continue;
             }
 
-            foreach (TileZone neighbour in currentZone.neighbours_all)
+            foreach (Cell neighbour in currentZone.NeighboursAll)
             {
                 if (neighbour == null)
                 {
@@ -633,20 +632,19 @@ public static class CityExtension
 
         return 3;
     }
-#if EC_PENDING
-    private static bool IsValidAutoSpreadOccupyZone(this City city, Realm occupier, TileZone zone)
+    private static bool IsValidAutoSpreadOccupyZone(this City city, Realm occupier, Cell zone)
     {
         if (city == null || occupier == null || zone == null)
         {
             return false;
         }
 
-        if (zone.world_edge)
+        if (zone.OnEdge)
         {
             return false;
         }
 
-        if (zone.city != city)
+        if (zone.City != city)
         {
             return false;
         }
@@ -682,28 +680,28 @@ public static class CityExtension
 
         return true;
     }
-    private static bool CanOccupyZoneFromFriendlyEdge(this City city, Realm occupier, TileZone zone)
+    private static bool CanOccupyZoneFromFriendlyEdge(this City city, Realm occupier, Cell zone)
     {
         if (city == null || occupier == null || zone == null)
         {
             return false;
         }
 
-        if (zone.neighbours_all == null || zone.neighbours_all.Count() == 0)
+        if (zone.NeighboursAll == null || zone.NeighboursAll.Count() == 0)
         {
             return false;
         }
 
-        for (int i = 0; i < zone.neighbours_all.Count(); i++)
+        for (int i = 0; i < zone.NeighboursAll.Count(); i++)
         {
-            TileZone neighbour = zone.neighbours_all[i];
+            Cell neighbour = zone.NeighboursAll[i];
 
-            if (neighbour == null || neighbour.world_edge)
+            if (neighbour == null || neighbour.OnEdge)
             {
                 continue;
             }
 
-            City neighbourCity = neighbour.city;
+            City neighbourCity = neighbour.City;
             if (neighbourCity == null || neighbourCity.IsGone())
             {
                 continue;
@@ -724,7 +722,8 @@ public static class CityExtension
 
         return false;
     }
-    private static bool AddOccupiedTileZoneByMandateSpread(this City city, Realm occupier, TileZone tileZone)
+#if EC_PENDING
+    private static bool AddOccupiedTileZoneByMandateSpread(this City city, Realm occupier, Cell tileZone)
     {
         if (city == null || occupier == null || tileZone == null)
         {
@@ -797,7 +796,7 @@ public static class CityExtension
 #endif
     // landing：登陆(与敌国不接壤时的第一块滩头，见 FrontSystem)，不要求与己方控制区相连
 #if EC_PENDING
-    public static bool AddOccupiedTileZone(this City city, Realm occupier, TileZone tileZone, Person capturer = null,
+    public static bool AddOccupiedTileZone(this City city, Realm occupier, Cell tileZone, Person capturer = null,
         bool landing = false)
     {
         var occupierId = occupier?.Key??-1L;
@@ -888,7 +887,7 @@ public static class CityExtension
 
         return true;
     }
-    public static bool RemoveOccupiedTileZone(this City city, Realm occupier, TileZone tileZone)
+    public static bool RemoveOccupiedTileZone(this City city, Realm occupier, Cell tileZone)
     {
         var occupierId = occupier?.Key??-1L;
         if (city == null || occupier == null || tileZone == null)
@@ -930,7 +929,7 @@ public static class CityExtension
         OccupationReadIndex.Invalidate(city, tileZone);
         return removed;
     }
-    public static bool TransferOccupiedTileZone(this City city, Realm toKingdom, TileZone tileZone)
+    public static bool TransferOccupiedTileZone(this City city, Realm toKingdom, Cell tileZone)
     {
         if (city == null || toKingdom == null || tileZone == null)
         {
@@ -967,7 +966,8 @@ public static class CityExtension
 
         return transferred;
     }
-    public static Dictionary<Realm, List<TileZone>> GetOccupiedStatus(this City city)
+#endif
+    public static Dictionary<Realm, List<Cell>> GetOccupiedStatus(this City city)
     {
         if (city == null)
         {
@@ -975,7 +975,7 @@ public static class CityExtension
         }
 
         Dictionary<long, List<int>> occupiedStatus = city.GetOrCreate().OccupiedStatus;
-        Dictionary<Realm, List<TileZone>> result = new Dictionary<Realm, List<TileZone>>();
+        Dictionary<Realm, List<Cell>> result = new Dictionary<Realm, List<Cell>>();
 
         if (occupiedStatus == null)
         {
@@ -990,10 +990,10 @@ public static class CityExtension
                 continue;
             }
 
-            List<TileZone> zones = new List<TileZone>();
+            List<Cell> zones = new List<Cell>();
             for (int i = 0; i < pair.Value.Count; i++)
             {
-                TileZone zone = GetZoneById(pair.Value[i]);
+                Cell zone = GetZoneById(pair.Value[i]);
                 if (zone != null)
                 {
                     zones.Add(zone);
@@ -1005,7 +1005,8 @@ public static class CityExtension
 
         return result;
     }
-    public static bool RemoveOccupiedTileZoneFromAll(this City city, TileZone tileZone)
+#if EC_PENDING
+    public static bool RemoveOccupiedTileZoneFromAll(this City city, Cell tileZone)
     {
         if (city == null || tileZone == null)
         {
@@ -1068,7 +1069,8 @@ public static class CityExtension
 
         return removedAny;
     }
-    public static Realm GetTileZoneOccupier(this City city, TileZone tileZone)
+#endif
+    public static Realm GetTileZoneOccupier(this City city, Cell tileZone)
     {
         if (city == null || tileZone == null)
         {
@@ -1090,11 +1092,10 @@ public static class CityExtension
         ownerMap.TryGetValue(tileZoneId, out var occupier);
         return EmpireWorld.Current.RealmByKey(occupier);
     }
-    public static bool IsTileZoneOccupied(this City city, TileZone tileZone)
+    public static bool IsTileZoneOccupied(this City city, Cell tileZone)
     {
         return city.GetTileZoneOccupier(tileZone) != null;
     }
-#endif
     // 这座城有没有被谁占着的地块(没有时 GetTileZoneOccupier 对它的每块地都是 null，平滑国界的重画指纹据此跳过逐块查)
     internal static bool HasOccupiedZones(this City city)
     {
@@ -1132,6 +1133,7 @@ public static class CityExtension
     {
         return city.CheckFinishedCapture();
     }
+#endif
     public static float GetOccupiedTileZoneRate(this City city, Realm occupier)
     {
         if (city == null || occupier == null)
@@ -1139,15 +1141,16 @@ public static class CityExtension
             return 0f;
         }
 
-        if (city.zones == null || city.zones.Count == 0)
+        if (city.Zones == null || city.Zones.Count == 0)
         {
             return 0f;
         }
 
         int occupiedCount = city.GetOccupiedTileZoneCount(occupier);
 
-        return (float)occupiedCount / city.zones.Count;
+        return (float)occupiedCount / city.Zones.Count;
     }
+#if EC_PENDING
     public static Realm GetFinishedCaptureWinner(this City city)
     {
         if (city == null)
@@ -1210,7 +1213,7 @@ public static class CityExtension
 
             for (int i = 0; i < zones.Count; i++)
             {
-                TileZone zone = GetZoneById(zones[i]);
+                Cell zone = GetZoneById(zones[i]);
 
                 if (!city.IsValidCaptureZone(zone))
                 {
@@ -1293,19 +1296,20 @@ public static class CityExtension
 
         return winner == occupier;
     }
+#endif
 
     public static int GetValidCityZoneCount(this City city)
     {
-        if (city == null || city.zones == null || city.zones.Count == 0)
+        if (city == null || city.Zones == null || city.Zones.Count == 0)
         {
             return 0;
         }
 
         int count = 0;
 
-        for (int i = 0; i < city.zones.Count; i++)
+        for (int i = 0; i < city.Zones.Count; i++)
         {
-            TileZone zone = city.zones[i];
+            Cell zone = city.Zones[i];
 
             if (!city.IsValidCaptureZone(zone))
             {
@@ -1318,19 +1322,19 @@ public static class CityExtension
         return count;
     }
 
-    public static bool IsValidCaptureZone(this City city, TileZone zone)
+    public static bool IsValidCaptureZone(this City city, Cell zone)
     {
         if (city == null || zone == null)
         {
             return false;
         }
 
-        if (zone.world_edge)
+        if (zone.OnEdge)
         {
             return false;
         }
 
-        if (zone.city != city)
+        if (zone.City != city)
         {
             return false;
         }
@@ -1338,6 +1342,7 @@ public static class CityExtension
         return true;
     }
 
+#if EC_PENDING
     public static float GetRequiredFinishedCaptureRate(this City city, Realm occupier)
     {
         if (city == null || occupier == null)
@@ -1433,7 +1438,7 @@ public static class CityExtension
     }
 
 #if EC_PENDING
-    private static Person FindOccupationCaptureTarget(this City city, TileZone zone, bool zoneOccupationMode)
+    private static Person FindOccupationCaptureTarget(this City city, Cell zone, bool zoneOccupationMode)
     {
         if (city == null || city.Realm == null)
         {
@@ -1486,7 +1491,7 @@ public static class CityExtension
             capturer.GetIdentity().TotalPerformance += performanceReward;
         }
 
-        int capturedInfluence = victim.Record?.Renown ?? 0;
+        int capturedInfluence = victim.Renown ?? 0;
         if (capturer.Record != null && capturedInfluence > 0)
         {
             capturer.Renown += capturedInfluence;
@@ -1496,7 +1501,7 @@ public static class CityExtension
 
     private static void ForceOccupyAllRemainingZones(this City city, Realm occupier)
     {
-        if (city == null || occupier == null || city.zones == null)
+        if (city == null || occupier == null || city.Zones == null)
         {
             return;
         }
@@ -1509,9 +1514,9 @@ public static class CityExtension
         }
 
         List<int> occupierZones = occupiedStatus[occupierId];
-        for (int i = 0; i < city.zones.Count; i++)
+        for (int i = 0; i < city.Zones.Count; i++)
         {
-            TileZone currentZone = city.zones[i];
+            Cell currentZone = city.Zones[i];
             if (!city.IsValidCaptureZone(currentZone))
             {
                 continue;
@@ -1563,7 +1568,7 @@ public static class CityExtension
         }
     }
 
-    public static bool TryTriggerOccupationCaptureEvent(this City city, Realm occupier, TileZone zone = null, Person capturer = null, bool zoneOccupationMode = false)
+    public static bool TryTriggerOccupationCaptureEvent(this City city, Realm occupier, Cell zone = null, Person capturer = null, bool zoneOccupationMode = false)
     {
         if (!EnableOccupationCaptureEvents)
         {
@@ -1770,7 +1775,7 @@ public static class CityExtension
 
             for (int i = 0; i < zones.Count; i++)
             {
-                TileZone zone = GetZoneById(zones[i]);
+                Cell zone = GetZoneById(zones[i]);
 
                 if (!city.IsValidCaptureZone(zone))
                 {
@@ -2296,14 +2301,13 @@ public static class CityExtension
         kingdom.GetOrCreate().last_city_value_context_timestamp = -1L;
     }
 
-#if EC_PENDING
     public static bool IsConnectedToKingdomCapital(this City city)
     {
         Realm kingdom = city?.Realm;
         City capital = kingdom?.Capital;
         if (city == null || capital == null || kingdom == null) return false;
         if (city == capital) return true;
-        if (city.neighbours_cities == null) return false;
+        if (city.NeighbourCities == null) return false;
 
         var visited = new HashSet<long> { city.Key };
         var queue = new Queue<City>();
@@ -2312,8 +2316,8 @@ public static class CityExtension
         {
             City current = queue.Dequeue();
             if (current == capital) return true;
-            if (current?.neighbours_cities == null) continue;
-            foreach (City neighbour in current.neighbours_cities)
+            if (current?.NeighbourCities == null) continue;
+            foreach (City neighbour in current.NeighbourCities)
             {
                 if (neighbour == null || neighbour.IsGone() || neighbour.Realm != kingdom ||
                     !visited.Add(neighbour.Key)) continue;
@@ -2323,6 +2327,7 @@ public static class CityExtension
         return false;
     }
 
+#if EC_PENDING
     private static void GetCityValueContext(Realm kingdom, out Vector2 qualityCenter, out float coreRadius)
     {
         var data = kingdom.GetOrCreate();
@@ -2359,12 +2364,12 @@ public static class CityExtension
         data.city_value_core_radius = coreRadius;
         data.last_city_value_context_timestamp = EmpireWorld.Current?.Now() ?? -1L;
     }
+#endif
 
     private static Vector2 GetCityValuePosition(City city)
     {
-        return city?.getTile()?.posV ?? Vector2.zero;
+        return city?.SeatCell()?.PosV ?? Vector2.zero;
     }
-#endif
 
     public static void AddMoney(this City c, int money)
         => AddMoney(c, money, TreasuryCategory.Other);
@@ -2450,12 +2455,14 @@ public static class CityExtension
 
         return count;
     }
+#endif
 
     public static bool IsBorderCity(this City city)
     {
-        return city != null && city.neighbours_kingdoms != null && city.neighbours_kingdoms.Count > 0;
+        return city != null && city.NeighbourRealms != null && city.NeighbourRealms.Count > 0;
     }
 
+#if EC_PENDING
     public static City FindExileCity(this Realm kingdom)
     {
         if (kingdom == null || kingdom.IsGone() || kingdom.Cities == null || kingdom.Cities.Count <= 0)

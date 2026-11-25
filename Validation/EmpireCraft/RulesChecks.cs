@@ -230,6 +230,43 @@ public static class RulesChecks
         Console.WriteLine("PASS people (" + checks + " checks)");
     }
 
+    // The grid as the ported systems see it: cells, terrain, a city's territory and neighbours.
+    public static void Grid()
+    {
+        checks = 0;
+        var map = FlatGenerator.Generate(256, 128, "EMPIRE-GRID", TerrainPreset.Continents, default);
+        var w = Start(map); w.Activate();
+        Check(w.Width == 256 && w.Height == 128 && w.Zones.Count == 256 * 128 && w.Zones.Get(3, 5).Index == 5 * 256 + 3 && w.Zones.ById(7).X == 7 && w.CellAt(-1) == null && w.CellAt(0, 128) == null, "cells by coordinate and index");
+        var west = w.CellAt(0, 40); var east = w.CellAt(255, 40);
+        Check(Land.SquaredDist(west, east) == 1 && Land.SquaredDist(w.CellAt(10, 10), w.CellAt(13, 14)) == 25 && Land.Dist(w.CellAt(10, 10), w.CellAt(13, 14)) == 5f &&
+              Land.SquaredDist(w.CellAt(0, 0), w.CellAt(128, 0)) == 128 * 128 && Land.SquaredDist(west, null) == int.MaxValue, "cell distances go the short way round");
+        Check(ReferenceEquals(w.CellAt(256, 40), west) && west.Left == east && east.Right == west && west.Neighbours.Count == 4 && west.NeighboursAll.Count == 8 && w.CellAt(10, 0).Neighbours.Count == 3 && w.CellAt(10, 0).OnEdge && !west.OnEdge, "the grid wraps east-west and ends at the polar rows");
+        Check(ReferenceEquals(west.Zone, west) && ReferenceEquals(west.Center, west) && west.Tiles.Count == 1 && west.Pos.x == 0 && west.PosV.y == 40f, "a cell is its own zone, centre and tile");
+        int sea = Enumerable.Range(0, map.Count).First(i => map.Water[i] == WaterKind.DeepOcean);
+        var city = w.LiveRealms[0].Capital; var seat = city.SeatCell();
+        Check(w.CellAt(sea).Type.Liquid && w.CellAt(sea).Type.Ocean && !w.CellAt(sea).IsLand && w.CellAt(sea).City == null && !w.CellAt(sea).IsSameIsland(seat), "the sea is water, belongs to no city and to no landmass");
+        Check(seat.Type.Ground && !seat.Type.Liquid && seat.IsLand && seat.City == city && seat.Realm == city.Realm && seat.IsSameIsland(seat) && !seat.CanSettle && seat.Type.HeightMin <= seat.Height, "a city's seat is its own land");
+        Check(city.Zones.Count == city.Tiles.Count && city.Zones[0] == seat && city.Zones.All(c => c.City == city) && city.Center.x == seat.X, "a city's zones are the cells of its tiles");
+        foreach (var other in w.Cities)
+            foreach (var near in other.NeighbourCities)
+                Check(near != other && near.NeighbourCities.Contains(other), "neighbouring is mutual");
+        Check(w.Cities.All(c => c.NeighbourRealms.All(r => r != c.Realm && r.Alive)), "neighbouring realms are foreign and alive");
+        var free = city.Zones.SelectMany(c => c.Neighbours).FirstOrDefault(c => c.City == null && c.IsLand);
+        if (free != null)
+        {
+            int before = city.Tiles.Count;
+            city.AddZone(free); city.AddZone(free);
+            Check(city.Tiles.Count == before + 1 && free.City == city && city.Zones.Contains(free), "a city takes a free cell next to its land once");
+            city.RemoveZone(free); city.RemoveZone(seat);
+            Check(city.Tiles.Count == before && free.City == null && seat.City == city && !city.Zones.Contains(free), "a city gives a cell back but never its seat");
+        }
+        Consistent(w, "after territory changes");
+        var loaded = EmpireSave.Decode(EmpireSave.Encode(w), w.Map);
+        Check(loaded.Cities[city.Id].SeatCell().City == loaded.Cities[city.Id] && loaded.Cities[city.Id].Zones.Count == city.Tiles.Count, "a loaded city knows its world");
+        EmpireWorld.Current = null;
+        Console.WriteLine("PASS grid (" + checks + " checks)");
+    }
+
     // The shared frame budget: jobs run once a frame while there is budget, are put
     // off when there is none, and are never starved.
     public static void Scheduling()

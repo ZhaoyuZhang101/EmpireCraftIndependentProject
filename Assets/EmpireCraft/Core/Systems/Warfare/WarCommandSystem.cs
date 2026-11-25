@@ -33,13 +33,15 @@ public static class WarCommandSystem
 
 #if EC_PENDING
     private static Realm ModRealm(Realm kingdom) => FrontSystem.Realm(kingdom);
+#endif
 
     private static Person Living(long id)
     {
-        Person actor = id >= 0 ? EmpireWorld.Current?.units?.get(id) : null;
+        Person actor = id >= 0 ? EmpireWorld.Current?.PersonByKey(id) : null;
         return actor?.Record != null && !actor.IsGone() && actor.Alive ? actor : null;
     }
 
+#if EC_PENDING
     public static Person Commander(Realm kingdom)
     {
         Realm realm = ModRealm(kingdom);

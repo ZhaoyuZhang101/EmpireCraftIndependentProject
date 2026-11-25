@@ -194,7 +194,7 @@ public static class ReignRecordSystem
     {
         DynasticCycleSystem.OnDynastyChanged(empire, inheritCourt);
         EmpireCraftHistory last = empire?.data?.history?.LastOrDefault(reign => reign != null && !reign.is_republic);
-        if (last != null && last.id != newEmperor?.data?.id) last.ended_dynasty = true;
+        if (last != null && last.id != newEmperor?.Key) last.ended_dynasty = true;
     }
 #endif
 

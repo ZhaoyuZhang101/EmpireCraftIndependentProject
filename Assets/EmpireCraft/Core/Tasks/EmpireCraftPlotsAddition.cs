@@ -247,7 +247,7 @@ namespace EmpireCraft.Core
 
         private static void LogPlotGuardException(string plotId, string stage, Person actor, Exception ex)
         {
-            string actorName = actor?.data?.name ?? "unknown_actor";
+            string actorName = actor?.Name ?? "unknown_actor";
             // A failed plot may already have changed state; stop it instead of retrying it every AI tick.
             if (actor?.plot?.name == plotId)
             {
@@ -510,7 +510,7 @@ namespace EmpireCraft.Core
                     if (allKingdoms.Any(k => PersonalUnionService.IsUnionRegime(k) && !FeudalVassalService.HasDirectAdministration(k)))
                         return false;
                     if (!pActor.HasTitle()) return false;
-                    if (ModClass.KINGDOM_TITLE_MANAGER.Get(pActor.GetOwnedTitle()[0])?.title_capital?.kingdom?.king !=
+                    if (ModClass.KINGDOM_TITLE_MANAGER.Get(pActor.GetOwnedTitle()[0])?.title_capital?.Realm?.Ruler !=
                         pActor) return false;
                     return allKingdoms.Count > 1;
                 },
@@ -547,7 +547,7 @@ namespace EmpireCraft.Core
                         if (pActor.HasTitle())
                         {
                             var title = ModClass.KINGDOM_TITLE_MANAGER.Get(pActor.GetOwnedTitle()[0]);
-                            if (title?.title_capital?.kingdom?.king == pActor)
+                            if (title?.title_capital?.Realm?.Ruler == pActor)
                             {
                                 mainKingdom = title.title_capital.Realm;
                             }
@@ -2142,15 +2142,15 @@ namespace EmpireCraft.Core
                 try_to_start_advanced = TryStartSimplePlot,
                 check_is_possible = delegate (Person pActor)
                 {
-                    return pActor?.kingdom?.GetEmpire()?.CanEmpressDowagerInstallSon(pActor) == true;
+                    return pActor?.Realm?.GetEmpire()?.CanEmpressDowagerInstallSon(pActor) == true;
                 },
                 check_should_continue = delegate (Person pActor)
                 {
-                    return pActor?.kingdom?.GetEmpire()?.CanEmpressDowagerInstallSon(pActor) == true;
+                    return pActor?.Realm?.GetEmpire()?.CanEmpressDowagerInstallSon(pActor) == true;
                 },
                 action = delegate (Person pActor)
                 {
-                    return pActor?.kingdom?.GetEmpire()?.CompleteEmpressDowagerInstallSon(pActor) == true;
+                    return pActor?.Realm?.GetEmpire()?.CompleteEmpressDowagerInstallSon(pActor) == true;
                 }
             });
             AssetManager.plots_library.add(new PlotAsset
@@ -2169,12 +2169,12 @@ namespace EmpireCraft.Core
                 try_to_start_advanced = TryStartSimplePlot,
                 check_is_possible = delegate (Person pActor)
                 {
-                    Empire empire = pActor?.kingdom?.GetEmpire();
+                    Empire empire = pActor?.Realm?.GetEmpire();
                     return empire?.CanPowerfulMinisterUsurp(pActor) == true;
                 },
                 check_should_continue = delegate (Person pActor)
                 {
-                    Empire empire = pActor?.kingdom?.GetEmpire();
+                    Empire empire = pActor?.Realm?.GetEmpire();
                     return empire?.CanPowerfulMinisterUsurp(pActor) == true;
                 },
                 action = minister_acquire_empire
@@ -2194,15 +2194,15 @@ namespace EmpireCraft.Core
                 try_to_start_advanced = TryStartSimplePlot,
                 check_is_possible = delegate (Person pActor)
                 {
-                    Empire empire = pActor?.kingdom?.GetEmpire();
+                    Empire empire = pActor?.Realm?.GetEmpire();
                     return empire?.CanPowerfulMinisterSeekDukedom(pActor) == true;
                 },
                 check_should_continue = delegate (Person pActor)
                 {
-                    Empire empire = pActor?.kingdom?.GetEmpire();
+                    Empire empire = pActor?.Realm?.GetEmpire();
                     return empire?.CanPowerfulMinisterSeekDukedom(pActor) == true;
                 },
-                action = delegate (Person pActor) { return pActor?.kingdom?.GetEmpire()?.TryGrantPowerfulMinisterDukedom(pActor) == true; }
+                action = delegate (Person pActor) { return pActor?.Realm?.GetEmpire()?.TryGrantPowerfulMinisterDukedom(pActor) == true; }
             });
             AssetManager.plots_library.add(new PlotAsset
             {
@@ -2219,17 +2219,17 @@ namespace EmpireCraft.Core
                 try_to_start_advanced = TryStartSimplePlot,
                 check_is_possible = delegate (Person pActor)
                 {
-                    Empire empire = pActor?.kingdom?.GetEmpire();
+                    Empire empire = pActor?.Realm?.GetEmpire();
                     return empire?.CanPowerfulMinisterReceiveNineBestowments(pActor) == true;
                 },
                 check_should_continue = delegate (Person pActor)
                 {
-                    Empire empire = pActor?.kingdom?.GetEmpire();
+                    Empire empire = pActor?.Realm?.GetEmpire();
                     return empire?.CanPowerfulMinisterReceiveNineBestowments(pActor) == true;
                 },
                 action = delegate (Person pActor)
                 {
-                    return pActor?.kingdom?.GetEmpire()?.GrantPowerfulMinisterNineBestowments(pActor) == true;
+                    return pActor?.Realm?.GetEmpire()?.GrantPowerfulMinisterNineBestowments(pActor) == true;
                 }
             });
             AssetManager.plots_library.list.RemoveAll(a => a.id == "rebellion");
@@ -2705,7 +2705,7 @@ namespace EmpireCraft.Core
 
         private static bool minister_acquire_empire(Person pActor)
         {
-            return pActor?.kingdom?.GetEmpire()?.CompletePowerfulMinisterUsurpation(pActor) == true;
+            return pActor?.Realm?.GetEmpire()?.CompletePowerfulMinisterUsurpation(pActor) == true;
         }
         public static bool BecomeEmpireAndStartEnfeoff(Person pActor)
         {
@@ -2836,11 +2836,9 @@ namespace EmpireCraft.Core
 #endif
 
         // 宗教战争的对象：与发起国(或其所在帝国)接壤的异教国家，不是本帝国的成员
-#if EC_PENDING
         private static bool HolyWarNeighbour(Realm kingdom, Realm target) =>
             target != null && target != kingdom && !target.IsGone() && !target.IsInSameEmpire(kingdom) &&
             (kingdom.IsNeighbourWith(target) || kingdom.GetEmpire()?.IsNeighbourWith(target) == true);
-#endif
 
         internal static bool UsesVanillaWarPlot(bool isEmpire, bool inEmpire, bool hasOverlord) =>
             !isEmpire && !inEmpire && !hasOverlord;

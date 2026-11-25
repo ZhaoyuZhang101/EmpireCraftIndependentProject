@@ -49,19 +49,16 @@ public static partial class GentrySystem
     // 族众已经包含入谱在世族人；未逐人入谱的部分不能重复相加。
     public static int UnrecordedMembers(SpecificClan clan, int named) => Mathf.Max(0, Members(clan, named) - named);
 
-#if EC_PENDING
     public static City MemberCity(PersonalClanIdentity person)
     {
         if (person == null) return null;
         City city = person.is_virtual
-            ? person.virtual_city_id > 0 ? EmpireWorld.Current?.cities?.get(person.virtual_city_id) : null
+            ? person.virtual_city_id > 0 ? EmpireWorld.Current?.CityByKey(person.virtual_city_id) : null
             : person._actor?.City;
         return city?.Record == null || city.IsGone() ? null : city;
     }
-#endif
 
     // 逐人记录的按现居城市；未逐人记谱的族众按郡望计。无有效地点的保留在未详行，不丢数。
-#if EC_PENDING
     public static List<(City city, int recorded, int unrecorded)> PopulationPlaces(SpecificClan clan,
         IEnumerable<PersonalClanIdentity> living)
     {
@@ -77,7 +74,6 @@ public static partial class GentrySystem
         }
         return places.OrderByDescending(place => place.recorded + place.unrecorded).ThenBy(place => place.city?.Key ?? -1L).ToList();
     }
-#endif
 
     // 族众上限(见文件头)
 #if EC_PENDING

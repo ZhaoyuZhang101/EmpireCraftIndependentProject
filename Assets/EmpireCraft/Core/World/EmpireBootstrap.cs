@@ -111,7 +111,7 @@ namespace EmpireCraft.Core
             return realm;
         }
 
-        static int[] Landmasses(EmpireWorld w)
+        internal static int[] Landmasses(EmpireWorld w)
         {
             var m=w.Map;var id=new int[m.Count];for(int i=0;i<id.Length;i++)id[i]=-1;
             var queue=new Queue<int>();int next=0;

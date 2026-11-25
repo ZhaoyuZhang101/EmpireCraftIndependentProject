@@ -20,10 +20,10 @@ public static class EnclaveFill
 {
     private const float RefreshSeconds = 5f;
     private const int MaxZones = 400;
+    private static readonly Dictionary<Cell, int> Seen = new();
+    private static readonly List<Cell> Component = new();
+    private static readonly Queue<Cell> Pending = new();
 #if EC_PENDING
-    private static readonly Dictionary<TileZone, int> Seen = new();
-    private static readonly List<TileZone> Component = new();
-    private static readonly Queue<TileZone> Pending = new();
     private static MetaTypeAsset _shown;
 #endif
 
@@ -37,7 +37,7 @@ public static class EnclaveFill
         public MetaZoneGetMeta full, fullHook;
         public MetaZoneGetMetaSimple simple, simpleHook;
         public MetaZoneDrawAction drawHook;
-        public Dictionary<TileZone, IMetaObject> fill = new();
+        public Dictionary<Cell, IMetaObject> fill = new();
 #endif
     }
 
@@ -113,7 +113,7 @@ public static class EnclaveFill
 
     // 图层本来按城池归属取的(套在里面的那个)
 #if EC_PENDING
-    private static IMetaObject Original(Layer layer, TileZone zone) =>
+    private static IMetaObject Original(Layer layer, Cell zone) =>
         layer.simple != null ? layer.simple(zone) : layer.full?.Invoke(zone, 0);
 #endif
 
@@ -122,11 +122,11 @@ public static class EnclaveFill
     private static void DrawFill(Layer layer, MetaTypeAsset asset)
     {
         if (layer.fill.Count == 0 || asset.getZoneOptionState() != 0 || asset.isMetaZoneOptionSelectedFluid()) return;
-        ZoneCalculator zones = EmpireWorld.Current?.zone_calculator;
+        ZoneGrid zones = EmpireWorld.Current?.Zones;
         if (zones == null) return;
         MetaZoneGetMetaSimple getter = asset.tile_get_metaobject_0;
         if (getter == null) return;
-        foreach (TileZone zone in layer.fill.Keys)
+        foreach (Cell zone in layer.fill.Keys)
         {
             zones.drawBegin();
             zones.drawZoneMeta(zone, asset, getter);
@@ -140,7 +140,7 @@ public static class EnclaveFill
     public static void Tick()
     {
         EmpireWorld world = EmpireWorld.Current;
-        if (world?.zone_calculator?.zones == null || !GameClock.Running || SmoothLoader.isLoading()) return;
+        if (world?.Zones?.All == null || !GameClock.Running || SmoothLoader.isLoading()) return;
         Install();
         if (!ReferenceEquals(_world, world))
         {
@@ -149,7 +149,7 @@ public static class EnclaveFill
         }
         float now = Time.unscaledTime;
         // 与整图画布、原版巡检画的同一个图层(见 SmoothBorders.DrawCanvas)
-        MetaTypeAsset shown = world.zone_calculator._mode_asset ?? world.getCachedMapMetaAsset();
+        MetaTypeAsset shown = world.Zones._mode_asset ?? world.getCachedMapMetaAsset();
         bool switched = !ReferenceEquals(shown, _shown);
         _shown = shown;
         if (!switched && now < _next && _next - now <= RefreshSeconds) return;
@@ -168,33 +168,33 @@ public static class EnclaveFill
 
     private static void Refresh(Layer layer, EmpireWorld world)
     {
-        var fill = new Dictionary<TileZone, IMetaObject>();
-        if (world.Cities.Count > 0) Search(layer, world.zone_calculator.zones, fill);
+        var fill = new Dictionary<Cell, IMetaObject>();
+        if (world.Cities.Count > 0) Search(layer, world.Zones.All, fill);
         // 变了的地块连同四邻重画(边线跟着变)
-        var changed = new HashSet<TileZone>();
+        var changed = new HashSet<Cell>();
         foreach (var pair in layer.fill)
             if (!fill.TryGetValue(pair.Key, out IMetaObject now) || !ReferenceEquals(now, pair.Value)) changed.Add(pair.Key);
         foreach (var pair in fill)
             if (!layer.fill.TryGetValue(pair.Key, out IMetaObject before) || !ReferenceEquals(before, pair.Value)) changed.Add(pair.Key);
         layer.fill = fill;
-        foreach (TileZone zone in changed)
+        foreach (Cell zone in changed)
         {
             zone.resetRenderHelpers();
-            foreach (TileZone next in zone.neighbours ?? Array.Empty<TileZone>()) next?.resetRenderHelpers();
-            if (!fill.ContainsKey(zone)) EmpireWorld.Current.zone_calculator.drawZoneClear(zone);
+            foreach (Cell next in zone.Neighbours ?? Array.Empty<Cell>()) next?.resetRenderHelpers();
+            if (!fill.ContainsKey(zone)) EmpireWorld.Current.Zones.drawZoneClear(zone);
         }
     }
 #endif
 
     // 找被一家包住的无主地：只从挨着城的无主地起搜；一片作废时搜过的地块仍记着片号，别处连到它们也随之作废
 #if EC_PENDING
-    private static void Search(Layer layer, List<TileZone> zones, Dictionary<TileZone, IMetaObject> fill)
+    private static void Search(Layer layer, List<Cell> zones, Dictionary<Cell, IMetaObject> fill)
     {
         Seen.Clear();
         int id = 0;
-        foreach (TileZone start in zones)
+        foreach (Cell start in zones)
         {
-            if (start == null || start.city != null || Seen.ContainsKey(start) || !BordersCity(start)) continue;
+            if (start == null || start.City != null || Seen.ContainsKey(start) || !BordersCity(start)) continue;
             id++;
             Component.Clear();
             Pending.Clear();
@@ -204,21 +204,21 @@ public static class EnclaveFill
             IMetaObject owner = null;
             while (Pending.Count > 0 && !rejected)
             {
-                TileZone zone = Pending.Dequeue();
+                Cell zone = Pending.Dequeue();
                 Component.Add(zone);
-                if (zone.world_edge || SeaRegionSystem.IsSea(zone) || Component.Count + Pending.Count > MaxZones)
+                if (zone.OnEdge || SeaRegionSystem.IsSea(zone) || Component.Count + Pending.Count > MaxZones)
                 {
                     rejected = true;
                     break;
                 }
-                foreach (TileZone next in zone.neighbours ?? Array.Empty<TileZone>())
+                foreach (Cell next in zone.Neighbours ?? Array.Empty<Cell>())
                 {
                     if (next == null)
                     {
                         rejected = true;
                         break;
                     }
-                    if (next.city == null)
+                    if (next.City == null)
                     {
                         // 别的片搜过的：那片已作废(没作废的片是封闭的，连不到这里)
                         if (Seen.TryGetValue(next, out int other))
@@ -241,18 +241,18 @@ public static class EnclaveFill
                 }
             }
             if (rejected || owner == null) continue;
-            foreach (TileZone zone in Component) fill[zone] = owner;
+            foreach (Cell zone in Component) fill[zone] = owner;
         }
         Component.Clear();
         Pending.Clear();
     }
+#endif
 
-    private static bool BordersCity(TileZone zone)
+    private static bool BordersCity(Cell zone)
     {
-        foreach (TileZone next in zone.neighbours ?? Array.Empty<TileZone>())
-            if (next?.city != null) return true;
+        foreach (Cell next in zone.Neighbours ?? Array.Empty<Cell>())
+            if (next?.City != null) return true;
         return false;
     }
-#endif
 }
 }

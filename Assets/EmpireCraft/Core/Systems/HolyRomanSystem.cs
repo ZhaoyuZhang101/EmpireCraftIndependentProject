@@ -72,7 +72,7 @@ public static partial class HolyRomanSystem
     public static float HouseShare(Empire empire)
     {
         int total = empire?.countCities() ?? 0;
-        return total <= 0 ? 1f : (empire.CoreKingdom?.cities?.Count ?? 0) / (float)total;
+        return total <= 0 ? 1f : (empire.CoreKingdom?.Cities?.Count ?? 0) / (float)total;
     }
 
     public static IEnumerable<(string key, int value)> LegitimacyItems(Empire empire)
@@ -311,7 +311,7 @@ public static partial class HolyRomanSystem
         {
             Realm core = empire.CoreKingdom;
             City city = core.Cities?.Where(item => item != null && !item.IsGone() && item != core.Capital)
-                .OrderBy(item => item.zones?.Count ?? 0).FirstOrDefault();
+                .OrderBy(item => item.Zones?.Count ?? 0).FirstOrDefault();
             Realm elector = ElectorRealms(empire).Where(SecularPrince).OrderByDescending(kingdom => kingdom.Cities.Count)
                 .FirstOrDefault();
             if (city == null || elector == null || core.Cities.Count < ConcessionFiefMinCities) return null;

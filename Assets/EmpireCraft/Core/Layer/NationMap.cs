@@ -67,12 +67,12 @@ public static class NationMap
                 if (mode == 2 && !NationalSentimentSystem.IsForeignRuled(city)) continue;
                 int bucket = Bucket(NationalSentimentSystem.GetCity(city));
                 NationMapColor color = ColorOf(bucket);
-                foreach (TileZone zone in city.zones)
+                foreach (Cell zone in city.Zones)
                 {
                     EmpireCraftMetaTypeLibrary.zone_manager.drawBegin();
                     EmpireCraftMetaTypeLibrary.zone_manager.drawZoneMeta(color, zone,
-                        IsBorder(mode, zone.zone_up, city, bucket), IsBorder(mode, zone.zone_down, city, bucket),
-                        IsBorder(mode, zone.zone_left, city, bucket), IsBorder(mode, zone.zone_right, city, bucket),
+                        IsBorder(mode, zone.Up, city, bucket), IsBorder(mode, zone.Down, city, bucket),
+                        IsBorder(mode, zone.Left, city, bucket), IsBorder(mode, zone.Right, city, bucket),
                         color.data, meta);
                     EmpireCraftMetaTypeLibrary.zone_manager.drawEnd(zone);
                 }
@@ -82,7 +82,7 @@ public static class NationMap
         {
             City hovered = tile?.zone?.city;
             if (!Shown(hovered)) return;
-            QuantumSpriteLibrary.colorZones(highlight, hovered.zones, highlight.color);
+            QuantumSpriteLibrary.colorZones(highlight, hovered.Zones, highlight.color);
         });
         // 原版 MouseCursor/CursorTooltipHelper 每帧无条件调用这两个委托，不设会每帧抛空引用
         asset.check_tile_has_meta = (MetaZoneTooltipAction)((zone, meta, option) => Shown(zone?.city));
@@ -100,9 +100,9 @@ public static class NationMap
         asset.click_action_zone = new MetaZoneClickAction((tile, power) => false);
     }
 
-    private static bool IsBorder(int mode, TileZone neighbour, City city, int bucket)
+    private static bool IsBorder(int mode, Cell neighbour, City city, int bucket)
     {
-        City other = neighbour?.city;
+        City other = neighbour?.City;
         if (mode != 0) return other != city;
         return !Shown(other) || Bucket(NationalSentimentSystem.GetCity(other)) != bucket;
     }

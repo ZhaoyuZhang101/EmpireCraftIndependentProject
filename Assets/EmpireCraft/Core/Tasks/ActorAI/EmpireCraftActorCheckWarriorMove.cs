@@ -64,9 +64,7 @@ public class EmpireCraftActorCheckWarriorMove : GameAIActorBase
     {
         public long actorId;
         public Person actor;
-#if EC_PENDING
-        public WorldTile target;
-#endif
+        public Cell target;
     }
 
     private static readonly Queue<TaxiEntry> _taxiQueue = new();
@@ -83,9 +81,7 @@ public class EmpireCraftActorCheckWarriorMove : GameAIActorBase
     private sealed class FrontZoneCacheEntry
     {
         public int frame;
-#if EC_PENDING
-        public List<TileZone> zones;
-#endif
+        public List<Cell> zones;
     }
 
     private static readonly Dictionary<Realm, FrontZoneCacheEntry> _frontZoneCache = new();
@@ -95,19 +91,15 @@ public class EmpireCraftActorCheckWarriorMove : GameAIActorBase
 
     // 同一次开战分配中记录已计划去各 Zone 的人数，
     // 防止同一批士兵全部扎到第一个目标。
-#if EC_PENDING
-    private static readonly Dictionary<Realm, Dictionary<TileZone, int>> _plannedFrontCounts = new();
-#endif
+    private static readonly Dictionary<Realm, Dictionary<Cell, int>> _plannedFrontCounts = new();
 
     // ------------------------------------------------------------
     // Zone Warrior 缓存
     // ------------------------------------------------------------
 
     private static int _zoneWarriorCacheFrame = -1;
-#if EC_PENDING
-    private static readonly Dictionary<TileZone, List<Person>> _zoneWarriors = new();
-    private static readonly Dictionary<TileZone, Dictionary<Realm, int>> _zoneWarriorCounts = new();
-#endif
+    private static readonly Dictionary<Cell, List<Person>> _zoneWarriors = new();
+    private static readonly Dictionary<Cell, Dictionary<Realm, int>> _zoneWarriorCounts = new();
 
     // ------------------------------------------------------------
     // Person 移动状态
@@ -121,17 +113,14 @@ public class EmpireCraftActorCheckWarriorMove : GameAIActorBase
     private sealed class ActorMoveState
     {
         public Person actor;
-#if EC_PENDING
-        public WorldTile targetTile;
-        public WorldTile lastObservedTile;
-#endif
+        public Cell targetTile;
+        public Cell lastObservedTile;
         public int lastProgressFrame;
         public int lastCheckFrame;
         public int lastTaxiFrame = -TaxiRetryIntervalFrames;
         public int recoveryCount;
     }
 
-#if EC_PENDING
     public static void ClearRuntimeState()
     {
         _mobilizeQueue.Clear();
@@ -152,6 +141,7 @@ public class EmpireCraftActorCheckWarriorMove : GameAIActorBase
         _movementWatchdogSnapshotFrame = -1;
     }
 
+#if EC_PENDING
     public override BehResult execute(Person pActor)
     {
         if (pActor == null)
@@ -224,7 +214,7 @@ public class EmpireCraftActorCheckWarriorMove : GameAIActorBase
 
         if (state.targetTile == null)
         {
-            WorldTile target = FindTargetZone(pActor);
+            Cell target = FindTargetZone(pActor);
 
             if (target == null)
             {
@@ -238,12 +228,12 @@ public class EmpireCraftActorCheckWarriorMove : GameAIActorBase
             IssueFrontLineMove(pActor, target, false);
         }
 
-        WorldTile targetTile = state.targetTile;
+        Cell targetTile = state.targetTile;
 
         if (targetTile == null)
             return BehResult.Continue;
 
-        if (pActor.current_tile.zone == targetTile.zone)
+        if (pActor.current_tile.zone == targetTile.Zone)
         {
             pActor.ClearFrontLineMoveTarget();
             state.targetTile = null;
@@ -285,7 +275,7 @@ public class EmpireCraftActorCheckWarriorMove : GameAIActorBase
 
         if (!_plannedFrontCounts.ContainsKey(kingdom))
         {
-            _plannedFrontCounts[kingdom] = new Dictionary<TileZone, int>();
+            _plannedFrontCounts[kingdom] = new Dictionary<Cell, int>();
         }
         else
         {
@@ -341,6 +331,7 @@ public class EmpireCraftActorCheckWarriorMove : GameAIActorBase
         ProcessActiveMovementWatchdog();
         ProcessTaxiQueue();
     }
+#endif
 
     private static void PruneRuntimeCachesIfNeeded(int frame)
     {
@@ -379,7 +370,6 @@ public class EmpireCraftActorCheckWarriorMove : GameAIActorBase
         }
         _staleKingdomCacheKeys.Clear();
     }
-#endif
 
     private static bool IsStaleKingdomCacheKey(Realm kingdom)
     {
@@ -449,7 +439,7 @@ public class EmpireCraftActorCheckWarriorMove : GameAIActorBase
                 continue;
             }
 
-            WorldTile target = state.targetTile;
+            Cell target = state.targetTile;
             if (!IsValidFrontTarget(actor, target))
             {
                 ClearActorMoveState(actorId, actor);
@@ -462,7 +452,7 @@ public class EmpireCraftActorCheckWarriorMove : GameAIActorBase
                 continue;
             }
 
-            if (actor.current_tile.zone == target.zone)
+            if (actor.current_tile.zone == target.Zone)
             {
                 ClearActorMoveState(actorId, actor);
                 continue;
@@ -506,18 +496,18 @@ public class EmpireCraftActorCheckWarriorMove : GameAIActorBase
             if (actor.has_attack_target || actor.isFighting())
                 continue;
 
-            Dictionary<TileZone, int> planned =
+            Dictionary<Cell, int> planned =
                 GetPlannedFrontCountMap(kingdom);
 
-            WorldTile target = FindTargetZone(actor, planned);
+            Cell target = FindTargetZone(actor, planned);
 
             if (target == null)
                 continue;
 
-            if (target.zone != null)
+            if (target.Zone != null)
             {
-                planned.TryGetValue(target.zone, out int plannedCount);
-                planned[target.zone] = plannedCount + 1;
+                planned.TryGetValue(target.Zone, out int plannedCount);
+                planned[target.Zone] = plannedCount + 1;
             }
 
             ActorMoveState state = GetState(actor);
@@ -533,27 +523,26 @@ public class EmpireCraftActorCheckWarriorMove : GameAIActorBase
             }
         }
     }
+#endif
 
-    private static Dictionary<TileZone, int> GetPlannedFrontCountMap(Realm kingdom)
+    private static Dictionary<Cell, int> GetPlannedFrontCountMap(Realm kingdom)
     {
         if (!_plannedFrontCounts.TryGetValue(
                 kingdom,
-                out Dictionary<TileZone, int> map))
+                out Dictionary<Cell, int> map))
         {
-            map = new Dictionary<TileZone, int>();
+            map = new Dictionary<Cell, int>();
             _plannedFrontCounts[kingdom] = map;
         }
 
         return map;
     }
-#endif
 
     // ============================================================
     // Taxi 分帧
     // ============================================================
 
-#if EC_PENDING
-    private static void QueueTaxi(Person actor, WorldTile target)
+    private static void QueueTaxi(Person actor, Cell target)
     {
         if (actor == null ||
             actor.Record == null ||
@@ -576,6 +565,7 @@ public class EmpireCraftActorCheckWarriorMove : GameAIActorBase
         });
     }
 
+#if EC_PENDING
     private static void ProcessTaxiQueue()
     {
         int budget = TaxiRequestsPerFrame;
@@ -586,7 +576,7 @@ public class EmpireCraftActorCheckWarriorMove : GameAIActorBase
             budget--;
 
             Person actor = entry.actor;
-            WorldTile target = entry.target;
+            Cell target = entry.target;
 
             _queuedTaxiActorIds.Remove(entry.actorId);
 
@@ -623,7 +613,7 @@ public class EmpireCraftActorCheckWarriorMove : GameAIActorBase
 #if EC_PENDING
     private static void IssueFrontLineMove(
         Person actor,
-        WorldTile target,
+        Cell target,
         bool forceWake)
     {
         if (actor == null || target == null)
@@ -649,7 +639,7 @@ public class EmpireCraftActorCheckWarriorMove : GameAIActorBase
 
     private static void MaintainMovement(
         Person actor,
-        WorldTile target,
+        Cell target,
         ActorMoveState state)
     {
         int frame = Time.frameCount;
@@ -711,10 +701,11 @@ public class EmpireCraftActorCheckWarriorMove : GameAIActorBase
             state.recoveryCount = 0;
         }
     }
+#endif
 
     private static void HandleCrossIsland(
         Person actor,
-        WorldTile target,
+        Cell target,
         ActorMoveState state)
     {
         int frame = Time.frameCount;
@@ -725,17 +716,15 @@ public class EmpireCraftActorCheckWarriorMove : GameAIActorBase
         state.lastTaxiFrame = frame;
         QueueTaxi(actor, target);
     }
-#endif
 
     // ============================================================
     // 前线 Zone 缓存
     // ============================================================
 
-#if EC_PENDING
-    private static List<TileZone> GetCachedFrontZones(Realm kingdom)
+    private static List<Cell> GetCachedFrontZones(Realm kingdom)
     {
         if (kingdom == null)
-            return new List<TileZone>();
+            return new List<Cell>();
 
         int frame = Time.frameCount;
 
@@ -749,21 +738,21 @@ public class EmpireCraftActorCheckWarriorMove : GameAIActorBase
             return cached.zones;
         }
 
-        List<TileZone> zones;
+        List<Cell> zones;
 
         try
         {
             zones = KingdomFrontLineHelper
-                .GetAllEnemyFrontZones(kingdom) ?? new List<TileZone>();
+                .GetAllEnemyFrontZones(kingdom) ?? new List<Cell>();
         }
         catch
         {
-            zones = new List<TileZone>();
+            zones = new List<Cell>();
         }
 
         // 在缓存写入时就先去掉空对象，减少每名士兵后续循环成本。
         zones = zones
-            .Where(z => z != null && z.centerTile != null)
+            .Where(z => z != null && z.Center != null)
             .Distinct()
             .ToList();
 
@@ -775,7 +764,6 @@ public class EmpireCraftActorCheckWarriorMove : GameAIActorBase
 
         return zones;
     }
-#endif
 
     private static void InvalidateFrontZoneCache(Realm kingdom)
     {
@@ -784,14 +772,14 @@ public class EmpireCraftActorCheckWarriorMove : GameAIActorBase
     }
 
 #if EC_PENDING
-    public static WorldTile FindTargetZone(Person pActor)
+    public static Cell FindTargetZone(Person pActor)
     {
         return FindTargetZone(pActor, null);
     }
 
-    private static WorldTile FindTargetZone(
+    private static Cell FindTargetZone(
         Person pActor,
-        Dictionary<TileZone, int> plannedCounts)
+        Dictionary<Cell, int> plannedCounts)
     {
         if (pActor == null ||
             pActor.Realm == null ||
@@ -801,18 +789,18 @@ public class EmpireCraftActorCheckWarriorMove : GameAIActorBase
         }
 
         Realm kingdom = pActor.Realm;
-        List<TileZone> zones = GetCachedFrontZones(kingdom);
+        List<Cell> zones = GetCachedFrontZones(kingdom);
 
         if (zones.Count == 0)
             return null;
 
         EnsureZoneWarriorCache();
 
-        TileZone bestZone = null;
+        Cell bestZone = null;
         float bestScore = float.MaxValue;
 
         // 第一轮：优先尚未达到每前线 3 人的区域。
-        foreach (TileZone zone in zones)
+        foreach (Cell zone in zones)
         {
             if (!IsValidEnemyFrontZone(kingdom, zone))
                 continue;
@@ -843,7 +831,7 @@ public class EmpireCraftActorCheckWarriorMove : GameAIActorBase
         // 所有前线都达到 3 人时，继续推进，但仍按距离 + 拥挤度选择。
         if (bestZone == null)
         {
-            foreach (TileZone zone in zones)
+            foreach (Cell zone in zones)
             {
                 if (!IsValidEnemyFrontZone(kingdom, zone))
                     continue;
@@ -869,17 +857,17 @@ public class EmpireCraftActorCheckWarriorMove : GameAIActorBase
             }
         }
 
-        return bestZone?.centerTile;
+        return bestZone?.Center;
     }
 
     private static float CalculateZoneScore(
         Person actor,
-        TileZone zone,
+        Cell zone,
         int friendlyCount)
     {
-        float score = Toolbox.SquaredDistTile(
+        float score = Land.SquaredDist(
             actor.current_tile,
-            zone.centerTile);
+            zone.Center);
 
         score += friendlyCount * WarriorCrowdingPenalty;
 
@@ -890,36 +878,36 @@ public class EmpireCraftActorCheckWarriorMove : GameAIActorBase
 
         return score;
     }
+#endif
 
     private static bool IsValidEnemyFrontZone(
         Realm kingdom,
-        TileZone zone)
+        Cell zone)
     {
         if (kingdom == null ||
             zone == null ||
-            zone.city == null ||
-            zone.city.kingdom == null)
+            zone.City == null ||
+            zone.City.Realm == null)
         {
             return false;
         }
 
         return AreWarSidesHostile(
             kingdom,
-            zone.city.kingdom);
+            zone.City.Realm);
     }
 
     private static bool IsValidFrontTarget(
         Person actor,
-        WorldTile target)
+        Cell target)
     {
         return actor != null &&
                target != null &&
-               target.zone != null &&
+               target.Zone != null &&
                IsValidEnemyFrontZone(
                    actor.Realm,
-                   target.zone);
+                   target.Zone);
     }
-#endif
 
     // 帝国战争可能登记在 CoreKingdom 上。
     private static bool AreWarSidesHostile(Realm a, Realm b)
@@ -989,7 +977,7 @@ public class EmpireCraftActorCheckWarriorMove : GameAIActorBase
             if (!IsOccupyArmyGroupMember(actor))
                 continue;
 
-            TileZone zone = actor.current_tile?.zone;
+            Cell zone = actor.current_tile?.zone;
 
             if (zone == null)
                 continue;
@@ -1022,9 +1010,10 @@ public class EmpireCraftActorCheckWarriorMove : GameAIActorBase
             }
         }
     }
+#endif
 
     private static int GetWarriorCount(
-        TileZone zone,
+        Cell zone,
         Realm kingdom)
     {
         if (zone == null || kingdom == null)
@@ -1044,9 +1033,10 @@ public class EmpireCraftActorCheckWarriorMove : GameAIActorBase
             : 0;
     }
 
+#if EC_PENDING
     public static Person FindEnemyWarriorInZone(
         Person actor,
-        TileZone zone)
+        Cell zone)
     {
         if (actor == null ||
             actor.Realm == null ||
@@ -1085,7 +1075,7 @@ public class EmpireCraftActorCheckWarriorMove : GameAIActorBase
                 continue;
             }
 
-            float distance = Toolbox.SquaredDistTile(
+            float distance = Land.SquaredDist(
                 actor.current_tile,
                 other.current_tile);
 
@@ -1139,7 +1129,7 @@ public class EmpireCraftActorCheckWarriorMove : GameAIActorBase
     private static void SetStateTarget(
         Person actor,
         ActorMoveState state,
-        WorldTile target)
+        Cell target)
     {
         state.targetTile = target;
         state.lastObservedTile = actor.current_tile;
@@ -1157,6 +1147,7 @@ public class EmpireCraftActorCheckWarriorMove : GameAIActorBase
         state.lastCheckFrame = Time.frameCount;
         state.recoveryCount = 0;
     }
+#endif
 
     private static void ClearActorMoveState(Person actor)
     {
@@ -1195,6 +1186,5 @@ public class EmpireCraftActorCheckWarriorMove : GameAIActorBase
 
         _moveStates.Remove(actorId);
     }
-#endif
 }
 }

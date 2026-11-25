@@ -2,6 +2,7 @@
 // see Port/manifest.json and Tools/PortTool.
 using Mathf = EmpireCraft.Core.EcMath;
 using Color = EmpireCraft.Core.EcColor;
+using Vector2Int = EmpireCraft.Core.EcVector2Int;
 using System;
 using System.Collections.Generic;
 using System.Globalization;
@@ -1946,7 +1947,6 @@ public static class ScenarioEditing
     }
 
     // 地图范围：不定 → 各档 → 不定
-#if EC_PENDING
     public static void CycleFrame(int step)
     {
         if (Era == null) return;
@@ -1957,7 +1957,6 @@ public static class ScenarioEditing
         Era.frame = next.Length == 0 ? null : next;
         Changed();
     }
-#endif
 
     #endregion
 

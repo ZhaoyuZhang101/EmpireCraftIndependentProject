@@ -35,11 +35,11 @@ public static class CityPlacementSystem
     private static long _chosen = -1L;
 
 #if EC_PENDING
-    public static string PlaceCity(WorldTile tile)
+    public static string PlaceCity(Cell tile)
     {
-        TileZone zone = tile?.zone;
+        Cell zone = tile?.Zone;
         if (zone == null || !UrbanFabric.ManualGround(tile)) return LM.Get("city_place_no_land");
-        City host = zone.city;
+        City host = zone.City;
         Realm chosen = _chosen > 0 ? EmpireWorld.Current.RealmByKey(_chosen) : null;
         if (chosen != null && (chosen.IsGone() || chosen.IsWild)) chosen = null;
         Realm clicked = host?.Realm;
@@ -52,14 +52,14 @@ public static class CityPlacementSystem
         if (host == null && owner == null)
         {
             // 无主之地：挨着的国家里都城最近的；四周没有国家就是全图都城最近的
-            owner = NearestKingdom(zone.neighbours_all?.Select(neighbour => neighbour?.city?.kingdom), tile) ??
+            owner = NearestKingdom(zone.NeighboursAll?.Select(neighbour => neighbour?.City?.Realm), tile) ??
                     NearestKingdom(EmpireWorld.Current.LiveRealms, tile);
         }
         if (owner == null || owner.IsWild || owner.IsGone()) return LM.Get("city_place_no_kingdom");
         // 别城的城心那块地不拆：那是原城本身(城心、篝火、平面图都在这里)；城区别的地块可以，那块划给新城
-        if (host != null && zone == host.getTile()?.zone) return string.Format(LM.Get("settlement_place_urban"), host.GetCityName());
-        City source = host ?? owner.Cities?.Where(city => city?.getTile() != null && !city.IsGone())
-            .OrderBy(city => Toolbox.SquaredDistTile(city.getTile(), tile)).FirstOrDefault();
+        if (host != null && zone == host.SeatCell()?.Zone) return string.Format(LM.Get("settlement_place_urban"), host.GetCityName());
+        City source = host ?? owner.Cities?.Where(city => city?.SeatCell() != null && !city.IsGone())
+            .OrderBy(city => Land.SquaredDist(city.SeatCell(), tile)).FirstOrDefault();
         if (source == null) return LM.Get("city_place_no_kingdom");
         City city = Found(zone, owner, source, host, out string error);
         if (city == null) return error;
@@ -73,7 +73,7 @@ public static class CityPlacementSystem
     // 在一块地上给一国建城：建城人从 source 落成(城名、主流文化照国家文化)，迁一成人口过去；host 是这块地原来所属的城(划给新城)。
     // 神力建城、无人区开发满了另立新城(见 WildernessDevelopmentSystem.Hand)共用。建不成返回 null，error 写原因
 #if EC_PENDING
-    public static City Found(TileZone zone, Realm owner, City source, City host, out string error)
+    public static City Found(Cell zone, Realm owner, City source, City host, out string error)
     {
         error = null;
         string culture = CultureService.GetRealmCulture(owner);
@@ -97,8 +97,8 @@ public static class CityPlacementSystem
         {
             // 敌军占着的地：占领记在原城名下，建了新城就对不上，先清掉
             if (host.GetTileZoneOccupier(zone) != null) host.RemoveOccupiedTileZoneFromAll(zone);
-            using (CityExpansionPatch.Manual()) host.removeZone(zone);
-            if (zone.city != null)
+            using (CityExpansionPatch.Manual()) host.RemoveZone(zone);
+            if (zone.City != null)
             {
                 error = string.Format(LM.Get("settlement_place_urban"), host.GetCityName());
                 return null;
@@ -129,30 +129,28 @@ public static class CityPlacementSystem
 #endif
 
     // 无主之地归哪国：这些国家里都城离 tile 最近的(没有都城的按它的头一座城)
-#if EC_PENDING
-    private static Realm NearestKingdom(global::System.Collections.Generic.IEnumerable<Realm> kingdoms, WorldTile tile)
+    private static Realm NearestKingdom(global::System.Collections.Generic.IEnumerable<Realm> kingdoms, Cell tile)
     {
         Realm best = null;
         float bestDistance = float.MaxValue;
         foreach (Realm kingdom in kingdoms ?? Enumerable.Empty<Realm>())
         {
             if (kingdom?.Record == null || kingdom.IsWild || kingdom.IsGone()) continue;
-            WorldTile seat = kingdom.Capital?.getTile() ?? kingdom.Cities?.FirstOrDefault(city => city?.getTile() != null)?.getTile();
+            Cell seat = kingdom.Capital?.SeatCell() ?? kingdom.Cities?.FirstOrDefault(city => city?.SeatCell() != null)?.SeatCell();
             if (seat == null) continue;
-            float d = Toolbox.SquaredDistTile(seat, tile);
+            float d = Land.SquaredDist(seat, tile);
             if (d >= bestDistance) continue;
             bestDistance = d;
             best = kingdom;
         }
         return best;
     }
-#endif
 
     // 营宫殿：返回提示文字
 #if EC_PENDING
-    public static string BuildPalace(WorldTile tile)
+    public static string BuildPalace(Cell tile)
     {
-        City city = tile?.zone?.city;
+        City city = tile?.Zone?.City;
         if (city?.Record == null || city.IsGone()) return LM.Get("palace_no_city");
         Empire empire = city.Realm?.GetEmpire();
         Realm core = empire == null || empire.IsGone() || empire.IsArchived() ? null : empire.CoreKingdom;

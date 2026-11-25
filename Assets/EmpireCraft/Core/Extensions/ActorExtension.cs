@@ -1,6 +1,7 @@
 // Generated from the EmpireCraft mod: Scripts/GameClassExtensions/ActorExtension.cs. Do not edit by hand: Tools/PortTool/members.py rewrites it;
 // see Port/manifest.json and Tools/PortTool.
 using Mathf = EmpireCraft.Core.EcMath;
+using Vector2 = EmpireCraft.Core.EcVector2;
 using Newtonsoft.Json.Converters;
 using Newtonsoft.Json;
 using System;
@@ -441,10 +442,8 @@ public static class ActorExtension
         public bool ShouldSerializebanned_office_kingdom_ids() => banned_office_kingdom_ids != null && banned_office_kingdom_ids.Count > 0;
         public Dictionary<string, double> law_check_timestamps = new Dictionary<string, double>();
         public double target_tile_timestamp = -1;
-#if EC_PENDING
         [JsonIgnore]
-        public WorldTile target_tile = null;
-#endif
+        public Cell target_tile = null;
     }
     /// <summary>
     /// 初始化执行
@@ -492,7 +491,7 @@ public static class ActorExtension
         return a.subspecies.species_id == "skeleton";
     }
 
-    public static void SetFrontLineMoveTarget(this Person a, WorldTile tile)
+    public static void SetFrontLineMoveTarget(this Person a, Cell tile)
     {
         if (a == null)
         {
@@ -512,6 +511,7 @@ public static class ActorExtension
         data.target_tile = tile;
         data.target_tile_timestamp = GameClock.Now;
     }
+#endif
 
     public static void ClearFrontLineMoveTarget(this Person a)
     {
@@ -524,7 +524,7 @@ public static class ActorExtension
         data.target_tile = null;
     }
 
-    public static WorldTile GetFrontLineMoveTarget(this Person a)
+    public static Cell GetFrontLineMoveTarget(this Person a)
     {
         return a.GetOrCreate().target_tile;
     }
@@ -540,7 +540,7 @@ public static class ActorExtension
         return data.target_tile != null;
     }
 
-    public static bool IsFrontLineMoveTarget(this Person a, WorldTile tile)
+    public static bool IsFrontLineMoveTarget(this Person a, Cell tile)
     {
         if (a == null || tile == null || !a.HasFrontLineMoveTarget())
         {
@@ -551,7 +551,8 @@ public static class ActorExtension
         return data.target_tile == tile;
     }
 
-    public static bool ShouldBlockGoToByFrontLine(this Person a, WorldTile requestedTile)
+#if EC_PENDING
+    public static bool ShouldBlockGoToByFrontLine(this Person a, Cell requestedTile)
     {
         if (a == null || requestedTile == null)
         {
@@ -582,7 +583,7 @@ public static class ActorExtension
             return false;
         }
 
-        WorldTile targetTile = data.target_tile;
+        Cell targetTile = data.target_tile;
 
         if (targetTile == null)
         {
@@ -596,7 +597,7 @@ public static class ActorExtension
         }
 
         // 原版如果是在目标 zone 内移动，也放行，避免卡死寻路
-        if (requestedTile.zone != null && targetTile.zone != null && requestedTile.zone == targetTile.zone)
+        if (requestedTile.Zone != null && targetTile.Zone != null && requestedTile.Zone == targetTile.Zone)
         {
             return false;
         }
@@ -612,20 +613,20 @@ public static class ActorExtension
             return false;
         }
 
-        TileZone currentZone = a.current_tile.zone;
+        Cell currentZone = a.current_tile.zone;
         if (HasEnemyArmyInZone(a, currentZone))
         {
             return true;
         }
 
-        if (currentZone.neighbours_all == null)
+        if (currentZone.NeighboursAll == null)
         {
             return false;
         }
 
-        for (int i = 0; i < currentZone.neighbours_all.Length; i++)
+        for (int i = 0; i < currentZone.NeighboursAll.Length; i++)
         {
-            TileZone neighbour = currentZone.neighbours_all[i];
+            Cell neighbour = currentZone.NeighboursAll[i];
             if (HasEnemyArmyInZone(a, neighbour))
             {
                 return true;
@@ -635,29 +636,29 @@ public static class ActorExtension
         return false;
     }
 
-    private static bool IsNearbyEnemyAttackTarget(this Person a, WorldTile requestedTile)
+    private static bool IsNearbyEnemyAttackTarget(this Person a, Cell requestedTile)
     {
-        TileZone currentZone = a?.current_tile?.zone;
-        TileZone requestedZone = requestedTile?.zone;
+        Cell currentZone = a?.current_tile?.zone;
+        Cell requestedZone = requestedTile?.Zone;
         if (currentZone == null || requestedZone == null)
         {
             return false;
         }
 
         bool isNearby = requestedZone == currentZone ||
-                        (currentZone.neighbours_all != null &&
-                         currentZone.neighbours_all.Contains(requestedZone));
+                        (currentZone.NeighboursAll != null &&
+                         currentZone.NeighboursAll.Contains(requestedZone));
         return isNearby && HasEnemyArmyInZone(a, requestedZone);
     }
 
-    private static bool HasEnemyArmyInZone(Person actor, TileZone zone)
+    private static bool HasEnemyArmyInZone(Person actor, Cell zone)
     {
         if (actor == null || zone == null)
         {
             return false;
         }
 
-        City city = zone.city;
+        City city = zone.City;
         if (city?.units == null)
         {
             return false;
@@ -979,7 +980,7 @@ public static class ActorExtension
         return GameClock.YearsSince(k.GetLastTaxTime()) >= 1;
     }
 #if EC_PENDING
-    public static void WarriorMoveTo(this Person a, WorldTile pTileTarget)
+    public static void WarriorMoveTo(this Person a, Cell pTileTarget)
     {
         if (a == null || pTileTarget == null)
         {
@@ -991,7 +992,7 @@ public static class ActorExtension
             return;
         }
 
-        float dist = Toolbox.SquaredDistTile(a.current_tile, pTileTarget);
+        float dist = Land.SquaredDist(a.current_tile, pTileTarget);
 
         LogService.LogInfo("士兵移动距离: " + dist);
 
@@ -1624,6 +1625,7 @@ public static class ActorExtension
         }
         return titles;
     }
+#endif
     public static bool CanTakeCity(this Person pActor)
     {
         Realm kingdom = pActor.Realm;
@@ -1633,9 +1635,9 @@ public static class ActorExtension
         foreach (City city in kingdom.Cities)
         {
             if (city.IsGone()) continue;
-            if (city.neighbours_cities.Count > 0)
+            if (city.NeighbourCities.Count > 0)
             {
-                foreach (City city2 in city.neighbours_cities)
+                foreach (City city2 in city.NeighbourCities)
                 {
                     if (city2.Realm.IsInEmpire() && city2.Realm != kingdom && city2.Realm.IsEmpire() && !city2.IsCapital())
                     {
@@ -1646,7 +1648,6 @@ public static class ActorExtension
         }
         return false;
     }
-#endif
     public static string GetTitle(this Person a)
     {
         if (!a.HasTitle()) return "";

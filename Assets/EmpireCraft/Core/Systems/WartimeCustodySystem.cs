@@ -173,17 +173,16 @@ public static class WartimeCustodySystem
     }
 
     // 与本城相邻的各成员共有多少段边界(按区域四向相邻计)
-#if EC_PENDING
     private static Dictionary<Realm, int> BorderLengths(City city, Empire empire)
     {
         var result = new Dictionary<Realm, int>();
-        if (city.zones == null) return result;
-        foreach (TileZone zone in city.zones)
+        if (city.Zones == null) return result;
+        foreach (Cell zone in city.Zones)
         {
-            if (zone?.neighbours == null || zone.city != city) continue;
-            foreach (TileZone neighbour in zone.neighbours)
+            if (zone?.Neighbours == null || zone.City != city) continue;
+            foreach (Cell neighbour in zone.Neighbours)
             {
-                City other = neighbour?.city;
+                City other = neighbour?.City;
                 if (other == null || other == city || other.IsGone()) continue;
                 Realm kingdom = other.Realm;
                 if (kingdom == null || !EmpireMembershipService.BelongsTo(empire, kingdom)) continue;
@@ -193,6 +192,5 @@ public static class WartimeCustodySystem
         }
         return result;
     }
-#endif
 }
 }

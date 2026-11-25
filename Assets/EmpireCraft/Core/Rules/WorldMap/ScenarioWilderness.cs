@@ -2,6 +2,8 @@
 // see Port/manifest.json and Tools/PortTool.
 using Mathf = EmpireCraft.Core.EcMath;
 using Time = EmpireCraft.Core.FrameClock;
+using Vector2Int = EmpireCraft.Core.EcVector2Int;
+using Vector2 = EmpireCraft.Core.EcVector2;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -87,9 +89,7 @@ public static class ScenarioWilderness
     {
         public int Key;
         public WorldMapFrame Frame;
-#if EC_PENDING
         public Vector2Int Size;
-#endif
         public int SizeIndex;
         public float West, Bottom, ZoneDegrees;
         public int W, H;
@@ -108,9 +108,7 @@ public static class ScenarioWilderness
         // 放得下的城(编号、经纬)与城心所在的地块
         public readonly List<string> Seats = new();
         public readonly List<int> SeatZone = new();
-#if EC_PENDING
         public readonly List<Vector2Int> SeatTile = new();
-#endif
         public readonly Dictionary<string, int> SeatOf = new();
         // 照原图分地的剧本才有：各块地刷给哪座城(Seats 的下标，没有为 -1)，哪些留给城(见 Claims)
         public int[] Claim;
@@ -152,9 +150,7 @@ public static class ScenarioWilderness
     public static int GeometryVersion { get; private set; }
     public static bool Ready => _layout != null;
     public static WorldMapFrame Frame => _layout?.Frame;
-#if EC_PENDING
     public static Vector2Int Size => _layout?.Size ?? Vector2Int.zero;
-#endif
     public static float ZoneDegrees => _layout?.ZoneDegrees ?? 0f;
     public static IReadOnlyList<Piece> Pieces => _layout?.Pieces ?? new List<Piece>();
 
@@ -326,7 +322,6 @@ public static class ScenarioWilderness
     }
 
     // 城心落在哪些地块(编号、位置、等级)：变了才重新取样(城挪进挪出无人区，城心那块留给城)
-#if EC_PENDING
     private static int SeatKey(WorldMapFrame frame, Vector2Int size, int sizeIndex)
     {
         frame.Bounds(size, out float bottom, out float degrees);
@@ -346,7 +341,6 @@ public static class ScenarioWilderness
         }
         return hash;
     }
-#endif
 
     #endregion
 
@@ -620,7 +614,6 @@ public static class ScenarioWilderness
     // 照原图分地：各块地刷给哪座城。取样点同 WorldMapScenario.PaintTerritory——块中心那一格的左下角，不加半格(加半格的是
     // WorldMapWilderness.BeginPaint 挂法理的取样点，见 Center)。"c:" 归那座城、留给城(开局记进 Keep，见 WildernessSystem.Regroup)；
     // "p:"、"r:" 归那国、那块法理最近的城但不留；水面多的只有 "c:" 才领；放不下的城对不上，刷给它的地没人领
-#if EC_PENDING
     private static void Claims(Layout layout, WorldMapFrame frame, float bottom, float degrees, bool[] anchored)
     {
         int n = layout.W * layout.H;
@@ -664,7 +657,6 @@ public static class ScenarioWilderness
         // 城心那块归那座城(同开局：城立好时就归它，刷的让开)
         for (int i = layout.Seats.Count - 1; i >= 0; i--) layout.Claim[layout.SeatZone[i]] = i;
     }
-#endif
 
     // 取样：每格取最近的预览像素(同 EarthTerrain.TypeAt 就近取地球网格)，数各块各类格子；地球地图画大河水道
 #if EC_PENDING
@@ -1255,7 +1247,6 @@ public static class ScenarioWilderness
 
     private static readonly List<int> NoSeats = new();
 
-#if EC_PENDING
     private static int NearestSeat(Layout layout, List<int> seats, int tx, int ty)
     {
         int best = seats[0];
@@ -1270,7 +1261,6 @@ public static class ScenarioWilderness
         }
         return best;
     }
-#endif
 
     // 历史范围落到地块上(各块归哪座城，没有 -1)。点在多边形里的判断慢，拖着刷地块时不用重算：地块网格和国家、城、行政区没变就留着
     private static int[] _boundaryOwners;

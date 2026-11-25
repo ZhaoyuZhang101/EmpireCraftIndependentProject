@@ -74,9 +74,7 @@ public sealed class WildRegion
     public bool CustomName;              // 名字是在无人区窗口里改的(见 WildernessSystem.Rename)：自动起名不再动它
     public string Culture;               // 起名所依的文化 id
     public readonly List<int> Zones = new(); // 地块 id
-#if EC_PENDING
-    public TileZone Center;              // 标名字的位置(区域里最靠中间的一块)
-#endif
+    public Cell Center;              // 标名字的位置(区域里最靠中间的一块)
     public int MinX, MinY, MaxX, MaxY;   // 地块坐标外框
     // 这一片的底色(显示用)：按类型定色系，按编号微调，挨着的两片不至于一个颜色；编号不变颜色就不变
 #if EC_PENDING
@@ -188,9 +186,7 @@ public static class WildernessSystem
     private static bool _attachPending;
     // 认领的城没了(见 OriginOf)：下一核重新认领(见 Claim)
     private static bool _claimPending;
-#if EC_PENDING
-    private static TileZone[] _zones = new TileZone[0];
-#endif
+    private static Cell[] _zones = new Cell[0];
     private static bool _built;
     private static int _nextId = 1;
     // 读档读进来、还没用上的(头一回划区时按它沿用编号名字法理)；关掉开关时也把现有的存在这里
@@ -224,35 +220,31 @@ public static class WildernessSystem
 
     public static int NextId => _nextId;
 
-#if EC_PENDING
-    public static WildRegion RegionOf(TileZone zone)
+    public static WildRegion RegionOf(Cell zone)
     {
         int index = Index(zone);
         return index >= 0 ? _regions[index] : null;
     }
 
-    public static bool IsWild(TileZone zone) => Index(zone) >= 0;
+    public static bool IsWild(Cell zone) => Index(zone) >= 0;
 
-    public static bool IsWildAt(int x, int y) => _regions.Count > 0 && IsWild(EmpireWorld.Current?.GetTile(x, y)?.zone);
+    public static bool IsWildAt(int x, int y) => _regions.Count > 0 && IsWild(EmpireWorld.Current?.CellAt(x, y)?.Zone);
 
-    public static WildKind KindOf(TileZone zone)
+    public static WildKind KindOf(Cell zone)
     {
         int index = Index(zone);
         return index >= 0 ? _regions[index].Kind : WildKind.None;
     }
-#endif
 
     public static WildRegion ById(int id) => IdIndex.TryGetValue(id, out WildRegion region) ? region : null;
 
     // 这块无人区挂在哪个法理上(没有为 null)
-#if EC_PENDING
-    public static KingdomTitle TitleOf(TileZone zone)
+    public static KingdomTitle TitleOf(Cell zone)
     {
-        if (Index(zone) < 0 || zone.id >= _titles.Length) return null;
-        KingdomTitle title = _titles[zone.id];
+        if (Index(zone) < 0 || zone.Index >= _titles.Length) return null;
+        KingdomTitle title = _titles[zone.Index];
         return title == null || title.IsGone() ? null : title;
     }
-#endif
 
     // 这块无人区归哪国(用户 2026-10-29 "关于并进哪个国家我建议用法理判断, 如果他属于一个法理那么一旦有国家获得这个法理
     // 那么这个地会被百分百划入这个国家, 如果周边的几个城市全属于同一个国家这个无人区也会被划入, 否则他是中立的.
@@ -266,13 +258,13 @@ public static class WildernessSystem
     //   · 都不是：中立(null)
     //   · 太小的碎块(不到 MinZones 块、不挨着本国的地，或没有归属)并进四周挨得最多的那一国(见 RefreshFragments)
 #if EC_PENDING
-    public static Realm OwnerOf(TileZone zone) => Resolve(zone, out _);
+    public static Realm OwnerOf(Cell zone) => Resolve(zone, out _);
 
-    private static Realm Resolve(TileZone zone, out bool byTitle)
+    private static Realm Resolve(Cell zone, out bool byTitle)
     {
         Realm owner = BaseResolve(zone, out byTitle);
         if (Merged.Count == 0 || Index(zone) < 0 || IsNeutral(zone) ||
-            !Merged.TryGetValue(zone.id, out (Realm from, Realm into) merge) || merge.from != owner ||
+            !Merged.TryGetValue(zone.Index, out (Realm from, Realm into) merge) || merge.from != owner ||
             merge.into?.Record == null || merge.into.IsGone()) return owner;
         byTitle = false;
         return merge.into;
@@ -280,18 +272,16 @@ public static class WildernessSystem
 #endif
 
     // 这块无人区归 owner(OwnerOf 的结果)是因太小并进来的(见 RefreshFragments)：显示按 owner 画，不按跟着的城所在的省
-#if EC_PENDING
-    public static bool MergedInto(TileZone zone, Realm owner) =>
-        owner != null && Merged.Count > 0 && zone != null && Merged.TryGetValue(zone.id, out (Realm from, Realm into) merge) &&
+    public static bool MergedInto(Cell zone, Realm owner) =>
+        owner != null && Merged.Count > 0 && zone != null && Merged.TryGetValue(zone.Index, out (Realm from, Realm into) merge) &&
         merge.into == owner;
-#endif
 
     // 不算碎块合并的归属(见 OwnerOf)；认领时超出远近、碰不到城的不归任何国(见 Claim 记的 _far)
 #if EC_PENDING
-    private static Realm BaseResolve(TileZone zone, out bool byTitle)
+    private static Realm BaseResolve(Cell zone, out bool byTitle)
     {
         Realm owner = Candidate(zone, out byTitle);
-        if (owner == null || zone.id < 0 || zone.id >= _far.Length || !_far[zone.id]) return owner;
+        if (owner == null || zone.Index < 0 || zone.Index >= _far.Length || !_far[zone.Index]) return owner;
         byTitle = false;
         return null;
     }
@@ -299,7 +289,7 @@ public static class WildernessSystem
 
     // 不看远近时这块无人区归谁
 #if EC_PENDING
-    private static Realm Candidate(TileZone zone, out bool byTitle)
+    private static Realm Candidate(Cell zone, out bool byTitle)
     {
         byTitle = false;
         int index = Index(zone);
@@ -336,29 +326,25 @@ public static class WildernessSystem
     }
 
     // 取得这块无人区所挂法理的国家(不管永久中立、周边的城；悬停提示里写明法理归谁，看得出为什么没并进国土)
-#if EC_PENDING
-    public static Realm HolderOf(TileZone zone)
+    public static Realm HolderOf(Cell zone)
     {
         KingdomTitle title = TitleOf(zone);
         return title != null && Owners.TryGetValue(title, out Realm holder) && holder != null && !holder.IsGone() ? holder : null;
     }
-#endif
 
     // 这块无人区是因所挂法理而归属的(不是因周边的城同属一国)：悬停提示里写明是哪个法理
 #if EC_PENDING
-    public static bool OwnedByTitle(TileZone zone) => Resolve(zone, out bool byTitle) != null && byTitle;
+    public static bool OwnedByTitle(Cell zone) => Resolve(zone, out bool byTitle) != null && byTitle;
 #endif
 
     // 神力「中立区」：点一片无人区设为永久中立区，再点一次取消；返回那一片(不是无人区为 null)
-#if EC_PENDING
-    public static WildRegion ToggleNeutral(TileZone zone)
+    public static WildRegion ToggleNeutral(Cell zone)
     {
         WildRegion region = RegionOf(zone);
         if (region == null) return null;
         SetNeutral(region, !IsNeutral(zone));
         return region;
     }
-#endif
 
     // 剧本编辑器刷的永久中立区(开局头一回划区挂法理时设上，见 WorldMapWilderness.BeginPaint)：之后同神力设的一样随存档
     public static void SetNeutral(WildRegion region, bool neutral)
@@ -367,9 +353,7 @@ public static class WildernessSystem
         SetNeutralZones(region.Zones, neutral);
     }
 
-#if EC_PENDING
-    public static bool IsNeutral(TileZone zone) => zone != null && IsNeutral(zone.id);
-#endif
+    public static bool IsNeutral(Cell zone) => zone != null && IsNeutral(zone.Index);
 
     public static bool IsNeutral(int id) => _enabled && id >= 0 && id < _regionOf.Length && _regionOf[id] >= 0 &&
         (id < _neutralZones.Length ? _neutralZones[id] : _regions[_regionOf[id]].Neutral);
@@ -402,16 +386,14 @@ public static class WildernessSystem
     }
 
     // 一块地归城就不算无人区(两者互斥)：放行给城的那一刻到下次重划之间也照这个算
-#if EC_PENDING
-    private static int Index(TileZone zone)
+    private static int Index(Cell zone)
     {
         if (!_enabled || zone == null) return -1;
-        int id = zone.id;
+        int id = zone.Index;
         if (id < 0 || id >= _regionOf.Length) return -1;
         int index = _regionOf[id];
-        return index >= 0 && index < _regions.Count && zone.city == null ? index : -1;
+        return index >= 0 && index < _regions.Count && zone.City == null ? index : -1;
     }
-#endif
 
     #region 放行、改地形
 
@@ -432,42 +414,36 @@ public static class WildernessSystem
 
     // 无人区的地能不能给这座城(CityExpansionPatch.CanAddZone 里问)：神力手动营建(Settle)、手动建城(CityPlacementSystem.Placing)、
     // 新城落脚的头一块地(城心总归城；剧本、殖民、穿越者降临选址都先避开无人区，见 CityExpansionPatch.AfterCanStartCityHere)
-#if EC_PENDING
     public static bool CanTake(City city) =>
-        _settling > 0 || CityPlacementSystem.Placing || city?.zones == null || city.zones.Count == 0;
-#endif
+        _settling > 0 || CityPlacementSystem.Placing || city?.Zones == null || city.Zones.Count == 0;
 
     // 高原算国土(见类头；以前只放游牧之国，用户 2026-11-10 "高原游牧不算荒地")：哪国的城都能扩进挨着的高原无人区
     // (扩进去的地当即退出无人区，同神力手动划地)
-#if EC_PENDING
-    public static bool SettlesPlateau(City city, TileZone zone) => city?.Realm != null && KindOf(zone) == WildKind.Plateau;
-#endif
+    public static bool SettlesPlateau(City city, Cell zone) => city?.Realm != null && KindOf(zone) == WildKind.Plateau;
 
     // 地块归了城(City.addZone 之后，见 CityExpansionPatch.AfterAddZone)：当即退出无人区，停手后重划
-#if EC_PENDING
-    public static void OnZoneTaken(TileZone zone)
+    public static void OnZoneTaken(Cell zone)
     {
-        if (!_built || zone == null || zone.id < 0 || zone.id >= _regionOf.Length) return;
-        int index = _regionOf[zone.id];
+        if (!_built || zone == null || zone.Index < 0 || zone.Index >= _regionOf.Length) return;
+        int index = _regionOf[zone.Index];
         if (index < 0 || index >= _regions.Count) return;
-        _regionOf[zone.id] = -1;
-        _regions[index].Zones.Remove(zone.id);
-        if (zone.id < _titles.Length) _titles[zone.id] = null;
-        if (zone.id < _painted.Length) _painted[zone.id] = false;
-        if (zone.id < _carved.Length) _carved[zone.id] = null;
+        _regionOf[zone.Index] = -1;
+        _regions[index].Zones.Remove(zone.Index);
+        if (zone.Index < _titles.Length) _titles[zone.Index] = null;
+        if (zone.Index < _painted.Length) _painted[zone.Index] = false;
+        if (zone.Index < _carved.Length) _carved[zone.Index] = null;
         _regroup = true;
         Pending();
         LayoutVersion++;
         Version++;
     }
-#endif
 
     // 当场整图重判重划(剧本开局按时代改过地形后，见 WorldMapDevelopment)：不等进世界安排做完、不等停手，划过的也重划
 #if EC_PENDING
     public static void BuildNow()
     {
         Apply();
-        if (!_enabled || EmpireWorld.Current?.zone_calculator?.zones == null || EmpireWorld.Current.Cities == null) return;
+        if (!_enabled || EmpireWorld.Current?.Zones?.All == null || EmpireWorld.Current.Cities == null) return;
         using (FrameProfiler.Measure("无人区·划区")) Build(true, true);
     }
 #endif
@@ -481,25 +457,21 @@ public static class WildernessSystem
 #endif
 
     // 一块地开发满了(或开满的又改回去，见 WildernessDevelopmentSystem)：停手后重划，开满的留给城
-#if EC_PENDING
-    public static void OnDeveloped(TileZone zone)
+    public static void OnDeveloped(Cell zone)
     {
-        if (!_built || zone == null || zone.id < 0) return;
-        Dirty.Add(zone.id);
+        if (!_built || zone == null || zone.Index < 0) return;
+        Dirty.Add(zone.Index);
         _regroup = true;
         Pending();
     }
-#endif
 
     // 设地面格、顶层格之后(见 MapWallPatch)：记下这块地，停手后重判(加载、建图时设的格不管，那时还没划区)
-#if EC_PENDING
-    public static void OnTileChanged(TileZone zone)
+    public static void OnTileChanged(Cell zone)
     {
-        if (!_built || zone == null || zone.id < 0) return;
-        Dirty.Add(zone.id);
+        if (!_built || zone == null || zone.Index < 0) return;
+        Dirty.Add(zone.Index);
         Pending();
     }
-#endif
 
     private static void Pending()
     {
@@ -523,7 +495,7 @@ public static class WildernessSystem
     {
         bool releasing = !on && _enabled && _built && !WorldMapWilderness.ForcesWild && InWorld();
         _setting = on;
-        List<(TileZone zone, City city)> back = releasing ? CarvedBack() : null;
+        List<(Cell zone, City city)> back = releasing ? CarvedBack() : null;
         Apply();
         if (back == null) return;
         // 存起来的(Apply 里刚存的)已还过：再读这一局时不再还(见 ReleaseSaved)
@@ -546,42 +518,40 @@ public static class WildernessSystem
     private static bool InWorld()
     {
         EmpireWorld world = EmpireWorld.Current;
-        return world?.zone_calculator?.zones != null && world.Cities != null && GameClock.Running && !SmoothLoader.isLoading() &&
+        return world?.Zones?.All != null && world.Cities != null && GameClock.Running && !SmoothLoader.isLoading() &&
                !ModClass.IS_CLEAR && !WorldMapGenerator.Generating && !WorldMapScenario.AfterLoadPending;
     }
 #endif
 
     // 眼下的无人区里记着划出来源的地块
-#if EC_PENDING
-    private static List<(TileZone zone, City city)> CarvedBack()
+    private static List<(Cell zone, City city)> CarvedBack()
     {
-        var back = new List<(TileZone zone, City city)>();
+        var back = new List<(Cell zone, City city)>();
         foreach (WildRegion region in _regions)
             foreach (int id in region.Zones)
                 if (id >= 0 && id < _carved.Length && _carved[id] != null && id < _zones.Length && _zones[id] != null)
                     back.Add((_zones[id], _carved[id]));
         return back;
     }
-#endif
 
     // 还地：地块仍空着、那座城还在才还(按神力手动划地，不受每城上限、边界固定挡)；返回还了几块
 #if EC_PENDING
-    private static int GiveBack(List<(TileZone zone, City city)> back)
+    private static int GiveBack(List<(Cell zone, City city)> back)
     {
         var touched = new HashSet<City>();
         int count = 0;
-        foreach ((TileZone zone, City city) in back)
+        foreach ((Cell zone, City city) in back)
         {
-            if (!ShouldGiveBack(zone?.city != null, city?.Record != null && !city.IsGone())) continue;
-            using (CityExpansionPatch.Manual()) city.addZone(zone);
-            if (zone.city != city) continue;
+            if (!ShouldGiveBack(zone?.City != null, city?.Record != null && !city.IsGone())) continue;
+            using (CityExpansionPatch.Manual()) city.AddZone(zone);
+            if (zone.City != city) continue;
             touched.Add(city);
             count++;
         }
         if (touched.Count == 0) return 0;
         CityDistricts.Reset();
         foreach (City city in touched) PureMapPatch.Redraw(city);
-        EmpireWorld.Current.zone_calculator?.setDrawnZonesDirty();
+        EmpireWorld.Current.Zones?.setDrawnZonesDirty();
         return count;
     }
 #endif
@@ -605,8 +575,8 @@ public static class WildernessSystem
             CityFragmentSystem.RestoreAll();
             return;
         }
-        ZoneCalculator calc = EmpireWorld.Current.zone_calculator;
-        var back = new List<(TileZone zone, City city)>();
+        ZoneGrid calc = EmpireWorld.Current.Zones;
+        var back = new List<(Cell zone, City city)>();
         foreach (WildRegionData data in _saved)
         {
             bool legacy = data.carve < CarveRule;
@@ -618,7 +588,7 @@ public static class WildernessSystem
                 long origin = data.origins != null && k < data.origins.Count ? data.origins[k] : -1L;
                 long source = SavedSource(carved, legacy, data.neutral || neutral?.Contains(id) == true, origin);
                 if (source < 0) continue;
-                TileZone zone = calc.getZoneByID(id);
+                Cell zone = calc.ById(id);
                 City city = EmpireWorld.Current.CityByKey(source);
                 if (zone != null && city != null) back.Add((zone, city));
             }
@@ -662,19 +632,17 @@ public static class WildernessSystem
 
     public static bool JungleDevelopedSetting => _jungleDeveloped;
 
-#if EC_PENDING
     public static void SetJungleDeveloped(bool on)
     {
         if (_jungleDeveloped == on) return;
         _jungleDeveloped = on;
         // 已经划好的图全部重判一遍(走停手重划，同改了地形)
         if (!_built || WorldMapWilderness.OnEarth) return;
-        foreach (TileZone zone in _zones)
-            if (zone != null && zone.id >= 0) Dirty.Add(zone.id);
+        foreach (Cell zone in _zones)
+            if (zone != null && zone.Index >= 0) Dirty.Add(zone.Index);
         _regroup = true;
         Pending();
     }
-#endif
 
     // 实际开关对上设置与这一局是不是预设剧本(每帧、当场划区前调)
 #if EC_PENDING
@@ -703,6 +671,7 @@ public static class WildernessSystem
         LayoutVersion++;
         Version++;
     }
+#endif
 
     public static void ResetWorldState()
     {
@@ -717,7 +686,7 @@ public static class WildernessSystem
         _neutralZones = new bool[0];
         _parents = new City[0];
         _carved = new City[0];
-        _zones = new TileZone[0];
+        _zones = new Cell[0];
         _built = false;
         _nextId = 1;
         _saved = null;
@@ -737,7 +706,6 @@ public static class WildernessSystem
         LayoutVersion++;
         Version++;
     }
-#endif
 
     // 分地规矩的版本：1 = 换地形、下河有坎(见 Seam)。存档里的比这个旧，读档后自动挂的地块重分一次(权能笔刷划的、剧本照史实的不动)
     private const int AttachRule = 1;
@@ -822,19 +790,19 @@ public static class WildernessSystem
         foreach (KeyValuePair<int, long> claim in WorldMapWilderness.CityClaims.ToList())
         {
             int id = claim.Key;
-            TileZone zone = id >= 0 && id < _zones.Length ? _zones[id] : null;
-            if (zone == null || zone.city != null || Index(zone) < 0 || IsNeutral(zone)) continue;
+            Cell zone = id >= 0 && id < _zones.Length ? _zones[id] : null;
+            if (zone == null || zone.City != null || Index(zone) < 0 || IsNeutral(zone)) continue;
             City city = EmpireWorld.Current.CityByKey(claim.Value);
             if (city?.Record == null || city.IsGone()) continue;
-            using (CityExpansionPatch.Manual()) city.addZone(zone);
-            if (zone.city != city) continue;
+            using (CityExpansionPatch.Manual()) city.AddZone(zone);
+            if (zone.City != city) continue;
             touched.Add(city);
             count++;
         }
         if (count == 0) return 0;
         CityDistricts.Reset();
         foreach (City city in touched) PureMapPatch.Redraw(city);
-        EmpireWorld.Current.zone_calculator?.setDrawnZonesDirty();
+        EmpireWorld.Current.Zones?.setDrawnZonesDirty();
         LogService.LogInfo($"[EmpireCraft][无人区] 城市边界固定：剧本刷给城的 {count} 块还给 {touched.Count} 座城");
         return count;
     }
@@ -856,7 +824,7 @@ public static class WildernessSystem
             return;
         }
         EmpireWorld world = EmpireWorld.Current;
-        if (world?.zone_calculator?.zones == null || world.Cities == null || !GameClock.Running || SmoothLoader.isLoading() ||
+        if (world?.Zones?.All == null || world.Cities == null || !GameClock.Running || SmoothLoader.isLoading() ||
             ModClass.IS_CLEAR || WorldMapGenerator.Generating || WorldMapScenario.AfterLoadPending) return;
         float now = Time.realtimeSinceStartup;
         if (now < _retryAt) return;
@@ -929,14 +897,14 @@ public static class WildernessSystem
 
     #region 归类
 
-    // 格子种类的标记(按 TileTypeBase.index_id 缓存，同 TerrainSystem.Marks)
+    // 格子种类的标记(按 TerrainKind.index_id 缓存，同 TerrainSystem.Marks)
     private const int MarkWater = 1, MarkRock = 2, MarkHills = 4, MarkFrozen = 8, MarkSand = 16, MarkJungle = 32, MarkSwamp = 64,
         MarkFarm = 128, MarkPaved = 256, MarkLava = 512, MarkPlateau = 1024;
     private static int[] _marks = new int[0];
-#if EC_PENDING
-    private static TileTypeBase[] _markTypes = new TileTypeBase[0];
+    private static TerrainKind[] _markTypes = new TerrainKind[0];
 
-    private static int Marks(TileTypeBase type)
+#if EC_PENDING
+    private static int Marks(TerrainKind type)
     {
         int index = type.index_id;
         if (index < 0) return ComputeMarks(type);
@@ -959,34 +927,35 @@ public static class WildernessSystem
     // 以前按显示出来的冻土算：冰封纪元一来全图草地冻住，成片划成冻原无人区、从各城的版图里抠出去(群友 2026-11-16
     // "冰封时代会新增无人区，版图变得好丑")。旧档里这样划出去的，读档全图重判时退回去
 #if EC_PENDING
-    private static TileTypeBase SettledType(WorldTile tile)
+    private static TerrainKind SettledType(Cell tile)
     {
 #if EC_SERVER
         return tile.Type;
 #else
-        return tile.isTemporaryFrozen() ? (TileTypeBase)tile.top_type ?? tile.main_type ?? tile.Type : tile.Type;
+        return tile.isTemporaryFrozen() ? (TerrainKind)tile.TopType ?? tile.MainType ?? tile.Type : tile.Type;
 #endif
     }
+#endif
 
-    private static int ComputeMarks(TileTypeBase type)
+    private static int ComputeMarks(TerrainKind type)
     {
         int marks = 0;
         // 岩浆不算水(同 SmoothBorders.IsWater、LandKinds)：另记，归熔岩(以前同水面一起算，一片岩浆判不成无人区)。
         // 原版的岩浆格也算液体(各处判水面都写 liquid && !lava，见 SmoothBorders.IsWater)，先看 lava
-        if (type.lava) marks |= MarkLava;
-        else if (type.liquid) marks |= MarkWater;
+        if (type.Lava) marks |= MarkLava;
+        else if (type.Liquid) marks |= MarkWater;
         // 高寒高原(地面格)；黄土高原不算荒地
         if (PlateauTerrain.Alpine != null && ReferenceEquals(type, PlateauTerrain.Alpine)) marks |= MarkPlateau;
-        if (type.mountains || type.summit) marks |= MarkRock;
-        string id = type.id ?? "";
-        if (id == "hills" || type.rocks) marks |= MarkHills;
-        if (type.farm_field) marks |= MarkFarm;
-        if (type.road || type.wall) marks |= MarkPaved;
+        if (type.Mountains || type.Summit) marks |= MarkRock;
+        string id = type.Id ?? "";
+        if (id == "hills" || type.Rocks) marks |= MarkHills;
+        if (type.FarmField) marks |= MarkFarm;
+        if (type.Road || type.Wall) marks |= MarkPaved;
         // 冻土雪地：永冻土生物群系、雪地雪丘、冻住的格(同 TerrainSystem 的雪原)
-        if (type.biome_id == "biome_permafrost" || id.StartsWith("snow", StringComparison.Ordinal) ||
+        if (type.BiomeId == "biome_permafrost" || id.StartsWith("snow", StringComparison.Ordinal) ||
             id.StartsWith("frozen", StringComparison.Ordinal)) marks |= MarkFrozen;
         else
-            switch (type.biome_id)
+            switch (type.BiomeId)
             {
                 // 只认荒漠(biome_desert 的地表)：沙地(biome_sand，没有地表)是海边湖边的沙滩，不是沙漠(用户 2026-11-02 "沙滩要区分一下
                 // 不然都没法建港口了""沙滩不是沙漠")——以前算进去，海岸一条沙滩连着荒漠划成无人区，沿海的城没了海岸、建不了港口。
@@ -997,19 +966,18 @@ public static class WildernessSystem
             }
         return marks;
     }
-#endif
 
     // 一格的地形(平滑国界下无人区按格贴着地形画，见 Components.WildernessShape)：口径同 Classify 的格子标记——
     // 水面、开过的田什么都不算；岩浆格为熔岩(不算山地、不看地面)；路、城墙看底下的地面；rock 山地山巅，hills 丘陵石地(不是山地的)；
     // 返回地面是哪一类荒地：岩浆为熔岩，冻土雪地为冻原，沙地荒漠为沙漠，丛林为雨林，沼泽为大泽，别的为 None(雪山既是 rock 又是冻原)
 #if EC_PENDING
-    public static WildKind GroundKind(WorldTile tile, out bool rock, out bool hills)
+    public static WildKind GroundKind(Cell tile, out bool rock, out bool hills)
     {
         rock = hills = false;
-        TileTypeBase type = tile == null ? null : SettledType(tile);
+        TerrainKind type = tile == null ? null : SettledType(tile);
         if (type == null) return WildKind.None;
         int marks = Marks(type);
-        TileTypeBase main = tile.main_type;
+        TerrainKind main = tile.MainType;
         int under = main != null ? Marks(main) : 0;
         if (((marks | under) & MarkWater) != 0 || (marks & MarkFarm) != 0) return WildKind.None;
         // 以前岩浆同水面一样什么都不算，熔岩、火山口那几格平滑国界下涂不上
@@ -1029,7 +997,7 @@ public static class WildernessSystem
     // 剧本开局铺辖地(WorldMapZones)用：这块地按地形会不会是无人区、哪一类——两边同一套门槛，开局留空的地进世界后正好划成无人区，
     // 不会留下既不归城、也不是无人区的空地
 #if EC_PENDING
-    internal static WildKind ClassifyFresh(TileZone zone) => Classify(zone, WildKind.None, scenario: true);
+    internal static WildKind ClassifyFresh(Cell zone) => Classify(zone, WildKind.None, scenario: true);
 #endif
 
     // 这块地按地形算哪一类无人区(门槛见类头的常量)；previous 是上回判的，已是那一类的门槛降一成
@@ -1044,17 +1012,17 @@ public static class WildernessSystem
 
     // 一块地各类格子数(水、岩浆、山地山巅、丘陵石地、冻土雪地、荒漠(沙滩不算)、丛林、沼泽)
 #if EC_PENDING
-    private static Counts Count(TileZone zone)
+    private static Counts Count(Cell zone)
     {
         int total = 0, water = 0, rock = 0, hills = 0, frozen = 0, sand = 0, jungle = 0, swamp = 0, lava = 0, plateau = 0, harsh = 0;
-        foreach (WorldTile tile in zone.tiles)
+        foreach (Cell tile in zone.Tiles)
         {
             // 纪元临时冻住的格按冻住以前的地面算(见 SettledType)
-            TileTypeBase type = tile == null ? null : SettledType(tile);
+            TerrainKind type = tile == null ? null : SettledType(tile);
             if (type == null) continue;
             total++;
             int marks = Marks(type);
-            TileTypeBase main = tile.main_type;
+            TerrainKind main = tile.MainType;
             int under = main != null ? Marks(main) : 0;
             // 冻住的湖(冰面盖在水上)也算水
             if (((marks | under) & MarkWater) != 0)
@@ -1094,9 +1062,9 @@ public static class WildernessSystem
         };
     }
 
-    private static WildKind Classify(TileZone zone, WildKind previous, bool scenario = false)
+    private static WildKind Classify(Cell zone, WildKind previous, bool scenario = false)
     {
-        if (zone?.tiles == null) return WildKind.None;
+        if (zone?.Tiles == null) return WildKind.None;
         Counts c = Count(zone);
         int total = c.Total, water = c.Water, rock = c.Rock, hills = c.Hills, frozen = c.Frozen, sand = c.Sand,
             jungle = c.Jungle, swamp = c.Swamp, lava = c.Lava;
@@ -1126,19 +1094,19 @@ public static class WildernessSystem
         return WildKind.None;
     }
 
-    private static bool Reclassify(TileZone zone)
+    private static bool Reclassify(Cell zone)
     {
-        if (zone == null || zone.id < 0 || zone.id >= _kind.Length) return false;
-        WildKind previous = (WildKind)_kind[zone.id];
+        if (zone == null || zone.Index < 0 || zone.Index >= _kind.Length) return false;
+        WildKind previous = (WildKind)_kind[zone.Index];
         byte kind = (byte)Classify(zone, previous);
         // 开发中的雨林大泽(见 WildernessDevelopmentSystem)：格子一批批改成草地，按地形早够不上门槛，没开满不掉出无人区——
         // 照原来的类型(没判过的按开发时记的)留着；已归了城的(那一片小得不成无人区后城扩进去的)不留，免得又从城里划出来
-        WildKind held = kind == 0 && zone.city == null ? WildernessDevelopmentSystem.HeldKind(zone.id) : WildKind.None;
+        WildKind held = kind == 0 && zone.City == null ? WildernessDevelopmentSystem.HeldKind(zone.Index) : WildKind.None;
         if (held != WildKind.None) kind = (byte)(previous is WildKind.Jungle or WildKind.Swamp ? previous : held);
         // 旧档里开发到一半的雨林：开关开着也算开发完了
         if (kind == (byte)WildKind.Jungle && JungleDeveloped) kind = 0;
-        if (kind == _kind[zone.id]) return false;
-        _kind[zone.id] = kind;
+        if (kind == _kind[zone.Index]) return false;
+        _kind[zone.Index] = kind;
         return true;
     }
 #endif
@@ -1152,13 +1120,13 @@ public static class WildernessSystem
     private static void Build(bool reclassifyAll, bool force)
     {
         var watch = global::System.Diagnostics.Stopwatch.StartNew();
-        List<TileZone> all = EmpireWorld.Current.zone_calculator.zones;
+        List<Cell> all = EmpireWorld.Current.Zones.All;
         int size = all.Count;
-        foreach (TileZone zone in all)
-            if (zone != null && zone.id >= size) size = zone.id + 1;
+        foreach (Cell zone in all)
+            if (zone != null && zone.Index >= size) size = zone.Index + 1;
         if (_zones.Length != size)
         {
-            _zones = new TileZone[size];
+            _zones = new Cell[size];
             _kind = new byte[size];
             _regionOf = new int[0];
             _titles = new KingdomTitle[0];
@@ -1170,8 +1138,8 @@ public static class WildernessSystem
             _carved = new City[0];
             reclassifyAll = force = true;
         }
-        foreach (TileZone zone in all)
-            if (zone != null && zone.id >= 0) _zones[zone.id] = zone;
+        foreach (Cell zone in all)
+            if (zone != null && zone.Index >= 0) _zones[zone.Index] = zone;
         bool fromSave = !_built && _saved != null;
         // 读档(或开关重开)：存档里的类型当作上回判的(门槛留余量)，边上的地块不至于一读档就跳出去
         if (fromSave)
@@ -1185,8 +1153,8 @@ public static class WildernessSystem
             foreach (int id in Dirty)
                 if (id >= 0 && id < size)
                 {
-                    TileZone zone = _zones[id];
-                    if (Reclassify(zone) && zone?.city == null) changed = true;
+                    Cell zone = _zones[id];
+                    if (Reclassify(zone) && zone?.City == null) changed = true;
                 }
         var terrainChanges = new HashSet<int>(Dirty);
         Dirty.Clear();
@@ -1218,7 +1186,7 @@ public static class WildernessSystem
         int fresh = 0;
         foreach (int id in terrainChanges)
         {
-            if (id < 0 || id >= _zones.Length || _zones[id] == null || _zones[id].city != null) continue;
+            if (id < 0 || id >= _zones.Length || _zones[id] == null || _zones[id].City != null) continue;
             int index = id < _regionOf.Length ? _regionOf[id] : -1;
             if (index >= 0 && index < _regions.Count)
             {
@@ -1321,7 +1289,7 @@ public static class WildernessSystem
         // 城市领土、有村镇或厂区的地块、开发完成的地块都不参加自动划区。
         var anchored = new bool[size];
         for (int id = 0; id < size; id++)
-            anchored[id] = _zones[id]?.city != null;
+            anchored[id] = _zones[id]?.City != null;
         foreach (int id in RuralSettlementSystem.SettledZones())
             if (id >= 0 && id < size) anchored[id] = true;
         foreach (int id in FactorySystem.CoveredZones())
@@ -1347,12 +1315,12 @@ public static class WildernessSystem
             {
                 int id = queue.Dequeue();
                 zones.Add(id);
-                TileZone[] neighbours = _zones[id].neighbours;
+                Cell[] neighbours = _zones[id].Neighbours;
                 if (neighbours == null) continue;
-                foreach (TileZone next in neighbours)
+                foreach (Cell next in neighbours)
                 {
-                    if (next == null || next.id < 0 || next.id >= size) continue;
-                    int nid = next.id;
+                    if (next == null || next.Index < 0 || next.Index >= size) continue;
+                    int nid = next.Index;
                     if (piece[nid] >= 0 || _kind[nid] != kind || anchored[nid]) continue;
                     piece[nid] = mark;
                     queue.Enqueue(nid);
@@ -1375,12 +1343,12 @@ public static class WildernessSystem
             foreach (int id in zones) queue.Enqueue(id);
             while (queue.Count > 0)
             {
-                TileZone[] neighbours = _zones[queue.Dequeue()].neighbours;
+                Cell[] neighbours = _zones[queue.Dequeue()].Neighbours;
                 if (neighbours == null) continue;
-                foreach (TileZone next in neighbours)
+                foreach (Cell next in neighbours)
                 {
-                    if (next?.tiles == null || next.id < 0 || next.id >= size) continue;
-                    int nid = next.id;
+                    if (next?.Tiles == null || next.Index < 0 || next.Index >= size) continue;
+                    int nid = next.Index;
                     int other = piece[nid];
                     if (other >= 0)
                     {
@@ -1553,10 +1521,10 @@ public static class WildernessSystem
         var open = new List<int>();
         for (int id = 0; id < size; id++)
         {
-            TileZone zone = _zones[id];
-            if (zone == null || zone.city != null || regionOf[id] >= 0) continue;
+            Cell zone = _zones[id];
+            if (zone == null || zone.City != null || regionOf[id] >= 0) continue;
             if (oldOf[id] < 0) continue;
-            if (zone.centerTile?.Type == null || zone.centerTile.Type.liquid || Count(zone).Land < MinLand) continue;
+            if (zone.Center?.Type == null || zone.Center.Type.Liquid || Count(zone).Land < MinLand) continue;
             open.Add(id);
         }
         if (open.Count == 0) return 0;
@@ -1565,15 +1533,15 @@ public static class WildernessSystem
         int count = 0;
         for (int pass = 0; pass < FillPasses && open.Count > 0; pass++)
         {
-            var moves = new List<(TileZone zone, City city)>();
+            var moves = new List<(Cell zone, City city)>();
             foreach (int id in open)
             {
-                TileZone zone = _zones[id];
+                Cell zone = _zones[id];
                 near.Clear();
-                if (zone.neighbours != null)
-                    foreach (TileZone next in zone.neighbours)
+                if (zone.Neighbours != null)
+                    foreach (Cell next in zone.Neighbours)
                     {
-                        City city = next?.city;
+                        City city = next?.City;
                         if (city?.Record == null || city.IsGone() || city.Realm == null || city.Realm.IsWild ||
                             AncientWarfareCompatibility.OwnsObject(city)) continue;
                         near[city] = near.TryGetValue(city, out int n) ? n + 1 : 1;
@@ -1585,20 +1553,20 @@ public static class WildernessSystem
                 moves.Add((zone, pick));
             }
             if (moves.Count == 0) break;
-            foreach ((TileZone zone, City city) in moves)
+            foreach ((Cell zone, City city) in moves)
             {
-                if (zone.city != null) continue;
-                using (CityExpansionPatch.Manual()) city.addZone(zone);
-                if (zone.city != city) continue;
+                if (zone.City != null) continue;
+                using (CityExpansionPatch.Manual()) city.AddZone(zone);
+                if (zone.City != city) continue;
                 touched.Add(city);
                 count++;
             }
-            open.RemoveAll(id => _zones[id].city != null);
+            open.RemoveAll(id => _zones[id].City != null);
         }
         if (touched.Count == 0) return 0;
         CityDistricts.Reset();
         foreach (City city in touched) PureMapPatch.Redraw(city);
-        EmpireWorld.Current.zone_calculator?.setDrawnZonesDirty();
+        EmpireWorld.Current.Zones?.setDrawnZonesDirty();
         LogService.LogInfo($"[EmpireCraft][无人区] {count} 块空地交给了 {touched.Count} 座挨着的城" + (open.Count > 0 ? $"，{open.Count} 块不挨着城、照旧空着" : ""));
         return count;
     }
@@ -1633,7 +1601,7 @@ public static class WildernessSystem
     }
 
 #if EC_PENDING
-    private static bool KeepsPresetKind(TileZone zone, WildKind kind)
+    private static bool KeepsPresetKind(Cell zone, WildKind kind)
     {
         Counts c = Count(zone);
         if (c.Land < MinLand || c.Water > c.Total * MaxWater) return false;
@@ -1668,17 +1636,17 @@ public static class WildernessSystem
             float cx = 0f, cy = 0f;
             foreach (int id in region.Zones)
             {
-                TileZone zone = _zones[id];
-                region.MinX = Math.Min(region.MinX, zone.x);
-                region.MinY = Math.Min(region.MinY, zone.y);
-                region.MaxX = Math.Max(region.MaxX, zone.x);
-                region.MaxY = Math.Max(region.MaxY, zone.y);
-                cx += zone.x;
-                cy += zone.y;
-                bool edge = zone.neighbours == null || zone.neighbours.Length < 4;
+                Cell zone = _zones[id];
+                region.MinX = Math.Min(region.MinX, zone.X);
+                region.MinY = Math.Min(region.MinY, zone.Y);
+                region.MaxX = Math.Max(region.MaxX, zone.X);
+                region.MaxY = Math.Max(region.MaxY, zone.Y);
+                cx += zone.X;
+                cy += zone.Y;
+                bool edge = zone.Neighbours == null || zone.Neighbours.Length < 4;
                 if (!edge)
-                    foreach (TileZone next in zone.neighbours)
-                        if (next == null || next.id < 0 || next.id >= size || regionOf[next.id] != index)
+                    foreach (Cell next in zone.Neighbours)
+                        if (next == null || next.Index < 0 || next.Index >= size || regionOf[next.Index] != index)
                         {
                             edge = true;
                             break;
@@ -1692,22 +1660,22 @@ public static class WildernessSystem
             while (queue.Count > 0)
             {
                 int id = queue.Dequeue();
-                TileZone[] neighbours = _zones[id].neighbours;
+                Cell[] neighbours = _zones[id].Neighbours;
                 if (neighbours == null) continue;
-                foreach (TileZone next in neighbours)
+                foreach (Cell next in neighbours)
                 {
-                    if (next == null || next.id < 0 || next.id >= size || regionOf[next.id] != index || depth[next.id] >= 0) continue;
-                    depth[next.id] = depth[id] + 1;
-                    queue.Enqueue(next.id);
+                    if (next == null || next.Index < 0 || next.Index >= size || regionOf[next.Index] != index || depth[next.Index] >= 0) continue;
+                    depth[next.Index] = depth[id] + 1;
+                    queue.Enqueue(next.Index);
                 }
             }
-            TileZone best = null;
+            Cell best = null;
             int bestDepth = -1;
             float bestDistance = float.MaxValue;
             foreach (int id in region.Zones)
             {
-                TileZone zone = _zones[id];
-                float distance = (zone.x - cx) * (zone.x - cx) + (zone.y - cy) * (zone.y - cy);
+                Cell zone = _zones[id];
+                float distance = (zone.X - cx) * (zone.X - cx) + (zone.Y - cy) * (zone.Y - cy);
                 if (depth[id] < bestDepth || depth[id] == bestDepth && distance >= bestDistance) continue;
                 best = zone;
                 bestDepth = depth[id];
@@ -1753,10 +1721,10 @@ public static class WildernessSystem
         foreach (City city in EmpireWorld.Current.Cities)
         {
             if (city?.Record == null || city.IsGone()) continue;
-            WorldTile seat = city.getTile();
+            Cell seat = city.SeatCell();
             string culture = CultureService.GetMainCulture(city, initialize: false);
             if (seat == null || string.IsNullOrEmpty(culture)) continue;
-            seats.Add((seat.x, seat.y, culture));
+            seats.Add((seat.X, seat.Y, culture));
             counts.TryGetValue(culture, out int count);
             counts[culture] = count + 1;
         }
@@ -1849,16 +1817,15 @@ public static class WildernessSystem
 #endif
 
     // 离区域中心最近(reach 格以内)的城的主流文化；没有为 fallback
-#if EC_PENDING
     private static string CultureNear(WildRegion region, List<(int x, int y, string culture)> seats, string fallback, float reach)
     {
-        WorldTile center = region.Center?.centerTile;
+        Cell center = region.Center?.Center;
         if (center == null || seats.Count == 0) return fallback;
         string best = fallback;
         float bestDistance = reach >= float.MaxValue ? float.MaxValue : reach * reach;
         foreach ((int x, int y, string culture) in seats)
         {
-            float distance = (float)(x - center.x) * (x - center.x) + (float)(y - center.y) * (y - center.y);
+            float distance = (float)(x - center.X) * (x - center.X) + (float)(y - center.Y) * (y - center.Y);
             if (distance >= bestDistance) continue;
             bestDistance = distance;
             best = culture;
@@ -1866,6 +1833,7 @@ public static class WildernessSystem
         return best;
     }
 
+#if EC_PENDING
     private static string NameOf(WildRegion region, HashSet<string> used)
     {
         string name = null;
@@ -2052,7 +2020,7 @@ public static class WildernessSystem
     private static bool _anyFar;
 
 #if EC_PENDING
-    private static float ClaimStep(TileZone zone) => Mathf.Max(1f, TerrainResistance.TerrainStep(zone));
+    private static float ClaimStep(Cell zone) => Mathf.Max(1f, TerrainResistance.TerrainStep(zone));
 #endif
 
     // 上回认领时的局面(各城的地块数、所属国、远近；见 Claim 开头)
@@ -2090,7 +2058,7 @@ public static class WildernessSystem
             if (!ClaimSource(city)) continue;
             float reach = Limit(city);
             long entry = (1_469_598_103_934_665_603L ^ city.Key) * 1_099_511_628_211L;
-            entry = (entry ^ (city.zones?.Count ?? 0)) * 1_099_511_628_211L;
+            entry = (entry ^ (city.Zones?.Count ?? 0)) * 1_099_511_628_211L;
             entry = (entry ^ city.Realm.Key) * 1_099_511_628_211L;
             entry = (entry ^ (float.IsInfinity(reach) ? -1L : (long)(reach * 16f))) * 1_099_511_628_211L;
             sign += entry ^ (entry >> 32);
@@ -2115,7 +2083,7 @@ public static class WildernessSystem
         var queue = new Queue<int>();
         for (int id = 0; id < size; id++)
         {
-            if (!Wild(id) || _zones[id].neighbours_all == null) continue;
+            if (!Wild(id) || _zones[id].NeighboursAll == null) continue;
             City owner = _parents[id];
             if (!ClaimSource(owner)) continue;
             if (ClaimFixed(id))
@@ -2124,8 +2092,8 @@ public static class WildernessSystem
                 queue.Enqueue(id);
                 continue;
             }
-            foreach (TileZone next in _zones[id].neighbours_all)
-                if (next?.city == owner)
+            foreach (Cell next in _zones[id].NeighboursAll)
+                if (next?.City == owner)
                 {
                     cost[id] = ClaimStep(_zones[id]);
                     queue.Enqueue(id);
@@ -2136,13 +2104,13 @@ public static class WildernessSystem
         {
             int id = queue.Dequeue();
             if (Walled(id)) continue;
-            foreach (TileZone next in _zones[id].neighbours_all)
+            foreach (Cell next in _zones[id].NeighboursAll)
             {
-                if (next == null || !Wild(next.id) || _parents[next.id] != _parents[id] || ClaimFixed(next.id)) continue;
+                if (next == null || !Wild(next.Index) || _parents[next.Index] != _parents[id] || ClaimFixed(next.Index)) continue;
                 float through = cost[id] + ClaimStep(next);
-                if (through >= cost[next.id]) continue;
-                cost[next.id] = through;
-                queue.Enqueue(next.id);
+                if (through >= cost[next.Index]) continue;
+                cost[next.Index] = through;
+                queue.Enqueue(next.Index);
             }
         }
         // 连不上的、超出远近的放出来重新分；分完以后还领不到的不归任何国(_far)，挂接照旧跟原来的城(只管法理与显示，免得同别处来回拉锯)
@@ -2186,15 +2154,15 @@ public static class WildernessSystem
                 votes.Clear();
                 best.Clear();
                 float step = ClaimStep(_zones[id]);
-                foreach (TileZone next in _zones[id].neighbours_all ?? Array.Empty<TileZone>())
+                foreach (Cell next in _zones[id].NeighboursAll ?? Array.Empty<Cell>())
                 {
                     if (next == null) continue;
-                    City city = next.city;
+                    City city = next.City;
                     float from = 0f;
-                    if (city == null && Wild(next.id) && claimed[next.id] && !Walled(next.id))
+                    if (city == null && Wild(next.Index) && claimed[next.Index] && !Walled(next.Index))
                     {
-                        city = _parents[next.id];
-                        from = cost[next.id];
+                        city = _parents[next.Index];
+                        from = cost[next.Index];
                     }
                     if (!ClaimSource(city)) continue;
                     float through = from + step;
@@ -2225,11 +2193,11 @@ public static class WildernessSystem
             }
             upcoming.Clear();
             foreach ((int id, City _, float _) in moves)
-                foreach (TileZone next in _zones[id].neighbours_all ?? Array.Empty<TileZone>())
+                foreach (Cell next in _zones[id].NeighboursAll ?? Array.Empty<Cell>())
                 {
-                    if (next == null || next.id < 0 || next.id >= size || !waiting[next.id] || queued[next.id]) continue;
-                    queued[next.id] = true;
-                    upcoming.Add(next.id);
+                    if (next == null || next.Index < 0 || next.Index >= size || !waiting[next.Index] || queued[next.Index]) continue;
+                    queued[next.Index] = true;
+                    upcoming.Add(next.Index);
                 }
             foreach (int id in upcoming) queued[id] = false;
             (frontier, upcoming) = (upcoming, frontier);
@@ -2268,8 +2236,8 @@ public static class WildernessSystem
             foreach (int id in region.Zones)
             {
                 KingdomTitle title = _titles[id];
-                TileZone zone = _zones[id];
-                if (title == null || zone?.neighbours_all == null) continue;
+                Cell zone = _zones[id];
+                if (title == null || zone?.NeighboursAll == null) continue;
                 // 权能笔刷按城刷的跟取的那座城(见 Paint)；明确的剧本锚点先于邻城；同一法理下的几个行政区不能被连通扫描互相覆盖。
                 City origin = IsPainted(zone) && id < _parents.Length ? _parents[id] : null;
                 if (origin?.Record == null || origin.IsGone() || origin.GetTitle() != title) origin = WorldMapWilderness.AnchorCity(zone);
@@ -2280,9 +2248,9 @@ public static class WildernessSystem
                     anchored[id] = true;
                     _parents[id] = origin;
                 }
-                foreach (TileZone next in zone.neighbours_all)
+                foreach (Cell next in zone.NeighboursAll)
                 {
-                    City city = next?.city;
+                    City city = next?.City;
                     if (city?.Record == null || city.IsGone() || TitleOfCity(city, titleOf) != title ||
                         anchored[id] && city.Realm != _parents[id]?.Realm) continue;
                     linked[id] = true;
@@ -2296,14 +2264,14 @@ public static class WildernessSystem
         {
             int id = queue.Dequeue();
             if (id < _walled.Length && _walled[id]) continue;
-            foreach (TileZone next in _zones[id].neighbours_all)
+            foreach (Cell next in _zones[id].NeighboursAll)
             {
-                if (next == null || next.id < 0 || next.id >= size || linked[next.id] || _titles[next.id] != _titles[id] ||
-                    next.id >= _regionOf.Length || _regionOf[next.id] < 0 ||
-                    anchored[next.id] && _parents[next.id]?.Realm != _parents[id]?.Realm) continue;
-                linked[next.id] = true;
-                if (!anchored[next.id] && !followed[next.id]) _parents[next.id] = _parents[id];
-                queue.Enqueue(next.id);
+                if (next == null || next.Index < 0 || next.Index >= size || linked[next.Index] || _titles[next.Index] != _titles[id] ||
+                    next.Index >= _regionOf.Length || _regionOf[next.Index] < 0 ||
+                    anchored[next.Index] && _parents[next.Index]?.Realm != _parents[id]?.Realm) continue;
+                linked[next.Index] = true;
+                if (!anchored[next.Index] && !followed[next.Index]) _parents[next.Index] = _parents[id];
+                queue.Enqueue(next.Index);
             }
         }
         int moved = Absorb(linked, titleOf);
@@ -2340,7 +2308,6 @@ public static class WildernessSystem
     // 同一法理里几座城的分界也照走到谁归谁(见 Spread)：Connect 那趟一圈圈连过去只管连得上，分界是横平竖直的直线，
     // 城分了家这条线就成了国界。从挨着最近那座城的地块起，沿最近的城相同、法理相同的地块走：走得到的跟最近的城；
     // 走不到的(中间隔着别的法理)仍由 Connect 连，不成飞地。州府锚点定的不动，长城不过
-#if EC_PENDING
     private static bool[] FollowSpread(Dictionary<City, KingdomTitle> titleOf, City[] nearestCity, bool[] anchored)
     {
         int size = _titles.Length;
@@ -2351,10 +2318,10 @@ public static class WildernessSystem
         foreach (WildRegion region in _regions)
             foreach (int id in region.Zones)
             {
-                if (!Follows(id) || _zones[id]?.neighbours_all == null) continue;
-                foreach (TileZone next in _zones[id].neighbours_all)
+                if (!Follows(id) || _zones[id]?.NeighboursAll == null) continue;
+                foreach (Cell next in _zones[id].NeighboursAll)
                 {
-                    if (next?.city != nearestCity[id]) continue;
+                    if (next?.City != nearestCity[id]) continue;
                     followed[id] = true;
                     _parents[id] = nearestCity[id];
                     queue.Enqueue(id);
@@ -2365,12 +2332,12 @@ public static class WildernessSystem
         {
             int id = queue.Dequeue();
             if (OnWall(id)) continue;
-            foreach (TileZone next in _zones[id].neighbours_all)
+            foreach (Cell next in _zones[id].NeighboursAll)
             {
-                if (next == null || !Follows(next.id) || nearestCity[next.id] != nearestCity[id]) continue;
-                followed[next.id] = true;
-                _parents[next.id] = nearestCity[id];
-                queue.Enqueue(next.id);
+                if (next == null || !Follows(next.Index) || nearestCity[next.Index] != nearestCity[id]) continue;
+                followed[next.Index] = true;
+                _parents[next.Index] = nearestCity[id];
+                queue.Enqueue(next.Index);
             }
         }
         return followed;
@@ -2382,10 +2349,8 @@ public static class WildernessSystem
         WorldMapWilderness.FixedLayout && !WorldMapWilderness.NeedsBoundaryRepair &&
         id < _parents.Length && _parents[id]?.Record != null && !_parents[id].IsGone() &&
         _titles[id] != null && !_titles[id].IsGone() && _parents[id].GetTitle() == _titles[id];
-#endif
 
     // 连不上所挂法理的地块从四周连得上的地块、城一圈圈并过去(长城不过)，返回并了多少块
-#if EC_PENDING
     private static int Absorb(bool[] linked, Dictionary<City, KingdomTitle> titleOf)
     {
         int moved = 0;
@@ -2398,15 +2363,15 @@ public static class WildernessSystem
                     queue.Enqueue(id);
                     continue;
                 }
-                if (_titles[id] == null || _zones[id]?.neighbours_all == null || PinnedTitle(id)) continue;
-                foreach (TileZone next in _zones[id].neighbours_all)
+                if (_titles[id] == null || _zones[id]?.NeighboursAll == null || PinnedTitle(id)) continue;
+                foreach (Cell next in _zones[id].NeighboursAll)
                 {
-                    KingdomTitle around = TitleOfCity(next?.city, titleOf);
+                    KingdomTitle around = TitleOfCity(next?.City, titleOf);
                     if (around == null) continue;
                     if (around != _titles[id]) moved++;
                     _titles[id] = around;
-                    _parents[id] = next.city;
-                    WorldMapWilderness.FollowAnchor(_zones[id], next.city);
+                    _parents[id] = next.City;
+                    WorldMapWilderness.FollowAnchor(_zones[id], next.City);
                     linked[id] = true;
                     queue.Enqueue(id);
                     break;
@@ -2416,33 +2381,32 @@ public static class WildernessSystem
         {
             int id = queue.Dequeue();
             if (id < _walled.Length && _walled[id] || _titles[id] == null) continue;
-            foreach (TileZone next in _zones[id].neighbours_all)
+            foreach (Cell next in _zones[id].NeighboursAll)
             {
-                if (next == null || next.id < 0 || next.id >= linked.Length || linked[next.id] || _titles[next.id] == null ||
-                    next.id >= _regionOf.Length || _regionOf[next.id] < 0 || PinnedTitle(next.id)) continue;
-                if (_titles[next.id] != _titles[id]) moved++;
-                _titles[next.id] = _titles[id];
-                _parents[next.id] = _parents[id];
+                if (next == null || next.Index < 0 || next.Index >= linked.Length || linked[next.Index] || _titles[next.Index] == null ||
+                    next.Index >= _regionOf.Length || _regionOf[next.Index] < 0 || PinnedTitle(next.Index)) continue;
+                if (_titles[next.Index] != _titles[id]) moved++;
+                _titles[next.Index] = _titles[id];
+                _parents[next.Index] = _parents[id];
                 WorldMapWilderness.FollowAnchor(next, _parents[id]);
-                linked[next.id] = true;
-                queue.Enqueue(next.id);
+                linked[next.Index] = true;
+                queue.Enqueue(next.Index);
             }
         }
         return moved;
     }
-#endif
 
     // 压着城墙格、不归城的地块
 #if EC_PENDING
     private static bool[] WallZones()
     {
         var walled = new bool[_zones.Length];
-        WorldTile[] tiles = EmpireWorld.Current?.tiles_list;
+        Cell[] tiles = EmpireWorld.Current?.Zones;
         if (tiles == null) return walled;
         foreach (int tileId in MapWallSystem.Walls.Keys)
         {
-            TileZone zone = tileId >= 0 && tileId < tiles.Length ? tiles[tileId]?.zone : null;
-            if (zone != null && zone.id >= 0 && zone.id < walled.Length && zone.city == null) walled[zone.id] = true;
+            Cell zone = tileId >= 0 && tileId < tiles.Length ? tiles[tileId]?.Zone : null;
+            if (zone != null && zone.Index >= 0 && zone.Index < walled.Length && zone.City == null) walled[zone.Index] = true;
         }
         return walled;
     }
@@ -2459,7 +2423,7 @@ public static class WildernessSystem
 
     // 州府锚点定的城的王国法理(见 WorldMapWilderness.AnchorCity；不是剧本、没定的为 null)
 #if EC_PENDING
-    private static KingdomTitle AnchorTitle(TileZone zone)
+    private static KingdomTitle AnchorTitle(Cell zone)
     {
         KingdomTitle painted = WorldMapWilderness.FixedTitle(zone);
         if (painted != null) return painted;
@@ -2480,18 +2444,18 @@ public static class WildernessSystem
     // 以前挂都城那块法理，塔克拉玛干算进了京畿；后来挂直线最近的城，几座城之间的分界是一条条直线(用户 10-30 截图瀚海里横平竖直的线)。
     // 走得到的最近的城就是这个政权的照它，否则只从这个政权的城走一遍(一次挂接每个政权至多一遍)；那个政权没城了才挂原来那个
 #if EC_PENDING
-    private static KingdomTitle HistoricalTitle(TileZone zone, Dictionary<City, KingdomTitle> titleOf, KingdomTitle[] from,
+    private static KingdomTitle HistoricalTitle(Cell zone, Dictionary<City, KingdomTitle> titleOf, KingdomTitle[] from,
         City[] fromCity, Dictionary<Realm, KingdomTitle[]> realms)
     {
         KingdomTitle title = WorldMapWilderness.TitleFor(zone);
         if (title == null) return null;
         Realm realm = RealmOf(title.FindRealmTitleHolder());
         if (realm == null) return title;
-        City near = fromCity[zone.id];
-        if (from[zone.id] != null && near?.Record != null && !near.IsGone() && RealmOf(near.Realm) == realm) return from[zone.id];
+        City near = fromCity[zone.Index];
+        if (from[zone.Index] != null && near?.Record != null && !near.IsGone() && RealmOf(near.Realm) == realm) return from[zone.Index];
         if (!realms.TryGetValue(realm, out KingdomTitle[] own))
             realms[realm] = own = Spread(titleOf, city => RealmOf(city.Realm) == realm, float.PositiveInfinity, out _, out _, false);
-        return own[zone.id] ?? title;
+        return own[zone.Index] ?? title;
     }
 #endif
 
@@ -2502,40 +2466,38 @@ public static class WildernessSystem
         return kingdom.GetEmpire()?.CoreKingdom ?? kingdom;
     }
 
-#if EC_PENDING
-    private static City NearestCity(IEnumerable<City> cities, TileZone zone)
+    private static City NearestCity(IEnumerable<City> cities, Cell zone)
     {
-        WorldTile at = zone?.centerTile;
+        Cell at = zone?.Center;
         if (at == null || cities == null) return null;
         City best = null;
         long bestDistance = long.MaxValue;
         foreach (City city in cities)
         {
-            WorldTile tile = city?.Record == null || city.IsGone() ? null : city.getTile();
+            Cell tile = city?.Record == null || city.IsGone() ? null : city.SeatCell();
             if (tile == null) continue;
-            long dx = tile.x - at.x, dy = tile.y - at.y, distance = dx * dx + dy * dy;
+            long dx = tile.X - at.X, dy = tile.Y - at.Y, distance = dx * dx + dy * dy;
             if (distance >= bestDistance) continue;
             bestDistance = distance;
             best = city;
         }
         return best;
     }
-#endif
 
     // 这块无人区跟着哪座城(显示行政区用，见 WildernessTerritory)：州府锚点定的城(还在同一个法理里)，否则所挂法理里离它最近的城
     // 挂接时连上的那座城(见 Connect)还在这个法理里就是它；没挂上法理的(最近的城没有法理)就是那座城
 #if EC_PENDING
-    public static City OriginOf(TileZone zone)
+    public static City OriginOf(Cell zone)
     {
         KingdomTitle title = TitleOf(zone);
-        City parent = Index(zone) >= 0 && zone.id < _parents.Length ? _parents[zone.id] : null;
+        City parent = Index(zone) >= 0 && zone.Index < _parents.Length ? _parents[zone.Index] : null;
         if (parent?.Record == null || parent.IsGone()) parent = null;
         // 权能笔刷按城刷的跟取的那座城(见 Paint)，州府锚点也不改
         if (parent != null && title != null && IsPainted(zone) && parent.GetTitle() == title) return parent;
         City anchor = WorldMapWilderness.AnchorCity(zone);
         if (title != null && anchor != null && anchor.GetTitle() == title)
         {
-            if (zone.id < _parents.Length) _parents[zone.id] = anchor;
+            if (zone.Index < _parents.Length) _parents[zone.Index] = anchor;
             return anchor;
         }
         if (parent != null && !IsPainted(zone) && WorldMapWilderness.PaintedTitle(zone) == null)
@@ -2544,9 +2506,9 @@ public static class WildernessSystem
             if (current == null || !current.IsGone())
             {
                 // 自动辖境跟随原城市换法理；先到旧法理里另找城市会留下旧辖境飞地。
-                if (_titles[zone.id] != current)
+                if (_titles[zone.Index] != current)
                 {
-                    _titles[zone.id] = current;
+                    _titles[zone.Index] = current;
                     Version++;
                 }
                 return parent;
@@ -2555,45 +2517,44 @@ public static class WildernessSystem
         if (title == null) return parent;
         if (parent != null && parent.GetTitle() == title) return parent;
         // 原来认领的城没了：下一核从挨着的城和已认领的地重新分(见 Claim)，免得按直线挑的城隔着别国成飞地；这之前先照旧找替身
-        if (zone.id < _parents.Length && _parents[zone.id] is City gone && (gone.Record == null || gone.IsGone())) _claimPending = true;
+        if (zone.Index < _parents.Length && _parents[zone.Index] is City gone && (gone.Record == null || gone.IsGone())) _claimPending = true;
         // 法理里的城隔着长城分在两个行政区时，跟长城这一侧的城(见 FrontierWalls)
         City replacement = NearestCity(title.getCities().Where(city => !FrontierWalls.Behind(city, zone)), zone) ??
                            NearestCity(title.getCities(), zone);
-        if (zone.id < _parents.Length) _parents[zone.id] = replacement;
+        if (zone.Index < _parents.Length) _parents[zone.Index] = replacement;
         return replacement;
     }
+#endif
 
     private static bool UntitledOrigin(int id) => id < _parents.Length && _parents[id]?.Record != null &&
         !_parents[id].IsGone() && _parents[id].GetTitle() == null &&
         !(id < _painted.Length && _painted[id]) && WorldMapWilderness.PaintedTitle(_zones[id]) == null;
-#endif
 
     // 权能「无人区法理」笔刷(用户 10-30 "给个划分无人区法理归属的权能""可以允许多个法理归属同一个无人区，但是类似于笔刷上色那种"
     // "一个法理拿一部分")：把这块无人区挂到给定的法理上，之后自动重挂不再动它；title 为 null 擦掉，下一核按自动的规矩补挂。
     // city 为取的那座城：地块跟着它、归它所在的国(以前只挂法理，跟法理里最近的城，法理分在几国时归了别国，同一法理的还刷不动)；
     // 不给或那城不在这个法理里，跟法理里最近的城(见 OriginOf)。返回改没改
-#if EC_PENDING
-    public static bool Paint(TileZone zone, KingdomTitle title, City city = null)
+    public static bool Paint(Cell zone, KingdomTitle title, City city = null)
     {
-        if (!_built || !_enabled || Index(zone) < 0 || zone.id >= _titles.Length || title != null && title.IsGone()) return false;
+        if (!_built || !_enabled || Index(zone) < 0 || zone.Index >= _titles.Length || title != null && title.IsGone()) return false;
         if (_painted.Length != _titles.Length) Array.Resize(ref _painted, _titles.Length);
         if (_parents.Length != _titles.Length) Array.Resize(ref _parents, _titles.Length);
         if (title == null)
         {
-            if (!_painted[zone.id]) return false;
-            _painted[zone.id] = false;
-            _titles[zone.id] = null;
+            if (!_painted[zone.Index]) return false;
+            _painted[zone.Index] = false;
+            _titles[zone.Index] = null;
             _attachPending = true;
         }
         else
         {
             bool follow = city?.Record != null && !city.IsGone() && city.GetTitle() == title;
-            if (_painted[zone.id] && _titles[zone.id] == title && (!follow || _parents[zone.id] == city)) return false;
-            _painted[zone.id] = true;
-            _titles[zone.id] = title;
-            if (follow) _parents[zone.id] = city;
+            if (_painted[zone.Index] && _titles[zone.Index] == title && (!follow || _parents[zone.Index] == city)) return false;
+            _painted[zone.Index] = true;
+            _titles[zone.Index] = title;
+            if (follow) _parents[zone.Index] = city;
             // 刷了就不受远近限制(见 Assigned)：当场算近，提示不等下一轮核对就写对归属
-            if (zone.id < _far.Length) _far[zone.id] = false;
+            if (zone.Index < _far.Length) _far[zone.Index] = false;
             if (!Owners.ContainsKey(title))
             {
                 Realm holder = title.FindRealmTitleHolder();
@@ -2604,8 +2565,7 @@ public static class WildernessSystem
         return true;
     }
 
-    public static bool IsPainted(TileZone zone) => zone != null && zone.id >= 0 && zone.id < _painted.Length && _painted[zone.id];
-#endif
+    public static bool IsPainted(Cell zone) => zone != null && zone.Index >= 0 && zone.Index < _painted.Length && _painted[zone.Index];
 
     // 从城的地块往外走(starts 为空时所有的城都起步，不为空时只从这些城起步；block 时也不穿过别的城的地)：
     // 每块地记最先走到它的那座城(cities)与它的法理；reached 记走到了没有。八方向走，每块地的代价各自不同(见 TerritoryGrain)
@@ -2626,7 +2586,7 @@ public static class WildernessSystem
         var heap = new WorldMapZones.MinHeap();
         for (int id = 0; id < size; id++)
         {
-            City city = _zones[id]?.city;
+            City city = _zones[id]?.City;
             if (city?.Record == null || city.IsGone() || starts != null && !starts(city)) continue;
             if (!titleOf.TryGetValue(city, out KingdomTitle title))
             {
@@ -2649,22 +2609,22 @@ public static class WildernessSystem
             if (at > cost[state]) continue;
             int id = state / layers, depth = state % layers;
             // 长城上不归城的地块到此为止：长城那边的无人区不从这边挂过去
-            if (id < _walled.Length && _walled[id] && _zones[id].city == null) continue;
-            TileZone zone = _zones[id];
-            TileZone[] neighbours = zone.neighbours_all;
+            if (id < _walled.Length && _walled[id] && _zones[id].City == null) continue;
+            Cell zone = _zones[id];
+            Cell[] neighbours = zone.NeighboursAll;
             if (neighbours == null) continue;
-            foreach (TileZone next in neighbours)
+            foreach (Cell next in neighbours)
             {
-                if (next == null || next.id < 0 || next.id >= size || !Land(next)) continue;
+                if (next == null || next.Index < 0 || next.Index >= size || !Land(next)) continue;
                 // 只从部分城起步时(游牧)不穿过别的城的地：农耕国腹地里的沙漠走不到，照旧挂最近的城
-                if (block && starts != null && next.city?.data != null && !next.city.IsGone() && !starts(next.city)) continue;
-                float step = (next.x != zone.x && next.y != zone.y ? 1.414f : 1f) * Roughness(next);
+                if (block && starts != null && next.City?.Record != null && !next.City.IsGone() && !starts(next.City)) continue;
+                float step = (next.X != zone.X && next.Y != zone.Y ? 1.414f : 1f) * Roughness(next);
                 float walked = travel[state] + step;
                 if (walked > limit) continue;
                 float total = at + step + Seam(zone, next);
                 int nextDepth = overMountains ? 0 : Step(zone, depth, next);
                 if (nextDepth < 0) continue;
-                int target = next.id * layers + nextDepth;
+                int target = next.Index * layers + nextDepth;
                 if (total >= cost[target]) continue;
                 cost[target] = total;
                 travel[target] = walked;
@@ -2704,7 +2664,7 @@ public static class WildernessSystem
     private const float TerrainSeam = 5f, RiverSeam = 10f;
 
 #if EC_PENDING
-    private static float Seam(TileZone zone, TileZone next)
+    private static float Seam(Cell zone, Cell next)
     {
         FrontTerrain from = TerrainSystem.Of(zone), to = TerrainSystem.Of(next);
         if (from == FrontTerrain.River) return 0f;
@@ -2716,12 +2676,12 @@ public static class WildernessSystem
 
     // 斜走一步时，旁边两块里有河：从河的拐角跨了过去
 #if EC_PENDING
-    private static bool CutsRiverCorner(TileZone zone, TileZone next)
+    private static bool CutsRiverCorner(Cell zone, Cell next)
     {
-        if (next.x == zone.x || next.y == zone.y) return false;
-        ZoneCalculator calculator = EmpireWorld.Current?.zone_calculator;
+        if (next.X == zone.X || next.Y == zone.Y) return false;
+        ZoneGrid calculator = EmpireWorld.Current?.Zones;
         if (calculator == null) return false;
-        TileZone a = calculator.getZone(zone.x, next.y), b = calculator.getZone(next.x, zone.y);
+        Cell a = calculator.Get(zone.X, next.Y), b = calculator.Get(next.X, zone.Y);
         return a != null && TerrainSystem.Of(a) == FrontTerrain.River || b != null && TerrainSystem.Of(b) == FrontTerrain.River;
     }
 #endif
@@ -2734,7 +2694,7 @@ public static class WildernessSystem
 
     // 从 zone(已在山里连走了 depth 块)走到 next 之后，在山里连走了几块；走不过去为 -1
 #if EC_PENDING
-    private static int Step(TileZone zone, int depth, TileZone next)
+    private static int Step(Cell zone, int depth, Cell next)
     {
         if (TerrainSystem.ImpassableGround(next)) return depth < MountainDepth ? depth + 1 : -1;
         if (TerrainSystem.ImpassableGround(zone) || !TerrainSystem.Crossable(zone, next)) return -1;
@@ -2768,6 +2728,7 @@ public static class WildernessSystem
             if (_overReached == null) Spread(_titleOf, null, float.PositiveInfinity, out _overReached, out _, overMountains: true);
             return _overReached[id];
         }
+#endif
 
         public City Of(int id, out KingdomTitle title)
         {
@@ -2782,7 +2743,6 @@ public static class WildernessSystem
             title = TitleOfCity(near, _titleOf);
             return near;
         }
-#endif
     }
 
     // 隔着山谁都不领、空着的(见 Nearest)：剧本存档不为它们每回都整个重挂(见 Attach)
@@ -2823,11 +2783,11 @@ public static class WildernessSystem
             foreach (int id in region.Zones)
             {
                 KingdomTitle title = _titles[id];
-                TileZone zone = _zones[id];
-                if (title == null || title.IsGone() || zone?.neighbours_all == null) continue;
-                foreach (TileZone next in zone.neighbours_all)
+                Cell zone = _zones[id];
+                if (title == null || title.IsGone() || zone?.NeighboursAll == null) continue;
+                foreach (Cell next in zone.NeighboursAll)
                 {
-                    City city = next?.city;
+                    City city = next?.City;
                     if (city?.Record == null || city.IsGone() || TitleOfCity(city, titleOf) != title) continue;
                     int depth = Step(next, 0, zone);
                     if (depth >= 0) Reach(id, depth);
@@ -2837,12 +2797,12 @@ public static class WildernessSystem
         {
             int state = queue.Dequeue(), id = state / layers, depth = state % layers;
             if (OnWall(id)) continue;
-            foreach (TileZone next in _zones[id].neighbours_all)
+            foreach (Cell next in _zones[id].NeighboursAll)
             {
-                if (next == null || next.id < 0 || next.id >= size || _titles[next.id] != _titles[id] ||
-                    next.id >= _regionOf.Length || _regionOf[next.id] < 0) continue;
+                if (next == null || next.Index < 0 || next.Index >= size || _titles[next.Index] != _titles[id] ||
+                    next.Index >= _regionOf.Length || _regionOf[next.Index] < 0) continue;
                 int nextDepth = Step(_zones[id], depth, next);
-                if (nextDepth >= 0) Reach(next.id, nextDepth);
+                if (nextDepth >= 0) Reach(next.Index, nextDepth);
             }
         }
         var walk = new Nearest(titleOf);
@@ -2851,7 +2811,7 @@ public static class WildernessSystem
             foreach (int id in region.Zones)
             {
                 KingdomTitle title = _titles[id];
-                TileZone zone = _zones[id];
+                Cell zone = _zones[id];
                 if (legit[id] || title == null || title.IsGone() || zone == null || IsPainted(zone) ||
                     AnchorTitle(zone) != null || WorldMapWilderness.TitleFor(zone) != null) continue;
                 City city = walk.Of(id, out KingdomTitle nearest);
@@ -2867,10 +2827,10 @@ public static class WildernessSystem
 
     // 走进这块地的代价(每块地各自不同，同一块地每次一样，见 TerritoryGrain)
 #if EC_PENDING
-    private static float Roughness(TileZone zone) =>
-        Mathf.Max(1f, TerrainResistance.TerrainStep(zone)) * TerritoryGrain.At(zone.x, zone.y, 4049);
+    private static float Roughness(Cell zone) =>
+        Mathf.Max(1f, TerrainResistance.TerrainStep(zone)) * TerritoryGrain.At(zone.X, zone.Y, 4049);
 
-    private static bool Land(TileZone zone) => zone.tiles_with_ground > 0 && !SeaRegionSystem.IsSea(zone);
+    private static bool Land(Cell zone) => zone.GroundTiles > 0 && !SeaRegionSystem.IsSea(zone);
 #endif
 
     // 几秒一核：城与法理的对应变了修补挂接；各法理的持有国变了记下。
@@ -2986,11 +2946,11 @@ public static class WildernessSystem
     // 指定了归属的地块不限远近(用户 2026-11-12 转群友"用无人区法理那个画笔画的时候画不动，显示无主""导入存档之后……全是无人区整出来的坑")：
     // 远近只管自动挂的；神力笔刷刷过的(Paint)、剧本编辑器刷了归属的(PaintedTitle)、刷给城后开局划成无人区的(CityClaim)照刷的归。
     // 以前这些离城远(石器时代往山里只算得进一块半)也算无主，刷了只见"归 无主"，导入的图在山里沙漠里一片片空着
-#if EC_PENDING
     private static bool Assigned(int id) =>
         id < _painted.Length && _painted[id] || WorldMapWilderness.PaintedTitle(_zones[id]) != null ||
         WorldMapWilderness.CityClaim(_zones[id]);
 
+#if EC_PENDING
     private static bool RefreshReach()
     {
         int length = _titles.Length;
@@ -3063,12 +3023,12 @@ public static class WildernessSystem
         {
             if (city?.Record == null || city.IsGone()) continue;
             cities += city.Key;
-            foreach (TileZone part in city.zones ?? new List<TileZone>())
+            foreach (Cell part in city.Zones ?? new List<Cell>())
             {
-                if (part == null || part.id < 0) continue;
+                if (part == null || part.Index < 0) continue;
                 count++;
-                sum += part.id;
-                squares += (long)part.id * part.id;
+                sum += part.Index;
+                squares += (long)part.Index * part.Index;
             }
         }
         unchecked
@@ -3091,7 +3051,7 @@ public static class WildernessSystem
 #if EC_PENDING
     private static HashSet<int> Near(Realm owner, float budget)
     {
-        var zones = EmpireWorld.Current?.zone_calculator?.zones;
+        var zones = EmpireWorld.Current?.Zones?.All;
         int size = Math.Max(_zones.Length, zones?.Count ?? 0);
         if (_nearCost.Length < size)
         {
@@ -3106,51 +3066,51 @@ public static class WildernessSystem
         }
         int stamp = _nearStamp;
         var result = new HashSet<int>();
-        var seeds = new List<TileZone>();
+        var seeds = new List<Cell>();
         foreach (City city in owner.Cities ?? new List<City>())
         {
             if (city?.Record == null || city.IsGone()) continue;
-            foreach (TileZone part in city.zones ?? new List<TileZone>())
+            foreach (Cell part in city.Zones ?? new List<Cell>())
             {
-                if (part == null || part.id < 0 || part.id >= size || _nearMark[part.id] == stamp) continue;
-                _nearMark[part.id] = stamp;
-                _nearCost[part.id] = 0f;
+                if (part == null || part.Index < 0 || part.Index >= size || _nearMark[part.Index] == stamp) continue;
+                _nearMark[part.Index] = stamp;
+                _nearCost[part.Index] = 0f;
                 seeds.Add(part);
             }
         }
         var heap = new WorldMapZones.MinHeap();
-        foreach (TileZone part in seeds)
+        foreach (Cell part in seeds)
         {
-            bool edge = part.neighbours_all == null;
+            bool edge = part.NeighboursAll == null;
             if (!edge)
-                foreach (TileZone next in part.neighbours_all)
-                    if (next == null || next.id < 0 || next.id >= size || _nearMark[next.id] != stamp)
+                foreach (Cell next in part.NeighboursAll)
+                    if (next == null || next.Index < 0 || next.Index >= size || _nearMark[next.Index] != stamp)
                     {
                         edge = true;
                         break;
                     }
-            if (edge) heap.Push(0f, part.id);
+            if (edge) heap.Push(0f, part.Index);
         }
         while (heap.Count > 0)
         {
             heap.Pop(out float at, out int id);
             if (at > _nearCost[id]) continue;
-            TileZone zone = zones != null && id < zones.Count ? zones[id] : id < _zones.Length ? _zones[id] : null;
-            if (zone?.neighbours_all == null) continue;
+            Cell zone = zones != null && id < zones.Count ? zones[id] : id < _zones.Length ? _zones[id] : null;
+            if (zone?.NeighboursAll == null) continue;
             bool fromRiver = TerrainSystem.Of(zone) == FrontTerrain.River;
-            foreach (TileZone next in zone.neighbours_all)
+            foreach (Cell next in zone.NeighboursAll)
             {
-                if (next == null || next.id < 0 || next.id >= size) continue;
+                if (next == null || next.Index < 0 || next.Index >= size) continue;
                 float step = SeaRegionSystem.IsSea(next) ? SeaReachStep : TerrainResistance.TerrainStep(next);
                 if (step < 0f) continue;
                 if (!fromRiver && (TerrainSystem.Of(next) == FrontTerrain.River || CutsRiverCorner(zone, next)))
                     step += TerrainResistance.RiverCrossing;
-                float total = at + (next.x != zone.x && next.y != zone.y ? 1.414f : 1f) * step;
-                if (total > budget || _nearMark[next.id] == stamp && total >= _nearCost[next.id]) continue;
-                _nearMark[next.id] = stamp;
-                _nearCost[next.id] = total;
-                result.Add(next.id);
-                heap.Push(total, next.id);
+                float total = at + (next.X != zone.X && next.Y != zone.Y ? 1.414f : 1f) * step;
+                if (total > budget || _nearMark[next.Index] == stamp && total >= _nearCost[next.Index]) continue;
+                _nearMark[next.Index] = stamp;
+                _nearCost[next.Index] = total;
+                result.Add(next.Index);
+                heap.Push(total, next.Index);
             }
         }
         return result;
@@ -3164,7 +3124,6 @@ public static class WildernessSystem
     // 周边的城都在同一个帝国里就归这个帝国，画给挨着这片的城最多的那个成员(一样多的先核心王国、再编号小的)
     private static readonly Dictionary<Realm, int> SurroundCounts = new();
 
-#if EC_PENDING
     private static bool RefreshSurround()
     {
         bool changed = false;
@@ -3175,11 +3134,11 @@ public static class WildernessSystem
             SurroundCounts.Clear();
             foreach (int id in region.Zones)
             {
-                TileZone zone = id >= 0 && id < _zones.Length ? _zones[id] : null;
-                if (zone?.neighbours_all == null) continue;
-                foreach (TileZone next in zone.neighbours_all)
+                Cell zone = id >= 0 && id < _zones.Length ? _zones[id] : null;
+                if (zone?.NeighboursAll == null) continue;
+                foreach (Cell next in zone.NeighboursAll)
                 {
-                    City city = next?.city;
+                    City city = next?.City;
                     if (city?.Record == null || city.IsGone()) continue;
                     Realm kingdom = city.Realm;
                     if (kingdom == null || kingdom.IsGone() || kingdom.IsWild)
@@ -3221,7 +3180,6 @@ public static class WildernessSystem
         }
         return changed;
     }
-#endif
 
     // 太小的碎块并进最近的大国(用户 2026-11-06 "特别小的土地就别填补国家了, 直接并进最近的大国不就好了"，又说"一旦城市变更政权
     // 对应的无人区也要变更, 不然会导致飞地")：按本来的归属(BaseResolve)把无人区地块连成片——四邻相连、同一归属，跨片的无人区也连
@@ -3264,16 +3222,16 @@ public static class WildernessSystem
                 FragmentZones.Add(start);
                 for (int i = 0; i < FragmentZones.Count; i++)
                 {
-                    TileZone zone = _zones[FragmentZones[i]];
-                    if (zone?.neighbours == null) continue;
-                    foreach (TileZone next in zone.neighbours)
+                    Cell zone = _zones[FragmentZones[i]];
+                    if (zone?.Neighbours == null) continue;
+                    foreach (Cell next in zone.Neighbours)
                     {
-                        if (next == null || next.id < 0 || next.id >= size) continue;
-                        if (Fragmentable(next.id, size) && _baseOwner[next.id] == owner)
+                        if (next == null || next.Index < 0 || next.Index >= size) continue;
+                        if (Fragmentable(next.Index, size) && _baseOwner[next.Index] == owner)
                         {
-                            if (_fragmentMark[next.id] == mark) continue;
-                            _fragmentMark[next.id] = mark;
-                            FragmentZones.Add(next.id);
+                            if (_fragmentMark[next.Index] == mark) continue;
+                            _fragmentMark[next.Index] = mark;
+                            FragmentZones.Add(next.Index);
                             continue;
                         }
                         Realm other = NeighbourOwner(next, size);
@@ -3323,19 +3281,17 @@ public static class WildernessSystem
 #endif
 
     // 参与碎块合并的无人区地块(永久中立的不并)
-#if EC_PENDING
     private static bool Fragmentable(int id, int size) =>
         id >= 0 && id < size && _zones[id] != null && Index(_zones[id]) >= 0 && !IsNeutral(id);
-#endif
 
     // 挨着的那块地归哪国：城的地块按城，别的无人区按本来的归属，剧本史实领土按史实；都不是为 null
 #if EC_PENDING
-    private static Realm NeighbourOwner(TileZone next, int size)
+    private static Realm NeighbourOwner(Cell next, int size)
     {
         Realm kingdom;
-        City city = next.city;
+        City city = next.City;
         if (city != null) kingdom = city.Record != null && !city.IsGone() ? city.Realm : null;
-        else if (Index(next) >= 0) kingdom = IsNeutral(next.id) ? null : _baseOwner[next.id];
+        else if (Index(next) >= 0) kingdom = IsNeutral(next.Index) ? null : _baseOwner[next.Index];
         else kingdom = WorldMapWilderness.KnownOwner(next);
         return kingdom?.Record != null && !kingdom.IsGone() && !kingdom.IsWild && !kingdom.IsNeutral() ? kingdom : null;
     }

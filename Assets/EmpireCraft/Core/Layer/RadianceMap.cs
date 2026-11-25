@@ -52,9 +52,9 @@ internal static class RadianceLayers
                 if (!buckets.TryGetValue(city, out string key)) buckets[city] = key = bucketOf(city).key;
                 return key;
             }
-            bool Border(TileZone neighbour, City city, string key)
+            bool Border(Cell neighbour, City city, string key)
             {
-                City other = neighbour?.city;
+                City other = neighbour?.City;
                 return mode != 0 ? other != city : Key(other) != key;
             }
             foreach (City city in EmpireWorld.Current.Cities)
@@ -63,12 +63,12 @@ internal static class RadianceLayers
                 (string key, RadianceMapColor color) = bucketOf(city);
                 if (color == null) continue;
                 buckets[city] = key;
-                foreach (TileZone zone in city.zones)
+                foreach (Cell zone in city.Zones)
                 {
                     EmpireCraftMetaTypeLibrary.zone_manager.drawBegin();
                     EmpireCraftMetaTypeLibrary.zone_manager.drawZoneMeta(color, zone,
-                        Border(zone.zone_up, city, key), Border(zone.zone_down, city, key),
-                        Border(zone.zone_left, city, key), Border(zone.zone_right, city, key), color.data, meta);
+                        Border(zone.Up, city, key), Border(zone.Down, city, key),
+                        Border(zone.Left, city, key), Border(zone.Right, city, key), color.data, meta);
                     EmpireCraftMetaTypeLibrary.zone_manager.drawEnd(zone);
                 }
             }
@@ -77,7 +77,7 @@ internal static class RadianceLayers
         {
             City hovered = tile?.zone?.city;
             if (!Shown(hovered)) return;
-            QuantumSpriteLibrary.colorZones(highlight, hovered.zones, highlight.color);
+            QuantumSpriteLibrary.colorZones(highlight, hovered.Zones, highlight.color);
         });
         asset.check_tile_has_meta = (MetaZoneTooltipAction)((zone, meta, option) => Shown(zone?.city));
         asset.check_cursor_tooltip = (zone, meta, option) =>

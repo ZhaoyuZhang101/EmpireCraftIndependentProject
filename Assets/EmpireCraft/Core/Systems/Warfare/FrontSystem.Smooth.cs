@@ -1,6 +1,7 @@
 // Generated from the EmpireCraft mod: Scripts/GeneralSystems/Warfare/FrontSystem.Smooth.cs. Do not edit by hand: Tools/PortTool/members.py rewrites it;
 // see Port/manifest.json and Tools/PortTool.
 using Mathf = EmpireCraft.Core.EcMath;
+using Vector2 = EmpireCraft.Core.EcVector2;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -41,9 +42,7 @@ public static partial class FrontSystem
         public readonly List<(long kingdom, long corps)> Corps = new();
         // 上一仗同在场的友军：现任停战、亡国时由它们接着推(见 TryInherit)
         public readonly HashSet<long> Camp = new();
-#if EC_PENDING
         public Vector2 Center, Dir;
-#endif
         public float Min, Max;
         public int Painted = -1;
     }
@@ -98,8 +97,8 @@ public static partial class FrontSystem
             break;
         }
         if (current == null || Hostile(current, lead)) return lead;
-        TileZone zone = CorpsSystem.ZoneById(push.Zone);
-        if (zone?.city != city || !Valid(push, city, current, zone)) return lead;
+        Cell zone = CorpsSystem.ZoneById(push.Zone);
+        if (zone?.City != city || !Valid(push, city, current, zone)) return lead;
         return Beside(present.Where(entry => entry.kingdom == current).Select(entry => entry.corps), zone) ? current : lead;
     }
 #endif
@@ -147,7 +146,7 @@ public static partial class FrontSystem
         bool retake, bool free)
     {
         // 现任已停战、亡国(本帧 Step 还没轮到)：先交接或撤掉，不拿失效的现任比敌我
-        if (!ResolvePush(push, out _, out Realm current, out TileZone zone) && !TryInherit(push, out _, out current, out zone))
+        if (!ResolvePush(push, out _, out Realm current, out Cell zone) && !TryInherit(push, out _, out current, out zone))
         {
             Remove(push, WhyInvalid(push));
             return false;
@@ -181,7 +180,7 @@ public static partial class FrontSystem
         return false;
     }
 
-    private static void Renew(Push push, Realm side, List<CorpsData> spearheads, TileZone zone, bool defended, bool free)
+    private static void Renew(Push push, Realm side, List<CorpsData> spearheads, Cell zone, bool defended, bool free)
     {
         push.Direction = 1;
         push.Defended = defended;
@@ -205,24 +204,24 @@ public static partial class FrontSystem
 
     // 现任的军团还在这条战线上(还没到、在路上也算)
 #if EC_PENDING
-    private static bool StillEngaged(Push push, TileZone zone) =>
+    private static bool StillEngaged(Push push, Cell zone) =>
         CorpsOf(push).Any(corps => corps.strength >= 1f &&
                                    (corps.sector_city_id == push.City || CorpsSystem.ZoneDistance(CorpsSystem.Zone(corps), zone) <= 1f));
 #endif
 
     // 现任停战、亡国了，上一仗同在场的友军还在打这块地：进度交给它接着推，不回退
 #if EC_PENDING
-    private static bool TryInherit(Push push, out City city, out Realm side, out TileZone zone)
+    private static bool TryInherit(Push push, out City city, out Realm side, out Cell zone)
     {
         city = EmpireWorld.Current.CityByKey(push.City);
         side = null;
-        zone = EmpireWorld.Current.zone_calculator.getZoneByID(push.Zone);
-        if (city?.Record == null || city.IsGone() || zone?.city != city) return false;
+        zone = EmpireWorld.Current.Zones.ById(push.Zone);
+        if (city?.Record == null || city.IsGone() || zone?.City != city) return false;
         foreach (long id in push.Camp)
         {
             Realm heir = EmpireWorld.Current.RealmByKey(id);
             if (heir?.Record == null || heir.IsGone() || !Valid(push, city, heir, zone)) continue;
-            TileZone target = zone;
+            Cell target = zone;
             List<CorpsData> corps = CorpsSystem.Of(heir)
                 .Where(entry => entry.strength >= 1f && entry.sector_city_id == push.City &&
                                 CorpsSystem.ZoneDistance(CorpsSystem.Zone(entry), target) <= 1f).ToList();
@@ -243,18 +242,18 @@ public static partial class FrontSystem
     {
         if (Pushes.TryGetValue(city.Key, out Push push) && SettleExisting(push, city, side, spearheads, defended, retake, free))
             return;
-        TileZone zone = retake ? RetakeTarget(city, side, spearheads, free) : AdvanceTarget(city, side, spearheads, defended);
+        Cell zone = retake ? RetakeTarget(city, side, spearheads, free) : AdvanceTarget(city, side, spearheads, defended);
         if (zone == null) return;
         push = new Push
         {
-            City = city.Key, Side = side.Key, Owner = city.Realm?.Key ?? -1L, Zone = zone.id, Retake = retake, Free = free, Direction = 1,
+            City = city.Key, Side = side.Key, Owner = city.Realm?.Key ?? -1L, Zone = zone.Index, Retake = retake, Free = free, Direction = 1,
             Defended = defended, Confirmed = true, Last = GameClock.Now,
             Wall = retake ? 1f : WallPaceOf(side, zone, spearheads)
         };
         SetCorps(push, spearheads);
         Aim(push, zone, side);
         Pushes[city.Key] = push;
-        PushByZone[zone.id] = push;
+        PushByZone[zone.Index] = push;
     }
 #endif
 
@@ -278,41 +277,41 @@ public static partial class FrontSystem
 
     // 推进的目标：紧挨着进攻军团、敌方控制的地块(挑法同 Advance，能下手的地块见 AttackZones)；守军还在时不拿城中最后一块、城池放到最后，溃散后先取城池
 #if EC_PENDING
-    private static TileZone AdvanceTarget(City city, Realm side, List<CorpsData> spearheads, bool defended)
+    private static Cell AdvanceTarget(City city, Realm side, List<CorpsData> spearheads, bool defended)
     {
-        List<TileZone> targets = AttackZones(side, city, spearheads).Where(candidate => Beside(spearheads, candidate)).ToList();
+        List<Cell> targets = AttackZones(side, city, spearheads).Where(candidate => Beside(spearheads, candidate)).ToList();
         if (targets.Count == 0) return null;
         int remaining = CityDistricts.Count(city, zone => !Friendly(side, Controller(zone)) && !TerrainSystem.Impassable(zone));
         if (defended && remaining <= 1) return null;
-        TileZone center = city.getTile()?.zone;
+        Cell center = city.SeatCell()?.Zone;
         targets = Outskirts(city, side, targets, center, defended);
         if (targets.Count == 0) return null;
         return targets.OrderBy(candidate => CenterOrder(city, candidate, center, defended))
             .ThenBy(candidate => WallBetween(side, candidate, spearheads) ? 1 : 0)
             .ThenByDescending(FlankOrder)
-            .ThenByDescending(candidate => (candidate.neighbours ?? Array.Empty<TileZone>())
+            .ThenByDescending(candidate => (candidate.Neighbours ?? Array.Empty<Cell>())
                 .Count(neighbour => Friendly(side, Controller(neighbour)))).First();
     }
 #endif
 
     // 收复的目标：本城被敌军占去、与己方相连、紧挨着己方军团的地块；没有攻方来争时，攻方军团看守着的地不收(见 Guarded)
 #if EC_PENDING
-    private static TileZone RetakeTarget(City city, Realm side, List<CorpsData> troops, bool free = false) =>
-        city.zones?.FirstOrDefault(candidate => candidate != null &&
+    private static Cell RetakeTarget(City city, Realm side, List<CorpsData> troops, bool free = false) =>
+        city.Zones?.FirstOrDefault(candidate => candidate != null &&
                                                 city.GetTileZoneOccupier(candidate) is Realm occupier && Hostile(side, occupier) &&
                                                 Beside(troops, candidate) && (!free || !Guarded(side, candidate)) &&
-                                                (candidate.neighbours ?? Array.Empty<TileZone>())
+                                                (candidate.Neighbours ?? Array.Empty<Cell>())
                                                 .Any(neighbour => Friendly(side, Controller(neighbour))));
 #endif
 
     // 推进方向：从相邻的己方地块指向这块地；记下各格在这个方向上的投影范围(画进度用)
 #if EC_PENDING
-    private static void Aim(Push push, TileZone zone, Realm side)
+    private static void Aim(Push push, Cell zone, Realm side)
     {
         Vector2 center = ZoneCenter(zone);
         Vector2 from = Vector2.zero;
         int count = 0;
-        foreach (TileZone neighbour in zone.neighbours_all ?? zone.neighbours ?? Array.Empty<TileZone>())
+        foreach (Cell neighbour in zone.NeighboursAll ?? zone.Neighbours ?? Array.Empty<Cell>())
         {
             if (neighbour == null || !Friendly(side, Controller(neighbour))) continue;
             from += ZoneCenter(neighbour);
@@ -323,17 +322,17 @@ public static partial class FrontSystem
         push.Center = center;
         push.Min = float.MaxValue;
         push.Max = float.MinValue;
-        foreach (WorldTile tile in zone.tiles)
+        foreach (Cell tile in zone.Tiles)
         {
-            float s = Vector2.Dot(new Vector2(tile.x + 0.5f, tile.y + 0.5f) - center, push.Dir);
+            float s = Vector2.Dot(new Vector2(tile.X + 0.5f, tile.Y + 0.5f) - center, push.Dir);
             push.Min = Mathf.Min(push.Min, s);
             push.Max = Mathf.Max(push.Max, s);
         }
         if (push.Max - push.Min < 0.01f) push.Max = push.Min + 1f;
     }
 
-    private static Vector2 ZoneCenter(TileZone zone) =>
-        new((zone.x + 0.5f) * Config.CITY_ZONE_SIZE, (zone.y + 0.5f) * Config.CITY_ZONE_SIZE);
+    private static Vector2 ZoneCenter(Cell zone) =>
+        new((zone.X + 0.5f) * Config.CITY_ZONE_SIZE, (zone.Y + 0.5f) * Config.CITY_ZONE_SIZE);
 #endif
 
     #endregion
@@ -367,20 +366,22 @@ public static partial class FrontSystem
             }
         }
     }
+#endif
 
-    private static bool ResolvePush(Push push, out City city, out Realm side, out TileZone zone)
+    private static bool ResolvePush(Push push, out City city, out Realm side, out Cell zone)
     {
         city = EmpireWorld.Current.CityByKey(push.City);
         side = EmpireWorld.Current.RealmByKey(push.Side);
-        zone = EmpireWorld.Current.zone_calculator.getZoneByID(push.Zone);
+        zone = EmpireWorld.Current.Zones.ById(push.Zone);
         return city?.Record != null && !city.IsGone() && side?.Record != null && !side.IsGone() &&
-               zone?.city == city && Valid(push, city, side, zone);
+               zone?.City == city && Valid(push, city, side, zone);
     }
 
+#if EC_PENDING
     private static void Step(Push push, float months)
     {
         // 停住的战线也要检查：停战、灭国、城市易主后不能一直保留半块旧占领色；没有经过游戏时间时同样清理。
-        if (!ResolvePush(push, out City city, out Realm side, out TileZone zone) && !TryInherit(push, out city, out side, out zone))
+        if (!ResolvePush(push, out City city, out Realm side, out Cell zone) && !TryInherit(push, out city, out side, out zone))
         {
             Remove(push, WhyInvalid(push));
             return;
@@ -400,15 +401,13 @@ public static partial class FrontSystem
 #endif
 
     // 收复是替城主收：城换了主、side 不再站在城主这边就不算；进攻要 side 与城主、与这块地眼下的控制方都在交战
-#if EC_PENDING
-    private static bool Valid(Push push, City city, Realm side, TileZone zone) => push.Retake
+    private static bool Valid(Push push, City city, Realm side, Cell zone) => push.Retake
         ? city.GetTileZoneOccupier(zone) is Realm occupier && Hostile(side, occupier) && Friendly(side, city.Realm)
         : Hostile(side, city.Realm) && Hostile(side, Controller(zone));
-#endif
 
     // 推满一块：真正易手(同 Advance / Retake)，离它最近的军团进驻，接着推身边的下一块
 #if EC_PENDING
-    private static void Complete(Push push, City city, Realm side, TileZone zone)
+    private static void Complete(Push push, City city, Realm side, Cell zone)
     {
         Realm owner = city.Realm;
         List<CorpsData> corps = CorpsOf(push);
@@ -453,16 +452,16 @@ public static partial class FrontSystem
             .ThenByDescending(entry => entry.strength).FirstOrDefault();
         if (lead != null)
         {
-            lead.zone_id = zone.id;
+            lead.zone_id = zone.Index;
             lead.march_progress = 0f;
         }
         Remove(push, settled);
         if (city.IsGone() || city.Realm != owner) return;
-        TileZone next = push.Retake ? RetakeTarget(city, side, corps, push.Free) : AdvanceTarget(city, side, corps, push.Defended);
+        Cell next = push.Retake ? RetakeTarget(city, side, corps, push.Free) : AdvanceTarget(city, side, corps, push.Defended);
         if (next == null) return;
         var chained = new Push
         {
-            City = push.City, Side = push.Side, Owner = push.Owner, Zone = next.id, Retake = push.Retake, Free = push.Free, Direction = 1,
+            City = push.City, Side = push.Side, Owner = push.Owner, Zone = next.Index, Retake = push.Retake, Free = push.Free, Direction = 1,
             Defended = push.Defended, Confirmed = push.Confirmed, Last = push.Last,
             Progress = Mathf.Clamp01(leftover), Wall = push.Retake ? 1f : WallPaceOf(side, next, corps)
         };
@@ -470,7 +469,7 @@ public static partial class FrontSystem
         chained.Camp.UnionWith(push.Camp);
         Aim(chained, next, side);
         Pushes[city.Key] = chained;
-        PushByZone[next.id] = chained;
+        PushByZone[next.Index] = chained;
         Paint(chained, next);
     }
 
@@ -482,7 +481,7 @@ public static partial class FrontSystem
         Repaint(push.Zone);
     }
 
-    private static void Paint(Push push, TileZone zone)
+    private static void Paint(Push push, Cell zone)
     {
         int step = Mathf.Clamp(Mathf.FloorToInt(push.Progress * PaintSteps), 0, PaintSteps);
         if (step == push.Painted) return;
@@ -493,7 +492,7 @@ public static partial class FrontSystem
 
     // 推进结束/取消后四周也变了；不能只画本块，否则邻块仍留着推进时的边框。
 #if EC_PENDING
-    private static void Repaint(int zoneId) => SmoothBorders.Repaint(EmpireWorld.Current?.zone_calculator?.getZoneByID(zoneId));
+    private static void Repaint(int zoneId) => SmoothBorders.Repaint(EmpireWorld.Current?.Zones?.ById(zoneId));
 #endif
 
     #endregion
@@ -507,24 +506,22 @@ public static partial class FrontSystem
         foreach (int id in PushByZone.Keys) into.Add(id);
     }
 
-#if EC_PENDING
-    public static bool SmoothPushOn(TileZone zone, out Realm side, out bool retake)
+    public static bool SmoothPushOn(Cell zone, out Realm side, out bool retake)
     {
         side = null;
         retake = false;
-        if (zone == null || !PushByZone.TryGetValue(zone.id, out Push push)) return false;
+        if (zone == null || !PushByZone.TryGetValue(zone.Index, out Push push)) return false;
         // 上色可能早于本帧 SmoothTick：此处也不采用已经失效的战线。
         if (!ResolvePush(push, out _, out side, out _)) return false;
         retake = push.Retake;
         return true;
     }
-#endif
 
     // 地格 (x, y) 已被推进方吃下(从推进方一侧按进度算，边缘带一点起伏)
 #if EC_PENDING
-    public static bool SmoothCovers(TileZone zone, int x, int y)
+    public static bool SmoothCovers(Cell zone, int x, int y)
     {
-        if (zone == null || !PushByZone.TryGetValue(zone.id, out Push push)) return false;
+        if (zone == null || !PushByZone.TryGetValue(zone.Index, out Push push)) return false;
         float s = Vector2.Dot(new Vector2(x + 0.5f, y + 0.5f) - push.Center, push.Dir);
         float fraction = (s - push.Min) / (push.Max - push.Min);
         return fraction + 0.12f * (SmoothBorders.FrontNoise(x, y) - 0.5f) <= push.Progress;

@@ -1,6 +1,8 @@
 // Generated from the EmpireCraft mod: Scripts/GeneralSystems/WorldMap/WorldMapZones.cs. Do not edit by hand: Tools/PortTool/members.py rewrites it;
 // see Port/manifest.json and Tools/PortTool.
 using Mathf = EmpireCraft.Core.EcMath;
+using Vector2Int = EmpireCraft.Core.EcVector2Int;
+using Vector2 = EmpireCraft.Core.EcVector2;
 using System;
 using System.Collections.Generic;
 
@@ -28,9 +30,7 @@ internal static class WorldMapZones
 {
     public static int Width { get; private set; }
     public static int Height { get; private set; }
-#if EC_PENDING
-    private static TileZone[] _zones = new TileZone[0];
-#endif
+    private static Cell[] _zones = new Cell[0];
     private static float[] _travel = new float[0];
     private static bool[] _claimable = new bool[0];
     private static int[] _land = new int[0];
@@ -42,9 +42,7 @@ internal static class WorldMapZones
     private static int[] _barren = new int[0];
 
     // 边墙线段(格坐标)与被它隔开的相邻区块对(见 SetWalls、BuildBlocked)；连着的几道墙(见 FrontierWalls.Build)
-#if EC_PENDING
     private static readonly List<(Vector2 a, Vector2 b)> _walls = new();
-#endif
     private static List<FrontierWalls.Line> _lines = new();
     private static readonly HashSet<long> _blocked = new(EmpireCraft.Core.PackedKeyComparer.Instance);
     private static readonly (int dx, int dy)[] HalfNeighbours = { (1, 0), (0, 1), (1, 1), (1, -1) };
@@ -57,11 +55,11 @@ internal static class WorldMapZones
     {
         // 路口按这张图重判(上一张图、立城平谷以前算的不作数，见 Open)
         TerrainSystem.Invalidate(null);
-        Width = EmpireWorld.width / 8;
-        Height = EmpireWorld.height / 8;
+        Width = EmpireWorld.Current.Width / 8;
+        Height = EmpireWorld.Current.Height / 8;
         BuildBlocked();
         int count = Width * Height;
-        _zones = new TileZone[count];
+        _zones = new Cell[count];
         _travel = new float[count];
         _claimable = new bool[count];
         _land = new int[count];
@@ -72,7 +70,7 @@ internal static class WorldMapZones
         for (int zx = 0; zx < Width; zx++)
         {
             int index = zy * Width + zx;
-            TileZone zone = EmpireWorld.Current.GetTileSimple(zx * 8 + 4, zy * 8 + 4)?.zone;
+            Cell zone = EmpireWorld.Current.CellAt(zx * 8 + 4, zy * 8 + 4)?.Zone;
             _zones[index] = zone;
             Classify(zone, out _travel[index], out _claimable[index], out _land[index], out water[index], out _barren[index]);
         }
@@ -137,17 +135,16 @@ internal static class WorldMapZones
 #if EC_PENDING
     public static bool Behind(Vector2Int seat, int index) =>
         index >= 0 && (_lines.Count > 0 && FrontierWalls.Behind(_lines, seat, new Vector2(index % Width * 8 + 4, index / Width * 8 + 4)) ||
-                       PlateauSides.Differ(EmpireWorld.Current?.GetTile(seat.x, seat.y)?.zone, Zone(index)));
+                       PlateauSides.Differ(EmpireWorld.Current?.CellAt(seat.x, seat.y)?.Zone, Zone(index)));
 
     private static bool Behind(City city, int index)
     {
-        WorldTile seat = city?.getTile();
-        return seat != null && Behind(new Vector2Int(seat.x, seat.y), index);
+        Cell seat = city?.SeatCell();
+        return seat != null && Behind(new Vector2Int(seat.X, seat.Y), index);
     }
 #endif
 
     // 区块中心连线与边墙线段相交的相邻区块对(八方向，记一半的邻居、两向通用)
-#if EC_PENDING
     private static void BuildBlocked()
     {
         _blocked.Clear();
@@ -168,19 +165,16 @@ internal static class WorldMapZones
             }
         }
     }
-#endif
 
     private static long PairKey(int a, int b) => a < b ? (long)a << 32 | (uint)b : (long)b << 32 | (uint)a;
 
     private static bool Blocked(int a, int b) => _blocked.Count > 0 && _blocked.Contains(PairKey(a, b));
 
     // 两条线段相交
-#if EC_PENDING
     private static bool Crosses(Vector2 a, Vector2 b, Vector2 c, Vector2 d) =>
         Side(c, d, a) > 0f != Side(c, d, b) > 0f && Side(a, b, c) > 0f != Side(a, b, d) > 0f;
 
     private static float Side(Vector2 o, Vector2 p, Vector2 q) => (p.x - o.x) * (q.y - o.y) - (p.y - o.y) * (q.x - o.x);
-#endif
 
     // 按起点分地(州府治所锚点与各城，见 WorldMapScenario.AnchorTerritory)：各起点同时按地形代价往外走——只走能领的陆地、
     // 交界要有路口、不过边墙(同 Fill)，每块地归先到的起点，各起点至多走 budget。返回各区块的标签，没走到为 -1。
@@ -342,31 +336,31 @@ internal static class WorldMapZones
     }
 
 #if EC_PENDING
-    private static void Classify(TileZone zone, out float travel, out bool claimable, out int land, out int water, out int barrenKind)
+    private static void Classify(Cell zone, out float travel, out bool claimable, out int land, out int water, out int barrenKind)
     {
         travel = SeaCost;
         claimable = false;
         land = 0;
         water = 0;
         barrenKind = BarrenLandSystem.None;
-        if (zone?.tiles == null) return;
+        if (zone?.Tiles == null) return;
         int mountain = 0, hills = 0, desert = 0, frozen = 0, wet = 0, forest = 0;
-        foreach (WorldTile tile in zone.tiles)
+        foreach (Cell tile in zone.Tiles)
         {
-            TileTypeBase type = tile?.Type;
-            TileType main = tile?.main_type;
+            TerrainKind type = tile?.Type;
+            TerrainKind main = tile?.MainType;
             if (type == null) continue;
-            if (type.liquid || main != null && main.liquid)
+            if (type.Liquid || main != null && main.Liquid)
             {
                 water++;
                 continue;
             }
             land++;
             // 雪盖的山(山顶雪)、雪丘：主地块仍是山、丘陵；雪丘算冻土(青藏高原面)。冻土只记一次(雪丘的生物群系也是永冻土，以前记了两次)
-            if (type.mountains || type.summit || main != null && (main.mountains || main.summit)) mountain++;
-            else if (type.rocks || type.id == "hills" || type.id == "snow_hills" || main?.id == "hills") hills++;
-            if (type.id == "snow_hills" || type.id == "snow_block" || type.biome_id == "biome_permafrost") frozen++;
-            switch (type.biome_id)
+            if (type.Mountains || type.Summit || main != null && (main.Mountains || main.Summit)) mountain++;
+            else if (type.Rocks || type.Id == "hills" || type.Id == "snow_hills" || main?.Id == "hills") hills++;
+            if (type.Id == "snow_hills" || type.Id == "snow_block" || type.BiomeId == "biome_permafrost") frozen++;
+            switch (type.BiomeId)
             {
                 // 沙地是沙滩，不算荒漠(同 WildernessSystem.ComputeMarks)
                 case "biome_desert":
@@ -406,6 +400,7 @@ internal static class WorldMapZones
         if (barren && !mountainous)
             barrenKind = wild == WildKind.Desert ? BarrenLandSystem.Desert : BarrenLandSystem.Frozen;
     }
+#endif
 
     public static int IndexOf(Vector2Int tile)
     {
@@ -413,14 +408,13 @@ internal static class WorldMapZones
         return zy * Width + zx;
     }
 
-    public static int IndexOf(TileZone zone)
+    public static int IndexOf(Cell zone)
     {
-        if (zone?.centerTile == null) return -1;
-        return IndexOf(new Vector2Int(zone.centerTile.x, zone.centerTile.y));
+        if (zone?.Center == null) return -1;
+        return IndexOf(new Vector2Int(zone.Center.X, zone.Center.Y));
     }
 
-    public static TileZone Zone(int index) => index >= 0 && index < _zones.Length ? _zones[index] : null;
-#endif
+    public static Cell Zone(int index) => index >= 0 && index < _zones.Length ? _zones[index] : null;
 
     // 分城用：从一座都城出发走到各区块的地形代价(含跨海)
     public static float[] CostFrom(int source, float limit)
@@ -448,7 +442,7 @@ internal static class WorldMapZones
 
     // 铺辖地：各城同时从自己的城区往外扩，按地形代价谁近归谁(弹出时才定)；budget 为每城能走的地形代价，cap 为每城最多几块
 #if EC_PENDING
-    public static void Fill(List<(City city, float budget, int cap)> seeds, Action<City, TileZone> claim)
+    public static void Fill(List<(City city, float budget, int cap)> seeds, Action<City, Cell> claim)
     {
         var owner = new int[_travel.Length];
         var tentative = new int[_travel.Length];
@@ -464,8 +458,8 @@ internal static class WorldMapZones
         for (int s = 0; s < seeds.Count; s++)
         {
             City city = seeds[s].city;
-            if (city?.zones == null) continue;
-            foreach (TileZone zone in city.zones)
+            if (city?.Zones == null) continue;
+            foreach (Cell zone in city.Zones)
             {
                 int index = IndexOf(zone);
                 if (index < 0) continue;
@@ -483,8 +477,8 @@ internal static class WorldMapZones
             if (s < 0)
             {
                 s = tentative[index];
-                TileZone zone = _zones[index];
-                if (s < 0 || zone == null || zone.city != null || counts[s] >= seeds[s].cap) continue;
+                Cell zone = _zones[index];
+                if (s < 0 || zone == null || zone.City != null || counts[s] >= seeds[s].cap) continue;
                 owner[index] = s;
                 counts[s]++;
                 claim(seeds[s].city, zone);
@@ -492,8 +486,8 @@ internal static class WorldMapZones
             foreach (int next in Neighbours(index))
             {
                 if (!_claimable[next] || owner[next] >= 0) continue;
-                TileZone zone = _zones[next];
-                if (zone == null || zone.city != null || !Open(index, next)) continue;
+                Cell zone = _zones[next];
+                if (zone == null || zone.City != null || !Open(index, next)) continue;
                 float total = at + Step(index, next) * Grain(next);
                 if (total > seeds[s].budget || total >= cost[next] || Behind(seeds[s].city, next)) continue;
                 cost[next] = total;
@@ -542,7 +536,6 @@ internal static class WorldMapZones
     // 补空：离已有辖地(按地形代价，含跨海)最远的无主宜居区块，一块块挑出来立新城，直到处处离辖地都不到 minCost；
     // 挑一块就从它往外重算一遍远近。usable 判断这块能不能立城(开头判一次)
     // seeds：还没建成城、但已占定的区块(原始部落圈立的部落)，补空时离它们也要够远
-#if EC_PENDING
     public static List<int> Gaps(float minCost, int max, Func<int, bool> usable, IEnumerable<int> seeds = null)
     {
         var cost = new float[_travel.Length];
@@ -550,7 +543,7 @@ internal static class WorldMapZones
         for (int i = 0; i < cost.Length; i++)
         {
             cost[i] = float.PositiveInfinity;
-            if (_zones[i]?.city == null) continue;
+            if (_zones[i]?.City == null) continue;
             cost[i] = 0f;
             heap.Push(0f, i);
         }
@@ -563,7 +556,7 @@ internal static class WorldMapZones
         Relax(cost, heap);
         var candidates = new List<int>();
         for (int i = 0; i < cost.Length; i++)
-            if (_claimable[i] && _zones[i]?.city == null && usable(i)) candidates.Add(i);
+            if (_claimable[i] && _zones[i]?.City == null && usable(i)) candidates.Add(i);
         var picks = new List<int>();
         while (picks.Count < max)
         {
@@ -583,7 +576,6 @@ internal static class WorldMapZones
         }
         return picks;
     }
-#endif
 
     private static void Relax(float[] cost, MinHeap heap)
     {
@@ -609,7 +601,7 @@ internal static class WorldMapZones
     // 哪一轮都不许从山里往下进平地、高原(用户 2026-10-29 "依旧还有跨地形国土")：以前山这边的城领满了上限，
     // 留下的平地第二轮被山那边的城翻过山脊领走(吐蕃翻过喜马拉雅占了恒河边)
 #if EC_PENDING
-    public static int FillAll(Action<City, TileZone> claim)
+    public static int FillAll(Action<City, Cell> claim)
     {
         int claimed = 0;
         for (int round = 0; round < 4; round++)
@@ -626,7 +618,7 @@ internal static class WorldMapZones
     private const int MountainDepth = 2;
 
 #if EC_PENDING
-    private static int FillRound(Action<City, TileZone> claim, int mountainDepth)
+    private static int FillRound(Action<City, Cell> claim, int mountainDepth)
     {
         int count = _travel.Length;
         var owner = new City[count];
@@ -638,7 +630,7 @@ internal static class WorldMapZones
         for (int i = 0; i < count; i++)
         {
             cost[i] = float.PositiveInfinity;
-            City city = _zones[i]?.city;
+            City city = _zones[i]?.City;
             if (city == null || city.IsGone()) continue;
             owner[i] = city;
             cost[i] = 0f;
@@ -653,8 +645,8 @@ internal static class WorldMapZones
             if (from == null)
             {
                 City candidate = tentative[index];
-                TileZone zone = _zones[index];
-                if (candidate == null || zone == null || zone.city != null) continue;
+                Cell zone = _zones[index];
+                if (candidate == null || zone == null || zone.City != null) continue;
                 owner[index] = candidate;
                 claim(candidate, zone);
                 claimed++;
@@ -669,8 +661,8 @@ internal static class WorldMapZones
                 if (inward > mountainDepth) continue;
                 // 整块荒漠、冻土哪座城都不进也不穿过去(进世界后划成无人区)
                 if (_barren[next] != BarrenLandSystem.None) continue;
-                TileZone zone = _zones[next];
-                if (zone == null || zone.city != null) continue;
+                Cell zone = _zones[next];
+                if (zone == null || zone.City != null) continue;
                 // 进哪块地都要交界有路口(用户 10-29 "为什么你这个城市边界总是会跨山""印度都管到西藏去了，这么大个喜马拉雅")：
                 // 以前进山不看路口，山两边的城各往山里领两块，在山脊上碰头，喜马拉雅整片分给了南北两边的城；
                 // 现在走不进去的山腹留空，成了天然的界

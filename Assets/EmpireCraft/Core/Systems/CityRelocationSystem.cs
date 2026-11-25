@@ -32,14 +32,14 @@ public static class CityRelocationSystem
 
     // 神力点一下：返回提示文字
 #if EC_PENDING
-    public static string Click(WorldTile tile)
+    public static string Click(Cell tile)
     {
-        City clicked = tile?.zone?.city;
+        City clicked = tile?.Zone?.City;
         if (clicked != null && (clicked.Record == null || clicked.IsGone())) clicked = null;
         City picked = _picked >= 0L && Time.unscaledTime - _pickedAt <= PickSeconds ? EmpireWorld.Current.CityByKey(_picked) : null;
         if (picked != null && (picked.Record == null || picked.IsGone())) picked = null;
         // 选中了城、点到无主之地：那块地划进本城再迁
-        if (clicked == null && picked != null && tile?.zone != null && tile.zone.city == null)
+        if (clicked == null && picked != null && tile?.Zone != null && tile.Zone.City == null)
         {
             _pickedAt = Time.unscaledTime;
             string moved = Relocate(picked, tile, out bool claimed);
@@ -64,31 +64,31 @@ public static class CityRelocationSystem
 
     // 把 city 的城池迁到 tile(本城地界里，或无主之地：先划进本城)；done 为迁成没有
 #if EC_PENDING
-    public static string Relocate(City city, WorldTile tile, out bool done)
+    public static string Relocate(City city, Cell tile, out bool done)
     {
         done = false;
         if (city?.Record == null || city.IsGone()) return LM.Get("relocate_city_no_city");
         string cityName = city.GetCityName();
-        if (tile?.zone == null || tile.zone.city != null && tile.zone.city != city)
+        if (tile?.Zone == null || tile.Zone.City != null && tile.Zone.City != city)
             return string.Format(LM.Get("relocate_city_outside"), cityName);
-        if (tile.zone.city == null)
+        if (tile.Zone.City == null)
         {
             if (!UrbanFabric.ManualGround(tile)) return LM.Get("relocate_city_no_land");
             using (CityExpansionPatch.Manual())
-                city.addZone(tile.zone);
-            if (tile.zone.city != city) return string.Format(LM.Get("relocate_city_outside"), cityName);
+                city.AddZone(tile.Zone);
+            if (tile.Zone.City != city) return string.Format(LM.Get("relocate_city_outside"), cityName);
             CityDistricts.Reset();
         }
         bool pure = PureMapMode.Enabled;
         // 点在本城一处村镇上：以它为新城心
         RuralSettlement seat = pure ? RuralSettlementSystem.Near(tile) : null;
-        WorldTile seatTile = seat == null ? null : EmpireWorld.Current.GetTile(seat.x, seat.y);
-        if (seat != null && !seat.fort && seatTile?.zone?.city == city && UrbanFabric.ManualGround(seatTile)) tile = seatTile;
+        Cell seatTile = seat == null ? null : EmpireWorld.Current.CellAt(seat.x, seat.y);
+        if (seat != null && !seat.fort && seatTile?.Zone?.City == city && UrbanFabric.ManualGround(seatTile)) tile = seatTile;
         else seat = null;
         if (!UrbanFabric.ManualGround(tile)) return LM.Get("relocate_city_no_land");
-        TileZone zone = tile.zone;
-        WorldTile old = city.getTile();
-        TileZone oldZone = old?.zone;
+        Cell zone = tile.Zone;
+        Cell old = city.SeatCell();
+        Cell oldZone = old?.Zone;
         if (zone == oldZone) return string.Format(LM.Get("relocate_city_same"), cityName);
 
         // 旧城有没有城墙(按迁之前的平面图)；新城址的名字(点的是村镇)
@@ -97,8 +97,8 @@ public static class CityRelocationSystem
         if (pure) RuralSettlementSystem.Absorb(zone);
 
         CityExtension.CityExtraData data = city.GetOrCreate();
-        data.center_tile_x = tile.x;
-        data.center_tile_y = tile.y;
+        data.center_tile_x = tile.X;
+        data.center_tile_y = tile.Y;
         city.recalculateCityTile();
         city.updateCityCenter();
         city.setStatusDirty();
@@ -124,9 +124,9 @@ public static class CityRelocationSystem
 
     // 新城址在旧城的哪一方：0 东、1 东北、2 北、3 西北、4 西、5 西南、6 南、7 东南(地图上 y 往上是北)
 #if EC_PENDING
-    private static int Bearing(WorldTile from, WorldTile to)
+    private static int Bearing(Cell from, Cell to)
     {
-        float angle = Mathf.Atan2(to.y - from.y, to.x - from.x) * Mathf.Rad2Deg;
+        float angle = Mathf.Atan2(to.Y - from.Y, to.X - from.X) * Mathf.Rad2Deg;
         if (angle < 0f) angle += 360f;
         return Mathf.RoundToInt(angle / 45f) % 8;
     }
@@ -135,23 +135,23 @@ public static class CityRelocationSystem
     // 开小人时原版篝火是城的心(人在那里闲坐、聚会，篝火产粮)：在新城心附近本城的地上找一处放得下的空地点一座新的，
     // 再拆掉旧的；放不下就不搬(城心照样迁，见 CityCenterPatch)。纯净地图下的虚拟城市多半没有篝火，没有就不管
 #if EC_PENDING
-    private static void MoveBonfire(City city, WorldTile target)
+    private static void MoveBonfire(City city, Cell target)
     {
         try
         {
             Building old = city.getBuildingOfType("type_bonfire", pCountOnlyFinished: false);
-            if (old?.asset == null || old.isOnRemove() || old.current_tile?.zone == target.zone) return;
+            if (old?.asset == null || old.isOnRemove() || old.current_tile?.zone == target.Zone) return;
             BuildingAsset asset = old.asset;
-            WorldTile spot = null;
+            Cell spot = null;
             int best = BonfireReach * BonfireReach + 1;
-            var zones = new List<TileZone> { target.zone };
-            if (target.zone.neighbours_all != null) zones.AddRange(target.zone.neighbours_all);
-            foreach (TileZone zone in zones)
+            var zones = new List<Cell> { target.Zone };
+            if (target.Zone.NeighboursAll != null) zones.AddRange(target.Zone.NeighboursAll);
+            foreach (Cell zone in zones)
             {
-                if (zone?.city != city || zone.tiles == null) continue;
-                foreach (WorldTile tile in zone.tiles)
+                if (zone?.City != city || zone.Tiles == null) continue;
+                foreach (Cell tile in zone.Tiles)
                 {
-                    int d = Toolbox.SquaredDistTile(tile, target);
+                    int d = Land.SquaredDist(tile, target);
                     if (d >= best || !tile.canBuildOn(asset) || !EmpireWorld.Current.buildings.canBuildFrom(tile, asset, city)) continue;
                     best = d;
                     spot = tile;

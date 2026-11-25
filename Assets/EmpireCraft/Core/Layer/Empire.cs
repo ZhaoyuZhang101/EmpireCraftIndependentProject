@@ -1,5 +1,6 @@
 // Generated from the EmpireCraft mod: Scripts/Layer/Empire.cs. Do not edit by hand: Tools/PortTool/members.py rewrites it;
 // see Port/manifest.json and Tools/PortTool.
+using Vector2 = EmpireCraft.Core.EcVector2;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -26,9 +27,7 @@ public class Empire : RecordObject<EmpireData>
     private bool _updatingHonoraryPeerages;
     private bool _completingMinisterUsurpation;
     public EmpireAddition Additions => data.additions;
-#if EC_PENDING
-    private readonly List<TileZone> _zoneScratch = new();
-#endif
+    private readonly List<Cell> _zoneScratch = new();
     private readonly int _avgCitiesPerKingdom = 3;
     public Clan EmpireClan;
 #if EC_PENDING
@@ -211,6 +210,7 @@ public class Empire : RecordObject<EmpireData>
         //减少税收增加正统性
         AddMandate((int)Math.Round((before - data.TaxRate) * 100f));
     }
+#endif
 
     public List<Realm> GetKingdomNeighbours()
     {
@@ -230,6 +230,7 @@ public class Empire : RecordObject<EmpireData>
         return neighbours;
     }
     
+#if EC_PENDING
     public List<Person> GetMembersWithTrait(string trait)
     {
         List<Person>  list = new List<Person>();
@@ -500,7 +501,7 @@ public class Empire : RecordObject<EmpireData>
     private EmpireFoundingNameChoice SelectFoundingEmpireName(Realm kingdom, EmpireCore riseCore)
     {
         KingdomTitle mainTitle = kingdom?.GetMainTitle();
-        SpecificClan clan = kingdom?.king?.GetSpecificClan();
+        SpecificClan clan = kingdom?.Ruler?.GetSpecificClan();
         string ancestralEmpireName = "";
         Vector2 ancestralEmpirePosition = default;
         if (clan?.HasHistoryEmpire() == true)
@@ -511,7 +512,7 @@ public class Empire : RecordObject<EmpireData>
         }
 
         KingdomTitle ancestralTitle = kingdom?.GetAncestralMainTitleCandidate();
-        KingdomTitle ownedTitle = kingdom?.king?.GetMainTitle();
+        KingdomTitle ownedTitle = kingdom?.Ruler?.GetMainTitle();
         string coreName = EmpireCoreManager.GetFoundingEmpireName(riseCore);
         if (string.IsNullOrWhiteSpace(coreName)) coreName = riseCore?.name;
 
@@ -529,7 +530,7 @@ public class Empire : RecordObject<EmpireData>
         else if (route == EmpireFormationRoute.Legitimacy)
         {
             string originTitleName = clan?.GetAncestralCity()?.GetTitle()?.data?.name;
-            string capitalTitleName = kingdom?.capital?.GetTitle()?.data?.name;
+            string capitalTitleName = kingdom?.Capital?.GetTitle()?.data?.name;
             if (!string.IsNullOrWhiteSpace(originTitleName))
                 choice = new EmpireFoundingNameChoice(originTitleName, EmpireFoundingNameSource.ClanOriginTitle);
             else if (!string.IsNullOrWhiteSpace(capitalTitleName))
@@ -557,7 +558,7 @@ public class Empire : RecordObject<EmpireData>
 
     private void MoveToEmpireCapital(Person actor)
     {
-        if (CoreKingdom?.capital?._city_tile==null) return;
+        if (CoreKingdom?.Capital?._city_tile==null) return;
         actor.JoinCity(this.CoreKingdom.Capital);
         actor.goTo(this.CoreKingdom.Capital._city_tile);
     }
@@ -696,7 +697,7 @@ public class Empire : RecordObject<EmpireData>
         {
             EnfeoffmentHelper.OnEmperorSucceeded(this);
             // 原版各国的城市名单要到下一帧才重排：先排好，新分的兀鲁思才数得出城、算得进下面的自立与崩解
-            EmpireWorld.Current?.kingdoms?.beginChecksCities();
+            EmpireWorld.Current?.LiveRealms?.beginChecksCities();
         }
         // 汗国新汗即位：积弊深重或正统低落时各兀鲁思可能据地自立(雄主之后第一次换汗必乱，见 NomadCycleSystem)，
         // 平常先于即位分封——这一回新分出去的兄弟不在其列。
@@ -882,7 +883,7 @@ public class Empire : RecordObject<EmpireData>
                     // 新入帝国未满十年、神力拉入未满期的不随改朝离去(见 MembershipCooldown.Settled)
                     // 不许自立时不离去(见 SecessionGate；不记叛离，leave 那道门拦不到)
                     if (!k.isOpinionTowardsKingdomGood(CoreKingdom)&&Legitimacy<20&&MembershipCooldown.Settled(k)&&
-                        !SecessionGate.Forbids("改朝离心", k.Record?.Name))
+                        !SecessionGate.Forbids("改朝离心", k.Name))
                     {
                         this.leave(k);
                         // 不服新朝、离心而去记在各国之主身上(量刑天平的叛逆砝码)
@@ -1039,8 +1040,9 @@ public class Empire : RecordObject<EmpireData>
     public void UpdateCapital(City capital)
     {
         this.OriginalCapital = capital;
-        this._capitalCenter = capital.city_center;
+        this._capitalCenter = capital.Center;
     }
+#endif
 
     public bool IsNeighbourWith(Realm kingdom)
     {
@@ -1048,9 +1050,9 @@ public class Empire : RecordObject<EmpireData>
         {
             foreach(City city in kingdom1.Cities)
             {
-                if (city.neighbours_kingdoms.Count > 0)
+                if (city.NeighbourRealms.Count > 0)
                 {
-                    foreach(Realm kingdom2 in city.neighbours_kingdoms)
+                    foreach(Realm kingdom2 in city.NeighbourRealms)
                     {
                         if (kingdom2 == kingdom) 
                         {
@@ -1062,7 +1064,6 @@ public class Empire : RecordObject<EmpireData>
         }
         return false;
     }
-#endif
 
     // 帝国解散：末代君主的在位记录还挂在 currentHistory 上，收进史书再随帝国归档(见 Dispose、EmpireManager.dissolveEmpire)
     public void CloseCurrentReignRecord()
@@ -1348,7 +1349,7 @@ public class Empire : RecordObject<EmpireData>
         data.timestamp_established_time = GameClock.Now;
         try
         {
-            _capitalCenter = kingdom.Capital.city_center;
+            _capitalCenter = kingdom.Capital.Center;
         } catch (Exception e)
         {
             LogService.LogError($"读取帝国首都失败: {e}");
@@ -1392,7 +1393,7 @@ public class Empire : RecordObject<EmpireData>
         }
 
         kingdom.Name = this.data.name;
-        EmpireWorld.Current.zone_calculator.dirtyAndClear();
+        EmpireWorld.Current.Zones.MarkDirty();
     }
 #endif
     public bool CanSetTitleToPreviousEmperor()
@@ -2478,7 +2479,7 @@ public class Empire : RecordObject<EmpireData>
 
         if (OriginalCapital != null && !OriginalCapital.IsGone())
         {
-            _capitalCenter = OriginalCapital.city_center;
+            _capitalCenter = OriginalCapital.Center;
             data.original_capital = OriginalCapital.Key;
         }
         SyncCoreKingdomReference();
@@ -2486,7 +2487,7 @@ public class Empire : RecordObject<EmpireData>
         if (EmpireClan == null || EmpireClan.IsGone())
         {
             EmpireClan = CoreKingdom.getKingClan();
-            data.empire_clan = EmpireClan?.data?.id ?? -1L;
+            data.empire_clan = EmpireClan?.Key ?? -1L;
             repaired = true;
         }
 
@@ -2926,7 +2927,7 @@ public class Empire : RecordObject<EmpireData>
         // 调用方离开后都看 GetEmpire / IsInEmpire 判成没成
         if (isLeave && pKingdom != CoreKingdom && !pKingdom.IsGone() && !pKingdom.IsLocalRebelling() &&
             !pKingdom.IsFactionRebelling() && (CoreKingdom == null || !pKingdom.IsAtWarWith(CoreKingdom)) &&
-            SecessionGate.Forbids("叛离帝国", $"{pKingdom.Record?.Name}(离 {data?.name})"))
+            SecessionGate.Forbids("叛离帝国", $"{pKingdom.Name}(离 {data?.name})"))
             return;
         if (isLeave)
         {
@@ -2995,16 +2996,18 @@ public class Empire : RecordObject<EmpireData>
         }
         return tResult;
     }
+#endif
 
-    public List<TileZone> allZones()
+    public List<Cell> allZones()
     {
         _zoneScratch.Clear();
         foreach (City city in EmpireMembershipService.EnumerateCities(this))
-            foreach (TileZone zone in city.zones)
-                if (zone?.city == city) _zoneScratch.Add(zone);
+            foreach (Cell zone in city.Zones)
+                if (zone?.City == city) _zoneScratch.Add(zone);
         return _zoneScratch;
     }
 
+#if EC_PENDING
     public override int countUnits()
     {
         return this.CountPopulation();
@@ -3250,27 +3253,27 @@ public class Empire : RecordObject<EmpireData>
         float num = 0f;
         float num2 = 0f;
         float num3 = float.MaxValue;
-        TileZone tileZone = null;
+        Cell tileZone = null;
         var zones = this.allZones();
         foreach (var tileZone2 in zones)
         {
-            num += tileZone2.centerTile.posV3.x;
-            num2 += tileZone2.centerTile.posV3.y;
+            num += tileZone2.Center.posV3.x;
+            num2 += tileZone2.Center.posV3.y;
         }
         this._empireCenter.x = num / (float)zones.Count;
         this._empireCenter.y = num2 / (float)zones.Count;
         for (int j = 0; j < zones.Count; j++)
         {
-            TileZone tileZone3 = zones[j];
-            float num4 = Toolbox.SquaredDist((float)tileZone3.centerTile.x, (float)tileZone3.centerTile.y, this._empireCenter.x, this._empireCenter.y);
+            Cell tileZone3 = zones[j];
+            float num4 = Toolbox.SquaredDist((float)tileZone3.Center.X, (float)tileZone3.Center.Y, this._empireCenter.x, this._empireCenter.y);
             if (num4 < num3)
             {
                 tileZone = tileZone3;
                 num3 = num4;
             }
         }
-        this._empireCenter.x = tileZone.centerTile.posV3.x;
-        this._empireCenter.y = tileZone.centerTile.posV3.y + 2f;
+        this._empireCenter.x = tileZone.Center.posV3.x;
+        this._empireCenter.y = tileZone.Center.posV3.y + 2f;
         this._lastEmpireCenter = this._empireCenter;
         this._units_dirty = false;
         return this._lastEmpireCenter;
@@ -4228,7 +4231,7 @@ public class Empire : RecordObject<EmpireData>
                          .SelectMany(clan => clan.SnapshotPeople())
                          .Where(person => person != null && person.is_alive && person.is_virtual && person.sex == Sex.Male &&
                              person.age >= 18 && person.actor_id != deposed.Key && person.virtual_city_id > 0 &&
-                             EmpireWorld.Current.CityByKey(person.virtual_city_id)?.kingdom?.GetEmpire() == this)
+                             EmpireWorld.Current.CityByKey(person.virtual_city_id)?.Realm?.GetEmpire() == this)
                          .OrderByDescending(person => person.age).ThenBy(person => person.id))
             {
                 Person candidate = person.Realize();
@@ -4725,15 +4728,12 @@ public class Empire : RecordObject<EmpireData>
     private int _partitionMoves;
 
     // 每月都会再来一趟：这趟没有城易主就不重画地图(以前太平时不论动没动都整张重画，帝国一多，每月十几次)
-#if EC_PENDING
     private void RedrawAfterPartition(bool atWar, int movesBefore)
     {
-        if (_partitionMoves != movesBefore) EmpireWorld.Current.zone_calculator.dirtyAndClear();
+        if (_partitionMoves != movesBefore) EmpireWorld.Current.Zones.MarkDirty();
     }
-#endif
 
     // 这趟划分要跳过的城(见 EnfeoffmentHelper.DeferCity)；跳过了就挂起，等下一趟
-#if EC_PENDING
     private bool DeferPartition(City city, bool atWar)
     {
         if (!EnfeoffmentHelper.DeferCity(city, CoreKingdom, atWar)) return false;
@@ -4741,6 +4741,7 @@ public class Empire : RecordObject<EmpireData>
         return true;
     }
 
+#if EC_PENDING
     private void ProcessTerritorialAcquisitionEnfeoff()
     {
         if (data == null || CoreKingdom?.Cities == null || EmpireWorld.Current == null) return;
@@ -4966,7 +4967,7 @@ public class Empire : RecordObject<EmpireData>
         if (city == null || targets == null) return null;
         return targets.Where(target => target?.Capital != null && !target.Capital.IsGone() &&
                                        !WorldMap.FrontierWalls.Separates(city, target.Capital))
-            .OrderBy(target => Vector2.Distance(city.city_center, target.capital.city_center))
+            .OrderBy(target => Vector2.Distance(city.Center, target.capital.city_center))
             .ThenBy(target => target.id).FirstOrDefault();
     }
 
@@ -5089,7 +5090,7 @@ public class Empire : RecordObject<EmpireData>
         if (!administrative && ruler?.GetSpecificClan() != null && SpecificClanManager.SameLineage(ruler.GetSpecificClan(), EmpireSpecificClan))
         {
             TranslateHelper.LogPeerageGranted(ruler, this,
-                (title?.data?.name ?? kingdom?.data?.name ?? "") + LM.Get("default_peerages_2"));
+                (title?.data?.name ?? kingdom?.Name ?? "") + LM.Get("default_peerages_2"));
             return;
         }
         // 改设行政区写"设某某，以某人主政"，封给非宗室写"封某人于某某"
@@ -5122,8 +5123,8 @@ public class Empire : RecordObject<EmpireData>
             {
                 City current = queue.Dequeue();
                 region.Add(current);
-                if (current.neighbours_cities == null) continue;
-                foreach (City neighbour in current.neighbours_cities.OrderBy(city => city?.id ?? long.MaxValue))
+                if (current.NeighbourCities == null) continue;
+                foreach (City neighbour in current.NeighbourCities.OrderBy(city => city?.Key ?? long.MaxValue))
                 {
                     if (region.Count + queue.Count >= _avgCitiesPerKingdom) break;
                     if (neighbour == null || !remaining.Remove(neighbour)) continue;
@@ -5168,13 +5169,13 @@ public class Empire : RecordObject<EmpireData>
             return null;
         return CreateTerritorialPartition(region, title, regime, createAdministration: true);
     }
+#endif
 
     private List<City> WithoutDeferred(List<City> region)
     {
         bool atWar = HasTerritorialWar();
         return region?.Where(city => city != null && !DeferPartition(city, atWar)).ToList() ?? new List<City>();
     }
-#endif
 
     // 西方封建制具备制度特性 direct_administration(中央集权君主制、神权国家等)后设辖区/教区
     // 游牧施行了"行省制度"(用户 2026-10-19 选"补……游牧行省"；以前这一步只解锁设置行政区，打下的地照旧分给宗王)
@@ -5221,7 +5222,7 @@ public class Empire : RecordObject<EmpireData>
         capital.setKingdom(kingdom);
         capital.switchedKingdom();
         kingdom.setCityMetas(capital);
-        EmpireWorld.Current.zone_calculator.dirtyAndClear();
+        EmpireWorld.Current.Zones.MarkDirty();
         return kingdom;
     }
 

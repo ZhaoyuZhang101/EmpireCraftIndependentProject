@@ -2,6 +2,7 @@
 // see Port/manifest.json and Tools/PortTool.
 using Mathf = EmpireCraft.Core.EcMath;
 using Time = EmpireCraft.Core.FrameClock;
+using Vector2 = EmpireCraft.Core.EcVector2;
 using System;
 using System.Collections.Generic;
 
@@ -209,8 +210,8 @@ public static class CityPlanWorks
             // 筑：这一圈里还没有城墙的格(自己筑过、后来被毁的也补上)；神力画的城墙不动、不记
             foreach (int id in ring)
             {
-                WorldTile tile = TileAt(id);
-                if (tile == null || MapWallSystem.Contains(tile) || tile.Type?.wall == true) continue;
+                Cell tile = TileAt(id);
+                if (tile == null || MapWallSystem.Contains(tile) || tile.Type?.Wall == true) continue;
                 if (MapWallSystem.Add(tile, WallType()))
                 {
                     mine.Add(id);
@@ -241,28 +242,28 @@ public static class CityPlanWorks
     private static void Ring(City city, PureMapPatch.PlanFacts facts, HashSet<int> ring, HashSet<int> gates)
     {
         HashSet<int> built = PureMapPatch.BuiltZones(city);
-        if (built == null || built.Count == 0 || city.zones == null) return;
+        if (built == null || built.Count == 0 || city.Zones == null) return;
         var town = new HashSet<int>();
-        foreach (TileZone zone in city.zones)
+        foreach (Cell zone in city.Zones)
         {
-            if (zone?.tiles == null || !built.Contains(zone.id)) continue;
-            foreach (WorldTile tile in zone.tiles)
-                if (tile?.data != null && PureMapPatch.TileInTown(city, tile)) town.Add(tile.data.tile_id);
+            if (zone?.Tiles == null || !built.Contains(zone.Index)) continue;
+            foreach (Cell tile in zone.Tiles)
+                if (tile?.data != null && PureMapPatch.TileInTown(city, tile)) town.Add(tile.Index);
         }
         if (town.Count == 0) return;
-        bool In(WorldTile tile) => tile?.data != null && town.Contains(tile.data.tile_id);
-        WorldTile[] tiles = EmpireWorld.Current.tiles_list;
-        var edge = new List<WorldTile>();
+        bool In(Cell tile) => tile?.data != null && town.Contains(tile.Index);
+        Cell[] tiles = EmpireWorld.Current.Zones;
+        var edge = new List<Cell>();
         int minX = int.MaxValue, minY = int.MaxValue, maxX = int.MinValue, maxY = int.MinValue;
         foreach (int id in town)
         {
-            WorldTile tile = tiles[id];
-            if (In(tile.tile_up) && In(tile.tile_down) && In(tile.tile_left) && In(tile.tile_right)) continue;
+            Cell tile = tiles[id];
+            if (In(tile.Up) && In(tile.Down) && In(tile.Left) && In(tile.Right)) continue;
             edge.Add(tile);
-            minX = Mathf.Min(minX, tile.x);
-            minY = Mathf.Min(minY, tile.y);
-            maxX = Mathf.Max(maxX, tile.x);
-            maxY = Mathf.Max(maxY, tile.y);
+            minX = Mathf.Min(minX, tile.X);
+            minY = Mathf.Min(minY, tile.Y);
+            maxX = Mathf.Max(maxX, tile.X);
+            maxY = Mathf.Max(maxY, tile.Y);
         }
         int gateX = facts.GateX, gateY = facts.GateY;
         if (gateX == int.MinValue || gateY == int.MinValue)
@@ -270,13 +271,13 @@ public static class CityPlanWorks
             gateX = (minX + maxX) / 2;
             gateY = (minY + maxY) / 2;
         }
-        foreach (WorldTile tile in edge)
+        foreach (Cell tile in edge)
         {
-            TileTypeBase type = tile.Type;
-            if (type == null || type.liquid || type.lava || type.mountains || type.block && !type.wall || FactorySystem.At(tile) != null)
+            TerrainKind type = tile.Type;
+            if (type == null || type.Liquid || type.Lava || type.Mountains || type.Block && !type.Wall || FactorySystem.At(tile) != null)
                 continue;
-            ring.Add(tile.data.tile_id);
-            if (tile.x == gateX || tile.y == gateY) gates.Add(tile.data.tile_id);
+            ring.Add(tile.Index);
+            if (tile.X == gateX || tile.Y == gateY) gates.Add(tile.Index);
         }
     }
 #endif
@@ -286,12 +287,12 @@ public static class CityPlanWorks
     private static string WallType()
     {
         if (_wallType != null) return _wallType;
-        foreach (TopTileType type in AssetManager.top_tiles?.list ?? new List<TopTileType>())
+        foreach (TerrainKind type in AssetManager.top_tiles?.list ?? new List<TerrainKind>())
         {
-            if (type?.wall != true) continue;
-            _wallType ??= type.id;
-            if (type.id != "wall_order") continue;
-            _wallType = type.id;
+            if (type?.Wall != true) continue;
+            _wallType ??= type.Id;
+            if (type.Id != "wall_order") continue;
+            _wallType = type.Id;
             break;
         }
         return _wallType ?? "wall_order";
@@ -299,7 +300,7 @@ public static class CityPlanWorks
 
     private static bool RemoveWall(int id)
     {
-        WorldTile tile = TileAt(id);
+        Cell tile = TileAt(id);
         return tile != null && MapWallSystem.Contains(tile) && MapWallSystem.Remove(tile);
     }
 #endif
@@ -357,9 +358,9 @@ public static class CityPlanWorks
     }
 
 #if EC_PENDING
-    private static WorldTile TileAt(int id)
+    private static Cell TileAt(int id)
     {
-        WorldTile[] tiles = EmpireWorld.Current?.tiles_list;
+        Cell[] tiles = EmpireWorld.Current?.Zones;
         return tiles != null && id >= 0 && id < tiles.Length ? tiles[id] : null;
     }
 #endif
@@ -371,11 +372,11 @@ public static class CityPlanWorks
     // 立村、设镇、筑关、放小中大厂区：kind 为 village、town、fort、factory_small、factory_medium、factory_large；
     // 只认本城城郊的地(本城的地、不在城区)，其余同营建神力；返回本地化提示(认不得的 kind 返回 null)
 #if EC_PENDING
-    public static string PlaceSettlement(City city, WorldTile tile, string kind)
+    public static string PlaceSettlement(City city, Cell tile, string kind)
     {
         if (!CityPlanEditing.Editable(city, out string reason)) return reason;
         // 筑关点在城墙边会吸到墙上(见 WallGateSystem.SnapToWall)：吸到的落点也要在本城城郊
-        WorldTile at = kind == "fort" ? WallGateSystem.SnapToWall(tile) ?? tile : tile;
+        Cell at = kind == "fort" ? WallGateSystem.SnapToWall(tile) ?? tile : tile;
         if (!Suburb(city, at)) return LM.Get("city_plan_works_not_suburb");
         int settlements = RuralSettlementSystem.Revision, factories = FactorySystem.Revision;
         string text = SettlementPowers.Build(tile, kind);
@@ -386,10 +387,10 @@ public static class CityPlanWorks
 
     // 毁弃(同神力：完好的村镇毁为废墟，废墟再点抹去；点的不是村镇就拆厂区)：只认本城的
 #if EC_PENDING
-    public static string Raze(City city, WorldTile tile)
+    public static string Raze(City city, Cell tile)
     {
         if (!CityPlanEditing.Editable(city, out string reason)) return reason;
-        if (tile?.zone == null) return LM.Get("settlement_none");
+        if (tile?.Zone == null) return LM.Get("settlement_none");
         int settlements = RuralSettlementSystem.Revision, factories = FactorySystem.Revision;
         string text = SettlementPowers.RazeAt(tile, city);
         if (RuralSettlementSystem.Revision != settlements || FactorySystem.Revision != factories) Touched(city);
@@ -399,8 +400,8 @@ public static class CityPlanWorks
 
     // 本城城郊：本城的地、不画成城区的地块
 #if EC_PENDING
-    private static bool Suburb(City city, WorldTile tile) =>
-        tile?.zone != null && tile.zone.city == city && !CityPlanEditing.InTown(city, tile.zone);
+    private static bool Suburb(City city, Cell tile) =>
+        tile?.Zone != null && tile.Zone.City == city && !CityPlanEditing.InTown(city, tile.Zone);
 #endif
 
     // 知会城池全图；画路一笔刷过许多格，路不在平面图里，只让预览重画(CityPlanEditing.Bump，不重算平面图)，每帧至多一次
@@ -421,23 +422,23 @@ public static class CityPlanWorks
 
     // 画路、擦路(同道路神力)：只认本城领地里的格；画上(擦掉)了返回 true
 #if EC_PENDING
-    public static bool PaintRoad(City city, WorldTile tile)
+    public static bool PaintRoad(City city, Cell tile)
     {
         if (!Own(city, tile) || !RoadPaintSystem.Paint(tile)) return false;
         Touched(city, true);
         return true;
     }
 
-    public static bool EraseRoad(City city, WorldTile tile)
+    public static bool EraseRoad(City city, Cell tile)
     {
         if (!Own(city, tile) || !RoadPaintSystem.Erase(tile)) return false;
         Touched(city, true);
         return true;
     }
-
-    private static bool Own(City city, WorldTile tile) =>
-        city?.Record != null && !city.IsGone() && tile?.zone != null && tile.zone.city == city;
 #endif
+
+    private static bool Own(City city, Cell tile) =>
+        city?.Record != null && !city.IsGone() && tile?.Zone != null && tile.Zone.City == city;
 
     // 一键连路：本城完好的村、镇、关、厂区连到城门，再把本城与相邻各城的干道修通；返回本地化提示
 #if EC_PENDING
@@ -485,19 +486,19 @@ public static class CityPlanWorks
         var ends = new List<(int x, int y, int reach)>();
         PureMapPatch.FactsOf(city);
         HashSet<int> built = PureMapPatch.BuiltZones(city);
-        TileZone center = city.getTile()?.zone;
+        Cell center = city.SeatCell()?.Zone;
         foreach (RuralSettlement settlement in RuralSettlementSystem.InCity(city))
         {
             if (settlement == null || settlement.cleared || settlement.ruined_at >= 0d) continue;
-            TileZone zone = EmpireWorld.Current.GetTile(settlement.x, settlement.y)?.zone;
-            if (zone?.city != city || zone == center || built?.Contains(zone.id) == true) continue;
+            Cell zone = EmpireWorld.Current.CellAt(settlement.x, settlement.y)?.Zone;
+            if (zone?.City != city || zone == center || built?.Contains(zone.Index) == true) continue;
             int reach = settlement.fort ? RuralSettlementSystem.FortReach + 1 : settlement.town ? Mathf.Max(2, settlement.size) + 1 : 2;
             ends.Add((settlement.x, settlement.y, reach));
         }
         // 厂区：中心落在城区里的不连(城里有街)
         foreach (FactorySite site in FactorySystem.InCity(city))
         {
-            TileZone zone = EmpireWorld.Current.GetTile(site.x, site.y)?.zone;
+            Cell zone = EmpireWorld.Current.CellAt(site.x, site.y)?.Zone;
             if (zone == null || zone == center || CityPlanEditing.InTown(city, zone)) continue;
             (int x0, int y0, int side) = FactorySystem.Footprint(site);
             ends.Add((x0 + side / 2, y0 + side / 2, side / 2 + 1));
@@ -536,20 +537,20 @@ public static class CityPlanWorks
         HashSet<int> built = PureMapPatch.BuiltZones(city);
         int size = Config.CITY_ZONE_SIZE;
         int minX = int.MaxValue, minY = int.MaxValue, maxX = int.MinValue, maxY = int.MinValue;
-        foreach (TileZone zone in city.zones)
+        foreach (Cell zone in city.Zones)
         {
             if (zone == null) continue;
-            minX = Mathf.Min(minX, zone.x * size);
-            minY = Mathf.Min(minY, zone.y * size);
-            maxX = Mathf.Max(maxX, zone.x * size + size - 1);
-            maxY = Mathf.Max(maxY, zone.y * size + size - 1);
+            minX = Mathf.Min(minX, zone.X * size);
+            minY = Mathf.Min(minY, zone.Y * size);
+            maxX = Mathf.Max(maxX, zone.X * size + size - 1);
+            maxY = Mathf.Max(maxY, zone.Y * size + size - 1);
         }
         if (minX == int.MaxValue) return (0, ends.Count, 0);
         int w = maxX - minX + 1, h = maxY - minY + 1;
         int Index(int x, int y) => x < minX || y < minY || x > maxX || y > maxY ? -1 : (y - minY) * w + (x - minX);
-        bool Town(WorldTile tile) =>
-            built != null && tile?.zone != null && built.Contains(tile.zone.id) && PureMapPatch.TileInTown(city, tile);
-        List<WorldTile> sources = Gates(city, facts, Town);
+        bool Town(Cell tile) =>
+            built != null && tile?.Zone != null && built.Contains(tile.Zone.Index) && PureMapPatch.TileInTown(city, tile);
+        List<Cell> sources = Gates(city, facts, Town);
         if (sources.Count == 0) return (0, ends.Count, 0);
         HashSet<int> trails = DrawnPaths(city);
         IReadOnlyDictionary<int, int> network = RoadNetwork.RoadTileGrades;
@@ -570,17 +571,17 @@ public static class CityPlanWorks
         float Step(int i)
         {
             if (!float.IsNaN(steps[i])) return steps[i];
-            WorldTile tile = EmpireWorld.Current.GetTile(minX + i % w, minY + i / w);
+            Cell tile = EmpireWorld.Current.CellAt(minX + i % w, minY + i / w);
             float cost;
-            if (tile?.data == null || tile.Type == null || tile.zone?.city != city || Town(tile)) cost = -1f;
+            if (tile?.data == null || tile.Type == null || tile.Zone?.City != city || Town(tile)) cost = -1f;
             else
             {
-                int id = tile.data.tile_id;
+                int id = tile.Index;
                 bool road = Road(id);
-                if (road ? MapWallSystem.Blocks(tile) || tile.Type.mountains || tile.Type.lava : RoadPaintSystem.GradeAt(tile) <= 0) cost = -1f;
+                if (road ? MapWallSystem.Blocks(tile) || tile.Type.Mountains || tile.Type.Lava : RoadPaintSystem.GradeAt(tile) <= 0) cost = -1f;
                 else
                 {
-                    cost = tile.Type.liquid ? BridgeCost : tile.Type.rocks ? HillCost : 1f;
+                    cost = tile.Type.Liquid ? BridgeCost : tile.Type.Rocks ? HillCost : 1f;
                     if (road) cost *= RoadCost;
                     else if (trails.Contains(id)) cost *= TrailCost;
                     if (crowded[i]) cost *= CrowdCost;
@@ -596,9 +597,9 @@ public static class CityPlanWorks
             from[i] = -1;
         }
         var open = new List<(float cost, int index)>();
-        foreach (WorldTile source in sources)
+        foreach (Cell source in sources)
         {
-            int i = Index(source.x, source.y);
+            int i = Index(source.X, source.Y);
             if (i < 0 || total[i] <= 0f) continue;
             total[i] = 0f;
             Push(open, (0f, i));
@@ -642,8 +643,8 @@ public static class CityPlanWorks
             linked++;
             for (int i = best; i >= 0; i = from[i])
             {
-                WorldTile tile = EmpireWorld.Current.GetTile(minX + i % w, minY + i / w);
-                if (tile?.data == null || Road(tile.data.tile_id)) continue;
+                Cell tile = EmpireWorld.Current.CellAt(minX + i % w, minY + i / w);
+                if (tile?.data == null || Road(tile.Index)) continue;
                 if (RoadPaintSystem.Paint(tile)) painted++;
             }
         }
@@ -654,18 +655,18 @@ public static class CityPlanWorks
     // 城门：从城门中线交点(没有就取城心)往东北西南四个方向走，城区的最后一格(筑了城墙就是城门)，连同本城记下的城门格；
     // 交点不在城区里(原始聚落等)就从交点出发
 #if EC_PENDING
-    private static List<WorldTile> Gates(City city, PureMapPatch.PlanFacts facts, Func<WorldTile, bool> town)
+    private static List<Cell> Gates(City city, PureMapPatch.PlanFacts facts, Func<Cell, bool> town)
     {
-        var result = new List<WorldTile>();
+        var result = new List<Cell>();
         int gx = facts?.GateX ?? int.MinValue, gy = facts?.GateY ?? int.MinValue;
         if (gx == int.MinValue || gy == int.MinValue)
         {
-            WorldTile center = city.getTile();
+            Cell center = city.SeatCell();
             if (center == null) return result;
-            gx = center.x;
-            gy = center.y;
+            gx = center.X;
+            gy = center.Y;
         }
-        WorldTile start = EmpireWorld.Current.GetTile(gx, gy);
+        Cell start = EmpireWorld.Current.CellAt(gx, gy);
         if (start == null) return result;
         if (!town(start))
         {
@@ -674,17 +675,17 @@ public static class CityPlanWorks
         }
         for (int k = 0; k < 4; k++)
         {
-            WorldTile last = start;
+            Cell last = start;
             for (int step = 1; step <= MaxGateWalk; step++)
             {
-                WorldTile next = EmpireWorld.Current.GetTile(gx + AroundX[k] * step, gy + AroundY[k] * step);
+                Cell next = EmpireWorld.Current.CellAt(gx + AroundX[k] * step, gy + AroundY[k] * step);
                 if (next == null || !town(next)) break;
                 last = next;
             }
             if (!result.Contains(last)) result.Add(last);
         }
         foreach (int id in city.GetOrCreate().plan_gate_tiles ?? new List<int>())
-            if (TileAt(id) is WorldTile gate && gate.zone?.city == city && !result.Contains(gate)) result.Add(gate);
+            if (TileAt(id) is Cell gate && gate.Zone?.City == city && !result.Contains(gate)) result.Add(gate);
         return result;
     }
 #endif
@@ -698,7 +699,7 @@ public static class CityPlanWorks
         if (g == null) return tiles;
         void Mark(int x, int y)
         {
-            if (EmpireWorld.Current.GetTile(x, y)?.data is WorldTileData data) tiles.Add(data.tile_id);
+            if (EmpireWorld.Current.CellAt(x, y)?.data is WorldTileData data) tiles.Add(data.tile_id);
         }
         foreach (UrbanFabric.Road road in g.Roads)
             for (int d = 0; d <= road.Length; d++)
@@ -761,10 +762,10 @@ public static class CityPlanWorks
 #if EC_PENDING
     public static void DrawOverPreview(Color32[] pixels, int x0, int y0, int w, int h, int scale)
     {
-        WorldTile[] tiles = EmpireWorld.Current?.tiles_list;
+        Cell[] tiles = EmpireWorld.Current?.Zones;
         if (pixels == null || tiles == null || w <= 0 || h <= 0 || scale <= 0 || pixels.Length < w * h * scale * scale) return;
         int pw = w * scale;
-        bool InRange(WorldTile tile) => tile != null && tile.x >= x0 && tile.y >= y0 && tile.x < x0 + w && tile.y < y0 + h;
+        bool InRange(Cell tile) => tile != null && tile.X >= x0 && tile.Y >= y0 && tile.X < x0 + w && tile.Y < y0 + h;
         var grades = new Dictionary<int, int>();
         foreach (var pair in RoadNetwork.RoadTileGrades)
             if (InRange(TileAt(pair.Key))) grades[pair.Key] = pair.Value;
@@ -773,31 +774,31 @@ public static class CityPlanWorks
             if (pair.Value == null || pair.Value.grade <= 0 || !InRange(TileAt(pair.Key))) continue;
             grades[pair.Key] = grades.TryGetValue(pair.Key, out int had) ? Mathf.Max(had, pair.Value.grade) : pair.Value.grade;
         }
-        var roads = new List<(WorldTile tile, int grade)>();
+        var roads = new List<(Cell tile, int grade)>();
         foreach (var pair in grades)
         {
-            WorldTile tile = tiles[pair.Key];
-            if (tile.zone == null || PureMapPatch.UrbanTile(tile)) continue;
+            Cell tile = tiles[pair.Key];
+            if (tile.Zone == null || PureMapPatch.UrbanTile(tile)) continue;
             roads.Add((tile, pair.Value));
         }
         // 描边：驿道以上路两侧不是路的格
         var cased = new HashSet<int>();
-        foreach ((WorldTile tile, int grade) in roads)
+        foreach ((Cell tile, int grade) in roads)
         {
             if (grade < 2) continue;
-            foreach (WorldTile next in tile.neighbours ?? Array.Empty<WorldTile>())
+            foreach (Cell next in tile.Neighbours ?? Array.Empty<Cell>())
             {
-                if (next?.data == null || next.zone == null || !InRange(next) || grades.ContainsKey(next.data.tile_id) ||
-                    PureMapPatch.UrbanTile(next) || !cased.Add(next.data.tile_id)) continue;
-                Blend(pixels, pw, next.x - x0, next.y - y0, scale, RoadOverlay.CasingColor);
+                if (next?.data == null || next.Zone == null || !InRange(next) || grades.ContainsKey(next.Index) ||
+                    PureMapPatch.UrbanTile(next) || !cased.Add(next.Index)) continue;
+                Blend(pixels, pw, next.X - x0, next.Y - y0, scale, RoadOverlay.CasingColor);
             }
         }
-        foreach ((WorldTile tile, int grade) in roads) Blend(pixels, pw, tile.x - x0, tile.y - y0, scale, RoadOverlay.GradeColor(grade));
+        foreach ((Cell tile, int grade) in roads) Blend(pixels, pw, tile.X - x0, tile.Y - y0, scale, RoadOverlay.GradeColor(grade));
         foreach (int id in MapWallSystem.Walls.Keys)
         {
-            WorldTile tile = TileAt(id);
+            Cell tile = TileAt(id);
             if (!InRange(tile) || Planned(id) || WallGateSystem.Covered(id)) continue;
-            Blend(pixels, pw, tile.x - x0, tile.y - y0, scale, MapWallOverlay.StoneAt(tile.x, tile.y));
+            Blend(pixels, pw, tile.X - x0, tile.Y - y0, scale, MapWallOverlay.StoneAt(tile.X, tile.Y));
         }
     }
 #endif

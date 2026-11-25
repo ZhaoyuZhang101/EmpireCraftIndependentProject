@@ -1,6 +1,7 @@
 // Generated from the EmpireCraft mod: Scripts/GeneralSystems/BannerSystem.cs. Do not edit by hand: Tools/PortTool/members.py rewrites it;
 // see Port/manifest.json and Tools/PortTool.
 using Mathf = EmpireCraft.Core.EcMath;
+using Vector2 = EmpireCraft.Core.EcVector2;
 using System.Collections.Generic;
 using System.Linq;
 
@@ -415,14 +416,14 @@ public static partial class BannerSystem
             if (!regime.laws.Contains(LawType.逃人法)) regime.laws.Add(LawType.逃人法);
         }
     }
+#endif
 
     private static City Neighbor(City city)
     {
-        Vector2 at = city.city_center;
-        return city.Realm?.cities?.Where(other => other?.data != null && other != city && !other.IsGone() && !other.GetOrCreate().manchu_city)
-            .OrderBy(other => (other.city_center - at).sqrMagnitude).FirstOrDefault();
+        Vector2 at = city.Center;
+        return city.Realm?.Cities?.Where(other => other?.Record != null && other != city && !other.IsGone() && !other.GetOrCreate().manchu_city)
+            .OrderBy(other => (other.Center - at).sqrMagnitude).FirstOrDefault();
     }
-#endif
 
     #endregion
 

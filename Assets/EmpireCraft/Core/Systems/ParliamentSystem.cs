@@ -113,7 +113,7 @@ public static partial class ParliamentSystem
     {
         if (!HasParliament(empire)) return null;
         ConstitutionalEconomyState state = GetState(empire);
-        Person actor = state.prime_minister_id > 0 ? EmpireWorld.Current?.units?.get(state.prime_minister_id) : null;
+        Person actor = state.prime_minister_id > 0 ? EmpireWorld.Current?.PersonByKey(state.prime_minister_id) : null;
         return IsValidMember(empire, actor) ? actor : null;
     }
 #endif

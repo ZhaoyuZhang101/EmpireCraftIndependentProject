@@ -1,6 +1,8 @@
 // Generated from the EmpireCraft mod: Scripts/GeneralSystems/WorldMap/EarthTerrain.cs. Do not edit by hand: Tools/PortTool/members.py rewrites it;
 // see Port/manifest.json and Tools/PortTool.
 using Mathf = EmpireCraft.Core.EcMath;
+using Vector2Int = EmpireCraft.Core.EcVector2Int;
+using Vector2 = EmpireCraft.Core.EcVector2;
 using System;
 using System.Collections.Generic;
 using System.IO;
@@ -20,14 +22,11 @@ public sealed class WorldMapFrame
     public float top = float.NaN;
     public float centerLat;
     // 三档大小(区块数，一区块 64 格)：小、中、大
-#if EC_PENDING
     public Vector2Int[] sizes;
-#endif
 
     public float DegreesPerTile(int chunksWide) => (east - west) / (chunksWide * 64f);
 
     // 剧本定死的大小算第几档(按面积取不超过它的最大一档)；至少算中档，定死大小的图不按小图去掉小城
-#if EC_PENDING
     public int IndexFor(Vector2Int size)
     {
         int best = 1;
@@ -43,14 +42,12 @@ public sealed class WorldMapFrame
         float north = float.IsNaN(top) ? centerLat + span / 2f : top;
         bottom = north - span;
     }
-#endif
 }
 
 // 地球地表网格(WorldMaps/earth.bytes，由 Tools/WorldMap/build_earth.py 从 ETOPO 高程、Natural Earth 海陆湖泊、
 // 柯本气候分区烘出；2026-10-29 改用 AWS Terrarium 高程按相对起伏重烘山、丘陵、高地，气候沿用旧网格)：每格 0.05°，存原版存档写法的地块编号；生成时按所选范围和大小逐格就近取样
 public static class EarthTerrain
 {
-#if EC_PENDING
     public static readonly WorldMapFrame Eurasia = new()
     {
         id = "eurasia", west = -25f, east = 153f, top = 77.5f,
@@ -62,11 +59,9 @@ public static class EarthTerrain
         id = "oldworld", west = -26f, east = 155f, centerLat = 21f,
         sizes = new[] { new Vector2Int(14, 9), new Vector2Int(28, 18), new Vector2Int(34, 22) }
     };
-#endif
 
     // 半幅(用户 10-30 "仅东亚还是仅欧非西亚，可以把预设的地图从中间对半砍")：从中间(约东经 63°)劈开，同样的区块数看半边，细一倍。
     // 东亚：中亚东半、南亚、东亚、东南亚北半，北到贝加尔湖一线；欧非西亚：欧洲、全非洲、西亚到伊朗
-#if EC_PENDING
     public static readonly WorldMapFrame EastAsia = new()
     {
         id = "eastasia", west = 62f, east = 152f, top = 62f,
@@ -80,7 +75,6 @@ public static class EarthTerrain
     };
 
     public static readonly WorldMapFrame[] Frames = { Eurasia, OldWorld, EastAsia, WestWorld };
-#endif
 
     private static int _cols, _rows;
     private static float _lon0, _lat0, _step;
@@ -327,8 +321,8 @@ public static class EarthTerrain
     public static void Fill(WorldMapFrame frame, Vector2Int size)
     {
         frame.Bounds(size, out float bottom, out float degrees);
-        var resolved = new Dictionary<string, (string main, TopTileType top)>();
-        int width = EmpireWorld.width, height = EmpireWorld.height;
+        var resolved = new Dictionary<string, (string main, TerrainKind top)>();
+        int width = EmpireWorld.Current.Width, height = EmpireWorld.Current.Height;
         Dictionary<int, string> dabs = ScenarioBrush.TileOverrides(_overrides, ScenarioCells.TerrainStep, frame.west, bottom, degrees, width, height);
         _paintedTiles = _overrides != null ? new bool[width * height] : null;
         for (int x = 0; x < width; x++)
@@ -349,9 +343,9 @@ public static class EarthTerrain
                         : (id.Substring(0, split), AssetManager.top_tiles.get(id.Substring(split + 1)));
                     resolved[id] = parts;
                 }
-                WorldTile tile = EmpireWorld.Current.GetTileSimple(x, y);
+                Cell tile = EmpireWorld.Current.CellAt(x, y);
                 tile.setTileTypes(parts.main, parts.top);
-                tile.Height = tile.Type.height_min;
+                tile.Height = tile.Type.HeightMin;
             }
         }
     }
@@ -363,9 +357,9 @@ public static class EarthTerrain
     // 每走 14 格留 2 格原地表作渡口：水道画实了会把大陆切成两岛，原版和本模组都按岛算陆路、开战够不够得着(见 WarReach)，
     // 留渡口两岸仍连成一片，军队要绕到渡口过河；河道所在区块水多，按本模组算"河流"地形(过河加阻力)
     private const int FordEvery = 14, FordWidth = 2;
-#if EC_PENDING
     private static List<(int rank, Vector2[] points)> _rivers;
 
+#if EC_PENDING
     private static bool EnsureRivers()
     {
         if (_rivers != null) return true;
@@ -398,7 +392,7 @@ public static class EarthTerrain
 
     public static void DrawRivers(WorldMapFrame frame, Vector2Int size)
     {
-        int width = EmpireWorld.width, height = EmpireWorld.height;
+        int width = EmpireWorld.Current.Width, height = EmpireWorld.Current.Height;
         RiverTiles(frame, size, (x, y) => Wet(x, y, width, height));
     }
 #endif
@@ -408,15 +402,15 @@ public static class EarthTerrain
 #if EC_PENDING
     internal static int RepairRiverSurfaces(WorldMapFrame frame, Vector2Int size)
     {
-        int changed = 0, width = EmpireWorld.width, height = EmpireWorld.height;
+        int changed = 0, width = EmpireWorld.Current.Width, height = EmpireWorld.Current.Height;
         RiverTiles(frame, size, (x, y) =>
         {
             if (x < 1 || y < 1 || x >= width - 1 || y >= height - 1) return;
-            WorldTile tile = EmpireWorld.Current.GetTileSimple(x, y);
-            if (tile?.main_type?.id != "shallow_waters" || tile.top_type == null || tile.top_type.liquid ||
-                tile.top_type.road || tile.top_type.wall || tile.top_type.farm_field) return;
-            tile.setTileTypes(tile.main_type, null);
-            tile.Height = tile.Type.height_min;
+            Cell tile = EmpireWorld.Current.CellAt(x, y);
+            if (tile?.MainType?.Id != "shallow_waters" || tile.TopType == null || tile.TopType.Liquid ||
+                tile.TopType.Road || tile.TopType.Wall || tile.TopType.FarmField) return;
+            tile.setTileTypes(tile.MainType, null);
+            tile.Height = tile.Type.HeightMin;
             changed++;
         });
         if (changed > 0) LogService.LogInfo($"[EmpireCraft][世界地图] 修复旧河道被地表遮盖 {changed} 格");
@@ -456,17 +450,17 @@ public static class EarthTerrain
     private static void Wet(int x, int y, int width, int height)
     {
         if (x < 1 || y < 1 || x >= width - 1 || y >= height - 1) return;
-        WorldTile tile = EmpireWorld.Current.GetTileSimple(x, y);
-        if (tile?.Type == null || tile.Type.liquid) return;
+        Cell tile = EmpireWorld.Current.CellAt(x, y);
+        if (tile?.Type == null || tile.Type.Liquid) return;
         tile.setTileTypes("shallow_waters", null);
-        tile.Height = tile.Type.height_min;
+        tile.Height = tile.Type.HeightMin;
     }
+#endif
 
     public static Vector2Int TileOf(WorldMapFrame frame, Vector2Int size, float lon, float lat)
     {
         frame.Bounds(size, out float bottom, out float degrees);
         return new Vector2Int(Mathf.FloorToInt((lon - frame.west) / degrees), Mathf.FloorToInt((lat - bottom) / degrees));
     }
-#endif
 }
 }

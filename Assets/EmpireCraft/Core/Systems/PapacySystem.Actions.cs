@@ -191,7 +191,7 @@ public static partial class PapacySystem
         string people = RealmNamingSystem.PeopleName(empire);
         if (!HasHolyName(empire)) state.holy_previous_prefix = empire.data.directPre ?? "";
         empire.data.directPre = OverallHelperFunc.HolyPrefixKey;
-        string seatName = RealmNamingSystem.Enabled ? null : papacy?.capital?.GetTitle()?.name;
+        string seatName = RealmNamingSystem.Enabled ? null : papacy?.Capital?.GetTitle()?.Name;
         empire.SetEmpireName(string.IsNullOrWhiteSpace(seatName) ? empire.GetEmpireName() : seatName);
         // 帝国自称神圣(承天受命、不假教宗)
         string text = string.Format(LM.Get("holy_name_self_history"), emperor.FullName(), people, before, empire.GetEmpireFullName());

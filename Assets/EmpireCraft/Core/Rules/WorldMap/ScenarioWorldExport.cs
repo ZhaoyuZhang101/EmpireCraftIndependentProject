@@ -1,6 +1,7 @@
 // Generated from the EmpireCraft mod: Scripts/GeneralSystems/WorldMap/ScenarioWorldExport.cs. Do not edit by hand: Tools/PortTool/members.py rewrites it;
 // see Port/manifest.json and Tools/PortTool.
 using Mathf = EmpireCraft.Core.EcMath;
+using Vector2Int = EmpireCraft.Core.EcVector2Int;
 using System;
 using System.Collections.Generic;
 using System.IO;
@@ -78,14 +79,13 @@ public static class ScenarioWorldExport
     #region 能不能导
 
     // 读着的世界里有文明城才能导
-#if EC_PENDING
     public static bool CanExport
     {
         get
         {
             try
             {
-                return EmpireWorld.Current?.cities?.list != null && EmpireWorld.Current.Cities.Any(Exportable);
+                return EmpireWorld.Current?.Cities != null && EmpireWorld.Current.Cities.Any(Exportable);
             }
             catch
             {
@@ -96,8 +96,7 @@ public static class ScenarioWorldExport
 
     private static bool Exportable(City city) =>
         city?.Record != null && !city.IsGone() && city.Realm?.Record != null && !city.Realm.IsGone() && city.Realm.IsCivilized() &&
-        city.getTile() != null;
-#endif
+        city.SeatCell() != null;
 
     // 剧本名：世界名，没有就"导入_年月日"；都加"·导入"，免得与预设剧本同名(世界地图开的局，世界名就是剧本名)
 #if EC_PENDING
@@ -162,7 +161,7 @@ public static class ScenarioWorldExport
         // 世界地图剧本开的局：存档里的地图范围与大小(拿它会顺手把开局记的史实归属落成法理编号，存档时本来也要落)
         WorldMapWildSave wild = WorldMapWilderness.Save();
         WorldMapFrame frame = wild == null ? null : EarthTerrain.Frames.FirstOrDefault(item => item.id == wild.frame);
-        bool earth = frame != null && wild.w > 0 && wild.h > 0 && EmpireWorld.width == wild.w * ChunkTiles && EmpireWorld.height == wild.h * ChunkTiles;
+        bool earth = frame != null && wild.w > 0 && wild.h > 0 && EmpireWorld.Current.Width == wild.w * ChunkTiles && EmpireWorld.Current.Height == wild.h * ChunkTiles;
         Projection projection;
         if (earth)
         {
@@ -243,7 +242,7 @@ public static class ScenarioWorldExport
         var cityArray = new JArray();
         foreach (City city in cities)
         {
-            projection.LonLat(city.getTile().x, city.getTile().y, out float lon, out float lat);
+            projection.LonLat(city.SeatCell().X, city.SeatCell().Y, out float lon, out float lat);
             var entry = new JObject { ["id"] = CityId(city) };
             Names(entry, Clean(city.GetCityName()));
             entry["x"] = Math.Round(lon, 4);
@@ -498,7 +497,7 @@ public static class ScenarioWorldExport
 #if EC_PENDING
     private static Projection WriteMap(string dir)
     {
-        int width = EmpireWorld.width, height = EmpireWorld.height;
+        int width = EmpireWorld.Current.Width, height = EmpireWorld.Current.Height;
         int shrink = Math.Max(1, (int)Math.Ceiling(Math.Max(width, height) / (double)MaxSide));
         int cols = Pad(width / shrink), rows = Pad(height / shrink);
         Color32 sea = EarthTerrain.PreviewColorOf("deep_ocean");
@@ -508,13 +507,13 @@ public static class ScenarioWorldExport
         for (int col = 0; col < cols; col++)
         {
             int x = col * shrink, y = row * shrink;
-            WorldTile tile = x < width && y < height ? EmpireWorld.Current.GetTileSimple(x, y) : null;
+            Cell tile = x < width && y < height ? EmpireWorld.Current.CellAt(x, y) : null;
             if (tile == null)
             {
                 pixels[row * cols + col] = sea;
                 continue;
             }
-            var key = ((object)tile.main_type, (object)tile.top_type);
+            var key = ((object)tile.MainType, (object)tile.TopType);
             if (!colors.TryGetValue(key, out Color32 color)) colors[key] = color = EarthTerrain.PreviewColorOf(TypeOf(tile));
             pixels[row * cols + col] = color;
         }
@@ -542,25 +541,24 @@ public static class ScenarioWorldExport
 
     // 一格的地形换成地球网格的写法(导入地图的对照色只有这几种)：水按深浅，岩浆当山，山巅当山，雪顶的山、丘陵当雪山、雪丘；
     // 平地按高低与地表(草、稀树、丛林、荒漠、冻土、桦、枫、沼泽)，原版别的地表(魔法、糖果、腐化、地狱……)就近归类，田、路、墙看底下的地
-#if EC_PENDING
-    private static string TypeOf(WorldTile tile)
+    private static string TypeOf(Cell tile)
     {
-        TileTypeBase type = tile.Type;
-        TileTypeBase main = tile.main_type ?? type;
+        TerrainKind type = tile.Type;
+        TerrainKind main = tile.MainType ?? type;
         if (main == null) return "deep_ocean";
-        string mainId = main.id ?? "";
-        if (main.liquid && !main.lava)
+        string mainId = main.Id ?? "";
+        if (main.Liquid && !main.Lava)
             return mainId.Contains("deep") ? "deep_ocean" : mainId.Contains("close") ? "close_ocean" : "shallow_waters";
         // 高原两种(冻上的、开了田的照样是高原)
-        if (PlateauTerrain.IsPlateau(main)) return main.id;
-        TopTileType top = tile.top_type;
-        if (top != null && (top.road || top.farm_field || top.wall)) top = null;
-        string topId = top?.id ?? "";
-        string biome = (top?.biome_id ?? "") + "|" + topId;
+        if (PlateauTerrain.IsPlateau(main)) return main.Id;
+        TerrainKind top = tile.TopType;
+        if (top != null && (top.Road || top.FarmField || top.Wall)) top = null;
+        string topId = top?.Id ?? "";
+        string biome = (top?.BiomeId ?? "") + "|" + topId;
         bool snow = topId.Contains("snow") || topId.Contains("ice");
-        if (main.lava || type?.lava == true || main.mountains || main.summit) return snow ? "mountains:snow_block" : "mountains";
+        if (main.Lava || type?.Lava == true || main.Mountains || main.Summit) return snow ? "mountains:snow_block" : "mountains";
         if (mainId.Contains("hills")) return snow ? "hills:snow_hills" : "hills";
-        if (main.sand && top == null) return "sand";
+        if (main.Sand && top == null) return "sand";
         string level = mainId.EndsWith("_high", StringComparison.Ordinal) || topId.EndsWith("_high", StringComparison.Ordinal) ? "high" : "low";
         string kind = biome.Contains("desert") || biome.Contains("infernal") || biome.Contains("wasteland") || biome.Contains("sand") ? "desert"
             : biome.Contains("permafrost") || snow || biome.Contains("frost") || biome.Contains("crystal") ? "permafrost"
@@ -572,7 +570,6 @@ public static class ScenarioWorldExport
             : "grass";
         return "soil_" + level + ":" + kind + "_" + level;
     }
-#endif
 
     #endregion
 
@@ -586,14 +583,14 @@ public static class ScenarioWorldExport
 #if EC_PENDING
     private static List<WorldMapPaint> Paint(Projection projection, Dictionary<KingdomTitle, string> regionOf, Func<City, string> cityId)
     {
-        List<TileZone> zones = EmpireWorld.Current?.zone_calculator?.zones;
+        List<Cell> zones = EmpireWorld.Current?.Zones?.All;
         if (zones == null) return null;
-        var keyOf = new Dictionary<TileZone, string>();
-        foreach (TileZone zone in zones)
+        var keyOf = new Dictionary<Cell, string>();
+        foreach (Cell zone in zones)
         {
-            if (zone?.tiles == null) continue;
+            if (zone?.Tiles == null) continue;
             string key = null;
-            City city = zone.city;
+            City city = zone.City;
             if (city?.Record != null && !city.IsGone())
             {
                 string id = cityId(city);
@@ -610,22 +607,22 @@ public static class ScenarioWorldExport
         var cells = new Dictionary<int, string>();
         var reserved = new HashSet<int>();
         // 一、各块地开局取样的那一点(同 PaintTerritory：块中心那一格 zx*8+4，经度 = 西界 + 格 × 每格几度)
-        foreach (KeyValuePair<TileZone, string> pair in keyOf)
+        foreach (KeyValuePair<Cell, string> pair in keyOf)
         {
-            float lon = projection.west + (pair.Key.x * 8 + 4) * projection.degrees;
-            float lat = projection.bottom + (pair.Key.y * 8 + 4) * projection.degrees;
+            float lon = projection.west + (pair.Key.X * 8 + 4) * projection.degrees;
+            float lat = projection.bottom + (pair.Key.Y * 8 + 4) * projection.degrees;
             int cell = ScenarioCells.Key(lon, lat, ScenarioCells.LandStep);
             if (pair.Value == null) reserved.Add(cell);
             else cells[cell] = pair.Value;
         }
         // 二、各块地每一格补上
-        foreach (KeyValuePair<TileZone, string> pair in keyOf)
+        foreach (KeyValuePair<Cell, string> pair in keyOf)
         {
             if (pair.Value == null) continue;
-            foreach (WorldTile tile in pair.Key.tiles)
+            foreach (Cell tile in pair.Key.Tiles)
             {
                 if (tile == null) continue;
-                projection.LonLat(tile.x, tile.y, out float lon, out float lat);
+                projection.LonLat(tile.X, tile.Y, out float lon, out float lat);
                 int cell = ScenarioCells.Key(lon, lat, ScenarioCells.LandStep);
                 if (!cells.ContainsKey(cell) && !reserved.Contains(cell)) cells[cell] = pair.Value;
             }
@@ -648,12 +645,12 @@ public static class ScenarioWorldExport
 #if EC_PENDING
     private static JArray Walls(Projection projection)
     {
-        int width = EmpireWorld.width;
+        int width = EmpireWorld.Current.Width;
         var tiles = new HashSet<int>(MapWallSystem.Walls.Keys);
-        WorldTile[] all = EmpireWorld.Current?.tiles_list;
+        Cell[] all = EmpireWorld.Current?.Zones;
         if (all != null)
-            foreach (WorldTile tile in all)
-                if (tile?.data != null && tile.Type?.wall == true) tiles.Add(tile.data.tile_id);
+            foreach (Cell tile in all)
+                if (tile?.data != null && tile.Type?.Wall == true) tiles.Add(tile.Index);
         tiles.ExceptWith(CityPlanWorks.CityWallTiles());
         var result = new JArray();
         foreach (List<(int x, int y)> line in ScenarioWallTrace.Trace(tiles.Select(id => (id % width, id / width)), MinWallTiles))
@@ -741,7 +738,7 @@ public static class ScenarioWorldExport
                 if (empire?.data?.diplomatic_pacts == null) return;
                 foreach (long other in empire.data.diplomatic_pacts.Keys.ToList())
                 {
-                    Realm b = ModClass.EMPIRE_MANAGER?.get(other)?.CoreKingdom;
+                    Realm b = ModClass.EMPIRE_MANAGER?.Get(other)?.CoreKingdom;
                     if (ownId(b) != null && GreatPowerDiplomacy.Bound(a, b)) Add(self, ownId(b), "pact", false);
                 }
             });

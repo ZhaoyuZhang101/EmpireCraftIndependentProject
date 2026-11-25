@@ -1,6 +1,8 @@
 // Generated from the EmpireCraft mod: Scripts/GameClassExtensions/KingdomExtension.cs. Do not edit by hand: Tools/PortTool/members.py rewrites it;
 // see Port/manifest.json and Tools/PortTool.
 using Mathf = EmpireCraft.Core.EcMath;
+using Vector2Int = EmpireCraft.Core.EcVector2Int;
+using Vector2 = EmpireCraft.Core.EcVector2;
 using Newtonsoft.Json;
 using System;
 using System.Collections.Generic;
@@ -747,10 +749,8 @@ public static class KingdomExtension
         public int annual_power_economy = 0;
         public double annual_power_index = 0d;
         public double last_national_power_timestamp = -1L;
-#if EC_PENDING
         [JsonIgnore]
         public Vector2 city_value_quality_center;
-#endif
         [JsonIgnore]
         public float city_value_core_radius = 24f;
         [JsonIgnore]
@@ -841,7 +841,7 @@ public static class KingdomExtension
         List<(FixedFaction faction, Person leader, int influence)> activeFactions = configuredFactions
             .Where(faction => !faction.Ban)
             .Select(faction => (faction, leader: faction.GetLeader(),
-                influence: Mathf.Max(0, faction.GetLeader()?.data?.renown ?? 0)))
+                influence: Mathf.Max(0, faction.GetLeader()?.Renown ?? 0)))
             .OrderBy(entry => entry.influence)
             .ThenBy(entry => entry.faction.GetID())
             .ToList();
@@ -3102,7 +3102,7 @@ public static class KingdomExtension
         if (title == null || title.IsGone()) return false;
 
         List<Realm> administrations = KingdomTitleRelationResolver.FindCurrentAdministrations(title);
-        long capitalControllerId = title.title_capital?.kingdom?.id ?? -1L;
+        long capitalControllerId = title.title_capital?.Realm?.Key ?? -1L;
         long holderId = AdministrativeDivisionNameRules.SelectProvinceNameHolder(capitalControllerId,
             administrations.Select(administration => administration.Key));
         return holderId == kingdom.Key;
@@ -3353,6 +3353,7 @@ public static class KingdomExtension
         return DeJureTitleClaimRules.ControlsRequiredShare(controlled, total) &&
                FeudalVassalService.CanDeclareExternalWar(claimant, holder);
     }
+#endif
 
     public static Realm FindRealmTitleHolder(this KingdomTitle title)
     {
@@ -3370,7 +3371,7 @@ public static class KingdomExtension
             return ownerKingdom;
         }
 
-        return EmpireWorld.Current?.kingdoms?.list?.FirstOrDefault(kingdom => kingdom != null &&
+        return EmpireWorld.Current?.LiveRealms?.FirstOrDefault(kingdom => kingdom != null &&
             !kingdom.IsGone() && kingdom.GetRealmTitleIds().Contains(title.Key));
     }
 
@@ -3383,10 +3384,11 @@ public static class KingdomExtension
             return title.main_kingdom;
         }
 
-        return EmpireWorld.Current?.kingdoms?.list?.FirstOrDefault(kingdom => kingdom != null &&
+        return EmpireWorld.Current?.LiveRealms?.FirstOrDefault(kingdom => kingdom != null &&
             !kingdom.IsGone() && kingdom.GetOrCreate().MainTitle == title.Key);
     }
 
+#if EC_PENDING
     public static bool CanAcquireDeJureTitleWithoutWar(this Realm kingdom,
         KingdomTitle title)
     {
@@ -3424,10 +3426,10 @@ public static class KingdomExtension
         HashSet<int> seenZones = new HashSet<int>();
         foreach (City city in title.getCities())
         {
-            if (city == null || city.IsGone() || city.zones == null) continue;
-            foreach (TileZone zone in city.zones)
+            if (city == null || city.IsGone() || city.Zones == null) continue;
+            foreach (Cell zone in city.Zones)
             {
-                if (zone == null || zone.world_edge || zone.city != city || !seenZones.Add(zone.id)) continue;
+                if (zone == null || zone.OnEdge || zone.City != city || !seenZones.Add(zone.Index)) continue;
                 total++;
                 if (city.Realm == kingdom) controlled++;
             }
@@ -3881,7 +3883,7 @@ public static class KingdomExtension
         if (extra.isEmpire && extra.EmpireID > 0) EmpireCraft.Core.EmpireLossDiagnostics.OnCoreMoved(kingdom, extra.EmpireID, value);
         extra.EmpireID = value;
         if (ModClass.EMPIRE_MANAGER != null) ModClass.EMPIRE_MANAGER._dirty_cities = true;
-        EmpireWorld.Current?.zone_calculator?.dirtyAndClear();
+        EmpireWorld.Current?.Zones?.MarkDirty();
     }
 #endif
     public static long GetEmpireID(this Realm kingdom)
@@ -3937,7 +3939,7 @@ public static class KingdomExtension
         if (!ModClass.EMPIRE_MANAGER.Any()) return empires;
         foreach(City city in kingdom.Cities)
         {
-            foreach(Realm k in city.neighbours_kingdoms)
+            foreach(Realm k in city.NeighbourRealms)
             {
                 if (k != kingdom)
                 {
@@ -4098,6 +4100,7 @@ public static class KingdomExtension
 
         return closestKingdom;
     }
+#endif
 
     public static bool IsNeighbourWith(this Realm kingdom, Realm target)
     {
@@ -4113,7 +4116,7 @@ public static class KingdomExtension
         foreach(City city in cities)
         {
             if (city == null) continue;
-            var neighbours = city.neighbours_kingdoms;
+            var neighbours = city.NeighbourRealms;
             if (neighbours == null) continue;
             if (neighbours.Contains(target))
             {
@@ -4128,9 +4131,9 @@ public static class KingdomExtension
         if(kingdom.IsEmpire()) return false;
         foreach(City city in kingdom.Cities)
         {
-            if (city.neighbours_kingdoms.Count > 0)
+            if (city.NeighbourRealms.Count > 0)
             {
-                foreach(Realm kingdom2 in city.neighbours_kingdoms)
+                foreach(Realm kingdom2 in city.NeighbourRealms)
                 {
                     if (!kingdom2.IsInSameEmpire(kingdom))
                     {
@@ -4141,7 +4144,6 @@ public static class KingdomExtension
         }
         return false;
     }
-#endif
 
     public static void SetLevel(this Realm kingdom, int value)
     {

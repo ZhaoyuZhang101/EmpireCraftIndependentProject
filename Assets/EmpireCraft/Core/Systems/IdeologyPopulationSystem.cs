@@ -376,13 +376,13 @@ public static partial class IdeologyPopulationSystem
 #if EC_PENDING
     private static City ForeignContact(City city)
     {
-        if (city.neighbours_cities == null) return null;
+        if (city.NeighbourCities == null) return null;
         if (!ConnectivitySystem.Ready)
-            return city.neighbours_cities.FirstOrDefault(neighbour => neighbour != null && neighbour.kingdom != city.Realm &&
+            return city.NeighbourCities.FirstOrDefault(neighbour => neighbour != null && neighbour.Realm != city.Realm &&
                                                                    neighbour.units?.Count > 0);
         City best = null;
         float strongest = -1f;
-        foreach (City neighbour in city.neighbours_cities)
+        foreach (City neighbour in city.NeighbourCities)
         {
             if (neighbour == null || neighbour.Realm == city.Realm || !(neighbour.units?.Count > 0)) continue;
             float strength = ConnectivitySystem.NeighbourStrength(neighbour, city);
@@ -890,6 +890,7 @@ public static partial class IdeologyPopulationSystem
         }
         DominantCache.Clear();
     }
+#endif
 
     private static PartyIdeology PickClassResponse(SocialClass socialClass, Realm kingdom,
         HashSet<PartyIdeology> available, float grievance)
@@ -929,7 +930,6 @@ public static partial class IdeologyPopulationSystem
         }
         return choices[choices.Count - 1];
     }
-#endif
 
     // 与 Introduce 相同的改信概率，按期望值作用在背景人口上(无小人模式)
 #if EC_PENDING

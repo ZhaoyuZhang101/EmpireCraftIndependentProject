@@ -1,6 +1,7 @@
 // Generated from the EmpireCraft mod: Scripts/GeneralSystems/PrehistoricClanSystem.cs. Do not edit by hand: Tools/PortTool/members.py rewrites it;
 // see Port/manifest.json and Tools/PortTool.
 using Time = EmpireCraft.Core.FrameClock;
+using Random = EmpireCraft.Core.EcRandom;
 using System.Collections.Generic;
 using System.Linq;
 
@@ -60,9 +61,7 @@ public static class PrehistoricClanSystem
         return pool;
     }
 
-#if EC_PENDING
     private static string Pick(List<string> pool) => pool.Count == 0 ? null : pool[Random.Range(0, pool.Count)];
-#endif
 
     private static Setting SettingOf(string culture) =>
         !string.IsNullOrEmpty(culture) && OnomasticsRule.ALL_CULTURE_RULE.TryGetValue(culture, out Setting setting) ? setting : null;
@@ -85,20 +84,16 @@ public static class PrehistoricClanSystem
     }
 
     // 原始阶段新生儿的上古名字(文化配置 Unit.ancient_male_group / ancient_female_group)；不在原始阶段或没配返回 null
-#if EC_PENDING
     public static string AncientGivenName(string culture, bool male)
     {
         if (!Primordial(culture)) return null;
         UnitSetting unit = SettingOf(culture)?.Unit;
         return Pick(WordPool(culture, male ? unit?.ancient_male_group : unit?.ancient_female_group));
     }
-#endif
 
     // 原始阶段新立之国的部落、方国国号(文化配置 Realm.ancient_group)
-#if EC_PENDING
     public static string AncientKingdomName(string culture) =>
         Primordial(culture) ? Pick(WordPool(culture, SettingOf(culture)?.Kingdom?.ancient_group)) : null;
-#endif
 
     // 支脉起氏：做官的族人一半以官为氏，没有身份的平民三成以职业为氏，其余以国、邑、祖名的首字为氏
 #if EC_PENDING
@@ -285,7 +280,6 @@ public static class PrehistoricClanSystem
 #endif
 
     // 新氏族的古姓：从本文化的古姓词库里取，优先取还没被用掉的
-#if EC_PENDING
     public static string PickAncientSurname(string culture)
     {
         List<string> all = AncientPool(culture);
@@ -295,6 +289,5 @@ public static class PrehistoricClanSystem
         List<string> pool = free.Count > 0 ? free : all;
         return pool[Random.Range(0, pool.Count)];
     }
-#endif
 }
 }

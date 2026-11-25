@@ -21,8 +21,8 @@ public class KingdomTitle : RecordObject<KingdomTitleData>
 #if EC_PENDING
     public Vector3 last_center;
     public Vector3 title_center;
-    private readonly List<TileZone> _zoneScratch = new();
 #endif
+    private readonly List<Cell> _zoneScratch = new();
     private readonly List<City> _needRemoveCitiesBuffer = new();
     public City title_capital;
     public Realm control_kingdom;
@@ -92,7 +92,7 @@ public class KingdomTitle : RecordObject<KingdomTitleData>
             record != null && record.end_time < 0);
         if (current != null && current.kingdom_id == kingdom.Key && current.relation == relation)
         {
-            current.kingdom_name = kingdom.Record?.Name ?? current.kingdom_name;
+            current.kingdom_name = kingdom.Name ?? current.kingdom_name;
             return;
         }
         foreach (KingdomTitleJurisdictionRecord record in data.jurisdiction_history.Where(record =>
@@ -103,7 +103,7 @@ public class KingdomTitle : RecordObject<KingdomTitleData>
         data.jurisdiction_history.Add(new KingdomTitleJurisdictionRecord
         {
             kingdom_id = kingdom.Key,
-            kingdom_name = kingdom.Record?.Name ?? "",
+            kingdom_name = kingdom.Name ?? "",
             relation = relation,
             start_time = now,
             end_time = -1L
@@ -236,8 +236,8 @@ public class KingdomTitle : RecordObject<KingdomTitleData>
             if (storedAsset != null) return storedAsset;
         }
 
-        ActorAsset recoveredAsset = title_capital?.kingdom?.king?.asset ??
-                                    city_list.FirstOrDefault(city => city?.kingdom?.king?.asset != null)?.kingdom.king.asset;
+        ActorAsset recoveredAsset = title_capital?.Realm?.Ruler?.asset ??
+                                    city_list.FirstOrDefault(city => city?.Realm?.Ruler?.asset != null)?.kingdom.king.asset;
         if (recoveredAsset != null && data != null) data.original_actor_asset = recoveredAsset.id;
         return recoveredAsset;
     }
@@ -272,28 +272,28 @@ public class KingdomTitle : RecordObject<KingdomTitleData>
         float num = 0f;
         float num2 = 0f;
         float num3 = float.MaxValue;
-        TileZone tileZone = null;
+        Cell tileZone = null;
         var zones = this.allZones();
         for (int i = 0; i < zones.Count; i++)
         {
-            TileZone tileZone2 = zones[i];
-            num += tileZone2.centerTile.posV3.x;
-            num2 += tileZone2.centerTile.posV3.y;
+            Cell tileZone2 = zones[i];
+            num += tileZone2.Center.posV3.x;
+            num2 += tileZone2.Center.posV3.y;
         }
         this.title_center.x = num / (float)zones.Count;
         this.title_center.y = num2 / (float)zones.Count;
         for (int j = 0; j < zones.Count; j++)
         {
-            TileZone tileZone3 = zones[j];
-            float num4 = Toolbox.SquaredDist((float)tileZone3.centerTile.x, (float)tileZone3.centerTile.y, this.title_center.x, this.title_center.y);
+            Cell tileZone3 = zones[j];
+            float num4 = Toolbox.SquaredDist((float)tileZone3.Center.X, (float)tileZone3.Center.Y, this.title_center.x, this.title_center.y);
             if (num4 < num3)
             {
                 tileZone = tileZone3;
                 num3 = num4;
             }
         }
-        this.title_center.x = tileZone.centerTile.posV3.x;
-        this.title_center.y = tileZone.centerTile.posV3.y + 2f;
+        this.title_center.x = tileZone.Center.posV3.x;
+        this.title_center.y = tileZone.Center.posV3.y + 2f;
         this.last_center = this.title_center;
         this._units_dirty = false;
         return this.last_center;
@@ -380,13 +380,14 @@ public class KingdomTitle : RecordObject<KingdomTitleData>
         }
 
     }
+#endif
 
-    public List<TileZone> allZones()
+    public List<Cell> allZones()
     {
-        List<TileZone> zones= new List<TileZone>();
+        List<Cell> zones= new List<Cell>();
         foreach(City city in  city_list_hash)
         {
-            foreach (TileZone tz in city.zones) 
+            foreach (Cell tz in city.Zones) 
             {
                 zones.Add(tz);
             }
@@ -394,6 +395,7 @@ public class KingdomTitle : RecordObject<KingdomTitleData>
         return zones;
     }
 
+#if EC_PENDING
     public void addCity(City city)
     {
         if (city == null) return;
@@ -607,7 +609,7 @@ public class KingdomTitle : RecordObject<KingdomTitleData>
         pData.jurisdiction_history ??= new List<KingdomTitleJurisdictionRecord>();
         if (string.IsNullOrWhiteSpace(this.data.original_actor_asset) && this.title_capital != null)
         {
-            this.data.original_actor_asset = this.title_capital.Realm?.king?.asset?.id ?? this.title_capital.Realm?.asset?.id ?? this.title_capital.getSpecies();
+            this.data.original_actor_asset = this.title_capital.Realm?.Ruler?.asset?.id ?? this.title_capital.Realm?.asset?.id ?? this.title_capital.getSpecies();
         }
         if(string.IsNullOrEmpty(pData.province_name) && title_capital != null)
         {

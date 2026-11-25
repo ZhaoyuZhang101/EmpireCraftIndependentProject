@@ -687,7 +687,6 @@ public static class NaturalizationSystem
 #endif
 
     // 干部覆盖、工厂配员：一年算一次，读的地方很热
-#if EC_PENDING
     private static void UpdateEffects(List<City> cities)
     {
         NaturalizationConfig c = Config;
@@ -702,7 +701,6 @@ public static class NaturalizationSystem
                 : Mathf.Clamp(Count(city, NaturalizationState.Worker) / wanted, Mathf.Clamp01(c.staffing_floor), 1f);
         }
     }
-#endif
 
     public static void SetFocus(TransmigrantState state, NaturalizationState? focus)
     {
@@ -721,7 +719,6 @@ public static class NaturalizationSystem
         return total;
     }
 
-#if EC_PENDING
     public static NaturalizationSnapshot Snapshot(Realm kingdom)
     {
         var snapshot = new NaturalizationSnapshot();
@@ -749,7 +746,6 @@ public static class NaturalizationSystem
         Reports.TryGetValue(kingdom.Key, out snapshot.last);
         return snapshot;
     }
-#endif
 
     #endregion
 }

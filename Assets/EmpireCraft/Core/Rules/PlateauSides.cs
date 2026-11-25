@@ -11,16 +11,16 @@ namespace EmpireCraft.Core
 public static class PlateauSides
 {
 #if EC_PENDING
-    public static bool Differ(TileZone a, TileZone b)
+    public static bool Differ(Cell a, Cell b)
     {
         if (a == null || b == null || a == b || PlateauTerrain.Alpine == null) return false;
         byte sa = TerrainSystem.PlateauSide(a), sb = TerrainSystem.PlateauSide(b);
         return sa != sb && sa != TerrainSystem.EdgeSide && sb != TerrainSystem.EdgeSide;
     }
 
-    public static bool Differ(City city, TileZone zone) => Differ(city?.getTile()?.zone, zone);
+    public static bool Differ(City city, Cell zone) => Differ(city?.SeatCell()?.Zone, zone);
 
-    public static bool Differ(City a, City b) => Differ(a?.getTile()?.zone, b?.getTile()?.zone);
+    public static bool Differ(City a, City b) => Differ(a?.SeatCell()?.Zone, b?.SeatCell()?.Zone);
 #endif
 }
 }

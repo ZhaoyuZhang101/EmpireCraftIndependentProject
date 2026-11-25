@@ -88,7 +88,7 @@ public static class RoyalMarriageSystem
     // 议婚时按族谱比，定下来才落成
 #if EC_PENDING
     private static IEnumerable<PersonalClanIdentity> VirtualRoyals(Realm kingdom) =>
-        kingdom?.king?.data == null ? Enumerable.Empty<PersonalClanIdentity>()
+        kingdom?.Ruler?.Record == null ? Enumerable.Empty<PersonalClanIdentity>()
             : KinRoster.Children(kingdom.Ruler).Where(KinRoster.Virtual);
 #endif
 

@@ -238,9 +238,7 @@ public static class IndustryBuildingSystem
 
     // ---- 规则 ----
     // 每座工厂多许建一座矿场、伐木场、屠宰场，至多三座
-#if EC_PENDING
     public static int ExtraLimit(City city) => Mathf.Min(3, FactorySystem.Count(city));
-#endif
 
     // ---- 产出(每年，按户数尺度) ----
     // 建成的矿场的产出倍数之和(纯净地图：矿村、林场村折算，见 LivelihoodSystem.Factor)
@@ -254,9 +252,7 @@ public static class IndustryBuildingSystem
 
     // 第几级的产出倍数、本城有厂区的加成、纯净地图下一份伐木产出倍数一年出几份木头(见 HarvestTrees)
     public static float TierFactor(int tier) => TierOutput[Mathf.Clamp(tier, 1, TierOutput.Length) - 1];
-#if EC_PENDING
     public static float FactoryBonus(City city) => FactorySystem.Count(city) > 0 ? IndustryZoneBonus : 1f;
-#endif
     public const float WoodPerFactorYear = TreesPerLumberYear * WoodPerTree;
 
     // 本文化(本国采纳了的)科技做到这条链的第几级(0 = 第一级也还没解锁)
@@ -283,7 +279,7 @@ public static class IndustryBuildingSystem
     public static float HarvestTrees(City city, float years)
     {
         float factor = LumberOutputFactor(city);
-        if (factor <= 0f || city?.zones == null || city.Record == null) return 0f;
+        if (factor <= 0f || city?.Zones == null || city.Record == null) return 0f;
         FellCarry.TryGetValue(city.Key, out float carry);
         float want = factor * TreesPerLumberYear * years + carry;
         int target = Mathf.FloorToInt(want);
@@ -294,8 +290,8 @@ public static class IndustryBuildingSystem
         if (target > 0)
         {
             // 先砍树最多的区块
-            var zones = new List<(TileZone zone, int trees)>();
-            foreach (TileZone zone in city.zones)
+            var zones = new List<(Cell zone, int trees)>();
+            foreach (Cell zone in city.Zones)
             {
                 if (zone == null) continue;
                 int count = zone.getHashset(BuildingList.Trees)?.Count ?? 0;
@@ -303,7 +299,7 @@ public static class IndustryBuildingSystem
             }
             zones.Sort((a, b) => b.trees.CompareTo(a.trees));
             var felled = new List<Building>();
-            foreach ((TileZone zone, int _) in zones)
+            foreach ((Cell zone, int _) in zones)
             {
                 foreach (Building tree in zone.getHashset(BuildingList.Trees))
                 {
@@ -382,9 +378,9 @@ public static class IndustryBuildingSystem
 #if EC_PENDING
     public static int ForestExtraLimit(City city)
     {
-        if (city?.zones == null) return 0;
+        if (city?.Zones == null) return 0;
         int trees = 0;
-        foreach (TileZone zone in city.zones)
+        foreach (Cell zone in city.Zones)
             if (zone != null) trees += zone.getHashset(BuildingList.Trees)?.Count ?? 0;
         return Mathf.Min(4, trees / 40);
     }

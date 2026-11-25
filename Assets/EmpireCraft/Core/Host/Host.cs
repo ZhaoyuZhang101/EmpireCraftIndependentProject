@@ -71,6 +71,44 @@ namespace EmpireCraft.Core
         public static bool Approximately(float a, float b) => Math.Abs(a - b) < 1e-6f * Math.Max(1f, Math.Max(Math.Abs(a), Math.Abs(b)));
     }
 
+    // Grid and plane coordinates as the ported code writes them.
+    public struct EcVector2Int : IEquatable<EcVector2Int>
+    {
+        public int x, y;
+        public EcVector2Int(int x, int y) { this.x = x; this.y = y; }
+        public static EcVector2Int zero => new EcVector2Int(0, 0);
+        public static EcVector2Int operator +(EcVector2Int a, EcVector2Int b) => new EcVector2Int(a.x + b.x, a.y + b.y);
+        public static EcVector2Int operator -(EcVector2Int a, EcVector2Int b) => new EcVector2Int(a.x - b.x, a.y - b.y);
+        public static bool operator ==(EcVector2Int a, EcVector2Int b) => a.x == b.x && a.y == b.y;
+        public static bool operator !=(EcVector2Int a, EcVector2Int b) => !(a == b);
+        public static implicit operator EcVector2(EcVector2Int v) => new EcVector2(v.x, v.y);
+        public bool Equals(EcVector2Int other) => this == other;
+        public override bool Equals(object other) => other is EcVector2Int v && this == v;
+        public override int GetHashCode() => unchecked(x * 73856093 ^ y * 19349663);
+        public override string ToString() => "(" + x + ", " + y + ")";
+    }
+
+    public struct EcVector2 : IEquatable<EcVector2>
+    {
+        public float x, y;
+        public EcVector2(float x, float y) { this.x = x; this.y = y; }
+        public static EcVector2 zero => new EcVector2(0f, 0f);
+        public float sqrMagnitude => x * x + y * y;
+        public float magnitude => (float)Math.Sqrt(x * x + y * y);
+        public EcVector2 normalized { get { float m = magnitude; return m > 1e-6f ? new EcVector2(x / m, y / m) : zero; } }
+        public static float Distance(EcVector2 a, EcVector2 b) => (a - b).magnitude;
+        public static EcVector2 operator +(EcVector2 a, EcVector2 b) => new EcVector2(a.x + b.x, a.y + b.y);
+        public static EcVector2 operator -(EcVector2 a, EcVector2 b) => new EcVector2(a.x - b.x, a.y - b.y);
+        public static EcVector2 operator *(EcVector2 a, float k) => new EcVector2(a.x * k, a.y * k);
+        public static EcVector2 operator /(EcVector2 a, float k) => new EcVector2(a.x / k, a.y / k);
+        public static bool operator ==(EcVector2 a, EcVector2 b) => a.x == b.x && a.y == b.y;
+        public static bool operator !=(EcVector2 a, EcVector2 b) => !(a == b);
+        public bool Equals(EcVector2 other) => this == other;
+        public override bool Equals(object other) => other is EcVector2 v && this == v;
+        public override int GetHashCode() => (x, y).GetHashCode();
+        public override string ToString() => "(" + x + ", " + y + ")";
+    }
+
     // Colour as four floats in 0..1, the shape the ported rules compute with.
     public struct EcColor : IEquatable<EcColor>
     {

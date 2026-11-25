@@ -1,5 +1,6 @@
 // Generated from the EmpireCraft mod: Scripts/GameClassExtensions/ClanExtension.cs. Do not edit by hand: Tools/PortTool/members.py rewrites it;
 // see Port/manifest.json and Tools/PortTool.
+using Vector2 = EmpireCraft.Core.EcVector2;
 namespace EmpireCraft.Core
 {
 public static class ClanExtension
@@ -100,7 +101,6 @@ public static class ClanExtension
         GetOrCreate(__instance).historical_empire_name = name;
     }
 
-#if EC_PENDING
     public static Vector2 GetHistoryEmpirePos(this Clan __instance)
     {
         return new Vector2(GetOrCreate(__instance).x, GetOrCreate(__instance).y);
@@ -110,7 +110,6 @@ public static class ClanExtension
         GetOrCreate(__instance).x = pos.x;
         GetOrCreate(__instance).y = pos.y;
     }
-#endif
 
 }
 }

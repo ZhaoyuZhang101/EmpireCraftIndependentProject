@@ -354,32 +354,32 @@ public class EmpireManager : RecordStore<Empire, EmpireData>
         base.Clear();
     }
 
-#if EC_PENDING
-    public List<TileZone> GetAllZones()
+    public List<Cell> GetAllZones()
     {
-        List<TileZone> zones = new();
+        List<Cell> zones = new();
         foreach (Empire e in this)
         {
             foreach(Realm k in e.kingdoms_list)
             {
                 foreach(City c in k.Cities)
                 {
-                    zones.AddRange(c.zones);
+                    zones.AddRange(c.Zones);
                 }
             }
         }
         return zones;
     }
 
+#if EC_PENDING
     public override void AddObject(Empire pObject)
     {
         base.AddObject(pObject);
-        EmpireWorld.Current.zone_calculator?.setDrawnZonesDirty();
+        EmpireWorld.Current.Zones?.setDrawnZonesDirty();
     }
     public override void RemoveObject(Empire pKingdom)
     {
         base.RemoveObject(pKingdom);
-        EmpireWorld.Current.zone_calculator?.setDrawnZonesDirty();
+        EmpireWorld.Current.Zones?.setDrawnZonesDirty();
     }
     
     public void RemoveArchivedEmpire(Empire pEmpire)

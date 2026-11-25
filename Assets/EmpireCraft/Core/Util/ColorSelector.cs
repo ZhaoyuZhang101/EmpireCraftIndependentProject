@@ -2,6 +2,7 @@
 // see Port/manifest.json and Tools/PortTool.
 using Color = EmpireCraft.Core.EcColor;
 using ColorUtility = EmpireCraft.Core.EcColorUtility;
+using Random = EmpireCraft.Core.EcRandom;
 using System.Collections.Generic;
 using System.Linq;
 #if EC_PENDING

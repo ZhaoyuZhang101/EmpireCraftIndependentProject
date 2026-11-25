@@ -102,7 +102,7 @@ public static class IdeologySpreadSystem
             var bordered = new HashSet<long>();
             foreach (Realm kingdom in empire.kingdoms_hashset.Where(kingdom => kingdom != null && !kingdom.IsGone()))
             foreach (City city in kingdom.Cities.Where(city => city != null && !city.IsGone()))
-            foreach (City neighbour in (IEnumerable<City>)city.neighbours_cities ?? Array.Empty<City>())
+            foreach (City neighbour in (IEnumerable<City>)city.NeighbourCities ?? Array.Empty<City>())
             {
                 Realm other = neighbour?.Realm;
                 if (other == null || other.IsGone() || other.GetEmpire() == empire) continue;

@@ -75,7 +75,7 @@ public static class PopulationRuntimeDiagnostics
         string report = $"[EmpireCraft][虚拟人口负载] 实体单位 {EmpireWorld.Current.Living.Count}；" +
             $"城市 {EmpireWorld.Current.Cities.Count}；人口组 {groups}；城内背景人口 {background:0}；" +
             $"建筑 {EmpireWorld.Current.buildings.Count}；后台待办 {PopulationMathWorkers.PendingCount}/64；" +
-            $"可见植物建筑 {EmpireWorld.Current.buildings.countVisibleBuildings()}；地块 {EmpireWorld.Current.tiles_list.Length}；" +
+            $"可见植物建筑 {EmpireWorld.Current.buildings.countVisibleBuildings()}；地块 {EmpireWorld.Current.Zones.Length}；" +
             $"满果植物休眠 {NativeVegetationScheduler.SleepingCount}；地块检查/原版扫描 " +
             $"{EmpireCraft.Core.NativeWorldOptimizationPatch.ZoneChecks}/" +
             $"{EmpireCraft.Core.NativeWorldOptimizationPatch.OriginalZoneChecks}；" +

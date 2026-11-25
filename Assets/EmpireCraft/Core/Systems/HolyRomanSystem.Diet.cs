@@ -187,25 +187,21 @@ public static partial class HolyRomanSystem
                                                       war.MainDefender == core && war.MainAttacker == foe));
     }
 
-#if EC_PENDING
     public static War ImperialWar(Empire empire) => LiveWar(State(empire)?.imperial_war_id ?? -1L);
     public static War BanWar(Empire empire) => LiveWar(State(empire)?.ban_war_id ?? -1L);
 
     private static War LiveWar(long id)
     {
-        War war = id >= 0 ? EmpireWorld.Current?.wars?.get(id) : null;
+        War war = id >= 0 ? EmpireWorld.Current?.WarByKey(id) : null;
         return war?.Record != null && war.Alive && !war.HasEnded() ? war : null;
     }
-#endif
 
     // 应征参加帝国战争的成员国(中央议和时随中央退出，见 EmpirePeacePatch)
-#if EC_PENDING
     public static bool InImperialWar(Empire empire, Realm member)
     {
         HolyRomanState state = State(empire);
         return state != null && member != null && ImperialWar(empire) != null && state.imperial_war_members.Contains(member.Key);
     }
-#endif
 
     // 记抗命(以备禁令)，帝国权威 −2(每年至多 −8)
 #if EC_PENDING
@@ -308,7 +304,7 @@ public static partial class HolyRomanSystem
             }
             record.passed = Majority(record.electors_yes, record.electors_no) && Majority(record.princes_yes, record.princes_no);
             state.last_diet_at = record.at;
-            if (agenda == AgendaWar && subject != null) state.last_war_agenda_id = CoreWarWith(empire, subject)?.data?.id ?? -1L;
+            if (agenda == AgendaWar && subject != null) state.last_war_agenda_id = CoreWarWith(empire, subject)?.Key ?? -1L;
             if (agenda == AgendaReform) state.last_reform_agenda_at = record.at;
             // 提请禁令即花权威(不论通过与否)
             if (agenda == AgendaBan && subject != null) Spend(empire, BanCost, "hre_auth_ban", subject.GetKingdomName());

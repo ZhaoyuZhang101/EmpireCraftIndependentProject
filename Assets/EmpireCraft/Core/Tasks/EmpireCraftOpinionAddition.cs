@@ -189,7 +189,7 @@ public static class EmpireCraftOpinionAddition
                 int result = 0;
                 if (pMain.IsInSameEmpire(pTarget))
                 {
-                    if ((pMain?.king?.HasFaction()??false)&&(pTarget?.king?.HasFaction()??false))
+                    if ((pMain?.Ruler?.HasFaction()??false)&&(pTarget?.Ruler?.HasFaction()??false))
                     {
                         if (pMain.Ruler.GetFaction() != pTarget.Ruler.GetFaction())
                         {

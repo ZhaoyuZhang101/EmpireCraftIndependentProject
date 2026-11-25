@@ -110,14 +110,11 @@ public static class StockMarketSystem
         public bool group;
     }
 
-#if EC_PENDING
     public static List<CompanyData> TopCompanies(int top) =>
         CompanySystem.All.Where(company => CompanySystem.RealmOf(company) != null)
             .OrderByDescending(CompanySystem.Worth).Take(top).ToList();
-#endif
 
     // 富豪：按东家的宗族(财阀旗下的并到财阀名下)
-#if EC_PENDING
     public static List<Fortune> RichList(int top)
     {
         var fortunes = new Dictionary<long, Fortune>();
@@ -146,7 +143,6 @@ public static class StockMarketSystem
         return fortunes.Values.Where(fortune => !string.IsNullOrEmpty(fortune.name))
             .OrderByDescending(fortune => fortune.wealth).Take(top).ToList();
     }
-#endif
 
     #endregion
 }

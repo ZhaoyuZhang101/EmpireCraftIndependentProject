@@ -26,75 +26,73 @@ public static class CityDistricts
     {
         unchecked
         {
-            int hash = city.zones.Count * 7919 + RuralSettlementSystem.Revision * 31 + (PureMapPatch.BuiltZones(city)?.Count ?? 0);
-            foreach (TileZone zone in city.zones)
-                if (zone != null) hash ^= zone.id * 92821;
+            int hash = city.Zones.Count * 7919 + RuralSettlementSystem.Revision * 31 + (PureMapPatch.BuiltZones(city)?.Count ?? 0);
+            foreach (Cell zone in city.Zones)
+                if (zone != null) hash ^= zone.Index * 92821;
             return hash;
         }
     }
 
     private static Dictionary<int, int> Keys(City city)
     {
-        if (city?.zones == null || city.Record == null) return null;
+        if (city?.Zones == null || city.Record == null) return null;
         int stamp = Stamp(city);
         if (Cache.TryGetValue(city.Key, out var cached) && cached.stamp == stamp) return cached.keys;
         var keys = new Dictionary<int, int>();
-        var seats = new List<(int key, TileZone zone)>();
+        var seats = new List<(int key, Cell zone)>();
         foreach (RuralSettlement settlement in RuralSettlementSystem.InCity(city))
         {
-            TileZone zone = EmpireWorld.Current.GetTile(settlement.x, settlement.y)?.zone;
-            if (zone != null && zone.city == city) seats.Add((settlement.id, zone));
+            Cell zone = EmpireWorld.Current.CellAt(settlement.x, settlement.y)?.Zone;
+            if (zone != null && zone.City == city) seats.Add((settlement.id, zone));
         }
         if (seats.Count > 0)
         {
             var core = new HashSet<int>(PureMapPatch.BuiltZones(city) ?? new HashSet<int>());
-            TileZone center = city.getTile()?.zone;
-            if (center != null) core.Add(center.id);
-            List<TileZone> coreZones = city.zones.Where(zone => zone != null && core.Contains(zone.id)).ToList();
-            foreach (TileZone zone in city.zones)
+            Cell center = city.SeatCell()?.Zone;
+            if (center != null) core.Add(center.Index);
+            List<Cell> coreZones = city.Zones.Where(zone => zone != null && core.Contains(zone.Index)).ToList();
+            foreach (Cell zone in city.Zones)
             {
                 if (zone == null) continue;
-                if (core.Contains(zone.id))
+                if (core.Contains(zone.Index))
                 {
-                    keys[zone.id] = CoreKey;
+                    keys[zone.Index] = CoreKey;
                     continue;
                 }
                 int best = CoreKey;
                 float bestDistance = coreZones.Count == 0 ? float.MaxValue : coreZones.Min(other => Distance(zone, other));
-                foreach ((int key, TileZone seat) in seats)
+                foreach ((int key, Cell seat) in seats)
                 {
                     float d = Distance(zone, seat);
                     if (d > bestDistance) continue;
                     bestDistance = d;
                     best = key;
                 }
-                keys[zone.id] = best;
+                keys[zone.Index] = best;
             }
         }
         Cache[city.Key] = (stamp, keys);
         return keys;
     }
-
-    private static float Distance(TileZone a, TileZone b) => (a.x - b.x) * (a.x - b.x) + (a.y - b.y) * (a.y - b.y);
 #endif
+
+    private static float Distance(Cell a, Cell b) => (a.X - b.X) * (a.X - b.X) + (a.Y - b.Y) * (a.Y - b.Y);
 
     // 没有村镇的城：一块地一片(以地块编号区分)
-#if EC_PENDING
-    private static int KeyOf(City city, TileZone zone, Dictionary<int, int> keys) =>
-        keys != null && keys.TryGetValue(zone.id, out int key) ? key : int.MinValue + zone.id;
-#endif
+    private static int KeyOf(City city, Cell zone, Dictionary<int, int> keys) =>
+        keys != null && keys.TryGetValue(zone.Index, out int key) ? key : int.MinValue + zone.Index;
 
     // 这块地所在的那一片(本城的地块)
 #if EC_PENDING
-    public static List<TileZone> ZonesOf(City city, TileZone zone)
+    public static List<Cell> ZonesOf(City city, Cell zone)
     {
         Dictionary<int, int> keys = Keys(city);
-        if (zone == null || keys == null || keys.Count == 0) return zone == null ? new List<TileZone>() : new List<TileZone> { zone };
+        if (zone == null || keys == null || keys.Count == 0) return zone == null ? new List<Cell>() : new List<Cell> { zone };
         int key = KeyOf(city, zone, keys);
-        return city.zones.Where(other => other != null && KeyOf(city, other, keys) == key).ToList();
+        return city.Zones.Where(other => other != null && KeyOf(city, other, keys) == key).ToList();
     }
 
-    public static bool SameDistrict(City city, TileZone a, TileZone b)
+    public static bool SameDistrict(City city, Cell a, Cell b)
     {
         if (a == null || b == null) return false;
         if (a == b) return true;
@@ -105,11 +103,11 @@ public static class CityDistricts
 
     // 还有几片里有 open 的地块(守方"城中最后一片"不丢用)
 #if EC_PENDING
-    public static int Count(City city, Func<TileZone, bool> open)
+    public static int Count(City city, Func<Cell, bool> open)
     {
         Dictionary<int, int> keys = Keys(city);
         var seen = new HashSet<int>();
-        foreach (TileZone zone in city.zones)
+        foreach (Cell zone in city.Zones)
             if (zone != null && open(zone)) seen.Add(KeyOf(city, zone, keys));
         return seen.Count;
     }
@@ -117,11 +115,11 @@ public static class CityDistricts
 
     // 这个村镇那一片的地块(划归别的城用，见 SettlementAssignPower)
 #if EC_PENDING
-    public static List<TileZone> ZonesOfSettlement(City city, RuralSettlement settlement)
+    public static List<Cell> ZonesOfSettlement(City city, RuralSettlement settlement)
     {
         Dictionary<int, int> keys = Keys(city);
-        if (keys == null || settlement == null) return new List<TileZone>();
-        return city.zones.Where(zone => zone != null && keys.TryGetValue(zone.id, out int key) && key == settlement.id).ToList();
+        if (keys == null || settlement == null) return new List<Cell>();
+        return city.Zones.Where(zone => zone != null && keys.TryGetValue(zone.Index, out int key) && key == settlement.id).ToList();
     }
 #endif
 }

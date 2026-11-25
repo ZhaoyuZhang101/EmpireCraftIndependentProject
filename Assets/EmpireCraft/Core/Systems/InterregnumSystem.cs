@@ -135,7 +135,7 @@ public static class InterregnumSystem
         GentrySystem.ChooseSides(claimants.Select(claimant => claimant.realm));
         foreach ((Realm _, Empire realm) in claimants)
             realm?.recalculate();
-        EmpireWorld.Current.zone_calculator?.dirtyAndClear();
+        EmpireWorld.Current.Zones?.MarkDirty();
         string content = string.Join("", texts);
         LogService.LogInfo("[EmpireCraft][绝嗣裂土] " + content);
         foreach ((Realm seat, Empire realm) in claimants)

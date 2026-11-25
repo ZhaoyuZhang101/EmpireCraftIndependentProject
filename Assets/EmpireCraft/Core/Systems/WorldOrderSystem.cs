@@ -465,7 +465,6 @@ public static class WorldOrderSystem
 #endif
 
     // 对面阵营的国与它接壤或正在打它：入盟更急
-#if EC_PENDING
     private static bool Threatened(Empire state, BlocData candidate)
     {
         foreach (ColdWarData war in _data.cold_wars)
@@ -481,7 +480,6 @@ public static class WorldOrderSystem
         }
         return false;
     }
-#endif
 
     // 盟友来援(王国 AI 每月，帝国核心自己查；同跨文明通好的依约相助)：同阵营的国挨了阵营外的打
 #if EC_PENDING

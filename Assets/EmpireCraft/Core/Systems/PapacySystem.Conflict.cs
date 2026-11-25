@@ -1,6 +1,7 @@
 // Generated from the EmpireCraft mod: Scripts/GeneralSystems/PapacySystem.Conflict.cs. Do not edit by hand: Tools/PortTool/members.py rewrites it;
 // see Port/manifest.json and Tools/PortTool.
 using Mathf = EmpireCraft.Core.EcMath;
+using Vector2 = EmpireCraft.Core.EcVector2;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -201,7 +202,7 @@ public static partial class PapacySystem
         {
             if (member?.Record == null || member.IsGone() || member == core || member.Capital == null) continue;
             var data = member.GetOrCreate();
-            float distance = Vector2.Distance(member.Capital.city_center, seat.city_center) / 8f;
+            float distance = Vector2.Distance(member.Capital.Center, seat.Center) / 8f;
             float lean = Mathf.Clamp01(distance / PartyDistance) * 0.5f;
             if (member.GetKingdomType() == KingdomType.Feudalism_papal_state) lean += 0.6f;
             Person king = member.Ruler;

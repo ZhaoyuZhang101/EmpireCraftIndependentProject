@@ -120,7 +120,7 @@ public static partial class NomadRaidSystem
         }
         catch (Exception exception)
         {
-            LogService.LogWarning($"{LogTag} 洗劫{city?.data?.name}结算失败: {exception.Message}");
+            LogService.LogWarning($"{LogTag} 洗劫{city?.Name}结算失败: {exception.Message}");
             return true;
         }
     }

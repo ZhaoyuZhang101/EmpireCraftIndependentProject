@@ -11,17 +11,12 @@ public static class KingdomFrontLineHelper
 {
     private const float NearSideRange = 400f;
     private static int _cacheFrame = -1;
-#if EC_PENDING
-    private static readonly Dictionary<Realm, HashSet<TileZone>> _kingdomZonesCache = new();
-    private static readonly Dictionary<Realm, HashSet<TileZone>> _effectiveZonesCache = new();
-#endif
+    private static readonly Dictionary<Realm, HashSet<Cell>> _kingdomZonesCache = new();
+    private static readonly Dictionary<Realm, HashSet<Cell>> _effectiveZonesCache = new();
     private static readonly Dictionary<Realm, List<Realm>> _friendlyWarKingdomsCache = new();
-#if EC_PENDING
-    private static readonly Dictionary<Realm, HashSet<TileZone>> _occupiedZonesByKingdomCache = new();
-#endif
+    private static readonly Dictionary<Realm, HashSet<Cell>> _occupiedZonesByKingdomCache = new();
     private static bool _occupiedZonesIndexed;
 
-#if EC_PENDING
     public static void ClearCache()
     {
         _cacheFrame = -1;
@@ -43,16 +38,14 @@ public static class KingdomFrontLineHelper
         ClearCache();
         _cacheFrame = frame;
     }
-#endif
 
     /// <summary>
     /// 获取 actorKingdom 面对所有敌国的有效敌方前线 zone。
     /// </summary>
-#if EC_PENDING
-    public static List<TileZone> GetAllEnemyFrontZones(Realm actorKingdom)
+    public static List<Cell> GetAllEnemyFrontZones(Realm actorKingdom)
     {
-        List<TileZone> result = new List<TileZone>();
-        HashSet<TileZone> uniqueZones = new HashSet<TileZone>();
+        List<Cell> result = new List<Cell>();
+        HashSet<Cell> uniqueZones = new HashSet<Cell>();
 
         if (actorKingdom == null)
         {
@@ -78,9 +71,9 @@ public static class KingdomFrontLineHelper
                 continue;
             }
 
-            List<TileZone> zones = GetEnemyFrontZones(actorKingdom, enemyKingdom);
+            List<Cell> zones = GetEnemyFrontZones(actorKingdom, enemyKingdom);
 
-            foreach (TileZone zone in zones)
+            foreach (Cell zone in zones)
             {
                 if (zone == null)
                 {
@@ -96,17 +89,15 @@ public static class KingdomFrontLineHelper
 
         return result;
     }
-#endif
 
     /// <summary>
     /// 获取 enemyKingdom 面向 actorKingdom 阵营的有效前线。
     /// 如果有直接接壤前线，则返回直接接壤前线。
     /// 如果没有直接接壤，则返回敌国靠近 actorKingdom 阵营的那一侧边界。
     /// </summary>
-#if EC_PENDING
-    public static List<TileZone> GetEnemyFrontZones(Realm actorKingdom, Realm enemyKingdom)
+    public static List<Cell> GetEnemyFrontZones(Realm actorKingdom, Realm enemyKingdom)
     {
-        List<TileZone> directZones = GetDirectEnemyFrontZones(actorKingdom, enemyKingdom);
+        List<Cell> directZones = GetDirectEnemyFrontZones(actorKingdom, enemyKingdom);
 
         if (directZones.Count > 0)
         {
@@ -115,31 +106,29 @@ public static class KingdomFrontLineHelper
 
         return GetNearSideEnemyBorderZones(actorKingdom, enemyKingdom, NearSideRange);
     }
-#endif
 
     /// <summary>
     /// 获取直接接壤的敌方前线。
     /// enemyZone 属于 enemyKingdom，
     /// 并且它相邻的 zone 中存在 actorKingdom 同阵营控制区。
     /// </summary>
-#if EC_PENDING
-    public static List<TileZone> GetDirectEnemyFrontZones(Realm actorKingdom, Realm enemyKingdom)
+    public static List<Cell> GetDirectEnemyFrontZones(Realm actorKingdom, Realm enemyKingdom)
     {
-        List<TileZone> result = new List<TileZone>();
+        List<Cell> result = new List<Cell>();
 
         if (actorKingdom == null || enemyKingdom == null)
         {
             return result;
         }
 
-        HashSet<TileZone> enemyZones = GetEffectiveControlledZones(enemyKingdom);
+        HashSet<Cell> enemyZones = GetEffectiveControlledZones(enemyKingdom);
 
         if (enemyZones.Count == 0)
         {
             return result;
         }
 
-        foreach (TileZone enemyZone in enemyZones)
+        foreach (Cell enemyZone in enemyZones)
         {
             if (!IsValidZone(enemyZone))
             {
@@ -157,12 +146,12 @@ public static class KingdomFrontLineHelper
             bool touchesFriendlyControlledZone = false;
             bool touchesNonWarKingdom = false;
 
-            if (enemyZone.neighbours_all == null)
+            if (enemyZone.NeighboursAll == null)
             {
                 continue;
             }
 
-            foreach (TileZone neighbour in enemyZone.neighbours_all)
+            foreach (Cell neighbour in enemyZone.NeighboursAll)
             {
                 if (!IsValidZone(neighbour))
                 {
@@ -211,33 +200,31 @@ public static class KingdomFrontLineHelper
 
         return result;
     }
-#endif
 
     /// <summary>
     /// 不直接接壤时，获取敌国靠近 actorKingdom 同阵营的那一侧边界。
     /// 注意：这里不会使用所有友军国土，而只使用“面向该敌国的友军源头 zone”。
     /// </summary>
-#if EC_PENDING
-    public static List<TileZone> GetNearSideEnemyBorderZones(Realm actorKingdom, Realm enemyKingdom, float range)
+    public static List<Cell> GetNearSideEnemyBorderZones(Realm actorKingdom, Realm enemyKingdom, float range)
     {
-        List<TileZone> result = new List<TileZone>();
+        List<Cell> result = new List<Cell>();
 
         if (actorKingdom == null || enemyKingdom == null)
         {
             return result;
         }
 
-        HashSet<TileZone> sourceZones = GetFriendlyFrontSourceZonesFacingEnemy(actorKingdom, enemyKingdom);
-        HashSet<TileZone> enemyZones = GetEffectiveControlledZones(enemyKingdom);
+        HashSet<Cell> sourceZones = GetFriendlyFrontSourceZonesFacingEnemy(actorKingdom, enemyKingdom);
+        HashSet<Cell> enemyZones = GetEffectiveControlledZones(enemyKingdom);
 
         if (sourceZones.Count == 0 || enemyZones.Count == 0)
         {
             return result;
         }
 
-        List<TileZone> enemyBorderZones = new List<TileZone>();
+        List<Cell> enemyBorderZones = new List<Cell>();
 
-        foreach (TileZone enemyZone in enemyZones)
+        foreach (Cell enemyZone in enemyZones)
         {
             if (!IsValidZone(enemyZone))
             {
@@ -255,12 +242,12 @@ public static class KingdomFrontLineHelper
             bool isBorder = false;
             bool touchesNonWarKingdom = false;
 
-            if (enemyZone.neighbours_all == null)
+            if (enemyZone.NeighboursAll == null)
             {
                 continue;
             }
 
-            foreach (TileZone neighbour in enemyZone.neighbours_all)
+            foreach (Cell neighbour in enemyZone.NeighboursAll)
             {
                 if (!IsValidZone(neighbour))
                 {
@@ -303,13 +290,13 @@ public static class KingdomFrontLineHelper
         }
 
         float nearestDistance = float.MaxValue;
-        Dictionary<TileZone, float> bestDistances = new Dictionary<TileZone, float>(enemyBorderZones.Count);
+        Dictionary<Cell, float> bestDistances = new Dictionary<Cell, float>(enemyBorderZones.Count);
 
-        foreach (TileZone enemyBorderZone in enemyBorderZones)
+        foreach (Cell enemyBorderZone in enemyBorderZones)
         {
             float bestDistanceToSource = float.MaxValue;
 
-            foreach (TileZone sourceZone in sourceZones)
+            foreach (Cell sourceZone in sourceZones)
             {
                 float distance = GetZoneDistanceSqr(enemyBorderZone, sourceZone);
 
@@ -335,7 +322,7 @@ public static class KingdomFrontLineHelper
             return result;
         }
 
-        foreach (TileZone enemyBorderZone in enemyBorderZones)
+        foreach (Cell enemyBorderZone in enemyBorderZones)
         {
             if (bestDistances.TryGetValue(enemyBorderZone, out float bestDistanceToSource) &&
                 bestDistanceToSource <= nearestDistance + range)
@@ -346,7 +333,6 @@ public static class KingdomFrontLineHelper
 
         return result;
     }
-#endif
 
     /// <summary>
     /// 获取“面向 enemyKingdom 的友军前线源头”。
@@ -355,17 +341,16 @@ public static class KingdomFrontLineHelper
     /// 2. 与 enemyKingdom 接壤的同阵营友军 zone；
     /// 3. 已经被同阵营友军占领的 enemyKingdom zone。
     /// </summary>
-#if EC_PENDING
-    public static HashSet<TileZone> GetFriendlyFrontSourceZonesFacingEnemy(Realm actorKingdom, Realm enemyKingdom)
+    public static HashSet<Cell> GetFriendlyFrontSourceZonesFacingEnemy(Realm actorKingdom, Realm enemyKingdom)
     {
-        HashSet<TileZone> result = new HashSet<TileZone>();
+        HashSet<Cell> result = new HashSet<Cell>();
 
         if (actorKingdom == null || enemyKingdom == null)
         {
             return result;
         }
 
-        HashSet<TileZone> enemyZones = GetEffectiveControlledZones(enemyKingdom);
+        HashSet<Cell> enemyZones = GetEffectiveControlledZones(enemyKingdom);
 
         if (enemyZones.Count == 0)
         {
@@ -373,7 +358,7 @@ public static class KingdomFrontLineHelper
         }
 
         // actorKingdom 自己的国土永远作为基础方向来源
-        foreach (TileZone zone in GetEffectiveControlledZones(actorKingdom))
+        foreach (Cell zone in GetEffectiveControlledZones(actorKingdom))
         {
             if (IsValidZone(zone) && IsFriendlyControlledZone(actorKingdom, zone))
             {
@@ -389,7 +374,7 @@ public static class KingdomFrontLineHelper
                 continue;
             }
 
-            foreach (TileZone zone in GetEffectiveControlledZones(friendlyKingdom))
+            foreach (Cell zone in GetEffectiveControlledZones(friendlyKingdom))
             {
                 if (!IsValidZone(zone))
                 {
@@ -409,7 +394,7 @@ public static class KingdomFrontLineHelper
         }
 
         // 已经被任意同阵营友军占领的敌方 zone，也作为下一轮推进源头
-        foreach (TileZone enemyZone in enemyZones)
+        foreach (Cell enemyZone in enemyZones)
         {
             if (!IsValidZone(enemyZone))
             {
@@ -426,12 +411,10 @@ public static class KingdomFrontLineHelper
 
         return result;
     }
-#endif
 
     /// <summary>
     /// 获取所有同一战争阵营的友军国家，包括 actorKingdom 自己。
     /// </summary>
-#if EC_PENDING
     public static List<Realm> GetFriendlyWarKingdoms(Realm actorKingdom)
     {
         EnsureFrameCache();
@@ -468,17 +451,15 @@ public static class KingdomFrontLineHelper
         _friendlyWarKingdomsCache[actorKingdom] = result;
         return result;
     }
-#endif
 
     /// <summary>
     /// 获取所有同阵营控制区。
     /// 这个方法可以用于士兵填充、连续战线判断。
     /// 不要用它来判断“不接壤时的敌国靠近哪一侧”，否则会把远处友军国土也算进去。
     /// </summary>
-#if EC_PENDING
-    public static HashSet<TileZone> GetAllFriendlyControlledZones(Realm actorKingdom)
+    public static HashSet<Cell> GetAllFriendlyControlledZones(Realm actorKingdom)
     {
-        HashSet<TileZone> result = new HashSet<TileZone>();
+        HashSet<Cell> result = new HashSet<Cell>();
 
         if (actorKingdom == null)
         {
@@ -487,7 +468,7 @@ public static class KingdomFrontLineHelper
 
         foreach (Realm friendlyKingdom in GetFriendlyWarKingdoms(actorKingdom))
         {
-            foreach (TileZone zone in GetEffectiveControlledZones(friendlyKingdom))
+            foreach (Cell zone in GetEffectiveControlledZones(friendlyKingdom))
             {
                 if (IsValidZone(zone))
                 {
@@ -498,16 +479,14 @@ public static class KingdomFrontLineHelper
 
         return result;
     }
-#endif
 
     /// <summary>
     /// 获取某个王国全部城市 zone。
     /// </summary>
-#if EC_PENDING
-    public static HashSet<TileZone> GetKingdomZones(Realm kingdom)
+    public static HashSet<Cell> GetKingdomZones(Realm kingdom)
     {
         EnsureFrameCache();
-        HashSet<TileZone> result = new HashSet<TileZone>();
+        HashSet<Cell> result = new HashSet<Cell>();
 
         if (kingdom == null || kingdom.Cities == null)
         {
@@ -521,12 +500,12 @@ public static class KingdomFrontLineHelper
 
         foreach (City city in kingdom.Cities)
         {
-            if (city == null || city.zones == null)
+            if (city == null || city.Zones == null)
             {
                 continue;
             }
 
-            foreach (TileZone zone in city.zones)
+            foreach (Cell zone in city.Zones)
             {
                 if (IsValidZone(zone))
                 {
@@ -539,10 +518,10 @@ public static class KingdomFrontLineHelper
         return result;
     }
 
-    public static HashSet<TileZone> GetEffectiveControlledZones(Realm kingdom)
+    public static HashSet<Cell> GetEffectiveControlledZones(Realm kingdom)
     {
         EnsureFrameCache();
-        HashSet<TileZone> result = new HashSet<TileZone>();
+        HashSet<Cell> result = new HashSet<Cell>();
 
         if (kingdom == null)
         {
@@ -554,7 +533,7 @@ public static class KingdomFrontLineHelper
             return cachedResult;
         }
 
-        foreach (TileZone zone in GetKingdomZones(kingdom))
+        foreach (Cell zone in GetKingdomZones(kingdom))
         {
             if (!IsValidZone(zone))
             {
@@ -571,7 +550,7 @@ public static class KingdomFrontLineHelper
         EnsureOccupiedZoneIndex();
         if (_occupiedZonesByKingdomCache.TryGetValue(kingdom, out var occupiedZones))
         {
-            foreach (TileZone zone in occupiedZones)
+            foreach (Cell zone in occupiedZones)
             {
                 if (IsValidZone(zone))
                 {
@@ -600,12 +579,12 @@ public static class KingdomFrontLineHelper
 
         foreach (City city in EmpireWorld.Current.Cities)
         {
-            if (city == null || city.IsGone() || city.zones == null)
+            if (city == null || city.IsGone() || city.Zones == null)
             {
                 continue;
             }
 
-            foreach (TileZone zone in city.zones)
+            foreach (Cell zone in city.Zones)
             {
                 if (!IsValidZone(zone))
                 {
@@ -620,7 +599,7 @@ public static class KingdomFrontLineHelper
 
                 if (!_occupiedZonesByKingdomCache.TryGetValue(occupier, out var zones))
                 {
-                    zones = new HashSet<TileZone>();
+                    zones = new HashSet<Cell>();
                     _occupiedZonesByKingdomCache[occupier] = zones;
                 }
 
@@ -628,27 +607,25 @@ public static class KingdomFrontLineHelper
             }
         }
     }
-#endif
 
     /// <summary>
     /// 判断一个 zone 是否与指定王国接壤。
     /// </summary>
-#if EC_PENDING
-    public static bool ZoneTouchesKingdom(TileZone zone, Realm kingdom)
+    public static bool ZoneTouchesKingdom(Cell zone, Realm kingdom)
     {
         if (!IsValidZone(zone) || kingdom == null)
         {
             return false;
         }
 
-        if (zone.neighbours_all == null)
+        if (zone.NeighboursAll == null)
         {
             return false;
         }
 
-        HashSet<TileZone> controlledZones = GetEffectiveControlledZones(kingdom);
+        HashSet<Cell> controlledZones = GetEffectiveControlledZones(kingdom);
 
-        foreach (TileZone neighbour in zone.neighbours_all)
+        foreach (Cell neighbour in zone.NeighboursAll)
         {
             if (!IsValidZone(neighbour))
             {
@@ -663,40 +640,36 @@ public static class KingdomFrontLineHelper
 
         return false;
     }
-#endif
 
     /// <summary>
     /// 获取 zone 原本所属王国。
     /// </summary>
-#if EC_PENDING
-    public static Realm GetZoneKingdom(TileZone zone)
+    public static Realm GetZoneKingdom(Cell zone)
     {
-        if (zone == null || zone.city == null)
+        if (zone == null || zone.City == null)
         {
             return null;
         }
 
-        return zone.city.kingdom;
+        return zone.City.Realm;
     }
-#endif
 
     /// <summary>
     /// 获取 zone 当前占领国。
     /// </summary>
-#if EC_PENDING
-    public static Realm GetZoneOccupier(TileZone zone)
+    public static Realm GetZoneOccupier(Cell zone)
     {
-        if (zone == null || zone.city == null)
+        if (zone == null || zone.City == null)
         {
             return null;
         }
 
-        return zone.city.GetTileZoneOccupier(zone);
+        return zone.City.GetTileZoneOccupier(zone);
     }
 
-    public static Realm GetEffectiveZoneController(TileZone zone)
+    public static Realm GetEffectiveZoneController(Cell zone)
     {
-        if (zone == null || zone.city == null)
+        if (zone == null || zone.City == null)
         {
             return null;
         }
@@ -704,7 +677,7 @@ public static class KingdomFrontLineHelper
         return GetZoneOccupier(zone) ?? GetZoneKingdom(zone);
     }
 
-    public static bool IsFriendlyControlledZone(Realm actorKingdom, TileZone zone)
+    public static bool IsFriendlyControlledZone(Realm actorKingdom, Cell zone)
     {
         if (actorKingdom == null || !IsValidZone(zone))
         {
@@ -714,7 +687,6 @@ public static class KingdomFrontLineHelper
         Realm controller = GetEffectiveZoneController(zone);
         return controller != null && IsFriendlyKingdom(actorKingdom, controller);
     }
-#endif
 
     /// <summary>
     /// 判断两个王国是否属于同一战争阵营。
@@ -734,15 +706,14 @@ public static class KingdomFrontLineHelper
         return actorKingdom.IsOnSameSide(otherKingdom);
     }
 
-#if EC_PENDING
-    public static bool IsValidZone(TileZone zone)
+    public static bool IsValidZone(Cell zone)
     {
         if (zone == null)
         {
             return false;
         }
 
-        if (zone.world_edge)
+        if (zone.OnEdge)
         {
             return false;
         }
@@ -750,26 +721,25 @@ public static class KingdomFrontLineHelper
         return true;
     }
 
-    public static float GetZoneDistanceSqr(TileZone a, TileZone b)
+    public static float GetZoneDistanceSqr(Cell a, Cell b)
     {
         if (a == null || b == null)
         {
             return float.MaxValue;
         }
 
-        int dx = a.x - b.x;
-        int dy = a.y - b.y;
+        int dx = a.X - b.X;
+        int dy = a.Y - b.Y;
 
         return dx * dx + dy * dy;
     }
-#endif
 
     /// <summary>
     /// 统计 zone 内同阵营士兵数量。
     /// 用于判断某个前线 zone 是否已经被友军填满。
     /// </summary>
 #if EC_PENDING
-    public static int CountFriendlyWarriorsInZone(TileZone zone, Realm actorKingdom)
+    public static int CountFriendlyWarriorsInZone(Cell zone, Realm actorKingdom)
     {
         if (zone == null || actorKingdom == null)
         {
@@ -837,8 +807,8 @@ public static class KingdomFrontLineHelper
                 continue;
             }
 
-            List<TileZone> directZones = GetDirectEnemyFrontZones(actorKingdom, enemyKingdom);
-            List<TileZone> finalZones = GetEnemyFrontZones(actorKingdom, enemyKingdom);
+            List<Cell> directZones = GetDirectEnemyFrontZones(actorKingdom, enemyKingdom);
+            List<Cell> finalZones = GetEnemyFrontZones(actorKingdom, enemyKingdom);
 
             LogService.LogInfo(
                 "FrontLine Debug | " +
@@ -851,7 +821,7 @@ public static class KingdomFrontLineHelper
                 finalZones.Count
             );
 
-            foreach (TileZone zone in finalZones)
+            foreach (Cell zone in finalZones)
             {
                 if (zone == null)
                 {
@@ -864,36 +834,36 @@ public static class KingdomFrontLineHelper
                     "FrontZone: enemy=" +
                     enemyKingdom.Name +
                     " zone=(" +
-                    zone.x +
+                    zone.X +
                     "," +
-                    zone.y +
+                    zone.Y +
                     ") city=" +
-                    (zone.city == null ? "null" : zone.city.data.name)
+                    (zone.City == null ? "null" : zone.City.Name)
                 );
             }
         }
     }
 
-    public static void MarkDebugFrontZone(TileZone zone)
+    public static void MarkDebugFrontZone(Cell zone)
     {
         if (zone == null)
         {
             return;
         }
 
-        WorldTile tile = zone.centerTile;
+        Cell tile = zone.Center;
 
         if (tile == null)
         {
             return;
         }
 
-        if (tile.zone == null)
+        if (tile.Zone == null)
         {
             return;
         }
 
-        if (tile.zone.world_edge)
+        if (tile.Zone.OnEdge)
         {
             return;
         }
@@ -901,16 +871,16 @@ public static class KingdomFrontLineHelper
         HighlightZones(zone, Color.red);
     }
 
-    public static void HighlightZones(TileZone zone, Color pColor, float pAlpha = 0.8f)
+    public static void HighlightZones(Cell zone, Color pColor, float pAlpha = 0.8f)
     {
-        if (zone == null || zone.centerTile == null)
+        if (zone == null || zone.Center == null)
         {
             return;
         }
 
         // 纯净地图下不画一闪一闪的区块高亮
         if (EmpireCraft.Core.PureMapMode.Enabled) return;
-        ((ZoneFlash)EffectsLibrary.spawn("fx_zone_highlight", zone.centerTile, null, null, pAlpha)).start(pColor, pAlpha);
+        ((ZoneFlash)EffectsLibrary.spawn("fx_zone_highlight", zone.Center, null, null, pAlpha)).start(pColor, pAlpha);
     }
 #endif
 }

@@ -1,6 +1,7 @@
 // Generated from the EmpireCraft mod: Scripts/GeneralSystems/TransmigrantSystem.Growth.cs. Do not edit by hand: Tools/PortTool/members.py rewrites it;
 // see Port/manifest.json and Tools/PortTool.
 using Mathf = EmpireCraft.Core.EcMath;
+using Random = EmpireCraft.Core.EcRandom;
 using System.Collections.Generic;
 using System.Linq;
 
@@ -155,6 +156,7 @@ public static partial class TransmigrantSystem
         if (data != null) data.brush_capacity = Mathf.Max(0f, data.brush_capacity) + people;
         LayerCityCache.Invalidate(city);
     }
+#endif
 
     private static City Nearest(List<City> cities, City from, out int distance)
     {
@@ -172,10 +174,9 @@ public static partial class TransmigrantSystem
 
     private static int ZoneDistance(City a, City b)
     {
-        TileZone za = a?.getTile()?.zone, zb = b?.getTile()?.zone;
-        return za == null || zb == null ? int.MaxValue : Mathf.Abs(za.x - zb.x) + Mathf.Abs(za.y - zb.y);
+        Cell za = a?.SeatCell()?.Zone, zb = b?.SeatCell()?.Zone;
+        return za == null || zb == null ? int.MaxValue : Mathf.Abs(za.X - zb.X) + Mathf.Abs(za.Y - zb.Y);
     }
-#endif
 
     #endregion
 
@@ -188,7 +189,7 @@ public static partial class TransmigrantSystem
         City from = kingdom.Cities.Where(city => city?.Record != null && !city.IsGone())
             .OrderByDescending(CityPopulationSystem.CivilianBackground).FirstOrDefault();
         if (from == null || CityPopulationSystem.CivilianBackground(from) < SettleMinPeople) return;
-        TileZone zone = FrontierZone(kingdom);
+        Cell zone = FrontierZone(kingdom);
         Person founder = from.Leader ?? kingdom.Ruler;
         if (zone == null || founder == null) return;
         City city;
@@ -218,22 +219,22 @@ public static partial class TransmigrantSystem
 
     // 离本国城 SettleReach 步以内、没有城、能建城的空地，挑最近的
 #if EC_PENDING
-    private static TileZone FrontierZone(Realm kingdom)
+    private static Cell FrontierZone(Realm kingdom)
     {
-        var seen = new HashSet<TileZone>();
-        var frontier = new List<TileZone>();
+        var seen = new HashSet<Cell>();
+        var frontier = new List<Cell>();
         foreach (City city in kingdom.Cities)
-            foreach (TileZone zone in city.zones)
+            foreach (Cell zone in city.Zones)
                 if (seen.Add(zone)) frontier.Add(zone);
         for (int step = 0; step < SettleReach && frontier.Count > 0; step++)
         {
-            var next = new List<TileZone>();
-            foreach (TileZone zone in frontier)
-                foreach (TileZone neighbour in zone.neighbours_all)
+            var next = new List<Cell>();
+            foreach (Cell zone in frontier)
+                foreach (Cell neighbour in zone.NeighboursAll)
                 {
                     if (neighbour == null || !seen.Add(neighbour)) continue;
-                    if (neighbour.city == null && neighbour.tiles_with_ground >= 32 && neighbour.canStartCityHere()) return neighbour;
-                    if (neighbour.tiles_with_ground > 0 && (neighbour.city == null || neighbour.city.kingdom == kingdom)) next.Add(neighbour);
+                    if (neighbour.City == null && neighbour.GroundTiles >= 32 && neighbour.canStartCityHere()) return neighbour;
+                    if (neighbour.GroundTiles > 0 && (neighbour.City == null || neighbour.City.Realm == kingdom)) next.Add(neighbour);
                 }
             frontier = next;
         }
@@ -287,7 +288,7 @@ public static partial class TransmigrantSystem
                                                  corps.All(entry => entry.home_city_id != city.Key) &&
                                                  CorpsSystem.ManualBlocker(kingdom, city) == null &&
                                                  kingdom.GetMoney() >= CorpsSystem.ManualCost(kingdom, city) * LocalForceReserve)
-            .OrderByDescending(city => city.neighbours_cities?.Any(next => next?.kingdom != null && next.kingdom.isEnemy(kingdom)) == true)
+            .OrderByDescending(city => city.NeighbourCities?.Any(next => next?.Realm != null && next.Realm.IsEnemy(kingdom)) == true)
             .ThenByDescending(CityPopulationSystem.LevyBackground).FirstOrDefault();
         if (pick != null) CorpsSystem.RaiseManual(kingdom, pick);
     }
@@ -335,7 +336,6 @@ public static partial class TransmigrantSystem
 #endif
 
     // 船队海路(见 CommodityMarketSystem.Trade)：本国与殖民地任一城 SeaTradeReach 地块以内有城的外国
-#if EC_PENDING
     public static IEnumerable<Realm> SeaTradePartners(Realm kingdom)
     {
         if (kingdom?.Cities == null) yield break;
@@ -354,7 +354,6 @@ public static partial class TransmigrantSystem
             yield return other;
         }
     }
-#endif
 
     // 归化民：走完流程的人(见 NaturalizationSystem)，不看文化；元老不算
     public static float NaturalizedPopulation(Realm kingdom) => NaturalizationSystem.CompletedPopulation(kingdom);
@@ -451,7 +450,6 @@ public static partial class TransmigrantSystem
         kingdom != null && (kingdom == lord.CoreKingdom || kingdom.GetEmpire() == lord);
 
     // 开战闸门(见 WarGate.Forbidden)：伪装期间朝廷与各省不来开战，临高也不碰朝廷本部
-#if EC_PENDING
     public static bool DisguiseForbids(Realm attacker, Realm target)
     {
         Realm lingao = Active();
@@ -460,10 +458,8 @@ public static partial class TransmigrantSystem
         if (target == lingao && LordSide(lord, attacker)) return true;
         return attacker == lingao && target == lord.CoreKingdom;
     }
-#endif
 
     // 参战闸门(见 WarPatch.CanJoinWarSide)：伪装期间临高与某省的仗，朝廷本部和别的省都不掺和
-#if EC_PENDING
     public static bool DisguiseStaysOut(War war, Realm kingdom)
     {
         if (war == null || kingdom == null) return false;
@@ -474,7 +470,6 @@ public static partial class TransmigrantSystem
         if (attacker != lingao && defender != lingao || kingdom == attacker || kingdom == defender) return false;
         return LordSide(lord, kingdom);
     }
-#endif
 
     // 撕破脸：据有 RevealSeats 处省会(王国法理的首府)，或宣布了大宋国号，或宗主没了
 #if EC_PENDING
@@ -591,17 +586,14 @@ public static partial class TransmigrantSystem
     // 刚掷到"真死"的元老：接下来那一次死不再掷第二回(处决、刺杀先在 BiographySystem.Kill 掷过)
     private static long _doomed = -1L;
 
-#if EC_PENDING
     public static bool IsSenator(Person actor)
     {
         if (actor?.Record == null || !SenatorIds.Contains(actor.Key)) return false;
         TransmigrantState state = Of(Active());
         return state != null && SeatOf(state, actor) != null;
     }
-#endif
 
     // 原班元老在名册上的名字；继承席位的子孙和别的人都是空
-#if EC_PENDING
     public static string RosterNameOf(Person actor)
     {
         if (actor?.Record == null || !SenatorIds.Contains(actor.Key)) return "";
@@ -609,7 +601,6 @@ public static partial class TransmigrantSystem
         SenatorSeat seat = state == null ? null : SeatOf(state, actor);
         return seat != null && seat.generation <= 1 && seat.roster >= 0 && seat.roster < Roster.Count ? Roster[seat.roster].name : "";
     }
-#endif
 
     // 挡下这次死亡：寿终、化回人口(不计死亡)不挡；其余只有 KillChance 的机会真死
 #if EC_PENDING

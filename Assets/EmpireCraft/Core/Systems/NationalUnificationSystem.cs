@@ -130,19 +130,17 @@ public static class NationalUnificationSystem
     private static int Cities(Empire empire) =>
         empire.kingdoms_list?.Where(kingdom => kingdom?.Cities != null && !kingdom.IsGone()).Sum(kingdom => kingdom.Cities.Count) ?? 0;
 
-#if EC_PENDING
     private static IEnumerable<Empire> Neighbours(Empire empire)
     {
         var result = new HashSet<Empire>();
         foreach (Realm kingdom in empire.kingdoms_list.Where(kingdom => kingdom?.Cities != null && !kingdom.IsGone()))
         foreach (City city in kingdom.Cities.Where(city => city != null && !city.IsGone()))
-        foreach (City neighbour in (IEnumerable<City>)city.neighbours_cities ?? Array.Empty<City>())
+        foreach (City neighbour in (IEnumerable<City>)city.NeighbourCities ?? Array.Empty<City>())
         {
-            Empire other = neighbour?.kingdom?.GetEmpire();
+            Empire other = neighbour?.Realm?.GetEmpire();
             if (other != null && other != empire) result.Add(other);
         }
         return result;
     }
-#endif
 }
 }

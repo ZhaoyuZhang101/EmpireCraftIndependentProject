@@ -76,7 +76,7 @@ public static class KingdomColorService
         member._cached_color = null;
         member.Record.setColorID(nextId);
         member.updateColor(next);
-        EmpireWorld.Current?.zone_calculator?.dirtyAndClear();
+        EmpireWorld.Current?.Zones?.MarkDirty();
     }
 #endif
 
@@ -191,7 +191,7 @@ public static class KingdomColorService
             vassal.updateColor(next);
             changed = true;
         }
-        if (changed && redraw) EmpireWorld.Current?.zone_calculator?.dirtyAndClear();
+        if (changed && redraw) EmpireWorld.Current?.Zones?.MarkDirty();
         return changed;
     }
 #endif
@@ -250,7 +250,7 @@ public static class KingdomColorService
         kingdom.updateColor(next);
         if (kingdom.Record.original_color_id < 0 || kingdom.Record.original_color_id >= colors.Count)
             kingdom.Record.original_color_id = nextId;
-        if (changed) EmpireWorld.Current?.zone_calculator?.dirtyAndClear();
+        if (changed) EmpireWorld.Current?.Zones?.MarkDirty();
     }
 #endif
 }

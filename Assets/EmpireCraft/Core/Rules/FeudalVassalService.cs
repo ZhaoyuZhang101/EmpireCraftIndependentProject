@@ -117,12 +117,12 @@ public static class FeudalVassalService
     {
         if (lord?.Record == null || subject?.Cities == null || subject.Cities.Count == 0) return false;
         Realm top = EmpireCoreControl.Sovereign(lord) ?? lord;
-        if (subject.Capital?.getTile() is WorldTile at && top.Capital?.getTile() is WorldTile seat && !at.isSameIsland(seat)) return false;
+        if (subject.Capital?.SeatCell() is Cell at && top.Capital?.SeatCell() is Cell seat && !at.IsSameIsland(seat)) return false;
         foreach (City city in subject.Cities)
-            foreach (TileZone zone in city?.border_zones ?? new HashSet<TileZone>())
-                foreach (TileZone next in zone?.neighbours ?? Array.Empty<TileZone>())
+            foreach (Cell zone in city?.border_zones ?? new HashSet<Cell>())
+                foreach (Cell next in zone?.Neighbours ?? Array.Empty<Cell>())
                 {
-                    Realm other = next?.city?.kingdom;
+                    Realm other = next?.City?.Realm;
                     if (other?.Record == null || other == subject || other.IsGone() || IsInChain(other, subject)) continue;
                     if (other == lord || EmpireCoreControl.Sovereign(other) == top) return false;
                 }
@@ -301,10 +301,11 @@ public static class FeudalVassalService
         return subject.GetOrCreate().feudal_vassal_level == 1 &&
                (alliance == null || !alliance.kingdoms_hashset.Contains(lord));
     }
+#endif
 
     public static bool CanIncreaseControl(Realm lord, Realm subject)
     {
-        if (lord?.king?.data == null || lord.Ruler.Renown < AnnualControlCost ||
+        if (lord?.Ruler?.Record == null || lord.Ruler.Renown < AnnualControlCost ||
             GetOverlord(subject) != lord || EmpireWorld.Current == null) return false;
         var data = subject.GetOrCreate();
         return data.feudal_vassal_level is >= 1 and <= 3 &&
@@ -313,6 +314,7 @@ public static class FeudalVassalService
                 GameClock.YearsSince(data.feudal_last_control_timestamp) >= 1);
     }
 
+#if EC_PENDING
     public static bool IncreaseControl(Realm lord, Realm subject)
     {
         if (!CanIncreaseControl(lord, subject)) return false;

@@ -49,10 +49,9 @@ public static partial class SmoothBorders
     }
 
     // 地图大小对上(换图、改尺寸后头一回)
-#if EC_PENDING
     private static void EnsureUploadChunks()
     {
-        int width = EmpireWorld.width, height = EmpireWorld.height;
+        int width = EmpireWorld.Current.Width, height = EmpireWorld.Current.Height;
         if (width == _chunkMapW && height == _chunkMapH) return;
         _chunkMapW = width;
         _chunkMapH = height;
@@ -62,7 +61,6 @@ public static partial class SmoothBorders
         DirtyChunks.Clear();
         _partialSinceFull = false;
     }
-#endif
 
     private static void ClearDirtyChunks()
     {
@@ -82,7 +80,7 @@ public static partial class SmoothBorders
 
     // 画布这一帧该不该传、怎么传(DrawCanvas 末尾调；原来那段是"有改动且过了上传间隔就整张传")
 #if EC_PENDING
-    private static void CanvasUpload(ZoneCalculator calc, float now, float interval)
+    private static void CanvasUpload(ZoneGrid calc, float now, float interval)
     {
         EnsureUploadChunks();
         bool safety = _partialSinceFull && now - _fullUploadAt >= FullUploadSeconds;
@@ -108,7 +106,7 @@ public static partial class SmoothBorders
 
     // 只传脏块：每块抄进一张 64×64 的小贴图传上去，再在显卡上拷到整图的对应位置；出错返回 false(本局改回整张传)
 #if EC_PENDING
-    private static bool UploadChunks(ZoneCalculator calc)
+    private static bool UploadChunks(ZoneGrid calc)
     {
         try
         {

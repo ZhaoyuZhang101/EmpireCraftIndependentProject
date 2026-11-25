@@ -26,23 +26,23 @@ public class EmpireCraftCityBehCheckJoinRebellion: GameAICityBase
         if (loyalty > CityValueRules.GetIsolationRebellionLoyaltyThreshold(cityValue)) return BehResult.Continue;
         var initKingdom = pCity.Realm;
         var initCore = initKingdom.GetEmpire()?.CoreKingdom;
-        var target = pCity.neighbours_cities.ToList().Find(c =>
+        var target = pCity.NeighbourCities.ToList().Find(c =>
         {
             if (c.IsGone()) return false;
             if (c.isNeutral()) return false;
             if (!c.hasKingdom()) return false;
-            var targetKingdom = c.kingdom;
+            var targetKingdom = c.Realm;
             if (initKingdom == targetKingdom) return false;
-            var targetWar = targetKingdom.getWars().ToList().Find(w =>
+            var targetWar = targetKingdom.GetWars().ToList().Find(w =>
                 (w.GetEmpireWarType() == EmpireWarType.地方叛乱 || w.GetEmpireWarType() == EmpireWarType.地方独立) &&
-                w.main_attacker == targetKingdom && (w.main_defender == initKingdom || initCore != null && w.main_defender == initCore));
+                w.MainAttacker == targetKingdom && (w.MainDefender == initKingdom || initCore != null && w.MainDefender == initCore));
             if (targetWar == null) return false;
             return true;
         });
         if (target == null) return BehResult.Continue;
-        var targetKingdom = target.kingdom;
+        var targetKingdom = target.Realm;
         if (targetKingdom.countCities()>=targetKingdom.getMaxCities()*2) return BehResult.Continue;
-        pCity.JoinRealm(target.kingdom);
+        pCity.JoinRealm(target.Realm);
         return  BehResult.Continue;
     }
 #endif

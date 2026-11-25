@@ -207,14 +207,14 @@ public static partial class CompositeEmpireService
             .Where(city => Home(city) && city.Realm?.Capital != city)
             .OrderByDescending(city => city.CountLivingPopulation()).FirstOrDefault();
     }
+#endif
 
     private static string Direction(City from, City to)
     {
-        float dx = to.city_center.x - from.city_center.x, dy = to.city_center.y - from.city_center.y;
+        float dx = to.Center.x - from.Center.x, dy = to.Center.y - from.Center.y;
         if (Math.Abs(dx) > Math.Abs(dy)) return dx > 0f ? "Eastern" : "Western";
         return dy > 0f ? "Northern" : "Southern";
     }
-#endif
 
     #endregion
 }

@@ -81,18 +81,16 @@ public static class KinRoster
         OnMap(person) ? person._actor.IsMale() : person?.sex == Sex.Male;
 
     // 所在的城：地图上的看单位，虚拟族人看记下的城(城没了为空)
-#if EC_PENDING
     public static City CityOf(PersonalClanIdentity person)
     {
         if (person == null) return null;
         if (OnMap(person)) return person._actor.City;
-        City city = person.virtual_city_id > 0 ? EmpireWorld.Current?.cities?.get(person.virtual_city_id) : null;
+        City city = person.virtual_city_id > 0 ? EmpireWorld.Current?.CityByKey(person.virtual_city_id) : null;
         return city?.Record == null || city.IsGone() ? null : city;
     }
 
     public static Realm KingdomOf(PersonalClanIdentity person) =>
         OnMap(person) ? person._actor.Realm : CityOf(person)?.Realm;
-#endif
 
     // 落成：地图上的直接取单位，虚拟族人落成后再用 fitActor 复核，不合格的并回人口
 #if EC_PENDING

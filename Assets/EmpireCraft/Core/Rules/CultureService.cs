@@ -192,7 +192,7 @@ public static class CultureService
         // 主动易俗时国家文化可能已随法理先改过了(见 CultureReformSystem.Apply)，照样定夺
         else if (changed || activeReform)
             keepLegacy = LegacyInstitutionSystem.OnRealmCultureChanged(kingdom, previousInstitutionCulture, culture, activeReform);
-        bool canCreateNativeCulture = kingdom.Ruler?.city?.data != null;
+        bool canCreateNativeCulture = kingdom.Ruler?.City?.Record != null;
         Culture nativeCulture = ResolveNativeCulture(culture, kingdom.Ruler, canCreateNativeCulture);
         if (nativeCulture != null)
         {
@@ -585,7 +585,7 @@ public static class CultureService
         if (!IsValidCulture(title.data.culture))
         {
             Person founder = title.data.founder_actor_id > 0
-                ? EmpireWorld.Current?.units?.get(title.data.founder_actor_id)
+                ? EmpireWorld.Current?.PersonByKey(title.data.founder_actor_id)
                 : null;
             title.data.culture = GetActorCulture(founder);
             if (!IsValidCulture(title.data.culture))

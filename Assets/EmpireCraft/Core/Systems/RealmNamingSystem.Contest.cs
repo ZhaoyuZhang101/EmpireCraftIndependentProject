@@ -246,8 +246,8 @@ public static partial class RealmNamingSystem
                                                                          PrefixOf(other.data).Length == 0);
         City mine = empire.CoreKingdom.Capital, theirs = namesake?.CoreKingdom?.Capital;
         if (!holy && mine != null && theirs != null)
-            data.directPre = RealmNameRules.Direction4(theirs.city_center.x, theirs.city_center.y,
-                mine.city_center.x, mine.city_center.y) ?? RealmNameRules.Later;
+            data.directPre = RealmNameRules.Direction4(theirs.Center.x, theirs.Center.y,
+                mine.Center.x, mine.Center.y) ?? RealmNameRules.Later;
         else if (!holy && grandPrefix != null) data.directPre = grandPrefix;
         empire.SetEmpireName(own, preserveEmpireType: true);
         data.title_claim_own_name = data.core_name ?? "";

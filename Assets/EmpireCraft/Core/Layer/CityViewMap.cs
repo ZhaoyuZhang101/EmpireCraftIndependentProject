@@ -48,7 +48,7 @@ public static class CityViewMap
             foreach (City city in EmpireWorld.Current.Cities)
             {
                 if (!Shown(city)) continue;
-                foreach (TileZone zone in city.zones)
+                foreach (Cell zone in city.Zones)
                 {
                     EmpireCraftMetaTypeLibrary.zone_manager.drawBegin();
                     EmpireCraftMetaTypeLibrary.zone_manager.drawZoneMeta(Color, zone, false, false, false, false, Color.data, meta);
@@ -60,7 +60,7 @@ public static class CityViewMap
         {
             City hovered = tile?.zone?.city;
             if (!Shown(hovered)) return;
-            QuantumSpriteLibrary.colorZones(highlight, hovered.zones, highlight.color);
+            QuantumSpriteLibrary.colorZones(highlight, hovered.Zones, highlight.color);
         });
         asset.check_tile_has_meta = (MetaZoneTooltipAction)((zone, meta, option) => Shown(zone?.city));
         asset.check_cursor_tooltip = (zone, meta, option) => false;

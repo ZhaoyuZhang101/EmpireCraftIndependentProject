@@ -594,13 +594,11 @@ public static class ClaimTargetRules
 #endif
 
     // 割给敌国的城(割让城池)：与敌国接壤、人口最少的非都城城市
-#if EC_PENDING
     public static City CedeCity(Empire empire, Realm enemy) => empire?.cities_list?
-        .Where(city => city != null && !city.IsGone() && !city.IsCapital() && city.neighbours_cities != null &&
-                       city.neighbours_cities.Any(other => other != null && other.kingdom == enemy))
-        .OrderBy(city => city.getPopulationPeople())
+        .Where(city => city != null && !city.IsGone() && !city.IsCapital() && city.NeighbourCities != null &&
+                       city.NeighbourCities.Any(other => other != null && other.Realm == enemy))
+        .OrderBy(city => city.PopulationCount())
         .FirstOrDefault();
-#endif
 
     // 两国作主战方、眼下谈得了的那场仗(罢兵议和)：议和台用得上，不是剧本定死的仗、总体战、统一战争、内战，打满了起码的年头
 #if EC_PENDING
@@ -687,8 +685,8 @@ public static class ClaimTargetRules
 #if EC_PENDING
     public static Realm PapacyNear(Empire empire, City city)
     {
-        if (empire?.Religion == null || empire.Religion.IsGone() || city?.neighbours_cities == null) return null;
-        foreach (City other in city.neighbours_cities)
+        if (empire?.Religion == null || empire.Religion.IsGone() || city?.NeighbourCities == null) return null;
+        foreach (City other in city.NeighbourCities)
         {
             Realm kingdom = other?.Realm;
             if (kingdom != null && !kingdom.IsGone() && kingdom != city.Realm &&

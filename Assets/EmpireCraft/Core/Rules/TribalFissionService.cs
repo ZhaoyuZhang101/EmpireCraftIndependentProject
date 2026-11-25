@@ -158,13 +158,11 @@ public static class TribalFissionService
 #endif
 
     // 离共主都城多远(格)
-#if EC_PENDING
     private static float DistanceTo(Empire overlord, Realm kingdom)
     {
-        WorldTile seat = overlord?.CoreKingdom?.capital?.getTile(), there = kingdom?.capital?.getTile();
-        return seat == null || there == null ? 0f : Mathf.Sqrt(Toolbox.SquaredDistTile(seat, there));
+        Cell seat = overlord?.CoreKingdom?.Capital?.SeatCell(), there = kingdom?.Capital?.SeatCell();
+        return seat == null || there == null ? 0f : Mathf.Sqrt(Land.SquaredDist(seat, there));
     }
-#endif
 
     // 共主还收不收得下这一部(已满、太远就不收)
 #if EC_PENDING
@@ -186,7 +184,7 @@ public static class TribalFissionService
 #if EC_PENDING
     public static string OverlordName(Empire overlord)
     {
-        string name = overlord?.CoreKingdom?.data?.name;
+        string name = overlord?.CoreKingdom?.Name;
         if (string.IsNullOrWhiteSpace(name)) return overlord?.GetEmpireName() ?? "";
         int cut = name.IndexOf('\u200a');
         return cut > 0 ? name.Substring(0, cut) : name;
@@ -223,7 +221,7 @@ public static class TribalFissionService
             if (_redrawPending)
             {
                 _redrawPending = false;
-                EmpireWorld.Current?.zone_calculator?.dirtyAndClear();
+                EmpireWorld.Current?.Zones?.MarkDirty();
             }
         }
     }
@@ -234,10 +232,10 @@ public static class TribalFissionService
         {
             if (!IsTribal(mother) || mother.Capital == null || mother.Cities == null || mother.Cities.Count <= 1 ||
                 EmpireCraft.Core.AncientWarfareCompatibility.OwnsObject(mother)) continue;
-            WorldTile seat = mother.Capital.getTile();
+            Cell seat = mother.Capital.SeatCell();
             City city = mother.Cities.Where(candidate => candidate?.Record != null && !candidate.IsGone() && candidate != mother.Capital &&
                                                          !candidate.GetOrCreate().placed_by_hand)
-                .OrderByDescending(candidate => seat == null || candidate.getTile() == null ? 0f : Toolbox.SquaredDistTile(candidate.getTile(), seat))
+                .OrderByDescending(candidate => seat == null || candidate.SeatCell() == null ? 0f : Land.SquaredDist(candidate.SeatCell(), seat))
                 .FirstOrDefault();
             if (city == null) continue;
             if (!city.HasLeader()) CityPopulationSystem.EnsureLeader(city);
@@ -443,13 +441,11 @@ public static class TribalFissionService
 #endif
 
     // 两国都城相距多远(格)
-#if EC_PENDING
     private static float Distance(Realm a, Realm b)
     {
-        WorldTile here = a?.capital?.getTile(), there = b?.capital?.getTile();
-        return here == null || there == null ? 0f : Mathf.Sqrt(Toolbox.SquaredDistTile(here, there));
+        Cell here = a?.Capital?.SeatCell(), there = b?.Capital?.SeatCell();
+        return here == null || there == null ? 0f : Mathf.Sqrt(Land.SquaredDist(here, there));
     }
-#endif
 
     // 部落联合以后打赢(见 TribalWarSystem)：败者奉胜者(或胜者所共事的共主)为共主；胜者还不是部落联盟、又收得下败者才立
     // (部落联盟才是帝国，第一次收了共事的部落时才立)。败者原来的部落(联盟)撤掉，共事它的部落改奉新共主(管不过来、太远的自立)，
@@ -1082,12 +1078,10 @@ public static class TribalFissionService
     // 以前离开帝国、撤帝号、分封、脱离、放走、配色各画一遍，脱离、放走还是每部一遍，一个月整图重画好几次
     private static bool _redrawBatch, _redrawPending;
 
-#if EC_PENDING
     private static void Redraw()
     {
         if (_redrawBatch) _redrawPending = true;
-        else EmpireWorld.Current?.zone_calculator?.dirtyAndClear();
+        else EmpireWorld.Current?.Zones?.MarkDirty();
     }
-#endif
 }
 }

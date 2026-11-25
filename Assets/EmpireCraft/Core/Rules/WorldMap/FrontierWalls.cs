@@ -1,6 +1,7 @@
 // Generated from the EmpireCraft mod: Scripts/GeneralSystems/WorldMap/FrontierWalls.cs. Do not edit by hand: Tools/PortTool/members.py rewrites it;
 // see Port/manifest.json and Tools/PortTool.
 using Mathf = EmpireCraft.Core.EcMath;
+using Vector2 = EmpireCraft.Core.EcVector2;
 using System.Collections.Generic;
 using System.Linq;
 
@@ -27,10 +28,8 @@ public static class FrontierWalls
     // 一道连着的墙：各段，没接上的端头(绕墙走的地方)，外框
     public sealed class Line
     {
-#if EC_PENDING
         public readonly List<(Vector2 a, Vector2 b)> segments = new();
         public readonly List<Vector2> ends = new();
-#endif
         public float minX = float.MaxValue, minY = float.MaxValue, maxX = float.MinValue, maxY = float.MinValue;
     }
 
@@ -179,12 +178,12 @@ public static class FrontierWalls
         }
         return count;
     }
+#endif
 
     private static bool Crosses(Vector2 a, Vector2 b, Vector2 c, Vector2 d) =>
         Side(c, d, a) > 0f != Side(c, d, b) > 0f && Side(a, b, c) > 0f != Side(a, b, d) > 0f;
 
     private static float Side(Vector2 o, Vector2 p, Vector2 q) => (p.x - o.x) * (q.y - o.y) - (p.y - o.y) * (q.x - o.x);
-#endif
 
     // 点到线段的距离
 #if EC_PENDING
@@ -199,13 +198,11 @@ public static class FrontierWalls
 
     #region 进世界后
 
-#if EC_PENDING
     private static Vector2? Seat(City city)
     {
-        WorldTile tile = city?.Record == null || city.IsGone() ? null : city.getTile();
-        return tile == null ? null : new Vector2(tile.x, tile.y);
+        Cell tile = city?.Record == null || city.IsGone() ? null : city.SeatCell();
+        return tile == null ? null : new Vector2(tile.X, tile.Y);
     }
-#endif
 
     // 两城隔着长城(见 Separates)
 #if EC_PENDING
@@ -221,13 +218,13 @@ public static class FrontierWalls
 
     // 这块地在城的墙后(见 Behind)
 #if EC_PENDING
-    public static bool Behind(City city, TileZone zone)
+    public static bool Behind(City city, Cell zone)
     {
-        if (zone?.centerTile == null) return false;
+        if (zone?.Center == null) return false;
         if (PlateauSides.Differ(city, zone)) return true;
         if (!Any) return false;
         Vector2? p = Seat(city);
-        return p != null && Behind(_lines, p.Value, new Vector2(zone.centerTile.x, zone.centerTile.y));
+        return p != null && Behind(_lines, p.Value, new Vector2(zone.Center.X, zone.Center.Y));
     }
 #endif
 

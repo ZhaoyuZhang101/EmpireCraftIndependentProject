@@ -27,14 +27,12 @@ public static class ExclaveMaintenanceSystem
         public City capital;
         public City[] cities;
         public int cityCursor, zoneCursor;
-#if EC_PENDING
-        public readonly HashSet<TileZone> zones = new();
-        public readonly HashSet<TileZone> seen = new();
-        public readonly Queue<TileZone> frontier = new();
-        public readonly List<List<TileZone>> components = new();
-        public IEnumerator<TileZone> roots;
-        public List<TileZone> component;
-#endif
+        public readonly HashSet<Cell> zones = new();
+        public readonly HashSet<Cell> seen = new();
+        public readonly Queue<Cell> frontier = new();
+        public readonly List<List<Cell>> components = new();
+        public IEnumerator<Cell> roots;
+        public List<Cell> component;
     }
 
     private static readonly Dictionary<long, Audit> Audits = new();
@@ -43,7 +41,7 @@ public static class ExclaveMaintenanceSystem
 
     // 本国(连同本帝国成员)法理上的无人区
 #if EC_PENDING
-    private static bool OwnWild(TileZone zone, Realm realm) =>
+    private static bool OwnWild(Cell zone, Realm realm) =>
         WildernessSystem.IsWild(zone) && WildernessSystem.OwnerOf(zone) is Realm owner && ModRealm(owner) == realm;
 #endif
 
@@ -105,9 +103,9 @@ public static class ExclaveMaintenanceSystem
         {
             City city = work.cities[work.cityCursor];
             if (!Valid(city, work.realm)) { Audits.Remove(id); return; }
-            if (work.zoneCursor >= city.zones.Count) { work.cityCursor++; work.zoneCursor = 0; budget--; continue; }
-            TileZone zone = city.zones[work.zoneCursor++];
-            if (zone?.city == city && zone.tiles_with_ground > 0) work.zones.Add(zone);
+            if (work.zoneCursor >= city.Zones.Count) { work.cityCursor++; work.zoneCursor = 0; budget--; continue; }
+            Cell zone = city.Zones[work.zoneCursor++];
+            if (zone?.City == city && zone.GroundTiles > 0) work.zones.Add(zone);
             budget--;
         }
         if (work.cityCursor < work.cities.Length) { Pending.Enqueue(id); return; }
@@ -116,7 +114,7 @@ public static class ExclaveMaintenanceSystem
         {
             if (work.frontier.Count == 0)
             {
-                TileZone root = null;
+                Cell root = null;
                 bool exhausted = false;
                 while (budget > 0)
                 {
@@ -130,18 +128,18 @@ public static class ExclaveMaintenanceSystem
                     else Pending.Enqueue(id);
                     return;
                 }
-                work.component = new List<TileZone>();
+                work.component = new List<Cell>();
                 work.components.Add(work.component);
                 work.seen.Add(root); work.frontier.Enqueue(root);
             }
-            TileZone current = work.frontier.Dequeue();
+            Cell current = work.frontier.Dequeue();
             // 本国的无人区只用来连通
             if (work.zones.Contains(current))
             {
-                if (!Valid(current.city, work.realm)) { Audits.Remove(id); return; }
+                if (!Valid(current.City, work.realm)) { Audits.Remove(id); return; }
                 work.component.Add(current);
             }
-            foreach (TileZone next in current.neighbours ?? Array.Empty<TileZone>())
+            foreach (Cell next in current.Neighbours ?? Array.Empty<Cell>())
                 if (next != null && (work.zones.Contains(next) || OwnWild(next, work.realm)) && work.seen.Add(next))
                     work.frontier.Enqueue(next);
         }
@@ -152,25 +150,25 @@ public static class ExclaveMaintenanceSystem
     {
         // 分帧期间版图发生变化就重做，不能按旧归属扣钱或割让。
         if (work.cities.Any(city => !Valid(city, work.realm)) ||
-            work.zones.Any(zone => !Valid(zone.city, work.realm) || !zone.city.zones.Contains(zone)) ||
-            work.cities.Sum(city => city.zones.Count(zone => zone?.city == city && zone.tiles_with_ground > 0)) != work.zones.Count)
+            work.zones.Any(zone => !Valid(zone.City, work.realm) || !zone.City.Zones.Contains(zone)) ||
+            work.cities.Sum(city => city.Zones.Count(zone => zone?.City == city && zone.GroundTiles > 0)) != work.zones.Count)
             return;
-        List<TileZone> home = work.components.FirstOrDefault(part => part.Contains(work.capital.getTile()?.zone));
+        List<Cell> home = work.components.FirstOrDefault(part => part.Contains(work.capital.SeatCell()?.Zone));
         if (home == null) return;
         var remote = work.components.Where(part => part != home).ToList();
-        var membership = new Dictionary<TileZone, int>();
+        var membership = new Dictionary<Cell, int>();
         for (int i = 0; i < work.components.Count; i++)
-            foreach (TileZone zone in work.components[i]) membership[zone] = i;
+            foreach (Cell zone in work.components[i]) membership[zone] = i;
         // 两片在扫描期间新接通时取消旧快照，避免把已经接回本土的城市送走。
-        foreach (TileZone zone in work.zones)
-            foreach (TileZone next in zone.neighbours ?? Array.Empty<TileZone>())
+        foreach (Cell zone in work.zones)
+            foreach (Cell next in zone.Neighbours ?? Array.Empty<Cell>())
                 if (next != null && membership.TryGetValue(next, out int group) && group != membership[zone]) return;
         // 陆上飞地整片自立；正统崩坏的帝国隔海的也放弃(见文件头)
-        WorldTile seat = work.capital.getTile();
+        Cell seat = work.capital.SeatCell();
         Empire empire = work.realm.IsEmpire() ? work.realm.GetEmpire() : null;
         bool faltering = empire?.data != null && !empire.IsGone() && !empire.IsArchived() && empire.Legitimacy < FalterLegitimacy;
-        foreach (List<TileZone> part in remote.Where(part => faltering || seat != null && part.FirstOrDefault()?.centerTile is WorldTile at &&
-                                                              at.isSameIsland(seat)).ToList())
+        foreach (List<Cell> part in remote.Where(part => faltering || seat != null && part.FirstOrDefault()?.Center is Cell at &&
+                                                              at.IsSameIsland(seat)).ToList())
             if (Secede(work, part)) remote.Remove(part);
         if (faltering) ReleaseDistantMembers(empire, work.realm);
         var state0 = work.realm.GetOrCreate().exclave_maintenance ??= new ExclaveMaintenanceData();
@@ -203,20 +201,20 @@ public static class ExclaveMaintenanceSystem
             if (Secede(work, pair.part)) { state.weak_years = 0; break; }
     }
 
-    private static int Cost(Audit work, List<TileZone> part)
+    private static int Cost(Audit work, List<Cell> part)
     {
-        var home = work.capital.getTile();
+        var home = work.capital.SeatCell();
         double households = 0d, distance = 0d;
         bool overseas = false;
-        foreach (var grouping in part.GroupBy(zone => zone.city))
+        foreach (var grouping in part.GroupBy(zone => zone.City))
         {
             City city = grouping.Key;
-            households += CityPopulationSystem.Households(city) * (double)grouping.Count() / Math.Max(1, city.zones.Count);
-            WorldTile tile = grouping.First().centerTile;
+            households += CityPopulationSystem.Households(city) * (double)grouping.Count() / Math.Max(1, city.Zones.Count);
+            Cell tile = grouping.First().Center;
             if (tile == null) continue;
-            distance = Math.Max(distance, Math.Sqrt((double)(tile.x - home.x) * (tile.x - home.x) +
-                                                   (double)(tile.y - home.y) * (tile.y - home.y)));
-            overseas |= !tile.isSameIsland(home);
+            distance = Math.Max(distance, Math.Sqrt((double)(tile.X - home.X) * (tile.X - home.X) +
+                                                   (double)(tile.Y - home.Y) * (tile.Y - home.Y)));
+            overseas |= !tile.IsSameIsland(home);
         }
         return ExclaveMaintenanceRules.AnnualCost(part.Count, households, distance, overseas);
     }
@@ -269,31 +267,31 @@ public static class ExclaveMaintenanceSystem
         LogService.LogInfo($"[EmpireCraft][正统崩坏] {empire.GetEmpireName()}(正统{empire.Legitimacy}) 法理之外、鞭长莫及的成员自立：" +
                            string.Join("、", gone.Select(member => member.GetKingdomName())));
     }
+#endif
 
     private static bool Front(City city, Realm realm)
     {
         if (!city.Realm.HasEnemies() && !realm.HasEnemies()) return false;
-        foreach (City next in (IEnumerable<City>)city.neighbours_cities ?? Array.Empty<City>())
+        foreach (City next in (IEnumerable<City>)city.NeighbourCities ?? Array.Empty<City>())
             if (next?.Realm != null && !next.IsGone() && (next.Realm.IsAtWarWith(city.Realm) || next.Realm.IsAtWarWith(realm)))
                 return true;
         return false;
     }
-#endif
 
     // 一片飞地整片自立：整个在这片里的成员国连国离开帝国，其余的城按原属国各自由当地首领立国；返回是否走了
 #if EC_PENDING
-    private static bool Secede(Audit work, List<TileZone> part)
+    private static bool Secede(Audit work, List<Cell> part)
     {
-        var zones = new HashSet<TileZone>(part);
-        var cities = part.Select(zone => zone.city).Where(city => city != null).Distinct().ToList();
+        var zones = new HashSet<Cell>(part);
+        var cities = part.Select(zone => zone.City).Where(city => city != null).Distinct().ToList();
         if (cities.Count == 0) return false;
         // 神力拉入未满期的成员不走(见 MembershipCooldown)；挨着敌国(前线上)、被占领的今年不动；城的地跨了几片的不动。
         // 以前只要在打仗就不动，帝国常年有仗，远方的飞地就年年留着(用户 2026-10-27 截图拜占庭远在东方的行省)
         if (cities.Any(city => !Valid(city, work.realm) || city == work.realm.Capital || Front(city, work.realm) ||
-                               city.GetOrCreate().OccupiedStatus.Count > 0 || MembershipCooldown.ManualJoinActive(city.kingdom) ||
-                               city.zones.Any(zone => zone.tiles_with_ground > 0 && !zones.Contains(zone)))) return false;
+                               city.GetOrCreate().OccupiedStatus.Count > 0 || MembershipCooldown.ManualJoinActive(city.Realm) ||
+                               city.Zones.Any(zone => zone.GroundTiles > 0 && !zones.Contains(zone)))) return false;
         var gone = new List<string>();
-        foreach (var group in cities.GroupBy(city => city.kingdom).ToList())
+        foreach (var group in cities.GroupBy(city => city.Realm).ToList())
         {
             Realm owner = group.Key;
             var held = new HashSet<City>(group);
@@ -309,13 +307,13 @@ public static class ExclaveMaintenanceSystem
             }
             // 原属国的都城在这片里、别处还有城：都城不动，其余的走
             List<City> cluster = group.Where(city => city != owner.Capital)
-                .OrderByDescending(city => city.CountLivingPopulation()).ThenBy(city => city.id).ToList();
+                .OrderByDescending(city => city.CountLivingPopulation()).ThenBy(city => city.Key).ToList();
             if (cluster.Count == 0) continue;
             Realm local = AdministrativeControlSystem.ReleaseToLocal(work.realm, cluster, _ => "independent", out _);
             if (local != null) gone.Add(local.GetKingdomName());
         }
         if (gone.Count == 0) return false;
-        string names = string.Join("、", cities.Select(city => city.data.name));
+        string names = string.Join("、", cities.Select(city => city.Name));
         EventRecorder.Record(work.realm.GetEmpire(), logKingdom: work.realm, text: string.Format(
             LM.Get("exclave_independence_history"), work.realm.GetKingdomName(), names, string.Join("、", gone)));
         LogService.LogInfo($"[EmpireCraft][飞地独立] {work.realm.GetKingdomName()} 的飞地 {names} 自立为 {string.Join("、", gone)}");

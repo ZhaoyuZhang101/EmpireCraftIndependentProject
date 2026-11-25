@@ -63,7 +63,7 @@ public static class LayerDiagnostics
     private static void TickCore()
     {
         EmpireWorld world = EmpireWorld.Current;
-        if (!PureMapMode.Enabled && !SmoothBorders.Enabled || world?.zone_calculator?.zones == null || !GameClock.Running ||
+        if (!PureMapMode.Enabled && !SmoothBorders.Enabled || world?.Zones?.All == null || !GameClock.Running ||
             SmoothLoader.isLoading()) return;
         if (!ReferenceEquals(_world, world))
         {
@@ -90,10 +90,10 @@ public static class LayerDiagnostics
             OutlineExamples.Clear();
             StaleExamples.Clear();
         }
-        ZoneCalculator calc = world.zone_calculator;
+        ZoneGrid calc = world.Zones;
         Color32[] pixels = calc.pixels;
         MetaTypeAsset layer = world.getCachedMapMetaAsset();
-        List<TileZone> zones = calc.zones;
+        List<Cell> zones = calc.All;
         if (pixels == null || layer == null)
         {
             _cursor = -1;
@@ -133,7 +133,7 @@ public static class LayerDiagnostics
     }
 
 #if EC_PENDING
-    private static IMetaObject MetaOf(MetaTypeAsset layer, TileZone zone)
+    private static IMetaObject MetaOf(MetaTypeAsset layer, Cell zone)
     {
         if (zone == null) return null;
         try
@@ -149,40 +149,40 @@ public static class LayerDiagnostics
 
     private static string Hex(Color32 color) => $"#{color.r:X2}{color.g:X2}{color.b:X2}/{color.a}";
 
-    private static void Check(TileZone zone, Color32[] pixels, MetaTypeAsset layer, ZoneCalculator calc)
+    private static void Check(Cell zone, Color32[] pixels, MetaTypeAsset layer, ZoneGrid calc)
     {
-        if (zone?.tiles == null) return;
+        if (zone?.Tiles == null) return;
         CheckStale(zone, pixels, layer);
         if (!PureMapMode.Enabled) return;
         IMetaObject meta = MetaOf(layer, zone);
-        WorldTile waterHit = null, landHit = null, outlineHit = null;
-        foreach (WorldTile tile in zone.tiles)
+        Cell waterHit = null, landHit = null, outlineHit = null;
+        foreach (Cell tile in zone.Tiles)
         {
-            int id = tile?.data?.tile_id ?? -1;
+            int id = tile?.Index ?? -1;
             if (id < 0 || id >= pixels.Length || pixels[id].a == 0 || tile.Type == null) continue;
-            bool water = tile.Type.ocean || tile.Type.liquid && !tile.Type.lava;
-            if (water && zone.city == null) waterHit ??= tile;
-            else if (!water && zone.city == null && meta == null) landHit ??= tile;
+            bool water = tile.Type.Ocean || tile.Type.Liquid && !tile.Type.Lava;
+            if (water && zone.City == null) waterHit ??= tile;
+            else if (!water && zone.City == null && meta == null) landHit ??= tile;
             if (!water && SmoothBorders.IsOutline(id)) outlineHit ??= tile;
         }
         if (waterHit != null && _water++ < Examples) WaterExamples.Add(Example(zone, waterHit, pixels, meta));
         if (landHit != null && _land++ < Examples) LandExamples.Add(Example(zone, landHit, pixels, meta));
         // 逐格判残留(这一格记为边框，四邻陆地格的归属都同它一样)：真的国界、占领、逐格推进、悬停的省界都不算
-        WorldTile stale = null;
+        Cell stale = null;
         if (outlineHit != null)
-            foreach (WorldTile tile in zone.tiles)
+            foreach (Cell tile in zone.Tiles)
                 if (SmoothBorders.StaleOutline(tile)) { stale = tile; break; }
         if (stale == null)
         {
             // 干净了：以后再出残留照样修
-            RepairedOnce.Remove(zone.id);
-            GaveUp.Remove(zone.id);
+            RepairedOnce.Remove(zone.Index);
+            GaveUp.Remove(zone.Index);
             return;
         }
-        if (GaveUp.Contains(zone.id)) return;
-        if (!RepairedOnce.Add(zone.id))
+        if (GaveUp.Contains(zone.Index)) return;
+        if (!RepairedOnce.Add(zone.Index))
         {
-            GaveUp.Add(zone.id);
+            GaveUp.Add(zone.Index);
             if (_outline++ < Examples) OutlineExamples.Add(Example(zone, stale, pixels, meta) + "(修过仍在，不再修)");
             return;
         }
@@ -190,26 +190,26 @@ public static class LayerDiagnostics
         _repaired++;
     }
 
-    private static void CheckStale(TileZone zone, Color32[] pixels, MetaTypeAsset layer)
+    private static void CheckStale(Cell zone, Color32[] pixels, MetaTypeAsset layer)
     {
         if (!SmoothBorders.StaleOwner(layer, zone, pixels, out string detail))
         {
-            StaleSeen.Remove(zone.id);
+            StaleSeen.Remove(zone.Index);
             return;
         }
-        if (StaleSeen.Add(zone.id)) return;
+        if (StaleSeen.Add(zone.Index)) return;
         // 是排着队没轮到(上色预算)，还是原版根本没来重画(重画指纹漏了的变动)：两种的修法不一样
         string note = EmpireCraft.Core.ZonePaintBudget.WaitNote(zone);
         if (note.Contains("没在排队")) _staleUnqueued++;
-        if (_stale++ < Examples) StaleExamples.Add($"块{zone.id}({zone.x},{zone.y}) 城{zone.city?.name ?? "无"} {detail}{note}");
+        if (_stale++ < Examples) StaleExamples.Add($"块{zone.Index}({zone.X},{zone.Y}) 城{zone.City?.Name ?? "无"} {detail}{note}");
     }
 
-    private static string Example(TileZone zone, WorldTile tile, Color32[] pixels, IMetaObject meta)
+    private static string Example(Cell zone, Cell tile, Color32[] pixels, IMetaObject meta)
     {
-        int id = tile.data.tile_id;
+        int id = tile.Index;
         string owner = meta is Realm kingdom ? kingdom.Name : meta is City city ? city.Name : meta?.GetType().Name ?? "无";
-        return $"块{zone.id}({zone.x},{zone.y}) 格({tile.x},{tile.y}) {tile.Type.id} 色{Hex(pixels[id])} 城{zone.city?.name ?? "无"} " +
-               $"图层归属 {owner}；{SmoothBorders.Describe(id, zone.id)}";
+        return $"块{zone.Index}({zone.X},{zone.Y}) 格({tile.X},{tile.Y}) {tile.Type.Id} 色{Hex(pixels[id])} 城{zone.City?.Name ?? "无"} " +
+               $"图层归属 {owner}；{SmoothBorders.Describe(id, zone.Index)}";
     }
 #endif
 }

@@ -101,10 +101,8 @@ public static partial class ShuiTuSystem
     private static bool Valid(Realm kingdom) => kingdom?.Record != null && !kingdom.IsGone() && !kingdom.IsWild &&
                                                   !AncientWarfareCompatibility.Owns(kingdom);
 
-#if EC_PENDING
-    private static bool Valid(City city) => city?.Record != null && !city.IsGone() && city.zones != null && Valid(city.Realm) &&
+    private static bool Valid(City city) => city?.Record != null && !city.IsGone() && city.Zones != null && Valid(city.Realm) &&
                                             !AncientWarfareCompatibility.OwnsObject(city);
-#endif
 
     private static int YearsSince(double at) =>
         at < 0d || EmpireWorld.Current == null || GameClock.Now < at ? 0 : GameClock.YearsSince(at);
@@ -248,14 +246,12 @@ public static partial class ShuiTuSystem
 #endif
 
     // 本朝故土：城在统治它的帝国自己的帝国法理里(本来的或兼属的，见 DeJureShareSystem.CoresOf)
-#if EC_PENDING
     public static bool Homeland(Realm unit, City city)
     {
-        Empire empire = unit?.GetEmpire() ?? city?.kingdom?.GetEmpire();
+        Empire empire = unit?.GetEmpire() ?? city?.Realm?.GetEmpire();
         EmpireCore core = empire == null || empire.IsGone() || empire.IsArchived() ? null : EmpireCoreManager.Get(empire);
         return core != null && city?.Record != null && DeJureShareSystem.CoresOf(city).Contains(core);
     }
-#endif
 
     // 读档时一次(按国家记 jimi_homeland_checked)：以前不服水土交出去的羁縻地区，城都在宗主帝国自己的法理里、
     // 按文化种族本该直辖的，改回直辖的州郡(不准外交、科举任命)。神力指定的、后来新设的羁縻不动(见 JimiSystem.Cycle、
@@ -301,13 +297,13 @@ public static partial class ShuiTuSystem
 
     private static DryEntry Dry(City city)
     {
-        if (city?.Record == null || city.zones == null || EmpireWorld.Current == null) return default;
+        if (city?.Record == null || city.Zones == null || EmpireWorld.Current == null) return default;
         double now = GameClock.Now;
-        int zones = city.zones.Count;
+        int zones = city.Zones.Count;
         if (DryCache.TryGetValue(city.Key, out DryEntry hit) && now >= hit.At && GameClock.YearsSince(hit.At) < CityDryYears &&
             Math.Abs(zones - hit.Zones) * 5 <= hit.Zones) return hit;
         int land = 0, dry = 0;
-        foreach (TileZone zone in city.zones)
+        foreach (Cell zone in city.Zones)
         {
             (int l, int d) = TerrainSystem.DryCounts(zone);
             land += l;

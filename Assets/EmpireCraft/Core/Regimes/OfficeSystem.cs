@@ -74,7 +74,7 @@ public static class OfficeManager
     public static void RemoveAndRetire(long pOfficeID)
     {
         if (!Offices.TryGetValue(pOfficeID, out OfficeObject office)) return;
-        Person holder = office == null || office.actor_id < 0 ? null : EmpireWorld.Current?.units?.get(office.actor_id);
+        Person holder = office == null || office.actor_id < 0 ? null : EmpireWorld.Current?.PersonByKey(office.actor_id);
         if (holder?.Record != null && !holder.IsGone() && holder.GetOrCreate().OfficeId == pOfficeID)
         {
             holder.EndOffice();
@@ -396,11 +396,11 @@ public class OfficeObject
         actor_id = actor.Key;
         timestamp = GameClock.Now;
         var empireName = "";
-        if (actor?.kingdom?.IsInEmpire() ?? false)
+        if (actor?.Realm?.IsInEmpire() ?? false)
         {
-            if (actor?.kingdom?.GetEmpire()!=null)
+            if (actor?.Realm?.GetEmpire()!=null)
             {
-                empireName = actor?.kingdom?.GetEmpire().GetEmpireName()+" | ";
+                empireName = actor?.Realm?.GetEmpire().GetEmpireName()+" | ";
             }
         }
         var personalId = actor.GetPersonalIdentity();
@@ -432,7 +432,7 @@ public class OfficeObject
                 personalId?.SetOfficeName(GetName(kingdom));
                 kingdom.SetRuler(actor); 
                 actor.JoinCity(kingdom.Capital);
-                if (kingdom?.capital?._city_tile != null)
+                if (kingdom?.Capital?._city_tile != null)
                 {
                     actor.goTo(kingdom.Capital._city_tile);
                 }

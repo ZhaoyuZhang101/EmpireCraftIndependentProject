@@ -40,15 +40,13 @@ public static partial class FrontSystem
     // 各国本月的登陆战线：城 id → 陆路走不走得通(见 Sector.Overland)；分派时更新，行军时据此判要不要坐船(见 MustSail)
     private static readonly Dictionary<long, Dictionary<long, bool>> LandingWays = new();
     // 这次分派里各军上船的地方(见 CorpsSystem.EmbarkZone)，没有为空；每次分派开头清空
-#if EC_PENDING
-    private static readonly Dictionary<long, TileZone> EmbarkPoints = new();
+    private static readonly Dictionary<long, Cell> EmbarkPoints = new();
 
     private static void ResetLandings()
     {
         LandingWays.Clear();
         EmbarkPoints.Clear();
     }
-#endif
 
     // 记下本国这个月的登陆战线
     private static void NoteLandingWays(Realm kingdom, List<Sector> sectors)
@@ -64,7 +62,7 @@ public static partial class FrontSystem
 
     // 行军(见 CorpsSystem.StepTowardTarget)：去打登陆战线、已在那座城那片陆地上的军，要不要先去港口坐船
 #if EC_PENDING
-    public static bool MustSail(CorpsData corps, TileZone current, TileZone target)
+    public static bool MustSail(CorpsData corps, Cell current, Cell target)
     {
         if (corps == null || corps.embarked || corps.task != "attack" || current == null || target == null) return false;
         if (!LandingWays.TryGetValue(corps.kingdom_id, out Dictionary<long, bool> cities) ||
@@ -78,10 +76,10 @@ public static partial class FrontSystem
 
     // 已在登陆那座城那片陆地上的军还要不要坐船：陆路走不通(隔着第三国)、还没上岸的坐；走得通的走陆路
 #if EC_PENDING
-    private static bool SailsAround(CorpsData corps, TileZone at, City city, bool overland)
+    private static bool SailsAround(CorpsData corps, Cell at, City city, bool overland)
     {
         if (overland) return false;
-        TileZone goal = city.getTile()?.zone;
+        Cell goal = city.SeatCell()?.Zone;
         return goal != null && !Landed(corps, at, goal, corps.task == "attack" && corps.sector_city_id == city.Key);
     }
 #endif
@@ -89,12 +87,12 @@ public static partial class FrontSystem
     // 上了岸：离城心不过 LandedZones 块；或这一仗(beach：军正打着这座城)坐船在那片陆地上靠了岸(见 CorpsSystem.Disembark，
     // 改派别的城时清掉，见 ForgetBeach)、还在这片陆地上——上岸后往城下走，路上绕山绕墙也不再回头坐船
 #if EC_PENDING
-    private static bool Landed(CorpsData corps, TileZone at, TileZone goal, bool beach)
+    private static bool Landed(CorpsData corps, Cell at, Cell goal, bool beach)
     {
         if (at == null || goal == null) return false;
         if (CorpsSystem.ZoneDistance(at, goal) <= LandedZones) return true;
         if (!beach) return false;
-        TileZone shore = CorpsSystem.ZoneById(corps.landing_zone_id);
+        Cell shore = CorpsSystem.ZoneById(corps.landing_zone_id);
         return shore != null && !SeaRegionSystem.IsSea(shore) && CorpsSystem.SameLand(shore, goal) && CorpsSystem.SameLand(shore, at);
     }
 #endif
@@ -107,9 +105,9 @@ public static partial class FrontSystem
 
     // 上船的地方(按这次分派缓存)
 #if EC_PENDING
-    private static TileZone EmbarkPoint(Realm kingdom, CorpsData corps)
+    private static Cell EmbarkPoint(Realm kingdom, CorpsData corps)
     {
-        if (EmbarkPoints.TryGetValue(corps.id, out TileZone zone)) return zone;
+        if (EmbarkPoints.TryGetValue(corps.id, out Cell zone)) return zone;
         zone = CorpsSystem.EmbarkZone(kingdom, corps);
         EmbarkPoints[corps.id] = zone;
         return zone;
@@ -214,7 +212,7 @@ public static partial class FrontSystem
         {
             if (assigned.Contains(corps) || corps.militia || CorpsArmSystem.Flies(corps) || Ashore(corps, sector)) continue;
             needShip = true;
-            TileZone port = EmbarkPoint(kingdom, corps);
+            Cell port = EmbarkPoint(kingdom, corps);
             if (port == null) continue;
             hasPort = true;
             float distance = CorpsSystem.ZoneDistance(CorpsSystem.Zone(corps), port);
@@ -260,7 +258,7 @@ public static partial class FrontSystem
         attackOn[sector] = strength + corps.strength;
         corps.task = "attack";
         corps.sector_city_id = sector.City.Key;
-        corps.target_zone_id = Spread(corps, sector.Targets, attackLoad)?.id ?? HomeZone(corps);
+        corps.target_zone_id = Spread(corps, sector.Targets, attackLoad)?.Index ?? HomeZone(corps);
         corps.entrench = 0f;
         assigned.Add(corps);
     }

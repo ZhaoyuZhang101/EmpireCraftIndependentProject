@@ -61,7 +61,7 @@ public static class EmperorTourSystem
 
     // 皇帝出行在外时所在的地块(在宫里返回 null，标记画在城上)
 #if EC_PENDING
-    public static TileZone Away(Empire empire) =>
+    public static Cell Away(Empire empire) =>
         empire?.data == null || string.IsNullOrEmpty(empire.data.tour_kind) ? null : CorpsSystem.ZoneById(empire.data.tour_zone);
 #endif
 
@@ -70,24 +70,26 @@ public static class EmperorTourSystem
 #if EC_PENDING
     public static Vector3? DrawPosition(Empire empire)
     {
-        TileZone zone = Away(empire);
-        if (zone?.centerTile == null) return null;
-        Vector3 here = zone.centerTile.posV;
+        Cell zone = Away(empire);
+        if (zone?.Center == null) return null;
+        Vector3 here = zone.Center.PosV;
         long id = empire.data.id;
-        if (!Paths.TryGetValue(id, out var cached) || cached.path == null || cached.path.Count < 2 || cached.path[0] != zone.id)
+        if (!Paths.TryGetValue(id, out var cached) || cached.path == null || cached.path.Count < 2 || cached.path[0] != zone.Index)
             return here;
-        TileZone next = CorpsSystem.ZoneById(cached.path[1]);
-        if (next?.centerTile == null) return here;
+        Cell next = CorpsSystem.ZoneById(cached.path[1]);
+        if (next?.Center == null) return here;
         Progress.TryGetValue(id, out float progress);
-        return Vector3.Lerp(here, next.centerTile.posV, Mathf.Clamp01(progress));
+        return Vector3.Lerp(here, next.Center.PosV, Mathf.Clamp01(progress));
     }
+#endif
 
     public static City Home(Empire empire)
     {
         Person emperor = empire?.Emperor;
-        return emperor?.city?.data != null && !emperor.City.IsGone() ? emperor.City : empire?.CoreKingdom?.Capital;
+        return emperor?.City?.Record != null && !emperor.City.IsGone() ? emperor.City : empire?.CoreKingdom?.Capital;
     }
 
+#if EC_PENDING
     private static void Update(Empire empire, bool month, bool second, double now)
     {
         var data = empire?.data;
@@ -99,7 +101,7 @@ public static class EmperorTourSystem
             return;
         }
         if (!string.IsNullOrEmpty(data.tour_kind) && data.tour_emperor != emperor.Key) Clear(empire, false);
-        TileZone home = Home(empire)?.getTile()?.zone;
+        Cell home = Home(empire)?.SeatCell()?.Zone;
         if (home == null) return;
         if (string.IsNullOrEmpty(data.tour_kind))
         {
@@ -110,7 +112,7 @@ public static class EmperorTourSystem
         if (second) Move(empire, home, now);
     }
 
-    private static void TryDepart(Empire empire, Person emperor, TileZone home)
+    private static void TryDepart(Empire empire, Person emperor, Cell home)
     {
         var data = empire.data;
         if (RealisticAgeSystem.IsMinor(emperor) || data.tour_last >= 0d && GameClock.YearsSince(data.tour_last) < CooldownYears) return;
@@ -139,7 +141,7 @@ public static class EmperorTourSystem
         float roll = EcRandom.value;
         if (roll < TourChance * mood)
         {
-            City city = core.Cities?.Where(item => item?.Record != null && !item.IsGone() && item.getTile()?.zone is { } zone &&
+            City city = core.Cities?.Where(item => item?.Record != null && !item.IsGone() && item.SeatCell()?.Zone is { } zone &&
                                                    zone != home && CorpsSystem.ZoneDistance(zone, home) <= TourMaxZones &&
                                                    CorpsSystem.SameLand(zone, home)).ToList() is { Count: > 0 } cities
                 ? cities[EcRandom.Range(0, cities.Count)]
@@ -151,7 +153,7 @@ public static class EmperorTourSystem
         else if (roll < (TourChance + VisitChance) * mood)
         {
             List<Realm> members = EmpireWorld.Current.LiveRealms.Where(kingdom => kingdom?.Record != null && !kingdom.IsGone() &&
-                kingdom != core && kingdom.GetEmpire() == empire && kingdom.Capital?.getTile()?.zone is { } zone &&
+                kingdom != core && kingdom.GetEmpire() == empire && kingdom.Capital?.SeatCell()?.Zone is { } zone &&
                 CorpsSystem.SameLand(zone, home)).ToList();
             if (members.Count == 0) return;
             Realm host = members[EcRandom.Range(0, members.Count)];
@@ -159,12 +161,13 @@ public static class EmperorTourSystem
             Record(empire, emperor, "emperor_visit_history", host.Name);
         }
     }
+#endif
 
-    private static void Start(Empire empire, Person emperor, TileZone home, string kind, long city, long corps)
+    private static void Start(Empire empire, Person emperor, Cell home, string kind, long city, long corps)
     {
         var data = empire.data;
         data.tour_kind = kind;
-        data.tour_zone = home.id;
+        data.tour_zone = home.Index;
         data.tour_city = city;
         data.tour_corps = corps;
         data.tour_since = GameClock.Now;
@@ -175,6 +178,7 @@ public static class EmperorTourSystem
         Progress.Remove(empire.data.id);
     }
 
+#if EC_PENDING
     private static void Record(Empire empire, Person emperor, string key, string where)
     {
         string text = string.Format(LM.Get(key), emperor.FullName(), where);
@@ -200,20 +204,20 @@ public static class EmperorTourSystem
         if (data.tour_arrived >= 0d && GameClock.MonthsSince(data.tour_arrived) >= stay) data.tour_returning = true;
     }
 
-    private static TileZone Target(Empire empire, TileZone home)
+    private static Cell Target(Empire empire, Cell home)
     {
         var data = empire.data;
         if (data.tour_returning) return home;
         if (data.tour_kind == Campaign) return CorpsSystem.Zone(CorpsSystem.Find(empire.CoreKingdom, data.tour_corps));
         City city = EmpireWorld.Current.CityByKey(data.tour_city);
-        return city?.Record != null && !city.IsGone() ? city.getTile()?.zone : null;
+        return city?.Record != null && !city.IsGone() ? city.SeatCell()?.Zone : null;
     }
 
-    private static void Move(Empire empire, TileZone home, double now)
+    private static void Move(Empire empire, Cell home, double now)
     {
         var data = empire.data;
-        TileZone current = CorpsSystem.ZoneById(data.tour_zone) ?? home;
-        TileZone target = Target(empire, home);
+        Cell current = CorpsSystem.ZoneById(data.tour_zone) ?? home;
+        Cell target = Target(empire, home);
         if (target == null)
         {
             data.tour_returning = true;
@@ -231,20 +235,20 @@ public static class EmperorTourSystem
         while (progress >= 1f && current != target)
         {
             progress -= 1f;
-            TileZone next = Step(id, current, target);
+            Cell next = Step(id, current, target);
             if (next == null) break;
             current = next;
         }
         Progress[id] = Mathf.Min(progress, 1f);
-        data.tour_zone = current.id;
+        data.tour_zone = current.Index;
     }
 
-    private static TileZone Step(long id, TileZone current, TileZone target)
+    private static Cell Step(long id, Cell current, Cell target)
     {
-        if (!Paths.TryGetValue(id, out var cached) || cached.target != target.id || cached.path == null ||
-            cached.path.Count < 2 || cached.path[0] != current.id)
+        if (!Paths.TryGetValue(id, out var cached) || cached.target != target.Index || cached.path == null ||
+            cached.path.Count < 2 || cached.path[0] != current.Index)
         {
-            cached = (target.id, CorpsSystem.PathFor(current, target));
+            cached = (target.Index, CorpsSystem.PathFor(current, target));
             Paths[id] = cached;
         }
         // 找不到路(隔海等)：直接到

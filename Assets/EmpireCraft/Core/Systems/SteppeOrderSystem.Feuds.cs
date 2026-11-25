@@ -81,12 +81,10 @@ public static partial class SteppeOrderSystem
     }
 
     // 争的城：守方挨着攻方的非都城，至多两座，小的在前
-#if EC_PENDING
     private static List<City> Contested(Realm attacker, Realm defender) =>
         defender.Cities.Where(city => city?.Record != null && !city.IsGone() && city != defender.Capital &&
-                                      city.neighbours_cities?.Any(other => other?.kingdom == attacker) == true)
-            .OrderBy(city => city.zones?.Count ?? 0).ThenBy(city => city.id).Take(FeudMaxCities).ToList();
-#endif
+                                      city.NeighbourCities?.Any(other => other?.Realm == attacker) == true)
+            .OrderBy(city => city.Zones?.Count ?? 0).ThenBy(city => city.Key).Take(FeudMaxCities).ToList();
 
     // 每年(NomadRaidSystem 算完草原压力后调用)
 #if EC_PENDING
@@ -112,16 +110,16 @@ public static partial class SteppeOrderSystem
             }
         }
     }
+#endif
 
     private static List<Realm> Neighbours(Realm kingdom)
     {
         var result = new List<Realm>();
         foreach (City city in kingdom.Cities)
-            foreach (Realm next in city?.neighbours_kingdoms ?? new HashSet<Realm>())
+            foreach (Realm next in city?.NeighbourRealms ?? new HashSet<Realm>())
                 if (next != null && next != kingdom && !result.Contains(next)) result.Add(next);
         return result;
     }
-#endif
 
     // 劫掠被打退后反目的部与盟主打一场(见 NomadRaidSystem.Hero)：不掷机会、不看强弱与冷却
 #if EC_PENDING
@@ -225,8 +223,8 @@ public static partial class SteppeOrderSystem
                     continue;
                 }
                 if (city.Realm == attacker) taken.Add(city.GetCityName());
-                else if (city.Realm == defender && city.zones?.Count > 0 &&
-                         city.GetOccupiedTileZoneCount(attacker) >= city.zones.Count * FeudHeldShare)
+                else if (city.Realm == defender && city.Zones?.Count > 0 &&
+                         city.GetOccupiedTileZoneCount(attacker) >= city.Zones.Count * FeudHeldShare)
                 {
                     WarGoalSystem.QueueCession(city, attacker);
                     taken.Add(city.GetCityName());

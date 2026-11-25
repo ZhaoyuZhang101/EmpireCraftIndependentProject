@@ -204,13 +204,13 @@ public static class PuppetStateSystem
         if (puppet?.Record == null) return;
         KingdomExtension.KingdomExtraData data = puppet.GetOrCreate();
         if (data.puppet_master_id < 0) return;
-        Realm master = EmpireWorld.Current?.kingdoms?.get(data.puppet_master_id);
+        Realm master = EmpireWorld.Current?.RealmByKey(data.puppet_master_id);
         data.puppet_master_id = -1L;
         data.puppet_since = -1d;
         data.regime_manually_selected = false;
         VassalColorService.Clear(puppet);
         if (puppet.IsGone() || string.IsNullOrEmpty(historyKey)) return;
-        string text = string.Format(LM.Get(historyKey), puppet.GetKingdomName(), master?.data?.name ?? LM.Get("label_none"));
+        string text = string.Format(LM.Get(historyKey), puppet.GetKingdomName(), master?.Name ?? LM.Get("label_none"));
         EventRecorder.Record(puppet, text);
         TranslateHelper.LogEventOnly(text, puppet);
     }

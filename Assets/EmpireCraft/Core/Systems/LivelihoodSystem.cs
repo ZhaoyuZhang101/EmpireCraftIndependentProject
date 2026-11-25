@@ -102,14 +102,14 @@ public static class LivelihoodSystem
         for (int dx = -Radius; dx <= Radius; dx++)
         {
             if (dx * dx + dy * dy > Radius * Radius) continue;
-            WorldTile tile = EmpireWorld.Current?.GetTile(settlement.x + dx, settlement.y + dy);
-            TileTypeBase type = tile?.Type;
+            Cell tile = EmpireWorld.Current?.CellAt(settlement.x + dx, settlement.y + dy);
+            TerrainKind type = tile?.Type;
             if (type == null) continue;
             int kinds = LandKinds.Of(type);
             // 海面(连同冰面)算渔场；岩浆不算水也不算地
             if ((kinds & LandKinds.Water) != 0)
             {
-                if (type.ocean) sea++;
+                if (type.Ocean) sea++;
                 continue;
             }
             if ((kinds & LandKinds.Lava) != 0) continue;
@@ -194,7 +194,6 @@ public static class LivelihoodSystem
 #endif
 
     // 本城已定了生计的镇村里，产粮(农、渔)的份数占几成；还没有的算零
-#if EC_PENDING
     private static float FoodShare(City city, RuralSettlement except)
     {
         if (city == null) return 1f;
@@ -215,7 +214,6 @@ public static class LivelihoodSystem
             if (other != except && !other.fort && other.trade == trade) return true;
         return false;
     }
-#endif
 
     // ---- 本城各生计的份数与产出 ----
 
@@ -261,7 +259,6 @@ public static class LivelihoodSystem
 
     // 定生计时用：只数已定了这一行的。Equivalent 走 Of，会当场给还没定生计的镇村定生计，定生计又问到这里，
     // 无限递归把主线程的栈撑爆，开局必闪退
-#if EC_PENDING
     private static float AssignedEquivalent(City city, int trade, RuralSettlement except)
     {
         float shares = 0f;
@@ -270,7 +267,6 @@ public static class LivelihoodSystem
                 shares += RuralSettlementSystem.Weight(other);
         return shares * PerShare;
     }
-#endif
 
     // 矿、林的产出倍数(代替原来各座矿场、伐木场的等级倍数之和，见 IndustryBuildingSystem.OutputFactor)
 #if EC_PENDING
