@@ -95,7 +95,7 @@ namespace Orbis
                     var world=view.world.FlatSource;
                     m.SetVector(MapNames[i],new Vector4(tile.x/world.Width,tile.y/scroll.MapHeight,0,0));
                 }
-                m.SetFloat("_ScrollCloudSource",1);return true;
+                if(!view||m!=view.CloudMaterial)m.SetFloat("_ScrollCloudSource",1);return true;
             }
             m.SetFloat("_LocalCloudMap",0);m.SetFloat("_MarkleyMap",0);if(!atlas)return false;
             Plane plane=new Plane(atlas.transform.forward,atlas.transform.position);

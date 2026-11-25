@@ -170,8 +170,12 @@ float2 ScrollClimateDensitiesMip(float3 p,bool simpleMode,float pixelFootprint,f
     baseS=lerp(baseS,.68+.32*baseS,cdoEff*.28);
     worleyMeso=lerp(worleyMeso,.66+.34*worleyMeso,cdoEff*.26);
     float scOvercastS=(1.0-smoothstep(.08,.18,convection))*smoothstep(.48,.78,coverage)*(1.0-cdoSmooth);
-    baseS=max(baseS,.64*scOvercastS);
-    worleyMeso=max(worleyMeso,.66*scOvercastS);
+    // Conservative bound for open-cell / wake / trade-Cu rings whose bright walls use 1 - (body.b, body.g):
+    // prevents simpleMode probe from missing thin ring rims and punching cookie-cutter holes in top-down views.
+    float openCellS=(1.0-smoothstep(.18,.48,convection))*(1.0-cdoSmooth)*(1.0-scOvercastS);
+    float openWallS=smoothstep(.30,.68,1.0-(body.b*.76+body.g*.24))*openCellS;
+    baseS=max(baseS,max(.64*scOvercastS,.68*openWallS));
+    worleyMeso=max(worleyMeso,max(.66*scOvercastS,.70*openWallS));
     erosion=float4(.68,.68,.44,.44);
     float covActive=smoothstep(.04,.20,coverage);
     shape=saturate((baseS-(1.0-worleyMeso)*.16*(1.0-.36*cdoEff))/.84+coverage*.06+.12*smoothstep(.06,.52,coverage)+.07*covActive);
@@ -214,7 +218,9 @@ float2 ScrollClimateDensitiesMip(float3 p,bool simpleMode,float pixelFootprint,f
     shape=saturate((basePW-(1.0-worleyMeso)*.18*(1.0-.36*cdoEff))/.82+coverage*.06+mistCohesion);
 
     float covBound=.16+.84*saturate(coverage+.16);
-    if(pow(shape,.58)>.86-covBound||coverage>.52||inMidBand)
+    // Marine Sc / open-wake / trade-Cu regimes (convection < 0.52) sculpt shape via targetPattern, so do not
+    // early-cull them on raw pre-sculpt shape (which caused hard cookie-cutter cliffs at coverage <= 0.52).
+    if(pow(shape,.58)>.86-covBound||coverage>.52||(convection<.52&&coverage>.06)||inMidBand)
     {
      float detailFade=1.0-smoothstep(2.2,3.8,detailMip);
      float4 eroNeutral=float4(.60,.60,.50,.50);

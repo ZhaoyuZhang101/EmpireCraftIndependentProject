@@ -81,7 +81,9 @@ namespace Orbis.Flat
             maps.Sky.Bind(View.SurfaceMaterial,sun,clouds,shadows,atmosphere,night,false,false,true,0);
             var m=View.CloudMaterial;
             bool weatherReady=maps.Sky.Ready;
+            m.SetFloat("_LayeredWeather",0);
             m.SetFloat("_ScrollCloudSource",weatherReady?1:0);
+            if(!weatherReady)m.SetFloat("_Clouds",0);
             m.SetFloat("_CloudShellTop",OrbisAtmosphereProfile.CloudTop);
             m.SetTexture("_ScrollWeatherTex",maps.Sky.Texture);
             m.SetTexture("_ScrollCloudWindTex",maps.Sky.DynamicWind?maps.Sky.DynamicWind:Texture2D.blackTexture);
