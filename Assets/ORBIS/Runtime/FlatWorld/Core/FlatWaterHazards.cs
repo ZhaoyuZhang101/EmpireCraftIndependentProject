@@ -132,6 +132,9 @@ namespace Orbis.Flat
 
         double appliedRuptureFraction;
         int peakInundatedDryCells;
+        double currentForcingStrength;
+        double peakForcingStrength;
+        bool hadSignificantStormForcing;
 
         FlatWaterHazardSession(
             FlatHazardKind kind, bool liveWeatherDriven,
@@ -177,6 +180,23 @@ namespace Orbis.Flat
             get
             {
                 double t = Solver.Elapsed;
+                if (LiveWeatherDriven && Kind != FlatHazardKind.Tsunami)
+                {
+                    const double maxLiveSeconds = 7200.0;
+                    if (t >= maxLiveSeconds) return FlatHazardPhase.Complete;
+                    int curDry = CountInundatedDryCells();
+                    if (hadSignificantStormForcing && currentForcingStrength < 0.03)
+                    {
+                        if (t >= 120.0 && curDry <= 2)
+                            return FlatHazardPhase.Complete;
+                        return FlatHazardPhase.Receding;
+                    }
+                    if (!hadSignificantStormForcing && currentForcingStrength <= 0.02)
+                        return t <= 1e-6 ? FlatHazardPhase.Idle : FlatHazardPhase.Advancing;
+                    if (currentForcingStrength >= 0.42 || (peakInundatedDryCells >= 12 && curDry >= (int)(peakInundatedDryCells * 0.85)))
+                        return FlatHazardPhase.Peak;
+                    return currentForcingStrength < peakForcingStrength * 0.65 ? FlatHazardPhase.Receding : FlatHazardPhase.Advancing;
+                }
                 if (t <= 1e-6) return FlatHazardPhase.Advancing;
                 if (t >= DurationSeconds) return FlatHazardPhase.Complete;
                 double u = t / DurationSeconds;
@@ -198,15 +218,38 @@ namespace Orbis.Flat
             if (preferredTile >= 0 && preferredTile < world.Count)
             {
                 int px = preferredTile % w, py = preferredTile / w;
+                if (kind != FlatHazardKind.RainFlood &&
+                    !FlatTerrainAnalysis.Ocean(world.Water[preferredTile]) &&
+                    world.CoastDistance[preferredTile] <= 2 &&
+                    world.Elevation[preferredTile] <= 95 &&
+                    py >= 2 && py < h - 2)
+                {
+                    int seaNear = 0;
+                    for (int sy = -2; sy <= 2; sy++)
+                    for (int sx = -2; sx <= 2; sx++)
+                    {
+                        int ky = py + sy;
+                        if (ky >= 0 && ky < h && FlatTerrainAnalysis.Ocean(world.Water[world.Index(px + sx, ky)]))
+                            seaNear++;
+                    }
+                    if (seaNear >= 2)
+                    {
+                        int x0 = FMath.Wrap(px - half, w);
+                        int y0 = FMath.Clamp(py - half, 0, Math.Max(0, h - spanTiles));
+                        return (x0, y0, preferredTile);
+                    }
+                }
+
+                int localRadius = Math.Max(1, Math.Min(3, w / 256));
                 int bestLocalTile = -1;
                 double bestLocalScore = -1.0;
-                for (int dy = -6; dy <= 6; dy++)
-                for (int dx = -6; dx <= 6; dx++)
+                for (int dy = -localRadius; dy <= localRadius; dy++)
+                for (int dx = -localRadius; dx <= localRadius; dx++)
                 {
                     int ty = py + dy;
                     if (ty < 2 || ty >= h - 2) continue;
                     int tile = world.Index(px + dx, ty);
-                    double s = ScoreTile(world, tile, kind, -1) - 0.02 * (dx * dx + dy * dy);
+                    double s = ScoreTile(world, tile, kind, -1) - 0.08 * (dx * dx + dy * dy);
                     if (s > bestLocalScore) { bestLocalScore = s; bestLocalTile = tile; }
                 }
                 if (bestLocalTile >= 0 && bestLocalScore > 0.25)
@@ -214,6 +257,41 @@ namespace Orbis.Flat
                     int x0 = FMath.Wrap((bestLocalTile % w) - half, w);
                     int y0 = FMath.Clamp((bestLocalTile / w) - half, 0, Math.Max(0, h - spanTiles));
                     return (x0, y0, bestLocalTile);
+                }
+
+                // If caller explicitly targeted a rugged coastline (e.g. coarse-DEM Fujian ria coast) that missed
+                // the global plain heuristic, anchor to the lowest coastal tile in that immediate neighborhood
+                // rather than jumping thousands of kilometres to a different continent.
+                if (kind != FlatHazardKind.RainFlood)
+                {
+                    int fallbackRadius = Math.Max(2, localRadius);
+                    int fallbackCoast = -1;
+                    double fallbackScore = -1e9;
+                    for (int dy = -fallbackRadius; dy <= fallbackRadius; dy++)
+                    for (int dx = -fallbackRadius; dx <= fallbackRadius; dx++)
+                    {
+                        int ty = py + dy;
+                        if (ty < 2 || ty >= h - 2) continue;
+                        int tile = world.Index(px + dx, ty);
+                        if (FlatTerrainAnalysis.Ocean(world.Water[tile]) || world.CoastDistance[tile] > 2) continue;
+                        int seaNb = 0;
+                        for (int sy = -2; sy <= 2; sy++)
+                        for (int sx = -2; sx <= 2; sx++)
+                        {
+                            int ky = ty + sy;
+                            if (ky >= 0 && ky < h && FlatTerrainAnalysis.Ocean(world.Water[world.Index(px + dx + sx, ky)]))
+                                seaNb++;
+                        }
+                        if (seaNb < 2) continue;
+                        double s = 10.0 - Math.Max(0, (int)world.Elevation[tile]) * 0.015 + seaNb * 0.25 - 0.35 * (dx * dx + dy * dy);
+                        if (s > fallbackScore) { fallbackScore = s; fallbackCoast = tile; }
+                    }
+                    if (fallbackCoast >= 0)
+                    {
+                        int x0 = FMath.Wrap((fallbackCoast % w) - half, w);
+                        int y0 = FMath.Clamp((fallbackCoast / w) - half, 0, Math.Max(0, h - spanTiles));
+                        return (x0, y0, fallbackCoast);
+                    }
                 }
             }
 
@@ -552,7 +630,7 @@ namespace Orbis.Flat
                     {
                         landSumX += sx; landSumY += sy; landCount++;
                         double inland = Math.Max(0.0, -sd);
-                        double landH = LocalCoastalLandHeight(rawElev, rawHand, inland);
+                        double landH = LocalCoastalLandHeight(rawElev, rawHand, inland, liveWeatherDriven && kind == FlatHazardKind.TyphoonSurge);
                         if (nearPerchedLake && sd > -1.25f)
                             landH = Math.Max(landH, perchedStage + 0.20 + inland * 0.25);
                         if (isChannel)
@@ -651,7 +729,17 @@ namespace Orbis.Flat
                 dirX, dirY, spin, rainScale, dischargeScale);
 
             if (applyInitialForcing)
-                session.UpdateForcing(0.0, default);
+            {
+                FlatCycloneTrack initialCyclone = default;
+                if (liveWeatherDriven && world.Cyclones != null)
+                {
+                    bool northHemi = world.Latitude(focusTile) >= 0f;
+                    initialCyclone = world.Cyclones.Sample(northHemi, world.Day);
+                    if (!initialCyclone.Tracked)
+                        initialCyclone = world.Cyclones.Sample(!northHemi, world.Day);
+                }
+                session.UpdateForcing(0.0, initialCyclone);
+            }
             return session;
         }
 
@@ -703,13 +791,19 @@ namespace Orbis.Flat
             return 0.16 + plain + hill + Math.Min(2.2, inland * 0.32);
         }
 
-        static double LocalCoastalLandHeight(float rawElev, float rawHand, double inland)
+        static double LocalCoastalLandHeight(float rawElev, float rawHand, double inland, bool riaForeshoreTaper = false)
         {
             double posElev = Math.Max(0.0, rawElev);
             double posHand = Math.Max(0.0, rawHand);
             double relief = 0.62 * posElev + 0.38 * posHand;
             double plain = 2.05 * (relief / (relief + 46.0));
             double hill = relief > 65.0 ? Math.Min(42.0, (relief - 65.0) * 0.090) : 0.0;
+            if (riaForeshoreTaper && relief > 65.0)
+            {
+                double foreshore = Smooth01(inland / 0.65);
+                plain *= 0.22 + 0.78 * foreshore;
+                hill *= foreshore * foreshore;
+            }
             double shoreRise = Math.Min(2.6, inland * (0.26 + 0.34 * (relief / (relief + 40.0))));
             return 0.15 + plain + hill + shoreRise;
         }
@@ -952,10 +1046,13 @@ namespace Orbis.Flat
             return delta;
         }
 
-        public void Step(double dtSimSeconds, FlatCycloneTrack liveCyclone = default, int maxSubsteps = 24)
+        public void Step(double dtSimSeconds, FlatCycloneTrack liveCyclone = default, int maxSubsteps = 24) =>
+            Step(dtSimSeconds, liveCyclone, maxSubsteps, externalSurfaceRainKgM2Per6h: -1.0);
+
+        public void Step(double dtSimSeconds, FlatCycloneTrack liveCyclone, int maxSubsteps, double externalSurfaceRainKgM2Per6h)
         {
             if (dtSimSeconds <= 0) return;
-            UpdateForcing(Solver.Elapsed + 0.5 * dtSimSeconds, liveCyclone);
+            UpdateForcing(Solver.Elapsed + 0.5 * dtSimSeconds, liveCyclone, externalSurfaceRainKgM2Per6h);
 
             // Coseismic fault rupture occurs over the first 6 seconds of tsunami simulation time.
             if (Kind == FlatHazardKind.Tsunami && tsunamiTargetDeltaBed != null && appliedRuptureFraction < 1.0)
@@ -977,10 +1074,19 @@ namespace Orbis.Flat
             if (curInundated > peakInundatedDryCells) peakInundatedDryCells = curInundated;
         }
 
-        public void UpdateForcing(double tSeconds, FlatCycloneTrack liveCyclone)
+        public void UpdateForcing(double tSeconds, FlatCycloneTrack liveCyclone) =>
+            UpdateForcing(tSeconds, liveCyclone, externalSurfaceRainKgM2Per6h: -1.0);
+
+        public void UpdateForcing(double tSeconds, FlatCycloneTrack liveCyclone, double externalSurfaceRainKgM2Per6h)
         {
             Solver.ClearForcing();
             double u = DurationSeconds > 0 ? tSeconds / DurationSeconds : 1.0;
+
+            if (LiveWeatherDriven && Kind != FlatHazardKind.Tsunami)
+            {
+                UpdateLiveWeatherForcing(liveCyclone, externalSurfaceRainKgM2Per6h);
+                return;
+            }
 
             if (Kind == FlatHazardKind.RainFlood)
             {
@@ -1102,6 +1208,153 @@ namespace Orbis.Flat
                             Solver.InfiltrationRate[i] = 0.00055 * landRetention[i];
                 }
             }
+        }
+
+        void UpdateLiveWeatherForcing(FlatCycloneTrack liveCyclone, double externalSurfaceRainKgM2Per6h)
+        {
+            double extRainMmPerHour = externalSurfaceRainKgM2Per6h > 0.0 ? externalSurfaceRainKgM2Per6h / 6.0 : 0.0;
+
+            if (Kind == FlatHazardKind.RainFlood)
+            {
+                double uCenter = FlatScrollMath.Wrap((PatchX + SpanTiles * 0.5) / WorldWidth, 1.0);
+                double vCenter = FMath.Clamp((float)((PatchY + SpanTiles * 0.5) / WorldHeight), 0.001f, 0.999f);
+                var cycCenter = FlatCycloneWeather.SampleSurfaceWindFromTrack(in liveCyclone, hemisphereSpin, uCenter, vCenter);
+                double rainMmPerHour = Math.Max(cycCenter.RainRateMmPerHour, extRainMmPerHour);
+                double excessMmH = Math.Max(0.0, rainMmPerHour - 3.5);
+                double stormStrength = FMath.Clamp((float)(excessMmH / 32.0), 0f, 1.5f);
+                currentForcingStrength = stormStrength;
+                if (stormStrength > peakForcingStrength) peakForcingStrength = stormStrength;
+                if (stormStrength >= 0.12) hadSignificantStormForcing = true;
+
+                if (stormStrength > 1e-3)
+                {
+                    double rainMs = 0.0014 * baseRainScale * stormStrength;
+                    for (int i = 0; i < Solver.Count; i++)
+                    {
+                        if (isCatchmentSlope[i]) Solver.RainRate[i] = rainMs;
+                        else if (!Solver.InitiallyWet[i] && Solver.Bed[i] < 3.8) Solver.RainRate[i] = rainMs * 0.35;
+                    }
+                    if (upstreamEntryCells.Length > 0)
+                    {
+                        double perCellInflowMs = (0.064 * baseRiverDischargeScale * stormStrength) / Math.Max(1.0, Math.Sqrt(upstreamEntryCells.Length));
+                        foreach (int c in upstreamEntryCells)
+                            Solver.ChannelInflowRate[c] = perCellInflowMs;
+                    }
+                }
+                else
+                {
+                    for (int i = 0; i < Solver.Count; i++)
+                        if (!Solver.InitiallyWet[i] && Solver.Depth[i] > 0.0)
+                            Solver.InfiltrationRate[i] = 0.00085 * landRetention[i];
+                }
+                return;
+            }
+
+            // LiveWeatherDriven TyphoonSurge:
+            // Strictly driven by real cyclone position, tangential/inflow wind stress, inverse-barometer pressure deficit,
+            // onshore continental-shelf wind setup, and dimensional rainfall/runoff. Zero storm => zero tide & zero water injection.
+            double maxPatchWindMs = 0.0;
+            double maxPatchDeficitHpa = 0.0;
+            double sumLandRainMmH = 0.0;
+            int landCells = 0;
+
+            // Map the 64x64 coastal SWE domain onto a resolution-independent 96 km x 96 km physical shelf/bay window
+            // centered on the anchored coastal FocusTile, so offshore cyclones 500+ km out at sea do not falsely
+            // inject eyewall surge before approaching the continental shelf.
+            const double baySpanKm = 96.0;
+            const double shelfLengthOverGh = 112000.0 / (FlatShallowWater.Gravity * 15.5); // ~737 s^2/m
+            double onshoreDirX = -seawardDirX, onshoreDirY = -seawardDirY;
+
+            double uFocus = FlatScrollMath.Wrap(((FocusTile % WorldWidth) + 0.5) / WorldWidth, 1.0);
+            double vFocus = FMath.Clamp((float)(((FocusTile / WorldWidth) + 0.5) / WorldHeight), 0.001f, 0.999f);
+            double cosFocus = Math.Max(0.15, Math.Cos((vFocus - 0.5) * Math.PI));
+            double invLonKm = 1.0 / (40030.2 * cosFocus);
+            const double invLatKm = 1.0 / 20015.1;
+            var focusSample = FlatCycloneWeather.SampleSurfaceWindFromTrack(in liveCyclone, hemisphereSpin, uFocus, vFocus);
+
+            for (int sy = 0; sy < Resolution; sy++)
+            {
+                double dyKm = ((sy + 0.5) / Resolution - 0.5) * baySpanKm;
+                double vCell = FMath.Clamp((float)(vFocus + dyKm * invLatKm), 0.001f, 0.999f);
+                int row = sy * Resolution;
+                for (int sx = 0; sx < Resolution; sx++)
+                {
+                    int i = row + sx;
+                    double dxKm = ((sx + 0.5) / Resolution - 0.5) * baySpanKm;
+                    double uCell = FlatScrollMath.Wrap(uFocus + dxKm * invLonKm, 1.0);
+
+                    var sample = FlatCycloneWeather.SampleSurfaceWindFromTrack(in liveCyclone, hemisphereSpin, uCell, vCell);
+                    double localRainMmH = sample.RainRateMmPerHour;
+                    if (extRainMmPerHour > 3.5 && (sample.Active || extRainMmPerHour > 6.5))
+                        localRainMmH = Math.Max(localRainMmH, extRainMmPerHour);
+
+                    if (sample.Active)
+                    {
+                        if (sample.TangentialSpeedMs > maxPatchWindMs) maxPatchWindMs = sample.TangentialSpeedMs;
+                        if (sample.PressureDeficitHpa > maxPatchDeficitHpa) maxPatchDeficitHpa = sample.PressureDeficitHpa;
+
+                        Solver.PressureHead[i] = FlatShallowWater.InverseBarometerMeters(sample.PressureDeficitHpa);
+                        FlatShallowWater.ComputeWindStress(sample.EastMs, sample.NorthMs, out double tauX, out double tauY);
+                        double tauMag = Math.Sqrt(tauX * tauX + tauY * tauY);
+                        // Direct onshore wind stress + Coriolis-Ekman 90-deg right (NH) / left (SH) coastal transport + wave radiation setup:
+                        double tauDirectOnshore = tauX * onshoreDirX + tauY * onshoreDirY;
+                        double tauEkmanOnshore = -hemisphereSpin * (tauY * seawardDirX - tauX * seawardDirY);
+                        double tauOnshoreEff = Math.Max(0.0, tauDirectOnshore + 0.62 * tauEkmanOnshore) + 0.28 * tauMag;
+
+                        Solver.WindStressX[i] = tauX * 5.5 + onshoreDirX * tauOnshoreEff * 4.8;
+                        Solver.WindStressY[i] = tauY * 5.5 + onshoreDirY * tauOnshoreEff * 4.8;
+
+                        bool perim = sx == 0 || sx == Resolution - 1 || sy == 0 || sy == Resolution - 1;
+                        if (perim && isMarineCell[i])
+                        {
+                            double shelfGate = focusSample.Active
+                                ? Math.Exp(-Math.Pow(Math.Max(0.0, focusSample.RadiusKm - 75.0) / 260.0, 2.0))
+                                : 0.0;
+                            double shelfSetup = Math.Min(3.40, tauOnshoreEff * shelfLengthOverGh * shelfGate);
+                            double bcSurge = Solver.PressureHead[i] + shelfSetup;
+                            Solver.SetOpenBoundary(i, true, Solver.RestSurface[i] + bcSurge);
+                        }
+                    }
+                    else
+                    {
+                        bool perim = sx == 0 || sx == Resolution - 1 || sy == 0 || sy == Resolution - 1;
+                        if (perim && isMarineCell[i])
+                            Solver.SetOpenBoundary(i, true, Solver.RestSurface[i]);
+                    }
+
+                    if (!isMarineCell[i])
+                    {
+                        landCells++;
+                        if (localRainMmH > 2.5 && Solver.Bed[i] < 16.0)
+                        {
+                            double rainStrength = Math.Min(1.6, (localRainMmH - 2.0) / 34.0);
+                            Solver.RainRate[i] = 0.00125 * baseRainScale * rainStrength;
+                            sumLandRainMmH += localRainMmH;
+                        }
+                        else if (!Solver.InitiallyWet[i] && Solver.Depth[i] > 0.0)
+                        {
+                            // Unsaturated coastal soil infiltration drains ponded surge/rain water once rainband departs.
+                            Solver.InfiltrationRate[i] = 0.00080 * landRetention[i];
+                        }
+                    }
+                }
+            }
+
+            double meanLandRainMmH = landCells > 0 ? sumLandRainMmH / landCells : 0.0;
+            if (meanLandRainMmH > 1.5 && upstreamEntryCells.Length > 0)
+            {
+                double runoffStrength = Math.Min(1.6, meanLandRainMmH / 28.0);
+                double chanRate = (0.052 * baseRiverDischargeScale * runoffStrength) / Math.Max(1.0, Math.Sqrt(upstreamEntryCells.Length));
+                foreach (int c in upstreamEntryCells)
+                    Solver.ChannelInflowRate[c] = chanRate;
+            }
+
+            double windNorm = maxPatchWindMs / 38.0;
+            double dpNorm = maxPatchDeficitHpa / 36.0;
+            double rainNorm = meanLandRainMmH / 26.0;
+            currentForcingStrength = Math.Max(Math.Max(windNorm * windNorm, dpNorm), rainNorm);
+            if (currentForcingStrength > peakForcingStrength) peakForcingStrength = currentForcingStrength;
+            if (currentForcingStrength >= 0.12) hadSignificantStormForcing = true;
         }
 
         public int CountInundatedDryCells(double threshold = FlatShallowWater.VisibleFloodThreshold)

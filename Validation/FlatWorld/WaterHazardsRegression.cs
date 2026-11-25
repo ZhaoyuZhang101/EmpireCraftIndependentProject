@@ -50,8 +50,12 @@ public static class WaterHazardsRegression
         // 5. Independent triggers (Typhoon vs Tsunami), live weather detection & save-format byte identity
         TestIndependentTriggersLiveWeatherAndSave(worldContinents, report);
 
+        // 6. Reproducible Earth storm scenarios (EastChinaSea -> Mainland China & NorthAtlantic -> Mainland North America)
+        //    coupled end-to-end with real-time cyclone position/intensity/rainfall 64x64 SWE (pre-landfall -> peak -> recession, no-storm rest)
+        TestReproducibleEarthStormScenariosAndLiveSwe(resFolder, report);
+
         string summary = string.Format(inv,
-            "PASS WaterHazardsRegression: {0} assertions passed (hydrostatic rest, levee non-breach, tsunami sqrt(g*h), 3 scenarios advance/recede, mass ledger, live weather & save compatibility).",
+            "PASS WaterHazardsRegression: {0} assertions passed (hydrostatic rest, levee non-breach, tsunami sqrt(g*h), 3 scenarios advance/recede, ECS & North Atlantic real-time storm surge/flood coupling, mass ledger & save compatibility).",
             assertions);
         report.AppendLine(summary);
         Console.Write(report.ToString());
@@ -476,5 +480,215 @@ public static class WaterHazardsRegression
         log.AppendLine(string.Format(CultureInfo.InvariantCulture,
             "PASS [5] Independent triggers, live cyclone coupling & save byte-identity verified; 64x64 10Hz worker tick median={0:F3} ms (p95={1:F3} ms)",
             tickTimes[12], tickTimes[23]));
+    }
+
+    static void TestReproducibleEarthStormScenariosAndLiveSwe(string resFolder, StringBuilder log)
+    {
+        var inv = CultureInfo.InvariantCulture;
+        byte[] Asset(string name) => File.ReadAllBytes(resFolder + name + ".bytes");
+        var surface = FlatGeographicSurface.Read(
+            Asset("EarthGlobalStraitShore"), Asset("EarthOceanShore"),
+            Asset("EarthMajorLakes"), Asset("EarthLakeDetail"), Asset("EarthPolarCoast"));
+        var riversBytes = Asset("EarthRivers");
+
+        foreach (int width in new[] { 256, 512 })
+        {
+            var campaignEarth = FlatGenerator.Generate(
+                width, width / 2, FlatStormScenarios.CanonicalEarthSeed, TerrainPreset.Earth, default,
+                Asset("Earth" + width), Asset("EarthWater" + width), riversBytes);
+            surface.Attach(campaignEarth);
+            campaignEarth.Day = 412.75; // Pre-existing player campaign date that must NEVER be mutated by demo preview!
+            campaignEarth.Cyclones = FlatCycloneWeather.SpinUpAt(campaignEarth, campaignEarth.Day);
+            byte[] campaignSaveBefore = FlatSave.Encode(campaignEarth);
+
+            // Verify non-Earth preset cleanly rejects Earth geographic storm scenarios without mutating world
+            var nonEarth = FlatGenerator.Generate(64, 32, "NON-EARTH-CHECK", TerrainPreset.Continents, default);
+            double nonEarthDay = nonEarth.Day;
+            Check(!FlatStormScenarios.TryStart(nonEarth, FlatStormScenario.EastChinaSeaLandfall, out int badTile) && badTile == -1 && nonEarth.Day == nonEarthDay,
+                "Non-Earth world must cleanly reject Earth geographic scenario without mutating Day");
+
+            foreach (var scenario in new[] { FlatStormScenario.EastChinaSeaLandfall, FlatStormScenario.NorthAtlanticLandfall })
+            {
+                // 6a. Isolated scenario world creation must leave campaignEarth (Day 412.75 & save bytes) 100% untouched
+                bool created = FlatStormScenarios.TryCreateScenarioWorld(
+                    campaignEarth, scenario, out var simWorld, out int coastalTile, out var plan);
+                Check(created && simWorld != null && coastalTile >= 0, $"Failed to create {scenario} on Earth {width}");
+                Check(campaignEarth.Day == 412.75 && campaignSaveBefore.AsSpan().SequenceEqual(FlatSave.Encode(campaignEarth)),
+                    $"TryCreateScenarioWorld mutated source campaign world during {scenario}!");
+
+                // Verify save/load byte-exactness of installed scenario world
+                FlatSave.Validate(simWorld);
+                byte[] scenarioSave = FlatSave.Encode(simWorld);
+                var decodedScenario = FlatSave.Decode(scenarioSave);
+                FlatSave.Validate(decodedScenario);
+                Check(scenarioSave.AsSpan().SequenceEqual(FlatSave.Encode(decodedScenario)),
+                    $"Scenario world save round-trip mismatch on {scenario}");
+
+                // 6b. Verify surface tangential wind m/s contract at StartDay (0 at eye center, ~WindSpeed near RMW, 0 in far field)
+                var initTrack = simWorld.Cyclones.North;
+                var eyeSample = FlatStormScenarios.SampleSurfaceWind(simWorld, initTrack.U, initTrack.V, simWorld.Day);
+                double cosLat = Math.Cos((initTrack.V - 0.5) * Math.PI);
+                double duRmw = (58.0 / (40030.2 * Math.Max(0.2, cosLat)));
+                var rmwEastSample = FlatStormScenarios.SampleSurfaceWind(simWorld, FlatScrollMath.Wrap(initTrack.U + duRmw, 1.0), initTrack.V, simWorld.Day);
+                var farSample = FlatStormScenarios.SampleSurfaceWind(simWorld, FlatScrollMath.Wrap(initTrack.U + 0.35, 1.0), initTrack.V, simWorld.Day);
+                Check(eyeSample.TangentialSpeedMs < 1.0f && eyeSample.PressureDeficitHpa > 15.0f,
+                    $"Eye center wind/pressure sample invalid: vTan={eyeSample.TangentialSpeedMs:F2}, dP={eyeSample.PressureDeficitHpa:F2}");
+                Check(rmwEastSample.Active && rmwEastSample.TangentialSpeedMs > initTrack.WindSpeed * 0.75 && rmwEastSample.NorthMs > 0f,
+                    $"NH east-eyewall cyclonic wind must blow northward (+NorthMs): vTan={rmwEastSample.TangentialSpeedMs:F2}, N={rmwEastSample.NorthMs:F2}");
+                Check(!farSample.Active && farSample.TangentialSpeedMs == 0f && farSample.PressureDeficitHpa == 0f && farSample.RainRateMmPerHour == 0f,
+                    "Far-field surface cyclone wind sample must be strictly zero");
+
+                // 6c. No-storm control on the exact same anchored coastal 64x64 patch: strictly zero fake tide or continuous water injection!
+                var calmWorld = simWorld.Clone();
+                surface.Attach(calmWorld);
+                calmWorld.Cyclones = new FlatCycloneWeather { StepIndex = FlatCycloneWeather.StepAt(calmWorld.Day) };
+                var calmSession = FlatWaterHazardSession.Create(calmWorld, FlatHazardKind.TyphoonSurge, coastalTile, liveWeatherDriven: true, applyInitialForcing: true);
+                for (int k = 0; k < 25; k++)
+                    calmSession.Step(24.0, default, maxSubsteps: 32, externalSurfaceRainKgM2Per6h: 0.0);
+                var calmMetrics = calmSession.CaptureMetrics();
+                Check(calmMetrics.InundatedDryCells == 0 && Math.Abs(calmMetrics.MaxSurfaceAnomalyMeters) < 1e-9 &&
+                      calmMetrics.RainInputVolumeM3 == 0.0 && calmMetrics.ChannelInflowVolumeM3 == 0.0 &&
+                      calmMetrics.BoundaryInflowVolumeM3 < 1e-9 && calmMetrics.RelativeMassError < 1e-12,
+                    $"LiveWeatherDriven session invented fake tide/flood without a storm! inund={calmMetrics.InundatedDryCells}, anom={calmMetrics.MaxSurfaceAnomalyMeters:E3}");
+
+                // 6d. End-to-end coupled forward evolution: pure FlatSimulation.Step(0.25f) + real-time 64x64 SWE + FlatMoistureCloudBudget surface rain!
+                var mainlandMask = FlatStormScenarios.BuildContinentalMainlandMask(simWorld);
+                var sim = new FlatSimulation(simWorld);
+                var liveSwe = FlatWaterHazardSession.Create(simWorld, FlatHazardKind.TyphoonSurge, coastalTile, liveWeatherDriven: true, applyInitialForcing: true);
+                var rainBudget = new FlatMoistureCloudBudget();
+                double uPatch = FlatScrollMath.Wrap((liveSwe.PatchX + liveSwe.SpanTiles * 0.5) / simWorld.Width, 1.0);
+                double vPatch = FMath.Clamp((float)((liveSwe.PatchY + liveSwe.SpanTiles * 0.5) / simWorld.Height), 0.01f, 0.99f);
+
+                int preLandfallInundated = -1;
+                double preLandfallDepth = 0.0;
+                int peakInundated = 0;
+                double peakDepth = 0.0, peakAreaKm2 = 0.0, peakMeanWetBed = 0.0, peakMeanDryAdjBed = 0.0, peakDryWaterSum = 0.0;
+                double worstRelMassErr = 0.0;
+                bool hitMainland = false;
+                double actualLandfallDay = -1.0, actualLandfallLon = 0.0, actualLandfallLat = 0.0;
+                double windAtStart = initTrack.WindSpeed, windPeakOcean = initTrack.WindSpeed, windPreLandfall = initTrack.WindSpeed, windAtLandfall = 0.0, windPost24h = 999.0;
+                int oceanTicks = 0, postLandfallTicks = 0;
+
+                // Advance 18 six-hour weather steps (4.5 days total: offshore approach -> mainland landfall -> inland dissipation & coastal surge recession)
+                const int totalWeatherTicks = 18;
+                for (int tick = 0; tick <= totalWeatherTicks; tick++)
+                {
+                    if (tick > 0) sim.Step(0.25f);
+                    double nowDay = simWorld.Day;
+                    var tr = simWorld.Cyclones.Sample(true, nowDay);
+                    double lon = (tr.U - 0.5) * 360.0, lat = (tr.V - 0.5) * 180.0;
+                    if (tr.Tracked)
+                    {
+                        FlatStormScenarios.ClassifyEarthSurface(simWorld, lon, lat, mainlandMask, out _, out bool isOcean, out bool isMain, out _, out _);
+                        if (!hitMainland)
+                        {
+                            if (isOcean)
+                            {
+                                oceanTicks++;
+                                if (tr.WindSpeed > windPeakOcean) windPeakOcean = tr.WindSpeed;
+                                windPreLandfall = tr.WindSpeed;
+                            }
+                            else if (isMain)
+                            {
+                                hitMainland = true;
+                                actualLandfallDay = nowDay;
+                                actualLandfallLon = lon;
+                                actualLandfallLat = lat;
+                                windAtLandfall = tr.WindSpeed;
+                            }
+                        }
+                        else
+                        {
+                            postLandfallTicks++;
+                            if (postLandfallTicks == 4) windPost24h = tr.WindSpeed;
+                        }
+                    }
+                    else if (hitMainland && postLandfallTicks < 4)
+                    {
+                        windPost24h = 0.0;
+                    }
+
+                    rainBudget.Solve(simWorld, nowDay, simWorld.Cyclones);
+                    var sfcDiag = rainBudget.SamplePrecipitation(uPatch, vPatch);
+
+                    // Step local 64x64 SWE over 150 hydrodynamic seconds per 6h synoptic frame (matching ~8s real gameplay at 18x SWE rate
+                    // so shelf surge waves at c=sqrt(g*h)~12 m/s physically propagate across the 7.7 km coastal bay during approach & recession)
+                    if (tick == 0)
+                    {
+                        var startTrack = simWorld.Cyclones.Sample(true, nowDay);
+                        for (int sub = 0; sub < 3; sub++)
+                            liveSwe.Step(20.0, startTrack, maxSubsteps: 32, externalSurfaceRainKgM2Per6h: sfcDiag.SurfacePrecipKgM2Per6h);
+                    }
+                    else
+                    {
+                        for (int sub = 0; sub < 5; sub++)
+                        {
+                            double subDay = nowDay - 0.25 + (sub + 1) * (0.25 / 5.0);
+                            var subTrack = simWorld.Cyclones.Sample(true, subDay);
+                            liveSwe.Step(30.0, subTrack, maxSubsteps: 32, externalSurfaceRainKgM2Per6h: sfcDiag.SurfacePrecipKgM2Per6h);
+                        }
+                    }
+
+                    var m = liveSwe.CaptureMetrics();
+                    if (m.RelativeMassError > worstRelMassErr) worstRelMassErr = m.RelativeMassError;
+                    Check(m.RelativeMassError < 1e-11, $"{scenario} Earth{width} SWE mass error={m.RelativeMassError:E3} at day={nowDay:F2}");
+
+                    double dryWater = 0.0;
+                    for (int ci = 0; ci < liveSwe.Solver.Count; ci++)
+                        if (!liveSwe.Solver.InitiallyWet[ci]) dryWater += liveSwe.Solver.Depth[ci];
+
+                    if (tick == 0)
+                    {
+                        preLandfallInundated = m.InundatedDryCells;
+                        preLandfallDepth = m.MaxFloodDepthMeters;
+                    }
+                    if (m.InundatedDryCells > peakInundated || (m.InundatedDryCells == peakInundated && m.MaxFloodDepthMeters > peakDepth))
+                    {
+                        peakInundated = m.InundatedDryCells;
+                        peakDepth = m.MaxFloodDepthMeters;
+                        peakAreaKm2 = m.InundatedAreaKm2;
+                        peakMeanWetBed = m.MeanInundatedBedMeters;
+                        peakMeanDryAdjBed = m.MeanDryAdjacentBedMeters;
+                    }
+                    if (dryWater > peakDryWaterSum) peakDryWaterSum = dryWater;
+                }
+
+                var endMetrics = liveSwe.CaptureMetrics();
+                double endDryWater = 0.0;
+                for (int ci = 0; ci < liveSwe.Solver.Count; ci++)
+                    if (!liveSwe.Solver.InitiallyWet[ci]) endDryWater += liveSwe.Solver.Depth[ci];
+
+                // Trajectory & mainland landfall assertions:
+                Check(hitMainland && oceanTicks >= 3 && windPreLandfall >= 33.0 && windPost24h <= windPreLandfall * 0.35,
+                    $"{scenario} Earth{width} failed mainland landfall or post-landfall decay: hit={hitMainland}, oceanTicks={oceanTicks}, preW={windPreLandfall:F1}, post24hW={windPost24h:F1}");
+                if (scenario == FlatStormScenario.EastChinaSeaLandfall)
+                {
+                    Check(actualLandfallLon >= 117.0 && actualLandfallLon <= 122.9 && actualLandfallLat >= 24.0 && actualLandfallLat <= 33.0,
+                        $"ECS scenario failed China Mainland target: ({actualLandfallLon:F2},{actualLandfallLat:F2})");
+                }
+                else
+                {
+                    Check(actualLandfallLon >= -97.5 && actualLandfallLon <= -78.5 && actualLandfallLat >= 25.2 && actualLandfallLat <= 35.5,
+                        $"North Atlantic scenario failed North American Mainland target: ({actualLandfallLon:F2},{actualLandfallLat:F2})");
+                }
+
+                // Coupled SWE 3-stage assertions (pre-landfall < peak, real flood depth/area, lower-bed guidance, post-storm recession):
+                Check(preLandfallInundated < peakInundated && peakInundated >= 18 && peakDepth >= 0.45,
+                    $"{scenario} Earth{width} SWE failed pre-landfall -> peak surge progression: pre={preLandfallInundated} ({preLandfallDepth:F2}m) -> peak={peakInundated} ({peakDepth:F2}m)");
+                Check(peakMeanWetBed < peakMeanDryAdjBed,
+                    $"{scenario} Earth{width} SWE flood violated terrain bed ordering: wetBed={peakMeanWetBed:F2}m >= dryAdj={peakMeanDryAdjBed:F2}m");
+                Check(endDryWater < peakDryWaterSum * 0.65 && endMetrics.InundatedDryCells < peakInundated && endMetrics.BoundaryOutflowVolumeM3 > 0.0,
+                    $"{scenario} Earth{width} SWE failed post-storm recession: peakCells={peakInundated} -> endCells={endMetrics.InundatedDryCells}, dryVolRatio={endDryWater / Math.Max(1e-6, peakDryWaterSum):P1}");
+
+                log.AppendLine(string.Format(inv,
+                    "PASS [6] Earth{0} {1,-22}: Start D{2:F2}({3:F2},{4:F2} {5:F1}m/s) -> OceanPeak {6:F1}m/s -> MainlandLandfall D{7:F2}({8:F2},{9:F2} tile={10}) {11:F1}->{12:F1}->24h:{13:F1}m/s | " +
+                    "SWE Pre={14}c({15:F2}m) -> Peak={16}c({17:F2}km2, {18:F2}m) -> Recede={19}c(vol -{20:P0}) | NoStorm=0c | MaxRelMassErr={21:E2}",
+                    width, scenario, plan.StartDay, plan.StartLonDeg, plan.StartLatDeg, windAtStart,
+                    windPeakOcean, actualLandfallDay, actualLandfallLon, actualLandfallLat, coastalTile,
+                    windPreLandfall, windAtLandfall, windPost24h,
+                    preLandfallInundated, preLandfallDepth, peakInundated, peakAreaKm2, peakDepth,
+                    endMetrics.InundatedDryCells, 1.0 - endDryWater / Math.Max(1e-6, peakDryWaterSum), worstRelMassErr));
+            }
+        }
     }
 }
